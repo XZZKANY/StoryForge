@@ -80,7 +80,8 @@ test('补丁上的确认位失败关闭：只有后端显式 false 才免点击'
 
   assert.equal(writableFilePatch(patchMessage({ ...base }))?.requires_confirmation, true);
   assert.equal(
-    writableFilePatch(patchMessage({ ...base, requires_confirmation: true }))?.requires_confirmation,
+    writableFilePatch(patchMessage({ ...base, requires_confirmation: true }))
+      ?.requires_confirmation,
     true,
   );
   assert.equal(
@@ -107,6 +108,7 @@ test('Composer 带权限选择器，运行中锁定本轮启动时的档位', ()
       onChange={() => undefined}
       onSubmit={() => undefined}
       onAddContext={() => undefined}
+      onTogglePinnedContext={() => undefined}
       onPermissionProfileChange={() => undefined}
     />,
   );
@@ -114,4 +116,6 @@ test('Composer 带权限选择器，运行中锁定本轮启动时的档位', ()
   assert.match(html, /data-testid="permission-profile-selector"/);
   assert.match(html, /自动/); // 当前档位显示在按钮文案里
   assert.match(html, /disabled=""/); // busy 时禁用
+  assert.match(html, /aria-label="固定当前文件为参考：正文\/第07章\.md"/);
+  assert.match(html, /group-focus-within\/focus:inline/);
 });

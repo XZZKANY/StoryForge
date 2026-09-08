@@ -50,6 +50,20 @@ function buildSnippet(
   };
 }
 
+/** Map lowercase UTF-16 units back to complete source code points. */
+function lowercaseSourceRanges(line: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  let start = 0;
+  for (const character of line) {
+    const end = start + character.length;
+    for (let unit = 0; unit < character.toLowerCase().length; unit += 1) {
+      ranges.push({ start, end });
+    }
+    start = end;
+  }
+  return ranges;
+}
+
 /**
  * 在一份文件内容里找出所有命中。空查询 / 过短查询返回空数组（调用方不该发起搜索）。
  * 逐行扫描而不是对全文做 indexOf：行号是结果里最有用的信息，跳转要靠它。
@@ -72,12 +86,17 @@ export function findHitsInContent(
   for (let index = 0; index < lines.length; index += 1) {
     const rawLine = lines[index].replace(/\r$/, '');
     const haystack = caseSensitive ? rawLine : rawLine.toLowerCase();
+    // Keep whole-line casing (including contextual sigma). Only expanded lines need a map.
+    const sourceRanges =
+      haystack.length === rawLine.length ? undefined : lowercaseSourceRanges(rawLine);
     let cursor = 0;
     while (cursor <= haystack.length - needle.length) {
       const found = haystack.indexOf(needle, cursor);
       if (found === -1) break;
       if (hits.length >= maxHits) return { hits, truncated: true };
-      const snippet = buildSnippet(rawLine, found, found + query.length);
+      const matchStart = sourceRanges?.[found].start ?? found;
+      const matchEnd = sourceRanges?.[found + needle.length - 1].end ?? found + needle.length;
+      const snippet = buildSnippet(rawLine, matchStart, matchEnd);
       hits.push({ line: index + 1, ...snippet });
       cursor = found + needle.length;
     }

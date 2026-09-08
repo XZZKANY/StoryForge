@@ -1,13 +1,22 @@
+import { useLayoutEffect, useRef } from 'react';
+import { useComposerScope } from './useComposerScope';
 import { emitToast } from '../../lib/toast';
 import { ComposerBox } from './Composer';
 import { ChapterBriefCard } from './ChapterBriefCard';
 import { runStatusText } from './display-utils';
-import { ConversationHeader, LightweightStatus, MessageList, RunActionBar } from './panels';
+import {
+  ConversationHeader,
+  LightweightStatus,
+  MessageList,
+  RunActionBar,
+  SessionLoading,
+} from './panels';
 import type { AgentRunControlHandlers, ChatWindowProps } from './types';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { ChatWindowState } from './useChatWindowState';
 
 type Props = {
+  confirmDiscardInput?: (action: string) => Promise<boolean>;
   state: ChatWindowState;
   projectPath: ChatWindowProps['projectPath'];
   assistantSessionId: ChatWindowProps['assistantSessionId'];
@@ -31,6 +40,7 @@ type Props = {
 };
 
 export function ChatWindowView({
+  confirmDiscardInput,
   state,
   projectPath,
   assistantSessionId,
@@ -51,10 +61,60 @@ export function ChatWindowView({
   retryLastFailedRun,
   agentRunControls,
 }: Props) {
+  const { composerKey, resetComposer } = useComposerScope(
+    projectPath,
+    assistantSessionId,
+    state.selfPersistedSessionIdRef,
+  );
+  const navigationPendingRef = useRef(false);
+  const navigationScopeRef = useRef<object | null>(null);
+  useLayoutEffect(() => {
+    navigationScopeRef.current = {};
+    return () => {
+      navigationScopeRef.current = null;
+    };
+  }, [projectPath, assistantSessionId, state.input]);
+  const navigateConversation = (action: string, commit: () => void) => {
+    if (navigationPendingRef.current) return;
+    if (!state.input.trim()) {
+      commit();
+      return;
+    }
+    if (!confirmDiscardInput) {
+      emitToast('请先发送或清空输入框，再切换会话。', { tone: 'info' });
+      return;
+    }
+    const scope = navigationScopeRef.current;
+    navigationPendingRef.current = true;
+    void (async () => {
+      try {
+        const approved = await confirmDiscardInput(action);
+        if (approved && scope !== null && scope === navigationScopeRef.current) commit();
+      } catch {
+        emitToast('未能完成会话切换确认，已保留当前输入。', { tone: 'error' });
+      } finally {
+        navigationPendingRef.current = false;
+      }
+    })();
+  };
+  const newConversation = () =>
+    navigateConversation('新建会话', () => {
+      resetComposer();
+      handleNewSession();
+    });
+  const selectConversation = (id: number) => {
+    if (id === assistantSessionId) return;
+    navigateConversation('切换会话', () => handleSelectSession(id));
+  };
   const statusText = runStatusText(state.agentRun);
   // 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉当前 run，
   // 并让编辑器里尚未处理的补丁失去对应操作条。先完成本轮作者决策再允许发送。
   const awaitingConfirm = Boolean(state.chapterBrief) || state.agentRun?.status === 'waiting';
+  const waitingForPermission = Boolean(
+    state.agentRun?.steps.some(
+      (step) => step.id === 'permission-required' && step.status === 'waiting',
+    ),
+  );
   // 第14条：run 控制统一到 RunActionBar，运行/等待/暂停三态都显示操作条；completed 的
   // 「本轮已完成。」不再长驻（完成已在回复里）；只有 failed / stopped 留轻状态条收尾。
   const runStatus = state.agentRun?.status;
@@ -66,11 +126,17 @@ export function ChatWindowView({
     ? (state.agentRun?.permissionProfile ?? agentPermissionProfile)
     : agentPermissionProfile;
   const submitGuarded = async () => {
+    if (state.sessionLoading) {
+      emitToast('会话仍在加载，完成后再发送下一条', { tone: 'info' });
+      return;
+    }
     if (awaitingConfirm) {
       emitToast(
         state.chapterBrief
           ? '先确认或取消 Chapter Brief，再发下一条'
-          : '先处理下方待确认的修订（接受或拒绝），再发下一条',
+          : waitingForPermission
+            ? '先批准或拒绝权限请求，再发下一条'
+            : '先处理下方待确认的修订（接受或拒绝），再发下一条',
         { tone: 'info' },
       );
       return;
@@ -83,8 +149,8 @@ export function ChatWindowView({
         title={state.conversationTitle}
         sessions={state.assistantSessions}
         activeSessionId={assistantSessionId ?? null}
-        onSelectSession={handleSelectSession}
-        onNewSession={handleNewSession}
+        onSelectSession={selectConversation}
+        onNewSession={newConversation}
         layoutMode={layoutMode}
         onSetLayoutMode={onSetLayoutMode}
         onOpenObservatory={onOpenObservatory}
@@ -95,6 +161,8 @@ export function ChatWindowView({
         <div
           className="flex flex-shrink-0 items-center gap-3 border-b border-warning bg-panel px-4 py-2 text-xs text-warning"
           data-testid="assistant-session-load-error"
+          role="alert"
+          aria-live="assertive"
         >
           <span className="min-w-0 flex-1 break-words">{state.sessionLoadError}</span>
           <button
@@ -108,24 +176,28 @@ export function ChatWindowView({
         </div>
       )}
 
-      <MessageList
-        messages={state.messages}
-        projectName={state.projectName}
-        currentFileLabel={state.contextRef}
-        agentRun={state.agentRun}
-        agentRunRecovery={state.agentRunRecovery}
-        writingRunProjection={state.writingRunProjection}
-        explicitContextPaths={state.explicitContextPaths}
-        contextCandidates={state.contextCandidates}
-        contextCandidatesLoading={state.contextCandidatesLoading}
-        contextCandidatesError={state.contextCandidatesError}
-        contextPickerOpen={state.contextPickerOpen}
-        lastContextBundle={state.lastContextBundle}
-        missingContextPaths={state.missingContextPaths}
-        onAddContext={addExplicitContext}
-        onTogglePinnedContext={togglePinnedContext}
-        onRetryContextCandidates={retryContextCandidates}
-      />
+      {state.sessionLoading ? (
+        <SessionLoading sessionId={assistantSessionId ?? null} />
+      ) : (
+        <MessageList
+          messages={state.messages}
+          projectName={state.projectName}
+          currentFileLabel={state.contextRef}
+          agentRun={state.agentRun}
+          agentRunRecovery={state.agentRunRecovery}
+          writingRunProjection={state.writingRunProjection}
+          explicitContextPaths={state.explicitContextPaths}
+          contextCandidates={state.contextCandidates}
+          contextCandidatesLoading={state.contextCandidatesLoading}
+          contextCandidatesError={state.contextCandidatesError}
+          contextPickerOpen={state.contextPickerOpen}
+          lastContextBundle={state.lastContextBundle}
+          missingContextPaths={state.missingContextPaths}
+          onAddContext={addExplicitContext}
+          onTogglePinnedContext={togglePinnedContext}
+          onRetryContextCandidates={retryContextCandidates}
+        />
+      )}
 
       {state.chapterBrief && (
         <div className="flex-shrink-0 border-t border-border bg-background px-5 py-3">
@@ -134,6 +206,7 @@ export function ChatWindowView({
               brief={state.chapterBrief}
               onConfirm={agentRunControls.onConfirmChapterBrief ?? (() => undefined)}
               onCancel={agentRunControls.onDenyPermission}
+              busy={agentRunControls.busy}
             />
           </div>
         </div>
@@ -154,8 +227,10 @@ export function ChatWindowView({
       )}
 
       <ComposerBox
+        key={composerKey}
         value={state.input}
-        disabled={!projectPath}
+        disabled={!projectPath || state.sessionLoading}
+        loading={state.sessionLoading}
         busy={state.agentBusy}
         currentFileLabel={state.contextRef}
         explicitContextPaths={state.explicitContextPaths}

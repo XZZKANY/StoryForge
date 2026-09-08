@@ -39,6 +39,16 @@
 - 独立只读代码审查无阻断，额外补齐 StrictMode 与 status 等待窗口测试；`git diff --check` 通过。更新项目异步状态规范及子任务复盘，避免仅修 effect 而漏掉命令回调。
 - 未验证：本轮未执行真机 Tauri GUI、冻结安装包、真实 provider 或文学质量验收，也未推进 Agent 末次回答取消修复。不能将单元测试或本地核心门禁外推成上述验收通过。
 
+## 2026-09-05 项目多角度优化：只读审查与规划
+
+- 任务：`.trellis/tasks/09-05-project-multidimensional-optimization/`，状态 `planning`。用户明确要求先规划、再确认第一批实现；已生成 PRD、design、implement 及 research/review，未激活实现。
+- 两名只读审查 agent 分别核对 Desktop 拆书命令生命周期与 Agent 末次回答取消窗口。发现均为源码候选，尚未新增失败回归，不宣称已经复现或修复。首批建议仅处理拆书跨项目迟到回调，后续取消一致性、性能和发布/写作验收各自确认。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck` -> exit 0。
+- `npm.cmd --prefix apps/desktop/frontend run test` -> 90 files / 582 passed，18.48 秒。
+- `npm.cmd --prefix apps/desktop/frontend run build` -> exit 0，22.39 秒；Monaco chunk 3,337.88 kB / gzip 859.55 kB，主业务 chunk 576.33 kB / gzip 176.30 kB。有大 chunk 与 Tauri event 动静态混合导入警告；不是构建失败，也不直接证明实际启动或输入延迟。
+- `git diff --check` -> passed。没有修改生产/测试源码；9 个原有未提交文件保留，报告仅新增本段，构建输出仍是忽略资产。Trellis 规划保留本地，不强制纳入 Git。
+- 未验证：两项新候选的行为复现、API/Rust 全量、根总门禁、性能 trace、真机 Tauri 写回、真实 provider、文学质量和远端 CI。本轮没有访问真实小说或调用 provider；不外推历史 GUI/LLM 证据。
+
 ## 2026-09-05 提交收尾与 Linux 符号链接补验
 
 - 用户确认后完成三批本地提交：`fd7a7fa6` 文件工具边界与预算、`7e00aae0` API/lint 与拆书报告状态、`5eea3765` 状态文档与验证证据。仅提交本轮内容，其他清理代码及报告段落仍留在工作区，未推送。
@@ -93,6 +103,46 @@
 - `git diff --check`：通过；任务目录文档已通过 Get-Content 回读确认存在。
 - 未验证：行为测试、Ruff、契约与冻结 sidecar。当前仅规划，生产代码尚未修改，不能宣称漏洞已修复。
 - 原有工作区改动保留，以下既有报告内容不变。
+
+# 验证报告 · 清理孤立符号与收窄缓存异常
+
+时间：2026-09-05
+
+## 范围
+
+删除 API 内无仓内消费者的 `envelope_from_items`、`S3UploadError`、`DisabledRerankerClient` 和两个 LLM 配置公共别名；将 Artifact 缓存 DTO 解析从裸 `Exception` 收窄为 `pydantic.ValidationError`。保留 `record_workflow_model_run_payload`、BookRun dispatch aliases、workflow-dispatch 路由/DTO 和全部安全护栏。
+
+## 验证
+
+```text
+cd apps/api && uv run pytest tests/test_source_pruning.py tests/test_redis_cache_strategy.py tests/test_retrieval_real_providers.py tests/test_model_runs.py tests/test_book_run_workflow_dispatch.py -q
+-> 67 passed
+
+cd apps/api && uv run pytest tests/test_pagination.py tests/test_s3_integration.py tests/test_llm_config_file_override.py -q
+-> 16 passed, 2 skipped
+
+cd apps/api && uv run ruff check app tests
+-> All checks passed
+
+UV_CACHE_DIR=D:\StoryForge\.codex\tmp\uv-cache pnpm.cmd check:drift
+-> OpenAPI 契约无漂移
+
+git diff --check
+-> passed
+```
+
+全仓检索确认已删除符号只出现在 source-pruning 的反向断言中；未发现生产、测试或动态导入引用。
+
+## 全量回归
+
+`cd apps/api && uv run pytest -q` 返回 `1545 passed, 4 skipped, 13 failed`。失败项均不涉及本轮修改：1 项是既有 `chapter.polish` intent 基线差异，12 项是 `.codex/validate-real-llm-long-evidence.ps1` 的 PowerShell ParserError。
+
+## 未验证项
+
+- 真实 MinIO 集成测试按默认配置跳过。
+- 未运行 Desktop/Rust 全量套件；本批次未修改 OpenAPI DTO、Desktop 或 Rust。
+
+---
 
 # 验证报告 · 移除无项目态的功能阻挡
 
@@ -2374,3 +2424,952 @@ git diff --check -> passed
 Rust 本次尝试因 Cargo 首次下载 `tempfile` 时用户缓存权限/网络受限而中止；未发现代码编译错误。此前同一清理批次已验证 `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> 41 passed, 1 ignored`，本次不重复扩大环境权限范围。
 
 复核修正：`.codex/run-real-llm-acceptance-interactive.ps1` 仍被 API 测试读取，因此恢复 `.gitignore` 对该 wrapper 的跟踪例外；已删除并发 runner 的例外继续移除。删除 `apps/workflow` 相关代码不影响历史文档、迁移 ledger、`workflow-dispatch` 路由、`BookRunWorkflow*` schema 或 `workflow_nodes` 兼容字段。
+
+### 2026-09-06 Desktop UI/UX 首轮规划审查
+
+范围：仅创建本地 Trellis 规划与截图证据，任务保持 planning。产品源码、测试、provider 配置和项目手稿未修改；本报告只追加，保留原有未提交内容。
+
+证据：`D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/audit.md`。
+
+验证：
+- `npm.cmd --prefix apps/desktop/frontend run dev -- --host 127.0.0.1`：Vite 6.4.3 预览；1280×720 默认视口与 1024×768 最小桌面窗口审查。
+- 浏览器正常刷新后可复现：欢迎页“命令面板”进入文件搜索空态；设置弹窗 Shift+Tab 可落入背景欢迎页复选框。已保存截图及 DOM/焦点 JSON，未注入 mock runtime。
+- `npm.cmd --prefix apps/desktop/frontend run test -- tests/settings-view.test.tsx tests/welcome-page.test.tsx tests/shortcuts.test.tsx tests/side-panel-resize.test.tsx tests/shell-panel-views.test.tsx tests/patch-review-panel.test.tsx tests/permission-profile-selector.test.tsx tests/behavior/writeback-guard.vitest.ts tests/behavior/agent-session-guard.vitest.ts tests/behavior/event-bus-contract.vitest.ts`：10 files / 78 passed，7.66s。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`：通过。
+- `git diff --check`：通过。
+
+边界：以上是既有测试基线，无新增产品修复。未启动 API/Tauri/真实 provider；“本地服务 · 连接中断”来自纯前端预览环境，不计产品缺陷。未做生产构建、全量门禁、浅色/系统缩放验收、真实项目编辑/保存/diff 写回或长篇质量验收。窄窗口编辑区宽度仅为代码约束推断，尚未在项目态渲染复现。
+
+2026-09-06 规划续记：用户确认“保留 IDE 骨架，渐进优化”。已同步至本地 PRD 与审查结论；首批场景优先级尚待确认，任务继续 planning。本次仅更新规划文档，`git diff --check` 通过，未改产品代码或重跑行为测试。
+
+### 2026-09-06 Desktop UI/UX 首批实施与复验
+
+用户已选择“保留 IDE 骨架，渐进优化”并要求开始。本轮仅实现欢迎页/设置 UX-01—UX-05：欢迎命令入口改 commands、空 explorer 让出空间、作者视角说明、设置焦点/表单可访问性与可展开技术详情。保存/探测函数、Agent/权限/写回契约未变，保留原有未提交后端与文档改动。
+
+验证命令与结果：
+- `npm.cmd --prefix apps/desktop/frontend run test -- tests/welcome-page.test.tsx tests/settings-accessibility.test.tsx tests/settings-view.test.tsx tests/app.test.tsx tests/shortcuts.test.tsx tests/side-panel-resize.test.tsx tests/shell-panel-views.test.tsx`：7 files / 50 passed。
+- `npm.cmd --prefix apps/desktop/frontend run test`：最终 92 files / 615 passed。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`、`pnpm.cmd lint`：通过，最终无 ESLint 告警。
+- `npm.cmd --prefix apps/desktop/frontend run build`：通过；保留 Tauri event 混合导入与 chunk 大小告警，不压制。
+- `node --check apps/desktop/frontend/scripts/verify-smoke.mjs`：通过；独立浏览器 smoke 脚本仅同步断言/语法检查，未运行。实际浏览器复验使用隔离 Vite 预览。
+- `pnpm.cmd verify`：exit 0；Shared 类型通过，project-core 7 passed，Desktop 615 passed，API 1592 passed / 7 skipped / 6 warnings，Ruff 通过，独立临时库 daily sidecar 零 LLM 冒烟通过，OpenAPI 无漂移。API 既有弃用/测试 key 长度告警保留。
+- `git diff --check`：通过。
+
+渲染证据：1024×768 与 1440px 常规宽度、深浅两主题复验；最小窗口欢迎区 740px→976px，说明 11px→12px。欢迎命令/文件搜索分流、刷新后设置焦点环绕/恢复、无项目说明入口、技术详情搜索/展开均实际操作确认。截图为原始 JPEG；常规宽度截图实际为 1440×838，未伪称全高 1440×900 截图。
+
+详细结果和原图入口：`D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/implementation-verification.md`。总门禁原始日志：`D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/pnpm-verify.log`。
+
+未验证：真机 Tauri/WebView2、多轮真实 provider、真实项目打开/保存/diff 写回、系统缩放/屏幕阅读器/真实 IME、C-01/C-02 与长篇质量。浏览器没有连接真实后端，断连状态不计新增故障；总门禁的 sidecar 在独立临时环境运行。已恢复预览主题/视口并关闭本任务标签、停止本任务 Vite。代码未提交；Trellis finish-work 停在未提交检查，不自动提交、归档或改动其他任务。
+
+### 2026-09-06 Desktop UI/UX 第二批阶段复验
+
+本轮新增：项目打开异常接入现有可见弹窗（取消/切换守卫语义不变）；左侧栏支持 Tab、方向键/Shift 调宽、Home/End 和 Enter 复位；欢迎样例卡名称与原生实际生成的“StoryForge 示例项目”一致。不改 API、provider、权限或写回链路，保留所有已有未提交改动。
+
+验证命令与结果：
+- 定向 `npm.cmd --prefix apps/desktop/frontend run test -- tests/project-open-feedback.test.tsx tests/side-panel-resize.test.tsx`：2 files / 11 passed；新增错误反馈和键盘回归均先失败再修复。
+- `npm.cmd --prefix apps/desktop/frontend run test`：最终 93 files / 620 passed（19:45:25，8.41s）。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`、`npm.cmd --prefix apps/desktop/frontend run build`：通过；构建保留原有混合导入/chunk 告警。
+- `pnpm.cmd exec eslint . --ignore-pattern '**/native-ui-20260906-192750/webview/**'`：通过；仅排除本次隔离 WebView 生成缓存的诊断检查，不是原样门禁。
+- `pnpm.cmd exec prettier --check "apps/desktop/frontend/src/**/*.{ts,tsx}" "packages/shared/src/**/*.ts" "scripts/**/*.mjs"`：通过。
+- `cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml`：通过；原生验收临时观察分支已还原，最终重新构建通过（18.10s），Rust 源码无 diff。
+- `node --check apps/desktop/frontend/scripts/verify-smoke.mjs`、`git diff --check`：通过。
+- **原样 `pnpm.cmd lint` / `pnpm.cmd verify` 未通过**：eslint 扫到本轮任务隔离目录 `webview/EBWebView/Subresource Filter/Unindexed Rules/10.34.0.84/adblock_snippet.js`，10 个生成代码错误；verify 停在首道门禁，后续 API 等门禁本轮未重跑。尝试有路径边界检查的单一缓存清理被执行环境拒绝，保留缓存，未绕过拒绝或修改检查配置。
+
+原生证据：获用户允许后，在独立配置、SQLite、WebView profile 和任务自有样例目录启动当前 debug 构建，通过真实样例按钮/目录选择器创建并打开正文，正常窗口 1402×880。没有写入真实手稿、填写 provider key 或发起模型请求。GUI/隔离后端已关闭，临时 Rust 改动已撤销；**最小窗口拖拽未取得可靠证据，C-01 仍未解决**。纯浏览器实测侧栏值与实际宽度、Tab 可达、刷新后保持 350px、复位 340px；浏览器错误弹窗因缺少 Tauri invoke 触发，仅验证展示，不计原生故障。
+
+详细步骤、命令与边界：`D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/second-batch-verification.md`。原生截图 `research/native-book-before-wide.png`，本轮预览原图 `research/13-open-project-error-preview.jpg` 至 `research/15-welcome-sample-title.jpg`。预览标签与 Vite 已关闭。未做 GUI diff 写回、多轮真实 provider、系统缩放/屏幕阅读器验收；任务继续 in_progress，代码未提交、未归档。
+
+### 2026-09-06 写作区自适应与补丁头部续进
+
+实现项目态 420px 主区、320—384px 弹性 Agent、只限制显示而不覆盖保存值的侧栏上限；拖拽和方向键从真实显示宽度起算，取消/卸载清理监听。补丁说明和操作组在窄栏换行，保留四个动作与原回调，补分组/展开/拒绝输入语义。无 API/权限/provider/写回契约变化。
+
+- 真实 App 挂载回归确认项目选择后 1024↔1440 resize、Ctrl+3/1/2 实际模式切换、Editor/Agent 节点及状态计数器保留、保存的侧栏偏好不变；重型叶子替换为测试计数器，网络明确失败，不冒充真实 Monaco/Agent 验收。
+- 显式标注的无后端组件夹具复用真实 SidePanel/AssistantPanelFrame/PatchReviewPanel：1024px 的侧/中/右为 236/420/320，无工作区横向溢出；1440px 为 420/588/384，保存偏好始终 420。窄栏补丁说明宽度约 156→396px，操作可达、回调可确认但不写文件。测试 HTML 未进入生产 dist。
+- `npm.cmd --prefix apps/desktop/frontend run test`：最终 **95 files / 627 passed**（20:09:52，7.72s）；定向 3 files / 24 passed。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`、前端 production build、原范围 Prettier check、`git diff --check`：通过。构建原有混合导入/chunk 告警保留。
+- `pnpm.cmd exec eslint . --ignore-pattern '**/native-ui-20260906-192750/webview/**'`：通过，仍只是排除单一旧运行缓存的诊断检查。
+- 原样 `pnpm.cmd verify`：**未通过**，仍在 lint 扫到旧 WebView adblock_snippet.js 的 10 个错误，后续门禁没有执行。日志 `D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/pnpm-verify-layout.log`。未修改门禁配置，未绕过已被拒绝的缓存清理。
+- 固定 1024×768 的临时原生观察构建通过，但隔离启动命令被执行环境拒绝；未使用其他工具重试。临时 Rust 改动已还原并重新构建通过（14.07s），源码无 diff。本轮未实际接管桌面；57506 无监听，Vite/浏览器夹具已关闭且临时视口 reset。
+
+详细步骤、截图和边界：`D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/layout-verification.md`。AC14 组件补丁布局完成，AC11 原生最小窗口/真实编辑状态和 AC12 完整门禁仍未完成；没有把组件夹具当作真机 GUI、真实 provider 或 diff 写回验收。保留未提交修改，不归档或缩小持续目标。
+
+### 2026-09-06 完成性审查与剩余门禁补验
+
+本轮无产品源码修改。复查 PRD R1—R15、AC1—AC14、当前工作树和关键证据后，保留 AC11（原生项目态最小窗口/真实状态）与 AC12（原样完整门禁）未完成。前一回合为真实实现/渲染进展，本轮补跑被 lint 提前退出挡住的门禁，不扩展新功能或缩小目标。
+
+本轮实际执行：
+- 前端 typecheck 通过；全量 **95 files / 627 passed**（20:16:36，7.87s）。
+- 原样 `pnpm.cmd verify` 仍 exit 1：本任务旧 WebView 缓存 adblock_snippet.js 的 10 个 lint 错误，与前两回合一致。日志 `research/pnpm-verify-final-audit.log`。
+- 独立执行剩余门禁：Shared tsc 通过，project-core **7 passed**；API `uv run pytest` **1592 passed / 7 skipped / 6 warnings**（228.99s）；Ruff 通过；daily sidecar 独立临时 SQLite/54527 端口、零 LLM 冒烟通过；OpenAPI/实时帧 schema/类型刷新无漂移。
+- `node --check apps/desktop/frontend/scripts/verify-smoke.mjs`、`git diff --check` 通过。未额外跑 GUI smoke、packaged sidecar、pnpm e2e 或真实 LLM/写回。上轮 production build/源码诊断 ESLint/Prettier 结果保留，本轮没有再次执行这些项。
+- sidecar 验收端口及 UI 验收端口均无监听，临时 smoke 根已移除；原生源码与观察前备份 SHA256 一致，Rust 与生成契约无 diff。
+
+分项通过不能替代原样 verify 成功。旧缓存阻碍已连续三个目标回合复现，前次清理被执行环境拒绝；未通过其他方式清理、移动或改规则绕过。原生隔离启动也曾被拒绝，目前没有新原生验收证据。已没有可通过继续改本轮前端代码消除的已知验收阻碍，持续目标标记受阻，等待用户/环境协助，不标记完成、不提交或归档。
+
+逐项审查、完整日志索引、精确缓存路径和恢复条件：`D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/completion-audit.md`。
+
+### 2026-09-07 UI/UX 接手：补齐原生布局与完整门禁
+
+工作树：`C:/Users/kanye/.codex/worktrees/d84b/StoryForge`，`8b10ad2e` + 已迁移的未提交修改。接续原 UI/UX 任务；本轮无新增产品行为，不提交或归档。
+
+- 原样 `pnpm.cmd verify` 全通过：Desktop **95 files / 627 tests**、API **1592 passed / 7 skipped**（226.87s）、project-core **7 tests**、Shared、Ruff、daily sidecar 及契约漂移检查通过。日志 `.codex/uiux-native/verify-20260907.log`。
+- 首次门禁因新 worktree 未包含 `.codex/run-real-llm-long-direct.py` 导致 15 个 FileNotFoundError；已从 `D:/StoryForge` 原样补回后完整重跑。该脚本仍是未跟踪的本地测试依赖，不宣称干净 clone 可直接通过。没有修改 lint 规则或删除原仓库 WebView 缓存。
+- `npm.cmd --prefix apps/desktop/frontend run build` 通过，保留既有 chunk/混合导入告警；依赖按现有锁文件恢复，无锁文件 drift。
+- 真实 Tauri 客户区 **1024×768**：侧栏/编辑器/Agent 为 **236/420/320px**，无横向溢出。三种布局、最大化 **2560×1392** 与还原均保持真实 Monaco 未保存修改、Agent 未发送草稿和原 textarea 挂载；保存的 402px 侧栏只被临时夹限，放大后恢复。
+- 原生独立配置/SQLite/WebView profile 和样例均在 `.codex/uiux-native/`；没有调用真实模型、读取真实小说或确认补丁写回。重启后浅色主题最小窗口复验通过。
+- 一次设置菜单操作期间出现 WebView 退出、黑屏和 CDP 断开；主进程/API 未退出，无相应 Windows 崩溃记录。重启后未复现，原因未定位，保留为稳定性观察项，不声称已修复。
+
+AC11（布局/状态）与 AC12（当前工作树门禁）已有新增证据；完整创作工作流、真实 provider/补丁写回和稳定性仍不作通过声明。详情 `.codex/uiux-native/acceptance-20260907.md`；原生截图及几何状态在 `output/playwright/uiux-20260907/`。
+
+收尾：临时 Rust 入口已还原，`cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml --target-dir D:/StoryForge/apps/desktop/src-tauri/target` 通过（27.87s），原生程序已关闭，独立 API/CDP 端口 51755/51756/56943/56944 无监听。Rust/OpenAPI 无 diff，`git diff --check` 通过。旧 3007 验收服务已停止，当前工作树前端预览在 `http://127.0.0.1:3008/`（PID 37984，纯前端预览）。本轮 `.codex/uiux-native/webview` 的精确路径清理被自动审批以 `blocked by policy` 拒绝，未换方式删除；缓存原位保留，不影响门禁。
+
+### 2026-09-07 标题栏、搜索与页签键盘交互
+
+- 标题栏按钮双击不再冒泡触发最大化；窗口图标/提示同步最大化与还原；搜索提示和面板展开状态准确。
+- 命令面板忽略 IME 组合键，退出恢复入口焦点且不抢走命令已转移的焦点；读取失败时 Tab 可到达重试，Enter 可触发，重试后回到搜索框。
+- 页签关闭按钮保留原生 Enter/空格行为；非当前页签右键“关闭其他”保留所点文件，继续使用原有保存、取消与丢弃确认。
+- 三条新增行为回归先失败再修复。全量前端 **95 files / 639 passed**，最后重试焦点微调后定向 **5 passed**；typecheck、原样 lint、最终 production build、diff 检查通过。未再次运行 API/契约总门禁，上一轮原样 verify 通过的证据保留。
+- 原生 1024x768 实测：最大化/还原提示正确，双击 Agent 切换不改窗口尺寸，Enter/空格能关闭真实页签，右键非活动页签“关闭其他”保留目标。仅使用任务样例；未发送消息或改写正文。临时 Rust 观察入口已撤销，原生/API/CDP 已关闭，62384/62385 无监听。
+- 浏览器实测搜索退出焦点从 BODY 修正为原按钮；通过命令面板打开设置后焦点仍在设置搜索框。原生编译时尚未包含最后的 palette 焦点/重试补丁，故这两项只记浏览器与组件验证；真实 IME 未验证。
+
+详见 `.codex/uiux-native/keyboard-acceptance-20260907.md`；原生截图为 `output/playwright/uiux-20260907/08-keyboard-maximized.png` 至 `10-keyboard-close-others.png`。持续目标仍 active；页签关闭后的焦点衔接、更多菜单键盘操作和完整写作流程继续待查。未提交，未宣称无优化空间。
+
+### 2026-09-07 菜单导航与页签关闭后的焦点
+
+- 上下文、文件操作、润色、最近项目与会话菜单统一初始焦点、方向键/Home/End、Escape 及 Tab/Shift+Tab 退出；组合输入不触发菜单命令。动作执行前恢复入口焦点，后续对话框或编辑器的焦点不被夺回。
+- 最近项目删除后按删除前顺序聚焦下一存活菜单项；集成回归曾发现焦点落到下一行删除按钮，现已修正为下一行打开入口。
+- 页签等待异步关闭结束后聚焦剩余活动页签；取消关闭恢复原关闭按钮，等待期间已转移到别处的焦点保持原位。预览页签支持局部 Ctrl+W，AppShell 保留关闭回调的 Promise。
+- 全量前端 **96 files / 650 tests passed**；最终 typecheck、原样 `pnpm.cmd lint`、production build 通过，既有混合导入/chunk 告警保留。构建后仅格式和夹具外观调整；接手复核 `git diff --check` 通过。未重跑 API/总门禁，无 Rust 改动。
+- 浏览器夹具 1024x768 实测 Enter 关闭后焦点衔接、菜单首项/方向/Home/End、Tab/Shift+Tab 退出、脏稿 Escape 取消、动作主动聚焦编辑器；深浅主题截图已检查。1440x900 会话菜单位于窗口内，文档无横向溢出。
+
+详情 `.codex/uiux-native/menu-focus-acceptance-20260907.md`。截图 `output/playwright/uiux-20260907/11-menu-keyboard-light-1024.png` 至 `13-session-menu-dark-1440.png` 使用真实组件和内存回调，不能替代原生、Monaco、真实 provider 或写回验证。持续目标 active，未提交。
+
+### 2026-09-07 弹窗与输入法边界
+
+- `AppDialogHost` 在打开时聚焦输入框/主动作，Tab 在弹窗内环绕，Escape 和输入法组合键不会穿透；关闭时恢复入口焦点，动作主动把焦点移到编辑器时保留该转移。
+- 对话请求改为 FIFO。并发 `prompt`、`alert`、`confirm` 依次显示并分别 resolve，不再覆盖前一请求造成永久等待。
+- App 全局快捷键跳过 `defaultPrevented`、IME composing 与 keyCode 229；行间修订的 document 捕获 Escape/Alt+Enter 在有活跃弹窗时让出处理权。
+- 新增对话框焦点、IME、后台快捷键隔离及并发队列回归；定向 17 项通过。随后全量前端 **96 files / 659 tests passed**；typecheck、相关 ESLint、Prettier、production build 和 `git diff --check` 通过。构建保留既有动态导入与大 chunk 告警。
+
+边界：行间修订与弹窗的跨层优先级以 DOM 模态存在性保护，未发起真实模型或写回；未重跑 API/完整 verify。详情见 `.codex/uiux-native/dialog-input-acceptance-20260907.md`。持续目标 active，未提交。
+
+### 2026-09-07 状态反馈可访问性
+
+- 编辑器文件读取中/失败、AI 修订请求中、Agent 会话加载失败、项目上下文索引加载中/失败均补上 `status` 或 `alert`、`aria-live` 和必要的 `aria-busy`，视觉文案与时序不变。
+- `editor.test.tsx` 与 `chat-window-error-states.test.tsx` 定向验证通过；没有改变文件读取、会话加载或 Agent 请求逻辑。
+- 本批仍未进行真实屏幕阅读器、原生 WebView 或 provider 验收；完整目标保持 active。
+
+### 2026-09-07 Agent 角色建议键盘可达性
+
+- Composer 的 `@剧情` / `@人物` 建议现在使用 listbox/option 语义，支持 ArrowUp/ArrowDown 循环和 Enter 选择；鼠标点击行为保留。
+- 选中后仍写入带空格的 mention，不触发消息发送；无建议时 Enter、Shift+Enter、历史回溯和 IME 行为保持原语义。
+- `permission-profile-selector.test.tsx` 新增真实受控 Composer 回归，定向 6 项通过。未发送模型请求或改变 Agent payload。
+
+### 2026-09-07 Agent 消息日志语义
+
+- 非空 Agent 会话消息区声明 `role="log"`、`aria-label` 和 `aria-relevant="additions text"`，让辅助技术能够识别动态回复区域；空会话欢迎态保持原布局。
+- `chat-ux-polish.test.tsx` 新增静态渲染回归，定向 15 项通过；本轮累计全量前端 **96 files / 660 tests passed**，不改变消息内容、滚动或流式逻辑。
+
+### 2026-09-07 Agent 操作区语义
+
+- 运行状态文字声明 `role="status"` / `aria-live="polite"`；有详情的 Agent 步骤按钮声明 `aria-expanded`。
+- 补丁确认面板声明待确认区域，Monaco 差异区声明“补丁差异”区域，辅助技术可从状态、决策操作和差异内容建立清晰位置关系。
+- `chat-ux-polish.test.tsx` 与 `patch-review-panel.test.tsx` 定向 28 项通过；本轮全量前端 **96 files / 661 tests passed**，typecheck、ESLint、Prettier、production build 和 `git diff --check` 均通过。构建保留既有动态导入与大 chunk 告警。
+
+### 2026-09-07 会话边界与权限菜单焦点
+
+- 权限档位 listbox 选择后、Escape 或 Tab 关闭均回到入口按钮；IME composing 与 keyCode 229 不触发档位切换或关闭。定向 `permission-profile-selector.test.tsx` **8 项通过**。
+- 补丁审查和对话运行条的拒绝输入忽略 IME 组字回车，Escape 收起输入框后恢复拒绝入口焦点，避免误提交和焦点落到 `body`。
+- 会话切换/新建会话清空未发送草稿、待执行修复命令、运行投影和待确认面板；权限等待时 Composer 阻止发送会提示先批准或拒绝权限请求。生命周期定向 **12 项通过**。
+- 本轮完整前端回归 **96 files / 663 tests passed**（`vitest --pool=forks --maxWorkers=2`），typecheck、Prettier、production build 与 `git diff --check` 通过。构建保留既有动态导入和大 chunk 告警。
+
+真实 WebView、屏幕阅读器、IME、provider 请求和补丁写回仍未在本轮验证；持续目标保持 active，未提交。
+
+### 2026-09-07 焦点恢复回归与构建复验
+
+- 全量前端回归重新通过：**96 个测试文件、666 项测试**。此前回归中出现的 16 个未捕获异常来自写回测试替身缺少 Monaco `focus` 方法；`useSuggestionWriteback` 现在先捕获编辑器实例和方法，并仅在运行时确认方法可调用后恢复焦点。
+- 写回与拒绝行为定向回归 **23 项通过**，覆盖补丁接受、拒绝、自动写回和无完整 Monaco 实例的测试夹具。
+- 对话运行条焦点回归 **7 项通过**；测试显式聚焦权限/补丁按钮后再点击，确认操作条卸载仍把焦点交还 Composer。
+- `pnpm.cmd --dir apps/desktop/frontend run build` 通过；保留既有 `@tauri-apps/api/event` 混合导入及大 chunk 警告。
+- 焦点恢复、权限批准/拒绝、补丁接受/拒绝、会话切换清理和 IME 边界均完成代码级回归；真实 provider 请求、真实补丁写回、屏幕阅读器和中文 IME 仍未验证。工作树未提交。
+
+### 2026-09-07 命令面板与壳层可访问性收口
+
+- 活动栏补充工作区导航名称、活动视图 `aria-current`、设置入口和知识待处理徽标语义；高频纯图标按钮补显式 `aria-label`，观测面板关闭按钮补 `type="button"`。
+- 命令面板结果区声明 `listbox`，输入框关联 `aria-controls` / `aria-activedescendant`，选项声明 `role="option"` / `aria-selected`；查询结果缩减时视觉高亮和 Enter 执行统一使用夹限后的活动索引，避免 stale index。
+- 定向命令面板与壳层回归 **46 项通过**；新增筛选收缩键盘回归 **7 项命令面板测试通过**。
+- 变更后前端全量回归 **96 个测试文件、668 项测试通过**；TypeScript、ESLint、production build、Prettier 与 `git diff --check` 均通过。
+- Playwright 浏览器实测欢迎页和设置页 1024×768：主内容无横向溢出，设置长内容在模态内部滚动；纯前端预览中的 Tauri invoke 断连错误属于预览边界，不计为原生故障。
+- Composer 输入区补充上下文添加/发送按钮的显式名称，并将角色建议输入关联到 `listbox`、`aria-activedescendant` 和稳定选项 ID；权限与角色建议回归 **8 项通过**，production build 复验通过。
+- Knowledge Inbox 补充刷新按钮名称和状态 tablist 名称；面板回归 **4 项通过**。最新全量前端回归仍为 **96 个测试文件、668 项测试通过**，production build 复验通过。
+- 故事导航与 Knowledge Inbox 的 tablist 改为 roving tabindex，支持方向键循环、Home/End 和 IME 边界；定向导航回归 **6 项通过**。
+- 故事索引和 Knowledge Inbox 的首次加载补充 `status` / `aria-busy`，避免空白区域缺少反馈；新增状态回归后，最新全量前端回归为 **97 个测试文件、671 项测试通过**，production build、typecheck、仓库级 lint、Prettier 与 `git diff --check` 均通过。
+
+### 2026-09-07 接手复验与权限拒绝可恢复性
+
+- 发现权限拒绝控制在发送后端请求前提前清理待执行修复命令；现改为仅在成功 ack 后清理，控制发送失败时保留命令，作者可以重试。
+- 补丁拒绝入口与表单补齐 `aria-expanded`、`aria-controls`、`role="group"`、表单标签和输入标签，并保留 IME 组字回车保护。
+- 接手后全量前端回归 **97 个测试文件、671 项测试通过**；production build、TypeScript、仓库 lint、Prettier 与 `git diff --check` 均通过。构建保留既有 Tauri 动态/静态混合导入与 Monaco 大 chunk 告警。
+- API 定向 pytest 未能启动：当前环境缺少 `prometheus_fastapi_instrumentator`；API Ruff 也未能启动：当前环境没有 `ruff` 可执行文件。未修改环境依赖。
+
+### 2026-09-07 编辑器页签键盘导航补齐
+
+- 编辑器页签行现在支持左右方向键循环、Home/End 首尾定位，并忽略 IME 组合输入；移动焦点会同步激活目标页签。
+- 页签关闭控件补 `type="button"` 与按文件名生成的 `aria-label`，避免表单默认提交和无名称图标按钮。
+- 新增页签导航与关闭控件回归；全量前端回归 **97 个测试文件、673 项测试通过**，TypeScript、Prettier 与 `git diff --check` 通过。
+
+### 2026-09-07 补丁决策操作忙碌态
+
+- 补丁接受整块、接受分块、保存旁注和拒绝提交统一加同步忙碌锁；同一 tick 的重复点击只执行一次，异步完成后恢复操作。
+- 操作按钮在写回期间原生禁用，面板声明 `aria-busy`，并用 `role="status"` 告知“正在写回/保存旁注/提交拒绝”状态。
+- 定向补丁与对话控制回归 **20 项通过**；随后全量前端回归 **97 个测试文件、673 项测试通过**，TypeScript、仓库 lint、Prettier、production build 与 `git diff --check` 通过。
+
+### 2026-09-07 文件树与通知控件语义收口
+
+- 资源树文件夹展开、新建文件/文件夹、版本历史预览/恢复、项目侧栏新建入口和 Toast 操作/关闭按钮补齐显式 `type="button"`；纯图标控件补充可访问名称。
+- 定向资源树、侧栏、Toast、版本历史回归 **21 项通过**；全量前端回归保持 **97 个测试文件、673 项测试通过**。
+
+### 2026-09-07 会话切换加载反馈
+
+- 历史会话切换在消息清空到请求完成期间显示独立加载占位，不再把异步窗口误报为“空会话”；会话加载完成或失败后自动撤下。
+- 加载占位声明 `role="status"`、`aria-live="polite"` 与 `aria-busy="true"`，并显示目标会话编号；新建草稿会话保持即时空态。
+- `chat-window-error-states.test.tsx` 与 `chat-ux-polish.test.tsx` 定向 **24 项通过**；TypeScript、Prettier 与 `git diff --check` 通过。真实 Tauri/WebView、屏幕阅读器和 provider 链路仍未验证。
+
+### 2026-09-07 会话发送边界与 API 复核
+
+- 历史会话加载期间 Composer 现在禁用发送并显示“正在加载会话…”，提交守卫也给出明确提示；首次草稿升级为正式会话时保留当前消息，不再闪回加载占位。
+- 定向会话状态回归 **24 项通过**；全量前端回归 **97 个测试文件、675 项测试通过**，TypeScript 与 Prettier 通过。
+- 使用 `apps/api` 工作目录的 uv 环境复核本轮 API 改动：定向 pytest **19 项通过**，对应 Ruff **All checks passed**。
+- `verify:smoke` 当前被 Playwright 浏览器二进制缺失阻断（需安装 `chromium_headless_shell`）；脚本未报告应用断言失败。
+- 随后安装所需 Playwright Chromium headless shell 并重跑 `pnpm.cmd --dir apps/desktop/frontend run verify:smoke`，结果 `Desktop frontend smoke passed`；覆盖欢迎页、1024 窄屏、活动栏折叠和项目打开后的三栏工作区。
+
+### 2026-09-07 最终门禁复验
+
+- 会话状态、控件语义和补丁决策改动完成后，前端全量 Vitest **97 个测试文件、675 项通过**；仓库 lint、TypeScript、Prettier、production build、`git diff --check` 均通过。
+- API 本轮改动定向 pytest **19 项通过**，Ruff **All checks passed**。
+- `verify:smoke` 已成功通过；Playwright 覆盖欢迎页、窄屏视图、活动栏折叠和项目打开后的编辑/助手工作区。
+- 仍未宣称真实 Tauri/WebView2、屏幕阅读器、中文 IME、真实 provider 与真实补丁写回验收完成；这些需要外部运行环境或凭据。
+
+### 2026-09-07 设置、命令和资源控件边界
+
+- 设置弹窗 Escape 处理补齐 WebView `keyCode=229` 的 IME 保护；关闭和 ActionRow 按钮显式声明 `type="button"`。
+- 命令面板文件/命令结果按钮显式声明 `type="button"`，避免宿主表单上下文触发隐式提交。
+- 文件树文件夹操作补充展开/折叠名称，版本历史操作补充文件上下文标签，项目侧栏与 Toast 操作按钮补齐按钮类型和图标名称。
+- 相关定向回归 **21 项通过**；全量前端回归保持 **97 个测试文件、675 项测试通过**，TypeScript、lint、Prettier、production build 与 `git diff --check` 通过。
+
+### 2026-09-07 分支画布与编辑器读取失败恢复
+
+- 分支画布空态、分支/节点选择和比较结果补齐可访问状态；父版本比较加入异步互斥、过期响应保护，失败后可重试。
+- 编辑器文件读取失败增加“重试读取”入口，重试会清除错误并重新进入加载流程；AI 修订加载提示声明 `role="status"`。
+- 定向分支画布与编辑器回归 **20 项通过**；全量前端回归 **98 个测试文件、680 项通过**，TypeScript、仓库 lint（含 Prettier check）、production build、smoke 和 `git diff --check` 均通过。
+- `format:check` 不是仓库脚本，格式校验由仓库 lint 中的 Prettier check 完成。真实 Tauri/WebView2、屏幕阅读器、中文 IME、provider 请求和真实补丁写回仍未验证。
+
+### 2026-09-07 状态栏、搜索与刷新交互收口
+
+- 状态栏观测入口的可访问名称现在区分未启用、加载失败、无未处理项和具体未处理数量；状态色点标记为装饰内容。
+- 全文搜索输入、清空按钮、搜索中/空结果/失败状态补齐名称与 live region；观测面板处理按钮补齐按钮类型和动态名称。
+- 手稿、观测、作品档案、Knowledge Inbox 刷新在请求进行中禁用重复触发；版本历史和折叠分区补齐加载播报、`aria-controls` 与 region 关联。
+- 全量前端回归 **99 个测试文件、683 项通过**；TypeScript、仓库 lint（含 Prettier check）、production build、smoke 和 `git diff --check` 均通过。
+- 本轮仍未验证真实 Tauri/WebView2、屏幕阅读器、中文 IME、provider 请求和真实补丁写回。
+
+### 2026-09-07 浏览器视觉复验
+
+- 使用真实 Chromium 对欢迎页与打开项目后的编辑/助手工作区分别在 1280×720 和 1024×768 截图复验。
+- 四个视口均无 `document.documentElement` 横向溢出；欢迎页、空编辑器、右侧 Composer、状态栏布局正常，控制台无 smoke 错误。
+
+### 2026-09-07 命令面板与版本预览细节
+
+- 欢迎页发送按钮、命令面板搜索输入和文件读取状态补齐可访问名称/live region；版本历史“对比当前”在异步读取期间禁用重复操作并显示“对比中”。
+- 阶段性前端回归 **99 个测试文件、683 项通过**；production build、verify:smoke 和 `git diff --check` 通过。构建仅保留既有 Tauri 混合导入与 Monaco 大 chunk 警告。
+- 搜索清空后焦点保持在输入框，sidecar 状态栏改为 polite live region；定向搜索/状态栏回归 **7 项通过**，typecheck、lint 通过。
+- 刷新与版本预览按钮的禁用态统一显示等待光标和半透明反馈；相关壳层/编辑器定向回归 **58 项通过**。
+- 当前工作树最终前端回归 **99 个测试文件、684 项通过**；lint、typecheck、production build、verify:smoke 与 `git diff --check` 均通过。
+
+### 2026-09-07 版本历史关闭后的焦点恢复
+
+- 版本历史关闭、恢复文件内容和恢复到文件不存在状态后，统一通过 `requestAnimationFrame` 将焦点还给文件操作入口；页签关闭与异步关闭取消仍保留合理焦点。
+- 新增页签外部焦点 ref 与编辑器恢复路径回归；定向 2 个测试文件 **31 项通过**。
+- 本轮全量前端回归 **99 个测试文件、686 项通过**；TypeScript、仓库 lint（含 Prettier check）、production build、verify:smoke 和 `git diff --check` 均通过。
+- 真实 Tauri/WebView2、屏幕阅读器、中文 IME、provider 请求和真实补丁写回仍需外部环境验证。
+
+### 2026-09-08 compact Agent 面板主动展开边界
+
+- 真实 Chromium 复现确认：320/360px 下用户通过标题栏主动展开 Agent 时，固定 320px 最小宽度会把面板右边界推出视口；compact 模式现将 `AssistantPanelFrame` 最小宽度设为 0，保留 flex 收缩并把面板限制在活动栏之后的剩余空间内，桌面宽度仍保持原有 320/420px 约束。
+- `assistant-panel` 与 `workspace-layout-app` 定向回归 **4 项通过**；前端全量 Vitest **100 个测试文件、715 项通过**。
+- `verify:smoke` 现在覆盖 600px 主动展开 Agent、360px/320px 右边界与文档宽度、320px 会话下拉菜单边界，以及恢复到 1280px；真实 Chromium smoke 通过。TypeScript、仓库 lint（含 Prettier check）、production build 和 `git diff --check` 均通过。
+- 构建仍保留既有 Tauri event 动静态导入和 Monaco 大 chunk 警告；真实 Tauri/WebView2、屏幕阅读器、中文 IME、provider 请求和真实补丁写回仍需外部环境验证。
+
+### 2026-09-08 最终键盘交互与完整门禁复验
+
+- 行间聊天接受、弃用、取消按钮统一支持鼠标与原生键盘 click，避免鼠标 `mousedown` 与后续 `click` 重复执行；补充明确 `aria-label`、`aria-keyshortcuts` 及对应 DOM 回归。
+- 页签关闭按钮、Agent 步骤自动折叠、Composer 固定按钮、观测行按钮和资源树文件夹操作继续保持键盘可达与焦点可见。
+- 前端全量 Vitest **100 个测试文件、713 项通过**。
+- `pnpm lint`、前端 `typecheck`、production `build`、`verify:smoke` 和 `git diff --check` 全部通过。
+- 构建仅保留既有 Tauri event 动静态导入与 Monaco 大 chunk 警告；真实 Tauri/WebView2、屏幕阅读器、中文 IME、provider 请求和真实补丁写回仍需外部环境验证。
+
+### 2026-09-07 当前 Chromium 窄屏复核
+
+- 基于最新代码和隔离 mock 文件系统，在真实 Chromium 600px 视口重新打开项目并检查资源树、故事标签和编辑空态；当前中心区保持可读宽度，没有旧截图中出现的逐字竖排或横向溢出。
+- 新截图保存在 `output/playwright/project-600-current.png`、`resource-600-current.png` 和 `story-600-current.png`；设置 360/500px 截图仍显示单列表单和可见移动端返回入口。
+- 本次浏览器直接打开开发服务会产生预期的非 Tauri `invoke` 噪声，因此只将几何和交互结果作为视觉证据，不把浏览器预览当作真实 Tauri/WebView2 验收。
+
+### 2026-09-07 StoryNavigator、ResourceExplorer 与章节简报视觉审计
+
+- 真实 Chromium 使用临时 mock 文件系统覆盖 360×800、500×800、600×900；资源树和故事索引仅在自身区域纵向滚动，底部条目可滚动到并显示，页面 `body` 与文档均无横向溢出。
+- 故事 tab 的 `aria-controls`/`aria-labelledby` 关联稳定；Arrow、Home/End 后焦点与 `aria-selected` 同步。章节简报卡片三种宽度均不溢出，目标文本域自动聚焦，取消卸载后焦点恢复到外层入口按钮。
+- 截图保存在 `output/playwright/audit-files-{360,500,600}.png`、`audit-story-{360,500,600}.png` 和 `audit-brief-{360,500,600}.png`；本轮未发现需要继续修改的问题。
+
+### 2026-09-07 资源树与 Knowledge Inbox 异步状态
+
+- 资源树加载状态补齐 `role=status`、`aria-live`、`aria-busy`；失败重试后焦点落到加载状态，键盘工作流不会回到 `body`。
+- Knowledge Inbox 在已有条目刷新时增加隐藏 live 状态，保留原有可见条目和忙碌禁用态。
+- 定向资源树与 Knowledge Inbox 回归 **14 项通过**；全量前端回归 **99 个测试文件、689 项通过**。
+- TypeScript、仓库 lint（含 Prettier check）、production build、verify:smoke 和 `git diff --check` 均通过；构建仍只有既有 Tauri 动态/静态导入与 Monaco 大 chunk 警告。
+
+### 2026-09-07 窄屏三栏布局约束
+
+- 真实 Chromium 发现 900px 项目工作区原先把右侧 Agent 栏裁到视口外；中栏最小宽度现按视口动态让位，900px 下实测为侧栏 200px、中栏 332px、Agent 栏 320px，三栏右边界与视口重合。
+- `verify:smoke` 新增 900px 项目态文档宽度、body 宽度和 Agent 右边界断言；1024px 既有布局保持 420px 中栏。
+- 响应式布局定向回归 3 项通过；全量前端回归保持 **99 个测试文件、689 项通过**。
+- TypeScript、仓库 lint（含 Prettier check）、production build、verify:smoke 和 `git diff --check` 均通过。Tauri 原生窗口最小宽度仍为 1024px，真实 Tauri/WebView2、屏幕阅读器、中文 IME、provider 请求和真实补丁写回仍需外部环境验证。
+
+### 2026-09-07 对话头部与浏览器窄屏收口
+
+- 对话头部的新建会话、观测镜、布局切换图标补齐显式 `aria-label`；新增静态回归，防止 title-only 图标退化为无可访问名称。
+- Titlebar 在 639px 以下保留可点击搜索图标、隐藏文字与快捷键，品牌区和窗口控件释放固定最小宽度；359px 以下隐藏品牌文字。真实 Chromium 在 300/359/500/600px 验证右侧控件完整且无横向溢出。
+- 浏览器视口不超过 719px 时自动进入编辑聚焦布局，收起侧栏和 Agent 栏以避免中栏缩到不可写作的 32px；恢复到宽视口时还原进入窄屏前的布局。900px 三栏策略保持不变。
+- `verify:smoke` 增加 500px Titlebar、600px 紧凑项目态和恢复到 1280px 的边界检查，并等待 500px/600px/900px 实际几何满足条件后再断言，消除 resize 后采样旧布局的竞态。
+- 当前前端全量 Vitest **99 个测试文件、690 项通过**；TypeScript、仓库 lint、Prettier、production build、verify:smoke 和 `git diff --check` 均通过。构建仍保留既有 Tauri 混合导入与 Monaco 大 chunk 警告。
+
+### 2026-09-07 compact 恢复与菜单焦点收口
+
+- compact 进入前记录侧栏/Agent 的布局状态；返回宽屏时只恢复未被作者在窄屏期间手动覆盖的维度，避免覆盖活动栏或标题栏的明确选择。
+- 侧栏或 Agent 内的控件在窄屏卸载/隐藏前记录焦点来源；布局完成后分别回到当前活动栏入口或标题栏 Agent 切换按钮，body 获得焦点时保持原生行为。焦点来源在 resize 捕获阶段记录，避免 React 提交隐藏面板后丢失。
+- 右键菜单支持显式回焦点目标，资源树、编辑器页签和设置菜单关闭或执行动作后回到实际触发控件；菜单键盘导航继续忽略 IME 组合输入。
+- compact 边界回归覆盖 719px 启用、720px 退出；`workspace-layout-app`、菜单和页签定向回归 **23 项通过**。
+- 最新前端全量 Vitest **99 个测试文件、693 项通过**；TypeScript、仓库 lint（含 Prettier check）、production build、verify:smoke 和 `git diff --check` 均通过。Chromium smoke 覆盖 1024/900/600/500/1280px 项目态与标题栏边界。
+- 仍未验证真实 Tauri/WebView2、屏幕阅读器、中文 IME、provider 请求和真实补丁写回；构建保留既有 Tauri 混合导入与 Monaco 大 chunk 警告。
+
+### 2026-09-07 作品档案与项目打开焦点
+
+- 真实 Chromium 审计确认欢迎页、1280px 项目态和 600px compact 项目态没有横向溢出或控制台错误；临时 Vite 预览使用隔离项目和模拟文件系统。
+- 作品档案的书名、题材、简介、全书目标、灵感速记输入现在都有稳定的 label/`aria-labelledby` 关联，屏幕阅读器不再只读出无上下文的编辑框。
+- 从欢迎页打开最近项目后，原触发按钮卸载留下的 `body` 焦点只在没有其他控件接管时转移到当前活动栏入口；编辑器或命令流程主动接管焦点时不会被抢回。
+- 权限档位菜单点击不可聚焦的外部背景会回到入口，点击外部按钮等可聚焦控件则保留原生焦点移动；相关定向回归 **30 项通过**。
+- 最新前端全量 Vitest **99 个测试文件、695 项通过**；TypeScript、仓库 lint（含 Prettier check）、production build、verify:smoke 和 `git diff --check` 均通过。构建仍保留既有 Tauri 混合导入与 Monaco 大 chunk 警告。
+- 仍未验证真实 Tauri/WebView2、屏幕阅读器、中文 IME、provider 请求和真实补丁写回；持续 UI/UX 目标保持 active。
+
+### 2026-09-07 动态面板焦点与图标控件名称
+
+- Knowledge Inbox 的编辑、审阅预览和写回关闭路径现在将焦点落到明确的标题或原触发按钮；编辑器首字段在进入编辑态时自动聚焦，Escape 取消不会把焦点留在 `body`。
+- 观测镜实体出现位置补充 `aria-expanded`、`aria-controls` 与内容区域关系；无定位回调时不再留下可操作但无动作的按钮。
+- 底部观测面板声明命名区域，打开后焦点落到关闭入口，关闭后回到状态栏观测入口；状态栏入口只在面板存在时声明 `aria-controls`。
+- 观测行定位控件改为原生按钮；没有定位锚点的行使用禁用状态，不再把无动作的 `span[role=button]` 放进键盘路径。
+- 欢迎页关闭与编辑器文件操作图标补齐显式 `aria-label`。
+- 本轮动态面板、焦点和图标控件定向回归通过；前端全量 Vitest **99 个测试文件、699 项通过**；TypeScript、仓库 lint（含 Prettier check）、production build、verify:smoke 和 `git diff --check` 均通过。真实 Chromium smoke 额外覆盖观测面板打开/关闭后的焦点往返与 disclosure 属性。
+- 真实 Tauri/WebView2、屏幕阅读器、中文 IME、provider 请求和真实补丁写回仍需外部环境验证。
+
+### 2026-09-07 动态步骤与版本面板焦点收口
+
+- Agent 步骤折叠按钮补充 `aria-controls`，内容区声明 `aria-hidden`；折叠后的步骤按钮移出 Tab 顺序，装饰性星号和箭头不再污染可访问名称。
+- 版本历史成为命名 `region`，打开后焦点落到关闭按钮，Escape 可关闭并沿用编辑器原有入口回焦点；新增打开焦点和 Escape 行为回归。
+- 拒绝修订表单的顶部按钮在显示“取消”时只收起草稿并恢复入口焦点；上下文选择、恢复状态和写作进度补充 disclosure、pressed、live region 与 busy 语义。
+- 前端定向回归覆盖版本历史、Agent 步骤和聊天动态控件；全量 Vitest **99 个测试文件、703 项通过**。TypeScript、仓库 lint（含 Prettier check）、production build、verify:smoke 和 `git diff --check` 均通过。
+- 构建保留既有 Tauri event 动静态导入和 Monaco 大 chunk 警告；真实 Tauri/WebView2、屏幕阅读器、中文 IME、provider 请求和真实补丁写回仍需外部环境验证。
+
+### 2026-09-07 设置窄屏布局与导航状态
+
+- 真实 Chromium 检查发现 500px 设置弹窗的固定侧栏挤压表单，字段标签会逐字竖排；设置页现在在窄屏隐藏侧栏、将设置行堆叠为单列，并提供可见的移动端“返回”入口。
+- 设置页的模型探测、连接测试异步状态补充 `status`/`alert`、`aria-live` 和 `aria-busy`；故事导航 tab 与动态 `tabpanel` 增加稳定的 `id`、`aria-controls` 和 `aria-labelledby` 关联。
+- `verify:smoke` 新增 500px 设置布局断言：设置弹窗与文档不横向溢出，字段控制项位于标签说明之后，移动端关闭按钮可见并可用。
+- 设置与故事导航定向回归 **10 项通过**；前端 smoke、TypeScript、仓库 lint（含 Prettier check）和 `git diff --check` 通过。全量回归随后复验。
+- 真实 Tauri/WebView2、屏幕阅读器、中文 IME、provider 请求和真实设置写入仍需外部环境验证。
+
+### 2026-09-07 章节简报焦点恢复与最终前端门禁
+
+- `ChapterBriefCard` 在挂载时把焦点落到章节目标字段，Escape 触发取消；卸载时捕获稳定的卡片节点引用，并将焦点还给打开前仍连接的控件，避免 React 卸载阶段读取变化中的 ref。
+- 章节简报测试夹具将 opener 放到 React root 外部，真实覆盖焦点恢复路径；移除临时调试输出。
+- 前端全量 Vitest **99 个测试文件、705 项通过**；TypeScript、仓库 lint（含 Prettier check）、production build、`verify:smoke` 和 `git diff --check` 均通过。构建保留既有 Tauri 混合导入与 Monaco 大 chunk 警告。
+- 真实 Tauri/WebView2、屏幕阅读器、中文 IME、provider 请求和真实补丁写回仍需外部环境验证。
+
+### 2026-09-08 搜索、资源树与编辑器面板语义收口
+
+- Toast 在 320px 视口增加 `max-w-[calc(100vw-1.5rem)]`，避免通知右边界超出窗口；工作区三栏断点从 719px 调整为 899px 以下进入编辑聚焦、900px 保留三栏，覆盖 899/900px 几何回归。
+- Composer、补丁审查、运行操作栏、Knowledge Inbox、权限档位、状态栏及多个菜单补齐条件性的 `aria-controls`、稳定关联 id 和按钮名称；Composer 角色建议移出 Tab 序列，Knowledge Inbox 待处理数量并入活动栏按钮名称。
+- Escape 处理增加中文输入法组合保护（`isComposing` / `keyCode=229`），覆盖行间聊天与版本历史；搜索文件结果、资源树文件夹、版本历史筛选/视图/对比当前、编辑器页签分别补齐 `aria-expanded`、`aria-pressed`、`aria-controls`、`role=group/region` 和 `editor-panel` 关联，折叠内容通过 `hidden` 表达。
+- 定向搜索、资源树、版本历史和页签回归 **4 个文件、33 项通过**；前端全量 Vitest **100 个测试文件、721 项通过**。
+- `pnpm.cmd lint`、前端 `typecheck`、production `build`、`verify:smoke` 和 `git diff --check` 全部通过。构建仍保留既有 Tauri event 动静态导入与 Monaco 大 chunk 警告；smoke 通过真实 Chromium。
+- 仍未验证真实 Tauri/WebView2、屏幕阅读器、中文 IME 硬件行为、provider 请求和真实补丁写回。
+
+### 2026-09-08 接手复验与静态/视觉审查
+
+- 原会话因 `401 invalid_api_key` 无法继续；在共享工作树上接手后未重置或清理既有未提交改动。
+- 重新执行前端完整门禁：Vitest **100 个测试文件、722 项通过**；TypeScript、`pnpm.cmd lint`（含 Prettier）、production build、`verify:smoke` 和 `git diff --check` 均通过。
+- 真实 Chromium smoke 的 320px 欢迎页、900px 工作区和既有 360/500/600px 审计截图复核未发现横向溢出、断裂控件或控制台级新问题；构建仍只有既有 Tauri event 动静态导入与 Monaco 大 chunk 警告。
+- 只读 ARIA/焦点审查确认欢迎页“更多”按钮已关联隐藏的最近项目区域并声明展开状态，观测镜提示点已标记为装饰性内容；补充 `welcome-page` 与 `observatory-linkage` 回归共 **16 项通过**。本轮只补可访问性语义，不改变业务行为。
+- 仍未验证真实 Tauri/WebView2、屏幕阅读器、硬件中文 IME、provider 请求和真实补丁写回；未提交或推送。
+
+### 2026-09-08 页签关系与最终门禁复验
+
+- 故事导航的“文件 / 故事”两个页签现在始终指向同一个稳定 `tabpanel` ID，切换前后辅助技术都能保持页签与面板关系。
+- 将运行控制、章节简报和编辑器页签的 SSR 回归断言改为 DOM 属性验证，避免 React 属性输出顺序变化造成误报。
+- 最终前端全量 Vitest **100 个测试文件、736 项通过**；TypeScript、`pnpm.cmd lint`（含 Prettier）和 `git diff --check` 通过。此前同一工作树上的 production build 与 `verify:smoke` 也已通过。
+- 构建保留既有 Tauri event 动静态导入与 Monaco 大 chunk 警告；真实 Tauri/WebView2、屏幕阅读器、硬件中文 IME、provider 请求和真实补丁写回仍需外部环境验证；未提交或推送。
+
+### 2026-09-08 动态操作区与树焦点收口
+
+- 资源树改为 roving `tabIndex`：Tab 只进入一个当前节点，方向键移动后由当前节点接管；刷新或节点删除使路径失效时回退首项，边界方向键不再滚动外层面板。
+- 左侧视图容器改为带动态名称的 `aside` 地标，Agent 右栏补充“Agent 对话面板”地标；项目菜单分隔线补充水平 separator 语义。
+- 作品封面按钮补充可访问名称；分支画布选中版本的操作区补充 `aria-expanded`、`aria-controls` 和命名 region。
+- Composer 在无项目/加载时禁用无效上下文操作并声明角色建议 autocomplete；补丁审查防止重复异步操作并恢复拒绝后的焦点；版本历史筛选空态、对比加载和恢复并发状态得到明确反馈。
+- 定向回归 **10 个文件、98 项通过**；前端全量 Vitest **100 个测试文件、733 项通过**。
+- `pnpm.cmd lint`（含 Prettier）、前端 `typecheck`、production `build`、`verify:smoke` 和 `git diff --check` 均通过；构建仍保留既有 Tauri event 动静态导入与 Monaco 大 chunk 警告。
+- 仍未验证真实 Tauri/WebView2、屏幕阅读器、硬件中文 IME、provider 请求和真实补丁写回；未提交或推送。
+
+### 2026-09-08 资源树键盘导航与接手收口
+
+- 修正编辑器页签语义回归断言：通过 DOM 解析确认文件操作菜单不在 `tablist` 内，避免用跨层级字符串正则误报。
+- 资源树增加命名 `tree`、文件/文件夹 `treeitem` 及 `aria-level`；折叠子树继续由稳定 `aria-controls` 和 `hidden` 表达。
+- 资源树支持 ArrowUp/Down、ArrowLeft/Right、Home/End：上下移动可见项，左右折叠/展开或回到父级，隐藏子树不会进入移动序列。
+- 新增资源树语义与方向键回归；本轮定向回归 **6 个文件、67 项通过**，前端全量 Vitest **100 个测试文件、726 项通过**。
+- `pnpm.cmd lint`（含 Prettier）、前端 `typecheck`、production `build`、`verify:smoke` 和 `git diff --check` 均通过；构建仍保留既有 Tauri event 动静态导入与 Monaco 大 chunk 警告。
+- 仍未验证真实 Tauri/WebView2、屏幕阅读器、硬件中文 IME、provider 请求和真实补丁写回；未提交或推送。
+
+### 2026-09-08 接手后最终门禁复验
+
+- 前端全量 Vitest **100 个测试文件、736 项通过**。
+- 前端 TypeScript、仓库 lint（含 Prettier）、production build、`verify:smoke` 和 `git diff --check` 全部通过。
+- 只读复查确认观测面板 Escape 关闭、上下文菜单 separator 语义、资源树 tree/treeitem 与方向键导航均已落地；未发现新的可复现焦点、ARIA 或窄屏溢出问题。
+- 构建仍保留既有 Tauri event 动静态导入与 Monaco 大 chunk 警告；真实 Tauri/WebView2、屏幕阅读器、硬件中文 IME、provider 请求和真实补丁写回仍需外部环境验证；未提交或推送。
+
+### 2026-09-08 Knowledge Inbox 并发状态修复
+
+- 修复拒绝提议请求的旧闭包会误清理后来打开的另一条写回预览：`useKnowledgeInbox.reject` 现在基于最新 `reviewPatch` 做函数式条件更新。
+- 新增回归覆盖“预览 A → 拒绝 A 未返回 → 打开预览 B → A 晚返回”，确认 B 保持打开。
+- 前端全量 Vitest **101 个测试文件、737 项通过**；TypeScript、仓库 lint（含 Prettier）、production build、`verify:smoke` 和 `git diff --check` 全部通过。
+- 构建仍保留既有 Tauri event 动静态导入与 Monaco 大 chunk 警告；真实 Tauri/WebView2、屏幕阅读器、硬件中文 IME、provider 请求和真实补丁写回仍需外部环境验证；未提交或推送。
+
+
+### 2026-09-08 原任务接手续修：Knowledge Inbox 保存失败保留草稿
+
+- 接手任务：`01a0777c-2cbe-7702-b705-cc81ae192aeb`（继续 StoryForge Desktop UI/UX 优化）。通过任务读取工具获得历史，无需扫描本地 sessions。
+- 继续工作的代码根：`C:/Users/kanye/.codex/worktrees/d84b/StoryForge`，保留原 detached worktree 的全部已有未提交修改；未向 `D:/StoryForge` 复制产品代码，未提交、推送、归档或新建任务。
+- 项目 Trellis 元数据仅存在于主 checkout：从 `D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization` 恢复 in_progress 计划与既有只读 shell 检索授权。补充的编辑结果规则追加到主 checkout 的 `.trellis/spec/desktop/frontend/state-management.md`，明确注明实现尚在 worktree。
+
+#### 本轮问题与最小修复
+
+- 真实 hook + KnowledgeInboxView 挂载复现：进入提议编辑 → 输入新标题 → 保存请求失败。旧 `revise` 捕获异常后正常结束 Promise，View 的无条件 `.then()` 关闭编辑器，丢弃未保存草稿。
+- 新增两条 API 边界回归，分别注入 Error 和非 Error 拒绝；修复前均在“保存失败后不能卸载编辑器或丢弃草稿”断言失败。既有“旧拒绝请求晚返回不清理新预览”测试仍通过。
+- `useKnowledgeInbox.revise` 明确返回 `Promise<boolean>`：成功为 true，失败/无项目为 false；保留既有错误呈现和 busy 清理。View 仅在成功后关闭草稿、恢复编辑入口焦点。
+- 回归同时验证请求携带作者修改、失败后原编辑节点/输入/焦点保持、错误可见，以及原草稿重试成功后的新内容呈现、错误清理与焦点恢复。
+- 同步 View 测试 mock 的成功结果；修正既有拒绝回归使用 Inbox 响应结构，并用 fake timers 隔离轮询、统一 reset mock，未绕开真实 hook/View。
+- 本轮代码/测试仅涉及 `apps/desktop/frontend/src/components/app/useKnowledgeInbox.ts`、`apps/desktop/frontend/src/components/shell/KnowledgeInboxView.tsx`、`apps/desktop/frontend/tests/use-knowledge-inbox.test.tsx`、`apps/desktop/frontend/tests/knowledge-inbox.test.tsx`。保持 LF，避免整文件换行差异。
+
+#### 已执行验证
+
+所有命令在上述 worktree 执行；API 命令的工作目录为其 `apps/api`。
+
+- `pnpm.cmd --dir apps/desktop/frontend exec vitest run tests/use-knowledge-inbox.test.tsx`：修复前 **2 failed / 1 passed**，失败点符合目标缺陷。
+- `npm.cmd --prefix apps/desktop/frontend run test -- tests/use-knowledge-inbox.test.tsx tests/knowledge-inbox.test.tsx tests/knowledge-writeback.test.ts`：修复后 **3 files / 15 passed**。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`：通过。
+- `pnpm.cmd verify`：**失败，不能宣称总门禁通过**。前序 lint/Prettier、Desktop typecheck、Shared 契约、project-core **7 passed**、Desktop 全量 **101 files / 739 passed**；API pytest **1590 passed / 7 skipped / 2 failed**，耗时 220.54 秒。
+- 两项失败均来自本轮未修改的 `AppShell.tsx`：当前 **648 行 > 500 行**。失败测试为 `test_completed_wave_source_files_meet_hard_line_limits` 与 `test_new_live_modules_stay_within_line_limit`。按同一测试规则只读枚举确认该 live-module 检查范围内仅此文件超限，未放宽门禁或增加例外。
+- `npm.cmd --prefix apps/desktop/frontend run build`：通过；仍有既有 Tauri event 混合导入及 Monaco 大 chunk 警告。
+- `npm.cmd --prefix apps/desktop/frontend run verify:smoke`：真实 Chromium smoke 通过。
+- 总门禁在 pytest 阶段中止，后续门禁单独补跑：`uv run ruff check .`、`node scripts/sidecar-smoke.mjs`（daily，零 LLM）、`node scripts/check-openapi-drift.mjs` 均通过；OpenAPI 无漂移。
+- 四个本轮代码/测试文件的显式 `prettier --check`、`git diff --check` 均通过。
+- 完整日志：`.codex/uiux-handoff-20260908/{verify,build,smoke,ruff,sidecar,drift}.log`。
+
+#### 未验证与下一步
+
+- 本轮没有真机 Tauri/WebView2、真实 provider、屏幕阅读器或真实知识文件写回验收；挂载回归使用 API mock，Chromium smoke 不等同于真机写回。
+- 原 UI/UX 持续任务保持 in_progress。本轮单点修复完成，但工作树总门禁仍被 AppShell 行数阻断；下一步应在保留现有交互与未提交改动的前提下，以零行为变化的拆分处理该壳层问题，再复跑完整 verify。
+
+
+### 2026-09-08 持续 UI/UX 优化：恢复总门禁与保存交互竞态
+
+继续使用 `C:/Users/kanye/.codex/worktrees/d84b/StoryForge`；目标保持 active，未提交、推送或归档，原有未提交改动全部保留。上一目标回合为实质进展，本回合先处理已确认门禁阻塞，再以真实 Chromium 和挂载回归继续审查。
+
+#### 1. AppShell 零行为变化拆分
+
+- 将 Props 类型移至 `apps/desktop/frontend/src/components/app/app-shell-types.ts`，保留 `AppShell.tsx` 对 `ObservatoryHandle` 的类型 re-export。
+- 将原项目进入焦点和 compact 布局副作用移至 `apps/desktop/frontend/src/components/app/useWorkspaceLayoutEffects.ts`，不更改原响应式算法、偏好、调用顺序或组件树。
+- AppShell **648 → 456 行**；新类型模块 72 行、布局 hook 145 行，均未修改源码规范的 500 行上限或添加豁免。
+- 原始快照和提取校验：`.codex/uiux-layout-20260908/AppShell.before.tsx.txt`、`extraction-check.json`。校验确认 return 组件树及搬迁的副作用代码文本一致。
+- 拆分前后，同一组布局/欢迎页/Agent/侧栏/设置挂载测试均为 **6 files / 38 passed**；源码规范 **16 passed**、typecheck、lint、Chromium smoke 通过。
+
+#### 2. 保存的迟到成功不能丢弃当前草稿或抢焦点
+
+- Chromium 明确复现：编辑 A → 保存请求等待 → 编辑并修改 B → A 返回成功。旧界面 editorCount=0、焦点回到“编辑”，B 草稿被卸载。
+- 挂载回归进一步覆盖切换提议、保存后继续输入、取消后重新编辑和外部焦点；修复前 **4 failed / 3 passed**，对应的丢稿/抢焦点断言均失败。
+- `KnowledgeInboxView` 使用 layout effect 同步的当前编辑快照，并在 cleanup 失效。保存完成仅能关闭提交时同一对象；后续输入/新编辑会话不被关闭。
+- 成功关闭前检查焦点仍在原编辑区域，回焦点帧再确认没有外部控件取得焦点。覆盖“请求返回前移焦点”和“返回后、回焦点帧前移焦点”。
+- Chromium 修复后及最终代码复验：草稿仍为“提议 B 未保存草稿”，焦点标签为“知识标题”；600px 视口中 scrollWidth=600，无横向溢出。原始和修复截图分别保存，没有用测试自评替代界面证据。
+
+#### 3. 保存中反馈与同表单同步防重
+
+- Chromium 原有按钮可重复点击，pending 请求数实测 **2**。同帧连点挂载回归在旧实现上 **2 failed / 8 passed**，明确断言收到两次 API 请求。
+- `ProposalEditor` 保存中显示“保存中…”并禁用保存按钮，提供 busy 状态及 busy 区域外的 status 提示；字段仍可编辑，由提交快照保护后续输入。
+- 同步请求 token 阻止同一表单同帧连点；finally 仅释放自己的 token，卸载时失效，失败保留草稿并重新允许保存。此保护不宣称整个 hook 所有操作全局串行，也不代表关闭编辑取消已发出的 API 请求。
+- Chromium 修复后双击实际保存请求数 **1**，禁用状态断言通过；成功/失败解锁及成功重试有挂载回归。知识相关定向测试 **3 files / 22 passed**。
+
+#### 隔离浏览器证据与回放
+
+- 开发夹具为 `apps/desktop/frontend/tests/fixtures/knowledge-inbox-uiux.html` / `.tsx`，挂载真实 hook 和 View。仅浏览器运行器注入的启用标记允许挂载；直接访问的 API 请求计数实测为 **0**。
+- API 在浏览器请求边界拦截，materialize / resolve 一律拒绝，外部请求阻断；未使用真实项目、provider 或知识写回。最初直接访问测试误把静态 `/src/lib/api/*` 模块当作 API 请求拦截，随后按 fetch/xhr 资源类型修正测试路由并通过；未修改产品代码规避该测试。
+- 截图：`output/playwright/uiux-inbox-20260908/`，包含 `after-save-completes.png`（旧缺陷）、`fixed-after-save-completes.png`（最终草稿/焦点保持）、`pending-save-button.png`、`fixed-pending-save-button.png`。
+- 回放片段：`.codex/uiux-layout-20260908/replay/{setup,race,race-fixed,double-save,double-save-fixed,fixture-guard}.cjs`。它们是 Playwright CLI 函数参数，不是产品 JS 模块；第一次总门禁因放在 output 下被源码扫描报错，已移入既有 `.codex` 诊断目录，未放宽 lint 配置。原失败日志保留为 `verify-diagnostic-location-failed.log`。
+- 回放：在 worktree 以 `pnpm.cmd --dir apps/desktop/frontend exec vite --host 127.0.0.1 --port 3011` 启动；用命名 Playwright CLI 会话打开 about:blank，依次执行 `run-code --filename .codex/uiux-layout-20260908/replay/setup.cjs`、`snapshot`、对应的 `race-fixed.cjs` 或 `double-save-fixed.cjs`。切换场景前重跑 setup。所有模拟数据均明确标注为验收夹具。
+- 本轮命名浏览器 `uiux-inbox-20260908` 与独立 3011 预览服务已关闭，未操作其他浏览器/预览服务。
+
+#### 最终门禁
+
+- `pnpm.cmd verify`：**全部本地核心门禁通过**。Desktop **101 files / 746 passed**；API **1592 passed / 7 skipped / 6 warnings**（219.98 秒）；Shared 契约、project-core **7 passed**、lint/Prettier、typecheck、Ruff、daily sidecar 与 OpenAPI 刷新/漂移检查通过。
+- `npm.cmd --prefix apps/desktop/frontend run build`：通过；既有 Tauri event 混合导入及 Monaco 大 chunk 警告仍在。
+- `npm.cmd --prefix apps/desktop/frontend run verify:smoke`：最终真实 Chromium smoke 通过。
+- 本轮文件显式 `prettier --check`、`git diff --check`：通过。OpenAPI / Agent schema / generated types 无新增漂移。
+- 详细日志统一在 `.codex/uiux-layout-20260908/`：`verify.log`、`build.log`、`smoke.log`、`inbox-regression-red.log`、`inbox-duplicate-red.log`、`inbox-browser-evidence.log`、`inbox-double-save-fixed-evidence.log`、`fixture-guard-evidence.log`。
+- 规范同步到主 checkout 的 `.trellis/spec/desktop/frontend/state-management.md`，明确注明实现只在 worktree，未合并主 checkout 产品代码。
+
+#### 持续目标的未覆盖项
+
+本轮不是“UI/UX 已无可优化点”的完成证明。继续优先审查项目切换/关闭、面板卸载与迟到响应的归属，以及其他创作面板的真实交互。真实 Tauri/WebView2、多轮 provider、屏幕阅读器、硬件中文 IME 和真实手稿写回仍未在本轮验收；不把 mock/Chromium/自动测试当作完整创作工作流或长篇质量验收。
+
+## 2026-09-08：Knowledge Inbox 跨项目生命周期隔离
+
+实现仅在 `C:/Users/kanye/.codex/worktrees/d84b/StoryForge`，未复制回主 checkout、未提交/推送。保留前序未提交修改。
+
+### 修复与边界
+
+- `useKnowledgeInbox` 用 committed project lifetime 授权回调，独立 scope stamp 投影状态；切项目/关闭立即不再暴露旧 inbox、preview、busy、error，A→B→A 不恢复第一代回调资格。所有异步结果与 finally 必须属于当前 lifetime。
+- `KnowledgeInboxView` 按 projectRoot 重建编辑/标签状态；卸载清理待执行焦点帧。旧草稿和旧焦点回调不进入新项目同 ID 条目。
+- `accept(): Promise<boolean>` 只有当前项目成功完成才返回 true 并恢复预览入口焦点；失败保留预览/焦点。已启动的写回仍使用原项目及原 patch，不宣称关闭项目能取消已授权写回；过期结果不触发新项目 toast 或后续旧项目刷新。
+- 不改 API/DTO、guarded writeback 或文件写回权限；同项目多次 materialize 乱序、刷新与 mutation 排序仍是后续检查点，不宣称所有并发安全。
+
+### 验证
+
+- 新 `tests/knowledge-inbox-lifecycle.test.tsx` 初始 39 cases 在旧实现为 **33 failed / 6 passed**；最终扩充为 50 cases，覆盖切 B、关闭、A→B→A、卸载、成功/失败、过期 callbacks、toast、busy 和焦点。
+- 四个 Knowledge Inbox/writeback 测试文件 **72 passed**；frontend typecheck、`pnpm.cmd lint` 通过。
+- 原样 `pnpm.cmd verify` exit 0：frontend **102 files / 796 passed**，project-core **7 passed**，API **1592 passed / 7 skipped / 6 warnings**，Ruff、daily sidecar、OpenAPI drift 门禁通过。
+- frontend production build 与 Chromium `verify:smoke` 均 exit 0。构建仍有现有 chunk > 500 kB 警告，未修改阈值或规则。
+- 独立 Chromium + 3012 Vite fixture：按 project_root 返回同 proposal_id 的不同项目内容；延迟 A materialize，先显示 B，再释放 A，B 预览与 H3 焦点保持；A 未保存草稿切 B 后不残留；关闭项目后 preview 清空。截图已人工查看渲染，B 内容清楚且无水平截断。
+- 浏览器所有 knowledge API 被拦截，除 refresh/materialize 外均拒绝；mock filesystem 的 pathExists 抛错，阻断真实文件访问。未点击真实写回，未调用真实 provider。CLI 首次旧 element refs 失效，重新 snapshot 后用已观察到的语义控件重放成功，最终脚本日志无 `### Error`。
+- 证据目录 `.codex/uiux-inbox-lifecycle-20260908/`：`regression-red.log`、`verify.log`、`lint.log`、`build.log`、`smoke.log`、`browser-cross-project.log`、`browser-draft-close.log`、`browser-results.log`，可重放脚本在 `replay/`；截图在 `output/playwright/uiux-inbox-lifecycle-20260908/`。
+
+真实 Tauri/WebView2、真实手稿写回、多轮 provider、屏幕阅读器和硬件 IME 本轮未验收。本轮不构成“已无 UI/UX 可优化点”的完成证明。
+
+## 2026-09-08：Knowledge Inbox 同项目预览顺序
+
+上一回合为有效进展。本轮继续原 worktree，不改主 checkout 产品代码、不提交/推送。
+
+- 复现：依次请求预览 A、B，A 的迟到成功覆盖 B / 新 B 等待中显示 A，迟到失败污染错误；已有预览关闭后，另一个尚未完成的 materialize 可重新打开预览。
+- `useKnowledgeInbox` 的 committed project lifetime 新增独立 `reviewVersion`；开始 materialize 递增，成功/失败只有最新版本可以更新展示；clearReview 递增使待展示请求失效。busy 的释放仍按原 operation token，未更改 API 或写回语义。该版本只管理预览请求选择，不宣称同项目 mutation/refresh 全部排序安全。
+- 新增 6 项行为回归：新请求等待/完成 × 旧请求成功/失败，以及关闭后成功/失败；旧实现 **6 failed / 10 passed**，修复后四个知识相关测试 **78 passed**。
+- 完整 `pnpm.cmd verify` exit 0；frontend **102 files / 802 passed**，project-core **7 passed**，API **1592 passed / 7 skipped**，lint/typecheck/Ruff/daily sidecar/OpenAPI drift 均通过。
+- production build、Chromium smoke、Prettier 和 `git diff --check` 通过；仍有既有大 chunk 警告，未绕过规则。
+- 隔离 Chromium 在同一 project_root 下先请求 A 再 B，释放 A 后 B 预览和 H3 焦点保持；再次延迟 A 后关闭已有 B 预览，释放 A 后不重开且外部焦点保持。截图已查看。夹具标题中的 A/B 是模拟提议标签，本场景没有切项目；所有 API 均拦截，无真实写回/模型调用。
+- 重放/日志：`.codex/uiux-inbox-order-20260908/` 的 `red.log`、`green.log`、`verify.log`、`build.log`、`smoke.log`、`browser-results.log`、`replay/setup.cjs`、`replay/race.cjs`；截图 `output/playwright/uiux-inbox-order-20260908/latest-review.png`。已关闭本轮专用 Chromium session 和 3012 Vite。
+
+未验证真实 Tauri/WebView2、provider、硬件 IME、屏幕阅读器或真实文件写回。后续继续检查同项目刷新覆盖 mutation、已授权写回完成对后来预览的影响，以及整体 UI/UX 验收缺口；不标记持续目标完成。
+
+## 2026-09-08：Knowledge Inbox 迟到写回保留新预览和作者焦点
+
+- 上轮为有效进展，本轮继续 d84b worktree，保留前序修改、未提交/推送。
+- 当前实现复现：确认写回后打开另一份预览，旧 applyKnowledgePatch 成功无条件置空 reviewPatch；成功回调安排的 rAF 无条件把焦点还给原审阅入口。
+- 修复：写回成功的 functional state update 仅清理与提交 patch 同一对象的预览，不能按 proposal_id 推断展示会话（同 ID 重开也必须保留）；写回成功回焦点在 rAF 执行时检查 body，作者已移到其他控件则不抢焦点。显式关闭仍保留原回焦点语义。
+- 写回继续用原 projectRoot/patch，成功结果、toast 和刷新契约不变；不取消已授权写回，不绕过 guarded writeback，也不将新预览存在误报为写回失败。
+- 新增 4 项回归在旧实现 **4 failed / 50 passed**，覆盖同/不同 proposal ID 新预览，以及结果前/结果后至帧执行前的外部焦点移动；修复后知识相关四文件 **82 passed**。
+- 原样 `pnpm.cmd verify` exit 0：frontend **102 files / 806 passed**、project-core **7 passed**、API **1592 passed / 7 skipped**；lint/typecheck、Ruff、daily sidecar 和 OpenAPI drift 通过。
+- production build、Chromium smoke、Prettier、`git diff --check` 通过。沿用既有 chunk 大小警告，未改规则。
+- 日志：`.codex/uiux-inbox-accept-20260908/{red,green,verify,build,smoke}.log`。竞态验证使用真实 hook + View 和延迟 mock writeback；本轮无真实文件写回或该竞态的独立浏览器重放，不把通用 smoke 当成原生写回验收。
+
+持续目标未完成。后续优先核查刷新响应覆盖更新后列表，以及更广的编辑/Agent 交互；真实 provider 与完整创作写回链仍不在本轮验证声明内。
+
+## 2026-09-08：旧刷新不得覆盖 Knowledge Inbox 操作结果
+
+- 上轮为有效进展；本轮仍在 d84b worktree，未提交/推送，主 checkout 产品代码未改。
+- 复现：refresh 在 revise/reject 之前或进行期间启动，操作成功返回完整 inbox 后，旧 refresh 成功覆盖新列表、失败覆盖为过期错误。
+- 修复：revise/reject 成功返回完整 inbox 时递增该 lifetime 的 refreshVersion，使之前发起的 refresh 成功/失败/finally 全部失效；同时释放被淘汰刷新对应的 loading。后续新刷新仍照常工作。失败 mutation 不伪造新列表；不改变 API、请求载荷或真实写回语义。
+- 新增 8 项真实 hook 回归：revise/reject × 刷新先/后启动 × 旧刷新成功/失败；旧实现 **8 failed / 54 passed**，修复后四个知识测试文件 **90 passed**，并断言后续新刷新能够正常更新与释放 loading。
+- 原样 `pnpm.cmd verify` exit 0：frontend **102 files / 814 passed**，project-core **7 passed**，API **1592 passed / 7 skipped**；lint/typecheck、Ruff、daily sidecar、OpenAPI drift 均通过。
+- production build、Chromium smoke、Prettier、`git diff --check` 通过，未调整既有大 chunk 警告规则。
+- 独立 Chromium：真实 hook/View 的隔离 fixture 中编辑标题 → 暂挂旧刷新 → 保存成功显示新标题 → 释放旧刷新 → 新标题仍在、aria-busy=false；截图已查看。API 全部拦截，materialize/resolve 拒绝，无真实项目或文件写回。本轮专用 browser 和 3012 Vite 已关闭。
+- 证据 `.codex/uiux-inbox-refresh-20260908/`：red/green/verify/build/smoke/browser-results 日志与 `replay/` 重放脚本；截图 `output/playwright/uiux-inbox-refresh-20260908/saved-title-preserved.png`。
+
+持续目标未完成。本轮证明的是旧 read 不覆盖 mutation 结果，不证明多个 mutation 的服务端提交顺序或全部创作链已验收。后续应回到更广的工作区/编辑器/Agent 键盘、动态状态与布局审查，避免把单个面板测试通过当作全局完成。
+
+## 2026-09-08：Composer 方向键保留原生文字编辑
+
+- 上轮为有效进展；本轮转向 Agent 输入交互，仍只改 d84b worktree，保留前序修改，未提交/推送。
+- 复现：Shift/Ctrl/Alt/Meta+ArrowUp 在草稿首部触发历史回溯，或改变角色候选；busy=true 时角色列表隐藏但 ArrowUp/Down 仍被角色逻辑 preventDefault。
+- 修复：Enter/IME 原有处理不变，其余带修饰键的方向键交还浏览器；用同一 showRoleSuggestions 条件管理渲染、ARIA 和方向键处理。plain arrows 仍可选择可见角色，历史边界逻辑未改变，busy 期间仍可预写。
+- 新增 10 项测试在旧实现 **10 failed / 10 passed**，修复后相关测试 **20 passed**。覆盖四种 modifier × 历史/候选，以及 busy 隐藏候选的上下键。
+- `pnpm.cmd verify` exit 0：frontend **102 files / 824 passed**、project-core **7 passed**、API **1592 passed / 7 skipped**；lint/typecheck/Ruff/daily sidecar/OpenAPI drift 通过。build、Chromium smoke、Prettier、git diff --check 通过，既有大 chunk 警告未绕过。
+- Chromium 隔离挂载真实 ComposerSurface：Shift+Up 不替换草稿，在多行末尾产生原生选区 [7,11]；Shift+Up 不切角色、普通 Down 仍切角色；busy 下 Up 从末行移动至前行 caret=3。截图已查看。无 API、真实项目或 provider 调用。
+- 夹具初始化曾因 Vite CommonJS default 导出未解包失败，已纠正；路由拦截从 URL-only 收窄到 fetch/xhr，避免拦截静态 api/*.ts；模拟运行按钮被角色浮层覆盖，重放改为先清输入再切 busy，不强制点击或改产品布局。最终从重新导航的基线运行成功，最终脚本日志无 Error。
+- 证据 `.codex/uiux-composer-keys-20260908/` 的 red/green/verify/build/smoke/browser-results 日志及 replay 脚本；截图 `output/playwright/uiux-composer-keys-20260908/native-selection.png`。本轮专用 Chromium 和 3012 Vite 已关闭。
+
+本轮没有硬件中文 IME、屏幕阅读器、真机 Tauri/provider 验收；不宣称完整 UI/UX 已无优化点。继续审查编辑/Agent 的动态输入、焦点与布局边界。
+
+## 2026-09-08：角色候选退出与点击后续写
+
+- 上轮为有效进展，本轮继续 d84b worktree；未提交/推送、保留前序更改。
+- 修复 Composer 角色候选无法 Escape 关闭，以及点击后焦点落到消失按钮而不能继续输入的问题。
+- Escape 仅在候选可见时 preventDefault/stopPropagation，记住被关闭的 value；草稿和输入焦点不变，ARIA 同步收起，再次 Escape 不拦截。实际输入变化重新允许候选；Enter 使用同一可见条件，不能选择已关闭的角色。IME 守卫保持在 Escape 前。
+- 角色插入是显式编辑，退出历史回溯并同步恢复 textarea 焦点；不调用 onSubmit，不引入延迟抢焦点。
+- 3 个新增回归在旧实现 **3 failed / 20 passed**，修复后 **23 passed**；包括 Escape 后 Enter 正常调用 submit、继续输入重现候选，以及 pointer 选择后的焦点/不提交断言。首次红测因 DOM 对象差异格式化停滞，已终止该测试进程，改为布尔身份断言后重新获得红测结果。
+- 原样 `pnpm.cmd verify` exit 0：frontend **102 files / 827 passed**、project-core **7 passed**、API **1592 passed / 7 skipped**；lint/typecheck/Ruff/daily sidecar/OpenAPI drift 通过。production build、Chromium smoke、Prettier、git diff --check 通过，未绕过既有 chunk 警告。
+- 独立 Chromium 挂载真实 Composer：输入 @ → Escape 保留 @ 并关闭 → 继续输入重开 → 点击 @剧情 → 不再点击输入框直接输入“继续写作”，最终内容“@ @剧情 继续写作”；已查看截图。本轮无 API/provider/真实写回。
+- 证据 `.codex/uiux-role-dismiss-20260908/` 日志与 replay 脚本；截图 `output/playwright/uiux-role-dismiss-20260908/continued-input.png`；专用 Chromium 和 3012 Vite 已关闭。
+
+未完成整体目标。硬件 IME、屏幕阅读器、真实 Tauri/provider/写回工作流未在本轮验收，继续审查其他可复现的编辑/焦点/动态状态问题。
+
+## 2026-09-08：窄栏 Composer 固定参考可展开管理
+
+- 上轮为有效进展，本轮继续 d84b worktree，未提交/推送，保留已有更改。
+- 旧实现超过 3 个固定参考仅渲染不可交互 +N span，第 4 项以后不可直接取消；工具栏单行不换行，多个固定宽度标签挤占发送区域。
+- 改为原生 button（aria-expanded/可访问名称）切换全部参考，保留默认 3 项折叠；展开后逐项调用原 onTogglePinnedContext(path)，不批量删除前面的参考。工具栏 flex-wrap，保持发送按钮可达。disabled 时取消固定按钮也禁用。
+- 新增 2 项回归在旧实现 **2 failed / 23 passed**，修复后 **25 passed**；断言展开/取消第 4 项精确路径/收起与 disabled 边界。
+- 完整 `pnpm.cmd verify` exit 0：frontend **102 files / 829 passed**，project-core **7 passed**，API **1592 passed / 7 skipped**；lint/typecheck/Ruff/daily sidecar/OpenAPI drift 通过。build、Chromium smoke、Prettier、git diff --check 通过，既有 chunk 警告未绕过。
+- 隔离 Chromium 的 320px Composer 中，5 个参考按 Enter 展开，全部按钮处于工具栏边界内（clientWidth=scrollWidth=318）；点击第 4 个取消后其他参考保留，Space 收起恢复前三个。已查看展开截图，发送与取消控件均可见。无 API/provider 或真实文件操作。
+- 证据 `.codex/uiux-context-pins-20260908/` 的日志、replay 脚本；截图 `output/playwright/uiux-context-pins-20260908/expanded-320.png`。专用 Chromium/3012 Vite 已关闭。
+
+持续目标未完成；本轮只证明参考管理和局部窄栏布局，不能代替完整 Tauri/Agent 创作链验收。继续检查动态移除焦点和会话切换时输入状态等交互。
+
+## 2026-09-08：Composer 会话归属与历史草稿隔离
+
+- 上轮为有效进展，本轮继续 d84b worktree，未提交/推送，保留全部前序修改。
+- 复现：A 会话草稿按 Up 回溯历史，切另一会话/新草稿/另一项目后按 Down，Composer 内 draftRef 会把 A 草稿送入新会话的 onChange。
+- 最终修复为 `useComposerScope`：layout effect 比较项目/会话并生成 Composer key；只有 Composer 重建，不重建 MessageList、Agent 运行时或父输入 state。同一会话重渲染保留节点与历史草稿恢复；显式新建（包括 null→null）单独递增 generation。
+- 首次方案直接用 project/session key，通过了最初切换回归，但源码证据表明 selfPersistedSessionIdRef 代表当前草稿首次持久化，不是导航。补充该边界后改为在 layout effect 读取 marker，首次获得 ID 保留输入节点/焦点；无 render ref 读取。marker 逻辑放独立 hook，避免 React refs 分析把整个 view state 判为 ref；未禁用 lint 规则。
+- 最初红测 **3 failed / 2 passed**；细化阶段新增两个边界在首次方案 **2 failed / 5 passed**。最终新增共 6 项回归；相关 3 文件 **36 passed**，涵盖旧草稿不跨项目/会话、同会话保留、首次持久化保持焦点、草稿态显式新建清缓存。测试挂载真实 ChatWindowView/Composer，父 state/handlers 为测试夹具。
+- 最终原样 `pnpm.cmd verify` exit 0：frontend **102 files / 835 passed**、project-core **7 passed**、API **1592 passed / 7 skipped**；lint/typecheck/Ruff/daily sidecar/OpenAPI drift 全过。
+- 最终 production build、Chromium smoke、Prettier、git diff --check 通过。早期 verify/build 不用于证明最终实现；仅以 verify-final/build-final/smoke-final 日志为最终依据。既有大 chunk 警告未绕过。
+- 证据 `.codex/uiux-composer-scope-20260908/`：red/refinement-red/green 日志与 lint-final/verify-final/build-final/smoke-final 日志。
+
+本轮未做该竞态独立浏览器重放或真实 provider/持久化端到端，仅有组件边界行为证据和通用 Chromium smoke。整体目标仍未完成，继续审查动态控件焦点与整体创作流，不宣称 UI/UX 已无可优化点。
+
+## 2026-09-08：取消固定参考后的连续键盘操作
+
+- 上轮为有效进展。本轮继续 d84b worktree，未提交/推送，保留前序修改。
+- 已复现聚焦的取消固定按钮被移除后，焦点落到 body。修复在显式操作且当前按钮拥有焦点时，同步移到下一枚可见参考、或上一枚；只有一枚时返回 textarea。外部控件已有焦点则不改变。通过局部 button ref map 找目标，不引入全局 selector/rAF，也不改变 onTogglePinnedContext(path) 数据回调。
+- 4 个新增回归：旧实现 **3 failed / 26 passed**，修复后 **29 passed**；覆盖首项/末项/唯一项删除与外部焦点保持。
+- 完整 `pnpm.cmd verify` exit 0：frontend **102 files / 839 passed**、project-core **7 passed**、API **1592 passed / 7 skipped**；lint/typecheck/Ruff/daily sidecar/OpenAPI drift 通过。build、Chromium smoke、Prettier、git diff --check 通过，既有 chunk 警告未绕过。
+- 隔离 Chromium 320px Composer 中从首个取消固定按钮开始，连续按 Enter 5 次移除 5 个参考；焦点顺序为第 2/3/4/5 项后进入 textarea，不用鼠标重找控件即可接着输入文字；截图已查看。参考路径为纯内存夹具，无 API/provider 或真实文件写回。
+- 证据 `.codex/uiux-pin-focus-20260908/` 日志与 replay 脚本，截图 `output/playwright/uiux-pin-focus-20260908/keyboard-removal.png`；本轮专用 Chromium 和 3012 Vite 已关闭。
+
+持续目标未完成；本轮局部 keyboard evidence 不代表完整原生创作流、屏幕阅读器或真实 provider 验收。
+
+## 2026-09-08：RunActionBar 拒绝草稿不跨修订残留
+
+- 上轮为有效进展；本轮继续 d84b worktree，未提交/推送，保留前序修改。
+- 复现：打开拒绝表单并输入意见后，更换 run、替换 patchId 或 waiting→running→waiting，旧 rejectDraft 仍残留，可能被提交给新修订。
+- RunActionBar 保留公开 props，以 run.id/sessionId/status/patchId 列表为局部 ScopedRunActionBar key；实际操作归属变化时只重建操作条表单，不更改 Agent 执行、Composer、数据回调或补丁写回。同一补丁更新 busy/时间等字段保留输入。
+- 4 个新增回归旧实现 **3 failed / 9 passed**；最终 3 个相关文件 **40 passed**，断言重开为空、同 scope 节点/草稿保留且未调用拒绝 handler。
+- 原样 `pnpm.cmd verify` exit 0：frontend **102 files / 843 passed**，project-core **7 passed**，API **1592 passed / 7 skipped**；lint/typecheck/Ruff/daily sidecar/OpenAPI drift 通过。build、Chromium smoke、Prettier、git diff --check 通过，既有 chunk 警告未绕过。
+- 隔离 Chromium 挂载真实 RunActionBar，输入旧意见后切 patch-A→patch-B，表单关闭；重新点击拒绝显示空输入。已查看截图。浏览器脚本未确认拒绝、handler 禁止拒绝执行，无 API/provider/真实文件操作。
+- 日志与 replay 在 `.codex/uiux-run-draft-20260908/`；截图 `output/playwright/uiux-run-draft-20260908/fresh-reject.png`。专用 Chromium/3012 Vite 已关闭。
+
+整体目标未完成。本轮仅解决表单归属；尚不能宣称所有运行控制的 busy/迟到焦点回调安全或完整 Tauri/provider 写回链验收。
+
+## 2026-09-08：RunActionBar busy 期间拒绝表单守卫
+
+- 上轮为有效进展，本轮继续 d84b worktree，未提交/推送，保留已有修改。
+- 复现：拒绝表单先打开后 controls.busy=true，确认按钮未禁用，输入框 Enter 也绕过顶排 busy 禁用继续调用 onRejectPatch。
+- 修复：确认按钮 disabled 与等待样式跟随 controlsBusy；handleRejectPatch 在改草稿、调用 handler、回焦点前先检查 controlsBusy。输入继续可编辑，不取消/清空作者草稿；busy 解除后仍用原修改方向调用原 handler。
+- 新增点击/Enter 两项回归，旧实现 **2 failed / 12 passed**；修复后 3 个相关文件 **42 passed**，包括 busy 阻止提交/保留节点草稿/解除后成功调用的完整序列。
+- 原样 `pnpm.cmd verify` exit 0：frontend **102 files / 845 passed**，project-core **7 passed**，API **1592 passed / 7 skipped**；lint/typecheck/Ruff/daily sidecar/OpenAPI drift 通过。build、Chromium smoke、Prettier、git diff --check 通过；既有 chunk 警告未绕过。
+- 证据目录 `.codex/uiux-reject-busy-20260908/`：red/green/verify/build/smoke 日志。本轮为真实组件挂载测试和通用 Chromium smoke，没有该 busy 竞态独立浏览器重放/真实 provider/写回验收。
+
+整体目标未完成。此修复只保证已呈现的 controlsBusy 状态不能被表单入口绕过，不声明所有尚未传播 busy 的同帧重复请求或迟到焦点已解决。
+
+## 2026-09-08：运行操作后的延迟焦点归属
+
+- 上轮为有效进展。本轮继续 d84b worktree，未提交/推送、保留前序修改。
+- RunActionBar 原先在 rAF 执行时重新全局查询 Composer，无条件聚焦；作者已移到外部控件或 Composer 被新会话替换后仍会抢焦点。
+- 修复在排队时捕获原 Composer 节点与焦点来源；执行时要求节点仍 connected/非 disabled，且当前焦点仍在来源或 body。不会重新命中新会话输入框；原运行正常结束导致按钮卸载时仍回到原输入框。不取消正常 terminal 的回焦点，也不改运行控制回调。
+- 新增 3 项回归：旧实现 **2 failed / 15 passed**，最终相关 3 文件 **45 passed**。覆盖外部焦点、输入节点替换与正常 terminal 正向恢复，均断言接受回调仅一次。
+- 原样 `pnpm.cmd verify` exit 0：frontend **102 files / 848 passed**，project-core **7 passed**，API **1592 passed / 7 skipped**；lint/typecheck/Ruff/daily sidecar/OpenAPI drift 通过。build、Chromium smoke、Prettier、git diff --check 通过，既有大 chunk 警告未绕过。
+- 日志 `.codex/uiux-run-focus-20260908/`：red/green/verify/build/smoke。本轮焦点序列由真实 RunActionBar 挂载与 rAF 行为测试验证，未做该竞态独立浏览器重放或真实 provider/写回。
+
+持续目标未完成；局部焦点归属不代表所有编辑/Agent/原生创作交互均已验收。
+
+## 2026-09-08：全文搜索防抖期间的结果归属
+
+- 上轮为有效进展。本轮继续 d84b worktree，未提交/推送，保留前序修改。
+- 复现：useProjectSearch 只在 220ms 后开始新搜索时递增 seq，旧文件读取可在新查询/清空/大小写切换的防抖窗口内回填旧结果；旧 rerun callback 也可在换查询/项目或卸载后重新读取。
+- 改用 projectPath/query/caseSensitive 的 scope 投影结果，以及 layout effect 建立/失效的 committed lifetime。变更立即显示空的 waiting/idle 投影，旧回调无读取资格，旧结果和错误不回填；每个 lifetime 内仍以 seq 排序重复搜索。移除旧的 project-only effect 清理与其 set-state-in-effect 豁免，无新增 lint 例外。
+- 保留 220ms 防抖、8 路读取上限、渐进结果、文件可见性过滤、readProjectFile containment 和命中上限算法。已经发出的 IPC 不声称被取消，过期任务不再继续批次或更新界面。
+- 新增 `tests/project-search-lifecycle.test.tsx` 8 项，旧实现 **7 failed / 1 passed**，修复后相关 3 文件 **21 passed**；覆盖查询/清空/大小写/切项目/关闭，以及旧 rerun 与 A→B→A/卸载。
+- 原样 `pnpm.cmd verify` exit 0：frontend **103 files / 856 passed**、project-core **7 passed**、API **1592 passed / 7 skipped**；lint/typecheck/Ruff/daily sidecar/OpenAPI drift 通过。build、Chromium smoke、Prettier、git diff --check 通过，既有 chunk 警告未绕过。
+- 隔离 Chromium 挂载真实 SearchView+hook，内存 FS 暂挂旧词读取；改为新词后释放旧读取，旧命中不呈现，随后新词正常显示 1 个命中。截图已查看；未访问真实文件、点击结果或调用 provider。专用 browser/3012 Vite 已关闭。
+- 证据 `.codex/uiux-search-scope-20260908/` 日志与 replay；截图 `output/playwright/uiux-search-scope-20260908/new-query.png`。
+
+整体目标未完成；本轮不证明真实文件权限故障或所有搜索部分失败的反馈均已验收，继续检查搜索结果完整性提示及更广创作体验。
+
+## 2026-09-08：全文搜索部分失败明确提示与重试
+
+- 上轮为有效进展，本轮继续 d84b worktree，未提交/推送，保留前序修改。
+- 复现：readProjectFile 失败被静默跳过，全部不可读仍显示“没有匹配的内容”，会把未搜索误当作无命中。
+- 搜索状态新增 unreadableCount，按实际失败文件计数，在现有 scope/lifetime/seq 保护下渐进发布；不猜测权限/占用原因，不泄露原异常。可读文件命中照常保留，读取失败不阻断全部搜索。
+- SearchView 明确显示“有 N 个文件未能读取，结果可能不完整”及重试搜索；零命中且存在未读文件时不再宣称完整无匹配。重试按钮在 searching 时禁用，开始重试前将焦点还给搜索框，避免提示消失后焦点丢失；成功后计数和提示清除。
+- 新增部分失败/全部失败到成功重试的 2 项真实 hook+View 回归，旧实现 **2 failed / 8 passed**；最终相关 3 文件 **23 passed**，保留全部生命周期回归。
+- 原样 `pnpm.cmd verify` exit 0：frontend **103 files / 858 passed**、project-core **7 passed**、API **1592 passed / 7 skipped**；lint/typecheck/Ruff/daily sidecar/OpenAPI drift 通过。build、Chromium smoke、Prettier、git diff --check 通过，既有 chunk 警告未绕过。
+- 隔离 Chromium 内存 FS 先抛模拟读取错误，显示 1 个未读文件与不完整说明；恢复内存读取并点击重试，命中出现、提示消失、搜索框保持焦点。已查看截图；未模拟真实 OS 权限、未访问真实文件/provider。专用 browser/3012 Vite 已关闭。
+- 证据 `.codex/uiux-search-partial-20260908/` 日志和 replay；截图 `output/playwright/uiux-search-partial-20260908/incomplete.png`。
+
+整体目标未完成。本轮未验证真实文件权限恢复、屏幕阅读器或完整原生创作链，不用局部测试代替整体验收。
+
+## 2026-09-08：全文搜索全局上限在批次内生效
+
+- 上轮为有效进展，本轮继续 d84b worktree，未提交/推送，保留前序修改。
+- 复现：总上限只在每批 8 文件开始前检查，16 文件各 40 命中会产出 **640** 条；首文件 35 命中、其他每文件 40 时可产出 **475** 条，均超过配置 400。
+- 修复：批次内处理每个文件前检查剩余全局预算，传给 findHitsInContent 的 maxHits 为 min(单文件上限, 全局剩余)；最后文件可只保留 5 条并正确 truncated，不是粗暴跳过整个文件。既有读取并发、命中顺序、capped 提示与文件安全边界不变。
+- 2 个新增真实 hook+SearchView 回归旧实现 **2 failed / 10 passed**，最终相关 3 文件 **25 passed**；断言 totalHits=400、DOM 命中行数=400、上限说明一致与最后文件 5 条/截断。
+- 原样 `pnpm.cmd verify` exit 0：frontend **103 files / 860 passed**，project-core **7 passed**，API **1592 passed / 7 skipped**；lint/typecheck/Ruff/daily sidecar/OpenAPI drift 通过。build、Chromium smoke、Prettier、git diff --check 通过，既有大 chunk 警告未绕过。
+- 证据 `.codex/uiux-search-cap-20260908/`：red/green/verify/build/smoke 日志。本轮使用内存文件 mock 与真实组件挂载验证命中数量，未另做 400 行独立浏览器重放或真实项目性能压测。
+
+整体目标未完成；上限正确不代表长项目性能、原生滚动和所有搜索语义已验收。
+
+## 2026-09-08：全文搜索响应文件变更通知
+
+- 继续 d84b worktree，保留前序未提交修改，未提交或推送。
+- 复现：全文搜索未监听已有 FS_MUTATION_EVENT，文件保存后旧结果会保留到查询改变。新增有效查询监听，以 fileVersion 纳入结果 scope，使旧结果和在途旧读取失效；复用现有 220ms 防抖合并连续通知。空/短查询、无项目不监听，卸载清理监听与 timer。
+- 3 项新增真实 hook+SearchView 回归覆盖 5 次通知合并一次读取、在途旧读取拒绝回填、空查询和卸载后不读取。旧实现 2 failed / 13 passed；最终相关 3 文件 28 passed。
+- pnpm.cmd verify 日志确认所有本地核心门禁通过：frontend 103 files / 863 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。原 session 已结束且不可再次查询，以完整日志末尾成功标记确认。
+- npm.cmd --prefix apps/desktop/frontend run build 和 run verify:smoke 连续执行 exit 0；既有大 chunk 警告未绕过。Prettier 与 git diff --check 通过。
+- 证据 .codex/uiux-search-refresh-20260908/：red.log、green.log、verify.log、build.log、smoke.log。
+- 范围：内存 FS 事件与真实组件测试，加通用 Chromium smoke；未单独进行 mutation 浏览器重放、真实文件写回、外部 OS watcher 或大型项目性能验收。没有修改写回权限、containment、API/DTO 或 filesystem watcher。
+
+整体目标仍未完成；本轮只证明已有文件变更通知能使搜索更新，不宣称覆盖所有外部文件变化。
+
+## 2026-09-08：Unicode 大小写搜索高亮映射
+
+- 上轮为有效进展，本轮继续 d84b worktree，保留全部前序修改，未提交/推送。
+- 复现：İ 转小写为两个 UTF-16 单元，直接使用小写文本偏移截取原文，会让后续中文命中错位；查询自身转换扩展时也会错误截取长度。3 项纯逻辑回归在旧实现为 3 failed / 9 passed。
+- 修复：保持原有整行 toLowerCase + 字面量 indexOf 匹配（含上下文 sigma），仅在原文/小写文本长度不同时构建源码点范围映射。命中起止从实际 needle.length 映射回原文，长度相同的常规行无需映射。保留行号、非重叠推进、大小写开关和命中预算。
+- 新增 3 项纯逻辑和 1 项真实 hook+SearchView 高亮回归；覆盖长段落、多命中、astral 前缀、查询/原文扩展、上下文 sigma、字面量、区分大小写及 DOM mark。相关 3 文件 32 passed。
+- pnpm.cmd verify exit 0：frontend 103 files / 867 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过；未修改警告阈值。
+- 隔离 Chromium 真实 hook+SearchView 配内存文件，输入“目标”正确高亮原文“目标”，输入 i + combining dot + x 正确高亮原文 İX。DOM 断言通过，两个截图已查看。专用浏览器与 3012 Vite 已关闭，未访问真实项目或 provider。
+- 证据 .codex/uiux-search-unicode-20260908/（red/green/verify/build/smoke/browser 日志及 replay），截图 output/playwright/uiux-search-unicode-20260908/chinese.png、expanded.png。
+
+整体目标仍未完成；本轮不是 Unicode 规范化/语言区域排序功能，也未验收所有字素边界、真实 Tauri 项目写回或大型项目性能。
+
+## 2026-09-08：搜索整体失败重试的键盘焦点恢复
+
+- 上轮为有效进展，继续 d84b worktree，保留前序修改，未提交/推送。
+- 复现：整体目录读取失败后的重试按钮直接调用 rerun，进入 searching 后按钮卸载，焦点落到 body；部分读取失败的重试已有回焦点，两个入口不一致。
+- 修复：SearchView 两类重试共用 retrySearch，在发起搜索前同步 focus 稳定搜索输入，不在异步成功/失败时追加 focus。保留查询、失败文案和底层 scope/lifetime 保护。
+- 2 项真实 hook+View 回归旧实现 2 failed / 16 passed，最终相关 3 文件 34 passed。覆盖延迟重试立即恢复输入焦点、成功保留查询和焦点、用户主动移焦后晚失败不抢焦点。
+- pnpm.cmd verify exit 0：frontend 103 files / 869 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过，既有 chunk 警告未绕过。
+- 隔离 Chromium 真实 hook+View + 内存 FS：先模拟 listDir 失败，再恢复并用 Enter 触发重试；命中出现后输入框仍有焦点，可直接键入“续”，query 从“目标”变为“目标续”。DOM 断言通过，已查看 recovered.png（继续输入后 searching 状态）。专用 browser/3012 Vite 已关闭。
+- 证据 .codex/uiux-search-retry-focus-20260908/（red/green/verify/build/smoke/browser 日志、replay），截图 output/playwright/uiux-search-retry-focus-20260908/error.png、recovered.png。
+
+整体目标仍未完成。本轮不代表真实 OS 目录权限恢复、屏幕阅读器或完整原生写作/写回链路验收。
+
+## 2026-09-08：忙碌时取消拒绝草稿的输入方式一致性
+
+- 上轮为有效进展，继续 d84b worktree，保留前序修改，未提交/推送。
+- 复现：拒绝草稿已展开时 busy 会禁用顶部“取消”，鼠标无法关闭；Escape 虽关闭却向禁用按钮回焦点，造成焦点丢失。2 项新回归旧实现 2 failed / 17 passed。
+- 修复：busy 时仅允许已展开表单的本地取消，关闭后入口重新禁用；确认提交与 handleRejectPatch 的 busy 守卫不变。鼠标/Escape 共用取消 handler，忙碌时同步聚焦具名的运行操作 group（tabIndex=-1），非忙碌仍回拒绝入口。不在 busy 解除时自动转移焦点。
+- 2 项真实组件测试覆盖点击/Escape、关闭后的禁用、无后台接受/拒绝调用、解除 busy 后可重新打开空草稿。操作条全部 19 passed。
+- pnpm.cmd verify exit 0：frontend 103 files / 871 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过。
+- 隔离 Chromium 使用真实 RunActionBar + ComposerSurface、模拟 busy、不调用后台：Escape 取消后焦点在运行操作 group，截图可见焦点框，拒绝入口禁用；随后 Tab 正常进入 composer-input。浏览器与 3012 Vite 已关闭。
+- 证据 .codex/uiux-reject-cancel-busy-20260908/（red/green/verify/build/smoke/browser 日志及 replay）；截图 output/playwright/uiux-reject-cancel-busy-20260908/cancelled.png 已查看。
+
+整体目标仍未完成；本地取消草稿不代表取消已经提交的后台操作，未进行真实 provider 或 Tauri 补丁写回验收。
+
+## 2026-09-08：Composer 历史回溯光标与新选区隔离
+
+- 上轮为有效进展，继续 d84b worktree，保留前序修改，未提交/推送。
+- 复现：历史回溯的 requestAnimationFrame 无条件将当前 textarea 选区移到末尾，覆盖在帧执行前作者设置的新选区；相同历史文本没有 value 变化时也要等帧才能定位。新测试旧实现 2 failed / 1 passed。
+- 修复：历史文本变更同时发布一次性 caret request，在 layout effect 对匹配文本且当前聚焦的可用输入框设置选区，并用 request 身份防重放。不再排队历史光标帧；相同文本也触发一次提交，普通重渲染不重复设置选区。保留原草稿恢复和历史边界行为。
+- tests/composer-history-caret.test.tsx 新增 3 项真实 Composer 回归：新反向选区不被帧覆盖、同值回溯即时定位、下键恢复原草稿/重渲染保留选区。与权限/跨会话组件测试共 39 passed。
+- pnpm.cmd verify exit 0：frontend 104 files / 874 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过。
+- 隔离 Chromium 真实 ComposerSurface：Ctrl+Home/ArrowUp 取回历史，Shift+ArrowLeft 选中末字，等待两帧后仍为 start=3/end=4/backward；Ctrl+End/ArrowDown 恢复原三行草稿。截图 selection.png 已查看。专用 browser/3012 Vite 已关闭，没有 API/provider/真实写回。
+- 证据 .codex/uiux-history-caret-20260908/（red/green/verify/build/smoke/browser 日志与 replay）；截图 output/playwright/uiux-history-caret-20260908/selection.png。
+
+整体目标仍未完成；本轮不代表真实 IME、多 provider 或完整 Tauri 写作链验收。
+
+## 2026-09-08：整体验收覆盖复核与补丁方向输入保护
+
+- 上轮为有效进展，继续 d84b worktree，未提交/推送。重新核对 PRD R1—R15 与原生 acceptance-20260907.md，将证据和下一步缺口记录到 .codex/uiux-workflow-audit-20260908.md；没有把局部测试或旧原生截图升级为当前完整工作流验收。
+- 沿 R2/R3 补丁流程确认：保存旁注未结束时 Enter 提交拒绝会先清草稿/移焦点，随后 runAction 忙碌锁阻止请求，作者的修改方向丢失。2 项新回归旧实现 2 failed / 15 passed，覆盖普通等待和同一 React 提交帧。
+- 修复只在 submitRejection 开头检查现有 busyActionRef；被阻止时不修改草稿和焦点。busy 结束后原方向可提交，既有双击保护、写回 callback 与权限不变。补丁面板/RunActionBar 相关 2 文件 36 passed。
+- pnpm.cmd verify exit 0：frontend 104 files / 876 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过。
+- 隔离 Chromium 真实 PatchReviewPanel/Monaco、420px 宽、所有动作回调模拟：输入修改方向 → 保存旁注暂挂 → Enter 不清输入、不移焦点、不提交 → 完成旁注 → Enter 原方向仅提交一次。preserved.png 已查看；未调用真实文件写回/API/provider。动态夹具首次遇到 createRoot 默认导出解包问题，修正夹具后重放通过；产品代码未因此变更。
+- 证据 .codex/uiux-patch-draft-busy-20260908/（red/green/verify/build/smoke/browser 日志与 replay）；截图 output/playwright/uiux-patch-draft-busy-20260908/preserved.png。专用 browser/3012 Vite 已关闭。
+
+整体目标仍未完成；动态夹具未初始化完整 App 的 Monaco 主题，不用于产品主题评判。当前真实 Tauri diff 确认→guarded writeback→版本记录 GUI 链仍缺完整证据。
+
+## 2026-09-08：补丁替换后的忙碌状态归属
+
+- 上轮为有效进展，继续 d84b worktree，未提交/推送。确认 Editor 的 PatchReviewPanel 没有 suggestion key，会复用实例。
+- 最初假设“新补丁应立即解锁”在追踪 useSuggestionWriteback 后被否定：旧操作可能仍在写文件，不能靠重建组件绕过互斥锁。未实施此方案；red.log 为已废弃假设，不是最终缺陷证明。
+- 最终问题：patch-A 的旁注操作未结束时换到 patch-B，仍显示“正在保存旁注”，没有区分操作属于上一份。保留已有共享 busyActionRef，只让 busyAction 状态记录 kind + suggestionId；不匹配当前 suggestion 时显示“正在完成上一份修订的操作…”。旧操作结束后正常解锁，同一补丁仍显示具体操作。
+- 最终红绿为 red-owner.log 1 failed / 18 passed，新增两项回归覆盖换身份/不换身份、旧操作仍互斥、结束解锁及新操作显示当前状态。相关补丁面板与 RunActionBar 共 38 passed。
+- pnpm.cmd verify exit 0：frontend 104 files / 878 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过。
+- 隔离 Chromium 真实 PatchReviewPanel/Monaco + 模拟回调：A 旁注暂挂→B 替换→显示上一份操作且按钮仍禁用→A 完成→B 可操作并显示当前旁注状态。420px 截图已查看，不作 App 主题验收。专用 browser/3012 Vite 已关闭。
+- 证据 .codex/uiux-patch-scope-20260908/（red-owner/green/verify/build/smoke/browser 日志及 replay）；截图 output/playwright/uiux-patch-scope-20260908/previous-action.png。
+
+整体目标仍未完成；没有修改写回串行性、guarded writeback、权限或实际文件，也不声称已解决所有跨补丁后台回调问题。
+
+## 2026-09-08：旧旁注保存完成不误关新提议
+
+- 上轮为有效进展，继续 d84b worktree，保留前序修改，未提交/推送。
+- 复现：handleSaveSuggestionNote 捕获 A 并等待写入；期间通过真实提议事件接收 B，旧保存完成后 setPendingSuggestion(null) 会关闭 B。B 即便复用 A 的 ID 但内容已更新，也会被误关。
+- 修复：完成时以函数式状态更新和对象身份判断，只清除提交的 suggestion；仅当前提议与项目仍匹配时安排原有回编辑器焦点。保存仍写原 project/notePath，成功 toast 明确原旁注路径，没有取消已授权的写入或改变文件权限。
+- 在既有真实 useSuggestionWriteback harness 暂挂 mock note write，新加不同 ID 替换、同 ID 新对象替换和无替换正常完成 3 项回归。旧实现 2 failed / 14 passed，最终 hook/补丁面板相关 2 文件 35 passed；检查新提议保留、无旧焦点动作、原旁注内容只写一次，正常完成仍关闭并回焦点。
+- pnpm.cmd verify exit 0：frontend 104 files / 881 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过。
+- 证据 .codex/uiux-note-late-20260908/：red/green/verify/build/smoke 日志。本轮没有独立旁注竞态浏览器重放，使用真实 hook + 事件 + 内存写入 mock；通用 smoke 不等于真实 Tauri 旁注保存验收。
+
+整体目标仍未完成。整份/分块接受的晚回调、已排队焦点帧与文件切换仍需独立核查；本轮不宣称所有写回并发路径已安全。
+
+## 2026-09-08：排队的回编辑器焦点绑定原上下文
+
+- 上轮为有效进展，继续 d84b worktree，保留前序修改，未提交/推送。
+- 复现：focusEditorAfterAction 的帧回调会重新取当前 editorRef，且只要焦点在任意 patch-review 内就移动到编辑器；排队后切文件、收到新提议或聚焦另一输入框都会被旧回调覆盖。新增 4 项真实 hook 回归，旧实现 3 failed / 17 passed。
+- 修复：排队时捕获 editor/file/project/suggestion 与源焦点；执行时拒绝不同编辑器、路径、项目、非空新提议，且只允许焦点仍在源控件或因卸载落到 body 时回焦点。不改变实际编辑/旁注/写回行为。
+- tests/behavior/auto-writeback.test.tsx 覆盖换文件、换提议、同补丁区内新输入焦点，以及无变化正常回编辑器；全部拒绝操作不写文件。相关 hook/补丁面板 2 文件 39 passed。
+- pnpm.cmd verify exit 0：frontend 104 files / 885 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过。
+- 证据 .codex/uiux-editor-focus-scope-20260908/：red/green/verify/build/smoke 日志。本轮用真实 hook+提议事件、可控帧和 DOM 焦点验证，Monaco focus 为 spy；未独立做原生/Monaco 浏览器时序重放。
+
+整体目标仍未完成。这里只保护排队之后的上下文变化，不代表接受/分块接受开始到异步结果返回之间的全部状态安全，也不覆盖所有 A→B→A 生命周期重入。
+
+## 2026-09-08：接受完成只更新提交时的提议
+
+- 上轮为有效进展，继续 d84b worktree，保留前序修改，未提交/推送。
+- 复现：接受旧补丁期间收到新提议，整份/最后一块完成会 setPendingSuggestion(null) 误关新提议，部分块完成则以旧 suggestion 的剩余内容覆盖新提议。新增 6 项回归旧实现 3 failed / 23 passed。
+- 修复：整份/最后块完成只函数式清除相同 suggestion 对象，部分块只在该对象仍为当前提议时更新 before；回焦点仅在提议和文件仍对应时安排。未取消原授权写入，未修改 writeAcceptedSuggestion、快照、版本记录、漂移拒写或计划标记。
+- 真实 useSuggestionWriteback 回归覆盖 whole/partial-hunk/last-hunk 各自替换与不替换，新提议复用旧 ID 但内容不同；验证原写入一次且内容正确、快照/闭环记录仍执行、只有整份接受标记完成。相关 hook/补丁面板 2 文件 45 passed。
+- pnpm.cmd verify exit 0：frontend 104 files / 891 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过，既有 chunk 告警未绕过。
+- 证据 .codex/uiux-accept-late-20260908/：red/green/verify/build/smoke 日志。本轮用真实 hook/事件与内存写入、版本、计划边界 mock 验证；没有独立并发浏览器重放或真实 Tauri 文件落盘。
+
+整体目标仍未完成。保留新提议不等于它在旧写入完成后仍可直接应用，既有漂移拒写必须继续生效；跨项目异步元数据归属和所有操作并发仍待独立验证。
+
+## 2026-09-08：异步接受的记录与章节标记绑定原项目
+
+- 上轮为有效进展，继续 d84b worktree，保留前序修改，未提交/推送。
+- 复现：A 写入暂挂期间切项目 B，write 已捕获 A，recordRevisionLoop 却读取当前 projectPathRef=B；整章 mark 同样读取当前项目，混合旧文件与新项目。2 项新对照测试旧实现 1 failed / 27 passed。
+- 修复：writeAcceptedSuggestion 中 snapshot/write/record 统一使用原 projectRoot，snapshot/record 的 sessionId 也在开始时捕获；返回该 projectRoot 给整份接受后的 markChapterWrittenInPlan 使用。不修改调用先后、失败门禁、权限、项目 containment 或后端契约。
+- 真实 hook 回归覆盖切项目与不切项目：捕获 mock 写入根、闭环 record 的 projectPath/filePath、plan 命令参数，均属于 A，正文只写 A 一次。相关 hook/补丁面板 2 文件 47 passed。
+- pnpm.cmd verify exit 0：frontend 104 files / 893 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过。
+- 证据 .codex/uiux-writeback-origin-20260908/：red/green/verify/build/smoke 日志。本轮使用真实 hook 和内存副作用 mock，不涉及真实双项目落盘或独立 Tauri GUI 重放。
+
+整体目标仍未完成。useBranchManifest.advanceBranchHead 自身读取当前项目/文件，在快照等待期间切换时仍需独立验证；撤销动作与其他跨项目元数据链也未作全部安全声明。
+
+## 2026-09-08：分支头推进绑定原项目、文件与分支
+
+- 上轮为有效进展，继续 d84b worktree，保留前序修改，未提交/推送。
+- 复现：advanceBranchHead 原先在执行时读取当前 manifest/project/file，快照等待后切项目/切文件/切分支会更新错误分支头。3 项新 hook 回归旧实现全部失败。
+- 引入 BranchHeadTarget（内部 TS 类型，非 API DTO）；advanceBranchHead 支持明确 projectPath/filePath/branchId，非活动文件加载并保存原目标清单，只有仍匹配且 manifest 身份未变化时更新活动 UI。保留无 target 的现有即时调用兼容与原保存错误处理。
+- Editor 保存、恢复文件不存在版本、useSuggestionWriteback 接受路径均传递快照时的目标；快照与 advance 共用捕获的 branch。没有更改正文写入、快照失败阻断或权限语义。
+- tests/branch-manifest-scope.test.tsx 覆盖项目/文件/分支切换，断言保存目标、原分支头与当前选择不受污染。auto-writeback 新增真实调用链测试，暂停 snapshot 后切项目，验证推进参数和正文/记录仍为原项目。相关 4 文件 63 passed。
+- pnpm.cmd verify exit 0：frontend 105 files / 897 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过。
+- 证据 .codex/uiux-branch-origin-20260908/：red/green/verify/build/smoke 日志。真实 hook 与分支纯逻辑，load/save/snapshot/file 边界均为内存 mock；未独立做原生分支画布/双文件实际持久化重放。
+
+整体目标仍未完成。此处明确来源，不等于所有分支读改写已经实现事务串行化；并发清单保存、返回原文件的加载时序与撤销 scope 仍需独立核查。
+
+## 2026-09-08：撤销与版本历史入口确认原目标
+
+- 上轮为有效进展，继续 d84b worktree，保留前序修改，未提交/推送。
+- 复现：offerUndo 仅比较当前 editor 内容，不确认原文件/项目；切到相同正文的另一文件或项目后，旧通知仍触发原路径反向写入或删除。4 项新建/普通修订×文件/项目回归旧实现 4 failed / 29 passed。
+- 修复：offerUndo 使用写入结果的 projectRoot 固定来源；执行撤销前确认 project/file 同时匹配，不匹配则提示完整原文件路径并保留“回到原文件后重试”动作，不导航、不写入或删除。新建撤销删除使用固定来源项目。内容漂移仍保留版本历史退路，该后续入口也确认原目标并可重试。
+- 5 项新增真实 hook/通知 action 回归覆盖不同目标阻断、同正文不能绕过、回原目标恢复写回/删除，以及延迟打开版本历史不会打开另一文件历史。相关 hook/补丁面板 2 文件 53 passed。
+- pnpm.cmd verify exit 0：frontend 105 files / 902 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过。
+- 证据 .codex/uiux-undo-target-20260908/：red/green/verify/build/smoke 日志。写入/删除/版本历史为边界 mock，未触碰真实手稿；未独立进行该通知的 GUI 重放或原生撤销删除验收。
+
+整体目标仍未完成。此处保护动作启动时的目标身份，异步撤销期间的新提议收尾、多个操作串行化和原生文件真实性仍需后续验证。
+
+## 2026-09-08：通知动作防重复与失败反馈
+
+- 上轮为有效进展，继续 d84b worktree，保留前序修改，未提交/推送。
+- 复现：ToastHost 点击动作后 setItems 尚未提交时再次 click 会第二次调用 run。新回归旧实现 1 failed / 4 passed。
+- 修复：以 ToastItem 对象身份 WeakSet 同步领取动作执行权，每条通知只运行一次，不阻止另一条通知使用同一回调；先 dismiss 再执行。捕获同步抛错与异步拒绝，显示带动作名称的错误提示，不输出原始异常，不自动重试或暗示副作用已回滚。
+- 新增 4 项真实 ToastHost 回归覆盖同帧双击、同步/异步失败、不同通知与回调生成的新反馈不丢失；与撤销 hook 相关 2 文件 42 passed。
+- pnpm.cmd verify exit 0：frontend 105 files / 906 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移通过。build、Chromium smoke、Prettier、git diff --check 通过。
+- 隔离 Chromium 挂载真实 ToastHost，模拟动作 Promise.reject 后显示“未能完成，请检查当前状态后再重试”，role=alert 断言通过，截图 failure.png 已查看，无真实文件操作。专用 browser/3012 Vite 已关闭。
+- 证据 .codex/uiux-toast-action-20260908/（red/green/verify/build/smoke/browser 日志及 replay）；截图 output/playwright/uiux-toast-action-20260908/failure.png。
+
+整体目标仍未完成；单条通知防重复不是整个编辑器写回事务互斥，也不保证不同通知代表同一底层动作时全局去重。
+
+## 2026-09-08 通知交互暂停倒计时（d84b）
+
+- 修复 ToastHost 在鼠标悬停或键盘焦点仍位于通知内时自动消失。分别记录 pointer/focus 原因，二者均离开后按剩余时长恢复；内部按钮间移动焦点不恢复计时。默认时长未改。
+- 清理手动关闭、队列淘汰和卸载计时器，保留前轮动作去重与失败提示。产品只改 ToastHost.tsx 与 toast.test.tsx。
+- Red：3 failed / 8 passed；Green：通知与 auto-writeback 共 46 passed（新增 4 项通知回归）。
+- 最终 pnpm.cmd verify exit 0：前端 105 files / 910 passed；project-core 7 passed；API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI drift 门禁通过。首次 lint 对事件函数的 purity 检查失败，改为 useCallback 后重跑通过，未禁用规则。
+- 最终 production build、verify:smoke、git diff --check 通过；保留既有 hook dependency 与构建 chunk 警告。
+- Chromium 隔离真实 ToastHost：受控时钟推进 70 秒，分别验证 focus/pointer 暂停，再验证离开后恢复消失。截图 output/playwright/uiux-toast-pause-20260908/focused.png 已查看；replay 和日志在 .codex/uiux-toast-pause-20260908/。浏览器与本轮 Vite 已关闭。
+- 不是原生 Tauri、真实 provider 或完整 guarded writeback 验收；未提交、推送。整体 UIUX 目标继续。
+
+## 2026-09-08 通知突发时保留交互目标（d84b）
+
+- 复现：聚焦或悬停第一条通知后，同帧发送 5 条后台通知，原卡片被 slice 淘汰，键盘操作目标消失。Red 2 failed / 12 passed。
+- 修复：队列超限优先淘汰最早未交互卡片，当前交互卡片与 DOM 焦点保留；新消息正常展示，上限仍为 4。离开后旧卡片重新参与淘汰。计时器与可见 ID 同步，不修改默认时长或动作语义。
+- 最小测试 14 passed；pnpm.cmd verify exit 0，前端 105 files / 912 passed，project-core 7 passed，API 1592 passed / 7 skipped / 6 warnings；lint/typecheck/Ruff/daily sidecar/OpenAPI 无漂移。
+- production build、verify:smoke、git diff --check 均通过。原有 warning 未扩大或抑制。
+- 隔离 Chromium 验证真实 ToastHost：聚焦按钮→5 条新通知→焦点及最多 4 条保留→Tab/Enter 可关闭原通知。截图 output/playwright/uiux-toast-overflow-20260908/retained.png 已查看，日志与 replay 在 .codex/uiux-toast-overflow-20260908/。本轮 Vite 与浏览器已关闭。
+- 未验证关闭最后一条通知后的焦点恢复、真实 Tauri 全链与系统辅助技术；不把本轮证据当作完整 UIUX 终验。未提交、推送，目标继续。
+
+## 2026-09-08 当前原生写回与退出验收
+- 真实当前 Tauri 资源 index-K_CUIlkA.js，隔离样例/配置/DB/profile。Monaco 输入 Ctrl+S、模拟补丁 GUI 接受、磁盘/写前 shadow Git 检查点/闭环记录/历史对比验证通过；内容漂移拒写且 buffer、磁盘、提议状态保留。
+- 发现 P1：dirty 文档点击窗口关闭无确认，正常退出后重启同一 profile 未恢复草稿。已取得原生复现与重启证据，尚未修复，优先下一轮处理。
+- 详细路径 .codex/uiux-native-writeback-20260908/acceptance.md；原生截图 output/playwright/uiux-native-writeback-20260908/。
+- 临时 debug smoke 暂停探针已移除，main.rs 与原备份一致，恢复 cargo build exit 0；git diff --check 通过。本轮无产品行为改动，未新增完整门禁结论；未发送模型请求，未提交/推送。两个原生会话均已关闭。
+
+## 2026-09-08 P1 原生退出丢稿修复
+- 新增 useNativeCloseGuard 并在 tabs hook 接入原生 close-request，复用未保存决策；允许 SDK 确认后的 destroy。保存等待提高至 15 秒，取消/失败/重复请求/卸载晚回调不退出。
+- 新增 4 项回归，相关 15 passed；最终完整门禁 106 files / 916 frontend，1592 API / 7 skipped，project-core 7，OpenAPI 无漂移；build、smoke、恢复 cargo build、diff check 通过。
+- 首轮一项既有 API 探针 stdout 断言失败，未绕过，完整重跑通过；详见 .codex/uiux-window-close-20260908/acceptance.md。
+- 真实 Tauri 验证取消保留、保存退出、磁盘内容、重启恢复与干净关闭。首次 2 秒超时安全保留窗口，15 秒最终版本通过。临时观察代码已还原，所有本轮实例关闭。未提交/推送。
+
+## 2026-09-08 skipped 保存应答不得放行
+- 修复非活动目标 skipped 被当成成功的问题，明确 saved/clean 成功、skipped/error 拒绝、无效应答忽略。真实关闭脏页签回归不再丢稿。
+- 新增 4 项回归，相关 34 passed；完整门禁前端 920 / API 1592 passed（7 skipped），project-core 7，OpenAPI 无漂移；build/smoke/还原 cargo build/diff check 均通过。
+- 隔离原生当前资源 index-DByGI4vH.js 验证真实 Editor clean/skipped/saved 分类及真实落盘与干净关闭。详见 .codex/uiux-save-ack-20260908/acceptance.md。
+- 临时诊断移除，原生/API 会话已关闭。未提交/推送；并行请求关联和保存期间新输入仍需继续核查。
+
+## 2026-09-08 保存握手 requestId 隔离
+- 修复同文件旧/并行请求互认应答；请求与应答共享唯一 requestId，消费者同时核对目标/请求。更新真实 Editor 和事件测试假编辑器，不回退无 ID 成功兼容。
+- 新增 2 条时序回归；相关 36 passed，完整门禁 frontend 922 / API 1592 passed（7 skipped），project-core 7；OpenAPI 无漂移，build/smoke/恢复 cargo build/diff check 均通过。
+- 原生实际资源 index-DBjuFz_l.js，真实保存退出捕获同 ID saved，应答与磁盘一致，窗口正常关闭。详见 .codex/uiux-save-correlation-20260908/acceptance.md。
+- 临时 Rust 诊断已恢复，原生与 API 停止，未提交/推送。此修复不是写入串行化或全部保存竞态的保证。
+
+## 2026-09-08 保存期间后续输入不得误放行退出
+- 原生 Red：buffer 有新输入但磁盘无，旧版仍回 saved。现使用实际保存 receipt + 目标/model/内容复验；在途新增内容回 error，保留窗口；queued flush 目标变化拒绝，clean 不依赖延迟 dirty ref。
+- 新增 3 项回归，相关 32 passed；完整门禁前端 925 / API 1592 passed（7 skipped），project-core 7，OpenAPI 无漂移；build/smoke/恢复 cargo build/diff check 通过。
+- 原生 Green：保存中输入→明确取消关闭→重试保存退出→磁盘包含全部输入。截图 output/playwright/uiux-save-late-input-20260908/blocked-close.png 已查看。详情 .codex/uiux-save-late-input-20260908/acceptance.md。
+- 临时 Rust 观察代码已恢复，原生/API 已停。未提交或推送，整体目标继续。
+
+## 2026-09-08 未发送 Agent 消息退出保护
+- App 根据 ChatWindow 上报的布尔状态，在正文退出守卫前增加未发送消息确认；取消保留文字，后续正文取消也不提前清空消息，纯空白不警告。不新增消息磁盘存储。
+- 两条回归由红转绿；完整门禁 frontend 927 / API 1592 passed（7 skipped），project-core 7，OpenAPI 无漂移；build/smoke/恢复 cargo build/diff check 通过。
+- 原生当前资源 index-Befy3kGI.js 完整组合验收通过，详见 .codex/uiux-unsent-close-20260908/acceptance.md，截图已查看。临时 Rust 诊断已恢复，原生/API 已停。未提交/推送。
+- 项目/会话切换时草稿处理、运行中任务退出、崩溃恢复未因此宣称通过。
+
+## 2026-09-08 新建/切换会话的未发送草稿保护
+- 新建、切换会话统一要求显式确认；取消不重置文字或 Composer。当前会话不重复切换，空白直接放行；缺失确认能力时保留输入并提示。
+- 待确认期间去重，项目、会话、输入变化或卸载后拒绝旧确认提交。新增 3 条回归，相关文件 10 passed；既有历史缓存测试调整为等待异步确认。
+- pnpm verify 日志确认全部核心门禁通过：frontend 930 / API 1592 passed（7 skipped、6 warnings），project-core 7，OpenAPI 无漂移。生产构建、恢复后的 Rust build、Chromium smoke 和 diff check 通过。
+- 原生 Tauri 当前资源 index-D4E2_WxW.js：输入草稿→新建→取消保留→再次新建并明确放弃→清空并正常退出；截图已查看。临时 Rust 诊断无残留，隔离 API/CDP 端口均已关闭。
+- 原生仅验收新建会话；切换已存会话由组件回归覆盖。项目切换、运行中任务退出和崩溃恢复不在本轮验收范围。未提交/推送。
+
+## 2026-09-08 项目切换消息保护与弹窗重渲染修复
+- App/tabs 项目导航先确认未发送消息，再确认正文；取消保留页签/草稿，当前项目重复选择不重置，后台移除不影响当前输入。共享导航去重及项目/卸载有效性检查。
+- 新增 7 条行为回归，相关 13 passed；初次原生失败暴露 callback identity 被误当项目身份，deferred + render 回归由红转绿，绑定真实项目生命周期后原生菜单取消/确认通过。
+- 最终 pnpm verify exit 0：frontend 937 / API 1592 passed（7 skipped、6 warnings），project-core 7，OpenAPI 无漂移；build/smoke/恢复 Rust build/diff check 通过。
+- 原生资源 index-COWRcnku.js，取消保留消息与正文，明确放弃后才切换。截图已查看；临时 main.rs 诊断已恢复，原生/API/CDP 全部停止。详情 .codex/uiux-project-draft-20260908/acceptance.md。
+- 未提交/推送。异步启动恢复、在途项目创建、运行中任务退出等仍需验证，不宣称整体完成。
+
+## 2026-09-08 启动恢复不得覆盖手动导航
+- 显式区分自动恢复与手动导航，已批准手动导航同步使旧恢复失效、清空恢复状态并放行新现场持久化；覆盖同项目和偏好重新启用。正常恢复不受破坏。
+- 新增4项回归，相关11 passed；最终 pnpm verify exit 0，frontend 941 / API 1592 passed（7 skipped、6 warnings），project-core 7，OpenAPI 无漂移。build/smoke/恢复 Rust build/diff check 均通过。
+- 原生资源 index-bcBtGd41.js：正常恢复通过；现有 FS seam 仅延迟真实 path_exists IPC，用户从欢迎页打开 other 后旧校验完成，项目/正文/消息未被覆盖，新现场在旧 I/O 完成前即可持久化。详见 .codex/uiux-restore-navigation-20260908/acceptance.md。
+- 截图已查看；临时观察代码恢复，原生/API/CDP 停止。未提交/推送，整体目标仍继续。
+
+## 2026-09-08 项目创建晚返回与重复创建保护
+- 两类创建共享 mutex/busy UI；旧成功不切走当前项目，只通知实际落点并提供安全打开；旧失败不弹目录选择器。自动首句绑定项目，离开后不再复活旧首句。
+- 新增7项回归通过；最终 pnpm verify exit 0：frontend 948 / API 1592 passed（7 skipped、6 warnings），project-core 7，OpenAPI 无漂移。production build、恢复 cargo build、Chromium smoke、diff check 均通过。
+- 原生验收未完成：目录选择器尝试中断后用户允许继续，但重载产生叠加窗口和失效控件索引；未进入创建阶段。没有将超时/普通 smoke 算作完整真机创建成功。详情 .codex/uiux-project-create-20260908/acceptance.md。
+- 已核实路径并终止本轮隔离 PID 14144 进程树（非正常退出验收），API/CDP 端口均关闭；Rust pause 补丁完全恢复。未提交/推送，完整原生创建链仍待补验。

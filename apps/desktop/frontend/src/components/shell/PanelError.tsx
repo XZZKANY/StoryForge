@@ -8,13 +8,14 @@
  * 规矩：**一句人话说清发生了什么 + 明确的下一步（有重试就给按钮）+ 原始报错降级为细节**。
  * 原始报错不隐藏 —— 排障时它是唯一线索 —— 但它不该占据标题位。
  */
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 
 export function PanelError({
   title,
   detail,
   hint,
   onRetry,
+  retryButtonRef,
   retryLabel = '重试',
   compact = false,
 }: {
@@ -25,6 +26,7 @@ export function PanelError({
   /** 可选的下一步提示（无重试动作时尤其有用）。 */
   hint?: ReactNode;
   onRetry?: () => void;
+  retryButtonRef?: RefObject<HTMLButtonElement | null>;
   retryLabel?: string;
   /** 窄栏（文件树 / 故事索引）用更紧的排版。 */
   compact?: boolean;
@@ -47,6 +49,7 @@ export function PanelError({
       )}
       {onRetry && (
         <button
+          ref={retryButtonRef as RefObject<HTMLButtonElement> | undefined}
           type="button"
           onClick={onRetry}
           data-testid="panel-error-retry"

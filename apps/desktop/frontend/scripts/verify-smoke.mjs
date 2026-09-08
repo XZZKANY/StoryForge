@@ -74,7 +74,9 @@ try {
   const welcome = page.locator('[data-testid="welcome-workspace"]');
   await shell.waitFor({ timeout: 5000 });
   await welcome.waitFor({ timeout: 5000 });
-  await page.locator('[data-testid="explorer-empty"]').waitFor({ timeout: 5000 });
+  await page
+    .locator('[data-testid="shell-side-panel"]')
+    .waitFor({ state: 'hidden', timeout: 5000 });
 
   const title = await page.title();
   const bodyText = await page.locator('body').innerText();
@@ -138,35 +140,130 @@ try {
 
   const sidePanel = page.locator('[data-testid="shell-side-panel"]');
   const explorerActivity = page.locator('[data-testid="activity-explorer"]');
+  const bookActivity = page.locator('[data-testid="activity-book"]');
+  if ((await explorerActivity.getAttribute('data-active')) !== 'false') {
+    throw new Error('An empty explorer must not appear active while its panel is absent');
+  }
+  await bookActivity.click();
   await sidePanel.waitFor({ timeout: 5000 });
-  if ((await explorerActivity.getAttribute('data-active')) !== 'true') {
-    throw new Error('Expected the explorer activity to start active');
+  if ((await bookActivity.getAttribute('data-active')) !== 'true') {
+    throw new Error('Expected the book guidance panel to become active');
+  }
+  await bookActivity.click();
+  await sidePanel.waitFor({ state: 'hidden', timeout: 5000 });
+  if ((await bookActivity.getAttribute('data-active')) !== 'false') {
+    throw new Error('Expected the book activity to become inactive after collapsing');
+  }
+  await bookActivity.click();
+  await sidePanel.waitFor({ timeout: 5000 });
+  if ((await bookActivity.getAttribute('data-active')) !== 'true') {
+    throw new Error('Expected the book activity to become active after restoring');
   }
   await explorerActivity.click();
   await sidePanel.waitFor({ state: 'hidden', timeout: 5000 });
-  if ((await explorerActivity.getAttribute('data-active')) !== 'false') {
-    throw new Error('Expected the explorer activity to become inactive after collapsing');
-  }
-  await explorerActivity.click();
-  await sidePanel.waitFor({ timeout: 5000 });
-  if ((await explorerActivity.getAttribute('data-active')) !== 'true') {
-    throw new Error('Expected the explorer activity to become active after restoring');
-  }
 
   const narrowPage = await context.newPage();
   collectErrors(narrowPage);
   try {
-    await narrowPage.setViewportSize({ width: 1040, height: 720 });
+    await narrowPage.setViewportSize({ width: 1024, height: 768 });
     await narrowPage.goto(url, { waitUntil: 'networkidle' });
     await narrowPage.locator('[data-testid="desktop-shell"]').waitFor({ timeout: 5000 });
     await narrowPage.locator('[data-testid="welcome-workspace"]').waitFor({ timeout: 5000 });
-    await narrowPage.locator('[data-testid="explorer-empty"]').waitFor({ timeout: 5000 });
+    await narrowPage
+      .locator('[data-testid="shell-side-panel"]')
+      .waitFor({ state: 'hidden', timeout: 5000 });
     if (await narrowPage.locator('[data-testid="editor-panel"]').count()) {
       throw new Error('Expected no editor panel on the narrow welcome workspace');
     }
     if (await narrowPage.locator('[data-testid="assistant-panel"]').count()) {
       throw new Error('Expected no assistant panel on the narrow welcome workspace');
     }
+
+    // At browser widths below the native Tauri minimum, the titlebar keeps the search icon and
+    // window controls inside the viewport instead of letting its fixed desktop slots clip them.
+    await narrowPage.setViewportSize({ width: 500, height: 600 });
+    await narrowPage.waitForFunction(
+      () => {
+        const header = document.querySelector('[data-testid="shell-titlebar"]');
+        const children = header ? Array.from(header.children) : [];
+        const search = children[1];
+        const controls = children[2]?.getBoundingClientRect();
+        const viewport = window.innerWidth;
+        return (
+          viewport === 500 &&
+          (search ? getComputedStyle(search).display : 'none') !== 'none' &&
+          (search?.getBoundingClientRect().width ?? 0) > 0 &&
+          (controls?.right ?? Number.POSITIVE_INFINITY) <= viewport + 1 &&
+          document.documentElement.scrollWidth <= viewport + 1 &&
+          document.body.scrollWidth <= viewport + 1
+        );
+      },
+      { timeout: 5000 },
+    );
+    const narrowTitlebar = await narrowPage.evaluate(() => {
+      const header = document.querySelector('[data-testid="shell-titlebar"]');
+      const children = header ? Array.from(header.children) : [];
+      const search = children[1]?.getBoundingClientRect();
+      const controls = children[2]?.getBoundingClientRect();
+      return {
+        viewport: window.innerWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        bodyWidth: document.body.scrollWidth,
+        searchDisplay: children[1] ? getComputedStyle(children[1]).display : 'missing',
+        searchWidth: search?.width ?? 0,
+        controlsRight: controls?.right ?? Number.POSITIVE_INFINITY,
+      };
+    });
+    if (
+      narrowTitlebar.documentWidth > narrowTitlebar.viewport + 1 ||
+      narrowTitlebar.bodyWidth > narrowTitlebar.viewport + 1 ||
+      narrowTitlebar.searchDisplay === 'none' ||
+      narrowTitlebar.searchWidth <= 0 ||
+      narrowTitlebar.controlsRight > narrowTitlebar.viewport + 1
+    ) {
+      throw new Error(
+        `Narrow titlebar controls overflow viewport: ${JSON.stringify(narrowTitlebar)}`,
+      );
+    }
+
+    // Settings remains usable below the native window minimum: the desktop sidebar hides,
+    // rows stack into one column, and a visible mobile close path remains available.
+    await narrowPage.getByTestId('activity-settings').click();
+    await narrowPage.getByRole('menuitem', { name: '设置' }).click();
+    const narrowSettings = narrowPage.locator('[data-testid="settings-view"]');
+    await narrowSettings.waitFor({ timeout: 5000 });
+    const narrowSettingsState = await narrowPage.evaluate(() => {
+      const settings = document.querySelector('[data-testid="settings-view"]');
+      const mobileClose = document.querySelector('[data-testid="settings-close-mobile"]');
+      const firstRow = settings?.querySelector('.sf-settings-card > div');
+      const firstControl = firstRow?.querySelector('select, input, button');
+      const firstLabel = firstRow?.firstElementChild;
+      return {
+        viewport: window.innerWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        bodyWidth: document.body.scrollWidth,
+        settingsWidth: settings?.getBoundingClientRect().width ?? 0,
+        mobileCloseVisible: mobileClose ? getComputedStyle(mobileClose).display !== 'none' : false,
+        firstRowHeight: firstRow?.getBoundingClientRect().height ?? 0,
+        firstLabelBottom: firstLabel?.getBoundingClientRect().bottom ?? 0,
+        firstControlTop: firstControl?.getBoundingClientRect().top ?? 0,
+      };
+    });
+    if (
+      narrowSettingsState.documentWidth > narrowSettingsState.viewport + 1 ||
+      narrowSettingsState.bodyWidth > narrowSettingsState.viewport + 1 ||
+      narrowSettingsState.settingsWidth > narrowSettingsState.viewport + 1 ||
+      !narrowSettingsState.mobileCloseVisible ||
+      narrowSettingsState.firstControlTop < narrowSettingsState.firstLabelBottom
+    ) {
+      throw new Error(
+        `Narrow settings layout is not usable: ${JSON.stringify(narrowSettingsState)}`,
+      );
+    }
+    await narrowPage.getByTestId('settings-close-mobile').click();
+    await narrowPage
+      .locator('[data-testid="settings-view"]')
+      .waitFor({ state: 'hidden', timeout: 5000 });
   } finally {
     await narrowPage.close();
   }
@@ -195,6 +292,210 @@ try {
   if (await page.locator('[data-testid="welcome-dismissed"]').count()) {
     throw new Error('Expected the dismissed welcome placeholder to leave after opening a project');
   }
+
+  // The observation panel is inserted before the status bar. Its disclosure path must move
+  // focus into the new panel, then return focus to the status-bar trigger when it closes.
+  const observationTrigger = page.locator('[data-testid="status-obs"]');
+  await observationTrigger.click();
+  await page.locator('[data-testid="obs-panel"]').waitFor({ timeout: 5000 });
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="status-obs"]')?.getAttribute('aria-expanded') ===
+        'true' &&
+      document.querySelector('[data-testid="status-obs"]')?.getAttribute('aria-controls') ===
+        'obs-panel' &&
+      document.activeElement?.getAttribute('aria-label') === '关闭观测面板',
+    { timeout: 5000 },
+  );
+  await page.locator('[data-testid="obs-panel"] [aria-label="关闭观测面板"]').click();
+  await page.locator('[data-testid="obs-panel"]').waitFor({ state: 'hidden', timeout: 5000 });
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="status-obs"]')?.getAttribute('aria-expanded') ===
+        'false' && document.activeElement?.getAttribute('data-testid') === 'status-obs',
+    { timeout: 5000 },
+  );
+
+  // 900px is the narrowest desktop layout we support with all three workspace columns visible.
+  // The center editor must yield width before the right Agent panel gets clipped off-screen.
+  await page.setViewportSize({ width: 900, height: 700 });
+  // `setViewportSize` resolves before the flex layout has necessarily committed. Wait for the
+  // actual post-resize geometry so this gate cannot sample the previous 1280px/1024px layout.
+  await page.waitForFunction(
+    () => {
+      const assistant = document
+        .querySelector('[data-testid="assistant-panel"]')
+        ?.getBoundingClientRect();
+      const viewport = window.innerWidth;
+      return (
+        viewport === 900 &&
+        document.documentElement.scrollWidth <= viewport + 1 &&
+        document.body.scrollWidth <= viewport + 1 &&
+        Boolean(assistant) &&
+        (assistant?.right ?? Number.POSITIVE_INFINITY) <= viewport + 1
+      );
+    },
+    { timeout: 5000 },
+  );
+  const narrowWorkspace = await page.evaluate(() => {
+    const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect();
+    return {
+      viewport: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      bodyWidth: document.body.scrollWidth,
+      center: rect('[data-testid="shell-center"]'),
+      assistant: rect('[data-testid="assistant-panel"]'),
+    };
+  });
+  const assistantRight = narrowWorkspace.assistant?.right ?? 0;
+  if (
+    narrowWorkspace.documentWidth > narrowWorkspace.viewport + 1 ||
+    narrowWorkspace.bodyWidth > narrowWorkspace.viewport + 1 ||
+    assistantRight > narrowWorkspace.viewport + 1
+  ) {
+    throw new Error(
+      `Narrow project workspace overflows viewport: ${JSON.stringify(narrowWorkspace)}`,
+    );
+  }
+
+  // Below the supported three-column minimum, a project would leave the editor unusably narrow.
+  // The responsive state keeps the activity rail and editor, with both side workspaces available
+  // again through their titlebar/activity controls.
+  await page.setViewportSize({ width: 899, height: 700 });
+  await page.waitForFunction(
+    () =>
+      window.innerWidth === 899 &&
+      !document.querySelector('[data-testid="shell-side-panel"]') &&
+      document.querySelector('[data-testid="assistant-panel"]')?.hasAttribute('hidden') &&
+      (document.querySelector('[data-testid="shell-center"]')?.getBoundingClientRect().width ??
+        0) >=
+        window.innerWidth - 48 - 1 &&
+      document.documentElement.scrollWidth <= window.innerWidth + 1 &&
+      document.body.scrollWidth <= window.innerWidth + 1,
+    { timeout: 5000 },
+  );
+  await page.setViewportSize({ width: 900, height: 700 });
+  await page.waitForFunction(
+    () =>
+      window.innerWidth === 900 &&
+      Boolean(document.querySelector('[data-testid="shell-side-panel"]')) &&
+      !document.querySelector('[data-testid="assistant-panel"]')?.hasAttribute('hidden') &&
+      (document.querySelector('[data-testid="assistant-panel"]')?.getBoundingClientRect().right ??
+        Number.POSITIVE_INFINITY) <=
+        window.innerWidth + 1,
+    { timeout: 5000 },
+  );
+  await page.setViewportSize({ width: 600, height: 700 });
+  await page.waitForFunction(
+    () => {
+      const center = document
+        .querySelector('[data-testid="shell-center"]')
+        ?.getBoundingClientRect();
+      const assistant = document.querySelector('[data-testid="assistant-panel"]');
+      return (
+        window.innerWidth === 600 &&
+        !document.querySelector('[data-testid="shell-side-panel"]') &&
+        assistant?.hasAttribute('hidden') &&
+        (center?.width ?? 0) >= window.innerWidth - 48 - 1 &&
+        document.documentElement.scrollWidth <= window.innerWidth + 1 &&
+        document.body.scrollWidth <= window.innerWidth + 1
+      );
+    },
+    { timeout: 5000 },
+  );
+
+  // A user can explicitly reopen Agent while compact. Its flex item must shrink inside the
+  // remaining viewport instead of being clipped beyond the activity rail at 320/360px.
+  await page.locator('[data-testid="titlebar-toggle-right"]').click();
+  await page.waitForFunction(
+    () => {
+      const assistant = document
+        .querySelector('[data-testid="assistant-panel"]')
+        ?.getBoundingClientRect();
+      return (
+        window.innerWidth === 600 &&
+        !document.querySelector('[data-testid="assistant-panel"]')?.hasAttribute('hidden') &&
+        Boolean(assistant) &&
+        (assistant?.width ?? 0) > 0 &&
+        (assistant?.left ?? Number.NEGATIVE_INFINITY) >= 0 &&
+        (assistant?.right ?? Number.POSITIVE_INFINITY) <= window.innerWidth + 1
+      );
+    },
+    { timeout: 5000 },
+  );
+  for (const width of [360, 320]) {
+    await page.setViewportSize({ width, height: 700 });
+    await page.waitForFunction(
+      (expectedWidth) => {
+        const assistant = document
+          .querySelector('[data-testid="assistant-panel"]')
+          ?.getBoundingClientRect();
+        return (
+          window.innerWidth === expectedWidth &&
+          !document.querySelector('[data-testid="assistant-panel"]')?.hasAttribute('hidden') &&
+          Boolean(assistant) &&
+          (assistant?.width ?? 0) > 0 &&
+          (assistant?.left ?? Number.NEGATIVE_INFINITY) >= 0 &&
+          (assistant?.right ?? Number.POSITIVE_INFINITY) <= expectedWidth + 1 &&
+          document.documentElement.scrollWidth <= expectedWidth + 1 &&
+          document.body.scrollWidth <= expectedWidth + 1
+        );
+      },
+      width,
+      { timeout: 5000 },
+    );
+    if (width === 320) {
+      await page.locator('[data-testid="conversation-session-switch"]').click();
+      const sessionMenu = page.locator('[data-testid="conversation-header"] [role="menu"]');
+      await sessionMenu.waitFor({ timeout: 5000 });
+      const sessionMenuBounds = await sessionMenu.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        return { left: bounds.left, right: bounds.right, width: bounds.width };
+      });
+      if (sessionMenuBounds.left < -1 || sessionMenuBounds.right > width + 1) {
+        throw new Error(
+          `Compact session menu overflows viewport: ${JSON.stringify({ width, ...sessionMenuBounds })}`,
+        );
+      }
+      await page.keyboard.press('Escape');
+      await sessionMenu.waitFor({ state: 'hidden', timeout: 5000 });
+      await page.evaluate(() => {
+        window.dispatchEvent(
+          new window.CustomEvent('storyforge:toast', {
+            detail: { message: '窄屏通知边界 smoke', tone: 'info', durationMs: 10000 },
+          }),
+        );
+      });
+      const toastHost = page.locator('[data-testid="toast-host"]');
+      await toastHost.waitFor({ timeout: 5000 });
+      await page.waitForFunction(
+        () => {
+          const host = document
+            .querySelector('[data-testid="toast-host"]')
+            ?.getBoundingClientRect();
+          return (
+            Boolean(host) &&
+            (host?.left ?? -1) >= 0 &&
+            (host?.right ?? Infinity) <= window.innerWidth + 1
+          );
+        },
+        { timeout: 5000 },
+      );
+      await toastHost.locator('[data-testid="toast-close"]').click();
+      await toastHost.waitFor({ state: 'hidden', timeout: 5000 });
+    }
+  }
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.waitForFunction(
+    () =>
+      window.innerWidth === 1280 &&
+      Boolean(document.querySelector('[data-testid="shell-side-panel"]')) &&
+      !document.querySelector('[data-testid="assistant-panel"]')?.hasAttribute('hidden') &&
+      document.querySelector('[data-testid="desktop-shell"]')?.getAttribute('data-layout-focus') ===
+        'balanced',
+    { timeout: 5000 },
+  );
 
   await page.waitForLoadState('networkidle');
   if (errors.length > 0) {

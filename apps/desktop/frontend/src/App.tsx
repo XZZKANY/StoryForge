@@ -27,6 +27,33 @@ export function App() {
   const [palette, setPalette] = useState<PaletteMode | null>(null);
   const [obsPanelOpen, setObsPanelOpen] = useState(false);
   const appDialog = useAppDialog();
+  const [hasUnsentInput, setHasUnsentInput] = useState(false);
+  const confirmUnsentInputClose = useCallback(async () => {
+    if (!hasUnsentInput) return true;
+    return appDialog.confirm({
+      title: '有未发送的消息',
+      message: 'Agent 输入框中的消息尚未发送。退出应用会丢弃这段文字。',
+      confirmLabel: '放弃消息并继续退出',
+      cancelLabel: '继续编辑',
+      tone: 'danger',
+    });
+  }, [appDialog, hasUnsentInput]);
+  const confirmConversationNavigation = useCallback(
+    (action: string) =>
+      appDialog.confirm({
+        title: '有未发送的消息',
+        message: `${action}会丢弃输入框中尚未发送的文字。`,
+        confirmLabel: `放弃消息并${action}`,
+        cancelLabel: '继续编辑',
+        tone: 'danger',
+      }),
+    [appDialog],
+  );
+  const confirmProjectNavigation = useCallback(
+    (action: string) =>
+      hasUnsentInput ? confirmConversationNavigation(action) : Promise.resolve(true),
+    [confirmConversationNavigation, hasUnsentInput],
+  );
   const shell = useShellState();
   // showCenter 单独取出：稳定 useCallback，供 showEditor / locateAnchor 依赖，避免整个 shell 进 deps。
   const { showCenter } = shell;
@@ -53,11 +80,13 @@ export function App() {
   const tabs = useEditorWorkspaceTabs({
     activeProject: workspace.activeProject,
     currentFile: workspace.currentFile,
-    selectProject: workspace.selectProject,
+    selectProject: session.selectProjectManually,
     selectFile: workspace.selectFile,
     closeFile: workspace.closeFile,
     removeProject: workspace.removeProject,
     dialogs: appDialog,
+    confirmAdditionalClose: confirmUnsentInputClose,
+    confirmAdditionalProjectChange: confirmProjectNavigation,
     onShowEditor: showEditor,
     pendingRestore: session.pendingRestore,
     onRestoreApplied: session.handleRestoreApplied,
@@ -68,7 +97,7 @@ export function App() {
     dirtyFiles: tabs.dirtyFiles,
     openFiles: tabs.openFiles,
     dialogs: appDialog,
-    selectProject: workspace.selectProject,
+    selectProject: session.selectProjectManually,
     selectProjectSafely: tabs.selectProjectSafely,
     openFile: tabs.openFile,
     confirmDiscardFiles: tabs.confirmDiscardFiles,
@@ -125,6 +154,7 @@ export function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
       const mod = event.ctrlKey || event.metaKey;
       if (!mod) return;
       const key = event.key.toLowerCase();
@@ -278,6 +308,8 @@ export function App() {
 
   return (
     <AppShell
+      onUnsentInputChange={setHasUnsentInput}
+      confirmDiscardInput={confirmConversationNavigation}
       workspace={workspace}
       tabs={tabs}
       commands={commands}

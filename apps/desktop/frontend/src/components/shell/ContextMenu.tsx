@@ -3,6 +3,7 @@
  * 各区域（文件树 / 页签 …）给不同的 items，满足「每个区域右键不一样」（#17）。
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useMenuKeyboard } from './useMenuKeyboard';
 
 export type ContextMenuItem =
   | { type: 'separator' }
@@ -19,29 +20,37 @@ export function ContextMenu({
   y,
   items,
   onClose,
+  returnFocus,
+  id,
 }: {
   x: number;
   y: number;
   items: ContextMenuItem[];
   onClose: () => void;
+  /**
+   * 鼠标右键不会可靠地把事件目标设为 activeElement。调用方知道具体目标时，
+   * 显式传入它，关闭菜单后才能把键盘焦点还给刚操作的文件/页签。
+   */
+  returnFocus?: HTMLElement | null;
+  id?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ x, y });
+  const returnFocusRef = useRef<HTMLElement | null>(returnFocus ?? null);
+  useEffect(() => {
+    returnFocusRef.current = returnFocus ?? null;
+  }, [returnFocus]);
+  const dismiss = useMenuKeyboard(true, ref, onClose, returnFocusRef);
 
   useEffect(() => {
     const onDown = (event: MouseEvent) => {
       if (ref.current && !ref.current.contains(event.target as Node)) onClose();
     };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
     // capture 阶段：抢在其他 mousedown（如打开另一个菜单）之前收起当前菜单。
     window.addEventListener('mousedown', onDown, true);
-    window.addEventListener('keydown', onKey, true);
     window.addEventListener('blur', onClose);
     return () => {
       window.removeEventListener('mousedown', onDown, true);
-      window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', onClose);
     };
   }, [onClose]);
@@ -63,7 +72,10 @@ export function ContextMenu({
   return (
     <div
       ref={ref}
+      id={id}
       role="menu"
+      aria-label="上下文菜单"
+      tabIndex={-1}
       data-testid="context-menu"
       className="fixed z-50 min-w-[172px] rounded-lg border border-border/60 bg-surface/[0.92] p-1 shadow-[var(--shadow-dropdown)]"
       style={{
@@ -76,13 +88,21 @@ export function ContextMenu({
     >
       {items.map((item, index) => {
         if (item.type === 'separator') {
-          return <div key={`sep-${index}`} className="my-1 mx-1.5 h-px bg-border" />;
+          return (
+            <div
+              key={`sep-${index}`}
+              role="separator"
+              aria-orientation="horizontal"
+              className="my-1 mx-1.5 h-px bg-border"
+            />
+          );
         }
         return (
           <button
             key={item.label}
             type="button"
             role="menuitem"
+            tabIndex={-1}
             disabled={item.disabled}
             className={`flex w-full items-center rounded-sm px-2.5 py-1.5 text-left text-xs disabled:cursor-not-allowed disabled:opacity-40 ${
               item.danger
@@ -93,7 +113,7 @@ export function ContextMenu({
               transition: 'background-color var(--transition-fast), color var(--transition-fast)',
             }}
             onClick={() => {
-              onClose();
+              dismiss();
               item.onSelect();
             }}
           >

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type * as monaco from 'monaco-editor';
 
@@ -38,6 +38,11 @@ export function useEditorFileLoader({
   const [loadedIsDirty, setLoadedIsDirty] = useState(false);
   const [loadAttemptFilePath, setLoadAttemptFilePath] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [retryNonce, setRetryNonce] = useState(0);
+
+  const retryLoad = useCallback(() => {
+    setRetryNonce((value) => value + 1);
+  }, []);
 
   // 加载文件内容
   useLayoutEffect(() => {
@@ -134,6 +139,7 @@ export function useEditorFileLoader({
     setIsDirty,
     setLoadedContentPreview,
     setShowHistory,
+    retryNonce,
   ]);
 
   return {
@@ -142,5 +148,6 @@ export function useEditorFileLoader({
     loadedIsDirty,
     loadAttemptFilePath,
     loadError,
+    retryLoad,
   };
 }

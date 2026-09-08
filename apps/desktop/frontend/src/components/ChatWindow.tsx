@@ -2,7 +2,7 @@
  * 对话窗口容器：组合 session/context、Agent stream、run control 与展示层。
  */
 
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 
 import { ChatWindowView } from './chat-window/ChatWindowView';
 import type { ChatWindowProps } from './chat-window/types';
@@ -48,6 +48,12 @@ export function ChatWindow(props: ChatWindowProps) {
   const agentPermissionProfile = props.agentPermissionProfile ?? DEFAULT_AGENT_PERMISSION_PROFILE;
   const onAgentPermissionProfileChange = props.onAgentPermissionProfileChange ?? (() => undefined);
   const state = useChatWindowState(props);
+  const hasUnsentInput = state.input.trim().length > 0;
+  const onUnsentInputChange = props.onUnsentInputChange;
+  useLayoutEffect(() => {
+    onUnsentInputChange?.(hasUnsentInput);
+  }, [hasUnsentInput, onUnsentInputChange]);
+  useLayoutEffect(() => () => onUnsentInputChange?.(false), [onUnsentInputChange]);
   const session = useChatSessionContext(state, props);
   const recovery = useAgentRunRecovery(state, props.onAssistantSessionChange);
   const applyAgentStreamEvent = useAgentStreamEvent(state, recovery.refreshAgentRunRecovery);
@@ -90,6 +96,7 @@ export function ChatWindow(props: ChatWindowProps) {
 
   return (
     <ChatWindowView
+      confirmDiscardInput={props.confirmDiscardInput}
       state={state}
       projectPath={props.projectPath}
       assistantSessionId={props.assistantSessionId}

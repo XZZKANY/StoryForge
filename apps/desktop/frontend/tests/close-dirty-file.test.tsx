@@ -2,7 +2,7 @@
  * 关闭脏页签的三选一：保存并关闭 / 放弃修改 / 继续编辑。
  *
  * 最要命的不变量是「保存并…」的出现条件——保存走 REQUEST_SAVE_ACTIVE_FILE，
- * 编辑器只认当前激活的文件，别的文件一律 skipped 直接放行。所以只要目标不是当前
+ * 编辑器只认当前激活的文件，别的文件一律 skipped 拒绝保存。所以只要目标不是当前
  * 显示的文件，就绝不能给「保存」这个选项，否则点了等于静默丢稿。
  */
 import assert from 'node:assert/strict';
@@ -34,13 +34,14 @@ type TabsApi = ReturnType<typeof useEditorWorkspaceTabs>;
 function installFakeEditor(activeFile: string | null, outcome: 'saved' | 'error' = 'saved') {
   const saved: string[] = [];
   const onRequest = (event: Event) => {
-    const detail = (event as CustomEvent<{ filePath: string }>).detail;
+    const detail = (event as CustomEvent<{ filePath: string; requestId: string }>).detail;
     const isActive = detail?.filePath === activeFile;
     if (isActive && outcome === 'saved') saved.push(detail.filePath);
     window.dispatchEvent(
       new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
         detail: {
           filePath: detail?.filePath ?? null,
+          requestId: detail.requestId,
           status: !isActive ? 'skipped' : outcome,
           message: outcome === 'error' ? '磁盘只读' : undefined,
         },
@@ -224,6 +225,78 @@ test('保存失败就不关：报错后页签与脏态原样留着，不让稿�
   }
 });
 
+test('关闭其他可保留非活动页签，先保存当前脏文件再切换', async () => {
+  const editor = installFakeEditor(A);
+  const harness = mountTabs('save');
+  try {
+    act(() => void harness.api.openFile(B));
+    openAndDirty(harness);
+    await act(async () => {
+      await harness.api.handleCloseOthers(B);
+    });
+    assert.deepEqual(editor.saved, [A]);
+    assert.deepEqual(harness.api.openFiles, [B]);
+    assert.equal(harness.api.displayedFile, B);
+    assert.equal(harness.api.dirtyFiles.has(A), false);
+  } finally {
+    harness.cleanup();
+    editor.dispose();
+  }
+});
+
+for (const outcome of ['cancel', 'save-error'] as const) {
+  test(`关闭其他遇到 ${outcome} 时保留原活动页签、其他页签与脏稿`, async () => {
+    const editor = installFakeEditor(A, outcome === 'save-error' ? 'error' : 'saved');
+    const harness = mountTabs(outcome === 'cancel' ? null : 'save');
+    try {
+      act(() => void harness.api.openFile(B));
+      openAndDirty(harness);
+      await act(async () => {
+        await harness.api.handleCloseOthers(B);
+      });
+      assert.deepEqual(harness.api.openFiles, [B, A]);
+      assert.equal(harness.api.displayedFile, A);
+      assert.ok(harness.api.dirtyFiles.has(A));
+      assert.deepEqual(editor.saved, []);
+    } finally {
+      harness.cleanup();
+      editor.dispose();
+    }
+  });
+}
+
+test('关闭其他保留目标的未保存修改，不对保留文件发起保存或丢弃确认', async () => {
+  const harness = mountTabs('discard');
+  try {
+    openAndDirty(harness, B);
+    await act(async () => {
+      await harness.api.handleCloseOthers(A);
+    });
+    assert.deepEqual(harness.api.openFiles, [A]);
+    assert.equal(harness.api.displayedFile, A);
+    assert.ok(harness.api.dirtyFiles.has(A));
+    assert.deepEqual(harness.calls, []);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('文件操作菜单关闭其他默认保留当前预览页签', async () => {
+  const harness = mountTabs(null);
+  try {
+    act(() => void harness.api.openFile(A));
+    act(() => void harness.api.previewFileOpen(B));
+    await act(async () => {
+      await harness.api.handleCloseOthers();
+    });
+    assert.deepEqual(harness.api.openFiles, [B]);
+    assert.equal(harness.api.displayedFile, B);
+    assert.equal(harness.api.previewFile, null);
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test('Ctrl+S 挂在全局 keydown 上——焦点不在编辑器里也能存（此前只是 Monaco 内部命令，是死键）', () => {
   const source = readFileSync('src/App.tsx', 'utf8');
   // 指纹护栏：真正渲染 App 需要整套 Tauri / sidecar 桩，这里只钉住「全局分支存在且指向落盘」。
@@ -231,4 +304,21 @@ test('Ctrl+S 挂在全局 keydown 上——焦点不在编辑器里也能存（�
   assert.match(source, /flushActiveEditorToDisk\(tabs\.displayedFile\)/);
   // 没打开文件时必须先返回，否则 preventDefault 会把浏览器/webview 的默认行为一并吞掉。
   assert.match(source, /if \(!tabs\.displayedFile\) return;\s*\n\s*event\.preventDefault\(\)/);
+});
+
+test('保存目标已不在活动编辑器时，skipped 不能放行关闭脏文件', async () => {
+  const editor = installFakeEditor(B);
+  const harness = mountTabs('save');
+  try {
+    openAndDirty(harness);
+    await act(async () => {
+      await harness.api.handleFileClose(A);
+    });
+    assert.deepEqual(editor.saved, []);
+    assert.deepEqual(harness.api.openFiles, [A]);
+    assert.equal(harness.calls.at(-1)?.kind, 'alert');
+  } finally {
+    harness.cleanup();
+    editor.dispose();
+  }
 });

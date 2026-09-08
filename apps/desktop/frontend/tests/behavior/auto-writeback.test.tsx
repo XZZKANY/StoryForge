@@ -13,17 +13,27 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 const writes: Array<{ path: string; content: string }> = [];
 const deletes: string[] = [];
+const writeRoots: string[] = [];
+const records: RevisionLoopRecord[] = [];
 const droppedTabs: string[] = [];
 const calls: string[] = [];
 let snapshotFails = false;
+let snapshotGate: Promise<void> | null = null;
+const branchTargets: Array<BranchHeadTarget | undefined> = [];
 let snapshotCreated = false;
 let versionHistoryOpened = 0;
+let noteWriteGate: Promise<void> | null = null;
+let manuscriptWriteGate: Promise<void> | null = null;
+let latest: ReturnType<typeof useSuggestionWriteback>;
 
 vi.mock('../../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
     writeFile: async (_root: string, path: string, content: string) => {
       calls.push('write');
+      writeRoots.push(_root);
       writes.push({ path, content });
+      if (path.includes('/.storyforge/notes/')) await noteWriteGate;
+      else await manuscriptWriteGate;
     },
     deletePath: async (_root: string, path: string) => {
       calls.push('delete');
@@ -36,6 +46,7 @@ vi.mock('../../src/lib/versions', () => ({
   snapshotBeforeWrite: async () => {
     calls.push('snapshot');
     if (snapshotFails) throw new Error('快照写入失败');
+    await snapshotGate;
     return { path: '/snapshot.md', timestamp: 1, created: snapshotCreated };
   },
 }));
@@ -53,6 +64,9 @@ vi.mock('../../src/lib/api/ide-commands', () => ({
 }));
 
 import { emitFileSuggestion } from '../../src/lib/assistant-events';
+import { buildPatchHunks, applyPatchHunkToCurrent } from '../../src/lib/patch-hunks';
+import type { RevisionLoopRecord } from '../../src/lib/author-loop';
+import type { BranchHeadTarget } from '../../src/lib/branches';
 import { TOAST_EVENT, type ToastAction, type ToastDetail } from '../../src/lib/toast';
 import { useSuggestionWriteback } from '../../src/components/editor/useSuggestionWriteback';
 
@@ -65,10 +79,13 @@ const AFTER = '新的一章。';
 let editorContent = BEFORE;
 const toasts: ToastDetail[] = [];
 
-function Harness({ filePath }: { filePath: string }) {
+function Harness({ filePath, projectPath = PROJECT }: { filePath: string; projectPath?: string }) {
   const editorRef = useRef({
     getValue: () => editorContent,
     getModel: () => null,
+    focus: () => {
+      calls.push('focus');
+    },
   } as never);
   const originalContentRef = useRef(BEFORE);
   const cleanVersionIdRef = useRef<number | null>(null);
@@ -76,8 +93,9 @@ function Harness({ filePath }: { filePath: string }) {
   const projectPathRef = useRef<string | null>(PROJECT);
   const modelCacheRef = useRef(new Map());
   filePathRef.current = filePath;
+  projectPathRef.current = projectPath;
 
-  useSuggestionWriteback({
+  latest = useSuggestionWriteback({
     editorRef,
     originalContentRef,
     cleanVersionIdRef,
@@ -88,11 +106,13 @@ function Harness({ filePath }: { filePath: string }) {
     setIsDirty: () => undefined,
     normalizeEol: (text: string) => text.replace(/\r\n/g, '\n'),
     getActiveBranchSnapshot: () => ({ id: 'main', label: '主线', headNodeId: null }) as never,
-    advanceBranchHead: async () => {
+    advanceBranchHead: async (_timestamp, target) => {
       calls.push('branch');
+      branchTargets.push(target);
     },
-    recordRevisionLoop: async () => {
+    recordRevisionLoop: async (record) => {
       calls.push('record');
+      records.push(record);
       return { recordPath: '/loop.md' } as never;
     },
     emitAuthorLoopResult: () => undefined,
@@ -137,12 +157,18 @@ function onToast(event: Event) {
 }
 
 beforeEach(() => {
+  noteWriteGate = null;
+  manuscriptWriteGate = null;
   writes.length = 0;
+  writeRoots.length = 0;
+  records.length = 0;
   deletes.length = 0;
   droppedTabs.length = 0;
   calls.length = 0;
   toasts.length = 0;
   snapshotFails = false;
+  snapshotGate = null;
+  branchTargets.length = 0;
   snapshotCreated = false;
   planMarkArgs.length = 0;
   planMarkFails = false;
@@ -364,4 +390,253 @@ test('文件之后又变了：撤销不再是死路，给出版本历史入口',
     await fallback.run();
   });
   assert.equal(versionHistoryOpened, 1, '点它应当真的打开版本历史');
+});
+
+for (const replacement of ['new-id', 'same-id', 'none']) {
+  test(`保存旧旁注晚完成不会关闭新提议：${replacement}`, async () => {
+    await act(async () => {
+      emitFileSuggestion(suggestion({ requiresConfirmation: true }));
+    });
+    let finish!: () => void;
+    noteWriteGate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    let saving!: Promise<void>;
+    act(() => {
+      saving = latest.handleSaveSuggestionNote();
+    });
+    if (replacement !== 'none')
+      await act(async () => {
+        emitFileSuggestion(
+          suggestion({
+            id: replacement === 'new-id' ? 'patch-B' : 'patch-1',
+            after: '后来打开的另一版',
+            requiresConfirmation: true,
+          }),
+        );
+      });
+    await act(async () => {
+      finish();
+      await saving;
+    });
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    });
+    if (replacement === 'none') {
+      assert.equal(latest.pendingSuggestion === null, true);
+      assert.equal(calls.includes('focus'), true);
+    } else {
+      assert.equal(latest.pendingSuggestion?.after, '后来打开的另一版');
+      assert.equal(calls.includes('focus'), false);
+    }
+    assert.equal(writes.length, 1);
+    assert.match(writes[0].path, /\.storyforge\/notes\//);
+    assert.match(writes[0].content, /新的一章/);
+  });
+}
+
+for (const change of ['file', 'suggestion', 'selection', 'none']) {
+  test(`回编辑器焦点帧不得跨越后续用户上下文：${change}`, async () => {
+    const frames: FrameRequestCallback[] = [];
+    const frame = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const panel = document.createElement('div');
+    panel.dataset.testid = 'patch-review';
+    const source = document.createElement('input');
+    const other = document.createElement('input');
+    panel.append(source, other);
+    document.body.appendChild(panel);
+    try {
+      await act(async () => {
+        emitFileSuggestion(suggestion({ requiresConfirmation: true }));
+      });
+      source.focus();
+      act(() => {
+        latest.rejectPendingSuggestion();
+      });
+      if (change === 'file')
+        act(() => root.render(<Harness filePath={`${PROJECT}/正文/第02章.md`} />));
+      if (change === 'suggestion')
+        await act(async () => {
+          emitFileSuggestion(suggestion({ id: 'patch-new', requiresConfirmation: true }));
+        });
+      if (change === 'selection') other.focus();
+      await act(async () => {
+        for (const callback of frames.splice(0)) callback(0);
+      });
+      assert.equal(calls.includes('focus'), change === 'none');
+      assert.equal(writes.length, 0, '拒绝草稿不得写入文件');
+    } finally {
+      panel.remove();
+      frame.mockRestore();
+    }
+  });
+}
+
+for (const mode of ['whole', 'partial-hunk', 'last-hunk']) {
+  for (const replace of [true, false]) {
+    test(`接受旧提议完成只收尾原提议：${mode}/替换=${replace}`, async () => {
+      const before = '甲\n乙\n丙\n丁\n戊\n己\n庚';
+      const after =
+        mode === 'partial-hunk' ? '甲改\n乙\n丙\n丁\n戊\n己\n庚改' : '甲改\n乙\n丙\n丁\n戊\n己\n庚';
+      editorContent = before;
+      await act(async () => {
+        emitFileSuggestion(suggestion({ before, after, requiresConfirmation: true }));
+      });
+      const hunks = buildPatchHunks(before, after);
+      assert.equal(hunks.length, mode === 'partial-hunk' ? 2 : 1);
+      const expectedWrite = mode === 'whole' ? after : applyPatchHunkToCurrent(before, hunks[0]);
+      let finish!: () => void;
+      manuscriptWriteGate = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      let saving!: Promise<void>;
+      await act(async () => {
+        saving =
+          mode === 'whole' ? latest.handleAcceptSuggestion() : latest.handleAcceptHunk(hunks[0]);
+      });
+      if (replace)
+        await act(async () => {
+          emitFileSuggestion(
+            suggestion({ before, after: '后来收到的新提议', requiresConfirmation: true }),
+          );
+        });
+      await act(async () => {
+        finish();
+        await saving;
+      });
+      await act(async () => {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      if (replace) {
+        assert.equal(latest.pendingSuggestion?.after, '后来收到的新提议');
+        assert.equal(latest.pendingSuggestion?.before, before);
+        assert.equal(calls.includes('focus'), false);
+      } else if (mode === 'partial-hunk') {
+        assert.equal(latest.pendingSuggestion?.before, expectedWrite);
+        assert.equal(latest.pendingSuggestion?.after, after);
+      } else assert.equal(latest.pendingSuggestion === null, true);
+      assert.deepEqual(writes, [{ path: FILE, content: expectedWrite }]);
+      assert.equal(calls.includes('snapshot'), true);
+      assert.equal(calls.includes('record'), true);
+      assert.equal(planMarkArgs.length, mode === 'whole' ? 1 : 0);
+    });
+  }
+}
+
+for (const switchProject of [true, false]) {
+  test(`接受写入结束后记录和章节标记属于原项目：切换=${switchProject}`, async () => {
+    await act(async () => {
+      emitFileSuggestion(suggestion({ requiresConfirmation: true }));
+    });
+    let finish!: () => void;
+    manuscriptWriteGate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    let saving!: Promise<void>;
+    await act(async () => {
+      saving = latest.handleAcceptSuggestion();
+    });
+    assert.deepEqual(writeRoots, [PROJECT]);
+    if (switchProject)
+      act(() =>
+        root.render(<Harness projectPath="D:/隔离项目B" filePath="D:/隔离项目B/正文/第01章.md" />),
+      );
+    await act(async () => {
+      finish();
+      await saving;
+    });
+    assert.equal(records.length, 1);
+    assert.equal(records[0].projectPath, PROJECT);
+    assert.equal(records[0].filePath, FILE);
+    assert.deepEqual(planMarkArgs, [{ project_root: PROJECT, file_path: FILE }]);
+    assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
+  });
+}
+
+test('快照等待期间切项目，接受链仍传递原项目文件和分支给分支推进', async () => {
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: true }));
+  });
+  let finish!: () => void;
+  snapshotGate = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  let saving!: Promise<void>;
+  await act(async () => {
+    saving = latest.handleAcceptSuggestion();
+  });
+  assert.equal(writes.length, 0);
+  act(() => root.render(<Harness projectPath="D:/隔离B" filePath="D:/隔离B/章.md" />));
+  await act(async () => {
+    finish();
+    await saving;
+  });
+  assert.deepEqual(branchTargets, [{ projectPath: PROJECT, filePath: FILE, branchId: 'main' }]);
+  assert.deepEqual(writeRoots, [PROJECT]);
+  assert.equal(records[0].projectPath, PROJECT);
+});
+
+for (const created of [false, true]) {
+  for (const change of ['file', 'project']) {
+    test(`撤销必须回到原项目文件，不能只比较相同正文：新建=${created}/${change}`, async () => {
+      snapshotCreated = created;
+      editorContent = created ? '' : BEFORE;
+      await act(async () => {
+        emitFileSuggestion(suggestion({ before: editorContent, requiresConfirmation: false }));
+      });
+      editorContent = AFTER;
+      const undo = lastActionableToast();
+      act(() =>
+        root.render(
+          <Harness
+            projectPath={change === 'project' ? 'D:/另一本' : PROJECT}
+            filePath={change === 'project' ? 'D:/另一本/章.md' : `${PROJECT}/另一章.md`}
+          />,
+        ),
+      );
+      await act(async () => {
+        await undo.run();
+      });
+      assert.equal(writes.length, 1);
+      assert.equal(deletes.length, 0);
+      assert.equal(droppedTabs.length, 0);
+      assert.match(toasts.at(-1)?.message ?? '', /原项目.*原文件/);
+      assert.ok(toasts.at(-1)?.message.includes(FILE));
+      const retry = lastActionableToast();
+      assert.match(retry.label, /重试/);
+      act(() => root.render(<Harness filePath={FILE} />));
+      await act(async () => {
+        await retry.run();
+      });
+      if (created) assert.deepEqual(deletes, [FILE]);
+      else assert.deepEqual(writes[1], { path: FILE, content: BEFORE });
+    });
+  }
+}
+
+test('撤销失效后的版本历史入口同样验证原文件，且可返回重试', async () => {
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: false }));
+  });
+  editorContent = `${AFTER}作者新增内容`;
+  await act(async () => {
+    await lastActionableToast().run();
+  });
+  const historyAction = lastActionableToast();
+  assert.match(historyAction.label, /版本历史/);
+  act(() => root.render(<Harness filePath={`${PROJECT}/另一章.md`} />));
+  await act(async () => {
+    await historyAction.run();
+  });
+  assert.equal(versionHistoryOpened, 0);
+  const retry = lastActionableToast();
+  act(() => root.render(<Harness filePath={FILE} />));
+  await act(async () => {
+    await retry.run();
+  });
+  assert.equal(versionHistoryOpened, 1);
+  assert.equal(writes.length, 1);
 });

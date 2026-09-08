@@ -25,6 +25,12 @@ export type BranchInfo = {
   headNodeId: number | null;
 };
 
+export type BranchHeadTarget = {
+  projectPath: string;
+  filePath: string;
+  branchId: string;
+};
+
 export type BranchManifest = {
   activeBranchId: string;
   branches: BranchInfo[];

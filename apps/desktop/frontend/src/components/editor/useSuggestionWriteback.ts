@@ -16,7 +16,7 @@ import {
 } from '../../lib/assistant-events';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
 import type { RevisionLoopRecord, RevisionLoopResult } from '../../lib/author-loop';
-import type { BranchInfo } from '../../lib/branches';
+import type { BranchHeadTarget, BranchInfo } from '../../lib/branches';
 import type { EditorModelCache } from './useMonacoEditor';
 import { applyPatchHunkToCurrent, isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
 import { shouldAutoAcceptSuggestion } from '../../lib/agent-permission';
@@ -44,7 +44,7 @@ type UseSuggestionWritebackParams = {
   setIsDirty: (dirty: boolean) => void;
   normalizeEol: (text: string) => string;
   getActiveBranchSnapshot: () => BranchInfo;
-  advanceBranchHead: (timestamp: number) => Promise<void>;
+  advanceBranchHead: (timestamp: number, target?: BranchHeadTarget) => Promise<void>;
   recordRevisionLoop: (record: RevisionLoopRecord) => Promise<RevisionLoopResult>;
   emitAuthorLoopResult: (result: AuthorLoopResult) => void;
   /** 撤销一次「新建」要连页签一起摘掉，否则 autosave 会把刚删的文件原样写回来。 */
@@ -79,6 +79,44 @@ export function useSuggestionWriteback({
   const [isReviseLoading, setIsReviseLoading] = useState(false);
   const assistantSessionIdRef = useRef<number | null>(null);
   const pendingSuggestionRef = useRef<AssistantFileSuggestion | null>(null);
+  // 面板按钮在成功后会随 pendingSuggestion 一起卸载；把焦点还给 Monaco，避免键盘落到 body。
+  const focusEditorAfterAction = useCallback(() => {
+    const editor = editorRef.current;
+    const file = filePathRef.current;
+    const project = projectPathRef.current;
+    const suggestion = pendingSuggestionRef.current;
+    const focusEditor = () => {
+      const focus = editor?.focus;
+      if (typeof focus === 'function') focus.call(editor);
+    };
+    if (typeof document === 'undefined') {
+      focusEditor();
+      return;
+    }
+    const active = document.activeElement;
+    if (active && active !== document.body && !active.closest('[data-testid="patch-review"]')) {
+      return;
+    }
+    const focus = () => {
+      const current = document.activeElement;
+      // A later file, editor, revision or explicit focus selection owns the next interaction.
+      if (
+        editorRef.current !== editor ||
+        filePathRef.current !== file ||
+        projectPathRef.current !== project
+      )
+        return;
+      if (pendingSuggestionRef.current !== null && pendingSuggestionRef.current !== suggestion)
+        return;
+      if (current !== active && current !== document.body) return;
+      focusEditor();
+    };
+    if (typeof window === 'undefined') {
+      focus();
+      return;
+    }
+    window.requestAnimationFrame(focus);
+  }, [editorRef, filePathRef, projectPathRef]);
 
   useEffect(() => {
     pendingSuggestionRef.current = pendingSuggestion;
@@ -129,6 +167,7 @@ export function useSuggestionWriteback({
       if (isReadOnlyDerivedProjectPath(path)) {
         throw new Error('canon 派生缓存是只读的，不能写入修订结果');
       }
+      const sessionId = suggestion.assistantSessionId ?? assistantSessionIdRef.current;
       const summary = overrides.summary ?? suggestion.summary;
       const note = overrides.note ?? suggestion.note;
       const contentChanged = normalizeEol(previous) !== normalizeEol(nextContent);
@@ -137,14 +176,14 @@ export function useSuggestionWriteback({
       let createdFile = false;
       // F27：快照失败必须阻断写回。snapshot 抛错时 performGuardedWriteback 直接向上传播，
       // writeFile 不执行——绝不在没有版本安全网时落盘。
+      const branch = getActiveBranchSnapshot();
       const loopRecord = await performGuardedWriteback(contentChanged, {
         snapshot: async () => {
-          const branch = getActiveBranchSnapshot();
-          const result = await snapshotBeforeWrite(projectPathRef.current, path, previous, {
+          const result = await snapshotBeforeWrite(projectRoot, path, previous, {
             source: 'Agent',
             summary,
             patchId: suggestion.id,
-            assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
+            assistantSessionId: sessionId,
             issueIds: suggestion.issueIds,
             contextFiles: suggestion.contextFiles,
             branchId: branch.id,
@@ -158,18 +197,23 @@ export function useSuggestionWriteback({
           createdFile = result?.created ?? false;
           return result;
         },
-        advanceBranchHead,
+        advanceBranchHead: (timestamp) =>
+          advanceBranchHead(timestamp, {
+            projectPath: projectRoot,
+            filePath: path,
+            branchId: branch.id,
+          }),
         write: () => TauriFileSystem.writeFile(projectRoot, path, nextContent),
         record: () =>
           recordRevisionLoop({
-            projectPath: projectPathRef.current,
+            projectPath: projectRoot,
             filePath: path,
             before: previous,
             after: nextContent,
             summary,
             note,
             userIntent: note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
-            assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
+            assistantSessionId: sessionId,
             patchId: suggestion.id,
             issueIds: suggestion.issueIds,
             contextFiles: suggestion.contextFiles,
@@ -197,7 +241,7 @@ export function useSuggestionWriteback({
         setLoadedContentPreview(nextContent.slice(0, 120));
         setIsDirty(false);
       }
-      return { ...loopRecord, createdFile };
+      return { ...loopRecord, createdFile, projectRoot };
     },
     [
       advanceBranchHead,
@@ -232,26 +276,39 @@ export function useSuggestionWriteback({
       restoreTo: string,
       wrote: string,
       createdFile: boolean,
+      projectRoot: string,
     ) => {
+      const requireOriginalTarget = (retry: () => void | Promise<void>) => {
+        if (projectPathRef.current === projectRoot && filePathRef.current === path) return true;
+        emitToast(`请先回到原项目并打开原文件：${path}，再重试此操作。`, {
+          tone: 'info',
+          action: { label: '回到原文件后重试', run: retry },
+        });
+        return false;
+      };
       emitToast(createdFile ? '新文件已写入，已留检查点' : '修订已写回，已留检查点', {
         tone: 'success',
         action: {
           label: createdFile ? '撤销（删除该文件）' : '撤销',
-          run: async () => {
+          run: async function undo() {
+            if (!requireOriginalTarget(undo)) return;
             const current = editorRef.current?.getValue() ?? null;
             if (current === null || !canUndoWriteback(current, wrote, normalizeEol)) {
               emitToast('文件在此期间又变了，一键撤销会吃掉新内容——检查点仍在版本历史里', {
                 tone: 'info',
                 action: onRequestVersionHistory
-                  ? { label: '打开版本历史', run: () => onRequestVersionHistory() }
+                  ? {
+                      label: '打开版本历史',
+                      run: function openHistory() {
+                        if (requireOriginalTarget(openHistory)) onRequestVersionHistory();
+                      },
+                    }
                   : undefined,
               });
               return;
             }
             try {
               if (createdFile) {
-                const projectRoot = projectPathRef.current;
-                if (!projectRoot) throw new Error('未打开项目，不能撤销新建');
                 await TauriFileSystem.deletePath(projectRoot, path);
                 // 正文没了，这章就不再是「写完的」——把接受时标上的 done 退回 pending。
                 // 只在这一支做：修订的撤销走下面的反向写回，文件还在，那章依然是写完的。
@@ -287,6 +344,7 @@ export function useSuggestionWriteback({
     [
       dropOpenFilePath,
       editorRef,
+      filePathRef,
       normalizeEol,
       onRequestVersionHistory,
       projectPathRef,
@@ -330,9 +388,19 @@ export function useSuggestionWriteback({
       // 正文已落盘，这才轮到连载计划把该章标 done（补丁未确认时后端会拒绝标记）。
       // 刻意只挂在「接受整个补丁」这一层：分块接受与行间对话 Ctrl+K 是段落级微调，
       // 接受一次不等于这章写完了；撤销走的是反向写回，届时正文没了，后端自会拒绝。
-      await markChapterWrittenInPlan(projectPathRef.current, path);
-      setPendingSuggestion(null);
-      offerUndo(suggestion, path, currentContent, suggestion.after, loopRecord.createdFile);
+      await markChapterWrittenInPlan(loopRecord.projectRoot, path);
+      setPendingSuggestion((current) => (current === suggestion ? null : current));
+      if (pendingSuggestionRef.current === suggestion && filePathRef.current === path) {
+        focusEditorAfterAction();
+      }
+      offerUndo(
+        suggestion,
+        path,
+        currentContent,
+        suggestion.after,
+        loopRecord.createdFile,
+        loopRecord.projectRoot,
+      );
       setSuggestionStatus(
         loopRecord.recordPath
           ? '已写入当前文件 · 已留写前快照与闭环记录，可点通知里的「撤销」一键回退'
@@ -357,6 +425,7 @@ export function useSuggestionWriteback({
     }
   }, [
     editorRef,
+    focusEditorAfterAction,
     emitAuthorLoopResult,
     filePathRef,
     normalizeEol,
@@ -406,11 +475,23 @@ export function useSuggestionWriteback({
           },
         );
         if (normalizeEol(nextContent) === normalizeEol(suggestion.after)) {
-          setPendingSuggestion(null);
+          setPendingSuggestion((current) => (current === suggestion ? null : current));
+          if (pendingSuggestionRef.current === suggestion && filePathRef.current === path) {
+            focusEditorAfterAction();
+          }
         } else {
-          setPendingSuggestion({ ...suggestion, before: nextContent });
+          setPendingSuggestion((current) =>
+            current === suggestion ? { ...suggestion, before: nextContent } : current,
+          );
         }
-        offerUndo(suggestion, path, currentContent, nextContent, loopRecord.createdFile);
+        offerUndo(
+          suggestion,
+          path,
+          currentContent,
+          nextContent,
+          loopRecord.createdFile,
+          loopRecord.projectRoot,
+        );
         setSuggestionStatus(
           loopRecord.recordPath
             ? '已接受该修改块并写入当前文件，剩余修改仍可继续确认'
@@ -424,7 +505,15 @@ export function useSuggestionWriteback({
         );
       }
     },
-    [editorRef, filePathRef, normalizeEol, offerUndo, setSuggestionStatus, writeAcceptedSuggestion],
+    [
+      editorRef,
+      filePathRef,
+      focusEditorAfterAction,
+      normalizeEol,
+      offerUndo,
+      setSuggestionStatus,
+      writeAcceptedSuggestion,
+    ],
   );
 
   useEffect(() => {
@@ -500,7 +589,11 @@ export function useSuggestionWriteback({
         '```',
       ].join('\n');
       await TauriFileSystem.writeFile(project, notePath, note);
-      setPendingSuggestion(null);
+      // Saving a note belongs to the submitted revision, not a later replacement (even with the same ID).
+      setPendingSuggestion((current) => (current === suggestion ? null : current));
+      if (pendingSuggestionRef.current === suggestion && projectPathRef.current === project) {
+        focusEditorAfterAction();
+      }
       setSuggestionStatus(`已保存旁注: ${notePath}`, 'success');
     } catch (err) {
       setSuggestionStatus(
@@ -508,7 +601,7 @@ export function useSuggestionWriteback({
         'error',
       );
     }
-  }, [pendingSuggestion, projectPathRef, setSuggestionStatus]);
+  }, [focusEditorAfterAction, pendingSuggestion, projectPathRef, setSuggestionStatus]);
 
   /**
    * 拒绝不是二元否决：作者往往知道该怎么改，只是这版没改对。
@@ -522,6 +615,7 @@ export function useSuggestionWriteback({
       const suggestion = pendingSuggestionRef.current;
       const trimmed = direction.trim();
       setPendingSuggestion(null);
+      focusEditorAfterAction();
       setSuggestionStatus(trimmed ? '已否掉这版，正按你的说法重来' : '已拒绝修订');
       if (suggestion) {
         emitPatchRejected({
@@ -531,7 +625,7 @@ export function useSuggestionWriteback({
         });
       }
     },
-    [filePathRef, pendingSuggestionRef, setSuggestionStatus],
+    [filePathRef, focusEditorAfterAction, pendingSuggestionRef, setSuggestionStatus],
   );
 
   useEffect(() => {

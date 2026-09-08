@@ -9,6 +9,8 @@ import type { ContextBundle, SemanticFile } from '../../lib/project-context';
 import type { LayoutMode } from '../shell/useShellState';
 
 export type ChatWindowProps = {
+  onUnsentInputChange?: (hasInput: boolean) => void;
+  confirmDiscardInput?: (action: string) => Promise<boolean>;
   projectPath: string | null;
   currentFile: string | null;
   assistantSessionId?: number | null;
@@ -92,6 +94,8 @@ export type WritingRunProjection = {
 };
 
 export type AgentRunControlHandlers = {
+  /** A control request is awaiting its server acknowledgement. */
+  busy?: boolean;
   onApprovePermission: () => void;
   onDenyPermission: () => void;
   onPauseRun: () => void;

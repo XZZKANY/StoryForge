@@ -185,9 +185,13 @@ function NewSessionHarness() {
   });
   newSessionApi = { handleNewSession, state };
   return (
-    <output data-testid="messages">
-      {state.messages.map((message) => message.content).join('|')}
-    </output>
+    <>
+      <output data-testid="messages">
+        {state.messages.map((message) => message.content).join('|')}
+      </output>
+      <output data-testid="input">{state.input}</output>
+      <output data-testid="pending-command">{state.pendingRepairCommand?.command_id ?? ''}</output>
+    </>
   );
 }
 
@@ -203,11 +207,20 @@ test('UF-10：草稿态点新建会话清空残留的本地消息', () => {
     act(() =>
       newSessionApi?.state.setMessages([{ role: 'user', content: '旧草稿消息' }] as Message[]),
     );
+    act(() => newSessionApi?.state.setInput('未发送草稿'));
+    act(() =>
+      newSessionApi?.state.setPendingRepairCommand({
+        command_id: 'old-session-command',
+        args: {},
+      }),
+    );
     assert.equal(container.querySelector('[data-testid="messages"]')?.textContent, '旧草稿消息');
     // 点「新建会话」：draft→draft 时 assistantSessionId 恒 null、reset effect 不重跑。
     act(() => newSessionApi?.handleNewSession());
     // 修复前：handleNewSession 不清消息 → 旧消息残留到新 draft 之下。
     assert.equal(container.querySelector('[data-testid="messages"]')?.textContent, '');
+    assert.equal(container.querySelector('[data-testid="input"]')?.textContent, '');
+    assert.equal(container.querySelector('[data-testid="pending-command"]')?.textContent, '');
   } finally {
     act(() => root.unmount());
     container.remove();

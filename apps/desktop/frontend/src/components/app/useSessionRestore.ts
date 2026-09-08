@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import {
@@ -33,16 +33,17 @@ export function useSessionRestore({
   // idle = 还没决定；restoring = 已发起 selectProject，等页签层铺完；done = 可以开始回写了
   const [phase, setPhase] = useState<'idle' | 'restoring' | 'done'>('idle');
   const cursorsRef = useRef<Record<string, FileCursor>>({});
+  const manualNavigationRef = useRef(false);
   const selectProjectRef = useRef(selectProject);
-  useEffect(() => {
+  useLayoutEffect(() => {
     selectProjectRef.current = selectProject;
-  });
+  }, [selectProject]);
 
   useEffect(() => {
     let cancelled = false;
     /* eslint-disable react-hooks/set-state-in-effect -- 启动时一次性判定要不要恢复：
        没开开关 / 没有存档就直接放行回写（phase=done），属挂载期同步决策，React18 合法模式。 */
-    if (!enabled) {
+    if (!enabled || manualNavigationRef.current) {
       setPhase('done');
       return;
     }
@@ -67,7 +68,7 @@ export function useSessionRestore({
           }),
         ),
       ]);
-      if (cancelled) return;
+      if (cancelled || manualNavigationRef.current) return;
 
       const existing = new Set(fileChecks.filter((path): path is string => path !== null));
       const reconciled = reconcileWorkspaceSession(session, projectExists, existing);
@@ -86,6 +87,16 @@ export function useSessionRestore({
       cancelled = true;
     };
   }, [enabled]);
+
+  // 手动导航拥有优先权：在 React 提交之前就阻止尚未返回的恢复结果。
+  // 自动恢复自身仍调用 selectProjectRef，不能经过这里取消自己的 pendingRestore。
+  const selectProjectManually = useCallback((path: string) => {
+    manualNavigationRef.current = true;
+    cursorsRef.current = {};
+    setPendingRestore(null);
+    setPhase('done');
+    selectProjectRef.current(path);
+  }, []);
 
   const handleRestoreApplied = useCallback(() => setPhase('done'), []);
 
@@ -117,6 +128,7 @@ export function useSessionRestore({
   );
 
   return {
+    selectProjectManually,
     pendingRestore: phase === 'restoring' ? pendingRestore : null,
     initialCursors: pendingRestore?.cursors ?? null,
     handleRestoreApplied,

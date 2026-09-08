@@ -98,3 +98,24 @@ test('countHits 跨文件累加', () => {
     3,
   );
 });
+
+test('大小写转换扩展字符不应移动后续命中的原文高亮', () => {
+  const { hits } = findHitsInContent(`${'İ😀'.repeat(40)}目标尾声 目标`, '目标');
+  assert.equal(hits.length, 2);
+  for (const hit of hits) assert.equal(hit.text.slice(hit.start, hit.end), '目标');
+});
+
+test('大小写转换扩展发生在查询或原文时使用原文命中长度', () => {
+  const expanded = findHitsInContent('前İX后', 'i\u0307x').hits[0];
+  assert.equal(expanded.text.slice(expanded.start, expanded.end), 'İX');
+  const decomposed = findHitsInContent('前i\u0307X后', 'İx').hits[0];
+  assert.equal(decomposed.text.slice(decomposed.start, decomposed.end), 'i\u0307X');
+});
+
+test('偏移修复保持整行小写上下文、字面量和区分大小写语义', () => {
+  const sigma = findHitsInContent('İ ΟΣ', 'ος').hits[0];
+  assert.equal(sigma.text.slice(sigma.start, sigma.end), 'ΟΣ');
+  assert.equal(findHitsInContent('İ a.b axb', 'a.b').hits.length, 1);
+  const exact = findHitsInContent('İ😀目标尾', '目标', { caseSensitive: true }).hits[0];
+  assert.equal(exact.text.slice(exact.start, exact.end), '目标');
+});

@@ -146,6 +146,8 @@ test('历史会话加载失败时保留选择并提供重试', async () => {
 
     const error = container.querySelector('[data-testid="assistant-session-load-error"]');
     assert.ok(error);
+    assert.equal(error.getAttribute('role'), 'alert');
+    assert.equal(error.getAttribute('aria-live'), 'assertive');
     assert.match(error.textContent ?? '', /会话 #42 加载失败/);
     assert.equal(onAssistantSessionChange.mock.calls.length, 0);
 
@@ -160,6 +162,48 @@ test('历史会话加载失败时保留选择并提供重试', async () => {
     });
     assert.equal(mockedGetAssistantSession.mock.calls.length, 2);
     assert.equal(onAssistantSessionChange.mock.calls.length, 0);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('历史会话加载期间显示忙碌占位而不是空会话提示', async () => {
+  let resolveSession: (value: unknown) => void = () => undefined;
+  const pendingSession = new Promise((resolve) => {
+    resolveSession = resolve as (value: unknown) => void;
+  });
+  mockedGetAssistantSession.mockReturnValue(
+    pendingSession as ReturnType<typeof getAssistantSession>,
+  );
+  mockedBuildProjectIndex.mockResolvedValue({ files: [] } as Awaited<
+    ReturnType<typeof buildProjectIndex>
+  >);
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  try {
+    await act(async () => {
+      root.render(
+        <ChatWindow projectPath="D:/Books/story" currentFile={null} assistantSessionId={42} />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const loading = container.querySelector('[data-testid="assistant-session-loading"]');
+    assert.ok(loading);
+    assert.equal(loading.getAttribute('role'), 'status');
+    assert.equal(loading.getAttribute('aria-busy'), 'true');
+    assert.doesNotMatch(container.textContent ?? '', /在下方输入框开始对话/);
+
+    await act(async () => {
+      resolveSession({ id: 42, title: 'Session 42', messages: [] });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    assert.equal(container.querySelector('[data-testid="assistant-session-loading"]'), null);
   } finally {
     act(() => root.unmount());
     container.remove();
@@ -226,6 +270,7 @@ test('上下文索引失败态不伪装成项目没有 Markdown，并提供重�
 
   assert.match(html, /上下文索引读取失败：目录不可读/);
   assert.match(html, /data-testid="context-candidates-retry"/);
+  assert.match(html, /data-testid="context-candidates-error"[^>]*role="alert"/);
   assert.doesNotMatch(html, /当前项目还没有可选的 Markdown 上下文/);
 });
 
@@ -247,6 +292,8 @@ test('上下文索引加载中不显示空项目结论', () => {
   );
 
   assert.match(html, /正在读取项目上下文/);
+  assert.match(html, /data-testid="context-candidates-loading"[^>]*role="status"/);
+  assert.match(html, /aria-busy="true"/);
   assert.doesNotMatch(html, /当前项目还没有可选的 Markdown 上下文/);
 });
 

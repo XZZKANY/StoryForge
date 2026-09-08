@@ -4,7 +4,7 @@
  * 提供查看正文 / 从此开分支 / 与父版本对比。取数与分支清单写盘由 Editor 负责。
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { BranchGraph, GraphNode } from '../lib/branches';
 import { buildPatchHunks } from '../lib/patch-hunks';
 import type { VersionState } from '../lib/versions';
@@ -47,7 +47,12 @@ export function BranchCanvas({
 
   if (nodes.length === 0) {
     return (
-      <div className="p-4 text-sm text-muted" data-testid="branch-canvas-empty">
+      <div
+        className="p-4 text-sm text-muted"
+        data-testid="branch-canvas-empty"
+        role="status"
+        aria-live="polite"
+      >
         还没有版本节点。保存修改后会自动记录，可在此开分支并比较平行写法。
       </div>
     );
@@ -55,7 +60,12 @@ export function BranchCanvas({
 
   return (
     <div className="flex h-full flex-col" data-testid="branch-canvas">
-      <div className="flex flex-wrap gap-1 border-b border-border p-2" data-testid="branch-legend">
+      <div
+        className="flex flex-wrap gap-1 border-b border-border p-2"
+        data-testid="branch-legend"
+        role="group"
+        aria-label="剧情分支"
+      >
         {graph.branches.map((branch) => {
           const active = branch.id === activeBranchId;
           return (
@@ -69,6 +79,7 @@ export function BranchCanvas({
               data-testid="branch-legend-item"
               data-branch-id={branch.id}
               data-branch-active={active ? 'true' : 'false'}
+              aria-pressed={active}
               title={active ? '当前活动分支（新保存挂在这里）' : '切换为活动分支'}
             >
               <span
@@ -81,7 +92,7 @@ export function BranchCanvas({
         })}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      <div className="min-h-0 flex-1 overflow-y-auto p-2" role="list" aria-label="版本节点">
         {nodes.map((node) => (
           <BranchNodeRow
             key={node.id}
@@ -128,9 +139,14 @@ function BranchNodeRow({
   readNodeState: (node: GraphNode) => Promise<VersionState>;
 }) {
   const [diff, setDiff] = useState<DiffState>(null);
+  const compareRequest = useRef(0);
+  const compareBusy = useRef(false);
+  const actionsId = `branch-node-actions-${node.id}`;
 
   const compareWithParent = async () => {
-    if (!parent) return;
+    if (!parent || compareBusy.current) return;
+    compareBusy.current = true;
+    const requestId = ++compareRequest.current;
     setDiff('loading');
     try {
       const [beforeState, afterState] = await Promise.all([
@@ -140,13 +156,17 @@ function BranchNodeRow({
       const before = beforeState.exists ? beforeState.content : '';
       const after = afterState.exists ? afterState.content : '';
       const hunks = buildPatchHunks(before, after);
+      if (requestId !== compareRequest.current) return;
       setDiff({
         hunks: hunks.length,
         added: hunks.reduce((sum, hunk) => sum + hunk.addedLines, 0),
         removed: hunks.reduce((sum, hunk) => sum + hunk.removedLines, 0),
       });
     } catch {
+      if (requestId !== compareRequest.current) return;
       setDiff('error');
+    } finally {
+      if (requestId === compareRequest.current) compareBusy.current = false;
     }
   };
 
@@ -158,10 +178,15 @@ function BranchNodeRow({
       data-testid="branch-node"
       data-node-id={node.id}
       data-branch-id={node.branchId}
+      role="listitem"
     >
       <button
         type="button"
         onClick={onSelect}
+        aria-pressed={selected}
+        aria-expanded={selected}
+        aria-controls={selected ? actionsId : undefined}
+        aria-label={`${formatTimestamp(node.timestamp)}，${branchLabel}，${node.summary ?? '版本快照'}`}
         className="flex w-full items-center gap-2 text-left"
         style={{ paddingLeft: `${(laneCount > 1 ? node.lane : 0) * 14}px` }}
       >
@@ -170,7 +195,7 @@ function BranchNodeRow({
           style={{ backgroundColor: color }}
         />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-xs text-foreground">
+          <span className="block min-w-0 truncate text-xs text-foreground" title={branchLabel}>
             {formatTimestamp(node.timestamp)}
             <span className="ml-2 text-2xs text-muted">{branchLabel}</span>
           </span>
@@ -183,7 +208,12 @@ function BranchNodeRow({
       </button>
 
       {selected && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-1">
+        <div
+          id={actionsId}
+          role="region"
+          aria-label={`${branchLabel} ${formatTimestamp(node.timestamp)} 的操作`}
+          className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-1"
+        >
           <button
             type="button"
             onClick={onCheckout}
@@ -206,19 +236,33 @@ function BranchNodeRow({
             <button
               type="button"
               onClick={compareWithParent}
+              disabled={diff === 'loading'}
               className="rounded-md border border-border px-2 py-1 text-2xs text-muted hover:bg-foreground/10"
               data-testid="branch-node-compare"
             >
-              对比父版本
+              {diff === 'error' ? '重试对比' : '对比父版本'}
             </button>
           )}
           {node.version.unavailableReason && (
             <span className="text-2xs text-error">{node.version.unavailableReason}</span>
           )}
-          {diff === 'loading' && <span className="text-2xs text-muted">对比中…</span>}
-          {diff === 'error' && <span className="text-2xs text-error">对比失败</span>}
+          {diff === 'loading' && (
+            <span className="text-2xs text-muted" role="status" aria-live="polite">
+              对比中…
+            </span>
+          )}
+          {diff === 'error' && (
+            <span className="text-2xs text-error" role="alert">
+              对比失败，请重试
+            </span>
+          )}
           {diff && diff !== 'loading' && diff !== 'error' && (
-            <span className="text-2xs text-muted" data-testid="branch-node-diff-summary">
+            <span
+              className="max-w-full break-words text-2xs text-muted"
+              data-testid="branch-node-diff-summary"
+              role="status"
+              aria-live="polite"
+            >
               {diff.hunks === 0
                 ? '与父版本无差异'
                 : `${diff.hunks} 处改动 · +${diff.added} / -${diff.removed} 行`}

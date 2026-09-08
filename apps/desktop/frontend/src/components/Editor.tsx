@@ -3,7 +3,7 @@
  * 保存时先把磁盘上的旧内容存为版本快照，再写入新内容；提供历史查看与恢复。
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import * as monaco from 'monaco-editor';
 import {
   EXPORT_CURRENT_FILE_EVENT,
@@ -20,6 +20,7 @@ import {
   type EditorCommand,
   type LocateInEditorDetail,
   type SaveActiveFileDoneDetail,
+  type SaveActiveFileRequestDetail,
   type ReviewIssueMarker,
 } from '../lib/assistant-events';
 import { resolveAnchorLine } from '../lib/observations';
@@ -51,7 +52,13 @@ import type { AppDialogApi } from './app/AppDialog';
 import { createWritebackQueue, performGuardedWriteback } from '../lib/writeback';
 import { isReadOnlyDerivedProjectPath } from '../lib/project/entry-visibility';
 import type { FileCursor } from '../lib/workspace-session';
-import { canCommitEditorSave, isRetainedEditorModel } from './app/editor-tabs-state';
+import {
+  canCommitEditorSave,
+  isRetainedEditorModel,
+  isSameEditorSaveTarget,
+  canAcknowledgeEditorSave,
+  type EditorSaveTarget,
+} from './app/editor-tabs-state';
 
 // Monaco 与磁盘原文的换行风格可能不一致（Windows CRLF vs 模型/编辑器 LF）；
 // 比较补丁能否写回时按 LF 归一，避免仅换行差异被误判为“内容已变化”而挡住写回。
@@ -76,28 +83,45 @@ type EditorProps = {
   onCursorPersist?: (filePath: string, cursor: FileCursor) => void;
   /** 撤销一次「新建」删掉文件后，把该路径从页签里摘掉（同文件树删除那条路）。 */
   dropOpenFilePath?: (path: string) => void;
+  /** 版本历史关闭后恢复到文件操作入口，避免焦点落到 body。 */
+  historyTriggerRef?: RefObject<HTMLButtonElement>;
 };
 
 export function EditorLoadStatus({
   filePath,
   loadedFilePath,
   loadError,
+  onRetry,
 }: {
   filePath: string | null;
   loadedFilePath: string | null;
   loadError: string;
+  onRetry?: () => void;
 }) {
   if (!filePath || loadedFilePath === filePath) return null;
   return (
     <div
       className="absolute inset-x-0 bottom-0 top-0 z-20 flex items-center justify-center bg-background px-6 text-center"
       data-testid={loadError ? 'editor-load-error' : 'editor-loading'}
+      role={loadError ? 'alert' : 'status'}
+      aria-live={loadError ? 'assertive' : 'polite'}
+      aria-busy={!loadError}
     >
       <div>
         <p className={loadError ? 'text-sm text-error' : 'text-sm text-muted'}>
           {loadError ? '读取文件失败' : '正在读取文件…'}
         </p>
         {loadError && <p className="mt-2 max-w-xl text-xs text-subtle">{loadError}</p>}
+        {loadError && onRetry && (
+          <button
+            type="button"
+            className="mt-3 h-8 rounded-md border border-border-strong px-3 text-xs text-foreground hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            onClick={onRetry}
+            data-testid="editor-load-retry"
+          >
+            重试读取
+          </button>
+        )}
       </div>
     </div>
   );
@@ -118,6 +142,7 @@ export function Editor({
   initialCursors = null,
   onCursorPersist,
   dropOpenFilePath,
+  historyTriggerRef,
 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -184,21 +209,27 @@ export function Editor({
     autoSaveRef.current = autoSave;
   });
 
-  const { loadedFilePath, loadedContent, loadedIsDirty, loadAttemptFilePath, loadError } =
-    useEditorFileLoader({
-      filePath,
-      originalContentRef,
-      issueDecorationsRef,
-      filePathRef,
-      isDirtyRef,
-      autoSaveTimerRef,
-      resetSuggestionWriteback,
-      adoptPendingSuggestion,
-      setLoadedContentPreview,
-      setIsDirty,
-      setShowHistory,
-      modelCacheRef,
-    });
+  const {
+    loadedFilePath,
+    loadedContent,
+    loadedIsDirty,
+    loadAttemptFilePath,
+    loadError,
+    retryLoad,
+  } = useEditorFileLoader({
+    filePath,
+    originalContentRef,
+    issueDecorationsRef,
+    filePathRef,
+    isDirtyRef,
+    autoSaveTimerRef,
+    resetSuggestionWriteback,
+    adoptPendingSuggestion,
+    setLoadedContentPreview,
+    setIsDirty,
+    setShowHistory,
+    modelCacheRef,
+  });
 
   useEffect(() => {
     if (loadedFilePath === filePath) onDirtyChange?.(filePath, isDirty);
@@ -225,7 +256,7 @@ export function Editor({
   // autosave 与 Ctrl+S 可同时发起，故整个「取内容 → 快照 → 写盘 → 结算」串进写回队列，
   // 避免两次写盘乱序完成时旧内容盖掉新内容（内容在任务真正执行时才取，落盘的总是最新稿）。
   const saveCurrentFile = useCallback(
-    () =>
+    (expectedTarget?: EditorSaveTarget) =>
       saveQueueRef.current(async () => {
         const path = filePathRef.current;
         const projectRoot = projectPathRef.current;
@@ -234,6 +265,10 @@ export function Editor({
 
         const savedModel = editorRef.current.getModel();
         if (!savedModel) return;
+        const target = { projectPath: projectRoot, filePath: path, model: savedModel };
+        if (expectedTarget && !isSameEditorSaveTarget(expectedTarget, target)) {
+          throw new Error('保存目标已切换，请返回原文件后重试。');
+        }
         const content = savedModel.getValue();
         const previous = originalContentRef.current;
         const contentChanged = normalizeEol(previous) !== normalizeEol(content);
@@ -249,7 +284,12 @@ export function Editor({
               parentId: branch?.headNodeId,
             }),
           advanceBranchHead: async (timestamp) => {
-            await advanceBranchHead(timestamp);
+            if (branch)
+              await advanceBranchHead(timestamp, {
+                projectPath: projectRoot,
+                filePath: path,
+                branchId: branch.id,
+              });
           },
           write: async () => {
             await TauriFileSystem.writeFile(projectRoot, path, content);
@@ -277,6 +317,7 @@ export function Editor({
           cleanVersionIdRef.current = remainsDirty ? null : savedModel.getAlternativeVersionId();
           setIsDirty(remainsDirty);
         }
+        return { target, content };
       }),
     [advanceBranchHead, getActiveBranchSnapshot, onDirtyChange],
   );
@@ -543,26 +584,54 @@ export function Editor({
   // 审稿/修订读盘前，外部请活动编辑器先落盘，避免后端读到未保存的旧内容。
   useEffect(() => {
     const onRequestSave = (event: Event) => {
-      const detail = (event as CustomEvent<{ filePath: string }>).detail;
-      const respond = (detail: SaveActiveFileDoneDetail) =>
+      const detail = (event as CustomEvent<SaveActiveFileRequestDetail>).detail;
+      if (!detail?.requestId) return;
+      const requestId = detail.requestId;
+      const respond = (detail: Omit<SaveActiveFileDoneDetail, 'requestId'>) =>
         window.dispatchEvent(
-          new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
-            detail,
+          new CustomEvent<SaveActiveFileDoneDetail>(SAVE_ACTIVE_FILE_DONE_EVENT, {
+            detail: { ...detail, requestId },
           }),
         );
       const requestedFilePath = detail?.filePath ?? null;
-      if (
-        !detail ||
-        detail.filePath !== filePathRef.current ||
-        !editorRef.current ||
-        !isDirtyRef.current
-      ) {
+      if (!detail || detail.filePath !== filePathRef.current || !editorRef.current) {
         respond({ filePath: requestedFilePath, status: 'skipped' });
         return;
       }
+      const model = editorRef.current.getModel();
+      const project = projectPathRef.current;
+      const cached = modelCacheRef.current.get(detail.filePath);
+      if (!model || !project || cached?.model !== model) {
+        respond({ filePath: requestedFilePath, status: 'skipped' });
+        return;
+      }
+      const target = { projectPath: project, filePath: detail.filePath, model };
+      if (model.getValue() === cached.originalContent) {
+        respond({ filePath: requestedFilePath, status: 'clean' });
+        return;
+      }
       void saveCurrentFileRef
-        .current()
-        .then(() => respond({ filePath: requestedFilePath, status: 'saved' }))
+        .current(target)
+        .then((receipt) => {
+          const currentModel = editorRef.current?.getModel() ?? null;
+          const currentProject = projectPathRef.current;
+          const currentPath = filePathRef.current;
+          const current =
+            currentModel && currentProject && currentPath
+              ? { projectPath: currentProject, filePath: currentPath, model: currentModel }
+              : null;
+          if (
+            !canAcknowledgeEditorSave(receipt, target, current, currentModel?.getValue() ?? null)
+          ) {
+            respond({
+              filePath: requestedFilePath,
+              status: 'error',
+              message: '保存期间内容或目标已变化，仍有修改需要确认。请返回文件检查后重新保存。',
+            });
+            return;
+          }
+          respond({ filePath: requestedFilePath, status: 'saved' });
+        })
         .catch((error) =>
           respond({
             filePath: requestedFilePath,
@@ -635,7 +704,7 @@ export function Editor({
       if (!editorRef.current) return;
       editorRef.current.setValue(state.content);
       setIsDirty(state.content !== originalContentRef.current);
-      setShowHistory(false);
+      closeVersionHistory();
       return;
     }
 
@@ -667,12 +736,13 @@ export function Editor({
           branchLabel: branch.label,
           parentId: branch.headNodeId,
         }),
-      advanceBranchHead,
+      advanceBranchHead: (timestamp) =>
+        advanceBranchHead(timestamp, { projectPath: project, filePath: path, branchId: branch.id }),
       write: async () => TauriFileSystem.deletePath(project, path),
       record: async () => unmarkChapterWrittenInPlan(project, path),
     });
     dropOpenFilePath(path);
-    setShowHistory(false);
+    closeVersionHistory();
     emitToast('已恢复到“文件不存在”，删除前作品版本已保留', { tone: 'success' });
   };
 
@@ -709,6 +779,13 @@ export function Editor({
     : sidebarVisible === false
       ? '展开资源管理器后选择文件'
       : '在资源管理器中双击文件开始编辑';
+
+  const closeVersionHistory = useCallback(() => {
+    setShowHistory(false);
+    requestAnimationFrame(() => {
+      historyTriggerRef?.current?.focus({ preventScroll: true });
+    });
+  }, [historyTriggerRef]);
 
   return (
     <div
@@ -770,12 +847,20 @@ export function Editor({
         </div>
       )}
 
-      <EditorLoadStatus filePath={filePath} loadedFilePath={loadedFilePath} loadError={loadError} />
+      <EditorLoadStatus
+        filePath={filePath}
+        loadedFilePath={loadedFilePath}
+        loadError={loadError}
+        onRetry={retryLoad}
+      />
 
       {isReviseLoading && (
         <div
           className="px-3 py-2 border-b border-border bg-panel text-xs text-accent animate-fade-in flex-shrink-0 flex items-center gap-2"
           data-testid="suggestion-loading"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
         >
           <span className="inline-block w-3 h-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
           正在请求 AI 修订…
@@ -820,7 +905,7 @@ export function Editor({
             onCheckoutNode={handleCheckoutNode}
             onBranchFromNode={handleBranchFromNode}
             onSelectBranch={selectBranch}
-            onClose={() => setShowHistory(false)}
+            onClose={closeVersionHistory}
             getCurrentContent={() => editorRef.current?.getValue() ?? ''}
           />
         ) : null)}

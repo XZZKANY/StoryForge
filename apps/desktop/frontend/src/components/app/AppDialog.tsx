@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 type DialogBase = {
   title: string;
@@ -46,15 +46,23 @@ export type AppDialogState = AlertDialog | ConfirmDialog | PromptDialog | Choice
 export function useAppDialog() {
   const [dialog, setDialog] = useState<AppDialogState | null>(null);
   const dialogRef = useRef<AppDialogState | null>(null);
+  const pendingRef = useRef<AppDialogState[]>([]);
 
   useEffect(() => {
     dialogRef.current = dialog;
   }, [dialog]);
 
+  const enqueue = useCallback((next: AppDialogState) => {
+    // Keep requests FIFO: independent async actions must not strand an earlier await.
+    if (dialogRef.current) pendingRef.current.push(next);
+    else dialogRef.current = next;
+    setDialog((current) => current ?? next);
+  }, []);
+
   const alert = useCallback(
     (options: { title: string; message: string; confirmLabel?: string; mono?: boolean }) =>
       new Promise<void>((resolve) => {
-        setDialog({
+        enqueue({
           kind: 'alert',
           title: options.title,
           message: options.message,
@@ -63,7 +71,7 @@ export function useAppDialog() {
           resolve,
         });
       }),
-    [],
+    [enqueue],
   );
 
   const confirm = useCallback(
@@ -75,7 +83,7 @@ export function useAppDialog() {
       tone?: 'default' | 'danger';
     }) =>
       new Promise<boolean>((resolve) => {
-        setDialog({
+        enqueue({
           kind: 'confirm',
           title: options.title,
           message: options.message,
@@ -85,7 +93,7 @@ export function useAppDialog() {
           resolve,
         });
       }),
-    [],
+    [enqueue],
   );
 
   const choose = useCallback(
@@ -96,7 +104,7 @@ export function useAppDialog() {
       cancelLabel?: string;
     }) =>
       new Promise<string | null>((resolve) => {
-        setDialog({
+        enqueue({
           kind: 'choice',
           title: options.title,
           message: options.message,
@@ -105,7 +113,7 @@ export function useAppDialog() {
           resolve,
         });
       }),
-    [],
+    [enqueue],
   );
 
   const prompt = useCallback(
@@ -118,7 +126,7 @@ export function useAppDialog() {
     }) =>
       new Promise<string | null>((resolve) => {
         const defaultValue = options.defaultValue ?? '';
-        setDialog({
+        enqueue({
           kind: 'prompt',
           title: options.title,
           message: options.message,
@@ -129,14 +137,15 @@ export function useAppDialog() {
           resolve,
         });
       }),
-    [],
+    [enqueue],
   );
 
   const closeDialog = useCallback((result?: boolean | string | null) => {
     const current = dialogRef.current;
     if (!current) return;
-    dialogRef.current = null;
-    setDialog(null);
+    const next = pendingRef.current.shift() ?? null;
+    dialogRef.current = next;
+    setDialog(next);
     if (current.kind === 'alert') current.resolve();
     if (current.kind === 'confirm') current.resolve(result === true);
     if (current.kind === 'prompt') current.resolve(typeof result === 'string' ? result : null);
@@ -173,12 +182,34 @@ export function AppDialogHost({
   onPromptValueChange: (value: string) => void;
 }) {
   const primaryRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
+  const dialogIdentity = dialog?.resolve;
+
+  // Capture the opener before autofocus. Cleanup only restores focus when it is still
+  // inside the dialog (or body), so an action that intentionally focuses the editor wins.
+  useLayoutEffect(() => {
+    if (!dialogIdentity) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const section = sectionRef.current;
+    const focusTarget = inputRef.current ?? primaryRef.current;
+    focusTarget?.focus();
+    return () => {
+      if (
+        opener?.isConnected &&
+        (document.activeElement === document.body ||
+          (section?.contains(document.activeElement) ?? false))
+      ) {
+        opener.focus({ preventScroll: true });
+      }
+    };
+  }, [dialogIdentity]);
 
   useEffect(() => {
     if (!dialog) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
       event.preventDefault();
       if (dialog.kind === 'alert') onClose();
       else if (dialog.kind === 'confirm') onClose(false);
@@ -188,11 +219,6 @@ export function AppDialogHost({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [dialog, onClose]);
-
-  // 打开时把焦点送进弹窗（prompt 聚焦输入框，其余聚焦主按钮 → 原生 Enter/Space 即确认）。
-  useEffect(() => {
-    if (dialog && dialog.kind !== 'prompt') primaryRef.current?.focus();
-  }, [dialog]);
 
   if (!dialog) return null;
   const isPrompt = dialog.kind === 'prompt';
@@ -214,10 +240,20 @@ export function AppDialogHost({
         aria-modal="true"
         role="dialog"
         aria-labelledby="app-dialog-title"
+        aria-describedby="app-dialog-message"
         className="flex max-h-[calc(100vh-2rem)] w-full max-w-[420px] flex-col overflow-hidden rounded-md border border-border bg-panel p-4 shadow-[var(--shadow-dialog)]"
         data-testid="app-dialog"
         data-dialog-kind={dialog.kind}
         onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            if (dialog.kind === 'alert') onClose();
+            else if (dialog.kind === 'confirm') onClose(false);
+            else onClose(null);
+            return;
+          }
           if (event.key !== 'Tab') return;
           // 焦点陷阱：Tab 在弹窗内环绕，不外逃到背景。
           const focusables = sectionRef.current?.querySelectorAll<HTMLElement>(
@@ -239,6 +275,7 @@ export function AppDialogHost({
           {dialog.title}
         </h2>
         <p
+          id="app-dialog-message"
           className={`mt-2 min-h-0 overflow-y-auto break-words whitespace-pre-wrap text-sm leading-6 text-muted ${
             dialog.mono ? 'font-mono' : ''
           }`}
@@ -248,13 +285,19 @@ export function AppDialogHost({
         </p>
         {isPrompt && (
           <input
-            autoFocus
+            ref={inputRef}
             className="mt-4 h-9 w-full rounded-md border border-border-strong bg-background px-3 text-sm text-foreground outline-none focus:border-accent"
             data-testid="app-dialog-input"
+            aria-labelledby="app-dialog-title"
+            aria-describedby="app-dialog-message"
             value={dialog.value}
             onChange={(event) => onPromptValueChange(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') onClose(dialog.value);
+              if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                onClose(dialog.value);
+              }
             }}
           />
         )}

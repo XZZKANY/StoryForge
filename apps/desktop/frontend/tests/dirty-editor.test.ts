@@ -3,6 +3,8 @@ import { test } from 'vitest';
 
 import {
   canCommitEditorSave,
+  canAcknowledgeEditorSave,
+  isSameEditorSaveTarget,
   closeEditorFile,
   nextEditorFileAfterClose,
   openEditorFile,
@@ -58,4 +60,40 @@ test('dirty 状态按文件独立记录与清除', () => {
   assert.deepEqual([...dirty], ['a.md', 'b.md']);
   dirty = updateDirtyEditorFiles(dirty, 'a.md', false);
   assert.deepEqual([...dirty], ['b.md']);
+});
+
+test('写入旧内容不能确认后来输入已保存', () => {
+  const target = { projectPath: 'D:/book', filePath: 'a.md', model: {} };
+  const receipt = { target, content: '旧输入' };
+  assert.equal(canAcknowledgeEditorSave(receipt, target, target, '旧输入'), true);
+  assert.equal(canAcknowledgeEditorSave(receipt, target, target, '旧输入+新输入'), false);
+});
+test('保存目标的项目、文件、model 必须均一致', () => {
+  const target = { projectPath: 'D:/book', filePath: 'a.md', model: {} };
+  const receipt = { target, content: '相同正文' };
+  for (const changed of [
+    { ...target, projectPath: 'D:/other' },
+    { ...target, filePath: 'b.md' },
+    { ...target, model: {} },
+    null,
+  ]) {
+    assert.equal(isSameEditorSaveTarget(target, changed), false);
+    assert.equal(canAcknowledgeEditorSave(receipt, target, changed, '相同正文'), false);
+  }
+});
+test('提前返回或写入其他目标不能产生成功保存应答', () => {
+  const target = { projectPath: 'D:/book', filePath: 'a.md', model: {} };
+  assert.equal(canAcknowledgeEditorSave(undefined, target, target, '正文'), false);
+  assert.equal(
+    canAcknowledgeEditorSave(
+      {
+        target: { ...target, filePath: 'b.md' },
+        content: '正文',
+      },
+      target,
+      target,
+      '正文',
+    ),
+    false,
+  );
 });

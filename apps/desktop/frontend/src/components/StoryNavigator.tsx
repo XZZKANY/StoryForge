@@ -3,7 +3,7 @@
  * 文件视角保持真实目录树，故事视角按 StoryForge 语义目录重组同一批 Markdown 文件。
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import {
   buildProjectIndex,
   semanticKindLabel,
@@ -76,6 +76,9 @@ export function StoryNavigator({
   const [error, setError] = useState<string | null>(null);
   // 索引装载失败后的本地重试计数；与 refreshVersion 并列驱动同一个 effect。
   const [retryNonce, setRetryNonce] = useState(0);
+  const navigatorId = useId().replace(/:/g, '');
+  const panelId = `story-navigator-${navigatorId}-panel`;
+  const activeTabId = `story-navigator-${navigatorId}-tab-${activeTab}`;
 
   useEffect(() => {
     if (!projectPath || activeTab !== 'story') {
@@ -119,11 +122,15 @@ export function StoryNavigator({
           <NavigatorTabButton
             label="文件"
             active={activeTab === 'files'}
+            tabId={`story-navigator-${navigatorId}-tab-files`}
+            panelId={panelId}
             onClick={() => setActiveTab('files')}
           />
           <NavigatorTabButton
             label="故事"
             active={activeTab === 'story'}
+            tabId={`story-navigator-${navigatorId}-tab-story`}
+            panelId={panelId}
             onClick={() => setActiveTab('story')}
           />
         </div>
@@ -134,7 +141,7 @@ export function StoryNavigator({
         )}
       </div>
 
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1" id={panelId} role="tabpanel" aria-labelledby={activeTabId}>
         {activeTab === 'files' ? (
           <ResourceExplorer
             projectPath={projectPath}
@@ -166,21 +173,47 @@ export function StoryNavigator({
 function NavigatorTabButton({
   label,
   active,
+  tabId,
+  panelId,
   onClick,
 }: {
   label: string;
   active: boolean;
+  tabId: string;
+  panelId?: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       role="tab"
+      id={tabId}
       aria-selected={active}
+      aria-controls={panelId}
+      tabIndex={active ? 0 : -1}
       className={`h-5 rounded-sm px-2 text-2xs font-medium transition-colors ${
         active ? 'bg-elevated text-foreground' : 'text-muted hover:bg-surface hover:text-foreground'
       }`}
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const tabs = Array.from(
+          event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ??
+            [],
+        );
+        if (tabs.length === 0) return;
+        const current = tabs.indexOf(event.currentTarget);
+        const next =
+          event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? tabs.length - 1
+              : (current + (event.key === 'ArrowLeft' ? -1 : 1) + tabs.length) % tabs.length;
+        tabs[next]?.focus();
+        tabs[next]?.click();
+      }}
     >
       {label}
     </button>
@@ -217,7 +250,16 @@ function StoryIndexView({
   }
 
   if (loading) {
-    return <div className="p-8 text-center text-sm text-subtle">加载故事索引…</div>;
+    return (
+      <div
+        className="p-8 text-center text-sm text-subtle"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        加载故事索引…
+      </div>
+    );
   }
 
   if (error) {
@@ -308,6 +350,7 @@ function StoryGroup({
               }`}
               data-testid="story-file"
               data-story-kind={kind}
+              aria-current={active ? 'true' : undefined}
               onClick={() => (onFilePreview ? onFilePreview(file.path) : onFileSelect(file.path))}
               onDoubleClick={() => onFileSelect(file.path)}
             >

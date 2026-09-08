@@ -76,3 +76,41 @@ export function canCommitEditorSave(
 export function isRetainedEditorModel(savedModel: object, cachedModel: object | null): boolean {
   return savedModel === cachedModel;
 }
+
+export type EditorSaveTarget = {
+  projectPath: string;
+  filePath: string;
+  model: object;
+};
+
+export type EditorSaveReceipt = {
+  target: EditorSaveTarget;
+  content: string;
+};
+
+export function isSameEditorSaveTarget(
+  expected: EditorSaveTarget,
+  current: EditorSaveTarget | null,
+): boolean {
+  return (
+    current !== null &&
+    expected.projectPath === current.projectPath &&
+    expected.filePath === current.filePath &&
+    expected.model === current.model
+  );
+}
+
+/** A completed write is not a safe-to-close acknowledgement if newer text remains. */
+export function canAcknowledgeEditorSave(
+  receipt: EditorSaveReceipt | undefined,
+  requested: EditorSaveTarget,
+  current: EditorSaveTarget | null,
+  currentContent: string | null,
+): boolean {
+  return (
+    !!receipt &&
+    isSameEditorSaveTarget(requested, receipt.target) &&
+    isSameEditorSaveTarget(requested, current) &&
+    receipt.content === currentContent
+  );
+}

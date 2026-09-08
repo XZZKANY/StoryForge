@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import {
   semanticKindLabel,
   type ContextBundle,
@@ -16,7 +16,7 @@ import {
   Sparkles,
 } from '../icons/shell-icons';
 import type { LayoutMode } from '../shell/useShellState';
-import { useDismissableMenu } from '../shell/useDismissableMenu';
+import { useMenuKeyboard } from '../shell/useMenuKeyboard';
 import { basename } from '../app/helpers';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { contextBudgetText, selectedContextPreview } from './display-utils';
@@ -47,8 +47,10 @@ export function ConversationHeader({
   // Q5：会话下拉——会话按项目划分，标题变下拉入口（当前项目会话列表 + 新建）。
   // 下拉走内联 absolute（不 portal），token 在 :root/#app 内，避免 portal 出主题作用域翻车。
   const [menuOpen, setMenuOpen] = useState(false);
+  const sessionMenuId = useId();
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  useDismissableMenu(menuOpen, () => setMenuOpen(false), menuTriggerRef);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const dismissMenu = useMenuKeyboard(menuOpen, menuRef, () => setMenuOpen(false), menuTriggerRef);
   const sessionList = sessions ?? [];
   return (
     <header
@@ -62,6 +64,7 @@ export function ConversationHeader({
         onClick={() => setMenuOpen((open) => !open)}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
+        aria-controls={menuOpen ? sessionMenuId : undefined}
         data-testid="conversation-session-switch"
         title="本项目的会话（会话按项目划分，不再放全局左栏）"
       >
@@ -74,6 +77,7 @@ export function ConversationHeader({
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
           title="新建会话"
+          aria-label="新建会话"
           onClick={onNewSession}
           data-testid="conversation-new-session"
         >
@@ -85,6 +89,7 @@ export function ConversationHeader({
           type="button"
           className="relative grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
           title="世界线观测镜 · Ctrl+4"
+          aria-label="打开世界线观测镜 · Ctrl+4"
           onClick={onOpenObservatory}
           data-testid="conversation-open-observatory"
         >
@@ -93,6 +98,7 @@ export function ConversationHeader({
             <span
               className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-agent"
               data-testid="observatory-attention-dot"
+              aria-hidden="true"
             />
           )}
         </button>
@@ -104,6 +110,7 @@ export function ConversationHeader({
             type="button"
             className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
             title="回到编辑 · Ctrl+2"
+            aria-label="回到编辑 · Ctrl+2"
             onClick={() => onSetLayoutMode('balanced')}
             data-testid="conversation-back-to-balanced"
           >
@@ -115,6 +122,7 @@ export function ConversationHeader({
               type="button"
               className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
               title="对话占满中右 · Ctrl+3"
+              aria-label="对话占满中右 · Ctrl+3"
               onClick={() => onSetLayoutMode('chat')}
               data-testid="conversation-expand-chat"
             >
@@ -124,6 +132,7 @@ export function ConversationHeader({
               type="button"
               className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
               title="收起对话栏，编辑占满 · Ctrl+1"
+              aria-label="收起对话栏，编辑占满 · Ctrl+1"
               onClick={() => onSetLayoutMode('editor')}
               data-testid="conversation-collapse-right"
             >
@@ -134,7 +143,14 @@ export function ConversationHeader({
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-          <div className="absolute left-2 right-2 top-shell-row z-40 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-dropdown)]">
+          <div
+            ref={menuRef}
+            id={sessionMenuId}
+            role="menu"
+            aria-label="本项目的会话"
+            tabIndex={-1}
+            className="absolute left-2 right-2 top-shell-row z-40 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-dropdown)]"
+          >
             <div className="px-2 py-1 text-3xs uppercase tracking-[0.08em] text-subtle">
               本项目的会话
             </div>
@@ -145,13 +161,16 @@ export function ConversationHeader({
                 const active = session.id === activeSessionId;
                 return (
                   <button
+                    role="menuitemradio"
+                    aria-checked={active}
+                    tabIndex={-1}
                     key={session.id}
                     type="button"
                     className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-elevated ${
                       active ? 'text-foreground' : 'text-muted hover:text-foreground'
                     }`}
                     onClick={() => {
-                      setMenuOpen(false);
+                      dismissMenu();
                       onSelectSession?.(session.id);
                     }}
                     title={`会话 #${session.id} · ${session.updated_at}`}
@@ -171,9 +190,11 @@ export function ConversationHeader({
                 <div className="mx-1.5 my-1 h-px bg-border" />
                 <button
                   type="button"
+                  role="menuitem"
+                  tabIndex={-1}
                   className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-muted hover:bg-elevated hover:text-foreground"
                   onClick={() => {
-                    setMenuOpen(false);
+                    dismissMenu();
                     onNewSession();
                   }}
                 >
@@ -246,7 +267,12 @@ export function MessageList({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
+    <div
+      className="min-h-0 flex-1 overflow-y-auto px-5 py-6"
+      role="log"
+      aria-label="Agent 会话消息"
+      aria-relevant="additions text"
+    >
       <div className="mx-auto flex w-full max-w-[800px] flex-col gap-6">
         {messages.map((message, index) => (
           <MessageItem key={index} message={message} />
@@ -282,6 +308,22 @@ export function MessageList({
   );
 }
 
+export function SessionLoading({ sessionId }: { sessionId: number | null }) {
+  return (
+    <div
+      className="flex min-h-0 flex-1 items-center justify-center px-5 py-10"
+      data-testid="assistant-session-loading"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div className="text-sm text-muted">
+        {sessionId === null ? '正在准备会话…' : `正在加载会话 #${sessionId}…`}
+      </div>
+    </div>
+  );
+}
+
 export function AgentRunRecoveryPanel({ recovery }: { recovery: AgentRunRecoveryDisplay | null }) {
   if (!recovery) return null;
   const toneClass = recoveryToneClass(recovery.tone);
@@ -289,6 +331,8 @@ export function AgentRunRecoveryPanel({ recovery }: { recovery: AgentRunRecovery
     <section
       className={`rounded-lg border px-3 py-2 ${toneClass}`}
       data-testid="agent-run-recovery"
+      role={recovery.tone === 'error' ? 'alert' : 'status'}
+      aria-live={recovery.tone === 'error' ? 'assertive' : 'polite'}
     >
       <div className="flex min-w-0 flex-col gap-1">
         <div className="truncate text-xs font-semibold text-foreground">
@@ -323,7 +367,40 @@ export function RunActionBar({
   run: AgentRun;
   controls: AgentRunControlHandlers;
 }) {
+  const scope = JSON.stringify([
+    run.id,
+    run.sessionId,
+    run.status,
+    run.steps.map((step) => step.patchId).filter(Boolean),
+  ]);
+  return <ScopedRunActionBar key={scope} run={run} controls={controls} />;
+}
+
+function ScopedRunActionBar({
+  run,
+  controls,
+}: {
+  run: AgentRun;
+  controls: AgentRunControlHandlers;
+}) {
   const [rejectDraft, setRejectDraft] = useState<string | null>(null);
+  const rejectTriggerRef = useRef<HTMLButtonElement>(null);
+  const actionBarRef = useRef<HTMLDivElement>(null);
+  const focusComposerAfterAction = () => {
+    const source = document.activeElement;
+    const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    const focus = () => {
+      // A replaced input belongs to another conversation; newer explicit focus belongs to the author.
+      if (!composer?.isConnected || composer.disabled) return;
+      if (document.activeElement !== source && document.activeElement !== document.body) return;
+      composer.focus({ preventScroll: true });
+    };
+    if (typeof window === 'undefined') {
+      focus();
+    } else {
+      window.requestAnimationFrame(focus);
+    }
+  };
   const waitingForPermission = run.steps.some(
     (step) => step.id === 'permission-required' && step.status === 'waiting',
   );
@@ -333,6 +410,7 @@ export function RunActionBar({
   // 暂停态给「恢复」出口（不再是死胡同），并保留「停止」；停止是终态、由轻状态条中性收尾。
   const isPaused = run.status === 'paused';
   const isRunning = run.status === 'running';
+  const controlsBusy = controls.busy === true;
   // 终态只留轻状态/回复收尾，不再渲染没有动作的空操作条。
   const isTerminal =
     run.status === 'completed' || run.status === 'failed' || run.status === 'stopped';
@@ -340,9 +418,11 @@ export function RunActionBar({
 
   const handleAcceptPatch = () => {
     controls.onAcceptPatch?.();
+    focusComposerAfterAction();
   };
 
   const handleRejectPatch = () => {
+    if (controlsBusy) return;
     if (rejectDraft === null) {
       setRejectDraft('');
       return;
@@ -350,12 +430,33 @@ export function RunActionBar({
     const direction = rejectDraft.trim();
     setRejectDraft(null);
     controls.onRejectPatch?.(direction);
+    focusComposerAfterAction();
+  };
+
+  const handleCancelReject = () => {
+    setRejectDraft(null);
+    // While busy, closing turns the trigger back into a disabled action.
+    const target = controlsBusy ? actionBarRef.current : rejectTriggerRef.current;
+    target?.focus({ preventScroll: true });
+  };
+
+  const handleRejectTrigger = () => {
+    if (rejectDraft === null) {
+      handleRejectPatch();
+    } else {
+      handleCancelReject();
+    }
   };
 
   return (
     <div
       className="flex flex-shrink-0 flex-col border-t border-border bg-panel"
       data-testid="run-action-bar"
+      ref={actionBarRef}
+      role="group"
+      aria-label="运行操作"
+      tabIndex={-1}
+      aria-busy={controlsBusy}
     >
       <div className="flex flex-wrap items-center gap-2 px-4 py-2">
         <div className="mx-auto flex w-full max-w-[800px] flex-wrap items-center gap-2">
@@ -363,23 +464,31 @@ export function RunActionBar({
             className="min-w-0 flex-1 text-xs text-muted"
             title={`运行 ${run.id}`}
             data-testid="run-action-status"
+            role="status"
+            aria-live="polite"
           >
-            {waitingForPermission
-              ? '等待你确认'
-              : awaitingConfirm
-                ? 'AI 修订已生成，可接受或拒绝'
-                : isPaused
-                  ? '已暂停'
-                  : isRunning
-                    ? '正在处理'
-                    : '准备中'}
+            {controlsBusy
+              ? '正在确认操作…'
+              : waitingForPermission
+                ? '等待你确认'
+                : awaitingConfirm
+                  ? 'AI 修订已生成，可接受或拒绝'
+                  : isPaused
+                    ? '已暂停'
+                    : isRunning
+                      ? '正在处理'
+                      : '准备中'}
           </div>
           {/* 运行态：暂停按钮 */}
           {isRunning && (
             <button
               type="button"
-              className="h-7 rounded-md border border-border px-2.5 text-xs text-muted hover:text-foreground hover:bg-elevated"
-              onClick={controls.onPauseRun}
+              className="h-7 rounded-md border border-border px-2.5 text-xs text-muted hover:text-foreground hover:bg-elevated disabled:cursor-wait disabled:opacity-50"
+              onClick={() => {
+                controls.onPauseRun();
+                focusComposerAfterAction();
+              }}
+              disabled={controlsBusy}
               title="暂停本轮"
               data-testid="run-pause"
             >
@@ -390,8 +499,12 @@ export function RunActionBar({
           {isPaused && (
             <button
               type="button"
-              className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent"
-              onClick={controls.onResumeRun}
+              className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent disabled:cursor-wait disabled:opacity-50"
+              onClick={() => {
+                controls.onResumeRun();
+                focusComposerAfterAction();
+              }}
+              disabled={controlsBusy}
               title="恢复本轮"
               data-testid="run-resume"
             >
@@ -403,8 +516,12 @@ export function RunActionBar({
             <>
               <button
                 type="button"
-                className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent"
-                onClick={controls.onApprovePermission}
+                className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent disabled:cursor-wait disabled:opacity-50"
+                onClick={() => {
+                  controls.onApprovePermission();
+                  focusComposerAfterAction();
+                }}
+                disabled={controlsBusy}
                 title="批准权限请求"
                 data-testid="run-approve-permission"
               >
@@ -412,8 +529,12 @@ export function RunActionBar({
               </button>
               <button
                 type="button"
-                className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10"
-                onClick={controls.onDenyPermission}
+                className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10 disabled:cursor-wait disabled:opacity-50"
+                onClick={() => {
+                  controls.onDenyPermission();
+                  focusComposerAfterAction();
+                }}
+                disabled={controlsBusy}
                 title="拒绝权限请求"
                 data-testid="run-deny-permission"
               >
@@ -426,8 +547,9 @@ export function RunActionBar({
             <>
               <button
                 type="button"
-                className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent"
+                className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent disabled:cursor-wait disabled:opacity-50"
                 onClick={handleAcceptPatch}
+                disabled={controlsBusy}
                 title="接受这版修订并写回"
                 data-testid="run-accept-patch"
               >
@@ -435,8 +557,14 @@ export function RunActionBar({
               </button>
               <button
                 type="button"
-                className="h-7 rounded-md border border-border px-2.5 text-xs text-muted hover:text-foreground hover:bg-elevated"
-                onClick={handleRejectPatch}
+                ref={rejectTriggerRef}
+                className="h-7 rounded-md border border-border px-2.5 text-xs text-muted hover:text-foreground hover:bg-elevated disabled:cursor-wait disabled:opacity-50"
+                onClick={handleRejectTrigger}
+                disabled={controlsBusy && rejectDraft === null}
+                aria-expanded={rejectDraft !== null}
+                aria-controls={
+                  rejectDraft !== null && awaitingConfirm ? 'run-reject-form' : undefined
+                }
                 title="拒绝这版修订"
                 data-testid="run-reject-patch"
               >
@@ -448,8 +576,12 @@ export function RunActionBar({
           {(isRunning || isPaused || waitingForPermission) && (
             <button
               type="button"
-              className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10"
-              onClick={controls.onStopRun}
+              className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10 disabled:cursor-wait disabled:opacity-50"
+              onClick={() => {
+                controls.onStopRun();
+                focusComposerAfterAction();
+              }}
+              disabled={controlsBusy}
               title="停止本轮"
               data-testid="run-stop"
             >
@@ -462,6 +594,9 @@ export function RunActionBar({
         <div
           className="flex items-center gap-2 border-t border-border px-4 py-2"
           data-testid="run-reject-form"
+          id="run-reject-form"
+          role="group"
+          aria-label="拒绝修订并提供修改方向"
         >
           <div className="mx-auto flex w-full max-w-[800px] items-center gap-2">
             <input
@@ -469,22 +604,25 @@ export function RunActionBar({
               value={rejectDraft}
               onChange={(e) => setRejectDraft(e.target.value)}
               onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   handleRejectPatch();
                 } else if (e.key === 'Escape') {
                   e.preventDefault();
-                  setRejectDraft(null);
+                  handleCancelReject();
                 }
               }}
               placeholder="说说该怎么改（回车发出，留空则只否掉这版）"
+              aria-label="修改方向（可选）"
               className="min-w-0 flex-1 rounded-md border border-border bg-elevated px-2 py-1 text-xs text-foreground placeholder:text-muted focus:border-accent focus:outline-none"
               data-testid="run-reject-input"
             />
             <button
               type="button"
               onClick={handleRejectPatch}
-              className="h-7 flex-shrink-0 rounded-md border border-border px-2.5 text-xs text-foreground hover:bg-elevated"
+              disabled={controlsBusy}
+              className="h-7 flex-shrink-0 rounded-md border border-border px-2.5 text-xs text-foreground hover:bg-elevated disabled:cursor-wait disabled:opacity-50"
               data-testid="run-reject-confirm"
             >
               {rejectDraft.trim() ? '否掉并重来' : '否掉'}
@@ -510,6 +648,9 @@ export function WritingRunProgressPanel({ projection }: { projection: WritingRun
     <section
       className="animate-slide-up-fade rounded-lg border border-border bg-panel px-3 py-2"
       data-testid="writing-run-progress"
+      role="status"
+      aria-live="polite"
+      aria-busy={projection.status === 'running'}
     >
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
@@ -531,6 +672,7 @@ export function WritingRunProgressPanel({ projection }: { projection: WritingRun
         <div
           className="mt-2 h-1 overflow-hidden rounded-full bg-elevated"
           role="progressbar"
+          aria-label={`写作任务 #${projection.writingRunId} 章节进度`}
           aria-valuenow={progressPercent}
           aria-valuemin={0}
           aria-valuemax={100}
@@ -579,6 +721,7 @@ export function ContextSummaryPanel({
   onRetryContextCandidates: () => void;
 }) {
   const [expanded, setExpanded] = useState(!compact);
+  const detailsId = `context-summary-details-${useId().replace(/:/g, '')}`;
 
   const visibleCandidates = contextCandidates
     .filter((file) => file.relativePath !== currentFileLabel)
@@ -601,6 +744,7 @@ export function ContextSummaryPanel({
             onClick={() => setExpanded((value) => !value)}
             data-testid="context-summary-toggle"
             aria-expanded={detailsOpen}
+            aria-controls={detailsOpen ? detailsId : undefined}
           >
             <span
               className={`flex-shrink-0 text-3xs text-subtle transition-transform ${
@@ -641,6 +785,8 @@ export function ContextSummaryPanel({
             if (compact) setExpanded(true);
             onAddContext();
           }}
+          aria-expanded={contextPickerOpen}
+          aria-controls={contextPickerOpen ? 'context-picker' : undefined}
           data-testid="context-picker-toggle"
         >
           添加上下文
@@ -648,7 +794,7 @@ export function ContextSummaryPanel({
       </div>
 
       {detailsOpen && (
-        <>
+        <div id={detailsId} role="group" aria-label="上下文详情">
           {compact && (
             <div className="mt-1 pl-5 text-xs text-subtle">
               <div className="truncate">{contextBudgetText(lastContextBundle)}</div>
@@ -667,6 +813,7 @@ export function ContextSummaryPanel({
                   type="button"
                   className="max-w-full truncate rounded-md border border-accent bg-accent px-2 py-1 text-xs text-accent-foreground hover:bg-accent"
                   title="取消固定"
+                  aria-label={`取消固定 ${path}`}
                   onClick={() => onTogglePinnedContext(path)}
                 >
                   已固定 {path}
@@ -684,12 +831,16 @@ export function ContextSummaryPanel({
           {contextPickerOpen && (
             <div
               className="mt-3 grid max-h-52 grid-cols-1 gap-1 overflow-y-auto border-t border-border pt-2"
+              id="context-picker"
               data-testid="context-picker"
             >
               {contextCandidatesLoading ? (
                 <div
                   className="px-2 py-1 text-xs text-subtle"
                   data-testid="context-candidates-loading"
+                  role="status"
+                  aria-live="polite"
+                  aria-busy="true"
                 >
                   正在读取项目上下文…
                 </div>
@@ -697,6 +848,8 @@ export function ContextSummaryPanel({
                 <div
                   className="flex items-center gap-2 px-2 py-1 text-xs text-warning"
                   data-testid="context-candidates-error"
+                  role="alert"
+                  aria-live="assertive"
                 >
                   <span className="min-w-0 flex-1 break-words">{contextCandidatesError}</span>
                   <button
@@ -725,6 +878,7 @@ export function ContextSummaryPanel({
                         pinned ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'
                       }`}
                       onClick={() => onTogglePinnedContext(file.relativePath)}
+                      aria-pressed={pinned}
                       data-testid="context-candidate"
                       data-context-path={file.relativePath}
                     >
@@ -741,7 +895,7 @@ export function ContextSummaryPanel({
               )}
             </div>
           )}
-        </>
+        </div>
       )}
 
       {!detailsOpen && missingContextPaths.length > 0 && (

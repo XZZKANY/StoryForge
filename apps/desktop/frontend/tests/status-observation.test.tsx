@@ -95,3 +95,91 @@ test('只有观测数据可用且为空时才显示真实成功空态', () => {
   assert.match(panelHtml, /全部处理完/);
   assert.match(panelHtml, /暂无观测项/);
 });
+
+test('观测项在键盘焦点落入行内时保持处理按钮可见', () => {
+  const html = renderToStaticMarkup(
+    <ObsPanel
+      observations={[{ id: 'obs-1', severity: 'warning', title: '缺少章节标题' }]}
+      availability="available"
+      onClose={() => undefined}
+      onResolve={() => undefined}
+    />,
+  );
+  assert.match(html, /group-focus-within:opacity-100/);
+});
+
+test('观测面板支持 Escape 关闭且不受输入法组合影响', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  let closed = 0;
+  try {
+    act(() =>
+      root.render(
+        <ObsPanel
+          observations={[]}
+          onClose={() => {
+            closed += 1;
+          }}
+          onResolve={() => undefined}
+        />,
+      ),
+    );
+    const close = container.querySelector<HTMLButtonElement>('[aria-label="关闭观测面板"]');
+    assert.ok(close);
+    const composing = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      isComposing: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => close.dispatchEvent(composing));
+    assert.equal(closed, 0);
+    const escape = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => close.dispatchEvent(escape));
+    assert.equal(escape.defaultPrevented, true);
+    assert.equal(closed, 1);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('观测入口的无障碍名称随数据可用性变化', () => {
+  const unavailable = renderToStaticMarkup(
+    <StatusBar
+      modelLabel=""
+      projectOpen
+      obs={{ error: 0, warning: 0, advisory: 0, total: 0 }}
+      onToggleObs={() => undefined}
+    />,
+  );
+  const available = renderToStaticMarkup(
+    <StatusBar
+      modelLabel=""
+      projectOpen
+      obs={{ error: 1, warning: 2, advisory: 0, total: 3 }}
+      observationAvailability="available"
+      onToggleObs={() => undefined}
+    />,
+  );
+  assert.match(unavailable, /aria-label="打开观测清单：观测尚未启用"/);
+  assert.match(available, /aria-label="打开观测清单：3 项未处理"/);
+  assert.match(available, /aria-expanded="false"/);
+  const availableOpen = renderToStaticMarkup(
+    <StatusBar
+      modelLabel=""
+      projectOpen
+      obs={{ error: 1, warning: 2, advisory: 0, total: 3 }}
+      observationAvailability="available"
+      observationOpen
+      onToggleObs={() => undefined}
+    />,
+  );
+  assert.match(availableOpen, /aria-controls="obs-panel"/);
+  assert.match(availableOpen, /aria-expanded="true"/);
+});

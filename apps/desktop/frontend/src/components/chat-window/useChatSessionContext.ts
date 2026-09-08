@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { getAssistantSession, listAssistantSessions } from '../../lib/api-client';
 import {
@@ -25,14 +25,17 @@ export function useChatSessionContext(
     'projectPath' | 'currentFile' | 'assistantSessionId' | 'onAssistantSessionChange'
   >,
 ) {
+  const suppressSessionLoadRef = useRef(false);
   const {
     previousAssistantSessionIdRef,
     selfPersistedSessionIdRef,
     draftNonceRef,
+    setInput,
     setAgentRun,
     setChapterBrief,
     setWritingRunProjection,
     setRetryRequest,
+    setPendingRepairCommand,
     setMessages,
     setConversationTitle,
     setLastReviewReport,
@@ -41,6 +44,7 @@ export function useChatSessionContext(
     setExplicitContextPaths,
     setAgentRunRecovery,
     setSessionLoadError,
+    setSessionLoading,
     sessionLoadRetry,
     setAssistantSessions,
     setContextCandidates,
@@ -59,11 +63,13 @@ export function useChatSessionContext(
   useEffect(() => {
     const nextSessionId = assistantSessionId ?? null;
     const preservesCurrentConversation = selfPersistedSessionIdRef.current === nextSessionId;
+    suppressSessionLoadRef.current = preservesCurrentConversation;
     if (shouldResetRunPanels(nextSessionId, selfPersistedSessionIdRef.current)) {
       setAgentRun(null);
       setChapterBrief(null);
       setWritingRunProjection(null);
       setRetryRequest(null);
+      setPendingRepairCommand(null);
     } else {
       selfPersistedSessionIdRef.current = null;
     }
@@ -72,7 +78,9 @@ export function useChatSessionContext(
     }
     previousAssistantSessionIdRef.current = nextSessionId;
     if (!assistantSessionId) {
+      setSessionLoading(false);
       setMessages([]);
+      setInput('');
       setConversationTitle('新的创作会话');
       setLastReviewReport(null);
       setLastReviewReportFile(null);
@@ -80,9 +88,12 @@ export function useChatSessionContext(
       setMissingContextPaths([]);
       setAgentRunRecovery(null);
       setChapterBrief(null);
+      setPendingRepairCommand(null);
       setSessionLoadError(null);
     } else if (!preservesCurrentConversation) {
+      setSessionLoading(true);
       setMessages([]);
+      setInput('');
       setConversationTitle(`会话 #${assistantSessionId}`);
       setLastReviewReport(null);
       setLastReviewReportFile(null);
@@ -90,6 +101,7 @@ export function useChatSessionContext(
       setMissingContextPaths([]);
       setAgentRunRecovery(null);
       setChapterBrief(null);
+      setPendingRepairCommand(null);
       setSessionLoadError(null);
     }
   }, [
@@ -106,24 +118,38 @@ export function useChatSessionContext(
     setLastReviewReport,
     setLastReviewReportFile,
     setMessages,
+    setInput,
     setMissingContextPaths,
     setRetryRequest,
+    setPendingRepairCommand,
     setSessionLoadError,
+    setSessionLoading,
     setWritingRunProjection,
   ]);
 
   useEffect(() => {
-    if (!assistantSessionId) return;
+    if (!assistantSessionId) {
+      setSessionLoading(false);
+      return;
+    }
+    if (suppressSessionLoadRef.current) {
+      suppressSessionLoadRef.current = false;
+      setSessionLoading(false);
+      return;
+    }
     let cancelled = false;
+    setSessionLoading(true);
     setSessionLoadError(null);
     void getAssistantSession(assistantSessionId)
       .then((session) => {
         if (cancelled) return;
+        setSessionLoading(false);
         setConversationTitle(session.title.replace(/^IDE Agent:\s*/, '') || '新的创作会话');
         setMessages(compactConversationMessages(session.messages));
       })
       .catch((error) => {
         if (cancelled) return;
+        setSessionLoading(false);
         const detail = error instanceof Error ? error.message : String(error);
         setSessionLoadError(`会话 #${assistantSessionId} 加载失败：${detail}`);
       });
@@ -136,6 +162,7 @@ export function useChatSessionContext(
     setConversationTitle,
     setMessages,
     setSessionLoadError,
+    setSessionLoading,
   ]);
 
   useEffect(() => {
@@ -245,6 +272,11 @@ export function useChatSessionContext(
     // draft→draft「新建会话」时 assistantSessionId 恒为 null、上面 keyed-on-assistantSessionId 的
     // 重置 effect 不重跑，必须显式清空本地对话视图，否则旧（未持久化的失败）消息残留到新 draft（UF-10）。
     setMessages([]);
+    setInput('');
+    setAgentRun(null);
+    setChapterBrief(null);
+    setWritingRunProjection(null);
+    setRetryRequest(null);
     setConversationTitle('新的创作会话');
     setLastReviewReport(null);
     setLastReviewReportFile(null);
@@ -255,7 +287,9 @@ export function useChatSessionContext(
     setExplicitContextPaths(restoredKnowledge.selected);
     setMissingContextPaths(restoredKnowledge.missing);
     setAgentRunRecovery(null);
+    setPendingRepairCommand(null);
     setSessionLoadError(null);
+    setSessionLoading(false);
     onAssistantSessionChange?.(null);
   }, [
     draftNonceRef,
@@ -263,13 +297,20 @@ export function useChatSessionContext(
     onAssistantSessionChange,
     projectPath,
     setAgentRunRecovery,
+    setAgentRun,
+    setChapterBrief,
     setConversationTitle,
     setExplicitContextPaths,
     setLastReviewReport,
     setLastReviewReportFile,
     setMessages,
+    setInput,
     setMissingContextPaths,
+    setRetryRequest,
     setSessionLoadError,
+    setSessionLoading,
+    setPendingRepairCommand,
+    setWritingRunProjection,
   ]);
 
   const retryAssistantSessionLoad = useCallback(() => {

@@ -1,9 +1,9 @@
 import { useEffect, type RefObject } from 'react';
 
 /**
- * 自定义下拉菜单的可关性：打开时挂 window keydown Esc → 关闭，并把焦点还给触发钮。
- * 触发钮另需自行补 aria-haspopup="menu" / aria-expanded={open}，读屏才知按钮会展开菜单。
- * 三处内联下拉（会话切换 / 项目库 / 页签「…」）共用此钩子，避免各写一套 Esc 逻辑。
+ * 非菜单弹层的可关性：打开时响应 Escape，并把焦点还给触发钮。
+ * 真正的菜单使用 useMenuKeyboard，以提供菜单首焦点、方向键和 Tab 退出语义。
+ * 触发钮仍需自行补 aria-haspopup="menu" / aria-expanded={open}。
  */
 export function useDismissableMenu(
   open: boolean,
@@ -13,7 +13,15 @@ export function useDismissableMenu(
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
+      if (
+        event.key !== 'Escape' ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.keyCode === 229 ||
+        document.querySelector('[role="dialog"][aria-modal="true"]')
+      ) {
+        return;
+      }
       event.preventDefault();
       close();
       triggerRef?.current?.focus();

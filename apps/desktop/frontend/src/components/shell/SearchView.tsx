@@ -9,6 +9,10 @@ import type { useProjectSearch } from '../app/useProjectSearch';
 import { SEARCH_MIN_QUERY, type SearchHit } from '../../lib/project-search';
 import { ChevronDown, ChevronRight, X } from '../icons/shell-icons';
 
+function searchResultGroupId(path: string) {
+  return `search-results-${encodeURIComponent(path)}`;
+}
+
 function HitRow({ hit, onSelect }: { hit: SearchHit; onSelect: () => void }) {
   return (
     <button
@@ -58,6 +62,11 @@ export function SearchView({
       return next;
     });
 
+  const retrySearch = () => {
+    // Retrying removes the triggering error UI; focus a stable control before that commit.
+    inputRef.current?.focus();
+    search.rerun();
+  };
   const trimmed = search.query.trim();
 
   return (
@@ -81,6 +90,7 @@ export function SearchView({
             value={search.query}
             onChange={(event) => search.setQuery(event.target.value)}
             placeholder="在项目正文中搜索…"
+            aria-label="搜索项目正文"
             disabled={!projectOpen}
             data-testid="search-input"
             ref={inputRef}
@@ -89,8 +99,12 @@ export function SearchView({
           {search.query && (
             <button
               type="button"
-              onClick={() => search.setQuery('')}
+              onClick={() => {
+                search.setQuery('');
+                inputRef.current?.focus();
+              }}
               title="清空"
+              aria-label="清空搜索"
               data-testid="search-clear"
               className="absolute right-1.5 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
             >
@@ -100,49 +114,85 @@ export function SearchView({
         </div>
       </div>
 
+      {projectOpen && search.unreadableCount > 0 && (
+        <div
+          className="mx-3 mb-2 rounded-md border border-warning/40 p-2 text-2xs text-warning"
+          data-testid="search-partial-warning"
+        >
+          <p role="status">有 {search.unreadableCount} 个文件未能读取，结果可能不完整。</p>
+          <button
+            type="button"
+            disabled={search.status === 'searching'}
+            className="mt-1 rounded-sm px-1 py-0.5 underline disabled:opacity-50"
+            data-testid="search-partial-retry"
+            onClick={retrySearch}
+          >
+            重试搜索
+          </button>
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
         {!projectOpen ? (
-          <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
+          <p className="px-3 py-4 text-2xs leading-relaxed text-subtle" role="status">
             打开项目后可搜索正文内容。
           </p>
         ) : trimmed.length > 0 && trimmed.length < SEARCH_MIN_QUERY ? (
-          <p className="px-3 py-4 text-2xs text-subtle">
+          <p className="px-3 py-4 text-2xs text-subtle" role="status">
             再输入 {SEARCH_MIN_QUERY - trimmed.length} 个字符开始搜索。
           </p>
         ) : search.status === 'error' ? (
-          <div className="px-3 py-4">
+          <div className="px-3 py-4" role="alert" aria-live="assertive">
             <p className="text-xs text-error">搜索失败</p>
             <p className="mt-1 text-2xs leading-relaxed text-subtle">{search.error}</p>
             <button
               type="button"
-              onClick={search.rerun}
+              onClick={retrySearch}
               className="mt-2 h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated"
             >
               重试
             </button>
           </div>
         ) : trimmed.length < SEARCH_MIN_QUERY ? (
-          <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
+          <p className="px-3 py-4 text-2xs leading-relaxed text-subtle" role="status">
             搜索正文内容；文件名请用命令面板（Ctrl P）。
           </p>
         ) : search.results.length === 0 ? (
-          <p className="px-3 py-4 text-2xs text-subtle" data-testid="search-empty">
-            {search.status === 'searching' ? '搜索中…' : '没有匹配的内容。'}
+          <p
+            className="px-3 py-4 text-2xs text-subtle"
+            data-testid="search-empty"
+            role="status"
+            aria-live="polite"
+            aria-busy={search.status === 'searching'}
+          >
+            {search.status === 'searching'
+              ? '搜索中…'
+              : search.unreadableCount > 0
+                ? '未发现匹配，但搜索结果不完整。'
+                : '没有匹配的内容。'}
           </p>
         ) : (
           <>
-            <p className="px-3 pb-1 text-2xs text-subtle" data-testid="search-summary">
+            <p
+              className="px-3 pb-1 text-2xs text-subtle"
+              data-testid="search-summary"
+              role="status"
+              aria-live="polite"
+              aria-busy={search.status === 'searching'}
+            >
               {search.totalHits} 处 · {search.results.length} 个文件
               {search.status === 'searching' ? ' · 搜索中…' : ''}
               {search.capped ? ` · 已达上限，仅显示前 ${search.totalHits} 处` : ''}
             </p>
             {search.results.map((file) => {
               const isCollapsed = collapsed.has(file.path);
+              const resultGroupId = searchResultGroupId(file.path);
               return (
                 <div key={file.path} className="px-1">
                   <button
                     type="button"
                     onClick={() => toggle(file.path)}
+                    aria-expanded={!isCollapsed}
+                    aria-controls={resultGroupId}
                     className="flex w-full items-center gap-1 rounded-sm px-2 py-1 text-left text-xs text-foreground hover:bg-elevated"
                     title={file.path}
                   >
@@ -157,14 +207,20 @@ export function SearchView({
                       {file.truncated ? '+' : ''}
                     </span>
                   </button>
-                  {!isCollapsed &&
-                    file.hits.map((hit, index) => (
+                  <div
+                    id={resultGroupId}
+                    role="group"
+                    aria-label={`${basename(file.path)} 搜索结果`}
+                    hidden={isCollapsed}
+                  >
+                    {file.hits.map((hit, index) => (
                       <HitRow
                         key={`${hit.line}-${hit.start}-${index}`}
                         hit={hit}
                         onSelect={() => onOpenHit(file.path, hit.line)}
                       />
                     ))}
+                  </div>
                 </div>
               );
             })}

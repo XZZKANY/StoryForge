@@ -7,7 +7,7 @@
  * 前端不自算结论。提案「并入」由作者点下后前端写 canon.json（后端绝不写作者项目文件）；
  * 不要的提案留着不动即可，未做忽略态持久化。
  */
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 
 import { Check, ChevronDown, ChevronRight, FileText, Radar, RefreshCw } from '../icons/shell-icons';
 import type { CanonMergeTarget } from '../../lib/canon-merge';
@@ -80,12 +80,17 @@ function Section({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(true);
+  const toggleId = `obs-section-toggle-${testid}`;
+  const contentId = `obs-section-content-${testid}`;
   return (
     <section className="border-b border-border" data-testid={`obs-section-${testid}`}>
       <button
         type="button"
+        id={toggleId}
         className="flex h-8 w-full items-center gap-1.5 px-3 text-2xs font-semibold tracking-[0.06em] text-subtle hover:bg-elevated hover:text-foreground"
         onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-controls={open ? contentId : undefined}
         data-testid={`obs-section-toggle-${testid}`}
       >
         {open ? (
@@ -98,7 +103,16 @@ function Section({
           <span className="rounded-full bg-elevated px-1.5 font-mono text-3xs">{count}</span>
         )}
       </button>
-      {open && <div className="flex flex-col gap-2 px-3 pb-3">{children}</div>}
+      {open && (
+        <div
+          id={contentId}
+          role="region"
+          aria-labelledby={toggleId}
+          className="flex flex-col gap-2 px-3 pb-3"
+        >
+          {children}
+        </div>
+      )}
     </section>
   );
 }
@@ -262,6 +276,7 @@ function EntityCard({
   onLocateObservation?: (observation: Observation) => void;
   onLocateAnchor?: (anchor: ObservationAnchor) => void;
 }) {
+  const provenanceId = useId();
   const [provenanceOpen, setProvenanceOpen] = useState(false);
   const related = entity.relatedObservationIds
     .map((id) => observationById.get(id))
@@ -322,6 +337,8 @@ function EntityCard({
               ? () => onLocateObservation(observation)
               : undefined
           }
+          disabled={!observation.anchor || !onLocateObservation}
+          aria-label={`定位观测：${observation.title}`}
           data-testid="entity-related-observation"
         >
           {observation.title}
@@ -332,6 +349,9 @@ function EntityCard({
           type="button"
           className="mt-1.5 flex items-center gap-1 text-3xs text-subtle hover:text-foreground"
           onClick={() => setProvenanceOpen((value) => !value)}
+          aria-expanded={provenanceOpen}
+          aria-controls={provenanceId}
+          aria-label={`${provenanceOpen ? '收起' : '展开'} ${entity.canonicalName} 的出现位置`}
           data-testid="entity-provenance-toggle"
         >
           {provenanceOpen ? (
@@ -342,29 +362,33 @@ function EntityCard({
           出现 {entity.totalCount} 处
         </button>
       )}
-      {provenanceOpen &&
-        entity.provenance.map((occurrence) => (
-          <button
-            key={`${occurrence.path}-${occurrence.firstLine ?? 0}`}
-            type="button"
-            className="mt-0.5 block w-full truncate text-left font-mono text-3xs text-subtle hover:text-foreground"
-            onClick={
-              onLocateAnchor
-                ? () =>
-                    onLocateAnchor({
-                      path: occurrence.path,
-                      line: occurrence.firstLine ?? undefined,
-                    })
-                : undefined
-            }
-            data-testid="entity-provenance-row"
-          >
-            {occurrence.chapter != null ? `第 ${occurrence.chapter} 章 ` : ''}
-            {occurrence.path}
-            {occurrence.firstLine != null ? `:${occurrence.firstLine}` : ''}
-            {occurrence.count != null ? `（${occurrence.count} 处）` : ''}
-          </button>
-        ))}
+      {provenanceOpen && (
+        <div id={provenanceId} role="group" aria-label={`${entity.canonicalName} 的出现位置`}>
+          {entity.provenance.map((occurrence) => (
+            <button
+              key={`${occurrence.path}-${occurrence.firstLine ?? 0}`}
+              type="button"
+              className="mt-0.5 block w-full truncate text-left font-mono text-3xs text-subtle hover:text-foreground disabled:cursor-default disabled:opacity-60"
+              onClick={
+                onLocateAnchor
+                  ? () =>
+                      onLocateAnchor({
+                        path: occurrence.path,
+                        line: occurrence.firstLine ?? undefined,
+                      })
+                  : undefined
+              }
+              disabled={!onLocateAnchor}
+              data-testid="entity-provenance-row"
+            >
+              {occurrence.chapter != null ? `第 ${occurrence.chapter} 章 ` : ''}
+              {occurrence.path}
+              {occurrence.firstLine != null ? `:${occurrence.firstLine}` : ''}
+              {occurrence.count != null ? `（${occurrence.count} 处）` : ''}
+            </button>
+          ))}
+        </div>
+      )}
       {provenanceOpen && entity.provenanceTruncated && (
         <div className="mt-0.5 text-3xs text-subtle">…仅列前 20 处</div>
       )}
@@ -470,8 +494,10 @@ export function ObservatoryView({
         )}
         <button
           type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+          disabled={busy}
+          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-wait disabled:opacity-50"
           title="重新扫描（确定性 · 无 LLM）"
+          aria-label="重新扫描观测"
           onClick={onRescan}
           data-testid="observatory-rescan"
         >
@@ -481,6 +507,7 @@ export function ObservatoryView({
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
           title="回到资源管理器 · Ctrl+Shift+E"
+          aria-label="回到资源管理器"
           onClick={onBackToChat}
           data-testid="observatory-back-to-chat"
         >
@@ -489,7 +516,12 @@ export function ObservatoryView({
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {availability !== 'available' ? (
-          <p className="px-4 py-4 text-2xs leading-relaxed text-subtle">
+          <p
+            className="px-4 py-4 text-2xs leading-relaxed text-subtle"
+            role={availability === 'error' ? 'alert' : 'status'}
+            aria-live={availability === 'error' ? 'assertive' : 'polite'}
+            aria-busy={availability === 'loading'}
+          >
             {availability === 'loading'
               ? '正在扫描项目观测数据。'
               : availability === 'error'

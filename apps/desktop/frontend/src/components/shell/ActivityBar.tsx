@@ -4,7 +4,8 @@
  * 会话在右栏，质检在状态栏；文件名搜索走顶栏命令面板 Ctrl+P，正文内容搜索走这里的搜索视图。
  * 激活指示条贴 rail 左缘。
  */
-import { useState } from 'react';
+import { useId, useState, type Ref } from 'react';
+import { ACTIVITY_BAR_WIDTH } from '../../lib/workspace-layout';
 import type { SidePanelView } from './useShellState';
 import { BookOpen, FileText, Inbox, Library, Radar, Search, Settings } from '../icons/shell-icons';
 import type { LucideIcon } from '../icons/shell-icons';
@@ -43,6 +44,7 @@ export function ActivityBar({
   onSwitchView,
   onOpenSettings,
   settingsMenu,
+  settingsButtonRef,
   observatoryAttention = false,
   knowledgePendingCount = 0,
 }: {
@@ -52,15 +54,23 @@ export function ActivityBar({
   onOpenSettings: () => void;
   // 齿轮小菜单项；不传则齿轮直接开设置（回退）。
   settingsMenu?: ContextMenuItem[];
+  settingsButtonRef?: Ref<HTMLButtonElement>;
   // 光标行提到 canon 实体时观测镜图标亮小紫点。
   observatoryAttention?: boolean;
   knowledgePendingCount?: number;
 }) {
-  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const settingsMenuId = useId();
+  const [menuPos, setMenuPos] = useState<{
+    x: number;
+    y: number;
+    returnFocus: HTMLElement | null;
+  } | null>(null);
 
   return (
     <nav
-      className="flex w-12 flex-shrink-0 flex-col items-center gap-0.5 border-r border-border bg-background py-1.5"
+      className="flex flex-shrink-0 flex-col items-center gap-0.5 border-r border-border bg-background py-1.5"
+      style={{ width: ACTIVITY_BAR_WIDTH }}
+      aria-label="工作区视图"
       data-testid="shell-activity-bar"
     >
       {VIEW_ENTRIES.map((entry) => {
@@ -69,8 +79,16 @@ export function ActivityBar({
         return (
           <button
             key={entry.view}
+            type="button"
             data-testid={`activity-${entry.view}`}
+            data-current-view={view === entry.view ? 'true' : undefined}
             data-active={active}
+            aria-label={
+              entry.view === 'knowledge' && knowledgePendingCount > 0
+                ? `${entry.title} · ${knowledgePendingCount > 99 ? '99+' : knowledgePendingCount} 条待处理`
+                : entry.title
+            }
+            aria-current={active ? 'page' : undefined}
             className={`relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-elevated ${
               active ? 'text-foreground' : 'text-subtle hover:text-foreground'
             }`}
@@ -87,12 +105,15 @@ export function ActivityBar({
               <span
                 className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-agent"
                 data-testid="activity-observatory-attention"
+                aria-hidden="true"
               />
             )}
             {entry.view === 'knowledge' && knowledgePendingCount > 0 && (
               <span
                 className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-agent px-1 text-center font-mono text-3xs leading-4 text-white"
                 data-testid="activity-knowledge-badge"
+                id="activity-knowledge-pending-count"
+                aria-hidden="true"
               >
                 {knowledgePendingCount > 99 ? '99+' : knowledgePendingCount}
               </span>
@@ -104,14 +125,19 @@ export function ActivityBar({
       <div className="flex-1" />
 
       <button
+        type="button"
+        ref={settingsButtonRef}
         data-testid="activity-settings"
+        aria-label="设置 · Ctrl+,"
         className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-elevated hover:text-foreground"
         title="设置 · Ctrl+,"
         aria-haspopup="menu"
+        aria-expanded={menuPos !== null}
+        aria-controls={menuPos ? settingsMenuId : undefined}
         onClick={(event) => {
           if (settingsMenu && settingsMenu.length > 0) {
             const rect = event.currentTarget.getBoundingClientRect();
-            setMenuPos({ x: rect.right + 6, y: rect.top });
+            setMenuPos({ x: rect.right + 6, y: rect.top, returnFocus: event.currentTarget });
           } else {
             onOpenSettings();
           }
@@ -122,9 +148,11 @@ export function ActivityBar({
 
       {menuPos && settingsMenu && (
         <ContextMenu
+          id={settingsMenuId}
           x={menuPos.x}
           y={menuPos.y}
           items={settingsMenu}
+          returnFocus={menuPos.returnFocus}
           onClose={() => setMenuPos(null)}
         />
       )}

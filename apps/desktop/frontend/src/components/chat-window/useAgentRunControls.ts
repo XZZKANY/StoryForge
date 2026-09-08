@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   AUTHOR_LOOP_RESULT_EVENT,
@@ -62,6 +62,8 @@ export function useAgentRunControls(
     applyResumedAgentResult,
     applyResumeDiagnostic,
   } = recovery;
+  const [controlBusy, setControlBusy] = useState(false);
+  const controlBusyRef = useRef(false);
 
   const retryLastFailedRun = useCallback(() => {
     if (!retryRequest || agentBusy) return;
@@ -74,85 +76,95 @@ export function useAgentRunControls(
   const sendAgentRunControl = useCallback(
     async (type: AgentControlMessageType, payload: Record<string, unknown> = {}) => {
       const run = agentRun;
-      if (!run) return;
-      if (type === 'approve_permission' && pendingRepairCommand) {
+      if (!run || controlBusyRef.current) return;
+      controlBusyRef.current = true;
+      setControlBusy(true);
+      try {
+        if (type === 'approve_permission' && pendingRepairCommand) {
+          try {
+            await executeIdeCommand(pendingRepairCommand.command_id, pendingRepairCommand.args);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setMessages((prev) => [
+              ...prev,
+              { role: 'assistant', content: `修复写回失败，补丁仍在等待确认：${message}` },
+            ]);
+            return;
+          }
+          setPendingRepairCommand(null);
+          setMessages((prev) => [...prev, { role: 'assistant', content: '修复补丁已执行写回。' }]);
+        }
         try {
-          await executeIdeCommand(pendingRepairCommand.command_id, pendingRepairCommand.args);
+          const ack = await sendAgentControlMessage({
+            sessionId: run.sessionId,
+            runId: run.id,
+            type,
+            payload: { source: 'desktop.timeline', ...payload },
+          });
+          if (
+            !shouldApplyAgentControlAck(
+              agentRunIdRef.current,
+              run.id,
+              typeof ack.run_id === 'string' ? ack.run_id : undefined,
+            )
+          ) {
+            return;
+          }
+          if (isAgentErrorMessage(ack)) {
+            setMessages((prev) => [
+              ...prev,
+              { role: 'assistant', content: `Agent 控制失败：${ack.detail}` },
+            ]);
+            return;
+          }
+          // 只有后端确认权限控制成功后才丢掉待执行命令。拒绝请求发送失败时，
+          // 保留它让作者可以重试，而不是把唯一的恢复入口静默抹掉。
+          if (type === 'deny_permission' && pendingRepairCommand) {
+            setPendingRepairCommand(null);
+          }
+          applyAgentStreamEvent(ack);
+          if (ack.resumed_result && isAgentResultMessage(ack.resumed_result)) {
+            setChapterBrief(null);
+            applyResumedAgentResult(ack.resumed_result);
+            void refreshAgentRunRecovery(ack.run_id);
+            return;
+          }
+          if (ack.resume_diagnostic) {
+            applyResumeDiagnostic(ack.resume_diagnostic);
+            void refreshAgentRunRecovery(ack.run_id);
+            return;
+          }
+          if (type === 'approve_permission') {
+            updateAgentStep('permission-required', {
+              status: 'completed',
+              detail: '作者已批准权限请求。',
+            });
+            updateAgentStatus('completed');
+          } else if (type === 'deny_permission') {
+            setChapterBrief(null);
+            updateAgentStep('permission-required', {
+              status: 'failed',
+              detail: '作者已拒绝权限请求。',
+            });
+            updateAgentStatus('failed');
+          } else if (type === 'pause_run') {
+            updateAgentStatus('paused');
+          } else if (type === 'resume_run') {
+            updateAgentStatus('running');
+          } else if (type === 'stop_run') {
+            updateAgentStatus('stopped');
+          }
         } catch (error) {
+          if (agentRunIdRef.current !== run.id) return;
           const message = error instanceof Error ? error.message : String(error);
           setMessages((prev) => [
             ...prev,
-            { role: 'assistant', content: `修复写回失败，补丁仍在等待确认：${message}` },
+            { role: 'assistant', content: `Agent 控制失败：${message}` },
           ]);
-          return;
         }
-        setPendingRepairCommand(null);
-        setMessages((prev) => [...prev, { role: 'assistant', content: '修复补丁已执行写回。' }]);
-      } else if (type === 'deny_permission' && pendingRepairCommand) {
-        setPendingRepairCommand(null);
-      }
-      try {
-        const ack = await sendAgentControlMessage({
-          sessionId: run.sessionId,
-          runId: run.id,
-          type,
-          payload: { source: 'desktop.timeline', ...payload },
-        });
-        if (
-          !shouldApplyAgentControlAck(
-            agentRunIdRef.current,
-            run.id,
-            typeof ack.run_id === 'string' ? ack.run_id : undefined,
-          )
-        ) {
-          return;
-        }
-        if (isAgentErrorMessage(ack)) {
-          setMessages((prev) => [
-            ...prev,
-            { role: 'assistant', content: `Agent 控制失败：${ack.detail}` },
-          ]);
-          return;
-        }
-        applyAgentStreamEvent(ack);
-        if (ack.resumed_result && isAgentResultMessage(ack.resumed_result)) {
-          setChapterBrief(null);
-          applyResumedAgentResult(ack.resumed_result);
-          void refreshAgentRunRecovery(ack.run_id);
-          return;
-        }
-        if (ack.resume_diagnostic) {
-          applyResumeDiagnostic(ack.resume_diagnostic);
-          void refreshAgentRunRecovery(ack.run_id);
-          return;
-        }
-        if (type === 'approve_permission') {
-          updateAgentStep('permission-required', {
-            status: 'completed',
-            detail: '作者已批准权限请求。',
-          });
-          updateAgentStatus('completed');
-        } else if (type === 'deny_permission') {
-          setChapterBrief(null);
-          updateAgentStep('permission-required', {
-            status: 'failed',
-            detail: '作者已拒绝权限请求。',
-          });
-          updateAgentStatus('failed');
-        } else if (type === 'pause_run') {
-          updateAgentStatus('paused');
-        } else if (type === 'resume_run') {
-          updateAgentStatus('running');
-        } else if (type === 'stop_run') {
-          updateAgentStatus('stopped');
-        }
-      } catch (error) {
-        if (agentRunIdRef.current !== run.id) return;
-        const message = error instanceof Error ? error.message : String(error);
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: `Agent 控制失败：${message}` },
-        ]);
+      } finally {
+        controlBusyRef.current = false;
+        setControlBusy(false);
       }
     },
     [
@@ -172,6 +184,7 @@ export function useAgentRunControls(
   );
 
   const agentRunControls: AgentRunControlHandlers = {
+    busy: controlBusy,
     onApprovePermission: () => void sendAgentRunControl('approve_permission'),
     onDenyPermission: () => void sendAgentRunControl('deny_permission'),
     onPauseRun: () => void sendAgentRunControl('pause_run'),

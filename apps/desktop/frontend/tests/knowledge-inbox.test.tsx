@@ -68,6 +68,7 @@ function handle(
   inboxGroup: ApiKnowledgeProposalGroup = group,
 ): KnowledgeInboxHandle {
   return {
+    projectRoot: 'D:/Book',
     inbox: { items: [inboxGroup], pending_count: 1 },
     loading: false,
     busyProposalId: null,
@@ -75,9 +76,9 @@ function handle(
     error: '',
     refresh: vi.fn(async () => undefined),
     materialize: vi.fn(async () => undefined),
-    revise: vi.fn(async () => undefined),
+    revise: vi.fn(async () => true),
     reject: vi.fn(async () => undefined),
-    accept: vi.fn(async () => undefined),
+    accept: vi.fn(async () => true),
     clearReview: vi.fn(),
   };
 }
@@ -91,7 +92,18 @@ test('Knowledge Inbox 在左栏非 modal 展示，每条独立进入审阅', asy
     await act(async () => root.render(<KnowledgeInboxView handle={inbox} />));
 
     assert.equal(container.querySelector('[role="dialog"]'), null);
-    assert.equal(container.querySelector('[data-testid="knowledge-inbox-count"]')?.textContent, '1');
+    assert.equal(
+      container.querySelector('[data-testid="knowledge-inbox-count"]')?.textContent,
+      '1',
+    );
+    assert.equal(
+      container.querySelector('[role="tablist"]')?.getAttribute('aria-label'),
+      'Knowledge Inbox 状态',
+    );
+    assert.equal(
+      container.querySelector('button[aria-label="刷新 Knowledge Inbox"]')?.getAttribute('type'),
+      'button',
+    );
     assert.match(container.textContent ?? '', /天枢不可移动/);
     const review = [...container.querySelectorAll('button')].find((button) =>
       button.textContent?.includes('审阅'),
@@ -125,6 +137,63 @@ test('知识 diff 只有显式确认按钮会调用 accept', async () => {
   }
 });
 
+test('Knowledge Inbox 编辑 Escape 取消并把焦点还给对应编辑入口', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<KnowledgeInboxView handle={handle()} />));
+    const edit = container.querySelector<HTMLButtonElement>('[data-testid="knowledge-edit"]');
+    assert.ok(edit);
+    edit.focus();
+    await act(async () => edit.click());
+    const title = container.querySelector<HTMLInputElement>(
+      '[data-testid="knowledge-editor-title"]',
+    );
+    assert.ok(title);
+    assert.equal(document.activeElement, title);
+    await act(async () =>
+      title.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+    );
+    assert.equal(container.querySelector('[data-testid="knowledge-editor-title"]'), null);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    assert.equal(document.activeElement?.getAttribute('data-testid'), 'knowledge-edit');
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('知识写回预览打开时聚焦标题，关闭后回到审阅入口', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const emptyReview = handle(null);
+  try {
+    await act(async () => root.render(<KnowledgeInboxView handle={emptyReview} />));
+    const review = [...container.querySelectorAll<HTMLButtonElement>('button')].find((button) =>
+      button.textContent?.includes('审阅'),
+    );
+    assert.ok(review);
+    assert.equal(review.getAttribute('aria-controls'), null);
+    review.focus();
+    await act(async () => root.render(<KnowledgeInboxView handle={handle(patch)} />));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    assert.equal(review.getAttribute('aria-controls'), 'knowledge-patch-review-kpp_1');
+    const heading = container.querySelector('[data-testid="knowledge-patch-review"] h3');
+    assert.ok(heading);
+    assert.equal(document.activeElement, heading);
+    const close = container.querySelector<HTMLButtonElement>('[aria-label="关闭知识写回预览"]');
+    assert.ok(close);
+    await act(async () => close.click());
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    assert.equal(document.activeElement?.textContent?.includes('审阅'), true);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
 test('活动栏 Knowledge 图标显示 pending 数字 badge', async () => {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -142,7 +211,74 @@ test('活动栏 Knowledge 图标显示 pending 数字 badge', async () => {
         />,
       ),
     );
-    assert.equal(container.querySelector('[data-testid="activity-knowledge-badge"]')?.textContent, '3');
+    assert.equal(
+      container.querySelector('[data-testid="activity-knowledge-badge"]')?.textContent,
+      '3',
+    );
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('Knowledge Inbox 状态页签支持方向键与 Home/End 导航', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<KnowledgeInboxView handle={handle()} />));
+    const tabs = container.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    assert.equal(tabs.length, 4);
+    tabs[0]?.focus();
+    act(() =>
+      tabs[0]?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+      ),
+    );
+    assert.equal(document.activeElement, tabs[1]);
+    assert.equal(tabs[1]?.getAttribute('aria-selected'), 'true');
+    act(() =>
+      tabs[1]?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true }),
+      ),
+    );
+    assert.equal(document.activeElement, tabs[3]);
+    assert.equal(tabs[3]?.getAttribute('aria-selected'), 'true');
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('Knowledge Inbox 首次加载显示可感知的状态，而不是空白面板', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    const loadingHandle = { ...handle(), inbox: { items: [], pending_count: 0 }, loading: true };
+    await act(async () => root.render(<KnowledgeInboxView handle={loadingHandle} />));
+    const status = container.querySelector('[role="status"]');
+    assert.equal(status?.textContent, '正在读取 Knowledge Inbox…');
+    assert.equal(container.querySelector('[aria-busy="true"]') !== null, true);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('Knowledge Inbox 刷新已有条目时也播报忙碌状态', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    const refreshingHandle = { ...handle(), loading: true };
+    await act(async () => root.render(<KnowledgeInboxView handle={refreshingHandle} />));
+    const statuses = container.querySelectorAll('[role="status"]');
+    assert.equal(statuses.length, 1);
+    assert.equal(statuses[0]?.textContent, '正在刷新 Knowledge Inbox…');
+    assert.equal(statuses[0]?.getAttribute('aria-live'), 'polite');
+    assert.equal(statuses[0]?.className, 'sr-only');
+    assert.equal(container.querySelector('[aria-busy="true"]') !== null, true);
   } finally {
     act(() => root.unmount());
     container.remove();

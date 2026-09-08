@@ -98,7 +98,12 @@ const CHECKERS: ObservatoryChecker[] = [
   { key: 'prose', tool: 'project.prose_check', status: 'ran' },
   { key: 'consistency', tool: 'project.consistency', status: 'on_demand', reason: '按需' },
   { key: 'collapse', tool: 'project.collapse_check', status: 'on_demand', reason: '按需' },
-  { key: 'entity_budget', tool: 'project.entity_budget_check', status: 'on_demand', reason: '按需' },
+  {
+    key: 'entity_budget',
+    tool: 'project.entity_budget_check',
+    status: 'on_demand',
+    reason: '按需',
+  },
   { key: 'deep_consistency', tool: 'project.deep_consistency', status: 'on_demand', reason: 'LLM' },
 ];
 
@@ -158,6 +163,16 @@ function renderView(overrides: Partial<Parameters<typeof ObservatoryView>[0]> = 
 test('四分区渲染：提案诚实空态、伏笔两卡、实体两卡、检查器七行', async () => {
   try {
     await renderView();
+    const sectionToggle = container!.querySelector<HTMLButtonElement>(
+      '[data-testid="obs-section-toggle-proposals"]',
+    );
+    assert.equal(sectionToggle?.getAttribute('aria-expanded'), 'true');
+    const sectionId = sectionToggle?.getAttribute('aria-controls');
+    assert.ok(sectionId);
+    assert.equal(
+      container!.ownerDocument.getElementById(sectionId)?.getAttribute('role'),
+      'region',
+    );
     assert.match(
       container!.querySelector('[data-testid="obs-section-proposals"]')!.textContent ?? '',
       /暂无提案草稿/,
@@ -165,6 +180,9 @@ test('四分区渲染：提案诚实空态、伏笔两卡、实体两卡、检�
     assert.equal(container!.querySelectorAll('[data-testid="promise-card"]').length, 2);
     assert.equal(container!.querySelectorAll('[data-testid="entity-card"]').length, 2);
     assert.equal(container!.querySelectorAll('[data-testid="checker-row"]').length, 7);
+    await act(async () => sectionToggle?.click());
+    assert.equal(sectionToggle?.getAttribute('aria-expanded'), 'false');
+    assert.equal(sectionToggle?.getAttribute('aria-controls'), null);
   } finally {
     cleanup();
   }
@@ -215,11 +233,22 @@ test('provenance 展开后点行回锚点；related 观测点击回观测', asyn
       onLocateObservation: (observation) => located.push(observation),
     });
 
+    const provenanceToggle = container!.querySelector(
+      '[data-testid="entity-provenance-toggle"]',
+    ) as HTMLButtonElement;
+    assert.equal(provenanceToggle.getAttribute('aria-expanded'), 'false');
+    const provenanceId = provenanceToggle.getAttribute('aria-controls');
+    assert.ok(provenanceId);
+    assert.equal(container!.ownerDocument.getElementById(provenanceId), null);
+
     await act(async () => {
-      (
-        container!.querySelector('[data-testid="entity-provenance-toggle"]') as HTMLElement
-      ).click();
+      provenanceToggle.click();
     });
+    assert.equal(provenanceToggle.getAttribute('aria-expanded'), 'true');
+    assert.equal(
+      container!.ownerDocument.getElementById(provenanceId)?.getAttribute('role'),
+      'group',
+    );
     await act(async () => {
       (container!.querySelector('[data-testid="entity-provenance-row"]') as HTMLElement).click();
       (

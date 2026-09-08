@@ -9,6 +9,7 @@ import {
   setActiveBranch,
   setBranchHead,
   type BranchInfo,
+  type BranchHeadTarget,
   type BranchManifest,
 } from '../../lib/branches';
 
@@ -69,14 +70,26 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
     [],
   );
 
-  const advanceBranchHead = useCallback(
-    async (timestamp: number) => {
-      const current = branchManifestRef.current;
-      const next = setBranchHead(current, current.activeBranchId, timestamp);
-      await replaceManifest(next);
-    },
-    [replaceManifest],
-  );
+  const advanceBranchHead = useCallback(async (timestamp: number, target?: BranchHeadTarget) => {
+    const project = target?.projectPath ?? projectPathRef.current;
+    const path = target?.filePath ?? filePathRef.current;
+    if (!project || !path) return;
+    const isActiveFile = () => projectPathRef.current === project && filePathRef.current === path;
+    const current = isActiveFile()
+      ? branchManifestRef.current
+      : await loadBranchManifest(project, path);
+    const next = setBranchHead(current, target?.branchId ?? current.activeBranchId, timestamp);
+    // Background completion must not replace another file's visible manifest.
+    if (isActiveFile() && branchManifestRef.current === current) {
+      branchManifestRef.current = next;
+      setBranchManifest(next);
+    }
+    try {
+      await saveBranchManifest(project, path, next);
+    } catch (err) {
+      console.error('写入分支清单失败:', err);
+    }
+  }, []);
 
   const selectBranch = useCallback(
     async (branchId: string) => {

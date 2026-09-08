@@ -65,14 +65,22 @@ function breakdownStatusLabel(status?: string): string {
   return status ?? '未知状态';
 }
 
-function GoalBar({ progress, testid }: { progress: number; testid: string }) {
+function GoalBar({ progress, testid, label }: { progress: number; testid: string; label: string }) {
+  const value = Math.round(progress * 100);
   return (
-    <div className="mt-1 h-1 overflow-hidden rounded-full bg-elevated">
+    <div
+      className="mt-1 h-1 overflow-hidden rounded-full bg-elevated"
+      data-testid={testid}
+      data-progress={value}
+      role="progressbar"
+      aria-label={label}
+      aria-valuenow={value}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
       <div
         className="h-full rounded-full bg-agent transition-[width] duration-300"
-        style={{ width: `${Math.round(progress * 100)}%` }}
-        data-testid={testid}
-        data-progress={Math.round(progress * 100)}
+        style={{ width: `${value}%` }}
       />
     </div>
   );
@@ -195,8 +203,10 @@ export function BookProfileView({
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">作品</span>
         <button
           type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+          disabled={handle.refreshing}
+          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-wait disabled:opacity-50"
           title="重新读取档案与进度"
+          aria-label="重新读取档案与进度"
           onClick={handle.refresh}
           data-testid="book-profile-refresh"
         >
@@ -210,6 +220,7 @@ export function BookProfileView({
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
           title="回到资源管理器 · Ctrl+Shift+E"
+          aria-label="回到资源管理器"
           onClick={onBackToExplorer}
           data-testid="book-profile-back-to-explorer"
         >
@@ -217,13 +228,22 @@ export function BookProfileView({
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div
+        className="min-h-0 flex-1 overflow-y-auto"
+        aria-busy={handle.loading || handle.refreshing}
+      >
+        {(handle.loading || handle.refreshing) && (
+          <p className="sr-only" role="status" aria-live="polite">
+            {handle.loading ? '正在读取作品档案。' : '正在刷新作品档案与进度。'}
+          </p>
+        )}
         <div className="flex gap-2.5 p-3">
           <button
             type="button"
             disabled={handle.loading}
             className="group relative h-24 w-[72px] flex-shrink-0 overflow-hidden rounded-sm border border-border bg-panel transition-colors hover:border-muted disabled:opacity-60"
             title={profile.cover ? '更换封面' : '添加封面'}
+            aria-label={profile.cover ? '更换封面' : '添加封面'}
             onClick={() => {
               // 先提交再选图：作者若在文件对话框里按了取消，没提交的编辑也已经保住。
               commit();
@@ -248,7 +268,11 @@ export function BookProfileView({
           </button>
 
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <label className="sr-only" htmlFor="book-title-input">
+              书名
+            </label>
             <input
+              id="book-title-input"
               value={draft.title}
               disabled={handle.loading}
               onChange={(event) => setDraft({ ...draft, title: event.target.value })}
@@ -267,7 +291,7 @@ export function BookProfileView({
                   {tag}
                   <button
                     type="button"
-                    className="text-subtle opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                    className="text-subtle opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                     title={`移除题材 ${tag}`}
                     aria-label={`移除题材 ${tag}`}
                     onClick={() => commit({ tags: profile.tags.filter((item) => item !== tag) })}
@@ -279,7 +303,11 @@ export function BookProfileView({
               {profile.tags.length < 8 && (
                 <span className="inline-flex items-center">
                   <Plus size={10} strokeWidth={2} className="mr-0.5 text-subtle" />
+                  <label className="sr-only" htmlFor="book-tag-input">
+                    添加题材
+                  </label>
                   <input
+                    id="book-tag-input"
                     value={tagDraft}
                     disabled={handle.loading}
                     onChange={(event) => setTagDraft(event.target.value)}
@@ -302,6 +330,7 @@ export function BookProfileView({
 
         <Section title="简介" testid="synopsis" defaultOpen>
           <textarea
+            aria-labelledby="book-section-toggle-synopsis"
             value={draft.synopsis}
             disabled={handle.loading}
             onChange={(event) => setDraft({ ...draft, synopsis: event.target.value })}
@@ -346,8 +375,9 @@ export function BookProfileView({
             )}
 
             <div className="mt-1.5 flex items-baseline justify-between gap-2 text-2xs text-muted">
-              <span>全书目标</span>
+              <span id="book-word-goal-label">全书目标</span>
               <input
+                aria-labelledby="book-word-goal-label"
                 value={draft.wordGoal}
                 disabled={handle.loading}
                 onChange={(event) => setDraft({ ...draft, wordGoal: event.target.value })}
@@ -358,7 +388,9 @@ export function BookProfileView({
                 data-testid="book-word-goal-input"
               />
             </div>
-            {bookProgress !== null && <GoalBar progress={bookProgress} testid="book-goal-bar" />}
+            {bookProgress !== null && (
+              <GoalBar progress={bookProgress} testid="book-goal-bar" label="全书目标完成度" />
+            )}
 
             <div className="mt-2.5 border-t border-border pt-2">
               <StatRow
@@ -369,7 +401,11 @@ export function BookProfileView({
               {dailyProgress !== null && (
                 <>
                   <StatRow label="日更目标" value={`${dailyWordGoal.toLocaleString('zh-CN')} 字`} />
-                  <GoalBar progress={dailyProgress} testid="book-daily-goal-bar" />
+                  <GoalBar
+                    progress={dailyProgress}
+                    testid="book-daily-goal-bar"
+                    label="日更目标完成度"
+                  />
                 </>
               )}
               <p className="mt-1 text-3xs leading-relaxed text-subtle">
@@ -516,6 +552,7 @@ export function BookProfileView({
         >
           <div className="px-3">
             <input
+              aria-labelledby="book-section-toggle-notes"
               value={noteDraft}
               onChange={(event) => setNoteDraft(event.target.value)}
               onKeyDown={(event) => {
@@ -558,7 +595,7 @@ export function BookProfileView({
                   </span>
                   <button
                     type="button"
-                    className="mt-[2px] flex-shrink-0 text-subtle opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                    className="mt-[2px] flex-shrink-0 text-subtle opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                     title="删除这条"
                     aria-label={`删除速记 ${note.text}`}
                     onClick={() => void handle.removeNote(note)}

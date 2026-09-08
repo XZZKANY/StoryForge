@@ -110,6 +110,68 @@ test('没有打开项目时 Ctrl+3 不会藏掉欢迎区留下空白窗口', () 
   assert.equal(center.classList.contains('hidden'), false, '无项目时不得切到只有对话栏的布局');
 });
 
+test('全局快捷键在 IME 组合期间不切换面板也不拦截事件', () => {
+  mountApp();
+  for (const init of [{ isComposing: true }, { keyCode: 229 }]) {
+    const event = new KeyboardEvent('keydown', {
+      key: 'b',
+      ctrlKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+      ...init,
+    });
+    act(() => window.dispatchEvent(event));
+    assert.equal(event.defaultPrevented, false);
+  }
+});
+
+test.each([{ isComposing: true }, { keyCode: 229 }])(
+  '全局快捷键忽略输入法组字标记 %o，普通快捷键仍有效',
+  (composition) => {
+    const container = mountApp();
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="welcome-composer-input"]',
+    );
+    assert.ok(input);
+    const composing = new KeyboardEvent('keydown', {
+      key: 'p',
+      ctrlKey: true,
+      shiftKey: true,
+      ...composition,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => input.dispatchEvent(composing));
+    assert.equal(composing.defaultPrevented, false, '输入法组字期间不应被工作区快捷键接管');
+    assert.equal(container.querySelector('[data-testid="command-palette"]'), null);
+
+    assert.equal(pressChord({ ctrl: true, shift: true, key: 'p' }), true);
+    assert.ok(container.querySelector('[role="dialog"][aria-label="命令面板"]'));
+  },
+);
+
+test('全局快捷键忽略已被控件消费的事件', () => {
+  const container = mountApp();
+  const input = container.querySelector<HTMLInputElement>('[data-testid="welcome-composer-input"]');
+  assert.ok(input);
+  input.addEventListener('keydown', (event) => event.preventDefault(), { once: true });
+  const consumed = new KeyboardEvent('keydown', {
+    key: 'p',
+    ctrlKey: true,
+    shiftKey: true,
+    bubbles: true,
+    cancelable: true,
+  });
+  act(() => input.dispatchEvent(consumed));
+  assert.equal(consumed.defaultPrevented, true);
+  assert.equal(
+    container.querySelector('[role="dialog"][aria-label="命令面板"]'),
+    null,
+    '已被控件消费的快捷键不应再打开全局命令面板',
+  );
+});
+
 test('速查表正文按显示键名等宽对齐，且每行都出现在正文里', () => {
   const sheet = formatShortcutSheet();
   for (const row of SHORTCUT_ROWS) {

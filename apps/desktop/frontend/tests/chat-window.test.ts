@@ -321,6 +321,8 @@ test('agent run recovery display summarizes pending permission and proposed patc
 
   const html = renderToStaticMarkup(React.createElement(AgentRunRecoveryPanel, { recovery }));
   assert.match(html, /data-testid="agent-run-recovery"/);
+  assert.match(html, /role="status"/);
+  assert.match(html, /aria-live="polite"/);
   assert.match(html, /等待权限：file\.revise/);
 });
 
@@ -741,6 +743,7 @@ test('Q5 ConversationHeader 标题成为会话切换下拉入口，保留新建�
   assert.match(html, /data-testid="conversation-session-switch"/);
   assert.match(html, /铜灯线校对/);
   assert.match(html, /data-testid="conversation-new-session"/);
+  assert.match(html, /aria-label="新建会话"/);
 });
 
 test('Q4 ConversationHeader 布局三态就地控件：平衡态给展开/收起，对话态给回到编辑', () => {
@@ -754,6 +757,8 @@ test('Q4 ConversationHeader 布局三态就地控件：平衡态给展开/收起
   );
   assert.match(balanced, /data-testid="conversation-expand-chat"/);
   assert.match(balanced, /data-testid="conversation-collapse-right"/);
+  assert.match(balanced, /aria-label="对话占满中右 · Ctrl\+3"/);
+  assert.match(balanced, /aria-label="收起对话栏，编辑占满 · Ctrl\+1"/);
   assert.doesNotMatch(balanced, /data-testid="conversation-back-to-balanced"/);
 
   const chat = renderToStaticMarkup(
@@ -765,6 +770,7 @@ test('Q4 ConversationHeader 布局三态就地控件：平衡态给展开/收起
     }),
   );
   assert.match(chat, /data-testid="conversation-back-to-balanced"/);
+  assert.match(chat, /aria-label="回到编辑 · Ctrl\+2"/);
   assert.doesNotMatch(chat, /data-testid="conversation-expand-chat"/);
 });
 

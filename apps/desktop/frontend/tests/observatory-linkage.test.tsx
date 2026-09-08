@@ -187,7 +187,9 @@ test('对话头雷达小紫点只在 observatoryAttention 时渲染', async () =
       observatoryAttention={true}
     />,
   );
-  assert.ok(container!.querySelector('[data-testid="observatory-attention-dot"]'));
+  const attentionDot = container!.querySelector('[data-testid="observatory-attention-dot"]');
+  assert.ok(attentionDot);
+  assert.equal(attentionDot?.getAttribute('aria-hidden'), 'true');
 
   await render(
     <ConversationHeader

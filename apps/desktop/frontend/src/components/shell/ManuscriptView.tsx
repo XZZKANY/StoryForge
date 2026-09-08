@@ -88,8 +88,10 @@ export function ManuscriptView({
         )}
         <button
           type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+          disabled={busy}
+          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-wait disabled:opacity-50"
           title="重新读取（确定性 · 无 LLM）"
+          aria-label="重新读取手稿结构"
           onClick={onRefresh}
           data-testid="manuscript-refresh"
         >
@@ -99,6 +101,7 @@ export function ManuscriptView({
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
           title="回到资源管理器 · Ctrl+Shift+E"
+          aria-label="回到资源管理器"
           onClick={onBackToExplorer}
           data-testid="manuscript-back-to-explorer"
         >
@@ -108,7 +111,12 @@ export function ManuscriptView({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {availability !== 'available' || !snapshot ? (
-          <p className="px-4 py-4 text-2xs leading-relaxed text-subtle">
+          <p
+            className="px-4 py-4 text-2xs leading-relaxed text-subtle"
+            role={availability === 'error' ? 'alert' : 'status'}
+            aria-live={availability === 'error' ? 'assertive' : 'polite'}
+            aria-busy={availability === 'loading'}
+          >
             {availability === 'loading'
               ? '正在读取手稿结构。'
               : availability === 'error'
@@ -135,6 +143,7 @@ export function ManuscriptView({
                             : 'text-muted hover:text-foreground'
                         }`}
                         onClick={() => onOpenChapter(chapter.relativePath)}
+                        aria-current={current ? 'true' : undefined}
                         title={chapter.relativePath}
                         data-testid="manuscript-chapter-row"
                         data-current={current}

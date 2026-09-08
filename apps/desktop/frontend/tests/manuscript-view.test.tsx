@@ -36,9 +36,7 @@ function rawPayload(overrides: Record<string, unknown> = {}) {
     skeleton: [{ relative_path: '大纲/总纲.md', estimated_chars: 800 }],
     skeleton_total: 1,
     skeleton_limit: 12,
-    roster: [
-      { canonical_name: '陈默', aliases: ['守夜人'], first_chapter: 1, last_chapter: 2 },
-    ],
+    roster: [{ canonical_name: '陈默', aliases: ['守夜人'], first_chapter: 1, last_chapter: 2 }],
     roster_declared_total: 1,
     roster_limit: 20,
     dossier_relative_path: null,
@@ -101,6 +99,17 @@ test('chapters render in reading order with the open one marked current', async 
   assert.match(rows[0].textContent ?? '', /第001章\.md/);
   assert.equal(rows[0].getAttribute('data-current'), 'false');
   assert.equal(rows[1].getAttribute('data-current'), 'true');
+  assert.equal(rows[0].getAttribute('aria-current'), null);
+  assert.equal(rows[1].getAttribute('aria-current'), 'true');
+  const skeletonToggle = dom.querySelector<HTMLButtonElement>(
+    '[data-testid="manuscript-toggle-skeleton"]',
+  );
+  assert.equal(skeletonToggle?.getAttribute('aria-expanded'), 'false');
+  assert.equal(skeletonToggle?.getAttribute('aria-controls'), null);
+  await act(async () => skeletonToggle?.click());
+  const skeletonId = skeletonToggle?.getAttribute('aria-controls');
+  assert.ok(skeletonId);
+  assert.equal(dom.querySelector(`#${CSS.escape(skeletonId)}`)?.getAttribute('role'), 'region');
 });
 
 test('clicking a chapter asks to open it by its project-relative path', async () => {

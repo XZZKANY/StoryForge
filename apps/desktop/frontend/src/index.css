@@ -145,7 +145,8 @@ body {
   height: var(--sf-tree-row-height);
   width: 100%;
   align-items: center;
-  overflow: hidden;
+  /* 让行内按钮的 focus outline 不被行容器裁掉；文件名自身由 truncate 控制。 */
+  overflow: visible;
   padding-right: var(--sf-panel-x);
   text-align: left;
 }
@@ -447,6 +448,11 @@ body {
 .sf-inline-btn-reject:hover {
   background: rgb(var(--elevated));
   color: rgb(var(--foreground));
+}
+.sf-inline-btn-accept:focus-visible,
+.sf-inline-btn-reject:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
 }
 .sf-inline-diff-note {
   color: rgb(var(--subtle));

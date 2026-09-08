@@ -85,10 +85,23 @@ export function CommandPalette({
   const [fileLoadRequest, setFileLoadRequest] = useState(0);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const retryRef = useRef<HTMLButtonElement>(null);
   const activeItemRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    const previousFocus = document.activeElement;
+    const dialog = dialogRef.current;
     inputRef.current?.focus();
+    return () => {
+      if (
+        previousFocus instanceof HTMLElement &&
+        previousFocus.isConnected &&
+        (document.activeElement === document.body || dialog?.contains(document.activeElement))
+      ) {
+        previousFocus.focus();
+      }
+    };
   }, []);
 
   // 方向键选中项滚入视口，长列表往下选不出屏。
@@ -99,6 +112,7 @@ export function CommandPalette({
   // Esc 挂 window：焦点落在列表项上时也能关，不只在输入框内生效。
   useEffect(() => {
     const onWindowKey = (event: KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         onClose();
@@ -147,6 +161,7 @@ export function CommandPalette({
 
   const retryFileLoad = () => {
     if (!projectPath) return;
+    inputRef.current?.focus();
     setFileLoadState({ projectPath, status: 'loading', files: [] });
     setFileLoadRequest((request) => request + 1);
   };
@@ -242,6 +257,7 @@ export function CommandPalette({
   }, [commands, query]);
 
   const itemCount = mode === 'files' ? fileItems.length : commandItems.length;
+  const activeIndex = itemCount > 0 ? Math.min(active, itemCount - 1) : 0;
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- query/mode 变化时重置高亮项，React18 合法模式
@@ -265,10 +281,19 @@ export function CommandPalette({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Tab') {
-      // 焦点陷阱：面板靠 ↑↓ 导航，Tab 不外逃到背景，收回输入框。
+    // The palette is modal: its shortcuts must not bubble into App's global layout commands.
+    e.stopPropagation();
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Escape') {
       e.preventDefault();
-      inputRef.current?.focus();
+      onClose();
+      return;
+    }
+    if (e.key === 'Tab') {
+      // 列表由方向键导航；读取失败时 Tab 可抵达重试按钮。
+      e.preventDefault();
+      if (document.activeElement === inputRef.current && retryRef.current) retryRef.current.focus();
+      else inputRef.current?.focus();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       setActive((i) => (itemCount === 0 ? 0 : (i + 1) % itemCount));
@@ -276,8 +301,9 @@ export function CommandPalette({
       e.preventDefault();
       setActive((i) => (itemCount === 0 ? 0 : (i - 1 + itemCount) % itemCount));
     } else if (e.key === 'Enter') {
+      if (e.target === retryRef.current) return;
       e.preventDefault();
-      choose(active);
+      choose(activeIndex);
     }
   };
 
@@ -288,6 +314,7 @@ export function CommandPalette({
       onMouseDown={onClose}
     >
       <div
+        ref={dialogRef}
         className="flex max-h-[calc(100vh-2rem)] w-[34rem] max-w-[90vw] flex-col overflow-hidden rounded-md border border-border bg-panel shadow-[var(--shadow-dialog)] animate-slide-up-fade"
         role="dialog"
         aria-modal="true"
@@ -299,16 +326,31 @@ export function CommandPalette({
           ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          aria-autocomplete="list"
+          aria-controls="command-palette-options"
+          aria-activedescendant={
+            itemCount > 0 ? `command-palette-${mode}-item-${activeIndex}` : undefined
+          }
+          aria-label={mode === 'files' ? '搜索项目文件' : '搜索命令'}
           placeholder={mode === 'files' ? '按名称打开文件…' : '输入命令…'}
           className="w-full px-4 py-3 bg-background text-sm text-foreground outline-none border-b border-border placeholder:text-muted"
         />
-        <div className="min-h-0 max-h-80 flex-1 overflow-y-auto py-1">
+        <div
+          id="command-palette-options"
+          role="listbox"
+          aria-label={mode === 'files' ? '项目文件' : '可用命令'}
+          aria-busy={filesLoading}
+          className="min-h-0 max-h-80 flex-1 overflow-y-auto py-1"
+        >
           {filesLoading ? (
-            <p className="px-4 py-3 text-sm text-muted">正在读取项目文件…</p>
+            <p className="px-4 py-3 text-sm text-muted" role="status" aria-live="polite">
+              正在读取项目文件…
+            </p>
           ) : filesError ? (
-            <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 px-4 py-3" role="alert">
               <p className="text-sm text-error">无法读取项目文件，请检查目录权限后重试。</p>
               <button
+                ref={retryRef}
                 type="button"
                 className="shrink-0 text-xs text-accent hover:underline"
                 data-testid="palette-retry"
@@ -318,19 +360,23 @@ export function CommandPalette({
               </button>
             </div>
           ) : itemCount === 0 ? (
-            <p className="px-4 py-3 text-sm text-muted">
+            <p className="px-4 py-3 text-sm text-muted" role="status" aria-live="polite">
               {mode === 'files' && !projectPath ? '先打开一个项目' : '无匹配项'}
             </p>
           ) : mode === 'files' ? (
             fileItems.map((item, index) => (
               <button
+                type="button"
                 key={item.path}
-                ref={index === active ? activeItemRef : undefined}
+                id={`command-palette-${mode}-item-${index}`}
+                ref={index === activeIndex ? activeItemRef : undefined}
+                role="option"
+                aria-selected={index === activeIndex}
                 data-testid="palette-item"
                 onMouseEnter={() => setActive(index)}
                 onClick={() => choose(index)}
                 className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
-                  index === active
+                  index === activeIndex
                     ? 'bg-accent text-accent-foreground'
                     : 'text-foreground hover:bg-foreground/10'
                 }`}
@@ -341,13 +387,17 @@ export function CommandPalette({
           ) : (
             commandItems.map((item, index) => (
               <button
+                type="button"
                 key={item.id}
-                ref={index === active ? activeItemRef : undefined}
+                id={`command-palette-${mode}-item-${index}`}
+                ref={index === activeIndex ? activeItemRef : undefined}
+                role="option"
+                aria-selected={index === activeIndex}
                 data-testid="palette-item"
                 onMouseEnter={() => setActive(index)}
                 onClick={() => choose(index)}
                 className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between gap-2 ${
-                  index === active
+                  index === activeIndex
                     ? 'bg-accent text-accent-foreground'
                     : 'text-foreground hover:bg-foreground/10'
                 }`}
@@ -355,7 +405,7 @@ export function CommandPalette({
                 <span className="truncate">{item.title}</span>
                 {item.hint && (
                   <span
-                    className={`text-xs flex-shrink-0 ${index === active ? 'text-accent-foreground/70' : 'text-muted'}`}
+                    className={`text-xs flex-shrink-0 ${index === activeIndex ? 'text-accent-foreground/70' : 'text-muted'}`}
                   >
                     {item.hint}
                   </span>

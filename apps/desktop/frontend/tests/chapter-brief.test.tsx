@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { act } from 'react';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vitest';
 
 import { ChapterBriefCard } from '../src/components/chat-window/ChapterBriefCard';
@@ -117,8 +118,12 @@ test('chapter brief card submits edited fields and can cancel', () => {
       setter.call(goal, '推进冲突并留下线索');
       goal.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    const confirm = container.querySelector<HTMLButtonElement>('[data-testid="chapter-brief-confirm"]');
-    const cancel = container.querySelector<HTMLButtonElement>('[data-testid="chapter-brief-cancel"]');
+    const confirm = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chapter-brief-confirm"]',
+    );
+    const cancel = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chapter-brief-cancel"]',
+    );
     assert.ok(confirm && cancel);
     act(() => confirm.click());
     act(() => cancel.click());
@@ -127,5 +132,87 @@ test('chapter brief card submits edited fields and can cancel', () => {
   } finally {
     act(() => root.unmount());
     container.remove();
+  }
+});
+
+test('chapter brief 请求确认期间锁定编辑字段和动作，避免重复恢复', () => {
+  const html = renderToStaticMarkup(
+    <ChapterBriefCard brief={brief} busy onConfirm={() => undefined} onCancel={() => undefined} />,
+  );
+  const host = document.createElement('div');
+  host.innerHTML = html;
+  assert.equal(
+    host.querySelector('[data-testid="chapter-brief-card"]')?.getAttribute('aria-busy'),
+    'true',
+  );
+  assert.equal(
+    host.querySelector<HTMLTextAreaElement>('[data-testid="chapter-brief-goal"]')?.disabled,
+    true,
+  );
+  assert.equal(
+    host.querySelector<HTMLButtonElement>('[data-testid="chapter-brief-confirm"]')?.disabled,
+    true,
+  );
+  assert.equal(
+    host.querySelector<HTMLButtonElement>('[data-testid="chapter-brief-cancel"]')?.disabled,
+    true,
+  );
+});
+
+test('chapter brief 出现时聚焦目标字段，Escape 取消确认', () => {
+  let cancelled = 0;
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(
+      <ChapterBriefCard
+        brief={brief}
+        onConfirm={() => undefined}
+        onCancel={() => {
+          cancelled += 1;
+        }}
+      />,
+    );
+  });
+  try {
+    const goal = container.querySelector<HTMLTextAreaElement>('[data-testid="chapter-brief-goal"]');
+    assert.ok(goal);
+    assert.equal(document.activeElement, goal);
+    act(() => goal.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    assert.equal(cancelled, 1);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('chapter brief 卸载时把焦点还给打开前的控件', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const openerHost = document.createElement('div');
+  document.body.appendChild(openerHost);
+  const opener = document.createElement('button');
+  opener.type = 'button';
+  opener.textContent = '打开确认';
+  openerHost.appendChild(opener);
+  opener.focus();
+  act(() => {
+    root.render(
+      <ChapterBriefCard brief={brief} onConfirm={() => undefined} onCancel={() => undefined} />,
+    );
+  });
+  try {
+    assert.equal(
+      document.activeElement,
+      container.querySelector('[data-testid="chapter-brief-goal"]'),
+    );
+    act(() => root.render(null));
+    assert.equal(document.activeElement, opener);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+    openerHost.remove();
   }
 });

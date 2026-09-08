@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
+import { emitToast } from '../../lib/toast';
 import { executeIdeCommand } from '../../lib/api-client';
 import { APPLY_FILE_SUGGESTION_EVENT, flushActiveEditorToDisk } from '../../lib/assistant-events';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
@@ -47,7 +48,43 @@ export function useProjectCommands({
 }: UseProjectCommandsOptions) {
   const [projectRefreshVersion, setProjectRefreshVersion] = useState(0);
   const [welcomeDraft, setWelcomeDraft] = useState('');
-  const [pendingWelcomePrompt, setPendingWelcomePrompt] = useState<string | null>(null);
+  const [pendingWelcome, setPendingWelcome] = useState<{
+    projectPath: string;
+    prompt: string;
+  } | null>(null);
+  const pendingWelcomePrompt =
+    pendingWelcome?.projectPath === activeProject ? pendingWelcome.prompt : null;
+  useEffect(() => {
+    if (pendingWelcome && pendingWelcome.projectPath !== activeProject) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 离开目标项目后撤销未消费的自动首句。
+      setPendingWelcome(null);
+    }
+  }, [activeProject, pendingWelcome]);
+  const [projectCreationBusy, setProjectCreationBusy] = useState(false);
+  const creationPendingRef = useRef(false);
+  const creationScopeRef = useRef<object | null>(null);
+  const selectSafelyRef = useRef(selectProjectSafely);
+  useLayoutEffect(() => {
+    selectSafelyRef.current = selectProjectSafely;
+  }, [selectProjectSafely]);
+  useLayoutEffect(() => {
+    creationScopeRef.current = {};
+    return () => {
+      creationScopeRef.current = null;
+    };
+  }, [activeProject]);
+  const announceCreatedProject = useCallback((projectPath: string) => {
+    if (!creationScopeRef.current) return;
+    emitToast(`项目已创建：${projectPath}。当前工作区已变化，未自动打开。`, {
+      tone: 'success',
+      action: {
+        label: '打开项目',
+        run: async () => {
+          if (creationScopeRef.current) await selectSafelyRef.current(projectPath);
+        },
+      },
+    });
+  }, []);
 
   // 补丁写回、Agent 起草、新建/删除/改名后刷新资源树；短时间内多次写入合并一次重拉。
   useEffect(() => {
@@ -71,31 +108,51 @@ export function useProjectCommands({
       await selectProjectSafely(selected);
     } catch (error) {
       console.error('打开项目失败', error);
+      await dialogs.alert({
+        title: '打开项目失败',
+        message: `请检查目录是否仍存在、是否有访问权限，然后重新选择项目目录。\n\n${error instanceof Error ? error.message : String(error)}`,
+      });
     }
-  }, [selectProjectSafely]);
+  }, [dialogs, selectProjectSafely]);
 
   // 发送即开书：建立显式项目骨架后由 ChatWindow 自动发送首句；失败时回落到手选目录。
   const handleWelcomeSend = useCallback(() => {
     const prompt = welcomeDraft.trim();
-    if (!prompt) return;
+    if (!prompt || creationPendingRef.current) return;
+    const scope = creationScopeRef.current;
+    const isCurrent = () => scope !== null && scope === creationScopeRef.current;
+    creationPendingRef.current = true;
+    setProjectCreationBusy(true);
     void (async () => {
-      if (!(await confirmDiscardFiles(openFiles, '开新书'))) return;
       try {
+        if (!(await confirmDiscardFiles(openFiles, '开新书')) || !isCurrent()) return;
         const { projectPath, seedFilePath } = await createNewBookProject(prompt);
-        // pendingWelcomePrompt 必须在项目创建成功后才置位：否则 createNewBookProject 抛错（Win11/OneDrive
-        // Documents 重定向等）时 stale prompt 泄漏，下一个打开的项目 ChatWindow 首挂载会自动发一次真·LLM run（UF-11）。
-        setPendingWelcomePrompt(prompt);
+        if (!isCurrent()) {
+          announceCreatedProject(projectPath);
+          return;
+        }
+        // 首句绑定创建目标，不能在稍后切换到的其他项目中自动发送。
+        setPendingWelcome({ projectPath, prompt });
         resetEditorFiles();
         onShowEditor();
         selectProject(projectPath);
         setProjectRefreshVersion((version) => version + 1);
         await openFile(seedFilePath);
       } catch (error) {
+        if (!isCurrent()) {
+          if (creationScopeRef.current)
+            emitToast('先前的开书操作失败，当前工作区未改变。', { tone: 'error' });
+          return;
+        }
         console.error('发送即开书失败，回落到打开项目目录', error);
         await handleOpenProject();
+      } finally {
+        creationPendingRef.current = false;
+        if (creationScopeRef.current) setProjectCreationBusy(false);
       }
     })();
   }, [
+    announceCreatedProject,
     confirmDiscardFiles,
     handleOpenProject,
     onShowEditor,
@@ -107,33 +164,60 @@ export function useProjectCommands({
   ]);
 
   const handlePendingWelcomePromptConsumed = useCallback(() => {
-    setPendingWelcomePrompt(null);
-    setWelcomeDraft('');
-  }, []);
+    if (!pendingWelcome) return;
+    setPendingWelcome((current) => (current === pendingWelcome ? null : current));
+    setWelcomeDraft((current) => (current.trim() === pendingWelcome.prompt ? '' : current));
+  }, [pendingWelcome]);
 
   const handleCreateSampleProject = useCallback(async () => {
+    if (creationPendingRef.current) return;
+    const scope = creationScopeRef.current;
+    const isCurrent = () => scope !== null && scope === creationScopeRef.current;
+    creationPendingRef.current = true;
+    setProjectCreationBusy(true);
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
+      if (!isCurrent()) return;
       const selected = await open({
         directory: true,
         multiple: false,
         title: '选择示例项目保存位置',
       });
-      if (!selected || typeof selected !== 'string') return;
-      if (!(await confirmDiscardFiles(openFiles, '创建示例项目'))) return;
+      if (!selected || typeof selected !== 'string' || !isCurrent()) return;
+      if (!(await confirmDiscardFiles(openFiles, '创建示例项目')) || !isCurrent()) return;
       const projectPath = await createSampleStoryProject(selected);
+      if (!isCurrent()) {
+        announceCreatedProject(projectPath);
+        return;
+      }
       resetEditorFiles();
       selectProject(projectPath);
       setProjectRefreshVersion((version) => version + 1);
       onShowEditor();
     } catch (error) {
+      if (!isCurrent()) {
+        if (creationScopeRef.current)
+          emitToast('先前的示例项目创建失败，当前工作区未改变。', { tone: 'error' });
+        return;
+      }
       console.error('创建示例项目失败', error);
       await dialogs.alert({
         title: '创建示例项目失败',
         message: error instanceof Error ? error.message : String(error),
       });
+    } finally {
+      creationPendingRef.current = false;
+      if (creationScopeRef.current) setProjectCreationBusy(false);
     }
-  }, [confirmDiscardFiles, dialogs, onShowEditor, openFiles, resetEditorFiles, selectProject]);
+  }, [
+    announceCreatedProject,
+    confirmDiscardFiles,
+    dialogs,
+    onShowEditor,
+    openFiles,
+    resetEditorFiles,
+    selectProject,
+  ]);
 
   useEffect(
     () => registerSmokeProjectLoader((path) => void selectProjectSafely(path)),
@@ -285,6 +369,7 @@ export function useProjectCommands({
 
   return {
     projectRefreshVersion,
+    projectCreationBusy,
     welcomeDraft,
     setWelcomeDraft,
     pendingWelcomePrompt,

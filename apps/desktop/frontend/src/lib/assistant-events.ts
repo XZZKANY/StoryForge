@@ -104,9 +104,15 @@ export function emitLocateInEditor(detail: LocateInEditorDetail): void {
   }
 }
 
-export type SaveActiveFileStatus = 'saved' | 'skipped' | 'error';
+export type SaveActiveFileStatus = 'saved' | 'clean' | 'skipped' | 'error';
+
+export type SaveActiveFileRequestDetail = {
+  filePath: string;
+  requestId: string;
+};
 
 export type SaveActiveFileDoneDetail = {
+  requestId: string;
   filePath: string | null;
   status: SaveActiveFileStatus;
   message?: string;
@@ -301,6 +307,7 @@ export function emitReviewIssues(filePath: string, issues: ReviewIssueMarker[]):
  */
 export function flushActiveEditorToDisk(filePath: string, timeoutMs = 2000): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
+  const requestId = crypto.randomUUID();
   return new Promise((resolve, reject) => {
     let settled = false;
     const finish = (callback: () => void) => {
@@ -312,19 +319,22 @@ export function flushActiveEditorToDisk(filePath: string, timeoutMs = 2000): Pro
     };
     const onDone = (event: Event) => {
       const detail = (event as CustomEvent<SaveActiveFileDoneDetail>).detail;
-      if (detail && detail.filePath && detail.filePath !== filePath) return;
-      if (detail?.status === 'error') {
+      if (!detail || detail.filePath !== filePath || detail.requestId !== requestId) return;
+      if (detail.status === 'error' || detail.status === 'skipped') {
         finish(() =>
           reject(
             new ActiveEditorFlushError(
               'error',
-              detail.message || '活动编辑器保存失败，已停止发送给 Agent。',
+              detail.message ||
+                (detail.status === 'skipped'
+                  ? '未能保存指定文件，请返回该文件确认内容后重试。'
+                  : '文件保存失败，已停止后续操作。'),
             ),
           ),
         );
         return;
       }
-      finish(resolve);
+      if (detail.status === 'saved' || detail.status === 'clean') finish(resolve);
     };
     const timer = window.setTimeout(
       () =>
@@ -340,8 +350,8 @@ export function flushActiveEditorToDisk(filePath: string, timeoutMs = 2000): Pro
     );
     window.addEventListener(SAVE_ACTIVE_FILE_DONE_EVENT, onDone);
     window.dispatchEvent(
-      new CustomEvent<{ filePath: string }>(REQUEST_SAVE_ACTIVE_FILE_EVENT, {
-        detail: { filePath },
+      new CustomEvent<SaveActiveFileRequestDetail>(REQUEST_SAVE_ACTIVE_FILE_EVENT, {
+        detail: { filePath, requestId },
       }),
     );
   });

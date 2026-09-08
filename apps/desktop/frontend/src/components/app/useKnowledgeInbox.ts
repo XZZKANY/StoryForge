@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type {
   ApiKnowledgeProposalGroup,
@@ -41,42 +41,105 @@ export function proposalToEdit(item: ApiKnowledgeProposalItem): ApiKnowledgeProp
   };
 }
 
+type InboxValues = {
+  inbox: ApiKnowledgeProposalInbox;
+  loading: boolean;
+  busyProposalId: string | null;
+  reviewPatch: ApiKnowledgeProposalPatch | null;
+  error: string;
+};
+type ProjectScope = { projectRoot: string | null };
+type ProjectLifetime = {
+  scope: ProjectScope;
+  refreshVersion: number;
+  reviewVersion: number;
+  busyRequest: symbol | null;
+};
+type InboxUpdate = Partial<InboxValues> | ((current: InboxValues) => Partial<InboxValues>);
+const EMPTY_VALUES: InboxValues = {
+  inbox: EMPTY_INBOX,
+  loading: false,
+  busyProposalId: null,
+  reviewPatch: null,
+  error: '',
+};
+
 export function useKnowledgeInbox(projectRoot: string | null) {
-  const [inbox, setInbox] = useState<ApiKnowledgeProposalInbox>(EMPTY_INBOX);
-  const [loading, setLoading] = useState(false);
-  const [busyProposalId, setBusyProposalId] = useState<string | null>(null);
-  const [reviewPatch, setReviewPatch] = useState<ApiKnowledgeProposalPatch | null>(null);
-  const [error, setError] = useState('');
-  const requestVersion = useRef(0);
+  // Scope stamps the rendered projection; only the committed lifetime authorizes callbacks.
+  const scope = useMemo<ProjectScope>(() => ({ projectRoot }), [projectRoot]);
+  const [stored, setStored] = useState<{ scope: ProjectScope | null; value: InboxValues }>({
+    scope: null,
+    value: EMPTY_VALUES,
+  });
+  const lifetimeRef = useRef<ProjectLifetime | null>(null);
+  useLayoutEffect(() => {
+    lifetimeRef.current = { scope, refreshVersion: 0, reviewVersion: 0, busyRequest: null };
+    return () => {
+      lifetimeRef.current = null;
+    };
+  }, [scope]);
+
+  const getLifetime = useCallback(() => {
+    const lifetime = lifetimeRef.current;
+    return lifetime?.scope === scope ? lifetime : null;
+  }, [scope]);
+  const isCurrent = useCallback(
+    (lifetime: ProjectLifetime) => lifetimeRef.current === lifetime,
+    [],
+  );
+  const commit = useCallback((lifetime: ProjectLifetime, update: InboxUpdate) => {
+    if (lifetimeRef.current !== lifetime) return;
+    setStored((previous) => {
+      const current = previous.scope === lifetime.scope ? previous.value : EMPTY_VALUES;
+      return {
+        scope: lifetime.scope,
+        value: { ...current, ...(typeof update === 'function' ? update(current) : update) },
+      };
+    });
+  }, []);
+  const begin = useCallback(
+    (proposalId: string) => {
+      const lifetime = getLifetime();
+      if (!lifetime || !projectRoot) return null;
+      const request = Symbol('knowledge-operation');
+      lifetime.busyRequest = request;
+      commit(lifetime, { busyProposalId: proposalId });
+      return { lifetime, request };
+    },
+    [commit, getLifetime, projectRoot],
+  );
+  const finish = useCallback(
+    (operation: { lifetime: ProjectLifetime; request: symbol }) => {
+      if (operation.lifetime.busyRequest !== operation.request) return;
+      operation.lifetime.busyRequest = null;
+      commit(operation.lifetime, { busyProposalId: null });
+    },
+    [commit],
+  );
+  const current = stored.scope === scope ? stored.value : EMPTY_VALUES;
+  const { inbox, busyProposalId, reviewPatch, error } = current;
+  const loading = stored.scope === scope ? current.loading : Boolean(projectRoot);
 
   const refresh = useCallback(async () => {
-    const version = ++requestVersion.current;
-    if (!projectRoot) {
-      setInbox(EMPTY_INBOX);
-      setReviewPatch(null);
-      setError('');
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
+    const lifetime = getLifetime();
+    if (!projectRoot || !lifetime) return;
+    const version = ++lifetime.refreshVersion;
+    commit(lifetime, { loading: true });
     try {
       const next = await refreshKnowledgeProposals(projectRoot);
-      if (version === requestVersion.current) {
-        setInbox(next);
-        setError('');
-      }
+      if (version === lifetime.refreshVersion) commit(lifetime, { inbox: next, error: '' });
     } catch (cause) {
-      if (version === requestVersion.current) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+      if (version === lifetime.refreshVersion) {
+        commit(lifetime, { error: cause instanceof Error ? cause.message : String(cause) });
       }
     } finally {
-      if (version === requestVersion.current) setLoading(false);
+      if (version === lifetime.refreshVersion) commit(lifetime, { loading: false });
     }
-  }, [projectRoot]);
+  }, [commit, getLifetime, projectRoot]);
 
   useEffect(() => {
+    if (!projectRoot) return;
     const initialRefresh = window.setTimeout(() => void refresh(), 0);
-    if (!projectRoot) return () => window.clearTimeout(initialRefresh);
     const timer = window.setInterval(() => void refresh(), 5000);
     const onFocus = () => void refresh();
     window.addEventListener('focus', onFocus);
@@ -90,7 +153,9 @@ export function useKnowledgeInbox(projectRoot: string | null) {
   const materialize = useCallback(
     async (group: ApiKnowledgeProposalGroup, proposal: ApiKnowledgeProposalItem) => {
       if (!projectRoot) return;
-      setBusyProposalId(proposal.proposal_id);
+      const operation = begin(proposal.proposal_id);
+      if (!operation) return;
+      const version = ++operation.lifetime.reviewVersion;
       try {
         const patch = await materializeKnowledgeProposal({
           projectRoot,
@@ -98,15 +163,19 @@ export function useKnowledgeInbox(projectRoot: string | null) {
           revision: group.revision,
           proposalId: proposal.proposal_id,
         });
-        setReviewPatch(patch);
-        setError('');
+        if (version === operation.lifetime.reviewVersion) {
+          commit(operation.lifetime, { reviewPatch: patch, error: '' });
+        }
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        if (version !== operation.lifetime.reviewVersion) return;
+        commit(operation.lifetime, {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
       } finally {
-        setBusyProposalId(null);
+        finish(operation);
       }
     },
-    [projectRoot],
+    [begin, commit, finish, projectRoot],
   );
 
   const revise = useCallback(
@@ -114,9 +183,10 @@ export function useKnowledgeInbox(projectRoot: string | null) {
       group: ApiKnowledgeProposalGroup,
       proposalId: string,
       edited: ApiKnowledgeProposalItemEdit,
-    ) => {
-      if (!projectRoot) return;
-      setBusyProposalId(proposalId);
+    ): Promise<boolean> => {
+      if (!projectRoot) return false;
+      const operation = begin(proposalId);
+      if (!operation) return false;
       try {
         const next = await reviseKnowledgeProposalGroup({
           projectRoot,
@@ -126,22 +196,28 @@ export function useKnowledgeInbox(projectRoot: string | null) {
             item.proposal_id === proposalId ? edited : proposalToEdit(item),
           ),
         });
-        setInbox(next);
-        setReviewPatch(null);
-        setError('');
+        if (!isCurrent(operation.lifetime)) return false;
+        // The mutation's full inbox supersedes reads begun before it completed.
+        operation.lifetime.refreshVersion += 1;
+        commit(operation.lifetime, { inbox: next, loading: false, reviewPatch: null, error: '' });
+        return true;
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        commit(operation.lifetime, {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
+        return false;
       } finally {
-        setBusyProposalId(null);
+        finish(operation);
       }
     },
-    [projectRoot],
+    [begin, commit, finish, isCurrent, projectRoot],
   );
 
   const reject = useCallback(
     async (group: ApiKnowledgeProposalGroup, proposal: ApiKnowledgeProposalItem) => {
       if (!projectRoot) return;
-      setBusyProposalId(proposal.proposal_id);
+      const operation = begin(proposal.proposal_id);
+      if (!operation) return;
       try {
         const next = await resolveKnowledgeProposal({
           project_root: projectRoot,
@@ -150,38 +226,62 @@ export function useKnowledgeInbox(projectRoot: string | null) {
           proposal_id: proposal.proposal_id,
           resolution: 'rejected',
         });
-        setInbox(next);
-        if (reviewPatch?.proposal_id === proposal.proposal_id) setReviewPatch(null);
-        setError('');
+        operation.lifetime.refreshVersion += 1;
+        commit(operation.lifetime, (value) => ({
+          inbox: next,
+          loading: false,
+          reviewPatch:
+            value.reviewPatch?.proposal_id === proposal.proposal_id ? null : value.reviewPatch,
+          error: '',
+        }));
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        commit(operation.lifetime, {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
       } finally {
-        setBusyProposalId(null);
+        finish(operation);
       }
     },
-    [projectRoot, reviewPatch],
+    [begin, commit, finish, projectRoot],
   );
 
-  const accept = useCallback(async () => {
-    if (!projectRoot || !reviewPatch) return;
-    setBusyProposalId(reviewPatch.proposal_id);
+  const accept = useCallback(async (): Promise<boolean> => {
+    if (!projectRoot || !reviewPatch) return false;
+    const operation = begin(reviewPatch.proposal_id);
+    if (!operation) return false;
     try {
       const result = await applyKnowledgePatch(projectRoot, reviewPatch);
-      setReviewPatch(null);
+      if (!isCurrent(operation.lifetime)) return false;
+      commit(operation.lifetime, (value) => ({
+        reviewPatch: value.reviewPatch === reviewPatch ? null : value.reviewPatch,
+      }));
       await refresh();
+      if (!isCurrent(operation.lifetime)) return false;
       emitToast(result === 'written' ? '知识已写入项目' : '知识写回状态已恢复', {
         tone: 'success',
       });
+      return true;
     } catch (cause) {
+      if (!isCurrent(operation.lifetime)) return false;
       const message = cause instanceof Error ? cause.message : String(cause);
-      setError(message);
+      commit(operation.lifetime, { error: message });
       emitToast(message, { tone: 'error' });
+      return false;
     } finally {
-      setBusyProposalId(null);
+      finish(operation);
     }
-  }, [projectRoot, refresh, reviewPatch]);
+  }, [begin, commit, finish, isCurrent, projectRoot, refresh, reviewPatch]);
+
+  const clearReview = useCallback(() => {
+    const lifetime = getLifetime();
+    if (!lifetime) return;
+    // Closing the preview also supersedes any pending request to display it.
+    lifetime.reviewVersion += 1;
+    commit(lifetime, { reviewPatch: null });
+  }, [commit, getLifetime]);
 
   return {
+    projectRoot,
     inbox,
     loading,
     busyProposalId,
@@ -192,7 +292,7 @@ export function useKnowledgeInbox(projectRoot: string | null) {
     revise,
     reject,
     accept,
-    clearReview: () => setReviewPatch(null),
+    clearReview,
   };
 }
 

@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { App } from '../src/App';
+import { WelcomeWorkspace } from '../src/components/app/WelcomeWorkspace';
 import {
   APP_SETTINGS_KEY,
   DEFAULT_APP_SETTINGS,
@@ -70,12 +71,67 @@ function clickElement(element: Element): void {
   element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 }
 
+test('欢迎页命令入口打开全部命令，Ctrl+P 仍只搜索文件', async () => {
+  const container = mountApp();
+  const entry = Array.from(container.querySelectorAll('button')).find((button) =>
+    button.textContent?.includes('命令面板…'),
+  );
+  assert.ok(entry);
+  await act(async () => clickElement(entry));
+  const commands = container.querySelector('[role="dialog"][aria-label="命令面板"]');
+  assert.ok(commands, '欢迎页的命令入口应显示全部命令');
+  assert.match(commands.textContent ?? '', /打开项目/);
+
+  act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+  act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: true })));
+  assert.ok(container.querySelector('[role="dialog"][aria-label="打开文件"]'));
+});
+
+test('无项目空 explorer 不占位，其他说明视图可打开且不重置宽度偏好', async () => {
+  const widths = { explorer: 320, book: 420 };
+  localStorage.setItem(
+    APP_SETTINGS_KEY,
+    JSON.stringify({ ...DEFAULT_APP_SETTINGS, sidePanelWidths: widths }),
+  );
+  const container = mountApp();
+  assert.equal(byTestId(container, 'shell-side-panel') === null, true);
+  assert.equal(byTestId(container, 'activity-explorer')?.getAttribute('data-active'), 'false');
+
+  const book = byTestId(container, 'activity-book');
+  assert.ok(book);
+  await act(async () => clickElement(book));
+  assert.ok(byTestId(container, 'shell-side-panel'));
+  assert.match(byTestId(container, 'side-book-pane')?.textContent ?? '', /打开项目/);
+  assert.equal(
+    container.querySelector<HTMLElement>('[data-testid="shell-side-panel"]')?.style.width,
+    '420px',
+  );
+
+  for (const [activityId, paneId] of [
+    ['activity-manuscript', 'side-manuscript-pane'],
+    ['activity-search', 'search-panel'],
+  ]) {
+    const activity = byTestId(container, activityId);
+    assert.ok(activity);
+    await act(async () => clickElement(activity));
+    assert.equal(activity.getAttribute('data-active'), 'true');
+    assert.ok(byTestId(container, 'shell-side-panel'));
+    assert.match(byTestId(container, paneId)?.textContent ?? '', /打开项目/);
+  }
+
+  const explorer = byTestId(container, 'activity-explorer');
+  assert.ok(explorer);
+  await act(async () => clickElement(explorer));
+  assert.equal(byTestId(container, 'shell-side-panel') === null, true);
+  assert.deepEqual(loadAppSettings().sidePanelWidths, widths);
+});
+
 // ---- v3 结构护栏（SSR 不跑 effects → 无项目态，固化两栏 / 四卡 / 关键入口）----
 
 test('无项目启动渲染 v3 欢迎页：品牌 + 启动/上手/最近 两栏', () => {
   const html = renderToStaticMarkup(<App />);
   assert.match(html, /data-testid="welcome-workspace"/);
-  assert.match(html, /可验证的长篇创作流水线 · 一句话就能开新书/);
+  assert.match(html, /专注写作，和 AI 一起打磨故事/);
   assert.match(html, /启动/);
   assert.match(html, /上手/);
   assert.match(html, /最近/);
@@ -83,17 +139,44 @@ test('无项目启动渲染 v3 欢迎页：品牌 + 启动/上手/最近 两栏'
   assert.match(html, /data-testid="welcome-primary-action"/);
   assert.match(html, /打开项目/);
   assert.match(html, /新建文件/);
+  assert.match(html, /aria-label="关闭欢迎页"/);
   assert.match(html, /命令面板/);
   assert.match(html, /Ctrl O/);
-  assert.match(html, /Ctrl P/);
+  assert.match(html, /Ctrl Shift P/);
 });
 
 test('欢迎页上手四张引导卡文案齐全', () => {
   const html = renderToStaticMarkup(<App />);
-  assert.match(html, /配置模型服务，连接真实 LLM/);
-  assert.match(html, /打开样例项目「雪夜斩」/);
+  assert.match(html, /连接你的 AI 模型/);
+  assert.match(html, /体验示例项目/);
+  assert.doesNotMatch(html, /雪夜斩/, '欢迎卡不应承诺示例创建器并未提供的作品');
   assert.match(html, /快捷键速查/);
   assert.match(html, /了解 StoryForge/);
+});
+
+test('最近项目超过上限时「更多」关联可展开列表', () => {
+  const html = renderToStaticMarkup(
+    <WelcomeWorkspace
+      onOpenProject={() => {}}
+      onNewFile={() => {}}
+      onOpenPalette={() => {}}
+      onCreateSampleProject={() => {}}
+      onOpenSettings={() => {}}
+      onShowShortcuts={() => {}}
+      onShowAbout={() => {}}
+      onClose={() => {}}
+      recentProjects={Array.from({ length: 6 }, (_, index) => `C:/Projects/story-${index}`)}
+      onSelectRecent={() => {}}
+      showOnStartup
+      onToggleShowOnStartup={() => {}}
+      composerValue=""
+      onComposerChange={() => {}}
+      onComposerSend={() => {}}
+    />,
+  );
+  assert.match(html, /aria-expanded="false"/);
+  assert.match(html, /aria-controls="welcome-recent-projects-expanded"/);
+  assert.match(html, /id="welcome-recent-projects-expanded" hidden/);
 });
 
 test('「启动时显示欢迎页」偏好默认为开，旧配置缺字段回落为开，显式 false 保留', () => {

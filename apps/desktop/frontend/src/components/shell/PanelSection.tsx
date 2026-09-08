@@ -27,20 +27,28 @@ export function PanelSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const Chevron = open ? ChevronDown : ChevronRight;
+  const toggleId = `${prefix}-section-toggle-${testid}`;
+  const contentId = `${prefix}-section-content-${testid}`;
   return (
     <div className="border-t border-border" data-testid={`${prefix}-section-${testid}`}>
       <button
         type="button"
+        id={toggleId}
         className="flex h-8 w-full items-center gap-1 px-2 text-left text-2xs font-medium text-muted hover:bg-elevated hover:text-foreground"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
+        aria-controls={open ? contentId : undefined}
         data-testid={`${prefix}-toggle-${testid}`}
       >
         <Chevron size={12} strokeWidth={1.7} className="flex-shrink-0 text-subtle" />
         <span className="min-w-0 flex-1 truncate">{title}</span>
         {meta && <span className="flex-shrink-0 font-mono text-3xs text-subtle">{meta}</span>}
       </button>
-      {open && <div className="pb-2">{children}</div>}
+      {open && (
+        <div id={contentId} role="region" aria-labelledby={toggleId} className="pb-2">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

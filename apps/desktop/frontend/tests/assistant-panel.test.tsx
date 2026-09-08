@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { test } from 'vitest';
 
 import { AssistantPanelFrame } from '../src/components/shell/AssistantPanelFrame';
+import { ASSISTANT_PANEL_MIN_WIDTH, ASSISTANT_PANEL_WIDTH } from '../src/lib/workspace-layout';
 
 function StatefulPanelContent() {
   const [count, setCount] = useState(0);
@@ -19,10 +20,10 @@ test('折叠再展开 Agent 面板时保留已挂载的会话状态', () => {
   document.body.appendChild(container);
   const root = createRoot(container);
 
-  const renderPanel = (visible: boolean) => {
+  const renderPanel = (visible: boolean, wide = false) => {
     act(() => {
       root.render(
-        <AssistantPanelFrame visible={visible}>
+        <AssistantPanelFrame visible={visible} wide={wide}>
           <StatefulPanelContent />
         </AssistantPanelFrame>,
       );
@@ -36,6 +37,19 @@ test('折叠再展开 Agent 面板时保留已挂载的会话状态', () => {
     act(() => counter.click());
     assert.equal(counter.textContent, '1');
 
+    const frame = container.querySelector<HTMLElement>('[data-testid="assistant-panel"]');
+    assert.ok(frame);
+    assert.equal(frame.id, 'assistant-panel');
+    assert.equal(frame.style.width, `${ASSISTANT_PANEL_WIDTH}px`);
+    assert.equal(frame.style.minWidth, `${ASSISTANT_PANEL_MIN_WIDTH}px`);
+    assert.equal(frame.classList.contains('flex-shrink-0'), false);
+    renderPanel(true, true);
+    assert.equal(frame.style.width, '');
+    assert.equal(counter.isConnected, true);
+    assert.equal(counter.textContent, '1');
+    renderPanel(true);
+    assert.equal(frame.style.width, `${ASSISTANT_PANEL_WIDTH}px`);
+
     renderPanel(false);
     const collapsed = container.querySelector<HTMLElement>('[data-testid="assistant-panel"]');
     assert.ok(collapsed);
@@ -45,6 +59,30 @@ test('折叠再展开 Agent 面板时保留已挂载的会话状态', () => {
     renderPanel(true);
     assert.equal(counter.isConnected, true);
     assert.equal(counter.textContent, '1');
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('compact 视口允许 Agent 面板收缩到活动栏之后的剩余宽度', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  try {
+    act(() => {
+      root.render(
+        <AssistantPanelFrame visible compact>
+          <StatefulPanelContent />
+        </AssistantPanelFrame>,
+      );
+    });
+    const frame = container.querySelector<HTMLElement>('[data-testid="assistant-panel"]');
+    assert.ok(frame);
+    assert.equal(frame.style.width, `${ASSISTANT_PANEL_WIDTH}px`);
+    assert.equal(frame.style.minWidth, '0');
+    assert.equal(frame.classList.contains('shrink'), true);
   } finally {
     act(() => root.unmount());
     container.remove();

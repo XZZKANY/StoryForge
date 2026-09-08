@@ -1,15 +1,15 @@
-import type { Dispatch, SetStateAction } from 'react';
+import { useRef } from 'react';
 
 import { ChatWindow } from '../ChatWindow';
-import { CommandPalette, type PaletteMode } from '../CommandPalette';
+import { CommandPalette } from '../CommandPalette';
 import { PROSE_MEASURE_LABELS } from '../editor/options';
 import { Editor } from '../Editor';
 import { SettingsView } from '../SettingsView';
 import { ActivityBar } from '../shell/ActivityBar';
 import type { ContextMenuItem } from '../shell/ContextMenu';
 import { AssistantPanelFrame } from '../shell/AssistantPanelFrame';
-import { EditorTabs, type CenterTab } from '../shell/EditorTabs';
-import { ObsPanel, obsCounts, type Observation } from '../shell/ObsPanel';
+import { EditorTabs, editorTabId, type CenterTab } from '../shell/EditorTabs';
+import { ObsPanel, obsCounts } from '../shell/ObsPanel';
 import { BookProfileView } from '../shell/BookProfileView';
 import { ManuscriptView } from '../shell/ManuscriptView';
 import { KnowledgeInboxView } from '../shell/KnowledgeInboxView';
@@ -20,7 +20,10 @@ import { StatusBar } from '../shell/StatusBar';
 import { Titlebar } from '../shell/Titlebar';
 import { ToastHost } from '../shell/ToastHost';
 import { useDeference } from '../shell/useDeference';
-import type { useShellState } from '../shell/useShellState';
+import {
+  useWorkspacePrimaryMinWidth,
+  useWorkspaceSidePanelLimit,
+} from '../shell/useWorkspaceSidePanelLimit';
 import {
   emitEditorCommand,
   emitChapterPolishRequest,
@@ -28,82 +31,21 @@ import {
   flushActiveEditorToDisk,
 } from '../../lib/assistant-events';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
-import type { ObservationAnchor } from '../../lib/observations';
-import type { FileCursor } from '../../lib/workspace-session';
-import type { useAppDialog } from './AppDialog';
 import { AppDialogHost } from './AppDialog';
 import { resolveActiveCenterTab } from './editor-tabs-state';
 import { formatShortcutSheet } from './shortcuts';
 import { useAgentPermission } from './useAgentPermission';
 import { useFileTreeActions } from './useFileTreeActions';
 import { WelcomeDismissed, WelcomeWorkspace } from './WelcomeWorkspace';
-import type { AppPreferences } from './useAppPreferences';
-import type { BookContextHandle } from './useBookContext';
-import type { BookProfileHandle } from './useBookProfile';
-import type { EditorWorkspaceTabs } from './useEditorWorkspaceTabs';
-import type { useObservatory } from './useObservatory';
-import type { ProjectCommands } from './useProjectCommands';
-import type { useProjectSearch } from './useProjectSearch';
 import { useKnowledgeInbox } from './useKnowledgeInbox';
+import type { AppShellProps } from './app-shell-types';
+import { useWorkspaceLayoutEffects } from './useWorkspaceLayoutEffects';
 
-type WorkspaceProps = {
-  projects: string[];
-  activeProject: string | null;
-  currentFile: string | null;
-  projectAssistantSessions: Record<string, number>;
-  setActiveProjectAssistantSession: (
-    assistantSessionId: number | null,
-    projectOverride?: string,
-  ) => void;
-};
-
-type RuntimeProps = {
-  isDesktopRuntime: boolean;
-  tauriMenuReady: boolean;
-  tauriMenuError: string;
-  smokeApiReady: boolean;
-};
-
-/** 观测句柄：useObservatory 全量数据 + App 级定位回调（观测行 / 台账锚点两种入口）。 */
-export type ObservatoryHandle = ReturnType<typeof useObservatory> & {
-  locateObservation: (observation: Observation) => void;
-  locateAnchor: (anchor: ObservationAnchor) => void;
-};
-
-type AppShellProps = {
-  workspace: WorkspaceProps;
-  tabs: EditorWorkspaceTabs;
-  commands: ProjectCommands;
-  preferences: AppPreferences;
-  shell: ReturnType<typeof useShellState>;
-  dialogs: ReturnType<typeof useAppDialog>;
-  runtime: RuntimeProps;
-  settingsVisible: boolean;
-  setSettingsVisible: Dispatch<SetStateAction<boolean>>;
-  palette: PaletteMode | null;
-  setPalette: Dispatch<SetStateAction<PaletteMode | null>>;
-  obsPanelOpen: boolean;
-  setObsPanelOpen: Dispatch<SetStateAction<boolean>>;
-  toggleObsPanel: () => void;
-  observatory: ObservatoryHandle;
-  /** 手稿视图：作品底座只读投影 + 点章节行打开该章。 */
-  bookContext: BookContextHandle;
-  onOpenManuscriptChapter: (relativePath: string) => void;
-  /** 作品视图：档案（book.json）+ 现算的进度 / 大纲 / 速记。 */
-  bookProfile: BookProfileHandle;
-  onOpenOutlineHeading: (path: string, line: number) => void;
-  openSettings: () => Promise<void>;
-  welcomeDismissed: boolean;
-  onCloseWelcome: () => void;
-  onReopenWelcome: () => void;
-  /** 恢复现场：上次的光标位置 + 光标回写口子（写作时刻 01）。 */
-  initialCursors: Record<string, FileCursor> | null;
-  onCursorPersist: (filePath: string, cursor: FileCursor) => void;
-  search: ReturnType<typeof useProjectSearch>;
-  onOpenSearchHit: (path: string, line: number) => void;
-};
+export type { ObservatoryHandle } from './app-shell-types';
 
 export function AppShell({
+  onUnsentInputChange,
+  confirmDiscardInput,
   workspace,
   tabs,
   commands,
@@ -134,6 +76,14 @@ export function AppShell({
 }: AppShellProps) {
   const { projects, activeProject, currentFile, projectAssistantSessions } = workspace;
   const projectOpen = Boolean(activeProject);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  const historyTriggerRef = useRef<HTMLButtonElement>(null);
+  const obsTriggerRef = useRef<HTMLButtonElement>(null);
+  const compactWorkspace = useWorkspaceLayoutEffects(projectOpen, shell);
+
+  const sidebarVisible = !shell.sidebarHidden && (projectOpen || shell.view !== 'explorer');
+  const sidePanelMaxWidth = useWorkspaceSidePanelLimit(projectOpen, shell.layoutMode);
+  const primaryMinWidth = useWorkspacePrimaryMinWidth(projectOpen);
   const agentPermission = useAgentPermission(activeProject);
   const knowledgeInbox = useKnowledgeInbox(activeProject);
   const rightPanelVisible = projectOpen && !shell.rightCollapsed;
@@ -163,13 +113,12 @@ export function AppShell({
     void dialogs.alert({
       title: '了解 StoryForge',
       message: [
-        'StoryForge — 可验证的长篇创作流水线。',
+        'StoryForge — 面向小说作者的本地 AI 写作工作台。',
         '',
-        '设计立场：先做诊断控制台，再做生成器。任何生成路径都先有',
-        '读证据 → 评审 → 修复 → 批准的闭环，再考虑接真实模型。',
+        '打开你的小说项目，专注写作，与 Agent 一起审稿、构思和修订。',
         '',
-        '桌面 IDE 是主体验：本地项目、Monaco 编辑、对话式 Agent、',
-        'canon 事实卡与观测镜，BYO-key 接真实 LLM。',
+        '修改会先生成可查看的差异，默认由你确认后写回。',
+        '项目权限可调整，但安全检查、写前快照与版本记录始终保留。',
       ].join('\n'),
     });
 
@@ -212,17 +161,19 @@ export function AppShell({
         <div className="flex flex-shrink-0">
           <ActivityBar
             view={shell.view}
-            sidebarHidden={shell.sidebarHidden}
+            sidebarHidden={!sidebarVisible}
             onSwitchView={shell.switchView}
             onOpenSettings={() => void openSettings()}
             settingsMenu={settingsMenu}
+            settingsButtonRef={settingsButtonRef}
             observatoryAttention={observatory.litEntityIds.length > 0}
             knowledgePendingCount={knowledgeInbox.inbox.pending_count}
           />
-          {!shell.sidebarHidden && (
+          {sidebarVisible && (
             <SidePanel
               view={shell.view}
               widths={preferences.settings.sidePanelWidths}
+              maxWidth={sidePanelMaxWidth}
               onWidthChange={preferences.setSidePanelWidth}
               projects={projects}
               activeProject={activeProject}
@@ -314,6 +265,7 @@ export function AppShell({
         <main
           className={`${shell.layoutMode === 'chat' ? 'hidden' : 'flex'} min-w-0 flex-1 flex-col bg-background`}
           data-testid="shell-center"
+          style={projectOpen ? { minWidth: primaryMinWidth } : undefined}
         >
           {centerHasTabs ? (
             <>
@@ -330,7 +282,7 @@ export function AppShell({
                 onReorderFiles={tabs.reorderOpenFiles}
                 onFocusPreview={tabs.focusPreview}
                 onPinPreview={tabs.pinPreview}
-                onCloseFile={(path) => void tabs.handleFileClose(path)}
+                onCloseFile={tabs.handleFileClose}
                 onClosePreview={tabs.closePreview}
                 onSaveActive={() => {
                   if (tabs.displayedFile) {
@@ -338,14 +290,19 @@ export function AppShell({
                   }
                 }}
                 onToggleHistory={() => emitEditorCommand('toggle-history')}
+                historyTriggerRef={historyTriggerRef}
                 onExportActive={() => emitExportCurrentFile()}
                 onPolishActive={(useMainModel) => emitChapterPolishRequest({ useMainModel })}
-                onCloseOthers={() => void tabs.handleCloseOthers()}
-                onCloseAll={() => void tabs.handleCloseAll()}
+                onCloseOthers={tabs.handleCloseOthers}
+                onCloseAll={tabs.handleCloseAll}
               />
               <div className="min-h-0 flex-1 overflow-hidden">
                 <section
                   className="h-full min-h-0 overflow-hidden bg-background"
+                  id="editor-panel"
+                  role="tabpanel"
+                  aria-labelledby={tabs.displayedFile ? editorTabId(tabs.displayedFile) : undefined}
+                  aria-label={tabs.displayedFile ? undefined : '编辑器'}
                   data-testid="editor-panel"
                 >
                   <Editor
@@ -360,6 +317,7 @@ export function AppShell({
                     onDirtyChange={tabs.handleEditorDirtyChange}
                     initialCursors={initialCursors}
                     onCursorPersist={onCursorPersist}
+                    historyTriggerRef={historyTriggerRef}
                     dropOpenFilePath={tabs.dropOpenFilePath}
                     sidebarVisible={!shell.sidebarHidden}
                     dialogs={dialogs}
@@ -370,7 +328,12 @@ export function AppShell({
                 <ObsPanel
                   observations={observatory.observations}
                   availability={observatory.availability}
-                  onClose={() => setObsPanelOpen(false)}
+                  onClose={() => {
+                    setObsPanelOpen(false);
+                    requestAnimationFrame(() =>
+                      obsTriggerRef.current?.focus({ preventScroll: true }),
+                    );
+                  }}
                   onResolve={observatory.resolveObservation}
                   onLocate={observatory.locateObservation}
                 />
@@ -385,7 +348,7 @@ export function AppShell({
             <WelcomeWorkspace
               onOpenProject={commands.handleOpenProject}
               onNewFile={() => void commands.handleNewFile()}
-              onOpenPalette={() => setPalette('files')}
+              onOpenPalette={() => setPalette('commands')}
               onCreateSampleProject={commands.handleCreateSampleProject}
               onOpenSettings={openSettings}
               onShowShortcuts={showShortcuts}
@@ -397,6 +360,7 @@ export function AppShell({
               onToggleShowOnStartup={(value) =>
                 preferences.setSettings((prev) => ({ ...prev, showWelcomeOnStartup: value }))
               }
+              projectCreationBusy={commands.projectCreationBusy}
               composerValue={commands.welcomeDraft}
               onComposerChange={commands.setWelcomeDraft}
               onComposerSend={commands.handleWelcomeSend}
@@ -405,12 +369,18 @@ export function AppShell({
         </main>
 
         {projectOpen && (
-          <AssistantPanelFrame visible={rightPanelVisible} wide={shell.layoutMode === 'chat'}>
+          <AssistantPanelFrame
+            visible={rightPanelVisible}
+            wide={shell.layoutMode === 'chat'}
+            compact={compactWorkspace}
+          >
             <div
               className="flex min-h-0 flex-1 flex-col overflow-hidden"
               data-testid="right-chat-pane"
             >
               <ChatWindow
+                onUnsentInputChange={onUnsentInputChange}
+                confirmDiscardInput={confirmDiscardInput}
                 projectPath={activeProject}
                 currentFile={tabs.displayedFile ?? currentFile}
                 assistantSessionId={
@@ -439,6 +409,8 @@ export function AppShell({
         obs={obs}
         observationAvailability={observatory.availability}
         onToggleObs={toggleObsPanel}
+        obsTriggerRef={obsTriggerRef}
+        observationOpen={obsPanelOpen}
       />
 
       {palette && (
@@ -475,6 +447,7 @@ export function AppShell({
           settings={preferences.settings}
           onChange={preferences.setSettings}
           onClose={() => setSettingsVisible(false)}
+          fallbackFocusRef={settingsButtonRef}
         />
       )}
       <AppDialogHost

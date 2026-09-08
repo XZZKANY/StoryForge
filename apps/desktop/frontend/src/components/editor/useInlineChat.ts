@@ -49,6 +49,33 @@ type InlineDiffActions = {
   droppedOffAnchor: number;
 };
 
+/**
+ * View-zone buttons live outside React. Keep pointer activation on mousedown
+ * so Monaco cannot steal the click, while keyboard/AT activation uses the
+ * native click path (detail 0). A pointer click is ignored because its action
+ * already ran during mousedown.
+ */
+export function bindInlineButtonAction(
+  button: HTMLButtonElement,
+  action: () => void,
+  semantics: { label: string; shortcut?: string },
+) {
+  button.setAttribute('aria-label', semantics.label);
+  if (semantics.shortcut) button.setAttribute('aria-keyshortcuts', semantics.shortcut);
+  button.addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    action();
+  });
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (event.detail !== 0) return;
+    event.preventDefault();
+    action();
+  });
+}
+
 type WriteAcceptedSuggestion = (
   suggestion: AssistantFileSuggestion,
   path: string,
@@ -359,7 +386,12 @@ export function useInlineChat({
       // 键盘：Alt+Enter 接受、Esc 弃用。挂 document（捕获期）而非编辑器容器——
       // 输入框撤掉后焦点已不在编辑器里，挂容器会收不到事件。
       const handler = (event: KeyboardEvent) => {
-        if (event.isComposing) return;
+        if (
+          event.isComposing ||
+          event.keyCode === 229 ||
+          document.querySelector('[role="dialog"][aria-modal="true"]')
+        )
+          return;
         if (event.key === 'Enter' && event.altKey) {
           event.preventDefault();
           event.stopPropagation();
@@ -437,7 +469,13 @@ export function useInlineChat({
       session.abortController = controller;
       // loading 阶段挂 Esc → 取消（teardown 摘掉；成功进 diff 前也主动摘，让 renderDiff 装自己的）。
       const onLoadingEsc = (event: KeyboardEvent) => {
-        if (event.key !== 'Escape') return;
+        if (
+          event.key !== 'Escape' ||
+          event.isComposing ||
+          event.keyCode === 229 ||
+          document.querySelector('[role="dialog"][aria-modal="true"]')
+        )
+          return;
         event.preventDefault();
         event.stopPropagation();
         cancelLoading();
@@ -697,7 +735,7 @@ export function useInlineChat({
 
 // ---- 命令式 DOM 构造（仅在 Ctrl+K 流程中运行，测试不触达） ----
 
-function buildInputZoneDom(
+export function buildInputZoneDom(
   anchor: InlineAnchor,
   mode: InlineMode,
   handlers: { onSend: (value: string) => void; onCancel: () => void },
@@ -725,6 +763,7 @@ function buildInputZoneDom(
     mode === 'continue'
       ? '直接回车＝就接着写；也可给个方向：转到冲突 / 慢下来 / 换个视角…'
       : '对这段说点什么：收紧节奏 / 换个意象 / 口吻更冷…';
+  textarea.setAttribute('aria-label', mode === 'continue' ? '续写指令（可选）' : '行间修订指令');
 
   let composing = false;
   textarea.addEventListener('compositionstart', () => {
@@ -738,7 +777,7 @@ function buildInputZoneDom(
     if (event.key === 'Enter' && !event.shiftKey && !composing) {
       event.preventDefault();
       handlers.onSend(textarea.value);
-    } else if (event.key === 'Escape') {
+    } else if (event.key === 'Escape' && !composing && event.keyCode !== 229) {
       event.preventDefault();
       handlers.onCancel();
     }
@@ -786,11 +825,7 @@ function swapZoneToStreaming(
   cancel.type = 'button';
   cancel.className = 'sf-inline-btn-reject';
   cancel.textContent = '取消 (Esc)';
-  cancel.addEventListener('mousedown', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onCancel();
-  });
+  bindInlineButtonAction(cancel, onCancel, { label: '取消行间续写', shortcut: 'Escape' });
   bar.append(label, cancel);
   dom.append(body, bar);
 
@@ -844,11 +879,7 @@ function swapZoneToLoading(
     cancel.type = 'button';
     cancel.className = 'sf-inline-btn-reject';
     cancel.textContent = '取消 (Esc)';
-    cancel.addEventListener('mousedown', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onCancel();
-    });
+    bindInlineButtonAction(cancel, onCancel, { label: '取消行间修订', shortcut: 'Escape' });
     dom.append(label, cancel);
     const id = accessor.addZone({
       afterLineNumber: session.anchor.endLine,
@@ -922,20 +953,18 @@ function buildDiffZoneDom(
     accept.type = 'button';
     accept.className = 'sf-inline-btn-accept';
     accept.textContent = '接受 (Alt+Enter)';
-    accept.addEventListener('mousedown', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      handlers.onAccept();
+    bindInlineButtonAction(accept, handlers.onAccept, {
+      label: '接受行间修订',
+      shortcut: 'Alt+Enter',
     });
 
     const reject = document.createElement('button');
     reject.type = 'button';
     reject.className = 'sf-inline-btn-reject';
     reject.textContent = '弃用 (Esc)';
-    reject.addEventListener('mousedown', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      handlers.onReject();
+    bindInlineButtonAction(reject, handlers.onReject, {
+      label: '弃用行间修订',
+      shortcut: 'Escape',
     });
 
     const note = document.createElement('span');

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { readDailyProgress } from '../../lib/daily-progress';
 import { scanManuscriptTotals, type ManuscriptTotals } from '../../lib/manuscript-stats';
+import { X } from '../icons/shell-icons';
 import { useDismissableMenu } from './useDismissableMenu';
 
 // 结果带上它属于哪个项目：换项目时不必在 effect 里同步置 loading（会触发级联渲染），
@@ -86,11 +87,24 @@ export function ManuscriptCard({
   return (
     <div
       ref={cardRef}
+      id="manuscript-card"
       role="dialog"
       aria-label="稿件进度"
       className="absolute bottom-[30px] right-3 z-30 w-[268px] rounded-lg border border-border bg-surface p-3 text-2xs text-muted shadow-[var(--shadow-dropdown)]"
       data-testid="manuscript-card"
     >
+      <div className="mb-2 flex items-center justify-between gap-2 border-b border-border pb-2">
+        <h2 className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">稿件进度</h2>
+        <button
+          type="button"
+          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
+          title="关闭稿件进度"
+          aria-label="关闭稿件进度"
+          onClick={onClose}
+        >
+          <X size={13} strokeWidth={1.7} />
+        </button>
+      </div>
       <Section title={chapterLabel || '本章'}>
         <Row label="字数" value={`${number(chapterChars)} 字`} testId="manuscript-chapter-chars" />
         <Row label="段落" value={`${number(chapterParagraphs)} 段`} />
@@ -106,12 +120,19 @@ export function ManuscriptCard({
         {progress !== null && (
           <>
             <Row label="目标" value={`${number(dailyGoal)} 字`} />
-            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-elevated">
+            <div
+              className="mt-1.5 h-1 overflow-hidden rounded-full bg-elevated"
+              data-testid="manuscript-goal-bar"
+              data-progress={Math.round(progress * 100)}
+              role="progressbar"
+              aria-label="日更目标完成度"
+              aria-valuenow={Math.round(progress * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
               <div
                 className="h-full rounded-full bg-agent transition-[width] duration-300"
                 style={{ width: `${Math.round(progress * 100)}%` }}
-                data-testid="manuscript-goal-bar"
-                data-progress={Math.round(progress * 100)}
               />
             </div>
           </>

@@ -9,7 +9,9 @@ import {
   useMemo,
   memo,
   useCallback,
+  useRef,
   type MouseEvent as ReactMouseEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
 import { isVisibleProjectTreeEntry } from '../lib/project/entry-visibility';
@@ -24,6 +26,35 @@ import type { FileTreeActions } from './app/useFileTreeActions';
 type ContextTarget = { path: string; isDir: boolean };
 type NodeContextMenuHandler = (event: ReactMouseEvent, target: ContextTarget) => void;
 type NodeNewEntryHandler = (kind: 'file' | 'folder', dir: string) => void;
+
+function treeNodeChildrenId(path: string) {
+  return `resource-tree-children-${encodeURIComponent(path)}`;
+}
+
+function visibleTreeItems(tree: HTMLElement): HTMLElement[] {
+  return Array.from(tree.querySelectorAll<HTMLElement>('[role="treeitem"]')).filter(
+    (item) => !item.closest('[hidden]'),
+  );
+}
+
+function parentTreeItem(item: HTMLElement): HTMLElement | null {
+  const group = item.closest<HTMLElement>('[role="group"]');
+  const row = group?.previousElementSibling;
+  return row?.querySelector<HTMLElement>('[role="treeitem"]') ?? null;
+}
+
+function firstVisibleChild(treeItem: HTMLElement): HTMLElement | null {
+  const childrenId = treeItem.getAttribute('aria-controls');
+  if (!childrenId) return null;
+  const children = document.getElementById(childrenId);
+  return children?.querySelector<HTMLElement>('[role="treeitem"]') ?? null;
+}
+
+function treeContainsPath(nodes: ProjectTreeNode[], path: string): boolean {
+  return nodes.some(
+    (node) => node.path === path || (node.isDir && treeContainsPath(node.children, path)),
+  );
+}
 
 type ResourceExplorerProps = {
   projectPath: string | null;
@@ -49,7 +80,18 @@ export function ResourceExplorer({
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [menu, setMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+  // ARIA tree 使用 roving tabindex：树只保留一个 Tab 停靠点，方向键移动后由当前节点接管。
+  const [focusPath, setFocusPath] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    items: ContextMenuItem[];
+    returnFocus: HTMLElement | null;
+  } | null>(null);
+  const menuReturnFocusRef = useRef<HTMLElement | null>(null);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+  const loadingStatusRef = useRef<HTMLDivElement>(null);
+  const retryFocusPending = useRef(false);
   // 读盘失败后的本地重试计数：与外部 refreshVersion 并列驱动同一个装载 effect。
   const [retryNonce, setRetryNonce] = useState(0);
 
@@ -89,10 +131,27 @@ export function ResourceExplorer({
     };
   }, [projectPath, refreshVersion, retryNonce]);
 
+  useEffect(() => {
+    if (!loading || !retryFocusPending.current) return;
+    retryFocusPending.current = false;
+    requestAnimationFrame(() => loadingStatusRef.current?.focus({ preventScroll: true }));
+  }, [loading]);
+
+  const retryLoad = useCallback(() => {
+    retryFocusPending.current = document.activeElement === retryButtonRef.current;
+    setRetryNonce((value) => value + 1);
+  }, []);
+
   const tree = useMemo(() => {
     if (!projectPath) return [];
     return buildProjectTree(files, projectPath);
   }, [files, projectPath]);
+  const tabStopPath =
+    focusPath && treeContainsPath(tree, focusPath)
+      ? focusPath
+      : currentFile && treeContainsPath(tree, currentFile)
+        ? currentFile
+        : (tree[0]?.path ?? null);
 
   const buildMenuItems = useCallback(
     (target: ContextTarget | null): ContextMenuItem[] => {
@@ -123,7 +182,29 @@ export function ResourceExplorer({
       if (!fileActions || !projectPath) return;
       event.preventDefault();
       event.stopPropagation();
-      setMenu({ x: event.clientX, y: event.clientY, items: buildMenuItems(target) });
+      // 右键不会可靠地改变 activeElement；优先取实际命中的文件/文件夹按钮，
+      // 空白区域则保留当前焦点，避免关闭菜单后落到 body。
+      const eventTarget = event.target instanceof HTMLElement ? event.target : null;
+      const focusTarget = eventTarget?.closest<HTMLElement>(
+        'button,[role="button"],[tabindex]:not([tabindex="-1"])',
+      );
+      const returnFocus =
+        focusTarget && event.currentTarget instanceof HTMLElement
+          ? event.currentTarget.contains(focusTarget)
+            ? focusTarget
+            : null
+          : null;
+      menuReturnFocusRef.current =
+        returnFocus ??
+        (document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+          ? document.activeElement
+          : null);
+      setMenu({
+        x: event.clientX,
+        y: event.clientY,
+        items: buildMenuItems(target),
+        returnFocus: menuReturnFocusRef.current,
+      });
     },
     [buildMenuItems, fileActions, projectPath],
   );
@@ -136,6 +217,61 @@ export function ResourceExplorer({
     },
     [fileActions],
   );
+
+  const handleTreeKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const target =
+      event.target instanceof HTMLElement
+        ? event.target.closest<HTMLElement>('[role="treeitem"]')
+        : null;
+    if (!target) return;
+
+    const items = visibleTreeItems(event.currentTarget);
+    const index = items.indexOf(target);
+    if (index < 0) return;
+
+    let next: HTMLElement | null = null;
+    switch (event.key) {
+      case 'ArrowDown':
+        next = items[index + 1] ?? null;
+        break;
+      case 'ArrowUp':
+        next = items[index - 1] ?? null;
+        break;
+      case 'Home':
+        next = items[0] ?? null;
+        break;
+      case 'End':
+        next = items[items.length - 1] ?? null;
+        break;
+      case 'ArrowRight':
+        if (target.getAttribute('aria-expanded') === 'false') {
+          target.click();
+          event.preventDefault();
+          return;
+        }
+        if (target.getAttribute('aria-expanded') === 'true') {
+          next = firstVisibleChild(target);
+        }
+        break;
+      case 'ArrowLeft':
+        if (target.getAttribute('aria-expanded') === 'true') {
+          target.click();
+          event.preventDefault();
+          return;
+        }
+        next = parentTreeItem(target);
+        break;
+      default:
+        return;
+    }
+
+    // Arrow navigation belongs to the tree even at the first/last item or an empty folder;
+    // prevent the browser from scrolling the surrounding panel instead.
+    event.preventDefault();
+    if (next) {
+      next.focus();
+    }
+  }, []);
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -151,27 +287,48 @@ export function ResourceExplorer({
             <p className="text-sm text-subtle">尚未打开项目</p>
           </div>
         ) : loading ? (
-          <div className="p-8 text-center text-sm text-subtle">加载中...</div>
+          <div
+            ref={loadingStatusRef}
+            className="p-8 text-center text-sm text-subtle"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+            tabIndex={-1}
+          >
+            加载中...
+          </div>
         ) : error ? (
           <PanelError
             compact
             title="读取项目文件失败"
             hint="项目目录可能已被移动、重命名或正被其他程序占用。"
             detail={error}
-            onRetry={() => setRetryNonce((value) => value + 1)}
+            onRetry={retryLoad}
+            retryButtonRef={retryButtonRef}
           />
         ) : tree.length === 0 ? (
           <div className="mt-8 mx-4 text-center">
             <p className="text-sm text-subtle">空空如也</p>
           </div>
         ) : (
-          <div className="flex flex-col gap-0.5">
+          <div
+            className="flex flex-col gap-0.5"
+            role="tree"
+            aria-label="项目文件树"
+            onKeyDown={handleTreeKeyDown}
+            onFocusCapture={(event) => {
+              const item = (event.target as HTMLElement).closest<HTMLElement>('[role="treeitem"]');
+              const path = item?.getAttribute('data-tree-path');
+              if (path) setFocusPath(path);
+            }}
+          >
             <div className="pl-2">
               {tree.map((node) => (
                 <TreeNodeItem
                   key={node.path}
                   node={node}
                   level={0}
+                  tabStopPath={tabStopPath}
                   currentFile={currentFile}
                   previewFile={previewFile}
                   onFileSelect={onFileSelect}
@@ -186,7 +343,13 @@ export function ResourceExplorer({
       </div>
 
       {menu && (
-        <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={menu.items}
+          returnFocus={menu.returnFocus}
+          onClose={() => setMenu(null)}
+        />
       )}
     </div>
   );
@@ -195,6 +358,7 @@ export function ResourceExplorer({
 const TreeNodeItem = memo(function TreeNodeItem({
   node,
   level,
+  tabStopPath,
   currentFile,
   previewFile,
   onFileSelect,
@@ -204,6 +368,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
 }: {
   node: ProjectTreeNode;
   level: number;
+  tabStopPath: string | null;
   currentFile: string | null;
   previewFile: string | null;
   onFileSelect: (filePath: string) => void;
@@ -214,6 +379,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   const [isOpen, setIsOpen] = useState(true);
   const isActive = node.path === currentFile;
   const isPreview = !isActive && node.path === previewFile;
+  const childrenId = node.isDir ? treeNodeChildrenId(node.path) : undefined;
 
   const handleToggle = useCallback(() => {
     setIsOpen((prev) => !prev);
@@ -243,9 +409,16 @@ const TreeNodeItem = memo(function TreeNodeItem({
           data-folder-path={node.path}
         >
           <button
+            type="button"
             onClick={handleToggle}
             className="flex h-full min-w-0 flex-1 items-center text-left"
+            role="treeitem"
+            data-tree-path={node.path}
+            tabIndex={node.path === tabStopPath ? 0 : -1}
+            aria-level={level + 1}
             aria-expanded={isOpen}
+            aria-controls={childrenId}
+            aria-label={`${isOpen ? '折叠' : '展开'} ${node.name}`}
           >
             <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
 
@@ -270,6 +443,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
           {onNodeNewEntry && (
             <span className="flex flex-shrink-0 items-center gap-px opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
               <button
+                type="button"
                 className="flex h-5 w-5 items-center justify-center rounded-sm text-subtle hover:bg-surface hover:text-foreground"
                 title={`在「${node.name}」下新建文件`}
                 aria-label={`在 ${node.name} 下新建文件`}
@@ -284,6 +458,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
                 <FilePlus size={13} strokeWidth={1.6} />
               </button>
               <button
+                type="button"
                 className="flex h-5 w-5 items-center justify-center rounded-sm text-subtle hover:bg-surface hover:text-foreground"
                 title={`在「${node.name}」下新建文件夹`}
                 aria-label={`在 ${node.name} 下新建文件夹`}
@@ -299,36 +474,48 @@ const TreeNodeItem = memo(function TreeNodeItem({
             </span>
           )}
         </div>
-        {isOpen && (
-          <div className="flex flex-col">
-            {node.children.map((child) => (
-              <TreeNodeItem
-                key={child.path}
-                node={child}
-                level={level + 1}
-                currentFile={currentFile}
-                previewFile={previewFile}
-                onFileSelect={onFileSelect}
-                onFilePreview={onFilePreview}
-                onNodeContextMenu={onNodeContextMenu}
-                onNodeNewEntry={onNodeNewEntry}
-              />
-            ))}
-          </div>
-        )}
+        <div
+          id={childrenId}
+          role="group"
+          aria-label={`${node.name} 子项`}
+          hidden={!isOpen}
+          className="flex flex-col"
+        >
+          {node.children.map((child) => (
+            <TreeNodeItem
+              key={child.path}
+              node={child}
+              level={level + 1}
+              tabStopPath={tabStopPath}
+              currentFile={currentFile}
+              previewFile={previewFile}
+              onFileSelect={onFileSelect}
+              onFilePreview={onFilePreview}
+              onNodeContextMenu={onNodeContextMenu}
+              onNodeNewEntry={onNodeNewEntry}
+            />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
     <button
+      type="button"
       onClick={handleSelect}
       onDoubleClick={handlePin}
       onContextMenu={(event) => onNodeContextMenu?.(event, { path: node.path, isDir: false })}
       data-testid="file-item"
       data-file-name={node.name}
       data-file-path={node.path}
+      data-tree-path={node.path}
       data-preview={isPreview ? 'true' : undefined}
+      role="treeitem"
+      tabIndex={node.path === tabStopPath ? 0 : -1}
+      aria-level={level + 1}
+      aria-selected={isActive ? 'true' : 'false'}
+      aria-current={isActive ? 'true' : undefined}
       className={`
         sf-tree-row transition-colors group cursor-pointer
         ${

@@ -46,6 +46,17 @@ test('点击带 anchor 的观测行触发 onLocate；无 anchor 行不触发', a
 
     const bodies = container.querySelectorAll('[data-testid="obs-row-body"]');
     assert.equal(bodies.length, 2);
+    assert.equal(bodies[0]?.tagName, 'BUTTON');
+    assert.equal((bodies[0] as HTMLButtonElement).disabled, false);
+    assert.equal((bodies[1] as HTMLButtonElement).disabled, true);
+    const panel = container.querySelector<HTMLElement>('[data-testid="obs-panel"]');
+    assert.equal(panel?.getAttribute('role'), 'region');
+    assert.equal(panel?.getAttribute('aria-labelledby'), 'obs-panel-title');
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    assert.equal(
+      document.activeElement,
+      container.querySelector('[aria-label="关闭观测面板"]'),
+    );
 
     await act(async () => {
       (bodies[0] as HTMLElement).click();

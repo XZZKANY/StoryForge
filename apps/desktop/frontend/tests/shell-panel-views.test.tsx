@@ -12,6 +12,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { test } from 'vitest';
 
 import { VIEW_ENTRIES } from '../src/components/shell/ActivityBar';
+import { AssistantPanelFrame } from '../src/components/shell/AssistantPanelFrame';
+import { SidePanel } from '../src/components/shell/SidePanel';
 import { SIDE_PANEL_VIEWS, useShellState } from '../src/components/shell/useShellState';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -109,4 +111,54 @@ test('右栏折叠语义不受影响（editor 隐藏右栏，showRight 落回 ba
     assert.equal(latest!.layoutMode, 'balanced');
     assert.equal(latest!.rightCollapsed, false);
   });
+});
+
+test('壳层侧栏提供可区分的地标名称', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root: Root = createRoot(container);
+  try {
+    await act(async () => {
+      root.render(
+        <>
+          <SidePanel
+            view="search"
+            projects={[]}
+            activeProject={null}
+            currentFile={null}
+            previewFile={null}
+            projectRefreshVersion={0}
+            widths={{}}
+            onWidthChange={() => {}}
+            onSelectProject={() => {}}
+            onRemoveProject={() => {}}
+            onOpenProject={() => {}}
+            onNewFile={() => {}}
+            onFileSelect={() => {}}
+            onFilePreview={() => {}}
+          />
+          <AssistantPanelFrame visible>
+            <span>对话</span>
+          </AssistantPanelFrame>
+        </>,
+      );
+    });
+    assert.equal(
+      container.querySelector<HTMLElement>('[data-testid="shell-side-panel"]')?.tagName,
+      'ASIDE',
+    );
+    assert.equal(
+      container
+        .querySelector<HTMLElement>('[data-testid="shell-side-panel"]')
+        ?.getAttribute('aria-label'),
+      '正文搜索侧栏',
+    );
+    assert.equal(
+      container.querySelector('#assistant-panel')?.getAttribute('aria-label'),
+      'Agent 对话面板',
+    );
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
 });

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { flushActiveEditorToDisk } from '../../lib/assistant-events';
 import { projectBasename } from '../../lib/project-context';
 import type { WorkspaceSession } from '../../lib/workspace-session';
 import type { AppDialogApi } from './AppDialog';
+import { useNativeCloseGuard } from './useNativeCloseGuard';
 import {
   closeEditorFile,
   nextEditorFileAfterClose,
@@ -22,6 +23,8 @@ type UseEditorWorkspaceTabsOptions = {
   closeFile: () => void;
   removeProject: (path: string) => void;
   dialogs: AppDialogApi;
+  confirmAdditionalClose?: () => Promise<boolean>;
+  confirmAdditionalProjectChange?: (action: string) => Promise<boolean>;
   onShowEditor: () => void;
   /** 启动恢复现场：项目已切到 pendingRestore.project 后，把页签集合与活动文件一次性铺回来。 */
   pendingRestore?: WorkspaceSession | null;
@@ -36,6 +39,8 @@ export function useEditorWorkspaceTabs({
   closeFile,
   removeProject,
   dialogs,
+  confirmAdditionalClose,
+  confirmAdditionalProjectChange,
   onShowEditor,
   pendingRestore = null,
   onRestoreApplied,
@@ -68,7 +73,7 @@ export function useEditorWorkspaceTabs({
       if (dirtyPaths.length === 0) return true;
 
       // 「保存并…」只在唯一脏文件恰好是当前显示的文件时给：保存走 REQUEST_SAVE_ACTIVE_FILE，
-      // 非活动文件会被编辑器判为 skipped 直接放行，给了这个选项却什么都没存 = 静默丢稿。
+      // 非活动文件会被编辑器跳过并由保存握手拒绝，不能给一个实际上无法完成的保存选项。
       const savablePath =
         dirtyPaths.length === 1 && dirtyPaths[0] === displayedFile ? dirtyPaths[0] : null;
 
@@ -95,7 +100,8 @@ export function useEditorWorkspaceTabs({
       if (choice !== 'save') return false;
 
       try {
-        await flushActiveEditorToDisk(savablePath);
+        // Native snapshot + guarded save can exceed the Agent preflight's 2s default.
+        await flushActiveEditorToDisk(savablePath, 15000);
         return true;
       } catch (error) {
         // 保存失败就别关：关了这份稿就没了。
@@ -108,6 +114,12 @@ export function useEditorWorkspaceTabs({
     },
     [dialogs, dirtyFiles, displayedFile],
   );
+
+  const confirmWindowClose = useCallback(async () => {
+    if (confirmAdditionalClose && !(await confirmAdditionalClose())) return false;
+    return confirmDiscardFiles([...dirtyFiles], '退出应用');
+  }, [confirmAdditionalClose, confirmDiscardFiles, dirtyFiles]);
+  useNativeCloseGuard(confirmWindowClose);
 
   const openFile = useCallback(
     async (path: string, _actionLabel = '打开其他文件') => {
@@ -167,26 +179,62 @@ export function useEditorWorkspaceTabs({
     setActivePane('file');
   }, []);
 
+  const projectNavigationPendingRef = useRef(false);
+  const projectScopeRef = useRef<object | null>(null);
+  useLayoutEffect(() => {
+    projectScopeRef.current = {};
+    return () => {
+      projectScopeRef.current = null;
+    };
+  }, [activeProject]);
+
+  const leaveProject = useCallback(
+    async (action: string, commit: () => void) => {
+      if (projectNavigationPendingRef.current) return false;
+      const scope = projectScopeRef.current;
+      projectNavigationPendingRef.current = true;
+      const isCurrent = () => scope !== null && scope === projectScopeRef.current;
+      try {
+        if (confirmAdditionalProjectChange && !(await confirmAdditionalProjectChange(action))) {
+          return false;
+        }
+        if (!isCurrent() || !(await confirmDiscardFiles([...dirtyFiles], action))) return false;
+        if (!isCurrent()) return false;
+        resetEditorFiles();
+        commit();
+        return true;
+      } catch (error) {
+        if (isCurrent()) {
+          await dialogs.alert({
+            title: '已取消项目切换',
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+        return false;
+      } finally {
+        projectNavigationPendingRef.current = false;
+      }
+    },
+    [confirmAdditionalProjectChange, confirmDiscardFiles, dialogs, dirtyFiles, resetEditorFiles],
+  );
+
   const selectProjectSafely = useCallback(
     async (path: string) => {
-      if (!(await confirmDiscardFiles(openFiles, '切换项目'))) return false;
-      resetEditorFiles();
-      selectProject(path);
-      return true;
+      if (path === activeProject) return true;
+      return leaveProject('切换项目', () => selectProject(path));
     },
-    [confirmDiscardFiles, openFiles, resetEditorFiles, selectProject],
+    [activeProject, leaveProject, selectProject],
   );
 
   const removeProjectSafely = useCallback(
     async (path: string) => {
       if (path === activeProject) {
-        if (!(await confirmDiscardFiles(openFiles, '移除当前项目'))) return;
-        setOpenFiles([]);
-        setDirtyFiles(new Set());
+        await leaveProject('移除当前项目', () => removeProject(path));
+        return;
       }
       removeProject(path);
     },
-    [activeProject, confirmDiscardFiles, openFiles, removeProject],
+    [activeProject, leaveProject, removeProject],
   );
 
   const handleFileClose = useCallback(
@@ -214,23 +262,27 @@ export function useEditorWorkspaceTabs({
     closeFile();
   }, [closeFile, confirmDiscardFiles, openFiles, previewFile, resetEditorFiles]);
 
-  const handleCloseOthers = useCallback(async () => {
-    const keep = displayedFile;
-    if (!keep) return;
-    const allOpen = previewFile ? [...openFiles, previewFile] : openFiles;
-    const others = allOpen.filter((path) => path !== keep);
-    if (others.length === 0) return;
-    if (!(await confirmDiscardFiles(others, '关闭其他页签'))) return;
-    setDirtyFiles((current) => {
-      const next = new Set(current);
-      for (const path of others) next.delete(path);
-      return next;
-    });
-    setOpenFiles([keep]);
-    setPreviewFile(null);
-    setActivePane('file');
-    selectFile(keep);
-  }, [confirmDiscardFiles, displayedFile, openFiles, previewFile, selectFile]);
+  const handleCloseOthers = useCallback(
+    async (keepPath?: string) => {
+      const keep = keepPath ?? displayedFile;
+      if (!keep) return;
+      const allOpen = previewFile ? [...openFiles, previewFile] : openFiles;
+      if (!allOpen.includes(keep)) return;
+      const others = allOpen.filter((path) => path !== keep);
+      if (others.length === 0) return;
+      if (!(await confirmDiscardFiles(others, '关闭其他页签'))) return;
+      setDirtyFiles((current) => {
+        const next = new Set(current);
+        for (const path of others) next.delete(path);
+        return next;
+      });
+      setOpenFiles([keep]);
+      setPreviewFile(null);
+      setActivePane('file');
+      selectFile(keep);
+    },
+    [confirmDiscardFiles, displayedFile, openFiles, previewFile, selectFile],
+  );
 
   const focusFile = useCallback(
     (path: string) => {

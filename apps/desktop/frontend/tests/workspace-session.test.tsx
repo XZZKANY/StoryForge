@@ -106,6 +106,8 @@ test('没有打开任何文件的会话不值得存', () => {
 
 // ---------- 时序不变量 ----------
 
+let sessionHandle: ReturnType<typeof useSessionRestore>;
+
 function Harness({
   enabled,
   onSelectProject,
@@ -117,6 +119,7 @@ function Harness({
   persistWith: { project: string | null; openFiles: string[]; currentFile: string | null };
 }) {
   const session = useSessionRestore({ enabled, selectProject: onSelectProject });
+  sessionHandle = session;
   const { persistSession } = session;
   useEffect(() => {
     persistSession(persistWith.project, persistWith.openFiles, persistWith.currentFile);
@@ -187,4 +190,151 @@ test('关掉「启动时恢复上次现场」则不读存档、并清掉它', as
 
   assert.deepEqual(selected, [], '关闭时不应自动打开任何项目');
   assert.equal(localStorage.getItem(SESSION_KEY), null, '关闭后存档应被清掉，不留下会复活的现场');
+});
+
+test('手动打开项目优先于尚未完成的启动恢复，并允许保存新现场', async () => {
+  localStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({
+      project: 'P',
+      openFiles: ['P/a.md'],
+      activeFile: 'P/a.md',
+      cursors: {},
+    }),
+  );
+  let resolve!: (exists: boolean) => void;
+  const pending = new Promise<boolean>((done) => {
+    resolve = done;
+  });
+  (window as { __STORYFORGE_MOCK_FS__?: unknown }).__STORYFORGE_MOCK_FS__ = {
+    pathExists: () => pending,
+  };
+  const selected: string[] = [];
+  const onSelectProject = (path: string) => {
+    selected.push(path);
+  };
+  mount(
+    <Harness
+      enabled
+      onSelectProject={onSelectProject}
+      persistWith={{ project: null, openFiles: [], currentFile: null }}
+    />,
+  );
+  // 通过将由 App 的手动导航入口使用的 hook 方法，而非伪造“已取消”内部状态。
+  act(() => sessionHandle.selectProjectManually('Q'));
+  const latest = mounted[mounted.length - 1];
+  act(() =>
+    latest.root.render(
+      <Harness
+        enabled
+        onSelectProject={onSelectProject}
+        persistWith={{ project: 'Q', openFiles: ['Q/new.md'], currentFile: 'Q/new.md' }}
+      />,
+    ),
+  );
+  assert.equal(parseWorkspaceSession(localStorage.getItem(SESSION_KEY))?.project, 'Q');
+  await act(async () => {
+    resolve(true);
+    await pending;
+  });
+  assert.deepEqual(selected, ['Q']);
+  assert.equal(sessionHandle.pendingRestore, null);
+  assert.equal(sessionHandle.initialCursors, null);
+  assert.equal(sessionHandle.restoredWorkspace, false);
+  assert.equal(parseWorkspaceSession(localStorage.getItem(SESSION_KEY))?.project, 'Q');
+});
+
+test('用户手动打开同一个项目也不应被旧恢复重新铺页签', async () => {
+  localStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({
+      project: 'P',
+      openFiles: ['P/old.md'],
+      activeFile: 'P/old.md',
+      cursors: {},
+    }),
+  );
+  let resolve!: (exists: boolean) => void;
+  const pending = new Promise<boolean>((done) => {
+    resolve = done;
+  });
+  (window as { __STORYFORGE_MOCK_FS__?: unknown }).__STORYFORGE_MOCK_FS__ = {
+    pathExists: () => pending,
+  };
+  const selected: string[] = [];
+  mount(
+    <Harness
+      enabled
+      onSelectProject={(path) => selected.push(path)}
+      persistWith={{ project: null, openFiles: [], currentFile: null }}
+    />,
+  );
+  act(() => sessionHandle.selectProjectManually('P'));
+  await act(async () => {
+    resolve(true);
+    await pending;
+  });
+  assert.deepEqual(selected, ['P']);
+  assert.equal(sessionHandle.pendingRestore, null);
+});
+
+test('正常恢复可交还页签并持久化；之后手动导航不泄漏旧光标', async () => {
+  const stored = {
+    project: 'P',
+    openFiles: ['P/a.md'],
+    activeFile: 'P/a.md',
+    cursors: { 'P/a.md': { line: 8, column: 2 } },
+  };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(stored));
+  (window as { __STORYFORGE_MOCK_FS__?: unknown }).__STORYFORGE_MOCK_FS__ = {
+    pathExists: () => true,
+  };
+  const selected: string[] = [];
+  mount(
+    <Harness
+      enabled
+      onSelectProject={(path) => selected.push(path)}
+      persistWith={{ project: 'P', openFiles: ['P/a.md'], currentFile: 'P/a.md' }}
+    />,
+  );
+  await act(async () => {
+    await Promise.resolve();
+  });
+  assert.deepEqual(selected, ['P']);
+  assert.deepEqual(sessionHandle.pendingRestore?.openFiles, ['P/a.md']);
+  act(() => sessionHandle.handleRestoreApplied());
+  assert.deepEqual(
+    parseWorkspaceSession(localStorage.getItem(SESSION_KEY))?.cursors,
+    stored.cursors,
+  );
+  act(() => sessionHandle.selectProjectManually('Q'));
+  assert.equal(sessionHandle.initialCursors, null);
+  assert.equal(sessionHandle.restoredWorkspace, false);
+});
+
+test('手动导航后开关恢复选项不再抢回当前项目', async () => {
+  (window as { __STORYFORGE_MOCK_FS__?: unknown }).__STORYFORGE_MOCK_FS__ = {
+    pathExists: () => true,
+  };
+  const selected: string[] = [];
+  const onSelectProject = (path: string) => {
+    selected.push(path);
+  };
+  const persistWith = { project: 'Q', openFiles: ['Q/a.md'], currentFile: 'Q/a.md' };
+  mount(<Harness enabled={false} onSelectProject={onSelectProject} persistWith={persistWith} />);
+  act(() => sessionHandle.selectProjectManually('Q'));
+  localStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({ project: 'P', openFiles: ['P/old.md'], activeFile: 'P/old.md', cursors: {} }),
+  );
+  act(() =>
+    mounted[mounted.length - 1].root.render(
+      <Harness enabled onSelectProject={onSelectProject} persistWith={persistWith} />,
+    ),
+  );
+  await act(async () => {
+    await Promise.resolve();
+  });
+  assert.deepEqual(selected, ['Q']);
+  assert.equal(parseWorkspaceSession(localStorage.getItem(SESSION_KEY))?.project, 'Q');
 });

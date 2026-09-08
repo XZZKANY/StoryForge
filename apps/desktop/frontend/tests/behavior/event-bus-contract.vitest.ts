@@ -127,10 +127,10 @@ describe('emitFileSuggestion 缓冲：目标文件尚未就绪时先存后取', 
 
 describe('flushActiveEditorToDisk：读盘前请编辑器落盘的请求/应答握手', () => {
   it('收到匹配 filePath 的 save-done 即 resolve', async () => {
-    const onRequest = () => {
+    const onRequest = (event: Event) => {
       window.dispatchEvent(
         new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
-          detail: { filePath: '第二章.md', status: 'saved' },
+          detail: { ...(event as CustomEvent).detail, status: 'saved' },
         }),
       );
     };
@@ -152,10 +152,10 @@ describe('flushActiveEditorToDisk：读盘前请编辑器落盘的请求/应答�
   });
 
   it('编辑器报告保存失败时拒绝，调用方不能继续读旧磁盘内容', async () => {
-    const onRequest = () => {
+    const onRequest = (event: Event) => {
       window.dispatchEvent(
         new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
-          detail: { filePath: '第二章.md', status: 'error', message: '磁盘已满' },
+          detail: { ...(event as CustomEvent).detail, status: 'error', message: '磁盘已满' },
         }),
       );
     };
@@ -268,5 +268,131 @@ describe('F10 断线重建：reconstructAgentResultFromEvents（终态事件 →
       (message as { agent_result: { requires_user_confirmation?: boolean } }).agent_result
         .requires_user_confirmation,
     ).toBe(true);
+  });
+});
+
+describe('保存应答必须明确证明指定文件已保存或本来干净', () => {
+  it('skipped 不等于保存成功', async () => {
+    const handler = (event: Event) =>
+      window.dispatchEvent(
+        new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
+          detail: { ...(event as CustomEvent).detail, status: 'skipped' },
+        }),
+      );
+    window.addEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, handler);
+    try {
+      await expect(flushActiveEditorToDisk('chapter.md')).rejects.toMatchObject({
+        reason: 'error',
+      });
+    } finally {
+      window.removeEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, handler);
+    }
+  });
+  it('显式 clean 应答允许无需写入的干净文件继续', async () => {
+    const handler = (event: Event) =>
+      window.dispatchEvent(
+        new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
+          detail: { ...(event as CustomEvent).detail, status: 'clean' },
+        }),
+      );
+    window.addEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, handler);
+    try {
+      await expect(flushActiveEditorToDisk('chapter.md')).resolves.toBeUndefined();
+    } finally {
+      window.removeEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, handler);
+    }
+  });
+  it('缺失、未知或无目标的应答不能提前放行', async () => {
+    let completed = false;
+    let requestId = '';
+    window.addEventListener(
+      REQUEST_SAVE_ACTIVE_FILE_EVENT,
+      (event) => {
+        requestId = (event as CustomEvent).detail.requestId;
+      },
+      { once: true },
+    );
+    const pending = flushActiveEditorToDisk('chapter.md', 1000).then(() => {
+      completed = true;
+    });
+    for (const detail of [
+      undefined,
+      { requestId, status: 'saved' },
+      { requestId, filePath: 'chapter.md', status: 'unknown' },
+      { filePath: 'chapter.md', status: 'saved' },
+    ]) {
+      window.dispatchEvent(new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, { detail }));
+    }
+    await Promise.resolve();
+    expect(completed).toBe(false);
+    window.dispatchEvent(
+      new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
+        detail: { requestId, filePath: 'chapter.md', status: 'saved' },
+      }),
+    );
+    await pending;
+    expect(completed).toBe(true);
+  });
+});
+
+describe('保存应答不能认领同文件其他请求', () => {
+  it('超时旧请求晚回不会放行同文件新请求', async () => {
+    vi.useFakeTimers();
+    const requests: Array<{ filePath: string; requestId?: string }> = [];
+    const capture = (event: Event) => requests.push((event as CustomEvent).detail);
+    window.addEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, capture);
+    try {
+      const old = flushActiveEditorToDisk('chapter.md', 20);
+      const expired = expect(old).rejects.toMatchObject({ reason: 'timeout' });
+      await vi.advanceTimersByTimeAsync(20);
+      await expired;
+      let completed = false;
+      const next = flushActiveEditorToDisk('chapter.md', 1000).then(() => {
+        completed = true;
+      });
+      window.dispatchEvent(
+        new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
+          detail: { ...requests[0], status: 'saved' },
+        }),
+      );
+      await Promise.resolve();
+      expect(completed).toBe(false);
+      window.dispatchEvent(
+        new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
+          detail: { ...requests[1], status: 'saved' },
+        }),
+      );
+      await next;
+      expect(completed).toBe(true);
+    } finally {
+      window.removeEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, capture);
+    }
+  });
+  it('同文件并行保存各自等待对应应答', async () => {
+    const requests: Array<{ filePath: string; requestId?: string }> = [];
+    const capture = (event: Event) => requests.push((event as CustomEvent).detail);
+    window.addEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, capture);
+    try {
+      let secondDone = false;
+      const first = flushActiveEditorToDisk('chapter.md');
+      const second = flushActiveEditorToDisk('chapter.md').then(() => {
+        secondDone = true;
+      });
+      window.dispatchEvent(
+        new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
+          detail: { ...requests[0], status: 'saved' },
+        }),
+      );
+      await first;
+      expect(secondDone).toBe(false);
+      window.dispatchEvent(
+        new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
+          detail: { ...requests[1], status: 'clean' },
+        }),
+      );
+      await second;
+    } finally {
+      window.removeEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, capture);
+    }
   });
 });

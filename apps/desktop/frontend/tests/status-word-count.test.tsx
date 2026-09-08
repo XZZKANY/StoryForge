@@ -103,6 +103,25 @@ test('编辑器广播字数后状态栏显示「N 字」，有选区时显示已
   }
 });
 
+test('窄屏状态栏保留单行布局并允许长文本收缩', () => {
+  const { container, cleanup } = renderStatusBar(true);
+  try {
+    const footer = container.querySelector('[data-testid="shell-status-bar"]');
+    const sidecar = container.querySelector('[data-testid="status-sidecar"]');
+    const observation = container.querySelector('[data-testid="status-obs"]');
+    assert.ok(footer);
+    assert.ok(sidecar);
+    assert.ok(observation);
+    assert.match(footer.className, /max-\[480px\]:gap-2/);
+    assert.match(sidecar.className, /min-w-0/);
+    assert.match(sidecar.className, /whitespace-nowrap/);
+    assert.match(observation.className, /overflow-hidden/);
+    assert.match(observation.className, /whitespace-nowrap/);
+  } finally {
+    cleanup();
+  }
+});
+
 test('点字数开稿件卡：本章字数/段落来自广播，全书总数按需扫描正文目录', async () => {
   mockManuscript([
     { relativePath: '正文\\第001章.md', content: '他睁开眼。' },
@@ -121,6 +140,11 @@ test('点字数开稿件卡：本章字数/段落来自广播，全书总数按�
     const card = container.querySelector('[data-testid="manuscript-card"]');
     assert.ok(card, '点字数应展开稿件卡');
     assert.equal(
+      container.querySelector('[data-testid="status-word-count"]')?.getAttribute('aria-controls'),
+      'manuscript-card',
+    );
+    assert.ok(card.querySelector('[aria-label="关闭稿件进度"]'));
+    assert.equal(
       card.querySelector('[data-testid="manuscript-chapter-chars"]')?.textContent,
       '2,048 字',
     );
@@ -134,11 +158,15 @@ test('点字数开稿件卡：本章字数/段落来自广播，全书总数按�
       '12 字',
     );
 
-    // 再点一次收起。
+    // 卡片内的关闭按钮也应收起，并把入口语义恢复为闭合态。
     await act(async () => {
-      container.querySelector<HTMLButtonElement>('[data-testid="status-word-count"]')?.click();
+      card.querySelector<HTMLButtonElement>('[aria-label="关闭稿件进度"]')?.click();
     });
     assert.equal(container.querySelector('[data-testid="manuscript-card"]'), null);
+    assert.equal(
+      container.querySelector('[data-testid="status-word-count"]')?.getAttribute('aria-controls'),
+      null,
+    );
   } finally {
     cleanup();
   }
@@ -179,6 +207,10 @@ test('设了日更目标就按今日已存字数画进度，超额封顶 100%', 
     assert.equal(
       card?.querySelector('[data-testid="manuscript-goal-bar"]')?.getAttribute('data-progress'),
       '100',
+    );
+    assert.equal(
+      card?.querySelector('[data-testid="manuscript-goal-bar"]')?.getAttribute('role'),
+      'progressbar',
     );
   } finally {
     cleanup();

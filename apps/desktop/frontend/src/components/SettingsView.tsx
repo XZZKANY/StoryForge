@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import {
   DEFAULT_APP_SETTINGS,
   sanitizeAppSettings,
@@ -29,6 +37,7 @@ type SettingsViewProps = {
   settings: AppSettings;
   onChange: (settings: AppSettings) => void;
   onClose: () => void;
+  fallbackFocusRef?: RefObject<HTMLElement>;
 };
 
 type ProbeState = 'idle' | 'loading' | ProviderHealth;
@@ -58,7 +67,20 @@ const PROSE_MEASURE_OPTIONS: ReadonlyArray<{ value: ProseMeasure; label: string 
 // 设置搜索：RowShell 按标题+描述自过滤，空查询显示全部。
 const SettingsSearchContext = createContext('');
 
-export function SettingsView({ settings, onChange, onClose }: SettingsViewProps) {
+export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: SettingsViewProps) {
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const opener = document.activeElement;
+    const fallback = fallbackFocusRef?.current;
+    searchRef.current?.focus();
+    return () => {
+      const target =
+        opener instanceof HTMLElement && opener.isConnected && opener !== document.body
+          ? opener
+          : fallback;
+      if (target?.isConnected) target.focus({ preventScroll: true });
+    };
+  }, [fallbackFocusRef]);
   const safeSettings = sanitizeAppSettings(settings);
   const [secretInput, setSecretInput] = useState('');
   const [polishSecretInput, setPolishSecretInput] = useState('');
@@ -172,15 +194,6 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
     return () => window.clearTimeout(timer);
   }, [polishSaveState]);
 
-  // #15：设置由页面式改弹出式，Esc 关闭。
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const saveProviderConfig = async () => {
     setSaveState('loading');
     setSaveError('');
@@ -291,12 +304,63 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
       onMouseDown={onClose}
     >
       <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
         className="flex h-[85vh] max-h-[760px] w-full max-w-[940px] overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-[var(--shadow-dropdown)]"
         data-testid="settings-view"
         onMouseDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          // 设置里的按键不交给背景工作区；保留输入控件的复制、粘贴与原生选择行为。
+          event.stopPropagation();
+          if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            onClose();
+          }
+          if (event.key !== 'Tab') return;
+          const container = event.currentTarget;
+          const focusables = Array.from(
+            container.querySelectorAll<HTMLElement>(
+              'button, a[href], input, select, textarea, summary, [tabindex]',
+            ),
+          ).filter((element) => {
+            if (
+              element.tabIndex < 0 ||
+              element.matches(':disabled') ||
+              element.closest('[hidden], [inert]')
+            )
+              return false;
+            for (
+              let parent: HTMLElement | null = element;
+              parent && parent !== container;
+              parent = parent.parentElement
+            ) {
+              const style = getComputedStyle(parent);
+              if (style.display === 'none' || style.visibility === 'hidden') return false;
+              if (
+                parent.tagName === 'DETAILS' &&
+                !parent.hasAttribute('open') &&
+                !element.closest('summary')
+              )
+                return false;
+            }
+            return true;
+          });
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        }}
       >
-        <aside className="flex w-[240px] flex-shrink-0 flex-col border-r border-border bg-panel px-3 py-3">
+        <aside className="hidden w-48 flex-shrink-0 flex-col border-r border-border bg-panel px-3 py-3 sm:flex">
           <button
+            type="button"
             className="mb-5 flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-muted hover:bg-elevated hover:text-foreground"
             onClick={onClose}
             data-testid="settings-close"
@@ -323,10 +387,26 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
 
         <main className="min-w-0 flex-1 overflow-y-auto">
           <SettingsSearchContext.Provider value={searchQuery}>
-            <div className="mx-auto w-full max-w-[850px] px-8 py-8">
-              <h1 className="mb-4 text-xl font-semibold text-foreground">设置</h1>
+            <div className="mx-auto w-full max-w-[850px] px-6 py-6">
+              <button
+                type="button"
+                className="mb-3 flex h-8 items-center gap-2 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-foreground sm:hidden"
+                onClick={onClose}
+                aria-label="返回并关闭设置"
+                data-testid="settings-close-mobile"
+              >
+                <span className="text-lg leading-none" aria-hidden="true">
+                  ‹
+                </span>
+                <span>返回</span>
+              </button>
+              <h1 id="settings-title" className="mb-4 text-xl font-semibold text-foreground">
+                设置
+              </h1>
 
               <input
+                ref={searchRef}
+                aria-label="搜索设置"
                 type="text"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
@@ -352,7 +432,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                   <SettingCard>
                     <SelectRow
                       title="服务类型"
-                      description="保存后由桌面主进程注入后端 STORYFORGE_LLM_PROVIDER。"
+                      description="选择你使用的 AI 服务。"
                       value={safeSettings.provider.kind}
                       onChange={(value) => {
                         const nextKind = toProviderKind(value);
@@ -368,7 +448,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                     />
                     <TextRow
                       title="服务地址"
-                      description="OpenAI-compatible 服务通常填写到 /v1；保存后注入 STORYFORGE_LLM_BASE_URL。"
+                      description="使用服务商提供的 API 地址；兼容服务通常填写到 /v1。"
                       value={safeSettings.provider.baseUrl}
                       placeholder="https://api.openai.com"
                       onChange={(value) =>
@@ -378,7 +458,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                     />
                     <TextRow
                       title="默认模型"
-                      description="保存后注入 STORYFORGE_LLM_MODEL。"
+                      description="填写模型名称，或用下方探测功能选择。"
                       value={safeSettings.provider.model}
                       placeholder="例如 gpt-4.1、deepseek-chat 或本地模型名"
                       onChange={(value) =>
@@ -399,7 +479,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                       description={
                         storedConfig?.hasApiKey
                           ? '已保存在本机配置文件；输入新 key 可覆盖。'
-                          : '保存后由桌面主进程注入 STORYFORGE_LLM_API_KEY，不写入 localStorage。'
+                          : '填写服务商提供的密钥，仅保存在本机配置文件中。'
                       }
                       value={secretInput}
                       placeholder={
@@ -409,10 +489,9 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                       testId="provider-api-key"
                       type="password"
                     />
-                    <ProviderRuntimeEnvNotice />
                     <ActionRow
-                      title="应用到本机后端"
-                      description="保存到本机即写入 llm-provider.json，后端下次调用即读取生效，无需重启。"
+                      title="保存模型配置"
+                      description="保存后，下一次模型调用即生效，无需重启。"
                       actionLabel={saveState === 'loading' ? '保存中' : '保存并应用'}
                       onAction={saveProviderConfig}
                       disabled={saveState === 'loading'}
@@ -434,6 +513,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                       />
                     )}
                     <ProbeRow state={probe} onProbe={runProbe} />
+                    <ProviderRuntimeEnvNotice />
                   </SettingCard>
                 </SettingGroup>
 
@@ -497,7 +577,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                     />
                     <ActionRow
                       title="应用专用润色模型"
-                      description="保存到 llm-provider.json 的 polish 槽位，不覆盖主模型配置。"
+                      description="单独保存润色配置，不覆盖主对话模型。"
                       actionLabel={polishSaveState === 'loading' ? '保存中' : '保存并应用'}
                       onAction={savePolishProviderConfig}
                       disabled={polishSaveState === 'loading'}
@@ -663,13 +743,17 @@ function ModelDetectRow({
       <RowShell
         title="探测可用模型"
         description="按当前服务地址 + API Key 拉取模型列表（会先保存当前配置）。"
+        descriptionId="provider-detect-models-description"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {status && (
             <span
               className={`max-w-[280px] truncate text-xs ${
                 state === 'error' ? 'text-error' : 'text-subtle'
               }`}
+              role={state === 'error' ? 'alert' : 'status'}
+              aria-live={state === 'error' ? 'assertive' : 'polite'}
+              aria-busy={state === 'loading'}
               data-testid="provider-detect-status"
             >
               {status}
@@ -678,6 +762,7 @@ function ModelDetectRow({
           <button
             type="button"
             onClick={onDetect}
+            aria-describedby="provider-detect-models-description"
             disabled={state === 'loading'}
             className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
             data-testid="provider-detect-models"
@@ -725,12 +810,16 @@ function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }
   return (
     <RowShell
       title="测试连接"
-      description="探测后端 STORYFORGE_LLM_* resolved_llm_env；刚保存配置后可直接测试。"
+      description="检查已保存的配置能否连接服务；修改后请先保存再测试。"
+      descriptionId="provider-health-probe-description"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {state !== 'idle' && (
           <span
             className={`max-w-[280px] truncate text-xs ${state === 'loading' ? 'text-subtle' : toneClass}`}
+            role={state !== 'loading' && display?.tone === 'error' ? 'alert' : 'status'}
+            aria-live={state !== 'loading' && display?.tone === 'error' ? 'assertive' : 'polite'}
+            aria-busy={state === 'loading'}
             data-testid="provider-health-status"
           >
             {state === 'loading' ? '检测中…' : display?.label}
@@ -739,6 +828,7 @@ function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }
         <button
           type="button"
           onClick={onProbe}
+          aria-describedby="provider-health-probe-description"
           disabled={state === 'loading'}
           className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
           data-testid="provider-health-probe"
@@ -751,20 +841,23 @@ function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }
 }
 
 function ProviderRuntimeEnvNotice() {
-  // 真相源 badge 恒显 env 源；保存成功/失败反馈移到下方「应用到本机后端」ActionRow，且数秒后自清，
-  // 不再劫持本行标签永久停在「已保存」。
+  const query = useContext(SettingsSearchContext).trim().toLowerCase();
+  const description = `配置保存在本机 llm-provider.json，由桌面应用提供给后端。真实模型调用读取后端环境变量（STORYFORGE_LLM_*）：${PROVIDER_RUNTIME_ENV_VARS.join('、')}。密钥不写入浏览器 localStorage。`;
+  if (query && !`连接与存储详情 ${description}`.toLowerCase().includes(query)) return null;
   return (
-    <RowShell
-      title="运行时真相源"
-      description={`真实模型调用读取后端环境变量：${PROVIDER_RUNTIME_ENV_VARS.join('、')}。`}
+    <details
+      className="border-t border-border px-4 py-3 text-xs text-muted"
+      data-testid="provider-runtime-details"
+      open={Boolean(query)}
     >
-      <span
-        className="inline-flex h-7 items-center rounded-md border border-border bg-surface px-2 text-xs text-muted"
-        data-testid="provider-runtime-env-source"
-      >
-        桌面注入
-      </span>
-    </RowShell>
+      <summary className="cursor-pointer rounded-sm py-1 hover:text-foreground">
+        连接与存储详情
+        <span className="ml-2 text-muted" data-testid="provider-runtime-env-source">
+          桌面注入
+        </span>
+      </summary>
+      <p className="mt-2 break-words leading-relaxed">{description}</p>
+    </details>
   );
 }
 
@@ -791,20 +884,35 @@ function RowShell({
   title,
   description,
   children,
+  controlId,
+  descriptionId,
 }: {
   title: string;
   description: string;
   children: ReactNode;
+  controlId?: string;
+  descriptionId?: string;
 }) {
   const query = useContext(SettingsSearchContext).trim().toLowerCase();
   if (query && !`${title} ${description}`.toLowerCase().includes(query)) return null;
   return (
-    <div className="flex min-h-[76px] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0">
+    <div className="flex min-h-[76px] flex-col items-stretch gap-2 border-b border-border px-4 py-3 last:border-b-0 sm:flex-row sm:items-center sm:gap-4">
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-foreground">{title}</div>
-        <div className="mt-1 text-sm leading-5 text-muted">{description}</div>
+        {controlId ? (
+          <label htmlFor={controlId} className="text-sm font-medium text-foreground">
+            {title}
+          </label>
+        ) : (
+          <div className="text-sm font-medium text-foreground">{title}</div>
+        )}
+        <div
+          id={descriptionId ?? (controlId ? `${controlId}-description` : undefined)}
+          className="mt-1 text-xs leading-relaxed text-muted"
+        >
+          {description}
+        </div>
       </div>
-      <div className="flex-shrink-0">{children}</div>
+      <div className="w-full sm:w-auto sm:flex-shrink-0">{children}</div>
     </div>
   );
 }
@@ -865,10 +973,12 @@ function RangeRow({
   onChange: (value: number) => void;
 }) {
   return (
-    <RowShell title={title} description={description}>
+    <RowShell title={title} description={description} controlId={testId}>
       <div className="flex items-center gap-3">
         <input
           type="range"
+          id={testId}
+          aria-describedby={`${testId}-description`}
           min={min}
           max={max}
           step={step}
@@ -903,13 +1013,15 @@ function TextRow({
   type?: 'text' | 'password';
 }) {
   return (
-    <RowShell title={title} description={description}>
+    <RowShell title={title} description={description} controlId={testId}>
       <input
         type={type}
+        id={testId}
+        aria-describedby={`${testId}-description`}
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-8 w-[260px] rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none placeholder:text-subtle focus:border-accent"
+        className="h-8 w-full max-w-full rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none placeholder:text-subtle focus:border-accent sm:w-[260px]"
         style={{
           boxShadow: 'var(--shadow-inset)',
           transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
@@ -943,11 +1055,13 @@ function SelectRow({
   testId: string;
 }) {
   return (
-    <RowShell title={title} description={description}>
+    <RowShell title={title} description={description} controlId={testId}>
       <select
+        id={testId}
+        aria-describedby={`${testId}-description`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-8 w-[180px] rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-accent"
+        className="h-8 w-full max-w-full rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-accent sm:w-[180px]"
         style={{
           boxShadow: 'var(--shadow-inset)',
           transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
@@ -993,7 +1107,7 @@ function ActionRow({
 }) {
   return (
     <RowShell title={title} description={description}>
-      <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap items-center justify-end gap-2.5">
         {status && (
           <span
             className={`max-w-[220px] truncate text-xs ${
@@ -1005,6 +1119,7 @@ function ActionRow({
           </span>
         )}
         <button
+          type="button"
           className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
           onClick={onAction}
           disabled={disabled}

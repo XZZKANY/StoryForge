@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
 import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
 import { buildPatchHunks, type PatchHunk } from '../lib/patch-hunks';
@@ -10,12 +10,14 @@ type PatchReviewPanelProps = {
   // 接受/拒绝这块 diff 是要逐字核对的决策界面：字号跟随编辑器设置、字体用 CJK 2:1 栈避免中英错位。
   editorFontSize: number;
   editorFontFamily: string;
-  onAccept: () => void;
-  onAcceptHunk: (hunk: PatchHunk) => void;
-  onReject: (direction: string) => void;
-  onSaveNote: () => void;
+  onAccept: () => void | Promise<void>;
+  onAcceptHunk: (hunk: PatchHunk) => void | Promise<void>;
+  onReject: (direction: string) => void | Promise<void>;
+  onSaveNote: () => void | Promise<void>;
   onRetryWithoutKnowledge: (knowledgeId: string, relativePath: string) => void;
 };
+
+type PatchAction = 'accept' | 'hunk' | 'note' | 'reject';
 
 type DiffStats = {
   addedLines: number;
@@ -74,8 +76,15 @@ export function PatchReviewPanel({
   onRetryWithoutKnowledge,
 }: PatchReviewPanelProps) {
   const [expanded, setExpanded] = useState(false);
+  const [busyAction, setBusyAction] = useState<{ kind: PatchAction; suggestionId: string } | null>(
+    null,
+  );
+  const busyActionRef = useRef<PatchAction | null>(null);
   // null = 没在否；'' = 展开了输入框但还没写字。
   const [rejectDraft, setRejectDraft] = useState<string | null>(null);
+  const rejectTriggerRef = useRef<HTMLButtonElement>(null);
+  const patchDiffId = useId();
+  const rejectFormId = useId();
   const stats = useMemo(
     () => diffStats(suggestion.before, suggestion.after),
     [suggestion.before, suggestion.after],
@@ -86,12 +95,40 @@ export function PatchReviewPanel({
   );
   const traceTitle = useMemo(() => buildPatchReviewTraceTitle(suggestion), [suggestion]);
 
+  useEffect(() => {
+    // A reused panel must not expose the previous patch's open diff or rejection draft.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExpanded(false);
+    setRejectDraft(null);
+  }, [suggestion.id]);
+
+  // Native `disabled` prevents ordinary clicks, while the ref closes the same-tick gap
+  // where two dispatched clicks can arrive before React commits the busy state.
+  const runAction = useCallback(
+    async (action: PatchAction, callback: () => void | Promise<void>) => {
+      if (busyActionRef.current !== null) return;
+      busyActionRef.current = action;
+      setBusyAction({ kind: action, suggestionId: suggestion.id });
+      try {
+        await callback();
+      } finally {
+        busyActionRef.current = null;
+        setBusyAction(null);
+      }
+    },
+    [suggestion.id],
+  );
+
   // 发出即收起：面板通常随补丁一起消失，但同一实例换下一个补丁时不该还留着上一条草稿。
   const submitRejection = () => {
-    if (rejectDraft === null) return;
+    // Enter can arrive before disabled renders; reject busy attempts before touching the draft.
+    if (rejectDraft === null || busyActionRef.current !== null) return;
     const direction = rejectDraft;
     setRejectDraft(null);
-    onReject(direction);
+    // The input is removed immediately after submit. Keep keyboard users anchored
+    // on the action that opened it while the async rejection is being handled.
+    rejectTriggerRef.current?.focus({ preventScroll: true });
+    void runAction('reject', () => onReject(direction));
   };
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -157,9 +194,16 @@ export function PatchReviewPanel({
     <div
       className="border-t border-border bg-panel animate-slide-up-fade flex-shrink-0"
       data-testid="patch-review"
+      role="region"
+      aria-label={`待确认补丁：${suggestion.title}`}
+      aria-busy={busyAction !== null}
     >
-      <div className="px-3 py-2 flex items-start justify-between gap-3">
-        <div className="min-w-0" title={traceTitle} data-testid="patch-trace">
+      <div className="px-3 py-2 flex flex-wrap items-start justify-between gap-3">
+        <div
+          className="min-w-0 flex-1 basis-64 break-words"
+          title={traceTitle}
+          data-testid="patch-trace"
+        >
           <p className="text-xs font-semibold text-warning">{suggestion.title}</p>
           <p className="mt-1 text-xs text-muted">{suggestion.summary}</p>
           {suggestion.scopeWarning && (
@@ -168,7 +212,9 @@ export function PatchReviewPanel({
             </p>
           )}
           <div className="mt-1 flex flex-wrap gap-2 text-2xs text-muted" data-testid="patch-meta">
-            <span data-testid="patch-file">{suggestion.filePath}</span>
+            <span className="break-all" data-testid="patch-file">
+              {suggestion.filePath}
+            </span>
             <span data-testid="patch-stats">
               +{stats.addedLines} / -{stats.removedLines}
             </span>
@@ -195,7 +241,8 @@ export function PatchReviewPanel({
                     <button
                       type="button"
                       onClick={() => onRetryWithoutKnowledge(entry.knowledgeId, entry.relativePath)}
-                      className="text-accent hover:underline"
+                      disabled={busyAction !== null}
+                      className="text-accent hover:underline disabled:cursor-wait disabled:opacity-50"
                       data-testid="patch-knowledge-retry"
                     >
                       移除并重试
@@ -206,32 +253,65 @@ export function PatchReviewPanel({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div
+          className="ml-auto flex max-w-full flex-wrap items-center gap-2"
+          role="group"
+          aria-label="补丁操作"
+        >
+          {busyAction && (
+            <span
+              className="text-2xs text-muted"
+              data-testid="patch-action-status"
+              role="status"
+              aria-live="polite"
+            >
+              {busyAction.suggestionId !== suggestion.id
+                ? '正在完成上一份修订的操作…'
+                : busyAction.kind === 'note'
+                  ? '正在保存旁注…'
+                  : busyAction.kind === 'reject'
+                    ? '正在提交拒绝…'
+                    : '正在写回…'}
+            </span>
+          )}
           <button
+            type="button"
             onClick={() => setExpanded((value) => !value)}
             data-testid="patch-expand"
-            className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-elevated transition-colors"
+            aria-expanded={expanded}
+            aria-controls={patchDiffId}
+            disabled={busyAction !== null}
+            className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-elevated transition-colors disabled:cursor-wait disabled:opacity-50"
           >
             {expanded ? '收起' : '展开'}
           </button>
           <button
-            onClick={onAccept}
+            type="button"
+            onClick={() => void runAction('accept', onAccept)}
             data-testid="suggestion-accept"
-            className="text-xs px-2.5 py-1 rounded-md bg-accent text-accent-foreground hover:opacity-90 active:opacity-100 transition-opacity"
+            disabled={busyAction !== null}
+            className="text-xs px-2.5 py-1 rounded-md bg-accent text-accent-foreground hover:opacity-90 active:opacity-100 transition-opacity disabled:cursor-wait disabled:opacity-50"
           >
             接受
           </button>
           <button
-            onClick={onSaveNote}
+            type="button"
+            onClick={() => void runAction('note', onSaveNote)}
             data-testid="suggestion-note"
-            className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-elevated transition-colors"
+            disabled={busyAction !== null}
+            className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-elevated transition-colors disabled:cursor-wait disabled:opacity-50"
           >
             保存旁注
           </button>
           <button
+            ref={rejectTriggerRef}
+            type="button"
             onClick={() => setRejectDraft((value) => (value === null ? '' : null))}
             data-testid="suggestion-reject"
-            className="text-xs px-2.5 py-1 rounded-md text-muted hover:text-foreground hover:bg-elevated transition-colors"
+            aria-expanded={rejectDraft !== null}
+            aria-controls={rejectDraft !== null ? rejectFormId : undefined}
+            disabled={busyAction !== null}
+            className="text-xs px-2.5 py-1 rounded-md text-muted hover:text-foreground hover:bg-elevated transition-colors disabled:cursor-wait disabled:opacity-50"
           >
             拒绝
           </button>
@@ -241,21 +321,27 @@ export function PatchReviewPanel({
         <div
           className="flex items-center gap-2 border-t border-border px-3 py-2"
           data-testid="patch-reject-form"
+          id={rejectFormId}
+          role="group"
+          aria-label="拒绝修订并提供修改方向"
         >
           <input
             autoFocus
             value={rejectDraft}
             onChange={(event) => setRejectDraft(event.target.value)}
             onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return;
               if (event.key === 'Enter') {
                 event.preventDefault();
                 submitRejection();
               } else if (event.key === 'Escape') {
                 event.preventDefault();
                 setRejectDraft(null);
+                rejectTriggerRef.current?.focus({ preventScroll: true });
               }
             }}
             data-testid="patch-reject-input"
+            aria-label="修改方向（可选）"
             // 问的是「该怎么改」而不是「为什么拒绝」：前者朝向下一版，后者只是归档。
             placeholder="说说该怎么改（回车发出，留空则只否掉这版）"
             className="min-w-0 flex-1 rounded-md border border-border bg-elevated px-2 py-1 text-xs text-foreground transition-colors placeholder:text-muted focus:border-accent focus:outline-none"
@@ -264,7 +350,8 @@ export function PatchReviewPanel({
             type="button"
             onClick={submitRejection}
             data-testid="patch-reject-confirm"
-            className="flex-shrink-0 rounded-md border border-border px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-elevated"
+            disabled={busyAction !== null}
+            className="flex-shrink-0 rounded-md border border-border px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-elevated disabled:cursor-wait disabled:opacity-50"
           >
             {rejectDraft.trim() ? '否掉并重来' : '否掉'}
           </button>
@@ -276,9 +363,10 @@ export function PatchReviewPanel({
             <button
               key={hunk.id}
               type="button"
-              onClick={() => onAcceptHunk(hunk)}
+              onClick={() => void runAction('hunk', () => onAcceptHunk(hunk))}
+              disabled={busyAction !== null}
               data-testid="suggestion-accept-hunk"
-              className="rounded-md border border-border px-2 py-1 text-foreground transition-colors hover:bg-elevated"
+              className="rounded-md border border-border px-2 py-1 text-foreground transition-colors hover:bg-elevated disabled:cursor-wait disabled:opacity-50"
               title={`第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`}
             >
               接受第 {index + 1} 处 · 第 {hunk.originalStartIndex + 1} 行
@@ -289,6 +377,9 @@ export function PatchReviewPanel({
       <div
         ref={containerRef}
         data-testid="patch-diff"
+        id={patchDiffId}
+        role="region"
+        aria-label="补丁差异"
         className="border-t border-border w-full"
         style={{ height: expanded ? 420 : 200 }}
       />

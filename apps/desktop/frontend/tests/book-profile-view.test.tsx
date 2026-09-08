@@ -101,6 +101,42 @@ test('没起过书名时用目录名占位，不显示空白标题', async () =>
   assert.equal(input.placeholder, '末世吞噬');
 });
 
+test('作品档案编辑控件都有明确的可访问名称', async () => {
+  await renderView(makeHandle());
+  const title = byTestId('book-title-input') as HTMLInputElement;
+  const tag = byTestId('book-tag-input') as HTMLInputElement;
+  const synopsis = byTestId('book-synopsis-input') as HTMLTextAreaElement;
+  const goal = byTestId('book-word-goal-input') as HTMLInputElement;
+  const note = byTestId('book-note-input') as HTMLInputElement;
+  const cover = byTestId('book-cover-slot') as HTMLButtonElement;
+
+  assert.equal(title.labels?.[0]?.textContent?.trim(), '书名');
+  assert.equal(tag.labels?.[0]?.textContent?.trim(), '添加题材');
+  assert.equal(synopsis.getAttribute('aria-labelledby'), 'book-section-toggle-synopsis');
+  assert.equal(goal.getAttribute('aria-labelledby'), 'book-word-goal-label');
+  assert.equal(note.getAttribute('aria-labelledby'), 'book-section-toggle-notes');
+  assert.equal(cover.getAttribute('aria-label'), '添加封面');
+});
+
+test('鼠标悬停隐藏的移除控件在键盘焦点下保持可见', async () => {
+  await renderView(
+    makeHandle({
+      profile: { ...emptyBookProfile(), tags: ['悬疑'] },
+      notes: [{ line: 1, text: '补一处伏笔', done: false }],
+    }),
+  );
+  const tagRemove = container!.querySelector<HTMLButtonElement>('[aria-label="移除题材 悬疑"]');
+  const noteRemove = container!.querySelector<HTMLButtonElement>(
+    '[aria-label="删除速记 补一处伏笔"]',
+  );
+  assert.ok(tagRemove);
+  assert.ok(noteRemove);
+  assert.match(tagRemove.className, /group-focus-within:opacity-100/);
+  assert.match(tagRemove.className, /focus-visible:opacity-100/);
+  assert.match(noteRemove.className, /group-focus-within:opacity-100/);
+  assert.match(noteRemove.className, /focus-visible:opacity-100/);
+});
+
 test('未设全书目标就不渲染进度条——不画一条永远 0% 的条', async () => {
   await renderView(makeHandle());
   assert.equal(byTestId('book-goal-bar'), null);
@@ -109,7 +145,11 @@ test('未设全书目标就不渲染进度条——不画一条永远 0% 的条'
 
 test('设了目标才出现进度条，并按已写字数给出百分比', async () => {
   await renderView(makeHandle({ profile: { ...emptyBookProfile(), wordGoal: 1000000 } }));
-  assert.equal(byTestId('book-goal-bar')?.dataset.progress, '12');
+  const bar = byTestId('book-goal-bar');
+  assert.equal(bar?.dataset.progress, '12');
+  assert.equal(bar?.getAttribute('role'), 'progressbar');
+  assert.equal(bar?.getAttribute('aria-label'), '全书目标完成度');
+  assert.equal(bar?.getAttribute('aria-valuenow'), '12');
 });
 
 test('统计失败就说失败，绝不拿 0 字冒充一本空书', async () => {

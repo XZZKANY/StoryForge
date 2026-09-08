@@ -3,7 +3,7 @@
  * 观测未接线时必须保留 unavailable 状态，不能把无数据表达成零问题。
  * 字体 / 主题切换已移入设置（外观 / 编辑器），状态栏不再放这两个开关（#14）。
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { probeApiRuntimeHealth } from '../../lib/api/runtime-health';
 import { projectBasename } from '../../lib/project-context';
 import { ManuscriptCard } from './ManuscriptCard';
@@ -28,6 +28,8 @@ export function StatusBar({
   obs,
   observationAvailability = 'unavailable',
   onToggleObs,
+  obsTriggerRef,
+  observationOpen = false,
 }: {
   modelLabel: string;
   projectOpen: boolean;
@@ -36,6 +38,8 @@ export function StatusBar({
   obs: { error: number; warning: number; advisory: number; total: number };
   observationAvailability?: ObservationAvailability;
   onToggleObs: () => void;
+  obsTriggerRef?: RefObject<HTMLButtonElement>;
+  observationOpen?: boolean;
 }) {
   const [healthProbe, setHealthProbe] = useState<HealthProbeState>({ kind: 'pending' });
   const [textMetrics, setTextMetrics] = useState<EditorTextMetricsDetail | null>(null);
@@ -86,27 +90,46 @@ export function StatusBar({
       : observationAvailability === 'error'
         ? '观测加载失败'
         : '观测尚未启用';
+  const observationButtonLabel =
+    observationAvailability !== 'available'
+      ? `打开观测清单：${unavailableObservationLabel}`
+      : obs.total > 0
+        ? `打开观测清单：${obs.total} 项未处理`
+        : '打开观测清单：无未处理观测';
 
   return (
     <footer
-      className="relative flex h-[26px] flex-shrink-0 items-center gap-4 border-t border-border bg-panel px-3 text-2xs text-subtle"
+      className="relative flex h-[26px] flex-shrink-0 items-center gap-4 border-t border-border bg-panel px-3 text-2xs text-subtle max-[480px]:gap-2 max-[480px]:px-2"
       style={{ boxShadow: '0 -1px 3px rgb(0 0 0 / 0.05)' }}
       data-testid="shell-status-bar"
     >
-      <span className="flex items-center gap-1.5" data-testid="status-sidecar">
-        <span className={`h-[7px] w-[7px] rounded-full ${dotClass}`} />
-        <span>{connLabel}</span>
+      <span
+        className="flex min-w-0 flex-shrink items-center gap-1.5 whitespace-nowrap"
+        data-testid="status-sidecar"
+        role="status"
+        aria-live="polite"
+      >
+        <span
+          className={`h-[7px] w-[7px] flex-shrink-0 rounded-full ${dotClass}`}
+          aria-hidden="true"
+        />
+        <span className="min-w-0 truncate">{connLabel}</span>
       </span>
-      {modelLabel && <span className="font-mono text-3xs">{modelLabel}</span>}
+      {modelLabel && (
+        <span className="min-w-0 max-w-[30vw] truncate font-mono text-3xs" title={modelLabel}>
+          {modelLabel}
+        </span>
+      )}
       <span className="flex-1" />
       {projectOpen && textMetrics?.filePath && (
         <button
           ref={wordCountRef}
           type="button"
-          className="rounded-sm px-1.5 py-px tabular-nums hover:bg-elevated hover:text-foreground"
+          className="min-w-0 max-w-[42vw] flex-shrink truncate whitespace-nowrap rounded-sm px-1.5 py-px tabular-nums hover:bg-elevated hover:text-foreground"
           title="正文字数（不含空白字符）· 点击查看稿件进度"
           aria-haspopup="dialog"
           aria-expanded={cardOpen}
+          aria-controls={cardOpen ? 'manuscript-card' : undefined}
           onClick={() => setCardOpen((open) => !open)}
           data-testid="status-word-count"
         >
@@ -129,26 +152,33 @@ export function StatusBar({
       )}
       {projectOpen && (
         <button
-          className="flex items-center gap-2 rounded-sm px-1.5 py-px hover:bg-elevated hover:text-foreground"
+          type="button"
+          ref={obsTriggerRef}
+          className="flex min-w-0 max-w-[42vw] flex-shrink items-center gap-2 overflow-hidden rounded-sm px-1.5 py-px whitespace-nowrap hover:bg-elevated hover:text-foreground"
           onClick={onToggleObs}
           title="观测清单"
+          aria-label={observationButtonLabel}
+          aria-expanded={observationOpen}
+          aria-controls={observationOpen ? 'obs-panel' : undefined}
           data-testid="status-obs"
         >
           {observationAvailability !== 'available' ? (
-            <span className={observationAvailability === 'error' ? 'text-error' : 'text-subtle'}>
+            <span
+              className={`min-w-0 truncate ${observationAvailability === 'error' ? 'text-error' : 'text-subtle'}`}
+            >
               {unavailableObservationLabel}
             </span>
           ) : obs.total > 0 ? (
-            <span className="flex items-center gap-1.5">
-              <span className="h-[7px] w-[7px] rounded-full bg-error" />
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="h-[7px] w-[7px] rounded-full bg-error" aria-hidden="true" />
               <span>{obs.error}</span>
-              <span className="h-[7px] w-[7px] rounded-full bg-warning" />
+              <span className="h-[7px] w-[7px] rounded-full bg-warning" aria-hidden="true" />
               <span>{obs.warning}</span>
-              <span className="h-[7px] w-[7px] rounded-full bg-agent" />
+              <span className="h-[7px] w-[7px] rounded-full bg-agent" aria-hidden="true" />
               <span>{obs.advisory}</span>
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-success">
+            <span className="flex min-w-0 items-center gap-1 truncate text-success">
               <Check size={12} strokeWidth={2} />
               无未处理观测
             </span>

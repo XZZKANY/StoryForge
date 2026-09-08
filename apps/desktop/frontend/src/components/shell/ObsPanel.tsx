@@ -5,6 +5,7 @@
  * advisory / 深度一致性信号尚未上提到 App 级 store，因此默认明确显示 unavailable。
  * 只有调用方确认数据已经加载后，才可传入 available 并展示真实空态或观测列表。
  */
+import { useEffect, useRef } from 'react';
 import { Check, X } from '../icons/shell-icons';
 
 export type ObsSeverity = 'error' | 'warning' | 'advisory';
@@ -57,6 +58,7 @@ export function ObsPanel({
   onResolve: (id: string) => void;
   onLocate?: (observation: Observation) => void;
 }) {
+  const closeRef = useRef<HTMLButtonElement>(null);
   const counts = obsCounts(observations);
   const statusLabel =
     availability === 'unavailable'
@@ -69,27 +71,54 @@ export function ObsPanel({
             ? `${counts.total} 未处理`
             : '全部处理完';
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      closeRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
   return (
     <div
+      id="obs-panel"
       className="flex h-[212px] flex-shrink-0 flex-col border-t border-border bg-panel"
       data-testid="obs-panel"
+      role="region"
+      aria-labelledby="obs-panel-title"
+      onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          onClose();
+        }
+      }}
     >
       <div className="flex h-[30px] flex-shrink-0 items-center gap-3 border-b border-border px-3 text-2xs text-subtle">
-        <span className="font-semibold tracking-[0.06em]">观测</span>
+        <span id="obs-panel-title" className="font-semibold tracking-[0.06em]">
+          观测
+        </span>
         <span>改完一条勾一条 · 点击行定位原文</span>
         <span className="flex-1" />
         <span className="font-mono">{statusLabel}</span>
         <button
+          type="button"
+          ref={closeRef}
           className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
           onClick={onClose}
           title="关闭观测面板"
+          aria-label="关闭观测面板"
         >
           <X size={13} strokeWidth={1.7} />
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {availability !== 'available' ? (
-          <p className="px-4 py-4 text-2xs leading-relaxed text-subtle">
+          <p
+            className="px-4 py-4 text-2xs leading-relaxed text-subtle"
+            role={availability === 'error' ? 'alert' : 'status'}
+            aria-live={availability === 'error' ? 'assertive' : 'polite'}
+            aria-busy={availability === 'loading'}
+          >
             {availability === 'loading'
               ? '正在加载观测数据。'
               : availability === 'error'
@@ -111,25 +140,16 @@ export function ObsPanel({
               <span
                 className={`mt-[5px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${SEVERITY_DOT[obs.severity]}`}
               />
-              <span
-                className={`block min-w-0 flex-1 rounded-sm ${
+              <button
+                type="button"
+                className={`block min-w-0 flex-1 rounded-sm text-left ${
                   obs.anchor && onLocate ? 'cursor-pointer hover:bg-elevated' : ''
-                }`}
+                } disabled:cursor-default disabled:opacity-60`}
                 data-testid="obs-row-body"
-                role={obs.anchor && onLocate ? 'button' : undefined}
-                tabIndex={obs.anchor && onLocate ? 0 : undefined}
                 title={obs.anchor && onLocate ? '定位到原文' : undefined}
+                aria-label={obs.anchor && onLocate ? `定位到原文：${obs.title}` : undefined}
+                disabled={!obs.anchor || !onLocate}
                 onClick={obs.anchor && onLocate ? () => onLocate(obs) : undefined}
-                onKeyDown={
-                  obs.anchor && onLocate
-                    ? (event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          onLocate(obs);
-                        }
-                      }
-                    : undefined
-                }
               >
                 <span className="flex items-baseline gap-2 text-xs">
                   <span className={obs.resolved ? 'line-through' : ''}>{obs.title}</span>
@@ -147,14 +167,16 @@ export function ObsPanel({
                 {obs.source && (
                   <span className="mt-0.5 block font-mono text-3xs text-subtle">{obs.source}</span>
                 )}
-              </span>
+              </button>
               <button
+                type="button"
                 className={`mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border text-2xs transition-opacity ${
                   obs.resolved
                     ? 'border-success/40 bg-success/15 text-success opacity-100'
-                    : 'border-border text-subtle opacity-0 hover:border-success/50 hover:bg-success/15 hover:text-success focus-visible:opacity-100 group-hover:opacity-100'
+                    : 'border-border text-subtle opacity-0 hover:border-success/50 hover:bg-success/15 hover:text-success focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100'
                 }`}
                 title="标记已处理"
+                aria-label={`${obs.resolved ? '取消处理' : '标记已处理'}：${obs.title}`}
                 onClick={() => onResolve(obs.id)}
               >
                 <Check size={12} strokeWidth={2} />

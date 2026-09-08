@@ -49,6 +49,7 @@ export function useChatWindowState({
   const [contextCandidatesRetry, setContextCandidatesRetry] = useState(0);
   const [contextPickerOpen, setContextPickerOpen] = useState(false);
   const [sessionLoadError, setSessionLoadError] = useState<string | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionLoadRetry, setSessionLoadRetry] = useState(0);
   const [assistantSessions, setAssistantSessions] = useState<AssistantSessionRecord[]>([]);
   const [lastContextBundle, setLastContextBundle] = useState<ContextBundle | null>(null);
@@ -137,6 +138,8 @@ export function useChatWindowState({
     setContextPickerOpen,
     sessionLoadError,
     setSessionLoadError,
+    sessionLoading,
+    setSessionLoading,
     sessionLoadRetry,
     setSessionLoadRetry,
     assistantSessions,

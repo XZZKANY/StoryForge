@@ -5,14 +5,24 @@
  * 运行 / 等待中默认展开、完成 / 失败后自动收起；作者手动切换后以手动为准。
  */
 
-import { useState } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { AgentRun, AgentStep, AgentStepStatus } from './chat-window/types';
 
 export function AgentStepsPanel({ run }: { run: AgentRun }) {
   // null = 跟随运行状态；true/false = 作者手动覆盖。
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const contentId = `agent-steps-${useId().replace(/:/g, '')}`;
   const isTerminal = run.status === 'completed' || run.status === 'failed';
   const open = manualOpen ?? !isTerminal;
+
+  useLayoutEffect(() => {
+    if (open || !contentRef.current?.contains(document.activeElement)) return;
+    // 运行结束时内容会立刻变为 aria-hidden；把焦点留在折叠内容里会让键盘用户
+    // 看不见当前焦点，也无法通过 Tab 回到可见控件。
+    toggleRef.current?.focus({ preventScroll: true });
+  }, [open]);
 
   const stepCount = run.steps.length;
   const toolCount = run.steps.filter((step) => step.id.startsWith('tool-')).length;
@@ -22,28 +32,40 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
     <div className="mb-1">
       <button
         type="button"
+        ref={toggleRef}
         onClick={() => setManualOpen(!open)}
         className="flex h-[22px] w-full items-center gap-2 text-2xs text-subtle transition-colors hover:text-muted"
         data-testid="thinking-fold-toggle"
         aria-expanded={open}
+        aria-controls={contentId}
       >
-        <span className="text-xs text-agent">✦</span>
+        <span className="text-xs text-agent" aria-hidden="true">
+          ✦
+        </span>
         <span>
           {thinkingLabel} · {stepCount} 步{toolCount > 0 ? ` · ${toolCount} 工具` : ''}
         </span>
-        <span className={`text-3xs transition-transform ${open ? '' : '-rotate-90'}`}>▾</span>
+        <span
+          className={`text-3xs transition-transform ${open ? '' : '-rotate-90'}`}
+          aria-hidden="true"
+        >
+          ▾
+        </span>
       </button>
 
       {/* 流动折叠：grid 0fr→1fr，长内容不截断、短内容不空跑 */}
       <div
+        ref={contentRef}
         className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
           open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
         }`}
+        id={contentId}
+        aria-hidden={!open}
       >
         <div className="min-h-0 overflow-hidden">
           <div className="ml-[18px] mt-1 flex flex-col py-0.5">
             {run.steps.map((step) => (
-              <StepRow key={step.id} step={step} />
+              <StepRow key={step.id} step={step} interactive={open} />
             ))}
           </div>
         </div>
@@ -52,12 +74,14 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
   );
 }
 
-function StepRow({ step }: { step: AgentStep }) {
+function StepRow({ step, interactive }: { step: AgentStep; interactive: boolean }) {
   const [detailOpen, setDetailOpen] = useState(false);
+  const detailId = `agent-step-detail-${useId().replace(/:/g, '')}`;
   const isToolStep = step.id.startsWith('tool-');
   const hasDetail = step.detail.trim().length > 0;
   const metrics = step.metrics ?? [];
   const hasMetrics = metrics.length > 0;
+  const expanded = interactive && detailOpen;
 
   return (
     <div className="flex flex-col">
@@ -65,6 +89,9 @@ function StepRow({ step }: { step: AgentStep }) {
         type="button"
         onClick={() => hasDetail && setDetailOpen((value) => !value)}
         disabled={!hasDetail}
+        tabIndex={interactive ? undefined : -1}
+        aria-expanded={hasDetail ? expanded : undefined}
+        aria-controls={hasDetail ? detailId : undefined}
         className={`flex w-full items-baseline gap-2 rounded-sm px-1 py-px text-left font-mono text-2xs leading-5 ${
           hasDetail ? 'cursor-pointer hover:bg-elevated' : 'cursor-default'
         }`}
@@ -76,14 +103,8 @@ function StepRow({ step }: { step: AgentStep }) {
           {step.title}
         </span>
         {/* 有结构化指标时首行让位给 chip 行；仅纯文本 detail（如 plan step）仍在首行内联。 */}
-        {hasDetail && !hasMetrics && (
-          <span
-            className={`min-w-0 flex-1 text-subtle ${
-              detailOpen ? 'whitespace-pre-wrap break-words' : 'truncate'
-            }`}
-          >
-            {step.detail}
-          </span>
+        {hasDetail && !hasMetrics && !expanded && (
+          <span className="min-w-0 flex-1 truncate text-subtle">{step.detail}</span>
         )}
       </button>
 
@@ -102,6 +123,18 @@ function StepRow({ step }: { step: AgentStep }) {
               <span className="text-foreground">{metric.value}</span>
             </span>
           ))}
+        </div>
+      )}
+
+      {hasDetail && (
+        <div
+          id={detailId}
+          role="region"
+          aria-label={`${step.title} 详情`}
+          hidden={!expanded}
+          className="ml-[18px] whitespace-pre-wrap break-words py-0.5 text-2xs leading-5 text-subtle"
+        >
+          {step.detail}
         </div>
       )}
     </div>

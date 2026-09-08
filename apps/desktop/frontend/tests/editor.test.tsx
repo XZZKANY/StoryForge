@@ -76,7 +76,7 @@ test('外部 flush 事件读取最新保存闭包，不沿用首个标签的分�
   assert.match(editorSource, /saveCurrentFileRef\.current = saveCurrentFile/);
   assert.match(
     editorSource,
-    /REQUEST_SAVE_ACTIVE_FILE_EVENT[\s\S]*?saveCurrentFileRef\s*\.\s*current\(\)/,
+    /REQUEST_SAVE_ACTIVE_FILE_EVENT[\s\S]*?saveCurrentFileRef\s*\.\s*current\(target\)/,
   );
 });
 
@@ -90,6 +90,9 @@ test('异步文件读取期间明确显示 loading，失败后显示错误而不
   );
   assert.match(loading, /data-testid="editor-loading"/);
   assert.match(loading, /正在读取文件/);
+  assert.match(loading, /role="status"/);
+  assert.match(loading, /aria-live="polite"/);
+  assert.match(loading, /aria-busy="true"/);
 
   const failed = renderToStaticMarkup(
     React.createElement(EditorLoadStatus, {
@@ -101,6 +104,23 @@ test('异步文件读取期间明确显示 loading，失败后显示错误而不
   assert.match(failed, /data-testid="editor-load-error"/);
   assert.match(failed, /读取文件失败/);
   assert.match(failed, /access denied/);
+  assert.match(failed, /role="alert"/);
+  assert.match(failed, /aria-live="assertive"/);
+  assert.match(failed, /aria-busy="false"/);
+});
+
+test('文件读取失败提供可访问的重试入口', () => {
+  const failed = renderToStaticMarkup(
+    React.createElement(EditorLoadStatus, {
+      filePath: 'D:\\Books\\a.md',
+      loadedFilePath: null,
+      loadError: 'access denied',
+      onRetry: () => {},
+    }),
+  );
+  assert.match(failed, /data-testid="editor-load-retry"/);
+  assert.match(failed, /重试读取/);
+  assert.match(failed, /type="button"/);
 });
 
 test('Canon derived 文件以只读 Monaco 打开（Q3a 后只读态由 data-read-only + Monaco 承载，只读徽章移到页签行）', () => {
@@ -129,6 +149,24 @@ test('源文本保留作者回环关键符号（拆分 C3 前移护栏）', () =
   for (const marker of markers) {
     assert.ok(editorSource.includes(marker), `Editor.tsx 源文本缺失关键符号：${marker}`);
   }
+});
+
+test('版本历史关闭与恢复路径通过外部入口恢复焦点', () => {
+  assert.match(editorSource, /const closeVersionHistory = useCallback\(\(\) => \{/);
+  assert.match(
+    editorSource,
+    /closeVersionHistory[\s\S]*?historyTriggerRef\?\.current\?\.focus\(\{ preventScroll: true \}\)/,
+  );
+  assert.match(editorSource, /onClose=\{closeVersionHistory\}/);
+  assert.match(
+    editorSource,
+    /setIsDirty\(state\.content !== originalContentRef\.current\);\s*closeVersionHistory\(\);/,
+  );
+});
+
+test('版本历史 Escape 关闭保留输入法组字期间的候选窗口', () => {
+  assert.match(versionHistorySource, /event\.nativeEvent\.isComposing/);
+  assert.match(versionHistorySource, /event\.nativeEvent\.keyCode !== 229/);
 });
 
 test('切换文件时取消待执行 autosave，避免旧缓冲写入新路径', () => {
