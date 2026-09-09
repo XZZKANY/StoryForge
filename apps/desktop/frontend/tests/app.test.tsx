@@ -40,7 +40,7 @@ test('App 壳层挂载 desktop-shell 容器与三栏框架标记', () => {
   assert.match(html, /data-tauri-runtime=/);
   assert.match(html, /data-testid="shell-titlebar"/);
   assert.match(html, /data-testid="shell-activity-bar"/);
-  assert.match(html, /data-testid="shell-side-panel"/);
+  assert.doesNotMatch(html, /data-testid="shell-side-panel"/);
   assert.match(html, /data-testid="shell-center"/);
   assert.match(html, /data-testid="shell-status-bar"/);
 });
@@ -55,9 +55,9 @@ test('App 无项目时中栏渲染 WelcomeWorkspace 与打开项目入口，右�
   assert.equal(html.includes('data-testid="editor-panel"'), false);
 });
 
-test('App 无项目时左栏资源管理器为空，打开项目入口只留中栏欢迎页（#4）', () => {
+test('App 无项目空 explorer 不挂载，打开项目入口只留中栏欢迎页', () => {
   const html = renderApp();
-  assert.match(html, /data-testid="explorer-empty"/);
+  assert.doesNotMatch(html, /data-testid="explorer-empty"/);
   // #4：左栏空态删除，不再有打开项目按钮 / 最近打开列表（避免与欢迎页重复）。
   assert.doesNotMatch(html, /data-testid="add-project-btn"/);
   assert.doesNotMatch(html, /data-testid="project-library-list"/);
@@ -69,12 +69,11 @@ test('App 活动栏 = 文件 / 搜索 / 手稿 / 观测镜 / 设置；会话与�
   assert.match(html, /data-testid="activity-settings"/);
   // 手稿视图（阅读序 + 作品底座）：图标必须对应一个真实渲染的面板，不当死占位。
   assert.match(html, /data-testid="activity-manuscript"/);
-  assert.match(html, /data-testid="side-manuscript-pane"/, '手稿图标必须对应一个真实面板');
+  // 无项目的默认空 explorer 不挂载侧栏；说明视图的实际打开由 welcome-page 行为测试覆盖。
   // PR #171 删掉的那个左栏搜索是「未接线死占位、且与命令面板搜文件名重复」。
   // 现在这个搜索接的是**正文内容**全文搜索（Ctrl+Shift+F），与命令面板职责不同，故重新在场。
   // 若哪天它又退化成不接线的占位，应当再次删掉，而不是留在栏上骗人。
   assert.match(html, /data-testid="activity-search"/);
-  assert.match(html, /data-testid="search-panel"/, '搜索图标必须对应一个真实渲染的搜索面板');
   // 会话入右栏对话头、质检收状态栏——这两条未变。
   assert.doesNotMatch(html, /data-testid="activity-sessions"/);
   assert.doesNotMatch(html, /data-testid="activity-qa"/);
@@ -101,8 +100,7 @@ test('App 中栏和右栏锁定滚动边界，长稿不能把状态栏或 Agent 
   const requiredLayoutGuards = [
     'className="min-h-0 flex-1 overflow-hidden"',
     'min-h-0 overflow-hidden bg-background',
-    // Q4 布局三态后 Agent 栏宽度按 wide 条件化，但平衡宽 + 溢出护栏仍在（长稿不能顶走状态栏）。
-    'w-[384px] flex-shrink-0',
+    // 弹性宽度由 mounted assistant-panel / workspace-layout 回归覆盖；此处只锁滚动边界。
     'flex-col overflow-hidden border-l border-border bg-panel',
   ];
   for (const guard of requiredLayoutGuards) {

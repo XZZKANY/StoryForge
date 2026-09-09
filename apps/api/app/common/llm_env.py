@@ -205,7 +205,3 @@ def _required_slot_identity(source: Mapping[str, str | None], *, label: str) -> 
     if missing:
         raise PolishLlmNotConfiguredError(f"{label}配置不完整：缺少 {', '.join(missing)}。")
     return env_value(source, "STORYFORGE_LLM_PROVIDER").lower(), env_value(source, "STORYFORGE_LLM_MODEL")
-
-
-apply_llm_config_file = _apply_llm_config_file
-apply_polish_config_file = _apply_polish_config_file

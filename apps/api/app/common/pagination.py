@@ -8,7 +8,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
@@ -74,19 +73,3 @@ def paginate_by_id(
     items = rows[:page_size]
     next_cursor = str(items[-1].id) if has_more and items else None
     return CursorPage(items=items, next_cursor=next_cursor, has_more=has_more)
-
-
-def envelope_from_items(
-    items: Sequence[T],
-    *,
-    limit: int | None,
-    next_cursor: str | None = None,
-    has_more: bool = False,
-) -> dict[str, object]:
-    """将已经载入的 items 包成统一信封；用于无法走 SQL 分页的小集合接口。"""
-
-    return {
-        "items": list(items),
-        "next_cursor": next_cursor,
-        "has_more": has_more,
-    }

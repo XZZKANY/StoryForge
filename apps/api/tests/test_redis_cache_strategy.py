@@ -92,6 +92,34 @@ def test_artifact_list_cache_returns_cached_payload_on_second_call(
     assert [item.id for item in first] == [item.id for item in second]
 
 
+def test_artifact_list_cache_invalid_payload_is_treated_as_cache_miss(
+    session: Session, fake_cache: _FakeCache
+) -> None:
+    book = Book(title="缓存样本", status="draft", premise="验证坏缓存。")
+    session.add(book)
+    session.commit()
+    artifact = create_artifact(
+        session,
+        ArtifactCreate(
+            book_id=book.id,
+            artifact_type="reference",
+            name="cache-target",
+            storage_uri="memory://invalid-cache",
+            mime_type="text/plain",
+        ),
+    )
+
+    cache_key = _artifact_list_cache_key(None, book.id)
+    fake_cache.store[cache_key] = [{}]
+    fake_cache.delete_calls = 0
+
+    rendered = list_artifacts_cached(session, book_id=book.id)
+
+    assert [item.id for item in rendered] == [artifact.id]
+    assert fake_cache.delete_calls == 1
+    assert fake_cache.store[cache_key][0]["id"] == artifact.id
+
+
 def test_artifact_create_invalidates_list_cache(
     session: Session, fake_cache: _FakeCache
 ) -> None:

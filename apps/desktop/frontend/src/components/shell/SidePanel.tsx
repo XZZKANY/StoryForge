@@ -10,11 +10,21 @@
  * - search：正文全文搜索（Ctrl+Shift+F）
  * - observatory：世界线观测镜（Ctrl+4 / 活动栏雷达图标）
  */
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
+import {
+  clampSidePanelWidth,
   defaultSidePanelWidth,
   draggedSidePanelWidth,
   resolveSidePanelWidth,
+  SIDE_PANEL_WIDTH_MAX,
+  SIDE_PANEL_WIDTH_MIN,
 } from '../../lib/side-panel-width';
 import { StoryNavigator } from '../StoryNavigator';
 import { basename } from '../app/helpers';
@@ -44,36 +54,59 @@ type SidePanelProps = {
   manuscript?: ReactNode;
   knowledge?: ReactNode;
   widths: Record<string, number>;
+  /** 仅限制当前显示；窗口恢复后继续使用作者保存的宽度。 */
+  maxWidth?: number;
   onWidthChange: (view: SidePanelView, width: number) => void;
 };
 
 export function SidePanel(props: SidePanelProps) {
+  const panelId = useId();
   const savedWidth = resolveSidePanelWidth(props.view, props.widths);
+  const widthLimit = clampSidePanelWidth(props.maxWidth ?? SIDE_PANEL_WIDTH_MAX);
   // 拖拽中的宽度只放本地：每帧写进设置会把 localStorage 刷爆，松手才落。
   const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const displayWidth = Math.min(dragWidth ?? savedWidth, widthLimit);
+  const stopResizeRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopResizeRef.current?.(), []);
 
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
     event.preventDefault();
+    stopResizeRef.current?.();
     const startX = event.clientX;
+    const startWidth = displayWidth;
     const view = props.view;
+    const widthAt = (clientX: number) =>
+      Math.min(widthLimit, draggedSidePanelWidth(startWidth, clientX - startX));
     const onMove = (move: PointerEvent) => {
-      setDragWidth(draggedSidePanelWidth(savedWidth, move.clientX - startX));
+      setDragWidth(widthAt(move.clientX));
     };
     const onUp = (up: PointerEvent) => {
+      stopResizeRef.current?.();
+      setDragWidth(null);
+      props.onWidthChange(view, widthAt(up.clientX));
+    };
+    const onCancel = () => {
+      stopResizeRef.current?.();
+      setDragWidth(null);
+    };
+    stopResizeRef.current = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-      setDragWidth(null);
-      props.onWidthChange(view, draggedSidePanelWidth(savedWidth, up.clientX - startX));
+      window.removeEventListener('pointercancel', onCancel);
+      stopResizeRef.current = null;
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
   };
 
   return (
     <div
+      id={panelId}
       className="relative flex flex-shrink-0 flex-col border-r border-border bg-panel"
       style={{
-        width: `${dragWidth ?? savedWidth}px`,
+        width: `${displayWidth}px`,
         boxShadow: 'var(--shadow-panel)',
       }}
       data-testid="shell-side-panel"
@@ -82,9 +115,45 @@ export function SidePanel(props: SidePanelProps) {
       {/* 右缘拖拽把手：命中区 5px（1px 描边点不准），hover/拖拽时才显强调色。
           双击复位到该视图的档位默认。 */}
       <div
-        className="absolute inset-y-0 -right-0.5 z-20 w-[5px] cursor-col-resize hover:bg-agent/40"
+        className="absolute inset-y-0 -right-0.5 z-20 w-[5px] cursor-col-resize hover:bg-agent/40 focus-visible:bg-agent/60 focus-visible:outline-none"
         data-testid="side-panel-resize"
-        title="拖动改宽度 · 双击复位"
+        role="separator"
+        tabIndex={0}
+        aria-label="调整侧栏宽度"
+        aria-orientation="vertical"
+        aria-controls={panelId}
+        aria-valuemin={SIDE_PANEL_WIDTH_MIN}
+        aria-valuemax={widthLimit}
+        aria-valuenow={displayWidth}
+        aria-valuetext={`${displayWidth} 像素`}
+        title="拖动或左右方向键调整宽度 · Shift 加速 · Enter / 双击复位"
+        onKeyDown={(event) => {
+          if (event.ctrlKey || event.metaKey || event.altKey) return;
+          const step = event.shiftKey ? 50 : 10;
+          let next: number;
+          switch (event.key) {
+            case 'ArrowLeft':
+              next = Math.min(widthLimit, draggedSidePanelWidth(displayWidth, -step));
+              break;
+            case 'ArrowRight':
+              next = Math.min(widthLimit, draggedSidePanelWidth(displayWidth, step));
+              break;
+            case 'Home':
+              next = SIDE_PANEL_WIDTH_MIN;
+              break;
+            case 'End':
+              next = widthLimit;
+              break;
+            case 'Enter':
+              next = defaultSidePanelWidth(props.view);
+              break;
+            default:
+              return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          props.onWidthChange(props.view, next);
+        }}
         onPointerDown={startResize}
         onDoubleClick={() => props.onWidthChange(props.view, defaultSidePanelWidth(props.view))}
       />

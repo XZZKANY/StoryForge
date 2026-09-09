@@ -71,8 +71,12 @@ export function useProjectCommands({
       await selectProjectSafely(selected);
     } catch (error) {
       console.error('打开项目失败', error);
+      await dialogs.alert({
+        title: '打开项目失败',
+        message: `请检查目录是否仍存在、是否有访问权限，然后重新选择项目目录。\n\n${error instanceof Error ? error.message : String(error)}`,
+      });
     }
-  }, [selectProjectSafely]);
+  }, [dialogs, selectProjectSafely]);
 
   // 发送即开书：建立显式项目骨架后由 ChatWindow 自动发送首句；失败时回落到手选目录。
   const handleWelcomeSend = useCallback(() => {

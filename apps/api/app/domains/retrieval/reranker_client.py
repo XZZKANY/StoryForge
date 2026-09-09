@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.common.llm_client import post_json_with_retry
-from app.domains.provider_gateway.runtime_config import load_runtime_provider_config
 from app.domains.retrieval.schemas import RetrievalHitRead
 
 logger = logging.getLogger(__name__)
@@ -38,19 +37,6 @@ class RerankerClient(Protocol):
 
     def rerank(self, query: str, hits: Sequence[RetrievalHitRead]) -> RerankResult:
         """按查询和候选命中返回重排分数。"""
-
-
-class DisabledRerankerClient:
-    """未启用真实 reranker 时保持原始稳定排序。"""
-
-    def rerank(self, query: str, hits: Sequence[RetrievalHitRead]) -> RerankResult:
-        runtime_config = load_runtime_provider_config("reranker")
-        return RerankResult(
-            provider_name=runtime_config.provider_name,
-            model_name=runtime_config.model_name,
-            credential_status=runtime_config.credential_status,
-            items=[],
-        )
 
 
 class LocalCrossEncoderRerankerClient:

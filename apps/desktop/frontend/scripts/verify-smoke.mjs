@@ -74,7 +74,9 @@ try {
   const welcome = page.locator('[data-testid="welcome-workspace"]');
   await shell.waitFor({ timeout: 5000 });
   await welcome.waitFor({ timeout: 5000 });
-  await page.locator('[data-testid="explorer-empty"]').waitFor({ timeout: 5000 });
+  await page
+    .locator('[data-testid="shell-side-panel"]')
+    .waitFor({ state: 'hidden', timeout: 5000 });
 
   const title = await page.title();
   const bodyText = await page.locator('body').innerText();
@@ -138,29 +140,38 @@ try {
 
   const sidePanel = page.locator('[data-testid="shell-side-panel"]');
   const explorerActivity = page.locator('[data-testid="activity-explorer"]');
+  const bookActivity = page.locator('[data-testid="activity-book"]');
+  if ((await explorerActivity.getAttribute('data-active')) !== 'false') {
+    throw new Error('An empty explorer must not appear active while its panel is absent');
+  }
+  await bookActivity.click();
   await sidePanel.waitFor({ timeout: 5000 });
-  if ((await explorerActivity.getAttribute('data-active')) !== 'true') {
-    throw new Error('Expected the explorer activity to start active');
+  if ((await bookActivity.getAttribute('data-active')) !== 'true') {
+    throw new Error('Expected the book guidance panel to become active');
+  }
+  await bookActivity.click();
+  await sidePanel.waitFor({ state: 'hidden', timeout: 5000 });
+  if ((await bookActivity.getAttribute('data-active')) !== 'false') {
+    throw new Error('Expected the book activity to become inactive after collapsing');
+  }
+  await bookActivity.click();
+  await sidePanel.waitFor({ timeout: 5000 });
+  if ((await bookActivity.getAttribute('data-active')) !== 'true') {
+    throw new Error('Expected the book activity to become active after restoring');
   }
   await explorerActivity.click();
   await sidePanel.waitFor({ state: 'hidden', timeout: 5000 });
-  if ((await explorerActivity.getAttribute('data-active')) !== 'false') {
-    throw new Error('Expected the explorer activity to become inactive after collapsing');
-  }
-  await explorerActivity.click();
-  await sidePanel.waitFor({ timeout: 5000 });
-  if ((await explorerActivity.getAttribute('data-active')) !== 'true') {
-    throw new Error('Expected the explorer activity to become active after restoring');
-  }
 
   const narrowPage = await context.newPage();
   collectErrors(narrowPage);
   try {
-    await narrowPage.setViewportSize({ width: 1040, height: 720 });
+    await narrowPage.setViewportSize({ width: 1024, height: 768 });
     await narrowPage.goto(url, { waitUntil: 'networkidle' });
     await narrowPage.locator('[data-testid="desktop-shell"]').waitFor({ timeout: 5000 });
     await narrowPage.locator('[data-testid="welcome-workspace"]').waitFor({ timeout: 5000 });
-    await narrowPage.locator('[data-testid="explorer-empty"]').waitFor({ timeout: 5000 });
+    await narrowPage
+      .locator('[data-testid="shell-side-panel"]')
+      .waitFor({ state: 'hidden', timeout: 5000 });
     if (await narrowPage.locator('[data-testid="editor-panel"]').count()) {
       throw new Error('Expected no editor panel on the narrow welcome workspace');
     }

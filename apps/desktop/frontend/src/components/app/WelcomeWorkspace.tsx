@@ -100,8 +100,8 @@ export function WelcomeWorkspace({
               <h1 className="text-display font-medium leading-tight tracking-[0.01em] text-foreground">
                 StoryForge
               </h1>
-              <p className="mt-[3px] text-xs text-subtle">
-                可验证的长篇创作流水线 · 一句话就能开新书
+              <p className="mt-1.5 text-sm leading-relaxed text-muted">
+                专注写作，和 AI 一起打磨故事
               </p>
             </div>
           </div>
@@ -112,7 +112,7 @@ export function WelcomeWorkspace({
             <div className="mb-2.5 flex items-center gap-1.5 rounded-lg border border-border bg-surface py-1 pl-3 pr-1 shadow-[0_2px_10px_rgba(0,0,0,0.12)] focus-within:border-agent/60">
               <input
                 className="h-[30px] min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-subtle"
-                placeholder="一句话开新书：写下念头，回车即建项目骨架…"
+                placeholder="一句话开新书：写下故事的念头…"
                 aria-label="一句话开新书"
                 data-testid="welcome-composer-input"
                 value={composerValue}
@@ -139,6 +139,9 @@ export function WelcomeWorkspace({
                 <ArrowUp size={15} strokeWidth={2} aria-hidden="true" />
               </button>
             </div>
+            <p className="mb-3 px-2 text-xs leading-relaxed text-muted">
+              回车创建本地项目，并交给 Agent 开始构思。
+            </p>
 
             <WAction
               icon={<FolderOpen size={16} strokeWidth={1.6} aria-hidden="true" />}
@@ -155,13 +158,15 @@ export function WelcomeWorkspace({
             <WAction
               icon={<Command size={16} strokeWidth={1.6} aria-hidden="true" />}
               label="命令面板…"
-              kbd="Ctrl P"
+              kbd="Ctrl Shift P"
               onClick={onOpenPalette}
             />
 
             <h2 className="mb-3 mt-[26px] text-sm font-medium text-foreground">最近</h2>
             {recentProjects.length === 0 ? (
-              <p className="px-2 text-xs text-subtle">还没有最近项目 · 打开项目后会出现在这里</p>
+              <p className="px-2 text-xs leading-relaxed text-muted">
+                还没有最近项目 · 打开项目后会出现在这里
+              </p>
             ) : (
               <>
                 {shownRecents.map((projectPath) => (
@@ -197,26 +202,26 @@ export function WelcomeWorkspace({
             <WGuide
               icon={<Sparkles size={20} strokeWidth={1.6} aria-hidden="true" />}
               iconAgent
-              title="配置模型服务，连接真实 LLM"
-              desc="BYO-key，llm-provider.json 写盘换模型即生效"
+              title="连接你的 AI 模型"
+              desc="选择模型服务，填写 API Key，即可开始对话与改稿。"
               onClick={onOpenSettings}
             />
             <WGuide
               icon={<BookOpen size={20} strokeWidth={1.6} aria-hidden="true" />}
-              title="打开样例项目「雪夜斩」"
-              desc="看一个已有 canon / 章节 / 观测的完整项目长什么样"
+              title="体验示例项目"
+              desc="选择保存位置，创建一份可以自由探索的样例小说。"
               onClick={onCreateSampleProject}
             />
             <WGuide
               icon={<Keyboard size={20} strokeWidth={1.6} aria-hidden="true" />}
               title="快捷键速查"
-              desc="全部沿袭 VS Code，Ctrl+C/A/V 不拦截"
+              desc="快速查找写作、切换面板和调用 Agent 的常用快捷键。"
               onClick={onShowShortcuts}
             />
             <WGuide
               icon={<Info size={20} strokeWidth={1.6} aria-hidden="true" />}
               title="了解 StoryForge"
-              desc="先做诊断控制台，再做生成器：读证据 → 评审 → 修复 → 批准"
+              desc="在本地写作，查看 AI 修改，默认由你确认后写回。"
               onClick={onShowAbout}
             />
           </div>
@@ -260,7 +265,7 @@ function WAction({
       <span className="flex-none text-muted">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {kbd && (
-        <kbd className="flex-none rounded-sm border border-border px-1.5 font-mono text-3xs text-subtle">
+        <kbd className="flex-none rounded-sm border border-border px-1.5 font-mono text-2xs text-muted">
           {kbd}
         </kbd>
       )}
@@ -290,7 +295,7 @@ function WGuide({
       <span className={`mt-px flex-none ${iconAgent ? 'text-agent' : 'text-muted'}`}>{icon}</span>
       <span className="min-w-0">
         <b className="block text-sm font-medium text-foreground">{title}</b>
-        <small className="mt-[3px] block text-2xs leading-relaxed text-subtle">{desc}</small>
+        <small className="mt-1 block text-xs leading-relaxed text-muted">{desc}</small>
       </span>
     </button>
   );

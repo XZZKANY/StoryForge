@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react';
+import { useRef, type Dispatch, type SetStateAction } from 'react';
 
 import { ChatWindow } from '../ChatWindow';
 import { CommandPalette, type PaletteMode } from '../CommandPalette';
@@ -21,6 +21,8 @@ import { Titlebar } from '../shell/Titlebar';
 import { ToastHost } from '../shell/ToastHost';
 import { useDeference } from '../shell/useDeference';
 import type { useShellState } from '../shell/useShellState';
+import { useWorkspaceSidePanelLimit } from '../shell/useWorkspaceSidePanelLimit';
+import { WORKSPACE_PRIMARY_MIN_WIDTH } from '../../lib/workspace-layout';
 import {
   emitEditorCommand,
   emitChapterPolishRequest,
@@ -134,6 +136,9 @@ export function AppShell({
 }: AppShellProps) {
   const { projects, activeProject, currentFile, projectAssistantSessions } = workspace;
   const projectOpen = Boolean(activeProject);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  const sidebarVisible = !shell.sidebarHidden && (projectOpen || shell.view !== 'explorer');
+  const sidePanelMaxWidth = useWorkspaceSidePanelLimit(projectOpen, shell.layoutMode);
   const agentPermission = useAgentPermission(activeProject);
   const knowledgeInbox = useKnowledgeInbox(activeProject);
   const rightPanelVisible = projectOpen && !shell.rightCollapsed;
@@ -163,13 +168,12 @@ export function AppShell({
     void dialogs.alert({
       title: '了解 StoryForge',
       message: [
-        'StoryForge — 可验证的长篇创作流水线。',
+        'StoryForge — 面向小说作者的本地 AI 写作工作台。',
         '',
-        '设计立场：先做诊断控制台，再做生成器。任何生成路径都先有',
-        '读证据 → 评审 → 修复 → 批准的闭环，再考虑接真实模型。',
+        '打开你的小说项目，专注写作，与 Agent 一起审稿、构思和修订。',
         '',
-        '桌面 IDE 是主体验：本地项目、Monaco 编辑、对话式 Agent、',
-        'canon 事实卡与观测镜，BYO-key 接真实 LLM。',
+        '修改会先生成可查看的差异，默认由你确认后写回。',
+        '项目权限可调整，但安全检查、写前快照与版本记录始终保留。',
       ].join('\n'),
     });
 
@@ -212,17 +216,19 @@ export function AppShell({
         <div className="flex flex-shrink-0">
           <ActivityBar
             view={shell.view}
-            sidebarHidden={shell.sidebarHidden}
+            sidebarHidden={!sidebarVisible}
             onSwitchView={shell.switchView}
             onOpenSettings={() => void openSettings()}
             settingsMenu={settingsMenu}
+            settingsButtonRef={settingsButtonRef}
             observatoryAttention={observatory.litEntityIds.length > 0}
             knowledgePendingCount={knowledgeInbox.inbox.pending_count}
           />
-          {!shell.sidebarHidden && (
+          {sidebarVisible && (
             <SidePanel
               view={shell.view}
               widths={preferences.settings.sidePanelWidths}
+              maxWidth={sidePanelMaxWidth}
               onWidthChange={preferences.setSidePanelWidth}
               projects={projects}
               activeProject={activeProject}
@@ -314,6 +320,7 @@ export function AppShell({
         <main
           className={`${shell.layoutMode === 'chat' ? 'hidden' : 'flex'} min-w-0 flex-1 flex-col bg-background`}
           data-testid="shell-center"
+          style={projectOpen ? { minWidth: WORKSPACE_PRIMARY_MIN_WIDTH } : undefined}
         >
           {centerHasTabs ? (
             <>
@@ -385,7 +392,7 @@ export function AppShell({
             <WelcomeWorkspace
               onOpenProject={commands.handleOpenProject}
               onNewFile={() => void commands.handleNewFile()}
-              onOpenPalette={() => setPalette('files')}
+              onOpenPalette={() => setPalette('commands')}
               onCreateSampleProject={commands.handleCreateSampleProject}
               onOpenSettings={openSettings}
               onShowShortcuts={showShortcuts}
@@ -475,6 +482,7 @@ export function AppShell({
           settings={preferences.settings}
           onChange={preferences.setSettings}
           onClose={() => setSettingsVisible(false)}
+          fallbackFocusRef={settingsButtonRef}
         />
       )}
       <AppDialogHost

@@ -4,7 +4,8 @@
  * 会话在右栏，质检在状态栏；文件名搜索走顶栏命令面板 Ctrl+P，正文内容搜索走这里的搜索视图。
  * 激活指示条贴 rail 左缘。
  */
-import { useState } from 'react';
+import { useState, type Ref } from 'react';
+import { ACTIVITY_BAR_WIDTH } from '../../lib/workspace-layout';
 import type { SidePanelView } from './useShellState';
 import { BookOpen, FileText, Inbox, Library, Radar, Search, Settings } from '../icons/shell-icons';
 import type { LucideIcon } from '../icons/shell-icons';
@@ -43,6 +44,7 @@ export function ActivityBar({
   onSwitchView,
   onOpenSettings,
   settingsMenu,
+  settingsButtonRef,
   observatoryAttention = false,
   knowledgePendingCount = 0,
 }: {
@@ -52,6 +54,7 @@ export function ActivityBar({
   onOpenSettings: () => void;
   // 齿轮小菜单项；不传则齿轮直接开设置（回退）。
   settingsMenu?: ContextMenuItem[];
+  settingsButtonRef?: Ref<HTMLButtonElement>;
   // 光标行提到 canon 实体时观测镜图标亮小紫点。
   observatoryAttention?: boolean;
   knowledgePendingCount?: number;
@@ -60,7 +63,8 @@ export function ActivityBar({
 
   return (
     <nav
-      className="flex w-12 flex-shrink-0 flex-col items-center gap-0.5 border-r border-border bg-background py-1.5"
+      className="flex flex-shrink-0 flex-col items-center gap-0.5 border-r border-border bg-background py-1.5"
+      style={{ width: ACTIVITY_BAR_WIDTH }}
       data-testid="shell-activity-bar"
     >
       {VIEW_ENTRIES.map((entry) => {
@@ -104,6 +108,7 @@ export function ActivityBar({
       <div className="flex-1" />
 
       <button
+        ref={settingsButtonRef}
         data-testid="activity-settings"
         className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-elevated hover:text-foreground"
         title="设置 · Ctrl+,"

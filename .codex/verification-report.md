@@ -39,6 +39,16 @@
 - 独立只读代码审查无阻断，额外补齐 StrictMode 与 status 等待窗口测试；`git diff --check` 通过。更新项目异步状态规范及子任务复盘，避免仅修 effect 而漏掉命令回调。
 - 未验证：本轮未执行真机 Tauri GUI、冻结安装包、真实 provider 或文学质量验收，也未推进 Agent 末次回答取消修复。不能将单元测试或本地核心门禁外推成上述验收通过。
 
+## 2026-09-05 项目多角度优化：只读审查与规划
+
+- 任务：`.trellis/tasks/09-05-project-multidimensional-optimization/`，状态 `planning`。用户明确要求先规划、再确认第一批实现；已生成 PRD、design、implement 及 research/review，未激活实现。
+- 两名只读审查 agent 分别核对 Desktop 拆书命令生命周期与 Agent 末次回答取消窗口。发现均为源码候选，尚未新增失败回归，不宣称已经复现或修复。首批建议仅处理拆书跨项目迟到回调，后续取消一致性、性能和发布/写作验收各自确认。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck` -> exit 0。
+- `npm.cmd --prefix apps/desktop/frontend run test` -> 90 files / 582 passed，18.48 秒。
+- `npm.cmd --prefix apps/desktop/frontend run build` -> exit 0，22.39 秒；Monaco chunk 3,337.88 kB / gzip 859.55 kB，主业务 chunk 576.33 kB / gzip 176.30 kB。有大 chunk 与 Tauri event 动静态混合导入警告；不是构建失败，也不直接证明实际启动或输入延迟。
+- `git diff --check` -> passed。没有修改生产/测试源码；9 个原有未提交文件保留，报告仅新增本段，构建输出仍是忽略资产。Trellis 规划保留本地，不强制纳入 Git。
+- 未验证：两项新候选的行为复现、API/Rust 全量、根总门禁、性能 trace、真机 Tauri 写回、真实 provider、文学质量和远端 CI。本轮没有访问真实小说或调用 provider；不外推历史 GUI/LLM 证据。
+
 ## 2026-09-05 提交收尾与 Linux 符号链接补验
 
 - 用户确认后完成三批本地提交：`fd7a7fa6` 文件工具边界与预算、`7e00aae0` API/lint 与拆书报告状态、`5eea3765` 状态文档与验证证据。仅提交本轮内容，其他清理代码及报告段落仍留在工作区，未推送。
@@ -93,6 +103,46 @@
 - `git diff --check`：通过；任务目录文档已通过 Get-Content 回读确认存在。
 - 未验证：行为测试、Ruff、契约与冻结 sidecar。当前仅规划，生产代码尚未修改，不能宣称漏洞已修复。
 - 原有工作区改动保留，以下既有报告内容不变。
+
+# 验证报告 · 清理孤立符号与收窄缓存异常
+
+时间：2026-09-05
+
+## 范围
+
+删除 API 内无仓内消费者的 `envelope_from_items`、`S3UploadError`、`DisabledRerankerClient` 和两个 LLM 配置公共别名；将 Artifact 缓存 DTO 解析从裸 `Exception` 收窄为 `pydantic.ValidationError`。保留 `record_workflow_model_run_payload`、BookRun dispatch aliases、workflow-dispatch 路由/DTO 和全部安全护栏。
+
+## 验证
+
+```text
+cd apps/api && uv run pytest tests/test_source_pruning.py tests/test_redis_cache_strategy.py tests/test_retrieval_real_providers.py tests/test_model_runs.py tests/test_book_run_workflow_dispatch.py -q
+-> 67 passed
+
+cd apps/api && uv run pytest tests/test_pagination.py tests/test_s3_integration.py tests/test_llm_config_file_override.py -q
+-> 16 passed, 2 skipped
+
+cd apps/api && uv run ruff check app tests
+-> All checks passed
+
+UV_CACHE_DIR=D:\StoryForge\.codex\tmp\uv-cache pnpm.cmd check:drift
+-> OpenAPI 契约无漂移
+
+git diff --check
+-> passed
+```
+
+全仓检索确认已删除符号只出现在 source-pruning 的反向断言中；未发现生产、测试或动态导入引用。
+
+## 全量回归
+
+`cd apps/api && uv run pytest -q` 返回 `1545 passed, 4 skipped, 13 failed`。失败项均不涉及本轮修改：1 项是既有 `chapter.polish` intent 基线差异，12 项是 `.codex/validate-real-llm-long-evidence.ps1` 的 PowerShell ParserError。
+
+## 未验证项
+
+- 真实 MinIO 集成测试按默认配置跳过。
+- 未运行 Desktop/Rust 全量套件；本批次未修改 OpenAPI DTO、Desktop 或 Rust。
+
+---
 
 # 验证报告 · 移除无项目态的功能阻挡
 
@@ -2374,3 +2424,102 @@ git diff --check -> passed
 Rust 本次尝试因 Cargo 首次下载 `tempfile` 时用户缓存权限/网络受限而中止；未发现代码编译错误。此前同一清理批次已验证 `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> 41 passed, 1 ignored`，本次不重复扩大环境权限范围。
 
 复核修正：`.codex/run-real-llm-acceptance-interactive.ps1` 仍被 API 测试读取，因此恢复 `.gitignore` 对该 wrapper 的跟踪例外；已删除并发 runner 的例外继续移除。删除 `apps/workflow` 相关代码不影响历史文档、迁移 ledger、`workflow-dispatch` 路由、`BookRunWorkflow*` schema 或 `workflow_nodes` 兼容字段。
+
+### 2026-09-06 Desktop UI/UX 首轮规划审查
+
+范围：仅创建本地 Trellis 规划与截图证据，任务保持 planning。产品源码、测试、provider 配置和项目手稿未修改；本报告只追加，保留原有未提交内容。
+
+证据：`D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/audit.md`。
+
+验证：
+- `npm.cmd --prefix apps/desktop/frontend run dev -- --host 127.0.0.1`：Vite 6.4.3 预览；1280×720 默认视口与 1024×768 最小桌面窗口审查。
+- 浏览器正常刷新后可复现：欢迎页“命令面板”进入文件搜索空态；设置弹窗 Shift+Tab 可落入背景欢迎页复选框。已保存截图及 DOM/焦点 JSON，未注入 mock runtime。
+- `npm.cmd --prefix apps/desktop/frontend run test -- tests/settings-view.test.tsx tests/welcome-page.test.tsx tests/shortcuts.test.tsx tests/side-panel-resize.test.tsx tests/shell-panel-views.test.tsx tests/patch-review-panel.test.tsx tests/permission-profile-selector.test.tsx tests/behavior/writeback-guard.vitest.ts tests/behavior/agent-session-guard.vitest.ts tests/behavior/event-bus-contract.vitest.ts`：10 files / 78 passed，7.66s。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`：通过。
+- `git diff --check`：通过。
+
+边界：以上是既有测试基线，无新增产品修复。未启动 API/Tauri/真实 provider；“本地服务 · 连接中断”来自纯前端预览环境，不计产品缺陷。未做生产构建、全量门禁、浅色/系统缩放验收、真实项目编辑/保存/diff 写回或长篇质量验收。窄窗口编辑区宽度仅为代码约束推断，尚未在项目态渲染复现。
+
+2026-09-06 规划续记：用户确认“保留 IDE 骨架，渐进优化”。已同步至本地 PRD 与审查结论；首批场景优先级尚待确认，任务继续 planning。本次仅更新规划文档，`git diff --check` 通过，未改产品代码或重跑行为测试。
+
+### 2026-09-06 Desktop UI/UX 首批实施与复验
+
+用户已选择“保留 IDE 骨架，渐进优化”并要求开始。本轮仅实现欢迎页/设置 UX-01—UX-05：欢迎命令入口改 commands、空 explorer 让出空间、作者视角说明、设置焦点/表单可访问性与可展开技术详情。保存/探测函数、Agent/权限/写回契约未变，保留原有未提交后端与文档改动。
+
+验证命令与结果：
+- `npm.cmd --prefix apps/desktop/frontend run test -- tests/welcome-page.test.tsx tests/settings-accessibility.test.tsx tests/settings-view.test.tsx tests/app.test.tsx tests/shortcuts.test.tsx tests/side-panel-resize.test.tsx tests/shell-panel-views.test.tsx`：7 files / 50 passed。
+- `npm.cmd --prefix apps/desktop/frontend run test`：最终 92 files / 615 passed。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`、`pnpm.cmd lint`：通过，最终无 ESLint 告警。
+- `npm.cmd --prefix apps/desktop/frontend run build`：通过；保留 Tauri event 混合导入与 chunk 大小告警，不压制。
+- `node --check apps/desktop/frontend/scripts/verify-smoke.mjs`：通过；独立浏览器 smoke 脚本仅同步断言/语法检查，未运行。实际浏览器复验使用隔离 Vite 预览。
+- `pnpm.cmd verify`：exit 0；Shared 类型通过，project-core 7 passed，Desktop 615 passed，API 1592 passed / 7 skipped / 6 warnings，Ruff 通过，独立临时库 daily sidecar 零 LLM 冒烟通过，OpenAPI 无漂移。API 既有弃用/测试 key 长度告警保留。
+- `git diff --check`：通过。
+
+渲染证据：1024×768 与 1440px 常规宽度、深浅两主题复验；最小窗口欢迎区 740px→976px，说明 11px→12px。欢迎命令/文件搜索分流、刷新后设置焦点环绕/恢复、无项目说明入口、技术详情搜索/展开均实际操作确认。截图为原始 JPEG；常规宽度截图实际为 1440×838，未伪称全高 1440×900 截图。
+
+详细结果和原图入口：`D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/implementation-verification.md`。总门禁原始日志：`D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/pnpm-verify.log`。
+
+未验证：真机 Tauri/WebView2、多轮真实 provider、真实项目打开/保存/diff 写回、系统缩放/屏幕阅读器/真实 IME、C-01/C-02 与长篇质量。浏览器没有连接真实后端，断连状态不计新增故障；总门禁的 sidecar 在独立临时环境运行。已恢复预览主题/视口并关闭本任务标签、停止本任务 Vite。代码未提交；Trellis finish-work 停在未提交检查，不自动提交、归档或改动其他任务。
+
+### 2026-09-06 Desktop UI/UX 第二批阶段复验
+
+本轮新增：项目打开异常接入现有可见弹窗（取消/切换守卫语义不变）；左侧栏支持 Tab、方向键/Shift 调宽、Home/End 和 Enter 复位；欢迎样例卡名称与原生实际生成的“StoryForge 示例项目”一致。不改 API、provider、权限或写回链路，保留所有已有未提交改动。
+
+验证命令与结果：
+- 定向 `npm.cmd --prefix apps/desktop/frontend run test -- tests/project-open-feedback.test.tsx tests/side-panel-resize.test.tsx`：2 files / 11 passed；新增错误反馈和键盘回归均先失败再修复。
+- `npm.cmd --prefix apps/desktop/frontend run test`：最终 93 files / 620 passed（19:45:25，8.41s）。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`、`npm.cmd --prefix apps/desktop/frontend run build`：通过；构建保留原有混合导入/chunk 告警。
+- `pnpm.cmd exec eslint . --ignore-pattern '**/native-ui-20260906-192750/webview/**'`：通过；仅排除本次隔离 WebView 生成缓存的诊断检查，不是原样门禁。
+- `pnpm.cmd exec prettier --check "apps/desktop/frontend/src/**/*.{ts,tsx}" "packages/shared/src/**/*.ts" "scripts/**/*.mjs"`：通过。
+- `cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml`：通过；原生验收临时观察分支已还原，最终重新构建通过（18.10s），Rust 源码无 diff。
+- `node --check apps/desktop/frontend/scripts/verify-smoke.mjs`、`git diff --check`：通过。
+- **原样 `pnpm.cmd lint` / `pnpm.cmd verify` 未通过**：eslint 扫到本轮任务隔离目录 `webview/EBWebView/Subresource Filter/Unindexed Rules/10.34.0.84/adblock_snippet.js`，10 个生成代码错误；verify 停在首道门禁，后续 API 等门禁本轮未重跑。尝试有路径边界检查的单一缓存清理被执行环境拒绝，保留缓存，未绕过拒绝或修改检查配置。
+
+原生证据：获用户允许后，在独立配置、SQLite、WebView profile 和任务自有样例目录启动当前 debug 构建，通过真实样例按钮/目录选择器创建并打开正文，正常窗口 1402×880。没有写入真实手稿、填写 provider key 或发起模型请求。GUI/隔离后端已关闭，临时 Rust 改动已撤销；**最小窗口拖拽未取得可靠证据，C-01 仍未解决**。纯浏览器实测侧栏值与实际宽度、Tab 可达、刷新后保持 350px、复位 340px；浏览器错误弹窗因缺少 Tauri invoke 触发，仅验证展示，不计原生故障。
+
+详细步骤、命令与边界：`D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/second-batch-verification.md`。原生截图 `research/native-book-before-wide.png`，本轮预览原图 `research/13-open-project-error-preview.jpg` 至 `research/15-welcome-sample-title.jpg`。预览标签与 Vite 已关闭。未做 GUI diff 写回、多轮真实 provider、系统缩放/屏幕阅读器验收；任务继续 in_progress，代码未提交、未归档。
+
+### 2026-09-06 写作区自适应与补丁头部续进
+
+实现项目态 420px 主区、320—384px 弹性 Agent、只限制显示而不覆盖保存值的侧栏上限；拖拽和方向键从真实显示宽度起算，取消/卸载清理监听。补丁说明和操作组在窄栏换行，保留四个动作与原回调，补分组/展开/拒绝输入语义。无 API/权限/provider/写回契约变化。
+
+- 真实 App 挂载回归确认项目选择后 1024↔1440 resize、Ctrl+3/1/2 实际模式切换、Editor/Agent 节点及状态计数器保留、保存的侧栏偏好不变；重型叶子替换为测试计数器，网络明确失败，不冒充真实 Monaco/Agent 验收。
+- 显式标注的无后端组件夹具复用真实 SidePanel/AssistantPanelFrame/PatchReviewPanel：1024px 的侧/中/右为 236/420/320，无工作区横向溢出；1440px 为 420/588/384，保存偏好始终 420。窄栏补丁说明宽度约 156→396px，操作可达、回调可确认但不写文件。测试 HTML 未进入生产 dist。
+- `npm.cmd --prefix apps/desktop/frontend run test`：最终 **95 files / 627 passed**（20:09:52，7.72s）；定向 3 files / 24 passed。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`、前端 production build、原范围 Prettier check、`git diff --check`：通过。构建原有混合导入/chunk 告警保留。
+- `pnpm.cmd exec eslint . --ignore-pattern '**/native-ui-20260906-192750/webview/**'`：通过，仍只是排除单一旧运行缓存的诊断检查。
+- 原样 `pnpm.cmd verify`：**未通过**，仍在 lint 扫到旧 WebView adblock_snippet.js 的 10 个错误，后续门禁没有执行。日志 `D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/pnpm-verify-layout.log`。未修改门禁配置，未绕过已被拒绝的缓存清理。
+- 固定 1024×768 的临时原生观察构建通过，但隔离启动命令被执行环境拒绝；未使用其他工具重试。临时 Rust 改动已还原并重新构建通过（14.07s），源码无 diff。本轮未实际接管桌面；57506 无监听，Vite/浏览器夹具已关闭且临时视口 reset。
+
+详细步骤、截图和边界：`D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/layout-verification.md`。AC14 组件补丁布局完成，AC11 原生最小窗口/真实编辑状态和 AC12 完整门禁仍未完成；没有把组件夹具当作真机 GUI、真实 provider 或 diff 写回验收。保留未提交修改，不归档或缩小持续目标。
+
+### 2026-09-06 完成性审查与剩余门禁补验
+
+本轮无产品源码修改。复查 PRD R1—R15、AC1—AC14、当前工作树和关键证据后，保留 AC11（原生项目态最小窗口/真实状态）与 AC12（原样完整门禁）未完成。前一回合为真实实现/渲染进展，本轮补跑被 lint 提前退出挡住的门禁，不扩展新功能或缩小目标。
+
+本轮实际执行：
+- 前端 typecheck 通过；全量 **95 files / 627 passed**（20:16:36，7.87s）。
+- 原样 `pnpm.cmd verify` 仍 exit 1：本任务旧 WebView 缓存 adblock_snippet.js 的 10 个 lint 错误，与前两回合一致。日志 `research/pnpm-verify-final-audit.log`。
+- 独立执行剩余门禁：Shared tsc 通过，project-core **7 passed**；API `uv run pytest` **1592 passed / 7 skipped / 6 warnings**（228.99s）；Ruff 通过；daily sidecar 独立临时 SQLite/54527 端口、零 LLM 冒烟通过；OpenAPI/实时帧 schema/类型刷新无漂移。
+- `node --check apps/desktop/frontend/scripts/verify-smoke.mjs`、`git diff --check` 通过。未额外跑 GUI smoke、packaged sidecar、pnpm e2e 或真实 LLM/写回。上轮 production build/源码诊断 ESLint/Prettier 结果保留，本轮没有再次执行这些项。
+- sidecar 验收端口及 UI 验收端口均无监听，临时 smoke 根已移除；原生源码与观察前备份 SHA256 一致，Rust 与生成契约无 diff。
+
+分项通过不能替代原样 verify 成功。旧缓存阻碍已连续三个目标回合复现，前次清理被执行环境拒绝；未通过其他方式清理、移动或改规则绕过。原生隔离启动也曾被拒绝，目前没有新原生验收证据。已没有可通过继续改本轮前端代码消除的已知验收阻碍，持续目标标记受阻，等待用户/环境协助，不标记完成、不提交或归档。
+
+逐项审查、完整日志索引、精确缓存路径和恢复条件：`D:/StoryForge/.trellis/tasks/09-06-desktop-uiux-optimization/research/completion-audit.md`。
+
+
+### 2026-09-10 全部现有改动提交前复验
+
+范围：按用户要求，将当前 master 的全部非忽略工作区改动提交，并准备连同已有 13 个本地提交推送 origin/master。本轮不改产品代码、不清理运行缓存、不修改门禁，也不创建 PR。
+
+- `git fetch origin`：成功；复核 origin/master 与 HEAD 为 behind 0 / ahead 13，无需合并远端提交。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`：通过。
+- `npm.cmd --prefix apps/desktop/frontend run test`：95 files / 627 passed。
+- `cd apps/api; uv run ruff check app tests`：All checks passed。
+- `cd apps/api; uv run pytest tests/test_source_pruning.py tests/test_redis_cache_strategy.py tests/test_retrieval_real_providers.py tests/test_model_runs.py tests/test_book_run_workflow_dispatch.py tests/test_pagination.py tests/test_s3_integration.py tests/test_llm_config_file_override.py -q`：83 passed / 2 skipped。
+- `node --check apps/desktop/frontend/scripts/verify-smoke.mjs`、`git diff --check`：通过。
+- `pnpm.cmd verify`：exit 1；仍被 `.trellis/tasks/09-06-desktop-uiux-optimization/research/native-ui-20260906-192750/webview/EBWebView/Subresource Filter/Unindexed Rules/10.34.0.84/adblock_snippet.js` 的 10 个 ESLint 错误阻断，后续总门禁未执行。`git check-ignore -v` 确认此缓存由 `.gitignore` 的 `.trellis/` 规则忽略，不纳入提交；未改规则或移除缓存。
+- 对未推送历史新增行、当前 diff 和 8 个非忽略新文件做常见密钥格式检查，未发现匹配；32 个待提交文件未发现敏感文件名或超过 10 MiB 的文件。这是有限模式检查，不等同于完整安全审计。
+
+未验证：本轮未重跑 API 全量、契约刷新、production build、真机 GUI、真实 provider、长篇质量或写回验收。分项通过不代表总门禁通过；忽略的本地缓存、配置与 Trellis 资料不强制加入 Git。

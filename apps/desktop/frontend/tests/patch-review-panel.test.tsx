@@ -152,10 +152,7 @@ function click(id: string): void {
 function type(id: string, value: string): void {
   const input = byTestId(id) as HTMLInputElement | null;
   assert.ok(input, `找不到 ${id}`);
-  const setter = Object.getOwnPropertyDescriptor(
-    window.HTMLInputElement.prototype,
-    'value',
-  )?.set;
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
   act(() => {
     setter?.call(input, value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -192,6 +189,24 @@ test('点「拒绝」不立即否掉，先问该怎么改', () => {
 
   assert.ok(byTestId('patch-reject-input'), '点了拒绝却没有「该怎么改」的入口');
   assert.deepEqual(rejected, [], '点一下就把补丁否掉了——作者还没说话');
+});
+
+test('补丁操作有分组，展开和拒绝状态可读，拒绝输入具有独立名称', () => {
+  mountPanel();
+  const group = container.querySelector('[role="group"][aria-label="补丁操作"]');
+  assert.ok(group);
+  assert.equal(group.querySelectorAll('button').length, 4);
+  assert.equal(byTestId('patch-expand')?.getAttribute('aria-expanded'), 'false');
+  click('patch-expand');
+  assert.equal(byTestId('patch-expand')?.getAttribute('aria-expanded'), 'true');
+  assert.equal(byTestId('patch-diff')?.style.height, '420px');
+  assert.equal(byTestId('suggestion-reject')?.getAttribute('aria-expanded'), 'false');
+  click('suggestion-reject');
+  assert.equal(byTestId('suggestion-reject')?.getAttribute('aria-expanded'), 'true');
+  assert.equal(byTestId('patch-reject-input')?.getAttribute('aria-label'), '修改方向（可选）');
+  press('patch-reject-input', 'Escape');
+  assert.equal(byTestId('suggestion-reject')?.getAttribute('aria-expanded'), 'false');
+  assert.deepEqual(rejected, []);
 });
 
 test('写下方向后确认，原话原样交出去', () => {
@@ -270,7 +285,5 @@ test('展示后端实际使用的知识，并允许按条目移除后重试', ()
   assert.match(byTestId('patch-knowledge-context')?.textContent ?? '', /设定\/天枢\.md/);
   assert.match(byTestId('patch-knowledge-context')?.textContent ?? '', /来源待复核/);
   click('patch-knowledge-retry');
-  assert.deepEqual(retried, [
-    ['pk_550e8400-e29b-41d4-a716-446655440001', '设定/天枢.md'],
-  ]);
+  assert.deepEqual(retried, [['pk_550e8400-e29b-41d4-a716-446655440001', '设定/天枢.md']]);
 });

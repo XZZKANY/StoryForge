@@ -18,10 +18,6 @@ _client_singleton: Any | None | bool = False  # False = 未初始化, None = 不
 _fallback_warned = False
 
 
-class S3UploadError(Exception):
-    """S3 上传失败。"""
-
-
 def get_s3_client() -> Any | None:
     """懒加载 S3 客户端；配置不全或 boto3 缺失时返回 None 并记录警告。"""
 

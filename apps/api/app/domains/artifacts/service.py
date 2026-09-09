@@ -4,6 +4,7 @@ import os
 from collections.abc import Sequence
 from uuid import uuid4
 
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -103,7 +104,7 @@ def list_artifacts_cached(
     if isinstance(cached, list):
         try:
             return [ArtifactRead.model_validate(item) for item in cached]
-        except Exception:
+        except ValidationError:
             cache_delete_pattern(cache_key)
     artifacts = list_artifacts(session, workspace_id=workspace_id, book_id=book_id)
     rendered = [ArtifactRead.model_validate(item) for item in artifacts]

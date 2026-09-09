@@ -227,3 +227,20 @@ def test_jobs_runtime_bridge_helper_stays_pruned() -> None:
         "sync_job_run_with_runtime",
     ):
         assert forbidden not in jobs_service_source, f"jobs/service.py 不应继续保留旧 runtime bridge helper：{forbidden}"
+
+
+def test_orphaned_helpers_and_types_stay_pruned() -> None:
+    """孤立 helper/type 不应因历史兼容清理重新回到生产模块。"""
+
+    pagination_source = (API_ROOT / "app" / "common" / "pagination.py").read_text(encoding="utf-8")
+    s3_source = (API_ROOT / "app" / "common" / "s3_client.py").read_text(encoding="utf-8")
+    llm_env_source = (API_ROOT / "app" / "common" / "llm_env.py").read_text(encoding="utf-8")
+    reranker_source = (API_ROOT / "app" / "domains" / "retrieval" / "reranker_client.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "envelope_from_items" not in pagination_source
+    assert "S3UploadError" not in s3_source
+    assert "DisabledRerankerClient" not in reranker_source
+    assert "apply_llm_config_file =" not in llm_env_source
+    assert "apply_polish_config_file =" not in llm_env_source

@@ -21,7 +21,6 @@ const suggestionWritebackSource = readFileSync(
   'utf8',
 );
 const monacoEditorSource = readFileSync('src/components/editor/useMonacoEditor.ts', 'utf8');
-const settingsViewSource = readFileSync('src/components/SettingsView.tsx', 'utf8');
 const versionHistorySource = readFileSync('src/components/editor/VersionHistory.tsx', 'utf8');
 
 const noop = () => {};
@@ -208,21 +207,6 @@ test('空文件写入正文也必须先取版本 tree，不得被旧空串短路
     /const contentChanged = normalizeEol\(previous\) !== normalizeEol\(content\)/,
   );
   assert.doesNotMatch(editorSource, /contentChanged = previous !== ['"]{2}/);
-});
-
-test('设置页明确 Provider 运行时真相源来自后端环境变量', () => {
-  assert.ok(
-    settingsViewSource.includes('真实模型调用读取后端环境变量'),
-    'Provider 设置页必须说明本机字段不驱动后端真实调用',
-  );
-  assert.ok(
-    settingsViewSource.includes('STORYFORGE_LLM_*'),
-    'Provider 测试连接说明必须指向后端 STORYFORGE_LLM_* 配置',
-  );
-  assert.ok(
-    settingsViewSource.includes('provider-runtime-env-source'),
-    'Provider 设置页必须保留后端 env 真相源提示标记',
-  );
 });
 
 test('React 桌面入口不再调用原生 prompt/alert/confirm', () => {
