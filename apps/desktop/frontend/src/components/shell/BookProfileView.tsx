@@ -195,9 +195,10 @@ export function BookProfileView({
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">作品</span>
         <button
           type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
           title="重新读取档案与进度"
           onClick={handle.refresh}
+          disabled={handle.refreshing}
           data-testid="book-profile-refresh"
         >
           <RefreshCw
@@ -209,7 +210,7 @@ export function BookProfileView({
         <button
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-          title="回到资源管理器 · Ctrl+Shift+E"
+          title="回到资源管理器 · Ctrl Shift E"
           onClick={onBackToExplorer}
           data-testid="book-profile-back-to-explorer"
         >
@@ -218,6 +219,22 @@ export function BookProfileView({
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
+        {handle.profileError ? (
+          <p
+            className="mx-3 mt-3 rounded-md border border-error/40 bg-error/5 px-2 py-1.5 text-2xs text-error"
+            role="alert"
+          >
+            档案读取失败：{handle.profileError}。仍可编辑，保存后将重试写入。
+          </p>
+        ) : null}
+        {handle.saveError ? (
+          <p
+            className="mx-3 mt-2 rounded-md border border-error/40 bg-error/5 px-2 py-1.5 text-2xs text-error"
+            role="alert"
+          >
+            最近一次保存失败：{handle.saveError}。当前编辑值保留在本地草稿，请重试保存。
+          </p>
+        ) : null}
         <div className="flex gap-2.5 p-3">
           <button
             type="button"
@@ -464,7 +481,15 @@ export function BookProfileView({
           testid="outline"
           defaultOpen
         >
-          {outlineGroups.length === 0 ? (
+          {handle.outlineLoading ? (
+            <p className="px-3 py-3 text-2xs text-subtle" role="status">
+              正在读取大纲…
+            </p>
+          ) : handle.outlineError ? (
+            <p className="px-3 py-3 text-2xs text-error" role="alert">
+              大纲读取失败：{handle.outlineError}。请点击顶部刷新重试。
+            </p>
+          ) : outlineGroups.length === 0 ? (
             <p className="px-3 text-3xs leading-relaxed text-subtle">
               「大纲」目录下还没有带标题的文档。写下 `## 第三幕` 一类的标题，这里就能一键跳过去。
             </p>

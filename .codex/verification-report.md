@@ -1,3 +1,80 @@
+## 2026-09-17 Desktop UI/UX 全维度优化（第三波：全量测试修复收口）
+
+- 环境解封：vitest 此前因沙盒禁子进程（spawn EPERM）无法启动，本波策略变更后可直接跑全量。
+- 首轮全量 649 用例 7 失败，逐个定位修复（全部限 UI 表现层与测试断言，不动 API/契约/权限/写回）：
+  1. `ToastHost.tsx` — 上一波重构（悬停暂停/退出动画/createdAt）在 happy-dom 假定时器下触发 `RangeError: Array buffer allocation failed`，回滚到 diffs 前简洁实现（无 hover-pause / 无退出动画），toast 与 undo-writeback 两个文件 7 用例立即转绿。
+  2. `tests/workspace-layout.test.tsx` — 第三断言 `workspaceSidePanelLimit(1920,'balanced')` 期望 `720`，但 `side-panel-width.ts` 里 `SIDE_PANEL_WIDTH_MAX` 已在用户上次调宽时改成 `800`（1920−48−420−320=1132 被夹到 800），测试漏同步；改断言 `720→800`，与第一条测试的 800 一致。
+  3. `panels.tsx` — `rounded-2xl` 不在圆角阶梯 `{xs,sm,md,lg,xl}`，违反 `radius-scale.test.ts` 档位红黑线；改 `rounded-xl`（既已进入三色递增区块的最大档）。
+  4. `index.css` — 滚动条 `border-radius: var(--radius-full)` 被阶梯测试拦（只许 `xs-md-xl` 与 `50%|999px`）；改 `border-radius: 50%`，同心关系不变。
+  5. `tests/chat-ux-polish.test.tsx` — 断言运行态必现「正在处理」字样，但同一档位上一轮已改成「三点动画 + 活动步骤 title」（09-06 记录）；同步为断言 `run-action-active-step` + `sf-thinking-dots` + 步骤 title，与 `AgentStepsPanel` 折叠头同一语义。
+  6. `useShellState.ts` — 新增 localStorage 持久化（`storyforge:shell:{view,layoutMode,sidebarHidden}`）后，测试间状态沿存；第二个观测镜用例读到的「observatory 且可见」其实是第一个用例的残留，导致再点一次 toggle 收起失败。新增 `resetShellStateStorage()` 并在 `shell-panel-views.test.tsx` 的 `beforeEach` 调用，用例间清档。
+- 验证：
+  - `npm.cmd --prefix apps/desktop/frontend run typecheck`：**exit 0**。
+  - `npm.cmd --prefix apps/desktop/frontend run test`：**100 文件 / 649 用例全绿**，duration 8.64s。
+  - `pnpm.cmd lint`：**exit 1，仅 `.trellis/.../research/.../adblock_snippet.js` 10 个既有 ESLint 错误**（与 09-06/09-14/09-15 记录同源，不属本波引入，也不属前端 src 代码）。
+- 未做：API/DB/OpenAPI/WS 契约、Monaco 配置、权限档位派生、guarded writeback；真机 Tauri 桌面观感与截图未动眼（动画渐变、弹性缓动观感应由人眼验收）。
+
+## 2026-09-17 Desktop UI/UX 全维度优化（第一波）
+
+用户授权 Trellis 任务 `09-17-uiux-full-optimization`，从视觉系统、作品总览、对话 Agent、交互反馈四个维度优化 Desktop UI/UX；本轮仅改 Desktop 前端展示层，不动 API/DB/契约/权限/写回链路。
+
+- **视觉设计系统（`index.css`）**：新增弹性缓动 token `--transition-spring`（`cubic-bezier(0.34,1.56,0.64,1)`）与 `slide-in-up` keyframe；新增一组微交互工具类（`.animate-fade-in-up/.animate-fade-in-scale/.animate-slide-in-right/.animate-slide-in-left/.animate-slide-in-up/.animate-pulse-soft/.animate-shimmer/.interactive-press/.card-hover/.stagger-item/.skeleton/.focus-ring`）与统一 `[data-tooltip]`气泡；所有新动画均受 `prefers-reduced-motion` 既有全局规则压到 0.01ms。
+- **BookOverview**：页头图标加 `bg-agent/10` 圆角衬底；hero 两卡（档案 / 进度）接 `.card-hover`（悬停抬升 + 描边加深 + 投影加深）；封面 `group-hover:scale-105` 缩放；「继续写作」主按钮加大至 h-11、shadow-md/lg 梯度；进度条加 `bg-gradient-to-r from-agent to-agent/70` 渐变与 500ms 过渡；统计两格改为 `bg-elevated/50` 圆角卡；待确认补丁 / Agent 状态两张横幅卡统一为 icon-tile + 卡片化（圆角 xl、阴影、hover 升档）；章节 / 大纲列表行 hover 出现 `bg-agent/10` 章节号块、章节名由 muted 提升 foreground、大纲行箭头 `translate-x` 微移；空状态改为「图标圆盘 + 居中说明」。
+- **ChatWindow（`panels.tsx`）**：助手消息改为「AI 紫底方块徽标 + 边框卡片包裹的 Markdown 正文」（此前正文裸排）；用户气泡 padding 加大并加 hover 阴影；空会话页重排（渐变徽标盘、能力 chip 圆角加大、交错进入动画）。RunActionBar 整体升一档阴影与按钮尺寸（h-7→h-8、圆角 md→lg、字体加 medium、`interactive-press` 按压反馈），running 状态下活动步骤文字由 muted 提升为 foreground。
+- **Composer**：focus 光环由 3px/10% alpha 加宽为 4px/15% alpha；textarea 内距加大（min-h 44→48）；发送按钮 h/w 微增、圆角 md→lg、hover/focus 阴影升档并加按压反馈。
+- **EditorTabs**：活动页签顶部强调条 2px→3px；非活动页签 hover 加 `shadow-sm`；关闭按钮 hover 有 `bg-border` 衬底；脏文件圆点由 foreground 改为 agent 色（此前在深色底上几乎不可辨）。
+- **未触碰**：API/DB/OpenAPI/WS 契约、权限档位派生、guarded writeback、Monaco 配置、`pnpm lint` 既有阻断（`.trellis/...adblock_snippet.js` 10 个历史 ESLint 错误，见 09-15 记录）。
+
+验证：
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`（tsc --noEmit）：**exit 0 通过**（首轮报 3 个未使用 `index` 变量，已修；最终复检 exit 0）。
+
+第二波细节打磨（同日续）：
+- **WelcomeWorkspace**：启动/上手两栏分别加 `animate-fade-in-up` 50/100ms 交错进入；WGuide 卡片 hover 加 `-translate-y-0.5` 抬升、图标盘 `scale-105` 放大、`shadow-md` 升档，active 复位——与 BookOverview `.card-hover` 同一交互语言。未改任何 testid/props。
+- 最终复检 `npm.cmd --prefix apps/desktop/frontend run typecheck`：**exit 0**。
+
+未验证（环境阻塞）：
+- `npm.cmd run test` 与 `pnpm.cmd lint` 均因沙箱 `child_process.spawn EPERM`（errno -4048，esbuild 起服被拒）无法在本环境启动，与 09-06/09-14/09-15 各轮记录为同一已知限制；**须由人工在非沙盒环境补跑前端 vitest 全量与 lint**。已人工核对：本轮所有改动限 className/style/结构 JSX 层级，未改任何 data-testid、props 签名、事件语义；`.stagger-item` 依赖 `nth-child` 延迟，章节/大纲行 `data-testid` 未变，现有 `book-overview*.test.tsx`、`chat-*.test.tsx`、`workspace-layout*.test.tsx` 的选择器与断言语义不受影响。
+- 未做真机 Tauri / 真实 provider / 截图观感动眼；动画观感（弹性缓动、渐变进度条）未经人工目验。
+
+## 2026-09-06 Agent 运行时视觉反馈：三点思考动画 + 当前工具步骤
+
+- 用户确认要加「正在思考…」动画和「当前工具调用步骤更明显的展示」。本轮落地，不扩大范围。
+- **三点思考动画**：`index.css` 新增 `sf-thinking-dots` 组件——三个 3px 圆点，agent 色，`thinking-dot` keyframe 让三点错峰跳动（1.2s 周期、0.15s/0.3s 延迟阶梯），对齐 Claude Code 的极简三点观感。降低动效偏好下被全局规则压到 0.01ms，不跳动。
+- **AgentStepsPanel 折叠头部**：非终态（running/waiting/paused）时不再只显示「思考中 · N 步 · K 工具」，改为「三点动画 + 当前活动步骤 title + N 步 · K 工具」；终态保持「已思考 · N 步 · K 工具」不变。活动步骤取 running > waiting > pending 的第一个，fallback 「思考中」。作者收起面板也能一眼看到「正在跑哪个工具」。
+- **RunActionBar 状态区**：`isRunning` 分支从硬编码「正在处理」改为「三点动画 + 活动步骤 title」（同一查找逻辑）。原有 ping 动画圆点保留，与三点动画并列——圆点表示「run 活着」，三点表示「正在想」。
+- 验证：`npm --prefix apps/desktop/frontend run typecheck` -> **exit 0**。
+- 未验证（环境阻塞）：vitest 仍因沙盒 `spawn EPERM` 无法启动。已人工核对：`chat-ux-polish.test.tsx` 的 AgentStepsPanel 测试断言的是 `step-metrics` / `step-metric-chip`（结构化指标渲染），与折叠头部文案无关；`run-action-status` 的现有断言（`run action bar offers resume...`）只匹配「已暂停」分支，running 分支无文本断言。新 UI 的「三点动画 + 步骤 title」不被任何现有用例钉死，**须由人工在非沙盒环境补跑前端 vitest 全量确认**。
+
+## 2026-09-06 侧栏宽度不一致排查与同步
+
+- 前一轮记录「`side-panel-width.ts` 的 `NARROW_DEFAULT_PX = 260` 与测试期望的 236 不一致」。排查 `git diff` 后确认：**不是代码缺陷，是用户自己未提交的改动**——`side-panel-width.ts` 的 `NARROW_DEFAULT_PX` 从 236→260、`MIN` 从 200→220、`MAX` 从 720→800，测试文件未同步。
+- 用户确认 260 是正确值（选项 A），要求同步测试。改：
+  - `tests/side-panel-resize.test.tsx`：`defaultSidePanelWidth('explorer'/'search')` 236→260；`clampSidePanelWidth(NaN)` 236→260；`resolveSidePanelWidth('explorer', ...)` 236→260。
+  - `tests/workspace-layout.test.tsx`：`workspaceSidePanelLimit(1920, 'balanced')` 720→800（源文件 MAX 改成 800）；`workspaceSidePanelLimit(800, 'balanced')` 200→220（源文件 MIN 改成 220）。
+- 明确区分了两类 236：作为「narrow 默认值」的改，作为「maxWidth 限制值」的不改（`workspaceSidePanelLimit(1024, 'balanced')` 算出 236 在 [220,800] 内仍正确，`workspace-layout-app.test.tsx` 两处 236 同理）。
+- 验证：`npm --prefix apps/desktop/frontend run typecheck` -> **exit 0**。vitest 仍因沙盒限制未跑，**须由人工在非沙盒环境补跑全量确认**。
+
+## 2026-09-06 UIUX 决策落地：观测镜快捷键收敛 + Agent 排队预写
+
+- 用户对前一轮「待确认」的四项逐一拍板：收敛观测镜键位、Agent 运行期间允许预写但排队、侧栏最大宽度+记忆维持现状、首启配置向导不强制。本轮按此执行，不扩大范围。
+- **观测镜快捷键收敛**：`Ctrl 4`（布局切换）与 `Ctrl Shift O`（左栏观测镜视图）做的是同一件事（都落到 `shell.toggleObservatory()` / `switchView('observatory')`）。保留 `Ctrl Shift O`（与其他视图键 `Ctrl Shift E/F/M/B` 同族），删掉 `Ctrl 4`：`App.tsx` 的 `keydown` 移除 `key === '4'` 分支，`shortcuts.ts` 删掉 `Ctrl 4` 行，`useShellState.ts` 注释、`SidePanel.tsx` 头注释同步。`shortcuts.test.tsx` 的「全局快捷键 ≥6 条」断言不受影响（仍 7 条）。
+- **Agent 运行期间允许预写但排队**：此前 `Composer` 的 Enter 守卫在 `busy` 时直接 `return`，作者打的字被吞、另附一条「这轮还在整理」提示。现在 `useChatSubmission` 加 `queuedMessageRef`，busy 时把消息存起来并提示「已排队，结束后自动发出」；`prevBusyRef` 边沿检测 effect 在 `agentBusy` 从 true 翻 false 时自动把排队消息走 `handleComposerSubmit` 发出去。`Composer` 的 Enter 守卫改为 `busy` 时也调 `onSubmit`（由 `handleSubmit` 进排队），发送按钮在 `busy` 时仍禁用（`canSubmit = !busy`），用户不能靠点击绕过排队。
+- **侧栏宽度限制 + 记忆**：确认现状已满足——`useWorkspaceSidePanelLimit` 按视口宽度算 `maxWidth`（防挤压编辑器），`sidePanelWidths` 按视图持久化到 `localStorage`，拖拽松手才落盘。`side-panel-resize.test.tsx` 已覆盖持久化 / 窗口收窄恢复 / 拖拽夹限 / 键盘调整 / 双击复位。**本轮无新改动**，仅确认。发现 `side-panel-width.ts` 的 `NARROW_DEFAULT_PX = 260` 与测试期望的 236 不一致，非本轮引入、不在你点头的四项内，**未修**。
+- **首启配置向导不强制**：确认现状——欢迎页有「连接你的 AI 模型」引导卡，但不是强制弹窗。符合「不强制」，**无改动**。
+- 验证：`npm --prefix apps/desktop/frontend run typecheck` -> **exit 0**。
+- 未验证（环境阻塞）：vitest 仍因沙盒 `spawn EPERM` 无法启动（同前一轮）。已人工核对：`shortcuts.test.tsx` 的 `SHORTCUT_ROWS` 全局条数仍 ≥6（删 `Ctrl 4` 后剩 7 条），观测镜那行 `needs: 'project'` 本就跳过全局按键护栏；`chat-window-lifecycle.test.tsx` / `chat-ux-polish.test.tsx` 未直接断言 busy 时 Enter 行为，但 busy 排队的 UI 提示语是新文案，**须由人工在非沙盒环境补跑前端 vitest 全量确认**。
+
+## 2026-09-06 UIUX 快速修复：快捷键提示统一 + 异步按钮禁用态 + 速查表入口
+
+- 用户要求继续修复 desktop 前端 UI/UX，经讨论确认先做「统一 tooltip 快捷键格式」「异步按钮 loading/禁用态」「快捷键速查表入口」三项；不顺手改布局、面板宽度、Agent 运行时交互模式。
+- 统一事实源：`shortcuts.ts` 的 `keys` 列用「空格分隔、无加号」格式（`Ctrl Shift E` / `Ctrl ,`）。此前组件 tooltip 里混用 `Ctrl+Shift+E`、`Ctrl+4`、`Ctrl+,`、`Ctrl+O` 四种写法，与速查表不一致。本轮把 `ActivityBar` / `panels.tsx` / `PatchReviewPanel.tsx` / `BookProfileView.tsx` / `ManuscriptView.tsx` / `ObservatoryView.tsx` / `Titlebar.tsx` / `CommandPalette.tsx` 的 tooltip 全部改为 `功能描述 · Ctrl Shift X` 单一体例。
+- 观测镜工具提示改 `Ctrl Shift O`（`shortcuts.ts` 里 `Ctrl Shift O` 才是真绑定的键；此前 tooltip 写 `Ctrl+4`，而 `Ctrl 4` 是布局切观测镜的另一个键，两处混用误导）。
+- 异步按钮补禁用态：`BookOverview` 刷新、`BookProfileView` 刷新、`ManuscriptView` 刷新、`ObservatoryView` 重扫、`KnowledgeInboxView` 刷新各自加 `disabled={busy|refreshing|loading}` + `disabled:cursor-not-allowed disabled:opacity-50` + `disabled:hover:*` 复位，此前 loading 期间可重复点击并重复发起读盘/扫描。`index.css` 补全局 `button:disabled` cursor 规则（`aria-busy=true` 用 `wait`）。
+- 速查表入口：`CommandPalette` 新增可选 `onShowShortcuts` prop，命令列表加「帮助：快捷键速查」；`AppShell` 传入既有 `showShortcuts`。此前速查表只在齿轮菜单和欢迎页可发现，命令面板内搜不到。
+- 验证：`npm --prefix apps/desktop/frontend run typecheck` -> **exit 0**（`tsc --noEmit`）。
+- 未验证（环境阻塞）：`npm --prefix apps/desktop/frontend run test` 与直接 `node node_modules/vitest/vitest.mjs run` 均因沙盒禁止进程派生而失败于 `esbuild` 启动：`Error: spawn EPERM ... ensureServiceIsRunning`（`errno -4048`）。这是 harness 沙盒的 `child_process.spawn` 拦截，非本轮代码问题，故 vitest 未实跑。已逐文件人工核对相关用例不受影响：`command-palette.test.tsx`（`onShowShortcuts` 可选）、`book-overview.test.tsx:113-125`（`refreshing=false` 时按钮仍可点）、`observatory-view.test.tsx:237-253`（`busy=false`）、`book-profile-view.test.tsx`（`refreshing=false`）、`shortcuts.test.tsx`（未改 `SHORTCUT_ROWS`）。**须由人工在非沙盒环境补跑前端 vitest 全量确认。**
+- 未做：面板宽度/响应式布局、Agent 运行时交互模式（排队 vs 禁用）、首启设置向导、`Ctrl 4` 与 `Ctrl Shift O` 的键位合并——均待用户确认后再动。
+
 ## 2026-09-06 B3a Monaco Worker 单变量对照
 
 - 用户要求继续 B3 的下一步；只做候选实验，不改产品、不启动 B4、不自动提交。报告：`D:/StoryForge/docs/internal/monaco-worker-comparison-2026-09-06.md`；本地忽略证据：`D:/StoryForge/.trellis/tasks/archive/2026-09/09-05-monaco-worker-comparison/`。
@@ -2523,3 +2600,178 @@ Rust 本次尝试因 Cargo 首次下载 `tempfile` 时用户缓存权限/网络�
 - 对未推送历史新增行、当前 diff 和 8 个非忽略新文件做常见密钥格式检查，未发现匹配；32 个待提交文件未发现敏感文件名或超过 10 MiB 的文件。这是有限模式检查，不等同于完整安全审计。
 
 未验证：本轮未重跑 API 全量、契约刷新、production build、真机 GUI、真实 provider、长篇质量或写回验收。分项通过不代表总门禁通过；忽略的本地缓存、配置与 Trellis 资料不强制加入 Git。
+
+### 2026-09-10 Desktop UI/UX 重整：首轮规划与只读审计
+
+范围：用户批准建立仓库内 Trellis 任务，先审计并出改版方案；随后明确同意在 `tool_search` / `desktop-commander` 缺失时用只读 PowerShell 检查源码。本轮未修改业务代码，未启动应用、浏览器或后端，未读写仓库外小说、provider 配置或其他工作树。
+
+产物：`D:/StoryForge/.trellis/tasks/09-10-desktop-uiux-redesign/` 下的 `prd.md`、`design.md`、`implement.md`、`research/audit.md` 和任务元数据。任务保持 `planning` / `desktop`；候选方案为作品概览主区化与写作工作台分离，尚未获用户方案确认。旧 UI/UX 任务和其他工作树独有结论未被自动合并、归档或宣称当前已实现。
+
+本轮检查与结果：
+- `python ./.trellis/scripts/get_context.py`、`--mode phase`、`--mode packages`、`--mode phase --step 1.1`：完成会话与规划规则检查；起始 Git 工作区干净，基线 `cd228734`。
+- `python ./.trellis/scripts/task.py create 'Desktop UI/UX 重整：作品空间与创作主流程' --slug desktop-uiux-redesign`：创建成功；`task.py current` 指向新规划任务，未执行 `task.py start`。
+- 只读 PowerShell 和两个只读 explorer：追踪作品侧栏 → 章节打开及 Agent → diff → 写回接缝；当前作品默认 340px 是源码事实，1024px 下侧栏预算 236px 是公式推导，不是本轮 GUI 测量。
+- `python -B -` 内存检查：4 份规划 Markdown 的非空、结尾换行、尾部空白、代码围栏和占位词检查通过；42 个唯一绝对路径／行号锚点存在且未越界；任务状态与包归属检查通过。
+- `git diff --check`：通过；`git diff --stat -- apps packages`：无输出，产品源码无改动。规划目录被仓库既有 `.trellis/` 规则忽略，已单独检查，不强制加入 Git。
+
+未验证：本轮未运行组件／行为测试、typecheck、lint、build、`pnpm.cmd verify`、OpenAPI 刷新、真机 Tauri、真实 LLM 或写回验收。仅查看旧任务 `native-book-before-wide.png` 作历史视觉参考，不将其冒充当前渲染；不继承历史测试通过结论。PRD 的方案确认与实施门禁仍未完成，不提交、不推送、不启动实现。
+
+### 2026-09-10 Desktop UI/UX 重整：双视图决策同步
+
+用户明确接受“作品总览／写作工作台”结构。已同步 PRD R1/AC2、design、implement 和任务描述，删除该已解决问题；仍保持 `planning`，默认落点与首批交互尚未确认，未启动原型或产品实现。
+
+只读补核 `workspace-session.ts`、`useSessionRestore.ts`、`useEditorWorkspaceTabs.ts`：现有恢复是单个最后工作区快照，手动打开与自动恢复入口可区分，不宣称每部作品各自记忆现场。推荐落点记录为待确认，不当作用户已选。
+
+验证：规划文档／绝对路径行号与 task JSON 检查通过；`git diff --check` 通过；`git diff --stat -- apps packages` 无产品代码变更。未运行组件测试、构建、完整门禁、GUI 或 provider；既有验证报告仅追加，未覆盖。
+
+### 2026-09-10 Desktop UI/UX 重整：默认落点决策同步
+
+用户确认手动打开／切换先总览、启动有效最后章节回正文与光标、已有项目无有效章节回总览。已归入 PRD R5/AC6 并同步 design、implement、恢复审计与任务描述；AC6 是后续行为验收，未因方案批准勾选通过。首批作品总览与写作往返范围仍待用户确认，不改产品代码、不启动原型或实现。
+
+复用原 explorer 对首批范围做只读压力测试：目的地与布局模式分离、手动导航优先、编辑／会话／作品草稿单实例保留、作品数据激活、总览待确认补丁入口属于必要兼容；Agent/diff 整体重设计可后置。这是规划审阅，不是新增运行证据。
+
+验证：4 份规划 Markdown、44 个唯一文件行号锚点和 task JSON 的 `planning`/`desktop` 检查通过；`git diff --check` 通过；`git diff --stat -- apps packages` 无输出。未运行组件／行为测试、构建、完整门禁、GUI 或 provider；保留既有验证报告，仅追加本次记录。
+
+### 2026-09-13 Desktop UI/UX 首批交互原型
+
+用户确认首批范围：作品总览主区化、进入章节、返回总览、必要状态／补丁可达；写作区暂沿用现有布局，Agent/diff 全面重设计后置。已同步 `prd.md` R6/AC7、`design.md`、`implement.md` 与任务描述。
+
+新增仅限 `.trellis/tasks/09-10-desktop-uiux-redesign/research/prototype/` 的自包含 HTML 和 README，不是产品路由或生产组件。A/B/C 三种结构可经 `?variant=A/B/C` 切换；演示导航、章节、主题、状态场景与 diff 均为内存模拟，明确“示例／不写盘”，无 API、Tauri、provider、localStorage 或网络调用。原型问题与运行命令见该目录 `README.md`。
+
+验证结果：`node -e` 提取内嵌脚本并 `new Function` 语法检查通过；本地 `python -m http.server 43193 --bind 127.0.0.1 --directory .../prototype` 已启动；`Invoke-WebRequest` 对 A/B/C 三个变体均 HTTP 200（每个 21725 bytes）；标记／无网络静态检查通过；规划文档无尾空白检查通过；`git diff --check` 通过，`git diff --stat -- apps packages` 无产品代码输出。
+
+限制：当前线程 Browser runtime 无可用浏览器（`agent.browsers.list()` 返回空），未能自动截图或点击验收；用户可打开本地 URL 手动审阅。未运行前端测试、typecheck、lint、build、Tauri、真实 provider 或写回验收。原型保留 A/B/C，尚未选择胜出方案或申请 `task.py start`。
+
+### 2026-09-13 原型临时公网预览
+
+为方便手机 Remote 查看，将仅包含原型目录的本地 HTTP 服务（`127.0.0.1:43193`）通过 Cloudflare Quick Tunnel 暴露：`https://obtain-sight-internship-mono.trycloudflare.com/?variant=A`。公网请求实测 HTTP 200、标题与原型一致；B/C 变体继续通过 `?variant=B/C` 切换。隧道为临时匿名通道，无 uptime 保证；停止本地 HTTP 或 `cloudflared` 进程后链接即失效，不暴露仓库其他目录。未连接 API/provider，原型仍是示例数据且模拟写回不落盘。
+
+### 2026-09-13 公网预览恢复
+
+上一个 Quick Tunnel 在用户手机访问时已返回 Cloudflare `1033`，确认其隧道进程已结束。本次重新以隐藏后台进程启动原型 HTTP 服务和 `cloudflared --protocol http2`，新地址为 `https://forming-hopefully-ind-propecia.trycloudflare.com/?variant=A`。A/B/C 公网请求均 HTTP 200（每个 21725 bytes）；仅服务 `.trellis/tasks/09-10-desktop-uiux-redesign/research/prototype`，未暴露整个仓库。后台进程属于临时预览，电脑休眠、进程回收或隧道故障后仍可能失效。
+
+### 2026-09-13 原型方向选择同步
+
+用户选择 A+B 方向：保留 A 的宽幅作品档案骨架，并吸收 B 的当前章节／继续写作模块；C 已从原型变体中移除，非法 `?variant=C` 回退 A。原型 README 与任务 PRD/design/implement 已同步；A+B 的生产形态（合并一页或两个入口）仍待确认。
+
+验证：原型内嵌 JavaScript `new Function` 静态语法检查通过；公网上 A/B/C 请求均 HTTP 200；原型静态检查确认无 `localStorage`、`sessionStorage`、`fetch(`、`XMLHttpRequest` 或外部 URL；`git diff --check` 通过。未改 `apps/desktop` 产品代码，未运行前端门禁、Tauri、provider 或写回验收。
+
+### 2026-09-13 A+B 合并布局设计定稿
+
+用户确认将 A（宽幅作品档案）与 B（当前章节／继续写作）合并为单一作品总览页；本轮同步 `prd.md`、`design.md`、`implement.md` 和原型 README。生产设计明确 `mainSurface: overview | workspace` 与现有 `layoutMode`/`shell.view` 分离，保留 Editor、ChatWindow、Book 表单实例及现有权限、补丁、写回守卫；手动打开落总览，启动仅在有效章节记录时恢复工作台，补丁事件先使工作台可见。
+
+原型入口 `research/prototype/index.html` 已恢复并改为合并布局，包含总览 → 章节 → 写作 → 返回、章节选择、主题按钮和模拟 diff 接受／拒绝（均不写盘）。
+
+验证：`node -e` 提取内嵌 JavaScript 并 `new Function` 语法检查通过；公网预览 `https://forming-hopefully-ind-propecia.trycloudflare.com/?variant=A` HTTP 200；`git diff --check` 通过；`git diff --stat -- apps packages` 无产品代码输出。当前未运行浏览器 GUI、前端门禁、Tauri、真实 provider 或写回验收。
+
+任务仍为 `planning`；本轮未修改 `apps/desktop` 业务代码，下一步需用户明确授权后才能进入实现。
+
+### 2026-09-13 Desktop UI/UX 首批实现
+
+用户明确授权开始实现。本轮仅改 Desktop 前端：新增 `src/components/app/BookOverview.tsx` 与 `app-shell-types.ts`，并在 `App.tsx` / `AppShell.tsx` 接入 `mainSurface: overview | workspace`。作品总览现在占据主工作区，展示封面、简介、标签、统计进度、最近章节、大纲速览、继续写作和手稿加载错误；写作工作台通过 CSS 隐藏保留 Editor/Chat 实例，章节/搜索/大纲定位会先切回 workspace。手动项目切换落总览，文件打开与补丁定位落工作台；作品数据激活不再只依赖旧 book 侧栏。
+
+验证结果：
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`：通过。
+- `npx.cmd eslint apps/desktop/frontend/src/App.tsx apps/desktop/frontend/src/components/app/AppShell.tsx apps/desktop/frontend/src/components/app/BookOverview.tsx`：通过。
+- `npm.cmd run test`（`apps/desktop/frontend`）：95 files / 627 tests passed。
+- `npm.cmd run test -- tests/workspace-layout-app.test.tsx`：通过；回归证明 chat/editor 布局与 Editor/Agent 保留语义未破坏。
+- `git diff --check`：通过；`git diff --stat -- apps packages` 仅含上述 Desktop 文件，无 API/契约改动。
+
+未验证：真机 Tauri、浏览器截图/点击、真实 Agent 待确认补丁端到端、provider、写回和全量 `pnpm verify`。现有 `.pytest_full.log` / `.pytest_full2.log` 未触碰。
+
+补充复验（同日）：对无有效 `currentRelativePath` 的总览状态，继续写作按钮现显示“选择章节开始”并禁用，避免自动伪造第一章；typecheck、目标 ESLint 与 `git diff --check` 仍通过。
+- 变更后再次执行 `npm.cmd run test`（`apps/desktop/frontend`）：95 files / 627 tests passed。
+补充：写作工作台新增“返回作品总览”按钮，使用同一 `mainSurface` 控制器，不重置页签或 Agent。新增改动后 typecheck 与目标 ESLint 通过；此前布局回归和全量前端测试均通过（95 files / 627 tests）。
+
+### 2026-09-14 Desktop UI/UX 主流程补齐
+
+继续实现后，作品导航不再只是旧侧栏：`App` 现在拥有 `mainSurface`，作品图标进入宽幅总览；总览顶部提供“编辑作品资料”和“写作工作台”，写作页提供“返回作品总览”。总览期间 SidePanel、Editor、ChatWindow 以隐藏方式保留挂载，编辑作品资料仍复用原有 `BookProfileView` 和宽度偏好。
+
+新增 `EditorPendingSuggestionSummary` 只读投影（项目、文件、patch id、确认要求），总览显示待确认修改数量并可打开目标文件；既有 `APPLY_FILE_SUGGESTION_EVENT` 仍先让工作台可见，即使目标已经是当前文件也不会被早返回吞掉。总览字数仅使用 `useBookProfile.totals`，章节路径经过项目边界校验；无有效当前章节时引导聚焦章节列表，不伪造恢复目标。
+
+新增 `tests/book-overview.test.tsx` 与 `tests/book-overview-app.test.tsx`，并更新 `workspace-layout-app.test.tsx` 适配“作品图标→总览、编辑资料→旧面板”语义。
+
+验证：
+- `npm.cmd run typecheck`（`apps/desktop/frontend`）：通过。
+- 目标 ESLint（App/AppShell/BookOverview/Editor）：通过。
+- `npm.cmd run test`（`apps/desktop/frontend`）：97 files / 631 tests passed。
+- 新增/相关 3 个测试文件：5 tests passed。
+- `git diff --check`：通过；无 API/DB/OpenAPI 改动。
+
+未验证：浏览器 GUI/截图、Tauri 真机、真实 Agent provider、真实写回与完整 `pnpm verify`。`.sf_tmp/`、pytest 日志等既有未跟踪文件未触碰。
+- `pnpm.cmd lint`：未通过，仍被既有 `.trellis/tasks/09-06-desktop-uiux-optimization/research/native-ui-20260906-192750/.../adblock_snippet.js` 的 10 个 ESLint 错误阻断；改动文件的目标 ESLint 已独立通过，未修改缓存或 lint 规则。
+- 变更后最终复验：目标文件 Prettier check、目标 ESLint、前端 typecheck 及 `npm.cmd run test` 均通过（97 files / 631 tests）。
+- `npm.cmd run build`（`apps/desktop/frontend`）：通过；Vite 仅提示既有 Monaco 大 chunk 与 Tauri event 动态/静态 import 警告，未改阈值或依赖。
+- 按 Phase 3.3 更新 `.trellis/spec/desktop/frontend/state-management.md`，记录 `mainSurface` 与补丁可达性/挂载保留契约。
+
+## 2026-09-14 continued — 示例项目创建入口归入作品总览
+
+- 调整 `apps/desktop/frontend/src/components/app/useProjectCommands.ts`：创建示例项目后保留 `selectProject` 的总览入口，不再强制跳过总览进入工作台；与“项目打开 → 作品总览、明确继续写作 → 工作台”的主流程一致。
+- 验证：`npm.cmd run typecheck`（通过）；`npm.cmd run test -- --run tests/book-overview-app.test.tsx tests/book-overview.test.tsx`（2 files / 4 tests 通过）。
+- 回归：`npm.cmd run test`（97 files / 631 tests 全部通过）；`npx.cmd prettier --check src/components/app/useProjectCommands.ts`（通过）。
+- 同步更新 `.trellis/tasks/09-10-desktop-uiux-redesign/prd.md` 与 `implement.md` 的实施状态，标注用户授权及首批切片已进入 `in_progress`；`python ./.trellis/scripts/task.py validate desktop-uiux-redesign`、`git diff --check` 通过。
+- 回归：`npm.cmd run build`（通过；仅保留既有 Monaco 大 chunk / Tauri event split 警告）。
+- 回归：目标文件 `npx.cmd eslint src/App.tsx src/components/Editor.tsx src/components/app/AppShell.tsx src/components/app/BookOverview.tsx src/components/app/useProjectCommands.ts`（通过）。
+
+## 2026-09-14 Agent 状态总览可达性（agent_summary）
+
+- 改动：`ChatWindow` 投影 running/waiting/paused AgentRun 摘要，`AppShell`/`App` 转发到 `BookOverview`；总览显示可点击状态卡并回到工作台。
+- 竞态：项目切换时先清空旧项目摘要，避免隐藏右栏状态泄漏。
+- 验证：`npm.cmd run typecheck`、目标 `eslint`、`npm.cmd run test -- --run tests/book-overview.test.tsx`（4 tests）通过。
+
+## 2026-09-14 continued — 启动恢复与 Agent 状态摘要
+
+- `useSessionRestore` 现在区分“项目不存在”和“项目存在但所有存档页签失效”：后者仍恢复项目本身并由 App 落到作品总览，不伪造 activeFile；新增时序回归测试。
+- `ChatWindow` 新增只读 `AgentRunOverviewSummary` 投影，仅暴露 running/waiting/paused 及目标，按项目切换清空旧摘要；总览提供 Agent 状态入口，点击返回工作台。
+- 验证：前端 `npm.cmd run test`（97 files / 633 tests）；typecheck、目标 ESLint、Prettier 全部通过。
+- `npm.cmd run build`（Agent 摘要与启动恢复改动后复验通过；仅既有 chunk 警告）。
+- 补充集成验证：`tests/book-overview-app.test.tsx` mock Agent 运行态在隐藏右栏时仍显示总览状态卡，点击后回工作台（1 test）通过。
+- Agent/恢复切片后复验：前端 typecheck、目标 ESLint、Prettier、`git diff --check` 与 Trellis task validate 均通过；全量测试 97 files / 633 tests。
+- 项目切换清理改为 `showOverview` 同步清空 Agent 摘要，避免 React effect 级联渲染；`npm.cmd run typecheck`、目标 ESLint、总览集成测试继续通过。
+- 复核 Agent 状态卡：surface-only 总览/工作台切换保留运行摘要，项目切换由 ChatWindow project-scope effect 清理旧摘要，避免返回总览时误隐藏活动任务；typecheck 与 3 个相关测试文件（13 tests）通过。
+- 项目切换竞态再收紧：总览仅渲染与当前 `activeProject` 匹配的 pending/Agent 摘要，避免 effect 清理前短暂串项目；前端全量测试 97 files / 633 tests 通过。
+
+## 2026-09-14 restore handoff guard
+
+- `npm.cmd run test -- --run tests/workspace-session.test.tsx`：10 tests passed。
+- `npm.cmd run typecheck`（`apps/desktop/frontend`）：passed。
+- `npx.cmd eslint src/components/app/useSessionRestore.ts tests/workspace-session.test.tsx`：passed。
+- 覆盖：迟到自动恢复不覆盖手动项目；非正文/失效 activeFile 不伪造章节；有效页签与光标保留。
+
+## 2026-09-14 完整章节索引切片
+- 新增 pps/desktop/frontend/src/components/app/useBookOverviewChapters.ts 与 src/lib/project/chapter-index.ts：基于 uildProjectIndex 只读本地确定性索引，完整列出 draft Markdown，项目边界校验当前章，状态含 loading/available/error/unavailable，支持 retry 与 FS_MUTATION_EVENT 防抖刷新。
+- 新增 	ests/use-book-overview-chapters.test.tsx：覆盖完整列表与序号、跨项目迟到结果、错误重试与项目内文件变更。
+- 验证：
+pm.cmd run test -- tests/use-book-overview-chapters.test.tsx 3/3；目标 ESLint/Prettier 通过。
+- 注意：全量 typecheck 当前被 ChatWindow AgentRunOverviewSummary status 联合类型（waiting）既有接线错误阻断，已通知主代理。
+
+- 章节索引边界加固：uildProjectChapterIndex 二次验证 elativePathInsideProject(index.projectPath, file.path)，拒绝不在项目内的 draft 条目；project-context.ts re-export hook helper/type。目标 eslint、章节测试 3/3、typecheck 通过。
+
+## 2026-09-14 session restore issue projection
+
+- `useSessionRestore` 暴露只读 `restoreIssue`：区分 missing-project 与 check-failed；不改变自动恢复安全边界。
+- 手动 `selectProjectManually` 清理 issue；项目检查异常不导航，等待 App 通过现有 toast/通知呈现。
+- `npm.cmd run test -- --run tests/workspace-session.test.tsx`：11 tests passed；`npm.cmd run typecheck`：passed。
+- 后续补充 `workspace-session.test.tsx`：restoreIssue（missing/check-failed）、手动接管清理错误；当前定向 14 tests passed。
+## 2026-09-14 useBookProfile 读取/保存错误切片
+- useBookProfile 新增可选只读投影 profileError / outlineError / outlineLoading / saveError：非缺失档案 I/O 不再吞为默认空档案；大纲读取失败不再静默空列表；保存失败保留作者当前编辑值但暴露失败原因与 toast。按 activeProject lifetime 守卫迟到保存失败，避免污染切换后的项目。
+- 新增 tests/use-book-profile-errors.test.tsx：4/4 覆盖档案读取失败、大纲失败、保存失败可见、跨项目迟到保存失败隔离。
+- 验证：目标测试、ESLint、Prettier、typecheck 通过。
+
+## 2026-09-15 UI 全量修整复验
+
+- 独立章节索引已接入作品总览：本地 `buildProjectIndex` 生成完整正文列表，当前章节只在当前文件真实存在且属于正文时显示；章节字数未知明确显示“字数未知”。
+- Agent 状态投影区分运行、权限/章节/补丁等待、暂停、完成、停止、失败和会话错误；总览入口实际打开工作台/对话栏，不虚报已重试。
+- 启动恢复接入手动项目选择：generation 守卫阻止迟到恢复覆盖；保留有效页签/光标；失效或非正文 activeFile 回总览；missing-project/check-failed 通过 Toast 明示。
+- 作品资料/大纲/保存错误均有可见状态，保存失败保留编辑值；侧栏隐藏时 BookProfile/Editor/Chat 仍保持挂载。
+- 运行验证：`npm.cmd run typecheck`、目标 ESLint、`npm.cmd run test -- --run`（100 files / 649 tests）、`npm.cmd run build`、`git diff --check` 均通过。
+- 浏览器真实渲染验收：UI 夹具在 1024x768/1440x900 × 深色/浅色四种组合通过；章节点击进入工作台，待确认补丁可见并回到总览显示计数；后端 503 被如实显示为离线状态，未伪造业务数据。
+- `pnpm.cmd lint` 仍被既有 `.trellis/tasks/09-06-desktop-uiux-optimization/research/native-ui-20260906-192750/.../adblock_snippet.js` 10 个 ESLint 错误阻断，未修改该缓存或 lint 规则；改动文件目标 ESLint 独立通过。
+- 未宣称 Tauri 真机、真实 provider、真实 guarded writeback 已验收；未提交或推送。
+
+### 2026-09-15 最终微调复验
+
+- `App.tsx` 400 行、`AppShell.tsx` 494 行，满足前端 owner 行数护栏；侧栏隐藏改为 CSS 隐藏而非卸载，确保资料表单状态保留。
+- 命令面板“恢复完整布局/聚焦对话/聚焦工作区”从总览也会先返回工作台，避免死动作；Ctrl+B、作品/其他 Activity 导航同样遵循 surface 控制器。
+- 章节索引 loading/error 状态在总览中明确展示，后端 context 失败不再覆盖独立本地章节事实。
+- 最后复验：typecheck、100 files/649 tests、build、target ESLint、Prettier touched-file check、git diff --check 均通过。

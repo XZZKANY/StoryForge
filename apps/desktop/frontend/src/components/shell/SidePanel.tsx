@@ -4,11 +4,11 @@
  * 密度高的视图到底要多宽该由作者拖，不该由我猜。
  *
  * 视图顺序即写作顺序（见 useShellState 的 SIDE_PANEL_VIEWS）：
- * - book：封面 / 书名 / 简介 / 题材 + 全书与今日进度 + 大纲跳转 + 灵感速记（Ctrl+Shift+B）
- * - manuscript：按阅读序的章节列表 + 模型这轮拿到的作品底座（Ctrl+Shift+M）
- * - explorer：项目 + 文件树（文件搜索走顶栏命令面板 Ctrl+P）
- * - search：正文全文搜索（Ctrl+Shift+F）
- * - observatory：世界线观测镜（Ctrl+4 / 活动栏雷达图标）
+ * - book：封面 / 书名 / 简介 / 题材 + 全书与今日进度 + 大纲跳转 + 灵感速记（Ctrl Shift B）
+ * - manuscript：按阅读序的章节列表 + 模型这轮拿到的作品底座（Ctrl Shift M）
+ * - explorer：项目 + 文件树（文件搜索走顶栏命令面板 Ctrl P）
+ * - search：正文全文搜索（Ctrl Shift F）
+ * - observatory：世界线观测镜（Ctrl Shift O / 活动栏雷达图标）
  */
 import {
   useEffect,
@@ -265,7 +265,7 @@ function ExplorerView({
         {menuOpen && (
           <>
             <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-            <div className="absolute left-2 right-2 top-shell-row z-40 rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-dropdown)]">
+            <div className="absolute left-2 right-2 top-shell-row z-40 rounded-lg border border-border bg-surface p-1 shadow-dropdown">
               {projects.slice(0, 8).map((project) => (
                 <div
                   key={project}

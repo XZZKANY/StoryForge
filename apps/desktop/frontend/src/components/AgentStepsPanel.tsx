@@ -16,7 +16,12 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
 
   const stepCount = run.steps.length;
   const toolCount = run.steps.filter((step) => step.id.startsWith('tool-')).length;
-  const thinkingLabel = isTerminal ? '已思考' : '思考中';
+  // 非终态时在折叠头部显示当前活动步骤：作者收起也想看到「正在跑哪个工具」。
+  const activeStep = !isTerminal
+    ? (run.steps.find((step) => step.status === 'running') ??
+      run.steps.find((step) => step.status === 'waiting') ??
+      run.steps.find((step) => step.status === 'pending'))
+    : null;
 
   return (
     <div className="mb-1">
@@ -28,9 +33,23 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
         aria-expanded={open}
       >
         <span className="text-xs text-agent">✦</span>
-        <span>
-          {thinkingLabel} · {stepCount} 步{toolCount > 0 ? ` · ${toolCount} 工具` : ''}
-        </span>
+        {isTerminal ? (
+          <span>
+            已思考 · {stepCount} 步{toolCount > 0 ? ` · ${toolCount} 工具` : ''}
+          </span>
+        ) : (
+          <span className="flex items-baseline gap-1.5" data-testid="thinking-active-step">
+            <span className="sf-thinking-dots" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span className="text-muted">
+              {activeStep ? activeStep.title : '思考中'} · {stepCount} 步
+              {toolCount > 0 ? ` · ${toolCount} 工具` : ''}
+            </span>
+          </span>
+        )}
         <span className={`text-3xs transition-transform ${open ? '' : '-rotate-90'}`}>▾</span>
       </button>
 

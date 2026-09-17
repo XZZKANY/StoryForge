@@ -4,6 +4,8 @@ export {
   selectContextBundleFiles,
 } from './project/context-bundle';
 export { buildProjectIndex, buildProjectIndexFromEntries } from './project/index';
+export { buildProjectChapterIndex } from './project/chapter-index';
+export type { ProjectChapter } from './project/chapter-index';
 export {
   PROJECT_KNOWLEDGE_SELECTION_LIMIT,
   normalizeProjectKnowledgePath,

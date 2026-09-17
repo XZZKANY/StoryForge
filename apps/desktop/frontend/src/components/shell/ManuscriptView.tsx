@@ -88,9 +88,10 @@ export function ManuscriptView({
         )}
         <button
           type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
           title="重新读取（确定性 · 无 LLM）"
           onClick={onRefresh}
+          disabled={busy}
           data-testid="manuscript-refresh"
         >
           <RefreshCw size={14} strokeWidth={1.6} className={busy ? 'animate-spin' : ''} />
@@ -98,7 +99,7 @@ export function ManuscriptView({
         <button
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-          title="回到资源管理器 · Ctrl+Shift+E"
+          title="回到资源管理器 · Ctrl Shift E"
           onClick={onBackToExplorer}
           data-testid="manuscript-back-to-explorer"
         >

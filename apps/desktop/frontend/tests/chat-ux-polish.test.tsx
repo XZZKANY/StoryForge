@@ -106,9 +106,11 @@ test('run action bar shows pause button when running', () => {
       }}
     />,
   );
-  // 第14条：run 控制统一到 RunActionBar，运行态显示「正在处理 + 暂停 + 停止」
+  // 第14条：run 控制统一到 RunActionBar，运行态显示「三点动画 + 活动步骤名 + 暂停 + 停止」
   assert.match(html, /data-testid="run-action-bar"/);
-  assert.match(html, /正在处理/);
+  assert.match(html, /data-testid="run-action-active-step"/);
+  assert.match(html, /sf-thinking-dots/);
+  assert.match(html, /思考/);
   assert.match(html, /data-testid="run-pause"/);
   assert.match(html, /data-testid="run-stop"/);
 });

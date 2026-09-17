@@ -40,6 +40,9 @@ export function useChatSubmission(
     contextCandidates,
   } = state;
 
+  // Agent 运行期间作者按 Enter 的消息：不吞、不立刻发，排队等 run 结束自动发出。
+  const queuedMessageRef = useRef<string | null>(null);
+
   const runCrossChapterConsistency = useCallback(
     async (instruction: string, refs: ChapterRef[]) => {
       if (agentBusy) {
@@ -108,6 +111,16 @@ export function useChatSubmission(
   const handleSubmit = useCallback(async () => {
     if (!input.trim() || !projectPath) return;
     const instruction = input.trim();
+    // Agent 运行中不吞作者打的字：存进排队 ref，待 run 结束自动发出。
+    if (agentBusy) {
+      queuedMessageRef.current = instruction;
+      setInput('');
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: '这轮还在整理，你这句已排队，结束后自动发出。' },
+      ]);
+      return;
+    }
     if (messages.length === 0) setConversationTitle(deriveConversationTitle(instruction));
     const userMessage: Message = { role: 'user', content: instruction };
     setMessages((prev) => [...prev, userMessage]);
@@ -119,6 +132,7 @@ export function useChatSubmission(
     }
     await runAuthorAgent(instruction, undefined, chapterWritingIntent(instruction));
   }, [
+    agentBusy,
     contextCandidates,
     input,
     messages.length,
@@ -134,6 +148,14 @@ export function useChatSubmission(
     async (value: string) => {
       const instruction = value.trim();
       if (!instruction || !projectPath) return;
+      if (agentBusy) {
+        queuedMessageRef.current = instruction;
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: '这轮还在整理，你这句已排队，结束后自动发出。' },
+        ]);
+        return;
+      }
       if (messages.length === 0) setConversationTitle(deriveConversationTitle(instruction));
       setMessages((prev) => [...prev, { role: 'user', content: instruction }]);
       const chapterRefs = resolveChapterRefs(instruction, contextCandidates);
@@ -144,6 +166,7 @@ export function useChatSubmission(
       await runAuthorAgent(instruction, undefined, chapterWritingIntent(instruction));
     },
     [
+      agentBusy,
       contextCandidates,
       messages.length,
       projectPath,
@@ -153,6 +176,18 @@ export function useChatSubmission(
       setMessages,
     ],
   );
+
+  // Agent 一停（busy 从 true 翻 false）就把排队消息自动发出去；只翻一次边，避免反复发。
+  const prevBusyRef = useRef(agentBusy);
+  useEffect(() => {
+    const wasBusy = prevBusyRef.current;
+    prevBusyRef.current = agentBusy;
+    if (!wasBusy || agentBusy) return;
+    const queued = queuedMessageRef.current;
+    if (!queued) return;
+    queuedMessageRef.current = null;
+    void handleComposerSubmit(queued);
+  }, [agentBusy, handleComposerSubmit]);
 
   /**
    * 作者否掉一版并说了「该怎么改」时，把这句话当成一次真实的作者发言发出去。

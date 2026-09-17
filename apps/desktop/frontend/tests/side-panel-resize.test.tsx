@@ -16,8 +16,8 @@ import { sanitizeAppSettings } from '../src/lib/user-settings';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 test('没拖过的视图吃档位默认：作品/手稿/观测镜宽，资源管理器窄', () => {
-  assert.equal(defaultSidePanelWidth('explorer'), 236);
-  assert.equal(defaultSidePanelWidth('search'), 236);
+  assert.equal(defaultSidePanelWidth('explorer'), 260);
+  assert.equal(defaultSidePanelWidth('search'), 260);
   for (const view of ['book', 'manuscript', 'observatory']) {
     assert.ok(defaultSidePanelWidth(view) > 300, `${view} 应比改前的 300px 更宽`);
   }
@@ -27,12 +27,12 @@ test('宽度一律夹限——手改过的 localStorage 不该把面板撑成 0 
   assert.equal(clampSidePanelWidth(10), SIDE_PANEL_WIDTH_MIN);
   assert.equal(clampSidePanelWidth(5000), SIDE_PANEL_WIDTH_MAX);
   assert.equal(clampSidePanelWidth(320.4), 320);
-  assert.equal(clampSidePanelWidth(Number.NaN), 236);
+  assert.equal(clampSidePanelWidth(Number.NaN), 260);
 
   assert.equal(resolveSidePanelWidth('book', { book: 9999 }), SIDE_PANEL_WIDTH_MAX);
   assert.equal(resolveSidePanelWidth('book', { book: 420 }), 420);
   // 没记过的视图不受别的视图影响
-  assert.equal(resolveSidePanelWidth('explorer', { book: 420 }), 236);
+  assert.equal(resolveSidePanelWidth('explorer', { book: 420 }), 260);
 
   const restored = sanitizeAppSettings({
     sidePanelWidths: { book: 9999, bad: 'x', explorer: 260 },

@@ -10,10 +10,10 @@ afterEach(() => vi.restoreAllMocks());
 test('平衡态为正文和 Agent 留出空间，聚焦态释放右栏占用', () => {
   expect(workspaceSidePanelLimit(1024, 'balanced')).toBe(236);
   expect(workspaceSidePanelLimit(1400, 'balanced')).toBe(612);
-  expect(workspaceSidePanelLimit(1920, 'balanced')).toBe(720);
+  expect(workspaceSidePanelLimit(1920, 'balanced')).toBe(800);
   expect(workspaceSidePanelLimit(1024, 'editor')).toBe(556);
   expect(workspaceSidePanelLimit(1024, 'chat')).toBe(556);
-  expect(workspaceSidePanelLimit(800, 'balanced')).toBe(200);
+  expect(workspaceSidePanelLimit(800, 'balanced')).toBe(220);
 });
 
 test('视口 resize 更新显示上限，非项目态不挤压欢迎页偏好', () => {
@@ -41,7 +41,7 @@ test('视口 resize 更新显示上限，非项目态不挤压欢迎页偏好', 
       window.dispatchEvent(new Event('resize'));
     });
     act(() => root.render(<Harness projectOpen />));
-    expect(container.textContent).toBe('720');
+    expect(container.textContent).toBe('800');
   } finally {
     act(() => root.unmount());
     container.remove();

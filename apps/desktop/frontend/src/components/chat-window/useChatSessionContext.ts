@@ -242,6 +242,12 @@ export function useChatSessionContext(
 
   const handleNewSession = useCallback(() => {
     draftNonceRef.current = nextDraftNonce();
+    // draft→draft 时 assistantSessionId 仍为 null，session effect 不会重跑；显式清掉
+    // 旧 run/brief/projection，避免总览把上一轮活动错投影到新会话。
+    setAgentRun(null);
+    setChapterBrief(null);
+    setWritingRunProjection(null);
+    setRetryRequest(null);
     // draft→draft「新建会话」时 assistantSessionId 恒为 null、上面 keyed-on-assistantSessionId 的
     // 重置 effect 不重跑，必须显式清空本地对话视图，否则旧（未持久化的失败）消息残留到新 draft（UF-10）。
     setMessages([]);
@@ -262,14 +268,18 @@ export function useChatSessionContext(
     contextCandidates,
     onAssistantSessionChange,
     projectPath,
+    setAgentRun,
     setAgentRunRecovery,
+    setChapterBrief,
     setConversationTitle,
     setExplicitContextPaths,
     setLastReviewReport,
     setLastReviewReportFile,
     setMessages,
     setMissingContextPaths,
+    setRetryRequest,
     setSessionLoadError,
+    setWritingRunProjection,
   ]);
 
   const retryAssistantSessionLoad = useCallback(() => {

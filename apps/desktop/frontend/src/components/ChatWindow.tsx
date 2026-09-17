@@ -2,7 +2,7 @@
  * 对话窗口容器：组合 session/context、Agent stream、run control 与展示层。
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { ChatWindowView } from './chat-window/ChatWindowView';
 import type { ChatWindowProps } from './chat-window/types';
@@ -13,6 +13,7 @@ import { useAgentStreamEvent } from './chat-window/useAgentStreamEvent';
 import { useChatSessionContext } from './chat-window/useChatSessionContext';
 import { useChatSubmission } from './chat-window/useChatSubmission';
 import { useChatWindowState } from './chat-window/useChatWindowState';
+import { projectOverviewActivity } from './chat-window/overview-activity';
 import { useRunAuthorAgent } from './chat-window/useRunAuthorAgent';
 import {
   REQUEST_CHAPTER_POLISH_EVENT,
@@ -43,8 +44,15 @@ export {
 export { AgentRunRecoveryPanel, WritingRunProgressPanel } from './chat-window/panels';
 export { applyWritingRunEventProjection, writingRunIdFromResult } from './chat-window/writing-run';
 export type { StableAgentRequestPayload } from './chat-window/types';
+export {
+  overviewActivityActionLabel,
+  overviewActivityLabel,
+  projectOverviewActivity,
+} from './chat-window/overview-activity';
 
 export function ChatWindow(props: ChatWindowProps) {
+  const { onAgentRunSummaryChange, projectPath, assistantSessionId } = props;
+  const summaryScopeRef = useRef(`${projectPath ?? ''}:${assistantSessionId ?? 'draft'}`);
   const agentPermissionProfile = props.agentPermissionProfile ?? DEFAULT_AGENT_PERMISSION_PROFILE;
   const onAgentPermissionProfileChange = props.onAgentPermissionProfileChange ?? (() => undefined);
   const state = useChatWindowState(props);
@@ -61,6 +69,35 @@ export function ChatWindow(props: ChatWindowProps) {
   );
   const controls = useAgentRunControls(state, runAuthorAgent, applyAgentStreamEvent, recovery);
   const submission = useChatSubmission(state, runAuthorAgent, props);
+
+  useEffect(() => {
+    const scope = `${projectPath ?? ''}:${assistantSessionId ?? 'draft'}`;
+    if (summaryScopeRef.current !== scope) {
+      summaryScopeRef.current = scope;
+      onAgentRunSummaryChange?.(null);
+      return;
+    }
+    onAgentRunSummaryChange?.(
+      projectOverviewActivity({
+        projectPath,
+        assistantSessionId,
+        agentRun: state.agentRun,
+        chapterBrief: state.chapterBrief,
+        agentBusy: state.agentBusy,
+        sessionLoadError: state.sessionLoadError,
+        retryableFailure: Boolean(state.retryRequest) && !state.agentBusy,
+      }),
+    );
+  }, [
+    assistantSessionId,
+    onAgentRunSummaryChange,
+    projectPath,
+    state.agentBusy,
+    state.agentRun,
+    state.chapterBrief,
+    state.retryRequest,
+    state.sessionLoadError,
+  ]);
 
   useEffect(() => {
     const onRetryWithoutKnowledge = (event: Event) => {

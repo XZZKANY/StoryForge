@@ -59,6 +59,13 @@ function normalizeEol(text: string): string {
   return text.replace(/\r\n/g, '\n');
 }
 
+export type EditorPendingSuggestionSummary = {
+  projectPath: string;
+  filePath: string;
+  suggestionId: string;
+  requiresConfirmation: boolean;
+};
+
 type EditorProps = {
   projectPath: string | null;
   filePath: string | null;
@@ -76,6 +83,7 @@ type EditorProps = {
   onCursorPersist?: (filePath: string, cursor: FileCursor) => void;
   /** 撤销一次「新建」删掉文件后，把该路径从页签里摘掉（同文件树删除那条路）。 */
   dropOpenFilePath?: (path: string) => void;
+  onPendingSuggestionChange?: (summary: EditorPendingSuggestionSummary | null) => void;
 };
 
 export function EditorLoadStatus({
@@ -118,6 +126,7 @@ export function Editor({
   initialCursors = null,
   onCursorPersist,
   dropOpenFilePath,
+  onPendingSuggestionChange,
 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -203,6 +212,20 @@ export function Editor({
   useEffect(() => {
     if (loadedFilePath === filePath) onDirtyChange?.(filePath, isDirty);
   }, [filePath, isDirty, loadedFilePath, onDirtyChange]);
+
+  useEffect(() => {
+    if (!onPendingSuggestionChange) return;
+    onPendingSuggestionChange(
+      pendingSuggestion && projectPath && filePath
+        ? {
+            projectPath,
+            filePath,
+            suggestionId: pendingSuggestion.id,
+            requiresConfirmation: pendingSuggestion.requiresConfirmation !== false,
+          }
+        : null,
+    );
+  }, [filePath, onPendingSuggestionChange, pendingSuggestion, projectPath]);
 
   const applyIssueDecorations = useCallback((issues: ReviewIssueMarker[]) => {
     const editor = editorRef.current;

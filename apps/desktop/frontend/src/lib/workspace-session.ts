@@ -102,9 +102,12 @@ export function pruneCursors(
   return next;
 }
 
-/** 没有项目、也没有任何打开的文件时不值得存 —— 存了只会在下次启动恢复出一个空壳。 */
+/**
+ * 有项目但页签为空仍值得存：下次启动可以回到该作品总览，而不是欢迎页。
+ * 仍不保存没有项目的空壳，避免把「无项目」误当成可恢复目标。
+ */
 export function isWorthPersisting(session: WorkspaceSession | null): session is WorkspaceSession {
-  return Boolean(session && session.project && session.openFiles.length > 0);
+  return Boolean(session && session.project);
 }
 
 export function loadWorkspaceSession(): WorkspaceSession | null {

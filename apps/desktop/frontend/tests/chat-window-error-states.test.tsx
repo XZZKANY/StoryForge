@@ -126,6 +126,7 @@ test('历史会话加载失败时保留选择并提供重试', async () => {
     ReturnType<typeof buildProjectIndex>
   >);
   const onAssistantSessionChange = vi.fn();
+  const onAgentRunSummaryChange = vi.fn();
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -138,6 +139,7 @@ test('历史会话加载失败时保留选择并提供重试', async () => {
           currentFile={null}
           assistantSessionId={42}
           onAssistantSessionChange={onAssistantSessionChange}
+          onAgentRunSummaryChange={onAgentRunSummaryChange}
         />,
       );
       await Promise.resolve();
@@ -148,6 +150,8 @@ test('历史会话加载失败时保留选择并提供重试', async () => {
     assert.ok(error);
     assert.match(error.textContent ?? '', /会话 #42 加载失败/);
     assert.equal(onAssistantSessionChange.mock.calls.length, 0);
+    assert.equal(onAgentRunSummaryChange.mock.calls.at(-1)?.[0]?.status, 'session_error');
+    assert.equal(onAgentRunSummaryChange.mock.calls.at(-1)?.[0]?.retryable, true);
 
     const retry = container.querySelector<HTMLButtonElement>(
       '[data-testid="assistant-session-load-retry"]',
@@ -160,6 +164,48 @@ test('历史会话加载失败时保留选择并提供重试', async () => {
     });
     assert.equal(mockedGetAssistantSession.mock.calls.length, 2);
     assert.equal(onAssistantSessionChange.mock.calls.length, 0);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('草稿切换为持久化会话时重新投影新会话错误范围', async () => {
+  mockedGetAssistantSession.mockRejectedValue(new Error('session unavailable'));
+  mockedBuildProjectIndex.mockResolvedValue({ files: [] } as Awaited<
+    ReturnType<typeof buildProjectIndex>
+  >);
+  const onAgentRunSummaryChange = vi.fn();
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => {
+      root.render(
+        <ChatWindow
+          projectPath="D:/Books/story"
+          currentFile={null}
+          assistantSessionId={null}
+          onAgentRunSummaryChange={onAgentRunSummaryChange}
+        />,
+      );
+      await Promise.resolve();
+    });
+    await act(async () => {
+      root.render(
+        <ChatWindow
+          projectPath="D:/Books/story"
+          currentFile={null}
+          assistantSessionId={73}
+          onAgentRunSummaryChange={onAgentRunSummaryChange}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const latest = onAgentRunSummaryChange.mock.calls.at(-1)?.[0];
+    assert.equal(latest?.status, 'session_error');
+    assert.equal(latest?.assistantSessionId, 73);
   } finally {
     act(() => root.unmount());
     container.remove();

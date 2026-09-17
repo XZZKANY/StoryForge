@@ -307,7 +307,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
-        className="flex h-[85vh] max-h-[760px] w-full max-w-[940px] overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-[var(--shadow-dropdown)]"
+        className="flex h-[85vh] max-h-[760px] w-full max-w-[940px] overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-dropdown"
         data-testid="settings-view"
         onMouseDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => {

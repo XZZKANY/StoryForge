@@ -7,8 +7,8 @@
  * 这里只有纯函数与档位常量，拖拽手势在 SidePanel。
  */
 
-export const SIDE_PANEL_WIDTH_MIN = 200;
-export const SIDE_PANEL_WIDTH_MAX = 720;
+export const SIDE_PANEL_WIDTH_MIN = 220;
+export const SIDE_PANEL_WIDTH_MAX = 800;
 
 /** 信息密度高的视图（封面行 / 章节行 / 台账行）默认给宽档。 */
 const WIDE_DEFAULT_VIEWS: ReadonlySet<string> = new Set([
@@ -18,7 +18,7 @@ const WIDE_DEFAULT_VIEWS: ReadonlySet<string> = new Set([
   'observatory',
 ]);
 const WIDE_DEFAULT_PX = 340;
-const NARROW_DEFAULT_PX = 236;
+const NARROW_DEFAULT_PX = 260;
 
 export function defaultSidePanelWidth(view: string): number {
   return WIDE_DEFAULT_VIEWS.has(view) ? WIDE_DEFAULT_PX : NARROW_DEFAULT_PX;

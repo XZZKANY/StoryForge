@@ -23,19 +23,19 @@ export const VIEW_ENTRIES: ViewEntry[] = [
   {
     view: 'book',
     icon: Library,
-    title: '作品（封面 / 简介 / 进度）· Ctrl+Shift+B',
+    title: '作品（封面 / 简介 / 进度）· Ctrl Shift B',
     projectOnly: true,
   },
   {
     view: 'manuscript',
     icon: BookOpen,
-    title: '手稿（阅读序 / 作品底座）· Ctrl+Shift+M',
+    title: '手稿（阅读序 / 作品底座）· Ctrl Shift M',
     projectOnly: true,
   },
-  { view: 'explorer', icon: FileText, title: '资源管理器 · Ctrl+Shift+E' },
+  { view: 'explorer', icon: FileText, title: '资源管理器 · Ctrl Shift E' },
   { view: 'knowledge', icon: Inbox, title: 'Knowledge Inbox', projectOnly: true },
-  { view: 'search', icon: Search, title: '在正文中搜索 · Ctrl+Shift+F', projectOnly: true },
-  { view: 'observatory', icon: Radar, title: '世界线观测镜 · Ctrl+4', projectOnly: true },
+  { view: 'search', icon: Search, title: '在正文中搜索 · Ctrl Shift F', projectOnly: true },
+  { view: 'observatory', icon: Radar, title: '世界线观测镜 · Ctrl Shift O', projectOnly: true },
 ];
 
 export function ActivityBar({
@@ -95,7 +95,7 @@ export function ActivityBar({
             )}
             {entry.view === 'knowledge' && knowledgePendingCount > 0 && (
               <span
-                className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-agent px-1 text-center font-mono text-3xs leading-4 text-white"
+                className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-agent px-1 text-center font-mono text-3xs leading-4 text-agent-foreground"
                 data-testid="activity-knowledge-badge"
               >
                 {knowledgePendingCount > 99 ? '99+' : knowledgePendingCount}
@@ -111,7 +111,7 @@ export function ActivityBar({
         ref={settingsButtonRef}
         data-testid="activity-settings"
         className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-elevated hover:text-foreground"
-        title="设置 · Ctrl+,"
+        title="设置 · Ctrl ,"
         aria-haspopup="menu"
         onClick={(event) => {
           if (settingsMenu && settingsMenu.length > 0) {

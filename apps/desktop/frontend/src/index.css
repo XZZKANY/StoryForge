@@ -14,8 +14,8 @@
   --border: 58 58 65; /* #3a3a41 发丝描边 */
   --border-strong: 76 76 84; /* #4c4c54 强调描边（聚焦） */
   --foreground: 237 237 237; /* #ededed 主文本 */
-  --muted: 161 161 170; /* #a1a1aa 次级文本（统一全站灰） */
-  --subtle: 124 124 133; /* #7c7c85 三级/提示文本 */
+  --muted: 168 168 178; /* #a8a8b2 次级文本（提升对比度至 4.5:1+） */
+  --subtle: 134 134 144; /* #868690 三级/提示文本（提升对比度至 4.2:1） */
   --accent: 235 235 235; /* 单色强调：深色模式用近白，无品牌橙 */
   --accent-foreground: 24 24 27;
   --error: 229 91 91;
@@ -35,6 +35,15 @@
   --sf-panel-x: 12px;
   --sf-item-gap: 8px;
 
+  /* 间距阶梯：与 Tailwind spacing 对齐，供裸 CSS 使用。 */
+  --sf-space-1: 4px;
+  --sf-space-2: 8px;
+  --sf-space-3: 12px;
+  --sf-space-4: 16px;
+  --sf-space-5: 20px;
+  --sf-space-6: 24px;
+  --sf-space-8: 32px;
+
   /* 圆角阶梯（同心）：相邻两档之差 = 该层常用内边距，故嵌套时「内圆角 = 外圆角 − 内边距」
      天然成立，不必逐处手调。越界的任意值圆角由 tests/radius-scale.test.ts 挡住。
      xs 文字级标记 / sm 内嵌小件 / md 控件 / lg 容器 / xl 浮层；纯圆用 rounded-full。 */
@@ -47,6 +56,7 @@
   /* 抬升投影分档：细腻的层次系统，从微抬升到浮层弹窗。 */
   --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.12), 0 1px 2px rgb(0 0 0 / 0.24); /* 卡片微抬升 */
   --shadow-md: 0 4px 12px rgb(0 0 0 / 0.15), 0 2px 4px rgb(0 0 0 / 0.1); /* 悬浮控件 */
+  --shadow-lg: 0 12px 40px rgb(0 0 0 / 0.25), 0 4px 12px rgb(0 0 0 / 0.15); /* 重要浮层 */
   --shadow-panel: 0 2px 8px rgb(0 0 0 / 0.08); /* 侧面板与主区域分离感 */
   --shadow-inset: inset 0 1px 2px rgb(0 0 0 / 0.1); /* 输入框内凹 */
   --shadow-dropdown: 0 8px 28px rgb(0 0 0 / 0.35);
@@ -57,9 +67,11 @@
 
   /* 过渡动效统一时长：所有交互用统一 timing curve，创造流畅一致的节奏。 */
   --transition-easing: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --transition-easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* 弹性动画 */
   --transition-fast: 120ms var(--transition-easing); /* 小件 hover / 色彩变化 */
   --transition-base: 200ms var(--transition-easing); /* 常规展开/收起 */
-  --transition-slow: 320ms var(--transition-easing); /* 大面积布局 */
+  --transition-slow: 360ms var(--transition-easing); /* 大面积布局（更流畅） */
+  --transition-spring: 300ms var(--transition-easing-spring); /* 弹性微交互 */
 
   /* 分隔线：比 --border 更淡，桌面应用的分隔线应该极其克制。 */
   --divider: rgb(var(--border) / 0.6);
@@ -107,6 +119,7 @@
   --issue-low: 79 86 196;
   --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.12);
   --shadow-md: 0 4px 12px rgb(0 0 0 / 0.08), 0 2px 4px rgb(0 0 0 / 0.05);
+  --shadow-lg: 0 12px 40px rgb(0 0 0 / 0.12), 0 4px 12px rgb(0 0 0 / 0.08);
   --shadow-panel: 0 2px 8px rgb(0 0 0 / 0.04);
   --shadow-inset: inset 0 1px 2px rgb(0 0 0 / 0.05);
   --shadow-dropdown: 0 8px 28px rgb(0 0 0 / 0.14);
@@ -231,6 +244,40 @@ body {
   animation: slide-up-fade 0.3s ease-out;
 }
 
+/* 三点思考动画：Agent 运行期间活动步骤前的「正在思考…」指示。
+   对齐 Claude Code 的极简三点跳动感，用 agent 色，随 theme 变化。 */
+@keyframes thinking-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+.sf-thinking-dots {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+.sf-thinking-dots span {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgb(var(--agent));
+  animation: thinking-dot 1.2s ease-in-out infinite;
+}
+.sf-thinking-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.sf-thinking-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
 /* 降低动效偏好下关闭过场动画 */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -240,6 +287,272 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ===== UI/UX 增强：微交互动画 ===== */
+
+/* 按钮点击反馈 */
+@keyframes button-press {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 动画工具类 */
+.animate-fade-in-up {
+  animation: fade-in-up 0.3s var(--transition-easing) both;
+}
+
+.animate-fade-in-scale {
+  animation: fade-in-scale 0.2s var(--transition-easing) both;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s var(--transition-easing) both;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.25s var(--transition-easing) both;
+}
+
+.animate-slide-in-up {
+  animation: slide-in-up 0.3s var(--transition-easing) both;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--elevated)) 0%,
+    rgb(var(--border)) 50%,
+    rgb(var(--elevated)) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s linear infinite;
+}
+
+/* 交互反馈 */
+.interactive-press:active {
+  animation: button-press 0.15s var(--transition-easing);
+}
+
+/* 卡片悬停效果 */
+.card-hover {
+  transition:
+    transform var(--transition-base),
+    box-shadow var(--transition-base),
+    border-color var(--transition-base);
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: rgb(var(--border-strong));
+}
+
+/* 列表项进入动画（交错延迟） */
+.stagger-item {
+  opacity: 0;
+  animation: fade-in-up 0.3s var(--transition-easing) forwards;
+}
+
+.stagger-item:nth-child(1) {
+  animation-delay: 0ms;
+}
+.stagger-item:nth-child(2) {
+  animation-delay: 30ms;
+}
+.stagger-item:nth-child(3) {
+  animation-delay: 60ms;
+}
+.stagger-item:nth-child(4) {
+  animation-delay: 90ms;
+}
+.stagger-item:nth-child(5) {
+  animation-delay: 120ms;
+}
+.stagger-item:nth-child(6) {
+  animation-delay: 150ms;
+}
+.stagger-item:nth-child(n + 7) {
+  animation-delay: 180ms;
+}
+
+/* 骨架屏加载效果 */
+.skeleton {
+  background: rgb(var(--elevated));
+  border-radius: var(--radius-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(var(--foreground) / 0.05) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.5s linear infinite;
+}
+
+/* 焦点可见性增强 */
+.focus-ring {
+  outline: 2px solid rgb(var(--agent));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgb(var(--agent) / 0.12);
+  border-radius: var(--radius-sm);
+}
+
+/* 滚动条优化（更细腻） */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 50%;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border-strong) / 0.4);
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background-clip: padding-box;
+  transition: background-color var(--transition-base);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--border-strong) / 0.7);
+  background-clip: padding-box;
+}
+
+/* 工具提示样式（统一） */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 4px 8px;
+  background: rgb(var(--panel));
+  color: rgb(var(--foreground));
+  font-size: var(--text-2xs);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgb(var(--border));
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--transition-fast),
+    transform var(--transition-fast);
+  z-index: 50;
+  box-shadow: var(--shadow-md);
+}
+
+[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* 统一禁用按钮样式：半透明 + 禁止点击 + hover 不再变色。
+   防止用户在异步操作期间重复点击，并提供一致的视觉反馈。 */
+button:disabled:not([aria-busy]) {
+  cursor: not-allowed;
+}
+button:disabled[aria-busy='true'] {
+  cursor: wait;
 }
 
 /* 壳子退场：中栏正文里连续敲字时，左右两栏后退一步（内容是主角，chrome 是配角）。
@@ -357,10 +670,12 @@ body {
 }
 
 /* 可达性：全站键盘焦点可见（:focus-visible 仅键盘/AT 触发，鼠标点击不显示）。
-   位于 @tailwind utilities 与裸 outline:none 输入之后 → 覆盖二者，补上键盘焦点环。 */
+   位于 @tailwind utilities 与裸 outline:none 输入之后 → 覆盖二者，补上键盘焦点环。
+   现代化：更柔和的焦点环，带微光晕效果。 */
 :focus-visible {
   outline: 2px solid rgb(var(--agent));
   outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgb(var(--agent) / 0.12);
 }
 
 /* 旧行红标：整行淡红底 + 左描边 */

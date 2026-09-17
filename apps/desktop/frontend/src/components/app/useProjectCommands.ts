@@ -129,7 +129,6 @@ export function useProjectCommands({
       resetEditorFiles();
       selectProject(projectPath);
       setProjectRefreshVersion((version) => version + 1);
-      onShowEditor();
     } catch (error) {
       console.error('创建示例项目失败', error);
       await dialogs.alert({
@@ -137,7 +136,7 @@ export function useProjectCommands({
         message: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [confirmDiscardFiles, dialogs, onShowEditor, openFiles, resetEditorFiles, selectProject]);
+  }, [confirmDiscardFiles, dialogs, openFiles, resetEditorFiles, selectProject]);
 
   useEffect(
     () => registerSmokeProjectLoader((path) => void selectProjectSafely(path)),

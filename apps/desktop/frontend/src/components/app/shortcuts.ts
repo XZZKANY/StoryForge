@@ -20,7 +20,7 @@ export type ShortcutRow = {
   /** 需要前置态才生效：护栏不按这些 */
   needs?: 'project' | 'file';
   /** 不由 App 全局处理器接管，而在这些组件内部 */
-  scope?: 'editor' | 'tabs';
+  scope?: 'editor' | 'tabs' | 'patch';
 };
 
 export const SHORTCUT_ROWS: ShortcutRow[] = [
@@ -46,11 +46,7 @@ export const SHORTCUT_ROWS: ShortcutRow[] = [
     label: '手稿（阅读序 / 作品底座）',
     chords: [{ ctrl: true, shift: true, key: 'm' }],
   },
-  {
-    keys: 'Ctrl Shift O',
-    label: '世界线观测镜',
-    chords: [{ ctrl: true, shift: true, key: 'o' }],
-  },
+  { keys: 'Ctrl Shift O', label: '世界线观测镜', chords: [{ ctrl: true, shift: true, key: 'o' }] },
   { keys: 'Ctrl O', label: '打开项目', chords: [{ ctrl: true, key: 'o' }] },
   { keys: 'Ctrl S', label: '保存当前文件', chords: [{ ctrl: true, key: 's' }], needs: 'file' },
   { keys: 'Ctrl B', label: '显示 / 隐藏资源管理器', chords: [{ ctrl: true, key: 'b' }] },
@@ -65,7 +61,6 @@ export const SHORTCUT_ROWS: ShortcutRow[] = [
     ],
     needs: 'project',
   },
-  { keys: 'Ctrl 4', label: '观测镜', chords: [{ ctrl: true, key: '4' }], needs: 'project' },
   {
     keys: 'Ctrl K',
     label: '行间对话（编辑器内选中后）',

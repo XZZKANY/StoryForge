@@ -8,7 +8,7 @@
  * 右栏现在只有对话（观测镜已迁左栏），故不再有 rightView。
  * rightCollapsed 由 layoutMode 派生（= editor），供顶栏收起键与右栏挂载判定复用。
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export type SidePanelView =
   | 'book'
@@ -18,6 +18,53 @@ export type SidePanelView =
   | 'search'
   | 'observatory';
 export type LayoutMode = 'editor' | 'balanced' | 'chat';
+
+const STORAGE_KEY_VIEW = 'storyforge:shell:view';
+const STORAGE_KEY_LAYOUT = 'storyforge:shell:layoutMode';
+const STORAGE_KEY_SIDEBAR = 'storyforge:shell:sidebarHidden';
+
+function readStoredView(): SidePanelView {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_VIEW);
+    if (stored && SIDE_PANEL_VIEWS.includes(stored as SidePanelView)) {
+      return stored as SidePanelView;
+    }
+  } catch {
+    // localStorage 不可用时静默回退
+  }
+  return 'explorer';
+}
+
+function readStoredLayoutMode(): LayoutMode {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_LAYOUT);
+    if (stored === 'editor' || stored === 'balanced' || stored === 'chat') {
+      return stored;
+    }
+  } catch {
+    // localStorage 不可用时静默回退
+  }
+  return 'balanced';
+}
+
+function readStoredSidebarHidden(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY_SIDEBAR) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** 测试与首启重置用：清掉持久化的壳子视图偏好，回到出厂默认。 */
+export function resetShellStateStorage(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY_VIEW);
+    localStorage.removeItem(STORAGE_KEY_LAYOUT);
+    localStorage.removeItem(STORAGE_KEY_SIDEBAR);
+  } catch {
+    // localStorage 不可用时静默回退
+  }
+}
 
 /**
  * 左栏视图顺序 = 写作顺序：立项（作品）→ 写哪一章（手稿）→ 翻文件（资源管理器）
@@ -36,9 +83,34 @@ export const SIDE_PANEL_VIEWS: SidePanelView[] = [
 ];
 
 export function useShellState() {
-  const [view, setView] = useState<SidePanelView>('explorer');
-  const [sidebarHidden, setSidebarHidden] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>('balanced');
+  const [view, setView] = useState<SidePanelView>(readStoredView);
+  const [sidebarHidden, setSidebarHidden] = useState(readStoredSidebarHidden);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(readStoredLayoutMode);
+
+  // 持久化状态变化
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_VIEW, view);
+    } catch {
+      // 静默失败
+    }
+  }, [view]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_LAYOUT, layoutMode);
+    } catch {
+      // 静默失败
+    }
+  }, [layoutMode]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_SIDEBAR, String(sidebarHidden));
+    } catch {
+      // 静默失败
+    }
+  }, [sidebarHidden]);
 
   // 点活动栏图标：切到该视图；若点的正是当前视图且面板可见，则收起（VS Code 行为）。
   const switchView = useCallback(
@@ -73,7 +145,7 @@ export function useShellState() {
     [],
   );
 
-  // Ctrl+4 / 对话头雷达图标：切左栏观测镜视图。左栏折叠时先展开并直落观测镜；
+  // Ctrl Shift O / 对话头雷达图标：切左栏观测镜视图。左栏折叠时先展开并直落观测镜；
   // 已在观测镜且面板可见则收起（与 switchView 同一 VS Code 语义）。
   const toggleObservatory = useCallback(() => {
     switchView('observatory');

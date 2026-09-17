@@ -13,6 +13,7 @@ import { AppDialogHost, type AppDialogState } from '../src/components/app/AppDia
 
 const appContainerSource = readFileSync('src/App.tsx', 'utf8');
 const appShellSource = readFileSync('src/components/app/AppShell.tsx', 'utf8');
+const writingWorkspaceSource = readFileSync('src/components/app/WritingWorkspace.tsx', 'utf8');
 const editorTabsSource = readFileSync('src/components/app/useEditorWorkspaceTabs.ts', 'utf8');
 const projectCommandsSource = readFileSync('src/components/app/useProjectCommands.ts', 'utf8');
 const preferencesSource = readFileSync('src/components/app/useAppPreferences.ts', 'utf8');
@@ -25,7 +26,7 @@ const appSource = [
   projectCommandsSource,
   preferencesSource,
 ].join('\n');
-const shellSource = `${appShellSource}\n${assistantPanelSource}`;
+const shellSource = `${appShellSource}\n${writingWorkspaceSource}\n${assistantPanelSource}`;
 
 function renderApp() {
   return renderToStaticMarkup(React.createElement(App, {}));
@@ -111,8 +112,8 @@ test('App 中栏和右栏锁定滚动边界，长稿不能把状态栏或 Agent 
 test('App 切换文件保留多标签 buffer，仅关闭或离开项目时确认 dirty', () => {
   assert.match(editorTabsSource, /const \[openFiles, setOpenFiles\]/);
   assert.match(editorTabsSource, /const \[dirtyFiles, setDirtyFiles\]/);
-  assert.match(appShellSource, /retainedFilePaths=\{tabs\.retainedEditorFiles\}/);
-  assert.match(appShellSource, /dirtyFiles=\{tabs\.dirtyFiles\}/);
+  assert.match(writingWorkspaceSource, /retainedFilePaths=\{tabs\.retainedEditorFiles\}/);
+  assert.match(writingWorkspaceSource, /dirtyFiles=\{tabs\.dirtyFiles\}/);
   assert.match(editorTabsSource, /confirmDiscardFiles\(\[path\], '关闭文件'\)/);
   assert.match(editorTabsSource, /confirmDiscardFiles\(openFiles, '切换项目'\)/);
   assert.doesNotMatch(appSource, /confirmDiscardDirtyEditor/);
@@ -125,7 +126,7 @@ test('设置改为弹出式覆盖层，不再隐藏 Editor / 不占中栏页签�
   assert.doesNotMatch(appShellSource, /hidden=\{settingsVisible\}/);
   assert.doesNotMatch(appShellSource, /settingsVisible \? 'hidden' : 'h-full'/);
   // 多文件 buffer 仍保留（切设置不卸载）。
-  assert.match(appShellSource, /retainedFilePaths=\{tabs\.retainedEditorFiles\}/);
+  assert.match(writingWorkspaceSource, /retainedFilePaths=\{tabs\.retainedEditorFiles\}/);
 });
 
 test('App.tsx 不残留旧布局引擎与 Web legacy 路由入口', () => {

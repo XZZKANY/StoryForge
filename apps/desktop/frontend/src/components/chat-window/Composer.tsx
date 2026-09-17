@@ -158,7 +158,7 @@ export function ComposerSurface({
 
   return (
     <div
-      className="group relative flex flex-col overflow-visible rounded-xl border border-border/80 bg-surface transition-all focus-within:border-agent/60"
+      className="group relative flex flex-col overflow-visible rounded-xl border border-border/80 bg-surface transition-all focus-within:border-agent/60 focus-within:shadow-lg"
       style={{
         boxShadow: 'var(--shadow-composer)',
         transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
@@ -166,7 +166,7 @@ export function ComposerSurface({
       onFocus={(e) => {
         if (e.currentTarget.contains(e.target as Node)) {
           e.currentTarget.style.boxShadow =
-            'var(--shadow-composer-focus), 0 0 0 3px rgb(var(--agent) / 0.1)';
+            'var(--shadow-composer-focus), 0 0 0 4px rgb(var(--agent) / 0.15)';
         }
       }}
       onBlur={(e) => {
@@ -177,7 +177,7 @@ export function ComposerSurface({
     >
       {roleSuggestions.length > 0 && !disabled && !busy && (
         <div
-          className="absolute bottom-full left-2 z-10 mb-1.5 flex max-w-[calc(100%-1rem)] flex-wrap gap-1.5 rounded-lg border border-border bg-surface px-2 py-2 shadow-[var(--shadow-dropdown)]"
+          className="absolute bottom-full left-2 z-10 mb-1.5 flex max-w-[calc(100%-1rem)] flex-wrap gap-1.5 rounded-lg border border-border bg-surface px-2 py-2 shadow-dropdown"
           data-testid="agent-role-suggestions"
         >
           {roleSuggestions.map((item) => (
@@ -204,7 +204,7 @@ export function ComposerSurface({
         // 流式运行期间保持可编辑，作者能边等边预写下一轮；只禁「发送」（Enter 守卫 + 底排改暂停键）。
         disabled={disabled}
         rows={2}
-        className="max-h-40 min-h-[44px] w-full resize-none bg-transparent px-3 pb-1.5 pt-2.5 text-sm leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
+        className="max-h-40 min-h-[48px] w-full resize-none bg-transparent px-4 pb-2 pt-3 text-sm leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
         placeholder={
           disabled ? '打开项目后即可使用 StoryForge' : '输入想法、问题，或 @剧情 @人物 点名角色…'
         }
@@ -214,9 +214,9 @@ export function ComposerSurface({
           if (event.nativeEvent.isComposing || event.keyCode === 229) return;
           if (event.key === 'Enter') {
             if (event.shiftKey) return; // Shift+Enter 换行
-            // Enter 或 Ctrl/Cmd+Enter 均发送。
+            // Enter 或 Ctrl/Cmd+Enter 均发送；busy 时交给 onSubmit 排队，不在此吞掉作者的字。
             event.preventDefault();
-            if (disabled || busy) return; // 流式期间可继续预写，但 Enter 此刻不发送
+            if (disabled) return;
             historyIndexRef.current = null;
             onSubmit?.();
             return;
@@ -303,13 +303,13 @@ export function ComposerSurface({
         )}
         <button
           type={onSubmit ? 'button' : 'submit'}
-          className="ml-auto flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-muted transition-colors hover:text-foreground group-focus-within:bg-agent group-focus-within:text-agent-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          className="interactive-press ml-auto flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center rounded-lg bg-elevated text-muted transition-all hover:text-foreground hover:shadow-sm group-focus-within:bg-agent group-focus-within:text-agent-foreground group-focus-within:shadow-md disabled:cursor-not-allowed disabled:opacity-40"
           title="发送"
           disabled={!canSubmit}
           onClick={onSubmit}
           data-testid="composer-submit"
         >
-          <ArrowUp size={14} strokeWidth={2} />
+          <ArrowUp size={15} strokeWidth={2} />
         </button>
       </div>
     </div>

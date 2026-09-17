@@ -1,15 +1,14 @@
-import { useRef, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useRef } from 'react';
 
 import { ChatWindow } from '../ChatWindow';
-import { CommandPalette, type PaletteMode } from '../CommandPalette';
+import { CommandPalette } from '../CommandPalette';
 import { PROSE_MEASURE_LABELS } from '../editor/options';
-import { Editor } from '../Editor';
 import { SettingsView } from '../SettingsView';
 import { ActivityBar } from '../shell/ActivityBar';
 import type { ContextMenuItem } from '../shell/ContextMenu';
 import { AssistantPanelFrame } from '../shell/AssistantPanelFrame';
-import { EditorTabs, type CenterTab } from '../shell/EditorTabs';
-import { ObsPanel, obsCounts, type Observation } from '../shell/ObsPanel';
+import type { CenterTab } from '../shell/EditorTabs';
+import { obsCounts } from '../shell/ObsPanel';
 import { BookProfileView } from '../shell/BookProfileView';
 import { ManuscriptView } from '../shell/ManuscriptView';
 import { KnowledgeInboxView } from '../shell/KnowledgeInboxView';
@@ -20,90 +19,19 @@ import { StatusBar } from '../shell/StatusBar';
 import { Titlebar } from '../shell/Titlebar';
 import { ToastHost } from '../shell/ToastHost';
 import { useDeference } from '../shell/useDeference';
-import type { useShellState } from '../shell/useShellState';
 import { useWorkspaceSidePanelLimit } from '../shell/useWorkspaceSidePanelLimit';
 import { WORKSPACE_PRIMARY_MIN_WIDTH } from '../../lib/workspace-layout';
-import {
-  emitEditorCommand,
-  emitChapterPolishRequest,
-  emitExportCurrentFile,
-  flushActiveEditorToDisk,
-} from '../../lib/assistant-events';
-import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
-import type { ObservationAnchor } from '../../lib/observations';
-import type { FileCursor } from '../../lib/workspace-session';
-import type { useAppDialog } from './AppDialog';
+import { emitExportCurrentFile } from '../../lib/assistant-events';
 import { AppDialogHost } from './AppDialog';
 import { resolveActiveCenterTab } from './editor-tabs-state';
 import { formatShortcutSheet } from './shortcuts';
 import { useAgentPermission } from './useAgentPermission';
 import { useFileTreeActions } from './useFileTreeActions';
 import { WelcomeDismissed, WelcomeWorkspace } from './WelcomeWorkspace';
-import type { AppPreferences } from './useAppPreferences';
-import type { BookContextHandle } from './useBookContext';
-import type { BookProfileHandle } from './useBookProfile';
-import type { EditorWorkspaceTabs } from './useEditorWorkspaceTabs';
-import type { useObservatory } from './useObservatory';
-import type { ProjectCommands } from './useProjectCommands';
-import type { useProjectSearch } from './useProjectSearch';
 import { useKnowledgeInbox } from './useKnowledgeInbox';
-
-type WorkspaceProps = {
-  projects: string[];
-  activeProject: string | null;
-  currentFile: string | null;
-  projectAssistantSessions: Record<string, number>;
-  setActiveProjectAssistantSession: (
-    assistantSessionId: number | null,
-    projectOverride?: string,
-  ) => void;
-};
-
-type RuntimeProps = {
-  isDesktopRuntime: boolean;
-  tauriMenuReady: boolean;
-  tauriMenuError: string;
-  smokeApiReady: boolean;
-};
-
-/** 观测句柄：useObservatory 全量数据 + App 级定位回调（观测行 / 台账锚点两种入口）。 */
-export type ObservatoryHandle = ReturnType<typeof useObservatory> & {
-  locateObservation: (observation: Observation) => void;
-  locateAnchor: (anchor: ObservationAnchor) => void;
-};
-
-type AppShellProps = {
-  workspace: WorkspaceProps;
-  tabs: EditorWorkspaceTabs;
-  commands: ProjectCommands;
-  preferences: AppPreferences;
-  shell: ReturnType<typeof useShellState>;
-  dialogs: ReturnType<typeof useAppDialog>;
-  runtime: RuntimeProps;
-  settingsVisible: boolean;
-  setSettingsVisible: Dispatch<SetStateAction<boolean>>;
-  palette: PaletteMode | null;
-  setPalette: Dispatch<SetStateAction<PaletteMode | null>>;
-  obsPanelOpen: boolean;
-  setObsPanelOpen: Dispatch<SetStateAction<boolean>>;
-  toggleObsPanel: () => void;
-  observatory: ObservatoryHandle;
-  /** 手稿视图：作品底座只读投影 + 点章节行打开该章。 */
-  bookContext: BookContextHandle;
-  onOpenManuscriptChapter: (relativePath: string) => void;
-  /** 作品视图：档案（book.json）+ 现算的进度 / 大纲 / 速记。 */
-  bookProfile: BookProfileHandle;
-  onOpenOutlineHeading: (path: string, line: number) => void;
-  openSettings: () => Promise<void>;
-  welcomeDismissed: boolean;
-  onCloseWelcome: () => void;
-  onReopenWelcome: () => void;
-  /** 恢复现场：上次的光标位置 + 光标回写口子（写作时刻 01）。 */
-  initialCursors: Record<string, FileCursor> | null;
-  onCursorPersist: (filePath: string, cursor: FileCursor) => void;
-  search: ReturnType<typeof useProjectSearch>;
-  onOpenSearchHit: (path: string, line: number) => void;
-};
+import type { MainSurface, AppShellProps } from './app-shell-types';
+export type { ObservatoryHandle } from './app-shell-types';
+import { WritingWorkspace } from './WritingWorkspace';
 
 export function AppShell({
   workspace,
@@ -131,17 +59,73 @@ export function AppShell({
   onReopenWelcome,
   initialCursors,
   onCursorPersist,
+  onPendingSuggestionChange,
+  onAgentRunSummaryChange,
   search,
   onOpenSearchHit,
+  overview,
+  mainSurface = 'workspace',
+  onMainSurfaceChange,
+  onSwitchView = shell.switchView,
 }: AppShellProps) {
   const { projects, activeProject, currentFile, projectAssistantSessions } = workspace;
   const projectOpen = Boolean(activeProject);
+  const overviewVisible = projectOpen && mainSurface === 'overview' && Boolean(overview);
+  const setMainSurface = useCallback(
+    (next: MainSurface) => {
+      onMainSurfaceChange?.(next);
+    },
+    [onMainSurfaceChange],
+  );
+
+  const openWorkspace = useCallback(() => {
+    setMainSurface('workspace');
+    setSettingsVisible(false);
+    shell.showCenter();
+  }, [setMainSurface, setSettingsVisible, shell]);
+  const toggleAssistantFromCommand = useCallback(() => {
+    if (overviewVisible) {
+      openWorkspace();
+      shell.showRight();
+    } else {
+      shell.toggleRight();
+    }
+  }, [openWorkspace, overviewVisible, shell]);
+  const toggleWorkspaceFromCommand = useCallback(() => {
+    if (overviewVisible) {
+      openWorkspace();
+      shell.showSidebar();
+    } else {
+      shell.toggleSidebar();
+    }
+  }, [openWorkspace, overviewVisible, shell]);
+  const handleOpenOutlineHeading = useCallback(
+    (path: string, line: number) => {
+      openWorkspace();
+      onOpenOutlineHeading(path, line);
+    },
+    [onOpenOutlineHeading, openWorkspace],
+  );
+  const handleOpenManuscriptChapter = useCallback(
+    (relativePath: string) => {
+      openWorkspace();
+      onOpenManuscriptChapter(relativePath);
+    },
+    [onOpenManuscriptChapter, openWorkspace],
+  );
+  const handleOpenSearchHit = useCallback(
+    (path: string, line: number) => {
+      openWorkspace();
+      onOpenSearchHit(path, line);
+    },
+    [onOpenSearchHit, openWorkspace],
+  );
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarVisible = !shell.sidebarHidden && (projectOpen || shell.view !== 'explorer');
   const sidePanelMaxWidth = useWorkspaceSidePanelLimit(projectOpen, shell.layoutMode);
   const agentPermission = useAgentPermission(activeProject);
   const knowledgeInbox = useKnowledgeInbox(activeProject);
-  const rightPanelVisible = projectOpen && !shell.rightCollapsed;
+  const rightPanelVisible = projectOpen && !overviewVisible && !shell.rightCollapsed;
   const obs = obsCounts(observatory.observations);
   const fileActions = useFileTreeActions({
     activeProject,
@@ -197,6 +181,7 @@ export function AppShell({
     <div
       className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
       data-testid="desktop-shell"
+      data-main-surface={mainSurface}
       data-layout-mode={shell.view}
       data-layout-focus={shell.layoutMode}
       data-shell-deferred={deferred ? 'true' : 'false'}
@@ -208,179 +193,182 @@ export function AppShell({
       <Titlebar
         onOpenPalette={() => setPalette('files')}
         projectOpen={projectOpen}
-        rightCollapsed={shell.rightCollapsed}
-        onToggleRight={shell.toggleRight}
+        rightCollapsed={overviewVisible || shell.rightCollapsed}
+        onToggleRight={() => {
+          openWorkspace();
+          if (overviewVisible) shell.showRight();
+          else shell.toggleRight();
+        }}
       />
 
       <div className="relative flex min-h-0 flex-1">
         <div className="flex flex-shrink-0">
           <ActivityBar
-            view={shell.view}
-            sidebarHidden={!sidebarVisible}
-            onSwitchView={shell.switchView}
+            view={overviewVisible ? 'book' : shell.view}
+            sidebarHidden={overviewVisible ? false : !sidebarVisible}
+            onSwitchView={onSwitchView}
             onOpenSettings={() => void openSettings()}
             settingsMenu={settingsMenu}
             settingsButtonRef={settingsButtonRef}
             observatoryAttention={observatory.litEntityIds.length > 0}
             knowledgePendingCount={knowledgeInbox.inbox.pending_count}
           />
-          {sidebarVisible && (
-            <SidePanel
-              view={shell.view}
-              widths={preferences.settings.sidePanelWidths}
-              maxWidth={sidePanelMaxWidth}
-              onWidthChange={preferences.setSidePanelWidth}
-              projects={projects}
-              activeProject={activeProject}
-              currentFile={currentFile}
-              previewFile={tabs.previewFile}
-              projectRefreshVersion={commands.projectRefreshVersion}
-              onSelectProject={(path) => void tabs.selectProjectSafely(path)}
-              onRemoveProject={(path) => void tabs.removeProjectSafely(path)}
-              onOpenProject={commands.handleOpenProject}
-              onNewFile={commands.handleNewFile}
-              onFileSelect={tabs.openFile}
-              onFilePreview={tabs.previewFileOpen}
-              fileActions={fileActions}
-              book={
-                activeProject ? (
-                  <BookProfileView
-                    projectPath={activeProject}
-                    handle={bookProfile}
-                    dailyWordGoal={preferences.settings.dailyWordGoal}
-                    onOpenOutline={onOpenOutlineHeading}
-                    onBackToExplorer={shell.showExplorerView}
-                    onRunBreakdown={() => void commands.handleBookBreakdown()}
-                    breakdown={commands.bookBreakdown}
-                    breakdownRunning={commands.bookBreakdownRunning}
-                    breakdownCancelling={commands.bookBreakdownCancelling}
-                    onCancelBreakdown={() => void commands.handleCancelBookBreakdown()}
-                    onOpenBreakdown={(format) => void commands.handleOpenBookBreakdown(format)}
+          {(projectOpen || shell.view !== 'explorer') && (
+            <div
+              hidden={!sidebarVisible || overviewVisible}
+              className={!sidebarVisible || overviewVisible ? 'hidden' : 'flex'}
+              data-testid="workspace-sidebar-surface"
+            >
+              <SidePanel
+                view={shell.view}
+                widths={preferences.settings.sidePanelWidths}
+                maxWidth={sidePanelMaxWidth}
+                onWidthChange={preferences.setSidePanelWidth}
+                projects={projects}
+                activeProject={activeProject}
+                currentFile={currentFile}
+                previewFile={tabs.previewFile}
+                projectRefreshVersion={commands.projectRefreshVersion}
+                onSelectProject={(path) => void tabs.selectProjectSafely(path)}
+                onRemoveProject={(path) => void tabs.removeProjectSafely(path)}
+                onOpenProject={commands.handleOpenProject}
+                onNewFile={commands.handleNewFile}
+                onFileSelect={tabs.openFile}
+                onFilePreview={tabs.previewFileOpen}
+                fileActions={fileActions}
+                book={
+                  activeProject ? (
+                    <BookProfileView
+                      projectPath={activeProject}
+                      handle={bookProfile}
+                      dailyWordGoal={preferences.settings.dailyWordGoal}
+                      onOpenOutline={handleOpenOutlineHeading}
+                      onBackToExplorer={shell.showExplorerView}
+                      onRunBreakdown={() => void commands.handleBookBreakdown()}
+                      breakdown={commands.bookBreakdown}
+                      breakdownRunning={commands.bookBreakdownRunning}
+                      breakdownCancelling={commands.bookBreakdownCancelling}
+                      onCancelBreakdown={() => void commands.handleCancelBookBreakdown()}
+                      onOpenBreakdown={(format) => void commands.handleOpenBookBreakdown(format)}
+                    />
+                  ) : (
+                    <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
+                      打开项目后可填写封面、简介与字数目标。
+                    </p>
+                  )
+                }
+                search={
+                  <SearchView
+                    search={search}
+                    projectOpen={projectOpen}
+                    active={shell.view === 'search'}
+                    onOpenHit={handleOpenSearchHit}
                   />
-                ) : (
-                  <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
-                    打开项目后可填写封面、简介与字数目标。
-                  </p>
-                )
-              }
-              search={
-                <SearchView
-                  search={search}
-                  projectOpen={projectOpen}
-                  active={shell.view === 'search'}
-                  onOpenHit={onOpenSearchHit}
-                />
-              }
-              manuscript={
-                projectOpen ? (
-                  <ManuscriptView
-                    snapshot={bookContext.snapshot}
-                    availability={bookContext.availability}
-                    refreshing={bookContext.refreshing}
-                    onRefresh={bookContext.refresh}
-                    onOpenChapter={onOpenManuscriptChapter}
-                    onBackToExplorer={shell.showExplorerView}
-                  />
-                ) : (
-                  <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
-                    打开项目后可查看按阅读序排列的章节。
-                  </p>
-                )
-              }
-              knowledge={<KnowledgeInboxView handle={knowledgeInbox} />}
-              observatory={
-                projectOpen ? (
-                  <ObservatoryView
-                    availability={observatory.availability}
-                    scanning={observatory.scanning}
-                    observations={observatory.observations}
-                    checkers={observatory.checkers}
-                    entities={observatory.entities}
-                    promises={observatory.promises}
-                    proposals={observatory.proposals}
-                    generatedAt={observatory.generatedAt}
-                    litEntityIds={observatory.litEntityIds}
-                    merging={observatory.merging}
-                    onRescan={() => void observatory.runScan()}
-                    onBackToChat={shell.showExplorerView}
-                    onLocateObservation={observatory.locateObservation}
-                    onLocateAnchor={observatory.locateAnchor}
-                    onMergeProposal={(target) => void observatory.mergeProposal(target)}
-                  />
-                ) : (
-                  <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
-                    打开项目后可查看世界线观测镜。
-                  </p>
-                )
-              }
-            />
+                }
+                manuscript={
+                  projectOpen ? (
+                    <ManuscriptView
+                      snapshot={bookContext.snapshot}
+                      availability={bookContext.availability}
+                      refreshing={bookContext.refreshing}
+                      onRefresh={bookContext.refresh}
+                      onOpenChapter={handleOpenManuscriptChapter}
+                      onBackToExplorer={shell.showExplorerView}
+                    />
+                  ) : (
+                    <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
+                      打开项目后可查看按阅读序排列的章节。
+                    </p>
+                  )
+                }
+                knowledge={<KnowledgeInboxView handle={knowledgeInbox} />}
+                observatory={
+                  projectOpen ? (
+                    <ObservatoryView
+                      availability={observatory.availability}
+                      scanning={observatory.scanning}
+                      observations={observatory.observations}
+                      checkers={observatory.checkers}
+                      entities={observatory.entities}
+                      promises={observatory.promises}
+                      proposals={observatory.proposals}
+                      generatedAt={observatory.generatedAt}
+                      litEntityIds={observatory.litEntityIds}
+                      merging={observatory.merging}
+                      onRescan={() => void observatory.runScan()}
+                      onBackToChat={shell.showExplorerView}
+                      onLocateObservation={observatory.locateObservation}
+                      onLocateAnchor={observatory.locateAnchor}
+                      onMergeProposal={(target) => void observatory.mergeProposal(target)}
+                    />
+                  ) : (
+                    <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
+                      打开项目后可查看世界线观测镜。
+                    </p>
+                  )
+                }
+              />
+            </div>
           )}
         </div>
 
         <main
-          className={`${shell.layoutMode === 'chat' ? 'hidden' : 'flex'} min-w-0 flex-1 flex-col bg-background`}
+          className={`${!overviewVisible && shell.layoutMode === 'chat' ? 'hidden' : 'flex'} min-w-0 flex-1 flex-col bg-background`}
           data-testid="shell-center"
-          style={projectOpen ? { minWidth: WORKSPACE_PRIMARY_MIN_WIDTH } : undefined}
+          style={
+            projectOpen && !overviewVisible ? { minWidth: WORKSPACE_PRIMARY_MIN_WIDTH } : undefined
+          }
         >
           {centerHasTabs ? (
             <>
-              <EditorTabs
-                openFiles={tabs.openFiles}
-                activeFile={currentFile}
-                previewFile={tabs.previewFile}
-                dirtyFiles={tabs.dirtyFiles}
-                activeTab={activeCenterTab}
-                activeReadOnly={
-                  tabs.displayedFile ? isReadOnlyDerivedProjectPath(tabs.displayedFile) : false
-                }
-                onFocusFile={tabs.focusFile}
-                onReorderFiles={tabs.reorderOpenFiles}
-                onFocusPreview={tabs.focusPreview}
-                onPinPreview={tabs.pinPreview}
-                onCloseFile={(path) => void tabs.handleFileClose(path)}
-                onClosePreview={tabs.closePreview}
-                onSaveActive={() => {
-                  if (tabs.displayedFile) {
-                    void flushActiveEditorToDisk(tabs.displayedFile).catch(() => undefined);
-                  }
-                }}
-                onToggleHistory={() => emitEditorCommand('toggle-history')}
-                onExportActive={() => emitExportCurrentFile()}
-                onPolishActive={(useMainModel) => emitChapterPolishRequest({ useMainModel })}
-                onCloseOthers={() => void tabs.handleCloseOthers()}
-                onCloseAll={() => void tabs.handleCloseAll()}
+              <WritingWorkspace
+                hidden={overviewVisible}
+                workspace={workspace}
+                tabs={tabs}
+                preferences={preferences}
+                dialogs={dialogs}
+                shell={shell}
+                initialCursors={initialCursors}
+                onCursorPersist={onCursorPersist}
+                onPendingSuggestionChange={onPendingSuggestionChange}
+                obsPanelOpen={obsPanelOpen}
+                setObsPanelOpen={setObsPanelOpen}
+                observatory={observatory}
+                onOverview={overview ? () => setMainSurface('overview') : undefined}
+                activeCenterTab={activeCenterTab}
               />
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <section
-                  className="h-full min-h-0 overflow-hidden bg-background"
-                  data-testid="editor-panel"
+              {overview && (
+                <div
+                  className={`${overviewVisible ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col overflow-y-auto bg-background`}
+                  hidden={!overviewVisible}
+                  data-testid="book-overview-surface"
                 >
-                  <Editor
-                    projectPath={activeProject}
-                    filePath={tabs.displayedFile}
-                    editorFontSize={preferences.settings.editorFontSize}
-                    editorFontMode={preferences.settings.editorFontMode}
-                    editorProseMeasure={preferences.settings.editorProseMeasure}
-                    editorLineNumbers={preferences.settings.editorLineNumbers}
-                    autoSave={preferences.settings.autoSave}
-                    retainedFilePaths={tabs.retainedEditorFiles}
-                    onDirtyChange={tabs.handleEditorDirtyChange}
-                    initialCursors={initialCursors}
-                    onCursorPersist={onCursorPersist}
-                    dropOpenFilePath={tabs.dropOpenFilePath}
-                    sidebarVisible={!shell.sidebarHidden}
-                    dialogs={dialogs}
-                  />
-                </section>
-              </div>
-              {obsPanelOpen && projectOpen && (
-                <ObsPanel
-                  observations={observatory.observations}
-                  availability={observatory.availability}
-                  onClose={() => setObsPanelOpen(false)}
-                  onResolve={observatory.resolveObservation}
-                  onLocate={observatory.locateObservation}
-                />
+                  <div className="flex flex-shrink-0 flex-wrap justify-end gap-2 border-b border-border px-5 py-2">
+                    <button
+                      type="button"
+                      className="rounded-sm px-3 py-1 text-xs text-muted hover:bg-elevated"
+                      data-testid="edit-book-profile"
+                      onClick={() => {
+                        openWorkspace();
+                        shell.showExplorerView();
+                        shell.switchView('book');
+                        shell.showSidebar();
+                        shell.showCenter();
+                      }}
+                    >
+                      编辑作品资料
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-sm px-3 py-1 text-xs text-muted hover:bg-elevated"
+                      data-testid="open-writing-workspace"
+                      onClick={openWorkspace}
+                    >
+                      写作工作台 →
+                    </button>
+                  </div>
+                  {overview}
+                </div>
               )}
             </>
           ) : welcomeDismissed ? (
@@ -432,6 +420,7 @@ export function AppShell({
                 observatoryAttention={observatory.litEntityIds.length > 0}
                 agentPermissionProfile={agentPermission.profile}
                 onAgentPermissionProfileChange={agentPermission.changeProfile}
+                onAgentRunSummaryChange={onAgentRunSummaryChange}
               />
             </div>
           </AssistantPanelFrame>
@@ -460,12 +449,22 @@ export function AppShell({
           onRefreshCanon={commands.handleRefreshCanon}
           onReopenWelcome={onReopenWelcome}
           onExportCurrent={() => emitExportCurrentFile()}
-          onToggleAssistant={shell.toggleRight}
-          onToggleWorkspace={shell.toggleSidebar}
+          onToggleAssistant={toggleAssistantFromCommand}
+          onToggleWorkspace={toggleWorkspaceFromCommand}
           onOpenSettings={openSettings}
-          onFocusAssistantOnly={() => shell.showRight()}
-          onFocusWorkspaceOnly={() => shell.showSidebar()}
+          onShowShortcuts={showShortcuts}
+          onFocusAssistantOnly={() => {
+            openWorkspace();
+            shell.showRight();
+            shell.setLayoutMode('chat');
+          }}
+          onFocusWorkspaceOnly={() => {
+            openWorkspace();
+            shell.showSidebar();
+            shell.setLayoutMode('editor');
+          }}
           onRestoreLayout={() => {
+            openWorkspace();
             shell.showSidebar();
             shell.showRight();
           }}

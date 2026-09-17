@@ -64,7 +64,7 @@ export function BranchCanvas({
               type="button"
               onClick={() => onSelectBranch(branch.id)}
               className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors ${
-                active ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-foreground/10'
+                active ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'
               }`}
               data-testid="branch-legend-item"
               data-branch-id={branch.id}
@@ -197,7 +197,7 @@ function BranchNodeRow({
             type="button"
             onClick={onBranchFrom}
             disabled={!!node.version.unavailableReason}
-            className="rounded-md border border-border px-2 py-1 text-2xs text-foreground hover:bg-foreground/10"
+            className="rounded-md border border-border px-2 py-1 text-2xs text-foreground hover:bg-elevated"
             data-testid="branch-node-fork"
           >
             从此开分支
@@ -206,7 +206,7 @@ function BranchNodeRow({
             <button
               type="button"
               onClick={compareWithParent}
-              className="rounded-md border border-border px-2 py-1 text-2xs text-muted hover:bg-foreground/10"
+              className="rounded-md border border-border px-2 py-1 text-2xs text-muted hover:bg-elevated"
               data-testid="branch-node-compare"
             >
               对比父版本

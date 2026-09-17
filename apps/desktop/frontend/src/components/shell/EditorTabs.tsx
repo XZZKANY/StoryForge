@@ -83,21 +83,21 @@ function Tab({
           onActivate();
         }
       }}
-      className={`group flex flex-shrink-0 cursor-pointer select-none items-center gap-2 px-3.5 text-xs ${
+      className={`group flex flex-shrink-0 cursor-pointer select-none items-center gap-2 px-4 text-xs transition-all ${
         preview ? 'italic' : ''
       } ${
         active
-          ? 'relative z-[2] -mb-px border-b border-background bg-background font-medium text-foreground shadow-[inset_0_2px_0_rgb(var(--agent))]'
+          ? 'relative z-[2] -mb-px border-b border-background bg-background font-medium text-foreground shadow-[inset_0_3px_0_rgb(var(--agent))]'
           : preview
-            ? 'text-subtle hover:text-muted'
-            : 'text-subtle hover:text-muted'
+            ? 'text-subtle hover:bg-elevated/60 hover:text-muted hover:shadow-sm'
+            : 'text-subtle hover:bg-elevated/60 hover:text-muted hover:shadow-sm'
       }`}
     >
       {icon}
       <span className="max-w-[180px] truncate">{label}</span>
       {onClose && (
         <button
-          className="relative flex h-4 w-4 items-center justify-center text-subtle hover:text-foreground"
+          className="interactive-press relative flex h-4 w-4 items-center justify-center rounded-sm text-subtle hover:bg-border hover:text-foreground"
           title={dirty ? '关闭（有未保存修改）' : '关闭'}
           onClick={(event) => {
             event.stopPropagation();
@@ -106,7 +106,7 @@ function Tab({
         >
           {dirty && (
             <span
-              className="h-2 w-2 rounded-full bg-foreground group-hover:hidden"
+              className="h-2 w-2 rounded-full bg-agent group-hover:hidden"
               data-testid="editor-tab-dirty"
             />
           )}
@@ -115,7 +115,7 @@ function Tab({
               dirty ? 'hidden group-hover:block' : active ? '' : 'opacity-0 group-hover:opacity-100'
             }
             size={11}
-            strokeWidth={1.7}
+            strokeWidth={2}
           />
         </button>
       )}
@@ -299,7 +299,7 @@ function PolishActionsMenu({
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div
-            className="absolute right-0 top-9 z-40 w-52 rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-dropdown)]"
+            className="absolute right-0 top-9 z-40 w-52 rounded-lg border border-border bg-surface p-1 shadow-dropdown"
             data-testid="editor-polish-menu"
           >
             <MenuRow label="使用专用润色模型" onClick={() => run(false)} />
@@ -362,7 +362,7 @@ function EditorActionsMenu({
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div
-            className="absolute right-0 top-9 z-40 w-56 rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-dropdown)]"
+            className="absolute right-0 top-9 z-40 w-56 rounded-lg border border-border bg-surface p-1 shadow-dropdown"
             data-testid="editor-more-menu"
           >
             <MenuRow label="保存" kbd="Ctrl S" onClick={run(onSaveActive)} />

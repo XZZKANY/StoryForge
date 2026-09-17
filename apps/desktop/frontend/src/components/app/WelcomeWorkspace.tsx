@@ -84,8 +84,8 @@ export function WelcomeWorkspace({
 
       <div className="min-h-0 flex-1 overflow-auto px-5 pb-12 pt-8 md:px-14 md:pb-5 md:pt-11">
         <div className="mx-auto grid w-[min(920px,100%)] grid-cols-1 gap-x-14 gap-y-2 md:grid-cols-2">
-          <div className="col-span-full mb-[22px] flex items-center gap-3.5">
-            <span className="relative grid h-11 w-11 flex-none place-items-center overflow-hidden rounded-lg bg-elevated text-base font-bold text-foreground">
+          <div className="col-span-full mb-[22px] flex items-center gap-4">
+            <span className="relative grid h-12 w-12 flex-none place-items-center overflow-hidden rounded-xl bg-agent/10 text-lg font-bold text-agent shadow-sm">
               S
               <img
                 src="/brand-logo.jpg"
@@ -97,21 +97,21 @@ export function WelcomeWorkspace({
               />
             </span>
             <div>
-              <h1 className="text-display font-medium leading-tight tracking-[0.01em] text-foreground">
+              <h1 className="text-display font-medium leading-tight tracking-[-0.02em] text-foreground">
                 StoryForge
               </h1>
-              <p className="mt-1.5 text-sm leading-relaxed text-muted">
+              <p className="mt-1 text-sm leading-relaxed text-muted">
                 专注写作，和 AI 一起打磨故事
               </p>
             </div>
           </div>
 
           {/* 启动 */}
-          <div className="min-w-0">
+          <div className="min-w-0 animate-fade-in-up" style={{ animationDelay: '50ms' }}>
             <h2 className="mb-3 text-sm font-medium text-foreground">启动</h2>
-            <div className="mb-2.5 flex items-center gap-1.5 rounded-lg border border-border bg-surface py-1 pl-3 pr-1 shadow-[0_2px_10px_rgba(0,0,0,0.12)] focus-within:border-agent/60">
+            <div className="mb-2.5 flex items-center gap-1.5 rounded-xl border border-border bg-surface py-1.5 pl-3.5 pr-1.5 shadow-sm transition-all focus-within:border-agent/60 focus-within:shadow-md">
               <input
-                className="h-[30px] min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-subtle"
+                className="h-[32px] min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-subtle"
                 placeholder="一句话开新书：写下故事的念头…"
                 aria-label="一句话开新书"
                 data-testid="welcome-composer-input"
@@ -128,7 +128,7 @@ export function WelcomeWorkspace({
               />
               <button
                 type="button"
-                className="grid h-[30px] w-[30px] flex-none place-items-center rounded-lg bg-elevated text-muted transition-colors hover:bg-agent hover:text-agent-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                className="grid h-[32px] w-[32px] flex-none place-items-center rounded-lg bg-agent text-agent-foreground transition-all hover:bg-agent/90 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
                 title="发送即开书"
                 data-testid="welcome-composer-send"
                 disabled={!canSend}
@@ -197,7 +197,7 @@ export function WelcomeWorkspace({
           </div>
 
           {/* 上手 */}
-          <div className="min-w-0">
+          <div className="min-w-0 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
             <h2 className="mb-3 text-sm font-medium text-foreground">上手</h2>
             <WGuide
               icon={<Sparkles size={20} strokeWidth={1.6} aria-hidden="true" />}
@@ -289,10 +289,18 @@ function WGuide({
   return (
     <button
       type="button"
-      className="mb-2 flex w-full items-start gap-3 rounded-lg border border-border bg-panel px-3.5 py-3 text-left transition-colors hover:border-border-strong/70 hover:bg-elevated"
+      className="group mb-2.5 flex w-full items-start gap-3.5 rounded-xl border border-border bg-panel px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-border-strong/70 hover:bg-elevated hover:shadow-md active:translate-y-0 active:shadow-sm"
       onClick={onClick}
     >
-      <span className={`mt-px flex-none ${iconAgent ? 'text-agent' : 'text-muted'}`}>{icon}</span>
+      <span
+        className={`mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-lg transition-all group-hover:scale-105 ${
+          iconAgent
+            ? 'bg-agent/10 text-agent group-hover:bg-agent/20 group-hover:shadow-sm'
+            : 'bg-elevated text-muted group-hover:bg-surface group-hover:text-foreground'
+        }`}
+      >
+        {icon}
+      </span>
       <span className="min-w-0">
         <b className="block text-sm font-medium text-foreground">{title}</b>
         <small className="mt-1 block text-xs leading-relaxed text-muted">{desc}</small>

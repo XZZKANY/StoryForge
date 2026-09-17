@@ -44,6 +44,13 @@ export type BookProfileHandle = {
   pickCover: (current: BookProfile) => Promise<void>;
   totals: ManuscriptTotals | null;
   totalsError: string | null;
+  /** 档案文件读取失败；缺失档案不算错误，会使用空档案。 */
+  profileError?: string | null;
+  /** 大纲文件读取失败；不把失败伪装成空大纲。 */
+  outlineError?: string | null;
+  outlineLoading?: boolean;
+  /** 最近一次档案保存失败；保留编辑值并提供可见失败原因。 */
+  saveError?: string | null;
   outline: OutlineEntry[];
   outlineDropped: number;
   notes: IdeaNote[];
@@ -58,12 +65,19 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function readTextOrEmpty(path: string): Promise<string> {
+async function readTextOrEmpty(path: string, allowMissing = true): Promise<string> {
   try {
     return await TauriFileSystem.readFile(path);
-  } catch {
-    // 档案 / 灵感文件尚未创建是常态，不是错误。
-    return '';
+  } catch (error) {
+    const detail = message(error).toLowerCase();
+    // 档案 / 灵感文件尚未创建是常态，不是错误；其它 I/O 错误必须暴露。
+    if (
+      allowMissing &&
+      /not found|no such file|enoent|不存在|找不到|找不到指定|notfound/.test(detail)
+    ) {
+      return '';
+    }
+    throw error;
   }
 }
 
@@ -72,7 +86,7 @@ async function scanOutline(projectPath: string): Promise<OutlineEntry[]> {
   const files = index.files.filter((file) => file.kind === 'outline');
   const entries: OutlineEntry[] = [];
   for (const file of files) {
-    const content = await readTextOrEmpty(file.path);
+    const content = await readTextOrEmpty(file.path, false);
     for (const heading of parseHeadings(content)) {
       entries.push({ ...heading, path: file.path, relativePath: file.relativePath });
     }
@@ -93,6 +107,10 @@ export function useBookProfile({
     null,
   );
   const [totalsError, setTotalsError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [outlineError, setOutlineError] = useState<string | null>(null);
+  const [outlineLoading, setOutlineLoading] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [outlineAll, setOutlineAll] = useState<OutlineEntry[]>([]);
   const [notes, setNotes] = useState<IdeaNote[]>([]);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
@@ -100,6 +118,7 @@ export function useBookProfile({
   const [nonce, setNonce] = useState(0);
   // 灵感文件全文留在手边：勾选 / 删除是按行改写，必须基于读到的那一份原文。
   const notesSource = useRef('');
+  const saveLifetimeRef = useRef(0);
 
   // 换项目即清空：新书读完之前，屏幕上不该留着上一本的简介、封面和字数。
   // 用渲染期调整而不是 effect——effect 里同步 setState 会多跑一轮级联渲染，
@@ -112,6 +131,10 @@ export function useBookProfile({
     setOutlineAll([]);
     setTotals(null);
     setTotalsError(null);
+    setProfileError(null);
+    setOutlineError(null);
+    setOutlineLoading(false);
+    setSaveError(null);
     setCoverUrl(null);
   }
 
@@ -125,10 +148,21 @@ export function useBookProfile({
       setLoading(true);
       setRefreshing(true);
       setTotalsError(null);
-      const [rawProfile, rawNotes] = await Promise.all([
-        readTextOrEmpty(bookProfilePath(activeProject)),
-        readTextOrEmpty(ideaNotesPath(activeProject)),
-      ]);
+      setProfileError(null);
+      setOutlineError(null);
+      setSaveError(null);
+      let rawProfile = '';
+      let rawNotes = '';
+      try {
+        rawProfile = await readTextOrEmpty(bookProfilePath(activeProject));
+      } catch (error) {
+        if (!cancelled) setProfileError(message(error));
+      }
+      try {
+        rawNotes = await readTextOrEmpty(ideaNotesPath(activeProject));
+      } catch {
+        // 灵感文件读取失败不应阻止档案和正文继续显示；视图没有独立 notesError seam。
+      }
       if (cancelled) return;
       const loaded = parseBookProfile(rawProfile);
       setProfile(loaded);
@@ -141,11 +175,17 @@ export function useBookProfile({
         if (!cancelled) setCoverUrl(url);
       }
 
+      setOutlineLoading(true);
       try {
         const outline = await scanOutline(activeProject);
         if (!cancelled) setOutlineAll(outline);
-      } catch {
-        if (!cancelled) setOutlineAll([]);
+      } catch (error) {
+        if (!cancelled) {
+          setOutlineAll([]);
+          setOutlineError(message(error));
+        }
+      } finally {
+        if (!cancelled) setOutlineLoading(false);
       }
 
       try {
@@ -162,10 +202,19 @@ export function useBookProfile({
     };
   }, [activeProject, active, nonce]);
 
+  useEffect(() => {
+    const lifetime = ++saveLifetimeRef.current;
+    return () => {
+      if (saveLifetimeRef.current === lifetime) saveLifetimeRef.current += 1;
+    };
+  }, [activeProject]);
+
   const save = useCallback(
     async (next: BookProfile) => {
       setProfile(next);
+      setSaveError(null);
       if (!activeProject) return;
+      const lifetime = saveLifetimeRef.current;
       const separator = activeProject.includes('\\') ? '\\' : '/';
       const storyforgeDir = `${activeProject.replace(/[\\/]+$/, '')}${separator}.storyforge`;
       try {
@@ -176,7 +225,11 @@ export function useBookProfile({
           serializeBookProfile(next),
         );
       } catch (error) {
-        emitToast(`作品档案保存失败：${message(error)}`);
+        const detail = message(error);
+        if (saveLifetimeRef.current === lifetime) {
+          setSaveError(detail);
+          emitToast(`作品档案保存失败：${detail}`);
+        }
       }
     },
     [activeProject],
@@ -237,6 +290,10 @@ export function useBookProfile({
     pickCover,
     totals: currentTotals,
     totalsError,
+    profileError,
+    outlineError,
+    outlineLoading,
+    saveError,
     outline: outline.shown,
     outlineDropped: outline.dropped,
     notes,

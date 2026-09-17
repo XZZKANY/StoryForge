@@ -92,11 +92,11 @@ test('光标表只留仍打开的文件，长期项目不会攒出一大坨死�
   assert.deepEqual(pruneCursors(cursors, []), {});
 });
 
-test('没有打开任何文件的会话不值得存', () => {
+test('有项目但没有打开文件的会话仍值得存，用于重启回到作品总览', () => {
   assert.equal(isWorthPersisting(null), false);
   assert.equal(
     isWorthPersisting({ project: 'P', openFiles: [], activeFile: null, cursors: {} }),
-    false,
+    true,
   );
   assert.equal(
     isWorthPersisting({ project: 'P', openFiles: ['a'], activeFile: 'a', cursors: {} }),
@@ -121,6 +121,26 @@ function Harness({
   useEffect(() => {
     persistSession(persistWith.project, persistWith.openFiles, persistWith.currentFile);
   });
+  return null;
+}
+
+type RestoreControls = { selectProjectManually: (path: string) => void };
+
+function ManualRestoreHarness({
+  onSelectProject,
+  controls,
+}: {
+  onSelectProject: (path: string) => void;
+  controls: { current: RestoreControls | null };
+}) {
+  const session = useSessionRestore({ enabled: true, selectProject: onSelectProject });
+  // effect 仅暴露测试控制，不参与产品逻辑。
+  useEffect(() => {
+    controls.current = { selectProjectManually: session.selectProjectManually };
+    return () => {
+      controls.current = null;
+    };
+  }, [controls, session.selectProjectManually]);
   return null;
 }
 
@@ -168,6 +188,40 @@ test('恢复落地之前的回写一律被挡住——否则启动即抹平现�
   assert.deepEqual(after?.cursors, { 'P/b.md': { line: 40, column: 2 } }, '光标一并保住');
 });
 
+test('项目仍存在但没有可恢复页签时仍切入项目——由 App 展示作品总览', async () => {
+  localStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({
+      project: 'P',
+      openFiles: ['P/deleted.md'],
+      activeFile: 'P/deleted.md',
+      cursors: {},
+    }),
+  );
+  (window as { __STORYFORGE_MOCK_FS__?: unknown }).__STORYFORGE_MOCK_FS__ = {
+    pathExists: (path: string) => path === 'P',
+  };
+
+  const selected: string[] = [];
+  mount(
+    <Harness
+      enabled
+      onSelectProject={(path) => selected.push(path)}
+      persistWith={{ project: null, openFiles: [], currentFile: null }}
+    />,
+  );
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  assert.deepEqual(
+    selected,
+    ['P'],
+    '项目目录仍存在时，即使存档页签都失效，也应恢复项目并让上层进入作品总览',
+  );
+});
+
 test('关掉「启动时恢复上次现场」则不读存档、并清掉它', async () => {
   localStorage.setItem(
     SESSION_KEY,
@@ -187,4 +241,211 @@ test('关掉「启动时恢复上次现场」则不读存档、并清掉它', as
 
   assert.deepEqual(selected, [], '关闭时不应自动打开任何项目');
   assert.equal(localStorage.getItem(SESSION_KEY), null, '关闭后存档应被清掉，不留下会复活的现场');
+});
+
+test('手动导航同步夺取恢复权：迟到的旧校验不得覆盖新项目', async () => {
+  localStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({
+      project: 'old-project',
+      openFiles: ['old-project/正文/第01章.md'],
+      activeFile: 'old-project/正文/第01章.md',
+      cursors: { 'old-project/正文/第01章.md': { line: 8, column: 2 } },
+    }),
+  );
+  let resolveProject!: (value: boolean) => void;
+  let resolveFile!: (value: boolean) => void;
+  (window as { __STORYFORGE_MOCK_FS__?: unknown }).__STORYFORGE_MOCK_FS__ = {
+    pathExists: (path: string) =>
+      path === 'old-project'
+        ? new Promise<boolean>((resolve) => {
+            resolveProject = resolve;
+          })
+        : new Promise<boolean>((resolve) => {
+            resolveFile = resolve;
+          }),
+  };
+
+  const selected: string[] = [];
+  const controls: { current: RestoreControls | null } = { current: null };
+  mount(
+    <ManualRestoreHarness onSelectProject={(path) => selected.push(path)} controls={controls} />,
+  );
+  await act(async () => {
+    await Promise.resolve();
+  });
+  assert.ok(controls.current, '测试应能拿到手动导航入口');
+
+  act(() => controls.current?.selectProjectManually('new-project'));
+  assert.deepEqual(selected, ['new-project'], '手动项目应立即选中，不等待旧恢复 IO');
+
+  await act(async () => {
+    resolveProject(true);
+    resolveFile(true);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  assert.deepEqual(selected, ['new-project'], '旧恢复结果迟到后不得再次选择存档项目');
+});
+
+test('activeFile 失效或落在大纲时不伪造章节，仍保留全部有效页签与光标', async () => {
+  const stored: WorkspaceSession = {
+    project: 'P',
+    openFiles: ['P/正文/第01章.md', 'P/大纲/总纲.md'],
+    activeFile: 'P/大纲/总纲.md',
+    cursors: {
+      'P/正文/第01章.md': { line: 4, column: 1 },
+      'P/大纲/总纲.md': { line: 12, column: 3 },
+    },
+  };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(stored));
+  (window as { __STORYFORGE_MOCK_FS__?: unknown }).__STORYFORGE_MOCK_FS__ = {
+    pathExists: () => true,
+  };
+  let restored: WorkspaceSession | null = null;
+  function Capture() {
+    const session = useSessionRestore({ enabled: true, selectProject: () => undefined });
+    useEffect(() => {
+      if (session.pendingRestore) restored = session.pendingRestore;
+    }, [session.pendingRestore]);
+    return null;
+  }
+  mount(<Capture />);
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  assert.deepEqual(restored?.openFiles, stored.openFiles);
+  assert.equal(restored?.activeFile, null, '大纲不是可直接恢复的正文章节');
+  assert.deepEqual(restored?.cursors, stored.cursors, '有效页签的光标不能因 active 失效而丢失');
+});
+
+test('activeFile 已删除时保留其他正文章节页签，但不回落到首个文件', async () => {
+  localStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({
+      project: 'P',
+      openFiles: ['P/正文/第01章.md', 'P/正文/第02章.md'],
+      activeFile: 'P/正文/已删除.md',
+      cursors: {
+        'P/正文/第01章.md': { line: 3, column: 1 },
+        'P/正文/第02章.md': { line: 7, column: 2 },
+      },
+    }),
+  );
+  (window as { __STORYFORGE_MOCK_FS__?: unknown }).__STORYFORGE_MOCK_FS__ = {
+    pathExists: (path: string) => path !== 'P/正文/已删除.md',
+  };
+  let restored: WorkspaceSession | null = null;
+  function Capture() {
+    const session = useSessionRestore({ enabled: true, selectProject: () => undefined });
+    useEffect(() => {
+      if (session.pendingRestore) restored = session.pendingRestore;
+    }, [session.pendingRestore]);
+    return null;
+  }
+  mount(<Capture />);
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  assert.deepEqual(restored?.openFiles, ['P/正文/第01章.md', 'P/正文/第02章.md']);
+  assert.equal(restored?.activeFile, null, '失效 active 不得回落到第一个正文章节');
+  assert.deepEqual(restored?.cursors, {
+    'P/正文/第01章.md': { line: 3, column: 1 },
+    'P/正文/第02章.md': { line: 7, column: 2 },
+  });
+});
+
+test('启动恢复项目失效或校验异常时提供明确只读问题，不误切项目', async () => {
+  localStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({ project: 'gone', openFiles: ['gone/正文/01.md'], activeFile: null }),
+  );
+  (window as { __STORYFORGE_MOCK_FS__?: unknown }).__STORYFORGE_MOCK_FS__ = {
+    pathExists: (path: string) => path !== 'gone',
+  };
+  let issue: { kind?: string; message?: string } | null = null;
+  let selected = false;
+  function Capture() {
+    const session = useSessionRestore({ enabled: true, selectProject: () => (selected = true) });
+    useEffect(() => {
+      if (session.restoreIssue) issue = session.restoreIssue;
+    }, [session.restoreIssue]);
+    return null;
+  }
+  mount(<Capture />);
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  assert.equal(selected, false);
+  assert.equal(issue?.kind, 'missing-project');
+  assert.match(issue?.message ?? '', /不存在/);
+});
+
+test('项目存在性检查抛错时保守停留当前界面并标记 check-failed', async () => {
+  localStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({ project: 'unreadable', openFiles: [], activeFile: null }),
+  );
+  (window as { __STORYFORGE_MOCK_FS__?: unknown }).__STORYFORGE_MOCK_FS__ = {
+    pathExists: () => Promise.reject(new Error('permission denied')),
+  };
+  let issue: { kind?: string } | null = null;
+  function Capture() {
+    const session = useSessionRestore({ enabled: true, selectProject: () => undefined });
+    useEffect(() => {
+      if (session.restoreIssue) issue = session.restoreIssue;
+    }, [session.restoreIssue]);
+    return null;
+  }
+  mount(<Capture />);
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  assert.equal(issue?.kind, 'check-failed');
+});
+
+test('手动选择项目会清理旧恢复问题；未确认取消时不夺走自动恢复权', async () => {
+  localStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({ project: 'gone', openFiles: ['gone/正文/01.md'], activeFile: null }),
+  );
+  (window as { __STORYFORGE_MOCK_FS__?: unknown }).__STORYFORGE_MOCK_FS__ = {
+    pathExists: (path: string) => path !== 'gone',
+  };
+  const selected: string[] = [];
+  const controls: {
+    current: { selectProjectManually: (path: string) => void; getIssue: () => unknown } | null;
+  } = { current: null };
+  function Capture() {
+    const session = useSessionRestore({
+      enabled: true,
+      selectProject: (path) => selected.push(path),
+    });
+    useEffect(() => {
+      controls.current = {
+        selectProjectManually: session.selectProjectManually,
+        getIssue: () => session.restoreIssue,
+      };
+      return () => {
+        controls.current = null;
+      };
+    }, [session.restoreIssue, session.selectProjectManually]);
+    return null;
+  }
+  mount(<Capture />);
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  assert.equal((controls.current?.getIssue() as { kind?: string } | null)?.kind, 'missing-project');
+  act(() => controls.current?.selectProjectManually('gone'));
+  await act(async () => {
+    await Promise.resolve();
+  });
+  assert.equal(controls.current?.getIssue(), null, '手动接管后不应继续展示旧恢复错误');
+  assert.deepEqual(selected, ['gone']);
 });

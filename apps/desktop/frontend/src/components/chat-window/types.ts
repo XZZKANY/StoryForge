@@ -24,6 +24,8 @@ export type ChatWindowProps = {
   observatoryAttention?: boolean;
   agentPermissionProfile?: AgentPermissionProfile;
   onAgentPermissionProfileChange?: (profile: AgentPermissionProfile) => void;
+  /** 将运行中的 Agent 状态投影给作品总览，避免右栏隐藏时失去可见性。 */
+  onAgentRunSummaryChange?: (summary: AgentRunOverviewSummary | null) => void;
 };
 
 export type Message = {
@@ -51,6 +53,32 @@ export type AgentStep = {
 // paused/stopped 是作者主动控制态：暂停留有恢复入口、停止是中性收尾（非失败）。
 // 与 running/waiting/completed/failed 一起构成运行状态机的全集。
 export type AgentRunStatus = 'running' | 'waiting' | 'completed' | 'failed' | 'paused' | 'stopped';
+
+export type AgentRunOverviewStatus =
+  | 'running'
+  | 'waiting'
+  | 'waiting_permission'
+  | 'waiting_brief'
+  | 'waiting_patch'
+  | 'paused'
+  | 'completed'
+  | 'failed'
+  | 'stopped'
+  | 'busy'
+  | 'session_error';
+
+/**
+ * ChatWindow owns the live run/approval state. This is a read-only projection
+ * for the overview; it never carries patch payloads or control callbacks.
+ */
+export type AgentRunOverviewSummary = {
+  projectPath: string;
+  status: AgentRunOverviewStatus;
+  goal: string;
+  message?: string;
+  retryable?: boolean;
+  assistantSessionId?: number | null;
+};
 
 export type AgentRun = {
   id: string;

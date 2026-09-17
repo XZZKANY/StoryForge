@@ -1,12 +1,15 @@
 /** StoryForge desktop shell wiring. */
-
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { PaletteMode } from './components/CommandPalette';
 import { AppShell } from './components/app/AppShell';
+import { BookOverview } from './components/app/BookOverview';
+import type { MainSurface } from './components/app/app-shell-types';
+import { useOverviewActivity } from './components/app/useOverviewActivity';
 import { useAppDialog } from './components/app/AppDialog';
 import { useAppPreferences } from './components/app/useAppPreferences';
 import { useBookContext } from './components/app/useBookContext';
+import { useBookOverviewChapters } from './components/app/useBookOverviewChapters';
 import { useBookProfile } from './components/app/useBookProfile';
 import { useEditorWorkspaceTabs } from './components/app/useEditorWorkspaceTabs';
 import { useObservatory } from './components/app/useObservatory';
@@ -21,15 +24,15 @@ import { emitLocateInEditor, flushActiveEditorToDisk } from './lib/assistant-eve
 import type { ObservationAnchor } from './lib/observations';
 import { emitToast } from './lib/toast';
 import { checkForUpdate, currentAppVersion } from './lib/update-check';
-
 export function App() {
+  const [mainSurface, setMainSurface] = useState<MainSurface>('overview');
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [palette, setPalette] = useState<PaletteMode | null>(null);
   const [obsPanelOpen, setObsPanelOpen] = useState(false);
   const appDialog = useAppDialog();
   const shell = useShellState();
   // showCenter 单独取出：稳定 useCallback，供 showEditor / locateAnchor 依赖，避免整个 shell 进 deps。
-  const { showCenter } = shell;
+  const { showCenter, showRight } = shell;
   const preferences = useAppPreferences();
   // 欢迎页可关（会话级）：起始态由「启动时显示欢迎页」偏好决定；关了露出空 workbench，
   // 命令面板「显示欢迎页」可重开。
@@ -40,10 +43,15 @@ export function App() {
   // 关设置页 + 确保中栏可见（对话聚焦 Ctrl+3 态会隐藏中栏，补丁 / 正文才不至于落在看不见的中栏）。
   const showEditor = useCallback(() => {
     setSettingsVisible(false);
+    setMainSurface('workspace');
     showCenter();
   }, [showCenter]);
+  const showOverview = useCallback(() => {
+    setSettingsVisible(false);
+    setMainSurface('overview');
+  }, []);
   const workspace = useProjectWorkspace({
-    onProjectSelected: showEditor,
+    onProjectSelected: showOverview,
     onFileSelected: showEditor,
   });
   const session = useSessionRestore({
@@ -53,7 +61,7 @@ export function App() {
   const tabs = useEditorWorkspaceTabs({
     activeProject: workspace.activeProject,
     currentFile: workspace.currentFile,
-    selectProject: workspace.selectProject,
+    selectProject: session.selectProjectManually,
     selectFile: workspace.selectFile,
     closeFile: workspace.closeFile,
     removeProject: workspace.removeProject,
@@ -68,26 +76,39 @@ export function App() {
     dirtyFiles: tabs.dirtyFiles,
     openFiles: tabs.openFiles,
     dialogs: appDialog,
-    selectProject: workspace.selectProject,
+    selectProject: session.selectProjectManually,
     selectProjectSafely: tabs.selectProjectSafely,
     openFile: tabs.openFile,
     confirmDiscardFiles: tabs.confirmDiscardFiles,
     resetEditorFiles: tabs.resetEditorFiles,
     onShowEditor: showEditor,
   });
-
+  const switchView = useCallback(
+    (view: SidePanelView) => {
+      if (view === 'book' && workspace.activeProject) showOverview();
+      else {
+        setMainSurface('workspace');
+        shell.showSidebar();
+        shell.switchView(view);
+      }
+    },
+    [shell, showOverview, workspace.activeProject],
+  );
   const openSettings = useCallback(async () => {
     setSettingsVisible(true);
   }, []);
 
-  // 现场随页签 / 活动文件变化回写；光标位置由 Editor 去抖后经 recordCursor 记进同一份会话。
   const { persistSession } = session;
   useEffect(() => {
     persistSession(workspace.activeProject, tabs.openFiles, workspace.currentFile);
   }, [persistSession, tabs.openFiles, workspace.activeProject, workspace.currentFile]);
-
-  // 启动更新自检：仅装机构建，延迟起跑不抢启动带宽；网络失败静默降级
-  // （GitHub 在本机依赖代理，不可用是常态，只有查到新版才打扰）。
+  const restoreIssueKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const issue = session.restoreIssue;
+    const key = issue ? `${issue.kind}:${issue.project}` : null;
+    if (issue && key && key !== restoreIssueKeyRef.current) emitToast(issue.message);
+    restoreIssueKeyRef.current = key;
+  }, [session.restoreIssue]);
   useEffect(() => {
     if (!import.meta.env.PROD) return;
     const timer = window.setTimeout(() => {
@@ -105,7 +126,6 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  // 滚动容器短暂显示 scrollbar thumb，便于长稿定位。
   useEffect(() => {
     const timers = new WeakMap<Element, number>();
     const onScroll = (event: Event) => {
@@ -140,7 +160,7 @@ export function App() {
         const view = viewMap[key];
         if (view) {
           event.preventDefault();
-          shell.switchView(view);
+          switchView(view);
           return;
         }
         if (key === 'p') {
@@ -167,31 +187,42 @@ export function App() {
         void commands.handleOpenProject();
       } else if (key === 'b') {
         event.preventDefault();
-        shell.toggleSidebar();
+        if (mainSurface === 'overview') {
+          showEditor();
+          shell.showSidebar();
+        } else {
+          shell.toggleSidebar();
+        }
       } else if (key === ',') {
         event.preventDefault();
         void openSettings();
       } else if (key === '1' || key === '2' || key === '3') {
         event.preventDefault();
+        setMainSurface('workspace');
         shell.setLayoutMode(
           key === '1' ? 'editor' : key === '2' || !workspace.activeProject ? 'balanced' : 'chat',
         );
-      } else if (key === '4') {
-        event.preventDefault();
-        shell.toggleObservatory();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [commands, openSettings, shell, tabs.displayedFile, workspace.activeProject]);
+  }, [
+    commands,
+    mainSurface,
+    openSettings,
+    shell,
+    showEditor,
+    switchView,
+    tabs.displayedFile,
+    workspace.activeProject,
+  ]);
 
   // 观测面板挂在中栏底部，而对话聚焦态（Ctrl+3）整条隐藏中栏：直接翻 open 会「点了没反应」。
   // 开面板前先落回可见布局，关面板则不动布局。
   const toggleObsPanel = useCallback(() => {
-    if (!obsPanelOpen) showCenter();
+    if (!obsPanelOpen) showEditor();
     setObsPanelOpen((open) => !open);
-  }, [obsPanelOpen, showCenter]);
-
+  }, [obsPanelOpen, showEditor]);
   const runtime = useTauriMenuBridge({
     onRestoreFullLayout: () => {
       shell.showSidebar();
@@ -212,28 +243,33 @@ export function App() {
   // 全书字数是几百次读盘，不能每开一个项目就白扫一遍。
   const bookProfile = useBookProfile({
     activeProject: workspace.activeProject,
-    active: shell.view === 'book' && !shell.sidebarHidden,
+    active: mainSurface === 'overview' || (shell.view === 'book' && !shell.sidebarHidden),
+  });
+  const bookChapters = useBookOverviewChapters({
+    projectPath: workspace.activeProject,
+    currentFile: workspace.currentFile,
+    active: mainSurface === 'overview',
   });
 
   // 点大纲标题跳到那一行：与搜索命中同一条定位通道，路径已是绝对路径不必再拼。
   const openOutlineHeading = useCallback(
     (path: string, line: number) => {
-      showCenter();
+      showEditor();
       if (tabs.displayedFile !== path) void tabs.openFile(path, '打开大纲');
       emitLocateInEditor({ filePath: path, line });
     },
-    [showCenter, tabs],
+    [showEditor, tabs],
   );
 
   // 全文搜索（Ctrl+Shift+F）：点结果 → 打开该文件并跳到那一行，复用观测定位的同一条事件通道。
   const search = useProjectSearch(workspace.activeProject);
   const openSearchHit = useCallback(
     (path: string, line: number) => {
-      showCenter();
+      showEditor();
       if (tabs.displayedFile !== path) void tabs.openFile(path, '打开搜索结果');
       emitLocateInEditor({ filePath: path, line });
     },
-    [showCenter, tabs],
+    [showEditor, tabs],
   );
 
   // 点观测行 / 台账锚点定位原文：拼项目内绝对路径（沿用项目串的分隔符风格，保证与
@@ -243,14 +279,14 @@ export function App() {
       const project = workspace.activeProject;
       if (!project) return;
       // 定位原文要落在中栏编辑器；对话聚焦态隐藏中栏时先落回 balanced，否则定位落空。
-      showCenter();
+      showEditor();
       const separator = project.includes('\\') ? '\\' : '/';
       const relativePath = anchor.path.split('/').join(separator);
       const absolutePath = `${project.replace(/[\\/]+$/, '')}${separator}${relativePath}`;
       if (tabs.displayedFile !== absolutePath) void tabs.openFile(absolutePath, '定位观测');
       emitLocateInEditor({ filePath: absolutePath, line: anchor.line, snippet: anchor.snippet });
     },
-    [showCenter, tabs, workspace.activeProject],
+    [showEditor, tabs, workspace.activeProject],
   );
 
   const locateObservation = useCallback(
@@ -266,15 +302,37 @@ export function App() {
     (relativePath: string) => {
       const project = workspace.activeProject;
       if (!project) return;
-      showCenter();
+      showEditor();
       const separator = project.includes('\\') ? '\\' : '/';
       const absolutePath = `${project.replace(/[\\/]+$/, '')}${separator}${relativePath
         .split('/')
         .join(separator)}`;
       if (tabs.displayedFile !== absolutePath) void tabs.openFile(absolutePath, '打开章节');
     },
-    [showCenter, tabs, workspace.activeProject],
+    [showEditor, tabs, workspace.activeProject],
   );
+
+  const continueWriting = useCallback(
+    (relativePath?: string) => {
+      setMainSurface('workspace');
+      if (relativePath) {
+        openManuscriptChapter(relativePath);
+      } else {
+        showEditor();
+      }
+    },
+    [openManuscriptChapter, showEditor],
+  );
+  const showAgent = useCallback(() => {
+    showEditor();
+    showRight();
+  }, [showEditor, showRight]);
+  const activity = useOverviewActivity({
+    projectPath: workspace.activeProject,
+    displayedFile: tabs.displayedFile,
+    openFile: tabs.openFile,
+    showEditor,
+  });
 
   return (
     <AppShell
@@ -300,6 +358,29 @@ export function App() {
       openSettings={openSettings}
       search={search}
       onOpenSearchHit={openSearchHit}
+      mainSurface={mainSurface}
+      onMainSurfaceChange={setMainSurface}
+      onSwitchView={switchView}
+      onPendingSuggestionChange={activity.onPendingChange}
+      onAgentRunSummaryChange={activity.onRunChange}
+      overview={
+        workspace.activeProject ? (
+          <BookOverview
+            projectPath={workspace.activeProject}
+            profile={bookProfile}
+            context={bookContext}
+            chapters={bookChapters}
+            onContinueWriting={continueWriting}
+            onOpenChapter={continueWriting}
+            onOpenOutline={openOutlineHeading}
+            onRefresh={bookProfile.refresh}
+            pendingPatchCount={activity.pendingSuggestion ? 1 : 0}
+            onOpenPendingPatches={activity.openPendingSuggestion}
+            agentRun={activity.agentRun}
+            onOpenAgentRun={showAgent}
+          />
+        ) : null
+      }
       initialCursors={session.initialCursors}
       onCursorPersist={session.recordCursor}
       welcomeDismissed={welcomeDismissed || session.restoredWorkspace}

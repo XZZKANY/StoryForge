@@ -9,12 +9,22 @@
 import assert from 'node:assert/strict';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { test } from 'vitest';
+import { beforeEach, test } from 'vitest';
 
 import { VIEW_ENTRIES } from '../src/components/shell/ActivityBar';
-import { SIDE_PANEL_VIEWS, useShellState } from '../src/components/shell/useShellState';
+import {
+  resetShellStateStorage,
+  SIDE_PANEL_VIEWS,
+  useShellState,
+} from '../src/components/shell/useShellState';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+// useShellState 持久化视图/布局/折叠偏好到 localStorage；用例间必须清档，
+// 否则前一个用例留下的「观测镜 + 可见」会让后一个用例的 toggle 直接收起。
+beforeEach(() => {
+  resetShellStateStorage();
+});
 
 type ShellApi = ReturnType<typeof useShellState>;
 

@@ -88,7 +88,7 @@ export function ManuscriptCard({
       ref={cardRef}
       role="dialog"
       aria-label="稿件进度"
-      className="absolute bottom-[30px] right-3 z-30 w-[268px] rounded-lg border border-border bg-surface p-3 text-2xs text-muted shadow-[var(--shadow-dropdown)]"
+      className="absolute bottom-[30px] right-3 z-30 w-[268px] rounded-lg border border-border bg-surface p-3 text-2xs text-muted shadow-dropdown"
       data-testid="manuscript-card"
     >
       <Section title={chapterLabel || '本章'}>

@@ -53,6 +53,8 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
       ),
     );
     await click(container.querySelector('[data-testid="activity-book"]'));
+    // 作品图标现在是总览目的地；编辑资料仍沿用原 book 面板与宽度偏好。
+    await click(container.querySelector('[data-testid="edit-book-profile"]'));
     const panel = () => container.querySelector<HTMLElement>('[data-testid="shell-side-panel"]');
     expect(panel()?.style.width).toBe('236px');
     expect(loadAppSettings().sidePanelWidths).toEqual({ book: 420 });

@@ -121,7 +121,7 @@ export function VersionHistory({
 
   return (
     <div
-      className="absolute top-0 right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-[var(--shadow-dialog)] z-30 animate-slide-up-fade"
+      className="absolute top-0 right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-dialog z-30 animate-slide-up-fade"
       data-testid="version-history"
     >
       <div className="sf-panel-header border-border">
@@ -131,7 +131,7 @@ export function VersionHistory({
             <button
               key={value}
               type="button"
-              className={`rounded-md px-2 py-1 text-xs ${viewMode === value ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-foreground/10'}`}
+              className={`rounded-md px-2 py-1 text-xs ${viewMode === value ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'}`}
               onClick={() => setViewMode(value)}
               data-testid={`version-view-${value}`}
             >
@@ -188,7 +188,7 @@ export function VersionHistory({
               <button
                 key={value}
                 type="button"
-                className={`rounded-md px-2 py-1 text-xs ${sourceFilter === value ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-foreground/10'}`}
+                className={`rounded-md px-2 py-1 text-xs ${sourceFilter === value ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'}`}
                 onClick={() => setSourceFilter(value)}
                 data-testid={`version-filter-${value}`}
               >

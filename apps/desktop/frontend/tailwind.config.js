@@ -54,6 +54,18 @@ export default {
         // 指纹护栏见 tests/shell-row-height.test.ts。
         'shell-row': '2.5rem',
       },
+      // 阴影映射：与 index.css 的 --shadow-* 变量一一对应。
+      boxShadow: {
+        sm: 'var(--shadow-sm)',
+        md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
+        panel: 'var(--shadow-panel)',
+        inset: 'var(--shadow-inset)',
+        dropdown: 'var(--shadow-dropdown)',
+        dialog: 'var(--shadow-dialog)',
+        composer: 'var(--shadow-composer)',
+        'composer-focus': 'var(--shadow-composer-focus)',
+      },
       keyframes: {
         'fade-in': {
           from: { opacity: '0' },

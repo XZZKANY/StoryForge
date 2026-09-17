@@ -42,8 +42,9 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
         </span>
         <button
           type="button"
-          className="flex h-7 w-7 items-center justify-center rounded-md text-subtle hover:bg-elevated hover:text-foreground"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-subtle transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-subtle"
           title="刷新 Knowledge Inbox"
+          disabled={handle.loading}
           onClick={() => void handle.refresh()}
         >
           <RefreshCw size={13} className={handle.loading ? 'animate-spin' : ''} />
@@ -337,7 +338,7 @@ function KnowledgePatchReview({ handle }: { handle: KnowledgeInboxHandle }) {
         </button>
         <button
           type="button"
-          className="flex h-7 items-center gap-1 rounded-sm bg-agent px-2 text-3xs text-white"
+          className="flex h-7 items-center gap-1 rounded-sm bg-agent px-2 text-3xs text-agent-foreground"
           disabled={handle.busyProposalId === patch.proposal_id}
           onClick={() => void handle.accept()}
           data-testid="knowledge-confirm-writeback"

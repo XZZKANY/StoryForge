@@ -94,6 +94,31 @@ export function PatchReviewPanel({
     onReject(direction);
   };
 
+  // 快捷键：Ctrl+Y 接受 / Ctrl+N 拒绝 / Ctrl+E 展开收起（对齐 Cursor 的 ⌘Y/⌘N 语义）。
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      // 拒绝输入框聚焦时不拦截，让 Enter/Escape 正常工作。
+      if (rejectDraft !== null) return;
+      switch (event.key.toLowerCase()) {
+        case 'y':
+          event.preventDefault();
+          onAccept();
+          break;
+        case 'n':
+          event.preventDefault();
+          setRejectDraft((value) => (value === null ? '' : null));
+          break;
+        case 'e':
+          event.preventDefault();
+          setExpanded((value) => !value);
+          break;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [rejectDraft, onAccept]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const diffEditorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
   const originalModelRef = useRef<monaco.editor.ITextModel | null>(null);
@@ -221,21 +246,23 @@ export function PatchReviewPanel({
             onClick={() => setExpanded((value) => !value)}
             data-testid="patch-expand"
             aria-expanded={expanded}
-            className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-elevated transition-colors"
+            title={`${expanded ? '收起' : '展开'} · Ctrl E`}
+            className="h-7 rounded-md border border-border px-2.5 text-xs hover:bg-elevated transition-colors"
           >
             {expanded ? '收起' : '展开'}
           </button>
           <button
             onClick={onAccept}
             data-testid="suggestion-accept"
-            className="text-xs px-2.5 py-1 rounded-md bg-accent text-accent-foreground hover:opacity-90 active:opacity-100 transition-opacity"
+            title="接受 · Ctrl Y"
+            className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:opacity-90 active:opacity-100 transition-opacity"
           >
             接受
           </button>
           <button
             onClick={onSaveNote}
             data-testid="suggestion-note"
-            className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-elevated transition-colors"
+            className="h-7 rounded-md border border-border px-2.5 text-xs hover:bg-elevated transition-colors"
           >
             保存旁注
           </button>
@@ -243,7 +270,8 @@ export function PatchReviewPanel({
             onClick={() => setRejectDraft((value) => (value === null ? '' : null))}
             data-testid="suggestion-reject"
             aria-expanded={rejectDraft !== null}
-            className="text-xs px-2.5 py-1 rounded-md text-muted hover:text-foreground hover:bg-elevated transition-colors"
+            title="拒绝 · Ctrl N"
+            className="h-7 rounded-md px-2.5 text-xs text-muted hover:text-foreground hover:bg-elevated transition-colors"
           >
             拒绝
           </button>

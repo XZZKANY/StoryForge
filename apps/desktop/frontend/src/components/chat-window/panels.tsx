@@ -84,7 +84,7 @@ export function ConversationHeader({
         <button
           type="button"
           className="relative grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-          title="世界线观测镜 · Ctrl+4"
+          title="世界线观测镜 · Ctrl Shift O"
           onClick={onOpenObservatory}
           data-testid="conversation-open-observatory"
         >
@@ -103,7 +103,7 @@ export function ConversationHeader({
           <button
             type="button"
             className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-            title="回到编辑 · Ctrl+2"
+            title="回到编辑 · Ctrl 2"
             onClick={() => onSetLayoutMode('balanced')}
             data-testid="conversation-back-to-balanced"
           >
@@ -114,7 +114,7 @@ export function ConversationHeader({
             <button
               type="button"
               className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-              title="对话占满中右 · Ctrl+3"
+              title="对话占满中右 · Ctrl 3"
               onClick={() => onSetLayoutMode('chat')}
               data-testid="conversation-expand-chat"
             >
@@ -123,7 +123,7 @@ export function ConversationHeader({
             <button
               type="button"
               className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-              title="收起对话栏，编辑占满 · Ctrl+1"
+              title="收起对话栏，编辑占满 · Ctrl 1"
               onClick={() => onSetLayoutMode('editor')}
               data-testid="conversation-collapse-right"
             >
@@ -134,7 +134,7 @@ export function ConversationHeader({
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-          <div className="absolute left-2 right-2 top-shell-row z-40 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-dropdown)]">
+          <div className="absolute left-2 right-2 top-shell-row z-40 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-dropdown">
             <div className="px-2 py-1 text-3xs uppercase tracking-[0.08em] text-subtle">
               本项目的会话
             </div>
@@ -354,31 +354,58 @@ export function RunActionBar({
 
   return (
     <div
-      className="flex flex-shrink-0 flex-col border-t border-border bg-panel"
+      className="flex flex-shrink-0 flex-col border-t border-border bg-panel shadow-[0_-4px_16px_rgb(0_0_0/0.1)] animate-slide-in-up"
       data-testid="run-action-bar"
     >
-      <div className="flex flex-wrap items-center gap-2 px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
         <div className="mx-auto flex w-full max-w-[800px] flex-wrap items-center gap-2">
-          <div
-            className="min-w-0 flex-1 text-xs text-muted"
-            title={`运行 ${run.id}`}
-            data-testid="run-action-status"
-          >
-            {waitingForPermission
-              ? '等待你确认'
-              : awaitingConfirm
-                ? 'AI 修订已生成，可接受或拒绝'
-                : isPaused
-                  ? '已暂停'
-                  : isRunning
-                    ? '正在处理'
-                    : '准备中'}
+          <div className="flex items-center gap-3">
+            {isRunning && (
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-agent opacity-75" />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-agent shadow-sm" />
+              </span>
+            )}
+            <div
+              className="min-w-0 flex-1 text-xs font-medium text-muted"
+              title={`运行 ${run.id}`}
+              data-testid="run-action-status"
+            >
+              {waitingForPermission
+                ? '等待你确认'
+                : awaitingConfirm
+                  ? 'AI 修订已生成，可接受或拒绝'
+                  : isPaused
+                    ? '已暂停'
+                    : isRunning
+                      ? (() => {
+                          // 运行中：三点动画 + 当前活动步骤名，作者一眼看到「正在跑哪个工具」。
+                          const activeStep =
+                            run.steps.find((step) => step.status === 'running') ??
+                            run.steps.find((step) => step.status === 'waiting') ??
+                            run.steps.find((step) => step.status === 'pending');
+                          return (
+                            <span
+                              className="inline-flex items-baseline gap-2"
+                              data-testid="run-action-active-step"
+                            >
+                              <span className="sf-thinking-dots" aria-hidden="true">
+                                <span />
+                                <span />
+                                <span />
+                              </span>
+                              <span className="text-foreground">{activeStep ? activeStep.title : '正在处理'}</span>
+                            </span>
+                          );
+                        })()
+                      : '准备中'}
+            </div>
           </div>
           {/* 运行态：暂停按钮 */}
           {isRunning && (
             <button
               type="button"
-              className="h-7 rounded-md border border-border px-2.5 text-xs text-muted hover:text-foreground hover:bg-elevated"
+              className="interactive-press h-8 rounded-lg border border-border px-3 text-xs font-medium text-muted transition-all hover:border-border-strong hover:text-foreground hover:bg-elevated hover:shadow-sm"
               onClick={controls.onPauseRun}
               title="暂停本轮"
               data-testid="run-pause"
@@ -390,7 +417,7 @@ export function RunActionBar({
           {isPaused && (
             <button
               type="button"
-              className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent"
+              className="interactive-press h-8 rounded-lg bg-accent px-3 text-xs font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent/90 hover:shadow active:bg-accent"
               onClick={controls.onResumeRun}
               title="恢复本轮"
               data-testid="run-resume"
@@ -403,7 +430,7 @@ export function RunActionBar({
             <>
               <button
                 type="button"
-                className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent"
+                className="interactive-press h-8 rounded-lg bg-accent px-3 text-xs font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent/90 hover:shadow active:bg-accent"
                 onClick={controls.onApprovePermission}
                 title="批准权限请求"
                 data-testid="run-approve-permission"
@@ -412,7 +439,7 @@ export function RunActionBar({
               </button>
               <button
                 type="button"
-                className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10"
+                className="interactive-press h-8 rounded-lg border border-error/40 px-3 text-xs font-medium text-error transition-all hover:bg-error/10 hover:border-error/60 hover:shadow-sm"
                 onClick={controls.onDenyPermission}
                 title="拒绝权限请求"
                 data-testid="run-deny-permission"
@@ -426,7 +453,7 @@ export function RunActionBar({
             <>
               <button
                 type="button"
-                className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent"
+                className="interactive-press h-8 rounded-lg bg-accent px-3 text-xs font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent/90 hover:shadow active:bg-accent"
                 onClick={handleAcceptPatch}
                 title="接受这版修订并写回"
                 data-testid="run-accept-patch"
@@ -435,7 +462,7 @@ export function RunActionBar({
               </button>
               <button
                 type="button"
-                className="h-7 rounded-md border border-border px-2.5 text-xs text-muted hover:text-foreground hover:bg-elevated"
+                className="interactive-press h-8 rounded-lg border border-border px-3 text-xs font-medium text-muted transition-all hover:border-border-strong hover:text-foreground hover:bg-elevated hover:shadow-sm"
                 onClick={handleRejectPatch}
                 title="拒绝这版修订"
                 data-testid="run-reject-patch"
@@ -448,7 +475,7 @@ export function RunActionBar({
           {(isRunning || isPaused || waitingForPermission) && (
             <button
               type="button"
-              className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10"
+              className="interactive-press h-8 rounded-lg border border-error/40 px-3 text-xs font-medium text-error transition-all hover:bg-error/10 hover:border-error/60 hover:shadow-sm"
               onClick={controls.onStopRun}
               title="停止本轮"
               data-testid="run-stop"
@@ -757,7 +784,7 @@ export function MessageItem({ message }: { message: Message }) {
   if (message.role === 'user') {
     return (
       <div className="flex animate-slide-up-fade justify-end" data-testid="user-message">
-        <div className="sf-bubble-user max-w-[85%] bg-elevated px-3 py-2 text-sm leading-6 text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
+        <div className="sf-bubble-user max-w-[85%] bg-elevated px-4 py-3 text-sm leading-6 text-foreground shadow-md transition-shadow hover:shadow-lg">
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
       </div>
@@ -769,7 +796,15 @@ export function MessageItem({ message }: { message: Message }) {
       className="max-w-[760px] animate-slide-up-fade text-sm leading-7 text-foreground"
       data-testid="assistant-message"
     >
-      <AssistantMarkdown content={message.content} />
+      <div className="mb-2 flex items-center gap-2">
+        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-agent text-2xs font-semibold text-agent-foreground shadow-sm">
+          AI
+        </span>
+        <span className="text-2xs text-subtle">StoryForge</span>
+      </div>
+      <div className="rounded-xl border border-border bg-panel/50 p-4 shadow-sm">
+        <AssistantMarkdown content={message.content} />
+      </div>
     </article>
   );
 }
@@ -804,20 +839,29 @@ export function EmptyConversation({
   return (
     <div className="flex h-full items-center justify-center px-4 py-10">
       <div className="w-full max-w-[680px] translate-y-[-3vh]">
-        <div className="mb-4 px-1">
-          <div className="text-sm font-medium text-foreground">StoryForge</div>
-          <div className="mt-1 truncate text-xs text-subtle">
+        <div className="mb-8 text-center animate-fade-in-scale">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-agent/20 to-agent/5 shadow-lg">
+            <Sparkles size={32} strokeWidth={1.5} className="text-agent" />
+          </div>
+          <div className="text-lg font-semibold text-foreground">StoryForge</div>
+          <div className="mt-2 truncate text-sm text-subtle">
             {projectName ? `${projectName} · 项目级创作会话` : '打开项目后即可开始创作会话'}
           </div>
         </div>
 
-        <div className="rounded-lg border border-border bg-panel p-4">
-          <div className="text-center text-xs text-muted">
+        <div className="card-hover rounded-xl border border-border bg-panel p-6 text-center shadow-md animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+          <div className="text-sm text-muted">
             在下方输入框开始对话，Agent 会根据你的指令协助创作
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-2xs text-subtle">
+            <span className="rounded-lg bg-elevated px-3 py-1.5 transition-colors hover:bg-border hover:text-foreground">审稿</span>
+            <span className="rounded-lg bg-elevated px-3 py-1.5 transition-colors hover:bg-border hover:text-foreground">修订</span>
+            <span className="rounded-lg bg-elevated px-3 py-1.5 transition-colors hover:bg-border hover:text-foreground">起草</span>
+            <span className="rounded-lg bg-elevated px-3 py-1.5 transition-colors hover:bg-border hover:text-foreground">一致性检查</span>
           </div>
         </div>
 
-        <div className="mt-3">
+        <div className="mt-4 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
           <ContextSummaryPanel
             currentFileLabel={currentFileLabel}
             explicitContextPaths={explicitContextPaths}
