@@ -50,6 +50,30 @@ export function runStatusText(run: AgentRun | null): string | null {
   return active.detail || active.title;
 }
 
+/**
+ * 供屏幕阅读器播报的运行相位。与 runStatusText 不同：这是「相位级」措辞，
+ * 同一相位内步骤 / 详情再怎么变都返回同一句稳定文本 → live region 只在相位切换
+ * （运行 → 等待确认 → 暂停 → 终态）时念诵一次，不被长程 run 的逐步详情吵到。
+ * 无 run 时返回 ''，让 live region 保持静默。
+ */
+export function runLivePhaseText(run: AgentRun | null): string {
+  if (!run) return '';
+  if (run.status === 'waiting') {
+    const permission = run.steps.some(
+      (step) => step.id === 'permission-required' && step.status === 'waiting',
+    );
+    return permission
+      ? '需要你的确认：Agent 请求权限或已生成修订，等待你批准或拒绝。'
+      : 'AI 修订已生成，请你确认接受或拒绝。';
+  }
+  if (run.status === 'paused') return '本轮已暂停。';
+  if (run.status === 'stopped') return '本轮已由你停止。';
+  if (run.status === 'failed') return '本轮遇到问题，详情在回复里。';
+  if (run.status === 'completed') return '本轮已完成。';
+  // 运行中：恒定一句，不随步骤详情变化，避免长程 run 每一步都念一遍。
+  return 'Agent 正在处理本轮…';
+}
+
 export function roleMentionQuery(value: string): string | null {
   const match = value.match(/@[^\s，。！？!?；;：:,、]*$/);
   return match?.[0] ?? null;

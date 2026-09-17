@@ -1,3 +1,20 @@
+## 2026-09-17 Desktop UI/UX 全维度优化（第十一波：D5 流式 · Agent 运行相位 live region）
+
+- 用户继续 D5，选 ChatWindow 流式。侦察确认缺口：chat-window 全目录 `role="status"`/`aria-live`/`role="alert"` **零命中**——Agent 运行相位（运行 → 等待确认 → 暂停 → 终态）对读屏作者完全不可见。视觉上的 `run-action-active-step`（正在处理 + 三点动画）与 `run-action-status`（等待你确认/已暂停/…）都是普通节点，状态翻转读屏感知不到。
+- 与上一波（搜索 live region，脏数据按状态播报）相反：Chat 的状况更刁钻——`runStatusText` 已把运行相位派生成漂亮措辞，但它**藏在跳过性文案里**，且运行中每换一个步骤详情文案就变 → 若直接拿去播报，长程 run 会每一步都吵一遍。
+- 实现（3 文件 / +31−1，纯前端）：
+  - 新增 `runLivePhaseText(run)`（`display-utils.ts`）：**相位级**话术——同一相位内步骤/详情再怎么变都返回同一句恒定文本 → live region 只在相位切换（运行 → 等待权限 / 等待修订 / 暂停 / 停止 / 失败 / 完成）时念诵一次。等待权限与等待修订确认给出**不同措辞**，读屏作者能区分「批权限」和「收补丁」；运行中恒定「Agent 正在处理本轮…」不吵。
+  - `ChatWindowView.tsx` 顶部加常驻视觉隐藏的 `<p role="status" aria-live="polite" className="sr-only" data-testid="agent-run-live">`，文案来自 `runLivePhaseText(state.agentRun)`；可见操作条/轻状态条原样保留，避免见字又听字。
+  - **复用上一波加的 `.sr-only` 工具**，零新增 util。
+- 纠错：第一版静态接线护栏用固定属性顺序的正则（`data-testid=...[^>]*aria-live`），而 JSX 里我把 `aria-live` 写在 `data-testid` 前面 → 护栏自己先红。改为「先抓含该 testid 的整标签、再对它的属性顺序无关地逐项断言」——这是更稳的接线护栏写法，不是测试防腐。
+- 新增行为测试 `tests/chat-run-live-region.test.tsx`（5 条）：①无 run 静默；②运行中恒定且不随步骤详情变（防长程吵）；③等待权限 vs 等待修订措辞有别；④暂停/停止/失败/完成各有相位句；⑤接线护栏（agent-run-live 存在 + polite + sr-only + 文案源）。
+- **非空虚性已变异验证**：把运行中相位改为返回 ''，`runLivePhaseText：运行中带恒定一句` 立刻红；恢复转绿。接线护栏经独立核对（用真实 JSX 属性顺序验证 tag 抽取命中）。
+- 验证：
+  - `typecheck`：**exit 0**。
+  - `npm.cmd --prefix apps/desktop/frontend run test`：**103 files / 672 passed**（基线 667 → +5，无回归；stderr `act` 警告为既有噪声）。
+  - 改动文件 `eslint` **0 problems**；`prettier --check` 全过。
+- 未做：ChatWindow 流式逐 token 内容本身的 live 化（句子级增量播报成本高、收益低，当前相位级足够）；`context-candidates-error` 的 role=alert 未处理；Composer/工具调用权限弹窗的专有 live region 未做；真机 NVDA 实测未跑；未动 API/契约/权限/写回。
+
 ## 2026-09-17 Desktop UI/UX 全维度优化（第十波：D5 状态变化反馈 · 搜索检索 live region）
 
 - 用户继续 D5。本波选一个具体交互缺口：搜索是异步的，结果文本会动态翻转（空 → `搜索中…` → `N 处 · M 个文件` / `没有匹配的内容。`），但此前普通 `<p>` 没有 live region，**屏幕阅读器完全感知不到结果数何时到位**；失败块也没有 `role="alert"`。
