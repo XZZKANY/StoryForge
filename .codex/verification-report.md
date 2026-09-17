@@ -1,3 +1,18 @@
+## 2026-09-17 Desktop UI/UX 全维度优化（第九波：D2 作品总览 · 骨架屏加载）
+
+- 用户转向 D2/D4/D5。侦察后发现 D2/D4 表面在 1-3 波已重度打磨（BookOverview 有 role=status/alert、空态、进度条、响应式），不做表面功夫。真正成体系缺失的是 D5「加载状态反馈」：**全仓 `.skeleton` 工具类自 1-3 波定义后从未被引用**（孤儿工具），每个面板的加载态仍是一行裸「正在读取…」文字。
+- 单波聚焦选 BookOverview：它是 D2 主区 hero，加载时整页只有一行文字、没有形状占位。
+- 实现（纯前端，4 文件 / +119−10）：
+  - `BookOverview.tsx` 新增 `BookOverviewSkeleton`：镜像 hero 两卡（封面 3:4 + 简介行 / 写作进度 + 进度条 + 两格统计）的**形状骨架**，用现有 `.skeleton` 工具，加载结束布局不跳；整块 `aria-hidden`（装饰态）。
+  - 加载态文字从可见 `<p>` 改为 `<p role="status" className="sr-only">`：可见观感交给骨架，屏幕阅读器语义留给 sr-only 文本（新加 `.sr-only` 工具，`index.css`）。
+  - 外层 `role="region"` 补 `aria-busy={profile.loading}`。
+- 新增行为测试（2 条）：`book-overview.test.tsx` 断言 loading 时骨架出现 + `aria-busy="true"` + 骨架 aria-hidden + sr-only 文本含「正在读取」+ 每个占位用 `.skeleton`，转 settled 后骨架/busy 消失；`accessibility-guards.test.ts` 加一条「`.skeleton`/`.sr-only` 既定义也被引用」的孤儿工具护栏（BookOverview 同时引用两者）。
+- 验证：
+  - `typecheck`：**exit 0**。
+  - `npm.cmd --prefix apps/desktop/frontend run test`：**101 files / 663 passed**（基线 661 → +2，无回归；stderr `act` 警告为既有噪声）。
+  - 改动文件 `eslint` **0 problems**；`prettier --check` 全过（BookOverview 骨架块已按 prettier 折行）。
+- 未做：其余面板（ChatWindow/ResourceExplorer/VersionHistory/CommandPalette 等）的骨架屏留后续波次——本波把 BookOverview 当形状匹配的样板，其余面板直接套同款模式；真机观感截图未动眼；未动 API/契约/权限/写回。
+
 ## 2026-09-17 Desktop UI/UX 全维度优化（第八波：D6 可达性收尾 · 图标按钮齐平 + 对比度护栏）
 
 - 用户要求「将 D6 做完」。本波把 D6 收口为两件可证伪的事：**图标-only 按钮 aria-label 全扫** + **对比度从注释变成测试**。

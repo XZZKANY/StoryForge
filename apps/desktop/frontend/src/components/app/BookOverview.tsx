@@ -76,6 +76,43 @@ function ContextStatus({
   );
 }
 
+/**
+ * 载入中的骨架屏：镜像 hero 两卡（封面+简介 / 写作进度）的形状，
+ * 让加载结束时的布局不发生跳动，比一行裸「正在读取…」更贴近成品观感。
+ * 骨架块是装饰（aria-hidden），真正语义由外层的 aria-busy + 隐藏「正在读取」承载。
+ */
+function BookOverviewSkeleton() {
+  return (
+    <div
+      className="grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]"
+      data-testid="book-overview-skeleton"
+      aria-hidden="true"
+    >
+      {/* 左卡：封面 + 简介 + 主按钮 */}
+      <div className="flex min-w-0 flex-col gap-5 rounded-xl border border-border bg-panel p-5 sm:flex-row md:p-6">
+        <div className="skeleton aspect-[3/4] w-32 flex-shrink-0 rounded-lg sm:w-40 xl:w-56" />
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <div className="skeleton h-5 w-2/5" />
+          <div className="skeleton h-4 w-full" />
+          <div className="skeleton h-4 w-11/12" />
+          <div className="skeleton h-4 w-3/5" />
+          <div className="skeleton mt-auto h-11 w-36 rounded-lg" />
+        </div>
+      </div>
+      {/* 右卡：写作进度 */}
+      <div className="rounded-xl border border-border bg-panel p-5 md:p-6">
+        <div className="skeleton h-5 w-24" />
+        <div className="skeleton mt-5 h-9 w-32" />
+        <div className="skeleton mt-4 h-2.5 w-full rounded-full" />
+        <div className="mt-6 grid grid-cols-2 gap-3 border-t border-border pt-4">
+          <div className="skeleton h-14 rounded-lg" />
+          <div className="skeleton h-14 rounded-lg" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function BookOverview({
   projectPath,
   profile,
@@ -111,6 +148,7 @@ export function BookOverview({
       data-testid="book-overview"
       role="region"
       aria-label="作品总览"
+      aria-busy={profile.loading}
     >
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 py-6 md:px-8 md:py-8">
         <header
@@ -145,9 +183,13 @@ export function BookOverview({
         </header>
 
         {profile.loading && (
-          <p role="status" className="text-sm text-muted">
-            正在读取作品资料…
-          </p>
+          <>
+            {/* 隐藏文本：屏幕阅读器拿「正在读取」语义；可见部分交给下面的形状骨架。 */}
+            <p role="status" className="sr-only">
+              正在读取作品资料…
+            </p>
+            <BookOverviewSkeleton />
+          </>
         )}
         {profile.totalsError && (
           <p role="alert" className="rounded-lg border border-border p-3 text-sm text-error">
@@ -284,7 +326,9 @@ export function BookOverview({
               </div>
               <div className="rounded-lg bg-elevated/50 p-3">
                 <dt className="text-2xs text-subtle">大纲条目</dt>
-                <dd className="mt-1 text-sm font-medium text-foreground">{profile.outline.length || '—'}</dd>
+                <dd className="mt-1 text-sm font-medium text-foreground">
+                  {profile.outline.length || '—'}
+                </dd>
               </div>
             </dl>
           </div>
@@ -346,11 +390,7 @@ export function BookOverview({
                 {agentRun.goal || '打开工作台查看当前进度'}
               </span>
             </span>
-            <ChevronRight
-              size={16}
-              className="mt-1 flex-shrink-0 text-muted"
-              aria-hidden="true"
-            />
+            <ChevronRight size={16} className="mt-1 flex-shrink-0 text-muted" aria-hidden="true" />
           </button>
         ) : null}
 
@@ -379,7 +419,10 @@ export function BookOverview({
           </div>
         ) : null}
 
-        <section className="grid gap-5 lg:grid-cols-2 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+        <section
+          className="grid gap-5 lg:grid-cols-2 animate-fade-in-up"
+          style={{ animationDelay: '100ms' }}
+        >
           <div
             ref={chapterListRef}
             tabIndex={-1}

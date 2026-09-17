@@ -138,3 +138,43 @@ test('总览暴露运行中或等待确认的 Agent，并可返回工作台', as
   await act(async () => card?.click());
   expect(open).toHaveBeenCalledOnce();
 });
+
+// D2/D5：载入中把「一行裸文字」换成形状骨架，镜像 hero 两卡的布局，加载结束不跳动；
+// 骨架是装饰（aria-hidden），语义由外层 aria-busy + sr-only「正在读取」承载。
+test('载入中显示形状骨架、区域标记 aria-busy，骨架本身对屏幕阅读器隐藏', async () => {
+  root = createRoot(host);
+  const data = profile();
+  data.loading = true;
+  await render({ profile: data });
+
+  const region = host.querySelector('[data-testid="book-overview"]');
+  expect(region?.getAttribute('aria-busy')).toBe('true');
+
+  const skeleton = host.querySelector('[data-testid="book-overview-skeleton"]');
+  expect(skeleton).toBeTruthy();
+  // 骨架只供肉眼，整块对屏幕阅读器隐藏；里面每个占位块都用 .skeleton。
+  expect(skeleton?.getAttribute('aria-hidden')).toBe('true');
+  expect(skeleton!.querySelectorAll('.skeleton').length).toBeGreaterThan(4);
+  // 屏幕阅读器的语义落在 sr-only 的「正在读取」上。
+  const status = host.querySelector('[role="status"]');
+  expect(status?.textContent).toContain('正在读取');
+  expect(status?.className).toContain('sr-only');
+
+  // 加载结束后骨架与 busy 都消失（重渲染到非 loading 态）。
+  const settled = profile();
+  settled.loading = false;
+  await act(async () =>
+    root.render(
+      <BookOverview
+        projectPath="D:/book"
+        profile={settled}
+        context={context()}
+        onContinueWriting={() => {}}
+      />,
+    ),
+  );
+  expect(host.querySelector('[data-testid="book-overview-skeleton"]')).toBeNull();
+  expect(host.querySelector('[data-testid="book-overview"]')?.getAttribute('aria-busy')).toBe(
+    'false',
+  );
+});

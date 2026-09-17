@@ -678,6 +678,20 @@ button:disabled[aria-busy='true'] {
   box-shadow: 0 0 0 4px rgb(var(--agent) / 0.12);
 }
 
+/* 视觉隐藏但屏幕阅读器可读：骨架屏等「装饰态」承载可见观感时，把语义留给这条 sr-only 文本。 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* 旧行红标：整行淡红底 + 左描边 */
 .sf-inline-diff-old {
   background: rgb(var(--error) / 0.12);

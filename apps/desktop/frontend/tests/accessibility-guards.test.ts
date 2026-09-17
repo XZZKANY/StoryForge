@@ -139,6 +139,18 @@ test('SWEPT_FILES 列表里的文件都真实存在（防改名后护栏空转�
   }
 });
 
+// D2/D5：骨架屏与 sr-only 是一对搭档——.skeleton 做可见的加载占位，.sr-only 把语义留给
+// 屏幕阅读器。两者都定义在 index.css；谁删了其中一个、或引用它们的地方被删光，这里就红，
+// 防止「定义了但没人用」的孤儿工具悄悄堆积（.skeleton 在接入前就是这么躺了很久）。
+test('骨架屏与 sr-only 工具既已定义也被实际引用', () => {
+  const css = readFileSync(abs('../src/index.css'), 'utf8');
+  assert.match(css, /\.skeleton\s*\{/, '.skeleton 定义缺失');
+  assert.match(css, /\.sr-only\s*\{/, '.sr-only 定义缺失');
+  const overview = readFileSync(abs('../src/components/app/BookOverview.tsx'), 'utf8');
+  assert.ok(overview.includes('skeleton'), 'BookOverview 骨架屏引用了 .skeleton');
+  assert.ok(overview.includes('sr-only'), 'BookOverview 用 sr-only 承载加载语义');
+});
+
 // ---------------------------------------------------------------------------
 // 对比度护栏：把 index.css 里 --muted / --subtle 的 WCAG 注释变成可证伪的断言。
 // 有人把提示文本调暗到低于阈值（或在亮色下调浅），这里就红。
