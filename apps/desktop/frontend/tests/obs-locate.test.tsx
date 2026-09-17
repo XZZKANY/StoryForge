@@ -59,3 +59,38 @@ test('点击带 anchor 的观测行触发 onLocate；无 anchor 行不触发', a
     container.remove();
   }
 });
+
+test('观测面板图标按钮有显式 aria-label，不只依赖 title', async () => {
+  // 图标-only 按钮（关闭面板 X / 标记已处理 ✓）不能只靠 title 做可访问名（屏读者支持不一致）。
+  // 关闭按钮每条共用一个名；「标记已处理」要带观测标题，否则一排同名按钮无法区分处理的是哪条。
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => {
+      root.render(
+        <ObsPanel
+          observations={OBSERVATIONS}
+          availability="available"
+          onClose={() => undefined}
+          onResolve={() => undefined}
+          onLocate={() => undefined}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const closeBtn = container.querySelector<HTMLButtonElement>('[aria-label="关闭观测面板"]');
+    assert.ok(closeBtn, '关闭观测面板按钮缺 aria-label');
+
+    const resolveButtons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button'),
+    ).filter((b) => b.getAttribute('aria-label')?.startsWith('标记已处理：'));
+    assert.equal(resolveButtons.length, 2);
+    assert.equal(resolveButtons[0]?.getAttribute('aria-label'), '标记已处理：「不禁、五味杂陈」');
+    assert.equal(resolveButtons[1]?.getAttribute('aria-label'), '标记已处理：无锚点观测');
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});

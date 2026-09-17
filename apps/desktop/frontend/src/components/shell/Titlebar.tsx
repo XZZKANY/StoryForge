@@ -88,21 +88,27 @@ export function Titlebar({
         <button
           className="flex h-9 w-11 items-center justify-center text-muted hover:bg-elevated"
           onClick={() => void runWindowAction('minimize')}
+          aria-label="最小化"
           title="最小化"
+          data-testid="titlebar-minimize"
         >
           <Minus size={14} strokeWidth={1.6} />
         </button>
         <button
           className="flex h-9 w-11 items-center justify-center text-muted hover:bg-elevated"
           onClick={() => void runWindowAction('maximize')}
+          aria-label="最大化"
           title="最大化"
+          data-testid="titlebar-maximize"
         >
           <Square size={12} strokeWidth={1.6} />
         </button>
         <button
           className="flex h-9 w-11 items-center justify-center text-muted hover:bg-error hover:text-white"
           onClick={() => void runWindowAction('close')}
+          aria-label="关闭"
           title="关闭"
+          data-testid="titlebar-close"
         >
           <X size={14} strokeWidth={1.6} />
         </button>

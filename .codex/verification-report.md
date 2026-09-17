@@ -1,3 +1,18 @@
+## 2026-09-17 Desktop UI/UX 全维度优化（第七波：D6 可达性 · 图标按钮显式 aria-label）
+
+- 承接第六波。本轮把「图标-only 按钮只靠 title 做可访问名」这个缺口在 Titlebar 与 ObsPanel 两个相邻面上齐平（这两个是用户最高频触点，其余面板留后续）。
+- 缺口本质：`title` 属性做可访问名的支持度因屏读者/浏览器而异，NVDA 默认不读悬停 title、VoiceOver 也可能跳过；显式 `aria-label` 才是稳定身份。此前 Titlebar 窗控（最小化/最大化/关闭）与 ObsPanel 关闭/标记已处理都只有 `title`。
+- 实现（纯前端，2 文件）：
+  - `Titlebar.tsx` 窗控三键各补 `aria-label`（中文，与原 `title` 同文案）+ 对应 `data-testid` 供测试钉死。
+  - `ObsPanel.tsx` 关闭观测面板 X 补 `aria-label="关闭观测面板"`；「标记已处理」补 `aria-label="标记已处理：${obs.title}"`——多条观测一行一个，名里带观测标题，否则屏读者听到一排同名按钮无法分辨处理的是哪条。
+- 新增行为测试（2 条）：`titlebar-drag.test.tsx` 断言三窗控各带 `aria-label`；`obs-locate.test.tsx` 断言关闭按钮名 + 「标记已处理」带观测标题且逐条区分（0 锚点与 1 锚点两条同名互不相同）。
+- 验证：
+  - `typecheck`：**exit 0**。
+  - `npm.cmd --prefix apps/desktop/frontend run test`：**100 files / 657 passed**（基线 655 → +2，无回归；stderr `act` 警告为既有噪声）。
+  - 改动文件 `eslint` **0 problems**；`prettier --check` 全过。
+- 累计四波 D6：`25ed0707`（活动栏）→ `aad7eda1`（Titlebar 面板开关）→ 本波（窗控 + 观测面板）。
+- 未做：真机 Tauri + NVDA/Narrator 实测；其余面板（`BookProfileView`、`SearchView`、`SidePanel`、`ToastHost`、`KnowledgeInboxView`、`ObservatoryView`）的同类 icon-only 按钮留后续波次；Tab 顺序审计与对比度复测留后续。
+
 ## 2026-09-17 Desktop UI/UX 全维度优化（第六波：D6 可达性 · Titlebar 面板开关）
 
 - 承接第五波 D6。用户说「继续」，我承接上轮自己列的 D6 待办，但**先纠正自己一句话**：上轮我说可「补 `aria-pressed`」，那是错语义——`Titlebar` 的 Agent 面板开关是「展开/收起」动作而非开/关状态，`aria-pressed` 会把「点击收起」读成「未按下按钮」，形成反直觉。

@@ -110,3 +110,35 @@ test('Agent 面板开关：名字稳定不随态翻转，态由 aria-expanded �
   act(() => collapsed.root.unmount());
   collapsed.container.remove();
 });
+
+test('窗控按钮（最小化/最大化/关闭）有显式 aria-label，不只依赖 title', async () => {
+  // 图标-only 按钮不能只靠 title 做可访问名（屏读者支持不一致、可能被跳过）；
+  // 显式 aria-label 才是稳定身份。
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        <Titlebar
+          onOpenPalette={() => undefined}
+          projectOpen
+          rightCollapsed
+          onToggleRight={() => undefined}
+        />,
+      ),
+    );
+    for (const [testid, label] of [
+      ['titlebar-minimize', '最小化'],
+      ['titlebar-maximize', '最大化'],
+      ['titlebar-close', '关闭'],
+    ] as const) {
+      const btn = container.querySelector(`[data-testid="${testid}"]`);
+      assert.ok(btn, `缺少窗控按钮 ${testid}`);
+      assert.equal(btn?.getAttribute('aria-label'), label);
+    }
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});

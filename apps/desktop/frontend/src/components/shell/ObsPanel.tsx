@@ -82,6 +82,7 @@ export function ObsPanel({
         <button
           className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
           onClick={onClose}
+          aria-label="关闭观测面板"
           title="关闭观测面板"
         >
           <X size={13} strokeWidth={1.7} />
@@ -154,6 +155,7 @@ export function ObsPanel({
                     ? 'border-success/40 bg-success/15 text-success opacity-100'
                     : 'border-border text-subtle opacity-0 hover:border-success/50 hover:bg-success/15 hover:text-success focus-visible:opacity-100 group-hover:opacity-100'
                 }`}
+                aria-label={`标记已处理：${obs.title}`}
                 title="标记已处理"
                 onClick={() => onResolve(obs.id)}
               >
