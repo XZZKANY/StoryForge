@@ -207,7 +207,7 @@ export function BookProfileView({
         data-testid="book-profile-header"
       >
         <Library size={14} strokeWidth={1.7} className="flex-shrink-0 text-muted" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">作品</span>
+        <h2 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">作品</h2>
         <button
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"

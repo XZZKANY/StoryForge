@@ -79,6 +79,8 @@ test('零命中广播「没有匹配的内容。」，达上限时补充说明',
   root = createRoot(host);
   await render(search({ status: 'done', totalHits: 0, results: [] }));
   expect(live()?.textContent).toBe('没有匹配的内容。');
+  // D4 信息级层：面板标题是语义 h2，读屏按 H 跳得到。
+  expect(host.querySelector('h2')?.textContent).toBe('搜索');
 
   await render(search({ status: 'done', totalHits: 40, results: results(), capped: true }));
   expect(live()?.textContent).toContain('40 处');

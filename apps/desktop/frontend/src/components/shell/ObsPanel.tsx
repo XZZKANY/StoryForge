@@ -75,7 +75,7 @@ export function ObsPanel({
       data-testid="obs-panel"
     >
       <div className="flex h-[30px] flex-shrink-0 items-center gap-3 border-b border-border px-3 text-2xs text-subtle">
-        <span className="font-semibold tracking-[0.06em]">观测</span>
+        <h4 className="font-semibold tracking-[0.06em]">观测</h4>
         <span>改完一条勾一条 · 点击行定位原文</span>
         <span className="flex-1" />
         <span className="font-mono">{statusLabel}</span>

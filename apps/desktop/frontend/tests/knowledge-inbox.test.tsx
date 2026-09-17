@@ -102,6 +102,8 @@ test('Knowledge Inbox 在左栏非 modal 展示，每条独立进入审阅', asy
     assert.ok(review);
     await act(async () => review.click());
     assert.equal(vi.mocked(inbox.materialize).mock.calls.length, 1);
+    // D4 信息级层：面板标题是语义 h2，读屏按 H 跳得到。
+    assert.equal(container.querySelector('h2')?.textContent, 'Knowledge Inbox');
   } finally {
     act(() => root.unmount());
     container.remove();

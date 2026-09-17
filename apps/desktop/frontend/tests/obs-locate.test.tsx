@@ -54,6 +54,8 @@ test('点击带 anchor 的观测行触发 onLocate；无 anchor 行不触发', a
 
     assert.equal(located.length, 1);
     assert.equal(located[0]?.id, 'prose_def456');
+    // D4 信息级层：观测面板是壳子内的子区域，标题用语义 h4（比左栏 h2 更低一级）。
+    assert.equal(container.querySelector('h4')?.textContent, '观测');
   } finally {
     act(() => root.unmount());
     container.remove();

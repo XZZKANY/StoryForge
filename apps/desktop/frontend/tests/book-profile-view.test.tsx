@@ -99,6 +99,8 @@ test('没起过书名时用目录名占位，不显示空白标题', async () =>
   const input = byTestId('book-title-input') as HTMLInputElement;
   assert.equal(input.value, '');
   assert.equal(input.placeholder, '末世吞噬');
+  // D4 信息级层：面板标题是语义 h2，读屏按 H 跳得到。
+  assert.equal(container!.querySelector('h2')?.textContent, '作品');
 });
 
 test('未设全书目标就不渲染进度条——不画一条永远 0% 的条', async () => {

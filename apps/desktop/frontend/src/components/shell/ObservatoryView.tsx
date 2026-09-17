@@ -472,9 +472,9 @@ export function ObservatoryView({
         data-testid="observatory-header"
       >
         <Radar size={14} strokeWidth={1.7} className="flex-shrink-0 text-agent" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+        <h2 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
           世界线观测镜
-        </span>
+        </h2>
         {statusLabel && (
           <span className="flex-shrink-0 font-mono text-3xs text-subtle">{statusLabel}</span>
         )}

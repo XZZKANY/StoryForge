@@ -87,7 +87,7 @@ export function ManuscriptView({
         data-testid="manuscript-header"
       >
         <BookOpen size={14} strokeWidth={1.7} className="flex-shrink-0 text-muted" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">手稿</span>
+        <h2 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">手稿</h2>
         {scale && (
           <span
             className="flex-shrink-0 font-mono text-3xs text-subtle"

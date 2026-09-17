@@ -46,7 +46,7 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
         testid="knowledge-inbox-live"
       />
       <div className="flex h-shell-row flex-shrink-0 items-center gap-2 border-b border-border px-2.5">
-        <span className="min-w-0 flex-1 truncate text-xs font-semibold">Knowledge Inbox</span>
+        <h2 className="min-w-0 flex-1 truncate text-xs font-semibold">Knowledge Inbox</h2>
         <span className="font-mono text-3xs text-subtle" data-testid="knowledge-inbox-count">
           {handle.inbox.pending_count}
         </span>

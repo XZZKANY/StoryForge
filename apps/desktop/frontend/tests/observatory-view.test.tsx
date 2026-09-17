@@ -170,6 +170,8 @@ test('四分区渲染：提案诚实空态、伏笔两卡、实体两卡、检�
     assert.equal(container!.querySelectorAll('[data-testid="promise-card"]').length, 2);
     assert.equal(container!.querySelectorAll('[data-testid="entity-card"]').length, 2);
     assert.equal(container!.querySelectorAll('[data-testid="checker-row"]').length, 7);
+    // D4 信息级层：面板标题必须是语义标题（h2），读屏按 H 键才跳得到。
+    assert.equal(container!.querySelector('h2')?.textContent, '世界线观测镜');
   } finally {
     cleanup();
   }

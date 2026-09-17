@@ -99,6 +99,8 @@ test('chapters render in reading order with the open one marked current', async 
   assert.match(rows[0].textContent ?? '', /第001章\.md/);
   assert.equal(rows[0].getAttribute('data-current'), 'false');
   assert.equal(rows[1].getAttribute('data-current'), 'true');
+  // D4 信息级层：面板标题是语义 h2，读屏按 H 跳得到。
+  assert.equal(dom.querySelector('h2')?.textContent, '手稿');
 });
 
 // D5 状态变化反馈：重新读取是异步的，读取中/完成/失败必须被读屏感知。

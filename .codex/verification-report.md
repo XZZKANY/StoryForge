@@ -1,3 +1,18 @@
+## 2026-09-17 Desktop UI/UX 全维度优化（第十三波：D4 信息级层 · 面板标题语义化）
+
+- 用户转向 D4「信息架构」。体检发现：所有左栏面板标题（搜索 / 手稿 / 作品 / 世界线观测镜 / Knowledge Inbox / 观测）都是裸 `<span>`，h1/h2/h3 在六个文件里**全为 0**；而主工作区 BookOverview / Welcome 却规范用了 h1/h2。读屏作者按 H 键跳标题**完全跳不到左栏任何面板**。
+- 实现（6 文件 / +43−7，纯标签改动）：
+  - 左栏五个视图标题 `span` → `<h2>`（同层级，都是项目导航一级）：SearchView / ManuscriptView / BookProfileView / ObservatoryView / KnowledgeInboxView。
+  - ObsPanel 标题 `span` → `<h4>`（它是壳内子区域，比左栏 h2 低一级，避免与面板标题撞级）。
+  - Tailwind 3.4 preflight 默认重置 h2/h4 margin，视觉零变化。
+- 行为测试：在每个面板的既有测试文件里补一条「标题是正确层级的语义标题元素且文本正确」；`accessibility-guards.test.ts` 新增静态护栏 `PANEL_HEADINGS`——逐一断言每个文件的标题文本包在对应层级的 `<h2>`/`<h4>` 里、且不存在裸 `<span>` 回退。
+- **非空虚性已变异验证**：把 ManuscriptView 的 `手稿` 从 `<h2>` 改回 `<span>`，静态护栏红（精确指到文件+文本）、behavior 测试红（`h2` 查询失败）；恢复后转绿。
+- 验证：
+  - `typecheck`：**exit 0**。
+  - `npm.cmd --prefix apps/desktop/frontend run test`：**103 files / 680 passed**（基线 679 → +1，无回归；stderr `act` 警告为既有噪声）。
+  - 改动文件 `eslint` **0 problems**；`prettier --check` 全过。
+- 未做：主工作区已合规（BookOverview/Welcome h1/h2），不改；`.assistant-md` 内的 markdown 标题样式与本波无关；真机 NVDA 按 H 键跳转的实测未跑；未动 API/契约/权限/写回。
+
 ## 2026-09-17 Desktop UI/UX 全维度优化（第十二波：D5 铺开 · 共享 LiveStatus 原语 + 四个异步面板）
 
 - 用户要求「D5 剩余异步面板 live region 铺开」。至此 live region 覆盖齐了七个异步面板；为防止又一波内联复制粘贴漂移，本波把「常驻 sr-only live region」提取成共享原语 `shell/LiveStatus.tsx`（跟 `PanelError` 同目录同模式），并顺手把此前三波的内联写法（SearchView / ChatWindowView / BookOverview）全部迁移到原语上。

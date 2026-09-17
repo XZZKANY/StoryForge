@@ -174,6 +174,30 @@ test('异步面板都接了 LiveStatus live region（铺开不回退）', () => 
   }
 });
 
+// D4 信息级层：面板标题必须是语义标题元素，不能是裸 <span>。
+// 裸 span 的标题对屏幕阅读器不存在——按 H 键跳标题完全跳不到，读屏作者只能在
+// 一条没有标题结构的流里线性摸。主工作区（BookOverview/Welcome）早已是 h1/h2，
+// 这里把左栏面板钉到 h2、壳内子区域（ObsPanel）钉到 h4，保持层级一致。
+const PANEL_HEADINGS = [
+  { file: 'src/components/shell/SearchView.tsx', level: 'h2', text: '搜索' },
+  { file: 'src/components/shell/ManuscriptView.tsx', level: 'h2', text: '手稿' },
+  { file: 'src/components/shell/BookProfileView.tsx', level: 'h2', text: '作品' },
+  { file: 'src/components/shell/ObservatoryView.tsx', level: 'h2', text: '世界线观测镜' },
+  { file: 'src/components/shell/KnowledgeInboxView.tsx', level: 'h2', text: 'Knowledge Inbox' },
+  { file: 'src/components/shell/ObsPanel.tsx', level: 'h4', text: '观测' },
+];
+
+test('面板标题用语义标题元素，不是裸 span（D4 信息级层）', () => {
+  for (const { file, level, text } of PANEL_HEADINGS) {
+    const source = readFileSync(abs(`../${file}`), 'utf8');
+    // 该标题文本必须包在 <h2 …>…</h2>（或对应层级）里，且不能同时以裸 span 出现。
+    const heading = new RegExp(`<${level}\\b[^>]*>\\s*${text}\\s*</${level}>`, 's');
+    assert.match(source, heading, `${file} 的「${text}」标题应是 <${level}>`);
+    const bareSpan = new RegExp(`<span\\b[^>]*>\\s*${text}\\s*</span>`, 's');
+    assert.doesNotMatch(source, bareSpan, `${file} 的「${text}」不应回退成裸 <span>`);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // 对比度护栏：把 index.css 里 --muted / --subtle 的 WCAG 注释变成可证伪的断言。
 // 有人把提示文本调暗到低于阈值（或在亮色下调浅），这里就红。
