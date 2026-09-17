@@ -110,6 +110,22 @@ test('没有打开项目时 Ctrl+3 不会藏掉欢迎区留下空白窗口', () 
   assert.equal(center.classList.contains('hidden'), false, '无项目时不得切到只有对话栏的布局');
 });
 
+test('Ctrl+Tab / Ctrl+PageDown 在无项目时不接管按键，有项目时才接管', () => {
+  // 无项目：App 不应拦截 Ctrl+Tab，否则会挡住后续可能的其他用途，速查表也标注 needs:project。
+  mountApp();
+  const noProjectTab = pressChord({ ctrl: true, key: 'tab' });
+  const noProjectPageDown = pressChord({ ctrl: true, key: 'pagedown' });
+  assert.equal(noProjectTab, false, '无项目时 Ctrl+Tab 不应被 preventDefault');
+  assert.equal(noProjectPageDown, false, '无项目时 Ctrl+PageDown 不应被 preventDefault');
+});
+
+test('Ctrl+Shift+Tab 不会被 shift 视图快捷键早退吞掉', () => {
+  // Ctrl+Shift+Tab 与「Ctrl+Shift+<视图键>」共享前面那组 shift 分支；若 tab 误进 shift 早退就会被吞。
+  // 这里验证：无项目时它安全地不接管（needs:project 标注正确），而不是被当成了某个视图键。
+  mountApp();
+  assert.equal(pressChord({ ctrl: true, shift: true, key: 'tab' }), false);
+});
+
 test('速查表正文按显示键名等宽对齐，且每行都出现在正文里', () => {
   const sheet = formatShortcutSheet();
   for (const row of SHORTCUT_ROWS) {

@@ -11,6 +11,7 @@ import { useAppPreferences } from './components/app/useAppPreferences';
 import { useBookContext } from './components/app/useBookContext';
 import { useBookOverviewChapters } from './components/app/useBookOverviewChapters';
 import { useBookProfile } from './components/app/useBookProfile';
+import { nextCyclicEditorFile } from './components/app/editor-tabs-state';
 import { useEditorWorkspaceTabs } from './components/app/useEditorWorkspaceTabs';
 import { useObservatory } from './components/app/useObservatory';
 import { useProjectCommands } from './components/app/useProjectCommands';
@@ -148,6 +149,17 @@ export function App() {
       const mod = event.ctrlKey || event.metaKey;
       if (!mod) return;
       const key = event.key.toLowerCase();
+      // Ctrl Tab / Ctrl Shift Tab / Ctrl PageDown·PageUp：在已固定页签间循环（shift = 反向）。
+      // 必须排在 shift 早退之前，否则 Ctrl+Shift+Tab 会被上面那组视图快捷键吞掉。
+      // 与 Ctrl W 关键区别：只换焦点不关页签，不触发脏文件确认，按一圈不会丢稿。
+      if (key === 'tab' || key === 'pagedown' || key === 'pageup') {
+        if (!workspace.activeProject) return;
+        event.preventDefault();
+        const direction = key === 'pageup' || (key === 'tab' && event.shiftKey) ? -1 : 1;
+        const next = nextCyclicEditorFile(tabs.openFiles, tabs.displayedFile, direction);
+        if (next) tabs.focusFile(next);
+        return;
+      }
       if (event.shiftKey) {
         // Ctrl+Shift+B 作品 / E 资源管理器 / F 正文全文搜索 / M 手稿 / O 观测镜。
         const viewMap: Record<string, SidePanelView> = {
@@ -206,6 +218,9 @@ export function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+    // exhaustive-deps：依赖里列出 tabs 的叶片（displayedFile/openFiles/focusFile）而非整个 tabs 对象——
+    // tabs 是 useEditorWorkspaceTabs 每次渲染新建的对象，整体列入会让监听器每帧脱落重挂。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     commands,
     mainSurface,
@@ -214,6 +229,8 @@ export function App() {
     showEditor,
     switchView,
     tabs.displayedFile,
+    tabs.focusFile,
+    tabs.openFiles,
     workspace.activeProject,
   ]);
 

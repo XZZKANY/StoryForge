@@ -48,6 +48,17 @@ export const SHORTCUT_ROWS: ShortcutRow[] = [
   },
   { keys: 'Ctrl Shift O', label: '世界线观测镜', chords: [{ ctrl: true, shift: true, key: 'o' }] },
   { keys: 'Ctrl O', label: '打开项目', chords: [{ ctrl: true, key: 'o' }] },
+  {
+    keys: 'Ctrl Tab',
+    label: '在已打开页签间循环（Shift 反向）',
+    chords: [
+      { ctrl: true, key: 'tab' },
+      { ctrl: true, shift: true, key: 'tab' },
+      { ctrl: true, key: 'pagedown' },
+      { ctrl: true, key: 'pageup' },
+    ],
+    needs: 'project',
+  },
   { keys: 'Ctrl S', label: '保存当前文件', chords: [{ ctrl: true, key: 's' }], needs: 'file' },
   { keys: 'Ctrl B', label: '显示 / 隐藏资源管理器', chords: [{ ctrl: true, key: 'b' }] },
   { keys: 'Ctrl ,', label: '打开设置', chords: [{ ctrl: true, key: ',' }] },

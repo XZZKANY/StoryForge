@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { EditorTabs } from '../src/components/shell/EditorTabs';
+import { nextCyclicEditorFile } from '../src/components/app/editor-tabs-state';
 
 const noop = () => {};
 
@@ -160,4 +161,28 @@ test('润色菜单区分专用模型与本次主模型授权', () => {
     act(() => root.unmount());
     container.remove();
   }
+});
+
+test('Ctrl+Tab 页签循环：首尾相接、方向正确、不产生关闭副作用', () => {
+  const files = ['D:\\Book\\a.md', 'D:\\Book\\b.md', 'D:\\Book\\c.md'];
+
+  // 正向在固定页签间推进，末尾回到开头。
+  assert.equal(nextCyclicEditorFile(files, files[0], 1), files[1]);
+  assert.equal(nextCyclicEditorFile(files, files[1], 1), files[2]);
+  assert.equal(nextCyclicEditorFile(files, files[2], 1), files[0]);
+  // 反向同理。
+  assert.equal(nextCyclicEditorFile(files, files[0], -1), files[2]);
+  assert.equal(nextCyclicEditorFile(files, files[1], -1), files[0]);
+});
+
+test('Ctrl+Tab 在无页签 / 当前文件不在固定页签集合时给出确定落点而非原地不动', () => {
+  const files = ['D:\\Book\\a.md', 'D:\\Book\\b.md'];
+  // 没有固定页签：无目标可去，返回 null 让调用方不动。
+  assert.equal(nextCyclicEditorFile([], 'D:\\Book\\a.md', 1), null);
+  // 只有一个页签：循环回自己，不是 null（按一下不应毫无反应）。
+  assert.equal(nextCyclicEditorFile(['D:\\Book\\a.md'], 'D:\\Book\\a.md', 1), 'D:\\Book\\a.md');
+  // 当前在预览槽（不在固定集合）或当前为空：正向落首个、反向落末尾。
+  assert.equal(nextCyclicEditorFile(files, 'D:\\Book\\preview.md', 1), 'D:\\Book\\a.md');
+  assert.equal(nextCyclicEditorFile(files, null, 1), 'D:\\Book\\a.md');
+  assert.equal(nextCyclicEditorFile(files, 'D:\\Book\\preview.md', -1), 'D:\\Book\\b.md');
 });

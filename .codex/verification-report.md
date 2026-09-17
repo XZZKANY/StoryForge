@@ -1,3 +1,21 @@
+## 2026-09-17 Desktop UI/UX 全维度优化（第四波：D3 写作工作台 · 页签键盘循环）
+
+- 前置：先把前 1-3 波 + 09-06/09-10 成果（46 文件 / +2094-488）收口为基线提交 `bb605f65`，避免新旧改动混在一起无法证伪。仅 Desktop 前端展示层，未动 API/DB/OpenAPI/契约/权限/写回。
+- 用户拍板方向：D3 写作工作台、单波聚焦。侦察后确认 D3 大部分已落地——编辑器排版（`options.ts` 书稿/格子双轨、行长档位、CJK 行距）、页签拖拽重排、预览页签、脏标记、右键菜单、`…` 溢出菜单、`Ctrl W` 关闭、方向键 roving 均已存在；`closeOthers`/`closeAll` 也已有入口。**唯一成体系缺失的是「不开鼠标在页签间循环」**——标准 IDE 键盘惯例，故本波只做这一件。
+- 实现（85 行 / 5 文件，纯前端）：
+  - `editor-tabs-state.ts` 新增纯函数 `nextCyclicEditorFile(openFiles, currentFile, direction)`：环形推进；空集合返回 `null`（无目标可去）；当前文件不在固定页签集合（在预览槽 / 为空）时方向 1 落首个、-1 落末尾，给确定落点而非原地不动。
+  - `App.tsx` 全局 keydown 新增分支：`Ctrl Tab` / `Ctrl Shift Tab` / `Ctrl PageDown` / `Ctrl PageUp` → `tabs.focusFile(next)`。**必须排在 `shiftKey` 早退之前**，否则 `Ctrl+Shift+Tab` 被上面那组 `Ctrl+Shift+<视图键>` 吞掉（此处为真实陷阱，注释已记）。无项目时不接管（`needs:project`），交还系统。
+  - **关键安全性**：循环只换焦点、不关页签，因此不触发脏文件放弃确认——与 `Ctrl W` 语义分离，按一圈不会丢稿。
+  - `shortcuts.ts` 登记 `Ctrl Tab` 行（`needs: 'project'`，chords 含 4 个键位），界面承诺与实现同源。
+- 新增行为测试（4 条）：`editor-tabs.test.tsx` 覆盖环形首尾相接/双向/单页签回自身/空集合 null/当前不在固定集合的落点；`shortcuts.test.tsx` 覆盖无项目时不 `preventDefault`（含 `Ctrl+Shift+Tab` 不被 shift 早退吞掉）。
+- 验证：
+  - `npm.cmd --prefix apps/desktop/frontend run typecheck`：**exit 0**。
+  - `npm.cmd --prefix apps/desktop/frontend run test`：**100 files / 653 passed**（基线 649 → +4，无回归；stderr 的 `act` 警告为既有噪声，用例全绿）。
+  - 改动文件定向 `eslint`：**0 problems**（含修掉一处 `no-dupe-else-if`——我早前修错把 `Ctrl O` 分支写重，lint 逮住，已还原）；`prettier --check` 全过。
+  - `pnpm.cmd lint` 全仓：仍仅 `.trellis/.../adblock_snippet.js` 10 个既有错误（捕获的 Edge webview 资源，非源树，与 09-06/09-14/09-15 同源），前端 src 零新增。
+- lint 说明：`exhaustive-deps` 对 App 的 keydown effect 报 `tabs` 缺项，故按仓库既有惯例（`useMonacoEditor.ts` / `PatchReviewPanel.tsx` 同款）加带理由的 disable —— 依赖已列 `tabs` 叶片，整体列入会让监听器每帧重挂，反而更差。
+- 未做/未验：真机 Tauri 观感与截图未动眼（本波为键盘行为，无法自动截图验收）；未碰 Monaco 配置、布局模式、API/契约/权限/写回；`pnpm verify` 全量门禁与 API 侧未跑（本波零 API 改动）。
+
 ## 2026-09-17 Desktop UI/UX 全维度优化（第三波：全量测试修复收口）
 
 - 环境解封：vitest 此前因沙盒禁子进程（spawn EPERM）无法启动，本波策略变更后可直接跑全量。
