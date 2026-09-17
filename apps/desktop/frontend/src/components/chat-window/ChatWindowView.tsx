@@ -2,6 +2,7 @@ import { emitToast } from '../../lib/toast';
 import { ComposerBox } from './Composer';
 import { ChapterBriefCard } from './ChapterBriefCard';
 import { runLivePhaseText, runStatusText } from './display-utils';
+import { LiveStatus } from '../shell/LiveStatus';
 import { ConversationHeader, LightweightStatus, MessageList, RunActionBar } from './panels';
 import type { AgentRunControlHandlers, ChatWindowProps } from './types';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
@@ -81,9 +82,7 @@ export function ChatWindowView({
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
       {/* D5 状态变化反馈：Agent 运行相位（运行 → 等待确认 → 暂停 → 终态）对读屏作者不可见。
           常驻 sr-only live region 播报相位级措辞；可见操作条/轻状态条原样保留。 */}
-      <p role="status" aria-live="polite" className="sr-only" data-testid="agent-run-live">
-        {runLivePhaseText(state.agentRun)}
-      </p>
+      <LiveStatus text={runLivePhaseText(state.agentRun)} testid="agent-run-live" />
 
       <ConversationHeader
         title={state.conversationTitle}

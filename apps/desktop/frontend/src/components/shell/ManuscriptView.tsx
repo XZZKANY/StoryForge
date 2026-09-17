@@ -17,6 +17,7 @@ import {
   type RosterEntry,
 } from '../../lib/book-context';
 import type { BookContextAvailability } from '../app/useBookContext';
+import { LiveStatus } from './LiveStatus';
 import { PanelSection } from './PanelSection';
 
 function rosterSpanLabel(entry: RosterEntry): string {
@@ -66,12 +67,21 @@ export function ManuscriptView({
   const scale = snapshot
     ? `${snapshot.totalChapters} 章 · ${formatEstimatedChars(snapshot.totalEstimatedChars)}`
     : '';
+  // 相位级播报：读取中 / 失败 / 完成（带规模）。
+  const liveText = busy
+    ? '正在读取手稿结构…'
+    : availability === 'error'
+      ? '手稿结构读取失败，请点上方刷新重试。'
+      : snapshot
+        ? `手稿读取完成，共 ${snapshot.totalChapters} 章。`
+        : '';
 
   return (
     <div
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
       data-testid="manuscript-view"
     >
+      <LiveStatus text={liveText} testid="manuscript-live" />
       <header
         className="flex h-shell-row flex-shrink-0 items-center gap-2 border-b border-border bg-panel px-3 pr-2"
         data-testid="manuscript-header"

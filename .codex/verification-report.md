@@ -1,3 +1,21 @@
+## 2026-09-17 Desktop UI/UX 全维度优化（第十二波：D5 铺开 · 共享 LiveStatus 原语 + 四个异步面板）
+
+- 用户要求「D5 剩余异步面板 live region 铺开」。至此 live region 覆盖齐了七个异步面板；为防止又一波内联复制粘贴漂移，本波把「常驻 sr-only live region」提取成共享原语 `shell/LiveStatus.tsx`（跟 `PanelError` 同目录同模式），并顺手把此前三波的内联写法（SearchView / ChatWindowView / BookOverview）全部迁移到原语上。
+- 四个新面板补 live region（相位级措辞，同相位内恒定、跨相位才变文案）：
+  - **ObservatoryView**：扫描中 / 完成（带时间）/ 失败。点「重新扫描」后读屏作者能感知扫描进度。
+  - **ManuscriptView**：读取中 / 完成（带章数）/ 失败。
+  - **BookProfileView**：保存失败（优先）/ 拆书取消中 / 拆书生成中 / 统计失败 / 统计中。保存失败单独播报错误详情——这是作者必须立即知道的。
+  - **KnowledgeInboxView**：刷新中 / 待处理提案数（每 5s 轮询 + 手动刷新都触发）。
+- 迁移后 `chat-run-live-region.test.tsx` 的接线护栏写法跟着换：旧的按 `<p ... data-testid=...>` 抓标签断言顺序无敏感属性，现在只断言 `<LiveStatus testid="agent-run-live" />` 挂载 + 文案源是 `runLivePhaseText`；LiveStatus 本体（role / aria-live / sr-only / 常驻 `<p>`）由该测试文件里新增的「LiveStatus 原语自身」护栏钉死。
+- 新增静态铺开护栏 `accessibility-guards.test.ts`：七处 `LIVE_REGION_SITES` 逐一断言「引用了 LiveStatus 且挂了对应 testid」——铺开若被下波删掉某一处的接线，这里立刻红。
+- **非空虚性已变异验证（4 处）**：改 ObservatoryView「完成」→「扫描完毕」、ManuscriptView「读取完成」→「手稿就绪」、KnowledgeInboxView 待处理数文案、BookProfileView 删统计中分支——对应测试都立刻红并精确指到断言；恢复后转绿。
+- 途中教训（已记证）：曾用 PowerShell 字符串替换改 ObservatoryView.tsx 源码，立刻把文件编码写坏（此前 D6 波已踩过、记为「勿用 shell 改源码」）——恢复后改用 edit 工具。
+- 验证：
+  - `typecheck`：**exit 0**。
+  - `npm.cmd --prefix apps/desktop/frontend run test`：**103 files / 679 passed**（基线 672 → +7，无回归；stderr `act` 警告为既有噪声）。
+  - 改动文件 `eslint` **0 problems**；`prettier --check` 全过。
+- 未做：ObsPanel（ObservatoryView 的右栏对应面板）未加 live region——它与左栏 ManuscriptView 共用 useBookContext，重复播报两处会双念；CommandPalette 的「正在读取项目文件…」是短瞬态、焦点在列表里，无独立 live 需要；真机 NVDA 实测未跑；未动 API/契约/权限/写回。
+
 ## 2026-09-17 Desktop UI/UX 全维度优化（第十一波：D5 流式 · Agent 运行相位 live region）
 
 - 用户继续 D5，选 ChatWindow 流式。侦察确认缺口：chat-window 全目录 `role="status"`/`aria-live`/`role="alert"` **零命中**——Agent 运行相位（运行 → 等待确认 → 暂停 → 终态）对读屏作者完全不可见。视觉上的 `run-action-active-step`（正在处理 + 三点动画）与 `run-action-status`（等待你确认/已暂停/…）都是普通节点，状态翻转读屏感知不到。

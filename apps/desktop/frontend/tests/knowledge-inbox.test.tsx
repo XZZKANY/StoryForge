@@ -91,7 +91,10 @@ test('Knowledge Inbox 在左栏非 modal 展示，每条独立进入审阅', asy
     await act(async () => root.render(<KnowledgeInboxView handle={inbox} />));
 
     assert.equal(container.querySelector('[role="dialog"]'), null);
-    assert.equal(container.querySelector('[data-testid="knowledge-inbox-count"]')?.textContent, '1');
+    assert.equal(
+      container.querySelector('[data-testid="knowledge-inbox-count"]')?.textContent,
+      '1',
+    );
     assert.match(container.textContent ?? '', /天枢不可移动/);
     const review = [...container.querySelectorAll('button')].find((button) =>
       button.textContent?.includes('审阅'),
@@ -99,6 +102,30 @@ test('Knowledge Inbox 在左栏非 modal 展示，每条独立进入审阅', asy
     assert.ok(review);
     await act(async () => review.click());
     assert.equal(vi.mocked(inbox.materialize).mock.calls.length, 1);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+// D5 状态变化反馈：后台 5s 轮询 + 手动刷新会改变待处理数；刷新中必须被读屏感知。
+test('Knowledge Inbox live region 播报刷新中与待处理数', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const inbox = handle();
+  inbox.loading = true;
+  try {
+    await act(async () => root.render(<KnowledgeInboxView handle={inbox} />));
+    const live = () => container.querySelector('[data-testid="knowledge-inbox-live"]');
+    assert.equal(live()?.getAttribute('role'), 'status');
+    assert.match(live()?.textContent ?? '', /刷新/);
+
+    // 刷新完成，带待处理数。
+    inbox.loading = false;
+    inbox.inbox = { ...inbox.inbox, pending_count: 3 };
+    await act(async () => root.render(<KnowledgeInboxView handle={inbox} />));
+    assert.match(live()?.textContent ?? '', /3 条/);
   } finally {
     act(() => root.unmount());
     container.remove();
@@ -142,7 +169,10 @@ test('活动栏 Knowledge 图标显示 pending 数字 badge', async () => {
         />,
       ),
     );
-    assert.equal(container.querySelector('[data-testid="activity-knowledge-badge"]')?.textContent, '3');
+    assert.equal(
+      container.querySelector('[data-testid="activity-knowledge-badge"]')?.textContent,
+      '3',
+    );
   } finally {
     act(() => root.unmount());
     container.remove();

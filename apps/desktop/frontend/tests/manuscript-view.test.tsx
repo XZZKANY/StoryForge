@@ -36,9 +36,7 @@ function rawPayload(overrides: Record<string, unknown> = {}) {
     skeleton: [{ relative_path: '大纲/总纲.md', estimated_chars: 800 }],
     skeleton_total: 1,
     skeleton_limit: 12,
-    roster: [
-      { canonical_name: '陈默', aliases: ['守夜人'], first_chapter: 1, last_chapter: 2 },
-    ],
+    roster: [{ canonical_name: '陈默', aliases: ['守夜人'], first_chapter: 1, last_chapter: 2 }],
     roster_declared_total: 1,
     roster_limit: 20,
     dossier_relative_path: null,
@@ -101,6 +99,46 @@ test('chapters render in reading order with the open one marked current', async 
   assert.match(rows[0].textContent ?? '', /第001章\.md/);
   assert.equal(rows[0].getAttribute('data-current'), 'false');
   assert.equal(rows[1].getAttribute('data-current'), 'true');
+});
+
+// D5 状态变化反馈：重新读取是异步的，读取中/完成/失败必须被读屏感知。
+test('手稿 live region 播报读取中 → 完成（带章数），失败另行措辞', async () => {
+  // 完成态：带章数。
+  const dom = await renderView({ availability: 'available' });
+  const live = () => dom.querySelector('[data-testid="manuscript-live"]');
+  assert.equal(live()?.getAttribute('role'), 'status');
+  assert.match(live()?.textContent ?? '', /读取完成/);
+  assert.match(live()?.textContent ?? '', /2 章/);
+
+  // 读取中：恒定一句。
+  await act(async () =>
+    root!.render(
+      <ManuscriptView
+        snapshot={null}
+        availability="loading"
+        refreshing={true}
+        onRefresh={() => {}}
+        onOpenChapter={() => {}}
+        onBackToExplorer={() => {}}
+      />,
+    ),
+  );
+  assert.match(live()?.textContent ?? '', /正在读取/);
+
+  // 失败：明确措辞。
+  await act(async () =>
+    root!.render(
+      <ManuscriptView
+        snapshot={null}
+        availability="error"
+        refreshing={false}
+        onRefresh={() => {}}
+        onOpenChapter={() => {}}
+        onBackToExplorer={() => {}}
+      />,
+    ),
+  );
+  assert.match(live()?.textContent ?? '', /读取失败/);
 });
 
 test('clicking a chapter asks to open it by its project-relative path', async () => {

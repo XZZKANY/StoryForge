@@ -33,6 +33,7 @@ import {
   X,
 } from '../icons/shell-icons';
 import { PanelSection } from './PanelSection';
+import { LiveStatus } from './LiveStatus';
 
 /** 文本字段留在本地 draft：每敲一个字就写盘既无必要，也会把 `.storyforge/` 刷成日志。 */
 type Draft = { title: string; synopsis: string; wordGoal: string };
@@ -182,11 +183,25 @@ export function BookProfileView({
 
   const openNotes = handle.notes.filter((note) => !note.done).length;
 
+  // 相位级播报：保存失败 / 统计中 / 拆书生成中 / 拆书取消中，优先播报更需要行动的失败。
+  const liveText = handle.saveError
+    ? `保存作品档案失败：${handle.saveError}`
+    : breakdownCancelling
+      ? '正在取消拆书报告生成…'
+      : breakdownRunning
+        ? '正在生成拆书报告…'
+        : handle.totalsError
+          ? `全书字数统计失败：${handle.totalsError}`
+          : totalChars === null
+            ? '正在统计全书字数…'
+            : '';
+
   return (
     <div
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
       data-testid="book-profile-view"
     >
+      <LiveStatus text={liveText} testid="book-profile-live" />
       <header
         className="flex h-shell-row flex-shrink-0 items-center gap-2 border-b border-border bg-panel px-3 pr-2"
         data-testid="book-profile-header"

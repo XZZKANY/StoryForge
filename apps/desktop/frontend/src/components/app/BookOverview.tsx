@@ -21,6 +21,7 @@ import {
   Library,
   RefreshCw,
 } from '../icons/shell-icons';
+import { LiveStatus } from '../shell/LiveStatus';
 
 export type BookOverviewProps = {
   projectPath: string;
@@ -182,15 +183,11 @@ export function BookOverview({
           ) : null}
         </header>
 
-        {profile.loading && (
-          <>
-            {/* 隐藏文本：屏幕阅读器拿「正在读取」语义；可见部分交给下面的形状骨架。 */}
-            <p role="status" className="sr-only">
-              正在读取作品资料…
-            </p>
-            <BookOverviewSkeleton />
-          </>
-        )}
+        {/* 常驻 sr-only live region：profile.loading 翻转时播报「正在读取」；
+            可见观感交给骨架屏（下面 BookOverviewSkeleton），见字不听字。 */}
+        <LiveStatus text={profile.loading ? '正在读取作品资料…' : ''} testid="book-overview-live" />
+
+        {profile.loading && <BookOverviewSkeleton />}
         {profile.totalsError && (
           <p role="alert" className="rounded-lg border border-border p-3 text-sm text-error">
             字数统计失败：{profile.totalsError}。请重新读取作品资料。

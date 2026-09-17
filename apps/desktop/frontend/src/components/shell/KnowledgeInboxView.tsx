@@ -8,6 +8,7 @@ import type {
 import type { KnowledgeInboxHandle } from '../app/useKnowledgeInbox';
 import { proposalToEdit } from '../app/useKnowledgeInbox';
 import { Check, Eye, Pencil, RefreshCw, X } from '../icons/shell-icons';
+import { LiveStatus } from './LiveStatus';
 import { PanelError } from './PanelError';
 
 type InboxTab = 'pending' | 'conflict' | 'stale' | 'history';
@@ -35,6 +36,15 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="knowledge-inbox-view">
+      {/* 相位级播报：刷新中 / 载入错误 / 待处理数变化 */}
+      <LiveStatus
+        text={
+          handle.loading
+            ? '正在刷新 Knowledge Inbox…'
+            : `${handle.inbox.pending_count} 条待处理知识提案。`
+        }
+        testid="knowledge-inbox-live"
+      />
       <div className="flex h-shell-row flex-shrink-0 items-center gap-2 border-b border-border px-2.5">
         <span className="min-w-0 flex-1 truncate text-xs font-semibold">Knowledge Inbox</span>
         <span className="font-mono text-3xs text-subtle" data-testid="knowledge-inbox-count">

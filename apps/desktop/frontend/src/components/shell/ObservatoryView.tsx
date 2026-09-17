@@ -20,6 +20,7 @@ import type {
   ObservatoryProposals,
 } from '../../lib/observations';
 import type { Observation, ObservationAvailability } from './ObsPanel';
+import { LiveStatus } from './LiveStatus';
 
 const CHECKER_LABELS: Record<string, string> = {
   canon: 'canon 闸门',
@@ -452,11 +453,20 @@ export function ObservatoryView({
       : availability === 'available' && generatedAt
         ? `上次扫描 ${formatScanTime(generatedAt)}`
         : '';
+  // 相位级播报：扫描中 / 失败 / 完成（带时间）。同相位内 generatedAt 不变则文案恒定。
+  const liveText = busy
+    ? '正在扫描项目观测数据…'
+    : availability === 'error'
+      ? '观测数据加载失败，请重新扫描。'
+      : availability === 'available' && generatedAt
+        ? `观测扫描完成，上次扫描 ${formatScanTime(generatedAt)}。`
+        : '';
   return (
     <div
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
       data-testid="observatory-view"
     >
+      <LiveStatus text={liveText} testid="observatory-live" />
       <header
         className="flex h-shell-row flex-shrink-0 items-center gap-2 border-b border-border bg-panel px-3 pr-2"
         data-testid="observatory-header"

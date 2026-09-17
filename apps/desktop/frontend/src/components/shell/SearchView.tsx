@@ -8,6 +8,7 @@ import { basename } from '../app/helpers';
 import type { useProjectSearch } from '../app/useProjectSearch';
 import { SEARCH_MIN_QUERY, type SearchHit } from '../../lib/project-search';
 import { ChevronDown, ChevronRight, X } from '../icons/shell-icons';
+import { LiveStatus } from './LiveStatus';
 
 function HitRow({ hit, onSelect }: { hit: SearchHit; onSelect: () => void }) {
   return (
@@ -93,9 +94,7 @@ export function SearchView({
       </div>
 
       {/* live region：常驻挂载 + 恒温文本变化即被播报。搜索失败走下方 role="alert" 另行打断。 */}
-      <p role="status" aria-live="polite" className="sr-only" data-testid="search-live">
-        {liveMessage}
-      </p>
+      <LiveStatus text={liveMessage} testid="search-live" />
 
       <div className="px-3 py-2">
         <div className="relative">

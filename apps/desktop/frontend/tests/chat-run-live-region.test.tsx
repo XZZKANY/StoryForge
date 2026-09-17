@@ -73,11 +73,21 @@ test('runLivePhaseText：暂停 / 停止 / 失败 / 完成各有明确相位句'
 
 test('ChatWindowView 挂载了常驻 sr-only 运行相位 live region（接线护栏）', () => {
   const source = readFileSync(abs('../src/components/chat-window/ChatWindowView.tsx'), 'utf8');
-  // 只取 agent-run-live 那个元素的标签本体，不依赖属性书写顺序。
-  const tag = source.match(/<p\b[^>]*data-testid="agent-run-live"[^>]*>/s)?.[0];
-  assert.ok(tag, '找不到 agent-run-live 元素');
-  assert.match(tag, /aria-live="polite"/, 'agent-run-live 缺 aria-live="polite"');
-  assert.match(tag, /role="status"/, 'agent-run-live 缺 role="status"');
-  assert.match(tag, /className="sr-only"/, 'live region 必须视觉隐藏（sr-only）');
+  // 现在走共享原语 LiveStatus：<LiveStatus testid="agent-run-live" text={…} />。
+  // LiveStatus 内部就是 role=status + sr-only 的 <p>，由 LiveStatus 自身的护栏钉死。
+  assert.match(source, /<LiveStatus\b[^>]*testid="agent-run-live"/s, '找不到 agent-run-live 挂载');
   assert.match(source, /runLivePhaseText\(state\.agentRun\)/, 'live 文案必须来自 runLivePhaseText');
+});
+
+// LiveStatus 原语本体：所有面板的 live region 都依赖它，契约（role / sr-only / 常驻 <p>）不能漂。
+test('LiveStatus 原语自身就是合法的 polite/alert live region', () => {
+  const source = readFileSync(abs('../src/components/shell/LiveStatus.tsx'), 'utf8');
+  assert.match(
+    source,
+    /role=\{tone === 'assertive' \? 'alert' : 'status'\}/,
+    'LiveStatus 角色映射改了',
+  );
+  assert.match(source, /aria-live=\{tone\}/, 'LiveStatus 缺 aria-live');
+  assert.match(source, /className="sr-only"/, 'LiveStatus 必须视觉隐藏');
+  assert.match(source, /<p\b/, 'LiveStatus 根节点必须是常驻 <p>（不能换成条件分支外的元素）');
 });

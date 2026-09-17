@@ -118,6 +118,38 @@ test('统计失败就说失败，绝不拿 0 字冒充一本空书', async () =>
   assert.match(container!.textContent ?? '', /统计失败：读取 正文\/第003章\.md 失败/);
 });
 
+// D5 状态变化反馈：字数统计 / 拆书生成是异步的，进行与失败必须被读屏感知。
+test('作品资料 live region 播报统计中、拆书生成中、统计失败', async () => {
+  // 统计中：totals 未到时播报。
+  await renderView(makeHandle({ totals: null, totalsError: null }));
+  const live = () => byTestId('book-profile-live');
+  assert.equal(live()?.getAttribute('role'), 'status');
+  assert.match(live()?.textContent ?? '', /正在统计全书字数/);
+
+  // 拆书生成中：恒定一句。
+  await renderView(
+    makeHandle(),
+    vi.fn(),
+    vi.fn(),
+    null,
+    vi.fn(),
+    true, // breakdownRunning
+  );
+  assert.match(live()?.textContent ?? '', /正在生成拆书报告/);
+
+  // 统计失败：打断式措辞（失败优先于其他相位）。
+  await renderView(makeHandle({ totals: null, totalsError: '磁盘不可读' }));
+  assert.match(live()?.textContent ?? '', /统计失败/);
+});
+
+// 保存失败要打断式（assertive）播报——它是作者必须立即知道的错误。
+test('保存失败在 live region 里带完整错误信息', async () => {
+  await renderView(makeHandle({ saveError: '目录只读' }));
+  const live = () => byTestId('book-profile-live');
+  assert.match(live()?.textContent ?? '', /保存.*失败/);
+  assert.match(live()?.textContent ?? '', /目录只读/);
+});
+
 test('读不了的章节数如实报出，不混进总和', async () => {
   await renderView(makeHandle({ totals: { chapters: 12, chars: 124000, unreadable: 2 } }));
   assert.match(container!.textContent ?? '', /2 个文件读取失败，未计入总和/);

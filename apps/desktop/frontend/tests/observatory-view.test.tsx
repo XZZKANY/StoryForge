@@ -98,7 +98,12 @@ const CHECKERS: ObservatoryChecker[] = [
   { key: 'prose', tool: 'project.prose_check', status: 'ran' },
   { key: 'consistency', tool: 'project.consistency', status: 'on_demand', reason: '按需' },
   { key: 'collapse', tool: 'project.collapse_check', status: 'on_demand', reason: '按需' },
-  { key: 'entity_budget', tool: 'project.entity_budget_check', status: 'on_demand', reason: '按需' },
+  {
+    key: 'entity_budget',
+    tool: 'project.entity_budget_check',
+    status: 'on_demand',
+    reason: '按需',
+  },
   { key: 'deep_consistency', tool: 'project.deep_consistency', status: 'on_demand', reason: 'LLM' },
 ];
 
@@ -170,6 +175,25 @@ test('四分区渲染：提案诚实空态、伏笔两卡、实体两卡、检�
   }
 });
 
+// D5 状态变化反馈：重扫蝴蝶结是异步的，扫描中/失败/完成必须被读屏感知。
+test('观测镜 live region 播报扫描中 → 完成，失败另行措辞', async () => {
+  try {
+    // 扫描中：polite 报「正在扫描」。
+    await renderView({ scanning: true, availability: 'available' });
+    const live = () => container!.querySelector('[data-testid="observatory-live"]');
+    assert.equal(live()?.getAttribute('role'), 'status');
+    assert.match(live()?.textContent ?? '', /扫描/);
+    // 完成：带扫描时间。
+    await renderView({ scanning: false, availability: 'available' });
+    assert.match(live()?.textContent ?? '', /完成/);
+    // 失败：明确措辞。
+    await renderView({ availability: 'error', generatedAt: null, observations: [] });
+    assert.match(live()?.textContent ?? '', /失败/);
+  } finally {
+    cleanup();
+  }
+});
+
 test('实体卡冲突描边只随后端 blocking 观测：related 未处理 error 才亮红', async () => {
   try {
     await renderView();
@@ -216,9 +240,7 @@ test('provenance 展开后点行回锚点；related 观测点击回观测', asyn
     });
 
     await act(async () => {
-      (
-        container!.querySelector('[data-testid="entity-provenance-toggle"]') as HTMLElement
-      ).click();
+      (container!.querySelector('[data-testid="entity-provenance-toggle"]') as HTMLElement).click();
     });
     await act(async () => {
       (container!.querySelector('[data-testid="entity-provenance-row"]') as HTMLElement).click();

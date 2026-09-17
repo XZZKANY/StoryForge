@@ -151,6 +151,29 @@ test('骨架屏与 sr-only 工具既已定义也被实际引用', () => {
   assert.ok(overview.includes('sr-only'), 'BookOverview 用 sr-only 承载加载语义');
 });
 
+// D5 铺开护栏：每个异步面板都要接一个常驻 sr-only live region（LiveStatus 原语）。
+// 删掉某面板的 LiveStatus 挂载、或把 testid 改丢，这里就红——防「铺开一波、下波忘接线」。
+const LIVE_REGION_SITES = [
+  { file: 'src/components/shell/SearchView.tsx', testid: 'search-live' },
+  { file: 'src/components/chat-window/ChatWindowView.tsx', testid: 'agent-run-live' },
+  { file: 'src/components/app/BookOverview.tsx', testid: 'book-overview-live' },
+  { file: 'src/components/shell/ObservatoryView.tsx', testid: 'observatory-live' },
+  { file: 'src/components/shell/ManuscriptView.tsx', testid: 'manuscript-live' },
+  { file: 'src/components/shell/BookProfileView.tsx', testid: 'book-profile-live' },
+  { file: 'src/components/shell/KnowledgeInboxView.tsx', testid: 'knowledge-inbox-live' },
+];
+
+test('异步面板都接了 LiveStatus live region（铺开不回退）', () => {
+  for (const { file, testid } of LIVE_REGION_SITES) {
+    const source = readFileSync(abs(`../${file}`), 'utf8');
+    assert.ok(
+      source.includes(`testid="${testid}"`),
+      `${file} 缺 LiveStatus 挂载（testid="${testid}"）`,
+    );
+    assert.ok(source.includes('LiveStatus'), `${file} 未引用 LiveStatus 原语`);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // 对比度护栏：把 index.css 里 --muted / --subtle 的 WCAG 注释变成可证伪的断言。
 // 有人把提示文本调暗到低于阈值（或在亮色下调浅），这里就红。
