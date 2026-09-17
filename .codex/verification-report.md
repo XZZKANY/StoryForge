@@ -1,3 +1,17 @@
+## 2026-09-17 Desktop UI/UX 全维度优化（第六波：D6 可达性 · Titlebar 面板开关）
+
+- 承接第五波 D6。用户说「继续」，我承接上轮自己列的 D6 待办，但**先纠正自己一句话**：上轮我说可「补 `aria-pressed`」，那是错语义——`Titlebar` 的 Agent 面板开关是「展开/收起」动作而非开/关状态，`aria-pressed` 会把「点击收起」读成「未按下按钮」，形成反直觉。
+- 落地正确语义（与 `StatusBar` 字数徽标同一套既有弹层模式）：
+  - `Titlebar.tsx` `titlebar-toggle-right` 补 `aria-label="Agent 面板"`（名字稳定，不随态翻转）+ `aria-expanded={!rightCollapsed}`；`title` 保留随态翻转（展开→「收起 Agent 面板」，收起→「展开 Agent 面板」），那是给鼠标用户的当前动作提示，不是屏读者身份。
+  - 此前只有 `title`，屏读者只能念到一个动作，无法分辨按下是展开还是收起。
+- 新增行为测试（1 条，`titlebar-drag.test.tsx`）：展开/收起两态分别断言 `aria-label` 恒为「Agent 面板」、`aria-expanded` 正确翻转、`title` 反向提示。
+- 验证：
+  - `typecheck`：**exit 0**。
+  - `npm.cmd --prefix apps/desktop/frontend run test`：**100 files / 655 passed**（基线 654 → +1，无回归；stderr `act` 警告为既有噪声）。
+  - 改动文件 `eslint` **0 problems**；`prettier --check` 全过。
+- 累计三波：`bb605f65`（1-3 波基线）→ `7ead48c7`（D3 Ctrl+Tab）→ `25ed0707`（D6 活动栏）→ 本波。
+- 未做：真机 Tauri + NVDA 实测；D6 其余项（Tab 顺序审计、ObsPanel/ObservatoryView 等面板 `aria-expanded` 补齐、对比度复测）留后续。
+
 ## 2026-09-17 Desktop UI/UX 全维度优化（第五波：D6 可达性 · 活动栏视图图标）
 
 - 用户拍板方向 D6 可达性、单波聚焦。侦察后发现 D6 基线已相当扎实，**不做表面功夫**——已有：全站 `:focus-visible` 焦点环（含光晕 + `prefers-reduced-motion` 降级）、Settings/AppDialog 两对话框的焦点陷阱 + Escape + 焦点恢复、快捷键护栏、文件树 `aria-label`/`aria-expanded`、toast `role="status"` 实时播报、对比度 token 已带 WCAG 比值注释（`--muted` 4.5:1+、`--subtle` 4.2:1）。
