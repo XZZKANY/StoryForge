@@ -1,3 +1,20 @@
+## 2026-09-17 Desktop UI/UX 全维度优化（第十波：D5 状态变化反馈 · 搜索检索 live region）
+
+- 用户继续 D5。本波选一个具体交互缺口：搜索是异步的，结果文本会动态翻转（空 → `搜索中…` → `N 处 · M 个文件` / `没有匹配的内容。`），但此前普通 `<p>` 没有 live region，**屏幕阅读器完全感知不到结果数何时到位**；失败块也没有 `role="alert"`。
+- 侦察确认范围：全仓只有 BookOverview 的 skeleton 波加了 `role="status"`（`git grep 'role="status"'` 仅此一处），主交互面板的 live region 覆盖是系统性缺失。本波只做 SearchView 这一处**自成体系**的异步流程，不铺开。
+- 实现（2 文件，纯前端，`SearchView.tsx` + 新测试；**复用本仓已有 `.sr-only` 工具，零新增 util**）：
+  - 新增常驻、视觉隐藏的 `<p role="status" aria-live="polite" className="sr-only" data-testid="search-live">`，文案从「搜索中／完成总数／零命中／达上限」四态派生。
+  - **只在两个语义节点换文案**：搜索中恒为「正在搜索正文…」（中间批次结果数在涨也不变文案 → live region 不重复打扰），收尾才播报「搜索完成：找到 N 处，涉及 M 个文件」。
+  - 失败块补 `role="alert"` + `data-testid="search-error"`（打断级），且**不重复进 polite live region**，避免失败被念两遍。
+- 纠错：第一版我把 live 文案的注释写成「用 200ms 句柄做节流」——但代码里根本没有节流逻辑（文案直接派生）。抓到后改成如实描述「文案稳定即不打扰」，未让假实现注释留在代码里。
+- 新增行为测试 `tests/search-view-live-region.test.tsx`（4 条）：①搜索中→收尾播报正确措辞；②零命中/达上限文案；③失败走 role=alert 且不混入 live region；④查询不足最小长度/未打开项目时不播报。
+- **非空虚性已变异验证**：把 `正在搜索正文…` 改名为空串，测试立刻红并精确指到该断言；恢复后转绿。
+- 验证：
+  - `typecheck`：**exit 0**。
+  - `npm.cmd --prefix apps/desktop/frontend run test`：**102 files / 667 passed**（基线 663 → +4，无回归；stderr `act` 警告为既有噪声）。
+  - 改动文件 `eslint` **0 problems**；`prettier --check` 全过。
+- 未做：ChatWindow 流式输出/上下文候选（`context-candidates-error`）等其余异步面板的 live region 留后续波次；真机 NVDA 实测未跑（静态 live-region 语义可测，实际念诵行为需真屏读者）；未动 API/契约/权限/写回。
+
 ## 2026-09-17 Desktop UI/UX 全维度优化（第九波：D2 作品总览 · 骨架屏加载）
 
 - 用户转向 D2/D4/D5。侦察后发现 D2/D4 表面在 1-3 波已重度打磨（BookOverview 有 role=status/alert、空态、进度条、响应式），不做表面功夫。真正成体系缺失的是 D5「加载状态反馈」：**全仓 `.skeleton` 工具类自 1-3 波定义后从未被引用**（孤儿工具），每个面板的加载态仍是一行裸「正在读取…」文字。

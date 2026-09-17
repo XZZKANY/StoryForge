@@ -60,6 +60,23 @@ export function SearchView({
 
   const trimmed = search.query.trim();
 
+  // D5 状态变化反馈：搜索结果文本会动态翻转（搜索中… → N 处 · M 个文件），
+  // 普通 <p> 没有 live region，屏幕阅读器完全感知不到结果数何时到位。
+  // 这里放一个常驻、视觉隐藏的 role="status"（polite），把同一状态的措辞广播出去；
+  // 可见的 search-summary 原样保留，避免见字又听字的重复播报。
+  // 只在「边搜边出」与「最终收尾」两个语义节点换文案：中间批次即使结果数在涨，
+  // 文案也保持「正在搜索正文…」不变 → live region 不重复打扰，作者只在收尾听到总数。
+  const liveMessage =
+    !projectOpen || search.status === 'error' || trimmed.length < SEARCH_MIN_QUERY
+      ? ''
+      : search.status === 'searching'
+        ? '正在搜索正文…'
+        : search.totalHits === 0
+          ? '没有匹配的内容。'
+          : `搜索完成：找到 ${search.totalHits} 处，涉及 ${search.results.length} 个文件。${
+              search.capped ? '已达上限，仅显示前方结果。' : ''
+            }`;
+
   return (
     <div className="flex h-full flex-col bg-background" data-testid="search-panel">
       <div className="sf-panel-header border-border">
@@ -74,6 +91,11 @@ export function SearchView({
           区分大小写
         </label>
       </div>
+
+      {/* live region：常驻挂载 + 恒温文本变化即被播报。搜索失败走下方 role="alert" 另行打断。 */}
+      <p role="status" aria-live="polite" className="sr-only" data-testid="search-live">
+        {liveMessage}
+      </p>
 
       <div className="px-3 py-2">
         <div className="relative">
@@ -111,7 +133,7 @@ export function SearchView({
             再输入 {SEARCH_MIN_QUERY - trimmed.length} 个字符开始搜索。
           </p>
         ) : search.status === 'error' ? (
-          <div className="px-3 py-4">
+          <div className="px-3 py-4" role="alert" data-testid="search-error">
             <p className="text-xs text-error">搜索失败</p>
             <p className="mt-1 text-2xs leading-relaxed text-subtle">{search.error}</p>
             <button
