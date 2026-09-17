@@ -11,7 +11,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, test } from 'vitest';
 
-import { VIEW_ENTRIES } from '../src/components/shell/ActivityBar';
+import { VIEW_ENTRIES, ActivityBar } from '../src/components/shell/ActivityBar';
 import {
   resetShellStateStorage,
   SIDE_PANEL_VIEWS,
@@ -119,4 +119,47 @@ test('右栏折叠语义不受影响（editor 隐藏右栏，showRight 落回 ba
     assert.equal(latest!.layoutMode, 'balanced');
     assert.equal(latest!.rightCollapsed, false);
   });
+});
+
+// D6 可达性：活动栏视图图标是「切到哪个视图」的开关，屏幕阅读器必须读出名字与当前态，
+// 此前只有图标 + 带快捷键的 title（title 会把「资源管理器 · Ctrl Shift E」念成名字）。
+test('活动栏视图图标有干净的 aria-label 与当前态标记', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root: Root = createRoot(container);
+  try {
+    await act(async () => {
+      root.render(
+        <ActivityBar
+          view="manuscript"
+          sidebarHidden={false}
+          onSwitchView={() => undefined}
+          onOpenSettings={() => undefined}
+        />,
+      );
+    });
+
+    for (const entry of VIEW_ENTRIES) {
+      const button = container.querySelector<HTMLButtonElement>(
+        `[data-testid="activity-${entry.view}"]`,
+      );
+      assert.ok(button, `缺少视图按钮 ${entry.view}`);
+      // 名字干净：不含快捷键串，屏幕阅读器念「手稿」而非「手稿 · Ctrl Shift M」。
+      assert.equal(button.getAttribute('aria-label'), entry.label);
+      assert.equal(button.getAttribute('aria-label')?.includes('Ctrl'), false);
+    }
+
+    // 当前视图用 aria-current 标出，其余不标（与 ContextMenu 的 aria-current 用法同源）。
+    assert.equal(
+      container.querySelector('[data-testid="activity-manuscript"]')?.getAttribute('aria-current'),
+      'true',
+    );
+    assert.equal(
+      container.querySelector('[data-testid="activity-explorer"]')?.getAttribute('aria-current'),
+      null,
+    );
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
 });

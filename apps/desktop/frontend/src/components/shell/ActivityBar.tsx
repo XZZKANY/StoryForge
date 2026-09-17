@@ -15,6 +15,8 @@ type ViewEntry = {
   view: SidePanelView;
   icon: LucideIcon;
   title: string;
+  /** 屏幕阅读器读的名字：不含快捷键，快捷键留在视觉 tooltip（title）里，否则会被念成名字。 */
+  label: string;
   projectOnly?: boolean;
 };
 
@@ -24,18 +26,38 @@ export const VIEW_ENTRIES: ViewEntry[] = [
     view: 'book',
     icon: Library,
     title: '作品（封面 / 简介 / 进度）· Ctrl Shift B',
+    label: '作品',
     projectOnly: true,
   },
   {
     view: 'manuscript',
     icon: BookOpen,
     title: '手稿（阅读序 / 作品底座）· Ctrl Shift M',
+    label: '手稿',
     projectOnly: true,
   },
-  { view: 'explorer', icon: FileText, title: '资源管理器 · Ctrl Shift E' },
-  { view: 'knowledge', icon: Inbox, title: 'Knowledge Inbox', projectOnly: true },
-  { view: 'search', icon: Search, title: '在正文中搜索 · Ctrl Shift F', projectOnly: true },
-  { view: 'observatory', icon: Radar, title: '世界线观测镜 · Ctrl Shift O', projectOnly: true },
+  { view: 'explorer', icon: FileText, title: '资源管理器 · Ctrl Shift E', label: '资源管理器' },
+  {
+    view: 'knowledge',
+    icon: Inbox,
+    title: 'Knowledge Inbox',
+    label: '知识库收件箱',
+    projectOnly: true,
+  },
+  {
+    view: 'search',
+    icon: Search,
+    title: '在正文中搜索 · Ctrl Shift F',
+    label: '搜索',
+    projectOnly: true,
+  },
+  {
+    view: 'observatory',
+    icon: Radar,
+    title: '世界线观测镜 · Ctrl Shift O',
+    label: '观测镜',
+    projectOnly: true,
+  },
 ];
 
 export function ActivityBar({
@@ -78,6 +100,10 @@ export function ActivityBar({
             className={`relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-elevated ${
               active ? 'text-foreground' : 'text-subtle hover:text-foreground'
             }`}
+            aria-label={entry.label}
+            // 视图图标是互斥选择（同时只有一个是当前视图），不是各自独立的开关：
+            // aria-pressed 表达不了「按下这个就松开那个」，aria-current 的「集合中的当前项」才准确。
+            aria-current={active ? 'true' : undefined}
             title={entry.title}
             onClick={() => {
               onSwitchView(entry.view);

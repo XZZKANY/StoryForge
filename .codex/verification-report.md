@@ -1,3 +1,17 @@
+## 2026-09-17 Desktop UI/UX 全维度优化（第五波：D6 可达性 · 活动栏视图图标）
+
+- 用户拍板方向 D6 可达性、单波聚焦。侦察后发现 D6 基线已相当扎实，**不做表面功夫**——已有：全站 `:focus-visible` 焦点环（含光晕 + `prefers-reduced-motion` 降级）、Settings/AppDialog 两对话框的焦点陷阱 + Escape + 焦点恢复、快捷键护栏、文件树 `aria-label`/`aria-expanded`、toast `role="status"` 实时播报、对比度 token 已带 WCAG 比值注释（`--muted` 4.5:1+、`--subtle` 4.2:1）。
+- **真正成体系缺失且可行为化证明**：`ActivityBar` 视图图标只靠 `title`（其中混着快捷键，屏幕阅读器会把「资源管理器 · Ctrl Shift E」念成按钮名），且当前视图只画视觉指示条、无 ARIA 标记。同属 `SettingsView` 早已用 `aria-pressed`/`aria-current`，这里是缺的兄弟面。
+- 实现（纯前端，2 文件 / +74−5）：
+  - `ActivityBar.tsx` `ViewEntry` 新增 `label` 字段（干净名字，不含快捷键），按钮加 `aria-label={entry.label}` + `aria-current={active ? 'true' : undefined}`。`title` 保留快捷键作视觉 tooltip。
+  - **用语义选型注释记录为什么不选 `aria-pressed`**：六个视图图标是互斥选择（同时只有一个是当前），`aria-pressed` 表达不了「按下这个就松开那个」，而 `aria-current` 的「集合中的当前项」才准确——与 `ContextMenu` 的 `aria-current` 用法同源。
+- 新增行为测试（1 条，`shell-panel-views.test.tsx`）：断言每个视图按钮 `aria-label` 干净（≠ title、不含 "Ctrl"）、当前视图 `aria-current="true"`、其余视图 `aria-current` 为空。
+- 验证：
+  - `typecheck`：**exit 0**。
+  - `npm.cmd --prefix apps/desktop/frontend run test`：**100 files / 654 passed**（基线 653 → +1，无回归；stderr 的 `act` 警告为既有噪声）。
+  - 改动文件 `eslint` **0 problems**；`prettier --check` 全过（`ActivityBar.tsx` 两处 `label` 行被 prettier 折行，逻辑不变）。
+- 未做/未验：真机 Tauri + 真屏幕阅读器（NVDA/Narrator）实测未做，ARIA 语义靠静态断言钉死；未动 API/DB/OpenAPI/契约/权限/写回；其余 D6 项（Tab 顺序审计、更多面板 `aria-expanded`/`aria-pressed` 补齐、更细的对比度）留后续波次。
+
 ## 2026-09-17 Desktop UI/UX 全维度优化（第四波：D3 写作工作台 · 页签键盘循环）
 
 - 前置：先把前 1-3 波 + 09-06/09-10 成果（46 文件 / +2094-488）收口为基线提交 `bb605f65`，避免新旧改动混在一起无法证伪。仅 Desktop 前端展示层，未动 API/DB/OpenAPI/契约/权限/写回。
