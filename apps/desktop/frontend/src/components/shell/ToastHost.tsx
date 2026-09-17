@@ -85,6 +85,7 @@ export function ToastHost() {
           )}
           <button
             className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
+            aria-label="关闭通知"
             title="关闭通知"
             data-testid="toast-close"
             onClick={() => dismiss(item.id)}

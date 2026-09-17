@@ -90,6 +90,7 @@ export function SearchView({
             <button
               type="button"
               onClick={() => search.setQuery('')}
+              aria-label="清空搜索"
               title="清空"
               data-testid="search-clear"
               className="absolute right-1.5 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"

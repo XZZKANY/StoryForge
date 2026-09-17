@@ -197,6 +197,7 @@ export function BookProfileView({
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
           title="重新读取档案与进度"
+          aria-label="重新读取档案与进度"
           onClick={handle.refresh}
           disabled={handle.refreshing}
           data-testid="book-profile-refresh"
@@ -211,6 +212,7 @@ export function BookProfileView({
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
           title="回到资源管理器 · Ctrl Shift E"
+          aria-label="回到资源管理器"
           onClick={onBackToExplorer}
           data-testid="book-profile-back-to-explorer"
         >

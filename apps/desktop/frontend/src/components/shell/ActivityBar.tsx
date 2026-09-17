@@ -138,6 +138,7 @@ export function ActivityBar({
         data-testid="activity-settings"
         className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-elevated hover:text-foreground"
         title="设置 · Ctrl ,"
+        aria-label="设置"
         aria-haspopup="menu"
         onClick={(event) => {
           if (settingsMenu && settingsMenu.length > 0) {

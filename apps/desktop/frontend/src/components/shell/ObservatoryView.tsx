@@ -472,6 +472,7 @@ export function ObservatoryView({
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
           title="重新扫描（确定性 · 无 LLM）"
+          aria-label="重新扫描世界观"
           onClick={onRescan}
           disabled={busy}
           data-testid="observatory-rescan"
@@ -482,6 +483,7 @@ export function ObservatoryView({
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
           title="回到资源管理器 · Ctrl Shift E"
+          aria-label="回到资源管理器"
           onClick={onBackToChat}
           data-testid="observatory-back-to-chat"
         >

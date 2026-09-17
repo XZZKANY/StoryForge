@@ -1,3 +1,24 @@
+## 2026-09-17 Desktop UI/UX 全维度优化（第八波：D6 可达性收尾 · 图标按钮齐平 + 对比度护栏）
+
+- 用户要求「将 D6 做完」。本波把 D6 收口为两件可证伪的事：**图标-only 按钮 aria-label 全扫** + **对比度从注释变成测试**。
+- **aria-label 补齐（8 文件 / 12 处）**：ActivityBar 设置齿轮、BookProfileView 刷新+返回、KnowledgeInboxView 刷新、ManuscriptView 重新读取+返回、ObservatoryView 重新扫描+返回、SearchView 清空、SidePanel 新建文件+文件夹、ToastHost 关闭通知。此前这些都只靠 `title`（屏读者支持不一）。
+- **新增护栏测试 `tests/accessibility-guards.test.ts`（4 条）**，把 D6 从「一次性人工检查」变成「持续可证伪」：
+  1. 上述 10 个壳子文件里，所有「图标-only」按钮必须有非空 `aria-label`。
+  2. `isIconOnly` 判定自测（防护栏自身失效）。
+  3. `SWEPT_FILES` 文件存在性（防改名后护栏空转）。
+  4. **对比度**：从 `index.css` 真 token 算 WCAG 相对亮度比值——`--foreground`/`--muted` 对 `--background` ≥ 4.5:1、`--subtle` ≥ 3:1，**双主题**都验。此前这些比值只活在 CSS 注释里，无人可证伪。
+- **开发过程中踩到并修掉的两个护栏自身缺陷（重要，已记入测试注释防回退）**：
+  1. **JSX 开标签不能用 `[^>]*>` 啃**：按钮属性普遍含箭头函数 `onClick={() => f()}`，`=>` 的 `>` 会被当成标签结尾，属性被误当正文 → 判定失效、缺陷被静默跳过（第一版护栏就是这么把 SearchView 的缺名放过的）。改用按引号/花括号计深的 `openingTagEnd`。
+  2. **「图标-only」判定必须保守**：条件渲染 `{badge && <span>3</span>}` 静态无法确定是否渲文本，激进解析产生 4 处假阳性（Titlebar/SidePanel/KnowledgeInboxView/BookProfileView 本就有文字的按钮被误报）。改为「摘掉图标节点后只要还剩任何内容就放行」——宁可漏报不误报。
+  - **护栏非空虚性已用变异测试证明**：临时删掉 SearchView 的 `aria-label="清空搜索"`，护栏立刻红并精确指到该按钮；恢复后转绿。
+- 验证：
+  - `typecheck`：**exit 0**。
+  - `npm.cmd --prefix apps/desktop/frontend run test`：**101 files / 661 passed**（基线 657 → +4，无回归；stderr `act` 警告为既有噪声）。
+  - `eslint src/components/shell/ tests/accessibility-guards.test.ts`：**0 problems**；改动文件 `prettier --check` 全过。
+- **发现但未修（超出本波范围，不顺手改无关文件）**：`src/components/shell/ContextMenu.tsx` 存在 prettier 格式漂移（`git status` 干净 ≠ 我已改）。根因是 `pnpm lint` 为 `eslint . && prettier --check`，前者被 `.trellis/.../adblock_snippet.js` 的 10 个既有错误短路，prettier 从未执行，漂移因此长期不可见。修它需先解掉 adblock 那个 lint 阻塞，留后续独立处理。
+- **D6 至此收口**。累计五波：`25ed0707`（活动栏）→ `aad7eda1`（Titlebar 面板开关）→ `4141fd02`（窗控+观测面板）→ 本波（全扫 + 对比度护栏）。
+- 仍未验（超出静态护栏能力）：真机 Tauri + NVDA/Narrator 实测；Tab 顺序审计（需真机逐点 Tab 才能验，静态护栏保证不了顺序体验）；非壳子层组件（chat-window/editor/app 下）的同类按钮。
+
 ## 2026-09-17 Desktop UI/UX 全维度优化（第七波：D6 可达性 · 图标按钮显式 aria-label）
 
 - 承接第六波。本轮把「图标-only 按钮只靠 title 做可访问名」这个缺口在 Titlebar 与 ObsPanel 两个相邻面上齐平（这两个是用户最高频触点，其余面板留后续）。
