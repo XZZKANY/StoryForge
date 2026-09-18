@@ -294,7 +294,8 @@ export function CommandPalette({
       path: f.path,
       label: relativeToProject(projectPath, f.path),
     }));
-    if (!q) return mapped.slice(0, 50).map((item) => ({ ...item, positions: null as number[] | null }));
+    if (!q)
+      return mapped.slice(0, 50).map((item) => ({ ...item, positions: null as number[] | null }));
     return mapped
       .map((item) => {
         const positions = fuzzyMatch(item.label, q);
@@ -357,7 +358,12 @@ export function CommandPalette({
     }
   };
 
-  const modeIcon = mode === 'files' ? <FileText size={14} strokeWidth={1.6} /> : <CommandIcon size={14} strokeWidth={1.6} />;
+  const modeIcon =
+    mode === 'files' ? (
+      <FileText size={14} strokeWidth={1.6} />
+    ) : (
+      <CommandIcon size={14} strokeWidth={1.6} />
+    );
   const modeLabel = mode === 'files' ? '打开文件' : '命令';
 
   return (
@@ -445,9 +451,7 @@ export function CommandPalette({
                 {item.hint && (
                   <kbd
                     className={`flex-shrink-0 rounded-sm border px-1.5 py-0.5 font-mono text-3xs ${
-                      index === active
-                        ? 'border-agent/30 text-agent'
-                        : 'border-border text-subtle'
+                      index === active ? 'border-agent/30 text-agent' : 'border-border text-subtle'
                     }`}
                   >
                     {item.hint}

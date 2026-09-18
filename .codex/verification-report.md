@@ -1,3 +1,14 @@
+## 2026-09-18 清理 .trellis WebView 缓存污染与历史 Prettier 漂移
+
+- 背景承接 09-18 UIUX 收口时留下的两件遗留（任务 `09-18-clean-webview-cache-prettier-drift`）。
+- **R1 缓存删除**：`.trellis/tasks/09-06-desktop-uiux-optimization/research/native-ui-20260906-192750/` 下的 `webview/`（34.8 MB EBWebView 缓存，lint 阻塞源）、`local-data/`（sidecar sqlite+wal 运行时库）、`config/`（空）为运行时生成物，全部删除；`sample/` 示例项目与顶层 60+ 审计文档/截图/日志（研究证据）保留。根因链：flat-config `eslint .` 不读 `.gitignore`，`.trellis/` 不在 `eslint.config.mjs` ignores 里 → 缓存里的 `adblock_snippet.js` 10 个错误短路 `pnpm lint` → `prettier --check` 从未执行。按既定方向删除源头而非加 ignore 遮蔽。
+- **R2 格式修复**：`CommandPalette.tsx`（+14−5... 实为 3 处超 100 列折行）与 `ContextMenu.tsx`（1 处三元并回一行）用 `prettier --write` 修复。逐行核对全部 diff：零 token 变更，纯折行重排。定向测试 `command-palette.test.tsx` + `context-menu.test.tsx` 4/4 通过（exit 1 仅为 PowerShell 把 vitest stderr 的既有 act 警告升格为错误，测试本体全绿）。
+- **验证**：
+  - `pnpm.cmd lint`：**完整通过**（此前被 eslint 10 错误短路 + prettier 2 文件漂移）。
+  - `pnpm.cmd verify` 后台首跑：lint / typecheck / shared / project-core / 前端 688 tests 全绿；**API pytest 阶段 `test_real_llm_connectivity_probe_script.py::test_interactive_acceptance_wrapper_probe_only_passes_with_local_provider` 失败**——隔离复跑该文件 10/10 通过、全量 `uv run pytest` **1592 passed / 7 skipped** 通过。定性：后台 pytest 与前台两次 vitest 并发抢本地端口的资源竞争 flake（该测试 spawn PowerShell 子进程探测本地 mock HTTP 服务），与本次改动无关（本次零 API/`.codex` 改动）。完整输出留档 `.trellis/tasks/09-18-clean-webview-cache-prettier-drift/verify-run.log`。
+  - verify 剩余阶段按序补齐：`ruff check .` 全绿；`sidecar-smoke`（daily 档）全绿；OpenAPI drift 无漂移。九个门禁等效全部通过。
+- 未做：`.pytest_full.log`、`.pytest_full2.log`、`.sf_tmp/` 等其它未跟踪项按约定不动；不改 eslint/prettier 配置；任务归档自验见任务目录。
+
 ## 2026-09-17 Desktop UI/UX 全维度优化（第十四波：D1 视觉统一 · 面板头部图标按钮收敛）
 
 - 用户转向 D1「视觉统一」。体检发现一个明确可证伪的不一致：同是**面板头部图标按钮**（刷新/新建/扫描），存在两套写法并错位到半边产品：

@@ -65,8 +65,7 @@ export function ContextMenu({
       switch (event.key) {
         case 'ArrowDown': {
           event.preventDefault();
-          const next =
-            currentNavIndex === -1 ? 0 : (currentNavIndex + 1) % navigableIndices.length;
+          const next = currentNavIndex === -1 ? 0 : (currentNavIndex + 1) % navigableIndices.length;
           setActiveIndex(navigableIndices[next]);
           break;
         }
