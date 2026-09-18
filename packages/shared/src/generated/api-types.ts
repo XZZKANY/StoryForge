@@ -814,26 +814,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/book-runs/{book_run_id}/workflow-dispatch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 读取 BookRun 兼容调度 payload
-         * @description 为兼容后台 worker 生成调度 payload；接口本身不执行生成运行。
-         */
-        get: operations["get_book_run_workflow_dispatch_endpoint_api_book_runs__book_run_id__workflow_dispatch_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/books/{book_id}/exports/epub": {
         parameters: {
             query?: never;
@@ -2642,12 +2622,6 @@ export interface components {
             /** Token Budget */
             token_budget?: number | null;
         };
-        /** BookRunVolumePlanItem */
-        BookRunVolumePlanItem: {
-            chapter_range: components["schemas"]["BookRunChapterRange"];
-            /** Volume Index */
-            volume_index: number;
-        };
         /** BookRunVolumeProgress */
         BookRunVolumeProgress: {
             chapter_range: components["schemas"]["BookRunChapterRange"];
@@ -2657,77 +2631,6 @@ export interface components {
             current_volume: number;
             /** Next Batch Start Chapter Index */
             next_batch_start_chapter_index: number;
-        };
-        /**
-         * BookRunWorkflowChapter
-         * @description 兼容调度使用的章节映射，避免后台 worker 查询 API 数据库。
-         */
-        BookRunWorkflowChapter: {
-            /** Chapter Goal */
-            chapter_goal: string;
-            /** Chapter Id */
-            chapter_id: number;
-            /** Chapter Index */
-            chapter_index: number;
-            planning_refs?: components["schemas"]["BookRunWorkflowPlanningRefs"] | null;
-        };
-        /**
-         * BookRunWorkflowDispatch
-         * @description BookRun 历史兼容 worker 的稳定调度 payload。字段名保留以兼容既有客户端。
-         */
-        BookRunWorkflowDispatch: {
-            /** Beat Sheet Gate */
-            beat_sheet_gate?: {
-                [key: string]: unknown;
-            };
-            /** Blueprint Id */
-            blueprint_id: number;
-            /** Book Id */
-            book_id: number;
-            /** Book Run Id */
-            book_run_id: number;
-            /** Chapter Budget */
-            chapter_budget?: number | null;
-            /** Chapters */
-            chapters?: components["schemas"]["BookRunWorkflowChapter"][];
-            /** Entity Budget */
-            entity_budget?: {
-                [key: string]: unknown;
-            };
-            /** Existing Checkpoint */
-            existing_checkpoint?: {
-                [key: string]: unknown;
-            }[];
-            /** Narrative Plan */
-            narrative_plan?: {
-                [key: string]: unknown;
-            };
-            /** Phase Policy */
-            phase_policy?: {
-                [key: string]: unknown;
-            };
-            /** Provider Fallback Pause Threshold */
-            provider_fallback_pause_threshold?: number | null;
-            /** Start Chapter Index */
-            start_chapter_index: number;
-            /** Time Budget Sec */
-            time_budget_sec?: number | null;
-            /** Token Budget */
-            token_budget?: number | null;
-            /** Total Chapters */
-            total_chapters: number;
-            /** Volume Plan */
-            volume_plan?: components["schemas"]["BookRunVolumePlanItem"][];
-        };
-        /**
-         * BookRunWorkflowPlanningRefs
-         * @description 历史兼容调度只接收轻量规划引用，不接收完整规划对象。
-         */
-        BookRunWorkflowPlanningRefs: {
-            /** Arc Completion Ratio */
-            arc_completion_ratio: number;
-            /** Arc Ids */
-            arc_ids?: string[];
         };
         /**
          * BudgetStatistics
@@ -6492,37 +6395,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BookRunRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_book_run_workflow_dispatch_endpoint_api_book_runs__book_run_id__workflow_dispatch_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                book_run_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookRunWorkflowDispatch"];
                 };
             };
             /** @description Validation Error */

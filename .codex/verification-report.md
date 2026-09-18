@@ -1,3 +1,22 @@
+## 2026-09-18 清理项目保护性废弃代码(第二批次:workflow 兼容遗留全清)
+
+- 任务 `09-05-code-cleanup-quality` 第二批次。第一批次(四组孤立符号 + artifacts 异常收窄)已于此前落地;本批次翻转其 PRD「兼容 seam 保留」决定——历史消费方 `apps/workflow` 已于 2026-07-26 物理退役,全仓实证零生产消费方后用户拍板整链清除(范围=①workflow-dispatch 链+②record_workflow_model_run_payload 链;不含 ide 6 条零调用路由与 lineage_service)。
+- **① workflow-dispatch 链**(desktop 前端零 fetch、顶层 e2e 零引用、13 个 dispatch alias + 4 个 gate alias 仓内零 import):
+  - 整删 `book_runs/dispatch.py`(337 行)、`book_runs/gate.py`(143 行,唯一消费方是 dispatch,零独立测试,删后必孤儿化——非 live `book_generation*` 生成链成员,不触红线)。
+  - `book_runs/router.py`:删 `GET /{id}/workflow-dispatch` 端点 + 2 处 import;`service.py`:删 dispatch/gate facade re-export(`_coerce` facade 保留,live `timeline`/`progression` 消费);`schemas.py`:删 `BookRunWorkflowDispatch/Chapter/PlanningRefs` + `BookRunVolumePlanItem`,**保留 `BookRunChapterRange`**(live `BookRunVolumeProgress`→PATCH progress 请求体消费)。
+  - 整删 `tests/test_book_run_workflow_dispatch.py`(739 行专属测试)。
+- **② record_workflow_model_run_payload 链**(生产代码零调用,仅 3 个专属测试在调):删 `recording.py` 实现 + 7 个孤儿私有 helper(`_require_positive_int` 等,其他模块各有独立同名局部函数,已逐一核对无跨模块引用)+ `service.py` wrapper/facade 转导出;保留 `create_model_run`/`record_runtime_model_run`/`record_failed_runtime_model_run`/`_validate_references`/`ModelRunError` 真表链路。删 `test_model_runs.py` 3 个专属测试。
+- **护栏翻转 + 文档**:`test_source_pruning.py` 删「必须保留 record_workflow_model_run_payload」旧断言,新增 `test_workflow_compat_dispatch_and_payload_facade_stay_pruned`(文件不复活 + 源码标记归零 + 路由不重挂载,可证伪);`refactor-master-plan.md` B2/RT 段落加「2026-09 废弃清理更正」;任务 PRD/design/implement 已更新第二批次(PRD 记录决策翻转依据)。
+- **契约**:`pnpm openapi` 刷新——paths −1(workflow-dispatch)、schemas −3,契约+生成类型纯删 379 行、零新增;过滤核对无非预期删除行。`workflow_nodes`(live ToolSpec 字段)与本链同名无关,未动。
+- **验证**:
+  - 定向 pytest 7 文件(source_pruning/model_runs/book_runs/writing_runs/source_code_standards/api_surface/job_runtime_bridge):**66 passed**。
+  - 全量 `uv run pytest`:**1574 passed, 7 skipped, 0 failed**(基线 1592−15 删除用例−3 model_runs 用例=1574,精确对账,零回归)。
+  - `uv run ruff check app tests`:All checks passed;`import app.main` 冒烟 OK。
+  - `pnpm e2e`:**20/20 PASS**(含 OpenAPI drift + Phase 7 快照一致性);`pnpm --filter @storyforge/shared test`(tsc --noEmit)绿;`git diff --check` 干净。
+  - 全仓检索 `build_book_run_workflow_dispatch|BookRunWorkflow*|record_workflow_model_run_payload|BookRunVolumePlanItem|book_runs.dispatch|book_runs.gate`:生产代码/测试/契约归零,仅剩护栏断言字符串与文档更正记录(预期)。
+- **改动面**:14 tracked 文件(3 整删 dispatch.py/gate.py/test_book_run_workflow_dispatch.py + 11 修改),+56−1872,净删 −1816 行保护性废弃代码。
+- 未做/不碰:安全护栏(限流/认证/写回/边界/快照/原子写)一行未动;`.pytest_full.log`/`.sf_tmp/` 等无关 untracked 按约定不动;`.trellis/` 在 gitignore,任务文档更新仅落盘。
+
 ## 2026-09-18 清理 .trellis WebView 缓存污染与历史 Prettier 漂移
 
 - 背景承接 09-18 UIUX 收口时留下的两件遗留（任务 `09-18-clean-webview-cache-prettier-drift`）。

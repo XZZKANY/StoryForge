@@ -12,14 +12,6 @@ from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs._coerce import (  # noqa: F401  facade re-export
     bounded_ratio as _bounded_ratio,
 )
-from app.domains.book_runs.dispatch import (  # noqa: F401  facade re-export
-    DEFAULT_ENTITY_BUDGET,
-    DEFAULT_PHASE_POLICY,
-    build_book_run_workflow_dispatch,
-)
-from app.domains.book_runs.gate import (  # noqa: F401  facade re-export
-    even_volume_plan as _even_volume_plan,
-)
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.progression import (  # noqa: F401  facade re-export
     CONTROLLED_PROGRESS_KEYS,

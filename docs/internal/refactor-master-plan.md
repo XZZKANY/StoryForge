@@ -19,7 +19,7 @@
 | E2 legacy orchestrator 收口 | ✅ 完成 | E2-1 迁异常类；E2-2 对账；E2-3 已迁 `chapter.review`/`chapter.repair` 入 live AgentRuntime；E2-4 已下线 `legacy.orchestrator` fallback；E2-5 已把 `ide/orchestrator.py` 收缩为旧路径兼容 facade，懒加载转发 live `run_agent_user_message` | 不再作为主计划待办 |
 | B1 `book_generation.py` 拆分 | ✅ 完成（当前合理边界） | metrics/LLM/errors/judge/preflight/progress/CLI/records/serial_metrics 九刀均已接入 facade 并验证；`book_generation.py` 当前约 662 行 | 不再继续机械拆；后续只在改动主循环时重评章节生成/蓝图/断点是否需要深模块 |
 | `book_generation_judge.py` | ✅ 完成 | 已接入 `book_generation.py` facade；`_judge_and_repair_loop`/阈值常量旧路径 identity 已验证；B1 focused 测试 65 passed, 1 skipped | 不再作为草稿处理 |
-| B2 `book_runs/service.py` 拆分 | ✅ 完成 | `_coerce.py` / `timeline.py` / `gate.py` / `dispatch.py` / `progression.py` 已接入 facade 并验证；`service.py` 当前约 179 行 | 不再作为主计划待办 |
+| B2 `book_runs/service.py` 拆分 | ✅ 完成 | `_coerce.py` / `timeline.py` / `progression.py` 已接入 facade 并验证；`gate.py` / `dispatch.py` 已于 2026-09 随 workflow-dispatch 兼容链退役删除；`service.py` 当前约 165 行 | 不再作为主计划待办 |
 | B3 `judge/service.py` 拆分 | ✅ 完成 | `types.py` / `semantic.py` / `deterministic.py` / `consistency.py` / `style_fingerprint.py` 已接入 facade 并验证；`service.py` 当前约 130 行 | 不再作为主计划待办 |
 | B4 `story_memory/service.py` 拆分 | ✅ 完成 | `errors.py` / `atoms.py` / `foreshadow_lifecycle.py` / `arbitration.py` / `extract.py` / `recall.py` 已接入 facade 并验证；`service.py` 当前约 75 行 | 不再作为主计划待办 |
 | IS `ide/service.py` 拆分 | ✅ 完成 | `_coerce.py` / `command_registry.py` / `artifact_preview.py` / `workspace_reads.py` / `context_snapshot.py` / `story_memory_query.py` / `run_events.py` 已接入 facade 并验证；`service.py` 当前约 51 行 | 不再作为主计划待办 |
@@ -256,8 +256,9 @@ Wave 3（收口）       B4、IS已完成   B5 C4 RT D1 D2 D3 D4已完成   （�
 
 ### B2 · book_runs/service.py（1110→179，当前合理边界完成）
 - **已完成并验证**：`_coerce.py`（叶子转换工具）、`timeline.py`（完章进度到 TimelineEvent 同步）、`gate.py`（长篇上下文门禁与卷计划 helper）、`dispatch.py`（Workflow dispatch payload 与 narrative plan 装配）、`progression.py`（进度回填、暂停、恢复、停止、重试）。`service.py` 已退为 BookRun lifecycle facade + 旧路径 re-export，验证见 `.codex/verification-report.md` 的 “B2 重构验证（2026-06-29，完成）”。
+- **2026-09 废弃清理更正**：`gate.py` 与 `dispatch.py` 已随 workflow-dispatch 兼容链整文件删除（历史消费方 `apps/workflow` 已于 2026-07-26 退役，全仓零消费方实证）；`service.py` 不再 re-export dispatch/gate 入口与常量，`BookRunWorkflow*` / `BookRunVolumePlanItem` schema 同步删除（`BookRunChapterRange` 因 live `BookRunVolumeProgress` 消费保留）。护栏见 `test_source_pruning.py::test_workflow_compat_dispatch_and_payload_facade_stay_pruned`。
 - **保留在 facade 的职责**：`create_book_run` / `get_book_run` / startable 校验 / generation dispatched 标记 / background generation runner。继续拆这些会把 BookRun lifecycle 事实源拆散成浅模块。
-- **硬约束**：旧 `service.py` interface 继续 re-export progression/timeline/gate/dispatch 入口、常量与私有 helper；`apply_book_run_progress` 步骤顺序、commit/refresh 时点、evidence_refs 前缀、STICKY/CONTROLLED_PROGRESS_KEYS 合并语义均保持不变。
+- **硬约束**：旧 `service.py` interface 继续 re-export progression/timeline/_coerce 入口、常量与私有 helper；`apply_book_run_progress` 步骤顺序、commit/refresh 时点、evidence_refs 前缀、STICKY/CONTROLLED_PROGRESS_KEYS 合并语义均保持不变。
 
 ### B3 · judge/service.py（975→~130，当前合理边界完成）
 - **已完成并验证**：`types.py`（`DetectedIssue`/异常/常量/`StyleFingerprint`）、`semantic.py`（LLM 语义评审、HTTP 请求、响应解析、错误计数）、`deterministic.py`（本地 setting/style 规则）、`consistency.py`（Character Bible/Timeline/Style Fingerprint Drift）、`style_fingerprint.py`（文风指纹基线与相似度）。`service.py` 已退为 `create_judge_issues` 写库编排 + `_validate_scene_packet` + 旧路径 re-export，验证见 `.codex/verification-report.md` 的 “B3 重构验证（2026-06-29，完成）”。
@@ -281,8 +282,9 @@ Wave 3（收口）       B4、IS已完成   B5 C4 RT D1 D2 D3 D4已完成   （�
 
 ### RT · retrieval/+model_runs（657→137+88，完成）
 - **已完成并验证**：retrieval 拆为 `scoring.py`（关键词/相似度/评分/rerank）、`candidate_loader.py`（keyword/pgvector 候选裁剪和日志）、`indexing.py`（资料源创建/刷新/chunk 构建）、`workbench.py`（工作台列表与投影），`service.py` 保留 `search_retrieval` / `search_retrieval_workbench` 装配核心 + 旧路径 re-export；model_runs 拆为 `recording.py`（ModelRun 写入、引用校验、旧 workflow payload 兼容 adapter）和 `runs_diagnostics.py`（Runs JobRun 诊断、runtime tools 投影、retry），`service.py` 保留 list/query seam 与 source-pruning wrapper。验证见 `.codex/verification-report.md` 的 “RT 重构验证（2026-06-29，完成）”。
-- **保留在 facade 的职责**：retrieval `service.py` 仍是搜索装配 seam，确保 `monkeypatch.setattr(retrieval_service, "_score_chunk", ...)` 会影响 `search_retrieval`；model_runs `service.py` 仍持有 `list_model_runs` / `build_model_run_list_query` 和字面 `def get_runs_job_run(` / `def record_workflow_model_run_payload(` wrapper，满足分页与 source-pruning interface。
-- **硬约束**：retrieval 旧 `service.py` 的 36 个类/函数名、model_runs 旧 `service.py` 的 30 个类/函数名全部仍可访问；`story_memory.recall` 私有导入 `retrieval.service._cosine_similarity` 保持；`_log_search_candidate_load` logger 名称保持 `app.domains.retrieval.service`；`ModelRunError` 单一定义在 `recording.py` 并经旧路径回引；`test_source_pruning.py` 要求的 source markers 留在 model_runs `service.py`。
+- **2026-09 废弃清理更正**：`record_workflow_model_run_payload`（recording 实现 + service wrapper + facade 转导出的 7 个孤儿私有 helper）已整链删除——历史消费方 `apps/workflow` 已退役，生产代码零调用。`recording.py` 保留 `create_model_run` / `record_runtime_model_run` / `record_failed_runtime_model_run` / `_validate_references` / `ModelRunError` 真表链路。护栏见 `test_source_pruning.py::test_workflow_compat_dispatch_and_payload_facade_stay_pruned`。
+- **保留在 facade 的职责**：retrieval `service.py` 仍是搜索装配 seam，确保 `monkeypatch.setattr(retrieval_service, "_score_chunk", ...)` 会影响 `search_retrieval`；model_runs `service.py` 仍持有 `list_model_runs` / `build_model_run_list_query` 和字面 `def get_runs_job_run(` wrapper，满足分页与 source-pruning interface。
+- **硬约束**：retrieval 旧 `service.py` 的 36 个类/函数名全部仍可访问；`story_memory.recall` 私有导入 `retrieval.service._cosine_similarity` 保持；`_log_search_candidate_load` logger 名称保持 `app.domains.retrieval.service`；`ModelRunError` 单一定义在 `recording.py` 并经旧路径回引；`test_source_pruning.py` 要求的 source markers 留在 model_runs `service.py`。
 
 ### C1 · ChatWindow.tsx（2270→1031，风险中/M，当前合理边界完成）
 - **已完成并验证**：`chat-window/types.ts`、`path-utils.ts`、`agent-step-mapping.ts`、`writing-run.ts`、`review.ts`、`request-payload.ts`、`conversation-utils.ts`、`display-utils.ts`、`Composer.tsx`、`panels.tsx` 已提取；`ChatWindow.tsx` 保持旧 named export、`StableAgentRequestPayload` type re-export 与 `WritingRunProgressPanel` 兼容 re-export。验证见 `.codex/verification-report.md` 的 “C1 ChatWindow pure helpers” 与 “C1 ChatWindow panels/Composer”。

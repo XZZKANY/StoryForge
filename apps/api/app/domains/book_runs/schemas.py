@@ -52,13 +52,6 @@ class BookRunChapterRange(BaseModel):
         return self
 
 
-class BookRunVolumePlanItem(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    volume_index: int = Field(ge=1)
-    chapter_range: BookRunChapterRange
-
-
 class BookRunVolumeProgress(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -114,43 +107,6 @@ class BookRunProgressUpdate(BaseModel):
     progress: dict[str, Any] = Field(default_factory=dict)
     volume_progress: BookRunVolumeProgress | None = None
     manual_read_review: ManualReadReview | None = None
-
-
-class BookRunWorkflowPlanningRefs(BaseModel):
-    """历史兼容调度只接收轻量规划引用，不接收完整规划对象。"""
-
-    arc_ids: list[str] = Field(default_factory=list)
-    arc_completion_ratio: float = Field(ge=0, le=1)
-
-
-class BookRunWorkflowChapter(BaseModel):
-    """兼容调度使用的章节映射，避免后台 worker 查询 API 数据库。"""
-
-    chapter_index: int = Field(ge=1)
-    chapter_id: int = Field(gt=0)
-    chapter_goal: str = Field(min_length=1)
-    planning_refs: BookRunWorkflowPlanningRefs | None = None
-
-
-class BookRunWorkflowDispatch(BaseModel):
-    """BookRun 历史兼容 worker 的稳定调度 payload。字段名保留以兼容既有客户端。"""
-
-    book_run_id: int = Field(gt=0)
-    book_id: int = Field(gt=0)
-    blueprint_id: int = Field(gt=0)
-    total_chapters: int = Field(ge=1)
-    start_chapter_index: int = Field(ge=1)
-    existing_checkpoint: list[dict[str, Any]] = Field(default_factory=list)
-    token_budget: int | None = Field(default=None, gt=0)
-    time_budget_sec: int | None = Field(default=None, gt=0)
-    chapter_budget: int | None = Field(default=None, gt=0)
-    provider_fallback_pause_threshold: int | None = Field(default=None, gt=0)
-    chapters: list[BookRunWorkflowChapter] = Field(default_factory=list)
-    volume_plan: list[BookRunVolumePlanItem] = Field(default_factory=list)
-    narrative_plan: dict[str, Any] = Field(default_factory=dict)
-    entity_budget: dict[str, Any] = Field(default_factory=dict)
-    phase_policy: dict[str, Any] = Field(default_factory=dict)
-    beat_sheet_gate: dict[str, Any] = Field(default_factory=dict)
 
 
 class BookRunQualitySummary(BaseModel):

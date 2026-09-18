@@ -14,12 +14,10 @@ from app.domains.book_runs.schemas import (
     BookRunProgressUpdate,
     BookRunRead,
     BookRunStartRequest,
-    BookRunWorkflowDispatch,
 )
 from app.domains.book_runs.service import (
     apply_book_run_progress,
     assert_book_run_startable,
-    build_book_run_workflow_dispatch,
     create_book_run,
     get_book_run,
     mark_book_run_generation_dispatched,
@@ -134,17 +132,6 @@ def retry_book_run_endpoint(book_run_id: int, session: SessionDependency) -> Boo
     book_run = retry_book_run_from_checkpoint(session, book_run_id)
     record_book_run_snapshot(session, book_run=book_run, source="bookrun.retry_from_checkpoint")
     return book_run
-
-
-@router.get(
-    "/{book_run_id}/workflow-dispatch",
-    response_model=BookRunWorkflowDispatch,
-    summary="读取 BookRun 兼容调度 payload",
-)
-def get_book_run_workflow_dispatch_endpoint(book_run_id: int, session: SessionDependency) -> BookRunWorkflowDispatch:
-    """为兼容后台 worker 生成调度 payload；接口本身不执行生成运行。"""
-
-    return build_book_run_workflow_dispatch(session, book_run_id)
 
 
 @router.patch("/{book_run_id}/progress", response_model=BookRunRead, summary="回填 BookRun 进度")

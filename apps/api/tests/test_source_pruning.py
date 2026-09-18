@@ -218,7 +218,6 @@ def test_jobs_runtime_bridge_helper_stays_pruned() -> None:
     for required in (
         "def get_runs_job_run(",
         "runtime_diagnostics",
-        "def record_workflow_model_run_payload(",
     ):
         assert required in model_runs_service_source, f"model_runs 真实读写链路必须保留：{required}"
 
@@ -244,3 +243,33 @@ def test_orphaned_helpers_and_types_stay_pruned() -> None:
     assert "DisabledRerankerClient" not in reranker_source
     assert "apply_llm_config_file =" not in llm_env_source
     assert "apply_polish_config_file =" not in llm_env_source
+
+
+def test_workflow_compat_dispatch_and_payload_facade_stay_pruned() -> None:
+    """workflow-dispatch 兼容链与 record_workflow_model_run_payload facade 已随 apps/workflow 退役，不应重新出现。
+
+    历史消费方 apps/workflow 已于 2026-07-26 物理退役；2026-09 全仓实证零消费方后整链删除：
+    dispatch.py / gate.py / BookRunWorkflow* schema / workflow-dispatch 路由 /
+    record_workflow_model_run_payload 及其孤儿 helper。恢复须走新决策，不得悄悄加回。
+    """
+
+    book_runs_root = API_ROOT / "app" / "domains" / "book_runs"
+    model_runs_root = API_ROOT / "app" / "domains" / "model_runs"
+
+    assert not (book_runs_root / "dispatch.py").exists(), "book_runs/dispatch.py 兼容调度模块不应重新出现。"
+    assert not (book_runs_root / "gate.py").exists(), "book_runs/gate.py dispatch 专属门禁不应重新出现。"
+
+    router_source = (book_runs_root / "router.py").read_text(encoding="utf-8")
+    book_runs_service_source = (book_runs_root / "service.py").read_text(encoding="utf-8")
+    schemas_source = (book_runs_root / "schemas.py").read_text(encoding="utf-8")
+    recording_source = (model_runs_root / "recording.py").read_text(encoding="utf-8")
+    model_runs_service_source = (model_runs_root / "service.py").read_text(encoding="utf-8")
+
+    assert "workflow-dispatch" not in router_source
+    assert "build_book_run_workflow_dispatch" not in book_runs_service_source
+    assert "BookRunWorkflow" not in schemas_source
+    assert "record_workflow_model_run_payload" not in recording_source
+    assert "record_workflow_model_run_payload" not in model_runs_service_source
+
+    registered_paths = {route.path for route in app.routes}
+    assert "/api/book-runs/{book_run_id}/workflow-dispatch" not in registered_paths
