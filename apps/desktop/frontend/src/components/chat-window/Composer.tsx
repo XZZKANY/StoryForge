@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useCallback, useRef, type MutableRefObject } from 'react';
 import { AGENT_ROLE_SUGGESTIONS } from '../../lib/agent-roles';
 import { type AgentPermissionProfile } from '../../lib/agent-permission';
 import { basename } from '../app/helpers';
@@ -7,6 +7,7 @@ import { roleMentionQuery } from './display-utils';
 import { PermissionProfileSelector } from './PermissionProfileSelector';
 
 export function ComposerBox({
+  inputRef,
   value,
   disabled,
   busy,
@@ -20,6 +21,7 @@ export function ComposerBox({
   permissionProfile,
   onPermissionProfileChange,
 }: {
+  inputRef?: MutableRefObject<HTMLTextAreaElement | null>;
   value: string;
   disabled: boolean;
   busy: boolean;
@@ -43,6 +45,7 @@ export function ComposerBox({
           }}
         >
           <ComposerSurface
+            inputRef={inputRef}
             value={value}
             disabled={disabled}
             busy={busy}
@@ -63,6 +66,7 @@ export function ComposerBox({
 }
 
 export function ComposerSurface({
+  inputRef,
   value,
   disabled,
   busy,
@@ -76,6 +80,7 @@ export function ComposerSurface({
   permissionProfile,
   onPermissionProfileChange,
 }: {
+  inputRef?: MutableRefObject<HTMLTextAreaElement | null>;
   value: string;
   disabled: boolean;
   busy: boolean;
@@ -93,6 +98,13 @@ export function ComposerSurface({
   // 方向键回溯已发送消息：游标为 null 表示在编辑当前草稿，
   // 数字表示正浏览 history[index]。draft 保留进入历史前的草稿，ArrowDown 越过最新即还原。
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const attachInput = useCallback(
+    (element: HTMLTextAreaElement | null) => {
+      textareaRef.current = element;
+      if (inputRef) inputRef.current = element;
+    },
+    [inputRef],
+  );
   const historyIndexRef = useRef<number | null>(null);
   const draftRef = useRef<string>('');
 
@@ -195,7 +207,7 @@ export function ComposerSurface({
         </div>
       )}
       <textarea
-        ref={textareaRef}
+        ref={attachInput}
         value={value}
         onChange={(event) => {
           historyIndexRef.current = null; // 手动改动即退出历史回溯，回到实时草稿

@@ -1,3 +1,4 @@
+import { ConversationStarters } from './ConversationStarters';
 import { useRef, useState } from 'react';
 import {
   semanticKindLabel,
@@ -206,6 +207,8 @@ export function MessageList({
   onAddContext,
   onTogglePinnedContext,
   onRetryContextCandidates,
+  onSelectPrompt,
+  starterDisabled = false,
 }: {
   messages: Message[];
   projectName: string | null;
@@ -223,10 +226,12 @@ export function MessageList({
   onAddContext: () => void;
   onTogglePinnedContext: (path: string) => void;
   onRetryContextCandidates: () => void;
+  onSelectPrompt?: (prompt: string) => void;
+  starterDisabled?: boolean;
 }) {
   if (messages.length === 0) {
     return (
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <EmptyConversation
           projectName={projectName}
           currentFileLabel={currentFileLabel}
@@ -240,6 +245,8 @@ export function MessageList({
           onAddContext={onAddContext}
           onTogglePinnedContext={onTogglePinnedContext}
           onRetryContextCandidates={onRetryContextCandidates}
+          onSelectPrompt={onSelectPrompt}
+          starterDisabled={starterDisabled}
         />
       </div>
     );
@@ -394,7 +401,9 @@ export function RunActionBar({
                                 <span />
                                 <span />
                               </span>
-                              <span className="text-foreground">{activeStep ? activeStep.title : '正在处理'}</span>
+                              <span className="text-foreground">
+                                {activeStep ? activeStep.title : '正在处理'}
+                              </span>
                             </span>
                           );
                         })()
@@ -822,6 +831,8 @@ export function EmptyConversation({
   onAddContext,
   onTogglePinnedContext,
   onRetryContextCandidates,
+  onSelectPrompt,
+  starterDisabled = false,
 }: {
   projectName: string | null;
   currentFileLabel: string | null;
@@ -835,10 +846,12 @@ export function EmptyConversation({
   onAddContext: () => void;
   onTogglePinnedContext: (path: string) => void;
   onRetryContextCandidates: () => void;
+  onSelectPrompt?: (prompt: string) => void;
+  starterDisabled?: boolean;
 }) {
   return (
-    <div className="flex h-full items-center justify-center px-4 py-10">
-      <div className="w-full max-w-[680px] translate-y-[-3vh]">
+    <div className="flex min-h-full items-center justify-center px-4 py-10">
+      <div className="w-full max-w-[680px]">
         <div className="mb-8 text-center animate-fade-in-scale">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-agent/20 to-agent/5 shadow-lg">
             <Sparkles size={32} strokeWidth={1.5} className="text-agent" />
@@ -849,16 +862,17 @@ export function EmptyConversation({
           </div>
         </div>
 
-        <div className="card-hover rounded-xl border border-border bg-panel p-6 text-center shadow-md animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+        <div
+          className="card-hover rounded-xl border border-border bg-panel p-6 text-center shadow-md animate-fade-in-up"
+          style={{ animationDelay: '100ms' }}
+        >
           <div className="text-sm text-muted">
             在下方输入框开始对话，Agent 会根据你的指令协助创作
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-2xs text-subtle">
-            <span className="rounded-lg bg-elevated px-3 py-1.5 transition-colors hover:bg-border hover:text-foreground">审稿</span>
-            <span className="rounded-lg bg-elevated px-3 py-1.5 transition-colors hover:bg-border hover:text-foreground">修订</span>
-            <span className="rounded-lg bg-elevated px-3 py-1.5 transition-colors hover:bg-border hover:text-foreground">起草</span>
-            <span className="rounded-lg bg-elevated px-3 py-1.5 transition-colors hover:bg-border hover:text-foreground">一致性检查</span>
-          </div>
+          <ConversationStarters
+            onSelect={onSelectPrompt}
+            disabled={!projectName || starterDisabled}
+          />
         </div>
 
         <div className="mt-4 animate-fade-in-up" style={{ animationDelay: '200ms' }}>

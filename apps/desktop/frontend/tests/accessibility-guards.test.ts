@@ -147,7 +147,8 @@ test('骨架屏与 sr-only 工具既已定义也被实际引用', () => {
   assert.match(css, /\.skeleton\s*\{/, '.skeleton 定义缺失');
   assert.match(css, /\.sr-only\s*\{/, '.sr-only 定义缺失');
   const overview = readFileSync(abs('../src/components/app/BookOverview.tsx'), 'utf8');
-  assert.ok(overview.includes('skeleton'), 'BookOverview 骨架屏引用了 .skeleton');
+  const hero = readFileSync(abs('../src/components/app/BookOverviewHero.tsx'), 'utf8');
+  assert.ok(hero.includes('skeleton'), 'BookOverviewHero 骨架屏引用了 .skeleton');
   assert.ok(overview.includes('sr-only'), 'BookOverview 用 sr-only 承载加载语义');
 });
 
@@ -286,7 +287,7 @@ function contrastRatio(a: RGB, b: RGB): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-test('正文/次级/提示文本对画布的对比度达 WCAG 阈值（双主题）', () => {
+test('正文/次级/提示文本在各常用表面及主按钮达到普通文字 AA 对比度（双主题）', () => {
   const css = readFileSync(abs('../src/index.css'), 'utf8');
   for (const theme of ['dark', 'light'] as const) {
     const foreground = parseToken(css, 'foreground', theme);
@@ -304,10 +305,23 @@ test('正文/次级/提示文本对画布的对比度达 WCAG 阈值（双主题
       contrastRatio(muted, background) >= 4.5,
       `${theme} --muted/--background 对比度 ${contrastRatio(muted, background).toFixed(2)} < 4.5`,
     );
-    // 提示/占位文本（非关键信息）按非文本控件 3:1 保底。
+    for (const surface of ['background', 'panel', 'surface', 'elevated']) {
+      const color = parseToken(css, surface, theme);
+      for (const [name, text] of [
+        ['subtle', subtle],
+        ['muted', muted],
+      ] as const) {
+        assert.ok(
+          contrastRatio(text, color) >= 4.5,
+          `${theme} --${name}/--${surface}: ${contrastRatio(text, color).toFixed(2)} < 4.5`,
+        );
+      }
+    }
+    const agent = parseToken(css, 'agent', theme);
+    const agentForeground = parseToken(css, 'agent-foreground', theme);
     assert.ok(
-      contrastRatio(subtle, background) >= 3.0,
-      `${theme} --subtle/--background 对比度 ${contrastRatio(subtle, background).toFixed(2)} < 3.0`,
+      contrastRatio(agentForeground, agent) >= 4.5,
+      `${theme} 主按钮文字对比度 ${contrastRatio(agentForeground, agent).toFixed(2)} < 4.5`,
     );
   }
 });

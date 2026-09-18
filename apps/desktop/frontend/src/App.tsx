@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PaletteMode } from './components/CommandPalette';
 import { AppShell } from './components/app/AppShell';
 import { BookOverview } from './components/app/BookOverview';
-import type { MainSurface } from './components/app/app-shell-types';
+import { useMainSurface } from './components/app/useMainSurface';
 import { useOverviewActivity } from './components/app/useOverviewActivity';
 import { useAppDialog } from './components/app/AppDialog';
 import { useAppPreferences } from './components/app/useAppPreferences';
@@ -26,14 +26,16 @@ import type { ObservationAnchor } from './lib/observations';
 import { emitToast } from './lib/toast';
 import { checkForUpdate, currentAppVersion } from './lib/update-check';
 export function App() {
-  const [mainSurface, setMainSurface] = useState<MainSurface>('overview');
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [palette, setPalette] = useState<PaletteMode | null>(null);
   const [obsPanelOpen, setObsPanelOpen] = useState(false);
   const appDialog = useAppDialog();
   const shell = useShellState();
-  // showCenter 单独取出：稳定 useCallback，供 showEditor / locateAnchor 依赖，避免整个 shell 进 deps。
-  const { showCenter, showRight } = shell;
+  const { showRight } = shell;
+  const { mainSurface, setMainSurface, showEditor, showOverview, navigateView } = useMainSurface(
+    shell,
+    setSettingsVisible,
+  );
   const preferences = useAppPreferences();
   // 欢迎页可关（会话级）：起始态由「启动时显示欢迎页」偏好决定；关了露出空 workbench，
   // 命令面板「显示欢迎页」可重开。
@@ -41,16 +43,6 @@ export function App() {
     () => !preferences.settings.showWelcomeOnStartup,
   );
 
-  // 关设置页 + 确保中栏可见（对话聚焦 Ctrl+3 态会隐藏中栏，补丁 / 正文才不至于落在看不见的中栏）。
-  const showEditor = useCallback(() => {
-    setSettingsVisible(false);
-    setMainSurface('workspace');
-    showCenter();
-  }, [showCenter]);
-  const showOverview = useCallback(() => {
-    setSettingsVisible(false);
-    setMainSurface('overview');
-  }, []);
   const workspace = useProjectWorkspace({
     onProjectSelected: showOverview,
     onFileSelected: showEditor,
@@ -85,15 +77,8 @@ export function App() {
     onShowEditor: showEditor,
   });
   const switchView = useCallback(
-    (view: SidePanelView) => {
-      if (view === 'book' && workspace.activeProject) showOverview();
-      else {
-        setMainSurface('workspace');
-        shell.showSidebar();
-        shell.switchView(view);
-      }
-    },
-    [shell, showOverview, workspace.activeProject],
+    (view: SidePanelView) => navigateView(view, Boolean(workspace.activeProject)),
+    [navigateView, workspace.activeProject],
   );
   const openSettings = useCallback(async () => {
     setSettingsVisible(true);
@@ -338,7 +323,7 @@ export function App() {
         showEditor();
       }
     },
-    [openManuscriptChapter, showEditor],
+    [openManuscriptChapter, setMainSurface, showEditor],
   );
   const showAgent = useCallback(() => {
     showEditor();

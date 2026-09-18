@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { useBookProfile } from '../src/components/app/useBookProfile';
+import { BookOverview } from '../src/components/app/BookOverview';
 import { buildProjectIndex } from '../src/lib/project-context';
 import { TauriFileSystem } from '../src/lib/tauri-fs';
 import { scanManuscriptTotals } from '../src/lib/manuscript-stats';
@@ -144,4 +145,31 @@ test('does not project a late save failure into a different project lifetime', a
   rejectWrite(new Error('旧项目写入失败'));
   await act(async () => {});
   assert.equal(container!.querySelector('[data-save-error]')?.getAttribute('data-save-error'), '');
+});
+
+test('总览通过真实读取 hook 重试恢复，成功的空档案才显示填写引导', async () => {
+  function OverviewHarness() {
+    const profile = useBookProfile({ activeProject: 'D:/book', active: true });
+    return <BookOverview projectPath="D:/book" profile={profile} onContinueWriting={() => {}} />;
+  }
+  mockedRead.mockRejectedValueOnce(new Error('档案无读取权限'));
+  mockedBuild.mockRejectedValueOnce(new Error('大纲目录无法读取'));
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+  await act(async () => root!.render(<OverviewHarness />));
+  assert.match(container!.textContent ?? '', /档案无读取权限/);
+  assert.match(container!.textContent ?? '', /大纲目录无法读取/);
+  assert.doesNotMatch(container!.textContent ?? '', /还没有简介|尚未设置全书字数目标|还没有可展示/);
+  mockedRead.mockImplementation(async () => '');
+  await act(async () =>
+    container!
+      .querySelector<HTMLButtonElement>('[data-testid="book-overview-retry-profile"]')!
+      .click(),
+  );
+  assert.doesNotMatch(container!.textContent ?? '', /档案无读取权限|大纲目录无法读取/);
+  assert.match(container!.textContent ?? '', /还没有简介/);
+  assert.match(container!.textContent ?? '', /尚未设置全书字数目标/);
+  assert.match(container!.textContent ?? '', /还没有可展示的大纲标题/);
+  assert.equal(mockedWrite.mock.calls.length, 0);
 });

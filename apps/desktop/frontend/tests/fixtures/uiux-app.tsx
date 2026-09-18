@@ -23,6 +23,8 @@ content.set(
   }),
 );
 let failed = false;
+let readGate: Promise<void> | null = null;
+let releaseRead: (() => void) | null = null;
 const normalize = (path: string) => path.replaceAll('\\', '/').replace(/\/$/, '');
 const dirs = new Set<string>([project]);
 for (const path of content.keys()) {
@@ -33,7 +35,8 @@ for (const path of content.keys()) {
   }
 }
 window.__STORYFORGE_MOCK_FS__ = {
-  readFile(path) {
+  async readFile(path) {
+    if (readGate) await readGate;
     const normalized = normalize(path);
     if (failed) throw new Error('验收注入：文件读取暂时失败');
     if (!content.has(normalized)) throw new Error(`样例文件不存在：${normalized}`);
@@ -81,7 +84,14 @@ window.fetch = async (input, init) => {
   }
   return fetchOriginal(input, init);
 };
-const keys = [APP_SETTINGS_KEY, 'storyforge:workspace-session', 'storyforge:recent-projects'];
+const keys = [
+  APP_SETTINGS_KEY,
+  'storyforge:workspace-session',
+  'storyforge:recent-projects',
+  'storyforge:shell:view',
+  'storyforge:shell:layoutMode',
+  'storyforge:shell:sidebarHidden',
+];
 const backup = new Map(keys.map((key) => [key, localStorage.getItem(key)]));
 localStorage.setItem(
   APP_SETTINGS_KEY,
@@ -109,6 +119,25 @@ createRoot(document.getElementById('fixture-controls')!).render(
     <button onClick={() => window.__STORYFORGE_SMOKE__?.openProject(project)}>打开样例作品</button>
     <button onClick={() => applyTheme('dark')}>深色验收</button>
     <button onClick={() => applyTheme('light')}>浅色验收</button>
+    <button
+      onClick={() => {
+        readGate ??= new Promise<void>((resolve) => {
+          releaseRead = resolve;
+        });
+        invalidateFileSystemCache(project);
+      }}
+    >
+      暂停读取
+    </button>
+    <button
+      onClick={() => {
+        releaseRead?.();
+        readGate = null;
+        releaseRead = null;
+      }}
+    >
+      恢复读取
+    </button>
     <button
       onClick={() => {
         failed = !failed;

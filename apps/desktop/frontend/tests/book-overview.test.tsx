@@ -116,9 +116,7 @@ test('统计失败不混入模型估值，显示可重试的显式错误', async
   expect(host.querySelector('[role="status"]')?.textContent).toContain('正在读取');
   expect(host.querySelector('[role="alert"]')?.textContent).toContain('统计失败');
   expect(host.querySelector('[data-testid="book-overview-progress-bar"]')).toBeNull();
-  expect(host.querySelector('[data-testid="book-overview-progress"]')?.textContent).not.toContain(
-    '9,999',
-  );
+  expect(host.textContent).not.toContain('9,999');
   await act(async () =>
     host.querySelector<HTMLButtonElement>('[data-testid="book-overview-refresh"]')!.click(),
   );
@@ -152,6 +150,8 @@ test('载入中显示形状骨架、区域标记 aria-busy，骨架本身对屏�
 
   const skeleton = host.querySelector('[data-testid="book-overview-skeleton"]');
   expect(skeleton).toBeTruthy();
+  expect(host.querySelector('[data-testid="book-overview-hero"]')).toBeNull();
+  expect(host.querySelector('[data-testid="book-overview-continue"]')).toBeNull();
   // 骨架只供肉眼，整块对屏幕阅读器隐藏；里面每个占位块都用 .skeleton。
   expect(skeleton?.getAttribute('aria-hidden')).toBe('true');
   expect(skeleton!.querySelectorAll('.skeleton').length).toBeGreaterThan(4);
@@ -174,7 +174,44 @@ test('载入中显示形状骨架、区域标记 aria-busy，骨架本身对屏�
     ),
   );
   expect(host.querySelector('[data-testid="book-overview-skeleton"]')).toBeNull();
+  expect(host.querySelector('[data-testid="book-overview-hero"]')).toBeTruthy();
   expect(host.querySelector('[data-testid="book-overview"]')?.getAttribute('aria-busy')).toBe(
     'false',
   );
+});
+
+test('档案与大纲失败明确报错并可重试，不显示未填写的空状态', async () => {
+  root = createRoot(host);
+  const data = profile();
+  data.profileError = '档案无读取权限';
+  data.outlineError = '大纲读取失败';
+  const refresh = vi.fn();
+  await render({ profile: data, onRefresh: refresh });
+  expect(host.textContent).toContain('档案无读取权限');
+  expect(host.textContent).toContain('大纲读取失败');
+  expect(host.textContent).not.toContain('还没有简介');
+  expect(host.textContent).not.toContain('尚未添加题材标签');
+  expect(host.textContent).not.toContain('还没有可展示的大纲标题');
+  expect(host.querySelector('[data-testid="book-overview-progress-bar"]')).toBeNull();
+  const retry = host.querySelector<HTMLButtonElement>(
+    '[data-testid="book-overview-retry-profile"]',
+  );
+  expect(retry).toBeTruthy();
+  await act(async () => retry!.click());
+  expect(refresh).toHaveBeenCalledOnce();
+});
+
+test('大纲读取中不声称为空，字数失败不把旧进度当成当前统计', async () => {
+  root = createRoot(host);
+  const data = profile();
+  data.outlineLoading = true;
+  data.totalsError = '统计读取失败';
+  await render({ profile: data });
+  const outline = host.querySelector('[data-testid="book-overview-outline"]');
+  expect(outline?.textContent).toContain('正在读取大纲');
+  expect(outline?.textContent).not.toContain('还没有可展示');
+  expect(host.querySelector('[data-testid="book-overview-progress"]')?.textContent).toContain(
+    '上次统计',
+  );
+  expect(host.querySelector('[data-testid="book-overview-progress-bar"]')).toBeNull();
 });

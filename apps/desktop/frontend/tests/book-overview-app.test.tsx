@@ -84,6 +84,15 @@ test('总览释放主区并保留编辑器、Agent、作品表单；导航和同
     expect(get('assistant-panel').hidden).toBe(true);
     expect(get('writing-workspace-surface').hidden).toBe(true);
     expect(get('shell-center').style.minWidth).toBe('');
+    // 总览的隐藏状态不等于作者主动收起；点击当前视图必须展开它。
+    await click('activity-explorer');
+    expect(surface()).toBe('workspace');
+    expect(get('workspace-sidebar-surface').hidden).toBe(false);
+    await click('activity-explorer');
+    expect(get('workspace-sidebar-surface').hidden).toBe(true);
+    await click('activity-explorer');
+    expect(get('workspace-sidebar-surface').hidden).toBe(false);
+    await click('activity-book');
     await click('agent-run-trigger');
     expect(get('book-overview-agent-run').textContent).toContain('Agent 正在工作');
     await click('book-overview-agent-run');

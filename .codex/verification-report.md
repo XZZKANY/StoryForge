@@ -2957,3 +2957,27 @@ pm.cmd run test -- tests/use-book-overview-chapters.test.tsx 3/3；目标 ESLint
 - 命令面板“恢复完整布局/聚焦对话/聚焦工作区”从总览也会先返回工作台，避免死动作；Ctrl+B、作品/其他 Activity 导航同样遵循 surface 控制器。
 - 章节索引 loading/error 状态在总览中明确展示，后端 context 失败不再覆盖独立本地章节事实。
 - 最后复验：typecheck、100 files/649 tests、build、target ESLint、Prettier touched-file check、git diff --check 均通过。
+
+## 2026-09-18 UI/UX 优化后只读复查
+
+- 基线：`2d420127`；未改产品代码。报告：`.trellis/tasks/09-18-desktop-uiux-followup-review/review.md`，截图与观察记录在其 `evidence/`。
+- `npm.cmd run typecheck`（`apps/desktop/frontend`）：通过。
+- `npm.cmd run test -- tests/book-overview.test.tsx tests/book-overview-app.test.tsx tests/accessibility-guards.test.ts tests/shell-panel-views.test.tsx tests/workspace-layout-app.test.tsx tests/shortcuts.test.tsx tests/editor-tabs.test.tsx tests/search-view-live-region.test.tsx tests/chat-run-live-region.test.tsx tests/settings-accessibility.test.tsx`：10 files / 53 tests passed。
+- 浏览器验证：实际欢迎页与设置；仓库现有 UI fixture 在 1024×768 深色总览/工作台/补丁、1024×768 浅色总览、1920×1080 浅色总览。设置搜索与 Escape 焦点返回正常；小窗口补丁操作组均可见。
+- 已确认问题：同一侧栏收起后无法通过当前图标重新展开；总览未呈现 profileError/outlineError，失败显示为空；深色主按钮文字对比度 2.53:1、浅色 11px 提示 3.25:1；骨架与正式 hero 同时渲染。
+- 骨架证据：临时 Node/Vite SSR 加载真实 BookOverview + emptyBookProfile；loading 下 skeleton/hero/chapterList/continueButton 同时存在，settled 下仅 skeleton 消失。无新增产品测试文件。
+- 未验证：原生 Tauri、真实 provider、真实 guarded writeback、全量 pnpm verify、屏幕阅读器听测、长篇质量。现有 fixture 的 503 不视为产品在线服务故障；未接受补丁、未写入真实小说。
+
+## 2026-09-18 Desktop UI/UX 后续优化实施
+
+- 范围：侧栏 toggle/总览导航、资料/大纲读取状态与重试、陈旧字数标识、互斥 hero/skeleton、主题对比度、空封面文案、Agent 提示填入与焦点。API、权限及 guarded writeback 契约未变；Editor/Chat 保持挂载。
+- `npm.cmd run test`（`apps/desktop/frontend`）：104 files / 688 tests passed。最后的占位高度与光标调整后，五个相关测试文件再次通过，25 tests passed。
+- `npm.cmd run typecheck`、`npm.cmd run build`：通过；构建仍有既有大 chunk 和 Tauri event 混合导入提示。
+- 本轮全部改动 TS/TSX 的目标 ESLint、目标 Prettier、`git diff --check`：通过。`uv run pytest tests/test_source_code_standards.py -q`：16 passed；App 从 413 降为 398 行，总览从 535 降为 382 行，新增 Hero 250 行。
+- `pnpm.cmd verify`：在首个 lint 阶段被旧 `.trellis/tasks/09-06-desktop-uiux-optimization/research/native-ui-20260906-192750/webview/EBWebView/Subresource Filter/Unindexed Rules/10.34.0.84/adblock_snippet.js` 的 10 个错误拦住，后续总门禁阶段未执行。完整输出在本任务 `evidence/verify-local.log`；未修改缓存或 lint 配置。
+- 诊断检查 `pnpm.cmd exec eslint . --ignore-pattern '.trellis/tasks/09-06-desktop-uiux-optimization/research/native-ui-20260906-192750/webview/**'` 通过，仅用于确认错误来源，不视作总门禁通过。独立运行根 Prettier 后只剩 `CommandPalette.tsx`、`shell/ContextMenu.tsx` 两个既有格式问题；已按字节验证与 HEAD 相同。
+- 对比度：深色主按钮由 2.53:1 提高为 6.72:1，浅色为 5.81:1；subtle 在最弱 elevated 表面深/浅分别为 4.59:1 / 4.76:1。回归断言覆盖双主题的四类常用表面。
+- 浏览器：真实 App/Editor/Chat 的隔离内存夹具完成 1024×768 / 1920×1080 × 深浅主题检查。侧栏可见序列 1→0→1；提示追加保留草稿、焦点为真实 textarea，光标到末尾且提示可见。1024 下四个补丁操作按钮均在视口内，未接受补丁。
+- 加载几何：1024 下骨架/hero 均 300px、章节列表 y=497.5；1920 下均 348.65625px、章节列表 y=632.15625。成功内容与骨架不共存；读取失败显示错误和重试，旧字数标“上次统计”，恢复后重新显示有效资料。无横向页面溢出。
+- 证据：`.trellis/tasks/09-18-desktop-uiux-followup-review/evidence/optimized-*.png`、`optimized-browser-observations.json`。记录中明确保留了一次热重载导致无项目的无效采样，最终结论仅用后续 verified 样例。
+- 已更新本地 Trellis frontend component guidelines；该目录按仓库 `.gitignore` 约定保持本地。未验证原生 Tauri、真实 provider、真实写回、屏幕阅读器听测和长篇质量。产品改动已完成，git 提交与任务归档待提交计划确认。

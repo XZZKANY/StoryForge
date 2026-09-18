@@ -15,14 +15,14 @@
   --border-strong: 76 76 84; /* #4c4c54 强调描边（聚焦） */
   --foreground: 237 237 237; /* #ededed 主文本 */
   --muted: 168 168 178; /* #a8a8b2 次级文本（提升对比度至 4.5:1+） */
-  --subtle: 134 134 144; /* #868690 三级/提示文本（提升对比度至 4.2:1） */
+  --subtle: 163 163 174; /* #a3a3ae 提示文本：含 elevated 表面均达到普通文字 AA */
   --accent: 235 235 235; /* 单色强调：深色模式用近白，无品牌橙 */
   --accent-foreground: 24 24 27;
   --error: 229 91 91;
   --warning: 235 201 126;
   --success: 115 202 128;
   --agent: 146 153 234; /* 鸢尾紫：只用于 agent 相关（召唤/思考/advisory/发送键聚焦态），当金子省着用 */
-  --agent-foreground: 250 250 250; /* 紫底按钮前景：两主题都近白，与 accent-foreground 对称 */
+  --agent-foreground: 24 24 27; /* 浅紫填充配深文字，保持普通文字 AA 对比度 */
   /* 审稿 issue 严重度：单一事实源，css 下划线/圆点与 decorations.ts overviewRuler 同取，对齐语义色板 */
   --issue-high: 229 91 91; /* = --error */
   --issue-medium: 235 201 126; /* = --warning */
@@ -106,7 +106,7 @@
   --border-strong: 201 201 208; /* #c9c9d0 */
   --foreground: 26 26 29; /* #1a1a1d 主文本 */
   --muted: 94 94 102; /* #5e5e66 次级文本 */
-  --subtle: 142 142 150; /* #8e8e96 提示文本 */
+  --subtle: 104 104 114; /* #686872 提示文本：白底与 elevated 表面均达到 AA */
   --accent: 24 24 27; /* 单色强调：浅色模式用近黑 */
   --accent-foreground: 250 250 250;
   --error: 200 56 56;

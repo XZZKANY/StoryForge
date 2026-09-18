@@ -11,16 +11,9 @@ import { formatEstimatedChars } from '../../lib/book-context';
 import type { BookOverviewChaptersHandle } from './useBookOverviewChapters';
 import type { BookProfileHandle } from './useBookProfile';
 import type { AgentRunOverviewSummary } from '../chat-window/types';
-import { bookGoalProgress, displayBookTitle, formatWordCount } from '../../lib/book-profile';
-import {
-  ArrowUp,
-  BookOpen,
-  ChevronRight,
-  FileText,
-  ImagePlus,
-  Library,
-  RefreshCw,
-} from '../icons/shell-icons';
+import { displayBookTitle } from '../../lib/book-profile';
+import { BookOverviewHero } from './BookOverviewHero';
+import { BookOpen, ChevronRight, FileText, Library, RefreshCw } from '../icons/shell-icons';
 import { LiveStatus } from '../shell/LiveStatus';
 
 export type BookOverviewProps = {
@@ -77,43 +70,6 @@ function ContextStatus({
   );
 }
 
-/**
- * 载入中的骨架屏：镜像 hero 两卡（封面+简介 / 写作进度）的形状，
- * 让加载结束时的布局不发生跳动，比一行裸「正在读取…」更贴近成品观感。
- * 骨架块是装饰（aria-hidden），真正语义由外层的 aria-busy + 隐藏「正在读取」承载。
- */
-function BookOverviewSkeleton() {
-  return (
-    <div
-      className="grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]"
-      data-testid="book-overview-skeleton"
-      aria-hidden="true"
-    >
-      {/* 左卡：封面 + 简介 + 主按钮 */}
-      <div className="flex min-w-0 flex-col gap-5 rounded-xl border border-border bg-panel p-5 sm:flex-row md:p-6">
-        <div className="skeleton aspect-[3/4] w-32 flex-shrink-0 rounded-lg sm:w-40 xl:w-56" />
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <div className="skeleton h-5 w-2/5" />
-          <div className="skeleton h-4 w-full" />
-          <div className="skeleton h-4 w-11/12" />
-          <div className="skeleton h-4 w-3/5" />
-          <div className="skeleton mt-auto h-11 w-36 rounded-lg" />
-        </div>
-      </div>
-      {/* 右卡：写作进度 */}
-      <div className="rounded-xl border border-border bg-panel p-5 md:p-6">
-        <div className="skeleton h-5 w-24" />
-        <div className="skeleton mt-5 h-9 w-32" />
-        <div className="skeleton mt-4 h-2.5 w-full rounded-full" />
-        <div className="mt-6 grid grid-cols-2 gap-3 border-t border-border pt-4">
-          <div className="skeleton h-14 rounded-lg" />
-          <div className="skeleton h-14 rounded-lg" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function BookOverview({
   projectPath,
   profile,
@@ -122,7 +78,7 @@ export function BookOverview({
   onContinueWriting,
   onOpenChapter,
   onOpenOutline,
-  onRefresh,
+  onRefresh = profile.refresh,
   pendingPatchCount = 0,
   onOpenPendingPatches,
   agentRun = null,
@@ -137,15 +93,12 @@ export function BookOverview({
     chapterIndex?.currentChapter ??
     chapters.find((chapter) => chapter.relativePath === snapshot?.currentRelativePath) ??
     null;
-  const currentPath = currentChapter?.relativePath;
-  const totalChars = profile.totals?.chars ?? null;
-  const progress = totalChars === null ? null : bookGoalProgress(totalChars, book.wordGoal);
   const recentChapters = chapters;
   const outlineItems = profile.outline.slice(0, 6);
 
   return (
     <div
-      className="min-h-0 flex-1 overflow-y-auto bg-background"
+      className="min-h-0 flex-1 overflow-y-auto bg-background [scrollbar-gutter:stable]"
       data-testid="book-overview"
       role="region"
       aria-label="作品总览"
@@ -187,149 +140,22 @@ export function BookOverview({
             可见观感交给骨架屏（下面 BookOverviewSkeleton），见字不听字。 */}
         <LiveStatus text={profile.loading ? '正在读取作品资料…' : ''} testid="book-overview-live" />
 
-        {profile.loading && <BookOverviewSkeleton />}
         {profile.totalsError && (
           <p role="alert" className="rounded-lg border border-border p-3 text-sm text-error">
             字数统计失败：{profile.totalsError}。请重新读取作品资料。
           </p>
         )}
 
-        <section
-          className="grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] animate-fade-in-up"
-          style={{ animationDelay: '50ms' }}
-          data-testid="book-overview-hero"
-        >
-          <div className="card-hover flex min-w-0 flex-col gap-5 rounded-xl border border-border bg-panel p-5 sm:flex-row md:p-6">
-            <div className="group relative aspect-[3/4] w-32 flex-shrink-0 overflow-hidden rounded-lg border border-border-strong bg-elevated sm:w-40 xl:w-56 transition-transform hover:scale-[1.02]">
-              {profile.coverUrl ? (
-                <img
-                  src={profile.coverUrl}
-                  alt={`${title}封面`}
-                  className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                  data-testid="book-overview-cover"
-                />
-              ) : (
-                <div
-                  className="flex h-full w-full flex-col items-center justify-center gap-2 text-subtle transition-colors group-hover:text-muted"
-                  data-testid="book-overview-cover-empty"
-                >
-                  <ImagePlus size={24} strokeWidth={1.4} aria-hidden="true" />
-                  <span className="text-2xs">暂无封面</span>
-                </div>
-              )}
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex flex-wrap gap-1.5">
-                {book.tags.length > 0 ? (
-                  book.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full bg-elevated px-2.5 py-1 text-2xs text-muted transition-colors hover:bg-border hover:text-foreground"
-                    >
-                      {tag}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-xs text-subtle">尚未添加题材标签</span>
-                )}
-              </div>
-              <p
-                className="mt-4 line-clamp-4 text-sm leading-6 text-muted"
-                data-testid="book-overview-synopsis"
-              >
-                {book.synopsis.trim() ||
-                  '还没有简介。通过上方「编辑作品资料」补充这本书的核心设定。'}
-              </p>
-              <div className="mt-auto pt-5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (currentPath) onContinueWriting(currentPath);
-                    else {
-                      chapterListRef.current?.scrollIntoView?.({ block: 'nearest' });
-                      chapterListRef.current?.focus();
-                    }
-                  }}
-                  className="interactive-press inline-flex h-11 items-center gap-2 rounded-lg bg-agent px-5 text-sm font-medium text-agent-foreground shadow-md transition-all hover:brightness-110 hover:shadow-lg active:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                  data-testid="book-overview-continue"
-                >
-                  <ArrowUp size={16} strokeWidth={1.8} aria-hidden="true" />
-                  {currentPath ? '继续写作' : '选择章节开始'}
-                  <ChevronRight size={15} strokeWidth={1.8} aria-hidden="true" />
-                </button>
-                {currentChapter ? (
-                  <p
-                    className="mt-2 truncate text-2xs text-subtle"
-                    title={currentChapter.relativePath}
-                  >
-                    从第 {currentChapter.ordinal} 章 · {currentChapter.name} 继续
-                  </p>
-                ) : (
-                  <p className="mt-2 text-2xs text-subtle">
-                    没有可继续的当前章节，请在下方选择章节。
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div
-            className="card-hover rounded-xl border border-border bg-panel p-5 md:p-6"
-            data-testid="book-overview-progress"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-medium text-foreground">写作进度</h2>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-agent/10">
-                <BookOpen size={16} className="text-agent" aria-hidden="true" />
-              </div>
-            </div>
-            <div className="mt-5 flex items-end gap-2">
-              <strong className="text-4xl font-semibold tracking-tight text-foreground">
-                {totalChars === null ? '—' : formatWordCount(totalChars)}
-              </strong>
-              {book.wordGoal > 0 ? (
-                <span className="pb-1 text-xs text-subtle">/ {formatWordCount(book.wordGoal)}</span>
-              ) : null}
-            </div>
-            {progress !== null ? (
-              <>
-                <div
-                  className="mt-4 h-2.5 overflow-hidden rounded-full bg-elevated"
-                  aria-label={`已完成 ${Math.round(progress * 100)}%`}
-                >
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-agent to-agent/70 transition-all duration-500"
-                    style={{ width: `${Math.round(progress * 100)}%` }}
-                    data-testid="book-overview-progress-bar"
-                  />
-                </div>
-                <p className="mt-2 text-2xs text-subtle">已完成 {Math.round(progress * 100)}%</p>
-              </>
-            ) : (
-              <p className="mt-4 text-xs text-subtle">
-                {book.wordGoal > 0 ? '等待字数统计' : '尚未设置全书字数目标'}
-              </p>
-            )}
-            <dl className="mt-6 grid grid-cols-2 gap-3 border-t border-border pt-4">
-              <div className="rounded-lg bg-elevated/50 p-3">
-                <dt className="text-2xs text-subtle">正文</dt>
-                <dd className="mt-1 text-sm font-medium text-foreground">
-                  {chapterIndex?.status === 'available'
-                    ? `${chapters.length} 章`
-                    : chapterIndex?.status === 'loading'
-                      ? '读取中…'
-                      : '—'}
-                </dd>
-              </div>
-              <div className="rounded-lg bg-elevated/50 p-3">
-                <dt className="text-2xs text-subtle">大纲条目</dt>
-                <dd className="mt-1 text-sm font-medium text-foreground">
-                  {profile.outline.length || '—'}
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </section>
+        <BookOverviewHero
+          profile={profile}
+          title={title}
+          currentChapter={currentChapter}
+          chapterIndex={chapterIndex}
+          chapterCount={chapters.length}
+          chapterListRef={chapterListRef}
+          onContinueWriting={onContinueWriting}
+          onRefresh={onRefresh}
+        />
 
         {pendingPatchCount > 0 && onOpenPendingPatches ? (
           <button
@@ -488,10 +314,31 @@ export function BookOverview({
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <h2 className="text-sm font-medium text-foreground">大纲速览</h2>
               <span className="rounded-full bg-elevated px-2 py-0.5 text-2xs text-subtle">
-                {profile.outline.length ? `${profile.outline.length} 条` : '未读取'}
+                {profile.loading || profile.outlineLoading
+                  ? '读取中…'
+                  : profile.outlineError
+                    ? '读取失败'
+                    : `${profile.outline.length} 条`}
               </span>
             </div>
-            {outlineItems.length > 0 ? (
+            {profile.loading || profile.outlineLoading ? (
+              <p role="status" className="px-4 py-8 text-center text-xs text-subtle">
+                正在读取大纲…
+              </p>
+            ) : profile.outlineError ? (
+              <div role="alert" className="p-4 text-xs text-error">
+                <p className="break-words">大纲读取失败：{profile.outlineError}</p>
+                <button
+                  type="button"
+                  onClick={onRefresh}
+                  disabled={profile.refreshing}
+                  className="mt-3 rounded-md border border-error/40 px-2 py-1 hover:bg-error/10 disabled:opacity-50"
+                  data-testid="book-overview-retry-outline"
+                >
+                  重新读取大纲
+                </button>
+              </div>
+            ) : outlineItems.length > 0 ? (
               <ul className="divide-y divide-border">
                 {outlineItems.map((entry) => (
                   <li key={`${entry.path}:${entry.line}`} className="stagger-item">
@@ -527,7 +374,7 @@ export function BookOverview({
 
         <p className="flex items-center gap-2 text-2xs text-subtle">
           <FileText size={12} aria-hidden="true" />
-          资料来自项目文件与确定性索引；总览不会自动写盘。
+          作品资料保存在本地项目中。开始写作，让故事再前进一步。
         </p>
       </div>
     </div>

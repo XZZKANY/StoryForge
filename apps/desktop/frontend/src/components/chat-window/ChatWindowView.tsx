@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { emitToast } from '../../lib/toast';
 import { ComposerBox } from './Composer';
 import { ChapterBriefCard } from './ChapterBriefCard';
@@ -56,6 +57,19 @@ export function ChatWindowView({
   // 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉当前 run，
   // 并让编辑器里尚未处理的补丁失去对应操作条。先完成本轮作者决策再允许发送。
   const awaitingConfirm = Boolean(state.chapterBrief) || state.agentRun?.status === 'waiting';
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const starterDisabled = !projectPath || state.agentBusy || awaitingConfirm;
+  const selectPrompt = (prompt: string) => {
+    if (starterDisabled) return;
+    state.setInput((draft) => (draft ? `${draft}\n\n${prompt}` : prompt));
+    const input = inputRef.current;
+    input?.focus();
+    requestAnimationFrame(() => {
+      if (!input || inputRef.current !== input || document.activeElement !== input) return;
+      input.setSelectionRange(input.value.length, input.value.length);
+      input.scrollTop = input.scrollHeight;
+    });
+  };
   // 第14条：run 控制统一到 RunActionBar，运行/等待/暂停三态都显示操作条；completed 的
   // 「本轮已完成。」不再长驻（完成已在回复里）；只有 failed / stopped 留轻状态条收尾。
   const runStatus = state.agentRun?.status;
@@ -130,6 +144,8 @@ export function ChatWindowView({
         onAddContext={addExplicitContext}
         onTogglePinnedContext={togglePinnedContext}
         onRetryContextCandidates={retryContextCandidates}
+        onSelectPrompt={selectPrompt}
+        starterDisabled={starterDisabled}
       />
 
       {state.chapterBrief && (
@@ -159,6 +175,7 @@ export function ChatWindowView({
       )}
 
       <ComposerBox
+        inputRef={inputRef}
         value={state.input}
         disabled={!projectPath}
         busy={state.agentBusy}
