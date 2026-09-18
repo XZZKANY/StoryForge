@@ -52,11 +52,12 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
         </span>
         <button
           type="button"
-          className="flex h-7 w-7 items-center justify-center rounded-md text-subtle transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-subtle"
+          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
           title="刷新 Knowledge Inbox"
           aria-label="刷新 Knowledge Inbox"
           disabled={handle.loading}
           onClick={() => void handle.refresh()}
+          data-testid="knowledge-inbox-refresh"
         >
           <RefreshCw size={13} className={handle.loading ? 'animate-spin' : ''} />
         </button>

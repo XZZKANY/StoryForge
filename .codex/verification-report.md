@@ -1,3 +1,21 @@
+## 2026-09-17 Desktop UI/UX 全维度优化（第十四波：D1 视觉统一 · 面板头部图标按钮收敛）
+
+- 用户转向 D1「视觉统一」。体检发现一个明确可证伪的不一致：同是**面板头部图标按钮**（刷新/新建/扫描），存在两套写法并错位到半边产品：
+  - **A 派**（BookProfileView / ManuscriptView / ObservatoryView）：`grid place-items-center` + `text-muted` + `transition-colors`
+  - **B 派**（SidePanel / KnowledgeInboxView）：`flex items-center justify-center` + `text-subtle`，且 **SidePanel 两个按钮还漏了 `transition-colors`**——hover 变色是硬切。
+- 实现（3 文件 / +58−3）：
+  - SidePanel 两个「新建文件 / 新建文件夹」按钮、KnowledgeInboxView 的「刷新」按钮（`RefreshCw`）统一到 A 派；KnowledgeInboxView 补 `aria-label` 链条上缺的 `data-testid="knowledge-inbox-refresh"`（其它头部按钮都已带 testid）。
+  - ObsPanel 的「关闭」按钮、Titlebar 的窗控按钮**刻意不动**：它们属于不同视觉/系统层级，尺寸与色板刻意不同；本波只统一「面板头部通用当前面板操作的图标按钮」这一族。
+- `accessibility-guards.test.ts` 新增 D1 静态护栏 `PANEL_HEADER_ICON_BUTTONS`：六个面板头部按钮逐一断言 `grid place-items-center`、`text-muted` 基色、`transition-colors`——对应 JSX 挂回非 grid/非 muted/漏过渡任一漂移立即红。用 braces-aware 提取函数找 `<button>` 标签边界，避开箭头函数 `=>` 中误吞的 `>`。
+- **非空虚性已变异验证（2 处）**：
+  1. 把 SidePanel 的新文件按钮改回「B 派」 → 红「应用 grid 布局」（幂等回滚：恢复 `transition-colors`/muted/grid 后转绿）。
+  2. 从 KnowledgeInboxView 删 `transition-colors` → 红「应有 transition-colors」；恢复转绿。
+- 验证：
+  - `typecheck`：**exit 0**。
+  - `npm.cmd --prefix apps/desktop/frontend run test`：**103 files / 681 passed**（基线 680 → +1，无回归；stderr `act` 警告为既有噪声）。
+  - 改动文件 `eslint` **0 problems**；`prettier --check` 全过。
+- 未做：ObsPanel / Titlebar 特殊按钮族不动（见上）；`.assistant-md` 等 markdown 正文样式非本波对象；「面板头部按钮」之外的其他图标按钮族（面板内列表操作、对话框、ContextMenu）发现性差异极小，暂保留各自写法；真机 hover 过渡实感未测。未动 API/契约/权限/写回。
+
 ## 2026-09-17 Desktop UI/UX 全维度优化（第十三波：D4 信息级层 · 面板标题语义化）
 
 - 用户转向 D4「信息架构」。体检发现：所有左栏面板标题（搜索 / 手稿 / 作品 / 世界线观测镜 / Knowledge Inbox / 观测）都是裸 `<span>`，h1/h2/h3 在六个文件里**全为 0**；而主工作区 BookOverview / Welcome 却规范用了 h1/h2。读屏作者按 H 键跳标题**完全跳不到左栏任何面板**。

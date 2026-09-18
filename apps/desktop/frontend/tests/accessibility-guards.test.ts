@@ -198,6 +198,60 @@ test('面板标题用语义标题元素，不是裸 span（D4 信息级层）', 
   }
 });
 
+// D1 视觉统一：面板头部的图标按钮（刷新 / 重新扫描 / 新建等）必须收敛到同一套视觉模式——
+// 统一 `grid place-items-center` 居中、`text-muted` 基色、`transition-colors` 过渡。
+// 历史上它们分成两派：三个面板用 grid + text-muted + 过渡，另两个用 flex 居中 + text-subtle
+// （其中侧栏两个还漏了 transition，hover 是硬切）。谁再漂回去，这里就红。
+const PANEL_HEADER_ICON_BUTTONS = [
+  { file: 'src/components/shell/SidePanel.tsx', testid: 'side-new-file' },
+  { file: 'src/components/shell/SidePanel.tsx', testid: 'side-new-folder' },
+  { file: 'src/components/shell/BookProfileView.tsx', testid: 'book-profile-refresh' },
+  { file: 'src/components/shell/ManuscriptView.tsx', testid: 'manuscript-refresh' },
+  { file: 'src/components/shell/ObservatoryView.tsx', testid: 'observatory-rescan' },
+  { file: 'src/components/shell/KnowledgeInboxView.tsx', testid: 'knowledge-inbox-refresh' },
+];
+
+/** 从 `<button` 起点按引号/花括号计深找开标签结尾（避开箭头函数 `=>` 里的 `>`）。 */
+function buttonTagContaining(source: string, testid: string): string | null {
+  const needle = `data-testid="${testid}"`;
+  const hit = source.indexOf(needle);
+  if (hit === -1) return null;
+  const start = source.lastIndexOf('<button', hit);
+  if (start === -1) return null;
+  let quote: string | null = null;
+  let depth = 0;
+  for (let i = start; i < source.length; i++) {
+    const ch = source[i];
+    if (quote) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') quote = ch;
+    else if (ch === '{') depth++;
+    else if (ch === '}') depth--;
+    else if (ch === '>' && depth === 0) return source.slice(start, i + 1);
+  }
+  return null;
+}
+
+test('面板头部图标按钮收敛到统一视觉模式（D1 视觉统一）', () => {
+  for (const { file, testid } of PANEL_HEADER_ICON_BUTTONS) {
+    const source = readFileSync(abs(`../${file}`), 'utf8');
+    const tag = buttonTagContaining(source, testid);
+    assert.ok(tag, `${file} 找不到 testid="${testid}" 的按钮`);
+    const cls = tag.match(/className="([^"]+)"/)?.[1];
+    assert.ok(cls, `${file} 的 ${testid} 缺 className`);
+    assert.match(cls, /\bgrid\b/, `${file} 的 ${testid} 应用 grid 布局（非 flex）`);
+    assert.match(cls, /place-items-center/, `${file} 的 ${testid} 应 place-items-center 居中`);
+    assert.match(
+      cls,
+      /\btext-muted\b/,
+      `${file} 的 ${testid} 应用 text-muted 基色（非 text-subtle）`,
+    );
+    assert.match(cls, /transition-colors/, `${file} 的 ${testid} 应有 transition-colors`);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // 对比度护栏：把 index.css 里 --muted / --subtle 的 WCAG 注释变成可证伪的断言。
 // 有人把提示文本调暗到低于阈值（或在亮色下调浅），这里就红。

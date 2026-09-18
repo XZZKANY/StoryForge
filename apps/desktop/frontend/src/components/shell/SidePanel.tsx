@@ -245,7 +245,7 @@ function ExplorerView({
           <ChevronDown size={13} strokeWidth={1.6} className="text-subtle" />
         </button>
         <button
-          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-subtle hover:bg-elevated hover:text-foreground"
+          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
           aria-label="在项目根目录新建文件"
           title="在项目根目录新建文件"
           onClick={() => onNewFile(activeProject)}
@@ -255,7 +255,7 @@ function ExplorerView({
         </button>
         {fileActions && (
           <button
-            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-subtle hover:bg-elevated hover:text-foreground"
+            className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
             aria-label="在项目根目录新建文件夹"
             title="在项目根目录新建文件夹"
             onClick={() => void fileActions.onNewFolder(activeProject)}
