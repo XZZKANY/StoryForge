@@ -3,7 +3,9 @@
 
 mod fs;
 mod llm_config;
+mod llm_config_store;
 mod runtime_paths;
+mod secret_protection;
 mod shadow_git;
 mod watcher;
 

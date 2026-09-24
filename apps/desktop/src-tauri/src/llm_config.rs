@@ -1,82 +1,13 @@
-use crate::runtime_paths;
+use crate::{llm_config_store, runtime_paths};
 use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StoredLlmConfig {
-    provider: String,
-    base_url: String,
-    model: String,
-    api_key: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    polish: Option<StoredLlmSlot>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StoredLlmSlot {
-    provider: String,
-    base_url: String,
-    model: String,
-    api_key: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveLlmConfigRequest {
-    provider: String,
-    base_url: String,
-    model: String,
-    api_key: Option<String>,
-    clear_api_key: Option<bool>,
-    polish: Option<SaveLlmSlotRequest>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveLlmSlotRequest {
-    provider: String,
-    base_url: String,
-    model: String,
-    api_key: Option<String>,
-    clear_api_key: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LlmConfigResponse {
-    provider: String,
-    base_url: String,
-    model: String,
-    has_api_key: bool,
-    polish: Option<LlmSlotResponse>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LlmSlotResponse {
-    provider: String,
-    base_url: String,
-    model: String,
-    has_api_key: bool,
-}
-
-fn clean(value: &str) -> String {
-    value.trim().to_string()
-}
-
-fn config_dir(app: &AppHandle) -> Result<PathBuf> {
-    let dir = runtime_paths::app_config_dir(app)?;
-    fs::create_dir_all(&dir).context("无法创建应用配置目录")?;
-    Ok(dir)
-}
+pub use crate::llm_config_store::{LlmConfigResponse, SaveLlmConfigRequest};
 
 fn config_path(app: &AppHandle) -> Result<PathBuf> {
-    Ok(config_dir(app)?.join("llm-provider.json"))
+    Ok(runtime_paths::app_config_dir(app)?.join("llm-provider.json"))
 }
 
 pub fn sqlite_database_url(app: &AppHandle) -> Result<String> {
@@ -87,93 +18,32 @@ pub fn sqlite_database_url(app: &AppHandle) -> Result<String> {
     Ok(format!("sqlite+pysqlite:///{}", path))
 }
 
-fn read_stored_config(app: &AppHandle) -> Result<StoredLlmConfig> {
-    let path = config_path(app)?;
-    if !path.exists() {
-        return Ok(StoredLlmConfig::default());
-    }
-
-    let raw = fs::read_to_string(&path).context("无法读取 LLM 配置文件")?;
-    let config = serde_json::from_str::<StoredLlmConfig>(&raw).context("无法解析 LLM 配置文件")?;
-    Ok(config)
-}
-
-fn write_stored_config(app: &AppHandle, config: &StoredLlmConfig) -> Result<()> {
-    let path = config_path(app)?;
-    let payload = serde_json::to_string_pretty(config).context("无法序列化 LLM 配置")?;
-    fs::write(&path, payload).context("无法写入 LLM 配置文件")?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut permissions = fs::metadata(&path)
-            .context("无法读取 LLM 配置文件权限")?
-            .permissions();
-        permissions.set_mode(0o600);
-        fs::set_permissions(&path, permissions).context("无法设置 LLM 配置文件权限")?;
-    }
-
-    Ok(())
-}
-
-impl From<StoredLlmConfig> for LlmConfigResponse {
-    fn from(config: StoredLlmConfig) -> Self {
-        Self {
-            provider: config.provider,
-            base_url: config.base_url,
-            model: config.model,
-            has_api_key: !config.api_key.trim().is_empty(),
-            polish: config.polish.map(Into::into),
-        }
-    }
-}
-
-impl From<StoredLlmSlot> for LlmSlotResponse {
-    fn from(config: StoredLlmSlot) -> Self {
-        Self {
-            provider: config.provider,
-            base_url: config.base_url,
-            model: config.model,
-            has_api_key: !config.api_key.trim().is_empty(),
-        }
-    }
-}
-
 pub fn llm_env_for_backend(app: &AppHandle) -> Result<Vec<(String, String)>> {
-    let config = read_stored_config(app)?;
-    let mut env = Vec::new();
+    backend_env_for_path(&config_path(app)?)
+}
 
-    // 把本机 LLM 配置文件路径交给后端，后端实时读取即可换模型/服务商，无需重启。
-    env.push((
-        "STORYFORGE_LLM_CONFIG_FILE".to_string(),
-        config_path(app)?.to_string_lossy().to_string(),
-    ));
-
-    if !config.provider.trim().is_empty() {
-        env.push((
-            "STORYFORGE_LLM_PROVIDER".to_string(),
-            clean(&config.provider),
-        ));
-    }
-    if !config.base_url.trim().is_empty() {
-        let base_url = clean(&config.base_url);
-        env.push(("STORYFORGE_LLM_BASE_URL".to_string(), base_url.clone()));
-        env.push(("STORYFORGE_LLM_API_BASE_URL".to_string(), base_url));
-    }
-    if !config.model.trim().is_empty() {
-        env.push(("STORYFORGE_LLM_MODEL".to_string(), clean(&config.model)));
-    }
-    if !config.api_key.trim().is_empty() {
-        env.push(("STORYFORGE_LLM_API_KEY".to_string(), clean(&config.api_key)));
-    }
-
-    Ok(env)
+fn backend_env_for_path(path: &Path) -> Result<Vec<(String, String)>> {
+    // Complete migration before spawning the managed backend. First launch writes
+    // an empty v2 config, so inherited env/.env keys cannot act as fallback.
+    llm_config_store::prepare(path)?;
+    Ok(vec![
+        (
+            "STORYFORGE_LLM_CONFIG_FILE".into(),
+            path.to_string_lossy().into(),
+        ),
+        (
+            "STORYFORGE_LLM_CONFIG_MODE".into(),
+            "desktop-managed-v2".into(),
+        ),
+        ("STORYFORGE_LLM_API_KEY".into(), String::new()),
+        ("STORYFORGE_POLISH_LLM_API_KEY".into(), String::new()),
+    ])
 }
 
 #[tauri::command]
 pub fn get_llm_config(app: AppHandle) -> Result<LlmConfigResponse, String> {
-    read_stored_config(&app)
-        .map(Into::into)
+    config_path(&app)
+        .and_then(|path| llm_config_store::read(&path))
         .map_err(|error| error.to_string())
 }
 
@@ -182,37 +52,9 @@ pub fn save_llm_config(
     app: AppHandle,
     payload: SaveLlmConfigRequest,
 ) -> Result<LlmConfigResponse, String> {
-    let mut next = read_stored_config(&app).map_err(|error| error.to_string())?;
-    next.provider = clean(&payload.provider);
-    next.base_url = clean(&payload.base_url);
-    next.model = clean(&payload.model);
-
-    if payload.clear_api_key.unwrap_or(false) {
-        next.api_key.clear();
-    } else if let Some(api_key) = payload.api_key {
-        let cleaned = clean(&api_key);
-        if !cleaned.is_empty() {
-            next.api_key = cleaned;
-        }
-    }
-
-    if let Some(polish) = payload.polish {
-        let next_polish = next.polish.get_or_insert_with(StoredLlmSlot::default);
-        next_polish.provider = clean(&polish.provider);
-        next_polish.base_url = clean(&polish.base_url);
-        next_polish.model = clean(&polish.model);
-        if polish.clear_api_key.unwrap_or(false) {
-            next_polish.api_key.clear();
-        } else if let Some(api_key) = polish.api_key {
-            let cleaned = clean(&api_key);
-            if !cleaned.is_empty() {
-                next_polish.api_key = cleaned;
-            }
-        }
-    }
-
-    write_stored_config(&app, &next).map_err(|error| error.to_string())?;
-    Ok(next.into())
+    config_path(&app)
+        .and_then(|path| llm_config_store::save(&path, payload))
+        .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]
@@ -220,37 +62,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn old_config_without_polish_slot_stays_compatible() {
-        let stored: StoredLlmConfig = serde_json::from_str(
-            r#"{"provider":"deepseek","baseUrl":"https://example/v1","model":"m","apiKey":"k"}"#,
-        )
-        .expect("old config should parse");
-
-        assert!(stored.polish.is_none());
-        let response = LlmConfigResponse::from(stored);
-        assert!(response.polish.is_none());
-        assert!(response.has_api_key);
+    fn managed_backend_env_contains_no_secret_snapshots() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("llm-provider.json");
+        let env: std::collections::HashMap<_, _> =
+            backend_env_for_path(&path).unwrap().into_iter().collect();
+        assert!(path.is_file());
+        assert_eq!(env["STORYFORGE_LLM_CONFIG_MODE"], "desktop-managed-v2");
+        assert_eq!(env["STORYFORGE_LLM_CONFIG_FILE"], path.to_string_lossy());
+        assert_eq!(env["STORYFORGE_LLM_API_KEY"], "");
+        assert_eq!(env["STORYFORGE_POLISH_LLM_API_KEY"], "");
+        assert_eq!(env.len(), 4);
     }
 
     #[test]
-    fn response_never_serializes_slot_secrets() {
-        let response = LlmConfigResponse::from(StoredLlmConfig {
-            provider: "openai-compatible".into(),
-            base_url: "https://main.example/v1".into(),
-            model: "main".into(),
-            api_key: "main-secret".into(),
-            polish: Some(StoredLlmSlot {
-                provider: "anthropic".into(),
-                base_url: "https://polish.example/v1".into(),
-                model: "polish".into(),
-                api_key: "polish-secret".into(),
-            }),
-        });
-
-        let serialized = serde_json::to_string(&response).expect("response should serialize");
-        assert!(!serialized.contains("main-secret"));
-        assert!(!serialized.contains("polish-secret"));
-        assert!(serialized.contains("\"hasApiKey\":true"));
-        assert!(serialized.contains("\"polish\""));
+    fn migration_failure_does_not_produce_spawn_environment() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("llm-provider.json");
+        fs::write(&path, "{broken-test-data").unwrap();
+        assert!(backend_env_for_path(&path).is_err());
+        assert_eq!(fs::read_to_string(path).unwrap(), "{broken-test-data");
     }
 }

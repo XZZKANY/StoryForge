@@ -3011,3 +3011,19 @@ pm.cmd run test -- tests/use-book-overview-chapters.test.tsx 3/3；目标 ESLint
 - 加载几何：1024 下骨架/hero 均 300px、章节列表 y=497.5；1920 下均 348.65625px、章节列表 y=632.15625。成功内容与骨架不共存；读取失败显示错误和重试，旧字数标“上次统计”，恢复后重新显示有效资料。无横向页面溢出。
 - 证据：`.trellis/tasks/09-18-desktop-uiux-followup-review/evidence/optimized-*.png`、`optimized-browser-observations.json`。记录中明确保留了一次热重载导致无项目的无效采样，最终结论仅用后续 verified 样例。
 - 已更新本地 Trellis frontend component guidelines；该目录按仓库 `.gitignore` 约定保持本地。未验证原生 Tauri、真实 provider、真实写回、屏幕阅读器听测和长篇质量。产品改动已完成，git 提交与任务归档待提交计划确认。
+
+### 2026-09-24 Windows BYOK 密钥保护与迁移
+
+- 授权与范围：用户确认“嗯 开始吧”，启动 `09-24-beta-key-protection`。仅改动密钥存储/读取、启动配置边界、provider-health 配置错误映射和相关测试；未修改既有 UI/UX/API 路由清理差异，未迁移开发者真实 llm-provider.json，未调用真实模型或采购/发布。
+- 实现：Windows 用户级 DPAPI，磁盘 schemaVersion=2，main/polish apiKey 为受保护 envelope 或 null。迁移全部槽位保护并解密自检后，以 tempfile 同目录暂存、sync/persist 原子替换；失败保持原文件且清理暂存。Tauri DTO 不回显明文/密文；设置保留只读元数据，支持损坏的两个槽位分别重新输入。新 key 不再作为 spawn 环境快照注入；托管后端实时解保护，缺文件/损坏/未知版本明确失败，clear/null 和缺 polish 不复活旧环境 key。非托管旧 CLI 和显式 env 保持兼容。
+- 错误可见性：provider-health 返回已有 misconfigured 结构；修订请求遇到不可解密 key 在网络调用前返回安全 503。新增固定消息不含配置原文/密文，原有 OpenAPI/WS DTO 未修改。get hasApiKey 仅表示已存字段存在，不证明解密/远端鉴权成功。
+- 红绿证据：新增 API 第一轮 24 failed / 1 passed（验证原实现在托管配置错误时静默回退旧值）；实现后相关合集通过。
+- `pnpm.cmd verify`：通过。根 lint、Desktop typecheck、shared/project-core、前端 106 files / 708 tests、API 1586 passed / 7 skipped（6 warnings）、API Ruff、daily 源码 sidecar 零 LLM 冒烟、OpenAPI 刷新零漂移。此轮收集后补充的修订 503 用例另在下面最终相关合集验证，不冒充已包含在该次全量计数内。
+- `uv run pytest tests/test_llm_config_protected.py tests/test_llm_config_file_override.py tests/test_assistant_provider_health.py tests/test_agent_polishing_service.py tests/test_llm_provider_dispatch.py tests/test_judge_semantic.py tests/test_source_code_standards.py -q --tb=short`：最终 88 passed；新保护文件自身 27 passed。Ruff 对全部本次 Python 文件通过，新增三个 Python 文件 ruff format 完成。
+- `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --no-default-features`：最终 53 passed / 1 ignored（既有需显式提供真实项目的 shadow Git dogfood）。其中本任务 14 项：启动 env、首次空配置、迁移/重复迁移、单/双槽位、保护中途失败注入、替换文件失败、损坏密钥重新输入以及真实 Rust DPAPI→API .venv Python 解密/热换/清除互操作。
+- `cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`：默认 feature 编译检查通过。原生测试环境：Microsoft Windows 11 家庭版 中文版，10.0.26200，64 位。
+- `rustfmt --edition 2021 --check` 对 llm_config.rs、llm_config_store.rs（含 tests.rs）、secret_protection.rs 通过。全库 `cargo fmt ... -- --check` 未全绿：既有未修改的 fs.rs 存在格式差异；本次 main.rs 新增 mod 排序已修正，不顺手格式化 fs.rs。
+- `git diff --check`、Trellis context validate 通过。OpenAPI 与 api-types 相对本任务门禁前工作树的 SHA-256 完全相同，保留用户原有契约清理，不把这些差异纳入本次提交。规范已更新（本地 gitignored Trellis），日志留在任务目录。
+- 未验证/限制：未运行最终 PyInstaller/Tauri/NSIS 签名安装包及真实 GUI 迁移；未在另一 Windows 用户或另一机器实测；同用户恶意进程/内存取证/旧磁盘扇区擦除不属于 DPAPI 保护承诺。未知 schema/损坏 JSON 不自动重置，需显式修复；正常 v2 损坏密文可在设置逐槽位替换。此结果不等于发布就绪。
+- 实施结束时尚未暂存/提交/推送；临时日志和用户已有无关文件均保留且排除。
+- 提交授权：用户随后确认“现在提交”，只提交密钥保护清单和本条验证记录；不夹带先前改动，不推送。提交前复核 API 配置/provider-health 43 passed；Rust 密钥相关测试 14 passed（含原生 Rust/Python 互操作）。

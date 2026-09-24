@@ -40,6 +40,11 @@ def isolate_remote_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "STORYFORGE_LLM_SMOKE_RECAP_FULL_CHAPTERS",
         "STORYFORGE_LLM_SMOKE_FAST_JUDGE",
         "STORYFORGE_LLM_CONFIG_FILE",
+        "STORYFORGE_LLM_CONFIG_MODE",
+        "STORYFORGE_POLISH_LLM_PROVIDER",
+        "STORYFORGE_POLISH_LLM_BASE_URL",
+        "STORYFORGE_POLISH_LLM_MODEL",
+        "STORYFORGE_POLISH_LLM_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
 

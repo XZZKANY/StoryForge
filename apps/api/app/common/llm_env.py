@@ -11,6 +11,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal
 
+from app.common.llm_config_file import MANAGED_CONFIG_MODE, apply_config_slot
 from app.common.llm_http import env_value
 
 LLM_SETTINGS_ENV_KEYS = (
@@ -51,59 +52,6 @@ class ResolvedPolishLlm:
     provider: str
     model: str
     source: Mapping[str, str | None] = field(repr=False)
-
-
-def _apply_llm_config_file(source: dict[str, str | None], path: str) -> None:
-    """桌面端把本机 llm-provider.json 视为实时真相：切换模型/服务商后无需重启后端即可生效。"""
-
-    import json
-
-    try:
-        with open(path, encoding="utf-8") as handle:
-            data = json.load(handle)
-    except (OSError, ValueError):
-        return
-    if not isinstance(data, dict):
-        return
-    file_to_env = {
-        "provider": "STORYFORGE_LLM_PROVIDER",
-        "baseUrl": "STORYFORGE_LLM_BASE_URL",
-        "model": "STORYFORGE_LLM_MODEL",
-        "apiKey": "STORYFORGE_LLM_API_KEY",
-    }
-    for file_key, env_key in file_to_env.items():
-        if file_key not in data:
-            continue  # 文件未含该字段 → 不覆盖，保留 env/settings 覆盖链。
-        value = data.get(file_key)
-        if not isinstance(value, str):
-            continue
-        # 桌面端 llm-provider.json 是实时真相：字段存在即以文件为准。present-but-empty 表示作者
-        # 已清空该字段（如清除 API key），必须清掉起服 spawn 注入的 stale env 值，而非仅在非空时
-        # 覆盖——否则清空 key 后 resolved_llm_env 仍读到旧 key、后端继续发送，直到重启（UF-02）。
-        source[env_key] = value.strip()
-
-
-def _apply_polish_config_file(source: dict[str, str | None], path: str) -> None:
-    import json
-
-    try:
-        with open(path, encoding="utf-8") as handle:
-            data = json.load(handle)
-    except (OSError, ValueError):
-        return
-    polish = data.get("polish") if isinstance(data, dict) else None
-    if not isinstance(polish, dict):
-        return
-    file_to_env = {
-        "provider": "STORYFORGE_LLM_PROVIDER",
-        "baseUrl": "STORYFORGE_LLM_BASE_URL",
-        "model": "STORYFORGE_LLM_MODEL",
-        "apiKey": "STORYFORGE_LLM_API_KEY",
-    }
-    for file_key, env_key in file_to_env.items():
-        value = polish.get(file_key)
-        if isinstance(value, str):
-            source[env_key] = value.strip()
 
 
 def resolved_llm_env(env: Mapping[str, str | None] | None = None) -> Mapping[str, str | None]:
@@ -153,8 +101,9 @@ def resolved_llm_env(env: Mapping[str, str | None] | None = None) -> Mapping[str
             source[key] = str(value)
 
     config_file = os.environ.get("STORYFORGE_LLM_CONFIG_FILE", "").strip()
-    if config_file:
-        _apply_llm_config_file(source, config_file)
+    apply_config_slot(
+        source, config_file, managed=os.environ.get("STORYFORGE_LLM_CONFIG_MODE") == MANAGED_CONFIG_MODE,
+    )
 
     if not env_value(source, "STORYFORGE_LLM_BASE_URL"):
         source["STORYFORGE_LLM_BASE_URL"] = env_value(source, "STORYFORGE_LLM_API_BASE_URL")
@@ -183,8 +132,10 @@ def resolve_polish_llm(
     }
     if env is None:
         config_file = os.environ.get("STORYFORGE_LLM_CONFIG_FILE", "").strip()
-        if config_file:
-            _apply_polish_config_file(source, config_file)
+        apply_config_slot(
+            source, config_file, managed=os.environ.get("STORYFORGE_LLM_CONFIG_MODE") == MANAGED_CONFIG_MODE,
+            polish=True,
+        )
     try:
         provider, model = _required_slot_identity(source, label="专用润色模型")
     except PolishLlmNotConfiguredError as exc:

@@ -42,6 +42,7 @@ from app.common.llm_client import (
 from app.common.llm_client import (
     required_env as _required_env,
 )
+from app.common.llm_config_file import LlmConfigError
 from app.common.llm_env import resolved_llm_env
 from app.common.manuscript import previous_chapter_tail
 from app.common.punctuation import restore_incidental_punctuation
@@ -983,6 +984,13 @@ def probe_provider_health() -> ProviderHealthResponse:
 
     始终返回结构化诊断（不抛 HTTP 错误），且绝不回显任何凭据。"""
 
+    try:
+        return _probe_provider_health()
+    except LlmConfigError as exc:
+        return ProviderHealthResponse(status="misconfigured", reachable=False, detail=str(exc))
+
+
+def _probe_provider_health() -> ProviderHealthResponse:
     missing = missing_book_generation_env()
     if missing:
         return ProviderHealthResponse(
