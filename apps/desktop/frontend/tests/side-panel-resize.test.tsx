@@ -272,3 +272,61 @@ test('侧栏分隔器的方向键及加速调整不会超过现有宽度边界',
     }
   }
 });
+
+test('无常驻线的调宽热区在按下即进入活动态，松手释放且仅提交一次', () => {
+  const { panel, handle, calls, cleanup } = renderPanel({ book: 420 }, 236);
+  try {
+    assert.equal(handle.classList.contains('sf-panel-resize'), true);
+    assert.equal(handle.classList.contains('w-[5px]'), true, '去线不能缩小原 5px 命中区');
+    assert.equal(handle.getAttribute('data-resizing'), 'false');
+    act(() =>
+      handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 236, bubbles: true })),
+    );
+    assert.equal(handle.getAttribute('data-resizing'), 'true', '尚未移动也要有拖动反馈');
+    assert.equal(panel.style.width, '236px', '按下不能跳回较大的保存宽度');
+    assert.deepEqual(calls, []);
+    act(() => window.dispatchEvent(new PointerEvent('pointermove', { clientX: 226 })));
+    assert.equal(handle.getAttribute('data-resizing'), 'true');
+    assert.equal(handle.getAttribute('aria-valuenow'), '226');
+    assert.equal(handle.getAttribute('aria-valuetext'), '226 像素');
+    assert.deepEqual(calls, []);
+    act(() => window.dispatchEvent(new PointerEvent('pointerup', { clientX: 226 })));
+    assert.equal(handle.getAttribute('data-resizing'), 'false');
+    assert.deepEqual(calls, [['book', 226]]);
+    act(() => window.dispatchEvent(new PointerEvent('pointerup', { clientX: 230 })));
+    assert.deepEqual(calls, [['book', 226]], '已释放的全局监听不再提交');
+  } finally {
+    cleanup();
+  }
+});
+
+test('取消拖动清除活动态并回到显示宽度，非主键不启动拖动', () => {
+  const { panel, handle, calls, cleanup } = renderPanel({ book: 320 });
+  try {
+    act(() =>
+      handle.dispatchEvent(
+        new PointerEvent('pointerdown', { button: 2, clientX: 320, bubbles: true }),
+      ),
+    );
+    assert.equal(handle.getAttribute('data-resizing'), 'false');
+    act(() => window.dispatchEvent(new PointerEvent('pointermove', { clientX: 400 })));
+    assert.equal(panel.style.width, '320px');
+    act(() =>
+      handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 320, bubbles: true })),
+    );
+    assert.equal(handle.getAttribute('data-resizing'), 'true');
+    act(() => window.dispatchEvent(new PointerEvent('pointermove', { clientX: 400 })));
+    assert.equal(panel.style.width, '400px');
+    act(() => window.dispatchEvent(new PointerEvent('pointercancel')));
+    assert.equal(handle.getAttribute('data-resizing'), 'false');
+    assert.equal(panel.style.width, '320px');
+    act(() => {
+      window.dispatchEvent(new PointerEvent('pointermove', { clientX: 500 }));
+      window.dispatchEvent(new PointerEvent('pointerup', { clientX: 500 }));
+    });
+    assert.equal(panel.style.width, '320px');
+    assert.deepEqual(calls, []);
+  } finally {
+    cleanup();
+  }
+});

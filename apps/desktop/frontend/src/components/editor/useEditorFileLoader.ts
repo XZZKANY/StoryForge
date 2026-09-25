@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type * as monaco from 'monaco-editor';
 
@@ -38,11 +38,19 @@ export function useEditorFileLoader({
   const [loadedIsDirty, setLoadedIsDirty] = useState(false);
   const [loadAttemptFilePath, setLoadAttemptFilePath] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [retryNonce, setRetryNonce] = useState(0);
+
+  const retry = useCallback(() => {
+    setRetryNonce((value) => value + 1);
+  }, []);
 
   // 加载文件内容
   useLayoutEffect(() => {
     loadRequestIdRef.current += 1;
     const requestId = loadRequestIdRef.current;
+    let disposed = false;
+    const isCurrentRequest = () =>
+      !disposed && loadRequestIdRef.current === requestId && filePathRef.current === filePath;
     issueDecorationsRef.current?.clear();
     if (autoSaveTimerRef.current !== null) {
       window.clearTimeout(autoSaveTimerRef.current);
@@ -99,8 +107,9 @@ export function useEditorFileLoader({
         } catch {
           exists = true;
         }
+        if (!isCurrentRequest()) return;
         const content = exists ? await TauriFileSystem.readFile(filePath) : '';
-        if (loadRequestIdRef.current !== requestId || filePathRef.current !== filePath) {
+        if (!isCurrentRequest()) {
           return;
         }
         originalContentRef.current = content;
@@ -111,7 +120,7 @@ export function useEditorFileLoader({
         setLoadedContentPreview(content.slice(0, 120));
         adoptPendingSuggestion(filePath);
       } catch (err) {
-        if (loadRequestIdRef.current !== requestId || filePathRef.current !== filePath) {
+        if (!isCurrentRequest()) {
           return;
         }
         const message = err instanceof Error ? err.message : String(err);
@@ -121,6 +130,9 @@ export function useEditorFileLoader({
     };
 
     void loadFile();
+    return () => {
+      disposed = true;
+    };
   }, [
     adoptPendingSuggestion,
     autoSaveTimerRef,
@@ -131,6 +143,7 @@ export function useEditorFileLoader({
     modelCacheRef,
     originalContentRef,
     resetSuggestionWriteback,
+    retryNonce,
     setIsDirty,
     setLoadedContentPreview,
     setShowHistory,
@@ -142,5 +155,6 @@ export function useEditorFileLoader({
     loadedIsDirty,
     loadAttemptFilePath,
     loadError,
+    retry,
   };
 }

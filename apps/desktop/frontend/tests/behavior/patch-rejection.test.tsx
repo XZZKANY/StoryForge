@@ -70,7 +70,10 @@ function onRejected(event: Event) {
 }
 
 let reject: (direction?: string) => void = () => undefined;
+let accept: () => Promise<void> = async () => undefined;
 let panelHasPatch = false;
+let recordDeferred = false;
+let resolveRecord: () => void = () => undefined;
 
 function WritebackHarness() {
   const editorRef = useRef({ getValue: () => BEFORE, getModel: () => null } as never);
@@ -80,30 +83,33 @@ function WritebackHarness() {
   const projectPathRef = useRef<string | null>(PROJECT);
   const modelCacheRef = useRef(new Map());
 
-  const { pendingSuggestion, rejectPendingSuggestion } = useSuggestionWriteback({
-    editorRef,
-    originalContentRef,
-    cleanVersionIdRef,
-    filePathRef,
-    projectPathRef,
-    modelCacheRef: modelCacheRef as never,
-    setLoadedContentPreview: () => undefined,
-    setIsDirty: () => undefined,
-    normalizeEol: (text: string) => text.replace(/\r\n/g, '\n'),
-    getActiveBranchSnapshot: () => ({ id: 'main', label: '主线', headNodeId: null }) as never,
-    advanceBranchHead: async () => {
-      calls.push('branch');
-    },
-    recordRevisionLoop: async () => {
-      calls.push('record');
-      return { recordPath: '/loop.md' } as never;
-    },
-    emitAuthorLoopResult: () => undefined,
-    dropOpenFilePath: () => undefined,
-    onRequestVersionHistory: () => undefined,
-  });
+  const { handleAcceptSuggestion, pendingSuggestion, rejectPendingSuggestion } =
+    useSuggestionWriteback({
+      editorRef,
+      originalContentRef,
+      cleanVersionIdRef,
+      filePathRef,
+      projectPathRef,
+      modelCacheRef: modelCacheRef as never,
+      setLoadedContentPreview: () => undefined,
+      setIsDirty: () => undefined,
+      normalizeEol: (text: string) => text.replace(/\r\n/g, '\n'),
+      getActiveBranchSnapshot: () => ({ id: 'main', label: '主线', headNodeId: null }) as never,
+      advanceBranchHead: async () => {
+        calls.push('branch');
+      },
+      recordRevisionLoop: async () => {
+        calls.push('record');
+        if (recordDeferred) await new Promise<void>((resolve) => (resolveRecord = resolve));
+        return { recordPath: '/loop.md' } as never;
+      },
+      emitAuthorLoopResult: () => undefined,
+      dropOpenFilePath: () => undefined,
+      onRequestVersionHistory: () => undefined,
+    });
 
   reject = rejectPendingSuggestion;
+  accept = handleAcceptSuggestion;
   panelHasPatch = pendingSuggestion !== null;
   return null;
 }
@@ -225,6 +231,9 @@ beforeEach(() => {
   stepPatches.length = 0;
   runStatuses.length = 0;
   panelHasPatch = false;
+  accept = async () => undefined;
+  recordDeferred = false;
+  resolveRecord = () => undefined;
   runStartKey = conversationKey(PROJECT, 7, 0);
   controlPatchId = 'file-revision-abc123';
   runControls = null;
@@ -279,6 +288,32 @@ test('拒绝这条路径一个字节都不写盘', async () => {
   });
 
   assert.deepEqual(calls, [], `拒绝不该触碰磁盘或后端，实际调用：${calls.join(' | ') || '(无)'}`);
+});
+
+test('接受写回 in-flight 时重复触发只执行一次，完成后仍走原有写回链', async () => {
+  await act(async () => {
+    emitFileSuggestion(suggestion());
+  });
+  recordDeferred = true;
+
+  let first!: Promise<void>;
+  let second!: Promise<void>;
+  act(() => {
+    first = accept();
+    second = accept();
+  });
+  assert.equal(calls.filter((call) => call === 'snapshot').length, 1);
+
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  resolveRecord();
+  await act(async () => {
+    await first;
+    await second;
+  });
+
+  assert.equal(calls.filter((call) => call === 'snapshot').length, 1);
+  assert.equal(calls.filter((call) => call === 'write').length, 1);
+  assert.equal(calls.filter((call) => call === 'record').length, 1);
 });
 
 test('对话区拒绝由编辑器处理并清掉同一 patchId 的待确认补丁', async () => {

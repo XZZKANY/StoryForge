@@ -214,9 +214,7 @@ export function CommandPalette({
     const list: Command[] = [
       { id: 'open-project', title: '打开项目…', hint: 'Ctrl O', run: onOpenProject },
     ];
-    if (!projectPath) {
-      list.push({ id: 'show-welcome', title: '显示欢迎页', run: onReopenWelcome });
-    }
+    list.push({ id: 'project-library', title: '打开作品库', run: onReopenWelcome });
     if (projectPath) {
       list.push({
         id: 'initialize-story-project',

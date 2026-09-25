@@ -70,11 +70,8 @@ export function ObsPanel({
             : '全部处理完';
 
   return (
-    <div
-      className="flex h-[212px] flex-shrink-0 flex-col border-t border-border bg-panel"
-      data-testid="obs-panel"
-    >
-      <div className="flex h-[30px] flex-shrink-0 items-center gap-3 border-b border-border px-3 text-2xs text-subtle">
+    <div className="flex h-[212px] flex-shrink-0 flex-col bg-panel" data-testid="obs-panel">
+      <div className="flex h-[30px] flex-shrink-0 items-center gap-3 px-3 text-2xs text-subtle">
         <h4 className="font-semibold tracking-[0.06em]">观测</h4>
         <span>改完一条勾一条 · 点击行定位原文</span>
         <span className="flex-1" />
@@ -105,7 +102,7 @@ export function ObsPanel({
               key={obs.id}
               data-testid="obs-row"
               data-severity={obs.severity}
-              className={`group flex w-full items-start gap-2.5 border-b border-border px-3.5 py-2 ${
+              className={`group flex w-full items-start gap-2.5 px-3.5 py-2 ${
                 obs.resolved ? 'opacity-40' : ''
               }`}
             >

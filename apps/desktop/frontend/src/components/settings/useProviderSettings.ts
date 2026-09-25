@@ -1,0 +1,318 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { probeProviderHealth } from '../../lib/api-client';
+import {
+  getDesktopLlmConfig,
+  saveDesktopLlmConfig,
+  type DesktopLlmConfig,
+} from '../../lib/desktop-llm-config';
+import {
+  describeProviderHealth,
+  isProviderKind,
+  type ProviderHealth,
+} from '../../lib/provider-config';
+import { DEFAULT_APP_SETTINGS, type AppSettings } from '../../lib/user-settings';
+
+export type ProbeState = 'idle' | 'loading' | ProviderHealth;
+type SaveState = 'idle' | 'loading' | 'saved' | 'error';
+type Slot = 'provider' | 'polishProvider';
+type WriteOperation = Slot | 'detect';
+const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const scopeKey = (provider: AppSettings['provider'], secret: string) =>
+  JSON.stringify([provider.kind, provider.baseUrl, provider.model, secret]);
+
+// These requests share one on-disk document. Keep UI delivery scoped, but never
+// release the write claim merely because the author edits a field while awaiting it.
+export function useProviderSettings(settings: AppSettings, onChange: (next: AppSettings) => void) {
+  const latestRef = useRef({ settings, onChange });
+  const aliveRef = useRef(true);
+  const secretsRef = useRef({ provider: '', polishProvider: '' });
+  const [secretInput, setMainSecret] = useState('');
+  const [polishSecretInput, setPolishSecret] = useState('');
+  const [storedConfig, setStoredConfig] = useState<DesktopLlmConfig | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [saveError, setSaveError] = useState('');
+  const [polishSaveState, setPolishSaveState] = useState<SaveState>('idle');
+  const [polishSaveError, setPolishSaveError] = useState('');
+  const [probe, setProbe] = useState<ProbeState>('idle');
+  const [detectState, setDetectState] = useState<'idle' | 'loading' | 'error' | 'ok'>('idle');
+  const [detectedModels, setDetectedModels] = useState<string[]>([]);
+  const [detectError, setDetectError] = useState('');
+  const [loadState, setLoadState] = useState<'loading' | 'idle' | 'error'>('loading');
+  const [loadError, setLoadError] = useState('');
+  const [writeOperation, setWriteOperation] = useState<WriteOperation | null>(null);
+  const writeRef = useRef<symbol | null>(null);
+  const readRef = useRef(0);
+  const probeRef = useRef(0);
+  const dirtyRef = useRef({ provider: false, polishProvider: false });
+  const scopesRef = useRef({
+    provider: scopeKey(settings.provider, ''),
+    polishProvider: `${scopeKey(settings.provider, '')}:${scopeKey(settings.polishProvider, '')}`,
+  });
+  const epochsRef = useRef({ provider: 0, polishProvider: 0 });
+
+  const syncScopes = useCallback((next: AppSettings) => {
+    const main = scopeKey(next.provider, secretsRef.current.provider);
+    const polish = `${scopeKey(next.provider, '')}:${scopeKey(next.polishProvider, secretsRef.current.polishProvider)}`;
+    if (scopesRef.current.provider !== main) {
+      scopesRef.current.provider = main;
+      epochsRef.current.provider += 1;
+      probeRef.current += 1;
+      setProbe('idle');
+      setDetectState('idle');
+      setDetectedModels([]);
+      setDetectError('');
+      setSaveState('idle');
+      setSaveError('');
+    }
+    if (scopesRef.current.polishProvider !== polish) {
+      scopesRef.current.polishProvider = polish;
+      epochsRef.current.polishProvider += 1;
+      setPolishSaveState('idle');
+      setPolishSaveError('');
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    // Also protect externally changed props, not just this dialog's event handlers.
+    for (const slot of ['provider', 'polishProvider'] as const) {
+      if (scopeKey(latestRef.current.settings[slot], '') !== scopeKey(settings[slot], ''))
+        dirtyRef.current[slot] = true;
+    }
+    latestRef.current = { settings, onChange };
+    syncScopes(settings);
+  }, [settings, onChange, syncScopes]);
+
+  useLayoutEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      readRef.current += 1;
+      probeRef.current += 1;
+      writeRef.current = null;
+    };
+  }, []);
+
+  const commit = useCallback(
+    (next: AppSettings) => {
+      latestRef.current.settings = next;
+      syncScopes(next);
+      latestRef.current.onChange(next);
+    },
+    [syncScopes],
+  );
+  const update = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => {
+    if (key === 'provider') dirtyRef.current.provider = true;
+    if (key === 'polishProvider') dirtyRef.current.polishProvider = true;
+    commit({ ...latestRef.current.settings, [key]: value });
+  };
+  const resetSettings = () => {
+    dirtyRef.current = { provider: true, polishProvider: true };
+    commit(DEFAULT_APP_SETTINGS);
+  };
+  const setSecret = (slot: Slot, value: string) => {
+    dirtyRef.current[slot] = true;
+    secretsRef.current[slot] = value;
+    (slot === 'provider' ? setMainSecret : setPolishSecret)(value);
+    syncScopes(latestRef.current.settings);
+  };
+
+  const loadConfig = useCallback(() => {
+    if (writeRef.current) return;
+    const request = ++readRef.current;
+    return getDesktopLlmConfig()
+      .then((config) => {
+        if (!aliveRef.current || readRef.current !== request) return;
+        setStoredConfig(config);
+        if (config) {
+          const latest = latestRef.current.settings;
+          const merge = (slot: Slot, value: DesktopLlmConfig | DesktopLlmConfig['polish']) => {
+            if (!value || dirtyRef.current[slot]) return latest[slot];
+            return {
+              ...latest[slot],
+              kind: isProviderKind(value.provider)
+                ? value.provider
+                : DEFAULT_APP_SETTINGS[slot].kind,
+              baseUrl: value.baseUrl || latest[slot].baseUrl,
+              model: value.model || latest[slot].model,
+              apiKeyRef: value.hasApiKey
+                ? `stored://storyforge/llm-provider${slot === 'polishProvider' ? '/polish' : ''}`
+                : '',
+            };
+          };
+          commit({
+            ...latest,
+            provider: merge('provider', config),
+            polishProvider: merge('polishProvider', config.polish),
+          });
+        }
+        setLoadState('idle');
+      })
+      .catch((error) => {
+        if (!aliveRef.current || readRef.current !== request) return;
+        setLoadState('error');
+        setLoadError(message(error));
+      });
+  }, [commit]);
+  useEffect(() => {
+    void loadConfig();
+  }, [loadConfig]);
+
+  useEffect(() => {
+    if (saveState !== 'saved') return;
+    const timer = window.setTimeout(() => setSaveState('idle'), 2500);
+    return () => window.clearTimeout(timer);
+  }, [saveState]);
+  useEffect(() => {
+    if (polishSaveState !== 'saved') return;
+    const timer = window.setTimeout(() => setPolishSaveState('idle'), 2500);
+    return () => window.clearTimeout(timer);
+  }, [polishSaveState]);
+
+  const runProbe = async () => {
+    if (writeRef.current || probe === 'loading') return;
+    const request = ++probeRef.current;
+    setProbe('loading');
+    try {
+      const result = await probeProviderHealth();
+      if (aliveRef.current && probeRef.current === request) setProbe(result);
+    } catch (error) {
+      if (!aliveRef.current || probeRef.current !== request) return;
+      setProbe({
+        status: 'unreachable',
+        reachable: false,
+        baseUrl: null,
+        model: null,
+        latencyMs: null,
+        modelCount: null,
+        models: [],
+        detail: message(error),
+        missingEnv: [],
+      });
+    }
+  };
+
+  const writeConfig = async (operation: WriteOperation, clearApiKey = false) => {
+    if (writeRef.current) return;
+    const claim = Symbol('config-write');
+    writeRef.current = claim;
+    const slot = operation === 'polishProvider' ? 'polishProvider' : 'provider';
+    const epoch = epochsRef.current[slot];
+    const current = () =>
+      aliveRef.current && writeRef.current === claim && epochsRef.current[slot] === epoch;
+    const setState = slot === 'provider' ? setSaveState : setPolishSaveState;
+    const setError = slot === 'provider' ? setSaveError : setPolishSaveError;
+    const snapshot = latestRef.current.settings;
+    const selected = snapshot[slot];
+    const secret = secretsRef.current[slot];
+    // Starting a mutation supersedes an earlier read and health result, even if
+    // the author has not edited metadata. It does not cancel any native write.
+    readRef.current += 1;
+    probeRef.current += 1;
+    setWriteOperation(operation);
+    setLoadState('idle');
+    setLoadError('');
+    setProbe('idle');
+    if (operation === 'detect') {
+      setDetectState('loading');
+      setDetectError('');
+    } else {
+      setState('loading');
+      setError('');
+    }
+    try {
+      const credentials = clearApiKey ? { clearApiKey: true } : { apiKey: secret };
+      const next = await saveDesktopLlmConfig({
+        provider: snapshot.provider.kind,
+        baseUrl: snapshot.provider.baseUrl,
+        model: snapshot.provider.model,
+        ...(slot === 'provider'
+          ? credentials
+          : {
+              polish: {
+                provider: selected.kind,
+                baseUrl: selected.baseUrl,
+                model: selected.model,
+                ...credentials,
+              },
+            }),
+      });
+      if (!current()) return;
+      if (next) setStoredConfig(next);
+      if (operation === 'detect') {
+        const health = await probeProviderHealth();
+        if (!current()) return;
+        setDetectedModels(health.models);
+        if (health.status === 'ok' && health.models.length > 0) setDetectState('ok');
+        else {
+          setDetectState('error');
+          setDetectError(describeProviderHealth(health).label);
+        }
+      } else {
+        if (next) {
+          const latest = latestRef.current.settings;
+          const saved = slot === 'provider' ? next : next.polish;
+          commit({
+            ...latest,
+            [slot]: {
+              ...latest[slot],
+              apiKeyRef: saved?.hasApiKey
+                ? `stored://storyforge/llm-provider${slot === 'polishProvider' ? '/polish' : ''}`
+                : '',
+            },
+          });
+          // Reset only the secret submitted by this still-current request. The
+          // scope invalidation happens before publishing its success feedback.
+          setSecret(slot, '');
+        }
+        setState('saved');
+      }
+    } catch (error) {
+      if (!current()) return;
+      if (operation === 'detect') {
+        setDetectState('error');
+        setDetectError(message(error));
+      } else {
+        setState('error');
+        setError(message(error));
+      }
+    } finally {
+      if (aliveRef.current && writeRef.current === claim) {
+        writeRef.current = null;
+        setWriteOperation(null);
+      }
+    }
+  };
+
+  return {
+    update,
+    resetSettings,
+    secretInput,
+    polishSecretInput,
+    storedConfig,
+    saveState,
+    saveError,
+    polishSaveState,
+    polishSaveError,
+    probe,
+    detectState,
+    detectedModels,
+    detectError,
+    loadState,
+    loadError,
+    writeOperation,
+    loadConfig: () => {
+      if (writeRef.current) return;
+      setLoadState('loading');
+      setLoadError('');
+      return loadConfig();
+    },
+    runProbe,
+    setSecretInput: (value: string) => setSecret('provider', value),
+    setPolishSecretInput: (value: string) => setSecret('polishProvider', value),
+    detectModels: () => writeConfig('detect'),
+    saveProviderConfig: () => writeConfig('provider'),
+    clearProviderSecret: () => writeConfig('provider', true),
+    savePolishProviderConfig: () => writeConfig('polishProvider'),
+    clearPolishProviderSecret: () => writeConfig('polishProvider', true),
+  };
+}

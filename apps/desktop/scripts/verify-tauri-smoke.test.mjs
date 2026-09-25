@@ -34,6 +34,7 @@ test('smoke environment overrides inherited API identity with an isolated endpoi
   );
 
   assert.equal(environment.STORYFORGE_API_BASE_URL, 'http://127.0.0.1:54321');
+  assert.equal(environment.NO_PROXY, '127.0.0.1,localhost,::1');
   assert.equal(environment.STORYFORGE_DESKTOP_REUSE_API, '0');
   assert.equal(environment.STORYFORGE_DESKTOP_SKIP_SERVICES, '1');
   assert.equal(environment.STORYFORGE_DESKTOP_SMOKE, '1');
@@ -133,10 +134,8 @@ test('release smoke capability-checks the fallback executable before launch', ()
 
 test('Windows cleanup synchronously terminates a live process tree', () => {
   const calls = [];
-  killProcessTree(
-    { pid: 4242, exitCode: null },
-    'win32',
-    (command, args, options) => calls.push({ command, args, options }),
+  killProcessTree({ pid: 4242, exitCode: null }, 'win32', (command, args, options) =>
+    calls.push({ command, args, options }),
   );
 
   assert.equal(calls.length, 1);
@@ -144,10 +143,8 @@ test('Windows cleanup synchronously terminates a live process tree', () => {
   assert.deepEqual(calls[0].args, ['/PID', '4242', '/T', '/F']);
   assert.equal(calls[0].options.windowsHide, true);
 
-  killProcessTree(
-    { pid: 4343, exitCode: 1 },
-    'win32',
-    (command, args, options) => calls.push({ command, args, options }),
+  killProcessTree({ pid: 4343, exitCode: 1 }, 'win32', (command, args, options) =>
+    calls.push({ command, args, options }),
   );
   assert.equal(calls.length, 1, 'an exited PID must not be targeted after it can be reused');
 
@@ -172,10 +169,13 @@ test('process wait rejects signal termination instead of reporting success', asy
 
 test('API cleanup treats every HTTP response as reachable and preserves data until stop', async () => {
   let requestOptions;
-  const reachable = await isUrlReachable('http://127.0.0.1:54321/health/ready', async (_url, options) => {
-    requestOptions = options;
-    return { body: { cancel: async () => undefined }, ok: false, status: 503 };
-  });
+  const reachable = await isUrlReachable(
+    'http://127.0.0.1:54321/health/ready',
+    async (_url, options) => {
+      requestOptions = options;
+      return { body: { cancel: async () => undefined }, ok: false, status: 503 };
+    },
+  );
   assert.equal(reachable, true);
   assert.ok(requestOptions.signal instanceof globalThis.AbortSignal);
   assert.equal(
@@ -268,4 +268,28 @@ test('smoke API endpoint uses an ephemeral loopback port', async () => {
   assert.equal(baseUrl.protocol, 'http:');
   assert.equal(baseUrl.hostname, '127.0.0.1');
   assert.equal(Number.isInteger(port) && port > 0 && port <= 65535, true);
+});
+test('smoke readiness bypasses proxies only for loopback and preserves inherited bypasses', () => {
+  const inherited = {
+    HTTPS_PROXY: 'http://proxy.example:8080',
+    NO_PROXY: 'internal.example, localhost',
+    no_proxy: 'second.internal,127.0.0.1',
+  };
+  const before = { ...inherited };
+  const environment = createSmokeEnvironment(inherited, 'http://127.0.0.1:54321', {
+    localDataDir: 'C:\\Temp\\smoke\\local-data',
+    configDir: 'C:\\Temp\\smoke\\config',
+    webviewDataDir: 'C:\\Temp\\smoke\\webview2',
+  });
+  assert.deepEqual(
+    new Set(environment.NO_PROXY.split(',')),
+    new Set(['internal.example', 'localhost', 'second.internal', '127.0.0.1', '::1']),
+  );
+  assert.equal(environment.HTTPS_PROXY, inherited.HTTPS_PROXY);
+  assert.equal(
+    'no_proxy' in environment,
+    false,
+    'Windows case-insensitive environment must receive a single NO_PROXY key',
+  );
+  assert.deepEqual(inherited, before, 'parent process environment must not be mutated');
 });

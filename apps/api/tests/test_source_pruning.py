@@ -273,3 +273,25 @@ def test_workflow_compat_dispatch_and_payload_facade_stay_pruned() -> None:
 
     registered_paths = {route.path for route in app.routes}
     assert "/api/book-runs/{book_run_id}/workflow-dispatch" not in registered_paths
+
+
+def test_ide_zero_consumer_read_routes_stay_pruned() -> None:
+    """没有 Desktop 调用方的 IDE 读路由不应重新暴露为 HTTP 契约。
+
+    读取实现仍保留在 ide service，供未来产品面复用；本护栏只约束已核实没有
+    当前前端消费者的路由，避免旧 API 面在没有调用方时继续扩大。
+    """
+
+    pruned_paths = {
+        "/api/ide/workspace-tree",
+        "/api/ide/diagnostics",
+        "/api/ide/scenes/{scene_id}",
+        "/api/ide/context-snapshot/{compiled_context_id}",
+        "/api/ide/story-memory/query",
+        "/api/ide/artifacts/{artifact_id}/preview",
+    }
+    registered_paths = {route.path for route in app.routes}
+    openapi_paths = set(app.openapi()["paths"])
+
+    assert registered_paths.isdisjoint(pruned_paths)
+    assert openapi_paths.isdisjoint(pruned_paths)

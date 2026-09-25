@@ -6,12 +6,31 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { App } from '../src/App';
 import { SettingsView } from '../src/components/SettingsView';
 import { DEFAULT_APP_SETTINGS } from '../src/lib/user-settings';
+import { getDesktopLlmConfig, saveDesktopLlmConfig } from '../src/lib/desktop-llm-config';
+import { probeProviderHealth } from '../src/lib/api-client';
 
 vi.mock('../src/components/Editor', () => ({ Editor: () => null }));
 vi.mock('../src/lib/desktop-llm-config', () => ({
   getDesktopLlmConfig: vi.fn(async () => null),
   saveDesktopLlmConfig: vi.fn(),
 }));
+vi.mock('../src/lib/api-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/lib/api-client')>();
+  return {
+    ...actual,
+    probeProviderHealth: vi.fn(async () => ({
+      status: 'unreachable',
+      reachable: false,
+      baseUrl: null,
+      model: null,
+      latencyMs: null,
+      modelCount: null,
+      models: [],
+      detail: null,
+      missingEnv: [],
+    })),
+  };
+});
 vi.mock('../src/lib/api/runtime-health', () => ({
   probeApiRuntimeHealth: async () => ({ status: 'unreachable', reachable: false, checks: {} }),
 }));
@@ -146,6 +165,71 @@ test('设置内快捷键不触发背景 App，文本编辑快捷键保留默认�
   assert.equal(key(search, 'v', { ctrlKey: true }).defaultPrevented, false);
 });
 
+test('设置异步加载不会用迟到的旧配置覆盖用户刚输入的 provider/model', async () => {
+  let resolveConfig!: (value: Awaited<ReturnType<typeof getDesktopLlmConfig>>) => void;
+  vi.mocked(getDesktopLlmConfig).mockReturnValueOnce(
+    new Promise((resolve) => {
+      resolveConfig = resolve;
+    }),
+  );
+  const { container } = await openSettings();
+  const model = required<HTMLInputElement>(container, '[data-testid="provider-model"]');
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  assert.ok(setValue);
+  await act(async () => {
+    setValue.call(model, 'user-latest-model');
+    model.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    resolveConfig({
+      provider: 'openai',
+      baseUrl: 'https://stale.example/v1',
+      model: 'stale-model',
+      hasApiKey: true,
+      polish: null,
+    });
+    await Promise.resolve();
+  });
+  assert.equal(model.value, 'user-latest-model');
+  assert.equal(
+    required<HTMLSelectElement>(container, '[data-testid="provider-kind"]').value,
+    'openai',
+  );
+});
+
+test('设置探测迟到结果不会覆盖新 provider 输入', async () => {
+  let resolveHealth!: (value: Awaited<ReturnType<typeof probeProviderHealth>>) => void;
+  vi.mocked(saveDesktopLlmConfig).mockResolvedValueOnce(null);
+  vi.mocked(probeProviderHealth).mockReturnValueOnce(
+    new Promise((resolve) => {
+      resolveHealth = resolve;
+    }),
+  );
+  const { container } = await openSettings();
+  await click(required<HTMLButtonElement>(container, '[data-testid="provider-detect-models"]'));
+  const kind = required<HTMLSelectElement>(container, '[data-testid="provider-kind"]');
+  await act(async () => {
+    kind.value = 'deepseek';
+    kind.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await act(async () => {
+    resolveHealth({
+      status: 'ok',
+      reachable: true,
+      baseUrl: 'https://stale.example/v1',
+      model: 'stale',
+      latencyMs: 1,
+      modelCount: 1,
+      models: ['stale-model'],
+      detail: null,
+      missingEnv: [],
+    });
+    await Promise.resolve();
+  });
+  assert.equal(container.querySelector('[data-testid="provider-model-options"]'), null);
+  assert.equal(kind.value, 'deepseek');
+});
+
 test('设置从临时齿轮菜单打开，关闭后焦点回到持久齿轮入口', async () => {
   const container = await mount(<App />);
   const gear = required<HTMLButtonElement>(container, '[data-testid="activity-settings"]');
@@ -161,10 +245,10 @@ test('设置从临时齿轮菜单打开，关闭后焦点回到持久齿轮入�
   assert.equal(document.activeElement === gear, true);
 });
 
-test('设置关闭按钮与欢迎卡入口之间恢复焦点', async () => {
+test('设置关闭按钮与作品库入口之间恢复焦点', async () => {
   const container = await mount(<App />);
-  const entry = Array.from(container.querySelectorAll('button')).find((button) =>
-    button.textContent?.includes('模型'),
+  const entry = Array.from(container.querySelectorAll('button')).find(
+    (button) => button.textContent?.trim() === '设置' && !button.closest('[hidden]'),
   );
   assert.ok(entry);
   await click(entry);

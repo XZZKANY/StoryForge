@@ -194,6 +194,14 @@ export function takePendingFileSuggestion(filePath: string | null): AssistantFil
   return suggestion;
 }
 
+/** Settle only the original buffered proposal; a newer proposal owns its slot. */
+export function replacePendingFileSuggestion(
+  expected: AssistantFileSuggestion,
+  next: AssistantFileSuggestion | null,
+): void {
+  if (pendingFileSuggestion === expected) pendingFileSuggestion = next;
+}
+
 export type FileSuggestionTarget = {
   patchId: string;
   filePath: string;
@@ -261,17 +269,29 @@ export function requestRejectCurrentFileSuggestion(rejection: PatchRejection): b
 }
 
 export type RetryWithoutKnowledge = {
+  projectPath?: string;
+  filePath?: string;
+  complete?: (error?: string) => void;
   knowledgeId: string;
   relativePath: string;
   goal: string;
 };
 
-export function emitRetryWithoutKnowledge(detail: RetryWithoutKnowledge): void {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new CustomEvent<RetryWithoutKnowledge>(RETRY_WITHOUT_KNOWLEDGE_EVENT, { detail }),
-    );
-  }
+export function emitRetryWithoutKnowledge(
+  detail: Omit<RetryWithoutKnowledge, 'complete'>,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      reject(new Error('Agent 面板尚未就绪'));
+      return;
+    }
+    const event = new CustomEvent<RetryWithoutKnowledge>(RETRY_WITHOUT_KNOWLEDGE_EVENT, {
+      cancelable: true,
+      detail: { ...detail, complete: (error) => (error ? reject(new Error(error)) : resolve()) },
+    });
+    window.dispatchEvent(event);
+    if (!event.defaultPrevented) reject(new Error('当前项目没有可接收重试的 Agent 会话'));
+  });
 }
 
 /** 审稿 issue 在编辑器内打标记所需的最小字段。 */

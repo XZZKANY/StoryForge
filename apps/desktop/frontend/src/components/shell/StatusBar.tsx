@@ -89,7 +89,7 @@ export function StatusBar({
 
   return (
     <footer
-      className="relative flex h-[26px] flex-shrink-0 items-center gap-4 border-t border-border bg-panel px-3 text-2xs text-subtle"
+      className="sf-shell-edge-top relative flex h-[26px] flex-shrink-0 items-center gap-4 bg-panel px-3 text-2xs text-subtle"
       style={{ boxShadow: '0 -1px 3px rgb(0 0 0 / 0.05)' }}
       data-testid="shell-status-bar"
     >

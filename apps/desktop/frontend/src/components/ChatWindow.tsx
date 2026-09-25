@@ -52,6 +52,7 @@ export {
 
 export function ChatWindow(props: ChatWindowProps) {
   const { onAgentRunSummaryChange, projectPath, assistantSessionId } = props;
+  const retryInFlightRef = useRef(false);
   const summaryScopeRef = useRef(`${projectPath ?? ''}:${assistantSessionId ?? 'draft'}`);
   const agentPermissionProfile = props.agentPermissionProfile ?? DEFAULT_AGENT_PERMISSION_PROFILE;
   const onAgentPermissionProfileChange = props.onAgentPermissionProfileChange ?? (() => undefined);
@@ -102,16 +103,34 @@ export function ChatWindow(props: ChatWindowProps) {
   useEffect(() => {
     const onRetryWithoutKnowledge = (event: Event) => {
       const detail = (event as CustomEvent<RetryWithoutKnowledge>).detail;
-      if (!detail?.knowledgeId || !detail.goal) return;
+      if (event.defaultPrevented || !detail?.knowledgeId || !detail.goal || !projectPath) return;
+      if (detail.projectPath && detail.projectPath !== projectPath) return;
+      if (detail.filePath && detail.filePath !== props.currentFile) return;
+      event.preventDefault();
+      if (state.agentBusy || retryInFlightRef.current) {
+        detail.complete?.('Agent 正忙，请稍后重试');
+        return;
+      }
+      retryInFlightRef.current = true;
       state.setMessages((current) => [
         ...current,
         { role: 'user', content: `移除知识 ${detail.relativePath} 后重试：${detail.goal}` },
       ]);
-      void runAuthorAgent(detail.goal, undefined, undefined, [detail.knowledgeId]);
+      void (async () => {
+        try {
+          await runAuthorAgent(detail.goal, undefined, undefined, [detail.knowledgeId]);
+          // Completion means the request settled, not that a patch was accepted/written.
+          detail.complete?.();
+        } catch (error) {
+          detail.complete?.(error instanceof Error ? error.message : String(error));
+        } finally {
+          retryInFlightRef.current = false;
+        }
+      })();
     };
     window.addEventListener(RETRY_WITHOUT_KNOWLEDGE_EVENT, onRetryWithoutKnowledge);
     return () => window.removeEventListener(RETRY_WITHOUT_KNOWLEDGE_EVENT, onRetryWithoutKnowledge);
-  }, [runAuthorAgent, state]);
+  }, [projectPath, props.currentFile, runAuthorAgent, state]);
 
   useEffect(() => {
     const onChapterPolish = (event: Event) => {
@@ -137,7 +156,10 @@ export function ChatWindow(props: ChatWindowProps) {
       agentPermissionProfile={agentPermissionProfile}
       onAgentPermissionProfileChange={onAgentPermissionProfileChange}
       handleSelectSession={session.handleSelectSession}
-      handleNewSession={session.handleNewSession}
+      handleNewSession={() => {
+        submission.clearQueuedMessages();
+        session.handleNewSession();
+      }}
       retryAssistantSessionLoad={session.retryAssistantSessionLoad}
       retryContextCandidates={session.retryContextCandidates}
       addExplicitContext={session.addExplicitContext}
@@ -145,6 +167,9 @@ export function ChatWindow(props: ChatWindowProps) {
       handleSubmit={submission.handleSubmit}
       handleComposerSubmit={submission.handleComposerSubmit}
       userMessageHistory={submission.userMessageHistory}
+      conversationScope={submission.conversationScope}
+      queuedMessages={submission.queuedMessages}
+      onRemoveQueuedMessage={submission.removeQueuedMessage}
       retryLastFailedRun={controls.retryLastFailedRun}
       agentRunControls={controls.agentRunControls}
     />

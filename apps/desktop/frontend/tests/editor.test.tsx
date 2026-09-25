@@ -102,6 +102,31 @@ test('异步文件读取期间明确显示 loading，失败后显示错误而不
   assert.match(failed, /access denied/);
 });
 
+test('文件读取失败提供可见重试入口，并保留 request-id 守卫', () => {
+  const failed = renderToStaticMarkup(
+    React.createElement(EditorLoadStatus, {
+      filePath: 'D:\\Books\\a.md',
+      loadedFilePath: null,
+      loadError: 'access denied',
+      onRetry: noop,
+    }),
+  );
+  assert.match(failed, /data-testid="editor-load-retry"/);
+  assert.match(failed, /重试读取/);
+  const loaderSource = readFileSync(
+    join(process.cwd(), 'src/components/editor/useEditorFileLoader.ts'),
+    'utf8',
+  );
+  assert.match(loaderSource, /const retry = useCallback/);
+  assert.match(loaderSource, /retryNonce/);
+  assert.match(loaderSource, /loadRequestIdRef\.current === requestId/);
+  assert.match(
+    monacoEditorSource,
+    /const loadPending = Boolean\(filePath\) && loadedFilePath !== filePath/,
+  );
+  assert.match(monacoEditorSource, /readOnly: readOnly \|\| loadPending/);
+});
+
 test('Canon derived 文件以只读 Monaco 打开（Q3a 后只读态由 data-read-only + Monaco 承载，只读徽章移到页签行）', () => {
   const html = renderEditor({
     filePath: 'D:\\Books\\雾港回声\\.storyforge\\canon\\derived\\dossier.md',

@@ -16,6 +16,8 @@ import { BookOverviewHero } from './BookOverviewHero';
 import { BookOpen, ChevronRight, FileText, Library, RefreshCw } from '../icons/shell-icons';
 import { LiveStatus } from '../shell/LiveStatus';
 
+const OVERVIEW_CHAPTER_LIMIT = 8;
+
 export type BookOverviewProps = {
   projectPath: string;
   profile: BookProfileHandle;
@@ -24,6 +26,8 @@ export type BookOverviewProps = {
   chapters?: BookOverviewChaptersHandle;
   /** 点击「继续写作」时由壳层决定如何切换 surface 并打开文件。 */
   onContinueWriting: (relativePath?: string) => void;
+  /** 长列表的「查看全部」入口；未提供时回退到继续写作工作台。 */
+  onOpenAllChapters?: () => void;
   onOpenChapter?: (relativePath: string) => void;
   onOpenOutline?: (path: string, line: number) => void;
   onRefresh?: () => void;
@@ -76,6 +80,7 @@ export function BookOverview({
   context,
   chapters: chapterIndex,
   onContinueWriting,
+  onOpenAllChapters,
   onOpenChapter,
   onOpenOutline,
   onRefresh = profile.refresh,
@@ -93,7 +98,21 @@ export function BookOverview({
     chapterIndex?.currentChapter ??
     chapters.find((chapter) => chapter.relativePath === snapshot?.currentRelativePath) ??
     null;
-  const recentChapters = chapters;
+  const currentChapterIndex = currentChapter
+    ? chapters.findIndex((chapter) => chapter.relativePath === currentChapter.relativePath)
+    : -1;
+  const overviewChapterStart =
+    chapters.length <= OVERVIEW_CHAPTER_LIMIT || currentChapterIndex < 0
+      ? 0
+      : Math.min(
+          Math.max(currentChapterIndex - Math.floor(OVERVIEW_CHAPTER_LIMIT / 2), 0),
+          chapters.length - OVERVIEW_CHAPTER_LIMIT,
+        );
+  const recentChapters = chapters.slice(
+    overviewChapterStart,
+    overviewChapterStart + OVERVIEW_CHAPTER_LIMIT,
+  );
+  const hasMoreChapters = recentChapters.length < chapters.length;
   const outlineItems = profile.outline.slice(0, 6);
 
   return (
@@ -104,7 +123,7 @@ export function BookOverview({
       aria-label="作品总览"
       aria-busy={profile.loading}
     >
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 py-6 md:px-8 md:py-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-5 md:px-8 md:py-6">
         <header
           className="flex items-center gap-3 animate-fade-in-up"
           data-testid="book-overview-header"
@@ -161,7 +180,7 @@ export function BookOverview({
           <button
             type="button"
             onClick={onOpenPendingPatches}
-            className="card-hover flex w-full items-center gap-3 rounded-xl border border-agent/40 bg-agent/10 px-4 py-3.5 text-left shadow-sm hover:bg-agent/15 hover:shadow-md"
+            className="flex w-full items-center gap-3 rounded-lg border border-agent/40 bg-agent/10 px-4 py-3.5 text-left hover:bg-agent/15"
             data-testid="book-overview-pending-patches"
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-agent/20">
@@ -178,7 +197,7 @@ export function BookOverview({
           <button
             type="button"
             onClick={onOpenAgentRun}
-            className="card-hover flex w-full items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3.5 text-left shadow-sm hover:bg-warning/15 hover:shadow-md"
+            className="flex w-full items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3.5 text-left hover:bg-warning/15"
             data-testid="book-overview-agent-run"
           >
             <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-warning/20">
@@ -250,12 +269,17 @@ export function BookOverview({
             ref={chapterListRef}
             tabIndex={-1}
             aria-label="章节列表"
-            className="card-hover rounded-xl border border-border bg-panel focus-visible:outline focus-visible:outline-agent"
+            className="rounded-lg bg-panel focus-visible:outline focus-visible:outline-agent"
             data-testid="book-overview-recent-chapters"
           >
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h2 className="text-sm font-medium text-foreground">章节 · 阅读顺序</h2>
-              <span className="rounded-full bg-elevated px-2 py-0.5 text-2xs text-subtle">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="min-w-0">
+                <h2 className="text-sm font-medium text-foreground">章节 · 阅读顺序</h2>
+                {hasMoreChapters ? (
+                  <p className="mt-0.5 text-2xs text-subtle">显示当前章附近的章节</p>
+                ) : null}
+              </div>
+              <span className="flex-shrink-0 rounded-full bg-elevated px-2 py-0.5 text-2xs text-subtle">
                 {chapterIndex?.status === 'available'
                   ? `${chapters.length} 章`
                   : chapterIndex?.status === 'loading'
@@ -264,14 +288,14 @@ export function BookOverview({
               </span>
             </div>
             {recentChapters.length > 0 ? (
-              <ul className="divide-y divide-border">
+              <ul className="space-y-1 pb-2">
                 {recentChapters.map((chapter) => (
                   <li key={chapter.relativePath} className="stagger-item">
                     <button
                       type="button"
                       disabled={!onOpenChapter}
                       onClick={() => onOpenChapter?.(chapter.relativePath)}
-                      className="group flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-elevated disabled:cursor-default"
+                      className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors hover:bg-elevated disabled:cursor-default"
                       data-testid="book-overview-chapter-row"
                     >
                       <span className="flex h-7 w-8 flex-shrink-0 items-center justify-center rounded-md bg-elevated font-mono text-2xs text-subtle transition-colors group-hover:bg-agent/10 group-hover:text-agent">
@@ -305,13 +329,26 @@ export function BookOverview({
                 </p>
               </div>
             )}
+            {hasMoreChapters ? (
+              <div className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => (onOpenAllChapters ?? onContinueWriting)()}
+                  className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-agent transition-colors hover:bg-agent/10"
+                  data-testid="book-overview-view-all-chapters"
+                >
+                  <span>查看全部章节</span>
+                  <span className="flex items-center gap-1 text-2xs text-subtle">
+                    打开手稿视图
+                    <ChevronRight size={13} aria-hidden="true" />
+                  </span>
+                </button>
+              </div>
+            ) : null}
           </div>
 
-          <div
-            className="card-hover rounded-xl border border-border bg-panel"
-            data-testid="book-overview-outline"
-          >
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div className="rounded-lg bg-panel" data-testid="book-overview-outline">
+            <div className="flex items-center justify-between px-4 py-3">
               <h2 className="text-sm font-medium text-foreground">大纲速览</h2>
               <span className="rounded-full bg-elevated px-2 py-0.5 text-2xs text-subtle">
                 {profile.loading || profile.outlineLoading
@@ -339,14 +376,14 @@ export function BookOverview({
                 </button>
               </div>
             ) : outlineItems.length > 0 ? (
-              <ul className="divide-y divide-border">
+              <ul className="space-y-1 pb-2">
                 {outlineItems.map((entry) => (
                   <li key={`${entry.path}:${entry.line}`} className="stagger-item">
                     <button
                       type="button"
                       disabled={!onOpenOutline}
                       onClick={() => onOpenOutline?.(entry.path, entry.line)}
-                      className="group flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-elevated disabled:cursor-default"
+                      className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors hover:bg-elevated disabled:cursor-default"
                       data-testid="book-overview-outline-row"
                     >
                       <span className="min-w-0 flex-1 truncate text-sm text-muted transition-colors group-hover:text-foreground">

@@ -14,6 +14,9 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { App } from '../src/App';
+import { open as openDirectory } from '@tauri-apps/plugin-dialog';
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(async () => null) }));
 import { SHORTCUT_ROWS, formatShortcutSheet } from '../src/components/app/shortcuts';
 
 // 中栏重组件与本用例无关，桩掉避免挂载副作用（读本机 LLM 配置 / 版本历史）出网。
@@ -36,6 +39,7 @@ const mounted: Array<{ container: HTMLElement; root: ReturnType<typeof createRoo
 
 beforeEach(() => {
   localStorage.clear();
+  vi.mocked(openDirectory).mockClear();
 });
 
 afterEach(() => {
@@ -58,16 +62,21 @@ function mountApp(): HTMLElement {
 }
 
 /** 真按一次，回报 App 是否调用了 preventDefault。 */
-function pressChord(chord: { ctrl?: true; shift?: true; key: string }): boolean {
+function pressChord(
+  chord: { ctrl?: true; meta?: true; shift?: true; key: string },
+  options: { target?: EventTarget; isComposing?: boolean } = {},
+): boolean {
   const event = new KeyboardEvent('keydown', {
     key: chord.key,
     ctrlKey: Boolean(chord.ctrl),
+    metaKey: Boolean(chord.meta),
     shiftKey: Boolean(chord.shift),
+    isComposing: Boolean(options.isComposing),
     bubbles: true,
     cancelable: true,
   });
   act(() => {
-    window.dispatchEvent(event);
+    (options.target ?? window).dispatchEvent(event);
   });
   return event.defaultPrevented;
 }
@@ -126,10 +135,88 @@ test('Ctrl+Shift+Tab 不会被 shift 视图快捷键早退吞掉', () => {
   assert.equal(pressChord({ ctrl: true, shift: true, key: 'tab' }), false);
 });
 
+test('文本输入目标不触发壳层 B/1/2/3 导航，但 Ctrl/Cmd+P 仍跨文本生效', () => {
+  mountApp();
+  const input = document.createElement('input');
+  const select = document.createElement('select');
+  const editable = document.createElement('div');
+  editable.setAttribute('contenteditable', 'true');
+  document.body.append(input, select, editable);
+
+  try {
+    for (const target of [input, select, editable]) {
+      for (const key of ['b', '1', '2', '3']) {
+        assert.equal(
+          pressChord({ ctrl: true, key }, { target }),
+          false,
+          `文本目标不应接管 Ctrl+${key.toUpperCase()} 壳层导航`,
+        );
+      }
+      assert.equal(
+        pressChord({ ctrl: true, key: 'p' }, { target }),
+        true,
+        'Ctrl+P 仍应在文本目标上打开命令面板',
+      );
+    }
+    assert.equal(
+      pressChord({ meta: true, key: 'p' }, { target: input }),
+      true,
+      'Cmd+P 仍应在文本目标上打开命令面板',
+    );
+  } finally {
+    input.remove();
+    select.remove();
+    editable.remove();
+  }
+});
+
+test('IME 组合态不会触发壳层 B/O/1/2/3 导航，普通壳层焦点仍接管', () => {
+  mountApp();
+  const shell = document.createElement('div');
+  document.body.append(shell);
+
+  try {
+    for (const key of ['b', 'o', '1', '2', '3']) {
+      assert.equal(
+        pressChord({ ctrl: true, key }, { isComposing: true }),
+        false,
+        `IME 组合态不应接管 Ctrl+${key.toUpperCase()} 壳层导航`,
+      );
+      assert.equal(
+        pressChord({ ctrl: true, key }, { target: shell }),
+        true,
+        `普通壳层焦点应接管 Ctrl+${key.toUpperCase()} 导航`,
+      );
+    }
+  } finally {
+    shell.remove();
+  }
+});
+
 test('速查表正文按显示键名等宽对齐，且每行都出现在正文里', () => {
   const sheet = formatShortcutSheet();
   for (const row of SHORTCUT_ROWS) {
     assert.ok(sheet.includes(row.label), `速查表正文缺少「${row.label}」`);
   }
   assert.ok(sheet.includes('Ctrl C / A / V'), '速查表应说明系统编辑键不被拦截');
+});
+
+test('Ctrl/Cmd+O 从文本与 Monaco 输入焦点打开原生目录选择器，组合态不触发', async () => {
+  mountApp();
+  const input = document.createElement('textarea');
+  input.className = 'inputarea';
+  document.body.append(input);
+  try {
+    for (const modifier of [{ ctrl: true as const }, { meta: true as const }]) {
+      await act(async () => {
+        assert.equal(pressChord({ ...modifier, key: 'o' }, { target: input }), true);
+      });
+    }
+    assert.equal(vi.mocked(openDirectory).mock.calls.length, 2);
+    assert.equal(pressChord({ ctrl: true, key: 'o' }, { target: input, isComposing: true }), false);
+    assert.equal(pressChord({ ctrl: true, shift: true, key: 'o' }, { target: input }), false);
+    assert.equal(vi.mocked(openDirectory).mock.calls.length, 2);
+  } finally {
+    input.remove();
+  }
 });

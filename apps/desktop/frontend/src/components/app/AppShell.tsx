@@ -5,7 +5,6 @@ import { CommandPalette } from '../CommandPalette';
 import { PROSE_MEASURE_LABELS } from '../editor/options';
 import { SettingsView } from '../SettingsView';
 import { ActivityBar } from '../shell/ActivityBar';
-import type { ContextMenuItem } from '../shell/ContextMenu';
 import { AssistantPanelFrame } from '../shell/AssistantPanelFrame';
 import type { CenterTab } from '../shell/EditorTabs';
 import { obsCounts } from '../shell/ObsPanel';
@@ -24,10 +23,11 @@ import { WORKSPACE_PRIMARY_MIN_WIDTH } from '../../lib/workspace-layout';
 import { emitExportCurrentFile } from '../../lib/assistant-events';
 import { AppDialogHost } from './AppDialog';
 import { resolveActiveCenterTab } from './editor-tabs-state';
-import { formatShortcutSheet } from './shortcuts';
+import { createShellHelp } from './shell-help';
 import { useAgentPermission } from './useAgentPermission';
 import { useFileTreeActions } from './useFileTreeActions';
-import { WelcomeDismissed, WelcomeWorkspace } from './WelcomeWorkspace';
+import { ProjectLibrary } from './ProjectLibrary';
+import { NewProjectDialog } from './NewProjectDialog';
 import { useKnowledgeInbox } from './useKnowledgeInbox';
 import type { MainSurface, AppShellProps } from './app-shell-types';
 export type { ObservatoryHandle } from './app-shell-types';
@@ -54,9 +54,9 @@ export function AppShell({
   bookProfile,
   onOpenOutlineHeading,
   openSettings,
-  welcomeDismissed,
-  onCloseWelcome,
-  onReopenWelcome,
+  onOpenLibrary,
+  onResumeProject,
+  openingProject,
   initialCursors,
   onCursorPersist,
   onPendingSuggestionChange,
@@ -70,7 +70,10 @@ export function AppShell({
 }: AppShellProps) {
   const { projects, activeProject, currentFile, projectAssistantSessions } = workspace;
   const projectOpen = Boolean(activeProject);
+  const libraryVisible = !projectOpen || mainSurface === 'library';
   const overviewVisible = projectOpen && mainSurface === 'overview' && Boolean(overview);
+  const workspaceVisible = projectOpen && !libraryVisible && !overviewVisible;
+  const libraryButtonRef = useRef<HTMLButtonElement>(null);
   const setMainSurface = useCallback(
     (next: MainSurface) => {
       onMainSurfaceChange?.(next);
@@ -84,21 +87,21 @@ export function AppShell({
     shell.showCenter();
   }, [setMainSurface, setSettingsVisible, shell]);
   const toggleAssistantFromCommand = useCallback(() => {
-    if (overviewVisible) {
+    if (!workspaceVisible) {
       openWorkspace();
       shell.showRight();
     } else {
       shell.toggleRight();
     }
-  }, [openWorkspace, overviewVisible, shell]);
+  }, [openWorkspace, workspaceVisible, shell]);
   const toggleWorkspaceFromCommand = useCallback(() => {
-    if (overviewVisible) {
+    if (!workspaceVisible) {
       openWorkspace();
       shell.showSidebar();
     } else {
       shell.toggleSidebar();
     }
-  }, [openWorkspace, overviewVisible, shell]);
+  }, [openWorkspace, workspaceVisible, shell]);
   const handleOpenOutlineHeading = useCallback(
     (path: string, line: number) => {
       openWorkspace();
@@ -125,7 +128,7 @@ export function AppShell({
   const sidePanelMaxWidth = useWorkspaceSidePanelLimit(projectOpen, shell.layoutMode);
   const agentPermission = useAgentPermission(activeProject);
   const knowledgeInbox = useKnowledgeInbox(activeProject);
-  const rightPanelVisible = projectOpen && !overviewVisible && !shell.rightCollapsed;
+  const rightPanelVisible = workspaceVisible && !shell.rightCollapsed;
   const obs = obsCounts(observatory.observations);
   const fileActions = useFileTreeActions({
     activeProject,
@@ -140,40 +143,13 @@ export function AppShell({
     tabs.previewFile,
   );
 
-  const showShortcuts = () => {
-    void dialogs.alert({
-      title: '快捷键速查',
-      mono: true,
-      message: formatShortcutSheet(),
-    });
-  };
-
-  const showAbout = () =>
-    void dialogs.alert({
-      title: '了解 StoryForge',
-      message: [
-        'StoryForge — 面向小说作者的本地 AI 写作工作台。',
-        '',
-        '打开你的小说项目，专注写作，与 Agent 一起审稿、构思和修订。',
-        '',
-        '修改会先生成可查看的差异，默认由你确认后写回。',
-        '项目权限可调整，但安全检查、写前快照与版本记录始终保留。',
-      ].join('\n'),
-    });
-
-  // 齿轮小菜单（#15）：命令面板 / 设置 / 快捷键 / 主题 / 关于。
-  const settingsMenu: ContextMenuItem[] = [
-    { label: '命令面板', onSelect: () => setPalette('commands') },
-    { label: '设置', onSelect: () => void openSettings() },
-    { type: 'separator' },
-    { label: '快捷键速查', onSelect: showShortcuts },
-    {
-      label: preferences.settings.theme === 'dark' ? '切换到浅色' : '切换到深色',
-      onSelect: preferences.toggleTheme,
-    },
-    { type: 'separator' },
-    { label: '了解 StoryForge', onSelect: showAbout },
-  ];
+  const { showShortcuts, settingsMenu } = createShellHelp({
+    dialogs,
+    theme: preferences.settings.theme,
+    toggleTheme: preferences.toggleTheme,
+    openSettings,
+    openCommands: () => setPalette('commands'),
+  });
 
   const deferred = useDeference();
 
@@ -184,6 +160,7 @@ export function AppShell({
       data-main-surface={mainSurface}
       data-layout-mode={shell.view}
       data-layout-focus={shell.layoutMode}
+      data-compact-workspace={shell.compact}
       data-shell-deferred={deferred ? 'true' : 'false'}
       data-tauri-runtime={runtime.isDesktopRuntime ? 'true' : 'false'}
       data-tauri-menu-ready={runtime.tauriMenuReady ? 'true' : 'false'}
@@ -191,18 +168,21 @@ export function AppShell({
       data-tauri-menu-error={runtime.tauriMenuError}
     >
       <Titlebar
-        onOpenPalette={() => setPalette('files')}
+        onOpenPalette={() => setPalette(projectOpen ? 'files' : 'commands')}
+        onOpenLibrary={onOpenLibrary}
+        libraryVisible={libraryVisible}
+        libraryButtonRef={libraryButtonRef}
         projectOpen={projectOpen}
-        rightCollapsed={overviewVisible || shell.rightCollapsed}
+        rightCollapsed={!workspaceVisible || shell.rightCollapsed}
         onToggleRight={() => {
           openWorkspace();
-          if (overviewVisible) shell.showRight();
+          if (!workspaceVisible) shell.showRight();
           else shell.toggleRight();
         }}
       />
 
       <div className="relative flex min-h-0 flex-1">
-        <div className="flex flex-shrink-0">
+        <div className={libraryVisible ? 'hidden' : 'flex flex-shrink-0'} hidden={libraryVisible}>
           <ActivityBar
             view={overviewVisible ? 'book' : shell.view}
             sidebarHidden={overviewVisible ? false : !sidebarVisible}
@@ -215,8 +195,8 @@ export function AppShell({
           />
           {(projectOpen || shell.view !== 'explorer') && (
             <div
-              hidden={!sidebarVisible || overviewVisible}
-              className={!sidebarVisible || overviewVisible ? 'hidden' : 'flex'}
+              hidden={!sidebarVisible || !workspaceVisible}
+              className={!sidebarVisible || !workspaceVisible ? 'hidden' : 'flex'}
               data-testid="workspace-sidebar-surface"
             >
               <SidePanel
@@ -313,16 +293,18 @@ export function AppShell({
         </div>
 
         <main
-          className={`${!overviewVisible && shell.layoutMode === 'chat' ? 'hidden' : 'flex'} min-w-0 flex-1 flex-col bg-background`}
+          className={`${workspaceVisible && shell.layoutMode === 'chat' ? 'hidden' : 'flex'} min-w-0 flex-1 flex-col bg-background`}
           data-testid="shell-center"
           style={
-            projectOpen && !overviewVisible ? { minWidth: WORKSPACE_PRIMARY_MIN_WIDTH } : undefined
+            workspaceVisible
+              ? { minWidth: shell.compact ? 0 : WORKSPACE_PRIMARY_MIN_WIDTH }
+              : undefined
           }
         >
           {centerHasTabs ? (
             <>
               <WritingWorkspace
-                hidden={overviewVisible}
+                hidden={!workspaceVisible}
                 workspace={workspace}
                 tabs={tabs}
                 preferences={preferences}
@@ -343,7 +325,7 @@ export function AppShell({
                   hidden={!overviewVisible}
                   data-testid="book-overview-surface"
                 >
-                  <div className="flex flex-shrink-0 flex-wrap justify-end gap-2 border-b border-border px-5 py-2">
+                  <div className="flex flex-shrink-0 flex-wrap justify-end gap-2 px-5 py-2">
                     <button
                       type="button"
                       className="rounded-sm px-3 py-1 text-xs text-muted hover:bg-elevated"
@@ -371,36 +353,34 @@ export function AppShell({
                 </div>
               )}
             </>
-          ) : welcomeDismissed ? (
-            <WelcomeDismissed
-              onReopenWelcome={onReopenWelcome}
+          ) : null}
+          <div
+            hidden={!libraryVisible}
+            className={`${libraryVisible ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}
+            data-testid="project-library-surface"
+          >
+            <ProjectLibrary
+              projects={projects}
+              activeProject={activeProject}
+              openingProject={openingProject}
+              onNewProject={commands.newProject.open}
               onOpenProject={commands.handleOpenProject}
-            />
-          ) : (
-            <WelcomeWorkspace
-              onOpenProject={commands.handleOpenProject}
-              onNewFile={() => void commands.handleNewFile()}
-              onOpenPalette={() => setPalette('commands')}
-              onCreateSampleProject={commands.handleCreateSampleProject}
+              onSelectProject={(path) => {
+                if (path === activeProject) onResumeProject();
+                else void tabs.selectProjectSafely(path);
+              }}
+              onResumeProject={onResumeProject}
               onOpenSettings={openSettings}
-              onShowShortcuts={showShortcuts}
-              onShowAbout={showAbout}
-              onClose={onCloseWelcome}
-              recentProjects={projects}
-              onSelectRecent={(path) => void tabs.selectProjectSafely(path)}
-              showOnStartup={preferences.settings.showWelcomeOnStartup}
-              onToggleShowOnStartup={(value) =>
-                preferences.setSettings((prev) => ({ ...prev, showWelcomeOnStartup: value }))
-              }
-              composerValue={commands.welcomeDraft}
-              onComposerChange={commands.setWelcomeDraft}
-              onComposerSend={commands.handleWelcomeSend}
             />
-          )}
+          </div>
         </main>
 
         {projectOpen && (
-          <AssistantPanelFrame visible={rightPanelVisible} wide={shell.layoutMode === 'chat'}>
+          <AssistantPanelFrame
+            visible={rightPanelVisible}
+            wide={shell.layoutMode === 'chat'}
+            compact={shell.compact}
+          >
             <div
               className="flex min-h-0 flex-1 flex-col overflow-hidden"
               data-testid="right-chat-pane"
@@ -447,7 +427,7 @@ export function AppShell({
           onOpenProject={commands.handleOpenProject}
           onInitializeProject={commands.handleInitializeStoryProject}
           onRefreshCanon={commands.handleRefreshCanon}
-          onReopenWelcome={onReopenWelcome}
+          onReopenWelcome={onOpenLibrary}
           onExportCurrent={() => emitExportCurrentFile()}
           onToggleAssistant={toggleAssistantFromCommand}
           onToggleWorkspace={toggleWorkspaceFromCommand}
@@ -466,7 +446,7 @@ export function AppShell({
           onRestoreLayout={() => {
             openWorkspace();
             shell.showSidebar();
-            shell.showRight();
+            shell.setLayoutMode('balanced');
           }}
           onToggleFontMode={preferences.toggleFontMode}
           onCycleProseMeasure={preferences.cycleProseMeasure}
@@ -489,6 +469,7 @@ export function AppShell({
         onClose={dialogs.closeDialog}
         onPromptValueChange={dialogs.updatePromptValue}
       />
+      <NewProjectDialog controller={commands.newProject} fallbackFocusRef={libraryButtonRef} />
       <ToastHost />
     </div>
   );

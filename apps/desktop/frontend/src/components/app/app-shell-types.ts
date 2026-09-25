@@ -15,7 +15,7 @@ import type { useObservatory } from './useObservatory';
 import type { ProjectCommands } from './useProjectCommands';
 import type { useProjectSearch } from './useProjectSearch';
 
-export type MainSurface = 'overview' | 'workspace';
+export type MainSurface = 'library' | 'overview' | 'workspace';
 
 type WorkspaceProps = {
   projects: string[];
@@ -64,9 +64,9 @@ export type AppShellProps = {
   bookProfile: BookProfileHandle;
   onOpenOutlineHeading: (path: string, line: number) => void;
   openSettings: () => Promise<void>;
-  welcomeDismissed: boolean;
-  onCloseWelcome: () => void;
-  onReopenWelcome: () => void;
+  onOpenLibrary: () => void;
+  onResumeProject: () => void;
+  openingProject?: string | null;
   /** 恢复现场：上次的光标位置 + 光标回写口子（写作时刻 01）。 */
   initialCursors: Record<string, FileCursor> | null;
   onCursorPersist: (filePath: string, cursor: FileCursor) => void;

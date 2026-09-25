@@ -44,6 +44,36 @@ function PendingPromptHarness({
   return <output data-testid="messages">{state.messages.map((message) => message.content)}</output>;
 }
 
+let queuedRuns: string[] = [];
+let queueHarnessApi: {
+  state: ReturnType<typeof useChatWindowState>;
+  submission: ReturnType<typeof useChatSubmission>;
+} | null = null;
+
+function QueueHarness({ assistantSessionId }: { assistantSessionId: number }) {
+  const state = useChatWindowState({ projectPath, currentFile: null, assistantSessionId });
+  const runAuthorAgent: RunAuthorAgent = async (instruction) => {
+    queuedRuns.push(instruction);
+    // 模拟真实 run：启动后重新置 busy，完成由测试显式释放。
+    state.setAgentBusy(true);
+  };
+  const submission = useChatSubmission(state, runAuthorAgent, {
+    projectPath,
+    assistantSessionId,
+    pendingInitialPrompt: null,
+    onPendingInitialPromptConsumed: undefined,
+  });
+  queueHarnessApi = { state, submission };
+  return (
+    <>
+      <output data-testid="queued-messages">
+        {submission.queuedMessages.map((message) => message.content).join('|')}
+      </output>
+      <output data-testid="busy">{String(state.agentBusy)}</output>
+    </>
+  );
+}
+
 test('pendingInitialPrompt 在 effect 重跑时仍只消费并发送一次', async () => {
   const onConsumed = vi.fn();
   const runAuthorAgent = vi.fn<RunAuthorAgent>(async () => undefined);
@@ -82,6 +112,39 @@ test('pendingInitialPrompt 在 effect 重跑时仍只消费并发送一次', asy
 
     assert.equal(onConsumed.mock.calls.length, 1);
     assert.equal(runAuthorAgent.mock.calls.length, 1);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('Agent 忙碌时只保留一条待发，第二条留在草稿且切会话清空待发', async () => {
+  queuedRuns = [];
+  queueHarnessApi = null;
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<QueueHarness assistantSessionId={7} />));
+    await act(async () => queueHarnessApi?.state.setAgentBusy(true));
+    await act(async () => queueHarnessApi?.state.setInput('第一条'));
+    await act(async () => queueHarnessApi?.submission.handleSubmit());
+    await act(async () => queueHarnessApi?.state.setInput('第二条'));
+    await act(async () => queueHarnessApi?.submission.handleSubmit());
+    assert.equal(container.querySelector('[data-testid="queued-messages"]')?.textContent, '第一条');
+    assert.equal(queueHarnessApi?.state.input, '第二条');
+    await act(async () => queueHarnessApi?.state.setAgentBusy(false));
+    assert.deepEqual(queuedRuns, ['第一条']);
+    assert.equal(queueHarnessApi?.state.input, '第二条');
+    assert.equal(container.querySelector('[data-testid="queued-messages"]')?.textContent, '');
+    await act(async () => queueHarnessApi?.state.setAgentBusy(false));
+    assert.deepEqual(queuedRuns, ['第一条']);
+    await act(async () => queueHarnessApi?.state.setAgentBusy(true));
+    await act(async () => queueHarnessApi?.submission.handleComposerSubmit('旧会话消息'));
+    await act(async () => root.render(<QueueHarness assistantSessionId={8} />));
+    assert.equal(container.querySelector('[data-testid="queued-messages"]')?.textContent, '');
+    await act(async () => queueHarnessApi?.state.setAgentBusy(false));
+    assert.deepEqual(queuedRuns, ['第一条']);
   } finally {
     act(() => root.unmount());
     container.remove();

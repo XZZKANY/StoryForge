@@ -85,7 +85,7 @@ export function ActivityBar({
 
   return (
     <nav
-      className="flex flex-shrink-0 flex-col items-center gap-0.5 border-r border-border bg-background py-1.5"
+      className="flex flex-shrink-0 flex-col items-center gap-0.5 bg-panel py-1.5"
       style={{ width: ACTIVITY_BAR_WIDTH }}
       data-testid="shell-activity-bar"
     >
@@ -98,7 +98,7 @@ export function ActivityBar({
             data-testid={`activity-${entry.view}`}
             data-active={active}
             className={`relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-elevated ${
-              active ? 'text-foreground' : 'text-subtle hover:text-foreground'
+              active ? 'bg-elevated text-foreground' : 'text-subtle hover:text-foreground'
             }`}
             aria-label={entry.label}
             // 视图图标是互斥选择（同时只有一个是当前视图），不是各自独立的开关：
@@ -109,9 +109,6 @@ export function ActivityBar({
               onSwitchView(entry.view);
             }}
           >
-            {active && (
-              <span className="absolute -left-1 bottom-2 top-2 w-0.5 rounded-r-sm bg-foreground" />
-            )}
             <Icon size={19} strokeWidth={1.6} />
             {entry.view === 'observatory' && observatoryAttention && (
               <span

@@ -279,13 +279,21 @@ test('手动导航同步夺取恢复权：迟到的旧校验不得覆盖新项�
   act(() => controls.current?.selectProjectManually('new-project'));
   assert.deepEqual(selected, ['new-project'], '手动项目应立即选中，不等待旧恢复 IO');
 
+  // 同一路径回到现场也必须是新一代生命周期，不能复用第一次手动选择的资格。
+  act(() => controls.current?.selectProjectManually('new-project-again'));
+  assert.deepEqual(selected, ['new-project', 'new-project-again']);
+
   await act(async () => {
     resolveProject(true);
     resolveFile(true);
     await Promise.resolve();
     await Promise.resolve();
   });
-  assert.deepEqual(selected, ['new-project'], '旧恢复结果迟到后不得再次选择存档项目');
+  assert.deepEqual(
+    selected,
+    ['new-project', 'new-project-again'],
+    '旧恢复结果迟到后不得再次选择存档项目',
+  );
 });
 
 test('activeFile 失效或落在大纲时不伪造章节，仍保留全部有效页签与光标', async () => {

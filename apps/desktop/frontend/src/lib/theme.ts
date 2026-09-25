@@ -3,7 +3,7 @@
  * 并同步切换 Monaco 编辑器主题。深色为默认。
  *
  * Monaco 不认 CSS 变量，只认 hex：内置 vs-dark 背景 (#1e1e1e) 与壳子 --background
- * (#1c1c1f) 有色差，会在编辑区凑出第三种底色，故自定义 storyforge 主题把编辑器
+ * (#101012) 有色差，会在编辑区凑出第三种底色，故自定义 storyforge 主题把编辑器
  * 背景 / 行号 / 滚动条 thumb 对齐 token。改 index.css 的 token 色值时必须同步这里。
  */
 import type { ThemeMode } from './user-settings';
@@ -21,13 +21,14 @@ const STORYFORGE_MONACO_THEMES: Array<{
     name: 'storyforge-dark',
     base: 'vs-dark',
     colors: {
-      'editor.background': '#1c1c1f', // --background
+      'editor.background': '#101012', // --background
+      'editorGutter.background': '#101012', // 行号边槽与正文保持同一底色
       'editor.foreground': '#ededed', // --foreground
       'editorLineNumber.foreground': '#7c7c85', // --subtle
       'editorLineNumber.activeForeground': '#a1a1aa', // --muted
-      'scrollbarSlider.background': '#4c4c5459', // --border-strong @35%
-      'scrollbarSlider.hoverBackground': '#4c4c5499',
-      'scrollbarSlider.activeBackground': '#4c4c54cc',
+      'scrollbarSlider.background': '#48484f59', // --border-strong @35%
+      'scrollbarSlider.hoverBackground': '#48484f99',
+      'scrollbarSlider.activeBackground': '#48484fcc',
     },
   },
   {

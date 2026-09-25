@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from 'react';
 import type * as monaco from 'monaco-editor';
 
 import {
@@ -9,6 +16,7 @@ import {
   bufferPendingFileSuggestion,
   emitPatchRejected,
   takePendingFileSuggestion,
+  replacePendingFileSuggestion,
   type FileSuggestionTarget,
   type PatchRejection,
   type AuthorLoopResult,
@@ -33,6 +41,12 @@ import { emitToast } from '../../lib/toast';
 
 export type SuggestionStatusTone = 'success' | 'error' | 'info';
 
+export type SuggestionActionKind = 'accept' | 'hunk' | 'note' | 'reject' | 'retry';
+export type SuggestionActionState = {
+  kind: SuggestionActionKind;
+  suggestionId: string;
+} | null;
+
 type UseSuggestionWritebackParams = {
   editorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
   originalContentRef: MutableRefObject<string>;
@@ -44,7 +58,10 @@ type UseSuggestionWritebackParams = {
   setIsDirty: (dirty: boolean) => void;
   normalizeEol: (text: string) => string;
   getActiveBranchSnapshot: () => BranchInfo;
-  advanceBranchHead: (timestamp: number) => Promise<void>;
+  advanceBranchHead: (
+    timestamp: number,
+    target?: { projectPath: string; filePath: string; branchId: string },
+  ) => Promise<void>;
   recordRevisionLoop: (record: RevisionLoopRecord) => Promise<RevisionLoopResult>;
   emitAuthorLoopResult: (result: AuthorLoopResult) => void;
   /** 撤销一次「新建」要连页签一起摘掉，否则 autosave 会把刚删的文件原样写回来。 */
@@ -79,18 +96,88 @@ export function useSuggestionWriteback({
   const [isReviseLoading, setIsReviseLoading] = useState(false);
   const assistantSessionIdRef = useRef<number | null>(null);
   const pendingSuggestionRef = useRef<AssistantFileSuggestion | null>(null);
+  const actionInFlightRef = useRef<{
+    kind: SuggestionActionKind;
+    suggestion: AssistantFileSuggestion;
+    projectPath: string | null;
+    filePath: string | null;
+    token: symbol;
+  } | null>(null);
+  const [actionState, setActionState] = useState<SuggestionActionState>(null);
 
-  useEffect(() => {
-    pendingSuggestionRef.current = pendingSuggestion;
-  });
+  const [actionFailure, setActionFailure] = useState<{
+    suggestion: AssistantFileSuggestion;
+    message: string;
+  } | null>(null);
+  const mountedRef = useRef(false);
+  useLayoutEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const updatePendingSuggestion = useCallback((next: AssistantFileSuggestion | null) => {
+    pendingSuggestionRef.current = next;
+    setPendingSuggestion(next);
+  }, []);
+
+  const beginAction = useCallback(
+    (kind: SuggestionActionKind, suggestion: AssistantFileSuggestion) => {
+      if (!mountedRef.current || actionInFlightRef.current) return null;
+      const token = Symbol(kind);
+      actionInFlightRef.current = {
+        kind,
+        suggestion,
+        token,
+        projectPath: projectPathRef.current,
+        filePath: filePathRef.current,
+      };
+      setActionFailure(null);
+      setActionState({ kind, suggestionId: suggestion.id });
+      return token;
+    },
+    [filePathRef, projectPathRef],
+  );
+
+  const isCurrentAction = useCallback(
+    (token: symbol) => {
+      const action = actionInFlightRef.current;
+      return (
+        mountedRef.current &&
+        action?.token === token &&
+        action.suggestion === pendingSuggestionRef.current &&
+        action.projectPath === projectPathRef.current &&
+        action.filePath === filePathRef.current
+      );
+    },
+    [filePathRef, projectPathRef],
+  );
+
+  const failAction = useCallback(
+    (token: symbol, message: string) => {
+      if (!isCurrentAction(token)) return;
+      const action = actionInFlightRef.current;
+      if (action) setActionFailure({ suggestion: action.suggestion, message });
+      setSuggestionStatus(message, 'error');
+    },
+    [isCurrentAction, setSuggestionStatus],
+  );
+
+  const finishAction = useCallback((token: symbol) => {
+    if (actionInFlightRef.current?.token !== token) return;
+    actionInFlightRef.current = null;
+    if (mountedRef.current) setActionState(null);
+  }, []);
 
   const resetSuggestionWriteback = useCallback(() => {
     // P2c：切走当前文件前把未确认补丁回填缓冲，切回同一文件可重新领取，不静默丢弃。
     const pending = pendingSuggestionRef.current;
     if (pending) bufferPendingFileSuggestion(pending);
-    setPendingSuggestion(null);
+    updatePendingSuggestion(null);
     setIsReviseLoading(false);
-  }, []);
+    // Navigation invalidates UI ownership, not an already authorized write transaction.
+  }, [updatePendingSuggestion]);
 
   useEffect(() => {
     const onSuggestion = (event: Event) => {
@@ -98,21 +185,24 @@ export function useSuggestionWriteback({
       if (!suggestion || suggestion.filePath !== filePathRef.current) return;
       // 目标文件已打开：直接消费缓冲，避免切换文件后被重复领取。
       takePendingFileSuggestion(suggestion.filePath);
-      setPendingSuggestion(suggestion);
+      updatePendingSuggestion(suggestion);
     };
     window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
     return () => {
       window.removeEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
     };
-  }, [filePathRef]);
+  }, [filePathRef, updatePendingSuggestion]);
 
   // 补丁指向的文件刚被（自动）打开时，从缓冲领取等待中的建议。
-  const adoptPendingSuggestion = useCallback((path: string | null) => {
-    const pending = takePendingFileSuggestion(path);
-    if (pending) {
-      setPendingSuggestion(pending);
-    }
-  }, []);
+  const adoptPendingSuggestion = useCallback(
+    (path: string | null) => {
+      const pending = takePendingFileSuggestion(path);
+      if (pending) {
+        updatePendingSuggestion(pending);
+      }
+    },
+    [updatePendingSuggestion],
+  );
 
   const writeAcceptedSuggestion = useCallback(
     async (
@@ -129,6 +219,9 @@ export function useSuggestionWriteback({
       if (isReadOnlyDerivedProjectPath(path)) {
         throw new Error('canon 派生缓存是只读的，不能写入修订结果');
       }
+      const targetStateAtStart = modelCacheRef.current.get(path) ?? null;
+      const branch = getActiveBranchSnapshot();
+      const assistantSessionId = suggestion.assistantSessionId ?? assistantSessionIdRef.current;
       const summary = overrides.summary ?? suggestion.summary;
       const note = overrides.note ?? suggestion.note;
       const contentChanged = normalizeEol(previous) !== normalizeEol(nextContent);
@@ -139,12 +232,11 @@ export function useSuggestionWriteback({
       // writeFile 不执行——绝不在没有版本安全网时落盘。
       const loopRecord = await performGuardedWriteback(contentChanged, {
         snapshot: async () => {
-          const branch = getActiveBranchSnapshot();
-          const result = await snapshotBeforeWrite(projectPathRef.current, path, previous, {
+          const result = await snapshotBeforeWrite(projectRoot, path, previous, {
             source: 'Agent',
             summary,
             patchId: suggestion.id,
-            assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
+            assistantSessionId,
             issueIds: suggestion.issueIds,
             contextFiles: suggestion.contextFiles,
             branchId: branch.id,
@@ -158,18 +250,23 @@ export function useSuggestionWriteback({
           createdFile = result?.created ?? false;
           return result;
         },
-        advanceBranchHead,
+        advanceBranchHead: (timestamp) =>
+          advanceBranchHead(timestamp, {
+            projectPath: projectRoot,
+            filePath: path,
+            branchId: branch.id,
+          }),
         write: () => TauriFileSystem.writeFile(projectRoot, path, nextContent),
         record: () =>
           recordRevisionLoop({
-            projectPath: projectPathRef.current,
+            projectPath: projectRoot,
             filePath: path,
             before: previous,
             after: nextContent,
             summary,
             note,
             userIntent: note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
-            assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
+            assistantSessionId,
             patchId: suggestion.id,
             issueIds: suggestion.issueIds,
             contextFiles: suggestion.contextFiles,
@@ -180,22 +277,26 @@ export function useSuggestionWriteback({
       // 盘上已落，故按「目标 model」结算而非「当前活动 model」结算：
       // 目标缓冲永远同步（切回来看到的就是已写回的内容），活动编辑器 UI 态只在目标仍在前台时动。
       const targetState = modelCacheRef.current.get(path) ?? null;
-      if (targetState) {
+      const retainedTarget = targetState && targetState === targetStateAtStart;
+      if (retainedTarget) {
         targetState.originalContent = nextContent;
-        if (targetState.model.getValue() !== nextContent) targetState.model.setValue(nextContent);
+        // Never replace typing that happened while snapshot/write/record awaited.
+        if (normalizeEol(targetState.model.getValue()) === normalizeEol(previous))
+          targetState.model.setValue(nextContent);
       }
       const targetStillActive = shouldSettleActiveEditor(
         path,
-        targetState?.model ?? null,
+        retainedTarget ? targetState.model : null,
         filePathRef.current,
         editorRef.current?.getModel() ?? null,
       );
-      if (targetStillActive) {
+      if (mountedRef.current && projectPathRef.current === projectRoot && targetStillActive) {
         originalContentRef.current = nextContent;
-        cleanVersionIdRef.current =
-          editorRef.current?.getModel()?.getAlternativeVersionId() ?? null;
-        setLoadedContentPreview(nextContent.slice(0, 120));
-        setIsDirty(false);
+        const currentContent = targetState!.model.getValue();
+        const dirty = normalizeEol(currentContent) !== normalizeEol(nextContent);
+        cleanVersionIdRef.current = dirty ? null : targetState!.model.getAlternativeVersionId();
+        setLoadedContentPreview(currentContent.slice(0, 120));
+        setIsDirty(dirty);
       }
       return { ...loopRecord, createdFile };
     },
@@ -233,11 +334,22 @@ export function useSuggestionWriteback({
       wrote: string,
       createdFile: boolean,
     ) => {
+      const projectRoot = projectPathRef.current;
+      const targetModel = editorRef.current?.getModel() ?? null;
       emitToast(createdFile ? '新文件已写入，已留检查点' : '修订已写回，已留检查点', {
         tone: 'success',
         action: {
           label: createdFile ? '撤销（删除该文件）' : '撤销',
           run: async () => {
+            if (
+              !mountedRef.current ||
+              projectPathRef.current !== projectRoot ||
+              filePathRef.current !== path ||
+              editorRef.current?.getModel() !== targetModel
+            ) {
+              throw new Error('请返回原文件后撤销；写前检查点仍在版本历史中');
+            }
+            if (actionInFlightRef.current) throw new Error('补丁操作仍在处理中，请稍后撤销');
             const current = editorRef.current?.getValue() ?? null;
             if (current === null || !canUndoWriteback(current, wrote, normalizeEol)) {
               emitToast('文件在此期间又变了，一键撤销会吃掉新内容——检查点仍在版本历史里', {
@@ -250,13 +362,11 @@ export function useSuggestionWriteback({
             }
             try {
               if (createdFile) {
-                const projectRoot = projectPathRef.current;
                 if (!projectRoot) throw new Error('未打开项目，不能撤销新建');
                 await TauriFileSystem.deletePath(projectRoot, path);
                 // 正文没了，这章就不再是「写完的」——把接受时标上的 done 退回 pending。
                 // 只在这一支做：修订的撤销走下面的反向写回，文件还在，那章依然是写完的。
                 await unmarkChapterWrittenInPlan(projectRoot, path);
-                setPendingSuggestion(null);
                 // 页签留着的话，开着 autosave 时下一次防抖就会把文件原样写回来。
                 dropOpenFilePath?.(path);
                 emitToast('已撤销，该文件回到「不存在」', { tone: 'success' });
@@ -287,6 +397,7 @@ export function useSuggestionWriteback({
     [
       dropOpenFilePath,
       editorRef,
+      filePathRef,
       normalizeEol,
       onRequestVersionHistory,
       projectPathRef,
@@ -297,7 +408,7 @@ export function useSuggestionWriteback({
   const handleAcceptSuggestion = useCallback(async () => {
     const suggestion = pendingSuggestionRef.current;
     const path = filePathRef.current;
-    if (!suggestion || !path || !editorRef.current) {
+    if (!suggestion || !path || suggestion.filePath !== path || !editorRef.current) {
       emitAuthorLoopResult({
         filePath: path ?? '',
         status: 'error',
@@ -307,11 +418,15 @@ export function useSuggestionWriteback({
       return;
     }
 
+    const projectRoot = projectPathRef.current;
+    const actionToken = beginAction('accept', suggestion);
+    if (!actionToken) return;
+
     try {
       const currentContent = editorRef.current.getValue();
       if (isWholeFileDrifted(currentContent, suggestion.before, normalizeEol)) {
         const message = '当前文件内容已变化，旧补丁不能直接写回。请重新生成修订，或手动处理冲突。';
-        setSuggestionStatus(message, 'error');
+        failAction(actionToken, message);
         emitAuthorLoopResult({
           filePath: path,
           status: 'error',
@@ -330,8 +445,10 @@ export function useSuggestionWriteback({
       // 正文已落盘，这才轮到连载计划把该章标 done（补丁未确认时后端会拒绝标记）。
       // 刻意只挂在「接受整个补丁」这一层：分块接受与行间对话 Ctrl+K 是段落级微调，
       // 接受一次不等于这章写完了；撤销走的是反向写回，届时正文没了，后端自会拒绝。
-      await markChapterWrittenInPlan(projectPathRef.current, path);
-      setPendingSuggestion(null);
+      await markChapterWrittenInPlan(projectRoot, path);
+      replacePendingFileSuggestion(suggestion, null);
+      if (!isCurrentAction(actionToken)) return;
+      updatePendingSuggestion(null);
       offerUndo(suggestion, path, currentContent, suggestion.after, loopRecord.createdFile);
       setSuggestionStatus(
         loopRecord.recordPath
@@ -347,15 +464,22 @@ export function useSuggestionWriteback({
         recordPath: loopRecord.recordPath ?? undefined,
       });
     } catch (err) {
-      setSuggestionStatus(`接受失败: ${err instanceof Error ? err.message : String(err)}`, 'error');
+      if (!isCurrentAction(actionToken)) return;
+      failAction(actionToken, `接受失败: ${err instanceof Error ? err.message : String(err)}`);
       emitAuthorLoopResult({
         filePath: path,
         status: 'error',
         action: 'revision_accepted',
         message: err instanceof Error ? err.message : String(err),
       });
+    } finally {
+      finishAction(actionToken);
     }
   }, [
+    beginAction,
+    failAction,
+    isCurrentAction,
+    updatePendingSuggestion,
     editorRef,
     emitAuthorLoopResult,
     filePathRef,
@@ -363,6 +487,7 @@ export function useSuggestionWriteback({
     offerUndo,
     projectPathRef,
     setSuggestionStatus,
+    finishAction,
     writeAcceptedSuggestion,
   ]);
 
@@ -374,23 +499,33 @@ export function useSuggestionWriteback({
    * PatchReviewPanel 里退回手动确认，绝不静默丢弃。
    */
   const autoAcceptingRef = useRef(false);
+  const autoAcceptedSuggestionIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!pendingSuggestion || !shouldAutoAcceptSuggestion(pendingSuggestion)) return;
+    if (!pendingSuggestion || !shouldAutoAcceptSuggestion(pendingSuggestion)) {
+      if (!pendingSuggestion) autoAcceptedSuggestionIdRef.current = null;
+      return;
+    }
+    if (actionState) return;
+    if (autoAcceptedSuggestionIdRef.current === pendingSuggestion.id) return;
     if (autoAcceptingRef.current) return;
+    autoAcceptedSuggestionIdRef.current = pendingSuggestion.id;
     autoAcceptingRef.current = true;
     void handleAcceptSuggestion().finally(() => {
       autoAcceptingRef.current = false;
     });
-  }, [pendingSuggestion, handleAcceptSuggestion]);
+  }, [actionState, pendingSuggestion, handleAcceptSuggestion]);
 
   const handleAcceptHunk = useCallback(
     async (hunk: PatchHunk) => {
       const suggestion = pendingSuggestionRef.current;
       const path = filePathRef.current;
-      if (!suggestion || !path || !editorRef.current) {
+      if (!suggestion || !path || suggestion.filePath !== path || !editorRef.current) {
         setSuggestionStatus('当前没有待写回的修订。');
         return;
       }
+
+      const actionToken = beginAction('hunk', suggestion);
+      if (!actionToken) return;
 
       try {
         const currentContent = editorRef.current.getValue();
@@ -405,11 +540,13 @@ export function useSuggestionWriteback({
             note: `${suggestion.note}\n\n分块接受：第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`,
           },
         );
-        if (normalizeEol(nextContent) === normalizeEol(suggestion.after)) {
-          setPendingSuggestion(null);
-        } else {
-          setPendingSuggestion({ ...suggestion, before: nextContent });
-        }
+        const remaining =
+          normalizeEol(nextContent) === normalizeEol(suggestion.after)
+            ? null
+            : { ...suggestion, before: nextContent };
+        replacePendingFileSuggestion(suggestion, remaining);
+        if (!isCurrentAction(actionToken)) return;
+        updatePendingSuggestion(remaining);
         offerUndo(suggestion, path, currentContent, nextContent, loopRecord.createdFile);
         setSuggestionStatus(
           loopRecord.recordPath
@@ -418,13 +555,27 @@ export function useSuggestionWriteback({
           'success',
         );
       } catch (err) {
-        setSuggestionStatus(
+        failAction(
+          actionToken,
           `接受分块失败: ${err instanceof Error ? err.message : String(err)}`,
-          'error',
         );
+      } finally {
+        finishAction(actionToken);
       }
     },
-    [editorRef, filePathRef, normalizeEol, offerUndo, setSuggestionStatus, writeAcceptedSuggestion],
+    [
+      beginAction,
+      failAction,
+      isCurrentAction,
+      updatePendingSuggestion,
+      editorRef,
+      filePathRef,
+      finishAction,
+      normalizeEol,
+      offerUndo,
+      setSuggestionStatus,
+      writeAcceptedSuggestion,
+    ],
   );
 
   useEffect(() => {
@@ -448,7 +599,12 @@ export function useSuggestionWriteback({
     const onAcceptCurrentSuggestion = (event: Event) => {
       const target = (event as CustomEvent<FileSuggestionTarget | undefined>).detail;
       const suggestion = pendingSuggestionRef.current;
-      if (!suggestion || (target && suggestion.id !== target.patchId)) return;
+      if (
+        !suggestion ||
+        actionInFlightRef.current ||
+        (target && (suggestion.id !== target.patchId || suggestion.filePath !== target.filePath))
+      )
+        return;
       event.preventDefault();
       void handleAcceptSuggestion();
     };
@@ -458,9 +614,12 @@ export function useSuggestionWriteback({
   }, [handleAcceptSuggestion]);
 
   const handleSaveSuggestionNote = useCallback(async () => {
-    const suggestion = pendingSuggestion;
+    const suggestion = pendingSuggestionRef.current;
     const project = projectPathRef.current;
     if (!suggestion || !project) return;
+
+    const actionToken = beginAction('note', suggestion);
+    if (!actionToken) return;
 
     try {
       const separator = project.includes('\\') ? '\\' : '/';
@@ -500,15 +659,41 @@ export function useSuggestionWriteback({
         '```',
       ].join('\n');
       await TauriFileSystem.writeFile(project, notePath, note);
-      setPendingSuggestion(null);
+      replacePendingFileSuggestion(suggestion, null);
+      if (!isCurrentAction(actionToken)) return;
+      updatePendingSuggestion(null);
       setSuggestionStatus(`已保存旁注: ${notePath}`, 'success');
     } catch (err) {
-      setSuggestionStatus(
-        `保存旁注失败: ${err instanceof Error ? err.message : String(err)}`,
-        'error',
-      );
+      failAction(actionToken, `保存旁注失败: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      finishAction(actionToken);
     }
-  }, [pendingSuggestion, projectPathRef, setSuggestionStatus]);
+  }, [
+    beginAction,
+    failAction,
+    finishAction,
+    isCurrentAction,
+    projectPathRef,
+    setSuggestionStatus,
+    updatePendingSuggestion,
+  ]);
+
+  const handleRetrySuggestion = useCallback(
+    async (retry: () => Promise<void>) => {
+      const suggestion = pendingSuggestionRef.current;
+      if (!suggestion) return;
+      const token = beginAction('retry', suggestion);
+      if (!token) return;
+      try {
+        await retry();
+      } catch (error) {
+        failAction(token, `重试失败: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        finishAction(token);
+      }
+    },
+    [beginAction, failAction, finishAction],
+  );
 
   /**
    * 拒绝不是二元否决：作者往往知道该怎么改，只是这版没改对。
@@ -521,7 +706,12 @@ export function useSuggestionWriteback({
     (direction = '') => {
       const suggestion = pendingSuggestionRef.current;
       const trimmed = direction.trim();
-      setPendingSuggestion(null);
+      if (suggestion) {
+        const actionToken = beginAction('reject', suggestion);
+        if (!actionToken) return;
+        finishAction(actionToken);
+      }
+      updatePendingSuggestion(null);
       setSuggestionStatus(trimmed ? '已否掉这版，正按你的说法重来' : '已拒绝修订');
       if (suggestion) {
         emitPatchRejected({
@@ -531,14 +721,28 @@ export function useSuggestionWriteback({
         });
       }
     },
-    [filePathRef, pendingSuggestionRef, setSuggestionStatus],
+    [
+      beginAction,
+      filePathRef,
+      finishAction,
+      pendingSuggestionRef,
+      setSuggestionStatus,
+      updatePendingSuggestion,
+    ],
   );
 
   useEffect(() => {
     const onRejectCurrentSuggestion = (event: Event) => {
       const rejection = (event as CustomEvent<PatchRejection>).detail;
       const suggestion = pendingSuggestionRef.current;
-      if (!rejection || !suggestion || suggestion.id !== rejection.patchId) return;
+      if (
+        !rejection ||
+        !suggestion ||
+        actionInFlightRef.current ||
+        suggestion.id !== rejection.patchId ||
+        suggestion.filePath !== rejection.filePath
+      )
+        return;
       event.preventDefault();
       rejectPendingSuggestion(rejection.direction);
     };
@@ -552,6 +756,10 @@ export function useSuggestionWriteback({
     handleAcceptHunk,
     handleAcceptSuggestion,
     handleSaveSuggestionNote,
+    handleRetrySuggestion,
+    actionState,
+    actionError:
+      actionFailure?.suggestion === pendingSuggestion ? (actionFailure?.message ?? null) : null,
     isReviseLoading,
     pendingSuggestion,
     rejectPendingSuggestion,

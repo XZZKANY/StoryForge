@@ -1,3 +1,4 @@
+export { createBlankStoryProject } from './project/create';
 export {
   buildContextBundle,
   excerptForContext,

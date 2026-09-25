@@ -721,10 +721,12 @@ test('ChatWindow 主外壳渲染 ConversationHeader 并展示「新的创作会�
     }),
   );
   assert.match(html, /新的创作会话/);
-  // #9：会话身份是项目级指挥区，不再把「当前文件」并进标题（当前文件在下方上下文条里体现）。
-  assert.match(html, /雾港回声 · 项目级创作会话/);
-  assert.match(html, /上下文尚未生成/);
-  assert.match(html, /data-testid="context-summary"/);
+  // 当前真实文件保留在 Composer，不用空态标题、推荐或常驻参考卡占用会话。
+  assert.match(html, /第01章.md/);
+  assert.match(html, /aria-label="添加上下文"/);
+  assert.doesNotMatch(html, /项目级创作会话|从一个想法开始|参考上下文/);
+  assert.doesNotMatch(html, /data-testid="context-summary"/);
+  assert.doesNotMatch(html, /data-testid="conversation-starters"/);
 });
 
 test('Q5 ConversationHeader 标题成为会话切换下拉入口，保留新建会话按钮', () => {

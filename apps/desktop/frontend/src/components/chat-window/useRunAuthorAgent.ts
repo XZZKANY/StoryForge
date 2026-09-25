@@ -415,9 +415,10 @@ export function useRunAuthorAgent(
         if (repairProposal) {
           setPendingRepairCommand(repairProposal.command);
           setMessages((prev) => [...prev, { role: 'assistant', content: repairProposal.summary }]);
-          updateAgentStatus(
-            response.agent_result.requires_user_confirmation ? 'waiting' : 'completed',
-          );
+          // P1-2：无 approval_command 时接受按钮静默无效，waiting 成死路，仅有真批准路径才置。
+          const allowsWaiting =
+            repairProposal.command && response.agent_result.requires_user_confirmation;
+          updateAgentStatus(allowsWaiting ? 'waiting' : 'completed');
           return;
         }
 
@@ -439,9 +440,8 @@ export function useRunAuthorAgent(
           ...prev,
           { role: 'assistant', content: response.agent_result.summary ?? '这轮已经完成。' },
         ]);
-        updateAgentStatus(
-          response.agent_result.requires_user_confirmation ? 'waiting' : 'completed',
-        );
+        // P1-2：纯文本总结无真批准路径，waiting 会让作者卡死在空按钮上；仅 chapterBrief 例外。
+        updateAgentStatus(responseChapterBrief ? 'waiting' : 'completed');
       } catch (error) {
         const runSuperseded = agentRunIdRef.current !== runId;
         const sessionSwitched = !isRunResultForActiveSession(

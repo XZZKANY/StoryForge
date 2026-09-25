@@ -4,6 +4,7 @@ import { test } from 'vitest';
 import {
   allowsNativeContextMenu,
   installBrowserGuards,
+  isEditableTarget,
   isReloadShortcut,
 } from '../src/lib/browser-guards';
 
@@ -57,6 +58,7 @@ test('右键菜单：壳子区域抑制，输入类目标放行', () => {
   const div = document.createElement('div');
   const input = document.createElement('input');
   const textarea = document.createElement('textarea');
+  const select = document.createElement('select');
   const editable = document.createElement('div');
   editable.setAttribute('contenteditable', 'true');
   const insideEditable = document.createElement('span');
@@ -66,7 +68,23 @@ test('右键菜单：壳子区域抑制，输入类目标放行', () => {
   assert.equal(allowsNativeContextMenu(null), false);
   assert.equal(allowsNativeContextMenu(input), true);
   assert.equal(allowsNativeContextMenu(textarea), true);
+  assert.equal(allowsNativeContextMenu(select), true);
   assert.equal(allowsNativeContextMenu(insideEditable), true);
+});
+
+test('可编辑目标判定覆盖 input / textarea / select / contenteditable 及普通壳层', () => {
+  const shell = document.createElement('div');
+  const input = document.createElement('input');
+  const textarea = document.createElement('textarea');
+  const select = document.createElement('select');
+  const editable = document.createElement('div');
+  editable.setAttribute('contenteditable', 'true');
+
+  assert.equal(isEditableTarget(shell), false);
+  assert.equal(isEditableTarget(input), true);
+  assert.equal(isEditableTarget(textarea), true);
+  assert.equal(isEditableTarget(select), true);
+  assert.equal(isEditableTarget(editable), true);
 });
 
 test('装机护栏抑制壳子区域 contextmenu 默认菜单', () => {

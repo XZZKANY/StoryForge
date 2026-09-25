@@ -78,12 +78,12 @@ export function ManuscriptView({
 
   return (
     <div
-      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-panel"
       data-testid="manuscript-view"
     >
       <LiveStatus text={liveText} testid="manuscript-live" />
       <header
-        className="flex h-shell-row flex-shrink-0 items-center gap-2 border-b border-border bg-panel px-3 pr-2"
+        className="flex h-shell-row flex-shrink-0 items-center gap-2 bg-panel px-3 pr-2"
         data-testid="manuscript-header"
       >
         <BookOpen size={14} strokeWidth={1.7} className="flex-shrink-0 text-muted" />

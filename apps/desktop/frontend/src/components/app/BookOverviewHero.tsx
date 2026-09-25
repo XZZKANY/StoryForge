@@ -13,13 +13,13 @@ import { ArrowUp, BookOpen, ChevronRight } from '../icons/shell-icons';
 function BookOverviewSkeleton() {
   return (
     <div
-      className="grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]"
+      className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(260px,1fr)]"
       data-testid="book-overview-skeleton"
       aria-hidden="true"
     >
       {/* 左卡：封面 + 简介 + 主按钮 */}
-      <div className="flex min-w-0 flex-col gap-5 rounded-xl border border-border bg-panel p-5 sm:flex-row md:p-6">
-        <div className="skeleton aspect-[3/4] w-32 flex-shrink-0 rounded-lg sm:w-40 xl:w-56" />
+      <div className="flex min-h-[248px] min-w-0 gap-4 rounded-lg bg-panel p-5">
+        <div className="skeleton hidden h-32 w-24 flex-shrink-0 rounded-md sm:block" />
         <div className="flex min-w-0 flex-1 flex-col gap-3">
           <div className="skeleton h-5 w-2/5" />
           <div className="skeleton h-4 w-full" />
@@ -29,11 +29,11 @@ function BookOverviewSkeleton() {
         </div>
       </div>
       {/* 右卡：写作进度 */}
-      <div className="min-h-[300px] rounded-xl border border-border bg-panel p-5 md:p-6">
+      <div className="min-h-[248px] rounded-lg bg-panel p-5">
         <div className="skeleton h-5 w-24" />
         <div className="skeleton mt-5 h-9 w-32" />
-        <div className="skeleton mt-4 h-2.5 w-full rounded-full" />
-        <div className="mt-6 grid grid-cols-2 gap-3 border-t border-border pt-4">
+        <div className="skeleton mt-3 h-1.5 w-full rounded-full" />
+        <div className="mt-4 grid grid-cols-2 gap-3 pt-3">
           <div className="skeleton h-14 rounded-lg" />
           <div className="skeleton h-14 rounded-lg" />
         </div>
@@ -72,12 +72,12 @@ export function BookOverviewHero({
   if (profile.loading) return <BookOverviewSkeleton />;
   return (
     <section
-      className="grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] animate-fade-in-up"
+      className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(260px,1fr)] animate-fade-in-up"
       style={{ animationDelay: '50ms' }}
       data-testid="book-overview-hero"
     >
-      <div className="card-hover flex min-w-0 flex-col gap-5 rounded-xl border border-border bg-panel p-5 sm:flex-row md:p-6">
-        <div className="relative aspect-[3/4] w-32 flex-shrink-0 overflow-hidden rounded-lg border border-border bg-background sm:w-40 xl:w-56">
+      <div className="flex min-h-[248px] min-w-0 gap-4 rounded-lg bg-panel p-5">
+        <div className="relative hidden h-32 w-24 flex-shrink-0 overflow-hidden rounded-md bg-background sm:block">
           {profile.coverUrl && !profile.profileError ? (
             <img
               src={profile.coverUrl}
@@ -87,17 +87,13 @@ export function BookOverviewHero({
             />
           ) : (
             <div
-              className="flex h-full w-full flex-col items-center justify-center gap-3 px-3 text-center text-subtle"
+              className="flex h-full w-full flex-col items-center justify-center gap-2 px-2 text-center text-subtle"
               data-testid="book-overview-cover-empty"
             >
               <BookOpen size={24} strokeWidth={1.4} aria-hidden="true" />
               <span className="text-xs">{profile.profileError ? '封面未读取' : '暂无封面'}</span>
               {!profile.profileError && (
-                <span className="text-2xs leading-5">
-                  通过「编辑作品资料」
-                  <br />
-                  添加封面
-                </span>
+                <span className="text-2xs leading-5">可在作品资料中添加</span>
               )}
             </div>
           )}
@@ -136,7 +132,7 @@ export function BookOverviewHero({
                 )}
               </div>
               <p
-                className="mt-4 line-clamp-4 text-sm leading-6 text-muted"
+                className="mt-3 line-clamp-4 text-sm leading-6 text-muted"
                 data-testid="book-overview-synopsis"
               >
                 {book.synopsis.trim() ||
@@ -154,7 +150,7 @@ export function BookOverviewHero({
                   chapterListRef.current?.focus();
                 }
               }}
-              className="interactive-press inline-flex h-11 items-center gap-2 rounded-lg bg-agent px-5 text-sm font-medium text-agent-foreground shadow-md transition-all hover:brightness-110 hover:shadow-lg active:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+              className="interactive-press inline-flex h-9 items-center gap-2 rounded-md bg-agent px-4 text-sm font-medium text-agent-foreground transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="book-overview-continue"
             >
               <ArrowUp size={16} strokeWidth={1.8} aria-hidden="true" />
@@ -172,17 +168,14 @@ export function BookOverviewHero({
         </div>
       </div>
 
-      <div
-        className="card-hover min-h-[300px] rounded-xl border border-border bg-panel p-5 md:p-6"
-        data-testid="book-overview-progress"
-      >
+      <div className="min-h-[248px] rounded-lg bg-panel p-5" data-testid="book-overview-progress">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-medium text-foreground">写作进度</h2>
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-agent/10">
             <BookOpen size={16} className="text-agent" aria-hidden="true" />
           </div>
         </div>
-        <div className="mt-5 flex items-end gap-2">
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-2">
           <strong className="text-4xl font-semibold tracking-tight text-foreground">
             {totalChars === null ? '—' : formatWordCount(totalChars)}
           </strong>
@@ -198,7 +191,7 @@ export function BookOverviewHero({
         {progress !== null ? (
           <>
             <div
-              className="mt-4 h-2.5 overflow-hidden rounded-full bg-elevated"
+              className="mt-3 h-1.5 overflow-hidden rounded-full bg-elevated"
               aria-label={`已完成 ${Math.round(progress * 100)}%`}
             >
               <div
@@ -222,8 +215,8 @@ export function BookOverviewHero({
                     : '尚未设置全书字数目标'}
           </p>
         )}
-        <dl className="mt-6 grid grid-cols-2 gap-3 border-t border-border pt-4">
-          <div className="rounded-lg bg-elevated/50 p-3">
+        <dl className="mt-4 grid grid-cols-2 gap-3 pt-3">
+          <div className="min-w-0">
             <dt className="text-2xs text-subtle">正文</dt>
             <dd className="mt-1 text-sm font-medium text-foreground">
               {chapterIndex?.status === 'available'
@@ -233,7 +226,7 @@ export function BookOverviewHero({
                   : '—'}
             </dd>
           </div>
-          <div className="rounded-lg bg-elevated/50 p-3">
+          <div className="min-w-0">
             <dt className="text-2xs text-subtle">大纲条目</dt>
             <dd className="mt-1 text-sm font-medium text-foreground">
               {profile.outlineLoading

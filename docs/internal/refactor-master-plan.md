@@ -71,7 +71,7 @@ cd apps/workflow && uv run pytest -q
 | **C2** | `desktop/.../App.tsx` | 333 | 1489 | 根组件装配壳；Window/Codex/Welcome/RightWorkspace 子组件与 layout/project/Tauri hooks 已外移 | ✅ 完成（当前合理边界） | 中 |
 | **C3** | `desktop/.../Editor.tsx` | 458 | 1119 | Editor 装配壳；Monaco lifecycle、文件加载、issue decorations、VersionHistory、分支清单与建议写回 hook 已外移 | ✅ 完成（当前合理边界） | **高** |
 | **B4** | `story_memory/service.py` | 75 | 863 | Story Memory facade；CRUD/有效期读取、伏笔状态机、召回/pgvector、抽取写入与仲裁已外移并经旧 `service.py` interface re-export | ✅ 完成 | 中 |
-| **IS** | `ide/service.py`(+`router.py`) | 51 + 312 | 738 + router | IDE facade；command registry、Artifact 预览、Workspace/Scene/Diagnostics 读取、Context Snapshot、Story Memory 查询与 Run Events 已外移并经旧 `service.py` interface re-export | ✅ 完成 | 中 |
+| **IS** | `ide/service.py`(+`router.py`) | 51 + 312 | 738 + router | IDE facade；command registry、Artifact 预览、Workspace/Scene/Diagnostics 读取、Context Snapshot、Story Memory 查询与 Run Events 已外移并经旧 `service.py` interface re-export；无 Desktop 调用方的 6 条旧读路由已收窄 | ✅ 完成 | 中 |
 | **B5** | `studio/service.py` | 53 | 764 | Studio facade；source/review/recovery reads、approval、chapter_review 已外移并经旧 `service.py` interface re-export | ✅ 完成 | 中 |
 | **C4** | `desktop/.../lib/api-client.ts`(+`project-context.ts`) | 50 + 15 | 740 | 旧路径 barrel；REST/WS/SSE/codecs 与 project semantic/context bundle 已外移 | ✅ 完成 | 中 |
 | **D1** | `workflow/orchestrators/book_loop.py`(+`novel_loop`+`book_run_adapter`) | 348 + 281 + 390 | 711 | BookLoop 执行核心 + NovelLoop + BookRun adapter；types/budget/scheduling/results 与 coerce/payload/volume/types 已外移 | ✅ 完成 | 中 |
@@ -278,7 +278,7 @@ Wave 3（收口）       B4、IS已完成   B5 C4 RT D1 D2 D3 D4已完成   （�
 ### IS · ide/service.py（738→51，当前合理边界完成）
 - **已完成并验证**：`_coerce.py`（`_int_or_none`/`_string_or_none`/`_context_href` 叶子工具）、`command_registry.py`（IDE command catalog、Judge/Repair/Approve/BookRun WritingRun adapter、审计事件写入）、`artifact_preview.py`（Artifact Viewer 预览/版本/追溯链）、`workspace_reads.py`（Explorer tree、场景正文、诊断投影）、`context_snapshot.py`（Context Inspector 快照）、`story_memory_query.py`（Story Memory Explorer 过滤与冲突队列）、`run_events.py`（BookRun → IDE Run Panel SSE 投影）。`service.py` 已退为旧路径 facade + re-export，验证见 `.codex/verification-report.md` 的 “IS 重构验证（2026-06-29，完成）”。
 - **保留在 facade 的职责**：无业务编排留在 facade；它只作为旧 `app.domains.ide.service` interface 的兼容 seam，供 router、live AgentRuntime、`ide/orchestrator.py` 兼容 facade 和测试继续从旧路径访问。
-- **硬约束**：35 个旧类/函数名全部仍可从 `service.py` 访问；`execute_ide_command_by_id` / `IdeCommandNotFoundError` / `IdeCommandExecutionError` 旧路径继续被 router、runtime、orchestrator 共用；`StoryForge IDE ??` 审计 workspace fallback 文案保持不变；`router.py` 不动。
+- **硬约束**：35 个旧类/函数名全部仍可从 `service.py` 访问；`execute_ide_command_by_id` / `IdeCommandNotFoundError` / `IdeCommandExecutionError` 旧路径继续被 router、runtime、orchestrator 共用；`StoryForge IDE ??` 审计 workspace fallback 文案保持不变。无 Desktop 调用方的 6 条旧读路由不再挂载，但其 service/schema 实现保持可复用。
 
 ### RT · retrieval/+model_runs（657→137+88，完成）
 - **已完成并验证**：retrieval 拆为 `scoring.py`（关键词/相似度/评分/rerank）、`candidate_loader.py`（keyword/pgvector 候选裁剪和日志）、`indexing.py`（资料源创建/刷新/chunk 构建）、`workbench.py`（工作台列表与投影），`service.py` 保留 `search_retrieval` / `search_retrieval_workbench` 装配核心 + 旧路径 re-export；model_runs 拆为 `recording.py`（ModelRun 写入、引用校验、旧 workflow payload 兼容 adapter）和 `runs_diagnostics.py`（Runs JobRun 诊断、runtime tools 投影、retry），`service.py` 保留 list/query seam 与 source-pruning wrapper。验证见 `.codex/verification-report.md` 的 “RT 重构验证（2026-06-29，完成）”。

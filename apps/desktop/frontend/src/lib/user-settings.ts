@@ -37,8 +37,9 @@ export type AppSettings = {
   theme: ThemeMode;
   provider: ProviderSettings;
   polishProvider: ProviderSettings;
+  /** 旧欢迎页偏好，仅保留序列化兼容；作品库不再由此隐藏。 */
   showWelcomeOnStartup: boolean;
-  /** 启动时恢复上次的项目、页签与光标位置（写作时刻 01「恢复现场」）。 */
+  /** 选择上次作品时恢复页签与光标位置（旧配置字段兼容）。 */
   restoreLastSession: boolean;
   /** 作者拖过的侧面板宽度，按视图各记一份；没拖过的视图吃档位默认（见 side-panel-width.ts）。 */
   sidePanelWidths: Record<string, number>;

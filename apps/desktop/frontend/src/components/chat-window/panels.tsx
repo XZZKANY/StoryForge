@@ -1,5 +1,4 @@
-import { ConversationStarters } from './ConversationStarters';
-import { useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import {
   semanticKindLabel,
   type ContextBundle,
@@ -18,9 +17,8 @@ import {
 } from '../icons/shell-icons';
 import type { LayoutMode } from '../shell/useShellState';
 import { useDismissableMenu } from '../shell/useDismissableMenu';
-import { basename } from '../app/helpers';
 import { AssistantMarkdown } from './AssistantMarkdown';
-import { contextBudgetText, selectedContextPreview } from './display-utils';
+import { contextBudgetText } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
 import type { AgentRun, AgentRunControlHandlers, Message, WritingRunProjection } from './types';
 
@@ -53,7 +51,7 @@ export function ConversationHeader({
   const sessionList = sessions ?? [];
   return (
     <header
-      className="relative flex h-shell-row flex-shrink-0 items-center gap-2 border-b border-border bg-panel px-3 pr-2"
+      className="relative flex h-shell-row flex-shrink-0 items-center gap-2 bg-panel px-3 pr-2"
       data-testid="conversation-header"
     >
       <button
@@ -191,72 +189,87 @@ export function ConversationHeader({
 }
 
 export function MessageList({
+  conversationScope = 0,
   messages,
-  projectName,
-  currentFileLabel,
   agentRun,
   agentRunRecovery,
   writingRunProjection,
-  explicitContextPaths,
-  contextCandidates,
-  contextCandidatesLoading,
-  contextCandidatesError,
-  contextPickerOpen,
-  lastContextBundle,
-  missingContextPaths,
-  onAddContext,
-  onTogglePinnedContext,
-  onRetryContextCandidates,
-  onSelectPrompt,
-  starterDisabled = false,
 }: {
+  conversationScope?: string | number;
   messages: Message[];
-  projectName: string | null;
-  currentFileLabel: string | null;
   agentRun: AgentRun | null;
   agentRunRecovery: AgentRunRecoveryDisplay | null;
   writingRunProjection: WritingRunProjection | null;
-  explicitContextPaths: string[];
-  contextCandidates: SemanticFile[];
-  contextCandidatesLoading: boolean;
-  contextCandidatesError: string | null;
-  contextPickerOpen: boolean;
-  lastContextBundle: ContextBundle | null;
-  missingContextPaths: string[];
-  onAddContext: () => void;
-  onTogglePinnedContext: (path: string) => void;
-  onRetryContextCandidates: () => void;
-  onSelectPrompt?: (prompt: string) => void;
-  starterDisabled?: boolean;
 }) {
-  if (messages.length === 0) {
-    return (
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <EmptyConversation
-          projectName={projectName}
-          currentFileLabel={currentFileLabel}
-          explicitContextPaths={explicitContextPaths}
-          contextCandidates={contextCandidates}
-          contextCandidatesLoading={contextCandidatesLoading}
-          contextCandidatesError={contextCandidatesError}
-          contextPickerOpen={contextPickerOpen}
-          lastContextBundle={lastContextBundle}
-          missingContextPaths={missingContextPaths}
-          onAddContext={onAddContext}
-          onTogglePinnedContext={onTogglePinnedContext}
-          onRetryContextCandidates={onRetryContextCandidates}
-          onSelectPrompt={onSelectPrompt}
-          starterDisabled={starterDisabled}
-        />
-      </div>
-    );
-  }
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const nearBottomRef = useRef(true);
+  const [nearBottom, setNearBottom] = useState(true);
+  const [hasUnread, setHasUnread] = useState(false);
 
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
-      <div className="mx-auto flex w-full max-w-[800px] flex-col gap-6">
-        {messages.map((message, index) => (
-          <MessageItem key={index} message={message} />
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    // A newly selected conversation opens at its latest content; shell visibility changes
+    // retain the existing scope and reading position instead of remounting the messages.
+    const resetScroll = () => {
+      nearBottomRef.current = true;
+      setNearBottom(true);
+      setHasUnread(false);
+      if (element.clientHeight > 0) element.scrollTop = element.scrollHeight;
+    };
+    resetScroll();
+    const onScroll = () => {
+      if (element.clientHeight === 0) return; // hidden workspace is not a user scroll
+      const nextNearBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 48;
+      nearBottomRef.current = nextNearBottom;
+      setNearBottom(nextNearBottom);
+      if (nextNearBottom) setHasUnread(false);
+    };
+    element.addEventListener('scroll', onScroll, { passive: true });
+    const observer =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            if (element.clientHeight > 0 && nearBottomRef.current) {
+              element.scrollTop = element.scrollHeight;
+            }
+          })
+        : null;
+    observer?.observe(element);
+    if (contentRef.current) observer?.observe(contentRef.current);
+    return () => {
+      element.removeEventListener('scroll', onScroll);
+      observer?.disconnect();
+    };
+  }, [conversationScope]);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const updateContent = () => {
+      if (nearBottomRef.current) {
+        if (element.clientHeight > 0) element.scrollTop = element.scrollHeight;
+        setHasUnread(false);
+      } else {
+        setHasUnread(true);
+      }
+    };
+    updateContent();
+  }, [messages, agentRun, agentRunRecovery, writingRunProjection]);
+
+  const jumpToLatest = () => {
+    const element = scrollRef.current;
+    if (!element) return;
+    nearBottomRef.current = true;
+    element.scrollTop = element.scrollHeight;
+    setNearBottom(true);
+    setHasUnread(false);
+  };
+  const content =
+    messages.length === 0 ? null : (
+      <div className="mx-auto flex w-full max-w-[800px] flex-col gap-6 px-5 py-6">
+        {messages.map((message) => (
+          <MessageItem key={messageKey(message)} message={message} />
         ))}
 
         {agentRun && agentRun.steps.length > 0 && (
@@ -269,22 +282,36 @@ export function MessageList({
         )}
 
         {writingRunProjection && <WritingRunProgressPanel projection={writingRunProjection} />}
-
-        <ContextSummaryPanel
-          compact
-          currentFileLabel={currentFileLabel}
-          explicitContextPaths={explicitContextPaths}
-          contextCandidates={contextCandidates}
-          contextCandidatesLoading={contextCandidatesLoading}
-          contextCandidatesError={contextCandidatesError}
-          contextPickerOpen={contextPickerOpen}
-          lastContextBundle={lastContextBundle}
-          missingContextPaths={missingContextPaths}
-          onAddContext={onAddContext}
-          onTogglePinnedContext={onTogglePinnedContext}
-          onRetryContextCandidates={onRetryContextCandidates}
-        />
       </div>
+    );
+  return (
+    <div className="relative min-h-0 flex-1">
+      <div
+        ref={scrollRef}
+        className="h-full min-h-0 overflow-y-auto"
+        data-testid="message-list-scroll"
+        role="region"
+        aria-label="对话消息"
+        tabIndex={0}
+      >
+        <div ref={contentRef} className="min-h-full">
+          {content}
+        </div>
+      </div>
+      {hasUnread && !nearBottom && (
+        <button
+          type="button"
+          className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-agent/40 bg-surface px-3 py-1.5 text-xs text-foreground shadow-dropdown hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-agent"
+          data-testid="message-list-new-content"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={(event) => {
+            if (document.activeElement === event.currentTarget) scrollRef.current?.focus();
+            jumpToLatest();
+          }}
+        >
+          有新内容 · 回到底部
+        </button>
+      )}
     </div>
   );
 }
@@ -615,86 +642,79 @@ export function ContextSummaryPanel({
   onRetryContextCandidates: () => void;
 }) {
   const [expanded, setExpanded] = useState(!compact);
+  const hasWarning = Boolean(
+    missingContextPaths.length || contextCandidatesError || lastContextBundle?.budget.truncated,
+  );
+  // 空会话不展示上下文占位；只有作者主动打开或真实警告才占用空间。
+  if (!contextPickerOpen && !hasWarning) return null;
 
   const visibleCandidates = contextCandidates
     .filter((file) => file.relativePath !== currentFileLabel)
     .slice(0, 24);
-  // picker 由 Composer「+」打开时派生展开，避免操作落空；不再用 effect 同步 state。
   const detailsOpen = !compact || expanded || contextPickerOpen;
 
   return (
     <section
-      className="animate-slide-up-fade rounded-lg border border-border bg-panel px-3 py-2"
+      className="mx-3 mb-2 max-h-[40%] flex-shrink-0 overflow-y-auto rounded-lg bg-background px-3 py-2"
       data-testid="context-summary"
       data-compact={compact ? 'true' : 'false'}
       data-expanded={detailsOpen ? 'true' : 'false'}
     >
       <div className="flex items-center gap-3">
-        {compact ? (
-          <button
-            type="button"
-            className="flex min-w-0 flex-1 items-center gap-2 text-left"
-            onClick={() => setExpanded((value) => !value)}
-            data-testid="context-summary-toggle"
-            aria-expanded={detailsOpen}
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          onClick={() => {
+            if (contextPickerOpen) onAddContext();
+            else setExpanded((value) => !value);
+          }}
+          data-testid="context-summary-toggle"
+          aria-expanded={detailsOpen}
+        >
+          <span
+            className={`flex-shrink-0 text-3xs text-subtle transition-transform ${detailsOpen ? '' : '-rotate-90'}`}
           >
+            ▾
+          </span>
+          <span className="min-w-0 flex-1 truncate text-xs text-subtle">
+            参考上下文
+            {explicitContextPaths.length > 0 ? ` · 固定 ${explicitContextPaths.length}` : ''}
+          </span>
+          {lastContextBundle?.budget.truncated && (
             <span
-              className={`flex-shrink-0 text-3xs text-subtle transition-transform ${
-                detailsOpen ? '' : '-rotate-90'
-              }`}
+              className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs leading-4 text-warning"
+              data-testid="context-truncated-badge"
             >
-              ▾
+              已截断
             </span>
-            <span className="min-w-0 flex-1 truncate text-xs text-subtle">
-              上下文 · {currentFileLabel ? basename(currentFileLabel) : '未选择文件'}
-              {explicitContextPaths.length > 0 ? ` · 固定 ${explicitContextPaths.length}` : ''}
-            </span>
-            {/* 截断是重要信号，不该只在展开后以灰字出现：折叠标题行就地亮一枚 warning chip。 */}
-            {lastContextBundle?.budget.truncated && (
-              <span
-                className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs leading-4 text-warning"
-                data-testid="context-truncated-badge"
-              >
-                已截断
-              </span>
-            )}
-          </button>
-        ) : (
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-xs font-semibold text-foreground">
-              {contextBudgetText(lastContextBundle)}
-            </div>
-            <div className="mt-1 truncate text-xs text-subtle">
-              当前：{currentFileLabel ?? '未选择文件'}；已选：
-              {selectedContextPreview(lastContextBundle)}
-            </div>
-          </div>
-        )}
+          )}
+        </button>
         <button
           type="button"
           className="h-7 flex-shrink-0 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated"
-          onClick={() => {
-            if (compact) setExpanded(true);
-            onAddContext();
-          }}
+          onClick={onAddContext}
           data-testid="context-picker-toggle"
         >
-          添加上下文
+          {contextPickerOpen ? '完成' : '添加上下文'}
         </button>
       </div>
 
       {detailsOpen && (
         <>
-          {compact && (
-            <div className="mt-1 pl-5 text-xs text-subtle">
-              <div className="truncate">{contextBudgetText(lastContextBundle)}</div>
-              <div className="mt-0.5 truncate">
-                当前：{currentFileLabel ?? '未选择文件'}；已选：
-                {selectedContextPreview(lastContextBundle)}
-              </div>
+          {lastContextBundle && (
+            <div className="mt-2 text-xs text-subtle">
+              <div>{contextBudgetText(lastContextBundle)}</div>
+              {lastContextBundle.files.length > 0 && (
+                <ul className="mt-1 space-y-0.5" aria-label="本轮实际引用">
+                  {lastContextBundle.files.map((file) => (
+                    <li key={file.path} className="break-words">
+                      {file.relativePath}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
-
           {explicitContextPaths.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5" data-testid="pinned-context-list">
               {explicitContextPaths.map((path) => (
@@ -702,7 +722,8 @@ export function ContextSummaryPanel({
                   key={path}
                   type="button"
                   className="max-w-full truncate rounded-md border border-accent bg-accent px-2 py-1 text-xs text-accent-foreground hover:bg-accent"
-                  title="取消固定"
+                  title={path}
+                  aria-label={`取消固定参考：${path}`}
                   onClick={() => onTogglePinnedContext(path)}
                 >
                   已固定 {path}
@@ -710,90 +731,97 @@ export function ContextSummaryPanel({
               ))}
             </div>
           )}
-
-          {missingContextPaths.length > 0 && (
-            <div className="mt-2 text-xs text-warning" data-testid="missing-context-warning">
-              未读到：{missingContextPaths.join('、')}
-            </div>
-          )}
-
-          {contextPickerOpen && (
-            <div
-              className="mt-3 grid max-h-52 grid-cols-1 gap-1 overflow-y-auto border-t border-border pt-2"
-              data-testid="context-picker"
-            >
-              {contextCandidatesLoading ? (
-                <div
-                  className="px-2 py-1 text-xs text-subtle"
-                  data-testid="context-candidates-loading"
-                >
-                  正在读取项目上下文…
-                </div>
-              ) : contextCandidatesError ? (
-                <div
-                  className="flex items-center gap-2 px-2 py-1 text-xs text-warning"
-                  data-testid="context-candidates-error"
-                >
-                  <span className="min-w-0 flex-1 break-words">{contextCandidatesError}</span>
-                  <button
-                    type="button"
-                    className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 hover:bg-elevated"
-                    onClick={onRetryContextCandidates}
-                    data-testid="context-candidates-retry"
-                  >
-                    重试
-                  </button>
-                </div>
-              ) : visibleCandidates.length === 0 ? (
-                <div className="px-2 py-1 text-xs text-subtle">
-                  当前项目还没有可选的 Markdown 上下文。
-                </div>
-              ) : (
-                visibleCandidates.map((file) => {
-                  const pinned =
-                    explicitContextPaths.includes(file.relativePath) ||
-                    explicitContextPaths.includes(file.path);
-                  return (
-                    <button
-                      key={file.path}
-                      type="button"
-                      className={`flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs ${
-                        pinned ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'
-                      }`}
-                      onClick={() => onTogglePinnedContext(file.relativePath)}
-                      data-testid="context-candidate"
-                      data-context-path={file.relativePath}
-                    >
-                      <span className="w-10 flex-shrink-0 text-subtle">
-                        {semanticKindLabel(file.kind)}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
-                      <span className="flex-shrink-0 text-subtle">
-                        {pinned ? '已固定' : '固定'}
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          )}
         </>
       )}
-
-      {!detailsOpen && missingContextPaths.length > 0 && (
-        <div className="mt-2 text-xs text-warning" data-testid="missing-context-warning">
+      {missingContextPaths.length > 0 && (
+        <div
+          className="mt-2 break-words text-xs text-warning"
+          data-testid="missing-context-warning"
+        >
           未读到：{missingContextPaths.join('、')}
+        </div>
+      )}
+      {contextCandidatesError && (
+        <div
+          className="mt-2 flex items-center gap-2 text-xs text-warning"
+          data-testid="context-candidates-error"
+        >
+          <span className="min-w-0 flex-1 break-words">{contextCandidatesError}</span>
+          <button
+            type="button"
+            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 hover:bg-elevated"
+            onClick={onRetryContextCandidates}
+            data-testid="context-candidates-retry"
+          >
+            重试
+          </button>
+        </div>
+      )}
+      {contextPickerOpen && (
+        <div
+          className="mt-3 grid max-h-52 grid-cols-1 gap-1 overflow-y-auto pt-2"
+          data-testid="context-picker"
+        >
+          {contextCandidatesLoading ? (
+            <div className="px-2 py-1 text-xs text-subtle" data-testid="context-candidates-loading">
+              正在读取项目上下文…
+            </div>
+          ) : contextCandidatesError ? null : visibleCandidates.length === 0 ? (
+            <div className="px-2 py-1 text-xs text-subtle">
+              当前项目还没有可选的 Markdown 上下文。
+            </div>
+          ) : (
+            visibleCandidates.map((file) => {
+              const pinned =
+                explicitContextPaths.includes(file.relativePath) ||
+                explicitContextPaths.includes(file.path);
+              return (
+                <button
+                  key={file.path}
+                  type="button"
+                  className={`flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs ${pinned ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'}`}
+                  onClick={() => onTogglePinnedContext(file.relativePath)}
+                  data-testid="context-candidate"
+                  data-context-path={file.relativePath}
+                  title={file.relativePath}
+                >
+                  <span className="w-10 flex-shrink-0 text-subtle">
+                    {semanticKindLabel(file.kind)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
+                  <span className="flex-shrink-0 text-subtle">{pinned ? '已固定' : '固定'}</span>
+                </button>
+              );
+            })
+          )}
         </div>
       )}
     </section>
   );
 }
 
-export function MessageItem({ message }: { message: Message }) {
+/**
+ * P1-1 修复：消息项 React.memo + 稳定 key。
+ * 背景：Agent step 事件高频（每秒则可能 20+ setAgentRun），此前 key={index} 导致
+ * 任意 step 更新触发整个消息列表 reconcile，每条 assistant 消息的 react-markdown 全量重渲染。
+ * 优化：稳定 key（role+内容 hash）使相同消息保持组件实例；memo 阻断 props 相等时的重渲染。
+ * key 不依赖 index，故会话切换/批量插入/pending 槽位变化均不会误判为不同消息。
+ */
+function messageKey(message: Message): string {
+  // 简单非加密 hash：djb2。长度截短避免 key 过长。
+  const text = `${message.role}:${message.content}`;
+  let hash = 5381;
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash << 5) + hash + text.charCodeAt(i);
+  }
+  return `${message.role}-${hash >>> 0}`;
+}
+
+export const MessageItem = memo(function MessageItem({ message }: { message: Message }) {
   if (message.role === 'user') {
     return (
       <div className="flex animate-slide-up-fade justify-end" data-testid="user-message">
-        <div className="sf-bubble-user max-w-[85%] bg-elevated px-4 py-3 text-sm leading-6 text-foreground shadow-md transition-shadow hover:shadow-lg">
+        <div className="sf-bubble-user max-w-[85%] bg-elevated px-4 py-3 text-sm leading-6 text-foreground">
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
       </div>
@@ -811,89 +839,12 @@ export function MessageItem({ message }: { message: Message }) {
         </span>
         <span className="text-2xs text-subtle">StoryForge</span>
       </div>
-      <div className="rounded-xl border border-border bg-panel/50 p-4 shadow-sm">
+      <div className="py-1">
         <AssistantMarkdown content={message.content} />
       </div>
     </article>
   );
-}
-
-export function EmptyConversation({
-  projectName,
-  currentFileLabel,
-  explicitContextPaths,
-  contextCandidates,
-  contextCandidatesLoading,
-  contextCandidatesError,
-  contextPickerOpen,
-  lastContextBundle,
-  missingContextPaths,
-  onAddContext,
-  onTogglePinnedContext,
-  onRetryContextCandidates,
-  onSelectPrompt,
-  starterDisabled = false,
-}: {
-  projectName: string | null;
-  currentFileLabel: string | null;
-  explicitContextPaths: string[];
-  contextCandidates: SemanticFile[];
-  contextCandidatesLoading: boolean;
-  contextCandidatesError: string | null;
-  contextPickerOpen: boolean;
-  lastContextBundle: ContextBundle | null;
-  missingContextPaths: string[];
-  onAddContext: () => void;
-  onTogglePinnedContext: (path: string) => void;
-  onRetryContextCandidates: () => void;
-  onSelectPrompt?: (prompt: string) => void;
-  starterDisabled?: boolean;
-}) {
-  return (
-    <div className="flex min-h-full items-center justify-center px-4 py-10">
-      <div className="w-full max-w-[680px]">
-        <div className="mb-8 text-center animate-fade-in-scale">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-agent/20 to-agent/5 shadow-lg">
-            <Sparkles size={32} strokeWidth={1.5} className="text-agent" />
-          </div>
-          <div className="text-lg font-semibold text-foreground">StoryForge</div>
-          <div className="mt-2 truncate text-sm text-subtle">
-            {projectName ? `${projectName} · 项目级创作会话` : '打开项目后即可开始创作会话'}
-          </div>
-        </div>
-
-        <div
-          className="card-hover rounded-xl border border-border bg-panel p-6 text-center shadow-md animate-fade-in-up"
-          style={{ animationDelay: '100ms' }}
-        >
-          <div className="text-sm text-muted">
-            在下方输入框开始对话，Agent 会根据你的指令协助创作
-          </div>
-          <ConversationStarters
-            onSelect={onSelectPrompt}
-            disabled={!projectName || starterDisabled}
-          />
-        </div>
-
-        <div className="mt-4 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-          <ContextSummaryPanel
-            currentFileLabel={currentFileLabel}
-            explicitContextPaths={explicitContextPaths}
-            contextCandidates={contextCandidates}
-            contextCandidatesLoading={contextCandidatesLoading}
-            contextCandidatesError={contextCandidatesError}
-            contextPickerOpen={contextPickerOpen}
-            lastContextBundle={lastContextBundle}
-            missingContextPaths={missingContextPaths}
-            onAddContext={onAddContext}
-            onTogglePinnedContext={onTogglePinnedContext}
-            onRetryContextCandidates={onRetryContextCandidates}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
+});
 
 export function LightweightStatus({
   text,
@@ -905,7 +856,7 @@ export function LightweightStatus({
   onRetry?: () => void;
 }) {
   return (
-    <div className="flex-shrink-0 border-t border-border bg-panel px-5 py-2">
+    <div className="flex-shrink-0 bg-panel px-5 py-2">
       <div className="mx-auto flex max-w-[800px] items-center gap-3">
         <div className="min-w-0 flex-1 truncate text-xs text-muted">{text}</div>
         {retryVisible && (

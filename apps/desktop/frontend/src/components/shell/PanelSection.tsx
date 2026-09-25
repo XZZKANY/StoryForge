@@ -28,7 +28,7 @@ export function PanelSection({
   const [open, setOpen] = useState(defaultOpen);
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
-    <div className="border-t border-border" data-testid={`${prefix}-section-${testid}`}>
+    <div className="mt-2 first:mt-0" data-testid={`${prefix}-section-${testid}`}>
       <button
         type="button"
         className="flex h-8 w-full items-center gap-1 px-2 text-left text-2xs font-medium text-muted hover:bg-elevated hover:text-foreground"

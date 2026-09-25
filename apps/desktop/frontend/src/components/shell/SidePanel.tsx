@@ -75,6 +75,7 @@ export function SidePanel(props: SidePanelProps) {
     stopResizeRef.current?.();
     const startX = event.clientX;
     const startWidth = displayWidth;
+    setDragWidth(startWidth);
     const view = props.view;
     const widthAt = (clientX: number) =>
       Math.min(widthLimit, draggedSidePanelWidth(startWidth, clientX - startX));
@@ -104,19 +105,19 @@ export function SidePanel(props: SidePanelProps) {
   return (
     <div
       id={panelId}
-      className="relative flex flex-shrink-0 flex-col border-r border-border bg-panel"
+      className="sf-shell-edge-right relative flex flex-shrink-0 flex-col bg-panel"
       style={{
         width: `${displayWidth}px`,
-        boxShadow: 'var(--shadow-panel)',
       }}
       data-testid="shell-side-panel"
       data-side-view={props.view}
     >
-      {/* 右缘拖拽把手：命中区 5px（1px 描边点不准），hover/拖拽时才显强调色。
+      {/* 右缘拖拽把手：命中区 5px，hover/焦点/拖拽时才显强调色。
           双击复位到该视图的档位默认。 */}
       <div
-        className="absolute inset-y-0 -right-0.5 z-20 w-[5px] cursor-col-resize hover:bg-agent/40 focus-visible:bg-agent/60 focus-visible:outline-none"
+        className="sf-panel-resize absolute inset-y-0 -right-0.5 z-20 w-[5px] cursor-col-resize"
         data-testid="side-panel-resize"
+        data-resizing={dragWidth !== null}
         role="separator"
         tabIndex={0}
         aria-label="调整侧栏宽度"
@@ -230,7 +231,7 @@ function ExplorerView({
   return (
     <>
       <div
-        className="relative flex h-shell-row flex-shrink-0 items-center gap-1 border-b border-border px-2 pr-1.5"
+        className="relative flex h-shell-row flex-shrink-0 items-center gap-1 px-2 pr-1.5"
         data-testid="side-panel-header"
       >
         <button

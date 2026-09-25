@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   loadProjectAssistantSessions,
   RECENT_PROJECTS_KEY,
@@ -25,7 +25,15 @@ function parseStringList(raw: string | null): string[] {
   if (!raw) return [];
   try {
     const list = JSON.parse(raw) as unknown;
-    return Array.isArray(list) ? (list as string[]) : [];
+    return Array.isArray(list)
+      ? [
+          ...new Set(
+            list.filter(
+              (path): path is string => typeof path === 'string' && path.trim().length > 0,
+            ),
+          ),
+        ]
+      : [];
   } catch {
     return [];
   }
@@ -38,7 +46,11 @@ export function useProjectWorkspace({
   onProjectSelected: () => void;
   onFileSelected: () => void;
 }) {
-  const [projects, setProjects] = useState<string[]>([]);
+  const [projects, setProjects] = useState(() =>
+    parseStringList(localStorage.getItem(RECENT_PROJECTS_KEY)),
+  );
+  const initialProjectsRef = useRef(projects);
+  const selectedSinceStartupRef = useRef(new Set<string>());
   const [activeProject, setActiveProject] = useState<string | null>(null);
   const [currentFile, setCurrentFile] = useState<string | null>(null);
   const [projectAssistantSessions, setProjectAssistantSessions] = useState<Record<string, number>>(
@@ -46,27 +58,23 @@ export function useProjectWorkspace({
   );
 
   useEffect(() => {
-    const projectList = parseStringList(localStorage.getItem(RECENT_PROJECTS_KEY));
-
-    // 非 Tauri 运行时（浏览器/测试）无真实文件系统可校验，按旧行为直接恢复。
-    if (!isTauriRuntime()) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 启动时从 localStorage 恢复，React18 合法模式
-      setProjects(projectList);
-      // 不自动打开最近项目：启动落到 pane-start 空起始态，最近项目留侧栏供一键重开。
-      return;
-    }
-
-    // Tauri 桌面端：剔除磁盘上已不存在的最近项目（如被清理的 smoke 临时项目），
-    // 避免死链堆在项目库里，并防止启动时自动打开一个不存在的项目。
+    // 最近列表先由同一 owner 展示；异步校验只能删除仍属于启动基线的失效路径。
+    if (!isTauriRuntime()) return;
+    const projectList = initialProjectsRef.current;
+    const baseline = new Set(projectList);
     let cancelled = false;
     void (async () => {
-      const existingProjects = await filterExistingPaths(projectList);
+      const existing = new Set(await filterExistingPaths(projectList));
       if (cancelled) return;
-      // 不自动打开最近项目：启动落到 pane-start 空起始态，最近项目留侧栏供一键重开。
-      setProjects(existingProjects);
-      if (existingProjects.length !== projectList.length) {
-        localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(existingProjects));
-      }
+      setProjects((current) => {
+        const next = current.filter(
+          (path) =>
+            !baseline.has(path) || existing.has(path) || selectedSinceStartupRef.current.has(path),
+        );
+        // 保留当下的顺序和新选中/新建的路径；只筛 current，绝不从旧快照复活已移除项。
+        localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(next));
+        return next;
+      });
     })();
     return () => {
       cancelled = true;
@@ -75,6 +83,7 @@ export function useProjectWorkspace({
 
   const selectProject = useCallback(
     (path: string) => {
+      selectedSinceStartupRef.current.add(path);
       setActiveProject(path);
       setCurrentFile(null);
       onProjectSelected();

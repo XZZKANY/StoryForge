@@ -1,10 +1,12 @@
 import { act } from 'react';
+import assert from 'node:assert/strict';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, test, vi } from 'vitest';
 import { BookOverview, type BookOverviewProps } from '../src/components/app/BookOverview';
 import { emptyBookProfile } from '../src/lib/book-profile';
 import type { BookProfileHandle } from '../src/components/app/useBookProfile';
 import type { BookContextHandle } from '../src/components/app/useBookContext';
+import type { BookOverviewChaptersHandle } from '../src/components/app/useBookOverviewChapters';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const host = document.createElement('div');
@@ -90,6 +92,53 @@ test('总览进度使用真实扫描且章节按阅读序；继续写作只传�
     host.querySelector<HTMLButtonElement>('[data-testid="book-overview-continue"]')!.click(),
   );
   expect(open).toHaveBeenLastCalledWith('正文/02.md');
+});
+
+test('长篇总览只展示当前章附近的八章，查看全部进入手稿视图且不丢数量', async () => {
+  root = createRoot(host);
+  const openWorkspace = vi.fn();
+  const openManuscript = vi.fn();
+  const chapters = Array.from({ length: 100 }, (_, index) => ({
+    ordinal: index + 1,
+    relativePath: `正文/${String(index + 1).padStart(3, '0')}.md`,
+    name: `第${index + 1}章.md`,
+    estimatedChars: 100 + index,
+    path: `D:/book/正文/${String(index + 1).padStart(3, '0')}.md`,
+  }));
+  const chapterIndex: BookOverviewChaptersHandle = {
+    chapters,
+    currentChapter: chapters[49],
+    status: 'available',
+    error: null,
+    refreshing: false,
+    refresh: vi.fn(),
+  };
+  await render({
+    chapters: chapterIndex,
+    onContinueWriting: openWorkspace,
+    onOpenAllChapters: openManuscript,
+    onOpenChapter: vi.fn(),
+  });
+
+  const rows = host.querySelectorAll<HTMLButtonElement>(
+    '[data-testid="book-overview-chapter-row"]',
+  );
+  assert.equal(rows.length, 8);
+  assert.equal(rows[0].textContent?.includes('第46章'), true);
+  assert.equal(rows[7].textContent?.includes('第53章'), true);
+  assert.equal(
+    host
+      .querySelector('[data-testid="book-overview-recent-chapters"]')
+      ?.textContent?.includes('100 章'),
+    true,
+  );
+  const viewAll = host.querySelector<HTMLButtonElement>(
+    '[data-testid="book-overview-view-all-chapters"]',
+  );
+  assert.ok(viewAll);
+  await act(async () => viewAll!.click());
+  assert.deepEqual(openManuscript.mock.calls.at(-1), []);
+  assert.equal(openWorkspace.mock.calls.length, 0);
 });
 test('无有效当前章节时选择按钮可操作且只聚焦章节列表，不打开假章节', async () => {
   root = createRoot(host);

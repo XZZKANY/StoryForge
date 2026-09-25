@@ -90,15 +90,18 @@ export function EditorLoadStatus({
   filePath,
   loadedFilePath,
   loadError,
+  onRetry,
 }: {
   filePath: string | null;
   loadedFilePath: string | null;
   loadError: string;
+  onRetry?: () => void;
 }) {
   if (!filePath || loadedFilePath === filePath) return null;
   return (
     <div
       className="absolute inset-x-0 bottom-0 top-0 z-20 flex items-center justify-center bg-background px-6 text-center"
+      role={loadError ? 'alert' : 'status'}
       data-testid={loadError ? 'editor-load-error' : 'editor-loading'}
     >
       <div>
@@ -106,6 +109,16 @@ export function EditorLoadStatus({
           {loadError ? '读取文件失败' : '正在读取文件…'}
         </p>
         {loadError && <p className="mt-2 max-w-xl text-xs text-subtle">{loadError}</p>}
+        {loadError && onRetry ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-3 h-8 rounded-md border border-border-strong px-3 text-xs text-foreground hover:bg-elevated"
+            data-testid="editor-load-retry"
+          >
+            重试读取
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -161,6 +174,9 @@ export function Editor({
     handleAcceptHunk,
     handleAcceptSuggestion,
     handleSaveSuggestionNote,
+    handleRetrySuggestion,
+    actionState,
+    actionError,
     isReviseLoading,
     pendingSuggestion,
     rejectPendingSuggestion,
@@ -193,21 +209,27 @@ export function Editor({
     autoSaveRef.current = autoSave;
   });
 
-  const { loadedFilePath, loadedContent, loadedIsDirty, loadAttemptFilePath, loadError } =
-    useEditorFileLoader({
-      filePath,
-      originalContentRef,
-      issueDecorationsRef,
-      filePathRef,
-      isDirtyRef,
-      autoSaveTimerRef,
-      resetSuggestionWriteback,
-      adoptPendingSuggestion,
-      setLoadedContentPreview,
-      setIsDirty,
-      setShowHistory,
-      modelCacheRef,
-    });
+  const {
+    loadedFilePath,
+    loadedContent,
+    loadedIsDirty,
+    loadAttemptFilePath,
+    loadError,
+    retry: retryFileLoad,
+  } = useEditorFileLoader({
+    filePath,
+    originalContentRef,
+    issueDecorationsRef,
+    filePathRef,
+    isDirtyRef,
+    autoSaveTimerRef,
+    resetSuggestionWriteback,
+    adoptPendingSuggestion,
+    setLoadedContentPreview,
+    setIsDirty,
+    setShowHistory,
+    modelCacheRef,
+  });
 
   useEffect(() => {
     if (loadedFilePath === filePath) onDirtyChange?.(filePath, isDirty);
@@ -793,7 +815,12 @@ export function Editor({
         </div>
       )}
 
-      <EditorLoadStatus filePath={filePath} loadedFilePath={loadedFilePath} loadError={loadError} />
+      <EditorLoadStatus
+        filePath={filePath}
+        loadedFilePath={loadedFilePath}
+        loadError={loadError}
+        onRetry={retryFileLoad}
+      />
 
       {isReviseLoading && (
         <div
@@ -814,24 +841,32 @@ export function Editor({
       />
 
       {/* AI 修订确认面板：贴在正文下方（原先在编辑器上方，观感割裂，#7）。 */}
-      {pendingSuggestion && (
-        <PatchReviewPanel
-          suggestion={pendingSuggestion}
-          editorFontSize={editorFontSize}
-          editorFontFamily={resolveEditorFontFamily(editorFontMode)}
-          onAccept={handleAcceptSuggestion}
-          onAcceptHunk={handleAcceptHunk}
-          onReject={rejectPendingSuggestion}
-          onSaveNote={handleSaveSuggestionNote}
-          onRetryWithoutKnowledge={(knowledgeId, relativePath) =>
-            emitRetryWithoutKnowledge({
-              knowledgeId,
-              relativePath,
-              goal: pendingSuggestion.userIntent ?? '重新修订当前文件',
-            })
-          }
-        />
-      )}
+      {pendingSuggestion &&
+        loadedFilePath === filePath &&
+        pendingSuggestion.filePath === filePath && (
+          <PatchReviewPanel
+            suggestion={pendingSuggestion}
+            actionKind={actionState?.kind ?? null}
+            error={actionError}
+            editorFontSize={editorFontSize}
+            editorFontFamily={resolveEditorFontFamily(editorFontMode)}
+            onAccept={handleAcceptSuggestion}
+            onAcceptHunk={handleAcceptHunk}
+            onReject={rejectPendingSuggestion}
+            onSaveNote={handleSaveSuggestionNote}
+            onRetryWithoutKnowledge={(knowledgeId, relativePath) =>
+              handleRetrySuggestion(() =>
+                emitRetryWithoutKnowledge({
+                  projectPath: projectPath ?? undefined,
+                  filePath: filePath ?? undefined,
+                  knowledgeId,
+                  relativePath,
+                  goal: pendingSuggestion.userIntent ?? '重新修订当前文件',
+                }),
+              )
+            }
+          />
+        )}
 
       {showHistory &&
         (filePath ? (

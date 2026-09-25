@@ -3,8 +3,9 @@
  * Q7：标题栏不显示项目名/路径——项目名唯一入口是左栏项目切换器（带全路径 tooltip），
  * 避免顶栏出现 `D:\test` 这类裸路径。窗控复用原 WindowMenu 的 Tauri 窗口动作；整条可拖拽。
  */
+import type { Ref } from 'react';
 import { isTauriRuntime } from '../../lib/tauri-env';
-import { Minus, PanelRight, Search, Square, X } from '../icons/shell-icons';
+import { Library, Minus, PanelRight, Search, Square, X } from '../icons/shell-icons';
 
 async function runWindowAction(action: 'drag' | 'minimize' | 'maximize' | 'close') {
   if (!isTauriRuntime()) return;
@@ -26,18 +27,24 @@ async function runWindowAction(action: 'drag' | 'minimize' | 'maximize' | 'close
 
 export function Titlebar({
   onOpenPalette,
+  onOpenLibrary,
+  libraryVisible = false,
+  libraryButtonRef,
   projectOpen,
   rightCollapsed,
   onToggleRight,
 }: {
   onOpenPalette: () => void;
+  onOpenLibrary?: () => void;
+  libraryVisible?: boolean;
+  libraryButtonRef?: Ref<HTMLButtonElement>;
   projectOpen: boolean;
   rightCollapsed: boolean;
   onToggleRight: () => void;
 }) {
   return (
     <header
-      className="flex h-9 flex-shrink-0 select-none items-center gap-3 border-b border-border bg-panel pl-3.5"
+      className="sf-shell-edge-bottom flex h-9 flex-shrink-0 select-none items-center gap-3 bg-panel pl-3.5"
       data-testid="shell-titlebar"
       onDoubleClick={() => void runWindowAction('maximize')}
       onPointerDown={(event) => {
@@ -56,18 +63,30 @@ export function Titlebar({
           />
         </span>
         <span className="text-2xs text-subtle">StoryForge</span>
+        {onOpenLibrary && (
+          <button
+            ref={libraryButtonRef}
+            type="button"
+            onClick={onOpenLibrary}
+            data-testid="titlebar-library"
+            aria-current={libraryVisible ? 'page' : undefined}
+            className="ml-2 inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted hover:bg-elevated hover:text-foreground"
+            title="返回作品库"
+          >
+            <Library size={13} aria-hidden="true" />
+            作品库
+          </button>
+        )}
       </div>
 
       <button
-        className="mx-auto flex h-6 w-[340px] max-w-[38vw] items-center justify-center gap-2 rounded-md border border-border/70 bg-surface text-2xs text-subtle shadow-[0_1px_2px_rgba(0,0,0,0.12)] hover:border-border-strong/60 hover:bg-elevated"
+        className="mx-auto flex h-6 w-[340px] max-w-[38vw] items-center justify-center gap-2 rounded-md bg-background text-2xs text-subtle transition-colors hover:bg-elevated"
         onClick={onOpenPalette}
         title="命令面板 · Ctrl P"
       >
         <Search size={13} strokeWidth={1.6} />
-        <span>搜索文件…</span>
-        <kbd className="rounded-sm border border-border px-1 font-mono text-3xs text-subtle">
-          Ctrl P
-        </kbd>
+        <span>{projectOpen ? '搜索文件…' : '搜索命令…'}</span>
+        <kbd className="rounded-sm bg-panel px-1 font-mono text-3xs text-subtle">Ctrl P</kbd>
       </button>
 
       <div className="flex min-w-[200px] items-center justify-end">

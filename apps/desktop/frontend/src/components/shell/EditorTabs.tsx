@@ -1,11 +1,11 @@
 /**
  * 中栏编辑器页签行（h-shell-row，与左右两栏头部行同高对齐）：文件 / 预览页签 + 右端「…」文件操作菜单（Q3a）。
  * 预览页签为斜体，单击别的文件会覆盖它；双击预览页签固定（对齐原型 pane-preview 语义）。
- * 激活页签向下压 1px，用 --background 底线冲掉容器底边，与编辑区无缝一体。
+ * 页签用内收圆角与选中填充标识，不再以横竖边线切割正文。
  * Q3a：导出/历史/保存/关闭其他/关闭全部收进「…」溢出菜单（删掉 Editor 自己的第二条工具行，
  * 文件名不再出现两次）；保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE、历史走编辑器命令事件。
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { basename } from '../app/helpers';
 import { MoreHorizontal, Sparkles, X } from '../icons/shell-icons';
 import { ContextMenu } from './ContextMenu';
@@ -22,7 +22,7 @@ function Tab({
   icon,
   onActivate,
   onDoubleClick,
-  onClose,
+  onRequestClose,
   onContextMenu,
   dragId,
   onReorder,
@@ -35,7 +35,7 @@ function Tab({
   icon?: React.ReactNode;
   onActivate: () => void;
   onDoubleClick?: () => void;
-  onClose?: () => void;
+  onRequestClose?: () => void;
   onContextMenu?: (event: React.MouseEvent) => void;
   // 文件页签可拖拽重排：dragId=该文件路径，onReorder(from,to) 搬动 openFiles 次序。
   dragId?: string;
@@ -44,10 +44,7 @@ function Tab({
   const draggable = Boolean(dragId && onReorder);
   return (
     <div
-      role="tab"
-      aria-selected={active}
-      tabIndex={active ? 0 : -1}
-      title={title}
+      data-tab-shell={dragId ?? label}
       draggable={draggable}
       onDragStart={
         draggable
@@ -74,45 +71,55 @@ function Tab({
             }
           : undefined
       }
-      onClick={onActivate}
-      onDoubleClick={onDoubleClick}
-      onContextMenu={onContextMenu}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onActivate();
-        }
-      }}
-      className={`group flex flex-shrink-0 cursor-pointer select-none items-center gap-2 px-4 text-xs transition-all ${
-        preview ? 'italic' : ''
-      } ${
+      className={`group relative my-1 flex flex-shrink-0 items-stretch rounded-md select-none ${
         active
-          ? 'relative z-[2] -mb-px border-b border-background bg-background font-medium text-foreground shadow-[inset_0_3px_0_rgb(var(--agent))]'
-          : preview
-            ? 'text-subtle hover:bg-elevated/60 hover:text-muted hover:shadow-sm'
-            : 'text-subtle hover:bg-elevated/60 hover:text-muted hover:shadow-sm'
+          ? 'bg-elevated font-medium text-foreground'
+          : 'text-subtle hover:bg-elevated/60 hover:text-muted'
       }`}
     >
-      {icon}
-      <span className="max-w-[180px] truncate">{label}</span>
-      {onClose && (
+      <button
+        type="button"
+        role="tab"
+        aria-selected={active}
+        tabIndex={active ? 0 : -1}
+        title={title}
+        data-tab-path={dragId ?? label}
+        onClick={onActivate}
+        onDoubleClick={onDoubleClick}
+        onContextMenu={onContextMenu}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onActivate();
+          }
+        }}
+        className={`flex min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent pl-3 pr-2 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-agent ${preview ? 'italic' : ''}`}
+      >
+        {icon}
+        <span className="max-w-[180px] truncate">{label}</span>
+      </button>
+      {onRequestClose && (
         <button
-          className="interactive-press relative flex h-4 w-4 items-center justify-center rounded-sm text-subtle hover:bg-border hover:text-foreground"
+          type="button"
+          data-testid="editor-tab-close"
+          aria-label={dirty ? `关闭 ${label}（有未保存修改）` : `关闭 ${label}`}
+          className="mr-2 flex h-6 w-6 flex-shrink-0 self-center items-center justify-center rounded-sm text-subtle outline-none hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-agent"
           title={dirty ? '关闭（有未保存修改）' : '关闭'}
-          onClick={(event) => {
-            event.stopPropagation();
-            onClose();
-          }}
+          onClick={onRequestClose}
         >
           {dirty && (
             <span
-              className="h-2 w-2 rounded-full bg-agent group-hover:hidden"
+              className="h-2 w-2 rounded-full bg-agent group-hover:hidden group-focus-within:hidden"
               data-testid="editor-tab-dirty"
             />
           )}
           <X
             className={
-              dirty ? 'hidden group-hover:block' : active ? '' : 'opacity-0 group-hover:opacity-100'
+              dirty
+                ? 'hidden group-hover:block group-focus-within:block'
+                : active
+                  ? ''
+                  : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
             }
             size={11}
             strokeWidth={2}
@@ -130,6 +137,7 @@ export function EditorTabs({
   dirtyFiles,
   activeTab,
   activeReadOnly = false,
+  onOverview,
   onFocusFile,
   onReorderFiles,
   onFocusPreview,
@@ -149,6 +157,7 @@ export function EditorTabs({
   dirtyFiles: ReadonlySet<string>;
   activeTab: CenterTab | null;
   activeReadOnly?: boolean;
+  onOverview?: () => void;
   onFocusFile: (path: string) => void;
   onReorderFiles?: (from: string, to: string) => void;
   onFocusPreview: () => void;
@@ -166,6 +175,48 @@ export function EditorTabs({
   const showPreview = Boolean(previewFile) && !openFiles.includes(previewFile as string);
   const hasFileActions = activeTab === 'file' || activeTab === 'preview';
   const [tabMenu, setTabMenu] = useState<{ x: number; y: number; path: string } | null>(null);
+  const tablistRef = useRef<HTMLDivElement>(null);
+  const pendingCloseFocusRef = useRef<{
+    closedPath: string;
+    fallbackPath: string | null;
+    focusOwner: Element | null;
+  } | null>(null);
+  const visibleTabCount = openFiles.length + (showPreview ? 1 : 0);
+  const tabElements = () =>
+    Array.from(tablistRef.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? []);
+  const requestClose = (path: string, close: () => void) => {
+    const tabs = tabElements();
+    const currentIndex = tabs.findIndex((tab) => tab.dataset.tabPath === path);
+    const previous = currentIndex > 0 ? tabs[currentIndex - 1]?.dataset.tabPath : undefined;
+    const next = currentIndex >= 0 ? tabs[currentIndex + 1]?.dataset.tabPath : undefined;
+    pendingCloseFocusRef.current = {
+      closedPath: path,
+      fallbackPath: previous ?? next ?? null,
+      focusOwner: document.activeElement,
+    };
+    close();
+  };
+  useEffect(() => {
+    const pending = pendingCloseFocusRef.current;
+    if (!pending) return;
+    // 脏文件确认可能被取消；目标仍在列表时保留焦点和 pending，不抢走后续输入。
+    if (tabElements().some((tab) => tab.dataset.tabPath === pending.closedPath)) return;
+    const target = pending.fallbackPath
+      ? tabElements().find((tab) => tab.dataset.tabPath === pending.fallbackPath)
+      : undefined;
+    pendingCloseFocusRef.current = null;
+    // A dirty-file confirmation/save can finish after the author has moved to
+    // another input or tab. Restore only the original focus, or the body fallback
+    // produced when that focused close control/dialog was removed.
+    if (document.activeElement !== document.body && document.activeElement !== pending.focusOwner)
+      return;
+    if (target) {
+      target.focus();
+      return;
+    }
+    // 最后一个页签关闭时，回到页签行本身而不是把焦点丢到文档。
+    tablistRef.current?.focus();
+  }, [openFiles, previewFile, showPreview]);
   const openTabMenu = (event: React.MouseEvent, path: string) => {
     event.preventDefault();
     setTabMenu({ x: event.clientX, y: event.clientY, path });
@@ -173,36 +224,58 @@ export function EditorTabs({
 
   return (
     <div
-      className="relative flex h-shell-row flex-shrink-0 items-stretch border-b border-border bg-panel"
+      className="relative flex h-shell-row flex-shrink-0 items-stretch gap-1 bg-background px-1"
       data-testid="editor-tabs"
-      role="tablist"
-      aria-label="打开的文件页签"
-      onKeyDown={(event) => {
-        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-          const tabEls = Array.from(
-            event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]'),
-          );
-          const idx = tabEls.indexOf(document.activeElement as HTMLElement);
-          if (idx === -1) return;
-          event.preventDefault();
-          const next =
-            event.key === 'ArrowRight'
-              ? (idx + 1) % tabEls.length
-              : (idx - 1 + tabEls.length) % tabEls.length;
-          tabEls[next]?.focus();
-          tabEls[next]?.click(); // roving：移动焦点同时激活该页签
-        } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'w') {
-          if (activeTab === 'file' && activeFile) {
-            event.preventDefault();
-            onCloseFile(activeFile);
-          }
-        }
-      }}
     >
+      {onOverview && (
+        <button
+          type="button"
+          onClick={onOverview}
+          className="my-1 flex flex-shrink-0 items-center gap-1 rounded-md px-3 text-xs text-muted outline-none transition-colors hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-agent"
+          data-testid="back-to-book-overview"
+          aria-label="返回作品总览"
+          title="返回作品总览"
+        >
+          <span aria-hidden="true">←</span>
+          <span>作品总览</span>
+        </button>
+      )}
       {/* 页签列表单独包横向滚动容器：多开/长章节名不再把右端徽标 + …菜单挤出屏外。 */}
       <div
-        className="flex min-w-0 flex-1 items-stretch overflow-x-auto"
+        ref={tablistRef}
+        className="flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto"
         data-testid="editor-tab-scroll"
+        role="tablist"
+        aria-label="打开的文件页签"
+        tabIndex={visibleTabCount === 0 ? 0 : -1}
+        onKeyDown={(event) => {
+          if (
+            event.key === 'ArrowLeft' ||
+            event.key === 'ArrowRight' ||
+            event.key === 'Home' ||
+            event.key === 'End'
+          ) {
+            const tabEls = tabElements();
+            const idx = tabEls.indexOf(document.activeElement as HTMLElement);
+            if (idx === -1) return;
+            event.preventDefault();
+            const next =
+              event.key === 'Home'
+                ? 0
+                : event.key === 'End'
+                  ? tabEls.length - 1
+                  : event.key === 'ArrowRight'
+                    ? (idx + 1) % tabEls.length
+                    : (idx - 1 + tabEls.length) % tabEls.length;
+            tabEls[next]?.focus();
+            tabEls[next]?.click(); // roving：移动焦点同时激活该页签
+          } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'w') {
+            if (activeTab === 'file' && activeFile) {
+              event.preventDefault();
+              requestClose(activeFile, () => onCloseFile(activeFile));
+            }
+          }
+        }}
       >
         {openFiles.map((path) => (
           <Tab
@@ -212,7 +285,7 @@ export function EditorTabs({
             title={path}
             dirty={dirtyFiles.has(path)}
             onActivate={() => onFocusFile(path)}
-            onClose={() => onCloseFile(path)}
+            onRequestClose={() => requestClose(path, () => onCloseFile(path))}
             onContextMenu={(event) => openTabMenu(event, path)}
             dragId={path}
             onReorder={onReorderFiles}
@@ -226,12 +299,15 @@ export function EditorTabs({
             title={`预览：单击别的文件会覆盖它；双击固定 · ${previewFile}`}
             onActivate={onFocusPreview}
             onDoubleClick={onPinPreview}
-            onClose={onClosePreview}
+            onRequestClose={
+              onClosePreview ? () => requestClose(previewFile, onClosePreview) : undefined
+            }
+            dragId={previewFile}
           />
         )}
       </div>
       {hasFileActions && (
-        <div className="flex flex-shrink-0 items-center gap-1.5 border-l border-border pl-1.5 pr-1.5">
+        <div className="flex flex-shrink-0 items-center gap-1.5 pl-1.5 pr-1.5">
           {activeReadOnly && (
             <span
               className="flex items-center whitespace-nowrap rounded-full border border-warning/50 px-2 text-3xs text-warning"
@@ -257,7 +333,10 @@ export function EditorTabs({
           x={tabMenu.x}
           y={tabMenu.y}
           items={[
-            { label: '关闭', onSelect: () => onCloseFile(tabMenu.path) },
+            {
+              label: '关闭',
+              onSelect: () => requestClose(tabMenu.path, () => onCloseFile(tabMenu.path)),
+            },
             { label: '关闭其他', onSelect: () => onCloseOthers?.(), disabled: !onCloseOthers },
             { label: '关闭全部', onSelect: () => onCloseAll?.(), disabled: !onCloseAll },
           ]}

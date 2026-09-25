@@ -50,24 +50,13 @@ export function WritingWorkspace({
       hidden={hidden}
       data-testid="writing-workspace-surface"
     >
-      {onOverview && (
-        <div className="flex h-9 flex-shrink-0 items-center border-b border-border px-3">
-          <button
-            type="button"
-            onClick={onOverview}
-            className="rounded-sm px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-foreground"
-            data-testid="back-to-book-overview"
-          >
-            ← 返回作品总览
-          </button>
-        </div>
-      )}
       <EditorTabs
         openFiles={tabs.openFiles}
         activeFile={workspace.currentFile}
         previewFile={tabs.previewFile}
         dirtyFiles={tabs.dirtyFiles}
         activeTab={activeCenterTab}
+        onOverview={onOverview}
         activeReadOnly={
           tabs.displayedFile ? isReadOnlyDerivedProjectPath(tabs.displayedFile) : false
         }

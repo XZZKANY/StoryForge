@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { MainSurface } from './app-shell-types';
 import type { SidePanelView, useShellState } from '../shell/useShellState';
 
@@ -8,26 +8,58 @@ export function useMainSurface(
   closeSettings: (visible: boolean) => void,
 ) {
   const { showCenter, showSidebar, switchView } = shell;
-  const [mainSurface, setMainSurface] = useState<MainSurface>('overview');
+  const [mainSurface, setSurface] = useState<MainSurface>('library');
+  const previousSurface = useRef<Exclude<MainSurface, 'library'>>('overview');
+  const setMainSurface = useCallback(
+    (next: MainSurface) => {
+      if (next === 'library' && mainSurface !== 'library') previousSurface.current = mainSurface;
+      setSurface(next);
+    },
+    [mainSurface],
+  );
+  const showLibrary = useCallback(() => {
+    closeSettings(false);
+    setMainSurface('library');
+  }, [closeSettings, setMainSurface]);
+  const resumeProject = useCallback(() => {
+    closeSettings(false);
+    setMainSurface(previousSurface.current);
+  }, [closeSettings, setMainSurface]);
   const showEditor = useCallback(() => {
     closeSettings(false);
     setMainSurface('workspace');
     showCenter();
-  }, [closeSettings, showCenter]);
+  }, [closeSettings, setMainSurface, showCenter]);
   const showOverview = useCallback(() => {
     closeSettings(false);
     setMainSurface('overview');
-  }, [closeSettings]);
+  }, [closeSettings, setMainSurface]);
   const navigateView = useCallback(
     (view: SidePanelView, projectOpen: boolean) => {
       if (view === 'book' && projectOpen) showOverview();
       else {
         setMainSurface('workspace');
         switchView(view);
-        if (mainSurface === 'overview') showSidebar();
+        if (mainSurface !== 'workspace') showSidebar();
       }
     },
-    [mainSurface, showOverview, showSidebar, switchView],
+    [mainSurface, setMainSurface, showOverview, showSidebar, switchView],
   );
-  return { mainSurface, setMainSurface, showEditor, showOverview, navigateView };
+  const openAllChapters = useCallback(() => {
+    showEditor();
+    switchView('manuscript');
+    // switchView follows VS Code semantics and may collapse an already active view;
+    // this entry point must always leave the complete chapter list visible.
+    showSidebar();
+  }, [showEditor, showSidebar, switchView]);
+  return {
+    mainSurface,
+    setMainSurface,
+    showEditor,
+    showOverview,
+    showLibrary,
+    resumeProject,
+    navigateView,
+    openAllChapters,
+  };
 }

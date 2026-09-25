@@ -45,7 +45,7 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
         }
         testid="knowledge-inbox-live"
       />
-      <div className="flex h-shell-row flex-shrink-0 items-center gap-2 border-b border-border px-2.5">
+      <div className="flex h-shell-row flex-shrink-0 items-center gap-2 px-2.5">
         <h2 className="min-w-0 flex-1 truncate text-xs font-semibold">Knowledge Inbox</h2>
         <span className="font-mono text-3xs text-subtle" data-testid="knowledge-inbox-count">
           {handle.inbox.pending_count}
@@ -62,7 +62,7 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
           <RefreshCw size={13} className={handle.loading ? 'animate-spin' : ''} />
         </button>
       </div>
-      <div className="grid grid-cols-4 border-b border-border p-1" role="tablist">
+      <div className="grid grid-cols-4 gap-1 p-1" role="tablist">
         {(['pending', 'conflict', 'stale', 'history'] as const).map((value) => (
           <button
             key={value}
@@ -90,7 +90,7 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
             return (
               <div
                 key={`${group.artifact_id}:${proposal.proposal_id}`}
-                className="border-b border-border px-2.5 py-2.5"
+                className="mx-2 mb-2 rounded-md bg-background px-2.5 py-2.5"
                 data-testid={`knowledge-proposal-${proposal.proposal_id}`}
               >
                 {isEditing && editing ? (

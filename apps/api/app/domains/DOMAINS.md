@@ -17,7 +17,7 @@
 | `health` | `/health/live` `/health/ready` | 探活 + app_version 握手 |
 | `assistant` | `/api/assistant/*` | 对话式 agent 会话 / 消息 / chat |
 | `agent_runs` | SSE/REST `/api/ide/agent/sessions/*` + `/api/agent-runs/*` | live 工具循环主动脉 |
-| `ide` | `/api/ide/*`（5 条 live：cross-chapter / runs events / commands / agent stream / agent control） | 命令面板 + 审阅。**6 条零前端调用的 ide 路由**（workspace-tree / diagnostics / scenes / context-snapshot / story-memory query / artifacts preview）待后续从 router 收窄，service 保留 |
+| `ide` | `/api/ide/*`（5 条 live：cross-chapter / runs events / commands / agent stream / agent control） | 命令面板 + 审阅。6 条已核实无 Desktop 调用方的旧读路由已从 router/OpenAPI 收窄；对应 service 与 schema 保留，供未来产品面复用。 |
 
 ## backing（进程内被 live 依赖，谨慎改）
 

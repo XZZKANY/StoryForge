@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 
 import {
   editorTypographyOptions,
@@ -153,4 +153,33 @@ test('补丁面板的只读 diff 与主编辑器同一份正文排版（此前�
   assert.equal(review.letterSpacing, editor.letterSpacing);
   // 格子轨同样不加字距，与主编辑器保持同一条规则
   assert.equal(proseReadingTypography(14, STORYFORGE_EDITOR_FONT_GRID).letterSpacing, 0);
+});
+
+test('Monaco 动效选项读取系统偏好，降低动效时关闭平滑滚动与光标补间', () => {
+  const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let reduced = true;
+  Object.defineProperty(media, 'matches', { configurable: true, get: () => reduced });
+  const matchMedia = vi.spyOn(window, 'matchMedia').mockReturnValue(media);
+  try {
+    for (const filePath of ['chapter.md', 'canon.json']) {
+      const options = editorTypographyOptions({ filePath, fontSize: 14, fontMode: 'prose' });
+      assert.equal(options.smoothScrolling, false);
+      assert.equal(options.cursorSmoothCaretAnimation, 'off');
+      assert.equal(options.cursorBlinking, 'solid');
+    }
+    reduced = false;
+    const options = editorTypographyOptions({
+      filePath: 'chapter.md',
+      fontSize: 14,
+      fontMode: 'prose',
+    });
+    assert.equal(options.smoothScrolling, true);
+    assert.equal(options.cursorSmoothCaretAnimation, 'on');
+    assert.equal(options.cursorBlinking, 'smooth');
+    assert.ok(
+      matchMedia.mock.calls.every(([query]) => query === '(prefers-reduced-motion: reduce)'),
+    );
+  } finally {
+    matchMedia.mockRestore();
+  }
 });

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import sessionmaker
@@ -28,28 +28,15 @@ from app.domains.book_runs.book_generation import (
 from app.domains.book_runs.service import get_book_run
 from app.domains.ide.cross_chapter_consistency import check_cross_chapter_consistency
 from app.domains.ide.schemas import (
-    IdeArtifactPreview,
     IdeCommandRequest,
     IdeCommandResult,
-    IdeContextSnapshot,
     IdeCrossChapterRequest,
     IdeCrossChapterResult,
-    IdeDiagnostic,
-    IdeSceneRead,
-    IdeStoryMemoryQuery,
-    IdeStoryMemoryQueryResult,
-    IdeWorkspaceTree,
 )
 from app.domains.ide.service import (
     build_run_events,
     encode_sse_event,
     execute_ide_command_by_id,
-    get_artifact_preview,
-    get_context_snapshot,
-    get_workspace_tree,
-    list_diagnostics_for_scene,
-    query_story_memory,
-    read_ide_scene,
 )
 
 router = APIRouter(prefix="/api/ide", tags=["IDE 工作台"])
@@ -124,76 +111,6 @@ async def _agent_user_message_sse(session, *, session_id: str, message: dict[str
         yield _sse_data_frame(payload)
 
 
-@router.get(
-    "/workspace-tree",
-    response_model=IdeWorkspaceTree,
-    summary="读取 IDE 工作区树",
-)
-def read_workspace_tree(session: SessionDependency) -> IdeWorkspaceTree:
-    """返回 IDE Explorer 初始渲染所需的作品与章节树。"""
-
-    return get_workspace_tree(session)
-
-
-@router.get(
-    "/diagnostics",
-    response_model=list[IdeDiagnostic],
-    summary="读取 IDE 诊断列表",
-)
-def list_diagnostics(
-    session: SessionDependency,
-    scene_id: Annotated[int, Query(gt=0)],
-) -> list[IdeDiagnostic]:
-    """返回指定场景的开放诊断问题。"""
-
-    return list_diagnostics_for_scene(session, scene_id)
-
-
-@router.get(
-    "/scenes/{scene_id}",
-    response_model=IdeSceneRead,
-    summary="读取 IDE 场景正文",
-)
-def read_scene_for_ide(session: SessionDependency, scene_id: int) -> IdeSceneRead:
-    """返回 JudgeRepairWorkbench 渲染和修复命令需要的场景正文。"""
-
-    scene = read_ide_scene(session, scene_id)
-    if scene is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="场景不存在，无法读取 IDE 场景正文。",
-        )
-    return scene
-
-
-@router.get(
-    "/context-snapshot/{compiled_context_id}",
-    response_model=IdeContextSnapshot,
-    summary="读取 IDE 上下文快照",
-)
-def read_context_snapshot(session: SessionDependency, compiled_context_id: str) -> IdeContextSnapshot:
-    """返回 Context Inspector 渲染所需的上下文编译记录。"""
-
-    snapshot = get_context_snapshot(session, compiled_context_id)
-    if snapshot is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"snapshot evicted at unknown: {compiled_context_id}",
-        )
-    return snapshot
-
-
-@router.post(
-    "/story-memory/query",
-    response_model=IdeStoryMemoryQueryResult,
-    summary="查询 IDE Story Memory",
-)
-def query_story_memory_endpoint(session: SessionDependency, payload: IdeStoryMemoryQuery) -> IdeStoryMemoryQueryResult:
-    """返回 Story Memory Explorer 所需的长效记忆和冲突队列。"""
-
-    return query_story_memory(session, payload)
-
-
 @router.post(
     "/review/cross-chapter",
     response_model=IdeCrossChapterResult,
@@ -219,21 +136,6 @@ def cross_chapter_consistency_endpoint(payload: IdeCrossChapterRequest) -> IdeCr
             detail=f"跨章一致性 LLM 调用失败：{exc}",
         ) from exc
     return IdeCrossChapterResult.model_validate(result)
-
-
-@router.get(
-    "/artifacts/{artifact_id}/preview",
-    response_model=IdeArtifactPreview,
-    summary="读取 IDE 制品预览",
-)
-def read_artifact_preview(
-    session: SessionDependency,
-    artifact_id: int,
-    workspace_id: Annotated[int, Query(gt=0)],
-) -> IdeArtifactPreview:
-    """返回 Artifact Viewer 所需的预览、下载摘要、版本和追溯链。"""
-
-    return get_artifact_preview(session, artifact_id, workspace_id=workspace_id)
 
 
 @router.get(

@@ -24,6 +24,8 @@ vi.mock('../src/lib/project-context', async (importOriginal) => {
   return { ...actual, buildProjectIndex: vi.fn() };
 });
 
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
 const mockedGetAssistantSession = vi.mocked(getAssistantSession);
 const mockedBuildProjectIndex = vi.mocked(buildProjectIndex);
 
@@ -89,8 +91,17 @@ test('项目知识选择跨会话恢复并报告陈旧路径', async () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    assert.match(container.textContent ?? '', /.资料\/规则.md/);
+    // Stale-path errors stay visible even when compact context details are folded.
     assert.match(container.textContent ?? '', /未读到：.资料\/已删除.md/);
+    const summaryToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="context-summary-toggle"]',
+    );
+    assert.ok(summaryToggle);
+    assert.equal(summaryToggle.getAttribute('aria-expanded'), 'false');
+    assert.ok(container.querySelector('[aria-label="取消固定参考：.资料/规则.md"]'));
+    act(() => summaryToggle.click());
+    assert.equal(summaryToggle.getAttribute('aria-expanded'), 'true');
+    assert.match(container.textContent ?? '', /.资料\/规则.md/);
 
     const pickerToggle = container.querySelector<HTMLButtonElement>(
       '[data-testid="context-picker-toggle"]',

@@ -9,6 +9,8 @@
  * rightCollapsed 由 layoutMode 派生（= editor），供顶栏收起键与右栏挂载判定复用。
  */
 import { useCallback, useEffect, useState } from 'react';
+import { WORKSPACE_COMPACT_BREAKPOINT } from '../../lib/workspace-layout';
+import { useWorkspaceViewportWidth } from './useWorkspaceSidePanelLimit';
 
 export type SidePanelView =
   | 'book'
@@ -85,7 +87,10 @@ export const SIDE_PANEL_VIEWS: SidePanelView[] = [
 export function useShellState() {
   const [view, setView] = useState<SidePanelView>(readStoredView);
   const [sidebarHidden, setSidebarHidden] = useState(readStoredSidebarHidden);
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>(readStoredLayoutMode);
+  const [storedLayoutMode, setLayoutMode] = useState<LayoutMode>(readStoredLayoutMode);
+  const viewportWidth = useWorkspaceViewportWidth();
+  const compact = viewportWidth !== null && viewportWidth < WORKSPACE_COMPACT_BREAKPOINT;
+  const layoutMode = compact && storedLayoutMode === 'balanced' ? 'editor' : storedLayoutMode;
 
   // 持久化状态变化
   useEffect(() => {
@@ -98,11 +103,11 @@ export function useShellState() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY_LAYOUT, layoutMode);
+      localStorage.setItem(STORAGE_KEY_LAYOUT, storedLayoutMode);
     } catch {
       // 静默失败
     }
-  }, [layoutMode]);
+  }, [storedLayoutMode]);
 
   useEffect(() => {
     try {
@@ -131,13 +136,13 @@ export function useShellState() {
   const rightCollapsed = layoutMode === 'editor';
   // 顶栏「收起/展开 Agent 面板」在 编辑↔平衡 之间切；从 chat 收起也落回 editor。
   const toggleRight = useCallback(
-    () => setLayoutMode((mode) => (mode === 'editor' ? 'balanced' : 'editor')),
-    [],
+    () => setLayoutMode(layoutMode === 'editor' ? (compact ? 'chat' : 'balanced') : 'editor'),
+    [compact, layoutMode],
   );
   // 「确保右栏可见」：editor→balanced；balanced/chat 保持（右栏已在场）。
   const showRight = useCallback(
-    () => setLayoutMode((mode) => (mode === 'editor' ? 'balanced' : mode)),
-    [],
+    () => setLayoutMode((mode) => (compact ? 'chat' : mode === 'editor' ? 'balanced' : mode)),
+    [compact],
   );
   // 「确保中栏（编辑 / 补丁面板）可见」：chat 聚焦态隐藏中栏 → 落回 balanced；editor/balanced 保持。
   const showCenter = useCallback(
@@ -158,6 +163,7 @@ export function useShellState() {
   }, []);
 
   return {
+    compact,
     view,
     sidebarHidden,
     layoutMode,

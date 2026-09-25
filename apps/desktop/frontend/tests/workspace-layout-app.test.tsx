@@ -107,6 +107,63 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
     expect(
       container.querySelector<HTMLElement>('[data-testid="assistant-panel"]')?.style.minWidth,
     ).toBe('320px');
+    // 1024 physical pixels at 125%/150% zoom yield ~819/683 CSS px.
+    // Resize only changes the displayed layout, never the user's saved mode/width.
+    for (const width of [819, 683]) {
+      await act(async () => {
+        viewport = width;
+        window.dispatchEvent(new Event('resize'));
+      });
+      expect(
+        container.querySelector('[data-testid="desktop-shell"]')?.getAttribute('data-layout-focus'),
+      ).toBe('editor');
+      expect(container.querySelector<HTMLElement>('[data-testid="assistant-panel"]')?.hidden).toBe(
+        true,
+      );
+      expect(localStorage.getItem('storyforge:shell:layoutMode')).toBe('balanced');
+      expect(loadAppSettings().sidePanelWidths).toEqual({ book: 420 });
+      expect(
+        container.querySelector<HTMLElement>('[data-testid="shell-center"]')?.style.minWidth,
+      ).toBe('0');
+    }
+    await click(container.querySelector('[data-testid="titlebar-toggle-right"]'));
+    expect(container.querySelector<HTMLElement>('[data-testid="assistant-panel"]')?.hidden).toBe(
+      false,
+    );
+    expect(
+      container.querySelector<HTMLElement>('[data-testid="assistant-panel"]')?.style.minWidth,
+    ).toBe('0');
+    expect(
+      container
+        .querySelector<HTMLElement>('[data-testid="shell-center"]')
+        ?.classList.contains('hidden'),
+    ).toBe(true);
+    await act(async () =>
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, shiftKey: true }),
+      ),
+    );
+    await click(
+      Array.from(container.querySelectorAll('button')).find((button) =>
+        button.textContent?.includes('恢复：完整布局'),
+      ),
+    );
+    expect(localStorage.getItem('storyforge:shell:layoutMode')).toBe('balanced');
+    expect(
+      container.querySelector('[data-testid="desktop-shell"]')?.getAttribute('data-layout-focus'),
+    ).toBe('editor');
+
+    await act(async () => {
+      viewport = 1024;
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(
+      container.querySelector('[data-testid="desktop-shell"]')?.getAttribute('data-layout-focus'),
+    ).toBe('balanced');
+    expect(editor?.isConnected && agent?.isConnected).toBe(true);
+    expect(editor?.textContent).toBe('editor-probe:1');
+    expect(agent?.textContent).toBe('agent-probe:1');
+    expect(loadAppSettings().sidePanelWidths).toEqual({ book: 420 });
   } finally {
     await act(async () => root.unmount());
     container.remove();

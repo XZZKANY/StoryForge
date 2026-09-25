@@ -70,172 +70,74 @@ function clickElement(element: Element): void {
   element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 }
 
-test('欢迎页命令入口打开全部命令，Ctrl+P 仍只搜索文件', async () => {
-  const container = mountApp();
-  const entry = Array.from(container.querySelectorAll('button')).find((button) =>
-    button.textContent?.includes('命令面板…'),
-  );
-  assert.ok(entry);
-  await act(async () => clickElement(entry));
-  const commands = container.querySelector('[role="dialog"][aria-label="命令面板"]');
-  assert.ok(commands, '欢迎页的命令入口应显示全部命令');
-  assert.match(commands.textContent ?? '', /打开项目/);
-
-  act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
-  act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: true })));
-  assert.ok(container.querySelector('[role="dialog"][aria-label="打开文件"]'));
-});
-
-test('无项目空 explorer 不占位，其他说明视图可打开且不重置宽度偏好', async () => {
-  const widths = { explorer: 320, book: 420 };
-  localStorage.setItem(
-    APP_SETTINGS_KEY,
-    JSON.stringify({ ...DEFAULT_APP_SETTINGS, sidePanelWidths: widths }),
-  );
-  const container = mountApp();
-  assert.equal(byTestId(container, 'shell-side-panel') === null, true);
-  assert.equal(byTestId(container, 'activity-explorer')?.getAttribute('data-active'), 'false');
-
-  const book = byTestId(container, 'activity-book');
-  assert.ok(book);
-  await act(async () => clickElement(book));
-  assert.ok(byTestId(container, 'shell-side-panel'));
-  assert.match(byTestId(container, 'side-book-pane')?.textContent ?? '', /打开项目/);
-  assert.equal(
-    container.querySelector<HTMLElement>('[data-testid="shell-side-panel"]')?.style.width,
-    '420px',
-  );
-
-  for (const [activityId, paneId] of [
-    ['activity-manuscript', 'side-manuscript-pane'],
-    ['activity-search', 'search-panel'],
-  ]) {
-    const activity = byTestId(container, activityId);
-    assert.ok(activity);
-    await act(async () => clickElement(activity));
-    assert.equal(activity.getAttribute('data-active'), 'true');
-    assert.ok(byTestId(container, 'shell-side-panel'));
-    assert.match(byTestId(container, paneId)?.textContent ?? '', /打开项目/);
-  }
-
-  const explorer = byTestId(container, 'activity-explorer');
-  assert.ok(explorer);
-  await act(async () => clickElement(explorer));
-  assert.equal(byTestId(container, 'shell-side-panel') === null, true);
-  assert.deepEqual(loadAppSettings().sidePanelWidths, widths);
-});
-
-// ---- v3 结构护栏（SSR 不跑 effects → 无项目态，固化两栏 / 四卡 / 关键入口）----
-
-test('无项目启动渲染 v3 欢迎页：品牌 + 启动/上手/最近 两栏', () => {
+test('作品库明确提供新建和打开，移除可关闭欢迎页与自动开书引导', () => {
   const html = renderToStaticMarkup(<App />);
-  assert.match(html, /data-testid="welcome-workspace"/);
-  assert.match(html, /专注写作，和 AI 一起打磨故事/);
-  assert.match(html, /启动/);
-  assert.match(html, /上手/);
-  assert.match(html, /最近/);
-  assert.match(html, /data-testid="welcome-composer-input"/);
-  assert.match(html, /data-testid="welcome-primary-action"/);
-  assert.match(html, /打开项目/);
-  assert.match(html, /新建文件/);
-  assert.match(html, /命令面板/);
-  assert.match(html, /Ctrl O/);
-  assert.match(html, /Ctrl Shift P/);
+  assert.match(html, /data-testid="project-library"/);
+  assert.match(html, /新建作品/);
+  assert.match(html, /打开本地作品/);
+  assert.match(html, /最近作品/);
+  assert.doesNotMatch(html, /welcome-close|welcome-composer-input|发送即开书|上手/);
 });
 
-test('欢迎页上手四张引导卡文案齐全', () => {
-  const html = renderToStaticMarkup(<App />);
-  assert.match(html, /连接你的 AI 模型/);
-  assert.match(html, /体验示例项目/);
-  assert.doesNotMatch(html, /雪夜斩/, '欢迎卡不应承诺示例创建器并未提供的作品');
-  assert.match(html, /快捷键速查/);
-  assert.match(html, /了解 StoryForge/);
-});
-
-test('「启动时显示欢迎页」偏好默认为开，旧配置缺字段回落为开，显式 false 保留', () => {
+test('旧欢迎偏好继续兼容存储，但 false 不会让作品入口消失', () => {
   assert.equal(DEFAULT_APP_SETTINGS.showWelcomeOnStartup, true);
-  assert.equal(sanitizeAppSettings({}).showWelcomeOnStartup, true);
   assert.equal(sanitizeAppSettings({ showWelcomeOnStartup: false }).showWelcomeOnStartup, false);
-});
-
-// ---- 行为：关 / 重开 / 持久化 / 启动开关生效（挂载真实 App，验证真实 handler）----
-
-test('偏好为「关」时启动直接落到空起始态，不显示欢迎页', () => {
   localStorage.setItem(
     APP_SETTINGS_KEY,
     JSON.stringify({ ...DEFAULT_APP_SETTINGS, showWelcomeOnStartup: false }),
   );
   const container = mountApp();
-  assert.ok(byTestId(container, 'welcome-dismissed'), '关态应直接落到空起始态');
-  assert.equal(byTestId(container, 'welcome-workspace'), null);
-});
-
-test('关闭欢迎页页签 → 落到空起始态且不自动重开', async () => {
-  const container = mountApp();
-  assert.ok(byTestId(container, 'welcome-workspace'));
-  const closeButton = byTestId(container, 'welcome-close');
-  assert.ok(closeButton, '欢迎页应有可关的页签 ×');
-
-  await act(async () => {
-    clickElement(closeButton!);
-  });
-  assert.equal(byTestId(container, 'welcome-workspace'), null, '关闭后欢迎页应消失');
-  assert.ok(byTestId(container, 'welcome-dismissed'), '关闭后应露出空起始态');
-
-  // 冲刷一轮 effects，确认没有把欢迎页又自动拉回来的逻辑。
-  await act(async () => {
-    await Promise.resolve();
-  });
-  assert.equal(byTestId(container, 'welcome-workspace'), null, '不应自动重开欢迎页');
-  assert.ok(byTestId(container, 'welcome-dismissed'));
-});
-
-test('空起始态点「显示欢迎页」→ 欢迎页重新出现', async () => {
-  const container = mountApp();
-  await act(async () => {
-    clickElement(byTestId(container, 'welcome-close')!);
-  });
-  assert.ok(byTestId(container, 'welcome-dismissed'));
-
-  const reopenButton = Array.from(container.querySelectorAll('button')).find((button) =>
-    button.textContent?.includes('显示欢迎页'),
-  );
-  assert.ok(reopenButton, '空起始态应有「显示欢迎页」重开入口');
-
-  await act(async () => {
-    clickElement(reopenButton!);
-  });
-  assert.ok(byTestId(container, 'welcome-workspace'), '重开后欢迎页应回来');
+  assert.ok(byTestId(container, 'project-library'));
   assert.equal(byTestId(container, 'welcome-dismissed'), null);
+  assert.equal(loadAppSettings().showWelcomeOnStartup, false, '不改旧配置值来掩盖导航缺陷');
 });
 
-test('拨掉「启动时显示欢迎页」开关 → 偏好写盘为 false', async () => {
+test('无项目时作品库独占主区，不摆出空Explorer或Agent', () => {
   const container = mountApp();
-  const toggle = byTestId(container, 'welcome-startup-toggle') as HTMLInputElement | null;
-  assert.ok(toggle, '欢迎页应有启动开关');
-  assert.equal(toggle!.checked, true, '默认勾选');
-
-  await act(async () => {
-    toggle!.click();
-  });
-
-  // 读回内存偏好与原始存档，确认真的写盘（不是只改了 UI）。
-  assert.equal(loadAppSettings().showWelcomeOnStartup, false);
-  const persisted = JSON.parse(localStorage.getItem(APP_SETTINGS_KEY) ?? '{}');
-  assert.equal(persisted.showWelcomeOnStartup, false);
+  assert.ok(byTestId(container, 'project-library'));
+  assert.equal(byTestId(container, 'shell-side-panel'), null);
+  assert.equal(byTestId(container, 'assistant-panel'), null);
+  assert.equal(byTestId(container, 'shell-activity-bar')?.parentElement?.hidden, true);
 });
 
-test('设置改为弹出式覆盖层，不再遮住中栏欢迎页（#15）', async () => {
+test('标题栏在无项目时搜索命令，Ctrl+P仍保持文件搜索语义', async () => {
   const container = mountApp();
-  assert.ok(byTestId(container, 'welcome-workspace'), '起始应显示欢迎页');
-
-  // Ctrl+, 打开设置：设置是弹出式覆盖层（不再占中栏），中栏欢迎页此刻仍在。
-  await act(async () => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ',', ctrlKey: true }));
-    await Promise.resolve();
-  });
-  assert.ok(
-    byTestId(container, 'welcome-workspace'),
-    '设置弹出式覆盖，欢迎页仍应留在中栏（不再被设置页顶掉）',
+  const entry = Array.from(container.querySelectorAll('button')).find((button) =>
+    button.textContent?.includes('搜索命令'),
   );
+  assert.ok(entry);
+  await act(async () => clickElement(entry));
+  const commands = container.querySelector('[role="dialog"][aria-label="命令面板"]');
+  assert.ok(commands);
+  assert.match(commands.textContent ?? '', /打开作品库/);
+  act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+  act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: true })));
+  assert.ok(container.querySelector('[role="dialog"][aria-label="打开文件"]'));
+});
+
+test('标题栏作品库入口可反复点击，入口不产生可关闭空壳', async () => {
+  const container = mountApp();
+  for (let i = 0; i < 2; i++) {
+    await act(async () => clickElement(byTestId(container, 'titlebar-library')!));
+    assert.ok(byTestId(container, 'project-library'));
+    assert.equal(byTestId(container, 'welcome-close'), null);
+  }
+});
+
+test('设置打开不卸载作品库', async () => {
+  const container = mountApp();
+  const home = byTestId(container, 'project-library');
+  await act(async () =>
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ',', ctrlKey: true })),
+  );
+  assert.equal(byTestId(container, 'project-library'), home);
+});
+
+test('持久化chat布局在无项目时不隐藏作品库、不覆盖偏好', () => {
+  localStorage.setItem('storyforge:shell:layoutMode', 'chat');
+  const container = mountApp();
+  assert.equal(byTestId(container, 'shell-center')?.classList.contains('hidden'), false);
+  assert.ok(byTestId(container, 'project-library'));
+  assert.equal(byTestId(container, 'assistant-panel'), null);
+  assert.equal(localStorage.getItem('storyforge:shell:layoutMode'), 'chat');
 });

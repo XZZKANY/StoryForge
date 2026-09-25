@@ -79,7 +79,7 @@ export function SearchView({
             }`;
 
   return (
-    <div className="flex h-full flex-col bg-background" data-testid="search-panel">
+    <div className="flex h-full flex-col bg-panel" data-testid="search-panel">
       <div className="sf-panel-header border-border">
         <h2 className="text-xs font-medium text-muted">搜索</h2>
         <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-subtle">

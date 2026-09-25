@@ -4,10 +4,17 @@ import { ComposerBox } from './Composer';
 import { ChapterBriefCard } from './ChapterBriefCard';
 import { runLivePhaseText, runStatusText } from './display-utils';
 import { LiveStatus } from '../shell/LiveStatus';
-import { ConversationHeader, LightweightStatus, MessageList, RunActionBar } from './panels';
+import {
+  ContextSummaryPanel,
+  ConversationHeader,
+  LightweightStatus,
+  MessageList,
+  RunActionBar,
+} from './panels';
 import type { AgentRunControlHandlers, ChatWindowProps } from './types';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { ChatWindowState } from './useChatWindowState';
+import type { QueuedChatMessage } from './useChatSubmission';
 
 type Props = {
   state: ChatWindowState;
@@ -28,6 +35,9 @@ type Props = {
   handleSubmit: () => Promise<void>;
   handleComposerSubmit: (value: string) => Promise<void>;
   userMessageHistory: string[];
+  conversationScope?: number;
+  queuedMessages?: readonly QueuedChatMessage[];
+  onRemoveQueuedMessage?: (id: number) => void;
   retryLastFailedRun: () => void;
   agentRunControls: AgentRunControlHandlers;
 };
@@ -50,6 +60,9 @@ export function ChatWindowView({
   togglePinnedContext,
   handleSubmit,
   userMessageHistory,
+  conversationScope,
+  queuedMessages = [],
+  onRemoveQueuedMessage,
   retryLastFailedRun,
   agentRunControls,
 }: Props) {
@@ -58,18 +71,6 @@ export function ChatWindowView({
   // 并让编辑器里尚未处理的补丁失去对应操作条。先完成本轮作者决策再允许发送。
   const awaitingConfirm = Boolean(state.chapterBrief) || state.agentRun?.status === 'waiting';
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  const starterDisabled = !projectPath || state.agentBusy || awaitingConfirm;
-  const selectPrompt = (prompt: string) => {
-    if (starterDisabled) return;
-    state.setInput((draft) => (draft ? `${draft}\n\n${prompt}` : prompt));
-    const input = inputRef.current;
-    input?.focus();
-    requestAnimationFrame(() => {
-      if (!input || inputRef.current !== input || document.activeElement !== input) return;
-      input.setSelectionRange(input.value.length, input.value.length);
-      input.scrollTop = input.scrollHeight;
-    });
-  };
   // 第14条：run 控制统一到 RunActionBar，运行/等待/暂停三态都显示操作条；completed 的
   // 「本轮已完成。」不再长驻（完成已在回复里）；只有 failed / stopped 留轻状态条收尾。
   const runStatus = state.agentRun?.status;
@@ -93,7 +94,7 @@ export function ChatWindowView({
     await handleSubmit();
   };
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-panel">
       {/* D5 状态变化反馈：Agent 运行相位（运行 → 等待确认 → 暂停 → 终态）对读屏作者不可见。
           常驻 sr-only live region 播报相位级措辞；可见操作条/轻状态条原样保留。 */}
       <LiveStatus text={runLivePhaseText(state.agentRun)} testid="agent-run-live" />
@@ -128,28 +129,15 @@ export function ChatWindowView({
       )}
 
       <MessageList
+        conversationScope={conversationScope ?? `${projectPath}:${assistantSessionId ?? 'draft'}`}
         messages={state.messages}
-        projectName={state.projectName}
-        currentFileLabel={state.contextRef}
         agentRun={state.agentRun}
         agentRunRecovery={state.agentRunRecovery}
         writingRunProjection={state.writingRunProjection}
-        explicitContextPaths={state.explicitContextPaths}
-        contextCandidates={state.contextCandidates}
-        contextCandidatesLoading={state.contextCandidatesLoading}
-        contextCandidatesError={state.contextCandidatesError}
-        contextPickerOpen={state.contextPickerOpen}
-        lastContextBundle={state.lastContextBundle}
-        missingContextPaths={state.missingContextPaths}
-        onAddContext={addExplicitContext}
-        onTogglePinnedContext={togglePinnedContext}
-        onRetryContextCandidates={retryContextCandidates}
-        onSelectPrompt={selectPrompt}
-        starterDisabled={starterDisabled}
       />
 
       {state.chapterBrief && (
-        <div className="flex-shrink-0 border-t border-border bg-background px-5 py-3">
+        <div className="flex-shrink-0 px-5 py-3">
           <div className="mx-auto w-full max-w-[800px]">
             <ChapterBriefCard
               brief={state.chapterBrief}
@@ -174,7 +162,27 @@ export function ChatWindowView({
         <RunActionBar run={state.agentRun} controls={agentRunControls} />
       )}
 
+      <ContextSummaryPanel
+        compact
+        currentFileLabel={state.contextRef}
+        explicitContextPaths={state.explicitContextPaths}
+        contextCandidates={state.contextCandidates}
+        contextCandidatesLoading={state.contextCandidatesLoading}
+        contextCandidatesError={state.contextCandidatesError}
+        contextPickerOpen={state.contextPickerOpen}
+        lastContextBundle={state.lastContextBundle}
+        missingContextPaths={state.missingContextPaths}
+        onAddContext={() => {
+          addExplicitContext();
+          // 显式关闭会移除面板按钮，回到原 Composer，不能把焦点丢给 body。
+          if (state.contextPickerOpen) inputRef.current?.focus();
+        }}
+        onTogglePinnedContext={togglePinnedContext}
+        onRetryContextCandidates={retryContextCandidates}
+      />
+
       <ComposerBox
+        key={conversationScope ?? `${projectPath}:${assistantSessionId ?? 'draft'}`}
         inputRef={inputRef}
         value={state.input}
         disabled={!projectPath}
@@ -183,11 +191,14 @@ export function ChatWindowView({
         explicitContextPaths={state.explicitContextPaths}
         history={userMessageHistory}
         onAddContext={addExplicitContext}
+        contextPickerOpen={state.contextPickerOpen}
         onTogglePinnedContext={togglePinnedContext}
         onChange={state.setInput}
         onSubmit={submitGuarded}
         permissionProfile={composerPermissionProfile}
         onPermissionProfileChange={onAgentPermissionProfileChange}
+        queuedMessages={queuedMessages}
+        onRemoveQueuedMessage={onRemoveQueuedMessage}
       />
     </div>
   );

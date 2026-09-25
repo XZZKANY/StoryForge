@@ -63,7 +63,7 @@ test('AssistantMarkdown skips raw HTML', () => {
   assert.match(html, /<strong>/);
 });
 
-test('compact context summary collapses pin list until expanded', () => {
+test('pinned references do not create a permanent context card before it is requested', () => {
   const collapsed = renderToStaticMarkup(
     <ContextSummaryPanel
       compact
@@ -80,10 +80,7 @@ test('compact context summary collapses pin list until expanded', () => {
       onRetryContextCandidates={() => undefined}
     />,
   );
-  assert.match(collapsed, /data-compact="true"/);
-  assert.match(collapsed, /data-expanded="false"/);
-  assert.doesNotMatch(collapsed, /data-testid="pinned-context-list"/);
-  assert.match(collapsed, /固定 1/);
+  assert.equal(collapsed, '');
 });
 
 test('run action bar shows pause button when running', () => {

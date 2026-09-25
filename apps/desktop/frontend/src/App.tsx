@@ -25,6 +25,7 @@ import { emitLocateInEditor, flushActiveEditorToDisk } from './lib/assistant-eve
 import type { ObservationAnchor } from './lib/observations';
 import { emitToast } from './lib/toast';
 import { checkForUpdate, currentAppVersion } from './lib/update-check';
+import { isEditableTarget } from './lib/browser-guards';
 export function App() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [palette, setPalette] = useState<PaletteMode | null>(null);
@@ -32,23 +33,17 @@ export function App() {
   const appDialog = useAppDialog();
   const shell = useShellState();
   const { showRight } = shell;
-  const { mainSurface, setMainSurface, showEditor, showOverview, navigateView } = useMainSurface(
-    shell,
-    setSettingsVisible,
-  );
+  const surface = useMainSurface(shell, setSettingsVisible);
+  const { mainSurface, setMainSurface, showEditor, showOverview } = surface;
+  const { showLibrary, resumeProject, navigateView, openAllChapters } = surface;
   const preferences = useAppPreferences();
-  // 欢迎页可关（会话级）：起始态由「启动时显示欢迎页」偏好决定；关了露出空 workbench，
-  // 命令面板「显示欢迎页」可重开。
-  const [welcomeDismissed, setWelcomeDismissed] = useState(
-    () => !preferences.settings.showWelcomeOnStartup,
-  );
-
   const workspace = useProjectWorkspace({
     onProjectSelected: showOverview,
     onFileSelected: showEditor,
   });
   const session = useSessionRestore({
     enabled: preferences.settings.restoreLastSession,
+    deferUntilProjectSelected: true,
     selectProject: workspace.selectProject,
   });
   const tabs = useEditorWorkspaceTabs({
@@ -63,6 +58,14 @@ export function App() {
     pendingRestore: session.pendingRestore,
     onRestoreApplied: session.handleRestoreApplied,
   });
+  const { cancelPendingNavigation } = session;
+  const openLibrary = useCallback(() => {
+    cancelPendingNavigation();
+    showLibrary();
+  }, [cancelPendingNavigation, showLibrary]);
+  const resumeSelectedProject = useCallback(() => {
+    if (mainSurface === 'library') resumeProject();
+  }, [mainSurface, resumeProject]);
   const commands = useProjectCommands({
     activeProject: workspace.activeProject,
     currentFile: workspace.currentFile,
@@ -75,6 +78,8 @@ export function App() {
     confirmDiscardFiles: tabs.confirmDiscardFiles,
     resetEditorFiles: tabs.resetEditorFiles,
     onShowEditor: showEditor,
+    cancelPendingNavigation,
+    onResumeProject: resumeSelectedProject,
   });
   const switchView = useCallback(
     (view: SidePanelView) => navigateView(view, Boolean(workspace.activeProject)),
@@ -83,7 +88,6 @@ export function App() {
   const openSettings = useCallback(async () => {
     setSettingsVisible(true);
   }, []);
-
   const { persistSession } = session;
   useEffect(() => {
     persistSession(workspace.activeProject, tabs.openFiles, workspace.currentFile);
@@ -111,7 +115,6 @@ export function App() {
     }, 8000);
     return () => window.clearTimeout(timer);
   }, []);
-
   useEffect(() => {
     const timers = new WeakMap<Element, number>();
     const onScroll = (event: Event) => {
@@ -128,12 +131,16 @@ export function App() {
     document.addEventListener('scroll', onScroll, true);
     return () => document.removeEventListener('scroll', onScroll, true);
   }, []);
-
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const mod = event.ctrlKey || event.metaKey;
       if (!mod) return;
       const key = event.key.toLowerCase();
+      // IME 组合态不触发全局命令。文本焦点只屏蔽会抢走编辑位置的布局导航；
+      // Ctrl/Cmd+S/P/O 保持全局保存、文件搜索、打开项目的既有契约。
+      const shellNavigationKey =
+        key === 'b' || (event.shiftKey && key === 'o') || key === '1' || key === '2' || key === '3';
+      if (event.isComposing || (shellNavigationKey && isEditableTarget(event.target))) return;
       // Ctrl Tab / Ctrl Shift Tab / Ctrl PageDown·PageUp：在已固定页签间循环（shift = 反向）。
       // 必须排在 shift 早退之前，否则 Ctrl+Shift+Tab 会被上面那组视图快捷键吞掉。
       // 与 Ctrl W 关键区别：只换焦点不关页签，不触发脏文件确认，按一圈不会丢稿。
@@ -218,7 +225,6 @@ export function App() {
     tabs.openFiles,
     workspace.activeProject,
   ]);
-
   // 观测面板挂在中栏底部，而对话聚焦态（Ctrl+3）整条隐藏中栏：直接翻 open 会「点了没反应」。
   // 开面板前先落回可见布局，关面板则不动布局。
   const toggleObsPanel = useCallback(() => {
@@ -228,7 +234,7 @@ export function App() {
   const runtime = useTauriMenuBridge({
     onRestoreFullLayout: () => {
       shell.showSidebar();
-      shell.showRight();
+      shell.setLayoutMode('balanced');
     },
   });
 
@@ -373,6 +379,7 @@ export function App() {
             context={bookContext}
             chapters={bookChapters}
             onContinueWriting={continueWriting}
+            onOpenAllChapters={openAllChapters}
             onOpenChapter={continueWriting}
             onOpenOutline={openOutlineHeading}
             onRefresh={bookProfile.refresh}
@@ -385,14 +392,9 @@ export function App() {
       }
       initialCursors={session.initialCursors}
       onCursorPersist={session.recordCursor}
-      welcomeDismissed={welcomeDismissed || session.restoredWorkspace}
-      onCloseWelcome={() => setWelcomeDismissed(true)}
-      onReopenWelcome={() => {
-        // 无项目时设置页占据中栏（centerHasTabs），只翻 welcomeDismissed 不清设置页 =
-        // 「显示欢迎页」命令静默无效；一并收起设置页才能从任意无项目态稳定露出欢迎页。
-        setSettingsVisible(false);
-        setWelcomeDismissed(false);
-      }}
+      onOpenLibrary={openLibrary}
+      onResumeProject={resumeProject}
+      openingProject={session.openingProject}
     />
   );
 }

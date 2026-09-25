@@ -5,6 +5,7 @@ import { basename } from '../app/helpers';
 import { ArrowUp, Plus } from '../icons/shell-icons';
 import { roleMentionQuery } from './display-utils';
 import { PermissionProfileSelector } from './PermissionProfileSelector';
+import type { QueuedChatMessage } from './useChatSubmission';
 
 export function ComposerBox({
   inputRef,
@@ -17,9 +18,12 @@ export function ComposerBox({
   explicitContextPaths,
   history,
   onAddContext,
+  contextPickerOpen = false,
   onTogglePinnedContext,
   permissionProfile,
   onPermissionProfileChange,
+  queuedMessages = [],
+  onRemoveQueuedMessage,
 }: {
   inputRef?: MutableRefObject<HTMLTextAreaElement | null>;
   value: string;
@@ -29,19 +33,22 @@ export function ComposerBox({
   explicitContextPaths: string[];
   history?: string[];
   onAddContext: () => void;
+  contextPickerOpen?: boolean;
   onTogglePinnedContext?: (path: string) => void;
   onChange: (value: string) => void;
   onSubmit: () => void;
   permissionProfile: AgentPermissionProfile;
   onPermissionProfileChange: (profile: AgentPermissionProfile) => void;
+  queuedMessages?: readonly QueuedChatMessage[];
+  onRemoveQueuedMessage?: (id: number) => void;
 }) {
   return (
-    <div className="flex-shrink-0 border-t border-border bg-background px-4 py-3">
+    <div className="flex-shrink-0 p-3">
       <div className="mx-auto max-w-[800px]">
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            onSubmit();
+            if (!disabled && value.trim()) onSubmit();
           }}
         >
           <ComposerSurface
@@ -53,11 +60,14 @@ export function ComposerBox({
             explicitContextPaths={explicitContextPaths}
             history={history}
             onAddContext={onAddContext}
+            contextPickerOpen={contextPickerOpen}
             onTogglePinnedContext={onTogglePinnedContext}
             onChange={onChange}
             onSubmit={onSubmit}
             permissionProfile={permissionProfile}
             onPermissionProfileChange={onPermissionProfileChange}
+            queuedMessages={queuedMessages}
+            onRemoveQueuedMessage={onRemoveQueuedMessage}
           />
         </form>
       </div>
@@ -76,9 +86,12 @@ export function ComposerSurface({
   explicitContextPaths,
   history,
   onAddContext,
+  contextPickerOpen = false,
   onTogglePinnedContext,
   permissionProfile,
   onPermissionProfileChange,
+  queuedMessages = [],
+  onRemoveQueuedMessage,
 }: {
   inputRef?: MutableRefObject<HTMLTextAreaElement | null>;
   value: string;
@@ -88,13 +101,17 @@ export function ComposerSurface({
   explicitContextPaths: string[];
   history?: string[];
   onAddContext: () => void;
+  contextPickerOpen?: boolean;
   onTogglePinnedContext?: (path: string) => void;
   onChange: (value: string) => void;
   onSubmit?: () => void;
   permissionProfile: AgentPermissionProfile;
   onPermissionProfileChange: (profile: AgentPermissionProfile) => void;
+  queuedMessages?: readonly QueuedChatMessage[];
+  onRemoveQueuedMessage?: (id: number) => void;
 }) {
-  const canSubmit = value.trim() && !disabled && !busy;
+  // 运行中可保留一条待发；已有待发时继续提交仅提示，草稿不清空。
+  const canSubmit = value.trim() && !disabled;
   // 方向键回溯已发送消息：游标为 null 表示在编辑当前草稿，
   // 数字表示正浏览 history[index]。draft 保留进入历史前的草稿，ArrowDown 越过最新即还原。
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -170,23 +187,43 @@ export function ComposerSurface({
 
   return (
     <div
-      className="group relative flex flex-col overflow-visible rounded-xl border border-border/80 bg-surface transition-all focus-within:border-agent/60 focus-within:shadow-lg"
-      style={{
-        boxShadow: 'var(--shadow-composer)',
-        transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
-      }}
-      onFocus={(e) => {
-        if (e.currentTarget.contains(e.target as Node)) {
-          e.currentTarget.style.boxShadow =
-            'var(--shadow-composer-focus), 0 0 0 4px rgb(var(--agent) / 0.15)';
-        }
-      }}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-          e.currentTarget.style.boxShadow = 'var(--shadow-composer)';
-        }
-      }}
+      data-testid="composer-surface"
+      className="group relative flex min-w-0 flex-col overflow-visible rounded-xl border border-border bg-background shadow-sm transition-colors focus-within:border-accent/60"
     >
+      {queuedMessages.length > 0 && (
+        <section
+          className="border-b border-border/60 bg-elevated/40 px-3 py-2"
+          data-testid="composer-queued-messages"
+          aria-label={`待发送消息 ${queuedMessages.length} 条`}
+        >
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-1 text-3xs text-subtle">
+            <span>待发送 · 1 条</span>
+            <span>本轮结束并完成确认后发送</span>
+          </div>
+          <ul className="flex max-h-20 flex-col gap-0.5 overflow-y-auto">
+            {queuedMessages.map((queued) => (
+              <li key={queued.id} className="flex min-w-0 items-center gap-2 text-xs text-muted">
+                <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
+                  {queued.content}
+                </span>
+                {onRemoveQueuedMessage && (
+                  <button
+                    type="button"
+                    className="flex-shrink-0 rounded-sm px-1 text-3xs text-subtle hover:bg-border hover:text-foreground"
+                    aria-label={`取消待发送消息：${queued.content}`}
+                    onClick={() => {
+                      onRemoveQueuedMessage(queued.id);
+                      textareaRef.current?.focus();
+                    }}
+                  >
+                    取消
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {roleSuggestions.length > 0 && !disabled && !busy && (
         <div
           className="absolute bottom-full left-2 z-10 mb-1.5 flex max-w-[calc(100%-1rem)] flex-wrap gap-1.5 rounded-lg border border-border bg-surface px-2 py-2 shadow-dropdown"
@@ -206,6 +243,69 @@ export function ComposerSurface({
           ))}
         </div>
       )}
+      {(currentFileLabel || explicitContextPaths.length > 0) && (
+        <div
+          data-testid="composer-contexts"
+          aria-label="本轮引用"
+          className="flex max-h-24 flex-wrap items-center gap-1.5 overflow-y-auto px-3 pt-3 text-xs"
+        >
+          {focusPinnable ? (
+            <button
+              type="button"
+              className="group/focus inline-flex min-w-0 flex-shrink items-center gap-1 h-6 rounded-md px-2 text-muted transition-colors hover:bg-elevated hover:text-foreground"
+              title={`${currentFileLabel} · 点击固定为参考`}
+              disabled={disabled}
+              onClick={() => onTogglePinnedContext?.(currentFileLabel as string)}
+            >
+              <span className="font-semibold text-agent">@</span>
+              <span className="max-w-[120px] truncate">{basename(currentFileLabel as string)}</span>
+              <span className="hidden text-3xs text-subtle group-hover/focus:inline">固定</span>
+            </button>
+          ) : currentFileLabel ? (
+            <span
+              className="inline-flex min-w-0 items-center gap-1 h-6 rounded-md px-2 text-muted"
+              title="当前编辑焦点（随聚焦页签漂移）"
+            >
+              <span className="font-semibold text-agent">@</span>
+              <span className="max-w-[130px] truncate">{basename(currentFileLabel)}</span>
+            </span>
+          ) : null}
+          {visiblePins.map((path) => (
+            <span
+              key={path}
+              className="group/pin inline-flex max-w-[120px] flex-shrink-0 items-center gap-1 h-6 rounded-md bg-elevated px-2 text-muted"
+              title={path}
+            >
+              <span className="truncate">{basename(path)}</span>
+              {onTogglePinnedContext && (
+                <button
+                  type="button"
+                  className="inline-flex flex-shrink-0 leading-none text-subtle transition-colors hover:text-foreground"
+                  title="取消固定"
+                  aria-label={`取消固定参考：${path}`}
+                  disabled={disabled}
+                  onClick={() => onTogglePinnedContext(path)}
+                >
+                  ✕
+                </button>
+              )}
+            </span>
+          ))}
+          {overflowPins.length > 0 && (
+            <button
+              type="button"
+              className="flex-shrink-0 h-6 rounded-md bg-elevated px-2 text-muted hover:text-foreground"
+              title={overflowPins.join('、')}
+              aria-label={`查看全部 ${explicitContextPaths.length} 个固定参考`}
+              aria-expanded={contextPickerOpen}
+              disabled={disabled}
+              onClick={onAddContext}
+            >
+              +{overflowPins.length}
+            </button>
+          )}
+        </div>
+      )}
       <textarea
         ref={attachInput}
         value={value}
@@ -213,13 +313,11 @@ export function ComposerSurface({
           historyIndexRef.current = null; // 手动改动即退出历史回溯，回到实时草稿
           onChange(event.target.value);
         }}
-        // 流式运行期间保持可编辑，作者能边等边预写下一轮；只禁「发送」（Enter 守卫 + 底排改暂停键）。
+        // 流式运行期间保持可编辑；单条待发槽位由 submission owner 同步保护。
         disabled={disabled}
         rows={2}
-        className="max-h-40 min-h-[48px] w-full resize-none bg-transparent px-4 pb-2 pt-3 text-sm leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
-        placeholder={
-          disabled ? '打开项目后即可使用 StoryForge' : '输入想法、问题，或 @剧情 @人物 点名角色…'
-        }
+        className="max-h-40 min-h-[72px] w-full resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
+        placeholder={disabled ? '打开项目后即可使用 StoryForge' : '输入想法，@ 提及角色'}
         aria-label="给 StoryForge 发送消息"
         onKeyDown={(event) => {
           // IME 组字期间（拼音选字）一律不拦截：Enter 上屏候选、方向键选候选都不应触发发送/回溯。
@@ -248,80 +346,39 @@ export function ComposerSurface({
           }
         }}
       />
-      {/* 单层悬浮舱工具条：上下文（＋挂载 / @焦点软引用 / 硬引用标签）在左，发送在右，柔虚线分隔 */}
-      <div className="flex items-center gap-1.5 border-t border-dashed border-border/50 px-2.5 py-1.5 text-2xs text-subtle">
+      <div
+        data-testid="composer-toolbar"
+        className="flex items-center gap-1 px-2 pb-2 text-xs text-muted"
+      >
         <button
           type="button"
-          className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-sm text-subtle transition-colors hover:bg-elevated hover:text-foreground"
-          title="固定当前文件为参考"
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:opacity-50"
+          title="添加上下文"
+          aria-label="添加上下文"
+          aria-expanded={contextPickerOpen}
           onClick={onAddContext}
+          disabled={disabled}
         >
-          <Plus size={14} strokeWidth={1.7} />
+          <Plus size={16} strokeWidth={1.8} />
         </button>
         <PermissionProfileSelector
+          fitToComposer
           value={permissionProfile}
           onChange={onPermissionProfileChange}
           disabled={disabled}
           busy={busy}
         />
-        {focusPinnable ? (
-          <button
-            type="button"
-            className="group/focus inline-flex min-w-0 flex-shrink items-center gap-1 rounded-sm px-1.5 py-0.5 text-muted transition-colors hover:bg-elevated hover:text-foreground"
-            title={`${currentFileLabel} · 点击固定为参考`}
-            onClick={() => onTogglePinnedContext?.(currentFileLabel as string)}
-          >
-            <span className="font-semibold text-agent">@</span>
-            <span className="max-w-[120px] truncate">{basename(currentFileLabel as string)}</span>
-            <span className="hidden text-3xs text-subtle group-hover/focus:inline">固定</span>
-          </button>
-        ) : (
-          <span
-            className="inline-flex min-w-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-muted"
-            title="当前编辑焦点（随聚焦页签漂移）"
-          >
-            <span className="font-semibold text-agent">@</span>
-            <span className="max-w-[130px] truncate">
-              {currentFileLabel ? basename(currentFileLabel) : '当前文件'}
-            </span>
-          </span>
-        )}
-        {visiblePins.map((path) => (
-          <span
-            key={path}
-            className="group/pin inline-flex max-w-[120px] flex-shrink-0 items-center gap-1 rounded-sm bg-elevated px-1.5 py-0.5 text-muted"
-            title={path}
-          >
-            <span className="truncate">{basename(path)}</span>
-            {onTogglePinnedContext && (
-              <button
-                type="button"
-                className="inline-flex flex-shrink-0 leading-none text-subtle transition-colors hover:text-foreground"
-                title="取消固定"
-                onClick={() => onTogglePinnedContext(path)}
-              >
-                ✕
-              </button>
-            )}
-          </span>
-        ))}
-        {overflowPins.length > 0 && (
-          <span
-            className="flex-shrink-0 rounded-sm bg-elevated px-1.5 py-0.5 text-subtle"
-            title={overflowPins.map(basename).join('、')}
-          >
-            +{overflowPins.length}
-          </span>
-        )}
         <button
           type={onSubmit ? 'button' : 'submit'}
-          className="interactive-press ml-auto flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center rounded-lg bg-elevated text-muted transition-all hover:text-foreground hover:shadow-sm group-focus-within:bg-agent group-focus-within:text-agent-foreground group-focus-within:shadow-md disabled:cursor-not-allowed disabled:opacity-40"
-          title="发送"
+          className="interactive-press ml-auto flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:bg-elevated disabled:text-subtle disabled:opacity-60"
+          title={busy ? '暂存为待发送消息' : '发送 · Enter（Shift+Enter 换行）'}
+          aria-label={busy ? '暂存为待发送消息' : '发送'}
+          aria-keyshortcuts="Enter"
           disabled={!canSubmit}
           onClick={onSubmit}
           data-testid="composer-submit"
         >
-          <ArrowUp size={15} strokeWidth={2} />
+          <ArrowUp size={16} strokeWidth={2} />
         </button>
       </div>
     </div>

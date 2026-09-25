@@ -18,19 +18,13 @@ import {
 import { Info, Palette, Sparkles, Type } from './icons/shell-icons';
 import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from './editor/options';
 import { checkForUpdate, currentAppVersion, type UpdateCheckResult } from '../lib/update-check';
-import { probeProviderHealth } from '../lib/api-client';
-import {
-  getDesktopLlmConfig,
-  saveDesktopLlmConfig,
-  type DesktopLlmConfig,
-} from '../lib/desktop-llm-config';
+import { useProviderSettings, type ProbeState } from './settings/useProviderSettings';
 import {
   applyProviderPreset,
   describeProviderHealth,
   isProviderKind,
   PROVIDER_OPTIONS,
   PROVIDER_RUNTIME_ENV_VARS,
-  type ProviderHealth,
 } from '../lib/provider-config';
 
 type SettingsViewProps = {
@@ -39,9 +33,6 @@ type SettingsViewProps = {
   onClose: () => void;
   fallbackFocusRef?: RefObject<HTMLElement>;
 };
-
-type ProbeState = 'idle' | 'loading' | ProviderHealth;
-type SaveState = 'idle' | 'loading' | 'saved' | 'error';
 
 const settingsNav = ['返回', '模型服务', '外观', '编辑器', '关于'] as const;
 
@@ -82,221 +73,34 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
     };
   }, [fallbackFocusRef]);
   const safeSettings = sanitizeAppSettings(settings);
-  const [secretInput, setSecretInput] = useState('');
-  const [polishSecretInput, setPolishSecretInput] = useState('');
-  const [storedConfig, setStoredConfig] = useState<DesktopLlmConfig | null>(null);
-  const [saveState, setSaveState] = useState<SaveState>('idle');
-  const [saveError, setSaveError] = useState('');
-  const [polishSaveState, setPolishSaveState] = useState<SaveState>('idle');
-  const [polishSaveError, setPolishSaveError] = useState('');
-  const update = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => {
-    onChange({ ...safeSettings, [key]: value });
-  };
-
-  const [probe, setProbe] = useState<ProbeState>('idle');
   const [searchQuery, setSearchQuery] = useState('');
-  const [detectState, setDetectState] = useState<'idle' | 'loading' | 'error' | 'ok'>('idle');
-  const [detectedModels, setDetectedModels] = useState<string[]>([]);
-  const [detectError, setDetectError] = useState('');
-  const runProbe = async () => {
-    setProbe('loading');
-    try {
-      setProbe(await probeProviderHealth());
-    } catch (err) {
-      setProbe({
-        status: 'unreachable',
-        reachable: false,
-        baseUrl: null,
-        model: null,
-        latencyMs: null,
-        modelCount: null,
-        models: [],
-        detail: err instanceof Error ? err.message : String(err),
-        missingEnv: [],
-      });
-    }
-  };
-
-  // #16：按当前 provider / URL / API Key 探测可用模型（先落盘再拉 /models），供下方点选填入默认模型。
-  const detectModels = async () => {
-    setDetectState('loading');
-    setDetectError('');
-    try {
-      const next = await saveDesktopLlmConfig({
-        provider: safeSettings.provider.kind,
-        baseUrl: safeSettings.provider.baseUrl,
-        model: safeSettings.provider.model,
-        apiKey: secretInput,
-      });
-      if (next) setStoredConfig(next);
-      const health = await probeProviderHealth();
-      setDetectedModels(health.models);
-      if (health.status === 'ok' && health.models.length > 0) {
-        setDetectState('ok');
-      } else {
-        setDetectState('error');
-        setDetectError(describeProviderHealth(health).label);
-      }
-    } catch (error) {
-      setDetectState('error');
-      setDetectError(error instanceof Error ? error.message : String(error));
-    }
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    void getDesktopLlmConfig()
-      .then((config) => {
-        if (cancelled || !config) return;
-        setStoredConfig(config);
-        const polish = config.polish;
-        onChange({
-          ...safeSettings,
-          provider: {
-            ...safeSettings.provider,
-            kind: toProviderKind(config.provider),
-            baseUrl: config.baseUrl || safeSettings.provider.baseUrl,
-            model: config.model || safeSettings.provider.model,
-            apiKeyRef: config.hasApiKey ? 'stored://storyforge/llm-provider' : '',
-          },
-          polishProvider: polish
-            ? {
-                ...safeSettings.polishProvider,
-                kind: toProviderKind(polish.provider),
-                baseUrl: polish.baseUrl || safeSettings.polishProvider.baseUrl,
-                model: polish.model || safeSettings.polishProvider.model,
-                apiKeyRef: polish.hasApiKey ? 'stored://storyforge/llm-provider/polish' : '',
-              }
-            : safeSettings.polishProvider,
-        });
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setSaveError(error instanceof Error ? error.message : String(error));
-      });
-    return () => {
-      cancelled = true;
-    };
-    // Run once when the settings pane opens; user edits are handled by explicit save.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 保存成功反馈数秒后自清（回 idle）：不让「已保存」永久停留在操作行。
-  useEffect(() => {
-    if (saveState !== 'saved') return;
-    const timer = window.setTimeout(() => setSaveState('idle'), 2500);
-    return () => window.clearTimeout(timer);
-  }, [saveState]);
-
-  useEffect(() => {
-    if (polishSaveState !== 'saved') return;
-    const timer = window.setTimeout(() => setPolishSaveState('idle'), 2500);
-    return () => window.clearTimeout(timer);
-  }, [polishSaveState]);
-
-  const saveProviderConfig = async () => {
-    setSaveState('loading');
-    setSaveError('');
-    try {
-      const next = await saveDesktopLlmConfig({
-        provider: safeSettings.provider.kind,
-        baseUrl: safeSettings.provider.baseUrl,
-        model: safeSettings.provider.model,
-        apiKey: secretInput,
-      });
-      if (next) {
-        setStoredConfig(next);
-        setSecretInput('');
-        update('provider', {
-          ...safeSettings.provider,
-          apiKeyRef: next.hasApiKey ? 'stored://storyforge/llm-provider' : '',
-        });
-      }
-      setSaveState('saved');
-    } catch (error) {
-      setSaveState('error');
-      setSaveError(error instanceof Error ? error.message : String(error));
-    }
-  };
-
-  const clearProviderSecret = async () => {
-    setSaveState('loading');
-    setSaveError('');
-    try {
-      const next = await saveDesktopLlmConfig({
-        provider: safeSettings.provider.kind,
-        baseUrl: safeSettings.provider.baseUrl,
-        model: safeSettings.provider.model,
-        clearApiKey: true,
-      });
-      if (next) {
-        setStoredConfig(next);
-        update('provider', { ...safeSettings.provider, apiKeyRef: '' });
-      }
-      setSecretInput('');
-      setSaveState('saved');
-    } catch (error) {
-      setSaveState('error');
-      setSaveError(error instanceof Error ? error.message : String(error));
-    }
-  };
-
-  const savePolishProviderConfig = async () => {
-    setPolishSaveState('loading');
-    setPolishSaveError('');
-    try {
-      const next = await saveDesktopLlmConfig({
-        provider: safeSettings.provider.kind,
-        baseUrl: safeSettings.provider.baseUrl,
-        model: safeSettings.provider.model,
-        polish: {
-          provider: safeSettings.polishProvider.kind,
-          baseUrl: safeSettings.polishProvider.baseUrl,
-          model: safeSettings.polishProvider.model,
-          apiKey: polishSecretInput,
-        },
-      });
-      if (next) {
-        setStoredConfig(next);
-        setPolishSecretInput('');
-        update('polishProvider', {
-          ...safeSettings.polishProvider,
-          apiKeyRef: next.polish?.hasApiKey ? 'stored://storyforge/llm-provider/polish' : '',
-        });
-      }
-      setPolishSaveState('saved');
-    } catch (error) {
-      setPolishSaveState('error');
-      setPolishSaveError(error instanceof Error ? error.message : String(error));
-    }
-  };
-
-  const clearPolishProviderSecret = async () => {
-    setPolishSaveState('loading');
-    setPolishSaveError('');
-    try {
-      const next = await saveDesktopLlmConfig({
-        provider: safeSettings.provider.kind,
-        baseUrl: safeSettings.provider.baseUrl,
-        model: safeSettings.provider.model,
-        polish: {
-          provider: safeSettings.polishProvider.kind,
-          baseUrl: safeSettings.polishProvider.baseUrl,
-          model: safeSettings.polishProvider.model,
-          clearApiKey: true,
-        },
-      });
-      if (next) {
-        setStoredConfig(next);
-        update('polishProvider', { ...safeSettings.polishProvider, apiKeyRef: '' });
-      }
-      setPolishSecretInput('');
-      setPolishSaveState('saved');
-    } catch (error) {
-      setPolishSaveState('error');
-      setPolishSaveError(error instanceof Error ? error.message : String(error));
-    }
-  };
+  const {
+    update,
+    resetSettings,
+    secretInput,
+    polishSecretInput,
+    storedConfig,
+    saveState,
+    saveError,
+    polishSaveState,
+    polishSaveError,
+    probe,
+    detectState,
+    detectedModels,
+    detectError,
+    loadState,
+    loadError,
+    writeOperation,
+    loadConfig,
+    runProbe,
+    setSecretInput,
+    setPolishSecretInput,
+    detectModels,
+    saveProviderConfig,
+    clearProviderSecret,
+    savePolishProviderConfig,
+    clearPolishProviderSecret,
+  } = useProviderSettings(safeSettings, onChange);
 
   return (
     <div
@@ -358,7 +162,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
           }
         }}
       >
-        <aside className="flex w-48 flex-shrink-0 flex-col border-r border-border bg-panel px-3 py-3">
+        <aside className="flex w-48 flex-shrink-0 flex-col bg-panel px-3 py-3">
           <button
             className="mb-5 flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-muted hover:bg-elevated hover:text-foreground"
             onClick={onClose}
@@ -414,6 +218,32 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                 data-testid="settings-search"
               />
 
+              {loadState === 'error' && (
+                <div
+                  role="alert"
+                  className="mb-4 rounded-md border border-error/30 bg-surface p-3 text-sm"
+                  data-testid="provider-config-error"
+                >
+                  <p className="break-words text-error">配置读取失败：{loadError}</p>
+                  <p className="mt-1 text-xs text-muted">
+                    输入已保留。可以重新读取，或重新保存配置。
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-2 rounded-md border border-border px-3 py-1 hover:bg-elevated"
+                    data-testid="provider-config-retry"
+                    disabled={writeOperation !== null}
+                    onClick={() => void loadConfig()}
+                  >
+                    重试读取
+                  </button>
+                </div>
+              )}
+              {loadState === 'loading' && (
+                <p role="status" className="mb-4 text-xs text-muted">
+                  正在读取本机模型配置…
+                </p>
+              )}
               <div className="sf-settings-list">
                 <SettingGroup id="provider" title="模型服务">
                   <SettingCard>
@@ -459,6 +289,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                       models={detectedModels}
                       error={detectError}
                       onDetect={detectModels}
+                      disabled={writeOperation !== null}
                       onPick={(model) => update('provider', { ...safeSettings.provider, model })}
                     />
                     <TextRow
@@ -479,9 +310,9 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                     <ActionRow
                       title="保存模型配置"
                       description="保存后，下一次模型调用即生效，无需重启。"
-                      actionLabel={saveState === 'loading' ? '保存中' : '保存并应用'}
+                      actionLabel={writeOperation === 'provider' ? '保存中' : '保存并应用'}
                       onAction={saveProviderConfig}
-                      disabled={saveState === 'loading'}
+                      disabled={writeOperation !== null}
                       status={
                         saveState === 'saved'
                           ? { text: '已保存并应用', tone: 'ok' }
@@ -496,10 +327,10 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                         description="删除本机保存的 provider API key，并保留服务地址与模型。"
                         actionLabel="移除密钥"
                         onAction={clearProviderSecret}
-                        disabled={saveState === 'loading'}
+                        disabled={writeOperation !== null}
                       />
                     )}
-                    <ProbeRow state={probe} onProbe={runProbe} />
+                    <ProbeRow state={probe} onProbe={runProbe} disabled={writeOperation !== null} />
                     <ProviderRuntimeEnvNotice />
                   </SettingCard>
                 </SettingGroup>
@@ -565,9 +396,9 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                     <ActionRow
                       title="应用专用润色模型"
                       description="单独保存润色配置，不覆盖主对话模型。"
-                      actionLabel={polishSaveState === 'loading' ? '保存中' : '保存并应用'}
+                      actionLabel={writeOperation === 'polishProvider' ? '保存中' : '保存并应用'}
                       onAction={savePolishProviderConfig}
-                      disabled={polishSaveState === 'loading'}
+                      disabled={writeOperation !== null}
                       status={
                         polishSaveState === 'saved'
                           ? { text: '专用润色模型已保存', tone: 'ok' }
@@ -585,7 +416,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                         description="清除专用槽位密钥；之后润色不会自动改用主模型。"
                         actionLabel="移除密钥"
                         onAction={clearPolishProviderSecret}
-                        disabled={polishSaveState === 'loading'}
+                        disabled={writeOperation !== null}
                       />
                     )}
                   </SettingCard>
@@ -671,8 +502,8 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                       onChange={(checked) => update('autoSave', checked)}
                     />
                     <ToggleRow
-                      title="启动时恢复上次现场"
-                      description="重开后自动打开上次的项目、页签与停笔位置。关闭则每次从欢迎页开始。"
+                      title="恢复上次写作现场"
+                      description="启动先进入作品库。选择上次的作品时，恢复页签与停笔位置。"
                       checked={safeSettings.restoreLastSession}
                       onChange={(checked) => update('restoreLastSession', checked)}
                     />
@@ -680,7 +511,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                       title="恢复默认设置"
                       description="重置本机 StoryForge 桌面偏好。"
                       actionLabel="恢复默认"
-                      onAction={() => onChange(DEFAULT_APP_SETTINGS)}
+                      onAction={resetSettings}
                     />
                   </SettingCard>
                 </SettingGroup>
@@ -709,6 +540,7 @@ function ModelDetectRow({
   error,
   onDetect,
   onPick,
+  disabled,
 }: {
   current: string;
   state: 'idle' | 'loading' | 'error' | 'ok';
@@ -716,6 +548,7 @@ function ModelDetectRow({
   error: string;
   onDetect: () => void;
   onPick: (model: string) => void;
+  disabled: boolean;
 }) {
   const status =
     state === 'loading'
@@ -747,7 +580,7 @@ function ModelDetectRow({
             type="button"
             onClick={onDetect}
             aria-describedby="provider-detect-models-description"
-            disabled={state === 'loading'}
+            disabled={disabled || state === 'loading'}
             className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
             data-testid="provider-detect-models"
           >
@@ -756,10 +589,7 @@ function ModelDetectRow({
         </div>
       </RowShell>
       {models.length > 0 && (
-        <div
-          className="flex flex-wrap gap-1.5 border-b border-border px-4 py-3 last:border-b-0"
-          data-testid="provider-model-options"
-        >
+        <div className="flex flex-wrap gap-1.5 px-4 py-3" data-testid="provider-model-options">
           {models.map((model) => (
             <button
               key={model}
@@ -781,7 +611,15 @@ function ModelDetectRow({
   );
 }
 
-function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }) {
+function ProbeRow({
+  state,
+  onProbe,
+  disabled,
+}: {
+  state: ProbeState;
+  onProbe: () => void;
+  disabled: boolean;
+}) {
   const display = state === 'idle' || state === 'loading' ? null : describeProviderHealth(state);
   const toneClass =
     display?.tone === 'ok'
@@ -810,7 +648,7 @@ function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }
           type="button"
           onClick={onProbe}
           aria-describedby="provider-health-probe-description"
-          disabled={state === 'loading'}
+          disabled={disabled || state === 'loading'}
           className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
           data-testid="provider-health-probe"
         >
@@ -827,7 +665,7 @@ function ProviderRuntimeEnvNotice() {
   if (query && !`连接与存储详情 ${description}`.toLowerCase().includes(query)) return null;
   return (
     <details
-      className="border-t border-border px-4 py-3 text-xs text-muted"
+      className="px-4 py-3 text-xs text-muted"
       data-testid="provider-runtime-details"
       open={Boolean(query)}
     >
@@ -854,11 +692,7 @@ function SettingGroup({ id, title, children }: { id: string; title: string; chil
 }
 
 function SettingCard({ children }: { children: ReactNode }) {
-  return (
-    <div className="sf-settings-card overflow-hidden rounded-xl border border-border bg-surface">
-      {children}
-    </div>
-  );
+  return <div className="sf-settings-card overflow-hidden rounded-xl bg-surface">{children}</div>;
 }
 
 function RowShell({
@@ -877,7 +711,7 @@ function RowShell({
   const query = useContext(SettingsSearchContext).trim().toLowerCase();
   if (query && !`${title} ${description}`.toLowerCase().includes(query)) return null;
   return (
-    <div className="flex min-h-[76px] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0">
+    <div className="flex min-h-[76px] items-center gap-4 px-4 py-3">
       <div className="min-w-0 flex-1">
         {controlId ? (
           <label htmlFor={controlId} className="text-sm font-medium text-foreground">
@@ -1091,9 +925,10 @@ function ActionRow({
       <div className="flex items-center gap-2.5">
         {status && (
           <span
-            className={`max-w-[220px] truncate text-xs ${
+            className={`max-w-[220px] whitespace-pre-wrap break-words text-xs ${
               status.tone === 'error' ? 'text-error' : 'text-success'
             }`}
+            role={status.tone === 'error' ? 'alert' : 'status'}
             data-testid="action-row-status"
           >
             {status.text}

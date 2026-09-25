@@ -10,7 +10,11 @@ function subscribe(onResize: () => void) {
 const getViewportWidth = () => window.innerWidth;
 const getServerWidth = () => null;
 
+export function useWorkspaceViewportWidth() {
+  return useSyncExternalStore<number | null>(subscribe, getViewportWidth, getServerWidth);
+}
+
 export function useWorkspaceSidePanelLimit(projectOpen: boolean, mode: LayoutMode) {
-  const width = useSyncExternalStore<number | null>(subscribe, getViewportWidth, getServerWidth);
+  const width = useWorkspaceViewportWidth();
   return projectOpen && width !== null ? workspaceSidePanelLimit(width, mode) : undefined;
 }

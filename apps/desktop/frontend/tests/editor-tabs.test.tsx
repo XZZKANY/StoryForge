@@ -55,7 +55,9 @@ test('预览页签也有关闭按钮（不再只能双击固定后才能关）',
         }),
       );
     });
-    const closeButton = container.querySelector<HTMLButtonElement>('[role="tab"] button');
+    const closeButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="editor-tab-close"]',
+    );
     assert.ok(closeButton, '预览页签必须渲染关闭按钮');
     act(() => {
       closeButton.click();
@@ -116,6 +118,157 @@ test('Q3a 只读派生文件的只读徽章落在页签行右端', () => {
     }),
   );
   assert.match(html, /只读派生文件/);
+});
+
+test('页签的 role=tab 不再包含嵌套关闭按钮，关闭控件保持相邻可达', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    act(() => {
+      root.render(
+        React.createElement(EditorTabs, {
+          openFiles: ['D:\\Book\\a.md'],
+          activeFile: 'D:\\Book\\a.md',
+          previewFile: null,
+          dirtyFiles: new Set<string>(),
+          activeTab: 'file',
+          onFocusFile: noop,
+          onFocusPreview: noop,
+          onPinPreview: noop,
+          onCloseFile: noop,
+        }),
+      );
+    });
+    assert.equal(container.querySelector('[role="tab"] button'), null);
+    const close = container.querySelector<HTMLButtonElement>('[data-testid="editor-tab-close"]');
+    assert.ok(close, '关闭控件仍应可由键盘单独到达');
+    assert.match(close.getAttribute('aria-label') ?? '', /关闭/);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('页签 Home/End 选择并激活首尾目标', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const focused: string[] = [];
+  const renderTabs = (activeFile: string) =>
+    root.render(
+      React.createElement(EditorTabs, {
+        openFiles: ['D:\\Book\\a.md', 'D:\\Book\\b.md', 'D:\\Book\\c.md'],
+        activeFile,
+        previewFile: null,
+        dirtyFiles: new Set<string>(),
+        activeTab: 'file',
+        onFocusFile: (path: string) => focused.push(path),
+        onFocusPreview: noop,
+        onPinPreview: noop,
+        onCloseFile: noop,
+      }),
+    );
+  try {
+    act(() => renderTabs('D:\\Book\\b.md'));
+    const tabs = container.querySelectorAll<HTMLElement>('[role="tab"]');
+    assert.equal(tabs.length, 3);
+    act(() => {
+      tabs[1].focus();
+      tabs[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    });
+    assert.equal(document.activeElement, tabs[0]);
+    assert.deepEqual(focused, ['D:\\Book\\a.md']);
+    act(() => {
+      tabs[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    });
+    assert.equal(document.activeElement, tabs[2]);
+    assert.deepEqual(focused, ['D:\\Book\\a.md', 'D:\\Book\\c.md']);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('关闭页签后焦点衔接到前一个可见页签', () => {
+  function Harness() {
+    const [files, setFiles] = React.useState([
+      'D:\\Book\\a.md',
+      'D:\\Book\\b.md',
+      'D:\\Book\\c.md',
+    ]);
+    const active = files.includes('D:\\Book\\b.md') ? 'D:\\Book\\b.md' : (files[0] ?? null);
+    return React.createElement(EditorTabs, {
+      openFiles: files,
+      activeFile: active,
+      previewFile: null,
+      dirtyFiles: new Set<string>(),
+      activeTab: active ? 'file' : null,
+      onFocusFile: noop,
+      onFocusPreview: noop,
+      onPinPreview: noop,
+      onCloseFile: (path: string) => setFiles((current) => current.filter((file) => file !== path)),
+    });
+  }
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    act(() => root.render(React.createElement(Harness)));
+    const middle = [...container.querySelectorAll<HTMLElement>('[role="tab"]')].find(
+      (tab) => tab.dataset.tabPath === 'D:\\Book\\b.md',
+    );
+    assert.ok(middle);
+    const close = middle.parentElement?.querySelector<HTMLButtonElement>(
+      '[data-testid="editor-tab-close"]',
+    );
+    assert.ok(close);
+    act(() => close.click());
+    const previous = [...container.querySelectorAll<HTMLElement>('[role="tab"]')].find(
+      (tab) => tab.dataset.tabPath === 'D:\\Book\\a.md',
+    );
+    assert.equal(document.activeElement, previous);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('返回作品总览入口与页签 chrome 同行且保留回调', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  let returned = 0;
+  try {
+    act(() => {
+      root.render(
+        React.createElement(EditorTabs, {
+          openFiles: ['D:\\Book\\a.md'],
+          activeFile: 'D:\\Book\\a.md',
+          previewFile: null,
+          dirtyFiles: new Set<string>(),
+          activeTab: 'file',
+          onOverview: () => {
+            returned += 1;
+          },
+          onFocusFile: noop,
+          onFocusPreview: noop,
+          onPinPreview: noop,
+          onCloseFile: noop,
+        }),
+      );
+    });
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-testid="back-to-book-overview"]',
+    );
+    assert.ok(button);
+    act(() => button.click());
+    assert.equal(returned, 1);
+    assert.equal(button.parentElement, container.firstElementChild);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
 });
 
 test('润色菜单区分专用模型与本次主模型授权', () => {
@@ -186,3 +339,75 @@ test('Ctrl+Tab 在无页签 / 当前文件不在固定页签集合时给出确�
   assert.equal(nextCyclicEditorFile(files, null, 1), 'D:\\Book\\a.md');
   assert.equal(nextCyclicEditorFile(files, 'D:\\Book\\preview.md', -1), 'D:\\Book\\b.md');
 });
+
+for (const destination of ['author-input', 'another-tab', 'original-close'] as const) {
+  test(`异步关闭完成尊重作者后续焦点：${destination}`, async () => {
+    let finishClose!: () => void;
+    const closing = new Promise<void>((resolve) => {
+      finishClose = resolve;
+    });
+    function Harness() {
+      const [files, setFiles] = React.useState(['D:/Book/a.md', 'D:/Book/b.md', 'D:/Book/c.md']);
+      const active = files.includes('D:/Book/b.md') ? 'D:/Book/b.md' : files[0];
+      return (
+        <>
+          <input data-testid="new-author-draft" aria-label="新的作者草稿" />
+          <EditorTabs
+            openFiles={files}
+            activeFile={active}
+            previewFile={null}
+            dirtyFiles={new Set(['D:/Book/b.md'])}
+            activeTab="file"
+            onFocusFile={noop}
+            onFocusPreview={noop}
+            onPinPreview={noop}
+            onCloseFile={async (path) => {
+              await closing;
+              setFiles((current) => current.filter((file) => file !== path));
+            }}
+          />
+        </>
+      );
+    }
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+      await act(async () => root.render(<Harness />));
+      const tab = (path: string) =>
+        [...container.querySelectorAll<HTMLElement>('[role="tab"]')].find(
+          (item) => item.dataset.tabPath === path,
+        );
+      const close = tab('D:/Book/b.md')?.parentElement?.querySelector<HTMLButtonElement>(
+        '[data-testid="editor-tab-close"]',
+      );
+      assert.ok(close);
+      await act(async () => {
+        close.focus();
+        close.click();
+      });
+      assert.ok(tab('D:/Book/b.md'), '确认/保存未完成时不能提前丢弃页签');
+      const nextFocus =
+        destination === 'author-input'
+          ? container.querySelector<HTMLInputElement>('[data-testid="new-author-draft"]')
+          : destination === 'another-tab'
+            ? tab('D:/Book/c.md')
+            : close;
+      assert.ok(nextFocus);
+      nextFocus.focus();
+      await act(async () => {
+        finishClose();
+        await closing;
+      });
+      assert.equal(tab('D:/Book/b.md'), undefined);
+      assert.equal(
+        document.activeElement ===
+          (destination === 'original-close' ? tab('D:/Book/a.md') : nextFocus),
+        true,
+      );
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+}

@@ -109,13 +109,9 @@ export function StoryNavigator({
   const storyGroups = useMemo(() => buildStoryNavigationGroups(index?.files ?? []), [index]);
 
   return (
-    <div className="flex h-full flex-col bg-background" data-testid="story-navigator">
-      <div className="sf-panel-header border-border bg-background">
-        <div
-          className="flex h-7 rounded-md border border-border bg-background p-0.5"
-          role="tablist"
-          aria-label="项目导航视图"
-        >
+    <div className="flex h-full flex-col bg-panel" data-testid="story-navigator">
+      <div className="sf-panel-header">
+        <div className="flex h-7 gap-1 rounded-md p-0.5" role="tablist" aria-label="项目导航视图">
           <NavigatorTabButton
             label="文件"
             active={activeTab === 'files'}

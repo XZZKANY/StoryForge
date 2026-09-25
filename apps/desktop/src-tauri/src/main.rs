@@ -7,6 +7,7 @@ mod llm_config_store;
 mod runtime_paths;
 mod secret_protection;
 mod shadow_git;
+mod smoke_ui;
 mod watcher;
 
 use anyhow::{Context, Result};
@@ -600,53 +601,25 @@ fn click_window_test_id<R: tauri::Runtime>(
     window: &tauri::WebviewWindow<R>,
     test_id: &str,
 ) -> Result<(), String> {
-    let script = format!(
-        r#"
-            (() => {{
-              const target = document.querySelector('[data-testid="{}"]');
-              if (!target) {{
-                return {{ clicked: false }};
-              }}
-              target.click();
-              return {{ clicked: true }};
-            }})()
-        "#,
-        test_id
-    );
+    let script = smoke_ui::click_script(&format!("[data-testid=\"{test_id}\"]"));
 
     let result = eval_window_json(window, &script, Duration::from_millis(1500))?;
     if has_bool(&result, "clicked", true) {
         Ok(())
     } else {
-        Err(format!("找不到可点击元素: {}", test_id))
+        Err(format!("元素不可见或不可点击: {test_id}: {result}"))
     }
 }
 
-fn click_first_file_item<R: tauri::Runtime>(
-    window: &tauri::WebviewWindow<R>,
-) -> Result<(), String> {
-    let script = r#"
-        (() => {
-          const items = Array.from(document.querySelectorAll('[data-testid="file-item"]'));
-          const target = items.find((item) => item.getAttribute('data-file-name') === 'chapter-001.md') ?? items[0];
-          if (!target) {
-            return { clicked: false, count: items.length };
-          }
-          target.click();
-          return {
-            clicked: true,
-            count: items.length,
-            filePath: target.getAttribute('data-file-path'),
-            fileName: target.getAttribute('data-file-name')
-          };
-        })()
-    "#;
+fn click_smoke_chapter<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) -> Result<(), String> {
+    let script =
+        smoke_ui::click_script("[data-testid=\"file-item\"][data-file-name=\"chapter-001.md\"]");
 
-    let result = eval_window_json(window, script, Duration::from_millis(1500))?;
+    let result = eval_window_json(window, &script, Duration::from_millis(1500))?;
     if has_bool(&result, "clicked", true) {
         Ok(())
     } else {
-        Err("找不到可点击文件条目".to_string())
+        Err(format!("smoke 章节不可见或不可点击: {result}"))
     }
 }
 
@@ -861,8 +834,9 @@ fn run_smoke_probe<R: tauri::Runtime>(
         }
         let smoke_project_string = smoke_project.to_string_lossy().to_string();
 
-        let snapshot_script = r#"
+        let snapshot_script_owned = r#"
             (() => {
+              __SMOKE_DOM_HELPERS__
               const shell = document.querySelector('[data-testid="desktop-shell"]');
               const editor = document.querySelector('[data-testid="editor-root"]');
               return {
@@ -872,36 +846,44 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 smokeApiReady: shell?.getAttribute('data-smoke-api-ready') === 'true',
                 smokeHookReady: typeof window.__STORYFORGE_SMOKE__?.openProject === 'function',
                 title: document.title,
+                mainSurface: shell?.getAttribute('data-main-surface') ?? '',
                 layoutView: shell?.getAttribute('data-layout-mode') ?? '',
                 layoutFocus: shell?.getAttribute('data-layout-focus') ?? '',
+                compactWorkspace: shell?.getAttribute('data-compact-workspace') === 'true',
+                sidePanelVisible: visible(find('shell-side-panel')),
+                filePanelVisible: visible(find('file-tree-panel')),
+                assistantVisible: visible(find('assistant-panel')),
+                editorVisible: visible(find('editor-panel')),
+                overviewVisible: visible(find('book-overview-surface')),
+                workspaceVisible: visible(find('writing-workspace-surface')),
+                libraryVisible: visible(find('project-library')),
+                libraryOpenVisible: visible(find('library-open-project')),
+                libraryNewVisible: visible(find('library-new-project')),
+                libraryResumeVisible: visible(find('library-resume-project')),
+                libraryEntryVisible: visible(find('titlebar-library')),
+                libraryEntryActive: find('titlebar-library')?.getAttribute('aria-current') === 'page',
+                libraryProjectPaths: Array.from(find('project-library')?.querySelectorAll('button[data-project-path]') ?? []).map((item) => item.getAttribute('data-project-path')),
+                patchVisible: visible(find('patch-review')),
+                patchActionBusy: find('suggestion-accept')?.disabled === true,
+                patchRejectConfirmVisible: visible(find('patch-reject-confirm')),
+                sameWorkspaceNodes: Boolean(window.__STORYFORGE_SMOKE_NAV_NODES__) &&
+                  window.__STORYFORGE_SMOKE_NAV_NODES__.editor === editor &&
+                  window.__STORYFORGE_SMOKE_NAV_NODES__.assistant === find('assistant-panel') &&
+                  window.__STORYFORGE_SMOKE_NAV_NODES__.tree === find('file-tree-panel'),
                 hasSidePanel: Boolean(document.querySelector('[data-testid="shell-side-panel"]')),
                 hasExplorerEmpty: Boolean(document.querySelector('[data-testid="explorer-empty"]')),
                 hasFilePanel: Boolean(document.querySelector('[data-testid="file-tree-panel"]')),
                 hasAssistantPanel: Boolean(document.querySelector('[data-testid="assistant-panel"]')),
                 hasEditorPanel: Boolean(document.querySelector('[data-testid="editor-panel"]')),
                 hasActivityExplorer: Boolean(document.querySelector('[data-testid="activity-explorer"]')),
+                activityExplorerVisible: visible(find('activity-explorer')),
                 activityExplorerActive: document.querySelector('[data-testid="activity-explorer"]')?.getAttribute('data-active') === 'true',
-                hasWelcomeWorkspace: Boolean(document.querySelector('[data-testid="welcome-workspace"]')),
-                hasWelcomeClose: Boolean(document.querySelector('[data-testid="welcome-close"]')),
-                hasWelcomeDismissed: Boolean(document.querySelector('[data-testid="welcome-dismissed"]')),
+                activityBookActive: find('activity-book')?.getAttribute('data-active') === 'true',
                 hasPatchReview: Boolean(document.querySelector('[data-testid="patch-review"]')),
                 hasPatchRejectConfirm: Boolean(document.querySelector('[data-testid="patch-reject-confirm"]')),
                 hasSuggestionReview: Boolean(document.querySelector('[data-testid="patch-review"], [data-testid="suggestion-review"]')),
                 errorToastText: Array.from(document.querySelectorAll('[data-testid="toast-item"][data-tone="error"]')).map((item) => item.textContent ?? '').join('\n'),
                 successToastText: Array.from(document.querySelectorAll('[data-testid="toast-item"][data-tone="success"]')).map((item) => item.textContent ?? '').join('\n'),
-                visualTone: (() => {
-                  const workspace = document.querySelector('[data-testid="welcome-workspace"]');
-                  const composer = document.querySelector('[data-testid="welcome-composer-input"]')?.closest('div');
-                  const rgb = (element) => {
-                    if (!element) return null;
-                    const match = getComputedStyle(element).backgroundColor.match(/\d+/g);
-                    return match ? match.slice(0, 3).map(Number) : null;
-                  };
-                  return {
-                    workspace: rgb(workspace),
-                    composer: rgb(composer),
-                  };
-                })(),
                 fileCount: Number(document.querySelector('[data-testid="file-list"]')?.getAttribute('data-file-count') ?? document.querySelectorAll('[data-testid="file-item"]').length),
                 fileItemCount: document.querySelectorAll('[data-testid="file-item"]').length,
                 projectPath: document.querySelector('[data-testid="file-list"]')?.getAttribute('data-project-path') ?? '',
@@ -915,9 +897,11 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 editorPreview: editor?.getAttribute('data-content-preview') ?? '',
               };
             })()
-        "#;
+        "#
+        .replace("__SMOKE_DOM_HELPERS__", smoke_ui::DOM_HELPERS);
+        let snapshot_script = snapshot_script_owned.as_str();
 
-        let shell = match wait_for_window_state(
+        let initial = match wait_for_window_state(
             &window,
             snapshot_script,
             40,
@@ -927,77 +911,36 @@ fn run_smoke_probe<R: tauri::Runtime>(
                     && has_bool(value, "isTauri", true)
                     && has_bool(value, "tauriMenuReady", true)
                     && value.get("title").and_then(|entry| entry.as_str()) == Some("StoryForge IDE")
-            },
-        ) {
-            Ok(value) => value,
-            Err(error) => {
-                eprintln!("Smoke 失败: Tauri 窗口未就绪: {}", error);
-                fail_smoke!();
-            }
-        };
-
-        if !has_bool(&shell, "hasWelcomeWorkspace", true)
-            || !has_bool(&shell, "hasWelcomeClose", true)
-        {
-            eprintln!("Smoke 失败: 初始欢迎工作区不可见: {}", shell);
-            fail_smoke!();
-        }
-
-        let tone_is_readable = shell
-            .get("visualTone")
-            .and_then(|entry| {
-                let workspace = entry.get("workspace")?.as_array()?;
-                let composer = entry.get("composer")?.as_array()?;
-                let workspace_ok = workspace
-                    .iter()
-                    .all(|channel| channel.as_u64().map(|value| value >= 24).unwrap_or(false));
-                let composer_ok = composer
-                    .iter()
-                    .all(|channel| channel.as_u64().map(|value| value >= 36).unwrap_or(false));
-                let layered = workspace
-                    .first()
-                    .and_then(|channel| channel.as_u64())
-                    .zip(composer.first().and_then(|channel| channel.as_u64()))
-                    .map(|(workspace_value, composer_value)| composer_value > workspace_value)
-                    .unwrap_or(false);
-                Some(workspace_ok && composer_ok && layered)
-            })
-            .unwrap_or(false);
-        if !tone_is_readable {
-            eprintln!("Smoke 失败: 初始欢迎工作区仍然接近黑屏: {}", shell);
-            fail_smoke!();
-        }
-
-        if let Err(error) = click_window_test_id(&window, "welcome-close") {
-            eprintln!("Smoke 失败: 无法关闭初始欢迎页: {}", error);
-            fail_smoke!();
-        }
-
-        let initial = match wait_for_window_state(
-            &window,
-            snapshot_script,
-            20,
-            Duration::from_millis(150),
-            |value| {
-                value.get("layoutView").and_then(|entry| entry.as_str()) == Some("explorer")
+                    && value.get("mainSurface").and_then(|entry| entry.as_str()) == Some("library")
+                    && has_bool(value, "libraryVisible", true)
+                    && has_bool(value, "libraryOpenVisible", true)
+                    && has_bool(value, "libraryNewVisible", true)
+                    && has_bool(value, "libraryEntryVisible", true)
+                    && has_bool(value, "libraryEntryActive", true)
+                    && has_bool(value, "libraryResumeVisible", false)
+                    && has_bool(value, "overviewVisible", false)
+                    && has_bool(value, "workspaceVisible", false)
+                    && value.get("layoutView").and_then(|entry| entry.as_str()) == Some("explorer")
                     && value.get("layoutFocus").and_then(|entry| entry.as_str()) == Some("balanced")
-                    && has_bool(value, "hasSidePanel", true)
-                    && has_bool(value, "hasExplorerEmpty", true)
+                    && has_bool(value, "hasSidePanel", false)
+                    && has_bool(value, "hasExplorerEmpty", false)
+                    && has_bool(value, "sidePanelVisible", false)
                     && has_bool(value, "hasFilePanel", false)
                     && has_bool(value, "hasAssistantPanel", false)
                     && has_bool(value, "hasEditorPanel", false)
                     && has_bool(value, "hasActivityExplorer", true)
-                    && has_bool(value, "activityExplorerActive", true)
-                    && has_bool(value, "hasWelcomeWorkspace", false)
-                    && has_bool(value, "hasWelcomeDismissed", true)
+                    && has_bool(value, "activityExplorerVisible", false)
             },
         ) {
             Ok(value) => value,
             Err(error) => {
-                eprintln!("Smoke 失败: 关闭欢迎页后壳层状态不正确: {}", error);
+                eprintln!("Smoke 失败: 原生窗口未显示作品库和新建/打开入口: {}", error);
                 fail_smoke!();
             }
         };
+        println!(
+            "Desktop native navigation evidence: phase=project-library-startup state={initial}"
+        );
 
         let expected_api_base_url = desktop_api_base_url();
         let expected_api_key = desktop_api_key();
@@ -1042,53 +985,8 @@ fn run_smoke_probe<R: tauri::Runtime>(
             fail_smoke!();
         }
 
-        let sidebar_was_open = has_bool(&initial, "hasSidePanel", true);
-        if let Err(error) = click_window_test_id(&window, "activity-explorer") {
-            eprintln!("Smoke 失败: 无法触发文件树窗口交互: {}", error);
-            fail_smoke!();
-        }
-        thread::sleep(Duration::from_millis(400));
-
-        let _sidebar_state = match wait_for_window_state(
-            &window,
-            snapshot_script,
-            10,
-            Duration::from_millis(150),
-            |value| {
-                has_bool(value, "hasSidePanel", !sidebar_was_open)
-                    && has_bool(value, "activityExplorerActive", !sidebar_was_open)
-            },
-        ) {
-            Ok(value) => value,
-            Err(error) => {
-                eprintln!("Smoke 失败: 切换侧边栏后探针失败: {}", error);
-                fail_smoke!();
-            }
-        };
-
-        if sidebar_was_open {
-            if let Err(error) = click_window_test_id(&window, "activity-explorer") {
-                eprintln!("Smoke 失败: 无法重新打开文件树面板: {}", error);
-                fail_smoke!();
-            }
-        }
-
-        if let Err(error) = wait_for_window_state(
-            &window,
-            snapshot_script,
-            10,
-            Duration::from_millis(150),
-            |value| {
-                has_bool(value, "hasSidePanel", true)
-                    && has_bool(value, "hasExplorerEmpty", true)
-                    && has_bool(value, "activityExplorerActive", true)
-                    && has_bool(value, "tauriMenuReady", true)
-            },
-        ) {
-            eprintln!("Smoke 失败: 无法恢复文件树面板: {}", error);
-            fail_smoke!();
-        }
-
+        // The library deliberately hides ActivityBar. Use the existing isolated
+        // project-selection seam, then test visible workspace navigation below.
         let _smoke_ready = match wait_for_window_state(
             &window,
             snapshot_script,
@@ -1149,6 +1047,16 @@ fn run_smoke_probe<R: tauri::Runtime>(
                     && has_bool(value, "hasFilePanel", true)
                     && has_bool(value, "hasAssistantPanel", true)
                     && has_bool(value, "hasEditorPanel", true)
+                    && has_bool(value, "overviewVisible", true)
+                    && has_bool(value, "libraryVisible", false)
+                    && has_bool(value, "libraryEntryVisible", true)
+                    && has_bool(value, "activityExplorerVisible", true)
+                    && has_bool(value, "workspaceVisible", false)
+                    && has_bool(value, "filePanelVisible", false)
+                    && has_bool(value, "editorVisible", false)
+                    && has_bool(value, "assistantVisible", false)
+                    && has_bool(value, "activityBookActive", true)
+                    && value.get("mainSurface").and_then(|entry| entry.as_str()) == Some("overview")
                     && value.get("layoutFocus").and_then(|entry| entry.as_str()) == Some("balanced")
             },
         ) {
@@ -1158,8 +1066,55 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 fail_smoke!();
             }
         };
+        println!(
+            "Desktop native navigation evidence: phase=project-overview state={file_list_state}"
+        );
 
-        if let Err(error) = click_first_file_item(&window) {
+        // Select a visible navigation entry before touching the mounted but
+        // hidden tree. Going through overview must retain Editor/Chat mounts.
+        if let Err(error) = click_window_test_id(&window, "activity-explorer") {
+            eprintln!("Smoke 失败: 无法从作品总览进入资源管理器: {}", error);
+            fail_smoke!();
+        }
+        for (step, sidebar_visible) in [true, false, true].into_iter().enumerate() {
+            if step > 0 {
+                if let Err(error) = click_window_test_id(&window, "activity-explorer") {
+                    eprintln!("Smoke 失败: 无法切换项目文件树: {}", error);
+                    fail_smoke!();
+                }
+            }
+            let workspace_state = match wait_for_window_state(
+                &window,
+                snapshot_script,
+                20,
+                Duration::from_millis(150),
+                |value| {
+                    value.get("mainSurface").and_then(|entry| entry.as_str()) == Some("workspace")
+                        && value.get("layoutView").and_then(|entry| entry.as_str())
+                            == Some("explorer")
+                        && has_bool(value, "overviewVisible", false)
+                        && has_bool(value, "libraryVisible", false)
+                        && has_bool(value, "workspaceVisible", true)
+                        && has_bool(value, "hasFilePanel", true)
+                        && has_bool(value, "hasSidePanel", true)
+                        && has_bool(value, "sidePanelVisible", sidebar_visible)
+                        && has_bool(value, "filePanelVisible", sidebar_visible)
+                        && has_bool(value, "activityExplorerActive", sidebar_visible)
+                        && has_bool(value, "editorVisible", true)
+                        && has_bool(value, "assistantVisible", true)
+                        && has_bool(value, "tauriMenuReady", true)
+                },
+            ) {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("Smoke 失败: 工作区文件树可见性切换异常: {}", error);
+                    fail_smoke!();
+                }
+            };
+            println!("Desktop native navigation evidence: phase=workspace-sidebar-{step} state={workspace_state}");
+        }
+
+        if let Err(error) = click_smoke_chapter(&window) {
             eprintln!("Smoke 失败: 无法点击文件条目: {}", error);
             fail_smoke!();
         }
@@ -1172,6 +1127,8 @@ fn run_smoke_probe<R: tauri::Runtime>(
             |value| {
                 value.get("editorLoaded").and_then(|entry| entry.as_bool()) == Some(true)
                     && value.get("editorReady").and_then(|entry| entry.as_bool()) == Some(true)
+                    && has_bool(value, "editorVisible", true)
+                    && has_bool(value, "workspaceVisible", true)
                     && value
                         .get("currentFile")
                         .and_then(|entry| entry.as_str())
@@ -1190,6 +1147,56 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 fail_smoke!();
             }
         };
+
+        let remember_nodes = eval_window_json(
+            &window,
+            r#"(() => {
+              const find = (id) => document.querySelector(`[data-testid="${id}"]`);
+              const nodes = { editor: find('editor-root'), assistant: find('assistant-panel'), tree: find('file-tree-panel') };
+              window.__STORYFORGE_SMOKE_NAV_NODES__ = nodes;
+              return { remembered: Object.values(nodes).every(Boolean) };
+            })()"#,
+            Duration::from_millis(1500),
+        );
+        if !remember_nodes
+            .as_ref()
+            .map(|value| has_bool(value, "remembered", true))
+            .unwrap_or(false)
+        {
+            eprintln!("Smoke 失败: 无法记录工作区实例: {remember_nodes:?}");
+            fail_smoke!();
+        }
+        // Cover the primary overview button as well as ActivityBar navigation.
+        // Visibility, current file, and node identity are independent assertions.
+        for (entry, overview) in [("activity-book", true), ("open-writing-workspace", false)] {
+            if let Err(error) = click_window_test_id(&window, entry) {
+                eprintln!("Smoke 失败: 总览往返入口不可点击: {entry}: {error}");
+                fail_smoke!();
+            }
+            let roundtrip_state = match wait_for_window_state(
+                &window,
+                snapshot_script,
+                20,
+                Duration::from_millis(150),
+                |value| {
+                    has_bool(value, "overviewVisible", overview)
+                        && has_bool(value, "workspaceVisible", !overview)
+                        && has_bool(value, "editorVisible", !overview)
+                        && has_bool(value, "assistantVisible", !overview)
+                        && has_bool(value, "sameWorkspaceNodes", true)
+                        && has_bool(value, "editorReady", true)
+                        && value.get("currentFile") == editor_state.get("currentFile")
+                        && value.get("editorPreview") == editor_state.get("editorPreview")
+                },
+            ) {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("Smoke 失败: 总览往返丢失工作区或可见性异常: {error}");
+                    fail_smoke!();
+                }
+            };
+            println!("Desktop native navigation evidence: phase={entry} state={roundtrip_state}");
+        }
 
         let smoke_file = smoke_project.join("正文").join("chapter-001.md");
         let smoke_file_string = smoke_file.to_string_lossy().to_string();
@@ -1237,9 +1244,72 @@ fn run_smoke_probe<R: tauri::Runtime>(
             snapshot_script,
             20,
             Duration::from_millis(150),
-            |value| has_bool(value, "hasPatchReview", true),
+            |value| {
+                has_bool(value, "patchVisible", true) && has_bool(value, "patchActionBusy", false)
+            },
         ) {
             eprintln!("Smoke 失败: proposed patch diff 未显示: {}", error);
+            fail_smoke!();
+        }
+
+        // Return through the persistent library entry, never hidden ActivityBar.
+        // Keep a pending patch as well as the loaded file/Editor/Agent instances.
+        for (entry, library) in [
+            ("titlebar-library", true),
+            ("library-resume-project", false),
+        ] {
+            if let Err(error) = click_window_test_id(&window, entry) {
+                eprintln!("Smoke 失败: 作品库往返入口不可点击: {entry}: {error}");
+                fail_smoke!();
+            }
+            let library_state = match wait_for_window_state(
+                &window,
+                snapshot_script,
+                20,
+                Duration::from_millis(150),
+                |value| {
+                    value.get("mainSurface").and_then(|entry| entry.as_str())
+                        == Some(if library { "library" } else { "workspace" })
+                        && has_bool(value, "libraryVisible", library)
+                        && has_bool(value, "libraryOpenVisible", library)
+                        && has_bool(value, "libraryNewVisible", library)
+                        && has_bool(value, "libraryResumeVisible", library)
+                        && has_bool(value, "libraryEntryVisible", true)
+                        && has_bool(value, "libraryEntryActive", library)
+                        && has_bool(value, "overviewVisible", false)
+                        && has_bool(value, "workspaceVisible", !library)
+                        && has_bool(value, "editorVisible", !library)
+                        && has_bool(value, "assistantVisible", !library)
+                        && has_bool(value, "sidePanelVisible", !library)
+                        && has_bool(value, "activityExplorerVisible", !library)
+                        && has_bool(value, "sameWorkspaceNodes", true)
+                        && has_bool(value, "editorReady", true)
+                        && has_bool(value, "hasPatchReview", true)
+                        && has_bool(value, "patchVisible", !library)
+                        && value.get("currentFile") == editor_state.get("currentFile")
+                        && value.get("editorPreview") == editor_state.get("editorPreview")
+                        && value
+                            .get("libraryProjectPaths")
+                            .and_then(|paths| paths.as_array())
+                            .map(|paths| {
+                                paths.iter().any(|path| {
+                                    path.as_str() == Some(smoke_project_string.as_str())
+                                })
+                            })
+                            .unwrap_or(false)
+                },
+            ) {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("Smoke 失败: 作品库往返丢失工作区/补丁或可见性异常: {error}");
+                    fail_smoke!();
+                }
+            };
+            println!("Desktop native navigation evidence: phase={entry} state={library_state}");
+        }
+
+        if let Err(error) = smoke_ui::verify_native_zoom(&window) {
+            eprintln!("Smoke 失败: 原生缩放/补丁审阅不可用: {error}");
             fail_smoke!();
         }
 
@@ -1263,7 +1333,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
             snapshot_script,
             20,
             Duration::from_millis(150),
-            |value| has_bool(value, "hasPatchRejectConfirm", true),
+            |value| has_bool(value, "patchRejectConfirmVisible", true),
         ) {
             eprintln!("Smoke 失败: 拒绝补丁后未显示意图确认入口: {}", error);
             fail_smoke!();
@@ -1311,7 +1381,9 @@ fn run_smoke_probe<R: tauri::Runtime>(
             snapshot_script,
             20,
             Duration::from_millis(150),
-            |value| has_bool(value, "hasPatchReview", true),
+            |value| {
+                has_bool(value, "patchVisible", true) && has_bool(value, "patchActionBusy", false)
+            },
         ) {
             eprintln!("Smoke 失败: 重新注入 proposed patch diff 未显示: {}", error);
             fail_smoke!();
@@ -1365,7 +1437,8 @@ fn run_smoke_probe<R: tauri::Runtime>(
                     .and_then(|entry| entry.as_str())
                     .map(|status| status.contains("旧补丁不能直接写回"))
                     .unwrap_or(false)
-                    && has_bool(value, "hasPatchReview", true)
+                    && has_bool(value, "patchVisible", true)
+                    && has_bool(value, "patchActionBusy", false)
             },
         ) {
             eprintln!("Smoke 失败: 旧补丁冲突未被阻止: {}", error);
@@ -1438,6 +1511,8 @@ fn run_smoke_probe<R: tauri::Runtime>(
                         .and_then(|entry| entry.as_str())
                         .map(|status| status.contains("已写入当前文件"))
                         .unwrap_or(false)
+                    && has_bool(value, "hasPatchReview", false)
+                    && has_bool(value, "editorVisible", true)
             },
         ) {
             Ok(value) => value,

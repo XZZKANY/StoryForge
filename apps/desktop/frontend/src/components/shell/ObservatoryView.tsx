@@ -82,7 +82,7 @@ function Section({
 }) {
   const [open, setOpen] = useState(true);
   return (
-    <section className="border-b border-border" data-testid={`obs-section-${testid}`}>
+    <section className="mb-2" data-testid={`obs-section-${testid}`}>
       <button
         type="button"
         className="flex h-8 w-full items-center gap-1.5 px-3 text-2xs font-semibold tracking-[0.06em] text-subtle hover:bg-elevated hover:text-foreground"
@@ -463,12 +463,12 @@ export function ObservatoryView({
         : '';
   return (
     <div
-      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-panel"
       data-testid="observatory-view"
     >
       <LiveStatus text={liveText} testid="observatory-live" />
       <header
-        className="flex h-shell-row flex-shrink-0 items-center gap-2 border-b border-border bg-panel px-3 pr-2"
+        className="flex h-shell-row flex-shrink-0 items-center gap-2 bg-panel px-3 pr-2"
         data-testid="observatory-header"
       >
         <Radar size={14} strokeWidth={1.7} className="flex-shrink-0 text-agent" />

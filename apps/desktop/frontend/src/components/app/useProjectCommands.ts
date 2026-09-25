@@ -15,6 +15,8 @@ import { FS_MUTATION_EVENT, invalidateFileSystemCache, TauriFileSystem } from '.
 import type { AppDialogApi } from './AppDialog';
 import { normalizeMarkdownFileName } from './helpers';
 import { useBookBreakdown } from './useBookBreakdown';
+import { useNewProject } from './useNewProject';
+import { normalizePathForMatch, normalizeRoot } from '../../lib/project/path';
 
 export type { BookBreakdownPreview } from './useBookBreakdown';
 
@@ -30,6 +32,8 @@ type UseProjectCommandsOptions = {
   confirmDiscardFiles: (paths: string[], actionLabel: string) => Promise<boolean>;
   resetEditorFiles: () => void;
   onShowEditor: () => void;
+  cancelPendingNavigation?: () => void;
+  onResumeProject?: () => void;
 };
 
 export function useProjectCommands({
@@ -44,10 +48,32 @@ export function useProjectCommands({
   confirmDiscardFiles,
   resetEditorFiles,
   onShowEditor,
+  cancelPendingNavigation,
+  onResumeProject,
 }: UseProjectCommandsOptions) {
   const [projectRefreshVersion, setProjectRefreshVersion] = useState(0);
   const [welcomeDraft, setWelcomeDraft] = useState('');
   const [pendingWelcomePrompt, setPendingWelcomePrompt] = useState<string | null>(null);
+  const onBlankProjectCreated = useCallback(
+    (projectPath: string) => {
+      setPendingWelcomePrompt(null);
+      resetEditorFiles();
+      selectProject(projectPath);
+      setProjectRefreshVersion((version) => version + 1);
+    },
+    [resetEditorFiles, selectProject],
+  );
+  const newProject = useNewProject({
+    activeProject,
+    openFiles,
+    confirmDiscardFiles,
+    onCreated: onBlankProjectCreated,
+  });
+  const { open: openNewProject } = newProject;
+  const handleNewProjectOpen = useCallback(() => {
+    cancelPendingNavigation?.();
+    openNewProject();
+  }, [cancelPendingNavigation, openNewProject]);
 
   // 补丁写回、Agent 起草、新建/删除/改名后刷新资源树；短时间内多次写入合并一次重拉。
   useEffect(() => {
@@ -64,10 +90,20 @@ export function useProjectCommands({
   }, []);
 
   const handleOpenProject = useCallback(async () => {
+    cancelPendingNavigation?.();
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
       const selected = await open({ directory: true, multiple: false, title: '选择项目目录' });
       if (!selected || typeof selected !== 'string') return;
+      if (
+        activeProject &&
+        normalizePathForMatch(normalizeRoot(selected)) ===
+          normalizePathForMatch(normalizeRoot(activeProject))
+      ) {
+        // 同一本作品只是返回当前现场；不能重置页签/脏稿或再次走切换确认。
+        onResumeProject?.();
+        return;
+      }
       await selectProjectSafely(selected);
     } catch (error) {
       console.error('打开项目失败', error);
@@ -76,7 +112,7 @@ export function useProjectCommands({
         message: `请检查目录是否仍存在、是否有访问权限，然后重新选择项目目录。\n\n${error instanceof Error ? error.message : String(error)}`,
       });
     }
-  }, [dialogs, selectProjectSafely]);
+  }, [activeProject, cancelPendingNavigation, dialogs, onResumeProject, selectProjectSafely]);
 
   // 发送即开书：建立显式项目骨架后由 ChatWindow 自动发送首句；失败时回落到手选目录。
   const handleWelcomeSend = useCallback(() => {
@@ -287,6 +323,7 @@ export function useProjectCommands({
   });
 
   return {
+    newProject: { ...newProject, open: handleNewProjectOpen },
     projectRefreshVersion,
     welcomeDraft,
     setWelcomeDraft,

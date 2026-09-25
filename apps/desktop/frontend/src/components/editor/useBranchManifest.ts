@@ -70,9 +70,25 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
   );
 
   const advanceBranchHead = useCallback(
-    async (timestamp: number) => {
+    async (
+      timestamp: number,
+      target?: { projectPath: string; filePath: string; branchId: string },
+    ) => {
+      if (
+        target &&
+        (target.projectPath !== projectPathRef.current || target.filePath !== filePathRef.current)
+      ) {
+        // A snapshot may finish after navigating away; its checkpoint belongs to the original file.
+        const manifest = await loadBranchManifest(target.projectPath, target.filePath);
+        await saveBranchManifest(
+          target.projectPath,
+          target.filePath,
+          setBranchHead(manifest, target.branchId, timestamp),
+        );
+        return;
+      }
       const current = branchManifestRef.current;
-      const next = setBranchHead(current, current.activeBranchId, timestamp);
+      const next = setBranchHead(current, target?.branchId ?? current.activeBranchId, timestamp);
       await replaceManifest(next);
     },
     [replaceManifest],

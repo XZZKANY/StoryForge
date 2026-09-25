@@ -220,17 +220,27 @@ export function useMonacoEditor({
   ]);
 
   useEffect(() => {
-    editorRef.current?.updateOptions({
-      ...editorTypographyOptions({
-        filePath,
-        fontSize: editorFontSize,
-        fontMode: editorFontMode,
-        lineNumbers: editorLineNumbers,
-        proseMeasure: editorProseMeasure,
-      }),
-      readOnly: readOnly || loadPending,
-    });
+    if (!editorReady) return;
+    const updateOptions = () => {
+      editorRef.current?.updateOptions({
+        ...editorTypographyOptions({
+          filePath,
+          fontSize: editorFontSize,
+          fontMode: editorFontMode,
+          lineNumbers: editorLineNumbers,
+          proseMeasure: editorProseMeasure,
+        }),
+        readOnly: readOnly || loadPending,
+      });
+    };
+    updateOptions();
+    // 只更新现有实例的选项；系统偏好变化不能重建 model 或清掉正文/撤销栈。
+    if (typeof window.matchMedia !== 'function') return;
+    const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    motionPreference.addEventListener('change', updateOptions);
+    return () => motionPreference.removeEventListener('change', updateOptions);
   }, [
+    editorReady,
     editorFontSize,
     editorFontMode,
     editorLineNumbers,

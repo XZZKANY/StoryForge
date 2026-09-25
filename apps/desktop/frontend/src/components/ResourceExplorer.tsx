@@ -138,7 +138,7 @@ export function ResourceExplorer({
   );
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col bg-panel">
       {/* 文件树 */}
       <div
         className="flex-1 overflow-y-auto py-2"

@@ -72,8 +72,21 @@ export function createSmokeEnvironment(environment, apiBaseUrl, directories) {
   for (const [name, path] of Object.entries(directories)) {
     if (!isAbsolute(path)) throw new Error(`Tauri smoke ${name} must be absolute: ${path}`);
   }
+  // reqwest 0.11 on Windows reads ProxyServer but not the system ProxyOverride.
+  // Keep the isolated API direct without disabling the user's proxy for other hosts.
+  const inherited = { ...environment };
+  const bypasses = new Set();
+  for (const [name, value] of Object.entries(inherited)) {
+    if (name.toLowerCase() !== 'no_proxy') continue;
+    for (const entry of String(value ?? '').split(',')) {
+      if (entry.trim()) bypasses.add(entry.trim());
+    }
+    delete inherited[name];
+  }
+  for (const host of ['127.0.0.1', 'localhost', '::1']) bypasses.add(host);
   return {
-    ...environment,
+    ...inherited,
+    NO_PROXY: [...bypasses].join(','),
     STORYFORGE_API_BASE_URL: apiBaseUrl,
     STORYFORGE_DESKTOP_SMOKE_LOCAL_DATA_DIR: directories.localDataDir,
     STORYFORGE_DESKTOP_SMOKE_CONFIG_DIR: directories.configDir,
@@ -155,11 +168,7 @@ function runProcess(command, args, options = {}) {
   return child;
 }
 
-export function killProcessTree(
-  child,
-  platform = process.platform,
-  runSynchronous = spawnSync,
-) {
+export function killProcessTree(child, platform = process.platform, runSynchronous = spawnSync) {
   if (
     !child ||
     child.exitCode !== null ||

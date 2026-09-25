@@ -1,4 +1,5 @@
 import type * as monaco from 'monaco-editor';
+import { prefersReducedMotion } from '../../lib/motion';
 
 export const STORYFORGE_EDITOR_UNICODE_HIGHLIGHT: monaco.editor.IUnicodeHighlightOptions = {
   ambiguousCharacters: false,
@@ -124,6 +125,7 @@ export function editorTypographyOptions({
   proseMeasure?: ProseMeasure;
 }): monaco.editor.IEditorOptions & monaco.editor.IGlobalEditorOptions {
   const prose = isProseFile(filePath);
+  const reducedMotion = prefersReducedMotion();
   return {
     ...resolveProseWordWrap(proseMeasure, prose),
     fontSize,
@@ -146,10 +148,10 @@ export function editorTypographyOptions({
     occurrencesHighlight: prose ? 'off' : 'singleFile',
     renderLineHighlight: prose ? 'none' : 'line',
     renderWhitespace: 'none',
-    // 长文手感：滚动与光标都不跳格。
-    smoothScrolling: true,
-    cursorBlinking: 'smooth',
-    cursorSmoothCaretAnimation: 'on',
+    // Monaco 的 JS 平滑滚动不受全局 CSS 动效守卫控制；创建与更新共用系统偏好。
+    smoothScrolling: !reducedMotion,
+    cursorBlinking: reducedMotion ? 'solid' : 'smooth',
+    cursorSmoothCaretAnimation: reducedMotion ? 'off' : 'on',
     cursorWidth: 2,
   };
 }

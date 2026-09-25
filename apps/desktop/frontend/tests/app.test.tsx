@@ -9,7 +9,7 @@ import { AppDialogHost, type AppDialogState } from '../src/components/app/AppDia
 
 // 壳层护栏：固化固定三栏「编辑器中枢」结构。
 // renderToStaticMarkup 不跑 effects，projects 在 SSR 时为空 → 无项目态：
-// 中栏渲染 WelcomeWorkspace（起始输入舱），右栏 Agent 面板不挂载。
+// 中栏渲染 ProjectLibrary（作品库），右栏 Agent 面板不挂载。
 
 const appContainerSource = readFileSync('src/App.tsx', 'utf8');
 const appShellSource = readFileSync('src/components/app/AppShell.tsx', 'utf8');
@@ -46,11 +46,11 @@ test('App 壳层挂载 desktop-shell 容器与三栏框架标记', () => {
   assert.match(html, /data-testid="shell-status-bar"/);
 });
 
-test('App 无项目时中栏渲染 WelcomeWorkspace 与打开项目入口，右栏不挂载', () => {
+test('App 无项目时中栏渲染 作品库与新建/打开入口，右栏不挂载', () => {
   const html = renderApp();
-  assert.match(html, /data-testid="welcome-workspace"/);
-  assert.match(html, /data-testid="welcome-primary-action"/);
-  assert.match(html, /data-testid="welcome-composer-input"/);
+  assert.match(html, /data-testid="project-library"/);
+  assert.match(html, /data-testid="library-open-project"/);
+  assert.match(html, /data-testid="library-new-project"/);
   // 无项目：Agent 面板与编辑器均不挂载。
   assert.equal(html.includes('data-testid="assistant-panel"'), false);
   assert.equal(html.includes('data-testid="editor-panel"'), false);
@@ -102,7 +102,7 @@ test('App 中栏和右栏锁定滚动边界，长稿不能把状态栏或 Agent 
     'className="min-h-0 flex-1 overflow-hidden"',
     'min-h-0 overflow-hidden bg-background',
     // 弹性宽度由 mounted assistant-panel / workspace-layout 回归覆盖；此处只锁滚动边界。
-    'flex-col overflow-hidden border-l border-border bg-panel',
+    'flex-col overflow-hidden bg-panel',
   ];
   for (const guard of requiredLayoutGuards) {
     assert.ok(shellSource.includes(guard), `桌面壳层缺少长稿布局护栏：${guard}`);

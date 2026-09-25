@@ -1,3 +1,11 @@
+## 2026-09-25 Desktop UI/UX 原生 smoke 校准（子审查）
+
+- 仅校准 `src-tauri/src/main.rs` 隔离 smoke 路径与 `smoke_ui.rs`：无项目 Explorer 隐藏、项目总览先行、真实可见导航、侧栏隐藏/恢复、总览往返节点身份；全部点击验证可见/禁用/窗口边界/命中，保留拒绝/漂移/接受/快照/版本安全断言。
+- `node --test apps/desktop/scripts/native-smoke-ui.test.mjs`：3 passed；`cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml smoke_ -- --nocapture`：5 passed，真实 Rust 编译通过。
+- Target ESLint、Prettier、rustfmt (`skip_children=true`) 和 `git diff --check`：pass。未另跑全量 verify 或完整 Tauri smoke；父任务集成运行后记录结果，不能把单元测试当原生验收。
+- 详细追踪：`.trellis/tasks/09-20-desktop-client-experience/research/patch-final-audit.md`；生产权限/健康客户端未修改，无 provider 调用及真实稿件访问。
+- 后续几何审读加严：patch/diff 需包含于 Editor，底部留白沿用基线，100%恢复比较完整 Editor 矩形（均1px），拒绝动画/旧layout过早放行。新增回归先红后绿；Rust smoke_ **6 passed**，Node探针 **3 passed**，target rustfmt/diff-check通过；完整native再次由父任务运行。
+
 ## 2026-09-18 清理项目保护性废弃代码(第二批次:workflow 兼容遗留全清)
 
 - 任务 `09-05-code-cleanup-quality` 第二批次。第一批次(四组孤立符号 + artifacts 异常收窄)已于此前落地;本批次翻转其 PRD「兼容 seam 保留」决定——历史消费方 `apps/workflow` 已于 2026-07-26 物理退役,全仓实证零生产消费方后用户拍板整链清除(范围=①workflow-dispatch 链+②record_workflow_model_run_payload 链;不含 ide 6 条零调用路由与 lineage_service)。
@@ -2957,7 +2965,8 @@ Rust 本次尝试因 Cargo 首次下载 `tempfile` 时用户缓存权限/网络�
 pm.cmd run test -- tests/use-book-overview-chapters.test.tsx 3/3；目标 ESLint/Prettier 通过。
 - 注意：全量 typecheck 当前被 ChatWindow AgentRunOverviewSummary status 联合类型（waiting）既有接线错误阻断，已通知主代理。
 
-- 章节索引边界加固：uildProjectChapterIndex 二次验证 elativePathInsideProject(index.projectPath, file.path)，拒绝不在项目内的 draft 条目；project-context.ts re-export hook helper/type。目标 eslint、章节测试 3/3、typecheck 通过。
+- 章节索引边界加固：uildProjectChapterIndex 二次验证
+elativePathInsideProject(index.projectPath, file.path)，拒绝不在项目内的 draft 条目；project-context.ts re-export hook helper/type。目标 eslint、章节测试 3/3、typecheck 通过。
 
 ## 2026-09-14 session restore issue projection
 
@@ -3012,6 +3021,152 @@ pm.cmd run test -- tests/use-book-overview-chapters.test.tsx 3/3；目标 ESLint
 - 证据：`.trellis/tasks/09-18-desktop-uiux-followup-review/evidence/optimized-*.png`、`optimized-browser-observations.json`。记录中明确保留了一次热重载导致无项目的无效采样，最终结论仅用后续 verified 样例。
 - 已更新本地 Trellis frontend component guidelines；该目录按仓库 `.gitignore` 约定保持本地。未验证原生 Tauri、真实 provider、真实写回、屏幕阅读器听测和长篇质量。产品改动已完成，git 提交与任务归档待提交计划确认。
 
+## 2026-09-18 API IDE 无调用读路由收窄
+
+- 从 `apps/api/app/domains/ide/router.py` 移除已核实没有 Desktop 调用方的 6 条旧读路由：workspace tree、diagnostics、scene、context snapshot、Story Memory query、artifact preview；对应 service/schema 实现保留供未来产品面复用。
+- 删除仅覆盖这些 HTTP 契约的 5 个 API 测试文件，新增 `test_source_pruning.py` 路由/OpenAPI 不复活护栏；同步更新 `DOMAINS.md`、重构主计划和生成的 OpenAPI/TypeScript 契约。
+- 验证：API 全量 `1560 passed, 7 skipped`；定向 IDE/source-pruning/api-surface `46 passed`；Ruff、shared TypeScript、Desktop frontend typecheck 通过；`pnpm.cmd check:drift` 通过；`git diff --check` 通过。
+- 未验证：真实 Desktop GUI、Tauri、真实 provider、guarded writeback 和长篇质量；根级 `pnpm verify` 未在本轮重跑。
+
+## 2026-09-20 Desktop 客户端体验优化 · 诊断与规划
+
+- 创建本地 Trellis 任务 `.trellis/tasks/09-20-desktop-client-experience`，状态 planning。用户已批准只读 shell 诊断与核心工作区重排方向；尚未批准最终方案实施。没有修改产品代码、API 或共享契约。
+- 已完成项目边界/旧任务核对、两份并行源码审计、PRD/设计/实施计划及真实浏览器视觉基线；原有工作树改动保留。
+- `npm.cmd run typecheck`（apps/desktop/frontend）：通过。
+- `npm.cmd run test -- tests/workspace-layout-app.test.tsx tests/book-overview-app.test.tsx tests/settings-accessibility.test.tsx tests/conversation-starters.test.tsx tests/editor-tabs.test.tsx`：5 files / 21 tests passed。
+- `python ./.trellis/scripts/task.py validate .trellis/tasks/09-20-desktop-client-experience`：上下文清单校验通过；`git diff --check` 通过。
+- 浏览器使用原有 `tests/fixtures/uiux-app.html`，隔离端口 3017；检查 1280×720 深色欢迎/总览/工作台，1024×768 深浅工作台与浅色补丁预览，1440×900 浅色总览待确认入口。没有接受补丁；夹具固定 503 不视作产品网络故障。已关闭临时页并停止本轮 Vite 服务。
+- 审计风险与设计机会明确分开；各项源码风险尚需实施时独立最小复现/失败测试，不因基线测试通过就认为覆盖。没有把已有适配、对比度修复或 CSS 保挂载列为缺失能力；也不统一禁用输入控件中的全局保存/搜索。
+- 未验证：新设计（尚未实现）、全部分辨率/缩放矩阵、全量 test/build/lint/verify、Tauri 真机、真实 provider/写回、屏幕阅读器听测及长篇质量。材料见本任务 `research/`，截图在任务会话内，未保存本地 PNG。
+
+## 2026-09-20 UI/UX 第一批：客户端外壳与正文层级
+
+- 实施：`App.tsx` 壳层导航快捷键仅在非可编辑目标且非 IME 时接管；保留 S/P 跨文本语义；返回作品总览并入页签行；页签改为单一 `role=tab` 按钮与相邻关闭控件，补 Home/End、关闭焦点衔接；移除重复 WebKit scrollbar 级联并同步 scrolling token。
+- 通过：`npm.cmd run typecheck`；`pnpm.cmd exec vitest run tests/editor-tabs.test.tsx tests/shortcuts.test.tsx tests/workspace-layout-app.test.tsx tests/book-overview-app.test.tsx --pool=threads --maxWorkers=1 --reporter=dot`（4 files / 21 tests）；`npm.cmd run build`；`git diff --check`。
+- 备注：测试输出含既有 StatusBar act 警告、Tauri invoke mock 警告；不影响通过。构建保留既有动态导入和大 chunk warning。未验证 Tauri 原生窗口、Firefox/真实 WebView scrollbar 差异、完整尺寸/缩放矩阵和全量门禁。
+
+## 2026-09-20 UI/UX 第二批：Agent 连续交互与审阅反馈
+
+- 实施：Composer 运行中待发改为带 scope/id 的内存有序队列，切换/卸载清理并提供可取消列表；MessageList 增加 48px near-bottom 跟随、上滚 unread 回底入口且 mousedown 不抢 Composer 焦点；PatchReviewPanel 限制当前可见操作组、非文本/非 IME 快捷键并加 action in-flight 状态；useSuggestionWriteback 对接受/分块/旁注/拒绝加 token 防重复与旧 suggestion 失效。
+- 通过：`npm.cmd run typecheck`；`pnpm.cmd exec vitest run tests/editor-tabs.test.tsx tests/shortcuts.test.tsx tests/workspace-layout-app.test.tsx tests/book-overview-app.test.tsx tests/chat-window-lifecycle.test.tsx tests/message-list-scroll.test.tsx tests/chat-ux-polish.test.tsx tests/chat-run-live-region.test.tsx tests/patch-review-panel.test.tsx tests/behavior/patch-rejection.test.tsx tests/behavior/auto-writeback.test.tsx --pool=threads --maxWorkers=1 --reporter=dot`（11 files / 85 tests）；`npm.cmd run build`；`pnpm.cmd exec prettier --check ...`；`git diff --check`。
+- 备注：测试有既有 React act/Tauri mock 警告；构建保留动态导入与大 chunk warning。未验证 Tauri 原生窗口、真实 provider/写回、完整尺寸/缩放矩阵、Firefox/真实 WebView 滚动条和全量门禁。
+
+## 2026-09-20 UI/UX 第二批补充复验
+
+- `pnpm.cmd exec vitest run tests/patch-review-panel.test.tsx tests/behavior/patch-rejection.test.tsx tests/behavior/auto-writeback.test.tsx --pool=threads --maxWorkers=1 --reporter=dot`：3 files / 39 tests passed。
+- `npm.cmd run typecheck`（`apps/desktop/frontend`）：通过；`git diff --check`：通过。
+- 额外覆盖：补丁写回失败后面板保留、状态可重试；旧 suggestion 异步完成不会释放新补丁 action 状态；接受/拒绝等操作防重复提交。
+
+## 2026-09-20 UI/UX 第三批：总览、设置、恢复与集成收口
+
+- 实施：总览长篇章节改为当前章附近 8 章窗口并提供“查看全部”手稿入口；编辑器读文件失败显示真实错误和可重试按钮，保留 request-id/model 隔离；恢复流程补 A→B→A 迟到结果回归。
+- 实施：Settings provider/polish 的读取、探测、保存和清除动作加入 scope/revision/request token 守卫，迟到结果不覆盖新输入；Toast action 按 item identity 防双击，处理中状态可见，失败保留通知并支持重试。
+- 通过：前端 `npm.cmd run typecheck`；定向 20 files / 150 tests。全量首跑发现 `Composer.tsx` 裸 `rounded` 违反现有 radius 规则；修复为 `rounded-sm` 后，`radius-scale` 与相关 3 files / 23 tests 通过，并复跑全量 `pnpm.cmd exec vitest run --pool=threads --maxWorkers=1 --reporter=dot`：106 files / 708 tests 全部通过。
+- 通过：`npm.cmd run build`；目标 ESLint（CSS 文件被配置忽略的既有 warning，无 error）；目标 Prettier；`git diff --check`；Trellis task validate。
+- 备注：测试仍有既有 React act、SSR `useLayoutEffect`、Tauri invoke mock 警告；build 保留 Tauri 动态导入和 Monaco 大 chunk warning。未验证 Tauri 真机、真实 provider/guarded writeback、屏幕阅读器听测、完整缩放矩阵；未运行根级 `pnpm verify`。
+- 后续复验：修正 `App.tsx` 行数回到 400 行并通过 `uv run pytest tests/test_source_code_standards.py -q`（16 passed）；根级 `pnpm.cmd verify` 全绿：API 1560 passed / 7 skipped、Ruff、sidecar smoke、OpenAPI drift 均通过。
+
+
+## 2026-09-24 公开测试版发布准备 · 规划初稿
+
+- 用户确认目标为 GitHub Release + 安装包的公开测试版，并授权本地 Trellis 规划；创建 `.trellis/tasks/09-24-public-beta-release`，状态 planning，含 PRD、设计和实施计划草案。首发平台等决策待确认。
+- 只读核查：`git status --short`、产品配置/发布脚本/更新检查/密钥存储源码；`gh repo view` 确认 PUBLIC、`gh release list` 无 Release；本地无 `.github/workflows`，远端最近查询的 CI 记录为历史失败，不推断当前提交失败。未读取实际密钥。
+- 历史验证结果仅引用 9 月 20 日记录，不作为本次安装包验收。未改产品代码；未构建、安装、调用真实模型、提交、推送或发布。
+- 规划校验：`python ./.trellis/scripts/task.py validate .trellis/tasks/09-24-public-beta-release` 通过，但 implement/check context 均为 0 条，仅结构检查，不满足实施就绪；`git diff --check` 通过。未执行 `task.py start`。
+
+### 2026-09-24 发布范围确认
+
+- 用户明确首发仅 Windows x64；同步更新发布任务 PRD、设计、执行计划与 task.json，排除 macOS/Linux/Windows ARM64 安装包，最低 Windows 版本和签名安排仍待决定。
+- 文档一致性断言通过：三份规划材料均含 Windows x64，任务仍为 planning。仅规划文档变更，无产品测试、构建、安装、提交或发布。
+
+### 2026-09-24 公开前签名门槛确认
+
+- 用户选择「准备签名后公开」；同步 PRD、设计、执行计划与 task.json，签名缺失/验证失败阻止公开发布，不自动降级未签名公测。尚未选择或采购签名证书/服务。
+- 规划一致性断言通过，任务仍为 planning；未改产品代码，未构建、调用真实模型或操作远端。
+
+### 2026-09-24 BYOK 产品方案确认
+
+- 用户确认首版 BYOK：用户自带模型 key 并直接承担提供商调用费用，不新增共享密钥、代付或充值服务；同步 PRD、设计、执行计划与 task.json。真实模型验收预算仍待独立确认。
+- 三份规划文档的 BYOK 一致性断言、planning 状态断言及 `git diff --check` 通过；仅更新规划材料和本报告，未改产品代码、调用模型或发布。
+
+### 2026-09-24 手动升级方式确认
+
+- 用户选择提示新版后手动下载安装；同步 PRD、设计、执行计划与 task.json。首版不新增自动下载/安装，仍要求真实制品下载入口、升级数据保留和恢复验证。
+- 规划断言及 `git diff --check` 通过；任务保持 planning，未改产品代码、构建或发布。
+
+### 2026-09-24 已有改动纳入原则确认
+
+- 用户选择现有 UI/UX 优化、API 清理及契约变更经审查验证后纳入公测；同步三份规划材料及任务元数据。临时日志、缓存、私有配置及无关文件排除，但不删除；该选择不是产品改动、提交或推送授权。
+- 文档断言及 `git diff --check` 通过，仍为 planning。具体候选差异尚未完成审计，不宣称这些变动已通过发布验收。
+
+### 2026-09-24 首版 Windows 支持范围确认
+
+- 用户选择仅承诺 Windows 11 x64；更新 PRD、设计、执行计划和任务元数据，不承诺 Windows 10，不据此新增 OS 硬拦截。具体测试系统版本将在验收证据中注明。
+- 三份规划文档的系统范围断言、planning 状态断言及 `git diff --check` 通过；仅更新规划材料，未更改产品代码或执行安装验收。
+
+### 2026-09-24 个人发布与签名主体确认
+
+- 用户选择个人名义发布和申请签名；同步三份规划材料及 task.json。签名服务资格、地区适用性及成本仍待官方资料核实，不假定证书可用，不采购或索取私钥/身份证件。
+- 个人主体文档一致性断言、planning 状态断言及 `git diff --check` 通过；未改产品代码或操作远端。
+
+### 2026-09-24 受限许可方向确认
+
+- 用户希望保留商用或再分发限制；更新规划材料与任务元数据，明确软件转售/托管、修改版分发与作者商业写作的边界尚未确认，不推断作品禁止盈利，不选定或新增许可证。
+- 三份规划材料的许可方向断言、planning 状态断言及 `git diff --check` 通过；未修改产品代码、许可文件或远端内容。
+
+### 2026-09-24 软件商业分发与作者作品收益边界确认
+
+- 用户选择限制未经另行授权的软件转售/收费托管，但允许作者使用软件创作并赚取稿费等作品收益；更新 PRD、设计、执行计划及任务元数据。免费再分发条件和具体许可证仍待确认，不采用笼统禁止一切商业用途的表述。
+- 三份规划材料的边界断言、planning 状态断言及 `git diff --check` 通过；未新增 LICENSE、改变产品代码或对外发布授权条款。
+
+### 2026-09-24 修改版分发许可确认
+
+- 用户选择修改版即使免费对外分发也须事先许可；同步 PRD、设计、执行计划与任务元数据。原版免费再分发条件尚待确认，不把软件分发限制扩展为作者作品发布限制，未选定许可证或宣称限制已生效。
+- 三份规划文档的修改版分发规则断言、planning 状态断言及 `git diff --check` 通过；未修改产品代码、LICENSE 或远端资源。
+
+### 2026-09-24 原版安装包分发规则确认
+
+- 用户选择原版只分享官方下载链接，重新上传或镜像分发须事先许可；同步 PRD、设计、执行计划与 task.json。尚需核对公开源码平台与第三方组件许可边界，不宣称项目限制已生效或覆盖第三方权利。
+- 三份文档的下载入口规则断言、planning 状态断言及 `git diff --check` 通过；未改变产品代码、LICENSE、仓库可见性或远端资源。
+
+- 后续只读许可核查：已阅读 GitHub 官方服务条款 D.5、可见性变更文档及 Git 官方 GPL v2 文本，结合本地 MinGit notices 写入发布任务 `research/distribution-license-boundaries.md`。源码可见性策略仍待用户决定；未完成全量第三方合规审计，未变更远端。
+
+### 2026-09-24 保持源码公开确认
+
+- 用户选择源码继续公开并接受 GitHub 站内查看/fork；同步 PRD、设计、执行计划、许可研究与 task.json。软件/安装包商业及对外分发限制须保留平台和第三方权利例外，不私有化或新增分发仓库。
+- 规划文档的源码公开/fork 一致性断言、planning 状态断言及 `git diff --check` 通过；未新增许可证、修改产品代码或更改远端。
+
+- 个人签名资格初查：Microsoft 官方 Quickstart 将 Artifact Signing 个人公开信任申请范围列为美国/加拿大；已记录到 `research/personal-signing-eligibility.md`。申请人地区尚未知，不据语言或时区推断，不采购或变更签名门槛。
+
+### 2026-09-24 中国大陆个人签名资格与费用初查
+
+- 用户确认中国大陆个人主体；同步规划材料及签名研究。依据微软官方个人地域条件排除 Artifact Signing Public Trust；Certum Standard Cloud 与 SSL.com IV 仅列为询证候选，不承诺中国大陆受理。
+- 官方页面价格分别为 EUR 209 起（Certum 当前抓取显示缺货）、USD 129/年证书（SSL.com，云签名订阅或硬件另计）；不视为完整报价，不假定项目满足开源优惠资格。未询价、购买或收集证件。
+- 三份规划文档的地区断言、planning 状态断言及 `git diff --check` 通过；未改产品代码或发布。
+
+### 2026-09-24 最终许可证决定：标准 MIT
+
+- 用户在获知 MIT 允许商用及再分发后明确选择标准 MIT，覆盖此前受限分发意向；同步三份规划材料、许可/签名研究和 task.json，移除活动要求中转售/托管/原版或修改版分发须批准等限制。历史记录保留但不再作为实施依据。
+- 第三方许可证不变；贡献来源、版权署名和依赖审计待确认，根 LICENSE 尚未创建。开源签名计划资格需按 MIT 重新筛选，不自动承诺合格或购买。
+- 活动文档 MIT 一致性及旧要求消除断言、planning 状态断言、`git diff --check` 通过；未改产品代码、提交、推送或发布。
+
+### 2026-09-24 标准 MIT LICENSE 落地
+
+- 用户确认使用 MIT 及版权署名 XZZKANY；确认根目录无既有许可证后，以独占创建模式新增 `LICENSE`，写入完整标准 MIT，版权行为 `Copyright (c) 2026 XZZKANY`。仅同步相关规划状态，未改产品代码或第三方许可证。
+- 校验：从 SPDX 官方 MIT 文本取得参考，替换年份/署名后按空白归一化与本地正文完整比对通过；UTF-8 无 BOM、无尾随空格检查通过；`git diff --check` 通过；活动规划文档的署名/落地状态一致性断言通过。
+- LICENSE SHA-256：`1caea8bb502ed484b9a311ebc6965ec85cbfa5a6063e8242e58770aedabfa5c9`。
+- 未验证：已有代码授权来源、完整依赖许可审计及安装包携带许可；未跑产品测试（纯许可/规划文档变更）。整体任务仍 planning，未提交、推送、购买签名或发布。
+
+
+### 2026-09-24 发布工程拆分与只读研究
+
+- 继续 planning：建立三个子任务（Windows BYOK 密钥保护、公测更新入口与许可交付、候选安装包签名与真机验收）的 PRD/design/implement；首项整理真实上下文 manifests，未 start。
+- 保存候选清单与只读审查：当前 OpenAPI 相对 HEAD 移除 6 个路径/18 个 schema，保留路径操作无结构变更；动态调用兼容、删除测试的替代保护及全部当前测试仍未验证。新增相关测试列入候选，日志/缓存排除但未删除。
+- 官方资料研究：Windows 用户级 DPAPI 跨 Rust/Python 配置方案；MIT 后 Certum OSS/SignPath 资格与限制。官方资料不是 native 互操作、证书可购或大陆受理证明；未购买、询价或提交身份信息。
+- 检查通过：task.py validate 密钥子任务（implement 6/check 2 条真实引用）；父子关系、planning 状态、三份规划无 TBD 与 MIT/支持范围一致性断言；git diff --check。结构验证不等于产品通过或发布就绪。
+- 本轮只修改规划材料和本报告；未修改产品代码、读取真实 key、运行产品测试、构建安装包、调用付费模型、提交、推送或发布。首项工程等待用户审阅确认；后续渠道/版本、签名资源和模型验收预算仍待决定。
+
+
 ### 2026-09-24 Windows BYOK 密钥保护与迁移
 
 - 授权与范围：用户确认“嗯 开始吧”，启动 `09-24-beta-key-protection`。仅改动密钥存储/读取、启动配置边界、provider-health 配置错误映射和相关测试；未修改既有 UI/UX/API 路由清理差异，未迁移开发者真实 llm-provider.json，未调用真实模型或采购/发布。
@@ -3027,3 +3182,108 @@ pm.cmd run test -- tests/use-book-overview-chapters.test.tsx 3/3；目标 ESLint
 - 未验证/限制：未运行最终 PyInstaller/Tauri/NSIS 签名安装包及真实 GUI 迁移；未在另一 Windows 用户或另一机器实测；同用户恶意进程/内存取证/旧磁盘扇区擦除不属于 DPAPI 保护承诺。未知 schema/损坏 JSON 不自动重置，需显式修复；正常 v2 损坏密文可在设置逐槽位替换。此结果不等于发布就绪。
 - 实施结束时尚未暂存/提交/推送；临时日志和用户已有无关文件均保留且排除。
 - 提交授权：用户随后确认“现在提交”，只提交密钥保护清单和本条验证记录；不夹带先前改动，不推送。提交前复核 API 配置/provider-health 43 passed；Rust 密钥相关测试 14 passed（含原生 Rust/Python 互操作）。
+
+
+### 2026-09-25 Desktop UI/UX 完整方案交付（R1–R7）
+
+- 授权与范围：按用户“核心工作区重排”和“按照方案实施完再结束”推进父任务 `09-20-desktop-client-experience`。本任务产品变化仅 Desktop 及其验收工具；保留已有 API 清理、契约、License、其他任务报告和临时文件，不恢复 web/workflow、不改 API/DB/权限契约、不读取真实小说或调用付费模型。
+- 工作区与导航：保留项目—正文—Agent骨架，将返回总览并入页签行，正文顶部112→76px；紧凑hero/章节窗口、双主题层级、低于1008 CSS px显示降级不覆写偏好；修正无项目欢迎页被历史chat状态隐藏与默认布局恢复。页签键盘/脏文件确认、异步关闭不抢新焦点、IME/输入焦点快捷键边界均有回归。
+- Agent与审阅：单条可见可取消待发（第二次保留草稿，不隐式FIFO）、按阅读位置滚动、上下文去重且不隐藏缺失警告；专注diff/退出、隐藏与输入场景不误接受；跨scope事务目标捕获、同帧claim和完整写锁、真正await重试回执、迟到结果不清新补丁或作者输入。guarded writeback、漂移拒写、项目边界、写前快照与版本记录保留。
+- 恢复与可访问性：文件读取失败不挂旧model且可真实重试；Settings按槽位/请求身份合并新输入、跨槽共享配置写锁、保留已有DPAPI元数据契约；Toast异步动作防重复、pending停超时、失败可重试。最后审计发现Monaco JS平滑滚动不受CSS限制，补齐create/updateOptions/媒体change/cleanup，不重建Editor/model；新增3项先红后绿。CSS降低动效规则是静态核查，媒体生命周期测试使用模拟事件，不冒充系统设置或屏幕阅读器人工验收。
+- 最终 `pnpm.cmd verify`：**通过**。根ESLint/Prettier、Desktop TypeScript、shared/project-core、Desktop **111 files /790 tests**、API **1587 passed /7 skipped /6 warnings**、Ruff、daily源码sidecar、OpenAPI刷新零漂移。日志 `D:/StoryForge/.trellis/tasks/09-20-desktop-client-experience/evidence/verify-delivery.log`。此前787项版本两次通过记录作为历史保留，最终790已包含最后的动效修正。
+- 最终 `npm.cmd --prefix apps/desktop run verify:tauri-smoke`：**通过**，本进程设置 `NODE_OPTIONS=--max-old-space-size=6144`。包含最终frontend生产构建和真实Tauri/WebView2执行；日志 `evidence/tauri-smoke-delivery.log`。真实可见导航、overview/workspace节点保留、125%/150%缩放及100%恢复、未确认/拒绝不写盘、dirty drift拒写、确认写回、写前shadow Git快照、版本及author-loop证据均通过。
+- 原生几何：1400×900基线Editor708×798；125% CSS1120×720下Editor428×618、专注diff463.70px；150% CSS933×600下Editor625.33×498、专注diff383.83px。8个稳定快照均无文档横溢、按钮实际可达、patch/diff在Editor内、底部留白26px；恢复100%完整Editor矩形与基线一致。原始记录 `evidence/native-zoom-delivery-geometry.json`，不是CSS transform或浏览器等效尺寸冒充原生缩放。
+- 原生工具回归：`node --test apps/desktop/scripts/verify-tauri-smoke.test.mjs apps/desktop/scripts/native-smoke-ui.test.mjs` **14 passed**；`cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml smoke_ -- --nocapture` **6 passed**；本次Rust文件targeted rustfmt通过；`git diff --check`及Trellis上下文validate通过。Node几何/可见性夹具本身不算真实WebView证据，完整执行日志另存。
+- 浏览器：真实App隔离夹具双主题×1024×768/1440×900/1920×1080，欢迎/总览/正文/审阅/设置无文档横溢；补819×614和683×512窄窗。真实Monaco键盘输入→脏状态→总览往返→Ctrl+Z、Agent草稿保留、读取失败→重试正确文件、设置焦点返回、骨架hero248px不跳动均留截图/DOM证据；完整映射见任务 `research/final-acceptance.md`。
+- 失败与校准如实保留：默认Node4GB堆构建OOM后仅提高进程堆；Windows reqwest忽略ProxyOverride使loopback走代理502后，仅smoke子进程NO_PROXY合并绕过；旧原生导航断言与批准界面不符，改为真实可见入口但不删除安全断言；初次缩放探针放行过渡几何，新增先红后绿并加强稳定矩形后完整重跑，未放宽容差或改产品掩盖。
+- 边界：**生产启动的Windows系统代理loopback兼容风险仍未修复**（本轮只修隔离harness）；默认构建堆容量、既有Monaco大chunk/import warning和未触碰fs.rs格式差异已记录。未验安装包签名/发布、全套系统菜单与目录选择器人工流程、多显示器DPI、屏幕阅读器、在线provider多轮或长篇文学质量；不得将本次受控原生链路等同全部真实用户GUI验收。
+- 交付：Trellis父任务实施/验收完成但保留当前目录，不执行会自动提交的archive/add_session。代码**未暂存、提交或推送**。临时浏览器离开夹具并恢复viewport，自身Vite与原生临时服务已结束；截图、历史失败及最终成功日志保留，未清理用户无关文件。
+
+
+### 2026-09-25 作品库补齐与 Agent 空态返工
+
+- 用户验收纠正：启动先作品库；补明确新建/打开/最近作品与常驻返回入口。新建填写书名和本地目录，不要求提示词、不自动调用模型。删除用户截图中的四快捷项及空参考卡；仅按需上下文/真实警告保留。
+- 往返保留Editor/Agent挂载、正文撤销、草稿和待确认patch；上次现场在显式选择后恢复。独立审查修复迟到恢复抢新建/回库、native chooser重选同根清页签两处blocker，新增真实App五项通过并复审关闭。
+- 最终 `pnpm.cmd verify` **通过**：ESLint/Prettier、TypeScript、Shared/project-core、frontend **116 files /868 tests**、API **1587 passed /7 skipped /6 warnings**、Ruff、daily源码sidecar、OpenAPI零漂移。完整日志 `.trellis/tasks/09-25-desktop-project-home/evidence/verify-delivery-final.log`。
+- 最终 `npm.cmd --prefix apps/desktop run verify:tauri-smoke` **通过**（本进程Node堆6144MB）：含production build、真实可见库入口与往返、pending patch、guarded writeback/拒绝/漂移/写前快照/版本、125%/150%与100%恢复。日志同目录 `tauri-smoke-delivery-final.log`，8几何/9导航原始证据 `native-delivery-final-evidence.json`。
+- 新建切片75项、Agent定向91项、恢复/集成最终50项、Rust smoke6项/Node探针14项通过；这些为不同定向组合，不与868直接相加。完整浏览器双主题与683px最小窗口、真实Monaco撤销/未发送草稿验证见子任务 `research/browser-acceptance.md`。
+- 中途App407行触发400硬门禁，未调阈值/删安全测试；分组surface接线至400行后重新完整门禁通过，历史失败保留。HMR后绘制观测经干净reload不能复现，不做推测性修复。
+- 未验证：人工Windows目录选择器到实际新建全链；真实模型多轮/文学质量；签名安装包。既有生产loopback系统代理风险和大chunk警告不宣称已解决。没有覆盖用户API清理等无关改动，也无真实作品IO。
+- Trellis child `09-25-desktop-project-home` 完成，父任务的旧完成记录已补用户返工说明。未暂存/提交/推送，不执行自动提交归档或journal脚本；临时浏览器与自有Vite已收尾。详细最终报告见子任务 `research/final-acceptance.md`。
+
+
+### 2026-09-25 Agent 输入区整体重设计
+
+- 用户同意整体改造截图中的输入区。仅两项产品组件：Composer 一体式框体、短提示、引用上移、32px 固定工具行和独立发送；PermissionProfileSelector 轻量入口、按 Composer 对齐菜单、完整键盘/IME/禁用保护。默认询问、四档业务权限、提交 owner、待发和项目持久化不变；form 新增空白/disabled 防护。
+- 最终 `pnpm.cmd lint`、`npm.cmd --prefix apps/desktop/frontend run typecheck`、`npm.cmd --prefix apps/desktop/frontend run test`（**117 files / 899 tests**）、`npm.cmd --prefix apps/desktop/frontend run build` 全部通过；仅本进程设置 Node 堆 6144MB，原有大 chunk 警告未掩盖。日志 `.trellis/tasks/09-25-desktop-composer-refinement/evidence/`。`git diff --check` 与 Trellis context validate 通过。
+- 权限新增预期先红后绿，定向27项通过；新增 Composer15项因并行产品已到位首次即通过，如实保留，不制造先红记录。全前端包含新旧回归，不把定向数量重复累加。
+- 实际浏览器内存夹具：双主题1024×768/320px Agent栏、四引用+N、Shift+Enter、@剧情补全、权限方向键不改档位/Esc返回入口；菜单与发送按钮无横溢。683×512键盘/浮层几何也通过，但夹具控制条遮挡底部部分区域，不宣称所有鼠标命中已验。截图及完整步骤见任务 `research/final-acceptance.md`。
+- 未验证：本次最终版本的全栈pnpm verify/API/native写回、真实OS输入法、在线模型和签名安装包；此前任务原生门禁是历史，不冒充本次执行。无真实作品IO，不改变API/契约或既有无关差异。
+- Trellis子任务完成，规范补齐；浏览器离开夹具并恢复viewport，自有Vite已结束。未暂存、提交、推送或运行自动提交归档/journal。
+
+
+### 2026-09-25 客户端整体去分割线
+
+- 用户明确“整体”，本轮覆盖主壳、实际侧栏/Agent内容表面、作品库/总览/设置，去普通横竖边线与重复卡框；选中改圆角填充。表单、焦点、弹层、安全提示和diff边界保留，未全局透明border。调宽5px/ARIA/原owner保留，新增活动标记与focus/drag高亮；无业务/布局持久化/挂载/API/权限变化。
+- 最终根 `pnpm.cmd lint`、frontend `typecheck`、`test`（**118 files / 905 tests**）、`build`均通过；当前进程Node堆6144MB，既有大chunk警告保留。`git diff --check`、Trellis validate通过。完整日志 `.trellis/tasks/09-25-desktop-borderless-surfaces/evidence/`。
+- 新增4项静态表面契约、2项调宽行为回归；独立增量审查通过。before备份最初以tsx保存被lint扫描，改自有备份为txt后重跑全门禁通过，不豁免规则；原失败保留。
+- 浏览器内存夹具：深浅色1280/1024主工作区、库/总览/设置、683compact与Agent切换；0px主壳边线、5px键盘调宽焦点/复位、1024下正文420/Agent320、全窗口无文档横溢、草稿往返保持。hero骨架与正式均248px且章节区top428.5不变。最终截图 `workspace-dark-delivery.png`；详细过程见任务 `research/final-acceptance.md`。
+- 未验：当前最终版本全栈/API/native写回/原生拖窗、真实浏览器pointer拖拽（活动由组件测试覆盖）、在线provider/安装包。夹具503和手稿读取失败不等于产品在线数据成功；无真实作品IO。
+- 临时Vite/浏览器已收尾，Trellis完成但保留目录；未暂存、提交、推送或自动提交归档。原有API清理/契约及其他dirty文件不恢复；本轮增量与before另存，不把历史diff冒充本轮。
+
+
+### 2026-09-25 近黑配色与部分主分割线恢复
+
+- 用户纠正上一轮去线过度且背景偏浅：深色画布/导航/浮层/选中改为#101012/#161618/#1d1d20/#29292d；文字/语义色不动，浅色token完整比对不变。仅恢复顶栏下沿、底栏上沿、侧栏右沿、Agent左沿的暗色1px低对比边界，不恢复小区域网格线。Monaco正文/gutter/滚动条同步，浅色主题对象不变。
+- 最终根 `pnpm.cmd lint`、frontend `typecheck`、`test`（**119 files / 909 tests**）、`build`全部通过；进程Node堆6144MB，既有大chunk警告保留。`git diff --check`、Trellis validate通过；日志 `.trellis/tasks/09-25-desktop-borderless-surfaces/evidence/palette/`。
+- 真实浏览器内存夹具：深色正文+diff两侧三实例均rgb(16,16,18)，四主边线1px rgba(52,52,57,.6)；切浅色三实例rgb(247,247,248)、主边线0px。1024窄窗正文420/Agent320、无横溢且草稿保留。最终预览 `workspace-dark-delivery.png`、计算值 `browser-probes.json`。拒绝了验收内存补丁，未接受/真实写回。
+- 未重跑全栈/API/native/安装包，未调用真实模型。此前全去线方案已按用户校准修正规范，旧905项报告/截图仅作历史；本次审美仍待用户确认，测试不代替观感。
+- Trellis已记录，产品6文件最小增量与before分存；浏览器/自有Vite已收尾。未暂存、提交、推送或自动提交归档，未恢复无关dirty文件。
+
+
+---
+
+## 2026-09-25 Desktop UI/UX 全维度审查与 P1 修复
+
+### 背景
+
+工作树沉淀�?119 个未提交改动�?9019/-6924 行，桌面�?UI/UX 大改），用户要求评估"UI/UX 是否还有优化空间"。本次采�?5 个并行只读审查代理（壳层导航/写作工作�?Agent 对话/作品库设置知�?视觉系统可访问性）+ 主代理交叉核验完成全维度审查，并顺手修复 2 �?P1 级缺陷�?
+### 审查产出
+
+5 份审查报告落�?`.codex/reviews/`�?- `shell-nav-ux-review-2026-08-07.md`（壳层与导航�?- `editor-workspace-ux-review-2026-08-07.md`（写作工作台�?- `visual-a11y-ux-review-2026-08-07.md`（视�?可访问性）
+- Agent 对话和作品库设置知识的详报在子代理消息中（本会话已读取核实）
+
+### 已修复的 P1 缺陷
+
+**P1-1 消息列表性能死路**：`panels.tsx:272` 此前 `key={index}` �?MessageItem �?memo。Agent step 事件高频�?20/秒）时，整列表含每条 assistant 消息�?react-markdown 全量重渲染。修复：稳定 key（djb2 hash role+content�? React.memo；新�?`tests/message-list-memo.test.tsx`�? 测试）验�?DOM 节点 identity 保留�?
+**P1-2 waiting 死路**：`useRunAuthorAgent.ts` 在两种情况下把前端置于无法逃出�?等待确认"状态：
+- repair patch 缺少 approval_command（`repairProposal.command === null`）时，仍�?`requires_user_confirmation` �?waiting；前�?RunActionBar 的「接�?拒绝」依�?`approvalStep.patchId`，缺失时按钮静默无效，composer 被锁，作者只能切会话�?- 纯文本总结（无 proposed patch / repair / review / chapterBrief）若后端错误地置 requires_user_confirmation，同样死路�?
+修复：仅在有真实批准路径时才允许 waiting——repair �?`command !== null`，fallback �?`responseChapterBrief`。新�?`tests/agent-waiting-dead-end.test.ts`�? 测试）�?
+### 副产�?
+- `useRunAuthorAgent.ts` 行数恰好压到 500（Desktop live-module 硬限）�?- `panels.tsx` 通过 memo 导入�?
+### 验证
+
+| 门禁 | 结果 |
+|---|---|
+| `pnpm verify` | exit 0�?1 步骤全过：根静�?桌面 typecheck/shared 契约/project-core/桌面单元 914 测试/API 1592 测试/ruff/sidecar daily 冒烟/OpenAPI 零漂移） |
+| `npm --prefix apps/desktop/frontend run typecheck` | 0 �?|
+| `npm --prefix apps/desktop/frontend run test` | 121 文件 914 测试全绿（新�?5 个：2 memo + 3 dead-end�?|
+| API 源码规范测试 | 16 通过（useRunAuthorAgent.ts 恰好 500 行不�?Desktop live-module 硬限�?|
+| `pnpm lint` | 0 �?0 �?|
+| OpenAPI drift | 零漂�?|
+
+测试基线从原 909 增至 914（净 +5）�?
+### 剩余 P2（未动）
+
+本次只修 P1。已识别但未修（详见审查报告）：
+- 键盘契约：Ctrl+2 �?compact 失效但污染存储偏好、Ctrl+Shift+E/F/M/O �?library 态仍全局生效
+- 布局死区：compact 断点 1008px �?Tauri minWidth 1024px 之间 16px 死区
+- 可达性：knowledge 视图 title 英文/无快捷键/无命令面板条目；封面空态指向断路；"专用润色模型"分组无导航锚�?- 反馈：漂移拒�?可重�?误导；编辑器区无权限档位被动指示；Ctrl+W 无可发现入口；激活页签关闭按�?hover 反馈不可�?- 视觉/可访问性微调：浅色主题 editorLineNumber 3.04:1 不达 AA；text-warning/text-success 浅色文字色不�?AA；CommandPalette 列表�?listbox 语义
+
+按主题分批小步修，每批独立可回滚�?
+### 真机验证待办
+
+- 1024×768 balanced 实际渲染（compact 死区是否真溢出）
+- compact �?Windows 125%/150% 缩放体感
+- 浅色主题卡片化整体观�?- 10 万字单文件写�?`normalizeEol(model.getValue())` 耗时
+- 会话切换中阅读位置是否保�?

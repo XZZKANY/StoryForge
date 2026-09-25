@@ -6,13 +6,13 @@
 /* StoryForge 桌面 IDE 中性深色调 —— 颜色 token 以空格分隔 RGB 通道暴露，
    供 Tailwind 的 rgb(var(--x) / <alpha-value>) 透明度修饰符使用。 */
 :root {
-  /* 深色层级阶梯：柔和中深灰画布,四档拉开纵深但对比克制。 */
-  --background: 28 28 31; /* #1c1c1f 画布底 */
-  --panel: 36 36 41; /* #242429 导航/头部面板 */
-  --surface: 45 45 51; /* #2d2d33 卡片/输入框 */
-  --elevated: 57 57 64; /* #393940 hover/抬升态 */
-  --border: 58 58 65; /* #3a3a41 发丝描边 */
-  --border-strong: 76 76 84; /* #4c4c54 强调描边（聚焦） */
+  /* 近黑画布：导航略提亮，卡片与交互再各抬一档，不用浅灰铺满工作区。 */
+  --background: 16 16 18; /* #101012 画布底 */
+  --panel: 22 22 24; /* #161618 导航/Agent/头部 */
+  --surface: 29 29 32; /* #1d1d20 卡片/浮层 */
+  --elevated: 41 41 45; /* #29292d hover/选中态 */
+  --border: 52 52 57; /* #343439 控件描边 */
+  --border-strong: 72 72 79; /* #48484f 强调描边 */
   --foreground: 237 237 237; /* #ededed 主文本 */
   --muted: 168 168 178; /* #a8a8b2 次级文本（提升对比度至 4.5:1+） */
   --subtle: 163 163 174; /* #a3a3ae 提示文本：含 elevated 表面均达到普通文字 AA */
@@ -149,8 +149,40 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--sf-item-gap);
-  border-bottom: 1px solid var(--divider);
   padding: 0 var(--sf-panel-x);
+}
+
+/* 仅深色主区域留低对比细边界，不恢复各标题/列表的网格线；浅色保持原样。 */
+:root:not([data-theme='light']) .sf-shell-edge-bottom {
+  border-bottom: 1px solid var(--divider);
+}
+
+:root:not([data-theme='light']) .sf-shell-edge-top {
+  border-top: 1px solid var(--divider);
+}
+
+:root:not([data-theme='light']) .sf-shell-edge-right {
+  border-right: 1px solid var(--divider);
+}
+
+:root:not([data-theme='light']) .sf-shell-edge-left {
+  border-left: 1px solid var(--divider);
+}
+
+/* 调宽热区的强调只在作者交互时出现，不因保留主边界而删除热区。 */
+.sf-panel-resize {
+  background: transparent;
+  transition: background-color var(--transition-fast);
+}
+
+.sf-panel-resize:hover {
+  background: rgb(var(--accent) / 0.35);
+}
+
+.sf-panel-resize:focus-visible,
+.sf-panel-resize[data-resizing='true'] {
+  background: rgb(var(--accent) / 0.65);
+  outline: none;
 }
 
 .sf-tree-row {
@@ -195,7 +227,8 @@ body {
   scrollbar-color: transparent transparent;
 }
 
-*:hover {
+*:hover,
+*.scrolling {
   scrollbar-color: rgb(var(--border-strong) / 0.55) transparent;
 }
 
@@ -488,30 +521,6 @@ body {
   outline-offset: 2px;
   box-shadow: 0 0 0 4px rgb(var(--agent) / 0.12);
   border-radius: var(--radius-sm);
-}
-
-/* 滚动条优化（更细腻） */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 50%;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgb(var(--border-strong) / 0.4);
-  border: 2px solid transparent;
-  border-radius: 50%;
-  background-clip: padding-box;
-  transition: background-color var(--transition-base);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--border-strong) / 0.7);
-  background-clip: padding-box;
 }
 
 /* 工具提示样式（统一） */

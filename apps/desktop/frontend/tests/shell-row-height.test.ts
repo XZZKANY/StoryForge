@@ -16,7 +16,6 @@ const HEADER_ELEMENTS = [
   { file: '../src/components/shell/ObservatoryView.tsx', testid: 'observatory-header' },
   { file: '../src/components/shell/ManuscriptView.tsx', testid: 'manuscript-header' },
   { file: '../src/components/shell/BookProfileView.tsx', testid: 'book-profile-header' },
-  { file: '../src/components/app/WelcomeWorkspace.tsx', testid: 'welcome-tabbar' },
 ];
 
 function openingTag(source: string, testid: string): string {
