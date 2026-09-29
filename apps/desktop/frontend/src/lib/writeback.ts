@@ -4,6 +4,7 @@
  */
 
 export type WritebackSnapshot = { timestamp: number };
+export type WritebackQueue = <T>(task: () => Promise<T>) => Promise<T>;
 
 export type GuardedWritebackEffects<TRecord> = {
   /** 内容有变时先取写前快照；抛出即向上传播、write/record 不再执行（F27）。 */
@@ -74,7 +75,7 @@ export function canUndoWriteback(
  * 先取到的旧内容可能在新内容之后落盘，造成静默回退。model 身份守卫只保护 UI 结算，不防写盘乱序。
  * 前一个任务无论成败都放行下一个，否则一次保存失败会永久堵死保存链。
  */
-export function createWritebackQueue(): <T>(task: () => Promise<T>) => Promise<T> {
+export function createWritebackQueue(): WritebackQueue {
   let tail: Promise<unknown> = Promise.resolve();
   return <T>(task: () => Promise<T>): Promise<T> => {
     const run = tail.then(task, task);

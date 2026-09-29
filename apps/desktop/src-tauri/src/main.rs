@@ -2,13 +2,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod fs;
+mod fs_writeback_receipts;
 mod llm_config;
 mod llm_config_store;
 mod runtime_paths;
 mod secret_protection;
 mod shadow_git;
 mod smoke_ui;
-mod watcher;
 
 use anyhow::{Context, Result};
 use runtime_paths::is_smoke_mode;
@@ -882,6 +882,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 hasPatchReview: Boolean(document.querySelector('[data-testid="patch-review"]')),
                 hasPatchRejectConfirm: Boolean(document.querySelector('[data-testid="patch-reject-confirm"]')),
                 hasSuggestionReview: Boolean(document.querySelector('[data-testid="patch-review"], [data-testid="suggestion-review"]')),
+                patchActionStatusText: visible(find('patch-action-status')) ? find('patch-action-status').textContent ?? '' : '',
                 errorToastText: Array.from(document.querySelectorAll('[data-testid="toast-item"][data-tone="error"]')).map((item) => item.textContent ?? '').join('\n'),
                 successToastText: Array.from(document.querySelectorAll('[data-testid="toast-item"][data-tone="success"]')).map((item) => item.textContent ?? '').join('\n'),
                 fileCount: Number(document.querySelector('[data-testid="file-list"]')?.getAttribute('data-file-count') ?? document.querySelectorAll('[data-testid="file-item"]').length),
@@ -1210,6 +1211,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                     return {{ proposed: false, reason: 'missing-propose-revision' }};
                   }}
                   smoke.proposeRevision({{
+                    id: 'smoke-file-revision',
                     filePath: {},
                     before: {},
                     after: {},
@@ -1361,8 +1363,9 @@ fn run_smoke_probe<R: tauri::Runtime>(
             fail_smoke!();
         }
 
+        let disk_drift_propose_script = propose_script.replace("smoke-file-revision", "smoke-disk-drift");
         let repropose_result =
-            match eval_window_json(&window, &propose_script, Duration::from_millis(1500)) {
+            match eval_window_json(&window, &disk_drift_propose_script, Duration::from_millis(1500)) {
                 Ok(value) => value,
                 Err(error) => {
                     eprintln!("Smoke 失败: 无法重新注入建议补丁: {}", error);
@@ -1386,6 +1389,53 @@ fn run_smoke_probe<R: tauri::Runtime>(
             },
         ) {
             eprintln!("Smoke 失败: 重新注入 proposed patch diff 未显示: {}", error);
+            fail_smoke!();
+        }
+
+        // R3: change only the real disk after proposal creation. Monaco stays at
+        // the accepted input baseline, so only the native disk guard can refuse it.
+        let external_revision = "# Chapter 1\n\nExternal disk edit during review\n";
+        let records_before_drift = count_files_under(&smoke_project.join(".storyforge").join("author-loop"));
+        if let Err(error) = std_fs::write(&smoke_file, external_revision) {
+            eprintln!("Smoke 失败: 无法准备磁盘漂移夹具: {error}");
+            fail_smoke!();
+        }
+        if let Err(error) = click_window_test_id(&window, "suggestion-accept") {
+            eprintln!("Smoke 失败: 无法触发磁盘漂移确认: {error}");
+            fail_smoke!();
+        }
+        if let Err(error) = wait_for_window_state(
+            &window, snapshot_script, 100, Duration::from_millis(200),
+            |value| {
+                value.get("patchActionStatusText").and_then(|entry| entry.as_str())
+                    .map(|status| status.contains("磁盘内容已变化")).unwrap_or(false)
+                    && has_bool(value, "patchVisible", true)
+                    && has_bool(value, "patchActionBusy", false)
+            },
+        ) {
+            eprintln!("Smoke 失败: 磁盘单独漂移未被拒写: {error}");
+            fail_smoke!();
+        }
+        let buffer_after_drift = eval_window_json(
+            &window,
+            "(() => ({ content: window.__STORYFORGE_SMOKE__?.getCurrentEditorContent?.() }))()",
+            Duration::from_millis(1500),
+        ).unwrap_or(serde_json::Value::Null);
+        if std_fs::read_to_string(&smoke_file).ok().as_deref() != Some(external_revision)
+            || buffer_after_drift.get("content").and_then(|value| value.as_str()) != Some(before_revision)
+            || count_files_under(&smoke_project.join(".storyforge").join("author-loop")) != records_before_drift
+        {
+            eprintln!("Smoke 失败: 磁盘漂移拒写后文件/缓冲/成功记录不一致: {buffer_after_drift}");
+            fail_smoke!();
+        }
+        println!("Desktop native disk-drift evidence: external-content-preserved=true buffer-unchanged=true patch-pending=true success-record-added=false");
+        if let Err(error) = std_fs::write(&smoke_file, before_revision) {
+            eprintln!("Smoke 失败: 无法重置磁盘漂移夹具: {error}");
+            fail_smoke!();
+        }
+        let restored_proposal = eval_window_json(&window, &propose_script, Duration::from_millis(1500));
+        if !restored_proposal.as_ref().map(|value| has_bool(value, "proposed", true)).unwrap_or(false) {
+            eprintln!("Smoke 失败: 磁盘漂移后无法重新投递正常补丁");
             fail_smoke!();
         }
 
@@ -1433,7 +1483,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
             Duration::from_millis(150),
             |value| {
                 value
-                    .get("errorToastText")
+                    .get("patchActionStatusText")
                     .and_then(|entry| entry.as_str())
                     .map(|status| status.contains("旧补丁不能直接写回"))
                     .unwrap_or(false)
@@ -1490,6 +1540,21 @@ fn run_smoke_probe<R: tauri::Runtime>(
             fail_smoke!();
         }
 
+        // Observe the native adapter, not Tauri's read-only invoke bridge. The
+        // opt-in probe delegates unchanged arguments and drops only an applied,
+        // persisted write receipt after the real native roundtrip has completed.
+        let ack_loss_probe = r#"(() => {
+            const smoke = window.__STORYFORGE_SMOKE__;
+            if (!smoke?.installWritebackProbe) return { installed: false };
+            return smoke.installWritebackProbe('drop-first-write-reply');
+        })()"#;
+        match eval_window_json(&window, ack_loss_probe, Duration::from_millis(1500)) {
+            Ok(value) if has_bool(&value, "installed", true) => {}
+            result => {
+                eprintln!("Smoke 失败: 无法安装写回回执丢失观测: {:?}", result);
+                fail_smoke!();
+            }
+        }
         if let Err(error) = click_window_test_id(&window, "suggestion-accept") {
             eprintln!("Smoke 失败: 无法点击接受以确认写回补丁: {}", error);
             fail_smoke!();
@@ -1523,6 +1588,19 @@ fn run_smoke_probe<R: tauri::Runtime>(
         };
 
         let disk_after_accept = std_fs::read_to_string(&smoke_file).unwrap_or_default();
+        let ack_loss_counts = eval_window_json(&window,
+            "(() => { const smoke = window.__STORYFORGE_SMOKE__; const counts = smoke.getWritebackProbeSnapshot(); smoke.restoreWritebackProbe(); return counts; })()",
+            Duration::from_millis(1500));
+        if !ack_loss_counts.as_ref().map(|value| {
+            value.get("writes").and_then(|entry| entry.as_u64()) == Some(1)
+                && value.get("dropped").and_then(|entry| entry.as_u64()) == Some(1)
+                && value.get("inspections").and_then(|entry| entry.as_u64()).unwrap_or(0) >= 2
+                && value.get("audits").and_then(|entry| entry.as_u64()).unwrap_or(0) >= 1
+        }).unwrap_or(false) {
+            eprintln!("Smoke 失败: 已提交写回的丢失回执未通过只读核对恢复: {:?}", ack_loss_counts);
+            fail_smoke!();
+        }
+        println!("Desktop native ack-loss evidence: dropped-after-commit=1 native-write-dispatch=1 recovered-by-inspect=true audit-recorded=true");
         if disk_after_accept != after_revision {
             eprintln!(
                 "Smoke 失败: 确认写回后磁盘内容未变化，实际内容: {}",
@@ -1580,6 +1658,77 @@ fn run_smoke_probe<R: tauri::Runtime>(
             eprintln!("Smoke 失败: 作者闭环记录缺失或内容不正确");
             fail_smoke!();
         }
+
+        // R7: repeat an already-applied operation through the real UI/native bridge.
+        // Observe command names only; this probe must not capture IPC payloads.
+        let versions_before_retry = count_files_under(&versions_dir);
+        let records_before_retry = count_files_under(&author_loop_dir);
+        let later_edit = "# Chapter 1\n\nAuthor edits after confirmed writeback\n";
+        let probe_script = format!(
+            r#"(() => {{
+                const smoke = window.__STORYFORGE_SMOKE__;
+                if (!smoke?.installWritebackProbe) return {{ installed: false }};
+                const probe = smoke.installWritebackProbe('observe');
+                const changed = probe.installed && smoke.setCurrentEditorContent({});
+                return {{ ...probe, changed }};
+            }})()"#,
+            serde_json::to_string(later_edit).unwrap()
+        );
+        match eval_window_json(&window, &probe_script, Duration::from_millis(1500)) {
+            Ok(value) if has_bool(&value, "installed", true) && has_bool(&value, "changed", true) => {}
+            result => {
+                eprintln!("Smoke 失败: 无法安装回执重入观测: {:?}", result);
+                fail_smoke!();
+            }
+        }
+        match eval_window_json(&window, &propose_script, Duration::from_millis(1500)) {
+            Ok(value) if has_bool(&value, "proposed", true) => {}
+            result => {
+                eprintln!("Smoke 失败: 无法再次投递同一已应用提案: {:?}", result);
+                fail_smoke!();
+            }
+        }
+        // A remounted panel starts with opacity zero. Poll the same hit-test as
+        // the real click without dispatching it; never retry an ambiguous click.
+        let repeat_ready = smoke_ui::click_ready_script("[data-testid=\"suggestion-accept\"]");
+        if let Err(error) = wait_for_window_state(&window, &repeat_ready, 50, Duration::from_millis(200),
+            |value| has_bool(value, "ready", true)) {
+            eprintln!("Smoke 失败: 同一已应用提案确认按钮未就绪: {error}");
+            fail_smoke!();
+        }
+        if let Err(error) = click_window_test_id(&window, "suggestion-accept") {
+            eprintln!("Smoke 失败: 无法点击同一已应用提案的确认按钮: {error}");
+            fail_smoke!();
+        }
+        if wait_for_window_state(&window, snapshot_script, 100, Duration::from_millis(200), |value| {
+            !has_bool(value, "hasPatchReview", true)
+                && value.get("editorPreview").and_then(|entry| entry.as_str())
+                    .map(|preview| preview.contains("Author edits after confirmed writeback")).unwrap_or(false)
+        }).is_err() {
+            eprintln!("Smoke 失败: 回执恢复覆盖了作者后续编辑或补丁未结算");
+            fail_smoke!();
+        }
+        let counts = eval_window_json(&window,
+            "(() => { const smoke = window.__STORYFORGE_SMOKE__; const counts = smoke.getWritebackProbeSnapshot(); smoke.restoreWritebackProbe(); return counts; })()",
+            Duration::from_millis(1500));
+        let buffer_after_receipt = eval_window_json(&window,
+            "(() => ({ content: window.__STORYFORGE_SMOKE__?.getCurrentEditorContent?.() }))()",
+            Duration::from_millis(1500)).unwrap_or(serde_json::Value::Null);
+        let valid_counts = counts.as_ref().map(|value| {
+            value.get("writes").and_then(|entry| entry.as_u64()) == Some(0)
+                && value.get("inspections").and_then(|entry| entry.as_u64()).unwrap_or(0) >= 1
+                && value.get("audits").and_then(|entry| entry.as_u64()).unwrap_or(0) >= 1
+        }).unwrap_or(false);
+        if !valid_counts
+            || std_fs::read_to_string(&smoke_file).ok().as_deref() != Some(after_revision)
+            || buffer_after_receipt.get("content").and_then(|value| value.as_str()) != Some(later_edit)
+            || count_files_under(&versions_dir) != versions_before_retry
+            || count_files_under(&author_loop_dir) != records_before_retry
+        {
+            eprintln!("Smoke 失败: 重复确认执行了第二次写入或新增记录: {:?}", counts);
+            fail_smoke!();
+        }
+        println!("Desktop native receipt recovery evidence: native-write-dispatch=0 inspect=true audit-reused=true author-buffer-preserved=true disk-unchanged=true version-count-unchanged=true");
 
         println!(
             "Desktop Tauri smoke result: project={}, files={}, currentFile={}, preview={}, writebackPreview={}, shadowGitVersion={}, shadowGitPath={}, shadowRepositoryPath={}",
@@ -1706,19 +1855,21 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::clone(&manager))
-        .manage(watcher::WatcherManager::new())
         .manage(shadow_git::ShadowGitState::default())
         .invoke_handler(tauri::generate_handler![
             // 文件系统命令
             fs::read_file,
             fs::read_project_file,
             fs::write_file,
+            fs::write_file_if_unchanged,
+            fs_writeback_receipts::inspect_writeback_receipt,
+            fs_writeback_receipts::write_file_with_receipt,
+            fs_writeback_receipts::create_writeback_audit,
             fs::list_dir,
             fs::delete_path,
             fs::create_dir,
             fs::rename_path,
             fs::path_exists,
-            fs::get_file_info,
             fs::copy_into_project,
             fs::read_project_file_base64,
             get_api_config,
@@ -1730,10 +1881,6 @@ fn main() {
             shadow_git::release_shadow_snapshot,
             shadow_git::read_shadow_snapshot_file,
             shadow_git::filter_shadow_snapshot_hashes,
-            shadow_git::shadow_git_status,
-            // 文件监听命令
-            watcher::watch_file,
-            watcher::stop_watching,
         ])
         .setup(move |app| {
             if is_smoke_mode() {

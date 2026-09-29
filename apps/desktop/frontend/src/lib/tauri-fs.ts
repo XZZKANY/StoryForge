@@ -3,19 +3,28 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import type { FileEntry } from '@storyforge/project-core';
 import { assertTauriRuntime } from './tauri-env';
+import {
+  decodeWritebackReceipt,
+  type WritebackReceipt,
+  type WritebackRequest,
+} from './writeback-receipt-types';
+import {
+  createFixtureAudit,
+  inspectFixtureReceipt,
+  writeFixtureReceipt,
+} from './writeback-receipt-fixture';
 
 export type { FileEntry } from '@storyforge/project-core';
 
-export interface FileChangeEvent {
-  kind: 'created' | 'modified' | 'removed' | 'unknown';
-  paths: string[];
-}
+// Raw disk state from the last successful load/write, never a normalized editor buffer.
+export type DiskBaseline =
+  | { readonly kind: 'missing' }
+  | { readonly kind: 'content'; readonly content: string };
 
 /**
- * 本地文件系统被本进程改动（写入/新建/删除/改名/外部 watch 命中）后广播。
+ * 本地文件系统被本进程改动（写入/新建/删除/改名）后广播。
  * 资源树等派生视图监听此事件重新拉取——补丁写回、Agent 起草新文件后立即刷新，
  * 不再依赖视图切换重挂载或 5s 缓存过期才「过一会」显示。
  */
@@ -123,6 +132,89 @@ export class TauriFileSystem {
     }
   }
 
+  static async writeFileIfUnchanged(
+    projectRoot: string,
+    path: string,
+    content: string,
+    expected: DiskBaseline,
+  ): Promise<void> {
+    const mock = mockFs();
+    try {
+      if (mock) {
+        // Browser fixtures emulate the comparison, not native atomic replacement.
+        // Never silently fall back to an unconditional mock write.
+        if (!mock.pathExists || !mock.readFile || !mock.writeFile)
+          throw new Error('测试文件系统缺少磁盘基线检查能力');
+        const exists = await mock.pathExists(path);
+        const current = exists ? await mock.readFile(path) : null;
+        const matches =
+          expected.kind === 'missing' ? !exists : exists && current === expected.content;
+        if (!matches) throw new Error('磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突');
+        await mock.writeFile(path, content);
+        return;
+      }
+      assertTauriRuntime('TauriFileSystem.writeFileIfUnchanged');
+      await invoke('write_file_if_unchanged', { projectRoot, path, content, expected });
+    } finally {
+      invalidateListDirCache(path);
+    }
+  }
+
+  static async inspectWritebackReceipt(
+    projectRoot: string,
+    request: WritebackRequest,
+  ): Promise<WritebackReceipt | null> {
+    const mock = mockFs();
+    if (mock) return inspectFixtureReceipt(mock, projectRoot, request);
+    assertTauriRuntime('TauriFileSystem.inspectWritebackReceipt');
+    const result = await invoke<unknown>('inspect_writeback_receipt', { projectRoot, request });
+    return result === null ? null : decodeWritebackReceipt(result);
+  }
+
+  static async writeFileWithReceipt(
+    projectRoot: string,
+    request: WritebackRequest,
+    expected: DiskBaseline,
+    checkpointTimestamp: number | null,
+  ): Promise<WritebackReceipt> {
+    try {
+      const mock = mockFs();
+      if (mock)
+        return await writeFixtureReceipt(
+          mock,
+          projectRoot,
+          request,
+          expected,
+          checkpointTimestamp,
+          () => this.writeFileIfUnchanged(projectRoot, request.path, request.content, expected),
+        );
+      assertTauriRuntime('TauriFileSystem.writeFileWithReceipt');
+      return decodeWritebackReceipt(
+        await invoke<unknown>('write_file_with_receipt', {
+          projectRoot,
+          request,
+          expected,
+          checkpointTimestamp,
+        }),
+      );
+    } finally {
+      invalidateListDirCache(request.path);
+    }
+  }
+
+  static async createWritebackAudit(
+    projectRoot: string,
+    operationId: string,
+    content: string,
+  ): Promise<void> {
+    if (!/^[a-f0-9]{64}$/.test(operationId)) throw new Error('写回审计 operationId 无效');
+    const mock = mockFs();
+    if (mock) return createFixtureAudit(mock, projectRoot, operationId, content);
+    assertTauriRuntime('TauriFileSystem.createWritebackAudit');
+    await invoke('create_writeback_audit', { projectRoot, operationId, content });
+    invalidateListDirCache(projectRoot);
+  }
+
   static async listDir(path: string, recursive = false): Promise<FileEntry[]> {
     const cacheKey = listDirCacheKey(path, recursive);
     const cached = listDirCache.get(cacheKey);
@@ -187,31 +279,5 @@ export class TauriFileSystem {
     if (mock?.pathExists) return await mock.pathExists(path);
     assertTauriRuntime('TauriFileSystem.pathExists');
     return await invoke<boolean>('path_exists', { path });
-  }
-
-  static async getFileInfo(path: string): Promise<FileEntry> {
-    assertTauriRuntime('TauriFileSystem.getFileInfo');
-    return await invoke<FileEntry>('get_file_info', { path });
-  }
-
-  static async watchFile(
-    path: string,
-    callback: (event: FileChangeEvent) => void,
-  ): Promise<() => void> {
-    assertTauriRuntime('TauriFileSystem.watchFile');
-    const unlisten = await listen<FileChangeEvent>('file-change', (event) => {
-      for (const changedPath of event.payload.paths) {
-        invalidateListDirCache(changedPath);
-      }
-      callback(event.payload);
-    });
-
-    await invoke('watch_file', { path });
-    return unlisten;
-  }
-
-  static async stopWatching(): Promise<void> {
-    assertTauriRuntime('TauriFileSystem.stopWatching');
-    await invoke('stop_watching');
   }
 }

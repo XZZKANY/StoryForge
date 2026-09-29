@@ -16,7 +16,7 @@ pub(super) const DOM_HELPERS: &str = r#"
     const box = element.getBoundingClientRect();
     return box.width > 0 && box.height > 0;
   };
-  const click = (target) => {
+  const click = (target, probeOnly = false) => {
     if (!target) return { clicked: false, reason: 'missing-target' };
     if (!visible(target)) return { clicked: false, reason: 'hidden-target' };
     if (target.matches(':disabled') || target.closest('[aria-disabled="true"]')) return { clicked: false, reason: 'disabled-target' };
@@ -27,6 +27,7 @@ pub(super) const DOM_HELPERS: &str = r#"
     }
     const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
     if (!hit || (hit !== target && !target.contains(hit))) return { clicked: false, reason: 'occluded-target' };
+    if (probeOnly) return { ready: true };
     target.click();
     return { clicked: true, testId: target.getAttribute('data-testid'), filePath: target.getAttribute('data-file-path') };
   };
@@ -35,6 +36,13 @@ pub(super) const DOM_HELPERS: &str = r#"
 pub(super) fn click_script(selector: &str) -> String {
     format!(
         "(() => {{ {DOM_HELPERS} return click(document.querySelector({})); }})()",
+        serde_json::to_string(selector).expect("serialize smoke selector")
+    )
+}
+
+pub(super) fn click_ready_script(selector: &str) -> String {
+    format!(
+        "(() => {{ {DOM_HELPERS} return click(document.querySelector({}), true); }})()",
         serde_json::to_string(selector).expect("serialize smoke selector")
     )
 }

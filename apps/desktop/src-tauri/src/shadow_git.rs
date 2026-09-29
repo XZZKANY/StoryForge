@@ -75,20 +75,6 @@ pub struct ShadowHashFilterRequest {
     hashes: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ShadowStatusRequest {
-    project_root: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ShadowGitStatus {
-    git_version: String,
-    executable_path: String,
-    shadow_repository_path: String,
-}
-
 fn bundled_manifest() -> Result<BundledGitManifest, String> {
     serde_json::from_str(BUNDLED_GIT_MANIFEST)
         .map_err(|error| format!("无法解析内置 Git manifest: {error}"))
@@ -242,27 +228,6 @@ pub async fn filter_shadow_snapshot_hashes(
 ) -> Result<Vec<String>, String> {
     let core = core_for_app(&app, &state)?;
     run_blocking(move || core.filter_retained_hashes(&payload.project_root, &payload.hashes)).await
-}
-
-#[tauri::command]
-pub async fn shadow_git_status(
-    app: AppHandle,
-    state: State<'_, ShadowGitState>,
-    payload: ShadowStatusRequest,
-) -> Result<ShadowGitStatus, String> {
-    let core = core_for_app(&app, &state)?;
-    let executable_path = core.git_executable().to_string_lossy().to_string();
-    let status = run_blocking(move || {
-        let git_version = core.git_version()?;
-        let shadow_repository_path = core.repository_path(&payload.project_root)?;
-        Ok((git_version, shadow_repository_path))
-    })
-    .await?;
-    Ok(ShadowGitStatus {
-        git_version: status.0,
-        executable_path,
-        shadow_repository_path: status.1.to_string_lossy().to_string(),
-    })
 }
 
 impl From<CoreSnapshot> for ShadowSnapshot {

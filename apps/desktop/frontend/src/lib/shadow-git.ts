@@ -12,12 +12,6 @@ export type ShadowFileState = {
   content: string;
 };
 
-export type ShadowGitStatus = {
-  gitVersion: string;
-  executablePath: string;
-  shadowRepositoryPath: string;
-};
-
 export async function createShadowSnapshot(projectRoot: string): Promise<ShadowSnapshot> {
   assertTauriRuntime('createShadowSnapshot');
   return await invoke<ShadowSnapshot>('create_shadow_snapshot', {
@@ -62,12 +56,5 @@ export async function filterShadowSnapshotHashes(
   assertTauriRuntime('filterShadowSnapshotHashes');
   return await invoke<string[]>('filter_shadow_snapshot_hashes', {
     payload: { projectRoot, hashes },
-  });
-}
-
-export async function getShadowGitStatus(projectRoot: string): Promise<ShadowGitStatus> {
-  assertTauriRuntime('getShadowGitStatus');
-  return await invoke<ShadowGitStatus>('shadow_git_status', {
-    payload: { projectRoot },
   });
 }

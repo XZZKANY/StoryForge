@@ -109,7 +109,7 @@ fn validate_existing_mutation_path(project_root: &str, path: &Path) -> Result<()
     ensure_canonical_path_inside_project(&root, &candidate, path, false)
 }
 
-fn validate_pending_mutation_path(project_root: &str, path: &Path) -> Result<PathBuf, String> {
+pub(crate) fn validate_pending_mutation_path(project_root: &str, path: &Path) -> Result<PathBuf, String> {
     let root = canonical_project_root(project_root)?;
     if path.exists() {
         let candidate = fs::canonicalize(path)
@@ -149,6 +149,79 @@ pub fn write_file(project_root: String, path: String, content: String) -> Result
     Ok(())
 }
 
+/// 磁盘基线与编辑器补丁基线不同；空文件不等于文件不存在。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DiskBaseline {
+    Missing {},
+    Content { content: String },
+}
+
+#[tauri::command]
+pub fn write_file_if_unchanged(
+    project_root: String,
+    path: String,
+    content: String,
+    expected: DiskBaseline,
+) -> Result<(), String> {
+    let target = Path::new(&path);
+    let root = validate_pending_mutation_path(&project_root, target)?;
+    check_disk_baseline(target, &expected)?;
+    ensure_parent_inside_project(&root, target)?;
+    let staged = stage_atomic_write(target, content.as_bytes())
+        .map_err(|e| format!("无法写入临时文件 {}: {}", path, e))?;
+    commit_staged_write_if_unchanged(&root, target, &staged, &expected)
+}
+
+pub(crate) fn check_disk_baseline(target: &Path, expected: &DiskBaseline) -> Result<(), String> {
+    let metadata = match fs::symlink_metadata(target) {
+        Ok(metadata) => Some(metadata),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(format!("无法检查磁盘文件 {}: {}", target.display(), error)),
+    };
+    let matches = match (expected, metadata) {
+        (DiskBaseline::Missing {}, None) => true,
+        (DiskBaseline::Content { content }, Some(metadata)) if metadata.is_file() => {
+            let current = fs::read(target)
+                .map_err(|e| format!("无法读取磁盘文件 {}: {}", target.display(), e))?;
+            current == content.as_bytes()
+        }
+        _ => false,
+    };
+    if !matches {
+        return Err(format!(
+            "磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突: {}",
+            target.display()
+        ));
+    }
+    Ok(())
+}
+
+// 两次比较覆盖快照/暂存等待期间的漂移，但 compare→rename 并非跨进程 CAS；
+// 不先删除目标，失败只清理本次临时文件。内容相同的 ABA 不在此保护范围内。
+fn commit_staged_write_if_unchanged(
+    root: &Path,
+    target: &Path,
+    staged: &Path,
+    expected: &DiskBaseline,
+) -> Result<(), String> {
+    let commit = || {
+        validate_pending_mutation_path(&root.to_string_lossy(), target)?;
+        check_disk_baseline(target, expected)?;
+        fs::rename(staged, target)
+            .map_err(|e| format!("无法写入文件 {}: {}", target.display(), e))
+    };
+    let result = commit();
+    if result.is_err()
+        && validate_existing_mutation_path(&root.to_string_lossy(), staged).is_ok()
+    {
+        // A moved/relinked parent may no longer name our staged file. Never follow
+        // that path outside the original project merely to clean up residue.
+        let _ = fs::remove_file(staged);
+    }
+    result
+}
+
 /// 把内容写进目标同目录的临时文件并 sync 落盘，返回临时文件路径（尚未替换目标）。
 /// 拆成独立步骤是为了让「暂存绝不改动目标」这一原子性不变量可被单测证伪。
 fn stage_atomic_write(target: &Path, content: &[u8]) -> std::io::Result<PathBuf> {
@@ -166,12 +239,14 @@ fn stage_atomic_write(target: &Path, content: &[u8]) -> std::io::Result<PathBuf>
     // write/sync 失败（磁盘满、配额）也要删掉刚建的临时文件，否则 .{name}.tmp-* 残渣会
     // 在目标目录堆积（此前只有 rename 失败分支清理）。闭包作用域结束即 drop file 句柄，
     // 再 remove——Windows 下删一个仍打开的文件会失败，故必须先关句柄。
-    let write = || -> std::io::Result<()> {
-        let mut file = fs::File::create(&tmp)?;
+    // create_new 失败时该路径不属于本次写入，不能截断或清理他人的临时文件。
+    let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+    let result = (|| -> std::io::Result<()> {
         file.write_all(content)?;
         file.sync_all()
-    };
-    if let Err(err) = write() {
+    })();
+    drop(file);
+    if let Err(err) = result {
         let _ = fs::remove_file(&tmp);
         return Err(err);
     }
@@ -344,12 +419,6 @@ pub fn rename_path(project_root: String, from: String, to: String) -> Result<(),
 #[tauri::command]
 pub fn path_exists(path: String) -> bool {
     Path::new(&path).exists()
-}
-
-/// 获取文件信息
-#[tauri::command]
-pub fn get_file_info(path: String) -> Result<FileEntry, String> {
-    create_file_entry(Path::new(&path))
 }
 
 // ==================== 辅助函数 ====================
@@ -744,13 +813,17 @@ mod tests {
     }
 
     #[test]
-    fn get_file_info_reports_file_metadata() {
-        let temp = TempDir::new("file-info");
+    fn list_dir_reports_file_metadata() {
+        let temp = TempDir::new("list-metadata");
         let file_path = temp.join("chapter.markdown");
         write_file(temp.root(), file_path.clone(), "hello".to_string())
             .expect("file should be written");
 
-        let info = get_file_info(file_path.clone()).expect("file info should be available");
+        let entries = list_dir(temp.root(), false).expect("directory should be listed");
+        let info = entries
+            .iter()
+            .find(|entry| entry.path == file_path)
+            .expect("file metadata should be available");
 
         assert_eq!(info.name, "chapter.markdown");
         assert_eq!(info.path, file_path);
@@ -871,3 +944,7 @@ mod tests {
         assert!(error.contains("路径不在当前项目内"));
     }
 }
+
+#[cfg(test)]
+#[path = "fs_conditional_tests.rs"]
+mod conditional_tests;
