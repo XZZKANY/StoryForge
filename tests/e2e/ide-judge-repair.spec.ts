@@ -33,34 +33,44 @@ test('Assistant 修订契约保留请求与响应关键字段', () => {
   }
 });
 
-test('IDE Context Snapshot 契约保留上下文回放字段', () => {
-  assertOperation('/api/ide/context-snapshot/{compiled_context_id}', 'get', 'IDE 工作台');
-
-  const snapshot = openapi.components.schemas.IdeContextSnapshot;
-  for (const field of [
-    'compiled_context_id',
-    'injected_blocks',
-    'dropped_blocks',
-    'debug_summary',
-    'budget',
+// 旧 IDE 只读 HTTP 面已退役；内部服务/schema 保留，不恢复无 Desktop 调用方的路由。
+// 源码层的 test_source_pruning.py 同时守护 runtime 路由；这里守护发布给客户端的契约。
+test('IDE 已退役读路由不重新进入客户端契约', () => {
+  for (const path of [
+    '/api/ide/diagnostics',
+    '/api/ide/context-snapshot/{compiled_context_id}',
+    '/api/ide/artifacts/{artifact_id}/preview',
   ]) {
-    assert.ok(snapshot.properties[field], `Context Snapshot 必须包含 ${field}`);
+    assert.equal(openapi.paths[path], undefined, `已退役路由被重新暴露：${path}`);
   }
 });
 
-test('IDE 制品预览契约保留 context_href 回放链接', () => {
-  assertOperation('/api/ide/artifacts/{artifact_id}/preview', 'get', 'IDE 工作台');
-
-  const traceLink = openapi.components.schemas.IdeArtifactTraceLink;
-  assert.ok(traceLink.properties.context_href, '制品追踪链接必须包含 context_href');
+test('Agent 回放事件与产物契约保留顺序、证据和确认字段', () => {
+  for (const [suffix, schemaName, fields] of [
+    ['events', 'AgentRunEventRead', ['id', 'run_id', 'event_type', 'sequence', 'payload']],
+    ['artifacts', 'AgentArtifactRead', ['id', 'run_id', 'kind', 'payload', 'requires_confirmation']],
+  ]) {
+    const operation = assertOperation(`/api/agent-runs/{run_id}/${suffix}`, 'get', 'Agent Runtime');
+    const response = operation.responses['200'].content['application/json'].schema;
+    assert.equal(response.type, 'array');
+    assert.equal(response.items.$ref, `#/components/schemas/${schemaName}`);
+    const schema = openapi.components.schemas[schemaName];
+    for (const field of fields) {
+      assert.ok(schema.properties[field], `${schemaName} 必须包含 ${field}`);
+      assert.ok(schema.required.includes(field), `${schemaName}.${field} 必须为必填字段`);
+    }
+  }
 });
 
-test('IDE diagnostics 与命令契约保留 Problems 映射面', () => {
-  assertOperation('/api/ide/diagnostics', 'get', 'IDE 工作台');
-  assertOperation('/api/ide/commands/{command_id}', 'post', 'IDE 工作台');
-
-  const diagnostic = openapi.components.schemas.IdeDiagnostic;
-  for (const field of ['severity', 'code', 'message', 'range', 'quickFixes', 'evidence']) {
-    assert.ok(diagnostic.properties[field], `IDE 诊断必须包含 ${field}`);
+test('IDE 现行命令契约保留审计追踪与结果载荷', () => {
+  const operation = assertOperation('/api/ide/commands/{command_id}', 'post', 'IDE 工作台');
+  assert.equal(
+    operation.responses['200'].content['application/json'].schema.$ref,
+    '#/components/schemas/IdeCommandResult',
+  );
+  assert.ok(openapi.components.schemas.IdeCommandRequest.properties.args);
+  const result = openapi.components.schemas.IdeCommandResult;
+  for (const field of ['command_id', 'status', 'audit_event_id', 'payload']) {
+    assert.ok(result.properties[field], `IDE 命令结果必须包含 ${field}`);
   }
 });

@@ -21,7 +21,6 @@ const apiRoot = join(root, 'apps', 'api');
 
 const args = new Set(process.argv.slice(2));
 const flags = {
-  apiOnly: args.has('--api-only'),
   skipDocker: args.has('--skip-docker'),
   skipMigrate: args.has('--skip-migrate'),
   help: args.has('-h') || args.has('--help'),
@@ -31,7 +30,7 @@ if (flags.help) {
   console.log(`Usage: node scripts/dev-start.mjs [options]
 
 Options:
-  --api-only       仅启动基础服务和 API
+  --api-only       兼容别名；默认已仅启动基础服务和 API
   --skip-docker    跳过 docker compose 启动（前提：postgres/redis 已就绪）
   --skip-migrate   跳过 alembic upgrade head
   -h, --help       显示本帮助
@@ -148,10 +147,6 @@ async function main() {
 
   if (!commandExists('uv')) {
     fail('未找到 uv（Python 依赖管理器），请参考 https://github.com/astral-sh/uv 安装。');
-    process.exit(1);
-  }
-  if (!commandExists('pnpm')) {
-    fail('未找到 pnpm，请先安装 pnpm 9.x。');
     process.exit(1);
   }
 

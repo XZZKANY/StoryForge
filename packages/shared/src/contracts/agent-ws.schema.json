@@ -1,5 +1,34 @@
 {
   "$defs": {
+    "AgentExecutionOutcome": {
+      "additionalProperties": false,
+      "description": "Non-success execution outcome, independent of an artifact's approval state.",
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "failed",
+            "partial"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "code",
+        "message"
+      ],
+      "title": "AgentExecutionOutcome",
+      "type": "object"
+    },
     "AgentRunStartedFrame": {
       "additionalProperties": false,
       "properties": {
@@ -52,6 +81,30 @@
         "permission_profile"
       ],
       "title": "AgentRunStartedFrame",
+      "type": "object"
+    },
+    "AgentRuntimeInterruption": {
+      "additionalProperties": false,
+      "description": "Shared minimum contract for settled cooperative interruption results.",
+      "properties": {
+        "boundary": {
+          "title": "Boundary",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "paused",
+            "stopped"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "boundary"
+      ],
+      "title": "AgentRuntimeInterruption",
       "type": "object"
     },
     "AgentStepFrame": {
@@ -146,6 +199,23 @@
       "additionalProperties": false,
       "description": "控制回执帧。回执的 type 是「映射后」的值（approve_permission → permission_approved），\n前端 isAgentControlAckMessage 认的是这个值集合；status 恒为 recorded。",
       "properties": {
+        "control_effect": {
+          "anyOf": [
+            {
+              "enum": [
+                "requested",
+                "applied",
+                "ignored"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Control Effect"
+        },
         "event_id": {
           "title": "Event Id",
           "type": "integer"
@@ -153,6 +223,34 @@
         "run_id": {
           "title": "Run Id",
           "type": "string"
+        },
+        "run_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Status"
+        },
+        "runtime_state": {
+          "anyOf": [
+            {
+              "enum": [
+                "in_flight",
+                "settled"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runtime State"
         },
         "session_id": {
           "title": "Session Id",
@@ -340,7 +438,8 @@
         "type": {
           "enum": [
             "agent_run_completed",
-            "agent_run_failed"
+            "agent_run_failed",
+            "agent_run_interrupted"
           ],
           "title": "Type",
           "type": "string"

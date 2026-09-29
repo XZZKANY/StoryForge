@@ -1,3 +1,53 @@
+## 2026-09-28 设置界面 UX 优化 P0+P1（未保存守卫 / 确认补齐 / scrollspy）
+
+- 背景：设置弹窗（`SettingsView.tsx`）四类体验裂缝——润色密钥移除无确认、模型配置手动保存但无"未保存"指示且关窗静默丢草稿、左栏锚点导航无当前位置高亮、探测模型 chip 列表无限撑高。按作者确认的 P0+P1 范围实施，P2（窄窗口适配）未做。
+- 改动：① `SettingsView.tsx` 润色密钥移除改走 AppDialog danger 确认（对齐主密钥既有写法）；② `useProviderSettings.ts` 新增每槽位落盘基线（`baseline` state，`storedKey` 与 `scopeKey` 同构、secret 恒 ''），loadConfig 成功与 writeConfig 成功两个落盘点更新，暴露 `unsavedSlots`；读取失败/磁盘缺 polish 槽位时不误报；既有 `dirtyRef`（防 load 覆盖草稿）语义不变、不复用；③ 设置两组标题旁加「● 未保存」徽标（`settings-unsaved-provider|polish-provider`）；④ 关闭守卫 `requestClose`：返回按钮 + Esc/遮罩（DialogSurface onClose）统一先弹「放弃未保存的更改？」确认；⑤ scrollspy：主滚动容器挂 IntersectionObserver（rootMargin -20%/-70%），导航命中项加 `aria-current` + 高亮，搜索隐藏分组不产生交叉事件；⑥ 模型 chip 列表 `max-h-28 overflow-y-auto` 限高约 3 行。
+- 测试：`tests/settings-async.test.tsx` 新增 6 例（取消确认不移除润色密钥、徽标出现/保存消失/密钥草稿触发、读取失败不误报、关闭守卫取消/确认两路、干净关闭不弹框、scrollspy aria-current 跟随 stub IO 回调），A→B→A 矩阵与「移除旧密钥等待中」用例改走 clickConfirmed；`tests/settings-view.test.tsx` 新增 1 例（SSR 初始高亮 #provider、#about 无 aria-current）。
+- 门禁（本机会话亲跑）：`npm run typecheck` 0 error；`npx vitest run tests/settings-*.test.tsx` 53/53 绿；`npm run test` 全量 **141 文件 / 1082 用例全绿**；`npx eslint` 四个改动文件 0 输出。工作区作者在途改动（apps/api 等）未触碰。
+- 未验证：真机 WebView2 下 IntersectionObserver 实际滚动高亮时序（测试用 stub IO 验证状态迁移）；`pnpm verify` 总门禁未跑（无 pnpm，且本次纯前端无 API/契约变更）；P2 窄窗口适配按计划未实施。
+
+## 2026-10-23 高优先级 UI/UX 缺陷批量修复（五路并行 + 父会话整合门禁）
+
+- 背景：六路只读审查确认 100+ 处 UI/UX 缺陷后，作者拍板先修高优先级 13 项中的 12 项（StatusBar 整体摘除疑似进行中的重设计，跳过未动）。五路并行修复，工作区大量作者在途改动（P2-A 快捷键重构等）全部未碰。
+- 修复清单：① modal 打开时全局 toast 被 inert+压暗失效 → layers 加 `data-layer-exempt` 豁免 + toast z-index 1000；② Esc 全局 capture 误吞 Monaco/inline-chat → 命中 `.monaco-editor`/`[data-esc-handled]` 放行；③ ContextMenu 接 triggerRef + 设置齿轮 toggle 修复（三调用点）；④ AppDialog 单槽覆盖丢 Promise → FIFO 队列；⑤ 版本历史恢复到已存在版本无确认无快照 → dirty 时 danger 确认 + 先落盘+影子快照再覆盖（快照失败阻断）；⑥ 分块全部接受后误导 toast → 「已全部接受并写回」完结文案 + 每步撤销标注位置与「只回退本次」口径；⑦ AgentStepsPanel stopped/paused 显示「仍在思考」→ 四态头部区分 + failed 默认展开带 ✗；⑧ 有待确认补丁/章纲时切会话静默丢锚点 → AppDialog 确认守卫（未接设施 fail-closed）+ handleNewSession 确认成功才清排队消息；⑨ Knowledge Inbox 保存失败丢草稿 → revise 返回成败、失败保持编辑态；⑩ 浅色主题启动闪深色 → index.html 内联同步脚本（key 与 user-settings 同步责任已注释）；⑪ 新建同名文件静默打开 → 补 info toast；⑫ inline chat 键盘/读屏不可达 → DOM 构造抽 `editor/inline-chat-dom.ts`（role/aria-live/键盘双通道/焦点管理），壳层保留 mousedown 防夺焦。
+- 测试：新增/扩展 30+ 行为用例（agent-steps-panel 6、chat-session-leave-guard 6、app-dialog/context-menu/dialog-primitives/toast 各若干、editor 恢复防线、suggestion-writeback-lifecycle 2、knowledge-inbox、file-tree-actions、theme-fouc、inline-chat-dom 7）。
+- 整合门禁（父会话亲跑）：`tsc --noEmit` 0 error；全量 vitest **134 文件 / 1007 用例全绿**；eslint 全仓 0 error 0 warning（修掉两处在途 no-regex-spaces/unused-disable）；prettier --check 全绿（4 个在途文件 --write 归位 + inline-chat-dom 源码护栏正则改容忍折行）；`uv run pytest apps/api/tests/test_source_code_standards.py` 15/16，唯一红为 `App.tsx 433 > 400 行`——**系作者未提交的 P2-A 在途改动所致（HEAD 时即为 400 行满），非本批引入，本批零 agent 触碰 App.tsx，需作者自行收口**。
+- 未验证：真机 WebView2 渲染/焦点时序、NVDA 读屏实测、`pnpm verify` 全门禁（本机 pnpm 不在 PATH，eslint/prettier 用 node 直跑等效覆盖）；inline-chat 的 Monaco rAF 抢焦点时序只有 happy-dom 证据。
+
+## 2026-10-23 层叠/弹层系统 4 缺陷修复（layers/toast/ContextMenu/AppDialog 队列）
+
+
+- 范围：`ui/layers.ts`、`shell/ToastHost.tsx`、`shell/ContextMenu.tsx`、`shell/ActivityBar.tsx`、`shell/EditorTabs.tsx`（仅右键菜单调用点）、`ResourceExplorer.tsx`（仅右键菜单调用点）、`app/AppDialog.tsx`（仅 useAppDialog）、`index.css`（仅 toast z-index 规则），测试扩展 app-dialog / dialog-primitives / context-menu / toast 四文件。工作区大量并行在途改动未碰。
+- 要点：① layers 隔离循环跳过 `data-layer-exempt` 兄弟（ToastHost 标记），toast z-index 移到 index.css `[data-testid='toast-host']` 并定为 1000，压过模态 backdrop（层系统内联 z 从 100 起跳），模态下通知可见可点读屏可达；② keydown(capture) 对 Escape 先查 event.target 是否落在 `.monaco-editor` / `[data-esc-handled]` 内，是则放行不拦截；③ ContextMenu 增加可选 `triggerRef` 透传 FloatingSurface，三调用点全接（齿轮传 settingsButtonRef，两处右键记 currentTarget 起源元素），配合既有的「trigger 上 pointerdown 不算 outside-dismiss」修好齿轮无法 toggle 关闭；④ useAppDialog 改 FIFO 队列（dialogRef+queueRef 同步管理），前窗未关新请求排队，关闭后逐个呈现，所有 alert/confirm/prompt/choose 的 Promise 最终 resolve。
+- 测试：`npx vitest run` 四个改动文件 31 用例全绿（app-dialog 8、context-menu 3、dialog-primitives 6、toast 14）；新增用例覆盖：豁免层免 inert/aria-hidden、Monaco/data-esc-handled Esc 放行、triggerRef Esc 回焦 + trigger pointerdown 不误关、齿轮 toggle、模态下 toast 撤销/关闭可点、toast-host z-index=1000 锁定、AppDialog FIFO 三例（异类/同类排队逐 resolve、队列内 prompt 输入提交）。
+- 门禁：`npm run typecheck` 本任务文件 0 错（当时仅剩 useInlineChat.ts 语法错误，属其他并行 agent 在途文件）；`npm run test` 全量 999 passed / 5 failed，5 个失败全部位于 tests/inline-chat.test.ts(4) 与 tests/focus-styles.test.ts(1)，后者失败断言为 useInlineChat.ts 源码串 `container.className = 'sf-inline-chat sf-input-shell'` 被并行重构移除——均非本任务改动；曾短暂出现的 StrictMode 豁免误报为并发读取在途文件抖动，单独 StrictMode 调试件与 dialog-primitives 复跑均绿。
+- 未验证/未跑：真机 WebView2 渲染与读屏实测、`pnpm verify` 全门禁（本机无 pnpm）；useInlineChat 相关 5 例待其 owner 收口后复跑全量。
+
+## 2026-09-26 Desktop 微细节打磨（整合验证，uiux-full-optimization）
+
+- 批次构成：4 区审计（壳子/聊天/作品区/设置编辑器，约 90 findings）→ 4 工作流（WS-A 壳子导航资源树 / WS-B 聊天 Agent / WS-C 作品总览项目入口 / WS-D 设置命令面板版本历史对话框编辑器全局）合计落地 60+ 项微细节修复，明细见下方各 WS 分节。
+- 整合门禁（父会话亲跑）：`tsc --noEmit -p apps/desktop/frontend` 0 error；前端全量 `vitest run` 129 文件 969 用例全绿（较批次前 +1，为 WS-D 新增 ToggleRow controlId 锁定用例）；eslint（前端 src）0 告警；prettier --check 在批次后报 CommandPalette.tsx 与 StatusBar.tsx 2 文件折行漂移，已 `prettier --write` 修复（纯格式无 token 变更），复跑 status-word-count + command-palette 7 用例绿、typecheck 复跑绿。
+- 断言同步汇总：surface-hierarchy.test.tsx（死 ring-agent 类断言翻转）、side-panel-resize.test.tsx（把手 5px→7px）、message-list-scroll.test.tsx（smooth scroll 契约）、chapter-brief.test.tsx（文案中文化）、settings-accessibility.test.tsx（+1 用例）、settings-async.test.tsx（移除密钥走确认流）、accessibility-guards.test.ts（IconButton 原语识别）。
+- 环境限制：本机 bash 无 pnpm（pnpm.cmd 不在 PATH），`pnpm lint`/`pnpm verify` 无法整体执行；已用 eslint+prettier 直跑覆盖 lint 语义，API/pytest/e2e 维度本批零改动未触碰。
+- 未验证：真机 WebView2 渲染与动效手感（fade-in/slide-up-fade/按压反馈/平滑滚动）需人工目视；明暗双主题下 ::selection 表现待目视。
+
+## 2026-09-26 Desktop 微细节打磨（WS-D，uiux-full-optimization）
+
+- 范围：SettingsView / CommandPalette / Editor / AppDialog / VersionHistory / useInlineChat / index.css，及 settings-accessibility/settings-async 两个测试文件。工作区仍有约 100 个并行在途改动，全部未碰。
+- 要点：ToggleRow 接 controlId（标题 label 关联，去重 aria-label）+ on/off hover 色；设置/对话框统一入场动画（fade-in + slide-up-fade）、遮罩 bg-black/50、阴影归 shadow-dialog/panel-lift；搜索框 Esc 先清空；两处破坏性操作（移除密钥/恢复默认）接 AppDialog confirm danger；命令面板空态升 elevated 圆图标双行文案并附「打开项目」动作、结果行 transition-colors、加载 spinner（复用 sf-button-spinner）、非快捷键 hint 改 text-3xs text-subtle 纯文本、错误重试迁 Button xs/secondary；版本历史「恢复」加恢复中…+aria-busy、「对比当前」加读取中…+title、关闭迁 IconButton、两组 toggle 加 aria-pressed、过滤档 Agent→AI、预览 +N/-N 走 text-success/text-error；Editor 加载条 accent→agent；文件加载态/空态 svg 补 aria-hidden/spinner；inline-chat 四处提示 (Esc)/(Alt+Enter) 全角化；index.css base 层加全局 ::selection（accent 28%）。
+- 测试：`npx vitest run` 指定 12 文件 92 项全绿；旁支 settings-async（32）+ command-palette（3）全绿，其中 settings-async 的「移除密钥」动作同步接 clickConfirmed 走确认流；最终全量 vitest 129 文件 968 项全绿。tsc --noEmit 0 error，改动文件 ESLint 0 告警。
+- 断言更新：settings-accessibility 新增一例锁定 ToggleRow controlId/label htmlFor/describedby 及「点标题切开关」行为；settings-async 三处「移除密钥」点击改为「先开 AppDialog 再点 danger 主键」（provider 主槽 2 处 + ABAB 占位）。
+- 顺延未动：polish-provider 槽的「移除密钥」按任务行号边界仍直改（未接确认框），已在交接中标注。
+- 未验证/未跑：真机 WebView2 渲染、`pnpm verify` 全门禁、`pnpm smoke:sidecar:packaged`。
+
+## 2026-09-26 Desktop 聊天/Agent 区微细节打磨（WS-B，uiux-full-optimization）
+
+- 范围：`chat-window/`（panels/Composer/PermissionProfileSelector/ChapterBriefCard/ChatWindowView）、`AgentStepsPanel.tsx`、`PatchReviewPanel.tsx` 及对应两个测试文件。工作区存在大量并行在途改动，只动清单内文件，未 revert 任何他人改动。
+- 要点：StepRow 无详情改静态 div（不再挂 disabled 光标）；补丁接受/保存旁注接 Button loading；RunActionBar 七按钮迁移 Button 原语（sm + primary/secondary/danger，transition-all 收敛为 transition-colors）；会话时间 ISO→MM-dd HH:mm（完整时间进 title）；回到底部改 smooth scroll；消息滚动容器 scrollbar-gutter:stable；三处浮层 animate-fade-in；截断行补 title；Chapter Brief 文案中文化；会话错误条对齐 border-warning/40 bg-warning/10；待发计数动态化。
+- 测试：`npx vitest run` 指定 9 文件（chat-window/author-loop/agent-permission/agent-roles/agent-waiting-dead-end/composer-client-surface/permission-profile-selector/chapter-brief/assistant-events）91 passed；护栏 5 文件（type-scale/radius-scale/surface-hierarchy/focus-styles/shell-row-height）29 passed；影响面追加 7 文件（chat-ux-polish/message-list-scroll/chat-pending-message/chat-window-error-states/conversation-starters/chat-inline-patch-controls/patch-rejection/button-primitives 合计）全绿；最终合并跑 21 文件 184 passed。改动文件单跑 ESLint 0 告警。
+- 断言更新：message-list-scroll.test.tsx 两例随 smooth scroll 语义更新（happy-dom scrollTo 为空 stub，测试 stub 为动画完成终态，并锁定 `{top, behavior:'smooth'}` 调用契约）；chapter-brief.test.tsx 新增中文化文案断言。
+- 未验证/未跑：真机 WebView2 渲染、`pnpm verify` 全门禁。`tsc --noEmit` 最终全绿 0 error（曾见 VersionHistory.tsx 2 错，属其他并行工作流在途文件，随后已被其 owner 修复，非本批改动）。
+
 ## 2026-09-25 Desktop UI/UX 原生 smoke 校准（子审查）
 
 - 仅校准 `src-tauri/src/main.rs` 隔离 smoke 路径与 `smoke_ui.rs`：无项目 Explorer 隐藏、项目总览先行、真实可见导航、侧栏隐藏/恢复、总览往返节点身份；全部点击验证可见/禁用/窗口边界/命中，保留拒绝/漂移/接受/快照/版本安全断言。
@@ -3247,43 +3297,792 @@ elativePathInsideProject(index.projectPath, file.path)，拒绝不在项目内�
 
 ### 背景
 
-工作树沉淀�?119 个未提交改动�?9019/-6924 行，桌面�?UI/UX 大改），用户要求评估"UI/UX 是否还有优化空间"。本次采�?5 个并行只读审查代理（壳层导航/写作工作�?Agent 对话/作品库设置知�?视觉系统可访问性）+ 主代理交叉核验完成全维度审查，并顺手修复 2 �?P1 级缺陷�?
+工作树沉淀�?119 个未提交改动�?9019/-6924 行，桌面�?UI/UX 大改），用户要求评估"UI/UX 是否还有优化空间"。本次采�?5 个并行只读审查代理（壳层导航/写作工作�?Agent 对话/作品库设置知�?视觉系统可访问性）+ 主代理交叉核验完成全维度审查，并顺手修复 2 �?P1 级缺陷�?
 ### 审查产出
 
-5 份审查报告落�?`.codex/reviews/`�?- `shell-nav-ux-review-2026-08-07.md`（壳层与导航�?- `editor-workspace-ux-review-2026-08-07.md`（写作工作台�?- `visual-a11y-ux-review-2026-08-07.md`（视�?可访问性）
+5 份审查报告落�?`.codex/reviews/`�?- `shell-nav-ux-review-2026-08-07.md`（壳层与导航�?- `editor-workspace-ux-review-2026-08-07.md`（写作工作台�?- `visual-a11y-ux-review-2026-08-07.md`（视�?可访问性）
 - Agent 对话和作品库设置知识的详报在子代理消息中（本会话已读取核实）
 
 ### 已修复的 P1 缺陷
 
-**P1-1 消息列表性能死路**：`panels.tsx:272` 此前 `key={index}` �?MessageItem �?memo。Agent step 事件高频�?20/秒）时，整列表含每条 assistant 消息�?react-markdown 全量重渲染。修复：稳定 key（djb2 hash role+content�? React.memo；新�?`tests/message-list-memo.test.tsx`�? 测试）验�?DOM 节点 identity 保留�?
-**P1-2 waiting 死路**：`useRunAuthorAgent.ts` 在两种情况下把前端置于无法逃出�?等待确认"状态：
-- repair patch 缺少 approval_command（`repairProposal.command === null`）时，仍�?`requires_user_confirmation` �?waiting；前�?RunActionBar 的「接�?拒绝」依�?`approvalStep.patchId`，缺失时按钮静默无效，composer 被锁，作者只能切会话�?- 纯文本总结（无 proposed patch / repair / review / chapterBrief）若后端错误地置 requires_user_confirmation，同样死路�?
-修复：仅在有真实批准路径时才允许 waiting——repair �?`command !== null`，fallback �?`responseChapterBrief`。新�?`tests/agent-waiting-dead-end.test.ts`�? 测试）�?
-### 副产�?
-- `useRunAuthorAgent.ts` 行数恰好压到 500（Desktop live-module 硬限）�?- `panels.tsx` 通过 memo 导入�?
+**P1-1 消息列表性能死路**：`panels.tsx:272` 此前 `key={index}` �?MessageItem �?memo。Agent step 事件高频�?20/秒）时，整列表含每条 assistant 消息�?react-markdown 全量重渲染。修复：稳定 key（djb2 hash role+content�? React.memo；新�?`tests/message-list-memo.test.tsx`�? 测试）验�?DOM 节点 identity 保留�?
+**P1-2 waiting 死路**：`useRunAuthorAgent.ts` 在两种情况下把前端置于无法逃出�?等待确认"状态：
+- repair patch 缺少 approval_command（`repairProposal.command === null`）时，仍�?`requires_user_confirmation` �?waiting；前�?RunActionBar 的「接�?拒绝」依�?`approvalStep.patchId`，缺失时按钮静默无效，composer 被锁，作者只能切会话�?- 纯文本总结（无 proposed patch / repair / review / chapterBrief）若后端错误地置 requires_user_confirmation，同样死路�?
+修复：仅在有真实批准路径时才允许 waiting——repair �?`command !== null`，fallback �?`responseChapterBrief`。新�?`tests/agent-waiting-dead-end.test.ts`�? 测试）�?
+### 副产�?
+- `useRunAuthorAgent.ts` 行数恰好压到 500（Desktop live-module 硬限）�?- `panels.tsx` 通过 memo 导入�?
 ### 验证
 
 | 门禁 | 结果 |
 |---|---|
-| `pnpm verify` | exit 0�?1 步骤全过：根静�?桌面 typecheck/shared 契约/project-core/桌面单元 914 测试/API 1592 测试/ruff/sidecar daily 冒烟/OpenAPI 零漂移） |
-| `npm --prefix apps/desktop/frontend run typecheck` | 0 �?|
-| `npm --prefix apps/desktop/frontend run test` | 121 文件 914 测试全绿（新�?5 个：2 memo + 3 dead-end�?|
-| API 源码规范测试 | 16 通过（useRunAuthorAgent.ts 恰好 500 行不�?Desktop live-module 硬限�?|
-| `pnpm lint` | 0 �?0 �?|
-| OpenAPI drift | 零漂�?|
+| `pnpm verify` | exit 0�?1 步骤全过：根静�?桌面 typecheck/shared 契约/project-core/桌面单元 914 测试/API 1592 测试/ruff/sidecar daily 冒烟/OpenAPI 零漂移） |
+| `npm --prefix apps/desktop/frontend run typecheck` | 0 �?|
+| `npm --prefix apps/desktop/frontend run test` | 121 文件 914 测试全绿（新�?5 个：2 memo + 3 dead-end�?|
+| API 源码规范测试 | 16 通过（useRunAuthorAgent.ts 恰好 500 行不�?Desktop live-module 硬限�?|
+| `pnpm lint` | 0 �?0 �?|
+| OpenAPI drift | 零漂�?|
 
-测试基线从原 909 增至 914（净 +5）�?
+测试基线从原 909 增至 914（净 +5）�?
 ### 剩余 P2（未动）
 
 本次只修 P1。已识别但未修（详见审查报告）：
-- 键盘契约：Ctrl+2 �?compact 失效但污染存储偏好、Ctrl+Shift+E/F/M/O �?library 态仍全局生效
-- 布局死区：compact 断点 1008px �?Tauri minWidth 1024px 之间 16px 死区
-- 可达性：knowledge 视图 title 英文/无快捷键/无命令面板条目；封面空态指向断路；"专用润色模型"分组无导航锚�?- 反馈：漂移拒�?可重�?误导；编辑器区无权限档位被动指示；Ctrl+W 无可发现入口；激活页签关闭按�?hover 反馈不可�?- 视觉/可访问性微调：浅色主题 editorLineNumber 3.04:1 不达 AA；text-warning/text-success 浅色文字色不�?AA；CommandPalette 列表�?listbox 语义
+- 键盘契约：Ctrl+2 �?compact 失效但污染存储偏好、Ctrl+Shift+E/F/M/O �?library 态仍全局生效
+- 布局死区：compact 断点 1008px �?Tauri minWidth 1024px 之间 16px 死区
+- 可达性：knowledge 视图 title 英文/无快捷键/无命令面板条目；封面空态指向断路；"专用润色模型"分组无导航锚�?- 反馈：漂移拒�?可重�?误导；编辑器区无权限档位被动指示；Ctrl+W 无可发现入口；激活页签关闭按�?hover 反馈不可�?- 视觉/可访问性微调：浅色主题 editorLineNumber 3.04:1 不达 AA；text-warning/text-success 浅色文字色不�?AA；CommandPalette 列表�?listbox 语义
 
-按主题分批小步修，每批独立可回滚�?
+按主题分批小步修，每批独立可回滚�?
 ### 真机验证待办
 
 - 1024×768 balanced 实际渲染（compact 死区是否真溢出）
-- compact �?Windows 125%/150% 缩放体感
-- 浅色主题卡片化整体观�?- 10 万字单文件写�?`normalizeEol(model.getValue())` 耗时
-- 会话切换中阅读位置是否保�?
+- compact �?Windows 125%/150% 缩放体感
+- 浅色主题卡片化整体观�?- 10 万字单文件写�?`normalizeEol(model.getValue())` 耗时
+- 会话切换中阅读位置是否保�?
+## 2026-09-21 Desktop UI/UX P1 修复：三处复合输入框双重焦点反馈
+
+- **根因**: `src/index.css:684` 全站 `:focus-visible` 规则对**所有**元素画 2px outline + 4px glow shadow，且出现晚于 Tailwind utilities；三处复合输入框内层（`.outline-none`）被其覆盖，而外层又用 `focus-within` 提亮边框 → 焦点反馈画了两套（方形 + 圆角卡片）。
+- **三处实测差异**：文件搜索（命令面板 `CommandPalette`）外层有 `overflow-hidden` 裁切顶部轮廓；询问框（`Composer` textarea）外层 `overflow-visible` 导致轮廓越过圆角卡片边界横穿；作品搜索（`ProjectLibrary` input）内层控件比外层小得多，形成“小方框套大圆角”。
+- **修复**: 新增标记类 `sf-inner-input`，内层控件显式豁免全局焦点轮廓，外层 `focus-within:border-accent` 成为唯一焦点源；全局键盘可达性保留（`:focus-visible:not(.sf-inner-input)` 仍对菜单项、结果项、工具栏按钮等画环）。同时修正既有注释“:focus-visible 仅键盘触发”的误解（文本输入框鼠标点击后同样匹配）。
+- **改动文件**（4 个）：`src/index.css`（豁免选择器 + 注释更正）、`src/components/CommandPalette.tsx`（input 加 sf-inner-input）、`src/components/chat-window/Composer.tsx`（textarea 加 sf-inner-input）、`src/components/app/ProjectLibrary.tsx`（input 加 sf-inner-input）。
+- **测试**: `tests/surface-hierarchy.test.tsx` 更新 `rule(':focus-visible')` 断言为 `rule(':focus-visible:not(.sf-inner-input)')`；新增测试「复合输入框焦点反馈只由外层负责」，对 Composer/ProjectLibrary 走 renderToStaticMarkup 断言 `sf-inner-input` + `outline-none`，对 CommandPalette（状态下放、挂载即 focus）走源文本断言。
+- **验证**: `npm run test` 121 files / **915 passed**（零回归），`npm run typecheck` 绿；沙箱拦截 esbuild spawn，已用 danger-full-access 跑通。
+- **未做**: 真机点焦点 Tauri 观感未验（E2E-1 归口）；未动分割线、未全局关闭焦点提示；Tailwind config 未改（sf-inner-input 为全局 CSS 命名而非 utility）。
+
+
+## 2026-09-25 Desktop 全站同类焦点反馈补漏
+
+- Trellis：`.trellis/tasks/09-25-desktop-focus-consistency/`；承接现有未提交三处 sf-inner-input 修复，未覆盖其他用户改动。
+- 根因补充：上次只覆盖复合输入，独立表单依然被末尾全局 outline/glow 覆盖；设置/Brief/知识/简介另有 JS 光晕；命令面板缺失外壳反馈。
+- 改动：默认 focus-visible 移至 Tailwind base 且移除全局 shadow；23 处独立控件定义接入 sf-input，四种复合外壳接入 sf-input-shell（含命令式 inline textarea）；删除仅用于 shadow 的事件，保留简介 onBlur 保存。背景、分割线、权限和写回逻辑不变。
+- 自动验证：前端 **122 files / 918 passed**；typecheck 通过；root lint 通过；生产 build 通过（既有 Tauri 导入/大 chunk 警告）；git diff --check 通过。最后护栏增强后定向 **3 files / 30 passed**。
+- 浏览器：真实 uiux-app 隔离夹具双主题，27 个焦点状态记录；新建/设置/select/作品及文件搜索/Composer/Ctrl+K/权限菜单/普通按钮/checkbox 实际 computed style 验证。新建书名不再有紫色外圈；普通键盘焦点仍可见。
+- 证据与可复现步骤：`.trellis/tasks/09-25-desktop-focus-consistency/research/verification.md`；相邻目录保留 JSON 与截图。
+- 边界：未做 Tauri 原生端到端与 OS forced-colors 实测；知识编辑、章节 Brief、补丁拒绝框未逐状态浏览器验收，已覆盖控件接入与既有行为回归。未执行后端总门禁，未提交。
+
+## 2026-09-25 Desktop Input / Textarea / Select / InputShell
+
+- 范围：新增 `apps/desktop/frontend/src/components/ui/FormControls.tsx` 与统一 `index.ts` 导出；在现有 `index.css` 集中组件基础外观与状态。沿用已有双主题、圆角及焦点 owner 契约，不覆盖开始前 18 项未提交修改。
+- API：`controlSize=sm/md/lg`（32/36/40px）、`invalid`、原生 `disabled` 与 aria-invalid；原生属性/事件/ref 保留。InputShell 通过 fieldset + context 管理内层尺寸/错误/禁用，内层不画第二圈焦点。
+- 接入：SettingsView 文本与 Select 行（range 保持原生）、ChapterBriefCard、ProjectLibrary 搜索；业务处理、test id、失焦/IME 语义不改。
+- 验证命令与结果：`npm.cmd --prefix apps/desktop/frontend run test` → **123 files / 925 passed**；`npm.cmd --prefix apps/desktop/frontend run typecheck` → 通过；`pnpm.cmd lint` → 通过；`git diff --check` → 通过。
+- 生产构建：`npm.cmd --prefix apps/desktop/frontend run build` → 通过；既有 Tauri 静态/动态导入与大 chunk 提示保留，未调整阈值掩盖。
+- 浏览器：双主题、三档尺寸、正常/错误焦点、原生 fieldset 按钮禁用、恢复后草稿保留；9 个状态快照。可复现步骤和证据位于 `.trellis/tasks/09-25-desktop-form-primitives/research/verification.md` 与同目录 JSON/PNG。
+- 新增测试：原生 ref/form/ARIA、受控与非受控、IME/onBlur、尺寸、禁用/错误传播与恢复、多选/只读、真实作品库过滤；扩展编译 CSS 与原生控件焦点 owner 护栏。
+- 未验证：Tauri 真机、OS forced-colors、多分辨率页面验收、后端总门禁 `pnpm verify`；API/OpenAPI 未改，无需刷新。未提交；任务保留待审阅，不合并已有用户改动。
+
+## 2026-09-25 Desktop 按钮 → 弹窗 → 浮层 → 字段布局：规划
+
+- 用户已批准建立一个总任务与四个有序子任务。总任务为 `.trellis/tasks/09-25-desktop-interaction-primitives/`；四个子任务分别为 desktop-button/dialog/overlay/field-primitives。
+- 已完成源码只读盘点：161 处 button 包含不同交互语义；AppDialog 有 IME 漏保风险；三个模态焦点实现分散；useDismissableMenu 仅负责 Escape；权限选择器是 listbox，不能改成 menu；已有 shell-icons 可复用。
+- 已为五个任务写入 PRD/design/implement，共 15 份规划文件，明确消费者、顺序、验收、回滚及旧工作区保护。
+- 此阶段没有修改产品代码，没有运行新的测试，也未把上轮 925 项通过冒充本轮实施验收。最终范围待用户批准；子任务仍 planning。
+
+
+## 2026-09-25 Desktop 基础交互四阶段：实施与验收
+
+- 用户确认后按 **Button/IconButton → DialogSurface → FloatingSurface/Tooltip → Field** 串行实施；五个 Trellis 任务保留待审阅，总任务 `09-25-desktop-interaction-primitives` 为当前入口。
+- 公共组件统一从 `apps/desktop/frontend/src/components/ui/index.ts` 导出，尺寸/圆角/颜色/状态集中在 `index.css`。按钮 loading/disabled/danger、可访问 icon 名称和提示均有公共入口，不全量重写开关/页签/窗控。
+- 通用、新建、设置弹窗共用 focus/Tab/Escape/IME/恢复/inert；层栈统一 z-index、顶层外部关闭、portal 子层。菜单、权限 listbox、稿件卡和 Tooltip 保留不同语义。
+- Field 已用于设置文字/选择/range、新建与 Brief；保持显式 ID 和既有业务校验，合并帮助/错误关联。文件系统错误不冒充字段 invalid；原 provider/项目写回逻辑不变。
+- **最终自动检查**：`npm.cmd --prefix apps/desktop/frontend run test` → **127 files / 941 passed**；`npm.cmd --prefix apps/desktop/frontend run typecheck`、`pnpm.cmd lint`、`npm.cmd --prefix apps/desktop/frontend run build`、`git diff --check` 均通过。构建保留既有 Tauri 导入/大 chunk 警告。
+- **浏览器**：公共组件夹具双主题、loading 宽度不跳、IconButton 32×32、480×640 紧凑菜单几何、嵌套 Escape/回焦/草稿保留、Tooltip 关联、Field error；真实 App 内存夹具新建/设置主题与搜索/Composer 权限 listbox。证据与重放步骤：`.trellis/tasks/09-25-desktop-interaction-primitives/research/verification.md`，同目录 JSON/PNG。
+- 验证中修复：菜单 Tab close claim 顺序、modal Tab 优先级、portal listbox Tab 跳浏览器栏、旧图标 CSS 盖新尺寸，以及 backdrop pointer/mouse 一次关两层；均有行为或编译样式护栏。settings 旧测试改用真正可见的项目内入口；portal 查询不再依赖旧祖先结构。
+- 更新 `.trellis/spec/desktop/frontend/component-guidelines.md` 公共契约。未执行 Tauri 真机、OS forced-colors、屏幕阅读器、真实 provider/写回、后端总门禁 `pnpm verify`；API/OpenAPI 未改。测试中的静态 SSR 场景不构成 SSR 产品支持承诺。
+- 已有未提交工作保留；未提交/未归档。仅本次启动的 Vite 服务验收后停止。
+
+## 2026-09-26 后端可迭代性与优化：任务初始化
+
+- 用户批准创建 Trellis 评估任务；已创建 `.trellis/tasks/09-26-backend-iterability/`，状态为 planning，未启动实施。
+- 已写 PRD 和 research/initial-findings.md，目标为降低能力扩展成本、保护行为回归及建立可测量优化依据，不以整理规范替代架构收益。
+- 执行：`python .trellis/scripts/task.py create "后端可迭代性与优化评估" --slug backend-iterability` 成功；只读核对 git status、当前阶段/TODO、相关历史任务、ToolSpec 注册链、公共异常/Session/日志入口、门禁与测试定义。
+- 未修改产品代码、未覆盖既有前端改动；本报告仅追加本段。未运行 pytest、Ruff、性能测试、GUI、真实 LLM 或总门禁，不继承历史通过结论。
+- 后续：先确认首批迭代收益与性能收益的优先级，再完成窄链评估及 design/implement 规划；未经审阅不执行 task.py start。
+
+## 2026-09-26 后端优先“好改”：首批方案与基线
+
+- 用户确认优先降低功能迭代成本。已更新 `.trellis/tasks/09-26-backend-iterability/prd.md`，完成需求收敛，并写入 `research/assessment.md`、`design.md`、`implement.md`；状态仍 planning，等待首批范围审阅，未启动实施。
+- 首批建议：在现有 ToolSpec 上集中 loop 文件预处理、可信上下文、trace 来源声明；保留权限/SDK/事务/wire，补公共执行边界测试。不是重新抽 SDK，也不是全面重构后端。
+- 实跑（`apps/api`）：`uv run --no-sync pytest tests/test_loop_tool_schemas.py tests/test_agent_loop_writing_context.py tests/test_agent_polishing_tool.py tests/test_agent_loop_sdk_adapters.py tests/test_source_code_standards.py tests/test_ws_contract_golden.py -q` → **53 passed / 1 failed，2.90s**，退出码 1。
+- 基线失败：`test_completed_wave_source_files_meet_hard_line_limits`，`apps/desktop/frontend/src/App.tsx` 为 416 行，阈值 400；该文件在本轮之前已有改动，本轮未编辑产品代码。未修改前端、阈值或测试来消除失败；该 test 首次失败后的文件不能视为检查通过。
+- 测试用例使用现有隔离 fixture/确定性 provider；无本轮真实 LLM/性能/GUI 验收。未跑全量 API、Ruff、pnpm verify 或刷新 OpenAPI，不能宣称全量门禁通过。
+- 规划文件 UTF-8 可读、无 TBD、任务状态 planning；对本任务四份规划/评估文件做空白与链接检查，对验证报告执行 `git diff --check`。
+
+## 2026-09-26 后端总计划：承接已有 SDK 与基础建设
+
+- 用户纠正范围为“总计划”，已将当前任务标题改为“后端可迭代性与优化总计划”，仍 planning。工具接入方案仅为候选，原 PRD/design/implement 快照保留在 `.trellis/tasks/09-26-backend-iterability/research/tool-onboarding-candidate/`；未批准或启动任何业务实施。
+- 重写总 PRD/design/implement，覆盖 SDK/provider、通用 runtime、业务 adapter/工具/context、状态/恢复/持久化、API/基础设施与回归交付；未重新抽 SDK，也未修改其他历史任务归属/状态。
+- 代码核对确认 live `run_chat_loop` 已实例化 ToolCallingRuntime；SDK 四类 provider、registry、budget/recovery、observability ports 已存在。llm_client 为出网/兼容接缝。当前 StoryForgeCheckpointStore 为内存保存，不能据此宣称跨进程恢复。
+- 在 `apps/api` 实跑 13 份 SDK/provider/registry/runtime/dispatch/业务 adapter 测试，完整命令见 `research/backend-foundations.md`：**71 passed in 3.66s**，退出 0。未运行 real_smoke，不能替代真实 provider/GUI/全量验收。
+- 未跑本轮全量 API、Ruff、总门禁、OpenAPI 刷新或性能验收；未修改产品代码。上轮前端体积基线失败仍留档，不以 SDK 专项通过冲销。
+- 总规划文档及任务 JSON 做 UTF-8/状态/引用存在检查，验证报告执行定向 `git diff --check`；现有前端和其他报告内容保留，仅追加本段。
+
+## 2026-09-28 Desktop UI/UX 细腻调整：审查 P2/P3 剩余项收口
+
+- 基线：HEAD（e6ca6173）+ 三轮未提交细化（焦点一致性 / 表单与交互原语）。先逐项核对三份审查报告（`.codex/reviews/*2026-08-07.md`）的剩余项，确认多数已修（浅色 warning/success AA、compact 断点 max(1024)、Ctrl+2 compact、library 导航守卫、Ctrl+Shift+K、命令面板条目、Titlebar、CommandPalette combobox、漂移措辞），只对仍开口的项动手。
+- 批次A 视觉 token：Monaco 浅色 gutter 显式钉画布色 `#f7f7f8`（深色同规则，消除第三底色隐患）；新增 `--shadow-bar-top` 反向投影 token（深 0.1 / 浅 0.05）+ tailwind `shadow-bar-top`，StatusBar 内联样式与 RunActionBar 任意值阴影收敛入 token；`h-[26px]`/`h-[30px]`×3 收敛为 `var(--sf-status-height)`/`var(--sf-row-height)`。
+- 批次B 可访问性：reduced-motion 下 `animate-ping`/`animate-pulse` 由归零降级为常亮静态点（运行状态信号不再消失）；KnowledgeInbox 页签补 roving tabindex + 方向键/Home/End 自动激活（与 EditorTabs 同成语）+ tablist aria-label；版本历史条目 div → ul[role=list]/li；四处 hover-only 操作钮基态透明度 0 → 40 并补齐 `focus-visible:opacity-100`（ObsPanel/SidePanel 最近作品移除/BookProfileView×2）。
+- 批次C：激活页签关闭钮 hover 底色 `bg-elevated`（与激活页签同色不可见）→ `bg-border-strong/40`。
+- 批次D 补丁审阅：`failAction` 双响去除——失败已写面板状态条时不再发同文案 error toast（面板不可见时保留 toast 兜底）；diff 视图 original 侧开行号（分块按钮「第 N 行」有定位锚，modified 侧保持关闭）；换新补丁（id 变化）滚动重置并 reveal 第一处差异，同补丁分块刷新保留滚动位置。
+- 测试：新增 3 个行为测试（去双响 / inbox roving 方向键 / 版本列表 ul-li），更新 editor-theme（浅色 gutter 入指纹）、surface-hierarchy（浅色 token 指纹 + reduced-motion/token 护栏）；monaco stub 补 `getOriginalEditor/getModifiedEditor/getLineChanges`。
+- 验证：`npm run test` **128 files / 948 passed**（945 → 948，净 +3）；`npm run typecheck` 绿；`pnpm.cmd lint`（eslint + prettier）绿；`npm run build` 绿（保留既有大 chunk 警告）。
+- 顺带：删除 App.tsx 一个空行使回到 416 行——上轮在案的「App.tsx > 400 硬限」基线失败**未恶化也未解决**，拆分 App.tsx 超出本轮范围。
+- 未验证：Tauri 真机/WebView2、OS forced-colors、屏幕阅读器实听、浅色 gutter 真机观感；未跑 `pnpm verify`（API 未改，OpenAPI 无漂移）；未提交。真机待办清单仍沿用 09-25 段记录。
+
+## 2026-09-26 后端总计划：四类改动分析与离线验证
+
+- 用户要求“先分析”。完成 provider、工具、上下文/质量规则、运行控制四类当前路径与改动影响矩阵；成果在 `.trellis/tasks/09-26-backend-iterability/research/full-analysis.md`。保留已有 SDK、facade、公共面；未修改产品代码，未启动实施任务。
+- 本轮实跑（apps/api）：`uv run --no-sync pytest tests/test_assistant_provider_health.py tests/test_llm_provider_dispatch.py tests/test_agent_llm_context.py tests/test_agent_loop_writing_context.py tests/test_agent_runtime_compaction.py tests/test_chapter_writing_contracts.py tests/test_chapter_writing_pipeline.py tests/test_agent_polishing_tool.py tests/test_agent_permission_policy.py tests/test_agent_loop_permission_writeback.py tests/test_agent_run_resume.py tests/test_agent_loop_runtime_lifecycle.py tests/test_agent_run_transport.py tests/test_redaction_boundaries.py tests/test_sqlite_migrations.py -q` → **117 passed in 48.42s**。
+- 补充实跑：`uv run --no-sync pytest tests/test_agent_terminal_cancellation.py tests/test_agent_run_permission_guard.py tests/test_agent_runs.py tests/test_ai_sdk_runtime_recovery.py -q` → **37 passed in 5.70s**。两组均退出 0；不与历史 SDK/窄链测试混算。
+- 离线分析脚本：`uv run --no-sync --project apps/api python .trellis/tasks/09-26-backend-iterability/research/offline_boundary_probes.py`，两个独立进程从空内存数据库运行输出一致；保存为 `research/offline-boundary-results.json`。只用 synthetic key 与 mock transport，不调用真实网络或持久数据库。
+- 复现事实：provider-health 使用统一 bearer + data[].id，与现有 native 生成 adapter 的身份/格式不同；opaque synthetic key 可穿过错误序列化；complete 状态提交后事件函数失败会留下 completed/0 event，rollback 与再次 finalize 不能补回。是离线当前行为重现，不是线上事故发生率或修复后回归验收。
+- 独立只读门禁探索确认 pre-push 快测组滞后、后端结构测混合前端体积检查、shared test 仅 tsc、daily/packaged 与真实模型验证分档。未执行有写副作用的 drift 生成命令。
+- 已更新总计划优先级：快速验证组贯穿，provider 接入/脱敏 → 状态与证据一致性 → 工具接入 → 上下文用例；尚未确定新的代码 Interface 或批准修复。
+- 生成临时可视化分析报告 `C:/Users/kanye/AppData/Local/Temp/architecture-review-20260926-151733.html`，通过 Codex browser 打开请求返回 queued；未声称已完成浏览器视觉验收。
+- 未跑全量 API/Ruff/总门禁、OpenAPI 刷新、真实 provider、GUI 或性能；保留其他线程前端及本验证报告既有改动，仅追加本段。
+
+## 2026-10-13 图形化「AI 起草章节」入口（REQUEST_CHAPTER_WRITE_EVENT 事件桥）
+
+- 镜像 chapter.polish 事件桥新增 `storyforge:request-chapter-write`：BookOverview（hero + 章节列表卡 + 空态）与 ManuscriptView 放「AI 起草下一章 · 第 N+1 章」按钮；App.tsx `draftNextChapter` 复用 showAgent 展开右栏后 `emitChapterWriteRequest`（目标路径 `正文/第NNN章.md`，与后端 fallback 同约定，N=最大章号+1，章节源优先总览索引、回落底座快照）。
+- ChatWindow 新监听带待确认守卫（agentBusy / chapterBrief / agentRun.status==='waiting' → info toast 拦截，与 useChatSubmission 拦截口径一致）；正常路径 goal `起草第N章`（有标题追加《标题》）并 `runAuthorAgent(goal, undefined, 'chapter.write', [], { targetFilePath })`。
+- `buildStableAgentRequestPayload` 增 `targetFilePath`：存在时 `file_path` 无条件锚定目标（修复"开着别章点起草会锚定当前文件"隐患）；useRunAuthorAgent 显式目标时跳过 flush/读盘、content=null。零后端改动。
+- 验证：`npm --prefix apps/desktop/frontend run test` → **129 files / 958 passed**；`npm run typecheck` 绿；`pnpm.cmd lint`（eslint + prettier）绿。新增/更新测试：assistant-events、chat-window（payload targetFilePath 分支）、chapter-write-request（新文件：透传+守卫）、book-overview、manuscript-view。
+- 在案偏差：`test_completed_wave_source_files_meet_hard_line_limits` 仍失败——App.tsx HEAD 恰 400 行，三轮未提交 UI 细化已推高至 416 行（在案基线失败），本轮 +16 至 432 行；ChatWindow.tsx 202、AppShell.tsx 491、useRunAuthorAgent.ts 500（恰好达标）均在限内。拆分 App.tsx 属用户进行中 UI 工作范围，本任务未动。
+- 已知未覆盖：`RetryRequest` 未携带 targetFilePath，chapter.write 失败后重试会退回意图推导目标（与 polish 重试不携带 useMainModel 同类既有取舍）。
+- 未验证：Tauri 真机/WebView2 端到端起草-确认链路、屏幕阅读器实听；未跑 `pnpm verify` 全量与 real provider 冒烟（纯前端改动，无 OpenAPI 漂移）；未提交。
+
+## 2026-10-13 版本历史视觉对齐 D1 + Ctrl+Shift+H 快捷键
+
+- VersionHistory 对齐 D1 语言：viewMode/sourceFilter 选中态 `bg-accent text-accent-foreground` → `bg-agent/10 text-agent`（同 ManuscriptView 当前行）；恢复按钮改 `interactive-press bg-agent text-agent-foreground hover:brightness-110`（同 BookOverviewHero 主按钮）；关闭钮内联 SVG → shell-icons `<X>`（aria-label="关闭版本历史"）；加载/空态改居中图标块（Clock 圆底 + text-xs text-subtle，同 BookOverview 空态）；面板根部挂 LiveStatus 相位播报（读取中/失败/共 N 条）。恢复/检出/分支逻辑零改动。
+- shell-icons.tsx 补上 Clock 的 export（此前只 import 未导出）。
+- 快捷键 Ctrl+Shift+H 切当前页签版本历史：shortcuts.ts 新增行（needs: 'file'，scope 值域加 'event' 供事件桥消费）；App.tsx shift 分支新增 `key === 'h'`：无 displayedFile 不接管，否则 preventDefault + `emitEditorCommand('toggle-history')`（与 Ctrl+S 同档守卫；Mac 经 `ctrlKey || metaKey` 的 mod 判定天然支持 Cmd+Shift+H）；EditorTabs 菜单行补 `kbd="Ctrl Shift H"` 提示。
+- ObsPanel 核对结论：已是新语言（shell-icons Check/X、bg-agent/severity token、无裸加载文本），未动。
+- 验证：`npm --prefix apps/desktop/frontend run test` → **129 files / 961 passed**（958 → 961，净 +3：version-history 空态图标+LiveStatus、D1 对齐断言、shortcuts Ctrl+Shift+H 两行接管/不接管断言）；`npm run typecheck` 绿；lint 双段绿——`./node_modules/.bin/eslint .`（本环境 pnpm 不在 PATH，用等价直连命令）与 `prettier --check`（All matched files use Prettier code style!）。
+- 在案偏差延续：App.tsx 现 440 行（432 → 440，本轮 +8），`test_completed_wave_source_files_meet_hard_line_limits` 基线失败仍在案不归本任务修；EditorTabs.tsx 恰 500 行（净零替换）达标。
+- 未验证：Tauri 真机/WebView2 快捷键端到端（emitEditorCommand → Editor 消费链路已有 editor-tabs/version-history 单测覆盖，未真机实测）；未跑 `pnpm verify`（纯前端改动，无 OpenAPI 漂移）；未提交。
+
+## 2026-09-26 三栏去竖线：改靠底色台阶分栏
+- 起因：用户反馈三栏之间直直的 1px 分隔线观感差，左右面板与中央编辑区两块区分度不足。
+- 改动：删除 `sf-shell-edge-right/left` 两条 CSS 规则及 SidePanel/AssistantPanelFrame 上的 class（顶栏下沿、底栏上沿横线保留）；深色 token 拉台阶 panel #161618→#1a1a1e、surface #1d1d20→#212125、elevated #29292d→#2a2a2f，background #101012 不动；浅色 background #f7f7f8→#f3f3f5、panel 仍白；Monaco 浅色 editor.background/gutter 同步 #f3f3f5。
+- 测试同步：surface-hierarchy 边线断言收成 bottom/top 两条、token 快照更新；editor-theme 浅色快照更新。
+- 验证：`npm --prefix apps/desktop/frontend run test` → 129 files / 961 passed；`npm run typecheck` 绿；eslint 改动文件 0 error。
+- 未验证：Tauri 真机肉眼观感（色阶是否够分明需用户确认）；未跑 `pnpm verify`（纯前端 token/样式改动，无 OpenAPI 漂移）；未提交。
+
+## 2026-09-26 活动栏三段层级：主入口/当前页/功能入口/底部设置
+- 起因：用户反馈活动栏图标几乎等距、像一组同级按钮，缺分组与主次。
+- 改动（ActivityBar.tsx）：VIEW_ENTRIES 给作品/手稿加 primary 标记，渲染成「主入口 → 组间留白块(h-2.5, 不画线) → 功能入口 → 弹性留白 → 底部设置」；当前页用满档 bg-elevated 高亮，非当前 hover 降为 bg-elevated/60（hover 与当前态可区分）；设置按钮 hover 同步降档；顶部 stale 注释（激活指示条贴左缘）同步重写。
+- 护栏：shell-panel-views 新增「分组与高亮」用例——nav 子节点顺序 = book, manuscript, group-gap, explorer…settings，active/inactive class 指纹断言；既有顺序/aria 护栏不动。
+- 验证：`npm --prefix apps/desktop/frontend run test` → 129 files / 962 passed（+1）；typecheck / eslint / prettier 绿。
+- 未验证：真机肉眼观感（留白幅度 h-2.5 是否够、高亮台阶是否清楚需确认）；未跑 `pnpm verify`（纯前端改动）；未提交。
+
+## 2026-09-26 活动栏 rail ↔ 二级面板视觉分区
+- 起因：用户反馈一级图标导航与二级文档面板同为 bg-panel 连成一块，看不出两个独立区域。
+- 改动（ActivityBar.tsx）：nav 底色 bg-panel → bg-background（深色 #101012 vs 面板 #1a1a1e、浅色 #f3f3f5 vs 白，明度差沿用既有色阶）；右缘加 `border-r border-border/50` 细缝——壳上唯一保留的纵向边界；图标选中高亮（bg-elevated）不变，分区不靠高亮、无选中态时依然可读。
+- 护栏：surface-hierarchy 面板循环改为白名单制——activity-bar 允许 border-r + border-border/50 且期望 bg-background，其余面板仍禁网格线、期望 bg-panel；测试名同步改写。
+- 验证：`npm --prefix apps/desktop/frontend run test` → 129 files / 962 passed；typecheck / eslint / prettier 绿。
+- 未验证：真机肉眼观感（明度差与细缝是否够分明需用户确认）；未跑 `pnpm verify`（纯前端改动）；未提交。
+
+## 2026-09-26 导航 rail 去竖线：圆角切口 + 横向软影的独立面板轮廓
+- 起因：用户反馈 rail 与文档面板交界仍是一条生硬竖线，要求 rail 外轮廓做成独立面板感（交界上下边角 12–16px 圆角 + 弱化硬边），并提示若圆角不可见多半是父容器背景盖住或圆角加错元素。
+- 结构核查结论：ActivityBar nav 的父容器是 AppShell 行内 wrapper（原无底色，透出 body 画布色 = rail 同色，圆角会被吃掉）。因此双管齐下：wrapper 加 bg-panel 垫底（AppShell.tsx:195），让 rail 右缘圆角切口露出 panel 色、与右侧二级面板连续；nav 本体去 border-r/border-border/50，改 rounded-r-xl（14px，阶梯内）+ shadow-rail + relative z-10（保证软影盖过晚渲染的 SidePanel）。
+- 新 token --shadow-rail（4px 0 12px -6px）：深色 0.5 / 浅色 0.12，tailwind boxShadow.rail 一一映射。
+- 护栏：surface-hierarchy 恢复全面板禁网格线（连 rail 的 border-r 白名单也撤了），新增 rail 必须含 rounded-r-xl + shadow-rail 的指纹断言；浅色 token deepEqual 加 shadow-rail；测试名同步改。
+- 验证：`npm --prefix apps/desktop/frontend run test` → 129 files / 962 passed；typecheck / eslint / prettier 绿。
+- 未验证：真机肉眼验收交界上下两角的弧度与阴影浓度（关键验收项，需用户确认）；未跑 `pnpm verify`（纯前端改动）；未提交。
+
+## 2026-09-26 反转分层：rail 全高底层，二级面板左缘圆角覆盖在上
+- 起因：用户指出上一轮圆角加错对象（rail 右缘），应撤销；正确结构是 rail 为贯穿全高底层背景，文档面板覆盖其上、左缘上下两角向内收、切口露出底层背景。
+- 改动：ActivityBar nav 撤 rounded-r-xl/shadow-rail/relative z-10，恢复纯 bg-background 底层；AppShell wrapper 撤 bg-panel 垫底（保持透明，否则切口透出 panel 色不可见——上一轮的错误根源）；SidePanel 根节点加 overflow-hidden rounded-l-xl shadow-panel-lift relative z-10，resize 把手从 -right-0.5 内收到 right-0（overflow-hidden 会裁外凸部分）；token --shadow-rail → --shadow-panel-lift（偏移改 -4px 投向 rail），tailwind 键 panel-lift。
+- 护栏：surface-hierarchy 指纹反转——side-panel 必须 rounded-l-xl + shadow-panel-lift + overflow-hidden，activity-bar 不得带任何 rounded-*；浅色 deepEqual 换 shadow-panel-lift；测试名改写。
+- 验证：`npm --prefix apps/desktop/frontend run test` → 129 files / 962 passed；typecheck / eslint / prettier 绿。
+- 未验证：真机肉眼验收两角圆度与软影浓度；未跑 `pnpm verify`（纯前端改动）；未提交。
+
+## 2026-09-27 左侧栏共享宽度与旧 sidePanelWidths 迁移（Trellis 09-27-shared-side-panel-width）
+
+- 起因：左侧面板按视图各记一份宽度（宽档 340 / 窄档 260），切换活动栏图标时侧栏右边界跳动、编辑区跟着横跳。
+- 改动：`AppSettings.sidePanelWidths: Record<view, px>` → `sidePanelWidth: number` 单值；`side-panel-width.ts` 收敛为 `SIDE_PANEL_WIDTH_DEFAULT=300 / MIN=220 / MAX=800` + clamp/dragged 纯函数；`SidePanel` props 改 `width` / `onWidthChange(width)`，双击/Enter 统一复位 300，方向键 ±10（Shift ±50）、Home/End 保留；`AppShell` 传参一行；`useAppPreferences.setSidePanelWidth` 单值签名。右侧 Agent 面板、pane CSS 互斥不卸载机制、`useWorkspaceSidePanelLimit` 显示夹限语义均未动。
+- 迁移（确定性，写死在 sanitizeAppSettings）：新字段有效数字优先；否则读旧 map——丢非数字/非有限值、逐项夹限 [220,800]；空集→300；全同→该值；存在 >300 值→取该桶最大（加宽是最强意图）；全 ≤300→取最大（最少收窄）。与 key 名/遍历顺序无关；加载即迁移，下次保存落盘新字段并丢弃旧 key，只迁一次。
+- 验证（自动化）：`npm --prefix apps/desktop/frontend run test` → **129 files / 968 passed**（side-panel-resize 重写为 19 例：迁移矩阵、异常值、localStorage 往返丢旧 key、组件级六视图切换宽度不变、拖动/键盘调整后切换一致、复位、窄窗夹限与恢复、pane 不卸载草稿与节点身份保留；workspace-layout-app / book-overview-app 保留旧格式种子成为 app 级迁移验收）；`npm run typecheck` 绿；`./node_modules/.bin/eslint .` 绿；`prettier --check` 改动文件绿（本环境 pnpm 不在 PATH，用等价直连命令）。
+- 注释清理：side-panel-width / SidePanel / user-settings / useAppPreferences 头注释同步；workspace-layout.ts P2-B 注释旧默认 236 → 共享默认 300（48+300+384=732、剩 292px 结论不变）。
+- spec 同步：`.trellis/spec/desktop/frontend/component-guidelines.md` 侧栏调宽两处契约更新为共享宽度 + 迁移规则。
+- 未验证（真机 GUI）：Tauri/WebView2 下连续切换视图、拖动、收起展开、重启恢复的视觉验收未做；浏览器夹具 `tests/fixtures/workspace-layout.html` 未重跑。未跑 `pnpm verify` 全量（纯前端改动，无 OpenAPI 漂移）。未提交（尊重用户 92 处未提交改动）。
+
+## 2026-09-27 按用户新要求移除底部状态栏（不创建 Trellis 任务）
+
+- 范围：用户最初要求排查列表遮挡，随后明确改为去掉整条底部状态栏。本次移除 AppShell 的 StatusBar 挂载、仅供底栏使用的观测计数和 toggleObsPanel 接线；保留现有未提交改动与独立 StatusBar 组件，不扩展为无关清理。
+- 布局：保留原有 h-screen / flex-col / min-h-0 flex-1 工作区；移除底栏后原 26px 自动分配给工作区，无 fixed/absolute 补丁、无列表底部填空。
+- 复现边界：修改前 Chromium 长手稿列表未复现状态栏覆盖，测量到底栏 top=694、scrollport bottom=694（1280×720）。因此不宣称定位了截图中遮挡的根因；交付以用户后续的移除要求为准。
+- 回归：app.test / app-icons 将底栏断言改为不挂载，先运行得到 2 项预期失败，移除后通过；新增 scripts/verify-sidebar-scroll.mjs 使用真实 App、独立浏览器上下文、60 份内存测试文档和隔离 API，不操作真实项目。
+- `cd apps/desktop/frontend; node scripts/verify-sidebar-scroll.mjs`：通过。1440×900、1024×768、819×614 三种 CSS viewport，手稿/文件列表共 6 组；侧栏底部等于 viewport 底部；列表确实发生滚动，最后条目的上下沿均位于滚动可视区域，elementFromPoint 验证无覆盖。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`：通过。
+- `npm.cmd --prefix apps/desktop/frontend run test -- tests/app-icons.test.tsx tests/app.test.tsx tests/workspace-layout-app.test.tsx tests/book-overview-app.test.tsx`：4 files / 16 passed。
+- `npm.cmd --prefix apps/desktop/frontend run test`：129 files / 968 passed。
+- `node node_modules/eslint/bin/eslint.js`（本次 6 个源码/测试/验证脚本文件）：通过；Prettier 定向格式检查通过；`git diff --check` 通过。
+- 未验证：Tauri/WebView2 真机 GUI；未跑 `pnpm verify` 总门禁。纯前端挂载变更，无 API/OpenAPI 修改；未提交。
+
+
+## 2026-09-27 后端持续演进基础重新分析（planning；未改业务代码）
+
+- 用户最终目标：不追求 SDK/框架，打好基础让功能、架构、性能持续迭代优化；直接指出有证据的设计问题。
+- 范围：更新 `D:/StoryForge/.trellis/tasks/09-26-backend-iterability/` 的 PRD/design/implement/task 元数据及研究；旧规划保留于 research/prior-master-plan，旧 F1–F6 分析保留并注明被新路线替代。任务仍为 planning，未创建实施子任务、未 start、未提交。
+- 研究：主代理追踪运行状态/提交及 mixin 调用关系，三个只读 explorer 分别分析功能可演进性、性能基础、迭代验证。没有派发 implement/check 子代理，没有更改 API/shared 或用户前端改动。
+- 结论：优先通过真实单文件修订纵向试点打通能力/会话副作用分离、输入采集/选择分离、同类工具策略所有者、运行事实一致性、行为/性能/质量比较；SDK、单体、facade 和既有规范/测试/Prompt Lab 保留。资源生命周期和具体缓存/并发收益仍待测。
+- 定向验证（工作目录 `D:/StoryForge/apps/api`）：`uv run --no-sync pytest tests/test_agent_run_transport.py tests/test_agent_terminal_cancellation.py tests/test_agent_run_resume.py tests/test_agent_llm_context.py tests/test_agent_loop_writing_context.py tests/test_ws_contract_golden.py -q` → **59 passed in 9.19s**。
+- 离线故障探针：首次使用系统 `python` 因缺 `regex` 失败；改用 `uv run --no-sync python '../../.trellis/tasks/09-26-backend-iterability/research/offline_boundary_probes.py'` 成功。仍观察到 native provider 诊断协议/模型列表分叉、合成 opaque key 回显、终态状态已提交而事件失败后重试无法补回。仅使用模拟 transport 与新内存 SQLite，没有真实 provider/持久库；脚本验证当前异常，不代表修复验收。
+- 规划校验：UTF-8、R1–R7、引用文件存在及 task.status=planning 检查通过；`git diff --check` 通过；`git diff --stat -- apps/api packages/shared` 无输出。Trellis 规划文件为本地管理资料，不能仅用 Git diff 代替文件校验。
+- 可视报告：`C:/Users/kanye/AppData/Local/Temp/architecture-review-20260927-014519.html`。open_in_codex 返回 queued，未完成浏览器渲染/视觉验收，不宣称已展示。
+- 未验证：全量 API/Ruff/pnpm verify、真实 provider、确定性性能 benchmark、packaged sidecar、Tauri GUI、多 provider 在线与长篇文学质量。旧历史测试不与本轮重复累计；目前未设性能改善数字或门槛。
+
+
+## 2026-09-27 E1 修订能力/会话副作用分离方案细化（仅 planning）
+
+- 用户选择第一个候选方向，尚未授权业务实现。父任务 backend-iterability 保持 planning，未 start，未创建实施子任务。
+- 更新父 PRD/实施路线/任务备注；候选方案四件套位于 `D:/StoryForge/.trellis/tasks/09-26-backend-iterability/research/revision-capability-pilot/`（prd/design/implement/research）。只写规划资料与本验证记录。
+- 三路只读研究复用已有 explorer：调用方/副作用、现有测试缺口、模型调用兼容风险；主代理负责设计及基线，没有派发 implement/check。
+- 确认生产直接调用四处：HTTP router、file.revise handler、chapter.write 内部 repair、project.trim_prose。显式 chapter.repair intent 走 judge.repair，不是该调用链。推荐保留这四个调用点和 facade，只抽无 DB/隐式文件或 env 依赖的值接口。
+- 保持现有 streamed 聚合模型调用及消息/证据/错误顺序；不同时改 provider 协议、消息去重、事务、取消或截断规则。新能力不得提前生成 patch，章节 repair 仍须外层复查。
+- 基线（cwd `D:/StoryForge/apps/api`）：`uv run --no-sync pytest tests/test_assistant_revise.py tests/test_agent_llm_context.py tests/test_agent_loop_writing_context.py tests/test_agent_loop_runtime.py tests/test_chapter_writing_pipeline.py tests/test_usage_accounting_matrix.py tests/test_agent_terminal_cancellation.py tests/test_canon_reach.py tests/test_author_instructions_reach.py tests/test_scene_discipline_reach.py tests/test_punctuation_drift.py tests/test_llm_config_protected.py -q` → **122 passed in 4.71s**。没有新增目标测试，不能声称方案已实现；不与历史59项累计。
+- 规划校验：E1-R1–R6、文件引用、UTF-8和父task.status=planning检查通过；PRD全文收敛审阅；`git diff --check` 通过；`git diff --stat -- apps/api packages/shared` 无输出。
+- 设计文件已请求 open_in_codex，返回 queued，不宣称已显示。
+- 已标注覆盖缺口：现有章节repair测试mock整个facade；外层取消测试未覆盖内层修订中取消；消息数/提交可见性和完整prompt等价需实施前刻画。没有真实provider、GUI、性能测量、全量verify或长篇质量验收；未提交。
+
+## 2026-09-27 E1 修订能力与会话副作用分离（已实施，未提交）
+
+- 用户批准“第一个”切片并要求继续：目标是为后续功能/架构/性能迭代建立可替换、可验证的边界，不是新建 SDK。独立实施任务：`D:/StoryForge/.trellis/tasks/09-27-revision-capability-isolation/`，仍为 in_progress，未提交/归档。
+- 生产改动仅 `D:/StoryForge/apps/api/app/domains/assistant/revision.py` 与 `D:/StoryForge/apps/api/app/domains/assistant/service.py`：增加冻结值输入/结果、注入生成 callable、纯 prompt renderer、既有标点还原及可选 polish gate；旧 facade 管配置/读盘/消息/证据/错误/DTO。保留原签名、四个调用方和 streamed 传输；不生成额外 patch，不写项目原稿，不改 schema/路由/迁移。
+- 主会话 inline 实现和检查；研究代理只读。AST 对比确认 service 其余函数/类未改变。兼容常量与 prompt helper 保留，动态 `_call_llm_streamed` monkeypatch seam 保留。
+- 新增 `test_revision_capability.py`、`test_assistant_revision_lifecycle.py`、`test_revision_callers.py`：共24项。覆盖无DB/env/读盘的值能力、精确prompt、一次生成、标点先于质量门禁、missing/None/0、失败候选不外泄、独立SQLite连接观察提交/rollback留存、chapter.write修复后二次检查、trim audit/待确认patch，以及chat/intent各自消息和证据层数；不mock整个facade。
+
+### 验证命令与结果
+
+工作目录 `D:/StoryForge/apps/api`：
+
+- 未改业务代码时，`uv run --no-sync pytest tests/test_assistant_revision_lifecycle.py tests/test_revision_callers.py -q`（当时12项）→ **12 passed**。能力测试先因模块缺失变红，再实现。
+- 20文件关联回归 → **217 passed in 35.11s**；完整参数保存在 `D:/StoryForge/.trellis/tasks/09-27-revision-capability-isolation/research/verification.md`，不与其他轮次累计。
+- `uv run --no-sync pytest tests/test_revision_capability.py tests/test_assistant_revision_lifecycle.py tests/test_revision_callers.py -q` → **24 passed in 20.75s**。
+- 全量首轮捕获旧流式源码护栏不识别 partial；改为请求内显式 streamed callable，保留原护栏，未删除/放松测试。
+- `uv run --no-sync pytest tests/test_assistant_continue.py tests/test_revision_capability.py tests/test_assistant_revision_lifecycle.py tests/test_revision_callers.py -q` → **60 passed in 22.54s**。
+- 最终 `uv run --no-sync pytest -q` → **1610 passed / 7 skipped / 1 failed in 246.80s**。唯一失败：`test_source_code_standards.py::test_completed_wave_source_files_meet_hard_line_limits`，用户已有 `D:/StoryForge/apps/desktop/frontend/src/App.tsx` 为433行，超过400行；未修改前端或放宽护栏。
+- 最终 `uv run --no-sync ruff check .` → 通过；根 `git diff --check` → 通过。
+
+工作目录 `D:/StoryForge`，总门禁无覆盖等效步骤：
+
+- `npm.cmd run lint` → ESLint/Prettier通过。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck` → 通过。
+- `npm.cmd --prefix apps/desktop/frontend run test` → **129 files / 969 passed**。
+- `npm.cmd --prefix packages/shared run test` → 类型契约通过；`npm.cmd --prefix packages/project-core run test` → **7 passed**。
+- `node scripts/sidecar-smoke.mjs` → daily源码档通过，零LLM/零外网；不是packaged exe验收。
+- 最初按项目指令尝试 pnpm.cmd lint/shared/project-core，但运行时pnpm依赖自校验试图install并因无TTY退出；没有重装依赖，改用npm执行相同scripts。package.json和lockfile未变。
+- 未直接运行 `pnpm verify`/`check:drift`，避免覆盖用户修改的生成产物。运行 `uv run --no-sync --project apps/api python .trellis/tasks/09-27-revision-capability-isolation/research/check_contracts_readonly.py`：仅在临时目录使用原生成算法和现有openapi-typescript 7.13.0。四项都与HEAD一致，OpenAPI JSON、api-types、WS schema也与工作树一致；用户已修改的 `D:/StoryForge/apps/desktop/frontend/src/lib/api/generated/agent-ws.ts` 与生成器输出有既存字节差异，检查按设计返回1。四个工作树文件前后hash不变。**本次无新契约漂移，但整个工作树门禁不能宣称全绿。**
+
+### 本地性能/副作用对照
+
+- 脚本：`uv run --no-sync --project apps/api python .trellis/tasks/09-27-revision-capability-isolation/research/measure_revision_local.py .trellis/tasks/09-27-revision-capability-isolation/research/after-final.json`。
+- Python3.13.9 / Windows11；固定300与3000字符，3次预热+25次；新临时SQLite、假生成，无真实模型。原始和派生结果分开保存为baseline.json、after-final.json。
+- Facade前后均：新会话14条SQL、已有会话16条SQL；4次commit、1次生成。独立能力均0条SQL、0次commit、1次生成。
+- Facade中位数（前→后，ms）：300字符新会话50.397→51.519、已有50.499→53.785；3000字符新58.622→58.228、已有72.312→57.440。独立能力中位数0.141/5.289ms。保留分布和输入hash；这些是合成本地开销，不是实际LLM加速，也不是质量/性能承诺。
+
+### 规则与未验证范围
+
+- 已将稳定值接口、所有权、提交时序、错误矩阵和断言点写入 `D:/StoryForge/.trellis/spec/storyforge-api/backend/controlled-polishing.md` 并更新索引；子任务和父计划进展已同步。Trellis资料为本地管理文件，不以Git diff替代检查。
+- 未验证真实provider、长篇写作质量、Tauri真机diff/写回、packaged sidecar。内层修订取消、截断策略、provider-health、终态事件原子性与chat记录去重未改，不能宣称解决。
+- 用户前端未覆盖；未git commit/push，未自动进入第二切片。总门禁剩余既存前端行数/生成产物差异单独保留。
+
+## 2026-09-27 UI/UX 中优先级批次收口（静默失败 + 破坏性确认口径 + 对话区反馈缺口）
+
+背景：高优先级 12 项已于上一会话修完并通过整合门禁。本会话收口此前被中断的中优先级 4 组（原 swarm agent-20/21/22/23）：其中 20（编辑器/搜索静默失败）、22（toast 系统）、23（Inbox 拒绝确认）已有落盘但未收口验证，21（对话区反馈缺口）完全未实施。本会话补齐缺口、修复半成品缺陷并跑完整门禁。工作目录 `D:/StoryForge/apps/desktop/frontend`。
+
+### 实际修复内容
+
+- ToastHost 暂停/恢复重构：把 `pausedRef` 从「只记被暂停条目」改为每条通知计时状态单源（deadline/remainingMs/paused/timer），修复首条通知 deadline 从未初始化、focus 冒泡双触发等半成品缺陷；focus/blur 改用 `onFocusCapture`/`onBlurCapture` + relatedTarget 判断，焦点在同条通知内部按钮间移动不算离开。
+- 溢出淘汰策略保持「先丢无动作的旧通知、全是带动作才丢最旧」，新测试钉死该语义（含「6 条无动作涌进来只挤掉彼此、不动带动作撤销入口」）。
+- `useProjectSearch` 补 `skippedFiles` 计数并接入 SearchView 摘要区与 live region（0 时不播报）；`useBranchManifest` 写盘失败与 Editor 恢复节点失败补 error toast（agent-20 落盘）。
+- KnowledgeInboxView 拒绝提案改走 AppDialog danger 确认（agent-23 落盘），补行为测试。
+- 对话区 4 项（子代理实施、本会话复核）：WritingRun 订阅失败从「running+进度条」改为「进度信号丢失」警示块+重试订阅按钮；两条常驻错误条（会话加载/上下文索引）加 dismiss 与子系统徽章；LiveStatus 在 run failed 时传 `tone='assertive'`；「停止本轮」改两段式内联确认（5s 超时/划走取消）。
+- `useRunAuthorAgent.ts` 512 行超 500 门禁 → 把订阅辅助函数（markWritingRunSubscriptionLost/startWritingRunProjectionSubscription）挪入同目录 `writing-run.ts` 纯逻辑模块（482 行），保持 re-export 兼容既有 import 方。
+
+### 验证命令与结果
+
+- `npx tsc --noEmit -p tsconfig.json` → 0 error。
+- `npx vitest run`（全量）→ **135 文件 / 1026 用例全绿**。
+- `npx eslint apps/desktop/frontend/src apps/desktop/frontend/tests` → exit 0（含修复 chat-feedback-gaps 未用 import 后）。
+- `npx prettier --check` src+tests → 全绿（修复 13 处格式漂移后）。
+- `cd apps/api && uv run pytest tests/test_source_code_standards.py -q` → 15 passed / 1 failed。唯一红：`App.tsx 433 行 > 400 硬上限`——用户在途 P2-A 快捷键重构所致（HEAD 时正好 400 行），非本批改动，需用户自行收口。
+- 新增/扩展行为测试：toast 溢出保护/悬停暂停/失败不留倒计时（修绿 5 条半成品）、search-view skippedFiles 播报、knowledge-inbox 拒绝确认弹窗、chat-feedback-gaps 12 例（订阅丢失标+重连、错误条 dismiss/重试、failed assertive、停止两段式）。
+
+### 未验证项（不宣称）
+
+- 键盘/读屏聚焦暂停倒计时：实现已落（幂等 onFocusCapture + relatedTarget 出口），但 jsdom + fake timer 下该用例把宏任务调度放大成堆溢出（4GB 堆仍 OOM），headless 套件不承载；转真机手测验收项。
+- 真机 Tauri GUI 链路未验（与仓库「当前不能宣称」一致）；所有验证均为 vitest + happy-dom 行为层。
+- App.tsx 433 行的结构红线为既有问题，本批未碰、未放宽护栏。
+
+
+## 2026-09-27：S2/E2 上下文采集与选择分离（本轮）
+
+- 保留安全采集，提取固定索引选择/显式证据投影、知识采集/合并、无隐式读盘的snapshot入口；原live三个调用点不变。
+- 17项新增/刻画测试通过；上下文、filesystem边界、loop schema/adapter/权限联合回归：122 passed / 4 skipped（Windows链接测试）。全API Ruff及本片diff check通过。
+- 与HEAD合成对照：250组检索结果及证据读取顺序相同，21组snapshot/hash/prompt bundle/trace相同；14个无关函数AST不变。见 `.trellis/tasks/09-27-context-input-isolation/research/baseline-comparison.json`。
+- 独立导入发现HEAD既存cycle：上下文→loop类型→patches→工具参数→上下文。沿loop facade的lazy export修复，四入口新子进程测试通过，不依赖pytest预加载。
+- 第一轮API全量1623 passed / 7 skipped / 1 failed（App.tsx现433行超过400；用户并行前端改动未触碰）；冷导入修复后的最终全量另补。
+- 临时生成4份契约全部与HEAD相同；前三份与工作树相同，用户frontend agent-ws.ts有既存差异。写前后hash相同，未执行覆盖式生成/verify。
+- daily源码sidecar健康、assistant、Agent SSE/control、SQLite迁移通过，零LLM/零外网；没有将daily解释为packaged/GUI验收。
+- 未验证/未完成：总计划E3/C1/C2/S3/S4及最终统一门禁，packaged/GUI分档；无提交/推送。保留所有用户前端变更。
+
+### S2最终验证回收
+
+- 冷导入修复后的API全量：**1627 passed / 7 skipped / 1 failed**（262.56s），唯一失败为用户并行 `apps/desktop/frontend/src/App.tsx` 433行超过既有400行门槛。
+- lint、Desktop typecheck、shared tsc、project-core 7测试通过；Desktop全量 **135文件 / 1026测试通过**。没有覆盖用户前端修改。
+- S2独立patch/文件hash清单位于 `.trellis/tasks/09-27-context-input-isolation/research/`；反向apply只读校验通过，未实际回退或提交。
+- 总计划保持active：下一片E3将工具输入准备/可信上下文/trace策略收敛至现有ToolSpec。S2不代表总目标完成。
+
+
+## 2026-09-27：S2/E3 ToolSpec loop执行策略单点声明
+
+- ToolSpec声明loop_input_mode / loop_trusted_context / loop_trace_owner，ToolDefinition派生，conversation_runtime和sdk_adapters按注册定义执行；原名字集合保留派生兼容出口，不再独立维护。
+- 策略独立于risk/permission/patch；保持原工具矩阵，新增内部字段从模型参数中剥除。无新SDK/DSL/生产工具/DTO/迁移，不改fixed intent或稿件写回规则。
+- 实施前88项真实工具关联测试通过；新增红阶段15失败，实施后最终18测试通过。陌生工具名的实际chat→SDK→handler链验证策略接入、可信上下文、安全trace、空/缺失摘要、失败、路径/大小边界及目录DTO不泄露策略。
+- 扩展关联135 passed / 1 failed（既存App.tsx 433>400），新增末3测另通过；全API Ruff与本片diff检查通过。API全量结果待回收。
+- OpenAPI/TS/WS四份临时生成均等于HEAD，三份等于工作树；用户agent-ws.ts既存差异未覆盖，4份hash前后相同。daily源码sidecar health/assistant/SSE/control/迁移通过，零LLM/零外网，非packaged/GUI证据。
+- 结构说明更新于apps/api/app/domains/agent_runs/STRUCTURE.md；本片独立patch/hash清单位于.trellis/tasks/09-27-tool-policy-convergence/research。前端及E1/E2改动保持原状。总目标仍active，C1/C2/S3/S4/最终集成未完成。
+
+### E3全量回收
+
+- 最终API：**1645 passed / 7 skipped / 1 failed**（264.21s），唯一失败仍是用户并行App.tsx 433>400；API其余行为和架构门禁通过。
+- 独立patch反向只读校验通过，无提交/回退。当前总门禁不能宣称全绿；下一片C1实施AgentRun结算状态与重建事件同事务提交，C2/S3/S4及最终集成继续保留在总目标内。
+
+
+## 2026-09-27：C1 AgentRun 结算状态/事件一致性
+
+- 普通 complete/fail、permission.confirm、approve/deny、BookRun 终态镜像取消状态提前提交；复用事件 writer 的 commit 与序号 SAVEPOINT，新增窄异常回滚边界，通知在提交之后。无 schema/route/DTO 变化，无大事务或 SDK 重写。
+- BookRun 终态快照不再提前将镜像重开 running；合法 checkpoint retry 可恢复。失败镜像以已提交上游为事实源，仍保留普通 worker 对 paused/stopped 的守卫和重复快照事件语义。上游事实不回滚。
+- 无 pending anchor 的 resume：stopped 与已有 RESUME 事件诊断一起提交；局部失败回到已提交 running/resumed，不宣称整个控制命令原子或杜绝所有恢复僵尸。
+- 基线 99 passed；第一红阶段 13 failed / 7 passed，镜像追加红阶段 8 failed / 5 passed（此时 fail 已修）。新增最终 41 项通过。夹具是真文件 SQLite/WAL、外键 ON、NullPool 独立物理连接；覆盖 INSERT/commit/UPDATE 故障、同 Session 后续 commit 不泄漏状态、重试、序号冲突/耗尽、通知/refresh、控制 REST error、重建字段/脱敏/裁剪、跨连接 stop 和镜像 retry。
+- 扩展回归：164 passed / 1 failed，唯一失败为并行前端 App.tsx 433 > 400；未修改前端或阈值。全 API Ruff 与 diff check 通过；全量 API 结果待回收。
+- 四份契约临时生成均与 HEAD 相同；前三份与工作树相同，用户 agent-ws.ts 的既存差异保留，4 份工作树 hash 未变。daily 源码 sidecar health/assistant/SSE/control/迁移通过，零 LLM/零外网，不是 packaged/GUI 验收。
+- 本片 patch、SHA-256 清单及反向 apply --check 证据在 .trellis/tasks/09-27-agent-settlement-atomicity/research；STRUCTURE 仅含 C1 追加，不吞并 E3 文档改动。未提交、推送或回退用户改动。
+- 总目标仍 active：C2 provider 诊断/脱敏、S0/S3/S4 测量与实测优化/真实第二能力，以及最终集成/分档交付证据尚未完成。
+
+
+### C1 全量验证与授权回收
+
+- 最终 API 全量：**1686 passed / 7 skipped / 1 failed**（255.14s）；唯一失败仍为 App.tsx 433 行超过 400，其他 API 行为及架构门禁通过。全量日志见 `.trellis/tasks/09-27-agent-settlement-atomicity/research/api-full.log`。
+- C1 独立 patch 反向只读校验通过，工作树 SHA-256 清单复核一致；未提交或改动前端。
+- 用户明确选择允许在最终集成时核对后最小修复 App.tsx 行数与 agent-ws.ts 契约差异，保留现有功能；不等于允许直接覆盖生成文件。后续应以新的完整门禁证据验收。
+- C1 不是总目标完成；下一片 C2 处理 provider 诊断协议与实际凭据脱敏，其后继续共享测量、单项实测优化、真实第二能力及最终交付证据。
+
+
+## 2026-09-27：C2 Provider 诊断协议与脱敏边界
+
+- provider-health 收到独立 assistant/provider_health owner；同次 resolved source 供缺项检查、请求与对象层脱敏。service 保留公开 probe 与原 transport 注入 seam，26个其他顶层定义 AST 不变（包括 E1 修订能力接线）。
+- common/llm_protocol 单点维护有限 family/auth/list 规则；GET /models 收入 common/llm_client，删除 assistant 的旧 urllib Ruff 豁免，无新 SDK/DTO/DB/schema。
+- Gemini 资源名解码，分页只披露本次部分结果而不冒称总数；坏 JSON/UTF8/list、URL/auth、非有限/非正超时有安全结构化处理。unsafe URL 凭据在诊断联网前拒绝，安全版本 query 保留于请求、从展示移除。
+- HTTP error body/reason 不进入诊断；实际 source-only opaque key 在 DTO 构造前脱敏。shared JSON 与 OpenAI 非流式/流式 HTTP 错误全部先脱敏后截断；reasoning warning 只保留字数，不保留原文片段。
+- 实施前基线92 passed；新增第一红阶段39 failed / 10 passed，另补OpenAI截断2项红测。最终新增61项通过；关联回归149 passed（之后新增4项HTTP→模型发现→原生generation transport贯通另通过）。全API Ruff与diff check通过；全量API结果待回收。
+- 临时契约四份均等于HEAD、前三份等于工作树，既存前端agent-ws差异保留，hash前后相同。daily源码sidecar health/assistant/SSE/control/迁移通过，零LLM/零外网；不是packaged/GUI/真实provider验收。
+- C2独立patch/hash/反向apply只读校验及AST/协议来源证据在 .trellis/tasks/09-27-provider-diagnostics-safety/research；没有包含E1/C1或前端变更，未提交。总目标保持active，下一阶段仍需共同测量、实测优化、真实第二能力和最终集成。
+
+### C2 最终全量回收
+
+- 最终API全量：**1747 passed / 7 skipped / 1 failed**（267.51s），唯一失败仍为 `App.tsx` 433行超过400。日志：`D:/StoryForge/.trellis/tasks/09-27-provider-diagnostics-safety/research/api-full.log`。不能宣称总门禁全绿。
+- C2新增61项测试包含真实HTTP诊断→模型资源名→现有原生生成通道的离线贯通；全部使用合成夹具，无真实provider请求或费用。
+- 独立8文件patch反向只读校验与SHA-256复核通过；不包含E1/C1或用户前端改动。未提交、发布、推送或实际回退。
+- 用户授权的前端最小修复仍留到最终集成。共同测量、单项实测优化、真实第二能力、最终分档验收未完成；总目标继续active。
+
+
+## 2026-09-27：S0 共同阶段测量与写作反馈
+
+- 新增common/performance有界无内容recorder、日志装配与SSE生命周期adapter。接入修订/真实受控润色、context采集/纯选择、Agent模型/工具、现有持久化操作；不改事务/权限/模型策略/DTO，不写原稿。
+- 默认128 span（最多512），固定阶段/状态词表、parent/offset、缺失时间null；clock/sink异常隔离。run_key只hash实际ID，run_status只读已有ORM内存，不能触发刷新/SQL。父子耗时不累加为总耗时。
+- SSE worker_finished与transport_finished独立快照：显式跨线程scope，断连不主动stop、不新增shield、不重排await。服务端yield不是客户端TTFT。真实pump close/cancel及本地ASGI2.3 disconnect均验证：consumer结束时线程仍可运行、worker最终独立收尾且不串run。
+- 新增50测试最终通过（1.73s）：helper17、两能力10、实际SSE/生命周期15、共同实验8。涵盖真实intent/chat→revision或polish→patch/权限/证据，成功/模型失败/降级full确认；时钟、日志故障、并发/取消、容量/隐私；不mock整层能力。初始scope48通过；helper红阶段因待建模块不存在而collection失败。
+- 全API `uv run --no-sync pytest -q`：**1797 passed / 7 skipped / 1 failed**（309.85s）；唯一失败仍为用户并行App.tsx 433>400。本次未改前端或放宽门槛。API及实验CLI Ruff、diff check通过。
+- 四份契约临时生成都等于HEAD、前三份等于工作树；前端agent-ws既存格式差异保留，工作树hash前后不变。daily源码sidecar健康/assistant/SSE/control/迁移通过，零LLM/外网，不是packaged/GUI证据。
+
+### 可复跑共同实验
+
+命令：`uv run --no-sync --project apps/api python scripts/measure-authoring.py --samples 5 --warmup 1 --lines 10 100 --output .trellis/tasks/09-27-shared-performance-feedback/research/baseline.json`。
+
+- 正式120样本在全API进程结束后单独重跑；第一次与pytest同时运行的数据保存在concurrent-probe.raw.json及带条件说明派生副本，不用作优化比较基线。
+- Windows11 / Python3.13.9 / app0.1.10；HEAD e6ca61733d8b63ec0fb15fcba4ee67150a7d1140、dirty=true；backend/fixture hash `893dbb4b66bb7d2de13f155c7b469fffc7d672c60e61e0c24ab805d47528917b`。记录fixture hash、规则/门禁/快照版本、所有失败/降级/拒绝/noop和成功样本。
+- 两规模256/2506字符，暖机1+重复5；模型均synthetic，cost=not_applicable而非真实调用免费。未测SQL/usage字段null/unavailable，非伪造0。所有样本符合预期、原稿未变，0 dropped/0 pending spans。
+- 中位数（256→2506字符，ms）：独立修订0.134→1.144；独立润色0.868→5.445；真实in-process SSE chat修订335.648→328.091，润色268.121→274.753。假模型耗时远低于真实模型，这些数不能推导线上模型更快或文学质量更好。
+- SSE修订成功/模型失败：103/91 SQL、23/20 commit；润色成功/降级：87/86 SQL、均19 commit；全部3次synthetic模型调用（外层2+内层1）。当前只是基线，不改事务以追求更少commit。
+- CLI使用隔离临时项目/SQLite和真实IDE路由/SDK工具/能力/权限/事件；不启动生产DB/middleware、不证明HTTP网络到达或真机UI。实验报告可重放，意外异常保留固定错误码且验收失败，不回显原异常。
+
+### 交付边界
+
+- 说明与职责/测试选择表：`D:/StoryForge/docs/architecture/authoring-feedback.md`；Trellis logging规范同步。21文件独立patch、SHA-256清单及反向apply只读校验通过，保留原混合换行；未实际回退/提交/推送，未吞并E1/E2/E3/C1/C2或前端修改。
+- 总目标仍active。S4还需真实润色可信约束、双拒绝/noop、内层stop/pause矩阵；只读研究发现fixed after_plan中断可能带出迟到patch或未序列化ToolArtifact，尚未复现，不能称已修。S3仍需基于实测完成一项优化，最终前端最小修复/总门禁与packaged/GUI分档仍未完成。
+
+## 2026-09-27：S4 真实润色复用与中断交付
+
+- 真实第二能力验收：显式 intent 与 chat→SDK tool→实际 polishing service/parser/gate→权限/证据→SSE，再通过 REST 重放 AgentRun、events、artifacts。只替换 provider 出口，全部临时小说、文件 SQLite/WAL/NullPool；后端未改原稿。
+- 确认并修复设计缺口：DB 的 stopped/paused 不等于撤销外部补丁。固定管线生成期间被停止/暂停，旧 helper 仍带顶层 patch 和临时 ToolArtifact，两个返回分支还漏清内部标记。初始真实 SSE 四例为2失败/2通过；fixed两例抛 `TypeError: Object of type ToolArtifact is not JSON serializable`，chat原本通过。
+- 最小生产修复仅2文件、9新增/2删除：共享 helper 撤销顶层 proposed_patch 和未提交 _tool_artifacts；fixed after_plan/after_tool 在返回前清内部标记。保留 Brief confirmation、只读 review 与恢复锚点；不改 DTO/路由/权限、provider策略、事务或实际HTTP取消语义。
+- 新增38测试：成功保留受保护 Markdown、read/ask/auto/full、provider/非法JSON/截断后 auto/full 仍确认、双门禁拒绝/noop无空patch、可信实体/人物/时间线/记忆/章节目标实际进入模型请求与gate、模型伪造可信参数无效；实际内层provider成功/失败期间跨连接stop/pause、public on_event after_tool停止/暂停、共享helper保留Brief/review恢复信息。
+- 补丁响应、trace.patch_id、持久 artifact、artifact事件ID及permission事件相符；provider原始失败与合成key未进入交付证据；停止不产生迟到补丁artifact、permission或completed。已发生调用usage/trace不要求消失，不声称在途HTTP已被取消或所有竞态已消除。
+
+### 验证
+
+- 基线：polishing tool + chapter writing + resume 18通过（1.50s）。最小修复后22通过（2.49s）。最终新增38通过（14.81s）。
+- 定向polish/tool/service/Brief/resume/terminal cancellation/测量传输/source guard：118通过、1失败（19.52s），唯一既有 `App.tsx: 433 >400`。
+- 全API `uv run --no-sync pytest -q`：**1835 passed / 7 skipped / 1 failed**（279.72s）；同一App行数门禁，没有放宽门槛、没有修改用户前端。
+- `uv run --no-sync --project apps/api ruff check apps/api scripts/measure-authoring.py`：通过。任务相关 `git diff --check`：通过。
+- 四份契约临时生成全部等于HEAD、前三份等于工作树；前端agent-ws.ts仅既存差异，worktree hash前后不变，未直接覆盖。
+- `node scripts/sidecar-smoke.mjs`：daily源码档通过（健康、assistant、SSE/control、迁移，零LLM/外网）；不等于packaged/GUI通过。
+- tracked `docs/architecture/authoring-feedback.md` 与 controlled-polishing spec已同步中断清理契约、实际回归入口及非目标。独立patch与SHA-256清单在任务research，保留原字节换行；未提交/推送/归档。
+
+总目标仍active：S3实测单项优化、最终职责/current-phase/TODO对齐、授权的前端最小修复与总门禁、packaged/隔离fixture GUI证据分档尚未完成。
+
+## 2026-09-27：S3 文风语料有界读取与单变量实测
+
+- 原实现先read_bytes整文件再[:200000]；先测量确认3x8MiB合成章节实际读取25,165,824字节。仅修改common/style_baseline.py：无缓冲二进制read(MAX_FILE_BYTES)，保留所有解码/换行/短章/排序/置信区间/prompt行为。MAX_TOTAL_BYTES历史名实际800000字符，以注释和局部total_chars明确，未改预算单位或加缓存。
+- 新增可复跑开发driver scripts/measure-style-read.py、共享合成fixture/ReadProbe、16行为测试；没有新生产SDK/服务。通用矩阵含200KB读量上界、ASCII/中文总预算、UTF8半字符、NUL位置、399/400字符、OSError、最近十候选不补取和即时重读，实际Agent修订成功/失败，以及探针失败保留样本。
+- 初始自动pytest参数ID超过Windows32767字符环境限制，属于夹具问题；改显式短ids后，修复前红灯为1失败/14通过（read请求-1而非有界）。修复后41通过；追加driver失败留样测试后42通过（16新增+26旧基线，4.79s）。没有删边界测试或放宽门槛。
+- 全API在生产改动完成时为**1850 passed /7 skipped /1 failed**（284.39s），唯一仍为App.tsx 433>400。随后仅硬化开发driver的资源探针失败留样并新增1个对应测试；42项重新通过，最终集成还会重跑总门禁，不伪称1851全量已跑。
+- 全API和两个measurement scripts Ruff、任务diff check通过。契约临时生成四份都等于HEAD、前三份等于工作树，agent-ws既存差异保留、全部worktree hash未变。daily源码sidecar通过，零LLM/外网调用，不是新packaged或GUI证据；不等于证明应用从未解析环境配置。
+
+### 正式对照与取舍
+
+- before-measurement.json为修改前32条（3重复+1暖机）；comparison.json及最终comparison-final.json各96条（5重复+1暖机，含16暖机），旧新顺序交替，正式比较无并行pytest/build。首轮保留，不择优删掉长尾或失败；最终全部prompt/结果hash等价、原稿不变。
+- read/tracemalloc/耗时分别取样。ReadProbe只计合成corpus文件，不含目录枚举、指令和另一个短修订目标，不叫物理磁盘IO；峰值是Python分配，不叫RSS；OS缓存未知，不叫冷盘测试。
+- 大后缀read **25,165,824→600,000字节（约-97.6%）**，分配峰值中位 **8,872,341→1,083,863字节（约-87.8%）**。正常小章read仍24,500字节，但瞬时分配41,175→221,612字节（固定read窗口取舍）；ASCII/中文预算入选数仍4/10，未减少语料质量换性能。
+- 最终大后缀局部基线中位33.039→23.394ms，真实Agent成功revision.system_prompt33.278→24.488ms。**不宣称整体Agent稳定更快**：首轮大后缀总成功333.431→341.457ms、最终324.070→311.808ms，正常最终294.495→296.614ms，均保留秒级长尾。CI硬预算是每候选最多200000、最多10候选，语料raw read总上界2000000，不是脆弱耗时阈值。
+- 实际public Agent facade→chat/SDK→file.revise→assistant能力/权限/SQLite；不含SSE/startup/GUI/真实provider。成功旧新均103SQL/23commit/3synthetic模型，失败均91SQL/20commit/3模型；cost not_applicable，未改事务/模型/权限来降低计数。
+- 最终backend+fixture+runner hash `aea448c63819c951e8cbb9e54ed8fd3e4c82034a386f7003b1b47c6797fc407f`；before模块 `e7498465ba8e7b7300e65b1e29ee81fd5730dbfaeb985ebc2538cbec2b250b0e`；Python3.13.9/Windows11，HEAD e6ca61733d8b63ec0fb15fcba4ee67150a7d1140 dirty。命令、原样本、初始/最终分析在任务research；API业务没有新增依赖。
+
+### 交付边界
+
+tracked authoring-feedback地图与Trellis logging/quality规范同步；独立patch及SHA-256/反向check保留原LF，没有提交/推送/归档。已知style枚举缺少逐候选链接containment与遍历预算，本刀未修、也不能借其他fs工具的测试称它安全，单列设计风险。总目标active；下一片是授权的前端最小修复、current-phase/TODO职责同步、总门禁、重新构建packaged与隔离fixture原生GUI分档验收。
+
+
+## 2026-09-27 持续演进基础最终集成（核心通过，GUI仍未完成）
+
+任务：`.trellis/tasks/09-27-foundation-final-integration/`。用户已授权核对后最小修复 App/agent-ws；不覆盖并行样式与交互。App 433→384行，仅5导航回调提取useEditorNavigation，12新增行为测试；生成4契约与HEAD逐字节一致。E2E原3个旧IDE读路由正向断言与已提交退役事实冲突，改为禁止回流/Agent事件产物回放/命令审计合同，不改API。
+
+实际命令/结果（完整日志在该任务research）：
+- `pnpm.cmd openapi`、完整 `pnpm.cmd verify`：通过；现成pnpm9.15.4缓存临时shim，子环境pnpm_config_verify_deps_before_run=false/pm_on_fail=ignore，未install/删modules。首次研究.tsx备份误入lint改.snapshot，第二次接线格式修复后整跑。API1852 passed/7 skipped；frontend136 files/1038 passed；project-core7、shared类型、lint/typecheck、Ruff、daily3135ms和drift均过。
+- 前端8文件定向83通过；`pnpm.cmd e2e`原17/3fail，校准后20pass；最终lint再次通过。四生成物无语义drift，均等于HEAD。
+- `npm.cmd --prefix apps/desktop run test:rust`：56pass/1ignored；`test:git-bundle`7pass、`verify:git-bundle`通过；`test:nsis-install`18pass是runner单测，未做安装器实际安装/卸载。
+- `npm.cmd --prefix apps/desktop run build:release-smoke`：当前PyInstaller+Tauri release --no-bundle重建成功。`node scripts/sidecar-smoke.mjs --packaged --skip-build`仅复用刚构建且记录hash的产物：通过4179ms；显式空managed-v2配置，零LLM会话/SSE失败/control/Alembic/prompt入口。不将之称成功生成。daily脚本仍可解析仓库dotenv，不宣称完全不读任何配置。
+- `node apps/desktop/scripts/verify-tauri-smoke.mjs --executable D:/StoryForge/apps/desktop/src-tauri/target/release/storyforge-desktop.exe`：实际隔离WebView/项目/API配置运行，失败在等待漂移errorToastText，当前产品源明确改为patch-action-status。未改夹具前不得认定后续磁盘拒写/accept/快照已通过。为避开既有3007服务采用显式exe，输出installed不代表安装器验收。
+- 两个frontend browser smoke失败：retired welcome-workspace与overview中hidden assistant-panel；已询问仅夹具最小校准授权，未擅改UI/脚本。研究已给出后续选择器/调用时序/API假环境映射。
+- 文档更新后 `uv run --no-sync pytest tests/test_phase9_fact_sources.py tests/test_source_pruning.py tests/test_source_code_standards.py tests/test_api_surface.py -q`：53pass；`git diff --check`通过。
+
+产物：API SHA256 4aa8af6a8e4b9a44a3e148a129163a9189b4e68c6cbb14f819f0bea1517c5484，Desktop fca40ecc8343ad9678e4a8bce08b4c29267ae0cafcbf2318b9f5e9c748b35130；完整版本/mtime/bytes见rebuilt-artifacts.json。native59379、daily65339、packaged54839端口已不监听，已知合成项目根已清理；未动3007归属未知服务。
+
+未通过/未验证：上述3个GUI夹具、完整真实provider/全部权限GUI链、真实长篇人工质量、在线PostgreSQL、远端CI、NSIS实际安装、提交/发布。文风语料枚举containment/链接拒绝和遍历预算仍是独立设计缺口。总目标保持active；没有以核心门禁替代全目标验收。独立本片before/patch/manifest及回退检查见任务research；不混入其他切片或用户改动。
+
+
+## 2026-09-27 持续演进基础收尾：GUI 修复与全计划分档验收
+
+上节“GUI仍未完成”为当轮历史；本节记录续接结果。主会话 inline 实施/检查，研究代理只读，保留用户并行前端工作。未提交/推送/发布/归档。
+
+### 改动及行为边界
+- 两个 browser verifier 只校准库→总览→可见工作台及当前控件；保留真实请求方法/认证/正文/pinned上下文、事件驱动步骤、气泡与节点复用断言。合成 FS 明确缺失，book.context 更新阅读序/UTF-8估字/accepted envelope；observatory 是用于渲染的最小合成投影，不冒充后端checker。
+- Vite 禁 env 文件并固定 synthetic API/key；API方法/路径/项目/run归属白名单，未知请求账本必须为空，实际网络只放行 Vite 同源非API资源，禁 service worker。不是访问真实API再忽略错误。
+- native main.rs 仅2行观测变更：漂移结果从旧 toast 改为可见 patch-action-status。所有实际磁盘不变/写回、写前快照/版本/author-loop断言保留；未修改生产UI/写回安全逻辑。
+
+### 实跑命令与结果
+日志根：`.trellis/tasks/09-27-foundation-final-integration/research/`。
+- `pnpm.cmd verify` 再次全通过（verify-closeout.log、最终 verify-delivery.log）：API **1852 passed /7 skipped**，frontend **136 files/1038 passed**，project-core7、Shared/typecheck、lint、Ruff、daily（最终3157ms）、OpenAPI drift全部通过。临时已有pnpm9.15.4，禁自动安装，未变更依赖。
+- `pnpm.cmd e2e` 最终 **20 passed**（e2e-closeout.log）。4生成文件与HEAD一致。
+- `npm.cmd --prefix apps/desktop/frontend run verify:smoke` / `run verify:agent-conversation`：最终均通过（browser-smoke-closeout.log、browser-agent-closeout-fixed.log）。一次夹具局部变量重名 SyntaxError 已留失败日志、改名后重跑，不冒充产品错误或通过。
+- 独立派生副本注入未知 `/api/__unmocked_probe` 且catch其异常：仍因最终账本非空预期退出1；negative control通过，详见browser-negative-closeout.json/log。生产脚本未注入探针。
+- `npm.cmd --prefix apps/desktop run tauri -- build --ci --no-bundle`：原生观测修改后重建成功（gui-release-rebuild.log）；API冻结exe沿用本轮已重建并实跑packaged通过的相同hash。
+- `node apps/desktop/scripts/verify-tauri-smoke.mjs --executable D:/StoryForge/apps/desktop/src-tauri/target/release/storyforge-desktop.exe`：两次全新隔离项目/配置/WebView通过（native-release-gui-aligned.log、native-release-gui-repeat.log）。实际拒绝不写盘、漂移拒写、确认写回、prewrite shadow snapshot/version/author-loop，导航/真实zoom可达性通过。
+- `npm.cmd --prefix apps/desktop run test:rust` 再跑 **56 passed /1 ignored**（rust-closeout.log）。此前Git7/runner18/packaged4179ms仍分档保留，不是实际安装器验收。
+- 查询仅本次已知隔离临时路径/端口：两项目与数据根均不存在，54982/56033无listener（native-cleanup-closeout.json）；未触碰未知归属3007服务。
+- E1按pre-C2/pre-S0保存快照重建独立patch，AST与E1边界匹配；scratch正向/反向字节回环通过。初次scratch继承global CRLF转换；最终仅命令级core.autocrlf=false/core.eol=lf纠正，不改变用户全局配置。
+- 8个后端切片54个代码/测试/脚本在scratch逆序16次check/apply通过，最终精确回HEAD（backend-rollback-chain.json）；排除文档/追加报告，不操作真实工作树。最终集成精确delta及其检查见delivery.patch、delivery-manifest.json、delivery-check.json。
+
+最新产物hash绑定见closeout-artifacts.json：API `4aa8af6a8e4b9a44a3e148a129163a9189b4e68c6cbb14f819f0bea1517c5484`；Desktop `c631e7d49a0ec601b3a91a965edc547fa5db71d1545323fc1c701ad8de15a154`。旧失败日志及rebuilt-artifacts.json保留；installed标签源于executable参数，不代表安装器。
+
+### 结论与未验证
+R1–R7实施与本地分档验收闭环，详见父任务goal-audit.md及本片result.md。没有真实LLM调用、私稿、长篇人工质量、全权限GUI或安装器/远端CI通过声明；style corpus链接containment/目录遍历预算仍为独立设计风险，TODO已记录。后续以真实写作反馈推进，不再为SDK/目录形式继续重构。finish-work自动提交/归档步骤未执行，等待用户后续决定。
+
+## Agent 可靠性切片工程 R1–R8（2026-09-28，独立于上文旧 R1–R7 计划）
+
+范围以 `.codex/agent-reliability-plan.md` 为准。本目标仍在进行；不能引用上文旧任务的“R1–R7完成”替代本目标验收。HEAD 为 e6ca61733d8b63ec0fb15fcba4ee67150a7d1140，加用户及本轮未提交改动；未提交/推送。
+
+### R1 / R2 已有结果复核
+- `.codex/agent-reliability/r2-verify-full.log` 确认当时根 `pnpm.cmd verify` 完整通过：FE 1055，API 1871 / 7 skipped，lint、Ruff、shared/project-core、daily sidecar、OpenAPI/Agent生成与drift。该通过不覆盖随后R3/R4变更。
+- 同run传输恢复不重新POST；明确HTTP拒绝/消费错误不冒充网络恢复。失败/部分完成保留真实结果与usage；length/content_filter不执行返回工具、不污染后续上下文；已有补丁强制确认，决定提案不抹除运行失败事实。
+
+### R3 真实磁盘基线与原生写回验收
+- native conditional write区分missing/empty/raw EOL；目标校验、暂存与提交前二次比较；create_new不损坏已有临时路径，父目录重链接后清理不越界。它不是跨进程CAS或文件身份锁。
+- Editor普通保存/Agent写回共享串行队列；排队捕获原目标，执行取最新目标基线；native成功即结算目标缓冲，不由慢记录覆盖后续输入。快照依据真实磁盘变化，包含missing→empty。
+- 初次原生运行中disk-drift实际通过，但失败尝试与成功尝试共用 `smoke-file-revision`，最后按ID取错快照。保留 `r3-native-gui.log`；补smoke可选id及身份行为红/绿测试，不删除有效失败快照、不放宽影子Git正文断言。
+- `npm.cmd --prefix apps/desktop run tauri -- build --ci --no-bundle` 通过（`r3-release-identity.log`）。随后两次全新隔离原生场景 `r3-native-gui-identity.log` / `r3-native-gui-identity-repeat.log` 均通过：真实UI拒绝、disk-only drift拒写且buffer不变/无成功记录、正常确认落盘、写前版本及author-loop；保留既有导航/缩放/编辑器漂移断言。
+- `npm.cmd --prefix apps/desktop/frontend run test`：142 files / 1084 passed（`r3-frontend-identity-full.log`）；typecheck通过；修正身份的聚焦3文件27 passed。此前8文件78 passed涵盖普通/AI/知识写回、生命周期、权限与文件接口。
+- `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`：67 passed / 1 ignored（`r3-rust-identity-full.log`）；Windows junction清理越界负例已真实红→绿，不将symlink权限不足跳过当复现。
+- 最新 `pnpm.cmd lint` 失败仅于并行用户改动的 SettingsView.tsx Prettier（`r3-lint-identity.log`）；未格式化/覆盖该文件。故R3当前总门禁尚未绿，待R8集成重跑。
+- 构建/源码/日志SHA-256绑定：`r3-artifact-binding.json`。Desktop exe `be1b77203ea3fe9064a864a8da5411852663334b608e085afc1bacdf37c3dd43`；bundled API `9c47d98300c7ccf056a126eb20929eb0f19afc22aa06264faec36f3c929b332b`。该API早于R4源码，不是R4当前构建验收。runner的installed标签不代表安装器。
+
+### 明确未完成
+R4控制/进度/重试集成正在实施；R5/R6/R7尚未完成；R8总门禁及最终重建仍待。R3不处理落盘后记录失败/回执丢失的完整核对，也不证明所有删除/版本恢复路径均有条件保护。未调用真实付费模型、未读私稿、无全权限GUI/安装器/长篇人工质量/远端CI通过声明。
+
+## 2026-09-28：Agent可靠性R6证据结算故障收口（R1-R8目标继续）
+
+- 上一轮仅只读比较Pi/DSH，获得机制边界与现有SDK接线证据；本轮用户goal明确恢复切片工程。完整范围仍为 `.codex/agent-reliability-plan.md`，不建新Trellis task、不替换运行时。
+- 先核对旧session 89416已终止：R6 actual nested request/session关联23 passed。旧R4最终175 passed、旧R7 FE146/1143与Rust82/1ignored日志读回；不当作本轮最终全集。
+- 新红测17 failed /13 passed（r6-settlement-red.log）：证据finish提交失败丢已收到usage；Mapping/tuple嵌套逃过native-state过滤；public live错误直接抛出而丢业务用量结果。
+- 修复复用SDK公开 `retain_error_usage`，不新造计量逻辑；finish失败仍fail closed，并把已知usage随原异常传播；stream在开始最终证据结算后不再二次finish污染provider事实。`RequestEvidenceError`单独被live adapter结算为request_evidence_failed，累计业务用量保留，不执行未交付响应里的工具。
+- provenance原生状态过滤与共享redactor容器支持对齐，递归Mapping/list/tuple/set，不读取/序列化被省略的native值；实际密钥脱敏和隐藏artifact边界不变。
+- `apps/api/.venv/Scripts/python.exe -m pytest apps/api/tests/test_agent_request_evidence.py apps/api/tests/test_agent_request_evidence_durability.py -q`：40 passed/13.11s（r6-settlement-green.log）；complete/stream × success/providerfailure/interruption × commit失败/commit后ack丢失，文件SQLite独立读回，无第二次provider调用/settlement。
+- 加source standards、SDK contracts、R4 live errorusage：85 passed/17.81s（r6-integration-guard.log）；相关Ruff通过（r6-settlement-ruff.log），任务diff check通过。无真实模型/GUI等同声明。
+- specs已补RequestEvidenceError、已知usage、single settlement与容器过滤；R5失败usage测试引用改为真实 `test_compaction_failure_usage.py`。
+- R4交叉审计新增成功路径缺失价格却记0的真实问题，已分派修复；R7 backend/FE recovery继续并行。root新增native重复确认探针（main.rs仅smoke），待当前重建后执行；未声称当前GUI通过。
+
+未完成：R4新计价、R7完整有限恢复/FE控制、R8全量门禁/契约生成/当前打包与GUI。全部dirty保留，不提交/推送/安装。旧R3 binary/API hash不是当前R4-R7交付证据，目标保持active。
+
+## 2026-09-28：R8首轮集成结果与R1跨层未知状态补充（目标继续）
+
+- 原范围仍为 `.codex/agent-reliability-plan.md` R1–R8，不建Trellis任务、不替换runtime，不提交/推送/安装依赖。工作树原有改动全部保留。
+- R4计价与R7持久恢复的生产改动已经完成定向验证；`r4-cost-lifecycle-regression.log` 122 passed、`r7-terminal-contract-20260928.log` 30 passed，均退出0。只修正旧测试的未知费用精确字典和显式resume已知回答只交付一次；不以改断言掩盖provider重复调用或独立事务事实。
+- `r8-verify-full.log` 是完整门禁失败证据：API 3 failed /2344 passed /7 skipped；前三个失败已归因并定向修正，不能称当前整次verify已通过。此前FE147/1173及静态门禁只覆盖当时状态。
+- 先前API重建与packaged通过；本轮逐文件比对`r8-source-binding.json`，API app/alembic/依赖入口无变化，两个冻结API SHA256均为9b5d1e70677011df0aa6a9de0d1b9f03f79a11d8b7af3104dc8d8716236b2d40。Desktop将因本轮FE/probe重建；该API证据不能替代GUI。
+- `r8-native-gui.log` 原生隔离运行在写回回执丢失探针安装处失败：Tauri桥invoke不可写（installed:false）。保留原失败；它不是产品写回失败证明。新probe通过现有smoke controller显式包装TauriFileSystem，原参数委托，真实持久applied后仅丢一次回复；计数准确叫native adapter dispatch，不声称直接观察raw IPC。Rust调用已改；FE观测定向验证由子代理完成后统一集成。
+- 当前`cargo test --offline --manifest-path apps/desktop/src-tauri/Cargo.toml`：82 passed/1 ignored/exit0（r8-rust-controller-probe.log）；全API Ruff通过（r8-api-ruff-current.log）。忽略项是需指定用户项目的dogfood，不当通过。
+- 当前`pnpm.cmd openapi`退出0，四份产物哈希均未变化（r8-openapi-final.log；生成前快照独立保留）；`pnpm.cmd e2e`20 passed/exit0（r8-e2e-final.log）。
+- R1补充RED：真实sendAgentUserMessage→轮询预算耗尽→完整mounted ChatWindowView→点击重试，POST次数2而非1（r1-ui-unknown-red.log）。原run可能仍活着，不能把客户端等待结束当任务失败。正在实现同run未知状态/只读核对及所有新发送入口守卫；尚未宣称修复完成。
+
+待完成：R1 RED转绿和相关FE回归，当前全量verify，API/Desktop构建绑定，packaged与两次干净隔离GUI，规格/阶段事实同步及完整R1–R8完成审计。目标保持active。
+
+## 2026-09-28：R8动画可交互探针与跨链恢复补充（目标继续）
+
+- 完整目标保持 `.codex/agent-reliability-plan.md` R1–R8，不新增Trellis任务、付费调用或私稿操作。前一只读轮获得改变下一步的契约证据，本轮继续工程。
+- 实际 poll 旧 native session34423，exit1；r8-native-gui-probe-diagnostic.log 已证实 ack-loss 前段通过，重复同一提案在实际 click 前返回 hidden-target。源码对应0.3秒面板opacity动画，不是已复现的产品重复写问题。
+- 原生探针只增加 probeOnly 的同源交互检查：可见、disabled、viewport、hit-test全部保留；readiness轮询不click，ready后原真实click一次，eval回执未知不自动重试。新增两个测试先RED（3passed/2failed，r8-click-ready-red.log），后5passed（r8-click-ready-green.log）。原same proposal、零write、disk/buffer全文、version/audit计数断言不变。
+- cargo test --offline：82 passed /1 ignored /exit0（r8-rust-click-ready.log）；四个Desktop runner测试文件30 passed（r8-desktop-runners-click-ready.log）；pnpm.cmd e2e20 passed（r8-e2e-current.log）。runner测试不是安装器验收。
+- R1准入结构提取已完成：useRunAuthorAgent 498行、独立hook108行；161项定向和16项sourceguard为当前证据，原全verify的两个超行数失败日志保留。
+- 新全verify原r8-verify-final2.log在FE149文件1213项通过、API开始后主动Ctrl+C，确认handle终止且无verify/pytest/vitest残留；日志保留为r8-verify-before-knowledge-interrupted.log。中断原因是审计发现Knowledge公开入口先读后inspect，已有applied/unreadable回执不可达，待最小修复后重跑；非测试失败，未计整次通过。
+- R5/R6/R7后端审计相关12生产/6测试文件与旧binding一致，未发现新增实现阻断；补tool_policy_changed公开恢复拒绝且零派发用例。R6相关测试是真实request构造与独立SQLite连接、HTTP出口替身，不是外网provider；startup模拟中断/reopen不是kill真实sidecar。
+
+待完成：Knowledge接线/策略回归、最终冻结与全门禁、当前构建/packaged/两次隔离原生GUI、文档事实同步及完整审计。已有API exe哈希仍为9b5d1e70677011df0aa6a9de0d1b9f03f79a11d8b7af3104dc8d8716236b2d40，API生产源码未变；不宣称已发布/全权限GUI/长篇质量。
+
+## 2026-09-28：最终完成审计复开 R1 明确拒绝边界
+
+- 原始范围仍为 .codex/agent-reliability-plan.md R1–R8。上一轮只读核对产生当前结构与版本证据，本轮继续工程，不引入新runtime/插件平台。
+- final3冻结1105文件及当前API/Desktop exe已重新逐项hash核对，零源码漂移；全verify API2349/7skip、FE149/1218和两次独立原生GUI日志已实际读回。三路审计对R2–R7已核对实现、具体断言及边界。
+- 新发现并真实RED：公开sendAgentUserMessage收到401/422响应头，但ReadableStream错误body未结束，恢复timer仍各发1次GET（期望0）；r1-http-rejection-red.log为2 failed、exit1。该证据要求继续R1，不能只因final3全绿标总目标完成。
+- 最小修复限定agent-socket.ts与agent-socket-recovery.test.ts：拒绝头封闭恢复资格；错误详情独立2秒截止/64KiB累计解析预算，reader清理异常不能改成unknown。21项定向已绿，当前整批R1回归/最终全门禁与Desktop重建仍待。
+- R8规范同步修正Project Knowledge旧disk==after即成功说明；实际实现仍要求inspect-first、durable applied/current after/有效audit后才accepted。已有生产不变；三份当前事实源显式注明重新审计中。旧失败和中断日志全部保留。
+
+## 2026-09-28：Agent可靠性R1–R8最终交付（final4）
+
+本节是 `.codex/agent-reliability-plan.md` 原始八片的最终结果，覆盖上文同计划的历史“待完成”状态，不替代更早基础计划或扩称发版。主代理逐项审计、三路只读交叉复核后补齐真实发现的R1缺口；所有既有dirty修改保留，未提交/推送/发布。
+
+### 最终补充改动
+
+- R1只改agent-socket.ts与agent-socket-recovery.test.ts，原字节在 `agent-reliability/backups/r1-http-rejection-20260928-130051/`。明确非2xx headers同步封闭恢复资格、清SSE计时器；错误正文独立2秒截止及64KiB累计解析/保留预算。取消reject/永不完成也不阻塞明确HTTP失败，不转unknown、不发GET。64KiB不是网络接收硬上限。
+- RED为真实401/422开放body各触发额外GET（2failed/exit1）；GREEN21passed；R1相关11文件174passed，typecheck/scopedlint/Prettier/diff全exit0。新增13个行为用例，不删除旧断言；独立交叉review确认正常SSE/recovery/control未变。日志 `r1-http-rejection-{red,green,focused,typecheck,lint}.log`。
+- 此前最后收口的Knowledge inspect-first（公开入口RED3→相关93通过）、tool_policy_changed公开恢复拒绝零派发（65通过）、auto准备完成非写盘（API32/FE60）均包含在本次冻结/总门禁。Project Knowledge旧disk==after成功描述已改为回执+当前盘+有效审计，state-management补明确拒绝正文预算与资源清理。
+
+### 当前实跑及复用依据
+
+所有下列日志均在 `.codex/agent-reliability/`：
+
+| 命令/检查 | 结果 | 日志/边界 |
+| --- | --- | --- |
+| `pnpm.cmd verify` | exit0；API2349 passed /7 skipped /6warnings；FE149文件/1231passed；project-core7 | `r8-verify-final4.log`，包含lint/format、FEtypecheck、Shared、全API Ruff、daily3235ms及四份契约重新生成无漂移。 |
+| `pnpm.cmd e2e` | 20passed，exit0 | `r8-e2e-final4.log`，契约不是完整GUI。 |
+| `cargo test --offline --manifest-path apps/desktop/src-tauri/Cargo.toml` | 82passed /1ignored，exit0 | `r8-rust-final4.log`，ignored需显式用户项目，不计通过。 |
+| 四份Desktop `node --test` runner | 30passed，exit0 | `r8-desktop-runners-final4.log`，Git准备、NSIS/native runner与click readiness；不是实际安装器。 |
+| `npm.cmd --prefix apps/desktop run tauri -- build --ci --no-bundle` | exit0 | `r8-desktop-build-final4.log`，当前FE嵌入新exe；Vite大chunk warning保留，未改阈值。 |
+| API当前冻结产物 | 同源可复用，三个exe副本hash一致 | `r8-api-build-current.log`已有当前API重建成功；final3→final4只两份FE文件变化，不冒称这次再次编译API。 |
+| `node scripts/sidecar-smoke.mjs --packaged --skip-build` | exit0，ready4660ms | `r8-packaged-smoke-final4.log`，会话/SSE2帧/control/Alembic/bundled prompt；零LLM/零外网。 |
+| frontend `verify:smoke` / `verify:agent-conversation` | 均exit0 | `r8-frontend-smoke-final4.log`、`r8-frontend-agent-smoke-final4.log`；当前bundle、synthetic API/FS。 |
+| `node apps/desktop/scripts/verify-tauri-smoke.mjs --executable D:/StoryForge/apps/desktop/src-tauri/target/release/storyforge-desktop.exe` 两次 | 均exit0 | `r8-native-gui-final4-1.log`、`r8-native-gui-final4-2.log`；两套独立project/config/SQLite/WebView/端口，实际磁盘/快照/版本回执。 |
+| phase9事实源/source standards/pruning/API surface | 53passed，exit0 | `r8-docs-final4-check.log`，最终事实源更新后运行。 |
+
+原生每次真实持久applied后丢一次返回：native adapter write dispatch=1，inspect恢复、audit记录；重复同提案dispatch=0，disk全文=after，作者后来buffer全文不变，version/audit数量不增加。保留原拒绝、编辑器/磁盘漂移拒写、shadow Git before正文、导航/缩放。installed输出仅是显式exe runner标签，不是安装器。
+
+清理证据：`r8-native-cleanup-final4.json`＋`r8-native-cleanup-os-final4.json`。两project/data根已不存在；精确Desktop/API PID32824/35944/32188/38472均不存在，API端口63589/59730无OS listener，未占用/停止3007。socket connect_ex超时不单独当作关闭证明，已追加OS表核对。
+
+### 完整范围与产物绑定
+
+原要求逐条映射当前实现、实际断言、日志及局限，见 `r8-completion-audit.md`。final4冻结1105源文件，SHA256 `ba88809dd1b25658a7aa0dc955635c960e417a90493bdb0ef3649ebcb5ab6c5c`；API `3cc6cef5d7b90480dad65f243386e7fb9ee6bdf25c57531173bd2e090339f2b1`；Desktop `d185b6cf316829ae131825bd39b07fec9df00aa12b3fe45723d64d442485ac5e`。最终文件/日志/规范/本文绑定在 `r8-artifact-binding-current.json`，最后重新核对见 `r8-delivery-validation.json`。旧final3源码/构建/失败与中断日志保留，不能混称final4结果。
+
+7个API skip=4个Windows原生symlink权限限制、1个真实LLM、2个真实MinIO；6warnings=2条弃用、4条测试JWT短密钥警告。R6是实际请求构造+HTTP出口替身，R7startup是模拟中断+SQLite重开，不是外网provider或kill-sidecar完整矩阵。未验真实provider、全权限真机GUI、NSIS安装、在线PostgreSQL、远端CI与3–5万字人工质量；不承诺全任务金额硬限、强杀阻塞IO、跨进程CAS或副作用exactly-once。文风枚举containment/目录遍历预算仍为既存独立事项。上述不是遗失本计划要求，而是原范围外、始终明确保留的验收边界。
+
+
+## 2026-09-28：废弃代码盘点与清理计划（仅规划，尚未实施）
+
+- 任务：`.trellis/tasks/09-28-deprecated-code-cleanup`，状态 planning；已完成 PRD / design / implement 与三份研究报告。用户已确认范围为 A1-A4 无调用符号，加 C1 旧 IDE 读实现/DTO 正式退役；最终计划待审阅后启动。
+- 调查命令：Trellis get_context/current、`git status --short` / `git ls-files`、定向 `rg` 和精确源码读取、已有 TypeScript 的静态导入图、Python AST 类型枚举；未安装分析依赖。
+- 本轮实测：`git diff --check` exit 0；规划期间记录的 1155 份业务代码/测试/配置 SHA-256 重比，changed=0、missing=0；工作区仍 324 项既有未提交状态。结果在任务 `research/analysis-validation.json`，不能将此读前后相同当作行为测试通过。
+- 发现：四组干净文件无调用符号；旧 IDE 四模块 388 行及 18 个独占 DTO 约 200 行。后者原有保留约定已获用户明确翻转，实施时同步 facade、文档与护栏，保护 live command / run events / cross-chapter。
+- 排除：dirty UI 孤儿、watcher/notify、native shadow status、lineage、evaluations REST 元数据纠错；frozen models、质量轨、认证/限流、安全写回与实际依赖均保留。
+- 未运行：pytest、Vitest、typecheck、lint、OpenAPI 生成、总门禁、构建、GUI、真实 provider 或数据库探针；未删除/改写业务代码、测试与生成契约，未提交/推送。旧报告的通过结果未继承为本次结果。
+
+
+## 2026-09-28：废弃代码清理落地（A1-A4 + C1，未提交）
+
+用户已审阅计划并明确“开始执行”。任务 `.trellis/tasks/09-28-deprecated-code-cleanup`；只实施获准的四组内部符号清理和旧 IDE 读投影正式退役，未扩张到 dirty UI、watcher、原生 status IPC、lineage 或 evaluations 元数据纠错。
+
+### 改动及保护边界
+
+- 删除 selectedContextPreview、getShadowGitStatus 的 TS wrapper/独占 type、cache_delete，以及 CreativeToolRegistry 的无消费者查询接口/独占索引。保留预算展示、五个快照操作、Rust status command、模式缓存失效、registry 顺序/重名校验/schema 冻结。
+- 删除 IDE 的 workspace_reads、artifact_preview、context_snapshot、story_memory_query 四模块，18 个独占 DTO、对应 facade re-export 和两项独占 coercion helper。保留 live command/run events/cross-chapter、payload 脱敏、_int_or_none 和全部底层服务/ORM。
+- 更新 DOMAINS、refactor-master-plan、pruning 护栏和 backend quality spec，明确翻转旧“未来复用”约定；不削弱原有行为测试。
+- 11 个生产文件净减 **691 行**（新增 3、删除 694，含四个整文件删除）；新增 **6 个测试**：registry 顺序/重名/冻结三项、live DTO 脱敏一项、退役护栏两项。
+- 19 份初始目标备份，加 test_ide_commands 与 spec 补充备份，位于任务 research/implementation-backup。完整 scoped diff 为 research/task-changes.patch；基线/结果/等价检查分别见 implementation-baseline.json、final-validation.json、semantic-equivalence.json。
+
+### 本轮实际验证
+
+日志均在 `.trellis/tasks/09-28-deprecated-code-cleanup/research/logs/`。
+
+| 验证 | 结果 | 证据 |
+| --- | --- | --- |
+| 删除前 API 定向基线 | 63 passed | api-baseline.log |
+| 删除前 frontend 定向基线 | 3 文件 / 29 passed | frontend-baseline.log |
+| 新增 registry 行为测试，删除前运行 | 10 passed（含原套件） | registry-behavior-baseline.log |
+| 第一批 API / frontend / typecheck | 42 passed / 29 passed / exit 0 | batch-a-api.log、batch-a-frontend.log、batch-a-typecheck.log |
+| live command/Agent facade 补充基线 | 8 passed | ide-facade-baseline.log |
+| 退役护栏 RED | 1 failed / 18 passed，因旧模块尚存在而按预期失败 | ide-retirement-red.log |
+| 第二批相关 GREEN | 77 passed | ide-retirement-green.log |
+| 定向 Ruff、frontend Prettier、git diff --check | 通过 | scoped-ruff.log / 直接命令输出 |
+| pnpm.cmd openapi | exit 0；四份生成文件与实施前工作树字节完全相同 | openapi.log、contracts-unchanged.json |
+| pnpm.cmd verify | exit 0；API **2355 passed / 7 skipped / 6 warnings**；frontend **149 文件 / 1231 passed**；project-core 7 passed | verify.log，含 lint/format、typecheck/shared、全量 Ruff、daily sidecar、OpenAPI/WS drift |
+| pnpm.cmd e2e | **20 passed**，exit 0 | e2e.log；仅契约，不是 GUI |
+
+额外只读等价性验证：Creative registry 的 7 项完整元数据列表清理前后相同；保留的 7 个 IDE DTO AST 全部相同，精确删除 18 个旧 DTO。最终重比 1185 份代码/配置/文档，仅批准的 16 个文件变化，无额外漂移；原有 dirty tracked 代码及未跟踪源码保留，四份生成契约也未改。总报告只追加，未覆盖旧内容。
+
+### 工具环境与未验收项
+
+- 本线程 PATH 的 pnpm 是 11.19.0 fallback，首次 `pnpm.cmd exec prettier` 触发依赖状态自动 install，因无 TTY 中止（ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY）；未继续重装。后续在验证进程临时设置 `pnpm_config_verify_deps_before_run=warn`，保留 workspace/lock mismatch 告警，使用已有依赖运行全部门禁；没有修改依赖清单、锁文件或仓库安装配置。早期删除尾段造成的两个 EOF 空行也已修正，最终格式与 diff 检查通过。
+- 6 个 pytest warning 为既有 Alembic/HTTP 状态码弃用和测试 JWT 短密钥警告；7 项 skip 未计入通过。无新增测试豁免、无门禁阈值放宽。
+- daily sidecar 是源码 run_windows.py，实际完成探活、会话、Agent SSE/control、Alembic 与 prompt 可用性检查；不把其日志的历史“随 exe 打包”措辞当作本轮冻结 exe 重建证明。
+- 未重建 packaged/release，未验 native GUI、真实 provider、在线 PostgreSQL 或长篇人工质量。本轮未提交、未推送、未发版；Trellis 不自动归档，以免未经确认生成提交。
+
+
+## 2026-09-28：废弃代码清理第三批 B（追加授权已执行）
+
+### 结果和边界
+
+用户明确批准整链退役 dirty UI 孤岛、未接入 watcher 与无产品调用 native commands，并清理专属测试/依赖。主代理 inline 实施/检查；子代理仅只读研究。修改前保存 27 份当前文件字节到 `.trellis/tasks/09-28-deprecated-code-cleanup/research/batch-b/backup/`，不使用 HEAD 覆盖原有修改。
+
+- 删除 StatusBar、ManuscriptCard、旧 useDismissableMenu，以及独占 metrics event/emitter/type/CSS；保留 AuthorView 内容/选区/模型事件去抖，新增真实 Editor 挂载 + event bus 回归，覆盖选区截断、三类事件各自触发与合并、卸载清理。
+- 删除 watcher.rs、native state/command 注册、TS watch/stop adapters/type；保留 FS_MUTATION_EVENT、缓存失效及现行 guarded writeback。
+- 删除 native shadow_git_status/DTO 和 get_file_info/TS wrapper；snapshot 核心与真实 native smoke 保留。文件元数据回归迁移到 list_dir，共享 create_file_entry 与 symlink 边界保留。
+- 删除内部无生产消费者 describeProviderConnection/type、applyPatchHunk wrapper、isAuthorInstructionsPath。逐块应用测试迁移到 applyPatchHunkToCurrent；provider health/env、作者指令可见/可打开断言保留。
+- 源码文件净减 620 行（扣除 Rust 内嵌测试迁移的净增 4 行，生产代码净减 624 行）。退役专属测试 6 项，新增 AuthorView 行为 1 项、退役源护栏 2 项；混合 ObsPanel/overlay/CSS 活跃行为保留。
+- Cargo 离线窄更新只移除 notify + 7 个独占依赖；其他包的版本/source/checksum 均不变。未安装 JS 依赖、未修改 JS lock。
+
+### 本轮实际验证
+
+| 命令 / 检查 | 结果 |
+| --- | --- |
+| 9 文件前端定向基线 | 57 passed |
+| 11 文件清理后定向测试 | 71 passed |
+| `cargo test --locked --offline --manifest-path apps/desktop/src-tauri/Cargo.toml`（前/后） | 均 82 passed / 1 ignored；忽略项要求显式真实项目 dogfood 路径，未扩大范围 |
+| `cargo update --workspace --offline --manifest-path apps/desktop/src-tauri/Cargo.toml` | 仅删除 8 包，0 新增/升级；完整锁图审计通过 |
+| `pnpm.cmd verify` | exit 0；API 2355 passed / 7 skipped / 6 warnings；frontend 149 文件 / 1228 passed；project-core 7 passed；lint/typecheck/Ruff/shared/daily sidecar/契约 drift 全通过 |
+| `pnpm.cmd e2e` | exit 0；20 passed，仅契约断言 |
+| `CARGO_NET_OFFLINE=true` + `node apps/desktop/scripts/verify-tauri-smoke.mjs` | exit 0；当前源码重建 Rust/前端并使用隔离真实 Tauri/WebView；快照、磁盘漂移拒写、ack-loss inspect 恢复和 receipt recovery 通过，隔离服务/目录 cleanup 成功 |
+| `git diff --check` | exit 0 |
+| 1172 份业务/配置/文档基线 + 新文件清单 | 仅批准的 25 份既有文件变化 + 1 个新增测试；spec/report 单独记录；无意外漂移 |
+| OpenAPI/TS + Agent schema/TS 四文件 SHA-256 | 相对本批工作树基线全部逐字节不变 |
+
+pnpm PATH 仍为 11.19.0：仅验证进程设 `pnpm_config_verify_deps_before_run=warn`，保留既有 dependency mismatch 警告，避免自动重装，不修改配置或降低代码门禁。保留既有 API deprecation/test HMAC warnings、Vite chunk size warning；隔离 native smoke 的默认 API key 配置警告也未隐藏。
+
+### 未验证与交付
+
+未执行 release/packaged 重建、安装器、真实 provider 多轮 GUI 或人工长篇质量验收。development native smoke 不能外推为这些验收通过。冻结模型、lineage、底层质量能力未修改。
+
+完整命令日志、当前字节备份、可重放编辑脚本、独立增量 diff 与 scope/lock 审计位于 `.trellis/tasks/09-28-deprecated-code-cleanup/research/batch-b/`。未 commit/push；HEAD 保持 `e6ca6173`，不运行会自动提交的 Trellis archive/journal。
+
+
+## 2026-09-28：一次性全仓收尾完成
+
+用户要求“一次性清理完”，本轮已一次执行所有经复核、处于授权边界内的可删项，不再留分批待确认清单。主代理 inline 实施/检查，三个 explorer 只读研究。**不把公共契约、框架回调、测试 seam 或明确保留的质量能力称为废码，也不宣称数学上证明整仓没有任何零生产调用符号。**
+
+### 扫描与处置
+
+- 前端 191 个非生成模块 / 1228 个顶层符号 / 775 个导出，19 条事件链；197 模块入口图的两个非运行入口保留（编译 contract / shared facade）。删除 11 个内部死符号 / 6 组；context provenance 与 inline diff tests 迁移到实际 writingContext/planner，退役旧 review lookup 的单项专属测试。
+- API 409 模块 / 2237 顶层函数或类 / 451 方法 / 1015 赋值；删除 6 项：with_project_knowledge_entries、_offered_schemas、_BUDGET_EXHAUSTED_NOTICE、SubagentRunRead、pgvector_engaged、_HARD_RULES。剩余定义 AST 对比全部不变，ORM 与 live DTO/serializer 不动。
+- CSS 7 组无消费者旧样式、3 独占 keyframes、9 无引用变量删除；保留现代 Tooltip、skeleton shimmer、全局 focus 与 Monaco 动态 severity selectors。
+- 14 Rust 源文件 / 22 原生命令均有实际调用；12 根脚本、9 Desktop scripts 及 shared/project-core、依赖均分类，没有新增 native/依赖退役。根 API 维护 CLI 删除未读取的 apiOnly 属性与旧 pnpm 门槛，保留兼容 --api-only。后者是明确的小幅行为修正：直接维护启动只需要当前执行链实际使用的 uv/Docker，不再因缺 pnpm 拒绝。
+- 本轮生产代码净减 **256 行**；累计本清理任务 **1571 行**（各轮相对当前工作树的可审计增量之和，不含原用户改动）。累计已移除 8 个 watcher 独占锁包；本轮不改任何锁文件。
+
+### 保留项不是待下一批
+
+冻结 ORM/Alembic/lineage、BookRun/Story Memory/质量轨、public facade/shared package exports、ProjectFileSystem、core path helpers、编译期契约、测试隔离、动态注册与独立 CLI 保留。Canon hook 写入/初始化/admission 作为已有活跃测试使用的底层领域/setup seam 保留；没有编造它们有点名保留规范。evaluations 静态元数据仍经 REST 输出，不冒充无调用代码删除。完整理由见 `research/final-sweep/coverage-and-disposition.md`。
+
+### 本轮验证结果
+
+| 命令 / 集合 | 结果 |
+| --- | --- |
+| CSS/overlay/accessibility/book-overview 定向 | 5 文件，35 passed |
+| chat-window/inline/provenance/pruning 定向 | 4 文件，57 passed |
+| API context/loop-schema/retrieval/source standards/pruning 定向 | 79 passed |
+| `node --test scripts/dev-start.test.mjs` | RED 2 passed / 4 failed，移除旧 pnpm 门槛后 GREEN 6 passed；隔离 Node 运行真实 CLI，仅 mock 外部执行边界，无真实服务/数据库迁移 |
+| `pnpm.cmd verify` | 最终 exit 0：frontend 149 文件 / 1228 passed；API 2356 passed / 7 skipped / 6 warnings；project-core 7；lint/typecheck/shared/Ruff/daily sidecar/OpenAPI drift 全部通过 |
+| `pnpm.cmd e2e` | exit 0，20 passed，仅契约断言 |
+| `CARGO_NET_OFFLINE=true` + `node apps/desktop/scripts/verify-tauri-smoke.mjs` | exit 0；本轮实际功能源码构建 frontend + development Tauri，独立 API/config/local-data/WebView；snapshot、disk drift、ack-loss 与 receipt recovery、cleanup 通过 |
+| `git diff --check` | exit 0 |
+| 范围 / AST / 契约审计 | 1168 文件基线仅18个既有业务/测试/脚本文件变化 + 1个新增CLI测试；spec/report另记。无意外漂移；五个修改API模块剩余定义AST不变；四份OpenAPI/Agent生成文件字节不变 |
+
+首次完整 verify 仅因 path-utils.ts 删除 import 后的 Prettier 折行失败；已格式化该文件并重新完整验证，初始失败日志保留。pnpm 仍使用本进程 `pnpm_config_verify_deps_before_run=warn`，未重装依赖/修改锁文件/降低代码门禁。保留此前 API/Vite/隔离 smoke 的已知告警。
+
+本轮 Rust/Cargo 源码未改，未重跑 Rust unit suite（上一轮82 passed/1 ignored）；本轮重新执行了真实 development native smoke。未验证 release/packaged/安装器、真实 provider 多轮GUI或人工长篇质量，不外推通过。
+
+证据根目录：`.trellis/tasks/09-28-deprecated-code-cleanup/research/final-sweep/`，含当前字节备份、scope审计、AST核对、残留扫描、独立diff、命令日志及 final-validation.json。用户原有改动保留；未暂存、提交、推送；HEAD仍为 `e6ca6173`。不运行会自动提交的 Trellis archive/journal。清理实现/验证已完成，流程仅等待单独的提交授权。
+
+
+## 2026-09-28 过时文档清理：只读盘点与规划（尚未执行清理）
+
+任务：`.trellis/tasks/09-28-outdated-docs-cleanup/`，状态 `planning`。用户已批准创建任务和只读 shell 检索，尚未批准实施；没有 task.py start、文件移动/删除、暂存/提交/推送，也没有批量操作其它任务。
+
+- 范围：Git 可见 Markdown 50 份逐文件分类；推荐更新17、历史化/归档保留12、保留/保护21。另有6份本地退役workflow模板删除候选，已检查内容哈希重复与bootstrap入链，未删除。
+- 扩展目录清点822份（不含本任务新增资料，排除依赖/构建/缓存/服务数据）；这不是822份逐篇语义验收。历史证据、任务、日志、测试正文、第三方notices不按旧文件批量删除。
+- 产出：prd/design/implement、cleanup-inventory、4份分区审计、文件哈希基线和链接核查脚本，均在本任务目录。
+
+| 实际命令/核查 | 结果与边界 |
+| --- | --- |
+| `python ./.trellis/scripts/get_context.py` / `--mode phase` / `--mode packages` | 成功加载任务/规则；初始363项WIP，未覆盖 |
+| `python ./.trellis/scripts/task.py create "过时文档全量盘点与分批清理" --slug outdated-docs-cleanup` | 创建 planning 任务；未 start |
+| `git ls-files -z` / `git ls-files --others --exclude-standard -z` + 路径受限只读脚本 | 50份 Git 可见文档；扩展目录盘点见 research/full-inventory.json |
+| `python .trellis/tasks/09-28-outdated-docs-cleanup/research/audit_links.py` | 92文件/65个本地行内文件链接/缺失0；不覆盖页内锚点、裸路径、HTML和外网 |
+| 规划产物/哈希校验（Python pathlib/json/hashlib） | 8份必需规划/研究文件齐全；追加本日志前50/50基线文档字节未变 |
+
+没有运行pytest、verify、服务、migration、打包、真实provider或GUI。本轮通过源码/配置/测试定义核对操作说明，不冒用其它任务测试结果，不宣称历史运行证据重新验收。实际清理前须复查并发工作树、按清单备份与修复引用，再跑相应门禁。验证报告原内容保留，本节仅追加。
+
+补充核查：`git diff --check -- .codex/verification-report.md` exit 0；链接脚本再次执行仍为92文件/65链接/缺失0；task current 仍指向本任务且 task.json 为 planning。
+
+## 2026-09-28/29 过时文档清理：执行与门禁验证完成
+
+任务：`.trellis/tasks/09-28-outdated-docs-cleanup/`，status `in_progress`。同日获批按 cleanup-inventory.md 执行；执行会话（fafc288c）完成全部编辑后在 verify 干净重跑途中被关闭，本节由接续会话补录，未补做任何编辑以外的内容。
+
+### 执行结果（与 cleanup-inventory.md「执行映射（2026-09-28）」一致）
+
+- 更新现行入口/运维/架构/Desktop/内部文档 17 份（README、CLAUDE、CONTEXT、operations 五份、agent-shell-contracts、desktop README/USAGE/STATUS、frontend STRUCTURE、DOMAINS、agent_runs STRUCTURE、internal AGENTS 与 AI_ITERATION_GUIDE、issue-tracker 等），分离当前说明与历史时点，未扩大已验收范围。
+- 原位历史化 banner：dev-plan、next-step-plan、refactor-master-plan、story-state-model-design、arch-review-blueprint-2026-07-03、source-code-standards-plan-2026-07-13、apps/desktop/STATUS.md；原正文保留。
+- 物理归档 5 份至 `docs/archive/apps-api-codex-2026-05-20/` 与 `docs/archive/internal-plans-2026-07/`，各追加两行归档 banner；`git show HEAD:<原路径>` 与归档文件 diff 仅差该 banner，原正文字节未改。
+- 删除 `.trellis/spec/storyforge-workflow/backend/` 六份与 shared 模板逐字节一致的未填模板（本地被忽略目录，删除前已备份）；空目录一并移除。
+- 新增 `docs/internal/internal-agent-guidelines-legacy-2026-05.md`（旧 AGENTS 失效规则留档）；引用同步 00-bootstrap-guidelines prd/task.json 与 ai-sdk.md 阶段口径。
+- 决策记录见 `research/cleanup-final-decisions.md`；逐文件处置理由见 cleanup-inventory.md 与四份分区审计。
+
+### 验证命令与结果
+
+| 实际命令/核查 | 结果与边界 |
+| --- | --- |
+| `uv run pytest tests/test_phase9_fact_sources.py -q`（断言随文档历史化同步） | 23 passed；Ruff clean |
+| `uv run pytest tests/test_alembic_heads.py tests/test_real_llm_connectivity_probe_script.py tests/test_real_llm_long_evidence_validator.py -q`（`env -u PYTHONUTF8`） | 22 passed |
+| `pnpm e2e`（npx pnpm@9.15.4） | exit 0：OpenAPI 刷新/漂移检查 + 20 个 Node 契约断言 |
+| `python research/refresh_inventory_post_cleanup.py` | 822→817 行：moved 5 / deleted 6 / added 1；hash_recomputed 32、unchanged 784；既有用户改动字节未变 |
+| `python research/audit_links.py` | 85 文件 / 62 个本地行内链接 / 缺失 0（不覆盖页内锚点、裸路径、HTML、外网） |
+| `git diff --check` | exit 0（仅覆盖 Git 跟踪改动；未跟踪新增文件不在其范围） |
+| 归档/删除哈希复核（接续会话重算） | 六份删除模板备份 SHA-256 与 archive-sha256.txt 记录一致；五份归档文件现哈希与记录不同，原因是记录为 banner 追加前字节，已复核原正文与 HEAD 一致并在 archive-sha256.txt 补记语义 |
+| `pnpm verify` 首跑（执行会话，Git Bash 环境含 PYTHONUTF8=1） | 前端各档与共享包通过；API pytest 2356 总数中 17 个 real-LLM 探针/证据测试失败：`PYTHONUTF8=1` 使 pytest 以 UTF-8 解码 PowerShell 子进程的 GBK 输出，reader 线程崩溃致 stdout=None；排除该变量后该组 22/22 通过。失败与本任务 diff 无因果关系（本任务不改 API 代码/探针脚本）；首跑命令经管道取 tail，exit code 不可信，故不作数 |
+| `pnpm verify` 干净重跑（接续会话，`env -u PYTHONUTF8`，`set -o pipefail` 捕获真实退出码） | **VERIFY_EXIT=0**：API pytest 2356 passed / 7 skipped（360s）；Ruff All checks passed；sidecar daily 冒烟全绿（/health/ready 3158ms、assistant 往返、Agent SSE、control REST、alembic 纳管）；OpenAPI 契约无漂移；「所有本地核心门禁通过」 |
+
+### 边界与未验证项
+
+- 本任务仅文档/任务材料变更，未改 route/DTO/OpenAPI/生成合同；GUI、真机、打包、真实 provider 不在范围且未验证。
+- 工作区约 391 项未提交改动含大量其他任务在途文件（agent_runs 后端、desktop 前端等），本轮未触碰、未暂存、未提交、未推送；HEAD 仍为 `e6ca6173`。
+- research 下四份分区审计与 full-inventory 基线为盘点时点快照，不随执行逐字刷新；refresh 后的 full-inventory.json 为执行后状态。
+- API pytest 保留 6 个既有 warnings（alembic path_separator、jwt key length 等），未处理。
+- verify 输出经 Git Bash 管道时少量中文显示为乱码（控制台编码），不影响结果判定。
+- 执行会话首跑 verify 的 17 失败环境根因（PYTHONUTF8 与 PowerShell GBK 冲突）未被本任务修复，属机器环境变量与测试解码假设的既有冲突；在默认无 PYTHONUTF8 的环境（含本次干净重跑）不复现。
+
+补记（2026-09-29）：上述文档清理改动已经作者确认提交 `5d2f5f89`（27 文件，`docs: 过时文档清理：更新现行口径、原位历史化并归档至 docs/archive`；5 份物理归档被 Git 识别为 rename）；任务 `09-28-outdated-docs-cleanup` 已归档至 `.trellis/tasks/archive/2026-09/`（`.trellis/` 为本地忽略目录，无归档提交）。含多会话在途内容的混合文件（含本报告自身）、`STATUS.md`/`refactor-master-plan.md` 等 banner 改动及保护文件仍留工作区，待对应代码批次或更大批次统一提交。

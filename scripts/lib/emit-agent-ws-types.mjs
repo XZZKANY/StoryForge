@@ -53,7 +53,12 @@ export function emitAgentWsTypes(schema) {
     '// 出线语义：帧的每个字段都在（to_wire 不 exclude_none），可空字段为 `X | null`。',
   ].join('\n');
 
-  const interfaces = frameNames.map((name) => emitInterface(name, defs[name]));
+  const payloadNames = Object.keys(defs)
+    .filter((name) => !frameNames.includes(name))
+    .sort();
+  const interfaces = [...frameNames, ...payloadNames].map((name) =>
+    emitInterface(name, defs[name]),
+  );
 
   const union = [
     'export type AgentWsFrame =',

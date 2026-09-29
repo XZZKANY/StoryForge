@@ -2,8 +2,9 @@
 
 > 生成时间：2026-06-27
 > 最近校准：2026-06-29（对齐当前工作树与 `.codex/verification-report.md`；只把有验证记录的刀标为完成）
-> 定位：本文件是 StoryForge「全方位打磨更优雅」的**统领级总计划**，统一两条既有视角——god-file 结构解耦（原 `refactor-elegance-plan.md` 的 A–F backlog）与架构边界整治（原 `module-isolation-scorecard.md` 的痛点定位）——并按**可维护性优先**重新排序、补足执行细节。
-> 上位约束见 `AGENTS.md`；本文件取代 `refactor-elegance-plan.md` 作为重构主入口，后者保留为 A 区历史记录。
+> **历史归档（2026-09-28）：本文件是 2026-06 重构专窗的统领计划，相关刀次已全部完成并封板，不再承担「指挥台 / 主入口」职责；重构后导航事实源为 `apps/api/app/domains/DOMAINS.md` 与各 `STRUCTURE.md`。文中对 `apps/workflow` 内文件、`refactor-elegance-plan.md`、`module-isolation-scorecard.md`、`e1-ide-orchestrator-boundary.md` 的引用均为历史对象（对应文件已退役或移出本目录），不得按本文路径继续操作或恢复。下方正文与 2026-09-28 IDE 旧读能力退役补记（IS 行）均为原文保留。**
+> ~~定位：本文件是 StoryForge「全方位打磨更优雅」的**统领级总计划**~~（当时统一 god-file 结构解耦与架构边界整治两条既有视角；2026-09-28 起归档，见上方标注）
+> 上位约束见 `AGENTS.md`；~~本文件取代 `refactor-elegance-plan.md` 作为重构主入口~~（该文件已不存在，见附录 B）。
 > 证据来源：2026-06-27 一轮 16 张文件重构卡 + 6 项架构主题的只读侦察（逐函数簇、import 拓扑、护栏测试、monkeypatch 陷阱均已落到 `file:line`）。
 
 ---
@@ -22,7 +23,7 @@
 | B2 `book_runs/service.py` 拆分 | ✅ 完成 | `_coerce.py` / `timeline.py` / `progression.py` 已接入 facade 并验证；`gate.py` / `dispatch.py` 已于 2026-09 随 workflow-dispatch 兼容链退役删除；`service.py` 当前约 165 行 | 不再作为主计划待办 |
 | B3 `judge/service.py` 拆分 | ✅ 完成 | `types.py` / `semantic.py` / `deterministic.py` / `consistency.py` / `style_fingerprint.py` 已接入 facade 并验证；`service.py` 当前约 130 行 | 不再作为主计划待办 |
 | B4 `story_memory/service.py` 拆分 | ✅ 完成 | `errors.py` / `atoms.py` / `foreshadow_lifecycle.py` / `arbitration.py` / `extract.py` / `recall.py` 已接入 facade 并验证；`service.py` 当前约 75 行 | 不再作为主计划待办 |
-| IS `ide/service.py` 拆分 | ✅ 完成 | `_coerce.py` / `command_registry.py` / `artifact_preview.py` / `workspace_reads.py` / `context_snapshot.py` / `story_memory_query.py` / `run_events.py` 已接入 facade 并验证；`service.py` 当前约 51 行 | 不再作为主计划待办 |
+| IS `ide/service.py` 拆分 | ✅ 完成，旧读能力已退役 | 当前 facade 保留 `_int_or_none`、command registry、run events；2026-09-28 删除四个旧读模块与独占 DTO，详见下方 IS 更新 | 不再恢复旧读能力复用壳 |
 | D3 `provider_adapter.py` 拆分 | ✅ 完成 | `provider_errors.py` / `provider_usage.py` / `provider_fallback.py` 已接入旧 `provider_adapter.py` interface；`provider_adapter.py` 当前约 362 行，parity harness 依源码护栏留在具体模块 | 不再作为主计划待办 |
 | C4 Desktop client 拆分 | ✅ 完成 | `src/lib/api-client.ts` / `src/lib/project-context.ts` 已退为 50 行 / 15 行 barrel；`lib/api/` 与 `lib/project/` 已承接传输、codec、语义索引和 context bundle cache；REST 解码护栏已补 | 不再作为主计划待办 |
 | 前端 G1/G2/G3 护栏 | ✅ 完成 | `editor.test.tsx` / `chat-window.test.ts` / `app.test.tsx` 已补静态渲染与源文本结构护栏；桌面单元 62 passed，typecheck 与 smoke 通过；C1/C2/C3 已完成当前合理边界 | 后续前端只做行为变更或新护栏驱动拆分 |
@@ -142,7 +143,7 @@ cd apps/workflow && uv run pytest -q
 | # | 条目 | 文件→目标 | 工时 | 风险 |
 |---|------|----------|------|------|
 | **B4** | ✅ `story_memory/service.py` → errors/atoms/foreshadow_lifecycle/arbitration/extract/recall | 733→75 | M | 中 |
-| **IS** | ✅ `ide/service.py` → _coerce/command_registry/artifact_preview/workspace_reads/context_snapshot/story_memory_query/run_events | 631→51 | M | 中 |
+| **IS** | ✅ `ide/service.py` 保留 _coerce/command_registry/run_events；四个旧读模块已于 2026-09-28 退役 | 历史拆分 631→51，后续继续收窄 | M | 中 |
 | **B5** | ✅ `studio/service.py` → source/review/chapter_review/approval/recovery reads | 640→53 | M | 中 |
 | **C4** | ✅ `api-client.ts`/`project-context.ts` → `lib/api/`+`lib/project/` barrel | 670+372→50+15 | M | 中 |
 | **RT** | ✅ `retrieval/`+`model_runs/` → scoring/loader/indexing/workbench + recording/diagnostics | 576+488→137+88 | M | 中 |
@@ -275,10 +276,11 @@ Wave 3（收口）       B4、IS已完成   B5 C4 RT D1 D2 D3 D4已完成   （�
 - **保留在 facade 的职责**：无业务读写事实源留在 facade；它只作为旧 `app.domains.studio.service` interface 的兼容 seam，供 router、IDE command registry 和测试继续从旧路径访问。
 - **硬约束**：旧 `service.py` 的 41 个类/函数名全部仍可访问；router 需要的 8 个公开函数 + 7 个异常类保持旧路径；IDE `judge.approve` 仍可从旧路径导入 `StudioApprovalSummaryNotFoundError` / `approve_studio_writeback`；新模块不反向 import `studio.service`；`approval.py` 是唯一执行 `session.commit()` 和清理 book context cache 的 commit 点；`_studio_repair_patch` 只有 `review_reads.py` 一个实现。
 
-### IS · ide/service.py（738→51，当前合理边界完成）
-- **已完成并验证**：`_coerce.py`（`_int_or_none`/`_string_or_none`/`_context_href` 叶子工具）、`command_registry.py`（IDE command catalog、Judge/Repair/Approve/BookRun WritingRun adapter、审计事件写入）、`artifact_preview.py`（Artifact Viewer 预览/版本/追溯链）、`workspace_reads.py`（Explorer tree、场景正文、诊断投影）、`context_snapshot.py`（Context Inspector 快照）、`story_memory_query.py`（Story Memory Explorer 过滤与冲突队列）、`run_events.py`（BookRun → IDE Run Panel SSE 投影）。`service.py` 已退为旧路径 facade + re-export，验证见 `.codex/verification-report.md` 的 “IS 重构验证（2026-06-29，完成）”。
-- **保留在 facade 的职责**：无业务编排留在 facade；它只作为旧 `app.domains.ide.service` interface 的兼容 seam，供 router、live AgentRuntime、`ide/orchestrator.py` 兼容 facade 和测试继续从旧路径访问。
-- **硬约束**：35 个旧类/函数名全部仍可从 `service.py` 访问；`execute_ide_command_by_id` / `IdeCommandNotFoundError` / `IdeCommandExecutionError` 旧路径继续被 router、runtime、orchestrator 共用；`StoryForge IDE ??` 审计 workspace fallback 文案保持不变。无 Desktop 调用方的 6 条旧读路由不再挂载，但其 service/schema 实现保持可复用。
+### IS · ide/service.py（历史拆分完成，旧读能力于 2026-09-28 退役）
+- **历史拆分**：2026-06-29 将叶子 coercion、command registry、四类读投影和 run events 从原 service 拆出，以 facade/re-export 保持旧路径。历史验证见 `.codex/verification-report.md` 的 “IS 重构验证（2026-06-29，完成）”，不作为后续清理的验证结果。
+- **2026-09-28 正式退役**：六条旧读路由此前已下线，当前无生产执行消费者；经用户确认，删除 `workspace_reads.py`、`artifact_preview.py`、`context_snapshot.py`、`story_memory_query.py`、18 个独占 DTO 及对应 re-export，同时移除独占 `_string_or_none` / `_context_href`。不再保留“未来复用”空壳，旧的“35 个名字全留”约定由本次明确决定收窄。
+- **保留在 facade 的职责**：`command_registry.py` 和 `run_events.py` 的现行兼容入口，以及活跃 `_int_or_none`。`execute_ide_command_by_id` / `IdeCommandNotFoundError` / `IdeCommandExecutionError`、`build_run_events` / `encode_sse_event` 继续服务 router、Agent 和测试；命令 DTO 的 payload 脱敏、跨章 DTO、审计 workspace fallback 均保留。story_memory、context_compiler、judge 等底层能力不随旧 IDE 投影退役。
+- **验证边界**：`test_source_pruning.py` 保护旧模块/DTO/路由不复活，现有 command/run-events/Agent 行为测试保护保留链；本次实跑命令和结果以验证报告为准。
 
 ### RT · retrieval/+model_runs（657→137+88，完成）
 - **已完成并验证**：retrieval 拆为 `scoring.py`（关键词/相似度/评分/rerank）、`candidate_loader.py`（keyword/pgvector 候选裁剪和日志）、`indexing.py`（资料源创建/刷新/chunk 构建）、`workbench.py`（工作台列表与投影），`service.py` 保留 `search_retrieval` / `search_retrieval_workbench` 装配核心 + 旧路径 re-export；model_runs 拆为 `recording.py`（ModelRun 写入、引用校验、旧 workflow payload 兼容 adapter）和 `runs_diagnostics.py`（Runs JobRun 诊断、runtime tools 投影、retry），`service.py` 保留 list/query seam 与 source-pruning wrapper。验证见 `.codex/verification-report.md` 的 “RT 重构验证（2026-06-29，完成）”。
@@ -336,7 +338,9 @@ Wave 3（收口）       B4、IS已完成   B5 C4 RT D1 D2 D3 D4已完成   （�
 
 ## 附录 B · 与既有文档关系
 
-- 本计划**取代** `refactor-elegance-plan.md` 作为重构主入口；后者的 A 区记录与 E1 条目仍有效，E2 细化见本文件第 3 层。
-- `module-isolation-scorecard.md`（2026-05-24）多项已过时，校正见 §1.3；其「评分口径」表仍可作模块健康度参考。
-- E1 边界图 `e1-ide-orchestrator-boundary.md` 是 E2 的直接前提。
-- 执行流程遵循 `AGENTS.md` 与 `AI_ITERATION_GUIDE.md`；证据回填 `.codex/verification-report.md`。
+> 2026-09-28 注：本节三个前置文档（`refactor-elegance-plan.md`、`module-isolation-scorecard.md`、`e1-ide-orchestrator-boundary.md`）均已不在本目录，相关记录见 git 历史；以下条目保留原文语义，仅补存在性说明。
+
+- 本计划曾**取代** `refactor-elegance-plan.md` 作为重构主入口；后者的 A 区记录与 E1 条目在原文写就时仍有效，E2 细化见本文件第 3 层（文件现已不存在）。
+- `module-isolation-scorecard.md`（2026-05-24）多项内容彼时已过时，校正见 §1.3；其「评分口径」表曾作模块健康度参考（文件现已不存在）。
+- E1 边界图 `e1-ide-orchestrator-boundary.md` 曾是 E2 的直接前提（文件现已不存在）。
+- 执行流程遵循 `AGENTS.md`（`AI_ITERATION_GUIDE.md` 已于 2026-09-28 收敛为导航页）；证据回填 `.codex/verification-report.md`。
