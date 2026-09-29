@@ -61,15 +61,29 @@ export interface TerminalFrame {
   sequence: number;
   session_id: string;
   status: string;
-  type: "agent_run_completed" | "agent_run_failed";
+  type: "agent_run_completed" | "agent_run_failed" | "agent_run_interrupted";
 }
 
 export interface ControlAckFrame {
+  control_effect: "requested" | "applied" | "ignored" | null;
   event_id: number;
   run_id: string;
+  run_status: string | null;
+  runtime_state: "in_flight" | "settled" | null;
   session_id: string;
   status: "recorded";
   type: "permission_approved" | "permission_denied" | "pause_run" | "resume_run" | "stop_run" | "retry_from_checkpoint";
+}
+
+export interface AgentExecutionOutcome {
+  code: string;
+  message: string;
+  status: "failed" | "partial";
+}
+
+export interface AgentRuntimeInterruption {
+  boundary: string;
+  status: "paused" | "stopped";
 }
 
 export type AgentWsFrame =

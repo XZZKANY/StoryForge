@@ -10,6 +10,9 @@ import {
 } from '../../lib/versions';
 import { PanelError } from '../shell/PanelError';
 import { BranchCanvas } from '../BranchCanvas';
+import { Clock, X } from '../icons/shell-icons';
+import { LiveStatus } from '../shell/LiveStatus';
+import { IconButton } from '../ui';
 
 export function formatTimestamp(ms: number): string {
   const d = new Date(ms);
@@ -41,7 +44,10 @@ export function VersionHistory({
 }) {
   const [versions, setVersions] = useState<VersionEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // 恢复中的条目路径：只有被点的那一行显示「恢复中…」，其余行仅禁用。
+  const [busyPath, setBusyPath] = useState<string | null>(null);
+  // 「对比当前」读取快照期间的条目路径：防并发点击把预览张冠李戴。
+  const [previewLoadingPath, setPreviewLoadingPath] = useState<string | null>(null);
   // 读版本目录失败后的本地重试计数。
   const [retryNonce, setRetryNonce] = useState(0);
   const [sourceFilter, setSourceFilter] = useState<'all' | 'Editor' | 'Agent'>('all');
@@ -66,7 +72,8 @@ export function VersionHistory({
       setPreview(null);
       return;
     }
-    if (!getCurrentContent) return;
+    if (!getCurrentContent || previewLoadingPath) return;
+    setPreviewLoadingPath(entry.path);
     try {
       const state = await readEntryState(entry);
       const versionContent = state.exists ? state.content : '';
@@ -76,6 +83,8 @@ export function VersionHistory({
       setPreview({ path: entry.path, exists: state.exists, hunks, added, removed });
     } catch (err) {
       setError(err instanceof Error ? err.message : '读取版本失败');
+    } finally {
+      setPreviewLoadingPath(null);
     }
   };
 
@@ -104,34 +113,42 @@ export function VersionHistory({
   };
 
   const restore = async (entry: VersionEntry) => {
-    setBusy(true);
+    setBusyPath(entry.path);
     try {
       const state = await readEntryState(entry);
       await onRestore(state, entry);
     } catch (err) {
       setError(err instanceof Error ? err.message : '恢复版本失败');
     } finally {
-      setBusy(false);
+      setBusyPath(null);
     }
   };
   const graph = useMemo(() => buildGraph(versions ?? [], manifest), [versions, manifest]);
   const visibleVersions = versions?.filter((version) =>
     sourceFilter === 'all' ? true : version.source === sourceFilter,
   );
+  // 相位级播报：读取中 / 失败 / 读取完成（带条数），空态与有列表同一句恒定文案。
+  const liveText = error
+    ? '读取版本历史失败'
+    : versions === null
+      ? '正在读取版本历史…'
+      : `版本历史读取完成，共 ${visibleVersions?.length ?? 0} 条。`;
 
   return (
     <div
-      className="absolute top-0 right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-dialog z-30 animate-slide-up-fade"
+      className="absolute top-0 right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-panel-lift z-30 animate-slide-up-fade"
       data-testid="version-history"
     >
-      <div className="sf-panel-header border-border">
+      <LiveStatus text={liveText} testid="version-history-live" />
+      <div className="sf-panel-header">
         <span className="text-sm font-semibold">版本记录</span>
         <div className="ml-auto flex items-center gap-1" data-testid="version-view-toggle">
           {(['list', 'graph'] as const).map((value) => (
             <button
               key={value}
               type="button"
-              className={`rounded-md px-2 py-1 text-xs ${viewMode === value ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'}`}
+              aria-pressed={viewMode === value}
+              className={`rounded-md px-2 py-1 text-xs transition-colors ${viewMode === value ? 'bg-agent/10 text-agent' : 'text-muted hover:bg-elevated'}`}
               onClick={() => setViewMode(value)}
               data-testid={`version-view-${value}`}
             >
@@ -139,20 +156,12 @@ export function VersionHistory({
             </button>
           ))}
         </div>
-        <button
+        <IconButton
+          label="关闭版本历史"
+          tooltip="关闭"
+          icon={<X size={15} strokeWidth={1.7} />}
           onClick={onClose}
-          title="关闭"
-          className="sf-icon-button text-muted transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
+        />
       </div>
       {viewMode === 'graph' ? (
         <div className="min-h-0 flex-1">
@@ -164,7 +173,15 @@ export function VersionHistory({
               onRetry={retryLoad}
             />
           ) : versions === null ? (
-            <p className="p-2 text-sm text-muted">加载中...</p>
+            <div
+              className="flex h-full flex-col items-center justify-center gap-3 text-center"
+              data-testid="version-history-loading"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-elevated">
+                <Clock size={20} strokeWidth={1.4} className="text-subtle" aria-hidden="true" />
+              </div>
+              <p className="text-xs text-subtle">正在读取版本历史…</p>
+            </div>
           ) : (
             <BranchCanvas
               graph={graph}
@@ -188,15 +205,17 @@ export function VersionHistory({
               <button
                 key={value}
                 type="button"
-                className={`rounded-md px-2 py-1 text-xs ${sourceFilter === value ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'}`}
+                aria-pressed={sourceFilter === value}
+                title={value === 'Agent' ? 'Agent 操作产生的快照' : undefined}
+                className={`rounded-md px-2 py-1 text-xs transition-colors ${sourceFilter === value ? 'bg-agent/10 text-agent' : 'text-muted hover:bg-elevated'}`}
                 onClick={() => setSourceFilter(value)}
                 data-testid={`version-filter-${value}`}
               >
-                {value === 'all' ? '全部' : value === 'Editor' ? '手动' : 'Agent'}
+                {value === 'all' ? '全部' : value === 'Editor' ? '手动' : 'AI'}
               </button>
             ))}
           </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          <div className="flex-1 overflow-y-auto p-2">
             {error ? (
               <PanelError
                 title="读取版本历史失败"
@@ -205,119 +224,155 @@ export function VersionHistory({
                 onRetry={retryLoad}
               />
             ) : versions === null ? (
-              <p className="text-sm text-muted p-2">加载中...</p>
+              <div
+                className="flex h-full flex-col items-center justify-center gap-3 text-center"
+                data-testid="version-history-loading"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-elevated">
+                  <Clock size={20} strokeWidth={1.4} className="text-subtle" aria-hidden="true" />
+                </div>
+                <p className="text-xs text-subtle">正在读取版本历史…</p>
+              </div>
             ) : visibleVersions?.length === 0 ? (
-              <p className="text-sm text-muted p-2">还没有历史版本。保存修改后会自动记录。</p>
+              <div
+                className="flex h-full flex-col items-center justify-center gap-3 text-center"
+                data-testid="version-history-empty"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-elevated">
+                  <Clock size={20} strokeWidth={1.4} className="text-subtle" aria-hidden="true" />
+                </div>
+                <p className="text-xs text-subtle">还没有历史版本。保存修改后会自动记录。</p>
+              </div>
             ) : (
-              visibleVersions?.map((v) => (
-                <div
-                  key={v.path}
-                  className="rounded-md border border-border bg-surface p-2"
-                  data-testid="version-entry"
-                  data-version-source={v.source ?? ''}
-                  data-version-checkpoint={v.checkpoint ? 'true' : 'false'}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className="flex min-w-0 items-center gap-1.5 text-xs text-foreground"
-                      title={formatTimestamp(v.timestamp)}
-                    >
-                      <span className="truncate">{formatTimestamp(v.timestamp)}</span>
-                      {v.checkpoint && (
-                        <span
-                          className="flex-shrink-0 rounded-sm border border-border px-1 text-2xs text-muted"
-                          title="Agent 动手前的检查点，不会被日常保存挤掉"
-                          data-testid="version-checkpoint-badge"
-                        >
-                          检查点
-                        </span>
-                      )}
-                      {v.created && (
-                        <span
-                          className="flex-shrink-0 rounded-sm border border-border px-1 text-2xs text-muted"
-                          title="此版本之前该文件并不存在；恢复会在确认后删除当前文件"
-                          data-testid="version-created-badge"
-                        >
-                          新建前
-                        </span>
-                      )}
-                    </span>
-                    <div className="flex flex-shrink-0 items-center gap-1.5">
-                      {getCurrentContent && (
-                        <button
-                          disabled={!!v.unavailableReason}
-                          onClick={() => void togglePreview(v)}
-                          className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
-                          data-testid="version-preview-toggle"
-                        >
-                          {preview?.path === v.path ? '收起' : '对比当前'}
-                        </button>
-                      )}
-                      <button
-                        disabled={busy || !!v.unavailableReason}
-                        onClick={() => void restore(v)}
-                        className="rounded-md bg-accent px-2.5 py-1 text-xs text-accent-foreground transition-opacity hover:opacity-90 active:opacity-100 disabled:opacity-40"
-                      >
-                        {v.created ? '恢复为不存在' : '恢复'}
-                      </button>
-                    </div>
-                  </div>
-                  <div
-                    className="mt-1 truncate text-2xs text-muted"
-                    title={v.summary ?? v.file ?? ''}
+              // Safari 对 list-style:none 的 ul 会丢掉列表语义，显式 role="list" 兜底。
+              <ul role="list" className="space-y-1">
+                {visibleVersions?.map((v) => (
+                  <li
+                    key={v.path}
+                    className="rounded-md border border-border bg-surface p-2"
+                    data-testid="version-entry"
+                    data-version-source={v.source ?? ''}
+                    data-version-checkpoint={v.checkpoint ? 'true' : 'false'}
                   >
-                    {v.source ? `${v.source} · ` : ''}
-                    {v.summary ?? v.file ?? '版本快照'}
-                  </div>
-                  {v.unavailableReason && (
-                    <div className="mt-1 text-2xs text-error" data-testid="version-unavailable">
-                      {v.unavailableReason}
+                    <div className="flex items-center justify-between gap-2">
+                      <span
+                        className="flex min-w-0 items-center gap-1.5 text-xs text-foreground"
+                        title={formatTimestamp(v.timestamp)}
+                      >
+                        <span className="truncate">{formatTimestamp(v.timestamp)}</span>
+                        {v.checkpoint && (
+                          <span
+                            className="flex-shrink-0 rounded-sm border border-border px-1 text-2xs text-muted"
+                            title="Agent 动手前的检查点，不会被日常保存挤掉"
+                            data-testid="version-checkpoint-badge"
+                          >
+                            检查点
+                          </span>
+                        )}
+                        {v.created && (
+                          <span
+                            className="flex-shrink-0 rounded-sm border border-border px-1 text-2xs text-muted"
+                            title="此版本之前该文件并不存在；恢复会在确认后删除当前文件"
+                            data-testid="version-created-badge"
+                          >
+                            新建前
+                          </span>
+                        )}
+                      </span>
+                      <div className="flex flex-shrink-0 items-center gap-1.5">
+                        {getCurrentContent && (
+                          <button
+                            disabled={!!v.unavailableReason || previewLoadingPath !== null}
+                            onClick={() => void togglePreview(v)}
+                            title="与编辑器当前内容对比"
+                            className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
+                            data-testid="version-preview-toggle"
+                          >
+                            {previewLoadingPath === v.path
+                              ? '读取中…'
+                              : preview?.path === v.path
+                                ? '收起'
+                                : '对比当前'}
+                          </button>
+                        )}
+                        <button
+                          disabled={busyPath !== null || !!v.unavailableReason}
+                          aria-busy={busyPath === v.path || undefined}
+                          onClick={() => void restore(v)}
+                          className="interactive-press rounded-md bg-agent px-2.5 py-1 text-xs text-agent-foreground transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {busyPath === v.path ? '恢复中…' : v.created ? '恢复为不存在' : '恢复'}
+                        </button>
+                      </div>
                     </div>
-                  )}
-                  {(v.patchId || v.assistantSessionId || v.issueIds?.length) && (
                     <div
                       className="mt-1 truncate text-2xs text-muted"
-                      data-testid="version-agent-meta"
+                      title={v.summary ?? v.file ?? ''}
                     >
-                      {v.patchId ? `patch ${v.patchId}` : ''}
-                      {v.assistantSessionId ? ` · session ${v.assistantSessionId}` : ''}
-                      {v.issueIds?.length ? ` · ${v.issueIds.join(', ')}` : ''}
+                      {v.source ? `${v.source} · ` : ''}
+                      {v.summary ?? v.file ?? '版本快照'}
                     </div>
-                  )}
-                  {preview?.path === v.path && (
-                    <div className="mt-2 border-t border-border pt-2" data-testid="version-preview">
-                      <div className="text-2xs text-muted">
-                        {!preview.exists
-                          ? '恢复到此版会删除当前文件'
-                          : preview.hunks.length === 0
-                            ? '与当前无差异'
-                            : `恢复到此版：+${preview.added} / -${preview.removed} 行`}
+                    {v.unavailableReason && (
+                      <div className="mt-1 text-2xs text-error" data-testid="version-unavailable">
+                        {v.unavailableReason}
                       </div>
-                      {preview.hunks.length > 0 && (
-                        <div className="mt-1 max-h-52 overflow-y-auto rounded-sm border border-border bg-background p-1 font-mono text-2xs leading-5">
-                          {preview.hunks.map((hunk) => (
-                            <div key={hunk.id} className="mb-1.5">
-                              <div className="text-subtle">
-                                第 {hunk.originalStartIndex + 1} 行附近
-                              </div>
-                              {hunk.beforeText && (
-                                <div className="whitespace-pre-wrap break-words text-error">
-                                  {hunk.beforeText}
-                                </div>
-                              )}
-                              {hunk.afterText && (
-                                <div className="whitespace-pre-wrap break-words text-success">
-                                  {hunk.afterText}
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                    )}
+                    {(v.patchId || v.assistantSessionId || v.issueIds?.length) && (
+                      <div
+                        className="mt-1 truncate text-2xs text-muted"
+                        data-testid="version-agent-meta"
+                      >
+                        {v.patchId ? `patch ${v.patchId}` : ''}
+                        {v.assistantSessionId ? ` · session ${v.assistantSessionId}` : ''}
+                        {v.issueIds?.length ? ` · ${v.issueIds.join(', ')}` : ''}
+                      </div>
+                    )}
+                    {preview?.path === v.path && (
+                      <div
+                        className="mt-2 border-t border-border pt-2"
+                        data-testid="version-preview"
+                      >
+                        <div className="text-2xs text-muted">
+                          {!preview.exists ? (
+                            '恢复到此版会删除当前文件'
+                          ) : preview.hunks.length === 0 ? (
+                            '与当前无差异'
+                          ) : (
+                            <>
+                              恢复到此版：
+                              <span className="text-success">+{preview.added}</span>
+                              {' / '}
+                              <span className="text-error">-{preview.removed}</span>
+                              {' 行'}
+                            </>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))
+                        {preview.hunks.length > 0 && (
+                          <div className="mt-1 max-h-52 overflow-y-auto rounded-sm border border-border bg-background p-1 font-mono text-2xs leading-5">
+                            {preview.hunks.map((hunk) => (
+                              <div key={hunk.id} className="mb-1.5">
+                                <div className="text-subtle">
+                                  第 {hunk.originalStartIndex + 1} 行附近
+                                </div>
+                                {hunk.beforeText && (
+                                  <div className="whitespace-pre-wrap break-words text-error">
+                                    {hunk.beforeText}
+                                  </div>
+                                )}
+                                {hunk.afterText && (
+                                  <div className="whitespace-pre-wrap break-words text-success">
+                                    {hunk.afterText}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </>

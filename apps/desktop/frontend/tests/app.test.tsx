@@ -43,7 +43,7 @@ test('App 壳层挂载 desktop-shell 容器与三栏框架标记', () => {
   assert.match(html, /data-testid="shell-activity-bar"/);
   assert.doesNotMatch(html, /data-testid="shell-side-panel"/);
   assert.match(html, /data-testid="shell-center"/);
-  assert.match(html, /data-testid="shell-status-bar"/);
+  assert.doesNotMatch(html, /data-testid="shell-status-bar"/);
 });
 
 test('App 无项目时中栏渲染 作品库与新建/打开入口，右栏不挂载', () => {
@@ -75,7 +75,7 @@ test('App 活动栏 = 文件 / 搜索 / 手稿 / 观测镜 / 设置；会话与�
   // 现在这个搜索接的是**正文内容**全文搜索（Ctrl+Shift+F），与命令面板职责不同，故重新在场。
   // 若哪天它又退化成不接线的占位，应当再次删掉，而不是留在栏上骗人。
   assert.match(html, /data-testid="activity-search"/);
-  // 会话入右栏对话头、质检收状态栏——这两条未变。
+  // 会话留在右栏对话头；底部状态栏已移除，不新增质检活动栏入口。
   assert.doesNotMatch(html, /data-testid="activity-sessions"/);
   assert.doesNotMatch(html, /data-testid="activity-qa"/);
 });
@@ -86,7 +86,6 @@ test('源文本保留三栏壳层结构符号（中/右对调后的编辑器中�
     'Titlebar',
     'ActivityBar',
     'SidePanel',
-    'StatusBar',
     'Editor', // 中栏正文 C 位
     'ChatWindow', // 右栏 Agent 面板
     'data-testid="assistant-panel"',
@@ -97,7 +96,7 @@ test('源文本保留三栏壳层结构符号（中/右对调后的编辑器中�
   }
 });
 
-test('App 中栏和右栏锁定滚动边界，长稿不能把状态栏或 Agent 栏顶走', () => {
+test('App 中栏和右栏锁定滚动边界，长稿不能撑出工作区或把 Agent 栏顶走', () => {
   const requiredLayoutGuards = [
     'className="min-h-0 flex-1 overflow-hidden"',
     'min-h-0 overflow-hidden bg-background',

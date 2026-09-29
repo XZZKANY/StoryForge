@@ -1,6 +1,7 @@
 import { TauriFileSystem } from './tauri-fs';
 import { relativeToProject } from './project-context';
 import { countCjkChars, countParagraphs } from './text-metrics';
+import { writeReceiptAudit } from './writeback-audit';
 
 export type RevisionLoopRecord = {
   projectPath: string | null;
@@ -12,12 +13,15 @@ export type RevisionLoopRecord = {
   userIntent: string;
   assistantSessionId: number | null;
   patchId?: string | null;
+  /** Native writeback receipt identity, used for idempotent local audit repair. */
+  operationId?: string;
   issueIds?: string[];
   contextFiles?: string[];
 };
 
 export type RevisionLoopResult = {
   recordPath: string | null;
+  writebackWarning?: string | null;
 };
 
 export type ExportCurrentFileResult = {
@@ -87,13 +91,19 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
     userIntent,
     assistantSessionId,
     patchId,
+    operationId,
     issueIds = [],
     contextFiles = [],
   } = record;
   if (!projectPath) return { recordPath: null };
 
   const relativePath = relativeToProject(projectPath, filePath);
-  const recordPath = buildRevisionLoopRecordPath(projectPath, filePath);
+  if (operationId !== undefined && !/^[a-f0-9]{64}$/.test(operationId)) {
+    throw new Error('写回回执 operationId 无效');
+  }
+  const recordPath = operationId
+    ? projectChildPath(projectPath, ['.storyforge', 'author-loop', `${operationId}.md`])
+    : buildRevisionLoopRecordPath(projectPath, filePath);
   const content = [
     '# 作者闭环记录',
     '',
@@ -102,6 +112,7 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
     `- 动作：接受 AI 修订并写回正文`,
     `- Assistant Session：${assistantSessionId ?? '本地未记录'}`,
     `- Patch ID：${patchId ?? '本地未记录'}`,
+    ...(operationId ? [`- Writeback Operation：${operationId}`] : []),
     `- Issue IDs：${issueIds.length ? issueIds.join(', ') : '未限定'}`,
     `- 上下文文件：${contextFiles.length ? contextFiles.join(', ') : '未记录'}`,
     `- 修改前字数：${countCjkChars(before)}`,
@@ -121,7 +132,23 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
     note,
   ].join('\n');
 
-  await TauriFileSystem.writeFile(projectPath, recordPath, content);
+  if (operationId) {
+    const semanticPayload = JSON.stringify({
+      file: relativePath,
+      before,
+      after,
+      summary,
+      note,
+      userIntent,
+      assistantSessionId,
+      patchId: patchId ?? null,
+      issueIds,
+      contextFiles,
+    });
+    await writeReceiptAudit(projectPath, recordPath, operationId, semanticPayload, content);
+  } else {
+    await TauriFileSystem.writeFile(projectPath, recordPath, content);
+  }
   return { recordPath };
 }
 

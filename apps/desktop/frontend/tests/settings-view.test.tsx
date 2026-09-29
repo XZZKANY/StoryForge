@@ -48,6 +48,19 @@ test('设置：真相源 badge 恒显 env 源（不被保存态劫持）+ 搜索
   assert.match(html, /data-testid="settings-no-results"/);
 });
 
+test('设置导航默认高亮首个分组（scrollspy 初始态），模型列表容器限高滚动', () => {
+  const html = renderToStaticMarkup(
+    <SettingsView
+      settings={DEFAULT_APP_SETTINGS}
+      onChange={() => undefined}
+      onClose={() => undefined}
+    />,
+  );
+  assert.match(html, /href="#provider" aria-current="true"/);
+  assert.doesNotMatch(html, /href="#about" aria-current/);
+  assert.match(html, /sf-settings-list/);
+});
+
 test('sanitize：行号设置只认 auto/on/off，坏值落回 auto；旧存档无该字段也不炸', () => {
   assert.equal(
     sanitizeAppSettings({ ...DEFAULT_APP_SETTINGS, editorLineNumbers: 'on' }).editorLineNumbers,

@@ -3,6 +3,13 @@ import type { AgentRunStatus } from './types';
 
 export type AgentRunRecoveryTone = 'neutral' | 'ok' | 'waiting' | 'error';
 
+export type CheckpointResumeDisplay = {
+  canResume: boolean;
+  awaitingSettlement?: boolean;
+  message: string;
+  artifactId: number | null;
+};
+
 export type AgentRunRecoveryDisplay = {
   statusText: string;
   resumeText: string;
@@ -13,6 +20,7 @@ export type AgentRunRecoveryDisplay = {
   tone: AgentRunRecoveryTone;
   canRetryFromCheckpoint: boolean;
   manualRestartRequired: boolean;
+  checkpointResume?: CheckpointResumeDisplay;
 };
 
 /**
@@ -45,15 +53,37 @@ export function buildAgentRunRecoveryDisplay(
   const latestMarker = optionalRecord(runtimeRecovery.latest_execution_marker);
   const latestInterruption = optionalRecord(runtimeRecovery.latest_interruption);
 
-  const canRetryFromCheckpoint = booleanField(recoverability, 'can_retry_from_checkpoint') === true;
+  const strategy = stringField(recoverability, 'resume_strategy');
+  // Existing permission / ChapterBrief waits own their own resume protocol.
+  const checkpointResume =
+    strategy === 'continue_checkpoint' ||
+    strategy === 'reconciliation_required' ||
+    strategy === 'await_settlement' ||
+    (projection.current_step === 'runtime.recovery' && projection.status === 'paused')
+      ? checkpointResumeFromDiagnostic({
+          ...recordFrom(runtimeRecovery.checkpoint_resume),
+          kind: 'runtime_checkpoint_resume',
+          can_resume:
+            recoverability.can_resume === true &&
+            recordFrom(runtimeRecovery.checkpoint_resume).can_resume === true,
+          resume_strategy: strategy,
+        })
+      : null;
+  const canRetryFromCheckpoint =
+    !checkpointResume && booleanField(recoverability, 'can_retry_from_checkpoint') === true;
   const manualRestartRequired =
-    booleanField(runtimeRecovery, 'manual_restart_required') === true ||
-    booleanField(recoverability, 'failed_without_checkpoint') === true;
+    !checkpointResume &&
+    (booleanField(runtimeRecovery, 'manual_restart_required') === true ||
+      booleanField(recoverability, 'failed_without_checkpoint') === true);
   const resumeStrategy = stringField(recoverability, 'resume_strategy') ?? 'none';
-  const checkpointText = checkpointSummary(
-    projection.save_points,
-    numberField(recoverability, 'latest_checkpoint_artifact_id'),
-  );
+  const checkpointText = checkpointResume
+    ? checkpointResume.artifactId !== null
+      ? `安全检查点 · #${checkpointResume.artifactId}`
+      : null
+    : checkpointSummary(
+        projection.save_points,
+        numberField(recoverability, 'latest_checkpoint_artifact_id'),
+      );
   const pendingText = pendingSummary({
     pending,
     latestPendingCall,
@@ -69,24 +99,94 @@ export function buildAgentRunRecoveryDisplay(
 
   return {
     statusText: `状态：${statusLabel(projection.status)}`,
-    resumeText: resumeStrategyText({
-      strategy: resumeStrategy,
-      canRetryFromCheckpoint,
-      manualRestartRequired,
-    }),
+    resumeText:
+      checkpointResume?.message ??
+      resumeStrategyText({
+        strategy: resumeStrategy,
+        canRetryFromCheckpoint,
+        manualRestartRequired,
+      }),
     pendingText,
     latestControlText: controlText(latestControl),
     boundaryText,
     checkpointText,
-    tone: toneFor({
-      status: projection.status,
-      pendingText,
-      canRetryFromCheckpoint,
-      manualRestartRequired,
-    }),
+    tone: checkpointResume
+      ? 'waiting'
+      : toneFor({
+          status: projection.status,
+          pendingText,
+          canRetryFromCheckpoint,
+          manualRestartRequired,
+        }),
     canRetryFromCheckpoint,
     manualRestartRequired,
+    ...(checkpointResume ? { checkpointResume } : {}),
   };
+}
+
+/** One UI projection for the savepoint and resume ACK; never authorizes replay by status alone. */
+export function checkpointResumeFromDiagnostic(
+  diagnostic: Record<string, unknown>,
+): CheckpointResumeDisplay | null {
+  const strategy = stringField(diagnostic, 'resume_strategy');
+  if (
+    diagnostic.kind !== 'runtime_checkpoint_resume' &&
+    strategy !== 'continue_checkpoint' &&
+    strategy !== 'reconciliation_required' &&
+    strategy !== 'await_settlement'
+  )
+    return null;
+  const canResume =
+    diagnostic.can_resume === true &&
+    strategy === 'continue_checkpoint' &&
+    diagnostic.resume_via_control_channel !== false;
+  const awaitingSettlement = strategy === 'await_settlement';
+  const reason = checkpointReasonLabel(stringField(diagnostic, 'reason'));
+  return {
+    canResume,
+    ...(awaitingSettlement ? { awaitingSettlement: true } : {}),
+    artifactId: numberField(diagnostic, 'artifact_id'),
+    message: awaitingSettlement
+      ? '恢复：当前操作尚未结束，等待执行结算；不会重放本轮。'
+      : canResume
+        ? '恢复：可从安全检查点继续本轮（同一运行）'
+        : `恢复：需要先核对${reason}；不会自动重放，请核对已有结果、文件与版本记录。`,
+  };
+}
+
+export function recoveryDisplayFromCheckpoint(
+  checkpointResume: CheckpointResumeDisplay,
+): AgentRunRecoveryDisplay {
+  return {
+    statusText: '状态：暂停',
+    resumeText: checkpointResume.message,
+    pendingText: null,
+    latestControlText: null,
+    boundaryText: null,
+    checkpointText:
+      checkpointResume.artifactId !== null ? `安全检查点 · #${checkpointResume.artifactId}` : null,
+    tone: 'waiting',
+    canRetryFromCheckpoint: false,
+    manualRestartRequired: false,
+    checkpointResume,
+  };
+}
+
+function checkpointReasonLabel(reason: string | null): string {
+  if (reason === 'tool_outcome_unknown') return '工具调用结果（当前未知）';
+  if (reason === 'model_outcome_unknown') return '模型请求结果（当前未知）';
+  if (reason === 'source_version_changed') return '源文件版本变化';
+  if (reason === 'permission_snapshot_changed') return '权限变化';
+  if (reason === 'tool_policy_changed') return '工具策略变化';
+  if (reason === 'terminal_checkpoint_requires_delivery_reconciliation')
+    return '已执行结果的交付状态';
+  if (reason === 'provider_continuation_unavailable') return '模型续接状态（当前不可用）';
+  if (reason === 'checkpoint_content_redacted') return '检查点内容（已脱敏，不能重放）';
+  if (reason === 'checkpoint_identity_mismatch') return '检查点归属';
+  if (reason === 'checkpoint_digest_mismatch' || reason === 'invalid_checkpoint')
+    return '检查点完整性';
+  if (reason === 'missing_resume_context') return '缺失的恢复上下文';
+  return '本轮执行状态';
 }
 
 function pendingSummary({

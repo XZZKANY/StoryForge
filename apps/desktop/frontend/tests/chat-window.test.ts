@@ -24,7 +24,6 @@ import {
   WritingRunProgressPanel,
   writingRunIdFromResult,
 } from '../src/components/ChatWindow';
-import { reviewIssueForCurrentFile } from '../src/components/chat-window/review';
 import { ConversationHeader } from '../src/components/chat-window/panels';
 import type { AgentRunSavePointProjection } from '../src/lib/api-client';
 
@@ -92,33 +91,6 @@ test('issue scope can be inferred from explicit issue id or category instruction
   assert.deepEqual(extractIssueScopeFromInstruction('只修人物问题，保留结尾', reviewReport), {
     included_categories: ['character'],
   });
-});
-
-test('revise issue lookup only accepts ids from the active review file', () => {
-  const reportFile = 'D:\\Books\\雾港回声\\正文\\第01章.md';
-  assert.equal(
-    reviewIssueForCurrentFile(
-      reviewReport,
-      'character-1',
-      reportFile,
-      'D:/Books/雾港回声/正文/第01章.md',
-    )?.id,
-    'character-1',
-  );
-  assert.equal(
-    reviewIssueForCurrentFile(
-      reviewReport,
-      'character-1',
-      reportFile,
-      'D:\\Books\\雾港回声\\正文\\第02章.md',
-    ),
-    null,
-  );
-  assert.equal(
-    reviewIssueForCurrentFile(reviewReport, 'missing-issue', reportFile, reportFile),
-    null,
-  );
-  assert.equal(reviewIssueForCurrentFile(reviewReport, 'plot-1', reportFile, null), null);
 });
 
 test('stable agent request payload carries project, file, content, author view, session and context', () => {
@@ -218,6 +190,27 @@ test('stable agent request payload omits file content when project-only chat is 
   assert.equal(payload.content, undefined);
   assert.equal(payload.author_view, undefined);
   assert.equal(payload.context_bundle?.current_file, undefined);
+});
+
+test('stable agent request payload anchors an explicit draft target without current-file content', () => {
+  // 「AI 起草下一章」：目标文件尚不存在，file_path 锚定目标路径；
+  // 当前打开的章节（content 为 null 时）不得借 current_file/file_path 错误锚定。
+  const payload = buildStableAgentRequestPayload({
+    projectPath: 'D:\\Books\\雾港回声',
+    currentFile: 'D:\\Books\\雾港回声\\正文\\第01章.md',
+    content: null,
+    instruction: '起草第4章',
+    projectName: '雾港回声',
+    assistantSessionId: null,
+    reviewReport: null,
+    authorView: null,
+    contextBundle: emptyContextBundle('D:\\Books\\雾港回声'),
+    targetFilePath: '正文/第004章.md',
+  });
+
+  assert.equal(payload.file_path, '正文/第004章.md');
+  assert.equal(payload.current_file, undefined);
+  assert.equal(payload.content, undefined);
 });
 
 test('managed Writing Run mock SSE progress renders lightweight tool progress', () => {

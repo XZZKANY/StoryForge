@@ -55,7 +55,11 @@ test('src 下不存在任意值字号', () => {
       }
     }
   }
-  assert.deepEqual(offenders, [], `任意值字号（应改用 text-{${LADDER.join(',')}}）：\n${offenders.join('\n')}`);
+  assert.deepEqual(
+    offenders,
+    [],
+    `任意值字号（应改用 text-{${LADDER.join(',')}}）：\n${offenders.join('\n')}`,
+  );
 });
 
 test('index.css 的绝对字号只用 token（.assistant-md 内的相对 em 除外）', () => {

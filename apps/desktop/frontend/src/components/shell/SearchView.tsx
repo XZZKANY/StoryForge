@@ -16,7 +16,7 @@ function HitRow({ hit, onSelect }: { hit: SearchHit; onSelect: () => void }) {
       type="button"
       onClick={onSelect}
       data-testid="search-hit"
-      className="flex w-full items-baseline gap-2 rounded-sm px-2 py-1 text-left text-xs text-muted hover:bg-elevated hover:text-foreground"
+      className="flex w-full items-baseline gap-2 rounded-sm px-2 py-1 text-left text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
       title={`第 ${hit.line} 行`}
     >
       <span className="w-9 flex-shrink-0 text-right text-2xs tabular-nums text-subtle">
@@ -76,7 +76,7 @@ export function SearchView({
           ? '没有匹配的内容。'
           : `搜索完成：找到 ${search.totalHits} 处，涉及 ${search.results.length} 个文件。${
               search.capped ? '已达上限，仅显示前方结果。' : ''
-            }`;
+            }${search.skippedFiles > 0 ? `${search.skippedFiles} 个文件不可读，已跳过。` : ''}`;
 
   return (
     <div className="flex h-full flex-col bg-panel" data-testid="search-panel">
@@ -105,7 +105,7 @@ export function SearchView({
             disabled={!projectOpen}
             data-testid="search-input"
             ref={inputRef}
-            className="h-8 w-full rounded-md border border-border bg-surface pl-2.5 pr-7 text-sm text-foreground outline-none placeholder:text-subtle focus:border-border-strong disabled:opacity-50"
+            className="sf-input h-8 w-full rounded-md border border-border bg-surface pl-2.5 pr-7 text-sm text-foreground placeholder:text-subtle disabled:opacity-50"
           />
           {search.query && (
             <button
@@ -122,7 +122,7 @@ export function SearchView({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pb-3">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-3">
         {!projectOpen ? (
           <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
             打开项目后可搜索正文内容。
@@ -157,6 +157,7 @@ export function SearchView({
               {search.totalHits} 处 · {search.results.length} 个文件
               {search.status === 'searching' ? ' · 搜索中…' : ''}
               {search.capped ? ` · 已达上限，仅显示前 ${search.totalHits} 处` : ''}
+              {search.skippedFiles > 0 ? ` · ${search.skippedFiles} 个文件不可读，已跳过` : ''}
             </p>
             {search.results.map((file) => {
               const isCollapsed = collapsed.has(file.path);
@@ -165,7 +166,7 @@ export function SearchView({
                   <button
                     type="button"
                     onClick={() => toggle(file.path)}
-                    className="flex w-full items-center gap-1 rounded-sm px-2 py-1 text-left text-xs text-foreground hover:bg-elevated"
+                    className="flex w-full items-center gap-1 rounded-sm px-2 py-1 text-left text-xs text-foreground transition-colors hover:bg-elevated"
                     title={file.path}
                   >
                     {isCollapsed ? (

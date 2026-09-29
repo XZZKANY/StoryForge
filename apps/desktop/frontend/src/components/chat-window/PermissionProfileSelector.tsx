@@ -1,4 +1,5 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { FloatingSurface } from '../ui';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Check, ChevronDown, Shield } from 'lucide-react';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
@@ -37,17 +38,6 @@ export function PermissionProfileSelector({
   useLayoutEffect(() => {
     if (menuOpen) optionRefs.current[focusedIndex]?.focus();
   }, [menuOpen, focusedIndex]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [menuOpen]);
 
   function openMenu() {
     if (effectiveDisabled) return;
@@ -120,7 +110,11 @@ export function PermissionProfileSelector({
       className={fitToComposer ? 'static' : 'relative'}
       onKeyDown={handleKeyDown}
       onBlur={(event) => {
-        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node))
+        if (
+          event.relatedTarget instanceof Element &&
+          !event.currentTarget.contains(event.relatedTarget) &&
+          event.relatedTarget.closest('[role="listbox"]')?.id !== menuId
+        )
           closeMenu();
       }}
     >
@@ -151,11 +145,15 @@ export function PermissionProfileSelector({
         />
       </button>
       {menuOpen && (
-        <div
+        <FloatingSurface
+          triggerRef={triggerRef}
+          side="top"
+          fitToComposer={fitToComposer}
+          onDismiss={(reason) => closeMenu(reason === 'escape')}
           id={menuId}
           role="listbox"
           aria-label="选择权限档位"
-          className={`absolute bottom-full z-50 mb-2 max-h-[70vh] overflow-y-auto rounded-xl border border-border bg-surface p-1.5 shadow-dropdown ${fitToComposer ? 'inset-x-0' : 'left-0 w-[280px] max-w-[calc(100vw-2rem)]'}`}
+          className="w-[280px] animate-fade-in rounded-xl border border-border bg-surface p-1.5 shadow-dropdown"
         >
           {AGENT_PERMISSION_PROFILE_OPTIONS.map((option, index) => {
             const isSelected = option.value === value;
@@ -190,7 +188,7 @@ export function PermissionProfileSelector({
               </button>
             );
           })}
-        </div>
+        </FloatingSurface>
       )}
     </div>
   );

@@ -1,4 +1,5 @@
-import { useCallback } from 'react';
+import { executionOutcomeFromResult } from '../../lib/api/execution-outcome';
+import { useCallback, useEffect, useRef } from 'react';
 
 import {
   emitFileSuggestion,
@@ -16,8 +17,13 @@ import {
   modelFromToolTrace,
   resolveProposedPatchFilePath,
 } from './agent-result';
+import { chapterBriefFromAgentResult } from './chapter-brief';
 import { titleFromSystemJobs } from './conversation-utils';
-import { buildAgentRunRecoveryDisplay } from './recovery';
+import {
+  buildAgentRunRecoveryDisplay,
+  checkpointResumeFromDiagnostic,
+  recoveryDisplayFromCheckpoint,
+} from './recovery';
 import {
   reviewIssuesFromReport,
   reviewReportFromMessage,
@@ -25,6 +31,7 @@ import {
   scopeWarningFromAgentResult,
 } from './review';
 import {
+  checkpointResumeFromResult,
   displayFromResumeDiagnostic,
   statusFromAgentResult,
   stepsFromResumedAgentResult,
@@ -39,6 +46,8 @@ export function useAgentRunRecovery(
 ) {
   const {
     setAgentRun,
+    agentRun,
+    selfPersistedSessionIdRef,
     setAgentBusy,
     agentRunIdRef,
     assistantSessionIdRef,
@@ -52,7 +61,17 @@ export function useAgentRunRecovery(
     setLastReviewReportFile,
     setAgentRunRecovery,
     lastContextBundle,
+    setChapterBrief,
   } = state;
+
+  const recoveryRevision = useRef(0);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   const updateAgentStep = useCallback(
     (stepId: string, patch: Partial<AgentStep>) => {
@@ -69,7 +88,11 @@ export function useAgentRunRecovery(
 
   const updateAgentStatus = useCallback(
     (status: AgentRun['status']) => {
-      setAgentRun((run) => (run ? { ...run, status } : run));
+      setAgentRun((run) =>
+        run
+          ? { ...run, status: status === 'completed' && run.executionOutcome ? 'failed' : status }
+          : run,
+      );
       setAgentBusy(status === 'running');
     },
     [setAgentBusy, setAgentRun],
@@ -77,21 +100,57 @@ export function useAgentRunRecovery(
 
   const refreshAgentRunRecovery = useCallback(
     async (runId: string) => {
+      const revision = ++recoveryRevision.current;
+      const scope = conversationKey(
+        projectPathRef.current,
+        assistantSessionIdRef.current,
+        draftNonceRef.current,
+      );
+      const active = () =>
+        alive.current &&
+        revision === recoveryRevision.current &&
+        agentRunIdRef.current === runId &&
+        scope ===
+          conversationKey(
+            projectPathRef.current,
+            assistantSessionIdRef.current,
+            draftNonceRef.current,
+          );
       try {
         const projection = await getAgentRunSavePoints(runId);
-        if (agentRunIdRef.current === runId) {
+        if (projection.run_id !== runId) throw new Error('恢复状态归属不匹配。');
+        if (active()) {
           setAgentRunRecovery(buildAgentRunRecoveryDisplay(projection));
         }
       } catch {
-        if (agentRunIdRef.current === runId) setAgentRunRecovery(null);
+        if (active()) {
+          setAgentRunRecovery((current) => {
+            const checkpoint = current?.checkpointResume;
+            if (!checkpoint) return null;
+            if (!checkpoint.canResume) return current;
+            return recoveryDisplayFromCheckpoint({
+              ...checkpoint,
+              canResume: false,
+              message: '恢复：暂时无法核对检查点状态；不会自动重放，请稍后核对本轮。',
+            });
+          });
+        }
       }
     },
-    [agentRunIdRef, setAgentRunRecovery],
+    [agentRunIdRef, projectPathRef, assistantSessionIdRef, draftNonceRef, setAgentRunRecovery],
   );
 
   const applyResumedAgentResult = useCallback(
     (response: AgentResultMessage) => {
+      const recoveringDraft =
+        agentRun !== null &&
+        assistantSessionIdRef.current === null &&
+        agentRun.id === response.run_id &&
+        agentRun.sessionId === response.session_id &&
+        agentRun.deliveryUnknown?.scope ===
+          conversationKey(projectPathRef.current, null, draftNonceRef.current);
       if (
+        !recoveringDraft &&
         !isRunResultForActiveSession(
           conversationKey(
             projectPathRef.current,
@@ -103,6 +162,7 @@ export function useAgentRunRecovery(
       ) {
         return;
       }
+      if (recoveringDraft) selfPersistedSessionIdRef.current = response.assistant_session_id;
       assistantSessionIdRef.current = response.assistant_session_id;
       runStartConversationKeyRef.current = conversationKey(
         projectPathRef.current,
@@ -114,11 +174,19 @@ export function useAgentRunRecovery(
       if (systemTitle) setConversationTitle(systemTitle);
 
       const nextStatus = statusFromAgentResult(response);
+      setChapterBrief(chapterBriefFromAgentResult(response));
+      recoveryRevision.current += 1;
+      const checkpoint = checkpointResumeFromResult(response);
+      if (nextStatus === 'paused' && checkpoint) {
+        setAgentRunRecovery(recoveryDisplayFromCheckpoint(checkpoint));
+      }
       setAgentRun((run) =>
         run
           ? {
               ...run,
               status: nextStatus,
+              deliveryUnknown: undefined,
+              executionOutcome: executionOutcomeFromResult(response) ?? undefined,
               steps: stepsFromResumedAgentResult(response),
             }
           : run,
@@ -186,7 +254,7 @@ export function useAgentRunRecovery(
         if (currentFilePath)
           emitReviewIssues(currentFilePath, reviewIssuesFromReport(reviewReportForMarkers));
         setMessages((prev) => [...prev, { role: 'assistant', content: reviewSummary }]);
-        updateAgentStatus('completed');
+        updateAgentStatus(nextStatus);
         return;
       }
 
@@ -197,6 +265,8 @@ export function useAgentRunRecovery(
       updateAgentStatus(nextStatus);
     },
     [
+      agentRun,
+      selfPersistedSessionIdRef,
       assistantSessionIdRef,
       currentFileRef,
       draftNonceRef,
@@ -206,6 +276,8 @@ export function useAgentRunRecovery(
       runStartConversationKeyRef,
       setAgentBusy,
       setAgentRun,
+      setAgentRunRecovery,
+      setChapterBrief,
       setConversationTitle,
       setLastReviewReport,
       setLastReviewReportFile,
@@ -216,12 +288,20 @@ export function useAgentRunRecovery(
 
   const applyResumeDiagnostic = useCallback(
     (diagnostic: Record<string, unknown>) => {
+      recoveryRevision.current += 1;
       const display = displayFromResumeDiagnostic(diagnostic);
+      const checkpoint = checkpointResumeFromDiagnostic(diagnostic);
+      if (checkpoint) setAgentRunRecovery(recoveryDisplayFromCheckpoint(checkpoint));
       const resumeStep: AgentStep = {
         id: 'resume',
         title: '恢复本轮',
         tool: 'agent.runtime.resume',
-        status: display.status === 'failed' ? 'failed' : 'waiting',
+        status:
+          display.status === 'failed'
+            ? 'failed'
+            : display.status === 'stopped'
+              ? 'completed'
+              : 'waiting',
         detail: display.message,
       };
       setAgentRun((run) => {
@@ -235,10 +315,10 @@ export function useAgentRunRecovery(
             : [...run.steps, resumeStep],
         };
       });
-      setAgentBusy(false);
+      setAgentBusy(display.executionPending === true);
       setMessages((prev) => [...prev, { role: 'assistant', content: display.message }]);
     },
-    [setAgentBusy, setAgentRun, setMessages],
+    [setAgentBusy, setAgentRun, setAgentRunRecovery, setMessages],
   );
 
   return {

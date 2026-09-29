@@ -1,6 +1,8 @@
 import type { ApiAssistantContextBundle } from './contracts';
 import type { AgentPermissionProfile } from '../agent-permission';
 import type {
+  AgentExecutionOutcome,
+  AgentRuntimeInterruption,
   AgentRunStartedFrame,
   AgentStepFrame,
   ControlAckFrame,
@@ -137,6 +139,7 @@ export type WritingRunHandle = {
 
 export type AgentResultMessage = {
   type: 'agent_result';
+  runtime_interruption?: AgentRuntimeInterruption | null;
   session_id: string;
   run_id?: string;
   assistant_session_id: number;
@@ -145,6 +148,7 @@ export type AgentResultMessage = {
   plan: AgentPlanStep[];
   agent_result: {
     summary?: string;
+    execution_outcome?: AgentExecutionOutcome;
     requires_user_confirmation?: boolean;
     writing_run?: WritingRunHandle | null;
     writing_run_id?: number | null;

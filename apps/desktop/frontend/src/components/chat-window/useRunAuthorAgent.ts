@@ -1,4 +1,7 @@
+import { executionOutcomeFromResult } from '../../lib/api/execution-outcome';
+import { statusFromAgentResult } from './resumed-result';
 import { useCallback } from 'react';
+import { useAgentRunAdmission } from './useAgentRunAdmission';
 
 import {
   emitAcceptCurrentFileSuggestion,
@@ -14,7 +17,6 @@ import {
   isAgentErrorMessage,
   isAgentResultMessage,
   sendAgentUserMessage,
-  subscribeWritingRunEvents,
   type AgentSocketMessage,
 } from '../../lib/api-client';
 import {
@@ -44,12 +46,17 @@ import {
   scopeWarningFromAgentResult,
 } from './review';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
-import { applyWritingRunEventProjection, writingRunIdFromResult } from './writing-run';
+import { startWritingRunProjectionSubscription, writingRunIdFromResult } from './writing-run';
 import { stepsFromAgentResult } from './agent-step-mapping';
 import { chapterBriefFromAgentResult } from './chapter-brief';
 import type { AgentRunStatus, ChatWindowProps, RunAuthorAgent } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 export type { RunAuthorAgent } from './types';
+export {
+  markWritingRunSubscriptionLost,
+  startWritingRunProjectionSubscription,
+  WRITING_RUN_SUBSCRIPTION_LOST_REASON,
+} from './writing-run';
 
 export function useRunAuthorAgent(
   state: ChatWindowState,
@@ -60,7 +67,6 @@ export function useRunAuthorAgent(
   agentPermissionProfile: AgentPermissionProfile,
 ): RunAuthorAgent {
   const {
-    agentBusy,
     setMessages,
     projectPathRef,
     currentFileRef,
@@ -88,24 +94,22 @@ export function useRunAuthorAgent(
     setLastReviewReport,
     setLastReviewReportFile,
   } = state;
+  const { rejectBlockedAdmission, claimRun, retainUnknown, releaseClaim } =
+    useAgentRunAdmission(state);
   return useCallback(
     async (
       goal: string,
       action: LocalConversationAction = detectLocalConversationAction(goal),
       intent?: 'file.revise' | 'chapter.write' | 'chapter.polish',
       excludedKnowledgeIds: string[] = [],
-      options: { useMainModel?: boolean } = {},
+      options: { useMainModel?: boolean; targetFilePath?: string } = {},
     ) => {
-      if (agentBusy) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: '这轮还在整理。我先把当前读取、修订或确认收口，再接新的问题。',
-          },
-        ]);
-        return;
-      }
+      const scope = conversationKey(
+        projectPathRef.current,
+        assistantSessionIdRef.current,
+        draftNonceRef.current,
+      );
+      if (rejectBlockedAdmission(scope)) return;
       const writebackOnly = action === 'file.writeback';
       const exportOnly = action === 'file.export';
       const project = projectPathRef.current;
@@ -158,6 +162,7 @@ export function useRunAuthorAgent(
         return;
       }
       const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const active = claimRun(scope, runId);
       agentRunIdRef.current = runId;
       const runStartConversationKey = conversationKey(
         projectPathRef.current,
@@ -180,11 +185,11 @@ export function useRunAuthorAgent(
       setChapterBrief(null);
       try {
         let content: string | null = null;
-        if (file && ref) {
+        // 显式起草目标（下一章）指向尚不存在的文件：不刷盘、不读当前稿。
+        if (file && ref && !options.targetFilePath) {
           await flushActiveEditorToDisk(file);
           content = await TauriFileSystem.readProjectFile(project, file);
         }
-
         const contextRefs = Array.from(
           new Set([...explicitContextPaths, ...extractContextReferences(goal)]),
         );
@@ -210,7 +215,6 @@ export function useRunAuthorAgent(
             },
           ]);
         }
-
         const payload = buildStableAgentRequestPayload({
           projectPath: project,
           currentFile: file,
@@ -221,6 +225,7 @@ export function useRunAuthorAgent(
           contextBundle,
           reviewReport: lastReviewReport,
           authorView: authorViewRef.current,
+          targetFilePath: options.targetFilePath,
         });
         if (intent === 'chapter.polish') {
           payload.style_instruction = goal;
@@ -251,8 +256,8 @@ export function useRunAuthorAgent(
           ),
           runStartConversationKey,
         );
-        if (runSuperseded || sessionSwitched) {
-          if (!runSuperseded) setAgentBusy(false);
+        if (!active() || runSuperseded || sessionSwitched) {
+          if (active() && !runSuperseded) setAgentBusy(false);
           return;
         }
 
@@ -291,7 +296,6 @@ export function useRunAuthorAgent(
         if (systemTitle) setConversationTitle(systemTitle);
         const startedWritingRunId = writingRunIdFromResult(response);
         if (startedWritingRunId !== null) {
-          unsubscribeWritingRunRef.current?.();
           setWritingRunProjection({
             writingRunId: startedWritingRunId,
             status: 'running',
@@ -301,37 +305,15 @@ export function useRunAuthorAgent(
             latestEvent: 'started',
             failureReason: null,
           });
-          void subscribeWritingRunEvents(
+          startWritingRunProjectionSubscription(
             startedWritingRunId,
-            (event) =>
-              setWritingRunProjection((current) => applyWritingRunEventProjection(current, event)),
-            () =>
-              setWritingRunProjection((current) =>
-                current
-                  ? {
-                      ...current,
-                      latestEvent: 'error',
-                      failureReason: '写作任务进度订阅失败',
-                    }
-                  : current,
-              ),
-          )
-            .then((unsubscribe) => {
-              unsubscribeWritingRunRef.current = unsubscribe;
-            })
-            .catch(() => {
-              setWritingRunProjection((current) =>
-                current
-                  ? {
-                      ...current,
-                      latestEvent: 'error',
-                      failureReason: '写作任务进度订阅失败',
-                    }
-                  : current,
-              );
-            });
+            unsubscribeWritingRunRef,
+            setWritingRunProjection,
+          );
         }
 
+        const executionOutcome = executionOutcomeFromResult(response);
+        const resultStatus = statusFromAgentResult(response);
         const agentSteps = stepsFromAgentResult(response);
         const responseChapterBrief = chapterBriefFromAgentResult(response);
         const proposed = writableFilePatch(response);
@@ -341,7 +323,8 @@ export function useRunAuthorAgent(
           run
             ? {
                 ...run,
-                status: response.agent_result.requires_user_confirmation ? 'waiting' : 'completed',
+                status: resultStatus,
+                executionOutcome: executionOutcome ?? undefined,
                 steps: [
                   ...agentSteps,
                   ...(response.agent_result.requires_user_confirmation
@@ -418,7 +401,7 @@ export function useRunAuthorAgent(
           // P1-2：无 approval_command 时接受按钮静默无效，waiting 成死路，仅有真批准路径才置。
           const allowsWaiting =
             repairProposal.command && response.agent_result.requires_user_confirmation;
-          updateAgentStatus(allowsWaiting ? 'waiting' : 'completed');
+          updateAgentStatus(allowsWaiting ? 'waiting' : resultStatus);
           return;
         }
 
@@ -432,7 +415,7 @@ export function useRunAuthorAgent(
             emitReviewIssues(reviewedFile, reviewIssuesFromReport(reviewReportForMarkers));
           }
           setMessages((prev) => [...prev, { role: 'assistant', content: reviewSummary }]);
-          updateAgentStatus('completed');
+          updateAgentStatus(resultStatus);
           return;
         }
 
@@ -441,7 +424,7 @@ export function useRunAuthorAgent(
           { role: 'assistant', content: response.agent_result.summary ?? '这轮已经完成。' },
         ]);
         // P1-2：纯文本总结无真批准路径，waiting 会让作者卡死在空按钮上；仅 chapterBrief 例外。
-        updateAgentStatus(responseChapterBrief ? 'waiting' : 'completed');
+        updateAgentStatus(responseChapterBrief ? 'waiting' : resultStatus);
       } catch (error) {
         const runSuperseded = agentRunIdRef.current !== runId;
         const sessionSwitched = !isRunResultForActiveSession(
@@ -452,18 +435,33 @@ export function useRunAuthorAgent(
           ),
           runStartConversationKey,
         );
-        if (runSuperseded || sessionSwitched) {
-          if (!runSuperseded) setAgentBusy(false);
+        if (!active() || runSuperseded || sessionSwitched) {
+          if (active() && !runSuperseded) setAgentBusy(false);
+          return;
+        }
+        if (
+          retainUnknown(error, runStartConversationKey, runId, {
+            goal,
+            action,
+            intent,
+            useMainModel: options.useMainModel,
+          })
+        ) {
           return;
         }
         const message = error instanceof Error ? error.message : String(error);
         updateAgentStatus('failed');
         setRetryRequest({ goal, action, intent, useMainModel: options.useMainModel });
         setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${message}` }]);
+      } finally {
+        releaseClaim(runId);
       }
     },
     [
-      agentBusy,
+      rejectBlockedAdmission,
+      claimRun,
+      retainUnknown,
+      releaseClaim,
       agentPermissionProfile,
       agentRunIdRef,
       applyAgentStreamEvent,

@@ -49,7 +49,12 @@ export function ResourceExplorer({
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [menu, setMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    items: ContextMenuItem[];
+    origin: HTMLElement;
+  } | null>(null);
   // 读盘失败后的本地重试计数：与外部 refreshVersion 并列驱动同一个装载 effect。
   const [retryNonce, setRetryNonce] = useState(0);
 
@@ -123,7 +128,13 @@ export function ResourceExplorer({
       if (!fileActions || !projectPath) return;
       event.preventDefault();
       event.stopPropagation();
-      setMenu({ x: event.clientX, y: event.clientY, items: buildMenuItems(target) });
+      // origin=右键起源行：菜单 Esc 关闭后焦点回得来、该元素上的按下不算 outside-dismiss。
+      setMenu({
+        x: event.clientX,
+        y: event.clientY,
+        items: buildMenuItems(target),
+        origin: event.currentTarget as HTMLElement,
+      });
     },
     [buildMenuItems, fileActions, projectPath],
   );
@@ -141,7 +152,7 @@ export function ResourceExplorer({
     <div className="flex h-full flex-col bg-panel">
       {/* 文件树 */}
       <div
-        className="flex-1 overflow-y-auto py-2"
+        className="flex-1 overflow-y-auto overscroll-contain py-2"
         data-testid="file-list"
         data-project-path={projectPath ?? ''}
         onContextMenu={(event) => openMenu(event, null)}
@@ -151,7 +162,7 @@ export function ResourceExplorer({
             <p className="text-sm text-subtle">尚未打开项目</p>
           </div>
         ) : loading ? (
-          <div className="p-8 text-center text-sm text-subtle">加载中...</div>
+          <div className="p-8 text-center text-sm text-subtle">加载中…</div>
         ) : error ? (
           <PanelError
             compact
@@ -163,6 +174,7 @@ export function ResourceExplorer({
         ) : tree.length === 0 ? (
           <div className="mt-8 mx-4 text-center">
             <p className="text-sm text-subtle">空空如也</p>
+            <p className="mt-1 text-3xs text-subtle">右键可新建文件 / 文件夹</p>
           </div>
         ) : (
           <div className="flex flex-col gap-0.5">
@@ -186,7 +198,13 @@ export function ResourceExplorer({
       </div>
 
       {menu && (
-        <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={menu.items}
+          onClose={() => setMenu(null)}
+          triggerRef={{ current: menu.origin }}
+        />
       )}
     </div>
   );
@@ -264,13 +282,15 @@ const TreeNodeItem = memo(function TreeNodeItem({
               <FolderIcon className="h-3.5 w-3.5" />
             </span>
 
-            <span className="min-w-0 flex-1 truncate text-sm">{node.name}</span>
+            <span className="min-w-0 flex-1 truncate text-sm" title={node.path}>
+              {node.name}
+            </span>
           </button>
 
           {onNodeNewEntry && (
             <span className="flex flex-shrink-0 items-center gap-px opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
               <button
-                className="flex h-5 w-5 items-center justify-center rounded-sm text-subtle hover:bg-surface hover:text-foreground"
+                className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle hover:bg-surface hover:text-foreground"
                 title={`在「${node.name}」下新建文件`}
                 aria-label={`在 ${node.name} 下新建文件`}
                 data-testid="tree-folder-new-file"
@@ -284,7 +304,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
                 <FilePlus size={13} strokeWidth={1.6} />
               </button>
               <button
-                className="flex h-5 w-5 items-center justify-center rounded-sm text-subtle hover:bg-surface hover:text-foreground"
+                className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle hover:bg-surface hover:text-foreground"
                 title={`在「${node.name}」下新建文件夹`}
                 aria-label={`在 ${node.name} 下新建文件夹`}
                 data-testid="tree-folder-new-folder"
@@ -330,7 +350,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
       data-file-path={node.path}
       data-preview={isPreview ? 'true' : undefined}
       className={`
-        sf-tree-row transition-colors group cursor-pointer
+        sf-tree-row select-none transition-colors group cursor-pointer
         ${
           isActive
             ? 'bg-elevated text-foreground'
@@ -348,7 +368,9 @@ const TreeNodeItem = memo(function TreeNodeItem({
         />
       </div>
 
-      <span className="min-w-0 flex-1 truncate text-sm">{node.name}</span>
+      <span className="min-w-0 flex-1 truncate text-sm" title={node.path}>
+        {node.name}
+      </span>
     </button>
   );
 });

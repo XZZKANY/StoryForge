@@ -1,18 +1,51 @@
+import {
+  executionOutcomeFromResult,
+  runtimeInterruptionFromResult,
+} from '../../lib/api/execution-outcome';
 import type { AgentResultMessage } from '../../lib/api-client';
 import { stepsFromAgentResult } from './agent-step-mapping';
 import { writableFilePatch } from './agent-result';
 import type { AgentRun, AgentStep } from './types';
+import { checkpointResumeFromDiagnostic } from './recovery';
 
 export type ResumeDiagnosticDisplay = {
   status: AgentRun['status'];
   message: string;
+  executionPending?: boolean;
 };
 
+export function checkpointResumeFromResult(response: AgentResultMessage) {
+  if (!('runtime_recovery' in response)) return null;
+  const value = response.runtime_recovery;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return checkpointResumeFromDiagnostic({ ...value });
+}
+
 export function statusFromAgentResult(response: AgentResultMessage): AgentRun['status'] {
-  return response.agent_result.requires_user_confirmation ? 'waiting' : 'completed';
+  const interruption = runtimeInterruptionFromResult(response);
+  if (interruption) return interruption.status;
+  const outcome = executionOutcomeFromResult(response);
+  return response.agent_result.requires_user_confirmation
+    ? 'waiting'
+    : outcome
+      ? 'failed'
+      : 'completed';
 }
 
 export function stepsFromResumedAgentResult(response: AgentResultMessage): AgentStep[] {
+  const interruption = runtimeInterruptionFromResult(response);
+  if (interruption) {
+    return [
+      ...stepsFromAgentResult(response),
+      {
+        id: 'runtime-control',
+        title: interruption.status === 'stopped' ? '本轮已停止' : '本轮已暂停',
+        tool: 'agent.runtime.control',
+        status: 'completed',
+        detail: response.agent_result.summary ?? '当前操作已结束。',
+      },
+    ];
+  }
   const needsConfirmation = response.agent_result.requires_user_confirmation === true;
   const proposed = writableFilePatch(response);
   return [
@@ -39,8 +72,21 @@ export function stepsFromResumedAgentResult(response: AgentResultMessage): Agent
 export function displayFromResumeDiagnostic(
   diagnostic: Record<string, unknown>,
 ): ResumeDiagnosticDisplay {
+  const checkpoint = checkpointResumeFromDiagnostic(diagnostic);
+  if (checkpoint)
+    return {
+      status: 'paused',
+      message: checkpoint.message,
+      executionPending: checkpoint.awaitingSettlement,
+    };
   const reason = stringField(diagnostic, 'reason');
   const pendingTool = stringField(diagnostic, 'pending_tool') ?? stringField(diagnostic, 'intent');
+  if (diagnostic.can_resume === false && diagnostic.reverted_status === 'stopped') {
+    return {
+      status: 'stopped',
+      message: '本轮已停止，没有可恢复的现场。请重新发送一条消息开始新一轮。',
+    };
+  }
   const requiresManualRestart = diagnostic.requires_manual_restart === true;
   if (requiresManualRestart) {
     return {

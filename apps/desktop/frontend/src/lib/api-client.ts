@@ -14,7 +14,7 @@ export {
   sendAgentControlMessage,
   sendAgentUserMessage,
 } from './api/agent-socket';
-export { getAgentRunSavePoints } from './api/agent-runs';
+export { getAgentRunEvents, getAgentRunSavePoints } from './api/agent-runs';
 export {
   getAssistantSession,
   listAssistantSessions,

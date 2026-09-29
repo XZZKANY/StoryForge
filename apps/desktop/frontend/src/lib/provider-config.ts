@@ -6,11 +6,6 @@ export type ProviderPreset = Omit<ProviderSettings, 'model'> & {
   defaultModel: string;
 };
 
-export type ProviderConnectionState = {
-  status: 'backend-env';
-  label: string;
-};
-
 export const PROVIDER_PRESETS: Record<ProviderKind, ProviderPreset> = {
   openai: {
     kind: 'openai',
@@ -119,13 +114,6 @@ export const PROVIDER_RUNTIME_ENV_VARS = [
   'STORYFORGE_LLM_MODEL',
   'STORYFORGE_LLM_API_KEY',
 ] as const;
-
-export function describeProviderConnection(_settings: ProviderSettings): ProviderConnectionState {
-  return {
-    status: 'backend-env',
-    label: '后端环境变量控制模型服务',
-  };
-}
 
 export type ProviderHealthStatus = ApiProviderHealthResponse['status'];
 

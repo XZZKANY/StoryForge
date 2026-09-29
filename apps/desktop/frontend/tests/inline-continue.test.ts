@@ -38,7 +38,9 @@ describe('planCursorInsertion', () => {
   });
 
   it('落点越界自动夹取，不抛错', () => {
-    expect(planCursorInsertion('只有一行。', 999, '新段。').clampedAfter).toBe('只有一行。\n\n新段。');
+    expect(planCursorInsertion('只有一行。', 999, '新段。').clampedAfter).toBe(
+      '只有一行。\n\n新段。',
+    );
     expect(planCursorInsertion('只有一行。', -5, '新段。').clampedAfter).toBe('新段。\n只有一行。');
   });
 

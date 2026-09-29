@@ -44,6 +44,16 @@ export function projectOverviewActivity({
       retryable: true,
     };
   }
+  if (agentRun?.deliveryUnknown) {
+    return {
+      projectPath,
+      assistantSessionId,
+      status: 'waiting',
+      goal: agentRun.goal,
+      message: '本轮结果未知，请打开工作台核对原运行；不会自动重放。',
+      retryable: false,
+    };
+  }
   if (agentRun) {
     const status: AgentRunOverviewStatus =
       agentRun.status === 'waiting'

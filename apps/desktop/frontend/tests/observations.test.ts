@@ -39,7 +39,12 @@ const PAYLOAD = {
   ],
   checkers: [
     { key: 'canon', tool: 'project.canon', status: 'ran', conflict_count: 1 },
-    { key: 'deep_consistency', tool: 'project.deep_consistency', status: 'on_demand', reason: 'LLM 按需' },
+    {
+      key: 'deep_consistency',
+      tool: 'project.deep_consistency',
+      status: 'on_demand',
+      reason: 'LLM 按需',
+    },
     { tool: 'project.x', status: 'ran' },
   ],
 };

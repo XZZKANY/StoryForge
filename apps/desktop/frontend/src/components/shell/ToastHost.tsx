@@ -22,18 +22,27 @@ export function ToastHost() {
   const [actionStates, setActionStates] = useState<Record<number, ToastActionState>>({});
   const nextIdRef = useRef(1);
   const liveItemsRef = useRef(new Map<number, ToastItem>());
-  const timersRef = useRef(new Map<number, number>());
   const actionTokensRef = useRef(new Map<number, number>());
   const inFlightActionsRef = useRef(new Set<number>());
+  // 悬停/聚焦暂停：每条通知的计时状态单源（deadline/剩余时间/是否暂停/句柄）。
+  const pausedRef = useRef(
+    new Map<number, { deadline: number; remainingMs: number; paused: boolean; timer?: number }>(),
+  );
+  const [pausedIds, setPausedIds] = useState<ReadonlySet<number>>(new Set());
 
   const dismiss = useCallback((id: number) => {
-    const timers = timersRef.current;
-    const timer = timers.get(id);
-    if (timer !== undefined) window.clearTimeout(timer);
-    timers.delete(id);
+    const pauseInfo = pausedRef.current.get(id);
+    if (pauseInfo?.timer !== undefined) window.clearTimeout(pauseInfo.timer);
+    pausedRef.current.delete(id);
     liveItemsRef.current.delete(id);
     actionTokensRef.current.delete(id);
     inFlightActionsRef.current.delete(id);
+    setPausedIds((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
     setActionStates((current) => {
       if (!(id in current)) return current;
       const next = { ...current };
@@ -43,6 +52,43 @@ export function ToastHost() {
     setItems((current) => current.filter((item) => item.id !== id));
   }, []);
 
+  const armTimer = useCallback(
+    (id: number, delayMs: number) => {
+      const pauseInfo = pausedRef.current.get(id);
+      if (!pauseInfo) return;
+      pauseInfo.deadline = Date.now() + delayMs;
+      pauseInfo.paused = false;
+      if (pauseInfo.timer !== undefined) window.clearTimeout(pauseInfo.timer);
+      pauseInfo.timer = window.setTimeout(() => dismiss(id), delayMs);
+      setPausedIds((current) => {
+        if (!current.has(id)) return current;
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+    },
+    [dismiss],
+  );
+
+  const pauseItem = useCallback((id: number) => {
+    const pauseInfo = pausedRef.current.get(id);
+    if (!pauseInfo || pauseInfo.paused || pauseInfo.timer === undefined) return;
+    window.clearTimeout(pauseInfo.timer);
+    pauseInfo.timer = undefined;
+    pauseInfo.remainingMs = Math.max(1, pauseInfo.deadline - Date.now());
+    pauseInfo.paused = true;
+    setPausedIds((current) => (current.has(id) ? current : new Set(current).add(id)));
+  }, []);
+
+  const resumeItem = useCallback(
+    (id: number) => {
+      const pauseInfo = pausedRef.current.get(id);
+      if (!pauseInfo || !pauseInfo.paused) return;
+      armTimer(id, pauseInfo.remainingMs);
+    },
+    [armTimer],
+  );
+
   const runAction = useCallback(
     async (item: ToastItem) => {
       if (
@@ -51,9 +97,16 @@ export function ToastHost() {
         inFlightActionsRef.current.has(item.id)
       )
         return;
-      const timer = timersRef.current.get(item.id);
-      if (timer !== undefined) window.clearTimeout(timer);
-      timersRef.current.delete(item.id);
+      const pauseInfo = pausedRef.current.get(item.id);
+      if (pauseInfo?.timer !== undefined) window.clearTimeout(pauseInfo.timer);
+      // 动作一旦启动，倒计时即作废：失败后要留足重试时间，不因悬停恢复又被收走。
+      pausedRef.current.delete(item.id);
+      setPausedIds((current) => {
+        if (!current.has(item.id)) return current;
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
       const token = (actionTokensRef.current.get(item.id) ?? 0) + 1;
       actionTokensRef.current.set(item.id, token);
       inFlightActionsRef.current.add(item.id);
@@ -86,55 +139,83 @@ export function ToastHost() {
   );
 
   useEffect(() => {
-    const timers = timersRef.current;
     const liveItems = liveItemsRef.current;
     const tokens = actionTokensRef.current;
     const inFlight = inFlightActionsRef.current;
+    const paused = pausedRef.current;
     const onToast = (event: Event) => {
       const detail = (event as CustomEvent<ToastDetail>).detail;
       if (!detail?.message) return;
       const id = nextIdRef.current++;
       const item = { ...detail, id };
       liveItems.set(id, item);
+      paused.set(id, { deadline: 0, remainingMs: detail.durationMs, paused: false });
+      // 溢出丢弃：先丢无动作的普通通知，保住还来得及用的撤销/重试入口；
+      // 只有全是带动作通知时才丢最旧。
       while (liveItems.size > MAX_VISIBLE) {
-        const oldest = liveItems.keys().next().value;
-        if (oldest !== undefined) dismiss(oldest);
+        let victim: number | undefined;
+        for (const [candidateId, candidate] of liveItems) {
+          if (candidateId === id) break;
+          if (!candidate.action) {
+            victim = candidateId;
+            break;
+          }
+        }
+        if (victim === undefined) {
+          const oldest = liveItems.keys().next().value;
+          victim = oldest === id ? undefined : oldest;
+        }
+        if (victim === undefined) break;
+        dismiss(victim);
       }
       setItems([...liveItems.values()]);
-      timers.set(
-        id,
-        window.setTimeout(() => dismiss(id), detail.durationMs),
-      );
+      armTimer(id, detail.durationMs);
     };
     window.addEventListener(TOAST_EVENT, onToast);
     return () => {
       window.removeEventListener(TOAST_EVENT, onToast);
-      for (const timer of timers.values()) window.clearTimeout(timer);
-      timers.clear();
+      for (const pauseInfo of paused.values()) {
+        if (pauseInfo.timer !== undefined) window.clearTimeout(pauseInfo.timer);
+      }
+      paused.clear();
       liveItems.clear();
       tokens.clear();
       inFlight.clear();
     };
-  }, [dismiss]);
+  }, [dismiss, armTimer]);
 
   if (items.length === 0) return null;
 
   return (
+    // 游离豁免层：模态打开时不被 inert/aria-hidden 压掉（z-index 见 index.css 的 toast-host 规则）。
+    // 纯视觉容器：live 语义由每条通知按 tone 自管（error→alert，其余→status），不嵌套 region。
     <div
-      className="pointer-events-none fixed bottom-9 right-3 z-50 flex w-[320px] flex-col gap-2"
+      className="pointer-events-none fixed bottom-9 right-3 flex w-[320px] flex-col gap-2"
       data-testid="toast-host"
-      role="status"
-      aria-live="polite"
-      aria-atomic="false"
+      data-layer-exempt=""
+      onMouseLeave={() => items.forEach((item) => resumeItem(item.id))}
     >
       {items.map((item) => (
         <div
           key={item.id}
-          className="pointer-events-auto flex items-start gap-2.5 overflow-hidden rounded-lg border border-border bg-surface py-2.5 pl-0 pr-2 text-xs text-foreground shadow-[var(--shadow-dropdown)]"
+          className="pointer-events-auto flex animate-slide-in-right items-start gap-2.5 overflow-hidden rounded-lg border border-border bg-surface py-2.5 pl-0 pr-2 text-xs text-foreground shadow-[var(--shadow-dropdown)]"
           data-testid="toast-item"
           data-tone={item.tone}
-          role={item.tone === 'error' ? 'alert' : undefined}
+          role={item.tone === 'error' ? 'alert' : 'status'}
+          onMouseEnter={() => pauseItem(item.id)}
+          onFocusCapture={() => pauseItem(item.id)}
+          onBlurCapture={(event) => {
+            const itemEl = event.currentTarget as HTMLElement;
+            const next = event.relatedTarget as Node | null;
+            // 焦点只在同一条通知内部移动不算离开（action→close 互换不恢复倒计时）。
+            if (!next || !itemEl.contains(next)) resumeItem(item.id);
+          }}
         >
+          {pausedIds.has(item.id) && (
+            <span className="sr-only" data-testid="toast-countdown-paused">
+              倒计时已暂停
+            </span>
+          )}
           <span className={`w-[3px] self-stretch rounded-full ${TONE_BAR[item.tone]}`} />
           <div className="min-w-0 flex-1 whitespace-pre-wrap break-words pt-px leading-5">
             <span>{item.message}</span>

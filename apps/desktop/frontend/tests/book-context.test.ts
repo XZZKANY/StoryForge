@@ -7,11 +7,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
-import {
-  droppedCount,
-  formatEstimatedChars,
-  mapBookContextPayload,
-} from '../src/lib/book-context';
+import { droppedCount, formatEstimatedChars, mapBookContextPayload } from '../src/lib/book-context';
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {

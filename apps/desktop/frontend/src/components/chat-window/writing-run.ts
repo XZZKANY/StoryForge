@@ -1,5 +1,38 @@
-import type { WritingRunEvent } from '../../lib/api-client';
+import type { Dispatch, SetStateAction } from 'react';
+import { subscribeWritingRunEvents, type WritingRunEvent } from '../../lib/api-client';
 import type { ChatWindowAgentResult, WritingRunProjection } from './types';
+
+export const WRITING_RUN_SUBSCRIPTION_LOST_REASON = '写作任务进度订阅失败';
+
+type SetWritingRunProjection = Dispatch<SetStateAction<WritingRunProjection | null>>;
+
+export function markWritingRunSubscriptionLost(
+  setWritingRunProjection: SetWritingRunProjection,
+): void {
+  setWritingRunProjection((current) =>
+    current && current.status !== 'completed' && current.status !== 'failed'
+      ? { ...current, latestEvent: 'error', failureReason: WRITING_RUN_SUBSCRIPTION_LOST_REASON }
+      : current,
+  );
+}
+
+export function startWritingRunProjectionSubscription(
+  writingRunId: number,
+  unsubscribeWritingRunRef: { current: (() => void) | null },
+  setWritingRunProjection: SetWritingRunProjection,
+): void {
+  unsubscribeWritingRunRef.current?.();
+  unsubscribeWritingRunRef.current = null;
+  void subscribeWritingRunEvents(
+    writingRunId,
+    (event) => setWritingRunProjection((current) => applyWritingRunEventProjection(current, event)),
+    () => markWritingRunSubscriptionLost(setWritingRunProjection),
+  )
+    .then((unsubscribe) => {
+      unsubscribeWritingRunRef.current = unsubscribe;
+    })
+    .catch(() => markWritingRunSubscriptionLost(setWritingRunProjection));
+}
 
 export function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;

@@ -35,6 +35,7 @@ function search(overrides: Partial<SearchHandle> = {}): SearchHandle {
     status: 'idle',
     error: '',
     capped: false,
+    skippedFiles: 0,
     totalHits: 0,
     rerun: vi.fn(),
     ...overrides,
@@ -85,6 +86,18 @@ test('零命中广播「没有匹配的内容。」，达上限时补充说明',
   await render(search({ status: 'done', totalHits: 40, results: results(), capped: true }));
   expect(live()?.textContent).toContain('40 处');
   expect(live()?.textContent).toContain('已达上限');
+});
+
+test('有不可读文件时摘要区显示跳过计数，live region 也一并播报', async () => {
+  root = createRoot(host);
+  await render(search({ status: 'done', totalHits: 3, results: results(), skippedFiles: 2 }));
+  const summary = host.querySelector('[data-testid="search-summary"]');
+  expect(summary?.textContent).toContain('2 个文件不可读，已跳过');
+  expect(live()?.textContent).toContain('2 个文件不可读，已跳过');
+  // 清零时不出现该文案（不把 0 也念出来干扰）。
+  await render(search({ status: 'done', totalHits: 3, results: results(), skippedFiles: 0 }));
+  expect(host.querySelector('[data-testid="search-summary"]')?.textContent).not.toContain('不可读');
+  expect(live()?.textContent).not.toContain('不可读');
 });
 
 test('搜索失败走 role=alert 打断，不混入 polite live region', async () => {

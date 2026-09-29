@@ -47,6 +47,7 @@ function Harness({
     filePath,
     loadedFilePath,
     loadedContent,
+    loadedDiskBaseline: { kind: 'content', content: loadedContent },
     editorFontSize,
     filePathRef,
     isDirtyRef,

@@ -7,14 +7,12 @@ import { SettingsView } from '../SettingsView';
 import { ActivityBar } from '../shell/ActivityBar';
 import { AssistantPanelFrame } from '../shell/AssistantPanelFrame';
 import type { CenterTab } from '../shell/EditorTabs';
-import { obsCounts } from '../shell/ObsPanel';
 import { BookProfileView } from '../shell/BookProfileView';
 import { ManuscriptView } from '../shell/ManuscriptView';
 import { KnowledgeInboxView } from '../shell/KnowledgeInboxView';
 import { ObservatoryView } from '../shell/ObservatoryView';
 import { SearchView } from '../shell/SearchView';
 import { SidePanel } from '../shell/SidePanel';
-import { StatusBar } from '../shell/StatusBar';
 import { Titlebar } from '../shell/Titlebar';
 import { ToastHost } from '../shell/ToastHost';
 import { useDeference } from '../shell/useDeference';
@@ -47,10 +45,10 @@ export function AppShell({
   setPalette,
   obsPanelOpen,
   setObsPanelOpen,
-  toggleObsPanel,
   observatory,
   bookContext,
   onOpenManuscriptChapter,
+  onDraftNextChapter,
   bookProfile,
   onOpenOutlineHeading,
   openSettings,
@@ -102,6 +100,15 @@ export function AppShell({
       shell.toggleSidebar();
     }
   }, [openWorkspace, workspaceVisible, shell]);
+  // P2-C：作品资料编辑器藏在「book」视图里，普通作者很难找到；overview 顶栏已有按钮，
+  // 封面空态的「点击添加」也复用同一路径。
+  const openBookProfileEditor = useCallback(() => {
+    openWorkspace();
+    shell.showExplorerView();
+    shell.switchView('book');
+    shell.showSidebar();
+    shell.showCenter();
+  }, [openWorkspace, shell]);
   const handleOpenOutlineHeading = useCallback(
     (path: string, line: number) => {
       openWorkspace();
@@ -129,7 +136,6 @@ export function AppShell({
   const agentPermission = useAgentPermission(activeProject);
   const knowledgeInbox = useKnowledgeInbox(activeProject);
   const rightPanelVisible = workspaceVisible && !shell.rightCollapsed;
-  const obs = obsCounts(observatory.observations);
   const fileActions = useFileTreeActions({
     activeProject,
     dialogs,
@@ -182,6 +188,8 @@ export function AppShell({
       />
 
       <div className="relative flex min-h-0 flex-1">
+        {/* wrapper 保持透明：露出 root 的画布底色，二级面板左缘圆角的切口
+            才能透出与 rail 相同的底色，读作「面板覆盖在 rail 之上」。 */}
         <div className={libraryVisible ? 'hidden' : 'flex flex-shrink-0'} hidden={libraryVisible}>
           <ActivityBar
             view={overviewVisible ? 'book' : shell.view}
@@ -201,7 +209,7 @@ export function AppShell({
             >
               <SidePanel
                 view={shell.view}
-                widths={preferences.settings.sidePanelWidths}
+                width={preferences.settings.sidePanelWidth}
                 maxWidth={sidePanelMaxWidth}
                 onWidthChange={preferences.setSidePanelWidth}
                 projects={projects}
@@ -254,6 +262,7 @@ export function AppShell({
                       onRefresh={bookContext.refresh}
                       onOpenChapter={handleOpenManuscriptChapter}
                       onBackToExplorer={shell.showExplorerView}
+                      onDraftNextChapter={onDraftNextChapter}
                     />
                   ) : (
                     <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
@@ -318,6 +327,7 @@ export function AppShell({
                 observatory={observatory}
                 onOverview={overview ? () => setMainSurface('overview') : undefined}
                 activeCenterTab={activeCenterTab}
+                permissionProfile={agentPermission.profile}
               />
               {overview && (
                 <div
@@ -330,13 +340,7 @@ export function AppShell({
                       type="button"
                       className="rounded-sm px-3 py-1 text-xs text-muted hover:bg-elevated"
                       data-testid="edit-book-profile"
-                      onClick={() => {
-                        openWorkspace();
-                        shell.showExplorerView();
-                        shell.switchView('book');
-                        shell.showSidebar();
-                        shell.showCenter();
-                      }}
+                      onClick={openBookProfileEditor}
                     >
                       编辑作品资料
                     </button>
@@ -407,16 +411,6 @@ export function AppShell({
         )}
       </div>
 
-      <StatusBar
-        modelLabel={preferences.modelLabel}
-        projectOpen={projectOpen}
-        projectPath={activeProject}
-        dailyWordGoal={preferences.settings.dailyWordGoal}
-        obs={obs}
-        observationAvailability={observatory.availability}
-        onToggleObs={toggleObsPanel}
-      />
-
       {palette && (
         <CommandPalette
           mode={palette}
@@ -448,6 +442,15 @@ export function AppShell({
             shell.showSidebar();
             shell.setLayoutMode('balanced');
           }}
+          onShowKnowledge={
+            activeProject
+              ? () => {
+                  openWorkspace();
+                  shell.switchView('knowledge');
+                  shell.showSidebar();
+                }
+              : undefined
+          }
           onToggleFontMode={preferences.toggleFontMode}
           onCycleProseMeasure={preferences.cycleProseMeasure}
           fontModeLabel={

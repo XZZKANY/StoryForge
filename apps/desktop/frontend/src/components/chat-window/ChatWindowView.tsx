@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { emitToast } from '../../lib/toast';
 import { ComposerBox } from './Composer';
 import { ChapterBriefCard } from './ChapterBriefCard';
@@ -39,6 +39,7 @@ type Props = {
   queuedMessages?: readonly QueuedChatMessage[];
   onRemoveQueuedMessage?: (id: number) => void;
   retryLastFailedRun: () => void;
+  retryWritingRunSubscription: () => void;
   agentRunControls: AgentRunControlHandlers;
 };
 
@@ -64,6 +65,7 @@ export function ChatWindowView({
   queuedMessages = [],
   onRemoveQueuedMessage,
   retryLastFailedRun,
+  retryWritingRunSubscription,
   agentRunControls,
 }: Props) {
   const statusText = runStatusText(state.agentRun);
@@ -71,6 +73,8 @@ export function ChatWindowView({
   // 并让编辑器里尚未处理的补丁失去对应操作条。先完成本轮作者决策再允许发送。
   const awaitingConfirm = Boolean(state.chapterBrief) || state.agentRun?.status === 'waiting';
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  // 会话加载错误条可关闭：按错误串记忆已关内容，新错误（含换会话）会重新出现；重试先摘标记。
+  const [dismissedSessionError, setDismissedSessionError] = useState<string | null>(null);
   // 第14条：run 控制统一到 RunActionBar，运行/等待/暂停三态都显示操作条；completed 的
   // 「本轮已完成。」不再长驻（完成已在回复里）；只有 failed / stopped 留轻状态条收尾。
   const runStatus = state.agentRun?.status;
@@ -82,6 +86,10 @@ export function ChatWindowView({
     ? (state.agentRun?.permissionProfile ?? agentPermissionProfile)
     : agentPermissionProfile;
   const submitGuarded = async () => {
+    if (state.agentRun?.deliveryUnknown) {
+      emitToast('这轮结果未知，请先核对状态；不会重新执行。', { tone: 'info' });
+      return;
+    }
     if (awaitingConfirm) {
       emitToast(
         state.chapterBrief
@@ -97,7 +105,15 @@ export function ChatWindowView({
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-panel">
       {/* D5 状态变化反馈：Agent 运行相位（运行 → 等待确认 → 暂停 → 终态）对读屏作者不可见。
           常驻 sr-only live region 播报相位级措辞；可见操作条/轻状态条原样保留。 */}
-      <LiveStatus text={runLivePhaseText(state.agentRun)} testid="agent-run-live" />
+      <LiveStatus
+        text={
+          state.agentRun?.deliveryUnknown
+            ? '本轮结果未知，请核对状态。'
+            : runLivePhaseText(state.agentRun)
+        }
+        testid="agent-run-live"
+        tone={state.agentRun?.status === 'failed' ? 'assertive' : 'polite'}
+      />
 
       <ConversationHeader
         title={state.conversationTitle}
@@ -111,19 +127,33 @@ export function ChatWindowView({
         observatoryAttention={observatoryAttention}
       />
 
-      {state.sessionLoadError && (
+      {state.sessionLoadError && state.sessionLoadError !== dismissedSessionError && (
         <div
-          className="flex flex-shrink-0 items-center gap-3 border-b border-warning bg-panel px-4 py-2 text-xs text-warning"
+          className="flex flex-shrink-0 items-center gap-3 border-b border-warning/40 bg-warning/10 px-4 py-2 text-xs text-warning"
           data-testid="assistant-session-load-error"
         >
+          <span className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs font-medium leading-4 text-warning">
+            会话记录加载失败
+          </span>
           <span className="min-w-0 flex-1 break-words">{state.sessionLoadError}</span>
           <button
             type="button"
-            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 text-xs hover:bg-elevated"
-            onClick={retryAssistantSessionLoad}
+            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 text-xs transition-colors hover:bg-elevated"
+            onClick={() => {
+              setDismissedSessionError(null);
+              retryAssistantSessionLoad();
+            }}
             data-testid="assistant-session-load-retry"
           >
             重试
+          </button>
+          <button
+            type="button"
+            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 text-xs transition-colors hover:bg-elevated"
+            onClick={() => setDismissedSessionError(state.sessionLoadError)}
+            data-testid="assistant-session-load-error-dismiss"
+          >
+            关闭
           </button>
         </div>
       )}
@@ -134,6 +164,7 @@ export function ChatWindowView({
         agentRun={state.agentRun}
         agentRunRecovery={state.agentRunRecovery}
         writingRunProjection={state.writingRunProjection}
+        onRetryWritingRunSubscription={retryWritingRunSubscription}
       />
 
       {state.chapterBrief && (
@@ -152,14 +183,23 @@ export function ChatWindowView({
         <LightweightStatus
           text={statusText}
           retryVisible={
-            state.agentRun?.status === 'failed' && state.retryRequest !== null && !state.agentBusy
+            state.agentRun?.status === 'failed' &&
+            state.retryRequest !== null &&
+            !state.agentBusy &&
+            !state.agentRunRecovery?.checkpointResume &&
+            !state.agentRun?.deliveryUnknown
           }
           onRetry={retryLastFailedRun}
         />
       )}
 
       {state.agentRun && !state.chapterBrief && (
-        <RunActionBar run={state.agentRun} controls={agentRunControls} />
+        <RunActionBar
+          run={state.agentRun}
+          controls={agentRunControls}
+          recovery={state.agentRunRecovery}
+          resumePending={state.agentBusy}
+        />
       )}
 
       <ContextSummaryPanel

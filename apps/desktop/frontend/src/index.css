@@ -6,11 +6,11 @@
 /* StoryForge 桌面 IDE 中性深色调 —— 颜色 token 以空格分隔 RGB 通道暴露，
    供 Tailwind 的 rgb(var(--x) / <alpha-value>) 透明度修饰符使用。 */
 :root {
-  /* 近黑画布：导航略提亮，卡片与交互再各抬一档，不用浅灰铺满工作区。 */
+  /* 近黑画布：导航提亮一档（三栏之间不画线，靠底色台阶分栏），卡片与交互再各抬一档。 */
   --background: 16 16 18; /* #101012 画布底 */
-  --panel: 22 22 24; /* #161618 导航/Agent/头部 */
-  --surface: 29 29 32; /* #1d1d20 卡片/浮层 */
-  --elevated: 41 41 45; /* #29292d hover/选中态 */
+  --panel: 26 26 30; /* #1a1a1e 导航/Agent/头部：与画布拉开台阶，取代竖向分隔线 */
+  --surface: 33 33 37; /* #212125 卡片/浮层 */
+  --elevated: 42 42 47; /* #2a2a2f hover/选中态 */
   --border: 52 52 57; /* #343439 控件描边 */
   --border-strong: 72 72 79; /* #48484f 强调描边 */
   --foreground: 237 237 237; /* #ededed 主文本 */
@@ -29,20 +29,10 @@
   --issue-low: 146 153 234; /* = --agent：低=advisory，归入 iris 语义，不引入孤立天蓝 */
 
   --sf-bar-height: 36px;
-  --sf-status-height: 26px;
   --sf-row-height: 30px;
   --sf-tree-row-height: 26px;
   --sf-panel-x: 12px;
   --sf-item-gap: 8px;
-
-  /* 间距阶梯：与 Tailwind spacing 对齐，供裸 CSS 使用。 */
-  --sf-space-1: 4px;
-  --sf-space-2: 8px;
-  --sf-space-3: 12px;
-  --sf-space-4: 16px;
-  --sf-space-5: 20px;
-  --sf-space-6: 24px;
-  --sf-space-8: 32px;
 
   /* 圆角阶梯（同心）：相邻两档之差 = 该层常用内边距，故嵌套时「内圆角 = 外圆角 − 内边距」
      天然成立，不必逐处手调。越界的任意值圆角由 tests/radius-scale.test.ts 挡住。
@@ -64,14 +54,16 @@
   /* Composer 输入卡片：静息一档、聚焦抬升一档，跟随主题降 alpha（原为裸 rgba）。 */
   --shadow-composer: 0 4px 16px rgb(0 0 0 / 0.15);
   --shadow-composer-focus: 0 4px 20px rgb(0 0 0 / 0.2);
+  /* 反向（向上）投影：底栏与贴底操作条向上抬升的分离感，跟随主题降 alpha。 */
+  --shadow-bar-top: 0 -4px 16px rgb(0 0 0 / 0.1);
+  /* 二级面板左缘的横向软影：面板覆盖在 rail 之上的纵深感，替代竖线。 */
+  --shadow-panel-lift: -4px 0 12px -6px rgb(0 0 0 / 0.5);
 
   /* 过渡动效统一时长：所有交互用统一 timing curve，创造流畅一致的节奏。 */
   --transition-easing: cubic-bezier(0.2, 0, 0.38, 0.9);
-  --transition-easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* 弹性动画 */
   --transition-fast: 120ms var(--transition-easing); /* 小件 hover / 色彩变化 */
   --transition-base: 200ms var(--transition-easing); /* 常规展开/收起 */
   --transition-slow: 360ms var(--transition-easing); /* 大面积布局（更流畅） */
-  --transition-spring: 300ms var(--transition-easing-spring); /* 弹性微交互 */
 
   /* 分隔线：比 --border 更淡，桌面应用的分隔线应该极其克制。 */
   --divider: rgb(var(--border) / 0.6);
@@ -98,7 +90,7 @@
 
 /* 浅色主题：与深色共用同一组语义 token，仅翻转色值；单色强调改为近黑。 */
 :root[data-theme='light'] {
-  --background: 247 247 248; /* #f7f7f8 画布 */
+  --background: 243 243 245; /* #f3f3f5 画布：与白面板拉开台阶，取代竖向分隔线 */
   --panel: 255 255 255; /* #ffffff 导航/头部 */
   --surface: 255 255 255; /* #ffffff 卡片（靠描边区分） */
   --elevated: 238 238 241; /* #eeeef1 hover */
@@ -110,12 +102,16 @@
   --accent: 24 24 27; /* 单色强调：浅色模式用近黑 */
   --accent-foreground: 250 250 250;
   --error: 200 56 56;
-  --warning: 176 122 17;
-  --success: 42 140 84;
+  /* P1 / P2-E：浅色主题下旧色（#b07a11 / #2a8c54）在 bg / panel / surface / elevated 四种底均
+   * 不达 WCAG AA 4.5:1（最差 3.04:1）。新值按「最严底 surface #e8e8ea」设计：
+   * warning #a14607 最差 5.06:1，success #166534 最差 5.83:1。语义色段位不变。
+   */
+  --warning: 161 70 7; /* #a14607 */
+  --success: 22 101 52; /* #166534 */
   --agent: 79 86 196; /* 浅色主题鸢尾紫（更深，保证白底对比度） */
   --agent-foreground: 250 250 250;
   --issue-high: 200 56 56;
-  --issue-medium: 176 122 17;
+  --issue-medium: 161 70 7; /* = --warning */
   --issue-low: 79 86 196;
   --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.12);
   --shadow-md: 0 4px 12px rgb(0 0 0 / 0.08), 0 2px 4px rgb(0 0 0 / 0.05);
@@ -126,6 +122,8 @@
   --shadow-dialog: 0 24px 80px rgb(0 0 0 / 0.22);
   --shadow-composer: 0 4px 16px rgb(0 0 0 / 0.08);
   --shadow-composer-focus: 0 4px 20px rgb(0 0 0 / 0.1);
+  --shadow-bar-top: 0 -4px 16px rgb(0 0 0 / 0.05);
+  --shadow-panel-lift: -4px 0 12px -6px rgb(0 0 0 / 0.12);
   --divider: rgb(var(--border) / 0.5);
 }
 
@@ -152,21 +150,10 @@ body {
   padding: 0 var(--sf-panel-x);
 }
 
-/* 仅深色主区域留低对比细边界，不恢复各标题/列表的网格线；浅色保持原样。 */
+/* 三栏之间不画直线：左右面板与中央编辑区靠底色台阶区分；仅保留顶栏的
+   横向低对比细边界（深色），不恢复各标题/列表的网格线；浅色保持原样。 */
 :root:not([data-theme='light']) .sf-shell-edge-bottom {
   border-bottom: 1px solid var(--divider);
-}
-
-:root:not([data-theme='light']) .sf-shell-edge-top {
-  border-top: 1px solid var(--divider);
-}
-
-:root:not([data-theme='light']) .sf-shell-edge-right {
-  border-right: 1px solid var(--divider);
-}
-
-:root:not([data-theme='light']) .sf-shell-edge-left {
-  border-left: 1px solid var(--divider);
 }
 
 /* 调宽热区的强调只在作者交互时出现，不因保留主边界而删除热区。 */
@@ -195,7 +182,7 @@ body {
   text-align: left;
 }
 
-.sf-icon-button {
+.sf-icon-button:not(.sf-button) {
   display: inline-flex;
   height: 28px;
   width: 28px;
@@ -213,7 +200,7 @@ body {
     transform var(--transition-fast);
 }
 
-.sf-icon-button:hover {
+.sf-icon-button:not(.sf-button):hover {
   border-color: rgb(var(--border));
   background: rgb(var(--elevated));
   color: rgb(var(--foreground));
@@ -320,6 +307,12 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+  /* 例外：animate-ping / animate-pulse 在这里是「Agent 运行中」的状态载体，
+     全局归零会把运行信号整个抹掉。降级为常亮静态点，状态仍可区辨。 */
+  .animate-ping,
+  .animate-pulse {
+    animation: none !important;
+  }
 }
 
 /* ===== UI/UX 增强：微交互动画 ===== */
@@ -348,17 +341,6 @@ body {
   }
 }
 
-@keyframes fade-in-scale {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
 @keyframes shimmer {
   0% {
     background-position: -200% 0;
@@ -368,31 +350,10 @@ body {
   }
 }
 
-@keyframes pulse-soft {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
-
 @keyframes slide-in-right {
   from {
     opacity: 0;
     transform: translateX(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes slide-in-left {
-  from {
-    opacity: 0;
-    transform: translateX(-12px);
   }
   to {
     opacity: 1;
@@ -416,54 +377,17 @@ body {
   animation: fade-in-up 0.3s var(--transition-easing) both;
 }
 
-.animate-fade-in-scale {
-  animation: fade-in-scale 0.2s var(--transition-easing) both;
-}
-
 .animate-slide-in-right {
   animation: slide-in-right 0.25s var(--transition-easing) both;
-}
-
-.animate-slide-in-left {
-  animation: slide-in-left 0.25s var(--transition-easing) both;
 }
 
 .animate-slide-in-up {
   animation: slide-in-up 0.3s var(--transition-easing) both;
 }
 
-.animate-pulse-soft {
-  animation: pulse-soft 2s ease-in-out infinite;
-}
-
-.animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    rgb(var(--elevated)) 0%,
-    rgb(var(--border)) 50%,
-    rgb(var(--elevated)) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s linear infinite;
-}
-
 /* 交互反馈 */
 .interactive-press:active {
   animation: button-press 0.15s var(--transition-easing);
-}
-
-/* 卡片悬停效果 */
-.card-hover {
-  transition:
-    transform var(--transition-base),
-    box-shadow var(--transition-base),
-    border-color var(--transition-base);
-}
-
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  border-color: rgb(var(--border-strong));
 }
 
 /* 列表项进入动画（交错延迟） */
@@ -513,46 +437,6 @@ body {
     transparent 100%
   );
   animation: shimmer 1.5s linear infinite;
-}
-
-/* 焦点可见性增强 */
-.focus-ring {
-  outline: 2px solid rgb(var(--agent));
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgb(var(--agent) / 0.12);
-  border-radius: var(--radius-sm);
-}
-
-/* 工具提示样式（统一） */
-[data-tooltip] {
-  position: relative;
-}
-
-[data-tooltip]::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  padding: 4px 8px;
-  background: rgb(var(--panel));
-  color: rgb(var(--foreground));
-  font-size: var(--text-2xs);
-  border-radius: var(--radius-sm);
-  border: 1px solid rgb(var(--border));
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity var(--transition-fast),
-    transform var(--transition-fast);
-  z-index: 50;
-  box-shadow: var(--shadow-md);
-}
-
-[data-tooltip]:hover::after {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
 }
 
 /* 统一禁用按钮样式：半透明 + 禁止点击 + hover 不再变色。
@@ -678,13 +562,147 @@ button:disabled[aria-busy='true'] {
   font-size: var(--text-2xs);
 }
 
-/* 可达性：全站键盘焦点可见（:focus-visible 仅键盘/AT 触发，鼠标点击不显示）。
-   位于 @tailwind utilities 与裸 outline:none 输入之后 → 覆盖二者，补上键盘焦点环。
-   现代化：更柔和的焦点环，带微光晕效果。 */
-:focus-visible {
-  outline: 2px solid rgb(var(--agent));
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgb(var(--agent) / 0.12);
+/* 新表单组件的基础外观集中在 components layer，页面只组合布局。 */
+@layer components {
+  .sf-form-control,
+  .sf-form-shell {
+    --control-height: 36px;
+    --control-padding-x: 12px;
+    --control-padding-y: 7px;
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+    border: 1px solid rgb(var(--border));
+    border-radius: var(--radius-md);
+    background: rgb(var(--background));
+    color: rgb(var(--foreground));
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    line-height: 20px;
+  }
+
+  :is(.sf-form-control, .sf-form-shell)[data-control-size='sm'] {
+    --control-height: 32px;
+    --control-padding-x: 8px;
+    --control-padding-y: 5px;
+  }
+
+  :is(.sf-form-control, .sf-form-shell)[data-control-size='lg'] {
+    --control-height: 40px;
+    --control-padding-x: 16px;
+    --control-padding-y: 9px;
+  }
+
+  .sf-form-control {
+    height: var(--control-height);
+    padding: var(--control-padding-y) var(--control-padding-x);
+  }
+
+  .sf-form-control::placeholder {
+    color: rgb(var(--subtle));
+    opacity: 1;
+  }
+
+  textarea.sf-form-control,
+  select.sf-form-control[multiple],
+  select.sf-form-control[size]:not([size='1']) {
+    height: auto;
+    min-height: var(--control-height);
+  }
+
+  textarea.sf-form-control {
+    resize: vertical;
+  }
+
+  .sf-form-shell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: var(--control-height);
+    padding: 0 var(--control-padding-x);
+  }
+
+  .sf-form-control[data-in-shell] {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    padding-left: 0;
+    padding-right: 0;
+    /* Shell already owns the two border pixels. */
+    height: calc(var(--control-height) - 2px);
+  }
+
+  textarea.sf-form-control[data-in-shell],
+  select.sf-form-control[data-in-shell][multiple],
+  select.sf-form-control[data-in-shell][size]:not([size='1']) {
+    height: auto;
+  }
+
+  :is(.sf-form-control, .sf-form-shell):disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .sf-form-shell:disabled .sf-form-control {
+    opacity: 1;
+  }
+}
+
+/* 焦点只有一个 owner：独立表单自身、复合输入外壳、其他控件的 base 兜底。
+   文本输入被鼠标点击也可匹配 :focus-visible；不能按“仅键盘”设计样式。 */
+@layer base {
+  :focus-visible {
+    outline: 2px solid rgb(var(--agent));
+    outline-offset: 2px;
+  }
+  /* 全局选区色：走 accent 语义，28% alpha 保底层文字可读。 */
+  ::selection {
+    background: rgb(var(--accent) / 0.28);
+  }
+}
+
+/* 贴边的同色 border + inset 构成单一 2px 边界，不扩张几何、不制造外环。 */
+.sf-input:focus {
+  outline: none;
+  border-color: rgb(var(--accent));
+  box-shadow: inset 0 0 0 1px rgb(var(--accent));
+}
+
+.sf-inner-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.sf-inline-chat:focus-within {
+  border-color: rgb(var(--accent));
+}
+
+/* 新基础组件扩展既有单一 owner 契约，不改变尚未迁移的外壳。 */
+.sf-form-shell:focus-within {
+  outline: none;
+  border-color: rgb(var(--accent));
+  box-shadow: inset 0 0 0 1px rgb(var(--accent));
+}
+
+:is(.sf-form-control, .sf-form-shell)[aria-invalid]:not([aria-invalid='false']) {
+  border-color: rgb(var(--error));
+}
+
+.sf-form-control.sf-input[aria-invalid]:not([aria-invalid='false']):focus,
+.sf-form-shell[aria-invalid]:not([aria-invalid='false']):focus-within {
+  box-shadow: inset 0 0 0 1px rgb(var(--error));
+}
+
+/* 高对比模式可能移除 shadow；使用系统色 outline 保留单一可见焦点源。 */
+@media (forced-colors: active) {
+  .sf-input:focus,
+  .sf-input-shell:focus-within {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
 }
 
 /* 视觉隐藏但屏幕阅读器可读：骨架屏等「装饰态」承载可见观感时，把语义留给这条 sr-only 文本。 */
@@ -842,6 +860,12 @@ button:disabled[aria-busy='true'] {
   pointer-events: none;
 }
 
+/* 全局通知浮层：模态 backdrop 由层系统内联抬到 z=100 起跳，toast 必须更高，
+   否则模态打开时通知被压暗、撤销/关闭点不到（inert 豁免由 data-layer-exempt 承担）。 */
+[data-testid='toast-host'] {
+  z-index: 1000;
+}
+
 /* 设置搜索过滤：卡片内所有行 null 渲染即 :empty → 整卡片 + 所在分组（含标题）隐藏；
    全无匹配（列表里没有非空卡片）才露出「未找到」。纯 CSS，与 RowShell 逐行过滤联动、无 JS 计数。 */
 .sf-settings-card:empty {
@@ -980,4 +1004,168 @@ button:disabled[aria-busy='true'] {
 }
 .assistant-md li > input[type='checkbox'] {
   margin-right: 0.4em;
+}
+
+/* 普通动作与图标动作共用状态，导航/菜单项保留专用语义。 */
+@layer components {
+  .sf-button {
+    --button-height: 32px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-height: var(--button-height);
+    padding: 4px 12px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    line-height: 20px;
+    color: rgb(var(--foreground));
+    cursor: pointer;
+  }
+  .sf-button[data-size='compact'] {
+    --button-height: 24px;
+    padding: 1px 6px;
+    font-size: var(--text-xs);
+  }
+  .sf-button[data-size='xs'] {
+    --button-height: 28px;
+    padding: 3px 8px;
+    font-size: var(--text-xs);
+  }
+  .sf-button[data-size='md'] {
+    --button-height: 36px;
+  }
+  .sf-button[data-size='lg'] {
+    --button-height: 40px;
+    padding-inline: 16px;
+  }
+  .sf-button[data-variant='primary'] {
+    background: rgb(var(--accent));
+    color: rgb(var(--accent-foreground));
+  }
+  .sf-button[data-variant='agent'] {
+    background: rgb(var(--agent));
+    color: rgb(var(--agent-foreground));
+  }
+  .sf-button[data-variant='secondary'] {
+    border-color: rgb(var(--border-strong));
+    background: rgb(var(--surface));
+  }
+  .sf-button[data-variant='ghost'] {
+    color: rgb(var(--muted));
+  }
+  .sf-button[data-variant='danger'] {
+    border-color: rgb(var(--error) / 0.6);
+    color: rgb(var(--error));
+  }
+  .sf-button:not(:disabled):hover {
+    background: rgb(var(--elevated));
+    color: rgb(var(--foreground));
+  }
+  .sf-button[data-variant='primary']:not(:disabled):hover {
+    background: rgb(var(--accent) / 0.9);
+    color: rgb(var(--accent-foreground));
+  }
+  .sf-button[data-variant='agent']:not(:disabled):hover {
+    background: rgb(var(--agent) / 0.9);
+    color: rgb(var(--agent-foreground));
+  }
+  .sf-button[data-variant='danger']:not(:disabled):hover {
+    background: rgb(var(--error) / 0.1);
+    color: rgb(var(--error));
+  }
+  .sf-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .sf-button[aria-busy='true']:disabled {
+    cursor: wait;
+  }
+  .sf-button-content {
+    display: inline-flex;
+    align-items: center;
+    justify-content: inherit;
+    gap: 8px;
+  }
+  .sf-button.sf-icon-button {
+    width: var(--button-height);
+    height: var(--button-height);
+    padding: 0;
+  }
+  .sf-button-spinner {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 9999px;
+    animation: sf-button-spin 0.8s linear infinite;
+  }
+}
+@keyframes sf-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sf-button-spinner {
+    animation: none;
+  }
+}
+
+.sf-tooltip-anchor {
+  display: inline-flex;
+  min-width: 0;
+  flex-shrink: 0;
+}
+.sf-floating-surface {
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow-wrap: anywhere;
+}
+
+@layer components {
+  .sf-field {
+    display: grid;
+    min-width: 0;
+    gap: 8px;
+  }
+  .sf-field-label {
+    min-width: 0;
+    font-size: var(--text-sm);
+    color: rgb(var(--foreground));
+  }
+  .sf-field-label > label {
+    font-weight: 500;
+  }
+  .sf-field-help {
+    margin-top: 4px;
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    color: rgb(var(--muted));
+  }
+  .sf-field-control {
+    min-width: 0;
+  }
+  .sf-field-control :is(input, textarea, select) {
+    max-width: 100%;
+  }
+  .sf-field-error {
+    grid-column: 1 / -1;
+    font-size: var(--text-sm);
+    color: rgb(var(--error));
+    overflow-wrap: anywhere;
+  }
+  .sf-field[data-layout='horizontal'] {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 16px;
+  }
+  @media (max-width: 640px) {
+    .sf-field[data-layout='horizontal'] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
 }

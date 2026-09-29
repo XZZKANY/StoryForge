@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { App } from '../src/App';
+import { RECENT_PROJECTS_KEY } from '../src/components/app/helpers';
 import { SettingsView } from '../src/components/SettingsView';
 import { DEFAULT_APP_SETTINGS } from '../src/lib/user-settings';
 import { getDesktopLlmConfig, saveDesktopLlmConfig } from '../src/lib/desktop-llm-config';
@@ -151,6 +152,25 @@ test('设置所有输入、选择、范围控件均有关联名称与说明', as
   }
 });
 
+test('开关行走 controlId 关联：点标题即可切换，按钮不再自带 aria-label', async () => {
+  const { container } = await openSettings();
+  const toggle = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+    (item) => item.getAttribute('aria-pressed') !== null,
+  );
+  assert.ok(toggle, '应渲染至少一个 ToggleRow 开关');
+  assert.ok(toggle.id, '开关应带 controlId');
+  assert.equal(toggle.getAttribute('aria-label'), null, '命名交给 label htmlFor，不再重复');
+  const label = container.querySelector<HTMLLabelElement>(`label[for="${toggle.id}"]`);
+  assert.ok(label, '标题 label 应通过 htmlFor 关联开关');
+  assert.ok(label.textContent?.trim(), 'label 应有可见标题');
+  const describedBy = toggle.getAttribute('aria-describedby');
+  assert.ok(describedBy);
+  assert.ok(document.getElementById(describedBy)?.textContent, '描述应可定位');
+  const before = toggle.getAttribute('aria-pressed');
+  await click(label);
+  assert.notEqual(toggle.getAttribute('aria-pressed'), before, '点标题应切换开关');
+});
+
 test('设置内快捷键不触发背景 App，文本编辑快捷键保留默认行为', async () => {
   const container = await mount(<App />);
   const book = required<HTMLButtonElement>(container, '[data-testid="activity-book"]');
@@ -231,11 +251,17 @@ test('设置探测迟到结果不会覆盖新 provider 输入', async () => {
 });
 
 test('设置从临时齿轮菜单打开，关闭后焦点回到持久齿轮入口', async () => {
+  // The library hides the activity rail: a real user must open a project before using its gear.
+  localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(['D:/settings-focus-fixture']));
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 503 }));
   const container = await mount(<App />);
+  await click(
+    required<HTMLButtonElement>(container, '[data-project-path="D:/settings-focus-fixture"]'),
+  );
   const gear = required<HTMLButtonElement>(container, '[data-testid="activity-settings"]');
   await click(gear);
   const menuItem = Array.from(
-    container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
+    document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
   ).find((item) => item.textContent === '设置');
   assert.ok(menuItem);
   await click(menuItem);

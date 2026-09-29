@@ -55,11 +55,12 @@ export type AppShellProps = {
   setPalette: Dispatch<SetStateAction<PaletteMode | null>>;
   obsPanelOpen: boolean;
   setObsPanelOpen: Dispatch<SetStateAction<boolean>>;
-  toggleObsPanel: () => void;
   observatory: ObservatoryHandle;
   /** 手稿视图：作品底座只读投影 + 点章节行打开该章。 */
   bookContext: BookContextHandle;
   onOpenManuscriptChapter: (relativePath: string) => void;
+  /** 手稿视图「AI 起草下一章」按钮：App 侧推导目标章并经事件桥交给 ChatWindow。 */
+  onDraftNextChapter?: () => void;
   /** 作品视图：档案（book.json）+ 现算的进度 / 大纲 / 速记。 */
   bookProfile: BookProfileHandle;
   onOpenOutlineHeading: (path: string, line: number) => void;

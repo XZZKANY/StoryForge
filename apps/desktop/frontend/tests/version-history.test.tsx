@@ -101,6 +101,68 @@ test('missing version previews deletion semantics and forwards structured state'
   }
 });
 
+test('版本条目走 ul/li 列表语义，读屏可报「列表，共 N 项」', async () => {
+  mocked.versions = [entry(100), entry(200)];
+  const view = renderHistory(() => undefined);
+  try {
+    await view.settle();
+    const list = view.container.querySelector('ul[role="list"]');
+    assert.ok(list, '版本条目应渲染为列表');
+    const items = list.querySelectorAll(':scope > li[data-testid="version-entry"]');
+    assert.equal(items.length, 2);
+  } finally {
+    view.cleanup();
+  }
+});
+
+test('空态居中图标 + 说明文字，LiveStatus 分相位播报读取中 → 完成', async () => {
+  mocked.versions = [];
+  const view = renderHistory(() => undefined);
+  try {
+    // 读取中相位：恒定一句，且与空态同款居中图标结构。
+    const live = () => view.container.querySelector('[data-testid="version-history-live"]');
+    assert.equal(live()?.getAttribute('role'), 'status');
+    assert.match(live()?.textContent ?? '', /正在读取版本历史/);
+    assert.ok(view.container.querySelector('[data-testid="version-history-loading"]'));
+    assert.match(view.container.textContent ?? '', /正在读取版本历史…/);
+
+    await view.settle();
+    // 完成相位：带条数；可见空态带图标、说明文字不裸奔。
+    assert.match(live()?.textContent ?? '', /读取完成，共 0 条/);
+    const empty = view.container.querySelector('[data-testid="version-history-empty"]');
+    assert.ok(empty);
+    assert.ok(empty.querySelector('svg'), '空态应有图标');
+    assert.match(empty.textContent ?? '', /还没有历史版本。保存修改后会自动记录。/);
+  } finally {
+    view.cleanup();
+  }
+});
+
+test('D1 视觉对齐：不再残留旧 accent token，主操作走 agent 系', async () => {
+  mocked.versions = [entry(100)];
+  const view = renderHistory(() => undefined);
+  try {
+    await view.settle();
+    const rootEl = view.container.querySelector('[data-testid="version-history"]');
+    assert.ok(rootEl);
+    const offenders = rootEl.querySelectorAll('.bg-accent, .text-accent-foreground');
+    assert.equal(offenders.length, 0, '版本历史不应再使用旧 bg-accent / text-accent-foreground');
+    // 选中态与主操作按钮已是 agent 系。
+    assert.ok(
+      rootEl.querySelector('[data-testid="version-view-list"]')?.classList.contains('bg-agent/10'),
+    );
+    const restore = [...rootEl.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('恢复'),
+    );
+    assert.ok(restore?.classList.contains('bg-agent'));
+    // 关闭按钮用 shell-icons 矢量图标（svg 由图标库渲染，不再是手写 path）。
+    const close = rootEl.querySelector('button[aria-label="关闭版本历史"]');
+    assert.ok(close?.querySelector('svg'), '关闭按钮应渲染 shell-icons 图标');
+  } finally {
+    view.cleanup();
+  }
+});
+
 test('missing tree/ref stays visible with an explicit reason and disabled actions', async () => {
   const unavailable = entry(200, {
     unavailableReason: '影子 Git tree 或作品版本保活 ref 已丢失',

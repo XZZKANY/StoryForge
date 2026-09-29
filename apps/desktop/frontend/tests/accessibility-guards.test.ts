@@ -199,10 +199,10 @@ test('面板标题用语义标题元素，不是裸 span（D4 信息级层）', 
   }
 });
 
-// D1 视觉统一：面板头部的图标按钮（刷新 / 重新扫描 / 新建等）必须收敛到同一套视觉模式——
-// 统一 `grid place-items-center` 居中、`text-muted` 基色、`transition-colors` 过渡。
-// 历史上它们分成两派：三个面板用 grid + text-muted + 过渡，另两个用 flex 居中 + text-subtle
-// （其中侧栏两个还漏了 transition，hover 是硬切）。谁再漂回去，这里就红。
+// D1 视觉统一：面板头部的图标按钮（刷新 / 重新扫描 / 新建等）必须收敛到同一套视觉模式。
+// 手写 <button> 的统一标准是 `grid place-items-center` 居中、`text-muted` 基色、
+// `transition-colors` 过渡；换成 ui/IconButton 原语后视觉模式由原语保证（ghost 变体
+// + 统一 hover/disabled + 400ms tooltip），此处只要求 label 必填。谁再漂回去，这里就红。
 const PANEL_HEADER_ICON_BUTTONS = [
   { file: 'src/components/shell/SidePanel.tsx', testid: 'side-new-file' },
   { file: 'src/components/shell/SidePanel.tsx', testid: 'side-new-folder' },
@@ -212,12 +212,20 @@ const PANEL_HEADER_ICON_BUTTONS = [
   { file: 'src/components/shell/KnowledgeInboxView.tsx', testid: 'knowledge-inbox-refresh' },
 ];
 
-/** 从 `<button` 起点按引号/花括号计深找开标签结尾（避开箭头函数 `=>` 里的 `>`）。 */
-function buttonTagContaining(source: string, testid: string): string | null {
+/**
+ * 找包着 testid 的开标签：手写 <button> 或 ui/IconButton 原语（取起点更近者）。
+ * 从标签起点按引号/花括号计深找开标签结尾（避开箭头函数 `=>` 里的 `>`）。
+ */
+function controlTagContaining(
+  source: string,
+  testid: string,
+): { tag: string; primitive: boolean } | null {
   const needle = `data-testid="${testid}"`;
   const hit = source.indexOf(needle);
   if (hit === -1) return null;
-  const start = source.lastIndexOf('<button', hit);
+  const buttonStart = source.lastIndexOf('<button', hit);
+  const primitiveStart = source.lastIndexOf('<IconButton', hit);
+  const start = Math.max(buttonStart, primitiveStart);
   if (start === -1) return null;
   let quote: string | null = null;
   let depth = 0;
@@ -230,7 +238,8 @@ function buttonTagContaining(source: string, testid: string): string | null {
     if (ch === '"' || ch === "'" || ch === '`') quote = ch;
     else if (ch === '{') depth++;
     else if (ch === '}') depth--;
-    else if (ch === '>' && depth === 0) return source.slice(start, i + 1);
+    else if (ch === '>' && depth === 0)
+      return { tag: source.slice(start, i + 1), primitive: start === primitiveStart };
   }
   return null;
 }
@@ -238,9 +247,18 @@ function buttonTagContaining(source: string, testid: string): string | null {
 test('面板头部图标按钮收敛到统一视觉模式（D1 视觉统一）', () => {
   for (const { file, testid } of PANEL_HEADER_ICON_BUTTONS) {
     const source = readFileSync(abs(`../${file}`), 'utf8');
-    const tag = buttonTagContaining(source, testid);
-    assert.ok(tag, `${file} 找不到 testid="${testid}" 的按钮`);
-    const cls = tag.match(/className="([^"]+)"/)?.[1];
+    const control = controlTagContaining(source, testid);
+    assert.ok(control, `${file} 找不到 testid="${testid}" 的按钮`);
+    if (control.primitive) {
+      // ui/IconButton：视觉模式与原语 hover/disabled/tooltip 由组件保证，label 必填且非空。
+      assert.match(
+        control.tag,
+        /\blabel=["{]/,
+        `${file} 的 ${testid} 用 IconButton 时必须给 label（即 aria-label 与 tooltip）`,
+      );
+      continue;
+    }
+    const cls = control.tag.match(/className="([^"]+)"/)?.[1];
     assert.ok(cls, `${file} 的 ${testid} 缺 className`);
     assert.match(cls, /\bgrid\b/, `${file} 的 ${testid} 应用 grid 布局（非 flex）`);
     assert.match(cls, /place-items-center/, `${file} 的 ${testid} 应 place-items-center 居中`);

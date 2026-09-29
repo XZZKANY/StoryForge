@@ -477,11 +477,6 @@ function findApplyRange(currentContent: string, hunk: PatchHunk): ApplyRange {
   throw new Error('该修改块的原文已变化，请重新生成修订或手动处理冲突。');
 }
 
-export function applyPatchHunk(before: string, after: string, hunk: PatchHunk): string {
-  void after;
-  return applyPatchHunkToCurrent(before, hunk);
-}
-
 export function applyPatchHunkToCurrent(currentContent: string, hunk: PatchHunk): string {
   const range = findApplyRange(currentContent, hunk);
   return [

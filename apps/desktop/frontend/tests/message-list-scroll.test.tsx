@@ -85,10 +85,16 @@ test('MessageList 仅在接近底部时跟随流式追加，上滚后显示回�
     assert.ok(unread);
     assert.equal(scroll.scrollTop, 10);
 
+    // happy-dom 的 scrollTo 是空 stub（不动 scrollTop）：此 stub 把平滑滚动落地为动画跑完后的终态。
+    const smoothScroll = vi.fn((options: ScrollToOptions) => {
+      scroll.scrollTop = Number(options.top ?? 0);
+    });
+    Object.defineProperty(scroll, 'scrollTo', { configurable: true, value: smoothScroll });
     act(() => {
       unread.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
       unread.click();
     });
+    assert.deepEqual(smoothScroll.mock.calls[0]?.[0], { top: 300, behavior: 'smooth' });
     assert.equal(scroll.scrollTop, 200);
     assert.equal(host.querySelector('[data-testid="message-list-new-content"]'), null);
     assert.equal(document.activeElement, composerInput);
@@ -193,6 +199,13 @@ test('键盘激活返回最新后将焦点留在消息区域，而不是被移�
       '[data-testid="message-list-new-content"]',
     )!;
     latest.focus();
+    // 同上：happy-dom 不实现 scrollTo，stub 为平滑滚动完成后的终态位移。
+    Object.defineProperty(scroll, 'scrollTo', {
+      configurable: true,
+      value: (options: ScrollToOptions) => {
+        scroll.scrollTop = Number(options.top ?? 0);
+      },
+    });
     act(() => latest.click());
     assert.equal(document.activeElement, scroll);
     assert.equal(scroll.scrollTop, 400);

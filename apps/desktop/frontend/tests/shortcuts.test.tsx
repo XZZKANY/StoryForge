@@ -22,6 +22,16 @@ import { SHORTCUT_ROWS, formatShortcutSheet } from '../src/components/app/shortc
 // 中栏重组件与本用例无关，桩掉避免挂载副作用（读本机 LLM 配置 / 版本历史）出网。
 vi.mock('../src/components/SettingsView', () => ({ SettingsView: () => null }));
 vi.mock('../src/components/Editor', () => ({ Editor: () => null }));
+// 保留真实 hook，只暴露句柄给需要伪造前置态的用例（如 Ctrl+Shift+H 需要 displayedFile）。
+vi.mock('../src/components/app/useProjectWorkspace', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/components/app/useProjectWorkspace')>();
+  return { ...actual, useProjectWorkspace: vi.fn(actual.useProjectWorkspace) };
+});
+vi.mock('../src/components/app/useEditorWorkspaceTabs', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../src/components/app/useEditorWorkspaceTabs')>();
+  return { ...actual, useEditorWorkspaceTabs: vi.fn(actual.useEditorWorkspaceTabs) };
+});
 vi.mock('../src/lib/api/runtime-health', () => ({
   probeApiRuntimeHealth: async () => ({
     status: 'unreachable',
@@ -86,7 +96,9 @@ test('速查表里每条全局快捷键都真的被 App 接管', () => {
 
   const global = SHORTCUT_ROWS.filter((row) => !row.needs && !row.scope);
   // 防止有人把所有行都标上 needs/scope 让护栏空转。
-  assert.ok(global.length >= 6, `全局快捷键少于 6 条，护栏可能被架空：${global.length}`);
+  // P2-A：视图切换 / 布局切换在 library 态或无项目时本就不该接管，标 needs:project 后
+  // 真正全局只剩命令面板 / 打开项目 / 侧栏 / 设置 / Ctrl Tab 那组。
+  assert.ok(global.length >= 4, `全局快捷键少于 4 条，护栏可能被架空：${global.length}`);
 
   for (const row of global) {
     for (const chord of row.chords) {
@@ -104,19 +116,47 @@ test('需要前置态或由别处接管的键，必须显式标注而不是悄�
   // needs/scope 两个字段是「我知道这条键为什么按不动」的书面交代，值域受限防手滑写错。
   for (const row of SHORTCUT_ROWS) {
     if (row.needs) assert.ok(['project', 'file'].includes(row.needs), `未知 needs：${row.keys}`);
-    if (row.scope) assert.ok(['editor', 'tabs'].includes(row.scope), `未知 scope：${row.keys}`);
+    if (row.scope)
+      assert.ok(
+        ['editor', 'tabs', 'patch', 'event'].includes(row.scope),
+        `未知 scope：${row.keys}`,
+      );
     assert.ok(row.chords.length > 0, `${row.keys} 没有登记实际按键，护栏无从验证`);
   }
 });
 
-test('没有打开项目时 Ctrl+3 不会藏掉欢迎区留下空白窗口', () => {
-  const container = mountApp();
+test('Ctrl+Shift+H 在无活动文件时是死键，有文件时经命令事件桥切版本历史', async () => {
+  mountApp();
+  // library 态无项目无文件：不接管（needs:file 标注的兑现）。
+  assert.equal(pressChord({ ctrl: true, shift: true, key: 'h' }), false);
 
-  assert.equal(pressChord({ ctrl: true, key: '3' }), true);
+  const { REQUEST_EDITOR_COMMAND_EVENT } = await import('../src/lib/assistant-events');
+  const { useProjectWorkspace } = await import('../src/components/app/useProjectWorkspace');
+  const { useEditorWorkspaceTabs } = await import('../src/components/app/useEditorWorkspaceTabs');
+  const commands: string[] = [];
+  window.addEventListener(REQUEST_EDITOR_COMMAND_EVENT, (event) => {
+    commands.push((event as CustomEvent<{ command: string }>).detail.command);
+  });
+  const workspace = vi.mocked(useProjectWorkspace).mock.results.at(-1)?.value;
+  const tabs = vi.mocked(useEditorWorkspaceTabs).mock.results.at(-1)?.value;
+  // 伪造「打开了活动文件」的前置态：App 处理器只看 tabs.displayedFile。
+  Object.defineProperty(tabs, 'displayedFile', { value: 'D:/book/正文/第001章.md' });
+  assert.ok(workspace, 'useProjectWorkspace 应被 App 调用');
 
-  const center = container.querySelector('[data-testid="shell-center"]');
-  assert.ok(center, '找不到承载欢迎区的中栏');
-  assert.equal(center.classList.contains('hidden'), false, '无项目时不得切到只有对话栏的布局');
+  assert.equal(pressChord({ ctrl: true, shift: true, key: 'h' }), true);
+  assert.deepEqual(commands, ['toggle-history']);
+});
+
+test('作品库里 Ctrl+1/2/3 不接管：布局键已有项目语境才生效', () => {
+  // P2-A：作者在作品库（library）按 Ctrl+1/2/3 不该拽出主表面；
+  // 速查表已把这一行标注 needs:project，护栏本来就不按它。
+  // 这里验证「不接管」是 App 处理器的选择，而非速查表漏标。
+  mountApp();
+
+  // library 起始态：无项目时 mainSurface='library'，不应接管键
+  assert.equal(pressChord({ ctrl: true, key: '1' }), false);
+  assert.equal(pressChord({ ctrl: true, key: '2' }), false);
+  assert.equal(pressChord({ ctrl: true, key: '3' }), false);
 });
 
 test('Ctrl+Tab / Ctrl+PageDown 在无项目时不接管按键，有项目时才接管', () => {
@@ -170,13 +210,14 @@ test('文本输入目标不触发壳层 B/1/2/3 导航，但 Ctrl/Cmd+P 仍跨�
   }
 });
 
-test('IME 组合态不会触发壳层 B/O/1/2/3 导航，普通壳层焦点仍接管', () => {
+test('IME 组合态不会触发壳层 B/O 导航，普通壳层焦点仍接管', () => {
   mountApp();
   const shell = document.createElement('div');
   document.body.append(shell);
 
   try {
-    for (const key of ['b', 'o', '1', '2', '3']) {
+    // Ctrl+B/Ctrl+O 不依赖项目态，普通壳层焦点仍应接管。
+    for (const key of ['b', 'o']) {
       assert.equal(
         pressChord({ ctrl: true, key }, { isComposing: true }),
         false,
@@ -186,6 +227,14 @@ test('IME 组合态不会触发壳层 B/O/1/2/3 导航，普通壳层焦点仍�
         pressChord({ ctrl: true, key }, { target: shell }),
         true,
         `普通壳层焦点应接管 Ctrl+${key.toUpperCase()} 导航`,
+      );
+    }
+    // P2-A：Ctrl+1/2/3 在 library 态（无项目时默认）不接管，避免拽出作品库。
+    for (const key of ['1', '2', '3']) {
+      assert.equal(
+        pressChord({ ctrl: true, key }, { target: shell }),
+        false,
+        `library 态不应接管 Ctrl+${key}（P2-A 契约）`,
       );
     }
   } finally {

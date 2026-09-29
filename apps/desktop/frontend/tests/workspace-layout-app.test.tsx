@@ -34,10 +34,11 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
   );
   localStorage.clear();
   localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(['D:/layout-test-project']));
-  localStorage.setItem(
-    APP_SETTINGS_KEY,
-    JSON.stringify({ ...DEFAULT_APP_SETTINGS, sidePanelWidths: { book: 420 } }),
-  );
+  // 旧格式（按视图 map、无单宽字段）种子：启动即迁移，整轮运行不得覆盖成别的宽度。
+  const legacySettings: Record<string, unknown> = { ...DEFAULT_APP_SETTINGS };
+  delete legacySettings.sidePanelWidth;
+  legacySettings.sidePanelWidths = { book: 420 };
+  localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(legacySettings));
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -57,7 +58,7 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
     await click(container.querySelector('[data-testid="edit-book-profile"]'));
     const panel = () => container.querySelector<HTMLElement>('[data-testid="shell-side-panel"]');
     expect(panel()?.style.width).toBe('236px');
-    expect(loadAppSettings().sidePanelWidths).toEqual({ book: 420 });
+    expect(loadAppSettings().sidePanelWidth).toBe(420);
     const editor = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'editor-probe:0',
     );
@@ -100,7 +101,7 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
       expect(agent?.textContent).toBe('agent-probe:1');
     }
     expect(panel()?.style.width).toBe('236px');
-    expect(loadAppSettings().sidePanelWidths).toEqual({ book: 420 });
+    expect(loadAppSettings().sidePanelWidth).toBe(420);
     expect(
       container.querySelector<HTMLElement>('[data-testid="shell-center"]')?.style.minWidth,
     ).toBe('420px');
@@ -121,7 +122,7 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
         true,
       );
       expect(localStorage.getItem('storyforge:shell:layoutMode')).toBe('balanced');
-      expect(loadAppSettings().sidePanelWidths).toEqual({ book: 420 });
+      expect(loadAppSettings().sidePanelWidth).toBe(420);
       expect(
         container.querySelector<HTMLElement>('[data-testid="shell-center"]')?.style.minWidth,
       ).toBe('0');
@@ -163,7 +164,7 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
     expect(editor?.isConnected && agent?.isConnected).toBe(true);
     expect(editor?.textContent).toBe('editor-probe:1');
     expect(agent?.textContent).toBe('agent-probe:1');
-    expect(loadAppSettings().sidePanelWidths).toEqual({ book: 420 });
+    expect(loadAppSettings().sidePanelWidth).toBe(420);
   } finally {
     await act(async () => root.unmount());
     container.remove();

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import * as monaco from 'monaco-editor';
 
+import type { DiskBaseline } from '../../lib/tauri-fs';
 import { registerSmokeEditorController } from '../../lib/smoke';
 import { currentMonacoTheme, ensureMonacoThemes } from '../../lib/theme';
 import {
@@ -14,6 +15,7 @@ import {
 export type EditorModelState = {
   model: monaco.editor.ITextModel;
   originalContent: string;
+  diskBaseline: DiskBaseline;
   viewState: monaco.editor.ICodeEditorViewState | null;
 };
 
@@ -25,6 +27,7 @@ export function useMonacoEditor({
   filePath,
   loadedFilePath,
   loadedContent,
+  loadedDiskBaseline,
   editorFontSize,
   editorFontMode = 'grid',
   editorLineNumbers = 'auto',
@@ -48,6 +51,7 @@ export function useMonacoEditor({
   filePath: string | null;
   loadedFilePath: string | null;
   loadedContent: string;
+  loadedDiskBaseline: DiskBaseline | null;
   editorFontSize: number;
   editorFontMode?: EditorFontMode;
   editorLineNumbers?: 'auto' | 'on' | 'off';
@@ -289,10 +293,12 @@ export function useMonacoEditor({
 
     let state = modelCacheRef.current.get(filePath);
     if (!state) {
+      if (!loadedDiskBaseline) return;
       const language = filePath.toLowerCase().endsWith('.json') ? 'json' : 'markdown';
       state = {
         model: monaco.editor.createModel(loadedContent, language),
         originalContent: loadedIsDirty ? originalContentRef.current : loadedContent,
+        diskBaseline: loadedDiskBaseline,
         viewState: null,
       };
       modelCacheRef.current.set(filePath, state);
@@ -313,6 +319,7 @@ export function useMonacoEditor({
     editorRef,
     filePath,
     loadedContent,
+    loadedDiskBaseline,
     loadedIsDirty,
     loadedFilePath,
     modelCacheRef,

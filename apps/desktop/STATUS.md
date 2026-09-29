@@ -1,5 +1,14 @@
 # Tauri Desktop IDE 进度报告
 
+> **历史标注（2026-09-28）**：本文是 2026-06-15 原型阶段的进度报告，所有「当前状态 / 已完成 / 性能提升」均以该日时点为准，不代表今天的能力清单。此后已发生的口径变化：
+>
+> - watcher/notify 整链与 `get_file_info` 已于 2026-09-28 退役（见阶段 2 补记）；`retired-desktop-features.test.ts` 锁定 StatusBar、watchFile 等不存在，实时文件监听与状态栏不再是当前能力。
+> - 「原生菜单栏已完成」是 2026-06 记录；当前壳未挂原生菜单（`useTauriMenuBridge.ts` 只监听 smoke reset 等事件），不得引为现状。
+> - 阶段 2/3 的代码样例（`TauriFileSystem.writeFile` 二参调用、`PathUtils`、`LocalFileEditor` 等）与现行 frontend 实现不符，不可照抄。
+> - 当前能力与边界以 `docs/internal/current-phase.md`、本目录 `README.md` / `USAGE.md` 为准。
+
+---
+
 ## 阶段 1：自动启动服务 ✅ 已完成
 
 ### 完成时间
@@ -103,12 +112,12 @@ pnpm desktop:dev  # 一键搞定！
 ### 实现内容
 
 #### 1. Rust 后端（Tauri 命令）
-- ✅ 文件系统操作（8 个命令）
+- ✅ 本阶段保留的基础文件系统操作（7 个命令）
   - `read_file`, `write_file`, `list_dir`, `delete_path`
-  - `create_dir`, `rename_path`, `path_exists`, `get_file_info`
-- ✅ 文件监听（2 个命令）
-  - `watch_file`, `stop_watching`
-- ✅ 数据结构：`FileEntry`, `FileChangeEvent`, `WatcherManager`
+  - `create_dir`, `rename_path`, `path_exists`
+- 2026-09-28 退役未接入产品的 watcher/notify 整链和 `get_file_info`；
+  文件元数据继续由 `list_dir` 提供，本进程写操作保留 `FS_MUTATION_EVENT` 刷新派生视图。
+- ✅ 数据结构：`FileEntry`
 
 #### 2. TypeScript 前端
 - ✅ `TauriFileSystem` 类 - API 适配层（250+ 行）
@@ -121,11 +130,6 @@ pnpm desktop:dev  # 一键搞定！
 // 本地文件读写
 const content = await TauriFileSystem.readFile('/path/to/file.md');
 await TauriFileSystem.writeFile('/path/to/file.md', newContent);
-
-// 实时监听
-const unlisten = await TauriFileSystem.watchFile('/project', (event) => {
-  console.log(`${event.kind}:`, event.paths);
-});
 ```
 
 #### 4. 混合架构

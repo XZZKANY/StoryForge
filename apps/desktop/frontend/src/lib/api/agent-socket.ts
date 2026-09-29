@@ -1,3 +1,4 @@
+import { AgentRunOutcomeUnknownError, readAgentRunWithin } from './agent-delivery';
 import { reconstructAgentResultFromEvents } from './agent-run-events';
 import { getAgentRunEvents } from './agent-runs';
 import { getApiConfig, trimApiBaseUrl } from './config';
@@ -20,12 +21,73 @@ import type {
 // DeepSeek 等慢响应下 120s 远不够，会在后端还没返回时被前端误判超时。
 const DEFAULT_AGENT_TIMEOUT_MS = 360_000;
 
-// 前端超时后不再硬 reject（后端 8×300s 结构性长于此，run 仍在跑且花钱）：中止 SSE 流后转
-// REST 轮询事件表重建终态（F10）。轮询总上限覆盖剩余最坏时长，间隔避免打爆 sidecar。
+// SSE 超时后只读查询同 run 的持久事件。观察预算不是执行预算：耗尽只能判为结果未知，
+// 不能据此判断后台失败或允许重新 POST。作者可继续显式核对。
 const AGENT_POLL_INTERVAL_MS = 3_000;
 const AGENT_POLL_TOTAL_MS = 5 * 60_000;
 
 const API_KEY_HEADER = 'X-StoryForge-API-Key';
+
+// HTTP 拒绝已是确定结果；错误详情有独立观察预算，不能重新打开执行恢复。
+const AGENT_ERROR_DETAIL_TIMEOUT_MS = 2_000;
+const AGENT_ERROR_DETAIL_MAX_BYTES = 64 * 1024;
+
+async function readRejectedAgentDetail(response: Response): Promise<string> {
+  const fallback = `API 返回 ${response.status}`;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let timeout: number | undefined;
+  let stopped = false;
+  try {
+    reader = response.body?.getReader();
+    if (!reader) return fallback;
+    const bodyReader = reader;
+    const readDetail = async () => {
+      const decoder = new TextDecoder();
+      let text = '';
+      let bytes = 0;
+      while (!stopped) {
+        const { done, value } = await bodyReader.read();
+        if (stopped) return fallback;
+        if (done) {
+          const data: unknown = JSON.parse(text + decoder.decode());
+          return data !== null &&
+            typeof data === 'object' &&
+            'detail' in data &&
+            typeof data.detail === 'string' &&
+            data.detail.trim()
+            ? data.detail
+            : fallback;
+        }
+        bytes += value.byteLength;
+        if (bytes > AGENT_ERROR_DETAIL_MAX_BYTES) return fallback;
+        text += decoder.decode(value, { stream: true });
+      }
+      return fallback;
+    };
+    return await Promise.race([
+      readDetail(),
+      new Promise<string>((resolve) => {
+        timeout = window.setTimeout(() => resolve(fallback), AGENT_ERROR_DETAIL_TIMEOUT_MS);
+      }),
+    ]);
+  } catch {
+    return fallback;
+  } finally {
+    stopped = true;
+    window.clearTimeout(timeout);
+    // 取消失败或 underlying cancel 挂起不能阻止交付已知 HTTP 拒绝。
+    try {
+      void reader?.cancel().catch(() => undefined);
+    } catch {
+      // Best-effort cancellation; preserve the observed HTTP status.
+    }
+    try {
+      reader?.releaseLock();
+    } catch {
+      // Releasing a failed reader cannot change a definite HTTP rejection either.
+    }
+  }
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -73,6 +135,7 @@ export async function sendAgentUserMessage(
     const controller = new AbortController();
     let settled = false;
     let polling = false;
+    let httpRejected = false;
     // run_id 优先取请求携带的（桌面端 sessionId===runId），否则从 agent_run_started 帧补齐，供超时轮询。
     let runId = request.runId;
 
@@ -89,21 +152,33 @@ export async function sendAgentUserMessage(
     };
 
     const startPolling = () => {
+      if (settled || polling || httpRejected || !runId) return;
       polling = true;
+      window.clearTimeout(timeout);
       try {
         controller.abort();
       } catch {
         // 转轮询前中止流，忽略中止异常。
       }
-      pollAgentRunUntilTerminal(runId as string, request.sessionId)
+      pollAgentRunUntilTerminal(runId, request.sessionId)
         .then((message) => finish(() => resolve(message)))
         .catch((error) => finish(() => reject(error)));
+    };
+
+    const recoverTransportFailure = (error: unknown) => {
+      if (polling || settled || httpRejected) return;
+      // A lost response does not prove the worker failed. Recover this run, never POST again.
+      if (runId) {
+        startPolling();
+        return;
+      }
+      finish(() => reject(error instanceof Error ? error : new Error(String(error))));
     };
 
     const timeout = window.setTimeout(() => {
       // 超时不 reject：中止 SSE，转后台轮询事件表把 run 的终态取回来（F10）。
       // 拿不到 runId 就无从轮询，退回旧的硬超时语义。
-      if (settled || polling) return;
+      if (settled || polling || httpRejected) return;
       if (!runId) {
         finish(() =>
           reject(
@@ -132,23 +207,39 @@ export async function sendAgentUserMessage(
           signal: controller.signal,
         });
       } catch (error) {
-        if (polling || settled) return;
-        finish(() => reject(error instanceof Error ? error : new Error(String(error))));
+        recoverTransportFailure(error);
         return;
       }
-      if (!response.ok || !response.body) {
-        if (polling || settled) return;
-        const detail = await readErrorDetail(response);
+      if (polling || settled) {
+        void response.body?.cancel().catch(() => undefined);
+        return;
+      }
+      if (!response.ok) {
+        httpRejected = true;
+        window.clearTimeout(timeout);
+        const detail = await readRejectedAgentDetail(response);
         finish(() => reject(new Error(detail)));
         return;
       }
 
+      if (!response.body) {
+        recoverTransportFailure(new Error('Agent 响应缺少结果流。'));
+        return;
+      }
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
       try {
         while (true) {
-          const { value, done } = await reader.read();
+          let chunk: ReadableStreamReadResult<Uint8Array>;
+          try {
+            chunk = await reader.read();
+          } catch (error) {
+            recoverTransportFailure(error);
+            return;
+          }
+          if (settled || polling) return;
+          const { value, done } = chunk;
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
           let separator = buffer.search(/\r?\n\r?\n/);
@@ -158,6 +249,10 @@ export async function sendAgentUserMessage(
             buffer = buffer.slice(separator + (match ? match[0].length : 2));
             const message = parseAgentSseFrame(frame);
             if (message) {
+              if (isAgentRunStartedMessage(message) && runId && message.run_id !== runId) {
+                startPolling();
+                return;
+              }
               request.onEvent?.(message);
               if (isAgentRunStartedMessage(message) && typeof message.run_id === 'string') {
                 runId = message.run_id;
@@ -171,7 +266,7 @@ export async function sendAgentUserMessage(
           }
         }
       } catch (error) {
-        // 主动中止（转轮询 / 已收尾）不当失败处理。
+        // Consumer/decoder failures are not network failures; do not hide them by polling.
         if (polling || settled) return;
         finish(() => reject(error instanceof Error ? error : new Error(String(error))));
         return;
@@ -196,9 +291,14 @@ async function pollAgentRunUntilTerminal(
   const deadline = Date.now() + AGENT_POLL_TOTAL_MS;
   let lastError: unknown = null;
   while (Date.now() < deadline) {
-    await delay(AGENT_POLL_INTERVAL_MS);
+    await delay(Math.min(AGENT_POLL_INTERVAL_MS, deadline - Date.now()));
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
     try {
-      const events = await getAgentRunEvents(runId);
+      const events = await readAgentRunWithin(
+        (signal) => getAgentRunEvents(runId, { signal }),
+        Math.min(15_000, remaining),
+      );
       const message = reconstructAgentResultFromEvents(events, { sessionId, runId });
       if (message !== null) {
         return message;
@@ -208,8 +308,10 @@ async function pollAgentRunUntilTerminal(
       lastError = error;
     }
   }
-  throw new Error(
-    `Agent 后台轮询超时，未在事件表取回终态${lastError ? `（最后一次错误：${String(lastError)}）` : ''}。`,
+  throw new AgentRunOutcomeUnknownError(
+    runId,
+    sessionId,
+    `Agent 结果未知：观察时间已到，尚未取回本轮终态${lastError ? `（最后一次错误：${String(lastError)}）` : ''}。请核对原运行，不要重新执行。`,
   );
 }
 

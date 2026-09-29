@@ -77,7 +77,9 @@ test('文件夹行内「新建文件」落在该文件夹下，而不是项目�
   const { calls, actions } = stubActions();
   await renderExplorer(actions);
 
-  const button = folderRow('正文').querySelector<HTMLButtonElement>('[data-testid="tree-folder-new-file"]');
+  const button = folderRow('正文').querySelector<HTMLButtonElement>(
+    '[data-testid="tree-folder-new-file"]',
+  );
   assert.ok(button, '文件夹行缺少新建文件按钮');
   act(() => {
     button.click();
@@ -90,7 +92,9 @@ test('文件夹行内「新建文件夹」落在该文件夹下', async () => {
   const { calls, actions } = stubActions();
   await renderExplorer(actions);
 
-  const button = folderRow('设定').querySelector<HTMLButtonElement>('[data-testid="tree-folder-new-folder"]');
+  const button = folderRow('设定').querySelector<HTMLButtonElement>(
+    '[data-testid="tree-folder-new-folder"]',
+  );
   assert.ok(button, '文件夹行缺少新建文件夹按钮');
   act(() => {
     button.click();
@@ -104,7 +108,9 @@ test('每个文件夹行各自带按钮，互不串目录', async () => {
   await renderExplorer(actions);
 
   for (const name of ['正文', '设定']) {
-    const button = folderRow(name).querySelector<HTMLButtonElement>('[data-testid="tree-folder-new-file"]');
+    const button = folderRow(name).querySelector<HTMLButtonElement>(
+      '[data-testid="tree-folder-new-file"]',
+    );
     assert.ok(button);
     act(() => {
       button.click();
@@ -127,7 +133,9 @@ test('点新建按钮不会把文件夹折叠起来', async () => {
     );
   assert.ok(visibleFiles().includes(`${PROJECT}/正文/第001章.md`));
 
-  const button = folderRow('正文').querySelector<HTMLButtonElement>('[data-testid="tree-folder-new-file"]');
+  const button = folderRow('正文').querySelector<HTMLButtonElement>(
+    '[data-testid="tree-folder-new-file"]',
+  );
   assert.ok(button);
   act(() => {
     button.click();

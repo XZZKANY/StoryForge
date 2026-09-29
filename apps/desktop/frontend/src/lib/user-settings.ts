@@ -1,6 +1,6 @@
 import type { EditorFontMode, ProseMeasure } from '../components/editor/options';
 import { isProviderKind } from './provider-config';
-import { clampSidePanelWidth } from './side-panel-width';
+import { clampSidePanelWidth, SIDE_PANEL_WIDTH_DEFAULT } from './side-panel-width';
 
 export type ProviderKind =
   | 'openai'
@@ -41,8 +41,8 @@ export type AppSettings = {
   showWelcomeOnStartup: boolean;
   /** 选择上次作品时恢复页签与光标位置（旧配置字段兼容）。 */
   restoreLastSession: boolean;
-  /** 作者拖过的侧面板宽度，按视图各记一份；没拖过的视图吃档位默认（见 side-panel-width.ts）。 */
-  sidePanelWidths: Record<string, number>;
+  /** 作者拖过的侧面板宽度，全左栏共享一份（旧按视图 sidePanelWidths 加载时迁移）。 */
+  sidePanelWidth: number;
 };
 
 export const APP_SETTINGS_KEY = 'storyforge-app-settings';
@@ -69,17 +69,41 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   },
   showWelcomeOnStartup: true,
   restoreLastSession: true,
-  sidePanelWidths: {},
+  sidePanelWidth: SIDE_PANEL_WIDTH_DEFAULT,
 };
 
-/** 逐项夹限并丢掉非数字：手改过的 localStorage 不该把面板撑成 0 或 5000。 */
-function sanitizeSidePanelWidths(value: unknown): Record<string, number> {
-  if (!value || typeof value !== 'object') return {};
-  const result: Record<string, number> = {};
-  for (const [view, px] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof px === 'number' && Number.isFinite(px)) result[view] = clampSidePanelWidth(px);
+/** 旧按视图宽度按 >300（旧宽档默认 340 之上）区分「主动加宽」与「收窄」信号。 */
+const LEGACY_WIDE_SIGNAL_PX = 300;
+
+/**
+ * 旧 `sidePanelWidths: Record<view, px>` 迁移为共享单宽，确定性规则：
+ * 新字段优先（调用方先判）；这里只看旧 map——丢非数字、逐项夹限后：
+ * 空集 → null（交给默认）；全部相同 → 该值；存在 >300 的值 → 取最大（加宽是最强
+ * 意图，也正是当初分视图记录的原因）；全 ≤300 → 取最大（最少收窄）。
+ * 与 key 名和遍历顺序无关，同一份旧配置在任何机器上结果一致。
+ */
+function migrateSidePanelWidths(value: unknown): number | null {
+  if (!value || typeof value !== 'object') return null;
+  const widths: number[] = [];
+  for (const px of Object.values(value as Record<string, unknown>)) {
+    if (typeof px === 'number' && Number.isFinite(px)) widths.push(clampSidePanelWidth(px));
   }
-  return result;
+  if (widths.length === 0) return null;
+  const first = widths[0];
+  if (widths.every((width) => width === first)) return first;
+  const widened = widths.filter((width) => width > LEGACY_WIDE_SIGNAL_PX);
+  if (widened.length > 0) return Math.max(...widened);
+  return Math.max(...widths);
+}
+
+/** 新字段已是有效数字就赢得一切；否则试迁移旧按视图 map，再退回共享默认。 */
+function sanitizeSidePanelWidth(candidate: Partial<AppSettings>): number {
+  const current = candidate.sidePanelWidth;
+  if (typeof current === 'number' && Number.isFinite(current)) return clampSidePanelWidth(current);
+  return (
+    migrateSidePanelWidths((candidate as Record<string, unknown>).sidePanelWidths) ??
+    SIDE_PANEL_WIDTH_DEFAULT
+  );
 }
 
 function sanitizeProviderSettings(value: unknown, fallback: ProviderSettings): ProviderSettings {
@@ -154,7 +178,7 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
       typeof candidate.restoreLastSession === 'boolean'
         ? candidate.restoreLastSession
         : DEFAULT_APP_SETTINGS.restoreLastSession,
-    sidePanelWidths: sanitizeSidePanelWidths(candidate.sidePanelWidths),
+    sidePanelWidth: sanitizeSidePanelWidth(candidate),
   };
 }
 

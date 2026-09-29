@@ -1,4 +1,5 @@
 import type { AgentResultMessage } from '../../lib/api-client';
+import { runtimeInterruptionFromResult } from '../../lib/api/execution-outcome';
 import type { KnowledgeContextEntry } from '../../lib/assistant-suggestions';
 import {
   looksAbsolutePath,
@@ -27,6 +28,7 @@ export function writableFilePatch(message: AgentResultMessage): {
   after: string;
   requires_confirmation: boolean;
 } | null {
+  if (runtimeInterruptionFromResult(message)) return null;
   const patch = message.proposed_patch as Record<string, unknown> | null | undefined;
   if (!patch || typeof patch !== 'object') return null;
   const { file_path: filePath, before, after, id } = patch;
@@ -61,6 +63,7 @@ export function repairPatchApproval(message: AgentResultMessage): {
   summary: string;
   command: { command_id: string; args: Record<string, unknown> } | null;
 } | null {
+  if (runtimeInterruptionFromResult(message)) return null;
   const patch = message.proposed_patch;
   if (!patch || patch.kind !== 'repair_patch') return null;
   const repair =
@@ -224,13 +227,6 @@ export function writingContextFromAgentResult(
       knowledgeEntries: [],
     }
   );
-}
-
-export function contextFilesFromAgentResult(
-  message: AgentResultMessage,
-  fallback: string[] = [],
-): string[] {
-  return writingContextFromAgentResult(message, fallback).contextFiles;
 }
 
 export function issueIdsFromAgentResult(message: AgentResultMessage): string[] {

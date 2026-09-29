@@ -1,3 +1,5 @@
+import { Button, IconButton, FloatingSurface } from '../ui';
+
 import { memo, useEffect, useRef, useState } from 'react';
 import {
   semanticKindLabel,
@@ -16,11 +18,24 @@ import {
   Sparkles,
 } from '../icons/shell-icons';
 import type { LayoutMode } from '../shell/useShellState';
-import { useDismissableMenu } from '../shell/useDismissableMenu';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { contextBudgetText } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
 import type { AgentRun, AgentRunControlHandlers, Message, WritingRunProjection } from './types';
+
+// 会话下拉的 updated_at 是 ISO 原串：主行只露 MM-dd HH:mm 短格式，完整时间留在 title。
+function formatSessionTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// RunActionBar 按钮统一到 Button 原语后的公共类：保留等效 h-8/text-xs 与按压反馈。
+const runActionButtonClass = 'interactive-press font-medium transition-colors text-xs';
+
+// 「停止」两段确认的有效窗口：超时自动回到未确认态。
+const STOP_CONFIRM_TIMEOUT_MS = 5000;
 
 export function ConversationHeader({
   title,
@@ -47,7 +62,6 @@ export function ConversationHeader({
   // 下拉走内联 absolute（不 portal），token 在 :root/#app 内，避免 portal 出主题作用域翻车。
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  useDismissableMenu(menuOpen, () => setMenuOpen(false), menuTriggerRef);
   const sessionList = sessions ?? [];
   return (
     <header
@@ -57,7 +71,7 @@ export function ConversationHeader({
       <button
         ref={menuTriggerRef}
         type="button"
-        className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-left hover:bg-elevated"
+        className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-left transition-colors hover:bg-elevated"
         onClick={() => setMenuOpen((open) => !open)}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
@@ -69,71 +83,101 @@ export function ConversationHeader({
         <ChevronDown size={13} strokeWidth={1.6} className="flex-shrink-0 text-subtle" />
       </button>
       {onNewSession && (
-        <button
+        <IconButton
           type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-          title="新建会话"
           onClick={onNewSession}
           data-testid="conversation-new-session"
-        >
-          <Plus size={15} strokeWidth={1.7} />
-        </button>
+          size="xs"
+          className="relative"
+          label="新建会话"
+          tooltip="新建会话"
+          icon={
+            <>
+              <Plus size={15} strokeWidth={1.7} />
+            </>
+          }
+        />
       )}
       {onOpenObservatory && (
-        <button
+        <IconButton
           type="button"
-          className="relative grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-          title="世界线观测镜 · Ctrl Shift O"
           onClick={onOpenObservatory}
           data-testid="conversation-open-observatory"
-        >
-          <Radar size={14} strokeWidth={1.6} />
-          {observatoryAttention && (
-            <span
-              className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-agent"
-              data-testid="observatory-attention-dot"
-            />
-          )}
-        </button>
+          size="xs"
+          className="relative"
+          label="世界线观测镜"
+          tooltip="世界线观测镜 · Ctrl Shift O"
+          icon={
+            <>
+              <Radar size={14} strokeWidth={1.6} />
+              {observatoryAttention && (
+                <span
+                  className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-agent"
+                  data-testid="observatory-attention-dot"
+                />
+              )}
+            </>
+          }
+        />
       )}
       {/* Q4 布局三态就地控件：对话头切 编辑 / 平衡 / 对话聚焦 */}
       {onSetLayoutMode &&
         (layoutMode === 'chat' ? (
-          <button
+          <IconButton
             type="button"
-            className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-            title="回到编辑 · Ctrl 2"
             onClick={() => onSetLayoutMode('balanced')}
             data-testid="conversation-back-to-balanced"
-          >
-            <PanelLeft size={15} strokeWidth={1.6} />
-          </button>
+            size="xs"
+            className="relative"
+            label="回到编辑"
+            tooltip="回到编辑 · Ctrl 2"
+            icon={
+              <>
+                <PanelLeft size={15} strokeWidth={1.6} />
+              </>
+            }
+          />
         ) : (
           <>
-            <button
+            <IconButton
               type="button"
-              className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-              title="对话占满中右 · Ctrl 3"
               onClick={() => onSetLayoutMode('chat')}
               data-testid="conversation-expand-chat"
-            >
-              <Maximize2 size={14} strokeWidth={1.6} />
-            </button>
-            <button
+              size="xs"
+              className="relative"
+              label="对话占满中右"
+              tooltip="对话占满中右 · Ctrl 3"
+              icon={
+                <>
+                  <Maximize2 size={14} strokeWidth={1.6} />
+                </>
+              }
+            />
+            <IconButton
               type="button"
-              className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-              title="收起对话栏，编辑占满 · Ctrl 1"
               onClick={() => onSetLayoutMode('editor')}
               data-testid="conversation-collapse-right"
-            >
-              <PanelRightClose size={15} strokeWidth={1.6} />
-            </button>
+              size="xs"
+              className="relative"
+              label="收起对话栏，编辑占满"
+              tooltip="收起对话栏，编辑占满 · Ctrl 1"
+              icon={
+                <>
+                  <PanelRightClose size={15} strokeWidth={1.6} />
+                </>
+              }
+            />
           </>
         ))}
       {menuOpen && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-          <div className="absolute left-2 right-2 top-shell-row z-40 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-dropdown">
+          <FloatingSurface
+            role="menu"
+            aria-label="操作"
+            triggerRef={menuTriggerRef}
+            onDismiss={() => setMenuOpen(false)}
+            className="animate-fade-in overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-dropdown w-64"
+          >
             <div className="px-2 py-1 text-3xs uppercase tracking-[0.08em] text-subtle">
               本项目的会话
             </div>
@@ -144,9 +188,10 @@ export function ConversationHeader({
                 const active = session.id === activeSessionId;
                 return (
                   <button
+                    role="menuitem"
                     key={session.id}
                     type="button"
-                    className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-elevated ${
+                    className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs transition-colors hover:bg-elevated ${
                       active ? 'text-foreground' : 'text-muted hover:text-foreground'
                     }`}
                     onClick={() => {
@@ -160,7 +205,9 @@ export function ConversationHeader({
                       {active ? '✓ ' : ''}
                       {session.title.replace(/^IDE Agent:\s*/, '') || `会话 #${session.id}`}
                     </span>
-                    <span className="flex-shrink-0 text-3xs text-subtle">{session.updated_at}</span>
+                    <span className="flex-shrink-0 text-3xs text-subtle">
+                      {formatSessionTime(session.updated_at)}
+                    </span>
                   </button>
                 );
               })
@@ -169,8 +216,9 @@ export function ConversationHeader({
               <>
                 <div className="mx-1.5 my-1 h-px bg-border" />
                 <button
+                  role="menuitem"
                   type="button"
-                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-muted hover:bg-elevated hover:text-foreground"
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
                   onClick={() => {
                     setMenuOpen(false);
                     onNewSession();
@@ -181,7 +229,7 @@ export function ConversationHeader({
                 </button>
               </>
             )}
-          </div>
+          </FloatingSurface>
         </>
       )}
     </header>
@@ -194,12 +242,14 @@ export function MessageList({
   agentRun,
   agentRunRecovery,
   writingRunProjection,
+  onRetryWritingRunSubscription,
 }: {
   conversationScope?: string | number;
   messages: Message[];
   agentRun: AgentRun | null;
   agentRunRecovery: AgentRunRecoveryDisplay | null;
   writingRunProjection: WritingRunProjection | null;
+  onRetryWritingRunSubscription?: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -261,7 +311,7 @@ export function MessageList({
     const element = scrollRef.current;
     if (!element) return;
     nearBottomRef.current = true;
-    element.scrollTop = element.scrollHeight;
+    element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' });
     setNearBottom(true);
     setHasUnread(false);
   };
@@ -281,14 +331,19 @@ export function MessageList({
           </div>
         )}
 
-        {writingRunProjection && <WritingRunProgressPanel projection={writingRunProjection} />}
+        {writingRunProjection && (
+          <WritingRunProgressPanel
+            projection={writingRunProjection}
+            onRetrySubscription={onRetryWritingRunSubscription}
+          />
+        )}
       </div>
     );
   return (
     <div className="relative min-h-0 flex-1">
       <div
         ref={scrollRef}
-        className="h-full min-h-0 overflow-y-auto"
+        className="h-full min-h-0 overflow-y-auto [scrollbar-gutter:stable]"
         data-testid="message-list-scroll"
         role="region"
         aria-label="对话消息"
@@ -301,7 +356,7 @@ export function MessageList({
       {hasUnread && !nearBottom && (
         <button
           type="button"
-          className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-agent/40 bg-surface px-3 py-1.5 text-xs text-foreground shadow-dropdown hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-agent"
+          className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-agent/40 bg-surface px-3 py-1.5 text-xs text-foreground shadow-dropdown transition-colors hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-agent"
           data-testid="message-list-new-content"
           onMouseDown={(event) => event.preventDefault()}
           onClick={(event) => {
@@ -325,7 +380,10 @@ export function AgentRunRecoveryPanel({ recovery }: { recovery: AgentRunRecovery
       data-testid="agent-run-recovery"
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <div className="truncate text-xs font-semibold text-foreground">
+        <div
+          className="truncate text-xs font-semibold text-foreground"
+          title={`${recovery.statusText}；${recovery.resumeText}`}
+        >
           {recovery.statusText}；{recovery.resumeText}
         </div>
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
@@ -353,11 +411,24 @@ function recoveryToneClass(tone: AgentRunRecoveryDisplay['tone']): string {
 export function RunActionBar({
   run,
   controls,
+  recovery,
+  resumePending = false,
 }: {
   run: AgentRun;
   controls: AgentRunControlHandlers;
+  recovery?: AgentRunRecoveryDisplay | null;
+  resumePending?: boolean;
 }) {
   const [rejectDraft, setRejectDraft] = useState<string | null>(null);
+  // 停止是破坏性终态动作：第一次点击只进入待确认，再点才执行；超时/失焦/划走都取消。
+  const [stopConfirmArmed, setStopConfirmArmed] = useState(false);
+  const stopConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (stopConfirmTimerRef.current) clearTimeout(stopConfirmTimerRef.current);
+    },
+    [],
+  );
   const waitingForPermission = run.steps.some(
     (step) => step.id === 'permission-required' && step.status === 'waiting',
   );
@@ -370,7 +441,7 @@ export function RunActionBar({
   // 终态只留轻状态/回复收尾，不再渲染没有动作的空操作条。
   const isTerminal =
     run.status === 'completed' || run.status === 'failed' || run.status === 'stopped';
-  if (isTerminal) return null;
+  if (isTerminal && !run.deliveryUnknown) return null;
 
   const handleAcceptPatch = () => {
     controls.onAcceptPatch?.();
@@ -386,9 +457,59 @@ export function RunActionBar({
     controls.onRejectPatch?.(direction);
   };
 
+  const cancelStopConfirm = () => {
+    if (stopConfirmTimerRef.current) {
+      clearTimeout(stopConfirmTimerRef.current);
+      stopConfirmTimerRef.current = null;
+    }
+    setStopConfirmArmed(false);
+  };
+
+  const handleStopClick = () => {
+    if (!stopConfirmArmed) {
+      setStopConfirmArmed(true);
+      stopConfirmTimerRef.current = setTimeout(cancelStopConfirm, STOP_CONFIRM_TIMEOUT_MS);
+      return;
+    }
+    cancelStopConfirm();
+    controls.onStopRun();
+  };
+
+  if (run.deliveryUnknown)
+    return (
+      <div
+        className="flex flex-wrap items-center gap-2 border-t border-border p-3"
+        data-testid="run-action-bar"
+      >
+        <span role="status" className="text-xs text-warning" data-testid="run-action-status">
+          本轮结果未知；连接结束不代表执行失败。请核对原运行，不会自动重放。
+        </span>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={controls.onReconcileRun}
+          data-testid="run-reconcile"
+        >
+          核对状态
+        </Button>
+        <Button size="sm" variant="secondary" onClick={controls.onPauseRun} data-testid="run-pause">
+          请求暂停
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={handleStopClick}
+          onBlur={cancelStopConfirm}
+          data-testid="run-stop"
+        >
+          {stopConfirmArmed ? '确认停止' : '请求停止'}
+        </Button>
+      </div>
+    );
+
   return (
     <div
-      className="flex flex-shrink-0 flex-col border-t border-border bg-panel shadow-[0_-4px_16px_rgb(0_0_0/0.1)] animate-slide-in-up"
+      className="flex flex-shrink-0 flex-col border-t border-border bg-panel shadow-bar-top animate-slide-in-up"
       data-testid="run-action-bar"
     >
       <div className="flex flex-wrap items-center gap-2 px-4 py-3">
@@ -439,85 +560,114 @@ export function RunActionBar({
           </div>
           {/* 运行态：暂停按钮 */}
           {isRunning && (
-            <button
-              type="button"
-              className="interactive-press h-8 rounded-lg border border-border px-3 text-xs font-medium text-muted transition-all hover:border-border-strong hover:text-foreground hover:bg-elevated hover:shadow-sm"
+            <Button
+              size="sm"
+              variant="secondary"
+              className={runActionButtonClass}
               onClick={controls.onPauseRun}
               title="暂停本轮"
               data-testid="run-pause"
             >
               暂停
-            </button>
+            </Button>
           )}
           {/* 暂停态：恢复按钮 */}
           {isPaused && (
-            <button
-              type="button"
-              className="interactive-press h-8 rounded-lg bg-accent px-3 text-xs font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent/90 hover:shadow active:bg-accent"
+            <Button
+              size="sm"
+              variant="primary"
+              className={runActionButtonClass}
               onClick={controls.onResumeRun}
-              title="恢复本轮"
+              disabled={resumePending || recovery?.checkpointResume?.canResume === false}
+              title={recovery?.checkpointResume?.message ?? '恢复本轮'}
               data-testid="run-resume"
             >
               恢复
-            </button>
+            </Button>
+          )}
+          {isPaused && recovery?.checkpointResume && (
+            <span className="text-xs text-muted" role="status" data-testid="run-resume-guidance">
+              {recovery.checkpointResume.message}
+            </span>
+          )}
+          {isPaused && recovery?.checkpointResume && controls.onReconcileRun && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className={runActionButtonClass}
+              onClick={controls.onReconcileRun}
+              data-testid="run-reconcile"
+              title="只读取本轮状态，不重新执行"
+            >
+              核对状态
+            </Button>
           )}
           {/* 权限确认：批准/拒绝 */}
           {waitingForPermission && (
             <>
-              <button
-                type="button"
-                className="interactive-press h-8 rounded-lg bg-accent px-3 text-xs font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent/90 hover:shadow active:bg-accent"
+              <Button
+                size="sm"
+                variant="primary"
+                className={runActionButtonClass}
                 onClick={controls.onApprovePermission}
                 title="批准权限请求"
                 data-testid="run-approve-permission"
               >
                 批准
-              </button>
-              <button
-                type="button"
-                className="interactive-press h-8 rounded-lg border border-error/40 px-3 text-xs font-medium text-error transition-all hover:bg-error/10 hover:border-error/60 hover:shadow-sm"
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                className={runActionButtonClass}
                 onClick={controls.onDenyPermission}
                 title="拒绝权限请求"
                 data-testid="run-deny-permission"
               >
                 拒绝
-              </button>
+              </Button>
             </>
           )}
           {/* 补丁确认：接受/拒绝 */}
           {awaitingConfirm && (
             <>
-              <button
-                type="button"
-                className="interactive-press h-8 rounded-lg bg-accent px-3 text-xs font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent/90 hover:shadow active:bg-accent"
+              <Button
+                size="sm"
+                variant="primary"
+                className={runActionButtonClass}
                 onClick={handleAcceptPatch}
                 title="接受这版修订并写回"
                 data-testid="run-accept-patch"
               >
                 接受
-              </button>
-              <button
-                type="button"
-                className="interactive-press h-8 rounded-lg border border-border px-3 text-xs font-medium text-muted transition-all hover:border-border-strong hover:text-foreground hover:bg-elevated hover:shadow-sm"
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className={runActionButtonClass}
                 onClick={handleRejectPatch}
                 title="拒绝这版修订"
                 data-testid="run-reject-patch"
               >
                 {rejectDraft === null ? '拒绝' : '取消'}
-              </button>
+              </Button>
             </>
           )}
-          {/* 停止按钮：在运行/暂停/等待权限时可用，补丁确认时不显示（避免误操作） */}
+          {/* 停止按钮：在运行/暂停/等待权限时可用，补丁确认时不显示（避免误操作）。
+              两段式确认：先点变「确认停止本轮？」，再点才执行（内联确认，不开弹窗）。 */}
           {(isRunning || isPaused || waitingForPermission) && (
-            <button
-              type="button"
-              className="interactive-press h-8 rounded-lg border border-error/40 px-3 text-xs font-medium text-error transition-all hover:bg-error/10 hover:border-error/60 hover:shadow-sm"
-              onClick={controls.onStopRun}
-              title="停止本轮"
+            <Button
+              size="sm"
+              variant="danger"
+              className={runActionButtonClass}
+              onClick={handleStopClick}
+              onBlur={cancelStopConfirm}
+              onMouseLeave={cancelStopConfirm}
+              title={stopConfirmArmed ? '再次点击确认停止本轮' : '停止本轮'}
               data-testid="run-stop"
+              data-armed={stopConfirmArmed ? 'true' : 'false'}
             >
-              停止
-            </button>
+              {stopConfirmArmed ? '确认停止本轮？' : '停止'}
+            </Button>
           )}
         </div>
       </div>
@@ -541,13 +691,13 @@ export function RunActionBar({
                 }
               }}
               placeholder="说说该怎么改（回车发出，留空则只否掉这版）"
-              className="min-w-0 flex-1 rounded-md border border-border bg-elevated px-2 py-1 text-xs text-foreground placeholder:text-muted focus:border-accent focus:outline-none"
+              className="sf-input min-w-0 flex-1 rounded-md border border-border bg-elevated px-2 py-1 text-xs text-foreground placeholder:text-muted"
               data-testid="run-reject-input"
             />
             <button
               type="button"
               onClick={handleRejectPatch}
-              className="h-7 flex-shrink-0 rounded-md border border-border px-2.5 text-xs text-foreground hover:bg-elevated"
+              className="h-7 flex-shrink-0 rounded-md border border-border px-2.5 text-xs text-foreground transition-colors hover:bg-elevated"
               data-testid="run-reject-confirm"
             >
               {rejectDraft.trim() ? '否掉并重来' : '否掉'}
@@ -559,7 +709,16 @@ export function RunActionBar({
   );
 }
 
-export function WritingRunProgressPanel({ projection }: { projection: WritingRunProjection }) {
+export function WritingRunProgressPanel({
+  projection,
+  onRetrySubscription,
+}: {
+  projection: WritingRunProjection;
+  onRetrySubscription?: () => void;
+}) {
+  // latestEvent==='error' 只由进度订阅失败写入（后端 SSE 事件名里没有 error），
+  // 用它把「任务运行中」与「进度信号丢失」两种状态分开：丢失后不再画可能过期的进度条。
+  const subscriptionLost = projection.latestEvent === 'error';
   const chapters = projection.totalChapters
     ? `${projection.completedCount ?? 0}/${projection.totalChapters}`
     : projection.completedCount !== null
@@ -569,6 +728,10 @@ export function WritingRunProgressPanel({ projection }: { projection: WritingRun
   const totalChapters = projection.totalChapters ?? 0;
   const completed = Math.min(projection.completedCount ?? 0, totalChapters);
   const progressPercent = totalChapters > 0 ? Math.round((completed / totalChapters) * 100) : null;
+  // 该行 truncate：完整串（含最近事件）进 title，截断处仍可悬停读到全量。
+  const detailText = `章节：${chapters}；最近事件：${projection.latestEvent}${
+    projection.currentChapterIndex !== null ? `；当前第 ${projection.currentChapterIndex} 章` : ''
+  }`;
   return (
     <section
       className="animate-slide-up-fade rounded-lg border border-border bg-panel px-3 py-2"
@@ -578,19 +741,23 @@ export function WritingRunProgressPanel({ projection }: { projection: WritingRun
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-semibold text-foreground">
             写作任务 #{projection.writingRunId} · {projection.status}
+            {subscriptionLost ? ' · 进度信号丢失' : ''}
           </div>
-          <div className="mt-1 truncate text-xs text-subtle">
-            章节：{chapters}；最近事件：{projection.latestEvent}
-            {projection.currentChapterIndex !== null
-              ? `；当前第 ${projection.currentChapterIndex} 章`
-              : ''}
-          </div>
+          {subscriptionLost ? (
+            <div className="mt-1 truncate text-xs text-subtle" title={`最后已知 ${chapters}`}>
+              最后已知进度：{chapters}
+            </div>
+          ) : (
+            <div className="mt-1 truncate text-xs text-subtle" title={detailText}>
+              {detailText}
+            </div>
+          )}
         </div>
         <span className="rounded-md border border-border px-2 py-1 text-xs text-subtle">
           写作任务
         </span>
       </div>
-      {progressPercent !== null && (
+      {progressPercent !== null && !subscriptionLost && (
         <div
           className="mt-2 h-1 overflow-hidden rounded-full bg-elevated"
           role="progressbar"
@@ -605,10 +772,31 @@ export function WritingRunProgressPanel({ projection }: { projection: WritingRun
           />
         </div>
       )}
-      {projection.failureReason && (
-        <div className="mt-2 text-xs text-warning" data-testid="writing-run-failure-reason">
-          {projection.failureReason}
+      {subscriptionLost ? (
+        <div
+          className="mt-2 flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2"
+          data-testid="writing-run-subscription-lost"
+        >
+          <span className="min-w-0 flex-1 break-words text-xs text-warning">
+            进度信号丢失：写作任务仍在后台继续，但这里不再有实时进度；重连一次试试。
+          </span>
+          {onRetrySubscription && (
+            <button
+              type="button"
+              className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 text-xs text-warning transition-colors hover:bg-elevated"
+              onClick={onRetrySubscription}
+              data-testid="writing-run-subscription-retry"
+            >
+              重试订阅
+            </button>
+          )}
         </div>
+      ) : (
+        projection.failureReason && (
+          <div className="mt-2 text-xs text-warning" data-testid="writing-run-failure-reason">
+            {projection.failureReason}
+          </div>
+        )
       )}
     </section>
   );
@@ -642,6 +830,15 @@ export function ContextSummaryPanel({
   onRetryContextCandidates: () => void;
 }) {
   const [expanded, setExpanded] = useState(!compact);
+  // 上下文索引错误条可关闭：按错误串记忆已关内容，新错误会重新出现；打开选择器时
+  // 无论是否已关都在列表区保留重试入口，避免关掉后找不到恢复路径。
+  const [dismissedError, setDismissedError] = useState<string | null>(null);
+  const errorBannerVisible =
+    Boolean(contextCandidatesError) && contextCandidatesError !== dismissedError;
+  const handleRetryCandidates = () => {
+    setDismissedError(null);
+    onRetryContextCandidates();
+  };
   const hasWarning = Boolean(
     missingContextPaths.length || contextCandidatesError || lastContextBundle?.budget.truncated,
   );
@@ -691,7 +888,7 @@ export function ContextSummaryPanel({
         </button>
         <button
           type="button"
-          className="h-7 flex-shrink-0 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated"
+          className="h-7 flex-shrink-0 rounded-md border border-border-strong px-2.5 text-xs text-foreground transition-colors hover:bg-elevated"
           onClick={onAddContext}
           data-testid="context-picker-toggle"
         >
@@ -721,7 +918,7 @@ export function ContextSummaryPanel({
                 <button
                   key={path}
                   type="button"
-                  className="max-w-full truncate rounded-md border border-accent bg-accent px-2 py-1 text-xs text-accent-foreground hover:bg-accent"
+                  className="max-w-full truncate rounded-md border border-accent bg-accent px-2 py-1 text-xs text-accent-foreground transition-colors hover:bg-accent/90"
                   title={path}
                   aria-label={`取消固定参考：${path}`}
                   onClick={() => onTogglePinnedContext(path)}
@@ -741,19 +938,30 @@ export function ContextSummaryPanel({
           未读到：{missingContextPaths.join('、')}
         </div>
       )}
-      {contextCandidatesError && (
+      {errorBannerVisible && (
         <div
           className="mt-2 flex items-center gap-2 text-xs text-warning"
           data-testid="context-candidates-error"
         >
+          <span className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs font-medium leading-4 text-warning">
+            项目上下文索引失败
+          </span>
           <span className="min-w-0 flex-1 break-words">{contextCandidatesError}</span>
           <button
             type="button"
-            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 hover:bg-elevated"
-            onClick={onRetryContextCandidates}
+            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 transition-colors hover:bg-elevated"
+            onClick={handleRetryCandidates}
             data-testid="context-candidates-retry"
           >
             重试
+          </button>
+          <button
+            type="button"
+            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 transition-colors hover:bg-elevated"
+            onClick={() => setDismissedError(contextCandidatesError)}
+            data-testid="context-candidates-error-dismiss"
+          >
+            关闭
           </button>
         </div>
       )}
@@ -766,7 +974,26 @@ export function ContextSummaryPanel({
             <div className="px-2 py-1 text-xs text-subtle" data-testid="context-candidates-loading">
               正在读取项目上下文…
             </div>
-          ) : contextCandidatesError ? null : visibleCandidates.length === 0 ? (
+          ) : contextCandidatesError ? (
+            errorBannerVisible ? null : (
+              <div
+                className="flex items-center gap-2 px-2 py-1 text-xs text-warning"
+                data-testid="context-candidates-picker-error"
+              >
+                <span className="min-w-0 flex-1 break-words">
+                  项目上下文索引失败：{contextCandidatesError}
+                </span>
+                <button
+                  type="button"
+                  className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 transition-colors hover:bg-elevated"
+                  onClick={handleRetryCandidates}
+                  data-testid="context-candidates-picker-retry"
+                >
+                  重试
+                </button>
+              </div>
+            )
+          ) : visibleCandidates.length === 0 ? (
             <div className="px-2 py-1 text-xs text-subtle">
               当前项目还没有可选的 Markdown 上下文。
             </div>
@@ -858,11 +1085,13 @@ export function LightweightStatus({
   return (
     <div className="flex-shrink-0 bg-panel px-5 py-2">
       <div className="mx-auto flex max-w-[800px] items-center gap-3">
-        <div className="min-w-0 flex-1 truncate text-xs text-muted">{text}</div>
+        <div className="min-w-0 flex-1 truncate text-xs text-muted" title={text}>
+          {text}
+        </div>
         {retryVisible && (
           <button
             type="button"
-            className="h-7 flex-shrink-0 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated"
+            className="h-7 flex-shrink-0 rounded-md border border-border-strong px-2.5 text-xs text-foreground transition-colors hover:bg-elevated"
             onClick={onRetry}
           >
             重试本轮

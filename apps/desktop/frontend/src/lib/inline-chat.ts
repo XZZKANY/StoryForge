@@ -214,21 +214,6 @@ export function intraLineChangeRange(
   };
 }
 
-export type InlineDiffSummary = {
-  hunks: LineDiffHunk[];
-  addedLines: number;
-  removedLines: number;
-  /** true=模型没有提出任何改动。 */
-  isNoop: boolean;
-};
-
-export function summarizeInlineDiff(before: string, after: string): InlineDiffSummary {
-  const hunks = hunksToLineDiff(before, after);
-  const addedLines = hunks.reduce((total, hunk) => total + hunk.addedLineCount, 0);
-  const removedLines = hunks.reduce((total, hunk) => total + hunk.removedLineCount, 0);
-  return { hunks, addedLines, removedLines, isNoop: hunks.length === 0 };
-}
-
 export type InlineAnchorRange = {
   /** 1-based 起始行（含）。 */
   startLine: number;

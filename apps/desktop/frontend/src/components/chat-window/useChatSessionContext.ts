@@ -9,9 +9,24 @@ import {
   writeProjectKnowledgeSelection,
 } from '../../lib/project-context';
 import { compactConversationMessages } from './conversation-utils';
-import { shouldResetRunPanels } from './session-switch';
+import {
+  leaveSessionConfirmText,
+  pendingDecisionOnLeave,
+  shouldResetRunPanels,
+} from './session-switch';
 import type { ChatWindowProps } from './types';
+import { emitToast } from '../../lib/toast';
 import { nextDraftNonce, type ChatWindowState } from './useChatWindowState';
+
+/** 切会话/新建前的确认入口：与 AppDialog.confirm 同形，未接线时守卫降级为阻止 + toast。 */
+export type SessionLeaveGuard = {
+  confirmLeave?: (options: {
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+  }) => Promise<boolean>;
+};
 
 export function useChatSessionContext(
   state: ChatWindowState,
@@ -24,11 +39,14 @@ export function useChatSessionContext(
     ChatWindowProps,
     'projectPath' | 'currentFile' | 'assistantSessionId' | 'onAssistantSessionChange'
   >,
+  leaveGuard: SessionLeaveGuard = {},
 ) {
   const {
     previousAssistantSessionIdRef,
     selfPersistedSessionIdRef,
     draftNonceRef,
+    agentRun,
+    chapterBrief,
     setAgentRun,
     setChapterBrief,
     setWritingRunProjection,
@@ -232,38 +250,76 @@ export function useChatSessionContext(
     setMissingContextPaths,
   ]);
 
+  // 有待确认内容（补丁 waiting / 章纲）时切会话、新建会撤掉对话区决策条，与发新消息的
+  // awaitingConfirm 口径一致：先经作者确认才放行；返回 null 表示无待确认、可直接执行。
+  const confirmLeave = leaveGuard.confirmLeave;
+  const confirmPendingLeave = useCallback(
+    (action: 'switch' | 'new'): Promise<boolean> | null => {
+      const pending = pendingDecisionOnLeave(agentRun, chapterBrief);
+      if (!pending) return null;
+      if (!confirmLeave) {
+        emitToast(`先处理当前待确认内容，再${action === 'new' ? '新建' : '切换'}会话。`, {
+          tone: 'info',
+        });
+        return Promise.resolve(false);
+      }
+      return confirmLeave({
+        title: action === 'new' ? '新建会话？' : '切换会话？',
+        message: leaveSessionConfirmText(pending, action),
+        confirmLabel: action === 'new' ? '仍要新建' : '仍要切换',
+        cancelLabel: '留在这里',
+      });
+    },
+    [agentRun, chapterBrief, confirmLeave],
+  );
+
   const handleSelectSession = useCallback(
     (id: number) => {
       if (id === (assistantSessionId ?? null)) return;
-      onAssistantSessionChange?.(id);
+      const confirmation = confirmPendingLeave('switch');
+      if (!confirmation) {
+        onAssistantSessionChange?.(id);
+        return;
+      }
+      void confirmation.then((confirmed) => {
+        if (confirmed) onAssistantSessionChange?.(id);
+      });
     },
-    [assistantSessionId, onAssistantSessionChange],
+    [assistantSessionId, confirmPendingLeave, onAssistantSessionChange],
   );
 
-  const handleNewSession = useCallback(() => {
-    draftNonceRef.current = nextDraftNonce();
-    // draft→draft 时 assistantSessionId 仍为 null，session effect 不会重跑；显式清掉
-    // 旧 run/brief/projection，避免总览把上一轮活动错投影到新会话。
-    setAgentRun(null);
-    setChapterBrief(null);
-    setWritingRunProjection(null);
-    setRetryRequest(null);
-    // draft→draft「新建会话」时 assistantSessionId 恒为 null、上面 keyed-on-assistantSessionId 的
-    // 重置 effect 不重跑，必须显式清空本地对话视图，否则旧（未持久化的失败）消息残留到新 draft（UF-10）。
-    setMessages([]);
-    setConversationTitle('新的创作会话');
-    setLastReviewReport(null);
-    setLastReviewReportFile(null);
-    const restoredKnowledge = reconcileProjectKnowledgeSelection(
-      readProjectKnowledgeSelection(projectPath ?? ''),
-      contextCandidates,
-    );
-    setExplicitContextPaths(restoredKnowledge.selected);
-    setMissingContextPaths(restoredKnowledge.missing);
-    setAgentRunRecovery(null);
-    setSessionLoadError(null);
-    onAssistantSessionChange?.(null);
+  // 返回是否真正完成了切换：调用方藉此决定要不要同步清理排队消息等派生态。
+  const handleNewSession = useCallback((): boolean | Promise<boolean> => {
+    const startNewSession = () => {
+      draftNonceRef.current = nextDraftNonce();
+      // draft→draft 时 assistantSessionId 仍为 null，session effect 不会重跑；显式清掉
+      // 旧 run/brief/projection，避免总览把上一轮活动错投影到新会话。
+      setAgentRun(null);
+      setChapterBrief(null);
+      setWritingRunProjection(null);
+      setRetryRequest(null);
+      // draft→draft「新建会话」时 assistantSessionId 恒为 null、上面 keyed-on-assistantSessionId 的
+      // 重置 effect 不重跑，必须显式清空本地对话视图，否则旧（未持久化的失败）消息残留到新 draft（UF-10）。
+      setMessages([]);
+      setConversationTitle('新的创作会话');
+      setLastReviewReport(null);
+      setLastReviewReportFile(null);
+      const restoredKnowledge = reconcileProjectKnowledgeSelection(
+        readProjectKnowledgeSelection(projectPath ?? ''),
+        contextCandidates,
+      );
+      setExplicitContextPaths(restoredKnowledge.selected);
+      setMissingContextPaths(restoredKnowledge.missing);
+      setAgentRunRecovery(null);
+      setSessionLoadError(null);
+      onAssistantSessionChange?.(null);
+      return true;
+    };
+    const confirmation = confirmPendingLeave('new');
+    if (!confirmation) return startNewSession();
+    return confirmation.then((confirmed) => (confirmed ? startNewSession() : false));
   }, [
+    confirmPendingLeave,
     draftNonceRef,
     contextCandidates,
     onAssistantSessionChange,

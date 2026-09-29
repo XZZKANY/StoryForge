@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { Button, Input, InputShell } from '../ui';
+
+import { useId, useState } from 'react';
 import { ChevronRight, BookOpen, FolderOpen, Plus, Search } from '../icons/shell-icons';
 import { basename } from './helpers';
 
@@ -25,12 +27,13 @@ export function ProjectLibrary({
   onOpenSettings,
 }: ProjectLibraryProps) {
   const [query, setQuery] = useState('');
+  const searchId = useId();
   const matching = projects.filter((path) =>
     path.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
   );
   return (
     <section
-      className="min-h-0 flex-1 overflow-y-auto bg-background px-6 py-8 sm:px-10 sm:py-12"
+      className="min-h-0 flex-1 overflow-y-auto bg-background px-6 py-8 [scrollbar-gutter:stable] sm:px-10 sm:py-12"
       data-testid="project-library"
       aria-label="作品库"
     >
@@ -41,24 +44,28 @@ export function ProjectLibrary({
             <p className="mt-2 text-sm text-muted">选择作品，继续写作。</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
+            <Button
               type="button"
               data-testid="library-open-project"
               onClick={onOpenProject}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-panel px-4 text-sm text-foreground transition-colors hover:bg-elevated"
+              size="lg"
+              variant="ghost"
+              className="inline-flex items-center gap-2 text-sm"
             >
               <FolderOpen size={16} aria-hidden="true" />
               打开本地作品
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               data-testid="library-new-project"
               onClick={onNewProject}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
+              size="lg"
+              variant="primary"
+              className="inline-flex items-center gap-2 text-sm font-medium"
             >
               <Plus size={16} aria-hidden="true" />
               新建作品
-            </button>
+            </Button>
           </div>
         </header>
         {activeProject && (
@@ -88,17 +95,19 @@ export function ProjectLibrary({
               <span className="ml-2 text-xs font-normal text-subtle">{projects.length}</span>
             </h2>
             {projects.length > 0 && (
-              <label className="flex h-9 w-60 max-w-full items-center gap-2 rounded-md border border-border bg-panel px-3 text-muted focus-within:border-accent">
-                <Search size={14} aria-hidden="true" />
-                <input
+              <InputShell className="w-60 max-w-full bg-panel text-muted">
+                <label htmlFor={searchId}>
+                  <Search size={14} aria-hidden="true" />
+                </label>
+                <Input
+                  id={searchId}
                   type="search"
                   aria-label="搜索作品"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="搜索名称或位置"
-                  className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-subtle"
                 />
-              </label>
+              </InputShell>
             )}
           </div>
           <p
@@ -116,8 +125,12 @@ export function ProjectLibrary({
                     type="button"
                     data-project-path={path}
                     title={path}
-                    onClick={() => onSelectProject(path)}
-                    className="group flex w-full items-center gap-4 rounded-lg bg-panel px-5 py-4 text-left transition-colors hover:bg-elevated"
+                    onClick={() => {
+                      if (openingProject) return;
+                      onSelectProject(path);
+                    }}
+                    disabled={openingProject === path}
+                    className="group flex w-full items-center gap-4 rounded-lg bg-panel px-5 py-4 text-left transition-colors hover:bg-elevated disabled:opacity-60"
                   >
                     <BookOpen size={20} aria-hidden="true" className="shrink-0 text-subtle" />
                     <span className="min-w-0 flex-1">

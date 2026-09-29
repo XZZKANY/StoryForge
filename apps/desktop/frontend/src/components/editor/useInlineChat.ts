@@ -37,17 +37,19 @@ import {
   type InlineAnchor,
   type LineDiffHunk,
 } from '../../lib/inline-chat';
+import {
+  buildDiffZoneDom,
+  buildInlineToast,
+  buildInputZoneDom,
+  buildLoadingZoneDom,
+  buildPendingActionsDom,
+  type InlineDiffActions,
+  type InlineMode,
+  type IntraLineSeg,
+} from './inline-chat-dom';
 import { prefersReducedMotion } from '../../lib/motion';
 import { resolveContinueAnchorLine } from '../../lib/inline-continue';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
-
-// diff 动作条要展示的汇总（锚定处增删行 + 被丢弃的别处改动数）。
-type InlineDiffActions = {
-  addedLines: number;
-  removedLines: number;
-  hunkCount: number;
-  droppedOffAnchor: number;
-};
 
 type WriteAcceptedSuggestion = (
   suggestion: AssistantFileSuggestion,
@@ -69,8 +71,6 @@ type UseInlineChatParams = {
 };
 
 type InlinePhase = 'input' | 'loading' | 'diff';
-/** revise=改锚定文本（Ctrl+K）；continue=在光标处往下续写（Ctrl+Shift+K）。 */
-type InlineMode = 'revise' | 'continue';
 
 type InlineSession = {
   mode: InlineMode;
@@ -136,7 +136,15 @@ export function useInlineChat({
         for (const id of session.zoneIds) accessor.removeZone(id);
       });
     }
+    // zone 拆掉后焦点会无家可归（回落 body）；只有焦点确实曾在 zone 里时才归还编辑器——
+    // 否则换文件等路径会把焦点从作者正在用的别处（文件树/查找框）抢走。
+    const focusWasInZone =
+      document.activeElement instanceof Node &&
+      session.zoneDoms.some((dom) => dom.contains(document.activeElement));
     sessionRef.current = null;
+    if (focusWasInZone && editor && typeof editor.focus === 'function') {
+      editor.focus();
+    }
   }, [editorRef]);
 
   // 行间的状态是「转瞬即逝的操作反馈」，不该像面板那样赖在编辑器顶栏（丑）。
@@ -151,7 +159,7 @@ export function useInlineChat({
     toastRef.current?.remove();
   }, []);
   const flashStatus = useCallback(
-    (message: string) => {
+    (message: string, tone: 'polite' | 'assertive' = 'polite') => {
       const host = editorRef.current?.getContainerDomNode?.()?.parentElement ?? null;
       if (!host) {
         setSuggestionStatus(message);
@@ -159,9 +167,7 @@ export function useInlineChat({
       }
       // 每次建一个新元素（避免 mutate 从 ref 取出的旧节点）。
       toastRef.current?.remove();
-      const toast = document.createElement('div');
-      toast.className = 'sf-inline-toast';
-      toast.textContent = message;
+      const toast = buildInlineToast(message, tone);
       host.appendChild(toast);
       toastRef.current = toast;
       if (statusTimerRef.current !== null) window.clearTimeout(statusTimerRef.current);
@@ -233,16 +239,22 @@ export function useInlineChat({
     teardown();
 
     try {
-      await writeAcceptedSuggestion(suggestion, path, previous, next);
+      const writeback = await writeAcceptedSuggestion(suggestion, path, previous, next);
       // writeAcceptedSuggestion 内部 setValue 会把光标重置到第 1 行；停回刚改的地方，
       // 免得下一次 Ctrl+K 又锚到开头。
       editor.setPosition({ lineNumber: anchorLine, column: 1 });
       if (typeof editor.revealLineInCenterIfOutsideViewport === 'function') {
         editor.revealLineInCenterIfOutsideViewport(anchorLine);
       }
-      flashStatus(isContinue ? '续写已写回当前文件' : '行间修订已写回当前文件');
+      flashStatus(
+        writeback.writebackWarning ??
+          (isContinue ? '续写已写回当前文件' : '行间修订已写回当前文件'),
+      );
     } catch (error) {
-      flashStatus(`接受失败：${error instanceof Error ? error.message : String(error)}`);
+      flashStatus(
+        `接受失败：${error instanceof Error ? error.message : String(error)}`,
+        'assertive',
+      );
     }
   }, [editorRef, filePathRef, flashStatus, playAcceptSettle, teardown, writeAcceptedSuggestion]);
 
@@ -309,6 +321,8 @@ export function useInlineChat({
       const editorFontFamily = editor.getOption(monaco.editor.EditorOption.fontInfo).fontFamily;
       const hostIndex = plan.hunks.length - 1;
       const diffZones: Array<{ id: string; zone: monaco.editor.IViewZone; dom: HTMLElement }> = [];
+      // 动作条挂在 host zone 上；diff 画完后焦点要落进去，先记住它。
+      let hostDom: HTMLElement | null = null;
       editor.changeViewZones((accessor) => {
         plan.hunks.forEach((hunk, index) => {
           const isHost = index === hostIndex;
@@ -340,6 +354,7 @@ export function useInlineChat({
           session.zoneIds.push(id);
           session.zoneDoms.push(dom);
           diffZones.push({ id, zone, dom });
+          if (isHost) hostDom = dom;
         });
       });
       // 布局后量真实高度撑满各 zone，绿块/动作条不被裁。
@@ -374,6 +389,18 @@ export function useInlineChat({
       };
       document.addEventListener('keydown', handler, true);
       session.keydownHandler = handler;
+
+      // 输入/loading zone 已拆，焦点此刻回落 body；移进动作条（接受键），键盘与读屏都有锚点。
+      // 只做一次，不随后续变化反复搬焦点——流式输出期间搬焦点会造成读屏轰炸。
+      const focusActions = () => {
+        if (sessionRef.current !== session) return;
+        hostDom?.querySelector('button')?.focus({ preventScroll: true });
+      };
+      // rAF 二次兜底：布局期 Monaco 有时会把焦点抢回编辑器（同输入框的聚焦处理）。
+      window.requestAnimationFrame(() => {
+        focusActions();
+        window.requestAnimationFrame(focusActions);
+      });
 
       if (session.mode === 'continue') {
         flashStatus(
@@ -454,7 +481,14 @@ export function useInlineChat({
 
       if (session.mode === 'continue') {
         const anchorLine = resolveContinueAnchorLine(before, session.anchor.startLine);
-        const stream = swapZoneToStreaming(editor, session, anchorLine, cancelLoading);
+        const stream = swapZoneToStreaming(
+          editor,
+          session,
+          anchorLine,
+          cancelLoading,
+          // 模块级函数够不到 sessionRef，活跃守卫以闭包传入。
+          () => sessionRef.current === session,
+        );
         try {
           const result = await streamContinueProse({
             filePath: path,
@@ -484,12 +518,15 @@ export function useInlineChat({
         } catch (error) {
           if (sessionRef.current !== session) return;
           teardown();
-          flashStatus(`续写失败：${error instanceof Error ? error.message : String(error)}`);
+          flashStatus(
+            `续写失败：${error instanceof Error ? error.message : String(error)}`,
+            'assertive',
+          );
         }
         return;
       }
 
-      swapZoneToLoading(editor, session, cancelLoading);
+      swapZoneToLoading(editor, session, cancelLoading, () => sessionRef.current === session);
 
       // 长章节只送锚点附近的窗口：整章发出去既按整章计费，也正是模型 drift 的来源。
       const window = planInlineReviseWindow(before, session.anchor);
@@ -522,7 +559,10 @@ export function useInlineChat({
         // 已取消（abort→teardown 已跑，sessionRef 清空）或切走：不再报失败。
         if (sessionRef.current !== session) return;
         teardown();
-        flashStatus(`AI 修订失败：${error instanceof Error ? error.message : String(error)}`);
+        flashStatus(
+          `AI 修订失败：${error instanceof Error ? error.message : String(error)}`,
+          'assertive',
+        );
       }
     },
     [
@@ -632,6 +672,8 @@ export function useInlineChat({
         inputZoneId = accessor.addZone(inputZone);
         session.zoneIds.push(inputZoneId);
       });
+      // zoneDoms 除落位动效外也用于 teardown 的焦点归还判断，输入泡同样登记。
+      session.zoneDoms.push(dom.container);
       // 把锚定行滚进视野：接受后 setValue 会把光标重置到第 1 行，若作者已滚到别处，
       // 输入泡会锚在光标（第 1 行）弹到「别处」——这里确保它总在眼前。
       if (typeof editor.revealLineInCenterIfOutsideViewport === 'function') {
@@ -695,65 +737,7 @@ export function useInlineChat({
   }, [clearToast]);
 }
 
-// ---- 命令式 DOM 构造（仅在 Ctrl+K 流程中运行，测试不触达） ----
-
-function buildInputZoneDom(
-  anchor: InlineAnchor,
-  mode: InlineMode,
-  handlers: { onSend: (value: string) => void; onCancel: () => void },
-): { container: HTMLElement; textarea: HTMLTextAreaElement } {
-  const container = document.createElement('div');
-  container.className = 'sf-inline-chat';
-  // 拦掉冒泡，别让 Monaco 把 view zone 里的点击当成移动光标而把焦点从输入框抢走。
-  container.addEventListener('mousedown', (event) => event.stopPropagation());
-
-  const head = document.createElement('div');
-  head.className = 'sf-inline-chat__head';
-  const lineLabel =
-    anchor.startLine === anchor.endLine
-      ? `第 ${anchor.startLine} 行`
-      : `第 ${anchor.startLine}–${anchor.endLine} 行`;
-  head.textContent =
-    mode === 'continue'
-      ? `续写 · ${lineLabel} 之后 · 接着往下写一段`
-      : `行间对话 · ${lineLabel} · 只改这附近，不整段重写`;
-
-  const textarea = document.createElement('textarea');
-  textarea.className = 'sf-inline-chat__textarea';
-  textarea.rows = 1;
-  textarea.placeholder =
-    mode === 'continue'
-      ? '直接回车＝就接着写；也可给个方向：转到冲突 / 慢下来 / 换个视角…'
-      : '对这段说点什么：收紧节奏 / 换个意象 / 口吻更冷…';
-
-  let composing = false;
-  textarea.addEventListener('compositionstart', () => {
-    composing = true;
-  });
-  textarea.addEventListener('compositionend', () => {
-    composing = false;
-  });
-  textarea.addEventListener('keydown', (event) => {
-    event.stopPropagation();
-    if (event.key === 'Enter' && !event.shiftKey && !composing) {
-      event.preventDefault();
-      handlers.onSend(textarea.value);
-    } else if (event.key === 'Escape') {
-      event.preventDefault();
-      handlers.onCancel();
-    }
-  });
-
-  const hint = document.createElement('div');
-  hint.className = 'sf-inline-chat__hint';
-  hint.textContent =
-    mode === 'continue'
-      ? 'Enter 开始写 · Shift+Enter 换行 · Esc 关闭'
-      : 'Enter 发送 · Shift+Enter 换行 · Esc 关闭';
-
-  container.append(head, textarea, hint);
-  return { container, textarea };
-}
+// ---- Monaco 装配辅助（zone 增删 / 高度重排）；zone DOM 的声明式构造在 inline-chat-dom.ts ----
 
 /**
  * 续写的流式区：把逐块到达的正文即时画在落点下方，让作者看到笔在动。
@@ -766,9 +750,12 @@ function swapZoneToStreaming(
   session: InlineSession,
   anchorLine: number,
   onCancel: () => void,
+  isActive: () => boolean,
 ): { append: (text: string) => void } {
   const dom = document.createElement('div');
   dom.className = 'sf-inline-diff-zone sf-inline-diff-zone--streaming';
+  dom.setAttribute('role', 'group');
+  dom.setAttribute('aria-label', '行间续写进行中');
   try {
     dom.style.fontFamily = editor.getOption(monaco.editor.EditorOption.fontInfo).fontFamily;
   } catch {
@@ -777,21 +764,8 @@ function swapZoneToStreaming(
 
   const body = document.createElement('div');
   body.className = 'sf-inline-diff-line';
-  const bar = document.createElement('div');
-  bar.className = 'sf-inline-diff-actions';
-  const label = document.createElement('span');
-  label.className = 'sf-inline-diff-note';
-  label.textContent = '正在续写…';
-  const cancel = document.createElement('button');
-  cancel.type = 'button';
-  cancel.className = 'sf-inline-btn-reject';
-  cancel.textContent = '取消 (Esc)';
-  cancel.addEventListener('mousedown', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onCancel();
-  });
-  bar.append(label, cancel);
+  body.setAttribute('aria-hidden', 'true');
+  const { bar, cancel } = buildPendingActionsDom('正在续写…', onCancel);
   dom.append(body, bar);
 
   let zoneId = '';
@@ -804,7 +778,12 @@ function swapZoneToStreaming(
     for (const id of session.zoneIds) accessor.removeZone(id);
     zoneId = accessor.addZone(zone);
     session.zoneIds = [zoneId];
+    session.zoneDoms = [dom];
   });
+
+  // 输入 zone 已随上面的重建撤掉，焦点移到「取消」：loading 期间唯一可用的操作得让
+  // 键盘/读屏摸得到（rAF 等 Monaco 把 zone 挂上再抢，否则会落空或被编辑器夺回）。
+  focusWhenSettled(cancel, isActive);
 
   let pending = false;
   const relayout = () => {
@@ -829,37 +808,37 @@ function swapZoneToLoading(
   editor: monaco.editor.IStandaloneCodeEditor,
   session: InlineSession,
   onCancel: () => void,
+  isActive: () => boolean,
 ): void {
   const zoneId = session.zoneIds[0];
   if (!zoneId) return;
   // 简化处理：重建 zone 内容为 loading 行（保留同一 afterLineNumber）+ 取消键，长请求不再干等。
+  const { dom, cancel } = buildLoadingZoneDom(onCancel);
   editor.changeViewZones((accessor) => {
     accessor.removeZone(zoneId);
-    const dom = document.createElement('div');
-    dom.className = 'sf-inline-chat sf-inline-chat--loading';
-    const label = document.createElement('span');
-    label.style.flex = '1';
-    label.textContent = '正在请求 AI 修订…';
-    const cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.className = 'sf-inline-btn-reject';
-    cancel.textContent = '取消 (Esc)';
-    cancel.addEventListener('mousedown', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onCancel();
-    });
-    dom.append(label, cancel);
     const id = accessor.addZone({
       afterLineNumber: session.anchor.endLine,
       heightInPx: 40,
       domNode: dom,
     });
     session.zoneIds = [id];
+    session.zoneDoms = [dom];
   });
+
+  // 同流式区：输入 zone 没了，焦点落到「取消」这个唯一可用操作上。
+  focusWhenSettled(cancel, isActive);
 }
 
-type IntraLineSeg = ReturnType<typeof intraLineChangeRange>;
+// rAF 二次兜底：布局期 Monaco 有时会把焦点抢回编辑器（同输入框的聚焦处理）。
+function focusWhenSettled(element: HTMLElement, isActive: () => boolean): void {
+  const focus = () => {
+    if (isActive()) element.focus({ preventScroll: true });
+  };
+  window.requestAnimationFrame(() => {
+    focus();
+    window.requestAnimationFrame(focus);
+  });
+}
 
 // 单行替换（一旧行→一新行）才做句内高亮；多行 hunk / 纯增删回退整行铺色。
 function intraLineHunkSeg(
@@ -874,82 +853,4 @@ function intraLineHunkSeg(
     return null;
   }
   return intraLineChangeRange(model.getLineContent(hunk.removedStartLine), hunk.newLines[0]);
-}
-
-function buildDiffZoneDom(
-  hunk: LineDiffHunk,
-  summaryForActions: InlineDiffActions | null,
-  fontFamily: string,
-  seg: IntraLineSeg | null,
-  handlers: { onAccept: () => void; onReject: () => void },
-): HTMLElement {
-  const container = document.createElement('div');
-  container.className = 'sf-inline-diff-zone';
-  // 内联覆盖 CSS 的 mono 栈：贴编辑器正文字体，绿新行与红旧行字形/字宽一致。
-  container.style.fontFamily = fontFamily;
-  // 同输入框：拦掉 mousedown，避免点接受/弃用时 Monaco 抢焦点。
-  container.addEventListener('mousedown', (event) => event.stopPropagation());
-
-  const highlightNew =
-    seg !== null && hunk.newLines.length === 1 && seg.newEndCol > seg.newStartCol;
-  for (const line of hunk.newLines) {
-    const row = document.createElement('div');
-    row.className = 'sf-inline-diff-line';
-    if (highlightNew && seg && line.length > 0) {
-      // 只把真正改动的中段包成高亮 span，前后逐字保留（对齐红旧行的句内高亮，E22）。
-      const start = seg.newStartCol - 1;
-      const end = seg.newEndCol - 1;
-      if (start > 0) row.append(document.createTextNode(line.slice(0, start)));
-      const hi = document.createElement('span');
-      hi.className = 'sf-inline-diff-new-seg';
-      hi.textContent = line.slice(start, end);
-      row.append(hi);
-      if (end < line.length) row.append(document.createTextNode(line.slice(end)));
-      container.append(row);
-      continue;
-    }
-    row.textContent = line.length > 0 ? line : ' ';
-    container.append(row);
-  }
-
-  if (summaryForActions) {
-    const actions = document.createElement('div');
-    actions.className = 'sf-inline-diff-actions';
-
-    // 走 mousedown + preventDefault：抢在 Monaco 的鼠标处理（移光标/夺焦点）之前触发，
-    // 否则点击会先被编辑器吞掉，表现为「接受只能用快捷键、点不动」。
-    const accept = document.createElement('button');
-    accept.type = 'button';
-    accept.className = 'sf-inline-btn-accept';
-    accept.textContent = '接受 (Alt+Enter)';
-    accept.addEventListener('mousedown', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      handlers.onAccept();
-    });
-
-    const reject = document.createElement('button');
-    reject.type = 'button';
-    reject.className = 'sf-inline-btn-reject';
-    reject.textContent = '弃用 (Esc)';
-    reject.addEventListener('mousedown', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      handlers.onReject();
-    });
-
-    const note = document.createElement('span');
-    note.className = 'sf-inline-diff-note';
-    const noteParts = [`+${summaryForActions.addedLines} / -${summaryForActions.removedLines}`];
-    if (summaryForActions.hunkCount > 1) noteParts.push(`共 ${summaryForActions.hunkCount} 处`);
-    if (summaryForActions.droppedOffAnchor > 0) {
-      noteParts.push(`已忽略别处 ${summaryForActions.droppedOffAnchor} 处`);
-    }
-    note.textContent = noteParts.join(' · ');
-
-    actions.append(accept, reject, note);
-    container.append(actions);
-  }
-
-  return container;
 }

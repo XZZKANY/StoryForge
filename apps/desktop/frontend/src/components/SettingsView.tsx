@@ -1,7 +1,11 @@
+import { Field, type FieldControlProps, DialogSurface, Button, Input, Select } from './ui';
+import { AppDialogHost, useAppDialog } from './app/AppDialog';
+
 import {
   createContext,
   useContext,
   useEffect,
+  useId,
   useRef,
   useState,
   type ReactNode,
@@ -15,7 +19,7 @@ import {
   type ProviderKind,
   type ThemeMode,
 } from '../lib/user-settings';
-import { Info, Palette, Sparkles, Type } from './icons/shell-icons';
+import { Info, Palette, Pencil, Sparkles, Type } from './icons/shell-icons';
 import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from './editor/options';
 import { checkForUpdate, currentAppVersion, type UpdateCheckResult } from '../lib/update-check';
 import { useProviderSettings, type ProbeState } from './settings/useProviderSettings';
@@ -34,7 +38,14 @@ type SettingsViewProps = {
   fallbackFocusRef?: RefObject<HTMLElement>;
 };
 
-const settingsNav = ['返回', '模型服务', '外观', '编辑器', '关于'] as const;
+/**
+ * 设置左栏锚点导航。
+ *
+ * 此前与「返回」动作混在同一个 const 里再靠 slice(1) 跳过首项，且缺「润色模型」一项
+ * （该分组的 id 已就位却无法从导航到达，只能滚动或靠设置搜索发现）。拆成纯锚点列表后
+ * 增删一项不会再多渲染一个无锚点的假导航项。
+ */
+const settingsNav = ['模型服务', '润色模型', '外观', '编辑器', '关于'] as const;
 
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemeMode; label: string }> = [
   { value: 'dark', label: '深色' },
@@ -60,18 +71,6 @@ const SettingsSearchContext = createContext('');
 
 export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: SettingsViewProps) {
   const searchRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const opener = document.activeElement;
-    const fallback = fallbackFocusRef?.current;
-    searchRef.current?.focus();
-    return () => {
-      const target =
-        opener instanceof HTMLElement && opener.isConnected && opener !== document.body
-          ? opener
-          : fallback;
-      if (target?.isConnected) target.focus({ preventScroll: true });
-    };
-  }, [fallbackFocusRef]);
   const safeSettings = sanitizeAppSettings(settings);
   const [searchQuery, setSearchQuery] = useState('');
   const {
@@ -100,121 +99,125 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
     clearProviderSecret,
     savePolishProviderConfig,
     clearPolishProviderSecret,
+    unsavedSlots,
   } = useProviderSettings(safeSettings, onChange);
+  // 破坏性操作（移除已存密钥 / 恢复默认设置）先经 AppDialog 确认，不走静默直改。
+  const confirmDialog = useAppDialog();
+  const mainRef = useRef<HTMLElement | null>(null);
+  const [activeGroup, setActiveGroup] = useState<string>('provider');
+  const hasUnsaved = unsavedSlots.provider || unsavedSlots.polishProvider;
+  // 关闭守卫：模型配置有未保存草稿时先确认，避免 Esc/点遮罩/返回静默丢草稿。
+  const requestClose = () => {
+    if (!hasUnsaved) {
+      onClose();
+      return;
+    }
+    void confirmDialog
+      .confirm({
+        title: '放弃未保存的更改？',
+        message:
+          '模型服务或润色模型的修改尚未点「保存并应用」，关闭后这些草稿将丢失；此前已保存到本机的配置不受影响。',
+        confirmLabel: '放弃并关闭',
+        cancelLabel: '继续编辑',
+        tone: 'danger',
+      })
+      .then((confirmed) => {
+        if (confirmed) onClose();
+      });
+  };
+  // Scrollspy：主区滚动时把视口上沿附近的分组标成当前导航项。搜索隐藏（display:none）
+  // 的分组不产生 isIntersecting，active 自然停在最后一个可见组。
+  useEffect(() => {
+    const root = mainRef.current;
+    if (!root || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setActiveGroup(entry.target.id);
+        }
+      },
+      { root, rootMargin: '-20% 0px -70% 0px' },
+    );
+    for (const label of settingsNav) {
+      const section = root.querySelector(`#${navAnchor(label)}`);
+      if (section) observer.observe(section);
+    }
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
-      onMouseDown={onClose}
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4 animate-fade-in"
+      data-modal-backdrop=""
     >
-      <section
+      <DialogSurface
+        dismissOutside
+        onClose={requestClose}
+        initialFocusRef={searchRef}
+        fallbackFocusRef={fallbackFocusRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
-        className="flex h-[85vh] max-h-[760px] w-full max-w-[940px] overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-dropdown"
+        className="flex h-[85vh] max-h-[760px] w-full max-w-[940px] overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-dialog animate-slide-up-fade"
         data-testid="settings-view"
-        onMouseDown={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          // 设置里的按键不交给背景工作区；保留输入控件的复制、粘贴与原生选择行为。
-          event.stopPropagation();
-          if (event.nativeEvent.isComposing) return;
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            onClose();
-          }
-          if (event.key !== 'Tab') return;
-          const container = event.currentTarget;
-          const focusables = Array.from(
-            container.querySelectorAll<HTMLElement>(
-              'button, a[href], input, select, textarea, summary, [tabindex]',
-            ),
-          ).filter((element) => {
-            if (
-              element.tabIndex < 0 ||
-              element.matches(':disabled') ||
-              element.closest('[hidden], [inert]')
-            )
-              return false;
-            for (
-              let parent: HTMLElement | null = element;
-              parent && parent !== container;
-              parent = parent.parentElement
-            ) {
-              const style = getComputedStyle(parent);
-              if (style.display === 'none' || style.visibility === 'hidden') return false;
-              if (
-                parent.tagName === 'DETAILS' &&
-                !parent.hasAttribute('open') &&
-                !element.closest('summary')
-              )
-                return false;
-            }
-            return true;
-          });
-          const first = focusables[0];
-          const last = focusables[focusables.length - 1];
-          if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last?.focus();
-          } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first?.focus();
-          }
-        }}
       >
         <aside className="flex w-48 flex-shrink-0 flex-col bg-panel px-3 py-3">
-          <button
-            className="mb-5 flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-muted hover:bg-elevated hover:text-foreground"
-            onClick={onClose}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="mb-5 flex items-center gap-2 text-left text-sm"
+            onClick={requestClose}
             data-testid="settings-close"
           >
             <span className="text-lg leading-none">‹</span>
             <span>返回</span>
-          </button>
+          </Button>
 
           <nav className="space-y-1">
-            {settingsNav.slice(1).map((item) => (
-              <a
-                key={item}
-                href={`#${navAnchor(item)}`}
-                className="flex h-9 items-center gap-2 rounded-md px-2 text-sm text-muted no-underline hover:bg-elevated hover:text-foreground"
-              >
-                <span className="grid h-5 w-5 place-items-center text-subtle">
-                  <NavIcon label={item} />
-                </span>
-                <span className="truncate">{item}</span>
-              </a>
-            ))}
+            {settingsNav.map((item) => {
+              const anchor = navAnchor(item);
+              const active = anchor === activeGroup;
+              return (
+                <a
+                  key={item}
+                  href={`#${anchor}`}
+                  aria-current={active ? 'true' : undefined}
+                  className={`flex h-9 items-center gap-2 rounded-md px-2 text-sm no-underline transition-colors hover:bg-elevated hover:text-foreground ${
+                    active ? 'bg-elevated text-foreground' : 'text-muted'
+                  }`}
+                >
+                  <span className="grid h-5 w-5 place-items-center text-subtle">
+                    <NavIcon label={item} />
+                  </span>
+                  <span className="truncate">{item}</span>
+                </a>
+              );
+            })}
           </nav>
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-y-auto">
+        <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
           <SettingsSearchContext.Provider value={searchQuery}>
             <div className="mx-auto w-full max-w-[850px] px-6 py-6">
               <h1 id="settings-title" className="mb-4 text-xl font-semibold text-foreground">
                 设置
               </h1>
 
-              <input
+              <Input
                 ref={searchRef}
                 aria-label="搜索设置"
                 type="text"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  // 有查询时 Esc 先清搜索（不就手关掉整个设置窗），空查询时才放行给弹层关闭。
+                  if (event.key === 'Escape' && searchQuery) {
+                    event.stopPropagation();
+                    setSearchQuery('');
+                  }
+                }}
                 placeholder="搜索设置…"
-                className="mb-6 h-9 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground outline-none placeholder:text-subtle focus:border-accent"
-                style={{
-                  boxShadow: 'var(--shadow-inset)',
-                  transition:
-                    'border-color var(--transition-fast), box-shadow var(--transition-fast)',
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.boxShadow =
-                    'var(--shadow-inset), 0 0 0 3px rgb(var(--accent) / 0.1)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
-                }}
+                className="mb-6 bg-surface"
                 data-testid="settings-search"
               />
 
@@ -228,15 +231,17 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                   <p className="mt-1 text-xs text-muted">
                     输入已保留。可以重新读取，或重新保存配置。
                   </p>
-                  <button
+                  <Button
                     type="button"
-                    className="mt-2 rounded-md border border-border px-3 py-1 hover:bg-elevated"
+                    size="sm"
+                    variant="secondary"
+                    className="mt-2"
                     data-testid="provider-config-retry"
                     disabled={writeOperation !== null}
                     onClick={() => void loadConfig()}
                   >
                     重试读取
-                  </button>
+                  </Button>
                 </div>
               )}
               {loadState === 'loading' && (
@@ -245,7 +250,16 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                 </p>
               )}
               <div className="sf-settings-list">
-                <SettingGroup id="provider" title="模型服务">
+                <SettingGroup
+                  id="provider"
+                  title="模型服务"
+                  badge={
+                    <UnsavedBadge
+                      visible={unsavedSlots.provider}
+                      testId="settings-unsaved-provider"
+                    />
+                  }
+                >
                   <SettingCard>
                     <SelectRow
                       title="服务类型"
@@ -326,7 +340,20 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                         title="移除已保存密钥"
                         description="删除本机保存的 provider API key，并保留服务地址与模型。"
                         actionLabel="移除密钥"
-                        onAction={clearProviderSecret}
+                        onAction={() =>
+                          void confirmDialog
+                            .confirm({
+                              title: '移除已保存密钥？',
+                              message:
+                                '将删除本机配置文件里保存的 provider API key，服务地址与模型会保留；之后调用模型前需要重新填写密钥。',
+                              confirmLabel: '移除密钥',
+                              cancelLabel: '取消',
+                              tone: 'danger',
+                            })
+                            .then((confirmed) => {
+                              if (confirmed) clearProviderSecret();
+                            })
+                        }
                         disabled={writeOperation !== null}
                       />
                     )}
@@ -335,7 +362,16 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                   </SettingCard>
                 </SettingGroup>
 
-                <SettingGroup id="polish-provider" title="专用润色模型">
+                <SettingGroup
+                  id="polish-provider"
+                  title="专用润色模型"
+                  badge={
+                    <UnsavedBadge
+                      visible={unsavedSlots.polishProvider}
+                      testId="settings-unsaved-polish-provider"
+                    />
+                  }
+                >
                   <SettingCard>
                     <SelectRow
                       title="服务类型"
@@ -415,7 +451,20 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                         title="移除润色模型密钥"
                         description="清除专用槽位密钥；之后润色不会自动改用主模型。"
                         actionLabel="移除密钥"
-                        onAction={clearPolishProviderSecret}
+                        onAction={() =>
+                          void confirmDialog
+                            .confirm({
+                              title: '移除润色模型密钥？',
+                              message:
+                                '将删除本机配置文件里保存的专用润色模型 API key；之后发起润色前需要重新填写密钥，润色不会自动改用主对话模型。',
+                              confirmLabel: '移除密钥',
+                              cancelLabel: '取消',
+                              tone: 'danger',
+                            })
+                            .then((confirmed) => {
+                              if (confirmed) clearPolishProviderSecret();
+                            })
+                        }
                         disabled={writeOperation !== null}
                       />
                     )}
@@ -511,7 +560,20 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                       title="恢复默认设置"
                       description="重置本机 StoryForge 桌面偏好。"
                       actionLabel="恢复默认"
-                      onAction={resetSettings}
+                      onAction={() =>
+                        void confirmDialog
+                          .confirm({
+                            title: '恢复默认设置？',
+                            message:
+                              '将把主题、编辑器等本机偏好全部重置为默认值；模型服务配置与已保存的密钥不受影响。',
+                            confirmLabel: '恢复默认',
+                            cancelLabel: '取消',
+                            tone: 'danger',
+                          })
+                          .then((confirmed) => {
+                            if (confirmed) resetSettings();
+                          })
+                      }
                     />
                   </SettingCard>
                 </SettingGroup>
@@ -528,7 +590,12 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
             </div>
           </SettingsSearchContext.Provider>
         </main>
-      </section>
+      </DialogSurface>
+      <AppDialogHost
+        dialog={confirmDialog.dialog}
+        onClose={confirmDialog.closeDialog}
+        onPromptValueChange={confirmDialog.updatePromptValue}
+      />
     </div>
   );
 }
@@ -576,20 +643,26 @@ function ModelDetectRow({
               {status}
             </span>
           )}
-          <button
+          <Button
             type="button"
             onClick={onDetect}
+            loading={state === 'loading'}
             aria-describedby="provider-detect-models-description"
             disabled={disabled || state === 'loading'}
-            className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
+            size="sm"
+            variant="secondary"
+            className="flex-shrink-0 text-sm"
             data-testid="provider-detect-models"
           >
             探测模型
-          </button>
+          </Button>
         </div>
       </RowShell>
       {models.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-4 py-3" data-testid="provider-model-options">
+        <div
+          className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto px-4 py-3"
+          data-testid="provider-model-options"
+        >
           {models.map((model) => (
             <button
               key={model}
@@ -644,16 +717,18 @@ function ProbeRow({
             {state === 'loading' ? '检测中…' : display?.label}
           </span>
         )}
-        <button
+        <Button
           type="button"
           onClick={onProbe}
           aria-describedby="provider-health-probe-description"
           disabled={disabled || state === 'loading'}
-          className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
+          size="sm"
+          variant="secondary"
+          className="flex-shrink-0 text-sm"
           data-testid="provider-health-probe"
         >
           测试连接
-        </button>
+        </Button>
       </div>
     </RowShell>
   );
@@ -680,14 +755,37 @@ function ProviderRuntimeEnvNotice() {
   );
 }
 
-function SettingGroup({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+function SettingGroup({
+  id,
+  title,
+  badge = null,
+  children,
+}: {
+  id: string;
+  title: string;
+  badge?: ReactNode;
+  children: ReactNode;
+}) {
   // sf-settings-group + sf-settings-card：搜索过滤后若卡片内全部行 null 渲染 → 卡片 :empty，
   // 整组（含标题）随之 CSS 隐藏，不再留空标题/空卡壳（见 index.css）。
   return (
     <section id={id} className="sf-settings-group mb-8 scroll-mt-6">
-      <h2 className="mb-3 text-sm font-medium text-foreground">{title}</h2>
+      <h2 className="mb-3 text-sm font-medium text-foreground">
+        {title}
+        {badge}
+      </h2>
       {children}
     </section>
+  );
+}
+
+/** 「未保存」徽标：仅在对应槽位草稿与磁盘基线不一致时出现，保存成功后自然消失。 */
+function UnsavedBadge({ visible, testId }: { visible: boolean; testId: string }) {
+  if (!visible) return null;
+  return (
+    <span className="ml-2 text-xs font-normal text-warning" data-testid={testId}>
+      ● 未保存
+    </span>
   );
 }
 
@@ -704,12 +802,26 @@ function RowShell({
 }: {
   title: string;
   description: string;
-  children: ReactNode;
+  children: ReactNode | ((control: FieldControlProps) => ReactNode);
   controlId?: string;
   descriptionId?: string;
 }) {
   const query = useContext(SettingsSearchContext).trim().toLowerCase();
   if (query && !`${title} ${description}`.toLowerCase().includes(query)) return null;
+  if (controlId)
+    return (
+      <Field
+        id={controlId}
+        label={title}
+        description={description}
+        descriptionId={descriptionId}
+        layout="horizontal"
+        className="min-h-[76px] px-4 py-3"
+      >
+        {(control) => (typeof children === 'function' ? children(control) : children)}
+      </Field>
+    );
+
   return (
     <div className="flex min-h-[76px] items-center gap-4 px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -727,7 +839,7 @@ function RowShell({
           {description}
         </div>
       </div>
-      <div className="flex-shrink-0">{children}</div>
+      <div className="flex-shrink-0">{typeof children === 'function' ? null : children}</div>
     </div>
   );
 }
@@ -743,23 +855,28 @@ function ToggleRow({
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
+  // controlId 走 RowShell 的 Field 分支：标题成为真 label，点标题也能切开关；
+  // 按钮改名职责交给 label 关联，不再自带 aria-label。
+  const controlId = useId();
   return (
-    <RowShell title={title} description={description}>
-      <button
-        type="button"
-        aria-pressed={checked}
-        aria-label={title}
-        onClick={() => onChange(!checked)}
-        className={`relative h-[22px] w-[38px] rounded-full transition-colors ${
-          checked ? 'bg-accent' : 'bg-border-strong'
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 h-[18px] w-[18px] rounded-full transition-transform ${
-            checked ? 'translate-x-[18px] bg-accent-foreground' : 'translate-x-0.5 bg-foreground'
+    <RowShell title={title} description={description} controlId={controlId}>
+      {(control) => (
+        <button
+          {...control}
+          type="button"
+          aria-pressed={checked}
+          onClick={() => onChange(!checked)}
+          className={`relative h-[22px] w-[38px] rounded-full transition-colors ${
+            checked ? 'bg-accent hover:bg-accent/90' : 'bg-border-strong hover:bg-border'
           }`}
-        />
-      </button>
+        >
+          <span
+            className={`absolute top-0.5 h-[18px] w-[18px] rounded-full transition-transform ${
+              checked ? 'translate-x-[18px] bg-accent-foreground' : 'translate-x-0.5 bg-foreground'
+            }`}
+          />
+        </button>
+      )}
     </RowShell>
   );
 }
@@ -789,23 +906,24 @@ function RangeRow({
 }) {
   return (
     <RowShell title={title} description={description} controlId={testId}>
-      <div className="flex items-center gap-3">
-        <input
-          type="range"
-          id={testId}
-          aria-describedby={`${testId}-description`}
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(event) => onChange(Number(event.target.value))}
-          className="w-40 accent-accent"
-          data-testid={testId}
-        />
-        <span className="w-14 text-right text-sm tabular-nums text-foreground">
-          {formatValue ? formatValue(value) : `${value}${unit}`}
-        </span>
-      </div>
+      {(control) => (
+        <div className="flex items-center gap-3">
+          <input
+            type="range"
+            {...control}
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={(event) => onChange(Number(event.target.value))}
+            className="w-40 accent-accent"
+            data-testid={testId}
+          />
+          <span className="w-14 whitespace-nowrap text-right text-sm tabular-nums text-foreground">
+            {formatValue ? formatValue(value) : `${value}${unit}`}
+          </span>
+        </div>
+      )}
     </RowShell>
   );
 }
@@ -829,27 +947,18 @@ function TextRow({
 }) {
   return (
     <RowShell title={title} description={description} controlId={testId}>
-      <input
-        type={type}
-        id={testId}
-        aria-describedby={`${testId}-description`}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-8 w-[260px] rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none placeholder:text-subtle focus:border-accent"
-        style={{
-          boxShadow: 'var(--shadow-inset)',
-          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.boxShadow =
-            'var(--shadow-inset), 0 0 0 3px rgb(var(--accent) / 0.1)';
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
-        }}
-        data-testid={testId}
-      />
+      {(control) => (
+        <Input
+          type={type}
+          {...control}
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+          controlSize="sm"
+          className="w-[260px]"
+          data-testid={testId}
+        />
+      )}
     </RowShell>
   );
 }
@@ -871,31 +980,22 @@ function SelectRow({
 }) {
   return (
     <RowShell title={title} description={description} controlId={testId}>
-      <select
-        id={testId}
-        aria-describedby={`${testId}-description`}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-8 w-[180px] rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-accent"
-        style={{
-          boxShadow: 'var(--shadow-inset)',
-          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.boxShadow =
-            'var(--shadow-inset), 0 0 0 3px rgb(var(--accent) / 0.1)';
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
-        }}
-        data-testid={testId}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      {(control) => (
+        <Select
+          {...control}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          controlSize="sm"
+          className="w-[180px]"
+          data-testid={testId}
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+      )}
     </RowShell>
   );
 }
@@ -925,7 +1025,7 @@ function ActionRow({
       <div className="flex items-center gap-2.5">
         {status && (
           <span
-            className={`max-w-[220px] whitespace-pre-wrap break-words text-xs ${
+            className={`max-w-[280px] whitespace-pre-wrap break-words text-xs ${
               status.tone === 'error' ? 'text-error' : 'text-success'
             }`}
             role={status.tone === 'error' ? 'alert' : 'status'}
@@ -934,31 +1034,41 @@ function ActionRow({
             {status.text}
           </span>
         )}
-        <button
-          className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
+        <Button
+          size="sm"
+          variant="secondary"
+          className="flex-shrink-0 text-sm"
           onClick={onAction}
           disabled={disabled}
         >
           {actionLabel}
-        </button>
+        </Button>
       </div>
     </RowShell>
   );
 }
 
-function navAnchor(label: string): string {
+function navAnchor(label: (typeof settingsNav)[number]): string {
   if (label === '模型服务') return 'provider';
+  if (label === '润色模型') return 'polish-provider';
   if (label === '外观') return 'appearance';
   if (label === '编辑器') return 'editor';
-  if (label === '关于') return 'about';
-  return 'provider';
+  return 'about';
 }
 
 /** 设置左栏图标走 Lucide（此前是 ◈ ◐ ▤ ⓘ 四个 Unicode 字形，Win11 下会被字体替换成异形，
  *  且与全站唯一图标源 shell-icons 割裂 —— 那个模块的存在理由就是「取代旧的 Unicode/字形图标」）。 */
 function NavIcon({ label }: { label: string }) {
   const Icon =
-    label === '模型服务' ? Sparkles : label === '外观' ? Palette : label === '编辑器' ? Type : Info;
+    label === '模型服务'
+      ? Sparkles
+      : label === '润色模型'
+        ? Pencil
+        : label === '外观'
+          ? Palette
+          : label === '编辑器'
+            ? Type
+            : Info;
   return <Icon size={15} strokeWidth={1.6} />;
 }
 
@@ -1031,15 +1141,17 @@ function AboutRows() {
               {updateLabel}
             </span>
           )}
-          <button
+          <Button
             type="button"
             onClick={() => void runUpdateCheck()}
             disabled={updateProbe === 'loading'}
-            className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
+            size="sm"
+            variant="secondary"
+            className="flex-shrink-0 text-sm"
             data-testid="about-update-check"
           >
             检查更新
-          </button>
+          </Button>
         </div>
       </RowShell>
     </>

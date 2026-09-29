@@ -114,8 +114,8 @@ export function useKnowledgeInbox(projectRoot: string | null) {
       group: ApiKnowledgeProposalGroup,
       proposalId: string,
       edited: ApiKnowledgeProposalItemEdit,
-    ) => {
-      if (!projectRoot) return;
+    ): Promise<boolean> => {
+      if (!projectRoot) return false;
       setBusyProposalId(proposalId);
       try {
         const next = await reviseKnowledgeProposalGroup({
@@ -129,8 +129,10 @@ export function useKnowledgeInbox(projectRoot: string | null) {
         setInbox(next);
         setReviewPatch(null);
         setError('');
+        return true;
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
+        return false;
       } finally {
         setBusyProposalId(null);
       }

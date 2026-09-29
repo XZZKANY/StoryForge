@@ -10,6 +10,7 @@ import {
   siblingPath,
 } from '../../lib/fs-path-ops';
 import type { AppDialogApi } from './AppDialog';
+import { emitToast } from '../../lib/toast';
 
 type UseFileTreeActionsOptions = {
   activeProject: string | null;
@@ -65,6 +66,7 @@ export function useFileTreeActions({
       try {
         if (await TauriFileSystem.pathExists(target)) {
           await openFile(target, '打开已有文件');
+          emitToast('该文件已存在，已为你打开');
           return;
         }
         await TauriFileSystem.writeFile(activeProject, target, '# 新建文件\n\n');

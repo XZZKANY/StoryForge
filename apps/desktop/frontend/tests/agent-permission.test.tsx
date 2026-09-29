@@ -80,7 +80,8 @@ test('补丁上的确认位失败关闭：只有后端显式 false 才免点击'
 
   assert.equal(writableFilePatch(patchMessage({ ...base }))?.requires_confirmation, true);
   assert.equal(
-    writableFilePatch(patchMessage({ ...base, requires_confirmation: true }))?.requires_confirmation,
+    writableFilePatch(patchMessage({ ...base, requires_confirmation: true }))
+      ?.requires_confirmation,
     true,
   );
   assert.equal(

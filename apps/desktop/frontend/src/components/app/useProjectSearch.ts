@@ -30,6 +30,7 @@ export function useProjectSearch(projectPath: string | null) {
   const [status, setStatus] = useState<SearchStatus>('idle');
   const [error, setError] = useState('');
   const [capped, setCapped] = useState(false);
+  const [skippedFiles, setSkippedFiles] = useState(0);
   const seqRef = useRef(0);
 
   const runSearch = useCallback(
@@ -41,12 +42,14 @@ export function useProjectSearch(projectPath: string | null) {
         setStatus('idle');
         setError('');
         setCapped(false);
+        setSkippedFiles(0);
         return;
       }
 
       setStatus('searching');
       setError('');
       setCapped(false);
+      setSkippedFiles(0);
 
       try {
         const entries = await TauriFileSystem.listDir(projectPath, true);
@@ -59,6 +62,7 @@ export function useProjectSearch(projectPath: string | null) {
         const collected: SearchFileResult[] = [];
         let total = 0;
         let hitCap = false;
+        let unreadable = 0;
 
         for (let offset = 0; offset < files.length; offset += READ_CONCURRENCY) {
           if (seq !== seqRef.current) return;
@@ -72,7 +76,9 @@ export function useProjectSearch(projectPath: string | null) {
               try {
                 return { path, content: await TauriFileSystem.readProjectFile(projectPath, path) };
               } catch {
-                // 单个文件读不动（权限 / 正被占用）不该让整次搜索失败，跳过即可。
+                // 单个文件读不动（权限 / 正被占用）不该让整次搜索失败，跳过即可，
+                // 但计数要浮上摘要——否则搜索「完成且零错误」结果却悄悄缺文件。
+                unreadable += 1;
                 return null;
               }
             }),
@@ -89,11 +95,13 @@ export function useProjectSearch(projectPath: string | null) {
             total += hits.length;
           }
           // 边搜边出：长项目不至于一直空白等到最后。
+          setSkippedFiles(unreadable);
           setResults([...collected]);
         }
 
         if (seq !== seqRef.current) return;
         setResults(collected);
+        setSkippedFiles(unreadable);
         setCapped(hitCap || total >= MAX_TOTAL_HITS);
         setStatus('done');
       } catch (err) {
@@ -118,6 +126,7 @@ export function useProjectSearch(projectPath: string | null) {
     setStatus('idle');
     setError('');
     setCapped(false);
+    setSkippedFiles(0);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [projectPath]);
 
@@ -130,6 +139,7 @@ export function useProjectSearch(projectPath: string | null) {
     status,
     error,
     capped,
+    skippedFiles,
     totalHits: countHits(results),
     rerun: () => void runSearch(query, caseSensitive),
   };

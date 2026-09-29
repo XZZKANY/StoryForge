@@ -56,7 +56,10 @@ test('书名为空回落到目录名，显式起名后不再跟着目录走', ()
   const profile = emptyBookProfile();
   assert.equal(displayBookTitle(profile, 'D:\\连载\\末世吞噬'), '末世吞噬');
   assert.equal(displayBookTitle(profile, '/home/w/books/雪夜斩/'), '雪夜斩');
-  assert.equal(displayBookTitle({ ...profile, title: '另一个名字' }, 'D:\\连载\\末世吞噬'), '另一个名字');
+  assert.equal(
+    displayBookTitle({ ...profile, title: '另一个名字' }, 'D:\\连载\\末世吞噬'),
+    '另一个名字',
+  );
 });
 
 test('序列化字段序稳定且以换行收尾，往返不丢信息', () => {

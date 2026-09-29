@@ -4,6 +4,7 @@ import {
   getDesktopLlmConfig,
   saveDesktopLlmConfig,
   type DesktopLlmConfig,
+  type DesktopLlmSlotConfig,
 } from '../../lib/desktop-llm-config';
 import {
   describeProviderHealth,
@@ -19,6 +20,18 @@ type WriteOperation = Slot | 'detect';
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const scopeKey = (provider: AppSettings['provider'], secret: string) =>
   JSON.stringify([provider.kind, provider.baseUrl, provider.model, secret]);
+// 磁盘基线键与 scopeKey 同构（secret 恒为 ''，本机从不回读密钥明文）；kind 归一与
+// loadConfig 的 merge 一致，保证「读取完成 ≠ 未保存」。
+const storedKey = (slot: Slot, value: DesktopLlmSlotConfig) =>
+  scopeKey(
+    {
+      kind: isProviderKind(value.provider) ? value.provider : DEFAULT_APP_SETTINGS[slot].kind,
+      baseUrl: value.baseUrl.trim(),
+      model: value.model.trim(),
+      apiKeyRef: '',
+    },
+    '',
+  );
 
 // These requests share one on-disk document. Keep UI delivery scoped, but never
 // release the write claim merely because the author edits a field while awaiting it.
@@ -40,6 +53,11 @@ export function useProviderSettings(settings: AppSettings, onChange: (next: AppS
   const [loadState, setLoadState] = useState<'loading' | 'idle' | 'error'>('loading');
   const [loadError, setLoadError] = useState('');
   const [writeOperation, setWriteOperation] = useState<WriteOperation | null>(null);
+  // 每槽位「最近一次落盘时的 scopeKey」；null = 尚未成功读取磁盘，不据此报未保存。
+  const [baseline, setBaseline] = useState<{
+    provider: string | null;
+    polishProvider: string | null;
+  }>({ provider: null, polishProvider: null });
   const writeRef = useRef<symbol | null>(null);
   const readRef = useRef(0);
   const probeRef = useRef(0);
@@ -139,10 +157,20 @@ export function useProviderSettings(settings: AppSettings, onChange: (next: AppS
                 : '',
             };
           };
-          commit({
-            ...latest,
-            provider: merge('provider', config),
-            polishProvider: merge('polishProvider', config.polish),
+          const mergedProvider = merge('provider', config);
+          const mergedPolish = merge('polishProvider', config.polish);
+          commit({ ...latest, provider: mergedProvider, polishProvider: mergedPolish });
+          // 未保存基线 = 磁盘现状：未编辑槽位取 merge 结果（保证读取完成即无未保存）；
+          // 已编辑槽位取磁盘原值，草稿偏离原值即报未保存；磁盘缺失 polish 槽位时无法
+          // 对比，按当前值收口不误报。
+          setBaseline({
+            provider: dirtyRef.current.provider
+              ? storedKey('provider', config)
+              : scopeKey(mergedProvider, ''),
+            polishProvider:
+              config.polish !== null && dirtyRef.current.polishProvider
+                ? storedKey('polishProvider', config.polish)
+                : scopeKey(mergedPolish, ''),
           });
         }
         setLoadState('idle');
@@ -251,6 +279,8 @@ export function useProviderSettings(settings: AppSettings, onChange: (next: AppS
         if (next) {
           const latest = latestRef.current.settings;
           const saved = slot === 'provider' ? next : next.polish;
+          // 落盘成功即刷新该槽位基线：表单与磁盘重新一致，「未保存」徽标随之消失。
+          if (saved) setBaseline((prev) => ({ ...prev, [slot]: storedKey(slot, saved) }));
           commit({
             ...latest,
             [slot]: {
@@ -283,6 +313,16 @@ export function useProviderSettings(settings: AppSettings, onChange: (next: AppS
     }
   };
 
+  // 未保存判定：当前表单（含密钥输入草稿）与最近一次落盘基线不一致；基线为 null
+  // （读取失败或尚未读完）时不报未保存、不拦关窗，无法判断就不误报。
+  const unsavedSlots = {
+    provider:
+      baseline.provider !== null && scopeKey(settings.provider, secretInput) !== baseline.provider,
+    polishProvider:
+      baseline.polishProvider !== null &&
+      scopeKey(settings.polishProvider, polishSecretInput) !== baseline.polishProvider,
+  };
+
   return {
     update,
     resetSettings,
@@ -300,6 +340,7 @@ export function useProviderSettings(settings: AppSettings, onChange: (next: AppS
     loadState,
     loadError,
     writeOperation,
+    unsavedSlots,
     loadConfig: () => {
       if (writeRef.current) return;
       setLoadState('loading');

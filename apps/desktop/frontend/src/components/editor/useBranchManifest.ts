@@ -11,6 +11,7 @@ import {
   type BranchInfo,
   type BranchManifest,
 } from '../../lib/branches';
+import { emitToast } from '../../lib/toast';
 
 export function useBranchManifest(projectPath: string | null, filePath: string | null) {
   const [branchManifest, setBranchManifest] = useState<BranchManifest>(() => emptyManifest());
@@ -52,6 +53,9 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
       await saveBranchManifest(project, path, manifest);
     } catch (err) {
       console.error('写入分支清单失败:', err);
+      emitToast(`分支清单保存失败：${err instanceof Error ? err.message : String(err)}`, {
+        tone: 'error',
+      });
     }
   }, []);
 

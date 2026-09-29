@@ -83,14 +83,15 @@ test('展开权限菜单时 Composer 不裁切向上的浮层', () => {
   const trigger = container.querySelector(
     '[data-testid="permission-profile-selector"]',
   ) as HTMLButtonElement;
+  const composer = trigger.closest<HTMLElement>('[data-testid="composer-surface"]')!;
+  vi.spyOn(composer, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 500, 320, 100));
   act(() => trigger.click());
 
-  const menu = container.querySelector('[role="listbox"]');
-  const composer = trigger.closest('.group');
+  const menu = document.querySelector<HTMLElement>('[role="listbox"]');
   assert.ok(menu, '权限菜单没有展开');
   assert.ok(composer, '找不到 Composer 外层');
-  assert.ok(menu.classList.contains('inset-x-0'), '菜单应跟随整个 Composer 的宽度');
-  assert.equal(menu.parentElement?.closest('.relative'), composer, '不能继续相对权限按钮偏移定位');
+  assert.equal(menu.style.width, '320px', '菜单应跟随整个 Composer 的宽度');
+  assert.equal(menu.parentElement, document.body, '浮层通过 portal 避开祖先裁切');
   assert.equal(
     composer.classList.contains('overflow-hidden'),
     false,
@@ -122,7 +123,7 @@ function permissionTrigger() {
   return host!.querySelector<HTMLButtonElement>('[data-testid="permission-profile-selector"]')!;
 }
 function permissionOption(profile: string) {
-  return host!.querySelector<HTMLButtonElement>(`[data-testid="permission-option-${profile}"]`)!;
+  return document.querySelector<HTMLButtonElement>(`[data-testid="permission-option-${profile}"]`)!;
 }
 function pressKey(target: Element, key: string, options: KeyboardEventInit = {}) {
   const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...options });
@@ -156,7 +157,7 @@ test('打开即聚焦已选项，移动焦点不自动改变权限，显式 Ente
   expect(permissionOption('auto').getAttribute('aria-selected')).toBe('false');
   pressKey(permissionOption('auto'), 'Enter');
   expect(onPermissionChange).toHaveBeenCalledExactlyOnceWith('auto');
-  expect(host!.querySelector('[role="listbox"]')).toBeNull();
+  expect(document.querySelector('[role="listbox"]')).toBeNull();
   expect(document.activeElement).toBe(permissionTrigger());
 });
 
@@ -190,7 +191,7 @@ test('Escape 取消并回到 trigger，重新打开仍聚焦当前选择', () =>
   const escape = pressKey(permissionOption('full'), 'Escape');
   expect(escape.defaultPrevented).toBe(true);
   expect(onPermissionChange).not.toHaveBeenCalled();
-  expect(host!.querySelector('[role="listbox"]')).toBeNull();
+  expect(document.querySelector('[role="listbox"]')).toBeNull();
   expect(document.activeElement).toBe(permissionTrigger());
   act(() => permissionTrigger().click());
   expect(document.activeElement).toBe(permissionOption('ask'));
@@ -205,7 +206,7 @@ test.each(['Escape', 'Enter', ' ', 'ArrowDown', 'Home', 'End'])(
     selected.focus();
     const event = pressKey(selected, key, { isComposing: true });
     expect(event.defaultPrevented).toBe(false);
-    expect(host!.querySelector('[role="listbox"]')).not.toBeNull();
+    expect(document.querySelector('[role="listbox"]')).not.toBeNull();
     expect(document.activeElement).toBe(selected);
     expect(onPermissionChange).not.toHaveBeenCalled();
   },
@@ -220,12 +221,12 @@ test.each([{ busy: true }, { disabled: true }])(
     mountPermission(blocked);
     expect(permissionTrigger().disabled).toBe(true);
     expect(permissionTrigger().getAttribute('aria-expanded')).toBe('false');
-    expect(host!.querySelector('[role="listbox"]')).toBeNull();
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
     act(() => oldOption.click());
     pressKey(oldOption, 'Enter');
     expect(onPermissionChange).not.toHaveBeenCalled();
     mountPermission();
-    expect(host!.querySelector('[role="listbox"]')).toBeNull();
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
     expect(onPermissionChange).not.toHaveBeenCalled();
   },
 );
@@ -233,14 +234,16 @@ test.each([{ busy: true }, { disabled: true }])(
 test('fitToComposer 使用 Composer 外框定位，standalone 保留自己的相对定位', () => {
   mountPermission({ fitToComposer: true });
   act(() => permissionTrigger().click());
-  let menu = host!.querySelector<HTMLElement>('[role="listbox"]')!;
+  let menu = document.querySelector<HTMLElement>('[role="listbox"]')!;
   expect(permissionTrigger().parentElement!.classList.contains('relative')).toBe(false);
-  expect(menu.classList.contains('inset-x-0')).toBe(true);
-  expect(menu.classList.contains('w-[280px]')).toBe(false);
+  expect(menu.getAttribute('data-fit-composer')).toBe('true');
+  expect(menu.parentElement).toBe(document.body);
+  expect(menu.style.position).toBe('fixed');
+  expect(menu.hasAttribute('data-floating-surface')).toBe(true);
   mountPermission({ fitToComposer: false });
-  menu = host!.querySelector<HTMLElement>('[role="listbox"]')!;
+  menu = document.querySelector<HTMLElement>('[role="listbox"]')!;
   expect(permissionTrigger().parentElement!.classList.contains('relative')).toBe(true);
-  expect(menu.classList.contains('left-0')).toBe(true);
+  expect(menu.hasAttribute('data-fit-composer')).toBe(false);
 });
 
 test('点选只调用选中档位一次并回焦点，外部点击取消不抢外部焦点', () => {
@@ -255,10 +258,10 @@ test('点选只调用选中档位一次并回焦点，外部点击取消不抢�
   try {
     act(() => permissionTrigger().click());
     act(() => {
-      outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      outside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       outside.focus();
     });
-    expect(host!.querySelector('[role="listbox"]')).toBeNull();
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
     expect(document.activeElement).toBe(outside);
     expect(onPermissionChange).not.toHaveBeenCalled();
   } finally {
@@ -288,10 +291,9 @@ test('键盘 Tab 移到外部输入后关闭菜单，不隐式选择或抢回焦
     act(() => permissionTrigger().click());
     const selected = permissionOption('ask');
     const event = pressKey(selected, 'Tab');
-    expect(event.defaultPrevented).toBe(false);
-    // happy-dom 不执行 Tab 默认焦点导航；模拟浏览器的 focusout/in 接缝。
-    act(() => input.focus());
-    expect(host!.querySelector('[role="listbox"]')).toBeNull();
+    // Portal 位于 body 尾部，公共层按 trigger 顺序导航，不能跳到浏览器地址栏。
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
     expect(document.activeElement).toBe(input);
     expect(onPermissionChange).not.toHaveBeenCalled();
   } finally {

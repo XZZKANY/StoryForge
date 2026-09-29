@@ -4,7 +4,6 @@ export type ApiAssistantContextBundle = components['schemas']['AssistantContextB
 
 export type ApiProviderHealthResponse = components['schemas']['ProviderHealthResponse'];
 export type ApiAgentRoleRead = components['schemas']['AgentRoleRead'];
-export type ApiLivenessResponse = components['schemas']['LivenessResponse'];
 export type ApiReadinessResponse = components['schemas']['ReadinessResponse'];
 export type ApiKnowledgeProposalInbox = components['schemas']['KnowledgeProposalInboxRead'];
 export type ApiKnowledgeProposalGroup = components['schemas']['KnowledgeProposalGroupRead'];

@@ -82,7 +82,10 @@ export function Titlebar({
       <button
         className="mx-auto flex h-6 w-[340px] max-w-[38vw] items-center justify-center gap-2 rounded-md bg-background text-2xs text-subtle transition-colors hover:bg-elevated"
         onClick={onOpenPalette}
-        title="命令面板 · Ctrl P"
+        // P2-D：visible label 随 projectOpen 切换，aria-label/title 跟着切，
+        // 避免读屏器与 hover 提示和可见文案不一致。
+        aria-label={projectOpen ? '搜索文件 · Ctrl P' : '搜索命令 · Ctrl P'}
+        title={projectOpen ? '搜索文件 · Ctrl P' : '搜索命令 · Ctrl P'}
       >
         <Search size={13} strokeWidth={1.6} />
         <span>{projectOpen ? '搜索文件…' : '搜索命令…'}</span>
@@ -105,7 +108,7 @@ export function Titlebar({
           </button>
         )}
         <button
-          className="flex h-9 w-11 items-center justify-center text-muted hover:bg-elevated"
+          className="flex h-9 w-11 items-center justify-center text-muted transition-colors hover:bg-elevated active:bg-border-strong/40"
           onClick={() => void runWindowAction('minimize')}
           aria-label="最小化"
           title="最小化"
@@ -114,7 +117,7 @@ export function Titlebar({
           <Minus size={14} strokeWidth={1.6} />
         </button>
         <button
-          className="flex h-9 w-11 items-center justify-center text-muted hover:bg-elevated"
+          className="flex h-9 w-11 items-center justify-center text-muted transition-colors hover:bg-elevated active:bg-border-strong/40"
           onClick={() => void runWindowAction('maximize')}
           aria-label="最大化"
           title="最大化"
@@ -123,7 +126,7 @@ export function Titlebar({
           <Square size={12} strokeWidth={1.6} />
         </button>
         <button
-          className="flex h-9 w-11 items-center justify-center text-muted hover:bg-error hover:text-white"
+          className="flex h-9 w-11 items-center justify-center text-muted transition-colors hover:bg-error hover:text-white active:bg-error/80"
           onClick={() => void runWindowAction('close')}
           aria-label="关闭"
           title="关闭"

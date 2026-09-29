@@ -7,7 +7,9 @@ import type {
 } from '../../lib/api/contracts';
 import type { KnowledgeInboxHandle } from '../app/useKnowledgeInbox';
 import { proposalToEdit } from '../app/useKnowledgeInbox';
-import { Check, Eye, Pencil, RefreshCw, X } from '../icons/shell-icons';
+import { AppDialogHost, useAppDialog } from '../app/AppDialog';
+import { Check, Eye, Inbox, Pencil, RefreshCw, X } from '../icons/shell-icons';
+import { IconButton } from '../ui';
 import { LiveStatus } from './LiveStatus';
 import { PanelError } from './PanelError';
 
@@ -22,6 +24,8 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
     proposalId: string;
     draft: ApiKnowledgeProposalItemEdit;
   } | null>(null);
+  // 拒绝提案是终态操作（离开待处理列表、无撤销）：与全仓破坏性操作同口径，先经 AppDialog 确认。
+  const confirmDialog = useAppDialog();
   const rows = useMemo(
     () =>
       handle.inbox.items.flatMap((group) =>
@@ -50,25 +54,53 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
         <span className="font-mono text-3xs text-subtle" data-testid="knowledge-inbox-count">
           {handle.inbox.pending_count}
         </span>
-        <button
-          type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
-          title="刷新 Knowledge Inbox"
-          aria-label="刷新 Knowledge Inbox"
+        <IconButton
+          size="xs"
+          label="刷新 Knowledge Inbox"
+          icon={<RefreshCw size={13} className={handle.loading ? 'animate-spin' : ''} />}
           disabled={handle.loading}
           onClick={() => void handle.refresh()}
           data-testid="knowledge-inbox-refresh"
-        >
-          <RefreshCw size={13} className={handle.loading ? 'animate-spin' : ''} />
-        </button>
+        />
       </div>
-      <div className="grid grid-cols-4 gap-1 p-1" role="tablist">
+      <div
+        className="grid grid-cols-4 gap-1 p-1"
+        role="tablist"
+        aria-label="Knowledge Inbox 分类"
+        onKeyDown={(event) => {
+          if (
+            event.key !== 'ArrowLeft' &&
+            event.key !== 'ArrowRight' &&
+            event.key !== 'Home' &&
+            event.key !== 'End'
+          ) {
+            return;
+          }
+          const tabEls = Array.from(
+            event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]'),
+          );
+          const idx = tabEls.indexOf(document.activeElement as HTMLElement);
+          if (idx === -1) return;
+          event.preventDefault();
+          const next =
+            event.key === 'Home'
+              ? 0
+              : event.key === 'End'
+                ? tabEls.length - 1
+                : event.key === 'ArrowRight'
+                  ? (idx + 1) % tabEls.length
+                  : (idx - 1 + tabEls.length) % tabEls.length;
+          tabEls[next]?.focus();
+          tabEls[next]?.click(); // roving：移动焦点同时激活该页签（自动激活模式）
+        }}
+      >
         {(['pending', 'conflict', 'stale', 'history'] as const).map((value) => (
           <button
             key={value}
             type="button"
             role="tab"
             aria-selected={tab === value}
+            tabIndex={tab === value ? 0 : -1}
             className={`h-7 rounded-sm text-3xs ${
               tab === value ? 'bg-elevated text-foreground' : 'text-muted hover:text-foreground'
             }`}
@@ -81,9 +113,19 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
       {handle.error && (
         <PanelError title="Knowledge Inbox 操作失败" detail={handle.error} compact />
       )}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {rows.length === 0 && !handle.loading ? (
-          <p className="px-3 py-8 text-center text-2xs text-subtle">暂无条目</p>
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-3 py-8 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-elevated">
+              <Inbox size={20} strokeWidth={1.4} className="text-subtle" aria-hidden="true" />
+            </div>
+            <p className="text-xs text-muted">暂无条目</p>
+            <p className="text-2xs leading-relaxed text-subtle">
+              {tab === 'history'
+                ? '处理完成或复核过的提案会归入历史。'
+                : 'Agent 提交的知识提案会先在这里等你处理。'}
+            </p>
+          </div>
         ) : (
           rows.map(({ group, proposal }) => {
             const isEditing = editing?.proposalId === proposal.proposal_id;
@@ -101,7 +143,10 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
                     onSave={() => {
                       void handle
                         .revise(group, proposal.proposal_id, editing.draft)
-                        .then(() => setEditing(null));
+                        .then((saved) => {
+                          // 保存失败时保持编辑态与已输入草稿（失败原因在面板顶部 PanelError）。
+                          if (saved) setEditing(null);
+                        });
                     }}
                   />
                 ) : (
@@ -138,7 +183,20 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
                       type="button"
                       className="ml-auto flex h-7 items-center gap-1 rounded-sm px-2 text-3xs text-subtle hover:bg-error/10 hover:text-error"
                       disabled={handle.busyProposalId === proposal.proposal_id}
-                      onClick={() => void handle.reject(group, proposal)}
+                      data-testid={`knowledge-reject-${proposal.proposal_id}`}
+                      onClick={() =>
+                        void confirmDialog
+                          .confirm({
+                            title: '拒绝这条知识提案？',
+                            message: `「${proposal.title}」将被标记为已拒绝并离开待处理列表；拒绝后不可撤销，但仍可在「历史」页签中查看。`,
+                            confirmLabel: '拒绝提案',
+                            cancelLabel: '取消',
+                            tone: 'danger',
+                          })
+                          .then((confirmed) => {
+                            if (confirmed) return handle.reject(group, proposal);
+                          })
+                      }
                     >
                       <X size={11} /> 拒绝
                     </button>
@@ -152,6 +210,11 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
           })
         )}
       </div>
+      <AppDialogHost
+        dialog={confirmDialog.dialog}
+        onClose={confirmDialog.closeDialog}
+        onPromptValueChange={confirmDialog.updatePromptValue}
+      />
     </div>
   );
 }
@@ -221,69 +284,25 @@ function ProposalEditor({
   return (
     <div className="space-y-2">
       <input
-        className="h-8 w-full rounded-sm border border-border bg-background px-2 text-xs outline-none focus:border-agent"
-        style={{
-          boxShadow: 'var(--shadow-inset)',
-          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.boxShadow =
-            'var(--shadow-inset), 0 0 0 3px rgb(var(--agent) / 0.1)';
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
-        }}
+        className="sf-input h-8 w-full rounded-sm border border-border bg-background px-2 text-xs"
         value={draft.title}
         onChange={(event) => onChange({ ...draft, title: event.target.value })}
         aria-label="知识标题"
       />
       <textarea
-        className="min-h-20 w-full resize-y rounded-sm border border-border bg-background px-2 py-1.5 text-2xs leading-relaxed outline-none focus:border-agent"
-        style={{
-          boxShadow: 'var(--shadow-inset)',
-          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.boxShadow =
-            'var(--shadow-inset), 0 0 0 3px rgb(var(--agent) / 0.1)';
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
-        }}
+        className="sf-input min-h-20 w-full resize-y rounded-sm border border-border bg-background px-2 py-1.5 text-2xs leading-relaxed"
         value={draft.claim}
         onChange={(event) => onChange({ ...draft, claim: event.target.value })}
         aria-label="知识内容"
       />
       <input
-        className="h-8 w-full rounded-sm border border-border bg-background px-2 font-mono text-3xs outline-none focus:border-agent"
-        style={{
-          boxShadow: 'var(--shadow-inset)',
-          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.boxShadow =
-            'var(--shadow-inset), 0 0 0 3px rgb(var(--agent) / 0.1)';
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
-        }}
+        className="sf-input h-8 w-full rounded-sm border border-border bg-background px-2 font-mono text-3xs"
         value={draft.target_path}
         onChange={(event) => onChange({ ...draft, target_path: event.target.value })}
         aria-label="目标路径"
       />
       <select
-        className="h-8 w-full rounded-sm border border-border bg-background px-2 text-2xs outline-none focus:border-agent"
-        style={{
-          boxShadow: 'var(--shadow-inset)',
-          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.boxShadow =
-            'var(--shadow-inset), 0 0 0 3px rgb(var(--agent) / 0.1)';
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
-        }}
+        className="sf-input h-8 w-full rounded-sm border border-border bg-background px-2 text-2xs"
         value={draft.operation}
         onChange={(event) => onChange({ ...draft, operation: event.target.value })}
         aria-label="处理方式"
@@ -298,7 +317,7 @@ function ProposalEditor({
       </select>
       {firstSource?.type === 'project_file' && (
         <input
-          className="h-8 w-full rounded-sm border border-border bg-background px-2 font-mono text-3xs outline-none focus:border-agent"
+          className="sf-input h-8 w-full rounded-sm border border-border bg-background px-2 font-mono text-3xs"
           value={firstSource.path ?? ''}
           onChange={(event) =>
             onChange({

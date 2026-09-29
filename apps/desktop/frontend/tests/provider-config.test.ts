@@ -3,7 +3,6 @@ import { test } from 'vitest';
 
 import {
   applyProviderPreset,
-  describeProviderConnection,
   describeProviderHealth,
   isProviderKind,
   PROVIDER_RUNTIME_ENV_VARS,
@@ -42,32 +41,7 @@ test('provider configuration exposes stable presets for settings UI', () => {
   });
 });
 
-test('provider configuration describes actionable connection states', () => {
-  assert.deepEqual(
-    describeProviderConnection({
-      kind: 'local',
-      baseUrl: 'http://localhost:8000',
-      model: '',
-      apiKeyRef: '',
-    }),
-    {
-      status: 'backend-env',
-      label: '后端环境变量控制模型服务',
-    },
-  );
-
-  assert.deepEqual(
-    describeProviderConnection({
-      kind: 'openai-compatible',
-      baseUrl: 'https://api.example.com',
-      model: '',
-      apiKeyRef: '',
-    }),
-    {
-      status: 'backend-env',
-      label: '后端环境变量控制模型服务',
-    },
-  );
+test('provider configuration exposes the backend runtime environment key', () => {
   assert.ok(PROVIDER_RUNTIME_ENV_VARS.includes('STORYFORGE_LLM_API_KEY'));
 });
 

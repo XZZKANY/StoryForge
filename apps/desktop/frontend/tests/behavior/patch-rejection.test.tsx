@@ -14,6 +14,13 @@
  * 不必切到编辑器。
  */
 import assert from 'node:assert/strict';
+import { createWritebackQueue } from '../../src/lib/writeback';
+import type { DiskBaseline } from '../../src/lib/tauri-fs';
+import type { WritebackRequest } from '../../src/lib/writeback-receipt-types';
+import {
+  inspectFixtureReceipt,
+  writeFixtureReceipt,
+} from '../../src/lib/writeback-receipt-fixture';
 import { act, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
@@ -22,9 +29,41 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 const calls: string[] = [];
 
+const receiptFiles = new Map<string, string>();
+const receiptFs = {
+  pathExists: (path: string) => receiptFiles.has(path),
+  readFile: (path: string) => {
+    const content = receiptFiles.get(path);
+    if (content === undefined) throw new Error('missing');
+    return content;
+  },
+  writeFile: (path: string, content: string) => {
+    receiptFiles.set(path, content);
+  },
+};
+
 vi.mock('../../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
-    writeFile: async () => {
+    inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
+      inspectFixtureReceipt(receiptFs, project, request),
+    async writeFileWithReceipt(
+      project: string,
+      request: WritebackRequest,
+      expected: DiskBaseline,
+      checkpoint: number | null,
+    ) {
+      return writeFixtureReceipt(receiptFs, project, request, expected, checkpoint, async () => {
+        await this.writeFileIfUnchanged(project, request.path, request.content, expected);
+        receiptFiles.set(request.path, request.content);
+      });
+    },
+    writeFileIfUnchanged: async (
+      _root: string,
+      _path: string,
+      _content: string,
+      expected: DiskBaseline,
+    ) => {
+      assert.deepEqual(expected, { kind: 'content', content: BEFORE });
       calls.push('write');
     },
     deletePath: async () => {
@@ -76,15 +115,34 @@ let recordDeferred = false;
 let resolveRecord: () => void = () => undefined;
 
 function WritebackHarness() {
-  const editorRef = useRef({ getValue: () => BEFORE, getModel: () => null } as never);
+  const model = useRef({
+    getValue: () => BEFORE,
+    setValue: () => {},
+    getAlternativeVersionId: () => 1,
+  });
+  const queue = useRef(createWritebackQueue());
+  const editorRef = useRef({ getValue: () => BEFORE, getModel: () => model.current } as never);
   const originalContentRef = useRef(BEFORE);
   const cleanVersionIdRef = useRef<number | null>(null);
   const filePathRef = useRef<string | null>(FILE);
   const projectPathRef = useRef<string | null>(PROJECT);
-  const modelCacheRef = useRef(new Map());
+  const modelCacheRef = useRef(
+    new Map([
+      [
+        FILE,
+        {
+          model: model.current,
+          originalContent: BEFORE,
+          diskBaseline: { kind: 'content', content: BEFORE },
+          viewState: null,
+        },
+      ],
+    ]),
+  );
 
   const { handleAcceptSuggestion, pendingSuggestion, rejectPendingSuggestion } =
     useSuggestionWriteback({
+      enqueueWriteback: queue.current,
       editorRef,
       originalContentRef,
       cleanVersionIdRef,
@@ -225,6 +283,7 @@ let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 
 beforeEach(() => {
+  receiptFiles.clear();
   calls.length = 0;
   rejections.length = 0;
   submitted.length = 0;
@@ -298,7 +357,7 @@ test('接受写回 in-flight 时重复触发只执行一次，完成后仍走原
 
   let first!: Promise<void>;
   let second!: Promise<void>;
-  act(() => {
+  await act(async () => {
     first = accept();
     second = accept();
   });

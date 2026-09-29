@@ -1,3 +1,4 @@
+import { decodeExecutionResult, runtimeInterruptionFromResult } from './execution-outcome';
 import type {
   AgentErrorMessage,
   AgentPlanStep,
@@ -19,6 +20,7 @@ export type AgentRunEventRecord = {
 const TERMINAL_EVENT_TYPES = new Set([
   'agent_run_completed',
   'agent_run_failed',
+  'agent_run_interrupted',
   'permission_required',
 ]);
 
@@ -60,8 +62,25 @@ export function reconstructAgentResultFromEvents(
     .reverse()
     .find((event) => TERMINAL_EVENT_TYPES.has(event.event_type));
   if (terminal === undefined) return null;
+  // A same-run resume starts a new execution: an older pause/approval is not its outcome.
+  const terminalIndex = events.indexOf(terminal);
+  if (
+    events.slice(terminalIndex + 1).some((event) => event.event_type === 'agent_execution_started')
+  ) {
+    return null;
+  }
 
   const payload = asRecord(terminal.payload);
+  if (payload.execution_result !== undefined) {
+    const result = decodeExecutionResult(payload.execution_result, context);
+    if (terminal.event_type === 'agent_run_interrupted' && !runtimeInterruptionFromResult(result)) {
+      throw new Error('中断终态缺少有效的 runtime_interruption，不能恢复旧结果。');
+    }
+    return result;
+  }
+  if (terminal.event_type === 'agent_run_interrupted') {
+    throw new Error('中断终态缺少 execution_result，不能恢复旧结果。');
+  }
 
   if (terminal.event_type === 'agent_run_failed') {
     const error: AgentErrorMessage = {

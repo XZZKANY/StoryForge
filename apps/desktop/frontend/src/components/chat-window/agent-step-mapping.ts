@@ -26,6 +26,8 @@ export function planStepTitle(step: string): string {
     'judge.run': '运行 Judge',
     'judge.repair': '生成修复建议',
     'bookrun.start': '启动写作任务',
+    'agent.provider': '模型请求',
+    'writeback.auto': '自动写回准备完成',
     'context-agent': '选择上下文',
     'plot-agent': '剧情结构审稿',
     'character-agent': '人物一致性审稿',

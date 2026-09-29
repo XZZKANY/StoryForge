@@ -26,7 +26,7 @@ export type ToastDetail = {
 
 const DEFAULT_DURATION_MS = 4000;
 const ERROR_DURATION_MS = 7000;
-/** 带动作的通知要留够反悔时间：4s 不够读完一句话再决定要不要撤。 */
+/** 带动作的通知要留够反悔时间：4s 不够读完一句话再决定要不要撤（悬停/聚焦时 ToastHost 会暂停倒计时）。 */
 const ACTIONABLE_DURATION_MS = 10000;
 
 export function emitToast(

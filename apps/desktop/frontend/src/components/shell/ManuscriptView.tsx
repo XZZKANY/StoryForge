@@ -55,6 +55,7 @@ export function ManuscriptView({
   onRefresh,
   onOpenChapter,
   onBackToExplorer,
+  onDraftNextChapter,
 }: {
   snapshot: BookContextSnapshot | null;
   availability: BookContextAvailability;
@@ -62,8 +63,14 @@ export function ManuscriptView({
   onRefresh: () => void;
   onOpenChapter: (relativePath: string) => void;
   onBackToExplorer: () => void;
+  /** 「AI 起草下一章」入口：由壳层推导目标章并经事件桥交给 ChatWindow。 */
+  onDraftNextChapter?: () => void;
 }) {
   const busy = refreshing || availability === 'loading';
+  // 与按钮同源的下一章号：手稿列表空时为 1（起草第 1 章）。
+  const nextChapterOrdinal = snapshot
+    ? snapshot.chapters.reduce((max, chapter) => Math.max(max, chapter.ordinal), 0) + 1
+    : null;
   const scale = snapshot
     ? `${snapshot.totalChapters} 章 · ${formatEstimatedChars(snapshot.totalEstimatedChars)}`
     : '';
@@ -119,7 +126,7 @@ export function ManuscriptView({
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {availability !== 'available' || !snapshot ? (
           <p className="px-4 py-4 text-2xs leading-relaxed text-subtle">
             {availability === 'loading'
@@ -142,7 +149,7 @@ export function ManuscriptView({
                     <li key={chapter.relativePath}>
                       <button
                         type="button"
-                        className={`flex h-7 w-full items-center gap-2 px-2 text-left text-xs hover:bg-elevated ${
+                        className={`flex h-7 w-full items-center gap-2 px-2 text-left text-xs transition-colors hover:bg-elevated ${
                           current
                             ? 'bg-elevated text-foreground'
                             : 'text-muted hover:text-foreground'
@@ -165,6 +172,21 @@ export function ManuscriptView({
                 })}
               </ul>
             )}
+            {onDraftNextChapter && nextChapterOrdinal !== null ? (
+              <button
+                type="button"
+                className="flex h-7 w-full items-center gap-2 px-2 text-left text-xs text-agent transition-colors hover:bg-agent/10"
+                onClick={onDraftNextChapter}
+                data-testid="manuscript-draft-next"
+              >
+                <span className="w-6 flex-shrink-0 text-right font-mono text-3xs text-agent/70">
+                  +
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  AI 起草下一章 · 第 {nextChapterOrdinal} 章
+                </span>
+              </button>
+            ) : null}
 
             <Section
               title="骨架索引"

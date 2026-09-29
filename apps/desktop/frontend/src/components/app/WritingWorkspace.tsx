@@ -8,6 +8,7 @@ import {
   flushActiveEditorToDisk,
 } from '../../lib/assistant-events';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
+import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { AppShellProps } from './app-shell-types';
 
 /** Mounted regardless of the current surface; Editor remains the state owner. */
@@ -26,6 +27,7 @@ export function WritingWorkspace({
   observatory,
   onOverview,
   activeCenterTab,
+  permissionProfile,
 }: Pick<
   AppShellProps,
   | 'workspace'
@@ -43,6 +45,8 @@ export function WritingWorkspace({
   hidden: boolean;
   onOverview?: () => void;
   activeCenterTab: CenterTab | null;
+  /** P2-D：编辑器区对项目档位做被动指示（只读档徽标 + 自动档提示），业务判定仍在后端。 */
+  permissionProfile?: AgentPermissionProfile;
 }) {
   return (
     <div
@@ -60,6 +64,7 @@ export function WritingWorkspace({
         activeReadOnly={
           tabs.displayedFile ? isReadOnlyDerivedProjectPath(tabs.displayedFile) : false
         }
+        permissionProfile={permissionProfile}
         onFocusFile={tabs.focusFile}
         onReorderFiles={tabs.reorderOpenFiles}
         onFocusPreview={tabs.focusPreview}

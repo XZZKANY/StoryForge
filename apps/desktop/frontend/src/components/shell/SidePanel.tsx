@@ -1,7 +1,12 @@
+import { FloatingSurface } from '../ui';
 /**
- * 侧面板：宽度可拖（右缘把手，双击复位），按视图各记一份，档位默认见 lib/side-panel-width.ts。
- * 改前是两档写死（explorer/search 236px，其余 300px），作者反馈「作品栏占的位置太少了」——
- * 密度高的视图到底要多宽该由作者拖，不该由我猜。
+ * 侧面板：宽度可拖（右缘把手，双击复位），全左栏共享一份并持久化到设置
+ * （约束见 lib/side-panel-width.ts；旧按视图设置加载时迁移）。
+ * 切换视图只换内容 pane，右边界不动，编辑区不跳。
+ *
+ * 视觉分层：本面板是覆盖在 rail（一级导航，画布色、贯穿全高）上方的内容层——
+ * 左缘上下两角 rounded-l-xl 向内收，切口透出底层 rail 同色背景；overflow-hidden
+ * 把内部 hover 行裁进圆角；shadow-panel-lift 给一点浮起纵深，z-10 保证软影盖过 rail。
  *
  * 视图顺序即写作顺序（见 useShellState 的 SIDE_PANEL_VIEWS）：
  * - book：封面 / 书名 / 简介 / 题材 + 全书与今日进度 + 大纲跳转 + 灵感速记（Ctrl Shift B）
@@ -20,9 +25,8 @@ import {
 } from 'react';
 import {
   clampSidePanelWidth,
-  defaultSidePanelWidth,
   draggedSidePanelWidth,
-  resolveSidePanelWidth,
+  SIDE_PANEL_WIDTH_DEFAULT,
   SIDE_PANEL_WIDTH_MAX,
   SIDE_PANEL_WIDTH_MIN,
 } from '../../lib/side-panel-width';
@@ -30,7 +34,6 @@ import { StoryNavigator } from '../StoryNavigator';
 import { basename } from '../app/helpers';
 import type { FileTreeActions } from '../app/useFileTreeActions';
 import type { SidePanelView } from './useShellState';
-import { useDismissableMenu } from './useDismissableMenu';
 import { ChevronDown, FilePlus, FolderOpen, FolderPlus, X } from '../icons/shell-icons';
 
 type SidePanelProps = {
@@ -53,15 +56,16 @@ type SidePanelProps = {
   search?: ReactNode;
   manuscript?: ReactNode;
   knowledge?: ReactNode;
-  widths: Record<string, number>;
+  /** 全左栏共享的已保存宽度；防御性夹限防手改设置。 */
+  width: number;
   /** 仅限制当前显示；窗口恢复后继续使用作者保存的宽度。 */
   maxWidth?: number;
-  onWidthChange: (view: SidePanelView, width: number) => void;
+  onWidthChange: (width: number) => void;
 };
 
 export function SidePanel(props: SidePanelProps) {
   const panelId = useId();
-  const savedWidth = resolveSidePanelWidth(props.view, props.widths);
+  const savedWidth = clampSidePanelWidth(props.width);
   const widthLimit = clampSidePanelWidth(props.maxWidth ?? SIDE_PANEL_WIDTH_MAX);
   // 拖拽中的宽度只放本地：每帧写进设置会把 localStorage 刷爆，松手才落。
   const [dragWidth, setDragWidth] = useState<number | null>(null);
@@ -76,7 +80,6 @@ export function SidePanel(props: SidePanelProps) {
     const startX = event.clientX;
     const startWidth = displayWidth;
     setDragWidth(startWidth);
-    const view = props.view;
     const widthAt = (clientX: number) =>
       Math.min(widthLimit, draggedSidePanelWidth(startWidth, clientX - startX));
     const onMove = (move: PointerEvent) => {
@@ -85,7 +88,7 @@ export function SidePanel(props: SidePanelProps) {
     const onUp = (up: PointerEvent) => {
       stopResizeRef.current?.();
       setDragWidth(null);
-      props.onWidthChange(view, widthAt(up.clientX));
+      props.onWidthChange(widthAt(up.clientX));
     };
     const onCancel = () => {
       stopResizeRef.current?.();
@@ -105,17 +108,17 @@ export function SidePanel(props: SidePanelProps) {
   return (
     <div
       id={panelId}
-      className="sf-shell-edge-right relative flex flex-shrink-0 flex-col bg-panel"
+      className="relative z-10 flex flex-shrink-0 flex-col overflow-hidden rounded-l-xl bg-panel shadow-panel-lift"
       style={{
         width: `${displayWidth}px`,
       }}
       data-testid="shell-side-panel"
       data-side-view={props.view}
     >
-      {/* 右缘拖拽把手：命中区 5px，hover/焦点/拖拽时才显强调色。
-          双击复位到该视图的档位默认。 */}
+      {/* 右缘拖拽把手：命中区 7px（内收于面板内，overflow-hidden 会裁掉外凸部分），
+          hover/焦点/拖拽时才显强调色。双击复位到共享默认宽度。 */}
       <div
-        className="sf-panel-resize absolute inset-y-0 -right-0.5 z-20 w-[5px] cursor-col-resize"
+        className="sf-panel-resize absolute inset-y-0 right-0 z-20 w-[7px] cursor-col-resize"
         data-testid="side-panel-resize"
         data-resizing={dragWidth !== null}
         role="separator"
@@ -146,17 +149,17 @@ export function SidePanel(props: SidePanelProps) {
               next = widthLimit;
               break;
             case 'Enter':
-              next = defaultSidePanelWidth(props.view);
+              next = SIDE_PANEL_WIDTH_DEFAULT;
               break;
             default:
               return;
           }
           event.preventDefault();
           event.stopPropagation();
-          props.onWidthChange(props.view, next);
+          props.onWidthChange(next);
         }}
         onPointerDown={startResize}
-        onDoubleClick={() => props.onWidthChange(props.view, defaultSidePanelWidth(props.view))}
+        onDoubleClick={() => props.onWidthChange(SIDE_PANEL_WIDTH_DEFAULT)}
       />
       {/* 五视图 CSS 互斥不卸载：观测镜折叠态、搜索结果、章节滚动位置、简介里没提交的
           编辑，都不因切视图丢失。 */}
@@ -221,7 +224,6 @@ function ExplorerView({
 }: SidePanelProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  useDismissableMenu(menuOpen, () => setMenuOpen(false), menuTriggerRef);
 
   if (!activeProject) {
     // #4：左栏空态删除——打开项目 / 最近打开只留在中栏欢迎页，避免两个欢迎面重复。
@@ -267,18 +269,24 @@ function ExplorerView({
         )}
         {menuOpen && (
           <>
-            <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-            <div className="absolute left-2 right-2 top-shell-row z-40 rounded-lg border border-border bg-surface p-1 shadow-dropdown">
+            <FloatingSurface
+              role="menu"
+              aria-label="操作"
+              triggerRef={menuTriggerRef}
+              onDismiss={() => setMenuOpen(false)}
+              className="w-64 animate-fade-in rounded-lg border border-border bg-surface p-1 shadow-dropdown"
+            >
               {projects.slice(0, 8).map((project) => (
                 <div
                   key={project}
-                  className={`group flex h-[30px] w-full items-center rounded-sm text-xs hover:bg-elevated ${
+                  className={`group flex h-[var(--sf-row-height)] w-full items-center rounded-sm text-xs hover:bg-elevated ${
                     project === activeProject
                       ? 'text-foreground'
                       : 'text-muted hover:text-foreground'
                   }`}
                 >
                   <button
+                    role="menuitem"
                     className="flex min-w-0 flex-1 items-center px-2 text-left"
                     onClick={() => {
                       setMenuOpen(false);
@@ -293,7 +301,8 @@ function ExplorerView({
                   </button>
                   {project !== activeProject && (
                     <button
-                      className="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-sm text-subtle opacity-0 hover:bg-surface hover:text-foreground group-hover:opacity-100"
+                      role="menuitem"
+                      className="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-sm text-subtle opacity-40 hover:bg-surface hover:text-foreground hover:opacity-100 focus-visible:bg-surface focus-visible:opacity-100 group-hover:opacity-100"
                       onClick={(e) => {
                         e.stopPropagation();
                         onRemoveProject(project);
@@ -308,7 +317,8 @@ function ExplorerView({
               ))}
               <div className="my-1 mx-1.5 h-px bg-border" />
               <button
-                className="flex h-[30px] w-full items-center gap-2 rounded-sm px-2 text-xs text-muted hover:bg-elevated hover:text-foreground"
+                role="menuitem"
+                className="flex h-[var(--sf-row-height)] w-full items-center gap-2 rounded-sm px-2 text-xs text-muted hover:bg-elevated hover:text-foreground"
                 onClick={() => {
                   setMenuOpen(false);
                   onOpenProject();
@@ -317,7 +327,7 @@ function ExplorerView({
                 <FolderOpen size={14} strokeWidth={1.6} />
                 打开项目…
               </button>
-            </div>
+            </FloatingSurface>
           </>
         )}
       </div>

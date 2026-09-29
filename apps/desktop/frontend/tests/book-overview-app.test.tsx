@@ -59,10 +59,11 @@ test('总览释放主区并保留编辑器、Agent、作品表单；导航和同
   );
   localStorage.clear();
   localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(['D:/overview-test']));
-  localStorage.setItem(
-    APP_SETTINGS_KEY,
-    JSON.stringify({ ...DEFAULT_APP_SETTINGS, sidePanelWidths: { book: 420 } }),
-  );
+  // 旧格式（按视图 map、无单宽字段）种子：启动即迁移为共享宽度。
+  const legacySettings: Record<string, unknown> = { ...DEFAULT_APP_SETTINGS };
+  delete legacySettings.sidePanelWidth;
+  legacySettings.sidePanelWidths = { book: 420 };
+  localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(legacySettings));
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = createRoot(host);
@@ -140,7 +141,7 @@ test('总览释放主区并保留编辑器、Agent、作品表单；导航和同
     expect(get('agent-probe')).toBe(agent);
     expect(agent.textContent).toBe('agent:1');
     expect(get('book-note-input')).toBe(form);
-    expect(loadAppSettings().sidePanelWidths).toEqual({ book: 420 });
+    expect(loadAppSettings().sidePanelWidth).toBe(420);
   } finally {
     await act(async () => root.unmount());
     host.remove();

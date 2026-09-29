@@ -117,9 +117,17 @@ test('chapter brief card submits edited fields and can cancel', () => {
       setter.call(goal, '推进冲突并留下线索');
       goal.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    const confirm = container.querySelector<HTMLButtonElement>('[data-testid="chapter-brief-confirm"]');
-    const cancel = container.querySelector<HTMLButtonElement>('[data-testid="chapter-brief-cancel"]');
+    const confirm = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chapter-brief-confirm"]',
+    );
+    const cancel = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chapter-brief-cancel"]',
+    );
     assert.ok(confirm && cancel);
+    const card = container.querySelector('[data-testid="chapter-brief-card"]');
+    assert.match(card?.textContent ?? '', /章纲草稿/);
+    assert.match(card?.textContent ?? '', /第 1 版/);
+    assert.doesNotMatch(card?.textContent ?? '', /Chapter Brief|revision/);
     act(() => confirm.click());
     act(() => cancel.click());
     assert.equal(confirmed[0]?.goal, '推进冲突并留下线索');

@@ -15,7 +15,7 @@ ensureMonacoThemes(monaco);
 
 function Fixture() {
   const [mode, setMode] = useState<LayoutMode>('balanced');
-  const [widths, setWidths] = useState<Record<string, number>>({ book: 420 });
+  const [sideWidth, setSideWidth] = useState(420);
   const [sidebar, setSidebar] = useState(true);
   const [action, setAction] = useState('未操作');
   const maxWidth = useWorkspaceSidePanelLimit(true, mode);
@@ -29,7 +29,7 @@ function Fixture() {
           </button>
         ))}
         <button onClick={() => setSidebar((value) => !value)}>切换侧栏</button>
-        <output aria-label="保存的作品栏宽度">{widths.book}</output>
+        <output aria-label="保存的侧栏宽度">{sideWidth}</output>
         <output aria-label="测试回调">{action}</output>
       </header>
       <div className="relative flex min-h-0 flex-1" data-testid="fixture-workspace">
@@ -38,9 +38,9 @@ function Fixture() {
           {sidebar && (
             <SidePanel
               view="book"
-              widths={widths}
+              width={sideWidth}
               maxWidth={maxWidth}
-              onWidthChange={(view, width) => setWidths((prev) => ({ ...prev, [view]: width }))}
+              onWidthChange={setSideWidth}
               projects={[]}
               activeProject={null}
               currentFile={null}

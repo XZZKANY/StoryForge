@@ -6,10 +6,19 @@
  * 以及事后反悔那一侧——撤销一次「新建」要删文件而不是留个空文件，撤销失效也不能是死路。
  */
 import assert from 'node:assert/strict';
+import { createWritebackQueue } from '../../src/lib/writeback';
+import type { DiskBaseline } from '../../src/lib/tauri-fs';
+import type { WritebackRequest } from '../../src/lib/writeback-receipt-types';
+import {
+  inspectFixtureReceipt,
+  writeFixtureReceipt,
+} from '../../src/lib/writeback-receipt-fixture';
 import { act } from 'react';
 import { useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const writes: Array<{ path: string; content: string }> = [];
 const deletes: string[] = [];
@@ -19,9 +28,45 @@ let snapshotFails = false;
 let snapshotCreated = false;
 let versionHistoryOpened = 0;
 
+const receiptFiles = new Map<string, string>();
+const receiptFs = {
+  pathExists: (path: string) => receiptFiles.has(path),
+  readFile: (path: string) => {
+    const content = receiptFiles.get(path);
+    if (content === undefined) throw new Error('missing');
+    return content;
+  },
+  writeFile: (path: string, content: string) => {
+    receiptFiles.set(path, content);
+  },
+};
+
 vi.mock('../../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
-    writeFile: async (_root: string, path: string, content: string) => {
+    inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
+      inspectFixtureReceipt(receiptFs, project, request),
+    async writeFileWithReceipt(
+      project: string,
+      request: WritebackRequest,
+      expected: DiskBaseline,
+      checkpoint: number | null,
+    ) {
+      return writeFixtureReceipt(receiptFs, project, request, expected, checkpoint, async () => {
+        await this.writeFileIfUnchanged(project, request.path, request.content, expected);
+        receiptFiles.set(request.path, request.content);
+      });
+    },
+    writeFileIfUnchanged: async (
+      _root: string,
+      path: string,
+      content: string,
+      expected: DiskBaseline,
+    ) => {
+      if (
+        expected.kind === 'missing' ? diskContent !== undefined : diskContent !== expected.content
+      )
+        throw new Error('磁盘内容已变化');
+      diskContent = content;
       calls.push('write');
       writes.push({ path, content });
     },
@@ -63,21 +108,46 @@ const AFTER = '新的一章。';
 
 /** 编辑器当前正文——测试要在写回之后改动它，模拟「作者又接着写了」。 */
 let editorContent = BEFORE;
+let diskContent: string | undefined = BEFORE;
 const toasts: ToastDetail[] = [];
 
 function Harness({ filePath }: { filePath: string }) {
+  const model = useRef({
+    getValue: () => editorContent,
+    setValue: (value: string) => {
+      editorContent = value;
+    },
+    getAlternativeVersionId: () => 1,
+  });
+  const queue = useRef(createWritebackQueue());
   const editorRef = useRef({
     getValue: () => editorContent,
-    getModel: () => null,
+    getModel: () => model.current,
   } as never);
   const originalContentRef = useRef(BEFORE);
   const cleanVersionIdRef = useRef<number | null>(null);
   const filePathRef = useRef<string | null>(filePath);
   const projectPathRef = useRef<string | null>(PROJECT);
-  const modelCacheRef = useRef(new Map());
+  const modelCacheRef = useRef(
+    new Map([
+      [
+        filePath,
+        {
+          model: model.current,
+          originalContent: BEFORE,
+          diskBaseline:
+            diskContent === undefined
+              ? { kind: 'missing' }
+              : { kind: 'content', content: diskContent },
+          viewState: null,
+        },
+      ],
+    ]),
+  );
   filePathRef.current = filePath;
 
   useSuggestionWriteback({
+    enqueueWriteback: queue.current,
     editorRef,
     originalContentRef,
     cleanVersionIdRef,
@@ -137,6 +207,7 @@ function onToast(event: Event) {
 }
 
 beforeEach(() => {
+  receiptFiles.clear();
   writes.length = 0;
   deletes.length = 0;
   droppedTabs.length = 0;
@@ -148,6 +219,7 @@ beforeEach(() => {
   planMarkFails = false;
   versionHistoryOpened = 0;
   editorContent = BEFORE;
+  diskContent = BEFORE;
   window.addEventListener(TOAST_EVENT, onToast);
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -218,6 +290,8 @@ test('标 done 失败不能伪造成「接受失败」——正文其实已经�
 
 test('撤销一次新建后回调把该章退回 pending，且发生在删文件之后', async () => {
   snapshotCreated = true;
+  diskContent = undefined;
+  act(() => root.render(<Harness key="missing" filePath={FILE} />));
 
   await act(async () => {
     emitFileSuggestion(suggestion({ requiresConfirmation: false }));
@@ -310,6 +384,8 @@ test('自动档下快照失败仍然阻断写盘', async () => {
 
 test('撤销一次「新建」是删掉文件并摘页签，不是写回一个空文件', async () => {
   snapshotCreated = true;
+  diskContent = undefined;
+  act(() => root.render(<Harness key="missing" filePath={FILE} />));
   editorContent = '';
 
   await act(async () => {

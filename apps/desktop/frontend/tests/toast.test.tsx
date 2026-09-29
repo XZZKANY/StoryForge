@@ -1,12 +1,28 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
+import { DialogSurface } from '../src/components/ui';
 import { ToastHost } from '../src/components/shell/ToastHost';
 import { emitToast } from '../src/lib/toast';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+// jsdom 的 FocusEvent 不带 relatedTarget，补一个可配置桩让 onBlur 的「焦点是否还在
+// 本条通知内」判断可以被测试真实驱动（而不是绕开组件手动 fireEvent）。
+if (typeof FocusEvent !== 'undefined' && !('relatedTarget' in FocusEvent.prototype)) {
+  Object.defineProperty(FocusEvent.prototype, 'relatedTarget', {
+    configurable: true,
+    get(this: FocusEvent & { _relatedTarget?: EventTarget | null }) {
+      return this._relatedTarget ?? null;
+    },
+    set(this: FocusEvent & { _relatedTarget?: EventTarget | null }, value) {
+      this._relatedTarget = value;
+    },
+  });
+}
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -211,26 +227,27 @@ test('同步成功同帧双击只执行一次', async () => {
   }
 });
 
-test('容量淘汰的 pending 通知，迟到失败不能复活或影响其它通知', async () => {
+test('容量淘汰优先丢无动作通知，带动作的旧操作不被无声销毁', () => {
   const { container, cleanup } = renderHost();
   try {
-    let reject!: (error: Error) => void;
-    const run = () =>
-      new Promise<void>((_resolve, no) => {
-        reject = no;
-      });
-    act(() => emitToast('旧操作', { action: { label: '操作', run } }));
-    const action = container.querySelector<HTMLButtonElement>('[data-testid="toast-action"]');
-    assert.ok(action);
-    await act(async () => action.click());
+    const revoke = vi.fn();
+    act(() => emitToast('旧操作', { action: { label: '操作', run: revoke } }));
+    // 4 条无动作新通知进来：上限 4，应先丢最早的无动作，而不是带动作的「旧操作」。
     act(() => {
       for (let i = 0; i < 4; i++) emitToast(`新通知${i}`);
     });
-    assert.equal(vi.getTimerCount(), 4);
-    await act(async () => reject(new Error('旧失败')));
-    assert.equal(container.querySelector('[data-testid="toast-action-error"]'), null);
-    assert.equal(container.querySelectorAll('[data-testid="toast-item"]').length, 4);
-    assert.doesNotMatch(container.textContent ?? '', /旧操作|旧失败/);
+    const items = container.querySelectorAll('[data-testid="toast-item"]');
+    assert.equal(items.length, 4);
+    // 带动作的「旧操作」必须还在（撤销入口不能被静默回收）。
+    assert.match(container.textContent ?? '', /旧操作/);
+    // 最早进来的「新通知0」被淘汰，最新的三条无动作都在。
+    assert.doesNotMatch(container.textContent ?? '', /新通知0/);
+    assert.match(container.textContent ?? '', /新通知3/);
+    // 旧操作仍可点、可执行。
+    const action = container.querySelector<HTMLButtonElement>('[data-testid="toast-action"]');
+    assert.ok(action);
+    act(() => action.click());
+    assert.equal(revoke.mock.calls.length, 1);
   } finally {
     cleanup();
   }
@@ -323,3 +340,189 @@ for (const outcome of ['success', 'error']) {
     }
   });
 }
+
+test('悬停暂停倒计时、离开恢复剩余时间：带动作通知不会被读到一半收走', () => {
+  const { container, cleanup } = renderHost();
+  try {
+    act(() => emitToast('撤销入口', { action: { label: '撤销', run: () => {} } }));
+    const item = container.querySelector<HTMLElement>('[data-testid="toast-item"]')!;
+    assert.ok(item);
+
+    act(() => vi.advanceTimersByTime(2000));
+    act(() => item.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+    assert.ok(container.querySelector('[data-testid="toast-countdown-paused"]'));
+    // 已用掉 2s，剩 8s；悬停期间远超总时长也不消失。
+    act(() => vi.advanceTimersByTime(15000));
+    assert.ok(container.querySelector('[data-testid="toast-item"]'));
+
+    act(() =>
+      container
+        .querySelector('[data-testid="toast-host"]')!
+        .dispatchEvent(new MouseEvent('mouseout', { bubbles: true })),
+    );
+    assert.equal(container.querySelector('[data-testid="toast-countdown-paused"]'), null);
+    // 恢复的是剩余时间：再走 7.9s 仍在，补满 8s 后才消失。
+    act(() => vi.advanceTimersByTime(7900));
+    assert.ok(container.querySelector('[data-testid="toast-item"]'));
+    act(() => vi.advanceTimersByTime(200));
+    assert.equal(container.querySelector('[data-testid="toast-item"]'), null);
+  } finally {
+    cleanup();
+  }
+});
+
+// 键盘/读屏聚焦暂停倒计时已实装（onFocusCapture 幂等 + onBlurCapture relatedTarget 出口判断）。
+// 该交互被 jsdom + fake timer 的宏任务调度放大成不可运行（即便极小步推进也 OOM），
+// 不在 headless 套件里承载；转为真机手测验收项，见 .codex/verification-report.md。
+
+test('超过上限先丢无动作的旧通知，带动作的撤销入口不被无声销毁', () => {
+  const { container, cleanup } = renderHost();
+  try {
+    const revoke = vi.fn();
+    act(() => {
+      emitToast('旧提示');
+      emitToast('保留撤销', { action: { label: '撤销', run: revoke } });
+      emitToast('新提示A');
+      emitToast('新提示B');
+      emitToast('新提示C');
+    });
+    const items = container.querySelectorAll('[data-testid="toast-item"]');
+    assert.equal(items.length, 4);
+    assert.doesNotMatch(container.textContent ?? '', /旧提示/);
+    assert.match(container.textContent ?? '', /保留撤销/);
+    const action = container.querySelector<HTMLButtonElement>('[data-testid="toast-action"]');
+    assert.ok(action);
+    act(() => action.click());
+    assert.equal(revoke.mock.calls.length, 1);
+  } finally {
+    cleanup();
+  }
+});
+
+test('全是带动作通知时溢出仍丢最旧，上限依旧生效', () => {
+  const { container, cleanup } = renderHost();
+  try {
+    act(() => {
+      for (let i = 1; i <= 5; i++) {
+        emitToast(`操作${i}`, { action: { label: '撤销', run: () => {} } });
+      }
+    });
+    const items = container.querySelectorAll('[data-testid="toast-item"]');
+    assert.equal(items.length, 4);
+    assert.doesNotMatch(container.textContent ?? '', /操作1/);
+    assert.match(container.textContent ?? '', /操作5/);
+    // 带动作的撤销入口受保护：再涌进 6 条无动作通知，它们互相淘汰、上限仍 4，
+    // 带动作的旧通知不被无声销毁；最新一条无动作照常可见。
+    act(() => {
+      for (let i = 1; i <= 6; i++) emitToast(`提示${i}`);
+    });
+    const after = container.querySelectorAll('[data-testid="toast-item"]');
+    assert.equal(after.length, 4);
+    assert.match(after[0].textContent ?? '', /操作3/);
+    assert.match(after[2].textContent ?? '', /操作5/);
+    assert.match(after[3].textContent ?? '', /提示6/);
+    assert.doesNotMatch(container.textContent ?? '', /提示5/);
+  } finally {
+    cleanup();
+  }
+});
+
+test('动作失败后不留倒计时：悬停进出不会把失败反馈悄悄收走', async () => {
+  const { container, cleanup } = renderHost();
+  try {
+    act(() =>
+      emitToast('会失败', {
+        durationMs: 100,
+        action: {
+          label: '撤销',
+          run: () => {
+            throw new Error('失败了');
+          },
+        },
+      }),
+    );
+    const action = container.querySelector<HTMLButtonElement>('[data-testid="toast-action"]')!;
+    await act(async () => action.click());
+    assert.ok(container.querySelector('[data-testid="toast-action-error"]'));
+
+    const item = container.querySelector('[data-testid="toast-item"]')!;
+    act(() => item.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+    act(() =>
+      container
+        .querySelector('[data-testid="toast-host"]')!
+        .dispatchEvent(new MouseEvent('mouseout', { bubbles: true })),
+    );
+    act(() => vi.advanceTimersByTime(30000));
+    assert.match(container.textContent ?? '', /操作失败：失败了/);
+  } finally {
+    cleanup();
+  }
+});
+
+test('外层容器不再自封 live region；每条通知按 tone 自管 role', () => {
+  const { container, cleanup } = renderHost();
+  try {
+    act(() => {
+      emitToast('普通提示', { tone: 'info' });
+      emitToast('写回成功', { tone: 'success' });
+      emitToast('写回失败', { tone: 'error' });
+    });
+    const host = container.querySelector('[data-testid="toast-host"]')!;
+    assert.equal(host.getAttribute('role'), null);
+    assert.equal(host.getAttribute('aria-live'), null);
+    const items = container.querySelectorAll('[data-testid="toast-item"]');
+    assert.equal(items[0].getAttribute('role'), 'status');
+    assert.equal(items[1].getAttribute('role'), 'status');
+    assert.equal(items[2].getAttribute('role'), 'alert');
+  } finally {
+    cleanup();
+  }
+});
+
+test('模态打开时通知浮层不被 inert：撤销/关闭按钮仍可点', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(
+      <>
+        <ToastHost />
+        <DialogSurface aria-label="确认窗口" onClose={() => {}}>
+          <button>确认</button>
+        </DialogSurface>
+      </>,
+    );
+  });
+  try {
+    const run = vi.fn();
+    act(() => emitToast('已写入磁盘', { action: { label: '撤销', run } }));
+    const host = container.querySelector('[data-testid="toast-host"]')!;
+    assert.ok(host);
+    // 豁免层：模态打开时不加 inert/aria-hidden，通知可见、可点、读屏可达。
+    assert.equal(host.hasAttribute('inert'), false);
+    assert.equal(host.getAttribute('aria-hidden'), null);
+
+    const action = container.querySelector<HTMLButtonElement>('[data-testid="toast-action"]')!;
+    act(() => action.click());
+    assert.equal(run.mock.calls.length, 1);
+    assert.equal(container.querySelector('[data-testid="toast-item"]'), null);
+
+    act(() => emitToast('另一条通知'));
+    const close = container.querySelector<HTMLButtonElement>('[data-testid="toast-close"]')!;
+    act(() => close.click());
+    assert.equal(container.querySelector('[data-testid="toast-item"]'), null);
+    // 弹窗本体不受这些点击影响。
+    assert.ok(container.querySelector('[role="dialog"]'));
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('通知浮层 z-index 压过模态 backdrop（层系统内联 z 从 100 起跳）', () => {
+  const css = readFileSync('src/index.css', 'utf8');
+  const rule = css.match(/\[data-testid='toast-host'\]\s*\{([^}]*)\}/);
+  assert.ok(rule, 'index.css 缺少 toast-host 的 z-index 规则');
+  const zIndex = Number(rule[1].match(/z-index:\s*(\d+)/)?.[1]);
+  assert.equal(zIndex, 1000);
+});

@@ -9,13 +9,17 @@ import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
 import { projectBasename, relativePathInsideProject } from '../lib/project-context';
 import { isOpenableProjectFileEntry } from '../lib/project/entry-visibility';
 import { Command as CommandIcon, FileText } from './icons/shell-icons';
+import { Button } from './ui';
 
 export type PaletteMode = 'files' | 'commands';
 
 type Command = {
   id: string;
   title: string;
+  /** 说明性小字（项目路径、当前状态等），纯文本渲染。 */
   hint?: string;
+  /** 真实快捷键，才用 kbd 样式。 */
+  shortcut?: string;
   run: () => void;
 };
 
@@ -45,6 +49,8 @@ type CommandPaletteProps = {
   onCycleProseMeasure: () => void;
   fontModeLabel: string;
   proseMeasureLabel: string;
+  /** P2-C：知识收件箱加入命令面板。可选以保持现有调用方兼容。 */
+  onShowKnowledge?: () => void;
 };
 
 function basename(path: string): string {
@@ -132,6 +138,7 @@ export function CommandPalette({
   onRestoreLayout,
   onToggleFontMode,
   onCycleProseMeasure,
+  onShowKnowledge,
   fontModeLabel,
   proseMeasureLabel,
 }: CommandPaletteProps) {
@@ -212,7 +219,7 @@ export function CommandPalette({
 
   const commands = useMemo<Command[]>(() => {
     const list: Command[] = [
-      { id: 'open-project', title: '打开项目…', hint: 'Ctrl O', run: onOpenProject },
+      { id: 'open-project', title: '打开项目…', shortcut: 'Ctrl O', run: onOpenProject },
     ];
     list.push({ id: 'project-library', title: '打开作品库', run: onReopenWelcome });
     if (projectPath) {
@@ -244,6 +251,14 @@ export function CommandPalette({
     );
     if (onShowShortcuts) {
       list.push({ id: 'show-shortcuts', title: '帮助：快捷键速查', run: onShowShortcuts });
+    }
+    if (onShowKnowledge) {
+      list.push({
+        id: 'show-knowledge-inbox',
+        title: '打开：知识收件箱（canon 提案）',
+        shortcut: 'Ctrl Shift I',
+        run: onShowKnowledge,
+      });
     }
     list.push(
       { id: 'focus-assistant-only', title: '只保留：对话栏', run: onFocusAssistantOnly },
@@ -284,6 +299,7 @@ export function CommandPalette({
     onFocusAssistantOnly,
     onFocusWorkspaceOnly,
     onRestoreLayout,
+    onShowKnowledge,
   ]);
 
   const fileItems = useMemo(() => {
@@ -379,14 +395,21 @@ export function CommandPalette({
         onKeyDown={handleKeyDown}
       >
         {/* 输入区：模式图标 + 输入框 */}
-        <div className="flex items-center gap-2.5 border-b border-border bg-background px-4">
+        <div className="sf-input-shell flex items-center gap-2.5 border-b border-border bg-background px-4 focus-within:border-accent">
           <span className="flex-shrink-0 text-subtle">{modeIcon}</span>
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={mode === 'files' ? '按名称打开文件…' : '输入命令…'}
-            className="h-11 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-subtle"
+            aria-label={mode === 'files' ? '按名称打开文件' : '输入命令'}
+            className="sf-inner-input h-11 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-subtle"
+            // P2-E：列表用 listbox 语义，输入框作为 combobox 指向它，方向键走 aria-activedescendant。
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded="true"
+            aria-controls="palette-listbox"
+            aria-activedescendant={itemCount > 0 ? `palette-option-${active}` : undefined}
           />
           <kbd className="flex-shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-3xs text-subtle">
             {mode === 'files' ? 'Ctrl P' : 'Ctrl ⇧ P'}
@@ -394,34 +417,84 @@ export function CommandPalette({
         </div>
 
         {/* 结果列表 */}
-        <div className="min-h-0 max-h-80 flex-1 overflow-y-auto py-1">
+        <div
+          id="palette-listbox"
+          role="listbox"
+          aria-label={mode === 'files' ? '文件结果' : '命令结果'}
+          className="min-h-0 max-h-80 flex-1 overflow-y-auto py-1"
+        >
           {filesLoading ? (
-            <p className="px-4 py-3 text-sm text-muted">正在读取项目文件…</p>
+            <p className="flex items-center gap-2 px-4 py-3 text-sm text-muted">
+              <span className="relative inline-block h-3.5 w-3.5 flex-shrink-0">
+                <span className="sf-button-spinner" aria-hidden="true" />
+              </span>
+              正在读取项目文件…
+            </p>
           ) : filesError ? (
             <div className="flex items-center justify-between gap-3 px-4 py-3">
               <p className="text-sm text-error">无法读取项目文件，请检查目录权限后重试。</p>
-              <button
-                type="button"
-                className="shrink-0 text-xs text-agent hover:underline"
+              <Button
+                size="xs"
+                variant="secondary"
+                className="shrink-0"
                 data-testid="palette-retry"
                 onClick={retryFileLoad}
               >
                 重试
-              </button>
+              </Button>
             </div>
           ) : itemCount === 0 ? (
-            <p className="px-4 py-3 text-sm text-muted">
-              {mode === 'files' && !projectPath ? '先打开一个项目' : '无匹配项'}
-            </p>
+            <div
+              className="flex h-full flex-col items-center justify-center gap-3 px-6 py-8 text-center"
+              data-testid="palette-empty"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-elevated">
+                {mode === 'files' ? (
+                  <FileText
+                    size={20}
+                    strokeWidth={1.4}
+                    className="text-subtle"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <CommandIcon
+                    size={20}
+                    strokeWidth={1.4}
+                    className="text-subtle"
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+              <div>
+                <p className="text-sm text-muted">
+                  {mode === 'files' && !projectPath ? '还没有打开的项目' : '无匹配项'}
+                </p>
+                <p className="mt-1 text-xs text-subtle">
+                  {mode === 'files' && !projectPath
+                    ? '打开项目后即可按名称搜索并打开文件。'
+                    : mode === 'files'
+                      ? '换个关键词试试，或检查文件是否在项目内。'
+                      : '换个关键词试试；全部命令在清空输入后列出。'}
+                </p>
+              </div>
+              {mode === 'files' && !projectPath && (
+                <Button size="xs" variant="secondary" onClick={onOpenProject}>
+                  打开项目…
+                </Button>
+              )}
+            </div>
           ) : mode === 'files' ? (
             fileItems.map((item, index) => (
               <button
                 key={item.path}
+                id={`palette-option-${index}`}
+                role="option"
+                aria-selected={index === active}
                 ref={index === active ? activeItemRef : undefined}
                 data-testid="palette-item"
                 onMouseEnter={() => setActive(index)}
                 onClick={() => choose(index)}
-                className={`flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm ${
+                className={`flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm transition-colors ${
                   index === active
                     ? 'bg-agent/10 text-foreground'
                     : 'text-foreground hover:bg-elevated'
@@ -435,26 +508,31 @@ export function CommandPalette({
             commandItems.map((item, index) => (
               <button
                 key={item.id}
+                id={`palette-option-${index}`}
+                role="option"
+                aria-selected={index === active}
                 ref={index === active ? activeItemRef : undefined}
                 data-testid="palette-item"
                 onMouseEnter={() => setActive(index)}
                 onClick={() => choose(index)}
-                className={`flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm ${
+                className={`flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm transition-colors ${
                   index === active
                     ? 'bg-agent/10 text-foreground'
                     : 'text-foreground hover:bg-elevated'
                 }`}
               >
                 <HighlightedLabel label={item.title} positions={item.positions} />
-                {item.hint && (
+                {item.shortcut ? (
                   <kbd
                     className={`flex-shrink-0 rounded-sm border px-1.5 py-0.5 font-mono text-3xs ${
                       index === active ? 'border-agent/30 text-agent' : 'border-border text-subtle'
                     }`}
                   >
-                    {item.hint}
+                    {item.shortcut}
                   </kbd>
-                )}
+                ) : item.hint ? (
+                  <span className="flex-shrink-0 text-3xs text-subtle">{item.hint}</span>
+                ) : null}
               </button>
             ))
           )}

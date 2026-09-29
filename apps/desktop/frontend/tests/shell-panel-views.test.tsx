@@ -163,3 +163,57 @@ test('活动栏视图图标有干净的 aria-label 与当前态标记', async ()
     container.remove();
   }
 });
+
+// 活动栏三段层级护栏：主入口（作品/手稿）与功能入口之间有组间留白，当前页满档高亮、
+// 非当前 hover 只到 60%，底部设置固定在最后——用户应一眼读出「主入口/当前页/其他/设置」。
+test('活动栏分组与当前页高亮：主入口→留白→功能入口→弹隔→设置', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root: Root = createRoot(container);
+  try {
+    await act(async () => {
+      root.render(
+        <ActivityBar
+          view="manuscript"
+          sidebarHidden={false}
+          onSwitchView={() => undefined}
+          onOpenSettings={() => undefined}
+        />,
+      );
+    });
+
+    const nav = container.querySelector('nav');
+    assert.ok(nav);
+    const order = Array.from(nav.children).map(
+      (child) => child.getAttribute('data-testid') ?? '(spacer)',
+    );
+    assert.deepEqual(order, [
+      'activity-book',
+      'activity-manuscript',
+      'activity-group-gap',
+      'activity-explorer',
+      'activity-knowledge',
+      'activity-search',
+      'activity-observatory',
+      '(spacer)',
+      'activity-settings',
+    ]);
+
+    // 当前页：满档 bg-elevated 且无 hover 前缀；非当前：只有 60% hover 档。
+    const active = nav.querySelector('[data-testid="activity-manuscript"]')!;
+    const inactive = nav.querySelector('[data-testid="activity-explorer"]')!;
+    assert.equal(active.classList.contains('bg-elevated'), true);
+    assert.equal(
+      Array.from(active.classList).some((token) => token.startsWith('hover:bg-elevated')),
+      false,
+    );
+    assert.equal(inactive.classList.contains('bg-elevated'), false);
+    assert.equal(
+      Array.from(inactive.classList).some((token) => token === 'hover:bg-elevated/60'),
+      true,
+    );
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});

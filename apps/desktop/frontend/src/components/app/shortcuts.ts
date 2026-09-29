@@ -19,8 +19,8 @@ export type ShortcutRow = {
   chords: Array<{ ctrl?: true; shift?: true; key: string }>;
   /** 需要前置态才生效：护栏不按这些 */
   needs?: 'project' | 'file';
-  /** 不由 App 全局处理器接管，而在这些组件内部 */
-  scope?: 'editor' | 'tabs' | 'patch';
+  /** 不由 App 全局处理器接管，而在这些组件内部；'event' = 经窗口命令事件桥消费（如 Editor 的 toggle-history）。 */
+  scope?: 'editor' | 'tabs' | 'patch' | 'event';
 };
 
 export const SHORTCUT_ROWS: ShortcutRow[] = [
@@ -34,19 +34,38 @@ export const SHORTCUT_ROWS: ShortcutRow[] = [
     keys: 'Ctrl Shift B',
     label: '作品（封面 / 简介 / 进度）',
     chords: [{ ctrl: true, shift: true, key: 'b' }],
+    needs: 'project',
   },
-  { keys: 'Ctrl Shift E', label: '资源管理器', chords: [{ ctrl: true, shift: true, key: 'e' }] },
+  {
+    keys: 'Ctrl Shift E',
+    label: '资源管理器',
+    chords: [{ ctrl: true, shift: true, key: 'e' }],
+    needs: 'project',
+  },
   {
     keys: 'Ctrl Shift F',
     label: '在正文中搜索',
     chords: [{ ctrl: true, shift: true, key: 'f' }],
+    needs: 'project',
   },
   {
     keys: 'Ctrl Shift M',
     label: '手稿（阅读序 / 作品底座）',
     chords: [{ ctrl: true, shift: true, key: 'm' }],
+    needs: 'project',
   },
-  { keys: 'Ctrl Shift O', label: '世界线观测镜', chords: [{ ctrl: true, shift: true, key: 'o' }] },
+  {
+    keys: 'Ctrl Shift O',
+    label: '世界线观测镜',
+    chords: [{ ctrl: true, shift: true, key: 'o' }],
+    needs: 'project',
+  },
+  {
+    keys: 'Ctrl Shift I',
+    label: '知识收件箱（canon 提案）',
+    chords: [{ ctrl: true, shift: true, key: 'i' }],
+    needs: 'project',
+  },
   { keys: 'Ctrl O', label: '打开项目', chords: [{ ctrl: true, key: 'o' }] },
   {
     keys: 'Ctrl Tab',
@@ -60,6 +79,12 @@ export const SHORTCUT_ROWS: ShortcutRow[] = [
     needs: 'project',
   },
   { keys: 'Ctrl S', label: '保存当前文件', chords: [{ ctrl: true, key: 's' }], needs: 'file' },
+  {
+    keys: 'Ctrl Shift H',
+    label: '版本历史（当前页签）',
+    chords: [{ ctrl: true, shift: true, key: 'h' }],
+    needs: 'file',
+  },
   { keys: 'Ctrl B', label: '显示 / 隐藏资源管理器', chords: [{ ctrl: true, key: 'b' }] },
   { keys: 'Ctrl ,', label: '打开设置', chords: [{ ctrl: true, key: ',' }] },
   {

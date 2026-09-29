@@ -155,6 +155,34 @@ test('clicking a chapter asks to open it by its project-relative path', async ()
   assert.deepEqual(opened, ['正文/第001章.md']);
 });
 
+test('章节列表尾部提供「AI 起草下一章」入口，章号按阅读序推导并回调', async () => {
+  let drafted = 0;
+  const dom = await renderView({
+    onDraftNextChapter: () => {
+      drafted += 1;
+    },
+  });
+
+  const button = dom.querySelector<HTMLButtonElement>('[data-testid="manuscript-draft-next"]');
+  assert.ok(button);
+  // fixture 手稿有第 1、2 章，下一章应为第 3 章。
+  assert.match(button.textContent ?? '', /AI 起草下一章 · 第 3 章/);
+  await act(async () => button.click());
+  assert.equal(drafted, 1);
+});
+
+test('空手稿时同一入口起草第 1 章；未接回调时不渲染入口', async () => {
+  const dom = await renderView({
+    payloadOverrides: { chapters: [], total_chapters: 0 },
+    onDraftNextChapter: () => {},
+  });
+  const button = dom.querySelector<HTMLButtonElement>('[data-testid="manuscript-draft-next"]');
+  assert.match(button?.textContent ?? '', /第 1 章/);
+
+  const unwired = await renderView({ onDraftNextChapter: undefined });
+  assert.equal(unwired.querySelector('[data-testid="manuscript-draft-next"]'), null);
+});
+
 test('the header states the scale of the book with the same estimate the model got', async () => {
   const dom = await renderView();
 

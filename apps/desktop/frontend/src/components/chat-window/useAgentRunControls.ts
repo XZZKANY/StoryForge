@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import {
   AUTHOR_LOOP_RESULT_EVENT,
@@ -21,8 +21,11 @@ import {
   type AgentSocketMessage,
 } from '../../lib/api-client';
 import { relativePath } from './path-utils';
+import { recoveryDisplayFromCheckpoint } from './recovery';
+import { useAgentRunReconciliation } from './useAgentRunReconciliation';
 import { shouldApplyAgentControlAck } from './agent-result';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
+import { startWritingRunProjectionSubscription } from './writing-run';
 import type { AgentRunControlHandlers, AgentRunStatus, AgentStep, ChapterBrief } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 import type { RunAuthorAgent } from './useRunAuthorAgent';
@@ -44,6 +47,9 @@ export function useAgentRunControls(
   const {
     retryRequest,
     agentBusy,
+    agentRunRecovery,
+    setAgentRunRecovery,
+    setAgentBusy,
     setMessages,
     agentRun,
     pendingRepairCommand,
@@ -54,6 +60,9 @@ export function useAgentRunControls(
     draftNonceRef,
     runStartConversationKeyRef,
     projectPathRef,
+    writingRunProjection,
+    setWritingRunProjection,
+    unsubscribeWritingRunRef,
   } = state;
   const {
     updateAgentStep,
@@ -63,18 +72,65 @@ export function useAgentRunControls(
     applyResumeDiagnostic,
   } = recovery;
 
+  const {
+    prepareResume,
+    settleResume,
+    isResumeSettled,
+    markUnknown,
+    reconcile,
+    captureCurrentRun,
+  } = useAgentRunReconciliation(state, applyResumedAgentResult);
+  const pendingResumeRef = useRef<string | null>(null);
+
   const retryLastFailedRun = useCallback(() => {
-    if (!retryRequest || agentBusy) return;
+    if (
+      !retryRequest ||
+      agentRun?.status !== 'failed' ||
+      agentBusy ||
+      agentRun.deliveryUnknown ||
+      agentRunRecovery?.checkpointResume
+    )
+      return;
     setMessages((prev) => [...prev, { role: 'user', content: `重试：${retryRequest.goal}` }]);
     void runAuthorAgent(retryRequest.goal, retryRequest.action, retryRequest.intent, [], {
       useMainModel: retryRequest.useMainModel,
     });
-  }, [agentBusy, retryRequest, runAuthorAgent, setMessages]);
+  }, [agentBusy, agentRun, agentRunRecovery, retryRequest, runAuthorAgent, setMessages]);
+
+  // 写作任务进度订阅断线后的手动重连：先摘掉丢失标记，重连失败会再标回。
+  const retryWritingRunSubscription = useCallback(() => {
+    const projection = writingRunProjection;
+    if (!projection || projection.latestEvent !== 'error') return;
+    setWritingRunProjection((current) =>
+      current && current.latestEvent === 'error'
+        ? { ...current, latestEvent: '重连中', failureReason: null }
+        : current,
+    );
+    startWritingRunProjectionSubscription(
+      projection.writingRunId,
+      unsubscribeWritingRunRef,
+      setWritingRunProjection,
+    );
+  }, [setWritingRunProjection, unsubscribeWritingRunRef, writingRunProjection]);
 
   const sendAgentRunControl = useCallback(
     async (type: AgentControlMessageType, payload: Record<string, unknown> = {}) => {
       const run = agentRun;
       if (!run) return;
+      if (run.deliveryUnknown && type !== 'pause_run' && type !== 'stop_run') return;
+      const active = captureCurrentRun(run);
+      const settledAtDispatch = isResumeSettled(run.id);
+      // A denied checkpoint is a reconciliation task, never a replay/new-run shortcut.
+      if (type === 'resume_run') {
+        if (
+          agentRunRecovery?.checkpointResume?.canResume === false ||
+          pendingResumeRef.current === run.id ||
+          agentBusy
+        )
+          return;
+        pendingResumeRef.current = run.id;
+        setAgentBusy(true);
+      }
       if (type === 'approve_permission' && pendingRepairCommand) {
         try {
           await executeIdeCommand(pendingRepairCommand.command_id, pendingRepairCommand.args);
@@ -91,7 +147,13 @@ export function useAgentRunControls(
       } else if (type === 'deny_permission' && pendingRepairCommand) {
         setPendingRepairCommand(null);
       }
+      let dispatched = false;
+      let delivering = false;
       try {
+        if (type === 'resume_run') {
+          if (!(await prepareResume(run))) return;
+        }
+        dispatched = true;
         const ack = await sendAgentControlMessage({
           sessionId: run.sessionId,
           runId: run.id,
@@ -99,6 +161,7 @@ export function useAgentRunControls(
           payload: { source: 'desktop.timeline', ...payload },
         });
         if (
+          !active() ||
           !shouldApplyAgentControlAck(
             agentRunIdRef.current,
             run.id,
@@ -107,56 +170,93 @@ export function useAgentRunControls(
         ) {
           return;
         }
+        if ((type === 'resume_run' || !settledAtDispatch) && isResumeSettled(run.id)) return;
         if (isAgentErrorMessage(ack)) {
+          if (type === 'resume_run') {
+            settleResume(run.id);
+            setAgentBusy(false);
+          }
           setMessages((prev) => [
             ...prev,
             { role: 'assistant', content: `Agent 控制失败：${ack.detail}` },
           ]);
           return;
         }
-        applyAgentStreamEvent(ack);
+        if (
+          ack.resumed_result &&
+          (!isAgentResultMessage(ack.resumed_result) ||
+            ack.resumed_result.run_id !== run.id ||
+            ack.resumed_result.session_id !== run.sessionId)
+        ) {
+          throw new Error('恢复结果与当前运行不匹配，不能作为本轮结果交付。');
+        }
         if (ack.resumed_result && isAgentResultMessage(ack.resumed_result)) {
-          setChapterBrief(null);
-          applyResumedAgentResult(ack.resumed_result);
+          if (settleResume(run.id)) {
+            setChapterBrief(null);
+            delivering = true;
+            applyResumedAgentResult(ack.resumed_result);
+          }
           void refreshAgentRunRecovery(ack.run_id);
           return;
         }
+        if (run.deliveryUnknown) {
+          // Control acceptance/settlement is not delivery of the missing result. Read the original run.
+          void reconcile();
+          return;
+        }
+        applyAgentStreamEvent(ack);
         if (ack.resume_diagnostic) {
           applyResumeDiagnostic(ack.resume_diagnostic);
+          if (ack.runtime_state === 'settled') settleResume(run.id);
           void refreshAgentRunRecovery(ack.run_id);
           return;
         }
-        if (type === 'approve_permission') {
-          updateAgentStep('permission-required', {
-            status: 'completed',
-            detail: '作者已批准权限请求。',
-          });
-          updateAgentStatus('completed');
-        } else if (type === 'deny_permission') {
-          setChapterBrief(null);
-          updateAgentStep('permission-required', {
-            status: 'failed',
-            detail: '作者已拒绝权限请求。',
-          });
-          updateAgentStatus('failed');
-        } else if (type === 'pause_run') {
-          updateAgentStatus('paused');
-        } else if (type === 'resume_run') {
-          updateAgentStatus('running');
-        } else if (type === 'stop_run') {
-          updateAgentStatus('stopped');
-        }
       } catch (error) {
-        if (agentRunIdRef.current !== run.id) return;
+        if (
+          !active() ||
+          ((type === 'resume_run' || !settledAtDispatch) && !delivering && isResumeSettled(run.id))
+        )
+          return;
         const message = error instanceof Error ? error.message : String(error);
+        if (type === 'resume_run' && dispatched) {
+          markUnknown(run);
+          const checkpoint = agentRunRecovery?.checkpointResume;
+          setAgentRunRecovery(
+            recoveryDisplayFromCheckpoint({
+              canResume: false,
+              artifactId: checkpoint?.artifactId ?? null,
+              message: '恢复：请求结果未知，需要核对本轮状态；不会自动重放。',
+            }),
+          );
+        }
+        if (type === 'resume_run' && !dispatched) setAgentBusy(false);
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: `Agent 控制失败：${message}` },
+          {
+            role: 'assistant',
+            content:
+              type === 'resume_run' && dispatched
+                ? `恢复请求结果未知，不能判定执行是否结束；请核对本轮，不要重新执行：${message}`
+                : `Agent 控制失败：${message}`,
+          },
         ]);
+      } finally {
+        if (type === 'resume_run' && pendingResumeRef.current === run.id)
+          pendingResumeRef.current = null;
       }
     },
     [
+      agentBusy,
+      captureCurrentRun,
+      prepareResume,
+      reconcile,
+      settleResume,
+      isResumeSettled,
+      markUnknown,
+      setAgentBusy,
+      setAgentRunRecovery,
       agentRun,
+      agentRunRecovery,
       agentRunIdRef,
       applyAgentStreamEvent,
       applyResumeDiagnostic,
@@ -166,8 +266,6 @@ export function useAgentRunControls(
       setMessages,
       setPendingRepairCommand,
       setChapterBrief,
-      updateAgentStatus,
-      updateAgentStep,
     ],
   );
 
@@ -176,6 +274,7 @@ export function useAgentRunControls(
     onDenyPermission: () => void sendAgentRunControl('deny_permission'),
     onPauseRun: () => void sendAgentRunControl('pause_run'),
     onResumeRun: () => void sendAgentRunControl('resume_run'),
+    onReconcileRun: () => void reconcile(),
     onStopRun: () => void sendAgentRunControl('stop_run'),
     onConfirmChapterBrief: (brief: ChapterBrief) =>
       void sendAgentRunControl('resume_run', {
@@ -344,5 +443,5 @@ export function useAgentRunControls(
     updateAgentStep,
   ]);
 
-  return { retryLastFailedRun, agentRunControls };
+  return { retryLastFailedRun, retryWritingRunSubscription, agentRunControls };
 }

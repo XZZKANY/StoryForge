@@ -25,8 +25,18 @@ const patch: ApiKnowledgeProposalPatch = {
   created_by_tool: 'knowledge.propose',
 };
 
+const receipt = {
+  operationId: 'a'.repeat(64),
+  state: 'applied' as const,
+  current: 'after' as const,
+  checkpointTimestamp: 42,
+  createdFile: false,
+  receiptPersisted: true,
+};
+
 function effects(current: string | null, order: string[]): KnowledgeWritebackEffects {
   return {
+    inspect: async () => null,
     readCurrent: async () => {
       order.push('read');
       return current;
@@ -40,6 +50,7 @@ function effects(current: string | null, order: string[]): KnowledgeWritebackEff
     },
     write: async () => {
       order.push('write');
+      return receipt;
     },
     record: async () => {
       order.push('record');
@@ -70,11 +81,20 @@ test('知识文件基线漂移时不执行任何写入副作用', async () => {
   assert.deepEqual(order, ['read']);
 });
 
-test('磁盘已是 patch after 时只重试 accepted resolution', async () => {
+test('持久 applied 回执允许只补记审计与 accepted resolution', async () => {
   const order: string[] = [];
 
-  const result = await performKnowledgeWriteback(patch, effects('新内容', order));
+  const result = await performKnowledgeWriteback(patch, {
+    ...effects('新内容', order),
+    inspect: async () => receipt,
+  });
 
   assert.equal(result, 'reconciled');
-  assert.deepEqual(order, ['read', 'resolve']);
+  assert.deepEqual(order, ['record', 'resolve']);
+});
+
+test('仅有相同 after 字节而没有回执不能当作写回成功', async () => {
+  const order: string[] = [];
+  await assert.rejects(performKnowledgeWriteback(patch, effects('新内容', order)), /没有可核对/);
+  assert.deepEqual(order, ['read']);
 });

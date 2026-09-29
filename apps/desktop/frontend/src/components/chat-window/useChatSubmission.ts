@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import {
   PATCH_REJECTED_EVENT,
@@ -55,6 +55,12 @@ export function useChatSubmission(
     assistantSessionId ?? null,
     state,
   );
+  const deliveryUnknown = Boolean(state.agentRun?.deliveryUnknown);
+  const deliveryUnknownRef = useRef(deliveryUnknown);
+  useLayoutEffect(() => {
+    // Shared by direct/queued/shortcut callbacks, including closures captured before disconnect.
+    deliveryUnknownRef.current = deliveryUnknown;
+  }, [deliveryUnknown]);
   // Deliberately one pending instruction, not an automatic multi-run FIFO.
   const queuedRef = useRef<QueuedChatMessageEntry | null>(null);
   const nextQueueIdRef = useRef(0);
@@ -82,7 +88,7 @@ export function useChatSubmission(
 
   const runCrossChapterConsistency = useCallback(
     async (instruction: string, refs: ChapterRef[]) => {
-      if (!isCurrentScope()) return;
+      if (!isCurrentScope() || deliveryUnknownRef.current) return;
       if (agentBusy) {
         setMessages((prev) => [
           ...prev,
@@ -100,6 +106,7 @@ export function useChatSubmission(
         draftNonceRef.current,
       );
       const isForActiveSession = () =>
+        !deliveryUnknownRef.current &&
         isCurrentScope() &&
         isRunResultForActiveSession(
           conversationKey(
@@ -168,6 +175,13 @@ export function useChatSubmission(
             draft.trim() === instruction ? draft : draft ? `${draft}\n\n${instruction}` : value,
           );
       };
+      if (deliveryUnknownRef.current) {
+        preserveInstruction();
+        emitToast('这轮结果未知，请先核对状态；待发消息和草稿已保留，不会重新执行。', {
+          tone: 'info',
+        });
+        return;
+      }
       if (awaitingDecision && !decisionResolved) {
         preserveInstruction();
         emitToast('先处理当前待确认内容，再发下一条；待发消息和草稿已保留。', { tone: 'info' });
@@ -242,6 +256,7 @@ export function useChatSubmission(
   useEffect(() => {
     if (
       agentBusy ||
+      deliveryUnknown ||
       submitting ||
       awaitingDecision ||
       !queuedMessage ||
@@ -252,6 +267,7 @@ export function useChatSubmission(
     queueMicrotask(() => {
       if (
         cancelled ||
+        deliveryUnknownRef.current ||
         !isCurrentScope() ||
         queuedRef.current !== queuedMessage ||
         sendingRef.current
@@ -266,6 +282,7 @@ export function useChatSubmission(
     };
   }, [
     agentBusy,
+    deliveryUnknown,
     submitting,
     awaitingDecision,
     handleComposerSubmit,
@@ -305,13 +322,15 @@ export function useChatSubmission(
 
   const pendingPromptFiredRef = useRef(false);
   useEffect(() => {
-    if (!pendingInitialPrompt || !projectPath || agentBusy || awaitingDecision) return;
+    if (!pendingInitialPrompt || !projectPath || agentBusy || deliveryUnknown || awaitingDecision)
+      return;
     if (pendingPromptFiredRef.current) return;
     pendingPromptFiredRef.current = true;
     onPendingInitialPromptConsumed?.();
     void handleComposerSubmit(pendingInitialPrompt);
   }, [
     agentBusy,
+    deliveryUnknown,
     awaitingDecision,
     handleComposerSubmit,
     onPendingInitialPromptConsumed,

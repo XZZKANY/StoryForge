@@ -28,7 +28,8 @@ test('多标签分别明示未保存状态', () => {
   );
 
   assert.equal((html.match(/data-testid="editor-tab-dirty"/g) ?? []).length, 1);
-  assert.match(html, /title="关闭（有未保存修改）"/);
+  // P2-C：关闭按钮 title 已升级附带「· Ctrl W」提示（暴露此前无入口的快捷键）。
+  assert.match(html, /title="关闭（有未保存修改）· Ctrl W"/);
 });
 
 test('预览页签也有关闭按钮（不再只能双击固定后才能关）', () => {
@@ -297,14 +298,14 @@ test('润色菜单区分专用模型与本次主模型授权', () => {
     const trigger = container.querySelector<HTMLButtonElement>('[data-testid="editor-polish-btn"]');
     assert.ok(trigger);
     act(() => trigger.click());
-    const dedicated = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+    const dedicated = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(
       (button) => button.textContent === '使用专用润色模型',
     );
     assert.ok(dedicated);
     act(() => dedicated.click());
 
     act(() => trigger.click());
-    const main = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+    const main = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(
       (button) => button.textContent === '本次使用主模型',
     );
     assert.ok(main);

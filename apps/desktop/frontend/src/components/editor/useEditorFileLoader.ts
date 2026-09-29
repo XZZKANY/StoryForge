@@ -2,7 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type * as monaco from 'monaco-editor';
 
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { TauriFileSystem, type DiskBaseline } from '../../lib/tauri-fs';
 import type { EditorModelCache } from './useMonacoEditor';
 
 export function useEditorFileLoader({
@@ -35,6 +35,7 @@ export function useEditorFileLoader({
   const loadRequestIdRef = useRef(0);
   const [loadedFilePath, setLoadedFilePath] = useState<string | null>(null);
   const [loadedContent, setLoadedContent] = useState('');
+  const [loadedDiskBaseline, setLoadedDiskBaseline] = useState<DiskBaseline | null>(null);
   const [loadedIsDirty, setLoadedIsDirty] = useState(false);
   const [loadAttemptFilePath, setLoadAttemptFilePath] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -60,6 +61,7 @@ export function useEditorFileLoader({
     setIsDirty(false);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 文件切换必须在浏览器绘制前同步 detach 旧 model，避免输入落入错误文件
     setLoadedIsDirty(false);
+    setLoadedDiskBaseline(null);
 
     if (!filePath) {
       originalContentRef.current = '';
@@ -87,6 +89,7 @@ export function useEditorFileLoader({
     if (cached) {
       const content = cached.model.getValue();
       originalContentRef.current = cached.originalContent;
+      setLoadedDiskBaseline(cached.diskBaseline);
       setLoadedContent(content);
       const dirty = content !== cached.originalContent;
       setIsDirty(dirty);
@@ -113,6 +116,7 @@ export function useEditorFileLoader({
           return;
         }
         originalContentRef.current = content;
+        setLoadedDiskBaseline(exists ? { kind: 'content', content } : { kind: 'missing' });
         setLoadedContent(content);
         setIsDirty(false);
         setLoadedIsDirty(false);
@@ -152,6 +156,7 @@ export function useEditorFileLoader({
   return {
     loadedFilePath,
     loadedContent,
+    loadedDiskBaseline,
     loadedIsDirty,
     loadAttemptFilePath,
     loadError,

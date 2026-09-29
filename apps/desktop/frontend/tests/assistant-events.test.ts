@@ -4,10 +4,13 @@ import { test } from 'vitest';
 import {
   ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
   REQUEST_CHAPTER_POLISH_EVENT,
+  REQUEST_CHAPTER_WRITE_EVENT,
   bufferPendingFileSuggestion,
   emitAcceptCurrentFileSuggestion,
   emitChapterPolishRequest,
+  emitChapterWriteRequest,
   emitFileSuggestion,
+  nextChapterWriteRequest,
   takePendingFileSuggestion,
 } from '../src/lib/assistant-events';
 import { createRemoteFileSuggestion } from '../src/lib/assistant-suggestions';
@@ -26,6 +29,42 @@ test('chapter polish event preserves the explicit one-shot main model choice', (
   }
 
   assert.deepEqual(details, [{ useMainModel: false }, { useMainModel: true }]);
+});
+
+test('chapter write event preserves the explicit target path and ordinal', () => {
+  const details: unknown[] = [];
+  const listener = (event: Event) => {
+    details.push((event as CustomEvent).detail);
+  };
+  window.addEventListener(REQUEST_CHAPTER_WRITE_EVENT, listener);
+  try {
+    emitChapterWriteRequest({
+      targetPath: '正文/第004章.md',
+      chapterOrdinal: 4,
+      chapterTitle: null,
+    });
+    emitChapterWriteRequest({});
+  } finally {
+    window.removeEventListener(REQUEST_CHAPTER_WRITE_EVENT, listener);
+  }
+
+  assert.deepEqual(details, [
+    { targetPath: '正文/第004章.md', chapterOrdinal: 4, chapterTitle: null },
+    {},
+  ]);
+});
+
+test('next chapter write request follows the backend fallback naming and starts at 1', () => {
+  assert.deepEqual(nextChapterWriteRequest([{ ordinal: 1 }, { ordinal: 7 }, { ordinal: 3 }]), {
+    targetPath: '正文/第008章.md',
+    chapterOrdinal: 8,
+    chapterTitle: null,
+  });
+  assert.deepEqual(nextChapterWriteRequest([]), {
+    targetPath: '正文/第001章.md',
+    chapterOrdinal: 1,
+    chapterTitle: null,
+  });
 });
 
 test('accept current file suggestion event is emitted for chat writeback confirmation', () => {

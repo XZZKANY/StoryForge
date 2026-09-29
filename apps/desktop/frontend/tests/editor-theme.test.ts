@@ -33,7 +33,7 @@ afterEach(() => {
   delete document.documentElement.dataset.theme;
 });
 
-test('Monaco 注册的深色正文/边槽与 CSS 画布对齐，浅色主题保留原值', async () => {
+test('Monaco 注册的深色/浅色正文、gutter 与 CSS 画布对齐，浅色行号满足 AA 对比度', async () => {
   const { ensureMonacoThemes } = await import('../src/lib/theme');
   ensureMonacoThemes(monaco);
   assert.deepEqual(
@@ -49,6 +49,8 @@ test('Monaco 注册的深色正文/边槽与 CSS 画布对齐，浅色主题保�
     assert.deepEqual(definition.rules, []);
     assert.equal(definition.colors['editor.background'], cssHex('background', mode));
     assert.equal(definition.colors['editor.foreground'], cssHex('foreground', mode));
+    // gutter 双主题都钉到画布色，不继承 base 主题默认（浅色 vs 默认白会拼出第三底色）。
+    assert.equal(definition.colors['editorGutter.background'], cssHex('background', mode));
     for (const [key, alpha] of [
       ['background', '59'],
       ['hoverBackground', '99'],
@@ -59,13 +61,13 @@ test('Monaco 注册的深色正文/边槽与 CSS 画布对齐，浅色主题保�
         `${cssHex('border-strong', mode)}${alpha}`,
       );
     }
-    if (mode === 'dark') {
-      assert.equal(definition.colors['editorGutter.background'], cssHex('background', mode));
-    } else {
+    if (mode === 'light') {
       assert.deepEqual(definition.colors, {
-        'editor.background': '#f7f7f8',
+        'editor.background': '#f3f3f5',
+        'editorGutter.background': '#f3f3f5',
         'editor.foreground': '#1a1a1d',
-        'editorLineNumber.foreground': '#8e8e96',
+        // P2-E：#71717a 对画布（#f7f7f8 时代起）≥4.5:1（AA），旧 #8e8e96 仅 3.04:1。
+        'editorLineNumber.foreground': '#71717a',
         'editorLineNumber.activeForeground': '#5e5e66',
         'scrollbarSlider.background': '#c9c9d059',
         'scrollbarSlider.hoverBackground': '#c9c9d099',

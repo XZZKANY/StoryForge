@@ -5,6 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="/favicon.png" />
   <title>StoryForge IDE</title>
+  <script>
+    // 首帧渲染前同步落地 data-theme，避免浅色主题启动时闪一整帧深色（FOUC）。
+    // 存储 key 与结构必须与 lib/user-settings.ts 保持同步。
+    (function () {
+      try {
+        var raw = localStorage.getItem('storyforge-app-settings');
+        var theme = raw ? JSON.parse(raw).theme : null;
+        if (theme !== 'light' && theme !== 'dark') theme = 'dark';
+        document.documentElement.dataset.theme = theme;
+      } catch (e) {
+        document.documentElement.dataset.theme = 'dark';
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="root"></div>

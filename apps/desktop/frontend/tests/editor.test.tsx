@@ -194,7 +194,7 @@ test('建议写回保持整文件硬闸，并让分块接受走 hunk 级定位',
   );
   assert.ok(
     suggestionWritebackSource.includes(
-      'isWholeFileDrifted(currentContent, suggestion.before, normalizeEol)',
+      'isWholeFileDrifted(previous, suggestion.before, normalizeEol)',
     ),
     '整文件漂移守卫必须走已被 patch-hunks 行为测试覆盖的 isWholeFileDrifted 纯函数',
   );
@@ -226,10 +226,39 @@ test('恢复“不存在”版本按保存脏缓冲→快照→真删除→退�
   assert.doesNotMatch(restoreBlock, /writeFile\([^)]*,\s*['"]{2}/, '不存在态不得写空串');
 });
 
+test('恢复“已存在”版本先确认、先留当前内容快照，再把旧版本灌进缓冲', () => {
+  const restoreBlock = editorSource.match(
+    /const handleRestore = async[\s\S]*?\/\/ 分支画布：把某节点正文恢复到编辑器/,
+  )?.[0];
+  assert.ok(restoreBlock, '找不到 handleRestore 块');
+  const existsMatch = restoreBlock.match(
+    /if \(state\.exists\) \{([\s\S]*?)\n {4}\}\n\n {4}const project = projectPathRef\.current;/,
+  );
+  const existsBlock = existsMatch?.[1];
+  assert.ok(existsBlock, '找不到 handleRestore 存在态恢复块');
+  const confirmAt = existsBlock.indexOf('dialogs.confirm');
+  const setValueAt = existsBlock.indexOf('setValue(state.content)');
+  assert.ok(
+    confirmAt >= 0 && confirmAt < setValueAt,
+    '存在态恢复必须先经 AppDialog 确认才能覆盖缓冲',
+  );
+  assert.match(
+    existsBlock,
+    /tone: dirty \? 'danger' : 'default'/,
+    '脏缓冲恢复必须是 danger 档确认',
+  );
+  assert.match(existsBlock, /未保存的修改/, '脏缓冲恢复确认文案必须点明未保存修改');
+  const saveAt = existsBlock.indexOf('saveCurrentFileRef.current()');
+  const snapshotAt = existsBlock.indexOf('snapshotBeforeWrite(');
+  assert.ok(saveAt >= 0 && snapshotAt >= 0, '存在态恢复必须保存脏缓冲并为当前内容留版本快照');
+  assert.ok(saveAt < snapshotAt, '影子 Git 快照的是工作树，脏缓冲必须先保存落盘再快照');
+  assert.ok(snapshotAt < setValueAt, '必须先成功留快照才能覆盖当前编辑缓冲');
+});
+
 test('空文件写入正文也必须先取版本 tree，不得被旧空串短路', () => {
   assert.match(
     editorSource,
-    /const contentChanged = normalizeEol\(previous\) !== normalizeEol\(content\)/,
+    /const contentChanged = expected\.kind === 'missing' \|\| expected\.content !== content/,
   );
   assert.doesNotMatch(editorSource, /contentChanged = previous !== ['"]{2}/);
 });

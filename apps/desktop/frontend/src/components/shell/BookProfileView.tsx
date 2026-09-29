@@ -32,6 +32,7 @@ import {
   RefreshCw,
   X,
 } from '../icons/shell-icons';
+import { IconButton } from '../ui';
 import { PanelSection } from './PanelSection';
 import { LiveStatus } from './LiveStatus';
 
@@ -66,14 +67,22 @@ function breakdownStatusLabel(status?: string): string {
   return status ?? '未知状态';
 }
 
-function GoalBar({ progress, testid }: { progress: number; testid: string }) {
+function GoalBar({ progress, testid, label }: { progress: number; testid: string; label: string }) {
+  const percent = Math.round(progress * 100);
   return (
-    <div className="mt-1 h-1 overflow-hidden rounded-full bg-elevated">
+    <div
+      className="mt-1 h-1 overflow-hidden rounded-full bg-elevated"
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={percent}
+    >
       <div
         className="h-full rounded-full bg-agent transition-[width] duration-300"
-        style={{ width: `${Math.round(progress * 100)}%` }}
+        style={{ width: `${percent}%` }}
         data-testid={testid}
-        data-progress={Math.round(progress * 100)}
+        data-progress={percent}
       />
     </div>
   );
@@ -208,34 +217,31 @@ export function BookProfileView({
       >
         <Library size={14} strokeWidth={1.7} className="flex-shrink-0 text-muted" />
         <h2 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">作品</h2>
-        <button
-          type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
-          title="重新读取档案与进度"
-          aria-label="重新读取档案与进度"
+        <IconButton
+          size="xs"
+          label="重新读取档案与进度"
+          icon={
+            <RefreshCw
+              size={14}
+              strokeWidth={1.6}
+              className={handle.refreshing ? 'animate-spin' : ''}
+            />
+          }
           onClick={handle.refresh}
           disabled={handle.refreshing}
           data-testid="book-profile-refresh"
-        >
-          <RefreshCw
-            size={14}
-            strokeWidth={1.6}
-            className={handle.refreshing ? 'animate-spin' : ''}
-          />
-        </button>
-        <button
-          type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-          title="回到资源管理器 · Ctrl Shift E"
-          aria-label="回到资源管理器"
+        />
+        <IconButton
+          size="xs"
+          label="回到资源管理器"
+          tooltip="回到资源管理器 · Ctrl Shift E"
+          icon={<FileText size={14} strokeWidth={1.6} />}
           onClick={onBackToExplorer}
           data-testid="book-profile-back-to-explorer"
-        >
-          <FileText size={14} strokeWidth={1.6} />
-        </button>
+        />
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {handle.profileError ? (
           <p
             className="mx-3 mt-3 rounded-md border border-error/40 bg-error/5 px-2 py-1.5 text-2xs text-error"
@@ -288,7 +294,7 @@ export function BookProfileView({
               onChange={(event) => setDraft({ ...draft, title: event.target.value })}
               onBlur={() => commit()}
               placeholder={displayBookTitle(profile, projectPath)}
-              className="w-full rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-foreground outline-none placeholder:font-normal placeholder:text-muted hover:border-border focus:border-accent"
+              className="sf-input w-full rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-foreground placeholder:font-normal placeholder:text-muted hover:border-border"
               data-testid="book-title-input"
             />
             <div className="flex flex-wrap gap-1">
@@ -301,7 +307,7 @@ export function BookProfileView({
                   {tag}
                   <button
                     type="button"
-                    className="text-subtle opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                    className="text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
                     title={`移除题材 ${tag}`}
                     aria-label={`移除题材 ${tag}`}
                     onClick={() => commit({ tags: profile.tags.filter((item) => item !== tag) })}
@@ -325,7 +331,7 @@ export function BookProfileView({
                       }
                     }}
                     placeholder="题材"
-                    className="w-12 rounded-sm border border-transparent bg-transparent text-3xs text-foreground outline-none placeholder:text-subtle hover:border-border focus:w-16 focus:border-accent"
+                    className="sf-input w-16 rounded-sm border border-transparent bg-transparent text-3xs text-foreground placeholder:text-subtle hover:border-border"
                     data-testid="book-tag-input"
                   />
                 </span>
@@ -339,21 +345,10 @@ export function BookProfileView({
             value={draft.synopsis}
             disabled={handle.loading}
             onChange={(event) => setDraft({ ...draft, synopsis: event.target.value })}
-            onBlur={(event) => {
-              event.currentTarget.style.boxShadow = 'var(--shadow-inset)';
-              commit();
-            }}
+            onBlur={() => commit()}
             rows={4}
             placeholder="这本书讲什么？写给未来的自己，也写给每次都要重新读懂它的模型。"
-            className="mx-3 w-[calc(100%-1.5rem)] resize-none rounded-sm border border-border bg-panel px-2 py-1.5 text-2xs leading-relaxed text-foreground outline-none placeholder:text-subtle focus:border-accent"
-            style={{
-              boxShadow: 'var(--shadow-inset)',
-              transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.boxShadow =
-                'var(--shadow-inset), 0 0 0 3px rgb(var(--accent) / 0.1)';
-            }}
+            className="sf-input mx-3 w-[calc(100%-1.5rem)] resize-none rounded-sm border border-border bg-panel px-2 py-1.5 text-2xs leading-relaxed text-foreground placeholder:text-subtle"
             data-testid="book-synopsis-input"
           />
         </Section>
@@ -388,11 +383,13 @@ export function BookProfileView({
                 onBlur={() => commit()}
                 inputMode="numeric"
                 placeholder="未设"
-                className="w-20 rounded-sm border border-transparent bg-transparent px-1 text-right text-2xs tabular-nums text-foreground outline-none placeholder:text-subtle hover:border-border focus:border-accent"
+                className="sf-input w-20 rounded-sm border border-transparent bg-transparent px-1 text-right text-2xs tabular-nums text-foreground placeholder:text-subtle hover:border-border"
                 data-testid="book-word-goal-input"
               />
             </div>
-            {bookProgress !== null && <GoalBar progress={bookProgress} testid="book-goal-bar" />}
+            {bookProgress !== null && (
+              <GoalBar progress={bookProgress} testid="book-goal-bar" label="全书目标进度" />
+            )}
 
             <div className="mt-2.5 border-t border-border pt-2">
               <StatRow
@@ -403,7 +400,11 @@ export function BookProfileView({
               {dailyProgress !== null && (
                 <>
                   <StatRow label="日更目标" value={`${dailyWordGoal.toLocaleString('zh-CN')} 字`} />
-                  <GoalBar progress={dailyProgress} testid="book-daily-goal-bar" />
+                  <GoalBar
+                    progress={dailyProgress}
+                    testid="book-daily-goal-bar"
+                    label="日更目标进度"
+                  />
                 </>
               )}
               <p className="mt-1 text-3xs leading-relaxed text-subtle">
@@ -567,7 +568,7 @@ export function BookProfileView({
                 }
               }}
               placeholder="记一条，回车存进 灵感.md"
-              className="w-full rounded-sm border border-border bg-panel px-2 py-1 text-2xs text-foreground outline-none placeholder:text-subtle focus:border-accent"
+              className="sf-input w-full rounded-sm border border-border bg-panel px-2 py-1 text-2xs text-foreground placeholder:text-subtle"
               data-testid="book-note-input"
             />
           </div>
@@ -582,25 +583,30 @@ export function BookProfileView({
                 >
                   <button
                     type="button"
-                    className={`mt-[3px] grid h-3 w-3 flex-shrink-0 place-items-center rounded-xs border ${
-                      note.done ? 'border-muted text-muted' : 'border-border text-transparent'
-                    } hover:border-muted`}
+                    className="flex min-w-0 flex-1 items-start gap-1.5 text-left"
                     title={note.done ? '标记为未完成' : '标记为已完成'}
                     aria-label={note.done ? '标记为未完成' : '标记为已完成'}
+                    aria-pressed={note.done}
                     onClick={() => void handle.toggleNote(note)}
                   >
-                    <Check size={9} strokeWidth={3} />
+                    <span
+                      className={`mt-px grid h-4 w-4 flex-shrink-0 place-items-center rounded-xs border ${
+                        note.done ? 'border-muted text-muted' : 'border-border text-transparent'
+                      } hover:border-muted`}
+                    >
+                      <Check size={11} strokeWidth={3} aria-hidden="true" />
+                    </span>
+                    <span
+                      className={`min-w-0 flex-1 break-words text-2xs leading-snug ${
+                        note.done ? 'text-subtle line-through' : 'text-muted'
+                      }`}
+                    >
+                      {note.text}
+                    </span>
                   </button>
-                  <span
-                    className={`min-w-0 flex-1 break-words text-2xs leading-snug ${
-                      note.done ? 'text-subtle line-through' : 'text-muted'
-                    }`}
-                  >
-                    {note.text}
-                  </span>
                   <button
                     type="button"
-                    className="mt-[2px] flex-shrink-0 text-subtle opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                    className="mt-[2px] flex-shrink-0 text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
                     title="删除这条"
                     aria-label={`删除速记 ${note.text}`}
                     onClick={() => void handle.removeNote(note)}

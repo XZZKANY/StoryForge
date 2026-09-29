@@ -19,7 +19,7 @@ export function AssistantPanelFrame({
 }) {
   return (
     <section
-      className={`sf-shell-edge-left ${visible ? 'flex' : 'hidden'} min-h-0 ${wide ? 'flex-1' : 'shrink'} flex-col overflow-hidden bg-panel`}
+      className={`${visible ? 'flex' : 'hidden'} min-h-0 ${wide ? 'flex-1' : 'shrink'} flex-col overflow-hidden bg-panel`}
       style={{
         width: wide ? undefined : ASSISTANT_PANEL_WIDTH,
         minWidth: compact ? 0 : wide ? WORKSPACE_PRIMARY_MIN_WIDTH : ASSISTANT_PANEL_MIN_WIDTH,

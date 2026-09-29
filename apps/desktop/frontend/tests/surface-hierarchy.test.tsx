@@ -5,12 +5,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vitest';
 
 import { AppDialogHost } from '../src/components/app/AppDialog';
+import { ProjectLibrary } from '../src/components/app/ProjectLibrary';
+import { ComposerSurface } from '../src/components/chat-window/Composer';
 import { ConversationHeader } from '../src/components/chat-window/panels';
 import { ActivityBar } from '../src/components/shell/ActivityBar';
 import { AssistantPanelFrame } from '../src/components/shell/AssistantPanelFrame';
 import { EditorTabs } from '../src/components/shell/EditorTabs';
 import { SidePanel } from '../src/components/shell/SidePanel';
-import { StatusBar } from '../src/components/shell/StatusBar';
 import { Titlebar } from '../src/components/shell/Titlebar';
 
 // Static DOM/CSS guards only: real colors, geometry and focus appearance require browser evidence.
@@ -57,7 +58,7 @@ function rule(selector: string) {
   return found.body;
 }
 
-test('主外壳统一 panel，仅四处主区域边界保留主题细线；正文页签仍使用 background', () => {
+test('主外壳统一 panel，横向细线只留顶栏底缘；二级面板以左缘圆角软影覆盖在 rail 底色上', () => {
   const host = markup(
     <>
       <Titlebar onOpenPalette={noop} projectOpen rightCollapsed={false} onToggleRight={noop} />
@@ -75,18 +76,12 @@ test('主外壳统一 panel，仅四处主区域边界保留主题细线；正�
         onNewFile={noop}
         onFileSelect={noop}
         onFilePreview={noop}
-        widths={{}}
+        width={300}
         onWidthChange={noop}
       />
       <AssistantPanelFrame visible>
         <ConversationHeader title="当前会话" />
       </AssistantPanelFrame>
-      <StatusBar
-        modelLabel=""
-        projectOpen
-        obs={{ error: 0, warning: 0, advisory: 0, total: 0 }}
-        onToggleObs={noop}
-      />
       <EditorTabs
         openFiles={[]}
         activeFile={null}
@@ -102,9 +97,6 @@ test('主外壳统一 panel，仅四处主区域边界保留主题细线；正�
   );
   const shellEdges: Record<string, string> = {
     'shell-titlebar': 'bottom',
-    'shell-side-panel': 'right',
-    'assistant-panel': 'left',
-    'shell-status-bar': 'top',
   };
   for (const id of [
     'shell-titlebar',
@@ -112,19 +104,34 @@ test('主外壳统一 panel，仅四处主区域边界保留主题细线；正�
     'shell-side-panel',
     'assistant-panel',
     'conversation-header',
-    'shell-status-bar',
   ]) {
     const panel = element(host, `[data-testid="${id}"]`);
     assertNoGridUtilities(panel);
+    // 分区不靠网格线：rail 是画布色底层（无圆角、无凸出），二级面板左缘圆角内收 +
+    // 横向软影 + overflow-hidden，覆盖在 rail 之上。
+    if (id === 'shell-side-panel') {
+      assert.equal(panel.classList.contains('rounded-l-xl'), true, '面板左缘必须是圆角');
+      assert.equal(panel.classList.contains('shadow-panel-lift'), true, '面板左缘必须有横向软影');
+      assert.equal(panel.classList.contains('overflow-hidden'), true, '圆角必须真实裁切内容');
+    }
+    if (id === 'shell-activity-bar') {
+      assert.equal(
+        Array.from(panel.classList).some((token) => token.startsWith('rounded-')),
+        false,
+        'rail 是贯穿全高的底层背景，不得带圆角',
+      );
+    }
     assert.deepEqual(
       Array.from(panel.classList).filter((token) => token.startsWith('sf-shell-edge-')),
       shellEdges[id] ? [`sf-shell-edge-${shellEdges[id]}`] : [],
       `${id} should only have its intended primary edge`,
     );
+    // 一级导航 rail 用画布色（比二级面板暗一档），其余壳面仍共享 panel。
+    const expectedSurface = id === 'shell-activity-bar' ? 'bg-background' : 'bg-panel';
     assert.equal(
-      panel.classList.contains('bg-panel'),
+      panel.classList.contains(expectedSurface),
       true,
-      `${id} should share the panel surface`,
+      `${id} should use ${expectedSurface}`,
     );
   }
   const tabs = element(host, '[data-testid="editor-tabs"]');
@@ -167,7 +174,8 @@ test('选中页签以圆角填充区分，保留 tab 语义、焦点样式和未
   assert.equal(inactiveSurface.classList.contains('bg-elevated'), false);
   assert.equal(selected.tabIndex, 0);
   assert.equal(inactive.tabIndex, -1);
-  assert.equal(selected.classList.contains('focus-visible:ring-2'), true);
+  // 死焦点类（outline-none + ring-agent）已移除，页签焦点交给全局 :focus-visible outline 兜底。
+  assert.equal(selected.classList.contains('focus-visible:ring-2'), false);
   assert.ok(selectedSurface.querySelector('[data-testid="editor-tab-dirty"]'));
 });
 
@@ -205,9 +213,10 @@ test('减少装饰线不抹掉输入、弹层和全局键盘焦点的必要边�
   const input = element(host, 'input');
   assert.equal(dialog.classList.contains('border'), true);
   assert.equal(dialog.classList.contains('border-border'), true);
-  assert.equal(input.classList.contains('border'), true);
+  assert.equal(input.classList.contains('sf-form-control'), true);
+  assert.match(rule('.sf-form-control'), /border:\s*1px solid/);
   assert.equal(input.classList.contains('border-border-strong'), true);
-  assert.equal(input.classList.contains('focus:border-accent'), true);
+  assert.equal(input.classList.contains('sf-input'), true);
   assert.match(rule(':focus-visible'), /outline:\s*2px solid/);
   for (const entry of cssRules.filter(({ selectors }) =>
     selectors.some((selector) => ['*', ':root', 'html', 'body', '#root'].includes(selector)),
@@ -220,8 +229,8 @@ test('减少装饰线不抹掉输入、弹层和全局键盘焦点的必要边�
   }
 });
 
-test('四处主边界只在深色出现，均为低对比 1px divider，不恢复其他网格', () => {
-  const directions = ['bottom', 'top', 'right', 'left'];
+test('横向主边界只在深色出现，均为低对比 1px divider；三栏之间不画竖线', () => {
+  const directions = ['bottom'];
   const selectors = directions.map(
     (direction) => `:root:not([data-theme='light']) .sf-shell-edge-${direction}`,
   );
@@ -260,15 +269,15 @@ test('深色使用近黑画布与递进表面，保留控件描边；浅色 toke
     ),
     {
       background: '16 16 18',
-      panel: '22 22 24',
-      surface: '29 29 32',
-      elevated: '41 41 45',
+      panel: '26 26 30',
+      surface: '33 33 37',
+      elevated: '42 42 47',
       border: '52 52 57',
       'border-strong': '72 72 79',
     },
   );
   assert.deepEqual(tokens(":root[data-theme='light']"), {
-    background: '247 247 248',
+    background: '243 243 245',
     panel: '255 255 255',
     surface: '255 255 255',
     elevated: '238 238 241',
@@ -280,12 +289,15 @@ test('深色使用近黑画布与递进表面，保留控件描边；浅色 toke
     accent: '24 24 27',
     'accent-foreground': '250 250 250',
     error: '200 56 56',
-    warning: '176 122 17',
-    success: '42 140 84',
+    // P2-E 浅色语义色按最严底（surface #e8e8ea）达 AA 4.5:1 重选：
+    // warning 旧 #b07a11 最差 3.04:1 → 新 #a14607 最差 5.06:1；
+    // success 旧 #2a8c54 最差 3.45:1 → 新 #166534 最差 5.83:1。
+    warning: '161 70 7',
+    success: '22 101 52',
     agent: '79 86 196',
     'agent-foreground': '250 250 250',
     'issue-high': '200 56 56',
-    'issue-medium': '176 122 17',
+    'issue-medium': '161 70 7',
     'issue-low': '79 86 196',
     'shadow-sm': '0 1px 3px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.12)',
     'shadow-md': '0 4px 12px rgb(0 0 0 / 0.08), 0 2px 4px rgb(0 0 0 / 0.05)',
@@ -296,6 +308,71 @@ test('深色使用近黑画布与递进表面，保留控件描边；浅色 toke
     'shadow-dialog': '0 24px 80px rgb(0 0 0 / 0.22)',
     'shadow-composer': '0 4px 16px rgb(0 0 0 / 0.08)',
     'shadow-composer-focus': '0 4px 20px rgb(0 0 0 / 0.1)',
+    // 反向投影 token：底栏/贴底操作条共用，浅色按惯例降 alpha（深色 0.1 → 浅色 0.05）。
+    'shadow-bar-top': '0 -4px 16px rgb(0 0 0 / 0.05)',
+    'shadow-panel-lift': '-4px 0 12px -6px rgb(0 0 0 / 0.12)',
     divider: 'rgb(var(--border) / 0.5)',
   });
+});
+
+test('复合输入框焦点反馈只由外层负责，内层控件豁免全局焦点轮廓', () => {
+  // base 焦点环保留；sf-inner-input 明确让外壳负责反馈。
+  // 文本输入框被鼠标点击后同样匹配 :focus-visible，不能只靠注释里的键盘假设。
+  assert.match(rule(':focus-visible'), /outline:\s*2px solid rgb\(var\(--agent\)\)/); // 三处复合输入框：文件搜索（命令面板）、询问框（Composer）、作品搜索（项目库）。
+  // 外层容器用 focus-within 提亮边框；内层控件一律带 sf-inner-input 豁免第二套轮廓。
+  const composer = markup(
+    <ComposerSurface
+      value=""
+      onChange={noop}
+      disabled={false}
+      busy={false}
+      currentFileLabel={null}
+      explicitContextPaths={[]}
+      onAddContext={noop}
+      permissionProfile="ask"
+      onPermissionProfileChange={noop}
+    />,
+  );
+  assert.equal(
+    element(composer, '[data-testid="composer-surface"] textarea').classList.contains(
+      'sf-inner-input',
+    ),
+    true,
+  );
+
+  const library = markup(
+    <ProjectLibrary
+      projects={['C:/demo/a']}
+      activeProject={null}
+      onNewProject={noop}
+      onOpenProject={noop}
+      onSelectProject={noop}
+      onResumeProject={noop}
+      onOpenSettings={noop}
+    />,
+  );
+  assert.equal(element(library, 'input[type="search"]').classList.contains('sf-inner-input'), true);
+  for (const host of [composer, library]) {
+    const shell = element(host, '.sf-input-shell');
+    assert.ok(
+      shell.classList.contains('sf-form-shell') ||
+        Array.from(shell.classList).some((token) => token.startsWith('focus-within:border-accent')),
+    );
+    assert.ok(shell.querySelector('.sf-inner-input'));
+  }
+
+  // CommandPalette 状态下放且挂载即 focus，走源文本断言（同 app.test.tsx）。
+  const paletteSource = readFileSync('src/components/CommandPalette.tsx', 'utf8');
+  assert.match(paletteSource, /className="sf-inner-input [^"]*outline-none/);
+});
+
+test('reduced-motion 归零保留状态载体：animate-ping/pulse 降级为常亮而非消失', () => {
+  // 「Agent 运行中」靠这两个无限动画表达；全局归零会把运行信号整个抹掉。
+  const reduced = css.match(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/);
+  assert.ok(reduced, 'Missing prefers-reduced-motion block');
+  assert.match(reduced[1], /\.animate-ping,\s*\.animate-pulse\s*\{[^}]*animation:\s*none/s);
+  // 贴底操作条的反向投影走 token，不再允许任意值/内联阴影漂移。
+  assert.match(css, /--shadow-bar-top:\s*0 -4px 16px/);
+  const panels = readFileSync('src/components/chat-window/panels.tsx', 'utf8');
+  assert.doesNotMatch(panels, /shadow-\[0_-4px/);
 });

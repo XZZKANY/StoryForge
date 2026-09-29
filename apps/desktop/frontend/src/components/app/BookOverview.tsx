@@ -13,7 +13,15 @@ import type { BookProfileHandle } from './useBookProfile';
 import type { AgentRunOverviewSummary } from '../chat-window/types';
 import { displayBookTitle } from '../../lib/book-profile';
 import { BookOverviewHero } from './BookOverviewHero';
-import { BookOpen, ChevronRight, FileText, Library, RefreshCw } from '../icons/shell-icons';
+import {
+  BookOpen,
+  ChevronRight,
+  FileText,
+  Library,
+  RefreshCw,
+  Sparkles,
+} from '../icons/shell-icons';
+import { IconButton } from '../ui';
 import { LiveStatus } from '../shell/LiveStatus';
 
 const OVERVIEW_CHAPTER_LIMIT = 8;
@@ -31,10 +39,14 @@ export type BookOverviewProps = {
   onOpenChapter?: (relativePath: string) => void;
   onOpenOutline?: (path: string, line: number) => void;
   onRefresh?: () => void;
+  /** P2-C：封面空态点击后落到「编辑作品资料」动作的入口。 */
+  onEditProfile?: () => void;
   pendingPatchCount?: number;
   onOpenPendingPatches?: () => void;
   agentRun?: AgentRunOverviewSummary | null;
   onOpenAgentRun?: () => void;
+  /** 「AI 起草下一章」入口：由壳层推导目标章并经事件桥交给 ChatWindow。 */
+  onDraftNextChapter?: () => void;
 };
 
 function ContextStatus({
@@ -88,6 +100,8 @@ export function BookOverview({
   onOpenPendingPatches,
   agentRun = null,
   onOpenAgentRun,
+  onEditProfile,
+  onDraftNextChapter,
 }: BookOverviewProps) {
   const book = profile.profile;
   const chapterListRef = useRef<HTMLDivElement>(null);
@@ -113,6 +127,8 @@ export function BookOverview({
     overviewChapterStart + OVERVIEW_CHAPTER_LIMIT,
   );
   const hasMoreChapters = recentChapters.length < chapters.length;
+  const nextChapterOrdinal =
+    chapters.reduce((max, chapter) => Math.max(max, chapter.ordinal), 0) + 1;
   const outlineItems = profile.outline.slice(0, 6);
 
   return (
@@ -133,25 +149,28 @@ export function BookOverview({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-2xs uppercase tracking-[0.18em] text-subtle">作品总览</p>
-            <h1 className="truncate text-xl font-semibold text-foreground md:text-2xl">
+            <h1
+              className="truncate text-xl font-semibold text-foreground md:text-2xl"
+              title={title}
+            >
               {title || '未命名作品'}
             </h1>
           </div>
           {onRefresh ? (
-            <button
-              type="button"
+            <IconButton
+              size="md"
+              label="重新读取作品资料"
+              icon={
+                <RefreshCw
+                  size={15}
+                  className={profile.refreshing ? 'animate-spin' : ''}
+                  aria-hidden="true"
+                />
+              }
               onClick={onRefresh}
               disabled={profile.refreshing}
-              title="重新读取作品资料"
-              className="interactive-press grid h-9 w-9 place-items-center rounded-lg text-muted transition-all hover:bg-elevated hover:text-foreground hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
               data-testid="book-overview-refresh"
-            >
-              <RefreshCw
-                size={15}
-                className={profile.refreshing ? 'animate-spin' : ''}
-                aria-hidden="true"
-              />
-            </button>
+            />
           ) : null}
         </header>
 
@@ -174,13 +193,15 @@ export function BookOverview({
           chapterListRef={chapterListRef}
           onContinueWriting={onContinueWriting}
           onRefresh={onRefresh}
+          onEditProfile={onEditProfile}
+          onDraftNextChapter={onDraftNextChapter}
         />
 
         {pendingPatchCount > 0 && onOpenPendingPatches ? (
           <button
             type="button"
             onClick={onOpenPendingPatches}
-            className="flex w-full items-center gap-3 rounded-lg border border-agent/40 bg-agent/10 px-4 py-3.5 text-left hover:bg-agent/15"
+            className="flex w-full items-center gap-3 rounded-lg border border-agent/40 bg-agent/10 px-4 py-3.5 text-left transition-colors hover:bg-agent/15"
             data-testid="book-overview-pending-patches"
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-agent/20">
@@ -197,7 +218,7 @@ export function BookOverview({
           <button
             type="button"
             onClick={onOpenAgentRun}
-            className="flex w-full items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3.5 text-left hover:bg-warning/15"
+            className="flex w-full items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3.5 text-left transition-colors hover:bg-warning/15"
             data-testid="book-overview-agent-run"
           >
             <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-warning/20">
@@ -304,7 +325,7 @@ export function BookOverview({
                       <span className="min-w-0 flex-1 truncate text-sm text-muted transition-colors group-hover:text-foreground">
                         {chapter.name}
                       </span>
-                      <span className="text-2xs text-subtle">
+                      <span className="text-2xs tabular-nums text-subtle">
                         {chapter.estimatedChars === null
                           ? '字数未知'
                           : formatEstimatedChars(chapter.estimatedChars)}
@@ -327,6 +348,16 @@ export function BookOverview({
                         ? `章节索引读取失败：${chapterIndex.error ?? '未知错误'}`
                         : '章节尚未读取完成；加载失败时请重试。'}
                 </p>
+                {onDraftNextChapter && chapterIndex?.status === 'available' ? (
+                  <button
+                    type="button"
+                    onClick={onDraftNextChapter}
+                    className="mt-4 inline-flex h-8 items-center gap-2 rounded-md border border-agent/40 px-3 text-xs text-agent transition-colors hover:bg-agent/10"
+                    data-testid="book-overview-draft-first"
+                  >
+                    <Sparkles size={13} aria-hidden="true" />让 AI 起草第 1 章
+                  </button>
+                ) : null}
               </div>
             )}
             {hasMoreChapters ? (
@@ -342,6 +373,24 @@ export function BookOverview({
                     打开手稿视图
                     <ChevronRight size={13} aria-hidden="true" />
                   </span>
+                </button>
+              </div>
+            ) : null}
+            {onDraftNextChapter &&
+            recentChapters.length > 0 &&
+            chapterIndex?.status !== 'loading' ? (
+              <div className="px-4 pb-3">
+                <button
+                  type="button"
+                  onClick={onDraftNextChapter}
+                  className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-agent transition-colors hover:bg-agent/10"
+                  data-testid="book-overview-draft-next"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles size={13} aria-hidden="true" />
+                    AI 起草下一章 · 第 {nextChapterOrdinal} 章
+                  </span>
+                  <ChevronRight size={13} className="text-subtle" aria-hidden="true" />
                 </button>
               </div>
             ) : null}

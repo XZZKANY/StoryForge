@@ -88,6 +88,7 @@ function render(status: 'waiting' | 'completed') {
       handleComposerSubmit={async () => undefined}
       userMessageHistory={[]}
       retryLastFailedRun={() => undefined}
+      retryWritingRunSubscription={() => undefined}
       agentRunControls={controls}
     />,
   );

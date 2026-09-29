@@ -49,11 +49,6 @@ test('story navigator groups markdown files by fiction semantics', () => {
   );
   assert.deepEqual(
     groups.map((group) => group.files.map((file) => file.relativePath)),
-    [
-      ['人物\\林岚.md'],
-      ['.资料\\黄金三章spec.md'],
-      ['正文\\第01章.md'],
-      ['质量\\验收.md'],
-    ],
+    [['人物\\林岚.md'], ['.资料\\黄金三章spec.md'], ['正文\\第01章.md'], ['质量\\验收.md']],
   );
 });

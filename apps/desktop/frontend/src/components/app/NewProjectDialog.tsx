@@ -1,3 +1,5 @@
+import { Field, Input, DialogSurface, Button } from '../ui';
+
 import { useEffect, useRef, type RefObject } from 'react';
 import { FolderOpen } from 'lucide-react';
 import type { NewProjectController } from './useNewProject';
@@ -7,39 +9,14 @@ type NewProjectDialogProps = {
   fallbackFocusRef?: RefObject<HTMLElement>;
 };
 
-function canRestoreFocus(element: Element | null | undefined): element is HTMLElement {
-  if (
-    !(element instanceof HTMLElement) ||
-    !element.isConnected ||
-    element === document.body ||
-    element.closest('[hidden], [inert], [aria-hidden="true"]')
-  )
-    return false;
-  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
-    const style = getComputedStyle(node);
-    if (style.display === 'none' || style.visibility === 'hidden') return false;
-  }
-  return true;
-}
-
 export function NewProjectDialog(props: NewProjectDialogProps) {
   return props.controller.isOpen ? <NewProjectDialogContent {...props} /> : null;
 }
 
 function NewProjectDialogContent({ controller, fallbackFocusRef }: NewProjectDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const sectionRef = useRef<HTMLElement>(null);
   const locked = controller.busy || controller.choosingDirectory;
   const { shouldRestoreOpener } = controller;
-  useEffect(() => {
-    const opener = document.activeElement;
-    const fallback = fallbackFocusRef?.current;
-    inputRef.current?.focus();
-    return () => {
-      const target = shouldRestoreOpener() && canRestoreFocus(opener) ? opener : fallback;
-      if (canRestoreFocus(target)) target.focus({ preventScroll: true });
-    };
-  }, [fallbackFocusRef, shouldRestoreOpener]);
   useEffect(() => {
     // Dirty-file confirmation owns focus while visible; return it after a rejection/failure.
     if (!locked && (!document.activeElement || document.activeElement === document.body))
@@ -48,45 +25,22 @@ function NewProjectDialogContent({ controller, fallbackFocusRef }: NewProjectDia
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/55 p-4"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/55 p-4 animate-fade-in"
       role="presentation"
+      data-modal-backdrop=""
     >
-      <section
-        ref={sectionRef}
+      <DialogSurface
+        onClose={controller.close}
+        initialFocusRef={inputRef}
+        fallbackFocusRef={fallbackFocusRef}
+        shouldRestoreOpener={shouldRestoreOpener}
         role="dialog"
         aria-modal="true"
         aria-labelledby="new-project-heading"
         aria-describedby="new-project-description"
         aria-busy={locked}
         data-testid="new-project-dialog"
-        className="max-h-[calc(100dvh-2rem)] w-full max-w-[480px] overflow-y-auto rounded-xl border border-border bg-panel p-6 shadow-dialog"
-        onKeyDown={(event) => {
-          event.stopPropagation();
-          if (event.nativeEvent.isComposing) {
-            if (event.key === 'Enter') event.preventDefault();
-            return;
-          }
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            controller.close();
-          }
-          if (event.key !== 'Tab') return;
-          const focusables = Array.from(
-            event.currentTarget.querySelectorAll<HTMLElement>('button, input, [tabindex]'),
-          ).filter(
-            (element) =>
-              element.tabIndex >= 0 && !element.matches(':disabled') && canRestoreFocus(element),
-          );
-          const first = focusables[0];
-          const last = focusables[focusables.length - 1];
-          if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last?.focus();
-          } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first?.focus();
-          }
-        }}
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-[480px] overflow-y-auto rounded-xl border border-border bg-panel p-6 shadow-dialog animate-slide-up-fade"
       >
         <h2 id="new-project-heading" className="text-lg font-semibold text-foreground">
           新建作品
@@ -101,52 +55,48 @@ function NewProjectDialogContent({ controller, fallbackFocusRef }: NewProjectDia
             void controller.create();
           }}
         >
-          <div>
-            <label
-              htmlFor="new-project-title"
-              className="mb-2 block text-sm font-medium text-foreground"
-            >
-              书名
-            </label>
-            <input
-              ref={inputRef}
-              id="new-project-title"
-              value={controller.title}
-              onChange={(event) => controller.setTitle(event.target.value)}
-              readOnly={locked}
-              autoComplete="off"
-              placeholder="为这部作品起个名字"
-              aria-describedby={controller.error ? 'new-project-error' : undefined}
-              className="h-10 w-full rounded-md border border-border-strong bg-background px-3 text-sm text-foreground outline-none placeholder:text-subtle focus:border-accent"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="new-project-parent"
-              className="mb-2 block text-sm font-medium text-foreground"
-            >
-              保存位置
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="new-project-parent"
-                value={controller.parentPath}
-                readOnly
-                placeholder="选择本地文件夹"
-                title={controller.parentPath}
-                className="h-10 min-w-0 flex-1 rounded-md border border-border bg-background px-3 text-sm text-muted outline-none focus:border-accent"
+          <Field
+            id="new-project-title"
+            label="书名"
+            aria-describedby={controller.error ? 'new-project-error' : undefined}
+          >
+            {(control) => (
+              <Input
+                {...control}
+                ref={inputRef}
+                controlSize="lg"
+                value={controller.title}
+                onChange={(event) => controller.setTitle(event.target.value)}
+                readOnly={locked}
+                autoComplete="off"
+                placeholder="为这部作品起个名字"
               />
-              <button
-                type="button"
-                disabled={locked}
-                onClick={() => void controller.chooseDirectory()}
-                className="flex h-10 shrink-0 items-center gap-2 rounded-md border border-border-strong px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
-              >
-                <FolderOpen size={15} aria-hidden="true" />
-                {controller.choosingDirectory ? '选择中…' : '选择文件夹'}
-              </button>
-            </div>
-          </div>
+            )}
+          </Field>
+          <Field id="new-project-parent" label="保存位置">
+            {(control) => (
+              <div className="flex gap-2">
+                <Input
+                  {...control}
+                  controlSize="lg"
+                  value={controller.parentPath}
+                  readOnly
+                  placeholder="选择本地文件夹"
+                  title={controller.parentPath}
+                  className="min-w-0 flex-1 text-muted"
+                />
+                <Button
+                  size="lg"
+                  disabled={locked}
+                  loading={controller.choosingDirectory}
+                  onClick={() => void controller.chooseDirectory()}
+                  leadingIcon={<FolderOpen size={15} aria-hidden="true" />}
+                >
+                  {controller.choosingDirectory ? '选择中…' : '选择文件夹'}
+                </Button>
+              </div>
+            )}
+          </Field>
           <div className="rounded-md bg-background px-3 py-3 text-xs leading-5 text-muted">
             <div>作品将保存在</div>
             <div
@@ -166,24 +116,29 @@ function NewProjectDialogContent({ controller, fallbackFocusRef }: NewProjectDia
             </p>
           )}
           <div className="flex justify-end gap-2 border-t border-border pt-4">
-            <button
+            <Button
               type="button"
               disabled={locked}
               onClick={controller.close}
-              className="h-9 rounded-md border border-border-strong px-4 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
+              size="md"
+              variant="secondary"
+              className="text-sm"
             >
               取消
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              disabled={locked || !controller.title || !controller.parentPath}
-              className="h-9 rounded-md bg-accent px-4 text-sm font-medium text-accent-foreground hover:bg-accent/90 disabled:opacity-50"
+              loading={controller.busy}
+              disabled={locked || !controller.title.trim() || !controller.parentPath}
+              size="md"
+              variant="primary"
+              className="text-sm font-medium"
             >
               {controller.busy ? '创建中…' : '创建作品'}
-            </button>
+            </Button>
           </div>
         </form>
-      </section>
+      </DialogSurface>
     </div>
   );
 }

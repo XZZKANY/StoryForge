@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import {
-  applyPatchHunk,
   applyPatchHunkToCurrent,
   buildPatchHunks,
   isWholeFileDrifted,
@@ -23,7 +22,7 @@ test('patch hunks split separated line changes and apply one hunk at a time', ()
     ],
   );
 
-  const afterFirstHunk = applyPatchHunk(before, after, hunks[0]);
+  const afterFirstHunk = applyPatchHunkToCurrent(before, hunks[0]);
   assert.equal(
     afterFirstHunk,
     ['第一句。', '第二句更顺。', '第三句保留。', '第四句略散。', ''].join('\n'),
@@ -31,7 +30,7 @@ test('patch hunks split separated line changes and apply one hunk at a time', ()
 
   const remainingHunks = buildPatchHunks(afterFirstHunk, after);
   assert.equal(remainingHunks.length, 1);
-  assert.equal(applyPatchHunk(afterFirstHunk, after, remainingHunks[0]), after);
+  assert.equal(applyPatchHunkToCurrent(afterFirstHunk, remainingHunks[0]), after);
 });
 
 test('patch hunks handle insertion-only and deletion-only edits', () => {
@@ -46,7 +45,7 @@ test('patch hunks handle insertion-only and deletion-only edits', () => {
   assert.equal(hunks[1].removedLines, 1);
   assert.equal(hunks[1].addedLines, 0);
 
-  const afterInsertion = applyPatchHunk(before, after, hunks[0]);
+  const afterInsertion = applyPatchHunkToCurrent(before, hunks[0]);
   assert.equal(afterInsertion, ['新增钩子。', '开场。', '多余句。', '收束。', ''].join('\n'));
 });
 

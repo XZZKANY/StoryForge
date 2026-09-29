@@ -3,7 +3,7 @@ import type { ManuscriptChapter } from '../../lib/book-context';
 import { bookGoalProgress, formatWordCount } from '../../lib/book-profile';
 import type { BookProfileHandle } from './useBookProfile';
 import type { BookOverviewChaptersHandle } from './useBookOverviewChapters';
-import { ArrowUp, BookOpen, ChevronRight } from '../icons/shell-icons';
+import { ArrowUp, BookOpen, ChevronRight, Sparkles } from '../icons/shell-icons';
 
 /**
  * 载入中的骨架屏：镜像 hero 两卡（封面+简介 / 写作进度）的形状，
@@ -51,6 +51,8 @@ export function BookOverviewHero({
   chapterListRef,
   onContinueWriting,
   onRefresh = profile.refresh,
+  onEditProfile,
+  onDraftNextChapter,
 }: {
   profile: BookProfileHandle;
   title: string;
@@ -60,6 +62,10 @@ export function BookOverviewHero({
   chapterListRef: RefObject<HTMLDivElement | null>;
   onContinueWriting: (relativePath?: string) => void;
   onRefresh?: () => void;
+  /** P2-C：「可在作品资料中添加」从纯文案升级为可点击，落到 overview 顶栏既有的「编辑作品资料」动作。 */
+  onEditProfile?: () => void;
+  /** 「AI 起草下一章」入口：次级按钮，与「继续写作」并排。 */
+  onDraftNextChapter?: () => void;
 }) {
   const book = profile.profile;
   const currentPath = currentChapter?.relativePath;
@@ -86,16 +92,22 @@ export function BookOverviewHero({
               data-testid="book-overview-cover"
             />
           ) : (
-            <div
-              className="flex h-full w-full flex-col items-center justify-center gap-2 px-2 text-center text-subtle"
+            <button
+              type="button"
+              onClick={onEditProfile}
+              disabled={!onEditProfile || Boolean(profile.profileError)}
+              className="group flex h-full w-full flex-col items-center justify-center gap-2 px-2 text-center text-subtle transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-agent disabled:cursor-default"
               data-testid="book-overview-cover-empty"
+              title={profile.profileError ? undefined : '点击编辑作品资料，添加封面'}
             >
               <BookOpen size={24} strokeWidth={1.4} aria-hidden="true" />
               <span className="text-xs">{profile.profileError ? '封面未读取' : '暂无封面'}</span>
               {!profile.profileError && (
-                <span className="text-2xs leading-5">可在作品资料中添加</span>
+                <span className="text-2xs leading-5 text-subtle group-hover:text-agent">
+                  {onEditProfile ? '点击添加' : '可在作品资料中添加'}
+                </span>
               )}
-            </div>
+            </button>
           )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
@@ -141,22 +153,35 @@ export function BookOverviewHero({
             </>
           )}
           <div className="mt-auto pt-5">
-            <button
-              type="button"
-              onClick={() => {
-                if (currentPath) onContinueWriting(currentPath);
-                else {
-                  chapterListRef.current?.scrollIntoView?.({ block: 'nearest' });
-                  chapterListRef.current?.focus();
-                }
-              }}
-              className="interactive-press inline-flex h-9 items-center gap-2 rounded-md bg-agent px-4 text-sm font-medium text-agent-foreground transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-              data-testid="book-overview-continue"
-            >
-              <ArrowUp size={16} strokeWidth={1.8} aria-hidden="true" />
-              {currentPath ? '继续写作' : '选择章节开始'}
-              <ChevronRight size={15} strokeWidth={1.8} aria-hidden="true" />
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentPath) onContinueWriting(currentPath);
+                  else {
+                    chapterListRef.current?.scrollIntoView?.({ block: 'nearest' });
+                    chapterListRef.current?.focus();
+                  }
+                }}
+                className="interactive-press inline-flex h-9 items-center gap-2 rounded-md bg-agent px-4 text-sm font-medium text-agent-foreground transition-colors hover:bg-agent/90 disabled:cursor-not-allowed disabled:opacity-60"
+                data-testid="book-overview-continue"
+              >
+                <ArrowUp size={16} strokeWidth={1.8} aria-hidden="true" />
+                {currentPath ? '继续写作' : '选择章节开始'}
+                <ChevronRight size={15} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+              {onDraftNextChapter ? (
+                <button
+                  type="button"
+                  onClick={onDraftNextChapter}
+                  className="interactive-press inline-flex h-9 items-center gap-2 rounded-md border border-agent/40 px-4 text-sm text-agent transition-colors hover:bg-agent/10"
+                  data-testid="book-overview-hero-draft-next"
+                >
+                  <Sparkles size={15} strokeWidth={1.8} aria-hidden="true" />
+                  AI 起草下一章
+                </button>
+              ) : null}
+            </div>
             {currentChapter ? (
               <p className="mt-2 truncate text-2xs text-subtle" title={currentChapter.relativePath}>
                 从第 {currentChapter.ordinal} 章 · {currentChapter.name} 继续
@@ -192,6 +217,10 @@ export function BookOverviewHero({
           <>
             <div
               className="mt-3 h-1.5 overflow-hidden rounded-full bg-elevated"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progress * 100)}
               aria-label={`已完成 ${Math.round(progress * 100)}%`}
             >
               <div

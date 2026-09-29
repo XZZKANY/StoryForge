@@ -16,10 +16,6 @@ function visibleStoryforgeChild(path: string): boolean {
   );
 }
 
-export function isAuthorInstructionsPath(path: string | null): boolean {
-  return Boolean(path && /[/\\]\.storyforge[/\\]agent-instructions\.md$/i.test(path));
-}
-
 function normalizedExtension(entry: FileEntry): string {
   return entry.extension?.toLowerCase() ?? '';
 }

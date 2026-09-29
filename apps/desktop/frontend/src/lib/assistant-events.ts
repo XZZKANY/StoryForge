@@ -17,6 +17,7 @@ export const REQUEST_SAVE_ACTIVE_FILE_EVENT = 'storyforge:request-save-active-fi
 export const SAVE_ACTIVE_FILE_DONE_EVENT = 'storyforge:save-active-file-done';
 export const REVIEW_ISSUES_EVENT = 'storyforge:review-issues';
 export const REQUEST_CHAPTER_POLISH_EVENT = 'storyforge:request-chapter-polish';
+export const REQUEST_CHAPTER_WRITE_EVENT = 'storyforge:request-chapter-write';
 // Q3a：编辑区工具行收进 EditorTabs「…」菜单后，历史视图这类编辑器内部态用命令事件驱动
 // （保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE，无需新事件）。
 export const REQUEST_EDITOR_COMMAND_EVENT = 'storyforge:request-editor-command';
@@ -67,24 +68,6 @@ export function emitEditorAuthorView(detail: EditorAuthorViewDetail): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(
       new CustomEvent<EditorAuthorViewDetail>(EDITOR_AUTHOR_VIEW_EVENT, { detail }),
-    );
-  }
-}
-
-// 状态栏字数：编辑器内容 / 选区变化去抖广播非空白字符数（网文计字口径）。
-export const EDITOR_TEXT_METRICS_EVENT = 'storyforge:editor-text-metrics';
-
-export type EditorTextMetricsDetail = {
-  filePath: string | null;
-  charCount: number;
-  selectionCharCount: number;
-  paragraphCount: number;
-};
-
-export function emitEditorTextMetrics(detail: EditorTextMetricsDetail): void {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new CustomEvent<EditorTextMetricsDetail>(EDITOR_TEXT_METRICS_EVENT, { detail }),
     );
   }
 }
@@ -156,6 +139,35 @@ export function emitChapterPolishRequest(detail: ChapterPolishRequest): void {
       new CustomEvent<ChapterPolishRequest>(REQUEST_CHAPTER_POLISH_EVENT, { detail }),
     );
   }
+}
+
+export type ChapterWriteRequest = {
+  targetPath?: string;
+  chapterOrdinal?: number | null;
+  chapterTitle?: string | null;
+};
+
+export function emitChapterWriteRequest(detail: ChapterWriteRequest): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<ChapterWriteRequest>(REQUEST_CHAPTER_WRITE_EVENT, { detail }),
+    );
+  }
+}
+
+/**
+ * 「起草下一章」的目标路径推导：与后端 fallback 命名 `正文/第{ordinal:03d}章.md` 同约定
+ * （chapter_writing_contracts.resolve_target）。空手稿从第 1 章起。
+ */
+export function nextChapterWriteRequest(
+  chapters: ReadonlyArray<{ ordinal: number }>,
+): ChapterWriteRequest {
+  const chapterOrdinal = chapters.reduce((max, chapter) => Math.max(max, chapter.ordinal), 0) + 1;
+  return {
+    targetPath: `正文/第${String(chapterOrdinal).padStart(3, '0')}章.md`,
+    chapterOrdinal,
+    chapterTitle: null,
+  };
 }
 
 /**

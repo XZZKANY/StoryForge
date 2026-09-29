@@ -7,6 +7,11 @@
 import { getApiConfig } from './api-client';
 import { createRemoteFileSuggestion } from './assistant-suggestions';
 import { emitAcceptCurrentFileSuggestion, emitFileSuggestion } from './assistant-events';
+import {
+  getWritebackProbeSnapshot,
+  installWritebackProbe,
+  restoreWritebackProbe,
+} from './smoke-writeback-probe';
 
 type SmokeApiConfig = Awaited<ReturnType<typeof getApiConfig>>;
 
@@ -14,6 +19,7 @@ type SmokeController = {
   openProject: (path: string) => void;
   openFile: (path: string) => void;
   proposeRevision: (params: {
+    id?: string;
     filePath: string;
     before: string;
     after: string;
@@ -28,6 +34,9 @@ type SmokeController = {
   getCurrentEditorContent: () => string | null;
   getApiConfig: () => ReturnType<typeof getApiConfig>;
   getApiConfigSnapshot: () => SmokeApiConfig | null;
+  installWritebackProbe: typeof installWritebackProbe;
+  getWritebackProbeSnapshot: typeof getWritebackProbeSnapshot;
+  restoreWritebackProbe: typeof restoreWritebackProbe;
 };
 
 type SmokeEditorController = {
@@ -68,7 +77,7 @@ if (typeof window !== 'undefined') {
     proposeRevision(params) {
       emitFileSuggestion(
         createRemoteFileSuggestion({
-          id: 'smoke-file-revision',
+          id: params.id ?? 'smoke-file-revision',
           filePath: params.filePath,
           before: params.before,
           after: params.after,
@@ -91,6 +100,9 @@ if (typeof window !== 'undefined') {
       return smokeEditorController?.getContent() ?? null;
     },
     getApiConfig,
+    installWritebackProbe,
+    getWritebackProbeSnapshot,
+    restoreWritebackProbe,
     getApiConfigSnapshot() {
       return apiConfigSnapshot;
     },

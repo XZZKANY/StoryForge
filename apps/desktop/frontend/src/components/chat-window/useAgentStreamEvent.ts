@@ -19,6 +19,7 @@ export function useAgentStreamEvent(
   refreshAgentRunRecovery: (runId: string) => Promise<void>,
 ) {
   const {
+    agentRunIdRef,
     assistantSessionIdRef,
     projectPathRef,
     draftNonceRef,
@@ -57,12 +58,12 @@ export function useAgentStreamEvent(
           message.detail,
           message.status,
         );
-        setAgentRun((run) => upsertAgentStep(run, nextStep));
+        setAgentRun((run) => (run?.id === message.run_id ? upsertAgentStep(run, nextStep) : run));
         return;
       }
       if (isAgentToolTraceEventMessage(message)) {
         const nextStep = stepFromToolTraceEvent(message.index, message.trace);
-        setAgentRun((run) => upsertAgentStep(run, nextStep));
+        setAgentRun((run) => (run?.id === message.run_id ? upsertAgentStep(run, nextStep) : run));
         return;
       }
       if (isAgentPermissionRequiredMessage(message)) {
@@ -76,32 +77,73 @@ export function useAgentStreamEvent(
             : '该步骤需要作者批准后才能继续。',
         };
         setAgentRun((run) => {
+          if (run?.id !== message.run_id) return run;
           const next = upsertAgentStep(run, nextStep);
           return next ? { ...next, status: 'waiting' } : next;
         });
-        setAgentBusy(false);
+        // 权限事件不是 worker 出口；busy 由最终结果或 settled ACK 释放。
         void refreshAgentRunRecovery(message.run_id);
         return;
       }
       if (isAgentControlAckMessage(message)) {
-        // 作者主动 停止/暂停 是控制态而非失败：stop→stopped(中性收尾)、pause→paused(留恢复入口)；
-        // permission_denied 才是真失败。
-        const nextStatus: AgentRun['status'] =
-          message.type === 'permission_denied'
-            ? 'failed'
-            : message.type === 'stop_run'
-              ? 'stopped'
-              : message.type === 'pause_run'
-                ? 'paused'
-                : message.type === 'resume_run'
-                  ? 'running'
-                  : 'completed';
-        setAgentRun((run) => (run ? { ...run, status: nextStatus } : run));
-        setAgentBusy(nextStatus === 'running');
+        if (message.run_id !== agentRunIdRef.current) return;
+        // recorded 只证明命令记账。必须等 API 证实执行已结束，不能按按钮名伪造终态。
+        if (message.control_effect === 'requested') {
+          const stopping = message.type === 'stop_run';
+          const nextStep: AgentStep = {
+            id: 'runtime-control',
+            title: stopping ? '正在停止' : '正在暂停',
+            tool: 'agent.runtime.control',
+            status: 'running',
+            detail: stopping ? '已请求停止，等待当前操作结束' : '已请求暂停，等待当前操作结束',
+          };
+          setAgentRun((run) =>
+            run &&
+            run.id === message.run_id &&
+            run.status !== 'completed' &&
+            run.status !== 'failed' &&
+            run.status !== 'stopped'
+              ? upsertAgentStep(run, nextStep)
+              : run,
+          );
+        } else if (message.control_effect === 'applied' && message.runtime_state === 'settled') {
+          const nextStatus = agentStatusFromControl(message.run_status);
+          if (nextStatus) {
+            setAgentRun((run) =>
+              run && run.id === message.run_id
+                ? {
+                    ...run,
+                    status:
+                      nextStatus === 'completed' && run.executionOutcome ? 'failed' : nextStatus,
+                    steps: run.steps.map((step) => {
+                      if (step.id === 'runtime-control') {
+                        return { ...step, status: 'completed', detail: '当前操作已结束。' };
+                      }
+                      if (
+                        step.id === 'permission-required' &&
+                        message.type === 'permission_approved'
+                      ) {
+                        return { ...step, status: 'completed', detail: '作者已批准权限请求。' };
+                      }
+                      if (
+                        step.id === 'permission-required' &&
+                        message.type === 'permission_denied'
+                      ) {
+                        return { ...step, status: 'failed', detail: '作者已拒绝权限请求。' };
+                      }
+                      return step;
+                    }),
+                  }
+                : run,
+            );
+            setAgentBusy(nextStatus === 'running');
+          }
+        }
         void refreshAgentRunRecovery(message.run_id);
       }
     },
     [
+      agentRunIdRef,
       assistantSessionIdRef,
       draftNonceRef,
       projectPathRef,
@@ -122,4 +164,15 @@ function upsertAgentStep(run: AgentRun | null, nextStep: AgentStep): AgentRun | 
       ? run.steps.map((step) => (step.id === nextStep.id ? nextStep : step))
       : [...run.steps, nextStep],
   };
+}
+
+function agentStatusFromControl(status: string | null | undefined): AgentRun['status'] | null {
+  return status === 'running' ||
+    status === 'waiting' ||
+    status === 'completed' ||
+    status === 'failed' ||
+    status === 'paused' ||
+    status === 'stopped'
+    ? status
+    : null;
 }

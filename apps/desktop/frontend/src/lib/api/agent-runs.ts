@@ -3,12 +3,16 @@ import { readErrorDetail } from './errors';
 import type { AgentRunEventRecord } from './agent-run-events';
 import type { AgentRunSavePointProjection } from './types';
 
-export async function getAgentRunSavePoints(runId: string): Promise<AgentRunSavePointProjection> {
+export async function getAgentRunSavePoints(
+  runId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<AgentRunSavePointProjection> {
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(
     `${trimApiBaseUrl(baseUrl)}/api/agent-runs/${encodeURIComponent(runId)}/save-points`,
     {
       method: 'GET',
+      signal: options.signal,
       cache: 'no-store',
       headers: {
         'X-StoryForge-API-Key': apiKey,
@@ -24,12 +28,16 @@ export async function getAgentRunSavePoints(runId: string): Promise<AgentRunSave
 }
 
 // 断线/超时后拉持久化事件表重放，配合 reconstructAgentResultFromEvents 重建终态（F10）。
-export async function getAgentRunEvents(runId: string): Promise<AgentRunEventRecord[]> {
+export async function getAgentRunEvents(
+  runId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<AgentRunEventRecord[]> {
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(
     `${trimApiBaseUrl(baseUrl)}/api/agent-runs/${encodeURIComponent(runId)}/events`,
     {
       method: 'GET',
+      signal: options.signal,
       cache: 'no-store',
       headers: {
         'X-StoryForge-API-Key': apiKey,

@@ -14,6 +14,8 @@ export function buildStableAgentRequestPayload(params: {
   contextBundle: ContextBundle;
   reviewReport: ReviewReport | null;
   authorView: EditorAuthorViewDetail | null;
+  /** 显式起草目标（如「AI 起草下一章」）：目标文件尚不存在，file_path 无条件锚定它而非当前打开稿。 */
+  targetFilePath?: string;
 }): StableAgentRequestPayload {
   const scope = extractIssueScopeFromInstruction(params.instruction, params.reviewReport);
   // 此前这里还发 context / selection 两个与 content 同值的整篇正文键，后端从不读，
@@ -33,6 +35,7 @@ export function buildStableAgentRequestPayload(params: {
     assistant_session_id: params.assistantSessionId,
     context_bundle: toAssistantContextBundlePayload(params.contextBundle),
     ...filePayload,
+    ...(params.targetFilePath ? { file_path: params.targetFilePath } : {}),
     ...authorViewPayload(params.authorView, params.currentFile),
     ...(params.reviewReport ? { review_report: params.reviewReport } : {}),
     ...scope,

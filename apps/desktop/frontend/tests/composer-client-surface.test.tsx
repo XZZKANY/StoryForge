@@ -84,7 +84,7 @@ async function render(props: HarnessProps = {}) {
   await act(async () => root.render(<Harness {...props} />));
 }
 function element<T extends HTMLElement>(selector: string) {
-  const found = host.querySelector<T>(selector);
+  const found = document.querySelector<T>(selector);
   expect(found, selector).not.toBeNull();
   return found!;
 }
@@ -239,7 +239,7 @@ test('附件和权限控件的真实点击只走各自回调，不隐式提交�
   expect(addContext).toHaveBeenCalledTimes(1);
   expect(element('[aria-label="添加上下文"]').getAttribute('aria-expanded')).toBe('true');
   await click('[data-testid="permission-profile-selector"]');
-  expect(host.querySelector('[role="listbox"]')).not.toBeNull();
+  expect(document.querySelector('[role="listbox"]')).not.toBeNull();
   await click('[data-testid="permission-option-read"]');
   expect(changePermission).toHaveBeenCalledExactlyOnceWith('read');
   expect(element('[data-testid="permission-profile-selector"]').textContent).toContain('只读');
@@ -288,7 +288,7 @@ test('disabled 引用区域保持可读，附件、固定、取消与 +N 不调�
   expect(element<HTMLButtonElement>('[aria-label="添加上下文"]').disabled).toBe(true);
   await click('[aria-label="添加上下文"]');
   await click('[data-testid="permission-profile-selector"]');
-  expect(host.querySelector('[role="listbox"]')).toBeNull();
+  expect(document.querySelector('[role="listbox"]')).toBeNull();
   expect(addContext).not.toHaveBeenCalled();
   expect(togglePinned).not.toHaveBeenCalled();
   expect(changePermission).not.toHaveBeenCalled();

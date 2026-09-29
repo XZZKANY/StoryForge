@@ -8,6 +8,13 @@ import { join } from 'node:path';
 
 const server = await createServer({
   configFile: 'vite.config.ts',
+  envFile: false,
+  define: {
+    'import.meta.env.VITE_STORYFORGE_API_BASE_URL': JSON.stringify(
+      'http://storyforge-smoke.invalid',
+    ),
+    'import.meta.env.VITE_STORYFORGE_API_KEY': JSON.stringify('smoke-fixture-key'),
+  },
   server: { port: 0, strictPort: false },
 });
 
@@ -34,8 +41,22 @@ try {
   const url = server.resolvedUrls.local[0];
 
   browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 920 } });
+  const page = await browser.newPage({
+    viewport: { width: 1440, height: 920 },
+    serviceWorkers: 'block',
+  });
   const errors = [];
+  await page.route('**/*', async (route) => {
+    const requested = new URL(route.request().url());
+    if (
+      requested.origin === new URL(url).origin &&
+      !requested.pathname.startsWith('/api/') &&
+      !requested.pathname.startsWith('/health/')
+    )
+      return route.continue();
+    errors.push(`Blocked non-fixture network request: ${new URL(route.request().url()).pathname}`);
+    return route.abort();
+  });
   const isExpectedBrowserRuntimeNoise = (text) =>
     text.includes('TauriFileSystem.') &&
     text.includes('is only available inside the Tauri desktop runtime');
@@ -55,10 +76,21 @@ try {
         readFile(path) {
           if (path === filePath) return currentFileContent;
           if (path === characterFilePath) return characterFileContent;
-          throw new Error(`mock fs missing file: ${path}`);
+          throw new Error(`ENOENT: no such file or directory: ${path}`);
+        },
+        pathExists(path) {
+          const normalized = path.replaceAll('\\', '/').replace(/\/+$/, '');
+          return [
+            projectPath,
+            filePath,
+            characterFilePath,
+            `${projectPath}/正文`,
+            `${projectPath}/人物`,
+          ].some((entry) => entry.replaceAll('\\', '/') === normalized);
         },
         writeFile(path, content) {
-          if (path === filePath) currentFileContent = content;
+          if (path !== filePath) throw new Error(`Unexpected fixture write: ${path}`);
+          currentFileContent = content;
         },
         listDir(path) {
           if (path !== projectPath) return [];
@@ -101,13 +133,135 @@ try {
       let latestAgentPayload = null;
       window.fetch = async (input, init = {}) => {
         const requestUrl = input instanceof Request ? input.url : String(input);
-        if (requestUrl.endsWith('/health/ready')) {
-          return new Response(JSON.stringify({ status: 'ready', checks: { database: 'ok' } }), {
+        const json = (body) =>
+          new Response(JSON.stringify(body), {
             status: 200,
             headers: { 'content-type': 'application/json' },
           });
+        const parsedUrl = new URL(requestUrl, window.location.href);
+        const requestPath = parsedUrl.pathname;
+        const rejectRequest = () => {
+          const message = `Unexpected browser smoke request: ${requestPath}`;
+          window.__STORYFORGE_UNEXPECTED_REQUESTS__ = [
+            ...(window.__STORYFORGE_UNEXPECTED_REQUESTS__ ?? []),
+            message,
+          ];
+          console.error(message);
+          throw new Error(message);
+        };
+        const method = (
+          init.method ?? (input instanceof Request ? input.method : 'GET')
+        ).toUpperCase();
+        const isApi = requestPath.startsWith('/api/') || requestPath.startsWith('/health/');
+        if (isApi && parsedUrl.origin !== 'http://storyforge-smoke.invalid') rejectRequest();
+        const requestBody =
+          isApi && method === 'POST'
+            ? JSON.parse(
+                init.body ?? (input instanceof Request ? await input.clone().text() : '{}'),
+              )
+            : {};
+        const args = requestBody.args ?? {};
+        if (
+          requestPath.startsWith('/api/ide/commands/') &&
+          (method !== 'POST' ||
+            args.project_root !== projectPath ||
+            (args.current_file && args.current_file !== filePath))
+        )
+          rejectRequest();
+        if (requestPath === '/api/agent-runs/knowledge-proposals/refresh') {
+          if (method !== 'POST' || requestBody.project_root !== projectPath) rejectRequest();
+          return json({ items: [], pending_count: 0 });
         }
-        if (requestUrl.endsWith('/api/assistant/sessions/101')) {
+        if (requestPath === '/api/ide/commands/book.context') {
+          const estimatedChars = Math.floor(new TextEncoder().encode(fileContent).length / 3);
+          const currentChapter = args.current_file
+            ? '当前打开的是第 1 章（正文/第三章.md）'
+            : '当前没有打开正文';
+          return json({
+            command_id: 'book.context',
+            status: 'accepted',
+            audit_event_id: null,
+            payload: {
+              title: '读取作品底座',
+              category: 'Manuscript',
+              writes: false,
+              args,
+              book_context: {
+                chapters: [
+                  {
+                    ordinal: 1,
+                    relative_path: '正文/第三章.md',
+                    estimated_chars: estimatedChars,
+                  },
+                ],
+                total_chapters: 1,
+                total_estimated_chars: estimatedChars,
+                current_relative_path: args.current_file ? '正文/第三章.md' : null,
+                current_ordinal: args.current_file ? 1 : null,
+                skeleton: [],
+                skeleton_total: 0,
+                skeleton_limit: 12,
+                roster: [],
+                roster_declared_total: 0,
+                roster_limit: 20,
+                dossier_relative_path: null,
+                previous_chapter: null,
+                prompt_block: `[作品底座 · 确定性]\n· 全书 1 章正文 · 约 ${estimatedChars} 字；平均每章 约 ${estimatedChars} 字；${currentChapter}。`,
+              },
+            },
+          });
+        }
+        if (requestPath === '/api/ide/commands/observatory.scan') {
+          return json({
+            command_id: 'observatory.scan',
+            status: 'accepted',
+            audit_event_id: null,
+            payload: {
+              title: '重扫世界线观测镜',
+              category: 'Canon',
+              writes: false,
+              args,
+              // Synthetic projection for rendering only; backend checkers are not executed here.
+              observatory: {
+                version: 2,
+                observations: [],
+                counts: { error: 0, warning: 0, advisory: 0, total: 0 },
+                checkers: [],
+                entities: [],
+                generated_at: '2026-09-27T00:00:00Z',
+                promises: { current_chapter: 1, ledger: [] },
+                proposals: {
+                  available: false,
+                  new_entities: [],
+                  new_invariants: {},
+                  pending_count: 0,
+                },
+              },
+            },
+          });
+        }
+        if (requestPath === '/api/assistant/sessions') {
+          if (method !== 'GET' || parsedUrl.searchParams.get('project_path') !== projectPath)
+            rejectRequest();
+          return json([]);
+        }
+
+        if (requestPath === '/health/ready') {
+          if (method !== 'GET') rejectRequest();
+          return new Response(
+            JSON.stringify({
+              status: 'ready',
+              app_version: 'smoke-fixture',
+              checks: { db: 'ok', redis: 'skipped' },
+            }),
+            {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            },
+          );
+        }
+        if (requestPath === '/api/assistant/sessions/101') {
+          if (method !== 'GET' || !latestAgentPayload) rejectRequest();
           const now = new Date().toISOString();
           return new Response(
             JSON.stringify({
@@ -143,8 +297,9 @@ try {
             { status: 200, headers: { 'content-type': 'application/json' } },
           );
         }
-        if (/\/api\/agent-runs\/[^/]+\/save-points$/.test(requestUrl)) {
-          const runId = requestUrl.split('/').at(-2);
+        if (/^\/api\/agent-runs\/[^/]+\/save-points$/.test(requestPath)) {
+          const runId = requestPath.split('/').at(-2);
+          if (method !== 'GET' || runId !== latestAgentPayload?.run_id) rejectRequest();
           return new Response(
             JSON.stringify({
               run_id: runId,
@@ -159,11 +314,15 @@ try {
             { status: 200, headers: { 'content-type': 'application/json' } },
           );
         }
-        if (!requestUrl.includes('/api/ide/agent/sessions/') || !requestUrl.endsWith('/stream')) {
+        if (!/^\/api\/ide\/agent\/sessions\/[^/]+\/stream$/.test(requestPath)) {
+          if (isApi || parsedUrl.origin !== window.location.origin) {
+            rejectRequest();
+          }
           return originalFetch(input, init);
         }
 
-        const payload = JSON.parse(String(init.body ?? '{}'));
+        if (method !== 'POST') rejectRequest();
+        const payload = requestBody;
         latestAgentPayload = payload;
         const requestHeaders = new Headers(init.headers);
         window.__STORYFORGE_AGENT_REQUESTS__ = [
@@ -275,34 +434,51 @@ try {
   await page.locator('[data-testid="desktop-shell"]').waitFor({ timeout: 5000 });
   await page.waitForFunction(() => Boolean(window.__STORYFORGE_SMOKE__), null, { timeout: 5000 });
 
-  await page.evaluate(
-    ({ projectPath, filePath }) => {
-      window.__STORYFORGE_SMOKE__?.openProject(projectPath);
-      window.__STORYFORGE_SMOKE__?.openFile(filePath);
-    },
-    { projectPath: smokeProjectPath, filePath: draftPath },
+  await page.evaluate((projectPath) => {
+    window.__STORYFORGE_SMOKE__?.openProject(projectPath);
+  }, smokeProjectPath);
+  await page.getByTestId('book-overview-surface').waitFor({ timeout: 5000 });
+  await page.getByTestId('open-writing-workspace').click();
+  await page.evaluate((filePath) => {
+    window.__STORYFORGE_SMOKE__?.openFile(filePath);
+  }, draftPath);
+  await page.waitForFunction(
+    (filePath) =>
+      document.querySelector('[data-testid="editor-root"]')?.getAttribute('data-current-file') ===
+      filePath,
+    draftPath,
+    { timeout: 5000 },
   );
 
   await page.locator('[data-testid="assistant-panel"]').waitFor({ timeout: 5000 });
-  await page.getByRole('heading', { name: '新的创作会话' }).waitFor({ timeout: 5000 });
+  await page
+    .getByTestId('conversation-session-switch')
+    .filter({ hasText: '新的创作会话' })
+    .waitFor({ timeout: 5000 });
+  await page.getByRole('button', { name: '添加上下文', exact: true }).click();
   await page.getByTestId('context-summary').waitFor({ timeout: 5000 });
-  await page.getByTestId('context-picker-toggle').click();
   await page.locator('[data-testid="context-candidate"]').filter({ hasText: '林岚.md' }).click();
   await page
     .getByTestId('pinned-context-list')
     .filter({ hasText: '林岚.md' })
     .waitFor({ timeout: 5000 });
 
-  const modelInHeader = await page.locator('header').filter({ hasText: 'Claude' }).count();
+  const modelInHeader = await page
+    .getByTestId('conversation-header')
+    .filter({ hasText: 'Claude' })
+    .count();
   if (modelInHeader !== 0) {
     throw new Error('Expected model/mode metadata to stay out of the conversation header');
   }
 
   const input = page.getByLabel('给 StoryForge 发送消息').first();
   await input.fill('审一下第三章，看看节奏是不是拖了');
-  await page.getByTitle('发送').last().click();
+  await page.getByTestId('composer-submit').click();
 
-  await page.getByRole('heading', { name: /审一下第三章/ }).waitFor({ timeout: 5000 });
+  await page
+    .getByTestId('conversation-session-switch')
+    .filter({ hasText: /审一下第三章/ })
+    .waitFor({ timeout: 5000 });
   await page
     .locator('p')
     .filter({ hasText: /^审一下第三章，看看节奏是不是拖了$/ })
@@ -333,6 +509,15 @@ try {
   // 流程树必须全事件驱动：步骤只来自后端 plan/tool_trace（mock 的 step 'context-agent'
   // 映射标题「选择上下文」，流式 detail 会被 agent_result 的最终 plan detail 'mock context'
   // 替换），不再出现前端预制骨架步骤。
+  const steps = page.getByTestId('thinking-fold-toggle');
+  await steps.waitFor({ timeout: 5000 });
+  if ((await steps.getAttribute('aria-expanded')) !== 'false') {
+    throw new Error('Completed Agent steps must initially be collapsed');
+  }
+  await steps.click();
+  await page.getByText('选择上下文', { exact: true }).waitFor({ timeout: 5000 });
+  await page.getByRole('button', { name: /选择上下文/ }).click();
+  await page.getByText('mock context', { exact: true }).waitFor({ timeout: 5000 });
   const bodyText = await page.locator('[data-testid="assistant-panel"]').innerText();
   if (!bodyText.includes('选择上下文') || !bodyText.includes('mock context')) {
     throw new Error(
@@ -361,7 +546,7 @@ try {
   if (
     firstRequest?.method !== 'POST' ||
     firstRequest?.accept !== 'text/event-stream' ||
-    !firstRequest?.apiKey ||
+    firstRequest?.apiKey !== 'smoke-fixture-key' ||
     !String(firstRequest?.url ?? '').endsWith('/stream')
   ) {
     throw new Error(`Expected authenticated Agent SSE request: ${JSON.stringify(firstRequest)}`);
@@ -405,6 +590,12 @@ try {
     throw new Error('Expected user bubble to omit user name label');
   }
 
+  const unexpectedRequests = await page.evaluate(
+    () => window.__STORYFORGE_UNEXPECTED_REQUESTS__ ?? [],
+  );
+  if (unexpectedRequests.length > 0) {
+    throw new Error(`Unexpected fixture requests: ${unexpectedRequests.join(', ')}`);
+  }
   if (errors.length > 0) {
     throw new Error(`Console errors:\n${errors.join('\n')}`);
   }

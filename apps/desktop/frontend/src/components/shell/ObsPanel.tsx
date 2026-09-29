@@ -71,13 +71,13 @@ export function ObsPanel({
 
   return (
     <div className="flex h-[212px] flex-shrink-0 flex-col bg-panel" data-testid="obs-panel">
-      <div className="flex h-[30px] flex-shrink-0 items-center gap-3 px-3 text-2xs text-subtle">
+      <div className="flex h-[var(--sf-row-height)] flex-shrink-0 items-center gap-3 px-3 text-2xs text-subtle">
         <h4 className="font-semibold tracking-[0.06em]">观测</h4>
         <span>改完一条勾一条 · 点击行定位原文</span>
         <span className="flex-1" />
         <span className="font-mono">{statusLabel}</span>
         <button
-          className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
+          className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle transition-colors hover:bg-elevated hover:text-foreground active:bg-border-strong/40"
           onClick={onClose}
           aria-label="关闭观测面板"
           title="关闭观测面板"
@@ -102,7 +102,7 @@ export function ObsPanel({
               key={obs.id}
               data-testid="obs-row"
               data-severity={obs.severity}
-              className={`group flex w-full items-start gap-2.5 px-3.5 py-2 ${
+              className={`group flex w-full items-start gap-2.5 px-3.5 py-2 transition-colors hover:bg-elevated/40 ${
                 obs.resolved ? 'opacity-40' : ''
               }`}
             >
@@ -130,7 +130,9 @@ export function ObsPanel({
                 }
               >
                 <span className="flex items-baseline gap-2 text-xs">
-                  <span className={obs.resolved ? 'line-through' : ''}>{obs.title}</span>
+                  <span className={`min-w-0 flex-1 truncate ${obs.resolved ? 'line-through' : ''}`}>
+                    {obs.title}
+                  </span>
                   {obs.location && (
                     <span className="ml-auto flex-shrink-0 font-mono text-3xs text-subtle">
                       {obs.location}
@@ -138,7 +140,7 @@ export function ObsPanel({
                   )}
                 </span>
                 {obs.detail && (
-                  <span className="mt-0.5 block text-2xs leading-relaxed text-muted">
+                  <span className="mt-0.5 line-clamp-2 block text-2xs leading-relaxed text-muted">
                     {obs.detail}
                   </span>
                 )}
@@ -147,10 +149,10 @@ export function ObsPanel({
                 )}
               </span>
               <button
-                className={`mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border text-2xs transition-opacity ${
+                className={`mt-px flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border text-2xs transition-opacity focus-visible:border-success/50 focus-visible:text-success ${
                   obs.resolved
                     ? 'border-success/40 bg-success/15 text-success opacity-100'
-                    : 'border-border text-subtle opacity-0 hover:border-success/50 hover:bg-success/15 hover:text-success focus-visible:opacity-100 group-hover:opacity-100'
+                    : 'border-border text-subtle opacity-40 hover:border-success/50 hover:bg-success/15 hover:text-success hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100'
                 }`}
                 aria-label={`标记已处理：${obs.title}`}
                 title="标记已处理"

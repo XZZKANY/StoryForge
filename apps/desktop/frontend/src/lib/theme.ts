@@ -35,9 +35,14 @@ const STORYFORGE_MONACO_THEMES: Array<{
     name: 'storyforge-light',
     base: 'vs',
     colors: {
-      'editor.background': '#f7f7f8', // --background
+      'editor.background': '#f3f3f5', // --background
+      // 与深色同规则：gutter 显式钉到画布色，不继承 base:'vs' 默认白，
+      // 否则编辑区左缘会拼出第三条底色（见 V1 审查）。
+      'editorGutter.background': '#f3f3f5',
       'editor.foreground': '#1a1a1d', // --foreground
-      'editorLineNumber.foreground': '#8e8e96', // --subtle
+      // P2-E 对比度：旧 #8e8e96 对 #f7f7f8 仅 3.04:1，未达 WCAG AA 4.5:1；
+      // #71717a = 4.51:1，且与 --muted (#5e5e66, 6.00:1) 仍能区分活跃/非活跃行号。
+      'editorLineNumber.foreground': '#71717a',
       'editorLineNumber.activeForeground': '#5e5e66', // --muted
       'scrollbarSlider.background': '#c9c9d059', // --border-strong @35%
       'scrollbarSlider.hoverBackground': '#c9c9d099',

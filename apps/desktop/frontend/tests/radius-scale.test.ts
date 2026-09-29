@@ -48,10 +48,15 @@ test('src 下不存在阶梯外的 rounded 工具类', () => {
   const offenders: string[] = [];
   for (const file of sourceFiles(abs('../src'))) {
     for (const token of readFileSync(file, 'utf8').match(/\brounded[\w[\]().%-]*/g) ?? []) {
-      if (!ALLOWED.has(token)) offenders.push(`${file.replace(/.*[\\/]src[\\/]/, 'src/')}: ${token}`);
+      if (!ALLOWED.has(token))
+        offenders.push(`${file.replace(/.*[\\/]src[\\/]/, 'src/')}: ${token}`);
     }
   }
-  assert.deepEqual(offenders, [], `越界圆角写法（应改用 rounded-{xs,sm,md,lg,xl,full}）：\n${offenders.join('\n')}`);
+  assert.deepEqual(
+    offenders,
+    [],
+    `越界圆角写法（应改用 rounded-{xs,sm,md,lg,xl,full}）：\n${offenders.join('\n')}`,
+  );
 });
 
 test('index.css 里的 border-radius 只用 token 或纯圆', () => {

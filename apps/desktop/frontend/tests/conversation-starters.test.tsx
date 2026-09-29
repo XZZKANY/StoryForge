@@ -114,6 +114,7 @@ function Harness({
       handleComposerSubmit={submit}
       userMessageHistory={[]}
       retryLastFailedRun={() => {}}
+      retryWritingRunSubscription={() => {}}
       agentRunControls={{
         onApprovePermission: () => {},
         onDenyPermission: () => {},

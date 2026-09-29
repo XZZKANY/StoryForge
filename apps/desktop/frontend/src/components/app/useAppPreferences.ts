@@ -41,12 +41,9 @@ export function useAppPreferences() {
     }));
   }, []);
 
-  // 侧面板宽度按视图各记一份：作品要宽、资源管理器要窄，一个全局宽度两边都别扭。
-  const setSidePanelWidth = useCallback((view: string, width: number) => {
-    setSettings((prev) => ({
-      ...prev,
-      sidePanelWidths: { ...prev.sidePanelWidths, [view]: width },
-    }));
+  // 侧面板宽度全左栏共享一份：切视图只换内容，右边界不动。
+  const setSidePanelWidth = useCallback((width: number) => {
+    setSettings((prev) => ({ ...prev, sidePanelWidth: width }));
   }, []);
 
   const modelLabel =

@@ -1,11 +1,7 @@
-import type {
-  AgentControlMessageType,
-  AgentResultMessage,
-  AgentToolTrace,
-} from '../../lib/api-client';
+import type { AgentResultMessage, AgentToolTrace } from '../../lib/api-client';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { LocalConversationAction } from '../../lib/local-conversation-action';
-import type { ContextBundle, SemanticFile } from '../../lib/project-context';
+import type { ContextBundle } from '../../lib/project-context';
 import type { LayoutMode } from '../shell/useShellState';
 
 export type ChatWindowProps = {
@@ -87,6 +83,9 @@ export type AgentRun = {
   status: AgentRunStatus;
   steps: AgentStep[];
   permissionProfile?: AgentPermissionProfile;
+  executionOutcome?: AgentResultMessage['agent_result']['execution_outcome'];
+  /** UI delivery uncertainty only; status is the last observed runtime state, not a new API state. */
+  deliveryUnknown?: { scope: string; retryRequest: RetryRequest };
 };
 
 export type RetryRequest = {
@@ -101,7 +100,7 @@ export type RunAuthorAgent = (
   action?: LocalConversationAction,
   intent?: 'file.revise' | 'chapter.write' | 'chapter.polish',
   excludedKnowledgeIds?: string[],
-  options?: { useMainModel?: boolean },
+  options?: { useMainModel?: boolean; targetFilePath?: string },
 ) => Promise<void>;
 
 export type PendingRepairCommand = {
@@ -124,6 +123,7 @@ export type AgentRunControlHandlers = {
   onDenyPermission: () => void;
   onPauseRun: () => void;
   onResumeRun: () => void;
+  onReconcileRun?: () => void;
   onStopRun: () => void;
   onConfirmChapterBrief?: (brief: ChapterBrief) => void;
   onAcceptPatch?: () => void;
@@ -187,14 +187,5 @@ export type StableAgentRequestPayload = {
   included_categories?: ReviewCategory[];
 };
 
-export type FileRevisionPatch = {
-  id?: string;
-  file_path: string;
-  before: string;
-  after: string;
-};
-
 export type ChatWindowAgentResult = AgentResultMessage;
 export type ChatWindowAgentToolTrace = AgentToolTrace;
-export type ChatWindowAgentControlMessageType = AgentControlMessageType;
-export type ChatWindowSemanticFile = SemanticFile;

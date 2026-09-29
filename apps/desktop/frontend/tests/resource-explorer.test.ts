@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import {
-  isAuthorInstructionsPath,
   isCanonDeclarationPath,
   isOpenableProjectFileEntry,
   isReadOnlyDerivedProjectPath,
@@ -80,13 +79,10 @@ test('作者自定义指令必须在产品内看得见、打得开', () => {
   const instructions = entry('D:\\Book\\.storyforge\\agent-instructions.md', false, 'md');
   assert.equal(isVisibleProjectTreeEntry(instructions), true);
   assert.equal(isOpenableProjectFileEntry(instructions), true);
-  assert.equal(isAuthorInstructionsPath(instructions.path), true);
 
   // 放行的只有这一个文件，`.storyforge` 其余内部制品仍然隐藏。
   assert.equal(
     isVisibleProjectTreeEntry(entry('D:\\Book\\.storyforge\\versions\\x.md', false, 'md')),
     false,
   );
-  assert.equal(isAuthorInstructionsPath('D:\\Book\\正文\\第001章.md'), false);
-  assert.equal(isAuthorInstructionsPath(null), false);
 });

@@ -14,7 +14,6 @@ import {
   planAnchoredInlineDiff,
   planInlineReviseWindow,
   spliceInlineReviseWindow,
-  summarizeInlineDiff,
 } from '../src/lib/inline-chat';
 
 test('intraLineChangeRange 掐掉公共前后缀只留改动中段（1-based 列，endCol 独占）', () => {
@@ -105,17 +104,19 @@ test('hunksToLineDiff 同一行多个分段改动塌陷成一条整行替换', (
   assert.deepEqual(hunks[0].newLines, ['前段顺，中间不变，后段顺。']);
 });
 
-test('summarizeInlineDiff 汇总增删行并识别 noop', () => {
+test('planAnchoredInlineDiff 汇总增删行并识别 noop', () => {
   const before = ['甲。', '乙。', ''].join('\n');
-  assert.deepEqual(summarizeInlineDiff(before, before), {
+  assert.deepEqual(planAnchoredInlineDiff(before, before, { startLine: 1, endLine: 2 }), {
     hunks: [],
+    clampedAfter: before,
+    droppedOffAnchor: 0,
     addedLines: 0,
     removedLines: 0,
     isNoop: true,
   });
 
   const after = ['甲。', '乙改。', ''].join('\n');
-  const summary = summarizeInlineDiff(before, after);
+  const summary = planAnchoredInlineDiff(before, after, { startLine: 1, endLine: 2 });
   assert.equal(summary.isNoop, false);
   assert.equal(summary.addedLines, 1);
   assert.equal(summary.removedLines, 1);
@@ -295,3 +296,7 @@ test('接受的重入闸必须在第一个 await 之前合上', () => {
   assert.ok(firstAwait > -1, 'applyAccepted 里没有 await，落位动效是不是被删了？');
   assert.ok(latch < firstAwait, '重入闸必须同步合上，不能晚于第一个 await');
 });
+
+// E21 行间对话键盘/读屏可达性的行为测试见 tests/inline-chat-dom.test.ts：
+// zone DOM 构造已从 useInlineChat.ts 抽到 components/editor/inline-chat-dom.ts，
+// 那里能直接对 role/aria-label、按钮双通道（mousedown + Enter/Space）与 live region 断言。

@@ -1,37 +1,19 @@
 /**
- * 侧面板宽度。改前按视图两档写死（explorer/search 236px，book/manuscript/observatory 300px），
- * 作者的实际反馈是「作品栏占的位置太少了」——宽度该由作者拖，不该由我猜。
+ * 侧面板宽度。全左栏共享一份：切换活动栏图标只换面板内容，右边界不动，
+ * 编辑区不跳。曾按视图各记一份（宽档 340 / 窄档 260），作者切视图时宽度反复横跳；
+ * 旧格式在 user-settings 加载时一次性迁移成单值（见 migrateSidePanelWidths）。
  *
- * 拖过的宽度按视图各记一份：作品要宽（封面 + 简介 + 进度 + 大纲），资源管理器要窄，
- * 一个全局宽度会让两边都别扭。没拖过的视图仍吃档位默认。
- * 这里只有纯函数与档位常量，拖拽手势在 SidePanel。
+ * 这里只有纯函数与约束常量，拖拽手势在 SidePanel；窗口收窄的显示夹限由
+ * useWorkspaceSidePanelLimit 提供，只约束显示，不回写这份偏好。
  */
 
+export const SIDE_PANEL_WIDTH_DEFAULT = 300;
 export const SIDE_PANEL_WIDTH_MIN = 220;
 export const SIDE_PANEL_WIDTH_MAX = 800;
 
-/** 信息密度高的视图（封面行 / 章节行 / 台账行）默认给宽档。 */
-const WIDE_DEFAULT_VIEWS: ReadonlySet<string> = new Set([
-  'book',
-  'manuscript',
-  'knowledge',
-  'observatory',
-]);
-const WIDE_DEFAULT_PX = 340;
-const NARROW_DEFAULT_PX = 260;
-
-export function defaultSidePanelWidth(view: string): number {
-  return WIDE_DEFAULT_VIEWS.has(view) ? WIDE_DEFAULT_PX : NARROW_DEFAULT_PX;
-}
-
 export function clampSidePanelWidth(px: number): number {
-  if (!Number.isFinite(px)) return NARROW_DEFAULT_PX;
+  if (!Number.isFinite(px)) return SIDE_PANEL_WIDTH_DEFAULT;
   return Math.min(Math.max(Math.round(px), SIDE_PANEL_WIDTH_MIN), SIDE_PANEL_WIDTH_MAX);
-}
-
-export function resolveSidePanelWidth(view: string, widths: Record<string, number>): number {
-  const saved = widths[view];
-  return typeof saved === 'number' ? clampSidePanelWidth(saved) : defaultSidePanelWidth(view);
 }
 
 /** 拖拽中的宽度：起始宽 + 指针位移，夹在上下限内。 */

@@ -29,7 +29,7 @@ class FakeModel {
 
 class FakeEditor {
   private model: FakeModel | null = null;
-  private listener: Listener | null = null;
+  private listeners = new Set<Listener>();
   private viewState: unknown = { cursor: 1 };
   options: Record<string, unknown> = {};
   restoredViewState: unknown = null;
@@ -48,7 +48,7 @@ class FakeEditor {
 
   setValue(value: string) {
     this.model?.setValue(value);
-    this.listener?.();
+    for (const listener of this.listeners) listener();
   }
 
   saveViewState() {
@@ -65,8 +65,8 @@ class FakeEditor {
   }
 
   onDidChangeModelContent(listener: Listener) {
-    this.listener = listener;
-    return { dispose() {} };
+    this.listeners.add(listener);
+    return { dispose: () => this.listeners.delete(listener) };
   }
 
   addCommand() {}
@@ -79,6 +79,7 @@ class FakeEditor {
 }
 
 let lastEditor: FakeEditor | null = null;
+let lastDiffEditor: ReturnType<typeof editor.createDiffEditor> | null = null;
 const models: FakeModel[] = [];
 
 export const editor = {
@@ -87,14 +88,25 @@ export const editor = {
     return lastEditor;
   },
   createDiffEditor() {
-    return {
+    const original = new FakeEditor();
+    const modified = new FakeEditor();
+    const diffEditor = {
       setModel() {},
       layout() {},
       dispose() {},
       // 面板挂载后会按字号/字体设置追平一次；缺这个方法会在 effect 里抛错，
       // 表现为 React root 被打坏、整组交互用例莫名其妙地 'Should not already be working'。
       updateOptions() {},
+      getOriginalEditor() {
+        return original;
+      },
+      getModifiedEditor() {
+        return modified;
+      },
+      getLineChanges: () => [] as Array<{ originalStartLineNumber: number }> | null,
     };
+    lastDiffEditor = diffEditor;
+    return diffEditor;
   },
   createModel(value: string) {
     const model = new FakeModel(value);
@@ -109,6 +121,10 @@ export const KeyCode = { KeyS: 2 };
 
 export function __getLastEditor() {
   return lastEditor;
+}
+
+export function __getLastDiffEditor() {
+  return lastDiffEditor;
 }
 
 export function __getModels() {

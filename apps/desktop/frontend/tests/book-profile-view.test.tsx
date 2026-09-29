@@ -190,16 +190,17 @@ test('加题材同样带上未提交的简介', async () => {
   assert.equal(saved?.synopsis, '一场蓝色雨后。');
 });
 
-test('简介失焦后提交草稿并恢复静息内凹阴影', async () => {
+test('简介失焦仍提交草稿，焦点样式只由共享 CSS 管理', async () => {
   const handle = makeHandle();
   await renderView(handle);
   const input = byTestId('book-synopsis-input') as HTMLTextAreaElement;
 
   await act(async () => input.focus());
-  assert.match(input.style.boxShadow, /0 0 0 3px/);
+  assert.equal(input.classList.contains('sf-input'), true);
+  assert.equal(input.style.boxShadow, '');
 
   await act(async () => input.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
-  assert.equal(input.style.boxShadow, 'var(--shadow-inset)');
+  assert.equal(input.style.boxShadow, '');
   assert.equal(vi.mocked(handle.save).mock.calls.length, 1);
 });
 

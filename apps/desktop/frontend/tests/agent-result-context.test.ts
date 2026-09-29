@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  contextFilesFromAgentResult,
-  writingContextFromAgentResult,
-} from '../src/components/chat-window/agent-result';
+import { writingContextFromAgentResult } from '../src/components/chat-window/agent-result';
 import type { AgentResultMessage } from '../src/lib/api-client';
 
 function agentResult(toolTrace: AgentResultMessage['tool_trace']): AgentResultMessage {
@@ -19,7 +16,7 @@ function agentResult(toolTrace: AgentResultMessage['tool_trace']): AgentResultMe
   };
 }
 
-describe('contextFilesFromAgentResult', () => {
+describe('writingContextFromAgentResult context files', () => {
   it('prefers sanitized backend provenance over the local request bundle', () => {
     const message = agentResult([
       {
@@ -44,7 +41,7 @@ describe('contextFilesFromAgentResult', () => {
       },
     ]);
 
-    expect(contextFilesFromAgentResult(message, ['本地/旧值.md'])).toEqual([
+    expect(writingContextFromAgentResult(message, ['本地/旧值.md']).contextFiles).toEqual([
       '.资料/黄金三章spec.md',
       '人物/林岚.md',
     ]);
@@ -68,7 +65,7 @@ describe('contextFilesFromAgentResult', () => {
       },
     ]);
 
-    expect(contextFilesFromAgentResult(message, ['大纲/本地回退.md'])).toEqual([]);
+    expect(writingContextFromAgentResult(message, ['大纲/本地回退.md']).contextFiles).toEqual([]);
   });
 
   it('falls back to stable sanitized local paths for old responses without provenance', () => {
@@ -81,12 +78,12 @@ describe('contextFilesFromAgentResult', () => {
     ]);
 
     expect(
-      contextFilesFromAgentResult(message, [
+      writingContextFromAgentResult(message, [
         '大纲\\总纲.md',
         '大纲/总纲.md',
         '/outside.md',
         '人物/林岚.md',
-      ]),
+      ]).contextFiles,
     ).toEqual(['大纲/总纲.md', '人物/林岚.md']);
   });
 

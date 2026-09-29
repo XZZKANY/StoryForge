@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react';
 
 import { ChatWindowView } from './chat-window/ChatWindowView';
 import type { ChatWindowProps } from './chat-window/types';
+import { AppDialogHost, useAppDialog } from './app/AppDialog';
 import { DEFAULT_AGENT_PERMISSION_PROFILE } from '../lib/agent-permission';
 import { useAgentRunControls } from './chat-window/useAgentRunControls';
 import { useAgentRunRecovery } from './chat-window/useAgentRunRecovery';
@@ -17,10 +18,13 @@ import { projectOverviewActivity } from './chat-window/overview-activity';
 import { useRunAuthorAgent } from './chat-window/useRunAuthorAgent';
 import {
   REQUEST_CHAPTER_POLISH_EVENT,
+  REQUEST_CHAPTER_WRITE_EVENT,
   RETRY_WITHOUT_KNOWLEDGE_EVENT,
   type ChapterPolishRequest,
+  type ChapterWriteRequest,
   type RetryWithoutKnowledge,
 } from '../lib/assistant-events';
+import { emitToast } from '../lib/toast';
 
 export {
   filePathFromAgentResult,
@@ -57,7 +61,9 @@ export function ChatWindow(props: ChatWindowProps) {
   const agentPermissionProfile = props.agentPermissionProfile ?? DEFAULT_AGENT_PERMISSION_PROFILE;
   const onAgentPermissionProfileChange = props.onAgentPermissionProfileChange ?? (() => undefined);
   const state = useChatWindowState(props);
-  const session = useChatSessionContext(state, props);
+  // 切会话/新建前的「有待确认内容」确认弹窗：ChatWindow 不消费壳层 dialogs，自挂一个 host。
+  const dialogs = useAppDialog();
+  const session = useChatSessionContext(state, props, { confirmLeave: dialogs.confirm });
   const recovery = useAgentRunRecovery(state, props.onAssistantSessionChange);
   const applyAgentStreamEvent = useAgentStreamEvent(state, recovery.refreshAgentRunRecovery);
   const runAuthorAgent = useRunAuthorAgent(
@@ -144,34 +150,66 @@ export function ChatWindow(props: ChatWindowProps) {
     return () => window.removeEventListener(REQUEST_CHAPTER_POLISH_EVENT, onChapterPolish);
   }, [runAuthorAgent, state]);
 
+  // 「AI 起草下一章」按钮走事件桥到这里：与输入框提交同一拦截口径，
+  // 有待确认 brief / run 时不顶掉当前决策（polish 监听暂无此守卫，沿用旧行为）。
+  useEffect(() => {
+    const onChapterWrite = (event: Event) => {
+      const detail = (event as CustomEvent<ChapterWriteRequest>).detail;
+      if (state.agentBusy || state.chapterBrief || state.agentRun?.status === 'waiting') {
+        emitToast('先处理当前待确认内容，再发起新的起草。', { tone: 'info' });
+        return;
+      }
+      const ordinal = detail?.chapterOrdinal;
+      const goal = ordinal
+        ? `起草第${ordinal}章${detail?.chapterTitle ? `《${detail.chapterTitle}》` : ''}`
+        : '起草下一章';
+      state.setMessages((current) => [...current, { role: 'user', content: goal }]);
+      void runAuthorAgent(goal, undefined, 'chapter.write', [], {
+        targetFilePath: detail?.targetPath,
+      });
+    };
+    window.addEventListener(REQUEST_CHAPTER_WRITE_EVENT, onChapterWrite);
+    return () => window.removeEventListener(REQUEST_CHAPTER_WRITE_EVENT, onChapterWrite);
+  }, [runAuthorAgent, state]);
+
   return (
-    <ChatWindowView
-      state={state}
-      projectPath={props.projectPath}
-      assistantSessionId={props.assistantSessionId}
-      layoutMode={props.layoutMode}
-      onSetLayoutMode={props.onSetLayoutMode}
-      onOpenObservatory={props.onOpenObservatory}
-      observatoryAttention={props.observatoryAttention}
-      agentPermissionProfile={agentPermissionProfile}
-      onAgentPermissionProfileChange={onAgentPermissionProfileChange}
-      handleSelectSession={session.handleSelectSession}
-      handleNewSession={() => {
-        submission.clearQueuedMessages();
-        session.handleNewSession();
-      }}
-      retryAssistantSessionLoad={session.retryAssistantSessionLoad}
-      retryContextCandidates={session.retryContextCandidates}
-      addExplicitContext={session.addExplicitContext}
-      togglePinnedContext={session.togglePinnedContext}
-      handleSubmit={submission.handleSubmit}
-      handleComposerSubmit={submission.handleComposerSubmit}
-      userMessageHistory={submission.userMessageHistory}
-      conversationScope={submission.conversationScope}
-      queuedMessages={submission.queuedMessages}
-      onRemoveQueuedMessage={submission.removeQueuedMessage}
-      retryLastFailedRun={controls.retryLastFailedRun}
-      agentRunControls={controls.agentRunControls}
-    />
+    <>
+      <ChatWindowView
+        state={state}
+        projectPath={props.projectPath}
+        assistantSessionId={props.assistantSessionId}
+        layoutMode={props.layoutMode}
+        onSetLayoutMode={props.onSetLayoutMode}
+        onOpenObservatory={props.onOpenObservatory}
+        observatoryAttention={props.observatoryAttention}
+        agentPermissionProfile={agentPermissionProfile}
+        onAgentPermissionProfileChange={onAgentPermissionProfileChange}
+        handleSelectSession={session.handleSelectSession}
+        handleNewSession={() => {
+          // 待确认守卫可能拦下新建：只有真正切走了才清排队消息。
+          void Promise.resolve(session.handleNewSession()).then((switched) => {
+            if (switched) submission.clearQueuedMessages();
+          });
+        }}
+        retryAssistantSessionLoad={session.retryAssistantSessionLoad}
+        retryContextCandidates={session.retryContextCandidates}
+        addExplicitContext={session.addExplicitContext}
+        togglePinnedContext={session.togglePinnedContext}
+        handleSubmit={submission.handleSubmit}
+        handleComposerSubmit={submission.handleComposerSubmit}
+        userMessageHistory={submission.userMessageHistory}
+        conversationScope={submission.conversationScope}
+        queuedMessages={submission.queuedMessages}
+        onRemoveQueuedMessage={submission.removeQueuedMessage}
+        retryLastFailedRun={controls.retryLastFailedRun}
+        retryWritingRunSubscription={controls.retryWritingRunSubscription}
+        agentRunControls={controls.agentRunControls}
+      />
+      <AppDialogHost
+        dialog={dialogs.dialog}
+        onClose={dialogs.closeDialog}
+        onPromptValueChange={dialogs.updatePromptValue}
+      />
+    </>
   );
 }

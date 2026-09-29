@@ -51,7 +51,7 @@ function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
-async function mount() {
+async function mount(onClose: () => void = () => {}) {
   let latest = DEFAULT_APP_SETTINGS;
   const change = vi.fn((value: AppSettings) => {
     latest = value;
@@ -65,7 +65,7 @@ async function mount() {
           change(next);
           setSettings(next);
         }}
-        onClose={() => {}}
+        onClose={onClose}
       />
     );
   }
@@ -116,6 +116,16 @@ function button(container: ParentNode, section: string, text: string) {
 }
 async function click(element: HTMLElement) {
   await act(async () => element.click());
+}
+// 「移除密钥 / 恢复默认」现在是确认流：先点行内动作，再在 AppDialog 里点 danger 主键。
+async function clickConfirmed(container: ParentNode, element: HTMLElement) {
+  await click(element);
+  const host = await vi.waitFor(() => {
+    const found = container.querySelector<HTMLElement>('[data-testid="app-dialog"]');
+    assert.ok(found, 'destructive action should open the confirm dialog');
+    return found;
+  });
+  await click(required(host, '[data-testid="app-dialog-primary"]'));
 }
 
 test('迟到读取保留外观编辑，同时加载两个未编辑模型槽位', async () => {
@@ -231,7 +241,13 @@ for (const slot of ['provider', 'polish-provider'] as const) {
         ).value;
         const save = deferred<DesktopLlmConfig | null>();
         vi.mocked(saveDesktopLlmConfig).mockReturnValueOnce(save.promise);
-        await click(button(view.container, slot, action));
+        const actionButton = button(view.container, slot, action);
+        // 两个槽位的「移除密钥」都是确认流：先点行内动作，再在 AppDialog 里确认。
+        if (action === '移除密钥') {
+          await clickConfirmed(view.container, actionButton);
+        } else {
+          await click(actionButton);
+        }
         await edit(view.container, `${slot}-model`, 'temporary-model');
         await edit(view.container, `${slot}-model`, original);
         await act(async () => {
@@ -327,7 +343,7 @@ test('移除旧密钥等待中输入的新密钥不会被清空，且不写回�
   const view = await mount();
   const save = deferred<DesktopLlmConfig | null>();
   vi.mocked(saveDesktopLlmConfig).mockReturnValueOnce(save.promise);
-  await click(button(view.container, 'polish-provider', '移除密钥'));
+  await clickConfirmed(view.container, button(view.container, 'polish-provider', '移除密钥'));
   await edit(view.container, 'polish-provider-api-key', 'synthetic-new-key');
   await act(async () =>
     save.resolve({ ...config, polish: config.polish && { ...config.polish, hasApiKey: false } }),
@@ -391,3 +407,102 @@ for (const operation of ['read', 'save', 'polish-save', 'detect-save'] as const)
     });
   }
 }
+
+// 在 AppDialog 里按文案找按钮（取消键没有专属 testid，与主键同样靠 label 定位）。
+async function dialogButton(container: ParentNode, text: string) {
+  const host = await vi.waitFor(() => {
+    const found = container.querySelector<HTMLElement>('[data-testid="app-dialog"]');
+    assert.ok(found, '应弹出确认框');
+    return found;
+  });
+  const target = Array.from(host.querySelectorAll('button')).find(
+    (item) => item.textContent === text,
+  );
+  assert.ok(target, text);
+  return target;
+}
+
+test('取消确认不移除润色密钥', async () => {
+  vi.mocked(getDesktopLlmConfig).mockResolvedValueOnce(config);
+  const view = await mount();
+  await click(button(view.container, 'polish-provider', '移除密钥'));
+  await click(await dialogButton(view.container, '取消'));
+  assert.equal(vi.mocked(saveDesktopLlmConfig).mock.calls.length, 0);
+  assert.ok(button(view.container, 'polish-provider', '移除密钥'));
+});
+
+test('未保存徽标：读取完成无徽标、编辑出现、保存成功消失、密钥草稿单独触发', async () => {
+  vi.mocked(getDesktopLlmConfig).mockResolvedValueOnce(config);
+  const view = await mount();
+  const badge = (id: string) =>
+    view.container.querySelector(`[data-testid="settings-unsaved-${id}"]`);
+  assert.equal(badge('provider'), null);
+  assert.equal(badge('polish-provider'), null);
+  await edit(view.container, 'provider-model', 'author-model');
+  assert.ok(badge('provider'));
+  assert.equal(badge('polish-provider'), null);
+  const save = deferred<DesktopLlmConfig | null>();
+  vi.mocked(saveDesktopLlmConfig).mockReturnValueOnce(save.promise);
+  await click(button(view.container, 'provider', '保存并应用'));
+  await act(async () => save.resolve({ ...config, model: 'author-model' }));
+  assert.equal(badge('provider'), null);
+  await edit(view.container, 'polish-provider-api-key', 'synthetic-draft-key');
+  assert.ok(badge('polish-provider'));
+});
+
+test('配置读取失败时不报未保存（无法判断就不误报）', async () => {
+  vi.mocked(getDesktopLlmConfig).mockRejectedValueOnce(new Error('配置文件暂时不可读'));
+  const view = await mount();
+  await edit(view.container, 'provider-model', 'author-model');
+  assert.equal(view.container.querySelector('[data-testid="settings-unsaved-provider"]'), null);
+});
+
+test('有未保存更改时关闭先确认：取消留在设置页，确认才调用 onClose', async () => {
+  vi.mocked(getDesktopLlmConfig).mockResolvedValueOnce(config);
+  const onClose = vi.fn();
+  const view = await mount(onClose);
+  await edit(view.container, 'provider-model', 'author-model');
+  await click(required(view.container, '[data-testid="settings-close"]'));
+  assert.equal(onClose.mock.calls.length, 0);
+  await click(await dialogButton(view.container, '继续编辑'));
+  assert.equal(onClose.mock.calls.length, 0);
+  assert.ok(required(view.container, '[data-testid="settings-close"]'));
+  await click(required(view.container, '[data-testid="settings-close"]'));
+  await click(await dialogButton(view.container, '放弃并关闭'));
+  assert.equal(onClose.mock.calls.length, 1);
+});
+
+test('无未保存更改时关闭不弹确认', async () => {
+  vi.mocked(getDesktopLlmConfig).mockResolvedValueOnce(config);
+  const onClose = vi.fn();
+  const view = await mount(onClose);
+  await click(required(view.container, '[data-testid="settings-close"]'));
+  assert.equal(onClose.mock.calls.length, 1);
+  assert.equal(view.container.querySelector('[data-testid="app-dialog"]'), null);
+});
+
+test('scrollspy：分组进入视口时对应导航项获得 aria-current', async () => {
+  const callbacks: Array<(entries: Array<Record<string, unknown>>) => void> = [];
+  class FakeIntersectionObserver {
+    constructor(callback: (entries: Array<Record<string, unknown>>) => void) {
+      callbacks.push(callback);
+    }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+  const view = await mount();
+  vi.unstubAllGlobals();
+  const editorLink = Array.from(view.container.querySelectorAll('a')).find(
+    (item) => item.getAttribute('href') === '#editor',
+  );
+  assert.ok(editorLink);
+  assert.notEqual(editorLink.getAttribute('aria-current'), 'true');
+  await act(async () => callbacks[0]?.([{ isIntersecting: true, target: { id: 'editor' } }]));
+  assert.equal(editorLink.getAttribute('aria-current'), 'true');
+  const providerLink = Array.from(view.container.querySelectorAll('a')).find(
+    (item) => item.getAttribute('href') === '#provider',
+  );
+  assert.equal(providerLink?.getAttribute('aria-current'), null);
+});

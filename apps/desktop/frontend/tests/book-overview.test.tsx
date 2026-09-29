@@ -172,6 +172,46 @@ test('统计失败不混入模型估值，显示可重试的显式错误', async
   expect(refresh).toHaveBeenCalledOnce();
 });
 
+test('章节列表卡与 hero 都暴露「AI 起草下一章」入口并按最大章号推导下一章', async () => {
+  root = createRoot(host);
+  const draft = vi.fn();
+  await render({ onDraftNextChapter: draft });
+
+  const hero = host.querySelector<HTMLButtonElement>(
+    '[data-testid="book-overview-hero-draft-next"]',
+  );
+  expect(hero?.textContent).toContain('AI 起草下一章');
+  const next = host.querySelector<HTMLButtonElement>('[data-testid="book-overview-draft-next"]');
+  // fixture 手稿有第 1、2 章，下一章应为第 3 章。
+  expect(next?.textContent).toContain('AI 起草下一章 · 第 3 章');
+
+  await act(async () => hero!.click());
+  await act(async () => next!.click());
+  expect(draft).toHaveBeenCalledTimes(2);
+});
+
+test('空章节索引时提供「让 AI 起草第 1 章」入口', async () => {
+  root = createRoot(host);
+  const draft = vi.fn();
+  const emptyIndex: BookOverviewChaptersHandle = {
+    chapters: [],
+    currentChapter: null,
+    status: 'available',
+    error: null,
+    refreshing: false,
+    refresh: vi.fn(),
+  };
+  const emptyContext = context();
+  emptyContext.snapshot!.chapters = [];
+  await render({ chapters: emptyIndex, context: emptyContext, onDraftNextChapter: draft });
+
+  const first = host.querySelector<HTMLButtonElement>('[data-testid="book-overview-draft-first"]');
+  expect(first?.textContent).toContain('让 AI 起草第 1 章');
+  expect(host.querySelector('[data-testid="book-overview-draft-next"]')).toBeNull();
+  await act(async () => first!.click());
+  expect(draft).toHaveBeenCalledOnce();
+});
+
 test('总览暴露运行中或等待确认的 Agent，并可返回工作台', async () => {
   root = createRoot(host);
   const open = vi.fn();

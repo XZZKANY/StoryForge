@@ -65,6 +65,8 @@ export default {
         dialog: 'var(--shadow-dialog)',
         composer: 'var(--shadow-composer)',
         'composer-focus': 'var(--shadow-composer-focus)',
+        'bar-top': 'var(--shadow-bar-top)',
+        'panel-lift': 'var(--shadow-panel-lift)',
       },
       keyframes: {
         'fade-in': {

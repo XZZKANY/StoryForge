@@ -15,7 +15,6 @@ import {
   AUTHOR_VIEW_SELECTION_MAX_CHARS,
   emitEditorAuthorView,
   emitEditorCursorLine,
-  emitEditorTextMetrics,
   emitRetryWithoutKnowledge,
   type EditorCommand,
   type LocateInEditorDetail,
@@ -23,7 +22,6 @@ import {
   type ReviewIssueMarker,
 } from '../lib/assistant-events';
 import { resolveAnchorLine } from '../lib/observations';
-import { countParagraphs, countProseChars } from '../lib/text-metrics';
 import { recordDailyProgress, writebackDelta } from '../lib/daily-progress';
 import { emitToast } from '../lib/toast';
 import type { EditorLineNumbersMode } from '../lib/user-settings';
@@ -48,7 +46,11 @@ import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
 import { useInlineChat } from './editor/useInlineChat';
 import { formatTimestamp, VersionHistory } from './editor/VersionHistory';
 import type { AppDialogApi } from './app/AppDialog';
-import { createWritebackQueue, performGuardedWriteback } from '../lib/writeback';
+import {
+  createWritebackQueue,
+  performGuardedWriteback,
+  type WritebackQueue,
+} from '../lib/writeback';
 import { isReadOnlyDerivedProjectPath } from '../lib/project/entry-visibility';
 import type { FileCursor } from '../lib/workspace-session';
 import { canCommitEditorSave, isRetainedEditorModel } from './app/editor-tabs-state';
@@ -106,7 +108,16 @@ export function EditorLoadStatus({
     >
       <div>
         <p className={loadError ? 'text-sm text-error' : 'text-sm text-muted'}>
-          {loadError ? '读取文件失败' : '正在读取文件…'}
+          {loadError ? (
+            '读取文件失败'
+          ) : (
+            <span className="inline-flex items-center gap-2">
+              <span className="relative inline-block h-3.5 w-3.5">
+                <span className="sf-button-spinner" aria-hidden="true" />
+              </span>
+              正在读取文件…
+            </span>
+          )}
         </p>
         {loadError && <p className="mt-2 max-w-xl text-xs text-subtle">{loadError}</p>}
         {loadError && onRetry ? (
@@ -151,7 +162,7 @@ export function Editor({
   const cleanVersionIdRef = useRef<number | null>(null);
   const modelCacheRef = useRef<EditorModelCache>(new Map());
   // 落盘串行队列：autosave 与 Ctrl+S 并发时按调用顺序依次写盘，防旧内容后落覆盖新内容。
-  const saveQueueRef = useRef(createWritebackQueue());
+  const [enqueueWriteback] = useState<WritebackQueue>(createWritebackQueue);
   const issueDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   // 留存当前审稿 issue，供内容变化后按 evidence 重新校验、移除已改好的标记（E18）。
   const reviewIssuesRef = useRef<ReviewIssueMarker[]>([]);
@@ -184,6 +195,7 @@ export function Editor({
     setSuggestionStatus,
     writeAcceptedSuggestion,
   } = useSuggestionWriteback({
+    enqueueWriteback,
     editorRef,
     originalContentRef,
     cleanVersionIdRef,
@@ -212,6 +224,7 @@ export function Editor({
   const {
     loadedFilePath,
     loadedContent,
+    loadedDiskBaseline,
     loadedIsDirty,
     loadAttemptFilePath,
     loadError,
@@ -269,62 +282,74 @@ export function Editor({
   // 保存文件：先快照旧内容，再写入新内容。内部函数向上抛错，供 Agent 预读握手阻断读盘。
   // autosave 与 Ctrl+S 可同时发起，故整个「取内容 → 快照 → 写盘 → 结算」串进写回队列，
   // 避免两次写盘乱序完成时旧内容盖掉新内容（内容在任务真正执行时才取，落盘的总是最新稿）。
-  const saveCurrentFile = useCallback(
-    () =>
-      saveQueueRef.current(async () => {
-        const path = filePathRef.current;
-        const projectRoot = projectPathRef.current;
-        if (!projectRoot || !path || !editorRef.current || isReadOnlyDerivedProjectPath(path))
-          return;
+  const saveCurrentFile = useCallback(async () => {
+    // Capture the target at invocation, not after another write's evidence awaits.
+    const path = filePathRef.current;
+    const projectRoot = projectPathRef.current;
+    const savedModel = editorRef.current?.getModel();
+    if (!projectRoot || !path || !savedModel || isReadOnlyDerivedProjectPath(path)) return;
+    const savedStateAtStart = modelCacheRef.current.get(path);
+    if (!savedStateAtStart || savedStateAtStart.model !== savedModel)
+      throw new Error('缺少当前文件磁盘基线，请重新读取后保存');
+    const branchAtRequest = getActiveBranchSnapshot();
+    return enqueueWriteback(async () => {
+      if (modelCacheRef.current.get(path) !== savedStateAtStart)
+        throw new Error('排队保存的原文件已关闭，请重新打开后保存');
+      const expected = savedStateAtStart.diskBaseline;
+      const content = savedModel.getValue();
+      const previous = savedStateAtStart.originalContent;
+      const contentChanged = expected.kind === 'missing' || expected.content !== content;
+      const branch =
+        projectPathRef.current === projectRoot && filePathRef.current === path
+          ? getActiveBranchSnapshot()
+          : branchAtRequest;
 
-        const savedModel = editorRef.current.getModel();
-        if (!savedModel) return;
-        const content = savedModel.getValue();
-        const previous = originalContentRef.current;
-        const contentChanged = normalizeEol(previous) !== normalizeEol(content);
-        const branch = contentChanged ? getActiveBranchSnapshot() : null;
+      await performGuardedWriteback(contentChanged, {
+        snapshot: async () =>
+          snapshotBeforeWrite(projectRoot, path, previous, {
+            source: 'Editor',
+            summary: '手动保存前快照',
+            branchId: branch?.id,
+            branchLabel: branch?.label,
+            parentId: branch?.headNodeId,
+          }),
+        advanceBranchHead: async (timestamp) => {
+          await advanceBranchHead(timestamp, {
+            projectPath: projectRoot,
+            filePath: path,
+            branchId: branch.id,
+          });
+        },
+        write: async () => {
+          await TauriFileSystem.writeFileIfUnchanged(projectRoot, path, content, expected);
+          if (modelCacheRef.current.get(path) === savedStateAtStart)
+            savedStateAtStart.diskBaseline = { kind: 'content', content };
+        },
+        record: async () => undefined,
+      });
 
-        await performGuardedWriteback(contentChanged, {
-          snapshot: async () =>
-            snapshotBeforeWrite(projectRoot, path, previous, {
-              source: 'Editor',
-              summary: '手动保存前快照',
-              branchId: branch?.id,
-              branchLabel: branch?.label,
-              parentId: branch?.headNodeId,
-            }),
-          advanceBranchHead: async (timestamp) => {
-            await advanceBranchHead(timestamp);
-          },
-          write: async () => {
-            await TauriFileSystem.writeFile(projectRoot, path, content);
-          },
-          record: async () => undefined,
-        });
+      // 日更账本记的是**已落盘**的净增量，故必须在写回成功之后、任何提前 return 之前累加。
+      recordDailyProgress(projectRoot, writebackDelta(previous, content));
 
-        // 日更账本记的是**已落盘**的净增量，故必须在写回成功之后、任何提前 return 之前累加。
-        recordDailyProgress(projectRoot, writebackDelta(previous, content));
-
-        const savedState = modelCacheRef.current.get(path);
-        if (!savedState || !isRetainedEditorModel(savedModel, savedState.model)) return;
-        savedState.originalContent = content;
-        const remainsDirty = savedModel.getValue() !== content;
-        onDirtyChange?.(path, remainsDirty);
-        if (
-          canCommitEditorSave(
-            path,
-            savedModel,
-            filePathRef.current,
-            editorRef.current?.getModel() ?? null,
-          )
-        ) {
-          originalContentRef.current = content;
-          cleanVersionIdRef.current = remainsDirty ? null : savedModel.getAlternativeVersionId();
-          setIsDirty(remainsDirty);
-        }
-      }),
-    [advanceBranchHead, getActiveBranchSnapshot, onDirtyChange],
-  );
+      const savedState = modelCacheRef.current.get(path);
+      if (!savedState || !isRetainedEditorModel(savedModel, savedState.model)) return;
+      savedState.originalContent = content;
+      const remainsDirty = savedModel.getValue() !== content;
+      onDirtyChange?.(path, remainsDirty);
+      if (
+        canCommitEditorSave(
+          path,
+          savedModel,
+          filePathRef.current,
+          editorRef.current?.getModel() ?? null,
+        )
+      ) {
+        originalContentRef.current = content;
+        cleanVersionIdRef.current = remainsDirty ? null : savedModel.getAlternativeVersionId();
+        setIsDirty(remainsDirty);
+      }
+    });
+  }, [advanceBranchHead, enqueueWriteback, getActiveBranchSnapshot, onDirtyChange]);
   const saveCurrentFileRef = useRef(saveCurrentFile);
 
   useEffect(() => {
@@ -349,6 +374,7 @@ export function Editor({
     filePath,
     loadedFilePath,
     loadedContent,
+    loadedDiskBaseline,
     editorFontSize,
     editorFontMode,
     editorLineNumbers,
@@ -473,9 +499,7 @@ export function Editor({
     if (typeof editor.revealLineInCenter === 'function') editor.revealLineInCenter(line);
   }, [editorReady, filePath, initialCursors, loadedFilePath]);
 
-  // 状态栏字数 + 作者当前视图：内容 / 选区 / 换模型去抖后一趟广播两条事件。
-  // 作者视图刻意搭这趟车而不另挂监听——守卫必须整组齐全再订阅：vitest 的 monaco stub
-  // 是单监听槽，多挂会把脏跟踪的 onDidChangeModelContent 顶掉。
+  // 作者当前视图：内容 / 选区 / 换模型共用去抖广播；订阅前确认事件接口齐全。
   useEffect(() => {
     const editor = editorRef.current;
     if (
@@ -491,31 +515,16 @@ export function Editor({
     const broadcast = () => {
       const model = editor.getModel();
       if (!model || typeof model.getValue !== 'function') {
-        emitEditorTextMetrics({
-          filePath: filePathRef.current,
-          charCount: 0,
-          selectionCharCount: 0,
-          paragraphCount: 0,
-        });
         return;
       }
-      let selectionCharCount = 0;
       let selectionText = '';
       const selections = typeof editor.getSelections === 'function' ? editor.getSelections() : null;
       if (selections && typeof model.getValueInRange === 'function') {
         for (const selection of selections) {
           const selected = model.getValueInRange(selection);
-          selectionCharCount += countProseChars(selected);
           selectionText += selected;
         }
       }
-      const text = model.getValue();
-      emitEditorTextMetrics({
-        filePath: filePathRef.current,
-        charCount: countProseChars(text),
-        selectionCharCount,
-        paragraphCount: countParagraphs(text),
-      });
       const position = typeof editor.getPosition === 'function' ? editor.getPosition() : null;
       emitEditorAuthorView({
         filePath: filePathRef.current,
@@ -677,10 +686,55 @@ export function Editor({
   // 存在态进 Monaco 脏缓冲；不存在态无法用空字符串表达，确认后走受保护真删除。
   const handleRestore = async (state: VersionState, _entry: VersionEntry) => {
     if (state.exists) {
-      if (!editorRef.current) return;
-      editorRef.current.setValue(state.content);
+      const project = projectPathRef.current;
+      const path = filePathRef.current;
+      if (!project || !path || !editorRef.current) return;
+      // 覆盖编辑缓冲是破坏动作（setValue 还会清掉 Monaco 撤销栈）：先确认，再为当前内容
+      // 留一条「恢复前」版本。快照挂在影子 Git 工作树上，脏缓冲必须先保存落盘，
+      // 否则快照收不进未保存的新增内容；setValue 不在守卫内留快照，下一次
+      // autosave/Ctrl+S 的快照捕获的是覆盖后内容，当前稿会彻底丢失。
+      const dirty = isDirtyRef.current;
+      const confirmed = await dialogs.confirm({
+        title: '恢复到此版本？',
+        message: dirty
+          ? '当前文件有未保存的修改，恢复会用所选版本覆盖编辑区。将先保存这些修改并记录完整作品版本，之后仍可从版本记录找回当前内容。'
+          : '恢复会用所选版本覆盖当前编辑区。将先为当前内容记录完整作品版本，之后仍可从版本记录找回。',
+        confirmLabel: '覆盖并恢复',
+        cancelLabel: '取消',
+        tone: dirty ? 'danger' : 'default',
+      });
+      if (!confirmed) return;
+
+      if (dirty) await saveCurrentFileRef.current();
+      if (
+        projectPathRef.current !== project ||
+        filePathRef.current !== path ||
+        !editorRef.current
+      ) {
+        throw new Error('确认期间活动文件已变化，已取消恢复');
+      }
+      const currentContent = editorRef.current.getValue();
+      const branch = getActiveBranchSnapshot();
+      // 快照成功才把旧版本灌进缓冲（快照失败整体抛给版本历史面板，保持现状可重试）。
+      await performGuardedWriteback(true, {
+        snapshot: async () =>
+          snapshotBeforeWrite(project, path, currentContent, {
+            source: 'Editor',
+            summary: '恢复历史版本前快照',
+            branchId: branch.id,
+            branchLabel: branch.label,
+            parentId: branch.headNodeId,
+          }),
+        advanceBranchHead,
+        write: async () => {
+          setLoadedContentPreview(state.content.slice(0, 120));
+          editorRef.current?.setValue(state.content);
+        },
+        record: async () => undefined,
+      });
       setIsDirty(state.content !== originalContentRef.current);
       setShowHistory(false);
+      emitToast('已恢复到所选版本，覆盖前的当前内容已留版本快照', { tone: 'success' });
       return;
     }
 
@@ -730,6 +784,9 @@ export function Editor({
       await handleRestore(state, node.version);
     } catch (err) {
       console.error('读取版本快照失败:', err);
+      emitToast(`恢复到此节点失败：${err instanceof Error ? err.message : String(err)}`, {
+        tone: 'error',
+      });
     }
   };
 
@@ -779,6 +836,7 @@ export function Editor({
               className="w-10 h-10 mx-auto mb-3 text-muted/60"
               viewBox="0 0 16 16"
               fill="currentColor"
+              aria-hidden="true"
             >
               <path d="M2 2h7l2 2h3v10H2V2zm1 1v10h10V5h-3l-2-2H3z" />
             </svg>
@@ -824,10 +882,10 @@ export function Editor({
 
       {isReviseLoading && (
         <div
-          className="px-3 py-2 border-b border-border bg-panel text-xs text-accent animate-fade-in flex-shrink-0 flex items-center gap-2"
+          className="px-3 py-2 border-b border-border bg-panel text-xs text-agent animate-fade-in flex-shrink-0 flex items-center gap-2"
           data-testid="suggestion-loading"
         >
-          <span className="inline-block w-3 h-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+          <span className="inline-block w-3 h-3 rounded-full border-2 border-agent border-t-transparent animate-spin" />
           正在请求 AI 修订…
         </div>
       )}

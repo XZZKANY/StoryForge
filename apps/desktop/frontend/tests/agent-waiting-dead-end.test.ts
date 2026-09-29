@@ -23,11 +23,13 @@ function makeMessage(overrides: Partial<AgentResultMessage> = {}): AgentResultMe
   } as AgentResultMessage;
 }
 
-function makeRepairMessage(command: AgentResultMessage['proposed_patch'] extends infer P
-  ? P extends { approval_command?: infer C }
-    ? C
-    : never
-  : never): AgentResultMessage {
+function makeRepairMessage(
+  command: AgentResultMessage['proposed_patch'] extends infer P
+    ? P extends { approval_command?: infer C }
+      ? C
+      : never
+    : never,
+): AgentResultMessage {
   return makeMessage({
     proposed_patch: {
       kind: 'repair_patch',

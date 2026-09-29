@@ -12,6 +12,7 @@ import { useBookContext } from './components/app/useBookContext';
 import { useBookOverviewChapters } from './components/app/useBookOverviewChapters';
 import { useBookProfile } from './components/app/useBookProfile';
 import { nextCyclicEditorFile } from './components/app/editor-tabs-state';
+import { useEditorNavigation } from './components/app/useEditorNavigation';
 import { useEditorWorkspaceTabs } from './components/app/useEditorWorkspaceTabs';
 import { useObservatory } from './components/app/useObservatory';
 import { useProjectCommands } from './components/app/useProjectCommands';
@@ -19,10 +20,13 @@ import { useProjectSearch } from './components/app/useProjectSearch';
 import { useProjectWorkspace } from './components/app/useProjectWorkspace';
 import { useSessionRestore } from './components/app/useSessionRestore';
 import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
-import type { Observation } from './components/shell/ObsPanel';
 import { useShellState, type SidePanelView } from './components/shell/useShellState';
-import { emitLocateInEditor, flushActiveEditorToDisk } from './lib/assistant-events';
-import type { ObservationAnchor } from './lib/observations';
+import {
+  emitChapterWriteRequest,
+  emitEditorCommand,
+  flushActiveEditorToDisk,
+  nextChapterWriteRequest,
+} from './lib/assistant-events';
 import { emitToast } from './lib/toast';
 import { checkForUpdate, currentAppVersion } from './lib/update-check';
 import { isEditableTarget } from './lib/browser-guards';
@@ -153,18 +157,29 @@ export function App() {
         return;
       }
       if (event.shiftKey) {
-        // Ctrl+Shift+B 作品 / E 资源管理器 / F 正文全文搜索 / M 手稿 / O 观测镜。
+        // Ctrl+Shift+B 作品 / E 资源管理器 / F 正文全文搜索 / M 手稿 / O 观测镜 / K 知识收件箱。
+        // P2-A：library 态下这些键不该拽出主表面——作者在作品库里按 Ctrl+Shift+F 找文段是
+        // 误触，应先回到 overview/workspace 才有「在哪个作品里搜」的语境。无项目时也无目标。
         const viewMap: Record<string, SidePanelView> = {
           b: 'book',
           e: 'explorer',
           f: 'search',
           m: 'manuscript',
           o: 'observatory',
+          i: 'knowledge',
         };
         const view = viewMap[key];
         if (view) {
+          if (mainSurface === 'library' || !workspace.activeProject) return;
           event.preventDefault();
           switchView(view);
+          return;
+        }
+        if (key === 'h') {
+          // 版本历史与 Ctrl+S 同档：无活动文件时按下去是死键。
+          if (!tabs.displayedFile) return;
+          event.preventDefault();
+          emitEditorCommand('toggle-history');
           return;
         }
         if (key === 'p') {
@@ -201,11 +216,14 @@ export function App() {
         event.preventDefault();
         void openSettings();
       } else if (key === '1' || key === '2' || key === '3') {
+        // P2-A：compact 下 balanced 会被立即派生回 editor，写 preference 不生效反而误导。
+        // 与 toggleRight/showRight 的 compact 分支对齐：compact 时只有 editor(chat 走 Ctrl+3)。
+        if (mainSurface === 'library') return; // 作品库里没有编辑器，布局键无意义。
         event.preventDefault();
         setMainSurface('workspace');
-        shell.setLayoutMode(
-          key === '1' ? 'editor' : key === '2' || !workspace.activeProject ? 'balanced' : 'chat',
-        );
+        const requested =
+          key === '1' ? 'editor' : key === '2' || !workspace.activeProject ? 'balanced' : 'chat';
+        shell.setLayoutMode(shell.compact && requested === 'balanced' ? 'editor' : requested);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -225,12 +243,6 @@ export function App() {
     tabs.openFiles,
     workspace.activeProject,
   ]);
-  // 观测面板挂在中栏底部，而对话聚焦态（Ctrl+3）整条隐藏中栏：直接翻 open 会「点了没反应」。
-  // 开面板前先落回可见布局，关面板则不动布局。
-  const toggleObsPanel = useCallback(() => {
-    if (!obsPanelOpen) showEditor();
-    setObsPanelOpen((open) => !open);
-  }, [obsPanelOpen, showEditor]);
   const runtime = useTauriMenuBridge({
     onRestoreFullLayout: () => {
       shell.showSidebar();
@@ -259,66 +271,19 @@ export function App() {
     active: mainSurface === 'overview',
   });
 
-  // 点大纲标题跳到那一行：与搜索命中同一条定位通道，路径已是绝对路径不必再拼。
-  const openOutlineHeading = useCallback(
-    (path: string, line: number) => {
-      showEditor();
-      if (tabs.displayedFile !== path) void tabs.openFile(path, '打开大纲');
-      emitLocateInEditor({ filePath: path, line });
-    },
-    [showEditor, tabs],
-  );
-
-  // 全文搜索（Ctrl+Shift+F）：点结果 → 打开该文件并跳到那一行，复用观测定位的同一条事件通道。
   const search = useProjectSearch(workspace.activeProject);
-  const openSearchHit = useCallback(
-    (path: string, line: number) => {
-      showEditor();
-      if (tabs.displayedFile !== path) void tabs.openFile(path, '打开搜索结果');
-      emitLocateInEditor({ filePath: path, line });
-    },
-    [showEditor, tabs],
-  );
-
-  // 点观测行 / 台账锚点定位原文：拼项目内绝对路径（沿用项目串的分隔符风格，保证与
-  // 页签路径可比），非当前文件先打开，再广播定位事件由 Editor 在模型就绪后消费。
-  const locateAnchor = useCallback(
-    (anchor: ObservationAnchor) => {
-      const project = workspace.activeProject;
-      if (!project) return;
-      // 定位原文要落在中栏编辑器；对话聚焦态隐藏中栏时先落回 balanced，否则定位落空。
-      showEditor();
-      const separator = project.includes('\\') ? '\\' : '/';
-      const relativePath = anchor.path.split('/').join(separator);
-      const absolutePath = `${project.replace(/[\\/]+$/, '')}${separator}${relativePath}`;
-      if (tabs.displayedFile !== absolutePath) void tabs.openFile(absolutePath, '定位观测');
-      emitLocateInEditor({ filePath: absolutePath, line: anchor.line, snippet: anchor.snippet });
-    },
-    [showEditor, tabs, workspace.activeProject],
-  );
-
-  const locateObservation = useCallback(
-    (observation: Observation) => {
-      if (observation.anchor) locateAnchor(observation.anchor);
-    },
-    [locateAnchor],
-  );
-
-  // 点手稿章节行打开该章：底座给的是 posix 相对路径，拼绝对路径沿用项目串的分隔符风格
-  // （与 locateAnchor 同一判据），否则 Windows 下拼出的路径与页签路径不可比、会重复开页签。
-  const openManuscriptChapter = useCallback(
-    (relativePath: string) => {
-      const project = workspace.activeProject;
-      if (!project) return;
-      showEditor();
-      const separator = project.includes('\\') ? '\\' : '/';
-      const absolutePath = `${project.replace(/[\\/]+$/, '')}${separator}${relativePath
-        .split('/')
-        .join(separator)}`;
-      if (tabs.displayedFile !== absolutePath) void tabs.openFile(absolutePath, '打开章节');
-    },
-    [showEditor, tabs, workspace.activeProject],
-  );
+  const {
+    openOutlineHeading,
+    openSearchHit,
+    locateAnchor,
+    locateObservation,
+    openManuscriptChapter,
+  } = useEditorNavigation({
+    activeProject: workspace.activeProject,
+    displayedFile: tabs.displayedFile,
+    openFile: tabs.openFile,
+    showEditor,
+  });
 
   const continueWriting = useCallback(
     (relativePath?: string) => {
@@ -335,12 +300,29 @@ export function App() {
     showEditor();
     showRight();
   }, [showEditor, showRight]);
+  // 「AI 起草下一章」：先展开右栏（brief 在右栏确认），事件由常驻 ChatWindow 消费；
+  // 章节源优先总览索引，总览未激活时（手稿视图）回落到底座快照。
+  const draftNextChapter = useCallback(() => {
+    showAgent();
+    const chapters = bookChapters.chapters.length
+      ? bookChapters.chapters
+      : (bookContext.snapshot?.chapters ?? []);
+    emitChapterWriteRequest(nextChapterWriteRequest(chapters));
+  }, [bookChapters.chapters, bookContext.snapshot, showAgent]);
   const activity = useOverviewActivity({
     projectPath: workspace.activeProject,
     displayedFile: tabs.displayedFile,
     openFile: tabs.openFile,
     showEditor,
   });
+
+  // P2-C：与 AppShell.openBookProfileEditor 同一路径，从作品总览封面空态直通作品资料编辑视图。
+  const openBookProfileEditor = useCallback(() => {
+    showEditor();
+    shell.showExplorerView();
+    shell.switchView('book');
+    shell.showSidebar();
+  }, [showEditor, shell]);
 
   return (
     <AppShell
@@ -357,10 +339,10 @@ export function App() {
       setPalette={setPalette}
       obsPanelOpen={obsPanelOpen}
       setObsPanelOpen={setObsPanelOpen}
-      toggleObsPanel={toggleObsPanel}
       observatory={{ ...observatory, locateObservation, locateAnchor }}
       bookContext={bookContext}
       onOpenManuscriptChapter={openManuscriptChapter}
+      onDraftNextChapter={draftNextChapter}
       bookProfile={bookProfile}
       onOpenOutlineHeading={openOutlineHeading}
       openSettings={openSettings}
@@ -387,6 +369,8 @@ export function App() {
             onOpenPendingPatches={activity.openPendingSuggestion}
             agentRun={activity.agentRun}
             onOpenAgentRun={showAgent}
+            onEditProfile={openBookProfileEditor}
+            onDraftNextChapter={draftNextChapter}
           />
         ) : null
       }

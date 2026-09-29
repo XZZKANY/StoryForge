@@ -1,3 +1,4 @@
+import { Button } from './ui';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
 import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
@@ -247,6 +248,9 @@ export function PatchReviewPanel({
       ...proseReadingTypography(editorFontSize, editorFontFamily),
       unicodeHighlight: STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
     });
+    // 分块按钮按原始行号指路（「接受第 N 处 · 第 X 行」），original 侧给出行号做定位锚；
+    // modified 侧行号对指路没有用处，保持关闭省一点宽度。
+    diffEditor.getOriginalEditor().updateOptions({ lineNumbers: 'on' });
     const original = monaco.editor.createModel(suggestion.before, 'markdown');
     const modified = monaco.editor.createModel(suggestion.after, 'markdown');
     diffEditor.setModel({ original, modified });
@@ -265,6 +269,9 @@ export function PatchReviewPanel({
   }, []);
 
   // 同一面板实例上换了新补丁时，只刷新两个 model 的内容。
+  // 换新补丁（id 变化）时滚动到第一处差异：旧补丁的滚动位置对新 diff 没有意义，
+  // 停在中段会让作者以为面板是空的；同一补丁被分块接受局部刷新（id 不变）则保留位置。
+  const lastSuggestionIdRef = useRef(suggestion.id);
   useEffect(() => {
     if (originalModelRef.current && originalModelRef.current.getValue() !== suggestion.before) {
       originalModelRef.current.setValue(suggestion.before);
@@ -272,7 +279,19 @@ export function PatchReviewPanel({
     if (modifiedModelRef.current && modifiedModelRef.current.getValue() !== suggestion.after) {
       modifiedModelRef.current.setValue(suggestion.after);
     }
-  }, [suggestion.before, suggestion.after]);
+    if (lastSuggestionIdRef.current !== suggestion.id) {
+      lastSuggestionIdRef.current = suggestion.id;
+      const diffEditor = diffEditorRef.current;
+      if (diffEditor) {
+        const firstChange = diffEditor.getLineChanges()?.[0];
+        if (firstChange && firstChange.originalStartLineNumber > 0) {
+          diffEditor.getOriginalEditor().revealLineNearTop(firstChange.originalStartLineNumber);
+        } else {
+          diffEditor.getOriginalEditor().setScrollTop(0);
+        }
+      }
+    }
+  }, [suggestion.id, suggestion.before, suggestion.after]);
 
   // 展开/收起改变容器高度后，立即让 Monaco 重新布局。
   useEffect(() => {
@@ -351,7 +370,7 @@ export function PatchReviewPanel({
                         {entry.selectionSource === 'author_pinned' ? '已固定' : '相关检索'}
                         {entry.evidenceState === 'stale' ? ' · 来源待复核' : ''}
                       </span>
-                      <button
+                      <Button
                         type="button"
                         onClick={() =>
                           runAction('retry', () =>
@@ -359,11 +378,13 @@ export function PatchReviewPanel({
                           )
                         }
                         disabled={actionBusy}
-                        className="text-accent hover:underline"
+                        size="sm"
+                        variant="ghost"
+                        className="text-accent"
                         data-testid="patch-knowledge-retry"
                       >
                         移除并重试
-                      </button>
+                      </Button>
                     </span>
                   ))}
                 </div>
@@ -375,46 +396,58 @@ export function PatchReviewPanel({
             role="group"
             aria-label="补丁操作"
           >
-            <button
+            <Button
               type="button"
               onClick={() => setExpanded((value) => !value)}
               data-testid="patch-expand"
               aria-expanded={expanded}
               title={`${expanded ? '退出审阅 · Esc' : '专注审阅'} · Ctrl E`}
-              className="h-7 rounded-md border border-border px-2.5 text-xs hover:bg-elevated transition-colors"
+              size="xs"
+              variant="secondary"
+              className="text-xs"
             >
               {expanded ? '退出审阅' : '专注审阅'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => runAction('accept', onAccept)}
               data-testid="suggestion-accept"
               title="接受 · Ctrl Y"
               disabled={actionBusy}
-              className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:opacity-90 active:opacity-100 transition-opacity"
+              loading={actionState === 'accept'}
+              loadingLabel="接受中"
+              size="xs"
+              variant="primary"
+              className="text-xs"
             >
               接受
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => runAction('note', onSaveNote)}
               data-testid="suggestion-note"
               disabled={actionBusy}
-              className="h-7 rounded-md border border-border px-2.5 text-xs hover:bg-elevated transition-colors"
+              loading={actionState === 'note'}
+              loadingLabel="保存旁注中"
+              size="xs"
+              variant="secondary"
+              className="text-xs"
             >
               保存旁注
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => setRejectDraft((value) => (value === null ? '' : null))}
               data-testid="suggestion-reject"
               aria-expanded={rejectDraft !== null}
               title="拒绝 · Ctrl N"
               disabled={actionBusy}
-              className="h-7 rounded-md px-2.5 text-xs text-muted hover:text-foreground hover:bg-elevated transition-colors"
+              size="xs"
+              variant="ghost"
+              className="text-xs"
             >
               拒绝
-            </button>
+            </Button>
           </div>
         </div>
         {(actionState || actionError) && (
@@ -425,7 +458,11 @@ export function PatchReviewPanel({
             data-testid="patch-action-status"
           >
             {actionError
-              ? `操作失败：${actionError}，可重试`
+              ? // P2-D：漂移拒写（内容已变化）直接重试必再撞墙，不应误导作者「可重试」。
+                // 普通错误（写盘失败、网络抖动等）才提示可重试。
+                actionError.includes('内容已变化')
+                ? `操作失败：${actionError}`
+                : `操作失败：${actionError}，可重试`
               : `处理中：${PATCH_ACTION_LABELS[actionState!]}`}
           </div>
         )}
@@ -452,17 +489,19 @@ export function PatchReviewPanel({
               aria-label="修改方向（可选）"
               // 问的是「该怎么改」而不是「为什么拒绝」：前者朝向下一版，后者只是归档。
               placeholder="说说该怎么改（回车发出，留空则只否掉这版）"
-              className="min-w-0 flex-1 rounded-md border border-border bg-elevated px-2 py-1 text-xs text-foreground transition-colors placeholder:text-muted focus:border-accent focus:outline-none"
+              className="sf-input min-w-0 flex-1 rounded-md border border-border bg-elevated px-2 py-1 text-xs text-foreground transition-colors placeholder:text-muted"
             />
-            <button
+            <Button
               type="button"
               onClick={submitRejection}
               disabled={actionBusy}
               data-testid="patch-reject-confirm"
-              className="flex-shrink-0 rounded-md border border-border px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-elevated"
+              size="sm"
+              variant="secondary"
+              className="flex-shrink-0 text-xs"
             >
               {rejectDraft.trim() ? '否掉并重来' : '否掉'}
-            </button>
+            </Button>
           </div>
         )}
         {hunks.length > 1 && (
@@ -472,17 +511,18 @@ export function PatchReviewPanel({
             aria-label="补丁分块操作"
           >
             {hunks.map((hunk, index) => (
-              <button
+              <Button
                 key={hunk.id}
                 type="button"
                 onClick={() => runAction('hunk', () => onAcceptHunk(hunk))}
                 data-testid="suggestion-accept-hunk"
                 disabled={actionBusy}
-                className="rounded-md border border-border px-2 py-1 text-foreground transition-colors hover:bg-elevated"
+                size="sm"
+                variant="secondary"
                 title={`第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`}
               >
                 接受第 {index + 1} 处 · 第 {hunk.originalStartIndex + 1} 行
-              </button>
+              </Button>
             ))}
           </div>
         )}

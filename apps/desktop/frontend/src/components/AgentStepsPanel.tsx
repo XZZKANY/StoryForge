@@ -2,22 +2,23 @@
  * Agent 执行步骤：thinking 流动折叠，对齐 Claude Code / Codex 的简洁 log 观感（#6c）。
  * 收起为一行「思考中 / 已思考 · N 步 · K 工具」摘要，展开为等宽单色 log
  * （前导状态字形 + 工具名 mono + 简短观测），不再用左边线 + 彩色圆点的「时间线」皮肤。
- * 运行 / 等待中默认展开、完成 / 失败后自动收起；作者手动切换后以手动为准。
+ * 运行 / 等待 / 暂停 / 失败默认展开（失败要直接看到失败步），完成 / 停止自动收起；
+ * 作者手动切换后以手动为准。
  */
 
 import { useState } from 'react';
-import type { AgentRun, AgentStep, AgentStepStatus } from './chat-window/types';
+import type { AgentRun, AgentRunStatus, AgentStep, AgentStepStatus } from './chat-window/types';
 
 export function AgentStepsPanel({ run }: { run: AgentRun }) {
   // null = 跟随运行状态；true/false = 作者手动覆盖。
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
-  const isTerminal = run.status === 'completed' || run.status === 'failed';
-  const open = manualOpen ?? !isTerminal;
+  const isLive = run.status === 'running' || run.status === 'waiting';
+  const open = manualOpen ?? (run.status !== 'completed' && run.status !== 'stopped');
 
   const stepCount = run.steps.length;
   const toolCount = run.steps.filter((step) => step.id.startsWith('tool-')).length;
-  // 非终态时在折叠头部显示当前活动步骤：作者收起也想看到「正在跑哪个工具」。
-  const activeStep = !isTerminal
+  // 仅活动态在折叠头部显示当前活动步骤：作者收起也想看到「正在跑哪个工具」。
+  const activeStep = isLive
     ? (run.steps.find((step) => step.status === 'running') ??
       run.steps.find((step) => step.status === 'waiting') ??
       run.steps.find((step) => step.status === 'pending'))
@@ -33,11 +34,7 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
         aria-expanded={open}
       >
         <span className="text-xs text-agent">✦</span>
-        {isTerminal ? (
-          <span>
-            已思考 · {stepCount} 步{toolCount > 0 ? ` · ${toolCount} 工具` : ''}
-          </span>
-        ) : (
+        {isLive ? (
           <span className="flex items-baseline gap-1.5" data-testid="thinking-active-step">
             <span className="sf-thinking-dots" aria-hidden="true">
               <span />
@@ -48,6 +45,15 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
               {activeStep ? activeStep.title : '思考中'} · {stepCount} 步
               {toolCount > 0 ? ` · ${toolCount} 工具` : ''}
             </span>
+          </span>
+        ) : (
+          <span
+            className={run.status === 'failed' ? 'text-error' : undefined}
+            data-testid="thinking-settled-header"
+          >
+            {settledHeaderText(run.status)} · {stepCount} 步
+            {toolCount > 0 ? ` · ${toolCount} 工具` : ''}
+            {run.status === 'failed' ? ' ✗' : ''}
           </span>
         )}
         <span className={`text-3xs transition-transform ${open ? '' : '-rotate-90'}`}>▾</span>
@@ -78,33 +84,44 @@ function StepRow({ step }: { step: AgentStep }) {
   const metrics = step.metrics ?? [];
   const hasMetrics = metrics.length > 0;
 
+  const rowClass =
+    'flex w-full items-baseline gap-2 rounded-sm px-1 py-px text-left font-mono text-2xs leading-5';
+  const rowContent = (
+    <>
+      <span className={`flex-shrink-0 ${glyphClass(step.status)}`} aria-hidden="true">
+        {statusGlyph(step.status)}
+      </span>
+      <span className={`flex-shrink-0 ${isToolStep ? 'text-foreground' : 'text-muted'}`}>
+        {step.title}
+      </span>
+      {/* 有结构化指标时首行让位给 chip 行；仅纯文本 detail（如 plan step）仍在首行内联。 */}
+      {hasDetail && !hasMetrics && (
+        <span
+          className={`min-w-0 flex-1 text-subtle ${
+            detailOpen ? 'whitespace-pre-wrap break-words' : 'truncate'
+          }`}
+        >
+          {step.detail}
+        </span>
+      )}
+    </>
+  );
+
   return (
     <div className="flex flex-col">
-      <button
-        type="button"
-        onClick={() => hasDetail && setDetailOpen((value) => !value)}
-        disabled={!hasDetail}
-        className={`flex w-full items-baseline gap-2 rounded-sm px-1 py-px text-left font-mono text-2xs leading-5 ${
-          hasDetail ? 'cursor-pointer hover:bg-elevated' : 'cursor-default'
-        }`}
-      >
-        <span className={`flex-shrink-0 ${glyphClass(step.status)}`} aria-hidden="true">
-          {statusGlyph(step.status)}
-        </span>
-        <span className={`flex-shrink-0 ${isToolStep ? 'text-foreground' : 'text-muted'}`}>
-          {step.title}
-        </span>
-        {/* 有结构化指标时首行让位给 chip 行；仅纯文本 detail（如 plan step）仍在首行内联。 */}
-        {hasDetail && !hasMetrics && (
-          <span
-            className={`min-w-0 flex-1 text-subtle ${
-              detailOpen ? 'whitespace-pre-wrap break-words' : 'truncate'
-            }`}
-          >
-            {step.detail}
-          </span>
-        )}
-      </button>
+      {hasDetail ? (
+        <button
+          type="button"
+          onClick={() => setDetailOpen((value) => !value)}
+          className={`${rowClass} transition-colors hover:bg-elevated`}
+        >
+          {rowContent}
+        </button>
+      ) : (
+        // 无详情可展开时是纯静态行：渲染 div 而非 disabled button，
+        // 避免全局 button:disabled{cursor:not-allowed} 让静态行挂着禁用光标。
+        <div className={rowClass}>{rowContent}</div>
+      )}
 
       {hasMetrics && (
         <div
@@ -125,6 +142,13 @@ function StepRow({ step }: { step: AgentStep }) {
       )}
     </div>
   );
+}
+
+function settledHeaderText(status: AgentRunStatus): string {
+  if (status === 'failed') return '已失败';
+  if (status === 'stopped') return '已停止';
+  if (status === 'paused') return '已暂停';
+  return '已思考';
 }
 
 function statusGlyph(status: AgentStepStatus): string {

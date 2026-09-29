@@ -18,14 +18,6 @@ export function contextBudgetText(bundle: ContextBundle | null): string {
   return `上下文 ${budget.fileCount}/${budget.maxFiles} 文件，${budget.charCount} 字符${pinned}${truncated}${kinds ? `；${kinds}` : ''}`;
 }
 
-export function selectedContextPreview(bundle: ContextBundle | null): string {
-  if (!bundle || bundle.files.length === 0) return '本轮还没有选入额外上下文';
-  return bundle.files
-    .slice(0, 4)
-    .map((file) => file.relativePath)
-    .join('、');
-}
-
 export function runStatusText(run: AgentRun | null): string | null {
   if (!run) return null;
   if (run.status === 'waiting') {

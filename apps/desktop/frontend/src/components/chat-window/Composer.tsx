@@ -1,3 +1,4 @@
+import { IconButton } from '../ui';
 import { useCallback, useRef, type MutableRefObject } from 'react';
 import { AGENT_ROLE_SUGGESTIONS } from '../../lib/agent-roles';
 import { type AgentPermissionProfile } from '../../lib/agent-permission';
@@ -188,7 +189,7 @@ export function ComposerSurface({
   return (
     <div
       data-testid="composer-surface"
-      className="group relative flex min-w-0 flex-col overflow-visible rounded-xl border border-border bg-background shadow-sm transition-colors focus-within:border-accent/60"
+      className="sf-input-shell group relative flex min-w-0 flex-col overflow-visible rounded-xl border border-border bg-background shadow-sm transition-colors focus-within:border-accent/60"
     >
       {queuedMessages.length > 0 && (
         <section
@@ -197,7 +198,7 @@ export function ComposerSurface({
           aria-label={`待发送消息 ${queuedMessages.length} 条`}
         >
           <div className="mb-1 flex flex-wrap items-center justify-between gap-1 text-3xs text-subtle">
-            <span>待发送 · 1 条</span>
+            <span>待发送 · {queuedMessages.length} 条</span>
             <span>本轮结束并完成确认后发送</span>
           </div>
           <ul className="flex max-h-20 flex-col gap-0.5 overflow-y-auto">
@@ -209,7 +210,7 @@ export function ComposerSurface({
                 {onRemoveQueuedMessage && (
                   <button
                     type="button"
-                    className="flex-shrink-0 rounded-sm px-1 text-3xs text-subtle hover:bg-border hover:text-foreground"
+                    className="-my-0.5 flex-shrink-0 rounded-sm px-1.5 py-0.5 text-3xs text-subtle transition-colors hover:bg-border hover:text-foreground"
                     aria-label={`取消待发送消息：${queued.content}`}
                     onClick={() => {
                       onRemoveQueuedMessage(queued.id);
@@ -226,14 +227,14 @@ export function ComposerSurface({
       )}
       {roleSuggestions.length > 0 && !disabled && !busy && (
         <div
-          className="absolute bottom-full left-2 z-10 mb-1.5 flex max-w-[calc(100%-1rem)] flex-wrap gap-1.5 rounded-lg border border-border bg-surface px-2 py-2 shadow-dropdown"
+          className="absolute bottom-full left-2 z-10 mb-1.5 flex max-w-[calc(100%-1rem)] animate-fade-in flex-wrap gap-1.5 rounded-lg border border-border bg-surface px-2 py-2 shadow-dropdown"
           data-testid="agent-role-suggestions"
         >
           {roleSuggestions.map((item) => (
             <button
               key={item.mention}
               type="button"
-              className="h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:border-accent hover:bg-accent hover:text-accent-foreground"
+              className="h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground transition-colors hover:border-accent hover:bg-accent hover:text-accent-foreground"
               onClick={() => insertRoleMention(item.mention)}
               data-testid="agent-role-suggestion"
               data-role-name={item.roleName}
@@ -280,7 +281,7 @@ export function ComposerSurface({
               {onTogglePinnedContext && (
                 <button
                   type="button"
-                  className="inline-flex flex-shrink-0 leading-none text-subtle transition-colors hover:text-foreground"
+                  className="-m-0.5 inline-flex flex-shrink-0 p-0.5 leading-none text-subtle transition-colors hover:text-foreground"
                   title="取消固定"
                   aria-label={`取消固定参考：${path}`}
                   disabled={disabled}
@@ -316,7 +317,7 @@ export function ComposerSurface({
         // 流式运行期间保持可编辑；单条待发槽位由 submission owner 同步保护。
         disabled={disabled}
         rows={2}
-        className="max-h-40 min-h-[72px] w-full resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
+        className="sf-inner-input max-h-40 min-h-[72px] w-full resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
         placeholder={disabled ? '打开项目后即可使用 StoryForge' : '输入想法，@ 提及角色'}
         aria-label="给 StoryForge 发送消息"
         onKeyDown={(event) => {
@@ -350,17 +351,13 @@ export function ComposerSurface({
         data-testid="composer-toolbar"
         className="flex items-center gap-1 px-2 pb-2 text-xs text-muted"
       >
-        <button
-          type="button"
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:opacity-50"
-          title="添加上下文"
-          aria-label="添加上下文"
+        <IconButton
+          label="添加上下文"
+          icon={<Plus size={16} strokeWidth={1.8} />}
           aria-expanded={contextPickerOpen}
           onClick={onAddContext}
           disabled={disabled}
-        >
-          <Plus size={16} strokeWidth={1.8} />
-        </button>
+        />
         <PermissionProfileSelector
           fitToComposer
           value={permissionProfile}
@@ -368,18 +365,18 @@ export function ComposerSurface({
           disabled={disabled}
           busy={busy}
         />
-        <button
+        <IconButton
           type={onSubmit ? 'button' : 'submit'}
-          className="interactive-press ml-auto flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:bg-elevated disabled:text-subtle disabled:opacity-60"
-          title={busy ? '暂存为待发送消息' : '发送 · Enter（Shift+Enter 换行）'}
-          aria-label={busy ? '暂存为待发送消息' : '发送'}
+          variant="primary"
+          className="ml-auto"
+          tooltip={busy ? '暂存为待发送消息' : '发送 · Enter（Shift+Enter 换行）'}
+          label={busy ? '暂存为待发送消息' : '发送'}
+          icon={<ArrowUp size={16} strokeWidth={2} />}
           aria-keyshortcuts="Enter"
           disabled={!canSubmit}
           onClick={onSubmit}
           data-testid="composer-submit"
-        >
-          <ArrowUp size={16} strokeWidth={2} />
-        </button>
+        />
       </div>
     </div>
   );
