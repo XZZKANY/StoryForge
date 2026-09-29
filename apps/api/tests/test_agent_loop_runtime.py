@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.domains.agent_runs import loop_runtime
 from app.domains.assistant import service as assistant_service
-from app.domains.book_runs.errors import BookGenerationError
+from app.platform.ai_sdk import ProviderError, ProviderErrorCategory, ProviderErrorDetails
 
 pytest_plugins = ("agent_loop_runtime_test_fixtures",)
 
@@ -265,10 +265,10 @@ def test_chat_loop_falls_back_to_single_turn_when_first_call_fails(
     monkeypatch: pytest.MonkeyPatch,
     novel_project: Path,
 ) -> None:
-    """首轮 LLM 调用失败（如 provider 不支持 tools）时静默回落单轮对话。"""
+    """首轮明确不支持 tools 时回落单轮；认证或网络失败不在回退范围。"""
 
     _enable_loop_env(monkeypatch)
-    _fake_llm_script(monkeypatch, [BookGenerationError("真实 LLM 返回 HTTP 400：tools 不支持")])
+    _fake_llm_script(monkeypatch, [ProviderError(ProviderErrorDetails(ProviderErrorCategory.UNSUPPORTED, "tools 不支持"))])
     monkeypatch.setattr(
         assistant_service,
         "chat_reply",

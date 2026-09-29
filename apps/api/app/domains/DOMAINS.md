@@ -17,7 +17,7 @@
 | `health` | `/health/live` `/health/ready` | 探活 + app_version 握手 |
 | `assistant` | `/api/assistant/*` | 对话式 agent 会话 / 消息 / chat |
 | `agent_runs` | SSE/REST `/api/ide/agent/sessions/*` + `/api/agent-runs/*` | live 工具循环主动脉 |
-| `ide` | `/api/ide/*`（5 条 live：cross-chapter / runs events / commands / agent stream / agent control） | 命令面板 + 审阅。6 条已核实无 Desktop 调用方的旧读路由已从 router/OpenAPI 收窄；对应 service 与 schema 保留，供未来产品面复用。 |
+| `ide` | `/api/ide/*`（5 条 live：cross-chapter / runs events / commands / agent stream / agent control） | 命令面板 + 审阅。6 条无 Desktop 调用方的旧读路由已从 router/OpenAPI 收窄；2026-09-28 经明确退役决定，删除对应四个读投影模块、18 个独占 DTO 和旧 re-export。live command / run events / cross-chapter 及其 service facade 保留，不删除底层质量能力。 |
 
 ## backing（进程内被 live 依赖，谨慎改）
 
@@ -33,9 +33,13 @@
 
 **2026-07-14 frozen 残留对齐**：`jobs` 同样是 models-only residual（`JobRun` 仍被 backing ORM / quality 代码引用），与上述 7 域合计 8 个 models-only 域；`books/lineage_service.py` 是零 app 调用方的历史批准回写模块，按 frozen 行为模块保留。`test_live_domains_do_not_add_frozen_imports` 禁止 live 四域新增这些依赖，只白名单保留 `ide/command_registry.py -> workspaces.models.Workspace` 这条既有 ORM 审计边。
 
+### 历史卸载经过（2026-07，留档；不作为今天的操作指令）
+
+> 以下逐批记录仅为 2026-07 卸载过程的留档。当时的回滚方式（`main.py` 加回一行 `include_router`）只适用于 router 刚卸载、模块仍在的时点；2026-07-10 起相关域 HTTP 层已物理删除，**今天不能靠加回 include 恢复**，恢复只能从 git 历史取码并重新评审。
+
 **router 已卸载（W4 batch-1，2026-07-04）**：`analytics`、`batch_refinery`、`collaboration`、`commercial`。
 - 零前端调用、零 backing 域 import 其 service；`collaboration`/`commercial` 的 `models.py` 仍在 `app/models.py` 聚合建表，故保留目录。
-- 护栏：`tests/test_api_surface.py::test_frozen_domain_routers_stay_unmounted`（重新 include_router 即红）。回滚 = `main.py` 加回一行 `include_router`。
+- 护栏：`tests/test_api_surface.py::test_frozen_domain_routers_stay_unmounted`（重新 include_router 即红）。回滚（仅当时）= `main.py` 加回一行 `include_router`。
 
 **router 已卸载（W4 batch-2a，2026-07-10）**：`prompt_packs`、`series`、`worldbuilding`。
 - 三域 service 亦零 live/backing import（`worldbuilding` service 此前仅被冻结的 `assets` 惰性 import，一并退役）；删其专属 HTTP 测试（`test_prompt_packs` / `test_series_memory` / `test_series_worldbuilding_api` / `test_worldbuilding_center`）不丢 live 覆盖。

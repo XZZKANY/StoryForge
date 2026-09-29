@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.common.performance import measured
 from app.domains.agent_runs.event_types import (
     AGENT_ARTIFACT,
     AGENT_PLAN_CREATED,
@@ -19,6 +20,7 @@ from app.domains.agent_runs.event_types import (
 )
 from app.domains.agent_runs.models import AgentRun, AgentRunEvent
 from app.domains.agent_runs.permission import canonical_permission_profile
+from app.domains.agent_runs.result_contracts import execution_result_payload
 from app.domains.agent_runs.run_payloads import (
     book_run_id_from_result as _book_run_id_from_result,
 )
@@ -61,6 +63,7 @@ class _AgentRunEventSink:
         if event is not None:
             self._emit(event)
 
+    @measured("store.plan")
     def record_plan(self, run: AgentRun, result: dict[str, Any]) -> None:
         from app.domains.agent_runs.service import record_agent_event
 
@@ -162,7 +165,7 @@ class _AgentRunEventSink:
         self._emit_latest_event(run, AGENT_ARTIFACT)
 
     def record_permission_required(self, run: AgentRun, result: dict[str, Any], *, reason: str) -> None:
-        from app.domains.agent_runs.service import record_agent_event
+        from app.domains.agent_runs.service import record_agent_event, rollback_failed_settlement
 
         # 守卫式 status 写：与 complete_agent_run/fail_agent_run 对称（B1-001 家族第 4 个汇流点，UF-01）。
         # 这条 sink 在末轮产补丁的 post-loop 窗口执行，其间控制通道可能已从另一连接把 run 落成
@@ -175,13 +178,11 @@ class _AgentRunEventSink:
             return
         agent_result = result.get("agent_result") if isinstance(result.get("agent_result"), dict) else {}
         proposed_patch = result.get("proposed_patch") if isinstance(result.get("proposed_patch"), dict) else None
-        run.status = "paused"
-        run.current_step = "permission.confirm"
-        self._session.add(run)
-        self._session.commit()
-        self._session.refresh(run)
-        self._emit(
-            record_agent_event(
+        with rollback_failed_settlement(self._session):
+            run.status = "paused"
+            run.current_step = "permission.confirm"
+            self._session.add(run)
+            event = record_agent_event(
                 self._session,
                 run,
                 event_type=PERMISSION_REQUIRED,
@@ -196,6 +197,7 @@ class _AgentRunEventSink:
                     "assistant_session_id": run.assistant_session_id,
                     "summary": agent_result.get("summary"),
                     "requires_user_confirmation": True,
+                    **(execution_result_payload(result) if agent_result.get("execution_outcome") else {}),
                     "reason": reason,
                     "proposed_patch": proposed_patch,
                     "confirmation_action": agent_result.get("confirmation_action"),
@@ -208,7 +210,7 @@ class _AgentRunEventSink:
                     ),
                 },
             )
-        )
+        self._emit(event)
 
     def record_system_job(
         self,
@@ -254,6 +256,11 @@ class _AgentRunEventSink:
 
         fail_agent_run(self._session, run, message=message, payload=payload)
         self._emit_latest_event(run, AGENT_RUN_FAILED)
+
+    def record_runtime_progress(self, run: AgentRun, payload: dict[str, Any]) -> None:
+        from app.domains.agent_runs.runtime_progress import record_runtime_progress
+
+        self._emit(record_runtime_progress(self._session, run, payload))
 
     def runtime_interruption(self, run: AgentRun, *, boundary: str) -> dict[str, Any] | None:
         self._session.refresh(run)

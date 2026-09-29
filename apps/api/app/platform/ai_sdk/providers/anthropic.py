@@ -20,6 +20,7 @@ from app.platform.ai_sdk.contracts import (
 )
 from app.platform.ai_sdk.errors import ProviderError, ProviderErrorCategory, ProviderErrorDetails
 from app.platform.ai_sdk.provider import ProviderHealth, ProviderHealthStatus
+from app.platform.ai_sdk.stream_usage import retaining_stream_usage
 
 RawCompleteTransport = Callable[[dict[str, object]], tuple[dict[str, object], float]]
 RawStreamTransport = Callable[[dict[str, object]], Iterable[Mapping[str, object]]]
@@ -62,6 +63,11 @@ def _arguments_object(call: ToolCall) -> dict[str, Any]:
 
 def _usage(payload: object, *, prior: TokenUsage | None = None) -> TokenUsage:
     data = payload if isinstance(payload, Mapping) else {}
+    if not any(
+        isinstance(data.get(key), int) and not isinstance(data.get(key), bool) and data[key] >= 0
+        for key in ('input_tokens', 'output_tokens')
+    ):
+        return prior if prior is not None else TokenUsage()
     input_tokens = _non_negative_int(data.get("input_tokens")) or (prior.input_tokens if prior else 0)
     output_tokens = _non_negative_int(data.get("output_tokens")) or (prior.output_tokens if prior else 0)
     cached = _non_negative_int(data.get("cache_read_input_tokens"))
@@ -119,7 +125,8 @@ class AnthropicProvider:
                     ProviderErrorCategory.CONTENT_FILTER,
                     "Anthropic blocked the response for safety reasons.",
                     provider_code=str(data.get("stop_reason")),
-                )
+                ),
+                usage=_usage(data.get("usage")),
             )
         metadata: dict[str, object] = {
             "latency_ms": max(0, int((time.monotonic() - started_at) * 1000))
@@ -137,6 +144,9 @@ class AnthropicProvider:
         )
 
     def stream(self, request: ChatRequest) -> Iterator[StreamEvent]:
+        return retaining_stream_usage(self._stream_events(request))
+
+    def _stream_events(self, request: ChatRequest) -> Iterator[StreamEvent]:
         if self._stream_transport is None:
             raise ProviderError(
                 ProviderErrorDetails(
@@ -263,6 +273,11 @@ class AnthropicProvider:
                 finish_reason=finish_reason,
                 metadata=metadata,
             )
+            return
+        raise ProviderError(ProviderErrorDetails(
+            ProviderErrorCategory.RESPONSE, "Anthropic stream ended before message_stop.",
+            provider_code="missing_stream_terminal",
+        ))
 
     def health(self) -> ProviderHealth:
         return ProviderHealth(ProviderHealthStatus.UNCHECKED)

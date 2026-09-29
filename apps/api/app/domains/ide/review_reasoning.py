@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from app.common.craft import review_rubric_clause
+from app.common.llm_control import check_run_interruption, has_run_control
 from app.domains.book_runs.book_generation import (
     BookGenerationError,
 )
@@ -66,6 +67,14 @@ class LlmReviewReasoner:
     def review_all(
         self, *, content: str, paragraphs: list[str], context_bundle: dict[str, Any] | None
     ) -> list[ReviewSubagentResult]:
+        if has_run_control():
+            # The live control callback owns a SQLAlchemy Session. Keep it on
+            # its worker thread instead of silently losing or sharing it.
+            results = []
+            for key in REVIEW_AGENT_KEYS:
+                check_run_interruption("before_review_role")
+                results.append(self._review_one(key, content, paragraphs, context_bundle))
+            return results
         with ThreadPoolExecutor(max_workers=len(REVIEW_AGENT_KEYS)) as executor:
             futures = {
                 key: executor.submit(self._review_one, key, content, paragraphs, context_bundle)

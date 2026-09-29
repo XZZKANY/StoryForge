@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.domains.agent_runs import run_payloads
 from app.domains.agent_runs.event_types import (
     AGENT_RUN_COMPLETED,
+    AGENT_RUN_FAILED,
     PAUSE_RUN,
     RESUME_RUN,
     RETRY_FROM_CHECKPOINT,
@@ -16,7 +17,11 @@ from app.domains.agent_runs.event_types import (
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.permission import canonical_permission_profile
 from app.domains.agent_runs.service_lifecycle import create_or_resume_bookrun_agent_run
-from app.domains.agent_runs.service_store import fail_agent_run, record_agent_artifact, record_agent_event
+from app.domains.agent_runs.service_store import (
+    record_agent_artifact,
+    record_agent_event,
+    rollback_failed_settlement,
+)
 from app.domains.agent_runs.service_types import AgentRuntimeError
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.service import BookRunBlockedError, BookRunNotFoundError
@@ -61,34 +66,30 @@ def record_book_run_snapshot(
             },
             requires_confirmation=False,
         )
-    if book_run.status == "completed":
-        run.status = "completed"
-        run.current_step = "completed"
-        session.add(run)
-        session.commit()
-        record_agent_event(
-            session,
-            run,
-            event_type=AGENT_RUN_COMPLETED,
-            actor="bookrun-agent",
-            message=f"写作任务 #{book_run.id} 已完成。",
-            payload=payload,
-        )
-    elif book_run.status == "stopped":
-        run.status = "stopped"
-        run.current_step = "stopped"
-        session.add(run)
-        session.commit()
-        record_agent_event(
-            session,
-            run,
-            event_type=STOP_RUN,
-            actor="bookrun-agent",
-            message=f"写作任务 #{book_run.id} 已停止。",
-            payload=payload,
-        )
-    elif book_run.status == "failed":
-        fail_agent_run(session, run, message=f"写作任务 #{book_run.id} 状态为 {book_run.status}。", payload=payload)
+    if book_run.status in {"completed", "stopped", "failed"}:
+        # 镜像投影服从已提交的上游事实，不复用仅允许 running 的 worker 终态守卫。
+        # 保留重复 snapshot 的事件语义，但不能先把既有终态提交回 running。
+        with rollback_failed_settlement(session):
+            run.status = book_run.status
+            run.current_step = book_run.status
+            session.add(run)
+            if book_run.status == "completed":
+                event_type, actor = AGENT_RUN_COMPLETED, "bookrun-agent"
+                message = f"写作任务 #{book_run.id} 已完成。"
+            elif book_run.status == "stopped":
+                event_type, actor = STOP_RUN, "bookrun-agent"
+                message = f"写作任务 #{book_run.id} 已停止。"
+            else:
+                event_type, actor = AGENT_RUN_FAILED, "root-agent"
+                message = f"写作任务 #{book_run.id} 状态为 {book_run.status}。"
+            record_agent_event(
+                session,
+                run,
+                event_type=event_type,
+                actor=actor,
+                message=message,
+                payload=payload,
+            )
     return run
 
 

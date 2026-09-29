@@ -45,8 +45,7 @@ ignore = ["E501"]
 "httpx".msg = "出网传输请走 app.common.llm_client；域内裸 httpx 客户端已收敛。"
 
 [tool.ruff.lint.per-file-ignores]
-# 单一通道本体与 provider 健康探针（只读 /models）是仅有的合法 urllib 出网点。
+# 单一通道同时承载生成与只读 /models 探针；域代码不另起 urllib 出口。
 "app/common/llm_client.py" = ["TID251"]
-"app/domains/assistant/service.py" = ["TID251"]
 # S3 presigned URL 回读走 urllib，与 chat 出网无关。
 "tests/test_s3_integration.py" = ["TID251"]

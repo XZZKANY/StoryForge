@@ -55,7 +55,3 @@ def evaluate_pgvector_decision(
     if dialect_name != "postgresql":
         return PGVECTOR_NON_POSTGRESQL
     return PGVECTOR_ENGAGED
-
-
-def pgvector_engaged(reason: str) -> bool:
-    return reason == PGVECTOR_ENGAGED

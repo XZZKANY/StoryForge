@@ -7,6 +7,7 @@ from app.domains.agent_runs.tools.spec_roles import WRITE_ALLOWED_ROLES as _WRIT
 PATCH_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     AgentRuntimeToolSpec(
         name="project.trim_prose",
+        loop_input_mode="existing_file",
         description=(
             "压缩修订：按目标压缩率（默认 15%）对单个稿件做结构化压缩，攻击冗余副词、情绪直述、"
             "解释性旁白等过度表达，返回带字数审计报告的待确认补丁。"
@@ -45,6 +46,7 @@ PATCH_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     ),
     AgentRuntimeToolSpec(
         name="file.review",
+        loop_input_mode="existing_file",
         description="执行 chapter_polish 多子代理审稿。",
         domain="review",
         input_schema={},
@@ -71,6 +73,9 @@ PATCH_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     ),
     AgentRuntimeToolSpec(
         name="file.revise",
+        loop_input_mode="existing_file",
+        loop_trusted_context=True,
+        loop_trace_owner="handler",
         description="生成待确认文件修订补丁。",
         domain="file",
         input_schema={},
@@ -101,6 +106,9 @@ PATCH_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     ),
     AgentRuntimeToolSpec(
         name="chapter.polish",
+        loop_input_mode="existing_file",
+        loop_trusted_context=True,
+        loop_trace_owner="handler",
         description="对既有小说正文执行受控润色，比较在线与本地候选并生成待确认补丁。",
         domain="chapter",
         input_schema={},
@@ -142,6 +150,9 @@ PATCH_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     ),
     AgentRuntimeToolSpec(
         name="file.create",
+        loop_input_mode="new_file",
+        loop_trusted_context=True,
+        loop_trace_owner="handler",
         description="为尚不存在的新文件起草初稿，生成待确认新建文件补丁。",
         domain="file",
         input_schema={},
@@ -173,6 +184,7 @@ PATCH_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     ),
     AgentRuntimeToolSpec(
         name="prose.continue",
+        loop_input_mode="existing_file",
         description="在作者光标处接着往下写一段，生成待确认的插入补丁（不改动既有正文）。",
         domain="prose",
         input_schema={},

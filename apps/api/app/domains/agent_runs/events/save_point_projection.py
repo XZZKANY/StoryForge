@@ -5,6 +5,7 @@ from typing import Any
 from app.domains.agent_runs.event_types import (
     AGENT_RUN_COMPLETED,
     AGENT_RUN_FAILED,
+    AGENT_RUN_INTERRUPTED,
     AGENT_RUN_STARTED,
     PAUSE_RUN,
     PERMISSION_APPROVED,
@@ -34,13 +35,13 @@ def save_point_from_event(event: AgentRunEvent) -> dict[str, Any] | None:
         )
     if event.event_type in {PERMISSION_APPROVED, PERMISSION_DENIED}:
         return _event_save_point("permission_decided", event, {"decision": event.event_type})
-    if event.event_type == AGENT_RUN_COMPLETED:
-        return _event_save_point("run_completed", event)
-    if event.event_type == AGENT_RUN_FAILED:
-        return _event_save_point("run_failed", event)
-    if event.event_type == STOP_RUN:
+    if event.event_type in {AGENT_RUN_COMPLETED, AGENT_RUN_FAILED}:
+        return _event_save_point("run_completed" if event.event_type == AGENT_RUN_COMPLETED else "run_failed", event)
+    if event.event_type == STOP_RUN and event.actor == "bookrun-agent":
         return _event_save_point("run_stopped", event)
-    if event.event_type in {PAUSE_RUN, RESUME_RUN, RETRY_FROM_CHECKPOINT}:
+    if event.event_type == AGENT_RUN_INTERRUPTED:
+        return _event_save_point("run_interrupted", event, {"runtime_state": "settled"})
+    if event.event_type in {PAUSE_RUN, STOP_RUN, RESUME_RUN, RETRY_FROM_CHECKPOINT}:
         return _event_save_point("control_message", event, _control_event_summary(event))
     if event.event_type == TOOL_TRACE:
         return _event_save_point("tool_completed", event, _tool_recovery_summary(event))

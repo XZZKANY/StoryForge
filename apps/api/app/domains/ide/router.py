@@ -38,6 +38,7 @@ from app.domains.ide.service import (
     encode_sse_event,
     execute_ide_command_by_id,
 )
+from app.domains.ide.stream_measurement import StreamMeasurement
 
 router = APIRouter(prefix="/api/ide", tags=["IDE 工作台"])
 
@@ -52,6 +53,7 @@ async def _agent_user_message_payloads(session, *, session_id: str, message: dic
     本地 SSE 流以该 pump 为唯一运行入口；帧形状由 event_encoders / ws_messages 管理。
     """
 
+    measurement = StreamMeasurement()
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     session_bind = session.get_bind()
@@ -68,7 +70,7 @@ async def _agent_user_message_payloads(session, *, session_id: str, message: dic
             enqueue({"kind": _STREAM_EVENT, "payload": payload})
 
     def run_in_thread() -> None:
-        with thread_session_factory() as thread_session:
+        with measurement.worker() as worker_span, thread_session_factory() as thread_session:
             try:
                 runtime_result = run_agent_user_message(
                     thread_session,
@@ -77,26 +79,39 @@ async def _agent_user_message_payloads(session, *, session_id: str, message: dic
                     on_event=on_event,
                 )
             except AgentRuntimeError as exc:
+                worker_span.outcome("error")
                 payload: dict[str, Any] = {"type": "error", "session_id": session_id, "detail": str(exc)}
                 if isinstance(exc, AgentRuntimeUserMessageError):
                     payload["run_id"] = exc.run.public_id
                 enqueue({"kind": _STREAM_ERROR, "payload": payload})
                 return
             except Exception as exc:  # noqa: BLE001 - worker must always release the receiver loop
+                worker_span.outcome("error")
                 enqueue({"kind": _STREAM_ERROR, "payload": {"type": "error", "session_id": session_id, "detail": str(exc)}})
                 return
             enqueue({"kind": _STREAM_RESULT, "payload": runtime_result.result})
 
     worker = asyncio.create_task(asyncio.to_thread(run_in_thread))
+    stream_status = "ok"
     try:
         while True:
             item = await queue.get()
             kind = item.get("kind")
             payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+            measurement.before_yield(payload)
+            if kind == _STREAM_ERROR:
+                stream_status = "error"
             yield payload
             if kind in (_STREAM_RESULT, _STREAM_ERROR):
                 break
+    except (asyncio.CancelledError, GeneratorExit):
+        stream_status = "cancelled"
+        raise
+    except Exception:
+        stream_status = "error"
+        raise
     finally:
+        measurement.transport_finished(stream_status)
         await worker
 
 

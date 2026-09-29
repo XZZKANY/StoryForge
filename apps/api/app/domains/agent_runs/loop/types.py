@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 
 from app.domains.agent_runs.patches.types import PatchProposal
+from app.domains.agent_runs.result_contracts import AgentExecutionOutcome
 from app.domains.agent_runs.tools.execution import ToolArtifact
 from app.domains.agent_runs.trace import AgentToolTrace
 
@@ -95,14 +96,34 @@ class ChatLoopOutcome:
     prompt_tokens: int = 0
     token_usage: int = 0
     token_usage_source: str = "unavailable"
-    cost_cny_estimated: float = 0.0
+    # Known main-loop model charges only; nested calls have their own tool-call evidence.
+    # A non-null subtotal does not establish that every round's cost was available.
+    cost_cny_estimated: float | None = None
     cost_breakdown: dict[str, Any] = field(default_factory=dict)
     exhausted: bool = False
+    execution_outcome: AgentExecutionOutcome | None = None
     review_report: dict[str, Any] | None = None
     patch_proposal: PatchProposal | None = None
     interrupted: bool = False
     interruption: dict[str, Any] | None = None
     artifacts: list[ToolArtifact] = field(default_factory=list)
+
+    def mark_failed(self, code: str, message: str) -> None:
+        partial = any(trace.status == "completed" for trace in self.traces) or bool(self.artifacts)
+        self.answer = f"本轮未完成：{message[:300]}"
+        if partial:
+            self.answer += " 已完成的结果已保留。"
+        self.execution_outcome = AgentExecutionOutcome(
+            status="partial" if partial else "failed", code=code, message=self.answer,
+        )
+        if self.proposed_patch is not None:
+            self.proposed_patch = {**self.proposed_patch, "requires_confirmation": True}
+            self.artifacts = [
+                ToolArtifact(kind=item.kind, payload={**item.payload, "requires_confirmation": True},
+                             requires_confirmation=True)
+                if item.kind == "proposed_patch" else item
+                for item in self.artifacts
+            ]
 
     @property
     def proposed_patch(self) -> dict[str, Any] | None:

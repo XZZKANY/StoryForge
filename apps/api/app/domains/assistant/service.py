@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import json
-import time
 from collections.abc import Iterator, Mapping
 from typing import Any
-from urllib import error, request
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -13,12 +11,13 @@ from app.common.author_voice import build_generation_system_prompt
 from app.common.craft import (
     craft_prompt_clause,
     scene_discipline_clause,
-    scene_discipline_guard_clause,
 )
 from app.common.exceptions import ConflictError, DomainError, NotFoundError
 from app.common.llm_client import (
     LLMError,
     build_chat_payload,
+    error_usage_summary,
+    fetch_provider_models,
     stream_chat_completions,
 )
 
@@ -30,26 +29,22 @@ from app.common.llm_client import (
 from app.common.llm_client import (
     call_llm_streamed as _call_llm_streamed,
 )
-from app.common.llm_client import (
-    env_value as _env_value,
-)
-from app.common.llm_client import (
-    llm_request_headers as _llm_request_headers,
-)
-from app.common.llm_client import (
-    optional_float as _optional_float,
-)
-from app.common.llm_client import (
-    required_env as _required_env,
-)
-from app.common.llm_config_file import LlmConfigError
+from app.common.llm_control import LLMRunInterrupted
 from app.common.llm_env import resolved_llm_env
 from app.common.manuscript import previous_chapter_tail
-from app.common.punctuation import restore_incidental_punctuation
+from app.common.performance import measure_stage, measured
+from app.common.performance_logging import observe_run
 from app.common.redaction import redact_sensitive, redact_sensitive_text
-from app.domains.agent_runs.patches import evaluate_polish_candidate
-from app.domains.assistant import continuation
+from app.domains.assistant import continuation, provider_health
 from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
+from app.domains.assistant.revision import (
+    REVISION_SYSTEM_PROMPT,
+    RevisionContextFile,
+    RevisionInput,
+    RevisionQualityRejected,
+    build_revision_prompt,
+    revise_text,
+)
 from app.domains.assistant.schemas import (
     AssistantContinueRequest,
     AssistantDraftRequest,
@@ -64,9 +59,9 @@ from app.domains.assistant.schemas import (
 )
 from app.domains.book_runs.book_generation import (
     BookGenerationError,
-    BookGenerationPreflightError,
     missing_book_generation_env,
 )
+from app.platform.ai_sdk.contracts import TokenUsage
 
 
 class AssistantSessionNotFoundError(NotFoundError, RuntimeError):
@@ -92,6 +87,10 @@ class AssistantReviseError(DomainError, RuntimeError):
 
     status_code = 502
 
+    def __init__(self, message: str, *, usage: TokenUsage | None = None) -> None:
+        super().__init__(message)
+        self.usage = usage
+
 
 class AssistantReviseQualityGateError(ConflictError, RuntimeError):
     """模型候选相对原文退步，不能进入行内 diff。"""
@@ -101,6 +100,7 @@ class AssistantReviseQualityGateError(ConflictError, RuntimeError):
         super().__init__("润色候选未通过质量门禁：" + ", ".join(reasons))
 
 
+@measured("store.session")
 def create_assistant_session(session: Session, payload: AssistantSessionCreate) -> AssistantSession:
     """创建可追溯 Assistant 会话，不接收也不保存敏感凭据。"""
 
@@ -120,6 +120,7 @@ def create_assistant_session(session: Session, payload: AssistantSessionCreate) 
     return get_assistant_session(session, assistant_session.id)
 
 
+@measured("store.message")
 def append_assistant_message(
     session: Session,
     assistant_session_id: int,
@@ -139,6 +140,7 @@ def append_assistant_message(
     return message
 
 
+@measured("store.tool_create")
 def create_assistant_tool_call(
     session: Session,
     assistant_session_id: int,
@@ -155,6 +157,7 @@ def create_assistant_tool_call(
     return tool_call
 
 
+@measured("store.tool_update")
 def update_assistant_tool_call(
     session: Session,
     tool_call_id: int,
@@ -227,56 +230,31 @@ def list_recent_assistant_sessions(
     )
 
 
-_REVISE_SYSTEM_PROMPT = (
-    "你是 StoryForge 的中文长篇创作编辑。"
-    "用户会给你一份正在编辑的文件全文与一条修订指令。"
-    "请严格按指令修订，保持原有结构、人物与设定的连贯性。"
-    "默认只改动指令直接涉及的部分，未点名的段落、句子与标题尽量逐字保留，不要无谓改写或扩大改动范围。"
-    + craft_prompt_clause()
-    + "创作准则约束的是你这次落笔改写的那些句子；它不构成扩大改动范围的理由，"
-    "未点名段落即便不合准则也保持原样，由作者另行提出。"
-    + scene_discipline_guard_clause()
-    + "只输出修订后的完整正文，不要输出解释、前后缀或代码块标记。"
-)
+# Prompt Lab 和既有调用方的兼容入口；模板事实源在 revision 能力内。
+_REVISE_SYSTEM_PROMPT = REVISION_SYSTEM_PROMPT
+
+
+def _revision_input(
+    payload: AssistantReviseRequest, scene_constraints: str | None, *, system_prompt: str
+) -> RevisionInput:
+    return RevisionInput(
+        file_path=payload.file_path,
+        content=payload.content,
+        instruction=payload.instruction,
+        system_prompt=system_prompt,
+        project_name=payload.project_name,
+        context_files=(
+            tuple(RevisionContextFile(item.relative_path, item.kind, item.excerpt) for item in payload.context_bundle.files)
+            if payload.context_bundle else ()
+        ),
+        scene_constraints=scene_constraints,
+        quality_gate=payload.quality_gate,
+    )
 
 
 def _build_revise_prompt(payload: AssistantReviseRequest, scene_constraints: str | None) -> str:
-    project_line = f"项目：{payload.project_name}\n" if payload.project_name else ""
-    context_block = ""
-    if payload.context_bundle and payload.context_bundle.files:
-        context_entries = []
-        for item in payload.context_bundle.files:
-            context_entries.append(
-                "\n".join(
-                    [
-                        f"### {item.relative_path}",
-                        f"- 类型：{item.kind}",
-                        "<<<CONTEXT",
-                        item.excerpt,
-                        "CONTEXT>>>",
-                    ]
-                )
-            )
-        context_block = (
-            "\n项目上下文摘录：这些文件来自同一小说项目，请用于保持大纲、人物、设定与正文连贯；"
-            "如果摘录与当前文件冲突，优先保留明确的当前文件事实，并在修订中避免扩大矛盾。\n"
-            + "\n\n".join(context_entries)
-            + "\n"
-        )
-    constraint_block = f"\n{scene_constraints}\n" if scene_constraints else ""
-    return (
-        f"{project_line}"
-        f"文件：{payload.file_path}\n"
-        f"修订指令：{payload.instruction}\n\n"
-        f"{context_block}"
-        f"{constraint_block}"
-        # 不说「全文」：行间 Ctrl+K 对长章节只送锚点附近的窗口，说全文会与指令里的
-        # 节选说明打架，也会诱导模型给一段节选补开头结尾。
-        "以下是待修订的正文，请按指令修订后整体返回，只返回你收到的这段：\n"
-        "<<<FILE\n"
-        f"{payload.content}\n"
-        "FILE>>>"
-    )
+    # 兼容纯 user prompt 渲染；这里不能读取作者配置或项目文件。
+    return build_revision_prompt(_revision_input(payload, scene_constraints, system_prompt=""))
 
 
 _CHAT_SYSTEM_PROMPT = (
@@ -332,13 +310,25 @@ def chat_reply(
             system_prompt=_CHAT_SYSTEM_PROMPT,
             user_prompt=_build_chat_prompt(user_message, context_block),
         )
+    except LLMRunInterrupted as exc:
+        update_assistant_tool_call(
+            session, tool_call.id,
+            AssistantToolCallUpdate(status="paused", output_summary={
+                "execution_state": "unknown", "interruption_reason": exc.reason,
+                **error_usage_summary(exc, source=llm_env),
+            }),
+        )
+        raise
     except BookGenerationError as exc:
         update_assistant_tool_call(
             session,
             tool_call.id,
-            AssistantToolCallUpdate(status="failed", error_message=str(exc)[:4000]),
+            AssistantToolCallUpdate(
+                status="failed", error_message=str(exc)[:4000],
+                output_summary=error_usage_summary(exc, source=llm_env),
+            ),
         )
-        raise AssistantReviseError(str(exc)) from exc
+        raise AssistantReviseError(str(exc), usage=exc.usage) from exc
 
     reply = str(result["content"]).strip()
     model = str(llm_env.get("STORYFORGE_LLM_MODEL") or "")
@@ -553,11 +543,28 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
                     },
                 )
                 return
+        except LLMRunInterrupted as exc:
+            update_assistant_tool_call(
+                session,
+                tool_call.id,
+                AssistantToolCallUpdate(
+                    status="paused",
+                    output_summary={
+                        "execution_state": "unknown",
+                        "interruption_reason": exc.reason,
+                        **error_usage_summary(exc, source=llm_env),
+                    },
+                ),
+            )
+            raise
         except LLMError as exc:
             update_assistant_tool_call(
                 session,
                 tool_call.id,
-                AssistantToolCallUpdate(status="failed", error_message=str(exc)[:4000]),
+                AssistantToolCallUpdate(
+                    status="failed", error_message=str(exc)[:4000],
+                    output_summary=error_usage_summary(exc, source=llm_env),
+                ),
             )
             yield _sse("error", {"message": str(exc)})
 
@@ -634,13 +641,25 @@ def draft_continuation(session: Session, payload: AssistantContinueRequest) -> A
                 target_chars=target_chars,
             ),
         )
+    except LLMRunInterrupted as exc:
+        update_assistant_tool_call(
+            session, tool_call.id,
+            AssistantToolCallUpdate(status="paused", output_summary={
+                "execution_state": "unknown", "interruption_reason": exc.reason,
+                **error_usage_summary(exc, source=llm_env),
+            }),
+        )
+        raise
     except BookGenerationError as exc:
         update_assistant_tool_call(
             session,
             tool_call.id,
-            AssistantToolCallUpdate(status="failed", error_message=str(exc)[:4000]),
+            AssistantToolCallUpdate(
+                status="failed", error_message=str(exc)[:4000],
+                output_summary=error_usage_summary(exc, source=llm_env),
+            ),
         )
-        raise AssistantReviseError(str(exc)) from exc
+        raise AssistantReviseError(str(exc), usage=exc.usage) from exc
 
     final_text = continuation.finalize_continuation(tail, str(result["content"]))
     if not final_text:
@@ -682,6 +701,7 @@ def draft_continuation(session: Session, payload: AssistantContinueRequest) -> A
     )
 
 
+@observe_run("revision.use_case")
 def revise_file_content(session: Session, payload: AssistantReviseRequest) -> AssistantReviseResponse:
     """对当前文件全文按用户指令做一次真实 LLM 修订，落会话与工具调用证据链。
 
@@ -692,7 +712,8 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
     if missing:
         raise AssistantLlmNotConfiguredError(missing)
 
-    scene_constraints = _scene_constraints(payload.project_root, payload.file_path)
+    with measure_stage("revision.constraints"):
+        scene_constraints = _scene_constraints(payload.project_root, payload.file_path)
 
     if payload.assistant_session_id is not None:
         assistant_session = get_assistant_session(session, payload.assistant_session_id)
@@ -727,29 +748,42 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
         ),
     )
 
+    def generate(*, system_prompt: str, user_prompt: str) -> Mapping[str, object]:
+        # 请求内绑定配置，调用时解析现有 streamed seam，保留传输与 monkeypatch 行为。
+        return _call_llm_streamed(llm_env, system_prompt=system_prompt, user_prompt=user_prompt)
+
     try:
-        result = _call_llm_streamed(
-            llm_env,
-            system_prompt=build_generation_system_prompt(
-                _REVISE_SYSTEM_PROMPT, payload.project_root
+        with measure_stage("revision.system_prompt"):
+            system_prompt = build_generation_system_prompt(_REVISE_SYSTEM_PROMPT, payload.project_root)
+        revision = revise_text(
+            _revision_input(
+                payload,
+                scene_constraints,
+                system_prompt=system_prompt,
             ),
-            user_prompt=_build_revise_prompt(payload, scene_constraints),
+            generate=generate,
         )
+    except LLMRunInterrupted as exc:
+        update_assistant_tool_call(
+            session, tool_call.id,
+            AssistantToolCallUpdate(status="paused", output_summary={
+                "execution_state": "unknown", "interruption_reason": exc.reason,
+                **error_usage_summary(exc, source=llm_env),
+            }),
+        )
+        raise
     except BookGenerationError as exc:
         update_assistant_tool_call(
             session,
             tool_call.id,
-            AssistantToolCallUpdate(status="failed", error_message=str(exc)[:4000]),
+            AssistantToolCallUpdate(
+                status="failed", error_message=str(exc)[:4000],
+                output_summary=error_usage_summary(exc, source=llm_env),
+            ),
         )
-        raise AssistantReviseError(str(exc)) from exc
-
-    after = restore_incidental_punctuation(payload.content, str(result["content"]))
-    quality_gate = (
-        evaluate_polish_candidate(payload.content, after)
-        if payload.quality_gate == "polish"
-        else None
-    )
-    if quality_gate is not None and not quality_gate.passed:
+        raise AssistantReviseError(str(exc), usage=exc.usage) from exc
+    except RevisionQualityRejected as exc:
+        quality_gate = exc.gate
         error = AssistantReviseQualityGateError(quality_gate.reasons)
         update_assistant_tool_call(
             session,
@@ -767,7 +801,10 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
                 error_message=str(error),
             ),
         )
-        raise error
+        raise error from exc
+    after = revision.after
+    quality_gate = revision.quality_gate
+    result = revision.telemetry
     model = str(llm_env.get("STORYFORGE_LLM_MODEL") or "")
     completion_tokens = result.get("completion_tokens")
     latency_ms = int(result.get("latency_ms", 0) or 0)
@@ -918,13 +955,25 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
             ),
             user_prompt=_build_draft_prompt(payload, scene_constraints, previous_chapter),
         )
+    except LLMRunInterrupted as exc:
+        update_assistant_tool_call(
+            session, tool_call.id,
+            AssistantToolCallUpdate(status="paused", output_summary={
+                "execution_state": "unknown", "interruption_reason": exc.reason,
+                **error_usage_summary(exc, source=llm_env),
+            }),
+        )
+        raise
     except BookGenerationError as exc:
         update_assistant_tool_call(
             session,
             tool_call.id,
-            AssistantToolCallUpdate(status="failed", error_message=str(exc)[:4000]),
+            AssistantToolCallUpdate(
+                status="failed", error_message=str(exc)[:4000],
+                output_summary=error_usage_summary(exc, source=llm_env),
+            ),
         )
-        raise AssistantReviseError(str(exc)) from exc
+        raise AssistantReviseError(str(exc), usage=exc.usage) from exc
 
     content = str(result["content"])
     model = str(llm_env.get("STORYFORGE_LLM_MODEL") or "")
@@ -964,107 +1013,18 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
     )
 
 
-_PROBE_TIMEOUT_CAP_SECONDS = 15.0
-
-
-def _fetch_provider_models(source: Mapping[str, str | None], *, timeout: float) -> object:
-    """对 {BASE_URL}/models 发一次只读探测并返回解析后的 JSON。
-
-    镜像 _call_llm 的 urllib 调用与鉴权（_llm_request_headers），但只读不生成；
-    失败按 urllib 异常向上抛，由 probe_provider_health 归类为 unauthorized / unreachable。"""
-
-    url = f"{_required_env(source, 'STORYFORGE_LLM_BASE_URL').rstrip('/')}/models"
-    http_request = request.Request(url, headers=_llm_request_headers(source), method="GET")
-    with request.urlopen(http_request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
+_PROBE_TIMEOUT_CAP_SECONDS = provider_health.PROBE_TIMEOUT_CAP_SECONDS
+_fetch_provider_models = fetch_provider_models
 
 
 def probe_provider_health() -> ProviderHealthResponse:
-    """探测后端实际使用的模型服务连通性（resolved_llm_env），用于桌面「测试连接」。
-
-    始终返回结构化诊断（不抛 HTTP 错误），且绝不回显任何凭据。"""
-
-    try:
-        return _probe_provider_health()
-    except LlmConfigError as exc:
-        return ProviderHealthResponse(status="misconfigured", reachable=False, detail=str(exc))
+    """桌面诊断 facade；保留配置和只读 transport 注入 seam。"""
+    return _probe_provider_health()
 
 
 def _probe_provider_health() -> ProviderHealthResponse:
-    missing = missing_book_generation_env()
-    if missing:
-        return ProviderHealthResponse(
-            status="misconfigured",
-            reachable=False,
-            missing_env=missing,
-            detail="真实 LLM 未配置，缺少环境变量：" + ", ".join(missing),
-        )
-
-    source = resolved_llm_env()
-    base_url = _env_value(source, "STORYFORGE_LLM_BASE_URL") or None
-    model = _env_value(source, "STORYFORGE_LLM_MODEL") or None
-    timeout = min(_optional_float(source, "STORYFORGE_LLM_TIMEOUT_SECONDS", 300.0), _PROBE_TIMEOUT_CAP_SECONDS)
-
-    started_at = time.monotonic()
-    try:
-        data = _fetch_provider_models(source, timeout=timeout)
-    except error.HTTPError as exc:
-        elapsed_ms = max(0, int((time.monotonic() - started_at) * 1000))
-        if exc.code in (401, 403):
-            return ProviderHealthResponse(
-                status="unauthorized",
-                reachable=True,
-                base_url=base_url,
-                model=model,
-                latency_ms=elapsed_ms,
-                detail=f"鉴权失败：HTTP {exc.code}（检查密钥引用对应的环境变量是否有效）。",
-            )
-        try:
-            error_body = exc.read().decode("utf-8", errors="replace")[:500]
-        except Exception:  # noqa: BLE001 - 仅用于诊断，读不出 body 不掩盖原始状态码
-            error_body = "<无法读取响应体>"
-        return ProviderHealthResponse(
-            status="unreachable",
-            reachable=False,
-            base_url=base_url,
-            model=model,
-            latency_ms=elapsed_ms,
-            detail=f"HTTP {exc.code}：{error_body}",
-        )
-    except (error.URLError, TimeoutError) as exc:
-        elapsed_ms = max(0, int((time.monotonic() - started_at) * 1000))
-        reason = getattr(exc, "reason", exc)
-        return ProviderHealthResponse(
-            status="unreachable",
-            reachable=False,
-            base_url=base_url,
-            model=model,
-            latency_ms=elapsed_ms,
-            detail=f"连接失败或超时（timeout={timeout}s）：{reason}",
-        )
-    except BookGenerationPreflightError as exc:
-        # 理论上 missing 检查已覆盖；兜底归为未配置，避免 500。
-        return ProviderHealthResponse(status="misconfigured", reachable=False, detail=str(exc))
-
-    elapsed_ms = max(0, int((time.monotonic() - started_at) * 1000))
-    entries = data["data"] if isinstance(data, dict) and isinstance(data.get("data"), list) else None
-    model_count = len(entries) if entries is not None else None
-    # 提取模型 id 供桌面「探测模型」下拉选择；封顶 200 避免超大 provider 列表撑爆响应。
-    models = (
-        [
-            str(item["id"])
-            for item in entries
-            if isinstance(item, dict) and isinstance(item.get("id"), str)
-        ][:200]
-        if entries is not None
-        else []
-    )
-    return ProviderHealthResponse(
-        status="ok",
-        reachable=True,
-        base_url=base_url,
-        model=model,
-        latency_ms=elapsed_ms,
-        model_count=model_count,
-        models=models,
+    return provider_health.probe_provider_health(
+        resolve_source=resolved_llm_env,
+        missing_env=missing_book_generation_env,
+        fetch_models=_fetch_provider_models,
     )

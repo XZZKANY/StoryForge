@@ -4,6 +4,7 @@ from typing import Any, Protocol
 
 from sqlalchemy.orm import Session
 
+from app.common.llm_control import LLMRunInterrupted, check_run_interruption
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.adapters.chapter_generation_pipeline import ChapterGenerationRuntimeMixin
 from app.domains.agent_runs.adapters.chapter_polishing_pipeline import (
@@ -26,15 +27,19 @@ from app.domains.agent_runs.intent import message_text as _message_text
 from app.domains.agent_runs.intent import role_hints as _role_hints
 from app.domains.agent_runs.intent import role_mentions as _role_mentions
 from app.domains.agent_runs.loop.conversation_runtime import ConversationRuntimeMixin
+from app.domains.agent_runs.loop.run_control import agent_run_control_scope
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.patches.runtime_tools import PatchRuntimeToolsMixin
 from app.domains.agent_runs.permission import PermissionGate
+from app.domains.agent_runs.request_evidence import agent_request_evidence_scope
+from app.domains.agent_runs.result_contracts import execution_result_payload
 from app.domains.agent_runs.review_report import (
     build_multi_agent_review_report_with_executor as _build_multi_agent_review_report_with_executor,
 )
 from app.domains.agent_runs.review_report import continuity_subagent_handler as _continuity_subagent_handler
 from app.domains.agent_runs.review_report import review_report_summary as _review_report_summary
 from app.domains.agent_runs.review_report import review_subagent_handler as _review_subagent_handler
+from app.domains.agent_runs.runtime_delivery import interrupted_delivery_result
 from app.domains.agent_runs.tools import (
     SubagentDefinition,
     SubagentExecutor,
@@ -145,88 +150,143 @@ class AgentRuntime(
         self._register_tools()
 
     def run_user_message(self, session: Session, *, run: AgentRun, agent_session_id: str, message: dict[str, Any]) -> dict[str, Any]:
-        user_message = _message_text(message)
-        args = _message_args(message)
-        intent = _detect_intent(user_message, args, message.get("intent"))
-        # 项目级对话解绑当前文件：需要文件的 intent 若没带 file_path，降级为对话，
-        # 避免 context.load 因缺文件而崩（P1「对话统领项目」）。
-        # 只看 file_path：resume 重建的消息只回传 file_path（正文靠 pending call 续跑），
-        # 若一并要求 content 会把 file.review 的 resume 误降级成 chat.explain。
-        if intent in ("file.review", "file.revise", "chapter.polish") and _optional_string(args.get("file_path")) is None:
-            intent = "chat.explain"
-        try:
-            assistant_session = _resolve_assistant_session(session, user_message=user_message, message=message, args=args)
-            if intent == "chat.explain":
-                result = self._run_chat_explain(
-                    session,
-                    run=run,
-                    agent_session_id=agent_session_id,
-                    assistant_session_id=assistant_session.id,
-                    user_message=user_message,
-                    args=args,
-                )
-            else:
-                result = run_fixed_intent_pipeline(
-                    self,
-                    FixedPipelineRequest(
-                        session=session,
+        observer = getattr(self._event_sink, "record_runtime_progress", None)
+        with agent_request_evidence_scope(session, run), agent_run_control_scope(
+            lambda boundary: self._runtime_interruption(run, boundary=boundary),
+            on_progress=(lambda payload: observer(run, payload)) if callable(observer) else None,
+        ):
+            result = None
+            user_message = _message_text(message)
+            args = _message_args(message)
+            intent = _detect_intent(user_message, args, message.get("intent"))
+            # 项目级对话解绑当前文件：需要文件的 intent 若没带 file_path，降级为对话，
+            # 避免 context.load 因缺文件而崩（P1「对话统领项目」）。
+            # 只看 file_path：resume 重建的消息只回传 file_path（正文靠 pending call 续跑），
+            # 若一并要求 content 会把 file.review 的 resume 误降级成 chat.explain。
+            if intent in ("file.review", "file.revise", "chapter.polish") and _optional_string(args.get("file_path")) is None:
+                intent = "chat.explain"
+            try:
+                assistant_session = _resolve_assistant_session(session, user_message=user_message, message=message, args=args)
+                if run.assistant_session_id != assistant_session.id:
+                    run.assistant_session_id = assistant_session.id
+                    session.add(run)
+                    session.commit()
+                if intent == "chat.explain":
+                    result = self._run_chat_explain(
+                        session,
                         run=run,
                         agent_session_id=agent_session_id,
                         assistant_session_id=assistant_session.id,
                         user_message=user_message,
                         args=args,
-                        intent=intent,
-                    ),
-                )
-        except AgentOrchestrationError as exc:
-            self._event_sink.fail(
-                run,
-                message=str(exc),
-                payload={"session_id": agent_session_id, "run_id": run.public_id, "runtime": "agent_runtime"},
-            )
-            raise
-        except Exception as exc:  # noqa: BLE001 - runtime must persist a failed run before surfacing errors
-            self._event_sink.fail(
-                run,
-                message=str(exc),
-                payload={"session_id": agent_session_id, "run_id": run.public_id, "runtime": "agent_runtime"},
-            )
-            raise AgentOrchestrationError(str(exc)) from exc
-
-        result["run_id"] = run.public_id
-        result.setdefault("agent_role_hints", _role_hints(args))
-        result.setdefault("agent_role_mentions", _role_mentions(args))
-        if result.get("_events_recorded") is True:
-            if result.get("_runtime_interrupted") is True:
+                    )
+                else:
+                    result = run_fixed_intent_pipeline(
+                        self,
+                        FixedPipelineRequest(
+                            session=session,
+                            run=run,
+                            agent_session_id=agent_session_id,
+                            assistant_session_id=assistant_session.id,
+                            user_message=user_message,
+                            args=args,
+                            intent=intent,
+                        ),
+                    )
+                    if result.get("_runtime_interrupted") is not True and not result["agent_result"].get("execution_outcome"):
+                        check_run_interruption("before_finalize:agent_runtime")
+            except LLMRunInterrupted as exc:
+                if result is None:
+                    result = _base_response(
+                        agent_session_id=agent_session_id, assistant_session_id=assistant_session.id,
+                        intent=intent, user_message=user_message,
+                        plan=[_plan_step("agent.runtime", "运行已中断，未继续派发工作。", "stopped")],
+                        agent_result={"summary": "运行已中断。", "requires_user_confirmation": False},
+                        tool_trace=[],
+                    )
+                result["run_id"] = run.public_id
+                interrupted_delivery_result(result, exc.reason)
+                if exc.reason == "deadline_exceeded":
+                    self._event_sink.fail(run, message=result["agent_result"]["summary"], payload=execution_result_payload(result))
                 _pop_runtime_internal_markers(result)
                 return result
+            except AgentOrchestrationError as exc:
+                self._event_sink.fail(
+                    run,
+                    message=str(exc),
+                    payload={"session_id": agent_session_id, "run_id": run.public_id, "runtime": "agent_runtime"},
+                )
+                raise
+            except Exception as exc:  # noqa: BLE001 - runtime must persist a failed run before surfacing errors
+                self._event_sink.fail(
+                    run,
+                    message=str(exc),
+                    payload={"session_id": agent_session_id, "run_id": run.public_id, "runtime": "agent_runtime"},
+                )
+                raise AgentOrchestrationError(str(exc)) from exc
+
+            result["run_id"] = run.public_id
+            result.setdefault("agent_role_hints", _role_hints(args))
+            result.setdefault("agent_role_mentions", _role_mentions(args))
+            if result.get("_events_recorded") is True:
+                if result.get("_runtime_interrupted") is True:
+                    _pop_runtime_internal_markers(result)
+                    return result
+                self._record_result_artifacts(run, result)
+                execution_outcome = result["agent_result"].get("execution_outcome")
+                if execution_outcome is None:
+                    try:
+                        self._run_hidden_system_jobs(session, run=run, assistant_session_id=assistant_session.id, result=result)
+                    except LLMRunInterrupted as exc:
+                        interrupted_delivery_result(result, exc.reason)
+                        if exc.reason == "deadline_exceeded":
+                            self._event_sink.fail(run, message=result["agent_result"]["summary"], payload=execution_result_payload(result))
+                        _pop_runtime_internal_markers(result)
+                        return result
+                if _result_requires_confirmation(result):
+                    result.setdefault("agent_result", {})["writeback_blocked_until_user_confirms"] = True
+                    self._event_sink.record_permission_required(run, result, reason="requires_user_confirmation")
+                    _pop_runtime_internal_markers(result)
+                    return result
+                if execution_outcome is not None:
+                    self._event_sink.fail(run, message=result["agent_result"]["summary"], payload=execution_result_payload(result))
+                else:
+                    self._event_sink.complete(run, result)
+                _pop_runtime_internal_markers(result)
+                return result
+            self._event_sink.record_plan(run, result)
+            interruption = self._runtime_interruption(run, boundary="after_plan")
+            if interruption is not None:
+                _runtime_interrupted_response(result, interruption)
+                _pop_runtime_internal_markers(result)
+                return result
+            for index, trace in enumerate(_trace_objects(result)):
+                self._event_sink.record_tool_trace(run, trace, index)
+                interruption = self._runtime_interruption(run, boundary=f"after_tool:{trace.tool_name}")
+                if interruption is not None:
+                    _runtime_interrupted_response(result, interruption)
+                    _pop_runtime_internal_markers(result)
+                    return result
             self._record_result_artifacts(run, result)
-            self._run_hidden_system_jobs(session, run=run, assistant_session_id=assistant_session.id, result=result)
+            execution_outcome = result["agent_result"].get("execution_outcome")
+            if execution_outcome is None:
+                try:
+                    self._run_hidden_system_jobs(session, run=run, assistant_session_id=assistant_session.id, result=result)
+                except LLMRunInterrupted as exc:
+                    interrupted_delivery_result(result, exc.reason)
+                    if exc.reason == "deadline_exceeded":
+                        self._event_sink.fail(run, message=result["agent_result"]["summary"], payload=execution_result_payload(result))
+                    _pop_runtime_internal_markers(result)
+                    return result
             if _result_requires_confirmation(result):
                 self._event_sink.record_permission_required(run, result, reason="requires_user_confirmation")
                 result.setdefault("agent_result", {})["writeback_blocked_until_user_confirms"] = True
-                _pop_runtime_internal_markers(result)
                 return result
-            self._event_sink.complete(run, result)
-            _pop_runtime_internal_markers(result)
+            if execution_outcome is not None:
+                self._event_sink.fail(run, message=result["agent_result"]["summary"], payload=execution_result_payload(result))
+            else:
+                self._event_sink.complete(run, result)
             return result
-        self._event_sink.record_plan(run, result)
-        interruption = self._runtime_interruption(run, boundary="after_plan")
-        if interruption is not None:
-            return _runtime_interrupted_response(result, interruption)
-        for index, trace in enumerate(_trace_objects(result)):
-            self._event_sink.record_tool_trace(run, trace, index)
-            interruption = self._runtime_interruption(run, boundary=f"after_tool:{trace.tool_name}")
-            if interruption is not None:
-                return _runtime_interrupted_response(result, interruption)
-        self._record_result_artifacts(run, result)
-        self._run_hidden_system_jobs(session, run=run, assistant_session_id=assistant_session.id, result=result)
-        if _result_requires_confirmation(result):
-            self._event_sink.record_permission_required(run, result, reason="requires_user_confirmation")
-            result.setdefault("agent_result", {})["writeback_blocked_until_user_confirms"] = True
-            return result
-        self._event_sink.complete(run, result)
-        return result
 
     def _file_review(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         file_path = _required_string(payload, "file_path")

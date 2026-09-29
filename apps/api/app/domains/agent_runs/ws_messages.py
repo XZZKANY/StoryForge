@@ -76,7 +76,7 @@ class TerminalFrame(WsFrame):
     """AGENT_RUN_COMPLETED / FAILED 落进实时帧：流中止后前端拉事件表重放即可
     重建终态（F10）。payload 必须原样带出（含 assistant_session_id），否则重建拿不回结果。"""
 
-    type: Literal["agent_run_completed", "agent_run_failed"]
+    type: Literal["agent_run_completed", "agent_run_failed", "agent_run_interrupted"]
     session_id: str
     run_id: str
     assistant_session_id: int | None = None
@@ -103,3 +103,6 @@ class ControlAckFrame(WsFrame):
     run_id: str
     event_id: int
     status: Literal["recorded"] = "recorded"
+    control_effect: Literal["requested", "applied", "ignored"] | None = None
+    runtime_state: Literal["in_flight", "settled"] | None = None
+    run_status: str | None = None

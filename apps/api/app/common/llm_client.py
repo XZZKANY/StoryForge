@@ -15,6 +15,7 @@ from __future__ import annotations
 import http.client
 import json
 import logging
+import math
 import time
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import replace
@@ -22,8 +23,15 @@ from random import random
 from urllib import error, request
 from urllib.parse import quote
 
-from app.common import llm_http
+from app.common import llm_http, llm_protocol
 from app.common.exceptions import DomainError
+from app.common.llm_control import (
+    check_run_interruption,
+    controlled_iterator,
+    request_timeout,
+    wait_for_retry,
+)
+from app.common.llm_observation import observe_provider
 from app.common.redaction import redact_sensitive_text
 from app.platform.ai_sdk.capabilities import ProviderCapabilities
 from app.platform.ai_sdk.contracts import (
@@ -31,12 +39,14 @@ from app.platform.ai_sdk.contracts import (
     ChatResponse,
     StreamEvent,
     StreamEventKind,
+    TokenUsage,
     messages_from_openai,
     tools_from_openai,
 )
 from app.platform.ai_sdk.errors import ProviderError
 from app.platform.ai_sdk.provider import LLMProvider, ProviderHealth
 from app.platform.ai_sdk.providers import AnthropicProvider, GeminiProvider, OpenAICompatibleProvider
+from app.platform.ai_sdk.stream_usage import retaining_stream_usage
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +81,10 @@ class LLMError(DomainError, RuntimeError):
     """真实 LLM 调用运行失败（HTTP 错误、超时、响应格式异常）。"""
 
     status_code = 502
+
+    def __init__(self, message: str, *, usage: TokenUsage | None = None) -> None:
+        super().__init__(message)
+        self.usage = usage
 
 
 def redact_secrets(text: str, secrets: Iterable[str | None]) -> str:
@@ -115,10 +129,11 @@ def post_json_with_retry(
 
     for attempt in range(1, attempt_limit + 1):
         try:
-            with request.urlopen(http_request, timeout=timeout_seconds) as response:
+            with request.urlopen(http_request, timeout=request_timeout(timeout_seconds)) as response:
                 data = json.loads(response.read().decode("utf-8"))
             break
         except error.HTTPError as exc:
+            check_run_interruption("http_error")
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
             if _is_retryable_status(exc.code) and attempt < attempt_limit:
                 _sleep_before_retry(
@@ -129,7 +144,7 @@ def post_json_with_retry(
                 )
                 continue
             try:
-                error_body = exc.read().decode("utf-8", errors="replace")[:2000]
+                error_body = redact_secrets(exc.read().decode("utf-8", errors="replace"), secrets)[:2000]
             except Exception:  # noqa: BLE001 - 诊断失败不能掩盖原始 HTTP 错误
                 error_body = "<无法读取响应体>"
             message = redact_secrets(
@@ -139,6 +154,7 @@ def post_json_with_retry(
             logger.warning("%s", message)
             raise LLMError(message) from exc
         except (error.URLError, TimeoutError) as exc:
+            check_run_interruption("http_error")
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
             if attempt < attempt_limit:
                 _sleep_before_retry(
@@ -157,6 +173,7 @@ def post_json_with_retry(
             logger.warning("%s", message)
             raise LLMError(message) from exc
         except _RESPONSE_READ_ERRORS as exc:
+            check_run_interruption("http_error")
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
             if attempt < attempt_limit:
                 _sleep_before_retry(
@@ -255,10 +272,11 @@ def _request_chat_completions(
     data: dict[str, object] | None = None
     for attempt in range(1, attempt_limit + 1):
         try:
-            with request.urlopen(http_request, timeout=timeout) as response:
+            with request.urlopen(http_request, timeout=request_timeout(timeout)) as response:
                 data = json.loads(response.read().decode("utf-8"))
             break
         except error.HTTPError as exc:
+            check_run_interruption("http_error")
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
             if _is_retryable_status(exc.code) and attempt < attempt_limit:
                 _sleep_before_retry(
@@ -269,7 +287,7 @@ def _request_chat_completions(
                 )
                 continue
             try:
-                error_body = exc.read().decode("utf-8", errors="replace")[:2000]
+                error_body = exc.read().decode("utf-8", errors="replace")
             except Exception:  # noqa: BLE001 - 仅用于诊断，读不出 body 不应掩盖原始错误
                 error_body = "<无法读取响应体>"
             error_body = redact_sensitive_text(
@@ -278,11 +296,12 @@ def _request_chat_completions(
                     _env_value(source, "STORYFORGE_LLM_API_KEY"),
                     _env_value(source, "STORYFORGE_LLM_AUTH_TOKEN"),
                 ],
-            )
+            )[:2000]
             raise LLMError(
                 f"真实 LLM 返回 HTTP {exc.code}（耗时 {elapsed_ms}ms，尝试 {attempt}/{attempt_limit}）：{error_body}"
             ) from exc
         except (error.URLError, TimeoutError) as exc:
+            check_run_interruption("http_error")
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
             if attempt < attempt_limit:
                 _sleep_before_retry(attempt=attempt, base_delay=base_delay, jitter=jitter, retry_after=None)
@@ -299,6 +318,7 @@ def _request_chat_completions(
                 f"真实 LLM 调用超时或连接失败（耗时 {elapsed_ms}ms，timeout={timeout}s，尝试 {attempt}/{attempt_limit}）：{reason_text}"
             ) from exc
         except _RESPONSE_READ_ERRORS as exc:
+            check_run_interruption("http_error")
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
             if attempt < attempt_limit:
                 _sleep_before_retry(attempt=attempt, base_delay=base_delay, jitter=jitter, retry_after=None)
@@ -380,8 +400,9 @@ def _raw_stream_chat_completions(
         body = json.dumps(active_payload, ensure_ascii=False).encode("utf-8")
         http_request = request.Request(url, data=body, headers=headers, method="POST")
         try:
-            response = request.urlopen(http_request, timeout=timeout)  # noqa: S310 - 固定 https 配置端点
+            response = request.urlopen(http_request, timeout=request_timeout(timeout))  # noqa: S310 - 固定 https 配置端点
         except error.HTTPError as exc:
+            check_run_interruption("http_error")
             if exc.code == 400 and not dropped_stream_options and "stream_options" in active_payload:
                 # 兼容端点不认 stream_options：摘掉重发（不消耗重试次数），usage 回落字符估算。
                 active_payload.pop("stream_options", None)
@@ -398,7 +419,7 @@ def _raw_stream_chat_completions(
                 attempt += 1
                 continue
             try:
-                error_body = exc.read().decode("utf-8", errors="replace")[:2000]
+                error_body = redact_secrets(exc.read().decode("utf-8", errors="replace"), secrets)[:2000]
             except Exception:  # noqa: BLE001 - 诊断失败不能掩盖原始 HTTP 错误
                 error_body = "<无法读取响应体>"
             raise LLMError(
@@ -409,6 +430,7 @@ def _raw_stream_chat_completions(
                 )
             ) from exc
         except (error.URLError, TimeoutError) as exc:
+            check_run_interruption("http_error")
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
             if attempt < attempt_limit:
                 _sleep_before_retry(attempt=attempt, base_delay=base_delay, jitter=jitter, retry_after=None)
@@ -422,6 +444,7 @@ def _raw_stream_chat_completions(
                 )
             ) from exc
         except _RESPONSE_READ_ERRORS as exc:
+            check_run_interruption("http_error")
             # urllib 的 do_open 只把 request() 的 OSError 包成 URLError，getresponse() 阶段的
             # 连接重置（含 RemoteDisconnected）裸抛。非流式 call_llm 早有这条分支，#255 把三条
             # 产字路径搬到流式时没带过来 → 中转站重置既不重试也不包 LLMError，上层只 catch
@@ -443,14 +466,16 @@ def _raw_stream_chat_completions(
     emitted: list[str] = []
     usage_payload: dict[str, object] | None = None
     saw_terminal = False
+    finish_reason: str | None = None
     try:
-        for raw_line in response:
+        for raw_line in controlled_iterator(response, check_after_read=False):
             line = raw_line.decode("utf-8", errors="replace").strip()
             if not line or not line.startswith("data:"):
                 continue
             chunk_text = line[5:].strip()
             if chunk_text == "[DONE]":
                 saw_terminal = True
+                finish_reason = finish_reason or "stop"
                 break
             try:
                 chunk = json.loads(chunk_text)
@@ -459,13 +484,25 @@ def _raw_stream_chat_completions(
                 continue
             if not isinstance(chunk, dict):
                 continue
-            if _stream_finish_reason(chunk):
+            if reason := _stream_finish_reason(chunk):
+                finish_reason = reason
                 # 两种终止标记都认：多数兼容端点两者都发（实测本机中转站发 finish_reason
                 # "stop" + [DONE]），但只发其一的端点不该被误判成截断。
                 saw_terminal = True
             chunk_usage = chunk.get("usage")
-            if isinstance(chunk_usage, dict):
-                usage_payload = chunk_usage
+            if isinstance(chunk_usage, dict) and chunk_usage:
+                usage_payload = {**(usage_payload or {}), **chunk_usage}
+                counts = {
+                    key: value for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+                    if isinstance(value := usage_payload.get(key), int) and not isinstance(value, bool) and value >= 0
+                }
+                if counts:
+                    usage = TokenUsage(
+                        input_tokens=counts.get("prompt_tokens", 0), output_tokens=counts.get("completion_tokens", 0),
+                        total_tokens=counts.get("total_tokens", counts.get("prompt_tokens", 0) + counts.get("completion_tokens", 0)),
+                        cached_input_tokens=_provider_cache_hit_tokens(usage_payload), source="provider_usage",
+                    )
+                    yield {"type": "usage", **usage.to_legacy()}
             delta_text = _stream_delta_text(chunk)
             if not delta_text:
                 continue
@@ -473,7 +510,8 @@ def _raw_stream_chat_completions(
             if visible:
                 emitted.append(visible)
                 yield {"type": "delta", "text": visible}
-    except _RESPONSE_READ_ERRORS as exc:
+    except (TimeoutError, *_RESPONSE_READ_ERRORS) as exc:
+        check_run_interruption("http_error")
         raise LLMError(
             f"真实 LLM 流式读取中断（已输出 {len(''.join(emitted))} 字）：{type(exc).__name__}"
         ) from exc
@@ -506,8 +544,9 @@ def _raw_stream_chat_completions(
     done: dict[str, object] = {
         "type": "done",
         "content": content,
+        "finish_reason": finish_reason,
         **usage,
-        "cost_cny_estimated": cost["total_cny"],
+        "cost_cny_estimated": cost.get("total_cny"),
         "cost_breakdown": cost,
         "latency_ms": max(0, int((time.monotonic() - started_at) * 1000)),
     }
@@ -552,21 +591,39 @@ def _sdk_provider(
     timeout_seconds: float | None = None,
     max_attempts: int | None = None,
 ) -> LLMProvider:
-    provider_name = _env_value(source, "STORYFORGE_LLM_PROVIDER").lower()
-    if provider_name in {"anthropic", "claude"}:
+    provider = _base_sdk_provider(source, stream_payload=stream_payload,
+                                  timeout_seconds=timeout_seconds, max_attempts=max_attempts)
+    return observe_provider(provider, source)
+
+
+def _base_sdk_provider(
+    source: Mapping[str, str | None],
+    *,
+    stream_payload: dict[str, object] | None = None,
+    timeout_seconds: float | None = None,
+    max_attempts: int | None = None,
+) -> LLMProvider:
+    family = llm_protocol.provider_family(_env_value(source, "STORYFORGE_LLM_PROVIDER"))
+    if family == "anthropic":
         return _anthropic_sdk_provider(
             source,
             timeout_seconds=timeout_seconds,
             max_attempts=max_attempts,
         )
-    if provider_name in {"gemini", "google"}:
+    if family == "gemini":
         return _gemini_sdk_provider(
             source,
             timeout_seconds=timeout_seconds,
             max_attempts=max_attempts,
         )
     return OpenAICompatibleProvider(
-        complete_transport=lambda payload: _request_chat_completions(source, payload),
+        complete_transport=lambda payload: (
+            _request_chat_completions(source, payload)
+            if timeout_seconds is None and max_attempts is None
+            else _request_chat_completions(
+                source, payload, timeout_seconds=timeout_seconds, max_attempts=max_attempts
+            )
+        ),
         stream_transport=(
             lambda _payload: _raw_stream_chat_completions(
                 source,
@@ -589,12 +646,7 @@ def _anthropic_sdk_provider(
     max_attempts: int | None,
 ) -> AnthropicProvider:
     url = _provider_url(source, "messages")
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": llm_http.USER_AGENT,
-        "x-api-key": _required_env(source, "STORYFORGE_LLM_API_KEY"),
-        "anthropic-version": "2023-06-01",
-    }
+    headers = provider_request_headers(source)
 
     def complete(payload: dict[str, object]) -> tuple[dict[str, object], float]:
         return _provider_complete_json(
@@ -627,11 +679,7 @@ def _gemini_sdk_provider(
     timeout_seconds: float | None,
     max_attempts: int | None,
 ) -> GeminiProvider:
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": llm_http.USER_AGENT,
-        "x-goog-api-key": _required_env(source, "STORYFORGE_LLM_API_KEY"),
-    }
+    headers = provider_request_headers(source)
 
     def complete(model: str, payload: dict[str, object]) -> tuple[dict[str, object], float]:
         return _provider_complete_json(
@@ -720,10 +768,11 @@ def _provider_sse_json(
         try:
             response = request.urlopen(  # noqa: S310 - 作者配置的 provider HTTPS 端点
                 request.Request(url, data=body, headers=headers, method="POST"),
-                timeout=timeout,
+                timeout=request_timeout(timeout),
             )
             break
         except error.HTTPError as exc:
+            check_run_interruption("http_error")
             if _is_retryable_status(exc.code) and attempt < attempt_limit:
                 _sleep_before_retry(
                     attempt=attempt,
@@ -734,6 +783,7 @@ def _provider_sse_json(
                 continue
             raise LLMError(f"{service_label} 流式返回 HTTP {exc.code}。") from exc
         except (error.URLError, TimeoutError, *_RESPONSE_READ_ERRORS) as exc:
+            check_run_interruption("http_error")
             if attempt < attempt_limit:
                 _sleep_before_retry(attempt=attempt, base_delay=0.5, jitter=0.25, retry_after=None)
                 continue
@@ -743,7 +793,7 @@ def _provider_sse_json(
     if response is None:
         raise LLMError(f"{service_label} 流式重试后仍无响应。")
     try:
-        for raw_line in response:
+        for raw_line in controlled_iterator(response, check_after_read=False):
             line = raw_line.decode("utf-8", errors="replace").strip()
             if not line.startswith("data:"):
                 continue
@@ -756,7 +806,8 @@ def _provider_sse_json(
                 raise LLMError(f"{service_label} 流式事件不是合法 JSON。") from exc
             if isinstance(data, dict):
                 yield data
-    except _RESPONSE_READ_ERRORS as exc:
+    except (TimeoutError, *_RESPONSE_READ_ERRORS) as exc:
+        check_run_interruption("http_error")
         raise LLMError(f"{service_label} 流式读取中断：{type(exc).__name__}") from exc
     finally:
         response.close()
@@ -809,13 +860,21 @@ class _ConfiguredLLMProvider:
         return self._provider.complete(self._configured_request(chat_request))
 
     def stream(self, chat_request: ChatRequest) -> Iterator[StreamEvent]:
-        return self._provider.stream(self._configured_request(chat_request))
+        return _controlled_provider_stream(self._provider.stream(self._configured_request(chat_request)))
 
     def health(self) -> ProviderHealth:
         return self._provider.health()
 
     def capabilities(self, model: str) -> ProviderCapabilities:
         return self._provider.capabilities(model)
+
+
+def _controlled_provider_stream(events: Iterable[StreamEvent]) -> Iterator[StreamEvent]:
+    return retaining_stream_usage(
+        events,
+        before_next=lambda: check_run_interruption("before_stream_read"),
+        before_yield=lambda: check_run_interruption("before_stream_yield"),
+    )
 
 
 def _build_llm_provider(
@@ -843,7 +902,24 @@ def _legacy_provider_error(exc: ProviderError) -> LLMError:
         "invalid_choice": "真实 LLM 响应 choices[0] 格式异常。",
         "missing_message": "真实 LLM 响应缺少 message，不能继续 BookRun 生成。",
     }
-    return LLMError(messages.get(exc.details.provider_code, str(exc)))
+    return LLMError(messages.get(exc.details.provider_code, str(exc)), usage=exc.usage)
+
+
+def error_usage_summary(
+    exc: Exception, *, source: Mapping[str, str | None] | None = None,
+) -> dict[str, object]:
+    """Only retained accounting enters failure evidence; absence stays absent."""
+    usage = getattr(exc, "usage", None)
+    summary = usage.to_legacy() if isinstance(usage, TokenUsage) and usage.source != "unavailable" else {}
+    if source is None:
+        return summary
+    cost = _cost_breakdown(source, summary)
+    return {**summary, "cost_cny_estimated": cost.get("total_cny"), "cost_breakdown": cost}
+
+
+def _reject_incomplete_response(response: ChatResponse) -> None:
+    if response.finish_reason in {"length", "content_filter", "invalid_request"}:
+        raise LLMError("真实 LLM 输出被截断或过滤，不能把未完成正文当成稿。", usage=response.usage)
 
 
 def _stream_chat_completions(
@@ -872,22 +948,28 @@ def _stream_chat_completions(
         ),
     )
     try:
-        for event in _sdk_provider(
+        stream = _sdk_provider(
             source,
             stream_payload=payload,
             timeout_seconds=timeout_seconds,
             max_attempts=max_attempts,
-        ).stream(chat_request):
+        ).stream(chat_request)
+        for event in _controlled_provider_stream(stream):
             if event.kind is StreamEventKind.TEXT_DELTA and event.text:
                 yield {"type": "delta", "text": event.text}
                 continue
             if event.kind is not StreamEventKind.COMPLETED or event.response is None:
                 continue
+            _reject_incomplete_response(event.response)
+            usage = event.response.usage.to_legacy()
+            cost = _cost_breakdown(source, usage)
             yield {
                 "type": "done",
                 "content": event.response.content,
-                **event.response.usage.to_legacy(),
+                **usage,
                 **dict(event.response.metadata),
+                "cost_cny_estimated": cost.get("total_cny"),
+                "cost_breakdown": cost,
             }
     except ProviderError as exc:
         raise _legacy_provider_error(exc) from exc
@@ -916,18 +998,19 @@ def _call_llm(
         response = _sdk_provider(source).complete(chat_request)
     except ProviderError as exc:
         raise _legacy_provider_error(exc) from exc
+    _reject_incomplete_response(response)
     content = response.content
     if not content:
         if response.metadata.get("reasoning_leak_stripped") is True:
-            raise LLMError("真实 LLM 返回仅含思维链、无正文，不能继续 BookRun 生成。")
-        raise LLMError("真实 LLM 返回内容为空，不能继续 BookRun 生成。")
+            raise LLMError("真实 LLM 返回仅含思维链、无正文，不能继续 BookRun 生成。", usage=response.usage)
+        raise LLMError("真实 LLM 返回内容为空，不能继续 BookRun 生成。", usage=response.usage)
     tool_calls = [call.to_openai() for call in response.tool_calls]
     usage = response.usage.to_legacy()
     cost_breakdown = _cost_breakdown(source, usage)
     result: dict[str, object] = {
         "content": content,
         **usage,
-        "cost_cny_estimated": cost_breakdown["total_cny"],
+        "cost_cny_estimated": cost_breakdown.get("total_cny"),
         "cost_breakdown": cost_breakdown,
         "latency_ms": int(response.metadata.get("latency_ms") or 0),
     }
@@ -1003,17 +1086,18 @@ def _call_llm_messages(
         response = _sdk_provider(source).complete(chat_request)
     except ProviderError as exc:
         raise _legacy_provider_error(exc) from exc
+    _reject_incomplete_response(response)
     content = response.content
     tool_calls = [call.to_openai() for call in response.tool_calls]
     if not content and not tool_calls:
-        raise LLMError("真实 LLM 返回既无正文也无工具调用，无法继续。")
+        raise LLMError("真实 LLM 返回既无正文也无工具调用，无法继续。", usage=response.usage)
     usage = response.usage.to_legacy()
     cost_breakdown = _cost_breakdown(source, usage)
     result: dict[str, object] = {
         "content": content,
         "tool_calls": tool_calls,
         **usage,
-        "cost_cny_estimated": cost_breakdown["total_cny"],
+        "cost_cny_estimated": cost_breakdown.get("total_cny"),
         "cost_breakdown": cost_breakdown,
         "latency_ms": int(response.metadata.get("latency_ms") or 0),
     }
@@ -1096,8 +1180,31 @@ def _sleep_before_retry(*, attempt: int, base_delay: float, jitter: float, retry
         if jitter > 0:
             delay += random() * jitter
         delay = min(delay, _RETRY_DELAY_CEILING_SECONDS)
-    if delay > 0:
-        time.sleep(delay)
+    wait_for_retry(delay)
+
+
+def fetch_provider_models(source: Mapping[str, str | None], *, timeout: float) -> object:
+    """只读模型列表探测；统一 HTTP 出口，不重试生成、不自动翻页。"""
+    url = llm_protocol.models_url(
+        _required_env(source, "STORYFORGE_LLM_BASE_URL"),
+        credential=_required_env(source, "STORYFORGE_LLM_API_KEY"),
+    )
+    req = request.Request(url, headers=provider_request_headers(source), method="GET")
+    with request.urlopen(req, timeout=request_timeout(timeout)) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def provider_request_headers(source: Mapping[str, str | None]) -> dict[str, str]:
+    """生成与 models 诊断使用同一原生/兼容鉴权策略。"""
+    credential = _required_env(source, "STORYFORGE_LLM_API_KEY")
+    try:
+        return llm_protocol.provider_headers(
+            provider=_env_value(source, "STORYFORGE_LLM_PROVIDER"),
+            credential=credential,
+            auth_header=_env_value(source, "STORYFORGE_LLM_AUTH_HEADER").lower() or "bearer",
+        )
+    except ValueError as exc:
+        raise LLMConfigError("STORYFORGE_LLM_AUTH_HEADER 只支持 api-key 或 bearer。") from exc
 
 
 def _llm_request_headers(source: Mapping[str, str | None]) -> dict[str, str]:
@@ -1178,11 +1285,18 @@ def _cost_breakdown(
     命中数时 billed_hit 为 0，算出来与改动前逐位相同。
     """
 
+    # Unknown pricing/usage is not evidence that a request was free. Explicit zero is valid.
+    if usage.get("token_usage_source") in {None, "unavailable"}:
+        return {}
+    input_rate = _optional_float(source, "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS", math.nan)
+    output_rate = _optional_float(source, "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS", math.nan)
+    if any(not math.isfinite(rate) or rate < 0 for rate in (input_rate, output_rate)):
+        return {}
     prompt_tokens = int(usage.get("prompt_tokens") or 0)
     completion_tokens = int(usage.get("completion_tokens") or 0)
-    input_rate = _optional_float(source, "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS", 0.0)
-    output_rate = _optional_float(source, "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS", 0.0)
-    cache_hit_rate = _optional_float(source, "STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS", 0.0)
+    cache_hit_rate = _optional_float(source, "STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS", math.nan)
+    if not math.isfinite(cache_hit_rate) or cache_hit_rate < 0:
+        cache_hit_rate = None
     raw_cache_hit = usage.get("cache_hit_tokens")
     cache_hit_tokens = (
         min(prompt_tokens, max(0, int(raw_cache_hit)))
@@ -1191,11 +1305,12 @@ def _cost_breakdown(
     )
     billed_hit = cache_hit_tokens or 0
     billed_miss = prompt_tokens - billed_hit
-    # 没配命中价（或配成非正数）就按全价计：宁可与改动前的账一致，也不要把命中部分
-    # 当成免费而低估——低估的成本账比高估更难被发现。
-    effective_hit_rate = cache_hit_rate if cache_hit_rate > 0 else input_rate
+    # 没配有效命中价就按全价估计；显式的 0 命中价与缺价不同。
+    effective_hit_rate = cache_hit_rate if cache_hit_rate is not None else input_rate
     input_cny = (billed_miss / 1_000_000) * input_rate + (billed_hit / 1_000_000) * effective_hit_rate
     output_cny = (completion_tokens / 1_000_000) * output_rate
+    if not math.isfinite(input_cny + output_cny):
+        return {}
     return {
         "currency": "CNY",
         "prompt_tokens": prompt_tokens,

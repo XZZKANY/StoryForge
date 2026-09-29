@@ -99,12 +99,15 @@ def test_runtime_executes_multi_round_tool_call_and_returns_artifacts() -> None:
     assert result.content == "final"
     assert result.tool_attempts == 1
     assert result.artifacts[0].kind == "lookup"
+    model_checkpoint = next(event for event in tracer.events if event.kind == "checkpoint_saved")
+    assert model_checkpoint.payload["phase"] == "model_completed"
     assert provider.requests[1].messages[-1].role is MessageRole.TOOL
     assert '"value":"x"' in (provider.requests[1].messages[-1].content or "").replace(" ", "")
     assert [event.kind for event in tracer.events] == [
         "runtime_started",
         "model_started",
         "model_completed",
+        "checkpoint_saved",
         "tool_started",
         "checkpoint_saved",
         "tool_completed",

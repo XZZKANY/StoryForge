@@ -16,17 +16,6 @@ CHAPTER_WRITE_INTENT = "chapter.write"
 
 _MAX_LIST_ITEMS = 12
 _MAX_ITEM_CHARS = 300
-_HARD_RULES = frozenset(
-    {
-        "draft_empty",
-        "draft_truncated",
-        "word_count_out_of_range",
-        "missing_required_beat",
-        "forbidden_content",
-        "continuity_violation",
-        "checker_failure",
-    }
-)
 _REPAIRABLE_HARD_RULES = frozenset(
     {
         "draft_truncated",

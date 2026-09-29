@@ -104,24 +104,6 @@ class AgentArtifactRead(BaseModel):
         return redact_sensitive(payload)
 
 
-class SubagentRunRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    run_id: int
-    parent_run_id: int | None
-    role: str
-    input: dict[str, Any] = Field(default_factory=dict)
-    output: dict[str, Any] = Field(default_factory=dict)
-    status: str
-    created_at: datetime
-    updated_at: datetime
-
-    @field_serializer("input", "output", return_type=dict[str, Any])
-    def serialize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return redact_sensitive(payload)
-
-
 class KnowledgeProposalQuery(BaseModel):
     project_root: str
 

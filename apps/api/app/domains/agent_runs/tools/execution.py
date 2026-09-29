@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.role_catalog import get_agent_role, is_role_allowed_tool, list_subagent_roles
-from app.domains.agent_runs.tools.spec_models import AgentRuntimeToolSpec
+from app.domains.agent_runs.tools.spec_models import AgentRuntimeToolSpec, LoopInputMode, LoopTraceOwner
 from app.domains.agent_runs.trace import AgentToolTrace
 
 if TYPE_CHECKING:
@@ -34,6 +34,9 @@ class ToolDefinition:
     execution_mode: str
     artifact_kinds: tuple[str, ...]
     handler: ToolHandler
+    loop_input_mode: LoopInputMode = "project"
+    loop_trusted_context: bool = False
+    loop_trace_owner: LoopTraceOwner = "generic"
 
 
 def tool_definition_from_spec(spec: AgentRuntimeToolSpec, handler: ToolHandler) -> ToolDefinition:
@@ -51,6 +54,9 @@ def tool_definition_from_spec(spec: AgentRuntimeToolSpec, handler: ToolHandler) 
         execution_mode=spec.execution_mode,
         artifact_kinds=tuple(spec.artifact_kinds),
         handler=handler,
+        loop_input_mode=spec.loop_input_mode,
+        loop_trusted_context=spec.loop_trusted_context,
+        loop_trace_owner=spec.loop_trace_owner,
     )
 
 

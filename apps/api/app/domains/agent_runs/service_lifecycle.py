@@ -31,6 +31,7 @@ def create_or_resume_agent_run(
     scope: dict[str, Any] | None = None,
     permission_profile: str | None = None,
     budget: dict[str, Any] | None = None,
+    resume_terminal: bool = True,
 ) -> AgentRun:
     """创建或续接一次 AgentRun，public_id 对应实时帧暴露的 run_id。"""
 
@@ -67,7 +68,7 @@ def create_or_resume_agent_run(
             else canonical_permission_profile(run.permission_profile)
         )
         run.budget = redact_sensitive(budget or run.budget or {})
-        if run.status in AGENT_RUN_TERMINAL_STATUSES:
+        if resume_terminal and run.status in AGENT_RUN_TERMINAL_STATUSES:
             run.status = "running"
     session.commit()
     session.refresh(run)
@@ -157,6 +158,8 @@ def create_or_resume_bookrun_agent_run(
         scope={"book_id": book_run.book_id, "blueprint_id": book_run.blueprint_id, "book_run_id": book_run.id},
         permission_profile=inherited_profile,
         budget=run_payloads.book_run_budget(book_run),
+        # 终态快照是投影，不是重开指令；只有上游真正 retry 后才恢复 running。
+        resume_terminal=book_run.status not in AGENT_RUN_TERMINAL_STATUSES,
     )
     if not run_payloads.has_event(run, AGENT_RUN_STARTED):
         record_agent_event(

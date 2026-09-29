@@ -88,7 +88,7 @@ def test_approval_checkpoint_json_round_trip_and_resume() -> None:
     assert calls == ["x"]
 
 
-def test_interruption_occurs_only_at_round_boundary_and_can_resume() -> None:
+def test_interruption_before_first_round_can_resume() -> None:
     checks = 0
 
     def interrupt(run_id, boundary, state):
@@ -220,3 +220,32 @@ def test_trace_reliability_distinguishes_diagnostic_and_terminal_events() -> Non
     stored = store.load("run-terminal-trace")
     assert stored is not None
     assert stored.phase is RuntimePhase.FAILED
+
+
+def test_resume_does_not_replay_unresolved_calls_from_older_history() -> None:
+    effects = []
+    registry = ToolRegistry([RuntimeTool(
+        ToolSpec("write", "External effect", {"type": "object"}),
+        lambda context, arguments: effects.append("effect") or RuntimeToolResult.success({"done": True}),
+        idempotent=False, retry_safe=False,
+    )])
+    provider = DeterministicProvider(responses=[
+        ChatResponse("", tool_calls=(ToolCall("new", "write", "{}"),)), ChatResponse("done"),
+    ])
+    runtime = ToolCallingRuntime(provider, registry,
+                                 interruption=lambda run_id, boundary, checkpoint:
+                                 "paused" if boundary == "after_model" else None)
+    interrupted = runtime.run((
+        ChatMessage(MessageRole.USER, "older operation"),
+        ChatMessage(MessageRole.ASSISTANT, tool_calls=(ToolCall("old", "write", "{}"),)),
+        ChatMessage(MessageRole.USER, "new operation"),
+    ), model="deterministic", run_id="old-unresolved")
+    assert interrupted.status is RuntimeResultStatus.INTERRUPTED
+    restored = RuntimeCheckpoint.from_dict(interrupted.checkpoint.to_dict())
+    resumed = ToolCallingRuntime(provider, registry).run(
+        (), model="deterministic", run_id="old-unresolved", resume_state=restored,
+        resume_command=ResumeCommand(ResumeAction.CONTINUE),
+    )
+    assert resumed.status is RuntimeResultStatus.RECONCILIATION_REQUIRED
+    assert effects == []
+    assert len(provider.requests) == 1

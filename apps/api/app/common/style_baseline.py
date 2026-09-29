@@ -32,6 +32,7 @@ RECENT_FILES = 10
 MIN_CHUNK_CHARS = 400
 MIN_CHUNKS = 3
 MAX_FILE_BYTES = 200_000
+# Historical name: this aggregate limit counts decoded/normalized characters, not bytes.
 MAX_TOTAL_BYTES = 800_000
 
 # 容差：95% 置信区间半宽超过它，该维度就不够格当目标说出口。
@@ -100,7 +101,8 @@ def _iter_manuscript_files(root: Path) -> list[Path]:
 
 def _read_chunk(path: Path) -> str | None:
     try:
-        raw = path.read_bytes()[:MAX_FILE_BYTES]
+        with path.open("rb", buffering=0) as stream:
+            raw = stream.read(MAX_FILE_BYTES)
     except OSError:
         return None
     if b"\x00" in raw[:1024]:
@@ -140,13 +142,13 @@ def build_style_baseline(project_path: str | None) -> StyleBaseline | None:
         return None
 
     chunks: list[str] = []
-    total_bytes = 0
+    total_chars = 0
     for path in candidates:
         text = _read_chunk(path)
         if text is None:
             continue
-        total_bytes += len(text)
-        if total_bytes > MAX_TOTAL_BYTES:
+        total_chars += len(text)
+        if total_chars > MAX_TOTAL_BYTES:
             break
         chunks.append(text)
 

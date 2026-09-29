@@ -76,7 +76,7 @@ class CreativeToolSpec:
 
 
 class CreativeToolRegistry:
-    """静态创作工具注册表，负责按名称、domain 和能力查询元数据。"""
+    """静态创作工具注册表，校验名称唯一并按注册顺序提供元数据。"""
 
     def __init__(self, tools: Iterable[CreativeToolSpec]) -> None:
         self._tools = tuple(tools)
@@ -85,37 +85,11 @@ class CreativeToolRegistry:
             if tool.name in index:
                 raise ValueError(f"工具名称重复：{tool.name}")
             index[tool.name] = tool
-        self._by_name = MappingProxyType(index)
 
     def all(self) -> tuple[CreativeToolSpec, ...]:
         """按注册顺序返回全部工具说明。"""
 
         return self._tools
-
-    def get(self, name: str) -> CreativeToolSpec | None:
-        """按名称读取工具；缺失时返回 None，便于调用方自行降级。"""
-
-        return self._by_name.get(name)
-
-    def require(self, name: str) -> CreativeToolSpec:
-        """按名称读取工具；缺失时抛出明确错误。"""
-
-        tool = self.get(name)
-        if tool is None:
-            raise KeyError(f"创作工具不存在：{name}")
-        return tool
-
-    def by_domain(self, domain: str) -> tuple[CreativeToolSpec, ...]:
-        """返回指定 domain 下的全部工具。"""
-
-        normalized_domain = domain.strip()
-        return tuple(tool for tool in self._tools if tool.domain == normalized_domain)
-
-    def by_capability(self, capability: str) -> tuple[CreativeToolSpec, ...]:
-        """返回声明需要指定能力的全部工具。"""
-
-        normalized_capability = capability.strip()
-        return tuple(tool for tool in self._tools if normalized_capability in tool.required_capabilities)
 
 
 def _object_schema(title: str, properties: Mapping[str, object], required: Sequence[str] = ()) -> JSONSchema:
@@ -370,9 +344,3 @@ def list_creative_tools() -> tuple[CreativeToolSpec, ...]:
     """返回默认静态创作工具注册表中的全部工具。"""
 
     return DEFAULT_CREATIVE_TOOL_REGISTRY.all()
-
-
-def get_creative_tool(name: str) -> CreativeToolSpec | None:
-    """从默认静态创作工具注册表按名称读取工具。"""
-
-    return DEFAULT_CREATIVE_TOOL_REGISTRY.get(name)

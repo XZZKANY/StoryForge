@@ -404,7 +404,7 @@ def test_agent_run_save_points_endpoint_projects_existing_event_store(client: Te
     ]
     event_types = [event["event_type"] for event in events]
     assert event_types[0] == "agent_run_started"
-    assert event_types[-1] == "agent_run_completed"
+    assert event_types[-2:] == ["agent_run_completed", "agent_execution_settled"]
 
 
 def test_agent_run_save_points_endpoint_projects_tool_recovery_metadata(

@@ -335,7 +335,7 @@ def test_resume_run_control_message_drives_pending_file_review_resume(
     events = client.get("/api/agent-runs/run-control-resume-review/events").json()
     event_types = [event["event_type"] for event in events]
     assert "resume_run" in event_types
-    assert event_types[-1] == "agent_run_completed"
+    assert event_types[-2:] == ["agent_run_completed", "agent_execution_settled"]
     context_tool_events = [
         event
         for event in events
@@ -718,7 +718,7 @@ def test_chapter_review_runtime_resumes_after_judge_run_without_repairing(
     ]
     assert len(judge_run_events) == 1
     assert judge_repair_events == []
-    assert events[-1].event_type == "agent_run_completed"
+    assert [event.event_type for event in events[-2:]] == ["agent_run_completed", "agent_execution_settled"]
 
     completed_projection = get_agent_run_save_points(session, run.public_id)
     assert completed_projection["pending"]["runtime_pending_call_artifact_id"] is None

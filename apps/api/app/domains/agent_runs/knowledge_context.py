@@ -1,25 +1,34 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app.common.performance import measured
 from app.common.redaction import redact_sensitive_text
 from app.domains.agent_runs._text import compact_text
-from app.domains.agent_runs.fs import retrieve_project_knowledge
+from app.domains.agent_runs.fs import KnowledgeRetrievalResult, retrieve_project_knowledge
 
 
-def with_project_knowledge_entries(
+@dataclass(frozen=True)
+class CollectedProjectKnowledge:
+    """显式采集结果：空值不等于尚未采集，不会触发读盘回退。"""
+
+    result: KnowledgeRetrievalResult | None = None
+    warnings: tuple[str, ...] = ()
+
+
+@measured("context.collect")
+def collect_project_knowledge_context(
     bundle: Mapping[str, Any] | None,
     *,
     context_files: list[dict[str, Any]],
     query: str,
-    max_context_files: int,
-    context_file_text_limit: int,
-) -> tuple[list[dict[str, Any]], list[str]]:
+) -> CollectedProjectKnowledge:
     project_root = _first_string(bundle, "project_root", "projectRoot")
     if project_root is None or not Path(project_root).is_dir():
-        return context_files, []
+        return CollectedProjectKnowledge()
     pinned_paths = [
         str(item["relative_path"])
         for item in context_files
@@ -33,7 +42,21 @@ def with_project_knowledge_entries(
             excluded_ids=_knowledge_exclusion_ids(bundle),
         )
     except (OSError, ValueError):
-        return context_files, ["structured Project Knowledge retrieval failed"]
+        return CollectedProjectKnowledge(warnings=("structured Project Knowledge retrieval failed",))
+    return CollectedProjectKnowledge(result=retrieved)
+
+
+def merge_project_knowledge_entries(
+    knowledge: CollectedProjectKnowledge,
+    *,
+    context_files: list[dict[str, Any]],
+    max_context_files: int,
+    context_file_text_limit: int,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """纯值合并，保留原脱敏/裁剪与结构化 raw 排除行为。"""
+    retrieved = knowledge.result
+    if retrieved is None:
+        return context_files, list(knowledge.warnings)
     structured_paths = set(retrieved.structured_paths)
     result = [
         item
@@ -57,7 +80,7 @@ def with_project_knowledge_entries(
                 "warning_count": item.warning_count,
             }
         )
-    return result, list(retrieved.warnings)
+    return result, [*knowledge.warnings, *retrieved.warnings]
 
 
 def _knowledge_exclusion_ids(bundle: Mapping[str, Any]) -> list[str]:
@@ -67,11 +90,7 @@ def _knowledge_exclusion_ids(bundle: Mapping[str, Any]) -> list[str]:
     ids = exclusions.get("ids")
     if not isinstance(ids, list):
         return []
-    return [
-        item
-        for item in ids
-        if isinstance(item, str) and item.startswith("pk_") and len(item) <= 64
-    ][:8]
+    return [item for item in ids if isinstance(item, str) and item.startswith("pk_") and len(item) <= 64][:8]
 
 
 def _first_string(bundle: Mapping[str, Any] | None, *keys: str) -> str | None:

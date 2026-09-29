@@ -8,7 +8,9 @@ from app.domains.agent_runs.event_types import (
     AGENT_PLAN_CREATED,
     AGENT_RUN_COMPLETED,
     AGENT_RUN_FAILED,
+    AGENT_RUN_INTERRUPTED,
     AGENT_RUN_STARTED,
+    AGENT_RUNTIME_PROGRESS,
     PERMISSION_REQUIRED,
     TOOL_TRACE,
 )
@@ -62,11 +64,13 @@ def websocket_stream_events_from_agent_event(event: AgentRunEvent) -> list[dict[
         return [websocket_started_event(run, event)]
     if event.event_type == AGENT_PLAN_CREATED:
         return _websocket_agent_step_events(run, event)
+    if event.event_type == AGENT_RUNTIME_PROGRESS:
+        return [_runtime_progress_frame(run, event)]
     if event.event_type == TOOL_TRACE:
         return [_websocket_tool_trace_event(run, event)]
     if event.event_type == PERMISSION_REQUIRED:
         return [_websocket_permission_required_event(run, event)]
-    if event.event_type in (AGENT_RUN_COMPLETED, AGENT_RUN_FAILED):
+    if event.event_type in (AGENT_RUN_COMPLETED, AGENT_RUN_FAILED, AGENT_RUN_INTERRUPTED):
         return [_websocket_terminal_event(run, event)]
     return []
 
@@ -77,6 +81,9 @@ def websocket_control_event(event: AgentRunEvent) -> dict[str, Any]:
         session_id=str(event.payload.get("session_id") or ""),
         run_id=str(event.payload.get("run_id") or ""),
         event_id=event.id,
+        control_effect=event.payload.get("control_effect"),
+        runtime_state=event.payload.get("runtime_state"),
+        run_status=event.payload.get("run_status"),
     ).to_wire()
 
 
@@ -157,9 +164,8 @@ def _websocket_terminal_event(run: AgentRun, event: AgentRunEvent) -> dict[str, 
     happy-path 前端仍据 agent_result（_STREAM_RESULT）settle，这里是重建路径的幂等补充。"""
 
     payload = event.payload if isinstance(event.payload, dict) else {}
-    completed = event.event_type == AGENT_RUN_COMPLETED
     return TerminalFrame(
-        type="agent_run_completed" if completed else "agent_run_failed",
+        type=event.event_type,
         session_id=run.session_id,
         run_id=run.public_id,
         assistant_session_id=run.assistant_session_id,
@@ -168,4 +174,22 @@ def _websocket_terminal_event(run: AgentRun, event: AgentRunEvent) -> dict[str, 
         status=run.status,
         message=redact_sensitive_text(event.message),
         payload=redact_sensitive(payload),
+    ).to_wire()
+
+
+def _runtime_progress_frame(run: AgentRun, event: AgentRunEvent) -> dict[str, Any]:
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    number = payload.get("request_number")
+    phase = payload.get("phase")
+    if phase == "retry_wait":
+        delay = payload.get("delay_seconds")
+        detail = f"模型请求暂不可用，等待 {delay} 秒后重试。"
+    elif phase == "retry_started":
+        detail = "退避结束，准备重试。"
+    else:
+        detail = f"准备第 {number} 次模型请求。"
+    return AgentStepFrame(
+        session_id=run.session_id, run_id=run.public_id, assistant_session_id=run.assistant_session_id,
+        event_id=event.id, sequence=event.sequence, index=-1, step="agent.provider",
+        detail=detail, status="running",
     ).to_wire()

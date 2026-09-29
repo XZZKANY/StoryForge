@@ -10,9 +10,13 @@ from app.domains.agent_runs.fs.knowledge_entries import (
 )
 from app.domains.agent_runs.fs.knowledge_retrieval import (
     KnowledgeRetrievalResult,
+    KnowledgeSelection,
     RetrievedKnowledgeEntry,
+    SelectedKnowledgeEntry,
     knowledge_entry_evidence_state,
+    materialize_knowledge_selection,
     retrieve_project_knowledge,
+    select_knowledge_entries,
 )
 from app.domains.agent_runs.fs.project_knowledge import (
     IndexedProjectKnowledgeEntry,
@@ -47,6 +51,10 @@ __all__ = [
     "KnowledgeEntryError",
     "KnowledgeParseResult",
     "KnowledgeRetrievalResult",
+    "KnowledgeSelection",
+    "SelectedKnowledgeEntry",
+    "select_knowledge_entries",
+    "materialize_knowledge_selection",
     "KnowledgeSource",
     "ProjectKnowledgeEntryIndex",
     "RetrievedKnowledgeEntry",

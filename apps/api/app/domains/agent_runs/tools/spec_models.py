@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
+
+LoopInputMode = Literal["project", "existing_file", "new_file"]
+LoopTraceOwner = Literal["generic", "handler"]
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,20 @@ class AgentRuntimeToolSpec:
     evidence_fields: Sequence[str] = field(default_factory=tuple)
     references: ToolCatalogReferences = field(default_factory=ToolCatalogReferences)
     loop_schema: LoopToolSchema | None = None
+    # 仅 loop adapter 使用；独立于风险/权限和是否产 patch，不暴露给模型。
+    loop_input_mode: LoopInputMode = "project"
+    loop_trusted_context: bool = False
+    loop_trace_owner: LoopTraceOwner = "generic"
+
+    def __post_init__(self) -> None:
+        if self.loop_input_mode not in ("project", "existing_file", "new_file"):
+            raise ValueError("Invalid loop_input_mode")
+        if self.loop_trace_owner not in ("generic", "handler"):
+            raise ValueError("Invalid loop_trace_owner")
+        if not isinstance(self.loop_trusted_context, bool):
+            raise ValueError("loop_trusted_context must be boolean")
+        if self.loop_trusted_context and self.loop_input_mode == "project":
+            raise ValueError("loop_trusted_context requires a file input mode")
 
     # permission_level / requires_confirmation 从 risk_level + execution_mode 单点派生，不再并列声明
     # （消除三字段漂移），派生规则见 derive_requires_confirmation。

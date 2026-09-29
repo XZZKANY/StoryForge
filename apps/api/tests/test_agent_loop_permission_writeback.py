@@ -16,7 +16,7 @@ pytest_plugins = ("agent_loop_runtime_test_fixtures",)
 
 @pytest.mark.parametrize(
     ("profile", "requires_confirmation"),
-    [("ask", True), ("auto", False)],
+    [("ask", True), ("auto", False), ("full", False)],
 )
 def test_chat_loop_patch_confirmation_follows_the_project_permission_profile(
     client: TestClient,
@@ -27,7 +27,7 @@ def test_chat_loop_patch_confirmation_follows_the_project_permission_profile(
 ) -> None:
     """自动档只放宽「作者点接受」这一层：补丁上的确认位翻转、run 不再挂起等确认。
 
-    后端红线不变——两档下磁盘都不动，落盘仍然只由前端守卫执行。
+    后端红线不变——各档下磁盘都不动，落盘仍然只由前端守卫执行。
     """
 
     from app.domains.assistant import service as assistant_service
@@ -65,6 +65,11 @@ def test_chat_loop_patch_confirmation_follows_the_project_permission_profile(
         ],
     )
 
+    project_before = {
+        path.relative_to(novel_project): path.read_bytes()
+        for path in novel_project.rglob("*")
+        if path.is_file()
+    }
     received = _send_chat_message(
         client,
         run_id=f"run-chat-loop-profile-{profile}",
@@ -80,3 +85,19 @@ def test_chat_loop_patch_confirmation_follows_the_project_permission_profile(
 
     # 后端写回红线在任何档位都不放宽：确认位只影响 Desktop 要不要等作者点击。
     assert not (novel_project / "正文" / "第02章.md").exists()
+    assert {
+        path.relative_to(novel_project): path.read_bytes()
+        for path in novel_project.rglob("*")
+        if path.is_file()
+    } == project_before
+    if not requires_confirmation:
+        auto_steps = [step for step in result["plan"] if step["step"] == "writeback.auto"]
+        assert len(auto_steps) == 1
+        assert auto_steps[0]["status"] == "completed"
+        detail = auto_steps[0]["detail"]
+        assert "补丁已准备" in detail
+        assert "实际写回与快照由 Desktop 执行" in detail
+        assert "这不是落盘回执" in detail
+        assert "直接写盘" not in detail
+        assert "已写入" not in detail
+        assert "快照完成" not in detail

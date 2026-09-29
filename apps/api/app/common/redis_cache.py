@@ -73,15 +73,6 @@ def cache_set_value(key: str, value: Any, ttl_seconds: int) -> None:
         return
 
 
-def cache_delete(key: str) -> None:
-    """删除单个缓存键。"""
-
-    try:
-        _redis_client().delete(key)
-    except REDIS_UNAVAILABLE_ERRORS:
-        return
-
-
 def cache_delete_pattern(pattern: str) -> None:
     """按 pattern 删除缓存键，使用 SCAN 避免阻塞 Redis。"""
 

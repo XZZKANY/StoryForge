@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping
 from typing import Any
 
 from app.common.llm_client import cost_breakdown
+from app.common.llm_control import LLMRunInterrupted
+from app.common.performance import measured
+from app.domains.agent_runs.loop.checkpoint_store import StoryForgeCheckpointStore
 from app.domains.agent_runs.loop.sdk_context import StoryForgeRuntimeContext
 from app.domains.agent_runs.loop.support import (
     merge_cost_breakdown,
@@ -20,7 +24,6 @@ from app.domains.agent_runs.tools import (
     loop_patch_tool_specs,
 )
 from app.domains.agent_runs.tools.runtime_arguments import (
-    HANDLER_OWNED_TRACE_TOOL_NAMES,
     sanitize_loop_tool_arguments,
 )
 from app.domains.agent_runs.trace import AgentToolTrace
@@ -64,9 +67,12 @@ class StoryForgeProviderAdapter:
         self._provider = provider
         self._context = context
 
+    @measured("agent.model")
     def complete(self, request: ChatRequest) -> ChatResponse:
         self._context.provider_attempts += 1
+        StoryForgeCheckpointStore(self._context).model_started(request)
         response = self._context.remember_response(self._provider.complete(request))
+        self._context.model_outcome_unknown = False
         usage_payload = response.usage.to_legacy()
         raw_breakdown = response.metadata.get("cost_breakdown")
         breakdown = (
@@ -74,11 +80,12 @@ class StoryForgeProviderAdapter:
             if isinstance(raw_breakdown, Mapping)
             else cost_breakdown(self._context.source, usage_payload)
         )
-        raw_cost = response.metadata.get("cost_cny_estimated")
+        raw_cost = response.metadata.get("cost_cny_estimated", breakdown.get("total_cny"))
         estimated_cost = (
             float(raw_cost)
             if isinstance(raw_cost, int | float) and not isinstance(raw_cost, bool)
-            else float(breakdown.get("total_cny") or 0.0)
+            and math.isfinite(raw_cost) and raw_cost >= 0
+            else None
         )
         self._context.pending_costs.append((estimated_cost, breakdown))
         return response
@@ -108,8 +115,15 @@ class StoryForgeUsageSink:
                 outcome.token_usage_source = usage.source
             elif outcome.token_usage_source != usage.source:
                 outcome.token_usage_source = "mixed"
-        estimated_cost, breakdown = self._context.pending_costs.popleft()
-        outcome.cost_cny_estimated += estimated_cost
+        if self._context.pending_costs:
+            estimated_cost, breakdown = self._context.pending_costs.popleft()
+        else:
+            # Provider errors can report real usage without producing response cost metadata.
+            breakdown = cost_breakdown(self._context.source, usage.to_legacy())
+            estimated_cost = breakdown.get("total_cny")
+        if estimated_cost is None:
+            return None
+        outcome.cost_cny_estimated = (outcome.cost_cny_estimated or 0.0) + estimated_cost
         outcome.cost_breakdown = merge_cost_breakdown(
             outcome.cost_breakdown,
             breakdown,
@@ -153,8 +167,8 @@ class StoryForgeRuntimePolicy:
         return tool.retry_safe and tool.idempotent and result_retryable and attempt < 2
 
     def can_resume_started_tool(self, tool: RuntimeTool, call) -> bool:  # noqa: ANN001
-        del call
-        return tool.retry_safe and tool.idempotent
+        return (tool.retry_safe and tool.idempotent
+                and self.decide_tool(tool, call, self._context).kind is PolicyDecisionKind.ALLOW)
 
 
 class StoryForgeToolSelector:
@@ -245,18 +259,6 @@ class StoryForgeRunTracer:
         self._context.record_trace(trace, call_id=call_id)
 
 
-class StoryForgeCheckpointStore:
-    def __init__(self, context: StoryForgeRuntimeContext) -> None:
-        self._context = context
-
-    def save(self, checkpoint: RuntimeCheckpoint) -> None:
-        self._context.latest_checkpoint = checkpoint
-
-    def load(self, run_id: str) -> RuntimeCheckpoint | None:
-        checkpoint = self._context.latest_checkpoint
-        return checkpoint if checkpoint is not None and checkpoint.run_id == run_id else None
-
-
 def build_storyforge_tool_registry(context: StoryForgeRuntimeContext) -> ToolRegistry:
     tools: list[RuntimeTool] = []
     for spec in list_loop_tool_specs():
@@ -306,6 +308,12 @@ def build_storyforge_tool_registry(context: StoryForgeRuntimeContext) -> ToolReg
 def interruption_check(context: StoryForgeRuntimeContext):
     def check(run_id: str, boundary: str, checkpoint: RuntimeCheckpoint) -> str | None:
         del run_id, checkpoint
+        if context.call_control is not None:
+            try:
+                context.call_control.check(boundary)
+            except LLMRunInterrupted as exc:
+                return exc.reason
+            return None
         if context.should_interrupt is None:
             return None
         interruption = context.should_interrupt(boundary)
@@ -337,6 +345,19 @@ def _execute_tool(
     )
     try:
         tool_result = context.execute_tool(registry_name, dict(arguments))
+    except LLMRunInterrupted as exc:
+        # A started call without a result is not a completed/retryable tool.
+        # Keep the unknown effect visible; SDK retains the pending checkpoint.
+        summary = {"execution_state": "unknown", "interruption_reason": exc.reason}
+        assistant_service.update_assistant_tool_call(
+            context.session, evidence.id,
+            AssistantToolCallUpdate(status="paused", output_summary=summary),
+        )
+        context.record_trace(AgentToolTrace(
+            tool_name=registry_name, status="paused", input_summary=safe_arguments,
+            output_summary=summary, assistant_tool_call_id=evidence.id,
+        ), call_id=call_id)
+        raise
     except Exception as exc:  # noqa: BLE001 - domain errors are model feedback, not runtime crashes
         error_text = str(exc)[:500]
         assistant_service.update_assistant_tool_call(
@@ -369,9 +390,10 @@ def _execute_tool(
         context.outcome.review_report = feedback.review_report
     if feedback.patch_proposal is not None:
         context.outcome.patch_proposal = feedback.patch_proposal
+    handler_owned_trace = context.definitions[registry_name].loop_trace_owner == "handler"
     output_summary = tool_output_summary(registry_name, output)
     if (
-        registry_name in HANDLER_OWNED_TRACE_TOOL_NAMES
+        handler_owned_trace
         and tool_result.trace.output_summary is not None
     ):
         output_summary = tool_result.trace.output_summary
@@ -382,7 +404,7 @@ def _execute_tool(
     )
     input_summary = (
         tool_result.trace.input_summary
-        if registry_name in HANDLER_OWNED_TRACE_TOOL_NAMES
+        if handler_owned_trace
         else safe_arguments
     )
     context.record_trace(
@@ -393,7 +415,7 @@ def _execute_tool(
             output_summary=output_summary,
             audit_event_id=(
                 tool_result.trace.audit_event_id
-                if registry_name in HANDLER_OWNED_TRACE_TOOL_NAMES
+                if handler_owned_trace
                 else None
             ),
             assistant_tool_call_id=evidence.id,

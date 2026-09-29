@@ -387,5 +387,8 @@ def test_control_ack_frame_is_byte_identical_to_golden() -> None:
         "run_id": "run-pub-1",
         "event_id": 55,
         "status": "recorded",
+        "control_effect": None,
+        "runtime_state": None,
+        "run_status": None,
     }
     assert _wire(websocket_control_event(ack_event)) == _wire(golden)

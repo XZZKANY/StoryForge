@@ -157,7 +157,7 @@ def test_terminal_answer_respects_control_committed_during_provider_call(
 
     assert len(calls) == 1
     evidence = _assert_interrupted(
-        session_factory, result, status=status, boundary="before_finalize:assistant.chat_loop"
+        session_factory, result, status=status, boundary="after_model"
     )
     assert len(evidence) == 1
     assert evidence[0].status == ("paused" if status == "paused" else "failed")
@@ -220,7 +220,7 @@ def test_terminal_interruption_keeps_previous_tool_audit_and_cumulative_usage(
     assert len(calls) == 2
     assert any(message.role == "tool" and "chapter.md" in (message.content or "") for message in calls[1].messages)
     evidence = _assert_interrupted(
-        session_factory, result, status=status, boundary="before_finalize:assistant.chat_loop"
+        session_factory, result, status=status, boundary="after_model"
     )
     assert len(evidence) == 2
     by_tool = {item.tool_name: item for item in evidence}
@@ -256,7 +256,7 @@ def test_control_before_first_round_makes_no_provider_call_or_usage_evidence(
     assert result["tool_trace"] == []
 
 
-def test_terminal_pause_resume_requires_new_message_without_provider_replay(
+def test_terminal_pause_resume_delivers_known_answer_once_without_provider_replay(
     session: Session,
     session_factory: sessionmaker[Session],
     tmp_path: Path,
@@ -269,23 +269,38 @@ def test_terminal_pause_resume_requires_new_message_without_provider_replay(
     calls = _provider(monkeypatch, respond)
     result = _execute(session, session_factory, tmp_path)
     evidence = _assert_interrupted(
-        session_factory, result, status="paused", boundary="before_finalize:assistant.chat_loop"
+        session_factory, result, status="paused", boundary="after_model"
     )
     assert len(evidence) == 1
 
     resume = _control(session_factory, "resume_run")
 
-    assert resume.resumed_result is None
-    assert resume.resume_diagnostic is not None
-    assert resume.resume_diagnostic["reason"] == "no_pending_call"
-    assert resume.resume_diagnostic["resume_strategy"] == "start_new_message"
-    assert resume.resume_diagnostic["reverted_status"] == "stopped"
-    assert resume.resume_diagnostic["can_resume"] is False
+    assert resume.resumed_result is not None
+    assert resume.resumed_result["agent_result"]["summary"] == "late answer"
+    assert resume.resumed_result["run_id"] == "terminal-cancellation-run"
+    assert resume.resume_diagnostic is None
     assert len(calls) == 1
     with session_factory() as observed:
-        assert service.get_agent_run(observed, "terminal-cancellation-run").status == "stopped"
-        assert list(observed.scalars(select(AssistantMessage))) == []
-        assert list(observed.scalars(select(AssistantToolCall.id))) == [evidence[0].id]
+        assert service.get_agent_run(observed, "terminal-cancellation-run").status == "completed"
+        messages = list(observed.scalars(select(AssistantMessage).order_by(AssistantMessage.id)))
+        assert [(message.role, message.content) for message in messages] == [
+            ("user", _message(tmp_path)["user_message"]),
+            ("assistant", "late answer"),
+        ]
+        message_ids = [message.id for message in messages]
+        assert observed.get(AssistantToolCall, evidence[0].id) is not None
+
+    duplicate = _control(session_factory, "resume_run")
+
+    assert duplicate.resumed_result is None
+    assert duplicate.resume_diagnostic is None
+    assert duplicate.event.payload["control_effect"] == "ignored"
+    assert len(calls) == 1
+    with session_factory() as observed:
+        assert service.get_agent_run(observed, "terminal-cancellation-run").status == "completed"
+        assert list(observed.scalars(select(AssistantMessage.id).order_by(AssistantMessage.id))) == message_ids
+        event_types = list(observed.scalars(select(AgentRunEvent.event_type)))
+        assert event_types.count(AGENT_RUN_COMPLETED) == 1
 
 
 def test_stop_during_plan_recording_replaces_older_before_round_pause_projection(
@@ -318,7 +333,7 @@ def test_stop_during_plan_recording_replaces_older_before_round_pause_projection
 
 
 @pytest.mark.parametrize("control_type,status", [("stop_run", "stopped"), ("pause_run", "paused")])
-def test_before_second_round_interruption_retains_first_round_usage_and_boundary(
+def test_after_tool_interruption_retains_first_round_usage_and_boundary(
     session: Session,
     session_factory: sessionmaker[Session],
     tmp_path: Path,
@@ -335,7 +350,7 @@ def test_before_second_round_interruption_retains_first_round_usage_and_boundary
     result = _execute(session, session_factory, tmp_path, on_event=interrupt_after_trace)
 
     assert len(calls) == 1
-    evidence = _assert_interrupted(session_factory, result, status=status, boundary="before_round:2")
+    evidence = _assert_interrupted(session_factory, result, status=status, boundary="after_tool")
     assert len(evidence) == 2
     by_tool = {item.tool_name: item for item in evidence}
     assert by_tool["fs.list"].status == "completed"

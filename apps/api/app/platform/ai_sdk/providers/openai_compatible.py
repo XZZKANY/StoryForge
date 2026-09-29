@@ -15,6 +15,7 @@ from app.platform.ai_sdk.contracts import (
 )
 from app.platform.ai_sdk.errors import ProviderError, ProviderErrorCategory, ProviderErrorDetails
 from app.platform.ai_sdk.provider import ProviderHealth, ProviderHealthStatus
+from app.platform.ai_sdk.stream_usage import retaining_stream_usage
 
 RawCompleteTransport = Callable[[dict[str, object]], tuple[dict[str, object], float]]
 RawStreamTransport = Callable[[dict[str, object]], Iterable[Mapping[str, object]]]
@@ -102,6 +103,9 @@ class OpenAICompatibleProvider:
         )
 
     def stream(self, request: ChatRequest) -> Iterator[StreamEvent]:
+        return retaining_stream_usage(self._stream_events(request))
+
+    def _stream_events(self, request: ChatRequest) -> Iterator[StreamEvent]:
         if self._stream_transport is None:
             raise ProviderError(
                 ProviderErrorDetails(

@@ -4,8 +4,11 @@ from typing import Any, cast
 
 from app.common.redaction import redact_sensitive
 from app.domains.agent_runs.event_types import (
+    AGENT_EXECUTION_SETTLED,
+    AGENT_EXECUTION_STARTED,
     AGENT_RUN_COMPLETED,
     AGENT_RUN_FAILED,
+    AGENT_RUN_INTERRUPTED,
     PERMISSION_APPROVED,
     PERMISSION_DENIED,
     PERMISSION_REQUIRED,
@@ -79,7 +82,10 @@ def build_agent_run_save_point_projection(
     pending_call = latest_pending_fact if _is_pending_runtime_call(latest_pending_fact) else None
     active_pending_call = pending_call if run.status in {"paused", "running"} else None
     pending_resolution = _latest_artifact(ordered_artifacts, RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND)
-    terminal_event = _latest_event(ordered_events, AGENT_RUN_COMPLETED, AGENT_RUN_FAILED, STOP_RUN)
+    terminal_event = _latest_event(
+        [event for event in ordered_events if event.event_type != STOP_RUN or event.actor == "bookrun-agent"],
+        AGENT_RUN_COMPLETED, AGENT_RUN_FAILED, AGENT_RUN_INTERRUPTED, STOP_RUN,
+    )
 
     pending_permission = (
         latest_permission is not None
@@ -87,6 +93,10 @@ def build_agent_run_save_point_projection(
         and run.status == "paused"
     )
 
+    execution = _latest_event(ordered_events, AGENT_EXECUTION_STARTED, AGENT_EXECUTION_SETTLED, AGENT_RUN_INTERRUPTED)
+    runtime_state = (
+        "in_flight" if execution.event_type == AGENT_EXECUTION_STARTED else "settled"
+    ) if execution is not None else ("in_flight" if run.status == "running" else "settled")
     projection: dict[str, Any] = {
         "run_id": run.public_id,
         "status": run.status,
@@ -96,7 +106,7 @@ def build_agent_run_save_point_projection(
             "permission_required": pending_permission,
             "permission_event_id": latest_permission.id if pending_permission and latest_permission is not None else None,
             "blocked_tool": _blocked_tool(latest_permission) if pending_permission and latest_permission is not None else None,
-            "proposed_patch_artifact_id": proposed_patch.id if proposed_patch is not None else None,
+            "proposed_patch_artifact_id": proposed_patch.id if proposed_patch is not None and pending_permission else None,
             "runtime_pending_call_artifact_id": active_pending_call.id
             if _is_pending_runtime_call(active_pending_call)
             else None,
@@ -119,7 +129,8 @@ def build_agent_run_save_point_projection(
         "interruption_model": {
             "uses_existing_paused_status": run.status == "paused",
             "uses_existing_stopped_status": run.status == "stopped",
-            "has_interrupted_event": False,
+            "has_interrupted_event": _latest_event(ordered_events, AGENT_RUN_INTERRUPTED) is not None,
+            "runtime_state": runtime_state,
         },
     }
     return cast(dict[str, Any], redact_sensitive(projection))

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.domains.agent_runs.result_contracts import AgentExecutionOutcome, AgentRuntimeInterruption
 from app.domains.agent_runs.ws_messages import (
     AgentRunStartedFrame,
     AgentStepFrame,
@@ -41,6 +42,9 @@ def build_agent_ws_schema() -> dict[str, Any]:
     for frame in _FRAMES:
         defs[frame.__name__] = frame.model_json_schema(ref_template="#/$defs/{model}")
 
+    # Reusable payload values share the generated seam; they are not standalone frames.
+    defs["AgentExecutionOutcome"] = AgentExecutionOutcome.model_json_schema()
+    defs["AgentRuntimeInterruption"] = AgentRuntimeInterruption.model_json_schema()
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "https://storyforge.local/contracts/agent-ws.schema.json",

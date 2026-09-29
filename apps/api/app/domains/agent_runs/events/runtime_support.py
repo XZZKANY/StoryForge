@@ -235,6 +235,9 @@ def _runtime_interrupted_response(
     agent_result["summary"] = _runtime_interruption_summary(interruption)
     agent_result["requires_user_confirmation"] = False
     agent_result["runtime_interrupted"] = True
+    # Revoke undelivered writes, but preserve brief/review recovery data and routing markers.
+    result["proposed_patch"] = None
+    result.pop("_tool_artifacts", None)
     result["runtime_interruption"] = interruption
     result["_runtime_interrupted"] = True
     if events_recorded:

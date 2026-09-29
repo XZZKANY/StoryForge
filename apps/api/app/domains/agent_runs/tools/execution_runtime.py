@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.common.llm_control import check_run_interruption
+from app.common.llm_observation import model_operation
+from app.common.performance import measured
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.events.runtime_support import tool_artifacts_from_result as _tool_artifacts_from_result
 from app.domains.agent_runs.models import AgentRun
@@ -15,7 +18,9 @@ from app.domains.agent_runs.tools.execution import (
 
 
 class ToolExecutionRuntimeMixin:
+    @measured("agent.tool")
     def _execute_tool(self, tool_name: str, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        check_run_interruption(f"before_tool:{tool_name}")
         tool = self._tool_registry.get(tool_name)
         # fixed pipeline 的 `bookrun.start` 会从实际 command args 移除确认标记，避免把它传给
         # WritingRun DTO；gate 仍需看见已完成的 preflight 确认，故仅在策略输入中补回该事实。
@@ -29,7 +34,9 @@ class ToolExecutionRuntimeMixin:
         # require_approval 决策必须在 handler 前停止，避免 read/step_confirm 或长任务绕过策略。
         if decision.status == "require_approval" and not decision.allows_pending_artifact:
             raise AgentOrchestrationError(f"工具 {tool_name} 需要先获得权限确认：{decision.reason}")
-        return tool.handler(context, payload)
+        snapshot = payload.get("llm_context_snapshot")
+        with model_operation(tool_name, provenance=snapshot if isinstance(snapshot, dict) else None):
+            return tool.handler(context, payload)
 
     def _record_result_artifacts(self, run: AgentRun, result: dict[str, Any]) -> None:
         recorded_kinds: set[str] = set()

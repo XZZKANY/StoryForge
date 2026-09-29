@@ -13,6 +13,7 @@ from app.common.llm_env import (
     ResolvedPolishLlm,
     resolve_polish_llm,
 )
+from app.common.performance import current_measurement, measure_stage, measured
 from app.domains.agent_runs.patches.polishing import (
     POLISH_GATE_VERSION,
     POLISH_RULE_VERSION,
@@ -89,6 +90,7 @@ def validate_polishable_path(path: str) -> str:
     return pure.as_posix()
 
 
+@measured("polish.total")
 def run_controlled_polish(
     original: str,
     *,
@@ -103,7 +105,8 @@ def run_controlled_polish(
     provider: LLMProvider | None = None,
     provider_builder: Callable[[Mapping[str, str | None]], LLMProvider] = build_llm_provider,
 ) -> ControlledPolishResult:
-    local = PolishCandidate(source="local", text=apply_deterministic_polish(original))
+    with measure_stage("polish.local"):
+        local = PolishCandidate(source="local", text=apply_deterministic_polish(original))
     online: PolishCandidate | None = None
     online_failure: str | None = None
     usage: Mapping[str, int | str | None] = {}
@@ -111,19 +114,20 @@ def run_controlled_polish(
 
     if online_enabled:
         try:
-            resolved = resolved or resolve_polish_llm(use_main_model=use_main_model)
-            active_provider = provider or provider_builder(resolved.source)
-            response = active_provider.complete(
-                _polish_request(
-                    original,
-                    resolved.model,
-                    style_instruction,
-                    protected_entities=protected_entities,
-                    character_constraints=character_constraints,
-                    continuity_facts=continuity_facts,
-                    required_facts=required_facts,
-                )
+            with measure_stage("polish.resolve"):
+                resolved = resolved or resolve_polish_llm(use_main_model=use_main_model)
+                active_provider = provider or provider_builder(resolved.source)
+            request = _polish_request(
+                original,
+                resolved.model,
+                style_instruction,
+                protected_entities=protected_entities,
+                character_constraints=character_constraints,
+                continuity_facts=continuity_facts,
+                required_facts=required_facts,
             )
+            with measure_stage("polish.model"):
+                response = active_provider.complete(request)
             online_text = _parse_polished_response(original, response.content)
             online = PolishCandidate(
                 source="online",
@@ -138,17 +142,22 @@ def run_controlled_polish(
         except (LLMError, ProviderError):
             online_failure = "provider_failed"
 
-    decision = select_polish_candidate(
-        original,
-        local_candidate=local,
-        online_candidate=online,
-        protected_entities=protected_entities,
-        character_constraints=character_constraints,
-        continuity_facts=continuity_facts,
-        required_facts=required_facts,
-    )
-    if online_enabled and online_failure and decision.selected_source == "local":
-        decision = replace(decision, status="degraded", degraded=True)
+    elif (recorder := current_measurement()) is not None:
+        recorder.mark("polish.model", status="skipped")
+
+    with measure_stage("polish.select") as selection:
+        decision = select_polish_candidate(
+            original,
+            local_candidate=local,
+            online_candidate=online,
+            protected_entities=protected_entities,
+            character_constraints=character_constraints,
+            continuity_facts=continuity_facts,
+            required_facts=required_facts,
+        )
+        if online_enabled and online_failure and decision.selected_source == "local":
+            decision = replace(decision, status="degraded", degraded=True)
+        selection.outcome("ok" if decision.status == "accepted" else decision.status)
     return ControlledPolishResult(
         decision=decision,
         provider=resolved.provider if resolved else None,
@@ -160,6 +169,7 @@ def run_controlled_polish(
     )
 
 
+@measured("polish.prompt")
 def _polish_request(
     original: str,
     model: str,
@@ -205,6 +215,7 @@ def _polish_request(
     )
 
 
+@measured("polish.parse")
 def _parse_polished_response(original: str, content: str) -> str:
     raw = content.strip()
     fenced = _JSON_FENCE.match(raw)

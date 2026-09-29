@@ -5,6 +5,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from app.domains.agent_runs.compaction_sources import (
+    COMPACTION_CHAR_THRESHOLD,  # noqa: F401 - compatibility constants
+    COMPACTION_MESSAGE_THRESHOLD,  # noqa: F401
+    COMPACTION_RETAINED_MESSAGE_COUNT,  # noqa: F401
+    SYSTEM_COMPACTION_ARTIFACT_KIND,
+    SYSTEM_COMPACTION_SCHEMA_VERSION,  # noqa: F401
+)
 from app.domains.agent_runs.fs.knowledge_proposals import KNOWLEDGE_PROPOSAL_ARTIFACT_KIND
 from app.domains.agent_runs.runtime_recovery import (
     RUNTIME_PENDING_CALL_ARTIFACT_KIND,
@@ -16,21 +23,18 @@ SUMMARY_JOB_NAME = "conversation.summary.update"
 COMPACTION_JOB_NAME = "conversation.compact"
 
 SYSTEM_SUMMARY_ARTIFACT_KIND = "system_summary"
-SYSTEM_COMPACTION_ARTIFACT_KIND = "system_compaction"
 HIDDEN_SYSTEM_ARTIFACT_KINDS = frozenset(
     {
         SYSTEM_SUMMARY_ARTIFACT_KIND,
         SYSTEM_COMPACTION_ARTIFACT_KIND,
+        "model_request_evidence",
+        "runtime_checkpoint",
         RUNTIME_PENDING_CALL_ARTIFACT_KIND,
         RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
         KNOWLEDGE_PROPOSAL_ARTIFACT_KIND,
     }
 )
 
-COMPACTION_MESSAGE_THRESHOLD = 12
-COMPACTION_CHAR_THRESHOLD = 8000
-COMPACTION_RETAINED_MESSAGE_COUNT = 4
-SYSTEM_COMPACTION_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -50,11 +54,12 @@ def build_conversation_system_jobs(
     current_title: str,
     messages: Sequence[object],
     result: dict[str, Any],
+    compaction_payload: dict[str, Any] | None = None,
 ) -> list[SystemJobPlan]:
     """Build hidden title/summary/compaction jobs for an AgentRun response.
 
-    These jobs intentionally stay deterministic for v1. They mimic the OpenCode
-    hidden-agent shape without making extra model calls or adding visible roles.
+    Title/short display summary remain deterministic. Only a validated model
+    checkpoint supplied by the runtime may publish a completed compaction.
     """
 
     records = _message_records(messages)
@@ -68,13 +73,21 @@ def build_conversation_system_jobs(
         title_job,
         _summary_job(assistant_session_id=assistant_session_id, records=records, result=result),
     ]
-    compaction_job = _compaction_job(
-        assistant_session_id=assistant_session_id,
-        records=records,
-        result=result,
-    )
-    if compaction_job is not None:
-        jobs.append(compaction_job)
+    if compaction_payload is not None:
+        output = {key: value for key, value in compaction_payload.items() if key in {
+            "status", "assistant_session_id", "covered_through_message_id", "message_count",
+            "compacted_message_count", "retained_message_count", "summary", "code",
+        }}
+        output.update(job_name=COMPACTION_JOB_NAME, actor="system-compaction-agent",
+                      hidden=True, mode="model_checkpoint")
+        completed = output.get("status") == "completed"
+        jobs.append(SystemJobPlan(
+            key="compaction", event_payload={**output, "message": "隐藏压缩检查点已验证。" if completed
+                                            else "压缩未发布；原始历史和旧有效检查点保留。"},
+            result_payload=output,
+            artifact_kind=SYSTEM_COMPACTION_ARTIFACT_KIND if completed else None,
+            artifact_payload=compaction_payload if completed else None,
+        ))
     return jobs
 
 
@@ -157,70 +170,6 @@ def _summary_job(
     )
 
 
-def _compaction_job(
-    *,
-    assistant_session_id: int,
-    records: list[dict[str, Any]],
-    result: dict[str, Any],
-) -> SystemJobPlan | None:
-    total_chars = sum(len(record["content"]) for record in records)
-    if len(records) <= COMPACTION_MESSAGE_THRESHOLD and total_chars <= COMPACTION_CHAR_THRESHOLD:
-        return None
-
-    retained = records[-COMPACTION_RETAINED_MESSAGE_COUNT:]
-    compacted = records[: max(0, len(records) - len(retained))]
-    covered_through_message_id = next(
-        (
-            record["id"]
-            for record in reversed(compacted)
-            if record["role"] == "assistant" and isinstance(record["id"], int)
-        ),
-        None,
-    )
-    if covered_through_message_id is None:
-        return None
-    summary = _compaction_summary(compacted, result)
-    payload = {
-        "kind": SYSTEM_COMPACTION_ARTIFACT_KIND,
-        "schema_version": SYSTEM_COMPACTION_SCHEMA_VERSION,
-        "job_name": COMPACTION_JOB_NAME,
-        "hidden": True,
-        "mode": "deterministic",
-        "status": "completed",
-        "assistant_session_id": assistant_session_id,
-        "covered_through_message_id": covered_through_message_id,
-        "message_count": len(records),
-        "total_chars": total_chars,
-        "compacted_message_count": len(compacted),
-        "retained_message_count": len(retained),
-        "summary": summary,
-        "retained_messages": [
-            {"role": record["role"], "content": _compact(record["content"], 800)} for record in retained
-        ],
-    }
-    output = {
-        "job_name": COMPACTION_JOB_NAME,
-        "actor": "system-compaction-agent",
-        "hidden": True,
-        "mode": "deterministic",
-        "status": "completed",
-        "assistant_session_id": assistant_session_id,
-        "covered_through_message_id": covered_through_message_id,
-        "message_count": len(records),
-        "total_chars": total_chars,
-        "compacted_message_count": len(compacted),
-        "retained_message_count": len(retained),
-        "summary": summary,
-    }
-    return SystemJobPlan(
-        key="compaction",
-        event_payload={**output, "message": "隐藏压缩任务已生成长上下文摘要。"},
-        result_payload=output,
-        artifact_kind=SYSTEM_COMPACTION_ARTIFACT_KIND,
-        artifact_payload=payload,
-    )
-
-
 def _message_records(messages: Sequence[object]) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for message in messages:
@@ -280,17 +229,6 @@ def _last_role_message(records: list[dict[str, Any]], role: str) -> str | None:
         if record["role"] == role and record["content"].strip():
             return _compact(record["content"], 600)
     return None
-
-
-def _compaction_summary(compacted: list[dict[str, Any]], result: dict[str, Any]) -> str:
-    first_user = _first_user_message(compacted) or _string(result.get("user_message")) or "未记录首个目标"
-    agent_result = result.get("agent_result") if isinstance(result.get("agent_result"), dict) else {}
-    latest = _string(agent_result.get("summary")) or "最近一轮已完成"
-    return (
-        f"已压缩 {len(compacted)} 条较早消息。"
-        f"最初目标：{_compact(first_user, 180)}。"
-        f"最近结果：{_compact(latest, 260)}"
-    )
 
 
 def _compact(value: str, limit: int) -> str:

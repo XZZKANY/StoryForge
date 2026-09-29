@@ -19,6 +19,7 @@ from app.domains.agent_runs.events.runtime_support import trace_objects as _trac
 from app.domains.agent_runs.intent import role_hints as _role_hints
 from app.domains.agent_runs.intent import role_mentions as _role_mentions
 from app.domains.agent_runs.models import AgentArtifact, AgentRun
+from app.domains.agent_runs.runtime_delivery import check_result_delivery
 from app.domains.agent_runs.runtime_recovery import RUNTIME_PENDING_CALL_ARTIFACT_KIND
 from app.domains.agent_runs.tools import ToolArtifact, ToolExecutionContext
 from app.domains.agent_runs.trace import AgentToolTrace
@@ -117,16 +118,6 @@ class FileReviewRuntimeMixin:
         traces = [context.trace, *review.output["traces"]]
         review_report = review.output["review_report"]
         summary = review.output["summary"]
-        assistant_service.append_assistant_message(
-            session,
-            assistant_session_id,
-            AssistantMessageCreate(role="user", content=user_message),
-        )
-        assistant_service.append_assistant_message(
-            session,
-            assistant_session_id,
-            AssistantMessageCreate(role="assistant", content=summary),
-        )
         result = _base_response(
             agent_session_id=agent_session_id,
             assistant_session_id=assistant_session_id,
@@ -148,21 +139,9 @@ class FileReviewRuntimeMixin:
             role_mentions=_role_mentions(args),
             tool_artifacts=list(review.artifacts),
         )
-        for index, trace in enumerate(review.output["traces"], start=1):
-            self._event_sink.record_tool_trace(run, trace, index)
-            interruption = self._runtime_interruption(run, boundary=f"after_tool:{trace.tool_name}")
-            if interruption is not None:
-                self._record_file_review_pending_call(
-                    run,
-                    partial=result,
-                    context_output=context.output,
-                    interruption=interruption,
-                    review_output=review.output,
-                    next_trace_index=index + 1,
-                )
-                return _runtime_interrupted_response(result, interruption, events_recorded=True)
-        result["_events_recorded"] = True
-        return result
+        return self._deliver_file_review(
+            session, run=run, result=result, review_output=review.output, context_output=context.output,
+        )
 
     def _resume_file_review_from_pending_call(
         self,
@@ -201,16 +180,6 @@ class FileReviewRuntimeMixin:
         traces = [*context_trace, *review.output["traces"]]
         review_report = review.output["review_report"]
         summary = review.output["summary"]
-        assistant_service.append_assistant_message(
-            session,
-            assistant_session_id,
-            AssistantMessageCreate(role="user", content=user_message),
-        )
-        assistant_service.append_assistant_message(
-            session,
-            assistant_session_id,
-            AssistantMessageCreate(role="assistant", content=summary),
-        )
         result = _base_response(
             agent_session_id=agent_session_id,
             assistant_session_id=assistant_session_id,
@@ -234,13 +203,9 @@ class FileReviewRuntimeMixin:
             role_mentions=_role_mentions(args),
             tool_artifacts=[*review.artifacts, _runtime_pending_call_resolution_artifact(pending_call)],
         )
-        for index, trace in enumerate(review.output["traces"], start=1):
-            self._event_sink.record_tool_trace(run, trace, index)
-            interruption = self._runtime_interruption(run, boundary=f"after_tool:{trace.tool_name}")
-            if interruption is not None:
-                return _runtime_interrupted_response(result, interruption, events_recorded=True)
-        result["_events_recorded"] = True
-        return result
+        return self._deliver_file_review(
+            session, run=run, result=result, review_output=review.output, context_output=context_output,
+        )
 
     def _resume_file_review_postprocess_from_pending_call(
         self,
@@ -260,16 +225,6 @@ class FileReviewRuntimeMixin:
         summary = review_output["summary"]
         review_traces = _trace_objects({"tool_trace": review_output.get("traces")})
         traces = [*context_trace, *review_traces]
-        assistant_service.append_assistant_message(
-            session,
-            assistant_session_id,
-            AssistantMessageCreate(role="user", content=user_message),
-        )
-        assistant_service.append_assistant_message(
-            session,
-            assistant_session_id,
-            AssistantMessageCreate(role="assistant", content=summary),
-        )
         result = _base_response(
             agent_session_id=agent_session_id,
             assistant_session_id=assistant_session_id,
@@ -299,20 +254,63 @@ class FileReviewRuntimeMixin:
         )
         next_trace_index = payload.get("next_trace_index")
         start_index = next_trace_index if isinstance(next_trace_index, int) and next_trace_index > 0 else 1
-        for index, trace in enumerate(review_traces[start_index - 1 :], start=start_index):
+        return self._deliver_file_review(
+            session, run=run, result=result, review_output=review_output, start_index=start_index,
+            context_output=payload.get("context_output") if isinstance(payload.get("context_output"), dict) else {},
+        )
+
+    def _deliver_file_review(
+        self, session: Session, *, run: AgentRun, result: dict[str, Any],
+        review_output: dict[str, Any], context_output: dict[str, Any], start_index: int = 1,
+    ) -> dict[str, Any]:
+        traces = _trace_objects({"tool_trace": review_output["traces"]})
+        for index, trace in enumerate(traces[start_index - 1 :], start=start_index):
             self._event_sink.record_tool_trace(run, trace, index)
-            interruption = self._runtime_interruption(run, boundary=f"after_tool:{trace.tool_name}")
-            if interruption is not None:
-                self._record_file_review_pending_call(
-                    run,
-                    partial=result,
-                    context_output=payload.get("context_output") if isinstance(payload.get("context_output"), dict) else {},
-                    interruption=interruption,
-                    review_output=review_output,
+            interrupted = check_result_delivery(result, boundary=f"after_tool:{trace.tool_name}", events_recorded=True)
+            if interrupted is not None:
+                return self._preserve_interrupted_file_review(
+                    run, result=interrupted, review_output=review_output, context_output=context_output,
                     next_trace_index=index + 1,
                 )
-                return _runtime_interrupted_response(result, interruption, events_recorded=True)
+        interrupted = check_result_delivery(result, boundary="before_deliver:file.review", events_recorded=True)
+        if interrupted is not None:
+            return self._preserve_interrupted_file_review(
+                run, result=interrupted, review_output=review_output, context_output=context_output,
+                next_trace_index=len(traces) + 1,
+            )
+        # Only delivery writes conversational history; completed review evidence can
+        # remain paused/failed without pretending that its answer was delivered.
+        assistant_service.append_assistant_message(
+            session, result["assistant_session_id"],
+            AssistantMessageCreate(role="user", content=result["user_message"]),
+        )
+        assistant_service.append_assistant_message(
+            session, result["assistant_session_id"],
+            AssistantMessageCreate(role="assistant", content=result["agent_result"]["summary"]),
+        )
         result["_events_recorded"] = True
+        return result
+
+    def _preserve_interrupted_file_review(
+        self, run: AgentRun, *, result: dict[str, Any], review_output: dict[str, Any],
+        context_output: dict[str, Any], next_trace_index: int,
+    ) -> dict[str, Any]:
+        interruption = result.get("runtime_interruption")
+        if isinstance(interruption, dict) and interruption.get("status") == "paused":
+            self._record_file_review_pending_call(
+                run, partial=result, context_output=context_output, interruption=interruption,
+                review_output=review_output, next_trace_index=next_trace_index,
+            )
+        else:
+            # These are already completed observations, not new reviewer dispatches.
+            traces = _trace_objects({"tool_trace": review_output["traces"]})
+            for index, trace in enumerate(traces[next_trace_index - 1 :], start=next_trace_index):
+                self._event_sink.record_tool_trace(run, trace, index)
+            if interruption is not None:
+                # Stopped runs bypass normal artifact settlement; preserve the read-only report.
+                self._event_sink.record_artifact(
+                    run, kind="review_report", payload=review_output["review_report"], requires_confirmation=False,
+                )
         return result
 
     def _record_file_review_pending_call(

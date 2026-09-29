@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.common.redaction import redact_sensitive
@@ -14,11 +14,13 @@ from app.domains.agent_runs.event_types import (
     APPROVE_PERMISSION_COMMAND,
     DENY_PERMISSION_COMMAND,
     PAUSE_RUN,
+    PERMISSION_REQUIRED,
     RESUME_RUN,
     STOP_RUN,
 )
 from app.domains.agent_runs.models import AgentArtifact, AgentRun, AgentRunEvent
 from app.domains.agent_runs.permission import canonical_permission_profile
+from app.domains.agent_runs.result_contracts import resolve_execution_result
 from app.domains.agent_runs.runtime_recovery import (
     RUNTIME_PENDING_CALL_ARTIFACT_KIND,
     RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
@@ -26,10 +28,12 @@ from app.domains.agent_runs.runtime_recovery import (
     build_runtime_pending_call_summary,
 )
 from app.domains.agent_runs.service_bookrun_bridge import apply_book_run_control_if_needed
+from app.domains.agent_runs.service_execution import agent_execution_state, settle_agent_run_interruption
 from app.domains.agent_runs.service_store import (
     assert_run_session_ownership,
     get_agent_run,
     record_agent_event,
+    rollback_failed_settlement,
 )
 from app.domains.agent_runs.service_types import AGENT_RUN_TERMINAL_STATUSES, AgentControlResult
 
@@ -48,6 +52,9 @@ def record_agent_control_event(
 
     run = get_agent_run(session, public_id)
     assert_run_session_ownership(run, session_id)
+    session.refresh(run)
+    runtime_state = agent_execution_state(session, run)
+    control_effect = "ignored"
     writing_run_control_payload = apply_book_run_control_if_needed(
         session,
         run=run,
@@ -71,56 +78,91 @@ def record_agent_control_event(
         message=run_payloads.control_event_message(control_type),
         payload=event_payload,
     )
+    session.refresh(run)
+    runtime_state = agent_execution_state(session, run)
+    resolution = {}
+    permission_transition = (
+        control_type in {APPROVE_PERMISSION_COMMAND, DENY_PERMISSION_COMMAND}
+        and run.status == "paused" and run.current_step == "permission.confirm"
+        and runtime_state == "settled"
+    )
+    if permission_transition:
+        pending = session.scalar(select(AgentRunEvent).where(
+            AgentRunEvent.run_id == run.id, AgentRunEvent.event_type == PERMISSION_REQUIRED,
+        ).order_by(AgentRunEvent.sequence.desc()).limit(1))
+        permission_transition = pending is not None
+        if pending is not None:
+            resolution = resolve_execution_result(pending.payload, approved=control_type == APPROVE_PERMISSION_COMMAND)
     # 守卫式 status 写：控制通道与运行时 worker 分处两条连接、彼此无协调，无条件写会「最后写入者胜」。
     # 终态 run 不得被迟到的 pause/stop 拖回非终态（否则 reap 不收 + 无线程驱动 + approve 门锁死
     # → 不可恢复僵尸，B1-001a）；resume 只从 paused 生效，终态 run 收到 resume 不复活（B1-001/D1-002）。
-    if control_type == PAUSE_RUN and run.status not in AGENT_RUN_TERMINAL_STATUSES:
-        run.status = "paused"
-        run.current_step = "paused"
-    elif control_type == RESUME_RUN and run.status == "paused":
-        run.status = "running"
-        run.current_step = "resumed"
-    elif control_type == STOP_RUN and run.status not in AGENT_RUN_TERMINAL_STATUSES:
-        run.status = "stopped"
-        run.current_step = "stopped"
-    elif control_type == APPROVE_PERMISSION_COMMAND and run.status == "paused":
-        run.status = "completed"
-        run.current_step = "completed"
-    elif control_type == DENY_PERMISSION_COMMAND and run.status == "paused":
-        run.status = "failed"
-        run.current_step = "permission.denied"
-    session.add(run)
-    session.commit()
-    if control_type == APPROVE_PERMISSION_COMMAND and run.status == "completed":
-        record_agent_event(
-            session,
-            run,
-            event_type=AGENT_RUN_COMPLETED,
-            actor="root-agent",
-            message="权限已批准，AgentRun 已完成待确认步骤。",
-            payload={
-                "session_id": session_id,
-                "run_id": public_id,
-                "control_type": control_type,
-                "assistant_session_id": run.assistant_session_id,
-                "permission_profile": canonical_permission_profile(run.permission_profile),
-            },
-        )
-    elif control_type == DENY_PERMISSION_COMMAND and run.status == "failed":
-        record_agent_event(
-            session,
-            run,
-            event_type=AGENT_RUN_FAILED,
-            actor="permission-gate",
-            message="作者拒绝权限请求，AgentRun 已停止。",
-            payload={
-                "session_id": session_id,
-                "run_id": public_id,
-                "control_type": control_type,
-                "assistant_session_id": run.assistant_session_id,
-                "permission_profile": canonical_permission_profile(run.permission_profile),
-            },
-        )
+    with rollback_failed_settlement(session):
+        if control_type == PAUSE_RUN and run.status not in AGENT_RUN_TERMINAL_STATUSES:
+            run.status = "paused"
+            run.current_step = "paused"
+            control_effect = "requested" if runtime_state == "in_flight" else "applied"
+        elif (control_type == RESUME_RUN and run.status == "paused" and runtime_state == "settled"
+              and run.current_step != "permission.confirm"):
+            # Two control connections may both have read paused. Only the row
+            # transition winner is authorized to start a resumed worker.
+            claimed = session.execute(update(AgentRun).where(
+                AgentRun.id == run.id, AgentRun.status == "paused",
+                AgentRun.current_step.is_distinct_from("permission.confirm"),
+            ).values(status="running", current_step="resumed").execution_options(synchronize_session=False))
+            session.refresh(run)
+            control_effect = "applied" if claimed.rowcount == 1 else "ignored"
+        elif control_type == STOP_RUN and run.status not in AGENT_RUN_TERMINAL_STATUSES:
+            run.status = "stopped"
+            run.current_step = "stopped"
+            control_effect = "requested" if runtime_state == "in_flight" else "applied"
+        elif control_type == STOP_RUN and run.status == "stopped" and runtime_state == "in_flight":
+            control_effect = "requested"
+        elif control_type == APPROVE_PERMISSION_COMMAND and permission_transition:
+            run.status = "failed" if resolution else "completed"
+            run.current_step = "permission.approved" if resolution else "completed"
+            control_effect = "applied"
+        elif control_type == DENY_PERMISSION_COMMAND and permission_transition:
+            run.status = "failed"
+            run.current_step = "permission.denied"
+            control_effect = "applied"
+        event.payload = {**event.payload, "control_effect": control_effect, "runtime_state": runtime_state, "run_status": run.status}
+        session.add_all([run, event])
+        if control_type in {PAUSE_RUN, STOP_RUN} and control_effect == "applied" and run.book_run_id is None:
+            settle_agent_run_interruption(session, run)
+        elif control_type == APPROVE_PERMISSION_COMMAND and permission_transition:
+            record_agent_event(
+                session,
+                run,
+                event_type=AGENT_RUN_FAILED if resolution else AGENT_RUN_COMPLETED,
+                actor="root-agent",
+                message="作者已批准已有提案；本轮执行仍未完成。" if resolution else "权限已批准，AgentRun 已完成待确认步骤。",
+                payload={
+                    "session_id": session_id,
+                    "run_id": public_id,
+                    "control_type": control_type,
+                    **resolution,
+                    "assistant_session_id": run.assistant_session_id,
+                    "permission_profile": canonical_permission_profile(run.permission_profile),
+                },
+            )
+        elif control_type == DENY_PERMISSION_COMMAND and permission_transition and run.status == "failed":
+            record_agent_event(
+                session,
+                run,
+                event_type=AGENT_RUN_FAILED,
+                actor="permission-gate",
+                message="作者拒绝权限请求，AgentRun 已停止。",
+                payload={
+                    "session_id": session_id,
+                    "run_id": public_id,
+                    "control_type": control_type,
+                    **resolution,
+                    "assistant_session_id": run.assistant_session_id,
+                    "permission_profile": canonical_permission_profile(run.permission_profile),
+                },
+            )
+        else:
+            session.commit()
     return event
 
 
@@ -142,7 +184,7 @@ def handle_agent_control_message(
     )
     resumed_result = None
     resume_diagnostic = None
-    if control_type == RESUME_RUN:
+    if control_type == RESUME_RUN and event.payload.get("control_effect") == "applied":
         resumed_result, resume_diagnostic = _resume_agent_run_if_pending_with_diagnostic(
             session,
             public_id=public_id,
@@ -154,6 +196,16 @@ def handle_agent_control_message(
             _record_resume_diagnostic(session, event, resume_diagnostic)
         elif resumed_result is None:
             resume_diagnostic = _park_unresumable_resumed_run(session, event, public_id=public_id)
+    if control_type == RESUME_RUN and event.payload.get("control_effect") == "ignored":
+        run = get_agent_run(session, public_id)
+        if run.status == "running" and run.current_step == "resumed" and _latest_runtime_pending_call_artifact(session, run) is None:
+            resume_diagnostic = _park_unresumable_resumed_run(session, event, public_id=public_id)
+    if control_type == RESUME_RUN:
+        run = get_agent_run(session, public_id)
+        session.refresh(run)
+        event.payload = {**event.payload, "runtime_state": agent_execution_state(session, run), "run_status": run.status}
+        session.add(event)
+        session.commit()
     return AgentControlResult(event=event, resumed_result=resumed_result, resume_diagnostic=resume_diagnostic)
 
 
@@ -186,7 +238,9 @@ def _resume_agent_run_if_pending_with_diagnostic(
     assert_run_session_ownership(run, agent_session_id)
     pending = _latest_runtime_pending_call_artifact(session, run)
     if pending is None:
-        return None, None
+        from app.domains.agent_runs.loop.recovery import resume_checkpoint_run
+
+        return resume_checkpoint_run(session, run, agent_session_id=agent_session_id, execute_run=execute_run)
     payload = pending.payload if isinstance(pending.payload, dict) else {}
     diagnostic = build_runtime_pending_call_resume_diagnostic(
         run_status=run.status,
@@ -221,7 +275,9 @@ def _resume_agent_run_if_pending_with_diagnostic(
     return result, None
 
 
-def _record_resume_diagnostic(session: Session, event: AgentRunEvent, diagnostic: dict[str, Any]) -> None:
+def _record_resume_diagnostic(
+    session: Session, event: AgentRunEvent, diagnostic: dict[str, Any], *, commit: bool = True,
+) -> None:
     payload = event.payload if isinstance(event.payload, dict) else {}
     recovery = payload.get("runtime_recovery") if isinstance(payload.get("runtime_recovery"), dict) else {}
     event.payload = redact_sensitive({
@@ -232,8 +288,9 @@ def _record_resume_diagnostic(session: Session, event: AgentRunEvent, diagnostic
         },
     })
     session.add(event)
-    session.commit()
-    session.refresh(event)
+    if commit:
+        session.commit()
+        session.refresh(event)
 
 
 def _park_unresumable_resumed_run(
@@ -254,20 +311,25 @@ def _park_unresumable_resumed_run(
     run = get_agent_run(session, public_id)
     if run.book_run_id is not None or run.status != "running":
         return None
-    run.status = "stopped"
-    run.current_step = "stopped"
-    session.add(run)
-    session.commit()
-    diagnostic = {
-        "kind": "runtime_pending_call_resume",
-        "can_resume": False,
-        "resume_via_control_channel": False,
-        "requires_manual_restart": False,
-        "reason": "no_pending_call",
-        "resume_strategy": "start_new_message",
-        "reverted_status": "stopped",
-    }
-    _record_resume_diagnostic(session, event, diagnostic)
+    from app.domains.agent_runs.loop.checkpoint_store import latest_checkpoint_artifact
+
+    if latest_checkpoint_artifact(session, run) is not None:
+        return None
+    with rollback_failed_settlement(session):
+        run.status = "stopped"
+        run.current_step = "stopped"
+        session.add(run)
+        diagnostic = {
+            "kind": "runtime_pending_call_resume",
+            "can_resume": False,
+            "resume_via_control_channel": False,
+            "requires_manual_restart": False,
+            "reason": "no_pending_call",
+            "resume_strategy": "start_new_message",
+            "reverted_status": "stopped",
+        }
+        _record_resume_diagnostic(session, event, diagnostic, commit=False)
+        settle_agent_run_interruption(session, run)
     return diagnostic
 
 

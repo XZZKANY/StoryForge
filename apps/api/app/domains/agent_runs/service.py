@@ -5,6 +5,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.common.performance import current_measurement
+from app.common.performance_logging import observe_run
 from app.domains.agent_runs import run_payloads, skill_catalog
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.event_encoders import (
@@ -47,6 +49,7 @@ from app.domains.agent_runs.service_control import (
 from app.domains.agent_runs.service_control import (
     resume_agent_run_if_pending as _resume_agent_run_if_pending,
 )
+from app.domains.agent_runs.service_execution import finish_agent_execution, start_agent_execution
 from app.domains.agent_runs.service_lifecycle import (
     create_or_resume_agent_run,
     create_or_resume_bookrun_agent_run,
@@ -64,6 +67,7 @@ from app.domains.agent_runs.service_store import (
     record_agent_artifact,
     record_agent_event,
     record_subagent_run,
+    rollback_failed_settlement,
 )
 from app.domains.agent_runs.service_store import (
     completed_event_payload as _completed_event_payload,
@@ -158,6 +162,7 @@ __all__ = [
     "record_agent_event",
     "record_book_run_snapshot",
     "record_subagent_run",
+    "rollback_failed_settlement",
     "resolve_agent_role_alias",
     "resume_agent_run_if_pending",
     "run_agent_user_message",
@@ -188,8 +193,10 @@ def execute_agent_user_message_run(
             payload={"session_id": agent_session_id, "run_id": run.public_id, "runtime": "agent_runtime"},
         )
         raise AgentRuntimeError(str(exc)) from exc
+    started = start_agent_execution(session, run)
+    result = None
     try:
-        return runtime.run_user_message(
+        result = runtime.run_user_message(
             session,
             run=run,
             agent_session_id=agent_session_id,
@@ -197,8 +204,14 @@ def execute_agent_user_message_run(
         )
     except AgentOrchestrationError as exc:
         raise AgentRuntimeError(str(exc)) from exc
+    finally:
+        result, settled = finish_agent_execution(session, run, started, result)
+        if on_event is not None:
+            on_event(settled)
+    return result
 
 
+@observe_run("agent.run")
 def run_agent_user_message(
     session: Session,
     *,
@@ -212,6 +225,8 @@ def run_agent_user_message(
     if on_event is not None:
         on_event(start.started_event)
     run_id = start.run.public_id
+    if (recorder := current_measurement()) is not None:
+        recorder.associate_run(run_id, status=vars(start.run).get("status"))
     try:
         result = execute_agent_user_message_run(
             session,
@@ -222,6 +237,10 @@ def run_agent_user_message(
         )
     except AgentRuntimeError as exc:
         raise AgentRuntimeUserMessageError(str(exc), run=start.run, started_event=start.started_event) from exc
+    finally:
+        if recorder is not None:
+            # Observation must not refresh an expired ORM row or touch a failed transaction.
+            recorder.associate_run(run_id, status=vars(start.run).get("status"))
     result["run_id"] = run_id
     return AgentRuntimeUserMessageResult(run=start.run, started_event=start.started_event, result=result)
 

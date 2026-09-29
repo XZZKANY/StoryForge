@@ -10,6 +10,7 @@ from app.domains.agent_runs._text import compact_text as _compact_text
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.llm_context import llm_context_snapshot_trace_summary
+from app.domains.agent_runs.tools.loop_schema import list_loop_tool_specs
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ScenePacket
 
@@ -34,10 +35,14 @@ PROTECTED_LOOP_TOOL_ARGUMENT_KEYS = frozenset(
         "llm_context_snapshot",
         "llm_prompt_context_bundle",
         "project_root",
+        "loop_input_mode",
+        "loop_trusted_context",
+        "loop_trace_owner",
     }
 )
-TRUSTED_WRITING_CONTEXT_TOOL_NAMES = frozenset({"file.create", "file.revise", "chapter.polish"})
-HANDLER_OWNED_TRACE_TOOL_NAMES = TRUSTED_WRITING_CONTEXT_TOOL_NAMES | {"knowledge.propose"}
+# 兼容出口只从 spec 派生；运行时消费者直接使用已注册 definition 的策略。
+TRUSTED_WRITING_CONTEXT_TOOL_NAMES = frozenset(spec.name for spec in list_loop_tool_specs() if spec.loop_trusted_context)
+HANDLER_OWNED_TRACE_TOOL_NAMES = frozenset(spec.name for spec in list_loop_tool_specs() if spec.loop_trace_owner == "handler")
 
 
 def _sanitize_loop_tool_arguments(arguments: dict[str, Any]) -> dict[str, Any]:

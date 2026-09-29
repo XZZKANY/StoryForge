@@ -5,9 +5,11 @@ from pathlib import Path
 import pytest
 from agent_loop_runtime_test_support import _enable_loop_env, _fake_llm_script
 from agent_transport import stream_agent_message
+from compaction_test_support import SummaryProvider
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.domains.agent_runs import compaction_job
 from app.domains.agent_runs.loop.support import history_messages
 from app.domains.agent_runs.models import AgentArtifact, AgentRun
 from app.domains.agent_runs.system_jobs import (
@@ -25,6 +27,8 @@ def test_next_loop_request_injects_latest_compaction_summary(
     novel_project: Path,
 ) -> None:
     _enable_loop_env(monkeypatch)
+    summary_provider = SummaryProvider()
+    monkeypatch.setattr(compaction_job, "build_llm_provider", lambda source: summary_provider)
     calls = _fake_llm_script(
         monkeypatch,
         [
@@ -60,6 +64,7 @@ def test_next_loop_request_injects_latest_compaction_summary(
         )
         assert frames[-1]["type"] == "agent_result"
 
+    assert len(summary_provider.requests) == 2
     assert len(calls) == 2
     second_messages = calls[1]["messages"]
     injected = [
@@ -74,7 +79,7 @@ def test_next_loop_request_injects_latest_compaction_summary(
     assert any(message.get("content") == "第一轮结果" for message in second_messages)
 
 
-def test_history_falls_back_when_latest_compaction_artifact_is_invalid(session: Session) -> None:
+def test_history_preserves_all_raw_messages_when_compaction_artifacts_lack_provenance(session: Session) -> None:
     assistant_session = AssistantSession(
         title="坏摘要回退",
         task_type="ide_agent_orchestration",
@@ -107,7 +112,7 @@ def test_history_falls_back_when_latest_compaction_artifact_is_invalid(session: 
                     "status": "completed",
                     "assistant_session_id": assistant_session.id,
                     "covered_through_message_id": boundary_id,
-                    "summary": "这条旧摘要本来有效。",
+                    "summary": "这条旧摘要没有来源版本，不能使用。",
                 },
             ),
             AgentArtifact(
@@ -117,7 +122,7 @@ def test_history_falls_back_when_latest_compaction_artifact_is_invalid(session: 
                     "status": "completed",
                     "assistant_session_id": assistant_session.id,
                     "covered_through_message_id": boundary_id,
-                    "summary": "最新 artifact 缺少 schema，不能退回复用旧摘要。",
+                    "summary": "最新 artifact 缺少 schema，原始历史必须完整保留。",
                 },
             ),
         ]
@@ -127,7 +132,7 @@ def test_history_falls_back_when_latest_compaction_artifact_is_invalid(session: 
     history = history_messages(session, assistant_session.id)
 
     assert history == [
-        {"role": message.role, "content": message.content} for message in assistant_session.messages[-12:]
+        {"role": message.role, "content": message.content} for message in assistant_session.messages
     ]
     assert all(message["role"] != "system" for message in history)
 
@@ -176,5 +181,5 @@ def test_history_does_not_reuse_compaction_from_another_session(session: Session
 
     history = history_messages(session, current_session.id)
 
-    assert history == [{"role": message.role, "content": message.content} for message in current_session.messages[-12:]]
+    assert history == [{"role": message.role, "content": message.content} for message in current_session.messages]
     assert all(message["role"] != "system" for message in history)

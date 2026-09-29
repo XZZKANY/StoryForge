@@ -7,22 +7,25 @@ from app.domains.agent_runs.ws_schema import build_agent_ws_schema
 # 这里保证它覆盖全部帧、全部判别 type 值，且严格禁额外字段；文件/函数名为历史兼容名。
 
 
-def test_schema_defs_cover_the_six_frames() -> None:
+FRAME_NAMES = {
+    "AgentRunStartedFrame",
+    "AgentStepFrame",
+    "ToolTraceFrame",
+    "PermissionRequiredFrame",
+    "TerminalFrame",
+    "ControlAckFrame",
+}
+
+
+def test_schema_defs_cover_frames_and_reusable_payloads() -> None:
     schema = build_agent_ws_schema()
-    assert set(schema["$defs"]) == {
-        "AgentRunStartedFrame",
-        "AgentStepFrame",
-        "ToolTraceFrame",
-        "PermissionRequiredFrame",
-        "TerminalFrame",
-        "ControlAckFrame",
-    }
+    assert set(schema["$defs"]) == FRAME_NAMES | {"AgentExecutionOutcome", "AgentRuntimeInterruption"}
 
 
 def test_schema_oneof_refs_every_frame() -> None:
     schema = build_agent_ws_schema()
     refs = {entry["$ref"] for entry in schema["oneOf"]}
-    assert refs == {f"#/$defs/{name}" for name in schema["$defs"]}
+    assert refs == {f"#/$defs/{name}" for name in FRAME_NAMES}
 
 
 def test_schema_discriminator_covers_every_wire_type() -> None:
@@ -31,7 +34,8 @@ def test_schema_discriminator_covers_every_wire_type() -> None:
 
     schema = build_agent_ws_schema()
     wire_types: set[str] = set()
-    for frame_schema in schema["$defs"].values():
+    for name in FRAME_NAMES:
+        frame_schema = schema["$defs"][name]
         type_field = frame_schema["properties"]["type"]
         if "const" in type_field:
             wire_types.add(type_field["const"])
@@ -45,6 +49,7 @@ def test_schema_discriminator_covers_every_wire_type() -> None:
         "permission_required",
         "agent_run_completed",
         "agent_run_failed",
+        "agent_run_interrupted",
         "permission_approved",
         "permission_denied",
         "pause_run",
@@ -75,3 +80,12 @@ def test_started_frame_required_fields_match_model() -> None:
         "event_id",
         "permission_profile",
     }
+
+
+def test_execution_outcome_is_a_payload_not_a_wire_frame() -> None:
+    schema = build_agent_ws_schema()
+    outcome = schema["$defs"]["AgentExecutionOutcome"]
+    assert set(outcome["required"]) == {"status", "code", "message"}
+    assert outcome["properties"]["status"]["enum"] == ["failed", "partial"]
+    assert "type" not in outcome["properties"]
+    assert {"$ref": "#/$defs/AgentExecutionOutcome"} not in schema["oneOf"]

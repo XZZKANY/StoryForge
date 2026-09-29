@@ -244,6 +244,19 @@ def test_orphaned_helpers_and_types_stay_pruned() -> None:
     assert "apply_llm_config_file =" not in llm_env_source
     assert "apply_polish_config_file =" not in llm_env_source
 
+    redis_source = (API_ROOT / "app" / "common" / "redis_cache.py").read_text(encoding="utf-8")
+    assert "def cache_delete(" not in redis_source
+
+
+def test_unused_creative_registry_queries_stay_pruned() -> None:
+    """元数据生产消费者只走列表，已移除的无调用查询接口不应复活。"""
+
+    from app.domains.runtime_tools import creative_registry
+
+    assert not hasattr(creative_registry, "get_creative_tool")
+    for name in ("get", "require", "by_domain", "by_capability"):
+        assert not hasattr(creative_registry.CreativeToolRegistry, name)
+
 
 def test_workflow_compat_dispatch_and_payload_facade_stay_pruned() -> None:
     """workflow-dispatch 兼容链与 record_workflow_model_run_payload facade 已随 apps/workflow 退役，不应重新出现。
@@ -278,8 +291,8 @@ def test_workflow_compat_dispatch_and_payload_facade_stay_pruned() -> None:
 def test_ide_zero_consumer_read_routes_stay_pruned() -> None:
     """没有 Desktop 调用方的 IDE 读路由不应重新暴露为 HTTP 契约。
 
-    读取实现仍保留在 ide service，供未来产品面复用；本护栏只约束已核实没有
-    当前前端消费者的路由，避免旧 API 面在没有调用方时继续扩大。
+    2026-09-28 正式退役对应实现与独占 DTO；本护栏继续保护六条旧路由不复活，
+    实现层退役由下方护栏覆盖，live 命令/事件/跨章能力由行为测试保护。
     """
 
     pruned_paths = {
@@ -295,3 +308,68 @@ def test_ide_zero_consumer_read_routes_stay_pruned() -> None:
 
     assert registered_paths.isdisjoint(pruned_paths)
     assert openapi_paths.isdisjoint(pruned_paths)
+
+
+def test_ide_retired_read_implementations_and_dtos_stay_pruned() -> None:
+    """旧 IDE 读投影无生产消费者，正式退役而非继续保留复用壳。"""
+
+    from app.domains.ide import schemas, service
+
+    ide_root = API_ROOT / "app" / "domains" / "ide"
+    for module in ("workspace_reads", "artifact_preview", "context_snapshot", "story_memory_query"):
+        assert not (ide_root / f"{module}.py").exists(), f"旧读模块不应复活：{module}"
+
+    for name in (
+        "get_workspace_tree",
+        "list_diagnostics_for_scene",
+        "read_ide_scene",
+        "get_artifact_preview",
+        "get_context_snapshot",
+        "query_story_memory",
+    ):
+        assert not hasattr(service, name), f"旧读 facade 不应复活：{name}"
+
+    retired_schemas = {
+        "IdeTreeNode",
+        "IdeWorkspaceTree",
+        "IdeSceneRead",
+        "IdeDiagnosticRange",
+        "IdeQuickFix",
+        "IdeDiagnostic",
+        "IdeContextBudget",
+        "IdeContextBlockRef",
+        "IdeContextSnapshot",
+        "IdeStoryMemoryQuery",
+        "IdeStoryMemoryItem",
+        "IdeStoryMemoryConflict",
+        "IdeStoryMemoryQueryResult",
+        "IdeArtifactPreviewContent",
+        "IdeArtifactVersion",
+        "IdeArtifactTraceLink",
+        "IdeArtifactTrace",
+        "IdeArtifactPreview",
+    }
+    for name in retired_schemas:
+        assert not hasattr(schemas, name), f"旧读 DTO 不应复活：{name}"
+    assert retired_schemas.isdisjoint(app.openapi()["components"]["schemas"])
+
+    coerce_source = (ide_root / "_coerce.py").read_text(encoding="utf-8")
+    assert "def _context_href(" not in coerce_source
+    assert "def _string_or_none(" not in coerce_source
+
+
+def test_unused_internal_helpers_and_subagent_read_dto_stay_pruned() -> None:
+    from app.domains.agent_runs import knowledge_context, loop_runtime, schemas
+    from app.domains.agent_runs.adapters import chapter_writing_contracts
+    from app.domains.retrieval import pgvector
+
+    for module, names in (
+        (knowledge_context, ("with_project_knowledge_entries",)),
+        (loop_runtime, ("_offered_schemas", "_BUDGET_EXHAUSTED_NOTICE")),
+        (schemas, ("SubagentRunRead",)),
+        (chapter_writing_contracts, ("_HARD_RULES",)),
+        (pgvector, ("pgvector_engaged",)),
+    ):
+        for name in names:
+            assert not hasattr(module, name), f"unused internal symbol must stay retired: {name}"
+    assert "SubagentRunRead" not in app.openapi()["components"]["schemas"]

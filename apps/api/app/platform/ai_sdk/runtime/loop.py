@@ -134,47 +134,75 @@ class ToolCallingRuntime:
         if state.phase is RuntimePhase.INTERRUPTED:
             if command is None or command.action is not ResumeAction.CONTINUE:
                 return self._pause_result(state)
-            state.phase = RuntimePhase.BEFORE_MODEL
+            if state.interruption_reason == "stopped":
+                return self._reconciliation(state, "Stopped execution cannot resume without reconciliation.")
             state.interruption_reason = None
-            return None
-        if state.pending is None:
-            state.phase = RuntimePhase.BEFORE_MODEL
-            return None
-        try:
-            tool = self._tools.get(state.pending.name)
-        except ToolRegistryError:
-            return self._reconciliation(state, "Pending tool is no longer registered.")
-        if state.phase is RuntimePhase.APPROVAL_REQUIRED:
-            if command is None:
-                return self._approval_result(state)
-            if command.tool_call_id not in {None, state.pending.call_id}:
-                return self._failure(state, "approval_call_mismatch", "Approval targets another tool call.")
-            if command.action is ResumeAction.DENY:
-                append_tool_feedback(
-                    state,
-                    ToolCall(
-                        state.pending.call_id,
-                        state.pending.name,
-                        json.dumps(thaw(state.pending.arguments), ensure_ascii=False),
-                    ),
-                    RuntimeToolResult.failure("approval_denied", "Tool execution was denied."),
-                    formatter=self._feedback_formatter,
-                    tool=tool,
-                    context=application_context,
-                )
-                state.pending = None
-                state.phase = RuntimePhase.AFTER_TOOL
-                self._save(state)
-                return None
-            if command.action is not ResumeAction.APPROVE:
-                return self._approval_result(state)
-            return self._execute_pending(state, tool, application_context, limits)
-        if state.phase is RuntimePhase.TOOL_STARTED:
-            if not self._policy.can_resume_started_tool(tool, state.pending):
-                return self._reconciliation(
-                    state, "Pending tool may have produced a side effect and cannot be replayed safely."
-                )
-            return self._execute_pending(state, tool, application_context, limits)
+        if state.phase is RuntimePhase.FAILED:
+            return self._reconciliation(state, "Failed runtime requires explicit reconciliation.")
+        resolved = set(state.completed_tool_call_ids) | {
+            message.tool_call_id for message in state.messages if message.role is MessageRole.TOOL
+        }
+        active_index = next((index for index in range(len(state.messages) - 1, -1, -1)
+                             if state.messages[index].role is MessageRole.ASSISTANT), -1)
+        active_calls = state.messages[active_index].tool_calls if active_index >= 0 else ()
+        if any(call.id not in resolved and (index != active_index or state.round_count == 0)
+               for index, message in enumerate(state.messages) for call in message.tool_calls):
+            return self._reconciliation(state, "Older tool-call history has an unknown outcome.")
+        if state.pending is not None and state.pending.call_id not in {call.id for call in active_calls}:
+            return self._reconciliation(state, "Pending tool does not belong to the current model batch.")
+        if state.pending is not None:
+            try:
+                tool = self._tools.get(state.pending.name)
+            except ToolRegistryError:
+                return self._reconciliation(state, "Pending tool is no longer registered.")
+            if state.phase is RuntimePhase.APPROVAL_REQUIRED:
+                if command is None:
+                    return self._approval_result(state)
+                if command.tool_call_id not in {None, state.pending.call_id}:
+                    return self._failure(state, "approval_call_mismatch", "Approval targets another tool call.")
+                if command.action is ResumeAction.DENY:
+                    append_tool_feedback(
+                        state,
+                        ToolCall(state.pending.call_id, state.pending.name,
+                                 json.dumps(thaw(state.pending.arguments), ensure_ascii=False)),
+                        RuntimeToolResult.failure("approval_denied", "Tool execution was denied."),
+                        formatter=self._feedback_formatter, tool=tool, context=application_context,
+                    )
+                    state.completed_tool_call_ids.append(state.pending.call_id)
+                    state.pending = None
+                    state.phase = RuntimePhase.AFTER_TOOL
+                    self._save(state)
+                elif command.action is not ResumeAction.APPROVE:
+                    return self._approval_result(state)
+                else:
+                    result = self._execute_pending(state, tool, application_context, limits)
+                    if result is not None:
+                        return result
+            elif state.phase is RuntimePhase.TOOL_STARTED or state.pending.attempt > 0:
+                if not self._policy.can_resume_started_tool(tool, state.pending):
+                    return self._reconciliation(
+                        state, "Pending tool outcome is unknown and cannot be replayed safely."
+                    )
+                selected = {item.spec.name for item in self._selector.select(self._tools, application_context)}
+                if tool.spec.name not in selected:
+                    return self._reconciliation(state, "Pending tool is no longer available.")
+                result = self._execute_pending(state, tool, application_context, limits)
+                if result is not None:
+                    return result
+        # Model-completed checkpoints prove that these calls exist but were not
+        # dispatched. Completed ids/results remain facts and are never replayed.
+        resolved = set(state.completed_tool_call_ids) | {
+            message.tool_call_id for message in state.messages if message.role is MessageRole.TOOL
+        }
+        calls = [call for call in active_calls if call.id not in resolved]
+        for call in calls:
+            selected = {item.spec.name for item in self._selector.select(self._tools, application_context)}
+            result = self._prepare_and_execute_call(state, call, selected, application_context, limits)
+            if result is not None:
+                return result
+        if (state.round_count > 0 and state.messages and state.messages[-1].role is MessageRole.ASSISTANT
+                and not state.messages[-1].tool_calls):
+            return self._complete(state, state.messages[-1].content or "")
         state.phase = RuntimePhase.BEFORE_MODEL
         return None
 
@@ -202,16 +230,34 @@ class ToolCallingRuntime:
             state.round_count += 1
             state.phase = RuntimePhase.BEFORE_MODEL
             self._emit(state, "model_started", {"tools_offered": len(offered)})
+            reason = self._interruption_reason(state, "before_model_dispatch")
+            if reason is not None:
+                # The trace marks dispatch intent, not a provider request that happened.
+                state.round_count -= 1
+                return self._interrupt(state, reason)
             try:
                 response = self._llm.complete(
                     ChatRequest(model=state.model, messages=tuple(state.messages), tools=offered)
                 )
             except ProviderError as exc:
+                if exc.usage is not None:
+                    self._record_usage(state, exc.usage)
+                interruption = self._check_interruption(state, "model_error")
+                if interruption is not None:
+                    return interruption
                 return self._failure(
                     state,
                     f"provider_{exc.details.category.value}",
                     exc.details.safe_message,
                 )
+            except Exception as exc:  # noqa: BLE001 - external adapters may signal interruption outside ProviderError
+                usage = getattr(exc, "usage", None)
+                if isinstance(usage, TokenUsage):
+                    self._record_usage(state, usage)
+                interruption = self._check_interruption(state, "model_error")
+                if interruption is not None:
+                    return interruption
+                raise
             state.phase = RuntimePhase.MODEL_COMPLETED
             self._record_usage(state, response.usage)
             self._emit(
@@ -219,7 +265,27 @@ class ToolCallingRuntime:
                 "model_completed",
                 {"tool_call_count": len(response.tool_calls), "finish_reason": response.finish_reason},
             )
-            state.messages.append(response.to_assistant_message())
+            # Preserve only complete model output. Cancellation still observes real usage
+            # for truncated/filtered responses without leaking them into resumable history.
+            if response.finish_reason not in {"length", "content_filter"}:
+                state.messages.append(response.to_assistant_message())
+                if response.tool_calls:
+                    self._save(state)
+            interruption = self._check_interruption(state, "after_model")
+            if interruption is not None:
+                return interruption
+            if response.finish_reason == "length":
+                # Even valid JSON can belong to an incomplete model response. Keep usage,
+                # but never execute its calls or put partial output into future context.
+                return self._failure(
+                    state,
+                    "model_output_truncated",
+                    "Model output reached its limit before completion; no returned tool calls were executed.",
+                )
+            if response.finish_reason == "content_filter":
+                return self._failure(
+                    state, "provider_content_filter", "Provider filtered the response; no returned tool calls were executed.",
+                )
             if not response.tool_calls:
                 return self._complete(state, response.content)
             if withdraw_tools:
@@ -249,6 +315,9 @@ class ToolCallingRuntime:
     ) -> RuntimeResult | None:
         if call.id in state.completed_tool_call_ids:
             return None
+        interruption = self._check_interruption(state, "before_tool_dispatch")
+        if interruption is not None:
+            return interruption
         try:
             tool = self._tools.get(call.name)
         except ToolRegistryError:
@@ -294,6 +363,9 @@ class ToolCallingRuntime:
             )
         state.pending = PendingToolCall(call.id, call.name, arguments)
         decision = self._policy.decide_tool(tool, state.pending, application_context)
+        interruption = self._check_interruption(state, "after_tool_policy")
+        if interruption is not None:
+            return interruption
         if decision.kind is PolicyDecisionKind.DENY:
             result = RuntimeToolResult.failure("policy_denied", decision.reason or "Tool denied by policy.")
             state.pending = None
@@ -313,6 +385,9 @@ class ToolCallingRuntime:
                 critical=True,
             )
             self._save(state)
+            interruption = self._check_interruption(state, "after_approval_checkpoint")
+            if interruption is not None:
+                return interruption
             return self._approval_result(state)
         return self._execute_pending(state, tool, application_context, limits)
 
@@ -326,12 +401,24 @@ class ToolCallingRuntime:
         pending = state.pending
         if pending is None:
             return self._failure(state, "missing_pending_tool", "Runtime has no pending tool call.")
-        result: RuntimeToolResult
+        result: RuntimeToolResult | None = None
+        interruption_reason: str | None = None
         while True:
-            if state.tool_attempts >= limits.max_tool_calls:
-                state.exhausted = True
-                result = RuntimeToolResult.failure("tool_call_budget", "Tool-call budget is exhausted.")
+            interruption_reason = self._interruption_reason(state, "before_tool_attempt")
+            if interruption_reason is not None:
+                if result is None:
+                    return self._interrupt(state, interruption_reason)
                 break
+            if should_withdraw_tools(state, limits):
+                state.exhausted = True
+                # A returned failure is a fact; do not replace it with a retry-budget rejection.
+                if result is None:
+                    if state.tool_attempts >= limits.max_tool_calls:
+                        result = RuntimeToolResult.failure("tool_call_budget", "Tool-call budget is exhausted.")
+                    else:
+                        result = RuntimeToolResult.failure("runtime_budget", "Runtime budget is exhausted.")
+                break
+            previous_pending = pending
             attempt = pending.attempt + 1
             pending = PendingToolCall(pending.call_id, pending.name, pending.arguments, attempt)
             state.pending = pending
@@ -343,9 +430,21 @@ class ToolCallingRuntime:
                 {"tool": tool.spec.name, "tool_call_id": pending.call_id, "attempt": attempt},
             )
             self._save(state)
+            interruption_reason = self._interruption_reason(state, "before_tool_dispatch")
+            if interruption_reason is not None:
+                # No handler ran: undo the reserved attempt while retaining unresolved intent.
+                state.tool_attempts -= 1
+                state.pending = pending = previous_pending
+                if result is None:
+                    return self._interrupt(state, interruption_reason)
+                break
             try:
                 result = tool.handler(application_context, thaw(pending.arguments))
             except Exception:  # noqa: BLE001 - adapters normalize expected failures; runtime hides raw exceptions
+                interruption = self._check_interruption(state, "tool_error")
+                if interruption is not None:
+                    # A handler that raised on cancellation has no known outcome. Keep pending.
+                    return interruption
                 result = RuntimeToolResult.failure(
                     "tool_exception", "Tool execution failed with an unhandled exception."
                 )
@@ -367,8 +466,12 @@ class ToolCallingRuntime:
                     "code": result.error_code,
                 },
             )
+            interruption_reason = self._interruption_reason(state, "after_tool")
+            if interruption_reason is not None:
+                break
             if not self._policy.should_retry(tool, result.retryable, attempt):
                 break
+        assert result is not None
         if result.status is ToolResultStatus.SUCCESS:
             state.artifacts.extend(result.artifacts)
             self._emit(
@@ -393,7 +496,9 @@ class ToolCallingRuntime:
         state.pending = None
         state.phase = RuntimePhase.AFTER_TOOL
         self._save(state)
-        return None
+        if interruption_reason is not None:
+            return self._interrupt(state, interruption_reason)
+        return self._check_interruption(state, "after_tool")
 
     def _reject_call(
         self,
@@ -420,7 +525,7 @@ class ToolCallingRuntime:
             {"tool": call.name, "tool_call_id": call.id, "code": result.error_code},
         )
         self._save(state)
-        return None
+        return self._check_interruption(state, "after_tool")
 
     def _record_usage(self, state: RuntimeState, usage: TokenUsage) -> None:
         if usage.source != "unavailable":
@@ -434,12 +539,18 @@ class ToolCallingRuntime:
             state.cost_available = True
             state.total_cost = (state.total_cost or 0.0) + charge
 
-    def _check_interruption(self, state: RuntimeState) -> RuntimeResult | None:
+    def _interruption_reason(self, state: RuntimeState, boundary: str) -> str | None:
         if self._interruption is None:
             return None
-        reason = self._interruption(state.run_id, f"before_round:{state.round_count + 1}", state.checkpoint())
+        return self._interruption(state.run_id, boundary, state.checkpoint())
+
+    def _check_interruption(self, state: RuntimeState, boundary: str | None = None) -> RuntimeResult | None:
+        reason = self._interruption_reason(state, boundary or f"before_round:{state.round_count + 1}")
         if reason is None:
             return None
+        return self._interrupt(state, reason)
+
+    def _interrupt(self, state: RuntimeState, reason: str) -> RuntimeResult:
         state.phase = RuntimePhase.INTERRUPTED
         state.interruption_reason = reason
         self._emit(state, "runtime_interrupted", {"reason": reason}, critical=True)

@@ -128,6 +128,7 @@ CONTEXT_FS_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     ),
     AgentRuntimeToolSpec(
         name="knowledge.propose",
+        loop_trace_owner="handler",
         description="提议将耐久创作事实沉淀到项目知识收件箱，不写项目文件。",
         domain="fs",
         input_schema={},

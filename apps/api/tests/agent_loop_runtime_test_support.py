@@ -35,6 +35,8 @@ def _fake_llm_script(monkeypatch: pytest.MonkeyPatch, responses: list[object]) -
                 }
             )
             scripted = responses[min(len(calls) - 1, len(responses) - 1)]
+            if isinstance(scripted, ProviderError):
+                raise scripted
             if isinstance(scripted, Exception):
                 raise ProviderError(
                     ProviderErrorDetails(
@@ -51,6 +53,7 @@ def _fake_llm_script(monkeypatch: pytest.MonkeyPatch, responses: list[object]) -
             ) if isinstance(raw_calls, list) else ()
             return ChatResponse(
                 content=str(payload.get("content") or ""),
+                finish_reason=payload.get("finish_reason"),
                 tool_calls=tool_calls,
                 usage=TokenUsage.from_legacy(payload),
                 metadata={

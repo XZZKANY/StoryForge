@@ -6,8 +6,10 @@ from sqlalchemy.orm import Session, sessionmaker
 from starlette.testclient import TestClient
 
 import app.models  # noqa: F401
+from app.common.redaction import REDACTED
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
+from app.domains.ide.schemas import IdeCommandResult
 from app.domains.judge.models import JudgeIssue, RepairPatch
 
 
@@ -137,6 +139,20 @@ def test_ide_judge_repair_approve_commands_execute_real_writeback(
     assert stored_patch is not None
     assert stored_patch.status == "accepted"
     assert [record.record_type for record in continuity_records] == ["chapter_approval"]
+
+
+def test_ide_command_result_redacts_sensitive_payload_when_serialized() -> None:
+    """旧读 DTO 退役后，live 命令 DTO 仍独立承担嵌套载荷脱敏。"""
+
+    result = IdeCommandResult(
+        command_id="audit.open",
+        status="accepted",
+        payload={"api_key": "test-private-key", "nested": {"token": "test-private-token", "note": "safe"}},
+    )
+
+    expected = {"api_key": REDACTED, "nested": {"token": REDACTED, "note": "safe"}}
+    assert result.model_dump()["payload"] == expected
+    assert result.model_dump(mode="json")["payload"] == expected
 
 
 def test_bookrun_commands_stay_unregistered() -> None:

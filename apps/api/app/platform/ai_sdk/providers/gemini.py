@@ -20,6 +20,7 @@ from app.platform.ai_sdk.contracts import (
 )
 from app.platform.ai_sdk.errors import ProviderError, ProviderErrorCategory, ProviderErrorDetails
 from app.platform.ai_sdk.provider import ProviderHealth, ProviderHealthStatus
+from app.platform.ai_sdk.stream_usage import retain_error_usage, retaining_stream_usage
 
 RawCompleteTransport = Callable[[str, dict[str, object]], tuple[dict[str, object], float]]
 RawStreamTransport = Callable[[str, dict[str, object]], Iterable[Mapping[str, object]]]
@@ -65,6 +66,11 @@ def _json_object(value: str, *, label: str) -> dict[str, Any]:
 
 def _usage(payload: object, *, prior: TokenUsage | None = None) -> TokenUsage:
     data = payload if isinstance(payload, Mapping) else {}
+    if not any(
+        isinstance(data.get(key), int) and not isinstance(data.get(key), bool) and data[key] >= 0
+        for key in ('promptTokenCount', 'candidatesTokenCount', 'totalTokenCount')
+    ):
+        return prior if prior is not None else TokenUsage()
     input_tokens = _non_negative_int(data.get("promptTokenCount")) or (prior.input_tokens if prior else 0)
     output_tokens = _non_negative_int(data.get("candidatesTokenCount")) or (prior.output_tokens if prior else 0)
     total_tokens = _non_negative_int(data.get("totalTokenCount")) or input_tokens + output_tokens
@@ -109,7 +115,11 @@ class GeminiProvider:
         candidate = self._first_candidate(data)
         content, tool_calls, continuation = self._parse_candidate(candidate)
         finish_reason = _finish_reason(candidate.get("finishReason"))
-        self._raise_for_blocked_finish(finish_reason, candidate.get("finishReason"))
+        try:
+            self._raise_for_blocked_finish(finish_reason, candidate.get("finishReason"))
+        except ProviderError as exc:
+            retain_error_usage(exc, _usage(data.get("usageMetadata")))
+            raise
         metadata: dict[str, object] = {
             "latency_ms": max(0, int((time.monotonic() - started_at) * 1000))
         }
@@ -126,6 +136,9 @@ class GeminiProvider:
         )
 
     def stream(self, request: ChatRequest) -> Iterator[StreamEvent]:
+        return retaining_stream_usage(self._stream_events(request))
+
+    def _stream_events(self, request: ChatRequest) -> Iterator[StreamEvent]:
         if self._stream_transport is None:
             raise ProviderError(
                 ProviderErrorDetails(
@@ -143,6 +156,9 @@ class GeminiProvider:
 
         for frame in self._stream_transport(request.model, self.build_payload(request)):
             self._raise_for_error(frame)
+            if isinstance(frame.get("usageMetadata"), Mapping):
+                usage = _usage(frame.get("usageMetadata"), prior=usage)
+                yield StreamEvent(StreamEventKind.USAGE, usage=usage)
             if frame.get("responseId") is not None:
                 response_id = str(frame["responseId"])
             candidates = frame.get("candidates")
@@ -173,10 +189,12 @@ class GeminiProvider:
                 if current_finish is not None:
                     finish_reason = current_finish
                     self._raise_for_blocked_finish(finish_reason, candidate.get("finishReason"))
-            if isinstance(frame.get("usageMetadata"), Mapping):
-                usage = _usage(frame.get("usageMetadata"), prior=usage)
-                yield StreamEvent(StreamEventKind.USAGE, usage=usage)
 
+        if finish_reason is None:
+            raise ProviderError(ProviderErrorDetails(
+                ProviderErrorCategory.RESPONSE, "Gemini stream ended without a finish reason.",
+                provider_code="missing_stream_terminal",
+            ))
         metadata = {"reasoning_present": True} if reasoning_present else {}
         continuation = (
             ProviderContinuation(

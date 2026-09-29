@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
-from app.domains.agent_runs.fs.knowledge_entries import KnowledgeEntry
+from app.domains.agent_runs.fs.knowledge_entries import KnowledgeEntry, KnowledgeEvidenceState
 from app.domains.agent_runs.fs.knowledge_proposals import project_file_evidence_hash
-from app.domains.agent_runs.fs.project_knowledge import project_knowledge_entry_index
+from app.domains.agent_runs.fs.project_knowledge import ProjectKnowledgeEntryIndex, project_knowledge_entry_index
 
 KnowledgeSelectionSource = Literal["author_pinned", "auto_retrieved"]
 
@@ -33,6 +33,25 @@ class KnowledgeRetrievalResult:
     structured_paths: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class SelectedKnowledgeEntry:
+    """尚未校验来源的选择计划，不能冒充可注入模型的 retrieval result。"""
+
+    relative_path: str
+    entry: KnowledgeEntry = field(repr=False)
+    selection_source: KnowledgeSelectionSource
+    excerpt: str = field(repr=False)
+    score: int
+    truncated: bool
+
+
+@dataclass(frozen=True)
+class KnowledgeSelection:
+    items: tuple[SelectedKnowledgeEntry, ...]
+    warnings: tuple[str, ...]
+    structured_paths: tuple[str, ...]
+
+
 def retrieve_project_knowledge(
     project_root: str,
     *,
@@ -42,13 +61,32 @@ def retrieve_project_knowledge(
     max_items: int = KNOWLEDGE_RETRIEVAL_MAX_ITEMS,
     max_chars: int = KNOWLEDGE_RETRIEVAL_MAX_CHARS,
 ) -> KnowledgeRetrievalResult:
+    """兼容 I/O 入口：安全采集索引，只校验实际入选项，不预读所有候选来源。"""
     index = project_knowledge_entry_index(project_root)
+    selection = select_knowledge_entries(
+        index,
+        query=query,
+        pinned_paths=pinned_paths,
+        excluded_ids=excluded_ids,
+        max_items=max_items,
+        max_chars=max_chars,
+    )
+    states = tuple(knowledge_entry_evidence_state(project_root, item.entry) for item in selection.items)
+    return materialize_knowledge_selection(selection, evidence_states=states)
+
+
+def select_knowledge_entries(
+    index: ProjectKnowledgeEntryIndex,
+    *,
+    query: str,
+    pinned_paths: list[str] | tuple[str, ...] = (),
+    excluded_ids: list[str] | tuple[str, ...] = (),
+    max_items: int = KNOWLEDGE_RETRIEVAL_MAX_ITEMS,
+    max_chars: int = KNOWLEDGE_RETRIEVAL_MAX_CHARS,
+) -> KnowledgeSelection:
+    """固定索引上的排序/预算策略；不接收项目根或会隐式读盘的 callback。"""
     excluded_set = set(excluded_ids)
-    active = [
-        item
-        for item in index.entries
-        if item.entry.status == "active" and item.entry.id not in excluded_set
-    ]
+    active = [item for item in index.entries if item.entry.status == "active" and item.entry.id not in excluded_set]
     pinned_set = {path.replace("\\", "/") for path in pinned_paths}
     pinned = [item for item in active if item.relative_path in pinned_set]
     query_terms = _ngrams(_normalize(query))
@@ -60,57 +98,63 @@ def retrieve_project_knowledge(
         ),
         key=lambda pair: (-pair[0], pair[1].relative_path, pair[1].entry.id),
     )
-    warnings = list(index.warnings)
-    result: list[RetrievedKnowledgeEntry] = []
+    result: list[SelectedKnowledgeEntry] = []
     remaining_chars = max(max_chars, 0)
-
+    # Pin 保留索引顺序与超预算空摘录的现有语义，不套用 auto 的数量上限。
     for item in pinned:
-        evidence_state = knowledge_entry_evidence_state(project_root, item.entry)
-        if evidence_state == "stale":
-            warnings.append(f"knowledge evidence stale: {item.relative_path}#{item.entry.id}")
         excerpt, remaining_chars, truncated = _bounded_excerpt(item.entry, remaining_chars)
-        if truncated:
+        result.append(SelectedKnowledgeEntry(item.relative_path, item.entry, "author_pinned", excerpt, 0, truncated))
+    available_slots = max(max_items - len(result), 0)
+    for score, item in ranked:
+        if available_slots <= 0 or remaining_chars <= 0 or score <= 0:
+            break
+        excerpt, remaining_chars, truncated = _bounded_excerpt(item.entry, remaining_chars)
+        if not excerpt:
+            break
+        result.append(
+            SelectedKnowledgeEntry(item.relative_path, item.entry, "auto_retrieved", excerpt, score, truncated)
+        )
+        available_slots -= 1
+    return KnowledgeSelection(
+        items=tuple(result),
+        warnings=index.warnings,
+        # 非 active / excluded 的结构化文件同样不能从 raw bundle 再次注入。
+        structured_paths=tuple(sorted({item.relative_path for item in index.entries})),
+    )
+
+
+def materialize_knowledge_selection(
+    selection: KnowledgeSelection, *, evidence_states: tuple[KnowledgeEvidenceState, ...]
+) -> KnowledgeRetrievalResult:
+    """固定选择计划 + 同序采集的来源状态 → 可重放结果；缺失证据不伪造 current。"""
+    if len(evidence_states) != len(selection.items) or any(
+        state not in {"current", "stale"} for state in evidence_states
+    ):
+        raise ValueError("Knowledge selection requires one valid evidence state per selected entry")
+    warnings = list(selection.warnings)
+    result: list[RetrievedKnowledgeEntry] = []
+    for item, state in zip(selection.items, evidence_states, strict=True):
+        if state == "stale":
+            warnings.append(f"knowledge evidence stale: {item.relative_path}#{item.entry.id}")
+        pinned_truncated = item.selection_source == "author_pinned" and item.truncated
+        if pinned_truncated:
             warnings.append(f"pinned knowledge truncated by budget: {item.relative_path}#{item.entry.id}")
         result.append(
             RetrievedKnowledgeEntry(
                 relative_path=item.relative_path,
                 entry=item.entry,
-                selection_source="author_pinned",
-                excerpt=excerpt,
-                score=0,
-                evidence_state=evidence_state,
-                warning_count=int(evidence_state == "stale") + int(truncated),
+                selection_source=item.selection_source,
+                excerpt=item.excerpt,
+                score=item.score,
+                evidence_state=state,
+                warning_count=int(state == "stale") + int(pinned_truncated),
             )
         )
-
-    available_slots = max(max_items - len(result), 0)
-    for score, item in ranked:
-        if available_slots <= 0 or remaining_chars <= 0 or score <= 0:
-            break
-        excerpt, remaining_chars, _truncated = _bounded_excerpt(item.entry, remaining_chars)
-        if not excerpt:
-            break
-        evidence_state = knowledge_entry_evidence_state(project_root, item.entry)
-        if evidence_state == "stale":
-            warnings.append(f"knowledge evidence stale: {item.relative_path}#{item.entry.id}")
-        result.append(
-            RetrievedKnowledgeEntry(
-                relative_path=item.relative_path,
-                entry=item.entry,
-                selection_source="auto_retrieved",
-                excerpt=excerpt,
-                score=score,
-                evidence_state=evidence_state,
-                warning_count=int(evidence_state == "stale"),
-            )
-        )
-        available_slots -= 1
-
     return KnowledgeRetrievalResult(
         items=tuple(result),
         warnings=tuple(warnings),
         total_chars=sum(len(item.excerpt) for item in result),
-        structured_paths=tuple(sorted({item.relative_path for item in index.entries})),
+        structured_paths=selection.structured_paths,
     )
 
 

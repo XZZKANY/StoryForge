@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.common.llm_control import LLMRunControl
 from app.domains.agent_runs.loop.types import ChatLoopOutcome
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.permission import PermissionGate
@@ -31,16 +32,20 @@ class StoryForgeRuntimeContext:
     on_trace: TraceCallback
     outcome: ChatLoopOutcome
     should_interrupt: InterruptionCallback | None = None
+    recovery_message: dict[str, Any] = field(default_factory=dict)
+    model_outcome_unknown: bool = False
+    recovery_sources: dict[str, Any] | None = None
     provider_attempts: int = 0
     completed_model_rounds: int = 0
     interruption: dict[str, Any] | None = None
     latest_checkpoint: RuntimeCheckpoint | None = None
+    call_control: LLMRunControl | None = None
     handled_call_ids: set[str] = field(default_factory=set)
     calls_by_id: dict[str, ToolCall] = field(default_factory=dict)
     allowed_call_ids: dict[str, deque[str]] = field(
         default_factory=lambda: defaultdict(deque)
     )
-    pending_costs: deque[tuple[float, object]] = field(default_factory=deque)
+    pending_costs: deque[tuple[float | None, object]] = field(default_factory=deque)
 
     def remember_response(self, response: ChatResponse) -> ChatResponse:
         normalized_calls: list[ToolCall] = []

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.domains.agent_runs.tooling import (
@@ -8,11 +9,49 @@ from app.domains.agent_runs.tooling import (
     derive_requires_confirmation,
     list_agent_runtime_tool_specs,
 )
-from app.domains.runtime_tools.creative_registry import list_creative_tools
+from app.domains.runtime_tools.creative_registry import CreativeToolRegistry, CreativeToolSpec, list_creative_tools
 from app.main import app
 
 # CreativeToolRegistry 之外还有 2 个 MCP 只读工具（见 service._MCP_READONLY_TOOL_DEFINITIONS）。
 _MCP_READONLY_TOOL_COUNT = 2
+
+
+def test_creative_registry_preserves_registration_order() -> None:
+    first, second = list_creative_tools()[:2]
+
+    registry = CreativeToolRegistry([second, first])
+
+    assert registry.all() == (second, first)
+
+
+def test_creative_registry_rejects_duplicate_names() -> None:
+    tool = list_creative_tools()[0]
+
+    with pytest.raises(ValueError, match="工具名称重复"):
+        CreativeToolRegistry([tool, tool])
+
+
+def test_creative_registry_schemas_remain_detached_and_immutable() -> None:
+    choices = ["draft"]
+    input_schema = {"properties": {"status": {"enum": choices}}}
+    output_schema = {"type": "object"}
+    tool = CreativeToolSpec(
+        name="test.schema",
+        domain="test",
+        input_schema=input_schema,
+        output_schema=output_schema,
+    )
+    registry = CreativeToolRegistry([tool])
+    choices.append("changed")
+    output_schema["type"] = "string"
+
+    registered = registry.all()[0]
+    assert registered.input_schema["properties"]["status"]["enum"] == ("draft",)
+    assert registered.output_schema["type"] == "object"
+    with pytest.raises(TypeError):
+        registered.input_schema["properties"]["status"]["enum"] = ("changed",)
+    with pytest.raises(TypeError):
+        registered.output_schema["type"] = "string"
 
 
 def test_runtime_tools_endpoint_exposes_registry_tools(client: TestClient) -> None:

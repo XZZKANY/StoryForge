@@ -1,13 +1,21 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from app.common.performance import measured
 from app.common.redaction import redact_sensitive_text
 from app.domains.agent_runs._text import compact_text
-from app.domains.agent_runs.knowledge_context import with_project_knowledge_entries
+from app.domains.agent_runs.context_provenance import (
+    llm_context_snapshot_trace_summary as llm_context_snapshot_trace_summary,
+)
+from app.domains.agent_runs.context_provenance import snapshot_run_state as _run_state
+from app.domains.agent_runs.context_provenance import with_snapshot_id as _with_snapshot_id
+from app.domains.agent_runs.knowledge_context import (
+    CollectedProjectKnowledge,
+    collect_project_knowledge_context,
+    merge_project_knowledge_entries,
+)
 from app.domains.agent_runs.loop.context_values import (
     CHAPTER_CONTEXT_KEYS as _CHAPTER_CONTEXT_KEYS,
 )
@@ -40,9 +48,6 @@ from app.domains.agent_runs.loop.context_values import (
 )
 from app.domains.agent_runs.loop.context_values import (
     safe_context_value as _safe_context_value,
-)
-from app.domains.agent_runs.loop.context_values import (
-    story_memory_count as _story_memory_count,
 )
 from app.domains.agent_runs.loop.context_values import (
     string_list as _string_list,
@@ -78,7 +83,53 @@ def build_llm_context_snapshot(
     artifacts: Iterable[object] | None = None,
     event_history: Iterable[object] | None = None,
 ) -> dict[str, Any]:
-    """Build a deterministic model-context snapshot from whitelisted author context."""
+    """兼容 live 入口：此时采集项目知识，再交给确定性快照组装。"""
+    artifact_items = list(artifacts) if artifacts is not None else None
+    event_items = list(event_history) if event_history is not None else None
+    bundle = context_bundle if isinstance(context_bundle, Mapping) else None
+    context_files, _, _ = _context_files(bundle, file_path=file_path)
+    knowledge = collect_project_knowledge_context(
+        bundle, context_files=context_files, query=f"{user_message}\n{file_path}"
+    )
+    # 只在兼容层读取对象属性；纯入口负责一次白名单/文本归一化。
+    run_values = (
+        None
+        if run_state is None
+        else {key: _value(run_state, key) for key in ("public_id", "run_id", "goal", "status", "current_step")}
+    )
+    return build_llm_context_snapshot_from_collected(
+        knowledge=knowledge,
+        run_state=run_values,
+        intent=intent,
+        user_message=user_message,
+        file_path=file_path,
+        content=content,
+        context_bundle=context_bundle,
+        role_hints=role_hints,
+        role_mentions=role_mentions,
+        review_report=review_report,
+        artifacts=artifact_items,
+        event_history=event_items,
+    )
+
+
+@measured("context.select")
+def build_llm_context_snapshot_from_collected(
+    *,
+    knowledge: CollectedProjectKnowledge,
+    run_state: Mapping[str, Any] | None,
+    intent: str,
+    user_message: str,
+    file_path: str,
+    content: str,
+    context_bundle: object | None,
+    role_hints: Iterable[str] | None = None,
+    role_mentions: Iterable[str] | None = None,
+    review_report: object | None = None,
+    artifacts: Iterable[object] | None = None,
+    event_history: Iterable[object] | None = None,
+) -> dict[str, Any]:
+    """从已物化的上下文值组装快照；即使 knowledge 为空也不隐式采集。"""
 
     artifact_items = list(artifacts) if artifacts is not None else None
     event_items = list(event_history) if event_history is not None else None
@@ -89,10 +140,9 @@ def build_llm_context_snapshot(
 
     context_files, file_warnings, unsafe_file_count = _context_files(bundle, file_path=file_path)
     warnings.extend(file_warnings)
-    context_files, knowledge_warnings = with_project_knowledge_entries(
-        bundle,
+    context_files, knowledge_warnings = merge_project_knowledge_entries(
+        knowledge,
         context_files=context_files,
-        query=f"{user_message}\n{file_path}",
         max_context_files=MAX_CONTEXT_FILES,
         context_file_text_limit=CONTEXT_FILE_TEXT_LIMIT,
     )
@@ -140,43 +190,6 @@ def build_llm_context_snapshot(
     return _with_snapshot_id(snapshot)
 
 
-def llm_context_snapshot_trace_summary(snapshot: Mapping[str, Any]) -> dict[str, Any]:
-    context_files = snapshot.get("context_files")
-    context_file_items = context_files if isinstance(context_files, list) else []
-    story_memory = snapshot.get("story_memory")
-    chapter_context = snapshot.get("chapter_context")
-    review_report = snapshot.get("review_report")
-    included_sections = snapshot.get("included_sections")
-    warnings = snapshot.get("warnings")
-    knowledge_entries = [
-        {
-            "knowledge_id": item.get("knowledge_id"),
-            "relative_path": item.get("relative_path"),
-            "selection_source": item.get("selection_source"),
-            "evidence_state": item.get("evidence_state"),
-            "warning_count": item.get("warning_count", 0),
-        }
-        for item in context_file_items
-        if isinstance(item, Mapping) and isinstance(item.get("knowledge_id"), str)
-    ]
-    return {
-        "snapshot_id": snapshot.get("snapshot_id"),
-        "section_count": len(included_sections) if isinstance(included_sections, list) else 0,
-        "context_file_count": len(context_file_items),
-        "context_files": [
-            path
-            for item in context_file_items
-            if isinstance(item, Mapping)
-            if (path := _first_string(item, "relative_path")) is not None
-        ],
-        "knowledge_entries": knowledge_entries,
-        "story_memory_count": _story_memory_count(story_memory),
-        "has_chapter_context": bool(chapter_context),
-        "has_review_report": isinstance(review_report, Mapping) and bool(review_report),
-        "warning_count": len(warnings) if isinstance(warnings, list) else 0,
-    }
-
-
 def llm_context_snapshot_to_prompt_context_bundle(snapshot: Mapping[str, Any]) -> dict[str, Any]:
     """Convert a snapshot back into the legacy context_bundle shape used by current prompts."""
 
@@ -213,12 +226,6 @@ def llm_context_snapshot_to_prompt_context_bundle(snapshot: Mapping[str, Any]) -
             "truncated": False,
         },
     }
-
-
-def _with_snapshot_id(snapshot: dict[str, Any]) -> dict[str, Any]:
-    encoded = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
-    snapshot_id = f"llmctx-{hashlib.sha256(encoded.encode('utf-8')).hexdigest()[:16]}"
-    return {**snapshot, "snapshot_id": snapshot_id}
 
 
 def _prompt_context_file(item: Mapping[str, Any]) -> dict[str, str]:
@@ -263,7 +270,11 @@ def _story_memory_prompt_file(story_memory: object) -> dict[str, str] | None:
 def _chapter_context_prompt_file(chapter_context: object) -> dict[str, str] | None:
     if not isinstance(chapter_context, Mapping) or not chapter_context:
         return None
-    lines = [f"- {key}: {value}" for key, value in chapter_context.items() if isinstance(value, str | int | float | bool | list)]
+    lines = [
+        f"- {key}: {value}"
+        for key, value in chapter_context.items()
+        if isinstance(value, str | int | float | bool | list)
+    ]
     if not lines:
         return None
     return _synthetic_prompt_file(
@@ -282,25 +293,6 @@ def _synthetic_prompt_file(*, relative_path: str, kind: str, title: str, excerpt
         "title": title,
         "excerpt": compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT) or "无摘录。",
     }
-
-
-def _run_state(run_state: object | None) -> dict[str, Any]:
-    if run_state is None:
-        return {}
-    public_id = _value(run_state, "public_id") or _value(run_state, "run_id")
-    goal = _value(run_state, "goal")
-    status = _value(run_state, "status")
-    current_step = _value(run_state, "current_step")
-    result: dict[str, Any] = {}
-    if isinstance(public_id, str) and public_id.strip():
-        result["run_id"] = public_id.strip()
-    if isinstance(goal, str) and goal.strip():
-        result["goal"] = compact_text(goal, limit=2000)
-    if isinstance(status, str) and status.strip():
-        result["status"] = status.strip()
-    if isinstance(current_step, str) and current_step.strip():
-        result["current_step"] = current_step.strip()
-    return result
 
 
 def _project_summary(bundle: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -359,9 +351,7 @@ def _context_files(
         if kind in _UNSAFE_FILE_KINDS or _looks_like_harness_payload(excerpt):
             unsafe_count += 1
             continue
-        relative_path = _normalized_relative_context_path(
-            _first_string(item, "relative_path", "relativePath", "path")
-        )
+        relative_path = _normalized_relative_context_path(_first_string(item, "relative_path", "relativePath", "path"))
         path = _first_string(item, "path")
         if _matches_selected_file(relative_path, selected_refs) or _matches_selected_file(path, selected_refs):
             continue
@@ -388,13 +378,21 @@ def _review_report_summary(report: object | None) -> dict[str, Any] | None:
     if not isinstance(report, Mapping):
         return None
     issues = report.get("issues")
-    safe_issues = [_review_issue_summary(item) for item in issues[:MAX_REVIEW_ISSUES] if isinstance(item, Mapping)] if isinstance(issues, list) else []
+    safe_issues = (
+        [_review_issue_summary(item) for item in issues[:MAX_REVIEW_ISSUES] if isinstance(item, Mapping)]
+        if isinstance(issues, list)
+        else []
+    )
     suggested_actions = report.get("suggested_actions")
-    safe_actions = [
-        compact_text(item, limit=REVIEW_TEXT_LIMIT)
-        for item in suggested_actions[:MAX_REVIEW_ISSUES]
-        if isinstance(item, str) and item.strip()
-    ] if isinstance(suggested_actions, list) else []
+    safe_actions = (
+        [
+            compact_text(item, limit=REVIEW_TEXT_LIMIT)
+            for item in suggested_actions[:MAX_REVIEW_ISSUES]
+            if isinstance(item, str) and item.strip()
+        ]
+        if isinstance(suggested_actions, list)
+        else []
+    )
     summary: dict[str, Any] = {
         "kind": _first_string(report, "kind") or "review_report",
         "issue_count": len(issues) if isinstance(issues, list) else 0,

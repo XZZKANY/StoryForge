@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.common.llm_control import check_run_interruption
 from app.domains.agent_runs import fs_tools, loop_runtime
 from app.domains.agent_runs._text import compact_text as _compact_text
 from app.domains.agent_runs._text import optional_string as _optional_string
+from app.domains.agent_runs.compaction import CompactionRejected, validate_compaction_publication
+from app.domains.agent_runs.compaction_job import prepare_conversation_compaction
 from app.domains.agent_runs.events.runtime_support import base_response as _base_response
 from app.domains.agent_runs.events.runtime_support import plan_step as _plan_step
 from app.domains.agent_runs.events.runtime_support import runtime_interrupted_response as _runtime_interrupted_response
@@ -18,15 +22,15 @@ from app.domains.agent_runs.llm_context import (
 )
 from app.domains.agent_runs.loop.author_view import AuthorView
 from app.domains.agent_runs.models import AgentRun
+from app.domains.agent_runs.result_contracts import AgentExecutionOutcome
 from app.domains.agent_runs.runtime_recovery import build_runtime_interruption_payload
 from app.domains.agent_runs.system_jobs import build_conversation_system_jobs
 from app.domains.agent_runs.tools import ToolExecutionContext, ToolResult
 from app.domains.agent_runs.tools.runtime_arguments import (
-    TRUSTED_WRITING_CONTEXT_TOOL_NAMES,
-    sanitize_loop_tool_arguments,
+    chat_context_block as _chat_context_block,
 )
 from app.domains.agent_runs.tools.runtime_arguments import (
-    chat_context_block as _chat_context_block,
+    sanitize_loop_tool_arguments,
 )
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
@@ -49,16 +53,27 @@ class ConversationRuntimeMixin:
         result: dict[str, Any],
     ) -> None:
         assistant_session = assistant_service.get_assistant_session(session, assistant_session_id)
+        compaction_payload = prepare_conversation_compaction(session, assistant_session_id)
         jobs = build_conversation_system_jobs(
             assistant_session_id=assistant_session.id,
             current_title=assistant_session.title,
             messages=assistant_session.messages,
             result=result,
+            compaction_payload=compaction_payload,
         )
         if not jobs:
             return
         result_jobs: dict[str, Any] = {}
         for job in jobs:
+            check_run_interruption(f"before_publish:system_job:{job.key}")
+            if job.key == "compaction" and job.artifact_payload is not None:
+                try:
+                    validate_compaction_publication(session, job.artifact_payload)
+                except CompactionRejected:
+                    failed = {**job.result_payload, "status": "failed", "code": "source_drift"}
+                    failed.pop("summary", None)
+                    job = replace(job, result_payload=failed, artifact_kind=None, artifact_payload=None,
+                                  event_payload={**failed, "message": "发布前来源改变，压缩未发布。"})
             result_jobs[job.key] = job.result_payload
             if job.key == "title" and job.result_payload.get("updated_session_title") is True:
                 title = job.result_payload.get("title")
@@ -96,12 +111,9 @@ class ConversationRuntimeMixin:
         )
         if loop_result is not None:
             return loop_result
-        assistant_service.append_assistant_message(
-            session,
-            assistant_session_id,
-            AssistantMessageCreate(role="user", content=user_message),
-        )
+        check_run_interruption("before_fallback")
         context_block = _chat_context_block(args)
+        failure = None
         try:
             chat = assistant_service.chat_reply(
                 session,
@@ -117,6 +129,13 @@ class ConversationRuntimeMixin:
             )
         except assistant_service.AssistantReviseError as exc:
             answer = f"这轮没答上来：{_compact_text(str(exc), limit=300)}"
+            failure = AgentExecutionOutcome(status="failed", code="provider_error", message=answer)
+        # Complete response usage has already been recorded by chat_reply.
+        # Do not commit late text or a user turn if cancellation won this boundary.
+        check_run_interruption("before_finalize:assistant.chat")
+        assistant_service.append_assistant_message(
+            session, assistant_session_id, AssistantMessageCreate(role="user", content=user_message),
+        )
         assistant_service.append_assistant_message(
             session,
             assistant_session_id,
@@ -127,8 +146,11 @@ class ConversationRuntimeMixin:
             assistant_session_id=assistant_session_id,
             intent="chat.explain",
             user_message=user_message,
-            plan=[_plan_step("respond", "就项目上下文作答，不执行写命令。", "completed")],
-            agent_result={"summary": answer, "requires_user_confirmation": False},
+            plan=[_plan_step("respond", "就项目上下文作答，不执行写命令。", "failed" if failure else "completed")],
+            agent_result={
+                "summary": answer, "requires_user_confirmation": False,
+                **({"execution_outcome": failure.model_dump()} if failure else {}),
+            },
             tool_trace=[],
             role_hints=_role_hints(args),
             role_mentions=_role_mentions(args),
@@ -166,8 +188,8 @@ class ConversationRuntimeMixin:
             role_hints=_role_hints(args),
             role_mentions=_role_mentions(args),
         )
-        plan_recorded = False
-        trace_index = 0
+        plan_recorded = run.current_step == "resumed"
+        trace_index = sum(event.event_type == "tool_trace" for event in run.events) if plan_recorded else 0
 
         def ensure_plan_recorded() -> None:
             nonlocal plan_recorded
@@ -186,13 +208,8 @@ class ConversationRuntimeMixin:
         def execute_fs_tool(registry_name: str, arguments: dict[str, Any]) -> ToolResult:
             # 路径、正文与内层上下文都由后端生成；模型只能提交 ToolSpec 声明的业务参数。
             payload = sanitize_loop_tool_arguments(arguments)
-            if registry_name in (
-                "file.review",
-                "file.revise",
-                "chapter.polish",
-                "project.trim_prose",
-                "prose.continue",
-            ):
+            definition = self._tool_registry.get(registry_name)
+            if definition.loop_input_mode == "existing_file":
                 rel_path = _optional_string(payload.pop("path", None))
                 if not rel_path:
                     raise fs_tools.FsToolError("缺少 path：请提供项目内的相对文件路径。")
@@ -202,7 +219,7 @@ class ConversationRuntimeMixin:
                 payload["file_path"] = fs_tools.resolve_project_file(project_path, rel_path)
                 payload["content"] = read["content"]
                 payload["_trace_file_path"] = read["path"]
-            elif registry_name == "file.create":
+            elif definition.loop_input_mode == "new_file":
                 rel_path = _optional_string(payload.pop("path", None))
                 if not rel_path:
                     raise fs_tools.FsToolError("缺少 path：请提供项目内的相对文件路径。")
@@ -220,7 +237,7 @@ class ConversationRuntimeMixin:
             # content，此前从不回填 project_root，导致 prose.continue 在循环内静默丢掉
             # canon 硬约束（Ctrl+Shift+K 直连路径反而有），作者指令也进不去。
             payload.setdefault("project_root", project_path)
-            if registry_name in TRUSTED_WRITING_CONTEXT_TOOL_NAMES:
+            if definition.loop_trusted_context:
                 snapshot = build_llm_context_snapshot(
                     run_state=context.run,
                     intent=registry_name,
@@ -255,6 +272,8 @@ class ConversationRuntimeMixin:
                 should_interrupt=lambda boundary: self._runtime_interruption(run, boundary=boundary),
                 author_view=AuthorView.from_payload(args),
                 pinned_context=_chat_context_block(args),
+                recovery_message={"intent": "chat.explain", "user_message": user_message,
+                                  "assistant_session_id": assistant_session_id, "args": args},
             )
         except loop_runtime.ChatLoopUnavailableError:
             return None
@@ -262,7 +281,7 @@ class ConversationRuntimeMixin:
         ensure_plan_recorded()
         interruption = outcome.interruption if outcome.interrupted else None
         latest_interruption = self._runtime_interruption(run, boundary="before_finalize:assistant.chat_loop")
-        # SDK 只在轮次开始检查；末次 provider 返回与计划落库期间也可能收到控制消息。
+        # SDK 已检查模型/工具边界；计划落库与最终结算期间仍可能收到新的控制消息。
         # 已中断时保留原边界，但 paused 后又收到 stopped 必须以新的控制状态为准。
         if latest_interruption is not None and (
             interruption is None or latest_interruption["status"] != interruption["status"]
@@ -270,7 +289,9 @@ class ConversationRuntimeMixin:
             interruption = latest_interruption
         evidence_payload = AssistantToolCallCreate(
             tool_name="assistant.chat_loop",
-            status=("paused" if interruption["status"] == "paused" else "failed") if interruption else "completed",
+            status=("paused" if interruption["status"] == "paused" else "failed") if interruption else (
+                "failed" if outcome.execution_outcome is not None else "completed"
+            ),
             input_summary={"message": user_message[:500], "project_path": project_path},
             output_summary={
                 "rounds": outcome.rounds,
@@ -282,6 +303,7 @@ class ConversationRuntimeMixin:
                 "cost_breakdown": outcome.cost_breakdown,
                 "token_usage_source": outcome.token_usage_source,
                 "exhausted": outcome.exhausted,
+                **({"execution_outcome": outcome.execution_outcome.model_dump()} if outcome.execution_outcome else {}),
                 "proposed_patch_id": (outcome.proposed_patch or {}).get("id"),
                 **({"runtime_interruption": interruption} if interruption is not None else {}),
             },
@@ -325,8 +347,8 @@ class ConversationRuntimeMixin:
         plan = [
             _plan_step(
                 "agent.loop",
-                f"工具循环完成：{outcome.rounds} 轮、{outcome.tool_call_count} 次工具调用。",
-                "completed",
+                outcome.answer if outcome.execution_outcome else f"工具循环完成：{outcome.rounds} 轮、{outcome.tool_call_count} 次工具调用。",
+                "failed" if outcome.execution_outcome else "completed",
             )
         ]
         # 自动档下补丁自己带着「不必等点击」，run 就不该再挂在 permission.confirm 上。
@@ -334,13 +356,14 @@ class ConversationRuntimeMixin:
         agent_result: dict[str, Any] = {
             "summary": answer,
             "requires_user_confirmation": awaits_confirmation,
+            **({"execution_outcome": outcome.execution_outcome.model_dump()} if outcome.execution_outcome else {}),
         }
         if outcome.review_report is not None:
             agent_result["review_report"] = outcome.review_report
         if awaits_confirmation:
             plan.append(_plan_step("permission.confirm", "文件写回前等待作者确认。", "needs_approval"))
         elif outcome.proposed_patch is not None:
-            plan.append(_plan_step("writeback.auto", "按本项目的自动档直接写盘（写前存快照）。", "completed"))
+            plan.append(_plan_step("writeback.auto", "补丁已准备，实际写回与快照由 Desktop 执行；这不是落盘回执。", "completed"))
         result = _base_response(
             agent_session_id=agent_session_id,
             assistant_session_id=assistant_session_id,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.domains.agent_runs.result_contracts import AgentRuntimeInterruption
 from app.domains.agent_runs.tools import AgentRuntimeToolSpec
 from app.domains.agent_runs.trace import AgentToolTrace
 
@@ -77,10 +78,9 @@ def build_runtime_interruption_payload(run: object, *, boundary: str) -> dict[st
         return None
     current_step = getattr(run, "current_step", None)
     return {
+        **AgentRuntimeInterruption(status=status, boundary=boundary).model_dump(),
         "kind": "runtime_interruption",
-        "status": status,
         "current_step": current_step if isinstance(current_step, str) else None,
-        "boundary": boundary,
         "uses_existing_status": True,
         "resume_strategy": "await_resume" if status == "paused" else "stopped_by_user",
         "automatic_resume_supported": False,

@@ -31,13 +31,11 @@ def strip_reasoning_leak(content: str) -> str:
     cleaned = THINK_OPEN_RE.sub("", cleaned)
     cleaned = cleaned.strip()
     if cleaned != content.strip():
-        # 剥离是有损启发式：think 边界落错位置会吞正文（已实证吞标题）。留原始头尾便于归因。
+        # 剥离是有损启发式，只记录规模指标；正文/思维片段不得进入日志。
         get_logger(__name__).warning(
             "llm_reasoning_leak_stripped",
             raw_chars=len(content),
             cleaned_chars=len(cleaned),
-            raw_head=content[:120],
-            raw_tail=content[-120:],
         )
     return cleaned
 

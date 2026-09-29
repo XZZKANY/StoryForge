@@ -37,6 +37,7 @@ from app.domains.agent_runs.llm_context import (
 )
 from app.domains.agent_runs.models import AgentArtifact, AgentRun
 from app.domains.agent_runs.permission import patch_requires_confirmation
+from app.domains.agent_runs.runtime_delivery import check_result_delivery
 from app.domains.agent_runs.runtime_recovery import RUNTIME_PENDING_CALL_ARTIFACT_KIND
 from app.domains.agent_runs.tools import ToolArtifact, ToolExecutionContext, ToolHandler, ToolResult
 from app.domains.agent_runs.trace import AgentToolTrace
@@ -122,12 +123,6 @@ class ChapterWritingRuntimeMixin:
         )
         self._event_sink.record_tool_trace(request.run, brief_result.trace, 0)
         brief = brief_result.output["brief"]
-        self._event_sink.record_artifact(
-            request.run,
-            kind=CHAPTER_BRIEF_ARTIFACT_KIND,
-            payload={**brief, "status": "proposed"},
-            requires_confirmation=True,
-        )
         safe_prompt_bundle = self._safe_prompt_bundle(
             llm_context_snapshot_to_prompt_context_bundle(snapshot)
         )
@@ -154,16 +149,6 @@ class ChapterWritingRuntimeMixin:
         }
         self._event_sink.record_runtime_pending_call(request.run, payload=pending_payload)
         summary = f"Chapter Brief 已准备：{brief.get('goal') or target_relative}。确认后才会开始起草。"
-        assistant_service.append_assistant_message(
-            request.session,
-            request.assistant_session_id,
-            AssistantMessageCreate(role="user", content=request.user_message),
-        )
-        assistant_service.append_assistant_message(
-            request.session,
-            request.assistant_session_id,
-            AssistantMessageCreate(role="assistant", content=summary),
-        )
         result = base_response(
             agent_session_id=request.agent_session_id,
             assistant_session_id=request.assistant_session_id,
@@ -186,6 +171,24 @@ class ChapterWritingRuntimeMixin:
             tool_trace=[brief_result.trace],
             role_hints=role_hints(request.args),
             role_mentions=role_mentions(request.args),
+        )
+        interrupted = check_result_delivery(result, boundary="before_finalize:chapter.brief", events_recorded=True)
+        self._event_sink.record_artifact(
+            request.run, kind=CHAPTER_BRIEF_ARTIFACT_KIND,
+            payload={**brief, "status": "interrupted" if interrupted is not None else "proposed"},
+            requires_confirmation=interrupted is None,
+        )
+        if interrupted is not None:
+            return interrupted
+        assistant_service.append_assistant_message(
+            request.session,
+            request.assistant_session_id,
+            AssistantMessageCreate(role="user", content=request.user_message),
+        )
+        assistant_service.append_assistant_message(
+            request.session,
+            request.assistant_session_id,
+            AssistantMessageCreate(role="assistant", content=summary),
         )
         self._event_sink.record_permission_required(
             request.run,

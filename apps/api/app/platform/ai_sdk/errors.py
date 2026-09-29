@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.platform.ai_sdk.contracts import TokenUsage
+
 
 class ProviderErrorCategory(StrEnum):
     CONFIGURATION = "configuration"
@@ -38,6 +40,7 @@ class ProviderErrorDetails:
 
 
 class ProviderError(RuntimeError):
-    def __init__(self, details: ProviderErrorDetails) -> None:
+    def __init__(self, details: ProviderErrorDetails, *, usage: TokenUsage | None = None) -> None:
         super().__init__(details.safe_message)
         self.details = details
+        self.usage = usage

@@ -11,6 +11,7 @@ from collections.abc import Mapping, Sequence
 from prometheus_client import Counter
 
 from app.common import llm_client
+from app.common.llm_control import LLMRunInterrupted
 from app.common.llm_env import resolved_llm_env
 from app.common.llm_http import env_value
 from app.common.logging_config import get_logger
@@ -173,6 +174,8 @@ def semantic_judge_with_status(
         )
         raw_content = data["choices"][0]["message"]["content"]
         decoded = _decode_semantic_judge_content(str(raw_content))
+    except LLMRunInterrupted:
+        raise
     except Exception as exc:
         log.warning("semantic_judge_failed", error=llm_client.redact_secrets(str(exc), [api_key]), model=model)
         _judge_llm_errors_total.inc()

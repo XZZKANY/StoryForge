@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from app.common.performance import measured
 from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.event_types import (
@@ -55,6 +58,7 @@ def assert_run_session_ownership(run: AgentRun, session_id: str) -> None:
         raise AgentRunNotFoundError("AgentRun 不存在。")
 
 
+@measured("store.event")
 def record_agent_event(
     session: Session,
     run: AgentRun,
@@ -96,6 +100,22 @@ def record_agent_event(
     raise AgentOrchestrationError("AgentRunEvent sequence 分配重试耗尽。")
 
 
+@contextmanager
+def rollback_failed_settlement(session: Session) -> Iterator[None]:
+    """保护一次本地结算，不负责提交，也不跨模型调用或上游 BookRun 事务。
+
+    块内先修改状态，最后用 record_agent_event（或更新已有证据的 commit）一起提交。
+    事件 writer 的 SAVEPOINT 会预 flush 状态，故插入/提交失败必须回滚外层事务。
+    提交后的通知应在块外执行；提交后 refresh 失败时，rollback 不会撤销已持久化事实。
+    """
+    try:
+        yield
+    except BaseException:
+        session.rollback()
+        raise
+
+
+@measured("store.artifact")
 def record_agent_artifact(
     session: Session,
     run: AgentRun,
@@ -169,6 +189,7 @@ def record_subagent_run(
     return subagent
 
 
+@measured("store.complete")
 def complete_agent_run(
     session: Session,
     run: AgentRun,
@@ -182,23 +203,22 @@ def complete_agent_run(
     if run.status != "running":
         return run
     agent_result = result.get("agent_result") if isinstance(result.get("agent_result"), dict) else {}
-    run.status = "completed"
-    run.assistant_session_id = optional_positive_int(result.get("assistant_session_id"))
-    run.current_step = "completed"
-    session.add(run)
-    session.commit()
-    session.refresh(run)
-    record_agent_event(
-        session,
-        run,
-        event_type=AGENT_RUN_COMPLETED,
-        actor="root-agent",
-        message=str(agent_result.get("summary") or "AgentRun 已完成。"),
-        payload={
-            **_completed_event_payload(result, agent_result),
-            "permission_profile": canonical_permission_profile(run.permission_profile),
-        },
-    )
+    with rollback_failed_settlement(session):
+        run.status = "completed"
+        run.assistant_session_id = optional_positive_int(result.get("assistant_session_id"))
+        run.current_step = "completed"
+        session.add(run)
+        record_agent_event(
+            session,
+            run,
+            event_type=AGENT_RUN_COMPLETED,
+            actor="root-agent",
+            message=str(agent_result.get("summary") or "AgentRun 已完成。"),
+            payload={
+                **_completed_event_payload(result, agent_result),
+                "permission_profile": canonical_permission_profile(run.permission_profile),
+            },
+        )
     return run
 
 
@@ -213,6 +233,7 @@ def _completed_event_payload(result: dict[str, Any], agent_result: dict[str, Any
 completed_event_payload = _completed_event_payload
 
 
+@measured("store.fail")
 def fail_agent_run(
     session: Session,
     run: AgentRun,
@@ -225,22 +246,21 @@ def fail_agent_run(
     session.refresh(run)
     if run.status != "running":
         return run
-    run.status = "failed"
-    run.current_step = "failed"
-    session.add(run)
-    session.commit()
-    session.refresh(run)
-    record_agent_event(
-        session,
-        run,
-        event_type=AGENT_RUN_FAILED,
-        actor="root-agent",
-        message=message,
-        payload={
-            **FailedEventPayload.from_payload(payload or {}).to_payload(),
-            "permission_profile": canonical_permission_profile(run.permission_profile),
-        },
-    )
+    with rollback_failed_settlement(session):
+        run.status = "failed"
+        run.current_step = "failed"
+        session.add(run)
+        record_agent_event(
+            session,
+            run,
+            event_type=AGENT_RUN_FAILED,
+            actor="root-agent",
+            message=message,
+            payload={
+                **FailedEventPayload.from_payload(payload or {}).to_payload(),
+                "permission_profile": canonical_permission_profile(run.permission_profile),
+            },
+        )
     return run
 
 
@@ -256,13 +276,22 @@ def reap_non_terminal_agent_runs(session: Session) -> int:
             select(AgentRun).where(AgentRun.status.not_in(AGENT_RUN_REAP_PRESERVED_STATUSES))
         )
     )
+    from app.domains.agent_runs.loop.recovery import park_orphaned_checkpoint_run
+
     for run in stale_runs:
+        if park_orphaned_checkpoint_run(session, run):
+            continue
         fail_agent_run(
             session,
             run,
             message="进程重启，运行未完成即收尸。",
             payload={"reason": "process_restart", "run_id": run.public_id},
         )
+    from app.domains.agent_runs.service_execution import agent_execution_state
+
+    for paused in session.scalars(select(AgentRun).where(AgentRun.status == "paused")):
+        if agent_execution_state(session, paused) == "in_flight":
+            park_orphaned_checkpoint_run(session, paused)
     return len(stale_runs)
 
 
@@ -303,7 +332,11 @@ def get_agent_run_save_points(session: Session, public_id: str) -> dict[str, Any
     run = get_agent_run(session, public_id)
     events = list_agent_run_events(session, public_id)
     artifacts = _list_agent_save_point_artifacts(session, run)
-    return build_agent_run_save_point_projection(run, events=events, artifacts=artifacts)
+    projection = build_agent_run_save_point_projection(run, events=events, artifacts=artifacts)
+    from app.domains.agent_runs.loop.recovery import checkpoint_recovery_projection
+
+    checkpoint_recovery_projection(session, run, projection)
+    return projection
 
 
 def _list_agent_save_point_artifacts(session: Session, run: AgentRun) -> list[AgentArtifact]:

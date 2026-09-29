@@ -64,7 +64,7 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
     assert "subagent_completed" in event_types
     assert "agent_artifact" in event_types
     assert "system_job" in event_types
-    assert event_types[-1] == "agent_run_completed"
+    assert event_types[-2:] == ["agent_run_completed", "agent_execution_settled"]
     assert [event["sequence"] for event in events] == list(range(1, len(events) + 1))
     plan_event = next(event for event in events if event["event_type"] == "agent_plan_created")
     assert plan_event["payload"]["skill_version"] == "skills_v1"
@@ -170,8 +170,15 @@ def test_agent_run_records_permission_required_for_proposed_patch(
 
 def test_hidden_compaction_system_job_runs_for_long_sessions(
     client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """长会话自动产出隐藏 compaction 事件，但不污染普通 artifact 列表。"""
+    """长会话的模型检查点隐藏持久化，不污染普通 artifact 列表。"""
+    from compaction_test_support import SummaryProvider
+
+    from app.domains.agent_runs import compaction_job
+
+    monkeypatch.setattr(compaction_job, "build_llm_provider", lambda source: SummaryProvider())
+    monkeypatch.setattr(compaction_job, "resolved_llm_model", lambda source: "fake-model")
 
     create_response = client.post(
         "/api/assistant/sessions",
@@ -532,7 +539,7 @@ def test_agent_run_control_channel_updates_bound_bookrun_status(
 
     save_points = client.get(f"/api/agent-runs/{run_id}/save-points").json()
     control_save_points = [item for item in save_points["save_points"] if item["kind"] == "control_message"]
-    assert [item["event_type"] for item in control_save_points] == ["pause_run", "resume_run"]
+    assert [item["event_type"] for item in control_save_points] == ["pause_run", "resume_run", "stop_run"]
     assert control_save_points[0]["summary"]["control_type"] == "pause_run"
     assert control_save_points[0]["summary"]["book_run_status"] == "paused_by_user"
     assert control_save_points[1]["summary"]["control_type"] == "resume_run"
