@@ -15,7 +15,7 @@ Read the live Desktop path in this order. The list stays within eight files.
 7. `components/chat-window/useRunAuthorAgent.ts` - context flush/build and live Agent run orchestration.
 8. `components/chat-window/ChatWindowView.tsx` - conversation presentation and controls.
 
-Open `components/app/useAppPreferences.ts`, the remaining `components/chat-window/use*.ts` hooks, and leaf panels only when the main path points to them.
+Open `components/app/useAppPreferences.ts`, the remaining `components/chat-window/use*.ts` hooks, and leaf panels only when the main path points to them. Recent additions with their own owners: `components/app/useEditorNavigation.ts` (editor navigation coordination), `components/chat-window/useAgentRunAdmission.ts` (run admission before dispatch), `components/chat-window/useAgentRunReconciliation.ts` (post-resume run reconciliation).
 
 ## Ownership Boundaries
 
@@ -29,8 +29,8 @@ Open `components/app/useAppPreferences.ts`, the remaining `components/chat-windo
 ## Product Guardrails
 
 - Manuscript truth remains in local project files.
-- Agent reads flush the active editor before building context.
-- Agent write tools produce proposed artifacts only; accepted write-back remains a frontend confirmation flow.
+- Agent reads flush the active editor before building context (fail-closed save handshake; a failed/timed-out flush rejects and blocks the read).
+- Agent write tools produce proposed artifacts only; accepted write-back is permission-aware: `read`/`ask` profiles require explicit confirmation, `auto`/`full` may skip the click, but every profile still goes through guarded write-back (pre-write snapshot → atomic conditional write → version record). The backend never writes manuscript files directly.
 - Session changes and layout collapse must not strand an active run or leak events into another conversation.
 
 ## Size Gates

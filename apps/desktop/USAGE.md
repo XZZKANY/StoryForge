@@ -12,13 +12,13 @@ pnpm desktop:dev
 
 **首次运行**会自动：
 
-1. 下载并编译 Rust 依赖（5-10 分钟，仅首次）
+1. 下载并编译 Rust 依赖（仅首次，耗时明显更长）
 2. 启动 Docker 服务（PostgreSQL、Redis、MinIO）
 3. 执行数据库迁移
 4. 启动 FastAPI，并自动启动/检查 Vite 桌面前端
 5. 打开桌面应用窗口
 
-**后续运行**：秒开（约 2-3 秒）
+**后续运行**：无需重新编译；窗口打开与 API 就绪是两个状态——正常路径下窗口先开，API readiness 在后台完成（仅 smoke 模式同步等待后端）。具体启动时长取决于机器，不作固定秒数承诺。
 
 ### 首次运行详细步骤
 
@@ -30,8 +30,7 @@ docker ps
 cd /path/to/StoryForge
 pnpm desktop:dev
 
-# 3. 等待启动日志
-# 你会看到：
+# 3. 等待启动日志（形如）：
 # === StoryForge 桌面 IDE 启动中 ===
 # 项目根目录: D:\StoryForge
 # 启动 Docker Compose 服务...
@@ -40,9 +39,9 @@ pnpm desktop:dev
 # ✓ 数据库迁移完成
 # ✓ FastAPI 已就绪
 # ✓ 前端服务已就绪
-# === 所有服务已就绪，正在打开桌面应用 ===
+# === 正在打开桌面应用 ===
 
-# 4. 桌面窗口自动打开
+# 4. 桌面窗口自动打开（窗口打开早于后台 API 最终就绪）
 # 显示 IDE 界面（文件树、编辑器、面板等）
 ```
 
@@ -51,15 +50,23 @@ pnpm desktop:dev
 ### 自动服务管理
 
 - **自动启动**：无需手动开多个终端
-- **健康检查**：确保所有服务真正就绪后才打开窗口
-- **优雅退出**：关闭窗口或 Ctrl+C 时自动停止所有服务
+- **就绪协调**：窗口打开不等全部服务就绪；API readiness 在后台完成（仅 smoke 模式同步等待）
+- **优雅退出**：关闭窗口或 Ctrl+C 时清理由本轮创建且受管的子进程；复用的既有服务与 Docker 容器不随之停止
 
-### IDE 功能
+### 作者主流程（当前主体验）
+
+1. 欢迎页/作品库创建或打开本地小说项目。
+2. 工作台用 Monaco 编辑器写作；左侧文件树、版本快照、命令面板可用。
+3. 与对话式 Agent 讨论：审稿、定向修订、新文件起草都以 proposed patch 返回。
+4. 按项目权限档位处理补丁：`read`/`ask` 逐次确认，`auto`/`full` 免点击但仍走写前快照 → 原子写 → 版本记录的 guarded writeback，可撤销。
+5. 「设置 → 模型服务」配置 provider、base URL、model 与 API key（本机 DPAPI 保护），保存即生效。
+
+### 编辑器与项目功能
 
 - **文件编辑**：Monaco Editor，支持语法高亮
 - **章节管理**：查看、编辑、排序章节
-- **实时预览**：编辑即时渲染
-- **版本控制**：集成 Git 工作流
+- **知识/检索面板**：项目级检索与知识条目管理
+- **版本记录**：影子 Git 版本快照与历史对比（不是通用 Git 客户端工作流）
 
 ## 📝 常见操作
 
@@ -74,7 +81,7 @@ pnpm desktop:dev
 - **方法 1**：关闭桌面窗口（推荐）
 - **方法 2**：在启动终端按 `Ctrl+C`
 
-两种方式都会自动停止由桌面 dev 工作流拉起的前端和桌面进程；API 服务由桌面主进程管理时也会随之停止。
+两种方式都会清理由本轮 dev 工作流创建并受管的进程（Vite、Tauri、其托管的 API 子进程）；被复用的既有服务（`STORYFORGE_DESKTOP_REUSE_API=1` 的外部 API、复用的 Vite）和 Docker 容器不属于受管子进程，不会被停止。
 
 ### 查看日志
 
@@ -88,15 +95,15 @@ pnpm desktop:dev
 ### 构建安装包
 
 ```bash
-cd apps/desktop
-pnpm tauri build
+# 从项目根目录运行（prepare:git + build:api-sidecar + tauri build）
+pnpm.cmd desktop:build
 ```
 
-生成文件：
+生成文件（版本号以 `src-tauri/tauri.conf.json` 为准，当前为 0.1.10；`targets: all` 不代表各平台安装包均已验收）：
 
-- Windows: `src-tauri/target/release/bundle/msi/StoryForge IDE_0.1.0_x64_en-US.msi`
-- macOS: `src-tauri/target/release/bundle/dmg/StoryForge IDE_0.1.0_x64.dmg`
-- Linux: `src-tauri/target/release/bundle/deb/storyforge-ide_0.1.0_amd64.deb`
+- Windows: `src-tauri/target/release/bundle/msi/StoryForge IDE_<version>_x64_en-US.msi`、`.../nsis/StoryForge IDE_<version>_x64-setup.exe`
+- macOS: `src-tauri/target/release/bundle/dmg/StoryForge IDE_<version>_x64.dmg`
+- Linux: `src-tauri/target/release/bundle/deb/storyforge-ide_<version>_amd64.deb`
 
 ## 🔧 故障排查
 
@@ -234,24 +241,36 @@ cd apps/desktop
 pnpm tauri dev
 ```
 
-### 跳过服务启动（仅测试 Tauri）
+### 单机无 Docker 模式（`STORYFORGE_DESKTOP_SKIP_SERVICES=1`）
 
-如果服务已经在运行，可以直接启动桌面应用：
+该变量**只跳过 Docker 服务检查与 Alembic 迁移**，数据库改用本机 SQLite；桌面主进程**仍会自己启动 API 子进程**，并不是「只开 Tauri、复用已在跑的 API」。
+
+要复用本机已有 API，需同时显式设置 `STORYFORGE_DESKTOP_REUSE_API=1`，且仅当已有 API 与应用版本一致时才会复用；否则为保证 key 不注入错误后端，主进程可能终止占用 `127.0.0.1:8000` 的旧进程再启动自己的 API。诊断已有进程状态时不要再用旧版「仅测试 Tauri」的说法操作。
+
+```powershell
+# Windows PowerShell
+cd apps/desktop
+$env:STORYFORGE_DESKTOP_SKIP_SERVICES = "1"
+pnpm tauri dev
+
+# 复用已在跑的同版本 API（追加）
+$env:STORYFORGE_DESKTOP_REUSE_API = "1"
+```
 
 ```bash
+# bash / macOS / Linux
 cd apps/desktop
 STORYFORGE_DESKTOP_SKIP_SERVICES=1 pnpm tauri dev
 ```
 
 ## 📚 相关文档
 
-- [README.md](./README.md) - 项目概览和环境要求
-- [STATUS.md](./STATUS.md) - 开发进度和技术细节
+- [README.md](./README.md) - 项目概览、使用语境与环境要求
+- [STATUS.md](./STATUS.md) - 2026-06 原型阶段报告（历史记录，非当前能力清单）
 - [CLAUDE.md](../../CLAUDE.md) - 项目整体架构
 
 ## 💡 提示
 
-- **首次编译时间**：Rust 编译需要 5-10 分钟，请耐心等待
-- **后续启动时间**：约 2-3 秒（服务启动 + 健康检查）
+- **首次编译时间**：Rust 首次编译耗时明显更长，请耐心等待；后续启动无需重编译
 - **推荐配置**：16GB+ 内存，SSD 硬盘
-- **开发建议**：保持 Docker Desktop 始终运行，避免每次重启容器
+- **开发建议**：默认开发模式保持 Docker Desktop 运行；无 Docker 时用 `STORYFORGE_DESKTOP_SKIP_SERVICES=1` 单机模式

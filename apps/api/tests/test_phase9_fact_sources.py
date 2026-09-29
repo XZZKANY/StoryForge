@@ -203,17 +203,26 @@ def test_archived_todo_preserves_historical_execution_context() -> None:
     assert "第一阶段验收链路已经通过本地验证：本地文件审稿 -> 修订 -> diff 确认 -> 真实写回 -> 版本记录" not in todo
 
 
-def test_local_start_records_current_phase9_runbook() -> None:
-    """本地启动手册必须使用当前路径、验证命令和 Phase 9 门禁边界。"""
+def test_local_start_records_current_runbook() -> None:
+    """本地启动手册必须使用当前路径、现行验证职责划分与现行阶段边界。"""
 
     local_start = LOCAL_START_PATH.read_text(encoding="utf-8")
+    current_section = local_start.split("## 10. 附录")[0]
 
-    assert re.search(r"更新时间：\d{4}-\d{2}-\d{2}", local_start)
+    assert "更新时间：2026-09-28" in local_start
     assert "D:/StoryForge" in local_start
     assert "`pnpm verify`" in local_start
     assert "`pnpm e2e`" in local_start
     assert "`pnpm test`" in local_start
     assert "`pnpm openapi`" in local_start
+
+    # 现行职责划分
+    assert "`pnpm e2e` 只做 OpenAPI 刷新/漂移检查和 Node 契约断言" in local_start
+    assert "历史所称的 API verification，那些归 `pnpm verify` / `pnpm test`" in local_start
+    assert "远端 GitHub Actions workflow 已于 2026-06-30 退役" in local_start
+    assert "纳入本地 E2E 的 API verification 预检" not in current_section
+
+    # 2026-06 历史证据原样保留在附录
     assert "API 405 passed" in local_start
     assert "远端 `E2E` run `26915457170`" in local_start
     assert "2026-06-03T21:55:39Z" in local_start
@@ -239,15 +248,22 @@ def test_local_start_records_current_phase9_runbook() -> None:
     assert "API 399 passed" not in local_start
 
 
-def test_troubleshooting_records_current_phase9_failure_boundaries() -> None:
-    """故障手册必须同步当前 Phase 9 远端 E2E 与 Alembic 排障边界。"""
+def test_troubleshooting_records_current_failure_boundaries() -> None:
+    """故障手册必须使用当前门禁归属，并把远端 E2E 排障标为历史。"""
 
     troubleshooting = TROUBLESHOOTING_PATH.read_text(encoding="utf-8")
 
-    assert "更新时间：2026-06-04" in troubleshooting
+    assert "更新时间：2026-09-28" in troubleshooting
     assert "D:/StoryForge" in troubleshooting
     assert "`pnpm verify`" in troubleshooting
     assert "`pnpm e2e`" in troubleshooting
+
+    # 现行职责划分
+    assert "`pnpm verify` 本身不探活 Docker" in troubleshooting
+    assert "`pnpm e2e` 只做 OpenAPI 漂移检查与 Node 契约断言" in troubleshooting
+    assert "已于 2026-06-30 退役" in troubleshooting
+
+    # 2026-06 历史证据原样保留
     assert "远端 `E2E` run `26915457170`" in troubleshooting
     assert "2026-06-03T21:55:39Z" in troubleshooting
     assert "26944063055" in troubleshooting
@@ -262,17 +278,24 @@ def test_troubleshooting_records_current_phase9_failure_boundaries() -> None:
     assert "D:/StoryForge/1-renovel-ai-ai-rag-tavern" not in troubleshooting
 
 
-def test_operations_readme_records_current_phase9_runbook_index() -> None:
-    """运维索引必须指向当前 Phase 9 本地验证与远端 E2E 排障入口。"""
+def test_operations_readme_records_current_runbook_index() -> None:
+    """运维索引必须使用当前门禁边界，历史远端证据只留在历史段。"""
 
     operations_readme = OPERATIONS_README_PATH.read_text(encoding="utf-8")
 
-    assert "更新时间：2026-06-04" in operations_readme
+    assert "更新时间：2026-09-28" in operations_readme
     assert "D:/StoryForge" in operations_readme
     assert "`local-start.md`" in operations_readme
     assert "`troubleshooting.md`" in operations_readme
     assert "`pnpm verify`" in operations_readme
     assert "`pnpm e2e`" in operations_readme
+
+    # 现行职责划分
+    assert "`pnpm e2e` 只做 OpenAPI 刷新/漂移检查和 Node 契约断言" in operations_readme
+    assert "`pnpm verify` 不要求 Docker 探活" in operations_readme
+    assert "远端 GitHub Actions CI/E2E 已于 2026-06-30 退役" in operations_readme
+
+    # 2026-06 历史证据原样保留
     assert "远端 `E2E` run `26915457170`" in operations_readme
     assert "2026-06-03T21:55:39Z" in operations_readme
     assert "26944063055" in operations_readme
@@ -323,22 +346,27 @@ def test_remote_e2e_rerun_readiness_records_master_success_evidence() -> None:
     assert "真实长程已完成" not in readiness
 
 
-def test_alembic_validation_records_current_phase9_migration_boundary() -> None:
-    """Alembic 验证手册必须同步当前 Phase 9 迁移门禁事实。"""
+def test_alembic_validation_records_current_migration_boundary() -> None:
+    """Alembic 验证手册必须记录当前 head 与现行验证方法，历史输出只作时点参考。"""
 
     validation = ALEMBIC_VALIDATION_PATH.read_text(encoding="utf-8")
 
-    assert "更新时间：2026-06-04" in validation
+    assert "更新时间：2026-09-28" in validation
     assert "D:/StoryForge" in validation
     assert "apps/api/alembic.ini" in validation
     assert "apps/api/alembic/env.py" in validation
-    assert "20260604_0001" in validation
-    assert "20260514_phase2" in validation
-    assert "20260602_0003" in validation
+
+    # 当前 head 与现行验证方法
+    assert "当前 head：`20260703_0001`" in validation
     assert "tests/test_alembic_heads.py" in validation
     assert "uv run pytest tests/test_alembic_heads.py -q" in validation
     assert "alembic upgrade head --sql" in validation
     assert "离线 SQL" in validation
+
+    # 2026-06-04 历史验证记录原样保留在附录
+    assert "20260604_0001" in validation
+    assert "20260514_phase2" in validation
+    assert "20260602_0003" in validation
     assert "Docker daemon 已启动" in validation
     assert "storyforge_phase9_online_verify" in validation
     assert "在线 PostgreSQL 迁移已在本轮复验" in validation
@@ -357,6 +385,7 @@ def test_alembic_validation_records_current_phase9_migration_boundary() -> None:
     assert "在线升级到真实 PostgreSQL 已在本机通过" not in validation
     assert "在线命令输出包含" not in validation
     assert "在线 PostgreSQL 迁移未在本轮复验" not in validation
+    assert "当前 head：`20260604_0001`" not in validation
 
 
 def test_phase9_document_fact_source_roles_are_converged() -> None:

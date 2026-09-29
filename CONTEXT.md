@@ -11,7 +11,7 @@ The project keeps a verifiable long-form generation pipeline, but that pipeline 
 - **Desktop IDE** is the main product experience under `apps/desktop`.
 - **API** is the business truth source under `apps/api`.
 - **Workflow app retired (2026-07-26).** The standalone LangGraph orchestrator under `apps/workflow` was deleted; long-running generation, provider calls, and ModelRun records live in `apps/api` (single egress: `app/common/llm_client.py`).
-- **BookRun** is the auditable whole-book generation run. It can generate, judge, repair, write memory, and export artifacts.
+- **BookRun** is the auditable whole-book generation run. It can generate, judge, repair, write memory, and export artifacts. Today it survives as a background managed Writing Run and CLI path: the live conversation runtime does not register `bookrun.*` tools, so the conversational Agent cannot start or drive a BookRun directly; background compatibility must not be read as a live agent capability.
 - **Desktop IDE Agent** is the local project assistant path: open file, review, targeted revision, proposed patch, permission-aware confirmation, guarded write-back, version record.
 - **OpenAPI contract** is the hard seam from API to clients. Backend route changes must refresh `packages/shared/src/contracts/storyforge.openapi.json`.
 - **Web** has exited. Do not add or maintain `apps/web` as a product entry.

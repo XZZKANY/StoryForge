@@ -3,7 +3,8 @@
 > 首席架构师签发 | 2026-05-26
 > 前置条件：Phase 7 Closing Audit 全部 P0-P3 已完成并验证通过
 > 目标：将 StoryForge 从"本地可验证原型"升级为"可部署、可观测、可协作的生产系统"
-> 历史说明：本文件保留早期 Web-first / Phase 9 规划和 DoD 记录，不能单独作为当前事实源。当前阶段事实以 `docs/internal/current-phase.md` 为准。2026-06-21 起 `apps/web` 已退场，后续前端能力默认进入 `apps/desktop`，验证入口以 Desktop/API/Workflow/Shared 为准。
+> 历史说明：本文件保留早期 Web-first / Phase 9 规划和 DoD 记录，不能单独作为当前事实源。当前阶段事实以 `docs/internal/current-phase.md` 为准。2026-06-21 起 `apps/web` 已退场，后续前端能力默认进入 `apps/desktop`。
+> 封口（2026-09-28）：文中所有「当前/最新远端/CI/E2E」均为 2026-06 时点表述，远端 workflow 已于 2026-06-30 退役；`apps/workflow` 已于 2026-07-26 退役，现行门禁为 `pnpm verify` / `pnpm e2e`（覆盖 Desktop/API/Shared/project-core），不再含 Workflow 面。请勿按本文重建已退役入口。
 
 ---
 

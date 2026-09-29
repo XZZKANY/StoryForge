@@ -1,12 +1,12 @@
 # StoryForge 本地启动手册
 
-更新时间：2026-07-01 00:00:00 +08:00
+更新时间：2026-09-28
 
 ## 1. 适用范围
 
-本文用于在本地 Windows PowerShell 环境启动和验证 `D:/StoryForge`。当前默认开发入口是 Desktop IDE；旧 Web 入口已退场。内容只引用当前仓库中已经存在的脚本、配置和服务，不把真实外部 LLM、embedding 或 reranker 作为本地启动前置条件。
+本文用于在本地 Windows PowerShell 环境启动和验证 `D:/StoryForge`。当前默认开发入口是 Desktop IDE；旧 Web 与独立 Workflow 入口均已退役。内容只引用当前仓库中已经存在的脚本、配置和服务，不把真实外部 LLM、embedding 或 reranker 作为本地启动前置条件。
 
-当前阶段仍处于 Phase 9 真实 LLM 长程验收准备阶段：本地 Phase 9A/9B/9C 能力已有验证证据，真实 10 章 smoke 已完成最终验收，远端 `master` E2E 已通过，真实 3-5 万字长程仍未完成。详细阶段边界以 `docs/internal/current-phase.md`、`docs/internal/TODO.md`、`docs/internal/PROJECT_SUMMARY.md` 和 `README.md` 为准。
+当前处于 Desktop IDE-first 收口阶段：对话式 Agent 与权限感知写回是主体验，BookRun 退居后台工具。阶段边界以 `docs/internal/current-phase.md`、`docs/internal/TODO.md`、`docs/internal/PROJECT_SUMMARY.md` 和 `README.md` 为准；2026-06 的 Phase 9 验收记录统一收在本文附录，仅作时点参考。
 
 ## 2. 前置工具
 
@@ -104,10 +104,10 @@ cd D:/StoryForge
 npm --prefix apps/desktop run build
 ```
 
-该命令先运行 `apps/desktop/scripts/build-api-sidecar.mjs`，用 PyInstaller 将 `apps/api/run_windows.py` 打为 Tauri sidecar，然后执行 `tauri build`。常见输出路径：
+该命令先运行 `apps/desktop/scripts/prepare-bundled-git.mjs`（准备随包 MinGit），再运行 `apps/desktop/scripts/build-api-sidecar.mjs`，用 PyInstaller 将 `apps/api/run_windows.py` 打为 Tauri sidecar，最后执行 `tauri build`。常见输出路径（版本号以 `apps/desktop/src-tauri/tauri.conf.json` 为准，当前为 0.1.10）：
 
-- `apps/desktop/src-tauri/target/release/bundle/msi/StoryForge IDE_0.1.0_x64_en-US.msi`
-- `apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_0.1.0_x64-setup.exe`
+- `apps/desktop/src-tauri/target/release/bundle/msi/StoryForge IDE_<version>_x64_en-US.msi`
+- `apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_<version>_x64-setup.exe`
 
 构建产物和 `apps/desktop/src-tauri/binaries/` 属于本机生成物；准备提交时不要把安装包、sidecar exe、PyInstaller build 缓存或真实 provider 配置加入 Git。
 
@@ -132,13 +132,14 @@ pnpm openapi
 
 验证说明：
 
-- `pnpm verify` 执行当前 Desktop、shared、project-core 与 API 核心门禁；历史 Phase 9 记录为 `API 405 passed`，当前详细结果以 `.codex/verification-report.md` 的最近记录为准。
-- `pnpm e2e` 会刷新 OpenAPI，并执行 Node 端契约和 API verification；独立 Workflow verification 已随组件退役移除。
-- `pnpm e2e` 的 API verification 已纳入 `tests/test_alembic_heads.py`，会先验证 Alembic 单 head 与离线 SQL smoke；在线 PostgreSQL 迁移已在本轮复验，临时库 `storyforge_phase9_online_verify` 执行 `uv run alembic upgrade head` 与 `uv run alembic current --check-heads` 均退出码为 0。
+- `pnpm verify` 执行当前 Desktop、shared、project-core 与 API 核心门禁：lint、typecheck、各栈测试（含 API pytest 与 `tests/test_alembic_heads.py` 的 Alembic 单 head 预检）、Ruff、daily 档 sidecar smoke 和 OpenAPI drift；详细结果以 `.codex/verification-report.md` 的最近记录为准（历史 Phase 9 结果见附录）。
+- `pnpm e2e` 只做 OpenAPI 刷新/漂移检查和 Node 契约断言（`tests/e2e/`，秒级）；它不执行 HTTP pytest 或历史所称的 API verification，那些归 `pnpm verify` / `pnpm test`。
 - `pnpm test` 用于补充执行 Desktop、shared、project-core 和 API 的测试集合。
 - `pnpm openapi` 用于刷新 `packages/shared/src/contracts/storyforge.openapi.json`；如果产生 diff，必须解释来源并补充测试证据。
 
-## 10. 当前远端门禁边界
+## 10. 附录：2026-06 历史远端门禁与迁移证据（原样保留）
+
+> 以下为 2026-06-04 时点记录；其中「本地 E2E 的 API verification 预检」是当时的脚本归属，现行归属为 `pnpm verify` 的 API pytest（见第 9 节）。远端 GitHub Actions workflow 已于 2026-06-30 退役。历史 Phase 9 全量结果为 `API 405 passed`。
 
 - 远端 `CI` run `26857864662` 已成功，但只覆盖 `CI / Core verification` 子集。
 - 历史远端 `E2E` run `26915457170`（2026-06-03T21:55:39Z）曾失败于 Alembic `Multiple head revisions`。
@@ -167,14 +168,14 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 
 ### Docker 容器未运行
 
-现象：`pnpm verify` 提示 PostgreSQL、Redis、MinIO 或 Docker 状态失败。
+现象：`pnpm dev` 默认开发启动提示 Docker 命令不可用，或 PostgreSQL、Redis、MinIO 容器未运行，API 迁移、数据库连接或对象存储步骤无法继续。`pnpm verify` 本身不探活 Docker（见 troubleshooting.md 第 2 节）。
 
 处理：
 
 ```powershell
 cd D:/StoryForge
 docker compose up -d postgres redis minio
-pnpm verify
+pnpm dev
 ```
 
 ### OpenAPI 刷新失败
@@ -190,28 +191,26 @@ pnpm verify
 
 OpenAPI 生成失败时不得继续使用旧契约作为发布依据。
 
-### FastAPI HTTP pytest 或 API verification 失败
+### FastAPI HTTP pytest 失败
 
-现象：`pnpm e2e` 在 API verification 或真实 FastAPI HTTP pytest 阶段失败。
+现象：`pnpm verify` 或 `pnpm test` 在 API pytest 阶段失败，或直接在 `apps/api` 运行某个 HTTP route pytest 返回非零退出码。
 
 处理：
 
 - 这是发布门禁红灯，不能降级为服务层补偿验收。
 - 先在 `apps/api` 中复跑失败目标，例如 `uv run pytest tests/test_alembic_heads.py -q` 或具体失败测试。
-- 修复 router、service、schema、Alembic、测试夹具或 OpenAPI 契约后，回到仓库根重新运行 `pnpm e2e`。
+- 修复 router、service、schema、Alembic、测试夹具或 OpenAPI 契约后，回到仓库根重新运行 `pnpm verify`（契约断言另跑 `pnpm e2e`）。
 
-### 远端 E2E 失败
+### 远端 E2E 失败（历史流程，已退役）
 
-现象（历史）：GitHub Actions `E2E` 曾有失败 run。该远端 workflow 已于 2026-06-30 退役，当前请直接运行本地 `pnpm e2e`。
-
-处理：
+现象（历史）：GitHub Actions `E2E` 曾有失败 run。该远端 workflow 已于 2026-06-30 退役，当前验证直接运行本地 `pnpm verify` / `pnpm e2e`；下面命令仅适用于仍存在于远端的历史副本，不是现行操作步骤。
 
 ```powershell
 gh run list --repo XZZKANY/StoryForge --workflow E2E --limit 5
 gh run view <run-id> --repo XZZKANY/StoryForge --log-failed
 ```
 
-如果失败点仍是 Alembic `Multiple head revisions`，先确认包含本地 `20260604_0001` 修复的提交已经进入远端分支，再重新运行远端 E2E。当前已知通过证据为 `master` run `26944063055`。
+历史记录：当时失败点为 Alembic `Multiple head revisions`，由包含本地 `20260604_0001` 修复的提交解决；当时已知通过证据为 `master` run `26944063055`。
 
 ## 13. Git 检查
 

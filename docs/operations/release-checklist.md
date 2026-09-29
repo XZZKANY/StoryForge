@@ -1,10 +1,10 @@
 # StoryForge 发布清单
 
-更新时间：2026-07-01 00:00:00 +08:00
+更新时间：2026-09-28
 
 ## 1. 适用范围
 
-本文用于 StoryForge 本地发布前检查。当前项目仍处于 Phase 0/5/6/7 推进阶段，本清单只覆盖仓库中已经落地的本地验证、OpenAPI、文档和回滚流程，不把未接入的真实 provider、embedding、reranker 作为发布通过条件。
+本文用于 StoryForge 本地发布前检查。当前处于 Desktop IDE-first 收口阶段（事实源见 `docs/internal/current-phase.md`），本清单只覆盖仓库中已经落地的本地验证、OpenAPI、文档和回滚流程，不把未接入的真实 provider、embedding、reranker 作为发布通过条件。
 
 ## 2. 发布前 Git 门禁
 
@@ -52,7 +52,7 @@ git diff -- packages/shared/src/contracts/storyforge.openapi.json
 
 - `pnpm openapi` 退出码为 0。
 - 契约变更只来自当前 API 代码，不允许静默沿用旧快照。
-- 若契约有变更，同步检查 `docs/api/` 中对应阶段审查文档是否需要更新。
+- 若契约有变更，必须能逐段解释 `packages/shared/src/contracts/storyforge.openapi.json` 的 diff 来源并补验证记录。
 
 ## 5. 本地测试门禁
 
@@ -66,20 +66,27 @@ pnpm e2e
 通过条件：
 
 - `pnpm test` 中 Desktop、共享包、`project-core` 和 API pytest 全部通过。
-- `pnpm e2e` 先刷新 OpenAPI，再完成阶段契约和 API verification；独立 Workflow 的 `compileall`/pytest 已随组件退役移除。
-- 若真实 FastAPI HTTP pytest 失败，发布门禁必须失败；不得用补偿验收替代。
+- `pnpm e2e` 只做 OpenAPI 刷新/漂移检查与 Node 契约断言（秒级），不执行 pytest；独立 Workflow 的 `compileall`/pytest 已随组件退役移除。
+- 若真实 FastAPI HTTP pytest 失败（由 `pnpm verify` / `pnpm test` 覆盖），发布门禁必须失败；不得用补偿验收替代。
 
 ## 6. Desktop Alpha 打包门禁
 
-准备分发私测桌面包前，至少执行：
+准备分发私测桌面包前，按「构建前单元层 → 完整构建 → 打包态 smoke → clean-install」分档执行，保证被测 sidecar 从当前源码重建：
 
 ```powershell
+# 1. 构建前单元层
 npm --prefix apps/desktop/frontend run typecheck
 npm --prefix apps/desktop/frontend run test -- project-context.test.ts provider-config.test.ts editor.test.tsx
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
-$env:STORYFORGE_DESKTOP_USE_API_SIDECAR = "1"
-npm --prefix apps/desktop run verify:tauri-smoke
-npm --prefix apps/desktop run build
+
+# 2. 完整构建（prepare:git + build:api-sidecar + tauri build）
+pnpm.cmd desktop:build
+
+# 3. 打包态 smoke（先从当前源码重建 release sidecar，再跑 --release 冒烟）
+npm --prefix apps/desktop run verify:tauri-smoke:packaged
+
+# 4. NSIS clean-install 验收（临时目录静默安装 + 启动 + 清理）
+npm --prefix apps/desktop run verify:nsis-install
 ```
 
 通过条件：
@@ -87,14 +94,14 @@ npm --prefix apps/desktop run build
 - `apps/desktop/src-tauri/binaries/storyforge-api-<target>.exe` 由当前源码重新生成。
 - MSI 或 NSIS 安装包存在于 `apps/desktop/src-tauri/target/release/bundle/`。
 - 打包态启动不依赖 Docker、PostgreSQL、Redis、MinIO、Vite 或仓库内 `.venv`。
-- `verify:tauri-smoke` 在 sidecar 模式下能完成欢迎页、文件树/编辑器布局、API 配置读取、项目加载、建议补丁拒绝/冲突拦截/确认写回、版本快照和作者闭环记录校验。
-- 安装包至少做一次临时目录 clean-install smoke：静默安装到临时目录，运行安装目录中的 `storyforge-desktop.exe`，确认其能启动同目录 `storyforge-api.exe` 并完成同一条 smoke 链路；测试后清理临时安装目录、快捷方式和 HKCU 卸载登记。
+- `verify:tauri-smoke:packaged` 在打包态能完成欢迎页、文件树/编辑器布局、API 配置读取、项目加载、建议补丁拒绝/冲突拦截/确认写回、版本快照和作者闭环记录校验。
+- `verify:nsis-install` 完成临时目录 clean-install smoke：静默安装到临时目录，运行安装目录中的 `storyforge-desktop.exe`，确认其能启动同目录 `storyforge-api.exe` 并完成同一条 smoke 链路；测试后清理临时安装目录、快捷方式和 HKCU 卸载登记。
 - 设置页保存的 provider 配置写入本机 `llm-provider.json`，API 在下一次调用时实时读取，无需重启子进程；若复用外部 API，按外部服务的配置生效规则验证。
 - 生成的安装包、sidecar exe、PyInstaller 缓存和本机 LLM 配置不得误提交。
 
 私测 alpha 已知 caveat：
 
-- Windows 本机 LLM key 当前保存在 Tauri app config JSON；不进仓库、不进 localStorage，但尚未接入 OS keychain/DPAPI，公开分发前必须硬化。
+- Windows 本机 LLM key 保存在 Tauri app config JSON，已接入 Windows user-scoped DPAPI 保护（`windows-dpapi-user-v1`，CryptProtectData/CryptUnprotectData；旧格式配置由 `llm_config_store.rs` 自动迁移，API 侧 `llm_config_file.py` 可读取同一保护格式）；不进仓库、不进 localStorage。该保护是用户级加密而非签名/分发硬化，公开分发前仍需单独评审。
 - Windows 安装包当前未签名，未接自动更新；熟人私测可接受，公开前必须补签名与 updater 策略。
 - 本机桌面模式默认需要占用 `127.0.0.1:8000`。若该端口已有服务且未设置 `STORYFORGE_DESKTOP_REUSE_API=1`，启动会失败以避免 key 注入到错误后端。
 - PyInstaller sidecar 已覆盖当前桌面审稿/修订/写回 smoke；BookRun 与导出能力若纳入打包态发布承诺，仍需补充对应 smoke。
@@ -113,7 +120,7 @@ npm --prefix apps/desktop run build
 
 发布或推送前必须能回答：
 
-- 文档变更如何回滚：使用 `git checkout -- <file>` 或还原当前任务补丁。
+- 文档变更如何回滚：只逆向本任务的补丁（`git diff` 定位后逐文件还原），不在混合工作区执行 `git checkout -- <file>` 一类会覆盖他人未提交改动的命令。
 - 脚本变更如何回滚：只回退当前任务涉及脚本，不影响业务代码。
 - OpenAPI 变更如何回滚：还原 `packages/shared/src/contracts/storyforge.openapi.json` 并记录原因。
 - 数据迁移如何回滚：若涉及 Alembic，必须说明 downgrade 或清库重建路径。

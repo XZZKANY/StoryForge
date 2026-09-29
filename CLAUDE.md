@@ -1,17 +1,19 @@
 # CLAUDE.md — StoryForge 项目上下文
 
 > 本文件帮助新一轮 AI 会话快速理解 StoryForge 仓库。
-> 上位规范见 `docs/internal/AGENTS.md`、日常执行版见 `docs/internal/AI_ITERATION_GUIDE.md`。
+> 根级协作约定见 `AGENTS.md`；`docs/internal/` 目录级补充见该目录 `AGENTS.md`。
 > 当前阶段事实以 `docs/internal/current-phase.md` 为准；下一步入口见 `docs/internal/TODO.md`。
 
 ## 1. 项目定位
 
-StoryForge 是面向**长篇小说生产**的可验证创作流水线：
-每一次生成、检索、评审、修复、批准与回写，都必须留下可追溯证据，而不是只产出一段孤立文本。
+StoryForge 是面向长篇小说的 Desktop IDE-first AI 写作工作台（2026-06-24 拍板为**作者辅助 IDE**，不是自动长篇生产器）：
+作者打开本地小说项目，通过对话式 Agent 审稿、修订、查看 diff，并按项目权限确认或自动写回，全流程保留证据链。
+早期「先做诊断控制台，再做生成器」的立场仍然适用：任何生成路径都先有读取证据 → 评审 → 修复 → 批准的闭环。
 
-设计立场：**先做诊断控制台，再做生成器**。任何生成路径都先有读取证据 → 评审 → 修复 → 批准的闭环，再考虑接真实模型。
+## 1.1 项目演进流水（历史记录，2026-07-11 止）
 
-## 1.1 当前项目真相（2026-07-11）
+> 本节是历次拍板与合并流水，用于追溯决策来源；其中「当前/已合并/最新」均为各自时点表述，
+> 不作为今天的现状或下一步依据。当前能力边界见 §8，当前下一步见 `docs/internal/TODO.md`。
 
 - StoryForge 当前处于**Desktop 对话式 Agent 与私测 Alpha 收口阶段**。
 - 产品定位（2026-06-24 拍板）：**作者辅助 IDE**，不是自动长篇生产器；`apps/desktop` 是唯一主产品体验；`apps/web` 已退场（2026-06-21 完成收口），不再作为维护、调试、兼容或契约验证入口。
@@ -26,7 +28,7 @@ StoryForge 是面向**长篇小说生产**的可验证创作流水线：
 - 2026-07-04 已合并（蓝图 W5 core「workflow 分层 prompt 迁入 API」，修 F05 装机死路，schema 冻结下零 ORM 变更）：workflow 的**纯函数**分层 prompt 构建器（7 文件）+ 技能审计投影（`skills/audit.py`）迁入进程内包 `app.domains.book_runs.prompts/`，拆掉两座 importlib 文件路径桥（`workflow_prompt_bridge` / `workflow_skill_audit_bridge`，`git rm`），随 `collect_submodules('app')` 打进冻结 exe。旧桥指相邻 `apps/workflow` 目录、装机 exe 内不存在会在 bookrun.start 才炸；现 `book_generation` 起服链模块级依赖新包、漏打即起服炸。`main.py` 加起服自检 `prompt_layer_bundled`，daily/packaged 两档 sidecar-smoke 断言（**packaged 冻结 exe 实测绿：`分层 prompt 构建器已随 exe 打包(F05 死路已收口)`**）。全量 847 passed（= W4 基线零回归）、ruff 绿、e2e 21/21。**本刀不做**：`apps/workflow` app 物理删除 + 第 7 LLM 客户端删除（W5 高风险步，留后续；prompts 暂在 api/workflow 双存，api 是 live 唯一装机路径）。真机「装机 exe → bookrun.start 真装配」归 E2E-1。
 - 2026-07-04 已合并（蓝图 W7「前端行为测试基建」+ 修 F26/F27）：引入 vitest + happy-dom（frontend 是独立 npm 工程），落三条**可证伪**红线行为测试（①before 漂移拒写 ②快照→写盘→记录时序 + 快照失败阻断写回 ③会话切换中途 run 完成不污染当前会话）；修两条真 bug——**F26** `ChatWindow` 会话切换竞争：`runAuthorAgent` 终态块与 `applyResumedAgentResult` 加会话守卫 `isRunResultForActiveSession`（run 起跑会话≠当前活动会话即不写回，纯 `runId` 守卫不足因切会话不改 runId）；**F27** 写盘非原子（Rust `fs.rs::write_file` 改「同目录临时文件+sync+原子 rename」，拆 `stage_atomic_write` 使原子性不变量可单测证伪）+ 快照失败照写（TS `performGuardedWriteback` 纯核心删吞错 try/catch，快照 reject 即阻断 write/record）。证据：vitest 9 passed、cargo test fs:: 9 passed（含 2 新原子写）、verify-unit 既有 101 passed 零回归、lint 绿。**本刀不做**：既有 19 测试迁入 vitest + 删 verify-unit（双跑一周期后）、ChatWindow 全量 happy-dom 挂载、真机桌面观感（归 E2E-1）。
 - 2026-07-05 至 07-11 已合并：桌面壳子 redesign P0-P4（PR #81-#85）+ Agent 壳子接线契约（PR #80）；**E2E-1 真机首轮门禁 G.1 全 PASS**（2026-07-07，共逮 6 真 bug 均修 PR #87-#96/#109）；查缺补漏审计修复（PR #90-#94）；W6 WS 契约化 slices1-3 + F25 权限四轨（PR #105-#107/#111/#112，slice4 跳过 / slice5 保留 facade 已拍板封档）；canon 防漂移 slice1/2（PR #114/#115，`.storyforge/canon/` 骨架 + 薄不变量闸 + dossier 富 view，确定性无 LLM）；Desktop/API 边界加固（Codex，PR #118，redaction / WS 子协议凭据 / fs.rs 读侧 containment）；W4 batch-2 六域 router 全卸（PR #119/#120）+ 冻结域死码物理清理（PR #121）；workflow 能力迁移 ledger + 三刀 agent 工具（prose_check / collapse_check / entity_budget_check）+ canon_delta 确定性提案工具（PR #122-#125）；LLM 出网传输全收敛 `app/common/llm_client.py`（PR #124/#125，生产 httpx 归零）；前端测试 vitest 单跑、verify-unit 已删（PR #124）。全量门禁（2026-07-11）：API pytest 939、前端 vitest 148、e2e 契约绿、OpenAPI 零漂移。
-- 2026-07-31 已合并（Codex Desktop 式「对项目的权限」）：档位词表收敛为 **read / ask / auto / full**（只读 / 询问 / 自动 / 完全放行），DEFAULT=`ask`，**所有历史档位（risk_confirm / step_confirm / autonomous / full_allow）一律迁到 ask——迁移绝不把任何人升级成免点击落盘**；档位改为**按项目**存本机（`localStorage` 的 `storyforge:agent-permission:<projectPath>`，照 daily-progress 模式；刻意不写进 `.storyforge/`，避免授权随 git 传播），入口收在 Composer 下拉、SettingsView 不再有全局 Agent 分区；**写回红线改写**——后端在任何档位都不写项目文件（这条没变），变的是「作者必须逐次点接受」：`proposed_patch.requires_confirmation` 改由 `PermissionPolicy.decide_stage(profile, "writeback")` 单点派生（read/ask=True，auto/full=False），Desktop 只读这一位、不自己按档位字符串推；自动落盘仍逐次走 `performGuardedWriteback`（写前快照 → 原子写 → 版本记录 + 撤销 toast），漂移拒写、`.storyforge/canon/derived/` 只读、项目边界一律不放宽（`writeAcceptedSuggestion` 补上了此前缺失的派生目录闸）；`full` 档额外免除 BookRun 长任务的二次确认；Ctrl+K / Ctrl+Shift+K 走 `/api/assistant/*` 不经后端 gate，**只被只读档挡住发起**（自动档下仍要 Alt+Enter 手动接受，因为那是作者在光标处主动发起的）；`confirmed` / `user_confirmed` 已加入 `PROTECTED_LOOP_TOOL_ARGUMENT_KEYS`（模型不能自填权限授予）。真机「改档 → 自动落盘 → 撤销 → 重启后档位仍在」未验，归 E2E-1。
+- 2026-07-31 已合并（Codex Desktop 式「对项目的权限」）：档位词表收敛为 **read / ask / auto / full**（只读 / 询问 / 自动 / 完全放行），DEFAULT=`ask`，**所有历史档位（risk_confirm / step_confirm / autonomous / full_allow）一律迁到 ask——迁移绝不把任何人升级成免点击落盘**；档位改为**按项目**存本机（`localStorage` 的 `storyforge:agent-permission:<projectPath>`，照 daily-progress 模式；刻意不写进 `.storyforge/`，避免授权随 git 传播），入口收在 Composer 下拉、SettingsView 不再有全局 Agent 分区；**写回红线改写**——后端在任何档位都不写项目文件（这条没变），变的是「作者必须逐次点接受」：`proposed_patch.requires_confirmation` 改由 `PermissionPolicy.decide_stage(profile, "writeback")` 单点派生（read/ask=True，auto/full=False），Desktop 只读这一位、不自己按档位字符串推；自动落盘仍逐次走 `performGuardedWriteback`（写前快照 → 原子写 → 版本记录 + 撤销 toast），漂移拒写、`.storyforge/canon/derived/` 只读、项目边界一律不放宽（`writeAcceptedSuggestion` 补上了此前缺失的派生目录闸）；`full` 档额外免除 BookRun 长任务的二次确认（2026-07-31 时点；此后 live 循环已不注册 `bookrun.*` 工具，BookRun 仅经后台 managed run 适配器运行，该豁免不再对应 live 入口）；Ctrl+K / Ctrl+Shift+K 走 `/api/assistant/*` 不经后端 gate，**只被只读档挡住发起**（自动档下仍要 Alt+Enter 手动接受，因为那是作者在光标处主动发起的）；`confirmed` / `user_confirmed` 已加入 `PROTECTED_LOOP_TOOL_ARGUMENT_KEYS`（模型不能自填权限授予）。真机「改档 → 自动落盘 → 撤销 → 重启后档位仍在」未验，归 E2E-1。
 - 自主连载 pivot：2026-07-07 拍板方向（网文中位以上自主连载）+ 完成番茄平台政策与数据面侦察；2026-07-10 收窄（近期作者即 oracle，品味机 deferred）；**2026-07-11 拍板「编辑器优先」**——08-31 盛夏寻章不当锚，先把编辑器做到「安全可日更」（装机前两小刀 → 重建 0.1.2 → AI 装机预验 → 真机第二轮观感波 → 修复锁版），再在编辑器上接续 n=1 连载；愿景 = 写 → 发 → 收集信号 → 喂 → 进化编辑器 → 写出更有风格的作品；n=1 创作资产已存档仓库外 `D:\记事本\`（勿入库）。
 - 真实 LLM 1 章、3 章和 10 章 smoke 已完成脱敏验证，其中 10 章 smoke 已通过人工通读，最终门禁为 `gate: pass_for_real_10ch_final_acceptance`。
 - 一次 30 章真实长程已经跑完并导出 Markdown、EPUB 和审计报告，证据目录为 `.codex/real-llm-30ch-mimo25pro-20260611-192356`；但人工通读结论是**退回重跑**。2026-06-30 Q9 16 章真实跑修复门禁丢章四根因并抢救为完整 16 章、人工通读通过（PR #40/#41）。
@@ -187,7 +189,7 @@ uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/waveN --tas
 
 ## 8.1 当前下一步优先级
 
-（2026-07-11 拍板：08-31 盛夏寻章不当锚，编辑器优先；详见 `docs/internal/TODO.md`。）
+（2026-07-11 拍板记录：08-31 盛夏寻章不当锚，编辑器优先；**当前下一步执行入口以 `docs/internal/TODO.md` 为准**，下列 S 编号序列是该时点计划，多数节点已封板或换锚，请勿按本节直接排新任务。）
 
 1. 编辑器做到「安全可日更」（第一段）：S7 装机前两小刀（Rust 写侧 containment、L7 单实例守卫）→ S14 尾巴（壳子 #2 面板 unmount 改 CSS 隐藏）→ S8 重建 0.1.2 NSIS（收进 PR #87-#125 全部修复）→ S9 AI 装机预验（headless 跑绿 WS/SSE）→ S10 真机第二轮堆积观感波（一次捆绑 2-3h：壳子新 UI、WS 子协议、SSE、IME、canon dossier、权限四轨、双开；首轮门禁 G.1 已于 2026-07-07 全 PASS）→ S11 修复波 + 轻量锁版 tag。
 2. 在编辑器上写作品（第二段）：S3 手稿保险（连载目录仓库外 git init + 自动 commit，开写前夕建）→ 接续 n=1 连载（创作资产存档 `D:\记事本\`，canon.json 首刷吃末世系统数字状态）；写作即 dogfood，摩擦日志驱动每周至多一刀 QoL。

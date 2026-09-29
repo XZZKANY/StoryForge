@@ -1,9 +1,23 @@
 # StoryForge 故事状态模型设计（Story State Model Design）
 
 > 生成时间：2026-06-30
+> **历史归档（2026-09-28）：本文是 2026-06-30 的设计定稿。以下正文按原样保留，包括当时「未实现」的表述；实际落地情况见下方 2026-09-28 补记，禁止再按本文「从建表开始」的下一步执行。**
 > 定位：本文件是**跨章故事状态层**的设计定稿，回应 `next-step-plan.md` 核心诊断「judge 单章作用域、跨章涌现查不到」与 Q1/Q4 keystone。
 > 上位约束见 `AGENTS.md`；当前阶段事实以 `current-phase.md` 为准；架构方向见 memory `project_agent_orchestration_direction` / `project_live_judge_chain_truth`。
 > 证据回填见 `.codex/verification-report.md`。**本文件是设计，未实现，不声称任何质量验收**（见 §8）。
+
+---
+
+## 2026-09-28 补记：落地实况（非正文修订）
+
+后台实现已存在，与原设计的关系如下（只读核对，非验收）：
+
+- 模型与迁移：`apps/api/app/domains/story_state/models.py` 已有 `state_event` / `state_ledger` 两张表，迁移为 `alembic/versions/20260630_0001_add_story_state.py`。
+- 服务：`story_state/service.py` 已有 commit / reproject 等能力（如 `commit`、`reproject`，行 87/211）。
+- 调用链：BookRun 后台链路已实际调用（`apps/api/app/domains/book_runs/book_generation_story_state.py:47-73` 接 commit）。
+- 名称差异：实际工具名是 `record_story_state_changes`（`book_generation_changes.py:21`），不是设计中的 `commit_chapter`。
+- Desktop 差异：Desktop canon 走 `canon_store.py`（project_path 作用域），不是同一份 BookRun state 路径；不要把后台实现误当成 Desktop 主路径已全量采用。
+- 原设计 §8「未实现」、§9「下一步先建表」均已被当时之后的实现覆盖，保留原文仅作设计推理记录。
 
 ---
 

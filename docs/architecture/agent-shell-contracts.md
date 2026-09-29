@@ -74,7 +74,7 @@ Desktop 不再建立 Agent WebSocket。两个入口都使用 HTTP `POST`，通�
 
 ### A.4 漂移旗标（重连壳子时的已知落差，别当 bug）
 
-1. **后端多带、FE 类型少列的键**：`agent_step`/`tool_trace`/`permission_required` 帧后端都带 `event_id`、`sequence`；`permission_required` 还带 `confirmation_action`、`blocked_tool`；`agent_run_started` 带 `event_id`。FE `types.ts` 没在类型里列全，但帧里有——需要幂等/去重（用 `event_id`/`sequence`）时可直接取。
+1. **后端多带、FE 曾少列的键已收进生成类型**：`agent_step`/`tool_trace`/`permission_required` 帧后端都带 `event_id`、`sequence`；`permission_required` 还带 `confirmation_action`、`blocked_tool`；`agent_run_started` 带 `event_id`。FE 类型现由 `packages/shared/src/contracts/agent-ws.schema.json` 生成（`src/lib/api/generated/agent-ws.ts`，不可手改），这些键已在类型中声明；`pnpm openapi` 统一刷新 schema、shared 类型与前端 Agent 类型，不要再手改 FE 类型镜像。需要幂等/去重时直接取 `event_id`/`sequence`。
 2. **持久化终态帧 `agent_run_completed` / `agent_run_failed` 不负责 live settle**（历史名 `_websocket_terminal_event` 的 encoder 会推，但 happy-path 仍靠 `agent_result` settle）。它们主要供**中止 SSE 后转轮询**时由 `reconstructAgentResultFromEvents` 解码（见 B）。
 3. **`proposed_patch` 定义在三处**：后端 `runtime.py`（生成）、`event_encoders.py::_websocket_permission_required_event`（回嵌进 permission 帧）、FE `types.ts::AgentProposedPatch`（`file_revision` / `repair_patch` 两态判别联合）。改补丁形状要三处一起动。
 4. `ws_messages.py`、`ws_schema.py`、`agent-ws.schema.json`、`AgentSocketMessage` 和若干 `websocket_*` encoder 是保留的历史兼容名；其契约同时服务 SSE、REST control 与 F10 重建，不代表服务端仍有 WS route。
@@ -90,13 +90,15 @@ Desktop 不再建立 Agent WebSocket。两个入口都使用 HTTP `POST`，通�
 - `agent_run_failed` → `{type:'error', detail: 事件 message}`
 - `agent_run_completed` / `permission_required` → `agent_result`，**要求 `payload.assistant_session_id` 是 number**（缺了返回 null 继续轮询）；`payload.proposed_patch`/`summary`/`intent`/`requires_user_confirmation` 按需取；`permission_required` 恒标 `requires_user_confirmation=true`。
 
+当前实现还覆盖 `interrupted` 终态、`execution_result` 恢复与 same-run resume 防旧结果投递（同源 `agent-run-events.ts`）。注意区分：观察预算耗尽是 OutcomeUnknown——run 可能仍在后台结算，不等于失败，更不得据此重发 user message POST。
+
 ⇒ **跨侧接缝**：后端历史兼容 encoder `_websocket_terminal_event` 把 `event.payload` 原样带出，所以**终态事件落库时 payload 必须含 `assistant_session_id`**，否则中止流后重建拿不回结果。`test_ws_contract_golden.py::test_terminal_frames_carry_reconstructable_payload` 钉后端侧，`event-bus-contract.vitest.ts` 的 F10 组钉前端侧。
 
 ---
 
 ## C. DOM CustomEvent 事件桥（编辑器 ↔ 对话协调）
 
-`src/lib/assistant-events.ts`，纯 DOM（`window.dispatchEvent`/`addEventListener`）。这是壳子内**编辑器区与对话区解耦通信**的总线。9 个事件名是字符串常量契约，改名即断开所有协调：
+`src/lib/assistant-events.ts`，纯 DOM（`window.dispatchEvent`/`addEventListener`）。这是壳子内**编辑器区与对话区解耦通信**的总线。事件名是字符串常量契约，改名即断开所有协调：下表覆盖 9 个核心事件；总线当前共 14 个事件常量（以 `assistant-events.ts` 为准），新增事件同样纳入该契约、不得复用旧名：
 
 | 常量 | 事件名 | 方向 / detail |
 |---|---|---|
@@ -116,13 +118,13 @@ Agent 补丁可能指向未打开甚至尚不存在的文件。`emitFileSuggesti
 
 ### C.2 落盘握手
 
-`flushActiveEditorToDisk(filePath, timeoutMs=2000)`：派 `REQUEST_SAVE_ACTIVE_FILE_EVENT` → 等匹配 `filePath` 的 `SAVE_ACTIVE_FILE_DONE_EVENT` → resolve；**超时也 resolve**（放行读磁盘现状，不阻塞主流程）。审稿/修订读盘前必须先 await 它，确保后端读到的是用户当前看到的内容。壳子重写编辑器区时要保留「监听 request-save → 落盘 → 回派 save-done」这一端。
+`flushActiveEditorToDisk(filePath, timeoutMs=2000)`：派 `REQUEST_SAVE_ACTIVE_FILE_EVENT` → 等匹配 `filePath` 的 `SAVE_ACTIVE_FILE_DONE_EVENT` → resolve；**保存失败 `reject(ActiveEditorFlushError('error'))`，超时（默认 2000ms 无应答）`reject(ActiveEditorFlushError('timeout'))`**——fail-closed，阻断后续读盘，不放行读磁盘现状。审稿/修订读盘前必须先 await 它，确保后端读到的是用户当前看到的内容；调用方必须处理 reject，不得当放行语义使用（行为测试见 `event-bus-contract.vitest.ts` 的超时拒绝与保存失败拒绝用例）。壳子重写编辑器区时要保留「监听 request-save → 落盘 → 回派 save-done」这一端。
 
 ---
 
 ## D. 写回时序不变量（W7 已钉，勿回退）
 
-接受补丁写回走 `performGuardedWriteback`（`src/lib/writeback.ts`）：**快照 → 推进分支头 → 写盘 → 记录**，四步顺序固定；**快照 reject 即阻断 write/record**（不得吞错照写）。Rust `fs.rs::write_file` 是**原子写**（同目录临时文件 + `sync_all` + `rename`），壳子换了但落盘仍走这条 Tauri 命令，别绕过临时文件直接覆盖目标。
+接受补丁写回走 `performGuardedWriteback`（`src/lib/writeback.ts`）：**快照 → 推进分支头 → 写盘 → 记录**，四步顺序固定；**快照 reject 即阻断 write/record**（不得吞错照写）。Rust `fs.rs::write_file` 是**原子写**（同目录临时文件 + `sync_all` + `rename`），壳子换了但落盘仍走这条 Tauri 命令，别绕过临时文件直接覆盖目标。磁盘漂移防护走**条件写**：guarded writeback 经 `writeFileIfUnchanged` → Rust `write_file_if_unchanged` 做两次基线比较 + 原子替换，基线漂移即拒写（注意它是同进程两次比对，不是跨进程 CAS，不要夸大成绝对无竞态）；重接壳子时不能只调无条件的 `write_file`。
 
 会话竞争守卫（W7-F26）：run 起跑时的会话 ≠ 当前活动会话，其结果**不得写回当前会话**（`isRunResultForActiveSession`，`session-guard.ts`）。壳子重写 ChatWindow 时，`runAuthorAgent` 终态块与断线重建回填两处都要过这道守卫。
 
@@ -132,7 +134,7 @@ Agent 补丁可能指向未打开甚至尚不存在的文件。`emitFileSuggesti
 
 - [ ] user_message SSE / control REST 按 A.1 路径、header 和请求体发送；控制回执按 A.3 映射后 type 等
 - [ ] 六类流帧按 A.2 判别式解码；`agent_result` 作 happy-path settle
-- [ ] 超时中止 SSE、不硬 reject，转 F10 轮询重建（B）
-- [ ] 9 个 DOM 事件名不改；补丁缓冲（C.1）与落盘握手（C.2）两端都在
-- [ ] 写回走 `performGuardedWriteback` + 原子 `fs.rs`；会话守卫在两处（D）
+- [ ] 超时中止 SSE、不硬 reject，转 F10 轮询重建（B）；观察预算耗尽按 OutcomeUnknown 处理，不重发消息
+- [ ] DOM 事件名不改（核心 9 个见 C 表，全部常量以 `assistant-events.ts` 为准）；补丁缓冲（C.1）与 fail-closed 落盘握手（C.2）两端都在
+- [ ] 写回走 `performGuardedWriteback` + 条件写 `write_file_if_unchanged` + 原子落盘；会话守卫在两处（D）
 - [ ] 跑 `test_ws_contract_golden.py`（历史兼容名）+ `event-bus-contract.vitest.ts` + `writeback-guard` + `agent-session-guard` 全绿

@@ -1,5 +1,7 @@
 # StoryForge 源码标准专窗计划（2026-07-13）
 
+> **历史归档（2026-09-28）：本文是 2026-07-13 专窗的执行计划；S0-S8 治理已落地，现行门禁与口径以 `apps/api/tests/test_source_code_standards.py`、`apps/api/app/domains/DOMAINS.md` 和各 `STRUCTURE.md` 为准，本文不再作为现行执行入口。文中「等待解锁 workflow 删除」等表述为当时状态（`apps/workflow` 已于 2026-07-26 退役）；旧行数阈值与基线数字是该时点实测，不代表今天。Trellis 任务 `07-13-source-code-standards` 的状态不在本文管辖，本文归档不改变任务状态。**
+
 > 性质：规划文档，本文件本身不改代码。
 > 触发：对照高标准开源源码（如 opencode 级）评估后，用户拍板做**专窗集中治理**。
 > 范围拍板：**live 主链 + 历史双轨一并治理**。

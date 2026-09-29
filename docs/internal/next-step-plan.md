@@ -1,7 +1,8 @@
 # StoryForge 下一步计划与优化（Next-Step Plan）
 
 > 生成时间：2026-06-29
-> 定位：本文件是当前阶段的**下一步执行路线图**，由一轮多 agent 只读侦察（6 路领域调研 + 综合 + 3 视角对抗评审）产出并经 file:line 接地核验。
+> **历史归档（2026-09-28）：本文件是 2026-06-29/07-02 时点的执行路线图，已被 `docs/internal/TODO.md` 取代，不再承担「当前执行路线图」职责。文中「当前/本轮/当前阻塞/本机缺少密钥」等均为当时表述；其中依赖 `apps/workflow`、`bookrun.start` intent、CI 入口的执行项已随组件退役失效，不得按本文重建。文中门禁描述以当时为准（现行 pre-push = `verify:fast` + `test:fast`，见 `.githooks/pre-push`）。**
+> ~~定位：本文件是当前阶段的**下一步执行路线图**~~（2026-07-26 起已被 TODO.md 取代，见上方归档标注）；由一轮多 agent 只读侦察（6 路领域调研 + 综合 + 3 视角对抗评审）产出并经 file:line 接地核验。
 > 上位约束见 `AGENTS.md`；当前阶段事实以 `docs/internal/current-phase.md` 为准；架构重构总计划见 `docs/internal/refactor-master-plan.md`（已基本完成，本计划不再涉及 god-file 拆分）。
 > 证据回填见 `.codex/verification-report.md`。
 

@@ -1,3 +1,5 @@
+> **归档记录（2026-09-28）**：本文原位于 `apps/api/.codex/context-summary-重构计划.md`，是 2026-05-20 后端重构前分析的上下文摘要，与同目录 `operations-log.md`、`verification-report.md` 成套保存。文中提到的 `analytics`、`assets/router.py` 等是当时结构，不是现行指引；当前域分档与结构以 `apps/api/app/domains/DOMAINS.md` 为准。
+
 ## 项目上下文摘要（StoryForge 后端重构计划）
 
 生成时间：2026-05-20

@@ -1,3 +1,5 @@
+> **归档记录（2026-09-28）**：本文原位于 `apps/api/.codex/verification-report.md`，混合 2026-05-20 与 2026-06-28/29 多批验证记录，与同目录 `context-summary-重构计划.md`、`operations-log.md` 成套保存。文中命令（含已退役 workflow 相关）与「当前」表述属于各自时点，不可当作现行验证结果；现行验证记录写入根 `.codex/verification-report.md`。
+
 ## 验证报告
 
 时间：2026-05-20

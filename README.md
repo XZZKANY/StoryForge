@@ -4,13 +4,13 @@ StoryForge 是一个面向长篇小说创作的 Desktop IDE-first AI 写作工�
 
 交互中枢是一个**对话式 Agent**：作者用自然语言提要求，Agent 自主调用只读工具（列目录 / 读文件 / 跨文件检索）、一致性与 canon 防漂移观察、文笔静态检查等，读到证据后再作答或生成补丁。写回红线：后端绝不直接写盘，所有修订都是 proposed patch，落盘一律经编辑器守卫（写前快照 → 原子写 → 版本记录）。要不要你逐次点「接受」，由你给**这个项目**选的权限档位决定——只读 / 询问要点，自动 / 完全放行免点击（仍逐次留快照，可一键撤销）。作者还可以在 `.storyforge/agent-instructions.md` 写自定义偏好（语气 / 审稿口径 / 风格禁忌），写盘即生效、不改代码就能调教 Agent。
 
-StoryForge 仍保留可审计的长篇生成流水线（设定、章节目标、检索证据、生成、审稿、修复、记忆回写、制品导出），但它已降级为 Agent 可调用的 tool / 后台重型引擎，不是主产品入口；批量自动整书不再是主线。
+StoryForge 仍保留可审计的长篇生成流水线（设定、章节目标、检索证据、生成、审稿、修复、记忆回写、制品导出），但它已降级为后台 managed Writing Run 与兼容工具，不是主产品入口；批量自动整书不再是主线。注意后台兼容不等于对话式 Agent 能直接发起整书生成——当前 live 工具循环不注册 `bookrun.*` 工具，BookRun 只经后台适配器与 CLI 入口运行。
 
-> 当前状态（2026-07）：编辑器「安全可日更」阶段（Phase A）已封板，桌面端两轮真机验收通过、锁版 `v0.1.2`；下一步是在编辑器上接续作者创作，在真实写作里 dogfood、由摩擦日志驱动打磨。愿景是一条飞轮：写 → 发 → 收集读者信号 → 喂回 → 进化编辑器 → 写出更有风格的作品。
+> 历史状态（2026-07 封板时点）：编辑器「安全可日更」阶段（Phase A）已封板，桌面端两轮真机验收通过、锁版 `v0.1.2`；当季规划是在编辑器上接续作者创作，在真实写作里 dogfood、由摩擦日志驱动打磨。愿景是一条飞轮：写 → 发 → 收集读者信号 → 喂回 → 进化编辑器 → 写出更有风格的作品。**以上为 2026-07 时点记录，此后工作树已有多轮演进（含未提交改动），当前阶段状态、验证边界与未完成验收以 [`docs/internal/current-phase.md`](docs/internal/current-phase.md) 为唯一事实源。**
 >
 > 质量边界：真实 LLM 1/3/10 章 smoke 有脱敏证据（10 章已人工通读），一次 30 章真实长程跑通链路并导出制品、但人工通读退回重跑；因此**尚不能宣称稳定生产级长篇质量**。真实 3-5 万字长程重跑已换锚为后台轨，待作者连载稳定后重评。
 >
-> 产品重心：`apps/desktop` 是唯一主体验；`apps/web` 已退场；BookRun 是 Agent tool / 后台重型引擎，不是主产品控制台。最新阶段事实见 [`docs/internal/current-phase.md`](docs/internal/current-phase.md)，工程约定见 [`CLAUDE.md`](CLAUDE.md)。
+> 产品重心：`apps/desktop` 是唯一主体验；`apps/web` 已退场；BookRun 是后台兼容引擎与维护工具，不是主产品控制台，对话式 Agent 也不能直接启动它。最新阶段事实见 [`docs/internal/current-phase.md`](docs/internal/current-phase.md)，工程约定见 [`CLAUDE.md`](CLAUDE.md)。
 
 ## 目录
 
@@ -24,6 +24,8 @@ StoryForge 仍保留可审计的长篇生成流水线（设定、章节目标、
 - [验证记录](#验证记录)
 - [路线图](#路线图)
 - [贡献](#贡献)
+
+## 核心能力
 
 ### Desktop 编辑器（主体验）
 
@@ -43,13 +45,13 @@ StoryForge 仍保留可审计的长篇生成流水线（设定、章节目标、
 
 ## 当前边界
 
-StoryForge 的编辑器「安全可日更」阶段（Phase A）已封板：桌面端两轮真机验收通过、锁版 `v0.1.2`。下一步是在编辑器上接续作者的 n=1 连载创作，用真实写作 dogfood、由摩擦日志驱动打磨。它已经是一个可日常使用的本地写作编辑器，但还不是成熟商用平台，也还没有验收稳定的生产级长篇质量。
+截至 2026-07 封板时点，编辑器「安全可日更」阶段（Phase A）已封板：桌面端两轮真机验收通过、锁版 `v0.1.2`。其后路线是在编辑器上接续作者的 n=1 连载创作，用真实写作 dogfood、由摩擦日志驱动打磨。它已经是一个可日常使用的本地写作编辑器，但还不是成熟商用平台，也还没有验收稳定的生产级长篇质量。**本节「当前可以宣称」逐条均带时点，最新事实以 [`docs/internal/current-phase.md`](docs/internal/current-phase.md) 为准。**
 
 当前可以宣称：
 
 - `apps/desktop` 是唯一主体验，承载本地项目、文件树、Monaco 编辑器、对话式 Agent、diff 确认、写回护栏和版本记录。
-- 对话式 Agent 已落地：项目级会话、LLM 工具循环（只读 fs + 一致性 / canon / 文笔 advisory 工具）、多视角审稿、定向修订、新文件起草，均走待确认 proposed patch；真·LLM tool-calling headless 实跑通过。
-- 桌面端两轮真机验收（E2E-1 首轮 + 0.1.2 第二轮 A6）全 PASS，含壳子 UI、SSE / REST、中文 IME、canon dossier、权限四轨、单实例与运行控制。
+- 对话式 Agent 已落地：项目级会话、LLM 工具循环（只读 fs + 一致性 / canon / 文笔 advisory 工具）、多视角审稿、定向修订、新文件起草，均走待确认 proposed patch；真·LLM tool-calling headless 实跑通过（单 provider 证据，不等于真机 GUI 多轮验收）。
+- 2026-07 时点记录：桌面端两轮真机验收（E2E-1 首轮 + 0.1.2 第二轮 A6）全 PASS，含壳子 UI、SSE / REST、中文 IME、canon dossier、权限四轨、单实例与运行控制；此后未再全量重跑真机验收。
 - 私测 Alpha 单机后端已本机验证：sidecar exe 独立起服、BYO-key、写盘换模型即生效、NSIS 内嵌 sidecar。
 - 本地 deterministic/mock provider 可跑通最小整书闭环；API / Desktop / OpenAPI 契约 / Alembic 单 head 已纳入本地门禁。
 - 真实 LLM 1/3/10 章 smoke 有脱敏证据（10 章已人工通读）；一次 30 章真实长程跑通链路并导出 `book.md` / `book.epub` / 审计报告。
@@ -139,9 +141,9 @@ pnpm desktop:dev    # 同上，显式桌面端入口
 pnpm desktop:build  # 构建桌面安装包
 pnpm dev:maintenance # 启动基础服务和 API，并执行必要迁移
 pnpm dev:api        # 只启动 API
-pnpm verify         # 本地核心门禁
-pnpm test           # Desktop、Shared、project-core、API 测试
-pnpm e2e            # OpenAPI 刷新 + 真实 HTTP / 契约测试
+pnpm verify         # 提交前总门禁：lint + typecheck + 各栈测试 + sidecar-smoke(daily 档) + OpenAPI 漂移
+pnpm test           # 单独全量跑 Desktop、Shared、project-core、API 测试（verify 已覆盖）
+pnpm e2e            # OpenAPI 漂移检查 + Node 契约断言（秒级；不再重跑 pytest，pytest 归 verify/test）
 pnpm openapi        # 重新生成 OpenAPI 契约
 pnpm lint           # ESLint + Prettier 检查
 pnpm lint:fix       # 自动修复可修复的格式和 lint 问题
@@ -181,6 +183,8 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 
 ## 路线图
 
+> 以下为 2026-07-11 拍板的四段路线，第一、二段节点已封板或换锚；当前下一步执行入口以 [`docs/internal/TODO.md`](docs/internal/TODO.md) 为准，本节不逐日更新。
+
 当前路线是一条「写 → 发 → 收集信号 → 喂 → 进化编辑器」的飞轮，分四段推进：
 
 1. **编辑器做到「安全可日更」（Phase A，已封板）**：Rust 写侧 containment、单实例守卫、0.1.2 重建、真机观感波与修复锁版均已完成，tag `v0.1.2`。
@@ -196,9 +200,10 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 
 ```powershell
 pnpm verify
-pnpm test
 pnpm e2e
 ```
+
+`pnpm verify` 是提交前总门禁（已含各栈测试与 OpenAPI 漂移检查）；`pnpm e2e` 只做秒级契约断言，不重复跑测试。
 
 贡献时请注意：
 

@@ -1,3 +1,5 @@
+> **归档记录（2026-09-28）**：本文原位于 `apps/api/.codex/operations-log.md`，是 2026-05-20 后端重构的操作日志，与同目录 `context-summary-重构计划.md`、`verification-report.md` 成套保存（第 5 行的摘要引用即同组文件）。文中测试数量与结论属于当时时点，不是现行验证证据。
+
 ## 编码前检查 - StoryForge 后端重构计划
 
 时间：2026-05-20

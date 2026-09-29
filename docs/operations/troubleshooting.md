@@ -1,6 +1,6 @@
 # StoryForge 故障手册
 
-更新时间：2026-06-04 07:36:00 +08:00
+更新时间：2026-09-28
 
 ## 1. 使用原则
 
@@ -12,9 +12,10 @@
 
 ### 现象
 
-- `pnpm verify` 提示 Docker 命令不可用。
-- `pnpm verify` 提示 PostgreSQL、Redis 或 MinIO 容器未运行。
+- `pnpm dev` 默认开发模式提示 Docker 命令不可用，或 PostgreSQL、Redis、MinIO 容器未运行。
 - API 迁移、数据库连接或对象存储相关步骤无法继续。
+
+说明：`pnpm verify` 本身不探活 Docker；只有默认开发启动（Tauri 主进程或 `scripts/dev-start.mjs` maintenance 入口）和需要真实 PostgreSQL 的验证才依赖这些容器。单机无 Docker 开发可改用 `STORYFORGE_DESKTOP_SKIP_SERVICES=1`（SQLite，见 `apps/desktop/USAGE.md`）。
 
 ### 排查
 
@@ -29,32 +30,32 @@ docker ps --filter "name=storyforge"
 ```powershell
 cd D:/StoryForge
 docker compose up -d postgres redis minio
-pnpm verify
+pnpm dev
 ```
 
 如果 Docker 本身不可用，先启动 Docker Desktop 或安装 Docker，再重新运行验证。若失败属于当前环境限制，必须写入 `.codex/verification-report.md`，不能声称完整通过。
 
-## 3. FastAPI HTTP pytest 或 API verification 失败
+## 3. FastAPI HTTP pytest 失败
 
 ### 现象
 
-- `pnpm e2e` 在 API verification 或真实 FastAPI HTTP pytest 阶段失败。
+- `pnpm verify` 或 `pnpm test` 在 API pytest 阶段失败。
 - 直接运行某个 HTTP route pytest 返回非零退出码。
 
 ### 判断
 
-这是发布门禁红灯。根级 `scripts/run-e2e.mjs` 会执行真实 API HTTP pytest 与 API verification，不得探测失败后改写为服务层补偿验收。
+这是发布门禁红灯。HTTP pytest 由 `pnpm verify`（API pytest 阶段）和 `pnpm test` 覆盖；`pnpm e2e` 只做 OpenAPI 漂移检查与 Node 契约断言，不再执行 pytest。不得探测失败后改写为服务层补偿验收。
 
 ### 处理
 
 - 不要删除 HTTP route 测试文件，也不要把失败改写为补偿通过。
 - 在 `apps/api` 下复跑失败目标，例如 `uv run pytest tests/test_model_runs.py -q` 或日志中点名的具体测试。
 - 根据失败信息修复 API router、service、schema、测试夹具、Alembic 迁移或 OpenAPI 契约。
-- 修复后回到仓库根重新运行 `pnpm e2e`。
+- 修复后回到仓库根重新运行 `pnpm verify`。
 
 ## 4. Alembic 多 head 曾导致远端 E2E 失败
 
-> 本节只保留历史远端 run 作为迁移审计证据。GitHub Actions `E2E` workflow 已于 2026-06-30 退役，当前门禁以本地 `pnpm e2e` 为准；下方 `gh run` 命令仅适用于仍存在的外部历史副本。
+> 本节只保留历史远端 run 作为迁移审计证据。GitHub Actions `E2E` workflow 已于 2026-06-30 退役，当前迁移门禁为 `pnpm verify` API pytest 阶段的 `tests/test_alembic_heads.py`；下方 `gh run` 命令仅适用于仍存在的外部历史副本。
 
 ### 现象
 
@@ -86,9 +87,9 @@ gh run view 26915457170 --repo XZZKANY/StoryForge --log-failed
 ### 处理
 
 1. 确认本地迁移图只剩一个 Alembic head。
-2. 确认 `tests/test_alembic_heads.py` 在本地通过，并保留在 `pnpm e2e` 的 API verification 中。
-3. 确认包含 `20260604_0001` 的提交进入远端分支后，再重新运行远端 E2E。
-4. 若未来远端 E2E 再次失败，所有计划、README、TODO、故障手册和验证报告都必须记录新的失败 run、提交和失败步骤。
+2. 确认 `tests/test_alembic_heads.py` 在本地通过（现由 `pnpm verify` 的 API pytest 阶段覆盖；历史上它曾挂在 `pnpm e2e` 的 API verification 预检中）。
+3. 历史流程（远端 workflow 退役前）：确认包含 `20260604_0001` 的提交进入远端分支后，再重新运行远端 E2E。
+4. 历史记录义务（当时有效）：若未来远端 E2E 再次失败，所有计划、README、TODO、故障手册和验证报告都必须记录新的失败 run、提交和失败步骤；远端 workflow 退役后该要求失效，若重建远端门禁再恢复。
 
 ## 5. OpenAPI 刷新失败
 
@@ -112,7 +113,7 @@ git diff -- packages/shared/src/contracts/storyforge.openapi.json
 2. 先修复 API 语法或导入错误。
 3. 确认 `apps/api/app/main.py` 可以导入 `app`。
 4. 重新执行 `pnpm openapi`；脚本会输出实际使用的 Python 运行时。
-5. 如果契约发生变化，检查 `docs/api/` 中对应审查文档是否需要更新。
+5. 如果契约发生变化，复核 `packages/shared/src/contracts/storyforge.openapi.json` 的 diff 来源并同步相关审查记录。
 
 OpenAPI 生成失败时不得继续使用旧契约作为发布依据。
 
@@ -138,9 +139,9 @@ OpenAPI 生成失败时不得继续使用旧契约作为发布依据。
 
 ### 现象
 
-- 工具缺失：Node.js、pnpm、Python、Docker 不可用。
+- 工具缺失：Node.js、pnpm、Python、uv 不可用。
 - 必需文件缺失：`package.json`、`docker-compose.yml`、`.env.example` 或应用配置不存在。
-- 基础服务容器未运行。
+- lint、typecheck、某栈测试、sidecar smoke 或 OpenAPI 漂移检查中任一阶段非零退出。
 
 ### 排查
 
@@ -150,14 +151,13 @@ pnpm verify
 node --version
 pnpm --version
 python --version
-docker compose ps
 ```
 
 ### 处理
 
 - 工具缺失：安装对应工具后重试。
 - 文件缺失：检查 Git 工作区是否误删文件，必要时从当前分支恢复。
-- 容器缺失：执行 `docker compose up -d postgres redis minio` 后重试。
+- 某阶段失败：按该阶段日志复跑最小目标（如对应 pytest / vitest / lint），修复后重跑 `pnpm verify`。
 - 若失败属于当前环境限制，必须写入 `.codex/verification-report.md`，不能声称完整通过。
 
 ## 8. Git 工作区不干净
