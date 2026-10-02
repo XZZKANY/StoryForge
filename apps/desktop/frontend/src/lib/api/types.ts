@@ -1,9 +1,11 @@
 import type { ApiAssistantContextBundle } from './contracts';
+import type { components } from '../../../../../../packages/shared/src/generated/api-types';
 import type { AgentPermissionProfile } from '../agent-permission';
 import type {
   AgentExecutionOutcome,
   AgentRuntimeInterruption,
   AgentRunStartedFrame,
+  AgentRunWaitingFrame,
   AgentStepFrame,
   ControlAckFrame,
   PermissionRequiredFrame,
@@ -13,6 +15,8 @@ import type {
 export type ApiConfig = {
   baseUrl: string;
   apiKey: string;
+  managedHostGeneration?: string | null;
+  executionProtocols?: readonly 'external_writeback_v1'[];
 };
 
 export type ApiRuntimeHealthStatus = 'ready' | 'degraded' | 'unreachable';
@@ -185,6 +189,7 @@ type WithFrontendAgentPatch<Frame extends { proposed_patch: unknown }> = Omit<
 };
 
 export type AgentRunStartedMessage = AgentRunStartedFrame;
+export type AgentRunWaitingMessage = AgentRunWaitingFrame;
 
 export type AgentStepEventMessage = Omit<
   AgentStepFrame,
@@ -227,6 +232,7 @@ export type AgentControlAckMessage = ControlAckFrame & {
 
 export type AgentStreamEventMessage =
   | AgentRunStartedMessage
+  | AgentRunWaitingMessage
   | AgentStepEventMessage
   | AgentToolTraceEventMessage
   | AgentPermissionRequiredMessage
@@ -242,6 +248,7 @@ export type AgentSocketMessage =
     };
 
 export type AgentUserMessageRequest = {
+  executionProtocol?: components['schemas']['AgentUserMessageStreamRequest']['execution_protocol'];
   sessionId: string;
   userMessage: string;
   assistantSessionId?: number | null;

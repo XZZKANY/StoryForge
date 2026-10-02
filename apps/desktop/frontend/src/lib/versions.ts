@@ -125,6 +125,7 @@ export async function snapshotBeforeWrite(
   filePath: string,
   _previousContent: string,
   metadata: VersionSnapshotMetadata = {},
+  deliveryTicket?: string,
 ): Promise<{ path: string; timestamp: number; created: boolean } | null> {
   if (!projectPath) return null;
   const dir = versionDirFor(projectPath, filePath);
@@ -138,7 +139,7 @@ export async function snapshotBeforeWrite(
   const timestamp = nextTimestamp();
   const recordId = nextRecordId(timestamp);
   const metaPath = `${targetDir}${s}${timestamp}${META_SUFFIX}`;
-  const snapshot = await createShadowSnapshot(projectPath);
+  const snapshot = await createShadowSnapshot(projectPath, deliveryTicket);
   const stored: StoredVersionMetadata = {
     schemaVersion: 2,
     storage: 'shadow-git',
@@ -159,12 +160,17 @@ export async function snapshotBeforeWrite(
   };
 
   try {
-    await TauriFileSystem.writeFile(projectPath, metaPath, `${JSON.stringify(stored, null, 2)}\n`);
-    await retainShadowSnapshot(projectPath, snapshot.treeHash, recordId);
+    await TauriFileSystem.writeFile(
+      projectPath,
+      metaPath,
+      `${JSON.stringify(stored, null, 2)}\n`,
+      deliveryTicket,
+    );
+    await retainShadowSnapshot(projectPath, snapshot.treeHash, recordId, deliveryTicket);
   } catch (error) {
     await Promise.allSettled([
-      releaseShadowSnapshot(projectPath, recordId),
-      TauriFileSystem.deletePath(projectPath, metaPath),
+      releaseShadowSnapshot(projectPath, recordId, deliveryTicket),
+      TauriFileSystem.deletePath(projectPath, metaPath, false, deliveryTicket),
     ]);
     throw error;
   }

@@ -216,7 +216,7 @@ app.add_middleware(
     allow_origin_regex=r"^(tauri://localhost|https?://tauri\.localhost)$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["content-type", "x-storyforge-api-key", "authorization"],
+    allow_headers=["content-type", "x-storyforge-api-key", "authorization", "x-storyforge-host-generation"],
 )
 
 

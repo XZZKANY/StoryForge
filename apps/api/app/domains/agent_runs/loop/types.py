@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from app.domains.agent_runs.patches.types import PatchProposal
 from app.domains.agent_runs.result_contracts import AgentExecutionOutcome
 from app.domains.agent_runs.tools.execution import ToolArtifact
 from app.domains.agent_runs.trace import AgentToolTrace
+
+if TYPE_CHECKING:
+    from app.domains.agent_runs.loop.external_wait_store import StoredExternalWait
 
 
 @dataclass(frozen=True)
@@ -89,6 +92,7 @@ class LoopToolFeedback:
 @dataclass
 class ChatLoopOutcome:
     answer: str
+    external_wait: StoredExternalWait | None = None
     traces: list[AgentToolTrace] = field(default_factory=list)
     rounds: int = 0
     tool_call_count: int = 0

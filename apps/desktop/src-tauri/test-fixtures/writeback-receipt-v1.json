@@ -1,0 +1,58 @@
+[
+  {
+    "relativePath": "chapter.md",
+    "operationKey": "patch-1:whole",
+    "source": "immutable proposal",
+    "before": "before\r\n",
+    "content": "after\n",
+    "identity": {
+      "relativePath": "chapter.md",
+      "operationId": "a03be47cdf8185bf199d38979de3888e620b9b5fe83c599f95d99def73101329",
+      "fingerprint": "07317e7771afcac3a492b61a9a2031eff3234506d7b93391bac70cab41f6e350"
+    },
+    "intent": {
+      "schemaVersion": 1,
+      "operationId": "a03be47cdf8185bf199d38979de3888e620b9b5fe83c599f95d99def73101329",
+      "fingerprint": "07317e7771afcac3a492b61a9a2031eff3234506d7b93391bac70cab41f6e350",
+      "relativePath": "chapter.md",
+      "beforeHash": "a6456ed3bde94789512c42c563637b929da22b9b5611962bd2c8ff63343d8195",
+      "afterHash": "7b9a72466d3960eb2aacccfc848939453490db0678bd4725def3f789b891c919",
+      "checkpointTimestamp": 7
+    },
+    "outcome": {
+      "schemaVersion": 1,
+      "operationId": "a03be47cdf8185bf199d38979de3888e620b9b5fe83c599f95d99def73101329",
+      "fingerprint": "07317e7771afcac3a492b61a9a2031eff3234506d7b93391bac70cab41f6e350",
+      "state": "applied",
+      "detail": null
+    }
+  },
+  {
+    "relativePath": "章节😀.md",
+    "operationKey": "补丁😀:whole",
+    "source": "[\"补丁😀\",\"旧文\\n\",\"新文\\n\",\"run\"]",
+    "before": "旧文\r\n第二行\r\n",
+    "content": "新文\n\"引号\"\\末尾\n",
+    "identity": {
+      "relativePath": "章节😀.md",
+      "operationId": "e4e16a4ee9b66c8af3fd60d091e7c2b20a9c28af0149bc45067d8f7eddf22559",
+      "fingerprint": "579ec9dab0ee496554a31563014b821758984a4507c7af44c5ed60cb3a980324"
+    },
+    "intent": {
+      "schemaVersion": 1,
+      "operationId": "e4e16a4ee9b66c8af3fd60d091e7c2b20a9c28af0149bc45067d8f7eddf22559",
+      "fingerprint": "579ec9dab0ee496554a31563014b821758984a4507c7af44c5ed60cb3a980324",
+      "relativePath": "章节😀.md",
+      "beforeHash": "8fe510ae974e51a7ba99f017f676f735ff084c4485ed2e80e7b6115f6e6d7ae9",
+      "afterHash": "a54a30175b4939388a690ee4d6afe026aff5a5a5b4a749b6691420d225a40ddd",
+      "checkpointTimestamp": 7
+    },
+    "outcome": {
+      "schemaVersion": 1,
+      "operationId": "e4e16a4ee9b66c8af3fd60d091e7c2b20a9c28af0149bc45067d8f7eddf22559",
+      "fingerprint": "579ec9dab0ee496554a31563014b821758984a4507c7af44c5ed60cb3a980324",
+      "state": "applied",
+      "detail": null
+    }
+  }
+]

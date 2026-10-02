@@ -40,9 +40,15 @@ from app.domains.assistant.schemas import AssistantMessageCreate, AssistantToolC
 class ConversationRuntimeMixin:
     def _runtime_interruption(self, run: AgentRun, *, boundary: str) -> dict[str, Any] | None:
         checker = getattr(self._event_sink, "runtime_interruption", None)
-        if callable(checker):
-            return checker(run, boundary=boundary)
-        return build_runtime_interruption_payload(run, boundary=boundary)
+        interruption = checker(run, boundary=boundary) if callable(checker) else build_runtime_interruption_payload(run, boundary=boundary)
+        execution = self._external_execution
+        if execution is not None and execution.stored is not None and interruption is not None and run.status == "paused":
+            from app.domains.agent_runs.loop.external_wait_store import read_external_wait
+
+            current = read_external_wait(self._external_session, run)
+            if current.wait.execution_epoch == execution.lease.execution_epoch:
+                return None  # Receipt wait, not author pause. No worker is restarted here.
+        return interruption
 
     def _run_hidden_system_jobs(
         self,
@@ -173,8 +179,12 @@ class ConversationRuntimeMixin:
 
         project_path = _optional_string(args.get("project_path"))
         if not project_path:
+            if self._external_execution is not None:
+                raise ValueError("external_writeback_requires_project")
             return None
         if assistant_service.missing_book_generation_env():
+            if self._external_execution is not None:
+                raise ValueError("external_writeback_requires_configured_provider")
             return None
 
         started = _base_response(
@@ -188,7 +198,7 @@ class ConversationRuntimeMixin:
             role_hints=_role_hints(args),
             role_mentions=_role_mentions(args),
         )
-        plan_recorded = run.current_step == "resumed"
+        plan_recorded = run.current_step == "resumed" or (self._external_execution is not None and self._external_execution.resumed)
         trace_index = sum(event.event_type == "tool_trace" for event in run.events) if plan_recorded else 0
 
         def ensure_plan_recorded() -> None:
@@ -213,12 +223,17 @@ class ConversationRuntimeMixin:
                 rel_path = _optional_string(payload.pop("path", None))
                 if not rel_path:
                     raise fs_tools.FsToolError("缺少 path：请提供项目内的相对文件路径。")
-                read = fs_tools.fs_read(project_path, rel_path, offset=0, limit=200_000)
-                if read.get("truncated") is True:
-                    raise fs_tools.FsToolError("文件超过单次处理上限，请缩小范围（分章 / 拆文件）后再审稿或修订。")
-                payload["file_path"] = fs_tools.resolve_project_file(project_path, rel_path)
-                payload["content"] = read["content"]
-                payload["_trace_file_path"] = read["path"]
+                if self._external_execution is not None and registry_name == "file.revise":
+                    file_path, content, raw = fs_tools.read_project_file_raw(project_path, rel_path)
+                    self._external_execution.raw_inputs[rel_path] = raw
+                    payload.update(file_path=file_path, content=content, _trace_file_path=rel_path)
+                else:
+                    read = fs_tools.fs_read(project_path, rel_path, offset=0, limit=200_000)
+                    if read.get("truncated") is True:
+                        raise fs_tools.FsToolError("文件超过单次处理上限，请缩小范围（分章 / 拆文件）后再审稿或修订。")
+                    payload["file_path"] = fs_tools.resolve_project_file(project_path, rel_path)
+                    payload["content"] = read["content"]
+                    payload["_trace_file_path"] = read["path"]
             elif definition.loop_input_mode == "new_file":
                 rel_path = _optional_string(payload.pop("path", None))
                 if not rel_path:
@@ -256,6 +271,8 @@ class ConversationRuntimeMixin:
                 )
             return self._execute_tool(registry_name, context, payload)
 
+        if self._external_execution is not None:
+            ensure_plan_recorded()  # Never record a late plan over the durable wait token.
         try:
             outcome = loop_runtime.run_chat_loop(
                 session,
@@ -272,12 +289,22 @@ class ConversationRuntimeMixin:
                 should_interrupt=lambda boundary: self._runtime_interruption(run, boundary=boundary),
                 author_view=AuthorView.from_payload(args),
                 pinned_context=_chat_context_block(args),
+                external_execution=self._external_execution,
                 recovery_message={"intent": "chat.explain", "user_message": user_message,
                                   "assistant_session_id": assistant_session_id, "args": args},
             )
         except loop_runtime.ChatLoopUnavailableError:
+            if self._external_execution is not None:
+                raise ValueError("external_writeback_provider_unavailable") from None
             return None
 
+        if outcome.external_wait is not None:
+            from app.domains.agent_runs.loop.external_chat import waiting_frame
+
+            notifier = getattr(self._event_sink, "notify_external_wait", None)
+            if callable(notifier):
+                notifier(run)
+            return waiting_frame(session, run, outcome.external_wait)
         ensure_plan_recorded()
         interruption = outcome.interruption if outcome.interrupted else None
         latest_interruption = self._runtime_interruption(run, boundary="before_finalize:assistant.chat_loop")

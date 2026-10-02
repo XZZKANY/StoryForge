@@ -18,6 +18,7 @@ from app.domains.agent_runs.models import AgentRun, AgentRunEvent
 from app.domains.agent_runs.permission import canonical_permission_profile
 from app.domains.agent_runs.ws_messages import (
     AgentRunStartedFrame,
+    AgentRunWaitingFrame,
     AgentStepFrame,
     ControlAckFrame,
     PermissionRequiredFrame,
@@ -62,6 +63,13 @@ def websocket_stream_events_from_agent_event(event: AgentRunEvent) -> list[dict[
     run = event.run
     if event.event_type == AGENT_RUN_STARTED:
         return [websocket_started_event(run, event)]
+    if event.event_type == "agent_writeback_waiting":
+        payload = event.payload
+        return [AgentRunWaitingFrame(session_id=run.session_id, run_id=run.public_id,
+                                     assistant_session_id=run.assistant_session_id,
+                                     event_id=event.id, sequence=event.sequence,
+                                     wait_id=payload["wait_id"], revision=payload["revision"],
+                                     stage=payload["stage"]).to_wire()]
     if event.event_type == AGENT_PLAN_CREATED:
         return _websocket_agent_step_events(run, event)
     if event.event_type == AGENT_RUNTIME_PROGRESS:

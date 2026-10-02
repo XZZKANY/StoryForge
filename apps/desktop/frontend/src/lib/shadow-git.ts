@@ -12,9 +12,13 @@ export type ShadowFileState = {
   content: string;
 };
 
-export async function createShadowSnapshot(projectRoot: string): Promise<ShadowSnapshot> {
+export async function createShadowSnapshot(
+  projectRoot: string,
+  deliveryTicket?: string,
+): Promise<ShadowSnapshot> {
   assertTauriRuntime('createShadowSnapshot');
   return await invoke<ShadowSnapshot>('create_shadow_snapshot', {
+    ...(deliveryTicket ? { deliveryTicket } : {}),
     payload: { projectRoot },
   });
 }
@@ -23,16 +27,23 @@ export async function retainShadowSnapshot(
   projectRoot: string,
   treeHash: string,
   recordId: string,
+  deliveryTicket?: string,
 ): Promise<void> {
   assertTauriRuntime('retainShadowSnapshot');
   await invoke('retain_shadow_snapshot', {
+    ...(deliveryTicket ? { deliveryTicket } : {}),
     payload: { projectRoot, treeHash, recordId },
   });
 }
 
-export async function releaseShadowSnapshot(projectRoot: string, recordId: string): Promise<void> {
+export async function releaseShadowSnapshot(
+  projectRoot: string,
+  recordId: string,
+  deliveryTicket?: string,
+): Promise<void> {
   assertTauriRuntime('releaseShadowSnapshot');
   await invoke('release_shadow_snapshot', {
+    ...(deliveryTicket ? { deliveryTicket } : {}),
     payload: { projectRoot, recordId },
   });
 }

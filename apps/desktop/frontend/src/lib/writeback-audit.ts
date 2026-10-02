@@ -43,6 +43,7 @@ export async function writeReceiptAudit(
   operationId: string,
   semanticPayload: string,
   body: string,
+  deliveryTicket?: string,
 ): Promise<void> {
   const payloadHash = await digest(semanticPayload);
   const readAndVerify = async () =>
@@ -55,6 +56,6 @@ export async function writeReceiptAudit(
   const content = `${HEADER}${JSON.stringify(metadata)} -->\n${body}${COMPLETE}`;
   // Existing files are flushed but never overwritten by this native command.
   // Do not turn a sync failure into success merely because reads see cached bytes.
-  await TauriFileSystem.createWritebackAudit(projectRoot, operationId, content);
+  await TauriFileSystem.createWritebackAudit(projectRoot, operationId, content, deliveryTicket);
   await readAndVerify();
 }

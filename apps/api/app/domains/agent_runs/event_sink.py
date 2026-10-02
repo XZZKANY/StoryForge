@@ -63,6 +63,9 @@ class _AgentRunEventSink:
         if event is not None:
             self._emit(event)
 
+    def notify_external_wait(self, run: AgentRun) -> None:
+        self._emit_latest_event(run, "agent_writeback_waiting")
+
     @measured("store.plan")
     def record_plan(self, run: AgentRun, result: dict[str, Any]) -> None:
         from app.domains.agent_runs.service import record_agent_event

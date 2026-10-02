@@ -7,7 +7,7 @@ from typing import Any
 
 from app.platform.ai_sdk._immutability import freeze_mapping, thaw
 from app.platform.ai_sdk.contracts import ChatMessage, MessageRole, ToolCall
-from app.platform.ai_sdk.tools import RuntimeArtifact
+from app.platform.ai_sdk.tools import RuntimeArtifact, RuntimeToolResult, ToolResultStatus
 
 
 class RuntimePhase(StrEnum):
@@ -17,6 +17,7 @@ class RuntimePhase(StrEnum):
     TOOL_STARTED = "tool_started"
     AFTER_TOOL = "after_tool"
     APPROVAL_REQUIRED = "approval_required"
+    EXTERNAL_RESULT_REQUIRED = "external_result_required"
     INTERRUPTED = "interrupted"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -26,6 +27,7 @@ class RuntimeResultStatus(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     APPROVAL_REQUIRED = "approval_required"
+    EXTERNAL_RESULT_REQUIRED = "external_result_required"
     INTERRUPTED = "interrupted"
     RECONCILIATION_REQUIRED = "reconciliation_required"
 
@@ -40,6 +42,23 @@ class ResumeAction(StrEnum):
 class ResumeCommand:
     action: ResumeAction
     tool_call_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ExternalToolResolution:
+    """Trusted application result, never a provider-controlled tool argument."""
+
+    run_id: str
+    tool_call_id: str
+    operation_id: str
+    result: RuntimeToolResult
+
+    def __post_init__(self) -> None:
+        if not all(isinstance(value, str) and value.strip()
+                   for value in (self.run_id, self.tool_call_id, self.operation_id)):
+            raise ValueError("External resolution identities must be nonempty strings.")
+        if self.result.status is ToolResultStatus.DEFERRED:
+            raise ValueError("An external resolution must be a final tool result.")
 
 
 @dataclass(frozen=True)
@@ -136,6 +155,7 @@ class RuntimeCheckpoint:
     sequence: int = 0
     interruption_reason: str | None = None
     continuation_omitted: bool = False
+    external_operation_id: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "messages", tuple(self.messages))
@@ -181,6 +201,7 @@ class RuntimeCheckpoint:
             "sequence": self.sequence,
             "interruption_reason": self.interruption_reason,
             "continuation_omitted": continuation_omitted,
+            "external_operation_id": self.external_operation_id,
         }
 
     @classmethod
@@ -235,6 +256,7 @@ class RuntimeCheckpoint:
                 else None
             ),
             continuation_omitted=value.get("continuation_omitted") is True,
+            external_operation_id=value.get("external_operation_id"),
         )
 
 

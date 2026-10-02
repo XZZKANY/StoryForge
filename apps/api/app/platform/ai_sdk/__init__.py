@@ -17,6 +17,7 @@ from app.platform.ai_sdk.errors import ProviderError, ProviderErrorCategory, Pro
 from app.platform.ai_sdk.provider import LLMProvider, ProviderHealth, ProviderHealthStatus
 from app.platform.ai_sdk.runtime import (
     DefaultRuntimePolicy,
+    ExternalToolResolution,
     JsonToolFeedbackFormatter,
     ResumeAction,
     ResumeCommand,
@@ -37,6 +38,7 @@ from app.platform.ai_sdk.tools import (
 )
 
 __all__ = [
+    "ExternalToolResolution",
     "ChatMessage",
     "ChatRequest",
     "ChatResponse",

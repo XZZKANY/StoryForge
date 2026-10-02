@@ -135,8 +135,10 @@ class AgentRuntime(
 ):
     """Root Agent runtime facade: skill plan -> tool registry -> permission gate -> event store."""
 
-    def __init__(self, event_sink: EventSink) -> None:
+    def __init__(self, event_sink: EventSink, *, external_execution=None) -> None:
         self._event_sink = event_sink
+        self._external_execution = external_execution
+        self._external_session: Session | None = None
         self._permission_gate = PermissionGate()
         self._tool_registry = ToolRegistry()
         self._subagents = SubagentExecutor(
@@ -150,6 +152,7 @@ class AgentRuntime(
         self._register_tools()
 
     def run_user_message(self, session: Session, *, run: AgentRun, agent_session_id: str, message: dict[str, Any]) -> dict[str, Any]:
+        self._external_session = session
         observer = getattr(self._event_sink, "record_runtime_progress", None)
         with agent_request_evidence_scope(session, run), agent_run_control_scope(
             lambda boundary: self._runtime_interruption(run, boundary=boundary),
@@ -166,6 +169,8 @@ class AgentRuntime(
             if intent in ("file.review", "file.revise", "chapter.polish") and _optional_string(args.get("file_path")) is None:
                 intent = "chat.explain"
             try:
+                if self._external_execution is not None and intent != "chat.explain":
+                    raise AgentOrchestrationError("external_writeback_requires_chat_loop")
                 assistant_session = _resolve_assistant_session(session, user_message=user_message, message=message, args=args)
                 if run.assistant_session_id != assistant_session.id:
                     run.assistant_session_id = assistant_session.id
@@ -225,6 +230,8 @@ class AgentRuntime(
                 )
                 raise AgentOrchestrationError(str(exc)) from exc
 
+            if result.get("type") == "agent_run_waiting":
+                return result  # Separate non-terminal transport result; no legacy delivery.
             result["run_id"] = run.public_id
             result.setdefault("agent_role_hints", _role_hints(args))
             result.setdefault("agent_role_mentions", _role_mentions(args))

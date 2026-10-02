@@ -1,6 +1,7 @@
 import { useRef, type ComponentPropsWithoutRef, type RefObject } from 'react';
 import { LayerContext, useLayer } from './layers';
 export type DialogSurfaceProps = ComponentPropsWithoutRef<'section'> & {
+  open?: boolean;
   onClose: () => void;
   dismissOutside?: boolean;
   initialFocusRef?: RefObject<HTMLElement | null>;
@@ -8,6 +9,7 @@ export type DialogSurfaceProps = ComponentPropsWithoutRef<'section'> & {
   shouldRestoreOpener?: () => boolean;
 };
 export function DialogSurface({
+  open = true,
   onClose,
   dismissOutside = false,
   initialFocusRef,
@@ -19,7 +21,7 @@ export function DialogSurface({
 }: DialogSurfaceProps) {
   const nodeRef = useRef<HTMLElement>(null);
   const id = useLayer({
-    open: true,
+    open,
     modal: true,
     dismissOutside,
     nodeRef,
@@ -33,8 +35,8 @@ export function DialogSurface({
       <section
         {...props}
         ref={nodeRef}
-        role="dialog"
-        aria-modal="true"
+        role={open ? 'dialog' : undefined}
+        aria-modal={open ? true : undefined}
         tabIndex={-1}
         onKeyDown={(event) => {
           event.stopPropagation();

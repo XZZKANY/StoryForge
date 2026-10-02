@@ -5,6 +5,8 @@ import {
 } from '../../lib/project-context';
 import type { AgentRun } from './types';
 
+const EXTERNAL_WRITEBACK_PHASE = '整章修订等待真实写回；请在独立写回面板操作。';
+
 export function contextBudgetText(bundle: ContextBundle | null): string {
   if (!bundle) return '上下文尚未生成';
   const kinds = Object.entries(bundle.summary.counts)
@@ -21,6 +23,7 @@ export function contextBudgetText(bundle: ContextBundle | null): string {
 export function runStatusText(run: AgentRun | null): string | null {
   if (!run) return null;
   if (run.status === 'waiting') {
+    if (run.executionProtocol === 'external_writeback_v1') return EXTERNAL_WRITEBACK_PHASE;
     const permission = run.steps.some(
       (step) => step.id === 'permission-required' && step.status === 'waiting',
     );
@@ -51,6 +54,7 @@ export function runStatusText(run: AgentRun | null): string | null {
 export function runLivePhaseText(run: AgentRun | null): string {
   if (!run) return '';
   if (run.status === 'waiting') {
+    if (run.executionProtocol === 'external_writeback_v1') return EXTERNAL_WRITEBACK_PHASE;
     const permission = run.steps.some(
       (step) => step.id === 'permission-required' && step.status === 'waiting',
     );

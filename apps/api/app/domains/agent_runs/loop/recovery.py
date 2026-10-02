@@ -12,9 +12,14 @@ from app.domains.agent_runs.models import AgentRun
 
 
 def park_checkpoint_run(session: Session, run: AgentRun, *, reason: str) -> None:
+    from app.domains.agent_runs.loop.external_wait_lifecycle import park_external_wait
+    from app.domains.agent_runs.loop.external_wait_state import is_external_step
     from app.domains.agent_runs.service_execution import interrupted_result, settle_agent_run_interruption
     from app.domains.agent_runs.service_store import rollback_failed_settlement
 
+    if is_external_step(run.current_step):
+        park_external_wait(session, run, reason=reason)
+        return
     with rollback_failed_settlement(session):
         changed = session.execute(update(AgentRun).where(
             AgentRun.id == run.id, AgentRun.status.in_({"running", "paused"}),

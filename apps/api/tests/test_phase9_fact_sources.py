@@ -4,7 +4,8 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEV_PLAN_PATH = REPO_ROOT / "docs/internal/dev-plan.md"
+INTERNAL_HISTORY_ARCHIVE = REPO_ROOT / "docs" / "archive" / "internal-history-2026-09"
+DEV_PLAN_PATH = INTERNAL_HISTORY_ARCHIVE / "dev-plan.md"
 PROJECT_SUMMARY_PATH = REPO_ROOT / "docs/internal/PROJECT_SUMMARY.md"
 README_PATH = REPO_ROOT / "README.md"
 CURRENT_PHASE_PATH = REPO_ROOT / "docs/internal/current-phase.md"
@@ -92,7 +93,7 @@ def test_dev_plan_records_remote_e2e_master_success_boundary() -> None:
 def test_archived_phase9_records_historical_remote_and_quality_evidence() -> None:
     """历史措辞只约束归档，不强迫当前事实源复述过期阶段。"""
 
-    current_phase = (CURRENT_PHASE_PATH.parent / "current-phase-history-2026-07-26.md").read_text(encoding="utf-8")
+    current_phase = (INTERNAL_HISTORY_ARCHIVE / "current-phase-history-2026-07-26.md").read_text(encoding="utf-8")
 
     assert "2026-06-21" in current_phase
     assert "Desktop 对话式 Agent 与私测 Alpha 收口阶段" in current_phase
@@ -130,7 +131,7 @@ def test_archived_phase9_records_historical_remote_and_quality_evidence() -> Non
 def test_archived_project_summary_preserves_original_evidence() -> None:
     """旧总结的测试数字与未验收记录留在历史归档。"""
 
-    project_summary = (PROJECT_SUMMARY_PATH.parent / "PROJECT_SUMMARY-history-2026-06-21.md").read_text(encoding="utf-8")
+    project_summary = (INTERNAL_HISTORY_ARCHIVE / "PROJECT_SUMMARY-history-2026-06-21.md").read_text(encoding="utf-8")
 
     assert "2026-06-21" in project_summary
     assert "本地 lint 门禁 | 通过" in project_summary
@@ -163,7 +164,7 @@ def test_archived_project_summary_preserves_original_evidence() -> None:
 def test_archived_todo_preserves_historical_execution_context() -> None:
     """原有写作方向、资产和验收来源保留供追溯。"""
 
-    todo = (TODO_PATH.parent / "TODO-history-2026-07-26.md").read_text(encoding="utf-8")
+    todo = (INTERNAL_HISTORY_ARCHIVE / "TODO-history-2026-07-26.md").read_text(encoding="utf-8")
     current_boundary = _section(todo, "## 当前事实边界", "## 下一步优先级")
     next_actions = _section(todo, "## 下一步优先级", "## 本地验证入口")
 
@@ -406,11 +407,12 @@ def test_phase9_document_fact_source_roles_are_converged() -> None:
     assert "当前下一步执行入口" in current_phase
     assert "`docs/internal/PROJECT_SUMMARY.md`" in current_phase
     assert "项目总览和验证状态摘要" in current_phase
-    assert "`docs/internal/dev-plan.md`" in current_phase
+    assert "`docs/archive/internal-history-2026-09/dev-plan.md`" in current_phase
     assert "历史计划和阶段 DoD" in current_phase
 
-    assert "当前阶段状态与未完成验收项见 `docs/internal/current-phase.md`" in readme
-    assert "详细架构见 `CLAUDE.md`" in readme
+    assert "[`docs/internal/current-phase.md`](docs/internal/current-phase.md)" in readme
+    assert "唯一事实源" in readme
+    assert "[`CLAUDE.md`](CLAUDE.md)" in readme
     assert "当前状态以 `docs/internal/current-phase.md` 为准" in todo
     assert "TODO 只保留下一步执行入口" in todo
     assert "当前阶段事实以 `docs/internal/current-phase.md` 为准" in project_summary
@@ -424,7 +426,7 @@ def test_phase9_document_fact_source_roles_are_converged() -> None:
 def test_archived_phase_preserves_refactor_and_tauri_acceptance_history() -> None:
     """保留历史验收，不把它作为当前版本已验收的断言。"""
 
-    current_phase = (CURRENT_PHASE_PATH.parent / "current-phase-history-2026-07-26.md").read_text(encoding="utf-8")
+    current_phase = (INTERNAL_HISTORY_ARCHIVE / "current-phase-history-2026-07-26.md").read_text(encoding="utf-8")
     current_stage = _section(current_phase, "## 当前阶段", "## 已完成的能力边界")
     remaining = _section(current_phase, "## 仍未完成的验收项", "## 禁止宣称范围")
 
@@ -472,7 +474,7 @@ def test_current_todo_is_actionable_and_history_is_explicitly_archived() -> None
     assert "写作" in actions
     assert "真实 LLM" in todo
     for name in ("current-phase-history-2026-07-26.md", "TODO-history-2026-07-26.md", "PROJECT_SUMMARY-history-2026-06-21.md"):
-        archived = (CURRENT_PHASE_PATH.parent / name).read_text(encoding="utf-8")
+        archived = (INTERNAL_HISTORY_ARCHIVE / name).read_text(encoding="utf-8")
         assert "历史归档" in archived.splitlines()[2]
 
 

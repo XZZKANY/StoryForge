@@ -164,6 +164,27 @@ def fs_list(
     return {"entries": entries, "truncated": truncated}
 
 
+def read_project_file_raw(project_root: str, path: str) -> tuple[str, str, bytes]:
+    """Existing visible UTF-8 file, one raw read feeds both proposal input and baseline."""
+    from app.domains.agent_runs.fs_safety import MAX_READ_BYTES
+
+    root = _resolve_root(project_root)
+    target = _visible_target(root, root / path)
+    if not target.is_file():
+        raise FsToolError("external_writeback_requires_existing_file")
+    with target.open("rb") as stream:
+        raw = stream.read(MAX_READ_BYTES + 1)
+    if len(raw) > MAX_READ_BYTES or b"\x00" in raw:
+        raise FsToolError("external_writeback_input_exceeds_budget")
+    try:
+        normalized = raw.decode("utf-8", errors="strict").replace("\r\n", "\n").replace("\r", "\n")
+    except UnicodeDecodeError:
+        raise FsToolError("external_writeback_requires_utf8") from None
+    if len(normalized) > _READ_LIMIT_MAX:
+        raise FsToolError("external_writeback_input_exceeds_budget")
+    return str(target), normalized, raw
+
+
 def fs_read(
     project_root: str,
     path: str,

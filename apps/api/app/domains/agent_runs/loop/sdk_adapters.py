@@ -8,7 +8,7 @@ from typing import Any
 from app.common.llm_client import cost_breakdown
 from app.common.llm_control import LLMRunInterrupted
 from app.common.performance import measured
-from app.domains.agent_runs.loop.checkpoint_store import StoryForgeCheckpointStore
+from app.domains.agent_runs.loop.checkpoint_store import StoryForgeCheckpointStore as StoryForgeCheckpointStore
 from app.domains.agent_runs.loop.sdk_context import StoryForgeRuntimeContext
 from app.domains.agent_runs.loop.support import (
     merge_cost_breakdown,
@@ -70,7 +70,9 @@ class StoryForgeProviderAdapter:
     @measured("agent.model")
     def complete(self, request: ChatRequest) -> ChatResponse:
         self._context.provider_attempts += 1
-        StoryForgeCheckpointStore(self._context).model_started(request)
+        from app.domains.agent_runs.loop.external_checkpoint import checkpoint_store_for_context
+
+        checkpoint_store_for_context(self._context).model_started(request)
         response = self._context.remember_response(self._provider.complete(request))
         self._context.model_outcome_unknown = False
         usage_payload = response.usage.to_legacy()
@@ -141,8 +143,11 @@ class StoryForgeRuntimePolicy:
     def decide_tool(self, tool: RuntimeTool, call, context: Any) -> PolicyDecision:  # noqa: ANN001
         del context
         registry_name = str(tool.metadata["registry_name"])
-        if registry_name in _PATCH_TOOL_NAMES and self._context.outcome.patch_proposal is not None:
+        if registry_name in _PATCH_TOOL_NAMES and self._context.write_budget_exhausted:
             return PolicyDecision(PolicyDecisionKind.DENY, _SINGLE_PATCH_ERROR)
+        if (self._context.external_execution is not None and registry_name in _PATCH_TOOL_NAMES
+                and registry_name != "file.revise"):
+            return PolicyDecision(PolicyDecisionKind.DENY, "单章外部写回只支持 file.revise。")
         definition = self._context.definitions[registry_name]
         safe_arguments = sanitize_loop_tool_arguments(dict(call.arguments))
         decision = self._context.permission_gate.decide(
@@ -174,7 +179,7 @@ class StoryForgeRuntimePolicy:
 class StoryForgeToolSelector:
     def select(self, registry: ToolRegistry, context: Any) -> tuple[RuntimeTool, ...]:
         runtime_context = context if isinstance(context, StoryForgeRuntimeContext) else None
-        if runtime_context is None or runtime_context.outcome.patch_proposal is None:
+        if runtime_context is None or not runtime_context.write_budget_exhausted:
             return registry.all()
         return tuple(
             tool for tool in registry.all() if tool.metadata.get("patch_tool") is not True
@@ -199,7 +204,7 @@ class StoryForgeFeedbackFormatter:
         elif (
             result.error_code == "tool_not_available"
             and runtime_context is not None
-            and runtime_context.outcome.patch_proposal is not None
+            and runtime_context.write_budget_exhausted
             and tool is not None
             and tool.metadata.get("patch_tool") is True
         ):
@@ -308,6 +313,11 @@ def build_storyforge_tool_registry(context: StoryForgeRuntimeContext) -> ToolReg
 def interruption_check(context: StoryForgeRuntimeContext):
     def check(run_id: str, boundary: str, checkpoint: RuntimeCheckpoint) -> str | None:
         del run_id, checkpoint
+        from app.domains.agent_runs.loop.external_chat import external_boundary_interruption
+
+        external_reason = external_boundary_interruption(context, boundary)
+        if external_reason is not None:
+            return external_reason
         if context.call_control is not None:
             try:
                 context.call_control.check(boundary)
@@ -377,6 +387,11 @@ def _execute_tool(
         )
         return RuntimeToolResult.failure("storyforge_tool_error", error_text)
 
+    from app.domains.agent_runs.loop.external_chat import defer_external_proposal
+
+    deferred = defer_external_proposal(context, registry_name, tool_result, evidence.id, dict(arguments))
+    if deferred is not None:
+        return deferred
     output = tool_result.output
     context.outcome.artifacts.extend(tool_result.artifacts)
     feedback = LoopToolFeedback.from_output(
@@ -448,7 +463,7 @@ def _failure_message(
 ) -> str:
     if registry_name is None:
         return f"未知工具：{call.name}，可用工具为 fs_list / fs_read / fs_search。"
-    if code == "tool_not_available" and context.outcome.patch_proposal is not None:
+    if code == "tool_not_available" and context.write_budget_exhausted:
         return _SINGLE_PATCH_ERROR
     if code == "invalid_arguments":
         return "工具参数解析失败：工具参数不是有效 JSON 对象或不符合 ToolSpec。"

@@ -316,3 +316,65 @@ fn applied_but_unreadable_target_has_explicit_current_state() {
     assert_eq!(recovered.state, "applied");
     assert_eq!(recovered.current, "unreadable");
 }
+
+#[test]
+fn described_identity_matches_v1_disk_golden_without_admission() {
+    let vectors: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../test-fixtures/writeback-receipt-v1.json")).unwrap();
+    for vector in vectors {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().to_string_lossy().to_string();
+        let target = temp.path().join(vector["relativePath"].as_str().unwrap());
+        let before = vector["before"].as_str().unwrap();
+        fs::write(&target, before).unwrap();
+        let request = WritebackRequest {
+            operation_key: vector["operationKey"].as_str().unwrap().into(),
+            source: vector["source"].as_str().unwrap().into(),
+            path: target.to_string_lossy().to_string(),
+            content: vector["content"].as_str().unwrap().into(),
+        };
+        let described = describe_writeback_operation(root.clone(), request.clone()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&described).unwrap(),
+            vector["identity"]
+        );
+        assert!(!temp.path().join(".storyforge").exists());
+        assert_eq!(fs::read(&target).unwrap(), before.as_bytes());
+        let receipt = write_file_with_receipt(
+            root.clone(),
+            request.clone(),
+            DiskBaseline::Content {
+                content: before.into(),
+            },
+            Some(7),
+        )
+        .unwrap();
+        assert_eq!(receipt.operation_id, described.operation_id);
+        let location = resolve(&root, &request).unwrap();
+        for suffix in ["intent", "outcome"] {
+            let actual: serde_json::Value =
+                serde_json::from_slice(&fs::read(record_path(&location, suffix)).unwrap()).unwrap();
+            assert_eq!(actual, vector[suffix]);
+        }
+    }
+}
+
+#[test]
+fn describe_reuses_identity_across_projects_but_binds_changed_content() {
+    let (_a, root_a, request_a) = fixture();
+    let (b, root_b, mut request_b) = fixture();
+    let a = describe_writeback_operation(root_a.clone(), request_a.clone()).unwrap();
+    let same = describe_writeback_operation(root_b.clone(), request_b.clone()).unwrap();
+    assert_eq!(a.operation_id, same.operation_id);
+    assert_eq!(a.fingerprint, same.fingerprint);
+    request_b.content.push_str("changed");
+    let changed = describe_writeback_operation(root_b.clone(), request_b.clone()).unwrap();
+    assert_eq!(same.operation_id, changed.operation_id);
+    assert_ne!(same.fingerprint, changed.fingerprint);
+    request_b.path = Path::new(&root_a)
+        .join("chapter.md")
+        .to_string_lossy()
+        .into();
+    assert!(describe_writeback_operation(root_b, request_b).is_err());
+    assert!(!b.path().join(".storyforge").exists());
+}

@@ -83,6 +83,87 @@
       "title": "AgentRunStartedFrame",
       "type": "object"
     },
+    "AgentRunWaitingFrame": {
+      "additionalProperties": false,
+      "description": "Durable external wait, never a final reply or a legacy proposed_patch.",
+      "properties": {
+        "assistant_session_id": {
+          "title": "Assistant Session Id",
+          "type": "integer"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "execution_epoch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Epoch"
+        },
+        "protocol": {
+          "const": "external_writeback_v1",
+          "default": "external_writeback_v1",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "revision": {
+          "title": "Revision",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "await_authorization",
+            "awaiting_receipt",
+            "reconciliation",
+            "receipt_ready",
+            "claimed"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "type": {
+          "const": "agent_run_waiting",
+          "default": "agent_run_waiting",
+          "title": "Type",
+          "type": "string"
+        },
+        "wait_id": {
+          "title": "Wait Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "run_id",
+        "assistant_session_id",
+        "event_id",
+        "sequence",
+        "wait_id",
+        "revision",
+        "stage"
+      ],
+      "title": "AgentRunWaitingFrame",
+      "type": "object"
+    },
     "AgentRuntimeInterruption": {
       "additionalProperties": false,
       "description": "Shared minimum contract for settled cooperative interruption results.",
@@ -535,6 +616,9 @@
     },
     {
       "$ref": "#/$defs/ControlAckFrame"
+    },
+    {
+      "$ref": "#/$defs/AgentRunWaitingFrame"
     }
   ],
   "title": "StoryForge Agent 实时帧契约"

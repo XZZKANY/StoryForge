@@ -124,7 +124,6 @@ pub(crate) fn validate_pending_mutation_path(project_root: &str, path: &Path) ->
 
 /// 写入文件内容（原子替换：先写同目录临时文件并 sync，再 rename 覆盖目标，
 /// 崩溃/中断绝不会在目标文件留下截断内容）。
-#[tauri::command]
 pub fn write_file(project_root: String, path: String, content: String) -> Result<(), String> {
     let target = Path::new(&path);
     let root = validate_pending_mutation_path(&project_root, target)?;
@@ -157,7 +156,6 @@ pub enum DiskBaseline {
     Content { content: String },
 }
 
-#[tauri::command]
 pub fn write_file_if_unchanged(
     project_root: String,
     path: String,
@@ -272,7 +270,6 @@ fn ensure_parent_inside_project(root: &Path, target: &Path) -> Result<(), String
 
 /// 把项目**外**的一份文件复制进项目内（书封）。源只读不动，目标走与 write_file 同一套
 /// containment 校验和原子替换：中途失败不会在项目里留下半张图。
-#[tauri::command]
 pub fn copy_into_project(project_root: String, source: String, dest: String) -> Result<(), String> {
     let source_path = Path::new(&source);
     let metadata =
@@ -372,7 +369,6 @@ pub fn list_dir(path: String, recursive: bool) -> Result<Vec<FileEntry>, String>
 }
 
 /// 删除文件或目录
-#[tauri::command]
 pub fn delete_path(project_root: String, path: String, recursive: bool) -> Result<(), String> {
     let path = Path::new(&path);
 
@@ -393,7 +389,6 @@ pub fn delete_path(project_root: String, path: String, recursive: bool) -> Resul
 }
 
 /// 创建目录
-#[tauri::command]
 pub fn create_dir(project_root: String, path: String, recursive: bool) -> Result<(), String> {
     let root = validate_pending_mutation_path(&project_root, Path::new(&path))?;
     if recursive {
@@ -408,7 +403,6 @@ pub fn create_dir(project_root: String, path: String, recursive: bool) -> Result
 }
 
 /// 重命名/移动文件或目录
-#[tauri::command]
 pub fn rename_path(project_root: String, from: String, to: String) -> Result<(), String> {
     validate_existing_mutation_path(&project_root, Path::new(&from))?;
     validate_pending_mutation_path(&project_root, Path::new(&to))?;

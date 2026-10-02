@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.agent_runs import run_payloads, skill_catalog
 from app.domains.agent_runs.event_types import AGENT_PLAN_CREATED, AGENT_RUN_STARTED
+from app.domains.agent_runs.host_lifecycle import host_admission
+from app.domains.agent_runs.loop.external_chat import ExternalExecutionLease
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.permission import (
     canonical_permission_profile,
@@ -75,16 +77,31 @@ def create_or_resume_agent_run(
     return run
 
 
+@host_admission
 def start_agent_user_message_run(
     session: Session,
     *,
     agent_session_id: str,
     message: dict[str, Any],
+    external_lease: ExternalExecutionLease | None = None,
 ) -> AgentRunStartResult:
     """为 Agent user_message 建立控制平面运行并写入 started 事件。"""
 
+    from app.domains.agent_runs.host_lifecycle import HOST_LIFECYCLE
+
+    HOST_LIFECYCLE.require_open()
+
     user_message = run_payloads.message_text(message)
     run_id = run_payloads.optional_string(message.get("run_id")) or uuid.uuid4().hex
+    from app.domains.agent_runs.loop.checkpoint_store import latest_checkpoint_artifact
+    from app.domains.agent_runs.service_types import AgentRuntimeError
+
+    existing = session.scalar(select(AgentRun).where(AgentRun.public_id == run_id))
+    if existing is not None:
+        checkpoint = latest_checkpoint_artifact(session, existing)
+        if checkpoint is not None and (checkpoint.payload.get("version") == 2
+                                       or "external_execution" in checkpoint.payload):
+            raise AgentRuntimeError("external_writeback_cannot_replay_user_message")
     args = message.get("args") if isinstance(message.get("args"), dict) else {}
     role_inputs = normalize_agent_role_inputs(args)
     raw_permission_profile = run_payloads.optional_string(message.get("permission_profile"))
@@ -93,12 +110,17 @@ def start_agent_user_message_run(
         if raw_permission_profile is not None
         else None
     )
+    scope = run_payloads.scope_summary(args)
+    if external_lease is not None:
+        if existing is not None or external_lease.run_id != run_id or external_lease.session_id != agent_session_id:
+            raise AgentRuntimeError("external_writeback_requires_new_chat_run")
+        scope = {**scope, "execution_protocol": "external_writeback_v1", "project_path": args.get("project_path")}
     run = create_or_resume_agent_run(
         session,
         public_id=run_id,
         session_id=agent_session_id,
         goal=user_message,
-        scope=run_payloads.scope_summary(args),
+        scope=scope,
         permission_profile=requested_profile.profile if requested_profile is not None else None,
         budget=run_payloads.budget_summary(args),
     )

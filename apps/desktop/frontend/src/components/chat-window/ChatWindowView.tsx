@@ -15,11 +15,15 @@ import type { AgentRunControlHandlers, ChatWindowProps } from './types';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { ChatWindowState } from './useChatWindowState';
 import type { QueuedChatMessage } from './useChatSubmission';
+import { useExternalWritebackCoordinator } from '../app/ExternalWritebackProvider';
+import { ExternalWritebackPanel } from '../app/ExternalWritebackPanel';
+import { AgentDecisionPrompt } from './AgentDecisionPrompt';
 
 type Props = {
   state: ChatWindowState;
   projectPath: ChatWindowProps['projectPath'];
   assistantSessionId: ChatWindowProps['assistantSessionId'];
+  decisionDialogsActive?: boolean;
   layoutMode: ChatWindowProps['layoutMode'];
   onSetLayoutMode: ChatWindowProps['onSetLayoutMode'];
   onOpenObservatory: ChatWindowProps['onOpenObservatory'];
@@ -47,6 +51,7 @@ export function ChatWindowView({
   state,
   projectPath,
   assistantSessionId,
+  decisionDialogsActive = true,
   layoutMode,
   onSetLayoutMode,
   onOpenObservatory,
@@ -68,6 +73,14 @@ export function ChatWindowView({
   retryWritingRunSubscription,
   agentRunControls,
 }: Props) {
+  const externalWriteback = useExternalWritebackCoordinator();
+  const dialogsActive = decisionDialogsActive && layoutMode !== 'editor';
+  const legacyDecision =
+    state.agentRun?.status === 'waiting' &&
+    state.agentRun.executionProtocol !== 'external_writeback_v1';
+  const waitingForPermission = state.agentRun?.steps.some(
+    (step) => step.id === 'permission-required' && step.status === 'waiting',
+  );
   const statusText = runStatusText(state.agentRun);
   // 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉当前 run，
   // 并让编辑器里尚未处理的补丁失去对应操作条。先完成本轮作者决策再允许发送。
@@ -167,16 +180,31 @@ export function ChatWindowView({
         onRetryWritingRunSubscription={retryWritingRunSubscription}
       />
 
+      {externalWriteback && (
+        <ExternalWritebackPanel
+          coordinator={externalWriteback}
+          project={projectPath}
+          assistantSessionId={assistantSessionId ?? null}
+          decisionDialogsActive={dialogsActive}
+        />
+      )}
+
       {state.chapterBrief && (
-        <div className="flex-shrink-0 px-5 py-3">
-          <div className="mx-auto w-full max-w-[800px]">
-            <ChapterBriefCard
-              brief={state.chapterBrief}
-              onConfirm={agentRunControls.onConfirmChapterBrief ?? (() => undefined)}
-              onCancel={agentRunControls.onDenyPermission}
-            />
+        <AgentDecisionPrompt
+          decisionKey={`${projectPath}:${assistantSessionId}:brief:${state.chapterBrief.briefId}:${state.chapterBrief.revision}`}
+          active={dialogsActive}
+          title="确认章纲后开始起草"
+        >
+          <div className="flex-shrink-0 px-5 py-3">
+            <div className="mx-auto w-full max-w-[800px]">
+              <ChapterBriefCard
+                brief={state.chapterBrief}
+                onConfirm={agentRunControls.onConfirmChapterBrief ?? (() => undefined)}
+                onCancel={agentRunControls.onDenyPermission}
+              />
+            </div>
           </div>
-        </div>
+        </AgentDecisionPrompt>
       )}
 
       {showLightweightStatus && statusText && (
@@ -193,14 +221,29 @@ export function ChatWindowView({
         />
       )}
 
-      {state.agentRun && !state.chapterBrief && (
-        <RunActionBar
-          run={state.agentRun}
-          controls={agentRunControls}
-          recovery={state.agentRunRecovery}
-          resumePending={state.agentBusy}
-        />
-      )}
+      {state.agentRun &&
+        !state.chapterBrief &&
+        (legacyDecision ? (
+          <AgentDecisionPrompt
+            decisionKey={`${projectPath}:${assistantSessionId}:${state.agentRun.id}:${waitingForPermission ? 'permission' : 'patch'}`}
+            active={dialogsActive}
+            title={waitingForPermission ? '是否允许 Agent 执行这一步？' : '是否接受这版修订？'}
+          >
+            <RunActionBar
+              run={state.agentRun}
+              controls={agentRunControls}
+              recovery={state.agentRunRecovery}
+              resumePending={state.agentBusy}
+            />
+          </AgentDecisionPrompt>
+        ) : (
+          <RunActionBar
+            run={state.agentRun}
+            controls={agentRunControls}
+            recovery={state.agentRunRecovery}
+            resumePending={state.agentBusy}
+          />
+        ))}
 
       <ContextSummaryPanel
         compact

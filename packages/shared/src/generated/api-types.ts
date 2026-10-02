@@ -4,6 +4,41 @@
  */
 
 export interface paths {
+    "/api/agent-runs/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 读取受管 Agent 执行协议能力 */
+        get: operations["capabilities_endpoint_api_agent_runs_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/host/closing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 只读检查受管宿主执行结算 */
+        get: operations["read_close_endpoint_api_agent_runs_host_closing_get"];
+        put?: never;
+        /** 封闭受管宿主新执行准入 */
+        post: operations["close_host_endpoint_api_agent_runs_host_closing_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agent-runs/knowledge-proposals/materialize": {
         parameters: {
             query?: never;
@@ -149,6 +184,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agent-runs/writeback-recovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 按项目只读发现写回待办 */
+        get: operations["list_recovery_endpoint_api_agent_runs_writeback_recovery_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agent-runs/{run_id}": {
         parameters: {
             query?: never;
@@ -263,6 +315,74 @@ export interface paths {
         get: operations["get_agent_run_save_points_endpoint_api_agent_runs__run_id__save_points_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/{run_id}/writeback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 按会话只读重建外部写回等待 */
+        get: operations["read_writeback_endpoint_api_agent_runs__run_id__writeback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/{run_id}/writeback/{wait_id}/prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 绑定身份与 whole 写回决定 */
+        post: operations["prepare_writeback_endpoint_api_agent_runs__run_id__writeback__wait_id__prepare_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/{run_id}/writeback/{wait_id}/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 核对原生回执并独立申请当前世代续跑 */
+        post: operations["reconcile_writeback_endpoint_api_agent_runs__run_id__writeback__wait_id__reconcile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/{run_id}/writeback/{wait_id}/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 显式重新建立现场恢复资格 */
+        post: operations["recover_endpoint_api_agent_runs__run_id__writeback__wait_id__recover_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1755,6 +1875,15 @@ export interface components {
              */
             updated_at: string;
         };
+        /** AgentCapabilitiesRead */
+        AgentCapabilitiesRead: {
+            /** Disabled Reason */
+            disabled_reason?: string | null;
+            /** Execution Protocols */
+            execution_protocols?: "external_writeback_v1"[];
+            /** Managed Host Generation */
+            managed_host_generation?: string | null;
+        };
         /**
          * AgentControlRequest
          * @description Agent 控制消息体（暂停 / 恢复 / 停止 / 权限批准 / 拒绝 / 从 checkpoint 重试）。
@@ -1900,6 +2029,12 @@ export interface components {
             };
             /** Assistant Session Id */
             assistant_session_id?: number | null;
+            /**
+             * Execution Protocol
+             * @default legacy
+             * @enum {string}
+             */
+            execution_protocol: "legacy" | "external_writeback_v1";
             /** Intent */
             intent?: string | null;
             /** Permission Profile */
@@ -2822,6 +2957,15 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HostCloseRead */
+        HostCloseRead: {
+            /** Closing */
+            closing: boolean;
+            /** In Flight Owners */
+            in_flight_owners: number;
+            /** Settled */
+            settled: boolean;
+        };
         /**
          * IdeCommandRequest
          * @description IDE 命令执行请求，所有写操作通过 args 传入参数。
@@ -3388,6 +3532,15 @@ export interface components {
             /** Workspace Id */
             workspace_id: number | null;
         };
+        /** NativeWritebackIdentity */
+        NativeWritebackIdentity: {
+            /** Fingerprint */
+            fingerprint: string;
+            /** Operationid */
+            operationId: string;
+            /** Relativepath */
+            relativePath: string;
+        };
         /** ProviderConfigCreate */
         ProviderConfigCreate: {
             /** Capabilities */
@@ -3535,6 +3688,23 @@ export interface components {
              * @enum {string}
              */
             status: "ready" | "degraded";
+        };
+        /** ReceiptObservation */
+        ReceiptObservation: {
+            /** Current */
+            current?: ("before" | "after" | "diverged" | "missing" | "unreadable") | null;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Receipt Persisted
+             * @default false
+             */
+            receipt_persisted: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "applied" | "not_written" | "outcome_unknown" | "missing" | "invalid";
         };
         /**
          * RepairPatchCreate
@@ -4583,6 +4753,180 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** WholeFileProposal */
+        WholeFileProposal: {
+            /** After */
+            after: string;
+            /** Before */
+            before: string;
+            /** Id */
+            id: string | number;
+            /** Requires Confirmation */
+            requires_confirmation: boolean;
+        };
+        /** WritebackPrepareRequest */
+        WritebackPrepareRequest: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approve" | "auto" | "reject";
+            /** Execution Epoch */
+            execution_epoch?: string | null;
+            /** Expected Revision */
+            expected_revision: number;
+            identity?: components["schemas"]["NativeWritebackIdentity"] | null;
+            /**
+             * Permission Profile
+             * @enum {string}
+             */
+            permission_profile: "read" | "ask" | "auto" | "full";
+            /** Session Id */
+            session_id: string;
+        };
+        /** WritebackRead */
+        WritebackRead: {
+            /** After Hash */
+            after_hash: string;
+            /** Assistant Session Id */
+            assistant_session_id: number;
+            /** Before Hash */
+            before_hash: string;
+            /** Continuation Available */
+            continuation_available: boolean;
+            /** Decision */
+            decision: ("approve" | "auto" | "reject") | null;
+            /** Delivery Complete */
+            delivery_complete: boolean;
+            /** Event Id */
+            event_id: number;
+            /** Event Sequence */
+            event_sequence: number;
+            /** Feedback Consumed */
+            feedback_consumed: boolean;
+            /** Historical Applied */
+            historical_applied: boolean;
+            identity: components["schemas"]["NativeWritebackIdentity"] | null;
+            observation: components["schemas"]["ReceiptObservation"] | null;
+            /** Operation Key */
+            operation_key: string;
+            /** Permission Profile */
+            permission_profile: string;
+            /** Project Path */
+            project_path: string;
+            proposal: components["schemas"]["WholeFileProposal"];
+            /**
+             * Protocol
+             * @default external_writeback_v1
+             * @constant
+             */
+            protocol: "external_writeback_v1";
+            /** Raw Before */
+            raw_before: string;
+            /** Requested Path */
+            requested_path: string;
+            /** Revision */
+            revision: number;
+            /** Run Id */
+            run_id: string;
+            /** Run Status */
+            run_status: string;
+            /**
+             * Runtime State
+             * @enum {string}
+             */
+            runtime_state: "in_flight" | "settled";
+            /** Session Id */
+            session_id: string;
+            /** Source */
+            source: string;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "await_authorization" | "awaiting_receipt" | "reconciliation" | "receipt_ready" | "claimed";
+            /** Wait Id */
+            wait_id: string;
+        };
+        /** WritebackReconcileRequest */
+        WritebackReconcileRequest: {
+            /** Execution Epoch */
+            execution_epoch?: string | null;
+            /** Expected Revision */
+            expected_revision: number;
+            /**
+             * Resume Intent
+             * @default observe_only
+             * @enum {string}
+             */
+            resume_intent: "observe_only" | "continue_current_execution";
+            /** Session Id */
+            session_id: string;
+        };
+        /** WritebackRecoveryItem */
+        WritebackRecoveryItem: {
+            /** Audit Ready */
+            audit_ready?: boolean | null;
+            /** Blocked Reason */
+            blocked_reason?: string | null;
+            /** Event Sequence */
+            event_sequence: number;
+            /**
+             * Historical Applied
+             * @default false
+             */
+            historical_applied: boolean;
+            /** Native State */
+            native_state?: string | null;
+            /** Requested Path */
+            requested_path?: string | null;
+            /** Revision */
+            revision?: number | null;
+            /** Run Id */
+            run_id: string;
+            /** Run Status */
+            run_status: string;
+            /** Session Id */
+            session_id: string;
+            /** Stage */
+            stage?: string | null;
+            /** Target Current */
+            target_current?: string | null;
+            /** Wait Id */
+            wait_id?: string | null;
+        };
+        /** WritebackRecoveryList */
+        WritebackRecoveryList: {
+            /** Items */
+            items: components["schemas"]["WritebackRecoveryItem"][];
+            /** Next After Id */
+            next_after_id?: number | null;
+        };
+        /** WritebackRecoveryRead */
+        WritebackRecoveryRead: {
+            /** Execution Epoch */
+            execution_epoch?: string | null;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "await_confirmation" | "continue_verified" | "audit_required";
+            writeback: components["schemas"]["WritebackRead"];
+        };
+        /** WritebackRecoveryRequest */
+        WritebackRecoveryRequest: {
+            /** Expected Event Sequence */
+            expected_event_sequence: number;
+            /** Expected Revision */
+            expected_revision: number;
+            /**
+             * Permission Profile
+             * @enum {string}
+             */
+            permission_profile: "read" | "ask" | "auto" | "full";
+            /** Session Id */
+            session_id: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -4592,6 +4936,88 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    capabilities_endpoint_api_agent_runs_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentCapabilitiesRead"];
+                };
+            };
+        };
+    };
+    read_close_endpoint_api_agent_runs_host_closing_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-StoryForge-Host-Generation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostCloseRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_host_endpoint_api_agent_runs_host_closing_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-StoryForge-Host-Generation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostCloseRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     materialize_knowledge_proposal_endpoint_api_agent_runs_knowledge_proposals_materialize_post: {
         parameters: {
             query?: never;
@@ -4828,6 +5254,40 @@ export interface operations {
             };
         };
     };
+    list_recovery_endpoint_api_agent_runs_writeback_recovery_get: {
+        parameters: {
+            query: {
+                project_path: string;
+                session_id?: string | null;
+                after_id?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WritebackRecoveryList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_agent_run_endpoint_api_agent_runs__run_id__get: {
         parameters: {
             query?: never;
@@ -5003,6 +5463,153 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_writeback_endpoint_api_agent_runs__run_id__writeback_get: {
+        parameters: {
+            query: {
+                session_id: string;
+            };
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WritebackRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prepare_writeback_endpoint_api_agent_runs__run_id__writeback__wait_id__prepare_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-StoryForge-Host-Generation"?: string | null;
+            };
+            path: {
+                run_id: string;
+                wait_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WritebackPrepareRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WritebackRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reconcile_writeback_endpoint_api_agent_runs__run_id__writeback__wait_id__reconcile_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-StoryForge-Host-Generation"?: string | null;
+            };
+            path: {
+                run_id: string;
+                wait_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WritebackReconcileRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WritebackRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recover_endpoint_api_agent_runs__run_id__writeback__wait_id__recover_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-StoryForge-Host-Generation"?: string | null;
+            };
+            path: {
+                run_id: string;
+                wait_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WritebackRecoveryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WritebackRecoveryRead"];
                 };
             };
             /** @description Validation Error */
@@ -6371,7 +6978,9 @@ export interface operations {
     stream_agent_user_message_endpoint_api_ide_agent_sessions__session_id__stream_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-StoryForge-Host-Generation"?: string | null;
+            };
             path: {
                 session_id: string;
             };

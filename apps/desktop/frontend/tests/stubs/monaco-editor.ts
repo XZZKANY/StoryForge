@@ -25,6 +25,9 @@ class FakeModel {
   dispose() {
     this.disposed = true;
   }
+  isDisposed() {
+    return this.disposed;
+  }
 }
 
 class FakeEditor {

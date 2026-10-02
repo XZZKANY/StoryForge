@@ -11,6 +11,7 @@ from app.domains.agent_runs.events import (
     resolve_knowledge_proposal,
     revise_knowledge_proposal_group,
 )
+from app.domains.agent_runs.host_lifecycle_router import router as host_lifecycle_router
 from app.domains.agent_runs.schemas import (
     AgentArtifactRead,
     AgentRoleRead,
@@ -35,8 +36,14 @@ from app.domains.agent_runs.service import (
     list_agent_skills,
     resolve_agent_role_alias,
 )
+from app.domains.agent_runs.writeback_recovery_router import router as writeback_recovery_router
+from app.domains.agent_runs.writeback_router import router as writeback_router
 
 router = APIRouter(prefix="/api/agent-runs", tags=["Agent Runtime"])
+
+router.include_router(host_lifecycle_router)
+router.include_router(writeback_router)
+router.include_router(writeback_recovery_router)
 
 
 @router.post(

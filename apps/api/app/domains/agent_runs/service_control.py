@@ -50,6 +50,11 @@ def record_agent_control_event(
 ) -> AgentRunEvent:
     """记录 Agent 控制消息，避免权限与暂停指令停留在瞬时通道里。"""
 
+    if control_type in {RESUME_RUN, APPROVE_PERMISSION_COMMAND, "retry_from_checkpoint"}:
+        from app.domains.agent_runs.host_lifecycle import HOST_LIFECYCLE
+
+        HOST_LIFECYCLE.require_open()
+
     run = get_agent_run(session, public_id)
     assert_run_session_ownership(run, session_id)
     session.refresh(run)
@@ -80,6 +85,10 @@ def record_agent_control_event(
     )
     session.refresh(run)
     runtime_state = agent_execution_state(session, run)
+    from app.domains.agent_runs.loop.external_wait_lifecycle import handle_external_control
+
+    if handle_external_control(session, run, event, control_type=control_type, runtime_state=runtime_state):
+        return event
     resolution = {}
     permission_transition = (
         control_type in {APPROVE_PERMISSION_COMMAND, DENY_PERMISSION_COMMAND}
@@ -98,23 +107,27 @@ def record_agent_control_event(
     # → 不可恢复僵尸，B1-001a）；resume 只从 paused 生效，终态 run 收到 resume 不复活（B1-001/D1-002）。
     with rollback_failed_settlement(session):
         if control_type == PAUSE_RUN and run.status not in AGENT_RUN_TERMINAL_STATUSES:
-            run.status = "paused"
-            run.current_step = "paused"
-            control_effect = "requested" if runtime_state == "in_flight" else "applied"
+            changed = session.execute(update(AgentRun).where(
+                AgentRun.id == run.id, AgentRun.status == run.status, AgentRun.current_step == run.current_step,
+            ).values(status="paused", current_step="paused").execution_options(synchronize_session=False))
+            session.refresh(run)
+            control_effect = ("requested" if runtime_state == "in_flight" else "applied") if changed.rowcount == 1 else "ignored"
         elif (control_type == RESUME_RUN and run.status == "paused" and runtime_state == "settled"
               and run.current_step != "permission.confirm"):
             # Two control connections may both have read paused. Only the row
             # transition winner is authorized to start a resumed worker.
             claimed = session.execute(update(AgentRun).where(
                 AgentRun.id == run.id, AgentRun.status == "paused",
-                AgentRun.current_step.is_distinct_from("permission.confirm"),
+                AgentRun.current_step == run.current_step,
             ).values(status="running", current_step="resumed").execution_options(synchronize_session=False))
             session.refresh(run)
             control_effect = "applied" if claimed.rowcount == 1 else "ignored"
         elif control_type == STOP_RUN and run.status not in AGENT_RUN_TERMINAL_STATUSES:
-            run.status = "stopped"
-            run.current_step = "stopped"
-            control_effect = "requested" if runtime_state == "in_flight" else "applied"
+            changed = session.execute(update(AgentRun).where(
+                AgentRun.id == run.id, AgentRun.status == run.status, AgentRun.current_step == run.current_step,
+            ).values(status="stopped", current_step="stopped").execution_options(synchronize_session=False))
+            session.refresh(run)
+            control_effect = ("requested" if runtime_state == "in_flight" else "applied") if changed.rowcount == 1 else "ignored"
         elif control_type == STOP_RUN and run.status == "stopped" and runtime_state == "in_flight":
             control_effect = "requested"
         elif control_type == APPROVE_PERMISSION_COMMAND and permission_transition:

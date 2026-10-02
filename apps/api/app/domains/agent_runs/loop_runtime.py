@@ -25,6 +25,8 @@ from app.domains.agent_runs.loop.author_view import (
     build_author_view_block,
     build_pinned_context_block,
 )
+from app.domains.agent_runs.loop.external_chat import ExternalChatExecution
+from app.domains.agent_runs.loop.external_checkpoint import checkpoint_store_for_context
 from app.domains.agent_runs.loop.run_control import (
     RUN_MAX_DURATION_SECONDS,
     build_run_control,
@@ -32,7 +34,6 @@ from app.domains.agent_runs.loop.run_control import (
     finish_interrupted_run,
 )
 from app.domains.agent_runs.loop.sdk_adapters import (
-    StoryForgeCheckpointStore,
     StoryForgeFeedbackFormatter,
     StoryForgeProviderAdapter,
     StoryForgeRuntimePolicy,
@@ -120,11 +121,12 @@ def run_chat_loop(
     author_view: AuthorView | None = None,
     pinned_context: str | None = None,
     recovery_message: dict[str, Any] | None = None,
+    external_execution: ExternalChatExecution | None = None,
 ) -> ChatLoopOutcome:
     """Assemble StoryForge context and delegate generic orchestration to the SDK."""
 
     provenance: dict[str, Any] = {}
-    messages = messages_from_openai(
+    messages = () if external_execution is not None and external_execution.resumed else messages_from_openai(
         _storyforge_messages(
             session,
             assistant_session_id=assistant_session_id,
@@ -148,6 +150,8 @@ def run_chat_loop(
         on_trace=on_trace,
         outcome=outcome,
         should_interrupt=should_interrupt,
+        external_execution=external_execution,
+        **({"active_started_at": external_execution.started_at} if external_execution is not None else {}),
         recovery_message=recovery_message or {"intent": "chat.explain", "user_message": user_message,
             "assistant_session_id": assistant_session_id, "args": {"project_path": project_path, "file_path": current_file}},
     )
@@ -162,8 +166,23 @@ def run_chat_loop(
         owner.control if owner is not None
         else build_run_control(context, duration_seconds=LOOP_MAX_DURATION_SECONDS)
     )
-    checkpoint_store = StoryForgeCheckpointStore(context)
-    resume_state = checkpoint_store.load(run.public_id) if run.current_step == "resumed" else None
+    checkpoint_store = checkpoint_store_for_context(context)
+    resuming = run.current_step == "resumed" or (external_execution is not None and external_execution.resumed)
+    try:
+        resume_state = checkpoint_store.load(run.public_id) if resuming else None
+    except ValueError:
+        if external_execution is None or not external_execution.resumed:
+            raise
+        from app.domains.agent_runs.loop.external_wait_lifecycle import park_external_wait
+        from app.domains.agent_runs.loop.external_wait_store import read_external_wait
+
+        park_external_wait(session, run, reason="external_checkpoint_not_ready")
+        outcome.external_wait = read_external_wait(session, run)
+        return outcome
+    if external_execution is not None:
+        now = context.call_control.clock()
+        remaining = max(0.0, LOOP_MAX_DURATION_SECONDS - context.active_elapsed_seconds())
+        context.call_control.deadline = min(context.call_control.deadline or (now + remaining), now + remaining)
     runtime = ToolCallingRuntime(
         provider,
         build_storyforge_tool_registry(context),
@@ -205,6 +224,12 @@ def run_chat_loop(
         return outcome
 
     outcome.rounds = context.provider_attempts
+    if (external_execution is not None and external_execution.stored is not None
+            and (not external_execution.resumed or run.status in {"paused", "stopped"})):
+        from app.domains.agent_runs.loop.external_wait_store import read_external_wait
+
+        outcome.external_wait = read_external_wait(session, run)
+        return outcome
     if result.status is RuntimeResultStatus.COMPLETED:
         outcome.answer = _annotate_unexecuted_tool_markup(result.content)
         return outcome

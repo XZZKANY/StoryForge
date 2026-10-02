@@ -44,3 +44,35 @@ export function decodeWritebackReceipt(value: unknown): WritebackReceipt {
     throw new Error('写回回执字段无效，结果未知；已禁止自动重复写入');
   return record as WritebackReceipt;
 }
+
+/** Read-only Native description, not approval, admission, or proof of writeback. */
+export type WritebackIdentity = {
+  relativePath: string;
+  operationId: string;
+  fingerprint: string;
+};
+
+export function decodeWritebackIdentity(value: unknown): WritebackIdentity {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('写回操作身份格式无效');
+  }
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.relativePath !== 'string' ||
+    /[\\:]/.test(record.relativePath) ||
+    record.relativePath.includes('\0') ||
+    record.relativePath.split('/').some((part) => ['', '.', '..'].includes(part)) ||
+    typeof record.operationId !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(record.operationId) ||
+    typeof record.fingerprint !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(record.fingerprint) ||
+    Object.keys(record).some((key) => !['relativePath', 'operationId', 'fingerprint'].includes(key))
+  ) {
+    throw new Error('写回操作身份字段无效');
+  }
+  return {
+    relativePath: record.relativePath,
+    operationId: record.operationId,
+    fingerprint: record.fingerprint,
+  };
+}

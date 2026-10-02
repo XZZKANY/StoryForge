@@ -47,6 +47,42 @@
         "title": "AgentArtifactRead",
         "type": "object"
       },
+      "AgentCapabilitiesRead": {
+        "properties": {
+          "disabled_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabled Reason"
+          },
+          "execution_protocols": {
+            "items": {
+              "const": "external_writeback_v1",
+              "type": "string"
+            },
+            "title": "Execution Protocols",
+            "type": "array"
+          },
+          "managed_host_generation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Managed Host Generation"
+          }
+        },
+        "title": "AgentCapabilitiesRead",
+        "type": "object"
+      },
       "AgentControlRequest": {
         "description": "Agent 控制消息体（暂停 / 恢复 / 停止 / 权限批准 / 拒绝 / 从 checkpoint 重试）。",
         "properties": {
@@ -377,6 +413,15 @@
               }
             ],
             "title": "Assistant Session Id"
+          },
+          "execution_protocol": {
+            "default": "legacy",
+            "enum": [
+              "legacy",
+              "external_writeback_v1"
+            ],
+            "title": "Execution Protocol",
+            "type": "string"
           },
           "intent": {
             "anyOf": [
@@ -2965,6 +3010,29 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HostCloseRead": {
+        "properties": {
+          "closing": {
+            "title": "Closing",
+            "type": "boolean"
+          },
+          "in_flight_owners": {
+            "title": "In Flight Owners",
+            "type": "integer"
+          },
+          "settled": {
+            "title": "Settled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "closing",
+          "in_flight_owners",
+          "settled"
+        ],
+        "title": "HostCloseRead",
+        "type": "object"
+      },
       "IdeCommandRequest": {
         "description": "IDE 命令执行请求，所有写操作通过 args 传入参数。",
         "properties": {
@@ -4572,6 +4640,33 @@
         "title": "ModelRunRead",
         "type": "object"
       },
+      "NativeWritebackIdentity": {
+        "additionalProperties": false,
+        "properties": {
+          "fingerprint": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "operationId": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Operationid",
+            "type": "string"
+          },
+          "relativePath": {
+            "minLength": 1,
+            "title": "Relativepath",
+            "type": "string"
+          }
+        },
+        "required": [
+          "relativePath",
+          "operationId",
+          "fingerprint"
+        ],
+        "title": "NativeWritebackIdentity",
+        "type": "object"
+      },
       "ProviderConfigCreate": {
         "properties": {
           "capabilities": {
@@ -4962,6 +5057,61 @@
           "checks"
         ],
         "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "ReceiptObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "current": {
+            "anyOf": [
+              {
+                "enum": [
+                  "before",
+                  "after",
+                  "diverged",
+                  "missing",
+                  "unreadable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "receipt_persisted": {
+            "default": false,
+            "title": "Receipt Persisted",
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "applied",
+              "not_written",
+              "outcome_unknown",
+              "missing",
+              "invalid"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "ReceiptObservation",
         "type": "object"
       },
       "RepairPatchCreate": {
@@ -7732,6 +7882,550 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WholeFileProposal": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "title": "After",
+            "type": "string"
+          },
+          "before": {
+            "title": "Before",
+            "type": "string"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "requires_confirmation": {
+            "title": "Requires Confirmation",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "before",
+          "after",
+          "requires_confirmation"
+        ],
+        "title": "WholeFileProposal",
+        "type": "object"
+      },
+      "WritebackPrepareRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "approve",
+              "auto",
+              "reject"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "execution_epoch": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Epoch"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "identity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NativeWritebackIdentity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "permission_profile": {
+            "enum": [
+              "read",
+              "ask",
+              "auto",
+              "full"
+            ],
+            "title": "Permission Profile",
+            "type": "string"
+          },
+          "session_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "expected_revision",
+          "decision",
+          "permission_profile"
+        ],
+        "title": "WritebackPrepareRequest",
+        "type": "object"
+      },
+      "WritebackRead": {
+        "properties": {
+          "after_hash": {
+            "title": "After Hash",
+            "type": "string"
+          },
+          "assistant_session_id": {
+            "title": "Assistant Session Id",
+            "type": "integer"
+          },
+          "before_hash": {
+            "title": "Before Hash",
+            "type": "string"
+          },
+          "continuation_available": {
+            "title": "Continuation Available",
+            "type": "boolean"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "enum": [
+                  "approve",
+                  "auto",
+                  "reject"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "delivery_complete": {
+            "title": "Delivery Complete",
+            "type": "boolean"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "event_sequence": {
+            "title": "Event Sequence",
+            "type": "integer"
+          },
+          "feedback_consumed": {
+            "title": "Feedback Consumed",
+            "type": "boolean"
+          },
+          "historical_applied": {
+            "title": "Historical Applied",
+            "type": "boolean"
+          },
+          "identity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NativeWritebackIdentity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptObservation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "operation_key": {
+            "title": "Operation Key",
+            "type": "string"
+          },
+          "permission_profile": {
+            "title": "Permission Profile",
+            "type": "string"
+          },
+          "project_path": {
+            "title": "Project Path",
+            "type": "string"
+          },
+          "proposal": {
+            "$ref": "#/components/schemas/WholeFileProposal"
+          },
+          "protocol": {
+            "const": "external_writeback_v1",
+            "default": "external_writeback_v1",
+            "title": "Protocol",
+            "type": "string"
+          },
+          "raw_before": {
+            "title": "Raw Before",
+            "type": "string"
+          },
+          "requested_path": {
+            "title": "Requested Path",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "run_status": {
+            "title": "Run Status",
+            "type": "string"
+          },
+          "runtime_state": {
+            "enum": [
+              "in_flight",
+              "settled"
+            ],
+            "title": "Runtime State",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "stage": {
+            "enum": [
+              "await_authorization",
+              "awaiting_receipt",
+              "reconciliation",
+              "receipt_ready",
+              "claimed"
+            ],
+            "title": "Stage",
+            "type": "string"
+          },
+          "wait_id": {
+            "title": "Wait Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "session_id",
+          "assistant_session_id",
+          "wait_id",
+          "revision",
+          "stage",
+          "run_status",
+          "runtime_state",
+          "event_sequence",
+          "event_id",
+          "project_path",
+          "requested_path",
+          "raw_before",
+          "before_hash",
+          "after_hash",
+          "operation_key",
+          "source",
+          "proposal",
+          "identity",
+          "decision",
+          "observation",
+          "historical_applied",
+          "feedback_consumed",
+          "delivery_complete",
+          "permission_profile",
+          "continuation_available"
+        ],
+        "title": "WritebackRead",
+        "type": "object"
+      },
+      "WritebackReconcileRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "execution_epoch": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Epoch"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "resume_intent": {
+            "default": "observe_only",
+            "enum": [
+              "observe_only",
+              "continue_current_execution"
+            ],
+            "title": "Resume Intent",
+            "type": "string"
+          },
+          "session_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "expected_revision"
+        ],
+        "title": "WritebackReconcileRequest",
+        "type": "object"
+      },
+      "WritebackRecoveryItem": {
+        "properties": {
+          "audit_ready": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Ready"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "event_sequence": {
+            "title": "Event Sequence",
+            "type": "integer"
+          },
+          "historical_applied": {
+            "default": false,
+            "title": "Historical Applied",
+            "type": "boolean"
+          },
+          "native_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native State"
+          },
+          "requested_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Path"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "run_status": {
+            "title": "Run Status",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "target_current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Current"
+          },
+          "wait_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wait Id"
+          }
+        },
+        "required": [
+          "run_id",
+          "session_id",
+          "event_sequence",
+          "run_status"
+        ],
+        "title": "WritebackRecoveryItem",
+        "type": "object"
+      },
+      "WritebackRecoveryList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WritebackRecoveryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_after_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next After Id"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "WritebackRecoveryList",
+        "type": "object"
+      },
+      "WritebackRecoveryRead": {
+        "properties": {
+          "execution_epoch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Epoch"
+          },
+          "mode": {
+            "enum": [
+              "await_confirmation",
+              "continue_verified",
+              "audit_required"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "writeback": {
+            "$ref": "#/components/schemas/WritebackRead"
+          }
+        },
+        "required": [
+          "writeback",
+          "mode"
+        ],
+        "title": "WritebackRecoveryRead",
+        "type": "object"
+      },
+      "WritebackRecoveryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_event_sequence": {
+            "minimum": 1.0,
+            "title": "Expected Event Sequence",
+            "type": "integer"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "permission_profile": {
+            "enum": [
+              "read",
+              "ask",
+              "auto",
+              "full"
+            ],
+            "title": "Permission Profile",
+            "type": "string"
+          },
+          "session_id": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "expected_revision",
+          "expected_event_sequence",
+          "permission_profile"
+        ],
+        "title": "WritebackRecoveryRequest",
+        "type": "object"
       }
     }
   },
@@ -7741,6 +8435,123 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/agent-runs/capabilities": {
+      "get": {
+        "operationId": "capabilities_endpoint_api_agent_runs_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentCapabilitiesRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "读取受管 Agent 执行协议能力",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/host/closing": {
+      "get": {
+        "operationId": "read_close_endpoint_api_agent_runs_host_closing_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-StoryForge-Host-Generation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Storyforge-Host-Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostCloseRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "只读检查受管宿主执行结算",
+        "tags": [
+          "Agent Runtime"
+        ]
+      },
+      "post": {
+        "operationId": "close_host_endpoint_api_agent_runs_host_closing_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-StoryForge-Host-Generation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Storyforge-Host-Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostCloseRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "封闭受管宿主新执行准入",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
     "/api/agent-runs/knowledge-proposals/materialize": {
       "post": {
         "operationId": "materialize_knowledge_proposal_endpoint_api_agent_runs_knowledge_proposals_materialize_post",
@@ -8049,6 +8860,89 @@
         ]
       }
     },
+    "/api/agent-runs/writeback-recovery": {
+      "get": {
+        "operationId": "list_recovery_endpoint_api_agent_runs_writeback_recovery_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_path",
+            "required": true,
+            "schema": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "title": "Project Path",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after_id",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "After Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WritebackRecoveryList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "按项目只读发现写回待办",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
     "/api/agent-runs/{run_id}": {
       "get": {
         "description": "按 WebSocket 暴露的 run_id 读取一次 AgentRun。",
@@ -8314,6 +9208,288 @@
           }
         },
         "summary": "读取 AgentRun save point 投影",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/{run_id}/writeback": {
+      "get": {
+        "operationId": "read_writeback_endpoint_api_agent_runs__run_id__writeback_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WritebackRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "按会话只读重建外部写回等待",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/{run_id}/writeback/{wait_id}/prepare": {
+      "post": {
+        "operationId": "prepare_writeback_endpoint_api_agent_runs__run_id__writeback__wait_id__prepare_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "wait_id",
+            "required": true,
+            "schema": {
+              "title": "Wait Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-StoryForge-Host-Generation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Storyforge-Host-Generation"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WritebackPrepareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WritebackRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "绑定身份与 whole 写回决定",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/{run_id}/writeback/{wait_id}/reconcile": {
+      "post": {
+        "operationId": "reconcile_writeback_endpoint_api_agent_runs__run_id__writeback__wait_id__reconcile_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "wait_id",
+            "required": true,
+            "schema": {
+              "title": "Wait Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-StoryForge-Host-Generation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Storyforge-Host-Generation"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WritebackReconcileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WritebackRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "核对原生回执并独立申请当前世代续跑",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/{run_id}/writeback/{wait_id}/recover": {
+      "post": {
+        "operationId": "recover_endpoint_api_agent_runs__run_id__writeback__wait_id__recover_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "wait_id",
+            "required": true,
+            "schema": {
+              "title": "Wait Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-StoryForge-Host-Generation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Storyforge-Host-Generation"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WritebackRecoveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WritebackRecoveryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "显式重新建立现场恢复资格",
         "tags": [
           "Agent Runtime"
         ]
@@ -10334,6 +11510,22 @@
             "schema": {
               "title": "Session Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-StoryForge-Host-Generation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Storyforge-Host-Generation"
             }
           }
         ],

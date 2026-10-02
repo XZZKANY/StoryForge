@@ -3,6 +3,8 @@ import { reconstructAgentResultFromEvents } from './agent-run-events';
 import { getAgentRunEvents } from './agent-runs';
 import { getApiConfig, trimApiBaseUrl } from './config';
 import { readErrorDetail } from './errors';
+import { getAgentCapabilities, getExternalWriteback } from './external-writeback';
+import { supportsExternalWriteback } from './managed-agent-host';
 import type {
   AgentControlAckMessage,
   AgentControlMessageRequest,
@@ -10,6 +12,7 @@ import type {
   AgentPermissionRequiredMessage,
   AgentResultMessage,
   AgentRunStartedMessage,
+  AgentRunWaitingMessage,
   AgentSocketMessage,
   AgentStepEventMessage,
   AgentToolTraceEventMessage,
@@ -112,7 +115,11 @@ function parseAgentSseFrame(frame: string): AgentSocketMessage | null {
 export async function sendAgentUserMessage(
   request: AgentUserMessageRequest,
 ): Promise<AgentSocketMessage> {
-  const { baseUrl, apiKey } = await getApiConfig();
+  const config = await getApiConfig();
+  const { baseUrl, apiKey } = config;
+  const external = request.executionProtocol === 'external_writeback_v1';
+  if (external && !supportsExternalWriteback(config, await getAgentCapabilities(config)))
+    throw new Error('当前宿主未开放连续写回协议');
   const url = `${trimApiBaseUrl(baseUrl)}/api/ide/agent/sessions/${encodeURIComponent(
     request.sessionId,
   )}/stream`;
@@ -122,6 +129,7 @@ export async function sendAgentUserMessage(
     ...(request.agentRoleMentions ? { agent_role_mentions: request.agentRoleMentions } : {}),
   };
   const body = JSON.stringify({
+    ...(external ? { execution_protocol: 'external_writeback_v1' } : {}),
     user_message: request.userMessage,
     run_id: request.runId,
     assistant_session_id: request.assistantSessionId ?? undefined,
@@ -160,7 +168,7 @@ export async function sendAgentUserMessage(
       } catch {
         // 转轮询前中止流，忽略中止异常。
       }
-      pollAgentRunUntilTerminal(runId, request.sessionId)
+      pollAgentRunUntilTerminal(runId, request.sessionId, external ? config : undefined)
         .then((message) => finish(() => resolve(message)))
         .catch((error) => finish(() => reject(error)));
     };
@@ -202,6 +210,7 @@ export async function sendAgentUserMessage(
             'content-type': 'application/json',
             Accept: 'text/event-stream',
             [API_KEY_HEADER]: apiKey,
+            ...(external ? { 'X-StoryForge-Host-Generation': config.managedHostGeneration! } : {}),
           },
           body,
           signal: controller.signal,
@@ -261,6 +270,18 @@ export async function sendAgentUserMessage(
                 finish(() => resolve(message));
                 return;
               }
+              // The durable notification omits the live epoch; only the worker's
+              // final wait frame can retain page-local authority. Cold recovery is read-only.
+              if (
+                external &&
+                isAgentRunWaitingMessage(message) &&
+                message.execution_epoch !== null
+              ) {
+                if (message.run_id !== runId || message.session_id !== request.sessionId)
+                  throw new Error('等待帧不属于本次运行');
+                finish(() => resolve(message));
+                return;
+              }
             }
             separator = buffer.search(/\r?\n\r?\n/);
           }
@@ -287,6 +308,7 @@ export async function sendAgentUserMessage(
 async function pollAgentRunUntilTerminal(
   runId: string,
   sessionId: string,
+  externalConfig?: import('./types').ApiConfig,
 ): Promise<AgentSocketMessage> {
   const deadline = Date.now() + AGENT_POLL_TOTAL_MS;
   let lastError: unknown = null;
@@ -296,12 +318,30 @@ async function pollAgentRunUntilTerminal(
     if (remaining <= 0) break;
     try {
       const events = await readAgentRunWithin(
-        (signal) => getAgentRunEvents(runId, { signal }),
+        (signal) => getAgentRunEvents(runId, { signal, config: externalConfig }),
         Math.min(15_000, remaining),
       );
       const message = reconstructAgentResultFromEvents(events, { sessionId, runId });
       if (message !== null) {
         return message;
+      }
+      if (externalConfig) {
+        const wait = await getExternalWriteback(externalConfig, runId, sessionId);
+        if (wait.run_status === 'paused' || wait.run_status === 'stopped') {
+          return {
+            type: 'agent_run_waiting',
+            protocol: wait.protocol,
+            execution_epoch: null,
+            session_id: wait.session_id,
+            run_id: wait.run_id,
+            assistant_session_id: wait.assistant_session_id,
+            event_id: wait.event_id,
+            sequence: wait.event_sequence,
+            wait_id: wait.wait_id,
+            revision: wait.revision,
+            stage: wait.stage,
+          };
+        }
       }
     } catch (error) {
       // 单次轮询失败（sidecar 抖动/重启中）不致命，留到下一轮重试。
@@ -372,6 +412,36 @@ export function isAgentRunStartedMessage(
   return (
     message.type === 'agent_run_started' &&
     typeof (message as AgentRunStartedMessage).run_id === 'string'
+  );
+}
+
+export function isAgentRunWaitingMessage(
+  message: AgentSocketMessage,
+): message is AgentRunWaitingMessage {
+  const value = message as Partial<AgentRunWaitingMessage>;
+  return (
+    value.type === 'agent_run_waiting' &&
+    value.protocol === 'external_writeback_v1' &&
+    typeof value.run_id === 'string' &&
+    typeof value.session_id === 'string' &&
+    typeof value.wait_id === 'string' &&
+    Number.isSafeInteger(value.revision) &&
+    Number(value.revision) > 0 &&
+    Number.isSafeInteger(value.assistant_session_id) &&
+    Number(value.assistant_session_id) > 0 &&
+    Number.isSafeInteger(value.event_id) &&
+    Number(value.event_id) > 0 &&
+    Number.isSafeInteger(value.sequence) &&
+    Number(value.sequence) > 0 &&
+    (value.execution_epoch === null ||
+      (typeof value.execution_epoch === 'string' && value.execution_epoch.length > 0)) &&
+    [
+      'await_authorization',
+      'awaiting_receipt',
+      'reconciliation',
+      'receipt_ready',
+      'claimed',
+    ].includes(String(value.stage))
   );
 }
 

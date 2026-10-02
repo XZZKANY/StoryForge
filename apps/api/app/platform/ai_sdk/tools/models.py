@@ -12,6 +12,7 @@ from app.platform.ai_sdk.contracts import ToolSpec
 class ToolResultStatus(StrEnum):
     SUCCESS = "success"
     FAILURE = "failure"
+    DEFERRED = "deferred"
 
 
 @dataclass(frozen=True)
@@ -32,11 +33,19 @@ class RuntimeToolResult:
     error_code: str | None = None
     error_message: str | None = None
     retryable: bool = False
+    external_operation_id: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "output", freeze_mapping(self.output))
         object.__setattr__(self, "artifacts", tuple(self.artifacts))
-        if self.status is ToolResultStatus.SUCCESS:
+        if self.status is ToolResultStatus.DEFERRED:
+            if not isinstance(self.external_operation_id, str) or not self.external_operation_id.strip():
+                raise ValueError("Deferred tool results require an external operation identity.")
+            if self.output or self.error_code or self.error_message:
+                raise ValueError("Deferred tool results cannot contain final feedback.")
+        elif self.external_operation_id is not None:
+            raise ValueError("Only deferred results may name an external operation.")
+        if self.status is not ToolResultStatus.FAILURE:
             object.__setattr__(self, "retryable", False)
 
     def to_output(self) -> dict[str, Any]:
@@ -50,6 +59,12 @@ class RuntimeToolResult:
         artifacts: tuple[RuntimeArtifact, ...] = (),
     ) -> RuntimeToolResult:
         return cls(ToolResultStatus.SUCCESS, output=output, artifacts=artifacts)
+
+    @classmethod
+    def deferred(
+        cls, operation_id: str, *, artifacts: tuple[RuntimeArtifact, ...] = (),
+    ) -> RuntimeToolResult:
+        return cls(ToolResultStatus.DEFERRED, artifacts=artifacts, external_operation_id=operation_id)
 
     @classmethod
     def failure(

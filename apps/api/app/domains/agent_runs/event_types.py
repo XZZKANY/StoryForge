@@ -33,7 +33,14 @@ RETRY_FROM_CHECKPOINT: Final = "retry_from_checkpoint"
 APPROVE_PERMISSION_COMMAND: Final = "approve_permission"
 DENY_PERMISSION_COMMAND: Final = "deny_permission"
 
-AGENT_RUN_EVENT_TYPES: Final = frozenset(
+EXTERNAL_WRITEBACK_EVENT_TYPES: Final = frozenset({
+    "agent_writeback_waiting", "agent_writeback_prepared", "agent_writeback_result",
+    "agent_writeback_observed", "agent_writeback_control", "agent_writeback_progress",
+    "agent_writeback_rejected", "agent_writeback_continue_requested",
+    "agent_writeback_recovered",
+})
+
+AGENT_RUN_EVENT_TYPES: Final = EXTERNAL_WRITEBACK_EVENT_TYPES | frozenset(
     {
         AGENT_RUN_STARTED,
         AGENT_PLAN_CREATED,

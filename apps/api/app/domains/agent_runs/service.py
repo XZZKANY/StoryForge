@@ -16,6 +16,11 @@ from app.domains.agent_runs.event_encoders import (
     websocket_stream_events_from_agent_event,
 )
 from app.domains.agent_runs.event_sink import AgentRunEventSink
+from app.domains.agent_runs.loop.external_chat import (
+    ExternalChatExecution,
+    ExternalExecutionLease,
+    validate_execution_owner,
+)
 from app.domains.agent_runs.models import AgentRun, AgentRunEvent
 from app.domains.agent_runs.role_catalog import (
     get_agent_role as _catalog_get_agent_role,
@@ -180,11 +185,32 @@ def execute_agent_user_message_run(
     agent_session_id: str,
     message: dict[str, Any],
     on_event: Callable[[AgentRunEvent], None] | None = None,
+    external_lease: ExternalExecutionLease | None = None,
+    started_event: AgentRunEvent | None = None,
 ) -> dict[str, Any]:
     """由 Agent Runtime 作为唯一入口驱动 skill、tools、permission 和事件写入。"""
 
+    from app.domains.agent_runs.host_lifecycle import HOST_LIFECYCLE
+
+    if started_event is None:
+        HOST_LIFECYCLE.require_open()
+
+    if external_lease is None:
+        from app.domains.agent_runs.loop.checkpoint_store import latest_checkpoint_artifact
+
+        saved = latest_checkpoint_artifact(session, run)
+        if saved is not None and saved.payload.get("version") == 2:
+            raise AgentRuntimeError("external_execution_lease_required")
+    if started_event is not None and external_lease is None:
+        raise AgentRuntimeError("external_execution_lease_required")
+    if external_lease is not None:
+        external_lease.validate(run)
+    external_execution = (ExternalChatExecution(external_lease, 0, resumed=started_event is not None)
+                          if external_lease is not None else None)
     try:
-        runtime = AgentRuntime(_AgentRunEventSink(session, on_event=on_event))
+        sink = _AgentRunEventSink(session, on_event=on_event)
+        runtime = (AgentRuntime(sink) if external_execution is None
+                   else AgentRuntime(sink, external_execution=external_execution))
     except AgentOrchestrationError as exc:
         fail_agent_run(
             session,
@@ -193,9 +219,19 @@ def execute_agent_user_message_run(
             payload={"session_id": agent_session_id, "run_id": run.public_id, "runtime": "agent_runtime"},
         )
         raise AgentRuntimeError(str(exc)) from exc
-    started = start_agent_execution(session, run)
+    started = started_event or start_agent_execution(session, run)
     result = None
     try:
+        if external_lease is not None:
+            validate_execution_owner(session, run, started, external_lease, resumed=started_event is not None)
+            external_execution.execution_id = started.id
+            if started_event is not None:
+                from copy import deepcopy
+
+                from app.domains.agent_runs.loop.external_wait_store import read_external_wait
+
+                message = deepcopy(read_external_wait(session, run).prepared.payload["resume_message"])
+                message["run_id"] = run.public_id
         result = runtime.run_user_message(
             session,
             run=run,
@@ -218,10 +254,11 @@ def run_agent_user_message(
     agent_session_id: str,
     message: dict[str, Any],
     on_event: Callable[[AgentRunEvent], None] | None = None,
+    external_lease: ExternalExecutionLease | None = None,
 ) -> AgentRuntimeUserMessageResult:
     """Agent Runtime Facade：SSE user_message 的唯一执行入口。"""
 
-    start = start_agent_user_message_run(session, agent_session_id=agent_session_id, message=message)
+    start = start_agent_user_message_run(session, agent_session_id=agent_session_id, message=message, external_lease=external_lease)
     if on_event is not None:
         on_event(start.started_event)
     run_id = start.run.public_id
@@ -234,6 +271,7 @@ def run_agent_user_message(
             agent_session_id=agent_session_id,
             message={**message, "run_id": run_id},
             on_event=on_event,
+            external_lease=external_lease,
         )
     except AgentRuntimeError as exc:
         raise AgentRuntimeUserMessageError(str(exc), run=start.run, started_event=start.started_event) from exc
@@ -241,6 +279,13 @@ def run_agent_user_message(
         if recorder is not None:
             # Observation must not refresh an expired ORM row or touch a failed transaction.
             recorder.associate_run(run_id, status=vars(start.run).get("status"))
+    if external_lease is not None and result.get("type") == "agent_run_waiting":
+        from app.domains.agent_runs.loop.external_resume import schedule_external_resume
+        from app.domains.agent_runs.loop.external_wait_store import read_external_wait
+
+        wait = read_external_wait(session, start.run).wait
+        if wait.delivery_complete and wait.execution_epoch is not None:
+            schedule_external_resume(session.get_bind(), run_id)
     result["run_id"] = run_id
     return AgentRuntimeUserMessageResult(run=start.run, started_event=start.started_event, result=result)
 

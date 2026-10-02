@@ -27,6 +27,7 @@ class RuntimeState:
     sequence: int = 0
     interruption_reason: str | None = None
     continuation_omitted: bool = False
+    external_operation_id: str | None = None
 
     @classmethod
     def from_checkpoint(cls, checkpoint: RuntimeCheckpoint) -> RuntimeState:
@@ -49,6 +50,7 @@ class RuntimeState:
             sequence=checkpoint.sequence,
             interruption_reason=checkpoint.interruption_reason,
             continuation_omitted=checkpoint.continuation_omitted,
+            external_operation_id=checkpoint.external_operation_id,
         )
 
     def checkpoint(self) -> RuntimeCheckpoint:
@@ -71,4 +73,5 @@ class RuntimeState:
             sequence=self.sequence,
             interruption_reason=self.interruption_reason,
             continuation_omitted=self.continuation_omitted,
+            external_operation_id=self.external_operation_id,
         )

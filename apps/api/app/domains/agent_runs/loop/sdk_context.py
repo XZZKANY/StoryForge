@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import time
 from collections import defaultdict, deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,9 @@ from app.domains.agent_runs.permission import PermissionGate
 from app.domains.agent_runs.tools import ToolDefinition, ToolResult
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.platform.ai_sdk import ChatResponse, RuntimeCheckpoint, ToolCall
+
+if TYPE_CHECKING:
+    from app.domains.agent_runs.loop.external_chat import ExternalChatExecution
 
 ExecuteStoryForgeTool = Callable[[str, dict[str, Any]], ToolResult]
 TraceCallback = Callable[[AgentToolTrace], None]
@@ -35,6 +39,10 @@ class StoryForgeRuntimeContext:
     recovery_message: dict[str, Any] = field(default_factory=dict)
     model_outcome_unknown: bool = False
     recovery_sources: dict[str, Any] | None = None
+    external_execution: ExternalChatExecution | None = None
+    active_started_at: float = field(default_factory=time.monotonic)
+    active_elapsed_before: float = 0.0
+    write_budget_used: int = 0
     provider_attempts: int = 0
     completed_model_rounds: int = 0
     interruption: dict[str, Any] | None = None
@@ -46,6 +54,13 @@ class StoryForgeRuntimeContext:
         default_factory=lambda: defaultdict(deque)
     )
     pending_costs: deque[tuple[float | None, object]] = field(default_factory=deque)
+
+    def active_elapsed_seconds(self) -> float:
+        return self.active_elapsed_before + max(0.0, time.monotonic() - self.active_started_at)
+
+    @property
+    def write_budget_exhausted(self) -> bool:
+        return self.write_budget_used > 0 or self.outcome.patch_proposal is not None
 
     def remember_response(self, response: ChatResponse) -> ChatResponse:
         normalized_calls: list[ToolCall] = []

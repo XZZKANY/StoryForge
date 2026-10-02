@@ -122,11 +122,17 @@ export async function saveBranchManifest(
   projectPath: string | null,
   filePath: string,
   manifest: BranchManifest,
+  deliveryTicket?: string,
 ): Promise<void> {
   if (!projectPath) return;
   const path = manifestPathFor(projectPath, filePath);
   if (!path) return;
-  await TauriFileSystem.writeFile(projectPath, path, `${JSON.stringify(manifest, null, 2)}\n`);
+  await TauriFileSystem.writeFile(
+    projectPath,
+    path,
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    deliveryTicket,
+  );
 }
 
 export function getActiveBranch(manifest: BranchManifest): BranchInfo {

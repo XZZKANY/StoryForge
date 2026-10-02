@@ -1,6 +1,7 @@
 import { executionOutcomeFromResult } from '../../lib/api/execution-outcome';
 import { statusFromAgentResult } from './resumed-result';
 import { useCallback } from 'react';
+import { useExternalAgentConversation } from './useExternalAgentConversation';
 import { useAgentRunAdmission } from './useAgentRunAdmission';
 
 import {
@@ -36,7 +37,7 @@ import {
   resolveProposedPatchFilePath,
 } from './agent-result';
 import { appendExplicitContextFiles } from './context-files';
-import { titleFromSystemJobs } from './conversation-utils';
+import { useRunResultMetadata } from './useRunResultMetadata';
 import { extractContextReferences } from './path-utils';
 import { buildStableAgentRequestPayload } from './request-payload';
 import {
@@ -46,7 +47,6 @@ import {
   scopeWarningFromAgentResult,
 } from './review';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
-import { startWritingRunProjectionSubscription, writingRunIdFromResult } from './writing-run';
 import { stepsFromAgentResult } from './agent-step-mapping';
 import { chapterBriefFromAgentResult } from './chapter-brief';
 import type { AgentRunStatus, ChatWindowProps, RunAuthorAgent } from './types';
@@ -66,6 +66,13 @@ export function useRunAuthorAgent(
   onAssistantSessionChange: ChatWindowProps['onAssistantSessionChange'],
   agentPermissionProfile: AgentPermissionProfile,
 ): RunAuthorAgent {
+  const adoptResultMetadata = useRunResultMetadata(state, onAssistantSessionChange);
+  const { coordinator: externalWriteback, handleWaiting } = useExternalAgentConversation(
+    state,
+    updateAgentStatus,
+    refreshAgentRunRecovery,
+    onAssistantSessionChange,
+  );
   const {
     setMessages,
     projectPathRef,
@@ -87,10 +94,6 @@ export function useRunAuthorAgent(
     setMissingContextPaths,
     projectName,
     lastReviewReport,
-    selfPersistedSessionIdRef,
-    setConversationTitle,
-    unsubscribeWritingRunRef,
-    setWritingRunProjection,
     setLastReviewReport,
     setLastReviewReportFile,
   } = state;
@@ -110,6 +113,16 @@ export function useRunAuthorAgent(
         draftNonceRef.current,
       );
       if (rejectBlockedAdmission(scope)) return;
+      if (projectPathRef.current && externalWriteback?.hasPending(projectPathRef.current)) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '原运行仍有连续修订待办，请先核对或处理，不能另起一轮写回。',
+          },
+        ]);
+        return;
+      }
       const writebackOnly = action === 'file.writeback';
       const exportOnly = action === 'file.export';
       const project = projectPathRef.current;
@@ -233,7 +246,14 @@ export function useRunAuthorAgent(
         }
         const agentRoleMentions = extractAgentRoleMentions(goal);
         const agentRoleHints = mapAgentRoleMentionsToHints(agentRoleMentions);
+        const externalNegotiated =
+          !intent &&
+          !!file &&
+          content !== null &&
+          !!externalWriteback &&
+          (await externalWriteback.negotiate());
         const response = await sendAgentUserMessage({
+          ...(externalNegotiated ? { executionProtocol: 'external_writeback_v1' } : {}),
           sessionId: runId,
           runId,
           stream: true,
@@ -256,6 +276,15 @@ export function useRunAuthorAgent(
           ),
           runStartConversationKey,
         );
+        if (
+          await handleWaiting(response, {
+            negotiated: externalNegotiated,
+            project,
+            runId,
+            owned: active() && !runSuperseded && !sessionSwitched,
+          })
+        )
+          return;
         if (!active() || runSuperseded || sessionSwitched) {
           if (active() && !runSuperseded) setAgentBusy(false);
           return;
@@ -281,42 +310,15 @@ export function useRunAuthorAgent(
           return;
         }
 
-        const persistedDraftSession = assistantSessionIdRef.current === null;
-        assistantSessionIdRef.current = response.assistant_session_id;
-        runStartConversationKeyRef.current = conversationKey(
-          projectPathRef.current,
-          response.assistant_session_id,
-          '',
-        );
-        if (persistedDraftSession) {
-          selfPersistedSessionIdRef.current = response.assistant_session_id;
-        }
-        onAssistantSessionChange?.(response.assistant_session_id);
-        const systemTitle = titleFromSystemJobs(response);
-        if (systemTitle) setConversationTitle(systemTitle);
-        const startedWritingRunId = writingRunIdFromResult(response);
-        if (startedWritingRunId !== null) {
-          setWritingRunProjection({
-            writingRunId: startedWritingRunId,
-            status: 'running',
-            currentChapterIndex: null,
-            totalChapters: null,
-            completedCount: null,
-            latestEvent: 'started',
-            failureReason: null,
-          });
-          startWritingRunProjectionSubscription(
-            startedWritingRunId,
-            unsubscribeWritingRunRef,
-            setWritingRunProjection,
-          );
-        }
+        adoptResultMetadata(response);
 
         const executionOutcome = executionOutcomeFromResult(response);
         const resultStatus = statusFromAgentResult(response);
         const agentSteps = stepsFromAgentResult(response);
         const responseChapterBrief = chapterBriefFromAgentResult(response);
         const proposed = writableFilePatch(response);
+        if (externalNegotiated && proposed)
+          throw new Error('连续协议返回了旧写回补丁，已阻止重复投递');
         setChapterBrief(responseChapterBrief);
         void refreshAgentRunRecovery(response.run_id ?? runId);
         setAgentRun((run) =>
@@ -458,6 +460,9 @@ export function useRunAuthorAgent(
       }
     },
     [
+      externalWriteback,
+      handleWaiting,
+      adoptResultMetadata,
       rejectBlockedAdmission,
       claimRun,
       retainUnknown,
@@ -472,17 +477,14 @@ export function useRunAuthorAgent(
       draftNonceRef,
       explicitContextPaths,
       lastReviewReport,
-      onAssistantSessionChange,
       projectName,
       projectPathRef,
       refreshAgentRunRecovery,
       runStartConversationKeyRef,
-      selfPersistedSessionIdRef,
       setAgentBusy,
       setAgentRun,
       setAgentRunRecovery,
       setChapterBrief,
-      setConversationTitle,
       setLastContextBundle,
       setLastReviewReport,
       setLastReviewReportFile,
@@ -490,8 +492,6 @@ export function useRunAuthorAgent(
       setMissingContextPaths,
       setPendingRepairCommand,
       setRetryRequest,
-      setWritingRunProjection,
-      unsubscribeWritingRunRef,
       updateAgentStatus,
     ],
   );

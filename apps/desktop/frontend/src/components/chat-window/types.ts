@@ -8,6 +8,8 @@ export type ChatWindowProps = {
   projectPath: string | null;
   currentFile: string | null;
   assistantSessionId?: number | null;
+  /** Visible Agent surface, excluding other dialogs; presentation never grants authority. */
+  decisionDialogsActive?: boolean;
   pendingInitialPrompt?: string | null;
   onPendingInitialPromptConsumed?: () => void;
   onAssistantSessionChange?: (assistantSessionId: number | null) => void;
@@ -83,6 +85,8 @@ export type AgentRun = {
   status: AgentRunStatus;
   steps: AgentStep[];
   permissionProfile?: AgentPermissionProfile;
+  /** UI routing only; live authorization remains in the App-owned coordinator. */
+  executionProtocol?: 'external_writeback_v1';
   executionOutcome?: AgentResultMessage['agent_result']['execution_outcome'];
   /** UI delivery uncertainty only; status is the last observed runtime state, not a new API state. */
   deliveryUnknown?: { scope: string; retryRequest: RetryRequest };

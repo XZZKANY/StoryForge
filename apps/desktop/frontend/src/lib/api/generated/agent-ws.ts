@@ -75,6 +75,20 @@ export interface ControlAckFrame {
   type: "permission_approved" | "permission_denied" | "pause_run" | "resume_run" | "stop_run" | "retry_from_checkpoint";
 }
 
+export interface AgentRunWaitingFrame {
+  assistant_session_id: number;
+  event_id: number;
+  execution_epoch: string | null;
+  protocol: "external_writeback_v1";
+  revision: number;
+  run_id: string;
+  sequence: number;
+  session_id: string;
+  stage: "await_authorization" | "awaiting_receipt" | "reconciliation" | "receipt_ready" | "claimed";
+  type: "agent_run_waiting";
+  wait_id: string;
+}
+
 export interface AgentExecutionOutcome {
   code: string;
   message: string;
@@ -92,4 +106,5 @@ export type AgentWsFrame =
   | ToolTraceFrame
   | PermissionRequiredFrame
   | TerminalFrame
-  | ControlAckFrame;
+  | ControlAckFrame
+  | AgentRunWaitingFrame;

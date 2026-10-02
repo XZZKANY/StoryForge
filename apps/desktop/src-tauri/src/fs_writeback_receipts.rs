@@ -16,6 +16,14 @@ pub struct WritebackRequest {
     pub path: String,
     pub content: String,
 }
+// Read-only identity description. This is not admission, authorization, or a receipt.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WritebackIdentity {
+    pub relative_path: String,
+    pub operation_id: String,
+    pub fingerprint: String,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WritebackReceipt {
@@ -235,13 +243,24 @@ fn inspect(location: &Location) -> Result<Option<WritebackReceipt>, String> {
     }))
 }
 #[tauri::command]
+pub fn describe_writeback_operation(
+    project_root: String,
+    request: WritebackRequest,
+) -> Result<WritebackIdentity, String> {
+    let location = resolve(&project_root, &request)?;
+    Ok(WritebackIdentity {
+        relative_path: location.relative_path,
+        operation_id: location.operation_id,
+        fingerprint: location.fingerprint,
+    })
+}
+#[tauri::command]
 pub fn inspect_writeback_receipt(
     project_root: String,
     request: WritebackRequest,
 ) -> Result<Option<WritebackReceipt>, String> {
     inspect(&resolve(&project_root, &request)?)
 }
-#[tauri::command]
 pub fn write_file_with_receipt(
     project_root: String,
     request: WritebackRequest,
@@ -294,10 +313,16 @@ fn apply_with(
         // Another process may own this identity. No contender gets to dispatch.
         return inspect(&location)?.ok_or(error);
     }
+    #[cfg(feature = "gui-fixture")]
+    crate::lifecycle_gui_fixture::at_boundary(project_root, "intent", Some(&intent.operation_id))?;
     let (state, mut detail) = match write(expected) {
         Ok(()) => ("applied", None),
         Err(error) => ("not_written", Some(error)),
     };
+    #[cfg(feature = "gui-fixture")]
+    if state == "applied" {
+        crate::lifecycle_gui_fixture::at_boundary(project_root, "body", Some(&intent.operation_id))?;
+    }
     let outcome = Outcome {
         schema_version: 1,
         operation_id: intent.operation_id.clone(),
@@ -323,7 +348,6 @@ fn apply_with(
 }
 /// Create a fixed, receipt-keyed audit exclusively. Existing bytes are never replaced.
 /// A retry flushes the existing file before the caller verifies its semantic envelope.
-#[tauri::command]
 pub fn create_writeback_audit(
     project_root: String,
     operation_id: String,

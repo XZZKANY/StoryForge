@@ -76,7 +76,7 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
   const advanceBranchHead = useCallback(
     async (
       timestamp: number,
-      target?: { projectPath: string; filePath: string; branchId: string },
+      target?: { projectPath: string; filePath: string; branchId: string; deliveryTicket?: string },
     ) => {
       if (
         target &&
@@ -88,12 +88,17 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
           target.projectPath,
           target.filePath,
           setBranchHead(manifest, target.branchId, timestamp),
+          ...(target.deliveryTicket ? [target.deliveryTicket] : []),
         );
         return;
       }
       const current = branchManifestRef.current;
       const next = setBranchHead(current, target?.branchId ?? current.activeBranchId, timestamp);
-      await replaceManifest(next);
+      if (target) {
+        await saveBranchManifest(target.projectPath, target.filePath, next, target.deliveryTicket);
+        branchManifestRef.current = next;
+        setBranchManifest(next);
+      } else await replaceManifest(next);
     },
     [replaceManifest],
   );

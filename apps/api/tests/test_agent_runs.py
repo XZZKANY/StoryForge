@@ -65,7 +65,13 @@ def test_agent_run_event_type_constants_preserve_existing_protocol_values() -> N
                 "knowledge_proposal_materialized",
                 "knowledge_evidence_stale",
         }
-    ) == event_types.AGENT_RUN_EVENT_TYPES
+    ) == event_types.AGENT_RUN_EVENT_TYPES - event_types.EXTERNAL_WRITEBACK_EVENT_TYPES
+    assert frozenset({
+        "agent_writeback_waiting", "agent_writeback_prepared", "agent_writeback_result",
+        "agent_writeback_observed", "agent_writeback_control", "agent_writeback_progress",
+        "agent_writeback_rejected", "agent_writeback_continue_requested",
+        "agent_writeback_recovered",
+    }) == event_types.EXTERNAL_WRITEBACK_EVENT_TYPES
     assert frozenset(
         {
             "approve_permission",

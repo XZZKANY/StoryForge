@@ -17,6 +17,11 @@ from app.platform.ai_sdk.observability import (
 )
 from app.platform.ai_sdk.provider import LLMProvider
 from app.platform.ai_sdk.runtime.budget import should_withdraw_tools
+from app.platform.ai_sdk.runtime.external_results import (
+    consume_external_result,
+    external_resolution_issue,
+    external_wait_issue,
+)
 from app.platform.ai_sdk.runtime.feedback import (
     JsonToolFeedbackFormatter,
     ToolFeedbackFormatter,
@@ -24,6 +29,7 @@ from app.platform.ai_sdk.runtime.feedback import (
     parse_tool_arguments,
 )
 from app.platform.ai_sdk.runtime.models import (
+    ExternalToolResolution,
     PendingToolCall,
     ResumeAction,
     ResumeCommand,
@@ -94,6 +100,7 @@ class ToolCallingRuntime:
         application_context: Any = None,
         resume_state: RuntimeCheckpoint | None = None,
         resume_command: ResumeCommand | None = None,
+        external_result: ExternalToolResolution | None = None,
     ) -> RuntimeResult:
         active_limits = limits or RuntimeLimits()
         state = (
@@ -108,12 +115,14 @@ class ToolCallingRuntime:
                 "Checkpoint identity does not match the run.",
                 record=False,
             )
+        if external_result is not None and (resume_state is None or not state.external_operation_id):
+            return self._reconciliation(state, "External result requires a waiting checkpoint.")
         try:
             if resume_state is None:
                 self._emit(state, "runtime_started", critical=True)
             else:
                 self._emit(state, "runtime_resumed", critical=True)
-                resumed = self._resume(state, resume_command, application_context, active_limits)
+                resumed = self._resume(state, resume_command, application_context, active_limits, external_result)
                 if resumed is not None:
                     return resumed
             return self._run_loop(state, active_limits, application_context)
@@ -126,6 +135,7 @@ class ToolCallingRuntime:
         command: ResumeCommand | None,
         application_context: Any,
         limits: RuntimeLimits,
+        external_result: ExternalToolResolution | None,
     ) -> RuntimeResult | None:
         if state.continuation_omitted:
             return self._reconciliation(
@@ -150,12 +160,34 @@ class ToolCallingRuntime:
             return self._reconciliation(state, "Older tool-call history has an unknown outcome.")
         if state.pending is not None and state.pending.call_id not in {call.id for call in active_calls}:
             return self._reconciliation(state, "Pending tool does not belong to the current model batch.")
+        if state.external_operation_id is not None or state.phase is RuntimePhase.EXTERNAL_RESULT_REQUIRED:
+            issue = external_wait_issue(state)
+            if issue is not None:
+                return self._reconciliation(state, issue)
+            if external_result is None:
+                if state.phase is RuntimePhase.INTERRUPTED:
+                    state.phase = RuntimePhase.EXTERNAL_RESULT_REQUIRED
+                    self._save(state)
+                return self._external_wait_result(state)
         if state.pending is not None:
             try:
                 tool = self._tools.get(state.pending.name)
             except ToolRegistryError:
                 return self._reconciliation(state, "Pending tool is no longer registered.")
-            if state.phase is RuntimePhase.APPROVAL_REQUIRED:
+            if state.external_operation_id is not None:
+                assert external_result is not None
+                issue = external_resolution_issue(state, external_result, tool)
+                if issue is not None:
+                    return self._reconciliation(state, issue)
+                interruption = self._check_interruption(state, "before_external_result")
+                if interruption is not None:
+                    return interruption
+                consume_external_result(state, external_result, tool=tool,
+                                        formatter=self._feedback_formatter, context=application_context, limits=limits)
+                self._emit(state, "tool_completed" if external_result.result.status is ToolResultStatus.SUCCESS
+                           else "tool_failed", {"tool": tool.spec.name, "tool_call_id": external_result.tool_call_id})
+                self._save(state)
+            elif state.phase is RuntimePhase.APPROVAL_REQUIRED:
                 if command is None:
                     return self._approval_result(state)
                 if command.tool_call_id not in {None, state.pending.call_id}:
@@ -448,6 +480,24 @@ class ToolCallingRuntime:
                 result = RuntimeToolResult.failure(
                     "tool_exception", "Tool execution failed with an unhandled exception."
                 )
+            if result.status is ToolResultStatus.DEFERRED:
+                state.external_operation_id = result.external_operation_id
+                state.artifacts.extend(result.artifacts)
+                if state.checkpoint().to_dict()["continuation_omitted"]:
+                    state.continuation_omitted = True
+                    state.phase = RuntimePhase.INTERRUPTED
+                    state.interruption_reason = "provider_continuation_unavailable"
+                    self._save(state)
+                    return self._reconciliation(state, "Provider continuation cannot survive external waiting.")
+                state.phase = RuntimePhase.EXTERNAL_RESULT_REQUIRED
+                self._save(state)
+                interruption = self._check_interruption(state, "after_external_checkpoint")
+                if interruption is not None:
+                    return interruption
+                self._emit(state, "external_result_required",
+                           {"tool": tool.spec.name, "tool_call_id": pending.call_id}, critical=True)
+                self._save(state)
+                return self._external_wait_result(state)
             if result.status is ToolResultStatus.SUCCESS and tool.output_schema:
                 output_issues = validate_json_schema(result.output, tool.output_schema)
                 if output_issues:
@@ -622,6 +672,12 @@ class ToolCallingRuntime:
             RuntimeResultStatus.FAILED,
             error_code=code,
             error_message=message,
+        )
+
+    def _external_wait_result(self, state: RuntimeState) -> RuntimeResult:
+        return self._result(
+            state, RuntimeResultStatus.EXTERNAL_RESULT_REQUIRED, checkpoint=state.checkpoint(),
+            pending_tool_call_id=state.pending.call_id if state.pending else None,
         )
 
     def _approval_result(self, state: RuntimeState) -> RuntimeResult:

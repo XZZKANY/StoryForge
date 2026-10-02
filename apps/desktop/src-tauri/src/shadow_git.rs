@@ -3,6 +3,11 @@ mod core;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod bridge_fixture;
+#[cfg(test)]
+pub(crate) use bridge_fixture::dispatch_fixture_command;
+
 use crate::runtime_paths;
 use core::{CoreSnapshot, ShadowGitCore, SharedState};
 use serde::{Deserialize, Serialize};
@@ -161,9 +166,12 @@ where
 #[tauri::command]
 pub async fn create_shadow_snapshot(
     app: AppHandle,
+    close_state: State<'_, crate::host_close_state::HostCloseState>,
+    delivery_ticket: Option<String>,
     state: State<'_, ShadowGitState>,
     payload: ShadowSnapshotCreateRequest,
 ) -> Result<ShadowSnapshot, String> {
+    let _admission = close_state.admit(&payload.project_root, delivery_ticket.as_deref())?;
     let core = core_for_app(&app, &state)?;
     let snapshot = run_blocking(move || core.create_snapshot(&payload.project_root)).await?;
     Ok(ShadowSnapshot {
@@ -175,9 +183,12 @@ pub async fn create_shadow_snapshot(
 #[tauri::command]
 pub async fn retain_shadow_snapshot(
     app: AppHandle,
+    close_state: State<'_, crate::host_close_state::HostCloseState>,
+    delivery_ticket: Option<String>,
     state: State<'_, ShadowGitState>,
     payload: ShadowRetainRequest,
 ) -> Result<(), String> {
+    let _admission = close_state.admit(&payload.project_root, delivery_ticket.as_deref())?;
     let core = core_for_app(&app, &state)?;
     run_blocking(move || {
         core.retain_snapshot(
@@ -192,9 +203,12 @@ pub async fn retain_shadow_snapshot(
 #[tauri::command]
 pub async fn release_shadow_snapshot(
     app: AppHandle,
+    close_state: State<'_, crate::host_close_state::HostCloseState>,
+    delivery_ticket: Option<String>,
     state: State<'_, ShadowGitState>,
     payload: ShadowReleaseRequest,
 ) -> Result<(), String> {
+    let _admission = close_state.admit(&payload.project_root, delivery_ticket.as_deref())?;
     let core = core_for_app(&app, &state)?;
     run_blocking(move || core.release_snapshot(&payload.project_root, &payload.record_id)).await
 }

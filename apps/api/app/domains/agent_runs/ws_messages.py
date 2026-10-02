@@ -106,3 +106,18 @@ class ControlAckFrame(WsFrame):
     control_effect: Literal["requested", "applied", "ignored"] | None = None
     runtime_state: Literal["in_flight", "settled"] | None = None
     run_status: str | None = None
+
+
+class AgentRunWaitingFrame(WsFrame):
+    """Durable external wait, never a final reply or a legacy proposed_patch."""
+    type: Literal["agent_run_waiting"] = "agent_run_waiting"
+    protocol: Literal["external_writeback_v1"] = "external_writeback_v1"
+    execution_epoch: str | None = None
+    session_id: str
+    run_id: str
+    assistant_session_id: int
+    event_id: int
+    sequence: int
+    wait_id: str
+    revision: int
+    stage: Literal["await_authorization", "awaiting_receipt", "reconciliation", "receipt_ready", "claimed"]

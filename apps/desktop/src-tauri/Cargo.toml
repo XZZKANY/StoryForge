@@ -4,6 +4,16 @@ version = "0.1.10"
 description = "StoryForge 桌面写作 IDE"
 authors = ["StoryForge Team"]
 edition = "2021"
+default-run = "storyforge-desktop"
+
+[[bin]]
+name = "storyforge-desktop"
+path = "src/main.rs"
+
+[[bin]]
+name = "storyforge-gui-fixture"
+path = "src/main.rs"
+required-features = ["gui-fixture"]
 
 [build-dependencies]
 tauri-build = { version = "2.0", features = [] }
@@ -26,8 +36,9 @@ sha2 = "0.10"
 tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+gui-fixture = []

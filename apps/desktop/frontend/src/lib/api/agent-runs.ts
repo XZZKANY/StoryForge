@@ -1,7 +1,7 @@
 import { getApiConfig, trimApiBaseUrl } from './config';
 import { readErrorDetail } from './errors';
 import type { AgentRunEventRecord } from './agent-run-events';
-import type { AgentRunSavePointProjection } from './types';
+import type { AgentRunSavePointProjection, ApiConfig } from './types';
 
 export async function getAgentRunSavePoints(
   runId: string,
@@ -30,9 +30,9 @@ export async function getAgentRunSavePoints(
 // 断线/超时后拉持久化事件表重放，配合 reconstructAgentResultFromEvents 重建终态（F10）。
 export async function getAgentRunEvents(
   runId: string,
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; config?: ApiConfig } = {},
 ): Promise<AgentRunEventRecord[]> {
-  const { baseUrl, apiKey } = await getApiConfig();
+  const { baseUrl, apiKey } = options.config ?? (await getApiConfig());
   const response = await fetch(
     `${trimApiBaseUrl(baseUrl)}/api/agent-runs/${encodeURIComponent(runId)}/events`,
     {

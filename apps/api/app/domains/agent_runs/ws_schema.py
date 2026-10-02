@@ -5,6 +5,7 @@ from typing import Any
 from app.domains.agent_runs.result_contracts import AgentExecutionOutcome, AgentRuntimeInterruption
 from app.domains.agent_runs.ws_messages import (
     AgentRunStartedFrame,
+    AgentRunWaitingFrame,
     AgentStepFrame,
     ControlAckFrame,
     PermissionRequiredFrame,
@@ -28,6 +29,7 @@ _FRAMES: tuple[type[WsFrame], ...] = (
     PermissionRequiredFrame,
     TerminalFrame,
     ControlAckFrame,
+    AgentRunWaitingFrame,
 )
 
 

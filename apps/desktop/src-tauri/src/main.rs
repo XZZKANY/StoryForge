@@ -1,10 +1,22 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(test)]
+mod external_chat_bridge_tests;
+
+#[cfg(test)]
+mod external_native_ipc_fixture;
 mod fs;
 mod fs_writeback_receipts;
+mod host_close;
+mod host_close_state;
+#[cfg(feature = "gui-fixture")]
+mod lifecycle_gui_fixture;
 mod llm_config;
 mod llm_config_store;
+mod managed_agent_host;
+mod managed_writeback;
+mod owned_process_tree;
 mod runtime_paths;
 mod secret_protection;
 mod shadow_git;
@@ -34,6 +46,7 @@ static SMOKE_PROJECT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 struct ServiceManager {
     children: Vec<Child>,
     sidecars: Vec<ManagedSidecar>,
+    api_lease: Option<managed_agent_host::ManagedApiLease>,
 }
 
 struct ManagedSidecar {
@@ -46,6 +59,8 @@ struct ManagedSidecar {
 struct ApiConfig {
     base_url: String,
     api_key: String,
+    #[serde(flatten)]
+    host_capability: managed_agent_host::HostCapability,
 }
 
 impl ServiceManager {
@@ -53,6 +68,7 @@ impl ServiceManager {
         Self {
             children: Vec::new(),
             sidecars: Vec::new(),
+            api_lease: None,
         }
     }
 
@@ -65,6 +81,7 @@ impl ServiceManager {
     }
 
     fn shutdown(&mut self) {
+        self.api_lease = None;
         println!("正在停止所有服务...");
         for mut child in self.children.drain(..) {
             match child.try_wait() {
@@ -296,6 +313,7 @@ fn backend_env(
     app: &tauri::AppHandle,
     api_base_url: &str,
     local_mode: bool,
+    host_generation: &str,
 ) -> Result<Vec<(String, String)>> {
     let mut env = vec![
         ("STORYFORGE_API_HOST".to_string(), "127.0.0.1".to_string()),
@@ -316,6 +334,7 @@ fn backend_env(
         ));
     }
     env.extend(llm_config::llm_env_for_backend(app)?);
+    env.extend(managed_agent_host::backend_env(host_generation));
     Ok(env)
 }
 
@@ -324,22 +343,29 @@ fn spawn_api_sidecar(
     api_base_url: &str,
     manager: &Arc<Mutex<ServiceManager>>,
 ) -> Result<()> {
+    let generation = managed_agent_host::new_generation();
     let sidecar_name = "storyforge-api";
     let mut command = app
         .shell()
         .sidecar(sidecar_name)
         .context("无法构建 API sidecar 命令")?;
 
-    for (key, value) in backend_env(app, api_base_url, true)? {
+    for (key, value) in backend_env(app, api_base_url, true, &generation)? {
         command = command.env(key, value);
     }
 
     let (mut rx, child) = command.spawn().context("启动 API sidecar 失败")?;
     let terminated = Arc::new(AtomicBool::new(false));
-    manager
-        .lock()
-        .unwrap()
-        .add_sidecar(child, Arc::clone(&terminated));
+    {
+        let mut services = manager.lock().unwrap();
+        services.api_lease = Some(managed_agent_host::ManagedApiLease {
+            generation,
+            base_url: api_base_url.to_string(),
+            pid: child.pid(),
+            terminated: Arc::clone(&terminated),
+        });
+        services.add_sidecar(child, Arc::clone(&terminated));
+    }
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
             match event {
@@ -377,18 +403,30 @@ fn spawn_dev_api_server(
         format!("{}/.venv/bin/python", api_dir)
     };
 
+    let generation = managed_agent_host::new_generation();
     let mut command = Command::new(&venv_python);
+    #[cfg(feature = "gui-fixture")]
+    let api_entry = lifecycle_gui_fixture::api_entry(app, project_root)?;
+    #[cfg(not(feature = "gui-fixture"))]
+    let api_entry = "run_windows.py".to_string();
     command
-        .args(["run_windows.py"])
+        .args([api_entry])
         .current_dir(&api_dir)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
-    for (key, value) in backend_env(app, api_base_url, should_skip_services())? {
+    for (key, value) in backend_env(app, api_base_url, should_skip_services(), &generation)? {
         command.env(key, value);
     }
 
     let child = command.spawn().context("启动 uvicorn 失败")?;
-    manager.lock().unwrap().add(child);
+    let mut services = manager.lock().unwrap();
+    services.api_lease = Some(managed_agent_host::ManagedApiLease {
+        generation,
+        base_url: api_base_url.to_string(),
+        pid: child.id(),
+        terminated: Arc::new(AtomicBool::new(false)),
+    });
+    services.add(child);
     Ok(())
 }
 
@@ -527,10 +565,45 @@ fn desktop_api_key() -> String {
 }
 
 #[tauri::command]
-fn get_api_config() -> ApiConfig {
+fn get_api_config(
+    manager: tauri::State<'_, SharedServiceManager>,
+    close_state: tauri::State<'_, host_close_state::HostCloseState>,
+) -> ApiConfig {
+    let mut services = manager
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let lease = services.api_lease.clone();
+    let live = lease
+        .as_ref()
+        .map(|lease| {
+            let dev_live = services
+                .children
+                .iter_mut()
+                .find(|child| child.id() == lease.pid)
+                .map(|child| matches!(child.try_wait(), Ok(None)))
+                .unwrap_or(false);
+            dev_live
+                || services.sidecars.iter().any(|sidecar| {
+                    sidecar.child.pid() == lease.pid && !sidecar.terminated.load(Ordering::Acquire)
+                })
+        })
+        .unwrap_or(false);
+    let host_capability =
+        managed_agent_host::project_capability(lease.as_ref(), live && !close_state.is_closing());
+    #[cfg(feature = "gui-fixture")]
+    let host_capability = lifecycle_gui_fixture::project_capability(
+        lease.as_ref(),
+        live && !close_state.is_closing(),
+        host_capability,
+    );
     ApiConfig {
-        base_url: desktop_api_base_url(),
+        base_url: lease
+            .as_ref()
+            .filter(|_| live)
+            .map(|lease| lease.base_url.clone())
+            .unwrap_or_else(desktop_api_base_url),
         api_key: desktop_api_key(),
+        host_capability,
     }
 }
 
@@ -1770,6 +1843,12 @@ fn run_smoke_probe<R: tauri::Runtime>(
 fn main() {
     println!("=== StoryForge 桌面 IDE 启动中 ===\n");
 
+    // 必须在 API/sidecar/WebView spawn 前建立 OS 寿命边界；强杀不执行 shutdown/Drop。
+    if let Err(error) = owned_process_tree::initialize() {
+        eprintln!("受管进程树保护初始化失败，拒绝启动后台服务: {error}");
+        std::process::exit(1);
+    }
+
     let manager = Arc::new(Mutex::new(ServiceManager::new()));
     let manager_clone = Arc::clone(&manager);
     let manager_for_setup = Arc::clone(&manager);
@@ -1855,24 +1934,30 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::clone(&manager))
+        .manage(host_close_state::HostCloseState::default())
         .manage(shadow_git::ShadowGitState::default())
         .invoke_handler(tauri::generate_handler![
             // 文件系统命令
             fs::read_file,
             fs::read_project_file,
-            fs::write_file,
-            fs::write_file_if_unchanged,
+            managed_writeback::write_file,
+            managed_writeback::write_file_if_unchanged,
+            fs_writeback_receipts::describe_writeback_operation,
             fs_writeback_receipts::inspect_writeback_receipt,
-            fs_writeback_receipts::write_file_with_receipt,
-            fs_writeback_receipts::create_writeback_audit,
+            managed_writeback::write_file_with_receipt,
+            managed_writeback::create_writeback_audit,
             fs::list_dir,
-            fs::delete_path,
-            fs::create_dir,
-            fs::rename_path,
+            managed_writeback::delete_path,
+            managed_writeback::create_dir,
+            managed_writeback::rename_path,
             fs::path_exists,
-            fs::copy_into_project,
+            managed_writeback::copy_into_project,
             fs::read_project_file_base64,
             get_api_config,
+            host_close_state::begin_writeback_delivery,
+            host_close_state::end_writeback_delivery,
+            host_close_state::acknowledge_host_closing,
+            host_close::read_host_close_diagnostic,
             llm_config::get_llm_config,
             llm_config::save_llm_config,
             // 作品版本影子 Git 命令（固定 DTO，不暴露任意 Git 参数）
@@ -1882,6 +1967,18 @@ fn main() {
             shadow_git::read_shadow_snapshot_file,
             shadow_git::filter_shadow_snapshot_hashes,
         ])
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if !window
+                    .app_handle()
+                    .state::<host_close_state::HostCloseState>()
+                    .is_finished()
+                {
+                    api.prevent_close();
+                    window.app_handle().exit(0);
+                }
+            }
+        })
         .setup(move |app| {
             if is_smoke_mode() {
                 // smoke：同步等后端就绪后再跑探针，保持既有时序与断言不变。
@@ -1905,7 +2002,17 @@ fn main() {
                     let window = app
                         .get_webview_window("main")
                         .context("Smoke 失败: 未找到 main 窗口")?;
-                    run_smoke_probe(window, app.handle().clone(), Arc::clone(&manager_for_setup));
+                    if runtime_paths::is_lifecycle_smoke_mode() {
+                        #[cfg(feature = "gui-fixture")]
+                        window.set_title("StoryForge IDE [GUI fixture]")?;
+                        println!("Desktop lifecycle smoke ready");
+                    } else {
+                        run_smoke_probe(
+                            window,
+                            app.handle().clone(),
+                            Arc::clone(&manager_for_setup),
+                        );
+                    }
                     Ok(())
                 })();
                 if let Err(error) = smoke_setup {
@@ -1941,15 +2048,22 @@ fn main() {
         })
         .build(tauri::generate_context!())
         .expect("构建 Tauri 应用时出错")
-        .run(move |_app_handle, event| {
-            // 应用退出（含关闭最后一个窗口）时清理子进程；
-            // 必须在 RunEvent 里做，`.run()` 之后的尾代码在正常退出路径上不保证执行，
-            // 否则打包后端 sidecar 会成为孤儿进程，占用文件锁/端口，导致重装删不掉 exe。
-            if matches!(
-                event,
-                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
-            ) {
-                manager.lock().unwrap().shutdown();
+        .run(move |app_handle, event| match event {
+            tauri::RunEvent::ExitRequested { api, code, .. } => {
+                let state = app_handle.state::<host_close_state::HostCloseState>();
+                if !state.is_finished() {
+                    api.prevent_exit();
+                    if state.begin_close() {
+                        host_close::start(
+                            app_handle.clone(),
+                            Arc::clone(&manager),
+                            state.inner().clone(),
+                            code.unwrap_or(0),
+                        );
+                    }
+                }
             }
+            tauri::RunEvent::Exit => shutdown_managed_services(&manager),
+            _ => {}
         });
 }

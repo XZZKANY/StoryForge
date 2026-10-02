@@ -4,13 +4,15 @@ import asyncio
 import json
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import sessionmaker
 
 from app.db.deps import SessionDependency
 from app.domains.agent_runs.event_types import CONTROL_MESSAGE_TYPES
+from app.domains.agent_runs.external_admission import admit_stream_protocol
+from app.domains.agent_runs.loop.external_wait_state import ExternalWritebackConflict
 from app.domains.agent_runs.permission import PermissionProfileError, normalize_permission_profile
 from app.domains.agent_runs.service import (
     AgentRuntimeError,
@@ -20,6 +22,7 @@ from app.domains.agent_runs.service import (
     websocket_control_event,
     websocket_stream_events_from_agent_event,
 )
+from app.domains.agent_runs.writeback_contracts import ExecutionProtocol
 from app.domains.book_runs.book_generation import (
     BookGenerationError,
     missing_book_generation_env,
@@ -47,7 +50,7 @@ _STREAM_RESULT = "result"
 _STREAM_ERROR = "error"
 
 
-async def _agent_user_message_payloads(session, *, session_id: str, message: dict[str, Any]):
+async def _agent_user_message_payloads(session, *, session_id: str, message: dict[str, Any], external_lease=None):
     """跑同步 AgentRuntime（off-loop），按事件顺序产出前端帧 payload，终态帧（result/error）后收尾。
 
     本地 SSE 流以该 pump 为唯一运行入口；帧形状由 event_encoders / ws_messages 管理。
@@ -77,6 +80,7 @@ async def _agent_user_message_payloads(session, *, session_id: str, message: dic
                     agent_session_id=session_id,
                     message=message,
                     on_event=on_event,
+                    external_lease=external_lease,
                 )
             except AgentRuntimeError as exc:
                 worker_span.outcome("error")
@@ -121,8 +125,8 @@ def _sse_data_frame(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-async def _agent_user_message_sse(session, *, session_id: str, message: dict[str, Any]):
-    async for payload in _agent_user_message_payloads(session, session_id=session_id, message=message):
+async def _agent_user_message_sse(session, *, session_id: str, message: dict[str, Any], external_lease=None):
+    async for payload in _agent_user_message_payloads(session, session_id=session_id, message=message, external_lease=external_lease):
         yield _sse_data_frame(payload)
 
 
@@ -190,6 +194,7 @@ class AgentUserMessageStreamRequest(BaseModel):
     assistant_session_id: int | None = None
     intent: str | None = None
     permission_profile: str | None = None
+    execution_protocol: ExecutionProtocol = "legacy"
     args: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("permission_profile")
@@ -215,13 +220,19 @@ async def stream_agent_user_message_endpoint(
     session_id: str,
     request: AgentUserMessageStreamRequest,
     session: SessionDependency,
+    host_generation: str | None = Header(default=None, alias="X-StoryForge-Host-Generation"),
 ) -> StreamingResponse:
     """本地 SSE 直播工具循环：替代 WS user_message 流；控制走 /agent/sessions/{id}/control。"""
 
+    try:
+        external_lease = admit_stream_protocol(session, protocol=request.execution_protocol, session_id=session_id,
+                                               run_id=request.run_id, host_generation=host_generation, intent=request.intent)
+    except ExternalWritebackConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     message: dict[str, Any] = {
         "type": "user_message",
         "stream": True,
-        "run_id": request.run_id,
+        "run_id": external_lease.run_id if external_lease is not None else request.run_id,
         "user_message": request.user_message,
         "assistant_session_id": request.assistant_session_id,
         "intent": request.intent,
@@ -229,7 +240,7 @@ async def stream_agent_user_message_endpoint(
         "args": request.args or {},
     }
     return StreamingResponse(
-        _agent_user_message_sse(session, session_id=session_id, message=message),
+        _agent_user_message_sse(session, session_id=session_id, message=message, external_lease=external_lease),
         media_type="text/event-stream",
     )
 

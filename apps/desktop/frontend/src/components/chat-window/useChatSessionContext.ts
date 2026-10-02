@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { getAssistantSession, listAssistantSessions } from '../../lib/api-client';
 import {
@@ -17,6 +17,10 @@ import {
 import type { ChatWindowProps } from './types';
 import { emitToast } from '../../lib/toast';
 import { nextDraftNonce, type ChatWindowState } from './useChatWindowState';
+import {
+  useExternalWaits,
+  useExternalWritebackCoordinator,
+} from '../app/ExternalWritebackProvider';
 
 /** 切会话/新建前的确认入口：与 AppDialog.confirm 同形，未接线时守卫降级为阻止 + toast。 */
 export type SessionLeaveGuard = {
@@ -72,7 +76,33 @@ export function useChatSessionContext(
     lastReviewReportFile,
     setSessionLoadRetry,
     setContextCandidatesRetry,
+    agentRunIdRef,
+    agentBusy,
   } = state;
+  const externalWriteback = useExternalWritebackCoordinator();
+  const externalWaits = useExternalWaits(externalWriteback);
+  const reloadedExternalCompletion = useRef('');
+  useEffect(() => {
+    // A cold wait has no page-local result callback. Reload durable history, never
+    // invent a reply or replay a request. Live runs retain their existing callback.
+    if (!projectPath || !assistantSessionId || agentRun || agentBusy) return;
+    const completed = externalWaits.filter(
+      (view) =>
+        view.project === projectPath &&
+        view.frame.assistant_session_id === assistantSessionId &&
+        view.phase === 'finished' &&
+        view.result,
+    );
+    if (!completed.length) return;
+    const completion = JSON.stringify([
+      projectPath,
+      assistantSessionId,
+      completed.map((view) => view.key).sort(),
+    ]);
+    if (reloadedExternalCompletion.current === completion) return;
+    reloadedExternalCompletion.current = completion;
+    setSessionLoadRetry((value) => value + 1);
+  }, [projectPath, assistantSessionId, externalWaits, agentRun, agentBusy, setSessionLoadRetry]);
 
   useEffect(() => {
     const nextSessionId = assistantSessionId ?? null;
@@ -133,15 +163,29 @@ export function useChatSessionContext(
   useEffect(() => {
     if (!assistantSessionId) return;
     let cancelled = false;
+    const originalRunId = agentRunIdRef.current;
     setSessionLoadError(null);
     void getAssistantSession(assistantSessionId)
       .then((session) => {
-        if (cancelled) return;
+        if (cancelled || agentRunIdRef.current !== originalRunId) return;
+        if (session.id !== assistantSessionId) throw new Error('返回的会话归属不匹配');
         setConversationTitle(session.title.replace(/^IDE Agent:\s*/, '') || '新的创作会话');
-        setMessages(compactConversationMessages(session.messages));
+        const ownsLiveWait = externalWriteback
+          ?.getSnapshot()
+          .some(
+            (view) =>
+              originalRunId !== null &&
+              view.frame.run_id === originalRunId &&
+              view.project === projectPath &&
+              view.frame.assistant_session_id === assistantSessionId &&
+              view.phase !== 'finished',
+          );
+        // While waiting, the API has not persisted the completed conversation yet.
+        // Its empty history must not erase the page-local original user request.
+        if (!ownsLiveWait) setMessages(compactConversationMessages(session.messages));
       })
       .catch((error) => {
-        if (cancelled) return;
+        if (cancelled || agentRunIdRef.current !== originalRunId) return;
         const detail = error instanceof Error ? error.message : String(error);
         setSessionLoadError(`会话 #${assistantSessionId} 加载失败：${detail}`);
       });
@@ -150,6 +194,9 @@ export function useChatSessionContext(
     };
   }, [
     assistantSessionId,
+    projectPath,
+    externalWriteback,
+    agentRunIdRef,
     sessionLoadRetry,
     setConversationTitle,
     setMessages,

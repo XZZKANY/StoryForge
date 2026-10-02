@@ -74,6 +74,13 @@ def build_runtime_interruption_payload(run: object, *, boundary: str) -> dict[st
     """Project the existing paused/stopped run state as a runtime interruption."""
 
     status = getattr(run, "status", None)
+    from app.domains.agent_runs.host_lifecycle import HOST_LIFECYCLE
+
+    if HOST_LIFECYCLE.closing and status not in {"stopped", "completed", "failed"}:
+        return {**AgentRuntimeInterruption(status="paused", boundary=boundary).model_dump(),
+                "kind": "runtime_interruption", "reason": "managed_host_closing",
+                "current_step": getattr(run, "current_step", None), "uses_existing_status": False,
+                "resume_strategy": "await_explicit_recovery", "automatic_resume_supported": False}
     if status not in INTERRUPTIBLE_RUN_STATUSES:
         return None
     current_step = getattr(run, "current_step", None)

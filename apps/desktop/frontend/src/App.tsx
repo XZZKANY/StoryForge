@@ -30,7 +30,10 @@ import {
 import { emitToast } from './lib/toast';
 import { checkForUpdate, currentAppVersion } from './lib/update-check';
 import { isEditableTarget } from './lib/browser-guards';
+import { ExternalWritebackCoordinator } from './lib/external-writeback/coordinator';
+import { ExternalWritebackProvider } from './components/app/ExternalWritebackProvider';
 export function App() {
+  const [externalWriteback] = useState(() => new ExternalWritebackCoordinator());
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [palette, setPalette] = useState<PaletteMode | null>(null);
   const [obsPanelOpen, setObsPanelOpen] = useState(false);
@@ -325,60 +328,62 @@ export function App() {
   }, [showEditor, shell]);
 
   return (
-    <AppShell
-      workspace={workspace}
-      tabs={tabs}
-      commands={commands}
-      preferences={preferences}
-      shell={shell}
-      dialogs={appDialog}
-      runtime={runtime}
-      settingsVisible={settingsVisible}
-      setSettingsVisible={setSettingsVisible}
-      palette={palette}
-      setPalette={setPalette}
-      obsPanelOpen={obsPanelOpen}
-      setObsPanelOpen={setObsPanelOpen}
-      observatory={{ ...observatory, locateObservation, locateAnchor }}
-      bookContext={bookContext}
-      onOpenManuscriptChapter={openManuscriptChapter}
-      onDraftNextChapter={draftNextChapter}
-      bookProfile={bookProfile}
-      onOpenOutlineHeading={openOutlineHeading}
-      openSettings={openSettings}
-      search={search}
-      onOpenSearchHit={openSearchHit}
-      mainSurface={mainSurface}
-      onMainSurfaceChange={setMainSurface}
-      onSwitchView={switchView}
-      onPendingSuggestionChange={activity.onPendingChange}
-      onAgentRunSummaryChange={activity.onRunChange}
-      overview={
-        workspace.activeProject ? (
-          <BookOverview
-            projectPath={workspace.activeProject}
-            profile={bookProfile}
-            context={bookContext}
-            chapters={bookChapters}
-            onContinueWriting={continueWriting}
-            onOpenAllChapters={openAllChapters}
-            onOpenChapter={continueWriting}
-            onOpenOutline={openOutlineHeading}
-            onRefresh={bookProfile.refresh}
-            pendingPatchCount={activity.pendingSuggestion ? 1 : 0}
-            onOpenPendingPatches={activity.openPendingSuggestion}
-            agentRun={activity.agentRun}
-            onOpenAgentRun={showAgent}
-            onEditProfile={openBookProfileEditor}
-            onDraftNextChapter={draftNextChapter}
-          />
-        ) : null
-      }
-      initialCursors={session.initialCursors}
-      onCursorPersist={session.recordCursor}
-      onOpenLibrary={openLibrary}
-      onResumeProject={resumeProject}
-      openingProject={session.openingProject}
-    />
+    <ExternalWritebackProvider project={workspace.activeProject} coordinator={externalWriteback}>
+      <AppShell
+        workspace={workspace}
+        tabs={tabs}
+        commands={commands}
+        preferences={preferences}
+        shell={shell}
+        dialogs={appDialog}
+        runtime={runtime}
+        settingsVisible={settingsVisible}
+        setSettingsVisible={setSettingsVisible}
+        palette={palette}
+        setPalette={setPalette}
+        obsPanelOpen={obsPanelOpen}
+        setObsPanelOpen={setObsPanelOpen}
+        observatory={{ ...observatory, locateObservation, locateAnchor }}
+        bookContext={bookContext}
+        onOpenManuscriptChapter={openManuscriptChapter}
+        onDraftNextChapter={draftNextChapter}
+        bookProfile={bookProfile}
+        onOpenOutlineHeading={openOutlineHeading}
+        openSettings={openSettings}
+        search={search}
+        onOpenSearchHit={openSearchHit}
+        mainSurface={mainSurface}
+        onMainSurfaceChange={setMainSurface}
+        onSwitchView={switchView}
+        onPendingSuggestionChange={activity.onPendingChange}
+        onAgentRunSummaryChange={activity.onRunChange}
+        overview={
+          workspace.activeProject ? (
+            <BookOverview
+              projectPath={workspace.activeProject}
+              profile={bookProfile}
+              context={bookContext}
+              chapters={bookChapters}
+              onContinueWriting={continueWriting}
+              onOpenAllChapters={openAllChapters}
+              onOpenChapter={continueWriting}
+              onOpenOutline={openOutlineHeading}
+              onRefresh={bookProfile.refresh}
+              pendingPatchCount={activity.pendingSuggestion ? 1 : 0}
+              onOpenPendingPatches={activity.openPendingSuggestion}
+              agentRun={activity.agentRun}
+              onOpenAgentRun={showAgent}
+              onEditProfile={openBookProfileEditor}
+              onDraftNextChapter={draftNextChapter}
+            />
+          ) : null
+        }
+        initialCursors={session.initialCursors}
+        onCursorPersist={session.recordCursor}
+        onOpenLibrary={openLibrary}
+        onResumeProject={resumeProject}
+        openingProject={session.openingProject}
+      />
+    </ExternalWritebackProvider>
   );
 }

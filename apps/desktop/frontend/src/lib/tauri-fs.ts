@@ -6,7 +6,9 @@ import { invoke } from '@tauri-apps/api/core';
 import type { FileEntry } from '@storyforge/project-core';
 import { assertTauriRuntime } from './tauri-env';
 import {
+  decodeWritebackIdentity,
   decodeWritebackReceipt,
+  type WritebackIdentity,
   type WritebackReceipt,
   type WritebackRequest,
 } from './writeback-receipt-types';
@@ -121,12 +123,22 @@ export class TauriFileSystem {
     return await invoke<string>('read_project_file', { projectRoot, path });
   }
 
-  static async writeFile(projectRoot: string, path: string, content: string): Promise<void> {
+  static async writeFile(
+    projectRoot: string,
+    path: string,
+    content: string,
+    deliveryTicket?: string,
+  ): Promise<void> {
     const mock = mockFs();
     try {
       if (mock?.writeFile) return await mock.writeFile(path, content);
       assertTauriRuntime('TauriFileSystem.writeFile');
-      await invoke('write_file', { projectRoot, path, content });
+      await invoke('write_file', {
+        ...(deliveryTicket ? { deliveryTicket } : {}),
+        projectRoot,
+        path,
+        content,
+      });
     } finally {
       invalidateListDirCache(path);
     }
@@ -137,6 +149,7 @@ export class TauriFileSystem {
     path: string,
     content: string,
     expected: DiskBaseline,
+    deliveryTicket?: string,
   ): Promise<void> {
     const mock = mockFs();
     try {
@@ -154,10 +167,28 @@ export class TauriFileSystem {
         return;
       }
       assertTauriRuntime('TauriFileSystem.writeFileIfUnchanged');
-      await invoke('write_file_if_unchanged', { projectRoot, path, content, expected });
+      await invoke('write_file_if_unchanged', {
+        ...(deliveryTicket ? { deliveryTicket } : {}),
+        projectRoot,
+        path,
+        content,
+        expected,
+      });
     } finally {
       invalidateListDirCache(path);
     }
+  }
+
+  static async describeWritebackOperation(
+    projectRoot: string,
+    request: WritebackRequest,
+  ): Promise<WritebackIdentity> {
+    // Browser file fixtures cannot prove the host's canonical operation identity.
+    if (mockFs()) throw new Error('测试文件系统不支持原生写回身份描述');
+    assertTauriRuntime('TauriFileSystem.describeWritebackOperation');
+    return decodeWritebackIdentity(
+      await invoke<unknown>('describe_writeback_operation', { projectRoot, request }),
+    );
   }
 
   static async inspectWritebackReceipt(
@@ -176,6 +207,7 @@ export class TauriFileSystem {
     request: WritebackRequest,
     expected: DiskBaseline,
     checkpointTimestamp: number | null,
+    deliveryTicket?: string,
   ): Promise<WritebackReceipt> {
     try {
       const mock = mockFs();
@@ -191,6 +223,7 @@ export class TauriFileSystem {
       assertTauriRuntime('TauriFileSystem.writeFileWithReceipt');
       return decodeWritebackReceipt(
         await invoke<unknown>('write_file_with_receipt', {
+          ...(deliveryTicket ? { deliveryTicket } : {}),
           projectRoot,
           request,
           expected,
@@ -206,12 +239,18 @@ export class TauriFileSystem {
     projectRoot: string,
     operationId: string,
     content: string,
+    deliveryTicket?: string,
   ): Promise<void> {
     if (!/^[a-f0-9]{64}$/.test(operationId)) throw new Error('写回审计 operationId 无效');
     const mock = mockFs();
     if (mock) return createFixtureAudit(mock, projectRoot, operationId, content);
     assertTauriRuntime('TauriFileSystem.createWritebackAudit');
-    await invoke('create_writeback_audit', { projectRoot, operationId, content });
+    await invoke('create_writeback_audit', {
+      ...(deliveryTicket ? { deliveryTicket } : {}),
+      projectRoot,
+      operationId,
+      content,
+    });
     invalidateListDirCache(projectRoot);
   }
 
@@ -244,10 +283,20 @@ export class TauriFileSystem {
     }
   }
 
-  static async deletePath(projectRoot: string, path: string, recursive = false): Promise<void> {
+  static async deletePath(
+    projectRoot: string,
+    path: string,
+    recursive = false,
+    deliveryTicket?: string,
+  ): Promise<void> {
     try {
       assertTauriRuntime('TauriFileSystem.deletePath');
-      await invoke('delete_path', { projectRoot, path, recursive });
+      await invoke('delete_path', {
+        ...(deliveryTicket ? { deliveryTicket } : {}),
+        projectRoot,
+        path,
+        recursive,
+      });
     } finally {
       invalidateListDirCache(path);
     }

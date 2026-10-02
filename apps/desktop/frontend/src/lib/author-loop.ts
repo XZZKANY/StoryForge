@@ -4,6 +4,8 @@ import { countCjkChars, countParagraphs } from './text-metrics';
 import { writeReceiptAudit } from './writeback-audit';
 
 export type RevisionLoopRecord = {
+  /** Ephemeral admission, excluded from semantic payload and stored evidence. */
+  deliveryTicket?: string;
   projectPath: string | null;
   filePath: string;
   before: string;
@@ -145,7 +147,14 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
       issueIds,
       contextFiles,
     });
-    await writeReceiptAudit(projectPath, recordPath, operationId, semanticPayload, content);
+    await writeReceiptAudit(
+      projectPath,
+      recordPath,
+      operationId,
+      semanticPayload,
+      content,
+      record.deliveryTicket,
+    );
   } else {
     await TauriFileSystem.writeFile(projectPath, recordPath, content);
   }

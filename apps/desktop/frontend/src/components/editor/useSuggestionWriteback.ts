@@ -1,3 +1,4 @@
+import { withNativeDelivery } from '../../lib/native-delivery';
 import {
   useCallback,
   useEffect,
@@ -40,6 +41,10 @@ import {
 import { emitToast } from '../../lib/toast';
 import { performReceiptedWriteback } from '../../lib/writeback-receipts';
 import type { WritebackReceipt } from '../../lib/writeback-receipt-types';
+import {
+  useExternalWritebackEditor,
+  type ExternalWriteOverrides,
+} from './useExternalWritebackEditor';
 
 export type SuggestionStatusTone = 'success' | 'error' | 'info';
 
@@ -63,7 +68,7 @@ type UseSuggestionWritebackParams = {
   getActiveBranchSnapshot: () => BranchInfo;
   advanceBranchHead: (
     timestamp: number,
-    target?: { projectPath: string; filePath: string; branchId: string },
+    target?: { projectPath: string; filePath: string; branchId: string; deliveryTicket?: string },
   ) => Promise<void>;
   recordRevisionLoop: (record: RevisionLoopRecord) => Promise<RevisionLoopResult>;
   emitAuthorLoopResult: (result: AuthorLoopResult) => void;
@@ -219,7 +224,11 @@ export function useSuggestionWriteback({
       path: string,
       previous: string,
       nextContent: string,
-      overrides: { summary?: string; note?: string; operationKind?: string } = {},
+      overrides: {
+        summary?: string;
+        note?: string;
+        operationKind?: string;
+      } & ExternalWriteOverrides = {},
     ) => {
       const projectRoot = projectPathRef.current;
       if (!projectRoot) throw new Error('未打开项目，不能写入修订结果');
@@ -230,155 +239,183 @@ export function useSuggestionWriteback({
       }
       const targetStateAtStart = modelCacheRef.current.get(path);
       if (!targetStateAtStart) throw new Error('缺少补丁目标的磁盘基线，请重新读取后确认');
-      const branch = getActiveBranchSnapshot();
+      overrides.admissionGuard?.();
+      const branch = overrides.frozenBranch ?? getActiveBranchSnapshot();
       const assistantSessionId = suggestion.assistantSessionId ?? assistantSessionIdRef.current;
-      return enqueueWriteback(async () => {
-        const expected = targetStateAtStart.diskBaseline;
-        const summary = overrides.summary ?? suggestion.summary;
-        const note = overrides.note ?? suggestion.note;
-        const contentChanged = expected.kind === 'missing' || expected.content !== nextContent;
-        // 这次写入是不是「凭空建出这个文件」。撤销一次新建要删文件而不是写回空串，
-        // 否则盘上会留一个空文件，看着像回退了其实没有。
-        const request = {
-          operationKey: `${suggestion.id}:${overrides.operationKind ?? 'whole'}`,
-          source: JSON.stringify([
-            suggestion.id,
-            suggestion.before,
-            suggestion.after,
-            suggestion.runId ?? null,
-          ]),
-          path,
-          content: nextContent,
-        };
-        const recordReceipt = (receipt: WritebackReceipt) =>
-          recordRevisionLoop({
-            projectPath: projectRoot,
-            filePath: path,
-            before: suggestion.before,
-            after: nextContent,
-            summary,
-            note,
-            userIntent: note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
-            assistantSessionId,
-            patchId: suggestion.id,
-            operationId: receipt.operationId,
-            issueIds: suggestion.issueIds,
-            contextFiles: suggestion.contextFiles,
-          });
-        // F27：快照失败必须阻断写回。snapshot 抛错时 performGuardedWriteback 直接向上传播，
-        // writeFile 不执行——绝不在没有版本安全网时落盘。
-        const loopRecord = await performReceiptedWriteback(contentChanged, {
-          inspect: () => TauriFileSystem.inspectWritebackReceipt(projectRoot, request),
-          validate: () => {
-            if (
-              !overrides.operationKind &&
-              isWholeFileDrifted(previous, suggestion.before, normalizeEol)
-            ) {
-              throw new Error(
-                '当前文件内容已变化，旧补丁不能直接写回。请重新生成修订，或手动处理冲突。',
-              );
-            }
-          },
-          snapshot: async () => {
-            const result = await snapshotBeforeWrite(projectRoot, path, previous, {
-              source: 'Agent',
-              summary,
-              patchId: suggestion.id,
-              assistantSessionId,
-              issueIds: suggestion.issueIds,
-              contextFiles: suggestion.contextFiles,
-              branchId: branch.id,
-              branchLabel: branch.label,
-              parentId: branch.headNodeId,
-              runId: suggestion.runId,
-              // AI 写回仍归入 checkpoints/，用于版本 UI 区分“Agent 动手前”节点；
-              // 长期保留由影子 Git 专用 ref 负责，不再与 autosave 竞争 20 条配额。
-              checkpoint: true,
-            });
-            return result;
-          },
-          advanceBranchHead: (timestamp) =>
-            advanceBranchHead(timestamp, {
+      return enqueueWriteback(() =>
+        withNativeDelivery(projectRoot, async (deliveryTicket) => {
+          const expected = targetStateAtStart.diskBaseline;
+          const summary = overrides.summary ?? suggestion.summary;
+          const note = overrides.note ?? suggestion.note;
+          const contentChanged = expected.kind === 'missing' || expected.content !== nextContent;
+          // 这次写入是不是「凭空建出这个文件」。撤销一次新建要删文件而不是写回空串，
+          // 否则盘上会留一个空文件，看着像回退了其实没有。
+          const request = overrides.externalRequest ?? {
+            operationKey: `${suggestion.id}:${overrides.operationKind ?? 'whole'}`,
+            source: JSON.stringify([
+              suggestion.id,
+              suggestion.before,
+              suggestion.after,
+              suggestion.runId ?? null,
+            ]),
+            path,
+            content: nextContent,
+          };
+          const recordReceipt = (receipt: WritebackReceipt, ticket = deliveryTicket) =>
+            recordRevisionLoop({
               projectPath: projectRoot,
               filePath: path,
-              branchId: branch.id,
-            }),
-          write: (checkpointTimestamp) =>
-            TauriFileSystem.writeFileWithReceipt(
-              projectRoot,
-              request,
-              expected,
-              checkpointTimestamp,
-            ),
-          settle: (restored) => {
-            if (modelCacheRef.current.get(path) === targetStateAtStart)
-              targetStateAtStart.diskBaseline = { kind: 'content', content: nextContent };
-            // 红线：写回期间作者可能切走页签，绝不能把本文件内容灌进当前活动缓冲
-            // （旧代码无条件 editorRef.setValue，A 文件内容会落进 B 缓冲并被 autosave 写盘）。
-            // 盘上已落，故按「目标 model」结算而非「当前活动 model」结算：
-            // 目标缓冲永远同步（切回来看到的就是已写回的内容），活动编辑器 UI 态只在目标仍在前台时动。
-            const targetState = modelCacheRef.current.get(path) ?? null;
-            const retainedTarget = targetState && targetState === targetStateAtStart;
-            if (retainedTarget) {
-              targetState.originalContent = nextContent;
-              // Never replace typing that happened while snapshot/write/record awaited.
+              before: suggestion.before,
+              after: nextContent,
+              summary,
+              note,
+              userIntent: note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
+              assistantSessionId,
+              patchId: suggestion.id,
+              operationId: receipt.operationId,
+              deliveryTicket: ticket,
+              issueIds: suggestion.issueIds,
+              contextFiles: suggestion.contextFiles,
+            });
+          // F27：快照失败必须阻断写回。snapshot 抛错时 performGuardedWriteback 直接向上传播，
+          // writeFile 不执行——绝不在没有版本安全网时落盘。
+          const loopRecord = await performReceiptedWriteback(contentChanged, {
+            inspect: () => TauriFileSystem.inspectWritebackReceipt(projectRoot, request),
+            validate: () => {
+              overrides.admissionGuard?.();
               if (
-                !restored &&
-                normalizeEol(targetState.model.getValue()) === normalizeEol(previous)
-              )
-                targetState.model.setValue(nextContent);
-            }
-            const targetStillActive = shouldSettleActiveEditor(
-              path,
-              retainedTarget ? targetState.model : null,
-              filePathRef.current,
-              editorRef.current?.getModel() ?? null,
-            );
-            if (mountedRef.current && projectPathRef.current === projectRoot && targetStillActive) {
-              originalContentRef.current = nextContent;
-              const currentContent = targetState!.model.getValue();
-              const dirty = normalizeEol(currentContent) !== normalizeEol(nextContent);
-              cleanVersionIdRef.current = dirty
-                ? null
-                : targetState!.model.getAlternativeVersionId();
-              setLoadedContentPreview(currentContent.slice(0, 120));
-              setIsDirty(dirty);
-            }
-          },
-          record: recordReceipt,
-        });
-        const warning = loopRecord.auditError
-          ? `正文已写入，但闭环记录未完成：${loopRecord.auditError}。请重试记录，不要重新应用补丁。`
-          : !loopRecord.receipt.receiptPersisted
-            ? '正文已写入，但结果回执未持久化；已保留操作意图，请核对文件与版本，勿重新应用。'
-            : loopRecord.receipt.current === 'unreadable'
-              ? '此补丁已写入，但当前文件无法读取核对；本次未覆盖编辑器，请核对文件与版本。'
-              : loopRecord.receipt.current !== 'after'
-                ? '此补丁此前已写入，文件随后又发生变化；本次未覆盖当前文件。'
-                : null;
-        return {
-          recordPath: loopRecord.record?.recordPath ?? null,
-          createdFile: loopRecord.receipt.createdFile,
-          warning,
-          writebackWarning: warning,
-          retryAudit:
-            loopRecord.auditError && loopRecord.receipt.receiptPersisted
-              ? async () => {
-                  if (projectPathRef.current !== projectRoot)
-                    throw new Error('请返回原项目后补记写回记录');
-                  const receipt = await TauriFileSystem.inspectWritebackReceipt(
-                    projectRoot,
-                    request,
-                  );
-                  if (receipt?.state !== 'applied')
-                    throw new Error('写回结果未知，不能自动补记成功记录');
-                  await recordReceipt(receipt);
-                  emitToast('写回记录已补齐；未再次写入正文', { tone: 'success' });
-                }
-              : null,
-          recovered: loopRecord.recovered,
-        };
-      });
+                !overrides.operationKind &&
+                isWholeFileDrifted(previous, suggestion.before, normalizeEol)
+              ) {
+                throw new Error(
+                  '当前文件内容已变化，旧补丁不能直接写回。请重新生成修订，或手动处理冲突。',
+                );
+              }
+            },
+            snapshot: async () => {
+              overrides.admissionGuard?.();
+              const result = await snapshotBeforeWrite(
+                projectRoot,
+                path,
+                previous,
+                {
+                  source: 'Agent',
+                  summary,
+                  patchId: suggestion.id,
+                  assistantSessionId,
+                  issueIds: suggestion.issueIds,
+                  contextFiles: suggestion.contextFiles,
+                  branchId: branch.id,
+                  branchLabel: branch.label,
+                  parentId: branch.headNodeId,
+                  runId: suggestion.runId,
+                  // AI 写回仍归入 checkpoints/，用于版本 UI 区分“Agent 动手前”节点；
+                  // 长期保留由影子 Git 专用 ref 负责，不再与 autosave 竞争 20 条配额。
+                  checkpoint: true,
+                },
+                deliveryTicket,
+              );
+              overrides.admissionGuard?.();
+              return result;
+            },
+            advanceBranchHead: async (timestamp) => {
+              overrides.admissionGuard?.();
+              await advanceBranchHead(timestamp, {
+                projectPath: projectRoot,
+                filePath: path,
+                branchId: branch.id,
+                deliveryTicket,
+              });
+              overrides.admissionGuard?.();
+            },
+            write: async (checkpointTimestamp) => {
+              await overrides.beforeNativeAdmission?.();
+              overrides.admissionGuard?.();
+              return TauriFileSystem.writeFileWithReceipt(
+                projectRoot,
+                request,
+                expected,
+                checkpointTimestamp,
+                deliveryTicket,
+              );
+            },
+            settle: (restored) => {
+              if (modelCacheRef.current.get(path) === targetStateAtStart)
+                targetStateAtStart.diskBaseline = { kind: 'content', content: nextContent };
+              // 红线：写回期间作者可能切走页签，绝不能把本文件内容灌进当前活动缓冲
+              // （旧代码无条件 editorRef.setValue，A 文件内容会落进 B 缓冲并被 autosave 写盘）。
+              // 盘上已落，故按「目标 model」结算而非「当前活动 model」结算：
+              // 目标缓冲永远同步（切回来看到的就是已写回的内容），活动编辑器 UI 态只在目标仍在前台时动。
+              const targetState = modelCacheRef.current.get(path) ?? null;
+              const retainedTarget = targetState && targetState === targetStateAtStart;
+              if (retainedTarget) {
+                targetState.originalContent = nextContent;
+                // Never replace typing that happened while snapshot/write/record awaited.
+                if (
+                  !restored &&
+                  normalizeEol(targetState.model.getValue()) === normalizeEol(previous)
+                )
+                  targetState.model.setValue(nextContent);
+              }
+              const targetStillActive = shouldSettleActiveEditor(
+                path,
+                retainedTarget ? targetState.model : null,
+                filePathRef.current,
+                editorRef.current?.getModel() ?? null,
+              );
+              if (
+                mountedRef.current &&
+                projectPathRef.current === projectRoot &&
+                targetStillActive
+              ) {
+                originalContentRef.current = nextContent;
+                const currentContent = targetState!.model.getValue();
+                const dirty = normalizeEol(currentContent) !== normalizeEol(nextContent);
+                cleanVersionIdRef.current = dirty
+                  ? null
+                  : targetState!.model.getAlternativeVersionId();
+                setLoadedContentPreview(currentContent.slice(0, 120));
+                setIsDirty(dirty);
+              }
+            },
+            record: recordReceipt,
+          });
+          const warning = loopRecord.auditError
+            ? `正文已写入，但闭环记录未完成：${loopRecord.auditError}。请重试记录，不要重新应用补丁。`
+            : !loopRecord.receipt.receiptPersisted
+              ? '正文已写入，但结果回执未持久化；已保留操作意图，请核对文件与版本，勿重新应用。'
+              : loopRecord.receipt.current === 'unreadable'
+                ? '此补丁已写入，但当前文件无法读取核对；本次未覆盖编辑器，请核对文件与版本。'
+                : loopRecord.receipt.current !== 'after'
+                  ? '此补丁此前已写入，文件随后又发生变化；本次未覆盖当前文件。'
+                  : null;
+          return {
+            receipt: loopRecord.receipt,
+            recordPath: loopRecord.record?.recordPath ?? null,
+            createdFile: loopRecord.receipt.createdFile,
+            warning,
+            writebackWarning: warning,
+            retryAudit:
+              loopRecord.auditError && loopRecord.receipt.receiptPersisted
+                ? async () => {
+                    if (projectPathRef.current !== projectRoot)
+                      throw new Error('请返回原项目后补记写回记录');
+                    const receipt = await TauriFileSystem.inspectWritebackReceipt(
+                      projectRoot,
+                      request,
+                    );
+                    if (receipt?.state !== 'applied')
+                      throw new Error('写回结果未知，不能自动补记成功记录');
+                    await withNativeDelivery(projectRoot, (ticket) =>
+                      recordReceipt(receipt, ticket),
+                    );
+                    emitToast('写回记录已补齐；未再次写入正文', { tone: 'success' });
+                  }
+                : null,
+            recovered: loopRecord.recovered,
+          };
+        }),
+      );
     },
     [
       advanceBranchHead,
@@ -396,6 +433,18 @@ export function useSuggestionWriteback({
       setLoadedContentPreview,
     ],
   );
+
+  const externalIsBusy = useCallback(() => actionInFlightRef.current !== null, []);
+  useExternalWritebackEditor({
+    projectPathRef,
+    filePathRef,
+    modelCacheRef,
+    mountedRef,
+    isBusy: externalIsBusy,
+    branch: getActiveBranchSnapshot,
+    normalize: normalizeEol,
+    write: writeAcceptedSuggestion,
+  });
 
   /**
    * 写回成功后弹一条带「撤销」的通知：撤销就是把 previous 再走一遍同一条守卫写回

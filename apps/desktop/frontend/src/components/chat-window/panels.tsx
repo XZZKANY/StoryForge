@@ -442,6 +442,8 @@ export function RunActionBar({
   const isTerminal =
     run.status === 'completed' || run.status === 'failed' || run.status === 'stopped';
   if (isTerminal && !run.deliveryUnknown) return null;
+  // External approval belongs only to the whole-writeback panel, never legacy events.
+  if (run.status === 'waiting' && run.executionProtocol === 'external_writeback_v1') return null;
 
   const handleAcceptPatch = () => {
     controls.onAcceptPatch?.();

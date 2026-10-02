@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.domains.agent_runs.event_types import (
@@ -29,16 +29,35 @@ def agent_execution_state(session: Session, run: AgentRun) -> str:
         AgentRunEvent.event_type.in_({AGENT_EXECUTION_STARTED, AGENT_EXECUTION_SETTLED, AGENT_RUN_INTERRUPTED}),
     ).order_by(AgentRunEvent.sequence.desc()).limit(1))
     if latest is not None:
-        return "in_flight" if latest.event_type == AGENT_EXECUTION_STARTED else "settled"
+        if latest.event_type == AGENT_EXECUTION_STARTED:
+            return "in_flight"
+        started = session.scalar(select(AgentRunEvent).where(
+            AgentRunEvent.run_id == run.id, AgentRunEvent.event_type == AGENT_EXECUTION_STARTED,
+        ).order_by(AgentRunEvent.sequence.desc()).limit(1))
+        owner = latest.payload.get("execution_id")
+        if started is not None and owner is not None and owner != started.id:
+            # A late finally from an earlier segment cannot settle the new owner.
+            matching = session.scalar(select(AgentRunEvent.id).where(
+                AgentRunEvent.run_id == run.id,
+                AgentRunEvent.event_type.in_({AGENT_EXECUTION_SETTLED, AGENT_RUN_INTERRUPTED}),
+                AgentRunEvent.sequence > started.sequence,
+                AgentRunEvent.payload["execution_id"].as_integer() == started.id,
+            ).limit(1))
+            return "settled" if matching is not None else "in_flight"
+        return "settled"
     # Existing parked/terminal runs have no worker; unstarted/running rows are not
     # proof of quiescence and must await their worker or explicit startup recovery.
     return "in_flight" if run.status == "running" else "settled"
 
 
 def start_agent_execution(session: Session, run: AgentRun) -> AgentRunEvent:
-    return record_agent_event(session, run, event_type=AGENT_EXECUTION_STARTED, actor="agent-runtime", payload={
-        "runtime_state": "in_flight", "run_id": run.public_id, "session_id": run.session_id,
-    })
+    from app.domains.agent_runs.host_lifecycle import HOST_LIFECYCLE
+
+    with HOST_LIFECYCLE.lock:
+        HOST_LIFECYCLE.require_open()
+        return record_agent_event(session, run, event_type=AGENT_EXECUTION_STARTED, actor="agent-runtime", payload={
+            "runtime_state": "in_flight", "run_id": run.public_id, "session_id": run.session_id,
+        })
 
 
 def interrupted_result(session: Session, run: AgentRun, result: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -94,6 +113,31 @@ def finish_agent_execution(
     if not session.is_active:
         session.rollback()
     session.refresh(run)
+    from app.domains.agent_runs.loop.external_wait_state import is_external_step
+
+    external_wait = is_external_step(run.current_step)
+    from app.domains.agent_runs.host_lifecycle import HOST_LIFECYCLE
+
+    if HOST_LIFECYCLE.closing and run.status == "running":
+        latest_owner = session.scalar(select(AgentRunEvent.id).where(
+            AgentRunEvent.run_id == run.id, AgentRunEvent.event_type == AGENT_EXECUTION_STARTED,
+        ).order_by(AgentRunEvent.sequence.desc()).limit(1))
+        if external_wait and latest_owner == started.id:
+            from app.domains.agent_runs.loop.external_wait_lifecycle import park_external_wait
+
+            park_external_wait(session, run, reason="managed_host_closing")
+            event = session.scalar(select(AgentRunEvent).where(
+                AgentRunEvent.run_id == run.id, AgentRunEvent.event_type == AGENT_EXECUTION_SETTLED,
+                AgentRunEvent.payload["execution_id"].as_integer() == started.id,
+            ).order_by(AgentRunEvent.sequence.desc()).limit(1))
+            return result, event
+        elif not external_wait:
+            with rollback_failed_settlement(session):
+                session.execute(update(AgentRun).where(AgentRun.id == run.id, AgentRun.status == "running")
+                                .values(status="paused").execution_options(synchronize_session=False))
+                session.refresh(run)
+                if run.status in {"paused", "stopped"}:
+                    return settle_agent_run_interruption(session, run, result, execution_id=started.id)
     confirmation_wait = (
         run.status == "paused"
         and run.current_step in {"permission.confirm", "chapter.brief.confirm"}
@@ -101,7 +145,7 @@ def finish_agent_execution(
         and isinstance(result.get("agent_result"), dict)
         and result["agent_result"].get("requires_user_confirmation") is True
     )
-    if run.status == "stopped" or (run.status == "paused" and not confirmation_wait):
+    if not external_wait and (run.status == "stopped" or (run.status == "paused" and not confirmation_wait)):
         return settle_agent_run_interruption(session, run, result, execution_id=started.id)
     if confirmation_wait and run.current_step == "chapter.brief.confirm":
         # The fixed Chapter Brief adapter uses an internal interruption marker to

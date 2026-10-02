@@ -1,6 +1,8 @@
+from app.platform.ai_sdk.runtime.external_results import resolve_external_checkpoint, validate_external_checkpoint
 from app.platform.ai_sdk.runtime.feedback import JsonToolFeedbackFormatter, ToolFeedbackFormatter
 from app.platform.ai_sdk.runtime.loop import RuntimeInfrastructureError, ToolCallingRuntime
 from app.platform.ai_sdk.runtime.models import (
+    ExternalToolResolution,
     PendingToolCall,
     ResumeAction,
     ResumeCommand,
@@ -23,6 +25,9 @@ from app.platform.ai_sdk.runtime.ports import (
 )
 
 __all__ = [
+    "resolve_external_checkpoint",
+    "validate_external_checkpoint",
+    "ExternalToolResolution",
     "AllToolsSelector",
     "CheckpointStore",
     "DefaultRuntimePolicy",
