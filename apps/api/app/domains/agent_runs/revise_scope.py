@@ -7,6 +7,7 @@ revise scope：选中哪些 issue、纳入/排除哪些类别、附加哪些硬�
 from __future__ import annotations
 
 import re
+from difflib import SequenceMatcher
 from typing import Any
 
 from app.common.punctuation import canonical_punctuation
@@ -126,29 +127,50 @@ def _public_revise_scope(scope: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _revise_drift_counts(before: str, after: str) -> tuple[int, int, int]:
+    """按非空行统计（原文被改动行数, 纯新增行数, 非空原文总行数）。
+
+    只统计 difflib 对齐后 replace/delete 触及的原文行数，而不是首尾改动之间的包围跨度；
+    另把 insert 的新增行数单列，便于展示层区分「改了原文行」与「净插入新内容」。"""
+
+    before_lines = [line for line in canonical_punctuation(before).split("\n") if line.strip()]
+    after_lines = [line for line in canonical_punctuation(after).split("\n") if line.strip()]
+    total = len(before_lines)
+    # 无非空原文行（空稿写正文）时无「原文」可越界，返回零。
+    if total == 0:
+        return 0, 0, 0
+    # 中文正文空行极多，autojunk 会把它们当"常见元素"剔除而错位对齐（见 punctuation.py）。
+    matcher = SequenceMatcher(None, before_lines, after_lines, autojunk=False)
+    touched = 0
+    inserted = 0
+    for tag, before_start, before_end, after_start, after_end in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        touched += before_end - before_start
+        if tag == "insert":
+            inserted += after_end - after_start
+    return touched, inserted, total
+
+
 def _revise_drift_ratio(before: str, after: str) -> tuple[int, int, float]:
-    """按行裁掉公共前后缀，返回（原文被改动行数, 原文总行数, 改动比例）。
+    """按行统计真实改动行数，返回（原文被改动行数 + 新增行数, 原文总行数, 改动比例）。
 
     用于判断 narrow 修订是否越界改了大半原文。比较前先折叠易漂移的标点形态：
     模型顺手把中文引号换成直引号这类改动会让每一行都算「改动行」——实测一次零真实
     改动的纯标点漂移能把比例顶到 97%，越界警告因此沦为噪音。折叠后此处衡量的是实质
-    改动比例，故不再与前端 diff 面板逐字同口径（后者要显示真实差异）。"""
+    改动比例，故不再与前端 diff 面板逐字同口径（后者要显示真实差异）。
 
-    before_lines = canonical_punctuation(before).split("\n")
-    after_lines = canonical_punctuation(after).split("\n")
-    prefix = 0
-    while prefix < len(before_lines) and prefix < len(after_lines) and before_lines[prefix] == after_lines[prefix]:
-        prefix += 1
-    suffix = 0
-    while (
-        suffix + prefix < len(before_lines)
-        and suffix + prefix < len(after_lines)
-        and before_lines[len(before_lines) - 1 - suffix] == after_lines[len(after_lines) - 1 - suffix]
-    ):
-        suffix += 1
-    total = len(before_lines)
-    changed = max(0, total - prefix - suffix)
-    ratio = changed / total if total else (1.0 if changed else 0.0)
+    再只统计非空行：中文稿空行约占一半，把空行算进分母会把逐段重写稀释到阈值以下；
+    空文件（全空行）总数即为 0，写正文也不误报。同时缩小 autojunk=False 行级 diff 的
+    规模——空行密集时它可能退化到近似 O(n³)，只在非空行上比对即可缓解。
+
+    分子是「触及的原文行 + 新增行」：纯插入的原文行数为 0，故并入 insert 的新增行数，
+    否则「原文逐字未动、只新增大段内容」的越界改写完全不可见。比值可能超过 1（短文件
+    纯插入），判据按该原始比值执行，文案展示另有封顶。"""
+
+    touched, inserted, total = _revise_drift_counts(before, after)
+    changed = touched + inserted
+    ratio = changed / total if total else 0.0
     return changed, total, ratio
 
 
@@ -157,12 +179,19 @@ def _scope_warning(scope: dict[str, Any], before: str, after: str) -> dict[str, 
 
     if not scope.get("narrow"):
         return None
-    changed, total, ratio = _revise_drift_ratio(before, after)
+    touched, inserted, total = _revise_drift_counts(before, after)
+    changed = touched + inserted
+    ratio = changed / total if total else 0.0
     if ratio <= _NARROW_REVISE_DRIFT_WARN_RATIO:
         return None
+    # 短文件纯插入时 changed 会大于原文行数，原样展示会出现「改动了约 400% 的原文行（8/2 行）」
+    # 这类自相矛盾文案；展示层按原文行数封顶、新增部分单列，判据（是否告警）不变。
+    displayed_changed = min(changed, total)
+    percent = min(round(ratio * 100), 100)
+    inserted_suffix = f"+ 新增 {inserted} 行" if inserted else ""
     return {
         "message": (
-            f"本次定向修订改动了约 {round(ratio * 100)}% 的原文行（{changed}/{total} 行），"
+            f"本次定向修订改动了约 {percent}% 的原文行（{displayed_changed}/{total} 行）{inserted_suffix}，"
             "可能超出指定范围，请在 diff 面板逐块核对后再接受。"
         ),
         "drift_ratio": round(ratio, 4),
