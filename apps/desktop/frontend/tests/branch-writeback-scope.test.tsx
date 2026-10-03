@@ -162,6 +162,45 @@ test('保存推进与切分支并发时互相 rebase，两个变更都保留', a
   }
 });
 
+test('等待中建分支与保存推进并发时两个变更都保留', async () => {
+  io.load.mockImplementation(async () => twoBranchManifest());
+  io.save.mockClear();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  io.save.mockImplementationOnce(async () => {
+    await gate;
+  });
+  const app = mount('a.md');
+  try {
+    await app.render('a.md');
+    const advancing = app.handle.advanceBranchHead(2, {
+      projectPath: 'D:/book',
+      filePath: 'a.md',
+      branchId: 'main',
+    });
+    await flush();
+    const creating = app.handle.createBranchFromNode(1, '支线');
+    await flush();
+    await act(async () => {
+      release();
+      await advancing;
+      await creating;
+    });
+    const lastSave = io.save.mock.calls.at(-1) as unknown as [string, string, BranchManifest];
+    const created = lastSave[2].branches.find((branch) => branch.label === '支线');
+    assert.ok(created);
+    assert.equal(lastSave[1], 'a.md');
+    assert.equal(lastSave[2].activeBranchId, created.id);
+    assert.equal(lastSave[2].branches[0].headNodeId, 2);
+    assert.equal(app.handle.branchManifest.activeBranchId, created.id);
+    assert.equal(app.handle.branchManifest.branches[0].headNodeId, 2);
+  } finally {
+    app.cleanup();
+  }
+});
+
 test('原文件保存失败时错误照旧上报且不投影', async () => {
   io.load.mockImplementation(async () => manifest(1));
   io.save.mockClear();

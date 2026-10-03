@@ -5103,3 +5103,12 @@ master 本地提交 63 文件，精确文件集合匹配；原 staged diff 全�
 3. **reconcile 续跑在项目路径失效时 500**（medium，与 §9 P1 同根因的第三个边界）：项目目录被删/改名后 `external_resume.request_external_continuation` 的 `wait.binding()` 抛 `NativeReceiptError` 穿透（端点只捕 `ExternalWritebackConflict/OSError/ValueError`）。改为就地转 `ExternalWritebackConflict("external_continuation_binding_invalid")` → 409；新增用例（项目目录消失后 reconcile continue），变异还原后日志复现 `POST /reconcile → 500`。
 - 另一条独立确认（复验者穷举）：`inspect_native_writeback` 全部 4 个消费点与 16 种损坏形态均确定性 blocked/409，坏回执无其它穿透面；`prepare` 转 `native_identity_invalid`、observation 层 fail-closed 成 `receipt_or_binding_invalid`，均不授权、不 500。
 - 回归（第二轮）：前端 161 files / 1353 passed / 1 skipped、typecheck / eslint / prettier 绿；API 写回/回执/宿主套件 **121 passed / 17 skipped**、ruff 绿；`git diff --check` 干净。A→B→A 的语义随新方案收敛为「以实际落盘结果为准」（新用例断言 head 收敛到已写入值），不再有第一轮的低置信残留。
+
+### 测试判别力补强（复验「测试空转」视角发现，第三轮）
+
+该视角对第一轮用例给出三条判别力意见，逐条处理：
+
+- **per-file 保存链未被任何用例依赖**（第一轮禁用串联仍全绿）→ 新增「等待中建分支与保存推进并发时两个变更都保留」用例，并重跑「禁用 per-file 链」变异：**恰使两条并发用例转红**（保存+切分支、保存+建分支），还原即 6/6 绿——串行链现已被用例钉住。
+- **「等待中建分支」无对应用例**（报告验收清单第 3 项只测了切分支）→ 由上条新用例补齐 `createBranchFromNode` 路径（断言新分支与 head 推进同时保留）。
+- **「保存失败」用例非判别性**（修复前即通过）→ 保留为失败语义的对照用例，但不再作为修复的判别证据；本轮判别证据以「陈旧基」「无条件投影」「禁用串联」「还原绑定边界」四组变异为准。另经该视角独立复核：五类回执损坏各自命中不同内部失败分支、恢复面两处捕获均被依赖（等价还原后 5 条全红）。
+- 第三轮回归：前端 161 files / **1354 passed** / 1 skipped、typecheck / eslint / prettier 绿。
