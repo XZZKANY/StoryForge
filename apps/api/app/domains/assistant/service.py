@@ -212,6 +212,21 @@ def get_assistant_session(session: Session, assistant_session_id: int) -> Assist
     return assistant_session
 
 
+def _assert_session_project_matches(
+    assistant_session: AssistantSession, project_root: str | None
+) -> None:
+    """会话归属校验：非空 project_path 与请求项目不一致即拒绝，避免跨项目复用会话。
+
+    残余面：历史遗留会话 project_path 为空，无可校验归属，按现状放行——这类会话仍可能被
+    跨项目复用。
+    """
+    session_project = assistant_session.project_path
+    if session_project is not None and project_root is not None and session_project != project_root:
+        raise ConflictError(
+            f"Assistant 会话归属冲突：会话属于项目 {session_project}，请求来自 {project_root}。"
+        )
+
+
 def list_recent_assistant_sessions(
     session: Session,
     *,
@@ -411,6 +426,7 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
 
     if payload.assistant_session_id is not None:
         assistant_session = get_assistant_session(session, payload.assistant_session_id)
+        _assert_session_project_matches(assistant_session, payload.project_root)
         append_assistant_message(
             session,
             assistant_session.id,
@@ -717,6 +733,7 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
 
     if payload.assistant_session_id is not None:
         assistant_session = get_assistant_session(session, payload.assistant_session_id)
+        _assert_session_project_matches(assistant_session, payload.project_root)
         append_assistant_message(
             session,
             assistant_session.id,

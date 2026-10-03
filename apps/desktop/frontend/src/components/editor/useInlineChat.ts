@@ -106,6 +106,18 @@ function editorLineHeight(editor: monaco.editor.IStandaloneCodeEditor): number {
   }
 }
 
+/**
+ * 会话 id 只在同一项目内沿用；项目变了就丢弃，防止新项目的请求把消息写进旧项目的会话
+ * （后端只按 id 取会话，前端不拦就会跨项目复用）。
+ */
+export function inlineSessionIdForProject(
+  sessionId: number | null,
+  sessionProject: string | null,
+  projectPath: string | null,
+): number | null {
+  return sessionProject === projectPath ? sessionId : null;
+}
+
 export function useInlineChat({
   editorRef,
   editorReady,
@@ -118,6 +130,8 @@ export function useInlineChat({
 }: UseInlineChatParams) {
   const sessionRef = useRef<InlineSession | null>(null);
   const sessionIdRef = useRef<number | null>(null);
+  // 会话 id 属于哪个项目：编辑器常驻、切项目不卸载，必须能识别旧项目的 id 并丢弃。
+  const sessionIdProjectRef = useRef<string | null>(null);
   const registeredRef = useRef(false);
   // 快捷键命令只注册一次；用 ref 持有最新的 open 闭包，命令回调始终调到当前实现。
   const openRef = useRef<(mode?: InlineMode) => void>(() => {});
@@ -506,6 +520,7 @@ export function useInlineChat({
           if (sessionRef.current !== session || filePathRef.current !== path) return;
           detachLoadingEsc();
           sessionIdRef.current = result.assistantSessionId;
+          sessionIdProjectRef.current = projectPathRef.current;
           session.model = result.model;
           // 权威结果是 done.text（后端已掐掉重抄的上文、裁到完整句末），不是 delta 的拼接。
           const plan = planCursorInsertion(before, anchorLine, result.text);
@@ -552,6 +567,7 @@ export function useInlineChat({
         // 进 diff 前摘掉 loading 的 Esc 处理，避免与 renderDiff 装的重复。
         detachLoadingEsc();
         sessionIdRef.current = result.assistantSessionId;
+        sessionIdProjectRef.current = projectPathRef.current;
         session.model = result.model;
         // 拼回整文再交给 renderDiff：夹紧、陈旧判定与写回一律仍以整文件为单位。
         renderDiff(before, spliceInlineReviseWindow(before, window, result.after));
@@ -584,6 +600,13 @@ export function useInlineChat({
       if (!editor || typeof editor.changeViewZones !== 'function') return;
       const project = projectPathRef.current;
       const path = filePathRef.current;
+      // 切项目后旧会话 id 必须失效：open 是每次 Ctrl+K / Ctrl+Shift+K 的入口，此刻读到的是
+      // 当前项目，能可靠判断 id 是否属于本项目。
+      sessionIdRef.current = inlineSessionIdForProject(
+        sessionIdRef.current,
+        sessionIdProjectRef.current,
+        project,
+      );
       if (!project || !path) {
         flashStatus(
           mode === 'continue'

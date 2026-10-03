@@ -15,6 +15,7 @@ import {
   planInlineReviseWindow,
   spliceInlineReviseWindow,
 } from '../src/lib/inline-chat';
+import { inlineSessionIdForProject } from '../src/components/editor/useInlineChat';
 
 test('intraLineChangeRange 掐掉公共前后缀只留改动中段（1-based 列，endCol 独占）', () => {
   // 「铜灯只亮了一半」→「铜灯只剩一半」：改「亮了」为「剩」。公共前缀「铜灯只」(3)、后缀「一半」(2)。
@@ -296,6 +297,37 @@ test('接受的重入闸必须在第一个 await 之前合上', () => {
   assert.ok(firstAwait > -1, 'applyAccepted 里没有 await，落位动效是不是被删了？');
   assert.ok(latch < firstAwait, '重入闸必须同步合上，不能晚于第一个 await');
 });
+
+// 编辑器常驻、切项目不卸载（AppShell 里 WritingWorkspace 常驻），而会话 id 只是一枚
+// 存下来的 ref：切到项目 B 后若还沿用 A 的 id，请求会把 B 项目上下文派发给 A 时期建的
+// 会话，消息也落进那个会话。这里钉死「项目变了就丢弃旧 id」这一决定。
+test('切项目后首次内联修订不得沿用旧项目的会话 id', () => {
+  assert.equal(inlineSessionIdForProject(7, 'D:/novels/a', 'D:/novels/b'), null);
+  // 同一项目内沿用，保证多轮修订落在同一会话。
+  assert.equal(inlineSessionIdForProject(7, 'D:/novels/a', 'D:/novels/a'), 7);
+  // 尚无会话时不产生 id。
+  assert.equal(inlineSessionIdForProject(null, null, 'D:/novels/a'), null);
+});
+
+// 纯函数正确还不够：必须真接在 open 入口上，否则旧 id 照样被带进新项目的请求。
+test('行间会话 id 的跨项目丢弃接在 open 入口与两条成功路径上', () => {
+  const source = readFileSyncHookSource();
+  assert.match(
+    source,
+    /sessionIdRef\.current = inlineSessionIdForProject\(/,
+    'open 入口必须按当前项目丢弃/沿用会话 id',
+  );
+  // 续写与修订两条成功路径都要把会话 id 与其所属项目一起记下。
+  assert.equal(
+    (source.match(/sessionIdProjectRef\.current = projectPathRef\.current/g) ?? []).length,
+    2,
+    '续写与修订两条成功路径都要记录会话所属项目',
+  );
+});
+
+function readFileSyncHookSource(): string {
+  return readFileSync('src/components/editor/useInlineChat.ts', 'utf8');
+}
 
 // E21 行间对话键盘/读屏可达性的行为测试见 tests/inline-chat-dom.test.ts：
 // zone DOM 构造已从 useInlineChat.ts 抽到 components/editor/inline-chat-dom.ts，

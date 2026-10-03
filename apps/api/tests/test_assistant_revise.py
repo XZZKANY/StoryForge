@@ -395,3 +395,109 @@ def test_revise_returns_502_and_marks_tool_call_failed(client: TestClient, monke
     assert tool_calls[-1]["tool_name"] == "assistant.revise"
     assert tool_calls[-1]["status"] == "failed"
     assert "HTTP 500" in tool_calls[-1]["error_message"]
+
+
+def _create_project_session(client: TestClient, *, project_path: str | None, content: str) -> int:
+    response = client.post(
+        "/api/assistant/sessions",
+        json={
+            "title": f"会话 {project_path}",
+            "task_type": "desktop_revise",
+            "project_path": project_path,
+            "messages": [{"role": "user", "content": content}],
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
+
+
+def _revision_stub(monkeypatch: pytest.MonkeyPatch, calls: list[int]) -> None:
+    def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
+        calls.append(1)
+        return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
+
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
+
+
+def test_revise_rejects_session_owned_by_another_project(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """跨项目复用会话必须拒绝：B 项目请求不得把消息落进 A 项目会话。"""
+
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    calls: list[int] = []
+    _revision_stub(monkeypatch, calls)
+
+    session_a = _create_project_session(client, project_path="D:/novels/a", content="A 的旧消息")
+    session_b = _create_project_session(client, project_path="D:/novels/b", content="B 的旧消息")
+
+    response = client.post(
+        "/api/assistant/revise",
+        json={
+            "assistant_session_id": session_a,
+            "project_root": "D:/novels/b",
+            "file_path": "draft.md",
+            "content": "正文",
+            "instruction": "改写",
+        },
+    )
+    assert response.status_code == 409, response.text
+    assert calls == [], "归属冲突时不得派发 provider"
+    # 消息未落库：A/B 两侧消息数都保持原样。
+    assert len(client.get(f"/api/assistant/sessions/{session_a}").json()["messages"]) == 1
+    assert len(client.get(f"/api/assistant/sessions/{session_b}").json()["messages"]) == 1
+    assert client.get(f"/api/assistant/sessions/{session_a}/tool-calls").json() == []
+
+
+def test_revise_allows_session_in_same_project(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """正常对照：会话 project_path 与请求 project_root 一致时照旧成功。"""
+
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    calls: list[int] = []
+    _revision_stub(monkeypatch, calls)
+
+    session_a = _create_project_session(client, project_path="D:/novels/a", content="A 的旧消息")
+    response = client.post(
+        "/api/assistant/revise",
+        json={
+            "assistant_session_id": session_a,
+            "project_root": "D:/novels/a",
+            "file_path": "draft.md",
+            "content": "正文",
+            "instruction": "改写",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["assistant_session_id"] == session_a
+    assert calls == [1]
+    # 初始 1 条 + 追加 user 指令 + 成功后的 assistant 摘要 = 3 条。
+    assert len(client.get(f"/api/assistant/sessions/{session_a}").json()["messages"]) == 3
+
+
+def test_revise_allows_legacy_session_without_project_path(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """历史遗留会话 project_path 为空：无可校验归属，按现状放行（残余面）。"""
+
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    calls: list[int] = []
+    _revision_stub(monkeypatch, calls)
+
+    legacy = _create_project_session(client, project_path=None, content="历史消息")
+    response = client.post(
+        "/api/assistant/revise",
+        json={
+            "assistant_session_id": legacy,
+            "project_root": "D:/novels/b",
+            "file_path": "draft.md",
+            "content": "正文",
+            "instruction": "改写",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["assistant_session_id"] == legacy
+    assert calls == [1]
+    assert len(client.get(f"/api/assistant/sessions/{legacy}").json()["messages"]) == 3

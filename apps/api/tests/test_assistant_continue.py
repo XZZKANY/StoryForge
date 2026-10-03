@@ -390,6 +390,51 @@ class TestContinueEndpoint:
         assert frames[-1][0] == "error"
         assert "没有写出新内容" in frames[-1][1]["message"]
 
+    def test_rejects_session_owned_by_another_project(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """跨项目复用会话必须拒绝：B 项目续写不得把消息落进 A 项目会话，也不得派发 provider。"""
+
+        monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+        calls: list[int] = []
+
+        def fake_stream(source, payload, **_kwargs):  # noqa: ANN001 - 测试桩
+            calls.append(1)
+            yield {"type": "done", "content": "正文"}
+
+        monkeypatch.setattr(assistant_service, "stream_chat_completions", fake_stream)
+
+        def create_session(project_path: str, content: str) -> int:
+            created = client.post(
+                "/api/assistant/sessions",
+                json={
+                    "title": f"会话 {project_path}",
+                    "task_type": "desktop_continue",
+                    "project_path": project_path,
+                    "messages": [{"role": "user", "content": content}],
+                },
+            )
+            assert created.status_code == 201, created.text
+            return created.json()["id"]
+
+        session_a = create_session("D:/novels/a", "A 的旧消息")
+        session_b = create_session("D:/novels/b", "B 的旧消息")
+
+        response = client.post(
+            "/api/assistant/continue",
+            json={
+                "assistant_session_id": session_a,
+                "project_root": "D:/novels/b",
+                "file_path": "a.md",
+                "content": "正文。",
+                "cursor_line": 1,
+            },
+        )
+        assert response.status_code == 409, response.text
+        assert calls == [], "归属冲突时不得派发 provider"
+        assert len(client.get(f"/api/assistant/sessions/{session_a}").json()["messages"]) == 1
+        assert len(client.get(f"/api/assistant/sessions/{session_b}").json()["messages"]) == 1
+
 
 class TestCallLlmStreamed:
     """服务端聚合的流式调用：对调用方与 `call_llm` 同构，但传输必须是流式。
