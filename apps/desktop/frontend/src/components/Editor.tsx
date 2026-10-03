@@ -725,7 +725,13 @@ export function Editor({
             branchLabel: branch.label,
             parentId: branch.headNodeId,
           }),
-        advanceBranchHead,
+        advanceBranchHead: async (timestamp) => {
+          await advanceBranchHead(timestamp, {
+            projectPath: project,
+            filePath: path,
+            branchId: branch.id,
+          });
+        },
         write: async () => {
           setLoadedContentPreview(state.content.slice(0, 120));
           editorRef.current?.setValue(state.content);
@@ -766,7 +772,13 @@ export function Editor({
           branchLabel: branch.label,
           parentId: branch.headNodeId,
         }),
-      advanceBranchHead,
+      advanceBranchHead: async (timestamp) => {
+        await advanceBranchHead(timestamp, {
+          projectPath: project,
+          filePath: path,
+          branchId: branch.id,
+        });
+      },
       write: async () => TauriFileSystem.deletePath(project, path),
       record: async () => unmarkChapterWrittenInPlan(project, path),
     });

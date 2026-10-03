@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { test, vi } from 'vitest';
 import { useBranchManifest } from '../src/components/editor/useBranchManifest';
+import { setActiveBranch, setBranchHead } from '../src/lib/branches';
 import type { BranchManifest } from '../src/lib/branches';
 
 const io = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(async () => {}) }));
@@ -29,30 +30,51 @@ function twoBranchManifest(): BranchManifest {
   };
 }
 
-test('原文件迟到的快照推进只写原分支清单，不修改新页签分支', async () => {
-  io.load.mockImplementation(async (_project: string, file: string) =>
-    manifest(file === 'a.md' ? 1 : 20),
-  );
+/** 清单任务在 per-file 链上多跳微任务后才会调 save，断言前先放它跑。 */
+async function flush(): Promise<void> {
+  await act(async () => {
+    for (let i = 0; i < 8; i += 1) await Promise.resolve();
+  });
+}
+
+function mount(initial: string | null) {
   let handle!: ReturnType<typeof useBranchManifest>;
-  function Harness({ file }: { file: string }) {
+  function Harness({ file }: { file: string | null }) {
     handle = useBranchManifest('D:/book', file);
     return null;
   }
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
+  return {
+    get handle() {
+      return handle;
+    },
+    render: (file: string | null) => act(async () => root.render(<Harness file={file} />)),
+    cleanup: () => {
+      act(() => root.unmount());
+      container.remove();
+    },
+    initial,
+  };
+}
+
+test('原文件迟到的快照推进只写原分支清单，不修改新页签分支', async () => {
+  io.load.mockImplementation(async (_project: string, file: string) =>
+    manifest(file === 'a.md' ? 1 : 20),
+  );
+  const app = mount('a.md');
   try {
-    await act(async () => root.render(<Harness file="a.md" />));
-    const advanceOriginal = handle.advanceBranchHead;
-    await act(async () => root.render(<Harness file="b.md" />));
+    await app.render('a.md');
+    const advanceOriginal = app.handle.advanceBranchHead;
+    await app.render('b.md');
     await act(async () =>
       advanceOriginal(2, { projectPath: 'D:/book', filePath: 'a.md', branchId: 'main' }),
     );
     assert.deepEqual(io.save.mock.calls.at(-1), ['D:/book', 'a.md', manifest(2)]);
-    assert.equal(handle.branchManifest.branches[0].headNodeId, 20);
+    assert.equal(app.handle.branchManifest.branches[0].headNodeId, 20);
   } finally {
-    act(() => root.unmount());
-    container.remove();
+    app.cleanup();
   }
 });
 
@@ -68,43 +90,41 @@ test('先发起的原文件保存迟到返回时只结算磁盘，不污染已�
   io.save.mockImplementationOnce(async () => {
     await gate;
   });
-  let handle!: ReturnType<typeof useBranchManifest>;
-  function Harness({ file }: { file: string }) {
-    handle = useBranchManifest('D:/book', file);
-    return null;
-  }
-  const container = document.createElement('div');
-  document.body.appendChild(container);
-  const root = createRoot(container);
+  const app = mount('a.md');
   try {
-    await act(async () => root.render(<Harness file="a.md" />));
-    const advanceOriginal = handle.advanceBranchHead;
-    let pending!: Promise<void>;
-    await act(async () => {
-      pending = advanceOriginal(2, { projectPath: 'D:/book', filePath: 'a.md', branchId: 'main' });
+    await app.render('a.md');
+    const advanceOriginal = app.handle.advanceBranchHead;
+    const pending = advanceOriginal(2, {
+      projectPath: 'D:/book',
+      filePath: 'a.md',
+      branchId: 'main',
     });
+    await flush();
     assert.equal(io.save.mock.calls.length, 1);
     assert.deepEqual(io.save.mock.calls[0], ['D:/book', 'a.md', manifest(2)]);
-    await act(async () => root.render(<Harness file="b.md" />));
-    assert.equal(handle.branchManifest.branches[0].headNodeId, 20);
+    await app.render('b.md');
+    assert.equal(app.handle.branchManifest.branches[0].headNodeId, 20);
     await act(async () => {
       release();
       await pending;
     });
-    assert.equal(handle.branchManifest.branches[0].headNodeId, 20);
-    assert.equal(handle.branchManifest.activeBranchId, 'main');
+    assert.equal(app.handle.branchManifest.branches[0].headNodeId, 20);
+    assert.equal(app.handle.branchManifest.activeBranchId, 'main');
     await act(async () =>
-      handle.advanceBranchHead(21, { projectPath: 'D:/book', filePath: 'b.md', branchId: 'main' }),
+      app.handle.advanceBranchHead(21, {
+        projectPath: 'D:/book',
+        filePath: 'b.md',
+        branchId: 'main',
+      }),
     );
-    assert.equal(handle.branchManifest.branches[0].headNodeId, 21);
+    assert.equal(app.handle.branchManifest.branches[0].headNodeId, 21);
     assert.deepEqual(io.save.mock.calls.at(-1), ['D:/book', 'b.md', manifest(21)]);
   } finally {
-    act(() => root.unmount());
-    container.remove();
+    app.cleanup();
   }
 });
 
-test('等待期间切换分支使迟到推进只落盘不投影', async () => {
+test('保存推进与切分支并发时互相 rebase，两个变更都保留', async () => {
   io.load.mockImplementation(async () => twoBranchManifest());
   io.save.mockClear();
   let release!: () => void;
@@ -114,43 +134,31 @@ test('等待期间切换分支使迟到推进只落盘不投影', async () => {
   io.save.mockImplementationOnce(async () => {
     await gate;
   });
-  let handle!: ReturnType<typeof useBranchManifest>;
-  function Harness() {
-    handle = useBranchManifest('D:/book', 'a.md');
-    return null;
-  }
-  const container = document.createElement('div');
-  document.body.appendChild(container);
-  const root = createRoot(container);
+  const app = mount('a.md');
   try {
-    await act(async () => root.render(<Harness />));
-    let pending!: Promise<void>;
-    let selecting!: Promise<void>;
-    await act(async () => {
-      pending = handle.advanceBranchHead(2, {
-        projectPath: 'D:/book',
-        filePath: 'a.md',
-        branchId: 'main',
-      });
+    await app.render('a.md');
+    const advanced = setBranchHead(twoBranchManifest(), 'main', 2);
+    const advancing = app.handle.advanceBranchHead(2, {
+      projectPath: 'D:/book',
+      filePath: 'a.md',
+      branchId: 'main',
     });
-    await act(async () => {
-      selecting = handle.selectBranch('b1');
-    });
-    assert.equal(handle.branchManifest.activeBranchId, 'b1');
+    await flush();
+    assert.deepEqual(io.save.mock.calls[0], ['D:/book', 'a.md', advanced]);
+    const selecting = app.handle.selectBranch('b1');
+    await flush();
+    assert.equal(io.save.mock.calls.length, 1);
     await act(async () => {
       release();
-      await pending;
+      await advancing;
       await selecting;
     });
-    assert.equal(handle.branchManifest.activeBranchId, 'b1');
-    assert.equal(handle.branchManifest.branches[0].headNodeId, 1);
-    const lastSave = io.save.mock.calls.at(-1) as unknown as [string, string, BranchManifest];
-    assert.equal(lastSave[1], 'a.md');
-    assert.equal(lastSave[2].activeBranchId, 'b1');
-    assert.equal(lastSave[2].branches[0].headNodeId, 1);
+    const merged = setActiveBranch(advanced, 'b1');
+    assert.deepEqual(io.save.mock.calls.at(-1), ['D:/book', 'a.md', merged]);
+    assert.equal(app.handle.branchManifest.activeBranchId, 'b1');
+    assert.equal(app.handle.branchManifest.branches[0].headNodeId, 2);
   } finally {
-    act(() => root.unmount());
-    container.remove();
+    app.cleanup();
   }
 });
 
@@ -160,30 +168,26 @@ test('原文件保存失败时错误照旧上报且不投影', async () => {
   io.save.mockImplementationOnce(async () => {
     throw new Error('disk full');
   });
-  let handle!: ReturnType<typeof useBranchManifest>;
-  function Harness() {
-    handle = useBranchManifest('D:/book', 'a.md');
-    return null;
-  }
-  const container = document.createElement('div');
-  document.body.appendChild(container);
-  const root = createRoot(container);
+  const app = mount('a.md');
   try {
-    await act(async () => root.render(<Harness />));
+    await app.render('a.md');
     await act(async () => {
       await assert.rejects(
-        handle.advanceBranchHead(2, { projectPath: 'D:/book', filePath: 'a.md', branchId: 'main' }),
+        app.handle.advanceBranchHead(2, {
+          projectPath: 'D:/book',
+          filePath: 'a.md',
+          branchId: 'main',
+        }),
         /disk full/,
       );
     });
-    assert.equal(handle.branchManifest.branches[0].headNodeId, 1);
+    assert.equal(app.handle.branchManifest.branches[0].headNodeId, 1);
   } finally {
-    act(() => root.unmount());
-    container.remove();
+    app.cleanup();
   }
 });
 
-test('切走又切回后旧代际的迟到推进不得覆盖重载后的清单', async () => {
+test('切走又切回后迟到的推进以已落盘结果收敛', async () => {
   io.load.mockImplementation(async (_project: string, file: string) =>
     manifest(file === 'a.md' ? 1 : 20),
   );
@@ -195,35 +199,33 @@ test('切走又切回后旧代际的迟到推进不得覆盖重载后的清单',
   io.save.mockImplementationOnce(async () => {
     await gate;
   });
-  let handle!: ReturnType<typeof useBranchManifest>;
-  function Harness({ file }: { file: string }) {
-    handle = useBranchManifest('D:/book', file);
-    return null;
-  }
-  const container = document.createElement('div');
-  document.body.appendChild(container);
-  const root = createRoot(container);
+  const app = mount('a.md');
   try {
-    await act(async () => root.render(<Harness file="a.md" />));
-    const advanceOriginal = handle.advanceBranchHead;
-    let pending!: Promise<void>;
-    await act(async () => {
-      pending = advanceOriginal(2, { projectPath: 'D:/book', filePath: 'a.md', branchId: 'main' });
+    await app.render('a.md');
+    const advanceOriginal = app.handle.advanceBranchHead;
+    const pending = advanceOriginal(2, {
+      projectPath: 'D:/book',
+      filePath: 'a.md',
+      branchId: 'main',
     });
-    await act(async () => root.render(<Harness file="b.md" />));
-    await act(async () => root.render(<Harness file="a.md" />));
-    assert.equal(handle.branchManifest.branches[0].headNodeId, 1);
+    await flush();
+    await app.render('b.md');
+    await app.render('a.md');
+    assert.equal(app.handle.branchManifest.branches[0].headNodeId, 1);
     await act(async () => {
       release();
       await pending;
     });
-    assert.equal(handle.branchManifest.branches[0].headNodeId, 1);
+    assert.equal(app.handle.branchManifest.branches[0].headNodeId, 2);
     await act(async () =>
-      handle.advanceBranchHead(3, { projectPath: 'D:/book', filePath: 'a.md', branchId: 'main' }),
+      app.handle.advanceBranchHead(3, {
+        projectPath: 'D:/book',
+        filePath: 'a.md',
+        branchId: 'main',
+      }),
     );
-    assert.equal(handle.branchManifest.branches[0].headNodeId, 3);
+    assert.equal(app.handle.branchManifest.branches[0].headNodeId, 3);
   } finally {
-    act(() => root.unmount());
-    container.remove();
+    app.cleanup();
   }
 });

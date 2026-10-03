@@ -317,6 +317,39 @@ def test_manual_after_pause_applied_continues_same_frozen_run_only_on_second_act
     assert session.query(AgentRunEvent).filter_by(event_type="agent_execution_started").count() == 2
 
 
+def test_continue_request_with_invalid_project_binding_reports_conflict_not_500(
+    client, session, tmp_path, monkeypatch
+):
+    """A vanished/renamed project breaks native binding; the surface must answer 409, never 500."""
+    import shutil
+
+    run, root, provider, revisions = waiting(session, tmp_path, monkeypatch)
+    prepared = bind(session, run)
+    ledger(prepared.wait)
+    audit(prepared.wait)
+    service.handle_agent_control_message(
+        session, public_id=run.public_id, session_id=run.session_id, control_type="pause_run"
+    )
+    result = recover(client, session, run).json()
+    before = read_external_wait(session, run)
+    counts = session.query(AgentArtifact).count(), session.query(AgentRunEvent).count()
+    shutil.rmtree(root)
+    response = client.post(
+        f"/api/agent-runs/{run.public_id}/writeback/{before.wait.wait_id}/reconcile",
+        headers=HEADERS,
+        json={
+            "session_id": run.session_id,
+            "expected_revision": before.wait.revision,
+            "resume_intent": "continue_current_execution",
+            "execution_epoch": result["execution_epoch"],
+        },
+    )
+    assert response.status_code == 409, response.text
+    assert response.json() == {"detail": "external_continuation_binding_invalid"}
+    assert counts == (session.query(AgentArtifact).count(), session.query(AgentRunEvent).count())
+    assert len(provider.requests) == 1
+
+
 @pytest.mark.parametrize("unsafe", [False, True])
 def test_claimed_checkpoint_retains_budget_and_refuses_model_outcome_unknown(
     client, session, tmp_path, monkeypatch, unsafe

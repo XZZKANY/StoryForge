@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.domains.agent_runs.external_admission import require_managed_protocol
 from app.domains.agent_runs.fs.delivery_audit import inspect_delivery_audit
+from app.domains.agent_runs.fs.native_receipts import NativeReceiptError
 from app.domains.agent_runs.loop.external_chat import ExternalExecutionLease
 from app.domains.agent_runs.loop.external_wait_lifecycle import claim_external_execution
 from app.domains.agent_runs.loop.external_wait_state import ExternalWritebackConflict
@@ -51,8 +52,13 @@ def request_external_continuation(session: Session, run, *, wait_id: str, expect
             or (wait.stage == "claimed" and wait.recovery_id is None)
             or current.prepared.payload.get("external_execution", {}).get("host_generation") != host_generation):
         raise ExternalWritebackConflict("external_continuation_not_ready")
-    if wait.decision != "reject" and wait.observation.state == "applied" and not inspect_delivery_audit(wait.binding()):
-        raise ExternalWritebackConflict("external_delivery_audit_required")
+    if wait.decision != "reject" and wait.observation.state == "applied":
+        try:
+            audit_ready = inspect_delivery_audit(wait.binding())
+        except (NativeReceiptError, OSError, ValueError) as exc:
+            raise ExternalWritebackConflict("external_continuation_binding_invalid") from exc
+        if not audit_ready:
+            raise ExternalWritebackConflict("external_delivery_audit_required")
     if wait.delivery_complete:
         return current
     updated = wait.model_copy(update={"revision": wait.revision + 1, "delivery_complete": True})

@@ -5086,10 +5086,20 @@ master 本地提交 63 文件，精确文件集合匹配；原 staged diff 全�
 ### 对抗性复验与残留
 
 - 复验（4 视角 workflow）：回归视角逐条复验既有流程 (a)-(f) 未被改坏——普通保存投影、跨文件迟到快照、selectBranch 同步投影、失败语义（advance 继续 reject / replace 保留 toast）、无死锁与链毒化、卸载/切换无串扰；并独立复跑前端全量与 API 定向为绿。其余 3 视角（污染残留 / 残留 500 / 测试空转）首轮遇上游 502，已 resume 续跑，本轮提交时结论以已完成视角为准。
-- 已知残留（低置信，复验者探针实证）：A→B→A 时若切回读盘跑赢在途写盘，代际闸抑制投影会使 hook 快照暂时落后于磁盘（下一次快照的 parentId 可能挂旧 head，`reconcileManifestWithVersions` 只收敛 headNodeId、不修 parentId）。触发窗口为毫秒级双次导航；报告要求的语义正是「旧代际必须失效」。未采用「跳过后重读磁盘」替代方案——它会在「等待中切分支」场景用旧盘面覆盖更新的内存状态，比残留更糟。记为后续 item。
+- 已知残留（低置信，复验者探针实证）：A→B→A 时若切回读盘跑赢在途写盘，代际闸抑制投影会使 hook 快照暂时落后于磁盘（下一次快照的 parentId 可能挂旧 head，`reconcileManifestWithVersions` 只收敛 headNodeId、不修 parentId）。触发窗口为毫秒级双次导航；报告要求的语义正是「旧代际必须失效」。未采用「跳过后重读磁盘」替代方案——它会在「等待中切分支」场景用旧盘面覆盖更新的内存状态，比残留更糟。~~记为后续 item~~ → **已由第二轮队列内 rebase 方案取代（见下）**。
 - 未改动 `lib/project/knowledge-writeback.ts:132` 直调 `saveBranchManifest` 的独立路径：它不做内存投影，结构上无本缺陷。
 
 ### 边界与未验证
 
 - 未跑 `pnpm verify`（NO_TTY 基线阻断仍在）；未涉及/未复跑 Rust、Native、GUI、打包与真实 provider；本轮未做真机桌面验收。
 - 复现均在既有测试或系统临时目录探针完成；仓库工作树仅本批 5 个改动文件 + 本报告。
+
+### 追加修复（对抗性复验发现，第二轮；`3f914bd7` 之后的改动）
+
+复验 4 视角全部返回，三条真发现（均有探针实证）触发三处追加修复。**第一轮的代际守卫方案被替换**：报告要求「同文件并发分支编辑需要 revision 或串行化」，仅串行化「写」不够，故改为队列内读-改-写（rebase）。
+
+1. **同文件并发的读-改-写未串行到「读」**（medium）：`selectBranch` 以陈旧内存快照构造清单，排在保存推进之后写盘，会把已推进的 head 覆盖回退（版本图出现虚假分叉）。改为 `runManifestTask` 在 per-file 队内取最新真值（同一文档用内存清单、异文档读盘）作为基再变更，并投影**实际写入**的结果；`replaceManifest`/`persistManifest` 由任务模型取代。新增用例「保存推进与切分支并发时互相 rebase，两个变更都保留」；变异验证：把基改回「调用时快照」恰使该用例转红。
+2. **无 target 的 `advanceBranchHead` 绕过文档守卫**（medium）：`Editor.tsx` 版本恢复与删除恢复两条真实路径裸传 `advanceBranchHead`，切换页签后仍会推进并投影当前文件。改为两处调用点显式传 `{projectPath, filePath, branchId}`（与保存路径一致）。
+3. **reconcile 续跑在项目路径失效时 500**（medium，与 §9 P1 同根因的第三个边界）：项目目录被删/改名后 `external_resume.request_external_continuation` 的 `wait.binding()` 抛 `NativeReceiptError` 穿透（端点只捕 `ExternalWritebackConflict/OSError/ValueError`）。改为就地转 `ExternalWritebackConflict("external_continuation_binding_invalid")` → 409；新增用例（项目目录消失后 reconcile continue），变异还原后日志复现 `POST /reconcile → 500`。
+- 另一条独立确认（复验者穷举）：`inspect_native_writeback` 全部 4 个消费点与 16 种损坏形态均确定性 blocked/409，坏回执无其它穿透面；`prepare` 转 `native_identity_invalid`、observation 层 fail-closed 成 `receipt_or_binding_invalid`，均不授权、不 500。
+- 回归（第二轮）：前端 161 files / 1353 passed / 1 skipped、typecheck / eslint / prettier 绿；API 写回/回执/宿主套件 **121 passed / 17 skipped**、ruff 绿；`git diff --check` 干净。A→B→A 的语义随新方案收敛为「以实际落盘结果为准」（新用例断言 head 收敛到已写入值），不再有第一轮的低置信残留。
