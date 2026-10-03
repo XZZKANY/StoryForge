@@ -29,9 +29,10 @@ _REPAIRABLE_HARD_RULES = frozenset(
 
 def resolve_target(project_root: str, requested_path: object) -> tuple[str, str, serial_plan.PlannedChapter | None]:
     root = fs_tools.resolve_project_root(project_root)
-    relative = _relative_path(root, requested_path)
+    requested_relative = _relative_path(root, requested_path)
     plan = serial_plan.build_plan(project_root)
     planned = plan.next_chapter if plan is not None else None
+    relative = requested_relative
     if relative is None and planned is not None:
         relative = planned.declared_path or f"正文/第{planned.ordinal:03d}章.md"
     if relative is None:
@@ -40,6 +41,10 @@ def resolve_target(project_root: str, requested_path: object) -> tuple[str, str,
         absolute = fs_tools.resolve_new_project_file(project_root, relative)
     except fs_tools.FsToolError as exc:
         raise AgentOrchestrationError(str(exc)) from exc
+    # 显式目标不等于计划的下一章时，planned 的章序/标题/目标都属于别的章：
+    # 只按目标本身认章，绝不把「第 N 章」的 title/goal 贴到「第 M 章」的 brief 上。
+    if requested_relative is not None and not _target_matches_planned(relative, planned):
+        planned = None
     return relative, absolute, planned
 
 
@@ -201,6 +206,30 @@ def repair_instruction(check: Mapping[str, Any], brief: Mapping[str, Any]) -> st
     return "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文：\n" + "\n".join(
         f"- {item.get('rule')}: {item.get('message')}" for item in issues
     ) + "\n\n" + draft_instruction(brief)
+
+
+_CHAPTER_ORDINAL_PATTERN = re.compile(r"第\s*(\d+)\s*章")
+
+
+def _target_matches_planned(relative: str, planned: serial_plan.PlannedChapter | None) -> bool:
+    """显式目标是否就是计划的下一章：先按落盘路径认，路径没记过才退到章号。"""
+
+    if planned is None:
+        return False
+    # 记过落盘路径就必须路径相认：章号回退只在没记过路径时可用，否则另一卷的「同号章」
+    # 会被误判成计划的下一章，把它的 title/goal 灌进别的文件。
+    if planned.declared_path:
+        return planned.declared_path == relative
+    ordinal = _chapter_ordinal_from_path(relative)
+    return ordinal is not None and ordinal == planned.ordinal
+
+
+def _chapter_ordinal_from_path(relative: str) -> int | None:
+    match = _CHAPTER_ORDINAL_PATTERN.search(Path(relative).name)
+    if match is None:
+        return None
+    value = int(match.group(1))
+    return value if value > 0 else None
 
 
 def _relative_path(root: Path, value: object) -> str | None:
