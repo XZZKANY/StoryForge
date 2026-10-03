@@ -4997,3 +4997,69 @@ master 本地提交 63 文件，精确文件集合匹配；原 staged diff 全�
 - 28 个待提交文件 UTF-8 解码及常见密钥模式扫描通过（private key、provider key、GitHub token、AWS access ID、长字面量 credential 未命中）；这是模式检查，不等同完整安全审计。未纳入 `.env`、缓存、私有小说正文或本地凭据。
 - `pnpm.cmd verify` → **退出码 1**：pnpm 在实际门禁启动前触发依赖检查/安装，被 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY` 阻断；未设置跳过确认、未强制重装依赖，不宣称总门禁通过。
 - 本轮未执行全量 API/前端测试、真实 provider、Tauri GUI、打包/发布或文学质量验收；历史报告中的通过/失败与日期原样保留，不冒充本轮重新验证。
+
+
+## 2026-10-03 全仓库清理任务创建与首轮盘点（仅 planning）
+
+- 用户在现有改动提交后要求全仓库“大扫除”，并明确回复“创建”；创建 `.trellis/tasks/10-03-repository-cleanup`，status=planning，scope=repository-cleanup。基线 HEAD 为 `5a2214f6bc8d7c196b8204000a02807fe5259c0a`，创建前工作树干净。
+- 主代理 inline 只读检查主目录、工具/构建/测试产物入口、ignore 策略、领域/架构红线，以及旧废码清理与部分已完成任务；没有派发子代理。首轮只做浅层盘点，未统计全仓大小、检查占用或证明所有候选可删除。
+- 已保存 PRD、design、implement 和 `research/initial-inventory.md`；Q1（大型构建缓存是否纳入）及最终清理白名单仍待确认。未运行 `task.py start`，未删除/迁移/归档既有文件或任务，未修改业务代码、依赖或本地秘密/数据。
+- 规划文件检查：4 份文档 UTF-8/非空/无 TBD 通过，任务 JSON status/scope 与 PRD R1–R6、AC1–AC6、Q1 检查通过；`git diff --check` 通过。Trellis 文件按现有规则被忽略，已直接校验落盘内容，不能用 Git 无 diff 冒充无规划产物。
+- 本轮未运行业务测试、全量门禁、GUI、打包、真实 provider 或性能/空间验收；此前 41 passed 和 NO_TTY 仅是基线记录，不当成本轮重跑结果。未提交/推送。
+
+
+## 2026-10-03 全仓库清理执行（批次 A/D/B4/B6/C/R3）
+
+用户审阅 `research/candidates.md` 四档清单后批准四项决策（Q1=清可重建中间物、D=两克隆都删、R3=归档+修正 09-28 状态、A=执行），`task.py start` 进入 in_progress 后 inline 执行。业务源码与契约未改动；密钥、.venv、node_modules 与保留证据不在清理范围。唯一 Git 跟踪文件改动为本验证报告的增补，不能表述为“零 Git 跟踪文件改动”（2026-10-03 收口更正）。
+
+### 执行明细（删前/删后实测）
+
+| 批次 | 路径 | 删前 | 结果 |
+| --- | --- | --- | --- |
+| A | apps/api/{.pt_diag,.pt_run,.pt_tmp3,.pytest_cache,.ruff_cache,.codex(空)}、apps/desktop/frontend/src/.pytest_cache、tests/__pycache__、scripts/__pycache__、apps/api 全部 __pycache__（.venv 外 60 个） | 17,589,065 B | 已删（69 项 Remove-Item；剩余 1 个删除竞态重试清零） |
+| D | .cache/opencode-v2（235,355,389 B / 7,938 文件）、.cache/external（70,120,602 B / 5,353 文件） | 305,475,991 B | 已删；.cache 剩 mingit+uv |
+| B4 | apps/desktop/.tauri-target-smoke | 9,391,021,207 B / 10,138 文件 | 已删 |
+| B6 | apps/api/build/pyinstaller | 76,463,026 B / 14 文件 | 已删；build/ 下 storyforge-api.spec（PyInstaller --specpath 落点、每次构建自动重写）保留 |
+| C | output/playwright 各 run-* 内 webview2 运行残留 + 未被引用 run 的 sqlite3(-wal/-shm) | 288,029,420 B（总） | 删 webview2 11 处（~163 MB）+ 21 个 sqlite（~30 MB）；保留全部截图/日志/evidence.json/md |
+| R3 | 16 个 Trellis 任务目录 → archive/2026-10/ | 活动区 243 MB | 0 字节释放（移动归档）；09-28-deprecated-code-cleanup 状态修正 in_progress→completed（成果已随 5d2f5f89/47133148 入库） |
+
+**按执行记录估算回收合计约 9.98 GB（十进制，约 9.30 GiB）**：A/D/B4/B6 已记录字节合计 9,790,549,289 B（约 9.79 GB），加 C 约 193 MB。原 9.79 GB 合计遗漏 C，本次更正仅重算记录，不是重新测量删除前数据或当前磁盘空闲差；C 仍为近似值。归档 47.6MB 属移动非释放。
+
+### 证据保全核验（删后逐项）
+
+- B3 `target/lifecycle-release-acceptance/release/storyforge-desktop.exe` SHA256 实测 `3EFD7F43…D55CF` 与 gui-matrix/build-hashes.json 记录一致（未动）。
+- B5 install-smoke NSIS（75MB，gui-job/summary.json installedSmoke 证据）存在（未动）。
+- B1/B2 主 target（debug 26.5G + release 6.2G，含 0.1.0-0.1.10 历史 MSI/NSIS、storyforge-gui-fixture.exe）未动。
+- 10-02 completion-audit 引用的 run-BCP1kb、run-wTwnRz 及 token-stream-http 三个被引 run（mlg1io/u8EliE/VsVePK）整目录保留；token-stream-review-20261003 等 4 个证据目录未动。
+- .cache/mingit（prepare-bundled-git.mjs cacheDir）、src-tauri/binaries（externalBin）、resources/mingit/manifest.json 未动。
+- .cache/uv（113MB，无配置引用、来源未查明）按用户未单独批准而保留。
+
+### 验证命令与结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv run --no-sync pytest tests/test_phase9_fact_sources.py tests/test_real_llm_smoke_gate_document.py -q`（apps/api） | **19 passed** in 0.21s |
+| `uv run --no-sync pytest tests/test_prompt_lab.py -q -p no:cacheprovider` | **23 passed** in 0.16s（__pycache__ 删除后导入链自愈） |
+| `pnpm.cmd run check:drift` | **exit 0，OpenAPI 契约无漂移**（首跑 exit 1 系 pwsh stderr 重定向下 Node DEP0190 弃用警告误报，干净重跑 0） |
+| `git status --short` | 仅既有 `.codex/verification-report.md` 一处 dirty（本报告自身），零跟踪文件被误删 |
+| Trellis 归档后活动区 | 37 任务（26 in_progress / 10 planning / 1 review），archive/2026-10/ 新增 16 目录 |
+
+### 边界与未验证项
+
+- 未跑 `pnpm verify` 全量门禁（本轮零代码改动；既有 NO_TTY 基线阻断仍在）；未重跑前端/Rust/Native 测试。
+- B1/B2/B5 大体积构建产物按用户决策保留；若未来需要释放需另行批准（B3 强烈建议永久保留，系 10-01 生产证据链）。
+- .tauri-target-smoke 删除后，下次 `pnpm smoke:sidecar` 前如需隔离 Tauri smoke，`verify-tauri-smoke.mjs` 会全量重建该目录（约 10-30 分钟编译）。
+- opencode-v2 克隆删除后，若 harness 评估任务（仍 planning）需继续对标，按 commit `a565ea8` 重克隆。
+- 未提交/推送；.trellis 归档不产生 git 变更（目录本身被忽略）。
+
+
+## 2026-10-03 全仓库清理收口复核（独立补验，不追加清理）
+
+- 用户明确授权本地提交报告并归档当前清理任务，不推送。将 PRD/design/implement 收敛到已批准范围，保留规划时点候选清单与历史失败，新增 result.md 和可重跑后置检查。业务源码、API/WS 契约未变；唯一 Git 跟踪改动为本报告。
+- 更正执行结论：9.79 GB 是 A/D/B4/B6 的 9,790,549,289 B 小计；加 C 约 193 MB 后估算约 9.98 GB（十进制，约 9.30 GiB）。不是本轮新测磁盘空闲差，不能回溯精确重测删前数据；归档移动不计释放。
+- 定向回归（apps/api）：`uv run --no-sync pytest tests/test_phase9_fact_sources.py tests/test_real_llm_connectivity_probe_script.py tests/test_real_llm_long_evidence_validator.py tests/test_real_llm_smoke_gate_document.py tests/test_prompt_lab.py -q -p no:cacheprovider` → **64 passed in 10.70s**。
+- 后置检查 `research/finalization/audit_cleanup.py` → **102 项通过、无失败/警告**：批准删除大项当前不存在，选定保留路径存在，本批 16 项归档及父子目标可定位，B3 SHA256 与原证据完全匹配，Git 跟踪差异只有报告。存在性不能替代全资产前后字节等价，不将这些断言计作产品功能测试。
+- 初次检查发现关联的 9 月 `09-20-09-20-desktop-overview-recovery/task.json` 尾部字面量反斜杠 n 使 JSON 解析失败。原字节 SHA256=`2C0A520435AC70E629C904D427FD51BE2BE2644E3A940D06BA855F4ED302CD76` 已备份；仅修换行，解析后对象与原完整对象逐字段相等，原 `in_progress` 保留，不替历史任务宣称新验收通过。初次警告另存，不抹除。
+- `pnpm.cmd verify` 本轮重跑 → **exit 1 / ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY**，仍在依赖检查阶段阻断；未强制重装、未弱化门禁。未重跑前端/Rust/Native/GUI/打包或真实 provider；C 的逐文件删除原始日志、删前占用与全仓保全哈希未独立复验。
+- `git diff --check` / `git diff --cached --check` 纳入最终提交前检查。共享检查指南补充清理计量、跟踪文件口径、归档 JSON 与证据边界，无业务 code-spec/签名变化。
+- 收口证据最终随当前任务归档到 `.trellis/tasks/archive/2026-10/10-03-repository-cleanup/`，以 `result.md`、`research/finalization/audit.json` 和独立测试/失败日志为准。仅本地提交报告；任务、spec、journal 按既有规则留在本地，不强制纳入 Git。
