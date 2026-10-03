@@ -5154,3 +5154,40 @@ master 本地提交 63 文件，精确文件集合匹配；原 staged diff 全�
 - API 全量 pytest **2579 passed / 15 failed / 25 skipped**——15 项全为记录在案的 `test_book_generation_long_wrapper.py` 缺 long runner 基线红；`test_source_code_standards.py` **16 passed**；`uv run ruff check .` 全绿。
 - 四个契约生成物重生成后零漂移。
 - 未跑 `pnpm verify`（NO_TTY + 本环境 pnpm 不在 PATH）；未涉及真机 GUI、Rust、Native、真实 provider。
+
+
+## 2026-10-04 执行外部审计报告（批次三：P0 不可变操作）
+
+范围：报告 §10 第二批 T05/T06/T07/T08/D03/D06。四轮对抗性复验共 19 条发现、四轮修复后收口。
+
+### 实现清单
+
+1. **T05 窄范围比例**（`revise_scope._revise_drift_ratio`）：从「首尾公共前后缀之外的包围跨度」改为 difflib opcodes 的真实改动量——分母只数非空原文行（中文稿空行约占一半，旧口径把「首尾各改一行」误报成 100%），分子含被改动/删除的原文行与新增的非空行；空文件写正文不再假告警；展示文案按原文行数封顶（并注明新增行数）；阈值 0.5 与「仅警告不阻断」不变。
+2. **T06 锚定授权 span**（`inline-chat.clampHunksToAnchor`）：相交但越界的 hunk 按行细分、只留 original line ∈ 锚定范围；增删行数对不上（如两行合并删成一行）整块拒绝并计数；末尾减行导致 hunk 上移（源文件无尾换行/模型丢尾换行）时按逐字前缀对账保留锚定行内的合法删除。
+3. **T07+D03 局部采纳不可变 op**（新模块 `lib/suggestion-ops.ts`）：整份与分块接受共用同一「前缀锚定 + 出现序号消歧 + 无法唯一确定即拒绝」定位器，把补丁逐 op 映射进**当前稿**，范围外一律不动；逆 op 支持撤销；冲突即拒写并报作者。修掉两大类静默错误：「分块接受后整份接受把作者手改回退成冻结 after」（原会二次写入并丢 AUTHOR 行）与「重复块场景把补丁写到作者没打算改的另一处」。
+4. **T08 授权扩写**（`revision.revise_text`）：按**作者指令**判定扩写授权——先剥离 `<<<ANCHOR…ANCHOR>>>`（未闭合时保守剥到结尾）、带否定闸（含扩展否定词与有限间距）、且该策略只在 `quality_gate == "polish"` 时生效（`quality_gate=None` 的 file.revise 与改动前逐字一致）；授权时用 `max_char_ratio=inf` 专用闸，缩写下界与结构/实体/人称/静态问题保护全部保留。前端恢复恒发 `qualityGate:'polish'` 并删除前端关键词 helper，消除 Python/TS 双事实源漂移。
+5. **D06 issue 逐项归属**：op 关联 issue 行范围（审稿报告无行号不猜）；接受时只把被接受 op **完整覆盖**的 issue 记 resolved、部分覆盖记 touched、其余 open；`author-loop` 记录升级 `[{id,status}]` 并保留旧扁平字段兼容；observed / author-confirmed / resolved 分列；无归属数据时显式记「未归属」而不是「已解决 0/N」。
+
+### 对抗性复验（4 轮，均先复核旧发现再找新问题）
+
+- **R1（5 视角）11 条**：3 条高置信回归——空行占半的中文稿「整章逐段重写」只算 0.49 不报警；文件末尾减行（末行尾换行不一致）时整块丢弃；关掉整文件漂移闸后「重复/移动的原文行」被静默写到错误的行。另有 opResultPresent 假阳性、扩写授权被锚定正文/否定语误触发、D06 计数把「无法归属」写成「未解决 0/N」等。
+- **R2（3 视角）5 条**：含 1 条**修复自身引入的高危**——`opResultPresent` 把「beforeText 是当前稿子串」误判为未应用、重复施加（实测写出「铜铜灯亮了。」）。
+- **R3（2 视角）1 高 + 2 窄**：重复块过度施加（作者先手动改成同一结果时，因另一处原文残留被判「未应用」而把第二块也改掉，静默落盘 [A,A]）。
+- **R4 收口**：分块接受路径同类静默写错（fuzz case32754）→ 两路共用同一锚定定位器；作者改写 op 紧邻前缀时兜底收紧为「原文在当前稿出现多次即拒绝」。
+- 证据强度：每处修复都做「还原修复点 → 对应用例转红」的变异验证；定位/幂等判据另跑 **6 万 + 3.6 万例确定性 fuzz 零失败**（不变量：未授权区间逐字节不动、已应用块不被二次改写、无法唯一定位即抛冲突而不写盘）。
+
+### 已知残留（如实记录）
+
+1. 「出现序号消歧」只校验前缀出现个数，无法识破「作者删一处又补一处使个数恰好不变」的身份置换（替换路径既有判据的同一限制，未覆盖）。
+2. 作者改动了 op 紧邻前缀且原文在当前稿多处出现 → 一律拒绝（比旧「取最佳分兜底」更严；安全优先的有意行为变更，需作者手动处理）。
+3. 逐 op 映射未做 EOL 归一：补丁与当前稿 EOL 不一致且作者有范围外改动时会误报冲突（安全侧，低危）。
+4. 极端重复长块下约三成样本判冲突（保守拒绝率），真实写作体感待观察。
+5. D06 端到端归属仍待后端在审稿 issue 上补行范围（并入 P1 R 批）；后端 whole-file proposal 的逐 op ChangeSet 按报告 §1 属后续。
+6. T08 否定闸按「否定词 + 有限中文间距」实现，「避免流水账适当展开」这类无标点连写会判否定（保守方向）。
+
+### 门禁与回归（本波最终）
+
+- 前端全量 vitest **165 files / 1451 passed / 1 skipped**；typecheck、`prettier --check`、`eslint`（真退出码）全绿；`editor.test.tsx` 的源码护栏按新接线更新（分块接受走 `planHunkAccept` 锚定定位器）。
+- API 全量 pytest **2627 passed / 15 failed / 25 skipped**——15 项全为记录在案的 `test_book_generation_long_wrapper.py` 缺 long runner 基线红，本批零新增失败；`test_source_code_standards.py` 16 passed；`uv run ruff check .` 全绿。
+- 四个契约生成物零漂移。
+- 未跑 `pnpm verify`（NO_TTY + pnpm 不在 PATH）；未涉及真机 GUI、Rust、Native 与真实 provider。
