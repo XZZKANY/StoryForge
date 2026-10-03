@@ -2,6 +2,7 @@ import { TauriFileSystem } from './tauri-fs';
 import { relativeToProject } from './project-context';
 import { countCjkChars, countParagraphs } from './text-metrics';
 import { writeReceiptAudit } from './writeback-audit';
+import type { IssueCounts, IssueResolution } from './suggestion-ops';
 
 export type RevisionLoopRecord = {
   /** Ephemeral admission, excluded from semantic payload and stored evidence. */
@@ -18,6 +19,11 @@ export type RevisionLoopRecord = {
   /** Native writeback receipt identity, used for idempotent local audit repair. */
   operationId?: string;
   issueIds?: string[];
+  /** 每个问题在本次写回中的归属态；旧记录可能没有，只有扁平 issueIds 时用 readRevisionLoopIssues 补 open。 */
+  issueResolutions?: IssueResolution[];
+  issueCounts?: IssueCounts;
+  /** false 表示这些问题拿不到行范围、无法归属；记录里显式写「未归属」，不报 0/N。 */
+  issueAttributed?: boolean;
   contextFiles?: string[];
 };
 
@@ -95,6 +101,9 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
     patchId,
     operationId,
     issueIds = [],
+    issueResolutions = [],
+    issueCounts,
+    issueAttributed = true,
     contextFiles = [],
   } = record;
   if (!projectPath) return { recordPath: null };
@@ -116,6 +125,16 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
     `- Patch ID：${patchId ?? '本地未记录'}`,
     ...(operationId ? [`- Writeback Operation：${operationId}`] : []),
     `- Issue IDs：${issueIds.length ? issueIds.join(', ') : '未限定'}`,
+    ...(issueResolutions.length
+      ? [
+          `- Issue Status：${issueResolutions.map((issue) => `${issue.id}=${issue.status}`).join(', ')}${issueAttributed ? '' : ' (unattributed: 无行范围)'}`,
+        ]
+      : []),
+    ...(issueCounts && issueCounts.observed > 0 && issueAttributed
+      ? [
+          `- Issue Counts：observed ${issueCounts.observed} / author-confirmed ${issueCounts.authorConfirmed} / resolved ${issueCounts.resolved}`,
+        ]
+      : []),
     `- 上下文文件：${contextFiles.length ? contextFiles.join(', ') : '未记录'}`,
     `- 修改前字数：${countCjkChars(before)}`,
     `- 修改后字数：${countCjkChars(after)}`,
@@ -145,6 +164,9 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
       assistantSessionId,
       patchId: patchId ?? null,
       issueIds,
+      ...(issueResolutions.length ? { issueResolutions } : {}),
+      ...(issueAttributed ? {} : { issueAttribution: 'unattributed' }),
+      ...(issueCounts && issueCounts.observed > 0 ? { issueCounts } : {}),
       contextFiles,
     });
     await writeReceiptAudit(
@@ -185,4 +207,15 @@ export async function exportCurrentFile(params: {
 
   await TauriFileSystem.writeFile(projectPath, exportPath, exportContent);
   return { exportPath };
+}
+
+/**
+ * 读取闭环记录的问题归属：新记录带 issueResolutions，旧记录只有扁平 issueIds——后者视为
+ * 未归属（open），不臆造状态，旧记录仍可读。
+ */
+export function readRevisionLoopIssues(
+  record: Pick<RevisionLoopRecord, 'issueIds' | 'issueResolutions'>,
+): IssueResolution[] {
+  if (record.issueResolutions && record.issueResolutions.length > 0) return record.issueResolutions;
+  return (record.issueIds ?? []).map((id) => ({ id, status: 'open' as const }));
 }

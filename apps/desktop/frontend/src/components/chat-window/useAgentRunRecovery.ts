@@ -14,6 +14,7 @@ import {
   filePathFromAgentResult,
   writableFilePatch,
   issueIdsFromAgentResult,
+  issueScopesFromAgentResult,
   modelFromToolTrace,
   resolveProposedPatchFilePath,
 } from './agent-result';
@@ -233,6 +234,7 @@ export function useAgentRunRecovery(
             userIntent: response.user_message,
             assistantSessionId: response.assistant_session_id,
             issueIds: issueIdsFromAgentResult(response),
+            issueScopes: issueScopesFromAgentResult(response),
             contextFiles: writingContext.contextFiles,
             knowledgeEntries: writingContext.knowledgeEntries,
             scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,

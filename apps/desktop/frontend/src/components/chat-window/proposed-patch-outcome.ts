@@ -2,6 +2,7 @@ import { emitFileSuggestion, emitSuggestionResult } from '../../lib/assistant-ev
 import { createRemoteFileSuggestion } from '../../lib/assistant-suggestions';
 import {
   issueIdsFromAgentResult,
+  issueScopesFromAgentResult,
   modelFromToolTrace,
   resolveProposedPatchFilePath,
   writableFilePatch,
@@ -53,6 +54,7 @@ export function emitProposedPatchOutcome(params: {
       userIntent: params.goal,
       assistantSessionId: response.assistant_session_id,
       issueIds: issueIdsFromAgentResult(response),
+      issueScopes: issueScopesFromAgentResult(response),
       contextFiles: writingContext.contextFiles,
       knowledgeEntries: writingContext.knowledgeEntries,
       scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,

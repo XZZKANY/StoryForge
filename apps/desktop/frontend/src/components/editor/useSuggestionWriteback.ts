@@ -27,7 +27,19 @@ import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
 import type { RevisionLoopRecord, RevisionLoopResult } from '../../lib/author-loop';
 import type { BranchInfo } from '../../lib/branches';
 import type { EditorModelCache } from './useMonacoEditor';
-import { applyPatchHunkToCurrent, isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
+import { isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
+import {
+  associateIssuesToOps,
+  buildSuggestionOps,
+  hasIssueAttribution,
+  matchSuggestionOp,
+  planHunkAccept,
+  planWholeAccept,
+  resolveIssueStatuses,
+  summarizeIssueResolutions,
+  type IssueCounts,
+  type IssueResolution,
+} from '../../lib/suggestion-ops';
 import { shouldAutoAcceptSuggestion } from '../../lib/agent-permission';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
 import { markChapterWrittenInPlan, unmarkChapterWrittenInPlan } from '../../lib/serial-plan';
@@ -53,6 +65,15 @@ export type SuggestionActionState = {
   kind: SuggestionActionKind;
   suggestionId: string;
 } | null;
+
+/** 面向作者的归属读数：本次写回解决了几个审稿问题，其余仍 open。 */
+function issueResolutionNote(resolutions?: IssueResolution[], attributed = true): string {
+  if (!resolutions || resolutions.length === 0) return '';
+  // 问题拿不到行范围时不能报 0/N——那会被读成「一个都没解决」，应显式说明无法归属。
+  if (!attributed) return ' · 问题未归属（无行范围），本次不作解决计数';
+  const counts = summarizeIssueResolutions(resolutions);
+  return ` · 问题已解决 ${counts.resolved}/${counts.observed}（作者确认 ${counts.authorConfirmed}）`;
+}
 
 type UseSuggestionWritebackParams = {
   enqueueWriteback: WritebackQueue;
@@ -126,10 +147,34 @@ export function useSuggestionWriteback({
     };
   }, []);
 
-  const updatePendingSuggestion = useCallback((next: AssistantFileSuggestion | null) => {
-    pendingSuggestionRef.current = next;
-    setPendingSuggestion(next);
-  }, []);
+  // T07：整份接受不再写冻结 after，需要记住补丁不可变的原始 op 与已应用集合，才能把
+  // 剩余 op 逐处映射到当前稿、范围外一律不动。
+  const suggestionOpsRef = useRef<{
+    suggestionId: string;
+    before: string;
+    after: string;
+    appliedOpIds: Set<string>;
+    opIssueIds: Map<string, string[]>;
+  } | null>(null);
+  const updatePendingSuggestion = useCallback(
+    (next: AssistantFileSuggestion | null, options?: { fresh?: boolean }) => {
+      if (!next) {
+        suggestionOpsRef.current = null;
+      } else if (options?.fresh) {
+        const ops = buildSuggestionOps(next.before, next.after);
+        suggestionOpsRef.current = {
+          suggestionId: next.id,
+          before: next.before,
+          after: next.after,
+          appliedOpIds: new Set(),
+          opIssueIds: associateIssuesToOps(ops, next.issueScopes ?? []),
+        };
+      }
+      pendingSuggestionRef.current = next;
+      setPendingSuggestion(next);
+    },
+    [],
+  );
 
   const beginAction = useCallback(
     (kind: SuggestionActionKind, suggestion: AssistantFileSuggestion) => {
@@ -199,7 +244,7 @@ export function useSuggestionWriteback({
       if (!suggestion || suggestion.filePath !== filePathRef.current) return;
       // 目标文件已打开：直接消费缓冲，避免切换文件后被重复领取。
       takePendingFileSuggestion(suggestion.filePath);
-      updatePendingSuggestion(suggestion);
+      updatePendingSuggestion(suggestion, { fresh: true });
     };
     window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
     return () => {
@@ -212,7 +257,7 @@ export function useSuggestionWriteback({
     (path: string | null) => {
       const pending = takePendingFileSuggestion(path);
       if (pending) {
-        updatePendingSuggestion(pending);
+        updatePendingSuggestion(pending, { fresh: true });
       }
     },
     [updatePendingSuggestion],
@@ -228,6 +273,10 @@ export function useSuggestionWriteback({
         summary?: string;
         note?: string;
         operationKind?: string;
+        issueResolutions?: IssueResolution[];
+        issueCounts?: IssueCounts;
+        /** false 表示这些问题拿不到行范围；记录里显式写「未归属」，不报 0/N。 */
+        issueAttributed?: boolean;
       } & ExternalWriteOverrides = {},
     ) => {
       const projectRoot = projectPathRef.current;
@@ -275,6 +324,9 @@ export function useSuggestionWriteback({
               operationId: receipt.operationId,
               deliveryTicket: ticket,
               issueIds: suggestion.issueIds,
+              issueResolutions: overrides.issueResolutions,
+              issueCounts: overrides.issueCounts,
+              issueAttributed: overrides.issueAttributed,
               contextFiles: suggestion.contextFiles,
             });
           // F27：快照失败必须阻断写回。snapshot 抛错时 performGuardedWriteback 直接向上传播，
@@ -529,6 +581,11 @@ export function useSuggestionWriteback({
                 restoreTo,
                 { summary: `撤销：${suggestion.summary}`, note: '用户意图：撤销刚写回的修订' },
               );
+              // 撤销退回写前内容，这次写回的 op 不再算已应用。清空已应用集合是安全的——
+              // 整份接受对已落盘的 op 按内容幂等跳过，只把缺的那些重新映射回来。
+              if (suggestionOpsRef.current?.suggestionId === suggestion.id) {
+                suggestionOpsRef.current.appliedOpIds.clear();
+              }
               emitToast('已撤销，文件回到写回前', { tone: 'success' });
             } catch (err) {
               emitToast(`撤销失败：${err instanceof Error ? err.message : String(err)}`, {
@@ -569,11 +626,58 @@ export function useSuggestionWriteback({
 
     try {
       const currentContent = editorRef.current.getValue();
+      const opState =
+        suggestionOpsRef.current?.suggestionId === suggestion.id
+          ? suggestionOpsRef.current
+          : {
+              before: suggestion.before,
+              after: suggestion.after,
+              appliedOpIds: new Set<string>(),
+              opIssueIds: associateIssuesToOps(
+                buildSuggestionOps(suggestion.before, suggestion.after),
+                suggestion.issueScopes ?? [],
+              ),
+            };
+      // 整份接受 = 把补丁尚未应用的 op 逐个映射到当前稿；只有当前稿与 before 逐字一致时才
+      // 直接写 after。作者在补丁范围外的独立改动不会被冻结的 after 整段覆盖。
+      const plan = planWholeAccept(
+        currentContent,
+        opState.before,
+        opState.after,
+        opState.appliedOpIds,
+        normalizeEol,
+      );
+      const nextContent = plan.content;
+      // 归属依据只认「整份接受后确实在稿内的 op」（plan.settledOpIds）；先前分块接受但已被
+      // 作者改回原文的 op 不在稿内，不能算 resolved（T07-F3）。
+      const opsForIssues = buildSuggestionOps(opState.before, opState.after);
+      const issuesAttributed = hasIssueAttribution(
+        suggestion.issueIds ?? [],
+        suggestion.issueScopes ?? [],
+      );
+      const wholeIssueResolutions = suggestion.issueIds?.length
+        ? resolveIssueStatuses(
+            suggestion.issueIds,
+            suggestion.issueScopes ?? [],
+            opsForIssues,
+            plan.settledOpIds,
+          )
+        : undefined;
+      // operationKind='whole' 与默认 key 相同（`:whole`），同时让整文件漂移闸让位给
+      // T07 的逐 op 映射：范围外的作者改动不再被误判为整文件漂移而拒写。
       const loopRecord = await writeAcceptedSuggestion(
         suggestion,
         path,
         currentContent,
-        suggestion.after,
+        nextContent,
+        {
+          operationKind: 'whole',
+          issueResolutions: wholeIssueResolutions,
+          issueCounts: wholeIssueResolutions
+            ? summarizeIssueResolutions(wholeIssueResolutions)
+            : undefined,
+          issueAttributed: wholeIssueResolutions ? issuesAttributed : undefined,
+        },
       );
       // 正文已落盘，这才轮到连载计划把该章标 done（补丁未确认时后端会拒绝标记）。
       // 刻意只挂在「接受整个补丁」这一层：分块接受与行间对话 Ctrl+K 是段落级微调，
@@ -597,11 +701,12 @@ export function useSuggestionWriteback({
         });
         return;
       }
-      offerUndo(suggestion, path, currentContent, suggestion.after, loopRecord.createdFile);
+      offerUndo(suggestion, path, currentContent, nextContent, loopRecord.createdFile);
       setSuggestionStatus(
-        loopRecord.recordPath
+        (loopRecord.recordPath
           ? '已写入当前文件 · 已留写前快照与闭环记录，可点通知里的「撤销」一键回退'
-          : '已写入当前文件 · 已留写前快照，可点通知里的「撤销」一键回退',
+          : '已写入当前文件 · 已留写前快照，可点通知里的「撤销」一键回退') +
+          issueResolutionNote(wholeIssueResolutions, issuesAttributed),
         'success',
       );
       emitAuthorLoopResult({
@@ -635,6 +740,7 @@ export function useSuggestionWriteback({
     projectPathRef,
     setSuggestionStatus,
     finishAction,
+    normalizeEol,
     writeAcceptedSuggestion,
   ]);
 
@@ -676,7 +782,40 @@ export function useSuggestionWriteback({
 
       try {
         const currentContent = editorRef.current.getValue();
-        const nextContent = applyPatchHunkToCurrent(currentContent, hunk);
+        const opState =
+          suggestionOpsRef.current?.suggestionId === suggestion.id
+            ? suggestionOpsRef.current
+            : null;
+        const matched = opState
+          ? matchSuggestionOp(buildSuggestionOps(opState.before, opState.after), hunk)
+          : null;
+        if (opState && !matched) {
+          // 分块无法一一对应回原始修订的某一处 op（作者改动落在该处，或出现歧义重复），
+          // 拒绝这次半选，避免把作者的内容当成补丁改动写掉。
+          throw new Error(
+            '这个修改块对应不上原始修订的任何一处改动（该处可能已被改写或存在歧义），已拒绝接受；请重新生成修订或手动处理。',
+          );
+        }
+        // 分块接受改走与整份接受同一套锚定定位器：定位不到唯一目标即抛冲突、零写入，
+        // 不再用「取部分上下文最佳分」的旧定位（重复块 + 目标上下文被改会静默写错处）。
+        const nextContent = planHunkAccept(currentContent, hunk, suggestion.before).content;
+        // 只把这次被接受的分块覆盖的 issue 记为 resolved；未接受分块覆盖的仍 open。
+        const appliedAfterHunk = new Set(opState?.appliedOpIds ?? []);
+        if (matched) appliedAfterHunk.add(matched.id);
+        const opsForIssues = opState ? buildSuggestionOps(opState.before, opState.after) : [];
+        const issuesAttributed = hasIssueAttribution(
+          suggestion.issueIds ?? [],
+          suggestion.issueScopes ?? [],
+        );
+        const hunkIssueResolutions =
+          suggestion.issueIds?.length && opState
+            ? resolveIssueStatuses(
+                suggestion.issueIds,
+                suggestion.issueScopes ?? [],
+                opsForIssues,
+                appliedAfterHunk,
+              )
+            : undefined;
         const loopRecord = await writeAcceptedSuggestion(
           suggestion,
           path,
@@ -686,8 +825,14 @@ export function useSuggestionWriteback({
             operationKind: `hunk:${hunk.id}`,
             summary: `${suggestion.summary}（接受分块）`,
             note: `${suggestion.note}\n\n分块接受：第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`,
+            issueResolutions: hunkIssueResolutions,
+            issueCounts: hunkIssueResolutions
+              ? summarizeIssueResolutions(hunkIssueResolutions)
+              : undefined,
+            issueAttributed: hunkIssueResolutions ? issuesAttributed : undefined,
           },
         );
+        if (opState && matched) opState.appliedOpIds.add(matched.id);
         const remaining =
           normalizeEol(nextContent) === normalizeEol(suggestion.after)
             ? null
@@ -714,11 +859,12 @@ export function useSuggestionWriteback({
           `第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines} 行`,
         );
         setSuggestionStatus(
-          finished
+          (finished
             ? '修订已全部接受并写回；一键撤销只回退最后写回的那一次分块，更早的写回见版本历史。'
             : loopRecord.recordPath
               ? '已接受该修改块并写入当前文件，剩余修改仍可继续确认'
-              : '已接受该修改块并写入当前文件',
+              : '已接受该修改块并写入当前文件') +
+            issueResolutionNote(hunkIssueResolutions, issuesAttributed),
           'success',
         );
       } catch (err) {

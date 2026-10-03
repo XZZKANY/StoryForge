@@ -1,3 +1,5 @@
+import type { IssueScope } from './suggestion-ops';
+
 export type KnowledgeContextEntry = {
   knowledgeId: string;
   relativePath: string;
@@ -19,6 +21,8 @@ export type AssistantFileSuggestion = {
   model?: string;
   assistantSessionId?: number | null;
   issueIds?: string[];
+  /** 各问题在原文中的行范围；来自审稿报告，映射不出则为空。 */
+  issueScopes?: IssueScope[];
   contextFiles?: string[];
   knowledgeEntries?: KnowledgeContextEntry[];
   userIntent?: string;
@@ -39,6 +43,7 @@ export function createRemoteFileSuggestion(params: {
   userIntent: string;
   assistantSessionId?: number | null;
   issueIds?: string[];
+  issueScopes?: IssueScope[];
   contextFiles?: string[];
   knowledgeEntries?: KnowledgeContextEntry[];
   scopeWarning?: string;
@@ -55,6 +60,7 @@ export function createRemoteFileSuggestion(params: {
     userIntent,
     assistantSessionId,
     issueIds = [],
+    issueScopes = [],
     contextFiles = [],
     knowledgeEntries = [],
     scopeWarning,
@@ -84,6 +90,7 @@ export function createRemoteFileSuggestion(params: {
     model,
     assistantSessionId: assistantSessionId ?? null,
     issueIds,
+    issueScopes,
     contextFiles,
     knowledgeEntries,
     userIntent,

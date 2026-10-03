@@ -17,6 +17,8 @@ export type PatchHunk = {
   unitKind: PatchUnitKind;
   originalPrefixContext: string;
   originalSuffixContext: string;
+  /** beforeText 在源文件里出现的次数；>1 时上下文是唯一定位依据，上下文失配必须判冲突而非回退。 */
+  beforeTextOccurrences: number;
 };
 
 const MAX_DIFF_MATRIX_CELLS = 4_000_000;
@@ -140,6 +142,17 @@ function rangeUnitKind(
   return changedUnits.some((unit) => unit.kind === 'segment') ? 'segment' : 'line';
 }
 
+function countOccurrences(text: string, needle: string): number {
+  if (!needle) return 0;
+  let count = 0;
+  let index = text.indexOf(needle);
+  while (index !== -1) {
+    count += 1;
+    index = text.indexOf(needle, index + Math.max(1, needle.length));
+  }
+  return count;
+}
+
 function createHunk(
   originalText: string,
   modifiedText: string,
@@ -204,6 +217,7 @@ function createHunk(
       originalEndOffset,
       Math.min(originalText.length, originalEndOffset + HUNK_CONTEXT_CHARS),
     ),
+    beforeTextOccurrences: countOccurrences(originalText, beforeText),
   };
 }
 
@@ -405,11 +419,15 @@ function findTextRanges(currentContent: string, hunk: PatchHunk): ApplyRange[] {
   }
 
   const bestScore = Math.max(0, ...scoredRanges.map((range) => range.score));
-  return bestScore > 0
-    ? scoredRanges
-        .filter((range) => range.score === bestScore)
-        .map(({ startOffset, endOffset }) => ({ startOffset, endOffset }))
-    : allRanges;
+  if (bestScore > 0) {
+    return scoredRanges
+      .filter((range) => range.score === bestScore)
+      .map(({ startOffset, endOffset }) => ({ startOffset, endOffset }));
+  }
+  // 带上下文却无一处上下文匹配：源文件里 beforeText 本就重复时，上下文是唯一定位依据，
+  // 它已失配就不能回退到零分候选，否则会把补丁静默写到另一处（T07-F1）。
+  const hasContext = Boolean(hunk.originalPrefixContext || hunk.originalSuffixContext);
+  return hasContext && hunk.beforeTextOccurrences > 1 ? [] : allRanges;
 }
 
 function findInsertionRanges(currentContent: string, hunk: PatchHunk): ApplyRange[] {

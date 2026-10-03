@@ -525,3 +525,272 @@ test('known applied but unreadable target reports unverifiable state without cla
     spy.mockRestore();
   }
 });
+
+// ---------------------------------------------------------------------------
+// T07：整份接受不得写冻结 after，必须把剩余 op 逐处映射到当前稿。
+// harness 序列：补丁改第 1、3 行；作者独立改第 2 行为 AUTHOR；先分块接受第 1 行，
+// 再整份接受 → 第二次写入不得把 AUTHOR 回退成补丁里的旧文本。
+// ---------------------------------------------------------------------------
+test('T07-①：局部接受后再整份接受，作者独立改动不被冻结 after 覆盖', async () => {
+  const before = '甲。\n乙。\n丙。';
+  const after = '甲改。\n乙。\n丙改。';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue('甲。\nAUTHOR\n丙。'));
+  await show({ ...patch('t07-author'), before, after });
+  const hunks = buildPatchHunks(before, after);
+  assert.equal(hunks.length, 2, '补丁应有两处改动（第 1、3 行）');
+  await act(async () => handle.handleAcceptHunk(hunks[0]));
+  assert.ok(effects.disk.get(FILE)?.includes('AUTHOR'), '分块写回后 AUTHOR 仍应在磁盘');
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.write.mock.calls.length, 2, '整份接受只应再写一次');
+  assert.ok(
+    String(effects.write.mock.calls[1][2]).includes('AUTHOR'),
+    `第二次写入内容应含 AUTHOR，实际: ${JSON.stringify(effects.write.mock.calls[1][2])}`,
+  );
+  const disk = effects.disk.get(FILE) ?? '';
+  assert.ok(disk.includes('AUTHOR'), `磁盘第 2 行应仍是 AUTHOR，实际: ${JSON.stringify(disk)}`);
+  assert.ok(editor.getValue().includes('AUTHOR'), '编辑器第 2 行应仍是 AUTHOR');
+  assert.equal(handle.actionError, null);
+});
+
+test('T07-②：作者改动落在剩余 op 覆盖行 → 映射失败、不再写入并报冲突', async () => {
+  const before = '甲。\n乙。\n丙。';
+  const after = '甲改。\n乙。\n丙改。';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('t07-conflict'), before, after });
+  const hunks = buildPatchHunks(before, after);
+  await act(async () => handle.handleAcceptHunk(hunks[0]));
+  await act(async () => editor.setValue('甲改。\n乙。\n作者自改'));
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.write.mock.calls.length, 1, '冲突时不得产生新的写入');
+  assert.match(handle.actionError ?? '', /变化|冲突|定位/);
+  assert.equal(effects.disk.get(FILE), '甲改。\n乙。\n丙。', '磁盘保持冲突前状态');
+});
+
+test('T07-③：无作者改动时整份接受结果与 after 逐字一致（快路径）', async () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('t07-fastpath'), before, after });
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.disk.get(FILE), after);
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.equal(handle.actionError, null);
+});
+
+test('T07-④：接受 A→AA 后作者改 B→B*，再整份接受 → B* 保留', async () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('t07-keep'), before, after });
+  const hunks = buildPatchHunks(before, after);
+  await act(async () => handle.handleAcceptHunk(hunks[0]));
+  await act(async () => editor.setValue('AA\nB*\nC'));
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.disk.get(FILE), 'AA\nB*\nCC');
+  assert.ok(effects.disk.get(FILE)?.includes('B*'));
+});
+
+test('T07-⑤a：CRLF 与 emoji 下整份接受逐 op 映射，范围外行不动', async () => {
+  const before = '甲😀。\r\n乙。\r\n丙。';
+  const after = '甲😀改。\r\n乙。\r\n丙改。';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue('甲😀。\r\nAUTHOR\r\n丙。'));
+  await show({ ...patch('t07-crlf'), before, after });
+  const hunks = buildPatchHunks(before, after);
+  assert.equal(hunks.length, 2);
+  await act(async () => handle.handleAcceptHunk(hunks[0]));
+  await act(async () => handle.handleAcceptSuggestion());
+  const disk = effects.disk.get(FILE) ?? '';
+  assert.ok(disk.includes('AUTHOR'), `CRLF 下 AUTHOR 应保留，实际: ${JSON.stringify(disk)}`);
+  assert.ok(disk.includes('丙改。'), '剩余 op 应已映射');
+});
+
+test('T07-⑤b：剩余分块映射不回原始 op 时拒绝半选，不产生写入', async () => {
+  const before = '甲。\n乙。\n丙。';
+  const after = '甲改。\n乙。\n丙改。';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue('甲。\n作者改\n丙。'));
+  await show({ ...patch('t07-ungroup'), before, after });
+  const hunks = buildPatchHunks(before, after);
+  await act(async () => handle.handleAcceptHunk(hunks[0]));
+  const remaining = handle.pendingSuggestion;
+  assert.ok(remaining);
+  const remainingHunks = buildPatchHunks(remaining.before, remaining.after);
+  const artifact = remainingHunks.find((hunk) => hunk.beforeText.includes('作者改'));
+  assert.ok(
+    artifact,
+    `应能构造出无法映射的伪分块，实际: ${JSON.stringify(remainingHunks.map((h) => h.beforeText))}`,
+  );
+  await act(async () => handle.handleAcceptHunk(artifact));
+  assert.equal(effects.write.mock.calls.length, 1, '拒绝半选不得产生写入');
+  assert.match(handle.actionError ?? '', /对应不上|映射|歧义/);
+});
+
+test('T07-⑤c：整份逐 op 映射写回等待期间，作者继续输入不被覆盖', async () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('t07-typing'), before, after });
+  const pending = deferred<{ recordPath: string; updatedBlueprintPath: null }>();
+  effects.record.mockReturnValueOnce(pending.promise);
+  await act(async () => editor.setValue('A\nB*\nC'));
+  let operation!: Promise<void>;
+  await act(async () => {
+    operation = handle.handleAcceptSuggestion();
+  });
+  await act(async () => editor.setValue('等待映射写回时的继续输入'));
+  await act(async () => {
+    pending.resolve({ recordPath: '/record', updatedBlueprintPath: null });
+    await operation;
+  });
+  assert.equal(editor.getValue(), '等待映射写回时的继续输入');
+  assert.ok(effects.disk.get(FILE)?.includes('B*'), '磁盘应落映射结果，含作者此前改动 B*');
+});
+
+async function runLastUndo() {
+  const undoToast = effects.toast.mock.calls.find(
+    (args: unknown[]) => (args[1] as { action?: unknown } | undefined)?.action,
+  );
+  assert.ok(undoToast, '写回后应弹撤销入口');
+  await act(async () => {
+    await (undoToast[1] as { action: { run: () => Promise<void> } }).action.run();
+  });
+}
+
+test('T07-⑤d：撤销分块写回后再整份接受剩余，重新落到完整 after', async () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('t07-undo-rest'), before, after });
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  await runLastUndo();
+  assert.equal(effects.disk.get(FILE), before, '撤销后回到写前正文');
+  assert.equal(handle.pendingSuggestion?.id, 't07-undo-rest', '补丁应仍在面板');
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.disk.get(FILE), after, '整份接受剩余应落到完整 after');
+});
+
+test('T07-⑤e：撤销分块写回、作者再改范围外行后整份接受，改动保留', async () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('t07-undo-edit'), before, after });
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  await runLastUndo();
+  await act(async () => editor.setValue('A\nB*\nC'));
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.disk.get(FILE), 'AA\nB*\nCC', '被撤销的 op 应重新应用，B* 保留');
+});
+
+test('T07-F3：删除类补丁重复确认幂等，不报错、不重复写、不丢数据', async () => {
+  const before = '甲。\n乙。\n丙。';
+  const after = '甲。\n丙。';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('t07-delete'), before, after });
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.disk.get(FILE), after, '首次接受应删除目标行');
+  assert.equal(effects.write.mock.calls.length, 1);
+  // 重新领取同一补丁再次确认：删除 op 必须幂等，不得再删一次或报「原文已变化」。
+  await show({ ...patch('t07-delete'), before, after });
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(handle.actionError, null, '重复确认不得报接受失败');
+  assert.equal(effects.disk.get(FILE), after, '重复确认不得继续删除');
+  assert.equal(effects.write.mock.calls.length, 1, '重复确认不应重复写盘');
+});
+
+test('T07-F1：重复目标行被作者改动后整份接受报冲突且零写入', async () => {
+  const before = '重复句。\n重复句。\n尾巴。';
+  const after = '重复句改。\n重复句。\n尾巴。';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('t07-dup'), before, after });
+  // 作者在待确认期改了目标行（第一处重复），只剩另一处且上下文不再匹配。
+  await act(async () => editor.setValue('重复句作者改。\n重复句。\n尾巴。'));
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.write.mock.calls.length, 0, '冲突时零写入');
+  assert.match(handle.actionError ?? '', /变化|冲突|定位/);
+  assert.equal(effects.disk.get(FILE), 'before', '磁盘保持冲突前状态');
+});
+
+test('T07 高危回归：beforeText 为当前稿子串时整份接受不重复施加（无「铜铜」）', async () => {
+  const before = '甲。\n灯亮了。\n乙。';
+  const after = '甲。\n铜灯亮了。\n乙。';
+  const current = '甲。\n铜灯亮了。\n乙。\n作者续写。';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(current));
+  await show({ ...patch('t07-substring'), before, after });
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(handle.actionError, null);
+  assert.ok(
+    !(effects.disk.get(FILE) ?? '').includes('铜铜'),
+    `整份接受不得把 beforeText 当子串再施加，实际: ${JSON.stringify(effects.disk.get(FILE))}`,
+  );
+  assert.equal(editor.getValue(), current, '作者稿应保持不变');
+});
+
+test('T07-F2b：重复块里作者已手动改出同一结果时，整份接受不改到第二处（hook）', async () => {
+  const P = `${'P'.repeat(60)}\n`;
+  const B = `${'B'.repeat(60)}\n`;
+  const S = `${'S'.repeat(60)}\n`;
+  const A = `${'A'.repeat(60)}\n`;
+  const before = P + B + S + P + B + S;
+  const after = P + A + S + P + B + S;
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(after));
+  await show({ ...patch('t07-dup-block'), before, after });
+  await act(async () => handle.handleAcceptSuggestion());
+  const disk = effects.disk.get(FILE) ?? '';
+  assert.equal(disk, after, '补丁只改第一处，第二处 B 不得被改成 A');
+  assert.ok(disk.includes(B), '第二处 B 应保留');
+  assert.equal(handle.actionError, null);
+  assert.equal(editor.getValue(), after, '作者稿应保持不变');
+});
+
+// T10：分块接受与整份接受共用同一「前缀锚定 + 歧义即拒」定位器。
+// 现状 bug（case32754 同类）：handleAcceptHunk 直接走 patch-hunks 的「取部分上下文最佳分」
+// 定位，目标块上下文被作者改过、文中又有重复块时，会把补丁施加到另一处重复块（静默写错）。
+test('T10：分块接受在目标上下文被改 + 重复块时拒绝，不把补丁写到另一处', async () => {
+  const P = '甲'.repeat(48);
+  const P2 = '戊'.repeat(10);
+  const T = '目标句。';
+  const T2 = '替换句。';
+  const S = '乙'.repeat(48);
+  const line = (s: string) => `${s}\n`;
+  const before = [P, T, S, P, T, S].map(line).join('');
+  const after = [P, T2, S, P, T, S].map(line).join('');
+  const current = [P2, T, S, P, T, S].map(line).join('');
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(current));
+  await show({ ...patch('t10-hunk-dupe'), before, after });
+  const hunk = buildPatchHunks(before, after)[0];
+  await act(async () => handle.handleAcceptHunk(hunk));
+  assert.equal(effects.write.mock.calls.length, 0, '无法唯一确定目标时不得写盘');
+  assert.match(handle.actionError ?? '', /定位|冲突|歧义|多次|对应不上/);
+  assert.equal(
+    (effects.disk.get(FILE) ?? '').includes(T2),
+    false,
+    '不得把补丁写到另一处重复块（磁盘不得出现替换文本）',
+  );
+});

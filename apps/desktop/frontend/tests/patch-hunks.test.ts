@@ -92,6 +92,23 @@ test('patch hunk application rejects a changed local slice as a single-hunk conf
   assert.throws(() => applyPatchHunkToCurrent(locallyEdited, hunk), /该修改块的原文已变化/);
 });
 
+test('T07-F1：重复目标行被作者改动后不再回退到零分候选，判为冲突', () => {
+  const before = '重复句。\n重复句。\n尾巴。';
+  const after = '重复句改。\n重复句。\n尾巴。';
+  const [hunk] = buildPatchHunks(before, after);
+  assert.equal(hunk.beforeTextOccurrences, 2, '目标原文在源文件里出现两次');
+  // 作者在待确认期改了目标行（第一处），只剩另一处重复且上下文不再匹配。
+  const edited = '重复句作者改。\n重复句。\n尾巴。';
+  assert.throws(() => applyPatchHunkToCurrent(edited, hunk), /原文已变化|出现多次/);
+});
+
+test('T07-F1：重复目标行无作者改动时结果与 after 逐字一致', () => {
+  const before = '重复句。\n重复句。\n尾巴。';
+  const after = '重复句改。\n重复句。\n尾巴。';
+  const [hunk] = buildPatchHunks(before, after);
+  assert.equal(applyPatchHunkToCurrent(before, hunk), after);
+});
+
 test('insertion hunks relocate by context after an earlier hunk changes length', () => {
   const before = '铜钟响了。街面仍暗。巡夜人停步。';
   const after = '铜钟连续响了三声。街面仍暗。沈砚藏起旧印。巡夜人停步。';

@@ -1,4 +1,5 @@
 import type { AgentResultMessage } from '../../lib/api-client';
+import type { IssueScope } from '../../lib/suggestion-ops';
 import { runtimeInterruptionFromResult } from '../../lib/api/execution-outcome';
 import type { KnowledgeContextEntry } from '../../lib/assistant-suggestions';
 import {
@@ -234,4 +235,29 @@ export function issueIdsFromAgentResult(message: AgentResultMessage): string[] {
   if (!scope || typeof scope !== 'object') return [];
   const ids = (scope as { issue_ids?: unknown }).issue_ids;
   return Array.isArray(ids) ? ids.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function positiveLine(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null;
+}
+
+/**
+ * 从审稿报告的问题行范围抽取 op→issue 归属依据。报告不带行号（当前多视角审稿即如此）
+ * 就返回空数组，绝不按顺序或猜测硬凑归属。
+ */
+export function issueScopesFromAgentResult(message: AgentResultMessage): IssueScope[] {
+  const report = message.agent_result.review_report;
+  if (!report || typeof report !== 'object') return [];
+  const issues = (report as { issues?: unknown }).issues;
+  if (!Array.isArray(issues)) return [];
+  return issues.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const record = item as Record<string, unknown>;
+    const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : '';
+    if (!id) return [];
+    const start = positiveLine(record.line_start ?? record.lineStart ?? record.line);
+    const end = positiveLine(record.line_end ?? record.lineEnd ?? record.line) ?? start;
+    if (start === null || end === null || end < start) return [];
+    return [{ id, lineStart: start, lineEnd: end }];
+  });
 }
