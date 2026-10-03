@@ -28,12 +28,30 @@ def _resolve_assistant_session(
     message: dict[str, Any],
     args: dict[str, Any],
 ):
-    requested_id = _optional_positive_int(message.get("assistant_session_id")) or _optional_positive_int(args.get("assistant_session_id"))
+    message_session_id = _optional_positive_int(message.get("assistant_session_id"))
+    args_session_id = _optional_positive_int(args.get("assistant_session_id"))
+    # 外层与 args 同时声明会话却指向不同 id：判归属冲突，拒绝而不是让外层悄悄胜出。
+    if message_session_id is not None and args_session_id is not None and message_session_id != args_session_id:
+        raise AgentOrchestrationError(
+            f"Agent 会话归属冲突：assistant_session_id 外层={message_session_id} args={args_session_id}。"
+        )
+    requested_id = message_session_id or args_session_id
     if requested_id is not None:
         try:
-            return assistant_service.get_assistant_session(session, requested_id)
+            assistant_session = assistant_service.get_assistant_session(session, requested_id)
         except assistant_service.AssistantSessionNotFoundError as exc:
             raise AgentOrchestrationError(str(exc)) from exc
+        args_project_path = _optional_string(args.get("project_path"))
+        # 历史遗留会话没有登记 project_path：无可校验的归属，放行沿用而不是判死。
+        if (
+            args_project_path is not None
+            and assistant_session.project_path is not None
+            and args_project_path != assistant_session.project_path
+        ):
+            raise AgentOrchestrationError(
+                f"Agent 会话归属冲突：project_path args={args_project_path} 会话={assistant_session.project_path}。"
+            )
+        return assistant_session
     project_path = _optional_string(args.get("project_path")) or _optional_string(message.get("project_path"))
     return assistant_service.create_assistant_session(
         session,

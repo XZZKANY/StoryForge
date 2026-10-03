@@ -10,10 +10,13 @@ from agent_loop_runtime_test_support import (
     _send_chat_message,
     _write_author_instructions,
 )
+from agent_transport import stream_agent_message
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.domains.agent_runs import loop_runtime
 from app.domains.assistant import service as assistant_service
+from app.domains.assistant.schemas import AssistantMessageCreate, AssistantSessionCreate
 from app.platform.ai_sdk import ProviderError, ProviderErrorCategory, ProviderErrorDetails
 
 pytest_plugins = ("agent_loop_runtime_test_fixtures",)
@@ -546,3 +549,161 @@ def test_chat_loop_file_review_path_escape_feeds_error_and_recovers(
     assert "路径越界" in str(tool_messages[0]["content"])
     artifacts = client.get("/api/agent-runs/run-chat-loop-review-escape/artifacts").json()
     assert [artifact for artifact in artifacts if artifact["kind"] == "review_report"] == []
+
+def _seed_assistant_session(
+    session_factory: sessionmaker[Session],
+    *,
+    project_path: str | None,
+    history: str,
+) -> int:
+    with session_factory() as db:
+        created = assistant_service.create_assistant_session(
+            db,
+            AssistantSessionCreate(
+                title="会话归属校验",
+                task_type="ide_agent_orchestration",
+                project_path=project_path,
+                messages=[AssistantMessageCreate(role="user", content=history)],
+            ),
+        )
+        return created.id
+
+
+def _session_message_count(client: TestClient, session_id: int) -> int:
+    return len(client.get(f"/api/assistant/sessions/{session_id}").json()["messages"])
+
+
+def _stream_owned_session(
+    client: TestClient,
+    *,
+    run_id: str,
+    outer_session_id: int,
+    args_session_id: int | None,
+    project_path: str,
+) -> list[dict]:
+    return stream_agent_message(
+        client,
+        f"session-{run_id}",
+        run_id=run_id,
+        user_message="继续写",
+        assistant_session_id=outer_session_id,
+        args={
+            "project_path": project_path,
+            "assistant_session_id": args_session_id,
+            "context_bundle": {"files": []},
+        },
+    )
+
+
+def test_agent_stream_rejects_assistant_session_id_mismatch_between_outer_and_args(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    """外层 assistant_session_id 与 args 不一致即拒绝：A 项目资料不能混进 B 会话。"""
+
+    _enable_loop_env(monkeypatch)
+    calls = _fake_llm_script(monkeypatch, [{"content": "好的。", "tool_calls": [], "completion_tokens": 3}])
+    project_a = tmp_path / "项目A"
+    project_a.mkdir()
+    project_b = tmp_path / "项目B"
+    project_b.mkdir()
+    session_a = _seed_assistant_session(session_factory, project_path=str(project_a), history="A 独有历史标记")
+    session_b = _seed_assistant_session(session_factory, project_path=str(project_b), history="B 独有历史标记")
+
+    frames = _stream_owned_session(
+        client,
+        run_id="run-session-id-mismatch",
+        outer_session_id=session_b,
+        args_session_id=session_a,
+        project_path=str(project_a),
+    )
+
+    assert frames[-1]["type"] == "error", frames[-1]
+    assert calls == []
+    assert _session_message_count(client, session_a) == 1
+    assert _session_message_count(client, session_b) == 1
+
+
+def test_agent_stream_rejects_project_path_mismatch_with_resolved_session(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    """args.project_path 与会话登记的 project_path 不一致即拒绝，消息不落库。"""
+
+    _enable_loop_env(monkeypatch)
+    calls = _fake_llm_script(monkeypatch, [{"content": "好的。", "tool_calls": [], "completion_tokens": 3}])
+    project_a = tmp_path / "项目A"
+    project_a.mkdir()
+    project_b = tmp_path / "项目B"
+    project_b.mkdir()
+    session_b = _seed_assistant_session(session_factory, project_path=str(project_b), history="B 独有历史标记")
+
+    frames = _stream_owned_session(
+        client,
+        run_id="run-project-mismatch",
+        outer_session_id=session_b,
+        args_session_id=session_b,
+        project_path=str(project_a),
+    )
+
+    assert frames[-1]["type"] == "error", frames[-1]
+    assert calls == []
+    assert _session_message_count(client, session_b) == 1
+
+
+def test_agent_stream_allows_matching_session_and_project(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    """正常对照：外层=args 且项目一致时全链路照旧，消息落进该会话。"""
+
+    _enable_loop_env(monkeypatch)
+    calls = _fake_llm_script(monkeypatch, [{"content": "好的。", "tool_calls": [], "completion_tokens": 3}])
+    project_b = tmp_path / "项目B"
+    project_b.mkdir()
+    session_b = _seed_assistant_session(session_factory, project_path=str(project_b), history="B 历史")
+
+    frames = _stream_owned_session(
+        client,
+        run_id="run-session-ok",
+        outer_session_id=session_b,
+        args_session_id=session_b,
+        project_path=str(project_b),
+    )
+
+    assert frames[-1]["type"] == "agent_result", frames[-1]
+    assert len(calls) == 1
+    assert _session_message_count(client, session_b) == 3
+
+
+def test_agent_stream_allows_legacy_session_without_project_path(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    """会话 project_path 为空（历史遗留）时放行：无登记项目可校验，不据此判死。"""
+
+    _enable_loop_env(monkeypatch)
+    calls = _fake_llm_script(monkeypatch, [{"content": "好的。", "tool_calls": [], "completion_tokens": 3}])
+    project_a = tmp_path / "项目A"
+    project_a.mkdir()
+    legacy = _seed_assistant_session(session_factory, project_path=None, history="历史遗留会话")
+
+    frames = _stream_owned_session(
+        client,
+        run_id="run-legacy-session",
+        outer_session_id=legacy,
+        args_session_id=legacy,
+        project_path=str(project_a),
+    )
+
+    assert frames[-1]["type"] == "agent_result", frames[-1]
+    assert len(calls) == 1
+    assert _session_message_count(client, legacy) == 3
