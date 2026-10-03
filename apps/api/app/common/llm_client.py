@@ -33,6 +33,7 @@ from app.common.llm_control import (
 )
 from app.common.llm_observation import observe_provider
 from app.common.redaction import redact_sensitive_text
+from app.common.stream_text import VisibleTextFilter
 from app.platform.ai_sdk.capabilities import ProviderCapabilities
 from app.platform.ai_sdk.contracts import (
     ChatRequest,
@@ -46,6 +47,7 @@ from app.platform.ai_sdk.contracts import (
 from app.platform.ai_sdk.errors import ProviderError
 from app.platform.ai_sdk.provider import LLMProvider, ProviderHealth
 from app.platform.ai_sdk.providers import AnthropicProvider, GeminiProvider, OpenAICompatibleProvider
+from app.platform.ai_sdk.providers.openai_stream import OpenAIToolStream
 from app.platform.ai_sdk.stream_usage import retaining_stream_usage
 
 logger = logging.getLogger(__name__)
@@ -364,6 +366,7 @@ def _raw_stream_chat_completions(
     source: Mapping[str, str | None],
     payload: dict[str, object],
     *,
+    tool_stream: bool = False,
     timeout_seconds: float | None = None,
     max_attempts: int | None = None,
 ) -> Iterator[dict[str, object]]:
@@ -462,7 +465,8 @@ def _raw_stream_chat_completions(
                 )
             ) from exc
 
-    leak_filter = llm_http.StreamingReasoningFilter()
+    leak_filter = VisibleTextFilter(secrets) if tool_stream else llm_http.StreamingReasoningFilter()
+    tool_parts = OpenAIToolStream()
     emitted: list[str] = []
     usage_payload: dict[str, object] | None = None
     saw_terminal = False
@@ -484,6 +488,11 @@ def _raw_stream_chat_completions(
                 continue
             if not isinstance(chunk, dict):
                 continue
+            if tool_stream:
+                try:
+                    tool_parts.feed(chunk)
+                except ValueError as exc:
+                    raise LLMError("Invalid streamed tool response.") from exc
             if reason := _stream_finish_reason(chunk):
                 finish_reason = reason
                 # 两种终止标记都认：多数兼容端点两者都发（实测本机中转站发 finish_reason
@@ -518,13 +527,17 @@ def _raw_stream_chat_completions(
     finally:
         response.close()
 
-    tail = leak_filter.flush()
+    tail = leak_filter.finish() if tool_stream else leak_filter.flush()
     if tail:
         emitted.append(tail)
         yield {"type": "delta", "text": tail}
 
     content = "".join(emitted).strip()
-    if not content:
+    try:
+        tool_calls = tool_parts.complete(finish_reason) if tool_stream else []
+    except ValueError as exc:
+        raise LLMError("Incomplete streamed tool response.") from exc
+    if not content and not tool_calls and not (tool_stream and finish_reason in {"length", "content_filter"}):
         raise LLMError("真实 LLM 流式返回内容为空。")
     if not saw_terminal:
         # 上游在收尾标记之前关流：此前这里照常产出 done 帧，半截正文被当成稿——实测
@@ -550,6 +563,9 @@ def _raw_stream_chat_completions(
         "cost_breakdown": cost,
         "latency_ms": max(0, int((time.monotonic() - started_at) * 1000)),
     }
+    if tool_stream:
+        done["tool_calls"] = tool_calls
+        done["response_id"] = tool_parts.response_id
     if leak_filter.stripped:
         done["reasoning_leak_stripped"] = True
     yield done
@@ -625,14 +641,13 @@ def _base_sdk_provider(
             )
         ),
         stream_transport=(
-            lambda _payload: _raw_stream_chat_completions(
+            lambda payload: _raw_stream_chat_completions(
                 source,
-                stream_payload,
+                stream_payload if stream_payload is not None else payload,
+                tool_stream=stream_payload is None,
                 timeout_seconds=timeout_seconds,
                 max_attempts=max_attempts,
             )
-            if stream_payload is not None
-            else None
         ),
         content_filter=_strip_reasoning_leak,
         usage_parser=_token_usage,

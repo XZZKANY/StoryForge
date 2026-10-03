@@ -42,12 +42,98 @@ from app.domains.ide.service import (
     execute_ide_command_by_id,
 )
 from app.domains.ide.stream_measurement import StreamMeasurement
+from app.domains.ide.stream_queue import QueueGetTimeout, WorkerStreamQueue
 
 router = APIRouter(prefix="/api/ide", tags=["IDE 工作台"])
 
 _STREAM_EVENT = "stream_event"
 _STREAM_RESULT = "result"
 _STREAM_ERROR = "error"
+
+# Consumer-side text coalescing: the first delta of a round flushes immediately; later
+# deltas merge into one frame on a short window or character budget, then chunk_sequence is
+# renumbered contiguously. Worker production and back-pressure are untouched.
+_TEXT_COALESCE_WINDOW_SECONDS = 0.04
+_TEXT_COALESCE_MAX_CHARS = 4096
+
+
+def _is_text_delta(payload: dict[str, Any]) -> bool:
+    return payload.get("type") == "agent_text_delta"
+
+
+def _same_text_stream(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    return (
+        left.get("run_id") == right.get("run_id")
+        and left.get("stream_id") == right.get("stream_id")
+        and left.get("round_index") == right.get("round_index")
+    )
+
+
+class _TextDeltaCoalescer:
+    """Merge consecutive same-stream text deltas behind a short, bounded window.
+
+    The first delta of each stream round is emitted immediately; subsequent deltas are
+    buffered until the window elapses, the character budget fills, or a non-delta frame forces
+    a flush. chunk_sequence is renumbered contiguously at flush time.
+    """
+
+    def __init__(self) -> None:
+        self._pending: dict[str, Any] | None = None
+        self._emitted_rounds: set[tuple[Any, Any, Any]] = set()
+        self._next_sequence: dict[tuple[Any, Any, Any], int] = {}
+
+    def _round_key(self, payload: dict[str, Any]) -> tuple[Any, Any, Any]:
+        return (payload.get("run_id"), payload.get("stream_id"), payload.get("round_index"))
+
+    def _take_pending(self) -> dict[str, Any] | None:
+        pending = self._pending
+        self._pending = None
+        return pending
+
+    def _renumber(self, frame: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Rewrites chunk_sequence to the per-round contiguous logical sequence."""
+        if frame is None:
+            return None
+        key = self._round_key(frame)
+        sequence = self._next_sequence.get(key, 1)
+        frame["chunk_sequence"] = sequence
+        self._next_sequence[key] = sequence + 1
+        return frame
+
+    def feed(self, payload: dict[str, Any]) -> tuple[list[dict[str, Any]], bool]:
+        """Returns (frames to emit now, whether a flush timer should be armed)."""
+        if not _is_text_delta(payload):
+            flushed = self._renumber(self._take_pending())
+            return ([flushed, payload] if flushed is not None else [payload], False)
+
+        pending = self._pending
+        if pending is not None and not _same_text_stream(pending, payload):
+            # A new stream/round must not absorb the previous one; flush it, then buffer fresh.
+            flushed = self._renumber(self._take_pending())
+            self._pending = dict(payload)
+            return ([flushed], True)
+
+        key = self._round_key(payload)
+        if pending is None:
+            self._pending = dict(payload)
+            if key not in self._emitted_rounds:
+                # First delta of this stream round: ship it now, do not arm a window.
+                self._emitted_rounds.add(key)
+                first = self._renumber(self._take_pending())
+                return ([first], False)
+            return ([], True)
+
+        if len(pending["text_delta"]) + len(payload["text_delta"]) > _TEXT_COALESCE_MAX_CHARS:
+            # Character budget reached: ship the merged frame, start a fresh pending window.
+            flushed = self._renumber(self._take_pending())
+            self._pending = dict(payload)
+            return ([flushed], True)
+
+        pending["text_delta"] = pending["text_delta"] + payload["text_delta"]
+        return ([], True)
+
+    def flush(self) -> dict[str, Any] | None:
+        return self._renumber(self._take_pending())
 
 
 async def _agent_user_message_payloads(session, *, session_id: str, message: dict[str, Any], external_lease=None):
@@ -58,15 +144,12 @@ async def _agent_user_message_payloads(session, *, session_id: str, message: dic
 
     measurement = StreamMeasurement()
     loop = asyncio.get_running_loop()
-    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    queue = WorkerStreamQueue(loop)
     session_bind = session.get_bind()
     thread_session_factory = sessionmaker(bind=session_bind, autoflush=False, autocommit=False, expire_on_commit=False)
 
     def enqueue(item: dict[str, Any]) -> None:
-        try:
-            loop.call_soon_threadsafe(queue.put_nowait, item)
-        except RuntimeError:
-            return
+        queue.put(item)
 
     def on_event(event) -> None:  # noqa: ANN001 - callback receives ORM AgentRunEvent from runtime thread
         for payload in websocket_stream_events_from_agent_event(event):
@@ -80,6 +163,7 @@ async def _agent_user_message_payloads(session, *, session_id: str, message: dic
                     agent_session_id=session_id,
                     message=message,
                     on_event=on_event,
+                    on_text=lambda frame: enqueue({"kind": _STREAM_EVENT, "payload": frame.to_wire()}),
                     external_lease=external_lease,
                 )
             except AgentRuntimeError as exc:
@@ -97,17 +181,52 @@ async def _agent_user_message_payloads(session, *, session_id: str, message: dic
 
     worker = asyncio.create_task(asyncio.to_thread(run_in_thread))
     stream_status = "ok"
+    coalescer = _TextDeltaCoalescer()
+    flush_deadline: float | None = None
     try:
         while True:
-            item = await queue.get()
+            # This is a fixed window, not an idle debounce. Check the deadline even when
+            # the queue stays nonempty, and never renew it just because a delta arrived.
+            remaining = None if flush_deadline is None else flush_deadline - loop.time()
+            if remaining is not None and remaining <= 0:
+                item = None
+            elif remaining is not None:
+                try:
+                    item = await queue.get(timeout=remaining)
+                except QueueGetTimeout:
+                    item = None
+            else:
+                item = await queue.get()
+            if item is None:
+                flushed = coalescer.flush()
+                flush_deadline = None
+                if flushed is not None:
+                    measurement.before_yield(flushed)
+                    yield flushed
+                continue
             kind = item.get("kind")
             payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
-            measurement.before_yield(payload)
-            if kind == _STREAM_ERROR:
-                stream_status = "error"
-            yield payload
             if kind in (_STREAM_RESULT, _STREAM_ERROR):
+                # Terminal frames flush any buffered text, then pass through untouched.
+                flushed = coalescer.flush()
+                flush_deadline = None
+                if flushed is not None:
+                    measurement.before_yield(flushed)
+                    yield flushed
+                measurement.before_yield(payload)
+                if kind == _STREAM_ERROR:
+                    stream_status = "error"
+                yield payload
                 break
+            frames, window_armed = coalescer.feed(payload)
+            if not window_armed:
+                flush_deadline = None
+            elif flush_deadline is None or frames:
+                # A size/stream-boundary flush starts a fresh buffer and therefore a new window.
+                flush_deadline = loop.time() + _TEXT_COALESCE_WINDOW_SECONDS
+            for frame in frames:
+                measurement.before_yield(frame)
+                yield frame
     except (asyncio.CancelledError, GeneratorExit):
         stream_status = "cancelled"
         raise
@@ -115,6 +234,7 @@ async def _agent_user_message_payloads(session, *, session_id: str, message: dic
         stream_status = "error"
         raise
     finally:
+        queue.close()
         measurement.transport_finished(stream_status)
         await worker
 

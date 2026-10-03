@@ -7,6 +7,8 @@ from app.domains.agent_runs.ws_messages import (
     AgentRunStartedFrame,
     AgentRunWaitingFrame,
     AgentStepFrame,
+    AgentTextDeltaFrame,
+    AgentTextStreamStartedFrame,
     ControlAckFrame,
     PermissionRequiredFrame,
     TerminalFrame,
@@ -30,6 +32,8 @@ _FRAMES: tuple[type[WsFrame], ...] = (
     TerminalFrame,
     ControlAckFrame,
     AgentRunWaitingFrame,
+    AgentTextStreamStartedFrame,
+    AgentTextDeltaFrame,
 )
 
 

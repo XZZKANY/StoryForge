@@ -141,6 +141,11 @@ def _loc_has_sensitive_key(loc: object) -> bool:
     return any(is_sensitive_key(part) for part in loc)
 
 
+def configured_secret_values(extra_secrets: Iterable[str | None] = ()) -> list[str]:
+    """Snapshot known secrets for incremental display filtering; never log this value."""
+    return _configured_secret_values(extra_secrets)
+
+
 def _configured_secret_values(extra_secrets: Iterable[str | None]) -> list[str]:
     values: list[str] = []
     values.extend(secret for secret in extra_secrets if isinstance(secret, str))

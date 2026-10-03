@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+import time
 from contextlib import ExitStack
 from pathlib import Path
 from threading import Lock
@@ -15,7 +16,7 @@ from unittest.mock import patch
 API_ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = "storyforge-gui-lifecycle-fixture-v1"
 AFTER = "雨停了。林舟收起伞，沿着河岸走向灯火。\n"
-SCENARIOS = {"audit_close", "manual_wait", "snapshot_kill", "branch_kill", "intent_kill", "body_kill", "audit_done_kill"}
+SCENARIOS = {"audit_close", "manual_wait", "snapshot_kill", "branch_kill", "intent_kill", "body_kill", "audit_done_kill", "token_stream"}
 
 
 def validate_fixture(data: Path, generation: str) -> Path:
@@ -34,6 +35,22 @@ def validate_fixture(data: Path, generation: str) -> Path:
     return project
 
 
+def wait_token_stream(data: Path, stage: str, call: int, timeout: float = 120):
+    """A bounded test-only observation barrier; never creates writeback facts."""
+    if stage not in {"initial", "final"} or call < 1:
+        raise ValueError("gui_fixture_token_identity_invalid")
+    marker = data / f"token-stream-{stage}-{call}-entered.json"
+    marker.write_text(json.dumps({"stage": stage, "provider_call": call}), encoding="utf-8")
+    deadline = time.monotonic() + timeout
+    while not (data / f"token-stream-{stage}-{call}-release").is_file():
+        from app.common.llm_control import check_run_interruption
+
+        check_run_interruption('gui_token_stream_barrier')
+        if time.monotonic() >= deadline:
+            raise TimeoutError("gui_fixture_token_timeout")
+        time.sleep(0.025)
+
+
 def configure_fixture(data: Path, generation: str, stack: ExitStack):
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
@@ -47,6 +64,7 @@ def configure_fixture(data: Path, generation: str, stack: ExitStack):
     from app.platform.ai_sdk.providers import DeterministicProvider
 
     project = validate_fixture(data, generation)
+    token_stream = json.loads((data / 'gui-fixture.json').read_text())["scenario"] == "token_stream"
     assert external_admission.RELEASE_GATE_PASSED is False
     statistics = data / "gui-provider-stats.json"
     stats = (
@@ -75,13 +93,16 @@ def configure_fixture(data: Path, generation: str, stack: ExitStack):
             ]
             with lock:
                 stats["provider_calls"] += 1
+                call = stats["provider_calls"]
                 if reads:
                     stats["saved_read_observed"] = json.loads(reads[-1].content).get("content") == AFTER
                 persist()
             if reads:
+                if token_stream:
+                    wait_token_stream(data, "final", call)
                 return ChatResponse("测试provider已读取实际保存的修订，原运行完成。")
             return ChatResponse(
-                "",
+                "修订前预览：先核对当前稿件，再提出整版建议。" if token_stream else "",
                 tool_calls=(
                     ToolCall("revise", "file_revise", '{"path":"chapter.md","instruction":"测试整版修订"}'),
                     ToolCall("read", "fs_read", '{"path":"chapter.md"}'),
@@ -89,7 +110,13 @@ def configure_fixture(data: Path, generation: str, stack: ExitStack):
             )
 
         def stream(self, request):
-            yield StreamEvent(StreamEventKind.COMPLETED, response=self.complete(request))
+            response = self.complete(request)
+            if token_stream and response.tool_calls:
+                with lock:
+                    call = stats["provider_calls"]
+                yield StreamEvent(StreamEventKind.TEXT_DELTA, text=response.content)
+                wait_token_stream(data, "initial", call)
+            yield StreamEvent(StreamEventKind.COMPLETED, response=response)
 
     provider = FixtureProvider()
 

@@ -18,6 +18,7 @@ from app.domains.agent_runs.loop.support import (
     tool_output_summary,
 )
 from app.domains.agent_runs.loop.types import LoopToolFeedback
+from app.domains.agent_runs.text_stream import complete_with_text_stream
 from app.domains.agent_runs.tools import (
     list_loop_tool_specs,
     llm_tool_name,
@@ -73,7 +74,7 @@ class StoryForgeProviderAdapter:
         from app.domains.agent_runs.loop.external_checkpoint import checkpoint_store_for_context
 
         checkpoint_store_for_context(self._context).model_started(request)
-        response = self._context.remember_response(self._provider.complete(request))
+        response = self._context.remember_response(complete_with_text_stream(self._provider, request, context=self._context))
         self._context.model_outcome_unknown = False
         usage_payload = response.usage.to_legacy()
         raw_breakdown = response.metadata.get("cost_breakdown")

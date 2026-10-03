@@ -46,6 +46,7 @@ export function useChatSessionContext(
   leaveGuard: SessionLeaveGuard = {},
 ) {
   const {
+    textStream,
     previousAssistantSessionIdRef,
     selfPersistedSessionIdRef,
     draftNonceRef,
@@ -107,6 +108,7 @@ export function useChatSessionContext(
   useEffect(() => {
     const nextSessionId = assistantSessionId ?? null;
     const preservesCurrentConversation = selfPersistedSessionIdRef.current === nextSessionId;
+    if (!preservesCurrentConversation) textStream.reset();
     if (shouldResetRunPanels(nextSessionId, selfPersistedSessionIdRef.current)) {
       setAgentRun(null);
       setChapterBrief(null);
@@ -141,6 +143,7 @@ export function useChatSessionContext(
       setSessionLoadError(null);
     }
   }, [
+    textStream,
     assistantSessionId,
     draftNonceRef,
     previousAssistantSessionIdRef,
@@ -164,6 +167,7 @@ export function useChatSessionContext(
     if (!assistantSessionId) return;
     let cancelled = false;
     const originalRunId = agentRunIdRef.current;
+    const originalTextRevision = textStream.revision();
     setSessionLoadError(null);
     void getAssistantSession(assistantSessionId)
       .then((session) => {
@@ -182,7 +186,19 @@ export function useChatSessionContext(
           );
         // While waiting, the API has not persisted the completed conversation yet.
         // Its empty history must not erase the page-local original user request.
-        if (!ownsLiveWait) setMessages(compactConversationMessages(session.messages));
+        if (
+          !ownsLiveWait &&
+          !textStream.hasPending(originalRunId) &&
+          originalTextRevision === textStream.revision()
+        )
+          setMessages((current) =>
+            // A same-batch settlement may precede this GET. Keep the current
+            // page's projection (including an unpersisted interrupted fragment).
+            // Navigation clears messages, so cold history remains authoritative.
+            current.some((message) => message.stream?.runId === originalRunId)
+              ? current
+              : compactConversationMessages(session.messages),
+          );
       })
       .catch((error) => {
         if (cancelled || agentRunIdRef.current !== originalRunId) return;
@@ -198,6 +214,7 @@ export function useChatSessionContext(
     externalWriteback,
     agentRunIdRef,
     sessionLoadRetry,
+    textStream,
     setConversationTitle,
     setMessages,
     setSessionLoadError,
@@ -338,6 +355,7 @@ export function useChatSessionContext(
   // 返回是否真正完成了切换：调用方藉此决定要不要同步清理排队消息等派生态。
   const handleNewSession = useCallback((): boolean | Promise<boolean> => {
     const startNewSession = () => {
+      textStream.reset();
       draftNonceRef.current = nextDraftNonce();
       // draft→draft 时 assistantSessionId 仍为 null，session effect 不会重跑；显式清掉
       // 旧 run/brief/projection，避免总览把上一轮活动错投影到新会话。
@@ -366,6 +384,7 @@ export function useChatSessionContext(
     if (!confirmation) return startNewSession();
     return confirmation.then((confirmed) => (confirmed ? startNewSession() : false));
   }, [
+    textStream,
     confirmPendingLeave,
     draftNonceRef,
     contextCandidates,

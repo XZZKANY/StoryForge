@@ -286,6 +286,7 @@ class ConversationRuntimeMixin:
                 current_file=_optional_string(args.get("file_path")),
                 execute_fs_tool=execute_fs_tool,
                 on_trace=on_trace,
+                on_text=self._on_text,
                 should_interrupt=lambda boundary: self._runtime_interruption(run, boundary=boundary),
                 author_view=AuthorView.from_payload(args),
                 pinned_context=_chat_context_block(args),

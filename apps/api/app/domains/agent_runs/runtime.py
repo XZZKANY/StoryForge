@@ -40,6 +40,7 @@ from app.domains.agent_runs.review_report import continuity_subagent_handler as 
 from app.domains.agent_runs.review_report import review_report_summary as _review_report_summary
 from app.domains.agent_runs.review_report import review_subagent_handler as _review_subagent_handler
 from app.domains.agent_runs.runtime_delivery import interrupted_delivery_result
+from app.domains.agent_runs.text_stream import TextObserver
 from app.domains.agent_runs.tools import (
     SubagentDefinition,
     SubagentExecutor,
@@ -135,7 +136,8 @@ class AgentRuntime(
 ):
     """Root Agent runtime facade: skill plan -> tool registry -> permission gate -> event store."""
 
-    def __init__(self, event_sink: EventSink, *, external_execution=None) -> None:
+    def __init__(self, event_sink: EventSink, *, external_execution=None, on_text: TextObserver | None = None) -> None:
+        self._on_text = on_text
         self._event_sink = event_sink
         self._external_execution = external_execution
         self._external_session: Session | None = None

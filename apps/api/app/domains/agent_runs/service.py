@@ -90,6 +90,7 @@ from app.domains.agent_runs.service_types import (
     AgentRuntimeUserMessageError,
     AgentRuntimeUserMessageResult,
 )
+from app.domains.agent_runs.text_stream import TextObserver
 
 _AgentRunEventSink = AgentRunEventSink
 _book_run_budget = run_payloads.book_run_budget
@@ -187,6 +188,7 @@ def execute_agent_user_message_run(
     on_event: Callable[[AgentRunEvent], None] | None = None,
     external_lease: ExternalExecutionLease | None = None,
     started_event: AgentRunEvent | None = None,
+    on_text: TextObserver | None = None,
 ) -> dict[str, Any]:
     """由 Agent Runtime 作为唯一入口驱动 skill、tools、permission 和事件写入。"""
 
@@ -209,8 +211,9 @@ def execute_agent_user_message_run(
                           if external_lease is not None else None)
     try:
         sink = _AgentRunEventSink(session, on_event=on_event)
-        runtime = (AgentRuntime(sink) if external_execution is None
-                   else AgentRuntime(sink, external_execution=external_execution))
+        options = {"on_text": on_text} if on_text is not None else {}
+        runtime = (AgentRuntime(sink, **options) if external_execution is None
+                   else AgentRuntime(sink, external_execution=external_execution, **options))
     except AgentOrchestrationError as exc:
         fail_agent_run(
             session,
@@ -255,6 +258,7 @@ def run_agent_user_message(
     message: dict[str, Any],
     on_event: Callable[[AgentRunEvent], None] | None = None,
     external_lease: ExternalExecutionLease | None = None,
+    on_text: TextObserver | None = None,
 ) -> AgentRuntimeUserMessageResult:
     """Agent Runtime Facade：SSE user_message 的唯一执行入口。"""
 
@@ -270,6 +274,7 @@ def run_agent_user_message(
             run=start.run,
             agent_session_id=agent_session_id,
             message={**message, "run_id": run_id},
+            on_text=on_text,
             on_event=on_event,
             external_lease=external_lease,
         )

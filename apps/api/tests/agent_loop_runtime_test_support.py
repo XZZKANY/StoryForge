@@ -10,6 +10,7 @@ from app.domains.agent_runs import loop_runtime
 from app.domains.assistant import service as assistant_service
 from app.platform.ai_sdk import (
     ChatResponse,
+    ProviderCapabilities,
     ProviderError,
     ProviderErrorCategory,
     ProviderErrorDetails,
@@ -27,6 +28,9 @@ def _fake_llm_script(monkeypatch: pytest.MonkeyPatch, responses: list[object]) -
     calls: list[dict[str, object]] = []
 
     class ScriptedProvider:
+        def capabilities(self, model: str) -> ProviderCapabilities:
+            return ProviderCapabilities(streaming=False)
+
         def complete(self, request):  # noqa: ANN001, ANN201
             calls.append(
                 {

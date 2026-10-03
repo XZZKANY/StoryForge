@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useChatTextStream } from './useChatTextStream';
 
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import { EDITOR_AUTHOR_VIEW_EVENT, type EditorAuthorViewDetail } from '../../lib/assistant-events';
@@ -31,6 +32,7 @@ export function useChatWindowState({
 }: Pick<ChatWindowProps, 'projectPath' | 'currentFile' | 'assistantSessionId'>) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
+  const textStream = useChatTextStream(setMessages);
   const [agentRun, setAgentRun] = useState<AgentRun | null>(null);
   const [chapterBrief, setChapterBrief] = useState<ChapterBrief | null>(null);
   const [agentRunRecovery, setAgentRunRecovery] = useState<AgentRunRecoveryDisplay | null>(null);
@@ -79,6 +81,7 @@ export function useChatWindowState({
   useEffect(() => {
     contextRefRef.current = contextRef;
     currentFileRef.current = currentFile;
+    if (projectPathRef.current !== projectPath) textStream.reset();
     projectPathRef.current = projectPath;
     assistantSessionIdRef.current = assistantSessionId ?? null;
   });
@@ -105,6 +108,7 @@ export function useChatWindowState({
     setInput,
     messages,
     setMessages,
+    textStream,
     agentRun,
     setAgentRun,
     chapterBrief,

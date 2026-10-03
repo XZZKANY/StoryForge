@@ -15,6 +15,8 @@ import {
 } from '../src/components/chat-window/useChatWindowState';
 import { useChatSessionContext } from '../src/components/chat-window/useChatSessionContext';
 import { ChatWindowView } from '../src/components/chat-window/ChatWindowView';
+import { MessageList } from '../src/components/chat-window/panels';
+import { useExternalAgentConversation } from '../src/components/chat-window/useExternalAgentConversation';
 
 const history = vi.hoisted(() => ({
   read: vi.fn<(id: number) => Promise<AssistantSessionRecord>>(),
@@ -654,3 +656,130 @@ it('assigning a persisted session to a live external wait must not erase the ori
     container.remove();
   }
 });
+
+it.each(['completed', 'failed', 'partial'] as const)(
+  'real coordinator replaces preview for %s in the same message node exactly once',
+  async (outcome) => {
+    const f = fixture();
+    let external!: ReturnType<typeof useExternalAgentConversation>;
+    function LiveConversation() {
+      const state = useChatWindowState({
+        projectPath: 'D:/book',
+        currentFile: null,
+        assistantSessionId: 1,
+      });
+      chatState = state;
+      external = useExternalAgentConversation(
+        state,
+        (status) => state.setAgentRun((run) => (run ? { ...run, status } : run)),
+        async () => {},
+        undefined,
+      );
+      return (
+        <MessageList
+          messages={state.messages}
+          agentRun={state.agentRun}
+          agentRunRecovery={null}
+          writingRunProjection={null}
+          conversationScope="D:/book"
+        />
+      );
+    }
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(
+          <ExternalWritebackProvider project="D:/book" coordinator={f.coordinator}>
+            <LiveConversation />
+          </ExternalWritebackProvider>,
+        ),
+      );
+      await act(async () => {
+        chatState.agentRunIdRef.current = 'original';
+        chatState.setAgentRun({
+          id: 'original',
+          sessionId: 'session',
+          goal: '原请求',
+          status: 'running',
+          steps: [],
+        });
+        chatState.textStream.begin('original', () => true);
+        chatState.textStream.accept({
+          type: 'agent_text_stream_started',
+          run_id: 'original',
+          stream_id: 'preview',
+          round_index: 1,
+          chunk_sequence: 0,
+        });
+        chatState.textStream.accept({
+          type: 'agent_text_delta',
+          run_id: 'original',
+          stream_id: 'preview',
+          round_index: 1,
+          chunk_sequence: 1,
+          text_delta: '工具前预览',
+        });
+      });
+      const node = container.querySelector('[data-testid="assistant-message"]');
+      const id = chatState.messages[0].id;
+      expect(node?.textContent).toContain('工具前预览');
+      const settled = vi.spyOn(chatState.textStream, 'settle');
+      const entry = f.coordinator.getSnapshot()[0]!;
+      await act(async () =>
+        external.handleWaiting(entry.frame, {
+          negotiated: true,
+          project: 'D:/book',
+          runId: 'original',
+          owned: true,
+        }),
+      );
+      expect(node?.textContent).toContain('等待下一步');
+      f.ports.result = async () => ({
+        type: 'agent_result',
+        run_id: 'original',
+        session_id: 'session',
+        assistant_session_id: 1,
+        user_message: '原请求',
+        intent: 'chat.explain',
+        plan: [],
+        tool_trace: [],
+        agent_result: {
+          summary: '工具后的权威回复',
+          requires_user_confirmation: false,
+          ...(outcome !== 'completed'
+            ? {
+                execution_outcome: {
+                  status: outcome,
+                  code: 'fixture_failure',
+                  message: '工具未全部完成',
+                },
+              }
+            : {}),
+        },
+      });
+      await act(async () => f.coordinator.refresh(entry.key));
+      await act(async () => f.coordinator.refresh(entry.key));
+      expect(container.querySelector('[data-testid="assistant-message"]')).toBe(node);
+      expect(chatState.messages[0].id).toBe(id);
+      expect(container.querySelectorAll('[data-testid="assistant-message"]')).toHaveLength(1);
+      expect(node?.textContent).toContain('工具后的权威回复');
+      expect(node?.textContent).not.toContain('工具前预览');
+      expect(chatState.messages[0].content).toBe('工具后的权威回复');
+      expect(chatState.agentRun?.status).toBe(outcome === 'completed' ? 'completed' : 'failed');
+      expect(chatState.messages[0].stream?.detail).toBeUndefined();
+      if (outcome === 'completed')
+        expect(container.querySelector('[data-testid="stream-phase"]')).toBeNull();
+      else expect(container.textContent).toContain('回复未完成');
+      expect(settled).toHaveBeenCalledOnce();
+      expect(f.coordinator.getSnapshot()[0]?.phase).toBe('finished');
+      for (const writer of [f.prepare, f.reconcile, f.describe, f.recover])
+        expect(writer).not.toHaveBeenCalled();
+      settled.mockRestore();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  },
+);

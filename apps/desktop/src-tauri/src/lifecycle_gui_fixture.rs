@@ -18,6 +18,7 @@ const SCENARIOS: &[&str] = &[
     "intent_kill",
     "body_kill",
     "audit_done_kill",
+    "token_stream",
 ];
 static FIXTURE: OnceLock<Fixture> = OnceLock::new();
 

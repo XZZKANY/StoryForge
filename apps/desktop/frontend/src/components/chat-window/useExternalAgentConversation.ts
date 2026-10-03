@@ -8,7 +8,7 @@ import {
 import type { AgentSocketMessage } from '../../lib/api/types';
 import type { ChatWindowState } from './useChatWindowState';
 import type { AgentRunStatus, ChatWindowProps } from './types';
-import { statusFromAgentResult } from './resumed-result';
+import { statusFromAgentResult, textSettlementFromAgentResult } from './resumed-result';
 
 /** External waits are routed to App, not projected into the legacy suggestion queue. */
 export function useExternalAgentConversation(
@@ -32,7 +32,7 @@ export function useExternalAgentConversation(
     projectPathRef,
     setAgentBusy,
     setAgentRun,
-    setMessages,
+    textStream,
   } = state;
   const handleWaiting = useCallback(
     async (
@@ -47,6 +47,7 @@ export function useExternalAgentConversation(
       if (!isAgentRunWaitingMessage(response)) return false;
       if (!scope.negotiated || !coordinator) throw new Error('未协商的等待协议，已阻止投递');
       if (scope.owned) {
+        textStream.hold(scope.runId, 'working');
         const draft = assistantSessionIdRef.current === null;
         assistantSessionIdRef.current = response.assistant_session_id;
         if (draft) selfPersistedSessionIdRef.current = response.assistant_session_id;
@@ -58,9 +59,13 @@ export function useExternalAgentConversation(
         setAgentBusy(false);
         void refresh(scope.runId);
       }
-      await coordinator.track(response, scope.project, (result) => {
+      // reset/begin/settle revoke this page projection permanently, including A -> B -> A.
+      // Self-persisting the same draft does not change the revision.
+      const textRevision = textStream.revision();
+      const onResult = (result: AgentSocketMessage) => {
         if (
           !mounted.current ||
+          textStream.revision() !== textRevision ||
           agentRunIdRef.current !== scope.runId ||
           projectPathRef.current !== scope.project ||
           assistantSessionIdRef.current !== response.assistant_session_id
@@ -68,17 +73,23 @@ export function useExternalAgentConversation(
           return;
         if (isAgentResultMessage(result)) {
           updateStatus(statusFromAgentResult(result));
-          setMessages((prev) => [
-            ...prev,
-            { role: 'assistant', content: result.agent_result.summary ?? '原运行已经完成。' },
-          ]);
+          textStream.settle(
+            scope.runId,
+            textSettlementFromAgentResult(
+              result,
+              result.agent_result.summary ?? '原运行已经完成。',
+            ),
+            statusFromAgentResult(result),
+          );
         } else if (isAgentErrorMessage(result)) {
           updateStatus('failed');
-          setMessages((prev) => [...prev, { role: 'assistant', content: result.detail }]);
+          textStream.settle(scope.runId, { kind: 'diagnostic', detail: result.detail }, 'failed');
         }
         setAgentBusy(false);
         void refresh(scope.runId);
-      });
+      };
+      // App may track an old wait, but it must not replace an owned page callback.
+      await coordinator.track(response, scope.project, scope.owned ? onResult : undefined);
       return true;
     },
     [
@@ -92,7 +103,7 @@ export function useExternalAgentConversation(
       refresh,
       agentRunIdRef,
       projectPathRef,
-      setMessages,
+      textStream,
     ],
   );
   return { coordinator, handleWaiting };

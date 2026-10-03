@@ -107,8 +107,8 @@ def run_declared_tool(client, monkeypatch, novel_project):
             )
 
         class RuntimeWithDeclaredTool(AgentRuntime):
-            def __init__(self, event_sink):
-                super().__init__(event_sink)
+            def __init__(self, event_sink, *, on_text=None):
+                super().__init__(event_sink, on_text=on_text)
                 self._tool_registry.register(tool_definition_from_spec(demo, handler))
 
         monkeypatch.setattr(service, "AgentRuntime", RuntimeWithDeclaredTool)

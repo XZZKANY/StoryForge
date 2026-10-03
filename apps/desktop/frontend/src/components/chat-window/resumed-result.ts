@@ -5,7 +5,7 @@ import {
 import type { AgentResultMessage } from '../../lib/api-client';
 import { stepsFromAgentResult } from './agent-step-mapping';
 import { writableFilePatch } from './agent-result';
-import type { AgentRun, AgentStep } from './types';
+import type { AgentRun, AgentStep, AgentTextSettlement } from './types';
 import { checkpointResumeFromDiagnostic } from './recovery';
 
 export type ResumeDiagnosticDisplay = {
@@ -30,6 +30,16 @@ export function statusFromAgentResult(response: AgentResultMessage): AgentRun['s
     : outcome
       ? 'failed'
       : 'completed';
+}
+
+/** A runtime interruption carries a diagnosis; execution_outcome alone does not demote its body. */
+export function textSettlementFromAgentResult(
+  response: AgentResultMessage,
+  content: string,
+): AgentTextSettlement {
+  return runtimeInterruptionFromResult(response)
+    ? { kind: 'diagnostic', detail: response.agent_result.summary ?? content }
+    : { kind: 'result', content };
 }
 
 export function stepsFromResumedAgentResult(response: AgentResultMessage): AgentStep[] {

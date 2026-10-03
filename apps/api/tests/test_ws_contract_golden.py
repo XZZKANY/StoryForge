@@ -18,6 +18,7 @@ from app.domains.agent_runs.event_types import (
     TOOL_TRACE,
     event_type_for_control_message,
 )
+from app.domains.agent_runs.ws_messages import AgentTextDeltaFrame, AgentTextStreamStartedFrame
 
 # Agent 帧契约金测：把 event_encoders 产出的每类实时帧里「前端会解码的键」钉死。
 # 桌面壳子在重做，但这些帧形状是后端 → 前端的硬契约：任何一方漂移，重建/守卫失效。
@@ -63,6 +64,16 @@ def _event(
 
 def _encode(event: SimpleNamespace) -> list[dict[str, object]]:
     return websocket_stream_events_from_agent_event(event)
+
+
+def test_transient_text_frames_have_no_persistence_or_reasoning_fields() -> None:
+    identity = {"run_id": "run", "stream_id": "model-round", "round_index": 1}
+    assert AgentTextStreamStartedFrame(**identity).to_wire() == {
+        "type": "agent_text_stream_started", **identity, "chunk_sequence": 0,
+    }
+    assert AgentTextDeltaFrame(**identity, chunk_sequence=1, text_delta="正文😀").to_wire() == {
+        "type": "agent_text_delta", **identity, "chunk_sequence": 1, "text_delta": "正文😀",
+    }
 
 
 def test_agent_run_started_frame_carries_fe_consumed_keys() -> None:

@@ -23,6 +23,23 @@ class WsFrame(BaseModel):
         return self.model_dump()
 
 
+class AgentTextStreamStartedFrame(WsFrame):
+    type: Literal["agent_text_stream_started"] = "agent_text_stream_started"
+    run_id: str
+    stream_id: str
+    round_index: int = Field(ge=1)
+    chunk_sequence: Literal[0] = 0
+
+
+class AgentTextDeltaFrame(WsFrame):
+    type: Literal["agent_text_delta"] = "agent_text_delta"
+    run_id: str
+    stream_id: str
+    round_index: int = Field(ge=1)
+    chunk_sequence: int = Field(ge=1)
+    text_delta: str = Field(min_length=1, max_length=4096)
+
+
 class AgentRunStartedFrame(WsFrame):
     type: Literal["agent_run_started"] = "agent_run_started"
     session_id: str

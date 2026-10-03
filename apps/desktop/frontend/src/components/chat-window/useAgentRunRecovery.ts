@@ -34,6 +34,7 @@ import {
   checkpointResumeFromResult,
   displayFromResumeDiagnostic,
   statusFromAgentResult,
+  textSettlementFromAgentResult,
   stepsFromResumedAgentResult,
 } from './resumed-result';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
@@ -45,6 +46,7 @@ export function useAgentRunRecovery(
   onAssistantSessionChange: ChatWindowProps['onAssistantSessionChange'],
 ) {
   const {
+    textStream,
     setAgentRun,
     agentRun,
     selfPersistedSessionIdRef,
@@ -174,6 +176,13 @@ export function useAgentRunRecovery(
       if (systemTitle) setConversationTitle(systemTitle);
 
       const nextStatus = statusFromAgentResult(response);
+      const settleText = (content: string, append = true) =>
+        textStream.settle(
+          response.run_id,
+          textSettlementFromAgentResult(response, content),
+          nextStatus,
+          append,
+        );
       setChapterBrief(chapterBriefFromAgentResult(response));
       recoveryRevision.current += 1;
       const checkpoint = checkpointResumeFromResult(response);
@@ -202,7 +211,7 @@ export function useAgentRunRecovery(
         const filePath = resolveProposedPatchFilePath(projectPathRef.current, proposed.file_path);
         if (!filePath) {
           const message = 'Agent 返回的修订目标不在当前项目内，已阻止写回。';
-          setMessages((prev) => [...prev, { role: 'assistant', content: message }]);
+          textStream.settle(response.run_id, { kind: 'diagnostic', detail: message }, 'failed');
           emitSuggestionResult({
             filePath: proposed.file_path,
             status: 'error',
@@ -212,6 +221,7 @@ export function useAgentRunRecovery(
           updateAgentStatus('failed');
           return;
         }
+        settleText(response.agent_result.summary ?? '已生成待确认修订。', false);
         emitFileSuggestion(
           createRemoteFileSuggestion({
             id: proposed.id,
@@ -253,18 +263,16 @@ export function useAgentRunRecovery(
         setLastReviewReportFile(currentFilePath);
         if (currentFilePath)
           emitReviewIssues(currentFilePath, reviewIssuesFromReport(reviewReportForMarkers));
-        setMessages((prev) => [...prev, { role: 'assistant', content: reviewSummary }]);
+        settleText(reviewSummary);
         updateAgentStatus(nextStatus);
         return;
       }
 
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: response.agent_result.summary ?? '这轮已经完成。' },
-      ]);
+      settleText(response.agent_result.summary ?? '这轮已经完成。');
       updateAgentStatus(nextStatus);
     },
     [
+      textStream,
       agentRun,
       selfPersistedSessionIdRef,
       assistantSessionIdRef,
@@ -281,7 +289,6 @@ export function useAgentRunRecovery(
       setConversationTitle,
       setLastReviewReport,
       setLastReviewReportFile,
-      setMessages,
       updateAgentStatus,
     ],
   );

@@ -12,6 +12,7 @@ from app.common.llm_control import LLMRunControl
 from app.domains.agent_runs.loop.types import ChatLoopOutcome
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.permission import PermissionGate
+from app.domains.agent_runs.text_stream import TextObserver
 from app.domains.agent_runs.tools import ToolDefinition, ToolResult
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.platform.ai_sdk import ChatResponse, RuntimeCheckpoint, ToolCall
@@ -35,6 +36,7 @@ class StoryForgeRuntimeContext:
     execute_tool: ExecuteStoryForgeTool
     on_trace: TraceCallback
     outcome: ChatLoopOutcome
+    on_text: TextObserver | None = None
     should_interrupt: InterruptionCallback | None = None
     recovery_message: dict[str, Any] = field(default_factory=dict)
     model_outcome_unknown: bool = False

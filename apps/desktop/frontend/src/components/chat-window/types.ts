@@ -27,9 +27,20 @@ export type ChatWindowProps = {
 };
 
 export type Message = {
+  id?: string;
   role: 'user' | 'assistant';
   content: string;
+  stream?: {
+    runId: string;
+    phase: 'waiting' | 'streaming' | 'working' | 'unknown' | 'interrupted' | 'complete';
+    detail?: string;
+  };
 };
+
+/** UI run status does not determine whether text is an authoritative body or a diagnosis. */
+export type AgentTextSettlement =
+  | { kind: 'result'; content: string }
+  | { kind: 'diagnostic'; detail: string };
 
 export type AgentStepStatus = 'pending' | 'running' | 'waiting' | 'completed' | 'failed';
 

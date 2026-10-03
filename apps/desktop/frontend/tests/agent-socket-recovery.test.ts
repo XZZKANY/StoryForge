@@ -396,3 +396,63 @@ it('exhaustion keeps the original execution identity and cannot switch to an une
   expect(rejected.mock.calls[0][0]).toMatchObject({ runId: 'original', sessionId: 'session' });
   expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
 });
+
+it.each([
+  {
+    type: 'agent_text_delta',
+    run_id: 'other',
+    stream_id: 's',
+    round_index: 1,
+    chunk_sequence: 1,
+    text_delta: 'wrong',
+  },
+  { type: 'tool_trace', run_id: 'other', index: 0, trace: { tool_name: 'fs.read' } },
+  { type: 'error', run_id: 'other', detail: 'wrong error' },
+  {
+    type: 'agent_result',
+    run_id: 'other',
+    session_id: 'session',
+    assistant_session_id: 7,
+    plan: [],
+    tool_trace: [],
+    agent_result: { summary: 'wrong' },
+  },
+  {
+    type: 'agent_result',
+    run_id: 'original',
+    session_id: 'other-session',
+    assistant_session_id: 7,
+    plan: [],
+    tool_trace: [],
+    agent_result: { summary: 'wrong' },
+  },
+])(
+  'foreign $type is not delivered or settled; only reconcile the original run',
+  async (foreign) => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(brokenStream([started, foreign]))
+      .mockResolvedValueOnce(Response.json(completed));
+    vi.stubGlobal('fetch', fetchMock);
+    const delivered: AgentSocketMessage[] = [];
+    const detached = vi.fn();
+    const pending = sendAgentUserMessage({
+      sessionId: 'session',
+      runId: 'original',
+      userMessage: '审稿',
+      onEvent: (event) => delivered.push(event),
+      onStreamDetached: detached,
+    });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await pending;
+    expect(delivered).toEqual([started]);
+    expect(detached).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      type: 'agent_result',
+      run_id: 'original',
+      agent_result: { summary: '完成' },
+    });
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+    expect(fetchMock.mock.calls[1][0]).toBe('http://agent.test/api/agent-runs/original/events');
+  },
+);

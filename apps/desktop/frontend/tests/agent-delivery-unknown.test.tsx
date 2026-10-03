@@ -55,7 +55,8 @@ let root: Root;
 let host: HTMLDivElement;
 let events: Record<string, unknown>[];
 let activeRun = '';
-let transport: 'lost' | 'rejected' | 'hanging' = 'lost';
+let transport: 'lost' | 'rejected' | 'hanging' | 'streaming' = 'lost';
+let textController: ReadableStreamDefaultController<Uint8Array>;
 let readEvents: (() => Promise<Response>) | undefined;
 let sendControl: ((body: Record<string, unknown>) => Promise<Response>) | undefined;
 let projectionStatus = 'running';
@@ -170,6 +171,15 @@ beforeEach(() => {
       activeRun = body.run_id;
       if (transport === 'rejected')
         return Response.json({ detail: 'unauthorized' }, { status: 401 });
+      if (transport === 'streaming')
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              textController = controller;
+            },
+          }),
+          { headers: { 'Content-Type': 'text/event-stream' } },
+        );
       if (transport === 'hanging')
         return new Promise<Response>((resolve) => {
           lateStream = resolve;
@@ -738,4 +748,56 @@ it('an actual paused checkpoint result removes delivery uncertainty but only off
     run_id: originalRun,
   });
   expect(current.state.agentRun?.status).not.toBe('completed');
+});
+
+it('partial text survives real observation-budget exhaustion and same-run manual GET settlement', async () => {
+  await mount();
+  transport = 'streaming';
+  await act(async () => {
+    void current.run('检查这段设定', 'agent');
+  });
+  const frame = (type: string, sequence: number, text?: string) => ({
+    type,
+    session_id: activeRun,
+    run_id: activeRun,
+    stream_id: 'partial-stream',
+    round_index: 1,
+    chunk_sequence: sequence,
+    ...(text ? { text_delta: text } : {}),
+  });
+  await act(async () => {
+    for (const value of [
+      frame('agent_text_stream_started', 0),
+      frame('agent_text_delta', 1, '断线前的真实正文片段'),
+    ])
+      textController.enqueue(new TextEncoder().encode('data: ' + JSON.stringify(value) + '\n\n'));
+  });
+  const node = host.querySelector('[data-testid="assistant-message"]');
+  const id = current.state.messages.find((message) => message.stream)?.id;
+  expect(node?.textContent).toContain('断线前的真实正文片段');
+  await act(async () => textController.error(new TypeError('fixture disconnected')));
+  await act(async () => vi.advanceTimersByTimeAsync(300_000));
+  expect(current.state.agentRun?.deliveryUnknown).toBeDefined();
+  expect(current.state.agentBusy).toBe(false);
+  expect(host.contains(node)).toBe(true);
+  expect(node?.textContent).toContain('等待核对');
+  expect(node?.textContent).not.toContain('回复未完成');
+  expect(posts()).toHaveLength(1);
+  events = complete('核对后的权威正文');
+  projectionStatus = 'completed';
+  const reconcile = button('run-reconcile');
+  await act(async () => {
+    reconcile.click();
+    reconcile.click();
+  });
+  expect(host.contains(node)).toBe(true);
+  expect(node?.textContent).toContain('核对后的权威正文');
+  expect(node?.textContent).not.toContain('断线前的真实正文片段');
+  expect(current.state.messages.find((message) => message.id === id)?.stream?.phase).toBe(
+    'complete',
+  );
+  expect(
+    current.state.messages.filter((message) => message.content === '核对后的权威正文'),
+  ).toHaveLength(1);
+  expect(posts()).toHaveLength(1);
 });

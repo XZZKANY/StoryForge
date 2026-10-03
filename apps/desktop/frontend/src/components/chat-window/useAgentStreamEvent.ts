@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { isAgentTextFrame } from '../../lib/api/agent-text-stream';
 
 import {
   isAgentControlAckMessage,
@@ -26,6 +27,7 @@ export function useAgentStreamEvent(
     runStartConversationKeyRef,
     setAgentRun,
     setAgentBusy,
+    textStream,
   } = state;
 
   return useCallback(
@@ -40,6 +42,10 @@ export function useAgentStreamEvent(
           runStartConversationKeyRef.current,
         )
       ) {
+        return;
+      }
+      if (isAgentTextFrame(message)) {
+        textStream.accept(message);
         return;
       }
       if (isAgentRunStartedMessage(message)) {
@@ -62,11 +68,13 @@ export function useAgentStreamEvent(
         return;
       }
       if (isAgentToolTraceEventMessage(message)) {
+        textStream.hold(message.run_id, 'working', false);
         const nextStep = stepFromToolTraceEvent(message.index, message.trace);
         setAgentRun((run) => (run?.id === message.run_id ? upsertAgentStep(run, nextStep) : run));
         return;
       }
       if (isAgentPermissionRequiredMessage(message)) {
+        textStream.hold(message.run_id, 'working', false);
         const nextStep: AgentStep = {
           id: 'permission-required',
           title: '等待权限确认',
@@ -109,6 +117,8 @@ export function useAgentStreamEvent(
         } else if (message.control_effect === 'applied' && message.runtime_state === 'settled') {
           const nextStatus = agentStatusFromControl(message.run_status);
           if (nextStatus) {
+            if (nextStatus === 'stopped' || nextStatus === 'paused' || nextStatus === 'failed')
+              textStream.hold(message.run_id, 'interrupted');
             setAgentRun((run) =>
               run && run.id === message.run_id
                 ? {
@@ -151,6 +161,7 @@ export function useAgentStreamEvent(
       runStartConversationKeyRef,
       setAgentBusy,
       setAgentRun,
+      textStream,
     ],
   );
 }

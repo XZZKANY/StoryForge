@@ -89,6 +89,23 @@ export interface AgentRunWaitingFrame {
   wait_id: string;
 }
 
+export interface AgentTextStreamStartedFrame {
+  chunk_sequence: 0;
+  round_index: number;
+  run_id: string;
+  stream_id: string;
+  type: "agent_text_stream_started";
+}
+
+export interface AgentTextDeltaFrame {
+  chunk_sequence: number;
+  round_index: number;
+  run_id: string;
+  stream_id: string;
+  text_delta: string;
+  type: "agent_text_delta";
+}
+
 export interface AgentExecutionOutcome {
   code: string;
   message: string;
@@ -107,4 +124,6 @@ export type AgentWsFrame =
   | PermissionRequiredFrame
   | TerminalFrame
   | ControlAckFrame
-  | AgentRunWaitingFrame;
+  | AgentRunWaitingFrame
+  | AgentTextStreamStartedFrame
+  | AgentTextDeltaFrame;

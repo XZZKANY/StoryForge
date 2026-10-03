@@ -50,6 +50,7 @@ from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.permission import PermissionGate
 from app.domains.agent_runs.request_evidence import RequestEvidenceError
 from app.domains.agent_runs.serial_plan import build_plan_block
+from app.domains.agent_runs.text_stream import TextObserver
 from app.domains.agent_runs.tools import (
     ToolDefinition,
     ToolResult,
@@ -103,7 +104,6 @@ LOOP_TOOL_SCHEMAS: list[dict[str, Any]] = build_loop_tool_schemas()
 class ChatLoopUnavailableError(RuntimeError):
     """The first provider call failed, so the caller should use single-turn chat."""
 
-
 def run_chat_loop(
     session: Session,
     *,
@@ -117,6 +117,7 @@ def run_chat_loop(
     current_file: str | None,
     execute_fs_tool: Callable[[str, dict[str, Any]], ToolResult],
     on_trace: Callable[[AgentToolTrace], None],
+    on_text: TextObserver | None = None,
     should_interrupt: Callable[[str], dict[str, Any] | None] | None = None,
     author_view: AuthorView | None = None,
     pinned_context: str | None = None,
@@ -148,6 +149,7 @@ def run_chat_loop(
         definitions={definition.name: definition for definition in tool_definitions},
         execute_tool=execute_fs_tool,
         on_trace=on_trace,
+        on_text=on_text,
         outcome=outcome,
         should_interrupt=should_interrupt,
         external_execution=external_execution,

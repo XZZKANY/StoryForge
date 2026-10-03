@@ -1,6 +1,7 @@
 import { AgentRunOutcomeUnknownError, readAgentRunWithin } from './agent-delivery';
 import { reconstructAgentResultFromEvents } from './agent-run-events';
 import { getAgentRunEvents } from './agent-runs';
+import { parseAgentSseFrame } from './agent-sse-frame';
 import { getApiConfig, trimApiBaseUrl } from './config';
 import { readErrorDetail } from './errors';
 import { getAgentCapabilities, getExternalWriteback } from './external-writeback';
@@ -96,22 +97,6 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-// 从一段 SSE 帧文本（`data: <json>` 行，可多行）解出前端帧；非 JSON 或无 data 行返回 null。
-function parseAgentSseFrame(frame: string): AgentSocketMessage | null {
-  const dataLines: string[] = [];
-  for (const line of frame.split('\n')) {
-    if (line.startsWith('data:')) {
-      dataLines.push(line.slice(5).replace(/^ /, ''));
-    }
-  }
-  if (dataLines.length === 0) return null;
-  try {
-    return JSON.parse(dataLines.join('\n')) as AgentSocketMessage;
-  } catch {
-    return null;
-  }
-}
-
 export async function sendAgentUserMessage(
   request: AgentUserMessageRequest,
 ): Promise<AgentSocketMessage> {
@@ -162,6 +147,7 @@ export async function sendAgentUserMessage(
     const startPolling = () => {
       if (settled || polling || httpRejected || !runId) return;
       polling = true;
+      request.onStreamDetached?.();
       window.clearTimeout(timeout);
       try {
         controller.abort();
@@ -258,8 +244,19 @@ export async function sendAgentUserMessage(
             buffer = buffer.slice(separator + (match ? match[0].length : 2));
             const message = parseAgentSseFrame(frame);
             if (message) {
-              if (isAgentRunStartedMessage(message) && runId && message.run_id !== runId) {
-                startPolling();
+              // Validate every frame before consumers see it, not only run_started.
+              const wrongRun =
+                runId &&
+                'run_id' in message &&
+                typeof message.run_id === 'string' &&
+                message.run_id !== runId;
+              const wrongSession =
+                'session_id' in message &&
+                typeof message.session_id === 'string' &&
+                message.session_id !== request.sessionId;
+              if (wrongRun || wrongSession) {
+                if (runId) startPolling();
+                else finish(() => reject(new Error('Agent 流不属于本次会话')));
                 return;
               }
               request.onEvent?.(message);

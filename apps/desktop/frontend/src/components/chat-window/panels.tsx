@@ -318,8 +318,8 @@ export function MessageList({
   const content =
     messages.length === 0 ? null : (
       <div className="mx-auto flex w-full max-w-[800px] flex-col gap-6 px-5 py-6">
-        {messages.map((message) => (
-          <MessageItem key={messageKey(message)} message={message} />
+        {messages.map((message, index) => (
+          <MessageItem key={message.id ?? messageKey(message) + ':' + index} message={message} />
         ))}
 
         {agentRun && agentRun.steps.length > 0 && (
@@ -1033,7 +1033,8 @@ export function ContextSummaryPanel({
  * P1-1 修复：消息项 React.memo + 稳定 key。
  * 背景：Agent step 事件高频（每秒则可能 20+ setAgentRun），此前 key={index} 导致
  * 任意 step 更新触发整个消息列表 reconcile，每条 assistant 消息的 react-markdown 全量重渲染。
- * 优化：稳定 key（role+内容 hash）使相同消息保持组件实例；memo 阻断 props 相等时的重渲染。
+ * 流消息使用固定 id，增量不重建组件；旧消息以 role/内容 hash + 位置兜底去重。
+ * memo 阻断未改变的历史消息重渲染。
  * key 不依赖 index，故会话切换/批量插入/pending 槽位变化均不会误判为不同消息。
  */
 function messageKey(message: Message): string {
@@ -1070,6 +1071,43 @@ export const MessageItem = memo(function MessageItem({ message }: { message: Mes
       </div>
       <div className="py-1">
         <AssistantMarkdown content={message.content} />
+        {message.stream && message.stream.phase !== 'complete' && (
+          <div
+            className="mt-2 flex items-center gap-2 text-xs text-muted"
+            data-testid="stream-phase"
+            role="status"
+          >
+            {(message.stream.phase === 'waiting' ||
+              message.stream.phase === 'streaming' ||
+              message.stream.phase === 'working') && (
+              <span
+                aria-hidden="true"
+                data-testid="stream-indicator"
+                data-phase={message.stream.phase}
+                className={
+                  message.stream.phase === 'streaming'
+                    ? 'h-1.5 w-1.5 rounded-full bg-agent motion-safe:animate-pulse'
+                    : 'h-1.5 w-1.5 rounded-full bg-agent/60'
+                }
+              />
+            )}
+            <span>
+              {
+                {
+                  waiting: '等待正文输出…',
+                  streaming: '正在输出…',
+                  working: '等待下一步…',
+                  unknown: '连接或内容不完整，等待核对结果',
+                  interrupted: '回复未完成',
+                  complete: '',
+                }[message.stream.phase]
+              }
+            </span>
+          </div>
+        )}
+        {message.stream?.detail && (
+          <p className="mt-1 text-xs text-muted">{message.stream.detail}</p>
+        )}
       </div>
     </article>
   );

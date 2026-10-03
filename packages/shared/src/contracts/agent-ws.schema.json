@@ -276,6 +276,87 @@
       "title": "AgentStepFrame",
       "type": "object"
     },
+    "AgentTextDeltaFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_sequence": {
+          "minimum": 1,
+          "title": "Chunk Sequence",
+          "type": "integer"
+        },
+        "round_index": {
+          "minimum": 1,
+          "title": "Round Index",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "stream_id": {
+          "title": "Stream Id",
+          "type": "string"
+        },
+        "text_delta": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Text Delta",
+          "type": "string"
+        },
+        "type": {
+          "const": "agent_text_delta",
+          "default": "agent_text_delta",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "stream_id",
+        "round_index",
+        "chunk_sequence",
+        "text_delta"
+      ],
+      "title": "AgentTextDeltaFrame",
+      "type": "object"
+    },
+    "AgentTextStreamStartedFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_sequence": {
+          "const": 0,
+          "default": 0,
+          "title": "Chunk Sequence",
+          "type": "integer"
+        },
+        "round_index": {
+          "minimum": 1,
+          "title": "Round Index",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "stream_id": {
+          "title": "Stream Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "agent_text_stream_started",
+          "default": "agent_text_stream_started",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "stream_id",
+        "round_index"
+      ],
+      "title": "AgentTextStreamStartedFrame",
+      "type": "object"
+    },
     "ControlAckFrame": {
       "additionalProperties": false,
       "description": "控制回执帧。回执的 type 是「映射后」的值（approve_permission → permission_approved），\n前端 isAgentControlAckMessage 认的是这个值集合；status 恒为 recorded。",
@@ -619,6 +700,12 @@
     },
     {
       "$ref": "#/$defs/AgentRunWaitingFrame"
+    },
+    {
+      "$ref": "#/$defs/AgentTextStreamStartedFrame"
+    },
+    {
+      "$ref": "#/$defs/AgentTextDeltaFrame"
     }
   ],
   "title": "StoryForge Agent 实时帧契约"

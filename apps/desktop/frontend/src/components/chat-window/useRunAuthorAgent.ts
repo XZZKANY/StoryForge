@@ -1,5 +1,5 @@
 import { executionOutcomeFromResult } from '../../lib/api/execution-outcome';
-import { statusFromAgentResult } from './resumed-result';
+import { statusFromAgentResult, textSettlementFromAgentResult } from './resumed-result';
 import { useCallback } from 'react';
 import { useExternalAgentConversation } from './useExternalAgentConversation';
 import { useAgentRunAdmission } from './useAgentRunAdmission';
@@ -46,7 +46,7 @@ import {
   reviewReportSummary,
   scopeWarningFromAgentResult,
 } from './review';
-import { conversationKey, isRunResultForActiveSession } from './session-guard';
+import { conversationKey } from './session-guard';
 import { stepsFromAgentResult } from './agent-step-mapping';
 import { chapterBriefFromAgentResult } from './chapter-brief';
 import type { AgentRunStatus, ChatWindowProps, RunAuthorAgent } from './types';
@@ -66,6 +66,7 @@ export function useRunAuthorAgent(
   onAssistantSessionChange: ChatWindowProps['onAssistantSessionChange'],
   agentPermissionProfile: AgentPermissionProfile,
 ): RunAuthorAgent {
+  const { textStream } = state;
   const adoptResultMetadata = useRunResultMetadata(state, onAssistantSessionChange);
   const { coordinator: externalWriteback, handleWaiting } = useExternalAgentConversation(
     state,
@@ -183,6 +184,17 @@ export function useRunAuthorAgent(
         draftNonceRef.current,
       );
       runStartConversationKeyRef.current = runStartConversationKey;
+      const ownsRun = () =>
+        active() &&
+        agentRunIdRef.current === runId &&
+        conversationKey(
+          projectPathRef.current,
+          assistantSessionIdRef.current,
+          draftNonceRef.current,
+        ) === runStartConversationKey;
+      const settleDiagnostic = (detail: string) =>
+        textStream.settle(runId, { kind: 'diagnostic', detail }, 'failed');
+      textStream.begin(runId, ownsRun);
       setAgentBusy(true);
       setRetryRequest(null);
       setAgentRunRecovery(null);
@@ -264,39 +276,32 @@ export function useRunAuthorAgent(
           args: payload,
           agentRoleHints,
           agentRoleMentions,
-          onEvent: applyAgentStreamEvent,
+          onStreamDetached: () => {
+            if (ownsRun()) textStream.hold(runId, 'unknown');
+          },
+          onEvent: (event) => {
+            if (ownsRun()) applyAgentStreamEvent(event);
+          },
         });
 
-        const runSuperseded = agentRunIdRef.current !== runId;
-        const sessionSwitched = !isRunResultForActiveSession(
-          conversationKey(
-            projectPathRef.current,
-            assistantSessionIdRef.current,
-            draftNonceRef.current,
-          ),
-          runStartConversationKey,
-        );
         if (
           await handleWaiting(response, {
             negotiated: externalNegotiated,
             project,
             runId,
-            owned: active() && !runSuperseded && !sessionSwitched,
+            owned: ownsRun(),
           })
         )
           return;
-        if (!active() || runSuperseded || sessionSwitched) {
-          if (active() && !runSuperseded) setAgentBusy(false);
+        if (!ownsRun()) {
+          if (active() && agentRunIdRef.current === runId) setAgentBusy(false);
           return;
         }
 
         if (isAgentErrorMessage(response)) {
           updateAgentStatus('failed');
           setRetryRequest({ goal, action, intent, useMainModel: options.useMainModel });
-          setMessages((prev) => [
-            ...prev,
-            { role: 'assistant', content: `这轮没跑通：${response.detail}` },
-          ]);
+          settleDiagnostic(`这轮没跑通：${response.detail}`);
           void refreshAgentRunRecovery(response.run_id ?? runId);
           return;
         }
@@ -305,7 +310,7 @@ export function useRunAuthorAgent(
           const detail = `Agent 返回了暂不支持的消息：${response.type}`;
           updateAgentStatus('failed');
           setRetryRequest({ goal, action, intent, useMainModel: options.useMainModel });
-          setMessages((prev) => [...prev, { role: 'assistant', content: detail }]);
+          settleDiagnostic(detail);
           void refreshAgentRunRecovery(runId);
           return;
         }
@@ -314,6 +319,10 @@ export function useRunAuthorAgent(
 
         const executionOutcome = executionOutcomeFromResult(response);
         const resultStatus = statusFromAgentResult(response);
+        const settleText = (content: string, append = true) => {
+          const text = textSettlementFromAgentResult(response, content);
+          textStream.settle(runId, text, resultStatus, append);
+        };
         const agentSteps = stepsFromAgentResult(response);
         const responseChapterBrief = chapterBriefFromAgentResult(response);
         const proposed = writableFilePatch(response);
@@ -358,7 +367,7 @@ export function useRunAuthorAgent(
           const filePath = resolveProposedPatchFilePath(projectPathRef.current, proposed.file_path);
           if (!filePath) {
             const message = 'Agent 返回的修订目标不在当前项目内，已阻止写回。';
-            setMessages((prev) => [...prev, { role: 'assistant', content: message }]);
+            settleDiagnostic(message);
             emitSuggestionResult({
               filePath: proposed.file_path,
               status: 'error',
@@ -368,6 +377,7 @@ export function useRunAuthorAgent(
             updateAgentStatus('failed');
             return;
           }
+          settleText(response.agent_result.summary ?? '已生成待确认修订。', false);
           emitFileSuggestion(
             createRemoteFileSuggestion({
               id: proposed.id,
@@ -399,7 +409,7 @@ export function useRunAuthorAgent(
         const repairProposal = repairPatchApproval(response);
         if (repairProposal) {
           setPendingRepairCommand(repairProposal.command);
-          setMessages((prev) => [...prev, { role: 'assistant', content: repairProposal.summary }]);
+          settleText(repairProposal.summary);
           // P1-2：无 approval_command 时接受按钮静默无效，waiting 成死路，仅有真批准路径才置。
           const allowsWaiting =
             repairProposal.command && response.agent_result.requires_user_confirmation;
@@ -416,29 +426,17 @@ export function useRunAuthorAgent(
           if (reviewedFile) {
             emitReviewIssues(reviewedFile, reviewIssuesFromReport(reviewReportForMarkers));
           }
-          setMessages((prev) => [...prev, { role: 'assistant', content: reviewSummary }]);
+          settleText(reviewSummary);
           updateAgentStatus(resultStatus);
           return;
         }
 
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: response.agent_result.summary ?? '这轮已经完成。' },
-        ]);
+        settleText(response.agent_result.summary ?? '这轮已经完成。');
         // P1-2：纯文本总结无真批准路径，waiting 会让作者卡死在空按钮上；仅 chapterBrief 例外。
         updateAgentStatus(responseChapterBrief ? 'waiting' : resultStatus);
       } catch (error) {
-        const runSuperseded = agentRunIdRef.current !== runId;
-        const sessionSwitched = !isRunResultForActiveSession(
-          conversationKey(
-            projectPathRef.current,
-            assistantSessionIdRef.current,
-            draftNonceRef.current,
-          ),
-          runStartConversationKey,
-        );
-        if (!active() || runSuperseded || sessionSwitched) {
-          if (active() && !runSuperseded) setAgentBusy(false);
+        if (!ownsRun()) {
+          if (active() && agentRunIdRef.current === runId) setAgentBusy(false);
           return;
         }
         if (
@@ -449,17 +447,19 @@ export function useRunAuthorAgent(
             useMainModel: options.useMainModel,
           })
         ) {
+          textStream.hold(runId, 'unknown');
           return;
         }
         const message = error instanceof Error ? error.message : String(error);
         updateAgentStatus('failed');
         setRetryRequest({ goal, action, intent, useMainModel: options.useMainModel });
-        setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${message}` }]);
+        settleDiagnostic(`这轮没跑通：${message}`);
       } finally {
         releaseClaim(runId);
       }
     },
     [
+      textStream,
       externalWriteback,
       handleWaiting,
       adoptResultMetadata,

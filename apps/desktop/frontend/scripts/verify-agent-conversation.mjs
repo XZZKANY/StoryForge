@@ -246,6 +246,17 @@ try {
           return json([]);
         }
 
+        if (requestPath === '/api/agent-runs/writeback-recovery') {
+          if (
+            method !== 'GET' ||
+            parsedUrl.searchParams.get('project_path') !== projectPath ||
+            parsedUrl.searchParams.get('after_id') !== '0' ||
+            parsedUrl.searchParams.get('limit') !== '20'
+          )
+            rejectRequest();
+          return json({ items: [], next_after_id: null });
+        }
+
         if (requestPath === '/health/ready') {
           if (method !== 'GET') rejectRequest();
           return new Response(
@@ -338,16 +349,17 @@ try {
           ...(window.__STORYFORGE_AGENT_MESSAGES__ ?? []),
           payload,
         ];
+        const streamSessionId = decodeURIComponent(requestPath.split('/').at(-2));
         const sequence = [
           {
             type: 'agent_run_started',
-            session_id: 'mock-session',
+            session_id: streamSessionId,
             run_id: payload.run_id ?? 'mock-run',
             user_message: payload.user_message,
           },
           {
             type: 'agent_step',
-            session_id: 'mock-session',
+            session_id: streamSessionId,
             run_id: payload.run_id ?? 'mock-run',
             index: 0,
             step: 'context-agent',
@@ -356,7 +368,7 @@ try {
           },
           {
             type: 'tool_trace',
-            session_id: 'mock-session',
+            session_id: streamSessionId,
             run_id: payload.run_id ?? 'mock-run',
             index: 0,
             trace: {
@@ -369,7 +381,7 @@ try {
         ];
         const response = {
           type: 'agent_result',
-          session_id: 'mock-session',
+          session_id: streamSessionId,
           run_id: payload.run_id ?? 'mock-run',
           assistant_session_id: 101,
           intent: 'file.review',

@@ -7,6 +7,8 @@ import type {
   AgentRunStartedFrame,
   AgentRunWaitingFrame,
   AgentStepFrame,
+  AgentTextDeltaFrame,
+  AgentTextStreamStartedFrame,
   ControlAckFrame,
   PermissionRequiredFrame,
   ToolTraceFrame,
@@ -231,6 +233,8 @@ export type AgentControlAckMessage = ControlAckFrame & {
 };
 
 export type AgentStreamEventMessage =
+  | AgentTextDeltaFrame
+  | AgentTextStreamStartedFrame
   | AgentRunStartedMessage
   | AgentRunWaitingMessage
   | AgentStepEventMessage
@@ -261,6 +265,7 @@ export type AgentUserMessageRequest = {
   stream?: boolean;
   runId?: string;
   onEvent?: (event: AgentSocketMessage) => void;
+  onStreamDetached?: () => void;
 };
 
 export type AgentControlMessageRequest = {

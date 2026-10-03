@@ -31,6 +31,7 @@ export function useAgentRunReconciliation(
   const reading = useRef<{ runId: string } | null>(null);
   const lifetime = useRef({ key: '', epoch: 0, active: true });
   const {
+    textStream,
     agentRun,
     agentRunIdRef,
     projectPathRef,
@@ -207,7 +208,7 @@ export function useAgentRunReconciliation(
             );
             if (unknown) setRetryRequest(unknown.retryRequest);
             setAgentBusy(false);
-            setMessages((value) => [...value, { role: 'assistant', content: result.detail }]);
+            textStream.settle(run.id, { kind: 'diagnostic', detail: result.detail }, 'failed');
           }
         } else {
           if (unknown) {
@@ -256,6 +257,7 @@ export function useAgentRunReconciliation(
       if (reading.current === request) reading.current = null;
     }
   }, [
+    textStream,
     agentRun,
     assistantSessionIdRef,
     applyResult,

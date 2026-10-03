@@ -15,6 +15,8 @@ FRAME_NAMES = {
     "TerminalFrame",
     "ControlAckFrame",
     "AgentRunWaitingFrame",
+    "AgentTextStreamStartedFrame",
+    "AgentTextDeltaFrame",
 }
 
 
@@ -44,6 +46,8 @@ def test_schema_discriminator_covers_every_wire_type() -> None:
             wire_types.update(type_field["enum"])
 
     assert wire_types == {
+        "agent_text_stream_started",
+        "agent_text_delta",
         "agent_run_started",
         "agent_run_waiting",
         "agent_step",
