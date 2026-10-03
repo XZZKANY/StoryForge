@@ -1,4 +1,4 @@
-> **归档记录（2026-09-28）**：本文原位于 `docs/internal/editor-first-plan-2026-07-11.md`，是 2026-07-11 拍板的两段序列计划；A1-A7 当时已完成，「当前事实 / 执行入口」表述以该时点为准，不再作为今日待办。文中引用的 `docs/internal/next-step-plan.md` 与 `docs/internal/current-phase.md` 仍在原路径（前者也已历史化）。
+> **归档记录（2026-09-28）**：本文原位于 `docs/internal/editor-first-plan-2026-07-11.md`，是 2026-07-11 拍板的两段序列计划；A1-A7 当时已完成，「当前事实 / 执行入口」表述以该时点为准，不再作为今日待办。文中引用的 `docs/internal/current-phase.md` 仍在原路径；`next-step-plan.md` 已历史化并于 2026-09-30 移至 `docs/archive/internal-history-2026-09/`。
 
 # 编辑器优先路线（2026-07-11 拍板重规划）
 

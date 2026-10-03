@@ -47,5 +47,5 @@
 
 - 新增运维文档后，必须在本索引中登记。
 - 修改启动、发布、迁移或故障流程后，必须同步检查 `README.md` 的重要文档入口。
-- 发布门禁或验证状态变化后，同步 `README.md`、`docs/internal/current-phase.md`、`docs/internal/TODO.md`、`docs/internal/PROJECT_SUMMARY.md` 和本目录相关手册；`docs/internal/dev-plan.md` 等历史文件只做带日期的追加记录，不回写改写历史正文。
+- 发布门禁或验证状态变化后，同步 `README.md`、`docs/internal/current-phase.md`、`docs/internal/TODO.md`、`docs/internal/PROJECT_SUMMARY.md` 和本目录相关手册；`docs/archive/internal-history-2026-09/dev-plan.md` 等历史文件只做带日期的追加记录，不回写改写历史正文。
 - 所有验证结论必须写入 `.codex/verification-report.md`。

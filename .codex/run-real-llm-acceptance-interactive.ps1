@@ -14,6 +14,7 @@
 )
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 function Convert-SecureStringToPlainText {
   param([Security.SecureString]$SecureValue)

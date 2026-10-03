@@ -1,14 +1,14 @@
 # docs/internal 目录级 AGENTS 补充
 
 > 本文件是 `docs/internal/` 目录的**目录级补充约定**。上位规范：仓库根 `AGENTS.md`、`CLAUDE.md` 与 `.trellis/workflow.md`；冲突时以根级为准。
-> 2026-09-28 起本文档收敛为现状；2026-05 旧版全文留档于 `internal-agent-guidelines-legacy-2026-05.md`（其中破坏性更改、强制工具链、排斥人工验证等规则已失效）。
+> 2026-09-28 起本文档收敛为现状；2026-05 旧版全文留档于 `../archive/internal-history-2026-09/internal-agent-guidelines-legacy-2026-05.md`（其中破坏性更改、强制工具链、排斥人工验证等规则已失效）。
 
 ## 本目录职责
 
 - `current-phase.md`：当前阶段唯一事实源。
 - `TODO.md`：当前下一步执行入口。
 - `PROJECT_SUMMARY.md`：项目总览与验证状态摘要。
-- `dev-plan.md`、`*-history-*.md`、各旧计划：历史材料，保留时点，不作为今天的事实源或操作指令。
+- 历史材料（`dev-plan.md`、`*-history-*.md`、各旧计划与蓝图）已于 2026-09-30 迁至 `../archive/internal-history-2026-09/`；保留时点，不作为今天的事实源或操作指令。
 
 改这三份现行入口时保留其职责互斥，不要把历史日志或旧验收流水倒回现行段。
 

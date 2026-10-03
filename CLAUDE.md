@@ -76,7 +76,7 @@ pnpm dev:api           # 只启基础服务 + API
 node scripts/dev-start.mjs --skip-docker --skip-migrate    # 已有服务时快速重启
 ```
 
-### 验证门禁（2026-07-03 W0 收敛，依据 `docs/internal/arch-review-blueprint-2026-07-03.md`）
+### 验证门禁（2026-07-03 W0 收敛，依据 `docs/archive/internal-history-2026-09/arch-review-blueprint-2026-07-03.md`）
 
 ```bash
 pnpm verify            # 提交前必跑：lint + typecheck + 各栈测试各一遍 + sidecar-smoke(daily 档) + OpenAPI 漂移
@@ -146,7 +146,7 @@ uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/waveN --tas
 
 ## 6. 协作约定
 
-- **✅ schema 冻结已解除（2026-07-04 W2 落地，PR 见下）；改 schema 的新规矩：** 起服由 sidecar 跑 alembic 收口（存量 create_all 库备份 + quick_check + stamp head 纳管，已纳管库 `upgrade head`，见 `apps/api/app/db/migrations.py`），alembic 是 schema **前向演进**的单一事实源。新增/改列必须写一条 alembic 迁移：SQLite 侧 `op.add_column` / `create_index` / `create_table` 可直用，`alter_column` / `drop_column` / 加约束等 ALTER 操作必须包在 `with op.batch_alter_table(...)` 里，pg 专属 DDL（pgvector 等）用 `dialect.name` 守卫，且**必须提供可用的 downgrade**（本波起要求）。注意历史迁移链无法在 SQLite 上从 base 重放，故建表仍靠 `create_all`——**别删 create_all**，它是 SQLite 建表器与 alembic 收口失败时的回退。原始约束背景见 `docs/internal/arch-review-blueprint-2026-07-03.md` §7（F01）。
+- **✅ schema 冻结已解除（2026-07-04 W2 落地，PR 见下）；改 schema 的新规矩：** 起服由 sidecar 跑 alembic 收口（存量 create_all 库备份 + quick_check + stamp head 纳管，已纳管库 `upgrade head`，见 `apps/api/app/db/migrations.py`），alembic 是 schema **前向演进**的单一事实源。新增/改列必须写一条 alembic 迁移：SQLite 侧 `op.add_column` / `create_index` / `create_table` 可直用，`alter_column` / `drop_column` / 加约束等 ALTER 操作必须包在 `with op.batch_alter_table(...)` 里，pg 专属 DDL（pgvector 等）用 `dialect.name` 守卫，且**必须提供可用的 downgrade**（本波起要求）。注意历史迁移链无法在 SQLite 上从 base 重放，故建表仍靠 `create_all`——**别删 create_all**，它是 SQLite 建表器与 alembic 收口失败时的回退。原始约束背景见 `docs/archive/internal-history-2026-09/arch-review-blueprint-2026-07-03.md` §7（F01）。
 - **语言：** 所有回复、文档、注释、日志、提交信息默认简体中文；代码标识符、包名、API 名称保留英文。
 - **证据链：** 所有变更必须在 `.codex/verification-report.md` 留下验证记录（命令、输出摘要、未联通能力）。
 - **小步推进：** 一次只解决一个明确问题，禁止顺手重构无关代码。

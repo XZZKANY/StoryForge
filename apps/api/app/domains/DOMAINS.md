@@ -60,7 +60,7 @@
 ## 冻结/删除红线
 
 - 冻结 = 卸 router；**`models.py` 永不删**（打碎 `app/models.py` 聚合建表会连累 live）。冻结域的 router/service/schemas 已于 2026-07-10 物理删除（见本节顶部）；models-only 域只剩 `models.py` + `__init__.py`，三个无 models 域（analytics/batch_refinery/worldbuilding）整目录已删。
-- 质量轨资产（book_runs / judge / story_memory / 长程生成链）一行不删，直到真实长程重跑验收完成（见 `docs/internal/arch-review-blueprint-2026-07-03.md` §9）。
+- 质量轨资产（book_runs / judge / story_memory / 长程生成链）一行不删，直到真实长程重跑验收完成（见 `docs/archive/internal-history-2026-09/arch-review-blueprint-2026-07-03.md` §9）。
 
 ## 源码公共面与双轨入口
 

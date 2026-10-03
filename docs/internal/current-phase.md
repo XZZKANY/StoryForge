@@ -10,9 +10,9 @@
 | `docs/internal/TODO.md` | 当前下一步执行入口，不复制历史流水账。 |
 | `docs/internal/PROJECT_SUMMARY.md` | 项目总览和验证状态摘要。 |
 | `README.md` | 面向使用者的入口摘要。 |
-| `docs/internal/dev-plan.md` | 历史计划和阶段 DoD，不证明最新状态。 |
+| `docs/archive/internal-history-2026-09/dev-plan.md` | 历史计划和阶段 DoD，不证明最新状态。 |
 
-逐次验证命令和结果见 [验证报告](../../.codex/verification-report.md)。7 月及以前经过见 [阶段历史](current-phase-history-2026-07-26.md)。
+逐次验证命令和结果见 [验证报告](../../.codex/verification-report.md)。7 月及以前经过见 [阶段历史](../archive/internal-history-2026-09/current-phase-history-2026-07-26.md)。
 
 ## 当前阶段
 
@@ -138,3 +138,49 @@ StoryForge 是面向长篇小说作者的 Desktop IDE-first AI writing workbench
 - 不能把自动审计、golden gate 或模型自评等同于人工通读通过。
 - 不能把历史 GUI 通过、单 provider headless 证据或本地模拟 provider 探针当作当前全部真机写回链路已验收。
 - 不能把本地未提交修复描述成已经合并或已经发布。
+
+
+## 2026-10-01 Agent Harness宿主阶段补充（当前未开放）
+
+P2有限退出/冷恢复基础已实现；API/Native生产release常量仍关闭，P1/P2活动任务未归档。最新真实debug Tauri/WebView已验idle退出/重开、owned dev API丢失后的约10.1秒timeout和持久诊断警告；不等同进行中写回/恢复GUI、各交付kill/断电、packaged或文学质量验收。新增修复确保smoke诊断也使用隔离数据目录，普通app_data路径不迁移。
+
+本轮Native95通过、Desktop1282通过、API恢复/宿主20通过、当前Native联合+CORS20通过；pnpm总verify仍因NO_TTY中止，既有API全量缺long runner及旧Rust格式红项未冒充解决。原始证据见 `.trellis/tasks/10-01-agent-host-lifecycle/research/gui/summary.json`，详细命令见 `.codex/verification-report.md` 最新追加。未提交、未发布。
+
+## 2026-10-02 P2真机进行中交付 / 冷恢复子集
+
+已在独立debug fixture真实验证audit在途正常关闭、新API冷发现已写事实并只继续原运行；另以空SQLite复验waiting退出→冷发现→明确资格（不批准）→独立整版接受→一次写回→同run完成，GUI自动结算且原会话可回看回复。补Native重IO异步准入与旧审批入口/续跑轮询修复；最后历史delivery防误判保护仅行为/联合测试和Frontend build，未再次GUI。
+
+证据：`.trellis/tasks/10-01-agent-host-lifecycle/research/gui-active/summary.json`；具体命令/红项见`.codex/verification-report.md`新增段。原生目录选择本轮有用户协助，provider合成；不等于安装包/真实模型/强杀全矩阵。完整总门禁仍红，生产两gate false，P1/P2继续in_progress、P3不启动。
+
+用户已授权继续且全权操控测试窗口；下一工作仍在P2补强杀边界/packaged子集，优先自主处理目录框，不付费、不自动提交。已有实验进程/端口与自有Vite均已清理，原始证据和临时项目保留。
+
+
+## 2026-10-02 自主P2补验：Windows Job与真实强杀
+
+最新证据 `D:/StoryForge/.trellis/tasks/10-01-agent-host-lifecycle/research/gui-job/summary.json`。用户授权全权代操后，原生目录选择、真实聊天/确认/恢复均自主执行。旧强杀API孤儿红项被复现，Native启动前自加入Windows KILL_ON_JOB_CLOSE Job修复，持handle直到OS退出，原三方正常关闭不变，非Windows不推导强杀保证。
+
+新构建waiting强杀→新API冷发现→明确资格→独立批准→同run完成；body已写/audit未完强杀→audit_required无新资格→只补原audit→再次资格→明确继续，均真机GUI通过。两项目write/version/audit各一，SDK消息前缀与累计预算保留、真实读盘回复、待办自动结算；四条GUI树/端口无harness自动释放。normal412/435ms，强杀Native30/46ms是实测，不是全边界无损承诺。
+
+当前源码frozen API、普通release、隔离NSIS安装/运行/卸载烟测绿；release启动强杀时真实PyInstaller双进程与WebView自动退出。生产包没有启用fixture：release+gui-fixture实际编译拒绝。安装烟测仍不是生产external GUI。自有Vite与临时安装身份已清理，旧包/旧红证据单独保留。
+
+Native100/103passed（各4ignored）、API41passed、combined20passed、Frontend1285passed（1opt-in skip）、ruff/typecheck/build/direct根ESLint/Prettier绿。当前直接根ESLint两次exit0，前轮9项红日志仅为历史，不改ignore；pnpm verify仍NO_TTY红。全量API缺long runner/旧Rustfmt/其他kill与断电/真实模型/权限全矩阵未收口，P1/P2仍in_progress，P3不进入，两生产gatefalse、不commit/push/archive或付费。
+
+
+## 2026-10-02 阶段事实追加：五边界强杀与生产GUI文件子集
+
+本轮完整逐格矩阵入口：`D:/StoryForge/.trellis/tasks/10-01-agent-host-lifecycle/research/gui-matrix/matrix.md`，机器证据`summary.json`及只读`verify-evidence.py`、复现`reproduction.md`。P1/P2未完成、不进入P3、两处生产release gate仍False/false，不提交/push/archive/付费。
+
+- 新debug-only boundary probe复用原pipeline，不另写手稿/receipt/audit。五个干净SQLite/真实GUI输入实验分别命中snapshot、branch、syncedintent、syncedbody/outcome前、audit完成/ACK前并真实强杀。新APIgeneration冷恢复：snapshot/branch明确资格再独立重批，同run完成（保留原快照+新快照版本2、正文一次）；intent/body未知outcome安全拒绝，DB/所有文件/provider不变；audit_done验证原receipt/audit最多一次反馈，仅独立continue，正文/版本/audit各1、durablehash不变。原run/wait/op/messagesprefix/write_budget1/累计时间/MinGit原56B CRLF已核验。五次kill与五次normalclose captured树/端口自动全空，无harness代清子孙。
+- 普通release独立应用标识、embeddedfrontend/frozenAPI/bundledMinGit、正常Native DPAPI/BYOK→生产provideradapter→127.0.0.1 OpenAI-compatible HTTP/SSE合成服务器，零云调用：GUI提案/独立确认/真实单写版本history/正常close/reopen通过文件子集；first wire3、cold0、版本/intent/outcome/audit各1，close983/843ms。生产external真实HTTP409且DBcounts零变化，**不是external生产正例**。
+- **新产品红项，尚未修复**：普通legacy文件虽写成功，实际API run仍paused / permission.confirm；coldexternal同run已completed但活动聊天为空，没有结果投影。不能把panel消失/模型总结/单文件成功当完整生产闭环通过。下一优先修复两处结算与投影，再做GUI复验。
+- 本轮定向绿：API115、SDK/reader/事务/source99、最终17业务+4CORS联合21（新增full/normal）、actualNativebridge1；Native默认100/4ignored、fixture104/4ignored；Frontendtypecheck与156files/1285passed/1skip；Ruff/直接ESLint/Prettier/定向Rustfmt2021/gitdiffcheck。普通release构建绿，4公共契约相对entry字节不变；无新route/DTO，未将其冒称又跑pnpmopenapi绿。
+- 总门禁仍红：pnpmverify/lint NO_TTY；cargo fmt全量既有差异；旧全API缺longrunner的15失败未被本轮定向覆盖洗绿。四权限GUI、多窗口/真实reload/跨项目session、真实云provider/质量/断电与productionexternalpositive仍待验。此前gui-job安装/启动强杀仅其分档，不拿旧构建充本轮GUI。
+- 原始失败保留：branch-proof未命中且DB author_rejected；branch-clean因harness错分支path并错误继续，明确无效，独立branch-final新root才计通过。audit首次文件分类错断言后在同一真实停驻内正确强杀，无放行/造账。普通release诊断原rawnull来自harness误读Local，另存Roaming本次close_confirmed，不覆盖原raw。全记录见matrix末节。
+- cleanup.json自有GUI/API/WebView/provider/Vite全部已收尾，临时数据/证据保留不删除。工作树保护：入口160中nonowned151精确不变，6本轮源码owned与根3appendonly；原29前缀/10rename、HEAD、Cargo.lock与4公共契约不变，最终核验见preservation-final.json。finish-work因本任务未提交与验收红bailout，仅journal --no-commit。
+
+
+## 2026-10-02 Agent 交互纠偏与 cold 原聊天闭环
+
+用户澄清右侧 Agent 承载消息/进度/结果，仅选择和决定弹窗。当前实现已分离全局浮层与会话状态，共用可稍后处理的决策弹窗；真实隔离当前 embedded构建GUI已自主验证修订/冷恢复资格/独立批准/一次写回/原会话可见user+assistant，无完成弹窗。原 cold external DB completed但活动chat空红本切片已解决，原 warm 请求被空 history 抹掉也已回归和真机复验。
+
+证据 research/gui-chat/summary.json / verify-chat-evidence.py；Frontend1294pass1skip、typecheck/定向静态绿、显式启用联合21pass。原 prematurely-launched旧exe linker失败、CUA错误、warm进程采样误纳PID复用VCTIP与历史红件均保留；创建时序证明VCTIP无关，未动该进程。总verify/lint NO_TTY仍红，生产legacy paused红、四权限GUI/多窗口/reload/云模型/断电/productionexternal正例仍待验。不以此子集解锁gate/P3或宣称全部改造验收；P2继续in_progress。

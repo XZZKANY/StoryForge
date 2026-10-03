@@ -17,6 +17,7 @@
 )
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 function Read-JsonOrNull {
   param([string]$Path)

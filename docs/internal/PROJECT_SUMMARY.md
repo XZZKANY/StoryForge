@@ -37,4 +37,4 @@ StoryForge 是 Desktop IDE-first AI writing workbench，服务长篇小说作者
 
 ## 后续入口
 
-当前阶段事实以 `docs/internal/current-phase.md` 为准；PROJECT_SUMMARY 只保留项目总览和摘要。下一步见 [TODO.md](TODO.md)，命令和结果见 [验证报告](../../.codex/verification-report.md)，旧总结见 [总结历史](PROJECT_SUMMARY-history-2026-06-21.md)。
+当前阶段事实以 `docs/internal/current-phase.md` 为准；PROJECT_SUMMARY 只保留项目总览和摘要。下一步见 [TODO.md](TODO.md)，命令和结果见 [验证报告](../../.codex/verification-report.md)，旧总结见 [总结历史](../archive/internal-history-2026-09/PROJECT_SUMMARY-history-2026-06-21.md)。

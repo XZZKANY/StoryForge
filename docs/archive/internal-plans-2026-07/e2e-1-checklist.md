@@ -1,4 +1,4 @@
-> **归档记录（2026-09-28）**：本文原位于 `docs/internal/e2e-1-checklist.md`，是 2026-07 首轮真机验收清单；其中「当前 master」「解锁 W6」等均为当时表述，所列旧配置格式与 `bookrun.start` 检查项已随实现演进而失效，不作为今天的验收入口。文中 `arch-review-blueprint-2026-07-03.md` 现位于 `docs/internal/`。当前验收口径见 `docs/internal/current-phase.md` 与 `docs/operations/release-checklist.md`。
+> **归档记录（2026-09-28）**：本文原位于 `docs/internal/e2e-1-checklist.md`，是 2026-07 首轮真机验收清单；其中「当前 master」「解锁 W6」等均为当时表述，所列旧配置格式与 `bookrun.start` 检查项已随实现演进而失效，不作为今天的验收入口。文中 `arch-review-blueprint-2026-07-03.md` 现位于 `docs/archive/internal-history-2026-09/`（2026-09-30 迁出）。当前验收口径见 `docs/internal/current-phase.md` 与 `docs/operations/release-checklist.md`。
 
 # E2E-1 真机 GUI 端到端首轮验收清单
 

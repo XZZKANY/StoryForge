@@ -80,10 +80,10 @@
 
 ## 4. 红线约束（为何不是现在）
 
-`apps/workflow` **删不动**：`book_runs/book_generation_parallel.py` 仍用 importlib 从相邻目录动态加载 `orchestrators/{novel_loop,book_loop}` + `quality/arc_consistency` 跑 managed 整书真·LLM 并发生成，这条**长程生成链受质量轨红线保护**（`apps/api/app/domains/DOMAINS.md` 冻结红线 / `docs/internal/arch-review-blueprint-2026-07-03.md` §9，「n=1 稳定后重评」前一行不删）。`runtime_tools/service.py` 另桥到 `tools/registry.py` 供 `/api/runtime-tools`（前端零消费，S12 去桥非删能力）；`judge/deterministic.py` 已自包含不 import workflow。
+`apps/workflow` **删不动**：`book_runs/book_generation_parallel.py` 仍用 importlib 从相邻目录动态加载 `orchestrators/{novel_loop,book_loop}` + `quality/arc_consistency` 跑 managed 整书真·LLM 并发生成，这条**长程生成链受质量轨红线保护**（`apps/api/app/domains/DOMAINS.md` 冻结红线 / `docs/archive/internal-history-2026-09/arch-review-blueprint-2026-07-03.md` §9，「n=1 稳定后重评」前一行不删）。`runtime_tools/service.py` 另桥到 `tools/registry.py` 供 `/api/runtime-tools`（前端零消费，S12 去桥非删能力）；`judge/deterministic.py` 已自包含不 import workflow。
 
 → **workflow 降级/删除 = D1 级质量轨翻案，或 n=1 后**。本 ledger 是那一刀的施工图。
 
 ---
 
-相关：`docs/internal/arch-review-blueprint-2026-07-03.md`（蓝图 W5/W7 + F04/F05）、`apps/api/app/domains/DOMAINS.md`（冻结域清单 + 红线）、`docs/内部` 无 workflow 专档（本文件补此空白）。
+相关：`docs/archive/internal-history-2026-09/arch-review-blueprint-2026-07-03.md`（蓝图 W5/W7 + F04/F05）、`apps/api/app/domains/DOMAINS.md`（冻结域清单 + 红线）、`docs/内部` 无 workflow 专档（本文件补此空白）。
