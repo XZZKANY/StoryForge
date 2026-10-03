@@ -5112,3 +5112,45 @@ master 本地提交 63 文件，精确文件集合匹配；原 staged diff 全�
 - **「等待中建分支」无对应用例**（报告验收清单第 3 项只测了切分支）→ 由上条新用例补齐 `createBranchFromNode` 路径（断言新分支与 head 推进同时保留）。
 - **「保存失败」用例非判别性**（修复前即通过）→ 保留为失败语义的对照用例，但不再作为修复的判别证据；本轮判别证据以「陈旧基」「无条件投影」「禁用串联」「还原绑定边界」四组变异为准。另经该视角独立复核：五类回执损坏各自命中不同内部失败分支、恢复面两处捕获均被依赖（等价还原后 5 条全红）。
 - 第三轮回归：前端 161 files / **1354 passed** / 1 skipped、typecheck / eslint / prettier 绿。
+
+
+## 2026-10-04 执行外部审计报告（批次二：P0 任务归属）
+
+范围：报告 T01/T02/T03/T09/T04（D01 的落点并入前四处）。四处修复经**三轮对抗性复验**与三处收尾。
+
+### 修复清单
+
+1. **T02 后端会话归属**（`agent_runs/events/runtime_support.py`）：外层 `message.assistant_session_id` 与 `args.assistant_session_id` 同时存在且不等即拒绝；`args.project_path` 与解析出的会话 `project_path` 不一致即拒绝；历史遗留会话（project_path 为空）显式放行，迁移语义由测试钉死。历史读取与消息落库继续用同一已验证会话。
+2. **assistant 域会话归属**（复验发现的同根因第二入口）：Ctrl+K / 续写在切项目后沿用旧会话 id（该端点建的会话不落 project_path，在两侧会话列表都不可见）。后端 `_assert_session_project_matches` 对非空 project_path 不匹配即 409；前端 `inlineSessionIdForProject` 按项目丢弃旧会话 id。
+3. **T04 章节目标**（`adapters/chapter_writing_contracts.py`）：显式目标不等于计划下一章时不继承 planned 的 ordinal/title/goal；复验追加「计划记过落盘路径就只认路径」，章号回退只在 declared_path 为空时可用。
+4. **T03+T09 提交路由与写章目标**（`cross-chapter.ts` / `useChatSubmission.ts` / `types.ts` / `useRunAuthorAgent.ts`）：有操作意图走 agent（≥2 引用章降为 pinned 上下文，不再 `@路径` 改写作者原话）；纯比较/提问仍走跨章；「写第N章」绑定显式目标（已有草稿取真实路径，新章按 `正文/第NNN章.md` 约定、中文数字可解析）；「写下一章」走 planFallback（不刷盘不读当前稿、payload 不带 current_file/file_path）。
+5. **T01 提交身份**（`session-guard.ts` / `useRunAuthorAgent.ts` / `useAgentRunAdmission.ts` / `useChatWindowState.ts`）：入口一次冻结会话身份，payload 与发送共用同一值；buildContextBundle 与 negotiate 之后各复验一次，失效即不发；撤权时按 claim 归属释放并归位 agentBusy（覆盖响应返回与 external 等待帧两条路径）；会话/项目 refs 与 admission epoch 改 `useLayoutEffect`，消除「同一 React 批内切换观测不到」的窗口。
+6. **行数硬门禁**：`useRunAuthorAgent.ts` 一度涨到 512 行（>500，`test_source_code_standards.py` 2 项红）。把 proposed patch 事件投影抽到新模块 `proposed-patch-outcome.ts`、approval step 抽到 `agent-step-mapping.ts`，回到 457 行，门禁 16/16 绿（复验者逐字段核对两分支等价，无差异）。
+
+### 对抗性复验（3 轮；每轮先复核旧发现再找新问题）
+
+- **第 1 轮（4 视角）**：8 条发现——真回归 3 条（改写/重写第N章被绑成 chapter.write 撞「文件已存在」；裸「写第/生成第」抢走纯比较题；「写下一章」被当前打开稿顶成目标）＋ 中危 2 条（引用章 `@路径` 改写作者原话；assistant 域跨项目复用会话）＋ 低危 2 条（T04 窄洞；守卫观测窗口）＋ 高 1 条（撤权不归位 agentBusy）。全部修复。
+- **第 2 轮（修复后，3 视角）**：8 条中 6 条确认闭合；新发现 4 条（扩/缩/誊写第N章仍绑目标；`handleWaiting` 早退路径 busy 不归位；补零目标与计划 declared_path 可能不一致；引用章恰为当前稿时假报「没有读到」）→ 收敛修复。
+- **第 3 轮（收敛后，1 视角）**：4 类误路由（名词式比较问句被操作词抢走；否定闸未进通道选择；裸「别」误伤「分别写」；中文百位章号丢 intent）→ 收敛为「比较/提问优先 + 否定闸 + 「别」锚小句首 + 中文数字通用解析」，并把点名反例全部固化为回归用例（`tests/cross-chapter.test.ts` 25 项）。
+- 变异验证：路由（陈旧基 / 无条件投影 / 禁用串行 / 还原绑定边界）、identity（删除 busy 归位 → 等待帧用例转红）、后端（还原捕获 / 还原守卫）各自命中对应用例。
+
+### 已知残留（如实记录，本批不修）
+
+1. 准备期「零让出同步块」（同一 act 内切会话并立刻释放 gate）仍可能发出旧请求；实测任何 effect 种类都覆盖不到，真实事件路径先 flush 提交故窗口极窄。
+2. 新章目标硬编码三位补零（项目 `正文/` 命名硬规矩 + 报告规格）；前端读不到连载计划 declared_path，计划声明与既有命名不一致时可能另建同号文件。
+3. `_assert_session_project_matches` 在请求省略 project_root 时跳过校验（纵深防御缺口；桌面端总带该字段）。
+4. 该端点新建的 desktop_revise / desktop_continue 会话仍不落 project_path（两侧会话列表都不显示），未改列表过滤语义。
+5. 路由启发式的既有漏检：「续上第2章」等接力词不产生写章意图；`resolveChapterRefs` 只认阿拉伯数字章号（中文数字跨章问句不走跨章）。
+6. `_resolve_assistant_session` 只校验 args.project_path（外层 message.project_path 不经桌面端，未纳入）。
+
+### 操作记录（环境事故与修复）
+
+- 并行实现 agent 为跑 lint 自行建/删 `node_modules/typescript` junction，把 pnpm store 里的 typescript 掏空成 0 文件（全仓 eslint 报 `Cannot find module 'typescript'`，`pnpm lint` 连带失效）。用 `npm pack typescript@5.8.3` 回填 store + 补根 junction 修复，`require.resolve('typescript')` 与 eslint 复验通过；后续工单已加「绝不碰 node_modules」硬禁令。
+- 验证脚本退出码：`cmd | tail; echo $?` 取到的是 tail 的退出码（曾把 eslint 失败读成 0）；本波起改用 `${PIPESTATUS[0]}` 或不接管道。
+
+### 门禁与回归（本波最终）
+
+- 前端全量 vitest **162 files / 1392 passed / 1 skipped**；typecheck、`prettier --check`、`eslint`（真退出码）全绿。
+- API 全量 pytest **2579 passed / 15 failed / 25 skipped**——15 项全为记录在案的 `test_book_generation_long_wrapper.py` 缺 long runner 基线红；`test_source_code_standards.py` **16 passed**；`uv run ruff check .` 全绿。
+- 四个契约生成物重生成后零漂移。
+- 未跑 `pnpm verify`（NO_TTY + 本环境 pnpm 不在 PATH）；未涉及真机 GUI、Rust、Native、真实 provider。
