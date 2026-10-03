@@ -5063,3 +5063,33 @@ master 本地提交 63 文件，精确文件集合匹配；原 staged diff 全�
 - `pnpm.cmd verify` 本轮重跑 → **exit 1 / ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY**，仍在依赖检查阶段阻断；未强制重装、未弱化门禁。未重跑前端/Rust/Native/GUI/打包或真实 provider；C 的逐文件删除原始日志、删前占用与全仓保全哈希未独立复验。
 - `git diff --check` / `git diff --cached --check` 纳入最终提交前检查。共享检查指南补充清理计量、跟踪文件口径、归档 JSON 与证据边界，无业务 code-spec/签名变化。
 - 收口证据最终随当前任务归档到 `.trellis/tasks/archive/2026-10/10-03-repository-cleanup/`，以 `result.md`、`research/finalization/audit.json` 和独立测试/失败日志为准。仅本地提交报告；任务、spec、journal 按既有规则留在本地，不强制纳入 Git。
+
+
+## 2026-10-03 执行外部审计报告（批次一：§9 两项新增回归）
+
+用户要求按外部审计报告《StoryForge 新版提交与重构报告对照》（D:\StoryForge\1.doc，未跟踪）的路线执行。先用 workflow 在 HEAD=10d7ce9f 上复核报告全部条目（10 簇 + 完整性批判者，11 agents）：**60 条 reproduced、9 条 static_confirmed、2 条 partial、1 条 unverified；唯一 fixed 是 §11 文档事实源回归（5a2214f6 已修，phase9 18/18 绿）**。报告第 9 节两项新增回归在 HEAD 均动态复现。本轮落报告列为「先修」的 P0 与恢复层 P1。
+
+### 修复 1（§9 P0）：分支清单迟到保存污染已切换页签
+
+- 根因（HEAD `apps/desktop/frontend/src/components/editor/useBranchManifest.ts:97-100`）：同文件 `advanceBranchHead` 在 `await saveBranchManifest` 后无条件写 `branchManifestRef.current` + `setBranchManifest`；A 的保存挂起期间切到 B，返回后把 A 的清单投影进 B，B 后续保存也带 A 的清单/标签。该等待点由 8b0c2e34 引入（旧版同步 `replaceManifest`，无此问题）。
+- 修复（单文件）：① `manifestGenerationRef` 代际计数（加载 effect 开头与 `replaceManifest` 内自增）；② 同文件 advance 入口捕获代际，`await` 后仅当「代际未变 && project/file 仍等于 target」才投影，否则只落盘返回（磁盘结算与失败上报保留，未吞错）；③ 全部清单保存经 per-file promise 链 `queueManifestSave` 串行化，错误语义与既有调用方一致。
+- 反例先红（变异验证，定点还原守卫为无条件投影）：新用例恰好 3 条转红（先发A保存再切B / 等待中切分支 / A→B→A），既有「先切B再发A推进」与磁盘失败对照保持绿；还原后 5/5 绿。`tests/branch-writeback-scope.test.tsx` 新增 4 条，覆盖报告验收清单全项（含「A 正确结算但 B 不污染」）。
+- 回归：前端全量 vitest **161 files / 1353 passed / 1 skipped**、`tsc --noEmit` 通过、eslint/prettier 绿。
+
+### 修复 2（§9 P1）：坏回执使外部恢复入口整体 500
+
+- 根因：`NativeReceiptError` 继承 `RuntimeError`，而 `writeback_recovery_router.py:74`（列表）与 `loop/external_recovery.py:87`（恢复）只捕 `ValueError/OSError`，截断/超 64KB/重复字段/孤立 outcome/身份不匹配五类损坏回执穿透为 500；`external_wait_lifecycle` / `external_observation` / `external_writeback` 三处消费点原本已正确捕获。
+- 修复：两处 except 元组加入 `NativeReceiptError`（含 import）；列表逐条隔离，损坏项 `blocked_reason=external_recovery_receipt_unsafe` 且 `native_state/target_current` 保持 None（不伪装 missing）；recover 稳定走既有 409 通道。`inspect_native_writeback` 抛错契约与「缺失回执返回 None」路径未动。
+- 反例先红（变异验证，定点还原两处捕获）：新用例 5/5 红，日志再现 `GET /api/agent-runs/writeback-recovery → 500`；还原后 5/5 绿。`tests/test_agent_external_recovery.py` 新增参数化用例，断言列表 200 + blocked_reason、recover 409、provider 调用数 / 产物计数 / 正文字节不变。
+- 回归：`test_agent_external_recovery` + `test_agent_native_receipt_reader` + `test_agent_host_lifecycle` + `test_agent_external_writeback` + `..._api` + `..._combined_bridge` **120 passed / 17 skipped**、ruff 绿。
+
+### 对抗性复验与残留
+
+- 复验（4 视角 workflow）：回归视角逐条复验既有流程 (a)-(f) 未被改坏——普通保存投影、跨文件迟到快照、selectBranch 同步投影、失败语义（advance 继续 reject / replace 保留 toast）、无死锁与链毒化、卸载/切换无串扰；并独立复跑前端全量与 API 定向为绿。其余 3 视角（污染残留 / 残留 500 / 测试空转）首轮遇上游 502，已 resume 续跑，本轮提交时结论以已完成视角为准。
+- 已知残留（低置信，复验者探针实证）：A→B→A 时若切回读盘跑赢在途写盘，代际闸抑制投影会使 hook 快照暂时落后于磁盘（下一次快照的 parentId 可能挂旧 head，`reconcileManifestWithVersions` 只收敛 headNodeId、不修 parentId）。触发窗口为毫秒级双次导航；报告要求的语义正是「旧代际必须失效」。未采用「跳过后重读磁盘」替代方案——它会在「等待中切分支」场景用旧盘面覆盖更新的内存状态，比残留更糟。记为后续 item。
+- 未改动 `lib/project/knowledge-writeback.ts:132` 直调 `saveBranchManifest` 的独立路径：它不做内存投影，结构上无本缺陷。
+
+### 边界与未验证
+
+- 未跑 `pnpm verify`（NO_TTY 基线阻断仍在）；未涉及/未复跑 Rust、Native、GUI、打包与真实 provider；本轮未做真机桌面验收。
+- 复现均在既有测试或系统临时目录探针完成；仓库工作树仅本批 5 个改动文件 + 本报告。

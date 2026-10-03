@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 
 from app.db.deps import SessionDependency
 from app.domains.agent_runs.fs.delivery_audit import inspect_delivery_audit
-from app.domains.agent_runs.fs.native_receipts import inspect_native_writeback
+from app.domains.agent_runs.fs.native_receipts import NativeReceiptError, inspect_native_writeback
 from app.domains.agent_runs.loop.external_recovery import recover_external_wait
 from app.domains.agent_runs.loop.external_wait_state import ExternalWritebackConflict
 from app.domains.agent_runs.loop.external_wait_store import read_external_wait
@@ -71,7 +71,7 @@ def list_recovery_endpoint(
                         or observation.current in {"diverged", "unreadable", "missing"}
                     ):
                         reason = reason or "external_recovery_receipt_unsafe"
-                except (ValueError, OSError):
+                except (NativeReceiptError, ValueError, OSError):
                     reason = reason or "external_recovery_receipt_unsafe"
             items.append(
                 WritebackRecoveryItem(

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 from agent_external_chat_test_support import engine as engine
 from agent_external_chat_test_support import lease, live_setup
@@ -399,3 +402,63 @@ def test_malformed_private_execution_metadata_is_fixed_conflict_not_parser_error
     assert response.json() == {"detail": "external_recovery_checkpoint_unsafe"}
     assert before == (session.query(AgentArtifact).count(), session.query(AgentRunEvent).count())
     assert len(provider.requests) == 1 and (root / "chapter.md").read_bytes() == BEFORE.encode()
+
+
+CORRUPTIONS = ("truncated", "oversized", "duplicate_field", "orphaned_outcome", "identity_mismatch")
+
+
+def corrupt_receipt(wait, kind):
+    """Break exactly one field of an otherwise valid receipt pair."""
+    directory = Path(wait.canonical_root) / ".storyforge" / "writeback-receipts"
+    bound = wait.binding()
+    op = bound.identity.operation_id
+    intent_path = directory / f"{op}.intent.json"
+    outcome_path = directory / f"{op}.outcome.json"
+    intent = {
+        "schemaVersion": 1,
+        "operationId": op,
+        "fingerprint": bound.identity.fingerprint,
+        "relativePath": bound.identity.relative_path,
+        "beforeHash": bound.before_hash,
+        "afterHash": bound.after_hash,
+        "checkpointTimestamp": 7,
+    }
+    if kind == "truncated":
+        intent_path.write_text("{", encoding="utf-8")
+    elif kind == "oversized":
+        intent_path.write_bytes(b'{"pad":"' + b"x" * (64 * 1024 + 1) + b'"}')
+    elif kind == "duplicate_field":
+        intent_path.write_text(
+            json.dumps(intent)[:-1] + f',"operationId":"{op}"}}', encoding="utf-8"
+        )
+    elif kind == "orphaned_outcome":
+        outcome_path.write_text(
+            json.dumps({**intent, "state": "applied", "detail": None}), encoding="utf-8"
+        )
+        intent_path.unlink()
+    elif kind == "identity_mismatch":
+        intent_path.write_text(json.dumps({**intent, "operationId": "0" * 64}), encoding="utf-8")
+
+
+@pytest.mark.parametrize("kind", CORRUPTIONS)
+def test_corrupt_receipt_is_isolated_and_recover_reports_conflict(
+    client, session, tmp_path, monkeypatch, kind
+):
+    """A damaged receipt must not 500 the recovery surface or authorize anything."""
+    run, root, provider, revisions = waiting(session, tmp_path, monkeypatch)
+    prepared = bind(session, run)
+    ledger(prepared.wait)
+    corrupt_receipt(prepared.wait, kind)
+    baseline = (root / "chapter.md").read_bytes()
+    before = session.query(AgentArtifact).count(), session.query(AgentRunEvent).count()
+    listed = client.get("/api/agent-runs/writeback-recovery", params={"project_path": str(root)})
+    assert listed.status_code == 200, listed.text
+    item = listed.json()["items"][0]
+    assert item["blocked_reason"] == "external_recovery_receipt_unsafe"
+    assert item["native_state"] is None and item["target_current"] is None
+    response = recover(client, session, run)
+    assert response.status_code == 409
+    assert response.json() == {"detail": "external_recovery_receipt_unsafe"}
+    assert before == (session.query(AgentArtifact).count(), session.query(AgentRunEvent).count())
+    assert len(provider.requests) == len(revisions) == 1
+    assert (root / "chapter.md").read_bytes() == baseline

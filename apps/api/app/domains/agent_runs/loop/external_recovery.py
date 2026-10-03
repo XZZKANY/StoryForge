@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from app.domains.agent_runs.external_admission import require_managed_protocol
 from app.domains.agent_runs.fs.delivery_audit import inspect_delivery_audit
-from app.domains.agent_runs.fs.native_receipts import inspect_native_writeback
+from app.domains.agent_runs.fs.native_receipts import NativeReceiptError, inspect_native_writeback
 from app.domains.agent_runs.fs_safety import MAX_READ_BYTES, scoped_target
 from app.domains.agent_runs.loop.checkpoint_store import tool_policy_digest
 from app.domains.agent_runs.loop.external_chat import external_control_context, provider_configuration_digest
@@ -84,7 +84,7 @@ def recover_external_wait(
     if wait.identity is not None:
         try:
             observed = inspect_native_writeback(wait.binding())
-        except (ValueError, OSError) as exc:
+        except (NativeReceiptError, ValueError, OSError) as exc:
             raise ExternalWritebackConflict("external_recovery_receipt_unsafe") from exc
         if observed is None:
             if wait.feedback_consumed or wait.historical_applied:

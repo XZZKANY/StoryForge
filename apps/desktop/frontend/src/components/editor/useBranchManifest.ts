@@ -18,6 +18,8 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
   const branchManifestRef = useRef<BranchManifest>(branchManifest);
   const projectPathRef = useRef<string | null>(projectPath);
   const filePathRef = useRef<string | null>(filePath);
+  const manifestGenerationRef = useRef(0);
+  const manifestSaveChainRef = useRef(new Map<string, Promise<unknown>>());
 
   useEffect(() => {
     projectPathRef.current = projectPath;
@@ -26,6 +28,7 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
   });
 
   useEffect(() => {
+    manifestGenerationRef.current += 1;
     if (!filePath) {
       const empty = emptyManifest();
       branchManifestRef.current = empty;
@@ -45,22 +48,44 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
     };
   }, [projectPath, filePath]);
 
-  const persistManifest = useCallback(async (manifest: BranchManifest) => {
-    const project = projectPathRef.current;
-    const path = filePathRef.current;
-    if (!project || !path) return;
-    try {
-      await saveBranchManifest(project, path, manifest);
-    } catch (err) {
-      console.error('写入分支清单失败:', err);
-      emitToast(`分支清单保存失败：${err instanceof Error ? err.message : String(err)}`, {
-        tone: 'error',
-      });
-    }
-  }, []);
+  const queueManifestSave = useCallback(
+    (project: string, path: string, manifest: BranchManifest, deliveryTicket?: string) => {
+      const key = `${project}::${path}`;
+      const previous = manifestSaveChainRef.current.get(key) ?? Promise.resolve();
+      const save = previous
+        .catch(() => undefined)
+        .then(() =>
+          saveBranchManifest(project, path, manifest, ...(deliveryTicket ? [deliveryTicket] : [])),
+        );
+      manifestSaveChainRef.current.set(
+        key,
+        save.catch(() => undefined),
+      );
+      return save;
+    },
+    [],
+  );
+
+  const persistManifest = useCallback(
+    async (manifest: BranchManifest) => {
+      const project = projectPathRef.current;
+      const path = filePathRef.current;
+      if (!project || !path) return;
+      try {
+        await queueManifestSave(project, path, manifest);
+      } catch (err) {
+        console.error('写入分支清单失败:', err);
+        emitToast(`分支清单保存失败：${err instanceof Error ? err.message : String(err)}`, {
+          tone: 'error',
+        });
+      }
+    },
+    [queueManifestSave],
+  );
 
   const replaceManifest = useCallback(
     async (manifest: BranchManifest) => {
+      manifestGenerationRef.current += 1;
       branchManifestRef.current = manifest;
       setBranchManifest(manifest);
       await persistManifest(manifest);
@@ -84,23 +109,32 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
       ) {
         // A snapshot may finish after navigating away; its checkpoint belongs to the original file.
         const manifest = await loadBranchManifest(target.projectPath, target.filePath);
-        await saveBranchManifest(
+        await queueManifestSave(
           target.projectPath,
           target.filePath,
           setBranchHead(manifest, target.branchId, timestamp),
-          ...(target.deliveryTicket ? [target.deliveryTicket] : []),
+          target.deliveryTicket,
         );
         return;
       }
+      const generationAtStart = (manifestGenerationRef.current += 1);
       const current = branchManifestRef.current;
       const next = setBranchHead(current, target?.branchId ?? current.activeBranchId, timestamp);
       if (target) {
-        await saveBranchManifest(target.projectPath, target.filePath, next, target.deliveryTicket);
+        await queueManifestSave(target.projectPath, target.filePath, next, target.deliveryTicket);
+        // 落盘已结算；仅当文档与代际都没变时才投影，迟到的结果不得污染已切换的页签。
+        if (
+          manifestGenerationRef.current !== generationAtStart ||
+          projectPathRef.current !== target.projectPath ||
+          filePathRef.current !== target.filePath
+        ) {
+          return;
+        }
         branchManifestRef.current = next;
         setBranchManifest(next);
       } else await replaceManifest(next);
     },
-    [replaceManifest],
+    [queueManifestSave, replaceManifest],
   );
 
   const selectBranch = useCallback(
