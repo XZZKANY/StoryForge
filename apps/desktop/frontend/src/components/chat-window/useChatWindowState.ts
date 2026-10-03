@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useChatTextStream } from './useChatTextStream';
 
 import type { AssistantSessionRecord } from '../../lib/api-client';
@@ -78,7 +78,9 @@ export function useChatWindowState({
   );
   const unsubscribeWritingRunRef = useRef<(() => void) | null>(null);
 
-  useEffect(() => {
+  // layout effect：这些 ref 是提交期的归属判据（会话 id / 项目路径）。若放在被动 effect 里，
+  // 同一 React 批内切会话后在跑的 await 恢复时会读到旧 ref，把旧资料拼进新会话请求。
+  useLayoutEffect(() => {
     contextRefRef.current = contextRef;
     currentFileRef.current = currentFile;
     if (projectPathRef.current !== projectPath) textStream.reset();

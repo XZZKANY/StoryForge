@@ -7,7 +7,11 @@ import {
 } from '../../lib/assistant-events';
 import { requestCrossChapterConsistency } from '../../lib/api-client';
 import { TauriFileSystem } from '../../lib/tauri-fs';
-import { formatCrossChapterFindings, resolveChapterRefs, type ChapterRef } from './cross-chapter';
+import {
+  formatCrossChapterFindings,
+  planChapterSubmission,
+  type ChapterRef,
+} from './cross-chapter';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
 import { emitToast } from '../../lib/toast';
 import { useConversationScope } from './useConversationScope';
@@ -214,11 +218,16 @@ export function useChatSubmission(
       setMessages((prev) => [...prev, { role: 'user', content: instruction }]);
       clearSubmittedDraft();
       try {
-        const chapterRefs = resolveChapterRefs(instruction, contextCandidates);
-        if (chapterRefs.length >= 2) {
-          await runCrossChapterConsistency(instruction, chapterRefs);
+        const plan = planChapterSubmission(instruction, contextCandidates);
+        if (plan.channel === 'cross-chapter') {
+          await runCrossChapterConsistency(instruction, plan.refs);
         } else {
-          await runAuthorAgent(instruction, undefined, chapterWritingIntent(instruction));
+          // 引用章走 pinned 上下文通道（explicitContextPaths），不改写作者原话，也不与写章目标抢 file_path。
+          await runAuthorAgent(instruction, undefined, plan.intent, [], {
+            targetFilePath: plan.targetFilePath,
+            planFallback: plan.planFallback,
+            explicitContextPaths: plan.contextPaths,
+          });
         }
       } finally {
         if (sendingRef.current === claim) {
@@ -347,13 +356,4 @@ export function useChatSubmission(
     removeQueuedMessage,
     clearQueuedMessages,
   };
-}
-
-function chapterWritingIntent(text: string): 'chapter.write' | undefined {
-  if (/重写|改写|修改|修订|润色/.test(text)) return undefined;
-  return /写一章|写第[一二三四五六七八九十百零〇两\d]+章|起草第[一二三四五六七八九十百零〇两\d]+章|生成第[一二三四五六七八九十百零〇两\d]+章/.test(
-    text,
-  )
-    ? 'chapter.write'
-    : undefined;
 }

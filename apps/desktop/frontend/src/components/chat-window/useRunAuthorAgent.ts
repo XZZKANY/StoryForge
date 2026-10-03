@@ -7,12 +7,9 @@ import { useAgentRunAdmission } from './useAgentRunAdmission';
 import {
   emitAcceptCurrentFileSuggestion,
   emitExportCurrentFile,
-  emitFileSuggestion,
   emitReviewIssues,
-  emitSuggestionResult,
   flushActiveEditorToDisk,
 } from '../../lib/assistant-events';
-import { createRemoteFileSuggestion } from '../../lib/assistant-suggestions';
 import { extractAgentRoleMentions, mapAgentRoleMentionsToHints } from '../../lib/agent-roles';
 import {
   isAgentErrorMessage,
@@ -27,29 +24,22 @@ import {
 import { buildContextBundle } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
-import {
-  writingContextFromAgentResult,
-  filePathFromAgentResult,
-  writableFilePatch,
-  issueIdsFromAgentResult,
-  modelFromToolTrace,
-  repairPatchApproval,
-  resolveProposedPatchFilePath,
-} from './agent-result';
+import { filePathFromAgentResult, writableFilePatch, repairPatchApproval } from './agent-result';
 import { appendExplicitContextFiles } from './context-files';
 import { useRunResultMetadata } from './useRunResultMetadata';
-import { extractContextReferences } from './path-utils';
+import { extractContextReferences, relativePath } from './path-utils';
 import { buildStableAgentRequestPayload } from './request-payload';
-import {
-  reviewIssuesFromReport,
-  reviewReportFromMessage,
-  reviewReportSummary,
-  scopeWarningFromAgentResult,
-} from './review';
-import { conversationKey } from './session-guard';
-import { stepsFromAgentResult } from './agent-step-mapping';
+import { reviewIssuesFromReport, reviewReportFromMessage, reviewReportSummary } from './review';
+import { conversationKey, createRunDispatchIdentity } from './session-guard';
+import { approvalStepFromAgentResult, stepsFromAgentResult } from './agent-step-mapping';
+import { emitProposedPatchOutcome } from './proposed-patch-outcome';
 import { chapterBriefFromAgentResult } from './chapter-brief';
-import type { AgentRunStatus, ChatWindowProps, RunAuthorAgent } from './types';
+import type {
+  AgentRunStatus,
+  ChatWindowProps,
+  RunAuthorAgent,
+  RunAuthorAgentOptions,
+} from './types';
 import type { ChatWindowState } from './useChatWindowState';
 export type { RunAuthorAgent } from './types';
 export {
@@ -98,7 +88,7 @@ export function useRunAuthorAgent(
     setLastReviewReport,
     setLastReviewReportFile,
   } = state;
-  const { rejectBlockedAdmission, claimRun, retainUnknown, releaseClaim } =
+  const { rejectBlockedAdmission, claimRun, retainUnknown, isClaimedBy, releaseClaim } =
     useAgentRunAdmission(state);
   return useCallback(
     async (
@@ -106,7 +96,7 @@ export function useRunAuthorAgent(
       action: LocalConversationAction = detectLocalConversationAction(goal),
       intent?: 'file.revise' | 'chapter.write' | 'chapter.polish',
       excludedKnowledgeIds: string[] = [],
-      options: { useMainModel?: boolean; targetFilePath?: string } = {},
+      options: RunAuthorAgentOptions = {},
     ) => {
       const scope = conversationKey(
         projectPathRef.current,
@@ -178,20 +168,19 @@ export function useRunAuthorAgent(
       const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const active = claimRun(scope, runId);
       agentRunIdRef.current = runId;
-      const runStartConversationKey = conversationKey(
-        projectPathRef.current,
-        assistantSessionIdRef.current,
-        draftNonceRef.current,
-      );
+      const task = createRunDispatchIdentity({
+        runId,
+        active,
+        agentRunId: () => agentRunIdRef.current,
+        projectPath: () => projectPathRef.current,
+        assistantSessionId: () => assistantSessionIdRef.current,
+        draftNonce: () => draftNonceRef.current,
+        isClaimedBy,
+        releaseClaim,
+        clearBusy: () => setAgentBusy(false),
+      });
+      const { assistantSessionId, ownsRun, abandonIfTaskMoved, runStartConversationKey } = task;
       runStartConversationKeyRef.current = runStartConversationKey;
-      const ownsRun = () =>
-        active() &&
-        agentRunIdRef.current === runId &&
-        conversationKey(
-          projectPathRef.current,
-          assistantSessionIdRef.current,
-          draftNonceRef.current,
-        ) === runStartConversationKey;
       const settleDiagnostic = (detail: string) =>
         textStream.settle(runId, { kind: 'diagnostic', detail }, 'failed');
       textStream.begin(runId, ownsRun);
@@ -210,23 +199,33 @@ export function useRunAuthorAgent(
       setChapterBrief(null);
       try {
         let content: string | null = null;
-        // 显式起草目标（下一章）指向尚不存在的文件：不刷盘、不读当前稿。
-        if (file && ref && !options.targetFilePath) {
+        // 显式起草目标或计划回退（下一章）指向尚不存在的文件：不刷盘、不读当前稿。
+        if (file && ref && !options.targetFilePath && !options.planFallback) {
           await flushActiveEditorToDisk(file);
           content = await TauriFileSystem.readProjectFile(project, file);
         }
+        // 当前打开稿已在 bundle 的 currentFile 里；再当 pinned 会被 eligible 过滤掉并假报「没有读到」。
+        const currentRelative = file && project ? relativePath(project, file) : null;
+        const requestedContextPaths = (options.explicitContextPaths ?? []).filter(
+          (path) => path !== currentRelative,
+        );
         const contextRefs = Array.from(
-          new Set([...explicitContextPaths, ...extractContextReferences(goal)]),
+          new Set([
+            ...explicitContextPaths,
+            ...requestedContextPaths,
+            ...extractContextReferences(goal),
+          ]),
         );
         const appendedContext = await appendExplicitContextFiles(
           await buildContextBundle({
             projectPath: project,
             currentFile: file,
-            pinnedFiles: explicitContextPaths,
+            pinnedFiles: [...explicitContextPaths, ...requestedContextPaths],
           }),
           project,
           contextRefs,
         );
+        if (abandonIfTaskMoved()) return;
         const contextBundle = appendedContext.bundle;
         contextBundle.excludedKnowledgeIds = excludedKnowledgeIds;
         setLastContextBundle(contextBundle);
@@ -242,11 +241,12 @@ export function useRunAuthorAgent(
         }
         const payload = buildStableAgentRequestPayload({
           projectPath: project,
-          currentFile: file,
-          content,
+          // 计划回退：不带 current_file/file_path，让后端 resolve_target(None) 走连载计划回退。
+          currentFile: options.planFallback ? null : file,
+          content: options.planFallback ? null : content,
           instruction: goal,
           projectName,
-          assistantSessionId: assistantSessionIdRef.current,
+          assistantSessionId,
           contextBundle,
           reviewReport: lastReviewReport,
           authorView: authorViewRef.current,
@@ -264,12 +264,14 @@ export function useRunAuthorAgent(
           content !== null &&
           !!externalWriteback &&
           (await externalWriteback.negotiate());
+        // 协商只决定协议，不决定归属：协商期间切走同样撤权，不发出本轮请求。
+        if (abandonIfTaskMoved()) return;
         const response = await sendAgentUserMessage({
           ...(externalNegotiated ? { executionProtocol: 'external_writeback_v1' } : {}),
           sessionId: runId,
           runId,
           stream: true,
-          assistantSessionId: assistantSessionIdRef.current,
+          assistantSessionId,
           userMessage: goal,
           intent,
           permissionProfile: agentPermissionProfile,
@@ -284,17 +286,19 @@ export function useRunAuthorAgent(
           },
         });
 
-        if (
-          await handleWaiting(response, {
-            negotiated: externalNegotiated,
-            project,
-            runId,
-            owned: ownsRun(),
-          })
-        )
-          return;
+        const waiting = await handleWaiting(response, {
+          negotiated: externalNegotiated,
+          project,
+          runId,
+          owned: ownsRun(),
+        });
+        // 等待帧（含外部写回）在已切走时会跳过它自己的 busy 归位；这里补上，否则新会话永久 busy。
+        if (!ownsRun() && isClaimedBy(runId)) setAgentBusy(false);
+        if (waiting) return;
         if (!ownsRun()) {
-          if (active() && agentRunIdRef.current === runId) setAgentBusy(false);
+          // 归属判据用 claim 而非 active()：切会话会让 active() 为 false，那样 busy 永不归位；
+          // claim 已被更新的 run 接管时才不动作，避免误清新 run 的 busy。
+          if (isClaimedBy(runId)) setAgentBusy(false);
           return;
         }
 
@@ -330,79 +334,35 @@ export function useRunAuthorAgent(
           throw new Error('连续协议返回了旧写回补丁，已阻止重复投递');
         setChapterBrief(responseChapterBrief);
         void refreshAgentRunRecovery(response.run_id ?? runId);
+        const approvalSteps = approvalStepFromAgentResult(
+          response,
+          responseChapterBrief !== null,
+          proposed,
+        );
         setAgentRun((run) =>
           run
             ? {
                 ...run,
                 status: resultStatus,
                 executionOutcome: executionOutcome ?? undefined,
-                steps: [
-                  ...agentSteps,
-                  ...(response.agent_result.requires_user_confirmation
-                    ? [
-                        {
-                          id: 'approval',
-                          title: '等待作者确认',
-                          tool: 'author.approval',
-                          status: 'waiting' as const,
-                          detail: responseChapterBrief
-                            ? '等待作者确认 Chapter Brief'
-                            : '等待作者在编辑器里确认 diff',
-                          filePath: proposed?.file_path,
-                          patchId: proposed?.id,
-                        },
-                      ]
-                    : []),
-                ],
+                steps: [...agentSteps, ...approvalSteps],
               }
             : run,
         );
         setAgentBusy(false);
 
         if (proposed) {
-          const writingContext = writingContextFromAgentResult(
+          emitProposedPatchOutcome({
             response,
-            contextBundle.files.map((file) => file.relativePath),
-          );
-          const filePath = resolveProposedPatchFilePath(projectPathRef.current, proposed.file_path);
-          if (!filePath) {
-            const message = 'Agent 返回的修订目标不在当前项目内，已阻止写回。';
-            settleDiagnostic(message);
-            emitSuggestionResult({
-              filePath: proposed.file_path,
-              status: 'error',
-              message,
-              assistantSessionId: response.assistant_session_id,
-            });
-            updateAgentStatus('failed');
-            return;
-          }
-          settleText(response.agent_result.summary ?? '已生成待确认修订。', false);
-          emitFileSuggestion(
-            createRemoteFileSuggestion({
-              id: proposed.id,
-              filePath,
-              before: proposed.before,
-              after: proposed.after,
-              summary: response.agent_result.summary ?? 'Agent 已生成修订建议。',
-              model: modelFromToolTrace(response),
-              userIntent: goal,
-              assistantSessionId: response.assistant_session_id,
-              issueIds: issueIdsFromAgentResult(response),
-              contextFiles: writingContext.contextFiles,
-              knowledgeEntries: writingContext.knowledgeEntries,
-              scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
-              requiresConfirmation: proposed.requires_confirmation,
-              runId: response.run_id ?? runId,
-            }),
-          );
-          emitSuggestionResult({
-            filePath,
-            status: 'ready',
-            message: response.agent_result.summary ?? 'Agent 已生成修订建议。',
-            assistantSessionId: response.assistant_session_id,
+            proposed,
+            contextRelativePaths: contextBundle.files.map((file) => file.relativePath),
+            projectPath: projectPathRef.current,
+            goal,
+            runId,
+            settleDiagnostic,
+            settleText,
+            updateAgentStatus,
           });
-          updateAgentStatus('waiting');
           return;
         }
 
@@ -436,7 +396,9 @@ export function useRunAuthorAgent(
         updateAgentStatus(responseChapterBrief ? 'waiting' : resultStatus);
       } catch (error) {
         if (!ownsRun()) {
-          if (active() && agentRunIdRef.current === runId) setAgentBusy(false);
+          // 归属判据用 claim 而非 active()：切会话会让 active() 为 false，那样 busy 永不归位；
+          // claim 已被更新的 run 接管时才不动作，避免误清新 run 的 busy。
+          if (isClaimedBy(runId)) setAgentBusy(false);
           return;
         }
         if (
@@ -466,6 +428,7 @@ export function useRunAuthorAgent(
       rejectBlockedAdmission,
       claimRun,
       retainUnknown,
+      isClaimedBy,
       releaseClaim,
       agentPermissionProfile,
       agentRunIdRef,

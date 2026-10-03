@@ -110,12 +110,22 @@ export type RetryRequest = {
   useMainModel?: boolean;
 };
 
+export type RunAuthorAgentOptions = {
+  useMainModel?: boolean;
+  /** 显式起草目标（如「AI 起草下一章」）：目标文件尚不存在，file_path 锚定它。 */
+  targetFilePath?: string;
+  /** 「写/起草下一章」：目标交连载计划回退，不刷盘不读当前稿、不带 current_file/file_path。 */
+  planFallback?: boolean;
+  /** 引用章等显式上下文：并入 context bundle 的 pinnedFiles，不改写作者原话。 */
+  explicitContextPaths?: string[];
+};
+
 export type RunAuthorAgent = (
   goal: string,
   action?: LocalConversationAction,
   intent?: 'file.revise' | 'chapter.write' | 'chapter.polish',
   excludedKnowledgeIds?: string[],
-  options?: { useMainModel?: boolean; targetFilePath?: string },
+  options?: RunAuthorAgentOptions,
 ) => Promise<void>;
 
 export type PendingRepairCommand = {
