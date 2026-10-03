@@ -229,21 +229,128 @@ function lineHunkOverlapsAnchor(hunk: LineDiffHunk, anchor: InlineAnchorRange): 
   return hunk.afterLineNumber >= anchor.startLine - 1 && hunk.afterLineNumber <= anchor.endLine;
 }
 
+/**
+ * 相交但增删行数对不上时的「边界错位」逐行归因。
+ *
+ * 文件末尾行尾换行不一致（源文件无尾换行，或模型返回丢了尾换行——LLM 常见）会让
+ * buildPatchHunks 的公共前缀停在倒数第二行：末行文本带/不带 '\n' 与另一侧不等，于是把
+ * 前一行也卷进 hunk，得到 removedLineCount = addedLineCount + 1。多出的那一行其实是原样
+ * 重抄的前一行（newLines 里逐字存在），真正的删除在被上移的越界行之后。无法这样对应上
+ * （如两行合并成一行）就返回 null，交回调用方整块丢弃，绝不整块放行。
+ */
+function reconcileByVerbatimPrefix(
+  hunk: LineDiffHunk,
+  anchor: InlineAnchorRange,
+  beforeLines: string[],
+): { ops: LineDiffHunk[]; droppedOffAnchor: number } | null {
+  const removedStartLine = hunk.removedStartLine;
+  const removedEndLine = hunk.removedEndLine;
+  if (removedStartLine === null || removedEndLine === null) return null;
+
+  const originalTexts = beforeLines.slice(removedStartLine - 1, removedEndLine);
+  const newTexts = hunk.newLines;
+  // 只有 newLines 逐字等于 hunk 里前若干行原文时，多出的原文行才可判为纯删除。
+  for (let index = 0; index < newTexts.length; index += 1) {
+    if (originalTexts[index] !== newTexts[index]) return null;
+  }
+
+  const ops: LineDiffHunk[] = [];
+  let droppedOffAnchor = 0;
+  for (let index = newTexts.length; index < originalTexts.length; index += 1) {
+    const line = removedStartLine + index;
+    if (line < anchor.startLine || line > anchor.endLine) {
+      droppedOffAnchor = 1;
+      continue;
+    }
+    ops.push({
+      removedStartLine: line,
+      removedEndLine: line,
+      afterLineNumber: line,
+      newLines: [],
+      removedLineCount: 1,
+      addedLineCount: 0,
+    });
+  }
+  return { ops, droppedOffAnchor };
+}
+
+/**
+ * 把与锚定范围相交的 hunk 夹到「只授权锚定行」。
+ *
+ * 相邻的改动行之间没有 equal 单元，buildPatchHunks 会把它们并成一个跨行 hunk——旧逻辑
+ * 「相交即整块保留」，于是只授权第 1 行却把第 2 行的改动一起写回。这里对越界 hunk 按行拆开：
+ * 增删行数一一对应时给出逐行 op，只留 original line 落在锚定范围内的；对不上（如两行合并
+ * 删除成一行）无法精确归因，整块丢弃并计数，绝不整块保留。
+ */
+function clampHunksToAnchor(
+  allHunks: LineDiffHunk[],
+  anchor: InlineAnchorRange,
+  beforeLines: string[],
+): { onAnchor: LineDiffHunk[]; droppedOffAnchor: number } {
+  const onAnchor: LineDiffHunk[] = [];
+  let droppedOffAnchor = 0;
+
+  for (const hunk of allHunks) {
+    if (!lineHunkOverlapsAnchor(hunk, anchor)) {
+      droppedOffAnchor += 1;
+      continue;
+    }
+    const removedStartLine = hunk.removedStartLine;
+    const removedEndLine = hunk.removedEndLine;
+    // 纯新增（单点插入）与完全落在锚定范围内的 hunk 原样保留。
+    if (
+      removedStartLine === null ||
+      removedEndLine === null ||
+      (removedStartLine >= anchor.startLine && removedEndLine <= anchor.endLine)
+    ) {
+      onAnchor.push(hunk);
+      continue;
+    }
+    // 相交但越界：行数对不上就无法逐行归因，但末尾换行错位这一形态能逐行对应上，先试归因。
+    if (hunk.removedLineCount !== hunk.addedLineCount) {
+      const reconciled = reconcileByVerbatimPrefix(hunk, anchor, beforeLines);
+      if (!reconciled) {
+        droppedOffAnchor += 1;
+        continue;
+      }
+      onAnchor.push(...reconciled.ops);
+      droppedOffAnchor += reconciled.droppedOffAnchor;
+      continue;
+    }
+    for (let offset = 0; offset < hunk.removedLineCount; offset += 1) {
+      const line = removedStartLine + offset;
+      if (line < anchor.startLine || line > anchor.endLine) continue;
+      onAnchor.push({
+        removedStartLine: line,
+        removedEndLine: line,
+        afterLineNumber: line,
+        newLines: [hunk.newLines[offset]],
+        removedLineCount: 1,
+        addedLineCount: 1,
+      });
+    }
+    // 越界的那些行被丢弃，提示作者。
+    droppedOffAnchor += 1;
+  }
+
+  return { onAnchor, droppedOffAnchor };
+}
+
 export type AnchoredInlineDiff = {
-  /** 仅与锚定行相交的 hunk（供渲染红/绿）。 */
+  /** 只授权锚定行的 hunk（越界 hunk 已细分为逐行 op）供渲染红/绿。 */
   hunks: LineDiffHunk[];
   /** 只应用锚定处 hunk 后的整文，供接受写回——模型 drift 到别处的改动被丢弃。 */
   clampedAfter: string;
   addedLines: number;
   removedLines: number;
-  /** 被丢弃的锚定处之外的 hunk 数（>0 时提示作者）。 */
+  /** 被丢弃的改动数：完全在锚定之外，或越界 hunk 中落在锚定之外的部分（>0 时提示作者）。 */
   droppedOffAnchor: number;
   /** true=锚定处没有任何改动（模型只改了别处，或整体无改动）。 */
   isNoop: boolean;
 };
 
 /**
- * 把整文件修订「夹」到锚定行：只保留与锚定范围相交的改动，模型跑到别处的改动一律丢弃，
+ * 把整文件修订「夹」到锚定行：只保留落在锚定范围内的改动，模型跑到别处的改动一律丢弃，
  * 兑现「只改这附近，不整段重写」。返回夹紧后的整文供接受写回，以及供渲染的锚定处 diff。
  */
 export function planAnchoredInlineDiff(
@@ -254,8 +361,11 @@ export function planAnchoredInlineDiff(
   const normBefore = before.replace(/\r\n/g, '\n');
   const normAfter = after.replace(/\r\n/g, '\n');
   const allHunks = hunksToLineDiff(normBefore, normAfter);
-  const onAnchor = allHunks.filter((hunk) => lineHunkOverlapsAnchor(hunk, anchor));
-  const droppedOffAnchor = allHunks.length - onAnchor.length;
+  const { onAnchor, droppedOffAnchor } = clampHunksToAnchor(
+    allHunks,
+    anchor,
+    normBefore.split('\n'),
+  );
 
   // 自底向上 splice，保持未处理 hunk 的行号有效。
   const lines = normBefore.split('\n');

@@ -146,6 +146,123 @@ test('planAnchoredInlineDiff 模型只改了锚定处之外 → noop 且不动�
   assert.equal(plan.clampedAfter, before);
 });
 
+// —— 相邻行被并成一个 hunk 时，只授权锚定行不得放行相邻行（T06）——————————————
+// buildPatchHunks 对相邻的改动行之间没有 equal 单元，会把「改第 1 行 + 改第 2 行」并成一个
+// hunk。旧逻辑「与锚定范围相交即整块保留」，于是只授权第 1 行却把第 2 行的改动也写回。
+
+test('相邻行合并 hunk 只授权首行：第 2 行改动必须被丢弃并提示', () => {
+  const before = ['第一行。', '第二行。', '第三行。'].join('\n');
+  const after = ['第一行改。', '第二行也改。', '第三行。'].join('\n');
+  const plan = planAnchoredInlineDiff(before, after, { startLine: 1, endLine: 1 });
+
+  assert.equal(plan.isNoop, false);
+  assert.equal(plan.clampedAfter, ['第一行改。', '第二行。', '第三行。'].join('\n'));
+  assert.ok(plan.droppedOffAnchor > 0, '第 2 行的越界改动必须计入丢弃');
+  assert.equal(plan.hunks.length, 1);
+  assert.equal(plan.hunks[0].removedStartLine, 1);
+  assert.equal(plan.hunks[0].removedEndLine, 1);
+  assert.deepEqual(plan.hunks[0].newLines, ['第一行改。']);
+});
+
+test('相邻行合并 hunk 只授权末行：前一行改动必须被丢弃并提示', () => {
+  const before = ['一。', '二。', '三。', '四。'].join('\n');
+  const after = ['一。', '二改。', '三改。', '四。'].join('\n');
+  const plan = planAnchoredInlineDiff(before, after, { startLine: 3, endLine: 3 });
+
+  assert.equal(plan.isNoop, false);
+  assert.equal(plan.clampedAfter, ['一。', '二。', '三改。', '四。'].join('\n'));
+  assert.ok(plan.droppedOffAnchor > 0);
+  assert.equal(plan.hunks.length, 1);
+  assert.equal(plan.hunks[0].removedStartLine, 3);
+  assert.deepEqual(plan.hunks[0].newLines, ['三改。']);
+});
+
+test('锚定范围盖住整个 hunk 时整块保留（不误伤合法多行改动）', () => {
+  const before = ['一。', '二。', '三。'].join('\n');
+  const after = ['一改。', '二改。', '三。'].join('\n');
+  const plan = planAnchoredInlineDiff(before, after, { startLine: 1, endLine: 2 });
+
+  assert.equal(plan.clampedAfter, after);
+  assert.equal(plan.droppedOffAnchor, 0);
+  assert.equal(plan.hunks.length, 1);
+  assert.equal(plan.hunks[0].removedStartLine, 1);
+  assert.equal(plan.hunks[0].removedEndLine, 2);
+});
+
+test('行数无法一一对应的越界 hunk 判为不可精确授权：整块丢弃并提示', () => {
+  // 前两行合并删除成一行：无法把改动归因到被授权的第 1 行，整块拒绝而非放行。
+  const before = ['甲。', '乙。', '丙。'].join('\n');
+  const after = ['甲乙合。', '丙。'].join('\n');
+  const plan = planAnchoredInlineDiff(before, after, { startLine: 1, endLine: 1 });
+
+  assert.equal(plan.isNoop, true);
+  assert.equal(plan.clampedAfter, before);
+  assert.ok(plan.droppedOffAnchor > 0);
+  assert.equal(plan.hunks.length, 0);
+});
+
+// —— 文件末尾减行 + 尾换行不一致（T06 回归）————————————————————————
+// buildPatchHunks 的公共前缀按「行文本（含换行符）」比较：源文件无尾换行时，倒数第二行
+// 原文是 'L3\n'，after 里它成了末行 'L3'，两串不等 → 前缀停在它前面，把它也卷进 hunk，
+// 得到 removedLineCount(2) ≠ addedLineCount(1)。旧夹紧逻辑「增删不等 → 整块丢弃」于是把
+// 锚定行内合法的删除也一并丢掉（clampedAfter 原样、isNoop、droppedOffAnchor=1），
+// 作者看到「AI 的改动落在选定处之外」——其实是删掉了末尾一整行。
+test('末尾无尾换行时锚定行的删除不被整块丢弃（shape ①）', () => {
+  const before = 'L0\nL1\nL2\nL3\nL4';
+  const after = 'L0\nL1\nL2\nL3';
+  const plan = planAnchoredInlineDiff(before, after, { startLine: 5, endLine: 5 });
+
+  assert.equal(plan.isNoop, false);
+  assert.equal(plan.clampedAfter, after);
+  assert.equal(plan.removedLines, 1);
+  assert.equal(plan.addedLines, 0);
+  assert.equal(plan.droppedOffAnchor, 0);
+  assert.equal(plan.hunks.length, 1);
+  assert.equal(plan.hunks[0].removedStartLine, 5);
+  assert.equal(plan.hunks[0].removedEndLine, 5);
+  assert.deepEqual(plan.hunks[0].newLines, []);
+});
+
+test('模型返回丢了尾换行时同样按锚定行删除（shape ②：before 带尾换行）', () => {
+  const before = 'L0\nL1\nL2\nL3\nL4\n';
+  const after = 'L0\nL1\nL2\nL3';
+  const plan = planAnchoredInlineDiff(before, after, { startLine: 5, endLine: 5 });
+
+  // 老逻辑在该形态下会把「删 L4」跑对（保留原文的尾换行），新逻辑必须逐字复现这一结果。
+  assert.equal(plan.isNoop, false);
+  assert.equal(plan.clampedAfter, 'L0\nL1\nL2\nL3\n');
+  assert.equal(plan.removedLines, 1);
+  assert.equal(plan.droppedOffAnchor, 0);
+  assert.equal(plan.hunks.length, 1);
+  assert.equal(plan.hunks[0].removedStartLine, 5);
+});
+
+test('尾换行一致的同类 shape 结果逐字不变（shape ③）', () => {
+  const before = 'L0\nL1\nL2\nL3\nL4\n';
+  const after = 'L0\nL1\nL2\nL3\n';
+  const plan = planAnchoredInlineDiff(before, after, { startLine: 5, endLine: 5 });
+
+  assert.equal(plan.isNoop, false);
+  assert.equal(plan.clampedAfter, after);
+  assert.equal(plan.droppedOffAnchor, 0);
+  assert.equal(plan.hunks.length, 1);
+  assert.equal(plan.hunks[0].removedStartLine, 5);
+  assert.equal(plan.hunks[0].removedEndLine, 5);
+  assert.deepEqual(plan.hunks[0].newLines, []);
+});
+
+test('两行合并成一行仍无法逐行归因：整块拒绝且提示（shape ④：无尾换行同样）', () => {
+  const before = 'L0\nL1\nL2';
+  const after = 'L0\nL12';
+  const plan = planAnchoredInlineDiff(before, after, { startLine: 2, endLine: 2 });
+
+  // 上移行 'L1' 与合并后的 'L12' 对不上 → 不可精确归因，整块丢弃而非放行。
+  assert.equal(plan.isNoop, true);
+  assert.equal(plan.clampedAfter, before);
+  assert.ok(plan.droppedOffAnchor > 0);
+  assert.equal(plan.hunks.length, 0);
+});
+
 test('isInlineEditStale 忽略换行风格差异、只认真实内容变化', () => {
   assert.equal(isInlineEditStale('甲\r\n乙', '甲\n乙'), false);
   assert.equal(isInlineEditStale('甲\n乙', '甲\n丙'), true);
