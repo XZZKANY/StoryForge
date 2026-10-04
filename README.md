@@ -1,6 +1,6 @@
 <h1 align="center">StoryForge</h1>
 
-<p align="center">面向长篇小说创作的桌面 AI 写作 IDE —— </p>
+<p align="center">面向长篇小说创作的桌面 AI 写作 IDE </p>
 
 <p align="center">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" />
