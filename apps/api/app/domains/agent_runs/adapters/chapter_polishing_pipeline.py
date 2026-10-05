@@ -82,6 +82,8 @@ class ControlledChapterPolishingRuntimeMixin:
                         "rule_version",
                         "gate_version",
                         "gate_reasons",
+                        "gate_advisories",
+                        "edit_policy",
                     )
                 },
             },

@@ -18,6 +18,10 @@ FAKE_CONTEXT_MARKER = "MODEL_FAKE_CONTEXT_SENTINEL"
 
 
 def _trusted_context_bundle(novel_project: Path) -> dict[str, object]:
+    (novel_project / ".资料").mkdir(exist_ok=True)
+    (novel_project / ".资料/黄金三章spec.md").write_text(
+        f"第三章必须兑现刘哥冲突。{TRUSTED_CONTEXT_MARKER}", encoding="utf-8"
+    )
     return {
         "project_root": str(novel_project),
         "current_file": str(novel_project / "正文" / "第01章.md"),
@@ -130,7 +134,7 @@ def test_chat_loop_file_create_injects_trusted_request_context_into_inner_draft(
     assert TRUSTED_CONTEXT_MARKER in inner_prompts[0]
     tool_calls = client.get(f"/api/assistant/sessions/{result['assistant_session_id']}/tool-calls").json()
     draft_call = next(call for call in tool_calls if call["tool_name"] == "assistant.draft")
-    assert draft_call["input_summary"]["context_file_count"] == 1
+    assert draft_call["input_summary"]["context_file_count"] == 2
     _assert_safe_context_provenance(
         client,
         run_id="run-chat-loop-create-trusted-context",
@@ -222,7 +226,7 @@ def test_chat_loop_file_revise_overrides_model_supplied_context_with_request_con
     assert FAKE_CONTEXT_MARKER not in inner_prompts[0]
     tool_calls = client.get(f"/api/assistant/sessions/{result['assistant_session_id']}/tool-calls").json()
     revise_call = next(call for call in tool_calls if call["tool_name"] == "assistant.revise")
-    assert revise_call["input_summary"]["context_file_count"] == 1
+    assert revise_call["input_summary"]["context_file_count"] == 2
     encoded_tool_calls = json.dumps(tool_calls, ensure_ascii=False, sort_keys=True)
     assert FAKE_CONTEXT_MARKER not in encoded_tool_calls
     assert "llmctx-model-forged" not in encoded_tool_calls

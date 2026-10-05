@@ -21,7 +21,16 @@ canon 的退场闸、伏笔到期判定与实体预算阈值全部按虚高的�
 
 from __future__ import annotations
 
+from bisect import bisect_left
+from os.path import normcase
 from pathlib import Path
+
+from app.common.generation_sources import (
+    observe_generation_selection,
+    observe_generation_source,
+    project_generation_source,
+)
+from app.common.project_tree import MAX_READ_BYTES, ProjectTreeError, scan_project_files
 
 # 与前端 semantics.ts 的 DIR_KIND 同源，取其中**非** draft 的那些首段目录名。
 # 两处若要改，须同改——判据分裂会让「作者看到的第几章」与「canon 算的第几章」再次错开。
@@ -95,15 +104,19 @@ def iter_manuscript_files(root: Path) -> list[Path]:
     `第NNN章.md` 补零命名；`style_baseline` 与本模块的「上一章」都建在这个口径上。
     """
 
-    files = [
-        path
-        for path in root.rglob("*.md")
-        if path.is_file()
-        and not any(part.startswith(".") for part in path.relative_to(root).parts)
-        and is_manuscript_path(path.relative_to(root).as_posix())
-    ]
-    files.sort(key=lambda path: path.relative_to(root).as_posix())
-    return files
+    root = root.resolve()
+
+    def visible(relative: Path) -> bool:
+        return (
+            not any(part.startswith(".") for part in relative.parts)
+            and (not relative.parts or relative.parts[0].lower() not in NON_MANUSCRIPT_DIRS)
+            and is_manuscript_path(relative.as_posix())
+        )
+
+    try:
+        return [path for path in scan_project_files(root, visible=visible) if path.match("*.md")]
+    except ProjectTreeError as exc:
+        raise OSError(str(exc)) from exc  # Existing optional-source callers fail closed.
 
 
 def _tail_of(text: str, max_chars: int) -> str:
@@ -138,21 +151,49 @@ def previous_chapter_tail(
         return None
     try:
         root = Path(project_root).resolve()
-        current = Path(current_file).resolve()
+        current = (root / current_file.replace("\\", "/")).resolve()
         rel = current.relative_to(root).as_posix()
         if not is_manuscript_path(rel):
             return None
         ordered = iter_manuscript_files(root)
-        index = next(
-            (i for i, path in enumerate(ordered) if path.relative_to(root).as_posix() == rel),
-            None,
-        )
-        if index is None or index == 0:
+        # 未创建章节也参与同一阅读序，不能要求先创建占位文件才能获得上章。
+        keys = [path.relative_to(root).as_posix() for path in ordered]
+        existing = next((i for i, key in enumerate(keys) if normcase(key) == normcase(rel)), None)
+        index = existing if existing is not None else bisect_left(keys, rel)
+        observe_generation_selection("previous_chapter", {
+            "current_file": rel, "selected_file": keys[index - 1] if index else None,
+        }, ordered_paths=keys)
+        if index == 0:
+            project_generation_source("previous_chapter", None, channel="user", omission_reason="no_previous_chapter")
             return None
         previous = ordered[index - 1]
-        tail = _tail_of(previous.read_text(encoding="utf-8", errors="replace"), max_chars)
+        resolved_previous = previous.resolve()
+        resolved_previous.relative_to(root)  # 不追踪项目外的链接来源。
+        with resolved_previous.open("rb", buffering=0) as stream:
+            raw = stream.read(MAX_READ_BYTES + 1)
+        if len(raw) > MAX_READ_BYTES or b"\x00" in raw[:1024]:
+            reason = "source_byte_budget" if len(raw) > MAX_READ_BYTES else "binary_source"
+            observe_generation_source(
+                "previous_chapter", resolved_previous, raw=raw, complete=False, omission_reason=reason
+            )
+            project_generation_source("previous_chapter", None, channel="user", omission_reason=reason)
+            return None  # A partial prefix cannot represent the actual chapter tail.
+        decoded = raw.decode("utf-8", errors="replace")
+        normalized = decoded.replace("\r\n", "\n").replace("\r", "\n").strip("\n")
+        observe_generation_source("previous_chapter", resolved_previous, raw=raw, text=normalized, complete=True)
+        tail = _tail_of(decoded, max_chars)
         if not tail:
+            project_generation_source("previous_chapter", None, channel="user", omission_reason="empty_source")
             return None
+        start = normalized.rfind(tail)
+        project_generation_source(
+            "previous_chapter",
+            tail,
+            channel="user",
+            truncated=len(normalized) > max_chars,
+            source_span={"start": start, "end": start + len(tail), "basis": "normalized_text", "unit": "chars"},
+            transformation="previous_paragraph_tail_v1",
+        )
         return previous.relative_to(root).as_posix(), tail
     except (OSError, ValueError):
         return None

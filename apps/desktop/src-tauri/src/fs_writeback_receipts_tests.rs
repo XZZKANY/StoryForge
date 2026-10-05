@@ -378,3 +378,63 @@ fn describe_reuses_identity_across_projects_but_binds_changed_content() {
     assert!(describe_writeback_operation(root_b, request_b).is_err());
     assert!(!b.path().join(".storyforge").exists());
 }
+
+/// D04：写回成功必须失效 canon 正文派生缓存；proposals.json（待决提案草稿）不在此列。
+#[test]
+fn applied_writeback_invalidates_canon_derived_presence_and_observation_caches() {
+    let (_temp, root, request) = fixture();
+    let derived = Path::new(&root)
+        .join(".storyforge")
+        .join("canon")
+        .join("derived");
+    fs::create_dir_all(&derived).unwrap();
+    for name in CANON_DERIVED_INVALIDATION_NAMES {
+        fs::write(derived.join(name), "stale derived snapshot").unwrap();
+    }
+    fs::write(derived.join("proposals.json"), "pending author proposals").unwrap();
+
+    let receipt = apply(&root, &request);
+    assert_eq!(receipt.state, "applied");
+    assert!(receipt.detail.is_none(), "派生缓存失效不得给写回掺入错误");
+
+    for name in CANON_DERIVED_INVALIDATION_NAMES {
+        assert!(!derived.join(name).exists(), "{name} 应随正文写回失效");
+    }
+    assert_eq!(
+        fs::read_to_string(derived.join("proposals.json")).unwrap(),
+        "pending author proposals",
+        "待决提案草稿不是正文派生，不得删除"
+    );
+}
+
+/// 失效机制不得在写回失败（not_written）时触发：正文没变，缓存仍然有效。
+#[test]
+fn rejected_writeback_keeps_canon_derived_caches() {
+    let (_temp, root, request) = fixture();
+    let derived = Path::new(&root)
+        .join(".storyforge")
+        .join("canon")
+        .join("derived");
+    fs::create_dir_all(&derived).unwrap();
+    fs::write(derived.join("presence.json"), "still valid presence").unwrap();
+
+    let rejected = apply_with(&root, &request, baseline(), Some(7), |_| {
+        Err("drift before rename".into())
+    })
+    .unwrap();
+    assert_eq!(rejected.state, "not_written");
+    assert_eq!(
+        fs::read_to_string(derived.join("presence.json")).unwrap(),
+        "still valid presence",
+        "正文未落盘时不得失效派生缓存"
+    );
+}
+
+/// 项目里没有 canon 目录时失效是 no-op，不创建任何东西、不报错。
+#[test]
+fn invalidation_is_noop_without_canon_directory() {
+    let (_temp, root, request) = fixture();
+    let receipt = apply(&root, &request);
+    assert_eq!(receipt.state, "applied");
+    assert!(!Path::new(&root).join(".storyforge").join("canon").exists());
+}

@@ -1,4 +1,5 @@
 import { TauriFileSystem } from '../tauri-fs';
+import { FS_MUTATION_EVENT } from '../tauri-fs';
 import { buildProjectIndex } from './index';
 import { normalizePathForMatch, normalizeRoot, relativePathInsideProject } from './path';
 import type {
@@ -10,6 +11,7 @@ import type {
 } from './types';
 
 const CONTEXT_BUNDLE_CACHE_TTL_MS = 30000;
+const CONTEXT_BUNDLE_COLLECTION_ATTEMPTS = 3;
 
 type ContextBundleCacheEntry = {
   createdAt: number;
@@ -17,6 +19,7 @@ type ContextBundleCacheEntry = {
 };
 
 const contextBundleCache = new Map<string, ContextBundleCacheEntry>();
+const contextBundleLifetimes = new Map<string, object>();
 
 const KIND_PRIORITY: Record<SemanticKind, number> = {
   outline: 0,
@@ -216,13 +219,64 @@ export function selectContextBundleFiles(params: {
   };
 }
 
-export async function buildContextBundle(params: {
+/**
+ * 失效该项目全部 context bundle 缓存（C10）。
+ *
+ * 30 秒 TTL 内作者保存 / 删除源文件时，旧缓存仍会发送旧摘录和旧选择。
+ * 后端重读不能替代前端的选择/预览事实。任何写 / 删 / 改名入口完成后
+ * （含 `TauriFileSystem` 的 `invalidateFileSystemCache` 广播）都应让缓存失效，
+ * 让下一次 buildContextBundle 强制读盘。
+ */
+export function invalidateContextBundleCache(projectPath: string): void {
+  for (const root of contextBundleLifetimes.keys()) {
+    if (isAffectedProjectRoot(root, projectPath)) contextBundleLifetimes.delete(root);
+  }
+  for (const key of contextBundleCache.keys()) {
+    if (isAffectedProjectRoot(key.split('\u0000')[0], projectPath)) {
+      contextBundleCache.delete(key);
+    }
+  }
+}
+
+function isAffectedProjectRoot(root: string, changedPath: string): boolean {
+  const normalizedRoot = normalizePathForMatch(normalizeRoot(root));
+  const changed = normalizePathForMatch(normalizeRoot(changedPath));
+  return (
+    changed === normalizedRoot ||
+    changed.startsWith(`${normalizedRoot}/`) ||
+    normalizedRoot.startsWith(`${changed}/`)
+  );
+}
+
+// C10：订阅文件系统变更事件，任何写 / 删 / 改名后按前缀失效对应项目的缓存。
+// `TauriFileSystem` 的每条变更路径都会走 `invalidateListDirCache` → `emitFsMutation`，
+// 在此单一订阅点接住，无需每个调用方手动失效。
+let fsMutationListenerAttached = false;
+
+function attachFsMutationListener(): void {
+  if (fsMutationListenerAttached) return;
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+  fsMutationListenerAttached = true;
+  window.addEventListener(FS_MUTATION_EVENT, ((event: CustomEvent<{ path?: string }>) => {
+    const changedPath = event.detail?.path;
+    if (!changedPath) {
+      contextBundleCache.clear();
+      contextBundleLifetimes.clear();
+      return;
+    }
+    invalidateContextBundleCache(changedPath);
+  }) as EventListener);
+}
+
+type ContextBundleParams = {
   projectPath: string;
   currentFile: string | null;
   maxFiles?: number;
   maxExcerptChars?: number;
   pinnedFiles?: string[];
-}): Promise<ContextBundle> {
+};
+
+export async function buildContextBundle(params: ContextBundleParams): Promise<ContextBundle> {
   const {
     projectPath,
     currentFile,
@@ -230,18 +284,38 @@ export async function buildContextBundle(params: {
     maxExcerptChars = 1200,
     pinnedFiles = [],
   } = params;
-  const cacheKey = [
-    normalizeRoot(projectPath),
-    currentFile ?? '',
-    maxFiles,
-    maxExcerptChars,
-    ...pinnedFiles.map((item) => item.trim()).sort(),
-  ].join('\u0000');
-  const cached = contextBundleCache.get(cacheKey);
-  if (cached && Date.now() - cached.createdAt < CONTEXT_BUNDLE_CACHE_TTL_MS) {
-    return cached.bundle;
-  }
+  attachFsMutationListener();
+  // Selection order is author intent. Freeze it before I/O; never sort the key
+  // while consuming a different (or externally mutable) order in the collector.
+  const pins = pinnedFiles.map((item) => item.trim());
+  const root = normalizeRoot(projectPath);
+  const cacheKey = [root, currentFile ?? '', maxFiles, maxExcerptChars, ...pins].join('\u0000');
 
+  for (let attempt = 0; attempt < CONTEXT_BUNDLE_COLLECTION_ATTEMPTS; attempt += 1) {
+    const lifetime = contextBundleLifetimes.get(root) ?? {};
+    contextBundleLifetimes.set(root, lifetime);
+    const cached = contextBundleCache.get(cacheKey);
+    if (cached && Date.now() - cached.createdAt < CONTEXT_BUNDLE_CACHE_TTL_MS) {
+      return cached.bundle;
+    }
+    const bundle = await collectContextBundle({
+      projectPath,
+      currentFile,
+      maxFiles,
+      maxExcerptChars,
+      pinnedFiles: pins,
+    });
+    // Save/delete/rename must invalidate requests already reading, not only
+    // entries already cached. Never publish a mixture or resurrect old evidence.
+    if (contextBundleLifetimes.get(root) !== lifetime) continue;
+    contextBundleCache.set(cacheKey, { createdAt: Date.now(), bundle });
+    return bundle;
+  }
+  throw new Error('项目资料在读取期间持续变化，请稍后重试。');
+}
+
+async function collectContextBundle(params: Required<ContextBundleParams>): Promise<ContextBundle> {
+  const { projectPath, currentFile, maxFiles, maxExcerptChars, pinnedFiles } = params;
   const index = await buildProjectIndex(projectPath);
   const selection = selectContextBundleFiles({ index, currentFile, maxFiles, pinnedFiles });
 
@@ -293,6 +367,5 @@ export async function buildContextBundle(params: {
       missingPinnedFiles: selection.missingPinnedFiles,
     },
   };
-  contextBundleCache.set(cacheKey, { createdAt: Date.now(), bundle });
   return bundle;
 }

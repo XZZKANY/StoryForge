@@ -18,9 +18,12 @@ import type { QueuedChatMessage } from './useChatSubmission';
 import { useExternalWritebackCoordinator } from '../app/ExternalWritebackProvider';
 import { ExternalWritebackPanel } from '../app/ExternalWritebackPanel';
 import { AgentDecisionPrompt } from './AgentDecisionPrompt';
+import { ChapterCheckHistoryPanel } from './ChapterCheckHistoryPanel';
+import type { ChapterCheckHistoryState } from './useChapterCheckHistory';
 
 type Props = {
   state: ChatWindowState;
+  chapterCheckHistory?: ChapterCheckHistoryState;
   projectPath: ChatWindowProps['projectPath'];
   assistantSessionId: ChatWindowProps['assistantSessionId'];
   decisionDialogsActive?: boolean;
@@ -49,6 +52,7 @@ type Props = {
 
 export function ChatWindowView({
   state,
+  chapterCheckHistory,
   projectPath,
   assistantSessionId,
   decisionDialogsActive = true,
@@ -188,6 +192,8 @@ export function ChatWindowView({
           decisionDialogsActive={dialogsActive}
         />
       )}
+
+      {chapterCheckHistory && <ChapterCheckHistoryPanel history={chapterCheckHistory} />}
 
       {state.chapterBrief && (
         <AgentDecisionPrompt

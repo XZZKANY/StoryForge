@@ -6,6 +6,7 @@ from app.domains.agent_runs.event_encoders import (
 )
 from app.domains.agent_runs.event_sink import AgentRunEventSink
 from app.domains.agent_runs.event_types import event_type_for_control_message
+from app.domains.agent_runs.events.chapter_checks import query_chapter_check_history
 from app.domains.agent_runs.events.contracts import CompletedEventPayload, FailedEventPayload, TerminalEventPayload
 from app.domains.agent_runs.events.knowledge_inbox import (
     query_knowledge_proposal_inbox,
@@ -24,6 +25,7 @@ __all__ = [
     "event_type_for_control_message",
     "materialize_knowledge_proposal",
     "query_knowledge_proposal_inbox",
+    "query_chapter_check_history",
     "refresh_knowledge_evidence",
     "resolve_knowledge_proposal",
     "revise_knowledge_proposal_group",

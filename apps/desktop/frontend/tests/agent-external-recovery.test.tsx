@@ -1,6 +1,11 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { beforeEach, expect, it, vi } from 'vitest';
+
+// This fixture owns no persisted chapter checks; the dedicated history tests cover that read.
+vi.mock('../src/lib/api/chapter-checks', () => ({
+  queryChapterCheckHistory: vi.fn().mockResolvedValue({ entries: [], truncated: false }),
+}));
 import {
   ExternalWritebackCoordinator,
   type CoordinatorPorts,

@@ -31,6 +31,8 @@ class KnowledgeRetrievalResult:
     warnings: tuple[str, ...]
     total_chars: int
     structured_paths: tuple[str, ...]
+    # 结构化文件路径 → 块外普通说明（报告 §3 C06）。
+    plain_notes: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,8 @@ class KnowledgeSelection:
     items: tuple[SelectedKnowledgeEntry, ...]
     warnings: tuple[str, ...]
     structured_paths: tuple[str, ...]
+    # 结构化文件路径 → 块外普通说明（报告 §3 C06）。
+    plain_notes: tuple[tuple[str, str], ...] = ()
 
 
 def retrieve_project_knowledge(
@@ -118,8 +122,12 @@ def select_knowledge_entries(
     return KnowledgeSelection(
         items=tuple(result),
         warnings=index.warnings,
-        # 非 active / excluded 的结构化文件同样不能从 raw bundle 再次注入。
-        structured_paths=tuple(sorted({item.relative_path for item in index.entries})),
+        # 非 active / excluded / 全部损坏的结构化文件同样不能从 raw bundle 再次注入。
+        # index.structured_paths 含零有效条目路径；旧调用方未提供时回退到 entries 推导。
+        structured_paths=tuple(
+            sorted(index.structured_paths or {item.relative_path for item in index.entries})
+        ),
+        plain_notes=index.plain_notes,
     )
 
 
@@ -155,6 +163,7 @@ def materialize_knowledge_selection(
         warnings=tuple(warnings),
         total_chars=sum(len(item.excerpt) for item in result),
         structured_paths=selection.structured_paths,
+        plain_notes=selection.plain_notes,
     )
 
 

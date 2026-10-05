@@ -402,7 +402,9 @@ def test_resume_preserves_known_reply_or_pending_patch_without_regeneration(dura
             service.record_agent_control_event(controller, public_id="result-run", session_id="result-session",
                                                control_type="pause_run")
 
-    def revise(session, request):
+    def revise(session, request, *, author_instruction=None, prepared_context=None):
+        assert author_instruction == "Help with this"
+        assert prepared_context is not None and prepared_context.context_bundle == request.context_bundle
         revisions.append(request)
         return AssistantReviseResponse(before=request.content, after="revised", summary="a retained patch",
                                        model="fake", latency_ms=1, completion_tokens=3,

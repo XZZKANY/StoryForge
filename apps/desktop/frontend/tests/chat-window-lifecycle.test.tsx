@@ -335,3 +335,91 @@ test('ChatWindow run 结果事件监听器在卸载时以原回调移除', () =>
     }
   }
 });
+
+/** W02：正文已写回但闭环记录未完成时，聊天文案不得宣称「闭环记录已生成」。 */
+function AuthorLoopResultHarness({ onRender }: { onRender: (messages: Message[]) => void }) {
+  const state = useChatWindowState({
+    projectPath,
+    currentFile: null,
+    assistantSessionId: null,
+  });
+  useAgentRunControls(
+    state,
+    async () => undefined,
+    () => undefined,
+    recoveryHandlers,
+  );
+  useEffect(() => {
+    onRender(state.messages);
+  });
+  return null;
+}
+
+test('W02：审计失败降级文案如实说明记录未完成，不宣称闭环已生成', () => {
+  const seen: Message[][] = [];
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  try {
+    act(() =>
+      root.render(<AuthorLoopResultHarness onRender={(messages) => seen.push(messages)} />),
+    );
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(AUTHOR_LOOP_RESULT_EVENT, {
+          detail: {
+            filePath: 'D:/Books/story/正文/第01章.md',
+            status: 'completed',
+            action: 'revision_accepted',
+            message: '正文已写入，但闭环记录未完成：请重试记录，不要重新应用补丁。',
+            warning: '正文已写入，但闭环记录未完成：请重试记录，不要重新应用补丁。',
+          },
+        }),
+      );
+    });
+
+    const last = seen.at(-1) ?? [];
+    const content = last.map((message) => message.content).join('\n');
+    assert.match(content, /正文已写回，但闭环记录未完成/);
+    assert.doesNotMatch(content, /已写回正文，并生成闭环记录/);
+    assert.match(content, /不要重新应用补丁/);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('W02 对照：记录齐全的正常完成仍宣称闭环完成', () => {
+  const seen: Message[][] = [];
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  try {
+    act(() =>
+      root.render(<AuthorLoopResultHarness onRender={(messages) => seen.push(messages)} />),
+    );
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(AUTHOR_LOOP_RESULT_EVENT, {
+          detail: {
+            filePath: 'D:/Books/story/正文/第01章.md',
+            status: 'completed',
+            action: 'revision_accepted',
+            message: '修订已写回并记录闭环',
+            recordPath: 'D:/Books/story/.storyforge/author-loop/x.md',
+          },
+        }),
+      );
+    });
+
+    const last = seen.at(-1) ?? [];
+    const content = last.map((message) => message.content).join('\n');
+    assert.match(content, /已写回正文，并生成闭环记录/);
+    assert.doesNotMatch(content, /闭环记录未完成/);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});

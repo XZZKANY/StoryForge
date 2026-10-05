@@ -1,25 +1,39 @@
 from __future__ import annotations
 
-import json
 import uuid
 from collections.abc import Mapping
 from typing import Any
 
 from app.domains.agent_runs import serial_plan
+from app.domains.agent_runs.adapters.chapter_source_guard import assert_chapter_sources, capture_chapter_sources
 from app.domains.agent_runs.adapters.chapter_writing_contracts import (
     CHAPTER_BRIEF_ARTIFACT_KIND,
+    CHAPTER_CANDIDATE_ARTIFACT_KIND,
     CHAPTER_CHECK_ARTIFACT_KIND,
     CHAPTER_WRITE_INTENT,
-    brief_prompt,
     build_brief_seed,
-    build_check,
-    check_prompt,
     confirm_brief,
-    draft_instruction,
-    parse_brief,
-    repair_instruction,
     resolve_target,
 )
+from app.domains.agent_runs.adapters.chapter_writing_contracts import (
+    brief_prompt as brief_prompt,
+)
+from app.domains.agent_runs.adapters.chapter_writing_contracts import (
+    build_check as build_check,
+)
+from app.domains.agent_runs.adapters.chapter_writing_contracts import (
+    check_prompt as check_prompt,
+)
+from app.domains.agent_runs.adapters.chapter_writing_contracts import (
+    draft_instruction as draft_instruction,
+)
+from app.domains.agent_runs.adapters.chapter_writing_contracts import (
+    parse_brief as parse_brief,
+)
+from app.domains.agent_runs.adapters.chapter_writing_contracts import (
+    repair_instruction as repair_instruction,
+)
+from app.domains.agent_runs.adapters.chapter_writing_tools import ChapterWritingToolsMixin
 from app.domains.agent_runs.adapters.intent_fixed_pipeline_adapter import FixedPipelineRequest
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.events.runtime_support import (
@@ -33,19 +47,24 @@ from app.domains.agent_runs.intent import role_hints, role_mentions
 from app.domains.agent_runs.llm_context import (
     build_llm_context_snapshot,
     llm_context_snapshot_to_prompt_context_bundle,
-    llm_context_snapshot_trace_summary,
+)
+from app.domains.agent_runs.llm_context import (
+    llm_context_snapshot_trace_summary as llm_context_snapshot_trace_summary,
 )
 from app.domains.agent_runs.models import AgentArtifact, AgentRun
 from app.domains.agent_runs.permission import patch_requires_confirmation
 from app.domains.agent_runs.runtime_delivery import check_result_delivery
 from app.domains.agent_runs.runtime_recovery import RUNTIME_PENDING_CALL_ARTIFACT_KIND
-from app.domains.agent_runs.tools import ToolArtifact, ToolExecutionContext, ToolHandler, ToolResult
+from app.domains.agent_runs.tools import ToolArtifact, ToolExecutionContext, ToolHandler
+from app.domains.agent_runs.tools import ToolResult as ToolResult
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
-from app.domains.assistant.schemas import AssistantDraftRequest, AssistantMessageCreate, AssistantReviseRequest
+from app.domains.assistant.schemas import AssistantDraftRequest as AssistantDraftRequest
+from app.domains.assistant.schemas import AssistantMessageCreate
+from app.domains.assistant.schemas import AssistantReviseRequest as AssistantReviseRequest
 
 
-class ChapterWritingRuntimeMixin:
+class ChapterWritingRuntimeMixin(ChapterWritingToolsMixin):
     def run_chapter_writing_pipeline(self, request: FixedPipelineRequest) -> dict[str, Any]:
         pending = latest_runtime_pending_call(request.session, request.run)
         if self._is_chapter_resume(request.run, pending):
@@ -72,11 +91,19 @@ class ChapterWritingRuntimeMixin:
             user_message=request.user_message,
             file_path=target_relative,
             content="",
-            context_bundle=request.args.get("context_bundle"),
+            context_bundle={
+                **(request.args.get("context_bundle") or {}),
+                "project_root": project_root,
+                "current_file": target_relative,
+            },
             role_hints=role_hints(request.args),
             role_mentions=role_mentions(request.args),
             event_history=request.run.events,
             artifacts=request.run.artifacts,
+        )
+        prompt_bundle = llm_context_snapshot_to_prompt_context_bundle(snapshot)
+        source_guard = capture_chapter_sources(
+            project_root, target_absolute, prompt_bundle, snapshot=snapshot, user_message=request.user_message
         )
         seed = build_brief_seed(
             user_message=request.user_message,
@@ -118,14 +145,13 @@ class ChapterWritingRuntimeMixin:
                 "target_absolute": target_absolute,
                 "seed": seed,
                 "llm_context_snapshot": snapshot,
-                "llm_prompt_context_bundle": llm_context_snapshot_to_prompt_context_bundle(snapshot),
+                "llm_prompt_context_bundle": prompt_bundle,
             },
         )
+        assert_chapter_sources(project_root, target_absolute, source_guard)
         self._event_sink.record_tool_trace(request.run, brief_result.trace, 0)
         brief = brief_result.output["brief"]
-        safe_prompt_bundle = self._safe_prompt_bundle(
-            llm_context_snapshot_to_prompt_context_bundle(snapshot)
-        )
+        safe_prompt_bundle = self._safe_prompt_bundle(prompt_bundle)
         pending_payload = {
             "kind": RUNTIME_PENDING_CALL_ARTIFACT_KIND,
             "intent": CHAPTER_WRITE_INTENT,
@@ -138,6 +164,7 @@ class ChapterWritingRuntimeMixin:
                 "user_message": request.user_message,
                 "assistant_session_id": request.assistant_session_id,
                 "args": {
+                    "project_path": project_root,
                     "project_name": request.args.get("project_name"),
                     "file_path": target_relative,
                     "context_bundle": safe_prompt_bundle,
@@ -145,6 +172,7 @@ class ChapterWritingRuntimeMixin:
             },
             "chapter_brief": brief,
             "target_relative": target_relative,
+            "source_guard": source_guard,
             "llm_prompt_context_bundle": safe_prompt_bundle,
         }
         self._event_sink.record_runtime_pending_call(request.run, payload=pending_payload)
@@ -174,7 +202,8 @@ class ChapterWritingRuntimeMixin:
         )
         interrupted = check_result_delivery(result, boundary="before_finalize:chapter.brief", events_recorded=True)
         self._event_sink.record_artifact(
-            request.run, kind=CHAPTER_BRIEF_ARTIFACT_KIND,
+            request.run,
+            kind=CHAPTER_BRIEF_ARTIFACT_KIND,
             payload={**brief, "status": "interrupted" if interrupted is not None else "proposed"},
             requires_confirmation=interrupted is None,
         )
@@ -225,6 +254,7 @@ class ChapterWritingRuntimeMixin:
         prompt_bundle = payload.get("llm_prompt_context_bundle")
         if not isinstance(prompt_bundle, dict):
             raise AgentOrchestrationError("Chapter Brief 缺少可信上下文快照，请重新生成。")
+        assert_chapter_sources(project_root, target_absolute, payload.get("source_guard"))
         context = ToolExecutionContext(
             request.session,
             request.run,
@@ -243,6 +273,7 @@ class ChapterWritingRuntimeMixin:
                 "target_absolute": target_absolute,
                 "target_relative": target_relative,
                 "brief": confirmed,
+                "source_guard": payload["source_guard"],
                 "llm_prompt_context_bundle": prompt_bundle,
             },
         )
@@ -263,6 +294,7 @@ class ChapterWritingRuntimeMixin:
                     "brief": confirmed,
                     "content": content,
                     "check": final_check,
+                    "source_guard": payload["source_guard"],
                     "llm_prompt_context_bundle": prompt_bundle,
                 },
             )
@@ -272,6 +304,7 @@ class ChapterWritingRuntimeMixin:
             check = self._execute_tool("chapter.check", context, {"brief": confirmed, "content": content, "attempt": 2})
             traces.append(check.trace)
             final_check = check.output["check"]
+        assert_chapter_sources(project_root, target_absolute, payload.get("source_guard"))
         for index, trace in enumerate(traces):
             self._event_sink.record_tool_trace(request.run, trace, index)
         tool_artifacts = [
@@ -283,18 +316,41 @@ class ChapterWritingRuntimeMixin:
             runtime_pending_call_resolution_artifact(pending),
         ]
         if final_check["status"] != "pass":
-            summary = f"章节检查未通过：仍有 {final_check['hard_failure_count']} 个硬失败，未生成补丁。"
+            execution_status = final_check["execution_status"]
+            if execution_status == "completed":
+                detail = f"章节检查已完成：发现 {final_check['manuscript_hard_failure_count']} 个稿件硬失败。"
+            elif execution_status == "incomplete":
+                detail = "章节检查未完整执行：结果超过协议预算，不能据此判断稿件通过。"
+            else:
+                detail = "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。"
+            summary = f"{detail} 候选稿已保留在运行证据中，未生成补丁。"
+            candidate = {
+                "target_path": target_relative,
+                "brief_id": confirmed["brief_id"],
+                "brief_sha256": final_check["brief_sha256"],
+                "content": content,
+                "content_sha256": final_check["content_sha256"],
+                "execution_status": execution_status,
+                "manuscript_status": final_check["manuscript_status"],
+                "read_only": True,
+            }
+            tool_artifacts.append(ToolArtifact(kind=CHAPTER_CANDIDATE_ARTIFACT_KIND, payload=candidate))
             result = base_response(
                 agent_session_id=request.agent_session_id,
                 assistant_session_id=request.assistant_session_id,
                 intent=CHAPTER_WRITE_INTENT,
                 user_message=request.user_message,
-                plan=self._completed_plan(check_status="failed", patch_status="skipped"),
+                plan=self._completed_plan(
+                    check_status="completed" if execution_status == "completed" else "failed",
+                    patch_status="skipped",
+                    check_detail=detail,
+                ),
                 agent_result={
                     "summary": summary,
                     "requires_user_confirmation": False,
                     "chapter_brief": confirmed,
                     "chapter_check": final_check,
+                    "chapter_candidate": candidate,
                     "repair_count": repair_count,
                 },
                 tool_trace=traces,
@@ -316,7 +372,9 @@ class ChapterWritingRuntimeMixin:
             "approval_action": "desktop.confirm_file_writeback",
             "brief_id": confirmed["brief_id"],
         }
-        tool_artifacts.append(ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=requires_confirmation))
+        tool_artifacts.append(
+            ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=requires_confirmation)
+        )
         summary = f"章节草稿已通过 brief 检查，生成 {target_relative} 的待审阅补丁。"
         result = base_response(
             agent_session_id=request.agent_session_id,
@@ -340,113 +398,6 @@ class ChapterWritingRuntimeMixin:
         result["_events_recorded"] = True
         return result
 
-    def _chapter_brief(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
-        seed = payload["seed"]
-        prompt_bundle = payload["llm_prompt_context_bundle"]
-        provenance = llm_context_snapshot_trace_summary(payload["llm_context_snapshot"])
-        try:
-            chat = assistant_service.chat_reply(
-                context.session,
-                user_message=brief_prompt(seed, context.user_message),
-                context_block=json.dumps(prompt_bundle, ensure_ascii=False),
-                assistant_session_id=context.assistant_session_id,
-            )
-            brief = parse_brief(chat["reply"], seed=seed, provenance=provenance)
-        except (
-            assistant_service.AssistantLlmNotConfiguredError,
-            assistant_service.AssistantReviseError,
-            AgentOrchestrationError,
-        ) as exc:
-            raise AgentOrchestrationError(str(exc)) from exc
-        return ToolResult(
-            status="completed",
-            output={"brief": brief},
-            trace=AgentToolTrace(
-                tool_name="chapter.brief",
-                status="completed",
-                input_summary={"target_path": brief["target_path"], **provenance},
-                output_summary={"brief_id": brief["brief_id"], "revision": brief["revision"]},
-            ),
-        )
-
-    def _chapter_draft(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
-        brief = payload["brief"]
-        response = assistant_service.draft_file_content(
-            context.session,
-            AssistantDraftRequest(
-                file_path=payload["target_absolute"],
-                instruction=draft_instruction(brief),
-                project_name=payload.get("project_name"),
-                project_root=payload["project_root"],
-                assistant_session_id=context.assistant_session_id,
-                context_bundle=payload["llm_prompt_context_bundle"],
-            ),
-        )
-        return ToolResult(
-            status="completed",
-            output={"content": response.content, "model": response.model},
-            trace=AgentToolTrace(
-                tool_name="chapter.draft",
-                status="completed",
-                input_summary={"brief_id": brief["brief_id"], "target_path": payload["target_relative"]},
-                output_summary={"content_chars": len(response.content), "model": response.model},
-            ),
-        )
-
-    def _chapter_check(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
-        try:
-            chat = assistant_service.chat_reply(
-                context.session,
-                user_message=check_prompt(payload["brief"], payload["content"]),
-                context_block="",
-                assistant_session_id=context.assistant_session_id,
-            )
-            raw = chat["reply"]
-        except (assistant_service.AssistantLlmNotConfiguredError, assistant_service.AssistantReviseError) as exc:
-            raw = f"check failed: {exc}"
-        check = build_check(payload["content"], payload["brief"], raw)
-        return ToolResult(
-            status="completed",
-            output={"check": check},
-            trace=AgentToolTrace(
-                tool_name="chapter.check",
-                status="completed",
-                input_summary={"brief_id": payload["brief"]["brief_id"], "attempt": payload["attempt"]},
-                output_summary={
-                    "status": check["status"],
-                    "hard_failure_count": check["hard_failure_count"],
-                    "advisory_count": check["advisory_count"],
-                },
-            ),
-        )
-
-    def _chapter_repair(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
-        response = assistant_service.revise_file_content(
-            context.session,
-            AssistantReviseRequest(
-                file_path=payload["target_absolute"],
-                content=payload["content"],
-                instruction=repair_instruction(payload["check"], payload["brief"]),
-                project_name=payload.get("project_name"),
-                project_root=payload["project_root"],
-                assistant_session_id=context.assistant_session_id,
-                context_bundle=payload["llm_prompt_context_bundle"],
-            ),
-        )
-        return ToolResult(
-            status="completed",
-            output={"content": response.after, "model": response.model},
-            trace=AgentToolTrace(
-                tool_name="chapter.repair",
-                status="completed",
-                input_summary={
-                    "brief_id": payload["brief"]["brief_id"],
-                    "hard_failure_count": payload["check"]["hard_failure_count"],
-                },
-                output_summary={"content_chars": len(response.after), "model": response.model},
-            ),
-        )
-
     @staticmethod
     def _is_chapter_resume(run: AgentRun, pending: AgentArtifact | None) -> bool:
         if pending is None or run.status != "running" or run.current_step != "resumed":
@@ -465,9 +416,7 @@ class ChapterWritingRuntimeMixin:
         value = request.args.get("project_path")
         if isinstance(value, str) and value.strip():
             return value.strip()
-        assistant_session = assistant_service.get_assistant_session(
-            request.session, request.assistant_session_id
-        )
+        assistant_session = assistant_service.get_assistant_session(request.session, request.assistant_session_id)
         project_path = getattr(assistant_session, "project_path", None)
         if isinstance(project_path, str) and project_path.strip():
             return project_path.strip()
@@ -480,12 +429,14 @@ class ChapterWritingRuntimeMixin:
         return safe
 
     @staticmethod
-    def _completed_plan(*, check_status: str, patch_status: str) -> list[dict[str, str]]:
+    def _completed_plan(
+        *, check_status: str, patch_status: str, check_detail: str = "章节检查已完成。"
+    ) -> list[dict[str, str]]:
         return [
             plan_step("chapter.brief", "作者已确认 Chapter Brief。", "completed"),
             plan_step("chapter.brief.confirm", "Chapter Brief 已确认。", "completed"),
             plan_step("chapter.draft", "已按 brief 起草正文。", "completed"),
-            plan_step("chapter.check", "章节检查已完成。", check_status),
+            plan_step("chapter.check", check_detail, check_status),
             plan_step("chapter.patch", "仅检查通过时生成 proposed patch。", patch_status),
         ]
 

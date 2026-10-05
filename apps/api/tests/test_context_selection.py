@@ -95,13 +95,17 @@ def test_legacy_auto_ties_are_stable_and_do_not_check_unselected_sources(monkeyp
     assert result.items[0].selection_source == "auto_retrieved"
 
 
-def test_legacy_snapshot_retrieval_failure_is_not_an_empty_success(monkeypatch, tmp_path):
+@pytest.mark.parametrize("state", ["unchanged", "changed", "deleted"])
+def test_legacy_snapshot_retrieval_failure_is_not_an_empty_success(monkeypatch, tmp_path, state):
     from app.domains.agent_runs import knowledge_context
 
     def fail(*_args, **_kwargs):
         raise OSError("fixture failure")
 
     monkeypatch.setattr(knowledge_context, "retrieve_project_knowledge", fail)
+    (tmp_path / "设定").mkdir()
+    if state != "deleted":
+        (tmp_path / "设定/a.md").write_text("当前摘录。" if state == "changed" else "普通摘录。", encoding="utf-8")
     snapshot = build_llm_context_snapshot(
         run_state=None,
         intent="file.revise",
@@ -115,8 +119,12 @@ def test_legacy_snapshot_retrieval_failure_is_not_an_empty_success(monkeypatch, 
             ],
         },
     )
-    assert snapshot["warnings"] == ["structured Project Knowledge retrieval failed"]
-    assert snapshot["context_files"][0]["excerpt"] == "普通摘录。"
+    assert "structured Project Knowledge retrieval failed" in snapshot["warnings"]
+    if state == "deleted":
+        assert snapshot["context_files"] == []
+        assert snapshot["source_manifest"][0]["disposition"] == "omitted"
+    else:
+        assert snapshot["context_files"][0]["excerpt"] == ("当前摘录。" if state == "changed" else "普通摘录。")
 
 
 def test_fixed_index_selection_and_materialization_need_no_io(monkeypatch):
@@ -292,7 +300,7 @@ def test_valid_empty_collection_suppresses_raw_structured_knowledge(tmp_path, st
         "files": files,
         "knowledge_exclusions": {"ids": [entry.id] if excluded else []},
     }
-    knowledge = collect_project_knowledge_context(bundle, context_files=files, query="天枢")
+    knowledge = collect_project_knowledge_context(bundle, context_files=files, query="天枢\n正文/a.md")
     assert knowledge.result is not None and knowledge.result.items == ()
     args = dict(
         run_state=None,

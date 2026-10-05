@@ -38,6 +38,12 @@ const gates = [
     cwd: root,
   },
   {
+    name: 'Desktop 行间续写真实 Monaco 回归（隔离 FS/HTTP fixture）',
+    command: 'npm',
+    args: ['--prefix', 'apps/desktop/frontend', 'run', 'verify:inline-continuation'],
+    cwd: root,
+  },
+  {
     name: 'API 单元测试',
     command: 'uv',
     args: ['run', 'pytest'],

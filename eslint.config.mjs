@@ -53,6 +53,20 @@ export default tseslint.config(
     },
   },
   {
+    files: ['apps/desktop/frontend/scripts/fixtures/**/*.jsx'],
+    languageOptions: {
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        localStorage: 'readonly',
+        location: 'readonly',
+        Response: 'readonly',
+        URL: 'readonly',
+      },
+    },
+  },
+  {
     files: ['apps/desktop/frontend/src/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: {

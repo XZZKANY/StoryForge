@@ -69,7 +69,7 @@ Adding a loop-visible tool means one ToolSpec entry with `loop_schema` plus its 
 - `loop_trusted_context`: whether the adapter builds a snapshot from trusted request context at tool execution time. Requires a file input mode; it does not grant write permission.
 - `loop_trace_owner`: `generic` (default) or `handler` for safe successful input/output/audit summaries. A missing handler output summary retains the generic fallback; an empty dictionary is an explicit summary.
 
-The three policies are independent: `knowledge.propose` owns its trace but is not a patch tool; `prose.continue` prepares an existing file without the snapshot policy. `ToolDefinition` derives them from the spec, and both loop consumers read the registered definition. Models cannot supply these fields. The old name-set exports in `tools/runtime_arguments.py` are derived compatibility views, not policy owners.
+The three policies are independent: `knowledge.propose` owns its trace but is not a patch tool; `prose.continue` declares existing-file input, trusted snapshot preparation and handler-owned trace. `ToolDefinition` derives them from the spec, and both loop consumers read the registered definition. Models cannot supply these fields. The old name-set exports in `tools/runtime_arguments.py` are derived compatibility views, not policy owners.
 
 Do not add schema/name/patch/input/trace mirrors to `loop_runtime.py` or a central handler-name table. Keep argument sanitization at the permission, execution, and evidence boundaries. Internal loop policies never enter the model schema or runtime-tool catalog DTO. `test_loop_tool_policy.py` exercises an unfamiliar test-only tool through the live chat/SDK adapter; it is not a production capability or a substitute for real-feature acceptance.
 
@@ -85,6 +85,8 @@ Do not add schema/name/patch/input/trace mirrors to `loop_runtime.py` or a centr
 - SDK checkpoint state may be recursively immutable, but runtime handlers and feedback receive recursively thawed JSON dictionaries/lists. Frozen nested values must not reach domain handlers or durable JSON evidence.
 
 Prompt/author instructions live in `loop/prompt_context.py`; history, budget, feedback, and output summarization live in `loop/support.py`. LLM-context value filtering lives in `loop/context_values.py`. Save-point projection helpers live in `events/save_point_projection.py`.
+
+`llm_context.py` assembles sanitized snapshots and keeps the prompt-conversion compatibility export. `llm_prompt_context.py` owns bounded Assistant bundle delivery, review summaries and knowledge source-state labels; `llm_context_limits.py` separates ordinary-file selection limits from the existing Assistant delivery limits. Structured retrieval excerpts must not be cropped again to the ordinary-file budget. A successful review produced inside the live loop is explicitly handed to the next snapshot before end-of-loop artifact persistence.
 
 ## Dual Track Boundary
 
@@ -115,3 +117,50 @@ Live `health`, `assistant`, `agent_runs`, and `ide` modules do not add dependenc
 - 无 pending anchor 的 resume 使用同次 commit 保存 stopped 与已有 resume 事件诊断，不新增事件类型。该结算失败回到已提交的 running/resumed，而不是伪称整条恢复命令回到 paused。
 - 提交后通知失败不能撤销已持久化配对，也不能补出相反终态；不把模型调用、上游 BookRun、先前 trace/artifact 纳入大事务。
 - `test_agent_settlement_atomicity.py` 用文件 SQLite、WAL、独立物理连接及外键验证 INSERT / commit / UPDATE 故障、同 Session 重试、序号冲突、提交后 refresh/通知和主 REST 控制入口。它不证明跨数据库并发 exactly-once 或完整 GUI 验收。
+
+
+Current-review ownership lives in `events/review_sources.py`: persisted reports are selected by the current assistant conversation, with backend-only transient reports for unsettled successful tool calls. `patches/revise_input.py` resolves that identity, verifies the manuscript source and applies the original author's scope before writing prompts. `revise_scope.py` remains the pure selection/delivery contract. Both chat and fixed adapters consume this owner; a fixed revision must not implicitly rerun review and renumber an author's selected issue. Canonical session/project ownership is exported by `assistant.service` from `assistant/session_scope.py`; recovery messages retain the original session and project instead of silently adopting unbound history.
+
+
+`fs/ordinary_context.py` owns bounded live revalidation of selected ordinary pins/read facts and immutable captures, then pure final-excerpt source evidence. `knowledge_context` collects those values alongside structured admission before selection/delivery. `llm_context` never performs hidden I/O in its collected-value entry; `llm_prompt_context` sends bounded Context Sources with exact final excerpt hashes and explicit omissions. The chat adapter binds the real project root even without a frontend bundle. Captured provenance is not perpetual freshness or a full author/style/canon/memory SourceRef manifest.
+
+
+Final writer admission is owned by `patches/writing_context.py`, using original selected inputs and `ToolExecutionContext.writing_read_sources` before structural filtering. `assistant/writing_context.py` owns frozen, target/body/intent-bound backend handoffs and raw direct-request admission; the handoff never re-reads synthetic prompt channels. Writer traces retain the final snapshot ID, selected full supplied-text hash and exact excerpt manifest. Chapter tools live in `adapters/chapter_writing_tools.py`, inherited by the original pipeline facade; draft/repair verify the existing source guard immediately before handing over a confirmed bundle. Backend handoff types and reader facts are not wire/schema/model parameters or durable live caches.
+
+
+`context_channel_requests.py` records raw synthetic-channel selection counts/value identities before summaries lose information. `llm_prompt_context.synthetic_context_delivery` is the common final-budget projection for Story Memory, Chapter Context and Review Report; the snapshot manifest and actual prompt share its excerpt hashes/omissions. Memory atoms and chapter fields are not cut mid-item at the final slot boundary. Supplied-channel hashes are not live file freshness proofs; these refs remain unverified, including legacy snapshots without a supplied-value hash.
+
+
+Project containment and complete bounded traversal are owned by `app/common/project_tree.py`, a domain-free leaf reused by manuscript/style/previous-chapter inputs. `fs_safety` retains its public error classes, signatures and module-level budget overrides as a compatibility facade; bounded reader/search behavior remains there. Manuscript discovery prunes hidden/non-manuscript directories before descent. Independent author instructions and previous tails require bounded complete reads; style sampling deduplicates physical files before its recent-file window and rechecks queued sources before reading. These guards do not constitute final SourceRefs or an atomic filesystem snapshot.
+
+
+Independent writer input observations are owned by domain-free `common/generation_sources.py`. The four Assistant writer facades scope actual author/style/canon/previous reads and persist final request hashes/projections in Assistant ToolCall input evidence before the existing provider seam. Readers never re-open sources to manufacture receipts. Style prefix hashes do not claim whole-file identity; supplied manuscript identity is unverified file provenance. Canon/hooks read paths are contained and bounded; scene active-hook/agenda projections share one hooks value. This evidence currently does not merge into outer Agent provenance or cold-resume source guards. The original committed running-tool-before-author-read boundary stays intact; the final receipt adds one short committed transaction, not a model-wait transaction.
+
+
+### 续写 source receipt 跨层关联（2026-10-05，本地增量）
+
+`common/generation_delivery` 用显式 ContextVar execution scope 把已提交的 Assistant 续写来源回执链接到 SDK 当前 running tool；SDK 在 writer provider 前短提交准确 id/hash，成功、失败、中断后的 trace 保留同一事实，外层自身 id 不变。只保存不可变、无正文的关联，不复制或猜测最近一条 ToolCall，不让 model 参数定义证据。其他 writer producer、恢复 guard 与完整 D02/C02 不属于本批完成项。
+
+
+### 续写独立来源的 checkpoint qualification（2026-10-05，本地增量）
+
+`loop/generation_recovery.py` 从 named inner/outer ToolCall 的已提交列事实提取 detached receipt，归入 `checkpoint_store` 的 hidden sources；不读取“最新一次”或 flush/覆盖 pending ORM。普通 resume 对照生成时 actual bounded reads、选择 digest、投影/system hash 重跑同一只读 owner，来源或章序变化拒绝旧续写。`common/generation_sources` 仅记录 writer 的真实相对目标/阅读序选择，未启用 capture 时不多算 selection hash。其他 writer / memory 全生命周期、原生 host kill 与发布验收不是本批完成项。
+
+
+### 续写知识恢复补充（2026-10-05）
+
+`knowledge_context.py::project_knowledge_recovery_receipt` 是纯值知识选择证据 owner；live collector 保存其不可变 JSON，snapshot/Assistant frozen handoff 只搬运。
+`loop/knowledge_recovery.py` 由 `generation_recovery.py` 调用，恢复时仅复用 `fs` 公共面的实际有界检索；不新增扫描器、预算策略、客户端信任标志或 DB commit。它校验 writer 已消费的选择，不在 checkpoint 准备时读取新盘来覆盖旧基线。
+
+
+`patches/writing_context.py` 的 snapshot fallback 必须区分原始请求和自动检索产物；自动文件及其块外说明不回填为 author pin，loop reads 保持独立来源通道。共享 refresh 继续调用同一个 collector，不另建排序器或政策表。
+
+
+### 普通上下文的续写恢复资格（2026-10-05）
+
+`assistant/writing_context.py` 搬运生成时 final source manifest 到不可变 writer receipt；`loop/ordinary_recovery.py` 经 `fs` 公共 collector 比较实际普通来源的完整解码版本和准入省略状态，`generation_recovery.py` 统一编排。不要从 raw bundle 的非空 excerpt 推断所有已消费来源，也不要把 checkpoint 时的新盘读作为旧 writer 的基线。只处理实际 ordinary source 的恢复资格；知识、独立作者/上章/canon owners 和供应通道的事实边界保持。
+
+
+### C17 Brief 的实际采集身份与冻结 writer handoff（2026-10-05）
+
+`adapters/chapter_source_guard.py` v2 绑定原 snapshot context receipt / project / target，复用 `loop` 公共 face 的 `writing_context_sources_unchanged` 对 knowledge/ordinary owners 做统一资格核对。`chapter_writing_pipeline.py` 使用 admitted root 初始化 snapshot；tools 经 `prepare_chapter_writing_context` 校验已确认 projection 后传递 typed capsule。Assistant draft/revise 的原 capture scope 现在包括 admission，原事务/权限/模型调用结构不变，不把最新盘读或另一项目同内容当作旧Brief确认。

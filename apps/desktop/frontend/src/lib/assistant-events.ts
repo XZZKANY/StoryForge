@@ -121,6 +121,8 @@ export type AuthorLoopResult = {
   message: string;
   artifactPath?: string;
   recordPath?: string;
+  /** 正文已写回但闭环记录未完成/回执未持久化时的降级说明；存在时聊天文案不得宣称闭环已生成。 */
+  warning?: string;
 };
 
 export function emitExportCurrentFile(): void {

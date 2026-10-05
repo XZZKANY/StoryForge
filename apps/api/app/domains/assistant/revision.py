@@ -7,9 +7,15 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Literal, Protocol
 
+from app.common.author_edit_policy import (
+    AuthorEditPolicy,
+    author_edit_policy_failures,
+    author_edit_policy_prompt,
+    build_author_edit_policy,
+)
 from app.common.craft import craft_prompt_clause, scene_discipline_guard_clause
 from app.common.performance import current_measurement, measure_stage, measured
 from app.common.punctuation import restore_incidental_punctuation
@@ -33,6 +39,7 @@ class RevisionInput:
     context_files: tuple[RevisionContextFile, ...] = ()
     scene_constraints: str | None = field(default=None, repr=False)
     quality_gate: Literal["polish"] | None = None
+    edit_policy: AuthorEditPolicy | None = field(default=None, repr=False)
 
 
 class RevisionGenerator(Protocol):
@@ -94,12 +101,14 @@ def build_revision_prompt(request: RevisionInput) -> str:
             + "\n"
         )
     constraint_block = f"\n{request.scene_constraints}\n" if request.scene_constraints else ""
+    policy = request.edit_policy or build_author_edit_policy(request.content, instruction=request.instruction)
     return (
         f"{project_line}"
         f"文件：{request.file_path}\n"
         f"修订指令：{request.instruction}\n\n"
         f"{context_block}"
         f"{constraint_block}"
+        f"\n{author_edit_policy_prompt(policy)}\n"
         # 不说「全文」：行间 Ctrl+K 对长章节只送锚点附近的窗口，说全文会与指令里的
         # 节选说明打架，也会诱导模型给一段节选补开头结尾。
         "以下是待修订的正文，请按指令修订后整体返回，只返回你收到的这段：\n"
@@ -198,13 +207,20 @@ def instruction_authorizes_expansion(instruction: str) -> bool:
 @measured("revision.total")
 def revise_text(request: RevisionInput, *, generate: RevisionGenerator) -> RevisionResult:
     """一次生成 → 标点还原 → 可选门禁；模型错误原样抛给应用编排层。"""
-    prompt = build_revision_prompt(request)
+    policy = request.edit_policy or build_author_edit_policy(request.content, instruction=request.instruction)
+    failures = author_edit_policy_failures(request.content, request.content, policy)
+    if failures:
+        raise RevisionQualityRejected(PolishGateResult(False, failures, {}, policy.version))
+    prompt = build_revision_prompt(replace(request, edit_policy=policy))
     with measure_stage("revision.model"):
         generated = generate(system_prompt=request.system_prompt, user_prompt=prompt)
     with measure_stage("revision.punctuation"):
-        after = restore_incidental_punctuation(request.content, str(generated["content"]))
+        after = restore_incidental_punctuation(request.content, str(generated["content"]), edit_policy=policy)
+    failures = author_edit_policy_failures(request.content, after, policy)
+    if failures:
+        raise RevisionQualityRejected(PolishGateResult(False, failures, {}, policy.version))
     # 扩写策略只在明确请求 polish 档时生效：授权时放开整窗字数上界，其余保护闸原样保留。
-    # quality_gate=None（agent 循环 file.revise / chapter 修复）完全不过门禁，与改动前一致。
+    # quality_gate=None 不启用统计润色门禁；明确逐字保留要求在所有修订入口都必须有效。
     expansion_authorized = (
         request.quality_gate == "polish" and instruction_authorizes_expansion(request.instruction)
     )
@@ -215,6 +231,7 @@ def revise_text(request: RevisionInput, *, generate: RevisionGenerator) -> Revis
                 request.content,
                 after,
                 config=EXPANSION_POLISH_GATE_CONFIG if expansion_authorized else None,
+                edit_policy=policy,
             )
             if not gate.passed:
                 quality.outcome("rejected")

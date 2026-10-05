@@ -49,6 +49,7 @@ import {
 } from './inline-chat-dom';
 import { prefersReducedMotion } from '../../lib/motion';
 import { resolveContinueAnchorLine } from '../../lib/inline-continue';
+import { loadInlineContinueContext } from '../../lib/inline-continue-context';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
 
 type WriteAcceptedSuggestion = (
@@ -73,6 +74,12 @@ type UseInlineChatParams = {
 type InlinePhase = 'input' | 'loading' | 'diff';
 
 type InlineSession = {
+  editor: monaco.editor.IStandaloneCodeEditor;
+  textModel: monaco.editor.ITextModel;
+  modelVersion: number;
+  projectPath: string;
+  filePath: string;
+  accessibleZoneHost: { node: HTMLElement; originalHidden: string | null } | null;
   mode: InlineMode;
   phase: InlinePhase;
   anchor: InlineAnchor;
@@ -136,10 +143,24 @@ export function useInlineChat({
   // 快捷键命令只注册一次；用 ref 持有最新的 open 闭包，命令回调始终调到当前实现。
   const openRef = useRef<(mode?: InlineMode) => void>(() => {});
 
+  const matchesSessionTarget = useCallback(
+    (session: InlineSession) =>
+      editorRef.current === session.editor &&
+      session.editor.getModel() === session.textModel &&
+      filePathRef.current === session.filePath &&
+      projectPathRef.current === session.projectPath,
+    [editorRef, filePathRef, projectPathRef],
+  );
+  const isSessionActive = useCallback(
+    (session: InlineSession) => sessionRef.current === session && matchesSessionTarget(session),
+    [matchesSessionTarget],
+  );
+
   const teardown = useCallback(() => {
-    const editor = editorRef.current;
     const session = sessionRef.current;
     if (!session) return;
+    const editor = session.editor;
+    session.abortController?.abort();
     if (session.keydownHandler) {
       document.removeEventListener('keydown', session.keydownHandler, true);
     }
@@ -150,16 +171,21 @@ export function useInlineChat({
         for (const id of session.zoneIds) accessor.removeZone(id);
       });
     }
+    const zoneHost = session.accessibleZoneHost;
+    if (zoneHost && zoneHost.node.getAttribute('aria-hidden') === 'false') {
+      if (zoneHost.originalHidden === null) zoneHost.node.removeAttribute('aria-hidden');
+      else zoneHost.node.setAttribute('aria-hidden', zoneHost.originalHidden);
+    }
     // zone 拆掉后焦点会无家可归（回落 body）；只有焦点确实曾在 zone 里时才归还编辑器——
     // 否则换文件等路径会把焦点从作者正在用的别处（文件树/查找框）抢走。
     const focusWasInZone =
       document.activeElement instanceof Node &&
       session.zoneDoms.some((dom) => dom.contains(document.activeElement));
     sessionRef.current = null;
-    if (focusWasInZone && editor && typeof editor.focus === 'function') {
+    if (focusWasInZone && matchesSessionTarget(session) && typeof editor.focus === 'function') {
       editor.focus();
     }
-  }, [editorRef]);
+  }, [matchesSessionTarget]);
 
   // 行间的状态是「转瞬即逝的操作反馈」，不该像面板那样赖在编辑器顶栏（丑）。
   // 改成编辑器右下角的小 toast，几秒自动消失。拿不到宿主时退回顶栏状态。
@@ -194,6 +220,28 @@ export function useInlineChat({
     [editorRef, setSuggestionStatus],
   );
 
+  const qualifySession = useCallback(
+    (session: InlineSession) => {
+      if (sessionRef.current !== session) return false;
+      if (!matchesSessionTarget(session)) {
+        teardown();
+        return false;
+      }
+      if (session.textModel.getVersionId() !== session.modelVersion) {
+        teardown();
+        flashStatus('稿件已变化，请重新发起行间操作');
+        return false;
+      }
+      if (!allowsAuthoringActions(readAgentPermissionProfile(session.projectPath))) {
+        teardown();
+        flashStatus('本项目已切换为只读，行间操作已取消');
+        return false;
+      }
+      return true;
+    },
+    [flashStatus, matchesSessionTarget, teardown],
+  );
+
   // 接受不该是硬切换：先让红旧行褪去、绿块卸掉「待定」的绿并轻微下沉，作者才看得见
   // 改动落在哪一行，随后才 teardown + 写回。降低动效偏好下时长为 0，直接落地。
   const playAcceptSettle = useCallback(
@@ -215,6 +263,7 @@ export function useInlineChat({
     const path = filePathRef.current;
     if (!editor || !session || session.phase !== 'diff' || !path) return;
     if (session.accepting) return;
+    if (!qualifySession(session)) return;
     session.accepting = true;
 
     const isContinue = session.mode === 'continue';
@@ -248,12 +297,13 @@ export function useInlineChat({
     await playAcceptSettle(session);
     // 落位这段时间里 Esc / 切文件可能已经把会话收掉，作者也可能又敲了字——
     // 所以写回前把两件事都再验一遍（比改前只在入口验一次更严）。
-    if (sessionRef.current !== session) return;
+    if (!qualifySession(session)) return;
     if (bailIfStale()) return;
     teardown();
 
     try {
       const writeback = await writeAcceptedSuggestion(suggestion, path, previous, next);
+      if (!matchesSessionTarget(session)) return;
       // writeAcceptedSuggestion 内部 setValue 会把光标重置到第 1 行；停回刚改的地方，
       // 免得下一次 Ctrl+K 又锚到开头。
       editor.setPosition({ lineNumber: anchorLine, column: 1 });
@@ -265,12 +315,22 @@ export function useInlineChat({
           (isContinue ? '续写已写回当前文件' : '行间修订已写回当前文件'),
       );
     } catch (error) {
+      if (!matchesSessionTarget(session)) return;
       flashStatus(
         `接受失败：${error instanceof Error ? error.message : String(error)}`,
         'assertive',
       );
     }
-  }, [editorRef, filePathRef, flashStatus, playAcceptSettle, teardown, writeAcceptedSuggestion]);
+  }, [
+    editorRef,
+    filePathRef,
+    flashStatus,
+    matchesSessionTarget,
+    playAcceptSettle,
+    qualifySession,
+    teardown,
+    writeAcceptedSuggestion,
+  ]);
 
   // 把已算好的插入 / 修订计划画成红标 + 绿块 + 动作条。revise 与 continue 共用这一段，
   // 差别只在计划怎么来：前者把整文件修订夹到锚定行，后者直接构造纯新增。
@@ -347,8 +407,11 @@ export function useInlineChat({
             editorFontFamily,
             intraLineHunkSeg(model, hunk),
             {
-              onAccept: () => void applyAccepted(),
+              onAccept: () => {
+                if (isSessionActive(session)) void applyAccepted();
+              },
               onReject: () => {
+                if (!isSessionActive(session)) return;
                 const wasContinue = sessionRef.current?.mode === 'continue';
                 teardown();
                 flashStatus(wasContinue ? '已弃用这段续写' : '已弃用行间修订');
@@ -426,7 +489,7 @@ export function useInlineChat({
         plan.droppedOffAnchor > 0 ? `（已忽略别处 ${plan.droppedOffAnchor} 处改动）` : '';
       flashStatus(`行间修订建议已就绪：+${plan.addedLines} / -${plan.removedLines}${droppedNote}`);
     },
-    [applyAccepted, editorRef, flashStatus, teardown],
+    [applyAccepted, editorRef, flashStatus, isSessionActive, teardown],
   );
 
   const renderDiff = useCallback(
@@ -467,6 +530,7 @@ export function useInlineChat({
       const session = sessionRef.current;
       const path = filePathRef.current;
       if (!editor || !session || session.phase !== 'input' || !path) return;
+      if (!qualifySession(session)) return;
       const instruction = userInstruction.trim();
       // 续写允许空指令（留空 = 就接着写）；修订必须说清改什么。
       if (!instruction && session.mode !== 'continue') return;
@@ -499,28 +563,35 @@ export function useInlineChat({
           editor,
           session,
           anchorLine,
-          cancelLoading,
+          () => {
+            if (isSessionActive(session)) cancelLoading();
+          },
           // 模块级函数够不到 sessionRef，活跃守卫以闭包传入。
-          () => sessionRef.current === session,
+          () => isSessionActive(session),
         );
         try {
+          const projectRoot = session.projectPath;
+          const contextBundle = await loadInlineContinueContext(projectRoot, path);
+          if (controller.signal.aborted || !qualifySession(session)) return;
           const result = await streamContinueProse({
             filePath: path,
             content: before,
             cursorLine: anchorLine,
             instruction: instruction || null,
-            projectRoot: projectPathRef.current,
+            projectRoot,
+            contextBundle: contextBundle ?? undefined,
             assistantSessionId: sessionIdRef.current,
             signal: controller.signal,
             onDelta: (text) => {
-              if (sessionRef.current !== session) return;
+              if (!qualifySession(session)) return;
               stream.append(text);
             },
           });
-          if (sessionRef.current !== session || filePathRef.current !== path) return;
+          if (!qualifySession(session)) return;
           detachLoadingEsc();
+          session.abortController = null;
           sessionIdRef.current = result.assistantSessionId;
-          sessionIdProjectRef.current = projectPathRef.current;
+          sessionIdProjectRef.current = projectRoot;
           session.model = result.model;
           // 权威结果是 done.text（后端已掐掉重抄的上文、裁到完整句末），不是 delta 的拼接。
           const plan = planCursorInsertion(before, anchorLine, result.text);
@@ -531,7 +602,7 @@ export function useInlineChat({
           }
           renderPlan(before, plan);
         } catch (error) {
-          if (sessionRef.current !== session) return;
+          if (!qualifySession(session)) return;
           teardown();
           flashStatus(
             `续写失败：${error instanceof Error ? error.message : String(error)}`,
@@ -541,7 +612,14 @@ export function useInlineChat({
         return;
       }
 
-      swapZoneToLoading(editor, session, cancelLoading, () => sessionRef.current === session);
+      swapZoneToLoading(
+        editor,
+        session,
+        () => {
+          if (isSessionActive(session)) cancelLoading();
+        },
+        () => isSessionActive(session),
+      );
 
       // 长章节只送锚点附近的窗口：整章发出去既按整章计费，也正是模型 drift 的来源。
       const window = planInlineReviseWindow(before, session.anchor);
@@ -557,23 +635,24 @@ export function useInlineChat({
             isExcerpt: !window.isWholeDocument,
           }),
           projectName,
-          projectRoot: projectPathRef.current,
+          projectRoot: session.projectPath,
           assistantSessionId: sessionIdRef.current,
           qualityGate: 'polish',
           signal: controller.signal,
         });
         // 用户可能在等待期间关了会话/切了文件。
-        if (sessionRef.current !== session || filePathRef.current !== path) return;
+        if (!qualifySession(session)) return;
         // 进 diff 前摘掉 loading 的 Esc 处理，避免与 renderDiff 装的重复。
         detachLoadingEsc();
+        session.abortController = null;
         sessionIdRef.current = result.assistantSessionId;
-        sessionIdProjectRef.current = projectPathRef.current;
+        sessionIdProjectRef.current = session.projectPath;
         session.model = result.model;
         // 拼回整文再交给 renderDiff：夹紧、陈旧判定与写回一律仍以整文件为单位。
         renderDiff(before, spliceInlineReviseWindow(before, window, result.after));
       } catch (error) {
         // 已取消（abort→teardown 已跑，sessionRef 清空）或切走：不再报失败。
-        if (sessionRef.current !== session) return;
+        if (!qualifySession(session)) return;
         teardown();
         flashStatus(
           `AI 修订失败：${error instanceof Error ? error.message : String(error)}`,
@@ -587,7 +666,8 @@ export function useInlineChat({
       filePathRef,
       flashStatus,
       projectName,
-      projectPathRef,
+      isSessionActive,
+      qualifySession,
       renderDiff,
       renderPlan,
       teardown,
@@ -661,6 +741,12 @@ export function useInlineChat({
       }
 
       const session: InlineSession = {
+        editor,
+        textModel: model,
+        modelVersion: model.getVersionId(),
+        projectPath: project,
+        filePath: path,
+        accessibleZoneHost: null,
         mode,
         phase: 'input',
         anchor,
@@ -679,9 +765,12 @@ export function useInlineChat({
       sessionRef.current = session;
 
       const dom = buildInputZoneDom(anchor, mode, {
-        onSend: (value) => void send(value),
+        onSend: (value) => {
+          if (isSessionActive(session)) void send(value);
+          else if (sessionRef.current === session) teardown();
+        },
         onCancel: () => {
-          teardown();
+          if (sessionRef.current === session) teardown();
         },
       });
       // 先给一个够用的初值，随后按真实高度重排——写死高度会把气泡底边裁掉（「不是完整的气泡」）。
@@ -695,6 +784,16 @@ export function useInlineChat({
         inputZoneId = accessor.addZone(inputZone);
         session.zoneIds.push(inputZoneId);
       });
+      // Monaco hides view zones from its code-reader by default. Our zones are
+      // interactive author UI; child aria-label cannot override a hidden ancestor.
+      const zoneHost = dom.container.closest<HTMLElement>('.view-zones');
+      if (zoneHost) {
+        session.accessibleZoneHost = {
+          node: zoneHost,
+          originalHidden: zoneHost.getAttribute('aria-hidden'),
+        };
+        zoneHost.setAttribute('aria-hidden', 'false');
+      }
       // zoneDoms 除落位动效外也用于 teardown 的焦点归还判断，输入泡同样登记。
       session.zoneDoms.push(dom.container);
       // 把锚定行滚进视野：接受后 setValue 会把光标重置到第 1 行，若作者已滚到别处，
@@ -704,8 +803,12 @@ export function useInlineChat({
       }
       // Monaco 把 zone DOM 挂上、布局后：①量真实高度撑满 zone，不裁气泡；②聚焦输入框
       //（rAF 二次兜底，布局期 Monaco 有时会把焦点抢回编辑器，单次 setTimeout 会「打不了字」）。
-      const focusInput = () => dom.textarea.focus({ preventScroll: true });
+      const focusInput = () => {
+        if (isSessionActive(session) && session.phase === 'input')
+          dom.textarea.focus({ preventScroll: true });
+      };
       window.requestAnimationFrame(() => {
+        if (!isSessionActive(session) || session.phase !== 'input') return;
         const measured = dom.container.offsetHeight;
         if (measured > 0 && editorRef.current && sessionRef.current === session) {
           // offsetHeight 不含外边距，补上 margin(4+6) 再留一点余量。
@@ -716,7 +819,7 @@ export function useInlineChat({
         window.requestAnimationFrame(focusInput);
       });
     },
-    [editorRef, filePathRef, flashStatus, projectPathRef, send, teardown],
+    [editorRef, filePathRef, flashStatus, isSessionActive, projectPathRef, send, teardown],
   );
 
   useEffect(() => {
@@ -753,6 +856,28 @@ export function useInlineChat({
   useEffect(() => {
     return () => teardown();
   }, [filePath, teardown]);
+
+  // Project/model refs can change while the editor remains mounted, including
+  // a same-file projection. Every committed render rechecks the captured owner.
+  useEffect(() => {
+    const session = sessionRef.current;
+    if (session && !matchesSessionTarget(session)) teardown();
+  });
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editorReady || !editor) return;
+    const qualifyCurrent = () => {
+      const session = sessionRef.current;
+      if (session) qualifySession(session);
+    };
+    const modelSubscription = editor.onDidChangeModel?.(qualifyCurrent);
+    const contentSubscription = editor.onDidChangeModelContent?.(qualifyCurrent);
+    return () => {
+      modelSubscription?.dispose();
+      contentSubscription?.dispose();
+    };
+  }, [editorReady, editorRef, qualifySession]);
 
   // 卸载时清掉 toast 与其计时器。
   useEffect(() => {
@@ -811,6 +936,7 @@ function swapZoneToStreaming(
   let pending = false;
   const relayout = () => {
     pending = false;
+    if (!isActive()) return;
     const measured = dom.offsetHeight;
     if (measured <= 0 || measured + 8 === zone.heightInPx) return;
     zone.heightInPx = measured + 8;

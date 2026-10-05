@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -62,18 +65,24 @@ def test_revision_preserves_committed_message_and_evidence_order(revision_sessio
         counts["model"] += 1
         assert source["STORYFORGE_LLM_MODEL"] == "fixture-model"
         assert "修订第一句" in user_prompt
-        assert counts["commit"] == 2
+        # User/running-tool commits retain their order; the final-source receipt
+        # adds one short committed transaction before the provider call.
+        assert counts["commit"] == 3
         with revision_sessions() as observer:
             assert _messages(observer) == [("user", request.instruction)]
             tool = observer.scalars(select(AssistantToolCall)).one()
             assert (tool.tool_name, tool.status) == ("assistant.revise", "running")
+            assert tool.input_summary["generation_sources"]["request"] == {
+                "system_sha256": hashlib.sha256(system_prompt.encode()).hexdigest(),
+                "user_sha256": hashlib.sha256(user_prompt.encode()).hexdigest(),
+            }
             seen_ids.append(tool.id)
         return {"content": "修订后的正文。", **usage, "reasoning_leak_stripped": True, "native_body": "not-evidence"}
 
     monkeypatch.setattr(service, "_call_llm_streamed", generate)
     with revision_sessions() as session:
         result = service.revise_file_content(session, request)
-    assert counts == {"commit": 4, "model": 1}
+    assert counts == {"commit": 5, "model": 1}
     assert result.model_dump() == {
         "before": "原文。",
         "after": "修订后的正文。",
@@ -126,7 +135,7 @@ def test_revision_failure_survives_outer_rollback(revision_sessions, monkeypatch
         if failure == "quality":
             gate = tool.output_summary["quality_gate"]
             assert gate["passed"] is False
-            assert gate["version"] == "polish-gates-v1"
+            assert gate["version"] == "polish-gates-v2"
             assert "narrative_person_changed" in gate["reasons"]
             assert "candidate_chars" in gate["metrics"]
         else:
@@ -193,19 +202,41 @@ def test_revision_prepares_author_context_at_original_side_effect_boundary(revis
         phases.append("generate")
         assert system_prompt.index("未点名") < system_prompt.index("文风基线") < system_prompt.index("作者约束")
         assert "只输出修订后的完整正文" in system_prompt
-        assert user_prompt == (
+        metadata = re.search(r"\n\n### Context Sources\n- 类型：context_sources\n<<<CONTEXT\n(.*?)\nCONTEXT>>>", user_prompt, re.DOTALL)
+        assert metadata is not None
+        refs = [json.loads(line) for line in metadata[1].splitlines() if line.startswith("{")]
+        assert len(refs) == 1 and refs[0]["relative_path"] == "人物/周眠.md"
+        assert refs[0]["source_state"] == "current" and refs[0]["disposition"] == "delivered"
+        assert user_prompt.replace(metadata[0], "", 1) == (
             "项目：港口\n文件：draft.md\n修订指令：修订窗口\n\n"
             "\n项目上下文摘录：这些文件来自同一小说项目，请用于保持大纲、人物、设定与正文连贯；"
             "如果摘录与当前文件冲突，优先保留明确的当前文件事实，并在修订中避免扩大矛盾。\n"
             "### 人物/周眠.md\n- 类型：character\n<<<CONTEXT\n周眠怕水。\nCONTEXT>>>\n"
             "\n场景约束：周眠怕水。\n"
-            "以下是待修订的正文，请按指令修订后整体返回，只返回你收到的这段：\n<<<FILE\n原文窗口。\nFILE>>>"
+            + "\n本次编辑政策（writer、后处理与本地候选共用）：\n"
+            + json.dumps(
+                {
+                    "version": "author-edit-v1",
+                    "source_sha256": "5bb9640bda412c45f4b69c5c05c01f3a16c2d9c80323848e3506a4e5400c08b5",
+                    "author_requirement_count": 1,
+                    "baseline_present": False,
+                    "allowed_punctuation_forms": [],
+                    "preserve_repeated_marks": False,
+                    "allow_person_change": False,
+                    "protected_span_count": 0,
+                },
+                ensure_ascii=False,
+            )
+            + "\n作者声明的声音与保留要求：\n作者约束：保留冷静语气。\n当前真实作者要求：\n修订窗口\n"
+            + "以下是待修订的正文，请按指令修订后整体返回，只返回你收到的这段：\n<<<FILE\n原文窗口。\nFILE>>>"
         )
         return {"content": "修订窗口。"}
 
     monkeypatch.setattr(service, "_scene_constraints", constraints)
     monkeypatch.setattr(author_voice, "append_style_baseline_to_system_prompt", style)
     monkeypatch.setattr(service, "_call_llm_streamed", generate)
+    (project / "人物").mkdir()
+    (project / "人物/周眠.md").write_text("周眠怕水。", encoding="utf-8")
     request = AssistantReviseRequest(
         file_path="draft.md",
         content="原文窗口。",

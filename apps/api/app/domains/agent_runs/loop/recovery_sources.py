@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from app.common.author_voice import RELATIVE_PATH as AUTHOR_INSTRUCTIONS_PATH
+from app.domains.agent_runs.loop.generation_recovery import generation_sources_unchanged
 from app.domains.agent_runs.tools import list_loop_tool_specs, llm_tool_name
 from app.platform.ai_sdk import RuntimeCheckpoint
 
@@ -74,6 +75,8 @@ def sources_unchanged(snapshot: dict[str, Any], message: dict[str, Any]) -> bool
                 return False
             if file_digest(path) != reference["sha256"]:
                 return False
-        return True
+        return generation_sources_unchanged(
+            snapshot.get("generation_receipts", []), root, user_message=message.get("user_message") or "续写",
+        )
     except (OSError, ValueError, TypeError, KeyError):
         return False

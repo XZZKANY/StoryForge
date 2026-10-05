@@ -38,6 +38,7 @@ export function useSessionRestore({
   const [openingProject, setOpeningProject] = useState<string | null>(null);
   const [phase, setPhase] = useState<RestorePhase>('idle');
   const cursorsRef = useRef<Record<string, FileCursor>>({});
+  const workspaceSnapshotRef = useRef<WorkspaceSession | null>(null);
   const deferredSessionRef = useRef<WorkspaceSession | null>(null);
   const pendingApplyRef = useRef<WorkspaceSession | null>(null);
   const openingRef = useRef<string | null>(null);
@@ -55,12 +56,15 @@ export function useSessionRestore({
       mountedRef.current = false;
       restoreGenerationRef.current += 1;
       canPersistRef.current = false;
+      workspaceSnapshotRef.current = null;
     };
   }, []);
 
   const changePhase = useCallback((next: RestorePhase) => {
     // 同步闸门也保护本帧旧的 persistSession callback；不能仅依赖下一次 render。
     canPersistRef.current = next === 'done';
+    // 导航/恢复移交后，只有下一次真实页签快照能重新授权光标持久化。
+    workspaceSnapshotRef.current = null;
     setPhase(next);
   }, []);
 
@@ -190,7 +194,15 @@ export function useSessionRestore({
   );
 
   const recordCursor = useCallback((filePath: string, cursor: FileCursor) => {
+    const snapshot = workspaceSnapshotRef.current;
+    if (!mountedRef.current || !canPersistRef.current || !snapshot?.openFiles.includes(filePath)) {
+      return;
+    }
     cursorsRef.current = { ...cursorsRef.current, [filePath]: cursor };
+    // Editor 已去抖；不等文件/页签变化，也不为光标移动重渲染整个 App。
+    const next = { ...snapshot, cursors: pruneCursors(cursorsRef.current, snapshot.openFiles) };
+    workspaceSnapshotRef.current = next;
+    saveWorkspaceSession(next);
   }, []);
 
   /** 页签归独立 owner，App 在其落地后回写；phase 与同步闸门共同防止空现场覆盖。 */
@@ -198,15 +210,18 @@ export function useSessionRestore({
     (activeProject: string | null, openFiles: string[], currentFile: string | null) => {
       if (phase !== 'done' || !canPersistRef.current) return;
       if (!enabled || !activeProject) {
+        workspaceSnapshotRef.current = null;
         saveWorkspaceSession(null);
         return;
       }
-      saveWorkspaceSession({
+      const snapshot: WorkspaceSession = {
         project: activeProject,
         openFiles,
         activeFile: currentFile,
         cursors: pruneCursors(cursorsRef.current, openFiles),
-      });
+      };
+      workspaceSnapshotRef.current = snapshot;
+      saveWorkspaceSession(snapshot);
     },
     [enabled, phase],
   );

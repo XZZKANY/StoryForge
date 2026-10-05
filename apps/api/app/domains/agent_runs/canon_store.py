@@ -18,6 +18,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from app.common.generation_sources import observe_generation_source
+from app.common.project_tree import MAX_READ_BYTES, ProjectTreeError, scoped_target
 from app.domains.agent_runs.fs_tools import FsToolError
 from app.domains.agent_runs.fs_tools import resolve_project_root as _resolve_root
 
@@ -77,19 +79,44 @@ atomic_write_json = _atomic_write_json
 atomic_write_text = _atomic_write_text
 
 
+def _read_declaration(project_root: str, filename: str, purpose: str) -> dict[str, Any] | None:
+    root = _resolve_root(project_root)
+    target = root / _CANON_DIRNAME / _CANON_SUBDIR / filename
+    raw = None
+    text = None
+    try:
+        target = scoped_target(root, target)
+        if not target.is_file():
+            observe_generation_source(purpose, target, omission_reason="missing_source")
+            return None
+        with target.open("rb", buffering=0) as stream:
+            raw = stream.read(MAX_READ_BYTES + 1)
+        if len(raw) > MAX_READ_BYTES or b"\x00" in raw[:1024]:
+            raise ValueError("source_byte_budget_or_binary")
+        text = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+        parsed = json.loads(text)
+        if not isinstance(parsed, dict):
+            raise ValueError("not_a_json_object")
+    except (OSError, ValueError, ProjectTreeError) as exc:
+        observe_generation_source(
+            purpose,
+            target,
+            raw=raw,
+            text=text,
+            complete=raw is not None and len(raw) <= MAX_READ_BYTES,
+            omission_reason="invalid_or_unavailable_declaration",
+        )
+        raise FsToolError(f"{filename} 无法安全读取或解析。") from exc
+    observe_generation_source(purpose, target, raw=raw, text=text, complete=True)
+    return parsed
+
+
 def read_canon(project_root: str) -> dict[str, Any]:
     """读作者的 canon.json；不存在或不合法时明确返回空骨架（不伪造数据，明确空态）。"""
 
-    canon_file = _canon_file(project_root)
-    if not canon_file.is_file():
+    parsed = _read_declaration(project_root, _CANON_FILENAME, "canon_declaration")
+    if parsed is None:
         return dict(_EMPTY_CANON)
-    try:
-        raw = canon_file.read_text(encoding="utf-8")
-        parsed = json.loads(raw)
-    except (OSError, json.JSONDecodeError) as exc:
-        raise FsToolError(f"canon.json 无法解析：{exc}") from exc
-    if not isinstance(parsed, dict):
-        raise FsToolError("canon.json 顶层必须是 JSON 对象。")
     parsed.setdefault("version", 1)
     parsed.setdefault("entities", [])
     parsed.setdefault("invariants", {})
@@ -113,16 +140,9 @@ def _hooks_file(project_root: str) -> Path:
 def read_hooks(project_root: str) -> dict[str, Any]:
     """读 hooks.json；不存在或不合法时返回空骨架（不伪造数据，明确空态）。"""
 
-    hooks_file = _hooks_file(project_root)
-    if not hooks_file.is_file():
+    parsed = _read_declaration(project_root, _HOOKS_FILENAME, "hook_declaration")
+    if parsed is None:
         return dict(_EMPTY_HOOKS)
-    try:
-        raw = hooks_file.read_text(encoding="utf-8")
-        parsed = json.loads(raw)
-    except (OSError, json.JSONDecodeError) as exc:
-        raise FsToolError(f"hooks.json 无法解析：{exc}") from exc
-    if not isinstance(parsed, dict):
-        raise FsToolError("hooks.json 顶层必须是 JSON 对象。")
     parsed.setdefault("version", 1)
     parsed.setdefault("hooks", [])
     return parsed

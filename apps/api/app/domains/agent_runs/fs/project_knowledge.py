@@ -5,7 +5,12 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from app.common.redaction import redact_sensitive_text
-from app.domains.agent_runs.fs.knowledge_entries import KnowledgeEntry, parse_knowledge_markdown
+from app.domains.agent_runs.fs.knowledge_entries import (
+    KnowledgeEntry,
+    has_knowledge_block_marker,
+    parse_knowledge_markdown,
+    plain_notes_outside_knowledge_blocks,
+)
 from app.domains.agent_runs.fs_safety import (
     MAX_SEARCH_BYTES,
     SearchMatcher,
@@ -15,6 +20,7 @@ from app.domains.agent_runs.fs_safety import (
 )
 from app.domains.agent_runs.fs_tools import (
     FsToolError,
+    fs_read,
     normalize_project_relative_path,
     read_text_file,
     resolve_project_root,
@@ -95,6 +101,12 @@ class IndexedProjectKnowledgeEntry:
 class ProjectKnowledgeEntryIndex:
     entries: tuple[IndexedProjectKnowledgeEntry, ...]
     warnings: tuple[str, ...]
+    # 含知识块标记的 Markdown 路径（即便全部损坏、零有效条目）。
+    # 用于阻止损坏/失效知识经 raw bundle 重入 writer（报告 §3 C04/C05）。
+    structured_paths: tuple[str, ...] = ()
+    # 结构化文件路径 → 块外普通说明（剥离块 span 后的非空白）。
+    # 用于报告 §3 C06：混合文件的作者说明不能随整文件排除而消失。
+    plain_notes: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -125,6 +137,38 @@ def project_knowledge_source_type(path: str) -> str | None:
     if any(part.lower() in _BLOCKED_DIRECTORY_NAMES for part in parts[1:-1]):
         return None
     return source
+
+
+def read_project_context_file(project_root: str, path: str) -> dict:
+    """Read an explicitly selected ordinary source using the existing file policy.
+
+    Keep raw text transient for version hashing and redact before delivery. Known
+    Knowledge paths retain their stricter eligibility and 512 KiB bound.
+    """
+    root = resolve_project_root(project_root)
+    normalized = normalize_project_relative_path(path)
+    parts = PurePosixPath(normalized).parts
+    if any(_SENSITIVE_NAME.search(part) or part.lower() == ".env" for part in parts):
+        raise FsToolError("context_source_ineligible")
+    if any(part.lower() in _BLOCKED_DIRECTORY_NAMES for part in parts[:-1]):
+        raise FsToolError("context_source_ineligible")
+    if PurePosixPath(normalized).suffix.lower() not in _ALLOWED_EXTENSIONS:
+        raise FsToolError("context_source_ineligible")
+    if project_knowledge_source_type(normalized) is not None:
+        target, _, _ = _validate_eligible_file(root, normalized)
+        return {"path": normalized, "content": read_text_file(target)}
+    read = fs_read(project_root, normalized, limit=200_000)
+    # fs.read enforces visibility/containment. A link's final name must satisfy
+    # the same contextual policy rather than smuggling config/credentials.
+    actual_parts = PurePosixPath(read["path"]).parts
+    if (
+        any(_SENSITIVE_NAME.search(part) or part.lower() in _BLOCKED_DIRECTORY_NAMES for part in actual_parts)
+        or PurePosixPath(read["path"]).suffix.lower() not in _ALLOWED_EXTENSIONS
+    ):
+        raise FsToolError("context_source_ineligible")
+    if read["truncated"]:
+        raise FsToolError("context_source_read_budget")
+    return read
 
 
 def _validate_eligible_file(root: Path, path: str) -> tuple[Path, str, str]:
@@ -167,7 +211,9 @@ def validate_project_knowledge_markdown_target(path: str) -> tuple[str, str]:
     return normalized, source_type
 
 
-def project_knowledge_candidates(project_root: str, *, max_entries: int = PROJECT_KNOWLEDGE_MAX_CANDIDATES) -> list[dict]:
+def project_knowledge_candidates(
+    project_root: str, *, max_entries: int = PROJECT_KNOWLEDGE_MAX_CANDIDATES
+) -> list[dict]:
     root = resolve_project_root(project_root)
     candidates: list[dict] = []
     candidate_paths = scan_project_files(
@@ -234,22 +280,32 @@ def project_knowledge_entry_index(project_root: str) -> ProjectKnowledgeEntryInd
     root = resolve_project_root(project_root)
     entries: list[IndexedProjectKnowledgeEntry] = []
     warnings: list[str] = []
+    structured_paths: set[str] = set()
+    plain_notes: dict[str, str] = {}
     for candidate in project_knowledge_candidates(project_root, max_entries=PROJECT_KNOWLEDGE_SEARCH_MAX_FILES):
         relative_path = str(candidate["path"])
         if PurePosixPath(relative_path).suffix.lower() not in {".md", ".markdown"}:
             continue
         try:
             target, normalized, _source_type = _validate_eligible_file(root, relative_path)
-            parsed = parse_knowledge_markdown(read_text_file(target))
+            content = read_text_file(target)
+            parsed = parse_knowledge_markdown(content)
         except (FsToolError, OSError) as exc:
             warnings.append(f"{relative_path}: {exc}")
             continue
-        entries.extend(
-            IndexedProjectKnowledgeEntry(relative_path=normalized, entry=entry)
-            for entry in parsed.entries
-        )
+        if has_knowledge_block_marker(content):
+            structured_paths.add(normalized)
+            notes = plain_notes_outside_knowledge_blocks(content)
+            if notes:
+                plain_notes[normalized] = notes
+        entries.extend(IndexedProjectKnowledgeEntry(relative_path=normalized, entry=entry) for entry in parsed.entries)
         warnings.extend(f"{normalized}: {warning}" for warning in parsed.warnings)
-    return ProjectKnowledgeEntryIndex(entries=tuple(entries), warnings=tuple(warnings))
+    return ProjectKnowledgeEntryIndex(
+        entries=tuple(entries),
+        warnings=tuple(warnings),
+        structured_paths=tuple(sorted(structured_paths)),
+        plain_notes=tuple(sorted(plain_notes.items())),
+    )
 
 
 def load_project_knowledge_document(project_root: str, path: str) -> ProjectKnowledgeDocument:

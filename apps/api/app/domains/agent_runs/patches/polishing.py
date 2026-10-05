@@ -8,12 +8,20 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from app.common.author_edit_policy import (
+    AuthorEditPolicy,
+    ProtectedSpan,
+    author_edit_policy_failures,
+    build_author_edit_policy,
+)
+from app.common.punctuation import DIALOGUE_PATTERN
+from app.domains.agent_runs.patches.polish_fact_guards import entity_spelling_changes, grounded_fact_contradictions
 from app.domains.agent_runs.prose_scan import check_prose_static_quality
 
-POLISH_RULE_VERSION = "polish-rules-v1"
-POLISH_GATE_VERSION = "polish-gates-v1"
+POLISH_RULE_VERSION = "polish-rules-v2"
+POLISH_GATE_VERSION = "polish-gates-v2"
 
-SegmentKind = Literal["body", "frontmatter", "heading", "fenced_block"]
+SegmentKind = Literal["body", "frontmatter", "heading", "fenced_block", "author_span"]
 CandidateSource = Literal["local", "online"]
 DecisionStatus = Literal["accepted", "degraded", "noop", "rejected"]
 
@@ -26,7 +34,7 @@ _MODEL_REPLY_LINES = {
     "润色后的版本如下：",
     "润色结果：",
 }
-_DIALOGUE = re.compile(r"[“「].*?[”」]|\".*?\"", flags=re.S)
+_DIALOGUE = DIALOGUE_PATTERN
 _PERSON_TOKENS = re.compile(r"我们|你们|他们|她们|我|你|他|她")
 _SENTENCE_SPLIT = re.compile(r"[。！？!?\n]+")
 _SEVERITY_WEIGHT = {"严重": 4, "高": 3, "中": 2, "低": 1}
@@ -85,6 +93,7 @@ class PolishGateResult:
     reasons: tuple[str, ...]
     metrics: Mapping[str, Any]
     gate_version: str
+    advisories: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -97,7 +106,7 @@ class PolishDecision:
     rule_version: str = POLISH_RULE_VERSION
 
 
-def split_polishable_markdown(text: str) -> PolishDocument:
+def split_polishable_markdown(text: str, *, protected_spans: Sequence[ProtectedSpan] = ()) -> PolishDocument:
     """把 frontmatter、首个标题和围栏块从可润色正文中完整隔离。"""
 
     lines = text.splitlines(keepends=True)
@@ -140,7 +149,7 @@ def split_polishable_markdown(text: str) -> PolishDocument:
         body.append(line)
         index += 1
     flush_body()
-    return PolishDocument(text, tuple(segments))
+    return _protect_author_spans(PolishDocument(text, tuple(segments)), protected_spans)
 
 
 def rebuild_polishable_markdown(document: PolishDocument, polishable_parts: Sequence[str]) -> str:
@@ -151,9 +160,10 @@ def rebuild_polishable_markdown(document: PolishDocument, polishable_parts: Sequ
     return "".join(segment.text if segment.protected else next(parts) for segment in document.segments)
 
 
-def apply_deterministic_polish(text: str) -> str:
-    document = split_polishable_markdown(text)
-    cleaned = tuple(_clean_body(part) for part in document.polishable_parts)
+def apply_deterministic_polish(text: str, *, edit_policy: AuthorEditPolicy | None = None) -> str:
+    policy = edit_policy or build_author_edit_policy(text)
+    document = split_polishable_markdown(text, protected_spans=policy.protected_spans)
+    cleaned = tuple(_clean_body(part, policy) for part in document.polishable_parts)
     return rebuild_polishable_markdown(document, cleaned)
 
 
@@ -167,9 +177,13 @@ def evaluate_polish_candidate(
     required_facts: Sequence[str] = (),
     response_truncated: bool = False,
     config: PolishGateConfig | None = None,
+    edit_policy: AuthorEditPolicy | None = None,
 ) -> PolishGateResult:
     gate = config or PolishGateConfig()
     reasons: list[str] = []
+    advisories: list[str] = []
+    policy = edit_policy or build_author_edit_policy(original)
+    reasons.extend(author_edit_policy_failures(original, candidate, policy))
     if not candidate.strip():
         reasons.append("empty_candidate")
     if response_truncated:
@@ -190,12 +204,17 @@ def evaluate_polish_candidate(
     for entity in _normalized_entities(protected_entities):
         if original.count(entity) != candidate.count(entity):
             entity_drift.append(entity)
-            reasons.append(f"protected_entity_changed:{entity}")
+            advisories.append("entity_reference_count_changed")
+    reasons.extend(entity_spelling_changes(original, candidate, _normalized_entities(protected_entities)))
+    reasons.extend(grounded_fact_contradictions(original, candidate, entities=_normalized_entities(protected_entities), facts=(*continuity_facts, *required_facts)))
 
     original_person = _narrative_person(original, gate)
     candidate_person = _narrative_person(candidate, gate)
-    if original_person != "undetermined" and candidate_person != original_person:
-        reasons.append("narrative_person_changed")
+    if original_person != candidate_person and not policy.allow_person_change:
+        if original_person in {"first", "second", "third"} and candidate_person in {"first", "second", "third"}:
+            reasons.append("narrative_person_changed")
+        else:
+            advisories.append("narrative_person_uncertain")
 
     original_issues = check_prose_static_quality(
         _body_text(original_document),
@@ -210,15 +229,16 @@ def evaluate_polish_candidate(
         required_facts=required_facts,
     )
     if _issues_regressed(original_issues, candidate_issues, gate):
-        reasons.append("prose_issue_regressed")
+        advisories.append("prose_issue_regressed")
     if _style_metrics_regressed(_body_text(original_document), _body_text(candidate_document)):
-        reasons.append("style_pattern_regressed")
+        advisories.append("style_pattern_regressed")
 
     reasons = list(dict.fromkeys(reasons))
     return PolishGateResult(
         passed=not reasons,
         reasons=tuple(reasons),
         metrics={
+            "edit_policy": policy.summary(),
             "original_chars": original_chars,
             "candidate_chars": candidate_chars,
             "char_ratio": round(char_ratio, 4),
@@ -229,6 +249,7 @@ def evaluate_polish_candidate(
             "candidate_issue_count": len(candidate_issues),
         },
         gate_version=gate.version,
+        advisories=tuple(dict.fromkeys(advisories)),
     )
 
 
@@ -242,6 +263,7 @@ def select_polish_candidate(
     continuity_facts: Sequence[Any] = (),
     required_facts: Sequence[str] = (),
     config: PolishGateConfig | None = None,
+    edit_policy: AuthorEditPolicy | None = None,
 ) -> PolishDecision:
     candidates = tuple(candidate for candidate in (online_candidate, local_candidate) if candidate is not None)
     evaluations = {
@@ -254,6 +276,7 @@ def select_polish_candidate(
             required_facts=required_facts,
             response_truncated=candidate.response_truncated,
             config=config,
+            edit_policy=edit_policy,
         )
         for candidate in candidates
     }
@@ -297,7 +320,7 @@ def _find_fence_end(lines: Sequence[str], start: int, opener: str) -> int | None
     return None
 
 
-def _clean_body(text: str) -> str:
+def _clean_body(text: str, policy: AuthorEditPolicy) -> str:
     lines = text.splitlines(keepends=True)
     first_content = next((index for index, line in enumerate(lines) if line.strip()), None)
     if first_content is not None and lines[first_content].strip() in _MODEL_REPLY_LINES:
@@ -307,10 +330,34 @@ def _clean_body(text: str) -> str:
     cleaned = "".join(lines)
     cleaned = re.sub(r"，{2,}", "，", cleaned)
     cleaned = re.sub(r"。{2,}", "。", cleaned)
-    cleaned = re.sub(r"！{2,}", "！", cleaned)
-    cleaned = re.sub(r"？{2,}", "？", cleaned)
+    if not policy.preserve_repeated_marks:
+        cleaned = re.sub(r"！{2,}", "！", cleaned)
+        cleaned = re.sub(r"？{2,}", "？", cleaned)
     cleaned = re.sub(r"(?<!\.)\.{3}(?!\.)", "……", cleaned)
     return cleaned
+
+
+def _protect_author_spans(document: PolishDocument, spans: Sequence[ProtectedSpan]) -> PolishDocument:
+    segments = []
+    offset = 0
+    for segment in document.segments:
+        end = offset + len(segment.text)
+        cursor = offset
+        if segment.protected:
+            segments.append(segment)
+        else:
+            for span in spans:
+                left, right = max(span.start, offset), min(span.end, end)
+                if left >= right:
+                    continue
+                if cursor < left:
+                    segments.append(PolishSegment("body", document.original[cursor:left]))
+                segments.append(PolishSegment("author_span", document.original[left:right]))
+                cursor = right
+            if cursor < end:
+                segments.append(PolishSegment("body", document.original[cursor:end]))
+        offset = end
+    return PolishDocument(document.original, tuple(segments))
 
 
 def _protected_signature(document: PolishDocument) -> tuple[tuple[str, str], ...]:

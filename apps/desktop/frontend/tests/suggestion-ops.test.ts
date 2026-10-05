@@ -7,6 +7,7 @@ import {
   matchSuggestionOp,
   planHunkAccept,
   planWholeAccept,
+  verifiedAppliedOpIds,
 } from '../src/lib/suggestion-ops';
 import {
   associateIssuesToOps,
@@ -18,11 +19,88 @@ import {
 
 const normalize = (text: string) => text.replace(/\r\n/g, '\n');
 
+test('D06：作者确认历史与当前覆盖分开，未知或重复确认不增加计数', () => {
+  const resolutions = [
+    { id: 'a', status: 'open' as const },
+    { id: 'c', status: 'resolved' as const },
+    { id: 'unknown', status: 'open' as const },
+  ];
+  assert.deepEqual(
+    summarizeIssueResolutions(resolutions, [
+      { id: 'a', status: 'resolved' },
+      { id: 'a', status: 'resolved' },
+      { id: 'c', status: 'touched' },
+      { id: 'outside', status: 'resolved' },
+    ]),
+    { observed: 3, authorConfirmed: 2, resolved: 1 },
+  );
+});
+
+for (const newline of ['\n', '\r\n']) {
+  test(`D06：${JSON.stringify(newline)} 与 emoji 原 op 只核验当前文字，不重新施加历史确认`, () => {
+    const before = ['甲😀。', '中段。', '尾段。'].join(newline);
+    const after = ['甲😀改。', '中段。', '尾段改。'].join(newline);
+    const ops = buildSuggestionOps(before, after);
+    assert.equal(ops.length, 2);
+    const ids = new Set(ops.map((op) => op.id));
+    assert.deepEqual(verifiedAppliedOpIds(after, before, ops, new Set()), new Set());
+    assert.ok(verifiedAppliedOpIds(after, before, ops, ids).has(ops[0].id));
+    for (const changed of ['甲😀。', '作者重新写了甲😀。']) {
+      const current = [changed, '中段。', '尾段改。'].join(newline);
+      assert.equal(verifiedAppliedOpIds(current, before, ops, ids).has(ops[0].id), false);
+    }
+  });
+}
+
+test('D06：结果文字只出现在别处不算当前原 op 已完成；重复删除位置歧义也不算', () => {
+  const before = '目标句。\n中段。\n尾段。';
+  const ops = buildSuggestionOps(before, '替换句。\n中段。\n尾段。');
+  assert.equal(
+    verifiedAppliedOpIds('作者自改。\n中段。\n替换句。', before, ops, new Set([ops[0].id])).size,
+    0,
+  );
+  const p = '甲'.repeat(48);
+  const s = '乙'.repeat(48);
+  const source = [p, '重复句。', s, p, '重复句。', s].join('\n');
+  const deletion = buildSuggestionOps(source, [p, s, p, '重复句。', s].join('\n'));
+  assert.equal(deletion.length, 1);
+  const ambiguous = [p, '作者自改。', s, p, '重复句。', s].join('\n');
+  assert.equal(
+    verifiedAppliedOpIds(ambiguous, source, deletion, new Set([deletion[0].id])).size,
+    0,
+  );
+});
+
+test('D06：别处相同前后文已有替换文，也不能替代原目标当前覆盖证据', () => {
+  const p = '甲'.repeat(48);
+  const s = '乙'.repeat(48);
+  const before = [p, '目标句。', s, p, '目标句。', s].join('\n');
+  const after = [p, '替换句。', s, p, '目标句。', s].join('\n');
+  const ops = buildSuggestionOps(before, after);
+  assert.equal(ops.length, 1);
+  const current = [p, '作者自改。', s, p, '替换句。', s].join('\n');
+  assert.equal(verifiedAppliedOpIds(current, before, ops, new Set([ops[0].id])).size, 0);
+});
+
 test('当前稿与 before 逐字一致时走快路径直接写 after', () => {
   const plan = planWholeAccept('A\nB\nC', 'A\nB\nC', 'AA\nB\nCC', new Set(), normalize);
   assert.equal(plan.fastPath, true);
   assert.equal(plan.content, 'AA\nB\nCC');
   assert.equal(plan.applied.length, 0);
+});
+
+test('D06：当前稿改回完整 before 不重开快路径或再施加已消费 op', () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const ops = buildSuggestionOps(before, after);
+  const plan = planWholeAccept(before, before, after, new Set([ops[0].id]), normalize, ops);
+  assert.equal(plan.fastPath, false);
+  assert.equal(plan.content, 'A\nB\nCC');
+  assert.deepEqual(plan.settledOpIds, new Set([ops[1].id]));
+  assert.deepEqual(
+    plan.applied.map((step) => step.op.id),
+    [ops[1].id],
+  );
 });
 
 test('逐 op 映射保留范围外作者改动，并记录逆 op', () => {
@@ -107,6 +185,26 @@ test('同一 before/after 文本出现两处时 matchSuggestionOp 判为不可�
   assert.equal(ops.length, 2);
   assert.equal(ops[0].beforeText, ops[1].beforeText, '两处原文文本相同');
   assert.equal(matchSuggestionOp(ops, ops[0]), null);
+});
+
+test('位置 ID 相同但原文已被作者等长改写时，不能冒充原始 op', () => {
+  const before = '旧一。\n中间。\n旧二。';
+  const after = '新一。\n中间。\n新二。';
+  const original = buildSuggestionOps(before, after);
+  const rebased = buildSuggestionOps('新一。\n中间。\n手改。', after)[0];
+  assert.equal(rebased.id, original[1].id, '位置 ID 并不绑定 beforeText');
+  assert.notEqual(rebased.beforeText, original[1].beforeText);
+  assert.equal(matchSuggestionOp(original, rebased), null);
+});
+
+test('相邻 op 已接受并改变前缀时，原始剩余 op 仍可按唯一原文安全定位', () => {
+  const before = '旧一。\n中间。\n旧二。';
+  const after = '新一。\n中间。\n新二。';
+  const ops = buildSuggestionOps(before, after);
+  const current = planHunkAccept(before, ops[0], before).content;
+  const result = planHunkAccept(current, ops[1], before);
+  assert.equal(result.content, after);
+  assert.equal(result.alreadyApplied, false);
 });
 
 test('invertPatchHunk 交换前后文本，应用逆 op 回到原文', () => {

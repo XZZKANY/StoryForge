@@ -15,9 +15,11 @@
 from __future__ import annotations
 
 from app.common.craft import craft_prompt_clause, scene_discipline_clause
+from app.domains.assistant.schemas import AssistantContextBundle
 
 # 上文取窗上限：够模型接住语感与当前场景，又不至于把整章塞进每一次续写。
 TAIL_MAX_CHARS = 3000
+SUFFIX_MAX_CHARS = 3000
 # 一段的目标区间；作者选定"一段"为默认粒度（生成快、好判断、不合意重来不心疼）。
 DEFAULT_TARGET_CHARS = 300
 
@@ -42,7 +44,7 @@ def manuscript_tail(content: str, cursor_line: int, *, max_chars: int = TAIL_MAX
 
     if not content:
         return ""
-    lines = content.split("\n")
+    lines = content.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     end = max(0, min(cursor_line, len(lines)))
     head = "\n".join(lines[:end])
     if len(head) <= max_chars:
@@ -55,26 +57,39 @@ def manuscript_tail(content: str, cursor_line: int, *, max_chars: int = TAIL_MAX
     return window.strip("\n")
 
 
+def manuscript_suffix(content: str, cursor_line: int) -> str:
+    """取实际插入行之后的只读后文；与插入函数共用行号和换行归一化口径。"""
+    lines = content.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    return "\n".join(lines[max(0, min(cursor_line, len(lines))) :]).strip("\n")
+
+
 def build_continue_prompt(
     *,
     tail: str,
     file_path: str,
+    suffix: str = "",
+    context_bundle: AssistantContextBundle | None = None,
     instruction: str | None = None,
     scene_constraints: str | None = None,
     previous_chapter: tuple[str, str] | None = None,
     target_chars: int = DEFAULT_TARGET_CHARS,
 ) -> str:
-    """组续写 user prompt：定位 → 上一章尾 → 本章上文 → canon 约束 → 本次要求（最末，近因最强）。
+    """定位/项目材料 → 上章尾 → 上文/只读后文 → canon → 本次要求（最末，近因最强）。
 
     上一章尾排在本章上文**之前**：本章上文离落笔处更近，必须占住近因最强的位置。
     """
 
     blocks: list[str] = [f"文件：{file_path}"]
+    if context_bundle and context_bundle.files:
+        blocks.append(
+            "项目上下文（作者选定的材料与准入后的知识）：\n"
+            + "\n\n".join(
+                f"### {item.relative_path}\n<<<CONTEXT\n{item.excerpt}\nCONTEXT>>>" for item in context_bundle.files
+            )
+        )
     if previous_chapter:
         previous_path, previous_tail = previous_chapter
-        blocks.append(
-            f"上一章（{previous_path}）的结尾：\n<<<PREVIOUS\n" + previous_tail + "\nPREVIOUS>>>"
-        )
+        blocks.append(f"上一章（{previous_path}）的结尾：\n<<<PREVIOUS\n" + previous_tail + "\nPREVIOUS>>>")
     if tail:
         blocks.append("以下是这份稿件到光标为止的上文：\n<<<MANUSCRIPT\n" + tail + "\nMANUSCRIPT>>>")
     elif previous_chapter:
@@ -83,6 +98,14 @@ def build_continue_prompt(
         blocks.append("本章还是空的：你要写的是本章开头，接的是上面那段上一章结尾。")
     else:
         blocks.append("这份稿件当前还是空的，你要写的是开头。")
+    if suffix:
+        window = suffix[:SUFFIX_MAX_CHARS]
+        notice = "\n[后文超过上下文窗口，仅展示紧邻插入点的开头。]" if len(suffix) > len(window) else ""
+        blocks.append(
+            "插入点之后已经存在的后文（只读，保持原文不动）：\n"
+            f"<<<SUFFIX\n{window}\nSUFFIX>>>{notice}\n"
+            "只生成连接上文与这段后文的新正文，不要复述或重写后文，也不要把后文已发生的事提前再写一遍。"
+        )
     if scene_constraints:
         blocks.append(scene_constraints)
 
@@ -148,7 +171,7 @@ def resolve_anchor_line(content: str, cursor_line: int) -> int:
     返回 1-based：在此行之后插入；0 = 文件顶部。
     """
 
-    lines = content.replace("\r\n", "\n").split("\n")
+    lines = content.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     anchor = max(0, min(int(cursor_line), len(lines)))
     while anchor > 0 and not lines[anchor - 1].strip():
         anchor -= 1
@@ -161,7 +184,7 @@ def insert_at_anchor(content: str, anchor_line: int, text: str) -> str:
     纯函数：不判断 text 是否为空，调用方负责（空续写在上游已按失败处理）。
     """
 
-    normalized = content.replace("\r\n", "\n")
+    normalized = content.replace("\r\n", "\n").replace("\r", "\n")
     lines = normalized.split("\n")
     anchor = max(0, min(int(anchor_line), len(lines)))
     head = lines[:anchor]

@@ -1,4 +1,5 @@
 import type { IssueScope } from './suggestion-ops';
+import type { SuggestionOperationView } from './suggestion-change-set';
 
 export type KnowledgeContextEntry = {
   knowledgeId: string;
@@ -31,6 +32,8 @@ export type AssistantFileSuggestion = {
   requiresConfirmation?: boolean;
   /** 发起这次写回的 AgentRun；写进快照 meta，用来认出「同一轮的改动」。 */
   runId?: string;
+  /** Desktop-owned projection of the original operations; never reconstructed from a residual diff. */
+  operationView?: SuggestionOperationView;
 };
 
 export function createRemoteFileSuggestion(params: {

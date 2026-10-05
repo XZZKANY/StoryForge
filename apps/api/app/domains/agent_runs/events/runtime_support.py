@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.common.exceptions import ConflictError
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.models import AgentArtifact, AgentRun
@@ -41,16 +42,11 @@ def _resolve_assistant_session(
             assistant_session = assistant_service.get_assistant_session(session, requested_id)
         except assistant_service.AssistantSessionNotFoundError as exc:
             raise AgentOrchestrationError(str(exc)) from exc
-        args_project_path = _optional_string(args.get("project_path"))
-        # 历史遗留会话没有登记 project_path：无可校验的归属，放行沿用而不是判死。
-        if (
-            args_project_path is not None
-            and assistant_session.project_path is not None
-            and args_project_path != assistant_session.project_path
-        ):
-            raise AgentOrchestrationError(
-                f"Agent 会话归属冲突：project_path args={args_project_path} 会话={assistant_session.project_path}。"
-            )
+        project_path = _optional_string(args.get("project_path")) or _optional_string(message.get("project_path"))
+        try:
+            assistant_service.assert_session_project_matches(assistant_session, project_path)
+        except ConflictError as exc:
+            raise AgentOrchestrationError(str(exc)) from exc
         return assistant_session
     project_path = _optional_string(args.get("project_path")) or _optional_string(message.get("project_path"))
     return assistant_service.create_assistant_session(
@@ -153,7 +149,7 @@ def _should_resume_runtime_pending_call(run: AgentRun, pending_call: AgentArtifa
     return pending_call is not None and run.status == "running" and run.current_step == "resumed"
 
 
-def _file_review_resume_message(result: dict[str, Any]) -> dict[str, Any]:
+def _file_review_resume_message(result: dict[str, Any], *, project_path: str | None = None) -> dict[str, Any]:
     context_trace = result["tool_trace"][0] if result.get("tool_trace") else {}
     input_summary = context_trace.get("input_summary") if isinstance(context_trace, dict) else {}
     file_path = input_summary.get("file_path") if isinstance(input_summary, dict) else None
@@ -162,7 +158,9 @@ def _file_review_resume_message(result: dict[str, Any]) -> dict[str, Any]:
         "run_id": result.get("run_id"),
         "user_message": result.get("user_message"),
         "intent": "file.review",
+        "assistant_session_id": result.get("assistant_session_id"),
         "args": {
+            "project_path": project_path,
             "file_path": file_path if isinstance(file_path, str) else None,
             "agent_role_hints": result.get("agent_role_hints") if isinstance(result.get("agent_role_hints"), list) else [],
             "agent_role_mentions": result.get("agent_role_mentions")

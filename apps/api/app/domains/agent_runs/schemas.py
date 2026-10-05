@@ -8,6 +8,35 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer
 from app.common.redaction import redact_sensitive, redact_sensitive_text
 
 
+class ChapterCheckHistoryQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    project_root: str = Field(min_length=1, max_length=32768)
+    assistant_session_id: int = Field(ge=1, strict=True)
+    limit: int = Field(default=20, ge=1, le=50, strict=True)
+
+
+class ChapterCheckEvidenceRead(BaseModel):
+    run_id: str
+    check_artifact_id: int
+    created_at: datetime
+    target_path: str | None
+    check: dict[str, Any]
+    candidate: dict[str, Any] | None
+    candidate_artifact_id: int | None
+    candidate_error: str | None
+
+    @field_serializer("check", "candidate")
+    def serialize_evidence(self, payload: dict[str, Any] | None) -> dict[str, Any] | None:
+        return redact_sensitive(payload)
+
+
+class ChapterCheckHistoryRead(BaseModel):
+    project_root: str
+    assistant_session_id: int
+    entries: list[ChapterCheckEvidenceRead]
+    truncated: bool
+
+
 class AgentRunRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

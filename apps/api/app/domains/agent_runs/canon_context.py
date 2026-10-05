@@ -7,12 +7,17 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
+from app.common.generation_sources import observe_generation_selection, project_generation_source
 from app.domains.agent_runs.canon_rebuild import chapter_ordinals as _chapter_ordinals
 from app.domains.agent_runs.canon_store import read_canon, read_hooks
 from app.domains.agent_runs.fs_tools import FsToolError
+
+# 与 chapter_writing_contracts 同款：正文文件名 `第NNN章.md` 约定。
+_CHAPTER_ORDINAL_PATTERN = re.compile(r"第\s*(\d+)\s*章")
 
 
 def _to_relative_posix(project_root: str, absolute_path: str) -> str | None:
@@ -23,6 +28,28 @@ def _to_relative_posix(project_root: str, absolute_path: str) -> str | None:
         return target.relative_to(root).as_posix()
     except (ValueError, OSError):
         return None
+
+
+def _unwritten_chapter_ordinal(project_root: str, rel: str) -> int | None:
+    """C09：目标章尚不存在时从文件名解析章号，避免互斥时间窗同时变当前约束。
+
+    当前文件不在 ordinals（还没写）时旧逻辑退化为全书模式，_window_covers 对每条
+    single_holder 都判覆盖——「第 1-2 章持有者=A」与「第 3 章起持有者=B」互斥窗口
+    同时推出。只有文件确实不在磁盘上且文件名能解析出正章号才用解析值；已存在的
+    文件永远走 ordinals（阅读序口径），不制造第二事实源。
+    """
+    match = _CHAPTER_ORDINAL_PATTERN.search(Path(rel).name)
+    if match is None:
+        return None
+    value = int(match.group(1))
+    if value <= 0:
+        return None
+    try:
+        if (Path(project_root).resolve() / rel).exists():
+            return None
+    except (OSError, ValueError):
+        return None
+    return value
 
 
 def _window_covers(entry: dict[str, Any], cur: int) -> bool:
@@ -68,6 +95,7 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
     try:
         canon = read_canon(project_root)
     except FsToolError:
+        project_generation_source("canon_constraints", None, channel="user", omission_reason="unavailable_canon")
         return None
 
     invariants = canon.get("invariants") or {}
@@ -91,6 +119,12 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
             except FsToolError:
                 ordinals = {}
             cur = ordinals.get(rel)
+            if cur is None:
+                # 目标章尚不存在：从文件名解析章号，避免互斥时间窗同时变当前约束（C09）。
+                cur = _unwritten_chapter_ordinal(project_root, rel)
+            observe_generation_selection("canon_chapter_order", {
+                "current_file": rel, "current_ordinal": cur,
+            }, ordinals=ordinals)
 
     lines: list[str] = []
 
@@ -127,17 +161,19 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
         if cur is None:
             lines.append(f"·「{display}」于第 {exits_after} 章退场{reason_suffix}。")
         elif exits_after < cur:
-            lines.append(
-                f"·「{display}」已于第 {exits_after} 章退场{reason_suffix}"
-                f"——本章若出现须为回忆 / 提及。"
-            )
+            lines.append(f"·「{display}」已于第 {exits_after} 章退场{reason_suffix}——本章若出现须为回忆 / 提及。")
 
-    hooks_block = _build_active_hooks_block(project_root, cur)
-    agenda_block = _build_hook_agenda_block(project_root, cur)
+    try:
+        hooks_data = read_hooks(project_root)
+    except FsToolError:
+        hooks_data = {}
+    hooks_block = _build_active_hooks_block(project_root, cur, hooks_data)
+    agenda_block = _build_hook_agenda_block(project_root, cur, hooks_data)
 
     # agenda_block 也须纳入空判：无 canon 硬约束 + 无活跃钩子、但本章 agenda 有编排时，
     # 不得连同已算好的「本章伏笔计划」一起丢弃（UF-13）。
     if not lines and hooks_block is None and agenda_block is None:
+        project_generation_source("canon_constraints", None, channel="user", omission_reason="no_active_constraints")
         return None
 
     parts: list[str] = []
@@ -149,7 +185,15 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
     if agenda_block is not None:
         parts.append(agenda_block)
 
-    return "\n\n".join(parts)
+    block = "\n\n".join(parts)
+    project_generation_source(
+        "canon_constraints",
+        block,
+        channel="user",
+        source_purpose=("canon_declaration", "hook_declaration"),
+        transformation="scene_constraints_and_hook_agenda_v1",
+    )
+    return block
 
 _ACTIVE_STATUSES = frozenset({"active", "planted"})
 _STALE_HOOK_THRESHOLD = 10  # 钩子超过 N 章未推进视为「陈旧」
@@ -184,7 +228,7 @@ def _resolve_last_ordinal(
     return None, None
 
 
-def _build_active_hooks_block(project_root: str, cur: int | None) -> str | None:
+def _build_active_hooks_block(project_root: str, cur: int | None, hooks_data: dict | None = None) -> str | None:
     """拼接「活跃伏笔 · 待回收」块，只读 hooks.json；读失败 / 无活跃钩子 → None。
 
     陈旧检测：优先用 last_advanced_at.path（若存在），否则用 planted_at.path
@@ -192,15 +236,13 @@ def _build_active_hooks_block(project_root: str, cur: int | None) -> str | None:
     均不存在或未提供时不计入陈旧统计（不伪报）。
     展示章号仅用 planted_at.chapter 字段（不做陈旧计算）。
     """
-    try:
-        hooks_data = read_hooks(project_root)
-    except FsToolError:
-        return None
+    if hooks_data is None:
+        try:
+            hooks_data = read_hooks(project_root)
+        except FsToolError:
+            return None
 
-    active = [
-        h for h in (hooks_data.get("hooks") or [])
-        if isinstance(h, dict) and h.get("status") in _ACTIVE_STATUSES
-    ]
+    active = [h for h in (hooks_data.get("hooks") or []) if isinstance(h, dict) and h.get("status") in _ACTIVE_STATUSES]
     if not active:
         return None
 
@@ -230,9 +272,7 @@ def _build_active_hooks_block(project_root: str, cur: int | None) -> str | None:
                 if diff > _STALE_HOOK_THRESHOLD:
                     is_stale = True
                     stale_hooks.append(h)
-                    stale_detail.append(
-                        f"「{desc[:40]}」自第 {ref_ordinal} 章{ref_label}后已沉睡 {diff} 章"
-                    )
+                    stale_detail.append(f"「{desc[:40]}」自第 {ref_ordinal} 章{ref_label}后已沉睡 {diff} 章")
 
         cat = h.get("category", "")
         cat_hint = f"[{cat}]" if isinstance(cat, str) and cat.strip() else ""
@@ -253,7 +293,7 @@ def _build_active_hooks_block(project_root: str, cur: int | None) -> str | None:
     return block
 
 
-def _build_hook_agenda_block(project_root: str, cur: int | None) -> str | None:
+def _build_hook_agenda_block(project_root: str, cur: int | None, hooks_data: dict | None = None) -> str | None:
     """从 hooks.json 读取当前章的 agenda 编排（advance / resolve），
     输出「本章伏笔计划」方向性指引块。
 
@@ -264,10 +304,11 @@ def _build_hook_agenda_block(project_root: str, cur: int | None) -> str | None:
     if cur is None:
         return None  # 全书模式下无针对性编排
 
-    try:
-        hooks_data = read_hooks(project_root)
-    except FsToolError:
-        return None
+    if hooks_data is None:
+        try:
+            hooks_data = read_hooks(project_root)
+        except FsToolError:
+            return None
 
     agenda = hooks_data.get("agenda") or {}
     chapter_plan = agenda.get(str(cur)) if isinstance(agenda, dict) else None

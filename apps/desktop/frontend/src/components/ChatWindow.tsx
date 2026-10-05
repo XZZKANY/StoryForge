@@ -14,6 +14,7 @@ import { useAgentStreamEvent } from './chat-window/useAgentStreamEvent';
 import { useChatSessionContext } from './chat-window/useChatSessionContext';
 import { useChatSubmission } from './chat-window/useChatSubmission';
 import { useChatWindowState } from './chat-window/useChatWindowState';
+import { useChapterCheckHistory } from './chat-window/useChapterCheckHistory';
 import { projectOverviewActivity } from './chat-window/overview-activity';
 import { useRunAuthorAgent } from './chat-window/useRunAuthorAgent';
 import {
@@ -61,6 +62,11 @@ export function ChatWindow(props: ChatWindowProps) {
   const agentPermissionProfile = props.agentPermissionProfile ?? DEFAULT_AGENT_PERMISSION_PROFILE;
   const onAgentPermissionProfileChange = props.onAgentPermissionProfileChange ?? (() => undefined);
   const state = useChatWindowState(props);
+  const chapterCheckHistory = useChapterCheckHistory(
+    projectPath,
+    assistantSessionId,
+    `${state.agentRun?.id ?? 'history'}:${state.agentRun?.status ?? 'idle'}:${state.agentBusy}`,
+  );
   // 切会话/新建前的「有待确认内容」确认弹窗：ChatWindow 不消费壳层 dialogs，自挂一个 host。
   const dialogs = useAppDialog();
   const session = useChatSessionContext(state, props, { confirmLeave: dialogs.confirm });
@@ -176,6 +182,7 @@ export function ChatWindow(props: ChatWindowProps) {
     <>
       <ChatWindowView
         state={state}
+        chapterCheckHistory={chapterCheckHistory}
         projectPath={props.projectPath}
         assistantSessionId={props.assistantSessionId}
         decisionDialogsActive={props.decisionDialogsActive !== false && !dialogs.dialog}

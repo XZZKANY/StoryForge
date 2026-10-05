@@ -43,6 +43,8 @@ const receiptFs = {
 
 vi.mock('../../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
+    pathExists: (path: string) => receiptFiles.has(path),
+    readProjectFile: (_project: string, path: string) => receiptFs.readFile(path),
     inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
       inspectFixtureReceipt(receiptFs, project, request),
     async writeFileWithReceipt(
@@ -62,6 +64,11 @@ vi.mock('../../src/lib/tauri-fs', () => ({
       content: string,
       expected: DiskBaseline,
     ) => {
+      // 恢复 journal 是 .storyforge 内部记录，不属于正文写回断言范围。
+      if (path.includes('pending-suggestions')) {
+        receiptFiles.set(path, content);
+        return;
+      }
       if (
         expected.kind === 'missing' ? diskContent !== undefined : diskContent !== expected.content
       )
@@ -206,6 +213,15 @@ function onToast(event: Event) {
   toasts.push((event as CustomEvent<ToastDetail>).detail);
 }
 
+/** 提案持久化（恢复 journal）入库后接受链多一跳异步；断言前把游离 promise 链排空。 */
+async function settle() {
+  for (let i = 0; i < 5; i += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+}
+
 beforeEach(() => {
   receiptFiles.clear();
   writes.length = 0;
@@ -241,6 +257,7 @@ test('接受补丁后回调连载计划标 done，且发生在版本记录之后
   await act(async () => {
     emitFileSuggestion(suggestion({ requiresConfirmation: false }));
   });
+  await settle();
 
   assert.deepEqual(
     planMarkArgs,
@@ -268,6 +285,7 @@ test('快照失败阻断写盘时，也不回调标 done', async () => {
   await act(async () => {
     emitFileSuggestion(suggestion({ requiresConfirmation: false }));
   });
+  await settle();
 
   assert.deepEqual(planMarkArgs, [], '写盘被阻断就没有「写完一章」这回事');
 });
@@ -278,6 +296,7 @@ test('标 done 失败不能伪造成「接受失败」——正文其实已经�
   await act(async () => {
     emitFileSuggestion(suggestion({ requiresConfirmation: false }));
   });
+  await settle();
 
   assert.deepEqual(writes, [{ path: FILE, content: AFTER }], '写回本身必须照常成功');
   const failed = toasts.filter((toast) => toast.tone === 'error');
@@ -296,6 +315,7 @@ test('撤销一次新建后回调把该章退回 pending，且发生在删文件
   await act(async () => {
     emitFileSuggestion(suggestion({ requiresConfirmation: false }));
   });
+  await settle();
   editorContent = AFTER;
   planMarkArgs.length = 0;
   calls.length = 0;
@@ -303,6 +323,7 @@ test('撤销一次新建后回调把该章退回 pending，且发生在删文件
   await act(async () => {
     await lastActionableToast().run();
   });
+  await settle();
 
   assert.deepEqual(deletes, [FILE], '撤销新建应当删文件');
   assert.deepEqual(
@@ -321,6 +342,7 @@ test('撤销一次普通修订不退标记——文件还在，那章依然是�
   await act(async () => {
     emitFileSuggestion(suggestion({ requiresConfirmation: false }));
   });
+  await settle();
   editorContent = AFTER;
   planMarkArgs.length = 0;
   calls.length = 0;
@@ -328,6 +350,7 @@ test('撤销一次普通修订不退标记——文件还在，那章依然是�
   await act(async () => {
     await lastActionableToast().run();
   });
+  await settle();
 
   assert.deepEqual(deletes, [], '普通修订的撤销是反向写回，不删文件');
   assert.deepEqual(
@@ -341,6 +364,7 @@ test('自动档：补丁不必点接受就落盘，且顺序仍是先快照后�
   await act(async () => {
     emitFileSuggestion(suggestion({ requiresConfirmation: false }));
   });
+  await settle();
 
   assert.deepEqual(
     writes,
@@ -391,6 +415,7 @@ test('撤销一次「新建」是删掉文件并摘页签，不是写回一个�
   await act(async () => {
     emitFileSuggestion(suggestion({ requiresConfirmation: false, before: '', after: AFTER }));
   });
+  await settle();
   assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
 
   editorContent = AFTER;
@@ -400,6 +425,7 @@ test('撤销一次「新建」是删掉文件并摘页签，不是写回一个�
   await act(async () => {
     await undo.run();
   });
+  await settle();
 
   assert.deepEqual(deletes, [FILE], '撤销新建必须真的把文件删掉');
   assert.deepEqual(droppedTabs, [FILE], '页签要一起摘掉，否则 autosave 会把文件写回来');
@@ -410,11 +436,13 @@ test('撤销一次普通修订仍是写回原文，不碰删除', async () => {
   await act(async () => {
     emitFileSuggestion(suggestion({ requiresConfirmation: false }));
   });
+  await settle();
 
   editorContent = AFTER;
   await act(async () => {
     await lastActionableToast().run();
   });
+  await settle();
 
   assert.deepEqual(deletes, [], '普通修订的撤销不该删文件');
   assert.deepEqual(writes[1], { path: FILE, content: BEFORE }, '应把原文写回去');
@@ -424,12 +452,14 @@ test('文件之后又变了：撤销不再是死路，给出版本历史入口',
   await act(async () => {
     emitFileSuggestion(suggestion({ requiresConfirmation: false }));
   });
+  await settle();
 
   // 作者在写回之后又接着写了——此时一键撤销会吃掉这段新输入。
   editorContent = `${AFTER}\n作者后来又写的一段。`;
   await act(async () => {
     await lastActionableToast().run();
   });
+  await settle();
 
   assert.equal(writes.length, 1, '内容已变时绝不能覆盖作者的新输入');
   assert.deepEqual(deletes, []);

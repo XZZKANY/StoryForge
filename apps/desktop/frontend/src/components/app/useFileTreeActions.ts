@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 
-import { relativePathInsideProject } from '../../lib/project-context';
+import { relativePathInsideProject, invalidateContextBundleCache } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import {
   ensureMarkdownName,
@@ -70,6 +70,7 @@ export function useFileTreeActions({
           return;
         }
         await TauriFileSystem.writeFile(activeProject, target, '# 新建文件\n\n');
+        invalidateContextBundleCache(activeProject);
         await openFile(target, '打开新文件');
       } catch (error) {
         await failAlert('新建文件失败', error);
@@ -127,6 +128,7 @@ export function useFileTreeActions({
           return;
         }
         await TauriFileSystem.renamePath(activeProject, path, target);
+        invalidateContextBundleCache(activeProject);
         if (!isDir) {
           dropOpenFilePath(path);
           await openFile(target, '打开重命名后的文件');
@@ -153,6 +155,7 @@ export function useFileTreeActions({
       if (!confirmed) return;
       try {
         await TauriFileSystem.deletePath(activeProject, path, isDir);
+        invalidateContextBundleCache(activeProject);
         if (!isDir) dropOpenFilePath(path);
       } catch (error) {
         await failAlert('删除失败', error);

@@ -32,6 +32,8 @@ def llm_context_snapshot_trace_summary(snapshot: Mapping[str, Any]) -> dict[str,
     ]
     return {
         "snapshot_id": snapshot.get("snapshot_id"),
+        "source_manifest": snapshot.get("source_manifest") or [],
+        "selected_content_sha256": (snapshot.get("selected_file") or {}).get("content_sha256"),
         "section_count": len(included_sections) if isinstance(included_sections, list) else 0,
         "context_file_count": len(context_file_items),
         "context_files": [

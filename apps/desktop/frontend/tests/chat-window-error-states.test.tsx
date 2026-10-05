@@ -4,6 +4,11 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, test, vi } from 'vitest';
 
+// This fixture owns no persisted chapter checks; the dedicated history tests cover that read.
+vi.mock('../src/lib/api/chapter-checks', () => ({
+  queryChapterCheckHistory: vi.fn().mockResolvedValue({ entries: [], truncated: false }),
+}));
+
 import { ChatWindow } from '../src/components/ChatWindow';
 import { ContextSummaryPanel } from '../src/components/chat-window/panels';
 import { getAssistantSession } from '../src/lib/api-client';

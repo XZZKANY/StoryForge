@@ -68,6 +68,24 @@ def test_overlong_instructions_are_truncated_with_marker(tmp_path: Path) -> None
     assert "已截断" in text, "截断必须留痕，否则作者不知道后半段被丢了"
 
 
+def test_overlong_instructions_keep_tail_requirements(tmp_path: Path) -> None:
+    """C13：追加在尾部的新要求不能被头部截断吞掉（保尾截断）。"""
+    storyforge = tmp_path / ".storyforge"
+    storyforge.mkdir()
+    head = "旧要求一：短句为主。\n" * 600
+    appended = "TAIL_REQUIREMENT_SENTINEL：所有对白一律不用感叹号。"
+    (storyforge / "agent-instructions.md").write_text(head + appended, encoding="utf-8")
+    assert len(head + appended) > MAX_CHARS
+    text = read_author_instructions(str(tmp_path))
+    assert text is not None
+    assert "已截断" in text
+    assert len(text) <= MAX_CHARS
+    # 追加的新要求必须送达——头部截断会把尾部新要求吞掉。
+    assert "TAIL_REQUIREMENT_SENTINEL" in text
+    assert appended in text
+
+
+
 def test_generation_prefix_is_stronger_than_conversation_wording() -> None:
     """产字路径措辞必须是"逐条遵循"而非"尽量遵循"。
 

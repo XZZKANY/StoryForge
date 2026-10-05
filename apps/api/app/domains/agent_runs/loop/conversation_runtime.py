@@ -11,6 +11,7 @@ from app.domains.agent_runs._text import compact_text as _compact_text
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.compaction import CompactionRejected, validate_compaction_publication
 from app.domains.agent_runs.compaction_job import prepare_conversation_compaction
+from app.domains.agent_runs.events.review_sources import current_conversation_review
 from app.domains.agent_runs.events.runtime_support import base_response as _base_response
 from app.domains.agent_runs.events.runtime_support import plan_step as _plan_step
 from app.domains.agent_runs.events.runtime_support import runtime_interrupted_response as _runtime_interrupted_response
@@ -23,6 +24,7 @@ from app.domains.agent_runs.llm_context import (
 from app.domains.agent_runs.loop.author_view import AuthorView
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.result_contracts import AgentExecutionOutcome
+from app.domains.agent_runs.revise_scope import revision_references_review
 from app.domains.agent_runs.runtime_recovery import build_runtime_interruption_payload
 from app.domains.agent_runs.system_jobs import build_conversation_system_jobs
 from app.domains.agent_runs.tools import ToolExecutionContext, ToolResult
@@ -214,8 +216,18 @@ class ConversationRuntimeMixin:
             trace_index += 1
 
         context = ToolExecutionContext(session, run, agent_session_id, assistant_session_id, user_message, args)
+        offered = args.get("review_report") if isinstance(args.get("review_report"), dict) else None
+        required_review = revision_references_review(user_message)
+        latest_review_report = current_conversation_review(
+            session, assistant_session_id, offered=offered, required=required_review and offered is not None,
+        ) if offered is not None or required_review else None
+        context.current_review_report = latest_review_report
+        # C01：循环内 fs.read 读到的独特事实。writer 工具的 snapshot 只吃前端 bundle，
+        # 模型本轮读到的事实若不显式交接，送达就没有保证（外层模型可能复述也可能不复述）。
+        loop_read_facts: dict[str, dict[str, Any]] = {}
 
         def execute_fs_tool(registry_name: str, arguments: dict[str, Any]) -> ToolResult:
+            nonlocal latest_review_report
             # 路径、正文与内层上下文都由后端生成；模型只能提交 ToolSpec 声明的业务参数。
             payload = sanitize_loop_tool_arguments(arguments)
             definition = self._tool_registry.get(registry_name)
@@ -253,23 +265,47 @@ class ConversationRuntimeMixin:
             # canon 硬约束（Ctrl+Shift+K 直连路径反而有），作者指令也进不去。
             payload.setdefault("project_root", project_path)
             if definition.loop_trusted_context:
+                bundle = context.args.get("context_bundle")
                 snapshot = build_llm_context_snapshot(
                     run_state=context.run,
                     intent=registry_name,
                     user_message=context.user_message,
                     file_path=str(payload["_trace_file_path"]),
                     content=str(payload.get("content") or ""),
-                    context_bundle=context.args.get("context_bundle"),
+                    context_bundle={**(bundle if isinstance(bundle, dict) else {}), "project_root": project_path},
                     role_hints=_role_hints(context.args),
                     role_mentions=_role_mentions(context.args),
+                    review_report=latest_review_report,
                     event_history=context.run.events,
                     artifacts=context.run.artifacts,
+                    extra_context_files=tuple(loop_read_facts.values()),
                 )
+                if registry_name == "file.revise":
+                    payload["review_report"] = latest_review_report or snapshot.get("review_report")
                 payload["llm_context_snapshot"] = snapshot
                 payload["llm_prompt_context_bundle"] = (
                     llm_context_snapshot_to_prompt_context_bundle(snapshot)
                 )
-            return self._execute_tool(registry_name, context, payload)
+            result = self._execute_tool(
+                registry_name, replace(context, writing_read_sources=tuple(loop_read_facts.values())), payload,
+            )
+            # Loop artifacts are persisted only at settlement. Hand off this
+            # round's successful structured review before a later writer runs.
+            if result.status == "completed":
+                for artifact in result.artifacts:
+                    if artifact.kind == "review_report":
+                        latest_review_report = artifact.payload
+                        context.current_review_report = latest_review_report
+                # C01：登记成功的 fs.read，作为后续 writer snapshot 的附加事实来源。
+                if registry_name == "fs.read" and isinstance(result.output, dict):
+                    read_path = result.output.get("path")
+                    read_content = result.output.get("content")
+                    if isinstance(read_path, str) and read_path and isinstance(read_content, str) and read_content:
+                        loop_read_facts[read_path] = {
+                            "relative_path": read_path,
+                            "excerpt": read_content,
+                        }
+            return result
 
         if self._external_execution is not None:
             ensure_plan_recorded()  # Never record a late plan over the durable wait token.

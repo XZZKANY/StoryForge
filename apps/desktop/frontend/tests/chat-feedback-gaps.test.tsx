@@ -10,6 +10,11 @@ import { act, useEffect, type Dispatch, type SetStateAction } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, test, vi } from 'vitest';
 
+// This fixture owns no persisted chapter checks; the dedicated history tests cover that read.
+vi.mock('../src/lib/api/chapter-checks', () => ({
+  queryChapterCheckHistory: vi.fn().mockResolvedValue({ entries: [], truncated: false }),
+}));
+
 import { ChatWindowView } from '../src/components/chat-window/ChatWindowView';
 import {
   ContextSummaryPanel,

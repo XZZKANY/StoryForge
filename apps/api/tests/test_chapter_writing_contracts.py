@@ -5,6 +5,7 @@ import json
 import pytest
 
 from app.domains.agent_runs import serial_plan
+from app.domains.agent_runs.adapters.chapter_check_protocol import check_source
 from app.domains.agent_runs.adapters.chapter_writing_contracts import (
     build_brief_seed,
     build_check,
@@ -171,7 +172,10 @@ def test_build_check_blocks_hard_contract_failures_but_advisory_passes() -> None
     advisory = build_check(
         "一" * 1200,
         brief,
-        {"findings": [{"rule": "advisory", "severity": "hard", "message": "建议", "evidence": "一"}]},
+        {
+            **check_source("一" * 1200, brief),
+            "findings": [{"rule": "advisory", "severity": "hard", "message": "建议", "line": 1, "evidence": "一"}],
+        },
     )
     assert advisory["status"] == "pass"
     assert advisory["advisory_count"] == 1
@@ -179,15 +183,16 @@ def test_build_check_blocks_hard_contract_failures_but_advisory_passes() -> None
         "一" * 1200,
         brief,
         {
+            **check_source("一" * 1200, brief),
             "findings": [
                 {
                     "rule": "missing_required_beat",
                     "severity": "hard",
                     "message": "缺少见面",
-                    "line": 2,
-                    "evidence": "第二行",
+                    "line": 1,
+                    "evidence": "一",
                 }
-            ]
+            ],
         },
     )
     assert hard["status"] == "repairable"

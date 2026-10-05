@@ -88,6 +88,27 @@ export function buildExportPath(projectPath: string, filePath: string, stamp = n
   return projectChildPath(projectPath, ['导出', `${timestampSlug(stamp)}-${sourceName}.md`]);
 }
 
+/** The audit's timestamp-independent identity, shared by writing and read-only recovery. */
+export function revisionLoopSemanticPayload(record: RevisionLoopRecord): string {
+  return JSON.stringify({
+    file: relativeToProject(record.projectPath ?? '', record.filePath),
+    before: record.before,
+    after: record.after,
+    summary: record.summary,
+    note: record.note,
+    userIntent: record.userIntent,
+    assistantSessionId: record.assistantSessionId,
+    patchId: record.patchId ?? null,
+    issueIds: record.issueIds ?? [],
+    ...(record.issueResolutions?.length ? { issueResolutions: record.issueResolutions } : {}),
+    ...(record.issueAttributed === false ? { issueAttribution: 'unattributed' } : {}),
+    ...(record.issueCounts && record.issueCounts.observed > 0
+      ? { issueCounts: record.issueCounts }
+      : {}),
+    contextFiles: record.contextFiles ?? [],
+  });
+}
+
 export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<RevisionLoopResult> {
   const {
     projectPath,
@@ -154,21 +175,7 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
   ].join('\n');
 
   if (operationId) {
-    const semanticPayload = JSON.stringify({
-      file: relativePath,
-      before,
-      after,
-      summary,
-      note,
-      userIntent,
-      assistantSessionId,
-      patchId: patchId ?? null,
-      issueIds,
-      ...(issueResolutions.length ? { issueResolutions } : {}),
-      ...(issueAttributed ? {} : { issueAttribution: 'unattributed' }),
-      ...(issueCounts && issueCounts.observed > 0 ? { issueCounts } : {}),
-      contextFiles,
-    });
+    const semanticPayload = revisionLoopSemanticPayload(record);
     await writeReceiptAudit(
       projectPath,
       recordPath,

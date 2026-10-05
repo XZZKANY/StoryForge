@@ -177,6 +177,7 @@ class AssistantContinueRequest(BaseModel):
     project_name: str | None = Field(default=None, max_length=255)
     assistant_session_id: int | None = Field(default=None, gt=0)
     target_chars: int | None = Field(default=None, ge=80, le=1200)
+    context_bundle: AssistantContextBundle | None = None
 
 
 class AssistantDraftRequest(BaseModel):

@@ -14,7 +14,12 @@ import { parseWorkspaceSession, type WorkspaceSession } from '../src/lib/workspa
 // 这里证明 cursor 被交给 Editor，不冒充实际 Monaco 定位或原生文件系统验收。
 type EditorProbeProps = Pick<
   ComponentProps<typeof DesktopEditor>,
-  'projectPath' | 'filePath' | 'initialCursors' | 'retainedFilePaths' | 'onDirtyChange'
+  | 'projectPath'
+  | 'filePath'
+  | 'initialCursors'
+  | 'retainedFilePaths'
+  | 'onDirtyChange'
+  | 'onCursorPersist'
 >;
 vi.mock('../src/components/Editor', () => ({
   Editor: ({
@@ -23,6 +28,7 @@ vi.mock('../src/components/Editor', () => ({
     initialCursors,
     retainedFilePaths,
     onDirtyChange,
+    onCursorPersist,
   }: EditorProbeProps) => (
     <output
       data-testid="restore-editor-probe"
@@ -33,6 +39,18 @@ vi.mock('../src/components/Editor', () => ({
     >
       <button data-testid="restore-dirty-probe" onClick={() => onDirtyChange?.(filePath, true)}>
         标记未保存
+      </button>
+      <button
+        data-testid="restore-cursor-probe"
+        onClick={() => filePath && onCursorPersist?.(filePath, { line: 23, column: 5 })}
+      >
+        仅移动光标
+      </button>
+      <button
+        data-testid="restore-stale-cursor-probe"
+        onClick={() => onCursorPersist?.(`${ROOT}/正文/01.md`, { line: 31, column: 7 })}
+      >
+        旧作品迟到光标
       </button>
     </output>
   ),
@@ -275,4 +293,70 @@ test('同一 Windows 根目录从原生 chooser 再打开只继续当前作品�
   assert.ok(host.querySelector('[role="dialog"]') === null);
   assert.deepEqual(tabPaths(host), stored.openFiles);
   assert.equal(get(host, 'restore-editor-probe'), editor);
+});
+
+test('只移动光标即保存当前现场，不必切文件、页签或作品', async () => {
+  vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  const host = await mountApp();
+  await click(recent(host, ROOT));
+  const tabsBefore = tabPaths(host);
+  await click(get(host, 'restore-cursor-probe'));
+  const saved = parseWorkspaceSession(localStorage.getItem(SESSION_KEY));
+  assert.ok(saved);
+  assert.deepEqual(saved.cursors[`${ROOT}/正文/01.md`], { line: 23, column: 5 });
+  assert.deepEqual(saved.cursors[`${ROOT}/大纲/总纲.md`], stored.cursors[`${ROOT}/大纲/总纲.md`]);
+  assert.equal(saved.project, ROOT);
+  assert.equal(saved.activeFile, stored.activeFile);
+  assert.deepEqual(saved.openFiles, stored.openFiles);
+  assert.deepEqual(tabPaths(host), tabsBefore);
+  assert.equal(surface(host), 'workspace');
+  assert.equal(vi.mocked(TauriFileSystem.writeFile).mock.calls.length, 0);
+});
+
+test('切到另一作品后旧光标回调不能改写当前作品或复活旧现场', async () => {
+  vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  const host = await mountApp();
+  await click(recent(host, ROOT));
+  await click(get(host, 'titlebar-library'));
+  await click(recent(host, OTHER));
+  const before = localStorage.getItem(SESSION_KEY);
+  await click(get(host, 'restore-stale-cursor-probe'));
+  assert.equal(localStorage.getItem(SESSION_KEY), before);
+  assert.deepEqual(parseWorkspaceSession(before), {
+    project: OTHER,
+    openFiles: [],
+    activeFile: null,
+    cursors: {},
+  });
+});
+
+test('关闭现场恢复后光标回调不能重新建立存档', async () => {
+  localStorage.setItem(
+    APP_SETTINGS_KEY,
+    JSON.stringify({ ...DEFAULT_APP_SETTINGS, restoreLastSession: false }),
+  );
+  vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  const host = await mountApp();
+  await click(recent(host, ROOT));
+  assert.equal(localStorage.getItem(SESSION_KEY), null);
+  await click(get(host, 'restore-stale-cursor-probe'));
+  assert.equal(localStorage.getItem(SESSION_KEY), null);
+});
+
+test('同作品关闭页签后迟到光标不得复活该文件或污染其他页签光标', async () => {
+  vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  const host = await mountApp();
+  await click(recent(host, ROOT));
+  const closedPath = `${ROOT}/正文/01.md`;
+  const tab = Array.from(host.querySelectorAll<HTMLElement>('[role="tab"][data-tab-path]')).find(
+    (element) => element.dataset.tabPath === closedPath,
+  );
+  await click(tab?.parentElement?.querySelector<HTMLElement>('[data-testid="editor-tab-close"]'));
+  const before = localStorage.getItem(SESSION_KEY);
+  const saved = parseWorkspaceSession(before);
+  assert.ok(saved);
+  assert.ok(!saved.openFiles.includes(closedPath));
+  assert.equal(saved.cursors[closedPath], undefined);
+  await click(get(host, 'restore-stale-cursor-probe'));
+  assert.equal(localStorage.getItem(SESSION_KEY), before);
 });

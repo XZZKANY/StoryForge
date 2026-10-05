@@ -44,6 +44,8 @@ vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: effects.snapshot })
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
     writeFile: effects.write,
+    pathExists: (path: string) => effects.disk.has(path),
+    readProjectFile: (_project: string, path: string) => receiptFs.readFile(path),
     inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
       inspectFixtureReceipt(receiptFs, project, request),
     async writeFileWithReceipt(
@@ -62,6 +64,11 @@ vi.mock('../src/lib/tauri-fs', () => ({
       content: string,
       expected: DiskBaseline,
     ) => {
+      // 恢复 journal 是 .storyforge 内部记录，不属于正文写回断言范围。
+      if (path.includes('pending-suggestions')) {
+        effects.disk.set(path, content);
+        return;
+      }
       const current = effects.disk.get(path);
       if (expected.kind === 'missing' ? current !== undefined : current !== expected.content)
         throw new Error('磁盘内容已变化');

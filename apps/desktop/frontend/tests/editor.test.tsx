@@ -198,9 +198,10 @@ test('建议写回保持整文件硬闸，并让分块接受走 hunk 级定位',
     ),
     '整文件漂移守卫必须走已被 patch-hunks 行为测试覆盖的 isWholeFileDrifted 纯函数',
   );
-  assert.ok(
-    suggestionWritebackSource.includes('planHunkAccept(currentContent, hunk, suggestion.before)'),
-    '分块接受必须走 suggestion-ops 的锚定定位（planHunkAccept），基于当前内容定位单个 hunk，不能再要求整文件等于 suggestion.before',
+  assert.match(
+    suggestionWritebackSource,
+    /planHunkAccept\(\s*currentContent,\s*matched \?\? hunk,\s*opState\?\.changeSet\.before \?\? suggestion\.before,?\s*\)/,
+    '分块接受必须基于当前内容定位匹配到的原始 op，使用不可变 before；不能使用重推导 hunk 或要求整文件等于 suggestion.before',
   );
   assert.equal(
     suggestionWritebackSource.includes('请重新生成修订后再分块接受'),

@@ -13,6 +13,7 @@ agent。这把工具补的是「按需续写」：作者开口才写，不抢焦
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 from typing import Any
 
 from app.domains.agent_runs import fs_tools
@@ -20,8 +21,10 @@ from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.loop.author_view import AuthorView
 from app.domains.agent_runs.patches.types import PatchProposal
+from app.domains.agent_runs.patches.writing_context import prepare_runtime_writing_context
 from app.domains.agent_runs.permission import patch_requires_confirmation
 from app.domains.agent_runs.tools.execution import ToolArtifact, ToolExecutionContext, ToolHandler, ToolResult
+from app.domains.agent_runs.tools.runtime_arguments import llm_context_input_summary
 from app.domains.agent_runs.tools.runtime_arguments import optional_int as _optional_int
 from app.domains.agent_runs.tools.runtime_arguments import required_string as _required_string
 from app.domains.agent_runs.trace import AgentToolTrace
@@ -49,6 +52,7 @@ class ProseContinueRuntimeMixin:
 
         cursor_line = self._prose_continue_cursor_line(context, payload, content)
         anchor_line = continuation.resolve_anchor_line(content, cursor_line)
+        prepared = prepare_runtime_writing_context(context, payload, intent="prose.continue")
 
         try:
             response = assistant_service.draft_continuation(
@@ -62,7 +66,9 @@ class ProseContinueRuntimeMixin:
                     project_name=_optional_string(payload.get("project_name")),
                     assistant_session_id=context.assistant_session_id,
                     target_chars=target_chars,
+                    context_bundle=prepared.context_bundle,
                 ),
+                prepared_context=prepared,
             )
         except (
             assistant_service.AssistantLlmNotConfiguredError,
@@ -89,8 +95,8 @@ class ProseContinueRuntimeMixin:
             "approval_action": "desktop.confirm_file_writeback",
         }
 
-        # 摘要是给作者看的，不能在自动档还说「等你确认」。
-        writeback_note = "等你确认后才会写盘。" if requires_confirm else "已按本项目的自动档直接写盘（写前已存快照）。"
+        # 无论权限档位，后端此时只生成提案，不能冒称 Desktop 已完成写回。
+        writeback_note = "等你确认后才会写盘。" if requires_confirm else "将由编辑器按项目权限执行守卫写回。"
         summary = f"已在第 {anchor_line} 行之后续写约 {inserted_chars} 字，{writeback_note}"
         output = {
             "file_path": file_path,
@@ -122,7 +128,12 @@ class ProseContinueRuntimeMixin:
             trace=AgentToolTrace(
                 tool_name="prose.continue",
                 status="completed",
-                input_summary={"file_path": file_path, "anchor_line": anchor_line, "target_chars": target_chars},
+                input_summary={
+                    "file_path": _optional_string(payload.get("_trace_file_path")) or Path(file_path).name,
+                    "anchor_line": anchor_line,
+                    "target_chars": target_chars,
+                    **llm_context_input_summary(payload.get("llm_context_snapshot")),
+                },
                 output_summary={"inserted_chars": inserted_chars, "anchor_line": anchor_line},
             ),
         )
@@ -143,6 +154,16 @@ class ProseContinueRuntimeMixin:
         if explicit is not None and explicit > 0:
             return explicit
         view = AuthorView.from_payload(context.args)
-        if view.cursor_line > 0:
-            return view.cursor_line
+        if view.cursor_line > 0 and view.file_path:
+            root_value = payload.get("project_root")
+            target_value = payload.get("file_path")
+            if isinstance(root_value, str) and isinstance(target_value, str):
+                try:
+                    root = fs_tools.resolve_project_root(root_value)
+                    target = fs_tools.resolve_scoped_path(root, target_value.replace("\\", "/"))
+                    viewed = fs_tools.resolve_scoped_path(root, view.file_path.replace("\\", "/"))
+                    if target == viewed:
+                        return view.cursor_line
+                except (fs_tools.FsToolError, OSError, ValueError):
+                    pass  # 身份不明确时不复用光标，落到目标文件末尾。
         return len(content.replace("\r\n", "\n").split("\n"))

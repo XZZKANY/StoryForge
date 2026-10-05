@@ -907,6 +907,16 @@
             "title": "Content",
             "type": "string"
           },
+          "context_bundle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantContextBundle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "cursor_line": {
             "default": 0,
             "minimum": 0.0,
@@ -2309,6 +2319,152 @@
           "records"
         ],
         "title": "ChapterApprovalRead",
+        "type": "object"
+      },
+      "ChapterCheckEvidenceRead": {
+        "properties": {
+          "candidate": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate"
+          },
+          "candidate_artifact_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Artifact Id"
+          },
+          "candidate_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Error"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check"
+          },
+          "check_artifact_id": {
+            "title": "Check Artifact Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "target_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Path"
+          }
+        },
+        "required": [
+          "run_id",
+          "check_artifact_id",
+          "created_at",
+          "target_path",
+          "check",
+          "candidate",
+          "candidate_artifact_id",
+          "candidate_error"
+        ],
+        "title": "ChapterCheckEvidenceRead",
+        "type": "object"
+      },
+      "ChapterCheckHistoryQuery": {
+        "additionalProperties": false,
+        "properties": {
+          "assistant_session_id": {
+            "minimum": 1.0,
+            "title": "Assistant Session Id",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "project_root": {
+            "maxLength": 32768,
+            "minLength": 1,
+            "title": "Project Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_root",
+          "assistant_session_id"
+        ],
+        "title": "ChapterCheckHistoryQuery",
+        "type": "object"
+      },
+      "ChapterCheckHistoryRead": {
+        "properties": {
+          "assistant_session_id": {
+            "title": "Assistant Session Id",
+            "type": "integer"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ChapterCheckEvidenceRead"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "project_root": {
+            "title": "Project Root",
+            "type": "string"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "project_root",
+          "assistant_session_id",
+          "entries",
+          "truncated"
+        ],
+        "title": "ChapterCheckHistoryRead",
         "type": "object"
       },
       "ChapterPlanTriggerRead": {
@@ -8451,6 +8607,47 @@
           }
         },
         "summary": "读取受管 Agent 执行协议能力",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/chapter-checks/query": {
+      "post": {
+        "operationId": "query_chapter_checks_endpoint_api_agent_runs_chapter_checks_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChapterCheckHistoryQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChapterCheckHistoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "只读核对当前会话的章节检查历史",
         "tags": [
           "Agent Runtime"
         ]

@@ -23,6 +23,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from app.common.punctuation import DIALOGUE_PATTERN
 from app.domains.agent_runs.fs_tools import (
     FsToolError,
 )
@@ -169,7 +170,7 @@ def _check_dialogue_density(prose: str) -> list[StaticProseIssue]:
     length = len(_visible_chars(prose))
     if length < 40:
         return []
-    quoted = sum(len(match.group(0)) for match in re.finditer(r"[“\"].+?[”\"]", prose, flags=re.S))
+    quoted = sum(len(match.group(0)) for match in DIALOGUE_PATTERN.finditer(prose))
     ratio = quoted / max(length, 1)
     if ratio < 0.08 and length >= 80:
         return [

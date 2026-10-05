@@ -3,6 +3,7 @@ from app.domains.agent_runs.fs.knowledge_entries import (
     KnowledgeEntryError,
     KnowledgeParseResult,
     KnowledgeSource,
+    has_knowledge_block_marker,
     knowledge_claim_fingerprint,
     parse_knowledge_markdown,
     render_knowledge_entry,
@@ -17,6 +18,11 @@ from app.domains.agent_runs.fs.knowledge_retrieval import (
     materialize_knowledge_selection,
     retrieve_project_knowledge,
     select_knowledge_entries,
+)
+from app.domains.agent_runs.fs.ordinary_context import (
+    CollectedOrdinaryContext,
+    collect_ordinary_context,
+    source_delivery_manifest,
 )
 from app.domains.agent_runs.fs.project_knowledge import (
     IndexedProjectKnowledgeEntry,
@@ -45,6 +51,9 @@ from app.domains.agent_runs.fs_tools import (
 )
 
 __all__ = [
+    "CollectedOrdinaryContext",
+    "collect_ordinary_context",
+    "source_delivery_manifest",
     "FsToolError",
     "IndexedProjectKnowledgeEntry",
     "KnowledgeEntry",
@@ -65,6 +74,7 @@ __all__ = [
     "iter_project_files",
     "normalize_project_relative_path",
     "knowledge_claim_fingerprint",
+    "has_knowledge_block_marker",
     "knowledge_entry_evidence_state",
     "load_project_knowledge_document",
     "parse_knowledge_markdown",

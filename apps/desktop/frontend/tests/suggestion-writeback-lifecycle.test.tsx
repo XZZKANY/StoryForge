@@ -7,12 +7,25 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { createWritebackQueue } from '../src/lib/writeback';
 import { TauriFileSystem, type DiskBaseline } from '../src/lib/tauri-fs';
 import type { WritebackRequest } from '../src/lib/writeback-receipt-types';
-import { inspectFixtureReceipt, writeFixtureReceipt } from '../src/lib/writeback-receipt-fixture';
+import {
+  createFixtureAudit,
+  inspectFixtureReceipt,
+  writeFixtureReceipt,
+} from '../src/lib/writeback-receipt-fixture';
 import { useSuggestionWriteback } from '../src/components/editor/useSuggestionWriteback';
 import type { EditorModelCache } from '../src/components/editor/useMonacoEditor';
 import { emitFileSuggestion } from '../src/lib/assistant-events';
 import { buildPatchHunks } from '../src/lib/patch-hunks';
 import type { AssistantFileSuggestion } from '../src/lib/assistant-suggestions';
+import {
+  recordRevisionLoop as recordRealAudit,
+  type RevisionLoopRecord,
+} from '../src/lib/author-loop';
+import {
+  capturePendingSuggestion,
+  loadPendingSuggestion,
+  persistPendingSuggestion,
+} from '../src/lib/suggestion-recovery';
 
 const effects = vi.hoisted(() => ({
   disk: new Map<string, string>(),
@@ -26,6 +39,12 @@ const effects = vi.hoisted(() => ({
   dirty: vi.fn(),
   result: vi.fn(),
   toast: vi.fn(),
+  journalWrite: vi.fn(async (_path: string, _content: string) => {}),
+  read: vi.fn(async (path: string) => {
+    const value = effects.disk.get(path);
+    if (value === undefined) throw new Error('missing audit');
+    return value;
+  }),
 }));
 const receiptFs = {
   pathExists: (path: string) => effects.disk.has(path),
@@ -42,6 +61,11 @@ vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: effects.snapshot })
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
     writeFile: effects.write,
+    pathExists: (path: string) => effects.disk.has(path),
+    readProjectFile: (_project: string, path: string) =>
+      path.includes('/pending-suggestions/') ? receiptFs.readFile(path) : effects.read(path),
+    createWritebackAudit: (project: string, id: string, content: string) =>
+      createFixtureAudit(receiptFs, project, id, content),
     inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
       inspectFixtureReceipt(receiptFs, project, request),
     async writeFileWithReceipt(
@@ -63,7 +87,8 @@ vi.mock('../src/lib/tauri-fs', () => ({
       const current = effects.disk.get(path);
       if (expected.kind === 'missing' ? current !== undefined : current !== expected.content)
         throw new Error('磁盘内容已变化');
-      await effects.write(project, path, content);
+      if (path.includes('/pending-suggestions/')) await effects.journalWrite(path, content);
+      else await effects.write(project, path, content);
       effects.disk.set(path, content);
     },
   },
@@ -171,6 +196,7 @@ async function show(suggestion: AssistantFileSuggestion) {
 beforeEach(async () => {
   vi.clearAllMocks();
   effects.disk.clear();
+  localStorage.clear();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -179,6 +205,306 @@ beforeEach(async () => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+});
+
+function recordNextRealAudit() {
+  effects.record.mockImplementationOnce(async (record: unknown) => ({
+    ...(await recordRealAudit(record as RevisionLoopRecord)),
+    recordPath: '/record.md',
+    updatedBlueprintPath: null,
+  }));
+}
+
+async function partialBeforeCold(id = 'cold-partial') {
+  const original = {
+    ...patch(id),
+    before: 'A\nB\nC',
+    after: 'AA\nB\nCC',
+    issueIds: ['a', 'c'],
+    issueScopes: [
+      { id: 'a', lineStart: 1, lineEnd: 1 },
+      { id: 'c', lineStart: 3, lineEnd: 3 },
+    ],
+    contextFiles: ['knowledge/rules.md'],
+  };
+  await act(async () => __getLastEditor()!.setValue(original.before));
+  await show(original);
+  recordNextRealAudit();
+  await act(async () =>
+    handle.handleAcceptHunk(buildPatchHunks(original.before, original.after)[0]),
+  );
+  assert.equal(effects.disk.get(FILE), 'AA\nB\nC');
+  return original;
+}
+
+async function remountForCold() {
+  await act(async () => root.unmount());
+  root = createRoot(container);
+  await act(async () => root.render(<Harness />));
+  assert.equal(handle.pendingSuggestion, null, '新 editor 不持有旧 WeakMap 对象');
+}
+
+test('冷重挂恢复原剩余操作，只读核验后等待作者明确接受', async () => {
+  const original = await partialBeforeCold();
+  const descriptor = (await loadPendingSuggestion('D:/project', FILE))!;
+  assert.equal(descriptor.proposal.before, original.before);
+  assert.equal(descriptor.proposal.after, original.after);
+  assert.equal(descriptor.requests.length, 1);
+  assert.equal('appliedOpIds' in descriptor, false);
+  assert.equal('operationView' in descriptor.proposal, false);
+  const writes = effects.write.mock.calls.length;
+  await remountForCold();
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(handle.pendingSuggestion?.requiresConfirmation, true);
+  assert.equal(handle.pendingSuggestion?.operationView?.operations.length, 1);
+  assert.deepEqual(handle.pendingSuggestion?.issueScopes, original.issueScopes);
+  assert.equal(effects.write.mock.calls.length, writes, '恢复不写稿、不造版本、不补审计');
+  assert.equal(effects.snapshot.mock.calls.length, 1);
+  assert.equal(effects.record.mock.calls.length, 1);
+  recordNextRealAudit();
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.disk.get(FILE), original.after);
+  assert.equal(await loadPendingSuggestion('D:/project', FILE), null, '完成不复活旧提案');
+});
+
+test('冷恢复的接受历史不按字节倒推，作者撤回 A 后只接受原剩余 C', async () => {
+  await partialBeforeCold('cold-author-revert');
+  effects.disk.set(FILE, 'A\nAUTHOR\nC');
+  await remountForCold();
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(handle.pendingSuggestion?.operationView?.operations.length, 1);
+  recordNextRealAudit();
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.disk.get(FILE), 'A\nAUTHOR\nCC');
+  const record = effects.record.mock.calls.at(-1)![0] as RevisionLoopRecord;
+  assert.deepEqual(record.issueCounts, { observed: 2, authorConfirmed: 2, resolved: 1 });
+});
+
+test('冷恢复核验逆向回执链，明确重选继续引用原 op 与撤销回执', async () => {
+  const original = await partialBeforeCold('cold-undo');
+  recordNextRealAudit();
+  await runLastUndo();
+  assert.equal(effects.disk.get(FILE), original.before);
+  const reverseId = (effects.record.mock.calls.at(-1)![0] as RevisionLoopRecord).operationId;
+  await remountForCold();
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(handle.pendingSuggestion?.operationView?.operations.length, 2);
+  recordNextRealAudit();
+  await act(async () =>
+    handle.handleAcceptHunk(handle.pendingSuggestion!.operationView!.operations[0]),
+  );
+  const request = (await loadPendingSuggestion('D:/project', FILE))!.requests.at(-1)!.request;
+  assert.ok(request.operationKey.endsWith(`:after-undo:${reverseId}`));
+  assert.equal(
+    request.source,
+    JSON.stringify([original.id, original.before, original.after, null]),
+  );
+  assert.equal(effects.disk.get(FILE), 'AA\nB\nC');
+});
+
+test('完整审计不匹配时不授予剩余写回，修复后只读重试可恢复', async () => {
+  await partialBeforeCold('cold-audit');
+  const path = [...effects.disk.keys()].find((path) => path.includes('/author-loop/'))!;
+  const audit = effects.disk.get(path)!;
+  effects.disk.set(path, audit.replace('cold-audit', 'tampered-audit'));
+  await remountForCold();
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(effects.write.mock.calls.length, 1);
+  const retry = (effects.toast.mock.calls.at(-1)![1] as { action: { run: () => Promise<void> } })
+    .action;
+  assert.equal(retry.label, '重试核验（不写正文）');
+  effects.disk.set(path, audit);
+  await act(async () => retry.run());
+  assert.equal(handle.pendingSuggestion?.operationView?.operations.length, 1);
+  assert.equal(effects.write.mock.calls.length, 1);
+});
+
+test('恢复期间的输入保留，新提案作废迟到核验且明确拒绝不再复活', async () => {
+  await partialBeforeCold('cold-race');
+  await remountForCold();
+  const audit = [...effects.disk.entries()].find(([path]) => path.includes('/author-loop/'))![1];
+  const pending = deferred<string>();
+  effects.read.mockReturnValueOnce(pending.promise);
+  let recovering!: Promise<void>;
+  await act(async () => {
+    recovering = handle.recoverPendingSuggestion(FILE);
+  });
+  await act(async () => __getLastEditor()!.setValue('AA\nAUTHOR\nC'));
+  await act(async () => {
+    pending.resolve(audit);
+    await recovering;
+  });
+  assert.equal(handle.pendingSuggestion?.before, 'AA\nAUTHOR\nC');
+  assert.equal(handle.pendingSuggestion?.after, 'AA\nAUTHOR\nCC');
+  await act(async () => handle.resetSuggestionWriteback());
+  const late = deferred<string>();
+  effects.read.mockReturnValueOnce(late.promise);
+  await act(async () => {
+    recovering = handle.recoverPendingSuggestion(FILE);
+  });
+  const replacement = { ...patch('replacement'), before: 'AA\nAUTHOR\nC', after: 'new' };
+  await show(replacement);
+  await act(async () => {
+    late.resolve(audit);
+    await recovering;
+  });
+  assert.equal(handle.pendingSuggestion, replacement);
+  assert.equal((await loadPendingSuggestion('D:/project', FILE))?.proposal.id, replacement.id);
+  await act(async () => handle.rejectPendingSuggestion());
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(handle.pendingSuggestion, null);
+});
+
+test('没有 Native 结果或 unknown 回执时不得按当前文本臆造消费，也不自动重放', async () => {
+  await partialBeforeCold('cold-unknown');
+  const path = [...effects.disk.keys()].find((path) => path.endsWith('.fixture.json'))!;
+  const stored = JSON.parse(effects.disk.get(path)!);
+  stored.receipt.state = 'outcome_unknown';
+  effects.disk.set(path, JSON.stringify(stored));
+  await remountForCold();
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(handle.pendingSuggestion, null);
+  effects.disk.delete(path);
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.equal(effects.snapshot.mock.calls.length, 1);
+});
+
+test('未接受自动档提案冷恢复也必须重新确认，跨项目不能领取缓存', async () => {
+  await persistPendingSuggestion(
+    'D:/project',
+    capturePendingSuggestion('D:/project', { ...patch('cold-auto'), requiresConfirmation: false }),
+  );
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(handle.pendingSuggestion?.requiresConfirmation, true);
+  assert.equal(effects.write.mock.calls.length, 0);
+  await act(async () => root.render(<Harness file="D:/other/a.md" project="D:/other" />));
+  await act(async () => handle.recoverPendingSuggestion('D:/other/a.md'));
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(effects.write.mock.calls.length, 0);
+});
+
+test('冷核验期间导航或卸载不恢复旧提案，原缓存仍可留给作者返回处理', async () => {
+  await partialBeforeCold('cold-navigation');
+  await remountForCold();
+  const audit = [...effects.disk.entries()].find(([path]) => path.includes('/author-loop/'))![1];
+  const pending = deferred<string>();
+  effects.read.mockReturnValueOnce(pending.promise);
+  let recovering!: Promise<void>;
+  await act(async () => {
+    recovering = handle.recoverPendingSuggestion(FILE);
+  });
+  await act(async () => root.render(<Harness file="D:/project/b.md" />));
+  await act(async () => {
+    pending.resolve(audit);
+    await recovering;
+  });
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal((await loadPendingSuggestion('D:/project', FILE))?.proposal.id, 'cold-navigation');
+  await act(async () => root.render(<Harness />));
+  const unmounting = deferred<string>();
+  effects.read.mockReturnValueOnce(unmounting.promise);
+  await act(async () => {
+    recovering = handle.recoverPendingSuggestion(FILE);
+  });
+  await act(async () => root.unmount());
+  await act(async () => {
+    unmounting.resolve(audit);
+    await recovering;
+  });
+  root = createRoot(container);
+  await act(async () => root.render(<Harness />));
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(effects.write.mock.calls.length, 1);
+});
+
+test('损坏请求源或 issue metadata 不能被冷恢复当作合法的原始提案', async () => {
+  await partialBeforeCold('cold-corrupt');
+  const key = [...effects.disk.keys()].find((key) => key.includes('/pending-suggestions/'))!;
+  const saved = effects.disk.get(key)!;
+  const corrupt = JSON.parse(saved);
+  corrupt.requests[0].request.source = JSON.stringify(['forged-source']);
+  effects.disk.set(key, JSON.stringify(corrupt));
+  await remountForCold();
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(handle.pendingSuggestion, null);
+  const invalidMetadata = JSON.parse(saved);
+  invalidMetadata.proposal.issueScopes[0].lineStart = '1';
+  effects.disk.set(key, JSON.stringify(invalidMetadata));
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.equal(effects.snapshot.mock.calls.length, 1);
+});
+
+test('恢复缓存清理失败不把已完成的决定变成失败，也不永久占住动作锁', async () => {
+  await show(patch('storage-cleanup-reject'));
+  effects.journalWrite.mockRejectedValueOnce(new Error('journal cleanup unavailable'));
+  await act(async () => handle.rejectPendingSuggestion());
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(handle.actionState, null);
+  assert.equal(effects.write.mock.calls.length, 0);
+  await show(patch('storage-cleanup-accept'));
+  effects.journalWrite.mockImplementationOnce(async () => {});
+  effects.journalWrite.mockRejectedValueOnce(new Error('journal cleanup unavailable'));
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.disk.get(FILE), 'after');
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(handle.actionState, null);
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.ok(
+    effects.toast.mock.calls.some(([message]) => String(message).includes('恢复缓存未清理')),
+  );
+});
+
+test('清空或陈旧的 WebView storage 不丢失 Native 已保存的原决定', async () => {
+  const original = await partialBeforeCold('native-journal');
+  localStorage.setItem(
+    'storyforge:pending-suggestion:v1:stale',
+    JSON.stringify({
+      version: 1,
+      proposal: original,
+      requests: [],
+    }),
+  );
+  await remountForCold();
+  localStorage.clear();
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(handle.pendingSuggestion?.operationView?.operations.length, 1);
+  assert.equal((await loadPendingSuggestion('D:/project', FILE))?.requests.length, 1);
+  assert.equal(effects.write.mock.calls.length, 1);
+});
+
+test('原提案持久登记失败阻断正文，明确重新生成仍可继续', async () => {
+  effects.journalWrite.mockRejectedValueOnce(new Error('journal unavailable'));
+  await show(patch('native-journal-failed'));
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.write.mock.calls.length, 0);
+  assert.match(handle.actionError ?? '', /journal unavailable/);
+  await show(patch('native-journal-fresh'));
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.disk.get(FILE), 'after');
+});
+
+test('拒绝的 Native tombstone 持久化迟到时不清除同文件新提案', async () => {
+  await show(patch('native-journal-old'));
+  const pending = deferred<void>();
+  effects.journalWrite.mockReturnValueOnce(pending.promise);
+  let rejecting!: Promise<void>;
+  await act(async () => {
+    rejecting = handle.rejectPendingSuggestion();
+  });
+  const next = patch('native-journal-replacement');
+  await show(next);
+  await act(async () => {
+    pending.resolve();
+    await rejecting;
+  });
+  assert.equal(handle.pendingSuggestion, next);
+  assert.equal((await loadPendingSuggestion('D:/project', FILE))?.proposal.id, next.id);
+  assert.equal(effects.write.mock.calls.length, 0);
 });
 
 test('已开始的写回保持唯一锁，迟到成功不能清除新文件补丁', async () => {
@@ -303,6 +629,9 @@ test('同 ID 新补丁不接收旧接受失败，旧 finally 不清其他动作'
   let operation!: Promise<void>;
   await act(async () => {
     operation = handle.handleAcceptSuggestion();
+  });
+  await act(async () => {
+    await vi.waitFor(() => assert.equal(effects.write.mock.calls.length, 1));
   });
   const next = { ...patch('same'), after: 'new-version' };
   await show(next);
@@ -531,6 +860,41 @@ test('known applied but unreadable target reports unverifiable state without cla
 // harness 序列：补丁改第 1、3 行；作者独立改第 2 行为 AUTHOR；先分块接受第 1 行，
 // 再整份接受 → 第二次写入不得把 AUTHOR 回退成补丁里的旧文本。
 // ---------------------------------------------------------------------------
+test('剩余预览只包含原始未接受操作，不把范围外作者文字列成待还原', async () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor()!;
+  await act(async () => editor.setValue('A\nB*\nC'));
+  await show({ ...patch('remaining-preview-author'), before, after });
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  assert.equal(handle.pendingSuggestion?.before, 'AA\nB*\nC');
+  assert.equal(handle.pendingSuggestion?.after, 'AA\nB*\nCC');
+  const visible = buildPatchHunks(
+    handle.pendingSuggestion!.before,
+    handle.pendingSuggestion!.after,
+  );
+  assert.equal(visible.length, 1);
+  assert.equal(visible[0].beforeText, 'C');
+  assert.equal(visible[0].afterText, 'CC');
+});
+
+test('原操作均已分块接受后关闭补丁，不因独立作者修改留下幽灵残余', async () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor()!;
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('remaining-finished-author'), before, after });
+  const original = buildPatchHunks(before, after);
+  await act(async () => handle.handleAcceptHunk(original[0]));
+  await act(async () => editor.setValue('AA\nB*\nC'));
+  await act(async () => handle.handleAcceptHunk(original[1]));
+  assert.equal(effects.disk.get(FILE), 'AA\nB*\nCC');
+  assert.equal(editor.getValue(), 'AA\nB*\nCC');
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(effects.write.mock.calls.length, 2);
+  assert.equal(handle.actionError, null);
+});
+
 test('T07-①：局部接受后再整份接受，作者独立改动不被冻结 after 覆盖', async () => {
   const before = '甲。\n乙。\n丙。';
   const after = '甲改。\n乙。\n丙改。';
@@ -551,6 +915,99 @@ test('T07-①：局部接受后再整份接受，作者独立改动不被冻结 
   const disk = effects.disk.get(FILE) ?? '';
   assert.ok(disk.includes('AUTHOR'), `磁盘第 2 行应仍是 AUTHOR，实际: ${JSON.stringify(disk)}`);
   assert.ok(editor.getValue().includes('AUTHOR'), '编辑器第 2 行应仍是 AUTHOR');
+  assert.equal(handle.actionError, null);
+});
+
+test('连续分块接受拒绝把作者等长手改纳入原始操作，不再写盘', async () => {
+  const before = '旧一。\n中间。\n旧二。';
+  const after = '新一。\n中间。\n新二。';
+  const editor = __getLastEditor()!;
+  await act(async () => editor.setValue('旧一。\n中间。\n手改。'));
+  await show({ ...patch('same-offset-author-edit'), before, after });
+  const original = buildPatchHunks(before, after);
+  await act(async () => handle.handleAcceptHunk(original[0]));
+  const remaining = handle.pendingSuggestion!;
+  assert.ok(remaining.operationView?.conflicts[original[1].id]);
+  const hunk = buildPatchHunks(remaining.before, after)[0];
+  assert.equal(hunk.id, original[1].id);
+  await act(async () => handle.handleAcceptHunk(hunk));
+  assert.equal(effects.write.mock.calls.length, 1, '作者改动冲突不得再写入');
+  assert.equal(effects.disk.get(FILE), '新一。\n中间。\n手改。');
+  assert.equal(editor.getValue(), '新一。\n中间。\n手改。');
+  assert.match(handle.actionError ?? '', /对应不上|定位|冲突/);
+});
+
+test('两处改动距离很近时连续分块接受仍使用原始 op，不误拒正常修改', async () => {
+  const before = '旧一。\n中间。\n旧二。';
+  const after = '新一。\n中间。\n新二。';
+  await act(async () => __getLastEditor()!.setValue(before));
+  await show({ ...patch('nearby-ops'), before, after });
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  const remaining = handle.pendingSuggestion!;
+  await act(async () =>
+    handle.handleAcceptHunk(buildPatchHunks(remaining.before, remaining.after)[0]),
+  );
+  assert.equal(effects.disk.get(FILE), after);
+  assert.equal(effects.write.mock.calls.length, 2);
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(handle.actionError, null);
+});
+
+for (const navigation of ['reset', 'tabs', 'remount'] as const) {
+  test(`分块接受后 ${navigation} 重新领取，整份接受仍保留范围外作者修改`, async () => {
+    const before = '旧一。\n中间。\n旧二。';
+    const after = '新一。\n中间。\n新二。';
+    await act(async () => __getLastEditor()!.setValue('旧一。\n手改。\n旧二。'));
+    await show({ ...patch(`preserve-origin-${navigation}`), before, after });
+    await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+    if (navigation === 'tabs') {
+      await act(async () => root.render(<Harness file="D:/project/b.md" />));
+      await act(async () => root.render(<Harness />));
+    } else {
+      await act(async () => handle.resetSuggestionWriteback());
+      if (navigation === 'remount') {
+        await act(async () => root.unmount());
+        root = createRoot(container);
+        await act(async () => root.render(<Harness />));
+      }
+    }
+    await act(async () => handle.adoptPendingSuggestion(FILE));
+    assert.ok(handle.pendingSuggestion);
+    await act(async () => handle.handleAcceptSuggestion());
+    assert.equal(effects.disk.get(FILE), '新一。\n手改。\n新二。');
+    assert.equal(__getLastEditor()!.getValue(), '新一。\n手改。\n新二。');
+    assert.equal(effects.write.mock.calls.length, 2);
+    assert.equal(handle.actionError, null);
+  });
+}
+
+test('重新领取剩余补丁后原始目标处的作者改写仍然是冲突', async () => {
+  const before = '旧一。\n中间。\n旧二。';
+  const after = '新一。\n中间。\n新二。';
+  await act(async () => __getLastEditor()!.setValue('旧一。\n中间。\n手改。'));
+  await show({ ...patch('reopen-conflict'), before, after });
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  await act(async () => handle.resetSuggestionWriteback());
+  await act(async () => handle.adoptPendingSuggestion(FILE));
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.equal(effects.disk.get(FILE), '新一。\n中间。\n手改。');
+  assert.match(handle.actionError ?? '', /变化|冲突|定位/);
+});
+
+test('同 id 的新提案对象不得继承旧提案的已应用集合', async () => {
+  const before = '旧一。\n中间。\n旧二。';
+  const after = '新一。\n中间。\n新二。';
+  const proposal = { ...patch('reused-id-independent-object'), before, after };
+  const editor = __getLastEditor()!;
+  await act(async () => editor.setValue(before));
+  await show(proposal);
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  await act(async () => editor.setValue('旧一。\n手改。\n旧二。'));
+  await show({ ...proposal });
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.disk.get(FILE), '新一。\n手改。\n新二。');
+  assert.equal(effects.write.mock.calls.length, 2);
   assert.equal(handle.actionError, null);
 });
 
@@ -625,7 +1082,8 @@ test('T07-⑤b：剩余分块映射不回原始 op 时拒绝半选，不产生�
   await act(async () => handle.handleAcceptHunk(hunks[0]));
   const remaining = handle.pendingSuggestion;
   assert.ok(remaining);
-  const remainingHunks = buildPatchHunks(remaining.before, remaining.after);
+  const remainingHunks = buildPatchHunks(remaining.before, after);
+  assert.ok(!remaining.after.includes('乙。'), '剩余预览不能把作者改列为待还原');
   const artifact = remainingHunks.find((hunk) => hunk.beforeText.includes('作者改'));
   assert.ok(
     artifact,
@@ -660,14 +1118,380 @@ test('T07-⑤c：整份逐 op 映射写回等待期间，作者继续输入不�
 });
 
 async function runLastUndo() {
-  const undoToast = effects.toast.mock.calls.find(
-    (args: unknown[]) => (args[1] as { action?: unknown } | undefined)?.action,
-  );
+  const undoToast = effects.toast.mock.calls
+    .filter((args: unknown[]) => (args[1] as { action?: unknown } | undefined)?.action)
+    .at(-1);
   assert.ok(undoToast, '写回后应弹撤销入口');
   await act(async () => {
     await (undoToast[1] as { action: { run: () => Promise<void> } }).action.run();
   });
 }
+
+test('撤销已落盘但记录失败，补记成功后恢复原分块并允许明确重选', async () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('undo-audit-repair'), before, after });
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  effects.record.mockRejectedValueOnce(new Error('undo audit unavailable'));
+  await runLastUndo();
+  assert.equal(effects.disk.get(FILE), before);
+  assert.equal(handle.pendingSuggestion?.operationView?.operations.length, 1);
+  const warning = effects.toast.mock.calls.find((args: unknown[]) =>
+    String(args[0]).includes('undo audit unavailable'),
+  );
+  assert.ok(warning);
+  const retry = (warning[1] as { action: { run: () => Promise<void> } }).action.run;
+  await act(async () => retry());
+  assert.equal(effects.write.mock.calls.length, 2, '补记不再写正文');
+  assert.equal(effects.snapshot.mock.calls.length, 2, '补记不再创建版本');
+  const restored = handle.pendingSuggestion?.operationView?.operations;
+  assert.ok(restored);
+  assert.equal(restored.length, 2, '成功补记应恢复撤销前的原消费集合');
+  assert.equal(handle.pendingSuggestion?.before, before);
+  assert.equal(handle.pendingSuggestion?.after, after);
+  await act(async () => handle.handleAcceptHunk(restored[0]));
+  assert.equal(effects.disk.get(FILE), 'AA\nB\nC');
+  assert.equal(effects.write.mock.calls.length, 3);
+  const ids = effects.record.mock.calls.map(
+    ([record]) => (record as RevisionLoopRecord).operationId,
+  );
+  assert.equal(ids[1], ids[2], '只补原逆向回执的记录');
+  assert.equal(new Set(ids).size, 3, '重选是新的作者决策');
+});
+
+async function failedUndoAudit(id: string) {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch(id), before, after });
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  effects.record.mockRejectedValueOnce(new Error('undo audit unavailable'));
+  await runLastUndo();
+  const warning = effects.toast.mock.calls.find((args: unknown[]) =>
+    String(args[0]).includes('undo audit unavailable'),
+  );
+  assert.ok(warning);
+  const retry = (warning[1] as { action: { run: () => Promise<void> } }).action.run;
+  return { before, after, editor, retry };
+}
+
+test('撤销补记再失败保留入口，等待成功时独占锁且保留作者输入', async () => {
+  const { before, editor, retry } = await failedUndoAudit('undo-audit-retry-again');
+  effects.record.mockRejectedValueOnce(new Error('still unavailable'));
+  await act(async () => {
+    await assert.rejects(retry(), /still unavailable/);
+  });
+  assert.equal(handle.actionState, null);
+  assert.equal(handle.pendingSuggestion?.operationView?.operations.length, 1);
+  const pending = deferred<{ recordPath: string; updatedBlueprintPath: null }>();
+  effects.record.mockReturnValueOnce(pending.promise);
+  let repair!: Promise<void>;
+  await act(async () => {
+    repair = retry();
+  });
+  assert.equal(handle.actionState?.kind, 'undo');
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.write.mock.calls.length, 2, '补记等待时不能施加剩余操作');
+  await act(async () => editor.setValue('A\n作者补记时继续输入\nC'));
+  await act(async () => {
+    pending.resolve({ recordPath: '/repaired', updatedBlueprintPath: null });
+    await repair;
+  });
+  assert.equal(effects.disk.get(FILE), before);
+  assert.equal(effects.write.mock.calls.length, 2);
+  assert.equal(handle.pendingSuggestion?.before, 'A\n作者补记时继续输入\nC');
+  assert.equal(handle.pendingSuggestion?.after, 'AA\n作者补记时继续输入\nCC');
+  assert.equal(handle.pendingSuggestion?.operationView?.operations.length, 2);
+  const restored = handle.pendingSuggestion;
+  await act(async () => retry());
+  assert.equal(handle.pendingSuggestion, restored, '已结算的旧补记入口不得重置新消费状态');
+  assert.equal(effects.write.mock.calls.length, 2);
+});
+
+for (const drift of ['disk', 'proposal', 'file'] as const) {
+  test(`撤销补记迟到遇到 ${drift} 漂移只修原历史，不恢复旧消费授权`, async () => {
+    const { before, retry } = await failedUndoAudit(`undo-audit-${drift}`);
+    const pending = deferred<{ recordPath: string; updatedBlueprintPath: null }>();
+    effects.record.mockReturnValueOnce(pending.promise);
+    let repair!: Promise<void>;
+    await act(async () => {
+      repair = retry();
+    });
+    if (drift === 'disk') {
+      effects.disk.set(FILE, '外部保存的不同正文');
+    } else if (drift === 'proposal') {
+      await show({ ...patch(`undo-audit-${drift}`), before, after: '新提案的正文' });
+    } else {
+      await act(async () => root.render(<Harness file="D:/project/b.md" />));
+      await show(patch('new-file', 'D:/project/b.md'));
+    }
+    const currentPending = handle.pendingSuggestion;
+    await act(async () => {
+      pending.resolve({ recordPath: '/repaired-old', updatedBlueprintPath: null });
+      await repair;
+    });
+    assert.equal(handle.pendingSuggestion, currentPending);
+    assert.equal(effects.write.mock.calls.length, 2, '补记从不重写正文');
+    assert.equal(handle.actionState, null);
+    assert.equal(effects.disk.get(FILE), drift === 'disk' ? '外部保存的不同正文' : before);
+    const ids = effects.record.mock.calls.map(
+      ([record]) => (record as RevisionLoopRecord).operationId,
+    );
+    assert.equal(ids[1], ids[2], '只补原撤销的记录');
+  });
+}
+
+test('原分块接受→撤销→两次重选必须各有新写入，不能复用 historical applied 回执', async () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('redo-original-op'), before, after });
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  for (let iteration = 0; iteration < 2; iteration++) {
+    await runLastUndo();
+    assert.equal(effects.disk.get(FILE), before);
+    const operations = handle.pendingSuggestion?.operationView?.operations;
+    assert.ok(operations);
+    assert.equal(operations.length, 2);
+    await act(async () => handle.handleAcceptHunk(operations[0]));
+    assert.equal(effects.disk.get(FILE), 'AA\nB\nC', '重选是新作者决定，不是旧写入回执恢复');
+    assert.equal(editor.getValue(), 'AA\nB\nC');
+    assert.equal(handle.pendingSuggestion?.operationView?.operations.length, 1);
+  }
+  assert.equal(effects.write.mock.calls.length, 5, '接受/撤销/重选/撤销/重选各写一次');
+  const ids = effects.record.mock.calls.map(
+    ([record]) => (record as RevisionLoopRecord).operationId,
+  );
+  assert.equal(new Set(ids).size, 5, '五份回执对应五个明确动作');
+});
+
+test('旧撤销通知在重选后只查旧回执，不回退新写入或恢复旧消费集合', async () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('old-undo-not-redo'), before, after });
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  const firstToast = effects.toast.mock.calls.find(
+    (args: unknown[]) => (args[1] as { action?: unknown } | undefined)?.action,
+  );
+  assert.ok(firstToast);
+  const oldUndo = (firstToast[1] as { action: { run: () => Promise<void> } }).action.run;
+  await runLastUndo();
+  const restored = handle.pendingSuggestion?.operationView?.operations;
+  assert.ok(restored);
+  await act(async () => handle.handleAcceptHunk(restored[0]));
+  const currentPending = handle.pendingSuggestion;
+  await act(async () => oldUndo());
+  assert.equal(effects.disk.get(FILE), 'AA\nB\nC');
+  assert.equal(handle.pendingSuggestion, currentPending);
+  assert.equal(currentPending?.operationView?.operations.length, 1);
+  assert.equal(effects.write.mock.calls.length, 3, '历史撤销回执不能重新执行');
+});
+
+test('撤销交付等待时独占原操作锁，并保留等待期间作者输入的剩余预览', async () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({ ...patch('undo-lock-and-typing'), before, after });
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  const remaining = handle.pendingSuggestion?.operationView?.operations;
+  assert.ok(remaining);
+  const undoToast = effects.toast.mock.calls.find(
+    (args: unknown[]) => (args[1] as { action?: unknown } | undefined)?.action,
+  );
+  assert.ok(undoToast);
+  const pending = deferred<{ recordPath: string; updatedBlueprintPath: null }>();
+  effects.record.mockReturnValueOnce(pending.promise);
+  let undo!: Promise<void>;
+  await act(async () => {
+    undo = (undoToast[1] as { action: { run: () => Promise<void> } }).action.run();
+  });
+  assert.equal(handle.actionState?.kind, 'undo');
+  await act(async () => handle.handleAcceptHunk(remaining[0]));
+  await act(async () => editor.setValue('A\n作者等待时改了中段。\nC'));
+  await act(async () => {
+    pending.resolve({ recordPath: '/undo-record', updatedBlueprintPath: null });
+    await undo;
+  });
+  assert.equal(effects.write.mock.calls.length, 2, '等待时不能并发接受剩余分块');
+  assert.equal(effects.disk.get(FILE), before);
+  assert.equal(editor.getValue(), 'A\n作者等待时改了中段。\nC');
+  assert.equal(handle.pendingSuggestion?.before, editor.getValue());
+  assert.equal(handle.pendingSuggestion?.after, 'AA\n作者等待时改了中段。\nCC');
+  assert.equal(handle.pendingSuggestion?.operationView?.operations.length, 2);
+  assert.equal(handle.actionState, null);
+});
+
+for (const authorText of ['A', '作者自己重新写了甲段。']) {
+  test(`D06：作者把已接受 A 改成 ${authorText} 后接受 C，不把历史确认当作当前解决`, async () => {
+    const before = 'A\nB\nC';
+    const after = 'AA\nB\nCC';
+    const editor = __getLastEditor();
+    assert.ok(editor);
+    await act(async () => editor.setValue(before));
+    await show({
+      ...patch(`d06-${authorText}`),
+      before,
+      after,
+      issueIds: ['issue-a', 'issue-c', 'unknown'],
+      issueScopes: [
+        { id: 'issue-a', lineStart: 1, lineEnd: 1 },
+        { id: 'issue-c', lineStart: 3, lineEnd: 3 },
+      ],
+    });
+    const operations = buildPatchHunks(before, after);
+    await act(async () => handle.handleAcceptHunk(operations[0]));
+    const first = effects.record.mock.calls.at(-1)?.[0] as RevisionLoopRecord;
+    assert.deepEqual(first.issueCounts, { observed: 3, authorConfirmed: 1, resolved: 1 });
+    await act(async () => editor.setValue(`${authorText}\nB\nC`));
+    const remaining = handle.pendingSuggestion?.operationView?.operations;
+    assert.ok(remaining);
+    assert.equal(remaining.length, 1);
+    await act(async () => handle.handleAcceptHunk(remaining[0]));
+    assert.equal(effects.disk.get(FILE), `${authorText}\nB\nCC`);
+    assert.equal(editor.getValue(), `${authorText}\nB\nCC`);
+    const record = effects.record.mock.calls.at(-1)?.[0] as RevisionLoopRecord;
+    assert.deepEqual(record.issueResolutions, [
+      { id: 'issue-a', status: 'open' },
+      { id: 'issue-c', status: 'resolved' },
+      { id: 'unknown', status: 'open' },
+    ]);
+    assert.deepEqual(record.issueCounts, { observed: 3, authorConfirmed: 2, resolved: 1 });
+    assert.ok(
+      effects.toast.mock.calls.some((args) =>
+        String(args[0]).includes('问题已解决 1/3（作者确认 2）'),
+      ),
+      '可见读数也须使用与闭环记录相同的分列计数',
+    );
+    assert.equal(handle.pendingSuggestion, null, '消费完成与问题是否解决是两件事');
+    assert.equal(effects.write.mock.calls.length, 2, '不能偷偷恢复作者改回的 A');
+  });
+}
+
+test('D06：保留 A 的实际结果时接受 C，两个独立问题均有覆盖；跨中段问题仅 touched', async () => {
+  const before = 'A\nB\nC';
+  const after = 'AA\nB\nCC';
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({
+    ...patch('d06-retained'),
+    before,
+    after,
+    issueIds: ['a', 'c', 'span'],
+    issueScopes: [
+      { id: 'a', lineStart: 1, lineEnd: 1 },
+      { id: 'c', lineStart: 3, lineEnd: 3 },
+      { id: 'span', lineStart: 1, lineEnd: 3 },
+    ],
+  });
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  const remaining = handle.pendingSuggestion?.operationView?.operations;
+  assert.ok(remaining);
+  await act(async () => handle.handleAcceptHunk(remaining[0]));
+  const record = effects.record.mock.calls.at(-1)?.[0] as RevisionLoopRecord;
+  assert.deepEqual(record.issueResolutions, [
+    { id: 'a', status: 'resolved' },
+    { id: 'c', status: 'resolved' },
+    { id: 'span', status: 'touched' },
+  ]);
+  assert.deepEqual(record.issueCounts, { observed: 3, authorConfirmed: 3, resolved: 2 });
+  assert.equal(effects.disk.get(FILE), after);
+});
+
+for (const middle of ['B', '作者自己改了中段。']) {
+  test(`D06：撤回 A 的文字后整份接受剩余，${middle} 不重新授权已消费 A`, async () => {
+    const before = 'A\nB\nC';
+    const after = 'AA\nB\nCC';
+    const editor = __getLastEditor();
+    assert.ok(editor);
+    await act(async () => editor.setValue(before));
+    await show({
+      ...patch(`d06-whole-${middle}`),
+      before,
+      after,
+      issueIds: ['a', 'c'],
+      issueScopes: [
+        { id: 'a', lineStart: 1, lineEnd: 1 },
+        { id: 'c', lineStart: 3, lineEnd: 3 },
+      ],
+    });
+    await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+    await act(async () => editor.setValue(`A\n${middle}\nC`));
+    await act(async () => handle.handleAcceptSuggestion());
+    assert.equal(effects.disk.get(FILE), `A\n${middle}\nCC`, '整份接受仅施加原集合中未消费 C');
+    const record = effects.record.mock.calls.at(-1)?.[0] as RevisionLoopRecord;
+    assert.deepEqual(record.issueResolutions, [
+      { id: 'a', status: 'open' },
+      { id: 'c', status: 'resolved' },
+    ]);
+    assert.deepEqual(record.issueCounts, { observed: 2, authorConfirmed: 2, resolved: 1 });
+  });
+}
+
+test('D06：整份接受时别处的同上下文替换文不能让原问题 resolved', async () => {
+  const p = '甲'.repeat(48);
+  const s = '乙'.repeat(48);
+  const before = [p, '目标句。', s, p, '目标句。', s, '尾段。'].join('\n');
+  const after = [p, '替换句。', s, p, '目标句。', s, '尾段改。'].join('\n');
+  const current = [p, '作者自改。', s, p, '替换句。', s, '尾段。'].join('\n');
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({
+    ...patch('d06-whole-repeated-context'),
+    before,
+    after,
+    issueIds: ['first', 'tail'],
+    issueScopes: [
+      { id: 'first', lineStart: 2, lineEnd: 2 },
+      { id: 'tail', lineStart: 7, lineEnd: 7 },
+    ],
+  });
+  await act(async () => editor.setValue(current));
+  await act(async () => handle.handleAcceptSuggestion());
+  const record = effects.record.mock.calls.at(-1)?.[0] as RevisionLoopRecord;
+  assert.deepEqual(record.issueResolutions, [
+    { id: 'first', status: 'open' },
+    { id: 'tail', status: 'resolved' },
+  ]);
+  assert.equal(effects.disk.get(FILE), current.replace('尾段。', '尾段改。'));
+});
+
+test('D06：分块幂等观察也不能把别处相同替换文作为原问题解决证据', async () => {
+  const p = '甲'.repeat(48);
+  const s = '乙'.repeat(48);
+  const before = [p, '目标句。', s, p, '目标句。', s].join('\n');
+  const after = [p, '替换句。', s, p, '目标句。', s].join('\n');
+  const current = [p, '作者自改。', s, p, '替换句。', s].join('\n');
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(before));
+  await show({
+    ...patch('d06-hunk-repeated-context'),
+    before,
+    after,
+    issueIds: ['first'],
+    issueScopes: [{ id: 'first', lineStart: 2, lineEnd: 2 }],
+  });
+  await act(async () => editor.setValue(current));
+  await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+  const record = effects.record.mock.calls.at(-1)?.[0] as RevisionLoopRecord;
+  assert.deepEqual(record.issueResolutions, [{ id: 'first', status: 'open' }]);
+  assert.deepEqual(record.issueCounts, { observed: 1, authorConfirmed: 1, resolved: 0 });
+  assert.equal(effects.disk.get(FILE), current);
+});
 
 test('T07-⑤d：撤销分块写回后再整份接受剩余，重新落到完整 after', async () => {
   const before = 'A\nB\nC';
@@ -680,6 +1504,9 @@ test('T07-⑤d：撤销分块写回后再整份接受剩余，重新落到完整
   await runLastUndo();
   assert.equal(effects.disk.get(FILE), before, '撤销后回到写前正文');
   assert.equal(handle.pendingSuggestion?.id, 't07-undo-rest', '补丁应仍在面板');
+  assert.equal(handle.pendingSuggestion?.before, before, '撤销后预览基线也须回到写前正文');
+  assert.equal(handle.pendingSuggestion?.after, after);
+  assert.equal(handle.pendingSuggestion?.operationView?.operations.length, 2);
   await act(async () => handle.handleAcceptSuggestion());
   assert.equal(effects.disk.get(FILE), after, '整份接受剩余应落到完整 after');
 });

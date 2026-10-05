@@ -99,14 +99,15 @@ def test_gate_rejects_entity_count_and_narrative_person_drift() -> None:
     assert "narrative_person_changed" in person_result.reasons
 
 
-def test_gate_rejects_new_static_prose_regression() -> None:
+def test_gate_reports_static_prose_regression_without_claiming_hard_proof() -> None:
     original = "# 标题\n\n他推开门，握紧刀，转身看向巷口，又停下。"
     candidate = "# 标题\n\n他不禁推开门，心中五味杂陈，握紧刀，转身看向巷口，又停下。"
 
     result = evaluate_polish_candidate(original, candidate, config=PolishGateConfig(max_char_ratio=2.0))
 
-    assert result.passed is False
-    assert "prose_issue_regressed" in result.reasons
+    assert result.passed is True
+    assert "prose_issue_regressed" in result.advisories
+    assert result.reasons == ()
 
 
 def test_selection_prefers_passing_online_candidate() -> None:

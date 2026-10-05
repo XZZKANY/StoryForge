@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import uuid
 from typing import Any, Protocol
 
 from app.domains.agent_runs._text import compact_text as _compact_text
@@ -63,6 +65,8 @@ def _build_multi_agent_review_report_with_executor(
         suggested_actions.append("先核对设定、伏笔、人物关系和时间线，再处理语言层润色。")
     report = {
         "kind": "review_report",
+        "report_id": f"review-{uuid.uuid4().hex}",
+        "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
         "file_path": file_path,
         "user_goal": user_message,
         "mode": _review_report_mode(subagent_results),
@@ -219,6 +223,8 @@ def _agent_finding(key: str, result: ReviewSubagentResult) -> dict[str, Any]:
         "issue_count": len(result.issues),
         "mode": result.mode,
     }
+    if result.coverage is not None:
+        finding["coverage"] = result.coverage
     if result.model is not None:
         finding["model"] = result.model
     if result.latency_ms is not None:
@@ -234,7 +240,7 @@ def _subagent_output_summary(report: dict[str, Any], key: str) -> dict[str, Any]
         "issue_count": finding["issue_count"],
         "mode": finding["mode"],
     }
-    for optional_key in ("model", "latency_ms", "degraded_reason"):
+    for optional_key in ("model", "latency_ms", "degraded_reason", "coverage"):
         if optional_key in finding:
             summary[optional_key] = finding[optional_key]
     return summary

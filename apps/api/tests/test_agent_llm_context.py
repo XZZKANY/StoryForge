@@ -7,13 +7,21 @@ import pytest
 from agent_transport import agent_result
 from fastapi.testclient import TestClient
 
+from app.domains.agent_runs.knowledge_context import CollectedProjectKnowledge
 from app.domains.agent_runs.llm_context import (
-    build_llm_context_snapshot,
+    build_llm_context_snapshot_from_collected,
     llm_context_snapshot_to_prompt_context_bundle,
     llm_context_snapshot_trace_summary,
 )
 from app.domains.assistant import service as assistant_service
 from app.domains.ide import review_reasoning
+
+
+def _value_snapshot(**kwargs):
+    """Explicit pure replay; fictional paths are not live filesystem evidence."""
+    state = kwargs.get("run_state")
+    kwargs["run_state"] = vars(state) if isinstance(state, SimpleNamespace) else state
+    return build_llm_context_snapshot_from_collected(knowledge=CollectedProjectKnowledge(), **kwargs)
 
 
 def _rich_context_bundle() -> dict[str, object]:
@@ -128,7 +136,7 @@ def _noisy_standard_context_bundle() -> dict[str, object]:
 
 
 def test_build_llm_context_snapshot_is_stable_and_filters_harness_noise() -> None:
-    first = build_llm_context_snapshot(
+    first = _value_snapshot(
         run_state=SimpleNamespace(public_id="run-ctx-1", goal="审查第二章", status="running"),
         intent="file.review",
         user_message="请审查当前章节的人物动机",
@@ -139,7 +147,7 @@ def test_build_llm_context_snapshot_is_stable_and_filters_harness_noise() -> Non
         role_mentions=["@人物"],
         event_history=[{"event_type": "tool_trace", "payload": {"raw": "RAW_TIMELINE_JSON"}}],
     )
-    second = build_llm_context_snapshot(
+    second = _value_snapshot(
         run_state=SimpleNamespace(public_id="run-ctx-1", goal="审查第二章", status="running"),
         intent="file.review",
         user_message="请审查当前章节的人物动机",
@@ -175,7 +183,7 @@ def test_build_llm_context_snapshot_is_stable_and_filters_harness_noise() -> Non
 
 
 def test_build_llm_context_snapshot_keeps_review_report_as_summary() -> None:
-    snapshot = build_llm_context_snapshot(
+    snapshot = _value_snapshot(
         run_state=None,
         intent="file.revise",
         user_message="按审稿意见修一版",
@@ -230,7 +238,7 @@ def test_build_llm_context_snapshot_keeps_review_report_as_summary() -> None:
 
 
 def test_build_llm_context_snapshot_conservatively_degrades_for_missing_or_malformed_context_bundle() -> None:
-    missing = build_llm_context_snapshot(
+    missing = _value_snapshot(
         run_state=None,
         intent="file.review",
         user_message="审一遍",
@@ -238,7 +246,7 @@ def test_build_llm_context_snapshot_conservatively_degrades_for_missing_or_malfo
         content="当前正文",
         context_bundle=None,
     )
-    malformed = build_llm_context_snapshot(
+    malformed = _value_snapshot(
         run_state=None,
         intent="file.review",
         user_message="审一遍",
@@ -255,7 +263,7 @@ def test_build_llm_context_snapshot_conservatively_degrades_for_missing_or_malfo
 
 
 def test_llm_context_snapshot_trace_summary_is_lightweight() -> None:
-    snapshot = build_llm_context_snapshot(
+    snapshot = _value_snapshot(
         run_state=SimpleNamespace(public_id="run-ctx-2"),
         intent="file.review",
         user_message="审一遍",
@@ -267,6 +275,8 @@ def test_llm_context_snapshot_trace_summary_is_lightweight() -> None:
 
     assert llm_context_snapshot_trace_summary(snapshot) == {
         "snapshot_id": snapshot["snapshot_id"],
+        "source_manifest": snapshot["source_manifest"],
+        "selected_content_sha256": snapshot["selected_file"]["content_sha256"],
         "section_count": 7,
         "context_file_count": 2,
         "context_files": ["人物/周眠.md", "大纲/第02章节点.md"],
@@ -279,7 +289,7 @@ def test_llm_context_snapshot_trace_summary_is_lightweight() -> None:
 
 
 def test_llm_context_snapshot_to_prompt_context_bundle_is_sanitized() -> None:
-    snapshot = build_llm_context_snapshot(
+    snapshot = _value_snapshot(
         run_state=SimpleNamespace(public_id="run-ctx-prompt"),
         intent="file.review",
         user_message="审一遍",
@@ -296,6 +306,7 @@ def test_llm_context_snapshot_to_prompt_context_bundle_is_sanitized() -> None:
         "大纲/第02章节点.md",
         "Story Memory",
         "Chapter Context",
+        "Context Sources",
     ]
     encoded = json.dumps(prompt_bundle, ensure_ascii=False, sort_keys=True)
     assert "周眠怕水" in encoded
@@ -307,7 +318,7 @@ def test_llm_context_snapshot_to_prompt_context_bundle_is_sanitized() -> None:
 
 
 def test_llm_context_snapshot_filters_unsafe_context_file_paths_with_warnings() -> None:
-    snapshot = build_llm_context_snapshot(
+    snapshot = _value_snapshot(
         run_state=None,
         intent="file.create",
         user_message="写第三章",
@@ -340,16 +351,14 @@ def test_llm_context_snapshot_filters_unsafe_context_file_paths_with_warnings() 
         },
     )
 
-    assert [item["relative_path"] for item in snapshot["context_files"]] == [
-        ".资料/黄金三章spec.md"
-    ]
+    assert [item["relative_path"] for item in snapshot["context_files"]] == [".资料/黄金三章spec.md"]
     assert len(snapshot["warnings"]) == 2
     assert llm_context_snapshot_trace_summary(snapshot)["context_file_count"] == 1
     assert llm_context_snapshot_trace_summary(snapshot)["warning_count"] == 2
 
 
 def test_llm_context_snapshot_redacts_selected_project_knowledge() -> None:
-    snapshot = build_llm_context_snapshot(
+    snapshot = _value_snapshot(
         run_state=None,
         intent="file.create",
         user_message="写第三章",
@@ -376,10 +385,20 @@ def test_llm_context_snapshot_redacts_selected_project_knowledge() -> None:
 def test_file_review_runtime_records_llm_context_snapshot_summary(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     context_bundle = _rich_context_bundle()
+    context_bundle["project_root"] = str(tmp_path)
+    context_bundle["current_file"] = str(tmp_path / "正文/第02章.md")
+    for item in context_bundle["files"]:
+        if item["kind"] != "debug":
+            path = tmp_path / item["relative_path"]
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(item["excerpt"], encoding="utf-8")
+            item["path"] = str(path)
+
     message = agent_result(
         client,
         "session-llm-context-review",
@@ -491,7 +510,12 @@ def test_file_revise_runtime_links_revise_trace_to_llm_context_snapshot(
     assert message["type"] == "agent_result", message
     context_trace = next(trace for trace in message["tool_trace"] if trace["tool_name"] == "context.load")
     revise_trace = next(trace for trace in message["tool_trace"] if trace["tool_name"] == "file.revise")
-    assert revise_trace["input_summary"]["llm_context_snapshot_id"] == context_trace["output_summary"]["llm_context"]["snapshot_id"]
+    assert (
+        revise_trace["input_summary"]["llm_context_snapshot_id"]
+        == revise_trace["input_summary"]["context_provenance"]["snapshot_id"]
+    )
+    assert context_trace["output_summary"]["llm_context"]["snapshot_id"].startswith("llmctx-")
+    assert revise_trace["input_summary"]["context_provenance"]["source_manifest"]
     assert message["proposed_patch"]["requires_confirmation"] is True
     assert "人物/周眠.md" in captured["user_prompt"]
     assert "DUPLICATE_SELECTED_CONTEXT_SHOULD_NOT_APPEAR" not in captured["user_prompt"]

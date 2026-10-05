@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from agent_run_test_support import _seed_agent_run, _stored_run_events
+from chapter_check_test_support import chapter_check_reply
 
 from app.domains.agent_runs.event_sink import _AgentRunEventSink
 from app.domains.agent_runs.runtime import AgentRuntime
@@ -64,7 +65,7 @@ def test_chapter_write_resume_runs_check_and_emits_one_patch(
         calls.append(user_message)
         if "整理成 Chapter Brief" in user_message:
             return {"reply": '{"goal":"建立冲突","required_beats":["见面"]}'}
-        return {"reply": '{"findings": [{"rule":"advisory","severity":"hard","message":"建议","evidence":"正文"}]}' }
+        return chapter_check_reply(user_message, [{"rule": "advisory", "severity": "hard", "message": "建议", "line": 1, "evidence": "一"}])
 
     monkeypatch.setattr(assistant_service, "chat_reply", fake_chat)
     monkeypatch.setattr(
@@ -127,10 +128,10 @@ def test_chapter_write_repairs_once_then_blocks_without_patch(
         if "整理成 Chapter Brief" in user_message:
             return {"reply": '{"goal":"建立冲突","required_beats":["见面"]}'}
         check_calls += 1
-        return {
-            "reply": '{"findings":[{"rule":"missing_required_beat","severity":"hard",'
-            '"message":"缺少见面","line":1,"evidence":"开场独白"}]}'
-        }
+        return chapter_check_reply(user_message, [{
+            "rule": "missing_required_beat", "severity": "hard", "message": "缺少见面",
+            "line": 1, "evidence": "一" if check_calls == 1 else "二",
+        }])
 
     def fake_revise(*_args, **_kwargs):
         nonlocal repair_calls
@@ -183,6 +184,10 @@ def test_chapter_write_repairs_once_then_blocks_without_patch(
     assert control.resumed_result.get("proposed_patch") is None
     assert control.resumed_result["agent_result"]["repair_count"] == 1
     assert control.resumed_result["agent_result"]["chapter_check"]["status"] == "repairable"
+    candidate = control.resumed_result["agent_result"]["chapter_candidate"]
+    assert candidate["content"] == "二" * 1800
+    assert candidate["read_only"] is True
+    assert "after" not in candidate and "approval_action" not in candidate
     assert check_calls == 2
     assert repair_calls == 1
     assert target.read_text(encoding="utf-8") == ""

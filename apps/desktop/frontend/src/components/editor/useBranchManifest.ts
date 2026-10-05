@@ -18,7 +18,8 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
   const branchManifestRef = useRef<BranchManifest>(branchManifest);
   const projectPathRef = useRef<string | null>(projectPath);
   const filePathRef = useRef<string | null>(filePath);
-  const manifestWriteMarkRef = useRef(0);
+  const manifestWriteMarkRef = useRef(new Map<string, number>());
+  const manifestOwnerRef = useRef<string | null>(null);
   const manifestTaskChainRef = useRef(new Map<string, Promise<unknown>>());
 
   useEffect(() => {
@@ -30,17 +31,20 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
   useEffect(() => {
     if (!filePath) {
       const empty = emptyManifest();
+      manifestOwnerRef.current = null;
       branchManifestRef.current = empty;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- filePath 清空时同步重置分支清单，React18 合法模式
       setBranchManifest(empty);
       return;
     }
     let cancelled = false;
-    const writeMark = manifestWriteMarkRef.current;
+    const key = `${projectPath}::${filePath}`;
+    const writeMark = manifestWriteMarkRef.current.get(key) ?? 0;
     void (async () => {
       const manifest = await loadBranchManifest(projectPath, filePath);
-      // 读盘期间已有写入落定则不以旧盘面覆盖本地真值。
-      if (cancelled || manifestWriteMarkRef.current !== writeMark) return;
+      // 只淘汰同一文档写入之前的旧读；A 的迟到保存不能使 B 的有效加载失效。
+      if (cancelled || (manifestWriteMarkRef.current.get(key) ?? 0) !== writeMark) return;
+      manifestOwnerRef.current = key;
       branchManifestRef.current = manifest;
       setBranchManifest(manifest);
     })();
@@ -62,7 +66,11 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
         .catch(() => undefined)
         .then(async () => {
           // 队列内做读-改-写：每次变更都落在最新真值上，并发推进与切分支彼此 rebase。
-          const sameFile = projectPathRef.current === project && filePathRef.current === path;
+          // 当前页签路径相同不代表内存清单已加载到该文档；未就绪时必须取目标盘面。
+          const sameFile =
+            projectPathRef.current === project &&
+            filePathRef.current === path &&
+            manifestOwnerRef.current === key;
           const base = sameFile
             ? branchManifestRef.current
             : await loadBranchManifest(project, path);
@@ -73,9 +81,10 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
             next,
             ...(deliveryTicket ? [deliveryTicket] : []),
           );
-          manifestWriteMarkRef.current += 1;
+          manifestWriteMarkRef.current.set(key, (manifestWriteMarkRef.current.get(key) ?? 0) + 1);
           // 迟到的结果仅在同一文档仍活动时投影，不得污染已切换的页签。
           if (projectPathRef.current === project && filePathRef.current === path) {
+            manifestOwnerRef.current = key;
             branchManifestRef.current = next;
             setBranchManifest(next);
           }

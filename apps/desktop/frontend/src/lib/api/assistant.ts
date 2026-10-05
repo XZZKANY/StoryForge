@@ -3,7 +3,8 @@ import type { ProviderHealth } from '../provider-config';
 import { getApiConfig, trimApiBaseUrl } from './config';
 import type { ApiProviderHealthResponse } from './contracts';
 import { readErrorDetail } from './errors';
-import type { AssistantSessionRecord } from './types';
+import { toAssistantContextBundlePayload } from './codecs';
+import type { AssistantSessionRecord, ReviseRequest } from './types';
 
 export async function listAssistantSessions(options?: {
   projectPath?: string;
@@ -145,6 +146,7 @@ export async function streamContinueProse(payload: {
   projectRoot?: string | null;
   assistantSessionId?: number | null;
   targetChars?: number | null;
+  contextBundle?: ReviseRequest['contextBundle'];
   signal?: AbortSignal;
   onDelta?: (text: string) => void;
 }): Promise<ContinueProseResult> {
@@ -166,6 +168,7 @@ export async function streamContinueProse(payload: {
       project_root: payload.projectRoot ?? null,
       assistant_session_id: payload.assistantSessionId ?? null,
       target_chars: payload.targetChars ?? null,
+      context_bundle: toAssistantContextBundlePayload(payload.contextBundle),
     }),
   });
 

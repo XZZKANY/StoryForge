@@ -682,13 +682,13 @@ def test_agent_stream_allows_matching_session_and_project(
     assert _session_message_count(client, session_b) == 3
 
 
-def test_agent_stream_allows_legacy_session_without_project_path(
+def test_agent_stream_rejects_legacy_session_without_project_path(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
     session_factory: sessionmaker[Session],
     tmp_path: Path,
 ) -> None:
-    """会话 project_path 为空（历史遗留）时放行：无登记项目可校验，不据此判死。"""
+    """历史会话不可隐式认领当前项目，更不能把旧历史送给模型。"""
 
     _enable_loop_env(monkeypatch)
     calls = _fake_llm_script(monkeypatch, [{"content": "好的。", "tool_calls": [], "completion_tokens": 3}])
@@ -704,6 +704,7 @@ def test_agent_stream_allows_legacy_session_without_project_path(
         project_path=str(project_a),
     )
 
-    assert frames[-1]["type"] == "agent_result", frames[-1]
-    assert len(calls) == 1
-    assert _session_message_count(client, legacy) == 3
+    assert frames[-1]["type"] == "error", frames[-1]
+    assert "会话归属" in frames[-1]["detail"]
+    assert calls == []
+    assert _session_message_count(client, legacy) == 1

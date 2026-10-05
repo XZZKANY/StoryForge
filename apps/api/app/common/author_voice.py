@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.common.author_edit_policy import AuthorEditPolicy, build_author_edit_policy
+from app.common.generation_sources import observe_generation_source, project_generation_source
 from app.common.style_baseline import append_style_baseline_to_system_prompt
 
 _DIRNAME = ".storyforge"
@@ -24,6 +26,7 @@ _FILENAME = "agent-instructions.md"
 RELATIVE_PATH = f"{_DIRNAME}/{_FILENAME}"
 
 MAX_CHARS = 4_000
+MAX_SOURCE_BYTES = 512 * 1024
 
 # 措辞刻意分两档：对话路径（循环）沿用"尽量遵循"，产字路径用"逐条遵循"。
 # 生成时作者指令是硬约束（"这个人物不说某个词"必须照办），而循环在讨论 / 审读时
@@ -48,21 +51,55 @@ def read_author_instructions(project_path: str | None) -> str | None:
     """
 
     if not isinstance(project_path, str) or not project_path.strip():
+        project_generation_source("author_instructions", None, omission_reason="missing_project")
         return None
+    target = None
+    raw = None
     try:
         root = Path(project_path).resolve()
         if not root.is_dir():
             return None
-        target = root / _DIRNAME / _FILENAME
+        target = (root / _DIRNAME / _FILENAME).resolve()
+        target.relative_to(root)
         if not target.is_file():
+            observe_generation_source("author_instructions", target, omission_reason="missing_source")
+            project_generation_source("author_instructions", None, omission_reason="missing_source")
             return None
-        text = target.read_text(encoding="utf-8").strip()
-    except OSError:
+        with target.open("rb", buffering=0) as stream:
+            raw = stream.read(MAX_SOURCE_BYTES + 1)
+        if len(raw) > MAX_SOURCE_BYTES or b"\x00" in raw[:1024]:
+            reason = "source_byte_budget" if len(raw) > MAX_SOURCE_BYTES else "binary_source"
+            observe_generation_source("author_instructions", target, raw=raw, complete=False, omission_reason=reason)
+            project_generation_source("author_instructions", None, omission_reason=reason)
+            return None
+        text = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n").strip()
+    except (OSError, ValueError, RuntimeError):
+        observe_generation_source("author_instructions", target, raw=raw, omission_reason="unreadable_source")
+        project_generation_source("author_instructions", None, omission_reason="unreadable_source")
         return None
+    observe_generation_source("author_instructions", target, raw=raw, text=text, complete=True)
     if not text:
+        project_generation_source("author_instructions", None, omission_reason="empty_source")
         return None
+    original_length = len(text)
     if len(text) > MAX_CHARS:
-        text = text[:MAX_CHARS] + "\n…[作者指令过长已截断]"
+        # 保尾截断（C13）：作者指令是追加语义——新要求总在文件尾部，头部截断会把
+        # 追加的新要求吞掉（前 4000 字吃掉尾部新增）。保最近的要求，丢最早的旧条。
+        marker = "…[作者指令过长已截断，保留最近部分]\n"
+        budget = MAX_CHARS - len(marker)
+        text = marker + text[-budget:]
+    project_generation_source(
+        "author_instructions",
+        text,
+        truncated=original_length > MAX_CHARS,
+        source_span={
+            "start": max(0, original_length - budget) if original_length > MAX_CHARS else 0,
+            "end": original_length,
+            "basis": "normalized_text",
+            "unit": "chars",
+        },
+        transformation="author_tail_with_notice_v1",
+    )
     return text
 
 
@@ -91,4 +128,20 @@ def build_generation_system_prompt(base_prompt: str, project_path: str | None) -
     return append_author_instructions_to_system_prompt(
         append_style_baseline_to_system_prompt(base_prompt, project_path),
         project_path,
+    )
+
+
+def edit_policy_from_generation_prompt(
+    original: str, *, instruction: str, system_prompt: str,
+    admitted_author_requirements: tuple[str, ...] = (),
+) -> AuthorEditPolicy:
+    """投影已经准备好的声音，不二次读盘，也不从通用 system 指令推导授权。"""
+    before_author, marker, author = system_prompt.partition(GENERATION_PREFIX)
+    baseline_marker = "\n\n文风基线（"
+    baseline_start = before_author.find(baseline_marker)
+    return build_author_edit_policy(
+        original,
+        instruction=instruction,
+        author_requirements=(author,) if marker else admitted_author_requirements,
+        baseline=before_author[baseline_start + 2:] if baseline_start >= 0 else "",
     )

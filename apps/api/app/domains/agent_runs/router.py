@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from app.db.deps import SessionDependency
 from app.domains.agent_runs.events import (
     materialize_knowledge_proposal,
+    query_chapter_check_history,
     query_knowledge_proposal_inbox,
     refresh_knowledge_evidence,
     resolve_knowledge_proposal,
@@ -18,6 +19,8 @@ from app.domains.agent_runs.schemas import (
     AgentRunEventRead,
     AgentRunRead,
     AgentSkillRead,
+    ChapterCheckHistoryQuery,
+    ChapterCheckHistoryRead,
     KnowledgeProposalInboxRead,
     KnowledgeProposalMaterializeRequest,
     KnowledgeProposalPatchRead,
@@ -46,6 +49,20 @@ router.include_router(writeback_router)
 router.include_router(writeback_recovery_router)
 
 
+@router.post("/chapter-checks/query", response_model=ChapterCheckHistoryRead, summary="只读核对当前会话的章节检查历史")
+def query_chapter_checks_endpoint(
+    request: ChapterCheckHistoryQuery, session: SessionDependency
+) -> ChapterCheckHistoryRead:
+    return ChapterCheckHistoryRead.model_validate(
+        query_chapter_check_history(
+            session,
+            request.project_root,
+            request.assistant_session_id,
+            limit=request.limit,
+        )
+    )
+
+
 @router.post(
     "/knowledge-proposals/query",
     response_model=KnowledgeProposalInboxRead,
@@ -56,9 +73,7 @@ def query_knowledge_proposals_endpoint(
     request: KnowledgeProposalQuery,
     session: SessionDependency,
 ) -> KnowledgeProposalInboxRead:
-    return KnowledgeProposalInboxRead.model_validate(
-        query_knowledge_proposal_inbox(session, request.project_root)
-    )
+    return KnowledgeProposalInboxRead.model_validate(query_knowledge_proposal_inbox(session, request.project_root))
 
 
 @router.post(
@@ -71,9 +86,7 @@ def refresh_knowledge_proposals_endpoint(
     request: KnowledgeProposalQuery,
     session: SessionDependency,
 ) -> KnowledgeProposalInboxRead:
-    return KnowledgeProposalInboxRead.model_validate(
-        refresh_knowledge_evidence(session, request.project_root)
-    )
+    return KnowledgeProposalInboxRead.model_validate(refresh_knowledge_evidence(session, request.project_root))
 
 
 @router.post(

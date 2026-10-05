@@ -30,6 +30,104 @@ function twoBranchManifest(): BranchManifest {
   };
 }
 
+function documentManifest(label: string, headNodeId: number): BranchManifest {
+  const base = manifest(headNodeId);
+  return {
+    ...base,
+    branches: [
+      ...base.branches,
+      { id: label, label, color: '#555', baseNodeId: headNodeId, headNodeId },
+    ],
+  };
+}
+
+test('A 保存迟到不能使 B 正在加载的分支清单失效或把 A 分支写入 B', async () => {
+  const a = documentManifest('A-only', 1);
+  const b = documentManifest('B-only', 20);
+  let releaseLoad!: (value: BranchManifest) => void;
+  const loadingB = new Promise<BranchManifest>((resolve) => {
+    releaseLoad = resolve;
+  });
+  let releaseSave!: () => void;
+  const savingA = new Promise<void>((resolve) => {
+    releaseSave = resolve;
+  });
+  io.load.mockImplementation(async (_project: string, file: string) =>
+    file === 'a.md' ? a : loadingB,
+  );
+  io.save.mockClear();
+  io.save.mockImplementationOnce(async () => {
+    await savingA;
+  });
+  const app = mount('a.md');
+  try {
+    await app.render('a.md');
+    const pending = app.handle.advanceBranchHead(2, {
+      projectPath: 'D:/book',
+      filePath: 'a.md',
+      branchId: 'main',
+    });
+    await flush();
+    await app.render('b.md');
+    await act(async () => {
+      releaseSave();
+      await pending;
+    });
+    await act(async () => {
+      releaseLoad(b);
+    });
+    assert.deepEqual(app.handle.branchManifest, b);
+    await act(async () =>
+      app.handle.advanceBranchHead(21, {
+        projectPath: 'D:/book',
+        filePath: 'b.md',
+        branchId: 'main',
+      }),
+    );
+    assert.deepEqual(io.save.mock.calls.at(-1), ['D:/book', 'b.md', setBranchHead(b, 'main', 21)]);
+  } finally {
+    releaseSave();
+    releaseLoad(b);
+    app.cleanup();
+  }
+});
+
+test('B 清单首次加载未完成时保存必须读 B 基线，迟到旧读不能回退已写结果', async () => {
+  const a = documentManifest('A-only', 1);
+  const b = documentManifest('B-only', 20);
+  let releaseLoad!: (value: BranchManifest) => void;
+  const loadingB = new Promise<BranchManifest>((resolve) => {
+    releaseLoad = resolve;
+  });
+  let bReads = 0;
+  io.load.mockImplementation(async (_project: string, file: string) => {
+    if (file === 'a.md') return a;
+    return ++bReads === 1 ? loadingB : b;
+  });
+  io.save.mockClear();
+  const app = mount('a.md');
+  try {
+    await app.render('a.md');
+    await app.render('b.md');
+    await act(async () =>
+      app.handle.advanceBranchHead(21, {
+        projectPath: 'D:/book',
+        filePath: 'b.md',
+        branchId: 'main',
+      }),
+    );
+    const written = setBranchHead(b, 'main', 21);
+    assert.deepEqual(io.save.mock.calls.at(-1), ['D:/book', 'b.md', written]);
+    await act(async () => {
+      releaseLoad(b);
+    });
+    assert.deepEqual(app.handle.branchManifest, written);
+  } finally {
+    releaseLoad(b);
+    app.cleanup();
+  }
+});
+
 /** 清单任务在 per-file 链上多跳微任务后才会调 save，断言前先放它跑。 */
 async function flush(): Promise<void> {
   await act(async () => {

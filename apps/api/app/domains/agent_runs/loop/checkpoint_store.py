@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.redaction import is_sensitive_key, redact_sensitive
+from app.domains.agent_runs.loop.generation_recovery import checkpoint_generation_receipts, generation_outcome_covered
 from app.domains.agent_runs.loop.recovery_sources import source_versions, sources_unchanged
 from app.domains.agent_runs.loop.types import ChatLoopOutcome
 from app.domains.agent_runs.models import AgentArtifact, AgentRun
@@ -69,6 +70,8 @@ def checkpoint_diagnostic(payload: dict[str, Any], run: AgentRun) -> dict[str, A
         reason = "checkpoint_identity_mismatch"
     elif payload.get("permission_profile") != run.permission_profile:
         reason = "permission_snapshot_changed"
+    elif not generation_outcome_covered(payload):
+        reason = "generation_source_unverifiable"
     elif not sources_unchanged(payload.get("sources", {}), payload.get("resume_message", {})):
         reason = "source_version_changed"
     elif payload.get("tool_policy_digest") != tool_policy_digest():
@@ -112,6 +115,9 @@ def build_checkpoint_payload(context: StoryForgeRuntimeContext, checkpoint: Runt
     sources = deepcopy(context.recovery_sources) if context.recovery_sources is not None else current_sources
     for path, digest in current_sources["files"].items():
         sources["files"].setdefault(path, digest)
+    sources["generation_receipts"] = checkpoint_generation_receipts(
+        context.session, context.assistant_session_id, context.outcome.traces,
+    )
     payload = {"version": 1, "checkpoint": checkpoint.to_dict(),
                "assistant_session_id": context.assistant_session_id,
                "permission_profile": context.run.permission_profile,

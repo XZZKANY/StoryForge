@@ -126,9 +126,16 @@ def test_structured_file_is_rejected_before_provider_call() -> None:
         )
 
 
-def test_fixed_pipeline_projects_trusted_context_and_rejects_entity_drift(monkeypatch) -> None:
+def test_fixed_pipeline_projects_trusted_context_and_rejects_entity_drift(monkeypatch, tmp_path) -> None:
     runtime = AgentRuntime(event_sink=None)  # type: ignore[arg-type]
     original = "# 第一章\n\n林岚在灯塔港握紧刀，听见潮声逼近。"
+    for path, text in [
+        ("人物/林岚.md", "林岚谨慎寡言，不会主动泄露旧案。"),
+        ("设定/灯塔港.md", "灯塔港终年有潮雾，旧灯塔已经停用。"),
+    ]:
+        target = tmp_path / path
+        target.parent.mkdir(exist_ok=True)
+        target.write_text(text, encoding="utf-8")
     captured: dict[str, object] = {}
 
     def fake_controlled_polish(text: str, **kwargs) -> ControlledPolishResult:
@@ -136,7 +143,7 @@ def test_fixed_pipeline_projects_trusted_context_and_rejects_entity_drift(monkey
         decision = select_polish_candidate(
             text,
             local_candidate=PolishCandidate("local", text),
-            online_candidate=PolishCandidate("online", text.replace("林岚", "她")),
+            online_candidate=PolishCandidate("online", text.replace("林岚", "林蓝")),
             protected_entities=kwargs["protected_entities"],
             character_constraints=kwargs["character_constraints"],
             continuity_facts=kwargs["continuity_facts"],
@@ -163,22 +170,22 @@ def test_fixed_pipeline_projects_trusted_context_and_rejects_entity_drift(monkey
             user_message="保守润色",
             intent="chapter.polish",
             args={
-                "file_path": "D:/project/正文/第一章.md",
+                "file_path": str(tmp_path / "正文/第一章.md"),
                 "_trace_file_path": "正文/第一章.md",
                 "content": original,
                 "context_bundle": {
-                    "project_root": "D:/project",
-                    "current_file": "D:/project/正文/第一章.md",
+                    "project_root": str(tmp_path),
+                    "current_file": str(tmp_path / "正文/第一章.md"),
                     "files": [
                         {
-                            "path": "D:/project/人物/林岚.md",
+                            "path": str(tmp_path / "人物/林岚.md"),
                             "relative_path": "人物/林岚.md",
                             "kind": "character",
                             "title": "林岚.md",
                             "excerpt": "林岚谨慎寡言，不会主动泄露旧案。",
                         },
                         {
-                            "path": "D:/project/设定/灯塔港.md",
+                            "path": str(tmp_path / "设定/灯塔港.md"),
                             "relative_path": "设定/灯塔港.md",
                             "kind": "setting",
                             "title": "灯塔港.md",

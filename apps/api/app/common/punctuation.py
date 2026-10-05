@@ -16,11 +16,19 @@ from __future__ import annotations
 import re
 from difflib import SequenceMatcher
 
+from app.common.author_edit_policy import AuthorEditPolicy
+
+DIALOGUE_PATTERN = re.compile(r'“[^“”]*”|「[^「」]*」|『[^『』]*』|"[^"\n]*"', re.S)
+
 # 只折叠「同一个标点的不同 Unicode 形态」。刻意不收中英文标点互换（，↔, 。↔.）：
 # 那在中文正文里是该被作者看见的质量问题，不是无害的排版漂移。
 _PUNCTUATION_FOLDS = {
     "“": '"',  # “
     "”": '"',  # ”
+    "「": '"',
+    "」": '"',
+    "『": '"',
+    "』": '"',
     "„": '"',  # „
     "‟": '"',  # ‟
     "‘": "'",  # ‘
@@ -54,7 +62,7 @@ def canonical_punctuation(text: str) -> str:
     return _REPEAT_RUN.sub(r"\1", text.translate(_FOLD_TABLE))
 
 
-def restore_incidental_punctuation(before: str, after: str) -> str:
+def restore_incidental_punctuation(before: str, after: str, *, edit_policy: AuthorEditPolicy | None = None) -> str:
     """把 after 里「只有标点形态变了」的行还原成 before 的原样，真实改动一字不动。
 
     对齐方式是在**折叠后**的行序列上求 diff：`equal` 块意味着这些行至多只有标点
@@ -89,7 +97,35 @@ def restore_incidental_punctuation(before: str, after: str) -> str:
     restored: list[str] = []
     for tag, before_start, before_end, after_start, after_end in opcodes:
         if tag == "equal":
-            restored.extend(before_lines[before_start:before_end])
+            restored.extend(
+                _restore_equal_line(original, candidate, edit_policy)
+                for original, candidate in zip(
+                    before_lines[before_start:before_end], after_lines[after_start:after_end], strict=True
+                )
+            )
         else:
             restored.extend(after_lines[after_start:after_end])
     return "\n".join(restored)
+
+
+def _restore_equal_line(before: str, after: str, policy: AuthorEditPolicy | None) -> str:
+    if policy is None or "quotes" not in policy.allowed_punctuation_forms:
+        return before
+    # Canonical-equal lines consist of the same units, but a unit may be a
+    # multi-character ellipsis/dash/space run. Preserve all unauthorised units.
+    original = _punctuation_units(before)
+    candidate = _punctuation_units(after)
+    return "".join(
+        new if canonical in {'"', "'"} else old for (canonical, old), (_, new) in zip(original, candidate, strict=True)
+    )
+
+
+def _punctuation_units(text: str) -> list[tuple[str, str]]:
+    units: list[tuple[str, str]] = []
+    for char in text:
+        canonical = char.translate(_FOLD_TABLE)
+        if canonical in ".- " and units and units[-1][0] == canonical:
+            units[-1] = (canonical, units[-1][1] + char)
+        else:
+            units.append((canonical, char))
+    return units

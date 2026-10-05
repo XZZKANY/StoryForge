@@ -36,6 +36,20 @@ async function verify(content: string, operationId: string, payloadHash: string)
   }
 }
 
+/** Read-only verification includes the complete semantic payload, not just rendered audit prose. */
+export async function verifyReceiptAudit(
+  projectRoot: string,
+  recordPath: string,
+  operationId: string,
+  semanticPayload: string,
+): Promise<void> {
+  await verify(
+    await TauriFileSystem.readProjectFile(projectRoot, recordPath),
+    operationId,
+    await digest(semanticPayload),
+  );
+}
+
 /** Audit repair is exclusive-create + exact verification, never an overwrite by timestamp. */
 export async function writeReceiptAudit(
   projectRoot: string,

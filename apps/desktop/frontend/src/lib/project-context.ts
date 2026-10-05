@@ -2,6 +2,7 @@ export { createBlankStoryProject } from './project/create';
 export {
   buildContextBundle,
   excerptForContext,
+  invalidateContextBundleCache,
   selectContextBundleFiles,
 } from './project/context-bundle';
 export { buildProjectIndex, buildProjectIndexFromEntries } from './project/index';

@@ -162,7 +162,7 @@ def test_agent_user_message_file_review_returns_multi_agent_report(
     assert report["kind"] == "review_report"
     assert report["file_path"] == "正文/第01章.md"
     assert report["mode"] == "heuristic_only"
-    assert report["context"]["file_count"] == 2
+    assert report["context"]["file_count"] == 3  # Two sources plus explicit source metadata.
     assert report["agent_findings"]["plot"]["agent"] == "plot-agent"
     assert report["agent_findings"]["character"]["agent"] == "character-agent"
     assert report["agent_findings"]["prose"]["agent"] == "prose-agent"
@@ -561,7 +561,7 @@ def test_agent_user_message_file_revise_returns_proposed_patch(
     assert tool_calls[0]["status"] == "completed"
 
 
-def test_agent_file_revise_can_use_previous_review_report(
+def test_agent_file_revise_rejects_unbound_legacy_review_report(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -599,15 +599,12 @@ def test_agent_file_revise_can_use_previous_review_report(
         },
     )
 
-    assert message["type"] == "agent_result"
-    assert message["intent"] == "file.revise"
-    assert "上一轮多视角审稿报告" in captured["user_prompt"]
-    assert "没有明显冲突信号" in captured["user_prompt"]
-    revise_trace = next(item for item in message["tool_trace"] if item["tool_name"] == "file.revise")
-    assert revise_trace["input_summary"]["review_issue_count"] == 1
+    assert message["type"] == "error", message
+    assert "审稿报告" in message["detail"]
+    assert captured == {}
 
 
-def test_revise_scope_selected_ids_only_lists_those(
+def test_revise_scope_rejects_ordinal_without_current_report(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -662,11 +659,9 @@ def test_revise_scope_selected_ids_only_lists_those(
         },
     )
 
-    assert "人物动机不清" in captured["user_prompt"]
-    assert "剧情冲突不足" not in captured["user_prompt"]
-    assert "解释性表达偏多" not in captured["user_prompt"]
-    assert message["agent_result"]["applied_scope"]["issue_ids"] == ["character-1"]
-    assert message["agent_result"]["applied_scope"]["categories"] == ["character"]
+    assert message["type"] == "error", message
+    assert "审稿报告" in message["detail"]
+    assert captured == {}
 
 
 def test_revise_constraints_reach_prompt(

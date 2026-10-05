@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agent-runs/chapter-checks/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 只读核对当前会话的章节检查历史 */
+        post: operations["query_chapter_checks_endpoint_api_agent_runs_chapter_checks_query_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agent-runs/host/closing": {
         parameters: {
             query?: never;
@@ -2236,6 +2253,7 @@ export interface components {
             assistant_session_id?: number | null;
             /** Content */
             content: string;
+            context_bundle?: components["schemas"]["AssistantContextBundle"] | null;
             /**
              * Cursor Line
              * @default 0
@@ -2705,6 +2723,55 @@ export interface components {
             record_count: number;
             /** Records */
             records: components["schemas"]["ContinuityRecordRead"][];
+        };
+        /** ChapterCheckEvidenceRead */
+        ChapterCheckEvidenceRead: {
+            /** Candidate */
+            candidate: {
+                [key: string]: unknown;
+            } | null;
+            /** Candidate Artifact Id */
+            candidate_artifact_id: number | null;
+            /** Candidate Error */
+            candidate_error: string | null;
+            /** Check */
+            check: {
+                [key: string]: unknown;
+            } | null;
+            /** Check Artifact Id */
+            check_artifact_id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Run Id */
+            run_id: string;
+            /** Target Path */
+            target_path: string | null;
+        };
+        /** ChapterCheckHistoryQuery */
+        ChapterCheckHistoryQuery: {
+            /** Assistant Session Id */
+            assistant_session_id: number;
+            /**
+             * Limit
+             * @default 20
+             */
+            limit: number;
+            /** Project Root */
+            project_root: string;
+        };
+        /** ChapterCheckHistoryRead */
+        ChapterCheckHistoryRead: {
+            /** Assistant Session Id */
+            assistant_session_id: number;
+            /** Entries */
+            entries: components["schemas"]["ChapterCheckEvidenceRead"][];
+            /** Project Root */
+            project_root: string;
+            /** Truncated */
+            truncated: boolean;
         };
         /**
          * ChapterPlanTriggerRead
@@ -4952,6 +5019,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentCapabilitiesRead"];
+                };
+            };
+        };
+    };
+    query_chapter_checks_endpoint_api_agent_runs_chapter_checks_query_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChapterCheckHistoryQuery"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChapterCheckHistoryRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -426,25 +426,8 @@ test('切项目后首次内联修订不得沿用旧项目的会话 id', () => {
   assert.equal(inlineSessionIdForProject(null, null, 'D:/novels/a'), null);
 });
 
-// 纯函数正确还不够：必须真接在 open 入口上，否则旧 id 照样被带进新项目的请求。
-test('行间会话 id 的跨项目丢弃接在 open 入口与两条成功路径上', () => {
-  const source = readFileSyncHookSource();
-  assert.match(
-    source,
-    /sessionIdRef\.current = inlineSessionIdForProject\(/,
-    'open 入口必须按当前项目丢弃/沿用会话 id',
-  );
-  // 续写与修订两条成功路径都要把会话 id 与其所属项目一起记下。
-  assert.equal(
-    (source.match(/sessionIdProjectRef\.current = projectPathRef\.current/g) ?? []).length,
-    2,
-    '续写与修订两条成功路径都要记录会话所属项目',
-  );
-});
-
-function readFileSyncHookSource(): string {
-  return readFileSync('src/components/editor/useInlineChat.ts', 'utf8');
-}
+// 两条成功路径的真实项目归属/会话沿用见 mounted
+// inline-chat-lifecycle.test.tsx，不再要求读取迟到的 projectPathRef.current。
 
 // E21 行间对话键盘/读屏可达性的行为测试见 tests/inline-chat-dom.test.ts：
 // zone DOM 构造已从 useInlineChat.ts 抽到 components/editor/inline-chat-dom.ts，

@@ -9,6 +9,7 @@ from app.domains.agent_runs.bookrun_summary import bookrun_budget_details as _bo
 from app.domains.agent_runs.bookrun_summary import bookrun_budget_summary as _bookrun_budget_summary
 from app.domains.agent_runs.bookrun_summary import bookrun_chapter_plan_summary as _bookrun_chapter_plan_summary
 from app.domains.agent_runs.bookrun_summary import bookrun_risk_summary as _bookrun_risk_summary
+from app.domains.agent_runs.events.review_sources import current_conversation_review
 from app.domains.agent_runs.events.runtime_support import base_response as _base_response
 from app.domains.agent_runs.events.runtime_support import (
     chapter_review_resume_message as _chapter_review_resume_message,
@@ -17,6 +18,7 @@ from app.domains.agent_runs.events.runtime_support import plan_step as _plan_ste
 from app.domains.agent_runs.intent import role_hints as _role_hints
 from app.domains.agent_runs.intent import role_mentions as _role_mentions
 from app.domains.agent_runs.models import AgentRun
+from app.domains.agent_runs.revise_scope import revision_references_review
 from app.domains.agent_runs.runtime_recovery import RUNTIME_PENDING_CALL_ARTIFACT_KIND
 from app.domains.agent_runs.tools import ToolExecutionContext
 from app.domains.agent_runs.tools.runtime_arguments import required_int as _required_int
@@ -100,14 +102,25 @@ class ChapterGenerationRuntimeMixin:
             ToolExecutionContext(session, run, agent_session_id, assistant_session_id, user_message, args),
             {**args, "_agent_intent": intent},
         )
-        review = self._execute_tool(
-            "file.review",
-            ToolExecutionContext(session, run, agent_session_id, assistant_session_id, user_message, args),
-            {**args, **context.output},
-        )
-        traces = [context.trace, *review.output["traces"]]
-        review_report = review.output["review_report"]
-        summary = review.output["summary"]
+        offered = args.get("review_report") if isinstance(args.get("review_report"), dict) else None
+        directed = revision_references_review(user_message)
+        if intent == "file.revise" and (offered is not None or directed):
+            # A fresh implicit review could reorder the author's "second issue".
+            # Reuse the displayed current report instead of silently renumbering it.
+            review_report = current_conversation_review(session, assistant_session_id, offered=offered, required=directed)
+            traces = [context.trace]
+            review_artifacts = []
+            summary = "已读取当前会话的审稿报告。"
+        else:
+            review = self._execute_tool(
+                "file.review",
+                ToolExecutionContext(session, run, agent_session_id, assistant_session_id, user_message, args),
+                {**args, **context.output},
+            )
+            traces = [context.trace, *review.output["traces"]]
+            review_report = review.output["review_report"]
+            review_artifacts = list(review.artifacts)
+            summary = review.output["summary"]
         if intent == "file.review":
             assistant_service.append_assistant_message(
                 session,
@@ -138,12 +151,12 @@ class ChapterGenerationRuntimeMixin:
                 runtime_mode="agent_runtime",
                 role_hints=_role_hints(args),
                 role_mentions=_role_mentions(args),
-                tool_artifacts=list(review.artifacts),
+                tool_artifacts=review_artifacts,
             )
 
         revise = self._execute_tool(
             "file.revise",
-            ToolExecutionContext(session, run, agent_session_id, assistant_session_id, user_message, args),
+            ToolExecutionContext(session, run, agent_session_id, assistant_session_id, user_message, args, current_review_report=review_report),
             {
                 **args,
                 "review_report": args.get("review_report") if isinstance(args.get("review_report"), dict) else review_report,
@@ -186,7 +199,7 @@ class ChapterGenerationRuntimeMixin:
             runtime_mode="agent_runtime",
             role_hints=_role_hints(args),
             role_mentions=_role_mentions(args),
-            tool_artifacts=[*review.artifacts, *revise.artifacts],
+            tool_artifacts=[*review_artifacts, *revise.artifacts],
         )
 
     def _run_bookrun_generation(

@@ -5,6 +5,7 @@ import math
 from collections.abc import Mapping
 from typing import Any
 
+from app.common.generation_delivery import GenerationDeliveryCapture
 from app.common.llm_client import cost_breakdown
 from app.common.llm_control import LLMRunInterrupted
 from app.common.performance import measured
@@ -354,18 +355,23 @@ def _execute_tool(
             input_summary=safe_arguments,
         ),
     )
+    deliveries = GenerationDeliveryCapture(on_record=lambda refs: assistant_service.update_assistant_tool_call(
+        context.session, evidence.id,
+        AssistantToolCallUpdate(input_summary={**safe_arguments, "generation_delivery_refs": refs}),
+    ))
     try:
-        tool_result = context.execute_tool(registry_name, dict(arguments))
+        with deliveries.collecting():
+            tool_result = context.execute_tool(registry_name, dict(arguments))
     except LLMRunInterrupted as exc:
         # A started call without a result is not a completed/retryable tool.
         # Keep the unknown effect visible; SDK retains the pending checkpoint.
         summary = {"execution_state": "unknown", "interruption_reason": exc.reason}
         assistant_service.update_assistant_tool_call(
             context.session, evidence.id,
-            AssistantToolCallUpdate(status="paused", output_summary=summary),
+            AssistantToolCallUpdate(status="paused", input_summary=deliveries.bind(safe_arguments), output_summary=summary),
         )
         context.record_trace(AgentToolTrace(
-            tool_name=registry_name, status="paused", input_summary=safe_arguments,
+            tool_name=registry_name, status="paused", input_summary=deliveries.bind(safe_arguments),
             output_summary=summary, assistant_tool_call_id=evidence.id,
         ), call_id=call_id)
         raise
@@ -374,13 +380,13 @@ def _execute_tool(
         assistant_service.update_assistant_tool_call(
             context.session,
             evidence.id,
-            AssistantToolCallUpdate(status="failed", error_message=error_text[:4000]),
+            AssistantToolCallUpdate(status="failed", input_summary=deliveries.bind(safe_arguments), error_message=error_text[:4000]),
         )
         context.record_trace(
             AgentToolTrace(
                 tool_name=registry_name,
                 status="failed",
-                input_summary=safe_arguments,
+                input_summary=deliveries.bind(safe_arguments),
                 error_message=error_text,
                 assistant_tool_call_id=evidence.id,
             ),
@@ -413,15 +419,14 @@ def _execute_tool(
         and tool_result.trace.output_summary is not None
     ):
         output_summary = tool_result.trace.output_summary
-    assistant_service.update_assistant_tool_call(
-        context.session,
-        evidence.id,
-        AssistantToolCallUpdate(status="completed", output_summary=output_summary),
-    )
-    input_summary = (
+    input_summary = deliveries.bind(
         tool_result.trace.input_summary
         if handler_owned_trace
         else safe_arguments
+    )
+    assistant_service.update_assistant_tool_call(
+        context.session, evidence.id,
+        AssistantToolCallUpdate(status="completed", input_summary=deliveries.bind(safe_arguments), output_summary=output_summary),
     )
     context.record_trace(
         AgentToolTrace(

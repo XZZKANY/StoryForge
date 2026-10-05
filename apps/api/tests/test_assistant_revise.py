@@ -151,7 +151,7 @@ def test_inline_revise_quality_gate_records_a_passing_candidate(
     ).json()
     gate = tool_calls[0]["output_summary"]["quality_gate"]
     assert gate["passed"] is True
-    assert gate["version"] == "polish-gates-v1"
+    assert gate["version"] == "polish-gates-v2"
     assert "candidate_chars" in gate["metrics"]
 
 
@@ -241,7 +241,7 @@ def test_revise_includes_desktop_context_bundle_in_prompt(
 
     session_id = response.json()["assistant_session_id"]
     tool_calls = client.get(f"/api/assistant/sessions/{session_id}/tool-calls").json()
-    assert tool_calls[0]["input_summary"]["context_file_count"] == 2
+    assert tool_calls[0]["input_summary"]["context_file_count"] == 3  # Two sources plus explicit source metadata.
 
 
 def test_revise_accepts_context_bundle_budget_metadata(
@@ -477,10 +477,10 @@ def test_revise_allows_session_in_same_project(
     assert len(client.get(f"/api/assistant/sessions/{session_a}").json()["messages"]) == 3
 
 
-def test_revise_allows_legacy_session_without_project_path(
+def test_revise_rejects_legacy_session_without_project_path(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """历史遗留会话 project_path 为空：无可校验归属，按现状放行（残余面）。"""
+    """历史会话不自动认领项目；归属拒绝发生在证据和模型调用之前。"""
 
     monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
     calls: list[int] = []
@@ -497,7 +497,7 @@ def test_revise_allows_legacy_session_without_project_path(
             "instruction": "改写",
         },
     )
-    assert response.status_code == 200, response.text
-    assert response.json()["assistant_session_id"] == legacy
-    assert calls == [1]
-    assert len(client.get(f"/api/assistant/sessions/{legacy}").json()["messages"]) == 3
+    assert response.status_code == 409, response.text
+    assert "会话归属" in response.json()["detail"]
+    assert calls == []
+    assert len(client.get(f"/api/assistant/sessions/{legacy}").json()["messages"]) == 1

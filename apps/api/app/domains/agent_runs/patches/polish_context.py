@@ -6,6 +6,29 @@ from collections.abc import Mapping
 from pathlib import PurePosixPath
 from typing import Any, TypedDict
 
+from app.common.author_voice import RELATIVE_PATH
+from app.domains.agent_runs.llm_prompt_context import synthetic_context_selected_values
+
+
+def polish_author_requirements_from_context_snapshot(snapshot: object) -> tuple[str, ...]:
+    """Only project the admitted author file, not arbitrary model-provided style metadata."""
+    if not isinstance(snapshot, Mapping) or snapshot.get("kind") != "llm_context_snapshot":
+        return ()
+    files = snapshot.get("context_files")
+    if not isinstance(files, list):
+        return ()
+    return tuple(
+        dict.fromkeys(
+            item["excerpt"]
+            for item in files
+            if isinstance(item, Mapping)
+            and item.get("kind") == "author_instructions"
+            and item.get("relative_path") == RELATIVE_PATH
+            and isinstance(item.get("excerpt"), str)
+            and item["excerpt"].strip()
+        )
+    )
+
 
 class PolishContextConstraints(TypedDict):
     protected_entities: list[str]
@@ -66,8 +89,7 @@ def polish_constraints_from_context_snapshot(snapshot: object) -> PolishContextC
                     fact["source_path"] = relative_path
                 result["continuity_facts"].append(fact)
 
-    story_memory = snapshot.get("story_memory")
-    memory_items = story_memory.get("items") if isinstance(story_memory, Mapping) else None
+    memory_items, chapter_context = synthetic_context_selected_values(snapshot)
     if isinstance(memory_items, list):
         for item in memory_items:
             if not isinstance(item, Mapping):
@@ -79,7 +101,6 @@ def polish_constraints_from_context_snapshot(snapshot: object) -> PolishContextC
             if fact:
                 _append_unique(result["required_facts"], fact, limit=_MAX_FACTS)
 
-    chapter_context = snapshot.get("chapter_context")
     if isinstance(chapter_context, Mapping):
         for key in _REQUIRED_CHAPTER_KEYS:
             for fact in _fact_strings(chapter_context.get(key)):

@@ -180,6 +180,27 @@ def _materialized_source(payload: dict[str, Any], *, confirmation_event_id: str)
     raise ValueError(f"不支持的 knowledge source type：{source_type}")
 
 
+def _replace_same_path_project_sources(
+    current_sources: tuple[KnowledgeSource, ...], proposed_sources: tuple[KnowledgeSource, ...]
+) -> tuple[KnowledgeSource, ...]:
+    """extend 的来源合并：同路径 project_file 保留新 hash，其余取并集去重。
+
+    报告 §3 C08：旧实现把同路径新旧 hash 都并进 sources，旧 hash 永远无法匹配
+    磁盘 → evidence_state 实时核验恒 stale；回滚旧版本也无法恢复 current。
+    """
+    proposed_project_paths = {
+        source.path
+        for source in proposed_sources
+        if source.type == "project_file" and source.path is not None
+    }
+    kept_current = tuple(
+        source
+        for source in current_sources
+        if not (source.type == "project_file" and source.path in proposed_project_paths)
+    )
+    return tuple(dict.fromkeys((*kept_current, *proposed_sources)))
+
+
 def _compile_operation(
     before: str,
     proposed: KnowledgeEntry,
@@ -200,7 +221,9 @@ def _compile_operation(
         raise ValueError("Knowledge proposal 关联的既有 entry 已不存在。")
     current = related[0]
     if operation == "extend":
-        combined_sources = tuple(dict.fromkeys((*current.sources, *proposed.sources)))
+        # C08：同路径 project_file source 用新 hash 替换旧 hash，不能新旧并集堆积
+        # （旧 hash 必然不匹配磁盘 → 自报 current 却实时核验 stale；回滚旧版本仍 stale）。
+        combined_sources = _replace_same_path_project_sources(current.sources, proposed.sources)
         revised = KnowledgeEntry(
             id=current.id,
             status="active",
@@ -215,49 +238,64 @@ def _compile_operation(
         )
         return upsert_knowledge_entry(before, revised), revised
     if operation == "retire":
-        retired = KnowledgeEntry(
-            id=current.id,
-            status="retired",
-            kind=current.kind,
-            evidence_state=current.evidence_state,
-            title=current.title,
-            claim=current.claim,
-            sources=current.sources,
-            claim_fingerprint=current.claim_fingerprint,
-            created_at=current.created_at,
-            updated_at=updated_at,
-        )
-        return upsert_knowledge_entry(before, retired), retired
+        # 多 ID 替代（报告 §3 C07）：全部关联旧 entry 都要退役，不能只退役第一条。
+        after = before
+        for entry in related:
+            after = upsert_knowledge_entry(
+                after,
+                KnowledgeEntry(
+                    id=entry.id,
+                    status="retired",
+                    kind=entry.kind,
+                    evidence_state=entry.evidence_state,
+                    title=entry.title,
+                    claim=entry.claim,
+                    sources=entry.sources,
+                    claim_fingerprint=entry.claim_fingerprint,
+                    created_at=entry.created_at,
+                    updated_at=updated_at,
+                ),
+            )
+        return after, related[0]
     if operation == "dispute":
-        disputed_current = KnowledgeEntry(
-            id=current.id,
-            status="disputed",
-            kind=current.kind,
-            evidence_state=current.evidence_state,
-            title=current.title,
-            claim=current.claim,
-            sources=current.sources,
-            claim_fingerprint=current.claim_fingerprint,
-            created_at=current.created_at,
-            updated_at=updated_at,
-        )
+        after = before
+        for entry in related:
+            after = upsert_knowledge_entry(
+                after,
+                KnowledgeEntry(
+                    id=entry.id,
+                    status="disputed",
+                    kind=entry.kind,
+                    evidence_state=entry.evidence_state,
+                    title=entry.title,
+                    claim=entry.claim,
+                    sources=entry.sources,
+                    claim_fingerprint=entry.claim_fingerprint,
+                    created_at=entry.created_at,
+                    updated_at=updated_at,
+                ),
+            )
         disputed_proposed = replace(proposed, status="disputed")
-        with_current = upsert_knowledge_entry(before, disputed_current)
-        return upsert_knowledge_entry(with_current, disputed_proposed), disputed_proposed
+        return upsert_knowledge_entry(after, disputed_proposed), disputed_proposed
     if operation == "supersede":
-        superseded = KnowledgeEntry(
-            id=current.id,
-            status="superseded",
-            kind=current.kind,
-            evidence_state=current.evidence_state,
-            title=current.title,
-            claim=current.claim,
-            sources=current.sources,
-            claim_fingerprint=current.claim_fingerprint,
-            created_at=current.created_at,
-            updated_at=updated_at,
-            superseded_by=proposed.id,
-        )
-        with_history = upsert_knowledge_entry(before, superseded)
-        return upsert_knowledge_entry(with_history, proposed), proposed
+        # 多 ID 替代（报告 §3 C07）：全部关联旧 entry 都标 superseded，不能只改第一条。
+        after = before
+        for entry in related:
+            after = upsert_knowledge_entry(
+                after,
+                KnowledgeEntry(
+                    id=entry.id,
+                    status="superseded",
+                    kind=entry.kind,
+                    evidence_state=entry.evidence_state,
+                    title=entry.title,
+                    claim=entry.claim,
+                    sources=entry.sources,
+                    claim_fingerprint=entry.claim_fingerprint,
+                    created_at=entry.created_at,
+                    updated_at=updated_at,
+                    superseded_by=proposed.id,
+                ),
+            )
+        return upsert_knowledge_entry(after, proposed), proposed
     raise ValueError(f"不支持的 Knowledge proposal operation：{operation}")

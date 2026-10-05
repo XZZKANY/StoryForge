@@ -333,7 +333,9 @@ class FileReviewRuntimeMixin:
             "intent": "file.review",
             "boundary": boundary,
             "status": "pending",
-            "resume_message": _file_review_resume_message(partial),
+            "resume_message": _file_review_resume_message(
+                partial, project_path=run.assistant_session.project_path if run.assistant_session is not None else None,
+            ),
             "context_output": context_output,
             "context_trace": partial["tool_trace"][0] if partial.get("tool_trace") else None,
             "interruption": interruption,

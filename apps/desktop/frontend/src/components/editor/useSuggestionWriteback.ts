@@ -24,23 +24,33 @@ import {
   type SuggestionResult,
 } from '../../lib/assistant-events';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
-import type { RevisionLoopRecord, RevisionLoopResult } from '../../lib/author-loop';
+import {
+  revisionLoopSemanticPayload,
+  type RevisionLoopRecord,
+  type RevisionLoopResult,
+} from '../../lib/author-loop';
 import type { BranchInfo } from '../../lib/branches';
 import type { EditorModelCache } from './useMonacoEditor';
 import { isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
 import {
   associateIssuesToOps,
-  buildSuggestionOps,
   hasIssueAttribution,
-  matchSuggestionOp,
   planHunkAccept,
   planWholeAccept,
   resolveIssueStatuses,
   summarizeIssueResolutions,
+  verifiedAppliedOpIds,
   type IssueCounts,
   type IssueResolution,
 } from '../../lib/suggestion-ops';
+import {
+  createSuggestionChangeSet,
+  matchChangeSetOperation,
+  projectRemainingSuggestion,
+  type SuggestionChangeSet,
+} from '../../lib/suggestion-change-set';
 import { shouldAutoAcceptSuggestion } from '../../lib/agent-permission';
+import { invalidateContextBundleCache } from '../../lib/project-context';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
 import { markChapterWrittenInPlan, unmarkChapterWrittenInPlan } from '../../lib/serial-plan';
 import { TauriFileSystem } from '../../lib/tauri-fs';
@@ -54,24 +64,67 @@ import { emitToast } from '../../lib/toast';
 import { performReceiptedWriteback } from '../../lib/writeback-receipts';
 import type { WritebackReceipt } from '../../lib/writeback-receipt-types';
 import {
+  capturePendingSuggestion,
+  forgetPendingSuggestion,
+  loadPendingSuggestion,
+  recoverSuggestionOperations,
+  rememberSuggestionRequest,
+  persistPendingSuggestion,
+  type PendingSuggestionDescriptor,
+} from '../../lib/suggestion-recovery';
+import {
   useExternalWritebackEditor,
   type ExternalWriteOverrides,
 } from './useExternalWritebackEditor';
 
 export type SuggestionStatusTone = 'success' | 'error' | 'info';
 
-export type SuggestionActionKind = 'accept' | 'hunk' | 'note' | 'reject' | 'retry';
+export type SuggestionActionKind = 'accept' | 'hunk' | 'note' | 'reject' | 'retry' | 'undo';
 export type SuggestionActionState = {
   kind: SuggestionActionKind;
   suggestionId: string;
 } | null;
 
+type SuggestionOpState = {
+  suggestionId: string;
+  readonly changeSet: SuggestionChangeSet;
+  appliedOpIds: Set<string>;
+  /** 原 Native 撤销回执的派生引用，只区分后续作者重选；不是新的写入真值。 */
+  lastUndoOperationId: string | null;
+  opIssueIds: Map<string, string[]>;
+  recovery: {
+    projectPath: string;
+    descriptor: PendingSuggestionDescriptor;
+    ready: Promise<void>;
+  } | null;
+};
+
+// 原始操作属于补丁对象而非编辑器 lifetime。缓冲/重新领取/重挂载都沿用同一份状态；
+// WeakMap 按对象身份隔离同 id 的新提案，补丁释放后可回收，不新增全局强引用队列。
+const suggestionOperationStates = new WeakMap<AssistantFileSuggestion, SuggestionOpState>();
+
+function createOperationState(suggestion: AssistantFileSuggestion): SuggestionOpState {
+  const changeSet = createSuggestionChangeSet(suggestion.before, suggestion.after);
+  return {
+    suggestionId: suggestion.id,
+    changeSet,
+    appliedOpIds: new Set<string>(),
+    lastUndoOperationId: null,
+    opIssueIds: associateIssuesToOps(changeSet.operations, suggestion.issueScopes ?? []),
+    recovery: null,
+  };
+}
+
 /** 面向作者的归属读数：本次写回解决了几个审稿问题，其余仍 open。 */
-function issueResolutionNote(resolutions?: IssueResolution[], attributed = true): string {
+function issueResolutionNote(
+  resolutions?: IssueResolution[],
+  attributed = true,
+  counts = resolutions ? summarizeIssueResolutions(resolutions) : undefined,
+): string {
   if (!resolutions || resolutions.length === 0) return '';
   // 问题拿不到行范围时不能报 0/N——那会被读成「一个都没解决」，应显式说明无法归属。
   if (!attributed) return ' · 问题未归属（无行范围），本次不作解决计数';
-  const counts = summarizeIssueResolutions(resolutions);
+  if (!counts) return '';
   return ` · 问题已解决 ${counts.resolved}/${counts.observed}（作者确认 ${counts.authorConfirmed}）`;
 }
 
@@ -149,31 +202,59 @@ export function useSuggestionWriteback({
 
   // T07：整份接受不再写冻结 after，需要记住补丁不可变的原始 op 与已应用集合，才能把
   // 剩余 op 逐处映射到当前稿、范围外一律不动。
-  const suggestionOpsRef = useRef<{
-    suggestionId: string;
-    before: string;
-    after: string;
-    appliedOpIds: Set<string>;
-    opIssueIds: Map<string, string[]>;
-  } | null>(null);
+  const suggestionOpsRef = useRef<SuggestionOpState | null>(null);
+  const recoveryEpochRef = useRef(0);
   const updatePendingSuggestion = useCallback(
     (next: AssistantFileSuggestion | null, options?: { fresh?: boolean }) => {
       if (!next) {
         suggestionOpsRef.current = null;
       } else if (options?.fresh) {
-        const ops = buildSuggestionOps(next.before, next.after);
-        suggestionOpsRef.current = {
-          suggestionId: next.id,
-          before: next.before,
-          after: next.after,
-          appliedOpIds: new Set(),
-          opIssueIds: associateIssuesToOps(ops, next.issueScopes ?? []),
-        };
+        let state = suggestionOperationStates.get(next);
+        if (!state) {
+          state = createOperationState(next);
+          const project = projectPathRef.current;
+          if (project) {
+            try {
+              const descriptor = capturePendingSuggestion(project, next);
+              const ready = enqueueWriteback(() =>
+                withNativeDelivery(project, (ticket) =>
+                  persistPendingSuggestion(project, descriptor, ticket),
+                ),
+              );
+              state.recovery = {
+                projectPath: project,
+                descriptor,
+                ready,
+              };
+              void ready.catch((error: unknown) => {
+                if (
+                  mountedRef.current &&
+                  projectPathRef.current === project &&
+                  suggestionOpsRef.current === state
+                )
+                  setSuggestionStatus(
+                    `原提案未持久保存，已阻止写回；请重新生成修订：${String(error)}`,
+                    'error',
+                  );
+              });
+            } catch (error) {
+              setSuggestionStatus(
+                `修订恢复信息未保存，写回前请重新生成：${String(error)}`,
+                'error',
+              );
+            }
+          }
+        }
+        suggestionOperationStates.set(next, state);
+        suggestionOpsRef.current = state;
+      } else if (suggestionOpsRef.current?.suggestionId === next.id) {
+        // remaining.before 是展示用当前稿，不得作为下一次领取时的原始提案基线。
+        suggestionOperationStates.set(next, suggestionOpsRef.current);
       }
       pendingSuggestionRef.current = next;
       setPendingSuggestion(next);
     },
-    [],
+    [enqueueWriteback, projectPathRef, setSuggestionStatus],
   );
 
   const beginAction = useCallback(
@@ -230,6 +311,7 @@ export function useSuggestionWriteback({
   }, []);
 
   const resetSuggestionWriteback = useCallback(() => {
+    recoveryEpochRef.current += 1;
     // P2c：切走当前文件前把未确认补丁回填缓冲，切回同一文件可重新领取，不静默丢弃。
     const pending = pendingSuggestionRef.current;
     if (pending) bufferPendingFileSuggestion(pending);
@@ -263,6 +345,108 @@ export function useSuggestionWriteback({
     [updatePendingSuggestion],
   );
 
+  // Called after Monaco attaches the loaded target, not during the file loader's earlier setState.
+  const recoverPendingSuggestion = useCallback(
+    async function recover(path: string | null): Promise<void> {
+      const project = projectPathRef.current;
+      const targetModel = editorRef.current?.getModel();
+      if (
+        !project ||
+        !path ||
+        !targetModel ||
+        pendingSuggestionRef.current ||
+        modelCacheRef.current.get(path)?.model !== targetModel ||
+        actionInFlightRef.current
+      )
+        return;
+      const epoch = ++recoveryEpochRef.current;
+      const current = () =>
+        mountedRef.current &&
+        recoveryEpochRef.current === epoch &&
+        projectPathRef.current === project &&
+        filePathRef.current === path &&
+        editorRef.current?.getModel() === targetModel &&
+        !pendingSuggestionRef.current &&
+        !actionInFlightRef.current;
+      try {
+        const descriptor = await loadPendingSuggestion(project, path);
+        if (!descriptor) return;
+        const recovered = await recoverSuggestionOperations(project, descriptor);
+        if ((await loadPendingSuggestion(project, path))?.owner !== descriptor.owner || !current())
+          return;
+        const displayed = targetModel.getValue();
+        const projection = projectRemainingSuggestion(
+          displayed,
+          recovered.changeSet,
+          recovered.appliedOpIds,
+        );
+        if (projection.finished) {
+          await forgetPendingSuggestion(project, descriptor);
+          return;
+        }
+        const restored = {
+          ...descriptor.proposal,
+          before: displayed,
+          after: projection.after,
+          requiresConfirmation: true,
+          operationView: projection.view,
+        };
+        suggestionOperationStates.set(restored, {
+          suggestionId: restored.id,
+          ...recovered,
+          opIssueIds: associateIssuesToOps(
+            recovered.changeSet.operations,
+            restored.issueScopes ?? [],
+          ),
+          recovery: { projectPath: project, descriptor, ready: Promise.resolve() },
+        });
+        updatePendingSuggestion(restored, { fresh: true });
+        setSuggestionStatus('已核验并恢复待确认修订；只保留原剩余修改，请确认后写回');
+      } catch (error) {
+        if (!current()) return;
+        emitToast(`修订恢复未完成：${error instanceof Error ? error.message : String(error)}`, {
+          tone: 'error',
+          action: {
+            label: '重试核验（不写正文）',
+            run: async () => {
+              if (current()) await recover(path);
+            },
+          },
+        });
+      }
+    },
+    [
+      editorRef,
+      filePathRef,
+      modelCacheRef,
+      projectPathRef,
+      setSuggestionStatus,
+      updatePendingSuggestion,
+    ],
+  );
+
+  const forgetSuggestionRecovery = useCallback(
+    async (suggestion: AssistantFileSuggestion) => {
+      const recovery = suggestionOperationStates.get(suggestion)?.recovery;
+      if (!recovery) return;
+      try {
+        await recovery.ready;
+        await enqueueWriteback(() =>
+          forgetPendingSuggestion(recovery.projectPath, recovery.descriptor),
+        );
+      } catch (error) {
+        // Cleanup is after the author decision/write. It cannot undo delivery or retain the action lock.
+        emitToast(
+          `本次处理已完成，但恢复缓存未清理：${String(error)}。重开时请核对原决定，勿重复应用。`,
+          {
+            tone: 'info',
+          },
+        );
+      }
+    },
+    [enqueueWriteback],
+  );
+
   const writeAcceptedSuggestion = useCallback(
     async (
       suggestion: AssistantFileSuggestion,
@@ -277,6 +461,8 @@ export function useSuggestionWriteback({
         issueCounts?: IssueCounts;
         /** false 表示这些问题拿不到行范围；记录里显式写「未归属」，不报 0/N。 */
         issueAttributed?: boolean;
+        /** The reverse request belongs to the original live proposal's descriptor slot. */
+        recoveryOwner?: SuggestionOpState;
       } & ExternalWriteOverrides = {},
     ) => {
       const projectRoot = projectPathRef.current;
@@ -296,6 +482,7 @@ export function useSuggestionWriteback({
           const expected = targetStateAtStart.diskBaseline;
           const summary = overrides.summary ?? suggestion.summary;
           const note = overrides.note ?? suggestion.note;
+          const changeSet = suggestionOperationStates.get(suggestion)?.changeSet;
           const contentChanged = expected.kind === 'missing' || expected.content !== nextContent;
           // 这次写入是不是「凭空建出这个文件」。撤销一次新建要删文件而不是写回空串，
           // 否则盘上会留一个空文件，看着像回退了其实没有。
@@ -303,31 +490,34 @@ export function useSuggestionWriteback({
             operationKey: `${suggestion.id}:${overrides.operationKind ?? 'whole'}`,
             source: JSON.stringify([
               suggestion.id,
-              suggestion.before,
-              suggestion.after,
+              changeSet?.before ?? suggestion.before,
+              changeSet?.after ?? suggestion.after,
               suggestion.runId ?? null,
             ]),
             path,
             content: nextContent,
           };
+          const record: RevisionLoopRecord = {
+            projectPath: projectRoot,
+            filePath: path,
+            before: suggestion.before,
+            after: nextContent,
+            summary,
+            note,
+            userIntent: note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
+            assistantSessionId,
+            patchId: suggestion.id,
+            issueIds: suggestion.issueIds,
+            issueResolutions: overrides.issueResolutions,
+            issueCounts: overrides.issueCounts,
+            issueAttributed: overrides.issueAttributed,
+            contextFiles: suggestion.contextFiles,
+          };
           const recordReceipt = (receipt: WritebackReceipt, ticket = deliveryTicket) =>
             recordRevisionLoop({
-              projectPath: projectRoot,
-              filePath: path,
-              before: suggestion.before,
-              after: nextContent,
-              summary,
-              note,
-              userIntent: note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
-              assistantSessionId,
-              patchId: suggestion.id,
+              ...record,
               operationId: receipt.operationId,
               deliveryTicket: ticket,
-              issueIds: suggestion.issueIds,
-              issueResolutions: overrides.issueResolutions,
-              issueCounts: overrides.issueCounts,
-              issueAttributed: overrides.issueAttributed,
-              contextFiles: suggestion.contextFiles,
             });
           // F27：快照失败必须阻断写回。snapshot 抛错时 performGuardedWriteback 直接向上传播，
           // writeFile 不执行——绝不在没有版本安全网时落盘。
@@ -383,13 +573,32 @@ export function useSuggestionWriteback({
             write: async (checkpointTimestamp) => {
               await overrides.beforeNativeAdmission?.();
               overrides.admissionGuard?.();
+              if (!overrides.externalRequest) {
+                const owner = overrides.recoveryOwner ?? suggestionOperationStates.get(suggestion);
+                if (owner) {
+                  if (!owner.recovery || owner.recovery.projectPath !== projectRoot)
+                    throw new Error('原提案恢复信息未保存，已阻止写回；请重新生成修订');
+                  await owner.recovery.ready;
+                  await rememberSuggestionRequest(
+                    projectRoot,
+                    owner.recovery.descriptor,
+                    request,
+                    revisionLoopSemanticPayload(record),
+                    deliveryTicket,
+                  );
+                }
+              }
               return TauriFileSystem.writeFileWithReceipt(
                 projectRoot,
                 request,
                 expected,
                 checkpointTimestamp,
                 deliveryTicket,
-              );
+              ).then((receipt) => {
+                // C10：写回成功即失效 context bundle 缓存，30 秒 TTL 内不得把旧摘录发给后端。
+                invalidateContextBundleCache(projectRoot);
+                return receipt;
+              });
             },
             settle: (restored) => {
               if (modelCacheRef.current.get(path) === targetStateAtStart)
@@ -449,7 +658,7 @@ export function useSuggestionWriteback({
             writebackWarning: warning,
             retryAudit:
               loopRecord.auditError && loopRecord.receipt.receiptPersisted
-                ? async () => {
+                ? async (onRepaired?: (receipt: WritebackReceipt) => void) => {
                     if (projectPathRef.current !== projectRoot)
                       throw new Error('请返回原项目后补记写回记录');
                     const receipt = await TauriFileSystem.inspectWritebackReceipt(
@@ -461,6 +670,13 @@ export function useSuggestionWriteback({
                     await withNativeDelivery(projectRoot, (ticket) =>
                       recordReceipt(receipt, ticket),
                     );
+                    if (onRepaired) {
+                      const repaired = await TauriFileSystem.inspectWritebackReceipt(
+                        projectRoot,
+                        request,
+                      );
+                      if (repaired) onRepaired(repaired);
+                    }
                     emitToast('写回记录已补齐；未再次写入正文', { tone: 'success' });
                   }
                 : null,
@@ -500,7 +716,7 @@ export function useSuggestionWriteback({
 
   /**
    * 写回成功后弹一条带「撤销」的通知：撤销就是把 previous 再走一遍同一条守卫写回
-   * （快照 → 推进分支头 → 写盘 → 记录），所以撤销本身也留安全网、也能再被撤销。
+   * （快照 → 推进分支头 → 写盘 → 记录），所以撤销本身也有独立回执与安全网。
    *
    * 三种情况分开处理，都不留死路：
    *  - 这次写入**创建**了文件 → 撤销是删掉它，不是写回一份空内容（空文件不等于没有这个文件）。
@@ -519,10 +735,13 @@ export function useSuggestionWriteback({
       restoreTo: string,
       wrote: string,
       createdFile: boolean,
+      operationId: string,
       step?: string,
+      previousAcceptedOpIds?: ReadonlySet<string>,
     ) => {
       const projectRoot = projectPathRef.current;
       const targetModel = editorRef.current?.getModel() ?? null;
+      const operationState = suggestionOperationStates.get(suggestion);
       const text = createdFile
         ? '新文件已写入，已留检查点'
         : step
@@ -557,10 +776,50 @@ export function useSuggestionWriteback({
               });
               return;
             }
+            const actionToken = beginAction('undo', pendingSuggestionRef.current ?? suggestion);
+            if (!actionToken) throw new Error('补丁操作仍在处理中，请稍后撤销');
+            const undoOwner = pendingSuggestionRef.current;
+            const restoreUndoOperations = (receipt: WritebackReceipt, token: symbol) => {
+              const pending = pendingSuggestionRef.current;
+              if (
+                !isCurrentAction(token) ||
+                projectPathRef.current !== projectRoot ||
+                filePathRef.current !== path ||
+                editorRef.current?.getModel() !== targetModel ||
+                !operationState ||
+                suggestionOpsRef.current !== operationState ||
+                !pending ||
+                pending !== undoOwner ||
+                receipt.state !== 'applied' ||
+                !receipt.receiptPersisted ||
+                receipt.current !== 'after'
+              )
+                return;
+              operationState.lastUndoOperationId = receipt.operationId;
+              operationState.appliedOpIds.clear();
+              for (const id of previousAcceptedOpIds ?? []) operationState.appliedOpIds.add(id);
+              const displayedCurrent = editorRef.current?.getValue() ?? restoreTo;
+              const projection = projectRemainingSuggestion(
+                displayedCurrent,
+                operationState.changeSet,
+                operationState.appliedOpIds,
+              );
+              const restored = projection.finished
+                ? null
+                : {
+                    ...pending,
+                    before: displayedCurrent,
+                    after: projection.after,
+                    operationView: projection.view,
+                  };
+              replacePendingFileSuggestion(pending, restored);
+              updatePendingSuggestion(restored);
+            };
             try {
               if (createdFile) {
                 if (!projectRoot) throw new Error('未打开项目，不能撤销新建');
                 await TauriFileSystem.deletePath(projectRoot, path);
+                invalidateContextBundleCache(projectRoot);
                 // 正文没了，这章就不再是「写完的」——把接受时标上的 done 退回 pending。
                 // 只在这一支做：修订的撤销走下面的反向写回，文件还在，那章依然是写完的。
                 await unmarkChapterWrittenInPlan(projectRoot, path);
@@ -569,7 +828,7 @@ export function useSuggestionWriteback({
                 emitToast('已撤销，该文件回到「不存在」', { tone: 'success' });
                 return;
               }
-              await writeAcceptedSuggestion(
+              const undoRecord = await writeAcceptedSuggestion(
                 {
                   ...suggestion,
                   id: `${suggestion.id}-undo`,
@@ -579,30 +838,71 @@ export function useSuggestionWriteback({
                 path,
                 wrote,
                 restoreTo,
-                { summary: `撤销：${suggestion.summary}`, note: '用户意图：撤销刚写回的修订' },
+                {
+                  operationKind: `undo:${operationId}`,
+                  recoveryOwner: operationState,
+                  summary: `撤销：${suggestion.summary}`,
+                  note: '用户意图：撤销刚写回的修订',
+                },
               );
-              // 撤销退回写前内容，这次写回的 op 不再算已应用。清空已应用集合是安全的——
-              // 整份接受对已落盘的 op 按内容幂等跳过，只把缺的那些重新映射回来。
-              if (suggestionOpsRef.current?.suggestionId === suggestion.id) {
-                suggestionOpsRef.current.appliedOpIds.clear();
+              if (undoRecord.warning) {
+                const retryAudit = undoRecord.retryAudit;
+                emitToast(undoRecord.warning, {
+                  tone: 'info',
+                  action: retryAudit
+                    ? {
+                        label: '重试记录（不重写正文）',
+                        run: async () => {
+                          if (
+                            !mountedRef.current ||
+                            projectPathRef.current !== projectRoot ||
+                            filePathRef.current !== path ||
+                            editorRef.current?.getModel() !== targetModel
+                          )
+                            throw new Error('请返回原文件后补记撤销记录');
+                          const retryToken = beginAction(
+                            'undo',
+                            pendingSuggestionRef.current ?? suggestion,
+                          );
+                          if (!retryToken) throw new Error('补丁操作仍在处理中，请稍后补记');
+                          try {
+                            await retryAudit((receipt) =>
+                              restoreUndoOperations(receipt, retryToken),
+                            );
+                          } finally {
+                            finishAction(retryToken);
+                          }
+                        },
+                      }
+                    : undefined,
+                });
+                return;
               }
+              // 正常交付和只补记录共用同一结算；历史回执和迟到完成不授予旧提案权限。
+              restoreUndoOperations(undoRecord.receipt, actionToken);
               emitToast('已撤销，文件回到写回前', { tone: 'success' });
             } catch (err) {
               emitToast(`撤销失败：${err instanceof Error ? err.message : String(err)}`, {
                 tone: 'error',
               });
+            } finally {
+              finishAction(actionToken);
             }
           },
         },
       });
     },
     [
+      beginAction,
       dropOpenFilePath,
       editorRef,
       filePathRef,
+      finishAction,
+      isCurrentAction,
       normalizeEol,
       onRequestVersionHistory,
       projectPathRef,
+      updatePendingSuggestion,
       writeAcceptedSuggestion,
     ],
   );
@@ -629,28 +929,25 @@ export function useSuggestionWriteback({
       const opState =
         suggestionOpsRef.current?.suggestionId === suggestion.id
           ? suggestionOpsRef.current
-          : {
-              before: suggestion.before,
-              after: suggestion.after,
-              appliedOpIds: new Set<string>(),
-              opIssueIds: associateIssuesToOps(
-                buildSuggestionOps(suggestion.before, suggestion.after),
-                suggestion.issueScopes ?? [],
-              ),
-            };
-      // 整份接受 = 把补丁尚未应用的 op 逐个映射到当前稿；只有当前稿与 before 逐字一致时才
-      // 直接写 after。作者在补丁范围外的独立改动不会被冻结的 after 整段覆盖。
+          : createOperationState(suggestion);
+      // 已消费的 op 不因作者改回整篇 before 而重新获得权限；无消费历史才允许整篇快路径。
       const plan = planWholeAccept(
         currentContent,
-        opState.before,
-        opState.after,
+        opState.changeSet.before,
+        opState.changeSet.after,
         opState.appliedOpIds,
         normalizeEol,
+        opState.changeSet.operations,
       );
       const nextContent = plan.content;
-      // 归属依据只认「整份接受后确实在稿内的 op」（plan.settledOpIds）；先前分块接受但已被
-      // 作者改回原文的 op 不在稿内，不能算 resolved（T07-F3）。
-      const opsForIssues = buildSuggestionOps(opState.before, opState.after);
+      const opsForIssues = opState.changeSet.operations;
+      const settledForIssues = verifiedAppliedOpIds(
+        nextContent,
+        opState.changeSet.before,
+        opsForIssues,
+        plan.settledOpIds,
+      );
+      for (const { op } of plan.applied) settledForIssues.add(op.id);
       const issuesAttributed = hasIssueAttribution(
         suggestion.issueIds ?? [],
         suggestion.issueScopes ?? [],
@@ -660,22 +957,33 @@ export function useSuggestionWriteback({
             suggestion.issueIds,
             suggestion.issueScopes ?? [],
             opsForIssues,
-            plan.settledOpIds,
+            settledForIssues,
           )
         : undefined;
-      // operationKind='whole' 与默认 key 相同（`:whole`），同时让整文件漂移闸让位给
-      // T07 的逐 op 映射：范围外的作者改动不再被误判为整文件漂移而拒写。
+      const wholeIssueCounts = wholeIssueResolutions
+        ? summarizeIssueResolutions(
+            wholeIssueResolutions,
+            resolveIssueStatuses(
+              suggestion.issueIds ?? [],
+              suggestion.issueScopes ?? [],
+              opsForIssues,
+              new Set([...opState.appliedOpIds, ...plan.settledOpIds]),
+            ),
+          )
+        : undefined;
+      // 无撤销历史沿用 :whole；明确撤销后的重选使用 Native 回执链，不能复用旧 applied。
+      // 显式 operationKind 仍让整文件漂移闸让位给逐 op 映射。
       const loopRecord = await writeAcceptedSuggestion(
         suggestion,
         path,
         currentContent,
         nextContent,
         {
-          operationKind: 'whole',
+          operationKind: opState.lastUndoOperationId
+            ? `whole:after-undo:${opState.lastUndoOperationId}`
+            : 'whole',
           issueResolutions: wholeIssueResolutions,
-          issueCounts: wholeIssueResolutions
-            ? summarizeIssueResolutions(wholeIssueResolutions)
-            : undefined,
+          issueCounts: wholeIssueCounts,
           issueAttributed: wholeIssueResolutions ? issuesAttributed : undefined,
         },
       );
@@ -684,6 +992,7 @@ export function useSuggestionWriteback({
       // 接受一次不等于这章写完了；撤销走的是反向写回，届时正文没了，后端自会拒绝。
       await markChapterWrittenInPlan(projectRoot, path);
       replacePendingFileSuggestion(suggestion, null);
+      await forgetSuggestionRecovery(suggestion);
       if (!isCurrentAction(actionToken)) return;
       updatePendingSuggestion(null);
       if (loopRecord.warning) {
@@ -698,15 +1007,23 @@ export function useSuggestionWriteback({
           status: 'completed',
           action: 'revision_accepted',
           message: loopRecord.warning,
+          warning: loopRecord.warning,
         });
         return;
       }
-      offerUndo(suggestion, path, currentContent, nextContent, loopRecord.createdFile);
+      offerUndo(
+        suggestion,
+        path,
+        currentContent,
+        nextContent,
+        loopRecord.createdFile,
+        loopRecord.receipt.operationId,
+      );
       setSuggestionStatus(
         (loopRecord.recordPath
           ? '已写入当前文件 · 已留写前快照与闭环记录，可点通知里的「撤销」一键回退'
           : '已写入当前文件 · 已留写前快照，可点通知里的「撤销」一键回退') +
-          issueResolutionNote(wholeIssueResolutions, issuesAttributed),
+          issueResolutionNote(wholeIssueResolutions, issuesAttributed, wholeIssueCounts),
         'success',
       );
       emitAuthorLoopResult({
@@ -740,6 +1057,7 @@ export function useSuggestionWriteback({
     projectPathRef,
     setSuggestionStatus,
     finishAction,
+    forgetSuggestionRecovery,
     normalizeEol,
     writeAcceptedSuggestion,
   ]);
@@ -786,10 +1104,9 @@ export function useSuggestionWriteback({
           suggestionOpsRef.current?.suggestionId === suggestion.id
             ? suggestionOpsRef.current
             : null;
-        const matched = opState
-          ? matchSuggestionOp(buildSuggestionOps(opState.before, opState.after), hunk)
-          : null;
-        if (opState && !matched) {
+        if (!opState) throw new Error('缺少原始操作集合，不能接受分块。');
+        const matched = matchChangeSetOperation(opState.changeSet, hunk);
+        if (!matched) {
           // 分块无法一一对应回原始修订的某一处 op（作者改动落在该处，或出现歧义重复），
           // 拒绝这次半选，避免把作者的内容当成补丁改动写掉。
           throw new Error(
@@ -798,11 +1115,25 @@ export function useSuggestionWriteback({
         }
         // 分块接受改走与整份接受同一套锚定定位器：定位不到唯一目标即抛冲突、零写入，
         // 不再用「取部分上下文最佳分」的旧定位（重复块 + 目标上下文被改会静默写错处）。
-        const nextContent = planHunkAccept(currentContent, hunk, suggestion.before).content;
-        // 只把这次被接受的分块覆盖的 issue 记为 resolved；未接受分块覆盖的仍 open。
-        const appliedAfterHunk = new Set(opState?.appliedOpIds ?? []);
+        const hunkPlan = planHunkAccept(
+          currentContent,
+          matched ?? hunk,
+          opState?.changeSet.before ?? suggestion.before,
+        );
+        const nextContent = hunkPlan.content;
+        // 消费/确认是历史，解决归属须重新核验实际写入稿；不能因旧 op 曾接受就算仍在稿内。
+        const previousAcceptedOpIds = new Set(opState.appliedOpIds);
+        const appliedAfterHunk = new Set(previousAcceptedOpIds);
         if (matched) appliedAfterHunk.add(matched.id);
-        const opsForIssues = opState ? buildSuggestionOps(opState.before, opState.after) : [];
+        const opsForIssues = opState?.changeSet.operations ?? [];
+        const settledAfterHunk = verifiedAppliedOpIds(
+          nextContent,
+          opState.changeSet.before,
+          opsForIssues,
+          appliedAfterHunk,
+        );
+        // 本次实际施加的原 op 有规划证据；只观察到某处已有结果则仍须核验原位置。
+        if (matched && !hunkPlan.alreadyApplied) settledAfterHunk.add(matched.id);
         const issuesAttributed = hasIssueAttribution(
           suggestion.issueIds ?? [],
           suggestion.issueScopes ?? [],
@@ -813,31 +1144,53 @@ export function useSuggestionWriteback({
                 suggestion.issueIds,
                 suggestion.issueScopes ?? [],
                 opsForIssues,
-                appliedAfterHunk,
+                settledAfterHunk,
               )
             : undefined;
+        const hunkIssueCounts = hunkIssueResolutions
+          ? summarizeIssueResolutions(
+              hunkIssueResolutions,
+              resolveIssueStatuses(
+                suggestion.issueIds ?? [],
+                suggestion.issueScopes ?? [],
+                opsForIssues,
+                appliedAfterHunk,
+              ),
+            )
+          : undefined;
         const loopRecord = await writeAcceptedSuggestion(
           suggestion,
           path,
           currentContent,
           nextContent,
           {
-            operationKind: `hunk:${hunk.id}`,
+            operationKind: `hunk:${matched.id}${opState.lastUndoOperationId ? `:after-undo:${opState.lastUndoOperationId}` : ''}`,
             summary: `${suggestion.summary}（接受分块）`,
             note: `${suggestion.note}\n\n分块接受：第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`,
             issueResolutions: hunkIssueResolutions,
-            issueCounts: hunkIssueResolutions
-              ? summarizeIssueResolutions(hunkIssueResolutions)
-              : undefined,
+            issueCounts: hunkIssueCounts,
             issueAttributed: hunkIssueResolutions ? issuesAttributed : undefined,
           },
         );
         if (opState && matched) opState.appliedOpIds.add(matched.id);
-        const remaining =
-          normalizeEol(nextContent) === normalizeEol(suggestion.after)
-            ? null
-            : { ...suggestion, before: nextContent };
+        const displayedCurrent = isCurrentAction(actionToken)
+          ? (editorRef.current?.getValue() ?? nextContent)
+          : nextContent;
+        const projection = projectRemainingSuggestion(
+          displayedCurrent,
+          opState.changeSet,
+          opState.appliedOpIds,
+        );
+        const remaining = projection.finished
+          ? null
+          : {
+              ...suggestion,
+              before: displayedCurrent,
+              after: projection.after,
+              operationView: projection.view,
+            };
         const finished = remaining === null;
+        if (finished) await forgetSuggestionRecovery(suggestion);
         replacePendingFileSuggestion(suggestion, remaining);
         if (!isCurrentAction(actionToken)) return;
         updatePendingSuggestion(remaining);
@@ -848,6 +1201,13 @@ export function useSuggestionWriteback({
               ? { label: '重试记录（不重写正文）', run: loopRecord.retryAudit }
               : undefined,
           });
+          emitAuthorLoopResult({
+            filePath: path,
+            status: 'completed',
+            action: 'revision_accepted',
+            message: loopRecord.warning,
+            warning: loopRecord.warning,
+          });
           return;
         }
         offerUndo(
@@ -856,7 +1216,9 @@ export function useSuggestionWriteback({
           currentContent,
           nextContent,
           loopRecord.createdFile,
+          loopRecord.receipt.operationId,
           `第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines} 行`,
+          previousAcceptedOpIds,
         );
         setSuggestionStatus(
           (finished
@@ -864,7 +1226,7 @@ export function useSuggestionWriteback({
             : loopRecord.recordPath
               ? '已接受该修改块并写入当前文件，剩余修改仍可继续确认'
               : '已接受该修改块并写入当前文件') +
-            issueResolutionNote(hunkIssueResolutions, issuesAttributed),
+            issueResolutionNote(hunkIssueResolutions, issuesAttributed, hunkIssueCounts),
           'success',
         );
       } catch (err) {
@@ -878,13 +1240,14 @@ export function useSuggestionWriteback({
     },
     [
       beginAction,
+      emitAuthorLoopResult,
       failAction,
       isCurrentAction,
       updatePendingSuggestion,
       editorRef,
       filePathRef,
       finishAction,
-      normalizeEol,
+      forgetSuggestionRecovery,
       offerUndo,
       setSuggestionStatus,
       writeAcceptedSuggestion,
@@ -973,6 +1336,7 @@ export function useSuggestionWriteback({
       ].join('\n');
       await TauriFileSystem.writeFile(project, notePath, note);
       replacePendingFileSuggestion(suggestion, null);
+      await forgetSuggestionRecovery(suggestion);
       if (!isCurrentAction(actionToken)) return;
       updatePendingSuggestion(null);
       setSuggestionStatus(`已保存旁注: ${notePath}`, 'success');
@@ -985,6 +1349,7 @@ export function useSuggestionWriteback({
     beginAction,
     failAction,
     finishAction,
+    forgetSuggestionRecovery,
     isCurrentAction,
     projectPathRef,
     setSuggestionStatus,
@@ -1016,13 +1381,16 @@ export function useSuggestionWriteback({
    * 无论哪条路径，这里都只清面板，写盘一步都不做。
    */
   const rejectPendingSuggestion = useCallback(
-    (direction = '') => {
+    async (direction = '') => {
       const suggestion = pendingSuggestionRef.current;
       const trimmed = direction.trim();
       if (suggestion) {
         const actionToken = beginAction('reject', suggestion);
         if (!actionToken) return;
+        await forgetSuggestionRecovery(suggestion);
+        const current = isCurrentAction(actionToken);
         finishAction(actionToken);
+        if (!current) return;
       }
       updatePendingSuggestion(null);
       setSuggestionStatus(trimmed ? '已否掉这版，正按你的说法重来' : '已拒绝修订');
@@ -1038,6 +1406,8 @@ export function useSuggestionWriteback({
       beginAction,
       filePathRef,
       finishAction,
+      forgetSuggestionRecovery,
+      isCurrentAction,
       pendingSuggestionRef,
       setSuggestionStatus,
       updatePendingSuggestion,
@@ -1066,6 +1436,7 @@ export function useSuggestionWriteback({
 
   return {
     adoptPendingSuggestion,
+    recoverPendingSuggestion,
     handleAcceptHunk,
     handleAcceptSuggestion,
     handleSaveSuggestionNote,

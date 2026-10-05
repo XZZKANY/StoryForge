@@ -23,6 +23,7 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.common.generation_sources import observe_generation_source, omit_generation_source, project_generation_source
 from app.common.manuscript import iter_manuscript_files
 from app.common.style_fingerprint import split_sentences, style_fingerprint
 
@@ -104,10 +105,20 @@ def _read_chunk(path: Path) -> str | None:
         with path.open("rb", buffering=0) as stream:
             raw = stream.read(MAX_FILE_BYTES)
     except OSError:
+        observe_generation_source("style_sample", path, omission_reason="unreadable_source")
         return None
     if b"\x00" in raw[:1024]:
+        observe_generation_source("style_sample", path, raw=raw, complete=False, omission_reason="binary_source")
         return None
     text = raw.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n").strip()
+    observe_generation_source(
+        "style_sample",
+        path,
+        raw=raw,
+        text=text,
+        complete=len(raw) < MAX_FILE_BYTES,
+        omission_reason="short_source" if len(text) < MIN_CHUNK_CHARS else None,
+    )
     return text if len(text) >= MIN_CHUNK_CHARS else None
 
 
@@ -137,18 +148,31 @@ def build_style_baseline(project_path: str | None) -> StyleBaseline | None:
         root = Path(project_path).resolve()
         if not root.is_dir():
             return None
-        candidates = _iter_manuscript_files(root)[-RECENT_FILES:]
-    except OSError:
+        unique = {}
+        for path in _iter_manuscript_files(root):
+            target = path.resolve()
+            target.relative_to(root)
+            info = target.stat()
+            key = (info.st_dev, info.st_ino) if info.st_ino else target
+            unique.setdefault(key, target)
+        candidates = list(unique.values())[-RECENT_FILES:]
+    except (OSError, ValueError, RuntimeError):
         return None
 
     chunks: list[str] = []
     total_chars = 0
     for path in candidates:
+        try:
+            path = path.resolve()
+            path.relative_to(root)  # Recheck queued sources immediately before reading.
+        except (OSError, ValueError, RuntimeError):
+            continue
         text = _read_chunk(path)
         if text is None:
             continue
         total_chars += len(text)
         if total_chars > MAX_TOTAL_BYTES:
+            omit_generation_source("style_sample", path, "aggregate_character_budget")
             break
         chunks.append(text)
 
@@ -211,5 +235,16 @@ def append_style_baseline_to_system_prompt(system_prompt: str, project_path: str
 
     baseline = build_style_baseline(project_path)
     if baseline is None:
+        project_generation_source(
+            "style_baseline",
+            None,
+            source_purpose="style_sample",
+            omission_reason="insufficient_style_evidence",
+            transformation="style_statistics_v1",
+        )
         return system_prompt
-    return system_prompt + "\n\n" + style_baseline_clause(baseline)
+    clause = style_baseline_clause(baseline)
+    project_generation_source(
+        "style_baseline", clause, source_purpose="style_sample", transformation="style_statistics_v1"
+    )
+    return system_prompt + "\n\n" + clause

@@ -419,7 +419,9 @@ export function useAgentRunControls(
         result.status === 'completed'
           ? result.action === 'exported'
             ? `作者闭环已完成：\`${ref}\` 已导出为交付稿。\n${result.artifactPath ?? result.message}`
-            : `作者闭环已完成：\`${ref}\` 已写回正文，并生成闭环记录。\n${result.recordPath ?? result.message}`
+            : result.warning
+              ? `正文已写回，但闭环记录未完成：\`${ref}\` 的记录需要补齐，不要重新应用补丁。\n${result.warning}`
+              : `作者闭环已完成：\`${ref}\` 已写回正文，并生成闭环记录。\n${result.recordPath ?? result.message}`
           : `作者闭环失败：${result.message}`;
       if (agentRunIdRef.current) {
         updateAgentStep('approval', {

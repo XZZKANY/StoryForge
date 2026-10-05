@@ -23,6 +23,7 @@ import {
 } from '../lib/assistant-events';
 import { resolveAnchorLine } from '../lib/observations';
 import { recordDailyProgress, writebackDelta } from '../lib/daily-progress';
+import { invalidateContextBundleCache } from '../lib/project-context';
 import { emitToast } from '../lib/toast';
 import type { EditorLineNumbersMode } from '../lib/user-settings';
 import { TauriFileSystem } from '../lib/tauri-fs';
@@ -182,6 +183,7 @@ export function Editor({
   } = useBranchManifest(projectPath, filePath);
   const {
     adoptPendingSuggestion,
+    recoverPendingSuggestion,
     handleAcceptHunk,
     handleAcceptSuggestion,
     handleSaveSuggestionNote,
@@ -322,6 +324,8 @@ export function Editor({
         },
         write: async () => {
           await TauriFileSystem.writeFileIfUnchanged(projectRoot, path, content, expected);
+          // C10：保存即失效 context bundle 缓存，30 秒 TTL 内不得把旧摘录发给后端。
+          invalidateContextBundleCache(projectRoot);
           if (modelCacheRef.current.get(path) === savedStateAtStart)
             savedStateAtStart.diskBaseline = { kind: 'content', content };
         },
@@ -393,6 +397,10 @@ export function Editor({
     modelCacheRef,
     retainedFilePaths,
   });
+
+  useEffect(() => {
+    if (editorReady && loadedFilePath === filePath) void recoverPendingSuggestion(filePath);
+  }, [editorReady, filePath, loadedFilePath, projectPath, recoverPendingSuggestion]);
 
   // 行间对话（Ctrl+K）：编辑聚焦下就地改稿，接受收敛到同一套守卫写回。
   useInlineChat({

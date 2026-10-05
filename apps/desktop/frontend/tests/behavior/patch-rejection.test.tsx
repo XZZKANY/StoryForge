@@ -44,6 +44,8 @@ const receiptFs = {
 
 vi.mock('../../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
+    pathExists: (path: string) => receiptFiles.has(path),
+    readProjectFile: (_project: string, path: string) => receiptFs.readFile(path),
     inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
       inspectFixtureReceipt(receiptFs, project, request),
     async writeFileWithReceipt(
@@ -63,6 +65,11 @@ vi.mock('../../src/lib/tauri-fs', () => ({
       _content: string,
       expected: DiskBaseline,
     ) => {
+      // 恢复 journal 是 .storyforge 内部记录，不属于正文写回断言范围。
+      if (_path.includes('pending-suggestions')) {
+        receiptFiles.set(_path, _content);
+        return;
+      }
       assert.deepEqual(expected, { kind: 'content', content: BEFORE });
       calls.push('write');
     },
@@ -106,6 +113,15 @@ const AFTER = '新的一章。';
 const rejections: PatchRejection[] = [];
 function onRejected(event: Event) {
   rejections.push((event as CustomEvent<PatchRejection>).detail);
+}
+
+/** 提案持久化（恢复 journal）入库后接受/拒绝链多一跳异步；断言前把游离 promise 链排空。 */
+async function settle() {
+  for (let i = 0; i < 5; i += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
 }
 
 let reject: (direction?: string) => void = () => undefined;
@@ -323,11 +339,13 @@ test('否掉一版时，作者的方向连同补丁 id 一起广播出去', asyn
   await act(async () => {
     emitFileSuggestion(suggestion());
   });
+  await settle();
   assert.equal(panelHasPatch, true, '补丁没进面板，后面的断言证明不了任何事');
 
   await act(async () => {
     reject('这段对话太生硬，把玄铁令的来历留到后面再抖');
   });
+  await settle();
 
   assert.equal(rejections.length, 1);
   assert.deepEqual(rejections[0], {
@@ -417,10 +435,12 @@ test('对话区接受把同一 patchId 交给既有 guarded writeback', async ()
   await act(async () => {
     emitFileSuggestion(suggestion());
   });
+  await settle();
 
   await act(async () => {
     runControls?.onAcceptPatch?.();
   });
+  await settle();
 
   assert.equal(panelHasPatch, false, '接受后编辑器仍保留已写回补丁');
   assert.deepEqual(calls.slice(0, 4), ['snapshot', 'branch', 'write', 'record']);
@@ -441,9 +461,11 @@ test('方向非空才转成一次真实的作者发言；留空只否掉、不�
   await act(async () => {
     emitFileSuggestion(suggestion({ id: 'file-revision-def456' }));
   });
+  await settle();
   await act(async () => {
     reject('节奏太赶，第三章先别揭底');
   });
+  await settle();
 
   assert.equal(submitted.length, 1, '给了方向却没发起新一轮');
   assert.match(submitted[0], /第03章\.md/, '发出的话里没有被否文件的锚点');

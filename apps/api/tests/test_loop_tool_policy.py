@@ -28,11 +28,11 @@ from app.domains.agent_runs.trace import AgentToolTrace
 pytest_plugins = ("agent_loop_runtime_test_fixtures",)
 
 EXPECTED = {
-    "file.review": ("existing_file", False, "generic"),
+    "file.review": ("existing_file", True, "handler"),
     "file.revise": ("existing_file", True, "handler"),
     "chapter.polish": ("existing_file", True, "handler"),
     "project.trim_prose": ("existing_file", False, "generic"),
-    "prose.continue": ("existing_file", False, "generic"),
+    "prose.continue": ("existing_file", True, "handler"),
     "file.create": ("new_file", True, "handler"),
     "knowledge.propose": ("project", False, "handler"),
 }
@@ -150,6 +150,8 @@ def run_declared_tool(client, monkeypatch, novel_project):
                 {"content": "完成检查。", "tool_calls": []},
             ],
         )
+        # A trusted request selects a source; only its current on-disk text is a fact.
+        (novel_project / "设定/人物.md").write_text("TRUSTED_REQUEST_SENTINEL", encoding="utf-8")
         run_id = "policy-probe"
         responses = _send_chat_message(
             client,

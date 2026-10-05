@@ -34,6 +34,8 @@ PROTECTED_LOOP_TOOL_ARGUMENT_KEYS = frozenset(
         "file_path",
         "llm_context_snapshot",
         "llm_prompt_context_bundle",
+        "prepared_context",
+        "generation_delivery_refs",
         "project_root",
         "loop_input_mode",
         "loop_trusted_context",
@@ -182,6 +184,8 @@ def _llm_context_input_summary(snapshot: object) -> dict[str, Any]:
             if isinstance(knowledge_entries, list)
             else [],
             "warning_count": summary["warning_count"],
+            "source_manifest": summary["source_manifest"],
+            "selected_content_sha256": summary["selected_content_sha256"],
         },
     }
 

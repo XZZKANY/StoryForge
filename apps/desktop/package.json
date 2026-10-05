@@ -11,7 +11,7 @@
     "prepare:git": "node scripts/prepare-bundled-git.mjs",
     "verify:git-bundle": "node scripts/prepare-bundled-git.mjs --verify",
     "test:git-bundle": "node --test scripts/prepare-bundled-git.test.mjs",
-    "verify": "npm run prepare:git && npm run test:git-bundle && npm run verify:git-bundle && npm --prefix frontend run typecheck && npm --prefix frontend run test && npm --prefix frontend run build && npm --prefix frontend run verify:smoke && npm --prefix frontend run verify:agent-conversation && npm run test:rust && npm run verify:tauri-smoke",
+    "verify": "npm run prepare:git && npm run test:git-bundle && npm run verify:git-bundle && npm --prefix frontend run typecheck && npm --prefix frontend run test && npm --prefix frontend run build && npm --prefix frontend run verify:smoke && npm --prefix frontend run verify:inline-continuation && npm --prefix frontend run verify:agent-conversation && npm run test:rust && npm run verify:tauri-smoke",
     "verify:tauri-smoke": "npm run prepare:git && node scripts/verify-tauri-smoke.mjs",
     "build:release-smoke": "npm run prepare:git && npm run build:api-sidecar && tauri build --ci --no-bundle",
     "verify:tauri-smoke:packaged": "npm run build:release-smoke && node scripts/verify-tauri-smoke.mjs --release",

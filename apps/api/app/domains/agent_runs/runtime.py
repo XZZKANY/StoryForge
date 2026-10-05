@@ -325,7 +325,7 @@ class AgentRuntime(
                 tool_name="file.review",
                 status="completed",
                 input_summary={
-                    "file_path": file_path,
+                    "file_path": _optional_string(payload.get("_trace_file_path")) or file_path,
                     "content_chars": len(content),
                     **_llm_context_input_summary(payload.get("llm_context_snapshot")),
                 },

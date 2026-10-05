@@ -1,4 +1,43 @@
-## 2026-10-23 Token 流式后端 SSE 合批（consumer 侧短窗聚合 + chunk_sequence 重编号）
+## 2026-10-04 执行外部审计对照报告（批次四：来源生命周期与证据交接 C01/C04-C10/C13）
+
+范围：`StoryForge_新版提交与重构报告对照_20261002.docx` §3 来源准入与生命周期条目。上一批（批次三 T05-T08/D03/D06）与更早批次（P0 任务归属、P0 不可变操作批、外部审计批次一二）均已合并在本地提交链上，本批接续修剩余 C 系反例。
+
+### 实现清单
+
+1. **C04+C05 失效知识 raw 重入 / 损坏块回落 raw**（`fs/project_knowledge.py` + `fs/knowledge_entries.py` + `fs/knowledge_retrieval.py`）：`ProjectKnowledgeEntryIndex` 新增 `structured_paths` 字段——含知识块标记的 Markdown（`has_knowledge_block_marker`，即便全部损坏、零有效条目）路径也进清单；`select_knowledge_entries` 消费该清单（旧调用方回退 entries 推导）。效果：fingerprint 被手改的 retired/disputed 块、以及全部失效条目的文件，其 raw 摘录不再从 bundle 漏回 writer。
+2. **C06 混合普通说明丢失**（同上三文件 + `knowledge_context.py`）：新增 `plain_notes_outside_knowledge_blocks`（剥离全部块 span 后的非空白说明）；index 携带 `plain_notes`，`merge_project_knowledge_entries` 把块外说明作为 `kind="materials"` 普通资料保留（预算 `PROMPT_EXCERPT_TEXT_LIMIT`）并产生 `knowledge file has non-structured author notes` 警告——不再整文件排除吞掉作者说明。
+3. **C07 多 ID 替代不完整**（`events/knowledge_materialization.py`）：`_compile_operation` 的 retire/dispute/supersede 从「只改 `related[0]`」改为遍历全部 related 旧 entry——两条旧 ID 都正确标记（superseded_by 均指向新 entry）；extend 语义不变（改写第一条，回归护栏钉死）。
+4. **C08 extend 来源并集**（同文件）：新增 `_replace_same_path_project_sources`——同路径 project_file source 用新 hash 替换旧 hash，其余来源并集去重。旧实现把同路径新旧 hash 都并进 sources，旧 hash 永不匹配磁盘 → evidence_state 实时核验恒 stale、回滚旧版本也无法恢复 current。
+5. **C09 新章未知章序**（`canon_context.py`）：新增 `_unwritten_chapter_ordinal`——目标章尚不存在（不在 ordinals 且文件不在磁盘）时从文件名 `第NNN章.md` 解析章号，避免 cur=None 退化全书模式导致互斥时间窗（「第 1-2 章持有者=A」vs「第 3 章起=B」）同时变当前约束。已存在文件永远走 ordinals（阅读序口径），不制造第二事实源。
+6. **C13 长期要求尾部丢失**（`common/author_voice.py`）：作者指令超长截断从头部截断改为**保尾截断**（`marker + text[-budget:]`，总长 ≤ MAX_CHARS）。追加语义下新要求总在文件尾部，头部截断会把追加的新要求吞掉（前 4000 字吃掉尾部新增）。
+7. **C10 前端缓存保存删除**（前端 `project/context-bundle.ts` + `tauri-fs.ts` 事件）：`contextBundleCache`（30 秒 TTL）订阅 `FS_MUTATION_EVENT`——`TauriFileSystem` 每条写/删/改名路径都经 `invalidateListDirCache` → `emitFsMutation` 广播，单一订阅点按前缀失效对应项目缓存；另暴露 `invalidateContextBundleCache(projectPath)` 显式 API 并接线 Editor 保存、useSuggestionWriteback 写回/撤销删除、useFileTreeActions 新建/改名/删除。
+8. **C01 工具读取不自动交接**（`loop/conversation_runtime.py` + `llm_context.py`）：`execute_fs_tool` 登记循环内**成功的 fs.read** 结果（path→content，仿 `latest_review_report` 的交接模式）；后续 trusted writer 工具（file.revise/file.create/prose.continue）构建 snapshot 时经新参数 `extra_context_files` 注入——按路径去重（bundle 已含不重复注入）、`CONTEXT_FILE_TEXT_LIMIT` 预算、`selection_source="loop_fs_read"` 标记来源。模型本轮 fs.read 读到的独特事实从此有**送达保证**，不再依赖外层模型自觉复述。
+
+### 测试（全部先复现后修复）
+
+- `tests/test_knowledge_lifecycle_admission.py` 7 条：C04×2（retired/disputed 不经 raw 重入、superseded 场景）、C05×2（fingerprint 损坏块不回落 raw、零有效条目文件仍进 structured_paths）、C06×2（混合文件块外说明保留+警告、纯说明文件直通）、纯说明无块不误伤 1 条。
+- `tests/test_knowledge_multi_id_supersede.py` 5 条：C07 三操作（supersede/retire/dispute）双 ID 全部标记 + extend 单条语义回归护栏 + 单 ID 行为回归护栏。
+- `tests/test_knowledge_extend_sources.py` 4 条：C08 同路径新 hash 替换、不同路径并集、相同来源去重、混合类型（author_statement 保留）。
+- `tests/test_canon_unwritten_chapter_window.py` 4 条：C09 未写章只推未来窗口、空占位回归护栏、既有章窗口不变、无未来窗口不伪造约束。
+- `tests/test_author_instructions_reach.py` 新增 1 条：C13 保尾截断（追加 sentinel 送达、总长 ≤ MAX_CHARS、截断留痕）。
+- 前端 `tests/context-bundle-cache-invalidation.test.ts` 5 条：C10 保存/删除/显式失效/跨项目不误伤/无 path 全清（mock TauriFileSystem + 真实 CustomEvent 广播）。
+- `tests/test_loop_fs_read_handoff.py` 2 条：C01 fs.read 独特事实到达 writer 最终 prompt（伪造 provider 脚本驱动真 loop + 假 writer 捕获 prompt）、bundle 已含时按路径去重不重复注入。
+
+### 门禁（本机会话亲跑）
+
+- 本批全部新测试 **68 passed**（8 文件合并跑）；`-k "loop or context or agent_runs"` **308 passed / 2 skipped**；`-k "knowledge or materializ or inbox or proposal or context"` **222 passed / 2 skipped**；`-k "canon"` **108 passed**；`-k "author or voice or instructions or craft or style_baseline"` **171 passed**。
+- 前端全量 vitest **166 files / 1467 passed / 1 skipped**（较批前 1462 +5 = C10 新用例，零回归）；typecheck、prettier、eslint（改动文件）全绿。
+- `uv run ruff check .` 全仓 0 error；`tests/test_source_code_standards.py` 16 passed。
+- 前端全量在批次四开始前跑过一次（1462/1 skipped），C10 落地后再跑（1467/1 skipped）。
+- API 全量 pytest 复验 **2665 passed / 15 failed / 25 skipped**（批前 2642 passed，+23 为本批新用例；15 failed 全为 `test_book_generation_long_wrapper.py` long-runner 既有基线红，批次一已在 HEAD 基线 worktree 实证 15 failed 与本批无关）。
+
+### 已知残留（如实记录，本批不修）
+
+1. **C11 后端旧普通摘录**：普通资料（setting 等）摘录由前端发来，后端不回读磁盘验证版本；作者改/删后旧 bundle 仍达 writer、warnings 为空。修法需前端为每条摘录带来源 hash、后端核验——跨前后端契约改动，留下一刀单独做。
+2. **C02 review 问题编号交接 / C03 stale 状态运输 / C14 中部续写 suffix / C15 续写 pin 送达**：批次一二报告已记，属 writer bundle 组装链，与 C11 同区域，留下一刀。
+3. C01 只交接 fs.read；fs.search 命中行、project.consistency 观察信号未纳入交接（模型可通过对话历史看到，writer 送达无保证）——与 C02/C03 同属「观察类证据交接」后续刀。
+4. C09 只覆盖「文件名可解析章号」的未写章；`第NNN章` 之外的命名（如 `chapter-5.md`）仍退化全书模式。
+
 
 - 背景：token 流式性能优化（review 方向 C）。此前后端 `on_text` 每个 provider TEXT_DELTA 直接产一帧 SSE（router.py `enqueue`），高频小 token 模型下帧数爆炸。design §4 要求「首段尽快、后续按短窗口+字节预算合批、终态前冲刷」。已确认三红线：① wire 契约 `chunk_sequence` 连续自增（前端 `useChatTextStream.accept` 把非恰好 +1 判为缺口→unknown，后端测试硬断言 `range(1,len+1)`），合并必须重编号；② 首段不能延迟（`test_agent_text_stream` 核心断言「provider 终态被挡时第一块已到达」）；③ `WorkerStreamQueue` 容量 64 + semaphore 背压不可破坏。
 - 方案：**合批放 pump 消费侧**（`_agent_user_message_payloads` 的 async yield 循环），worker 产帧与背压完全无感；不放 worker 侧（会与 semaphore 打架、拖住终态前冲刷）。窗口 40ms（与前端渲染合批对齐，端到端约 25fps）。
@@ -5191,3 +5230,1244 @@ master 本地提交 63 文件，精确文件集合匹配；原 staged diff 全�
 - API 全量 pytest **2627 passed / 15 failed / 25 skipped**——15 项全为记录在案的 `test_book_generation_long_wrapper.py` 缺 long runner 基线红，本批零新增失败；`test_source_code_standards.py` 16 passed；`uv run ruff check .` 全绿。
 - 四个契约生成物零漂移。
 - 未跑 `pnpm verify`（NO_TTY + pnpm 不在 PATH）；未涉及真机 GUI、Rust、Native 与真实 provider。
+
+## 2026-10-04 Codex 接手复验修复：分支清单隔离与不可变补丁生命周期
+
+范围仅限接手审查确认的三个 P1，不推进下一批报告项目；用户已要求本次不创建 Trellis 任务。没有提交、推送、修改 `1.doc` 或操作 `node_modules`。
+
+### 修复与行为证据
+
+1. **分支清单交叉污染**：`useBranchManifest` 将写入版本按项目/文件分别记账，记录内存清单的文档归属；目标清单尚未加载时，队列内读取目标盘面。新增 A 保存完成/B 加载未完成的交错，以及 B 首次加载中直接推进分支的回归；断言 B 的独有分支不会丢失或被 A 分支替换，迟到旧读不能回退已写入 head。
+2. **位置 ID 冒充内容身份**：`matchSuggestionOp` 删除位置 id 回退，只认唯一 before/after 内容匹配；`handleAcceptHunk` 使用匹配到的原始 op/原始 before。作者等长改写剩余块后再点击接受，必须报冲突且零新增正文写入。正常相邻 op 改变前缀后，分块接受沿用整份接受的唯一原文兜底，重复/歧义目标仍拒写。
+3. **导航丢失原始授权基线**：模块级 WeakMap 按提案对象关联原始 before/after、已应用集合，剩余提案对象沿用同一状态。reset、真实 A→B→A 页签切换、组件卸载重挂载再领取均保留范围外作者修改；原始目标处作者改写仍拒写。独立同 id 新对象不继承旧对象的已应用集合。状态仅限当前页面进程，不宣称重启持久化。
+
+### 验证命令与结果（均核对进程退出码）
+
+工作目录 `apps/desktop/frontend`：
+
+- 修复前：`npm.cmd exec -- vitest run tests/branch-writeback-scope.test.tsx tests/suggestion-ops.test.ts tests/suggestion-writeback-lifecycle.test.tsx` → **9 failed / 62 passed**。新用例先红再修；最终总计新增 11 条测试。
+- 定向收敛：上述三文件加 `tests/editor.test.tsx tests/suggestion-issue-attribution.test.tsx` → **99 passed**，包含同 id 新对象隔离用例。
+- 最终 `npm.cmd run test` → **165 files passed / 1 file skipped；1462 passed / 1 skipped**。第一轮全量仅旧源码护栏的参数字符串断言失败；按原始 op 接线更新为正则断言，最终全量通过，没有删除行为安全断言。
+- `npm.cmd run typecheck` → 退出 0。
+- `npm.cmd exec -- eslint src/components/editor/useBranchManifest.ts src/components/editor/useSuggestionWriteback.ts src/lib/suggestion-ops.ts tests/branch-writeback-scope.test.tsx tests/suggestion-ops.test.ts tests/suggestion-writeback-lifecycle.test.tsx tests/editor.test.tsx` → 退出 0。
+- `npm.cmd exec -- prettier --check` 对上述七文件 → 退出 0，All matched files use Prettier code style。
+- 仓库根 `git diff --check` → 退出 0。七个 TS/TSX 文件逐字节检查，保持各自原来的 CRLF/LF，无 CRCRLF。
+
+工作目录 `apps/api`：`uv run pytest tests/test_source_code_standards.py -q` → **16 passed**、退出 0。
+
+### 变异验证
+
+四组变异分别运行定向 vitest，均退出 1 且由断言失败触发；每次 finally 恢复改前原字节，并核对恢复字节相等：
+
+- M1 将加载校验改回跨文档总计标记 → A 保存/B 加载交错用例 **1 failed**。
+- M2 恢复同位置 id 回退 → 等长作者改写的内容身份用例 **1 failed**。
+- M3 重新领取时不取 WeakMap 原始状态 → 三种导航保留用例与目标改写冲突用例 **4 failed**。
+- M4 移除内存清单文档归属校验 → B 首次加载中推进用例 **1 failed**。
+
+### 边界与未验证
+
+- 没有修改 API、路由、DTO、Rust 或生成契约；无需刷新 OpenAPI。同步项目本地 `state-management.md` 说明上述状态契约。
+- 行为证据为 mounted React hooks + happy-dom + 既有 receipt fixture/模拟磁盘，不是真机 Native GUI。
+- 未跑 `pnpm verify`、API 全量、Rust/Native、打包或真实 provider；历史 API 15 项 long-runner 基线失败未由本轮解决，也没有宣称全仓门禁全绿。
+- 批次三记录的其他残留（重复身份置换、EOL 映射保守冲突、后端 issue 行范围等）不在本次三个修复范围。
+
+## 2026-10-04 下一刀：LLM Context 到 Writer 的送达完整性
+
+按用户“继续推进”推进原报告下一批的第一条链；仍不创建 Trellis 任务、不提交、不推送。保留上一轮七个前端文件的未提交修复，未修改原始 `1.doc`。报告副本经已有 LibreOffice headless 转为临时文本，用于核对 C02/C03/C12；没有扩展到 43 项整批实现。
+
+### 实现与证据
+
+- **C12 二次裁剪**：结构化知识已由 retrieval 以 4000 字总预算选定；merge 不再按普通文件的 2000 字裁一次，prompt conversion 不再二次 compact。4000 字整槽的尾限定及换行保留；普通文件仍按 2000 字选择。知识 id/selection/evidence-state 放入独立 Context Sources 块，避免标签挤掉 claim 尾部。
+- **C03 状态运输**：writer 收到与具体 knowledge id、相对路径绑定的精确 `current/stale` 和 selection_source，而不是仅收到没有来源状态的 claim。测试分别使用真实匹配/不匹配的项目文件 hash；stale 文本仍可作为待核实上下文，不把它当成已确认的当前约束。
+- **C02 摘要漏传（部分关闭）**：净化审稿摘要以 Review Report 合成块进入 writer；报告超限按完整 issue/action 省略并提供 omitted counts，不输出半段 JSON/引文。真实 loop 复现了另一个断点：review artifact 到整轮结束才落库，紧随其后的 writer 看不到报告。conversation adapter 现显式传递本轮最新成功报告，不提前落 artifact、不注入任意工具输出。**“第2条”等 issue ordinal 到 scope 的结构化解析尚未修复，不能把 C02 全项关闭。**
+- **预算事实**：上游 budget、普通摘录、数量上限、knowledge retrieval 或合成块裁剪均传播 truncated；DTO 前全量移除内部标记，避免短路 any/pop 留下非法字段。知识状态元数据或最终文件数超预算时明确拒绝，不静默删除 pin 或标签。
+- `llm_context.py` 保留原公共转换 re-export，将送达 owner/预算拆为 `llm_prompt_context.py`、`llm_context_limits.py`；主文件 405 行，转换 194 行，conversation adapter 424 行，未提高 500 行护栏。原 llm_context 的混合换行经 Ruff 归一为 CRLF；忽略行尾空白后的主文件真实 diff 为 24 insertions / 117 deletions（主要为转换迁出）。
+- 实际 handler 测试捕获 provider seam 上的最终 prompt，断言尾部、知识状态、审稿内容/issue id 到达；writing trace 无 claim/审稿 sentinel/绝对项目根。断言原章节字节不变、新章尚未创建、只返回待确认 proposed patch。
+
+### 验证（工作目录 apps/api，核对真实退出码）
+
+- 修复前 `uv run pytest tests/test_agent_context_delivery.py -q` → **7 failed**。扩展真实 review→writer 接线后又确认 **2 failed / 9 passed**，修复 loop handoff 后通过。最终新文件 **15 passed**（13 项纯值/采集边界、2 项实际 create/revise handler 流）。
+- `uv run pytest tests/test_agent_context_delivery.py tests/test_agent_llm_context.py tests/test_agent_loop_writing_context.py tests/test_agent_project_knowledge_retrieval.py tests/test_context_selection.py tests/test_chapter_writing_pipeline.py tests/test_source_code_standards.py -q --tb=short --show-capture=no` → **67 passed**、退出 0。
+- `uv run pytest -q --tb=line --show-capture=no` → **2638 passed / 15 failed / 25 skipped**，退出 1，557.69 秒。全量启动时采集的是新文件前 11 项；其后补充的 4000 字边界、retrieval 超限、合成块脱敏及 current/stale 对照均在最终 15 项/67 项定向复验通过，不虚报另一次全量计数。
+- 全量 15 项失败全部为 `tests/test_book_generation_long_wrapper.py`，错误均为缺少 `D:\StoryForge\.codex\run-real-llm-long-direct.py`，与接手前记录的同一组基线失败一致；本轮未恢复该脚本或修改测试回避失败。
+- `uv run ruff check .` → All checks passed、退出 0；Ruff format check 覆盖 knowledge_context、llm_context、两个新模块及新测试 → 5 files already formatted、退出 0。
+- 根目录 `node scripts/check-openapi-drift.mjs`：第一次因本机 pnpm 自动依赖检查试图安装并触发 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`，退出 1。依据已安装 pnpm 的配置代码，以当前命令环境 `pnpm_config_verify_deps_before_run=never` 禁止自动安装后重跑 → **四个契约产物零漂移**、退出 0；没有设置 CI 绕过 purge 确认或安装依赖。
+- 根目录 `git diff --check` → 退出 0。没有 API route/DTO/schema 修改，契约刷新用于核对没有漂移。
+
+### 内存变异验证
+
+五组变异在独立 Python 子进程内编译覆盖模块，不写工作区源码；各组退出 1，完成后核对涉及源码 SHA-256 原字节不变：
+
+1. 恢复 knowledge 2000 字裁剪 → 尾部用例 1 failed。
+2. 丢弃绑定的 evidence_state → current/stale 两组 2 failed。
+3. 不投递 Review Report → 摘要用例 1 failed。
+4. 关闭 loop 当前报告交接 → 实际 create/revise 两组 2 failed。
+5. 强制 budget.truncated=false → 上游裁剪用例 1 failed。
+
+临时日志：`C:\Users\kanye\AppData\Local\Temp\storyforge-context-mutations-sl6bv5s0`。同步了 agent_runs STRUCTURE 和本地被忽略的 project-knowledge spec，未强制添加被忽略文件。
+
+### 边界与下一步
+
+- 未跑 `pnpm verify` 总门禁、真机 Native GUI、Rust、打包或真实 provider。本轮未重跑前端全量；上一轮 1462 passed / 1 skipped 仍是上一轮证据。
+- 只证明确定性 prompt 送达，不证明模型遵守、缓存新鲜、来源生命周期完整或长篇人工质量通过。C01 工具读取交接、C04–C11 生命周期/普通资料/缓存问题、C13 作者要求读取以及 continuation 等仍待后续分刀。
+- 下一刀继续 knowledge_context 的结构化/普通说明准入与生命周期 raw 重入，再处理 chapter_writing_contracts 的检查协议；不顺手修改恢复链或 polishing。
+
+## 2026-10-04 第一批知识准入收口：跨 kind 与 fs.read 旁路
+
+用户明确选择“不创建任务，本轮只做第一批知识准入修复”。未创建或激活 Trellis 任务，未提交、推送，不推进续写/检查协议等后续批次。基线为 `f271eea5` 加用户原有 32 项未提交改动；改前相关工作树原字节保存在 `C:\Users\kanye\AppData\Local\Temp\sf-knowledge-admission-before-494qouxj`，不以 HEAD 覆盖既有修复。
+
+### 修复范围
+
+- C04/C05：结构化准入按当前来源路径判定，不再仅排除 `kind=knowledge`。`setting/materials/other` 不能携带非 active、excluded 或损坏块的 raw claim 重入。Windows 路径大小写别名采用文件系统身份比较。
+- C01 交接：附加读取先经过公共路径 normalizer 与既有上下文净化/脱敏/去重/预算，再参与采集和结构化合并；删除过滤后直接追加的旁路。无可信采集值的标记块省略并提供准入 warning，纯重放不为此重试 I/O。
+- C05/C06：损坏 header 仍识别为结构化 span，不回落块外说明；active 知识和同文件独立作者说明分别保留一次。块外说明只来自本次输入/读取或实际入选的来源，未选混合文件的说明不会因索引扫描而自动注入；超数量预算明确记录截断。
+- 保留 `llm_context` 公共 facade、纯选择/采集边界与现有 DTO。主模块 450 行，未提高行数/私有依赖门槛。补丁仍由后端提出，所有行为用例均断言没有创建新章或修改原来源文件。
+
+### 行为测试与验证
+
+工作目录 `D:\StoryForge\apps\api`，使用已有依赖，`uv run --no-sync` 不自动同步环境：
+
+- 初始新专项 `pytest tests/test_agent_knowledge_admission.py -q -p no:cacheprovider --tb=line --show-capture=no`：**26 failed / 4 passed**。其后追加未选文件说明准入反例，修复前 **1 failed / 30 deselected**；另补 Windows 大小写别名对照。
+- 最终专项：`uv run --no-sync pytest tests/test_agent_knowledge_admission.py -q -p no:cacheprovider -rs` → **32 passed**、退出 0。
+- `test_loop_fs_read_handoff.py` 新增 6 个参数化实际 chat → fs.read → file.create 案例：retired/disputed/superseded/excluded/损坏拒绝与 active 正常送达；捕获最终 writer prompt，块外说明保留一次，trace 无 claim/说明/绝对项目根，原字节不变，仅产出待确认补丁。连同既有 2 项全部通过。
+- 最终相关回归命令：`uv run --no-sync pytest tests/test_agent_knowledge_admission.py tests/test_loop_fs_read_handoff.py tests/test_knowledge_lifecycle_admission.py tests/test_agent_knowledge_proposals.py tests/test_agent_project_knowledge.py tests/test_agent_project_knowledge_entries.py tests/test_agent_project_knowledge_retrieval.py tests/test_context_selection.py tests/test_agent_llm_context.py tests/test_agent_loop_writing_context.py tests/test_agent_context_delivery.py tests/test_chapter_writing_pipeline.py tests/test_loop_tool_policy.py tests/test_agent_fs_tools.py tests/test_agent_fs_budget_feedback.py tests/test_source_code_standards.py -q -p no:cacheprovider --tb=short --show-capture=no -rs` → **172 passed / 1 skipped**、退出 0、29.09 秒。跳过项是当前环境不允许创建符号链接，不当作通过。
+- `uv run --no-sync ruff check .` → All checks passed、退出 0。首次格式检查发现 knowledge_entries 的既有多行拼接格式需归一；仅归一同值字符串表达式后，6 个涉及文件的 `ruff format --check` 全部通过、退出 0。最终相关回归在格式归一后重跑。
+- 根目录 `git diff --check` → 退出 0。原有 LF/CRLF 风格保留，无 CRCRLF。API route/DTO/schema 和生成契约没有改动，不需要刷新 OpenAPI。
+
+### 内存变异验证
+
+全部在独立 Python 子进程内修改模块，不写回源码；完成后核对 4 个生产文件 SHA-256 未变：
+
+1. 恢复 `kind=knowledge` 专属排除 → **12 failed / 4 passed / 16 deselected**。
+2. 恢复过滤后追加读取 → **4 failed / 28 deselected**。
+3. 只认完整起始 marker → 损坏 header 反例 **1 failed / 31 deselected**。
+4. 删除普通说明来源选择限制 → 未选文件反例 **1 failed / 31 deselected**。
+
+各组退出 1 且由对应行为断言失败触发。日志与 results.json 在 `C:\Users\kanye\AppData\Local\Temp\sf-admission-mutations-net03lk3`。
+
+### 未验证与剩余
+
+- 本轮没有运行 API 全量、`pnpm verify`、前端全量/typecheck、Rust/Native/GUI、打包或真实 provider；不借用旧门禁数字宣称本轮全仓通过。既有 15 项 long-runner 基线失败没有由本轮解决。
+- 证据只覆盖本批准入反例、正常对照和模拟 provider 下的实际后端 writer 输入，不宣称全部知识生命周期或文学质量已验收。
+- 无可用来源采集时，标记块有意省略；不是把未核验 active raw 当成可靠知识。普通旧摘录的新鲜度、读取片段完整性和最终 SourceRef manifest 仍需独立工作。
+- 下一批仍为 C02 issue ordinal 绑定、C11 普通资料消费时版本核验；C07–C10 的完整生产验收以及续写、检查、声音、评估与发布清单均保留，不在本轮追加实现。
+
+## 2026-10-04 续写送达切片（C14–C18）
+
+### 范围与保护
+
+- 用户选择“不创建任务，先推进续写送达这一批”。未创建/启动 Trellis 任务，未提交、推送或开启后续检查/声音/发布阶段；保留已有未提交改动。
+- 本轮修改前的 WORKTREE 字节备份与 SHA-256 manifest：`C:\Users\kanye\AppData\Local\Temp\sf-continuation-before-cr88xhdk`。包含续写/Brief/上章读取、快捷键/API 客户端、4 个契约产物、已有 policy 测试、spec 与验证报告；不是从 HEAD 覆盖用户工作树。
+- 后端变更：`app/common/manuscript.py`、`domains/assistant/{continuation,continue_context,schemas,service}.py`、`agent_runs/tools/{prose_continue_runtime,specs/patch_specs}.py`、`agent_runs/adapters/{chapter_source_guard,chapter_writing_pipeline}.py`。新增 `tests/test_agent_continuation_delivery.py`，更新现有 `tests/test_loop_tool_policy.py` 的真实声明矩阵。
+- Desktop 变更：`src/lib/{api/assistant,inline-continue-context}.ts`、`src/components/editor/useInlineChat.ts`，新增 `tests/inline-continue-context.test.ts`。未改旧 Web/Workflow 入口或 Native 写回 owner。
+
+### 行为结果
+
+- C14：流式与 loop writer 看见插入点之后的只读后文，明确只生成衔接段落。窗口为紧邻后文前 3000 字；超限提示且证据记 `suffix_chars/suffix_truncated`，不称全文完整送达。
+- C15：ToolSpec 驱动续写进入现有 trusted snapshot、结构化准入及 fs.read 交接；pin 不再只到外层循环。快捷键读取当前项目持久化 pin，经现有 builder/codec 发到新可选 `context_bundle`；SSE 请求也先走准入，bundle 根不能覆盖请求项目根。验证 active 送达、retired/损坏拒绝、模型伪造内部 bundle 无效。
+- C16：仅同目标文件身份可复用 author cursor；Windows 大小写、相对/绝对路径别名有对照。另一文件或缺少身份时用目标末尾，显式正数 anchor 优先级不变。
+- C17：Brief 来源 digest 覆盖材料、canon/hooks、作者指令、有效场景约束、上章尾部及文风系统块。确认前与产字/检查/修复后检查来源；变更或旧 pending 无来源版本时要求重新生成。实际 public recovery 反例证明漂移不会进入 writer，模型调用中发生漂移不会交付补丁；无漂移恢复仍可生成提案。
+- C18：不存在的目标章节按现有路径阅读序取前驱，绝对/相对目标一致，不读后续章、不要求创建占位；实际 chapter draft prompt 验证上章尾部送达。
+- W01 的续写分支：auto/full 仍只产出 proposed patch，不再声称后端已写盘/存快照。handler-owned trace 仅保留相对目标、数量及 provenance；嵌套字符串验证不含材料 claim 或绝对项目根。其他操作的状态措辞不由此宣称全部收口。
+
+### 验证命令与结果
+
+API 工作目录 `D:\StoryForge\apps\api`，均使用已有环境 `uv run --no-sync`：
+
+- 新专项初始红灯（修正测试 import 后）：**20 failed / 2 passed**，覆盖后文、pin、跨文件光标、未创建章与 Brief 来源混用。最终专项扩展为 **39 项**；不是将收集错误当作行为红灯。
+- 最终相关回归：`uv run --no-sync pytest tests/test_agent_continuation_delivery.py tests/test_agent_knowledge_admission.py tests/test_loop_fs_read_handoff.py tests/test_knowledge_lifecycle_admission.py tests/test_agent_knowledge_proposals.py tests/test_agent_project_knowledge.py tests/test_agent_project_knowledge_entries.py tests/test_agent_project_knowledge_retrieval.py tests/test_context_selection.py tests/test_agent_llm_context.py tests/test_agent_loop_writing_context.py tests/test_agent_context_delivery.py tests/test_chapter_writing_pipeline.py tests/test_loop_tool_policy.py tests/test_agent_fs_tools.py tests/test_agent_fs_budget_feedback.py tests/test_source_code_standards.py tests/test_assistant_continue.py tests/test_agent_loop_prose_continue.py tests/test_canon_unwritten_chapter_window.py tests/test_author_instructions_reach.py tests/test_manuscript_chapter_ordinals.py tests/test_style_baseline_reach.py tests/test_agent_canon_context.py tests/test_chapter_writing_contracts.py -q -p no:cacheprovider --tb=short --show-capture=no -rs` → **338 passed / 1 skipped**，40.77 秒，退出 0。跳过 `test_agent_project_knowledge.py:92`：当前环境不允许创建符号链接。
+- `uv run --no-sync ruff check .` → All checks passed，退出 0。新增模块/专项与涉及的原本已格式化文件定向 `ruff format --check` → 8 files already formatted，退出 0；不整理原有 service/pipeline/spec 的无关格式债。
+
+仓库根目录 `D:\StoryForge`：
+
+- `npm.cmd --prefix apps/desktop/frontend run test` → **167 文件通过 / 1 文件跳过；1470 passed / 1 skipped**，38.95 秒，退出 0。包含本轮 3 项快捷键上下文/序列化测试，但不等同真实 Monaco/Tauri GUI 续写验收。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck` → 退出 0（契约刷新后重跑）。
+- 定向 `eslint`（API 客户端、快捷键 hook、上下文 helper 和新测试）与 `prettier --check` → 退出 0。
+- `pnpm.cmd openapi` → 退出 0；`pnpm.cmd check:drift` → 4 个产物重生成无漂移，退出 0。环境使用 `UV_NO_SYNC=1`、`pnpm_config_verify_deps_before_run=never`，避免依赖自动同步。仅 `storyforge.openapi.json` 的 Continue 请求新增可选 context_bundle（10 行）及 `api-types.ts` 增加对应 1 行；WS schema/type 字节未变，无手写契约镜像。
+- `pnpm.cmd lint` → **退出 1，26 个错误**，全部位于既有 `.trellis/tasks/*/research` 的 GUI/脚本副本（缺 react-hooks 规则、浏览器全局未声明）。未为使总门禁变绿而改无关研究副本；不宣称全仓 lint/verify 通过。
+- `git diff --check` → 退出 0。
+
+### 最终代码的内存变异验证
+
+独立 Python 子进程内临时改变运行时，不写生产源码；6 组均由对应行为断言失败，退出 1。结束核对 4 个生产文件 SHA-256 未变：
+
+1. 去掉后文 → 1 failed。
+2. 去掉 pin/读取交接声明 → 12 failed。
+3. 恢复误用另一文件光标 → 2 failed。
+4. 去掉 Brief 来源守卫 → 调用期间漂移反例 1 failed。
+5. 恢复“目标必须先存在” → 新章前驱反例 1 failed。
+6. 恢复自动档提前声称已写盘 → 2 failed。
+
+日志与 results.json：`C:\Users\kanye\AppData\Local\Temp\sf-continuation-final-mutations-47unksda`。
+
+### 未验证与后续
+
+- 未运行 API 全量、`pnpm verify`、Rust/Native GUI、打包、冷恢复矩阵或真实 provider；原有 long-runner 基线失败未由此解决。没有真实模型服从、人工通读或 3–5 万字质量验收证据。
+- 来源守卫不是文件系统事务锁/全项目 SourceRef manifest，不能证明瞬时变更后回滚不存在，也不修复 Brief 之前已陈旧的普通 bundle（C11）。新增旧 pending 拒绝行为需要重新生成 Brief，不伪造兼容版本。
+- 后文是有预算的邻接窗口，pin 仍服从原有数量/字符预算；完整篇章或全部 pin 无损送达不能由本专项推断。
+- 当前切片完成不等于整体清单完成。C02/C11、检查协议、作者声音、其他操作与派生收口、后台评估及发布/作者验收保持独立待办。
+
+
+## 2026-10-04：检查协议批次（R01–R09，未创建 Trellis 任务）
+
+### 结果与范围
+
+沿用用户“不创建任务”的选择，按照活动目标在续写送达后推进检查协议。本轮是实质进展，不是阻塞重试；完整目标仍 active，未宣称全目标完成，也未提交、推送或开放发布开关。
+
+- R01/R02：三视角实际 provider 输入不再只吃正文前3000字、前6文件各300字，而是完整传入正文和全部准入摘录；live file.review 接入 trusted-context 的作者 pin/本轮 fs.read，项目根由执行项目确定。超过260000字提示预算或 provider/解析失败明确降级，coverage 区分模型完整传入文本、启发式信号与上游摘录截断，不冒充全项目原文件或文学质量通过。
+- R03：live loop 将最新实际报告交给 file.revise 范围解析；narrow/筛选范围不混入无 issue 绑定的全局建议；清除 backend-owned synthetic Review Report 第二通道，保留真实项目 pin，避免未选中问题重新进入 writer。
+- R04/R05：所有选中问题的 ID、完整说明、对应建议优先送达，不再取前8条或把整体指令切成4000字；每条证据独立分配摘录槽并标记截断。超预算明确要求分批，未生成补丁。实际1条/10条、真实根/伪造 bundle 根四组 provider 边界控制通过。新审稿报告有 report_id/content_sha256；有摘要报告的文件/全文摘要不匹配时拒用。
+- R06/R07：Chapter Check v2 强制回显 protocol_version=2、当前正文与已确认 brief 的 SHA-256，findings 必须数组；合法空数组与坏/缺失结果分离。未知规则、错类型、坏条目都阻断；完整验证至多100条，超过上限阻断，不再吞掉第31条硬失败。
+- R08：硬失败须有逐字原文引用与真实起始行；引用验证前不截断、不折叠空白、不改标点，保存 char_start/char_end、line_start/line_end、evidence_verified。伪造引用/越界行号/来源错配是不可自动修复的 checker_failure，不获得修复权限。
+- R09：goal/pov/setting、节拍、禁写、连续性和字数目标都送达真实检查 provider seam；有效硬失败仍最多修复一次并用新正文复检；后端始终只产生 proposed patch，不落盘稿件。
+
+主要新所有者：`apps/api/app/domains/agent_runs/adapters/chapter_check_protocol.py`、`apps/api/app/domains/agent_runs/revise_delivery.py`。保留 chapter_writing_contracts 的公开兼容入口；既有 chapter_writing_pipeline 未在本轮新增职责或挤破行数上限。新增49个参数化协议回归，另升级旧 fixture 以回显实际提示里的来源摘要，并把原先伪造的“开场独白/第二行”硬证据改成真实正文引用。
+
+### 验证（最终代码）
+
+工作目录 `D:/StoryForge/apps/api`：
+
+```powershell
+uv run --no-sync pytest tests/test_agent_check_protocol.py tests/test_agent_review_protocol.py tests/test_agent_context_delivery.py tests/test_chapter_writing_contracts.py tests/test_chapter_writing_pipeline.py tests/test_revision_callers.py tests/test_agent_continuation_delivery.py tests/test_ide_agent_intents.py tests/test_ide_agent_orchestrator.py tests/test_agent_nested_control.py tests/test_agent_review_delivery_control.py tests/test_review_rubric_reach.py tests/test_agent_loop_runtime.py tests/test_agent_loop_runtime_tools.py tests/test_agent_loop_runtime_lifecycle.py tests/test_agent_loop_writing_context.py tests/test_agent_loop_permission_writeback.py tests/test_agent_loop_prose_continue.py tests/test_agent_loop_failure_settlement.py tests/test_agent_llm_context.py tests/test_loop_tool_policy.py tests/test_loop_tool_schemas.py tests/test_runtime_tools.py tests/test_agent_knowledge_admission.py tests/test_loop_fs_read_handoff.py tests/test_source_code_standards.py tests/test_ws_schema.py tests/test_ws_contract_golden.py -q
+uv run --no-sync ruff check .
+uv run --no-sync ruff format --check app/domains/agent_runs/adapters/chapter_check_protocol.py app/domains/agent_runs/revise_delivery.py app/domains/ide/review_reasoning.py tests/test_agent_check_protocol.py tests/test_agent_review_protocol.py tests/chapter_check_test_support.py tests/test_chapter_writing_contracts.py tests/test_revision_callers.py
+```
+
+- 最终28测试文件：**371 passed，50.00s**（包括真实 facade/provider seam 的 pause/resume、无效检查零修复/零补丁、迟到硬失败只修复一次，以及权限、source standards、WS schema/golden）。此前同范围369次通过后增加两个 bundle 根反例；371才是最终结果。测试入口早期两次文件名笔误及两次工作目录错误均未收集测试，不计为验收。
+- API 全仓 Ruff check exit0；上述8个新/相关格式检查 exit0。另5个既有文件的 format-check 基线原本失败，备份用同一 pyproject 配置复核一致，未为掩盖历史格式问题大面积格式化。新增格式修复的3文件前后 AST一致。
+- 仓库根执行 `$env:UV_NO_SYNC='1'; $env:pnpm_config_verify_deps_before_run='never'; pnpm.cmd check:drift` exit0。其重生成的 OpenAPI 与 api-types **与本批起始工作树逐字节一致**；WS schema/types 无新增 drift，schema/golden 回归通过。本轮未改变路由/DTO或手写 WS 镜像。
+- `git diff --check` exit0。
+
+### 红绿、变体与可回放证据
+
+- 首次新增 Chapter Check 协议测试：26 failed / 3 passed，旧版的 JSON null/非对象/非法JSON本来已阻断，不能冒称这些全是新增修复；其余反例证实 fail-open、截断、未验证引文和漏送约束。
+- 首次新增审稿送达测试：6 failed，证实正文/材料尾缺失、范围串线、选中问题漏送及全局切片问题。
+- 9个内存变体均由 AssertionError 拦住，子进程 exit1：坏结果 fail-open、取消来源校验、恢复前30条截断、取消引用校验、漏送goal、恢复正文前3000字、恢复全局建议、恢复前8选中问题、恢复未筛选报告第二通道。变体没有写生产源码，运行前后生产源哈希一致；随后仅3文件 Ruff 格式化且 AST逐一一致。
+- 变体日志与汇总：`C:/Users/kanye/AppData/Local/Temp/sf-check-protocol-mutations-94fl3gsy/summary.json`，各变体同目录单独 `.log`。
+- 当前工作树原字节备份/清单：`C:/Users/kanye/AppData/Local/Temp/sf-check-protocol-before-1g66si33/manifest.json`；仅本轮对起始工作树的可审阅差异：同目录 `check-protocol-tranche.diff`。不使用 HEAD 覆盖已脏文件；唯一 HEAD 备份为批次开始时干净的 runtime.py。保留已有文件的未改变行原 EOL，避免把用户既有编辑混进本轮格式化。
+- 本次验证报告仅追加，原617675字节完整保留。Trellis 本地指南同步至 `.trellis/spec/storyforge-api/backend/review-check-protocol.md` 与 index；它们在既有忽略配置下不强行 git add。
+
+### 尚未验收与后续
+
+本轮未跑真实 LLM、原生 Tauri GUI、完整API测试、frontend全量、packaged/cold/release/人工通读；不以371项隔离测试代替文学质量或真机补丁确认验收。根 `pnpm lint` 上轮已证实研究副本有26个既有错误，本轮未改变那些副本、未重跑或宣称 `pnpm verify` 总门禁变绿。
+
+保留的边界：审稿只承诺完整传入文本与准入摘录，不承诺所有磁盘文件；旧无摘要报告仍兼容但不宣称来源已验证、C02跨会话序号绑定已完成；普通材料当前值重读/SourceRef完整化及部分接受 issue 解决计数仍留后续阶段，D06不能因为本轮引文有行区间就算全解决。下一批按顺序推进作者声音，然后操作/派生、后台评估、发布与作者验收。
+
+
+## 2026-10-04 作者声音政策切片（V01–V08，整体目标仍在进行）
+
+### 范围与可回放证据
+
+- 未创建 Trellis 任务。当前授权目标为依次完成续写、检查、声音、操作/派生、评估、发布/作者验收，最后提交 GitHub；本批只完成声音的代码与隔离回归，不提前提交/推送或宣称整体完成。
+- WORKTREE 起始字节备份及 SHA manifest：`C:/Users/kanye/AppData/Local/Temp/sf-author-voice-before-ktyolk7m`。增补测试备份均在修改该文件前获取。报告原有 **625406 bytes** 完整保留，未用 HEAD 覆盖用户改动；author_voice 的三项既有读取/组装函数 AST 与本批备份相同，保留用户 C13 保尾截断。
+- 新增 common/author_edit_policy.py、patches/polish_fact_guards.py 和 3 个专项测试文件；修改 author_voice/punctuation、revision/facade、polish context/service/gate/handler、扫描对白识别及 pipeline 输出投影。没有修改原生写回 owner、环境配置或 provider 密钥。
+- 本批工作树相对增量：备份目录内 `author-voice-tranche.diff`；新增文件按空基线单列，包含当前小切片，而不是把所有用户未提交代码当作本批。
+
+### 行为与边界
+
+- V01：明确引号转换在同次纠错时保留；未授权的省略号/缩进不随引号授权扩散。普通修订与 polish 请求都经过同一政策。纯标点修订保留既有兼容例外。
+- V02：实际 chapter.polish SDK 请求和 HTTP revision facade 获得当前作者文件，不再仅把声明停在外层 snapshot；支持无根目录的已准入 canonical author file 投影。统计基线只参考，作者文件声明及当前真实用户要求参与政策。live file.revise 用真实 user_message 授权，不允许模型 instruction 自授引号权限。
+- V03：在线无效 JSON 或 offline 本地清理保留明确要求的重复问号/感叹号；仍清理无关重复逗号。真实 handler 验证 full 档降级仍需确认、原稿不变。
+- V04/V05/V07：4→3 的未确定人称、合法引号导致的对白计数、姓名→代词等不作硬拒绝；advisories 与 reasons 分离。4→4 且未授权的人称翻转和可定位专名单字拼写变化仍拒绝。
+- V06：无关“院里没有人”不触发事实硬拒绝；原文与可信材料同一完整断言的直接否定仍拒绝。另一对象、猜测和引语不被窄匹配规则当确定矛盾。
+- V08：实体次数相同不再掩盖同物转交的角色互换/极性变化。实际 handler 与纯 gate 都有反例，交给→递给对照通过。只覆盖可定位的有限句式，**不是通用剧情语义判断**。
+- 政策绑定原文 UTF-8 hash、版本及显式 span；不适用的版本/hash/范围在产字前拒绝。明确逐字保护片段不进入可编辑 segment，重建后核验内容数量/顺序；普通修订也强制显式保留约束，不偷偷开启所有 polish 启发式门禁。缺失片段在 HTTP facade 留失败证据，未调用模型。
+- `polish-rules-v2` / `polish-gates-v2` 反映硬/提示分层变化。trace 只含政策摘要、hash、计数/flags、reasons/advisories；专项验证不复制私有声音声明或保护文本。后端仍只产出 proposed patch。
+
+### 验证
+
+API cwd `D:/StoryForge/apps/api`，使用现有环境，不自动同步依赖：
+
+- 最终 **31 文件 / 542 passed，80.62s，exit 0**。精确命令：`uv run --no-sync pytest tests/test_author_edit_policy_value.py tests/test_author_voice_policy.py tests/test_author_voice_delivery.py tests/test_agent_polishing.py tests/test_agent_polishing_service.py tests/test_agent_polishing_tool.py tests/test_agent_polish_end_to_end.py tests/test_revision_capability.py tests/test_assistant_revision_lifecycle.py tests/test_revision_callers.py tests/test_author_instructions_reach.py tests/test_assistant_revise.py tests/test_punctuation_drift.py tests/test_style_baseline_reach.py tests/test_agent_check_protocol.py tests/test_agent_review_protocol.py tests/test_agent_continuation_delivery.py tests/test_agent_context_delivery.py tests/test_chapter_writing_pipeline.py tests/test_chapter_writing_contracts.py tests/test_agent_loop_writing_context.py tests/test_agent_loop_runtime.py tests/test_agent_loop_runtime_tools.py tests/test_agent_loop_prose_continue.py tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py tests/test_assistant_partial_usage_evidence.py tests/test_loop_tool_policy.py tests/test_source_code_standards.py tests/test_source_pruning.py tests/test_ws_contract_golden.py -q -p no:cacheprovider --tb=short --show-capture=no`。
+- 3 个新增专项共 **56 cases**。初始旧实现运行包含 11 个行为失败、7 个正常对照及 3 个 fixture 绝对路径错误；路径错误不算行为证据。修正为相对目标后，真实 handler/SDK 反例在本批修复上通过。
+- 首次扩展回归有 2 个既有测试把姓名→代词当硬失败。保留其原生 SDK/数据库控制覆盖，将反例改为林岚→林蓝的真实专名拼写错误；重新运行这 38 项及最终 542 项全部通过。没有为了旧计数断言重新硬拦正常指代。
+- `uv run --no-sync ruff check .` exit 0。新增文件及原本已格式化相关文件定向 `ruff format --check` → 8 already formatted，exit 0；另外 8 个历史文件在同一 pyproject 下起始 format-check 已失败，未进行无关全文件格式整理。
+- source standards / pruning、WS golden 和 ToolSpec/schema 在最终回归中通过；新生产模块 192/98 行，新专项 134/229/241 行，未新增私有跨模块访问或抬高 baseline。
+- 仓库根 `$env:UV_NO_SYNC='1'; $env:pnpm_config_verify_deps_before_run='never'; pnpm.cmd check:drift` exit 0；4 个 OpenAPI/TS/WS 产物与本批起始字节完全一致。`npm.cmd --prefix apps/desktop/frontend run typecheck` exit 0。`git diff --check` exit 0。
+
+### 内存变异验证
+
+- 9 个独立进程，只替换 Python 内存函数 code；所有生产文件 hash 结束一致。撤销引号授权、重复标点保留、作者投影、未确定人称 advisory、姓名次数 advisory、事件守卫、否定定位、source binding、普通修订显式 span 验证，都使对应反例出现行为断言失败（exit 1）。
+- 日志/脚本/summary：`C:/Users/kanye/AppData/Local/Temp/sf-author-voice-mutations-wemujjnr`。初始汇总器漏识别 pytest 的 E assert 和 warning summary；已据原日志修正检测，并给无关否定测试增加 patch 存在断言后重跑该变异，避免把 incidental TypeError 算作有效断言。
+
+### 尚未验收
+
+- 未跑本批 API 全量、前端全量、pnpm verify/root lint、Rust/Native GUI、packaged 或真实 provider。之前记录的 15 项 long-runner 缺失基线及 research 副本 26 lint 错误未由本批解决，不宣称总门禁通过。
+- 上述是固定 provider seams 与后端入口行为验收，不等同真实作者声音、文学质量、长程人工通读或真机写回确认验收；不能以模型自评替代作者。
+- 下一顺序是操作与派生收口（含身份/状态/部分接受/来源新鲜度），其后后台评估与发布/作者验收。整体 active，尚未提交 GitHub。
+
+
+## 2026-10-05 操作与派生第一批：会话归属 / 当前审稿 / 恢复身份
+
+### 范围与结果
+
+- 不创建 Trellis 任务、分支或提交；整体验收目标仍 active。这批只收口项目/会话与当前报告身份，不代表操作/派生整个阶段完成，也不提前推送 GitHub。
+- 改动前保留当前 WORKTREE（不是 HEAD）字节：`C:/Users/kanye/AppData/Local/Temp/sf-task-review-binding-before-rrvrrmij`。扩充 manifest 包含后来触及的 adapter/tests/STRUCTURE；保存仅相对本批 baseline 的 `task-review-binding-tranche.diff`。原验证报告 632667 字节前缀完整保留。
+- `assistant/session_scope.py` 为 canonical path / normcase 归属 owner，由 `assistant.service` 公共出口复用。项目请求拒绝未绑定旧会话，不隐式认领旧历史；已绑定会话缺根/不同根同样拒绝。revise、draft、非流式 continue、流式 continue 新会话都保存 project_path。live 在外层模型前拒绝冲突。允许 canonical alias 和真正 projectless 请求。
+- `events/review_sources.py` 只查询当前 assistant session 的最新 report artifact；同名 issue ID 或相同正文不能复活旧 report_id。offered 新绑定报告仅匹配身份，writer 使用后端原问题内容；拒绝旧/跨会话/无绑定的作者报告指向。旧无绑定报告仅保留非报告指向请求兼容，不升级为 verified source。
+- 后端内部 `ToolExecutionContext.current_review_report` 携带已完成但尚未结算的本轮报告；loop 与 fixed adapters 共用 `patches/revise_input.py` 做报告/原文验证与作者范围解析。作者的第 2 条优先于模型第 1 条、selected IDs、included/excluded categories。无效第 99/0 条不回退全报告。
+- fixed revise 遇到作者当前报告指向时复用当前报告，不再偷偷重审并重排序号。普通旧式 fixed revise 仍允许先 review 再 revise，并将实际本轮报告交给 handler。
+- `verify_review_source` 将相对报告路径与相对目标置于同一个真实项目根；拒绝目标替换、根外路径与正文摘要不匹配。
+- 恢复消息保留身份：新 Chapter Brief pending 保存原 project_path；file.review pending 保存原 assistant session ID 及其项目。公开控制接口 pause→resume 的专项证据确认原会话/项目保留、reviewer 只调用三次、没有生成第二个会话、文件不落盘。
+
+### 测试与纠错记录
+
+API cwd `D:/StoryForge/apps/api`，使用现有 uv 环境，不同步依赖。
+
+- 初始专项修正 task_type fixture 后是 **9 个真实行为失败**，不把此前 fixture 错误算进红基线。最终专项 `tests/test_task_review_binding.py` **30 passed**：四 facade 拒绝/新会话归属、live 模型前拒绝、alias、两个真实入口的跨轮审稿修订、版本变更/其他会话/foreign offered/superseded/tampered/unknown/zero，以及公开审稿恢复。
+- 首轮 121 项回归定位到：same-run 先审稿不能在首个模型前因暂无旧报告被拦；报告存在检查改为 revise 前执行。既有两个“旧无归属历史允许进入项目”的测试改为明确拒绝。runtime_tools 起初 509 行，抽出 revise_input owner 后降到 494，未抬高 source baseline。
+- 扩大回归定位到真正的 Brief 恢复消息丢根及固定 adapter 未交接临时报表，修复生产路径后 continuation/revision/chapter 76 项通过。旧 orchestrator 的两个无绑定报告正例改为拒绝；真实当前报告正例由新专项双入口覆盖，未为了 fixture 放松身份规则。
+- durable recovery 的旧 revise stub 不接受此前作者声音阶段新增的 author_instruction keyword，导致工具没进入 stub。仅修正 fixture 签名并断言真实作者指令到达；该文件 20 项通过，未修改生产协议来迁就旧 mock。
+- 曾误传不存在的 `test_agent_schema_contract.py`，该次 **no tests ran**，不算验收；实际使用 ws_schema/ws_contract_golden/loop_tool_schemas。先前两个不存在的前端 chapter-target filter 不算覆盖，本批改用存在的 chapter-brief/chapter-write-request。
+
+最终联合门禁：**39 文件 / 625 passed，123.07s，exit 0**，含 live/revision/continue/knowledge/author voice/chapter/recovery/control/source standards/WS golden/ToolSpec：
+
+`uv run --no-sync pytest tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py tests/test_agent_check_protocol.py tests/test_loop_tool_policy.py tests/test_agent_review_delivery_control.py tests/test_agent_durable_recovery.py tests/test_agent_control_settlement.py tests/test_agent_nested_control.py tests/test_task_review_binding.py tests/test_agent_loop_runtime.py tests/test_agent_loop_runtime_tools.py tests/test_agent_loop_runtime_lifecycle.py tests/test_agent_loop_prose_continue.py tests/test_agent_loop_writing_context.py tests/test_agent_loop_sdk_adapters.py tests/test_agent_loop_permission_writeback.py tests/test_agent_loop_failure_settlement.py tests/test_agent_review_protocol.py tests/test_assistant_continue.py tests/test_assistant_revise.py tests/test_assistant_revision_lifecycle.py tests/test_assistant_sessions.py tests/test_assistant_tool_calls.py tests/test_assistant_partial_usage_evidence.py tests/test_agent_continuation_delivery.py tests/test_agent_context_delivery.py tests/test_agent_knowledge_admission.py tests/test_author_voice_delivery.py tests/test_author_voice_policy.py tests/test_author_edit_policy_value.py tests/test_author_instructions_reach.py tests/test_revision_callers.py tests/test_revision_capability.py tests/test_source_code_standards.py tests/test_chapter_writing_pipeline.py tests/test_chapter_writing_contracts.py tests/test_ws_schema.py tests/test_ws_contract_golden.py tests/test_loop_tool_schemas.py -q --tb=short --show-capture=no`
+
+精确 command JSON 与完整 stdout/stderr：`C:/Users/kanye/AppData/Local/Temp/sf-task-review-binding-before-rrvrrmij/final-command.json`、`C:/Users/kanye/AppData/Local/Temp/sf-task-review-binding-before-rrvrrmij/final-pytest.log`。
+
+其他验证：
+
+- `uv run --no-sync ruff check .` exit 0；定向 `ruff format --check` 新/原已格式化五文件 → 5 already formatted，exit 0。未批量格式化历史大文件；本批已有文件按 WORKTREE backup 的换行约定保存。
+- `npm.cmd --prefix apps/desktop/frontend run test -- --run tests/run-author-agent-ownership.test.tsx tests/local-conversation-action.test.ts tests/chapter-brief.test.tsx tests/chapter-write-request.test.tsx` → **4 files / 25 passed**（最终重跑 2.15s）。`npm.cmd --prefix apps/desktop/frontend run typecheck` exit 0；没有本批前端行为修改。
+- bundled pnpm 首次想自动 install，因无 TTY 在 modules purge 前中止；未设置 CI 强制删依赖，未改 lockfile/settings。降级显式 `pnpm_config_verify_deps_before_run=warn` + `pnpm.cmd --config.verify-deps-before-run=warn check:drift` exit 0，仅保留已存在 workspace-sync warning。完整 OpenAPI/WS/TS 刷新成功，4 产物与本批 baseline 字节一致。
+- `git diff --check` exit 0。源标准通过，无新增私有跨模块访问、无 source caps 豁免或 baseline 提高；无新增 DTO/路由/迁移。
+
+### 变异与边界
+
+- `C:/Users/kanye/AppData/Local/Temp/sf-task-review-mutations-itxssd4z` 保存 4 个独立进程内存变异：绕开会话归属、report_id 身份、正文版本、作者序号优先级，均触发真实断言失败（exit 1）。生产文件 hash 全程不变，结束与当前 WORKTREE 仍一致。
+- 第一次变异 runner 的临时目录 import path 缺 app，只是 harness 错误，不算行为证据；补入 cwd 后重跑。summary 同时匹配 pytest 的 E assert，不能拿导入错误或 KeyError 冒充门禁有效。
+- 未跑 API 全量、前端全量、pnpm verify/root lint、Rust/Native、packaged、真实 provider 或人工通读。前序记载的 long-runner 缺失及 research 副本 lint 基线尚未解决，不能宣称总门禁通过。
+- 此处证明的是当前绑定报告指向与普通调用边界；legacy 无绑定非报告指向输入不升级为已验证资料，kill/checkpoint 之间临时报表复水需继续审计。前端 fixture 不等同真机 GUI 多轮写回验收。
+- 当前阶段剩余：普通摘录变更/删除的 freshness 与最终 SourceRef 送达；精确授权 span、本地 immutable change ops、partial→full accept 保留作者独立编辑；partial/undo 后 canon/Knowledge/memory 刷新与 issue observed/accepted/resolved 分离；旧审计失败状态 W02。其后才是后台评估、发布与作者验收，最后 GitHub 提交。
+
+
+## 2026-10-05：续写送达批次——普通 pin / fs.read 新鲜度与实际摘录证据
+
+### 范围与结果
+
+- 延续“不创建 Trellis 任务，先推进续写送达这一批”；没有创建任务、分支、提交或推送，也没有覆盖既有未提交工作。仅针对 C11 普通摘录陈旧与 D02 摘录来源证据的这一条链路，不宣称六阶段完成。
+- 在 live snapshot 之前对已选普通资料有界回读；来源修改只送当前文本，删除/空白/不可读/凭据/缓存/不合资格/超读取预算显式省略并提示。结构化检索异常也不回落旧摘录，已准入结构化/混合说明保留原边界。
+- 无 frontend bundle 的 chat fs.read → writer 也绑定真实项目根，读取后发生的作者改动不会由旧工具摘录继续注入。验证 create/revise/continue 实际内层模拟 provider prompt；后端仍只产生提案，不改原稿。
+- frozen/slots 采集值与纯重放分开；纯入口不隐藏读盘。附加文件迭代器只物化一次，预算外来源记录用途、选择来源与 selection_budget。
+- snapshot、安全 trace 和 bounded Context Sources 记录实际普通/结构化摘录用途、选择来源、状态、完整解码文本 hash（未验证时 None）、最终 strip/redact/4000 字投影后的摘录 hash/字符数及省略原因。没有复制原始秘密或资料正文进 trace。source_text_sha256 是解码文本 UTF-8 hash，不是原文件字节 hash。
+- 普通来源读取与 immutable evidence owner 位于 `D:/StoryForge/apps/api/app/domains/agent_runs/fs/ordinary_context.py`；扩展已有 fs 公共面，不新增 API / WS 字段。旧 runtime 文件撤回本轮无关格式化，仅保留绑定 root 的一行行为改动，与完整回归时版本 AST 相同。
+
+### 验证
+
+- 新增 `test_agent_context_freshness.py`：20 passed，覆盖实际 chat writer 修改/删除、无前端 bundle 的 fs.read 交接、资格/预算/脱敏 hash、冻结 replay 和 generator 来源省略。
+- 扩大 API 回归 36 文件：**613 passed, 1 skipped, 116.17s**。精确 argv 与日志保存在下面 backup 的 `final-command.json` / `final-pytest.log`。跳过项是该 Windows 环境不能创建符号链接，不能算符号链接验收通过。
+- 最后恢复 runtime 原布局并补齐预算省略项的 selection_source 后再跑：`uv run --no-sync pytest tests/test_agent_context_freshness.py tests/test_agent_context_delivery.py tests/test_agent_knowledge_admission.py tests/test_context_selection.py tests/test_source_code_standards.py -q --tb=short --show-capture=no` → **102 passed, 20.08s**；root 最小改动后另一次 context freshness / ToolSpec / source guards → **54 passed, 9.52s**。不把重复执行相加为独立测试数。
+- `uv run --no-sync ruff check .` → passed；15 个本轮格式化文件 `ruff format --check` → passed。conversation_runtime 保留原布局，不声称其已有无关格式已全部整改。
+- `npm.cmd --prefix apps/desktop/frontend run test -- tests/inline-continue-context.test.ts tests/context-bundle-cache-invalidation.test.ts tests/branch-writeback-scope.test.tsx tests/suggestion-writeback-lifecycle.test.tsx` → **4 files / 55 passed**。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck` → passed。
+- `$env:UV_NO_SYNC='1'; $env:pnpm_config_verify_deps_before_run='warn'; pnpm.cmd --config.verify-deps-before-run=warn check:drift` → passed。仅告警现有依赖与 lockfile 同步状态，不强制安装；OpenAPI JSON、shared api-types、Agent WS schema 和 frontend agent-ws 四份生成物与本轮 WORKTREE baseline **字节一致**。
+- 4 个仅内存 mutation（跳过 live 回读、缺少 frontend bundle 时不绑定根、删除来源退回旧摘录、错误最终摘录 hash）均由行为断言拦截；没有修改生产源码执行突变。最初一次 hash mutant 未改到 facade alias，未计入；一次与本轮换行恢复重叠的 hash 检查也未计入。最终隔离重跑四项全部被拦截，并确认生产文件 hash 不变。
+- 初始 9 项红测中 8 项直接暴露旧文本送达，另 1 项缺失 manifest；均恢复为绿。扩大回归发现旧 fixture 把不存在的资料当作可信内容，现写入真实临时来源并保留正文/实体/不泄漏/不写回断言；检索失败 case 增加 unchanged / changed / deleted，而不是删除旧验收点。
+
+### 证据与回放
+
+- WORKTREE 原始文件备份及哈希 manifest：`C:/Users/kanye/AppData/Local/Temp/sf-context-freshness-before-2q6j46nu`；`tranche-relative.diff` 是相对本轮原始未提交版本，不相对 HEAD。保留原换行约定、原报告完整前缀及既有用户改动。
+- 最终 mutation runner / 日志 / hash：`C:/Users/kanye/AppData/Local/Temp/sf-context-freshness-mutations-9k70uebe`。在 `D:/StoryForge/apps/api` 执行 `uv run --no-sync python C:/Users/kanye/AppData/Local/Temp/sf-context-freshness-mutations-9k70uebe/run_mutations.py`；runner 的四次 pytest 预期 exit 1，外层通过要求四次均为行为失败且生产文件 hash 不变。
+- 更新本地 `.trellis/spec/storyforge-api/backend/project-knowledge.md` 的七段执行契约和 `agent_runs/STRUCTURE.md`。`.trellis/` 当前被仓库忽略，未 force add。
+
+### 明确未验收 / 后续边界
+
+- 没有宣称整个 C11 / D02 完成：direct revise/draft 和所有固定流程最后 writer seam 的统一 fresh admission、独立作者指令/style/canon/memory 的完整最终 SourceRef、kill/checkpoint 真实冷恢复还需独立覆盖；capture 也不是文件系统事务锁或永远新鲜的缓存。
+- 本轮没有执行全仓 `pnpm verify`、真实 provider、多轮原生 Tauri GUI、作者通读、长篇质量或发布验收。上一轮记录的无关根 lint / 长程评估 fixture 问题本轮未重新验证，不能据这些局部绿测宣称总门禁通过。
+- 操作/派生状态、后台评估、发布与作者验收及最终 GitHub 提交仍未完成；本轮不扩展到这些批次。
+
+
+## 2026-10-05：续写送达批次——最后 writer seam 的新鲜准入与守卫交接
+
+### 结果与边界
+
+- 不创建 Trellis 任务，不创建分支、提交或推送；在原有未提交工作上只补本批写作上下文送达。整体清单与 GitHub 发布目标仍未完成。
+- HTTP revise、直接 draft / 非流式 continue 与 SSE continue 共用原始请求准入 seam。真实项目由请求根绑定，bundle 不能把读取重定向到另一个项目；变化资料送当前版本，删除资料显式省略。
+- chat 与固定 writer dispatch 从原始已选输入重新采集，不把早期 context.load 当永久新鲜。固定审稿→修订之间发生的来源变化已在最终内层模拟 provider prompt 验证；原稿仍不写盘。
+- backend-only frozen/slots PreparedWritingContext 绑定规范真实项目/目标、完整请求正文 SHA-256 和 intent，返回独立 DTO；typed handoff 不二次采集合成 Story Memory / Chapter Context / Context Sources。伪造 dict、跨目标/正文/操作拒绝，HTTP DTO 与模型参数不接受 prepared_context。
+- selected_content_sha256 覆盖整个已提供正文，不是 12000 字摘录或整份磁盘文件字节 hash。最后 writer 安全 trace 保留自己的 snapshot ID 与精确 source_manifest，不再遗漏早期 wrapper 丢弃的 manifest。
+- Loop 原始 fs.read 来源在结构化准入前交给 backend context。退役/争议/排除混合文件的作者备注仍只送一次；不能从过滤后 snapshot 的 selection_source 倒推原读取路径。
+- Chapter 已确认 bundle 在实际 draft 与 repair 模型边界保留 memory/chapter/source 块；每次调用前核验 source_guard。check 期间来源变化时，repair provider 尚未调用即明确拒绝；后置原守卫保留。为遵守 500 行上限将四个 tool handler 移至 chapter_writing_tools，brief/check AST 与当前 WORKTREE 基线一致，pipeline/control/resume/helper 兼容面保留。
+- 真实 Windows junction 临时项目复现了根别名假冲突：工具失败为“快照与写作目标或正文版本不匹配”，未进入 writer。identity 改用真实路径规范化后同一项目别名可生成提案，不改原稿；不是跳过项目边界或只改 fixture。
+
+### 验证
+
+- 最后扩大 API 回归 42 文件：**696 passed, 1 skipped, 125.25s**。精确 argv 与输出在下述 backup 的 final-command.json / final-pytest.log。跳过项仍为 Windows 符号链接权限用例，不能算该项通过；新的实际 junction 用例未跳过。
+- 新增 test_final_writer_context.py：**26 passed, 2.71s**；三类直接 writer 修改/删除、固定审稿延迟、后端不可变独立交接、完整后窗正文 hash、跨身份和伪造字段、Chapter actual draft/repair 与 check-time drift、跨 bundle root、真实 junction 等行为覆盖。
+- 初始 8 项红测实际暴露旧摘录进入 provider。扩大回归发现 5 个混合知识备注送达回归，生产修复为保留原 read 来源，未删除 note-once 断言。其他旧 mock 更新 keyword-only 参数并核验非空 typed handoff，旧 exact prompt 仅剥离新增 Context Sources 后继续完整断言；不存在的旧人物 fixture 写入真实临时文件，不以旧摘录回退让测试过。
+- `uv run --no-sync ruff check .` → passed；新 helper/compat wrapper/新测试五文件 `ruff format --check` → passed。旧 facade 不批量格式化，无 source cap 豁免、无 baseline 增长。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck` → passed。
+- `npm.cmd --prefix apps/desktop/frontend run test -- tests/inline-continue-context.test.ts tests/context-bundle-cache-invalidation.test.ts tests/branch-writeback-scope.test.tsx tests/suggestion-writeback-lifecycle.test.tsx` → **4 files / 55 passed, 1.44s**。
+- `$env:UV_NO_SYNC='1'; $env:pnpm_config_verify_deps_before_run='warn'; pnpm.cmd --config.verify-deps-before-run=warn check:drift` → passed，仅告警现有 node_modules/lockfile 同步状态。刷新后的 OpenAPI JSON、shared api-types、Agent WS schema、frontend agent-ws 四份产物与本批 WORKTREE 原始备份逐字节一致；没有新增路由/DTO/迁移。
+- `git diff --check` → passed。
+- 五个独立进程内存 mutation：跳过直接准入、重用 pre-review snapshot、丢失原 loop-read 来源、绕过 prepared 身份、跳过 repair 前 source_guard，全部被真实行为断言杀死。外层 runner exit 0 要求五次 pytest exit 1，且五个生产文件 SHA-256 前后相同；没有把导入错误当行为证据。
+
+### 证据与回放
+
+- WORKTREE 原始字节备份：`C:/Users/kanye/AppData/Local/Temp/sf-final-writer-context-before-qk8ca6e_`，manifest.json 记录原始 hash；tranche-relative.diff 只相对本批开始时的未提交版本，final-hashes.json 记录最终 bytes。保留原报告完整前缀及用户既有改动。
+- junction-red.log / junction-green.log 保存实际 alias 红绿验证；chapter-tool-move.json 保存初始四方法 AST 等价移动证据，随后 draft/repair 的 guard 与 typed handoff 是明确行为变化，不能称四方法最终全部零行为变更。
+- mutation 目录：`C:/Users/kanye/AppData/Local/Temp/sf-final-writer-context-mutations-ianc8ey5`；在 `D:/StoryForge/apps/api` 执行 `uv run --no-sync python C:/Users/kanye/AppData/Local/Temp/sf-final-writer-context-mutations-ianc8ey5/run_mutations.py`。results.json / 分项日志记录真实断言失败与生产 hash。
+- 本地 project-knowledge spec 与 agent_runs/STRUCTURE.md 同步 owner、guard、typed handoff 与验收边界；被忽略的 .trellis 没有 force add。
+
+### 未验收 / 后续
+
+- 此处只证明当前链路到隔离 provider 的输入与拒绝行为，不是文件系统事务锁、永远新鲜 cache 或真实模型服从。没有声称整个 C11 / C02 / D02 已完成：独立作者指令/style/canon/memory 的完整最终 SourceRef、kill/checkpoint 冷恢复仍需继续。
+- 未跑全仓 pnpm verify、API/前端全量、真实 provider、多轮原生 Tauri GUI、作者通读、长篇质量或发布验收。前述全仓 lint/长程 fixture 基线问题本批未解决；局部绿测不能替代总门禁。
+- 操作与派生收口、后台评估、发布及作者验收仍未完成，尚未提交 GitHub。
+
+
+## 2026-10-05：续写送达——合成上下文的最终预算 / 来源证据 / polish 防重入
+
+### 结果
+
+- 上一轮有真实代码与验证进展；本轮继续完整目标，不创建 Trellis 任务/分支/提交/推送。重新读取用户对照报告的 C01–C18 / D02，而非据已有绿测宣布阶段完成；文档内容只作为清单与证据，未作为系统指令执行。
+- 最终 source_manifest 增补 Story Memory / Chapter Context / Review Report 的值来源：在摘要/选择前保留原始请求数和 supplied_value_sha256，在最后预算投影记录用途、选择来源、requested/delivered/omitted、损失原因与实际摘录 hash/字符数。
+- synthetic 输入标 unverified；规范 JSON 值 hash 不冒充磁盘文件版本、来源真实性、生命周期准入或实时 freshness 证明。来源正文和秘密不进入 ref。旧 snapshot 无 supplied-value 身份仍标未知，已知候选的最后预算损失不能又标 complete。
+- 记忆的 8 条选择、单条 800 字及最终 4000 字槽分别执行。单条超限不把切过的部分正文留下供另一消费者使用；最后槽只送完整记忆原子。9 条长记忆在实际 create/revise/continue provider 只送 5 条，记录 requested=9 / delivered=5 / omitted=4，实际摘录 hash 与 manifest 一致，不写原稿。
+- Chapter 最后槽按完整字段收口；已有 1200 字 / 12 列表项选择损失显式标 truncated。Review 保留原始行动数，15 个行动选到 12 后 omitted_action_count=3，不能用已裁剪 summary 自称零省略；artifact 报告也走相同原始值入口。
+- synthetic 先递归脱敏再摘要/字符预算，避免秘密在窗口截断后破坏匹配，也避免可完整送达的脱敏后短值被误判超限。
+- 追加检查发现 polish 从 snapshot 重取所有 8 条记忆，复现 manifest 只送 5 条却经 required_facts 偷送 8 条。修复为统一纯投影返回独立选中值副本；实际 Anthropic adapter 入口的隔离 provider 请求确认只含 5 条完整记忆，未含 5–8 号或超限部分事实，原稿不变。没有用替换业务 handler 的 mock 冒充这一边界。
+- 主变更 owner：`D:/StoryForge/apps/api/app/domains/agent_runs/context_channel_requests.py`、`D:/StoryForge/apps/api/app/domains/agent_runs/llm_prompt_context.py`；snapshot 组装与 polish constraints 只接入共享投影。无新 DTO/路由/迁移、无增大 cap/源码 baseline、无新增私有跨模块依赖。
+
+### 验证
+
+- 最终扩大 API 回归 43 文件：**714 passed, 1 skipped, 131.71s**。精确 argv / 完整日志见 backup 的 final-command.json / final-pytest.log；跳过仍是 Windows 符号链接权限，不计为该项验收通过。
+- 新 `test_synthetic_context_delivery.py` 18 个行为用例已包含在最终扩大回归。初始 6 红：真实半条记忆 + 缺少 synthetic manifest / 选择省略 / 实际 writer trace / 秘密投影；另保留真实 polish 原 8 与最终 5 的红测。追加 actual polish provider、秘密跨文本预算、Chapter 全字段与列表、artifact 行动计数、旧值 unknown 身份 / 已知预算损失、纯不变重投影与 metadata 超限拒绝。
+- 中间扩大回归 711、713 只作为历史，最终采用含 legacy memory 修复的 714；不累加重复测试数。一次 Chapter 测试误用了非白名单 constraints 字段，改为现有 pov / beats 明确测试实际合同，未扩大生产白名单或取消断言。
+- `uv run --no-sync ruff check .` → passed；五个本批 Python 文件 `ruff format --check` → passed；`git diff --check` → passed。模块/新测试在规定行数内，无 source cap 豁免。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck` → passed。
+- `npm.cmd --prefix apps/desktop/frontend run test -- tests/inline-continue-context.test.ts tests/context-bundle-cache-invalidation.test.ts tests/branch-writeback-scope.test.tsx tests/suggestion-writeback-lifecycle.test.tsx` → **4 files / 55 passed, 1.34s**。本批无前端源码变更。
+- `$env:UV_NO_SYNC='1'; $env:pnpm_config_verify_deps_before_run='warn'; pnpm.cmd --config.verify-deps-before-run=warn check:drift` → passed；仅有既存依赖同步 warning，未强制安装。四份 OpenAPI/shared types/Agent WS 产物刷新后与本批 WORKTREE 基线逐字节一致。
+- 五个独立进程内存 mutation（恢复半条记忆投影、忘记原始请求数、忘记摘要前行动省略、伪造 current、polish 重入预算外记忆）均由 E assert/AssertionError 行为断言杀死。外层 runner 要求全部 pytest exit 1，并核对四个生产文件前后 SHA-256 相同；没有拿导入错误或 KeyError 当有效变异证据。最后生产版本稳定后全部重跑，hash 与当前文件一致。
+
+### 回放与保全
+
+- 当前 WORKTREE 原始 bytes / manifest：`C:/Users/kanye/AppData/Local/Temp/sf-synthetic-delivery-before-lksy6qeq`。red-pytest.log、polish-red.log、三次完整回归原件、final-unit-pytest.log、final-command.json 保存输入/结果。tranche-relative.diff 只相对本批入口未提交版本；final-hashes.json / final-safety.json 保存 hash 与保全。
+- 变异 runner / 分项日志 / results.json：`C:/Users/kanye/AppData/Local/Temp/sf-synthetic-delivery-mutations-di7omqu2`。在 `D:/StoryForge/apps/api` 执行 `uv run --no-sync python C:/Users/kanye/AppData/Local/Temp/sf-synthetic-delivery-mutations-di7omqu2/run_mutations.py`；五个内部 pytest 预期为行为失败，外层要求全部被杀且生产字节不变。
+- 报告/STRUCTURE/spec 的原始前缀精确保留，已有文件换行沿用 backup 约定。同步 project-knowledge 七段契约及 owner；.trellis 被忽略，未 force add。
+
+### 明确剩余
+
+- 本批只是合成值到预算投影 / writer / polish guard 的来源证明，尚非完整 D02：独立作者指令、style、canon、上章/后窗等所有实际 writer 通道的最终 SourceRef；原始 memory 的真正来源/生命周期准入、真实 kill/checkpoint 冷恢复还需继续。不能把 unverified 改名为已验证来结项。
+- 未跑全仓 pnpm verify、API/前端全量、原生 Tauri GUI、真实付费 provider、作者通读、长篇文学质量、发布验收。之前记录的全仓 lint/long runner fixture 基线未在本批消除；局部绿测不代表总门禁。
+- 后续仍按完整目标推进：余下送达/恢复证据 → 检查/声音整体验收 → 操作与派生 → 后台评估 → 发布和作者验收 → 最后 GitHub。没有将成功定义缩成当前这批。
+
+
+## 2026-10-05：续写送达增量——独立作者/上章/文风来源的读取边界
+
+本轮按用户选择不创建 Trellis 任务，只推进续写送达这一批；完整目标仍 active，不能用当前增量代替六阶段完成。保留入口 WORKTREE 改动，无新分支、无提交/推送、无用户手稿写盘。
+
+### 实际改动与证据
+
+- 共用 `D:/StoryForge/apps/api/app/common/project_tree.py` 作为无 domain 依赖的项目路径/完整有界扫描 owner；从当前 `fs_safety` 提升已有实现，而非新增另一份无界 walker。原 `FsToolError` 类身份、公共函数签名、domain 模块级预算覆盖和 bounded reader/search AST 保留。
+- `common/manuscript.py` 从无界 rglob 改为同一完整扫描，遇到目录项/深度预算失败明确抛 OSError，不返回部分正文序。先排除 dot 和首段非正文角色再进入目录；内部 Windows junction 不递归，根 junction 则解析到同一真实项目。
+- 作者文件 resolve + 项目包含校验后有界读取 512 KiB + 1 字节；越界、超限、binary/UTF-8 解码失败均省略可选指令，不崩溃、不读取全文后才检查大小。原 4000 字保尾标记和作者优先级保持。
+- 上章最多完整读取共享 2 MiB + 1 哨兵，超限不把前缀冒充章尾；原路径序、未创建章节插入序、归一化和段落尾窗保留。
+- 文风在最近文件窗口之前按 `(st_dev, st_ino)` / real path 去重；一份物理章的硬链接不能虚增样本数，三个独立副本仍可测得基线。统计阈值不变，扫描后与每个候选读取前的边界漂移都安全省略。
+- 新回归 `D:/StoryForge/apps/api/tests/test_author_source_boundaries.py` 为 24 个真实行为用例：本机 Windows junction、硬链接、根别名、内部作者目录正例、被排除目录/环不进入、完整预算失败、精确 byte cap 读哨兵、扫描后以及前次读取后切换目录；实际 draft/Agent 续写/编辑器流式续写的隔离 provider seam 验证本地要求和上章送达、外部来源不送达且原稿不变。
+
+### 验证结果
+
+- 最终扩大 API 回归 **52 文件 / 822 passed, 4 skipped, 137.59s**；精确 `uv run --no-sync pytest ... -q --tb=short --show-capture=no` argv 与 cwd 在 backup 的 `final-command.json`，完整日志 `final-pytest.log`。首次 821 通过只作为历史，最终包含新增 queued-read 边界测试；不累加重复测试次数。
+- 新测试独立运行 **24 passed, 1.32s**（final-unit-pytest.log），没有跳过 junction/硬链接正反例。4 个扩大回归 skip 是既有 Windows symbolic-link 特权不足；两个相关文件 `-rs` 重跑 **23 passed, 4 skipped**，明确原因见 skip-reasons.log；不能把 skipped 计为已验收。
+- `uv run --no-sync ruff check .` passed；本批五个已格式化文件的 `ruff format --check` passed。author_voice 未改业务函数的原始格式恢复，以免覆盖既有格式/制造无关 diff；其未改变函数 AST 已逐个与本批入口比较一致。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck` passed；4 个相关 frontend 文件 **55 passed, 1.95s**（命令同上一批，完整日志 frontend-tests.log）。本轮没有新增前端源码改动。
+- `$env:UV_NO_SYNC='1'; $env:pnpm_config_verify_deps_before_run='warn'; pnpm.cmd --config.verify-deps-before-run=warn check:drift` passed；既存 node_modules 同步 warning 未触发强制安装。四份 OpenAPI/shared types/Agent WS 产物刷新后仍与本批入口 WORKTREE 逐字节一致；没有路由/DTO/数据库迁移变更。
+- 6 个独立进程内存 mutation（去掉作者包含校验、恢复 rglob、去掉物理去重、恢复无界读、移除 queued style 校验、扫描超限返回部分列表）均被真实 AssertionError/DID NOT RAISE 行为断言杀死，预期内层 exit 1 / 外层 exit 0，四个生产文件前后 SHA-256 相同。初次 harness 缺 app import path 的错误单独保存并排除，不当作有效 mutation。
+- 初始红测原件在 initial-red.log；当时尚未创建 common module 的 ImportError 不计行为证据，补跑 budget-red.log 真正复现 DID NOT RAISE。追加 style-race-red.log 复现扫描后目录切换导致 ValueError 崩溃再修复。新增 provider 测试最初误写服务函数名/漏 done frame 是夹具错误，按实际公开接口和协议纠正，没有改生产接口迁就测试。
+
+### 保全与重放
+
+- 本批当前字节备份、SHA manifest、日志、精确 argv、相对 diff、AST/cap/契约保全记录：`C:/Users/kanye/AppData/Local/Temp/sf-author-source-boundary-before-2ka_eo6w`。相对 diff 只比较本批入口已改 WORKTREE，不能当作 HEAD 总 diff。
+- 内存 mutation runner / logs / results.json：`C:/Users/kanye/AppData/Local/Temp/sf-author-source-boundary-mutations-_hkxdhm2`；在 `D:/StoryForge/apps/api` 执行 `uv run --no-sync python C:/Users/kanye/AppData/Local/Temp/sf-author-source-boundary-mutations-_hkxdhm2/run_mutations.py`。
+- 新公共叶子 92 行、新测试 329 行；不增加源码 cap/baseline 豁免，不引入 common→domains 或新私有跨模块依赖。STRUCTURE、project-knowledge 七段执行契约和本报告只追加，原始 bytes 前缀不变；.trellis 未 force add。
+
+### 未验证与剩余
+
+本批仅关闭具体读取边界。完整 D02（所有独立作者/style/canon/上章/后窗最终 SourceRef）、原始 memory 来源/生命周期、真实 checkpoint/kill 冷恢复仍须继续。包含校验不是原子文件句柄锁，不声称消除最后 resolve 到 open 的全部竞态。没有支付 provider 调用、原生 GUI 写回、作者通读/长篇质量、全仓 verify 或发布验收；也未修掉历史全仓 lint/long-runner fixture 基线问题。后续仍按完整目标顺序推进，不能提前发布/GitHub 提交或宣称全清单完成。
+
+
+## 2026-10-05：续写送达增量——四个 writer 的独立来源与最终请求回执
+
+上一轮是有效进展（读取边界修复及822通过证据）。本轮继续完整目标的续写送达，不创建任务、不提交/推送、不写用户原稿；当前仍不是六阶段完成。
+
+### 实际进展
+
+- 新 `D:/StoryForge/apps/api/app/common/generation_sources.py` 是无 domain 依赖的 request-local 观察 owner。只在明确 collecting 范围记录实际读取当时的字节/归一化文本身份、项目相对来源、选择/省略和投影；finally 恢复 ContextVar，嵌套项目不合并。无活跃收集器时没有额外读盘/hash工作。
+- 四个 Assistant writer（draft_file_content、draft_continuation、stream_continue_prose、revise_file_content）在现有 provider seam 前保存 `generation_sources` 到已有 ToolCall.input_summary。保存完整 system/user hash，作者/上章精确摘录 hash与span、文风统计和canon/伏笔派生子句及其依赖。来源回执只证明 writer_provider_seam，不冒称远程供应商/网络字节或模型服从。
+- 记录来源/投影 requested、selected、delivered、omitted source counts；这些是来源依赖数量，不是检查议题或人工质量。缺失、坏编码、binary、超限作者来源显式未送达；不再用静默 None 当“没有损失”。元数据32 refs/20KB上限，超限标 failed 且零 provider。
+- Style 原200000-byte prefix统计及总字符预算保持。达到单文件上限的样本只存 observed prefix hash，完整 file/content hash留空；超过总字符预算的已读样本标 omitted。派生文风子句的送达不能描述成样本整章送达。
+- 续写完整已提供正文标 request_value/unverified，不假装磁盘来源；tail/suffix span与实际窗口绑定。复现并修复CRLF尾残留CR和CR-only把后文误当上文的反例，tail、anchor、insert统一LF规范化，与suffix保持同一坐标。span按Python字符串字符索引/归一化basis解释，不是UTF-16或磁盘字节偏移。
+- 额外两个真实反例证明 `canon_store.read_canon/read_hooks` 先前可跟随 `.storyforge/canon` 外部junction。现在复用公共包含检查并完整有界读取2MiB+1，越界/超限/坏编码/坏JSON为FsToolError，原可选生成消费方省略；缺失空骨架、作者写/派生接口未改。active hooks和agenda共用同次hooks数据，不把两次独立读取混成一个版本。
+- 纯manifest不再读/resolve来源；captured后磁盘变动保留旧请求身份，下一次writer重读新要求。纯结果是独立JSON副本，不能由调用者修改上一轮证据。
+
+### 事务门禁的明确变化与失败尝试
+
+首次扩大回归出现两项真实commit计数红测（880 passed / 2 failed / 4 skipped）：最终来源回执在模型前多一次提交。尝试将它并入原tool创建提交，随后真实author-context副作用边界反例拒绝：旧合同要求running ToolCall先持久化，再读取作者资料；不能为保计数把工具创建延迟到读取之后。失败方案保留 failed-single-commit-service.py，最终已撤销。
+
+最终保留 **user提交 → running ToolCall提交 → 作者/系统输入准备 → 来源回执短提交 → provider → 原结果结算**。来源读取之后的新数据必须有独立持久提交，不能靠ORM内存值、未提交flush或绕过Engine的另一个数据库假装存在。正常修订模型前commit由2变3、全程由4变5，这是新证据行为的必要变化，不是零行为优化。模型等待不在事务中，作者读取顺序、消息/工具顺序、failed/paused/usage/outer-rollback断言保留。`test_assistant_revision_lifecycle.py` 从独立SQLite连接验证模型前已提交的双prompt精确hash；只按新契约调整必要计数，未删除原author-context/rollback门禁。此测试当前原始bytes在首次修改前追加保存到本批backup/manifest。
+
+### 验证
+
+- 最终扩大 API **55 文件 / 882 passed, 4 skipped, 139.84s**；精确argv/cwd `final-command.json`、完整日志 `final-pytest.log`。第一轮139.97s的真实计数失败另存 first-full-pytest.log，不累计重复次数。
+- 新 `test_generation_source_delivery.py` **20 passed, 1.11s**：四条writer实际provider seam及不写盘、作者长尾/缺失/编码/预算、canon/hooks/agenda、当前正文/前后窗、prefix与总预算、pure/独立值/嵌套项目、元数据拒绝、连续生成改作者文件。事务/新来源/source standards专项 **45 passed, 23.33s**（transaction-green.log）。原4个symbolic-link权限skip仍不算通过；本批真实junction反例未跳过。
+- 初始4个writer缺回执真实红测 red-pytest.log；canon外部junction两项红测 canon-red.log；CR/CRLF两项真实红测 cursor-red.log 均保留。
+- `uv run --no-sync ruff check .` passed；新公共模块/新测试 `ruff format --check` passed；`git diff --check` passed。现有文件仅格式化本批改动函数，formatter前后AST相同；其他旧定义逐个与本批入口AST相同，不覆盖用户改动或扩张私有依赖/baseline豁免。新模块221行、新测试310行。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck` passed；相关前端4文件 **55 passed, 1.82s**（frontend-tests.log），本批无前端源码改动。
+- `UV_NO_SYNC=1` 与既有依赖warn配置下 `pnpm.cmd --config.verify-deps-before-run=warn check:drift` passed；四份OpenAPI/shared types/Agent WS产物刷新后仍与本批入口WORKTREE逐字节一致。无路由/DTO/DB列变化；没有强制安装依赖。
+- 最终5个独立进程内存mutations：不持久化回执、给prefix伪造整文件hash、跨system/user槽补证、跳过canon包含校验、恢复未归一化tail，全部被实际行为断言杀死。内层exit1、外层exit0，生产与测试hash前后不变。首个raw-cursor harness的字符串转义错误单独保留并排除，没有拿harness AssertionError当有效变异证据；最终方案恢复后全组重跑。
+
+### 保全与重放
+
+- WORKTREE当前字节备份、SHA manifest、red/最终/首次失败日志、精确argv、AST/cap/契约检查与相对diff：`C:/Users/kanye/AppData/Local/Temp/sf-generation-sources-before-ibcrsmhe`。相对diff只比较本批入口未提交版本，不是HEAD整体差异。
+- 最终变异runner/logs/results.json：`C:/Users/kanye/AppData/Local/Temp/sf-generation-sources-mutations-6_cv0ihe`。在 `D:/StoryForge/apps/api` 执行 `uv run --no-sync python C:/Users/kanye/AppData/Local/Temp/sf-generation-sources-mutations-6_cv0ihe/run_mutations.py`。pre-transaction-fix结果与初始harness错误不是最终证据。
+- 本报告、STRUCTURE和project-knowledge执行契约只追加，原始byte前缀保留；.trellis未force add。原有four generated dirty artifacts未恢复到HEAD。
+
+### 明确剩余
+
+独立来源回执目前在Assistant ToolCall，**还没有合并成外层Agent trace/恢复source guard的一份统一事实**。不能因此宣称完整D02/C02关闭；章节阅读序/所有派生依赖的完整provenance、原始memory真正来源/生命周期、checkpoint/kill冷恢复仍需继续。不是原子文件句柄快照，不保证消除最后resolve/open竞态，不是供应商实际接收/模型遵循。
+
+检查/声音的全场景验收、操作与派生、后台评估、发布和作者验收及最终GitHub仍未完成。未跑全仓verify、原生GUI、真实付费provider、作者通读或长篇文学质量；既存全仓lint/long-runner fixture问题没有在本批消除。保持完整目标active，不以当前fixture成功缩小成功定义。
+
+
+## 2026-10-05 — 按最新选择仅推进续写送达：内外 ToolCall 精确关联
+
+### 改动与行为
+
+本轮不创建 Trellis 任务，不推进其余五阶段，也没有 commit/push。开始前保留全部用户/此前 dirty WORKTREE，以当前字节备份而不是 HEAD 为增量基线。
+
+- 新公共叶子 `apps/api/app/common/generation_delivery.py`（67 行）：显式 execution scope、不可变回执链接、finally 恢复、独立 JSON 值；无 domain / DB / filesystem 依赖。32 refs 硬预算，越界不静默丢弃。
+- Assistant 仅接入真实 Agent 续写：现有最终回执提交/refresh 后，根据持久化净化值发布 exact inner id + canonical JSON manifest SHA + project identity + request system/user SHA。不给未调用 provider 的失败冒称生成成功，不引入新 DTO / 路由 / 数据库列。
+- SDK `_execute_tool` 在模型调用前将关联短提交至当前外层 running ToolCall；成功/失败/中断都保持到 trace、外层 ToolCall 与 durable events。外层 trace 的 assistant_tool_call_id 仍指外层，不能拿内层 id 覆盖。既有 safe_arguments、handler/generic policy、permission 与 proposed-only 语义保留。
+- `generation_delivery_refs` 加入 protected loop arguments，bind 亦丢弃未观测的伪造链接。scope 不跨项目合并、没有查“最近一次”的 SQL。关联确认异常时 rollback 清理并记录固定 failed 安全消息，拒绝调用模型。
+- **事务事实：**每次真实循环续写多一次外层短提交确认关联，旧内层回执提交和原事务顺序不变；不是“零新增提交”。此提交在模型等待前完成。
+
+### 验证与证据
+
+- 新测试 **8 passed, 5.26s**（unit-final.log）：三种真实续写终态、provider 前独立物理连接同时看到内外证据、完整 prompt hash、伪造 id、关闭 engine 后新 Python 进程只读 SQLite、作者文件变更保持旧 manifest、不写稿件、嵌套/异常恢复/独立值、回执提交失败、关联预算/acknowledgement 失败。
+- 扩大 API **57 文件 / 905 passed, 4 skipped, 146.37s**，最终进程 exit 0。完整 argv/cwd 见 final-command.json，输出见 final-pytest.log。覆盖此前所有来源/准入/续写/检查/声音/patch、durable recovery、source standards、事务 lifecycle，加新关联与 WS golden。四个既有 symbolic-link 权限 skip 不计通过。
+- 初始 3 个真实红测 red-pytest.log：成功分支丢外层关联，失败/中断分支还会保留模型伪造的 999999 id。第一次绿测遇测试误用 `list_agent_events` 的 AttributeError（green-pytest.log），修为公共 `list_agent_run_events`，没有把该 harness 错误当产品缺陷或有效红测。
+- Ruff 全 API `uv run --no-sync ruff check .` passed；新文件 format --check passed；git diff --check passed；Desktop typecheck passed。本批未改前端源码。
+- `UV_NO_SYNC=1 pnpm.cmd --config.verify-deps-before-run=warn check:drift` passed，四份生成契约与本批入口 WORKTREE 完全相同（不是与 HEAD 相同）。无 migration / DTO / route 改动。
+- 三个独立进程内存 mutations：禁用 producer 发布、错误内层 id、丢掉外层 pre-provider acknowledgement，均被实际完整续写行为断言杀死（inner exit1 / outer exit0）。run_mutations.py、mutation-*.log、mutation-results.json；源与测试原字节前后不变。初始 runner 缺 app import path 的 ModuleNotFoundError 是 harness 问题，已修复，未计作有效 mutation。
+- 精确 AST 比较：service 只改 `_record_generation_sources` 和 `draft_continuation`；SDK 只改 `_execute_tool`；runtime_arguments 只扩 protected keys。无新私有跨模块依赖、无放宽 baseline；SDK 490 行、新测试262行，均未越界。
+
+### 保全、重放与未验收
+
+当前字节备份、SHA manifest、相对增量 diff、所有日志：`C:/Users/kanye/AppData/Local/Temp/sf-continue-receipt-link-before-vkvc_tax`。回归按 final-command.json 的 cwd/argv 重放；mutation 在 `D:/StoryForge/apps/api` 运行 `uv run --no-sync python C:/Users/kanye/AppData/Local/Temp/sf-continue-receipt-link-before-vkvc_tax/run_mutations.py`。
+
+本报告、STRUCTURE、project-knowledge 只追加，原字节前缀保留。没有恢复旧 dirty 文件、force add、创建任务、提交或推送。
+
+**本批只补 Agent 续写的 durable receipt 关联，不是完整“续写送达”验收。**其他 writer producer、统一全依赖 SourceRef、章节序/memory 生命周期与 stale checkpoint guard 未在本批解决。新进程只读记录不等于宿主重启/kill恢复；未跑全仓 verify、付费真实 provider、原生 GUI、作者通读或长篇质量验收；不据此关闭 D02/C02 或整个六阶段目标。
+
+
+## 2026-10-05 — 续写送达继续：独立来源与 checkpoint 恢复资格
+
+### 进展、复现与修复
+
+上一轮实际提交前回执关联及 905 项回归属于 progress，不是等待/状态复述。本轮继续第一阶段，没有创建 Trellis 任务、提交或推送；全目标仍未完成。
+
+- 已复现真实漏洞：暂停完成续写后改 canon/hooks/上章/文风或插入新章，public resume_run 仍复用旧提案；在 checkpoint 保存前变动也漏检。初始 **10 failed / 2 passed, 24.41s**（red-pytest.log），失败都是“independent source drift reused a stale continuation”行为断言，不是 import/fixture 错误。
+- 新 owner `apps/api/app/domains/agent_runs/loop/generation_recovery.py`（139 行）把准确 named 内外 ToolCall 的已提交 receipt 复制进 hidden checkpoint；校验会话/工具/ref/hash，缺失明确 unverified。纯公用工厂保持旧关联 hash 格式；不查询最新 ToolCall，不把 checkpoint 时的新磁盘状态当 writer 旧输入。
+- 列投影在 no_autoflush 中读取，不 refresh/覆盖 pending ORM；实际行为测试同时验证原始已提交事实可读和 dirty 内外工具值保持待提交。无额外 commit、DB 列、migration、路由或 DTO。
+- GenerationSourceCapture 在生成前记录真实 canonical 相对目标；上章/场景记录实际完整阅读序/章序 digest 与选择。观察未开启时不额外计算选择 hash；未复制全目录/正文到元数据。manifest 仍纯值投影。
+- 普通 checkpoint 恢复重新执行同一有界只读 owner，比较 actual reads/omissions、选择、投影与 system hash；来源/章序变化拒绝并保留 paused reconciliation，零新 provider 调用。缺少旧 proof 走 generation_source_unverifiable。源不变才继续已知提案，且不重新生成、不写磁盘、仍需确认。
+- Prefix 仍只证明实际消费的统计前缀，不为 unread tail 编造全文件 hash；上章/canon/author 完整读取 identity 按真实 bytes 保留。原当前稿件/pinned/alias/permission/tool-policy 守卫未替换。
+
+### 最终验证
+
+- 扩大 API **60 文件 / 996 passed, 4 skipped, 234.60s**，进程明确 exit0；final-command.json 记录精确 argv/cwd，final-pytest.log 是全部输出。覆盖上一批57文件 + source recovery、settlement atomicity、terminal cancellation。四个既有 symlink 权限 skip 不计通过。
+- 新文件最终 **39 项**已包含在上述回归。中间的 24 项 matrix **24 passed, 67.47s**（cold-green.log）：12项实际 fresh Python process public control resume，12项关闭 Session/engine 后 reopen；两时点、五种变动和 unchanged。不变时只继续后续 conversation，writer 总调用一次；变动时没有追加模型调用。
+- 扩充到38项时 **38 passed, 69.66s**（unit-final.log）；最后补 pending ORM purity 并通过 **12 passed / 27 deselected, 1.23s** 的专项，再跑最终39项全扩大回归。不会把较早38项当最终完整套件。
+- checkpoint/control/failure settlement 三文件另跑 **31 passed, 26.44s**（checkpoint-transactions.log）；原兼容/来源/receipt/source-standard/durable专项 **64 passed, 38.13s**（compatibility.log）。这些均单列命令，不累计成新的“唯一总测试数”。
+- 全 API Ruff passed；新/本批格式化模块与测试 format --check passed；git diff --check passed；Desktop typecheck passed。未改前端源码。
+- `UV_NO_SYNC=1 pnpm.cmd --config.verify-deps-before-run=warn check:drift` passed，四份生成契约与本批入口 WORKTREE 逐字节相同，仍保留此前 dirty 契约，不恢复 HEAD。
+- 三个独立进程内存 mutations：跳过 source guard、丢选择依赖、恢复会 autoflush/refresh 的 ORM 读，均被真实行为 AssertionError 杀死。inner exit1 / outer exit0，源与测试 hash 前后不变；run_mutations.py / mutation-results.json / mutation-*.log。
+- 准入与 source standards 全绿，没有放宽 baseline 或新增私有跨模块依赖。精确 AST 差异列于 source-safety.json：只变相关 capture/reader/context/checkpoint/source guard/continuation 构造；新 owner139行、新测试407行，common Sources254行，均未越界。共享 factory 仅抽出原 hash 算法，原 reader 及其他 generator 定义不变。
+
+### 保全与重放
+
+本轮入口未提交字节、SHA manifest、red/最终/中间日志、精确命令与相对 diff：`C:/Users/kanye/AppData/Local/Temp/sf-continue-recovery-before-lvtk9i1l`。按 final-command.json 重放扩大回归；在 `D:/StoryForge/apps/api` 运行 `uv run --no-sync python C:/Users/kanye/AppData/Local/Temp/sf-continue-recovery-before-lvtk9i1l/run_mutations.py` 重放变异。原 verification-report / STRUCTURE / project-knowledge 只追加，原 byte 前缀保留。没有覆盖用户 dirty 代码、创建任务或 force add。
+
+### 仍未完成
+
+这是当前 live prose.continue 的普通持久恢复资格；实际 fresh interpreter + DB 恢复比上一批“新进程只读记录”更强，但仍不是真机 Tauri、宿主 kill/power failure 全矩阵或真实供应商验收。Dedicated external writeback 当前仅收 file_revise，未扩张该协议。其他 writer 的完整 receipts/恢复、知识/记忆全生命周期与全依赖 SourceRef 尚未统一，不能关闭整个 D02/C02。
+
+检查/作者声音的全场景、操作派生、后台评估、发布/作者通读与最终 GitHub 均未完成；未跑全仓 verify、真实付费 provider、长篇文学质量或重新打包 sidecar/native GUI。本批没有以 fixture 通过替代这些验收，保持完整目标 active。
+
+
+## 2026-10-05：续写送达——实际知识选择的恢复守卫
+
+本轮按用户最新选择只推进续写送达，不创建 Trellis 任务、不切分其他阶段、不 commit/push。desktop-commander MCP 当前未暴露，沿用已同意的定向只读 shell 降级；保留本轮入口 WORKTREE 原字节，不以 HEAD 覆盖用户改动。
+
+### 修复与事实边界
+
+- 复现真实公开续写 → pause → 重开 Session/新 Python 进程 → 公开 resume：用户没有指定 context_bundle 时，已消费知识的 claim、retired 生命周期、支撑 current/stale 判定及新增入选项变化，旧守卫仍交付原提案。
+- live knowledge collector 在原有有界检索后冻结查询和实际选择摘要；pure snapshot 保留已采集 JSON。Assistant frozen handoff 绑定最终 files/source manifest 摘要，两个续写入口在准入前开启 request-local capture，既有已提交 inner receipt 因而带上该 handoff。
+- 恢复复用同一个 `retrieve_project_knowledge` owner，保持原排序、pin/exclusion、数量/字符预算与证据规则；查询摘要、选择、相关说明和准入决定须与实际已消费版本一致。缺失 proof 不伪造空选择，保存 checkpoint 不把新盘版本当作旧基线。
+- 确实未入选的候选变化保持可恢复。未新增 DB commit、迁移、路由、DTO、provider 请求；未改变 pin/auto 兼容选择语义，未调整来源/元数据预算。API 仍只产出提案；恢复要求 confirmation，测试逐例确认原稿字节不变、writer 只调用一次。
+- `assistant/service.py` 相对本轮入口 AST 仅两个续写函数变更。新 recovery module 55 行、新测试 350 行；源码 frozen baseline 没有扩容。
+
+### 验证（终态退出码已核对）
+
+- 真实 red：`uv run --no-sync pytest tests/test_continue_knowledge_recovery.py -q -k 'reopen and after_checkpoint'`，正确 fixture 下 **4 failed / 2 passed / 18 deselected，20.58s**；四个失败均为实际 AssertionError `auto knowledge drift reused a stale continuation`。`red.log` 的早期 author_statement fixture 缺字段不算此证据；采用 `red-corrected.log`。
+- 新增 **33** 个行为/证据测试：24 个真实公开链路 case（2 个变化时机 × 6 种情形 × 2 种恢复方式，其中 12 个新解释器公开 resume），另 9 个空选择、新入选、排除、缺失/破损/query mismatch/超量 proof、最终 files 绑定与纯重放测试。
+- 最终扩大 API 回归：**61 文件，1029 passed / 4 skipped，334.44s，exit 0**；完整 cwd/argv 见下述 `final-command.json`，原始输出 `final-pytest.log`。包含 source standards、durable recovery、续写、知识、writer handoff、作者来源、check/review、polish、事务、WS/schema/API seam。
+- 最小兼容组：117 passed / 19.01s；纯/负向及 context-selection 定向组：28 passed / 8.17s；真实未入选候选定向：4 passed / 19.34s。
+- 两个内存 mutation：跳过 knowledge guard（真实公开 claim drift）及忽略 selection hash（损坏 proof）；均由 AssertionError 杀死，inner exit 1 / harness exit 0。没有写入或修改生产源码。
+- `uv run --no-sync ruff check .`：通过；6 个新/相关格式文件 `ruff format --check`：通过；`npm.cmd --prefix apps/desktop/frontend run typecheck`：通过；`git diff --check`：通过；source baseline `git diff --exit-code`：通过。
+- 四个 shared/Agent contract 输出逐字节与本轮入口一致（不是与 HEAD 比较）；本轮没有路由/DTO/schema 变化，没有覆盖用户已有 contract drift。
+- 过程失败未隐去：首次扩大回归 6 failed / 1023 passed / 4 skipped。2 个旧 fixture 的手工采集查询缺文件后缀，已只对齐完整查询、不削弱等价断言；4 个“无关候选”fixture 错把 `.md` 匹配和已有 pin/元数据预算当作不入选。改为真实字符预算占满、确保原约束实际进入 writer，并用原 owner 明确证明额外候选未入选；没有提高预算或放宽 guard。
+
+### 证据与未验证项
+
+原字节、manifest、批次相对 diff、AST 检查、exact argv、red/green/首次及最终回归/两次 mutation 日志、contract hashes：
+`C:/Users/kanye/AppData/Local/Temp/sf-continue-knowledge-before-7kbnzoi2`
+
+这是本地 provider seam 和真实公开恢复入口的隔离验证，不是远端消费证明、原生 GUI、多轮真机写回、进程强杀/断电或人工文学验收。未跑本轮根 `pnpm verify`、全量 Desktop Vitest/打包/真实 paid provider；没有宣称完整六阶段或续写送达全部清单完成。未补齐未读支撑 bytes、普通自动来源与合成 Memory 的全部外部生命周期。后续仍须按剩余送达条目分别验收。
+
+
+## 2026-10-05：续写送达——自动知识 origin 不得升级为作者 pin
+
+上一目标轮属于实际进展（知识选择恢复守卫、真实冷进程公开 resume 与 1029/4 回归）。本轮继续推进第一阶段，不创建 Trellis 任务、不跳到发布、不 commit/push；完整六阶段及 GitHub 提交目标未关闭。MCP desktop-commander/GitHub 仍未暴露，沿用已有定向只读 shell 降级。
+
+### 发现与修复
+
+- 当前真实链路：loop 对没有作者 bundle 的请求先生成 snapshot；`prepare_runtime_writing_context` 将其中 `auto_retrieved` 行当作 raw request files 回填，下一次检索便误标 `author_pinned`。原自动入选条目因此锁住预算；只过滤该行又会把同文件块外旁注当作 materials pin 送回模型。
+- 仅修改 `patches/writing_context.py`：fallback 从旧 snapshot 重建请求来源时排除自动来源的整个相对路径，包括其块外说明；真实原始作者 bundle 优先级、作者固定 pin、普通请求源、独立 loop fs.read handoff、Memory/Chapter 合成通道不变。继续复用原检索排序、8 项/4000 字符预算与生命周期/exclusion，未另建扫描器或规则表。
+- `auto_retrieved` 在真正 writer 的已提交 inner receipt 与 trace 中仍为 auto；写前新排名可替换旧自动约束/旁注。作者明确 pin 不受新排名替代。API 只交付 proposed patch，原稿逐字节不变。
+- 没有路由/DTO/schema/事务提交变化，没有更改旧测试或 source baseline；新生产模块体积 80 行，新测试 166 行。本轮与入口相比除该生产模块外仅新增测试和追加 spec/STRUCTURE/report；没有覆盖其他已有工作。
+
+### 已执行验证
+
+- 原始 red：`uv run --no-sync pytest tests/test_writer_selection_origin.py -q --tb=short --show-capture=no`，**6 failed / 2 passed，2.04s**。失败证明真实公开续写的已提交 pinned_paths 误标，以及四种共享 intent 的实际 refresh 把自动条目变为 pin；并非 fixture setup 错误。
+- 修复后最小兼容组：`uv run --no-sync pytest tests/test_writer_selection_origin.py tests/test_final_writer_context.py tests/test_agent_loop_writing_context.py tests/test_loop_fs_read_handoff.py tests/test_source_code_standards.py -q --tb=short --show-capture=no`，**60 passed / 11.92s**（当时新增 8 case）。随后增加四种 intent 的 genuine author-pin fallback 保留对照，新增测试最终 **12 passed / 2.14s**。
+- 最终扩大 API 回归 **62 文件，1041 passed / 4 skipped，336.72s，exit 0**；exact cwd/argv 在 `final-command.json`，原输出 `final-pytest.log`。含知识/普通来源/reader handoff、三个 writer 与 polish/chapter/voice/check、durable recovery、真实新解释器公开 resume、事务、source standards、WS/schema/API seam。
+- 两次 in-memory mutation：恢复旧 autopin；仅过滤 auto 行却保留旧块外说明。均被实际公开 rerank 续写 case 的 AssertionError 杀死（inner exit 1，harness exit 0），生产文件 hash 未变。
+- `uv run --no-sync ruff check .`、两个改动 Python 文件 `ruff format --check`、`npm.cmd --prefix apps/desktop/frontend run typecheck`、`git diff --check`、source baseline `git diff --exit-code`：全部通过。
+- 四个 shared/Agent generated contracts 与本轮入口 WORKTREE 逐字节相同；这是与当前用户工作副本比较，不是与 HEAD 比较。未改路由/DTO，未覆盖已有 contract drift。
+
+### 证据与仍开放的目标
+
+原字节备份、原始 red/green、两次 mutation、生成契约 hash、生产相对 diff、exact argv 和终态回归日志：
+`C:/Users/kanye/AppData/Local/Temp/sf-writer-selection-origin-before-ecco96wa`
+
+本批证明的是公开续写 provider seam 与四种共享 intent 的 source-origin handoff；不是四个真机 GUI 工作流、实际供应商消费或文学质量验收。普通自动来源/合成记忆全部外部生命周期与完整 provenance、真机写回/kill/断电、根 pnpm verify、完整 Desktop Vitest/打包/作者长程验收和最终 GitHub 提交仍开放。后续继续按原六阶段顺序推进，不以这次通过重定义完整目标。
+
+
+## 2026-10-05 本轮：续写普通资料恢复守卫（不创建 Trellis 任务）
+
+### 范围与实际变化
+
+按用户最新选择，只推进续写送达这一批，不创建任务、不推进后续整阶段、不提交或推送 GitHub。保留当前大量未提交修改，备份来自 WORKTREE 原字节而非 HEAD。
+
+复现真实遗漏：raw context bundle 的 ordinary file 没有 excerpt 时，writer 会重新读取并消费该资料，但旧 recovery source_versions 只记录原请求非空 excerpt 的文件。暂停后资料改写/删除/完整已读源的截断窗外尾部变化，旧实现仍复用 continuation。
+
+仅两处既有生产函数发生变化：`writing_context_from_snapshot` 保存净化、独立值的 final source_manifest + 原 hash；`generation_sources_unchanged` 增加 ordinary recovery qualification。新 `loop/ordinary_recovery.py` 复用 fs 公共 collector，核对原实际 full decoded text hash、原 unavailable/empty/unadmitted 的准入状态，不额外读 selection-budget 之外文件。旧 receipt 不回填新盘基线，未知/损坏证据 fail closed。无路由/DTO/migration/权限/事务次数变化，原稿不写回。
+
+### 验证结果与真实红测
+
+- 首次 red 5 failed 是新 fixture 把 checkpoint files dict 当 list 的错误，不能计为生产 bug；修正该 fixture 后、生产代码未改的真实 red：**3 failed / 2 passed / 15 deselected，16.79s**，三个 drift 都确实到达公开 resume 并错误复用旧结果。原输出 `red.log` / `red-corrected.log`。
+- 修复后 continuation/knowledge/independent-source/source-origin 兼容组 **104 passed，272.33s**（该次新文件当时20个公开 case；`green.log`）。
+- 新测试最终 **32 passed，100.68s**（`final-new-tests.log`）：20个公开 pause/reopen/new-interpreter resume case，另12个原 omission、纯值独立性、损坏/缺失/null proof、实际预算未读与越界对照。补充 unadmitted fixture 曾拼错真实 marker，修正为 existing owner 的真实 marker 后通过，未修改准入策略。
+- 扩大回归 **63 文件，1070 passed / 4 skipped，476.18s，exit 0**；exact cwd/argv 在 `final-command.json`，原输出 `final-pytest.log`。该轮 collection 已包含当时新增29个 case，最后追加3个预算/越界 case 由最终32-case standalone覆盖，不能把本轮扩大输出写成1073。
+- In-memory mutation 移除新 guard，公开 before-checkpoint changed case 重现旧错误：inner pytest exit1 / harness exit0，**mutation killed**（`mutation.log`）。未改磁盘生产源码。
+- `uv run --no-sync ruff check .`、四个改动Python文件 `ruff format --check`、`npm.cmd --prefix apps/desktop/frontend run typecheck`、`git diff --check`、source baseline `git diff --exit-code`：全部通过。
+- OpenAPI JSON / api-types.ts 与本轮入口 WORKTREE 原字节一致；WS schema/generated TS 与上一轮已记录 hash 一致（两份WS文件不是本轮入口备份，不混称四份均有本轮入口记录）。本轮未改生成契约，不覆盖用户原有契约 drift。
+- spec / STRUCTURE / 本报告只追加，验证原入口字节前缀完整；AST review 确认两处既有生产函数变动，新增模块54行、新测试低于800行，不改 frozen baseline。
+
+### 证据与未验收项
+
+原字节、manifest、exact command、真实red/green、mutation、AST检查、相对本轮入口diff和最终hash：`C:/Users/kanye/AppData/Local/Temp/sf-continue-ordinary-before-gayekefl`。
+
+普通资料依现有reader核对完整解码文本，不是新增 raw-byte/同内容alias重定向身份保证；未送达的省略仅比较准入状态，不声称同一省略状态下任意字节变化都拒绝。structured/mixed notes 仍由知识proof核对，supplied memory/chapter channels 不伪装为独立磁盘来源。
+
+本批是 provider seam + SQLite公开控制/新解释器恢复证据；不等于真实provider、原生GUI/宿主kill/断电、文学质量或作者验收。根pnpm verify、完整Desktop测试/打包、全部续写送达清单及后续阶段尚未在本轮完成；不宣称D02或完整目标关闭。
+
+
+## 2026-10-05 本轮：C17 暂停 Brief 的实际来源绑定与确认恢复
+
+### 目标与实现边界
+
+继续原六阶段目标，按用户最新偏好不创建 Trellis 任务；本轮推进续写送达清单中的 C17，不把整个目标缩成这个切片。没有 commit/push、付费 provider 或开放生产 release gate。
+
+从当前 worktree 复现并修正：Brief snapshot 接受外来 bundle root / 缺失 root 丢失已知项目；ordinary snapshot 采集之后再采样 signature 可把新盘 hash 误用为旧摘录基线；新增实际入选知识不在旧 guard paths 集合中，旧 Brief 仍通过确认。原资料未变的实际 draft 对照保留。
+
+- `chapter.write` snapshot 绑定 admitted project / resolved target，不允许 bundle 改读另一项目。
+- Chapter guard v2 冻结原 snapshot context receipt、净化原查询、canonical project/target 与独立来源 signature，经过同一 knowledge/ordinary owners 核对；旧 v1/未知 proof 请求重建，不补新基线。
+- `loop` 公共 face 提供延迟导出的统一 context qualification，原 continuation recovery 共用；无新增扫描/排序器/状态策略。
+- guarded capsule 校验原 DTO files digest，draft/repair 传递同一冻结 receipt。实际 draft/revise capture 覆盖 admission，原 provider 前提交记录保留上下文事实，事务顺序/commit数/权限/proposed-only 不变。
+- 同内容另一 root/target、换料 projection、缺失/hash损坏/超预算均拒绝；guard metadata不含资料正文/绝对项目根，既有20000-byte预算保持。
+
+### 验证与真实失败
+
+1. 改生产前真实red **4 failed / 1 passed，1.51s**：foreign/missing root 两个错误入参送达、采集后变化未报错、新入选知识仍起草；均到达实际公开链路，不是 fixture setup 失败。`red.log`。
+2. 首次green **1 failed /49 passed** 是新测试错误预期服务返回 diagnostic，而实际既有 Chapter control seam 抛 `AgentRuntimeError`；改为断言原正式错误 seam 和零 writer 后 **50 passed，7.25s**。未改变错误协议或弱化 drift 断言。
+3. 新增 committed receipt 比较先暴露另一个真缺口：原 draft admission 在 generation capture 之前，落库 context_delivery=None；修复 capture placement 后包含 revision事务/provider来源/source standards 的组 **58 passed，24.89s**。随后真实repair路径 **1 passed /13 deselected，0.55s**，不再只用假 draft/revise DTO绕过真实 writer。
+4. 最终两份新测试 **16 passed，11.40s**：14个source binding/确认/draft/repair/identity/projection/未知proof case +2个文件SQLite、Session/engine关闭后新解释器的公开确认恢复；未变正常出proposed patch，新入选知识在起草前拒绝，原稿不变。`final-new-tests.log`。
+5. 最终扩大回归 **65 文件，1089 passed /4 skipped，438.61s，exit0**；含原32-case ordinary recovery与新增全部16case、review/check/voice/chapter/知识/续写/恢复/事务/WS/schema/API边界。exact cwd/argv：`final-command.json`，原输出：`final-pytest.log`。
+6. 两个in-memory mutation均killed：忽略新知识资格 → 公开new-selection确认没有拒绝；忽略采集上下文资格 → ordinary采集后变化被补成新基线。inner pytest exit1/harness exit0，生产源码未改。`mutation-selection.log` / `mutation-baseline.log`。
+7. Ruff全API check、8个已格式化改动文件 format --check、Frontend typecheck、git diff --check、frozen source baseline diff 全通过。**Assistant service.py 全文件format仍是进入本轮时已有的格式漂移**：相同 stdin-filename/config 的before/after diff逐字节一致，均exit1；只移动两个admission行，不顺手格式化用户无关修改。不能写成9文件全格式通过。`format-service-before.diff` / `format-service-after.diff`。
+8. 四份generated contracts与本轮入口WORKTREE备份逐字节一致（不与HEAD混淆），未改DTO/router/schema、未跑OpenAPI去覆盖用户已有drift。AST逐方法审阅证明chapter runtime只改_start_chapter_brief、tools只改_draft/_repair；Assistant只改revise_file_content/draft_file_content的capture位置。未改frozen baseline。
+
+### 证据与仍开放项
+
+入口原字节、manifest、原red/green、exact argv、两次mutation、格式基线、AST review、增量diff/最终hash：`C:/Users/kanye/AppData/Local/Temp/sf-brief-consumed-before-copnpql8`。
+
+此批证明C17的这些来源版本/身份/确认资格行为与真实provider seam、新解释器恢复，不证明Brief交互收益或所有Chapter/合成Memory生命周期；ordinary原有解码hash/同省略状态/alias限界保持。没有真实host kill/断电、真机GUI完整确认、多provider、文学质量或独立作者收益验收；根pnpm verify及完整Desktop/packaged发布门禁未在本轮执行。
+
+原“续写送达 → 检查协议 → 作者声音 → 操作与派生收口 → 后台评估 → 发布和作者验收 → GitHub提交”目标保持活动且未完成。继续先核对续写实际端到端和原清单剩余来源/身份交互证据，再按顺序推进后续。已异步询问真实模型/作者验收样本与费用上限；未确认前不付费，仍继续可执行的非付费实现与验证，不把缺少这项答复伪称当前全面阻塞。
+
+## 2026-10-05 本轮：C10 Desktop 续写资料缓存在途失效
+
+### 范围与真实修复
+
+遵守“不创建任务，先推进续写送达这一批”。仅改既有生产模块 `apps/desktop/frontend/src/lib/project/context-bundle.ts`，新增 `context-bundle-lifecycle.test.ts`，追加本报告与 frontend state-management spec。未改 useInlineChat、tauri-fs、API、契约、权限或发布门禁；入口 WORKTREE 原字节备份，保留其他未提交改动。
+
+- mutation 不再只删已缓存项：首次 I/O前注册 lifetime，保存/删除/改名失效同时封闭在途请求。迟到旧采集不能返回/重建旧缓存；失效重采整份 index+files，避免跨文件新旧混合。
+- 连续变化最多3次采集后明确报错，没有旧快照兜底；稳定后下次调用恢复。未知/祖先/Windows斜杠大小写/显式失效生效，无关项目不额外重读。
+- pin数组在 await前复制，有序缓存 key 与实际选择一致，有限席位下换序不误复用旧优先级；不改既有选择、配额或截断算法。
+
+### 验证结果
+
+1. 改生产前真实 red **7 failed /1 passed，953ms**；涵盖在途save、迟到旧cache、混合版本、index/delete、pin顺序与数组捕获、有界失败。不是 setup/编译失败；`red.log`。
+2. 最小兼容组 **38 passed /5 files，1.12s**（当时新增8case）；最终新文件 **12 passed，899ms**。新增 Windows alias 对照一度1failed/11passed，暴露 normalizeRoot 仅 trim 而不归一化斜杠的实际缺口；复用 normalizePathForMatch 修复 matcher，未弱化断言。
+3. 完整前端基线 **167 files passed /1 skipped；1470 tests passed /1 skipped，45.44s**；最终 **168 files passed /1 skipped；1482 tests passed /1 skipped，27.99s，exit0**。输出 `frontend-baseline.log` / `frontend-final.log`。
+4. 3个 transform-only mutation 全 killed：移除在途fence、重新排序pin key、不复制pin数组；均真正匹配目标测试 AssertionError、inner exit1，生产字节未变。exact argv和结果 `mutation-outcomes.json`，原输出 `mutation-*.log`。
+5. Frontend typecheck、两个改动TS文件直接 installed ESLint、Prettier check、API source standards **16 passed，5.22s**、git diff --check通过。无API改动，本轮不重复声称已跑全API套件。
+6. 前端生产构建 exit0，Vite **built in24.80s**；产物隔离输出至本批证据目录 `frontend-build`，预先验证新目录不存在且位于该目录内部，未覆盖用户 dist/既有发布产物。保留大于500kB chunk warning，不宣称性能优化已验收。
+7. **根ESLint未通过：26 errors**，均为本轮前已存在的 `.trellis/tasks/.../research` 复制/验证脚本（缺失rule与no-undef）；原输出 `root-eslint.log`。pnpm入口另报 **ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY**，未改CI/安装确认设置、未purge node_modules；使用现有eslint/prettier二进制验证任务文件。不能把局部通过写成根门禁通过。
+8. 四份生成契约及备份的其他源文件/既有测试与入口逐字节一致；未刷OpenAPI覆盖用户已有drift。本报告/spec只追加并校验原字节前缀。增量diff、最终hash与命令记录在证据目录。
+
+### 证据和边界
+
+`C:/Users/kanye/AppData/Local/Temp/sf-desktop-continue-before-onlzkhq2`：入口manifest/原文件、red/green/full-suite/build、3mutation、根lint失败、相对入口diff与最终hash。
+
+证据是 happy-dom 中公开文件系统 fixture→实际 collector→loadInlineContinueContext→streamContinueProse请求序列化，不是 mounted useInlineChat、真实provider消费或原生GUI。删除case是fixture盘删除+公开失效事件，不是native deletePath。此守卫覆盖已观察mutation，不覆盖静默外部写入、磁盘原子快照、全部路径别名或深不可变bundle。
+
+本批不关闭整个续写送达清单或完整目标；完整Tauri写回/host kill/断电、真实作者长程质量、后续阶段、根pnpm verify/发布与GitHub提交仍未完成。没有付费调用、commit/push或新Trellis任务。
+
+## 2026-10-05 本轮：mounted 行间续写归属、取消与迟到交付
+
+### 实际范围与修复
+
+继续续写送达阶段，不创建Trellis任务、不提前提交。仅改既有 `useInlineChat.ts` 生产owner，新增 `inline-chat-lifecycle.test.tsx`；两份既有测试作对应行为迁移，追加spec/本报告。入口WORKTREE备份而非HEAD，其他改动保留。
+
+- open捕获editor/model实例、model version、project/file。输入、context采集后、delta/done/失败与接受动效前后核对原归属；同字节换model仍拒绝。会话ID成功标记归原root，两种mode同项目沿用、换项目清空。
+- teardown实际abort在途信号，不再仅删除DOM；model/content事件立即取消挂起生成，卸载dispose新增订阅。权限在输入和资料采集之后重新读取，改为read不派发。
+- 旧input、cancel、accept/reject闭包不再指挥后来session；旧focus/layout帧不碰新交互。writeback派发前换项目拒绝；派发后迟到完成不再改新项目cursor/status。实际写盘安全仍由原guarded owner负责，不新增writer。
+
+### 红测、验证和门禁
+
+1. 真实mounted hook→DOM输入→现有context collector→公开HTTP/SSE，改生产前 **10 failed /2 passed，128ms**（`red.log`）：model/content drift仍POST，open A/refs B混用，切文件/卸载signal未abort，旧结果渲染并误归属新项目，旧focus与read权限撤销漏闸。project drift原已阻止POST但留下永远loading，是独立UI失败；不把它记成重复派发。
+2. 首次兼容green **1 failed /67 passed**，失败是原source-string测试强制成功路径读迟到project ref。用真实mounted continue/revise各三次发送证明同项目ID沿用、B首次清空替代该项，未删实际session安全行为。
+3. 新补旧input **1 failed /17 passed**；旧accept最初未等待170ms动效的断言不足，修正为等待200ms后真实red **1 failed /17 deselected**，确实将后来提案派发writeback。两者均修复。model/content事件立即abort真实red **2 failed /18 deselected**，增加正式Monaco订阅后通过。
+4. 最终新文件 **26 passed，984ms**（`final-new-tests.log`）：中段光标与完整suffix请求、漂移与权限、取消/切文件/卸载、迟到SSE/旧DOM/focus、两种session复用、接受重入/动效变化/迟到写回。guarded写回handoff是spy边界，不伪称原生盘写。
+5. 首次全FE **1 failed /1506 passed /1 skipped，27.85s**：原AuthorView测试将总model listener数写死1，新增inline取消订阅后为2。只更新该计数为2，保留独立model/content/selection发布、去抖、unmount全部listener=0及零盘写断言；集成组 **69 passed /3files，2.55s**。
+6. 最终完整FE **169 files passed /1 skipped（170）；1507 tests passed /1 skipped，30.91s，exit0**（`frontend-final-corrected.log`）。相对入口1482，通过数为1482+26新case-1移交source-stringcase，不写成1508通过。
+7. 4个Vite transform-only mutation全被实际AssertionError杀死：移除model身份、teardown abort、旧input归属、model版本资格。旧input首次mutation语法不合法，**不计killed**，保留invalid config/log；修正单变量条件后目标断言失败。生产磁盘字节未变，exact argv/result：`mutation-outcomes.json`。
+8. Frontend typecheck、四个改动TS文件ESLint **--max-warnings 0**、Prettier check、git diff --check通过。初次检查发现已移交source-test的unused helper与多余callback dependency，均直接清理，无rule disable。构建隔离输出到本批证据目录，exit0、Vite **built in12.55s**；保留dynamic/static import及大chunk warning。
+9. 根ESLint实际重跑仍 **26 errors /0 warnings**（`root-eslint.log`），均为既有research复制/浏览器脚本，与上一批相同。根pnpm verify未通过/未跑，不能以改动文件lint代替根门禁。无API生产改动，本轮不声称重跑全API或源冻结门禁。
+10. 四份生成契约与备份的其他未改源/测试逐字节一致；不改DTO/路由、不生成OpenAPI覆盖用户已有drift。spec/report只追加，原字节前缀完整；增量diff/final hashes/command record保留。
+
+### 证据与验收界限
+
+`C:/Users/kanye/AppData/Local/Temp/sf-inline-scope-before-jkid3m5g`：原字节manifest、实际red/green、两次全FE、模型事件/旧accept红测、4mutation及invalid首尝试、build/rootlint、相对本轮入口diff与最终hash。
+
+这次补足真实mounted useInlineChat的输入/HTTP/流式交付证据，不是SSR/source-symbol断言；Monaco只以其消费方法adapter代替绘制，FS/HTTP仍fixture。无真实provider、native GUI、完整原生guarded写回或作者长程文学质量验收。abort只证明客户端信号，不证明后端/供应商任务已取消；写回派发后隐藏迟到UI不撤回已有写盘。
+
+完整目标保持活动。续写清单其余来源/投影/真机验收、检查协议与作者声音的完整验收、派生收口/后台评估、根门禁/发布/独立作者与GitHub提交仍按原序推进；本轮无付费调用、commit/push。
+
+## 2026-10-05 本轮：真实Monaco续写送达验收与两个UI缺口
+
+### 实际发现与修复
+由当前源码创建隔离Chromium/真实Monaco harness，不再用Monaco adapter代替绘制；文件系统/HTTP/model仍明确fixture。起初Windows Node绝对ESM路径与外部harness的CJS interop失败属于fixture初始化错误，不计产品红测；修正file URL、模块解析与ready marker后继续。
+
+- **真实ARIA红项**：Ctrl+Shift+K已显示并聚焦输入，但真实`.view-zones[aria-hidden=true]`使按role定位超时。实际DOM、截图与pageerrors=[]独立证明，不把找不到控件误判为没注册快捷键。open暴露此host，input/loading/diff保持；teardown恢复原null/false/true属性，不改Monaco依赖。
+- **真实pointer红项**：ARIA修复后首个middle-cursor请求正确、提案显示，但普通弃用click被真实`.view-lines`截获。保存Playwright真实hit-test失败/DOM/截图；仅给`.sf-inline-chat/.sf-inline-diff-zone`加z-index:1，不改业务回调、不force click、不关闭正文pointer事件。
+- 生产只改 `useInlineChat.ts` 与 `index.css`；新增4个既有mounted文件case，追加spec/本报告。未改API、provider、guarded writer、契约或release gate；harness与缓存/截图在仓库外证据目录，未覆盖用户dist。
+
+### 验证
+1. 改生产ARIA前目标unit真实 **3 failed /1 passed /26 deselected**；input/loading/diff及原null/true属性未暴露，原false对照保持。修复后兼容组 **82 passed /4 files，2.14s**；最终该mounted文件30case由全FE覆盖。
+2. 真实Chromium最终两次全新browser/context通过：实际快捷键/role textbox/普通输入点击与Enter；中段cursor=2、完整suffix与pin进入实际请求；未接受前原稿/写回次数不变；hold真实source读取期间经TauriFileSystem fixture保存，下一请求只含新银钥匙、无旧铜钥匙；正常取消button中止原signal，迟到done无提案；A→B切project/model后旧signal中止，B首个请求旧session ID=null。原role定位不使用includeHidden，click不使用force。第二次还验证弃用后真实host aria-hidden恢复true。
+3. 最终完整FE（含CSS最终修改）**169 files passed /1 skipped；1511 tests passed /1 skipped，36.55s，exit0**；相对上一轮1507增加4case。早一次ARIA后全FE亦1511pass/1skip29.51s，不冒称那次已含后来CSS。
+4. Frontend typecheck通过；两个改动TS ESLint --max-warnings0通过；TS/CSS Prettier check与git diff --check通过。生产构建隔离输出到本批目录，exit0，Vite **built in28.57s**；保留既有dynamic/static import和large chunk warning。
+5. 浏览器harness仍有Monaco动态import的Vite warning，初次未预打包还有依赖sourcemap缺失warning；最终pageerrors=[]且无非fixture网络。未改依赖/忽略规则以掩盖warning。入口备份的其他source逐字节一致，report/spec原字节前缀完整，diff与hash另存。
+
+### 证据和边界
+`C:/Users/kanye/AppData/Local/Temp/sf-inline-browser-audit-gy9llq49`：入口manifest、harness.tsx/run.mjs、实际ARIA/pointer红测DOM/JSON/PNG、unit-red/green、browser-after-pointer/browser-replay、summary.json完整请求、两张成功截图、全FE/build、最终hash/diff。重放cwd=`D:/StoryForge/apps/desktop/frontend`，command=`node C:/Users/kanye/AppData/Local/Temp/sf-inline-browser-audit-gy9llq49/run.mjs`。各run finally关闭其browser与独立port=0 Vite server，未复用用户浏览器/登录态，未发真实provider请求。
+
+本批证明当前Monaco/hook的浏览器送达与交互边界，不是完整App、Tauri/WebView、真实native文件IO、guarded写回、provider质量或作者验收。根ESLint上一轮26个research错误、pnpm入口/总门禁与完整发布仍开放，本轮不重复声称根门禁通过。完整六阶段目标保持活动，未创建任务、commit/push或付费。
+
+
+## 2026-10-05 本轮：续写送达的真实浏览器回归接入门禁
+
+按最新用户选择仅推进续写送达这一批，不创建Trellis任务，不进入下一阶段。入口WORKTREE按字节备份，保留全部用户未提交改动；本轮生产hook/CSS没有再修改。
+
+### 实际交付
+- 仓库新增 `apps/desktop/frontend/scripts/verify-inline-continuation.mjs` 与 `scripts/fixtures/inline-continuation.jsx`，替代只有仓库外临时脚本的验证状态。fixture相对导入当前React/真实Monaco/hook/FS/CSS；磁盘、HTTP仍明确隔离fixture，不复制产品实现、不发真实provider、不写作者稿件。
+- Frontend增加 `verify:inline-continuation` 命令；根local verifier与Desktop verify接入同一门禁，原检查不删除。新增4个公开ESM派发测试核对顺序/其余门禁/失败和不可启动均停止/两个package绑定；子进程被拦截，这不是完整根verify执行证据。
+- ESLint仅增加fixture JSX匹配与浏览器globals，使新fixture确实受检；无新增ignore/rule suppress。首次该文件被ESLint提示未匹配配置，新增覆盖后冗余global注释报6个no-redeclare，已移除注释修复，未削弱rule。
+- 每次独立mkdtemp缓存/证据、新Chromium/context；不加载.env，使用显式fixture API/key，禁止非本次loopback HTTP请求；成功/失败都保留JSON/截图，finally释放browser/Vite/HTTP。
+- 查实际Vite运行代码发现port=0回落默认5173，改为Node loopback listen(0)+middleware。首次并行验证又真实暴露默认WS24678冲突、pageerror `WebSocket closed without opened.`；修复为HTTP/HMR共享同一Node owner。前一轮报告的“port=0独立端口”仅为配置意图，不是已证明随机端口；本轮实际URL及并行重放补足并纠正该结论。
+
+### 验证与失败记录
+1. 最终仓库命令 `npm.cmd --prefix apps/desktop/frontend run verify:inline-continuation` **exit0**，证据 `C:/Users/kanye/AppData/Local/Temp/storyforge-inline-browser-mWvkJq`。真实Ctrl+Shift+K/role/普通pointer/Enter检查中段cursor=2、完整suffix、显式pin、proposed-only；源读取中保存后实际请求仅含新银钥匙；取消原signal并抑制迟到done；A→B旧signal取消/B首发session=null；visible proposal卸载后真实editor/input消失、pageerrors=[]。
+2. 并行首跑 **1失败/1通过**，真实WS争抢，不计验收通过；`browser-concurrent-*-red.log`。修复后两份并行 **exit0/exit0**，不同URL `http://127.0.0.1:59132/`、`:59133/`，各自新cache/context，完整5项断言与零pageerror；`browser-concurrent-outcomes-final.json`记录精确证据目录。
+3. 最终2个transform-only mutation被杀死：移除host ARIA暴露→真实role textbox等待超时；移除两类zone的z-index→真实view-lines拦截普通click。生产磁盘字节未变。首次mutation把全页加载timeout缩成2秒、CSS anchor未按pre/CRLF处理，属于无效实验，保留 `mutation-*-invalid.*`，**不计killed**；最终对已ready页面单变量变异，配置/argv/实际UI失败/退出码见 `mutation-outcomes-final.json` 与对应log。
+4. 新门禁unit **4 passed，290ms**；初次用happy-dom中的import.meta.url解析Node路径导致fixture setup错误/0tests，改为现有frontend运行cwd惯例后通过，不算产品red。完整FE **170 files passed/1 skipped（171）；1515 tests passed/1 skipped（1516），29.23s，exit0**，比上一轮增加4case；`frontend-final.log`。
+5. Frontend typecheck **exit0**；所有本轮改动/新增JS/TS文件 ESLint **--max-warnings0**、package/config/script/fixture/test Prettier check、git diff --check通过。仅门禁/fixture改动，本轮未重建生产包、未重跑完整API/native/provider；不复用旧build hash充当本轮构建。
+6. 根ESLint实际重跑仍 **26 errors**，均来自此前已存在的 `.trellis/tasks/.../research`复制/验证脚本；`lint-root-final.log`。没有扩大ignore隐藏错误。根pnpm verify与完整Desktop verify没有全部执行通过，不能把注册/派发unit/局部lint写成总门禁绿。既有pnpm重装NO_TTY问题不通过purge或改CI绕过。
+7. Vite/Monaco动态import warning仍保留，未改依赖或关闭警告。入口备份的生产hook/CSS和非本轮改动文件保持；无DTO/route/OpenAPI刷新，既有契约drift保留。spec/report仅追加，原字节前缀完整；入口相对diff/final hashes另存。
+
+### 证据与未验收项
+入口与本轮证据：`C:/Users/kanye/AppData/Local/Temp/sf-inline-browser-gate-before-4s2lged8`。仓库命令可独立重放；浏览器原始证据在各次新mkdtemp目录，精确command.json/summary.json/PNG保留。所有本轮代码范围与最终hash见final-hashes.json，增量diff对本轮入口而非HEAD。
+
+本轮补足可持续的Chromium/Monaco送达回归，不是完整App/Tauri WebView、原生IO/guarded写回、真实provider消费/文学质量、host kill/断电或独立作者验收。显式pin为普通作者固定资料，不当作结构化Knowledge准入证明。根门禁/发布、余下阶段与GitHub提交仍未完成；未commit/push、未付费调用、未创建任务。
+
+
+## 2026-10-05 本轮：续写送达联合回归与当前资产的真实 Native 确认写回
+
+继续完整目标的续写送达阶段，遵守不创建Trellis任务的选择，不提前转入后续阶段。本轮没有修改生产代码；补足验收证据、重建隔离前端和debug Native产物，spec/report仅追加。作者数据、原frontend/dist与未提交源码不覆盖；默认debug exe作为生成产物被本轮重建，不把其描述为原字节未变。
+
+### 当前联合回归
+- 实际 `uv run --no-sync pytest` 执行9份续写/送达/独立来源/knowledge/ordinary冷恢复/Brief绑定测试，**197 passed，299.54s，exit0**。session 91060已确认终止；完整stdout没有重定向，精确argv和最终结果另存 `api-suite-result.json`，不伪造完整日志。
+- `tests/test_source_code_standards.py` **16 passed，3.50s，exit0**；生产源码仍与入口manifest逐字节一致。这不是全API、根verify或真实模型质量通过。
+- 当前前端Vite生产构建隔离输出到本批目录，**built in13.49s，exit0**，保留外部outDir不清理、dynamic/static import及large chunk警告。没有 --emptyOutDir，构建前验证新目录不存在，没有清空用户dist。
+
+### 实际 Native 链路
+普通debug `storyforge-desktop`、当前嵌入前端、完整App/真实Monaco、原生FS/IPC、真实API、生产OpenAI-compatible HTTP/SSE adapter与本次独立127.0.0.1合成provider；没有renderer fetch/FS/IPC mock。只在已知项目树创建合成稿件，环境白名单、独立Local/config/WebView2/DB/API/CDP/provider端口，不读用户真实provider配置、不复用浏览器、不发生云调用。复用既有smoke controller仅导航打开项目，不用它授权、注入补丁、编辑文本或代写文件；后续操作用真实UI快捷键/输入/普通按钮click。
+
+1. `run-L6Xpvc`全新Native通过：真实Ctrl+Shift+K、第2行中部落点/完整原文实际请求；provider实际messages明确收到只读尾段；done权威正文等于合成段；确认前原稿未变；弃用不写盘；再次生成沿用真实返回session ID（不硬编码ID），接受后确切前缀/新段/原后文与换行全部相等。作者看见正式“续写已写回当前文件”，一个写前version metadata及完整operation-bound审计。
+2. `run-Pj0Xed`另一全新root/config/DB/WebView2重放全部通过，额外经真实只读 `read_shadow_snapshot_file` 回读影子Git快照，**exists=true且content与原稿严格相等**；仅1个intent、1个state=applied outcome、1份schema-v2 version、1份完成封套audit，audit与outcome同operationId、version与正式done同assistant session。这里计的是持久记录，不声称测量了底层磁盘write syscall次数。
+3. 两次确实渲染本次隔离构建 `/assets/index-BetPubzv.js`，`served-assets.json`在任何写作动作前断言。当前最终debug exe SHA-256 **784846114798c6d8022b5b064b7194c084eae91214a60203bc64738dc3312ab5**。普通debug Native保留原生命周期和权限逻辑，不是release/installed/frozen sidecar；API运行当前Python源码，不是本轮PyInstaller重建。
+4. 原目录截图、provider实际请求、真正出站continue参数、原稿/新稿、版本/audit/snapshot/outcome均保留 `native-inline-summary.json`、`provider-state.json`、`proposed-before-reject.png`、`accepted-native-write.png`。本轮外部host/verifier衍生自现有Native验收host，仅改合成provider响应和本次素材/证据路径，不声称已新增仓库原生CI门禁。
+
+### 无效实验与纠偏（不计产品red / 不计通过）
+- 初次只重建Rust，却嵌入旧frontend/dist：窗口虽真正显示续写输入，role定位失败。实际页面`http://tauri.localhost/`提供旧 `/assets/index-CjoRCxo-.js`，旧CSS/JS未含此前ARIA/z-index修复；当前源码已经有修复。`run-ymda7l`失败DOM/截图与 `stale-embedded-assets.json`保留，不能据此再次修改生产hook。
+- 首次TAURI_CONFIG用Windows跨盘绝对frontendDist：工具把它当file URL，实际页面成为frontend-build目录索引，没有App；先移除Vite还触发debug正式frontend readiness拒绝（`run-q7c6HE`，host终止），恢复owned Vite后目录索引仍导致0个desktop-shell（`run-VpwE3X`）。延长ready等待仍失败，回到实际URL/HTML查明根因，不把等待超时当产品失败或重启依据。
+- 将已构建资产逐字节复制到新建、独立且可核对的 `D:/StoryForge/output/playwright/sf-inline-embedded-um4c1opd/frontend-build`，仅本次cargo进程TAURI_CONFIG指定src-tauri相对路径；保留原tauri.conf.json与用户dist。C盘原构建与D盘嵌入副本hash清单严格相同。debug正式要求的owned Vite保持3007 strictPort，不杀已有服务/不绕过readiness；新Native开始即核当前asset identity。之后才计上述两次成功。
+- 初始草稿verifier曾写测试fixture式session=71的预期，但该断言在旧资产失败时未到达。正式重放前改成解析实际首轮SSE done并与第二次请求比对，旧脚本保留。不削弱会话归属断言。
+- node_repl中的Playwright import报CJS/ESM互操作错误；它没有执行任何UI动作。改用仓库现有Node/Playwright执行方式，未安装依赖或操作用户浏览器。
+
+### 收尾、边界与下一步
+各owned host通过明确control/shutdown、当前exec handle终态确认收尾；host按既有owned-process清理关闭Native树/Vite/provider/control。对已记录Native/API PID和本次各服务端口再次核对，未留本次服务。不是本轮normal-close/断电验收，也不把host-closed标记单独当全部进程证明。原始失败目录不删除；合成稿与快照均留证据。
+
+证据根：`C:/Users/kanye/AppData/Local/Temp/sf-inline-native-before-dj05tvuh`；current config override、frontend/native build日志、源manifest/保留校验、完整artifact hashes、原生host/verifier、无效配置/失败页面、两个成功run与回放命令都在此。来源和结果按实际时点区分，不把先前旧exe/hash/截图当当前结果。
+
+本轮首次补足此续写场景的当前Native确认/真正守卫写回/原始快照读回证据；仍未验全权限、多窗口/漂移/重开与kill/断电矩阵、显式pin的完整Native UI及provider文学质量/独立作者验收。两个普通Native合成正例不等于完整Tauri闭环全部通过。完整六阶段目标保持活动，根lint26/总门禁、后续阶段与发布/GitHub提交未完成；无付费、commit/push或任务创建。
+
+
+## 2026-10-05：续写送达 Native 权限、固定资料与漂移补验（本轮）
+
+用户范围：不创建 Trellis 任务，先推进续写送达；不展开其余阶段，不提交/推送。MCP desktop-commander/tool_search 未暴露，沿用此前获准的聚焦只读 shell 降级。
+
+本轮没有修改生产代码、测试或配置，也没有重新编译。开始前按 entry-manifest.json 核对上一轮记录的相关生产源文件哈希、当前 debug Native exe 哈希；真机写作前再次断言 http://tauri.localhost/ 的实际内嵌 entry 为 /assets/index-BetPubzv.js。沿用已隔离构建的当前产物，而不是把 Vite readiness 当作 served bundle 身份。保留作者原 dist、全部入场未提交改动及原证据。
+
+### 实际验证与结果
+
+- 外部 Native 验收入口：`node C:/Users/kanye/AppData/Local/Temp/sf-inline-native-matrix-before-8pr1es59/native-host.mjs`，然后 `node C:/Users/kanye/AppData/Local/Temp/sf-inline-native-matrix-before-8pr1es59/native-matrix.mjs <本次新 launch.json>`。实际 Tauri/App/Monaco、Native FS/IPC、源码 API、正式 provider adapter；仅模型替换为 owned loopback 合成 provider。没有 renderer fetch/FS/IPC mock，没有直接调用业务写 handler，没有 force click。
+- `run-DJ2WNp`：初始六项矩阵通过（verifier-v2）；`run-lPXl7C`、`run-Iadfml`：增强八项矩阵分别从新项目/DB/config/WebView2 重放通过，各六次真实续写请求（verifier-v4、最终版）。截图、请求、正式 SSE done、provider messages、快照/receipt/audit 与失败原件均保留。最后一次桌面保存资料到下一轮证据核验为 **3928 ms**，明确小于旧缓存 30 秒 TTL。
+- 权限：通过真实 Composer 选择只读后，Ctrl+Shift+K 被正式提示拦截，零续写请求、稿件不变。询问档生成 diff/弃用不写稿；提案可见后切为只读，普通接受取消且稿件不变。自动、完全放行档各用独立项目：快捷键行间续写仍保留显式确认；接受前原稿不变，接受后全文精确相等，原有 prefix/suffix 保留。这里只验 direct inline flow，不把它当作 Agent patch 自动接受协议验收。
+- 固定资料：实际 UI 固定 `knowledge/钥匙.md` → Native 读盘 → 续写请求 excerpt → 最终 provider messages，均存在 sentinel；writer 同时看到只读 suffix。随后真实 Monaco 键盘编辑该资料、Ctrl+S guarded 保存，再返回正文续写，请求与 writer 只带 GUI 新版，不混入旧摘录。
+- 静默外部资料修改对照：无 FS_MUTATION_EVENT 时前端 TTL 内请求仍可能带旧摘录，但实际 API 最终 writer 重读当前磁盘，只带新版。这是既有 C10 的明确边界，不宣称所有静默外部写入都已让前端缓存失效；也不能把旧请求摘录直接认定 writer 仍消费旧资料。
+- 正文磁盘漂移：可见提案后只修改 owned 合成正文磁盘，再普通接受，实际 UI 报 `接受失败：…磁盘内容已变化…`。延迟再次读盘，外部新稿严格保留；没有新增 applied receipt 或 complete author-loop audit。
+- 跨项目：自动/完全放行两个新项目首发 assistant_session_id 均为 null，实际请求不携带上一项目固定资料。同项目重复发起沿用正式 done 返回的 ID，不硬编码 fixture ID。
+- 正向真实写回：自动/完全放行各核对恰好一份写前版本、一份 applied receipt、一份同 operationId 完整 audit；通过只读 `read_shadow_snapshot_file` 回读原始全文，version assistantSessionId 与该项目正式 done 相同。计数只指持久业务记录，不宣称 raw disk syscall/write 次数。
+
+### 常规门禁
+
+- `npm.cmd --prefix apps/desktop/frontend run test -- --run tests/inline-chat-lifecycle.test.tsx tests/inline-continue-context.test.ts tests/editor-disk-writeback.test.tsx tests/inline-browser-gate.test.ts`：**4 files / 52 tests passed，2.81 s**。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`：exit 0。
+- `npm.cmd --prefix apps/desktop/frontend run verify:inline-continuation`：exit 0，真实 Chromium/Monaco 五项流程全部通过；证据 `C:/Users/kanye/AppData/Local/Temp/storyforge-inline-browser-YssgPp`。
+- `node --check <本轮外部 host/verifier>`：exit 0。本轮未改变 OpenAPI/DTO，不需要刷新合约；没有重跑全量 API/FE/root verify，不把上一轮 197/1515 项通过算成本轮重跑。上一轮 root lint 26 个既有 research 错误仍未处理，总门禁/发布资格没有通过。
+- Vite 动态 import、owned readiness Vite 的 Tailwind content 警告原样保留；没有新增 ignore/suppress。
+
+### 无效实验、清理与剩余边界
+
+- `run-AObpFx`：脚本硬编码斜杠路径，Native 实际候选展示 Windows 反斜杠；未发出续写请求，属于 locator 设置无效，不改生产代码。
+- `run-zCX4rW`：把“静默外部写入立即刷新前端请求”误设为 C10 必须条件；实际 provider 已收到新版，spec 明确不覆盖该未观察 mutation。保留失败与 messages、分类，不把它计为完整通过，也不以假 mutation 广播绿化；另补真实 GUI 保存测试。
+- 五个 owned Native host 都 POST shutdown 并取得真实句柄 exit 0；另核对所有已知 Native/API/service PID 与端口无残留，保存 cleanup-verified.json。一次 PowerShell cleanup JSON 数字键序列化失败后改字符串键，重新实查并成功保存；没有据空文件宣布清理完成。
+- 证据根：`C:/Users/kanye/AppData/Local/Temp/sf-inline-native-matrix-before-8pr1es59`（entry 原字节、manifest、版本化 verifier、完整 run、verification-results/reproduction/cleanup/最终哈希）。不是可移植 release 门禁。
+- 仍未验：release/安装包/frozen sidecar、Agent 自动补丁权限协议完整矩阵、多窗口、重开/强杀恢复、云模型质量与人工作者长程验收。只补续写批次 Native 证据，不声称整个六阶段目标完成；未创建任务、branch、commit 或 push。
+
+
+## 2026-10-05：续写衔接的光标仅移动存档修复与 Native 冷重开（本轮）
+
+上一目标轮次属于真实进展：原生权限/固定资料/磁盘漂移证据已补齐。本轮继续完整六阶段目标中的续写衔接，不创建 Trellis 任务；未提交/推送，不把本批验收等同整个目标完成。desktop-commander/tool_search 仍未暴露，沿用已获准的聚焦 shell 降级；未并行委派 agent，未调用云模型。
+
+### RED → 最小修复 → GREEN
+
+- 在新隔离普通 Native `run-wM4O6q` 中，实际键盘 Ctrl+Home、ArrowDown、ArrowRight 将光标移至 2:2，等待 600ms（大于 Editor 180ms 去抖）。随后正式续写请求确实为 cursor_line=2，弃用后稿件不变，但 `storyforge:workspace-session` 的 cursors 仍为空；`native-cursor.mjs` exit 1，原件/截图/DOM/请求保存。
+- mounted App 回归同样 RED：仅通过真实 Editor 公共 `onCursorPersist` prop 报告 23:5，实际存档仍为旧 17:4；1 failed / 7 passed。根因：`recordCursor` 只改 ref，App 的 persist effect 仅依赖项目/页签/活动文件，不会因单独光标移动执行。
+- 仅改 `apps/desktop/frontend/src/components/app/useSessionRestore.ts`：由 `persistSession` 发布最新可写 workspace snapshot；已有 Editor 去抖回调核对 mounted、canPersist 与当前 openFiles 归属后，直接按原 storage owner 保存更新光标，保留同作品其他光标、页签和活动文件，不为光标移动重渲染整个 App。导航/恢复 phase 交接与卸载同步清空授权快照，禁用/无项目也清空。没有改 Editor 去抖、API/DTO、权限规则、手稿 writer 或工作区格式。
+- `project-library-restore-app.test.tsx` 新增四项公共行为：仅移动即保存且不写手稿；切另一作品迟到光标不污染/复活；禁用恢复不新建存档；同作品关闭页签后迟到光标不复活该文件。保留五项原有恢复测试。关闭页签测试初次错误地把 close button 当作 role=tab 子节点，失败属于测试 locator（按钮实际为 sibling），只修 locator，没有改生产逻辑。
+- 当前重新构建 Native `run-tpdxPY` 同一真实键盘验证 exit 0，存档立即出现 2:2；下一次冷重开不重新定位光标，直接快捷键续写的正式第一请求仍为 line 2/null session ID/current accepted body，证明恢复光标行真正被消费。列 2 有持久存档回读；没有单独对列渲染做像素级验收。
+
+### 真实关闭/强杀/重开链
+
+- 新 baseline 经完整八项 Native setup 矩阵生成，不改上一轮任何证据/小说。所有重开都复用**完全相同** owned 项目、local-data/DB、config、WebView2；每个进程有独立日志/端口目录。resume 输入严格限定在本轮证据根。保存初始与修复后 persistent-baseline；不是换新 WebView profile 假称持久化。
+- `run-tpdxPY`：普通最近作品按钮恢复 full 档已接受稿与原页签，原 shadow snapshots 能通过只读 Native 命令回读。然后实际 titlebar-close 关闭，Native **exitCode=0**，expectedWindowCloseAt 有值、shutdownRequested=false、无 hardKill，host 句柄 exit 0；没有 fallback taskkill 冒充正常关闭。
+- `run-SMPlwq`：同源同状态冷重开仍先停作品库，选同一书才恢复 workspace。恢复光标直接发起续写，正式 diff 可见但未接受，三个项目正文/pin与既有版本、receipt、audit 的文件集及逐文件 SHA-256 完全不变。此时 owned `taskkill /PID 36528 /T /F` 强杀，Native **exitCode=1**；host 已确认 terminal exit 0，另在重启前实查 Native PID 与旧 API port 已消失。
+- `run-WsSoLK`：强杀后冷重开，原 scoped storage、稿件及全部已核对业务 artifact 原字节保留，旧 inline proposal 没有自动恢复/写回。full 权限与光标存档保留，原写前 snapshots 可读。普通 UI 选择 main 项目后，ask 与固定资料 restored；新轮实际 request/pin excerpt/writer messages 消费 GUI_SAVED 新资料与磁盘外部修改后的只读后文，首发 session ID 为 null；弃用后全部 manuscript/business artifacts 仍严格等于 baseline。再实际 titlebar-close，Native exit 0。
+- 四个本轮 owned host 40321/27336/73513/16616 都已 terminal exit 0；已知 Native PID 与全部 Native/API/provider/control/Vite 端口无残留，cleanup-verified.json 独立核对。仅 hard-kill 的 Native 子进程 exit 1 是预期故障注入；不忽略其他非零结果。
+
+### 验证命令与当前结果
+
+- targeted App/session：`npm.cmd --prefix apps/desktop/frontend run test -- --run tests/project-library-restore-app.test.tsx tests/workspace-session.test.tsx`：最终 **2 files / 23 passed，4.12s**。
+- FE 全量 `npm.cmd --prefix apps/desktop/frontend run test`：补齐关闭页签测试后再次跑，最终 **170 files passed / 1 skipped；1519 passed / 1 skipped，29.14s**；较早 1518 通过的结果保留，不拿旧计数冒充最终文件。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`、两变更文件直接 ESLint/Prettier check、`git diff --check`：exit 0，无 suppress/ignore。
+- `npm.cmd --prefix apps/desktop/frontend run verify:inline-continuation`：真实 Chromium/Monaco 五项 gate exit 0；证据 `C:/Users/kanye/AppData/Local/Temp/storyforge-inline-browser-A18pCu`。
+- 前端 current build：`npm.cmd --prefix apps/desktop/frontend run build -- --outDir C:/Users/kanye/AppData/Local/Temp/sf-inline-native-reopen-before-8pxme3im/frontend-current`，exit 0，13.96s；不存在的新目录，不 empty 用户 dist。嵌入副本 `D:/StoryForge/output/playwright/sf-inline-reopen-embedded-ddf6jhn4/frontend-current` 逐文件 hash 与原件相同。
+- process-only 相对 frontendDist override 后 `cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml --bin storyforge-desktop`：exit 0，24.39s。实际新 served entry `/assets/index-BmJFdT8D.js`；debug exe SHA-256 **a2e066da0a8a70c630add8d95a7fb3d16ae1d3c258a46a27aae74e9b9ac60009**。真实重开前断言 URL/entry/exe 身份；旧 Native exe 已完整备份到 entry/native-debug-before.exe，原前端 dist 未变。
+- 构建的大 chunk/static+dynamic import/multiple binary targets 警告，readiness Vite 的 Tailwind content 和动态 import 警告原样保留。没有为门禁降低规则。
+
+### 范围与证据
+
+证据根：`C:/Users/kanye/AppData/Local/Temp/sf-inline-native-reopen-before-8pxme3im`，含 entry 原字节/旧 exe、RED/GREEN、current build与hash、逐进程 launch/terminal、baseline/summary/provider/截图、cleanup、entry-relative diff/verification-results/reproduction。RED-replay host 指向保存的旧 exe，可按 fresh setup 再跑 cursor；此派生 variant 只过 syntax check，本轮未另重放，不能把它当作新增实际通过。
+
+本轮仍是普通 debug Native + 当前嵌入 FE + 源码 API + owned 合成 loopback provider；真实 FS/IPC/HTTP 未 mock。没有声明安装器/frozen sidecar、写回提交过程中强杀、脏缓冲强杀恢复、多窗口、云模型质量或作者长程验收。仅光标存档和“已生成但未接受提案”的 kill boundary 已验；根总门禁/root lint 既有 26 research 错误本轮未修或重跑，全量 API 未重跑，无 OpenAPI drift 本轮新增。完整目标保持 active，后续仍按续写→检查协议→作者声音→操作/派生→后台评估→发布/作者验收推进，最后才提交 GitHub。
+
+## 2026-10-05：检查协议——执行事实分离、严格 JSON 与失败候选保留
+
+继续完整目标的检查协议批次，不创建 Trellis 任务。不将 DOCX 内文字当 agent 指令；仅对照 R06–R09、检查执行/覆盖/稿件判断分离和格式失败保留候选的需求。desktop-commander/tool_search 仍未暴露，沿用已获准的聚焦只读 shell 降级。无委派、云模型、branch、commit 或 push。
+
+### 修复与证据
+
+- 新反例实际 RED：`test_agent_check_protocol.py` **16 failed / 29 passed，2.72s**；原 decoder 重复 findings 采用 last-wins，会让前面的硬问题被空数组覆盖。原 pipeline 将无效/provider 失败检查 trace 记 completed，且丢弃被阻断的最终候选正文。不是按 HEAD 回退用户代码制造 RED；使用本轮原 WORKTREE。
+- `chapter_check_protocol.py` 拒绝根/嵌套重复字段、NaN 等非有限常量；原 v2 hash/来源回显、100 条上限、完整校验后原子准入和单次 repair 权限不降级。新增 execution_status/code、协议覆盖与独立 manuscript_status/count；检查器失败不再被独立稿件计数冒称为小说缺陷，已有兼容 status/hard_failure_count 保留阻断行为。
+- 检查失败/未完整执行的 generic trace 与 plan 投影为 failed，精确 failed/incomplete 存在 output/check/detail；不新增 UI 词表导致 pending 或绿色完成。完整有效但有稿件问题仍记录检查执行 completed，稿件判断 fail。
+- `chapter_writing_pipeline.py` 阻断时保留**最终**候选到原 run 的只读 chapter_candidate artifact 和结果字段（正文/hash、Brief ID/hash、目标、执行/稿件状态）。没有 before/after、approval_action 或 proposed patch，不授权落盘。一次修复后仍不通过时保存修复后正文。ToolSpec 元数据同步候选与新增证据字段。
+- 新仓库可重放测试 `test_chapter_check_http_provider.py`：6 例分别启动 owned 127.0.0.1 随机端口合成 provider，实际生产 OpenAI-compatible HTTP/SDK + SSE drafting，不替换生产 LLM 方法；确认 Brief → 正文/check → actual error branch → 公开 artifact/event API 回读。valid、invalid、duplicate、101 findings、HTTP 400 和 finish_reason length 均验；完整已确认 goal/pov/setting/beats 与正文实际到达 provider。每例原空稿均未写入，server shutdown/close/join 后线程确认退出。
+- `finish_reason=length` 已由生产 transport 拒绝，当前上层统一记 provider_failure/failed；incomplete 用于已知协议预算超限。coverage.result_complete 只表示绑定与全结果协议校验完成，不证明模型语义通读、找全问题或文学判断正确；自动 pass 不是作者认可。
+
+### 验证命令与当前结果
+
+- 最终 `uv run --no-sync pytest tests/test_agent_check_protocol.py tests/test_chapter_check_http_provider.py tests/test_chapter_writing_contracts.py tests/test_chapter_writing_pipeline.py tests/test_chapter_brief_source_binding.py tests/test_chapter_brief_cold_recovery.py tests/test_agent_review_protocol.py tests/test_ws_contract_golden.py tests/test_source_code_standards.py tests/test_loop_tool_policy.py tests/test_runtime_tools.py tests/test_loop_tool_schemas.py tests/test_agent_run_roles.py tests/test_agent_permission_policy.py tests/test_agent_run_permission_guard.py -q`（cwd apps/api）：**216 passed，31.62s，exit 0**；最终日志 regression-final-v2.log。
+- 较早局部 GREEN 45 项、首轮相邻回归 147 项、单独 HTTP 6 项日志保留，不代替最终 216 项。中间增强测试误假设精简 terminal CompletedEventPayload 含 execution_result，**5 failed / 211 passed**；核对真实 owner 后，只改测试为公开 artifact/event 全文回读及 terminal summary/has_proposed_patch 断言，保留失败日志。没有扩展终态载荷或伪造冷恢复通过。
+- 八个变更 Python 文件直接 `uv run --no-sync ruff check ...`：exit 0；六个本轮规范文件 `ruff format --check ...`：exit 0。chapter_writing_contracts.py 与原 test_chapter_writing_pipeline.py 的入场备份亦有既有 formatter 告警，本轮只加相关常量/行为断言，不顺手重排原未提交代码；未以 ignore/suppress 隐藏。
+- `git diff --check`：exit 0。相关 spec/report 仅追加并校验入场原字节前缀；其余生产 trace、未修改来源保持入场 hash。没有路由/DTO/WS schema 或 DB schema 变更；新字段位于原泛型 dict payload，未改 OpenAPI 生成文件，既有用户契约 drift 保留。
+
+### 范围与未验证
+
+证据根 `C:/Users/kanye/AppData/Local/Temp/sf-check-execution-before-om3xmcvs`：entry/entry-extra 原字节、manifest、RED 与各轮实际日志、入口相对 diff、最终 hashes/reproduction。公开 GET 回读和持久 artifact/events 已验；原 compact terminal/F10 不自动装载候选卡片。候选沿原统一脱敏边界，逐字保存断言只覆盖本轮无敏感合成正文，不宣称绕过秘密脱敏。
+
+本轮没有修改 FE、重建 Native、运行 Native 检查卡片、独立作者/云模型质量验收、全 API/FE/root verify 或 release。上一轮根 ESLint 26 个既有 research 错误本轮未重跑/处理，发布资格仍未通过。检查批次还需 Desktop 只读候选/检查状态展示与冷恢复交互验收；完整六阶段目标保持 active，随后才继续作者声音、操作/派生、后台评估、发布和作者验收，最后提交 GitHub。
+
+## 2026-10-05：当前批次收口——候选/检查记录的只读送达与续写回归
+
+遵循最新回复：不创建 Trellis 任务，先收口续写送达；停止继续展开作者声音、操作/派生、后台评估与发布。保留本次上下文恢复前已在进行的检查历史只读送达改动，本轮只补齐其安全边界和验证，不宣称六阶段全部完成。不委派 agent、不调用云模型、不创建 branch/commit/push。desktop-commander/tool_search 未暴露，沿用此前获准的聚焦 shell 降级。所有入场脏文件按当前 WORKTREE 原字节备份，不回退到 HEAD。
+
+### 本批行为与边界
+
+- 新公开只读 `POST /api/agent-runs/chapter-checks/query`：canonical 项目与 assistant session 归属先验证，按原会话查询最近检查；响应包含 run/check 身份、原始协议、源摘要、可空只读候选与显式错误。默认 20、最多 50；严格整数，拒绝额外字段。没有 DB schema/migration 变化。
+- 后端按同 run 检查边界绑定唯一候选，核对前置 Brief、目标/Brief ID、双方 SHA 与实际正文 SHA；下一次检查不得复用旧候选。有 before/after/approval_action、requires_confirmation、非只读、正文篡改或歧义时不给正文。普通 API key 校验保持有效。
+- Desktop 在 ChatWindow 右栏内联章节检查历史：分别展示执行事实/稿件判断/协议覆盖，原引文和摘要只对历史输入有效；候选使用 readOnly Textarea，没有接受/落盘动作，不转换为 proposed patch。不为候选弹出新决策 modal。
+- 冷挂载按项目+会话读取，不依赖内存 run ID/localStorage。独立 owner generation 防 A→B→A 与 StrictMode 旧响应复活；当前 run 结算/手动重读只读证据；15 秒有界观察，transport 忽略 abort 也不阻塞 UI。读取失败明示，不重跑模型；同 owner 可保留上次历史，合法空结果正常隐藏面板。
+- 原 mounted ChatWindow 的 9 个测试 fixture 明确提供自身无检查历史的只读结果；不新增全局生产 bypass，也不全局屏蔽网络错误。首次全量通过但出现开发 API ECONNREFUSED 的日志保留；修正测试依赖后最终全量没有该噪音。
+- 真实 owned HTTP/SSE provider 六种结果补公开历史查询：检查/候选与原 run 逐字匹配，query 后 provider 请求仍恰好 3 次，原稿不变。仅模型端为合成 fixture，不把它称为真实云模型质量验收。
+
+### 最终验证与契约
+
+- `npm.cmd --prefix apps/desktop/frontend run test -- --run`：**172 files passed / 1 skipped；1531 passed / 1 skipped，28.14s，exit 0**（fe-full-final.log）。首次全量 1526 通过日志保留，不代替最终计数。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck`：exit 0。16 个本批生产/测试文件直接 ESLint 与 Prettier check：exit 0；6 个变更 Python 文件 Ruff check/format check：exit 0，未新增忽略/压制。
+- `npm.cmd --prefix packages/shared run test`：TS 契约编译 exit 0。
+- 相关后端最终回归命令：`uv run --no-sync pytest tests/test_chapter_check_history.py tests/test_agent_check_protocol.py tests/test_chapter_check_http_provider.py tests/test_chapter_writing_contracts.py tests/test_chapter_writing_pipeline.py tests/test_chapter_brief_source_binding.py tests/test_chapter_brief_cold_recovery.py tests/test_agent_review_protocol.py tests/test_ws_contract_golden.py tests/test_source_code_standards.py tests/test_loop_tool_policy.py tests/test_runtime_tools.py tests/test_loop_tool_schemas.py tests/test_agent_run_roles.py tests/test_agent_permission_policy.py tests/test_agent_run_permission_guard.py tests/test_agent_continuation_delivery.py tests/test_generation_source_delivery.py -q`，cwd apps/api；结果见 api-regression-final-v2.log（最终计数下方追加）。此前 286 项回归和最后补充的严格请求/旧记录 13 项独立测试日志均保留。
+- `npm.cmd --prefix apps/desktop/frontend run verify:inline-continuation`：**真实 Chromium/Monaco 五项 gate exit 0**；当前证据 `C:/Users/kanye/AppData/Local/Temp/storyforge-inline-browser-HTgYV7`。验证中点光标/suffix/固定来源/proposed-only、等待资料时保存新来源、真实取消与晚到结果、项目/model 切换归属、提案存在时卸载。此 browser gate 使用现有 FS/HTTP fixture，不冒称 Native IPC 全链实测。
+- 前端 build 到不存在的隔离 `frontend-verified` 目录：exit 0，12.21s，entry `/assets/index-OFTgbnSZ.js`。没有覆盖用户 dist，没有重建 Native exe；动态 import/static import/大 chunk 告警原样保留。
+- 必须的 `pnpm.cmd openapi` 实际失败：pnpm 检测依赖状态后试图重装，因 NO_TTY 的 remove_modules 确认失败；不 purge、不设置 CI 绕过、不强制安装。现有 `node scripts/generate-openapi.mjs` 已完成 Python OpenAPI/WS 生成，但其末尾 pnpm TS 子步骤也失败；随后 `npm.cmd --prefix packages/shared run generate:types` 用现有 openapi-typescript 成功。不将等价生成链冒称 pnpm 命令通过。
+- entry-relative JSON 对比确认仅新增这一个 route 与 ChapterCheckHistoryQuery / ChapterCheckEvidenceRead / ChapterCheckHistoryRead 三个 schema；已有 routes/schemas/其余 OpenAPI 内容没有改变。WS JSON/生成 TS 与 api-client/agent-runs facade 原字节不变；用户原有 contract drift 保留。
+
+### 失败实验与未验事项
+
+- history 测试第一轮遗漏 AssistantSessionCreate 必需 title/task_type，属于 fixture 初始化无效；修正后原 route 404 的实际 RED 为 5 failed，生产 route 后 GREEN 5 passed。后续参数化/旧记录/请求校验增加到 13 项。
+- 增强 HTTP/history 测试首轮 6 failed/11 passed：测试只设置 run.assistant_session_id，却未在 runtime message 指定该会话，真实 resolver 正确创建新会话，所以查询旧会话为空。仅改测试消息显式传原 ID；未更改生产 resolver/强绑 run。修正后 HTTP 六例全部通过，失败原件 api-history-http-final.log 保留。
+- spec 追加首次 apply_patch 上下文只取了原行后半句，匹配失败且没有改文件；改完整行后仅追加成功。spec/report 原字节前缀已实查，最终 diff/manifest 另存。
+- 当前检查 Panel 验收为 happy-dom hook+UI、公开 HTTP 与类型/build；**尚未重建和验证实际 Native 新检查卡片/冷重开 UI**。上一批 Native 续写验收仍有效，但旧 exe 内嵌的 BmJFdT8D bundle 不含本轮新 Panel，不混用证据。
+- 全 API、根总 verify、release/installer/frozen sidecar、云模型/作者长程质量未重跑或通过。根 ESLint 26 个既有 research 错误本轮未处理；pnpm 门禁失败尚未解决。不能宣称生产级闭环或全清单完成。
+- 证据根：`C:/Users/kanye/AppData/Local/Temp/sf-check-ui-before-tcvqwnb_`：entry 原字节、全部红/绿日志、隔离 build、entry-relative.patch 与 contract-and-preservation.json。代码/spec/report 均保持未提交；不运行会自动提交的 Trellis archive/journal。
+
+最终后端相邻回归：**288 passed，42.39s，exit 0**（api-regression-final-v2.log）。此计数包含最后补充的严格请求与旧记录测试；不与较早 286/13 的重叠结果相加。
+
+
+## 2026-10-05：本批续写/检查只读送达的普通 Native 与冷重开验收
+
+不创建 Trellis 任务；继续收口当前送达批次，不展开作者声音等后续阶段。本轮没有改变生产源码/路由/DTO，只补当前检查 Panel 的普通 Native 验收与规格事实。未委派、未调用云模型、未创建 branch/commit/push。MCP 缺失仍沿用此前获准的聚焦 shell 降级。入场 WORKTREE/旧 debug exe 已备份；不用 HEAD 覆盖用户改动。
+
+- 当前 FE 隔离 build（12.76s）与 process-only frontendDist override 的普通 storyforge-desktop cargo build（33.12s）均 exit 0。实际 served /assets/index-OFTgbnSZ.js；exe SHA-256 5b9badb03c64dc7756732ec06fde00a5cd503ffd5aabc5328ff1beeff421a12a。用户 dist 与 tauri.conf.json 不变；不是旧截图/GUI fixture exe。
+- 最终干净 run-EE6glZ：真实 Native FS/IPC、源码 API、生产 provider SDK/HTTP/SSE、合成 loopback 模型；普通 UI 起草下一章→作者编辑 goal/beats→确认 Brief。invalid JSON、duplicate、false quote、101 findings、provider 400、length、30 advisory 后第31条 hard 与一次 repair 后仍 fail，以及 valid 全部验。每次真实 check prompt 含作者 goal 与 POV/setting/beats/forbidden/continuity；不注入 renderer fetch/私有业务回调。仅开 owned 项目使用已有 debug lifecycle seam。
+- failed/incomplete 各自显示，manuscript unknown 不冒称 fail/pass；failed 候选 readOnly、无接受按钮、不变成 proposed patch。repair-fail 原31条完整准入，展示最终修复稿及其摘要。valid 保留真正作者 patch decision modal；通过实际 run-reject-patch→空反馈 run-reject-confirm 拒绝，未写正文、未触发重生成。有效 check pass 不等于作者验收。
+- 生产 fixed pipeline 持久化的是一次运行的最终 chapter_check artifact，修复2次检查对应2条 tool_trace，不是2行历史。trace summary 是精简事实、没有源 SHA；SHA 在实际 provider prompt 与最终 artifact 核对，不为迁就 verifier 扩展生产 trace。后期真实 checkpoint 请求1次，分开记录并验证，没有关后台功能：模型端合成总请求27，其中 chapter流程26、checkpoint1。
+- 手动重读的实际 query HTTP200 不增模型；A→B 隐藏旧历史，B 查询 A 会话返回409；从作品库回选 A 与原会话，历史精确相同。所有模式均只保留原第01章字节，无第002章落盘。
+- 实际 titlebar-close→Native exit0；同一项目/DB/config/WebView2 与相同 exe 冷重开 run-DuRQW1，普通作品库及原会话选择恢复8条原记录，修复后候选仍只读。手动重读 provider 请求严格0；原正文、scoped storage、已核对 .storyforge 业务 artifact 逐文件 SHA 不变，无审批 modal/自动写回。再实际 titlebar-close exit0。两次 shutdownRequested=false、无 fallback kill；close诊断 close_confirmed/apiSettled=true。
+
+### 本轮验证
+
+- API 定向6文件：97 passed / 22.89s（api-check-regression.log）；Frontend 定向4文件25 passed / 2.84s（frontend-check-regression.log）。
+- 最终 Frontend 全量：172 files passed / 1 skipped；1531 passed / 1 skipped，33.86s（frontend-full-final.log）；typecheck exit0（frontend-typecheck.log）。7个最终外部 harness node --check、git diff --check exit0。
+- 没有重跑全 API/root verify/release/installer/frozen sidecar，未新增 OpenAPI drift、不把上轮288项算本轮重跑。原根 ESLint26个 research 错误与 pnpm NO_TTY 仍待处理，发布资格未通过。
+
+### 失败原件、清理与范围
+
+5个先行实验原件全部保留：run-Cd8oUW verifier误以为repair有2个历史 artifact；run-OcHf8x过快POST触发真实60/min限流；run-EBPhOa误以为trace含源SHA；run-zPRjrr背景检查summary被正确作者modal遮挡；run-DPdRoz用了不存在run-reject locator。只修外部 verifier：按实际artifact/trace契约、20秒单例节奏与真正两步拒绝，不改生产、不force click、不关限流；checkpoint detector仅合成provider协议识别，不停真实checkpoint。
+
+最终矩阵与cold均从有效干净基线重放通过。7个 owned host 原工具句柄均取得真实exit0，独立cleanup-verified.json实查全部已知Native/API PID与29个端口无残留。build的大chunk/import/multiple-target、readiness Vite警告和正常关闭时WebView Failed to unregister class Chrome_WidgetWin_0 Error=1412原样保留；没有suppress。正常关闭事实由exit0与close诊断独立确认，不把日志error藏掉。
+
+证据根：C:/Users/kanye/AppData/Local/Temp/sf-check-native-before-c8nj1ah1，含entry原件/旧exe、版本化harness、7个run及失败/截图/请求/terminal、当前build身份、cold基线与逐文件核对、清理和最终entry-relative patch。只是普通debug Native+源码API+合成HTTP模型的本批验收，不声称云模型文学质量、多窗口、release资格或完整六阶段完成。当前批次送达与冷读取已验，不创建任务或提交；后续阶段保持未完成。
+
+## 2026-10-05 作者声音：真实 HTTP、Desktop 润色绝对路径与作者否定优先级
+
+本轮继续既定六阶段的第三批；不创建 Trellis 任务，不提交/推送，不扩大完成定义。原工作区已有 168 条 dirty status，本轮新增两份行为测试后为170条；保留入场原件。证据根：C:/Users/kanye/AppData/Local/Temp/sf-author-voice-before-ox9hLU。
+
+### 实际修复与 RED
+
+- `common.author_edit_policy.build_author_edit_policy`：当前真实作者“不要/不/别/不用保留重复问号和感叹号”撤销旧作者文件 keep。此前纯政策 RED 4 failed / 23 passed；真实 SDK HTTP 对照 RED 1 failed / 19 passed。引用材料/模型 tool style hint 仍不是作者权限来源。
+- Native 普通润色菜单真实传绝对 `file_path`，旧 handler 在 provider 调用前报“润色目标必须是项目内相对路径。”（run-GBnNKa，provider0，实际 DOM/截图留存）。相对 fixture 没覆盖这个形状；新增公共 SSE regression 重现 2 failed / 7 passed（desktop-path-red-v2.log）。
+- 增加 `resolve_polishable_target`，复用公开 FS resolver，先限定真实 root，再验证词法和 canonical 相对正文路径。真实 root 存在时不信任传入 `_trace_file_path` 作为授权。项目内绝对/相对现有正文进入同一 writer；不存在、外部、兄弟前缀、结构化/派生、穿越及 reparse 禁区拒绝，不松门禁、不修改原稿。无根内部兼容调用沿用旧 trace 验证，不造假 root。OpenAPI/DTO/政策版本不变。
+- 格式化这两份已在修改中的相关模块，保留原有代码语义；入场 AST 对照明确：原有函数仅 `build_author_edit_policy`、`_chapter_polish` 改行为，新增 helper，其余原函数 AST 相同（source-ast-changes.json）。运行时模块最后500行；506/502行门禁失败原日志保留，未放宽500行规则。
+
+### 公共传输与原生窗口证据
+
+- 新 `test_author_voice_http_provider.py` 的22例：owned loopback OpenAI-compatible HTTP，实际 SDK，不 mock LLM 方法；普通/quality-gate revise、自由 chat 的真实外内工具循环、显式 chapter.polish，覆盖 V01–V08、作者当前否定、失败/截断/offline、逐字片段、trace 脱敏、公共 artifact/events 回读与原稿零改写。
+- `test_polish_desktop_paths.py`：20例，18通过/2跳过。绝对/相对 writer 两种响应，公共越界/结构化/伪 trace alias 拒绝，直接公开 resolver 负例。WinError1314 无 symlink 特权的2项明确跳过；额外两个真实 Windows directory junction 指向外部/结构化目录均拒绝，未改系统权限。
+- 普通 debug Native（fixture=false / smoke-lifecycle-only / source API / 真 Monaco、FS、IPC）：run-qmptDE 实际专用润色菜单、实际 full 权限选择、实际输入框否定当前 keep。三轮分别为 online keep、invalid→degraded local keep、自由 chat 当前否定覆盖作者文件及模型 keep hint。5次合成 HTTP 模型请求；实际 diff confirmation 和两步空理由拒绝均通过，full 的 degraded 仍手动确认，拒绝零新增模型调用，原稿精确不变。
+- exe SHA256 `5b9badb03c64dc7756732ec06fde00a5cd503ffd5aabc5328ff1beeff421a12a`，实际入口 `/assets/index-OFTgbnSZ.js`，复用上批已核对的普通 exe，不覆盖用户 frontend/dist 或配置。之后的减行/无根兼容整理不改变本次带 root 的解析行为；最终源码由下面完整定向 regression 与新的 cold 实例核对。
+- run-qmptDE 实际 titlebar close→Native exit0。最终 run-9gHNyb 同 DB/config/WebView2 冷开，实际原会话显示最后真实作者指令；三个公共 patch artifact 和所有 tool events 精确相同，scoped storage 相同，无活跃审批/自动写回，provider0，原稿/作者控制/canon truth 不变。再次实际 titlebar close→exit0，两个最终关闭 shutdownRequested=false、无 fallback kill。
+- 不宣称全部派生字节不变：首次重开 observations.json/report.json 哈希改变使严格全文件断言失败，原件保留。后续干净冷开另外保存派生 JSON 前后原文，去掉 observations.generated_at 后语义精确相同；原始首次 report 差异未逐字归因。限定允许变动的两份 derive cache，作者控制/canonical truth 仍逐字核对（derived-projection-cold-compare.json）；作为后续“操作与派生收口”的真实事实，不扩展为文学质量证明。
+
+### 最终验证 / 未验证
+
+- `uv run --no-sync pytest` 定向22文件（政策/声音/公共HTTP/路径/润色/修订/来源送达/源码标准/check/chapter/WS golden）：404 passed，2 skipped，69.06s（api-regression-final-with-junctions.log），真实原工具句柄exit0。之前386/402项不是最终404的额外统计。
+- 当前六份 Python 文件 Ruff check + format --check exit0；git diff --check exit0。Desktop typecheck exit0；5份定向前端测试56 passed / 2.66s。没有把上批1531项算成本轮全量重跑。
+- 失败原件另外包括：初始 fixture CRLF 替换漏中、CDP无法 response.text 读取 WebView2 SSE、错误冷开导航可见性假设，以及尚未关闭旧 host 就新开引发3007占用。只修改外部 harness，实际请求+公共 events/artifacts 代替不可读取的 SSE body；没有制造 response、force click、停限流或重写业务来迁就 verifier。owned 合成 provider 无云调用/真实 key。
+- 6个已启动 host 的原句柄最终均 terminal exit0；另一个启动失败 host 原句柄exit1、未生成Native PID，不计作通过。cleanup-verified.json 实查12个已知 Native/API PID及25端口无残留。Vite/Tailwind 既有警告原样保留。
+- shared OpenAPI/types/WS schema 与入场 SHA一致，本轮无契约变化，不借此宣称总门禁通过。root verify/release/installer/packaged sidecar/云模型/作者文学质量未验；既有 root ESLint26个 research 错误和 pnpm NO_TTY 未处理。作者声音的工程送达与安全对照有证据，完整六阶段、发布及作者验收、最终 GitHub 提交仍未完成。下一批按顺序进入操作与派生收口。
+## 2026-10-05 操作与派生收口：剩余预览与不可变操作值（进展，阶段未完成）
+
+上一轮是已验证的作者声音工程进展；本轮沿原清单进入第四阶段，没有创建任务、提交或推送。证据根 C:/Users/kanye/AppData/Local/Temp/sf-operations-before-UBLDcs，入场170条dirty status，保留原工作树原件。
+
+### 反例、修复和范围
+
+- 入场操作/生命周期两文件64 passed。新增两个 mounted 公共 hook 行为反例（residual-red.log：2 failed / 39 passed）：局部接受后范围外 B* 被剩余预览列成 B*→B；A/C 都分块接受完后，B* 导致冻结整篇 after 不等，留下幽灵残余。原有整份接受已保留作者文字，所以不是重复宣称此前的错写问题仍未修。
+- 增加纯值 `suggestion-change-set.ts`：提案原文逐字身份 `baseRevision.content`、原 before/after、操作数组及 op 的 ID/原区间/预期原文/替换文冻结一次。保留 Native 原始磁盘基线独立控制，不用当前 diff 或弱 hash 冒充授权。whole/hunk/issue 映射使用存储原集合。
+- 剩余目标由当前稿仅投影未消费原操作；消费完即关闭，不按整篇 after 相等判定。不可映射的操作保留原对象和明确 conflict，不生成作者→旧文的替换。仍活跃提案撤销后恢复先前的消费集合及预览。写前缺集合拒绝；现有 snapshot/CAS/receipt/branch/typing 守卫未替换。
+- Panel 使用 Desktop-owned operationView 的原对象和原稿行号；禁用冲突半选、整份接受及 Ctrl+Y，合法原操作仍可选择。模型/API 的 suggestion factory 不读取此新本地投影字段；位置 ID 或克隆对象不是原操作归属。旧 descriptor 仍需唯一内容匹配。
+- 旧两个反例原本从错误 residual diff 构造 fake hunk，修复后不再有这个幽灵 diff；保留同一手改/不可分负例，显式构造旧伪 hunk 并继续断言零写入，没有删掉安全断言。另一个既有 source regex 只按实际新的 changeSet.before 路径更新，行为与 mounted 守卫仍验证。
+
+### 本轮验证
+
+- 新 pure ChangeSet 11项、mounted operation panel1项、生命周期新增2项；定向5文件98 passed / 1.77s。pure/公共 mounted 测试证明当前进程内原操作和预览，不是 Native 文件写回证明。
+- 最终 Frontend 全量：174 files passed / 1 skipped；1545 passed / 1 skipped，23.29s（frontend-full-final.log，原句柄exit0）。既有 Native 专用文件skip仍不是通过。typecheck exit0；本轮9文件定向ESLint零error/零warning；Prettier check和git diff --check exit0。
+- API source标准与WS golden：31 passed / 3.18s（api-source-contract-final.log）。未改API实现/DTO/shared生成物，不把上轮404算本轮全API，也没有重跑root verify/release/installer。
+- 失败日志保留：初版预览包装克隆了首次提案，触发3个真实对象归属负例，已保留原始对象身份；两个旧测试依赖错误预览的 fake hunk，按上面的真实反例同步；“相邻两句各自一个op”测试假设错误，既有diff将其合并为不可分原组，改成明确两句不可半选与同一行隔句双op正例，不为fixture改分组。一次全量仅source regex路径过期，按原新值namespace同步。ESLint多余normalizeEol依赖已去掉，无warning suppress。
+
+### 未完成的真实清单
+
+这不是第四阶段验收完成：没有新FE bundle/普通Native GUI证明，前批旧exe的截图不能支持本轮新操作视图。Native operationKey/source仍沿原before/after回执边界，尚未证明“分块→undo→同原op重选→retry→冷恢复”的完整不可变操作身份；重复句两种删除历史、Unicode/CRLF实际桥接、实际输入与分支切换矩阵要继续。issue的observed/authorConfirmed/resolved与当前文字或语义结果不可混为一谈，D06仍须独立核验。
+
+D04接受/局部接受/撤销后的canon/Knowledge/记忆共同刷新未获完整生产链证明；上轮记录的合法派生cache刷新不等于本轮统一重建已经实现。仅凭新类型、全量Vitest或回执不能关闭D03/D04/D06。完整六阶段、后台评估、发布/作者验收及最终GitHub提交仍未完成；目标保持active，下一步继续第四阶段实际写回/派生合同，不跳到已完成的结论。
+## 2026-10-05 操作与派生收口：消费授权与当前问题覆盖（继续进展，阶段未完成）
+
+证据根：C:/Users/kanye/AppData/Local/Temp/sf-operation-issues-before-5PQGEX。入场175条dirty status，按原工作树备份；没有创建任务、分支、提交或推送。遵循用户更新后的AGENTS约束，本轮仅两个既有生产模块及两个既有测试文件，不新增架构、依赖、持久状态或第二个写回通道。
+
+### 实证与最小修复
+
+- mounted公共hook反例：A分块已接受后作者改回原文/自己改写，再接受C，旧记录仍把A算resolved。issues-red.log：2 failed / 41 passed。保留消费集合为原提案所有，另从实际计划写入稿核验覆盖；author-confirmed与当前resolved分列，通知使用同一计数。
+- 作者把A撤回到完整before后，“接受剩余”错误走整篇快路径，又写回AA。whole-consumed-red.log：1 failed / 45 passed。现在快路径额外要求没有已消费op；只施加剩余C，保留A及范围外作者文字，不以相等重新授予消费过的操作权限。
+- 核验复用原定位器，但发现唯一after候选也可能是别处同上下文的重复块（same-context-count-red.log）。核验增加原前缀数量/序号与后缀约束；原区间精确投影仅是文字覆盖证据，不是Native历史写入证明。旧上下文受其他合法op改变时，精确原操作投影仍可核验；两项过严初版失败保留在strict-verification-green.log，最终修复不是放宽重复位置保护。
+- 整份与分块两个实际调用面分别证实误计数：whole-other-context-red.log、hunk-idempotent-count-red.log各1 failed。两路径共用核验；真正本次施加的op由规划结果证明，alreadyApplied观察不得无条件算原目标覆盖。本轮不改原writer对这些观察的写入/消费策略，不据此关闭完整重复句操作映射验收。
+- 保留原IssueCounts/IssueResolution形状与调用默认值；历史确认只统计观察问题中的有效ID，unknown保持open，跨未修改行的范围只touched。resolved在这里是原操作的行范围/文字覆盖，不是模型或作者语义质量确认。明确区分三者，没有新增并行状态。
+
+### 当前验证
+
+- 定向5文件最终96 passed（scoped-final-v2.log，2.10s）；新增纯值6项、mounted7项，覆盖两种作者撤回、保留结果、跨行缺口、整份快路径、重复上下文幂等观察与计数，稿面/记录/通知均断言。
+- Frontend最终全量：174 files passed / 1 skipped；1558 passed / 1 skipped，29.46s（frontend-full-final-v2.log，原句柄94594 exit0）。前一次1557是本轮中间结果，不重复统计；Native专用skip不算通过。
+- npm.cmd --prefix apps/desktop/frontend run typecheck exit0（typecheck-final-v2.log）；四个改动文件ESLint零error/零warning、Prettier check exit0（eslint-final-v2.log / prettier-final.log）。没有warning suppression、任意延迟或fixture硬编码。
+- uv run --no-sync pytest tests/test_source_code_standards.py tests/test_ws_contract_golden.py -q：31 passed / 3.85s（api-source-contract-final.log，原句柄83993 exit0）。未改API/DTO，shared OpenAPI未生成或覆盖。最终diff/原件校验见final-manifest.json及entry-relative diff。
+
+### 仍待证明
+
+本轮没有构建新FE包、启动普通Native窗口或真实模型；上批旧exe/截图不是本轮证据。原生分块→撤销→同原op重选→retry→冷恢复的回执身份及真实字节/分支/输入矩阵仍待核验。D04接受/局部接受/撤销的canon/Knowledge/记忆共同刷新仍未获当前生产链证明；D06语义resolved、冷读取与完整原生记录也未验收。root verify/release/installer/packaged sidecar/作者通读/后台评估未重跑，历史root ESLint/pnpm问题不能被本轮定向绿灯消除。完整六阶段和最终GitHub提交保持未完成，goal保持active。
+
+## 2026-10-05 操作与派生收口：撤销后的重新接受与普通 Native 验证（阶段未完成）
+
+证据根：C:/Users/kanye/AppData/Local/Temp/sf-operation-redo-before-jKyQo4；仓库指针：D:/StoryForge/output/operation-redo-evidence-current.txt。入场175条dirty status，原工作树及旧exe另行备份。本轮只改两个既有生产文件、一个既有测试文件，并追加本报告与状态合同；没有创建 Trellis 任务、分支、提交或推送。
+
+### 根因与修复
+
+- 新 mounted 反例先失败（redo-red.log：1 failed / 48 passed）：A分块接受→撤销→明确重选同一个原A，旧Native式幂等回执被复用，磁盘仍是A，renderer却消费了该操作。修复不是清空历史或每次随机换key。
+- useSuggestionWriteback保留原ChangeSet的before/after作为正向source；分块使用匹配后的原op ID。撤销key引用原成功写回operationId；仅无warning、仍属当前action/提案的撤销完成，才恢复先前消费集合并保存真实undo receipt ID，后续作者重选key引用该逆向回执。新字段是同一owner内的派生引用，不是独立持久状态。
+- 撤销复用既有action latch，Panel显示“撤销写回”并禁止同时接受；await结束后以当前editor值重投影，保留期间作者输入。warning只显示原警告/既有audit-only retry，不凭文字相等授予重选权限。外部coordinator的请求/权限与Native/Rust/DTO没有变化。
+- 新增三项mounted行为测试：两轮撤销重选、陈旧撤销、延迟撤销记录期间的互斥与保留输入。定向三文件72 passed（redo-green-expanded.log，1.58s）。没有新增生产文件、依赖或并行writer。
+
+### 当前构建与真实写回
+
+- FE独立outDir为D:/StoryForge/output/playwright/sf-operation-native-embedded-Pa3f9I/frontend-current；本进程TAURI_CONFIG覆盖相对frontendDist，cargo build --offline成功。正式配置原字节未变，用户frontend/dist的99文件摘要仍为af34621abc446ba0832094e8a96ee3823582236667381c3efee4de23fb4b8e5b（preservation-final.json）；没有清空用户产物。
+- 当前普通debug exe SHA256：f7368d704c106596a23e7d03edf6c016059022e278eb8f62d1ec146d380c5960；实际WebView入口/assets/index-CaMTzBjX.js。不是前批旧exe证据，也不是release/installer验收。
+- run-G3nhBP使用普通Native（fixture=false、smoke-lifecycle-only）、源码API、独立SQLite/config/WebView及owned合成HTTP provider。打开项目使用已有debug导航seam；之后是真实composer、公共tool/SSE/events/artifacts、审批“稍后处理”、PatchReviewPanel和通知按钮，不注入proposal或替换FS/IPC。
+- 实际六动作accept-a→undo-1→redo-1→undo-2→redo-2→accept-c：每步真实磁盘字节正确，六份独立applied outcome及六份author-loop记录；三次合成HTTP模型调用、无云模型调用。native-chain-proof.json进一步核对每步UTF-8 before/after hash、逆向及最终whole key、六个持久shadow-git ref/tree中的写前原稿和六份完整audit bodyHash。不声称GUI版本历史屏幕或文学质量验收。
+- 既有revision parser裁去candidate终尾LF：公共artifact的after实际为input.after.trimEnd()。前几个分块/撤销保留原LF，最后接受依实际candidate去掉终尾LF；本轮没有宣称完整CRLF/emoji实际桥接矩阵通过。
+
+### 冷读、失败留证与清理
+
+- run-17T7rA初版verifier错误等待overview；真实recent card恢复的是已保存写作workspace，因隐藏overview超时。原失败DOM/截图/脚本留存，不修改业务迁就导航。修正外部verifier后同host通过，再正常关闭、以新基线在run-5mIYQn干净重放。
+- 最终冷开实际recent card→writing workspace→旧会话，原稿、六份receipt/audit、版本、原公共events/artifacts保持一致，没有活跃审批、patch或自动写回，provider0。仅.storyforge/canon/derived/observations.json字节变化，未将此推断为共同派生重建或语义等价。这是完成记录的冷读，不是部分接受状态丢失后的恢复/重新授权。
+- cleanup-verified.json核验六个已知Native/API PID不存在、12个owned端口ECONNREFUSED；三次实际titlebar close均Native exit0，没有fallback kill。构建既有chunk/import/Tailwind/duplicate-target警告保留，不suppress。
+
+### 最终检查与仍未验收项
+
+- FE全量：174 files passed / 1 skipped；1561 passed / 1 skipped，26.48s（frontend-full-final.log，原句柄14214 exit0）。Native专用skip不计通过。typecheck exit0；三个修改文件ESLint零error/warning及Prettier check exit0。
+- API source标准与WS golden：31 passed / 3.39s（api-source-contract-final.log）。没有把以前404项算作本轮全API，也没有以局部测试代替root verify/release。
+- 当前source/入场original的diff和最终原件、配置、dist核验见final-manifest.json；报告与spec只追加、原前缀保持。本轮未重跑root verify、release、installer、packaged sidecar或作者文学质量验收。
+- UNKNOWN：undo audit失败后成功retry是否恢复重选消费状态（代码导航提示需单独复现，本轮不宣称已发生或已修复）；mid-partial cold原操作身份恢复、重复句历史、CRLF/输入/分支完整矩阵、D04 canon/Knowledge/记忆共同重建、D06语义resolved及原生问题计数。
+- 另在run-17T7rA隐藏manuscript DOM观察到agent-instructions.md被列为章节；尚未完成可见页面复现与collector源追踪，作为导航线索保留，不据此宣称已确定根因或已修复。
+
+本轮确有新生产修复和普通Native证据，但D03/D04/D06及第四阶段仍未完整验收；后台评估、发布/作者验收和最终GitHub提交继续未完成，goal保持active。
+
+## 2026-10-05 操作与派生收口：撤销审计失败的补记结算（阶段仍未完成）
+
+上一goal轮属于实际进展；本轮复现并修复其明确UNKNOWN，不重复把状态说明算作进展。证据根：C:/Users/kanye/AppData/Local/Temp/sf-undo-audit-before-g7vZIz；指针D:/StoryForge/output/undo-audit-evidence-current.txt。入场175条dirty status，保留当前工作树原件和旧exe。本轮一个既有生产hook、一个既有测试文件及报告/spec；不创建任务、分支、提交或推送。
+
+### 实际反例与最小结算修复
+
+- mounted RED：audit-red.log，1 failed / 51 passed。分块接受→撤销正文已写入但audit失败→补记成功，原消费集合仍只剩C，A不能重新接受。之前“有补记按钮”不是这条流程完成的证据。
+- 普通Native RED run-5UPTuO：使用当时已核对的f7368d70…普通debug exe，真实UI/FS/IPC/源码API/owned合成HTTP模型。按Rust实际identity公式算逆向operationId，仅在新owned项目的.storyforge/author-loop/<undoId>.md创建空目录，触发真实Windows os error 5；撤销字节及applied回执正确，移除该空目录后真实点击“重试记录”确实补齐audit，但原分块按钮未恢复（native-red-v2.log：实际0，要求2）。公共events/artifacts、DOM、截图和原错误完整保留。
+- 初次run-wcNSuQ的verifier错误假设audit失败后仍可见一个残余hunk；实际冲突预览是0。该失败原件保留，只撤销这一未经证明的UI形状假设，增加settlement观察后从独立干净基线重放，才取得上述真实RED；不把首次verifier失败算产品修复证据。
+- 修复复用原writer的retryAudit：可选的私有onRepaired callback不改变Promise<void>/零参数调用者及external coordinator合同。补记经原Native delivery后重新核对同request的回执，正常undo与补记共享原owner内的结算闭包。
+- 补记复用undo latch；只在原project/file/model、同一个pending对象和op-state owner、当前action及持久applied/current-after回执都成立时恢复先前消费集合、引用真实逆向回执并投影实际editor值。失败保留入口并释放锁；迟到或漂移只修历史，不重写稿件或恢复旧权限。未新增持久状态、依赖、生产文件、独立writer或随机重试key。
+
+### 当前源码与 Native 正反证
+
+- 新增五项mounted regression：补记后重选；再次补记失败/等待互斥/作者输入/陈旧入口；disk、同ID proposal及file三种迟到漂移。定向三文件68 passed / 1.43s（scoped-green.log）。helper只复用测试场景，不改变生产行为。
+- FE全量：174 files passed / 1 skipped；1566 passed / 1 skipped，32.16s（frontend-full-final.log，原句柄56158 exit0）。typecheck、两个改动文件ESLint零error/warning及Prettier check exit0。首次Prettier路径命令未启动工具，随后定位现有root node_modules/.bin运行成功；未安装包或把命令未启动算检查通过。
+- API source标准/WS golden：31 passed / 5.49s（api-source-contract-final.log，原句柄58012 exit0）；不是全API验收，API/shared/Rust源码未改。
+- 独立FE outDir：D:/StoryForge/output/playwright/sf-undo-audit-embedded-kjzxiE/frontend-current。FE build15.72s、cargo build --offline普通debug36.32s成功。当前exe SHA256 fb8f26eb551d1b5bc6aaf357fdc35952514330dc4222dd390325ad8498e789f3，实际WebView资产/assets/index-D648noOK.js。TAURI_CONFIG仅本构建进程；用户配置/dist按原摘要核对，不覆盖用户dist。
+- run-zrRYdx从新owned baseline通过同一审计失败/补记流程（native-green.log）。补记前后两份receipt/intent逐字一致，无正文重写；原两处操作恢复，A重选后可接受C；全程四个真实write outcome和四份完成audit，3次合成HTTP模型请求，无云调用。打开项目仍只用已有debug导航seam，之后composer、审批defer、Panel及通知是真实UI，FS/IPC未替换。
+- native-chain-proof.json核对四次raw UTF-8 before/after SHA、逆向及whole-after-undo身份、四份shadow-git retained ref/tree的真实写前原稿、四份audit envelope/bodyHash；audit-only repair没有新write或checkpoint。既有parser终尾LF trim按真实公共candidate验，不声称完整CRLF矩阵或GUI版本历史验收。
+
+### 冷读、清理与未完成边界
+
+- 正常关闭当前Native后保存25份项目文件基线，run-aDXz2P同DB/config/WebView2冷开：实际recent card恢复workspace和旧会话，四份receipt/audit、版本、原稿及公共events/artifacts保持一致，无patch/活跃审批/自动写回，provider0。仅derived/observations.json的generated_at改变；本次保存前后JSON并证实去掉该字段后精确相同（derived-cold-compare.json），不据此宣称D04共同重建已完成。
+- 四个host都由真实titlebar close退出；原工具句柄分别67783/61529/33896/99935取得terminal exit0。cleanup-verified.json实查8个已知Native/API PID不存在、16个owned端口ECONNREFUSED；无fallback kill。失败run的文件/空目录是保留证据，不是活动服务。原构建chunk/import/Tailwind/duplicate-target警告不suppress。
+- 最终原件/报告spec前缀、配置/dist、源码hash及entry-relative diff见final-manifest.json。没有root verify/release/installer/packaged sidecar/后台评估/作者通读或GitHub提交的新验收证据。
+- 下一步仍是第四阶段：mid-partial cold不可变操作身份/授权、重复句与CRLF/输入/分支矩阵，D04接受/局部接受/撤销的canon/Knowledge/记忆统一失效重建，D06语义resolved与原生问题计数。当前只关闭“同一live提案审计补记结算”缺口，完整目标保持active。
+
+## 2026-10-05 操作与派生收口：部分接受冷启动的真实缺口定位（未修复）
+
+上一goal轮是实际生产修复；本轮取得改变后续实现方向的普通Native冷启动反证，不把计划或状态复述算作完成。证据根C:/Users/kanye/AppData/Local/Temp/sf-partial-cold-before-HNp3dR，指针D:/StoryForge/output/partial-cold-evidence-current.txt。入场175条dirty status；本轮仅追加报告/spec，业务代码没有改动，没有任务、分支、提交或推送。
+
+### 真实路径与结果
+
+- 复用入场已核对的普通debug exe fb8f26eb551d1b5bc6aaf357fdc35952514330dc4222dd390325ad8498e789f3，WebView实际/assets/index-D648noOK.js。新owned DB/config/WebView2/project，源码API与owned合成HTTP provider；没有新build，没有替换FS/IPC或打开external release gate。
+- run-EFiMxi经既有debug open-project导航后，实际composer→公共SDK/tool/SSE→审批defer→Panel首处分块接受。真实稿件仅交给→递给，关上仍在；一份Native applied outcome、一份完整audit、一份原稿shadow-git checkpoint。顶部“接受”仍启用，可继续剩余操作；模型调用3。
+- 初版warm verifier错误等一个独立hunk按钮，超时30s。检查同一仍活跃实例的实际DOM及Panel源码后确认hunks.length>1才渲染分块，单项剩余走顶部accept。保留原脚本和DOM/截图，只修verifier并在同一实例完成warm观察，没有重复施加或把该超时算业务错误。
+- 因此更正上一报告：“audit失败后0个残余hunk按钮是冲突预览”的解释未经证明，应撤回；0也可能只是单项剩余的正常UI约定。上一轮真实audit修复RED仍由补记后应恢复两个原操作却没有恢复的结果及mounted原消费集合反例支持，不依赖这个错误解释。
+- 实际titlebar close→Native exit0，保存13份项目文件基线。run-rLk9md同DB/config/WebView冷开，实际recent card恢复writing workspace与旧会话。稿件、回执、audit、checkpoint和原公共events/artifacts保住，provider0，无自动写回，但patch-review计数0、无审批窗口，剩余决策入口没有按原编辑器流程恢复（partial-cold-red.log）。没有将冷开无自动审批这一必要安全属性当作恢复功能通过。
+- partial-cold-evidence-proof.json进一步验证原始before/partial-after的UTF-8 hash、Native intent/outcome绑定、唯一shadow树内容与retained ref、完整audit bodyHash，以及公共events/artifacts完全相同。仅canon derived observations文件变化。证明的是“既有一笔写入与原提案幸存，待处理UI未重建”，不是安全冷消费恢复已实现。
+
+### 当前源码归因与实现边界
+
+- assistant-events的pending slot与hook WeakMap是当前进程内owner。workspace-session只保存项目/页签/当前文件/光标；冷会话useChatSessionContext清run panels后仅GET历史messages，API响应没有run/patch导航字段。总览useOverviewActivity投影这两个既有owner，不是独立持久恢复队列。
+- Native v1 Intent只有identity/fingerprint/path及前后hash/检查点，不包含原operationKey/source/request content，不能凭这份hash记录把部分决策完整反序列化。原Backend artifact保存提案before/after不等于Native消费历史，audit的自然语言/当前文字也不是消费授权。
+- 已有writeback-recovery接口明确筛选external_writeback_v1，且whole-only/未开放。不能把它默认为当前legacy分块恢复器，也不能为消掉红项开放发布门禁。下一步须明确原提案的持久导航与精确Native描述符链的owner，在原Native核验下派生消费/逆向历史，cold明确确认后仍走原writer；不得造独立applied集合真值或自动重POST模型请求。
+- 这里还没有完成该恢复实现。原操作映射/消费历史、异常与陈旧授权需要设计和实证，不能用“把pending建议塞进localStorage”绕过本轮已经看到的缺失描述符和授权边界。
+
+两次host原句柄21597/67844均正常terminal exit0；清理、原件/源码未变/配置dist核验和entry-relative diff见cleanup-verified.json/final-manifest.json。当前没有新增业务修复、全量测试或build，所以不复用上轮1566项当本轮重跑。root verify/release/后台评估/作者验收/GitHub仍未完成。新反证和source定位推进了第四阶段，完整goal继续active。
+
+## 2026-10-06 承接续做：部分接受冷启动恢复已落地（上轮 RED 的实现收口）与遗留 19 项测试红修复
+
+上一轮记录"partial cold 恢复未实现"。本轮接手后核对当前工作树：上轮记录写入之后（文件时间 10-05 17:24–18:01），恢复实现实际已完成并接线，但验证记录未写、全量回归未跑——本轮完成该批次的验证收口并修复随之暴露的 19 项测试失败。没有创建 Trellis 任务、分支、提交或推送。
+
+### 已落地实现（上轮在途，本轮核对确认）
+
+- `src/lib/suggestion-recovery.ts`（316 行，上轮最后记录之后新写）：提案出现在 `updatePendingSuggestion(fresh)` 时 `capturePendingSuggestion` 建 descriptor 并经写回队列+Native delivery ticket 持久化到 `.storyforge/pending-suggestions/<sha(projectRelative)>.json`（CAS 防覆盖，owner 是 storage 身份不是操作授权）；每次写回前 `rememberSuggestionRequest` 登记精确 request（operationKey/source/语义 payload）——正是上轮 RED 定位缺失的"精确 Native 描述符链"。
+- `recoverSuggestionOperations` 凭已持久化 request 重放 Native 回执核验（applied+receiptPersisted+`verifyReceiptAudit` 全语义 payload hash），从回执链推导 appliedOpIds 与 undo 历史（含 `:after-undo:` 后缀链），不信任当前磁盘字节；`recoverPendingSuggestion`（Editor.tsx 挂载后调用）核验 epoch/project/model/action 无漂移后，按 `projectRemainingSuggestion` 只投影未消费原 op，`requiresConfirmation: true` 强制作者重新确认——符合"cold 明确确认后仍走原 writer"，不自动重放。
+- 剩余决策入口恢复路径：journal tombstone（null）表示已完成；替换提案以新 owner 覆盖；迟到恢复不复活旧 slot。`author-loop.ts` 抽出 `revisionLoopSemanticPayload` 共享函数，`writeback-audit.ts` 新增只读 `verifyReceiptAudit`；Editor 保存路径补 C10 缓存失效。
+- 专项测试 `tests/suggestion-writeback-lifecycle.test.tsx`（69 tests，含"冷重挂恢复原剩余操作，只读核验后等待作者明确接受"、cold-navigation、tombstone、storage 清空不丢 Native 决定、损坏 journal 拒绝恢复等）已存在且全绿——上轮"未修复"的 RED（patch-review 计数 0、剩余决策入口未恢复）由此关闭。
+
+### 本轮修复：19 项前端测试失败（改前基线实证）
+
+恢复 journal 引入后，四个测试文件的 mock 与异步边界未跟上，HEAD 基线即红（实测 auto-writeback 在 HEAD 上 8 failed，其余文件全量下合计 19）：
+
+1. **mock 缺方法**：`behavior/auto-writeback`、`behavior/patch-rejection`、`suggestion-issue-attribution` 三文件的 `vi.mock('tauri-fs')` 工厂缺 `pathExists`/`readProjectFile`，journal 持久化抛 TypeError 且按设计 fail-closed 阻断写回。补齐两个方法并把 journal 路径（`pending-suggestions` 子串，兼容两种分隔符）分流到 receiptFiles，不进正文写回断言。
+2. **异步链超界**：接受链新增 `await recovery.ready`（journal persist）与 `forgetSuggestionRecovery`（journal forget）两跳后，原 `act(async () => emitFileSuggestion(...))` 不再覆盖全部游离 promise。新增 `settle()` helper（5 轮宏任务排空）插入 emit/undo 之后断言之前；patch-rejection 的二轮 reject 场景同样补齐。
+- 修复中一次 PowerShell `Set-Content` 编码事故把三个测试文件中文写坏，已用 `git checkout HEAD --` 恢复后以 edit 工具重放，最终 ESLint/Prettier/typecheck 全绿，无残留乱码（如实留痕）。
+
+### 验证（本机亲跑，cwd=仓库根）
+
+- 前端全量 vitest：**174 files passed / 1 skipped；1579 passed / 1 skipped，exit 0**（1 skip 为既有 Windows symlink 权限用例，非本轮新增）。修复前基线 4 files / 19 failed 实测复现。
+- `npm.cmd --prefix apps/desktop/frontend run typecheck` exit 0。
+- 三个改动测试文件 ESLint `--max-warnings 0` exit 0；Prettier check exit 0；`git diff --check` exit 0。
+- 单文件复核：auto-writeback 13/13、patch-rejection 11/11、suggestion-issue-attribution 10/10、suggestion-writeback-lifecycle 69/69（含冷恢复链）。
+- editor-disk-writeback 全量跑时曾出现 1 例 `rechecks disk after a pending snapshot` 假红：单跑与串行 `--no-file-parallelism` 均 15/15 通过，属并发文件级噪声；全量最终轮已绿。
+
+### 未验收边界（如实记录）
+
+- 本轮只完成"冷启动恢复"切片的验证收口与测试修复；上轮列出的第四阶段剩余清单未动：重复句两种删除历史、CRLF/emoji 实际桥接、提交期间输入、分支切换完整矩阵、mid-partial cold 的 Native GUI 实测（本轮证据限于 happy-dom/公共 hook 层）、D04 接受/局部接受/撤销后的 canon/Knowledge/记忆统一刷新、D06 语义 resolved 独立核验。
+- 未跑 API 全量、root `pnpm verify`、release/installer/packaged sidecar、真实付费 provider、真实 Tauri GUI 写回链；既有 root ESLint 26 个 research 复制错误与 pnpm NO_TTY 问题未处理。
+- `suggestion-recovery.ts` 的 journal 属 Desktop 本地 `.storyforge/` 存储；其与 Native external_writeback_v1 协议（仍双闸关闭）是两条并行边界，本轮未触碰发布门禁。
+
+## 2026-10-06 D04 统一派生刷新落地：写回成功即失效 canon 正文派生缓存（Rust 收口）
+
+上一轮关闭了冷启动恢复测试红。本轮按目标清单推进第四阶段 D04（docx §4：接受、局部接受、撤销后 canon/Knowledge/记忆统一重建没有完整生产链证据）。不创建任务、不提交、不推送。
+
+### 缺口实证（改前状态）
+
+- canon presence.json 是正文派生缓存：`canon_delta`（canon_delta.py L391）仅当缓存为 None 时重建，`book_context` roster（L167）只读缓存；写回正文落盘后**没有任何失效触发**——下次 canon_delta 的 baseline_gate 用旧在场分布评估新提案，roster 报旧出场章跨度。
+- 逐层核对其他派生面：Knowledge 证据是实时 hash 核验（knowledge_retrieval.py L197-212，写回后自动 stale，无需失效）；memory 无持久缓存；前端 context bundle 已由 C10（FS_MUTATION 广播失效）覆盖写回路径。**唯一缺口就是 canon derived 四件套的写回触发**。
+
+### 实现（最小闭环：失效而非重建）
+
+- `apps/desktop/src-tauri/src/fs_writeback_receipts.rs`：`apply_with` 中 `state == "applied"` 后（outcome 落盘前）调用新函数 `invalidate_canon_derived_caches(root)`——删除 canonical project root 内 `.storyforge/canon/derived/` 下的白名单文件 `presence.json` / `observations.json` / `dossier.md` / `report.json`。**proposals.json 刻意排除**：那是 canon_delta 的待决提案草稿（承载数据，不是正文派生），删除会丢作者未决提案。
+- 失效而非立即重建的原因：四个消费方（canon_delta / book_context / observatory / canon_service）全部容忍 None 并按需重建（canon_service L35、canon_delta L392-394 已有重建路径），删除即是最小、可幂等、无 LLM 的失效语义；重建时机留给真正的消费方。
+- 每个删除目标先过 `validate_pending_mutation_path` containment 校验（防借目录结构穿出项目）；缺失即 no-op；失效失败不阻断写回（正文已成功落盘是首要事实，残留旧缓存行为与机制引入前相同），错误进 receipt detail。
+- `not_written` 拒绝路径不失效：正文没变，缓存仍然有效。
+
+### 测试（先想清楚再写，红绿断言对称）
+
+- Rust `fs_writeback_receipts_tests.rs` 新增 3 条：applied 后四白名单删除且 proposals.json 保留且无 detail 错误；not_written 后 presence.json 原样；无 canon 目录时 no-op 不创建任何东西。
+- Python `test_agent_canon_delta.py` 新增 1 条（D04 端到端语义）：presence 已缓存旧正文 → 模拟作者接受补丁改第 02 章+新增第 03 章 → 删 presence.json（Native 失效的同等语义）→ canon_delta 消费方重建读到 chapter_count=3 新在场。证明"失效→按需重建"闭环成立。
+
+### 验证（本机亲跑）
+
+- Rust：`cargo test fs_writeback_receipts` **20 passed**（含 3 新）；全量 `cargo test` **103 passed / 4 ignored / 0 failed**。改动两文件 `rustfmt --check` exit 0（fs.rs 等历史文件的既有格式漂移未动，与上轮记录一致）。
+- API：`test_agent_canon_delta.py` 11 passed；canon 组 9 文件 **120 passed**（delta/canon/context/hooks/reach/unwritten window/writeback reach/book context/cache）；新测试文件 ruff check + ruff format 双绿。
+- 前端无需改动（C10 已覆盖）；本轮未动 TS 代码。
+
+### D06 核验结论（未改代码）
+
+- 分列结构已在位：`suggestion-ops.ts` L385 `IssueCounts = { observed, authorConfirmed, resolved }`，行范围归属 resolved/touched/open 三态（L438-459，只有被接受 op 完整覆盖才算 resolved）；author-loop 记录写 `Issue Status`/`Issue Counts` 行；`readRevisionLoopIssues` 冷读旧记录不臆造（无 resolutions 视 open）。hook 层已有 lifecycle 6 用例（跨中段 touched、整份、保留结果、无行范围、幂等观察不冒充）+ issue-attribution 10 用例钉死。上轮"静态仍在"的 gap（分块接受携整份 IDs 不分列）已由前几轮的 op 归属实现关闭；剩余"完整原生记录核验"归 Native GUI 验收，不在本刀扩大。
+
+### 未验收边界
+
+- D04 的 Native GUI 实测（真机写回后 dossier/observations 确实消失重建）未做，本轮证据是 Rust 单测+Python 语义闭环；observatory 扫描（L234 refresh=True 本来就重扫）不受影响。
+- 失效是"写回成功"粒度：撤销（反向写回）同样走 `write_file_with_receipt` → 同样失效，已由 Rust 路径天然覆盖，无需单独实现。
+- 第四阶段剩余：分支切换矩阵、mid-partial cold 的 Native GUI、W01/W02 状态文案静态复核；后台评估与发布/作者验收未开始。root verify / packaged / 真实 provider 未跑。
+
+## 2026-10-06 W02 状态文案修复：审计失败时聊天模板不再宣称闭环已生成（+ 分块 warning 补发收尾）
+
+docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先称"闭环记录已生成"再附 warning。本轮复核确认该缺口仍部分存在，并修复。不创建任务、不提交。
+
+### 实证（改前）
+
+- `AuthorLoopResult`（assistant-events.ts）无 warning 字段：整份接受在 audit 失败/回执未持久化时 emit `status:'completed'` + message=warning，`useAgentRunControls` 的模板首句仍无条件输出"已写回正文，并生成闭环记录"，正文用 warning 兜底——首句虚假（记录明明没生成）。
+- 分块接受路径更糟：warning 分支只 emitToast、**不发** `emitAuthorLoopResult`，聊天区与流程树对这次分块结果毫无感知，approval 步不收尾（与 patch-rejection 已钉死的"否掉收尾"同一类缺口）。
+- W01（prose.continue 候选摘要提前称已写盘）复核结论：**已不存在**——`writableFilePatch` 结构判定统一三个产字工具、`requires_confirmation` 失败关闭（agent-result.ts L25-51），运行面板文案为"AI 修订已生成，可接受或拒绝"（panels.tsx L534），全仓无"已直接写盘"文案。docx 该条针对的旧版已在前几轮修掉。
+
+### 修复（最小三处）
+
+1. `assistant-events.ts`：`AuthorLoopResult` 增加可选 `warning?: string`（正文已写回但记录未完成时的降级说明）。
+2. `useSuggestionWriteback.ts`：整份与分块两条 warning 分支都 emit 带 `warning` 的 completed 结果（分块补上此前缺失的收尾 emit）；修复 hunk useCallback 依赖数组缺 `emitAuthorLoopResult` 的 ESLint warning。
+3. `useAgentRunControls.ts` 聊天模板三分支：warning 存在时输出"正文已写回，但闭环记录未完成：…不要重新应用补丁"，不宣称闭环已生成；正常路径文案不变。
+
+### 验证（本机亲跑）
+
+- `chat-window-lifecycle.test.tsx` 新增 2 条行为用例（含红绿对照）：warning 场景断言匹配"正文已写回，但闭环记录未完成"且 doesNotMatch"并生成闭环记录"；正常 recordPath 场景断言闭环文案仍在。7/7 passed。
+- 回归 9 文件 **182 passed**（chat-window-lifecycle / suggestion-writeback-lifecycle / auto-writeback / patch-rejection / suggestion-issue-attribution / agent-delivery-unknown / agent-control-settlement / chat-feedback-gaps / author-loop）。
+- typecheck exit 0；四个改动文件 ESLint `--max-warnings 0` exit 0；Prettier check exit 0。
+
+### 边界
+
+- W02 修复只覆盖 Desktop 聊天模板这一层；后端 SSE/WS 的 agent_result 文案不在本轮范围。
+- 本轮无 API 改动；`emitAuthorLoopResult` 的 exported 分支无需 warning（导出不产生闭环记录义务）。

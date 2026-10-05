@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+import json
 import os
 from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
@@ -78,7 +79,10 @@ def test_prompt_is_exact_window_with_ordered_prepared_context():
         "如果摘录与当前文件冲突，优先保留明确的当前文件事实，并在修订中避免扩大矛盾。\n"
         "### 人物.md\n- 类型：character\n<<<CONTEXT\n角色摘录\nCONTEXT>>>\n"
         "\n场景约束\n"
-        "以下是待修订的正文，请按指令修订后整体返回，只返回你收到的这段：\n<<<FILE\n他推开门。\nFILE>>>"
+        + "\n本次编辑政策（writer、后处理与本地候选共用）：\n"
+        + json.dumps({'version': 'author-edit-v1', 'source_sha256': '14b02b0660cca15eb4ccee5c73e3f4120fef449b7fa0aeb56406892c3d199d4d', 'author_requirement_count': 0, 'baseline_present': False, 'allowed_punctuation_forms': [], 'preserve_repeated_marks': False, 'allow_person_change': False, 'protected_span_count': 0}, ensure_ascii=False)
+        + "\n当前真实作者要求：\n改一句\n"
+        + "以下是待修订的正文，请按指令修订后整体返回，只返回你收到的这段：\n<<<FILE\n他推开门。\nFILE>>>"
     )
 
 
@@ -298,15 +302,16 @@ def test_expansion_instruction_keeps_structure_and_person_protections():
     assert "narrative_person_changed" in caught.value.gate.reasons
 
 
-def test_expansion_instruction_keeps_static_prose_regression_protection():
+def test_expansion_instruction_keeps_static_prose_regression_advisory():
     original = "# 标题\n\n他推开门，握紧刀，转身看向巷口，又停下。"
     candidate = "# 标题\n\n他不禁推开门，心中五味杂陈，握紧刀，转身看向巷口，又停下。"
     source = request(content=original, instruction=EXPANSION_INSTRUCTION, quality_gate="polish")
 
-    with pytest.raises(RevisionQualityRejected) as caught:
-        revise_text(source, generate=lambda **_kw: {"content": candidate})
+    result = revise_text(source, generate=lambda **_kw: {"content": candidate})
 
-    assert "prose_issue_regressed" in caught.value.gate.reasons
+    assert result.after == candidate
+    assert result.quality_gate.passed
+    assert "prose_issue_regressed" in result.quality_gate.advisories
 
 
 def test_expansion_config_still_rejects_entity_drift():

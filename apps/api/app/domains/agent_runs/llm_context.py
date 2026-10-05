@@ -1,21 +1,40 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Iterable, Mapping
+from os.path import normcase
 from typing import Any
 
 from app.common.performance import measured
-from app.common.redaction import redact_sensitive_text
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.agent_runs._text import compact_text
+from app.domains.agent_runs.context_channel_requests import context_channel_requests, review_channel_source
 from app.domains.agent_runs.context_provenance import (
     llm_context_snapshot_trace_summary as llm_context_snapshot_trace_summary,
 )
 from app.domains.agent_runs.context_provenance import snapshot_run_state as _run_state
 from app.domains.agent_runs.context_provenance import with_snapshot_id as _with_snapshot_id
+from app.domains.agent_runs.fs import FsToolError, normalize_project_relative_path, source_delivery_manifest
 from app.domains.agent_runs.knowledge_context import (
     CollectedProjectKnowledge,
     collect_project_knowledge_context,
     merge_project_knowledge_entries,
 )
+from app.domains.agent_runs.llm_context_limits import (
+    CONTEXT_FILE_TEXT_LIMIT,
+    MAX_CONTEXT_FILES,
+    MAX_REVIEW_ISSUES,
+    MAX_STORY_MEMORY_ITEMS,
+    MEMORY_TEXT_LIMIT,
+    REVIEW_TEXT_LIMIT,
+    SELECTED_FILE_TEXT_LIMIT,
+    SNAPSHOT_VERSION,
+)
+from app.domains.agent_runs.llm_prompt_context import (
+    llm_context_snapshot_to_prompt_context_bundle as llm_context_snapshot_to_prompt_context_bundle,
+)
+from app.domains.agent_runs.llm_prompt_context import synthetic_context_delivery
 from app.domains.agent_runs.loop.context_values import (
     CHAPTER_CONTEXT_KEYS as _CHAPTER_CONTEXT_KEYS,
 )
@@ -59,15 +78,6 @@ from app.domains.agent_runs.loop.context_values import (
     value as _value,
 )
 
-SNAPSHOT_VERSION = 1
-SELECTED_FILE_TEXT_LIMIT = 12000
-CONTEXT_FILE_TEXT_LIMIT = 2000
-MEMORY_TEXT_LIMIT = 800
-REVIEW_TEXT_LIMIT = 600
-MAX_CONTEXT_FILES = 8
-MAX_REVIEW_ISSUES = 12
-MAX_STORY_MEMORY_ITEMS = 8
-
 
 def build_llm_context_snapshot(
     *,
@@ -82,12 +92,14 @@ def build_llm_context_snapshot(
     review_report: object | None = None,
     artifacts: Iterable[object] | None = None,
     event_history: Iterable[object] | None = None,
+    extra_context_files: Iterable[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """兼容 live 入口：此时采集项目知识，再交给确定性快照组装。"""
     artifact_items = list(artifacts) if artifacts is not None else None
     event_items = list(event_history) if event_history is not None else None
+    extra_files = list(extra_context_files) if extra_context_files is not None else None
     bundle = context_bundle if isinstance(context_bundle, Mapping) else None
-    context_files, _, _ = _context_files(bundle, file_path=file_path)
+    context_files, _, _ = _context_files_with_loop_reads(bundle, file_path=file_path, extra_context_files=extra_files)
     knowledge = collect_project_knowledge_context(
         bundle, context_files=context_files, query=f"{user_message}\n{file_path}"
     )
@@ -110,6 +122,7 @@ def build_llm_context_snapshot(
         review_report=review_report,
         artifacts=artifact_items,
         event_history=event_items,
+        extra_context_files=extra_files,
     )
 
 
@@ -128,9 +141,11 @@ def build_llm_context_snapshot_from_collected(
     review_report: object | None = None,
     artifacts: Iterable[object] | None = None,
     event_history: Iterable[object] | None = None,
+    extra_context_files: Iterable[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """从已物化的上下文值组装快照；即使 knowledge 为空也不隐式采集。"""
 
+    extra_files = list(extra_context_files) if extra_context_files is not None else None
     artifact_items = list(artifacts) if artifacts is not None else None
     event_items = list(event_history) if event_history is not None else None
     bundle = context_bundle if isinstance(context_bundle, Mapping) else None
@@ -138,18 +153,21 @@ def build_llm_context_snapshot_from_collected(
     if context_bundle is not None and bundle is None:
         warnings.append("context_bundle ignored because it was not an object")
 
-    context_files, file_warnings, unsafe_file_count = _context_files(bundle, file_path=file_path)
+    context_files, file_warnings, unsafe_file_count = _context_files_with_loop_reads(
+        bundle, file_path=file_path, extra_context_files=extra_files
+    )
     warnings.extend(file_warnings)
     context_files, knowledge_warnings = merge_project_knowledge_entries(
         knowledge,
         context_files=context_files,
         max_context_files=MAX_CONTEXT_FILES,
-        context_file_text_limit=CONTEXT_FILE_TEXT_LIMIT,
     )
     warnings.extend(knowledge_warnings)
-    review_summary = _review_report_summary(review_report) or _review_report_from_artifacts(artifact_items)
-    story_memory = _story_memory_summary(bundle)
-    chapter_context = _chapter_context_summary(bundle)
+    review_source = review_channel_source(review_report, artifact_items)
+    review_summary = _review_report_summary(redact_sensitive(review_source))
+    safe_channels = redact_sensitive(bundle)
+    story_memory = _story_memory_summary(safe_channels)
+    chapter_context = _chapter_context_summary(safe_channels)
     project = _project_summary(bundle)
     omitted = _omitted_summary(
         bundle,
@@ -165,6 +183,12 @@ def build_llm_context_snapshot_from_collected(
         chapter_context=chapter_context,
     )
 
+    requested_sources, _, _ = _context_files_with_loop_reads(
+        bundle,
+        file_path=file_path,
+        extra_context_files=extra_files,
+        max_files=64,
+    )
     snapshot = {
         "kind": "llm_context_snapshot",
         "version": SNAPSHOT_VERSION,
@@ -174,12 +198,23 @@ def build_llm_context_snapshot_from_collected(
         "selected_file": {
             "file_path": _string_or_default(file_path, "unknown"),
             "content_chars": len(content) if isinstance(content, str) else 0,
+            "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest() if isinstance(content, str) else None,
             "content_excerpt": compact_text(content, limit=SELECTED_FILE_TEXT_LIMIT),
         },
         "role_hints": _string_list(role_hints),
         "role_mentions": _string_list(role_mentions),
         "project": project,
         "context_files": context_files,
+        "source_manifest": source_delivery_manifest(knowledge.ordinary, context_files, requested=requested_sources),
+        "knowledge_recovery": json.loads(knowledge.recovery_json) if knowledge.recovery_json else None,
+        "channel_requests": context_channel_requests(bundle, review_source),
+        "context_budget": {
+            "truncated": bool(
+                bundle and isinstance(bundle.get("budget"), Mapping) and bundle["budget"].get("truncated") is True
+            )
+            or any(item.get("truncated") is True for item in context_files)
+            or any("truncated by" in warning for warning in warnings),
+        },
         "review_report": review_summary,
         "story_memory": story_memory,
         "chapter_context": chapter_context,
@@ -187,112 +222,10 @@ def build_llm_context_snapshot_from_collected(
         "warnings": warnings,
         "omitted": omitted,
     }
+    _, synthetic_refs = synthetic_context_delivery(snapshot)
+    snapshot["source_manifest"].extend(synthetic_refs)
+    snapshot["context_budget"]["truncated"] |= any(ref["truncated"] for ref in synthetic_refs)
     return _with_snapshot_id(snapshot)
-
-
-def llm_context_snapshot_to_prompt_context_bundle(snapshot: Mapping[str, Any]) -> dict[str, Any]:
-    """Convert a snapshot back into the legacy context_bundle shape used by current prompts."""
-
-    selected_file = snapshot.get("selected_file") if isinstance(snapshot.get("selected_file"), Mapping) else {}
-    project = snapshot.get("project") if isinstance(snapshot.get("project"), Mapping) else {}
-    context_files = snapshot.get("context_files") if isinstance(snapshot.get("context_files"), list) else []
-    files = [_prompt_context_file(item) for item in context_files if isinstance(item, Mapping)]
-    story_memory_file = _story_memory_prompt_file(snapshot.get("story_memory"))
-    if story_memory_file is not None:
-        files.append(story_memory_file)
-    chapter_context_file = _chapter_context_prompt_file(snapshot.get("chapter_context"))
-    if chapter_context_file is not None:
-        files.append(chapter_context_file)
-
-    current_file = _first_string(project, "current_file") or _first_string(selected_file, "file_path") or "unknown"
-    summary: dict[str, Any] = {}
-    counts = project.get("counts")
-    if isinstance(counts, Mapping):
-        summary["counts"] = dict(counts)
-    has_story_structure = project.get("has_story_structure")
-    if isinstance(has_story_structure, bool):
-        summary["hasStoryStructure"] = has_story_structure
-
-    return {
-        "project_root": _first_string(project, "project_root") or "storyforge://llm-context",
-        "current_file": current_file,
-        "files": files,
-        "summary": summary,
-        "budget": {
-            "file_count": len(files),
-            "char_count": sum(len(str(item.get("excerpt") or "")) for item in files),
-            "max_files": MAX_CONTEXT_FILES,
-            "max_excerpt_chars": CONTEXT_FILE_TEXT_LIMIT,
-            "truncated": False,
-        },
-    }
-
-
-def _prompt_context_file(item: Mapping[str, Any]) -> dict[str, str]:
-    relative_path = _first_string(item, "relative_path") or "unknown"
-    kind = _first_string(item, "kind") or "other"
-    title = _first_string(item, "title") or relative_path
-    excerpt = _first_string(item, "excerpt") or ""
-    return {
-        "path": relative_path,
-        "relative_path": relative_path,
-        "kind": kind,
-        "title": title,
-        "excerpt": compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT) or "无摘录。",
-    }
-
-
-def _story_memory_prompt_file(story_memory: object) -> dict[str, str] | None:
-    if not isinstance(story_memory, Mapping):
-        return None
-    items = story_memory.get("items")
-    if not isinstance(items, list) or not items:
-        return None
-    lines: list[str] = []
-    for item in items[:MAX_STORY_MEMORY_ITEMS]:
-        if not isinstance(item, Mapping):
-            continue
-        label_parts = [_first_string(item, "entity"), _first_string(item, "kind")]
-        label = " / ".join(part for part in label_parts if part)
-        text = _first_string(item, "text")
-        if text is not None:
-            lines.append(f"- {label}: {text}" if label else f"- {text}")
-    if not lines:
-        return None
-    return _synthetic_prompt_file(
-        relative_path="Story Memory",
-        kind="story_memory",
-        title="Story Memory",
-        excerpt="\n".join(lines),
-    )
-
-
-def _chapter_context_prompt_file(chapter_context: object) -> dict[str, str] | None:
-    if not isinstance(chapter_context, Mapping) or not chapter_context:
-        return None
-    lines = [
-        f"- {key}: {value}"
-        for key, value in chapter_context.items()
-        if isinstance(value, str | int | float | bool | list)
-    ]
-    if not lines:
-        return None
-    return _synthetic_prompt_file(
-        relative_path="Chapter Context",
-        kind="chapter_context",
-        title="Chapter Context",
-        excerpt="\n".join(lines),
-    )
-
-
-def _synthetic_prompt_file(*, relative_path: str, kind: str, title: str, excerpt: str) -> dict[str, str]:
-    return {
-        "path": f"storyforge://llm-context/{kind}",
-        "relative_path": relative_path,
-        "kind": kind,
-        "title": title,
-        "excerpt": compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT) or "无摘录。",
-    }
 
 
 def _project_summary(bundle: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -322,10 +255,49 @@ def _project_summary(bundle: Mapping[str, Any] | None) -> dict[str, Any]:
     return result
 
 
+def _context_files_with_loop_reads(
+    bundle: Mapping[str, Any] | None,
+    *,
+    file_path: str,
+    extra_context_files: Iterable[Mapping[str, Any]] | None,
+    max_files: int = MAX_CONTEXT_FILES,
+) -> tuple[list[dict[str, Any]], list[str], int]:
+    files, warnings, unsafe_count = _context_files(bundle, file_path=file_path, max_files=max_files)
+    if extra_context_files is None:
+        return files, warnings, unsafe_count
+    # Loop reads use the same path, redaction, selected-file and budget checks as
+    # request context, before structured admission; never append after filtering.
+    extra_items: list[dict[str, Any]] = []
+    for item in extra_context_files:
+        if not isinstance(item, Mapping) or not isinstance(item.get("excerpt"), str) or not item["excerpt"].strip():
+            continue
+        try:
+            path = normalize_project_relative_path(str(item.get("relative_path") or ""))
+        except FsToolError:
+            warnings.append("loop read context ignored because its relative path was unsafe")
+            continue
+        extra_items.append({**item, "relative_path": path, "kind": "setting"})
+    extra_bundle = {"files": extra_items}
+    extra_files, extra_warnings, extra_unsafe = _context_files(extra_bundle, file_path=file_path, max_files=max_files)
+    warnings.extend(extra_warnings)
+    existing_paths = {normcase(item["relative_path"]) for item in files}
+    for item in extra_files:
+        if normcase(item["relative_path"]) in existing_paths:
+            continue
+        if len(files) >= max_files:
+            warnings.append("loop read context files truncated by count limit")
+            break
+        item["selection_source"] = "loop_fs_read"
+        files.append(item)
+        existing_paths.add(normcase(item["relative_path"]))
+    return files, warnings, unsafe_count + extra_unsafe
+
+
 def _context_files(
     bundle: Mapping[str, Any] | None,
     *,
     file_path: str,
+    max_files: int = MAX_CONTEXT_FILES,
 ) -> tuple[list[dict[str, Any]], list[str], int]:
     if bundle is None:
         return [], [], 0
@@ -341,8 +313,6 @@ def _context_files(
     warnings: list[str] = []
     unsafe_count = 0
     for item in files:
-        if len(result) >= MAX_CONTEXT_FILES:
-            break
         if not isinstance(item, Mapping):
             warnings.append("context_bundle.files item ignored because it was not an object")
             continue
@@ -358,6 +328,9 @@ def _context_files(
         if relative_path is None:
             warnings.append("context_bundle.files item ignored because its relative path was unsafe")
             continue
+        if len(result) >= max_files:
+            warnings.append("context_bundle files truncated by count limit")
+            break
         title = _first_string(item, "title", "name")
         context_file: dict[str, Any] = {
             "relative_path": relative_path,
@@ -370,6 +343,7 @@ def _context_files(
                 warnings.append(f"context_bundle file redacted: {relative_path}")
             context_file["excerpt"] = compact_text(redacted_excerpt, limit=CONTEXT_FILE_TEXT_LIMIT)
             context_file["excerpt_chars"] = len(redacted_excerpt)
+            context_file["truncated"] = len(" ".join(redacted_excerpt.split())) > CONTEXT_FILE_TEXT_LIMIT
         result.append(context_file)
     return result, warnings, unsafe_count
 
@@ -401,6 +375,10 @@ def _review_report_summary(report: object | None) -> dict[str, Any] | None:
     }
     file_path = _first_string(report, "file_path", "filePath")
     mode = _first_string(report, "mode")
+    for key in ("content_sha256", "report_id"):
+        value = _first_string(report, key)
+        if value is not None:
+            summary[key] = value
     if file_path is not None:
         summary["file_path"] = file_path
     if mode is not None:
@@ -470,7 +448,10 @@ def _memory_item_summary(item: Mapping[str, Any]) -> dict[str, Any]:
             result[output_key] = value
     text = _first_string(item, "fact", "content", "text", "summary")
     if text is not None:
-        result["text"] = compact_text(text, limit=MEMORY_TEXT_LIMIT)
+        if len(text) > MEMORY_TEXT_LIMIT:
+            result["text_truncated"] = True
+        else:
+            result["text"] = compact_text(text, limit=MEMORY_TEXT_LIMIT)
     for key in ("source_chapter_id", "valid_from_chapter", "valid_to_chapter"):
         value = item.get(key)
         if isinstance(value, int):

@@ -110,7 +110,7 @@ def test_loop_continue_produces_insertion_patch_without_writing_disk(
 
     monkeypatch.setattr(
         "app.domains.agent_runs.tools.prose_continue_runtime.assistant_service.draft_continuation",
-        lambda session, payload: _FakeDraft("林岚合上审计簿，往塔顶去。"),
+        lambda session, payload, *, prepared_context=None: _FakeDraft("林岚合上审计簿，往塔顶去。"),
     )
     _fake_llm_script(
         monkeypatch,
@@ -173,7 +173,8 @@ def test_loop_continue_forwards_project_root_to_generation(
 
     seen: dict[str, object] = {}
 
-    def _capture(session: object, payload: object) -> _FakeDraft:
+    def _capture(session: object, payload: object, *, prepared_context=None) -> _FakeDraft:
+        assert prepared_context is not None and prepared_context.context_bundle == payload.context_bundle
         seen["project_root"] = getattr(payload, "project_root", None)
         return _FakeDraft("林岚合上审计簿，往塔顶去。")
 

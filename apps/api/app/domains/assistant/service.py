@@ -7,12 +7,15 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.common.author_voice import build_generation_system_prompt
+from app.common.author_edit_policy import AuthorEditPolicyError
+from app.common.author_voice import build_generation_system_prompt, edit_policy_from_generation_prompt
 from app.common.craft import (
     craft_prompt_clause,
     scene_discipline_clause,
 )
 from app.common.exceptions import ConflictError, DomainError, NotFoundError
+from app.common.generation_delivery import record_generation_delivery
+from app.common.generation_sources import GenerationSourceCapture
 from app.common.llm_client import (
     LLMError,
     build_chat_payload,
@@ -36,6 +39,7 @@ from app.common.performance import measure_stage, measured
 from app.common.performance_logging import observe_run
 from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.assistant import continuation, provider_health
+from app.domains.assistant.continue_context import admitted_continue_context
 from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
 from app.domains.assistant.revision import (
     REVISION_SYSTEM_PROMPT,
@@ -57,6 +61,8 @@ from app.domains.assistant.schemas import (
     AssistantToolCallUpdate,
     ProviderHealthResponse,
 )
+from app.domains.assistant.session_scope import assert_session_project_matches
+from app.domains.assistant.writing_context import PreparedWritingContext, admit_writing_request
 from app.domains.book_runs.book_generation import (
     BookGenerationError,
     missing_book_generation_env,
@@ -212,21 +218,6 @@ def get_assistant_session(session: Session, assistant_session_id: int) -> Assist
     return assistant_session
 
 
-def _assert_session_project_matches(
-    assistant_session: AssistantSession, project_root: str | None
-) -> None:
-    """会话归属校验：非空 project_path 与请求项目不一致即拒绝，避免跨项目复用会话。
-
-    残余面：历史遗留会话 project_path 为空，无可校验归属，按现状放行——这类会话仍可能被
-    跨项目复用。
-    """
-    session_project = assistant_session.project_path
-    if session_project is not None and project_root is not None and session_project != project_root:
-        raise ConflictError(
-            f"Assistant 会话归属冲突：会话属于项目 {session_project}，请求来自 {project_root}。"
-        )
-
-
 def list_recent_assistant_sessions(
     session: Session,
     *,
@@ -250,7 +241,8 @@ _REVISE_SYSTEM_PROMPT = REVISION_SYSTEM_PROMPT
 
 
 def _revision_input(
-    payload: AssistantReviseRequest, scene_constraints: str | None, *, system_prompt: str
+    payload: AssistantReviseRequest, scene_constraints: str | None, *, system_prompt: str,
+    author_instruction: str | None = None,
 ) -> RevisionInput:
     return RevisionInput(
         file_path=payload.file_path,
@@ -264,6 +256,11 @@ def _revision_input(
         ),
         scene_constraints=scene_constraints,
         quality_gate=payload.quality_gate,
+        edit_policy=edit_policy_from_generation_prompt(
+            payload.content,
+            instruction=payload.instruction if author_instruction is None else author_instruction,
+            system_prompt=system_prompt,
+        ),
     )
 
 
@@ -406,6 +403,19 @@ def _continue_previous_chapter(payload: AssistantContinueRequest) -> tuple[str, 
     return previous_chapter_tail(payload.project_root, payload.file_path)
 
 
+def _record_generation_sources(session, tool_call, sources, system_prompt, user_prompt):
+    try:
+        evidence = sources.manifest(system_prompt, user_prompt)
+    except ValueError as exc:
+        message = "生成来源证据超出预算，未调用模型，请缩小上下文。"
+        update_assistant_tool_call(
+            session, tool_call.id, AssistantToolCallUpdate(status="failed", error_message=message)
+        )
+        raise AssistantReviseError(message) from exc
+    summary = {**(tool_call.input_summary or {}), "generation_sources": evidence}
+    return update_assistant_tool_call(session, tool_call.id, AssistantToolCallUpdate(input_summary=summary))
+
+
 def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -> Iterator[str]:
     """光标处续写：同步做前置校验与证据链落库，返回逐块吐字的 SSE 生成器。
 
@@ -418,15 +428,22 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
     if missing:
         raise AssistantLlmNotConfiguredError(missing)
 
-    tail = continuation.manuscript_tail(payload.content, payload.cursor_line)
+    anchor_line = continuation.resolve_anchor_line(payload.content, payload.cursor_line)
+    tail = continuation.manuscript_tail(payload.content, anchor_line)
+    suffix = continuation.manuscript_suffix(payload.content, anchor_line)
+    sources = GenerationSourceCapture(payload.project_root, current_file=payload.file_path)
+    with sources.collecting():
+        context_bundle = admitted_continue_context(payload)
     target_chars = payload.target_chars or continuation.DEFAULT_TARGET_CHARS
-    scene_constraints = _continue_scene_constraints(payload)
-    previous_chapter = _continue_previous_chapter(payload)
+    sources.continuation(payload.content, anchor_line, tail, suffix, suffix_limit=continuation.SUFFIX_MAX_CHARS)
+    with sources.collecting():
+        scene_constraints = _continue_scene_constraints(payload)
+        previous_chapter = _continue_previous_chapter(payload)
     instruction_label = payload.instruction or f"续写 {payload.file_path}"
 
     if payload.assistant_session_id is not None:
         assistant_session = get_assistant_session(session, payload.assistant_session_id)
-        _assert_session_project_matches(assistant_session, payload.project_root)
+        assert_session_project_matches(assistant_session, payload.project_root)
         append_assistant_message(
             session,
             assistant_session.id,
@@ -438,6 +455,7 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
             AssistantSessionCreate(
                 title=f"续写 {payload.file_path}"[:160],
                 task_type="desktop_continue",
+                project_path=payload.project_root,
                 messages=[AssistantMessageCreate(role="user", content=instruction_label)],
             ),
         )
@@ -452,6 +470,9 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
                 "file_path": payload.file_path,
                 "cursor_line": payload.cursor_line,
                 "tail_chars": len(tail),
+                "suffix_chars": min(len(suffix), continuation.SUFFIX_MAX_CHARS),
+                "suffix_truncated": len(suffix) > continuation.SUFFIX_MAX_CHARS,
+                "context_file_count": len(context_bundle.files) if context_bundle else 0,
                 "target_chars": target_chars,
                 "has_instruction": payload.instruction is not None,
                 "has_scene_constraints": scene_constraints is not None,
@@ -460,33 +481,43 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
         ),
     )
 
-    request_payload = build_chat_payload(
-        llm_env,
-        messages=[
-            {
-                "role": "system",
-                "content": build_generation_system_prompt(
-                    continuation.CONTINUE_SYSTEM_PROMPT, payload.project_root
-                ),
-            },
-            {
-                "role": "user",
-                "content": continuation.build_continue_prompt(
-                    tail=tail,
-                    file_path=payload.file_path,
-                    instruction=payload.instruction,
-                    scene_constraints=scene_constraints,
-                    previous_chapter=previous_chapter,
-                    target_chars=target_chars,
-                ),
-            },
-        ],
-        tools=None,
-        tool_choice=None,
-        stream=True,
-        # 中文按字符给足配额，宁可被 max_tokens 截断后由 trim_to_sentence_end 收口，
-        # 也不让模型无上限写成整章。
-        max_completion_tokens=max(256, target_chars * 3),
+    with sources.collecting():
+        request_payload = build_chat_payload(
+            llm_env,
+            messages=[
+                {
+                    "role": "system",
+                    "content": build_generation_system_prompt(
+                        continuation.CONTINUE_SYSTEM_PROMPT, payload.project_root
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": continuation.build_continue_prompt(
+                        tail=tail,
+                        file_path=payload.file_path,
+                        suffix=suffix,
+                        context_bundle=context_bundle,
+                        instruction=payload.instruction,
+                        scene_constraints=scene_constraints,
+                        previous_chapter=previous_chapter,
+                        target_chars=target_chars,
+                    ),
+                },
+            ],
+            tools=None,
+            tool_choice=None,
+            stream=True,
+            # 中文按字符给足配额，宁可被 max_tokens 截断后由 trim_to_sentence_end 收口，
+            # 也不让模型无上限写成整章。
+            max_completion_tokens=max(256, target_chars * 3),
+        )
+    _record_generation_sources(
+        session,
+        tool_call,
+        sources,
+        request_payload["messages"][0]["content"],
+        request_payload["messages"][1]["content"],
     )
     model = str(llm_env.get("STORYFORGE_LLM_MODEL") or "")
 
@@ -578,7 +609,8 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
                 session,
                 tool_call.id,
                 AssistantToolCallUpdate(
-                    status="failed", error_message=str(exc)[:4000],
+                    status="failed",
+                    error_message=str(exc)[:4000],
                     output_summary=error_usage_summary(exc, source=llm_env),
                 ),
             )
@@ -587,7 +619,9 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
     return _generate()
 
 
-def draft_continuation(session: Session, payload: AssistantContinueRequest) -> AssistantDraftResponse:
+def draft_continuation(
+    session: Session, payload: AssistantContinueRequest, *, prepared_context: PreparedWritingContext | None = None
+) -> AssistantDraftResponse:
     """非流式光标处续写，供 agent 工具循环调用（流式 /assistant/continue 供编辑器快捷键）。
 
     与 stream_continue_prose 共用同一套纯函数（取窗 / prompt / 确定性后处理），只换传输：
@@ -601,19 +635,28 @@ def draft_continuation(session: Session, payload: AssistantContinueRequest) -> A
     if missing:
         raise AssistantLlmNotConfiguredError(missing)
 
-    tail = continuation.manuscript_tail(payload.content, payload.cursor_line)
+    sources = GenerationSourceCapture(payload.project_root, current_file=payload.file_path)
+    with sources.collecting():
+        payload = admit_writing_request(payload, intent="prose.continue", prepared_context=prepared_context)
+    anchor_line = continuation.resolve_anchor_line(payload.content, payload.cursor_line)
+    tail = continuation.manuscript_tail(payload.content, anchor_line)
+    suffix = continuation.manuscript_suffix(payload.content, anchor_line)
     target_chars = payload.target_chars or continuation.DEFAULT_TARGET_CHARS
-    scene_constraints = _continue_scene_constraints(payload)
-    previous_chapter = _continue_previous_chapter(payload)
+    sources.continuation(payload.content, anchor_line, tail, suffix, suffix_limit=continuation.SUFFIX_MAX_CHARS)
+    with sources.collecting():
+        scene_constraints = _continue_scene_constraints(payload)
+        previous_chapter = _continue_previous_chapter(payload)
 
     if payload.assistant_session_id is not None:
         assistant_session = get_assistant_session(session, payload.assistant_session_id)
+        assert_session_project_matches(assistant_session, payload.project_root)
     else:
         assistant_session = create_assistant_session(
             session,
             AssistantSessionCreate(
                 title=f"续写 {payload.file_path}"[:160],
                 task_type="desktop_continue",
+                project_path=payload.project_root,
                 messages=[
                     AssistantMessageCreate(
                         role="user",
@@ -633,6 +676,9 @@ def draft_continuation(session: Session, payload: AssistantContinueRequest) -> A
                 "file_path": payload.file_path,
                 "cursor_line": payload.cursor_line,
                 "tail_chars": len(tail),
+                "suffix_chars": min(len(suffix), continuation.SUFFIX_MAX_CHARS),
+                "suffix_truncated": len(suffix) > continuation.SUFFIX_MAX_CHARS,
+                "context_file_count": len(payload.context_bundle.files) if payload.context_bundle else 0,
                 "target_chars": target_chars,
                 "has_instruction": payload.instruction is not None,
                 "has_scene_constraints": scene_constraints is not None,
@@ -643,27 +689,39 @@ def draft_continuation(session: Session, payload: AssistantContinueRequest) -> A
     )
 
     try:
-        result = _call_llm_streamed(
-            llm_env,
-            system_prompt=build_generation_system_prompt(
-                continuation.CONTINUE_SYSTEM_PROMPT, payload.project_root
-            ),
-            user_prompt=continuation.build_continue_prompt(
+        with sources.collecting():
+            system_prompt = build_generation_system_prompt(continuation.CONTINUE_SYSTEM_PROMPT, payload.project_root)
+            user_prompt = continuation.build_continue_prompt(
                 tail=tail,
                 file_path=payload.file_path,
+                suffix=suffix,
+                context_bundle=payload.context_bundle,
                 instruction=payload.instruction,
                 scene_constraints=scene_constraints,
                 previous_chapter=previous_chapter,
                 target_chars=target_chars,
-            ),
-        )
+            )
+        stored = _record_generation_sources(session, tool_call, sources, system_prompt, user_prompt)
+        try:
+            record_generation_delivery(stored.id, stored.input_summary["generation_sources"])
+        except Exception as exc:  # noqa: BLE001 - delivery acknowledgement must fail closed before provider
+            session.rollback()
+            message = "生成送达关联未能持久化，未调用模型。"
+            update_assistant_tool_call(session, tool_call.id, AssistantToolCallUpdate(status="failed", error_message=message))
+            raise AssistantReviseError(message) from exc
+        result = _call_llm_streamed(llm_env, system_prompt=system_prompt, user_prompt=user_prompt)
     except LLMRunInterrupted as exc:
         update_assistant_tool_call(
-            session, tool_call.id,
-            AssistantToolCallUpdate(status="paused", output_summary={
-                "execution_state": "unknown", "interruption_reason": exc.reason,
-                **error_usage_summary(exc, source=llm_env),
-            }),
+            session,
+            tool_call.id,
+            AssistantToolCallUpdate(
+                status="paused",
+                output_summary={
+                    "execution_state": "unknown",
+                    "interruption_reason": exc.reason,
+                    **error_usage_summary(exc, source=llm_env),
+                },
+            ),
         )
         raise
     except BookGenerationError as exc:
@@ -671,7 +729,8 @@ def draft_continuation(session: Session, payload: AssistantContinueRequest) -> A
             session,
             tool_call.id,
             AssistantToolCallUpdate(
-                status="failed", error_message=str(exc)[:4000],
+                status="failed",
+                error_message=str(exc)[:4000],
                 output_summary=error_usage_summary(exc, source=llm_env),
             ),
         )
@@ -718,7 +777,13 @@ def draft_continuation(session: Session, payload: AssistantContinueRequest) -> A
 
 
 @observe_run("revision.use_case")
-def revise_file_content(session: Session, payload: AssistantReviseRequest) -> AssistantReviseResponse:
+def revise_file_content(
+    session: Session,
+    payload: AssistantReviseRequest,
+    *,
+    author_instruction: str | None = None,
+    prepared_context: PreparedWritingContext | None = None,
+) -> AssistantReviseResponse:
     """对当前文件全文按用户指令做一次真实 LLM 修订，落会话与工具调用证据链。
 
     LLM 未配置或调用失败时明确抛错，不伪造兜底内容。"""
@@ -729,11 +794,14 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
         raise AssistantLlmNotConfiguredError(missing)
 
     with measure_stage("revision.constraints"):
-        scene_constraints = _scene_constraints(payload.project_root, payload.file_path)
+        sources = GenerationSourceCapture(payload.project_root)
+        with sources.collecting():
+            payload = admit_writing_request(payload, intent="file.revise", prepared_context=prepared_context)
+            scene_constraints = _scene_constraints(payload.project_root, payload.file_path)
 
     if payload.assistant_session_id is not None:
         assistant_session = get_assistant_session(session, payload.assistant_session_id)
-        _assert_session_project_matches(assistant_session, payload.project_root)
+        assert_session_project_matches(assistant_session, payload.project_root)
         append_assistant_message(
             session,
             assistant_session.id,
@@ -745,6 +813,7 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
             AssistantSessionCreate(
                 title=f"修订 {payload.file_path}"[:160],
                 task_type="desktop_revise",
+                project_path=payload.project_root,
                 messages=[AssistantMessageCreate(role="user", content=payload.instruction)],
             ),
         )
@@ -767,26 +836,33 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
 
     def generate(*, system_prompt: str, user_prompt: str) -> Mapping[str, object]:
         # 请求内绑定配置，调用时解析现有 streamed seam，保留传输与 monkeypatch 行为。
+        _record_generation_sources(session, tool_call, sources, system_prompt, user_prompt)
         return _call_llm_streamed(llm_env, system_prompt=system_prompt, user_prompt=user_prompt)
 
     try:
-        with measure_stage("revision.system_prompt"):
+        with measure_stage("revision.system_prompt"), sources.collecting():
             system_prompt = build_generation_system_prompt(_REVISE_SYSTEM_PROMPT, payload.project_root)
         revision = revise_text(
             _revision_input(
                 payload,
                 scene_constraints,
                 system_prompt=system_prompt,
+                author_instruction=author_instruction,
             ),
             generate=generate,
         )
     except LLMRunInterrupted as exc:
         update_assistant_tool_call(
-            session, tool_call.id,
-            AssistantToolCallUpdate(status="paused", output_summary={
-                "execution_state": "unknown", "interruption_reason": exc.reason,
-                **error_usage_summary(exc, source=llm_env),
-            }),
+            session,
+            tool_call.id,
+            AssistantToolCallUpdate(
+                status="paused",
+                output_summary={
+                    "execution_state": "unknown",
+                    "interruption_reason": exc.reason,
+                    **error_usage_summary(exc, source=llm_env),
+                },
+            ),
         )
         raise
     except BookGenerationError as exc:
@@ -794,11 +870,20 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
             session,
             tool_call.id,
             AssistantToolCallUpdate(
-                status="failed", error_message=str(exc)[:4000],
+                status="failed",
+                error_message=str(exc)[:4000],
                 output_summary=error_usage_summary(exc, source=llm_env),
             ),
         )
         raise AssistantReviseError(str(exc), usage=exc.usage) from exc
+    except AuthorEditPolicyError as exc:
+        message = "作者编辑要求无效，请重新指定需要逐字保留的片段。"
+        update_assistant_tool_call(
+            session,
+            tool_call.id,
+            AssistantToolCallUpdate(status="failed", error_message=message),
+        )
+        raise AssistantReviseError(message) from exc
     except RevisionQualityRejected as exc:
         quality_gate = exc.gate
         error = AssistantReviseQualityGateError(quality_gate.reasons)
@@ -844,6 +929,7 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
             "version": quality_gate.gate_version,
             "passed": True,
             "reasons": [],
+            "advisories": list(quality_gate.advisories),
             "metrics": dict(quality_gate.metrics),
         }
     update_assistant_tool_call(
@@ -923,7 +1009,9 @@ def _build_draft_prompt(
     )
 
 
-def draft_file_content(session: Session, payload: AssistantDraftRequest) -> AssistantDraftResponse:
+def draft_file_content(
+    session: Session, payload: AssistantDraftRequest, *, prepared_context: PreparedWritingContext | None = None
+) -> AssistantDraftResponse:
     """按指令为一个尚不存在的文件起草初稿，落会话与工具调用证据链。
 
     LLM 未配置或调用失败时明确抛错，不伪造兜底内容；本函数不写盘，写回由前端补丁确认承担。"""
@@ -933,17 +1021,22 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
     if missing:
         raise AssistantLlmNotConfiguredError(missing)
 
-    scene_constraints = _scene_constraints(payload.project_root, payload.file_path)
-    previous_chapter = previous_chapter_tail(payload.project_root, payload.file_path)
+    sources = GenerationSourceCapture(payload.project_root)
+    with sources.collecting():
+        payload = admit_writing_request(payload, intent="file.create", prepared_context=prepared_context)
+        scene_constraints = _scene_constraints(payload.project_root, payload.file_path)
+        previous_chapter = previous_chapter_tail(payload.project_root, payload.file_path)
 
     if payload.assistant_session_id is not None:
         assistant_session = get_assistant_session(session, payload.assistant_session_id)
+        assert_session_project_matches(assistant_session, payload.project_root)
     else:
         assistant_session = create_assistant_session(
             session,
             AssistantSessionCreate(
                 title=f"起草 {payload.file_path}"[:160],
                 task_type="desktop_draft",
+                project_path=payload.project_root,
                 messages=[AssistantMessageCreate(role="user", content=payload.instruction)],
             ),
         )
@@ -965,20 +1058,23 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
     )
 
     try:
-        result = _call_llm_streamed(
-            llm_env,
-            system_prompt=build_generation_system_prompt(
-                _DRAFT_SYSTEM_PROMPT, payload.project_root
-            ),
-            user_prompt=_build_draft_prompt(payload, scene_constraints, previous_chapter),
-        )
+        with sources.collecting():
+            system_prompt = build_generation_system_prompt(_DRAFT_SYSTEM_PROMPT, payload.project_root)
+            user_prompt = _build_draft_prompt(payload, scene_constraints, previous_chapter)
+        _record_generation_sources(session, tool_call, sources, system_prompt, user_prompt)
+        result = _call_llm_streamed(llm_env, system_prompt=system_prompt, user_prompt=user_prompt)
     except LLMRunInterrupted as exc:
         update_assistant_tool_call(
-            session, tool_call.id,
-            AssistantToolCallUpdate(status="paused", output_summary={
-                "execution_state": "unknown", "interruption_reason": exc.reason,
-                **error_usage_summary(exc, source=llm_env),
-            }),
+            session,
+            tool_call.id,
+            AssistantToolCallUpdate(
+                status="paused",
+                output_summary={
+                    "execution_state": "unknown",
+                    "interruption_reason": exc.reason,
+                    **error_usage_summary(exc, source=llm_env),
+                },
+            ),
         )
         raise
     except BookGenerationError as exc:
@@ -986,7 +1082,8 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
             session,
             tool_call.id,
             AssistantToolCallUpdate(
-                status="failed", error_message=str(exc)[:4000],
+                status="failed",
+                error_message=str(exc)[:4000],
                 output_summary=error_usage_summary(exc, source=llm_env),
             ),
         )

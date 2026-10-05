@@ -282,6 +282,36 @@ pub fn write_file_with_receipt(
         },
     )
 }
+/// 正文派生的 canon 缓存白名单（D04 统一失效清单）。
+/// proposals.json 刻意排除：那是 canon_delta 的待决提案草稿，不是正文派生。
+const CANON_DERIVED_INVALIDATION_NAMES: [&str; 4] = [
+    "presence.json",
+    "observations.json",
+    "dossier.md",
+    "report.json",
+];
+
+/// 写回成功后删除项目内 canon 正文派生缓存；缺失即 no-op。
+/// 只删 canonical project root 内 `.storyforge/canon/derived/` 下的白名单文件，
+/// 每个目标先过 containment 校验，杜绝借目录结构穿出项目。
+fn invalidate_canon_derived_caches(root: &Path) -> Result<(), String> {
+    let derived_dir = root.join(".storyforge").join("canon").join("derived");
+    for name in CANON_DERIVED_INVALIDATION_NAMES {
+        let target = derived_dir.join(name);
+        match fs::symlink_metadata(&target) {
+            Ok(_) => {
+                project_fs::validate_pending_mutation_path(&root.to_string_lossy(), &target)?;
+                if fs::remove_file(&target).is_err() {
+                    return Err(format!("无法删除 {name}"));
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("无法检查 {name}: {error}")),
+        }
+    }
+    Ok(())
+}
+
 fn apply_with(
     project_root: &str,
     request: &WritebackRequest,
@@ -321,7 +351,19 @@ fn apply_with(
     };
     #[cfg(feature = "gui-fixture")]
     if state == "applied" {
-        crate::lifecycle_gui_fixture::at_boundary(project_root, "body", Some(&intent.operation_id))?;
+        crate::lifecycle_gui_fixture::at_boundary(
+            project_root,
+            "body",
+            Some(&intent.operation_id),
+        )?;
+    }
+    // D04：正文落盘成功后使 canon 派生缓存失效（可弃缓存，缺失即触发后端按需重建）。
+    // proposals.json 不在此列——它承载 canon_delta 的待决提案草稿，不是正文派生。
+    // 失效失败不阻断写回：正文已成功落盘，残留旧缓存的行为与失效机制引入前相同。
+    if state == "applied" {
+        if let Err(error) = invalidate_canon_derived_caches(&location.root) {
+            detail = Some(format!("canon 派生缓存未失效: {error}"));
+        }
     }
     let outcome = Outcome {
         schema_version: 1,

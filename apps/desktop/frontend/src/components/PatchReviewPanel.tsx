@@ -21,9 +21,10 @@ type PatchReviewPanelProps = {
   onRetryWithoutKnowledge: (knowledgeId: string, relativePath: string) => void | Promise<void>;
 };
 
-type PatchAction = 'accept' | 'hunk' | 'reject' | 'note' | 'retry';
+type PatchAction = 'accept' | 'hunk' | 'reject' | 'note' | 'retry' | 'undo';
 
 const PATCH_ACTION_LABELS: Record<PatchAction, string> = {
+  undo: '撤销写回',
   accept: '接受',
   hunk: '接受修改块',
   reject: '拒绝',
@@ -123,6 +124,8 @@ export function PatchReviewPanel({
   const runAction = useCallback(
     (kind: PatchAction, action: () => void | Promise<void>) => {
       if (actionKind || actionInFlightRef.current) return;
+      if (kind === 'accept' && Object.keys(suggestion.operationView?.conflicts ?? {}).length)
+        return;
       const token = Symbol(kind);
       actionInFlightRef.current = { kind, token };
       setLocalError(null);
@@ -159,9 +162,12 @@ export function PatchReviewPanel({
     [suggestion.before, suggestion.after],
   );
   const hunks = useMemo(
-    () => buildPatchHunks(suggestion.before, suggestion.after),
-    [suggestion.before, suggestion.after],
+    () =>
+      suggestion.operationView?.operations ?? buildPatchHunks(suggestion.before, suggestion.after),
+    [suggestion.before, suggestion.after, suggestion.operationView],
   );
+  const operationConflicts = suggestion.operationView?.conflicts ?? {};
+  const hasOperationConflict = Object.keys(operationConflicts).length > 0;
   const traceTitle = useMemo(() => buildPatchReviewTraceTitle(suggestion), [suggestion]);
 
   // 发出即收起：面板通常随补丁一起消失，但同一实例换下一个补丁时不该还留着上一条草稿。
@@ -413,7 +419,7 @@ export function PatchReviewPanel({
               onClick={() => runAction('accept', onAccept)}
               data-testid="suggestion-accept"
               title="接受 · Ctrl Y"
-              disabled={actionBusy}
+              disabled={actionBusy || hasOperationConflict}
               loading={actionState === 'accept'}
               loadingLabel="接受中"
               size="xs"
@@ -504,6 +510,11 @@ export function PatchReviewPanel({
             </Button>
           </div>
         )}
+        {hasOperationConflict && (
+          <div role="alert" className="border-t border-border px-3 py-2 text-xs text-error">
+            原修改区间已变化，无法安全应用；请重新生成修订或手动处理。未定位操作不纳入当前预览。
+          </div>
+        )}
         {hunks.length > 1 && (
           <div
             className="flex flex-wrap items-center gap-2 border-t border-border px-3 py-2 text-2xs text-muted"
@@ -516,12 +527,13 @@ export function PatchReviewPanel({
                 type="button"
                 onClick={() => runAction('hunk', () => onAcceptHunk(hunk))}
                 data-testid="suggestion-accept-hunk"
-                disabled={actionBusy}
+                disabled={actionBusy || Boolean(operationConflicts[hunk.id])}
                 size="sm"
                 variant="secondary"
                 title={`第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`}
               >
-                接受第 {index + 1} 处 · 第 {hunk.originalStartIndex + 1} 行
+                接受第 {index + 1} 处 · {suggestion.operationView ? '原稿' : ''}第{' '}
+                {hunk.originalStartIndex + 1} 行
               </Button>
             ))}
           </div>

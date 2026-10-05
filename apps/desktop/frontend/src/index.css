@@ -512,6 +512,13 @@ button:disabled[aria-busy='true'] {
 }
 
 /* ===== 行间对话（Ctrl+K）：Monaco view zone / decoration 的内联 diff 皮肤 ===== */
+/* Monaco's later view-lines layer covers the blank view-zone space for hit
+   testing. Interactive author zones must sit above it, not merely stop bubbling. */
+.sf-inline-chat,
+.sf-inline-diff-zone {
+  z-index: 1;
+}
+
 .sf-inline-chat {
   box-sizing: border-box;
   /* 有界固定宽 + 左锚定：不拉到编辑器右缘，right border 就不会被 view zone 父容器 overflow 裁掉；

@@ -10,6 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "verify:smoke": "node scripts/verify-smoke.mjs",
+    "verify:inline-continuation": "node scripts/verify-inline-continuation.mjs",
     "verify:agent-conversation": "node scripts/verify-agent-conversation.mjs"
   },
   "dependencies": {

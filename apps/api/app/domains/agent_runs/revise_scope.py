@@ -14,6 +14,7 @@ from app.common.punctuation import canonical_punctuation
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs._text import ordered_unique as _ordered_unique
 from app.domains.agent_runs._text import string_arg_list as _string_arg_list
+from app.domains.agent_runs.revise_delivery import compose_scoped_instruction
 from app.domains.ide import review_reasoning
 from app.domains.ide.review_skills import REVIEW_SKILLS
 
@@ -29,11 +30,11 @@ _MINIMAL_EDIT_CONTRACT = "\n".join(
 
 # narrow 修订却改动了大半原文，多半是模型越界重写；超过该比例即在结果里挂 scope_warning 让作者逐块复核。
 _NARROW_REVISE_DRIFT_WARN_RATIO = 0.5
+_ISSUE_ORDINAL = re.compile(r"第\s*([一二两三四五六七八九十\d]+)\s*[条项个]")
 
 
 def _scoped_revise_instruction(instruction: str, review_report: dict[str, Any] | None, scope: dict[str, Any]) -> str:
     issues = _scope_issues(scope)
-    actions = _review_report_actions(review_report)
     constraints = _scope_string_list(scope, "constraints")
     narrow = bool(scope.get("narrow"))
     if not narrow and not review_report and not constraints:
@@ -42,41 +43,52 @@ def _scoped_revise_instruction(instruction: str, review_report: dict[str, Any] |
     if narrow:
         blocks.append(_MINIMAL_EDIT_CONTRACT)
     if constraints:
-        blocks.append("\n".join(["硬约束（必须遵守）：", *(f"{index}. {constraint}" for index, constraint in enumerate(constraints, start=1))]))
-    if not review_report or (not issues and not actions):
-        return "\n\n".join(blocks)[:4000]
-    issue_lines = []
-    for index, issue in enumerate(issues[:8], start=1):
-        issue_id = _optional_string(issue.get("id"))
-        category = _optional_string(issue.get("category")) or _issue_category(issue) or "review"
-        agent = issue_id or _optional_string(issue.get("agent")) or category
-        severity = _optional_string(issue.get("severity")) or "info"
-        message = _optional_string(issue.get("message")) or "未命名问题"
-        evidence = _optional_string(issue.get("evidence"))
-        suffix = f" 证据：{evidence}" if evidence else ""
-        issue_lines.append(f"{index}. [{agent}/{category}/{severity}] {message}{suffix}")
-    action_lines = [f"{index}. {action}" for index, action in enumerate(actions[:6], start=1)]
-    review_block = "\n".join(
-        [
-            "上一轮多视角审稿报告（已按本轮指令筛选范围）：",
-            "有效问题：",
-            *(issue_lines or ["无有效审稿问题。"]),
-            "建议：",
-            *(action_lines or ["按用户当前指令修订。"]),
-        ]
-    )
-    blocks.append(review_block)
-    blocks.append("请只处理上述有效审稿范围内的问题，并保持原有事实连续。")
-    return "\n\n".join(blocks)[:4000]
+        blocks.append(
+            "\n".join(
+                [
+                    "硬约束（必须遵守）：",
+                    *(f"{index}. {constraint}" for index, constraint in enumerate(constraints, start=1)),
+                ]
+            )
+        )
+    # Global actions have no issue association. Only an explicitly broad,
+    # unfiltered rewrite may consume them; selected issues carry their own action.
+    all_issues = _review_report_issues(review_report)
+    actions = _review_report_actions(review_report) if not narrow and issues == all_issues else []
+    return compose_scoped_instruction(blocks, issues, actions)
 
 
-def _resolve_revise_scope(review_report: dict[str, Any] | None, args: dict[str, Any]) -> dict[str, Any]:
+def _resolve_revise_scope(
+    review_report: dict[str, Any] | None,
+    args: dict[str, Any],
+    *,
+    author_instruction: str | None = None,
+) -> dict[str, Any]:
     issues = _review_report_issues(review_report)
-    instruction = _optional_string(args.get("instruction")) or ""
-    valid_by_id = {issue_id: issue for issue in issues if isinstance((issue_id := issue.get("id")), str) and issue_id.strip()}
+    instruction = (
+        author_instruction if author_instruction is not None else _optional_string(args.get("instruction")) or ""
+    )
+    if author_instruction is not None and _ISSUE_ORDINAL.search(author_instruction):
+        # Explicit author ordinals also outrank a model's category exclusions.
+        args = {**args, "selected_issue_ids": [], "included_categories": [], "excluded_categories": []}
+    valid_by_id = {
+        issue_id: issue for issue in issues if isinstance((issue_id := issue.get("id")), str) and issue_id.strip()
+    }
     explicit_selected_ids = _string_arg_list(args.get("selected_issue_ids"))
-    inferred_selected_ids, unknown_ordinals = _selected_issue_ids_from_instruction(instruction, issues)
-    selected_ids = explicit_selected_ids or inferred_selected_ids
+    ordinal_categories = _included_categories_from_instruction(instruction) if author_instruction is not None else []
+    ordinal_issues = (
+        [issue for issue in issues if _issue_category(issue) in ordinal_categories] if ordinal_categories else issues
+    )
+    inferred_selected_ids, unknown_ordinals = _selected_issue_ids_from_instruction(instruction, ordinal_issues)
+    if author_instruction is not None and unknown_ordinals:
+        from app.domains.agent_runs.errors import AgentOrchestrationError
+
+        raise AgentOrchestrationError("选中的审稿问题不存在，请按当前报告重新选择；未生成补丁。")
+    selected_ids = (
+        inferred_selected_ids
+        if author_instruction is not None and inferred_selected_ids
+        else explicit_selected_ids or inferred_selected_ids
+    )
     dropped_unknown_ids = [issue_id for issue_id in selected_ids if issue_id not in valid_by_id]
     dropped_unknown_ids.extend(unknown_ordinals)
     explicit_included_categories = _valid_categories(_string_arg_list(args.get("included_categories")))
@@ -84,7 +96,9 @@ def _resolve_revise_scope(review_report: dict[str, Any] | None, args: dict[str, 
     included_categories = explicit_included_categories or inferred_included_categories
     excluded_categories = _valid_categories(_string_arg_list(args.get("excluded_categories")))
     excluded_categories = _ordered_unique([*excluded_categories, *_excluded_categories_from_instruction(instruction)])
-    constraints = _ordered_unique([*_string_arg_list(args.get("revision_constraints")), *_revision_constraints_from_instruction(instruction)])
+    constraints = _ordered_unique(
+        [*_string_arg_list(args.get("revision_constraints")), *_revision_constraints_from_instruction(instruction)]
+    )
     if selected_ids:
         scoped_issues = [valid_by_id[issue_id] for issue_id in selected_ids if issue_id in valid_by_id]
     elif included_categories:
@@ -95,8 +109,14 @@ def _resolve_revise_scope(review_report: dict[str, Any] | None, args: dict[str, 
     if excluded_categories:
         excluded = set(excluded_categories)
         scoped_issues = [issue for issue in scoped_issues if _issue_category(issue) not in excluded]
-    issue_ids = [issue_id for issue in scoped_issues if isinstance((issue_id := issue.get("id")), str) and issue_id.strip()]
-    categories = [category for category in (*review_reasoning.REVIEW_AGENT_KEYS, "continuity") if any(_issue_category(issue) == category for issue in scoped_issues)]
+    issue_ids = [
+        issue_id for issue in scoped_issues if isinstance((issue_id := issue.get("id")), str) and issue_id.strip()
+    ]
+    categories = [
+        category
+        for category in (*review_reasoning.REVIEW_AGENT_KEYS, "continuity")
+        if any(_issue_category(issue) == category for issue in scoped_issues)
+    ]
     has_explicit_scope = bool(selected_ids or included_categories or excluded_categories or constraints)
     narrow = has_explicit_scope or not _is_broad_revise(instruction)
     return {
@@ -107,6 +127,12 @@ def _resolve_revise_scope(review_report: dict[str, Any] | None, args: dict[str, 
         "dropped_unknown_ids": _ordered_unique(dropped_unknown_ids),
         "narrow": narrow,
     }
+
+
+def revision_references_review(instruction: str) -> bool:
+    return bool(_ISSUE_ORDINAL.search(instruction)) or any(
+        phrase in instruction for phrase in ("审稿报告", "审稿问题", "审稿意见", "上轮问题", "上一轮问题")
+    )
 
 
 def _is_broad_revise(instruction: str) -> bool:
@@ -232,9 +258,10 @@ def _issue_category(issue: dict[str, Any]) -> str | None:
 def _selected_issue_ids_from_instruction(instruction: str, issues: list[dict[str, Any]]) -> tuple[list[str], list[str]]:
     selected: list[str] = []
     unknown: list[str] = []
-    for raw in re.findall(r"第\s*([一二两三四五六七八九十\d]+)\s*[条项个]", instruction):
+    for raw in _ISSUE_ORDINAL.findall(instruction):
         index = _parse_ordinal(raw)
         if index is None:
+            unknown.append(f"第{raw}条")
             continue
         issue = issues[index - 1] if 0 < index <= len(issues) else None
         issue_id = issue.get("id") if isinstance(issue, dict) else None

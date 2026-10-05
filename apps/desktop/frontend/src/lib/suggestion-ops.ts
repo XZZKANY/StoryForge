@@ -2,8 +2,8 @@
  * 「不可变 op」合同：把一份修订补丁（before→after）看作若干不可变 op（分块）。
  *
  * 整份接受不再把冻结的 after 整段盖回当前稿，而是把补丁里尚未应用的 op 逐个映射到作者
- * 当前稿——范围外的行一律不动，作者在提交期间的独立改动不会被回退。只有当前稿与 before
- * 逐字一致时才走「直接写 after」的快路径。
+ * 当前稿——范围外的行一律不动，作者在提交期间的独立改动不会被回退。无已消费操作且当前稿
+ * 与 before 归一化后相同时，才走「直接写 after」的快路径。
  */
 import { applyPatchHunkToCurrent, buildPatchHunks, type PatchHunk } from './patch-hunks';
 
@@ -41,10 +41,8 @@ export function matchSuggestionOp(ops: readonly PatchHunk[], hunk: PatchHunk): P
   const byContent = ops.filter(
     (op) => op.beforeText === hunk.beforeText && op.afterText === hunk.afterText,
   );
-  if (byContent.length === 1) return byContent[0];
-  if (byContent.length > 1) return null;
-  const byId = ops.filter((op) => op.id === hunk.id);
-  return byId.length === 1 ? byId[0] : null;
+  // id 只有位置/区间信息：作者等长改写后 id 仍相同，不能拿它补救内容身份失配。
+  return byContent.length === 1 ? byContent[0] : null;
 }
 
 /**
@@ -227,9 +225,57 @@ function classifyAtAnchor(
   return 'conflict';
 }
 
+/** 历史接受不是当前结果；只读取已确认原 op 在实际写入稿中的锚定结果，不修复或猜测。 */
+export function verifiedAppliedOpIds(
+  current: string,
+  before: string,
+  operations: readonly PatchHunk[],
+  confirmedOpIds: ReadonlySet<string>,
+): Set<string> {
+  const confirmed = operations.filter((op) => confirmedOpIds.has(op.id));
+  let expected = before;
+  for (const op of [...confirmed].sort((a, b) => b.originalStartOffset - a.originalStartOffset)) {
+    expected =
+      expected.slice(0, op.originalStartOffset) +
+      op.afterText +
+      expected.slice(op.originalEndOffset);
+  }
+  // 原 op 直接投影的精确全稿可作文字覆盖证据，不是 Native 历史写入回执。
+  if (current === expected) return new Set(confirmed.map((op) => op.id));
+  const verified = new Set<string>();
+  for (const op of operations) {
+    if (!confirmedOpIds.has(op.id)) continue;
+    const located = locateOpAnchor(current, op, before);
+    if (located.kind !== 'anchor' || classifyAtAnchor(current, op, located.at) !== 'applied') {
+      continue;
+    }
+    const prefix = op.originalPrefixContext;
+    if (prefix) {
+      const ends = prefixEnds(current, prefix);
+      // 唯一结果候选也可能是另一处重复块；原前缀序号映射须仍成立。
+      if (
+        ends.length !== prefixEnds(before, prefix).length ||
+        ends[prefixOrdinal(before, op)] !== located.at
+      )
+        continue;
+    }
+    if (
+      anchorFullMatches(
+        current,
+        located.at,
+        located.at + op.afterText.length,
+        prefix,
+        op.originalSuffixContext,
+      )
+    )
+      verified.add(op.id);
+  }
+  return verified;
+}
+
 /**
  * 规划一次整份接受：
- * - 当前稿与 before 归一化后一致 → 直接写 after（内容本就是这个结果）；
+ * - 没有已消费 op 且当前稿与 before 归一化后一致 → 直接写 after；
  * - 否则把尚未应用的原始 op 逐个映射到当前稿（原文 + 前后文定位，冲突即抛错）。
  *
  * 已落盘的 op（例如重复确认同一条已写入的补丁）会幂等跳过；作者改动了 op 覆盖的原文时
@@ -241,16 +287,17 @@ export function planWholeAccept(
   after: string,
   appliedOpIds: ReadonlySet<string>,
   normalizeEol: (text: string) => string,
+  operations: readonly PatchHunk[] = buildSuggestionOps(before, after),
 ): WholeAcceptPlan {
-  if (normalizeEol(current) === normalizeEol(before)) {
-    const settledOpIds = new Set(buildSuggestionOps(before, after).map((op) => op.id));
+  // 作者可能把已接受的文字改回源稿；相等不授予已消费操作第二次写入权限。
+  if (appliedOpIds.size === 0 && normalizeEol(current) === normalizeEol(before)) {
+    const settledOpIds = new Set(operations.map((op) => op.id));
     return { content: after, applied: [], fastPath: true, settledOpIds };
   }
-  const ops = buildSuggestionOps(before, after);
   let content = current;
   const applied: AppliedSuggestionOp[] = [];
   const settledOpIds = new Set<string>();
-  for (const op of ops) {
+  for (const op of operations) {
     const located = locateOpAnchor(content, op, before);
     // 前缀仍在但出现序号越界：无法唯一确定目标，拒绝猜着写。
     if (located.kind === 'ambiguous') {
@@ -302,6 +349,10 @@ export function planHunkAccept(
   before: string,
 ): { content: string; alreadyApplied: boolean } {
   const located = locateOpAnchor(current, op, before);
+  // 前一 op 或范围外作者修改可能改变原始前缀；与整份接受一致，仅唯一原文可安全兜底。
+  if (located.kind === 'fallback' && countOccurrences(current, op.beforeText) === 1) {
+    return { content: applyPatchHunkToCurrent(current, op), alreadyApplied: false };
+  }
   if (located.kind !== 'anchor') {
     throw new Error(
       located.kind === 'ambiguous'
@@ -328,7 +379,7 @@ export function planHunkAccept(
 /** 审稿问题覆盖的原文行范围（1-based，闭区间）。拿不到行范围的问题不参与归属，绝不臆造。 */
 export type IssueScope = { id: string; lineStart: number; lineEnd: number };
 
-/** 问题在本次写回中的归属态：resolved 覆盖它的 op 全被接受；touched 部分接受；open 未接受或无法归属。 */
+/** 当前稿的行范围归属：resolved 完整覆盖，touched 部分覆盖，open 无覆盖或无法核验；非语义审查结论。 */
 export type IssueStatus = 'resolved' | 'touched' | 'open';
 export type IssueResolution = { id: string; status: IssueStatus };
 export type IssueCounts = { observed: number; authorConfirmed: number; resolved: number };
@@ -408,11 +459,19 @@ export function resolveIssueStatuses(
   });
 }
 
-/** 分列可观测量：observed 全部、author-confirmed 作者已动手、resolved 已完整解决。 */
-export function summarizeIssueResolutions(resolutions: readonly IssueResolution[]): IssueCounts {
+/** 当前文字覆盖与确认历史分列；默认兼容单次记录，不把历史接受当作当前已解决。 */
+export function summarizeIssueResolutions(
+  resolutions: readonly IssueResolution[],
+  authorConfirmations: readonly IssueResolution[] = resolutions,
+): IssueCounts {
+  const observed = new Set(resolutions.map((resolution) => resolution.id));
   return {
     observed: resolutions.length,
-    authorConfirmed: resolutions.filter((resolution) => resolution.status !== 'open').length,
+    authorConfirmed: new Set(
+      authorConfirmations
+        .filter((resolution) => observed.has(resolution.id) && resolution.status !== 'open')
+        .map((resolution) => resolution.id),
+    ).size,
     resolved: resolutions.filter((resolution) => resolution.status === 'resolved').length,
   };
 }

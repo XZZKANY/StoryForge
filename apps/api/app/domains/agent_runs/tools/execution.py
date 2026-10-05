@@ -89,6 +89,8 @@ class ToolExecutionContext:
     assistant_session_id: int
     user_message: str
     args: dict[str, Any]
+    current_review_report: dict[str, Any] | None = None  # Backend-only, including unsettled loop artifacts.
+    writing_read_sources: tuple[dict[str, Any], ...] = ()  # Before admission; never supplied by a model or serialized.
 
 
 @dataclass(frozen=True)

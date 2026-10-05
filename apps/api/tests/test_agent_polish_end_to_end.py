@@ -312,7 +312,7 @@ def test_trusted_context_reaches_actual_model_and_rejects_entity_drift(flow, ent
     }
 
     def rename_entity(response):
-        return replace(response, content=response.content.replace("林岚", "她"))
+        return replace(response, content=response.content.replace("林岚", "林蓝"))
 
     result = flow.send(
         entry,

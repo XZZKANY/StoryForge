@@ -23,7 +23,8 @@ KnowledgeKind = Literal[
 KnowledgeEvidenceState = Literal["current", "stale"]
 KnowledgeSourceType = Literal["project_file", "author_statement", "external_reference"]
 
-_START_MARKER = "<!-- storyforge-knowledge:v1\n"
+_START_MARKER_PREFIX = "<!-- storyforge-knowledge:v1"
+_START_MARKER = f"{_START_MARKER_PREFIX}\n"
 _METADATA_END = "\n-->\n"
 _END_MARKER = "\n<!-- /storyforge-knowledge -->"
 _KNOWLEDGE_STATUSES = frozenset({"active", "superseded", "retired", "disputed"})
@@ -36,6 +37,33 @@ _HASH_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
 class KnowledgeEntryError(ValueError):
     """A structured knowledge block violates the author-file contract."""
+
+
+def has_knowledge_block_marker(content: str) -> bool:
+    """文件是否含结构化知识块标记（即便全部损坏、零有效条目）。"""
+    return _START_MARKER_PREFIX in content
+
+
+def plain_notes_outside_knowledge_blocks(content: str) -> str:
+    """剥离全部知识块 span 后剩余的非空白普通说明；无则返回空串。
+
+    用于报告 §3 C06：混合文件（合法 active 块 + 块外普通说明）不能只靠
+    structured_paths 整文件排除——块外作者说明必须作为普通资料保留。
+    """
+    parts: list[str] = []
+    cursor = 0
+    while True:
+        start = content.find(_START_MARKER_PREFIX, cursor)
+        if start < 0:
+            parts.append(content[cursor:])
+            break
+        parts.append(content[cursor:start])
+        block_end = content.find(_END_MARKER, start)
+        if block_end < 0:
+            # 未闭合块：保守地把剩余全部当作块内容，不把块尾巴当说明。
+            break
+        cursor = block_end + len(_END_MARKER)
+    return "".join(parts).strip()
 
 
 @dataclass(frozen=True)
@@ -91,11 +119,7 @@ def render_knowledge_entry(entry: KnowledgeEntry) -> str:
     if entry.superseded_by is not None:
         metadata["superseded_by"] = entry.superseded_by
     encoded = json.dumps(metadata, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return (
-        f"{_START_MARKER}{encoded}{_METADATA_END}"
-        f"## {entry.title.strip()}\n\n{entry.claim.strip()}"
-        f"{_END_MARKER}\n"
-    )
+    return f"{_START_MARKER}{encoded}{_METADATA_END}## {entry.title.strip()}\n\n{entry.claim.strip()}{_END_MARKER}\n"
 
 
 def parse_knowledge_markdown(content: str) -> KnowledgeParseResult:

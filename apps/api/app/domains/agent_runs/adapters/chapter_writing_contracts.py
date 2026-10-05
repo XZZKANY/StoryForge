@@ -8,23 +8,16 @@ from pathlib import Path
 from typing import Any
 
 from app.domains.agent_runs import fs_tools, serial_plan
+from app.domains.agent_runs.adapters.chapter_check_protocol import build_check, check_prompt
 from app.domains.agent_runs.errors import AgentOrchestrationError
 
 CHAPTER_BRIEF_ARTIFACT_KIND = "chapter_brief"
 CHAPTER_CHECK_ARTIFACT_KIND = "chapter_check"
+CHAPTER_CANDIDATE_ARTIFACT_KIND = "chapter_candidate"
 CHAPTER_WRITE_INTENT = "chapter.write"
 
 _MAX_LIST_ITEMS = 12
 _MAX_ITEM_CHARS = 300
-_REPAIRABLE_HARD_RULES = frozenset(
-    {
-        "draft_truncated",
-        "word_count_out_of_range",
-        "missing_required_beat",
-        "forbidden_content",
-        "continuity_violation",
-    }
-)
 
 
 def resolve_target(project_root: str, requested_path: object) -> tuple[str, str, serial_plan.PlannedChapter | None]:
@@ -148,59 +141,6 @@ def draft_instruction(brief: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def check_prompt(brief: Mapping[str, Any], content: str) -> str:
-    contract = {key: brief.get(key) for key in ("required_beats", "forbidden_items", "continuity_constraints")}
-    return (
-        "检查正文是否满足已确认 brief。只输出 JSON：{\"findings\":[...]}。"
-        "finding 字段为 rule,severity,message,line,evidence；rule 只允许 "
-        "missing_required_beat, forbidden_content, continuity_violation, advisory。"
-        "只有能引用正文证据的明确违反才用 hard；不确定的一律 advisory。\n"
-        f"brief：{json.dumps(contract, ensure_ascii=False)}\n正文：\n{content}"
-    )
-
-
-def build_check(content: str, brief: Mapping[str, Any], raw: object) -> dict[str, Any]:
-    findings: list[dict[str, Any]] = []
-    if not content.strip():
-        findings.append(_finding("draft_empty", "正文为空。"))
-    minimum = int(brief["target_chars_min"])
-    maximum = int(brief["target_chars_max"])
-    if len(content) < int(minimum * 0.7) or len(content) > int(maximum * 1.3):
-        findings.append(_finding("word_count_out_of_range", f"正文 {len(content)} 字，严重偏离 {minimum}–{maximum} 字。"))
-    try:
-        payload = _json_object(raw)
-    except AgentOrchestrationError as exc:
-        findings.append(_finding("checker_failure", str(exc)))
-        payload = {}
-    raw_findings = payload.get("findings") if isinstance(payload.get("findings"), list) else []
-    for item in raw_findings[:30]:
-        if not isinstance(item, Mapping):
-            continue
-        rule = item.get("rule")
-        if rule not in {"missing_required_beat", "forbidden_content", "continuity_violation", "advisory"}:
-            continue
-        evidence = _text(item.get("evidence"), 500)
-        severity = "hard" if item.get("severity") == "hard" and evidence and rule != "advisory" else "advisory"
-        findings.append(
-            {
-                "rule": rule,
-                "severity": severity,
-                "message": _text(item.get("message"), 500) or str(rule),
-                "line": _positive_int(item.get("line")),
-                "evidence": evidence,
-            }
-        )
-    hard_count = sum(1 for item in findings if item["severity"] == "hard")
-    repairable = hard_count > 0 and all(item["rule"] in _REPAIRABLE_HARD_RULES for item in findings if item["severity"] == "hard")
-    return {
-        "status": "repairable" if repairable else "blocked" if hard_count else "pass",
-        "content_chars": len(content),
-        "hard_failure_count": hard_count,
-        "advisory_count": sum(1 for item in findings if item["severity"] == "advisory"),
-        "findings": findings,
-    }
-
-
 def repair_instruction(check: Mapping[str, Any], brief: Mapping[str, Any]) -> str:
     issues = [item for item in check.get("findings", []) if isinstance(item, Mapping) and item.get("severity") == "hard"]
     return "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文：\n" + "\n".join(
@@ -261,10 +201,6 @@ def _json_object(raw: object) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise AgentOrchestrationError("模型返回的结构化结果必须是 JSON 对象。")
     return parsed
-
-
-def _finding(rule: str, message: str) -> dict[str, Any]:
-    return {"rule": rule, "severity": "hard", "message": message, "line": None, "evidence": None}
 
 
 def _text(value: object, limit: int) -> str | None:

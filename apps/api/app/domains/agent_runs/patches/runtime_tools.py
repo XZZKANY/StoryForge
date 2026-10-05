@@ -3,24 +3,26 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from app.common.author_voice import build_generation_system_prompt, edit_policy_from_generation_prompt
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.patches.polish_context import (
+    polish_author_requirements_from_context_snapshot,
     polish_constraints_from_context_snapshot,
 )
 from app.domains.agent_runs.patches.polishing_service import (
     ControlledPolishResult,
+    resolve_polishable_target,
     run_controlled_polish,
-    validate_polishable_path,
 )
+from app.domains.agent_runs.patches.revise_input import prepare_revision_scope
 from app.domains.agent_runs.patches.types import PatchProposal
+from app.domains.agent_runs.patches.writing_context import prepare_runtime_writing_context
 from app.domains.agent_runs.permission import patch_requires_confirmation
 from app.domains.agent_runs.revise_scope import public_revise_scope as _public_revise_scope
-from app.domains.agent_runs.revise_scope import resolve_revise_scope as _resolve_revise_scope
 from app.domains.agent_runs.revise_scope import revise_summary_with_scope as _revise_summary_with_scope
 from app.domains.agent_runs.revise_scope import scope_issues as _scope_issues
 from app.domains.agent_runs.revise_scope import scope_warning as _scope_warning
-from app.domains.agent_runs.revise_scope import scoped_revise_instruction as _scoped_revise_instruction
 from app.domains.agent_runs.tools import ToolArtifact, ToolExecutionContext, ToolHandler, ToolResult
 from app.domains.agent_runs.tools.runtime_arguments import llm_context_input_summary as _llm_context_input_summary
 from app.domains.agent_runs.tools.runtime_arguments import (
@@ -58,17 +60,18 @@ class PatchRuntimeToolsMixin:
     def _chapter_polish(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         file_path = _required_string(payload, "file_path")
         trace_file_path = _optional_string(payload.get("_trace_file_path")) or file_path
+        root = _optional_string(payload.get("project_root")) or _optional_string(context.args.get("project_path"))
         try:
-            validate_polishable_path(trace_file_path)
+            file_path, trace_file_path = resolve_polishable_target(root, file_path, trace_file_path)
         except ValueError as exc:
             raise AgentOrchestrationError(str(exc)) from exc
+        payload.update(file_path=file_path, _trace_file_path=trace_file_path)
         content = _required_text(payload, "content")
         if not content.strip():
             raise AgentOrchestrationError("正文为空，无法润色。")
+        prepare_runtime_writing_context(context, payload, intent="chapter.polish")
         style_instruction = _optional_string(payload.get("style_instruction")) or context.user_message
-        trusted_constraints = polish_constraints_from_context_snapshot(
-            payload.get("llm_context_snapshot")
-        )
+        trusted_constraints = polish_constraints_from_context_snapshot(payload.get("llm_context_snapshot"))
         protected_entities = list(
             dict.fromkeys(
                 [
@@ -99,6 +102,20 @@ class PatchRuntimeToolsMixin:
             "continuity_facts": len(continuity_facts),
             "required_facts": len(required_facts),
         }
+        prepared_voice = build_generation_system_prompt("", root)
+        try:
+            edit_policy = edit_policy_from_generation_prompt(
+                content,
+                instruction=context.user_message,
+                system_prompt=prepared_voice,
+                admitted_author_requirements=(
+                    ()
+                    if root
+                    else polish_author_requirements_from_context_snapshot(payload.get("llm_context_snapshot"))
+                ),
+            )
+        except ValueError as exc:
+            raise AgentOrchestrationError(str(exc)) from exc
         result = run_controlled_polish(
             content,
             style_instruction=style_instruction,
@@ -108,6 +125,7 @@ class PatchRuntimeToolsMixin:
             required_facts=required_facts,
             use_main_model=payload.get("use_main_model") is True,
             online_enabled=payload.get("online_enabled") is not False,
+            edit_policy=edit_policy,
         )
         decision = result.decision
         summary = _polish_summary(result)
@@ -199,16 +217,20 @@ class PatchRuntimeToolsMixin:
         trace_file_path = _optional_string(payload.get("_trace_file_path")) or file_path
         # 空文件也要能修订：作者建好空章节文件后直接说「写这章」，走的就是这条路。
         content = _required_text(payload, "content")
-        instruction = _optional_string(payload.get("instruction")) or context.user_message
-        review_report = payload.get("review_report") if isinstance(payload.get("review_report"), dict) else None
-        prompt_context_bundle = (
-            payload.get("llm_prompt_context_bundle")
-            if isinstance(payload.get("llm_prompt_context_bundle"), dict)
-            else payload.get("context_bundle") if isinstance(payload.get("context_bundle"), dict) else None
+        project_root = _optional_string(payload.get("project_root")) or _optional_string(
+            context.args.get("project_path")
         )
-        scope = _resolve_revise_scope(review_report, {**payload, "instruction": instruction})
+        instruction = _optional_string(payload.get("instruction")) or context.user_message
+        review_report, scope, effective_instruction = prepare_revision_scope(
+            context,
+            payload,
+            instruction=instruction,
+            file_path=file_path,
+            content=content,
+            project_root=project_root,
+        )
         public_scope = _public_revise_scope(scope)
-        effective_instruction = _scoped_revise_instruction(instruction, review_report, scope)
+        prepared = prepare_runtime_writing_context(context, payload, intent="file.revise")
         try:
             response = assistant_service.revise_file_content(
                 context.session,
@@ -217,10 +239,12 @@ class PatchRuntimeToolsMixin:
                     content=content,
                     instruction=effective_instruction,
                     project_name=_optional_string(payload.get("project_name")),
-                    project_root=_optional_string(payload.get("project_root")),
+                    project_root=project_root,
                     assistant_session_id=context.assistant_session_id,
-                    context_bundle=prompt_context_bundle,
+                    context_bundle=prepared.context_bundle,
                 ),
+                author_instruction=context.user_message,
+                prepared_context=prepared,
             )
         except (
             assistant_service.AssistantLlmNotConfiguredError,
@@ -300,11 +324,7 @@ class PatchRuntimeToolsMixin:
         file_path = _required_string(payload, "file_path")
         trace_file_path = _optional_string(payload.get("_trace_file_path")) or file_path
         instruction = _optional_string(payload.get("instruction")) or context.user_message
-        prompt_context_bundle = (
-            payload.get("llm_prompt_context_bundle")
-            if isinstance(payload.get("llm_prompt_context_bundle"), dict)
-            else payload.get("context_bundle") if isinstance(payload.get("context_bundle"), dict) else None
-        )
+        prepared = prepare_runtime_writing_context(context, payload, intent="file.create")
         try:
             response = assistant_service.draft_file_content(
                 context.session,
@@ -314,8 +334,9 @@ class PatchRuntimeToolsMixin:
                     project_name=_optional_string(payload.get("project_name")),
                     project_root=_optional_string(payload.get("project_root")),
                     assistant_session_id=context.assistant_session_id,
-                    context_bundle=prompt_context_bundle,
+                    context_bundle=prepared.context_bundle,
                 ),
+                prepared_context=prepared,
             )
         except (
             assistant_service.AssistantLlmNotConfiguredError,
@@ -425,7 +446,9 @@ class PatchRuntimeToolsMixin:
                     proposed_patch["requires_confirmation"] = repair_confirm
                     patch_proposal = PatchProposal.from_payload(proposed_patch)
                     tool_artifacts.append(
-                        ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=repair_confirm)
+                        ToolArtifact(
+                            kind="proposed_patch", payload=proposed_patch, requires_confirmation=repair_confirm
+                        )
                     )
             assistant_service.update_assistant_tool_call(
                 context.session,

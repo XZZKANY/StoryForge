@@ -4,9 +4,15 @@ import json
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any
 
+from app.common.author_edit_policy import (
+    AuthorEditPolicy,
+    author_edit_policy_failures,
+    author_edit_policy_prompt,
+    build_author_edit_policy,
+)
 from app.common.llm_client import LLMError, build_llm_provider
 from app.common.llm_env import (
     PolishLlmNotConfiguredError,
@@ -14,6 +20,7 @@ from app.common.llm_env import (
     resolve_polish_llm,
 )
 from app.common.performance import current_measurement, measure_stage, measured
+from app.domains.agent_runs.fs import FsToolError, resolve_project_file, resolve_project_root
 from app.domains.agent_runs.patches.polishing import (
     POLISH_GATE_VERSION,
     POLISH_RULE_VERSION,
@@ -30,9 +37,7 @@ from app.platform.ai_sdk.provider import LLMProvider
 
 _JSON_FENCE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", flags=re.S | re.I)
 _POLISHABLE_SUFFIXES = frozenset({".md", ".markdown", ".txt"})
-_FORBIDDEN_PATH_PARTS = frozenset(
-    {".storyforge", "evidence", "evidences", "artifacts", "exports", "cache", "logs"}
-)
+_FORBIDDEN_PATH_PARTS = frozenset({".storyforge", "evidence", "evidences", "artifacts", "exports", "cache", "logs"})
 
 
 class InvalidPolishModelResponseError(ValueError):
@@ -50,6 +55,7 @@ class ControlledPolishResult:
     usage: Mapping[str, int | str | None] = field(repr=False)
     rule_version: str = POLISH_RULE_VERSION
     gate_version: str = POLISH_GATE_VERSION
+    edit_policy_summary: Mapping[str, object] = field(default_factory=dict)
 
     def trace_summary(self) -> dict[str, Any]:
         return {
@@ -64,9 +70,12 @@ class ControlledPolishResult:
             "rule_version": self.rule_version,
             "gate_version": self.gate_version,
             "gate_reasons": {
-                source: list(evaluation.reasons)
-                for source, evaluation in self.decision.evaluations.items()
+                source: list(evaluation.reasons) for source, evaluation in self.decision.evaluations.items()
             },
+            "gate_advisories": {
+                source: list(evaluation.advisories) for source, evaluation in self.decision.evaluations.items()
+            },
+            "edit_policy": dict(self.edit_policy_summary),
             "usage": dict(self.usage),
         }
 
@@ -90,6 +99,24 @@ def validate_polishable_path(path: str) -> str:
     return pure.as_posix()
 
 
+def resolve_polishable_target(
+    project_root: str | None, file_path: str, trace_file_path: str | None = None
+) -> tuple[str, str]:
+    """Qualify Desktop paths without allowing a trace alias to grant access."""
+    if not project_root:
+        return file_path, validate_polishable_path(trace_file_path or file_path)
+    try:
+        root = resolve_project_root(project_root)
+        raw = Path(file_path.replace("\\", "/").strip())
+        lexical = raw.relative_to(Path(project_root).absolute()) if raw.is_absolute() else raw
+        validate_polishable_path(lexical.as_posix())
+        target = Path(resolve_project_file(str(root), str(raw)))
+        relative = validate_polishable_path(target.relative_to(root).as_posix())
+    except (FsToolError, OSError, ValueError) as exc:
+        raise ValueError("润色目标必须是项目内现有的 Markdown 或 TXT 正文，不能是结构化或派生文件。") from exc
+    return str(target), relative
+
+
 @measured("polish.total")
 def run_controlled_polish(
     original: str,
@@ -104,9 +131,14 @@ def run_controlled_polish(
     resolution: ResolvedPolishLlm | None = None,
     provider: LLMProvider | None = None,
     provider_builder: Callable[[Mapping[str, str | None]], LLMProvider] = build_llm_provider,
+    edit_policy: AuthorEditPolicy | None = None,
 ) -> ControlledPolishResult:
+    policy = edit_policy or build_author_edit_policy(original, instruction=style_instruction)
+    failures = author_edit_policy_failures(original, original, policy)
+    if failures:
+        raise ValueError("编辑政策不适用于当前正文：" + ", ".join(failures))
     with measure_stage("polish.local"):
-        local = PolishCandidate(source="local", text=apply_deterministic_polish(original))
+        local = PolishCandidate(source="local", text=apply_deterministic_polish(original, edit_policy=policy))
     online: PolishCandidate | None = None
     online_failure: str | None = None
     usage: Mapping[str, int | str | None] = {}
@@ -125,10 +157,11 @@ def run_controlled_polish(
                 character_constraints=character_constraints,
                 continuity_facts=continuity_facts,
                 required_facts=required_facts,
+                edit_policy=policy,
             )
             with measure_stage("polish.model"):
                 response = active_provider.complete(request)
-            online_text = _parse_polished_response(original, response.content)
+            online_text = _parse_polished_response(original, response.content, edit_policy=policy)
             online = PolishCandidate(
                 source="online",
                 text=online_text,
@@ -154,6 +187,7 @@ def run_controlled_polish(
             character_constraints=character_constraints,
             continuity_facts=continuity_facts,
             required_facts=required_facts,
+            edit_policy=policy,
         )
         if online_enabled and online_failure and decision.selected_source == "local":
             decision = replace(decision, status="degraded", degraded=True)
@@ -166,6 +200,7 @@ def run_controlled_polish(
         online_failure=online_failure,
         online_attempted=online_enabled,
         usage=usage,
+        edit_policy_summary=policy.summary(),
     )
 
 
@@ -179,8 +214,9 @@ def _polish_request(
     character_constraints: Sequence[Mapping[str, Any]],
     continuity_facts: Sequence[Any],
     required_facts: Sequence[str],
+    edit_policy: AuthorEditPolicy,
 ) -> ChatRequest:
-    document = split_polishable_markdown(original)
+    document = split_polishable_markdown(original, protected_spans=edit_policy.protected_spans)
     payload = {
         "constraints": {
             "protected_entities": list(protected_entities),
@@ -188,10 +224,7 @@ def _polish_request(
             "continuity_facts": list(continuity_facts),
             "required_facts": list(required_facts),
         },
-        "segments": [
-            {"index": index, "text": text}
-            for index, text in enumerate(document.polishable_parts)
-        ]
+        "segments": [{"index": index, "text": text} for index, text in enumerate(document.polishable_parts)],
     }
     style = style_instruction.strip()
     system = "\n".join(
@@ -201,8 +234,9 @@ def _polish_request(
             "不得添加标题、frontmatter、代码围栏、解释、摘要或修改说明。",
             "输入是正文片段数组；按原 index 返回同样数量的 JSON 片段，不能合并、丢失或重排。",
             "constraints 是只读写作约束：不得改写专名，不得违反人物和连续性事实，也不得把未出现的约束强行补写进正文。",
-            "只输出严格 JSON：{\"segments\":[{\"index\":0,\"text\":\"...\"}]}。",
+            '只输出严格 JSON：{"segments":[{"index":0,"text":"..."}]}。',
             f"作者本次附加风格要求：{style}" if style else "作者本次没有附加风格要求。",
+            author_edit_policy_prompt(edit_policy),
         ]
     )
     return ChatRequest(
@@ -216,7 +250,7 @@ def _polish_request(
 
 
 @measured("polish.parse")
-def _parse_polished_response(original: str, content: str) -> str:
+def _parse_polished_response(original: str, content: str, *, edit_policy: AuthorEditPolicy) -> str:
     raw = content.strip()
     fenced = _JSON_FENCE.match(raw)
     if fenced is not None:
@@ -228,7 +262,7 @@ def _parse_polished_response(original: str, content: str) -> str:
     items = payload.get("segments") if isinstance(payload, dict) else None
     if not isinstance(items, list):
         raise InvalidPolishModelResponseError("segments are missing")
-    document = split_polishable_markdown(original)
+    document = split_polishable_markdown(original, protected_spans=edit_policy.protected_spans)
     expected_count = len(document.polishable_parts)
     parts: list[str] = []
     for expected_index, item in enumerate(items):

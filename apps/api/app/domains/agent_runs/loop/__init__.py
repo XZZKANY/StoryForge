@@ -12,6 +12,10 @@ _LOOP_RUNTIME_EXPORTS = frozenset({"ChatLoopUnavailableError", "run_chat_loop"})
 
 
 def __getattr__(name: str) -> Any:
+    if name == "writing_context_sources_unchanged":
+        from app.domains.agent_runs.loop.generation_recovery import writing_context_sources_unchanged
+
+        return writing_context_sources_unchanged
     if name in _LOOP_TYPE_EXPORTS:
         from app.domains.agent_runs.loop import types
 
@@ -34,4 +38,5 @@ __all__ = [
     "message_args",
     "message_text",
     "run_chat_loop",
+    "writing_context_sources_unchanged",
 ]

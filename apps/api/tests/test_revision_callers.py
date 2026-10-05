@@ -7,6 +7,7 @@ import json
 import pytest
 from agent_loop_runtime_test_support import _enable_loop_env, _fake_llm_script, _send_chat_message
 from agent_run_test_support import _seed_agent_run
+from chapter_check_test_support import chapter_check_reply
 from sqlalchemy import select
 
 from app.domains.agent_runs.event_sink import _AgentRunEventSink
@@ -33,11 +34,19 @@ def test_chapter_internal_repair_uses_revision_before_second_check(session, tmp_
             return {"reply": '{"goal":"建立冲突","required_beats":["见面"]}'}
         phases.append("check")
         if phases.count("check") == 2 and second_check_passes:
-            return {"reply": '{"findings":[]}'}
-        return {
-            "reply": '{"findings":[{"rule":"missing_required_beat","severity":"hard",'
-            '"message":"缺少见面","line":1,"evidence":"开场独白"}]}'
-        }
+            return chapter_check_reply(user_message, [])
+        return chapter_check_reply(
+            user_message,
+            [
+                {
+                    "rule": "missing_required_beat",
+                    "severity": "hard",
+                    "message": "缺少见面",
+                    "line": 1,
+                    "evidence": "一" if phases.count("check") == 1 else "二",
+                }
+            ],
+        )
 
     def generate(_source, *, system_prompt, user_prompt):
         phases.append("repair")

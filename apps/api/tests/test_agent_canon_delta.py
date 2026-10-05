@@ -115,9 +115,7 @@ def test_new_conflict_excludes_baseline_conflict(project: Path) -> None:
 
     result = canon_delta(
         str(project),
-        holder_claims=[
-            {"item": "断魂刀", "holder": "char_yuer", "from_chapter": 5, "to_chapter": 8}
-        ],
+        holder_claims=[{"item": "断魂刀", "holder": "char_yuer", "from_chapter": 5, "to_chapter": 8}],
     )
 
     assert len(result["new_conflicts"]) == 1
@@ -189,6 +187,33 @@ def test_missing_presence_cache_is_rebuilt(project: Path) -> None:
     assert presence is not None
     assert presence["chapter_count"] == 2
     assert presence["scanned_files"] == 2
+
+
+def test_writeback_invalidation_then_delta_rebuilds_presence_from_new_manuscript(
+    project: Path,
+) -> None:
+    """D04：写回落盘使 presence.json 失效（Native 侧删除）后，canon_delta 必须从新正文重建。
+
+    模拟链：presence 已缓存（旧正文 2 章）→ 作者接受补丁把第 02 章改写并新增第 03 章 →
+    Native 写回删除 presence.json → 下一次 canon_delta 消费方读到 None 时按新正文重扫。
+    """
+    _write_canon(project, _base_canon())
+    canon_delta(str(project))
+    stale = canon_store.read_derived(str(project), "presence.json")
+    assert stale is not None
+    assert stale["chapter_count"] == 2
+
+    (project / "正文" / "第02章.md").write_text("月儿把旧港让给了青岩。\n", encoding="utf-8")
+    (project / "正文" / "第03章.md").write_text("新客走进旧港。\n", encoding="utf-8")
+    # Native 写回成功后的统一失效：可弃缓存删除，缺失即重建。
+    (project / ".storyforge" / "canon" / "derived" / "presence.json").unlink()
+
+    canon_delta(str(project))
+
+    rebuilt = canon_store.read_derived(str(project), "presence.json")
+    assert rebuilt is not None
+    assert rebuilt["chapter_count"] == 3
+    assert rebuilt["scanned_files"] == 3
 
 
 def test_derived_whitelist_still_rejects_unlisted_names(project: Path) -> None:

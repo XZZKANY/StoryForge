@@ -47,6 +47,8 @@ PATCH_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     AgentRuntimeToolSpec(
         name="file.review",
         loop_input_mode="existing_file",
+        loop_trusted_context=True,
+        loop_trace_owner="handler",
         description="执行 chapter_polish 多子代理审稿。",
         domain="review",
         input_schema={},
@@ -185,6 +187,8 @@ PATCH_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     AgentRuntimeToolSpec(
         name="prose.continue",
         loop_input_mode="existing_file",
+        loop_trusted_context=True,
+        loop_trace_owner="handler",
         description="在作者光标处接着往下写一段，生成待确认的插入补丁（不改动既有正文）。",
         domain="prose",
         input_schema={},
