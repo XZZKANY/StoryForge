@@ -334,7 +334,7 @@ def test_realtime_and_final_output_files_agree(monkeypatch: pytest.MonkeyPatch, 
     monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_streamed", fake_call)
     main(["--task", "opening-preview", "--variants", "baseline", "--repeat", "3", "--out", str(tmp_path)])
 
-    files = sorted((tmp_path / "outputs").glob("*.txt"))
+    files = sorted((tmp_path / "outputs").rglob("*.txt"))
     bodies = [f.read_text(encoding="utf-8") for f in files]
     assert len(files) == 2, f"2 次成功却落了 {len(files)} 个文件：{[f.name for f in files]}"
     assert len(set(bodies)) == 2, f"落盘出现重复正文：{bodies}"
@@ -380,4 +380,303 @@ def test_transport_level_exception_does_not_discard_completed_cells(
     assert len(repeats) == 3, "整跑被打断，没跑满 repeats"
     assert sum(1 for r in repeats if "error" not in r) == 2, "已完成格被连坐丢弃"
     assert any("ConnectionResetError" in str(r.get("error", "")) for r in repeats)
-    assert len(sorted((tmp_path / "outputs").glob("*.txt"))) == 2
+    assert len(sorted((tmp_path / "outputs").rglob("*.txt"))) == 2
+
+
+def test_grid_identity_is_scheduled_before_completion(monkeypatch, tmp_path):
+    import json
+    from concurrent.futures import Future
+
+    class ControlledPool:
+        def __init__(self, **kwargs):
+            self.count = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def submit(self, function, *args):
+            before = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
+            slots = before["variants"]["opening-preview"]["variants"][0]["repeats"]
+            assert len(slots) == 3
+            assert len({slot["sample_id"] for slot in slots}) == 3
+            self.count += 1
+            future = Future()
+            future.set_result({"output": f"body-{self.count}", "latency_ms": self.count,
+                               "prompt_tokens": 10, "completion_tokens": 5,
+                               "cost_cny_estimated": 0.1})
+            return future
+
+    monkeypatch.setattr(runner_module, "ThreadPoolExecutor", ControlledPool)
+    monkeypatch.setattr(runner_module, "as_completed", lambda futures: [list(futures)[i] for i in (1, 2, 0)])
+    task = runner_module.TASKS["opening-preview"]
+    data, failed = runner_module._run_grid(
+        {"opening-preview": task}, {task.kind: runner_module._select_variants(task.kind, ["baseline"])},
+        dry_run=False, repeat=3, out_dir=tmp_path,
+    )
+    entry = data["variants"]["opening-preview"]["variants"][0]
+    assert failed == 0
+    assert [r["output"] for r in entry["repeats"]] == ["body-1", "body-2", "body-3"]
+    assert entry["output"] == "body-1"
+    assert entry["resources"]["attempt_count"] == 3
+    assert entry["resources"]["cost_cny_known"] == pytest.approx(0.3)
+    assert entry["resources"]["prompt_tokens_known"] == 30
+    assert len(data["current_outputs"]) == 3
+
+
+def test_failed_merge_excludes_stale_output_but_keeps_history(monkeypatch, tmp_path):
+    import hashlib
+    import json
+
+    monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: {
+        "content": "old success", "cost_cny_estimated": 0.2, "latency_ms": 1,
+    })
+    args = ["--task", "opening-preview", "--variants", "baseline", "--repeat", "2"]
+    assert runner_module.main([*args, "--out", str(tmp_path)]) == 0
+    first = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
+    old_output = first["current_outputs"][0]
+    original = (tmp_path / old_output["path"]).read_bytes()
+    assert hashlib.sha256(original).hexdigest() == old_output["sha256"]
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("prompt construction failed")
+
+    monkeypatch.setattr(runner_module, "_build_prompt", broken)
+    assert runner_module.main([*args, "--merge", str(tmp_path)]) == 1
+    merged = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
+    entry = merged["variants"]["opening-preview"]["variants"][0]
+    assert merged["current_outputs"] == []
+    assert entry["output"] is None
+    assert len(entry["repeats"]) == 2
+    assert all(r["status"] == "prompt_failed" for r in entry["repeats"])
+    assert entry["resources"]["attempt_count"] == 4
+    assert entry["resources"]["cost_cny_known"] == pytest.approx(0.4)
+    assert (tmp_path / old_output["path"]).read_bytes() == original
+    assert entry["history"][0]["repeats"] == first["variants"]["opening-preview"]["variants"][0]["repeats"]
+
+
+def test_merge_adds_new_variant_and_does_not_mutate_input(monkeypatch):
+    from copy import deepcopy
+
+    original = _sample_run_data()
+    original["variants"]["opening-preview"]["variants"] = original["variants"]["opening-preview"]["variants"][:1]
+    before = deepcopy(original)
+    monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: {
+        "content": "new", "cost_cny_estimated": 0.1, "latency_ms": 1,
+    })
+    task = runner_module.TASKS["opening-preview"]
+    data, failed = runner_module._run_grid(
+        {"opening-preview": task}, {task.kind: runner_module._select_variants(task.kind, ["no-craft"])},
+        dry_run=False, existing=original,
+    )
+    assert failed == 0
+    assert original == before
+    assert {e["id"] for e in data["variants"]["opening-preview"]["variants"]} == {"baseline", "no-craft"}
+
+
+def test_call_once_keeps_partial_usage_and_redacts_source_secret(monkeypatch):
+    from app.common.llm_client import LLMError
+    from app.platform.ai_sdk import TokenUsage
+
+    secret = "opaque-local-credential"
+    monkeypatch.setattr(runner_module, "resolved_llm_env", lambda: {"STORYFORGE_LLM_API_KEY": secret,
+        "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS": "1", "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS": "2"})
+
+    def fail(*args, **kwargs):
+        raise LLMError(secret, usage=TokenUsage(input_tokens=12, output_tokens=3, source="provider_usage"))
+
+    monkeypatch.setattr(runner_module, "call_llm_streamed", fail)
+    result = runner_module._call_once("prompt", runner_module.TASKS["opening-preview"])
+    assert result["status"] == "failed"
+    assert result["prompt_tokens"] == 12
+    assert result["completion_tokens"] == 3
+    assert result["cost_cny_estimated"] == pytest.approx(0.000018)
+    assert secret not in str(result)
+
+
+def test_blind_packet_has_no_operational_side_information():
+    from scripts.prompt_lab.report import render_blind_packet
+
+    data = _sample_run_data()
+    data["run_id"] = "run-example"
+    data["variants"]["another-task"] = __import__("copy").deepcopy(data["variants"]["opening-preview"])
+    text, reveal = render_blind_packet(data, dry_run=False, seed=42)
+    for forbidden in ("deepseek", "0.2", "0.000100", "token", "耗时", "成本", "温度", "原样", "去准则", "baseline"):
+        assert forbidden not in text
+    assert "正文甲" in text and "正文乙" in text
+    first = reveal["tasks"]["opening-preview"]
+    second = reveal["tasks"]["another-task"]
+    assert {r["anonymous_id"] for r in first}.isdisjoint(r["anonymous_id"] for r in second)
+    assert {r["variant_id"] for r in first} == {"baseline", "no-craft"}
+    assert (text, reveal) == render_blind_packet(data, dry_run=False, seed=42)
+    data["run_id"] = "another-run"
+    assert text != render_blind_packet(data, dry_run=False, seed=42)[0]
+
+
+def test_failed_sample_is_in_reveal_not_blind_diagnostics():
+    from scripts.prompt_lab.report import render_blind_packet
+
+    data = _sample_run_data()
+    entry = data["variants"]["opening-preview"]["variants"][0]
+    entry["repeats"] = [{"sample_id": "one", "output": "current prose", "status": "ok"},
+                        {"sample_id": "two", "status": "failed", "error": "provider-name-secret"}]
+    entry["history"] = [{"output": "stale prose"}]
+    text, reveal = render_blind_packet(data, dry_run=False, seed=9)
+    assert "current prose" in text
+    assert "provider-name-secret" not in text and "stale prose" not in text
+    assert len(reveal["tasks"]["opening-preview"]) == 3
+    assert sum(r["included"] for r in reveal["tasks"]["opening-preview"]) == 2
+
+
+def test_interruption_keeps_pending_denominator_and_replaces_old_blind(monkeypatch, tmp_path):
+    import json
+
+    args = ["--task", "opening-preview", "--variants", "baseline", "--repeat", "3", "--jobs", "1"]
+    monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: {
+        "content": "old-body", "cost_cny_estimated": 0.1, "latency_ms": 1,
+    })
+    assert runner_module.main([*args, "--out", str(tmp_path), "--seed", "8"]) == 0
+    monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: {
+        "content": "new-body", "cost_cny_estimated": None, "latency_ms": 1,
+    })
+
+    def interrupt(futures):
+        yield next(iter(futures))
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner_module, "as_completed", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        runner_module.main([*args, "--merge", str(tmp_path)])
+    data = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
+    entry = data["variants"]["opening-preview"]["variants"][0]
+    assert [s["status"] for s in entry["repeats"]] == ["ok", "scheduled", "scheduled"]
+    assert entry["resources"]["attempt_count"] == 6
+    assert entry["resources"]["cost_cny_known"] == pytest.approx(0.3)
+    assert entry["resources"]["cost_cny_unknown_count"] == 3
+    assert entry["cost_cny_estimated"] is None
+    assert len(data["current_outputs"]) == 1
+    blind = (tmp_path / "blind.md").read_text(encoding="utf-8")
+    assert "old-body" not in blind and "new-body" in blind
+    reveal = json.loads((tmp_path / "blind-reveal.json").read_text(encoding="utf-8"))
+    assert len(reveal["tasks"]["opening-preview"]) == 3
+
+
+def test_legacy_cost_survives_repeated_checkpoints(tmp_path):
+    data = _sample_run_data()
+    for _ in range(3):
+        runner_module._checkpoint(tmp_path, data)
+        entry = data["variants"]["opening-preview"]["variants"][0]
+        assert entry["resources"]["cost_cny_known"] == pytest.approx(0.0001)
+        assert entry["resources"]["legacy_count"] == 1
+        assert entry["cost_cny_estimated"] is None
+        assert len(data["current_outputs"]) == 2
+    assert len(list((tmp_path / "outputs").rglob("*.txt"))) == 2
+
+
+@pytest.mark.parametrize("retry", [False, True])
+def test_prompt_lab_sdk_observation_retains_request_and_resources(monkeypatch, tmp_path, retry):
+    import json
+
+    from app.common import llm_client
+    from app.common.llm_observation import observe_http_progress
+
+    source = {"STORYFORGE_LLM_API_KEY": "opaque-local-secret",
+              "STORYFORGE_LLM_BASE_URL": "https://fixture.invalid/v1",
+              "STORYFORGE_LLM_MODEL": "fixture-model", "STORYFORGE_LLM_TEMPERATURE": "0.4",
+              "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS": "1",
+              "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS": "2"}
+    monkeypatch.setattr(runner_module, "resolved_llm_env", lambda: source)
+    calls = []
+
+    def stream(env, payload, **kwargs):
+        calls.append(payload)
+        if retry:
+            observe_http_progress({"phase": "retry_started"})
+        yield {"type": "done", "content": "fixture text", "prompt_tokens": 10,
+               "completion_tokens": 5, "token_usage": 15, "token_usage_source": "provider_usage",
+               "latency_ms": 7, "finish_reason": "stop"}
+
+    monkeypatch.setattr(llm_client, "_raw_stream_chat_completions", stream)
+    assert runner_module.main(["--task", "opening-preview", "--variants", "baseline", "--repeat", "2",
+                               "--out", str(tmp_path)]) == 0
+    data = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
+    entry = data["variants"]["opening-preview"]["variants"][0]
+    assert len(calls) == 2
+    for sample in entry["repeats"]:
+        assert sample["model"] == "fixture-model"
+        assert sample["parameters"]["temperature"] == calls[0]["temperature"] == 0.4
+        assert sample["token_usage"] == 15
+        assert sample["cost_cny_estimated"] == pytest.approx(0.000020)
+    assert entry["resources"]["cost_cny_known"] == pytest.approx(0.000040)
+    assert entry["resources"]["cost_cny_complete"] is not retry
+    assert entry["resources"]["unaccounted_retry_count"] == (2 if retry else 0)
+    assert "opaque-local-secret" not in json.dumps(data)
+
+
+def test_default_output_directory_is_chosen_once(monkeypatch, tmp_path):
+    calls = []
+
+    def default_path():
+        calls.append(1)
+        return tmp_path / f"run-{len(calls)}"
+
+    monkeypatch.setattr(runner_module, "_default_out_dir", default_path)
+    assert runner_module.main(["--task", "opening-preview", "--variants", "baseline", "--dry-run"]) == 0
+    assert len(calls) == 1
+    assert (tmp_path / "run-1" / "run-metadata.json").exists()
+
+
+@pytest.mark.parametrize("flag", ["--repeat", "--jobs"])
+def test_invalid_counts_rejected_before_dispatch(monkeypatch, tmp_path, flag):
+    monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: pytest.fail("no call expected"))
+    with pytest.raises(SystemExit, match="positive"):
+        runner_module.main([flag, "0", "--out", str(tmp_path)])
+    assert not (tmp_path / "run-metadata.json").exists()
+
+
+def test_partial_failed_sample_counts_alongside_success(monkeypatch, tmp_path):
+    import json
+
+    from app.common.llm_client import LLMError
+    from app.platform.ai_sdk import TokenUsage
+
+    source = {"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS": "1", "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS": "2"}
+    monkeypatch.setattr(runner_module, "resolved_llm_env", lambda: source)
+    calls = []
+
+    def call(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 2:
+            raise LLMError("partial", usage=TokenUsage(input_tokens=10, output_tokens=5, source="provider_usage"))
+        return {"content": "success", "prompt_tokens": 10, "completion_tokens": 5,
+                "latency_ms": 1, "cost_cny_estimated": 0.000020}
+
+    monkeypatch.setattr(runner_module, "call_llm_streamed", call)
+    assert runner_module.main(["--task", "opening-preview", "--variants", "baseline", "--repeat", "2",
+                               "--jobs", "1", "--out", str(tmp_path)]) == 1
+    data = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
+    entry = data["variants"]["opening-preview"]["variants"][0]
+    assert entry["prompt_tokens"] == 20 and entry["completion_tokens"] == 10
+    assert entry["cost_cny_estimated"] == pytest.approx(0.000040)
+    assert entry["resources"]["success_count"] == 1
+    assert entry["resources"]["attempt_count"] == 2
+    assert len(data["current_outputs"]) == 1
+
+
+def test_configuration_failure_does_not_invent_paid_call(monkeypatch, tmp_path):
+    import json
+
+    from app.common.llm_client import LLMConfigError
+
+    def invalid():
+        raise LLMConfigError("invalid config")
+
+    monkeypatch.setattr(runner_module, "resolved_llm_env", invalid)
+    assert runner_module.main(["--task", "opening-preview", "--variants", "baseline", "--out", str(tmp_path)]) == 1
+    data = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
+    entry = data["variants"]["opening-preview"]["variants"][0]
+    assert entry["repeats"][0]["no_model_call"] is True
+    assert entry["cost_cny_estimated"] == 0
+    assert entry["resources"]["cost_cny_unknown_count"] == 0

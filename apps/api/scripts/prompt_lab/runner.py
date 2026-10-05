@@ -12,20 +12,28 @@
 
 真 LLM 调用只走 app.common.llm_client（唯一出网通道）；本工具在 app/ 之外，
 不会被 PyInstaller 打进 sidecar exe。判定靠人工读 report.md，工具不下结论。
+当前正文只认 run-metadata.json 的 current_outputs（含 SHA-256）；outputs 子目录保留历史，
+不能用文件数量当样本数。盲评只分发 blind.md；blind-reveal.json 和 metadata 留给组织者。
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
+import hashlib
 import json
 import sys
+import time
+import uuid
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from app.common.llm_client import call_llm_streamed
+from app.common.llm_client import LLMConfigError, call_llm_streamed, error_usage_summary
 from app.common.llm_env import resolved_llm_env
+from app.common.llm_observation import model_observation_scope
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 from scripts.prompt_lab import report
 from scripts.prompt_lab.agent_registry import AGENT_VARIANTS
 from scripts.prompt_lab.fixtures import TASKS
@@ -66,146 +74,217 @@ def _build_prompt(task: Any, variant: Any) -> str:
     raise SystemExit(f"未知任务类型：{kind}")
 
 
+class _SampleObservation:
+    """Capture actual SDK request identity and unpriced retries without a second ledger."""
+
+    def __init__(self):
+        self.data: dict[str, Any] = {"unaccounted_retry_count": 0}
+
+    def begin(self, request, *, source, streaming, operation, provenance):
+        secrets = [v for k, v in source.items() if k.endswith(("_API_KEY", "_AUTH_TOKEN"))]
+        self.data.update(redact_sensitive({
+            "provider": source.get("STORYFORGE_LLM_PROVIDER") or "openai-compatible",
+            "model": request.model, "streaming": streaming,
+            "parameters": {"temperature": request.temperature, "max_tokens": request.max_tokens,
+                           "reasoning_effort": request.reasoning_effort},
+        }, extra_secrets=secrets))
+        return self
+
+    def progress(self, values):
+        if values.get("phase") == "retry_started":
+            self.data["unaccounted_retry_count"] += 1
+
+    def finish(self, status, *, usage, finish_reason=None, error_code=None):
+        self.data.update({"request_state": status, "finish_reason": finish_reason})
+
+
 def _call_once(prompt: str, task: Any) -> dict[str, Any]:
-    """走流式聚合调用：完整章格（600–1600 字）非流式会被中转站掐断。
+    source = {}
+    secrets = []
+    observer = _SampleObservation()
+    started = time.monotonic()
+    try:
+        source = resolved_llm_env()
+        secrets = [v for k, v in source.items() if k.endswith(("_API_KEY", "_AUTH_TOKEN"))]
+        with model_observation_scope(observer):
+            result = call_llm_streamed(
+                source, system_prompt=prompt if task.kind in _SYSTEM_PROMPT_KINDS else "",
+                user_prompt=task.user_prompt if task.kind in _SYSTEM_PROMPT_KINDS else prompt,
+            )
+        single = {key: result.get(key) for key in (
+            "prompt_tokens", "completion_tokens", "token_usage", "token_usage_source", "cache_hit_tokens",
+            "cost_cny_estimated", "cost_breakdown", "latency_ms",
+        )}
+        single.update({"output": result["content"], "status": "ok"})
+    except Exception as exc:  # noqa: BLE001 - isolate samples, retain partial provider accounting
+        single = {**error_usage_summary(exc, source=source), "status": "failed",
+                  "no_model_call": isinstance(exc, LLMConfigError),
+                  "error": redact_sensitive_text(f"{type(exc).__name__}: {exc}", extra_secrets=secrets),
+                  "latency_ms": int((time.monotonic() - started) * 1000)}
+    return {**single, **observer.data}
 
-    实证（2026-08-01，同一 climax prompt）：非流式 280s 未完成 + ConnectionReset，
-    流式 72.4s 出 1347 字。与生产三条产字路径同一条传输。
-    """
 
-    if task.kind in _SYSTEM_PROMPT_KINDS:
-        system_prompt, user_prompt = prompt, task.user_prompt
-    else:
-        system_prompt, user_prompt = "", prompt
-    result = call_llm_streamed(
-        resolved_llm_env(), system_prompt=system_prompt, user_prompt=user_prompt
-    )
-    return {"output": result["content"], "cost_cny_estimated": result["cost_cny_estimated"], "latency_ms": result["latency_ms"]}
+def _samples(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    if entry.get("repeats"):
+        return [sample if sample.get("sample_id") or sample.get("legacy") else {**sample, "legacy": True}
+                for sample in entry["repeats"]]
+    # Preserve old evidence without inventing unavailable scheduling or usage provenance.
+    return [{**{k: v for k, v in entry.items() if k not in {"history", "resources"}}, "legacy": True}]
 
 
-def _run_grid(tasks: dict[str, Any], variants: dict[str, dict[str, Any]], *, dry_run: bool, jobs: int = 1, repeat: int = 1, existing: dict[str, Any] | None = None, out_dir: Path | None = None) -> tuple[dict[str, Any], int]:
-    """跑任务×变体网格；单格失败记入 error 不中断其余。返回 (run_data, failed_count)。
+def _refresh_entry(entry: dict[str, Any]) -> None:
+    current = entry["repeats"] = _samples(entry)
+    entry.setdefault("prompt_chars", len(entry.get("prompt", "")))
+    samples = [sample for old in entry.get("history", []) for sample in _samples(old)] + current
+    resources: dict[str, Any] = {"attempt_count": len(samples), "current_count": len(current),
+                               "success_count": sum(s.get("output") is not None and "error" not in s for s in samples),
+                               "legacy_count": sum(bool(s.get("legacy")) for s in samples),
+                               "unaccounted_retry_count": sum(s.get("unaccounted_retry_count", 0) for s in samples),
+                               "estimated_usage_count": sum(str(s.get("token_usage_source", "")).startswith("estimated") for s in samples)}
+    for field, name in (("prompt_tokens", "prompt_tokens"), ("completion_tokens", "completion_tokens"),
+                        ("token_usage", "token_usage"), ("latency_ms", "latency_ms"),
+                        ("cost_cny_estimated", "cost_cny")):
+        known = sum(s.get(field) or 0 for s in samples)
+        unknown = sum(s.get(field) is None and not s.get("no_model_call") for s in samples)
+        complete = not unknown and not resources["legacy_count"] and not any(s.get("unaccounted_retry_count") for s in samples)
+        resources.update({f"{name}_known": known, f"{name}_unknown_count": unknown,
+                          f"{name}_complete": complete, field: known if complete else None})
+    entry["resources"] = resources
+    first = next((s for s in current if s.get("output") is not None and "error" not in s), None)
+    entry["output"] = first["output"] if first else None
+    entry["output_chars"] = len(first["output"]) if first else None
+    entry["representative_sample_id"] = first.get("sample_id") if first else None
+    for field in ("prompt_tokens", "completion_tokens", "latency_ms", "cost_cny_estimated"):
+        entry[field] = resources[field]
+    if not first and all(s.get("error") for s in current):
+        entry["error"] = "All current samples failed"
 
-    先串行渲染全部 prompt（no-examples 的 patch 钩子全局改 builder，不能并发），
-    再以 ThreadPoolExecutor 并行调 LLM（llm_client 无共享可变状态，线程安全）。
-    repeat>1 时每格独立跑 N 次，结果收集进 entry["repeats"]（供统计性判定）。
-    existing 非空时（--merge）：只替换本次任务的格子，其余任务保留原数据。
-    out_dir 非空时：每格完成立即写 outputs 文件（实时落盘，key 中断不丢已完成格）。
-    """
 
-    run_data: dict[str, Any] = {"model": "", "temperature": "", "variants": {}}
-    if existing:
-        run_data = dict(existing)
-        run_data.setdefault("variants", {})
+def _checkpoint(out_dir: Path | None, run_data: dict[str, Any]) -> None:
+    current_outputs = []
+    for task_id, task in run_data["variants"].items():
+        for entry in task["variants"]:
+            _refresh_entry(entry)
+            for index, sample in enumerate(_samples(entry), start=1):
+                if sample.get("output") is None or "error" in sample:
+                    continue
+                body = sample["output"].encode("utf-8")
+                digest = hashlib.sha256(body).hexdigest()
+                batch = sample.get("batch_id", "legacy")
+                # Never trust persisted paths during --merge; derive a local, content-bound path.
+                namespace = hashlib.sha256(str(batch).encode()).hexdigest()[:24]
+                cell = hashlib.sha256(f"{task_id}/{entry['id']}".encode()).hexdigest()[:16]
+                path = f"outputs/{namespace}/{cell}-{digest[:16]}--r{index}.txt"
+                if out_dir is not None:
+                    destination = out_dir / path
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    if not destination.exists():
+                        destination.write_bytes(body)
+                    elif destination.read_bytes() != body:
+                        raise ValueError("Output evidence hash mismatch")
+                current_outputs.append({"task_id": task_id, "variant_id": entry["id"],
+                                        "sample_id": sample.get("sample_id"), "repeat_index": index,
+                                        "path": path, "sha256": digest, "legacy": bool(sample.get("legacy"))})
+    run_data["current_outputs"] = current_outputs
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        dry_run = run_data.get("dry_run", False)
+        blind_seed = run_data.get("blind_seed")
+        (out_dir / "report.md").write_text(report.render_report(run_data, dry_run=dry_run), encoding="utf-8")
+        if blind_seed is not None:
+            blind, reveal = report.render_blind_packet(run_data, dry_run=dry_run, seed=blind_seed)
+            (out_dir / "blind.md").write_text(blind, encoding="utf-8")
+            (out_dir / "blind-reveal.json").write_text(
+                json.dumps(reveal, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        temporary = out_dir / "run-metadata.json.tmp"
+        temporary.write_text(json.dumps(run_data, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(out_dir / "run-metadata.json")
+
+
+def _run_grid(tasks: dict[str, Any], variants: dict[str, dict[str, Any]], *, dry_run: bool,
+              jobs: int = 1, repeat: int = 1, existing: dict[str, Any] | None = None,
+              out_dir: Path | None = None, blind_seed: int | None = None) -> tuple[dict[str, Any], int]:
+    """Allocate every sample before dispatch; completion only fills its assigned slot."""
+    if jobs < 1 or repeat < 1:
+        raise ValueError("jobs and repeat must be positive")
+    run_data = copy.deepcopy(existing) if existing else {"variants": {}}
+    run_data.setdefault("run_id", uuid.uuid4().hex)
+    run_data["schema_version"] = 2
+    run_data["repeat"] = repeat
+    run_data["dry_run"] = dry_run
+    if blind_seed is not None:
+        run_data["blind_seed"] = blind_seed
+    batch_id = uuid.uuid4().hex
+    selected = []
     failed = 0
+    # Prompt builders temporarily patch globals, so rendering must remain serial.
     for task_id, task in tasks.items():
-        entries: list[dict[str, Any]] = []
+        group = run_data["variants"].setdefault(task_id, {"task_description": task.description, "variants": []})
         for variant_id, variant in variants[task.kind].items():
+            old = next((e for e in group["variants"] if e["id"] == variant_id), None)
+            entry = {"id": variant_id, "label": variant.label, "description": variant.description,
+                     "prompt": "", "prompt_chars": None, "history": [], "repeats": []}
+            if old is not None:
+                history = old.pop("history", [])
+                entry["history"] = [*history, old]
+                group["variants"][group["variants"].index(old)] = entry
+            else:
+                group["variants"].append(entry)
+            error = None
             try:
-                prompt = _build_prompt(task, variant)
-            except Exception as exc:  # noqa: BLE001 单格失败隔离
-                failed += 1
-                entries.append({"id": variant_id, "label": variant.label, "description": variant.description, "prompt": "", "error": f"prompt 构建失败：{exc}"})
-                continue
-            entries.append({"id": variant_id, "label": variant.label, "description": variant.description, "prompt": prompt, "prompt_chars": len(prompt)})
-        if existing and task_id in run_data["variants"]:
-            # 格子级合并：命令行选中的变体替换旧格子，该任务其他变体保留；
-            # prompt 构建失败的格子不参与替换（保留旧的成功数据）。
-            old_entries = run_data["variants"][task_id].get("variants", [])
-            new_by_id = {entry["id"]: entry for entry in entries if "error" not in entry}
-            entries = [new_by_id.get(entry["id"], entry) for entry in old_entries]
-        run_data["variants"][task_id] = {"task_description": task.description, "variants": entries}
-
+                entry["prompt"] = _build_prompt(task, variant)
+                entry["prompt_chars"] = len(entry["prompt"])
+                entry["user_prompt"] = task.user_prompt if task.kind in _SYSTEM_PROMPT_KINDS else entry["prompt"]
+            except Exception as exc:  # noqa: BLE001 - failed builds replace stale success too
+                error = f"Prompt construction failed: {type(exc).__name__}"
+                failed += repeat
+            for index in range(1, repeat + 1):
+                sample = {"sample_id": f"{batch_id}/{task_id}/{variant_id}/{index}",
+                          "batch_id": batch_id, "repeat_index": index,
+                          "status": "prompt_failed" if error else "dry_run" if dry_run else "scheduled",
+                          "no_model_call": bool(error or dry_run)}
+                if error:
+                    sample["error"] = error
+                entry["repeats"].append(sample)
+            selected.append((task_id, task, entry))
+    _checkpoint(out_dir, run_data)
     if dry_run:
-        for task_id in run_data["variants"]:
-            for entry in run_data["variants"][task_id]["variants"]:
-                entry.update({"output": None, "output_chars": None, "prompt_tokens": None, "completion_tokens": None, "latency_ms": None, "cost_cny_estimated": None, "repeats": None})
         return run_data, failed
-
-    # merge 模式下只有本次命令行选中的变体才发起调用；旧格子只保留不重跑
-    selected = {
-        (task_id, variant_id) for task_id, task in tasks.items() for variant_id in variants[task.kind]
-    }
     with ThreadPoolExecutor(max_workers=jobs) as pool:
-        futures: dict[Future, tuple[str, str, dict[str, Any]]] = {}
-        for task_id, task in tasks.items():
-            for entry in run_data["variants"][task_id]["variants"]:
-                if "error" in entry:
-                    continue
-                if existing and (task_id, entry["id"]) not in selected:
-                    continue
-                for _ in range(repeat):
-                    futures[pool.submit(_call_once, entry["prompt"], task)] = (task_id, entry["id"], entry)
+        futures: dict[Future, tuple[str, dict[str, Any], dict[str, Any]]] = {}
+        for task_id, task, entry in selected:
+            for sample in entry["repeats"]:
+                if sample["status"] == "scheduled":
+                    futures[pool.submit(_call_once, entry["prompt"], task)] = (task_id, entry, sample)
         for done, future in enumerate(as_completed(futures), start=1):
-            task_id, variant_id, entry = futures[future]
+            task_id, entry, sample = futures[future]
             try:
                 result = future.result()
-                single = {
-                    "output": result["output"],
-                    "output_chars": len(result["output"]),
-                    "prompt_tokens": result.get("prompt_tokens"),
-                    "completion_tokens": result.get("completion_tokens"),
-                    "latency_ms": result["latency_ms"],
-                    "cost_cny_estimated": result["cost_cny_estimated"],
-                }
-                entry.setdefault("repeats", []).append(single)
-            except Exception as exc:  # noqa: BLE001 单格失败隔离
-                # 只捕 LLMError/LLMConfigError 不够：传输层裸异常（中转站重置）会逃逸出
-                # as_completed 循环打崩整跑，把已完成格连同实时落盘一起丢掉——那正是实时
-                # 落盘要防的故障。实测 wave6 首跑即因 ConnectionResetError 全盘归零。
+            except Exception as exc:  # noqa: BLE001 - worker/setup isolation; no raw secret-bearing diagnostics
+                result = {**error_usage_summary(exc), "status": "failed", "error": type(exc).__name__}
+            sample.update(result)
+            if "error" in sample:
+                sample["status"] = "failed"
                 failed += 1
-                entry.setdefault("repeats", []).append({"error": f"{type(exc).__name__}: {exc}"})
-            # 实时落盘：每格完成立即写 outputs 文件，避免 key 中断丢已完成格
-            if out_dir is not None and not dry_run:
-                sample = entry["repeats"][-1]
-                if "error" not in sample:
-                    out_dir.mkdir(parents=True, exist_ok=True)
-                    outputs_dir = out_dir / "outputs"
-                    outputs_dir.mkdir(exist_ok=True)
-                    # 编号必须与 _write_artifacts 同口径（repeats 里的位次，失败也占位），
-                    # 否则收尾写产物会把同一段正文再落一个别的编号：实测 wave5 的
-                    # 2 次成功产出 3 个文件、r1 与 r2 逐字节相同，按 outputs/*.txt
-                    # 统计样本数直接虚增。失败留编号空档是有意的——空档即「这一次失败了」。
-                    index = len(entry["repeats"])
-                    (outputs_dir / f"{task_id}--{variant_id}--r{index}.txt").write_text(sample["output"], encoding="utf-8")
-            print(f"  [{done}/{len(futures)}] {task_id}--{variant_id} 完成"
-                  f"（{'失败' if 'error' in entry['repeats'][-1] else entry['repeats'][-1]['output_chars']} 字）", flush=True)
-        # 顶层 output 字段 = 第一轮成功样本，兼容 report 的既有单样本渲染
-        for task_id in run_data["variants"]:
-            for entry in run_data["variants"][task_id]["variants"]:
-                first_ok = next((r for r in entry.get("repeats", []) if "error" not in r), None)
-                if first_ok is None:
-                    entry.update({"error": entry.get("error", "全部重复失败"), "output": None, "output_chars": None, "prompt_tokens": None, "completion_tokens": None, "latency_ms": None, "cost_cny_estimated": None})
-                else:
-                    entry.update({k: first_ok[k] for k in ("output", "output_chars", "prompt_tokens", "completion_tokens", "latency_ms", "cost_cny_estimated")})
+            else:
+                sample["status"] = "ok"
+                sample["output_chars"] = len(sample["output"])
+            _checkpoint(out_dir, run_data)
+            print(f"  [{done}/{len(futures)}] {task_id}--{entry['id']} r{sample['repeat_index']}: {sample['status']}", flush=True)
     return run_data, failed
 
 
 def _write_artifacts(out_dir: Path, run_data: dict[str, Any], *, dry_run: bool, blind_seed: int | None) -> None:
-    out_dir.mkdir(parents=True, exist_ok=True)
+    run_data["dry_run"] = dry_run
+    if blind_seed is not None:
+        run_data["blind_seed"] = blind_seed
+    _checkpoint(out_dir, run_data)
     prompts_dir = out_dir / "prompts"
-    outputs_dir = out_dir / "outputs"
     prompts_dir.mkdir(exist_ok=True)
-    outputs_dir.mkdir(exist_ok=True)
     for task_id, task in run_data["variants"].items():
         for entry in task["variants"]:
             (prompts_dir / f"{task_id}--{entry['id']}.txt").write_text(entry["prompt"], encoding="utf-8")
-            repeats = entry.get("repeats")
-            if repeats:
-                for index, sample in enumerate(repeats, start=1):
-                    if "error" in sample:
-                        continue
-                    (outputs_dir / f"{task_id}--{entry['id']}--r{index}.txt").write_text(sample["output"], encoding="utf-8")
-            elif entry.get("output") is not None:
-                (outputs_dir / f"{task_id}--{entry['id']}.txt").write_text(entry["output"], encoding="utf-8")
-    (out_dir / "run-metadata.json").write_text(
-        json.dumps(run_data, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
-    )
-    (out_dir / "report.md").write_text(report.render_report(run_data, dry_run=dry_run), encoding="utf-8")
-    if blind_seed is not None:
-        (out_dir / "blind.md").write_text(
-            report.render_report(run_data, dry_run=dry_run, blind_seed=blind_seed), encoding="utf-8"
-        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -239,6 +318,8 @@ def anchor_at_repo_root(path: Path | None) -> Path | None:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.jobs < 1 or args.repeat < 1:
+        raise SystemExit("--jobs and --repeat must be positive")
     args.out = anchor_at_repo_root(args.out)
     args.merge = anchor_at_repo_root(args.merge)
 
@@ -268,16 +349,15 @@ def main(argv: list[str] | None = None) -> int:
     for task in tasks.values():
         variants[task.kind] = _select_variants(task.kind, variant_names)
 
-    run_data, failed = _run_grid(tasks, variants, dry_run=args.dry_run, jobs=args.jobs, repeat=args.repeat, existing=existing, out_dir=args.merge or args.out)
-    run_data["repeat"] = args.repeat
     out_dir = args.merge or args.out or _default_out_dir()
-    # 合并模式沿用既有 run 的盲评 seed（blind.md 重排必须一致）；同时写回 metadata 供下次合并沿用
+    if not args.merge and (out_dir / "run-metadata.json").exists():
+        raise SystemExit("Output already contains a run; use --merge or a new --out directory")
     seed = (existing or {}).get("blind_seed") if args.merge else args.seed
-    if seed is not None:
-        run_data["blind_seed"] = seed
+    run_data, failed = _run_grid(tasks, variants, dry_run=args.dry_run, jobs=args.jobs,
+                                repeat=args.repeat, existing=existing, out_dir=out_dir, blind_seed=seed)
     _write_artifacts(out_dir, run_data, dry_run=args.dry_run, blind_seed=seed)
     print(f"输出目录：{out_dir}")
-    print(f"失败格数：{failed}")
+    print(f"失败样本数：{failed}")
     return 1 if failed else 0
 
 
