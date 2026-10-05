@@ -195,6 +195,11 @@ async function show(suggestion: AssistantFileSuggestion) {
 }
 beforeEach(async () => {
   vi.clearAllMocks();
+  effects.record.mockImplementation(async (record: unknown) => ({
+    ...(await recordRealAudit(record as RevisionLoopRecord)),
+    recordPath: '/record.md',
+    updatedBlueprintPath: null,
+  }));
   effects.disk.clear();
   localStorage.clear();
   container = document.createElement('div');
@@ -439,23 +444,34 @@ test('损坏请求源或 issue metadata 不能被冷恢复当作合法的原始�
   assert.equal(effects.snapshot.mock.calls.length, 1);
 });
 
-test('恢复缓存清理失败不把已完成的决定变成失败，也不永久占住动作锁', async () => {
-  await show(patch('storage-cleanup-reject'));
-  effects.journalWrite.mockRejectedValueOnce(new Error('journal cleanup unavailable'));
-  await act(async () => handle.rejectPendingSuggestion());
-  assert.equal(handle.pendingSuggestion, null);
-  assert.equal(handle.actionState, null);
-  assert.equal(effects.write.mock.calls.length, 0);
-  await show(patch('storage-cleanup-accept'));
-  effects.journalWrite.mockImplementationOnce(async () => {});
-  effects.journalWrite.mockRejectedValueOnce(new Error('journal cleanup unavailable'));
-  await act(async () => handle.handleAcceptSuggestion());
-  assert.equal(effects.disk.get(FILE), 'after');
-  assert.equal(handle.pendingSuggestion, null);
-  assert.equal(handle.actionState, null);
-  assert.equal(effects.write.mock.calls.length, 1);
-  assert.ok(
-    effects.toast.mock.calls.some(([message]) => String(message).includes('恢复缓存未清理')),
+test('恢复缓存清理失败保留未完成的拒绝，但不撤回正文或永久占住动作锁', async () => {
+  await effects.journalWrite.withImplementation(
+    async (_path, content) => {
+      // Target dismissal, not whichever registration/request happens to write next.
+      if (content === 'null') throw new Error('journal cleanup unavailable');
+    },
+    async () => {
+      await show(patch('storage-cleanup-reject'));
+      await act(async () => handle.rejectPendingSuggestion());
+      assert.equal(handle.pendingSuggestion?.id, 'storage-cleanup-reject');
+      assert.equal(handle.actionState, null);
+      assert.equal(effects.write.mock.calls.length, 0);
+      await show(patch('storage-cleanup-accept'));
+      await act(async () => handle.handleAcceptSuggestion());
+      assert.equal(effects.disk.get(FILE), 'after');
+      assert.equal(handle.pendingSuggestion, null);
+      assert.equal(handle.actionState, null);
+      assert.equal(effects.write.mock.calls.length, 1);
+      assert.equal(
+        effects.journalWrite.mock.calls.filter(([, content]) => content === 'null').length,
+        2,
+      );
+      assert.equal(
+        effects.toast.mock.calls.filter(([message]) => String(message).includes('恢复缓存未清理'))
+          .length,
+        2,
+      );
+    },
   );
 });
 
@@ -759,6 +775,134 @@ test('已落盘但审计失败清掉旧补丁，提供只补记录的可达动�
   );
   assert.equal(ids[0], ids[1]);
 });
+
+for (const kind of ['whole', 'last-hunk', 'partial'] as const) {
+  test(`审计失败 ${kind} 冷开保留原请求，明确补记不再写正文`, async () => {
+    const before = 'A\nB\nC';
+    const after = 'AA\nB\nCC';
+    await act(async () => __getLastEditor()!.setValue(before));
+    await show({ ...patch(`cold-missing-${kind}`), before, after });
+    if (kind === 'last-hunk') {
+      recordNextRealAudit();
+      await act(async () => handle.handleAcceptHunk(buildPatchHunks(before, after)[0]));
+    }
+    effects.record.mockRejectedValueOnce(new Error('audit unavailable'));
+    await act(async () => {
+      if (kind === 'whole') await handle.handleAcceptSuggestion();
+      else {
+        const suggestion = handle.pendingSuggestion!;
+        await handle.handleAcceptHunk(buildPatchHunks(suggestion.before, suggestion.after)[0]);
+      }
+    });
+    const journal = await loadPendingSuggestion('D:/project', FILE);
+    assert.ok(journal, '已写正文但审计未完成，不可提前 tombstone');
+    const body = effects.disk.get(FILE);
+    const writes = effects.write.mock.calls.length;
+    const snapshots = effects.snapshot.mock.calls.length;
+    const records = effects.record.mock.calls.length;
+    const marks = effects.mark.mock.calls.length;
+    const receipts = [...effects.disk.entries()].filter(([path]) =>
+      path.includes('writeback-receipts'),
+    );
+    await remountForCold();
+    await act(async () => handle.recoverPendingSuggestion(FILE));
+    assert.equal(handle.pendingSuggestion, null, '缺审计不能授予剩余写回');
+    assert.equal(effects.record.mock.calls.length, records, '冷开只读');
+    const action = (
+      effects.toast.mock.calls.at(-1)![1] as {
+        action: { label: string; run: () => Promise<void> };
+      }
+    ).action;
+    assert.equal(action.label, '补记记录（不重写正文）');
+    recordNextRealAudit();
+    await act(async () => action.run());
+    assert.equal(effects.disk.get(FILE), body);
+    assert.equal(effects.write.mock.calls.length, writes);
+    assert.equal(effects.snapshot.mock.calls.length, snapshots);
+    assert.equal(effects.mark.mock.calls.length, marks);
+    assert.deepEqual(
+      [...effects.disk.entries()].filter(([path]) => path.includes('writeback-receipts')),
+      receipts,
+    );
+    if (kind === 'partial')
+      assert.equal(handle.pendingSuggestion?.operationView?.operations.length, 1);
+    else assert.equal(await loadPendingSuggestion('D:/project', FILE), null);
+  });
+}
+
+test('缺审计时拒绝、继续接受或新提案均不能抹掉旧补记入口', async () => {
+  const original = { ...patch('retain-missing'), before: 'A\nB\nC', after: 'AA\nB\nCC' };
+  await act(async () => __getLastEditor()!.setValue(original.before));
+  await show(original);
+  effects.record.mockRejectedValueOnce(new Error('audit unavailable'));
+  await act(async () =>
+    handle.handleAcceptHunk(buildPatchHunks(original.before, original.after)[0]),
+  );
+  const saved = await loadPendingSuggestion('D:/project', FILE);
+  await act(async () => handle.rejectPendingSuggestion());
+  assert.ok(handle.pendingSuggestion, '未完成持久拒绝不能假报成功或恢复时复活');
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.write.mock.calls.length, 1, '补记前不可继续写剩余正文');
+  await show({ ...patch('replacement'), before: 'AA\nB\nC', after: 'new' });
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.deepEqual(await loadPendingSuggestion('D:/project', FILE), saved);
+  await remountForCold();
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  const action = (effects.toast.mock.calls.at(-1)![1] as { action: { run: () => Promise<void> } })
+    .action;
+  await act(async () => action.run());
+  assert.equal(handle.pendingSuggestion?.id, original.id);
+});
+
+for (const invalidation of [
+  'unknown',
+  'corrupt-audit',
+  'invalid-payload',
+  'project',
+  'replacement',
+] as const) {
+  test(`冷补记重新核验 ${invalidation}，不沿用过期授权`, async () => {
+    effects.record.mockRejectedValueOnce(new Error('audit unavailable'));
+    await show(patch(`repair-${invalidation}`));
+    await act(async () => handle.handleAcceptSuggestion());
+    await remountForCold();
+    await act(async () => handle.recoverPendingSuggestion(FILE));
+    const action = (effects.toast.mock.calls.at(-1)![1] as { action: { run: () => Promise<void> } })
+      .action;
+    const calls = effects.record.mock.calls.length;
+    const descriptor = (await loadPendingSuggestion('D:/project', FILE))!;
+    const receipt = await TauriFileSystem.inspectWritebackReceipt(
+      'D:/project',
+      descriptor.requests[0].request,
+    );
+    const auditPath = `D:/project/.storyforge/author-loop/${receipt!.operationId}.md`;
+    if (invalidation === 'unknown') {
+      const key = [...effects.disk.keys()].find((path) => path.includes('writeback-receipts'))!;
+      const stored = JSON.parse(effects.disk.get(key)!);
+      stored.receipt.state = 'outcome_unknown';
+      effects.disk.set(key, JSON.stringify(stored));
+    } else if (invalidation === 'corrupt-audit') effects.disk.set(auditPath, 'torn');
+    else if (invalidation === 'invalid-payload') {
+      const key = [...effects.disk.keys()].find((path) => path.includes('pending-suggestions'))!;
+      const stored = JSON.parse(effects.disk.get(key)!);
+      const payload = JSON.parse(stored.requests[0].semanticPayload);
+      payload.issueIds = [42];
+      stored.requests[0].semanticPayload = JSON.stringify(payload);
+      effects.disk.set(key, JSON.stringify(stored));
+    } else if (invalidation === 'project')
+      await act(async () => root.render(<Harness project="D:/other" file="D:/other/a.md" />));
+    else await show(patch('new-proposal'));
+    await act(async () => action.run());
+    assert.equal(effects.record.mock.calls.length, calls);
+    assert.equal(effects.write.mock.calls.length, 1);
+    assert.equal(effects.snapshot.mock.calls.length, 1);
+    assert.equal(
+      effects.disk.get(auditPath),
+      invalidation === 'corrupt-audit' ? 'torn' : undefined,
+    );
+  });
+}
 
 test('卸载重开后重复确认只读取持久回执，不快照也不重复 apply', async () => {
   const proposal = patch('reopen');
@@ -1370,7 +1514,7 @@ for (const authorText of ['A', '作者自己重新写了甲段。']) {
     assert.deepEqual(record.issueCounts, { observed: 3, authorConfirmed: 2, resolved: 1 });
     assert.ok(
       effects.toast.mock.calls.some((args) =>
-        String(args[0]).includes('问题已解决 1/3（作者确认 2）'),
+        String(args[0]).includes('范围覆盖 1/3（作者确认 2；未作语义复核）'),
       ),
       '可见读数也须使用与闭环记录相同的分列计数',
     );
@@ -1542,6 +1686,39 @@ test('T07-F3：删除类补丁重复确认幂等，不报错、不重复写、�
   assert.equal(effects.disk.get(FILE), after, '重复确认不得继续删除');
   assert.equal(effects.write.mock.calls.length, 1, '重复确认不应重复写盘');
 });
+
+for (const removedBlock of [0, 1]) {
+  for (const action of ['whole', 'hunk'] as const) {
+    test(`重复块删除历史 ${removedBlock + 1}：${action} 不能从相同剩余文本猜测原目标`, async () => {
+      const prefix = 'P'.repeat(48);
+      const suffix = 'S'.repeat(48);
+      const block = [prefix, '目标句。', suffix].join('\n') + '\n';
+      const before = block + block + '尾声。';
+      const after = [prefix, suffix, prefix, '目标句。', suffix, '尾声改。'].join('\n');
+      const editor = __getLastEditor()!;
+      await act(async () => editor.setValue(before));
+      await show({ ...patch(`duplicate-history-${removedBlock}-${action}`), before, after });
+      const start = removedBlock * block.length;
+      const current = before.slice(0, start) + before.slice(start + block.length);
+      assert.equal(current, block + '尾声。', '两种真实删除历史留下相同文字');
+      await act(async () => editor.setValue(current));
+      await act(async () => {
+        if (action === 'whole') await handle.handleAcceptSuggestion();
+        else await handle.handleAcceptHunk(buildPatchHunks(before, after)[0]);
+      });
+      assert.match(handle.actionError ?? '', /唯一|定位|歧义|冲突/);
+      assert.equal(editor.getValue(), current);
+      assert.equal(effects.write.mock.calls.length, 0);
+      assert.equal(effects.snapshot.mock.calls.length, 0);
+      assert.equal(effects.record.mock.calls.length, 0);
+      await vi.waitFor(async () => {
+        const descriptor = await loadPendingSuggestion('D:/project', FILE);
+        assert.ok(descriptor);
+        assert.equal(descriptor.requests.length, 0, '歧义操作不得获得 Native 准入');
+      });
+    });
+  }
+}
 
 test('T07-F1：重复目标行被作者改动后整份接受报冲突且零写入', async () => {
   const before = '重复句。\n重复句。\n尾巴。';

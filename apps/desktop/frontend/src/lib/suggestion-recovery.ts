@@ -3,6 +3,7 @@ import { createSuggestionChangeSet, type SuggestionChangeSet } from './suggestio
 import { relativeToProject } from './project-context';
 import { TauriFileSystem } from './tauri-fs';
 import { verifyReceiptAudit } from './writeback-audit';
+import { readRevisionLoopPayload, type RevisionLoopRecord } from './author-loop';
 import type { WritebackRequest } from './writeback-receipt-types';
 import { relativePathInsideProject } from './project/path';
 import { withNativeDelivery } from './native-delivery';
@@ -182,6 +183,8 @@ export async function persistPendingSuggestion(
   deliveryTicket?: string,
 ): Promise<void> {
   const { path, raw } = await readJournal(project, descriptor.proposal.filePath);
+  const previous = decodeDescriptor(raw, descriptor.proposal.filePath);
+  if (previous) await verifyJournalSettled(project, previous);
   await TauriFileSystem.writeFileIfUnchanged(
     project,
     path,
@@ -212,6 +215,7 @@ export async function rememberSuggestionRequest(
       throw new Error('同一修订决定的请求内容改变，已拒绝写入');
     return;
   }
+  await verifyJournalSettled(project, stored);
   stored.requests.push(next);
   await TauriFileSystem.writeFileIfUnchanged(
     project,
@@ -222,6 +226,35 @@ export async function rememberSuggestionRequest(
   );
 }
 
+export class MissingSuggestionAudit extends Error {
+  constructor() {
+    super('正文已有持久写回回执，但闭环记录缺失；可以明确补记，不会重写正文');
+  }
+}
+
+function receiptAuditPath(project: string, operationId: string): string {
+  const separator = project.includes('\\') ? '\\' : '/';
+  return [project.replace(/[/\\]+$/, ''), '.storyforge', 'author-loop', `${operationId}.md`].join(
+    separator,
+  );
+}
+
+/** A new proposal/dismissal must not erase the only repair descriptor for an admitted write. */
+async function verifyJournalSettled(
+  project: string,
+  descriptor: PendingSuggestionDescriptor,
+): Promise<void> {
+  for (const { request, semanticPayload } of descriptor.requests) {
+    const receipt = await TauriFileSystem.inspectWritebackReceipt(project, request);
+    if (!receipt || receipt.state === 'not_written') continue;
+    if (receipt.state !== 'applied' || !receipt.receiptPersisted)
+      throw new Error('原写回结果尚未确定，已保留恢复记录；请先核对正文与版本');
+    const path = receiptAuditPath(project, receipt.operationId);
+    if (!(await TauriFileSystem.pathExists(path))) throw new MissingSuggestionAudit();
+    await verifyReceiptAudit(project, path, receipt.operationId, semanticPayload);
+  }
+}
+
 export async function forgetPendingSuggestion(
   project: string,
   owner: PendingSuggestionDescriptor,
@@ -230,6 +263,7 @@ export async function forgetPendingSuggestion(
     const { path, raw } = await readJournal(project, owner.proposal.filePath);
     const stored = decodeDescriptor(raw, owner.proposal.filePath);
     if (stored?.owner !== owner.owner || raw === null) return;
+    await verifyJournalSettled(project, stored);
     // CAS a tombstone instead of read-then-delete, so a late completion cannot erase a replacement.
     await TauriFileSystem.writeFileIfUnchanged(
       project,
@@ -245,6 +279,7 @@ export async function forgetPendingSuggestion(
 export async function recoverSuggestionOperations(
   project: string,
   descriptor: PendingSuggestionDescriptor,
+  repairMissingAudit?: (record: RevisionLoopRecord) => Promise<void>,
 ): Promise<{
   changeSet: SuggestionChangeSet;
   appliedOpIds: Set<string>;
@@ -294,13 +329,12 @@ export async function recoverSuggestionOperations(
     const receipt = await TauriFileSystem.inspectWritebackReceipt(project, request);
     if (receipt?.state !== 'applied' || !receipt.receiptPersisted)
       throw new Error('修订写回结果尚未确定，请核对正文与版本；不会自动重放旧决定');
-    const separator = project.includes('\\') ? '\\' : '/';
-    const auditPath = [
-      project.replace(/[/\\]+$/, ''),
-      '.storyforge',
-      'author-loop',
-      `${receipt.operationId}.md`,
-    ].join(separator);
+    const auditPath = receiptAuditPath(project, receipt.operationId);
+    if (!(await TauriFileSystem.pathExists(auditPath))) {
+      if (!repairMissingAudit) throw new MissingSuggestionAudit();
+      const record = readRevisionLoopPayload(project, original.filePath, semanticPayload);
+      await repairMissingAudit({ ...record, operationId: receipt.operationId });
+    }
     await verifyReceiptAudit(project, auditPath, receipt.operationId, semanticPayload);
     if (forward) {
       appliedOpIds.clear();

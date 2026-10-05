@@ -64,6 +64,7 @@ import { emitToast } from '../../lib/toast';
 import { performReceiptedWriteback } from '../../lib/writeback-receipts';
 import type { WritebackReceipt } from '../../lib/writeback-receipt-types';
 import {
+  MissingSuggestionAudit,
   capturePendingSuggestion,
   forgetPendingSuggestion,
   loadPendingSuggestion,
@@ -115,7 +116,7 @@ function createOperationState(suggestion: AssistantFileSuggestion): SuggestionOp
   };
 }
 
-/** 面向作者的归属读数：本次写回解决了几个审稿问题，其余仍 open。 */
+/** 面向作者的行范围覆盖读数，不把机械归属冒充语义复核。 */
 function issueResolutionNote(
   resolutions?: IssueResolution[],
   attributed = true,
@@ -125,7 +126,7 @@ function issueResolutionNote(
   // 问题拿不到行范围时不能报 0/N——那会被读成「一个都没解决」，应显式说明无法归属。
   if (!attributed) return ' · 问题未归属（无行范围），本次不作解决计数';
   if (!counts) return '';
-  return ` · 问题已解决 ${counts.resolved}/${counts.observed}（作者确认 ${counts.authorConfirmed}）`;
+  return ` · 范围覆盖 ${counts.resolved}/${counts.observed}（作者确认 ${counts.authorConfirmed}；未作语义复核）`;
 }
 
 type UseSuggestionWritebackParams = {
@@ -347,7 +348,7 @@ export function useSuggestionWriteback({
 
   // Called after Monaco attaches the loaded target, not during the file loader's earlier setState.
   const recoverPendingSuggestion = useCallback(
-    async function recover(path: string | null): Promise<void> {
+    async function recover(path: string | null, repairAudit = false): Promise<void> {
       const project = projectPathRef.current;
       const targetModel = editorRef.current?.getModel();
       if (
@@ -368,10 +369,25 @@ export function useSuggestionWriteback({
         editorRef.current?.getModel() === targetModel &&
         !pendingSuggestionRef.current &&
         !actionInFlightRef.current;
+      let descriptor: PendingSuggestionDescriptor | null = null;
       try {
-        const descriptor = await loadPendingSuggestion(project, path);
+        descriptor = await loadPendingSuggestion(project, path);
         if (!descriptor) return;
-        const recovered = await recoverSuggestionOperations(project, descriptor);
+        const owner = descriptor;
+        const recovered = repairAudit
+          ? await enqueueWriteback(() =>
+              withNativeDelivery(project, (ticket) =>
+                recoverSuggestionOperations(project, owner, async (record) => {
+                  if (
+                    (await loadPendingSuggestion(project, path))?.owner !== owner.owner ||
+                    !current()
+                  )
+                    throw new Error('恢复归属已变化，未补记旧记录');
+                  await recordRevisionLoop({ ...record, deliveryTicket: ticket });
+                }),
+              ),
+            )
+          : await recoverSuggestionOperations(project, owner);
         if ((await loadPendingSuggestion(project, path))?.owner !== descriptor.owner || !current())
           return;
         const displayed = targetModel.getValue();
@@ -407,15 +423,25 @@ export function useSuggestionWriteback({
         emitToast(`修订恢复未完成：${error instanceof Error ? error.message : String(error)}`, {
           tone: 'error',
           action: {
-            label: '重试核验（不写正文）',
+            label:
+              error instanceof MissingSuggestionAudit
+                ? '补记记录（不重写正文）'
+                : '重试核验（不写正文）',
             run: async () => {
-              if (current()) await recover(path);
+              if (
+                descriptor &&
+                (await loadPendingSuggestion(project, path))?.owner === descriptor.owner &&
+                current()
+              )
+                await recover(path, error instanceof MissingSuggestionAudit);
             },
           },
         });
       }
     },
     [
+      enqueueWriteback,
+      recordRevisionLoop,
       editorRef,
       filePathRef,
       modelCacheRef,
@@ -428,23 +454,26 @@ export function useSuggestionWriteback({
   const forgetSuggestionRecovery = useCallback(
     async (suggestion: AssistantFileSuggestion) => {
       const recovery = suggestionOperationStates.get(suggestion)?.recovery;
-      if (!recovery) return;
+      if (!recovery) return true;
       try {
         await recovery.ready;
         await enqueueWriteback(() =>
           forgetPendingSuggestion(recovery.projectPath, recovery.descriptor),
         );
+        return true;
       } catch (error) {
-        // Cleanup is after the author decision/write. It cannot undo delivery or retain the action lock.
-        emitToast(
-          `本次处理已完成，但恢复缓存未清理：${String(error)}。重开时请核对原决定，勿重复应用。`,
-          {
-            tone: 'info',
-          },
-        );
+        // Keep incomplete evidence; a cleanup error cannot undo the manuscript or retain the action lock.
+        if (mountedRef.current && projectPathRef.current === recovery.projectPath)
+          emitToast(
+            `恢复缓存未清理，原写回证据已保留：${String(error)}。请先核对或补记，勿重复应用。`,
+            {
+              tone: 'info',
+            },
+          );
+        return false;
       }
     },
-    [enqueueWriteback],
+    [enqueueWriteback, projectPathRef],
   );
 
   const writeAcceptedSuggestion = useCallback(
@@ -651,6 +680,7 @@ export function useSuggestionWriteback({
                   ? '此补丁此前已写入，文件随后又发生变化；本次未覆盖当前文件。'
                   : null;
           return {
+            auditComplete: !loopRecord.auditError && loopRecord.receipt.receiptPersisted,
             receipt: loopRecord.receipt,
             recordPath: loopRecord.record?.recordPath ?? null,
             createdFile: loopRecord.receipt.createdFile,
@@ -992,7 +1022,7 @@ export function useSuggestionWriteback({
       // 接受一次不等于这章写完了；撤销走的是反向写回，届时正文没了，后端自会拒绝。
       await markChapterWrittenInPlan(projectRoot, path);
       replacePendingFileSuggestion(suggestion, null);
-      await forgetSuggestionRecovery(suggestion);
+      if (loopRecord.auditComplete) await forgetSuggestionRecovery(suggestion);
       if (!isCurrentAction(actionToken)) return;
       updatePendingSuggestion(null);
       if (loopRecord.warning) {
@@ -1190,7 +1220,7 @@ export function useSuggestionWriteback({
               operationView: projection.view,
             };
         const finished = remaining === null;
-        if (finished) await forgetSuggestionRecovery(suggestion);
+        if (finished && loopRecord.auditComplete) await forgetSuggestionRecovery(suggestion);
         replacePendingFileSuggestion(suggestion, remaining);
         if (!isCurrentAction(actionToken)) return;
         updatePendingSuggestion(remaining);
@@ -1335,8 +1365,8 @@ export function useSuggestionWriteback({
         '```',
       ].join('\n');
       await TauriFileSystem.writeFile(project, notePath, note);
+      if (!(await forgetSuggestionRecovery(suggestion))) return;
       replacePendingFileSuggestion(suggestion, null);
-      await forgetSuggestionRecovery(suggestion);
       if (!isCurrentAction(actionToken)) return;
       updatePendingSuggestion(null);
       setSuggestionStatus(`已保存旁注: ${notePath}`, 'success');
@@ -1378,7 +1408,7 @@ export function useSuggestionWriteback({
    *
    * direction 非空时由 ChatWindow 侧接住，当作一句真实的作者发言发出去——落进会话、
    * 自动进下一轮 prompt、顺带重做一版；留空则维持轻量否决，不烧新一轮 BYO-key。
-   * 无论哪条路径，这里都只清面板，写盘一步都不做。
+   * 无论哪条路径，都不写正文；先关闭恢复 journal，再清面板并广播拒绝。
    */
   const rejectPendingSuggestion = useCallback(
     async (direction = '') => {
@@ -1387,10 +1417,10 @@ export function useSuggestionWriteback({
       if (suggestion) {
         const actionToken = beginAction('reject', suggestion);
         if (!actionToken) return;
-        await forgetSuggestionRecovery(suggestion);
+        const forgotten = await forgetSuggestionRecovery(suggestion);
         const current = isCurrentAction(actionToken);
         finishAction(actionToken);
-        if (!current) return;
+        if (!current || !forgotten) return;
       }
       updatePendingSuggestion(null);
       setSuggestionStatus(trimmed ? '已否掉这版，正按你的说法重来' : '已拒绝修订');

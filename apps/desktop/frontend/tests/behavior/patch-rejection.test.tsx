@@ -7,7 +7,7 @@
  *
  * 这里钉死三件事：
  * ①拒绝广播出去的事件带得动作者的方向与补丁 id；
- * ②拒绝这条路径**一个字节都不写盘**（不快照、不写文件、不回调标 done）；
+ * ②拒绝不写正文、不快照、不回调标 done；只关闭恢复 journal；
  * ③方向非空才转成一次真实的作者发言发出去——空方向不许烧新一轮 BYO-key。
  *
  * 加第④条（第12条功能）：待确认补丁时对话区 RunActionBar 能就地接受/拒绝，
@@ -30,6 +30,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 const calls: string[] = [];
 
 const receiptFiles = new Map<string, string>();
+let beforeDismissJournal: (() => Promise<void>) | undefined;
 const receiptFs = {
   pathExists: (path: string) => receiptFiles.has(path),
   readFile: (path: string) => {
@@ -67,6 +68,7 @@ vi.mock('../../src/lib/tauri-fs', () => ({
     ) => {
       // 恢复 journal 是 .storyforge 内部记录，不属于正文写回断言范围。
       if (_path.includes('pending-suggestions')) {
+        if (_content === 'null') await beforeDismissJournal?.();
         receiptFiles.set(_path, _content);
         return;
       }
@@ -115,16 +117,7 @@ function onRejected(event: Event) {
   rejections.push((event as CustomEvent<PatchRejection>).detail);
 }
 
-/** 提案持久化（恢复 journal）入库后接受/拒绝链多一跳异步；断言前把游离 promise 链排空。 */
-async function settle() {
-  for (let i = 0; i < 5; i += 1) {
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-  }
-}
-
-let reject: (direction?: string) => void = () => undefined;
+let reject: (direction?: string) => Promise<void> = async () => undefined;
 let accept: () => Promise<void> = async () => undefined;
 let panelHasPatch = false;
 let recordDeferred = false;
@@ -300,6 +293,7 @@ let root: ReturnType<typeof createRoot>;
 
 beforeEach(() => {
   receiptFiles.clear();
+  beforeDismissJournal = undefined;
   calls.length = 0;
   rejections.length = 0;
   submitted.length = 0;
@@ -339,13 +333,11 @@ test('否掉一版时，作者的方向连同补丁 id 一起广播出去', asyn
   await act(async () => {
     emitFileSuggestion(suggestion());
   });
-  await settle();
   assert.equal(panelHasPatch, true, '补丁没进面板，后面的断言证明不了任何事');
 
   await act(async () => {
-    reject('这段对话太生硬，把玄铁令的来历留到后面再抖');
+    await reject('这段对话太生硬，把玄铁令的来历留到后面再抖');
   });
-  await settle();
 
   assert.equal(rejections.length, 1);
   assert.deepEqual(rejections[0], {
@@ -356,15 +348,19 @@ test('否掉一版时，作者的方向连同补丁 id 一起广播出去', asyn
   assert.equal(panelHasPatch, false, '否掉之后面板还留着补丁');
 });
 
-test('拒绝这条路径一个字节都不写盘', async () => {
+test('拒绝只关闭恢复 journal，不写正文或创建快照', async () => {
   await act(async () => {
     emitFileSuggestion(suggestion());
   });
   await act(async () => {
-    reject('重写一版');
+    await reject('重写一版');
   });
 
-  assert.deepEqual(calls, [], `拒绝不该触碰磁盘或后端，实际调用：${calls.join(' | ') || '(无)'}`);
+  assert.deepEqual(
+    calls,
+    [],
+    `拒绝不该触碰正文、快照或后端标记，实际调用：${calls.join(' | ') || '(无)'}`,
+  );
 });
 
 test('接受写回 in-flight 时重复触发只执行一次，完成后仍走原有写回链', async () => {
@@ -379,9 +375,8 @@ test('接受写回 in-flight 时重复触发只执行一次，完成后仍走原
     first = accept();
     second = accept();
   });
+  await vi.waitFor(() => assert.equal(calls.filter((call) => call === 'record').length, 1));
   assert.equal(calls.filter((call) => call === 'snapshot').length, 1);
-
-  await new Promise((resolve) => setTimeout(resolve, 10));
   resolveRecord();
   await act(async () => {
     await first;
@@ -403,7 +398,10 @@ test('对话区拒绝由编辑器处理并清掉同一 patchId 的待确认补�
     runControls?.onRejectPatch?.('把玄铁令的来历留到后面');
   });
 
-  assert.equal(panelHasPatch, false, '对话区拒绝后编辑器仍保留旧补丁');
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    assert.equal(panelHasPatch, false, '对话区拒绝后编辑器仍保留旧补丁');
+  });
   assert.equal(rejections.length, 1);
   assert.equal(rejections[0].patchId, 'file-revision-abc123');
 });
@@ -435,14 +433,15 @@ test('对话区接受把同一 patchId 交给既有 guarded writeback', async ()
   await act(async () => {
     emitFileSuggestion(suggestion());
   });
-  await settle();
 
   await act(async () => {
     runControls?.onAcceptPatch?.();
   });
-  await settle();
 
-  assert.equal(panelHasPatch, false, '接受后编辑器仍保留已写回补丁');
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    assert.equal(panelHasPatch, false, '接受后编辑器仍保留已写回补丁');
+  });
   assert.deepEqual(calls.slice(0, 4), ['snapshot', 'branch', 'write', 'record']);
 });
 
@@ -451,7 +450,7 @@ test('方向非空才转成一次真实的作者发言；留空只否掉、不�
     emitFileSuggestion(suggestion());
   });
   await act(async () => {
-    reject('   ');
+    await reject('   ');
   });
 
   assert.deepEqual(submitted, [], '空方向不该发起新一轮模型调用');
@@ -461,11 +460,9 @@ test('方向非空才转成一次真实的作者发言；留空只否掉、不�
   await act(async () => {
     emitFileSuggestion(suggestion({ id: 'file-revision-def456' }));
   });
-  await settle();
   await act(async () => {
-    reject('节奏太赶，第三章先别揭底');
+    await reject('节奏太赶，第三章先别揭底');
   });
-  await settle();
 
   assert.equal(submitted.length, 1, '给了方向却没发起新一轮');
   assert.match(submitted[0], /第03章\.md/, '发出的话里没有被否文件的锚点');
@@ -502,10 +499,41 @@ test('否掉之后，那个永远挂 waiting 的确认步会收尾', async () =>
   await act(async () => {
     emitFileSuggestion(suggestion());
   });
+  let release!: () => void;
+  const blocked = new Promise<void>((resolve) => (release = resolve));
+  let started!: () => void;
+  const entered = new Promise<void>((resolve) => (started = resolve));
+  beforeDismissJournal = async () => {
+    started();
+    await blocked;
+  };
+  let completion!: Promise<void>;
   await act(async () => {
-    reject('换个开头');
+    completion = reject('换个开头');
+    await entered;
   });
+  try {
+    assert.equal(panelHasPatch, true, '恢复记录尚未关闭，拒绝不应提前结算');
+    assert.equal(rejections.length, 0);
+    assert.deepEqual(stepPatches, []);
+    assert.deepEqual(runStatuses, []);
+    // 同一 action 在等待 journal 时再次拒绝，不应重复发言或收尾。
+    await act(async () => {
+      await reject('重复点击');
+    });
+    assert.equal(rejections.length, 0);
+  } finally {
+    await act(async () => {
+      release();
+      await completion;
+    });
+  }
 
+  assert.equal(panelHasPatch, false);
+  assert.equal(rejections.length, 1);
+  assert.equal(submitted.length, 1);
+  assert.match(submitted[0], /换个开头/);
+  assert.deepEqual([...receiptFiles.values()], ['null']);
   const approval = stepPatches.filter((item) => item.stepId === 'approval');
   assert.equal(approval.length, 1, `确认步没有被收尾：${JSON.stringify(stepPatches)}`);
   // 这一步叫「等待作者确认」——作者答复了它就完成了，哪怕答复是「不要」。
@@ -531,7 +559,7 @@ test('切走会话后否掉旧补丁，不污染当前会话的流程树', async
   });
 
   await act(async () => {
-    reject('换个开头');
+    await reject('换个开头');
   });
 
   assert.deepEqual(

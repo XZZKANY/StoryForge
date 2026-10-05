@@ -5,6 +5,8 @@ import {
   buildExportPath,
   buildRevisionLoopRecordPath,
   recordRevisionLoop,
+  revisionLoopSemanticPayload,
+  readRevisionLoopPayload,
 } from '../src/lib/author-loop';
 
 test('author loop writes deterministic local evidence and export paths', () => {
@@ -195,4 +197,41 @@ test('same-operation concurrent audit attempts cannot replace the winning payloa
   } finally {
     delete window.__STORYFORGE_MOCK_FS__;
   }
+});
+
+test('audit recovery decodes the exact canonical semantic payload, including issue metadata', () => {
+  const project = 'D:/project',
+    file = project + '/正文/a.md';
+  const raw = revisionLoopSemanticPayload({
+    projectPath: project,
+    filePath: file,
+    before: '原稿\r\n',
+    after: '新稿😀é\r\n',
+    summary: '局部修改',
+    note: '未作语义复核',
+    userIntent: '保持声音',
+    assistantSessionId: 42,
+    patchId: 'patch',
+    issueIds: ['a', 'b'],
+    contextFiles: ['knowledge/a.md'],
+    issueResolutions: [
+      { id: 'a', status: 'resolved' },
+      { id: 'b', status: 'open' },
+    ],
+    issueCounts: { observed: 2, authorConfirmed: 1, resolved: 1 },
+    issueAttributed: false,
+  });
+  assert.equal(revisionLoopSemanticPayload(readRevisionLoopPayload(project, file, raw)), raw);
+  for (const change of [
+    { issueIds: [42] },
+    { issueCounts: { observed: -1, authorConfirmed: 1, resolved: 1 } },
+    { issueResolutions: [{ id: 'a', status: 'approved' }] },
+    { file: '../other.md' },
+    { assistantSessionId: '42' },
+    { summary: null },
+    { extraField: 'ignored' },
+  ])
+    assert.throws(() =>
+      readRevisionLoopPayload(project, file, JSON.stringify({ ...JSON.parse(raw), ...change })),
+    );
 });

@@ -7,14 +7,22 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { createWritebackQueue } from '../src/lib/writeback';
 import type { DiskBaseline } from '../src/lib/tauri-fs';
 import type { WritebackRequest } from '../src/lib/writeback-receipt-types';
-import { inspectFixtureReceipt, writeFixtureReceipt } from '../src/lib/writeback-receipt-fixture';
+import {
+  createFixtureAudit,
+  inspectFixtureReceipt,
+  writeFixtureReceipt,
+} from '../src/lib/writeback-receipt-fixture';
 import { useSuggestionWriteback } from '../src/components/editor/useSuggestionWriteback';
 import type { EditorModelCache } from '../src/components/editor/useMonacoEditor';
 import { emitFileSuggestion } from '../src/lib/assistant-events';
 import { buildPatchHunks } from '../src/lib/patch-hunks';
 import type { AssistantFileSuggestion } from '../src/lib/assistant-suggestions';
 import type { IssueCounts, IssueResolution, IssueScope } from '../src/lib/suggestion-ops';
-import { readRevisionLoopIssues, recordRevisionLoop } from '../src/lib/author-loop';
+import {
+  readRevisionLoopIssues,
+  recordRevisionLoop,
+  type RevisionLoopRecord,
+} from '../src/lib/author-loop';
 
 const effects = vi.hoisted(() => ({
   disk: new Map<string, string>(),
@@ -44,6 +52,8 @@ vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: effects.snapshot })
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
     writeFile: effects.write,
+    createWritebackAudit: (project: string, id: string, content: string) =>
+      createFixtureAudit(receiptFs, project, id, content),
     pathExists: (path: string) => effects.disk.has(path),
     readProjectFile: (_project: string, path: string) => receiptFs.readFile(path),
     inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
@@ -205,6 +215,11 @@ async function show(suggestion: AssistantFileSuggestion) {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  effects.record.mockImplementation(async (record: unknown) => ({
+    ...(await recordRevisionLoop(record as RevisionLoopRecord)),
+    recordPath: '/record.md',
+    updatedBlueprintPath: null,
+  }));
   effects.disk.clear();
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -233,7 +248,7 @@ test('D06-①：双 issue 补丁只接受覆盖 A 的分块 → 记录 A=resolve
   assert.deepEqual(record.issueCounts, { observed: 2, authorConfirmed: 1, resolved: 1 });
   const statusTexts = effects.toast.mock.calls.map((args: unknown[]) => String(args[0]));
   assert.ok(
-    statusTexts.some((text) => text.includes('问题已解决 1/2（作者确认 1）')),
+    statusTexts.some((text) => text.includes('范围覆盖 1/2（作者确认 1；未作语义复核）')),
     `接受分块后应向作者分列问题读数，实际: ${JSON.stringify(statusTexts)}`,
   );
 });
@@ -252,7 +267,7 @@ test('D06-②：整份接受 → 两个问题都 resolved（2/2）', async () =>
   assert.deepEqual(record.issueCounts, { observed: 2, authorConfirmed: 2, resolved: 2 });
   const statusTexts = effects.toast.mock.calls.map((args: unknown[]) => String(args[0]));
   assert.ok(
-    statusTexts.some((text) => text.includes('问题已解决 2/2（作者确认 2）')),
+    statusTexts.some((text) => text.includes('范围覆盖 2/2（作者确认 2；未作语义复核）')),
     `整份接受后应向作者分列问题读数，实际: ${JSON.stringify(statusTexts)}`,
   );
 });
@@ -294,7 +309,7 @@ test('D06-④：无行范围的旧补丁保留扁平 issueIds，状态全 open�
     `无行范围时应提示未归属，实际: ${JSON.stringify(statusTexts)}`,
   );
   assert.equal(
-    statusTexts.some((text) => text.includes('问题已解决 0/')),
+    statusTexts.some((text) => text.includes('范围覆盖 0/')),
     false,
     '不得把「无法归属」报成 0/N',
   );
@@ -320,7 +335,7 @@ test('D06-⑥：issue 有行范围但本次无 op 覆盖 → 显示 0/N，不误
   assert.deepEqual(record.issueCounts, { observed: 1, authorConfirmed: 0, resolved: 0 });
   const statusTexts = effects.toast.mock.calls.map((args: unknown[]) => String(args[0]));
   assert.ok(
-    statusTexts.some((text) => text.includes('问题已解决 0/1（作者确认 0）')),
+    statusTexts.some((text) => text.includes('范围覆盖 0/1（作者确认 0；未作语义复核）')),
     `有行范围应如实报 0/N，实际: ${JSON.stringify(statusTexts)}`,
   );
   assert.equal(
@@ -392,6 +407,7 @@ test('D06：闭环记录分列问题状态与计数，扁平 issueIds 仍在', a
   assert.match(content, /Issue IDs：issue-A, issue-B/);
   assert.match(content, /Issue Status：issue-A=resolved, issue-B=open/);
   assert.match(content, /Issue Counts：observed 2 \/ author-confirmed 1 \/ resolved 1/);
+  assert.match(content, /resolved 仅表示原问题行范围的文字覆盖，未作语义复核/);
 });
 
 test('D06：旧记录只有扁平 issueIds 时不写状态/计数行，仍可读为 open', async () => {

@@ -1,3 +1,4 @@
+import type { RevisionLoopRecord } from '../src/lib/author-loop';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -15,7 +16,10 @@ import {
 
 const effects = vi.hoisted(() => ({
   snapshot: vi.fn(async () => ({ timestamp: 1, created: false })),
-  record: vi.fn(async () => ({ recordPath: null, updatedBlueprintPath: null })),
+  record: vi.fn(async (_record: RevisionLoopRecord) => ({
+    recordPath: null,
+    updatedBlueprintPath: null,
+  })),
   mark: vi.fn(async () => {}),
 }));
 vi.mock('../src/lib/versions', async (load) => ({
@@ -40,8 +44,14 @@ let root: Root;
 let host: HTMLDivElement;
 const dialogs = { alert: async () => {}, confirm: async () => false, prompt: async () => null };
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  const original =
+    await vi.importActual<typeof import('../src/lib/author-loop')>('../src/lib/author-loop');
+  effects.record.mockImplementation(async (record) => {
+    await original.recordRevisionLoop(record);
+    return { recordPath: null, updatedBlueprintPath: null };
+  });
   files = new Map();
   writes = [];
   proposalSequence = 0;
@@ -67,6 +77,12 @@ afterEach(() => {
   delete window.__STORYFORGE_MOCK_FS__;
   __resetMonacoStub();
 });
+async function observe(assertion: () => void) {
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    assertion();
+  });
+}
 async function open(content: string | null) {
   if (content !== null) files.set(FILE, content);
   await act(async () =>
@@ -74,8 +90,7 @@ async function open(content: string | null) {
       <Editor projectPath={PROJECT} filePath={FILE} retainedFilePaths={[FILE]} dialogs={dialogs} />,
     ),
   );
-  await act(async () => new Promise((resolve) => setTimeout(resolve, 30)));
-  expect(__getLastEditor()?.getValue()).toBe(content ?? '');
+  await observe(() => expect(__getLastEditor()?.getValue()).toBe(content ?? ''));
 }
 async function propose(before: string, after: string, auto = false) {
   await act(async () =>
@@ -105,6 +120,7 @@ it.each([false, true])(
     files.set(FILE, 'external edit');
     await propose('original', 'proposed', auto);
     if (!auto) await accept();
+    await observe(() => expect(host.textContent).toContain('磁盘内容已变化'));
     expect(files.get(FILE)).toBe('external edit');
     expect(__getLastEditor()?.getValue()).toBe('original');
     expect(writes).not.toContain(FILE);
@@ -125,9 +141,10 @@ it('rechecks disk after a pending snapshot, not just before it', async () => {
   );
   await propose('original', 'proposed');
   await accept();
-  expect(effects.snapshot).toHaveBeenCalledOnce();
+  await observe(() => expect(effects.snapshot).toHaveBeenCalledOnce());
   files.set(FILE, 'changed during snapshot');
   await act(async () => release({ timestamp: 1, created: false }));
+  await observe(() => expect(host.textContent).toContain('磁盘内容已变化'));
   expect(files.get(FILE)).toBe('changed during snapshot');
   expect(effects.record).not.toHaveBeenCalled();
   expect(host.textContent).toContain('磁盘内容已变化');
@@ -140,6 +157,7 @@ it.each(['', 'external creation'])(
     files.set(FILE, external);
     await propose('', 'new chapter');
     await accept();
+    await observe(() => expect(host.textContent).toContain('磁盘内容已变化'));
     expect(files.get(FILE)).toBe(external);
     expect(effects.record).not.toHaveBeenCalled();
   },
@@ -150,6 +168,7 @@ it('deleted file cannot be silently recreated by an old patch', async () => {
   files.delete(FILE);
   await propose('original', 'proposed');
   await accept();
+  await observe(() => expect(host.textContent).toContain('磁盘内容已变化'));
   expect(files.has(FILE)).toBe(false);
   expect(effects.record).not.toHaveBeenCalled();
 });
@@ -160,6 +179,7 @@ it.each([null, ''])(
     await open(initial);
     await propose('', 'new chapter');
     await accept();
+    await observe(() => expect(host.querySelector('[data-testid="patch-review"]')).toBeNull());
     expect(files.get(FILE)).toBe('new chapter');
     expect(effects.record).toHaveBeenCalledOnce();
   },
@@ -170,9 +190,11 @@ it('an unsaved editor proposal uses the loaded disk baseline, then advances it f
   await act(async () => __getLastEditor()!.setValue('unsaved author draft'));
   await propose('unsaved author draft', 'accepted first');
   await accept();
+  await observe(() => expect(host.querySelector('[data-testid="patch-review"]')).toBeNull());
   expect(files.get(FILE)).toBe('accepted first');
   await propose('accepted first', 'accepted second');
   await accept();
+  await observe(() => expect(host.querySelector('[data-testid="patch-review"]')).toBeNull());
   expect(files.get(FILE)).toBe('accepted second');
   expect(effects.record).toHaveBeenCalledTimes(2);
 });
@@ -192,7 +214,9 @@ it('ordinary save cannot bypass the same disk drift guard', async () => {
     });
     expect(files.get(FILE)).toBe('external edit');
     expect(__getLastEditor()?.getValue()).toBe('unsaved author draft');
-    expect(replies).toContainEqual(expect.objectContaining({ status: 'error' }));
+    await observe(() =>
+      expect(replies).toContainEqual(expect.objectContaining({ status: 'error' })),
+    );
   } finally {
     window.removeEventListener(SAVE_ACTIVE_FILE_DONE_EVENT, listener);
   }
@@ -203,6 +227,7 @@ it('an unchanged editor proposal still snapshots unsaved disk changes', async ()
   await act(async () => __getLastEditor()!.setValue('unsaved draft'));
   await propose('unsaved draft', 'unsaved draft');
   await accept();
+  await observe(() => expect(host.querySelector('[data-testid="patch-review"]')).toBeNull());
   expect(files.get(FILE)).toBe('unsaved draft');
   expect(effects.snapshot).toHaveBeenCalledOnce();
 });
@@ -211,6 +236,7 @@ it('creating an empty file still snapshots its missing state', async () => {
   await open(null);
   await propose('', '');
   await accept();
+  await observe(() => expect(host.querySelector('[data-testid="patch-review"]')).toBeNull());
   expect(files.get(FILE)).toBe('');
   expect(effects.snapshot).toHaveBeenCalledOnce();
 });
@@ -227,6 +253,7 @@ it('disk acknowledgement settles the buffer before slow evidence; later save can
   );
   await propose('unsaved draft', 'accepted');
   await accept();
+  await observe(() => expect(effects.record).toHaveBeenCalledOnce());
   expect(files.get(FILE)).toBe('accepted');
   expect(__getLastEditor()?.getValue()).toBe('accepted');
   await act(async () => __getLastEditor()!.setValue('author next draft'));
@@ -237,7 +264,7 @@ it('disk acknowledgement settles the buffer before slow evidence; later save can
   });
   expect(files.get(FILE)).toBe('accepted');
   await act(async () => release({ recordPath: null, updatedBlueprintPath: null }));
-  expect(files.get(FILE)).toBe('author next draft');
+  await observe(() => expect(files.get(FILE)).toBe('author next draft'));
   expect(__getLastEditor()?.getValue()).toBe('author next draft');
 });
 
@@ -252,6 +279,7 @@ it('a save queued behind AI evidence stays on the originating file after navigat
   );
   await propose('original', 'accepted');
   await accept();
+  await observe(() => expect(effects.record).toHaveBeenCalledOnce());
   await act(async () => __getLastEditor()!.setValue('next draft in first file'));
   await act(async () => {
     window.dispatchEvent(
@@ -270,10 +298,9 @@ it('a save queued behind AI evidence stays on the originating file after navigat
       />,
     ),
   );
-  await act(async () => new Promise((resolve) => setTimeout(resolve, 30)));
-  expect(__getLastEditor()?.getValue()).toBe('other original');
+  await observe(() => expect(__getLastEditor()?.getValue()).toBe('other original'));
   await act(async () => release({ recordPath: null, updatedBlueprintPath: null }));
-  expect(files.get(FILE)).toBe('next draft in first file');
+  await observe(() => expect(files.get(FILE)).toBe('next draft in first file'));
   expect(files.get(other)).toBe('other original');
   expect(__getLastEditor()?.getValue()).toBe('other original');
 });

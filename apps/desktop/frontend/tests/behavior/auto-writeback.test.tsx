@@ -10,9 +10,11 @@ import { createWritebackQueue } from '../../src/lib/writeback';
 import type { DiskBaseline } from '../../src/lib/tauri-fs';
 import type { WritebackRequest } from '../../src/lib/writeback-receipt-types';
 import {
+  createFixtureAudit,
   inspectFixtureReceipt,
   writeFixtureReceipt,
 } from '../../src/lib/writeback-receipt-fixture';
+import { recordRevisionLoop } from '../../src/lib/author-loop';
 import { act } from 'react';
 import { useRef } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -43,6 +45,8 @@ const receiptFs = {
 
 vi.mock('../../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
+    createWritebackAudit: (project: string, id: string, content: string) =>
+      createFixtureAudit(receiptFs, project, id, content),
     pathExists: (path: string) => receiptFiles.has(path),
     readProjectFile: (_project: string, path: string) => receiptFs.readFile(path),
     inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
@@ -168,8 +172,9 @@ function Harness({ filePath }: { filePath: string }) {
     advanceBranchHead: async () => {
       calls.push('branch');
     },
-    recordRevisionLoop: async () => {
+    recordRevisionLoop: async (record) => {
       calls.push('record');
+      await recordRevisionLoop(record);
       return { recordPath: '/loop.md' } as never;
     },
     emitAuthorLoopResult: () => undefined,

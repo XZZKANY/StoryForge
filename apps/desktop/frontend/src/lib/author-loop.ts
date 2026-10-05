@@ -109,6 +109,70 @@ export function revisionLoopSemanticPayload(record: RevisionLoopRecord): string 
   });
 }
 
+/** Decode only the canonical payload emitted by this owner; never infer lost audit fields. */
+export function readRevisionLoopPayload(
+  projectPath: string,
+  filePath: string,
+  raw: string,
+): RevisionLoopRecord {
+  const value: unknown = JSON.parse(raw);
+  const object = (v: unknown): v is Record<string, unknown> =>
+    v !== null && typeof v === 'object' && !Array.isArray(v);
+  const strings = (v: unknown): v is string[] =>
+    Array.isArray(v) && v.every((item) => typeof item === 'string');
+  const count = (v: unknown): v is number =>
+    typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
+  if (
+    !object(value) ||
+    value.file !== relativeToProject(projectPath, filePath) ||
+    !['before', 'after', 'summary', 'note', 'userIntent'].every(
+      (key) => typeof value[key] === 'string',
+    ) ||
+    !(value.assistantSessionId === null || count(value.assistantSessionId)) ||
+    !(value.patchId === null || typeof value.patchId === 'string') ||
+    !strings(value.issueIds) ||
+    !strings(value.contextFiles) ||
+    !(value.issueAttribution === undefined || value.issueAttribution === 'unattributed') ||
+    !(
+      value.issueResolutions === undefined ||
+      (Array.isArray(value.issueResolutions) &&
+        value.issueResolutions.every(
+          (item: unknown) =>
+            object(item) &&
+            typeof item.id === 'string' &&
+            ['open', 'touched', 'resolved'].includes(String(item.status)),
+        ))
+    ) ||
+    !(
+      value.issueCounts === undefined ||
+      (object(value.issueCounts) &&
+        ['observed', 'authorConfirmed', 'resolved'].every((key) =>
+          count(value.issueCounts && (value.issueCounts as Record<string, unknown>)[key]),
+        ))
+    )
+  )
+    throw new Error('原写回审计语义损坏，不能自动补记');
+  const record: RevisionLoopRecord = {
+    projectPath,
+    filePath,
+    before: value.before as string,
+    after: value.after as string,
+    summary: value.summary as string,
+    note: value.note as string,
+    userIntent: value.userIntent as string,
+    assistantSessionId: value.assistantSessionId,
+    patchId: value.patchId,
+    issueIds: value.issueIds,
+    contextFiles: value.contextFiles,
+    issueResolutions: value.issueResolutions as IssueResolution[] | undefined,
+    issueCounts: value.issueCounts as IssueCounts | undefined,
+    issueAttributed: value.issueAttribution === 'unattributed' ? false : undefined,
+  };
+  if (revisionLoopSemanticPayload(record) !== raw)
+    throw new Error('原写回审计语义不完整或不匹配，不能自动补记');
+  return record;
+}
+
 export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<RevisionLoopResult> {
   const {
     projectPath,
@@ -154,6 +218,7 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
     ...(issueCounts && issueCounts.observed > 0 && issueAttributed
       ? [
           `- Issue Counts：observed ${issueCounts.observed} / author-confirmed ${issueCounts.authorConfirmed} / resolved ${issueCounts.resolved}`,
+          '- Coverage Note：resolved 仅表示原问题行范围的文字覆盖，未作语义复核。',
         ]
       : []),
     `- 上下文文件：${contextFiles.length ? contextFiles.join(', ') : '未记录'}`,
