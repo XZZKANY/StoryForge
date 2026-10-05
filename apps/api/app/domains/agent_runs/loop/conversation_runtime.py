@@ -235,9 +235,16 @@ class ConversationRuntimeMixin:
                 rel_path = _optional_string(payload.pop("path", None))
                 if not rel_path:
                     raise fs_tools.FsToolError("缺少 path：请提供项目内的相对文件路径。")
-                if self._external_execution is not None and registry_name == "file.revise":
+                if registry_name == "file.revise" or (
+                    registry_name == "file.review" and self._external_execution is None
+                ):
                     file_path, content, raw = fs_tools.read_project_file_raw(project_path, rel_path)
-                    self._external_execution.raw_inputs[rel_path] = raw
+                    if self._external_execution is not None:
+                        self._external_execution.raw_inputs[rel_path] = raw
+                    else:
+                        # Ordinary review hashes and patch spans bind the same exact author text.
+                        # The external protocol separately retains its normalized/raw pair.
+                        content = raw.decode("utf-8")
                     payload.update(file_path=file_path, content=content, _trace_file_path=rel_path)
                 else:
                     read = fs_tools.fs_read(project_path, rel_path, offset=0, limit=200_000)
@@ -424,6 +431,16 @@ class ConversationRuntimeMixin:
         }
         if outcome.review_report is not None:
             agent_result["review_report"] = outcome.review_report
+        if outcome.proposed_patch is not None:
+            # The persisted handler trace owns scope; bind it to this exact patch, not a prior writer.
+            for trace in reversed(outcome.traces):
+                summary = trace.output_summary or {}
+                if (trace.tool_name == "file.revise" and trace.status == "completed"
+                        and summary.get("patch_id") == outcome.proposed_patch["id"]):
+                    for field in ("applied_scope", "scope_warning"):
+                        if isinstance(summary.get(field), dict):
+                            agent_result[field] = summary[field]
+                    break
         if awaits_confirmation:
             plan.append(_plan_step("permission.confirm", "文件写回前等待作者确认。", "needs_approval"))
         elif outcome.proposed_patch is not None:

@@ -75,6 +75,7 @@ def consistency_scan(
     subpath: str | None = None,
     glob: str = "*.md",
     max_terms: int | None = _MAX_TERMS,
+    included_paths: set[str] | None = None,
 ) -> dict[str, Any]:
     """按阅读顺序（路径序）扫描项目文本，返回一致性观察信号。
 
@@ -95,6 +96,8 @@ def consistency_scan(
         if scope != root and scope not in path.parents:
             continue
         if not path.match(glob):
+            continue
+        if included_paths is not None and path.relative_to(root).as_posix() not in included_paths:
             continue
         if len(files) >= _MAX_FILES:
             files_truncated = True

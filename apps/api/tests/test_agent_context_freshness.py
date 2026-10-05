@@ -282,3 +282,60 @@ def test_pure_generator_read_handoff_records_selection_and_omission_without_io(m
     assert refs[0]["selection_source"] == "loop_fs_read"
     assert refs[-1]["selection_source"] == "loop_fs_read"
     assert refs[-1]["relative_path"] == "设定/8.md" and refs[-1]["omission_reason"] == "selection_budget"
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
+def test_review_and_revision_keep_exact_utf8_source_identity(client, tmp_path, monkeypatch, newline):
+    from app.domains.agent_runs.fs_tools import fs_read
+    from app.domains.ide import review_reasoning
+
+    _enable_loop_env(monkeypatch)
+    original = newline.join(["她把😀铜钥匙交给顾迟。", "组合字 e\u0301 与 é 不互换。", "顾迟关上门。"])
+    after = original.replace("交给", "递给")
+    target = tmp_path / "chapter.md"
+    target.write_bytes(original.encode("utf-8"))
+    prompts = []
+
+    def writer(_source, **kwargs):
+        prompts.append(kwargs["user_prompt"])
+        return {"content": after}
+
+    monkeypatch.setattr(assistant_service, "_call_llm_streamed", writer)
+    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(review_reasoning, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-reviewer"})
+    monkeypatch.setattr(review_reasoning, "_call_llm", lambda *args, **kwargs: {"content": "[]"})
+    script = [
+        {
+            "tool_calls": [
+                {
+                    "id": name,
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "arguments": json.dumps({"path": "chapter.md", "instruction": "只将交给改为递给"}),
+                    },
+                }
+            ]
+        }
+        for name in ["file_review", "file_revise"]
+    ]
+    _fake_llm_script(monkeypatch, [*script, {"content": "等待确认", "tool_calls": []}])
+    result = _send_chat_message(
+        client, run_id="raw-revision-source", project_path=str(tmp_path), message="只将交给改为递给"
+    )[-1]
+    assert result["type"] == "agent_result", result
+    patch = result["proposed_patch"]
+    assert patch is not None, result
+    assert patch["before"] == original
+    assert patch["after"] == after
+    revise_trace = next(trace for trace in result["tool_trace"] if trace["tool_name"] == "file.revise")
+    scope = revise_trace["output_summary"]["applied_scope"]
+    assert result["agent_result"]["applied_scope"] == scope
+    assert result["agent_result"].get("scope_warning") == revise_trace["output_summary"].get("scope_warning")
+    assert original in prompts[0]
+    artifacts = client.get("/api/agent-runs/raw-revision-source/artifacts").json()
+    report = next(item["payload"] for item in artifacts if item["kind"] == "review_report")
+    assert report["content_sha256"] == hashlib.sha256(original.encode("utf-8")).hexdigest()
+    assert target.read_bytes() == original.encode("utf-8"), "Backend must never apply the proposal"
+    # Read/search display contracts remain normalized; only review/revision identity is exact.
+    assert fs_read(str(tmp_path), "chapter.md")["content"] == original.replace("\r\n", "\n").replace("\r", "\n")

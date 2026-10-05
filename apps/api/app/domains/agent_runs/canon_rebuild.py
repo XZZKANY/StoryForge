@@ -30,7 +30,7 @@ def _chapter_ordinals(project_root: str, glob: str) -> dict[str, int]:
         if not path.match(glob):
             continue
         relative = path.relative_to(root).as_posix()
-        if not _is_manuscript(relative):
+        if relative.startswith(".") or not _is_manuscript(relative):
             continue
         index += 1
         ordinals[relative] = index
@@ -66,9 +66,12 @@ def rebuild_presence(
 
     # max_terms=None：presence 缓存必须覆盖全部声明实体的表面形，绝不能被 live 工具的 30 上限
     # 截断（否则第 31+ 个表面形的实体被误标 missing=True「未登场」，写错 presence.json/dossier，UF-03）。
-    # max_terms=None：presence 缓存必须覆盖全部声明实体的表面形，绝不能被 live 工具的 30 上限
-    # 截断（否则第 31+ 个表面形的实体被误标 missing=True「未登场」，写错 presence.json/dossier，UF-03）。
-    scan = consistency_scan(project_root, all_forms, glob=glob, max_terms=None) if all_forms else None
+    # Select chapters before scanner budgets: material mentions are not manuscript appearances.
+    scan = (
+        consistency_scan(project_root, all_forms, glob=glob, max_terms=None, included_paths=set(ordinals))
+        if all_forms
+        else None
+    )
     term_index: dict[str, dict[str, Any]] = {}
     if scan is not None:
         term_index = {occ["term"]: occ for occ in scan["term_occurrences"]}

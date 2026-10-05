@@ -356,3 +356,36 @@ def test_canon_refresh_command_writes_dossier_deterministically(project: Path) -
 def test_canon_refresh_command_requires_project_root() -> None:
     with pytest.raises(IdeCommandExecutionError, match="project_root"):
         execute_ide_command_by_id("canon.refresh", {})
+
+
+def test_author_instructions_never_allocate_a_manuscript_chapter(project: Path) -> None:
+    instructions = project / ".storyforge" / "agent-instructions.md"
+    instructions.parent.mkdir(parents=True, exist_ok=True)
+    instructions.write_text("青岩只按作者指令行动。", encoding="utf-8")
+
+    assert canon_rebuild.chapter_ordinals(str(project), "*.md") == {
+        "正文/第01章.md": 1,
+        "正文/第02章.md": 2,
+    }
+
+
+def test_presence_filters_materials_before_term_file_budget(project: Path) -> None:
+    from app.domains.agent_runs.consistency_scan import consistency_scan
+
+    materials = project / "materials"
+    materials.mkdir()
+    for index in range(55):
+        (materials / f"{index:03}.md").write_text("青岩与无名氏的设定，不是登场。", encoding="utf-8")
+    ghost = {"id": "char_ghost", "canonical_name": "无名氏", "aliases": []}
+
+    presence = canon_rebuild.rebuild_presence(str(project), [_QINGYAN, ghost])
+    qingyan, absent = presence["entities"]
+    assert presence["chapter_count"] == presence["scanned_files"] == 2
+    assert qingyan["total_count"] == 3
+    assert [item["chapter"] for item in qingyan["occurrences"]] == [1, 2]
+    assert absent["missing"] is True and absent["total_count"] == 0
+    assert absent["occurrences"] == []
+    # The general project-observation tool still scans author materials by default.
+    scan = consistency_scan(str(project), ["无名氏"])
+    assert scan["scanned_files"] == 57
+    assert scan["term_occurrences"][0]["total_count"] == 55
