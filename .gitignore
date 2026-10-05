@@ -43,6 +43,7 @@ redis-data/
 !.codex/run-real-llm-10ch-current-env.ps1
 !.codex/run-real-llm-acceptance-interactive.ps1
 !.codex/validate-real-llm-long-evidence.ps1
+!.codex/run-real-llm-long-direct.py
 !.codex/real-llm-1ch-20260603-142925/
 .codex/real-llm-1ch-20260603-142925/*
 !.codex/real-llm-1ch-20260603-142925/manual-readthrough-completion.md
