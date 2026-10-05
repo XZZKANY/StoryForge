@@ -105,7 +105,7 @@ def test_book_generation_resume_continues_after_existing_approved_chapters(sessi
     assert len(result.book_run.progress["completed_chapters"]) == 4
     assert [item["chapter_index"] for item in result.book_run.progress["completed_chapters"]] == [1, 2, 3, 4]
     assert [item["quality_score"] for item in result.book_run.progress["completed_chapters"][:2]] == [100, 100]
-    assert session.query(ModelRun).count() == 4
+    assert session.query(ModelRun).count() == 12
     assert len(_draft_requests()) == 2
     assert "第 3 章" in str(result.markdown_artifact.payload)
     assert "第 4 章" in str(result.markdown_artifact.payload)

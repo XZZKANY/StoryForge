@@ -8,7 +8,10 @@ from collections.abc import Callable, Mapping
 
 from sqlalchemy.orm import Session
 
+from app.common.llm_control import LLMRunInterrupted
+from app.common.llm_observation import ModelObservationError, model_observation_scope
 from app.common.metrics import observe_book_generation_chapter
+from app.domains.book_runs.book_generation_accounting import BookGenerationAccounting, generation_usage_summary
 from app.domains.book_runs.book_generation_contracts import (
     BookGenerationResult,
     assert_no_missing_chapters,
@@ -92,11 +95,14 @@ def resume_book_generation(
         for item in completed_chapters
         if isinstance(item.get("chapter_index"), int)
     }
-    tokens_used = sum(int(item.get("token_usage") or 0) for item in completed_chapters)
+    tokens_used = (generation_usage_summary(session, book_run.id) or {}).get("tokens_used", 0)
 
     for chapter_index in range(1, chapter_count + 1):
         if chapter_index in completed_ordinals:
             continue
+        if tokens_used >= token_budget:
+            pause_by_budget(session, book_run.id, chapter_index, completed_chapters, tokens_used)
+            raise BookGenerationError("真实 LLM 断点续跑前 token 预算已触顶，未派发新请求。")
         chapter_started_at = time.monotonic()
         chapter = chapter_for_generation(session, book_run.book_id, chapter_index)
         memory_recall_chars = memory_recall_chars_for_chapter(session, book_run.book_id, chapter.ordinal)
@@ -104,44 +110,47 @@ def resume_book_generation(
         # generate_chapter / judge_and_repair_loop 的 LLM 调用抖动都抛 BookGenerationError，
         # 此前 resume 只捕 KeyboardInterrupt/SystemExit → 该异常裸冒泡到后台 wrapper 被吞，
         # BookRun 永远卡 running（僵尸，D1-001）。现在与初始循环一致：落失败证据 + 翻 failed + 重抛。
+        accounting = BookGenerationAccounting(session, book_run, chapter)
         try:
-            generated = generate_chapter(session, source, chapter_index, chapter, book_run_id=book_run.id)
-            tokens_used += int(generated["token_usage"])
-            scene = persist_draft_scene(session, chapter, str(generated["content"]))
-            model_run = record_model_run(session, book_run, scene, source, generated)
-            scene_packet = record_scene_packet(
-                session,
-                book_run,
-                scene,
-                story_state_changes=list(generated.get("story_state_changes") or []),
-                story_state_changes_source=str(generated.get("story_state_changes_source") or ""),
-            )
-            outcome = judge_and_repair_loop(session, source, book_run, scene, scene_packet)
-            observe_book_generation_chapter(
-                judge_call_count=int(outcome.get("judge_call_count") or 0),
-                repair_patch_count=len(outcome.get("repair_patch_ids") or []),
-                cost_cny_estimated=float(generated.get("cost_cny_estimated") or 0.0),
-            )
-            approved = finalize_scene_decision(session, chapter, scene, int(outcome["quality_score"]))
-            memory_atom_ids = (
-                extract_memory_atoms_for_chapter(
+            with model_observation_scope(accounting):
+                generated = generate_chapter(session, source, chapter_index, chapter, book_run_id=book_run.id)
+                scene = persist_draft_scene(session, chapter, str(generated["content"]))
+                model_run = record_model_run(session, book_run, scene, source, generated, observed_run=accounting.generation_run)
+                scene_packet = record_scene_packet(
                     session,
-                    book_id=book_run.book_id,
-                    chapter_id=chapter.id,
-                    chapter_ordinal=chapter.ordinal,
-                    approved_scene_id=int(scene.id),
-                    content=scene.content or str(generated["content"]),
+                    book_run,
+                    scene,
+                    story_state_changes=list(generated.get("story_state_changes") or []),
+                    story_state_changes_source=str(generated.get("story_state_changes_source") or ""),
                 )
-                if approved
-                else []
-            )
-        except BookGenerationError as exc:
+                outcome = judge_and_repair_loop(session, source, book_run, scene, scene_packet)
+                chapter_usage = generation_usage_summary(session, book_run.id, chapter_id=chapter.id)
+                tokens_used = generation_usage_summary(session, book_run.id)["tokens_used"]
+                observe_book_generation_chapter(
+                    judge_call_count=int(outcome.get("judge_call_count") or 0),
+                    repair_patch_count=len(outcome.get("repair_patch_ids") or []),
+                    cost_cny_estimated=0,  # Actual request costs are observed when ModelRun settles.
+                )
+                approved = finalize_scene_decision(session, chapter, scene, int(outcome["quality_score"]))
+                memory_atom_ids = (
+                    extract_memory_atoms_for_chapter(
+                        session,
+                        book_id=book_run.book_id,
+                        chapter_id=chapter.id,
+                        chapter_ordinal=chapter.ordinal,
+                        approved_scene_id=int(scene.id),
+                        content=scene.content or str(generated["content"]),
+                    )
+                    if approved
+                    else []
+                )
+        except (BookGenerationError, ModelObservationError) as exc:
             pause_by_failure(session, book_run.id, chapter_index, completed_chapters, tokens_used, str(exc))
             raise BookGenerationError(
-                f"真实 LLM 断点续跑在第 {chapter_index} 章失败，已保住前 {len(completed_chapters)} 章证据：{exc}"
+                f"真实 LLM 断点续跑在第 {chapter_index} 章失败，已保住前 {len(completed_chapters)} 章证据：{exc}", usage=getattr(exc, "usage", None),
             ) from exc
-        except (KeyboardInterrupt, SystemExit):
-            pause_by_interrupt(session, book_run.id, chapter_index, completed_chapters, tokens_used)
+        except (KeyboardInterrupt, SystemExit, LLMRunInterrupted) as exc:
+            pause_by_interrupt(session, book_run.id, chapter_index, completed_chapters, tokens_used, reason=getattr(exc, "reason", None))
             raise
         completed_chapters.append(
             {
@@ -155,14 +164,15 @@ def resume_book_generation(
                 "approved_scene_id": scene.id,
                 "scene_status": scene.status,
                 "approved": approved,
-                "token_usage": generated["token_usage"],
-                "prompt_tokens": generated["prompt_tokens"],
-                "completion_tokens": generated["completion_tokens"],
+                "token_usage": chapter_usage["tokens_used"],
+                "prompt_tokens": chapter_usage["prompt_tokens"],
+                "completion_tokens": chapter_usage["completion_tokens"],
                 "generation_latency_ms": generated["latency_ms"],
                 "elapsed_time_sec": max(0, int(time.monotonic() - started_at)),
                 "chapter_elapsed_time_sec": max(0, int(time.monotonic() - chapter_started_at)),
-                "cost_estimate": generated["cost_cny_estimated"],
-                "cost_breakdown": generated["cost_breakdown"],
+                "cost_estimate": chapter_usage["cost_estimate"],
+                "accounting": chapter_usage,
+                "cost_breakdown": chapter_usage["cost_breakdown"],
                 "quality_score": outcome["quality_score"],
                 "quality_issues": outcome["quality_issues"],
                 "story_state_commit": outcome.get("story_state_commit"),

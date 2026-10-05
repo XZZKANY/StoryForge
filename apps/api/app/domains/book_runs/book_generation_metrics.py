@@ -237,7 +237,8 @@ def _evidence_summary(
     completed_chapters = progress.get("completed_chapters")
     completed_chapters = completed_chapters if isinstance(completed_chapters, list) else []
     book_md_content = _artifact_text(markdown_artifact)
-    cost_breakdown = _aggregate_cost_breakdown(completed_chapters, book_run.estimated_cost)
+    accounting = getattr(book_run, "cost_summary", {}) or {}
+    cost_breakdown = accounting.get("cost_breakdown") or _aggregate_cost_breakdown(completed_chapters, book_run.estimated_cost)
     latency = _latency_summary(completed_chapters)
     return {
         "mode": "real_llm_smoke",
@@ -250,9 +251,10 @@ def _evidence_summary(
         "chapter_word_count_max": chapter_word_count_max,
         "tokens_used": book_run.tokens_used,
         "estimated_cost": book_run.estimated_cost,
-        "prompt_tokens_used": _sum_chapter_int(completed_chapters, "prompt_tokens"),
-        "completion_tokens_used": _sum_chapter_int(completed_chapters, "completion_tokens"),
-        "cost_cny_estimated": cost_breakdown["total_cny"],
+        "prompt_tokens_used": accounting.get("prompt_tokens", _sum_chapter_int(completed_chapters, "prompt_tokens")),
+        "completion_tokens_used": accounting.get("completion_tokens", _sum_chapter_int(completed_chapters, "completion_tokens")),
+        "cost_cny_estimated": accounting.get("cost_estimate", cost_breakdown["total_cny"]),
+        "accounting": accounting,
         "cost_breakdown": cost_breakdown,
         **latency,
         "failure_count": _failure_count(completed_chapters),

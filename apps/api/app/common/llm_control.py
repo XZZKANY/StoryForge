@@ -14,6 +14,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import TypeVar
 
+from app.common.llm_observation import observe_http_progress
 from app.platform.ai_sdk.contracts import TokenUsage
 
 
@@ -49,8 +50,10 @@ class LLMRunControl:
             raise LLMRunInterrupted(self._reason)
 
     def emit(self, phase: str, **values: object) -> None:
+        progress = {"phase": phase, "request_number": self._request_number, **values}
+        observe_http_progress(progress)
         if self.on_progress is not None:
-            self.on_progress({"phase": phase, "request_number": self._request_number, **values})
+            self.on_progress(progress)
 
     def request_timeout(self, configured: float) -> float:
         self.check("before_http_request")
@@ -111,9 +114,11 @@ def wait_for_retry(delay: float) -> None:
     control = _current_control.get()
     if control is not None:
         control.wait_for_retry(delay)
-    elif delay > 0:
-        # Preserve the existing monkeypatchable time.sleep path outside runs.
-        time.sleep(delay)
+    else:
+        if delay > 0:
+            # Preserve the existing monkeypatchable time.sleep path outside runs.
+            time.sleep(delay)
+        observe_http_progress({"phase": "retry_started"})
 
 
 def check_run_interruption(boundary: str) -> None:

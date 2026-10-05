@@ -1085,6 +1085,8 @@ def _call_llm_messages(
     messages: list[dict[str, object]],
     tools: list[dict[str, object]] | None = None,
     tool_choice: str | dict[str, object] | None = None,
+    timeout_seconds: float | None = None,
+    max_attempts: int | None = None,
 ) -> dict[str, object]:
     """多轮 messages 版 chat/completions，供 Agent 工具循环使用。
 
@@ -1098,7 +1100,9 @@ def _call_llm_messages(
         tool_choice=tool_choice,
     )
     try:
-        response = _sdk_provider(source).complete(chat_request)
+        response = _sdk_provider(
+            source, timeout_seconds=timeout_seconds, max_attempts=max_attempts,
+        ).complete(chat_request)
     except ProviderError as exc:
         raise _legacy_provider_error(exc) from exc
     _reject_incomplete_response(response)
@@ -1263,7 +1267,7 @@ def _token_usage(data: object, prompt: str, content: str) -> dict[str, int | str
         if isinstance(prompt_tokens, int) and isinstance(completion_tokens, int):
             resolved_total = total if isinstance(total, int) and total > 0 else prompt_tokens + completion_tokens
             return {
-                "token_usage": max(1, resolved_total),
+                "token_usage": max(0, resolved_total),
                 "prompt_tokens": max(0, prompt_tokens),
                 "completion_tokens": max(0, completion_tokens),
                 "cache_hit_tokens": cache_hit_tokens,

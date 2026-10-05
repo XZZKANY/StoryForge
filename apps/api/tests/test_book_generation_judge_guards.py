@@ -451,3 +451,73 @@ def test_book_generation_truncates_long_model_run_summaries(session: Session) ->
     assert model_run.payload["output_summary_original_length"] == len(content)
     assert model_run.payload["input_summary_truncated"] is True
     assert model_run.payload["output_summary_truncated"] is True
+
+
+@pytest.mark.parametrize("fast", ["1", "0"])
+def test_semantic_failure_cannot_approve_even_with_local_coverage(session: Session, monkeypatch, fast: str) -> None:
+    from app.domains.book_runs import book_generation_judge as judge
+    from app.domains.book_runs.book_context import clear_book_context_cache, get_book_context
+    from app.domains.judge.schemas import JudgeIssueCreate
+    from app.domains.judge.types import JUDGE_SYSTEM_FAILURE_CATEGORY, SemanticJudgeOutcome
+
+    run, chapter, scene = _seed_gate_fixture(session, content="她把钥匙收进衣袋。", word_min=1)
+    packet = ScenePacket(scene_id=scene.id, status="assembled", packet={}, version=1)
+    session.add(packet)
+    session.commit()
+    payload = JudgeIssueCreate(
+        scene_id=scene.id,
+        scene_packet_id=packet.id,
+        content=scene.content,
+        required_facts=[],
+        style_rules=["保持克制语气"],
+        evidence_links=[],
+    )
+    monkeypatch.setattr(judge, "_build_judge_payload", lambda *_: payload)
+    monkeypatch.setattr(
+        judge, "semantic_judge_with_status", lambda *_args, **_kwargs: SemanticJudgeOutcome(issues=[], failed=True)
+    )
+    clear_book_context_cache(chapter.book_id)
+    result = judge.run_real_judge(session, {"STORYFORGE_LLM_SMOKE_FAST_JUDGE": fast}, run, scene, packet)
+    assert any(issue.issue_type == JUDGE_SYSTEM_FAILURE_CATEGORY for issue in result.issues)
+    assert result.fast_path_reason is None
+    assert _finalize_scene_decision(session, chapter, scene, result.quality_score) is False
+    assert scene.status == "needs_revision"
+    assert chapter.status != "approved"
+    assert not get_book_context(session, chapter.book_id).approved_chapters
+
+
+@pytest.mark.parametrize(
+    "category,severity,status,approved",
+    [
+        ("setting_conflict", "high", "open", False),
+        ("timeline_conflict", "high", "open", False),
+        ("story_state_conflict", "high", "open", False),
+        ("cross_chapter_state_conflict", "high", "open", False),
+        ("judge_system_failure", "high", "open", False),
+        ("style_drift", "low", "open", True),
+        ("setting_conflict", "medium", "open", True),
+        ("setting_conflict", "high", "resolved", True),
+    ],
+)
+def test_finalize_hard_conditions_are_not_soft_scores(
+    session: Session,
+    category: str,
+    severity: str,
+    status: str,
+    approved: bool,
+) -> None:
+    from app.domains.book_runs.book_context import clear_book_context_cache, get_book_context
+    from app.domains.judge.models import JudgeIssue
+
+    _, chapter, scene = _seed_gate_fixture(session, content="她把钥匙收进衣袋。", word_min=1)
+    session.add(
+        JudgeIssue(
+            scene_id=scene.id, issue_type=category, severity=severity, status=status, description="判定边界", payload={}
+        )
+    )
+    session.commit()
+    clear_book_context_cache(chapter.book_id)
+    assert _finalize_scene_decision(session, chapter, scene, 100) is approved
+    assert (scene.status == "approved") is approved
+    assert (chapter.status == "approved") is approved
+    assert bool(get_book_context(session, chapter.book_id).approved_chapters) is approved

@@ -15,7 +15,7 @@ from app.platform.ai_sdk.contracts import (
 )
 from app.platform.ai_sdk.errors import ProviderError, ProviderErrorCategory, ProviderErrorDetails
 from app.platform.ai_sdk.provider import ProviderHealth, ProviderHealthStatus
-from app.platform.ai_sdk.stream_usage import retaining_stream_usage
+from app.platform.ai_sdk.stream_usage import retain_error_usage, retaining_stream_usage
 
 RawCompleteTransport = Callable[[dict[str, object]], tuple[dict[str, object], float]]
 RawStreamTransport = Callable[[dict[str, object]], Iterable[Mapping[str, object]]]
@@ -74,12 +74,18 @@ class OpenAICompatibleProvider:
     def complete(self, request: ChatRequest) -> ChatResponse:
         payload = self.build_payload(request)
         data, started_at = self._complete_transport(payload)
-        message = self.assistant_message(data)
+        prompt = "\n".join(str(message.content or "") for message in request.messages)
+        try:
+            message = self.assistant_message(data)
+        except ProviderError as exc:
+            # A rejected envelope may still contain billable provider usage.
+            if isinstance(data.get("usage"), Mapping):
+                retain_error_usage(exc, TokenUsage.from_legacy(self._usage_parser(data, prompt, "")))
+            raise
         raw_content = message.get("content")
         content_before_filter = raw_content.strip() if isinstance(raw_content, str) else ""
         content = self._content_filter(content_before_filter) if content_before_filter else ""
         tool_calls = self.tool_calls(message)
-        prompt = "\n".join(str(message.content or "") for message in request.messages)
         usage = TokenUsage.from_legacy(self._usage_parser(data, prompt, content))
         choices = data.get("choices")
         first_choice = choices[0] if isinstance(choices, list) and choices else None

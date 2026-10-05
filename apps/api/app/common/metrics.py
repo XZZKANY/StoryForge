@@ -25,7 +25,7 @@ book_generation_failure_count_total = Counter(
 
 book_generation_cost_cny_total = Counter(
     "book_generation_cost_cny_total",
-    "Total estimated CNY cost emitted by book generation chapters",
+    "Known estimated CNY subtotal of settled book generation model attempts",
 )
 
 

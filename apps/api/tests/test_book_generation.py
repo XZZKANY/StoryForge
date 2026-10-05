@@ -356,7 +356,7 @@ def test_book_generation_runs_one_chapter_and_records_evidence(session: Session)
 
     assert result.book_run.status == "completed"
     assert result.book_run.total_chapters == 1
-    assert result.book_run.tokens_used == 323
+    assert result.book_run.tokens_used == 969
     assert result.markdown_artifact.name == "book.md"
     assert result.audit_artifact.name == "audit_report.json"
     assert len(_draft_requests()) == 1
@@ -366,7 +366,7 @@ def test_book_generation_runs_one_chapter_and_records_evidence(session: Session)
     assert "结构化一致性评审员" not in draft_request["payload"]["messages"][0]["content"]
     assert "STORY_STATE_CHANGES" in draft_request["payload"]["messages"][-1]["content"]
 
-    model_run = session.query(ModelRun).one()
+    model_run = session.query(ModelRun).filter(ModelRun.scene_id.is_not(None)).one()
     assert model_run.provider_name == "openai-compatible"
     assert model_run.model_name == "test-real-model"
     assert model_run.token_usage == 323
@@ -445,7 +445,7 @@ def test_book_generation_supports_api_key_auth_and_cost_breakdown(session: Sessi
     assert request_headers["api-key"] == "test-private-credential"
     assert "authorization" not in request_headers
 
-    model_run = session.query(ModelRun).one()
+    model_run = session.query(ModelRun).filter(ModelRun.scene_id.is_not(None)).one()
     assert model_run.payload["prompt_tokens"] == 101
     assert model_run.payload["completion_tokens"] == 222
     assert model_run.payload["total_tokens"] == 323
@@ -453,11 +453,11 @@ def test_book_generation_supports_api_key_auth_and_cost_breakdown(session: Sessi
     assert model_run.payload["cost_source"] == "provider_usage"
 
     completed = result.book_run.progress["completed_chapters"][0]
-    assert completed["prompt_tokens"] == 101
-    assert completed["completion_tokens"] == 222
+    assert completed["prompt_tokens"] == 303
+    assert completed["completion_tokens"] == 666
     assert completed["generation_latency_ms"] >= 0
-    assert completed["cost_estimate"] == pytest.approx(0.001635, rel=1e-6)
-    assert result.book_run.estimated_cost == pytest.approx(0.001635, rel=1e-6)
+    assert completed["cost_estimate"] == pytest.approx(0.004905, rel=1e-6)
+    assert result.book_run.estimated_cost == pytest.approx(0.004905, rel=1e-6)
 
     summary = _evidence_summary(
         result,
@@ -465,18 +465,18 @@ def test_book_generation_supports_api_key_auth_and_cost_breakdown(session: Sessi
         chapter_word_count_min=600,
         chapter_word_count_max=1600,
     )
-    assert summary["prompt_tokens_used"] == 101
-    assert summary["completion_tokens_used"] == 222
-    assert summary["cost_cny_estimated"] == pytest.approx(0.001635, rel=1e-6)
-    assert summary["cost_breakdown"]["input_cny"] == pytest.approx(0.000303, rel=1e-6)
-    assert summary["cost_breakdown"]["output_cny"] == pytest.approx(0.001332, rel=1e-6)
+    assert summary["prompt_tokens_used"] == 303
+    assert summary["completion_tokens_used"] == 666
+    assert summary["cost_cny_estimated"] == pytest.approx(0.004905, rel=1e-6)
+    assert summary["cost_breakdown"]["input_cny"] == pytest.approx(0.000909, rel=1e-6)
+    assert summary["cost_breakdown"]["output_cny"] == pytest.approx(0.003996, rel=1e-6)
     assert summary["total_latency_ms"] >= 0
     assert summary["failure_count"] == 0
     assert summary["repair_round_count"] == 0
     assert summary["per_chapter_metrics"][0]["story_state_changes_source"] == "json_block"
     assert summary["per_chapter_metrics"][0]["story_state_tool_call_count"] == 0
     assert judge_calls_total._value.get() == judge_metric_before + 1
-    assert book_generation_cost_cny_total._value.get() == pytest.approx(cost_metric_before + 0.001635, rel=1e-6)
+    assert book_generation_cost_cny_total._value.get() == pytest.approx(cost_metric_before + 0.004905, rel=1e-6)
 
 
 def test_book_generation_fast_path_runs_semantic_advisory_when_local_gate_passes(
@@ -532,7 +532,7 @@ def test_book_generation_fast_path_runs_semantic_advisory_when_local_gate_passes
     os.environ.update(env)
 
     try:
-        result = run_book_generation(session, chapter_count=1, token_budget=1000, env=env)
+        result = run_book_generation(session, chapter_count=1, token_budget=10000, env=env)
     finally:
         server.shutdown()
         thread.join(timeout=2)
@@ -607,7 +607,7 @@ def test_book_generation_runs_ten_chapters_with_word_targets(session: Session) -
     assert result.book_run.status == "completed"
     assert result.book_run.current_chapter_index == 10
     assert result.book_run.total_chapters == 10
-    assert result.book_run.tokens_used == 3230
+    assert result.book_run.tokens_used == 9690
 
     blueprint = session.query(BookBlueprint).one()
     assert blueprint.target_word_count == 50000
@@ -620,7 +620,7 @@ def test_book_generation_runs_ten_chapters_with_word_targets(session: Session) -
     assert all("3000–5000 字" in item["payload"]["messages"][-1]["content"] for item in draft_requests)
     assert all(item["headers"]["Authorization"] == "Bearer" + " test-private-credential" for item in _BookGenerationChatHandler.requests)
 
-    assert session.query(ModelRun).count() == 10
+    assert session.query(ModelRun).count() == 30
     audit = result.audit_artifact.payload
     assert len(audit["chapters"]) == 10
     assert audit["quality_summary"]["scored_chapter_count"] == 10
@@ -638,3 +638,74 @@ def test_book_generation_runs_ten_chapters_with_word_targets(session: Session) -
     assert completed[0]["memory_recall_chars"] == 0
     assert completed[1]["memory_recall_chars"] > 0
     assert "test-private-credential" not in str(result.audit_artifact.payload)
+
+
+@pytest.mark.parametrize("kind,fast", [("failure", "1"), ("failure", "0"), ("blocking", "1")])
+def test_unapproved_generation_does_not_seed_context_or_memory(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    fast: str,
+) -> None:
+    from app.domains.book_runs import book_generation_judge as judge
+    from app.domains.book_runs.book_context import clear_book_context_cache, get_book_context
+    from app.domains.book_runs.errors import BookGenerationError
+    from app.domains.book_runs.models import BookRun
+    from app.domains.judge.types import DetectedIssue, SemanticJudgeOutcome
+    from app.domains.story_memory.models import MemoryAtomRecord
+
+    # Each test owns a fresh database but the BookContext cache is process-local.
+    clear_book_context_cache()
+    issues = (
+        []
+        if kind == "failure"
+        else [
+            DetectedIssue(
+                category="setting_conflict",
+                severity="high",
+                span_start=0,
+                span_end=0,
+                summary="阻断性设定矛盾",
+                recommended_repair_mode="none",
+                expected_text="",
+                replacement_text="",
+                matched_text="",
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        judge,
+        "semantic_judge_with_status",
+        lambda *_args, **_kwargs: SemanticJudgeOutcome(issues=issues, failed=kind == "failure"),
+    )
+    server = HTTPServer(("127.0.0.1", 0), _BookGenerationChatHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    env = {
+        "STORYFORGE_LLM_API_KEY": "test-private-credential",
+        "STORYFORGE_LLM_BASE_URL": _local_provider_base_url(server.server_port),
+        "STORYFORGE_LLM_MODEL": "test-real-model",
+        "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+        "STORYFORGE_LLM_SMOKE_FAST_JUDGE": fast,
+    }
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    try:
+        with pytest.raises(BookGenerationError, match="缺章护栏"):
+            run_book_generation(session, chapter_count=1, token_budget=100000, env=env)
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+    scene = session.query(Scene).one()
+    chapter = session.query(Chapter).one()
+    run = session.query(BookRun).one()
+    assert scene.status == "needs_revision"
+    assert chapter.status != "approved"
+    assert run.status == "failed"
+    assert session.query(ModelRun).count() == 1, "实际生成仍保留原模型记录"
+    assert not get_book_context(session, chapter.book_id).approved_chapters
+    atoms = session.query(MemoryAtomRecord).all()
+    assert atoms, "初始化角色规范记忆仍应保留，不把它与正文抽取混同"
+    assert all(atom.source_ref.startswith("character_bible:") and atom.source_chapter_id is None for atom in atoms)
+    assert session.query(StoryStateEvent).count() == 0
+    assert session.query(StoryStateLedger).count() == 0

@@ -2,13 +2,18 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.domains.book_runs.book_generation_judge import REPAIR_THRESHOLD
+from app.common.redaction import redact_sensitive_text
+from app.domains.book_runs.book_generation_judge import REPAIR_THRESHOLD, SEMANTIC_BLOCKING_CONFLICT_CATEGORIES
 from app.domains.book_runs.book_generation_llm import required_env as _required_env
 from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ScenePacket
+from app.domains.judge.models import JudgeIssue
+from app.domains.judge.types import JUDGE_SYSTEM_FAILURE_CATEGORY
+from app.domains.model_runs.models import ModelRun
 from app.domains.model_runs.schemas import ModelRunCreate
 from app.domains.model_runs.service import create_model_run
 
@@ -37,14 +42,22 @@ def _finalize_scene_decision(
     scene: Scene,
     quality_score: int,
 ) -> bool:
-    """门禁后置：仅当 Judge 评分达标才批准并追加进 BookContext；否则标 needs_revision 且不进上下文。
+    """门禁后置：仅当 Judge 无未关闭的硬阻断且评分达标才批准并追加进 BookContext；否则标 needs_revision 且不进上下文。
 
     坏章不进上下文是关键——否则它会污染后续每一章的 recap，把劣质蔓延到全书。
     """
 
     from app.domains.book_runs.book_context import get_book_context, skip_book_context_invalidation_once
 
-    if quality_score < REPAIR_THRESHOLD:
+    open_issues = session.scalars(
+        select(JudgeIssue).where(JudgeIssue.scene_id == scene.id, JudgeIssue.status == "open")
+    ).all()
+    blocked = any(
+        issue.issue_type == JUDGE_SYSTEM_FAILURE_CATEGORY
+        or (issue.severity == "high" and issue.issue_type in SEMANTIC_BLOCKING_CONFLICT_CATEGORIES)
+        for issue in open_issues
+    )
+    if blocked or quality_score < REPAIR_THRESHOLD:
         scene.status = "needs_revision"
         session.commit()
         session.refresh(scene)
@@ -75,44 +88,57 @@ def _record_model_run(
     scene: Scene,
     source: Mapping[str, str | None],
     generated: dict[str, object],
+    *, observed_run: ModelRun | None = None,
 ):
-    input_summary = _model_run_summary_text(str(generated["prompt"]))
-    output_summary = _model_run_summary_text(str(generated["content"]))
-    return create_model_run(
-        session,
-        ModelRunCreate(
-            book_id=book_run.book_id,
-            scene_id=scene.id,
-            provider_name=_required_env(source, "STORYFORGE_LLM_PROVIDER"),
-            model_name=_required_env(source, "STORYFORGE_LLM_MODEL"),
-            capability="llm",
-            latency_ms=int(generated["latency_ms"]),
-            token_usage=int(generated["token_usage"]),
-            input_summary=input_summary,
-            output_summary=output_summary,
-            payload={
-                "book_run_id": book_run.id,
-                "mode": "phase9b_real_llm_smoke",
-                "token_usage_source": generated["token_usage_source"],
-                "prompt_tokens": generated.get("prompt_tokens", 0),
-                "completion_tokens": generated.get("completion_tokens", 0),
-                "total_tokens": generated["token_usage"],
-                "cost_cny_estimated": generated.get("cost_cny_estimated", 0.0),
-                "cost_source": (
-                    generated.get("cost_breakdown", {}).get("source", "unavailable")
-                    if isinstance(generated.get("cost_breakdown"), dict)
-                    else "unavailable"
-                ),
-                "cost_breakdown": generated.get("cost_breakdown", {}),
-                "story_state_changes_source": generated.get("story_state_changes_source"),
-                "story_state_tool_call_count": generated.get("story_state_tool_call_count", 0),
-                "input_summary_original_length": len(str(generated["prompt"])),
-                "output_summary_original_length": len(str(generated["content"])),
-                "input_summary_truncated": len(input_summary) < len(str(generated["prompt"])),
-                "output_summary_truncated": len(output_summary) < len(str(generated["content"])),
-            },
-        ),
+    secrets = [value for key, value in source.items() if key.endswith(("_API_KEY", "_AUTH_TOKEN")) and value]
+    input_summary = _model_run_summary_text(redact_sensitive_text(str(generated["prompt"]), extra_secrets=secrets))
+    output_summary = _model_run_summary_text(redact_sensitive_text(str(generated["content"]), extra_secrets=secrets))
+    payload = ModelRunCreate(
+        book_id=book_run.book_id,
+        book_run_id=book_run.id,
+        chapter_id=scene.chapter_id,
+        scene_id=scene.id,
+        provider_name=_required_env(source, "STORYFORGE_LLM_PROVIDER"),
+        model_name=_required_env(source, "STORYFORGE_LLM_MODEL"),
+        capability="llm",
+        latency_ms=int(generated["latency_ms"]),
+        token_usage=int(generated["token_usage"]),
+        input_tokens=int(generated.get("prompt_tokens") or 0),
+        output_tokens=int(generated.get("completion_tokens") or 0),
+        cost_estimate=float(generated.get("cost_cny_estimated") or 0),
+        input_summary=input_summary,
+        output_summary=output_summary,
+        payload={
+            "book_run_id": book_run.id,
+            "mode": "phase9b_real_llm_smoke",
+            "token_usage_source": generated["token_usage_source"],
+            "prompt_tokens": generated.get("prompt_tokens", 0),
+            "completion_tokens": generated.get("completion_tokens", 0),
+            "total_tokens": generated["token_usage"],
+            "cost_cny_estimated": generated.get("cost_cny_estimated"),
+            "cost_source": (
+                generated.get("cost_breakdown", {}).get("source", "unavailable")
+                if isinstance(generated.get("cost_breakdown"), dict)
+                else "unavailable"
+            ),
+            "cost_breakdown": generated.get("cost_breakdown", {}),
+            "story_state_changes_source": generated.get("story_state_changes_source"),
+            "story_state_tool_call_count": generated.get("story_state_tool_call_count", 0),
+            "input_summary_original_length": len(str(generated["prompt"])),
+            "output_summary_original_length": len(str(generated["content"])),
+            "input_summary_truncated": len(input_summary) < len(str(generated["prompt"])),
+            "output_summary_truncated": len(output_summary) < len(str(generated["content"])),
+        },
     )
+    if observed_run is None:
+        return create_model_run(session, payload)
+    if observed_run.book_run_id != book_run.id or observed_run.chapter_id != scene.chapter_id:
+        raise ValueError("Observed draft belongs to another BookRun or chapter.")
+    observed_run.scene_id = scene.id
+    observed_run.input_summary, observed_run.output_summary = input_summary, output_summary
+    observed_run.payload = {**payload.payload, **observed_run.payload}
+    session.commit()
+    return observed_run
 
 
 def _model_run_summary_text(text: str) -> str:

@@ -657,3 +657,159 @@ def test_streamed_channel_accepts_finish_reason_without_done_sentinel() -> None:
     finally:
         server.shutdown()
     assert result["content"] == "林岚核对线索。"
+
+
+class _UsageObserver:
+    def __init__(self) -> None:
+        self.requests = []
+        self.settlements = []
+
+    def begin(self, request, *, source, streaming, operation, provenance):
+        self.requests.append((request, operation))
+        return self
+
+    def finish(self, status, *, usage, finish_reason=None, error_code=None):
+        self.settlements.append((status, usage))
+
+    def progress(self, values):
+        pass
+
+
+@pytest.mark.parametrize("domain", ["judge", "grounding"])
+@pytest.mark.parametrize("result", ["valid", "invalid_json", "length", "partial_error", "unknown_error", "interrupted", "invalid_envelope"])
+def test_semantic_calls_observe_usage_once_even_when_rejected(monkeypatch, domain, result) -> None:
+    from app.common import llm_client
+    from app.common.llm_control import LLMRunInterrupted
+    from app.common.llm_observation import model_observation_scope
+    from app.domains.judge import semantic as judge_semantic
+    from app.domains.judge.schemas import SemanticJudgeInput
+    from app.domains.story_state import semantic as story_semantic
+    from app.platform.ai_sdk import TokenUsage
+
+    source = {
+        "STORYFORGE_LLM_PROVIDER": "anthropic",
+        "STORYFORGE_LLM_API_KEY": _API_KEY,
+        "STORYFORGE_LLM_MODEL": "generation-model",
+        "STORYFORGE_LLM_TEMPERATURE": "0.8",
+        "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "900",
+    }
+    monkeypatch.setattr(judge_semantic, "resolved_llm_env", lambda _: source)
+    monkeypatch.setattr(story_semantic, "resolved_llm_env", lambda: source)
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", _API_KEY)
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_BASE_URL", "https://judge.example/v1")
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_MODEL", "review-model")
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_REASONING_EFFORT", "low")
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS", "17.5")
+    usage = TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30, source="provider_usage")
+    requests = []
+
+    def transport(source, payload, *, timeout_seconds=None, max_attempts=None):
+        requests.append(payload)
+        assert timeout_seconds == 17.5
+        assert max_attempts == 1
+        assert set(payload) == {"model", "messages", "temperature", "reasoning_effort"}
+        assert payload["model"] == "review-model"
+        assert payload["temperature"] == 0
+        assert payload["reasoning_effort"] == "low"
+        if result == "partial_error":
+            raise LLMError("partial response", usage=usage)
+        if result == "unknown_error":
+            raise LLMError("no response")
+        if result == "interrupted":
+            raise LLMRunInterrupted("stopped", usage=usage)
+        if result == "invalid_envelope":
+            return {"choices": [], "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}}, 0.0
+        content = "not json" if result == "invalid_json" else '[{"seq":1,"score":90}]' if domain == "grounding" else "[]"
+        return {
+            "choices": [{"message": {"content": content}, "finish_reason": "length" if result == "length" else "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+        }, 0.0
+
+    monkeypatch.setattr(llm_client, "_request_chat_completions", transport)
+    observer = _UsageObserver()
+
+    def invoke():
+        if domain == "judge":
+            return judge_semantic.semantic_judge_with_status(SemanticJudgeInput(content="正文"))
+        return story_semantic.semantic_ground_story_state_changes("正文", [_change(1)])
+
+    with model_observation_scope(observer):
+        if result == "interrupted":
+            with pytest.raises(LLMRunInterrupted, match="interrupted"):
+                invoke()
+        else:
+            outcome = invoke()
+            if domain == "judge":
+                assert outcome.failed is (result != "valid")
+            else:
+                assert outcome[1].semantic_score == (90 if result == "valid" else None)
+    assert len(requests) == len(observer.requests) == len(observer.settlements) == 1
+    request, operation = observer.requests[0]
+    assert request.model == "review-model"
+    assert operation == ("judge.semantic" if domain == "judge" else "story_state.grounding")
+    status, observed_usage = observer.settlements[0]
+    expected_status = {
+        "valid": "response_completed", "invalid_json": "response_completed",
+        "length": "response_rejected", "partial_error": "request_failed",
+        "unknown_error": "request_failed", "interrupted": "interrupted", "invalid_envelope": "request_failed",
+    }[result]
+    assert status == expected_status
+    assert observed_usage == (TokenUsage() if result == "unknown_error" else usage)
+
+
+def test_semantic_no_call_paths_create_no_model_attempt(monkeypatch) -> None:
+    from app.common.llm_observation import model_observation_scope
+    from app.domains.judge import semantic as judge_semantic
+    from app.domains.judge.schemas import SemanticJudgeInput
+    from app.domains.story_state import semantic as story_semantic
+
+    monkeypatch.delenv("STORYFORGE_JUDGE_LLM_API_KEY", raising=False)
+    monkeypatch.setattr(judge_semantic, "resolved_llm_env", lambda _: {})
+    monkeypatch.setattr(story_semantic, "resolved_llm_env", dict)
+    observer = _UsageObserver()
+    with model_observation_scope(observer):
+        assert not judge_semantic.semantic_judge_with_status(SemanticJudgeInput(content="正文")).configured
+        assert not judge_semantic.semantic_judge_with_status(SemanticJudgeInput(content="正文"), provider=lambda _: []).failed
+        assert story_semantic.semantic_ground_story_state_changes("正文", [_change(1)]) == {}
+        monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", _API_KEY)
+        assert story_semantic.semantic_ground_story_state_changes("正文", []) == {}
+    assert observer.requests == observer.settlements == []
+
+
+@pytest.mark.parametrize("domain", ["judge", "grounding"])
+@pytest.mark.parametrize("fails", [False, True])
+def test_semantic_usage_observation_through_real_local_http(monkeypatch, domain, fails) -> None:
+    from app.common.llm_observation import model_observation_scope
+    from app.domains.judge import semantic as judge_semantic
+    from app.domains.judge.schemas import SemanticJudgeInput
+    from app.domains.story_state import semantic as story_semantic
+
+    monkeypatch.setattr(_ChatHandler, "fail_times", 5 if fails else 0)
+    monkeypatch.setattr(_ChatHandler, "status_code", 500)
+    server = _serve()
+    _ChatHandler.response_message = {"content": "[]"}
+    source = _source(server.server_address[1])
+    monkeypatch.setattr(judge_semantic, "resolved_llm_env", lambda _: source)
+    monkeypatch.setattr(story_semantic, "resolved_llm_env", lambda: source)
+    for name in ("API_KEY", "BASE_URL", "MODEL", "TIMEOUT_SECONDS", "REASONING_EFFORT"):
+        monkeypatch.delenv(f"STORYFORGE_JUDGE_LLM_{name}", raising=False)
+    observer = _UsageObserver()
+    try:
+        with model_observation_scope(observer):
+            if domain == "judge":
+                outcome = judge_semantic.semantic_judge_with_status(SemanticJudgeInput(content="fixture"))
+                assert outcome.failed is fails
+            else:
+                outcome = story_semantic.semantic_ground_story_state_changes("fixture", [_change(1)])
+                if fails:
+                    assert outcome[1].semantic_reason == "semantic_grounding_failed"
+                else:
+                    assert outcome == {}
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert _ChatHandler.attempts == len(observer.settlements) == 1
+    status, usage = observer.settlements[0]
+    assert status == ("request_failed" if fails else "response_completed")
+    assert usage.total_tokens == (0 if fails else 30)
+    assert usage.source == ("unavailable" if fails else "provider_usage")

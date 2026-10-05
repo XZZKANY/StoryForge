@@ -6,8 +6,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from app.common import llm_client
+from app.common.llm_control import LLMRunInterrupted
 from app.common.llm_env import resolved_llm_env
 from app.common.llm_http import env_value
+from app.common.llm_observation import ModelObservationError, model_operation
 from app.common.logging_config import get_logger
 from app.domains.story_state.schemas import StateChangeInput
 
@@ -52,22 +54,16 @@ def semantic_ground_story_state_changes(
         or "https://api.openai.com/v1"
     )
     model = os.getenv("STORYFORGE_JUDGE_LLM_MODEL") or env_value(source, "STORYFORGE_LLM_MODEL") or "gpt-4o-mini"
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": _SEMANTIC_GROUNDING_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": _semantic_grounding_user_prompt(prose, changes),
-            },
-        ],
-        "temperature": 0,
-    }
+    messages = [
+        {"role": "system", "content": _SEMANTIC_GROUNDING_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": _semantic_grounding_user_prompt(prose, changes),
+        },
+    ]
     reasoning_effort = os.getenv("STORYFORGE_JUDGE_LLM_REASONING_EFFORT") or env_value(
         source, "STORYFORGE_LLM_REASONING_EFFORT"
     )
-    if reasoning_effort:
-        payload["reasoning_effort"] = reasoning_effort
     log = get_logger(__name__)
     request_source = dict(source)
     request_source.update(
@@ -75,21 +71,40 @@ def semantic_ground_story_state_changes(
             "STORYFORGE_LLM_API_KEY": api_key,
             "STORYFORGE_LLM_BASE_URL": base_url.strip().rstrip("/"),
             "STORYFORGE_LLM_AUTH_HEADER": "bearer",
+            # These endpoints historically use OpenAI wire options, independently of generation.
+            "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+            "STORYFORGE_LLM_MODEL": model,
+            "STORYFORGE_LLM_TEMPERATURE": "0",
+            "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "0",
+            "STORYFORGE_LLM_REASONING_EFFORT": reasoning_effort,
         }
     )
+    # Generation prices cannot price a different judge model, endpoint or account.
+    pricing_matches = (
+        model == env_value(source, "STORYFORGE_LLM_MODEL")
+        and base_url.strip().rstrip("/") == env_value(source, "STORYFORGE_LLM_BASE_URL").strip().rstrip("/")
+        and api_key == env_value(source, "STORYFORGE_LLM_API_KEY")
+    )
+    if not pricing_matches:
+        for key in tuple(request_source):
+            if key.endswith("_CNY_PER_M_TOKENS"):
+                request_source.pop(key)
     try:
         timeout = float(
             os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS")
             or env_value(source, "STORYFORGE_LLM_TIMEOUT_SECONDS")
             or "300"
         )
-        data, _started_at = llm_client._request_chat_completions(
-            request_source,
-            payload,
-            timeout_seconds=timeout,
-            max_attempts=1,
-        )
-        decoded = _decode_json_array(str(data["choices"][0]["message"]["content"]))
+        with model_operation("story_state.grounding"):
+            data = llm_client.call_llm_messages(
+                request_source,
+                messages=messages,
+                timeout_seconds=timeout,
+                max_attempts=1,
+            )
+        decoded = _decode_json_array(str(data["content"]))
+    except (LLMRunInterrupted, ModelObservationError):
+        raise
     except Exception as exc:
         log.warning(
             "story_state_semantic_grounding_failed",

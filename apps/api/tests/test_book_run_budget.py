@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 from test_book_runs import seed_locked_blueprint
@@ -54,3 +55,35 @@ def test_book_run_budget_gate_persists_usage_summary(
         "token_budget": 100,
         "tokens_remaining": 0,
     }
+
+
+@pytest.mark.parametrize("status", ["failed", "stopped", "paused_by_user", "completed"])
+@pytest.mark.parametrize("limit", ["token_budget", "time_budget_sec", "chapter_budget"])
+def test_new_terminal_or_author_pause_is_not_replaced_by_budget(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+    status: str,
+    limit: str,
+) -> None:
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json={**scope, limit: 1}).json()
+    progress = {
+        "completed_chapters": [],
+        "failure": {"error": "original failure"},
+        "budget": {"tokens_used": 2, "elapsed_time_sec": 2, "estimated_cost": 0.25},
+    }
+    response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": status,
+            "current_chapter_index": 1,
+            "progress": progress,
+        },
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["status"] == status
+    assert data["progress"]["failure"] == progress["failure"]
+    assert "budget_exceeded" not in data["progress"]
+    assert data["tokens_used"] == 2
+    assert data["estimated_cost"] == 0.25

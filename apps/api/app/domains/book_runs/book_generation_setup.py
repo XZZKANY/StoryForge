@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domains.blueprints.schemas import BookBlueprintCreate
+from app.domains.book_runs.book_generation_accounting import generation_usage_summary
 from app.domains.book_runs.book_generation_contracts import (
     DEFAULT_GENERATION_LOCATION,
     DEFAULT_GENERATION_POV,
@@ -209,6 +210,7 @@ def reconstruct_completed_chapters(session: Session, book_run_id: int) -> list[d
         ).all()
         blocking_issues = [issue for issue in judge_issues if issue.issue_type != "phase9b_real_judge_pass"]
         score = quality_score(list(blocking_issues))
+        accounting = generation_usage_summary(session, book_run_id, chapter_id=chapter.id)
         completed.append(
             {
                 "chapter_index": chapter.ordinal,
@@ -220,9 +222,13 @@ def reconstruct_completed_chapters(session: Session, book_run_id: int) -> list[d
                 "judge_call_count": max(1, len(judge_issues)),
                 "approved_scene_id": scene.id,
                 "approved": True,
-                "token_usage": model_run.token_usage,
+                "token_usage": accounting["tokens_used"] if accounting else model_run.token_usage,
+                "prompt_tokens": accounting["prompt_tokens"] if accounting else model_run.input_tokens,
+                "completion_tokens": accounting["completion_tokens"] if accounting else model_run.output_tokens,
+                "accounting": accounting or {"usage_complete": False, "cost_complete": False},
                 "elapsed_time_sec": 0,
-                "cost_estimate": 0.0,
+                "cost_estimate": accounting["cost_estimate"] if accounting else None,
+                "cost_breakdown": accounting["cost_breakdown"] if accounting else {},
                 "quality_score": score,
                 "quality_issues": [
                     {

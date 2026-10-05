@@ -15,6 +15,7 @@ from app.domains.book_runs._coerce import (
 from app.domains.book_runs._coerce import (
     string_list as _string_list,
 )
+from app.domains.book_runs.book_generation_accounting import generation_usage_summary
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.schemas import BookRunProgressUpdate, BookRunVolumeProgress
 from app.domains.book_runs.timeline import (
@@ -53,6 +54,9 @@ def apply_book_run_progress(session: Session, book_run_id: int, payload: BookRun
     progress = _progress_with_controlled_summaries(book_run.progress, incoming_progress, payload.volume_progress)
     if not status_protected:
         book_run.status = payload.status
+    accounting = generation_usage_summary(session, book_run_id)
+    if accounting is not None:
+        progress["budget"] = {**progress.get("budget", {}), **accounting}
     book_run.current_chapter_index = payload.current_chapter_index
     book_run.progress = progress
     book_run.checkpoint = _checkpoint_from_progress(progress)
@@ -64,12 +68,12 @@ def apply_book_run_progress(session: Session, book_run_id: int, payload: BookRun
     book_run.max_latency_ms = latency["max_latency_ms"]
     book_run.avg_latency_ms = latency["avg_latency_ms"]
     book_run.estimated_cost = budget["estimated_cost"]
-    book_run.cost_summary = {"estimated_cost": budget["estimated_cost"]}
+    book_run.cost_summary = {"estimated_cost": budget["estimated_cost"], **(accounting or {})}
     if book_run.token_budget is not None:
         book_run.cost_summary["token_budget"] = book_run.token_budget
         book_run.cost_summary["tokens_remaining"] = max(0, book_run.token_budget - book_run.tokens_used)
     budget_exceeded = _budget_exceeded(book_run, budget, payload.current_chapter_index)
-    if not status_protected and payload.status != "completed" and budget_exceeded is not None:
+    if book_run.status not in _PROGRESS_PROTECTED_STATUSES and budget_exceeded is not None:
         progress["pause_reason"] = budget_exceeded["reason"]
         progress["budget_exceeded"] = budget_exceeded["details"]
         book_run.status = "paused_by_budget"

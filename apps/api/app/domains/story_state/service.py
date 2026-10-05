@@ -8,6 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import ConflictError, NotFoundError
+from app.common.llm_control import LLMRunInterrupted
+from app.common.llm_observation import ModelObservationError
 from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book
 from app.domains.continuity.edge_constraints import ContinuityEdgeCandidate, check_edge_constraints
@@ -337,6 +339,8 @@ def _apply_semantic_grounding(
         return grounding
     try:
         advisories = dict(semantic_grounder(prose, changes))
+    except (LLMRunInterrupted, ModelObservationError):
+        raise
     except Exception:
         return [
             item.model_copy(

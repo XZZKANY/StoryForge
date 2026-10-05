@@ -7,7 +7,6 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.common.llm_observation import observe_http_progress
 from app.domains.agent_runs.models import AgentRun, AgentRunEvent
 
 _PHASE_FIELDS = {
@@ -40,7 +39,6 @@ def record_runtime_progress(session: Session, run: AgentRun, progress: Mapping[s
     from app.domains.agent_runs.service import record_agent_event
 
     payload = normalize_runtime_progress(progress)
-    observe_http_progress(payload)
     return record_agent_event(
         session, run, event_type=AGENT_RUNTIME_PROGRESS, actor="provider-transport",
         message="模型传输阶段更新。", payload=payload,

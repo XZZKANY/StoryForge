@@ -7,6 +7,8 @@ from typing import TextIO
 from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
+from app.common.llm_control import LLMRunInterrupted
+from app.common.llm_observation import ModelObservationError, model_observation_scope
 from app.common.metrics import observe_book_generation_chapter
 from app.domains.blueprints.models import BookBlueprint  # noqa: F401  facade re-export
 from app.domains.blueprints.service import create_book_blueprint, lock_book_blueprint, trigger_chapter_plan
@@ -16,6 +18,7 @@ from app.domains.book_runs import book_generation_llm as generation_llm
 from app.domains.book_runs import book_generation_metrics as generation_metrics
 from app.domains.book_runs import book_generation_records as generation_records
 from app.domains.book_runs import book_generation_setup as generation_setup
+from app.domains.book_runs.book_generation_accounting import BookGenerationAccounting, generation_usage_summary
 from app.domains.book_runs.book_generation_changes import StoryStateRosterEntry
 from app.domains.book_runs.book_generation_contracts import (  # noqa: F401  facade re-export
     DEFAULT_GENERATION_LOCATION,
@@ -261,44 +264,47 @@ def run_book_generation(
         chapter_started_at = time.monotonic()
         chapter = _chapter(session, book.id, chapter_index)
         memory_recall_chars = memory_recall_chars_for_chapter(session, book.id, chapter.ordinal)
+        accounting = BookGenerationAccounting(session, book_run, chapter)
         try:
-            generated = _generate_chapter(session, source, chapter_index, chapter, book_run_id=book_run.id)
-            tokens_used += generated["token_usage"]
-            scene = _persist_draft_scene(session, chapter, str(generated["content"]))
-            model_run = _record_model_run(session, book_run, scene, source, generated)
-            scene_packet = _record_scene_packet(
-                session,
-                book_run,
-                scene,
-                story_state_changes=list(generated.get("story_state_changes") or []),
-                story_state_changes_source=str(generated.get("story_state_changes_source") or ""),
-            )
-            outcome = _judge_and_repair_loop(session, source, book_run, scene, scene_packet)
-            observe_book_generation_chapter(
-                judge_call_count=int(outcome.get("judge_call_count") or 0),
-                repair_patch_count=len(outcome.get("repair_patch_ids") or []),
-                cost_cny_estimated=float(generated.get("cost_cny_estimated") or 0.0),
-            )
-            approved = _finalize_scene_decision(session, chapter, scene, int(outcome["quality_score"]))
-            memory_atom_ids = (
-                extract_memory_atoms_for_chapter(
+            with model_observation_scope(accounting):
+                generated = _generate_chapter(session, source, chapter_index, chapter, book_run_id=book_run.id)
+                scene = _persist_draft_scene(session, chapter, str(generated["content"]))
+                model_run = _record_model_run(session, book_run, scene, source, generated, observed_run=accounting.generation_run)
+                scene_packet = _record_scene_packet(
                     session,
-                    book_id=book.id,
-                    chapter_id=chapter.id,
-                    chapter_ordinal=chapter.ordinal,
-                    approved_scene_id=int(scene.id),
-                    content=scene.content or str(generated["content"]),
+                    book_run,
+                    scene,
+                    story_state_changes=list(generated.get("story_state_changes") or []),
+                    story_state_changes_source=str(generated.get("story_state_changes_source") or ""),
                 )
-                if approved
-                else []
-            )
-        except BookGenerationError as exc:
+                outcome = _judge_and_repair_loop(session, source, book_run, scene, scene_packet)
+                chapter_usage = generation_usage_summary(session, book_run.id, chapter_id=chapter.id)
+                tokens_used = generation_usage_summary(session, book_run.id)["tokens_used"]
+                observe_book_generation_chapter(
+                    judge_call_count=int(outcome.get("judge_call_count") or 0),
+                    repair_patch_count=len(outcome.get("repair_patch_ids") or []),
+                    cost_cny_estimated=0,  # Actual request costs are observed when ModelRun settles.
+                )
+                approved = _finalize_scene_decision(session, chapter, scene, int(outcome["quality_score"]))
+                memory_atom_ids = (
+                    extract_memory_atoms_for_chapter(
+                        session,
+                        book_id=book.id,
+                        chapter_id=chapter.id,
+                        chapter_ordinal=chapter.ordinal,
+                        approved_scene_id=int(scene.id),
+                        content=scene.content or str(generated["content"]),
+                    )
+                    if approved
+                    else []
+                )
+        except (BookGenerationError, ModelObservationError) as exc:
             _pause_by_failure(session, book_run.id, chapter_index, completed_chapters, tokens_used, str(exc))
             raise BookGenerationError(
-                f"真实 LLM 生成在第 {chapter_index} 章失败，已保住前 {len(completed_chapters)} 章证据：{exc}"
+                f"真实 LLM 生成在第 {chapter_index} 章失败，已保住前 {len(completed_chapters)} 章证据：{exc}", usage=getattr(exc, "usage", None),
             ) from exc
-        except (KeyboardInterrupt, SystemExit):
-            _pause_by_interrupt(session, book_run.id, chapter_index, completed_chapters, tokens_used)
+        except (KeyboardInterrupt, SystemExit, LLMRunInterrupted) as exc:
+            _pause_by_interrupt(session, book_run.id, chapter_index, completed_chapters, tokens_used, reason=getattr(exc, "reason", None))
             raise
         completed_chapters.append(
             {
@@ -312,14 +318,15 @@ def run_book_generation(
                 "approved_scene_id": scene.id,
                 "scene_status": scene.status,
                 "approved": approved,
-                "token_usage": generated["token_usage"],
-                "prompt_tokens": generated["prompt_tokens"],
-                "completion_tokens": generated["completion_tokens"],
+                "token_usage": chapter_usage["tokens_used"],
+                "prompt_tokens": chapter_usage["prompt_tokens"],
+                "completion_tokens": chapter_usage["completion_tokens"],
                 "generation_latency_ms": generated["latency_ms"],
                 "elapsed_time_sec": max(0, int(time.monotonic() - started_at)),
                 "chapter_elapsed_time_sec": max(0, int(time.monotonic() - chapter_started_at)),
-                "cost_estimate": generated["cost_cny_estimated"],
-                "cost_breakdown": generated["cost_breakdown"],
+                "cost_estimate": chapter_usage["cost_estimate"],
+                "accounting": chapter_usage,
+                "cost_breakdown": chapter_usage["cost_breakdown"],
                 "quality_score": outcome["quality_score"],
                 "quality_issues": outcome["quality_issues"],
                 "story_state_commit": outcome.get("story_state_commit"),

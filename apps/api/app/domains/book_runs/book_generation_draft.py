@@ -8,6 +8,7 @@ from collections.abc import Callable, Mapping
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.common.llm_observation import model_operation
 from app.domains.book_runs.book_generation_changes import (
     StoryStateRosterEntry,
     append_story_state_changes_instruction,
@@ -79,12 +80,13 @@ def generate_chapter(
     if story_state_tool_calls_enabled(source):
         call_kwargs["tools"] = story_state_changes_tools()
         call_kwargs["tool_choice"] = "auto"
-    result = call_llm(
-        source,
-        system_prompt="你是 StoryForge 的中文长篇创作助手。",
-        user_prompt=prompt,
-        **call_kwargs,
-    )
+    with model_operation("book.generate"):
+        result = call_llm(
+            source,
+            system_prompt="你是 StoryForge 的中文长篇创作助手。",
+            user_prompt=prompt,
+            **call_kwargs,
+        )
     content, block_changes = extract_story_state_changes_from_content(str(result["content"]))
     tool_changes = extract_story_state_changes_from_tool_calls(result.get("tool_calls"))
     raw_changes = tool_changes or block_changes
@@ -144,11 +146,12 @@ def retry_story_state_changes_schema(
         f"【待修正 JSON】\n{json.dumps(invalid_changes, ensure_ascii=False)}"
     )
     try:
-        retry = call_llm(
-            source,
-            system_prompt="你是 StoryForge 的 CHANGES JSON schema 修正器。只返回 JSON 数组。",
-            user_prompt=retry_prompt,
-        )
+        with model_operation("book.schema_repair"):
+            retry = call_llm(
+                source,
+                system_prompt="你是 StoryForge 的 CHANGES JSON schema 修正器。只返回 JSON 数组。",
+                user_prompt=retry_prompt,
+            )
     except BookGenerationError:
         return []
     raw_content = str(retry.get("content") or "").strip()

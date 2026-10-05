@@ -11,6 +11,10 @@ from app.platform.ai_sdk.provider import LLMProvider
 from app.platform.ai_sdk.stream_usage import retain_error_usage
 
 
+class ModelObservationError(RuntimeError):
+    """Required model evidence failed; domain fallbacks must not hide it."""
+
+
 class ModelAttempt(Protocol):
     def finish(self, status: str, *, usage: TokenUsage, finish_reason: str | None = None,
                error_code: str | None = None) -> None: ...

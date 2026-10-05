@@ -133,3 +133,31 @@ def test_legacy_facade_preserves_reasoning_only_error(monkeypatch: pytest.Monkey
     }
     with pytest.raises(LLMError, match="仅含思维链"):
         llm_client.call_llm(source, system_prompt="s", user_prompt="u")
+
+
+@pytest.mark.parametrize("response", [{}, {"choices": []}, {"choices": [None]}, {"choices": [{}]}])
+@pytest.mark.parametrize("reported", [False, True])
+def test_malformed_envelope_retains_reported_usage(response, reported) -> None:
+    from app.platform.ai_sdk.errors import ProviderError
+
+    data = dict(response)
+    if reported:
+        data["usage"] = {"prompt_tokens": 10, "completion_tokens": 3, "total_tokens": 13}
+    provider = OpenAICompatibleProvider(complete_transport=lambda _: (data, time.monotonic()))
+    with pytest.raises(ProviderError) as caught:
+        provider.complete(ChatRequest(model="test", messages=(ChatMessage(MessageRole.USER, "fixture"),)))
+    if reported:
+        assert caught.value.usage.total_tokens == 13
+        assert caught.value.usage.source == "provider_usage"
+    else:
+        assert caught.value.usage is None
+
+
+def test_legacy_facade_preserves_explicit_zero_provider_usage(monkeypatch):
+    monkeypatch.setattr(llm_client, "_request_chat_completions", lambda *args, **kwargs: (
+        {"choices": [{"message": {"content": "fixture"}}],
+         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}}, time.monotonic(),
+    ))
+    result = llm_client.call_llm({"STORYFORGE_LLM_MODEL": "fixture"}, system_prompt="fixture", user_prompt="fixture")
+    assert result["token_usage"] == 0
+    assert result["token_usage_source"] == "provider_usage"

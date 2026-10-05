@@ -90,6 +90,7 @@ def export_book_run_audit_report(session: Session, book_run_id: int, *, workspac
         "blueprint_id": book_run.blueprint_id,
         "chapters": chapters,
         "quality_summary": quality_summary,
+        "accounting": dict(book_run.cost_summary),
         "chapter_quality_scores": _chapter_quality_scores(chapters),
         "top_quality_issues": _top_quality_issues(chapters),
         "manual_review_recommendations": _manual_review_recommendations(chapters),

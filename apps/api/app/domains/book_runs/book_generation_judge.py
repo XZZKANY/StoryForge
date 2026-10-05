@@ -89,7 +89,7 @@ _CATEGORY_DIMENSION = {
 }
 _SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 # 语义 Judge 的硬一致性冲突类（设定/时间线/跨章状态）：high 严重性必须阻断、不得被 fast-judge 快路径降级 advisory（D3-001）。
-_SEMANTIC_BLOCKING_CONFLICT_CATEGORIES = frozenset(
+SEMANTIC_BLOCKING_CONFLICT_CATEGORIES = frozenset(
     {"setting_conflict", "timeline_conflict", "story_state_conflict", "cross_chapter_state_conflict"}
 )
 
@@ -285,10 +285,10 @@ def _run_real_judge(
     # 存在」、不证明「确定性检测器真校验过它」；语义已付费调用，其识别到的 high 设定/时间线/跨章状态
     # 冲突不能降级 advisory、章节照评 100（漏放，D3-001），须落回全量流程真正记录并扣分。
     has_blocking_conflict = any(
-        issue.severity == "high" and issue.category in _SEMANTIC_BLOCKING_CONFLICT_CATEGORIES
+        issue.severity == "high" and issue.category in SEMANTIC_BLOCKING_CONFLICT_CATEGORIES
         for issue in outcome.issues
     )
-    if fast_path_candidate and not has_blocking_conflict:
+    if fast_path_candidate and not outcome.failed and not has_blocking_conflict:
         return _JudgeRunResult(
             issues=[],
             quality_score=100,

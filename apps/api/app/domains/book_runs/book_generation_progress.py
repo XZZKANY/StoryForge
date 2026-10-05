@@ -40,6 +40,7 @@ def _pause_by_interrupt(
     chapter_index: int,
     completed_chapters: list[dict[str, object]],
     tokens_used: int,
+    *, reason: str | None = None,
 ) -> None:
     """进程被中断（Ctrl-C / SystemExit）时把 run 落为可续跑的 paused，避免孤儿 running。"""
 
@@ -48,10 +49,11 @@ def _pause_by_interrupt(
         session,
         book_run_id,
         BookRunProgressUpdate(
-            status="paused_by_user",
+            status={"stopped": "stopped", "deadline_exceeded": "failed"}.get(reason, "paused_by_user"),
             current_chapter_index=chapter_index,
             progress={
                 "completed_chapters": completed_chapters,
+                "interruption_reason": reason or "process_interrupted",
                 "budget": {"tokens_used": tokens_used, "elapsed_time_sec": 0, "estimated_cost": 0.0},
                 "pause_reason": f"在第 {chapter_index} 章生成期间被中断，已保住前 {len(completed_chapters)} 章证据。",
             },

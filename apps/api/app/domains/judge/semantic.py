@@ -14,6 +14,7 @@ from app.common import llm_client
 from app.common.llm_control import LLMRunInterrupted
 from app.common.llm_env import resolved_llm_env
 from app.common.llm_http import env_value
+from app.common.llm_observation import ModelObservationError, model_operation
 from app.common.logging_config import get_logger
 from app.domains.judge.schemas import JudgeIssueCreate, SemanticJudgeInput
 from app.domains.judge.types import DetectedIssue, JudgeProvider, SemanticJudgeOutcome
@@ -144,17 +145,11 @@ def semantic_judge_with_status(
         f"证据链接：{payload.evidence_links}"
         f"{voice_section}"
     )
-    request_payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": _JUDGE_SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
-        "temperature": 0,
-    }
+    messages = [
+        {"role": "system", "content": _JUDGE_SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ]
     reasoning_effort = os.getenv("STORYFORGE_JUDGE_LLM_REASONING_EFFORT") or env_value(source, "STORYFORGE_LLM_REASONING_EFFORT")
-    if reasoning_effort:
-        request_payload["reasoning_effort"] = reasoning_effort
     log = get_logger(__name__)
     timeout_seconds = os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS") or env_value(source, "STORYFORGE_LLM_TIMEOUT_SECONDS") or "300"
     request_source = dict(source)
@@ -163,18 +158,35 @@ def semantic_judge_with_status(
             "STORYFORGE_LLM_API_KEY": api_key,
             "STORYFORGE_LLM_BASE_URL": base_url.strip().rstrip("/"),
             "STORYFORGE_LLM_AUTH_HEADER": "bearer",
+            # These endpoints historically use OpenAI wire options, independently of generation.
+            "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+            "STORYFORGE_LLM_MODEL": model,
+            "STORYFORGE_LLM_TEMPERATURE": "0",
+            "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "0",
+            "STORYFORGE_LLM_REASONING_EFFORT": reasoning_effort,
         }
     )
+    # Generation prices cannot price a different judge model, endpoint or account.
+    pricing_matches = (
+        model == env_value(source, "STORYFORGE_LLM_MODEL")
+        and base_url.strip().rstrip("/") == env_value(source, "STORYFORGE_LLM_BASE_URL").strip().rstrip("/")
+        and api_key == env_value(source, "STORYFORGE_LLM_API_KEY")
+    )
+    if not pricing_matches:
+        for key in tuple(request_source):
+            if key.endswith("_CNY_PER_M_TOKENS"):
+                request_source.pop(key)
     try:
-        data, _started_at = llm_client._request_chat_completions(
-            request_source,
-            request_payload,
-            timeout_seconds=float(timeout_seconds),
-            max_attempts=1,
-        )
-        raw_content = data["choices"][0]["message"]["content"]
+        with model_operation("judge.semantic"):
+            data = llm_client.call_llm_messages(
+                request_source,
+                messages=messages,
+                timeout_seconds=float(timeout_seconds),
+                max_attempts=1,
+            )
+        raw_content = data["content"]
         decoded = _decode_semantic_judge_content(str(raw_content))
-    except LLMRunInterrupted:
+    except (LLMRunInterrupted, ModelObservationError):
         raise
     except Exception as exc:
         log.warning("semantic_judge_failed", error=llm_client.redact_secrets(str(exc), [api_key]), model=model)
