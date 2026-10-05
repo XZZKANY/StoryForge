@@ -207,7 +207,7 @@ def test_cross_run_second_issue_is_bound_to_current_session_report(
             **(
                 {
                     "file_path": str(target),
-                    "content": target.read_text(encoding="utf-8"),
+                    "content": target.read_bytes().decode("utf-8"),
                     "instruction": "只改第一条",
                     "selected_issue_ids": [report["issues"][0]["id"]],
                     "excluded_categories": ["plot"],

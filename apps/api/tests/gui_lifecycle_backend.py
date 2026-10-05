@@ -120,7 +120,7 @@ def configure_fixture(data: Path, generation: str, stack: ExitStack):
 
     provider = FixtureProvider()
 
-    def revise(session, request):
+    def revise(session, request, *, author_instruction=None, prepared_context=None):
         with lock:
             stats["revision_calls"] += 1
             persist()

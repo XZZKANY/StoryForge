@@ -515,6 +515,9 @@ def test_chat_loop_file_review_path_escape_feeds_error_and_recovers(
 ) -> None:
     """file_review 越界路径被拒绝为观测反馈，循环不中断且不产生 artifact。"""
 
+    project = novel_project / "scoped-project"
+    project.mkdir()
+    (novel_project / "外面.md").write_text("OUTSIDE_MANUSCRIPT_SENTINEL", encoding="utf-8")
     _enable_loop_env(monkeypatch)
     calls = _fake_llm_script(
         monkeypatch,
@@ -537,7 +540,7 @@ def test_chat_loop_file_review_path_escape_feeds_error_and_recovers(
     received = _send_chat_message(
         client,
         run_id="run-chat-loop-review-escape",
-        project_path=str(novel_project),
+        project_path=str(project),
         message="审一下 ../外面.md",
     )
 
@@ -547,6 +550,7 @@ def test_chat_loop_file_review_path_escape_feeds_error_and_recovers(
     assert "review_report" not in result["agent_result"]
     tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
     assert "路径越界" in str(tool_messages[0]["content"])
+    assert "OUTSIDE_MANUSCRIPT_SENTINEL" not in json.dumps(calls, ensure_ascii=False)
     artifacts = client.get("/api/agent-runs/run-chat-loop-review-escape/artifacts").json()
     assert [artifact for artifact in artifacts if artifact["kind"] == "review_report"] == []
 

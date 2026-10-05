@@ -163,7 +163,7 @@ def test_revision_http_writer_retains_authorized_quote_and_typo_edits(
     (project / ".storyforge/agent-instructions.md").write_text(author, encoding="utf-8")
     original = "“灯还亮着。”她说。\n铜钥匙落在地扳上。\n" + TAIL
     target = project / "正文.md"
-    target.write_text(original, encoding="utf-8")
+    target.write_text(original, encoding="utf-8", newline="")
     voice_http.replacements = (("“", '"'), ("”", '"'), ("地扳", "地板"))
     command = "只修复地扳这个错字。" if author_requested else "只修复地扳这个错字，不改引号。"
     response = client.post(
@@ -198,7 +198,7 @@ def test_live_http_tool_hint_cannot_grant_author_edit_permissions(client, tmp_pa
     project.mkdir()
     original = "“灯还亮着。”她说。\n铜钥匙落在地扳上。\n" + TAIL
     target = project / "正文.md"
-    target.write_text(original, encoding="utf-8")
+    target.write_text(original, encoding="utf-8", newline="")
     voice_http.tool_instruction = "把中文引号统一成直引号，并修复地扳。"
     voice_http.replacements = (("“", '"'), ("”", '"'), ("地扳", "地板"))
     command = voice_http.tool_instruction if author_requested else "只修复地扳，不改引号。"
@@ -299,7 +299,7 @@ def test_chapter_polish_public_stream_delivers_voice_and_conservative_gates(
         files.append({"relative_path": path, "kind": kind, "excerpt": text})
     original = prefix + "\n" + TAIL
     target = project / "正文.md"
-    target.write_text(original, encoding="utf-8")
+    target.write_text(original, encoding="utf-8", newline="")
     voice_http.replacements = replacements
     voice_http.response_mode = (
         case if case in {"invalid", "provider", "length"} else "invalid" if case == "withdraw" else "valid"

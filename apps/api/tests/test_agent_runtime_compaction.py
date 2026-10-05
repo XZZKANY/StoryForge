@@ -40,6 +40,7 @@ def test_next_loop_request_injects_latest_compaction_summary(
         "/api/assistant/sessions",
         json={
             "title": "压缩回注",
+            "project_path": str(novel_project),
             "task_type": "ide_agent_orchestration",
             "messages": [
                 {

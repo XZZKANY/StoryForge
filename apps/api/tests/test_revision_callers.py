@@ -178,7 +178,7 @@ def test_file_revision_entry_retains_its_message_and_evidence_layers(client, mon
 
     _enable_loop_env(monkeypatch)
     target = novel_project / "正文" / "第01章.md"
-    before = target.read_text(encoding="utf-8")
+    before = target.read_bytes().decode("utf-8")
     generations = []
     instruction = "结尾补一个动作"
 
@@ -227,7 +227,7 @@ def test_file_revision_entry_retains_its_message_and_evidence_layers(client, mon
     assert len(generations) == 1
     assert result["proposed_patch"]["before"] == before
     assert result["proposed_patch"]["after"] == before + "林岚按下记录键。"
-    assert target.read_text(encoding="utf-8") == before
+    assert target.read_bytes() == before.encode("utf-8")
     session_id = result["assistant_session_id"]
     records = client.get(f"/api/assistant/sessions/{session_id}/tool-calls").json()
     expected_tools = (

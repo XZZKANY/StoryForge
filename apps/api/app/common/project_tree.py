@@ -19,11 +19,11 @@ class ProjectTreeError(RuntimeError):
 def scoped_target(root: Path, path: Path) -> Path:
     try:
         target = path.resolve()
-        if not target.is_relative_to(root):
-            raise ProjectTreeError("路径越界，只允许访问项目目录内文件。")
-        return target
     except (OSError, RuntimeError) as exc:
         raise ProjectTreeError("无法解析项目文件路径。") from exc
+    if not target.is_relative_to(root):
+        raise ProjectTreeError("路径越界，只允许访问项目目录内文件。")
+    return target
 
 
 def is_directory_link(path: Path) -> bool:

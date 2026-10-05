@@ -8,9 +8,9 @@ from app.domains.agent_runs.models import AgentArtifact, AgentRun
 from app.domains.assistant.models import AssistantMessage, AssistantSession
 
 
-def seed_history(session: Session, count: int = 16) -> tuple[AssistantSession, AgentRun]:
+def seed_history(session: Session, count: int = 16, *, project_path: str | None = None) -> tuple[AssistantSession, AgentRun]:
     conversation = AssistantSession(
-        title="保真压缩", task_type="ide_agent_orchestration",
+        title="保真压缩", task_type="ide_agent_orchestration", project_path=project_path,
         messages=[AssistantMessage(
             role="user" if i % 2 == 0 else "assistant",
             content=f"消息{i}：" + ("不要杀死林岚，否决悲剧结局。" if i == 0 else "保留悬念，待确认修改。"),

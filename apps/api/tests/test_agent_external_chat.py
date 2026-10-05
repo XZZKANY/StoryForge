@@ -102,7 +102,7 @@ def test_raw_input_drift_during_generation_never_publishes_or_leaks_legacy_patch
     with Session(engine) as session:
         run, message, root, provider, revisions = live_setup(session, tmp_path, monkeypatch)
 
-        def revise_and_drift(session, request):
+        def revise_and_drift(session, request, *, author_instruction=None, prepared_context=None):
             (root / "chapter.md").write_bytes(b"author edit")
             return AssistantReviseResponse(before=request.content, after=AFTER, summary="revision", model="fake",
                                            latency_ms=1, completion_tokens=3,
@@ -264,10 +264,10 @@ def test_cancel_audit_committed_before_publication_cannot_publish_executable_wai
         run, message, root, provider, revisions = live_setup(session, tmp_path, monkeypatch)
         revise = assistant_service.revise_file_content
 
-        def revise_after_cancel_audit(session, request):
+        def revise_after_cancel_audit(session, request, *, author_instruction=None, prepared_context=None):
             service.record_agent_event(session, run, event_type="pause_run", actor="author",
                                        payload={"session_id": run.session_id, "run_id": run.public_id})
-            return revise(session, request)
+            return revise(session, request, author_instruction=author_instruction, prepared_context=prepared_context)
 
         monkeypatch.setattr(assistant_service, "revise_file_content", revise_after_cancel_audit)
         result = service.execute_agent_user_message_run(session, run=run, agent_session_id=run.session_id,

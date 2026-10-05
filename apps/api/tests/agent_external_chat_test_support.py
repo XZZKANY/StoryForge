@@ -36,7 +36,7 @@ def live_setup(session, tmp_path, monkeypatch, *, responses=None, profile="ask",
     (root / "chapter.md").write_bytes(BEFORE.encode())
     revisions = []
 
-    def revise(session, request):
+    def revise(session, request, *, author_instruction=None, prepared_context=None):
         revisions.append(request)
         return AssistantReviseResponse(before=request.content, after=AFTER, summary="revision",
                                        model="fake", latency_ms=1, completion_tokens=3,

@@ -96,7 +96,7 @@ def test_sse_repeated_compaction_and_rejection_preserve_far_author_constraint(
     calls = _fake_llm_script(monkeypatch, [{"content": "仅分析，未写盘", "finish_reason": "stop"}])
     provider = SummaryProvider()
     monkeypatch.setattr(compaction_job, "build_llm_provider", lambda source: provider)
-    conversation, parked = seed_history(session)
+    conversation, parked = seed_history(session, project_path=str(novel_project))
     conversation.messages[0].content = "背景" * 2100 + "第4001字之后的硬约束：绝不能杀死林岚。"
     session.commit()
     park_patch(session, parked)
@@ -129,7 +129,7 @@ def test_sse_cancel_during_hidden_summary_preserves_chat_and_usage_without_succe
 ):
     _enable_loop_env(monkeypatch)
     _fake_llm_script(monkeypatch, [{"content": "已经完成的聊天事实", "finish_reason": "stop", "prompt_tokens": 40}])
-    conversation, _ = seed_history(session)
+    conversation, _ = seed_history(session, project_path=str(novel_project))
     acknowledgements = []
 
     class CancelProvider(SummaryProvider):
@@ -162,7 +162,7 @@ def test_independent_source_change_between_summary_and_publish_rejects_artifact(
     _enable_loop_env(monkeypatch)
     _fake_llm_script(monkeypatch, [{"content": "正常完成", "finish_reason": "stop"}])
     monkeypatch.setattr(compaction_job, "build_llm_provider", lambda source: SummaryProvider())
-    conversation, _ = seed_history(session)
+    conversation, _ = seed_history(session, project_path=str(novel_project))
     message_id = conversation.messages[0].id
     original = AgentRunEventSink.record_system_job
     connections = []

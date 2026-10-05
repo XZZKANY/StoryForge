@@ -129,3 +129,29 @@ def test_fs_tools_reject_missing_project_root(tmp_path: Path) -> None:
         fs_list(str(tmp_path / "not-exist"))
     with pytest.raises(FsToolError, match="project_root 不能为空"):
         fs_read("", "a.md")
+
+
+@pytest.mark.parametrize("exists", [False, True])
+def test_shared_containment_keeps_specific_escape_error(tmp_path, exists):
+    from app.common.project_tree import ProjectTreeError, scoped_target
+
+    root = tmp_path / "project"
+    root.mkdir()
+    outside = tmp_path / "outside.md"
+    if exists:
+        outside.write_text("outside", encoding="utf-8")
+    with pytest.raises(ProjectTreeError, match="路径越界"):
+        scoped_target(root, outside)
+
+
+@pytest.mark.parametrize("error", [OSError, RuntimeError])
+def test_shared_containment_keeps_resolution_error_distinct(tmp_path, monkeypatch, error):
+    from app.common.project_tree import ProjectTreeError, scoped_target
+
+    def fail(self):
+        raise error("resolver failure")
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(type(tmp_path), "resolve", fail)
+        with pytest.raises(ProjectTreeError, match="无法解析项目文件路径"):
+            scoped_target(tmp_path, tmp_path / "file.md")

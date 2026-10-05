@@ -31,7 +31,7 @@ def test_http_revision_uses_project_author_control_for_mixed_quote_and_typo_edit
     author_file.write_text("AUTHOR_VOICE_SENTINEL：把中文引号统一成直引号。", encoding="utf-8")
     original = "“灯还亮着。”她说。\n钥匙落在地扳上。\n" + TAIL
     target = project / "正文.md"
-    target.write_text(original, encoding="utf-8")
+    target.write_text(original, encoding="utf-8", newline="")
     candidate = original.replace("“", '"').replace("”", '"').replace("地扳", "地板")
     requests = []
     monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
@@ -127,7 +127,7 @@ def test_live_file_revision_model_hint_cannot_grant_itself_quote_permission(
     project.mkdir()
     original = "“灯还亮着。”她说。\n钥匙落在地扳上。\n" + TAIL
     target = project / "正文.md"
-    target.write_text(original, encoding="utf-8")
+    target.write_text(original, encoding="utf-8", newline="")
     candidate = original.replace("“", '"').replace("”", '"').replace("地扳", "地板")
     prompts = []
 
@@ -180,7 +180,7 @@ def test_real_polish_handler_preserves_event_roles_and_degraded_confirmation(ses
     (project / ".storyforge/agent-instructions.md").write_text("保留重复问号。", encoding="utf-8")
     original = "林岚把铜钥匙交给顾迟。真的？？？门，，没有关。\n" + TAIL
     target = project / "正文.md"
-    target.write_text(original, encoding="utf-8")
+    target.write_text(original, encoding="utf-8", newline="")
     for name in ("林岚", "顾迟"):
         (project / f"人物/{name}.md").write_text(name + "是人物。", encoding="utf-8")
     candidate = original.replace("交给", "递给")
