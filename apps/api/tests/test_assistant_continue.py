@@ -532,3 +532,37 @@ def test_streamed_call_omits_blank_system_message(monkeypatch: pytest.MonkeyPatc
 
     roles = [m["role"] for m in seen[0]["messages"]]
     assert roles == ["user"], f"空 system 被塞进了 messages：{roles}"
+
+
+@pytest.mark.usefixtures("_llm_stream_env")
+@pytest.mark.parametrize("limit", [1, 2, 3])
+def test_stream_negotiation_and_transient_errors_share_attempt_cap(monkeypatch, limit):
+    import os
+    from io import BytesIO
+
+    sent = []
+    progress = []
+    monkeypatch.setattr(llm_client, "wait_for_retry", lambda delay: progress.append(delay))
+
+    def response(req, **kwargs):
+        sent.append(json.loads(req.data))
+        if len(sent) <= 2:
+            status = 400 if len(sent) == 1 else 503
+            raise error.HTTPError(req.full_url, status, "fixture", {}, BytesIO(b"{}"))
+        return _FakeStream(_sse_lines(["正文"]))
+
+    monkeypatch.setattr(llm_client.request, "urlopen", response)
+    payload = llm_client.build_chat_payload(
+        os.environ, messages=[{"role": "user", "content": "fixture"}],
+        tools=None, tool_choice=None, stream=True,
+    )
+    if limit < 3:
+        with pytest.raises(llm_client.LLMError):
+            list(llm_client.stream_chat_completions(os.environ, payload, max_attempts=limit))
+    else:
+        frames = list(llm_client.stream_chat_completions(os.environ, payload, max_attempts=limit))
+        assert frames[-1]["content"] == "正文"
+    assert len(sent) == limit
+    assert "stream_options" in sent[0]
+    assert all("stream_options" not in body for body in sent[1:])
+    assert progress == ([0] if limit > 1 else [])

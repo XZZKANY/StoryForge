@@ -236,7 +236,7 @@ def _build_chat_payload(
     if stream:
         payload["stream"] = True
         # 要 usage 必须显式开；部分兼容端点不认这个字段，_stream_chat_completions 收到
-        # 400 会摘掉它重试一次，届时 usage 回落既有字符估算。
+        # 400 在总尝试上限内摘掉它重试一次，届时 usage 回落既有字符估算。
         payload["stream_options"] = {"include_usage": True}
     return payload
 
@@ -406,10 +406,13 @@ def _raw_stream_chat_completions(
             response = request.urlopen(http_request, timeout=request_timeout(timeout))  # noqa: S310 - 固定 https 配置端点
         except error.HTTPError as exc:
             check_run_interruption("http_error")
-            if exc.code == 400 and not dropped_stream_options and "stream_options" in active_payload:
-                # 兼容端点不认 stream_options：摘掉重发（不消耗重试次数），usage 回落字符估算。
+            if (exc.code == 400 and not dropped_stream_options
+                    and "stream_options" in active_payload and attempt < attempt_limit):
+                # Compatibility negotiation is still another HTTP request: share the cap and ledger.
                 active_payload.pop("stream_options", None)
                 dropped_stream_options = True
+                wait_for_retry(0)
+                attempt += 1
                 continue
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
             if _is_retryable_status(exc.code) and attempt < attempt_limit:

@@ -138,6 +138,7 @@ def test_real_llm_connectivity_probe_fails_preflight_without_runtime_env() -> No
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
 
@@ -181,6 +182,7 @@ def test_real_llm_connectivity_probe_retries_once_when_chat_content_is_empty() -
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
             env=env,
             timeout=60,
@@ -270,6 +272,7 @@ def test_ten_chapter_wrapper_probe_only_passes_with_local_provider() -> None:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
             env=env,
             timeout=60,
@@ -318,6 +321,7 @@ def test_interactive_acceptance_wrapper_fails_preflight_without_runtime_env() ->
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
 
@@ -362,6 +366,7 @@ def test_interactive_acceptance_wrapper_probe_only_passes_with_local_provider() 
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
             env=env,
             timeout=60,

@@ -680,3 +680,39 @@ def test_configuration_failure_does_not_invent_paid_call(monkeypatch, tmp_path):
     assert entry["repeats"][0]["no_model_call"] is True
     assert entry["cost_cny_estimated"] == 0
     assert entry["resources"]["cost_cny_unknown_count"] == 0
+
+
+@pytest.mark.parametrize("status", [400, 503])
+@pytest.mark.parametrize("attempt_limit", [1, 2])
+def test_prompt_lab_resolved_environment_enforces_http_attempt_cap(monkeypatch, status, attempt_limit):
+    from io import BytesIO
+    from urllib import error
+
+    from app.common import llm_client, llm_control
+
+    monkeypatch.setattr(llm_control.time, "sleep", lambda _: pytest.fail("zero-delay retry must not sleep"))
+    for key, value in {
+        "STORYFORGE_LLM_API_KEY": "test-only-opaque-key",
+        "STORYFORGE_LLM_BASE_URL": "https://fixture.invalid/v1",
+        "STORYFORGE_LLM_MODEL": "attempt-cap-model",
+        "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS": str(attempt_limit),
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0",
+        "STORYFORGE_LLM_TEMPERATURE": "0.2",
+        "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "2048",
+    }.items():
+        monkeypatch.setenv(key, value)
+    sent = []
+
+    def reject(req, **kwargs):
+        sent.append(req)
+        raise error.HTTPError(req.full_url, status, "fixture rejection", {}, BytesIO(b"{}"))
+
+    monkeypatch.setattr(llm_client.request, "urlopen", reject)
+    result = runner_module._call_once("self-authored fixture", TASKS["live-opening"])
+    assert len(sent) == attempt_limit
+    assert result["status"] == "failed"
+    assert result["unaccounted_retry_count"] == attempt_limit - 1
+    assert result["model"] == "attempt-cap-model"
+    assert result["parameters"]["max_tokens"] == 2048
+    assert result["cost_cny_estimated"] is None

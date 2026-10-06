@@ -129,6 +129,7 @@ def _run_validator(run_dir: Path, *extra_args: str) -> subprocess.CompletedProce
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
 
