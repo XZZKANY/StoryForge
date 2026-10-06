@@ -246,6 +246,23 @@ try {
           return json([]);
         }
 
+        if (requestPath === '/api/agent-runs/chapter-checks/query') {
+          if (
+            method !== 'POST' ||
+            !latestAgentPayload ||
+            requestBody.project_root !== projectPath ||
+            requestBody.assistant_session_id !== 101 ||
+            requestBody.limit !== 20
+          )
+            rejectRequest();
+          return json({
+            project_root: projectPath,
+            assistant_session_id: 101,
+            entries: [],
+            truncated: false,
+          });
+        }
+
         if (requestPath === '/api/agent-runs/writeback-recovery') {
           if (
             method !== 'GET' ||

@@ -322,7 +322,7 @@ export async function verifyTauriSmoke() {
       ? verifiedSmokeExecutable(explicitExecutable, releaseExecutable)
       : '';
 
-    if (!explicitExecutable) {
+    if (!releaseMode) {
       const build = runProcess('cmd.exe', ['/c', 'npm', 'run', 'build'], {
         cwd: frontendDir,
       });

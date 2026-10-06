@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
@@ -9,6 +11,9 @@ import {
   aggregateFailures,
   assertCleanTestIdentity,
   assertSafeTestPath,
+  assertUpgradeInstallerPath,
+  assertNoForeignNativeProcesses,
+  nsisExecutableDigest,
   createVerificationLayout,
   PRODUCTION_PRODUCT_NAME,
   runProcess,
@@ -149,4 +154,46 @@ test('treeDigest changes with file content and ignores timestamps', async () => 
 
   await writeFile(join(root, 'resources', 'manifest.json'), 'second');
   assert.notEqual(await treeDigest(root), first);
+});
+
+test('upgrade source accepts only a preserved installer for the isolated identity', () => {
+  const baseline = join('evidence', `${TEST_PRODUCT_NAME}_0.1.10_x64-setup.exe`);
+  assert.equal(assertUpgradeInstallerPath(baseline), resolve(baseline));
+  for (const wrong of [
+    'StoryForge IDE_0.1.10_x64-setup.exe',
+    `${TEST_PRODUCT_NAME}_latest.exe`,
+    `${TEST_PRODUCT_NAME}_0.1.10_arm64-setup.exe`,
+  ])
+    assert.throws(() => assertUpgradeInstallerPath(wrong), /isolated test installer/);
+});
+
+test('NSIS executable identity models exactly one bundle marker without ignoring other bytes', () => {
+  const original = Buffer.from('prefix\0__TAURI_BUNDLE_TYPE_VAR_UNK\0suffix');
+  const bundled = Buffer.from('prefix\0__TAURI_BUNDLE_TYPE_VAR_NSS\0suffix');
+  assert.equal(nsisExecutableDigest(original), createHash('sha256').update(bundled).digest('hex'));
+  assert.equal(original.toString(), 'prefix\0__TAURI_BUNDLE_TYPE_VAR_UNK\0suffix');
+  assert.notEqual(
+    nsisExecutableDigest(Buffer.from('wrong-prefix\0__TAURI_BUNDLE_TYPE_VAR_UNK\0suffix')),
+    nsisExecutableDigest(original),
+  );
+  assert.throws(() => nsisExecutableDigest(Buffer.from('no marker')), /one unbundled/);
+  assert.throws(() => nsisExecutableDigest(bundled), /one unbundled/);
+  assert.throws(() => nsisExecutableDigest(Buffer.concat([original, original])), /one unbundled/);
+});
+
+test('NSIS preflight refuses any foreign or unidentifiable Native process', () => {
+  const install = 'C:\\Test\\StoryForge';
+  const owned = { ProcessId: 1, ExecutablePath: install + '\\storyforge-desktop.exe' };
+  assert.doesNotThrow(() => assertNoForeignNativeProcesses([], install));
+  assert.doesNotThrow(() => assertNoForeignNativeProcesses([owned], install));
+  for (const other of [
+    null,
+    'D:\\UserInstall\\storyforge-desktop.exe',
+    install + '-other\\storyforge-desktop.exe',
+  ])
+    assert.throws(
+      () =>
+        assertNoForeignNativeProcesses([owned, { ProcessId: 2, ExecutablePath: other }], install),
+      /close other StoryForge.*2/,
+    );
 });

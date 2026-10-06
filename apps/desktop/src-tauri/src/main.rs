@@ -1512,6 +1512,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
             fail_smoke!();
         }
 
+        let records_before_conflict = count_files_under(&smoke_project.join(".storyforge").join("author-loop"));
         let local_edit_revision = "# Chapter 1\n\nSmoke content locally edited\n";
         let local_edit_script = format!(
             r#"
@@ -1558,7 +1559,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 value
                     .get("patchActionStatusText")
                     .and_then(|entry| entry.as_str())
-                    .map(|status| status.contains("旧补丁不能直接写回"))
+                    .map(|status| status.contains("无法安全定位"))
                     .unwrap_or(false)
                     && has_bool(value, "patchVisible", true)
                     && has_bool(value, "patchActionBusy", false)
@@ -1569,13 +1570,24 @@ fn run_smoke_probe<R: tauri::Runtime>(
         }
 
         let disk_after_conflict = std_fs::read_to_string(&smoke_file).unwrap_or_default();
-        if disk_after_conflict != before_revision {
+        let buffer_after_conflict = eval_window_json(
+            &window,
+            "(() => ({ content: window.__STORYFORGE_SMOKE__?.getCurrentEditorContent?.(), runtimeUrl: location.href }))()",
+            Duration::from_millis(1500),
+        ).unwrap_or(serde_json::Value::Null);
+        if disk_after_conflict != before_revision
+            || buffer_after_conflict.get("content").and_then(|value| value.as_str()) != Some(local_edit_revision)
+            || count_files_under(&smoke_project.join(".storyforge").join("author-loop")) != records_before_conflict
+        {
             eprintln!(
                 "Smoke 失败: 冲突补丁不应写盘，实际内容: {}",
                 disk_after_conflict
             );
             fail_smoke!();
         }
+
+        println!("Desktop native buffer-drift evidence: disk-unchanged=true author-buffer-preserved=true success-record-added=false runtimeUrl={}",
+            buffer_after_conflict.get("runtimeUrl").and_then(|value| value.as_str()).unwrap_or("unknown"));
 
         let reset_edit_script = format!(
             r#"
@@ -1773,12 +1785,15 @@ fn run_smoke_probe<R: tauri::Runtime>(
             eprintln!("Smoke 失败: 无法点击同一已应用提案的确认按钮: {error}");
             fail_smoke!();
         }
-        if wait_for_window_state(&window, snapshot_script, 100, Duration::from_millis(200), |value| {
+        if let Err(error) = wait_for_window_state(&window, snapshot_script, 100, Duration::from_millis(200), |value| {
             !has_bool(value, "hasPatchReview", true)
                 && value.get("editorPreview").and_then(|entry| entry.as_str())
                     .map(|preview| preview.contains("Author edits after confirmed writeback")).unwrap_or(false)
-        }).is_err() {
-            eprintln!("Smoke 失败: 回执恢复覆盖了作者后续编辑或补丁未结算");
+        }) {
+            let probe = eval_window_json(&window,
+                "(() => window.__STORYFORGE_SMOKE__?.getWritebackProbeSnapshot?.())()",
+                Duration::from_millis(1500));
+            eprintln!("Smoke 失败: 回执恢复覆盖了作者后续编辑或补丁未结算: {error}; native-counts={probe:?}");
             fail_smoke!();
         }
         let counts = eval_window_json(&window,

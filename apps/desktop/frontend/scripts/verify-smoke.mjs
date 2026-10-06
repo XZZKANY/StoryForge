@@ -138,6 +138,16 @@ try {
           },
         });
       }
+      if (requestPath === '/api/agent-runs/writeback-recovery') {
+        if (
+          method !== 'GET' ||
+          parsedUrl.searchParams.get('project_path') !== projectPath ||
+          parsedUrl.searchParams.get('after_id') !== '0' ||
+          parsedUrl.searchParams.get('limit') !== '20'
+        )
+          rejectRequest();
+        return json({ items: [], next_after_id: null });
+      }
       if (requestPath === '/api/assistant/sessions') {
         if (method !== 'GET' || parsedUrl.searchParams.get('project_path') !== projectPath)
           rejectRequest();

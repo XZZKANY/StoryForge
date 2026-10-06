@@ -1,9 +1,10 @@
+import { Buffer } from 'node:buffer';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { access, readFile, readdir, rm, rmdir, stat } from 'node:fs/promises';
-import { dirname, join, relative, resolve, win32 } from 'node:path';
+import { access, mkdir, readFile, readdir, rm, rmdir, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, relative, resolve, win32 } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const TEST_PRODUCT_NAME = 'StoryForge Shadow Git Install Smoke';
@@ -145,10 +146,12 @@ export async function runProcess(command, args, options = {}, spawnProcess = spa
   return { code, stdout: stdout.trim(), stderr: stderr.trim() };
 }
 
-async function listWindowsProcesses() {
+async function listWindowsProcesses(nativeOnly = false) {
   const command = [
     "$ErrorActionPreference = 'Stop'",
-    '@(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath } | Select-Object ProcessId, ExecutablePath) | ConvertTo-Json -Compress',
+    nativeOnly
+      ? '@(Get-CimInstance Win32_Process -Filter "Name = \'storyforge-desktop.exe\'" | Select-Object ProcessId, ExecutablePath) | ConvertTo-Json -Compress'
+      : '@(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath } | Select-Object ProcessId, ExecutablePath) | ConvertTo-Json -Compress',
   ].join('; ');
   const result = await runProcess(
     'powershell.exe',
@@ -158,6 +161,20 @@ async function listWindowsProcesses() {
   if (!result.stdout) return [];
   const processes = JSON.parse(result.stdout);
   return Array.isArray(processes) ? processes : [processes];
+}
+
+export function assertNoForeignNativeProcesses(processes, installDir) {
+  const foreign = processes.filter(
+    (entry) => !isExecutableUnderInstallDir(installDir, entry.ExecutablePath),
+  );
+  if (foreign.length)
+    throw new Error(
+      `NSIS kills by executable name; close other StoryForge instances before install/uninstall (PIDs: ${foreign.map((entry) => entry.ProcessId).join(', ')})`,
+    );
+}
+
+async function assertInstallerProcessSafety(layout) {
+  assertNoForeignNativeProcesses(await listWindowsProcesses(true), layout.installDir);
 }
 
 async function windowsKnownDesktopPath() {
@@ -349,6 +366,7 @@ async function cleanupOwnedTestIdentity(layout) {
   await terminateOwnedInstallProcesses(layout);
   const uninstaller = resolve(layout.installDir, 'uninstall.exe');
   if (await exists(uninstaller)) {
+    await assertInstallerProcessSafety(layout);
     await runProcess(uninstaller, ['/S'], { allowedCodes: [0] }).catch(() => undefined);
     await waitFor(
       () => exists(layout.installDir).then((value) => !value),
@@ -367,7 +385,30 @@ async function cleanupOwnedTestIdentity(layout) {
   });
 }
 
-export async function verifyNsisInstall({ build = false } = {}) {
+/** Tauri's NSIS bundler patches this one marker, then restores the build-directory binary. */
+export function nsisExecutableDigest(bytes) {
+  const marker = Buffer.from('__TAURI_BUNDLE_TYPE_VAR_UNK');
+  const index = bytes.indexOf(marker);
+  assert.ok(
+    index >= 0 && bytes.indexOf(marker, index + 1) < 0,
+    'expected one unbundled Tauri marker',
+  );
+  const bundled = Buffer.from(bytes);
+  Buffer.from('__TAURI_BUNDLE_TYPE_VAR_NSS').copy(bundled, index);
+  return createHash('sha256').update(bundled).digest('hex');
+}
+
+export function assertUpgradeInstallerPath(path) {
+  const name = basename(path);
+  if (
+    !name.startsWith(`${TEST_PRODUCT_NAME}_`) ||
+    !/^\d+\.\d+\.\d+_x64-setup\.exe$/.test(name.slice(TEST_PRODUCT_NAME.length + 1))
+  )
+    throw new Error('Upgrade baseline must be a separately preserved isolated test installer');
+  return resolve(path);
+}
+
+export async function verifyNsisInstall({ build = false, upgradeFrom } = {}) {
   if (process.platform !== 'win32' || process.arch !== 'x64') {
     throw new Error(
       `NSIS install smoke requires win32/x64, received ${process.platform}/${process.arch}`,
@@ -378,17 +419,103 @@ export async function verifyNsisInstall({ build = false } = {}) {
   assert.notEqual(layout.testRegistryKey, layout.productionRegistryKey);
   const productionBefore = await snapshotProduction(layout);
   await assertCleanTestIdentity(layout);
+  await assertInstallerProcessSafety(layout);
   let ownsTestIdentity = false;
   let evidence;
+  let upgradeEvidence;
+  let upgradeDataDigest;
+  let upgradeProject;
   const failures = [];
 
   try {
     if (build) await buildIsolatedInstaller();
     const installer = await findInstaller();
+    const baseline = upgradeFrom ? assertUpgradeInstallerPath(upgradeFrom) : null;
+    if (baseline) {
+      assert.notEqual(baseline, installer, 'upgrade requires a separately preserved baseline');
+      const baselineSha256 = await fileDigest(baseline);
+      assert.ok(baselineSha256, 'upgrade baseline is missing');
+      assert.notEqual(
+        baselineSha256,
+        await fileDigest(installer),
+        'identical installer is not an upgrade',
+      );
+      ownsTestIdentity = true;
+      await assertInstallerProcessSafety(layout);
+      await runProcess(baseline, ['/S']);
+      await waitFor(() => exists(resolve(layout.installDir, 'uninstall.exe')), 'baseline install');
+      const oldInstalled = await verifyInstalledResources(layout);
+      assert.match(
+        (await registryValue(layout.testRegistryKey)) ?? '',
+        /StoryForge Shadow Git Install Smoke/,
+      );
+      // Self-authored isolated data; never copy an actual author's profile or credentials.
+      await mkdir(layout.appConfigDir, { recursive: true });
+      upgradeProject = resolve(layout.appLocalDataDir, 'release-upgrade-project');
+      await mkdir(upgradeProject, { recursive: true });
+      await writeFile(
+        resolve(upgradeProject, 'chapter.md'),
+        '# 升级保留验收\r\n\r\n作者自己的原稿，不得被安装器修改。\r\n',
+        { flag: 'wx' },
+      );
+      await writeFile(
+        resolve(layout.appConfigDir, 'llm-provider.json'),
+        JSON.stringify({
+          provider: 'custom',
+          baseUrl: 'http://127.0.0.1:9/v1',
+          model: 'upgrade-no-network',
+          apiKey: '',
+        }),
+        { flag: 'wx' },
+      );
+      upgradeDataDigest = {
+        local: await treeDigest(layout.appLocalDataDir),
+        config: await treeDigest(layout.appConfigDir),
+        project: await treeDigest(upgradeProject),
+      };
+      upgradeEvidence = {
+        kind:
+          basename(baseline) === basename(installer)
+            ? 'same-version-package-replacement'
+            : 'version-upgrade',
+        baseline,
+        baselineSha256,
+        beforeExecutableSha256: await fileDigest(oldInstalled.executable),
+        dataBefore: upgradeDataDigest,
+      };
+    }
     ownsTestIdentity = true;
+    await assertInstallerProcessSafety(layout);
     await runProcess(installer, ['/S']);
     await waitFor(() => exists(resolve(layout.installDir, 'uninstall.exe')), 'silent install');
     const installed = await verifyInstalledResources(layout);
+    if (upgradeEvidence) {
+      const executableSha256 = await fileDigest(installed.executable);
+      assert.notEqual(
+        executableSha256,
+        upgradeEvidence.beforeExecutableSha256,
+        'installer did not replace the old executable',
+      );
+      assert.equal(
+        executableSha256,
+        nsisExecutableDigest(
+          await readFile(resolve(targetDir, 'release', 'storyforge-desktop.exe')),
+        ),
+        'installed executable does not match the candidate NSIS payload',
+      );
+      assert.equal(
+        await treeDigest(layout.appLocalDataDir),
+        upgradeDataDigest.local,
+        'upgrade changed app-local data',
+      );
+      assert.equal(
+        await treeDigest(layout.appConfigDir),
+        upgradeDataDigest.config,
+        'upgrade changed provider configuration',
+      );
+      upgradeEvidence.afterExecutableSha256 = executableSha256;
+      upgradeEvidence.dataPreservedBeforeLaunch = true;
+    }
     const registry = await registryValue(layout.testRegistryKey);
     assert.match(registry ?? '', /StoryForge Shadow Git Install Smoke/);
     const installedShortcuts = [];
@@ -415,8 +542,16 @@ export async function verifyNsisInstall({ build = false } = {}) {
     assert.ok(await exists(layout.appLocalDataDir), 'installed smoke must create app-local data');
     assert.ok(await exists(layout.shadowDataDir), 'installed smoke must create shadow Git data');
     const shadowDataDigest = await treeDigest(layout.shadowDataDir);
+    const configBeforeUninstall = await treeDigest(layout.appConfigDir);
+    if (upgradeProject)
+      assert.equal(
+        await treeDigest(upgradeProject),
+        upgradeDataDigest.project,
+        'installed runtime changed the retained manuscript',
+      );
 
     await terminateOwnedInstallProcesses(layout);
+    await assertInstallerProcessSafety(layout);
     await runProcess(installed.uninstaller, ['/S']);
     await waitFor(async () => {
       if (await exists(layout.installDir)) return false;
@@ -440,8 +575,23 @@ export async function verifyNsisInstall({ build = false } = {}) {
       'uninstall must preserve app-local shadow Git data byte-for-byte',
     );
 
+    assert.equal(
+      await treeDigest(layout.appConfigDir),
+      configBeforeUninstall,
+      'uninstall changed retained configuration',
+    );
+    if (upgradeProject)
+      assert.equal(
+        await treeDigest(upgradeProject),
+        upgradeDataDigest.project,
+        'uninstall changed retained manuscript',
+      );
     evidence = {
       installer,
+      installerSha256: await fileDigest(installer),
+      ...(upgradeEvidence
+        ? { upgrade: { ...upgradeEvidence, manuscriptPreservedAfterUninstall: true } }
+        : {}),
       installedGitVersion: installed.gitVersion,
       installedShortcuts,
       shadowDataDigest,
@@ -475,5 +625,11 @@ export async function verifyNsisInstall({ build = false } = {}) {
 
 const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : '';
 if (invokedPath === import.meta.url) {
-  await verifyNsisInstall({ build: process.argv.includes('--build') });
+  const upgradeIndex = process.argv.indexOf('--upgrade-from');
+  if (upgradeIndex >= 0 && !process.argv[upgradeIndex + 1])
+    throw new Error('--upgrade-from requires a path');
+  await verifyNsisInstall({
+    build: process.argv.includes('--build'),
+    upgradeFrom: upgradeIndex < 0 ? undefined : process.argv[upgradeIndex + 1],
+  });
 }
