@@ -27,7 +27,7 @@ StoryForge 不是一个"一键出书"的自动生成器，而是一个把工程�
 ```powershell
 git clone https://github.com/XZZKANY/StoryForge.git
 cd StoryForge
-Copy-Item .env.example .env
+if (-not (Test-Path -LiteralPath .env)) { Copy-Item -LiteralPath .env.example -Destination .env }
 pnpm install
 npm --prefix apps/desktop/frontend install
 docker compose up -d postgres redis minio

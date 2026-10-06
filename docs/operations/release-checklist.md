@@ -26,19 +26,17 @@ git diff --stat
 
 ## 3. 环境与服务门禁
 
-先按本地启动手册准备环境：
+已有环境先复用；不要用样例覆盖已有 `.env`，也不要为了跑门禁无条件重装依赖或启动 Docker。首次初始化按 `local-start.md`，包管理器必须与 `package.json` 的版本一致。
 
 ```powershell
-Copy-Item .env.example .env
-pnpm install
-docker compose up -d postgres redis minio
+pnpm --version                 # 当前锁定 9.15.4；不一致时先校准 PATH / Corepack
 pnpm verify
 ```
 
 通过条件：
 
-- Node.js、pnpm、Python 3.11+、Docker 可用。
-- PostgreSQL、Redis、MinIO 容器状态明确。
+- Node.js、指定版本 pnpm、Python 3.11+ 与 uv 可用；缺依赖时按锁文件安装，不临时改版本。
+- `pnpm verify` 的 daily sidecar 使用隔离 SQLite，不要求 Docker。另做 PostgreSQL / Redis / MinIO 集成时才启动相应服务，未运行的集成项单独列出。
 - `pnpm verify` 若失败，失败原因和下一步动作必须记录到 `.codex/verification-report.md`。
 
 ## 4. OpenAPI 契约门禁
@@ -98,6 +96,7 @@ npm --prefix apps/desktop run verify:nsis-install
 - `verify:nsis-install` 完成临时目录 clean-install smoke：静默安装到临时目录，运行安装目录中的 `storyforge-desktop.exe`，确认其能启动同目录 `storyforge-api.exe` 并完成同一条 smoke 链路；测试后清理临时安装目录、快捷方式和 HKCU 卸载登记。
 - 设置页保存的 provider 配置写入本机 `llm-provider.json`，API 在下一次调用时实时读取，无需重启子进程；若复用外部 API，按外部服务的配置生效规则验证。
 - 生成的安装包、sidecar exe、PyInstaller 缓存和本机 LLM 配置不得误提交。
+- clean-install 脚本只证明安装、启动、卸载和 shadow 数据保留，不包含升级验证；升级保留必须另取证，不能以安装冒烟代替。
 
 私测 alpha 已知 caveat：
 
@@ -112,7 +111,7 @@ npm --prefix apps/desktop run verify:nsis-install
 
 - `README.md`：当前状态、常用命令、验证策略仍与实际脚本一致。
 - `docs/internal/TODO.md`：任务状态和最近迭代记录已更新。
-- `.codex/operations-log.md`：记录了本轮问题、计划、执行和验证。
+- `docs/internal/current-phase.md`：同步当前候选证据与限制；详细命令和结果留在验证报告，不引用不存在的旧流水账。
 - `.codex/verification-report.md`：记录了本轮验证命令、结果、风险和结论。
 - `docs/operations/local-start.md`：本地启动、单机桌面模式和桌面安装器构建流程仍有效。
 

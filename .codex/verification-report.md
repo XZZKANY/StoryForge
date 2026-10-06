@@ -1,3 +1,92 @@
+## 2026-10-06 作者反馈已回收（仅当前样本）
+
+用户直接回复“保留 还过得去”。按原文保留pilot-v4唯一匿名样本19fff7819103f85b；理由仅记录“还过得去”，不补写评价、不赋分。最终保留文本引用原outputs文件，SHA256 7175480bba17fe24c99384e8e0d72b401bab688d22cb3f1d195b349f053989c4已与metadata及盲评映射核对。
+反馈留痕 output/real-model-acceptance-20261005/pilot-v4/author-feedback.json；接受前状态单独保全，原样稿、模型输出及失败记录均不修改。清单8标为该单样本完成；清单5/7/9及整体任务继续未完成。价格仍UNKNOWN、不扩批，未运行模型、未改生产代码、未提交/推送，不重跑未受影响的工程门禁。
+
+## 2026-10-06 原交付关闭与冷结算已验证
+
+- 原35路径冻结对比只有 suggestion-writeback-lifecycle.test.tsx 新增2个mounted case；生产、6制品、99FE资产SHA全部未变。定向117、全前端1647/1skip、typecheck/ESLint/diff通过；旧root FE1645与本次1647分别保留，API/Rust未无谓重跑。
+- 当前普通NSIS installed Native 6aeb24d4572af6977d30eb150bd025039d00acfe369ad2ae3e2e405d84d97487，自有Git snapshot worker PID42432确实在原稿阶段停驻；Alt+F4正常关闭，真实host/closing后Native及Git仍活，再恢复worker。首次两个watcher漏过边界的失败日志保留，不计产品通过。没有生产probe/DOM注入/伪造receipt。
+- 原run1791298667276-amkpf7cfxgj：关闭后正文已写、receipt/audit落盘，原API仍paused / permission.confirm。冷开真实UI“已核验原写回并结算原运行；未再次写入正文”，durable completed/completed、pending null、provider0；正文和24个原回执/审计/版本hash不变，canon派生可重建不误说全项目不变。
+- 两次Native正常close分别8848/1241ms（仅单次观测，非时限保证），close_confirmed、commands/tickets/owners0。captured13进程与API50884全空，cold进程/API50520全空。owned测试卸载完成，DB/config/项目/shadow/audit/探针原件全保留，正式用户安装/注册表/快捷方式不变。所有句柄terminal，不后台轮询旧handle。
+- 不新增付费调用。已有1份真实pilot与作者原文“保留 还过得去”独立保留；费用UNKNOWN，原方案条件分支要求停止扩批，不强行补8份。P3要求的当前私测关闭中写回/冷恢复已实测，不从中推导断电/全权限/多窗口/跨版本schema。
+- 证据 closing-audit-verification-summary.json / candidate-closing-audit-tests-source.json；交付和最终范围再冻结。第7项未commit/push/public-release，任务仍in_progress等待提交收口。
+
+## 2026-10-06 第7项：恢复卡片修复、当前全量门禁及安装版复验通过
+
+- 最小生产增量仅 useAgentRunControls 的两个作者决定监听器：确认原项目/会话/run 的 durable runStatus 后复用 refreshAgentRunRecovery。沿用既有异步 revision/scope/alive 围栏，不增加 API、持久状态、控制重发或模型重试。3条新集成回归先红（真实缺失刷新），修复后加1条未知拒绝归属回归；本轮定向166 passed，typecheck/ESLint/diff通过。首次测试未渲染恢复卡片的 harness 错误日志也保留，不当产品失败证据。
+- root-verify-recovery-card.log terminal exit0：API3324 passed /27 skipped /6 warnings；FE1645 passed /1 skipped；shared7、project-core、Monaco、lint/types、Ruff、daily sidecar、4契约零漂移。API耗时1125.83s。Rust103/4ignored、Native联合18/2warnings是此前相同Rust/API源码的结果，本轮没有伪报重跑；本轮fresh packaged smoke和两个browser脚本通过。
+- 旧6二进制及FE完整保存 before-recovery-card；candidate-recovery-card-source.json冻结35项源码/测试/文档，HEAD b001256f。当前6制品和99FE资产 hash再次一致；API源码和sidecar未改变，复用已有同hash sidecar。当前生产NSIS SHA256 76b45a40076b3de35e3964b652dfe428ba5347a33bb8f0640dcbfb7301766b3c；摘要 recovery-card-artifact-hashes.json。
+- 隔离installer实际同版本升级：installed SHA6aeb24d4572af6977d30eb150bd025039d00acfe369ad2ae3e2e405d84d97487；原DB/config/作品及真实production tree完整不变。普通prod-refresh启动（无smoke/fixture/DOM injection）：原拒绝/旁注提案不复活、pending null、原稿不变、provider0；新独立run4拒绝/run5旁注均durable failed/permission.denied，UI恢复卡片改为失败、不再等权限；run6接受正确写稿/audit、durable completed。9次合成调用仅为3份新提案生成，不是付费模型调用。
+- 普通关闭 exit0、单次1788ms，rendererFenced/APIsettled、owner0，captured自有进程及API63778全空。随后仅owned测试installer卸载：测试exe/注册表/快捷方式清除，DB/config/作品/shadow/audit和用户正式安装/注册表/快捷方式逐项digest不变。全程未删除先前*.preserved目录。gui-decisions保存升级/决定/close/uninstall前后证据。
+- 旁路GET savepoints用了launcher占位key得到401；未扫描或猜测运行凭据，也未继续重试。GUI通过原Native认证正常读取终态；持久DB和UI分别取证，不把旁路401当产品认证失败。
+- 用户授权新provider已真实成功1份pilot-v4：615+408=1023 tokens，retry0；费用UNKNOWN，旧v3失败保留。未扩批，作者保留文字/理由与价格仍待回收。样稿 output/real-model-acceptance-20261005/pilot-v4/blind.md；未代替作者签收。
+- 第6项4笔本地提交不变。第7项未提交、未push、未公开发布；当前已完成普通安装主链和同版本替换，不宣称跨版本schema迁移、断电/全权限/多窗口完整矩阵已过。工程与作者验收仍分栏，任务保持in_progress，不complete/不归档。本轮所有测试、构建、GUI handle均已终结，无需要后台轮询的进程。
+
+
+## 2026-10-06 授权后复验：真实模型成功，普通 GUI 暴露恢复卡片滞后
+
+- 用户批准原测试数据改名保留：Local 49 / Roaming 2 文件 SHA 全一致，记录 gui-installed/data-preserved-20261006.json；未删除旧证据。
+- 当前 isolated NSIS clean/upgrade 均 exit0，正式用户安装 SHA 未变。普通 GUI 新提案冷启动恢复不调用模型，漂移拒写保留外部修改，显式接受持久 completed；另两份独立提案拒绝/保存旁注持久 failed/permission.denied、正文不变、pending tombstone。证据 output/stage7-release-20261006/gui-decisions。
+- 发现新问题：拒绝/旁注后恢复卡片仍显示暂停/等待确认，API durable 已失败。OBSERVED：useAgentRunControls 两个作者决定监听器只更新 run status，没有刷新既有 savepoint projection。最小修复为在当前绑定 run 的确认终态后调用已有 refreshAgentRunRecovery，不增加状态/接口，不刷新外项目/会话/旧 run。
+- 普通 GUI prod-cold 已正常关闭：exit0，单次测得1505ms，rendererFenced/APIsettled、活动 owner 0，10个自有 Native/WebView/sidecar 进程退出，API55971无监听。首个关闭点击被非目标窗口阻挡，失败 action 原样保留，激活后成功；没有强杀。
+- 新凭据仅 DPAPI。v4 pilot 实际成功1份，615 input +408 output=1023 tokens，retry0，金额UNKNOWN；原v3 HTTP502失败保留，不计零成本。urllib默认UA403诊断不代表生产失效；生产原本带 StoryForge UA，不改网络层。作者盲读及价格问题已发出，未代签、未扩批。
+- 本轮恢复卡片修复将使现有制品不再对应当前源码，必须新冻结/构建/复验；此前 root 3324 API /1641 FE 是修复前结果。第7项仍进行中，无提交/push/公开发布。
+## 2026-10-06 第7项：隔离候选已重建，剩余步骤等待用户输入
+
+- 上轮分类progress：root3324/API与1641/FE、E2E20等完整门禁通过，修复两个浏览器fixture并实际跑过1份模型pilot。本轮不重复这些已终结门禁。
+- 复用现有tauri.install-smoke.conf.json与独立CARGO_TARGET_DIR，只执行build，不运行verifyNsisInstall或安装/卸载/清理。session35906 terminal exit0，decisions-isolated-build.log；隔离NSIS SHA256 bac7840909203dec2fd33b3a548aeac22a6d8298a44b100463de932daf347874。精确Tauri NSIS marker变换后的预期installed binary SHA256为63e80a284c13de7ac0a7d478dc3ca89bb13481e4ec403a713fd9ccf866a9ed5f。
+- 新隔离二进制/安装包写入独立decisions-isolated-artifact-hashes.json。重新核对32项原生产源码、4份生产制品和99项frontend dist全部未变化；隔离安装与普通GUI依旧未验证，不能把build当安装成功。
+- 只读核验旧Local/Roaming测试app-data仍在，测试安装exe不存在，无storyforge-desktop.exe在运行。没有删除/移动目录，没有绕过先前工具拒绝。
+- 对授权provider仅执行一次GET /v1/models（不生成文字、不重试pilot），返回HTTP403；models-after-pilot-v3.json保存非敏感结果。此前生成HTTP502与这次403不能证明密钥失效或所有模型不可用；当前只确认未拿到有效输出/usage/价格。已询问保留接口等待恢复还是提供另一可用接口及价格。
+- 完成审计：P1生产/隔离候选hash齐备但安装加载验证待做；P2自动门禁已绿、skip单列；P3当前隔离安装/升级/普通GUI矩阵缺证；P4真实模型0输出且无作者签收；P5未开放发布、无push。不能complete。
+- 同一测试数据处置确认已连续三轮未回收（首次删除拒绝后提出改名保留、上一轮等候、当前轮只读重验仍未获答）。本轮build这一项安全独立工作现已结束，无活跃测试/构建handle可等待；下一步安装需用户明确回答，provider后续也需可用配置/状态变化。按blocked审计停止空转，任务文件仍in_progress，不归档、不代签。
+
+## 2026-10-06 第7项当前结果：工程自动门禁通过，真实模型pilot失败保留
+
+- root-verify-decisions.log已terminal exit0：API3324 passed / 27 skipped / 6 warnings；FE1641 passed / 1 skipped；shared/project-core、真实Monaco、Ruff、daily sidecar、契约无漂移均通过。另Rust103 passed / 4 ignored、Native/API/mounted18 passed / 2 warnings、tooling组合30 passed、E2E契约20 passed。
+- 扩展浏览器验证暴露两个旧fixture漏项：verify-smoke的只读writeback-recovery，verify-agent-conversation的chapter-checks/query。对照现有client/router后仅补10+17行严格方法/项目/会话/分页检查与空页响应，保留未知请求失败及原UI断言。两条脚本分别复跑exit0，ESLint/Prettier/diff通过；原红日志保留。它们在root启动后修改，单列decisions-browser-fixtures-source.json；生产32项源码、4制品、99FE资产hash复核未变，不借旧root掩盖脚本增量。
+- fresh生产NSIS和packaged通过，当前制品SHA见decisions-artifact-hashes.json；隔离installer尚未重建，普通GUI持久结算复验仍待执行。旧测试Local/Roaming目录保留原位；等待此前“原样改名保留”回答，未绕过拒绝删除。
+- 工程自动门禁通过后实际运行冻结v3的1份pilot（仅自写雾港fixture，deepseek-v4-flash，temp0.2，max2048，HTTP cap1，timeout120）。发前核对7源码hash、4素材hash及实际渲染prompt一致，使用原runner/真实transport；密钥仅DPAPI内存解密，没有输出或入库。
+- provider返回HTTP502，原transport记录尝试1/1、retry0；1失败/0成功/0正文输出。usage与金额均UNKNOWN/null，不按0记，不扩批或自动重试。原report/metadata/盲评文件及acceptance-status保存在output/real-model-acceptance-20261005/pilot-v3；空盲评包不是可供作者验收的文字。
+- 第6项本地提交仍为e87b33c1、08a2cc11、d4d0afc7、b001256f；第7项未提交/未push/未公开发布。工程自动验证不替代安装GUI、有效真实模型输出和人类作者签收；任务与goal保持进行中。
+
+## 2026-10-06 第7项续：完整作者决定结算与当前候选复验
+
+- 接受、最后hunk、拒绝、保存旁注、整份审计补记复用原run控制；先核原项目/会话/提案和Native证据，再清恢复描述。网络失败保留提案；已持久拒绝的cold恢复不复活补丁。保存旁注先落盘，控制失败后重试可能新增旁注文件，不声称旁注幂等。
+- 当前root前端1641 passed / 1 skipped；143项定向通过。Rust103 passed / 4 ignored；显式Native/API/mounted联合18 passed / 2 warnings（terminal exit0）。root完整API及后续门禁仍运行，不能预报全绿。
+- fresh sidecar、production NSIS及packaged smoke全部terminal exit0。ACK丢失首次仅1次正文写入；R7重复0写入、原audit复用、作者buffer/磁盘/版本数量不变。这个smoke没有普通runId，不等于普通安装GUI持久结算验收。
+- candidate-decisions-source.json的32项源码hash与HEAD重新核对一致；decisions-artifact-hashes.json保存4个当前生产制品及99个FE资产hash。旧隔离安装器未重建，不混用旧包证据。
+- 旧测试app-data删除命令在进程启动前被工具拒绝，原Local/Roaming测试目录未改动；没有换工具重试删除。已询问是否允许原样改名保留以进行干净隔离安装，等待回答；真实用户安装不触碰。
+- 第6项4笔本地提交已完成，第7项仍未提交/未push。普通新安装GUI、真实模型及作者签收仍待完成，公开门关闭。
+
+## 2026-10-06 第7项续：普通接受结算已接通，待真实安装复验
+
+- whole/最后hunk：核验原Native回执和审计、原项目/会话/提案后，复用approve_permission结算原run，再清恢复journal。API失败/ACK丢失保留恢复，cold和显式重试不重写正文/快照。自动档只读核对既有完成，不发批准。
+- 作者闭环通知绑定原会话/run；旧run不得更新新run。接受有效修订不抹去原execution failed；无已确认runStatus不宣称运行完成。
+- 当前完整前端：`ordinary-settlement-full-verified.log` terminal exit0，1631 passed / 1 skipped；当前typecheck、六文件ESLint及diff检查通过。之前auto分支与并行时序2失败保留在full-auto.log；前者按最后执行位置判断，后者等待真实audit进入信号，不加延时或删断言。
+- 这是mounted/fixture证据，不是真API+Native安装版验证。拒绝/旁注丢弃和审计补记的运行结算尚待收口；当前sidecar/安装包/root全量尚未刷新，第7项仍未完成、未提交、未push。
+
+## 2026-10-06 第7项续：请求上限修复，整体仍待验
+
+- 新增API生产修复：真实配置解析保留retry参数；HTTP400的stream_options兼容重发纳入原总尝试计数和观察事件。cap1/2及混合错误上限回归通过，未真实调用模型。
+- 定向136 passed；控制/事务/取消/源码边界112 passed；Ruff、git diff --check通过。更宽SDK/用量/请求证据回归242 passed（与前组有交集，不相加冒充唯一测试数）。
+- 模型方案升级为保留历史的evaluation-plan-v3.json；素材/模型/样本上限未变。下面旧root/安装包数字是**这次API修改之前**的结果，不能作为当前完整门禁或制品通过证据，需重建和复验。
+- 普通GUI写回后原API run仍paused的缺口未修完。已核对原SQLite及现有approve_permission语义；后续须连同cold恢复缓存清理时机处理，保留执行partial/failed事实，不另建运行状态真值。
+- 第7项未提交，未push；P3/P4仍开放。
+
+## 2026-10-06 第7项私测发布验收（进行中，尚未整体放行）
+
+- 第6项已本地提交：`e87b33c1`、`08a2cc11`、`d4d0afc7`、`b001256f`；未push、未跳过门禁。第7项改动仍未提交。
+- 普通建议回执重入已修复并经过真实Native验证：原audit可保存完整semanticPayload；恢复历史输出后仍要求原Native source/content fingerprint和applied receipt。旧hash-only审计不改写，默认/外部协议仍为原3字段，不放宽API上限。
+- 当前完整前端1607 passed / 1 skipped，lint/typecheck通过；Rust103 passed / 4 ignored；当前Native/API/mounted联合18 passed。Windows编码定向在PYTHONUTF8=0/1各22 passed。最终root-verify-final已exit0：API3317 passed / 27 skipped / 6 warnings，前端1607/1skip、真实Monaco、shared/project-core、Ruff、daily sidecar及OpenAPI零漂移全部通过。后续仅报告更新与2个NSIS脚本恢复LF，无逻辑变化；NSIS单文件10项补跑通过。
+- 最新串行流水线已exit0：production名称NSIS构建、packaged、隔离NSIS干净安装/installed验证/卸载、旧包替换。R7观察到零新增写入、audit复用、作者buffer/磁盘/version数量不变；首次ack丢失仍只有一次Native写入。安装器运行前拒绝非owned同名Native进程，安装/烟测串行。
+- 升级实验严格为同版本0.1.10不同构建包替换，非跨版本/schema迁移。升级前后自写CRLF正文/config保留；卸载保留shadow与正文；原production安装摘要不变。相关脚本组合21 passed，NSIS单文件10 passed。Tauri打包仅替换唯一bundle marker，installed完整SHA按精确变换核验，未忽略任意PE区段。
+- 新普通安装GUI实测（无smoke/fixture/DOM注入）：待确认提案→正常关闭→冷开原项目/章节；零自动provider调用，原稿与待办保留。磁盘漂移时明确拒写且保留外部修改。负例会留写前快照，不声称零快照；保留此证据后仅恢复测试稿原字节，再显式接受，正文/audit/可见完成提示通过。两次close均exit0、close_confirmed、API settled、captured自有进程树与端口空；第一笔关闭时间含工具间隔，不作性能指标。
+- GUI仍有真实未收口项：冷启动接受后原API run仍为paused / permission.confirm，只有前端作者闭环显示完成。不能把正文/audit成功推导成运行持久结算成功。当前已保留SQLite/项目hash/UI与请求证据，测试安装已卸载，owned稿件/config/DB留供复现。
+- 付费预检另发现STORYFORGE_LLM_RETRY_MAX_ATTEMPTS=1被resolved_llm_env白名单丢失（实际None），流式400兼容协商另可多发一次；v2最多1次HTTP约束未证明，尚未调用付费模型。真实模型及独立作者签收仍未完成。
+- 证据：`D:/StoryForge/output/stage7-release-20261006/`，其中`final-candidate-source.json`、`final-artifact-hashes.json`、`gui-installed/`。公开门保持关闭；未发布、未推送、不归档阶段7。
+
 ## 2026-10-04 执行外部审计对照报告（批次四：来源生命周期与证据交接 C01/C04-C10/C13）
 
 范围：`StoryForge_新版提交与重构报告对照_20261002.docx` §3 来源准入与生命周期条目。上一批（批次三 T05-T08/D03/D06）与更早批次（P0 任务归属、P0 不可变操作批、外部审计批次一二）均已合并在本地提交链上，本批接续修剩余 C 系反例。
@@ -6471,3 +6560,11 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 
 - W02 修复只覆盖 Desktop 聊天模板这一层；后端 SSE/WS 的 agent_result 文案不在本轮范围。
 - 本轮无 API 改动；`emitAuthorLoopResult` 的 exported 分支无需 warning（导出不产生闭环记录义务）。
+
+## 2026-10-06 私测交付与最终提交前检查
+
+本地交付 D:/StoryForge/output/private-test-0.1.10-20261006/ 已生成：生产安装器、README、逐项覆盖表、manifest、SHA256SUMS和单样本原输入/原输出/原样作者反馈；未包含DPAPI、个人稿件/DB或测试配置，未安装或上传。安装器SHA76b45a40076b3de35e3964b652dfe428ba5347a33bb8f0640dcbfb7301766b3c，Authenticode实测NotSigned；独立identifier普通GUI证据与正式生产包分列。交付复制后重新核验正文与4材料/8模型源码hash。
+
+文档新增仅原current-phase/TODO和release-checklist，修正后者引用不存在的operations-log为当前事实源，不复活新流水账。final-delivery-doc-facts.log：18passed；final-delivery-root-eslint.log：root ESLint exit0；单文件Prettier与root配置2测试通过，diff-check通过。没有追加模型调用或修改生产代码。
+
+原计划最大8份是有价格时的可选扩批，价格UNKNOWN时已按原冻结计划停止；单份作者反馈原样收口。P1–P5已完成本私测有边界验收，AC8完整断电/多窗口/跨版本/独立作者收益等去向仍明确，未更改其他公开任务状态或false gate。38项当前dirty拟4笔正常本地提交，完整绝对路径及hash见research/commit-plan-20261006.json和commit-plan-20261006.md，尚待一次明确确认；未stage/commit/push。任务不归档、goal尚未complete。

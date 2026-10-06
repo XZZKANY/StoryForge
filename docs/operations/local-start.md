@@ -18,11 +18,11 @@
 
 ## 3. 环境文件
 
-首次启动前可复制样例环境文件：
+仅在没有本地 `.env` 时复制样例；已有配置保持原样：
 
 ```powershell
 cd D:/StoryForge
-Copy-Item .env.example .env
+if (-not (Test-Path -LiteralPath .env)) { Copy-Item -LiteralPath .env.example -Destination .env }
 ```
 
 本地启动不需要填写真实 LLM 密钥。真实 provider 配置只能保存在本机私有运行时环境中；不要读取 `.env` 来生成报告，不要把 provider token、API key、secret 或 password 写入仓库、日志或验证报告。
@@ -56,7 +56,7 @@ docker compose up -d postgres redis minio
 
 ```powershell
 cd D:/StoryForge
-pnpm install
+pnpm install --frozen-lockfile
 ```
 
 Python 依赖由各应用目录的 `pyproject.toml` 和 `uv.lock` 管理；执行 `pnpm e2e`、`pnpm openapi` 或 API pytest 时会通过 `uv` 或本机 Python 运行相关验证。

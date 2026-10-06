@@ -1,6 +1,16 @@
 # StoryForge 当前阶段事实源
 
-更新时间：2026-09-28（本地未提交工作树集成，非发版声明）
+更新时间：2026-10-06（Windows 私测候选，非公开发版声明）
+
+## 2026-10-06 当前补记：Windows 私测候选与单样本作者验收
+
+此补记更新下文历史红项，不把历史测试数当最新。阶段5操作/派生与阶段6后台工程验收已有有边界结果和本地提交；阶段7当前候选的普通接受、拒绝、保存旁注、冷恢复、漂移拒写及恢复卡片终态已复验。
+
+- 当前生产源码/制品不变；新增2条 audit 在途卸载回归，前端1647 passed /1 skipped、typecheck/定向lint通过。此前当前生产root verify API3324/27 skipped、前端1645/1 skipped；Rust103/4 ignored及联合18场景沿用同源码证据，未冒称本次重跑。
+- 当前普通安装版在原快照交付中正常关闭，Native完成原写回/audit但API原run保持paused；冷开核验原receipt/audit后同run durable completed，正文和24份版本/回执/审计hash不变、provider0、pending null。原 legacy paused 红项在本流程已收口，不等同所有外部协议流程放行。
+- 干净安装、当前包同版本替换与owned卸载保留DB/config/作品/shadow/audit，用户原正式安装不变。证据 `D:/StoryForge/output/stage7-release-20261006/closing-audit-verification-summary.json`；私测交付目录 `D:/StoryForge/output/private-test-0.1.10-20261006/`。
+- 真实模型pilot成功1份，615+408=1023 tokens；之前HTTP502失败保留。用户原文“保留 还过得去”，全文原样保留；仅该样本作者结论，不宣称独立多作者/文学泛化。费用UNKNOWN，按原方案停止扩批而不是自动补满8份。
+- 私测包未签名、无自动更新；跨版本schema/断电/完整权限多窗口矩阵及BookRun/导出打包承诺不在本候选已验范围。外部协议gate仍false。未公开发布、未提交第7项或push；提交范围待本次明确确认。历史公开发布任务不被本私测替代。
 
 ## 事实源职责矩阵
 
