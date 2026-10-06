@@ -1,3 +1,5 @@
+import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { readReceiptAuditPayload, verifyReceiptAudit } from '../src/lib/writeback-audit';
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
@@ -234,4 +236,44 @@ test('audit recovery decodes the exact canonical semantic payload, including iss
     assert.throws(() =>
       readRevisionLoopPayload(project, file, JSON.stringify({ ...JSON.parse(raw), ...change })),
     );
+});
+
+
+test('completed audit retains exact payload while legacy hash-only records remain immutable', async () => {
+  const files = new Map<string, string>();
+  const projectPath = 'D:/Book', filePath = projectPath + '/chapter.md';
+  window.__STORYFORGE_MOCK_FS__ = {
+    pathExists: (path) => files.has(path),
+    readFile: (path) => { const value = files.get(path); if (value === undefined) throw new Error('missing'); return value; },
+    writeFile: (path, content) => { files.set(path, content); },
+  };
+  try {
+    const request = {operationKey: 'p:whole', path: filePath, content: 'after with author text', source: 'original'};
+    const receipt = await TauriFileSystem.writeFileWithReceipt(projectPath, request, {kind: 'missing'}, null);
+    const record = {projectPath, filePath, before: '', after: request.content, summary: 'summary', note: '', userIntent: 'revise', assistantSessionId: null, patchId: 'p', operationId: receipt.operationId};
+    const {recordPath} = await recordRevisionLoop({...record, retainRecoveryPayload: true});
+    const payload = revisionLoopSemanticPayload(record);
+    assert.equal(await readReceiptAuditPayload(projectPath, {...request, content: 'later author text'}), payload);
+    const complete = files.get(recordPath!)!;
+    const defaultResult = await recordRevisionLoop({...record, operationId: 'f'.repeat(64)});
+    const defaultHeader = files.get(defaultResult.recordPath!)!.split('\n')[0];
+    const defaultMetadata = JSON.parse(defaultHeader.slice('<!-- storyforge-writeback-audit-v1 '.length, -4));
+    assert.deepEqual(Object.keys(defaultMetadata).sort(), ['bodyHash', 'operationId', 'payloadHash']);
+    const headerEnd = complete.indexOf('\n');
+    const prefix = '<!-- storyforge-writeback-audit-v1 ';
+    const metadata = JSON.parse(complete.slice(prefix.length, headerEnd - 4));
+    const withMetadata = (value: object) => prefix + JSON.stringify(value) + ' -->' + complete.slice(headerEnd);
+    files.set(recordPath!, withMetadata({...metadata, semanticPayload: payload + ' '}));
+    await assert.rejects(readReceiptAuditPayload(projectPath, request), /不匹配/);
+    await assert.rejects(verifyReceiptAudit(projectPath, recordPath!, receipt.operationId, payload), /不匹配/);
+    delete metadata.semanticPayload;
+    const legacy = withMetadata(metadata);
+    files.set(recordPath!, legacy);
+    assert.equal(await readReceiptAuditPayload(projectPath, request), null, 'legacy hashes cannot recover absent manuscript bytes');
+    await verifyReceiptAudit(projectPath, recordPath!, receipt.operationId, payload);
+    await recordRevisionLoop(record);
+    assert.equal(files.get(recordPath!), legacy, 'repair never overwrites legacy audit');
+  } finally {
+    delete window.__STORYFORGE_MOCK_FS__;
+  }
 });

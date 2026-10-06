@@ -7,6 +7,8 @@ import type { IssueCounts, IssueResolution } from './suggestion-ops';
 export type RevisionLoopRecord = {
   /** Ephemeral admission, excluded from semantic payload and stored evidence. */
   deliveryTicket?: string;
+  /** Ordinary suggestions lose their request journal after settlement; external waits do not. */
+  retainRecoveryPayload?: boolean;
   projectPath: string | null;
   filePath: string;
   before: string;
@@ -248,6 +250,7 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
       semanticPayload,
       content,
       record.deliveryTicket,
+      record.retainRecoveryPayload ?? false,
     );
   } else {
     await TauriFileSystem.writeFile(projectPath, recordPath, content);

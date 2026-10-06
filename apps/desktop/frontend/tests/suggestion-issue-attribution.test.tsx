@@ -10,6 +10,7 @@ import type { WritebackRequest } from '../src/lib/writeback-receipt-types';
 import {
   createFixtureAudit,
   inspectFixtureReceipt,
+  readFixtureAudit,
   writeFixtureReceipt,
 } from '../src/lib/writeback-receipt-fixture';
 import { useSuggestionWriteback } from '../src/components/editor/useSuggestionWriteback';
@@ -56,6 +57,8 @@ vi.mock('../src/lib/tauri-fs', () => ({
       createFixtureAudit(receiptFs, project, id, content),
     pathExists: (path: string) => effects.disk.has(path),
     readProjectFile: (_project: string, path: string) => receiptFs.readFile(path),
+    readWritebackAudit: (project: string, request: WritebackRequest) =>
+      readFixtureAudit(receiptFs, project, request),
     inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
       inspectFixtureReceipt(receiptFs, project, request),
     async writeFileWithReceipt(

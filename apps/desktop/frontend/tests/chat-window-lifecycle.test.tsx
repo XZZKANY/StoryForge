@@ -4,7 +4,11 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, test, vi } from 'vitest';
 
 import type { AgentSocketMessage } from '../src/lib/api-client';
-import { AUTHOR_LOOP_RESULT_EVENT, SUGGESTION_RESULT_EVENT } from '../src/lib/assistant-events';
+import {
+  AUTHOR_LOOP_RESULT_EVENT,
+  PATCH_REJECTED_EVENT,
+  SUGGESTION_RESULT_EVENT,
+} from '../src/lib/assistant-events';
 import type { AgentRun, Message } from '../src/components/chat-window/types';
 import { useAgentRunControls } from '../src/components/chat-window/useAgentRunControls';
 import { useAgentStreamEvent } from '../src/components/chat-window/useAgentStreamEvent';
@@ -423,3 +427,143 @@ test('W02 对照：记录齐全的正常完成仍宣称闭环完成', () => {
     container.remove();
   }
 });
+
+for (const scenario of [
+  'same-run',
+  'older-run',
+  'other-session',
+  'other-project',
+  'failed-run',
+  'unconfirmed',
+] as const) {
+  test(`author writeback event preserves durable run and conversation ownership: ${scenario}`, () => {
+    const statuses: string[] = [];
+    const refreshAgentRunRecovery = vi.fn(async () => undefined);
+    const messages: Message[][] = [];
+    function BoundResultHarness() {
+      const state = useChatWindowState({ projectPath, currentFile: null, assistantSessionId: 7 });
+      useEffect(() => {
+        state.agentRunIdRef.current = 'current-run';
+      }, [state.agentRunIdRef]);
+      useAgentRunControls(
+        state,
+        async () => undefined,
+        () => undefined,
+        {
+          ...recoveryHandlers,
+          refreshAgentRunRecovery,
+          updateAgentStatus: (status) => statuses.push(status),
+        },
+      );
+      useEffect(() => {
+        messages.push(state.messages);
+      });
+      return null;
+    }
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+      act(() => root.render(<BoundResultHarness />));
+      act(() =>
+        window.dispatchEvent(
+          new CustomEvent(AUTHOR_LOOP_RESULT_EVENT, {
+            detail: {
+              filePath: `${projectPath}/chapter.md`,
+              status: 'completed',
+              action: 'revision_accepted',
+              message: 'verified audit',
+              runId: scenario === 'older-run' ? 'older-run' : 'current-run',
+              projectPath: scenario === 'other-project' ? 'D:/Other' : projectPath,
+              assistantSessionId: scenario === 'other-session' ? 8 : 7,
+              runStatus:
+                scenario === 'unconfirmed'
+                  ? undefined
+                  : scenario === 'failed-run'
+                    ? 'failed'
+                    : 'completed',
+            },
+          }),
+        ),
+      );
+      assert.deepEqual(
+        statuses,
+        scenario === 'same-run' ? ['completed'] : scenario === 'failed-run' ? ['failed'] : [],
+      );
+      assert.deepEqual(
+        refreshAgentRunRecovery.mock.calls,
+        scenario === 'same-run' || scenario === 'failed-run' ? [['current-run']] : [],
+      );
+      const text =
+        messages
+          .at(-1)
+          ?.map((message) => message.content)
+          .join('\n') ?? '';
+      if (scenario === 'other-project' || scenario === 'other-session') assert.equal(text, '');
+      else assert.match(text, /verified audit/);
+      if (scenario === 'failed-run') assert.match(text, /不代表整轮成功/);
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+}
+
+for (const scenario of [
+  'original',
+  'other-run',
+  'other-session',
+  'other-project',
+  'unconfirmed',
+] as const) {
+  test(`persisted rejection updates only its original visible run: ${scenario}`, () => {
+    const statuses: string[] = [];
+    const refreshAgentRunRecovery = vi.fn(async () => undefined);
+    function RejectionHarness() {
+      const state = useChatWindowState({ projectPath, currentFile: null, assistantSessionId: 7 });
+      useEffect(() => {
+        state.agentRunIdRef.current = 'original-run';
+      }, [state.agentRunIdRef]);
+      useAgentRunControls(
+        state,
+        async () => undefined,
+        () => undefined,
+        {
+          ...recoveryHandlers,
+          refreshAgentRunRecovery,
+          updateAgentStatus: (status) => statuses.push(status),
+        },
+      );
+      return null;
+    }
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+      act(() => root.render(<RejectionHarness />));
+      act(() =>
+        window.dispatchEvent(
+          new CustomEvent(PATCH_REJECTED_EVENT, {
+            detail: {
+              filePath: `${projectPath}/chapter.md`,
+              patchId: 'patch',
+              direction: '',
+              runId: scenario === 'other-run' ? 'other-run' : 'original-run',
+              projectPath: scenario === 'other-project' ? 'D:/Other' : projectPath,
+              assistantSessionId: scenario === 'other-session' ? 8 : 7,
+              runStatus: scenario === 'unconfirmed' ? undefined : 'failed',
+            },
+          }),
+        ),
+      );
+      assert.deepEqual(statuses, scenario === 'original' ? ['failed'] : []);
+      assert.deepEqual(
+        refreshAgentRunRecovery.mock.calls,
+        scenario === 'original' ? [['original-run']] : [],
+      );
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+}

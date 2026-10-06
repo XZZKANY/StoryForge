@@ -19,6 +19,7 @@ import type { DiskBaseline } from '../../src/lib/tauri-fs';
 import type { WritebackRequest } from '../../src/lib/writeback-receipt-types';
 import {
   inspectFixtureReceipt,
+  readFixtureAudit,
   writeFixtureReceipt,
 } from '../../src/lib/writeback-receipt-fixture';
 import { act, useRef } from 'react';
@@ -47,6 +48,8 @@ vi.mock('../../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
     pathExists: (path: string) => receiptFiles.has(path),
     readProjectFile: (_project: string, path: string) => receiptFs.readFile(path),
+    readWritebackAudit: (project: string, request: WritebackRequest) =>
+      readFixtureAudit(receiptFs, project, request),
     inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
       inspectFixtureReceipt(receiptFs, project, request),
     async writeFileWithReceipt(

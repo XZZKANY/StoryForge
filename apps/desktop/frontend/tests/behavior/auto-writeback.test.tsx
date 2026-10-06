@@ -12,6 +12,7 @@ import type { WritebackRequest } from '../../src/lib/writeback-receipt-types';
 import {
   createFixtureAudit,
   inspectFixtureReceipt,
+  readFixtureAudit,
   writeFixtureReceipt,
 } from '../../src/lib/writeback-receipt-fixture';
 import { recordRevisionLoop } from '../../src/lib/author-loop';
@@ -49,6 +50,8 @@ vi.mock('../../src/lib/tauri-fs', () => ({
       createFixtureAudit(receiptFs, project, id, content),
     pathExists: (path: string) => receiptFiles.has(path),
     readProjectFile: (_project: string, path: string) => receiptFs.readFile(path),
+    readWritebackAudit: (project: string, request: WritebackRequest) =>
+      readFixtureAudit(receiptFs, project, request),
     inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
       inspectFixtureReceipt(receiptFs, project, request),
     async writeFileWithReceipt(
@@ -121,6 +124,9 @@ const AFTER = '新的一章。';
 let editorContent = BEFORE;
 let diskContent: string | undefined = BEFORE;
 const toasts: ToastDetail[] = [];
+let writeback: ReturnType<typeof useSuggestionWriteback>;
+let auditGate: Promise<void> | null = null;
+let releaseAudit: (() => void) | null = null;
 
 function Harness({ filePath }: { filePath: string }) {
   const model = useRef({
@@ -157,7 +163,7 @@ function Harness({ filePath }: { filePath: string }) {
   );
   filePathRef.current = filePath;
 
-  useSuggestionWriteback({
+  writeback = useSuggestionWriteback({
     enqueueWriteback: queue.current,
     editorRef,
     originalContentRef,
@@ -174,6 +180,7 @@ function Harness({ filePath }: { filePath: string }) {
     },
     recordRevisionLoop: async (record) => {
       calls.push('record');
+      if (auditGate) await auditGate;
       await recordRevisionLoop(record);
       return { recordPath: '/loop.md' } as never;
     },
@@ -218,16 +225,17 @@ function onToast(event: Event) {
   toasts.push((event as CustomEvent<ToastDetail>).detail);
 }
 
-/** 提案持久化（恢复 journal）入库后接受链多一跳异步；断言前把游离 promise 链排空。 */
+/** 正文写入不等于审计和撤销入口就绪；等待真实动作结束，而非固定事件循环次数。 */
 async function settle() {
-  for (let i = 0; i < 5; i += 1) {
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-  }
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    assert.equal(writeback.actionState, null, `写回仍在收尾：${calls.join(' → ')}`);
+  });
 }
 
 beforeEach(() => {
+  auditGate = null;
+  releaseAudit = null;
   receiptFiles.clear();
   writes.length = 0;
   deletes.length = 0;
@@ -250,7 +258,9 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
+  releaseAudit?.();
+  await settle();
   window.removeEventListener(TOAST_EVENT, onToast);
   act(() => {
     root.unmount();
@@ -475,4 +485,33 @@ test('文件之后又变了：撤销不再是死路，给出版本历史入口',
     await fallback.run();
   });
   assert.equal(versionHistoryOpened, 1, '点它应当真的打开版本历史');
+});
+
+test('正文已写入但审计挂起时不提前提供撤销，审计完成后才结算', async () => {
+  auditGate = new Promise<void>((resolve) => {
+    releaseAudit = resolve;
+  });
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: false }));
+  });
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    assert.ok(calls.includes('record'));
+  });
+  assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
+  assert.notEqual(writeback.actionState, null);
+  assert.equal(
+    toasts.some((toast) => toast.action),
+    false,
+  );
+  assert.deepEqual(planMarkArgs, []);
+
+  releaseAudit!();
+  await settle();
+
+  assert.match(lastActionableToast().label, /撤销/);
+  assert.equal(writeback.actionState, null);
+  assert.equal(calls.filter((call) => call === 'write').length, 1);
+  assert.equal(calls.filter((call) => call === 'record').length, 1);
+  assert.equal(planMarkArgs.length, 1);
 });

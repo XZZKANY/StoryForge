@@ -2,7 +2,9 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { RunActionBar } from '../src/components/chat-window/panels';
+import { AUTHOR_LOOP_RESULT_EVENT, PATCH_REJECTED_EVENT } from '../src/lib/assistant-events';
+
+import { AgentRunRecoveryPanel, RunActionBar } from '../src/components/chat-window/panels';
 import { buildAgentRunRecoveryDisplay } from '../src/components/chat-window/recovery';
 import { reconstructAgentResultFromEvents } from '../src/lib/api/agent-run-events';
 import { displayFromResumeDiagnostic } from '../src/components/chat-window/resumed-result';
@@ -87,12 +89,15 @@ function Harness() {
   current = { state, recovery, controls };
   return (
     state.agentRun && (
-      <RunActionBar
-        run={state.agentRun}
-        controls={controls.agentRunControls}
-        recovery={state.agentRunRecovery}
-        resumePending={state.agentBusy}
-      />
+      <>
+        <AgentRunRecoveryPanel recovery={state.agentRunRecovery} />
+        <RunActionBar
+          run={state.agentRun}
+          controls={controls.agentRunControls}
+          recovery={state.agentRunRecovery}
+          resumePending={state.agentBusy}
+        />
+      </>
     )
   );
 }
@@ -604,3 +609,59 @@ it('a late rejected control response cannot undo a result already delivered by r
   expect(current.state.agentBusy).toBe(false);
   expect(current.state.messages.at(-1)?.content).toBe('核对取回的新结果');
 });
+
+it.each([
+  [AUTHOR_LOOP_RESULT_EVENT, 'completed'],
+  [AUTHOR_LOOP_RESULT_EVENT, 'failed'],
+  [PATCH_REJECTED_EVENT, 'failed'],
+] as const)(
+  'confirmed author decision refreshes the original recovery projection: %s / %s',
+  async (event, status) => {
+    const waiting: AgentRunSavePointProjection = {
+      ...projection(),
+      current_step: 'permission.confirm',
+      pending: { permission_required: true, blocked_tool: 'file.revise' },
+      recoverability: { resume_strategy: 'await_permission_decision' },
+      runtime_recovery: {},
+    };
+    await mount(waiting);
+    expect(host.textContent).toContain('等待你确认');
+    vi.mocked(getAgentRunSavePoints)
+      .mockClear()
+      .mockResolvedValue({
+        ...waiting,
+        status,
+        current_step: status === 'failed' ? 'permission.denied' : 'completed',
+        pending: {},
+        recoverability: { resume_strategy: 'none' },
+      });
+    await act(async () =>
+      window.dispatchEvent(
+        new CustomEvent(event, {
+          detail: {
+            filePath: 'D:/synthetic-book/chapter.md',
+            patchId: 'patch',
+            direction: '',
+            status: 'completed',
+            action: 'revision_accepted',
+            message: 'verified author decision',
+            projectPath: 'D:/synthetic-book',
+            assistantSessionId: 7,
+            runId: 'run',
+            runStatus: status,
+          },
+        }),
+      ),
+    );
+    expect(getAgentRunSavePoints).toHaveBeenCalledExactlyOnceWith('run');
+    expect(current.state.agentRun?.status).toBe(status);
+    expect(current.state.agentRunRecovery?.statusText).toBe(
+      status === 'failed' ? '状态：失败' : '状态：已完成',
+    );
+    expect(current.state.agentRunRecovery?.pendingText).toBeNull();
+    expect(host.textContent).not.toContain('等待你确认');
+    expect(host.textContent).not.toContain('状态：暂停');
+    expect(sendAgentControlMessage).not.toHaveBeenCalled();
+    expect(runAuthorAgent).not.toHaveBeenCalled();
+  },
+);

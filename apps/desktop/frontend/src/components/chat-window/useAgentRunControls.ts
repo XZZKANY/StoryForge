@@ -358,16 +358,18 @@ export function useAgentRunControls(
     updateAgentStep,
   ]);
 
-  /**
-   * 作者否掉一版后，run 此前会永远停在 approval: waiting——既不 completed 也不 failed。
-   *
-   * 这一步叫「等待作者确认」，作者给了答复它就完成了，哪怕答复是「不要」。所以标
-   * completed 而不是 failed：agent 没出错，是这版没被采纳，detail 里写清楚即可。
-   */
+  // A resolved author decision completes the approval step; the run keeps its persisted outcome.
   useEffect(() => {
     const onPatchRejected = (event: Event) => {
       const rejection = (event as CustomEvent<PatchRejection>).detail;
       if (!rejection || !agentRunIdRef.current) return;
+      if (
+        rejection.runId &&
+        (rejection.runId !== agentRunIdRef.current ||
+          rejection.projectPath !== projectPathRef.current ||
+          rejection.assistantSessionId !== assistantSessionIdRef.current)
+      )
+        return;
       if (
         !isRunResultForActiveSession(
           conversationKey(
@@ -384,7 +386,10 @@ export function useAgentRunControls(
         status: 'completed',
         detail: rejection.direction ? '作者否掉了这版，已按新说法重来' : '作者否掉了这版',
       });
-      updateAgentStatus('completed');
+      if (rejection.runStatus) {
+        updateAgentStatus(rejection.runStatus);
+        if (rejection.runId) void refreshAgentRunRecovery(rejection.runId);
+      } else if (!rejection.runId) updateAgentStatus('completed');
     };
     window.addEventListener(PATCH_REJECTED_EVENT, onPatchRejected);
     return () => window.removeEventListener(PATCH_REJECTED_EVENT, onPatchRejected);
@@ -393,6 +398,7 @@ export function useAgentRunControls(
     assistantSessionIdRef,
     draftNonceRef,
     projectPathRef,
+    refreshAgentRunRecovery,
     runStartConversationKeyRef,
     updateAgentStatus,
     updateAgentStep,
@@ -403,6 +409,13 @@ export function useAgentRunControls(
       const result = (event as CustomEvent<AuthorLoopResult>).detail;
       if (!result) return;
       if (
+        result.runId &&
+        (result.projectPath !== projectPathRef.current ||
+          result.assistantSessionId !== assistantSessionIdRef.current)
+      )
+        return;
+      if (
+        !result.runId &&
         !isRunResultForActiveSession(
           conversationKey(
             projectPathRef.current,
@@ -423,14 +436,27 @@ export function useAgentRunControls(
               ? `正文已写回，但闭环记录未完成：\`${ref}\` 的记录需要补齐，不要重新应用补丁。\n${result.warning}`
               : `作者闭环已完成：\`${ref}\` 已写回正文，并生成闭环记录。\n${result.recordPath ?? result.message}`
           : `作者闭环失败：${result.message}`;
-      if (agentRunIdRef.current) {
+      if (result.runId && agentRunIdRef.current === result.runId) {
         updateAgentStep('approval', {
           status: result.status === 'completed' ? 'completed' : 'failed',
           detail: result.artifactPath ?? result.recordPath ?? result.message,
         });
-        updateAgentStatus(result.status === 'completed' ? 'completed' : 'failed');
+        if (result.runStatus) {
+          updateAgentStatus(result.runStatus);
+          void refreshAgentRunRecovery(result.runId);
+        }
       }
-      setMessages((prev) => [...prev, { role: 'assistant', content }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content:
+            content +
+            (result.runStatus === 'failed'
+              ? '\n原运行仍有执行失败；接受这份修订不代表整轮成功。'
+              : ''),
+        },
+      ]);
     };
     window.addEventListener(AUTHOR_LOOP_RESULT_EVENT, onAuthorLoopResult);
     return () => window.removeEventListener(AUTHOR_LOOP_RESULT_EVENT, onAuthorLoopResult);
@@ -439,6 +465,7 @@ export function useAgentRunControls(
     assistantSessionIdRef,
     draftNonceRef,
     projectPathRef,
+    refreshAgentRunRecovery,
     runStartConversationKeyRef,
     setMessages,
     updateAgentStatus,

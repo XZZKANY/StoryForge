@@ -15,6 +15,7 @@ import {
 import {
   createFixtureAudit,
   inspectFixtureReceipt,
+  readFixtureAudit,
   writeFixtureReceipt,
 } from './writeback-receipt-fixture';
 
@@ -233,6 +234,26 @@ export class TauriFileSystem {
     } finally {
       invalidateListDirCache(request.path);
     }
+  }
+
+  /** Locate by Native operation identity, never by a caller-supplied audit path. */
+  static async readWritebackAudit(
+    projectRoot: string,
+    request: WritebackRequest,
+  ): Promise<{ operationId: string; content: string } | null> {
+    const mock = mockFs();
+    if (mock) return readFixtureAudit(mock, projectRoot, request);
+    const { operationId } = await this.describeWritebackOperation(projectRoot, request);
+    const separator = projectRoot.includes('\\') ? '\\' : '/';
+    const path = [
+      projectRoot.replace(/[/\\]+$/, ''),
+      '.storyforge',
+      'author-loop',
+      `${operationId}.md`,
+    ].join(separator);
+    return (await this.pathExists(path))
+      ? { operationId, content: await this.readProjectFile(projectRoot, path) }
+      : null;
   }
 
   static async createWritebackAudit(

@@ -4,12 +4,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import * as monaco from 'monaco-editor';
 import { __getLastEditor } from 'monaco-editor';
 import { afterEach, beforeEach, test, vi } from 'vitest';
+import type { AgentRunEventRecord } from '../src/lib/api/agent-run-events';
 import { createWritebackQueue } from '../src/lib/writeback';
 import { TauriFileSystem, type DiskBaseline } from '../src/lib/tauri-fs';
 import type { WritebackRequest } from '../src/lib/writeback-receipt-types';
 import {
   createFixtureAudit,
   inspectFixtureReceipt,
+  readFixtureAudit,
   writeFixtureReceipt,
 } from '../src/lib/writeback-receipt-fixture';
 import { useSuggestionWriteback } from '../src/components/editor/useSuggestionWriteback';
@@ -29,6 +31,16 @@ import {
 
 const effects = vi.hoisted(() => ({
   disk: new Map<string, string>(),
+  session: vi.fn(async (_id: number) => ({ id: 7, project_path: 'D:/project' })),
+  events: vi.fn(async (_runId: string): Promise<AgentRunEventRecord[]> => []),
+  control: vi.fn(async (_request: unknown) => ({
+    type: 'permission_approved',
+    control_effect: 'applied',
+    run_id: 'original-run',
+    session_id: 'original-session',
+    runtime_state: 'settled',
+    run_status: 'completed',
+  })),
   snapshot: vi.fn(async () => ({ timestamp: 1, created: false })),
   write: vi.fn(async (_project: string, _path: string, _content: string) => {}),
   record: vi.fn(async (_record: unknown) => ({
@@ -57,6 +69,12 @@ const receiptFs = {
     effects.disk.set(path, content);
   },
 };
+vi.mock('../src/lib/api/assistant', () => ({ getAssistantSession: effects.session }));
+vi.mock('../src/lib/api/agent-runs', () => ({ getAgentRunEvents: effects.events }));
+vi.mock('../src/lib/api/agent-socket', () => ({
+  sendAgentControlMessage: effects.control,
+  isAgentErrorMessage: (message: { type: string }) => message.type === 'error',
+}));
 vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: effects.snapshot }));
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
@@ -66,6 +84,8 @@ vi.mock('../src/lib/tauri-fs', () => ({
       path.includes('/pending-suggestions/') ? receiptFs.readFile(path) : effects.read(path),
     createWritebackAudit: (project: string, id: string, content: string) =>
       createFixtureAudit(receiptFs, project, id, content),
+    readWritebackAudit: (project: string, request: WritebackRequest) =>
+      readFixtureAudit(receiptFs, project, request),
     inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
       inspectFixtureReceipt(receiptFs, project, request),
     async writeFileWithReceipt(
@@ -525,11 +545,16 @@ test('拒绝的 Native tombstone 持久化迟到时不清除同文件新提案',
 
 test('已开始的写回保持唯一锁，迟到成功不能清除新文件补丁', async () => {
   const pending = deferred<{ recordPath: string; updatedBlueprintPath: null }>();
-  effects.record.mockReturnValueOnce(pending.promise);
+  const enteredAudit = deferred<void>();
+  effects.record.mockImplementationOnce(async () => {
+    enteredAudit.resolve();
+    return pending.promise;
+  });
   await show(patch('old'));
   let operation!: Promise<void>;
   await act(async () => {
     operation = handle.handleAcceptSuggestion();
+    await enteredAudit.promise;
   });
   await act(async () => root.render(<Harness file="D:/project/b.md" />));
   await show(patch('new', 'D:/project/b.md'));
@@ -971,6 +996,8 @@ test('重复确认已有回执不能把之后的未保存编辑覆盖回旧after
   assert.equal(effects.disk.get(FILE), 'after');
   assert.equal(effects.write.mock.calls.length, 1);
   assert.equal(effects.dirty.mock.calls.at(-1)?.[0], true);
+  assert.equal(handle.actionError, null, '读取已应用回执应完成结算，而非把保护性拒绝当恢复成功');
+  assert.equal(handle.pendingSuggestion, null);
 });
 
 test('known applied but unreadable target reports unverifiable state without claiming file drift', async () => {
@@ -1797,4 +1824,570 @@ test('T10：分块接受在目标上下文被改 + 重复块时拒绝，不把�
     false,
     '不得把补丁写到另一处重复块（磁盘不得出现替换文本）',
   );
+});
+
+for (const remount of [false, true]) {
+  for (const later of ['after plus later typing', 'entirely replaced by author']) {
+    test(`completed reentry preserves later edits with fresh proposal (remount=${remount}, ${later})`, async () => {
+      const proposal = patch('completed-fresh');
+      await show(proposal);
+      await act(async () => handle.handleAcceptSuggestion());
+      const audits = [...effects.disk.entries()].filter(([key]) => key.includes('/author-loop/'));
+      if (remount) {
+        await act(async () => root.unmount());
+        root = createRoot(container);
+        await act(async () => root.render(<Harness />));
+      }
+      await act(async () => __getLastEditor()!.setValue(later));
+      effects.toast.mockClear();
+      await show({ ...proposal });
+      await act(async () => handle.handleAcceptSuggestion());
+      assert.equal(handle.actionError, null);
+      assert.equal(handle.pendingSuggestion, null);
+      assert.equal(__getLastEditor()!.getValue(), later);
+      assert.equal(effects.disk.get(FILE), 'after');
+      assert.equal(effects.write.mock.calls.length, 1);
+      assert.equal(effects.snapshot.mock.calls.length, 1);
+      assert.equal(effects.mark.mock.calls.length, 1);
+      assert.equal(
+        effects.record.mock.calls.length,
+        2,
+        'existing Native audit is verified, not rewritten',
+      );
+      assert.deepEqual(
+        [...effects.disk.entries()].filter(([key]) => key.includes('/author-loop/')),
+        audits,
+      );
+      assert.ok(
+        !effects.toast.mock.calls.some(
+          (args: unknown[]) => (args[1] as { action?: unknown })?.action,
+        ),
+      );
+    });
+  }
+}
+
+test('completed reentry recovers the original author-merged output and exact issue audit after remount', async () => {
+  const proposal = {
+    ...patch('completed-merged'),
+    before: 'A\nB\nC',
+    after: 'AA\nB\nC',
+    issueIds: ['a'],
+    issueScopes: [{ id: 'a', lineStart: 1, lineEnd: 1 }],
+  };
+  await act(async () => __getLastEditor()!.setValue('A\nB author text\nC'));
+  await show(proposal);
+  await act(async () => handle.handleAcceptSuggestion());
+  const committed = 'AA\nB author text\nC';
+  assert.equal(effects.disk.get(FILE), committed);
+  const first = effects.record.mock.calls[0][0] as RevisionLoopRecord;
+  await act(async () => root.unmount());
+  root = createRoot(container);
+  await act(async () => root.render(<Harness />));
+  effects.disk.set(FILE, 'later saved version');
+  await act(async () => __getLastEditor()!.setValue('later unsaved version'));
+  await show({ ...proposal });
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(handle.actionError, null);
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(__getLastEditor()!.getValue(), 'later unsaved version');
+  assert.equal(effects.disk.get(FILE), 'later saved version');
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.equal(effects.snapshot.mock.calls.length, 1);
+  const restored = effects.record.mock.calls[1][0] as RevisionLoopRecord;
+  assert.equal(restored.after, committed, 'not the proposal.after or current buffer');
+  assert.deepEqual(restored.issueCounts, first.issueCounts);
+  assert.deepEqual(restored.issueResolutions, first.issueResolutions);
+});
+
+for (const invalid of ['missing-receipt', 'not-written', 'source', 'audit-content']) {
+  test(`historical audit cannot authorize another write: ${invalid}`, async () => {
+    const proposal = patch('completed-invalid');
+    await show(proposal);
+    await act(async () => handle.handleAcceptSuggestion());
+    const receiptPath = [...effects.disk.keys()].find((key) => key.includes('writeback-receipts'))!;
+    const auditPath = [...effects.disk.keys()].find((key) => key.includes('/author-loop/'))!;
+    if (invalid === 'missing-receipt') effects.disk.delete(receiptPath);
+    if (invalid === 'not-written') {
+      const stored = JSON.parse(effects.disk.get(receiptPath)!);
+      stored.receipt.state = 'not_written';
+      effects.disk.set(receiptPath, JSON.stringify(stored));
+    }
+    if (invalid === 'audit-content') {
+      const raw = effects.disk.get(auditPath)!;
+      effects.disk.set(auditPath, raw.replace('after', 'forged'));
+    }
+    await act(async () => __getLastEditor()!.setValue('author replaces everything'));
+    await show({ ...proposal, ...(invalid === 'source' ? { after: 'different proposal' } : {}) });
+    await act(async () => handle.handleAcceptSuggestion());
+    assert.ok(handle.actionError);
+    assert.ok(handle.pendingSuggestion);
+    assert.equal(__getLastEditor()!.getValue(), 'author replaces everything');
+    assert.equal(effects.disk.get(FILE), 'after');
+    assert.equal(effects.write.mock.calls.length, 1);
+    assert.equal(effects.snapshot.mock.calls.length, 1);
+    assert.equal(effects.record.mock.calls.length, 1);
+  });
+}
+
+function runProposal(id = 'run-patch'): AssistantFileSuggestion {
+  return { ...patch(id), runId: 'original-run', assistantSessionId: 7, requiresConfirmation: true };
+}
+function awaitingEvents(proposal: AssistantFileSuggestion): AgentRunEventRecord[] {
+  return [
+    {
+      event_type: 'agent_execution_started',
+      payload: { run_id: proposal.runId, session_id: 'original-session' },
+    },
+    {
+      event_type: 'permission_required',
+      payload: {
+        assistant_session_id: 7,
+        proposed_patch: {
+          id: proposal.id,
+          file_path: 'a.md',
+          before: proposal.before,
+          after: proposal.after,
+        },
+      },
+    },
+    { event_type: 'agent_execution_settled', payload: { runtime_state: 'settled' } },
+  ];
+}
+
+test('whole acceptance settles original API session only after durable body and audit', async () => {
+  const proposal = runProposal();
+  effects.events.mockResolvedValue(awaitingEvents(proposal));
+  effects.control.mockImplementationOnce(async (request) => {
+    assert.deepEqual(request, {
+      sessionId: 'original-session',
+      runId: 'original-run',
+      type: 'approve_permission',
+      payload: { source: 'desktop.receipted-writeback', patch_id: proposal.id },
+    });
+    assert.equal(effects.disk.get(FILE), 'after');
+    assert.ok([...effects.disk.keys()].some((key) => key.includes('/author-loop/')));
+    assert.ok(
+      await loadPendingSuggestion('D:/project', FILE),
+      'retain recovery until acknowledgement',
+    );
+    return {
+      type: 'permission_approved',
+      control_effect: 'applied',
+      run_id: 'original-run',
+      session_id: 'original-session',
+      runtime_state: 'settled',
+      run_status: 'completed',
+    };
+  });
+  await show(proposal);
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(handle.actionError, null);
+  assert.equal(effects.control.mock.calls.length, 1);
+  assert.equal(await loadPendingSuggestion('D:/project', FILE), null);
+  assert.equal(effects.result.mock.calls.at(-1)?.[0].runStatus, 'completed');
+});
+
+for (const auditOutcome of ['persisted', 'interrupted'] as const) {
+  test(`unmount during audit retains original delivery for cold recovery: ${auditOutcome}`, async () => {
+    const proposal = runProposal(`closing-audit-${auditOutcome}`);
+    effects.events.mockResolvedValue(awaitingEvents(proposal));
+    const entered = deferred<void>();
+    const release = deferred<void>();
+    effects.record.mockImplementationOnce(async (record: unknown) => {
+      entered.resolve();
+      await release.promise;
+      if (auditOutcome === 'interrupted') throw new Error('audit interrupted by host closing');
+      return {
+        ...(await recordRealAudit(record as RevisionLoopRecord)),
+        recordPath: '/record.md',
+        updatedBlueprintPath: null,
+      };
+    });
+    if (auditOutcome === 'persisted')
+      effects.control.mockRejectedValueOnce(new Error('managed_host_closing'));
+    await show(proposal);
+    let accepting!: Promise<void>;
+    await act(async () => {
+      accepting = handle.handleAcceptSuggestion();
+      await entered.promise;
+    });
+    assert.equal(handle.actionState?.kind, 'accept');
+    assert.equal(effects.disk.get(FILE), proposal.after);
+    assert.equal(effects.control.mock.calls.length, 0, 'no approval before audit completes');
+    const original = (await loadPendingSuggestion('D:/project', FILE))!;
+    assert.equal(original.requests.length, 1);
+    const receipts = [...effects.disk.entries()].filter(([path]) =>
+      path.includes('writeback-receipts'),
+    );
+    assert.ok(receipts.length);
+    await act(async () => root.unmount());
+    effects.disk.set(FILE, 'later author saved text');
+    await act(async () => {
+      release.resolve();
+      await accepting;
+    });
+    assert.equal(effects.result.mock.calls.length, 0, 'old action cannot notify an unmounted page');
+    assert.equal(effects.toast.mock.calls.length, 0, 'old action cannot publish an undo or repair');
+    const retained = (await loadPendingSuggestion('D:/project', FILE))!;
+    assert.equal(retained.owner, original.owner);
+    assert.deepEqual(retained.requests, original.requests);
+    assert.equal(effects.control.mock.calls.length, auditOutcome === 'persisted' ? 1 : 0);
+    root = createRoot(container);
+    await act(async () => root.render(<Harness />));
+    await act(async () => handle.recoverPendingSuggestion(FILE));
+    if (auditOutcome === 'interrupted') {
+      assert.equal(
+        effects.control.mock.calls.length,
+        0,
+        'cold discovery cannot approve missing audit',
+      );
+      assert.equal(effects.record.mock.calls.length, 1, 'cold discovery is read-only');
+      assert.ok(await loadPendingSuggestion('D:/project', FILE));
+      const action = effects.toast.mock.calls.at(-1)![1].action;
+      assert.equal(action.label, '补记记录（不重写正文）');
+      await act(async () => action.run());
+    }
+    assert.equal(await loadPendingSuggestion('D:/project', FILE), null);
+    assert.equal(effects.control.mock.calls.length, auditOutcome === 'persisted' ? 2 : 1);
+    assert.equal(effects.write.mock.calls.length, 1);
+    assert.equal(effects.snapshot.mock.calls.length, 1);
+    assert.equal(
+      effects.mark.mock.calls.length,
+      1,
+      'cold recovery does not mark the chapter again',
+    );
+    assert.equal(effects.disk.get(FILE), 'later author saved text');
+    assert.equal(__getLastEditor()!.getValue(), 'later author saved text');
+    assert.deepEqual(
+      [...effects.disk.entries()].filter(([path]) => path.includes('writeback-receipts')),
+      receipts,
+    );
+    assert.equal(effects.result.mock.calls.at(-1)?.[0].runStatus, 'completed');
+  });
+}
+
+test('lost control acknowledgement survives cold recovery without a second write or approval', async () => {
+  const proposal = runProposal('lost-ack');
+  const events = awaitingEvents(proposal);
+  effects.events.mockResolvedValue(events);
+  effects.control.mockImplementationOnce(async () => {
+    events.push({
+      event_type: 'agent_run_completed',
+      payload: {
+        control_type: 'approve_permission',
+        run_id: 'original-run',
+        session_id: 'original-session',
+      },
+    });
+    throw new Error('ack lost');
+  });
+  await show(proposal);
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.ok(handle.actionError?.includes('ack lost'));
+  assert.ok(await loadPendingSuggestion('D:/project', FILE));
+  effects.disk.set(FILE, 'later author saved text');
+  await remountForCold();
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(await loadPendingSuggestion('D:/project', FILE), null);
+  assert.equal(effects.control.mock.calls.length, 1);
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.equal(effects.snapshot.mock.calls.length, 1);
+  assert.equal(effects.disk.get(FILE), 'later author saved text');
+});
+
+test('failed control can be explicitly retried from original audit without replacing later edits', async () => {
+  const proposal = runProposal('retry-control');
+  effects.events.mockResolvedValue(awaitingEvents(proposal));
+  effects.control.mockRejectedValueOnce(new Error('offline'));
+  await show(proposal);
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.ok(handle.pendingSuggestion);
+  effects.disk.set(FILE, 'later saved text');
+  await act(async () => __getLastEditor()!.setValue('later unsaved text'));
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(handle.actionError, null);
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(effects.control.mock.calls.length, 2);
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.equal(effects.snapshot.mock.calls.length, 1);
+  assert.equal(effects.disk.get(FILE), 'later saved text');
+  assert.equal(__getLastEditor()!.getValue(), 'later unsaved text');
+});
+
+for (const invalid of [
+  'patch',
+  'session',
+  'project',
+  'new-execution',
+  'stopped',
+  'audit',
+] as const) {
+  test(`invalid original acceptance cannot settle the API run: ${invalid}`, async () => {
+    const proposal = runProposal(`invalid-${invalid}`);
+    const events = awaitingEvents(proposal);
+    if (invalid === 'patch') events[1].payload!.proposed_patch = { id: 'other-patch' };
+    if (invalid === 'project')
+      effects.session.mockResolvedValueOnce({ id: 7, project_path: 'D:/other' });
+    if (invalid === 'session') events[1].payload!.assistant_session_id = 99;
+    if (invalid === 'new-execution') events.push(events[0]);
+    if (invalid === 'stopped') events.push({ event_type: 'agent_run_interrupted', payload: {} });
+    if (invalid === 'audit') effects.record.mockRejectedValueOnce(new Error('audit failed'));
+    effects.events.mockResolvedValue(events);
+    await show(proposal);
+    await act(async () => handle.handleAcceptSuggestion());
+    assert.equal(effects.disk.get(FILE), 'after');
+    assert.equal(effects.control.mock.calls.length, 0);
+    assert.ok(await loadPendingSuggestion('D:/project', FILE));
+  });
+}
+
+test('last accepted hunk settles the original run; a partial acceptance does not', async () => {
+  const proposal = { ...runProposal('hunk-run'), before: 'A\nB\nC', after: 'AA\nB\nCC' };
+  effects.disk.set(FILE, proposal.before);
+  await remountForCold();
+  effects.events.mockResolvedValue(awaitingEvents(proposal));
+  await show(proposal);
+  const [first, last] = buildPatchHunks(proposal.before, proposal.after, 0);
+  await act(async () => handle.handleAcceptHunk(first));
+  assert.equal(effects.control.mock.calls.length, 0);
+  await act(async () => handle.handleAcceptHunk(last));
+  assert.equal(handle.actionError, null);
+  assert.equal(effects.control.mock.calls.length, 1);
+  assert.equal(await loadPendingSuggestion('D:/project', FILE), null);
+});
+
+test('accepting a usable patch preserves the original failed execution outcome', async () => {
+  const proposal = runProposal('partial-execution');
+  effects.events.mockResolvedValue(awaitingEvents(proposal));
+  effects.control.mockResolvedValueOnce({
+    type: 'permission_approved',
+    control_effect: 'applied',
+    run_id: 'original-run',
+    session_id: 'original-session',
+    runtime_state: 'settled',
+    run_status: 'failed',
+  });
+  await show(proposal);
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(effects.result.mock.calls.at(-1)?.[0].runStatus, 'failed');
+  assert.equal(effects.disk.get(FILE), 'after');
+});
+
+test('a replacement proposal cannot erase the only unsettled acceptance descriptor', async () => {
+  const proposal = runProposal('pending-control');
+  effects.events.mockResolvedValue(awaitingEvents(proposal));
+  effects.control.mockRejectedValue(new Error('API unavailable'));
+  try {
+    await show(proposal);
+    await act(async () => handle.handleAcceptSuggestion());
+    const original = await loadPendingSuggestion('D:/project', FILE);
+    assert.ok(original?.requests.length);
+    await assert.rejects(
+      persistPendingSuggestion(
+        'D:/project',
+        capturePendingSuggestion('D:/project', {
+          ...patch('replacement'),
+          before: 'after',
+          after: 'new proposal',
+        }),
+      ),
+      /API unavailable/,
+    );
+    assert.deepEqual(await loadPendingSuggestion('D:/project', FILE), original);
+    assert.equal(effects.disk.get(FILE), 'after');
+    assert.equal(effects.write.mock.calls.length, 1);
+  } finally {
+    effects.control.mockImplementation(async () => ({
+      type: 'permission_approved',
+      control_effect: 'applied',
+      run_id: 'original-run',
+      session_id: 'original-session',
+      runtime_state: 'settled',
+      run_status: 'completed',
+    }));
+  }
+});
+
+for (const invalid of ['ignored', 'foreign-run', 'in-flight'] as const) {
+  test(`an unproven control acknowledgement retains recovery: ${invalid}`, async () => {
+    const proposal = runProposal(`bad-ack-${invalid}`);
+    effects.events.mockResolvedValue(awaitingEvents(proposal));
+    effects.control.mockResolvedValueOnce({
+      type: 'permission_approved',
+      control_effect: invalid === 'ignored' ? 'ignored' : 'applied',
+      run_id: invalid === 'foreign-run' ? 'another-run' : 'original-run',
+      session_id: 'original-session',
+      run_status: 'completed',
+      runtime_state: invalid === 'in-flight' ? 'in_flight' : 'settled',
+    });
+    await show(proposal);
+    await act(async () => handle.handleAcceptSuggestion());
+    assert.ok(handle.actionError?.includes('结算尚未确认'));
+    assert.ok(await loadPendingSuggestion('D:/project', FILE));
+    assert.equal(effects.disk.get(FILE), 'after');
+    assert.equal(effects.write.mock.calls.length, 1);
+  });
+}
+
+test('automatic writeback reads its existing completion without approving or leaving the run waiting', async () => {
+  const proposal = { ...runProposal('auto-completed'), requiresConfirmation: false };
+  effects.events.mockResolvedValue([
+    {
+      event_type: 'agent_execution_started',
+      payload: { run_id: proposal.runId, session_id: 'original-session' },
+    },
+    { event_type: 'agent_run_completed', payload: { assistant_session_id: 7 } },
+  ]);
+  await show(proposal);
+  await vi.waitFor(() => assert.equal(handle.pendingSuggestion, null));
+  assert.equal(effects.control.mock.calls.length, 0);
+  assert.equal(effects.result.mock.calls.at(-1)?.[0].runStatus, 'completed');
+  assert.equal(effects.disk.get(FILE), 'after');
+});
+
+for (const invalid of ['missing-completion', 'later-execution'] as const) {
+  test(`automatic writeback cannot invent a run completion: ${invalid}`, async () => {
+    const proposal = { ...runProposal(`auto-${invalid}`), requiresConfirmation: false };
+    const started = {
+      event_type: 'agent_execution_started',
+      payload: { run_id: proposal.runId, session_id: 'original-session' },
+    };
+    effects.events.mockResolvedValue(
+      invalid === 'missing-completion'
+        ? [started]
+        : [
+            started,
+            { event_type: 'agent_run_completed', payload: { assistant_session_id: 7 } },
+            started,
+          ],
+    );
+    await show(proposal);
+    await vi.waitFor(() => assert.ok(handle.actionError?.includes('完成状态尚未确认')));
+    assert.ok(await loadPendingSuggestion('D:/project', FILE));
+    assert.equal(effects.control.mock.calls.length, 0);
+    assert.equal(effects.disk.get(FILE), 'after');
+  });
+}
+
+function deniedAck() {
+  return {
+    type: 'permission_denied',
+    control_effect: 'applied',
+    run_id: 'original-run',
+    session_id: 'original-session',
+    runtime_state: 'settled',
+    run_status: 'failed',
+  };
+}
+for (const action of ['reject', 'note'] as const) {
+  test(`explicit ${action} settles the original pending run without writing the manuscript`, async () => {
+    const proposal = runProposal(`deny-${action}`);
+    effects.events.mockResolvedValue(awaitingEvents(proposal));
+    effects.control.mockResolvedValueOnce(deniedAck());
+    await show(proposal);
+    await act(async () =>
+      action === 'reject' ? handle.rejectPendingSuggestion() : handle.handleSaveSuggestionNote(),
+    );
+    assert.equal(handle.actionError, null);
+    assert.equal(handle.pendingSuggestion, null);
+    assert.equal(await loadPendingSuggestion('D:/project', FILE), null);
+    assert.deepEqual(effects.control.mock.calls[0][0], {
+      sessionId: 'original-session',
+      runId: 'original-run',
+      type: 'deny_permission',
+      payload: { source: 'desktop.suggestion-decision', patch_id: proposal.id },
+    });
+    assert.equal(effects.disk.get(FILE), 'before');
+    assert.equal(effects.snapshot.mock.calls.length, 0);
+    assert.equal(effects.write.mock.calls.length, action === 'note' ? 1 : 0);
+    if (action === 'note') assert.ok(effects.write.mock.calls[0][1].includes('/notes/'));
+  });
+}
+
+test('offline rejection preserves the original proposal, releases its lock and can be retried', async () => {
+  const proposal = runProposal('deny-offline');
+  effects.events.mockResolvedValue(awaitingEvents(proposal));
+  effects.control.mockRejectedValueOnce(new Error('offline'));
+  await show(proposal);
+  await act(async () => handle.rejectPendingSuggestion('new direction'));
+  assert.equal(handle.pendingSuggestion?.id, proposal.id);
+  assert.ok(handle.actionError?.includes('offline'));
+  assert.equal(handle.actionState, null);
+  assert.ok(await loadPendingSuggestion('D:/project', FILE));
+  effects.control.mockResolvedValueOnce(deniedAck());
+  await act(async () => handle.rejectPendingSuggestion());
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(effects.disk.get(FILE), 'before');
+  assert.equal(effects.write.mock.calls.length, 0);
+});
+
+test('cold recovery reads a lost denial acknowledgement and never resurrects the rejected patch', async () => {
+  const proposal = runProposal('deny-ack-lost');
+  const events = awaitingEvents(proposal);
+  effects.events.mockResolvedValue(events);
+  effects.control.mockImplementationOnce(async () => {
+    events.push({
+      event_type: 'agent_run_failed',
+      payload: {
+        control_type: 'deny_permission',
+        run_id: 'original-run',
+        session_id: 'original-session',
+      },
+    });
+    throw new Error('ack lost');
+  });
+  await show(proposal);
+  await act(async () => handle.rejectPendingSuggestion());
+  assert.ok(await loadPendingSuggestion('D:/project', FILE));
+  await remountForCold();
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(await loadPendingSuggestion('D:/project', FILE), null);
+  assert.equal(effects.control.mock.calls.length, 1);
+  assert.equal(effects.write.mock.calls.length, 0);
+});
+
+test('rejecting remaining hunks preserves already written text and its evidence', async () => {
+  const proposal = { ...runProposal('deny-remainder'), before: 'A\nB\nC', after: 'AA\nB\nCC' };
+  effects.disk.set(FILE, proposal.before);
+  await remountForCold();
+  effects.events.mockResolvedValue(awaitingEvents(proposal));
+  await show(proposal);
+  await act(async () =>
+    handle.handleAcceptHunk(buildPatchHunks(proposal.before, proposal.after, 0)[0]),
+  );
+  const body = effects.disk.get(FILE);
+  effects.control.mockResolvedValueOnce(deniedAck());
+  await act(async () => handle.rejectPendingSuggestion());
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(effects.disk.get(FILE), body);
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.equal(effects.snapshot.mock.calls.length, 1);
+  assert.ok([...effects.disk.keys()].some((path) => path.includes('/author-loop/')));
+});
+
+test('repairing the original full acceptance audit also settles the run without another body write', async () => {
+  const proposal = runProposal('repair-run');
+  effects.events.mockResolvedValue(awaitingEvents(proposal));
+  effects.record.mockRejectedValueOnce(new Error('audit unavailable'));
+  await show(proposal);
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(effects.control.mock.calls.length, 0);
+  assert.ok(await loadPendingSuggestion('D:/project', FILE));
+  const retry = effects.toast.mock.calls.find(
+    (args) => args[1]?.action?.label === '重试记录（不重写正文）',
+  )?.[1].action.run;
+  assert.ok(retry);
+  effects.disk.set(FILE, 'later saved text');
+  await act(async () => __getLastEditor()!.setValue('later unsaved text'));
+  await act(async () => retry());
+  assert.equal(effects.control.mock.calls.length, 1);
+  assert.equal(await loadPendingSuggestion('D:/project', FILE), null);
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.equal(effects.snapshot.mock.calls.length, 1);
+  assert.equal(effects.disk.get(FILE), 'later saved text');
+  assert.equal(__getLastEditor()!.getValue(), 'later unsaved text');
+  assert.equal(effects.result.mock.calls.at(-1)?.[0].runStatus, 'completed');
 });

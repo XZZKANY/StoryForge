@@ -60,3 +60,17 @@ describe('native receipt/audit IPC seam', () => {
     expect(vi.mocked(invoke).mock.calls[0][0]).toBe('create_writeback_audit');
   });
 });
+
+
+it('reads an audit only through Native identity and a project-scoped read, without mutation', async () => {
+  vi.mocked(invoke)
+    .mockResolvedValueOnce({relativePath: 'chapter.md', operationId: applied.operationId, fingerprint: 'b'.repeat(64)})
+    .mockResolvedValueOnce(true)
+    .mockResolvedValueOnce('stored envelope');
+  expect(await TauriFileSystem.readWritebackAudit('D:/Book', request)).toEqual({operationId: applied.operationId, content: 'stored envelope'});
+  expect(vi.mocked(invoke).mock.calls).toEqual([
+    ['describe_writeback_operation', {projectRoot: 'D:/Book', request}],
+    ['path_exists', {path: `D:/Book/.storyforge/author-loop/${applied.operationId}.md`}],
+    ['read_project_file', {projectRoot: 'D:/Book', path: `D:/Book/.storyforge/author-loop/${applied.operationId}.md`}],
+  ]);
+});

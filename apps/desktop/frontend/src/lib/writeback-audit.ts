@@ -1,4 +1,5 @@
 import { TauriFileSystem } from './tauri-fs';
+import type { WritebackRequest } from './writeback-receipt-types';
 
 const HEADER = '<!-- storyforge-writeback-audit-v1 ';
 const COMPLETE = '\n<!-- storyforge-writeback-audit-complete -->\n';
@@ -6,7 +7,11 @@ async function digest(value: string): Promise<string> {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
-async function verify(content: string, operationId: string, payloadHash: string): Promise<void> {
+async function verify(
+  content: string,
+  operationId: string,
+  payloadHash?: string,
+): Promise<string | null> {
   const lineEnd = content.indexOf('\n');
   const header = content.slice(0, lineEnd);
   if (
@@ -29,11 +34,17 @@ async function verify(content: string, operationId: string, payloadHash: string)
   const body = content.slice(lineEnd + 1, -COMPLETE.length);
   if (
     fields.operationId !== operationId ||
-    fields.payloadHash !== payloadHash ||
+    typeof fields.payloadHash !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(fields.payloadHash) ||
+    (payloadHash !== undefined && fields.payloadHash !== payloadHash) ||
+    (fields.semanticPayload !== undefined &&
+      (typeof fields.semanticPayload !== 'string' ||
+        (await digest(fields.semanticPayload)) !== fields.payloadHash)) ||
     fields.bodyHash !== (await digest(body))
   ) {
     throw new Error('写回审计记录身份、内容或摘要不匹配；已拒绝自动覆盖');
   }
+  return typeof fields.semanticPayload === 'string' ? fields.semanticPayload : null;
 }
 
 /** Read-only verification includes the complete semantic payload, not just rendered audit prose. */
@@ -50,6 +61,15 @@ export async function verifyReceiptAudit(
   );
 }
 
+/** Exact historical inputs, not proof of application; the Native receipt must still match. */
+export async function readReceiptAuditPayload(
+  projectRoot: string,
+  request: WritebackRequest,
+): Promise<string | null> {
+  const stored = await TauriFileSystem.readWritebackAudit(projectRoot, request);
+  return stored ? verify(stored.content, stored.operationId) : null;
+}
+
 /** Audit repair is exclusive-create + exact verification, never an overwrite by timestamp. */
 export async function writeReceiptAudit(
   projectRoot: string,
@@ -58,6 +78,7 @@ export async function writeReceiptAudit(
   semanticPayload: string,
   body: string,
   deliveryTicket?: string,
+  retainRecoveryPayload = false,
 ): Promise<void> {
   const payloadHash = await digest(semanticPayload);
   const readAndVerify = async () =>
@@ -66,7 +87,14 @@ export async function writeReceiptAudit(
       operationId,
       payloadHash,
     );
-  const metadata = { operationId, payloadHash, bodyHash: await digest(body) };
+  // Preserve the existing semantic identity for completed-operation reentry after journal cleanup.
+  // Older hash-only envelopes remain valid and are never overwritten by repair.
+  const metadata = {
+    operationId,
+    payloadHash,
+    bodyHash: await digest(body),
+    ...(retainRecoveryPayload ? { semanticPayload } : {}),
+  };
   const content = `${HEADER}${JSON.stringify(metadata)} -->\n${body}${COMPLETE}`;
   // Existing files are flushed but never overwritten by this native command.
   // Do not turn a sync failure into success merely because reads see cached bytes.

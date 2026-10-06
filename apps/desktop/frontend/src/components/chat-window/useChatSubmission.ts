@@ -312,6 +312,13 @@ export function useChatSubmission(
       const rejection = (event as CustomEvent<PatchRejection>).detail;
       if (!rejection?.direction.trim()) return;
       if (
+        rejection.runId &&
+        (rejection.projectPath !== projectPathRef.current ||
+          rejection.assistantSessionId !== assistantSessionIdRef.current ||
+          (state.agentRunIdRef.current && state.agentRunIdRef.current !== rejection.runId))
+      )
+        return;
+      if (
         state.agentRun?.status === 'waiting' &&
         !state.agentRun.steps.some((step) => step.patchId === rejection.patchId)
       )
@@ -322,7 +329,13 @@ export function useChatSubmission(
     };
     window.addEventListener(PATCH_REJECTED_EVENT, onPatchRejected);
     return () => window.removeEventListener(PATCH_REJECTED_EVENT, onPatchRejected);
-  }, [state.agentRun, submitInstruction]);
+  }, [
+    state.agentRun,
+    state.agentRunIdRef,
+    projectPathRef,
+    assistantSessionIdRef,
+    submitInstruction,
+  ]);
 
   const userMessageHistory = useMemo(
     () => messages.filter((message) => message.role === 'user').map((message) => message.content),

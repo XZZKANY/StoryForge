@@ -109,6 +109,23 @@ export async function writeFixtureReceipt(
   }
 }
 
+export async function readFixtureAudit(
+  fs: FixtureFs,
+  projectRoot: string,
+  request: WritebackRequest,
+): Promise<{ operationId: string; content: string } | null> {
+  const io = requireFixture(fs);
+  const { operationId } = await identity(projectRoot, request);
+  const separator = projectRoot.includes('\\') ? '\\' : '/';
+  const path = [
+    projectRoot.replace(/[/\\]+$/, ''),
+    '.storyforge',
+    'author-loop',
+    `${operationId}.md`,
+  ].join(separator);
+  return (await io.exists(path)) ? { operationId, content: await io.read(path) } : null;
+}
+
 // A browser fixture has no native create_new; this queue only emulates admission.
 // Durable truth still comes from the fixture files, not this process-local queue.
 const fixtureAuditQueues = new WeakMap<FixtureFs, Promise<void>>();

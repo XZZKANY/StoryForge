@@ -115,6 +115,11 @@ export type SuggestionResult = {
 };
 
 export type AuthorLoopResult = {
+  runId?: string;
+  projectPath?: string | null;
+  assistantSessionId?: number | null;
+  /** Persisted run outcome is distinct from a successful manuscript write. */
+  runStatus?: 'completed' | 'failed';
   filePath: string;
   status: 'completed' | 'error';
   action: 'revision_accepted' | 'exported';
@@ -257,6 +262,10 @@ export function emitAuthorLoopResult(result: AuthorLoopResult): void {
  * direction 为空表示只是否掉、没给方向——那条路径刻意保持轻量，不触发新一轮模型调用。
  */
 export type PatchRejection = {
+  runId?: string;
+  projectPath?: string | null;
+  assistantSessionId?: number | null;
+  runStatus?: 'completed' | 'failed';
   filePath: string;
   patchId: string;
   direction: string;

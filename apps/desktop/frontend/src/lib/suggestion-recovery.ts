@@ -2,10 +2,17 @@ import type { AssistantFileSuggestion } from './assistant-suggestions';
 import { createSuggestionChangeSet, type SuggestionChangeSet } from './suggestion-change-set';
 import { relativeToProject } from './project-context';
 import { TauriFileSystem } from './tauri-fs';
-import { verifyReceiptAudit } from './writeback-audit';
+import { readReceiptAuditPayload, verifyReceiptAudit } from './writeback-audit';
 import { readRevisionLoopPayload, type RevisionLoopRecord } from './author-loop';
 import type { WritebackRequest } from './writeback-receipt-types';
-import { relativePathInsideProject } from './project/path';
+import {
+  relativePathInsideProject,
+  resolveProjectRelativePath,
+  normalizePathForMatch,
+} from './project/path';
+import { getAssistantSession } from './api/assistant';
+import { getAgentRunEvents } from './api/agent-runs';
+import { sendAgentControlMessage, isAgentErrorMessage } from './api/agent-socket';
 import { withNativeDelivery } from './native-delivery';
 
 type RequestDescriptor = { request: WritebackRequest; semanticPayload: string };
@@ -184,7 +191,11 @@ export async function persistPendingSuggestion(
 ): Promise<void> {
   const { path, raw } = await readJournal(project, descriptor.proposal.filePath);
   const previous = decodeDescriptor(raw, descriptor.proposal.filePath);
-  if (previous) await verifyJournalSettled(project, previous);
+  if (previous && (await verifyJournalSettled(project, previous)) && previous.proposal.runId) {
+    const recovered = await recoverSuggestionOperations(project, previous);
+    if (recovered.changeSet.operations.every((op) => recovered.appliedOpIds.has(op.id)))
+      await settleSuggestionRun(project, previous);
+  }
   await TauriFileSystem.writeFileIfUnchanged(
     project,
     path,
@@ -243,16 +254,21 @@ function receiptAuditPath(project: string, operationId: string): string {
 async function verifyJournalSettled(
   project: string,
   descriptor: PendingSuggestionDescriptor,
-): Promise<void> {
+): Promise<boolean> {
+  let allApplied = descriptor.requests.length > 0;
   for (const { request, semanticPayload } of descriptor.requests) {
     const receipt = await TauriFileSystem.inspectWritebackReceipt(project, request);
-    if (!receipt || receipt.state === 'not_written') continue;
+    if (!receipt || receipt.state === 'not_written') {
+      allApplied = false;
+      continue;
+    }
     if (receipt.state !== 'applied' || !receipt.receiptPersisted)
       throw new Error('原写回结果尚未确定，已保留恢复记录；请先核对正文与版本');
     const path = receiptAuditPath(project, receipt.operationId);
     if (!(await TauriFileSystem.pathExists(path))) throw new MissingSuggestionAudit();
     await verifyReceiptAudit(project, path, receipt.operationId, semanticPayload);
   }
+  return allApplied;
 }
 
 export async function forgetPendingSuggestion(
@@ -347,4 +363,153 @@ export async function recoverSuggestionOperations(
     }
   }
   return { changeSet, appliedOpIds, lastUndoOperationId };
+}
+
+/** Locate the original completed whole-operation payload before mapping a changed author buffer. */
+export async function readSuggestionAcceptance(
+  project: string,
+  request: WritebackRequest,
+  suggestionId: string,
+): Promise<RevisionLoopRecord | null> {
+  const payload = await readReceiptAuditPayload(project, request);
+  if (payload === null) return null;
+  const record = readRevisionLoopPayload(project, request.path, payload);
+  if (record.patchId !== suggestionId) throw new Error('原写回审计与当前修订身份不匹配');
+  return record;
+}
+
+/** Resolve the original author decision; observing never sends control, none of these modes write text or resume a model. */
+export async function settleSuggestionRun(
+  project: string,
+  descriptor: PendingSuggestionDescriptor,
+  decision: 'accept' | 'reject' | 'observe' = 'accept',
+): Promise<'completed' | 'failed' | undefined> {
+  const original = descriptor.proposal;
+  if (!original.runId) return undefined;
+  const stored = await loadPendingSuggestion(project, original.filePath);
+  if (
+    !stored ||
+    stored.owner !== descriptor.owner ||
+    JSON.stringify(stored.proposal) !== JSON.stringify(original)
+  )
+    throw new Error('原修订恢复归属已变化，不能结算运行');
+  if (decision === 'accept') {
+    const recovered = await recoverSuggestionOperations(project, stored);
+    if (
+      !stored.requests.length ||
+      recovered.changeSet.operations.some((op) => !recovered.appliedOpIds.has(op.id))
+    )
+      throw new Error('原修订尚未全部接受，不能结算运行');
+  } else {
+    // Rejecting remaining edits does not undo known writes or discard an unknown outcome.
+    await verifyJournalSettled(project, stored);
+  }
+  const events = await getAgentRunEvents(original.runId);
+  if (!original.assistantSessionId) throw new Error('原修订缺少会话归属，不能结算运行');
+  const session = await getAssistantSession(original.assistantSessionId);
+  if (
+    session.id !== original.assistantSessionId ||
+    !session.project_path ||
+    normalizePathForMatch(session.project_path).replace(/\/$/, '') !==
+      normalizePathForMatch(project).replace(/\/$/, '')
+  )
+    throw new Error('原会话不属于当前项目，不能结算其他项目的运行');
+  if (original.requiresConfirmation === false) {
+    if (decision === 'observe') return undefined;
+    const completed = [...events]
+      .reverse()
+      .find((event) => event.event_type === 'agent_run_completed');
+    const latestExecution = [...events]
+      .reverse()
+      .find((event) => event.event_type === 'agent_execution_started');
+    if (
+      !completed ||
+      completed.payload?.assistant_session_id !== original.assistantSessionId ||
+      !latestExecution ||
+      latestExecution.payload?.run_id !== original.runId ||
+      events.lastIndexOf(latestExecution) > events.lastIndexOf(completed)
+    )
+      throw new Error('自动修订已写回，但原运行完成状态尚未确认；请核对原运行');
+    return 'completed';
+  }
+  const pendingEvent = [...events]
+    .reverse()
+    .find((event) => event.event_type === 'permission_required');
+  const pendingIndex = pendingEvent ? events.indexOf(pendingEvent) : -1;
+  const pending = events[pendingIndex]?.payload;
+  const patch = pending?.proposed_patch;
+  const target =
+    object(patch) && typeof patch.file_path === 'string'
+      ? resolveProjectRelativePath(project, patch.file_path)
+      : null;
+  if (
+    !pending ||
+    !object(patch) ||
+    patch.id !== original.id ||
+    patch.before !== original.before ||
+    patch.after !== original.after ||
+    !original.assistantSessionId ||
+    pending.assistant_session_id !== original.assistantSessionId ||
+    !target ||
+    normalizePathForMatch(target) !== normalizePathForMatch(original.filePath)
+  )
+    throw new Error('原运行与修订归属不匹配，已保留写回记录供核对');
+  const started = events
+    .slice(0, pendingIndex)
+    .reverse()
+    .find((event) => event.event_type === 'agent_execution_started')?.payload;
+  if (
+    started?.run_id !== original.runId ||
+    typeof started.session_id !== 'string' ||
+    !started.session_id ||
+    events.slice(pendingIndex + 1).some((event) => event.event_type === 'agent_execution_started')
+  )
+    throw new Error('原运行的执行归属已变化，不能用旧写回批准新执行');
+  const terminal = events
+    .slice(pendingIndex + 1)
+    .reverse()
+    .find((event) =>
+      ['agent_run_completed', 'agent_run_failed', 'agent_run_interrupted'].includes(
+        event.event_type,
+      ),
+    );
+  const controlType = decision === 'reject' ? 'deny_permission' : 'approve_permission';
+  if (terminal) {
+    if (
+      !['approve_permission', 'deny_permission'].includes(String(terminal.payload?.control_type)) ||
+      terminal.payload?.run_id !== original.runId ||
+      terminal.payload?.session_id !== started.session_id ||
+      terminal.event_type === 'agent_run_interrupted' ||
+      (terminal.payload?.control_type === 'deny_permission' &&
+        terminal.event_type !== 'agent_run_failed')
+    )
+      throw new Error('原运行已结束但不是该批准结果，请核对；不会重放写回');
+    if (decision === 'observe')
+      return terminal.payload?.control_type === 'deny_permission' ? 'failed' : undefined;
+    if (terminal.payload?.control_type !== controlType)
+      throw new Error('原运行已有不同的作者决定；请核对，不会改写历史决定');
+    return terminal.event_type === 'agent_run_completed' ? 'completed' : 'failed';
+  }
+  if (decision === 'observe') return undefined;
+  const ack = await sendAgentControlMessage({
+    sessionId: started.session_id,
+    runId: original.runId,
+    type: controlType,
+    payload: {
+      source: decision === 'accept' ? 'desktop.receipted-writeback' : 'desktop.suggestion-decision',
+      patch_id: original.id,
+    },
+  });
+  if (isAgentErrorMessage(ack)) throw new Error(ack.detail);
+  if (
+    ack.run_id !== original.runId ||
+    ack.session_id !== started.session_id ||
+    ack.type !== (decision === 'accept' ? 'permission_approved' : 'permission_denied') ||
+    ack.control_effect !== 'applied' ||
+    ack.runtime_state !== 'settled' ||
+    (ack.run_status !== 'completed' && ack.run_status !== 'failed') ||
+    (decision === 'reject' && ack.run_status !== 'failed')
+  )
+    throw new Error('原运行结算尚未确认；请重试核对，不要重写正文');
+  return ack.run_status;
 }
