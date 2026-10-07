@@ -206,15 +206,22 @@ def test_anchor_body_keyword_does_not_authorize_expansion():
     assert caught.value.gate.metrics["char_ratio"] > 5.0
 
 
-def test_negated_expansion_instruction_is_not_authorized():
-    # T08-F2：否定语境下的扩写词不构成授权，polish 档按默认比例上界收紧。
-    negated = "不要扩写，只改错别字：把这一句里的错字改掉。"
+@pytest.mark.parametrize(
+    "negated",
+    [
+        "不要扩写，只改错别字：把这一句里的错字改掉。", "不扩写，只改错别字",
+        "不再扩写，只改错别字", "不需要扩写，只改错别字",
+    ],
+)
+def test_negated_expansion_instruction_is_not_authorized(negated: str):
+    # 否定语境下的扩写词不构成授权，polish 档按默认比例上界收紧。
     source = request(content=SHORT_ORIGINAL, instruction=negated, quality_gate="polish")
 
     with pytest.raises(RevisionQualityRejected) as caught:
         revise_text(source, generate=lambda **_kw: {"content": LONG_CANDIDATE})
 
     assert "word_count_drift" in caught.value.gate.reasons
+    assert caught.value.gate.metrics["char_ratio"] > 5.0
 
 
 @pytest.mark.parametrize(
@@ -227,7 +234,10 @@ def test_instruction_authorizes_expansion_for_plain_keywords(phrase: str) -> Non
 
 @pytest.mark.parametrize(
     "phrase",
-    ["不要扩写，只改错别字", "别补充内容", "别扩写这段", "不用加长", "不必展开", "先别扩写", "暂不补充", "先不细化"],
+    [
+        "不要扩写，只改错别字", "别补充内容", "别扩写这段", "不用加长", "不必展开", "先别扩写", "暂不补充", "先不细化",
+        "不扩写，只改错别字", "不加长", "不展开", "不补充内容", "不丰富描写", "不细化场景",
+    ],
 )
 def test_instruction_does_not_authorize_negated_keywords(phrase: str) -> None:
     assert instruction_authorizes_expansion(phrase) is False
@@ -339,8 +349,38 @@ def test_instruction_does_not_authorize_expansion_for_extended_negation_words(ph
 
 @pytest.mark.parametrize(
     "phrase",
-    ["不要立刻展开", "不必再细化了", "无需进一步补充", "禁止顺便展开描写"],
+    [
+        "不要立刻展开", "不必再细化了", "无需进一步补充", "禁止顺便展开描写",
+        "不再扩写", "不继续补充细节", "不需要扩写", "不需要再扩写",
+        "不再继续扩写", "不需要进一步补充", "不再需要扩写",
+    ],
 )
 def test_instruction_does_not_authorize_expansion_when_negation_is_spaced(phrase: str) -> None:
     # T08：否定标记与关键词之间夹少量非动词成分（如「立刻」「再」「进一步」）仍属否定语境。
     assert instruction_authorizes_expansion(phrase) is False
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    ["不改情节，扩写心理描写", "不改情节。扩写心理描写", "不改情节\n扩写心理描写"],
+)
+def test_instruction_authorizes_expansion_after_negation_scope_ends(phrase: str) -> None:
+    assert instruction_authorizes_expansion(phrase) is True
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "不改变情节只扩写环境", "人物不变但扩写动作", "不妨扩写", "不但扩写",
+        "不再压缩而是扩写", "不需要压缩但扩写细节", "不继续删减而要丰富细节",
+    ],
+)
+def test_other_uses_of_bu_do_not_block_expansion(phrase: str) -> None:
+    assert instruction_authorizes_expansion(phrase) is True
+    source = request(content=SHORT_ORIGINAL, instruction=phrase, quality_gate="polish")
+
+    result = revise_text(source, generate=lambda **_kw: {"content": EXPANDED_CANDIDATE})
+
+    assert result.after == EXPANDED_CANDIDATE
+    assert result.quality_gate is not None and result.quality_gate.passed
+    assert result.quality_gate.metrics["char_ratio"] > 1.15

@@ -438,3 +438,172 @@ fn invalidation_is_noop_without_canon_directory() {
     assert_eq!(receipt.state, "applied");
     assert!(!Path::new(&root).join(".storyforge").join("canon").exists());
 }
+
+#[test]
+fn failed_cache_invalidation_retries_without_replaying_body_and_persists_repair() {
+    let (_temp, root, request) = fixture();
+    let derived = Path::new(&root).join(".storyforge/canon/derived");
+    fs::create_dir_all(derived.join("presence.json")).unwrap();
+    fs::write(derived.join("observations.json"), "stale").unwrap();
+    fs::write(derived.join("proposals.json"), "author draft").unwrap();
+    let first = apply(&root, &request);
+    assert_eq!(first.state, "applied");
+    assert!(first.receipt_persisted);
+    assert!(first.detail.unwrap().starts_with(CANON_INVALIDATION_WARNING));
+    assert!(derived.join("observations.json").exists());
+    // 失败原因仍在：只重试清理，任何正文 dispatch 都让测试失败。
+    let failed_retry = apply_with(&root, &request, baseline(), Some(7), |_| {
+        panic!("缓存修复不得再次写正文")
+    })
+    .unwrap();
+    assert!(failed_retry.detail.unwrap().starts_with(CANON_INVALIDATION_WARNING));
+    fs::remove_dir(derived.join("presence.json")).unwrap();
+    fs::write(&request.path, "author continued").unwrap();
+    let repaired = apply_with(&root, &request, baseline(), Some(7), |_| {
+        panic!("缓存修复不得再次写正文")
+    })
+    .unwrap();
+    assert_eq!(repaired.state, "applied");
+    assert_eq!(repaired.current, "diverged");
+    assert!(repaired.detail.is_none());
+    assert!(!derived.join("observations.json").exists());
+    assert_eq!(fs::read_to_string(&request.path).unwrap(), "author continued");
+    assert_eq!(
+        fs::read_to_string(derived.join("proposals.json")).unwrap(),
+        "author draft"
+    );
+    assert!(inspect_writeback_receipt(root.clone(), request.clone())
+        .unwrap()
+        .unwrap()
+        .detail
+        .is_none());
+    // 补记成功后再请求不会删除随后重建的新缓存。
+    fs::write(derived.join("presence.json"), "fresh").unwrap();
+    assert!(apply(&root, &request).detail.is_none());
+    assert_eq!(
+        fs::read_to_string(derived.join("presence.json")).unwrap(),
+        "fresh"
+    );
+}
+
+#[test]
+fn cache_repair_command_rejects_missing_unknown_and_not_written_without_body_changes() {
+    let (_temp, root, request) = fixture();
+    assert!(repair_writeback_canon_cache(root.clone(), request.clone()).is_err());
+    let location = resolve(&root, &request).unwrap();
+    apply_with(&root, &request, baseline(), Some(7), |_| {
+        Err("rejected".into())
+    })
+    .unwrap();
+    assert!(repair_writeback_canon_cache(root.clone(), request.clone()).is_err());
+    fs::remove_file(record_path(&location, "outcome")).unwrap();
+    assert!(repair_writeback_canon_cache(root, request.clone()).is_err());
+    assert_eq!(fs::read_to_string(request.path).unwrap(), "before\r\n");
+}
+
+#[test]
+fn cache_repair_replaces_corrupt_maintenance_marker_but_never_changes_body_outcome() {
+    let (_temp, root, request) = fixture();
+    let derived = Path::new(&root).join(".storyforge/canon/derived");
+    fs::create_dir_all(derived.join("presence.json")).unwrap();
+    apply(&root, &request);
+    let location = resolve(&root, &request).unwrap();
+    let original = fs::read(record_path(&location, "outcome")).unwrap();
+    fs::write(record_path(&location, "canon-invalidation"), "{partial").unwrap();
+    assert!(inspect(&location).unwrap().unwrap().detail.is_some());
+    let mismatched = Outcome {
+        schema_version: 1,
+        operation_id: location.operation_id.clone(),
+        fingerprint: "wrong operation payload".into(),
+        state: "invalidated".into(),
+        detail: None,
+    };
+    fs::write(
+        record_path(&location, "canon-invalidation"),
+        serde_json::to_vec(&mismatched).unwrap(),
+    ).unwrap();
+    assert!(inspect(&location).unwrap().unwrap().detail.is_some());
+    fs::remove_dir(derived.join("presence.json")).unwrap();
+    let repaired = repair_writeback_canon_cache(root, request.clone()).unwrap();
+    assert!(repaired.detail.is_none());
+    assert!(inspect(&location).unwrap().unwrap().detail.is_none());
+    assert_eq!(fs::read(record_path(&location, "outcome")).unwrap(), original);
+    assert_eq!(fs::read_to_string(request.path).unwrap(), "after\n");
+}
+
+#[test]
+fn concurrent_cache_only_repairs_settle_without_touching_body_or_original_outcome() {
+    let (_temp, root, request) = fixture();
+    let derived = Path::new(&root).join(".storyforge/canon/derived");
+    fs::create_dir_all(derived.join("presence.json")).unwrap();
+    apply(&root, &request);
+    fs::remove_dir(derived.join("presence.json")).unwrap();
+    fs::write(derived.join("presence.json"), "stale").unwrap();
+    let location = resolve(&root, &request).unwrap();
+    let original = fs::read(record_path(&location, "outcome")).unwrap();
+    let barrier = Arc::new(Barrier::new(2));
+    let handles: Vec<_> = (0..2)
+        .map(|_| {
+            let (root, request, barrier) = (root.clone(), request.clone(), barrier.clone());
+            std::thread::spawn(move || {
+                barrier.wait();
+                repair_writeback_canon_cache(root, request).unwrap()
+            })
+        })
+        .collect();
+    for handle in handles {
+        let receipt = handle.join().unwrap();
+        assert_eq!(receipt.state, "applied");
+        assert!(receipt.detail.is_none());
+    }
+    assert_eq!(fs::read(record_path(&location, "outcome")).unwrap(), original);
+    assert_eq!(fs::read_to_string(request.path).unwrap(), "after\n");
+}
+
+#[cfg(windows)]
+#[test]
+fn cache_repair_keeps_warning_when_cache_is_locked() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let (_temp, root, request) = fixture();
+    let derived = Path::new(&root).join(".storyforge/canon/derived");
+    fs::create_dir_all(derived.join("presence.json")).unwrap();
+    apply(&root, &request);
+    fs::remove_dir(derived.join("presence.json")).unwrap();
+    let cache = derived.join("presence.json");
+    fs::write(&cache, "still present").unwrap();
+    let locked = fs::OpenOptions::new().read(true).share_mode(0).open(&cache).unwrap();
+    let location = resolve(&root, &request).unwrap();
+    let original = fs::read(record_path(&location, "outcome")).unwrap();
+    let receipt = repair_writeback_canon_cache(root, request.clone()).unwrap();
+    drop(locked);
+    assert!(receipt.detail.unwrap().starts_with(CANON_INVALIDATION_WARNING));
+    assert_eq!(fs::read_to_string(&cache).unwrap(), "still present");
+    assert!(!record_path(&location, "canon-invalidation").exists());
+    assert_eq!(fs::read(record_path(&location, "outcome")).unwrap(), original);
+    assert_eq!(fs::read_to_string(request.path).unwrap(), "after\n");
+}
+
+#[cfg(windows)]
+#[test]
+fn cache_invalidation_rejects_external_junction_without_deleting_outside_cache() {
+    let (_temp, root, request) = fixture();
+    let outside = TempDir::new().unwrap();
+    let outside_cache = outside.path().join("presence.json");
+    fs::write(&outside_cache, "outside cache").unwrap();
+    let canon = Path::new(&root).join(".storyforge").join("canon");
+    fs::create_dir_all(&canon).unwrap();
+    let linked = std::process::Command::new("cmd.exe")
+        .args(["/d", "/c", "mklink", "/J"])
+        .arg(canon.join("derived"))
+        .arg(outside.path())
+        .output()
+        .unwrap();
+    assert!(linked.status.success(), "{:?}", linked);
+    let receipt = apply(&root, &request);
+    assert_eq!(receipt.state, "applied");
+    assert!(receipt.detail.unwrap().starts_with(CANON_INVALIDATION_WARNING));
+    let receipt = repair_writeback_canon_cache(root, request.clone()).unwrap();
+    assert!(receipt.detail.unwrap().starts_with(CANON_INVALIDATION_WARNING));
+    assert_eq!(fs::read_to_string(outside_cache).unwrap(), "outside cache");
+    assert_eq!(fs::read_to_string(request.path).unwrap(), "after\n");
+}

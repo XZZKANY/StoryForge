@@ -228,6 +228,26 @@ fn inspect(location: &Location) -> Result<Option<WritebackReceipt>, String> {
             detail = Some(format!("无法读取写回结果: {error}"));
         }
     }
+    // 失效结果单独补记，原始正文 outcome 保持不可变；损坏补记不得掩盖原警告。
+    if state == "applied"
+        && detail
+            .as_deref()
+            .is_some_and(|value| value.starts_with(CANON_INVALIDATION_WARNING))
+    {
+        if let Ok(path) = checked_path(location, "canon-invalidation") {
+            if let Ok(bytes) = fs::read(path) {
+                if let Ok(repair) = serde_json::from_slice::<Outcome>(&bytes) {
+                    if repair.schema_version == 1
+                        && repair.operation_id == intent.operation_id
+                        && repair.fingerprint == intent.fingerprint
+                        && repair.state == "invalidated"
+                    {
+                        detail = None;
+                    }
+                }
+            }
+        }
+    }
     let current = current_state(location, &intent).unwrap_or_else(|error| {
         detail = Some(error);
         "unreadable".into()
@@ -284,6 +304,7 @@ pub fn write_file_with_receipt(
 }
 /// 正文派生的 canon 缓存白名单（D04 统一失效清单）。
 /// proposals.json 刻意排除：那是 canon_delta 的待决提案草稿，不是正文派生。
+const CANON_INVALIDATION_WARNING: &str = "canon 派生缓存未失效: ";
 const CANON_DERIVED_INVALIDATION_NAMES: [&str; 4] = [
     "presence.json",
     "observations.json",
@@ -298,18 +319,69 @@ fn invalidate_canon_derived_caches(root: &Path) -> Result<(), String> {
     let derived_dir = root.join(".storyforge").join("canon").join("derived");
     for name in CANON_DERIVED_INVALIDATION_NAMES {
         let target = derived_dir.join(name);
-        match fs::symlink_metadata(&target) {
-            Ok(_) => {
-                project_fs::validate_pending_mutation_path(&root.to_string_lossy(), &target)?;
-                if fs::remove_file(&target).is_err() {
-                    return Err(format!("无法删除 {name}"));
-                }
+        let removal = match fs::symlink_metadata(&target) {
+            Ok(_) => project_fs::validate_pending_mutation_path(&root.to_string_lossy(), &target)
+                .and_then(|_| fs::remove_file(&target).map_err(|error| format!("无法删除 {name}: {error}"))),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => Err(format!("无法检查 {name}: {error}")),
+        };
+        if let Err(error) = removal {
+            // 并发清理可在路径校验或删除时移走文件；只凭重新核实的缺失收敛，
+            // 不能把 Windows 的拒绝访问一律当成功，也不能绕过父目录围栏。
+            project_fs::validate_pending_mutation_path(&root.to_string_lossy(), &derived_dir)?;
+            if !matches!(fs::symlink_metadata(&target), Err(missing) if missing.kind() == std::io::ErrorKind::NotFound) {
+                return Err(error);
             }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("无法检查 {name}: {error}")),
         }
     }
     Ok(())
+}
+
+// 仅修复已知 applied 的派生缓存，函数没有正文写回闭包。
+fn repair_canon_invalidation(location: &Location, mut receipt: WritebackReceipt) -> WritebackReceipt {
+    // 正文已有结果时绝不重放。只允许重试可弃缓存清理，并独立持久化补记。
+    if receipt.state == "applied"
+        && receipt
+            .detail
+            .as_deref()
+            .is_some_and(|value| value.starts_with(CANON_INVALIDATION_WARNING))
+    {
+        let repair = invalidate_canon_derived_caches(&location.root).and_then(|()| {
+            let outcome = Outcome {
+                schema_version: 1,
+                operation_id: location.operation_id.clone(),
+                fingerprint: location.fingerprint.clone(),
+                state: "invalidated".into(),
+                detail: None,
+            };
+            // 这是可重复生成的缓存维护状态，不是正文 admission/outcome。
+            // 原子替换允许修复中断的补记；并发同身份补记写入相同结果。
+            let path = checked_path(location, "canon-invalidation")?;
+            project_fs::write_file(
+                location.root.to_string_lossy().into_owned(),
+                path.to_string_lossy().into_owned(),
+                serde_json::to_string(&outcome).map_err(|error| error.to_string())?,
+            )
+        });
+        match repair {
+            Ok(()) => receipt.detail = None,
+            Err(error) => receipt.detail = Some(format!("{CANON_INVALIDATION_WARNING}{error}")),
+        }
+    }
+    receipt
+}
+
+#[tauri::command]
+pub fn repair_writeback_canon_cache(
+    project_root: String,
+    request: WritebackRequest,
+) -> Result<WritebackReceipt, String> {
+    let location = resolve(&project_root, &request)?;
+    let receipt = inspect(&location)?.ok_or("未找到写回回执，不能修复缓存")?;
+    if receipt.state != "applied" {
+        return Err("正文写回结果未确认，不能修复缓存".into());
+    }
+    Ok(repair_canon_invalidation(&location, receipt))
 }
 
 fn apply_with(
@@ -321,7 +393,7 @@ fn apply_with(
 ) -> Result<WritebackReceipt, String> {
     let location = resolve(project_root, request)?;
     if let Some(receipt) = inspect(&location)? {
-        return Ok(receipt);
+        return Ok(repair_canon_invalidation(&location, receipt));
     }
     // Known validation/drift rejection happens before admission, with no unknown claim.
     project_fs::check_disk_baseline(&location.target, &expected)?;
@@ -359,10 +431,10 @@ fn apply_with(
     }
     // D04：正文落盘成功后使 canon 派生缓存失效（可弃缓存，缺失即触发后端按需重建）。
     // proposals.json 不在此列——它承载 canon_delta 的待决提案草稿，不是正文派生。
-    // 失效失败不阻断写回：正文已成功落盘，残留旧缓存的行为与失效机制引入前相同。
+    // 正文结果与缓存清理分别记账；失败必须警告，后端读取另有来源版本校验。
     if state == "applied" {
         if let Err(error) = invalidate_canon_derived_caches(&location.root) {
-            detail = Some(format!("canon 派生缓存未失效: {error}"));
+            detail = Some(format!("{CANON_INVALIDATION_WARNING}{error}"));
         }
     }
     let outcome = Outcome {

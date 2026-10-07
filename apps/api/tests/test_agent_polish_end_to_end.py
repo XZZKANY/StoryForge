@@ -382,6 +382,54 @@ def test_fixed_after_tool_control_returns_clean_response(flow, monkeypatch, cont
     assert not ({"permission_required", "agent_run_completed"} & {e["event_type"] for e in flow.replay("/events")})
 
 
+@pytest.mark.parametrize("entry", ["intent", "chat"])
+@pytest.mark.parametrize("scenario", ["reciprocal", "both-polarities", "reversed", "negated"])
+def test_trusted_transfer_guard_preserves_existing_relations_and_rejects_new_contradictions(flow, entry, scenario):
+    forward = "林岚把铜钥匙交给顾迟。"
+    reverse = "顾迟把铜钥匙交给林岚。"
+    negated = "林岚没有把铜钥匙交给顾迟。"
+    events = forward + {"reciprocal": reverse, "both-polarities": negated}.get(scenario, "")
+    original = "# 第一章\n\n" + events + "门，，没有关。"
+    candidate = original.replace("，，", "，")
+    if scenario in {"reversed", "negated"}:
+        candidate = candidate.replace(forward, reverse if scenario == "reversed" else negated)
+    files = []
+    for name in ("林岚", "顾迟"):
+        path = f"人物/{name}.md"
+        target = flow.root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        excerpt = name + "是人物。"
+        target.write_text(excerpt, encoding="utf-8")
+        files.append({"relative_path": path, "kind": "character", "title": target.name, "excerpt": excerpt})
+
+    def model_candidate(response):
+        payload = json.loads(response.content)
+        for segment in payload["segments"]:
+            if scenario in {"reversed", "negated"}:
+                segment["text"] = segment["text"].replace(forward, reverse if scenario == "reversed" else negated)
+        return replace(response, content=json.dumps(payload, ensure_ascii=False))
+
+    result = flow.send(
+        entry,
+        original=original,
+        context_bundle={"project_root": str(flow.root), "files": files},
+        transform_response=model_candidate,
+    )
+
+    assert len(flow.requests) == 1
+    constraints = json.loads(flow.requests[0].messages[-1].content)["constraints"]
+    assert constraints["protected_entities"] == ["林岚", "顾迟"]
+    rejected = scenario in {"reversed", "negated"}
+    patch = result["proposed_patch"]
+    assert patch["candidate_source"] == ("local" if rejected else "online")
+    assert patch["polish_status"] == ("degraded" if rejected else "accepted")
+    assert patch["after"] == (original.replace("，，", "，") if rejected else candidate)
+    reasons = flow.trace()["output_summary"]["gate_reasons"]
+    assert reasons["local"] == []
+    assert reasons["online"] == (["event_relation_changed"] if rejected else [])
+    flow.assert_delivery(patch, confirmation=rejected)
+
+
 @pytest.mark.parametrize("events_recorded", [False, True])
 def test_interruption_revokes_delivery_not_brief_or_review_recovery(events_recorded):
     metadata = {

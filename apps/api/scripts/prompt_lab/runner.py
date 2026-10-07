@@ -26,6 +26,7 @@ import sys
 import time
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -72,6 +73,12 @@ def _build_prompt(task: Any, variant: Any) -> str:
     if kind == "revision":
         return variant.build(task.ctx, task.draft, task.issues)
     raise SystemExit(f"未知任务类型：{kind}")
+
+
+def _fixture_fingerprint(task: Any) -> str:
+    """绑定任务说明、全部嵌套输入和设置，不包含有意变化的变体实现。"""
+    canonical = json.dumps(asdict(task), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 class _SampleObservation:
@@ -208,6 +215,17 @@ def _run_grid(tasks: dict[str, Any], variants: dict[str, dict[str, Any]], *, dry
     """Allocate every sample before dispatch; completion only fills its assigned slot."""
     if jobs < 1 or repeat < 1:
         raise ValueError("jobs and repeat must be positive")
+    fingerprints = {task_id: _fixture_fingerprint(task) for task_id, task in tasks.items()}
+    # 装配 prompt、分发调用或写入检查点前，先校验全部选中任务。
+    # 旧版 prompt 本身无法证明生成它时使用了哪些固定输入。
+    for task_id, task in tasks.items():
+        group = (existing or {}).get("variants", {}).get(task_id)
+        if group is not None and (
+            group.get("fixture_fingerprint") != fingerprints[task_id]
+            or group.get("task_description") != task.description
+        ):
+            reason = "固定输入或任务说明已变化" if group.get("fixture_fingerprint") else "旧版记录缺少固定输入指纹"
+            raise SystemExit(f"无法合并任务 {task_id!r}：{reason}；请用 --out 指定新目录，重新开始实验")
     run_data = copy.deepcopy(existing) if existing else {"variants": {}}
     run_data.setdefault("run_id", uuid.uuid4().hex)
     run_data["schema_version"] = 2
@@ -220,7 +238,9 @@ def _run_grid(tasks: dict[str, Any], variants: dict[str, dict[str, Any]], *, dry
     failed = 0
     # Prompt builders temporarily patch globals, so rendering must remain serial.
     for task_id, task in tasks.items():
-        group = run_data["variants"].setdefault(task_id, {"task_description": task.description, "variants": []})
+        group = run_data["variants"].setdefault(task_id, {
+            "task_description": task.description, "fixture_fingerprint": fingerprints[task_id], "variants": [],
+        })
         for variant_id, variant in variants[task.kind].items():
             old = next((e for e in group["variants"] if e["id"] == variant_id), None)
             entry = {"id": variant_id, "label": variant.label, "description": variant.description,

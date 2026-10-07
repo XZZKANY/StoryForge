@@ -280,20 +280,23 @@ export function useProjectCommands({
       const payload = (result.payload ?? {}) as Record<string, unknown>;
       const canon = (payload.canon ?? {}) as Record<string, unknown>;
       const dossier = (canon.dossier ?? {}) as Record<string, unknown>;
-      const dossierPath =
-        typeof dossier.path === 'string' ? dossier.path : '.storyforge/canon/derived/dossier.md';
+      const dossierPath = typeof dossier.path === 'string' ? dossier.path : null;
+      const cached = canon.cache_status !== 'uncached_unverified' && dossierPath !== null;
       invalidateFileSystemCache(activeProject);
       setProjectRefreshVersion((version) => version + 1);
       const lines = [
         `实体声明：${canon.entity_count ?? 0} 个`,
         `硬矛盾（blocking）：${canon.conflict_count ?? 0}，advisory：${canon.advisory_count ?? 0}`,
-        `已写出事实卡：${dossierPath}`,
+        cached ? `已写出事实卡：${dossierPath}` : '本次仅提供扫描参考；未发布缓存或新事实卡。',
         '',
         typeof canon.note === 'string'
           ? canon.note
           : '结果为派生参考信号，非质量判定；advisory 须抽读原文核实。',
       ];
-      await dialogs.alert({ title: 'Canon 事实卡已刷新（参考信号）', message: lines.join('\n') });
+      await dialogs.alert({
+        title: cached ? 'Canon 事实卡已刷新（参考信号）' : 'Canon 扫描完成（未缓存参考）',
+        message: lines.join('\n'),
+      });
     } catch (error) {
       await dialogs.alert({
         title: '刷新 Canon 事实卡失败',

@@ -3,6 +3,7 @@ import { performGuardedWriteback, type WritebackSnapshot } from './writeback';
 
 export type ReceiptedWritebackEffects<T> = {
   inspect: () => Promise<WritebackReceipt | null>;
+  repairCaches?: () => Promise<WritebackReceipt>;
   validate: () => void;
   snapshot: () => Promise<WritebackSnapshot | null>;
   advanceBranchHead: (timestamp: number) => Promise<void>;
@@ -68,6 +69,16 @@ export async function performReceiptedWriteback<T>(
     });
   }
   requireApplied(receipt);
+  if (restored && receipt.detail?.startsWith('canon 派生缓存未失效: ') && effects.repairCaches) {
+    try {
+      const repaired = await effects.repairCaches();
+      requireApplied(repaired);
+      if (repaired.operationId !== receipt.operationId) throw new Error('缓存修复回执身份不匹配');
+      receipt = repaired;
+    } catch {
+      // 缓存修复失败不改变已写入事实，也绝不回退到正文 write。
+    }
+  }
   if (receipt.current === 'after') effects.settle(restored);
   try {
     return { receipt, recovered, record: await effects.record(receipt), auditError: null };

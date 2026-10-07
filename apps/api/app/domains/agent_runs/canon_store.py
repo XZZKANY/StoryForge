@@ -20,6 +20,10 @@ from typing import Any
 
 from app.common.generation_sources import observe_generation_source
 from app.common.project_tree import MAX_READ_BYTES, ProjectTreeError, scoped_target
+from app.domains.agent_runs.canon_cache_freshness import (
+    capture_source_revision as capture_source_revision,
+)
+from app.domains.agent_runs.canon_cache_freshness import require_source_revision
 from app.domains.agent_runs.fs_tools import FsToolError
 from app.domains.agent_runs.fs_tools import resolve_project_root as _resolve_root
 
@@ -33,6 +37,7 @@ _DERIVED_DIRNAME = "derived"
 _ALLOWED_DERIVED_NAMES = frozenset({"presence.json", "proposals.json", "report.json", "observations.json"})
 # 派生文本缓存白名单（人可读投影，非 JSON）。
 _ALLOWED_DERIVED_TEXT_NAMES = frozenset({"dossier.md"})
+_SOURCE_REVISION_KEY = "_storyforge_source_revision"
 
 _EMPTY_CANON: dict[str, Any] = {"version": 1, "entities": [], "invariants": {}}
 _EMPTY_HOOKS: dict[str, Any] = {"version": 1, "hooks": []}
@@ -179,32 +184,50 @@ def _resolve_derived_target(project_root: str, name: str, allowed: frozenset[str
     return target
 
 
-def write_derived(project_root: str, name: str, payload: dict[str, Any]) -> str:
-    """原子写派生缓存到 .storyforge/canon/derived/<name>；name 走白名单，路径断言仍在 canon 目录内。"""
+def write_derived(
+    project_root: str, name: str, payload: dict[str, Any], *, source_revision: str | None = None
+) -> str:
+    """原子写缓存与扫描前版本；proposals 是待决草稿，不参与正文派生失效。"""
 
     target = _resolve_derived_target(project_root, name, _ALLOWED_DERIVED_NAMES)
+    if name != "proposals.json":
+        require_source_revision(project_root, source_revision)
+        payload = {**payload, _SOURCE_REVISION_KEY: source_revision}
     _atomic_write_json(target, payload)
     return str(target)
 
 
-def write_derived_text(project_root: str, name: str, text: str) -> str:
+def write_derived_text(
+    project_root: str, name: str, text: str, *, source_revision: str | None = None
+) -> str:
     """原子写人可读派生投影（如 dossier.md）到 derived/<name>；独立文本白名单。"""
 
     target = _resolve_derived_target(project_root, name, _ALLOWED_DERIVED_TEXT_NAMES)
+    require_source_revision(project_root, source_revision)
+    text = f"<!-- {_SOURCE_REVISION_KEY}: {source_revision} -->\n" + text
     _atomic_write_text(target, text)
     return str(target)
 
 
 def read_derived(project_root: str, name: str) -> dict[str, Any] | None:
-    """读派生缓存；不存在或不合法返回 None（可弃缓存，缺失即触发重建）。"""
+    """读派生缓存；缺失、无版本或来源已变返回 None，不能凭残留文件信任旧正文。"""
 
     if name not in _ALLOWED_DERIVED_NAMES:
         raise FsToolError(f"不允许的派生缓存文件名：{name}")
-    target = _canon_dir(project_root) / _DERIVED_DIRNAME / name
-    if not target.is_file():
-        return None
     try:
-        parsed = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        root = _resolve_root(project_root)
+        target = scoped_target(root, _canon_dir(project_root) / _DERIVED_DIRNAME / name)
+        with target.open("rb", buffering=0) as stream:
+            raw = stream.read(MAX_READ_BYTES + 1)
+        if len(raw) > MAX_READ_BYTES:
+            return None
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            return None
+        if name != "proposals.json":
+            revision = parsed.pop(_SOURCE_REVISION_KEY, None)
+            if not isinstance(revision, str) or capture_source_revision(project_root) != revision:
+                return None
+    except (OSError, ValueError, ProjectTreeError, RecursionError):
         return None
-    return parsed if isinstance(parsed, dict) else None
+    return parsed

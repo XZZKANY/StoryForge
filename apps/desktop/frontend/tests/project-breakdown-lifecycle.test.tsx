@@ -408,3 +408,28 @@ test('same-tick double cancellation sends one request and can finish normally', 
   await finish(0, generation.pending, 'cancelled');
   expect(latest.bookBreakdownCancelling).toBe(false);
 });
+
+test('Canon 无版本扫描只显示未缓存参考结果，不宣称旧事实卡已刷新', async () => {
+  await render('D:/project');
+  vi.mocked(executeIdeCommand).mockResolvedValueOnce({
+    command_id: 'canon.refresh',
+    status: 'accepted',
+    payload: {
+      canon: {
+        entity_count: 2,
+        conflict_count: 0,
+        advisory_count: 1,
+        cache_status: 'uncached_unverified',
+        dossier: { path: null },
+        note: '写回历史无法确认；仅提供本次扫描参考，未发布缓存。',
+      },
+    },
+  });
+  await act(async () => latest.handleRefreshCanon());
+  const alert = vi.mocked(options.dialogs.alert).mock.calls.at(-1)?.[0];
+  expect(alert?.title).toContain('未缓存');
+  expect(alert?.message).toContain('未发布缓存');
+  expect(alert?.message).not.toContain('已写出事实卡');
+  expect(alert?.message).not.toContain('.storyforge/canon/derived/dossier.md');
+  expect(options.openFile).not.toHaveBeenCalled();
+});

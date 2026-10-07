@@ -93,3 +93,32 @@ describe('receipt IPC validation', () => {
     expect(fx.write).not.toHaveBeenCalled();
   });
 });
+
+describe('已写入正文的缓存专用恢复', () => {
+  it('恢复回执时只修复缓存，不派发正文或再次快照', async () => {
+    const fx = {
+      ...effects({ ...applied, detail: 'canon 派生缓存未失效: locked' }),
+      repairCaches: vi.fn(async () => ({ ...applied, current: 'diverged' as const })),
+    };
+    const result = await performReceiptedWriteback(true, fx);
+    expect(result.receipt.detail).toBeUndefined();
+    expect(result.receipt.current).toBe('diverged');
+    expect(fx.repairCaches).toHaveBeenCalledOnce();
+    expect(fx.write).not.toHaveBeenCalled();
+    expect(fx.snapshot).not.toHaveBeenCalled();
+    expect(fx.settle).not.toHaveBeenCalled();
+  });
+  it('缓存修复失败仍保留 applied 与警告，不报告正文失败或重放', async () => {
+    const fx = {
+      ...effects({ ...applied, detail: 'canon 派生缓存未失效: locked' }),
+      repairCaches: vi.fn(async () => {
+        throw new Error('still locked');
+      }),
+    };
+    const result = await performReceiptedWriteback(true, fx);
+    expect(result.receipt.state).toBe('applied');
+    expect(result.receipt.detail).toContain('canon 派生缓存未失效');
+    expect(fx.write).not.toHaveBeenCalled();
+    expect(fx.record).toHaveBeenCalledOnce();
+  });
+});

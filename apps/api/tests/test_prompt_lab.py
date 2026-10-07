@@ -241,6 +241,46 @@ def test_runner_merge_replaces_only_selected_cells(monkeypatch: pytest.MonkeyPat
     assert by_id["no-craft"]["output"] == "旧输出"
 
 
+@pytest.mark.parametrize("change", ["description", "ctx", "kind", "draft", "issues", "user_prompt", "preview_chars", "full_chapter"])
+def test_merge_rejects_changed_fixture_before_touching_artifacts(monkeypatch, tmp_path, change):
+    from dataclasses import replace
+
+    monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: {
+        "content": "original evidence", "cost_cny_estimated": 0.1, "latency_ms": 1,
+    })
+    # 未变化的任务排在变化任务前面，确保全部选中任务都会提前校验。
+    args = ["--task", "transition-full,opening-preview", "--variants", "baseline"]
+    assert runner_module.main([*args, "--out", str(tmp_path), "--seed", "7"]) == 0
+    before = {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    task = TASKS["opening-preview"]
+    changes = {
+        "description": "Different instructions for readers",
+        "ctx": replace(task.ctx, user_intent="Different input with the same task description"),
+        "kind": "critique", "draft": "different draft", "issues": ("new issue",),
+        "user_prompt": "new user prompt", "preview_chars": task.preview_chars + 1,
+        "full_chapter": not task.full_chapter,
+    }
+    monkeypatch.setitem(runner_module.TASKS, task.id, replace(task, **{change: changes[change]}))
+    monkeypatch.setattr(runner_module, "_build_prompt", lambda *a: pytest.fail("必须在装配 prompt 前校验"))
+    monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: pytest.fail("不得分发调用"))
+    with pytest.raises(SystemExit, match="opening-preview.*固定输入.*--out.*新目录.*重新开始实验"):
+        runner_module.main([*args, "--merge", str(tmp_path)])
+    assert {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
+
+
+def test_merge_rejects_legacy_fixture_identity_without_relabeling(monkeypatch, tmp_path):
+    import json
+
+    data = _sample_run_data()
+    runner_module._write_artifacts(tmp_path, data, dry_run=False, blind_seed=7)
+    before = {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: pytest.fail("不得分发调用"))
+    with pytest.raises(SystemExit, match="opening-preview.*固定输入.*--out.*新目录.*重新开始实验"):
+        runner_module.main(["--merge", str(tmp_path), "--task", "opening-preview", "--variants", "baseline"])
+    assert {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
+    assert json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8")) == data
+
+
 def test_runner_docstring_examples_use_real_flags() -> None:
     """docstring 用法示例里的每个 --flag 都必须真存在于 parser。
 
@@ -460,13 +500,14 @@ def test_failed_merge_excludes_stale_output_but_keeps_history(monkeypatch, tmp_p
 def test_merge_adds_new_variant_and_does_not_mutate_input(monkeypatch):
     from copy import deepcopy
 
-    original = _sample_run_data()
-    original["variants"]["opening-preview"]["variants"] = original["variants"]["opening-preview"]["variants"][:1]
+    task = runner_module.TASKS["opening-preview"]
+    original, _ = runner_module._run_grid(
+        {task.id: task}, {task.kind: runner_module._select_variants(task.kind, ["baseline"])}, dry_run=True,
+    )
     before = deepcopy(original)
     monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: {
         "content": "new", "cost_cny_estimated": 0.1, "latency_ms": 1,
     })
-    task = runner_module.TASKS["opening-preview"]
     data, failed = runner_module._run_grid(
         {"opening-preview": task}, {task.kind: runner_module._select_variants(task.kind, ["no-craft"])},
         dry_run=False, existing=original,
@@ -474,6 +515,8 @@ def test_merge_adds_new_variant_and_does_not_mutate_input(monkeypatch):
     assert failed == 0
     assert original == before
     assert {e["id"] for e in data["variants"]["opening-preview"]["variants"]} == {"baseline", "no-craft"}
+    assert data["variants"][task.id]["fixture_fingerprint"] == original["variants"][task.id]["fixture_fingerprint"]
+    assert data["variants"][task.id]["variants"][0] == original["variants"][task.id]["variants"][0]
 
 
 def test_call_once_keeps_partial_usage_and_redacts_source_secret(monkeypatch):

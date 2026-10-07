@@ -45,7 +45,8 @@ def test_scaffold_creates_empty_canon_and_is_idempotent(project: Path) -> None:
 
 
 def test_write_and_read_derived_roundtrip(project: Path) -> None:
-    path = canon_store.write_derived(str(project), "presence.json", {"entities": []})
+    revision = canon_store.capture_source_revision(str(project))
+    path = canon_store.write_derived(str(project), "presence.json", {"entities": []}, source_revision=revision)
     assert Path(path).is_file()
     assert canon_store.read_derived(str(project), "presence.json") == {"entities": []}
     # 派生缓存落在 .storyforge/canon/derived 下
@@ -211,8 +212,9 @@ def test_lifespan_no_reappearance_is_clean(project: Path) -> None:
 
 
 def test_derived_cache_is_disposable_and_rebuilds_identically(project: Path) -> None:
+    revision = canon_store.capture_source_revision(str(project))
     first = canon_rebuild.rebuild_presence(str(project), [_QINGYAN, _YUER])
-    canon_store.write_derived(str(project), "presence.json", first)
+    canon_store.write_derived(str(project), "presence.json", first, source_revision=revision)
 
     derived_file = project / ".storyforge" / "canon" / "derived" / "presence.json"
     derived_file.unlink()
@@ -316,10 +318,11 @@ def test_render_dossiers_markdown_empty_is_honest() -> None:
 
 
 def test_write_derived_text_roundtrip_and_whitelist(project: Path) -> None:
-    path = canon_store.write_derived_text(str(project), "dossier.md", "# 测试\n")
+    revision = canon_store.capture_source_revision(str(project))
+    path = canon_store.write_derived_text(str(project), "dossier.md", "# 测试\n", source_revision=revision)
     written = Path(path)
     assert written.is_file()
-    assert written.read_text(encoding="utf-8") == "# 测试\n"
+    assert written.read_text(encoding="utf-8") == f"<!-- _storyforge_source_revision: {revision} -->\n# 测试\n"
     assert ".storyforge" in path and "derived" in path
     # 文本白名单拒绝任意名 / JSON 白名单名走错通道
     with pytest.raises(FsToolError, match="不允许的派生缓存文件名"):

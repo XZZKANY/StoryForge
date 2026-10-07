@@ -1,5 +1,5 @@
 //! Visibility, interaction and native zoom checks for the isolated Desktop smoke runner.
-//! The probe records geometry, never manuscript content or provider configuration.
+//! Geometry and recovery probes use only owned synthetic projects, never author data or provider configuration.
 use serde_json::{json, Value};
 use std::time::Duration;
 
@@ -214,6 +214,302 @@ pub(super) fn verify_native_zoom<R: tauri::Runtime>(
         (Err(error), Ok(())) | (Ok(()), Err(error)) => Err(error),
         (Err(error), Err(reset_error)) => Err(format!("{error}; {reset_error}")),
     }
+}
+
+/// Real WebView clicks with real filesystem failures, never a mocked receipt.
+/// Child fixtures belong to the outer smoke root and share its failure cleanup.
+pub(super) fn verify_cache_recovery<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    owned_root: &std::path::Path,
+) -> anyhow::Result<()> {
+    use anyhow::{ensure, Context};
+    use std::collections::BTreeMap;
+    use std::fs;
+    use std::path::Path;
+
+    // Unlike counts, exact byte maps detect replacement of existing evidence.
+    fn files(path: &Path) -> anyhow::Result<BTreeMap<String, Vec<u8>>> {
+        let mut found = BTreeMap::new();
+        if !path.exists() {
+            return Ok(found);
+        }
+        for entry in walkdir::WalkDir::new(path) {
+            let entry = entry?;
+            if entry.file_type().is_file() {
+                found.insert(
+                    entry.path().strip_prefix(path)?.to_string_lossy().into(),
+                    fs::read(entry.path())?,
+                );
+            }
+        }
+        Ok(found)
+    }
+    let eval = |script: &str| {
+        super::eval_window_json(window, script, Duration::from_millis(1500))
+            .map_err(anyhow::Error::msg)
+    };
+    let wait = |script: &str| {
+        super::wait_for_window_state(window, script, 100, Duration::from_millis(150), |value| {
+            super::has_bool(value, "ready", true)
+        })
+        .map_err(anyhow::Error::msg)
+    };
+    let state_script = format!(
+        r#"(() => {{ {DOM_HELPERS}
+        return {{
+            isTauri: !!window.__TAURI_INTERNALS__, mockFs: !!window.__STORYFORGE_MOCK_FS__,
+            content: window.__STORYFORGE_SMOKE__?.getCurrentEditorContent(),
+            counts: window.__STORYFORGE_SMOKE__?.getWritebackProbeSnapshot(),
+            toasts: [...document.querySelectorAll('[data-testid="toast-item"]')]
+                .filter(visible).map(e => e.textContent),
+            actions: [...document.querySelectorAll('[data-testid="toast-action"]')]
+                .filter(visible).map(e => e.textContent)
+        }};
+    }})()"#
+    );
+    let action_script = |label: &str, probe: bool| {
+        format!(
+            r#"(() => {{ {DOM_HELPERS}
+        const target = [...document.querySelectorAll('[data-testid="toast-action"]')]
+            .find(e => e.textContent === {});
+        return click(target, {});
+    }})()"#,
+            json!(label),
+            probe
+        )
+    };
+    let click_action = |label: &str| -> anyhow::Result<()> {
+        wait(&action_script(label, true))?;
+        let clicked = eval(&action_script(label, false))?;
+        ensure!(
+            super::has_bool(&clicked, "clicked", true),
+            "action not clicked: {label}: {clicked}"
+        );
+        Ok(())
+    };
+    for audit_failure in [false, true] {
+        let scenario = if audit_failure {
+            "audit-and-cache"
+        } else {
+            "cache-only"
+        };
+        let root = super::create_smoke_project_at(owned_root.join(scenario))?;
+        let body = root.join("正文").join("chapter-001.md");
+        let derived = root.join(".storyforge").join("canon").join("derived");
+        let audit = root.join(".storyforge").join("author-loop");
+        let versions = root.join(".storyforge").join("versions");
+        let receipts = root.join(".storyforge").join("writeback-receipts");
+        let before = fs::read_to_string(&body)?;
+        let after = format!("# Chapter 1\n\nNative {scenario} accepted prose\n");
+        let later = format!("{after}\nAuthor's later edits must survive recovery\n");
+        eval(&format!(
+            "(() => {{ window.__STORYFORGE_SMOKE__.openProject({}); return true; }})()",
+            json!(root)
+        ))?;
+        wait(&format!(
+            r#"(() => {{ {DOM_HELPERS}
+            const project = find('file-list')?.getAttribute('data-project-path');
+            return {{ ready: project === {} && click(find('activity-explorer'), true).ready === true, project }};
+        }})()"#,
+            json!(root)
+        ))?;
+        super::click_window_test_id(window, "activity-explorer").map_err(anyhow::Error::msg)?;
+        let chapter_selector = format!(
+            "[data-testid=\"file-item\"][data-file-path={}]",
+            json!(body)
+        );
+        wait(&click_ready_script(&chapter_selector))?;
+        ensure!(
+            super::has_bool(&eval(&click_script(&chapter_selector))?, "clicked", true),
+            "chapter click failed"
+        );
+        let ready = format!(
+            r#"(() => {{ {DOM_HELPERS}
+            const smoke = window.__STORYFORGE_SMOKE__;
+            return {{ ready: visible(find('editor-root')) && smoke?.getCurrentEditorContent() === {},
+                content: smoke?.getCurrentEditorContent(), currentFile: find('editor-root')?.getAttribute('data-current-file') }};
+        }})()"#,
+            json!(before)
+        );
+        wait(&ready).context("open isolated cache recovery project")?;
+        fs::create_dir_all(&derived)?;
+        if derived.join("presence.json").is_file() {
+            fs::remove_file(derived.join("presence.json"))?;
+        }
+        fs::create_dir(derived.join("presence.json"))?;
+        let proposals = r#"{"entities":[{"id":"pending-smoke","canonical_name":"待审人物"}]}"#;
+        fs::write(derived.join("proposals.json"), proposals)?;
+        if audit_failure {
+            fs::write(&audit, "block audit directory creation")?;
+        }
+        let installation = eval("window.__STORYFORGE_SMOKE__.installWritebackProbe('observe')")?;
+        ensure!(
+            super::has_bool(&installation, "installed", true),
+            "native observer: {installation}"
+        );
+        eval(&format!(
+            "(() => {{ window.__STORYFORGE_SMOKE__.proposeRevision({}); return true; }})()",
+            json!({"id": format!("smoke-{scenario}"), "filePath": body, "before": before, "after": after})
+        ))?;
+        wait(&click_ready_script("[data-testid=\"suggestion-accept\"]"))?;
+        super::click_window_test_id(window, "suggestion-accept").map_err(anyhow::Error::msg)?;
+        let action = if audit_failure {
+            "重试记录（不重写正文）"
+        } else {
+            "修复缓存（不重写正文）"
+        };
+        wait(&action_script(action, true)).context("warning recovery action must be visible")?;
+        let initial = eval(&state_script)?;
+        ensure!(
+            super::has_bool(&initial, "isTauri", true)
+                && !super::has_bool(&initial, "mockFs", true),
+            "not native: {initial}"
+        );
+        ensure!(
+            initial.pointer("/counts/writes").and_then(Value::as_u64) == Some(1),
+            "expected one native write: {initial}"
+        );
+        ensure!(
+            initial["toasts"]
+                .to_string()
+                .contains("canon 派生缓存未失效"),
+            "missing cache warning: {initial}"
+        );
+        ensure!(
+            fs::read_to_string(&body)? == after,
+            "accepted body mismatch"
+        );
+        let immutable = files(&receipts)?;
+        ensure!(
+            immutable.keys().any(|name| name.ends_with(".intent.json"))
+                && immutable.keys().any(|name| name.ends_with(".outcome.json")),
+            "missing durable receipt"
+        );
+        let version_bytes = files(&versions)?;
+        ensure!(!version_bytes.is_empty(), "missing pre-write snapshot");
+        println!(
+            "Desktop native cache recovery evidence: {}",
+            json!({"scenario": scenario, "phase": "warning", "ui": initial,
+            "versionFiles": version_bytes.len(), "receiptFiles": immutable.len()})
+        );
+
+        // Simulate a real later author edit on disk and in Monaco. Recovery must
+        // retain both; no current-buffer equality shortcut may authorize replay.
+        fs::write(&body, &later)?;
+        ensure!(
+            eval(&format!(
+                "window.__STORYFORGE_SMOKE__.setCurrentEditorContent({})",
+                json!(later)
+            ))? == json!(true),
+            "editor edit failed"
+        );
+        let assert_preserved = || -> anyhow::Result<Value> {
+            let state = eval(&state_script)?;
+            ensure!(
+                fs::read_to_string(&body)? == later && state["content"] == json!(later),
+                "recovery changed author text: {state}"
+            );
+            ensure!(
+                files(&versions)? == version_bytes,
+                "recovery changed snapshots"
+            );
+            let current = files(&receipts)?;
+            for (name, bytes) in &immutable {
+                ensure!(
+                    current.get(name) == Some(bytes),
+                    "recovery changed original receipt {name}"
+                );
+            }
+            ensure!(
+                fs::read_to_string(derived.join("proposals.json"))? == proposals,
+                "proposal changed"
+            );
+            ensure!(
+                state.pointer("/counts/writes").and_then(Value::as_u64) == Some(1),
+                "body dispatched again: {state}"
+            );
+            Ok(state)
+        };
+        // First retry with the fault still present: the real ToastHost must keep
+        // the failed action reachable, not swallow it or dismiss its warning.
+        click_action(action)?;
+        let failed_action = format!(
+            r#"(() => {{ {DOM_HELPERS}
+            const target = [...document.querySelectorAll('[data-testid="toast-action"]')].find(e => e.textContent === {});
+            const item = target?.closest('[data-testid="toast-item"]');
+            return {{ ready: click(target, true).ready === true && !!item?.querySelector('[data-testid="toast-action-error"]') }};
+        }})()"#,
+            json!(action)
+        );
+        wait(&failed_action).context("failed recovery action remains retryable")?;
+        println!(
+            "Desktop native cache recovery evidence: {}",
+            json!({"scenario": scenario, "phase": "retry-failed", "ui": assert_preserved()?})
+        );
+        if audit_failure {
+            fs::remove_file(&audit)?;
+            click_action(action)?;
+            wait(&action_script("修复缓存（不重写正文）", true))
+                .context("audit repair must expose cache repair")?;
+            let audit_bytes = files(&audit)?;
+            ensure!(
+                audit_bytes.len() == 1,
+                "audit repair must create exactly one record"
+            );
+            println!(
+                "Desktop native cache recovery evidence: {}",
+                json!({"scenario": scenario, "phase": "audit-repaired-cache-pending", "ui": assert_preserved()?})
+            );
+        }
+        let audit_bytes = files(&audit)?;
+        ensure!(
+            audit_bytes.len() == 1,
+            "expected one audit record before cache repair"
+        );
+        fs::remove_dir(derived.join("presence.json"))?;
+        // A regular stale file must actually be deleted by the native repair.
+        fs::write(derived.join("presence.json"), "stale disposable cache")?;
+        click_action("修复缓存（不重写正文）")?;
+        let repaired = format!(
+            r#"(() => {{ {DOM_HELPERS}
+            return {{ ready: [...document.querySelectorAll('[data-testid="toast-item"]')]
+                .some(e => visible(e) && e.textContent.includes('派生缓存已清理，正文未再次写入'))
+                && ![...document.querySelectorAll('[data-testid="toast-action"]')]
+                    .some(e => visible(e) && e.textContent === '修复缓存（不重写正文）') }};
+        }})()"#
+        );
+        wait(&repaired)?;
+        ensure!(
+            !derived.join("presence.json").exists(),
+            "cache repair did not delete stale file"
+        );
+        ensure!(
+            files(&audit)? == audit_bytes,
+            "cache repair changed audit record"
+        );
+        let current = files(&receipts)?;
+        ensure!(
+            current.len() == immutable.len() + 1
+                && current
+                    .keys()
+                    .any(|name| name.ends_with(".canon-invalidation.json")),
+            "missing cache maintenance record"
+        );
+        println!(
+            "Desktop native cache recovery evidence: {}",
+            json!({"scenario": scenario, "phase": "cache-repaired",
+            "ui": assert_preserved()?, "bodyPreserved": true, "versionsByteEqual": true, "originalReceiptsByteEqual": true, "auditByteEqual": true, "proposalsPreserved": true})
+        );
+        eval("window.__STORYFORGE_SMOKE__.restoreWritebackProbe()")?;
+        // Reset only this synthetic fixture after the preservation assertions;
+        // switching projects must not be diverted by a dirty-editor prompt.
+        fs::write(&body, &after)?;
+        eval(&format!(
+            "window.__STORYFORGE_SMOKE__.setCurrentEditorContent({})",
+            json!(after)
+        ))?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

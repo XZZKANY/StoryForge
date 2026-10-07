@@ -20,7 +20,7 @@ from agent_loop_runtime_test_support import _enable_loop_env, _fake_llm_script
 from agent_transport import stream_agent_message
 from fastapi.testclient import TestClient
 
-from app.domains.agent_runs import book_context, canon_context
+from app.domains.agent_runs import book_context, canon_context, canon_store
 
 pytest_plugins = ("agent_loop_runtime_test_fixtures",)
 
@@ -50,9 +50,8 @@ def _write_canon(project: Path, payload: dict) -> None:
 
 
 def _write_presence(project: Path, payload: dict) -> None:
-    derived = project / ".storyforge" / "canon" / "derived"
-    derived.mkdir(parents=True, exist_ok=True)
-    (derived / "presence.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    revision = canon_store.capture_source_revision(str(project))
+    canon_store.write_derived(str(project), "presence.json", payload, source_revision=revision)
 
 
 # --- 章序口径：底座与 canon 硬约束头不得错开 ---

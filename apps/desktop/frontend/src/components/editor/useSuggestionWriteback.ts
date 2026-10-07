@@ -590,6 +590,7 @@ export function useSuggestionWriteback({
           // writeFile 不执行——绝不在没有版本安全网时落盘。
           const loopRecord = await performReceiptedWriteback(contentChanged, {
             inspect: () => TauriFileSystem.inspectWritebackReceipt(projectRoot, request),
+            repairCaches: () => TauriFileSystem.repairWritebackCanonCache(projectRoot, request),
             validate: () => {
               overrides.admissionGuard?.();
               if (overrides.recoveredRecord)
@@ -728,7 +729,7 @@ export function useSuggestionWriteback({
               deliveryTicket,
             );
           }
-          const warning = loopRecord.auditError
+          const settlementWarning = loopRecord.auditError
             ? `正文已写入，但闭环记录未完成：${loopRecord.auditError}。请重试记录，不要重新应用补丁。`
             : !loopRecord.receipt.receiptPersisted
               ? '正文已写入，但结果回执未持久化；已保留操作意图，请核对文件与版本，勿重新应用。'
@@ -737,6 +738,24 @@ export function useSuggestionWriteback({
                 : loopRecord.receipt.current !== 'after'
                   ? '此补丁此前已写入，文件随后又发生变化；本次未覆盖当前文件。'
                   : null;
+          const warning = loopRecord.receipt.detail
+            ? `${settlementWarning ?? '正文已写入。'} 后续处理提示：${loopRecord.receipt.detail}。请核对项目状态，不要重新应用补丁。`
+            : settlementWarning;
+          const retryCaches =
+            loopRecord.receipt.detail?.startsWith('canon 派生缓存未失效: ') &&
+            loopRecord.receipt.receiptPersisted
+              ? async () => {
+                  if (projectPathRef.current !== projectRoot)
+                    throw new Error('请返回原项目后修复缓存');
+                  const repaired = await TauriFileSystem.repairWritebackCanonCache(
+                    projectRoot,
+                    request,
+                  );
+                  if (repaired.state !== 'applied' || repaired.detail)
+                    throw new Error(repaired.detail ?? '缓存修复结果未确认');
+                  emitToast('派生缓存已清理，正文未再次写入', { tone: 'info' });
+                }
+              : undefined;
           return {
             auditComplete: !loopRecord.auditError && loopRecord.receipt.receiptPersisted,
             receipt: loopRecord.receipt,
@@ -744,6 +763,7 @@ export function useSuggestionWriteback({
             createdFile: loopRecord.receipt.createdFile,
             warning,
             writebackWarning: warning,
+            retryCaches,
             retryAudit:
               loopRecord.auditError && loopRecord.receipt.receiptPersisted
                 ? async (onRepaired?: (receipt: WritebackReceipt) => void) => {
@@ -775,7 +795,10 @@ export function useSuggestionWriteback({
                           filePath: path,
                           status: 'completed',
                           action: 'revision_accepted',
-                          message: '原写回记录已补齐并结算运行；未再次写入正文',
+                          message: retryCaches
+                            ? `原写回记录已补齐并结算运行；${loopRecord.receipt.detail}。未再次写入正文`
+                            : '原写回记录已补齐并结算运行；未再次写入正文',
+                          ...(retryCaches ? { warning: loopRecord.receipt.detail } : {}),
                           runId: suggestion.runId,
                           projectPath: projectRoot,
                           assistantSessionId: suggestion.assistantSessionId,
@@ -790,7 +813,14 @@ export function useSuggestionWriteback({
                       );
                       if (repaired) onRepaired(repaired);
                     }
-                    emitToast('写回记录已补齐；未再次写入正文', { tone: 'success' });
+                    if (retryCaches) {
+                      emitToast(`写回记录已补齐；${loopRecord.receipt.detail}。正文未再次写入。`, {
+                        tone: 'info',
+                        action: { label: '修复缓存（不重写正文）', run: retryCaches },
+                      });
+                    } else {
+                      emitToast('写回记录已补齐；未再次写入正文', { tone: 'success' });
+                    }
                   }
                 : null,
             recovered: loopRecord.recovered,
@@ -1142,7 +1172,9 @@ export function useSuggestionWriteback({
           tone: 'info',
           action: loopRecord.retryAudit
             ? { label: '重试记录（不重写正文）', run: loopRecord.retryAudit }
-            : undefined,
+            : loopRecord.retryCaches
+              ? { label: '修复缓存（不重写正文）', run: loopRecord.retryCaches }
+              : undefined,
         });
         emitAuthorLoopResult({
           filePath: path,
@@ -1351,7 +1383,9 @@ export function useSuggestionWriteback({
             tone: 'info',
             action: loopRecord.retryAudit
               ? { label: '重试记录（不重写正文）', run: loopRecord.retryAudit }
-              : undefined,
+              : loopRecord.retryCaches
+                ? { label: '修复缓存（不重写正文）', run: loopRecord.retryCaches }
+                : undefined,
           });
           emitAuthorLoopResult({
             filePath: path,

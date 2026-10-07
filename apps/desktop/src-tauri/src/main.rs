@@ -1818,6 +1818,22 @@ fn run_smoke_probe<R: tauri::Runtime>(
         }
         println!("Desktop native receipt recovery evidence: native-write-dispatch=0 inspect=true audit-reused=true author-buffer-preserved=true disk-unchanged=true version-count-unchanged=true");
 
+        // Restore the synthetic dirty buffer before changing projects. The next
+        // probe owns only child fixtures of this smoke's exclusively created root.
+        let reset_buffer = format!(
+            "window.__STORYFORGE_SMOKE__.setCurrentEditorContent({})",
+            serde_json::to_string(after_revision).unwrap()
+        );
+        if let Err(error) = eval_window_json(&window, &reset_buffer, Duration::from_millis(1500))
+            .and_then(|_| {
+                smoke_ui::verify_cache_recovery(&window, &smoke_project)
+                    .map_err(|e| format!("{e:#}"))
+            })
+        {
+            eprintln!("Smoke 失败: 原生缓存/审计恢复按钮链路: {error}");
+            fail_smoke!();
+        }
+
         println!(
             "Desktop Tauri smoke result: project={}, files={}, currentFile={}, preview={}, writebackPreview={}, shadowGitVersion={}, shadowGitPath={}, shadowRepositoryPath={}",
             file_list_state
@@ -1959,6 +1975,7 @@ fn main() {
             managed_writeback::write_file_if_unchanged,
             fs_writeback_receipts::describe_writeback_operation,
             fs_writeback_receipts::inspect_writeback_receipt,
+            fs_writeback_receipts::repair_writeback_canon_cache,
             managed_writeback::write_file_with_receipt,
             managed_writeback::create_writeback_audit,
             fs::list_dir,

@@ -88,6 +88,11 @@ vi.mock('../src/lib/tauri-fs', () => ({
       readFixtureAudit(receiptFs, project, request),
     inspectWritebackReceipt: (project: string, request: WritebackRequest) =>
       inspectFixtureReceipt(receiptFs, project, request),
+    repairWritebackCanonCache: vi.fn(async (project: string, request: WritebackRequest) => {
+      const receipt = await inspectFixtureReceipt(receiptFs, project, request);
+      if (!receipt) throw new Error('missing receipt');
+      return { ...receipt, detail: undefined };
+    }),
     async writeFileWithReceipt(
       project: string,
       request: WritebackRequest,
@@ -2391,3 +2396,48 @@ test('repairing the original full acceptance audit also settles the run without 
   assert.equal(__getLastEditor()!.getValue(), 'later unsaved text');
   assert.equal(effects.result.mock.calls.at(-1)?.[0].runStatus, 'completed');
 });
+
+test.each([false, true])(
+  '正文已写入但缓存失效失败时显示原生回执警告且不重放正文 (审计失败=%s)',
+  async (auditFailed) => {
+    const original = TauriFileSystem.writeFileWithReceipt;
+    const spy = vi
+      .spyOn(TauriFileSystem, 'writeFileWithReceipt')
+      .mockImplementationOnce(async (...args) => ({
+        ...(await original.apply(TauriFileSystem, args)),
+        detail: 'canon 派生缓存未失效: 无法删除 presence.json',
+      }));
+    try {
+      if (auditFailed) effects.record.mockRejectedValueOnce(new Error('audit unavailable'));
+      await show(patch('cache-invalidation-warning'));
+      await act(async () => handle.handleAcceptSuggestion());
+      assert.equal(effects.disk.get(FILE), 'after');
+      assert.equal(handle.pendingSuggestion, null);
+      assert.equal(handle.actionError, null);
+      assert.equal(effects.write.mock.calls.length, 1);
+      const notice = effects.toast.mock.calls.find((args: unknown[]) =>
+        String(args[0]).includes('canon 派生缓存未失效'),
+      );
+      assert.ok(notice, '已写入回执的 detail 不得被成功态吞掉');
+      assert.match(String(notice[0]), /正文已写入/);
+      assert.match(String(notice[0]), /不要重新应用/);
+      let action = (notice[1] as { action: { label: string; run: () => Promise<void> } }).action;
+      if (auditFailed) {
+        assert.match(action.label, /重试记录/);
+        await act(async () => action.run());
+        const cacheNotice = effects.toast.mock.calls.at(-1)!;
+        assert.match(String(cacheNotice[0]), /写回记录已补齐/);
+        assert.match(String(cacheNotice[0]), /canon 派生缓存未失效/);
+        assert.equal((cacheNotice[1] as { tone: string }).tone, 'info');
+        action = (cacheNotice[1] as { action: typeof action }).action;
+      }
+      assert.match(action.label, /修复缓存/);
+      await act(async () => action.run());
+      assert.equal(effects.write.mock.calls.length, 1);
+      assert.equal(effects.snapshot.mock.calls.length, 1);
+      assert.equal(effects.disk.get(FILE), 'after');
+    } finally {
+      spy.mockRestore();
+    }
+  },
+);

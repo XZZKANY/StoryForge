@@ -74,3 +74,14 @@ it('reads an audit only through Native identity and a project-scoped read, witho
     ['read_project_file', {projectRoot: 'D:/Book', path: `D:/Book/.storyforge/author-loop/${applied.operationId}.md`}],
   ]);
 });
+
+
+it('缓存修复使用专用原生命令，不包含正文基线或 checkpoint', async () => {
+  vi.mocked(invoke).mockResolvedValueOnce(applied);
+  expect(await TauriFileSystem.repairWritebackCanonCache('D:/Book', request)).toEqual(applied);
+  expect(vi.mocked(invoke).mock.calls).toEqual([
+    ['repair_writeback_canon_cache', { projectRoot: 'D:/Book', request }],
+  ]);
+  vi.mocked(invoke).mockResolvedValueOnce({ ...applied, state: 'future_success' });
+  await expect(TauriFileSystem.repairWritebackCanonCache('D:/Book', request)).rejects.toThrow(/回执/);
+});

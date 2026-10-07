@@ -7,6 +7,7 @@ from hashlib import sha1
 from typing import Any
 
 from app.domains.agent_runs import canon_gate, canon_rebuild, canon_store
+from app.domains.agent_runs.canon_cache_freshness import UNCACHED_SCAN_NOTE
 from app.domains.agent_runs.fs_tools import FsToolError
 
 
@@ -383,15 +384,17 @@ def canon_delta(
     normalized_promises = _normalize_promise_claims(promise_claims)
 
     canon_store.scaffold_canon_if_missing(project_root)
+    source_revision = canon_store.capture_source_revision(project_root)
     canon = canon_store.read_canon(project_root)
     canon_entities = canon.get("entities") or []
     if not isinstance(canon_entities, list) or any(not isinstance(item, dict) for item in canon_entities):
         raise FsToolError("canon.json entities 必须是对象数组。")
 
-    presence = canon_store.read_derived(project_root, "presence.json")
+    presence = None if source_revision is None else canon_store.read_derived(project_root, "presence.json")
     if presence is None:
         presence = canon_rebuild.rebuild_presence(project_root, canon_entities)
-        canon_store.write_derived(project_root, "presence.json", presence)
+        if source_revision is not None:
+            canon_store.write_derived(project_root, "presence.json", presence, source_revision=source_revision)
 
     new_entities, known_entities, alias_conflicts = _classify_entities(
         normalized_entities,
@@ -433,11 +436,18 @@ def canon_delta(
     new_conflicts = _new_gate_issues(baseline_gate, merged_gate, "conflicts")
     new_advisories = _new_gate_issues(baseline_gate, merged_gate, "advisories")
 
+    if source_revision is not None:
+        canon_store.require_source_revision(project_root, source_revision)
     canon_store.write_derived(project_root, "proposals.json", merged_canon)
-    return {
+    result = {
+        "cache_status": "uncached_unverified" if source_revision is None else "verified",
         "proposals": proposals,
         "alias_conflicts": alias_conflicts,
         "new_conflicts": new_conflicts,
         "new_advisories": new_advisories,
         "summary": _summary(proposals, alias_conflicts, new_conflicts, new_advisories),
     }
+    if source_revision is None:
+        result["note"] = UNCACHED_SCAN_NOTE
+        result["summary"] += UNCACHED_SCAN_NOTE
+    return result

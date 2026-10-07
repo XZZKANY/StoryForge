@@ -69,11 +69,12 @@ def grounded_fact_contradictions(
                 if contradiction in after_assertions and contradiction not in before_assertions:
                     reasons.append("grounded_fact_contradicted")
     original_events = _transfer_events(before, entities)
-    candidate_events = _transfer_events(after, entities)
+    # 原文可能本就包含往返交接或正反表述，只把新增关系视为润色引入的矛盾。
+    added_events = _transfer_events(after, entities) - original_events
     for actor, obj, recipient, negated in original_events:
-        if (recipient, obj, actor, negated) in candidate_events and actor != recipient:
+        if (recipient, obj, actor, negated) in added_events and actor != recipient:
             reasons.append("event_relation_changed")
-        if (actor, obj, recipient, not negated) in candidate_events:
+        if (actor, obj, recipient, not negated) in added_events:
             reasons.append("event_relation_changed")
     return tuple(dict.fromkeys(reasons))
 

@@ -140,6 +140,7 @@ _ANCHOR_BLOCK_OPEN = "<<<ANCHOR"
 # 否定语境（「不要扩写」「别补充」）不构成授权。标记须紧贴关键词，避免「别怕，展开写」误判。
 _EXPANSION_NEGATION_PREFIXES = (
     "不要",
+    "不",
     "别",
     "不用",
     "不必",
@@ -158,6 +159,8 @@ _EXPANSION_NEGATION_PREFIXES = (
 # 否定标记与扩写关键词之间可夹少量非动词成分（「不要立刻展开」「不必再细化了」），
 # 但间隔超过该长度或含句读/空白即视为否定作用域已断开。
 _NEGATION_GAP_MAX = 8
+# 裸「不」后只容许这些修饰语；其他动词和「但/而是」等连接词均截断作用域。
+_BARE_NEGATION_MODIFIERS = re.compile(r"(?:再)?(?:需要)?(?:再|继续|进一步)*")
 # 单字「别」会被构词误伤：「特别/分别/个别/级别/差别/性别/辨别/区别/识别」里「别」前的字
 # 属于这类构词的构词前缀，出现即不算否定。
 _NEGATION_LEFT_GUARD = frozenset("特分个级差性辨区识类")
@@ -176,6 +179,8 @@ def _negation_reaches_keyword(text: str, index: int, negation: str, keyword_star
     gap = text[index + len(negation):keyword_start]
     if len(gap) > _NEGATION_GAP_MAX:
         return False
+    if negation == "不":
+        return _BARE_NEGATION_MODIFIERS.fullmatch(gap) is not None
     if not all("一" <= char <= "鿿" for char in gap):
         return False
     # 单字「别」只在构词前缀（特别/分别/个别/级别…）里出现时不算否定。

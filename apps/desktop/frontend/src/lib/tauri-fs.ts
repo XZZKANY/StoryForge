@@ -203,6 +203,18 @@ export class TauriFileSystem {
     return result === null ? null : decodeWritebackReceipt(result);
   }
 
+  /** 只修复已应用写回的可弃缓存，不接受正文基线也不触发正文写入。 */
+  static async repairWritebackCanonCache(
+    projectRoot: string,
+    request: WritebackRequest,
+  ): Promise<WritebackReceipt> {
+    if (mockFs()) throw new Error('测试文件系统不支持原生缓存修复');
+    assertTauriRuntime('TauriFileSystem.repairWritebackCanonCache');
+    return decodeWritebackReceipt(
+      await invoke<unknown>('repair_writeback_canon_cache', { projectRoot, request }),
+    );
+  }
+
   static async writeFileWithReceipt(
     projectRoot: string,
     request: WritebackRequest,

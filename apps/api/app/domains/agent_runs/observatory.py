@@ -20,7 +20,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.domains.agent_runs import canon_delta, canon_dossier, canon_store
-from app.domains.agent_runs.canon_service import run_canon_projection
+from app.domains.agent_runs.canon_cache_freshness import UNCACHED_SCAN_NOTE
+from app.domains.agent_runs.canon_service import build_canon_projection
 from app.domains.agent_runs.fs_tools import FsToolError, resolve_project_root
 from app.domains.agent_runs.promise_scan import (
     DEFAULT_STALE_AFTER_CHAPTERS,
@@ -231,7 +232,9 @@ def run_observatory_scan(
 ) -> dict[str, Any]:
     """聚合确定性检查器，归一化观测信号并写 observations.json 派生缓存。"""
 
-    canon_output = run_canon_projection(project_root, glob=glob, refresh=True)
+    projection = build_canon_projection(project_root, glob=glob, refresh=True)
+    source_revision = projection.source_revision
+    canon_output = projection.output
     promise_output = promise_check(project_root, stale_after_chapters=stale_after_chapters)
     prose_observations, prose_meta = _prose_observations(project_root)
 
@@ -290,11 +293,11 @@ def run_observatory_scan(
             "reason": "语义评审走 LLM，永远按需触发，不进保存重扫。",
         },
     ]
-    # 结构化台账（观测镜富 view 数据源）：复用本次扫描刚重建的 canon 与 presence 缓存。
-    canon = canon_store.read_canon(project_root)
-    presence = canon_store.read_derived(project_root, "presence.json") or {"entities": []}
+    # 直接交接本次扫描值；缓存不可核验时也不重复扫书或退回旧缓存。
+    canon, presence = projection.canon, projection.presence
     payload = {
         "version": 2,
+        "cache_status": "uncached_unverified" if source_revision is None else "published",
         "generated_at": datetime.now(UTC).isoformat(),
         "observations": observations,
         "counts": counts,
@@ -307,5 +310,10 @@ def run_observatory_scan(
         "proposals": canon_delta.read_pending_proposals(project_root),
         "note": "确定性参考信号（无 LLM）：advisory 需结合原文核实，不是质量判定。",
     }
-    canon_store.write_derived(project_root, OBSERVATIONS_DERIVED_NAME, payload)
+    if source_revision is None:
+        payload["note"] += UNCACHED_SCAN_NOTE
+    else:
+        canon_store.write_derived(
+            project_root, OBSERVATIONS_DERIVED_NAME, payload, source_revision=source_revision
+        )
     return payload

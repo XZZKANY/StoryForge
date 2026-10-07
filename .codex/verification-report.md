@@ -6568,3 +6568,50 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 文档新增仅原current-phase/TODO和release-checklist，修正后者引用不存在的operations-log为当前事实源，不复活新流水账。final-delivery-doc-facts.log：18passed；final-delivery-root-eslint.log：root ESLint exit0；单文件Prettier与root配置2测试通过，diff-check通过。没有追加模型调用或修改生产代码。
 
 原计划最大8份是有价格时的可选扩批，价格UNKNOWN时已按原冻结计划停止；单份作者反馈原样收口。P1–P5已完成本私测有边界验收，AC8完整断电/多窗口/跨版本/独立作者收益等去向仍明确，未更改其他公开任务状态或false gate。38项当前dirty拟4笔正常本地提交，完整绝对路径及hash见research/commit-plan-20261006.json和commit-plan-20261006.md，尚待一次明确确认；未stage/commit/push。任务不归档、goal尚未complete。
+
+
+## 2026-10-06 回归修复与合成对照（基线 68fd230）
+
+基线：68fd23004d5dad73aa123b408a1e31ac05895d96；独立分支：fix/20261006-guard-cache-regressions。未提交、推送、合并或发布；原有工作区未改动。
+
+### 改动与红绿证据
+
+1. polish transfer：只检查候选新增的转移关系，保留原文已有互转/正反极性；新增 25 条直接门禁和真实 SSE intent/chat 链路用例，8 fail → 25 pass。相关 163 pass、2 Windows-only skip。
+2. 扩写授权：裸「不」仅接受有界明确修饰语，不能跨过另一个动词或「但／而是／而要」；实际 6.8333 倍候选在否定指令下被 word_count_drift 拒绝。三轮反例均保留，最终相关 90 pass；不声称通用中文语义理解。
+3. canon 缓存：扫描前捕获回执/声明版本，旧缓存读侧拒绝；未知/超预算历史保留明确未缓存参考扫描，不发布缓存或伪造事实卡路径；已知版本中途变化仍拒绝。42 条新增 freshness 用例，相关 206 pass。Native 缓存专用修复入口不重放正文；原始 outcome 不变，维护标记原子补记。UI 展示警告，单独及审计+缓存双失败均能到达缓存修复。相关前端 158 pass。Native 新增 4 条 Rust 测试仅静态审查，未编译执行。
+4. prompt_lab --merge：固定任务完整 dataclass 指纹预检，变更描述/输入或旧结果缺身份时在构造 prompt、模型派发与制品写入前拒绝；保留旧证据。9 fail → 51 pass。
+
+### 最终检查
+
+- API 所有模块分两次运行：pytest --ignore=tests/test_prompt_lab.py 为 3357 pass、20 fail、25 skip；prompt_lab 独立 51 pass。合计 3408 pass、20 fail、25 skip。20 个失败身份与首次全集完全相同：17 个需要不可用的 PowerShell；其余 3 个（续写路径大小写 2 项、chapter brief 事件绝对路径 1 项）已在干净基线复现。没有新增失败身份。
+- 前端完整 vitest：1652 pass、1 fail、1 skip。失败是 project-context 中文路径排序，干净基线同样失败。一次中间全集出现旧恢复竞态断言偶发失败；独立 119 用例及后续两次全集均通过该项，保留记录，未掩盖重跑。
+- npm run lint、frontend typecheck、API 全量 Ruff：通过。
+- Shared 类型检查、project-core 7 测试：通过。
+- E2E 20/20、OpenAPI/实时帧契约无漂移、daily sidecar 零模型/零外网冒烟：通过。
+- git diff --check（cr-at-eol）及干净基线 git apply --check：通过。
+- verify-local 已执行；先因 pnpm 自动检查依赖的环境目录受限而阻塞，使用既有依赖重跑后到前端既有排序失败处停止；其余阶段已分别运行，不能宣称聚合门禁全绿。
+- Native cargo test 未运行：cargo/rustc 不在环境中。真实 Monaco 浏览器门禁未运行：Playwright Chromium 可执行文件缺失。冻结 Windows sidecar、真桌面 GUI、真实 provider 和文学质量验收均未运行。
+
+### 保留边界与未修复项
+
+缓存版本是原生回执加 canon/hooks 声明哈希，不覆盖无回执的外部正文编辑及直接读取旧 dossier 文本。目录项 4096、单回执 16 KiB、总回执 8 MiB 上限只影响缓存资格，超限仍提供明确未核验的本次扫描参考；不会删改不可变历史。
+
+本轮合成复现确认 SF-C01（hooks 字符相似度吞掉不同主体/否定）、SF-C02（未知章节时互斥 holder 全推且省略窗口）、SF-C03（canon_delta 每条 provenance 丢失）仍存在，未扩大本刀。预算恰好达到上限的历史边界发现也未改动。
+
+所有实验为自编合成内容、mock 或本地 loopback；没有用户真实稿件、真实付费调用、部署或账户更改。工程门禁不代表文学质量通过。
+
+## 2026-10-07 Windows 原生复核、最小修复与 GUI 验收
+
+基于同一 68fd2300，在独立 `codex/patch-native-validation` worktree 应用原交付包并复核。以下为本机证据；上节 Linux/交付前结论保留为历史，不代表本机现状。
+
+- 原生并发缓存清理首轮确实失败：原字节独立复现 20 次失败 7 次。最小修复仅在现有失效 owner 内对校验/删除错误重验父目录围栏并确认目标 NotFound；不把全部 AccessDenied 吞为成功。真实锁文件、外部 junction 负例仍拒绝；原始回执/正文不重放。
+- 无特权 Windows 测试：目录边界使用真实 junction，文件 symlink 单独保留且仅 WinError 1314 skip。不把 skip 算作边界通过。
+- 最终完整 `npx --yes pnpm@9.15.4 verify` exit 0（788.70s）：API 3427 passed / 28 skipped；FE 1653 passed / 1 skipped；lint、FE/shared 类型、project-core 7 项、真实 Monaco、Ruff、daily sidecar 与生成契约无漂移全部通过。
+- 最终 Rust 全量 109 passed / 4 ignored；最终测试二进制并发修复 200/200；显式 opt-in API+Native+mounted 18/18；E2E 20/20；native smoke DOM/隔离清理单元检查 16/16。冻结 sidecar 已由原交付源码构建并通过冒烟；本轮 API 生产源码未再改动。
+- **补齐真实 GUI 缺口**：现有 `verify:tauri-smoke` 增加缓存单失败及审计+缓存双失败两条链。两轮全新隔离 Tauri/WebView、真实磁盘故障、实际可见按钮点击均通过；不是 mock FS、mounted 测试或仅 IPC 探针。先确认失败重试保留可达入口，再补审计，核实新的缓存按钮，最后修缓存。每阶段 native adapter writes=1；作者后续磁盘稿及 Monaco 全文、versions 全文件字节、原始 intent/outcome、最终 audit 与有效 proposals JSON 均保持。缓存实际删除并新增独立维护标记，成功动作收起。
+- GUI 首次探针误把项目总览当已进入编辑器，失败证据保留；修正为沿已有资源管理器/章节按钮导航后验证。故障夹具触发的 WinError 5/183 属于预期磁盘拒绝，不通过吞错处理。首轮 Monaco Canceled、并行编译导致的 spawn EBUSY 及各次重跑均分列保留。
+- 合并范围：原 28 文件交付、F1/F2 三文件最小追加修复，以及现有 smoke_ui.rs/main.rs 的可重复 GUI 回归；总计 29 个源码/测试/报告路径，没有新依赖。原始 ZIP 与两个独立 follow-up patch 分开保存并验证重放。
+
+证据任务：`patch-native-validation`，完成归档位置为 `D:/StoryForge/.trellis/tasks/archive/2026-10/10-07-patch-native-validation/`。`research/gui-verification-summary.json` 包含两轮 14 个阶段的实际 UI/原生状态及当前二进制哈希；`gui-final-verify`、`gui-final-rust-full`、`gui-final-native-api-mounted` 等日志记录绝对 cwd、命令、耗时和退出码。GUI 测试二进制 SHA256：`b3316bd0b1bdeb52280874b852f90d8a585a5745655ef2896f2499bbcc914ce3`。
+
+用户授权验证后合入本地主线；本节是合并前证据。没有远端推送、真实模型调用、安装覆盖或发版。GUI 证据为真实 WebView 的 DOM 点击与 hit-test，并非人工硬件输入；冷进程恢复由独立 Native IPC 证据覆盖。本验收不扩大到全部断电/多窗口/安装器矩阵、文学质量或上节明确未修复的独立问题。

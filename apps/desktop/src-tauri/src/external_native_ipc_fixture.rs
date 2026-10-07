@@ -121,6 +121,10 @@ fn dispatch(input: Input, fixture_root: &Path, state: &HostCloseState) -> Result
             serde_json::to_value(receipts::describe_writeback_operation(project, request()?)?)
                 .map_err(|error| error.to_string())
         }
+        "repair_writeback_canon_cache" => {
+            serde_json::to_value(receipts::repair_writeback_canon_cache(project, request()?)?)
+                .map_err(|error| error.to_string())
+        }
         "inspect_writeback_receipt" => {
             serde_json::to_value(receipts::inspect_writeback_receipt(project, request()?)?)
                 .map_err(|error| error.to_string())
