@@ -316,7 +316,7 @@
     "type": "function",
     "function": {
       "name": "project_canon_delta",
-      "description": "canon 事实差量提案（确定性，无额外 LLM）：读完章节后，把观察到的实体、唯一持有、退场、时间线先后与新埋的伏笔作为结构化参数传入。伏笔走 promise_claims——它是**唯一**能把新伏笔写进账本的通道，project_promise_check 只读不写。字段未传表示该类不提议；全空会诚实返回无提议。工具会归并既有实体、提示同名 / 别名身份冲突，并只报告提案新增的 canon 闸问题。合并草稿写入派生缓存 proposals.json（上一轮作者还没并入的提案会一并留着，不会被本轮覆盖），绝不修改 canon.json 或正文；作者审阅后再决定是否走待确认补丁。",
+      "description": "canon 事实差量提案（确定性，无额外 LLM）：读完章节后，把观察到的实体、唯一持有、退场、时间线先后与新埋的伏笔作为结构化参数传入。伏笔走 promise_claims——它是**唯一**能把新伏笔写进账本的通道，project_promise_check 只读不写。每条实体/声明请附 assertion_type 和 evidence（原文 quote、可用的 path/行号），区分作者设定与模型推断；缺失时来源未知，不补造依据；这些字段不会被工具验证为事实。字段未传表示该类不提议；全空会诚实返回无提议。工具会归并既有实体、提示同名 / 别名身份冲突，并只报告提案新增的 canon 闸问题。合并草稿写入派生缓存 proposals.json（上一轮作者还没并入的提案会一并留着，不会被本轮覆盖），绝不修改 canon.json 或正文；作者审阅后再决定是否走待确认补丁。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -325,6 +325,44 @@
             "items": {
               "type": "object",
               "properties": {
+                "assertion_type": {
+                  "type": "string",
+                  "enum": [
+                    "author_setting",
+                    "text_observation",
+                    "model_inference",
+                    "unknown"
+                  ],
+                  "description": "逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。"
+                },
+                "evidence": {
+                  "type": "array",
+                  "description": "支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "quote": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "path": {
+                        "type": "string",
+                        "description": "项目相对路径（可选），不可越界。"
+                      },
+                      "start_line": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "end_line": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "quote"
+                    ]
+                  }
+                },
                 "name": {
                   "type": "string"
                 },
@@ -346,6 +384,44 @@
             "items": {
               "type": "object",
               "properties": {
+                "assertion_type": {
+                  "type": "string",
+                  "enum": [
+                    "author_setting",
+                    "text_observation",
+                    "model_inference",
+                    "unknown"
+                  ],
+                  "description": "逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。"
+                },
+                "evidence": {
+                  "type": "array",
+                  "description": "支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "quote": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "path": {
+                        "type": "string",
+                        "description": "项目相对路径（可选），不可越界。"
+                      },
+                      "start_line": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "end_line": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "quote"
+                    ]
+                  }
+                },
                 "item": {
                   "type": "string"
                 },
@@ -371,6 +447,44 @@
             "items": {
               "type": "object",
               "properties": {
+                "assertion_type": {
+                  "type": "string",
+                  "enum": [
+                    "author_setting",
+                    "text_observation",
+                    "model_inference",
+                    "unknown"
+                  ],
+                  "description": "逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。"
+                },
+                "evidence": {
+                  "type": "array",
+                  "description": "支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "quote": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "path": {
+                        "type": "string",
+                        "description": "项目相对路径（可选），不可越界。"
+                      },
+                      "start_line": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "end_line": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "quote"
+                    ]
+                  }
+                },
                 "entity": {
                   "type": "string"
                 },
@@ -393,6 +507,44 @@
             "items": {
               "type": "object",
               "properties": {
+                "assertion_type": {
+                  "type": "string",
+                  "enum": [
+                    "author_setting",
+                    "text_observation",
+                    "model_inference",
+                    "unknown"
+                  ],
+                  "description": "逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。"
+                },
+                "evidence": {
+                  "type": "array",
+                  "description": "支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "quote": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "path": {
+                        "type": "string",
+                        "description": "项目相对路径（可选），不可越界。"
+                      },
+                      "start_line": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "end_line": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "quote"
+                    ]
+                  }
+                },
                 "before": {
                   "type": "string"
                 },
@@ -412,6 +564,44 @@
             "items": {
               "type": "object",
               "properties": {
+                "assertion_type": {
+                  "type": "string",
+                  "enum": [
+                    "author_setting",
+                    "text_observation",
+                    "model_inference",
+                    "unknown"
+                  ],
+                  "description": "逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。"
+                },
+                "evidence": {
+                  "type": "array",
+                  "description": "支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "quote": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "path": {
+                        "type": "string",
+                        "description": "项目相对路径（可选），不可越界。"
+                      },
+                      "start_line": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "end_line": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "quote"
+                    ]
+                  }
+                },
                 "title": {
                   "type": "string"
                 },
@@ -862,7 +1052,7 @@
     "type": "function",
     "function": {
       "name": "project_hooks_delta",
-      "description": "叙事承诺钩子差量提案（确定性去重 + 正则辅助，无额外 LLM）：读完章节后，把观察到的叙事承诺钩子作为 observed_hooks 传入。可同时传入 evidence_text 正文片段，工具会在其上跑正则模式检测作为辅助信号。工具只归并去重、不写 hooks.json，你也没有写入 hooks.json 的工具——把新钩子清单如实报给作者，由作者决定要不要记进伏笔账。",
+      "description": "叙事承诺钩子差量提案（完全相同文本去重 + 相关性与正则辅助，无额外 LLM）：读完章节后，把观察到的叙事承诺钩子作为 observed_hooks 传入。可同时传入 evidence_text 正文片段，工具会在其上跑正则模式检测作为辅助信号。子串或中文字符重合仅表示可能相关，不判重复；相关项仍保留为新提案。工具不写 hooks.json，你也没有写入 hooks.json 的工具——把新钩子清单如实报给作者，由作者决定要不要记进伏笔账。",
       "parameters": {
         "type": "object",
         "properties": {

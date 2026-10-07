@@ -1,7 +1,7 @@
-"""场景约束头构建器：从 canon.json 确定性拼接每轮应推给模型的硬约束。
+"""场景声明投影：保留 canon 时间窗与依据类型，区分当前约束和待核实推断。
 
 只读 canon.json（作者声明）+ 当前文件章序，不扫正文、无 LLM。
-推出去的是「本章绝不能违反的约束」，O(场景实体数) 不随书长膨胀。
+章序未知时仅列分阶段声明；模型推断不提升为本章硬约束。
 读失败 / 空声明 → 静默返回 None（非阻断），绝不拖垮聊天循环。
 """
 
@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from app.common.generation_sources import observe_generation_selection, project_generation_source
+from app.domains.agent_runs.canon_assertions import format_chapter_window, render_assertion_metadata
 from app.domains.agent_runs.canon_rebuild import chapter_ordinals as _chapter_ordinals
 from app.domains.agent_runs.canon_store import read_canon, read_hooks
 from app.domains.agent_runs.fs_tools import FsToolError
@@ -88,7 +89,7 @@ def _display_name(entity: dict[str, Any], canonical_name: str) -> str:
 
 
 def build_scene_constraint_block(project_root: str, current_file: str | None) -> str | None:
-    """确定性拼接「当前场景硬约束头」；只读 canon.json + 章序，不扫正文。
+    """确定性拼接场景声明与约束；只读 canon.json + 章序，不扫正文。
 
     读失败 / 无约束返回 None，调用方静默跳过——push 是加分项，绝不拖垮聊天循环。
     """
@@ -109,7 +110,7 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
         if isinstance(eid, str) and isinstance(cname, str):
             name_by_id[eid] = _display_name(e, cname)
 
-    # 当前文件的章序（阅读序）；非章节文件 / 越界 / 扫描失败 → None，退化为「全书硬约束 digest」
+    # 当前文件的章序（阅读序）；非章节文件 / 越界 / 扫描失败 → None，退化为「全书分阶段声明 digest」
     cur: int | None = None
     if current_file:
         rel = _to_relative_posix(project_root, current_file)
@@ -127,6 +128,7 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
             }, ordinals=ordinals)
 
     lines: list[str] = []
+    inferred_lines: list[str] = []
 
     # ① 唯一持有：窗口覆盖本章则推（无锚则全推）
     for e in invariants.get("single_holder") or []:
@@ -143,7 +145,12 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
         # holder 约定为 entity_id（同 dossier/canon_gate）；与 lifespan.entity 一样映射成
         # canonical_name 再推给模型，避免硬约束头出现裸 id（UF-12）。无映射回落原值。
         display_holder = name_by_id.get(holder, holder)
-        lines.append(f"·「{item}」唯一持有者 = {display_holder}；本章不得出现第二持有者。")
+        inferred = e.get("assertion_type") == "model_inference"
+        line = f"·「{item}」唯一持有者 = {display_holder}（{format_chapter_window(e)}）"
+        if cur is not None and not inferred:
+            line += "；本章不得出现第二持有者。"
+        line += f"；{render_assertion_metadata(e)}"
+        (inferred_lines if inferred else lines).append(line)
 
     # ② 已退场：退场章 < 本章（无锚则列出各自退场章）
     for e in invariants.get("lifespan") or []:
@@ -158,10 +165,15 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
         display = name_by_id.get(entity_id, entity_id)
         reason = e.get("reason")
         reason_suffix = f"（{reason}）" if isinstance(reason, str) and reason.strip() else ""
-        if cur is None:
-            lines.append(f"·「{display}」于第 {exits_after} 章退场{reason_suffix}。")
-        elif exits_after < cur:
-            lines.append(f"·「{display}」已于第 {exits_after} 章退场{reason_suffix}——本章若出现须为回忆 / 提及。")
+        if cur is not None and exits_after >= cur:
+            continue
+        inferred = e.get("assertion_type") == "model_inference"
+        if cur is None or inferred:
+            line = f"·声明「{display}」于第 {exits_after} 章退场{reason_suffix}。"
+        else:
+            line = f"·「{display}」已于第 {exits_after} 章退场{reason_suffix}——本章若出现须为回忆 / 提及。"
+        line += f"；{render_assertion_metadata(e)}"
+        (inferred_lines if inferred else lines).append(line)
 
     try:
         hooks_data = read_hooks(project_root)
@@ -172,14 +184,17 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
 
     # agenda_block 也须纳入空判：无 canon 硬约束 + 无活跃钩子、但本章 agenda 有编排时，
     # 不得连同已算好的「本章伏笔计划」一起丢弃（UF-13）。
-    if not lines and hooks_block is None and agenda_block is None:
+    if not lines and not inferred_lines and hooks_block is None and agenda_block is None:
         project_generation_source("canon_constraints", None, channel="user", omission_reason="no_active_constraints")
         return None
 
     parts: list[str] = []
+    anchor = f"（本文件 = 第 {cur} 章 · 阅读序）" if cur is not None else "（全书 · 章序未知；须按各自时间范围判断，不代表同时适用于本章）"
     if lines:
-        anchor = f"（本文件 = 第 {cur} 章 · 阅读序）" if cur is not None else "（全书）"
-        parts.append("[canon 硬约束 · 确定性 · 勿违背]" + anchor + "\n" + "\n".join(lines))
+        heading = "[canon 硬约束 · 确定性 · 勿违背]" if cur is not None else "[canon 分阶段声明]"
+        parts.append(heading + anchor + "\n" + "\n".join(lines))
+    if inferred_lines:
+        parts.append("[canon 模型推断 · 待核实 · 非硬约束]" + anchor + "\n" + "\n".join(inferred_lines))
     if hooks_block is not None:
         parts.append(hooks_block)
     if agenda_block is not None:
@@ -191,7 +206,7 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
         block,
         channel="user",
         source_purpose=("canon_declaration", "hook_declaration"),
-        transformation="scene_constraints_and_hook_agenda_v1",
+        transformation="scene_constraints_and_hook_agenda_v2",
     )
     return block
 

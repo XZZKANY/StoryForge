@@ -219,3 +219,127 @@ def test_writeback_invalidation_then_delta_rebuilds_presence_from_new_manuscript
 def test_derived_whitelist_still_rejects_unlisted_names(project: Path) -> None:
     with pytest.raises(FsToolError, match="不允许的派生缓存文件名"):
         canon_store.write_derived(str(project), "draft.json", {})
+
+
+@pytest.mark.parametrize("argument,claim,invariant", [
+    ("entities", {"name": "新客"}, None),
+    ("holder_claims", {"item": "刀", "holder": "char_qingyan"}, "single_holder"),
+    ("exit_claims", {"entity": "char_qingyan", "exits_after_chapter": 2}, "lifespan"),
+    ("timeline_claims", {"before": "旧港", "after": "决战"}, "timeline_order"),
+    ("promise_claims", {"title": "旧债", "planted_chapter": 1}, "promises"),
+])
+@pytest.mark.parametrize("assertion_type", ["author_setting", "text_observation", "model_inference", "unknown"])
+def test_assertion_metadata_survives_draft_pending_and_author_roundtrip(project: Path, argument, claim, invariant, assertion_type) -> None:
+    from app.domains.agent_runs.canon_delta import read_pending_proposals
+
+    canon_file = _write_canon(project, _base_canon())
+    original = canon_file.read_bytes()
+    metadata = {"assertion_type": assertion_type, "evidence": [{"path": "正文/第01章.md", "start_line": 1, "end_line": 1, "quote": "青岩握着断魂刀。"}]}
+    supplied = {**claim, **metadata}
+    result = canon_delta(str(project), **{argument: [supplied]})
+    proposed = result["proposals"]["new_entities" if argument == "entities" else argument][0]
+    for key, value in metadata.items():
+        assert proposed[key] == value
+    canon_delta(str(project), **{argument: [supplied]})
+    canon_delta(str(project), timeline_claims=[{"before": "a", "after": "b"}])
+    pending = read_pending_proposals(str(project))
+    entries = pending["new_entities"] if invariant is None else pending["new_invariants"][invariant]
+    assert entries.count(proposed) == 1
+    draft = canon_store.read_derived(str(project), "proposals.json")
+    persisted = draft["entities"][-1] if invariant is None else draft["invariants"][invariant][0]
+    assert persisted == proposed
+    assert canon_file.read_bytes() == original
+    # Simulate the existing author-owned JSON merge/write; no backend declaration write.
+    _write_canon(project, draft)
+    assert canon_store.read_canon(str(project)) == draft
+    assert read_pending_proposals(str(project))["pending_count"] == 0
+
+
+def test_known_entity_result_preserves_evidence_without_overwriting_author(project: Path) -> None:
+    path = _write_canon(project, _base_canon())
+    before = path.read_bytes()
+    metadata = {"assertion_type": "text_observation", "evidence": [{"quote": "青岩握着断魂刀。"}]}
+    result = canon_delta(str(project), entities=[{"name": "青岩", **metadata}])
+    assert result["proposals"]["known_entities"][0] == {"name": "青岩", "aliases": [], "matched_id": "char_qingyan", **metadata}
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("metadata", [
+    {"assertion_type": "certain"}, {"assertion_type": []}, {"evidence": None},
+    {"evidence": ["not an object"]}, {"evidence": [{"quote": " "}]},
+    {"evidence": [{"quote": "q", "path": "../escape.md"}]},
+    {"evidence": [{"quote": "q", "path": "C:\\escape.md"}]},
+    {"evidence": [{"quote": "q", "path": "/escape.md"}]},
+    {"evidence": [{"quote": "q", "start_line": 1}]},
+    {"evidence": [{"quote": "q", "path": "a.md", "start_line": True}]},
+    {"evidence": [{"quote": "q", "path": "a.md", "end_line": 2}]},
+    {"evidence": [{"quote": "q", "path": "a.md", "start_line": 2, "end_line": 1}]},
+])
+def test_invalid_assertion_metadata_fails_before_any_write(project: Path, metadata) -> None:
+    with pytest.raises(FsToolError):
+        canon_delta(str(project), holder_claims=[{"item": "刀", "holder": "青岩", **metadata}])
+    assert not (project / ".storyforge/canon").exists()
+
+
+def test_distinct_evidence_and_type_are_not_silently_overwritten(project: Path) -> None:
+    claims = [
+        {"item": "刀", "holder": "青岩", "assertion_type": "model_inference", "evidence": [{"quote": "似乎持刀。"}]},
+        {"item": "刀", "holder": "青岩", "assertion_type": "text_observation", "evidence": [{"quote": "握着刀。"}]},
+    ]
+    for claim in claims:
+        canon_delta(str(project), holder_claims=[claim])
+    draft = canon_store.read_derived(str(project), "proposals.json")
+    assert draft["invariants"]["single_holder"] == claims
+
+
+def test_legacy_metadata_absent_and_explicit_empty_evidence_are_not_fabricated(project: Path) -> None:
+    result = canon_delta(str(project), holder_claims=[{"item": "刀", "holder": "青岩", "evidence": []}])
+    assert result["proposals"]["holder_claims"] == [{"item": "刀", "holder": "青岩", "evidence": []}]
+
+
+def test_canon_tool_schemas_expose_metadata_for_each_proposal_category() -> None:
+    from app.domains.agent_runs.tooling import list_loop_tool_specs
+
+    spec = next(spec for spec in list_loop_tool_specs() if spec.name == "project.canon_delta")
+    properties = spec.loop_schema.parameters["properties"]
+    for category in ("entities", "holder_claims", "exit_claims", "timeline_claims", "promise_claims"):
+        fields = properties[category]["items"]["properties"]
+        assert set(fields["assertion_type"]["enum"]) == {"author_setting", "text_observation", "model_inference", "unknown"}
+        evidence = fields["evidence"]["items"]
+        assert evidence["required"] == ["quote"]
+        assert set(evidence["properties"]) == {"quote", "path", "start_line", "end_line"}
+
+
+def test_evidence_display_is_bounded_but_persisted_quotes_remain_complete(project: Path) -> None:
+    from app.domains.agent_runs.canon_assertions import render_assertion_metadata
+
+    evidence = [{"quote": "正文引文" * 200, "path": "正文/第01章.md"} for _ in range(3)]
+    result = canon_delta(str(project), holder_claims=[{"item": "刀", "holder": "青岩", "evidence": evidence}])
+    entry = result["proposals"]["holder_claims"][0]
+    assert entry["evidence"] == evidence
+    display = render_assertion_metadata(entry)
+    assert "未核验" in display and "另 1 条依据未展开" in display
+    assert len(display) < 500
+    assert canon_store.read_derived(str(project), "proposals.json")["invariants"]["single_holder"][0]["evidence"] == evidence
+
+
+@pytest.mark.parametrize("same_batch", [True, False])
+def test_repeated_new_entity_cannot_silently_discard_different_provenance(project: Path, same_batch: bool) -> None:
+    first = {"name": "新客", "assertion_type": "model_inference", "evidence": [{"quote": "第一份依据"}]}
+    second = {"name": "新客", "assertion_type": "model_inference", "evidence": [{"quote": "另一份依据"}]}
+    if not same_batch:
+        canon_delta(str(project), entities=[first])
+    before = canon_store.read_derived(str(project), "proposals.json")
+    with pytest.raises(FsToolError, match="整合为一条实体提案"):
+        canon_delta(str(project), entities=[first, second] if same_batch else [second])
+    assert canon_store.read_derived(str(project), "proposals.json") == before
+
+
+def test_metadata_free_pending_entity_can_gain_evidence_and_legacy_calls_do_not_erase_it(project: Path) -> None:
+    canon_delta(str(project), entities=[{"name": "新客"}])
+    metadata = {"assertion_type": "model_inference", "evidence": [{"quote": "可能是新客。"}]}
+    canon_delta(str(project), entities=[{"name": "新客", **metadata}])
+    canon_delta(str(project), entities=[{"name": "新客"}])
+    entity = canon_store.read_derived(str(project), "proposals.json")["entities"][0]
+    assert entity["evidence"] == metadata["evidence"]
+    assert entity["assertion_type"] == "model_inference"

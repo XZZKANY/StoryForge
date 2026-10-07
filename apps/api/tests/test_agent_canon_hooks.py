@@ -35,8 +35,8 @@ def test_hooks_delta_new_hooks_proposed(project: Path) -> None:
     assert "检测到 2 条新钩子" in result["summary"]
 
 
-def test_hooks_delta_deduplicates_description_substring(project: Path) -> None:
-    """描述子串重叠 → 标记为重复。"""
+def test_hooks_delta_deduplicates_exact_description(project: Path) -> None:
+    """描述文本完全相同 → 标记为文本重复。"""
     _write_hooks(
         project,
         [
@@ -110,15 +110,15 @@ def test_hooks_delta_partial_parameter_is_valid(project: Path) -> None:
 # --- 17. evaluate_hook_admission ---
 
 
-def test_evaluate_hook_admission_rejects_duplicate_substring(project: Path) -> None:
-    """description 与既有钩子子串重叠 → 不通过。"""
+def test_evaluate_hook_admission_rejects_exact_duplicate(project: Path) -> None:
+    """description 与既有钩子完全相同 → 不通过。"""
     existing = {"hooks": [{"description": "青岩欠陆沉一把刀的情", "status": "active"}]}
     result = canon_hooks_delta.evaluate_hook_admission(
         existing,
         {"description": "青岩欠陆沉一把刀的情"},
     )
     assert result["admitted"] is False
-    assert "重叠" in (result["reason"] or "")
+    assert "文本完全重复" in (result["reason"] or "")
 
 
 def test_evaluate_hook_admission_accepts_fresh_hook(project: Path) -> None:
@@ -141,14 +141,14 @@ def test_evaluate_hook_admission_rejects_empty_description(project: Path) -> Non
 
 
 def test_evaluate_hook_admission_rejects_resolved_hook_duplicate(project: Path) -> None:
-    """已回收钩子的描述与新钩子重叠 → 不重投（不回植已回收承诺）。"""
+    """已回收钩子的描述与新钩子完全相同 → 不重投（不回植已回收承诺）。"""
     existing = {"hooks": [{"description": "伏笔已经回收了", "status": "resolved"}]}
     result = canon_hooks_delta.evaluate_hook_admission(
         existing,
         {"description": "伏笔已经回收了"},
     )
     assert result["admitted"] is False
-    assert "重叠" in (result["reason"] or "")
+    assert "文本完全重复" in (result["reason"] or "")
 
 
 def test_hooks_delta_does_not_promise_a_nonexistent_write_channel(project: Path) -> None:
@@ -203,3 +203,52 @@ def test_trim_prose_instruction_contains_target() -> None:
         assert "保留所有剧情信息" in instr
         assert "砍掉冗余的副词" in instr
         assert "字数审计报告" in instr
+
+
+@pytest.mark.parametrize("description", [
+    "陆沉欠青岩一把刀的情",
+    "青岩不欠陆沉一把刀的情",
+    "青岩欠陆沉一把刀的情，陆沉决定让他去救人",
+])
+def test_lexical_relation_keeps_distinct_hook_as_proposal(project: Path, description: str) -> None:
+    existing = {"id": "h1", "description": "青岩欠陆沉一把刀的情", "status": "resolved"}
+    _write_hooks(project, [existing])
+    hooks_file = project / ".storyforge/canon/hooks.json"
+    before = hooks_file.read_bytes()
+    result = canon_hooks_delta.hooks_delta(str(project), observed_hooks=[{"description": description}])
+    assert [hook["description"] for hook in result["new_hooks"]] == [description]
+    assert result["duplicates"] == []
+    assert result["related_hooks"][0]["candidate"]["description"] == description
+    assert result["related_hooks"][0]["similar_hook"] == existing
+    assert "可能相关" in result["summary"]
+    assert "已存在于 hooks.json" not in result["summary"]
+    admission = canon_hooks_delta.evaluate_hook_admission({"hooks": [existing]}, {"description": description})
+    assert admission["admitted"] is True
+    assert "可能相关" in admission["reason"]
+    assert hooks_file.read_bytes() == before
+
+
+def test_exact_match_takes_precedence_over_earlier_related_match(project: Path) -> None:
+    hooks = [{"description": "青岩欠陆沉一把刀的情"}, {"description": "陆沉欠青岩一把刀的情"}]
+    _write_hooks(project, hooks)
+    candidate = {"description": "陆沉欠青岩一把刀的情"}
+    result = canon_hooks_delta.hooks_delta(str(project), observed_hooks=[candidate])
+    assert result["new_hooks"] == []
+    assert len(result["duplicates"]) == 1
+    assert result["related_hooks"] == []
+    admission = canon_hooks_delta.evaluate_hook_admission({"hooks": hooks}, candidate)
+    assert admission["admitted"] is False
+    assert admission["similar_hook"] == hooks[1]
+
+
+def test_same_batch_relations_remain_and_exact_text_repeats_deduplicate(project: Path) -> None:
+    _write_hooks(project, [])
+    result = canon_hooks_delta.hooks_delta(str(project), observed_hooks=[
+        {"description": "青岩欠陆沉一把刀的情"},
+        {"description": "陆沉欠青岩一把刀的情"},
+        {"description": " 青岩欠陆沉一把刀的情 "},
+    ])
+    assert len(result["new_hooks"]) == 2
+    assert len(result["duplicates"]) == 1
+    assert len(result["related_hooks"]) == 1
+    assert "已存在于 hooks.json" not in result["summary"]

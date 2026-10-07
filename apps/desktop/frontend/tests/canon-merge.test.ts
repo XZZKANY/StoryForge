@@ -17,6 +17,7 @@ import {
   canonDeclarationPathFor,
   mergeProposalIntoCanon,
 } from '../src/lib/canon-merge';
+import { mapObservatoryPayload } from '../src/lib/observations';
 import { invalidateFileSystemCache } from '../src/lib/tauri-fs';
 
 function withMockFs(
@@ -147,5 +148,43 @@ test('merge recovers from a corrupt canon.json instead of throwing', async () =>
     });
     const written = JSON.parse(writes[0].content);
     assert.deepEqual(written.invariants.timeline_order, [{ before: 'a', after: 'b' }]);
+  });
+});
+
+test('assertion evidence survives observatory mapping, author merge and disk JSON roundtrip', async () => {
+  const metadata = {
+    assertion_type: 'model_inference',
+    evidence: [{ path: '正文/第01章.md', start_line: 2, end_line: 3, quote: '他似乎已把刀交出。' }],
+  };
+  const entity = { id: 'char_new', canonical_name: '新客', ...metadata };
+  const entry = { item: '刀', holder: 'char_new', from_chapter: 1, ...metadata };
+  const data = mapObservatoryPayload(
+    {
+      proposals: {
+        available: true,
+        new_entities: [entity],
+        new_invariants: { single_holder: [entry] },
+        pending_count: 2,
+      },
+    },
+    new Set(),
+  );
+  const path = canonDeclarationPathFor('D:\\Books\\证据回归');
+  await withMockFs({}, async (writes) => {
+    await mergeProposalIntoCanon('D:\\Books\\证据回归', {
+      kind: 'entity',
+      entity: data.proposals.newEntities[0].raw,
+    });
+    await mergeProposalIntoCanon('D:\\Books\\证据回归', {
+      kind: 'claim',
+      ...data.proposals.newClaims[0],
+    });
+    assert.equal(writes.at(-1)?.path, path);
+    const saved = JSON.parse(writes.at(-1)!.content);
+    assert.deepEqual(saved.entities, [entity]);
+    assert.deepEqual(saved.invariants.single_holder, [entry]);
+    const again = applyCanonMerge(saved, { kind: 'claim', ...data.proposals.newClaims[0] });
+    assert.equal(again, saved);
+    assert.equal(saved.invariants.single_holder[0].assertion_type, 'model_inference');
   });
 });

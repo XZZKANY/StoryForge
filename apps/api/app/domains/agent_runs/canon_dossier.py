@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.domains.agent_runs.canon_assertions import assertion_metadata, format_chapter_window, render_assertion_metadata
+
 # provenance 每实体最多列这么多处出现，避免长书把派生文件撑爆（超出只留计数）。
 _MAX_PROVENANCE = 20
 
@@ -40,6 +42,7 @@ def _entity_holdings(entity_id: str, single_holder: list[dict[str, Any]]) -> lis
                 "item": item,
                 "from_chapter": entry.get("from_chapter"),
                 "to_chapter": entry.get("to_chapter"),
+                **assertion_metadata(entry),
             }
         )
     return holdings
@@ -51,7 +54,7 @@ def _entity_lifespan(entity_id: str, lifespan: list[dict[str, Any]]) -> dict[str
             continue
         exits_after = entry.get("exits_after_chapter")
         if isinstance(exits_after, int) and not isinstance(exits_after, bool):
-            return {"exits_after_chapter": exits_after, "reason": entry.get("reason")}
+            return {"exits_after_chapter": exits_after, "reason": entry.get("reason"), **assertion_metadata(entry)}
     return None
 
 
@@ -92,6 +95,7 @@ def build_dossiers(canon: dict[str, Any], presence: dict[str, Any]) -> list[dict
             {
                 "id": entity_id,
                 "canonical_name": entity.get("canonical_name"),
+                **assertion_metadata(entity),
                 "kind": entity.get("kind"),
                 "aliases": [a for a in (entity.get("aliases") or []) if isinstance(a, str)],
                 "appearance": {
@@ -123,7 +127,7 @@ def _render_one(dossier: dict[str, Any]) -> list[str]:
     name = dossier.get("canonical_name") or dossier.get("id")
     kind = dossier.get("kind")
     heading = f"## {name}" + (f"（{kind}）" if isinstance(kind, str) and kind.strip() else "")
-    lines = [heading, ""]
+    lines = [heading, "", f"- 实体声明：{render_assertion_metadata(dossier)}"]
 
     aliases = dossier.get("aliases") or []
     if aliases:
@@ -138,21 +142,17 @@ def _render_one(dossier: dict[str, Any]) -> list[str]:
         )
 
     for holding in dossier.get("holdings") or []:
-        to_chapter = holding.get("to_chapter")
-        window = f"第 {holding.get('from_chapter')} 章起" + (
-            f"至第 {to_chapter} 章" if to_chapter is not None else "（未声明终止）"
-        )
-        lines.append(f"- 持有：{holding.get('item')}（{window}）")
+        lines.append(f"- 持有声明：{holding.get('item')}（{format_chapter_window(holding)}）；{render_assertion_metadata(holding)}")
 
     lifespan = dossier.get("lifespan")
     if lifespan:
         reason = lifespan.get("reason")
         reason_hint = f"，原因：{reason}" if isinstance(reason, str) and reason.strip() else ""
-        lines.append(f"- 生命期：声明第 {lifespan.get('exits_after_chapter')} 章后退场{reason_hint}")
+        lines.append(f"- 生命期：声明第 {lifespan.get('exits_after_chapter')} 章后退场{reason_hint}；{render_assertion_metadata(lifespan)}")
 
     prov = dossier.get("provenance") or []
     if prov:
-        lines.append("- provenance：")
+        lines.append("- provenance（实体提及位置，非逐条断言依据）：")
         for occ in prov:
             chapter = occ.get("chapter")
             chapter_hint = f"第 {chapter} 章 " if chapter is not None else ""

@@ -607,6 +607,10 @@ def test_chat_loop_canon_delta_feeds_summary_only(
 ) -> None:
     """循环内 project.canon_delta：完整提案留证据，短 summary 回灌模型。"""
 
+    metadata = {
+        "assertion_type": "model_inference",
+        "evidence": [{"quote": "黑衣人也许是那位新客。", "path": "正文/第01章.md", "start_line": 1}],
+    }
     _enable_loop_env(monkeypatch)
     calls = _fake_llm_script(
         monkeypatch,
@@ -622,7 +626,7 @@ def test_chat_loop_canon_delta_feeds_summary_only(
                             "arguments": json.dumps(
                                 {
                                     "entities": [
-                                        {"name": "新客", "aliases": ["黑衣人"]},
+                                        {"name": "新客", "aliases": ["黑衣人"], **metadata},
                                     ]
                                 }
                             ),
@@ -662,6 +666,10 @@ def test_chat_loop_canon_delta_feeds_summary_only(
 
     tool_calls = client.get(f"/api/assistant/sessions/{result['assistant_session_id']}/tool-calls").json()
     assert "project.canon_delta" in [item["tool_name"] for item in tool_calls]
+
+    draft = json.loads((novel_project / ".storyforge/canon/derived/proposals.json").read_text(encoding="utf-8"))
+    assert draft["entities"][0]["assertion_type"] == metadata["assertion_type"]
+    assert draft["entities"][0]["evidence"] == metadata["evidence"]
 
 
 def test_chat_loop_deep_consistency_feeds_semantic_issues(

@@ -6,7 +6,7 @@ HOOK_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     AgentRuntimeToolSpec(
         name="project.hooks_delta",
         description=(
-            "hooks 差量提案：把模型从正文观察到的叙事承诺（伏笔）与既有 hooks 做确定性归并、去重，"
+            "hooks 差量提案：把模型从正文观察到的叙事承诺（伏笔）与既有 hooks 做文本去重与可能相关提示，"
             "并在证据文本上跑正则模式辅助检测。不写 hooks.json，仅输出提案供作者审阅（无写入通道）。"
         ),
         domain="project",
@@ -23,9 +23,9 @@ HOOK_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         ),
         loop_schema=LoopToolSchema(
             description=(
-                "叙事承诺钩子差量提案（确定性去重 + 正则辅助，无额外 LLM）：读完章节后，"
+                "叙事承诺钩子差量提案（完全相同文本去重 + 相关性与正则辅助，无额外 LLM）：读完章节后，"
                 "把观察到的叙事承诺钩子作为 observed_hooks 传入。可同时传入 evidence_text 正文片段，"
-                "工具会在其上跑正则模式检测作为辅助信号。工具只归并去重、不写 hooks.json，"
+                "工具会在其上跑正则模式检测作为辅助信号。子串或中文字符重合仅表示可能相关，不判重复；相关项仍保留为新提案。工具不写 hooks.json，"
                 "你也没有写入 hooks.json 的工具——把新钩子清单如实报给作者，由作者决定要不要记进伏笔账。"
             ),
             parameters={

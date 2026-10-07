@@ -392,3 +392,28 @@ def test_presence_filters_materials_before_term_file_budget(project: Path) -> No
     scan = consistency_scan(str(project), ["无名氏"])
     assert scan["scanned_files"] == 57
     assert scan["term_occurrences"][0]["total_count"] == 55
+
+
+def test_dossier_preserves_assertion_evidence_separately_from_mentions(project: Path) -> None:
+    metadata = {"assertion_type": "model_inference", "evidence": [{"path": "设定/身份.md", "start_line": 7, "end_line": 8, "quote": "他也许就是那位剑主。"}]}
+    canon = {"entities": [{**_QINGYAN, **metadata}], "invariants": {
+        "single_holder": [{"item": "刀", "holder": "char_qingyan", **metadata}],
+        "lifespan": [{"entity": "char_qingyan", "exits_after_chapter": 2, **metadata}],
+    }}
+    presence = canon_rebuild.rebuild_presence(str(project), [_QINGYAN])
+    dossier = canon_dossier.build_dossiers(canon, presence)[0]
+    for assertion in [dossier, dossier["holdings"][0], dossier["lifespan"]]:
+        assert assertion["assertion_type"] == metadata["assertion_type"]
+        assert assertion["evidence"] == metadata["evidence"]
+    assert all(item["path"].startswith("正文/") for item in dossier["provenance"])
+    markdown = canon_dossier.render_dossiers_markdown([dossier])
+    assert "模型推断（待核实）" in markdown
+    assert "设定/身份.md:7–8" in markdown and "他也许就是那位剑主。" in markdown
+    assert "非逐条断言依据" in markdown
+    assert "第 1 章起" in markdown and "第 None" not in markdown
+
+
+def test_dossier_missing_metadata_is_explicit_not_fabricated() -> None:
+    dossier = canon_dossier.build_dossiers({"entities": [_QINGYAN]}, {})[0]
+    assert "evidence" not in dossier and "assertion_type" not in dossier
+    assert "来源类型未知；依据未提供" in canon_dossier.render_dossiers_markdown([dossier])

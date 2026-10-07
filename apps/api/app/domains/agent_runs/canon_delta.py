@@ -7,6 +7,7 @@ from hashlib import sha1
 from typing import Any
 
 from app.domains.agent_runs import canon_gate, canon_rebuild, canon_store
+from app.domains.agent_runs.canon_assertions import assertion_metadata, normalize_assertion_metadata
 from app.domains.agent_runs.canon_cache_freshness import UNCACHED_SCAN_NOTE
 from app.domains.agent_runs.fs_tools import FsToolError
 
@@ -46,7 +47,7 @@ def _normalize_entities(entries: list[dict[str, Any]] | None) -> list[dict[str, 
             alias = raw.strip()
             if alias and alias != name and alias not in aliases:
                 aliases.append(alias)
-        normalized.append({"name": name, "aliases": aliases})
+        normalized.append({"name": name, "aliases": aliases, **normalize_assertion_metadata(entry, f"entities[{index}]")})
     return normalized
 
 
@@ -61,6 +62,7 @@ def _normalize_holder_claims(entries: list[dict[str, Any]] | None) -> list[dict[
             value = _optional_int(entry, key, f"holder_claims[{index}].{key}")
             if value is not None:
                 claim[key] = value
+        claim.update(normalize_assertion_metadata(entry, f"holder_claims[{index}]"))
         normalized.append(claim)
     return normalized
 
@@ -82,6 +84,7 @@ def _normalize_exit_claims(entries: list[dict[str, Any]] | None) -> list[dict[st
         reason = _optional_text(entry.get("reason"), f"exit_claims[{index}].reason")
         if reason is not None:
             claim["reason"] = reason
+        claim.update(normalize_assertion_metadata(entry, f"exit_claims[{index}]"))
         normalized.append(claim)
     return normalized
 
@@ -139,6 +142,7 @@ def _normalize_promise_claims(entries: list[dict[str, Any]] | None) -> list[dict
         kind = _optional_text(entry.get("kind"), f"{label}.kind")
         if kind:
             claim["kind"] = kind
+        claim.update(normalize_assertion_metadata(entry, f"promise_claims[{index}]"))
         normalized.append(claim)
     return normalized
 
@@ -148,6 +152,7 @@ def _normalize_timeline_claims(entries: list[dict[str, Any]] | None) -> list[dic
         {
             "before": _required_text(entry.get("before"), f"timeline_claims[{index}].before"),
             "after": _required_text(entry.get("after"), f"timeline_claims[{index}].after"),
+            **normalize_assertion_metadata(entry, f"timeline_claims[{index}]"),
         }
         for index, entry in enumerate(entries or [])
     ]
@@ -166,6 +171,17 @@ def _surface_index(canon_entities: list[dict[str, Any]]) -> dict[str, set[str]]:
 
 def _entity_id(name: str) -> str:
     return f"ent_{sha1(name.encode('utf-8')).hexdigest()[:8]}"
+
+
+def _merge_entity_metadata(target: dict[str, Any], proposed: dict[str, Any]) -> None:
+    incoming = assertion_metadata(proposed)
+    if not incoming:
+        return
+    current = assertion_metadata(target)
+    # 实体按 id 归并，不能用后一次观测静默覆盖另一份逐条依据或来源类型。
+    if current and current != incoming:
+        raise FsToolError("同一待确认实体的来源类型或依据不同，请先整合为一条实体提案。")
+    target.update(incoming)
 
 
 def _classify_entities(
@@ -209,8 +225,10 @@ def _classify_entities(
                 "id": entity_id,
                 "canonical_name": entity["name"],
                 "aliases": list(entity["aliases"]),
+                **assertion_metadata(entity),
             }
             continue
+        _merge_entity_metadata(existing, entity)
         for alias in entity["aliases"]:
             if alias not in existing["aliases"]:
                 existing["aliases"].append(alias)
@@ -417,12 +435,13 @@ def canon_delta(
     merged_entities = merged_canon.setdefault("entities", [])
     if not isinstance(merged_entities, list):
         raise FsToolError("canon.json entities 必须是数组。")
-    carried_ids = {
-        entity.get("id") for entity in merged_entities if isinstance(entity, dict)
-    }
-    merged_entities.extend(
-        deepcopy(entity) for entity in new_entities if entity["id"] not in carried_ids
-    )
+    carried_by_id = {entity.get("id"): entity for entity in merged_entities if isinstance(entity, dict)}
+    for entity in new_entities:
+        existing = carried_by_id.get(entity["id"])
+        if existing is None:
+            merged_entities.append(deepcopy(entity))
+        else:
+            _merge_entity_metadata(existing, entity)
     _append_invariant_claims(
         merged_canon,
         {

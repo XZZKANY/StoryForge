@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.domains.agent_runs.canon_assertions import ASSERTION_METADATA_PROPERTIES
 from app.domains.agent_runs.tools.spec_models import AgentRuntimeToolSpec, LoopToolSchema, ToolCatalogReferences
 
 PROJECT_CANON_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
@@ -71,6 +72,8 @@ PROJECT_CANON_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
                 "canon 事实差量提案（确定性，无额外 LLM）：读完章节后，把观察到的实体、唯一持有、退场、"
                 "时间线先后与新埋的伏笔作为结构化参数传入。伏笔走 promise_claims——它是**唯一**能把新"
                 "伏笔写进账本的通道，project_promise_check 只读不写。"
+                "每条实体/声明请附 assertion_type 和 evidence（原文 quote、可用的 path/行号），区分作者设定与模型推断；"
+                "缺失时来源未知，不补造依据；这些字段不会被工具验证为事实。"
                 "字段未传表示该类不提议；全空会诚实返回无提议。工具会归并"
                 "既有实体、提示同名 / 别名身份冲突，并只报告提案新增的 canon 闸问题。合并草稿写入派生缓存 "
                 "proposals.json（上一轮作者还没并入的提案会一并留着，不会被本轮覆盖），"
@@ -84,6 +87,7 @@ PROJECT_CANON_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
                         "items": {
                             "type": "object",
                             "properties": {
+                                **ASSERTION_METADATA_PROPERTIES,
                                 "name": {"type": "string"},
                                 "aliases": {
                                     "type": "array",
@@ -99,6 +103,7 @@ PROJECT_CANON_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
                         "items": {
                             "type": "object",
                             "properties": {
+                                **ASSERTION_METADATA_PROPERTIES,
                                 "item": {"type": "string"},
                                 "holder": {"type": "string"},
                                 "from_chapter": {"type": "integer"},
@@ -113,6 +118,7 @@ PROJECT_CANON_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
                         "items": {
                             "type": "object",
                             "properties": {
+                                **ASSERTION_METADATA_PROPERTIES,
                                 "entity": {"type": "string"},
                                 "exits_after_chapter": {"type": "integer"},
                                 "reason": {"type": "string"},
@@ -126,6 +132,7 @@ PROJECT_CANON_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
                         "items": {
                             "type": "object",
                             "properties": {
+                                **ASSERTION_METADATA_PROPERTIES,
                                 "before": {"type": "string"},
                                 "after": {"type": "string"},
                             },
@@ -138,6 +145,7 @@ PROJECT_CANON_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
                         "items": {
                             "type": "object",
                             "properties": {
+                                **ASSERTION_METADATA_PROPERTIES,
                                 "title": {"type": "string"},
                                 "planted_chapter": {"type": "integer"},
                                 "due_chapter": {"type": ["integer", "null"]},

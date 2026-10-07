@@ -164,3 +164,18 @@ Independent writer input observations are owned by domain-free `common/generatio
 ### C17 Brief 的实际采集身份与冻结 writer handoff（2026-10-05）
 
 `adapters/chapter_source_guard.py` v2 绑定原 snapshot context receipt / project / target，复用 `loop` 公共 face 的 `writing_context_sources_unchanged` 对 knowledge/ordinary owners 做统一资格核对。`chapter_writing_pipeline.py` 使用 admitted root 初始化 snapshot；tools 经 `prepare_chapter_writing_context` 校验已确认 projection 后传递 typed capsule。Assistant draft/revise 的原 capture scope 现在包括 admission，原事务/权限/模型调用结构不变，不把最新盘读或另一项目同内容当作旧Brief确认。
+
+## Canon assertion semantics (SF-C01 / SF-C02 / SF-C03)
+
+`canon_hooks_delta.evaluate_hook_admission` distinguishes exact normalized description text from lexical relation. Only empty/exact-repeat descriptions reject admission. Substring or Chinese character-set overlap is a **可能相关** advisory: `hooks_delta` keeps the candidate in `new_hooks` and links it in `related_hooks`. It does not prove narrative identity or write hooks.json.
+
+`canon_context.build_scene_constraint_block` filters holders only when chapter order is known and always displays their effective inclusive window. Unknown order produces a time-qualified whole-book digest, not simultaneous current-chapter obligations. Existing-file reading order and absent-file 第N章 inference remain the chapter anchors.
+
+`canon_assertions` owns optional assertion metadata used by delta normalization, tool schemas, scene projection and dossier rendering:
+- `assertion_type`: `author_setting | text_observation | model_inference | unknown`.
+- `evidence`: a list of nonempty `quote` references, optionally project-relative `path` plus positive `start_line` / `end_line`. References are retained data, not checked entailment; no evidence file is opened by this normalizer.
+- Missing legacy metadata stays missing and renders as unknown/unprovided. Explicit model inference is advisory, not a current hard rule, even after author acceptance. Structural canon gate algorithms are unchanged.
+- Invariant entries retain full-object proposal equality. Same-id pending entities cannot silently overwrite incompatible evidence/type; such a submission fails before proposal replacement. Metadata-free drafts may be enriched, and confirmed author entities retain the known-entity/read-only path.
+- `proposals.json` → pending read → desktop raw proposal → author merge preserves metadata without changing the declaration version or adding a store. Dossier entity occurrence `provenance` is not assertion evidence. Display snippets are bounded; stored quotes are not truncated.
+
+Regression anchors: `test_agent_canon_hooks.py`, `test_canon_unwritten_chapter_window.py`, `test_agent_canon_delta.py`, `test_agent_canon.py`, the canon-delta chat-loop test in `test_agent_loop_runtime_tools.py`, and desktop `tests/canon-merge.test.ts`. Loop schema changes must update only affected records in `tests/fixtures/loop_tool_schemas_golden.json`.
