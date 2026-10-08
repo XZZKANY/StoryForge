@@ -529,6 +529,8 @@ export function useSuggestionWriteback({
         recoveryOwner?: SuggestionOpState;
         /** Read from the immutable audit; Native must still prove the exact request applied. */
         recoveredRecord?: RevisionLoopRecord;
+        /** 仅同一次活动撤销可同步已查证回执，历史回执不得覆盖后来输入。 */
+        recoveredSettlementGuard?: () => boolean;
       } & ExternalWriteOverrides = {},
     ) => {
       const projectRoot = projectPathRef.current;
@@ -683,7 +685,7 @@ export function useSuggestionWriteback({
                 targetState.originalContent = nextContent;
                 // Never replace typing that happened while snapshot/write/record awaited.
                 if (
-                  !restored &&
+                  (!restored || overrides.recoveredSettlementGuard?.()) &&
                   normalizeEol(targetState.model.getValue()) === normalizeEol(previous)
                 )
                   targetState.model.setValue(nextContent);
@@ -886,6 +888,7 @@ export function useSuggestionWriteback({
       const projectRoot = projectPathRef.current;
       const targetModel = editorRef.current?.getModel() ?? null;
       const operationState = suggestionOperationStates.get(suggestion);
+      let undoAttemptVersion: number | null = null;
       const text = createdFile
         ? '新文件已写入，已留检查点'
         : step
@@ -923,6 +926,7 @@ export function useSuggestionWriteback({
             const actionToken = beginAction('undo', pendingSuggestionRef.current ?? suggestion);
             if (!actionToken) throw new Error('补丁操作仍在处理中，请稍后撤销');
             const undoOwner = pendingSuggestionRef.current;
+            const ownsAction = () => actionInFlightRef.current?.token === actionToken;
             const restoreUndoOperations = (receipt: WritebackReceipt, token: symbol) => {
               const pending = pendingSuggestionRef.current;
               if (
@@ -959,9 +963,28 @@ export function useSuggestionWriteback({
               replacePendingFileSuggestion(pending, restored);
               updatePendingSuggestion(restored);
             };
+            // 失败继续拒绝 Promise，让 ToastHost 保留同一个撤销动作以便显式重试。
             try {
               if (createdFile) {
                 if (!projectRoot) throw new Error('未打开项目，不能撤销新建');
+                const epoch = recoveryEpochRef.current;
+                const version = targetModel?.getVersionId?.();
+                const disk = await TauriFileSystem.readProjectFile(projectRoot, path);
+                // 只撤销本次接受生成的精确正文；编辑器没变不代表外部程序没改盘。
+                if (disk !== wrote) throw new Error('磁盘内容已变化，不能撤销新建；请查看版本历史');
+                if (
+                  !mountedRef.current ||
+                  recoveryEpochRef.current !== epoch ||
+                  !ownsAction() ||
+                  projectPathRef.current !== projectRoot ||
+                  filePathRef.current !== path ||
+                  editorRef.current?.getModel() !== targetModel ||
+                  targetModel?.getVersionId?.() !== version ||
+                  !canUndoWriteback(targetModel?.getValue() ?? '', wrote, normalizeEol)
+                )
+                  throw new Error('文件在核对期间已变化，已取消撤销新建');
+                // 原生 delete_path 尚非 compare-delete；此处只阻断已观察到的漂移，
+                // 读取完成到原生删除之间的跨进程竞态仍需原生原子守卫。
                 await TauriFileSystem.deletePath(projectRoot, path);
                 invalidateContextBundleCache(projectRoot);
                 // 正文没了，这章就不再是「写完的」——把接受时标上的 done 退回 pending。
@@ -972,6 +995,7 @@ export function useSuggestionWriteback({
                 emitToast('已撤销，该文件回到「不存在」', { tone: 'success' });
                 return;
               }
+              undoAttemptVersion ??= targetModel?.getVersionId?.() ?? null;
               const undoRecord = await writeAcceptedSuggestion(
                 {
                   ...suggestion,
@@ -985,6 +1009,11 @@ export function useSuggestionWriteback({
                 {
                   operationKind: `undo:${operationId}`,
                   recoveryOwner: operationState,
+                  recoveredSettlementGuard: () =>
+                    targetModel !== null &&
+                    modelCacheRef.current.get(path)?.model === targetModel &&
+                    undoAttemptVersion !== null &&
+                    targetModel.getVersionId?.() === undoAttemptVersion,
                   summary: `撤销：${suggestion.summary}`,
                   note: '用户意图：撤销刚写回的修订',
                 },
@@ -1025,10 +1054,6 @@ export function useSuggestionWriteback({
               // 正常交付和只补记录共用同一结算；历史回执和迟到完成不授予旧提案权限。
               restoreUndoOperations(undoRecord.receipt, actionToken);
               emitToast('已撤销，文件回到写回前', { tone: 'success' });
-            } catch (err) {
-              emitToast(`撤销失败：${err instanceof Error ? err.message : String(err)}`, {
-                tone: 'error',
-              });
             } finally {
               finishAction(actionToken);
             }
@@ -1043,6 +1068,7 @@ export function useSuggestionWriteback({
       filePathRef,
       finishAction,
       isCurrentAction,
+      modelCacheRef,
       normalizeEol,
       onRequestVersionHistory,
       projectPathRef,
