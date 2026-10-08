@@ -80,7 +80,7 @@ export function buildInputZoneDom(
   head.textContent =
     mode === 'continue'
       ? `续写 · ${lineLabel} 之后 · 接着往下写一段`
-      : `行间对话 · ${lineLabel} · 只改这附近，不整段重写`;
+      : `行间对话 · ${lineLabel} · ${anchor.isSelection ? '改写选区所在的完整行' : '改写光标所在的完整行'} · 接受后写入`;
 
   const textarea = document.createElement('textarea');
   textarea.className = 'sf-inline-chat__textarea sf-inner-input';

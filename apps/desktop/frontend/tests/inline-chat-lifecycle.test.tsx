@@ -989,3 +989,100 @@ it('partial-character selection retains existing touched-line authorization rath
     expected,
   ]);
 });
+
+it('相同路径与正文但模型实例已替换时拒绝旧候选', async () => {
+  await mount();
+  await send(await open());
+  const staleAccept = zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!;
+  model = makeModel(BEFORE);
+  await act(async () => {
+    for (const listener of modelListeners) listener();
+    staleAccept.click();
+  });
+  expect(writeback).not.toHaveBeenCalled();
+  expect(zones.querySelector('.sf-inline-btn-accept')).toBeNull();
+});
+
+it.each([null, FILE + '.renamed'])('接受动效期间目标变为 %s 时不进入写回', async (destination) => {
+  await mount();
+  await send(await open());
+  await act(async () => {
+    zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+    fileRef.current = destination;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(writeback).not.toHaveBeenCalled();
+});
+
+it('旧写回延迟失败不会关闭新文件输入框', async () => {
+  let fail!: (error: Error) => void;
+  writeback.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      }),
+  );
+  await mount();
+  await send(await open());
+  await act(async () => {
+    zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(writeback).toHaveBeenCalledTimes(1);
+  const nextFile = FILE + '.other';
+  await act(async () => {
+    fileRef.current = nextFile;
+    model = makeModel('新文件正文。');
+    position = { lineNumber: 1, column: 1 };
+    root.render(<Harness file={nextFile} />);
+  });
+  const newInput = await open('revise');
+  await act(async () => fail(new Error('old snapshot failed')));
+  expect(newInput.isConnected).toBe(true);
+  expect(newInput.disabled).toBe(false);
+  expect(model.getValue()).toBe('新文件正文。');
+  expect(host.textContent).not.toContain('old snapshot failed');
+});
+
+it('切文件中止请求且迟到响应不能替换新输入框', async () => {
+  await mount();
+  const pending = deferred<Response>();
+  fetchMock.mockImplementationOnce(() => pending.promise);
+  await send(await open('revise'), '原文件指令');
+  const signal = fetchMock.mock.calls[0][1]?.signal;
+  const nextFile = FILE + '.other';
+  await act(async () => {
+    fileRef.current = nextFile;
+    model = makeModel('新文件正文。');
+    position = { lineNumber: 1, column: 1 };
+    root.render(<Harness file={nextFile} />);
+  });
+  expect(signal?.aborted).toBe(true);
+  const nextInput = await open('revise');
+  await act(async () =>
+    pending.resolve(
+      Response.json({ after: '旧文件返回内容', model: 'old', assistant_session_id: 1 }),
+    ),
+  );
+  expect(nextInput.isConnected).toBe(true);
+  expect(zones.textContent).not.toContain('旧文件返回内容');
+  expect(writeback).not.toHaveBeenCalled();
+});
+
+it('模型替换后的迟到写回成功不会移动新光标', async () => {
+  const completed = deferred<{ writebackWarning: undefined }>();
+  writeback.mockImplementationOnce(() => completed.promise);
+  await mount();
+  await send(await open());
+  await act(async () => {
+    zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  await act(async () => {
+    model = makeModel(BEFORE);
+    for (const listener of modelListeners) listener();
+    completed.resolve({ writebackWarning: undefined });
+  });
+  expect(editorRef.current!.setPosition).not.toHaveBeenCalled();
+  expect(host.textContent).not.toContain('已写回');
+});

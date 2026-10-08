@@ -6642,3 +6642,14 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 - 集成树 `LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 npm --prefix apps/desktop/frontend run test`：**1,689 passed / 1 skipped**（176 passed test files / 1 skipped）。不包含 9 项临时场景试验，临时夹具未提交。
 - 集成树 TypeScript typecheck、Vite build、两改动文件 ESLint 与 Prettier 检查全部退出 0；build 大 chunk 提示仍在。
 - 本批无后端、provider、生产数据或依赖变更；Windows Tauri、原生撤销、真实 provider 与完整 `pnpm verify` 限制同前批。只更新草稿 PR，不合并/部署。
+
+## 2026-10-08：Ctrl+K 整行范围提示与导航/写回集成回归（第三批 UI）
+
+基线：`abf603d9bcd70dcdecae901a1ddbba8d26ea7bd3`。唯一产品行为改动为标题明确说明“改写选区所在的完整行”或“改写光标所在的完整行”，与既有 touched-line 授权范围一致，不扩大或改变写回权限。
+
+- 4 个维护源码/测试文件，新增 18 项测试（1 项范围标题 + 17 项集成/并发回归）。真实 Editor、useInlineChat 与 guarded writer 共同挂载；Monaco、HTTP、文件系统与快照为测试替身。
+- 验证导航、同文异 model、删除/改名、延迟结果、作者新输入、接受结算与随后 Ctrl+S 的缓冲/磁盘基线。已有安全逻辑全部通过，未为通过测试修改生产安全逻辑。
+- 独立审查：75/75 通过；生命周期 56、实际 Editor 写回链集成 11、DOM 8。
+- 发布集成树干净应用补丁，4 文件 SHA-256 与独立审查冻结内容一致。`LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 npm --prefix apps/desktop/frontend run test`：**1,707 passed / 1 skipped**，无临时场景夹具。
+- 发布集成树 TypeScript typecheck、Vite build、4 改动文件 ESLint/Prettier 通过。构建大 chunk 提示仍在。
+- 本批无后端变化；headless 集成不能替代真实 Windows Tauri/GUI、原生撤销、provider 质量或完整 `pnpm verify`。保持草稿 PR，不合并/部署。

@@ -190,3 +190,23 @@ function readFileSyncHook(): string {
   //（与 focus-styles 里 readFileSync('src/index.css') 同款）。
   return readFileSync('src/components/editor/useInlineChat.ts', 'utf8');
 }
+
+test('修订输入明确披露完整行范围，不承诺不会整段重写', () => {
+  for (const selected of [true, false]) {
+    const { container } = buildInputZoneDom(
+      { ...anchor, endLine: selected ? 5 : 3, isSelection: selected },
+      'revise',
+      {
+        onSend: () => {},
+        onCancel: () => {},
+      },
+    );
+    assert.match(container.textContent ?? '', selected ? /第 3–5 行/ : /第 3 行/);
+    assert.match(
+      container.textContent ?? '',
+      selected ? /改写选区所在的完整行/ : /改写光标所在的完整行/,
+    );
+    assert.match(container.textContent ?? '', /接受后写入/);
+    assert.doesNotMatch(container.textContent ?? '', /不整段重写/);
+  }
+});
