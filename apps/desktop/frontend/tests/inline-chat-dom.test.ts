@@ -210,3 +210,17 @@ test('修订输入明确披露完整行范围，不承诺不会整段重写', ()
     assert.doesNotMatch(container.textContent ?? '', /不整段重写/);
   }
 });
+
+test('长按 Enter 不自动重复发送；再次手动按下仍可重试', () => {
+  const onSend = vi.fn();
+  const { textarea } = buildInputZoneDom(anchor, 'revise', { onSend, onCancel: () => {} });
+  textarea.value = '保留事实';
+  keydown(textarea, 'Enter');
+  keydown(textarea, 'Enter', { repeat: true });
+  assert.deepEqual(onSend.mock.calls, [['保留事实']]);
+  textarea.value = '新的修改要求';
+  keydown(textarea, 'Enter');
+  assert.deepEqual(onSend.mock.calls, [['保留事实'], ['新的修改要求']]);
+  keydown(textarea, 'Enter', { repeat: true, shiftKey: true });
+  assert.equal(onSend.mock.calls.length, 2);
+});

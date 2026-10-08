@@ -83,6 +83,8 @@ type InlineSession = {
   mode: InlineMode;
   phase: InlinePhase;
   anchor: InlineAnchor;
+  /** 生成失败时恢复作者原始输入，不重读可能已移动的选区。 */
+  inputDom: ReturnType<typeof buildInputZoneDom> | null;
   zoneIds: string[];
   /** 落位动效要给绿块加 class，故除 id 外还留一份 DOM 引用。 */
   zoneDoms: HTMLElement[];
@@ -683,11 +685,13 @@ export function useInlineChat({
         // 拼回整文再交给 renderDiff：夹紧、陈旧判定与写回一律仍以整文件为单位。
         renderDiff(before, spliceInlineReviseWindow(before, window, result.after));
       } catch (error) {
-        // 已取消（abort→teardown 已跑，sessionRef 清空）或切走：不再报失败。
-        if (!qualifySession(session)) return;
-        teardown();
+        // 主动取消、换文件/模型、继续输入后，不得恢复旧指令覆盖新工作。
+        if (!qualifySession(session) || controller.signal.aborted) return;
+        detachLoadingEsc();
+        session.abortController = null;
+        restoreInputZone(session, () => isSessionActive(session) && session.phase === 'input');
         flashStatus(
-          `AI 修订失败：${error instanceof Error ? error.message : String(error)}`,
+          `AI 修订失败（指令已保留，可修改后手动重试）：${error instanceof Error ? error.message : String(error)}`,
           'assertive',
         );
       }
@@ -787,6 +791,7 @@ export function useInlineChat({
         mode,
         phase: 'input',
         anchor,
+        inputDom: null,
         zoneIds: [],
         zoneDoms: [],
         decorations: null,
@@ -812,6 +817,7 @@ export function useInlineChat({
           if (sessionRef.current === session) teardown();
         },
       });
+      session.inputDom = dom;
       // 先给一个够用的初值，随后按真实高度重排——写死高度会把气泡底边裁掉（「不是完整的气泡」）。
       const inputZone: monaco.editor.IViewZone = {
         afterLineNumber: anchor.endLine,
@@ -847,7 +853,12 @@ export function useInlineChat({
           dom.textarea.focus({ preventScroll: true });
       };
       window.requestAnimationFrame(() => {
-        if (!isSessionActive(session) || session.phase !== 'input') return;
+        if (
+          !isSessionActive(session) ||
+          session.phase !== 'input' ||
+          !session.zoneIds.includes(inputZoneId)
+        )
+          return;
         const measured = dom.container.offsetHeight;
         if (measured > 0 && editorRef.current && sessionRef.current === session) {
           // offsetHeight 不含外边距，补上 margin(4+6) 再留一点余量。
@@ -993,6 +1004,34 @@ function swapZoneToStreaming(
       window.requestAnimationFrame(relayout);
     },
   };
+}
+
+/** 仅在当前会话/稿件仍有效的生成失败后调用；保留原输入 DOM、文字与锚点。 */
+function restoreInputZone(session: InlineSession, isActive: () => boolean): void {
+  const input = session.inputDom;
+  if (!input) return;
+  session.phase = 'input';
+  const zone: monaco.editor.IViewZone = {
+    afterLineNumber: session.anchor.endLine,
+    heightInPx: 120,
+    domNode: input.container,
+  };
+  let zoneId = '';
+  session.editor.changeViewZones((accessor) => {
+    for (const id of session.zoneIds) accessor.removeZone(id);
+    zoneId = accessor.addZone(zone);
+    session.zoneIds = [zoneId];
+    session.zoneDoms = [input.container];
+  });
+  window.requestAnimationFrame(() => {
+    if (!isActive() || !session.zoneIds.includes(zoneId)) return;
+    const measured = input.container.offsetHeight;
+    if (measured > 0) {
+      zone.heightInPx = Math.max(100, measured + 14);
+      session.editor.changeViewZones((accessor) => accessor.layoutZone(zoneId));
+    }
+  });
+  focusWhenSettled(input.textarea, isActive);
 }
 
 function swapZoneToLoading(

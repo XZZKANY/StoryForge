@@ -102,7 +102,8 @@ export function buildInputZoneDom(
     event.stopPropagation();
     if (event.key === 'Enter' && !event.shiftKey && !composing) {
       event.preventDefault();
-      handlers.onSend(textarea.value);
+      // 失败恢复输入后，长按 Enter 的键盘重复事件不应变成自动模型重试。
+      if (!event.repeat) handlers.onSend(textarea.value);
     } else if (event.key === 'Escape') {
       event.preventDefault();
       handlers.onCancel();
