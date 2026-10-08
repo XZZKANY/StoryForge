@@ -13,7 +13,7 @@ canon 的退场闸、伏笔到期判定与实体预算阈值全部按虚高的�
 
 **取黑名单而非白名单**（不是「只认 正文/」）：把章节直接放项目根的布局仍然可用，作者不必
 先重组目录才能让 canon 算对章号。代价是根目录下的杂项 .md 仍会占章号——那由作者的目录
-习惯兜住，不是本模块要解决的。
+习惯兜住，不是本模块要解决的。应用固定使用的根 `灵感.md` 是速记载体，明确排除。
 
 本模块必须保持无依赖叶子：`app/common` 不得 import domains（`style_baseline` 与
 `agent_runs/*` 都要用它，后者在 domains 内）。
@@ -87,6 +87,9 @@ def is_manuscript_path(relative_path: str) -> bool:
     """
 
     parts = [part for part in relative_path.replace("\\", "/").split("/") if part]
+    # 新建作品与灵感速记共用的根文件是作者笔记，不占章号；同名嵌套正文不受影响。
+    if parts == ["灵感.md"]:
+        return False
     if len(parts) < 2:
         return bool(parts)
     return parts[0].lower() not in NON_MANUSCRIPT_DIRS
