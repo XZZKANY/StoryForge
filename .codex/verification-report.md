@@ -6776,3 +6776,16 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 - 发布集成完整前端 **1,866 passed / 1 skipped**（zh-CN），typecheck/build/七文件 ESLint/Prettier 通过；干净应用，结果匹配冻结七哈希。
 
 无后端、源身份哈希合同或行尾规则修改；控制文本及headless模拟边界，不代表真实provider/Windows/浏览器。作者额外改动导致保守拒绝仍允许，不扩大范围。此前原生read→delete TOCTOU残余不变；无CI通过/原生验收声明，仅草稿PR，不合并/部署。
+
+## 2026-10-08：canon 文件别名的解析目标角色（别名角色批次）
+
+集成基线：`7e1934f8602c7538c25d9ef909f5b816d4856f07`。1 个 API 源码 + 2 个维护测试文件；前端投影修复保持原样。
+
+- 修复正文外观的 in-project symlink 指向设定/根灵感笔记时仍占 canon 章节，而公共前章扫描已排除的问题；实际 draft prompt 原先收到错误第2章约束，修复后使用首章约束且不含参考材料。
+- canon_rebuild 复用公共 scoped_target，要求解析后的相对目标同样通过既有 manuscript role 与 dot-path 排除。额外 `.storyforge/agent-instructions.md` 别名边界已补红测；正常指令文件 discovery/read、read_author_instructions 与系统提示注入保持有效。
+- 合法正文别名仍保留原词法键、排序、重复计数及 caller glob，不去重、不改扩展名/目录策略。不支持/失败的扫描解析沿 FsToolError 保守失败，不产生部分 ordinal map 或伪造硬窗口。
+- 新增22维护案例（6生产者+16独立）。初始生产者4项红、独立9failed/6passed；第一候选指令别名边界1failed/15passed，最终修复另留证据。
+- 发布集成组合 **92 passed**，API 全域 Ruff 通过；三文件干净应用并匹配冻结哈希。最终独立广泛 **191 passed / 1 skipped**；前一候选378项广泛通过仅作历史证据，不替代最终签核。
+- 最终完整 API **3,658 passed / 25 skipped / 20 failed**，精确失败集合与已验证基线相同，零新增/移除失败；不声称全套通过。
+
+本批不统一前端自动上下文分类、native *.md 或 entity budget 其他成员规则。symlink测试使用Linux临时项目，不支持/权限拒绝环境按既有跳过规则，不声称Windows原生行为。无配置/付费provider、用户数据修改或迁移；仅草稿PR，不合并/部署。
