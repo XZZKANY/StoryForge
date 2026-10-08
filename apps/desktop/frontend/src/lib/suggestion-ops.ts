@@ -3,7 +3,8 @@
  *
  * 整份接受不再把冻结的 after 整段盖回当前稿，而是把补丁里尚未应用的 op 逐个映射到作者
  * 当前稿——范围外的行一律不动，作者在提交期间的独立改动不会被回退。无已消费操作且当前稿
- * 与 before 归一化后相同时，才走「直接写 after」的快路径。
+ * 与 before 归一化后相同时，才走「直接写 after」的快路径；已接受子集则须先逐字证明
+ * 当前稿等于不可变源稿按该子集重建的结果，才能沿原始坐标继续应用。
  */
 import { applyPatchHunkToCurrent, buildPatchHunks, type PatchHunk } from './patch-hunks';
 
@@ -25,6 +26,39 @@ export type WholeAcceptPlan = {
 
 export function buildSuggestionOps(before: string, after: string): PatchHunk[] {
   return buildPatchHunks(before, after);
+}
+
+/** 仅用不可变源稿坐标重建已确认子集；无效身份或重叠范围不能构成证明。 */
+export function projectSourceOperations(
+  before: string,
+  operations: readonly PatchHunk[],
+  selected: ReadonlySet<string>,
+): string | null {
+  const ids = new Set(operations.map((op) => op.id));
+  if (ids.size !== operations.length || [...selected].some((id) => !ids.has(id))) return null;
+  const ordered = [...operations].sort((a, b) => a.originalStartOffset - b.originalStartOffset);
+  let end = 0;
+  for (const op of ordered) {
+    if (
+      !Number.isInteger(op.originalStartOffset) ||
+      !Number.isInteger(op.originalEndOffset) ||
+      op.originalStartOffset < end ||
+      op.originalEndOffset < op.originalStartOffset ||
+      op.originalEndOffset > before.length ||
+      before.slice(op.originalStartOffset, op.originalEndOffset) !== op.beforeText
+    )
+      return null;
+    end = op.originalEndOffset;
+  }
+  let content = before;
+  for (const op of ordered.reverse()) {
+    if (selected.has(op.id))
+      content =
+        content.slice(0, op.originalStartOffset) +
+        op.afterText +
+        content.slice(op.originalEndOffset);
+  }
+  return content;
 }
 
 export function invertPatchHunk(hunk: PatchHunk): PatchHunk {
@@ -214,6 +248,14 @@ function classifyAtAnchor(
   anchor: number,
 ): 'applied' | 'apply' | 'conflict' {
   if (op.afterText && current.slice(anchor, anchor + op.afterText.length) === op.afterText) {
+    // 结果只是原文的前缀且整段原文仍在，不能声称已完成缩短/删换行。
+    // 没有精确源稿/已确认子集证明时，保守拒绝猜测作者是否另添了相同尾文。
+    if (
+      op.beforeText.length > op.afterText.length &&
+      op.beforeText.startsWith(op.afterText) &&
+      current.slice(anchor, anchor + op.beforeText.length) === op.beforeText
+    )
+      return 'conflict';
     return 'applied';
   }
   if (current.slice(anchor, anchor + op.beforeText.length) === op.beforeText) return 'apply';
@@ -294,6 +336,21 @@ export function planWholeAccept(
     const settledOpIds = new Set(operations.map((op) => op.id));
     return { content: after, applied: [], fastPath: true, settledOpIds };
   }
+  // 已确认子集的实际正文必须逐字相等，历史操作记录本身不授予覆盖作者输入的权力。
+  const knownCurrent = projectSourceOperations(before, operations, appliedOpIds);
+  if (knownCurrent !== null && current === knownCurrent) {
+    const settledOpIds = new Set(operations.map((op) => op.id));
+    const exactAfter = projectSourceOperations(before, operations, settledOpIds);
+    if (exactAfter === after)
+      return {
+        content: after,
+        applied: operations
+          .filter((op) => !appliedOpIds.has(op.id))
+          .map((op) => ({ op, inverse: invertPatchHunk(op) })),
+        fastPath: false,
+        settledOpIds,
+      };
+  }
   let content = current;
   const applied: AppliedSuggestionOp[] = [];
   const settledOpIds = new Set<string>();
@@ -347,7 +404,39 @@ export function planHunkAccept(
   current: string,
   op: PatchHunk,
   before: string,
+  provenance?: { operations: readonly PatchHunk[]; appliedOpIds: ReadonlySet<string> },
 ): { content: string; alreadyApplied: boolean } {
+  if (provenance?.operations.includes(op)) {
+    // 已消费操作不能因作者改回原稿而获得第二次授权（包括旧按钮的迟到回调）。
+    if (provenance.appliedOpIds.has(op.id)) return { content: current, alreadyApplied: true };
+    const knownCurrent = projectSourceOperations(
+      before,
+      provenance.operations,
+      provenance.appliedOpIds,
+    );
+    if (knownCurrent !== null && current === knownCurrent) {
+      const selected = new Set(provenance.appliedOpIds);
+      const alreadyApplied = selected.has(op.id);
+      selected.add(op.id);
+      const content = projectSourceOperations(before, provenance.operations, selected);
+      if (content !== null) return { content, alreadyApplied };
+    }
+  }
+  // 源稿逐字相等时，原始偏移就是唯一目标；不能把结果前缀误认成已应用。
+  if (
+    current === before &&
+    op.originalStartOffset >= 0 &&
+    op.originalEndOffset <= before.length &&
+    before.slice(op.originalStartOffset, op.originalEndOffset) === op.beforeText
+  ) {
+    return {
+      content:
+        current.slice(0, op.originalStartOffset) +
+        op.afterText +
+        current.slice(op.originalEndOffset),
+      alreadyApplied: false,
+    };
+  }
   const located = locateOpAnchor(current, op, before);
   // 前一 op 或范围外作者修改可能改变原始前缀；与整份接受一致，仅唯一原文可安全兜底。
   if (located.kind === 'fallback' && countOccurrences(current, op.beforeText) === 1) {

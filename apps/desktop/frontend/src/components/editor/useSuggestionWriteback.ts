@@ -1326,6 +1326,7 @@ export function useSuggestionWriteback({
           currentContent,
           matched ?? hunk,
           opState?.changeSet.before ?? suggestion.before,
+          { operations: opState.changeSet.operations, appliedOpIds: opState.appliedOpIds },
         );
         const nextContent = hunkPlan.content;
         // 消费/确认是历史，解决归属须重新核验实际写入稿；不能因旧 op 曾接受就算仍在稿内。

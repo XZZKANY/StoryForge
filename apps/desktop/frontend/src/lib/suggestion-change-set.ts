@@ -42,9 +42,14 @@ export function projectRemainingSuggestion(
   const operations = Object.freeze(set.operations.filter((op) => !accepted.has(op.id)));
   const conflicts: Record<string, string> = {};
   let after = current;
+  const projected = new Set(accepted);
   for (const op of operations) {
     try {
-      after = planHunkAccept(after, op, set.before).content;
+      after = planHunkAccept(after, op, set.before, {
+        operations: set.operations,
+        appliedOpIds: projected,
+      }).content;
+      projected.add(op.id);
     } catch (error) {
       // A failed mapping remains an explicit original operation, not a made-up current→old diff.
       conflicts[op.id] =
