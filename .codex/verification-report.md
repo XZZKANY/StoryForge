@@ -6668,3 +6668,17 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 - 两个原始场景候选回放 8 项通过（HTTP 修订、live 提案、显式行范围拒绝、审稿解析），复用原候选，未新调真实 provider/付费模型。
 
 上述验证为云端 headless/API 与测试替身；Windows Tauri/原生撤销、真实 provider 质量、打包发布及完整 `pnpm verify` 仍未验证。只更新独立分支草稿 PR，不合并/部署。
+
+## 2026-10-08：私有待恢复调用的公共事件边界（后端恢复批次）
+
+基线：`a5bf3364a920de4c10cd40d3a35a658e06a49dbe`。4 个 API 源码 + 2 个维护测试文件，前端与私有恢复资料保持不变。
+
+- 修复继承的章节 brief 等待事件泄露：原本不被普通 artifacts API 展示的私有 AgentArtifact 恢复正文被复制进公共事件，含绝对项目路径等恢复资料。
+- 新事件入库、REST serializer、SSE encoder 共用 runtime_pending_call 安全摘要投影；外层只允许固定 kind、整数 artifact_id、布尔 requires_confirmation。旧事件行读取同样保护；异常/已结算私有正文不回退原文，不覆写旧行或私有恢复资料。
+- 实际 resume 继续从私有 AgentArtifact 的原始 admitted 数据恢复，额外外来 project_path/args/resume_message 不能重绑目标；章节来源漂移与冷恢复护栏仍在。
+- 发布集成树 126 项受影响回归通过（24.39 秒），6 改动文件 Ruff 通过；干净应用及冻结 SHA-256 核验通过。
+- 独立 38 项回归通过，含 9 项异常元数据/非修改/项目重绑对抗、旧事件 REST/SSE、普通补丁、冷恢复和源绑定。
+- `app.openapi()`、`build_agent_ws_schema()` 按正式 JSON 格式生成，与已有契约逐字一致；无 schema/type 快照变更。WS 合同/模式回归在 126 项内。
+- 完整 API：**3,578 passed / 25 skipped / 20 failed**。失败集合恰为上一批 21 项减去已修复章节 brief 绝对路径泄露；零新增失败节点。剩余 2 项 POSIX 大小写假设、17 项缺 PowerShell、1 项源码快照缺 Git checkout。不是全套通过。
+
+无依赖、provider 或生产数据变更，无付费模型调用。不宣称 Windows Tauri、原生撤销、真实 provider、完整 pnpm verify 或生产验收通过；仅更新草稿 PR，不合并/部署。

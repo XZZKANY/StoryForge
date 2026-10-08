@@ -16,6 +16,7 @@ from app.domains.agent_runs.event_types import (
 )
 from app.domains.agent_runs.models import AgentRun, AgentRunEvent
 from app.domains.agent_runs.permission import canonical_permission_profile
+from app.domains.agent_runs.runtime_recovery import public_runtime_event_payload
 from app.domains.agent_runs.ws_messages import (
     AgentRunStartedFrame,
     AgentRunWaitingFrame,
@@ -34,7 +35,7 @@ def encode_agent_run_sse_event(event: AgentRunEvent) -> str:
         "event_type": event.event_type,
         "actor": event.actor,
         "message": redact_sensitive_text(event.message),
-        "payload": redact_sensitive(event.payload),
+        "payload": redact_sensitive(public_runtime_event_payload(event.event_type, event.payload)),
         "sequence": event.sequence,
         "created_at": event.created_at.isoformat(),
     }

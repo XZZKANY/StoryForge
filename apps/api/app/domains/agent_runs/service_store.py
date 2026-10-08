@@ -24,6 +24,7 @@ from app.domains.agent_runs.run_payloads import optional_positive_int
 from app.domains.agent_runs.runtime_recovery import (
     RUNTIME_PENDING_CALL_ARTIFACT_KIND,
     RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
+    public_runtime_event_payload,
 )
 from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
 from app.domains.agent_runs.service_types import (
@@ -83,7 +84,7 @@ def record_agent_event(
             event_type=event_type,
             actor=actor,
             message=redact_sensitive_text(message),
-            payload=redact_sensitive(payload or {}),
+            payload=redact_sensitive(public_runtime_event_payload(event_type, payload or {})),
             sequence=next_sequence,
         )
         try:
