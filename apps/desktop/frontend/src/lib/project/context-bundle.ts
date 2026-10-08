@@ -38,18 +38,32 @@ const KIND_PRIORITY: Record<SemanticKind, number> = {
 const PREVIOUS_CHAPTER_PRIORITY = 0.5;
 
 type DraftOrder = {
-  /** 正文 path → 阅读序下标。路径序即阅读序，与后端 `app/common/manuscript.py` 同判据。 */
+  /** 已归类正文的 path → 阅读序下标；用后端码点路径序，文件分类仍由前端索引负责。 */
   positionByPath: Map<string, number>;
   total: number;
   /** 当前文件在阅读序中的位置；当前文件不是正文（比如在改人物卡）时为 null。 */
   currentPosition: number | null;
 };
 
+/** 与后端 Python 路径排序一致，按 Unicode 码点比较，不随界面语言改变章序。 */
+function compareChapterPaths(a: string, b: string): number {
+  let left = 0;
+  let right = 0;
+  while (left < a.length && right < b.length) {
+    const aPoint = a.codePointAt(left)!;
+    const bPoint = b.codePointAt(right)!;
+    if (aPoint !== bPoint) return aPoint - bPoint;
+    left += aPoint > 0xffff ? 2 : 1;
+    right += bPoint > 0xffff ? 2 : 1;
+  }
+  return (left < a.length ? 1 : 0) - (right < b.length ? 1 : 0);
+}
+
 function buildDraftOrder(files: SemanticFile[], currentFile: string | null): DraftOrder {
   const positionByPath = new Map<string, number>();
   files
     .filter((file) => file.kind === 'draft')
-    .sort((a, b) => a.relativePath.localeCompare(b.relativePath))
+    .sort((a, b) => compareChapterPaths(a.relativePath, b.relativePath))
     .forEach((file, position) => positionByPath.set(file.path, position));
   const currentPosition = currentFile ? (positionByPath.get(currentFile) ?? null) : null;
   return { positionByPath, total: positionByPath.size, currentPosition };

@@ -6724,3 +6724,16 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 - 发布集成树完整维护前端 **1,784 passed / 1 skipped**（zh-CN），typecheck/build/六文件 ESLint/Prettier 通过；干净应用，六文件 SHA-256 与冻结版本一致。后端不变。
 
 重要残余边界：Tauri delete_path 仍不是原子 compare-delete。前端读盘复核能阻止已观察到的漂移，但外部进程在复核与删除之间再次修改磁盘仍有 TOCTOU 窗口；不能声称原子删除安全。本批为 headless 归属/竞态验证，不等同 Windows Tauri/真实 GUI、全聚合或用户已安装应用更新。只发布独立分支草稿 PR，不合并/部署/安装。
+
+## 2026-10-08：自动前章上下文与后端 Unicode 路径顺序一致（上下文排序批次）
+
+集成基线：`e336029ec4438ce15795c0d1d2518c08cd013777`。1 个前端源码 + 2 个维护测试 + 1 个 Python oracle JSON，版本恢复安全修复保持原样。
+
+- 修复 buildDraftOrder 的 localeCompare 自动前章选择与后端 Python Unicode 码点排序不一致。实际 continue HTTP 请求和后端 writer prompt 在修复前可选入 FUTURE_ONLY 资料，修复后只包含权威前章，稿件未改；受控 transport 响应，无真实 provider 调用。
+- 内部比较器按 Unicode scalar 比较，覆盖补充平面，不用 JS UTF-16 排序代替。只修改已归类 draft 文件的前章顺序；不改变展示树、项目索引、显式 pin 优先级、其他类别排序、持久化 canon 或后端编号。
+- 码点顺序是既有契约，不声称自然人类章节顺序；前后端成员资格差异（未知目录、扩展名、跳过目录等）不在本批，只有共享合格路径的顺序一致。
+- 新维护 22 项（生产者 5 + 独立 17），含独立 Python sorted oracle。原始生产者 5 项红测；独立 10 failed / 7 passed。最终新组合在 zh-CN/en-US 各 22 通过。
+- 发布集成树完整维护前端 **1,806 passed / 1 skipped**（zh-CN），en-US 新组合 **22 passed**；typecheck、Vite build、改动 TS 的 ESLint 与四文件 Prettier 通过。四文件哈希与最终独立签核一致。
+- 生产者较早独立基线完整 zh-CN 1785/1skip，en-US 1784/1skip/1fail；单一失败是既有 project-context 资料索引 locale 顺序断言，独立恢复旧源码可复现。发布计数采用包含版本恢复的最新集成树，不沿用旧基线计数。
+
+后端未变；不把子集绿灯等同完整聚合，既有真实 Monaco headless-shell 前提缺失仍保留。无付费模型调用、原生或生产验收声明；仅更新草稿 PR，不合并/部署。
