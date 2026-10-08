@@ -354,7 +354,7 @@ it('keeps author-view selection, debounced model/content updates and cleanup aft
     expect(selectionListeners.size).toBe(1);
     // AuthorView still owns its debounced publication; inline operations also
     // subscribe to abort stale generation. Both must dispose on unmount below.
-    expect(modelListeners.size).toBe(2);
+    expect(modelListeners.size).toBe(3);
     // Each input independently reaches the live event bus; coalescing alone could
     // conceal a missing content or selection subscription.
     for (const trigger of [

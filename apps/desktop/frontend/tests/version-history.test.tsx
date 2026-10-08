@@ -11,10 +11,12 @@ import type { VersionEntry, VersionState } from '../src/lib/versions';
 const mocked = vi.hoisted(() => ({
   versions: [] as VersionEntry[],
   states: new Map<string, VersionState>(),
+  list: null as null | ((project: string | null, file: string) => Promise<VersionEntry[]>),
 }));
 
 vi.mock('../src/lib/versions', () => ({
-  listVersions: async () => mocked.versions,
+  listVersions: async (project: string | null, file: string) =>
+    mocked.list ? mocked.list(project, file) : mocked.versions,
   readVersionState: async (_project: string, entry: VersionEntry) => {
     if (entry.unavailableReason) throw new Error(entry.unavailableReason);
     return mocked.states.get(entry.path) ?? { exists: true, content: '' };
@@ -34,15 +36,15 @@ function entry(timestamp: number, extra: Partial<VersionEntry> = {}): VersionEnt
   };
 }
 
-function renderHistory(onRestore: (state: VersionState, entry: VersionEntry) => void) {
+function renderHistory(onRestore: (entry: VersionEntry) => void | Promise<void>) {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root: Root = createRoot(container);
-  act(() => {
+  const render = (filePath = 'D:/Book/chapter.md') => {
     root.render(
       <VersionHistory
         projectPath="D:/Book"
-        filePath="D:/Book/chapter.md"
+        filePath={filePath}
         manifest={emptyManifest()}
         onRestore={onRestore}
         onCheckoutNode={() => undefined}
@@ -52,9 +54,13 @@ function renderHistory(onRestore: (state: VersionState, entry: VersionEntry) => 
         getCurrentContent={() => '当前正文'}
       />,
     );
-  });
+  };
+  act(() => render());
   return {
     container,
+    navigate(filePath: string) {
+      act(() => render(filePath));
+    },
     async settle() {
       await act(async () => {
         await Promise.resolve();
@@ -70,14 +76,15 @@ function renderHistory(onRestore: (state: VersionState, entry: VersionEntry) => 
 beforeEach(() => {
   mocked.versions = [];
   mocked.states.clear();
+  mocked.list = null;
 });
 
-test('missing version previews deletion semantics and forwards structured state', async () => {
+test('missing version previews deletion semantics and transfers the entry before parent-owned state IO', async () => {
   const missing = entry(100, { created: true });
   mocked.versions = [missing];
   mocked.states.set(missing.path, { exists: false, content: '' });
-  const restored: Array<{ state: VersionState; entry: VersionEntry }> = [];
-  const view = renderHistory((state, version) => restored.push({ state, entry: version }));
+  const restored: VersionEntry[] = [];
+  const view = renderHistory((version) => restored.push(version));
   try {
     await view.settle();
     const restore = [...view.container.querySelectorAll('button')].find((button) =>
@@ -94,8 +101,8 @@ test('missing version previews deletion semantics and forwards structured state'
 
     await act(async () => restore.click());
     assert.equal(restored.length, 1);
-    assert.deepEqual(restored[0].state, { exists: false, content: '' });
-    assert.equal(restored[0].entry.path, missing.path);
+    assert.equal(restored[0].created, true);
+    assert.equal(restored[0].path, missing.path);
   } finally {
     view.cleanup();
   }
@@ -181,6 +188,72 @@ test('missing tree/ref stays visible with an explicit reason and disabled action
       button.textContent?.includes('恢复'),
     );
     assert.equal(restore?.disabled, true);
+  } finally {
+    view.cleanup();
+  }
+});
+
+test('换文件后立即隐藏旧版本行，不等新文件读取结束', async () => {
+  const original = entry(100, { summary: 'A旧版本' });
+  mocked.versions = [original];
+  const view = renderHistory(() => undefined);
+  try {
+    await view.settle();
+    assert.match(view.container.textContent ?? '', /A旧版本/);
+    let finish!: (entries: VersionEntry[]) => void;
+    mocked.list = async () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      });
+    view.navigate('D:/Book/other.md');
+    assert.equal(view.container.querySelectorAll('[data-testid="version-entry"]').length, 0);
+    assert.doesNotMatch(view.container.textContent ?? '', /A旧版本/);
+    const other = entry(200, {
+      path: 'D:/Book/.storyforge/versions/other/200.meta.json',
+      file: 'other.md',
+      summary: 'B旧版本',
+    });
+    await act(async () => finish([other]));
+    assert.match(view.container.textContent ?? '', /B旧版本/);
+  } finally {
+    view.cleanup();
+  }
+});
+
+test('旧文件恢复迟到失败不能清除新文件的忙状态或错误展示', async () => {
+  const original = entry(100);
+  mocked.versions = [original];
+  let failOld!: (reason: Error) => void;
+  let finishNew!: () => void;
+  const view = renderHistory((version) =>
+    version.path === original.path
+      ? new Promise<void>((_resolve, reject) => {
+          failOld = reject;
+        })
+      : new Promise<void>((resolve) => {
+          finishNew = resolve;
+        }),
+  );
+  const restore = () =>
+    [...view.container.querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => b.textContent === '恢复' || b.textContent === '恢复中…',
+    )!;
+  try {
+    await view.settle();
+    await act(async () => restore().click());
+    const other = entry(200, {
+      path: 'D:/Book/.storyforge/versions/other/200.meta.json',
+      file: 'other.md',
+    });
+    mocked.versions = [other];
+    view.navigate('D:/Book/other.md');
+    await view.settle();
+    await act(async () => restore().click());
+    await act(async () => failOld(new Error('A旧错误')));
+    assert.equal(restore().getAttribute('aria-busy'), 'true');
+    assert.doesNotMatch(view.container.textContent ?? '', /A旧错误/);
+    await act(async () => finishNew());
+    assert.equal(restore().disabled, false);
   } finally {
     view.cleanup();
   }

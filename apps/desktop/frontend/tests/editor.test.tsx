@@ -212,14 +212,14 @@ test('建议写回保持整文件硬闸，并让分块接受走 hunk 级定位',
 
 test('恢复“不存在”版本按保存脏缓冲→快照→真删除→退计划→摘页签执行', () => {
   const restoreBlock = editorSource.match(
-    /const handleRestore = async[\s\S]*?\/\/ 分支画布：把某节点正文恢复到编辑器/,
+    /const handleRestore = async[\s\S]*?(?=const handleCheckoutNode)/,
   )?.[0];
   assert.ok(restoreBlock, '找不到 handleRestore 不存在态恢复块');
   const saveAt = restoreBlock.indexOf('saveCurrentFileRef.current()');
   const snapshotAt = restoreBlock.indexOf('snapshotBeforeWrite(');
   const deleteAt = restoreBlock.indexOf('TauriFileSystem.deletePath(');
   const unmarkAt = restoreBlock.indexOf('unmarkChapterWrittenInPlan(');
-  const dropAt = restoreBlock.indexOf('dropOpenFilePath(path)');
+  const dropAt = restoreBlock.search(/dropOpenFilePath!?\(path\)/);
   assert.ok(saveAt >= 0 && saveAt < snapshotAt, '脏缓冲必须先保存，才能进入删除快照');
   assert.ok(snapshotAt < deleteAt, '影子快照失败必须阻断真删除');
   assert.ok(deleteAt < unmarkAt, '文件真删除后才能回退连载计划');
@@ -229,14 +229,11 @@ test('恢复“不存在”版本按保存脏缓冲→快照→真删除→退�
 
 test('恢复“已存在”版本先确认、先留当前内容快照，再把旧版本灌进缓冲', () => {
   const restoreBlock = editorSource.match(
-    /const handleRestore = async[\s\S]*?\/\/ 分支画布：把某节点正文恢复到编辑器/,
+    /const handleRestore = async[\s\S]*?(?=const handleCheckoutNode)/,
   )?.[0];
   assert.ok(restoreBlock, '找不到 handleRestore 块');
-  const existsMatch = restoreBlock.match(
-    /if \(state\.exists\) \{([\s\S]*?)\n {4}\}\n\n {4}const project = projectPathRef\.current;/,
-  );
-  const existsBlock = existsMatch?.[1];
-  assert.ok(existsBlock, '找不到 handleRestore 存在态恢复块');
+  // 两种恢复现已共用带归属校验的确认/保存/快照链，不再按旧分支形状截取。
+  const existsBlock = restoreBlock;
   const confirmAt = existsBlock.indexOf('dialogs.confirm');
   const setValueAt = existsBlock.indexOf('setValue(state.content)');
   assert.ok(
@@ -254,6 +251,14 @@ test('恢复“已存在”版本先确认、先留当前内容快照，再把�
   assert.ok(saveAt >= 0 && snapshotAt >= 0, '存在态恢复必须保存脏缓冲并为当前内容留版本快照');
   assert.ok(saveAt < snapshotAt, '影子 Git 快照的是工作树，脏缓冲必须先保存落盘再快照');
   assert.ok(snapshotAt < setValueAt, '必须先成功留快照才能覆盖当前编辑缓冲');
+  const guardAt = existsBlock.indexOf('assertCurrent();', confirmAt);
+  assert.ok(guardAt > confirmAt && guardAt < saveAt, '确认返回后须先核对归属，不能保存新标签页');
+  assert.match(existsBlock, /model\.setValue\(state.content\)/, '只能修改冻结的 model');
+  assert.doesNotMatch(
+    existsBlock,
+    /editorRef\.current\??\.setValue/,
+    '不能通过当前 editorRef 重选目标',
+  );
 });
 
 test('空文件写入正文也必须先取版本 tree，不得被旧空串短路', () => {
