@@ -6653,3 +6653,18 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 - 发布集成树干净应用补丁，4 文件 SHA-256 与独立审查冻结内容一致。`LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 npm --prefix apps/desktop/frontend run test`：**1,707 passed / 1 skipped**，无临时场景夹具。
 - 发布集成树 TypeScript typecheck、Vite build、4 改动文件 ESLint/Prettier 通过。构建大 chunk 提示仍在。
 - 本批无后端变化；headless 集成不能替代真实 Windows Tauri/GUI、原生撤销、provider 质量或完整 `pnpm verify`。保持草稿 PR，不合并/部署。
+
+## 2026-10-08：作者编辑控制的引文/代码材料与否定边界（第二批后端）
+
+集成基线：`913942ce85fb5a0fd3b4972f2592fb1f8de90d8e`。两文件：`apps/api/app/common/author_edit_policy.py` 与维护回归 `apps/api/tests/test_author_control_quotes.py`；前端保持上一批原样。
+
+- 引用例句、代码及逐字保护材料内的命令不再扩大引号、人称、重复标点编辑许可；明确采用的引文规则及带引号操作数仍受支持。
+- 当前明确否定撤销继承许可；保护前缀、多行、嵌套引号和英语撇号/缩写保持正确保护。作者原始输入仍原样传给模型；只修改确定性控制提取及其门禁后果，不声称理解任意自然语言。
+- 初始红证据：原后端新复现 16 failed / 1 passed。最终新维护回归 63 项；独立维护组合 90/90、23 控制矩阵及额外嵌套/肯定/4 缩写探针通过。
+- 冻结源码 SHA-256：`3c61c4cd553486db7de64371a44fe04791b9e077a7724651013b69cd0bb56244`；测试 `e53be2db073cdb3229f193572d8eea9cadc593bb3b4fab084d5716f78eafe6bf`。
+- 集成树 `python -m pytest tests/test_author_control_quotes.py tests/test_author_edit_policy_value.py tests/test_author_voice_delivery.py tests/test_author_voice_http_provider.py tests/test_author_voice_policy.py tests/test_craft_guidelines_reach.py tests/test_agent_review_protocol.py tests/test_assistant_revision_lifecycle.py -q`：**209 passed**。改动文件 Ruff 通过。补丁干净应用，源码/测试匹配独立审查冻结哈希。
+- 最终后端完整运行 `python -m pytest -q`：**3,558 passed / 25 skipped / 21 failed**（395.56 秒）。21 个失败节点均在未改后端干净基线独立复现，零新增失败节点；不能称完整 API 套件通过。
+- 失败分组：2 项 POSIX 大小写路径假设；1 项既有 chapter brief 事件带绝对项目路径；17 项缺少 PowerShell；1 项资源探针要求 `.git`，当前隔离源码快照没有 Git checkout。没有放宽生产边界或隐藏这些失败。
+- 两个原始场景候选回放 8 项通过（HTTP 修订、live 提案、显式行范围拒绝、审稿解析），复用原候选，未新调真实 provider/付费模型。
+
+上述验证为云端 headless/API 与测试替身；Windows Tauri/原生撤销、真实 provider 质量、打包发布及完整 `pnpm verify` 仍未验证。只更新独立分支草稿 PR，不合并/部署。
