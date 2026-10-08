@@ -178,9 +178,9 @@ test('壳层装配护栏：阶段切换搬焦点、会话结束归还焦点、�
   );
   // 会话 teardown 时焦点归还编辑器，且只在焦点确实曾在 zone 里时（不抢别处的焦点）。
   assert.match(source, /focusWasInZone[\s\S]{0,160}?editor\.focus\(\)/);
-  // 三处失败提示必须 assertive 抢读。
+  // 四处失败提示（含发送前预算拒绝）必须 assertive 抢读。
   //（prettier 会把实参折成多行，判定容忍空白。）
-  assert.equal((source.match(/,\s*'assertive',?\s*\)/g) ?? []).length, 3);
+  assert.equal((source.match(/,\s*'assertive',?\s*\)/g) ?? []).length, 4);
   // 流式逐字中间态不得进 live region（防读屏轰炸）。
   assert.match(source, /aria-hidden', 'true'/);
 });

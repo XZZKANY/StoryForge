@@ -36,6 +36,8 @@ test('intraLineChangeRange 掐掉公共前后缀只留改动中段（1-based 列
 
 test('buildInlineReviseInstruction 带上用户意图、最小改动契约与锚定块', () => {
   const instruction = buildInlineReviseInstruction({
+    anchorRange: { startLine: 1, endLine: 1 },
+    windowStartLine: 1,
     anchorText: '夜雪压在檐角，铜灯只亮了一半。',
     isSelection: true,
     userInstruction: '收紧节奏，口吻更冷',
@@ -48,6 +50,8 @@ test('buildInlineReviseInstruction 带上用户意图、最小改动契约与锚
 
 test('buildInlineReviseInstruction 无选区标注为光标所在行、空指令有兜底', () => {
   const instruction = buildInlineReviseInstruction({
+    anchorRange: { startLine: 1, endLine: 1 },
+    windowStartLine: 1,
     anchorText: '周眠掀开灰布。',
     isSelection: false,
     userInstruction: '   ',
@@ -56,13 +60,69 @@ test('buildInlineReviseInstruction 无选区标注为光标所在行、空指令
   assert.ok(instruction.includes('按下面的意图润色锚定文本。'));
 });
 
-test('buildInlineReviseInstruction 截断到后端 4000 上限', () => {
+test('A01 mandatory requirements over budget are rejected, never silently truncated', () => {
+  for (const length of [3900, 4050]) {
+    assert.throws(
+      () =>
+        buildInlineReviseInstruction({
+          anchorRange: { startLine: 1, endLine: 1 },
+          windowStartLine: 1,
+          anchorText: '锚',
+          isSelection: false,
+          userInstruction: '改'.repeat(length) + '逐字保留「铜灯」。',
+        }),
+      /指令过长/,
+    );
+  }
+});
+
+test('A04 mixed text is delivered intact instead of slicing an emoji in half', () => {
+  const userInstruction = '中En😀'.repeat(800) + '逐字保留「铜灯」。';
   const instruction = buildInlineReviseInstruction({
-    anchorText: '锚',
-    isSelection: false,
-    userInstruction: '改'.repeat(5000),
+    anchorRange: { startLine: 1, endLine: 1 },
+    windowStartLine: 1,
+    anchorText: '铜灯。',
+    isSelection: true,
+    userInstruction,
   });
-  assert.ok(instruction.length <= 4000);
+  assert.ok(instruction.startsWith(userInstruction + '\n\n'));
+  assert.ok(instruction.includes(INLINE_MINIMAL_EDIT_CONTRACT));
+  assert.ok(Array.from(instruction).length <= 4000);
+  assert.equal(JSON.parse(JSON.stringify(instruction)), instruction);
+});
+
+test('A02/A04 mandatory budget wins over repeated excerpts, including exact code-point boundaries', () => {
+  const params = {
+    anchorRange: { startLine: 30, endLine: 32 },
+    windowStartLine: 25,
+    anchorText: '',
+    isSelection: true,
+    isExcerpt: true,
+    userInstruction: '保留「😀」。',
+  };
+  const base = buildInlineReviseInstruction(params);
+  const available = 4000 - Array.from(base).length;
+  const exactUser = '😀'.repeat(available) + params.userInstruction;
+  const exact = buildInlineReviseInstruction({
+    ...params,
+    anchorText: '原稿😀'.repeat(5000),
+    userInstruction: exactUser,
+  });
+  assert.equal(Array.from(exact).length, 4000);
+  assert.ok(exact.startsWith(exactUser + '\n\n'));
+  assert.ok(exact.includes('原稿第 30–32 行；本次 content 第 6–8 行'));
+  assert.equal(exact.includes('<<<ANCHOR'), false);
+  assert.throws(
+    () => buildInlineReviseInstruction({ ...params, userInstruction: exactUser + 'a' }),
+    /指令过长/,
+  );
+
+  const excerpt = buildInlineReviseInstruction({ ...params, anchorText: 'a' + '😀'.repeat(5000) });
+  assert.ok(excerpt.endsWith('ANCHOR>>>'));
+  assert.ok(excerpt.includes('摘录已缩短'));
+  assert.ok(Array.from(excerpt).length <= 4000);
+  // Removing complete surrogate pairs must not leave an isolated half-pair.
+  assert.equal(/[\uD800-\uDFFF]/u.test(excerpt.replace(/😀/gu, '')), false);
 });
 
 test('hunksToLineDiff 单行替换给出 1-based 红标行与绿块锚点', () => {
@@ -356,6 +416,8 @@ test('模型在窗口内跑到锚点之外时，拼回后仍被夹掉', () => {
 
 test('切窗时指令必须告诉模型这是节选，否则它会给节选补开头结尾', () => {
   const excerpt = buildInlineReviseInstruction({
+    anchorRange: { startLine: 1, endLine: 1 },
+    windowStartLine: 1,
     anchorText: '这一句',
     isSelection: true,
     userInstruction: '写紧一点',
@@ -365,6 +427,8 @@ test('切窗时指令必须告诉模型这是节选，否则它会给节选补�
   assert.ok(excerpt.includes(INLINE_MINIMAL_EDIT_CONTRACT));
 
   const whole = buildInlineReviseInstruction({
+    anchorRange: { startLine: 1, endLine: 1 },
+    windowStartLine: 1,
     anchorText: '这一句',
     isSelection: true,
     userInstruction: '写紧一点',

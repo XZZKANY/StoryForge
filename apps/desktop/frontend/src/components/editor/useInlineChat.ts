@@ -536,6 +536,24 @@ export function useInlineChat({
       if (!instruction && session.mode !== 'continue') return;
 
       const before = editor.getValue();
+      const window = planInlineReviseWindow(before, session.anchor);
+      let reviseInstruction = '';
+      if (session.mode !== 'continue') {
+        try {
+          reviseInstruction = buildInlineReviseInstruction({
+            anchorText: session.anchor.text,
+            anchorRange: session.anchor,
+            windowStartLine: window.startLine,
+            isSelection: session.anchor.isSelection,
+            userInstruction: instruction,
+            isExcerpt: !window.isWholeDocument,
+          });
+        } catch (error) {
+          // 本地预算拒绝不进入 loading，也不拆除作者仍可编辑的输入。
+          flashStatus(error instanceof Error ? error.message : String(error), 'assertive');
+          return;
+        }
+      }
       session.phase = 'loading';
       session.userInstruction = instruction;
       const controller = new AbortController();
@@ -621,19 +639,11 @@ export function useInlineChat({
         () => isSessionActive(session),
       );
 
-      // 长章节只送锚点附近的窗口：整章发出去既按整章计费，也正是模型 drift 的来源。
-      const window = planInlineReviseWindow(before, session.anchor);
-
       try {
         const result = await reviseFileContent({
           filePath: path,
           content: window.text,
-          instruction: buildInlineReviseInstruction({
-            anchorText: session.anchor.text,
-            isSelection: session.anchor.isSelection,
-            userInstruction: instruction,
-            isExcerpt: !window.isWholeDocument,
-          }),
+          instruction: reviseInstruction,
           projectName,
           projectRoot: session.projectPath,
           assistantSessionId: sessionIdRef.current,

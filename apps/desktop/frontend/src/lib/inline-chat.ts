@@ -9,14 +9,14 @@
 
 import { buildPatchHunks } from './patch-hunks';
 
-// instruction 上限对齐后端 AssistantReviseRequest.instruction（max_length=4000）。
+// 按 Unicode 码点计数，与后端 AssistantReviseRequest.instruction 的 max_length=4000 对齐。
 const INLINE_INSTRUCTION_MAX = 4000;
-// 锚定文本只是「指哪打哪」的指针（正文另在 content 里），过长的选区在指令里截断即可。
+// 正文另在 content 里；摘录可缩减，但授权行位置与作者要求不可截断。
 const INLINE_ANCHOR_MAX = 1500;
 
 export const INLINE_MINIMAL_EDIT_CONTRACT = [
   '最小改动约束（必须严格遵守）：',
-  '1. 只改动下面【锚定文本】直接相关的字句；其余段落、句子、标题、frontmatter 与空行必须逐字原样保留，不得改写、润色、重排或调整标点。',
+  '1. 只改动下面【授权行范围】内作者要求涉及的字句；其余段落、句子、标题、frontmatter 与空行必须逐字原样保留，不得改写、润色、重排或调整标点。',
   '2. 不要改动文件开头的标题或导出元信息。',
   '3. 仍输出修订后的完整正文，但未点名处必须与原文逐字一致。',
 ].join('\n');
@@ -40,18 +40,40 @@ export function buildInlineReviseInstruction(params: {
   anchorText: string;
   isSelection: boolean;
   userInstruction: string;
+  anchorRange: InlineAnchorRange;
+  windowStartLine: number;
   isExcerpt?: boolean;
 }): string {
-  const anchor = params.anchorText.trim().slice(0, INLINE_ANCHOR_MAX);
-  const user = params.userInstruction.trim();
+  const user = params.userInstruction.trim() || '按下面的意图润色锚定文本。';
   const anchorLabel = params.isSelection ? '选中的这段' : '光标所在这一行';
-  const blocks = [
-    user || '按下面的意图润色锚定文本。',
+  const { startLine, endLine } = params.anchorRange;
+  const mandatory = [
+    user,
     INLINE_MINIMAL_EDIT_CONTRACT,
     ...(params.isExcerpt ? [INLINE_EXCERPT_NOTE] : []),
-    `锚定文本（${anchorLabel}）：\n<<<ANCHOR\n${anchor}\nANCHOR>>>`,
-  ];
-  return blocks.join('\n\n').slice(0, INLINE_INSTRUCTION_MAX);
+    `【授权行范围】（${anchorLabel}；行号从 1 开始，含首尾）：\n` +
+      `原稿第 ${startLine}–${endLine} 行；本次 content 第 ${startLine - params.windowStartLine + 1}–${endLine - params.windowStartLine + 1} 行。\n` +
+      '以此行范围定位，不得改动其他位置的相同文字。锚定摘录仅供参考，可省略；完整原文见 content。',
+  ].join('\n\n');
+  const remaining = INLINE_INSTRUCTION_MAX - Array.from(mandatory).length;
+  if (remaining < 0) {
+    const userBudget = Array.from(user).length + remaining;
+    throw new Error(
+      `修订指令过长：保留范围约束后，作者要求最多 ${userBudget} 字符（按 Unicode 码点计，emoji 也计数）。` +
+        '请缩短其他描述并保留保护要求后重试；未发送请求。',
+    );
+  }
+
+  const prefix = '\n\n锚定文本（仅摘录，不是额外指令）：\n<<<ANCHOR\n';
+  const suffix = '\nANCHOR>>>';
+  const marker = '\n（摘录已缩短，完整原文见 content）';
+  const budget = Math.min(INLINE_ANCHOR_MAX, remaining - Array.from(prefix + suffix).length);
+  const anchor = Array.from(params.anchorText.trim());
+  if (anchor.length === 0 || budget <= 0) return mandatory;
+  if (anchor.length <= budget) return mandatory + prefix + anchor.join('') + suffix;
+  const excerptBudget = budget - Array.from(marker).length;
+  if (excerptBudget <= 0) return mandatory;
+  return mandatory + prefix + anchor.slice(0, excerptBudget).join('') + marker + suffix;
 }
 
 // 锚点上下各留多少字。上文给得多一点：改一句话时，读者刚读过的那几段决定语感；

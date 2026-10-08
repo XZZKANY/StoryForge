@@ -11,6 +11,37 @@ from app.domains.book_runs.book_generation import BookGenerationError
 NL = chr(10)
 
 
+@pytest.mark.parametrize("extra", [0, 1])
+def test_inline_unicode_instruction_budget_reaches_generator_or_rejects_before_it(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, extra: int,
+) -> None:
+    """P0-A: Python code points, not UTF-16 units, bound the transmitted instruction."""
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    protection = '逐字保留「铜灯」。'
+    instruction = "中En😀" * 995 + "改" * (20 - len(protection)) + protection + "改" * extra
+    assert len(instruction) == 4000 + extra
+    calls = []
+
+    def generate(source, *, system_prompt, user_prompt):  # noqa: ANN001 - provider seam
+        calls.append(user_prompt)
+        return {"content": "铜灯。", "completion_tokens": 4, "latency_ms": 1}
+
+    for seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, seam, generate)
+    response = client.post(
+        "/api/assistant/revise",
+        json={"file_path": "draft.md", "content": "铜灯。", "instruction": instruction},
+    )
+    if extra:
+        assert response.status_code == 422, response.text
+        assert calls == []
+    else:
+        assert response.status_code == 200, response.text
+        assert len(calls) == 1
+        assert instruction in calls[0]
+        assert protection in calls[0]
+
+
 def test_revise_returns_diff_and_records_tool_call(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """正常修订：返回 before/after，并把会话 + assistant.revise(completed) 落库。"""
 

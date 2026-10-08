@@ -39,6 +39,7 @@ let projectRef: { current: string | null };
 let editorRef: { current: Monaco.editor.IStandaloneCodeEditor | null };
 let commands: Map<number, () => void>;
 let position: { lineNumber: number; column: number };
+let selectionEndLine: number | null;
 let frames: FrameRequestCallback[];
 let modelListeners: Set<() => void>;
 let contentListeners: Set<() => void>;
@@ -63,7 +64,11 @@ function makeModel(value = BEFORE) {
     getVersionId: () => version,
     getAlternativeVersionId: () => version,
     getLineContent: (line: number) => value.split('\n')[line - 1] ?? '',
-    getValueInRange: () => '中段。',
+    getValueInRange: () =>
+      value
+        .split('\n')
+        .slice(position.lineNumber - 1, selectionEndLine ?? position.lineNumber)
+        .join('\n'),
   };
 }
 
@@ -137,6 +142,7 @@ beforeEach(() => {
   commands = new Map();
   model = makeModel();
   position = { lineNumber: 2, column: 1 };
+  selectionEndLine = null;
   fileRef = { current: FILE };
   projectRef = { current: PROJECT };
   const zoneNodes = new Map<string, HTMLElement>();
@@ -146,8 +152,8 @@ beforeEach(() => {
     getModel: () => model,
     getSelection: () => ({
       startLineNumber: position.lineNumber,
-      endLineNumber: position.lineNumber,
-      isEmpty: () => true,
+      endLineNumber: selectionEndLine ?? position.lineNumber,
+      isEmpty: () => selectionEndLine === null,
     }),
     getOption: (option: number) => (option === 1 ? { fontFamily: 'fixture' } : 22),
     getContainerDomNode: () => zones,
@@ -210,6 +216,120 @@ it('mounted shortcut delivers original middle cursor, suffix and project, withou
   expect(zones.textContent).toContain('新增段。');
   expect(zones.querySelector('.sf-inline-btn-accept')).not.toBeNull();
   expect(writeback).not.toHaveBeenCalled();
+});
+
+it('A01/A06 oversized author request is refused before fetch and remains editable', async () => {
+  await mount();
+  const input = await open('revise');
+  const instruction = '改'.repeat(4050) + '逐字保留「中段。」';
+  await send(input, instruction);
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(model.getValue()).toBe(BEFORE);
+  expect(writeback).not.toHaveBeenCalled();
+  expect(input.isConnected).toBe(true);
+  expect(input.value).toBe(instruction);
+  expect(host.textContent).toContain('指令过长');
+  expect(host.textContent).toContain('缩短');
+  expect(host.querySelector('[role="alert"]')).not.toBeNull();
+  expect(status).not.toHaveBeenCalled();
+  fetchMock.mockResolvedValueOnce(
+    Response.json({ after: BEFORE, model: 'fixture', assistant_session_id: 71 }),
+  );
+  await send(input, '不要改动中段。');
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(body().instruction).toContain('不要改动中段。');
+});
+
+it('A01/A04 the serialized request preserves a long mixed-language author request and final protection', async () => {
+  fetchMock.mockResolvedValueOnce(
+    Response.json({ after: BEFORE, model: 'fixture', assistant_session_id: 71 }),
+  );
+  await mount();
+  const instruction = '中En😀'.repeat(800) + '逐字保留「中段。」';
+  await send(await open('revise'), instruction);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(body().instruction.startsWith(instruction + '\n\n')).toBe(true);
+  expect(body().instruction).toContain('原稿第 2–2 行；本次 content 第 2–2 行');
+  expect(Array.from(body().instruction).length).toBeLessThanOrEqual(4000);
+  expect(model.getValue()).toBe(BEFORE);
+  expect(writeback).not.toHaveBeenCalled();
+});
+
+it('A06 an oversized stale submit cannot consume or replace an existing inline proposal', async () => {
+  const after = '首段。\n改好中段。\n尾段。';
+  fetchMock.mockResolvedValueOnce(
+    Response.json({ after, model: 'fixture', assistant_session_id: 71 }),
+  );
+  await mount();
+  const input = await open('revise');
+  await send(input, '只改中段');
+  const proposal = zones.innerHTML;
+  fetchMock.mockClear();
+  await send(input, '改'.repeat(4050) + '逐字保留「中段。」');
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(writeback).not.toHaveBeenCalled();
+  expect(model.getValue()).toBe(BEFORE);
+  expect(zones.innerHTML).toBe(proposal);
+  await act(async () => {
+    zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(writeback).toHaveBeenCalledTimes(1);
+  expect(writeback.mock.calls[0]).toEqual([
+    expect.objectContaining({ before: BEFORE, after, userIntent: '只改中段' }),
+    FILE,
+    BEFORE,
+    after,
+  ]);
+});
+
+it('A02 a long selection is complete in the actual content, not paid for twice in the instruction', async () => {
+  const selected = ('中文 English 😀。'.repeat(250) + '\n').repeat(3).trimEnd();
+  model = makeModel('前文。\n' + selected + '\n尾段。\n');
+  position.lineNumber = 2;
+  selectionEndLine = 4;
+  fetchMock.mockResolvedValueOnce(
+    Response.json({ after: model.getValue(), model: 'fixture', assistant_session_id: 71 }),
+  );
+  await mount();
+  await send(await open('revise'), '只改错字');
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(body().content).toBe(model.getValue());
+  expect(body().content).toContain(selected);
+  expect(body().instruction).toContain('原稿第 2–4 行；本次 content 第 2–4 行');
+  expect(body().instruction).toContain('摘录已缩短');
+  expect(Array.from(body().instruction).length).toBeLessThanOrEqual(4000);
+});
+
+it('A03 second identical occurrence is identified relative to the window and only its line reaches writeback', async () => {
+  const before = '# 标题\n' + '前'.repeat(3500) + '\n同一句。\n隔段。\n同一句。\n尾段。\n';
+  model = makeModel(before);
+  position.lineNumber = 5;
+  selectionEndLine = 5;
+  // Simulate model drift into the first occurrence as well as the authorized one.
+  fetchMock.mockResolvedValueOnce(
+    Response.json({
+      after: '错误第一处。\n隔段。\n改好第二处。\n尾段。\n',
+      model: 'fixture',
+      assistant_session_id: 71,
+    }),
+  );
+  await mount();
+  await send(await open('revise'), '写紧一点');
+  expect(body().content).toBe('同一句。\n隔段。\n同一句。\n尾段。\n');
+  expect(body().instruction).toContain('原稿第 5–5 行；本次 content 第 3–3 行');
+  await act(async () => {
+    zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(writeback).toHaveBeenCalledTimes(1);
+  const expected = before.replace('隔段。\n同一句。', '隔段。\n改好第二处。');
+  expect(writeback.mock.calls[0]).toEqual([
+    expect.objectContaining({ before, after: expected }),
+    FILE,
+    before,
+    expected,
+  ]);
 });
 
 it.each(['project', 'model', 'content'])(
