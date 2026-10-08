@@ -48,8 +48,8 @@ def test_revise_gets_the_guard_wording_and_never_the_compose_one() -> None:
 
     assert scene_discipline_guard_clause() in service._REVISE_SYSTEM_PROMPT
     assert scene_discipline_clause() not in service._REVISE_SYSTEM_PROMPT
-    assert "全部成立再动笔" in scene_discipline_clause(), "下一行的探针词必须真在 compose 版里"
-    assert "全部成立再动笔" not in service._REVISE_SYSTEM_PROMPT
+    assert "写新正文前" in scene_discipline_clause(), "下一行的探针词必须真在 compose 版里"
+    assert "写新正文前" not in service._REVISE_SYSTEM_PROMPT
 
 
 def test_trim_prose_still_rides_the_revise_prompt() -> None:
@@ -91,7 +91,7 @@ def test_chat_loop_deliberately_stays_out() -> None:
 def test_collapse_test_survives_in_both_wordings() -> None:
     """承重判据是这次打捞的核心，两版措辞都不能把它简化掉。
 
-    没有它，四项就退化成又一张风格清单；有它，模型才有一条可自判的否决线。
+    没有它，四项就退化成又一张风格清单；它现在要求结合作者目标判断，而非缺代价就否决。
     """
 
     assert SCENE_COLLAPSE_TEST in scene_discipline_clause()

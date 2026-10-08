@@ -35,7 +35,9 @@ def _build_multi_agent_review_report_with_executor(
     role_mentions = requested_role_mentions or []
     paragraphs = [paragraph.strip() for paragraph in content.splitlines() if paragraph.strip()]
     reasoner = _select_review_reasoner()
-    subagent_results = reasoner.review_all(content=content, paragraphs=paragraphs, context_bundle=context_bundle)
+    subagent_results = reasoner.review_all(
+        content=content, paragraphs=paragraphs, context_bundle=context_bundle, author_instruction=user_message,
+    )
     results_by_key = {key: result for key, result in zip(review_reasoning.REVIEW_AGENT_KEYS, subagent_results, strict=True)}
 
     plot_issues = _assign_issue_ids(
@@ -181,18 +183,18 @@ def _issue_suggested_action(category: str, issue: dict[str, str]) -> str:
     code = issue.get("code", "")
     if category == "plot":
         if "hook" in code:
-            return "重写章尾最后一段，加入新的悬念、阻碍或行动压力。"
+            return "先对照作者目标核查章尾是否需要钩子；如确有问题，仅调整相关部分，保留刻意停顿。"
         if "conflict" in code:
-            return "补一个明确的对抗、阻碍或代价，让本章目标被迫推进。"
-        return "补清章节目标、冲突推进和转折，避免只交代状态。"
+            return "先对照作者目标核查阻力是否必要；保留静场，不为满足默认规则强加对抗或代价。"
+        return "按作者目标核查场景功能，仅处理有依据的问题，不强塞转折或损失。"
     if category == "character":
         if "context" in code:
             return "先补充或引用人物小传，再校准行动动机和关系称谓。"
-        return "为角色选择增加可见动机，用动作或对白证明其决定。"
+        return "按作者目标核查人物选择，保留刻意隐藏的动机与不可靠叙述，不自动补解释。"
     if category == "prose":
         if "paragraph" in code:
-            return "拆分长段落，调整信息密度，保证移动端阅读节奏。"
-        return "把解释性句子改成动作、对话或感官细节。"
+            return "按作者目标核查长段阅读负担，确需调整时再拆分，保留刻意的节奏。"
+        return "按作者目标核查具体语言问题，保留要求保留的说明、情绪命名和声音，不自动改成动作或感官。"
     if category == "continuity":
         return "核对设定、伏笔、人物关系和时间线，先修正事实冲突。"
     return "按该问题做定向修订，并保持原有事实连续。"
@@ -254,20 +256,20 @@ def _review_report_summary(report: dict[str, Any]) -> str:
     prose = _agent_issue_count(findings, "prose")
     continuity = _agent_issue_count(findings, "continuity")
     summary = (
-        f"多视角审稿完成：发现 {len(issues)} 个问题。"
+        f"多视角审稿完成：返回 {len(issues)} 个待核查项。"
         f"剧情 {plot} 个，人物 {character} 个，文风节奏 {prose} 个，连续性 {continuity} 个。"
     )
     mode = report.get("mode")
     if mode == "heuristic_only":
-        return f"{summary} 未配置 LLM，本轮为启发式预扫，非模型审稿。"
+        return f"{summary} 未配置 LLM，本轮为启发式预扫，非模型审稿，尚未评估作者要求与例外。"
     if mode == "llm_failed":
         degraded = _degraded_review_agents(findings)
         suffix = f" 失败视角：{', '.join(degraded)}。" if degraded else ""
-        return f"{summary} 已配置 LLM，但全部子代理调用失败，已整体降级为启发式预扫。{suffix}"
+        return f"{summary} 已配置 LLM，但全部子代理调用失败，已整体降级为启发式预扫，尚未评估作者要求与例外。{suffix}"
     if mode == "mixed":
         degraded = _degraded_review_agents(findings)
         suffix = f" 降级视角：{', '.join(degraded)}。" if degraded else ""
-        return f"{summary} 部分 LLM 子代理失败，已按单项降级为启发式预扫。{suffix}"
+        return f"{summary} 部分 LLM 子代理失败，已按单项降级为启发式预扫，降级项尚未评估作者要求与例外。{suffix}"
     return summary
 
 

@@ -87,7 +87,7 @@ def plot_agent_issues(content: str, paragraphs: list[str]) -> list[dict[str, str
                 agent=REVIEW_SKILLS["plot"].agent,
                 severity="medium",
                 code="plot.too_short_for_scene",
-                message="当前稿件篇幅偏短，可能还没有形成完整的场景目标、冲突推进和转折。",
+                message="启发式信号：篇幅较短；尚未评估作者目标，不能据此认定场景不完整。",
                 evidence="正文少于 240 字。",
             )
         )
@@ -97,7 +97,7 @@ def plot_agent_issues(content: str, paragraphs: list[str]) -> list[dict[str, str
                 agent=REVIEW_SKILLS["plot"].agent,
                 severity="high",
                 code="plot.conflict_signal_missing",
-                message="没有明显冲突信号，章节可能缺少推动读者继续看的压力。",
+                message="启发式信号：未见冲突关键词；尚未评估作者目标，静场不因此被判为问题。",
                 evidence="未检测到转折、阻碍或对抗类关键词。",
             )
         )
@@ -108,7 +108,7 @@ def plot_agent_issues(content: str, paragraphs: list[str]) -> list[dict[str, str
                 agent=REVIEW_SKILLS["plot"].agent,
                 severity="medium",
                 code="plot.ending_hook_weak",
-                message="结尾钩子不够清晰，章尾可能缺少悬念或新的行动压力。",
+                message="启发式信号：未见结尾钩子关键词；尚未评估作者目标，不代表必须补钩子。",
                 evidence=_compact_text(ending, limit=120),
             )
         )
@@ -134,7 +134,7 @@ def character_agent_issues(content: str, context_bundle: dict[str, Any] | None) 
                 agent=REVIEW_SKILLS["character"].agent,
                 severity="medium",
                 code="character.motivation_underexplained",
-                message="人物行动动机不够显性，读者可能难以判断角色为什么这样做。",
+                message="启发式信号：未见动机关键词；尚未评估作者目标，刻意隐藏动机不因此被判为问题。",
                 evidence="未检测到明显动机或选择类表达。",
             )
         )
@@ -151,7 +151,7 @@ def prose_agent_issues(content: str, paragraphs: list[str]) -> list[dict[str, st
                 agent=REVIEW_SKILLS["prose"].agent,
                 severity="medium",
                 code="prose.telling_over_showing",
-                message="解释性表达偏多，可考虑改成动作、对话或感官细节。",
+                message="启发式信号：出现解释性表达；尚未评估作者目标，不能据此否定作者保留的说明。",
                 evidence=f"检测到：{', '.join(telling_hits)}",
             )
         )
@@ -162,7 +162,7 @@ def prose_agent_issues(content: str, paragraphs: list[str]) -> list[dict[str, st
                 agent=REVIEW_SKILLS["prose"].agent,
                 severity="low",
                 code="prose.paragraph_too_dense",
-                message="存在过长段落，移动端阅读时信息密度可能过高。",
+                message="启发式信号：存在长段落；尚未评估作者目标，需结合刻意节奏核查阅读负担。",
                 evidence=_compact_text(long_paragraphs[0], limit=120),
             )
         )
@@ -177,13 +177,13 @@ def suggested_actions_for_review(
 ) -> list[str]:
     actions: list[str] = []
     if plot_issues:
-        actions.append("先补强章节目标、冲突推进或章尾钩子，再进入语言层修订。")
+        actions.append("先按作者目标核查剧情问题；静场、留白或过渡不因缺少转折与钩子而必须改写。")
     if character_issues:
-        actions.append("修订前核对人物小传和关系线，避免动机断裂。")
+        actions.append("按作者目标核对人物与关系，仅处理有依据的矛盾，保留刻意隐藏的动机。")
     if prose_issues:
-        actions.append("压缩解释性句子，把关键信息改成动作、对话或场景证据。")
+        actions.append("按作者目标核查语言问题，逐字保留明确要求保留的说明与情绪命名，不统一改成画面化表达。")
     if not actions:
-        actions.append("当前稿件未发现明显结构性问题，可进入细节润色或导出。")
+        actions.append("本轮未报告问题，不代表已证明文学质量或已核实所有作者要求；是否继续由作者决定。")
     return actions
 
 
