@@ -102,6 +102,9 @@ type InlineSession = {
    * （改前 teardown 是同步先跑的，第二次触发天然被 sessionRef 为空挡住。）
    */
   accepting: boolean;
+  writing: boolean;
+  /** 重试沿用同一回执身份，先核对已落盘/未知结果，绝不换 ID 重放。 */
+  acceptedSuggestion: AssistantFileSuggestion | null;
 };
 
 function editorLineHeight(editor: monaco.editor.IStandaloneCodeEditor): number {
@@ -279,7 +282,7 @@ export function useInlineChat({
     };
     if (bailIfStale()) return;
 
-    const suggestion = createRemoteFileSuggestion({
+    const suggestion = (session.acceptedSuggestion ??= createRemoteFileSuggestion({
       filePath: path,
       before: session.capturedBefore,
       after: session.resultAfter,
@@ -289,7 +292,7 @@ export function useInlineChat({
       model: session.model,
       userIntent: session.userInstruction || (isContinue ? '光标处续写' : '行间对话修订'),
       assistantSessionId: sessionIdRef.current,
-    });
+    }));
     const previous = session.capturedBefore;
     const next = session.resultAfter;
     const anchorLine = session.caretLineAfterAccept;
@@ -299,11 +302,18 @@ export function useInlineChat({
     // 所以写回前把两件事都再验一遍（比改前只在入口验一次更严）。
     if (!qualifySession(session)) return;
     if (bailIfStale()) return;
-    teardown();
+    session.writing = true;
+    for (const dom of session.zoneDoms) {
+      dom.setAttribute('aria-busy', 'true');
+      for (const button of dom.querySelectorAll<HTMLButtonElement>('button'))
+        button.disabled = true;
+    }
 
     try {
       const writeback = await writeAcceptedSuggestion(suggestion, path, previous, next);
       if (!matchesSessionTarget(session)) return;
+      if (sessionRef.current !== session) return;
+      teardown();
       // writeAcceptedSuggestion 内部 setValue 会把光标重置到第 1 行；停回刚改的地方，
       // 免得下一次 Ctrl+K 又锚到开头。
       editor.setPosition({ lineNumber: anchorLine, column: 1 });
@@ -315,9 +325,20 @@ export function useInlineChat({
           (isContinue ? '续写已写回当前文件' : '行间修订已写回当前文件'),
       );
     } catch (error) {
-      if (!matchesSessionTarget(session)) return;
+      if (!qualifySession(session)) return;
+      session.accepting = false;
+      session.writing = false;
+      session.editor.getContainerDomNode?.()?.classList.remove('sf-inline-accepting');
+      for (const dom of session.zoneDoms) {
+        dom.classList.remove('sf-inline-diff-zone--settling');
+        dom.removeAttribute('aria-busy');
+        for (const button of dom.querySelectorAll<HTMLButtonElement>('button'))
+          button.disabled = false;
+        const accept = dom.querySelector<HTMLButtonElement>('.sf-inline-btn-accept');
+        if (accept) accept.textContent = '重试（Alt+Enter）';
+      }
       flashStatus(
-        `接受失败：${error instanceof Error ? error.message : String(error)}`,
+        `接受失败，候选已保留；可重试核对原写回：${error instanceof Error ? error.message : String(error)}`,
         'assertive',
       );
     }
@@ -411,7 +432,7 @@ export function useInlineChat({
                 if (isSessionActive(session)) void applyAccepted();
               },
               onReject: () => {
-                if (!isSessionActive(session)) return;
+                if (!isSessionActive(session) || session.writing) return;
                 const wasContinue = sessionRef.current?.mode === 'continue';
                 teardown();
                 flashStatus(wasContinue ? '已弃用这段续写' : '已弃用行间修订');
@@ -459,6 +480,7 @@ export function useInlineChat({
         } else if (event.key === 'Escape') {
           event.preventDefault();
           event.stopPropagation();
+          if (session.writing) return;
           const wasContinue = sessionRef.current?.mode === 'continue';
           teardown();
           flashStatus(wasContinue ? '已弃用这段续写' : '已弃用行间修订');
@@ -771,6 +793,8 @@ export function useInlineChat({
         model: '',
         caretLineAfterAccept: anchor.startLine,
         accepting: false,
+        writing: false,
+        acceptedSuggestion: null,
       };
       sessionRef.current = session;
 
@@ -879,6 +903,9 @@ export function useInlineChat({
     if (!editorReady || !editor) return;
     const qualifyCurrent = () => {
       const session = sessionRef.current;
+      // Guarded writeback may update this model before its audit finishes. Keep the
+      // locked candidate until settlement; failures still recheck the captured version.
+      if (session?.writing && matchesSessionTarget(session)) return;
       if (session) qualifySession(session);
     };
     const modelSubscription = editor.onDidChangeModel?.(qualifyCurrent);
@@ -887,7 +914,7 @@ export function useInlineChat({
       modelSubscription?.dispose();
       contentSubscription?.dispose();
     };
-  }, [editorReady, editorRef, qualifySession]);
+  }, [editorReady, editorRef, matchesSessionTarget, qualifySession]);
 
   // 卸载时清掉 toast 与其计时器。
   useEffect(() => {

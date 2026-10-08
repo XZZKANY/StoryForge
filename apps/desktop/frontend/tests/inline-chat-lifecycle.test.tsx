@@ -669,3 +669,83 @@ it.each([null, 'false', 'true'])(
     expect(zones.getAttribute('aria-hidden')).toBe(original);
   },
 );
+
+it('failed writeback retains the same proposal and reuses its identity without another model request', async () => {
+  writeback.mockRejectedValueOnce(new Error('snapshot unavailable'));
+  await mount();
+  await send(await open());
+  const accept = zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!;
+  await act(async () => {
+    accept.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(accept.isConnected).toBe(true);
+  expect(accept.disabled).toBe(false);
+  expect(accept.textContent).toContain('重试');
+  expect(zones.querySelector('[aria-busy="true"]')).toBeNull();
+  expect(zones.querySelector('.sf-inline-diff-zone--settling')).toBeNull();
+  expect(model.getValue()).toBe(BEFORE);
+  const first = writeback.mock.calls[0];
+  await act(async () => {
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', altKey: true, bubbles: true }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', altKey: true, bubbles: true }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(writeback).toHaveBeenCalledTimes(2);
+  expect(writeback.mock.calls[1]).toEqual(first);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(zones.querySelector('.sf-inline-btn-accept')).toBeNull();
+});
+
+it('pending write locks decisions; acknowledged model updates do not report false stale failure', async () => {
+  const completion = deferred<{ writebackWarning: undefined }>();
+  writeback.mockImplementationOnce(() => completion.promise);
+  await mount();
+  await send(await open());
+  const accept = zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!;
+  const reject = zones.querySelector<HTMLButtonElement>('.sf-inline-btn-reject')!;
+  await act(async () => {
+    accept.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(accept.disabled).toBe(true);
+  expect(reject.disabled).toBe(true);
+  await act(async () => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', altKey: true, bubbles: true }),
+    );
+    model.setValue('首段。\n中段。\n\n新增段。\n尾段。');
+  });
+  expect(accept.isConnected).toBe(true);
+  expect(writeback).toHaveBeenCalledTimes(1);
+  expect(host.textContent).not.toContain('稿件已变化');
+  await act(async () => completion.resolve({ writebackWarning: undefined }));
+  expect(accept.isConnected).toBe(false);
+  expect(host.textContent).toContain('已写回');
+});
+
+it('typing during a failed write invalidates the proposal rather than offering stale retry', async () => {
+  let fail!: (reason: Error) => void;
+  writeback.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      }),
+  );
+  await mount();
+  await send(await open());
+  await act(async () => {
+    zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    model.setValue('作者等待时写下的新稿。');
+    fail(new Error('snapshot unavailable'));
+  });
+  expect(model.getValue()).toBe('作者等待时写下的新稿。');
+  expect(zones.querySelector('.sf-inline-btn-accept')).toBeNull();
+  expect(writeback).toHaveBeenCalledTimes(1);
+});

@@ -292,7 +292,8 @@ test('模型返回丢了尾换行时同样按锚定行删除（shape ②：befor
   assert.equal(plan.isNoop, false);
   assert.equal(plan.clampedAfter, 'L0\nL1\nL2\nL3\n');
   assert.equal(plan.removedLines, 1);
-  assert.equal(plan.droppedOffAnchor, 0);
+  // 末尾空行也纳入精确行投影；其删除超出第 5 行授权，保留它并如实计一次越界。
+  assert.equal(plan.droppedOffAnchor, 1);
   assert.equal(plan.hunks.length, 1);
   assert.equal(plan.hunks[0].removedStartLine, 5);
 });
@@ -496,3 +497,21 @@ test('切项目后首次内联修订不得沿用旧项目的会话 id', () => {
 // E21 行间对话键盘/读屏可达性的行为测试见 tests/inline-chat-dom.test.ts：
 // zone DOM 构造已从 useInlineChat.ts 抽到 components/editor/inline-chat-dom.ts，
 // 那里能直接对 role/aria-label、按钮双通道（mousedown + Enter/Space）与 live region 断言。
+
+test('line projection preserves prefix/middle/suffix sentence insertions and deletions without duplication', () => {
+  const before = '首句。中句。尾句。';
+  for (const after of [
+    '新增。首句。中句。尾句。',
+    '首句。新增。中句。尾句。',
+    '首句。中句。尾句。新增。',
+    '首句。尾句。',
+    '首句。改写。尾句。',
+  ]) {
+    const plan = planAnchoredInlineDiff(before, after, { startLine: 1, endLine: 1 });
+    assert.equal(plan.clampedAfter, after);
+    assert.equal(plan.hunks.length, 1);
+    assert.equal(plan.hunks[0].removedLineCount, 1);
+    assert.equal(plan.hunks[0].addedLineCount, 1);
+    assert.equal(plan.droppedOffAnchor, 0);
+  }
+});

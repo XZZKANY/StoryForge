@@ -7,8 +7,6 @@
  * 长文件只送锚点附近的窗口（见 planInlineReviseWindow），返回后拼回整文再走同一条夹紧路径。
  */
 
-import { buildPatchHunks } from './patch-hunks';
-
 // 按 Unicode 码点计数，与后端 AssistantReviseRequest.instruction 的 max_length=4000 对齐。
 const INLINE_INSTRUCTION_MAX = 4000;
 // 正文另在 content 里；摘录可缩减，但授权行位置与作者要求不可截断。
@@ -172,40 +170,81 @@ export type LineDiffHunk = {
 };
 
 /**
- * 把（分段感知的）buildPatchHunks 结果归一成整行级的编辑器 diff：红标旧行范围 + 绿色新增块锚点。
- * 用 hunk 的 modified 行边界从 after 取「整行」新文本（而非分段片段），并按行范围去重——
- * 同一行上的多个分段改动会塌陷成一条整行替换，避免绿块重复。
+ * 行间投影只消费整行 diff。句段新增不能提升为整行插入，否则保留下来的旧句
+ * 会与新整行重复；句段删除也不能提升为整行删除。普通补丁仍使用默认句段粒度。
  */
 export function hunksToLineDiff(before: string, after: string): LineDiffHunk[] {
-  const normBefore = before.replace(/\r\n/g, '\n');
-  const normAfter = after.replace(/\r\n/g, '\n');
-  const hunks = buildPatchHunks(normBefore, normAfter);
-  const afterLines = normAfter.split('\n');
-  const seen = new Set<string>();
-  const result: LineDiffHunk[] = [];
-
-  for (const hunk of hunks) {
-    const hasRemoval = hunk.originalEndIndex > hunk.originalStartIndex;
-    const hasAddition = hunk.modifiedEndIndex > hunk.modifiedStartIndex;
-    const removedStartLine = hasRemoval ? hunk.originalStartIndex + 1 : null;
-    const removedEndLine = hasRemoval ? hunk.originalEndIndex : null;
-    const afterLineNumber = hunk.originalEndIndex;
-    const newLines = hasAddition
-      ? afterLines.slice(hunk.modifiedStartIndex, hunk.modifiedEndIndex)
-      : [];
-    const key = `${removedStartLine}:${removedEndLine}:${afterLineNumber}:${newLines.join('')}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push({
-      removedStartLine,
-      removedEndLine,
-      afterLineNumber,
-      newLines,
-      removedLineCount: hunk.removedLines,
-      addedLineCount: hunk.addedLines,
-    });
+  // Keep the final empty line: it represents a terminal newline, not a zero-byte
+  // patch to discard. Matching sentence segments cannot safely drive line splices.
+  const original = before.replace(/\r\n/g, '\n').split('\n');
+  const modified = after.replace(/\r\n/g, '\n').split('\n');
+  let prefix = 0;
+  while (
+    prefix < original.length &&
+    prefix < modified.length &&
+    original[prefix] === modified[prefix]
+  )
+    prefix += 1;
+  let originalEnd = original.length;
+  let modifiedEnd = modified.length;
+  while (
+    originalEnd > prefix &&
+    modifiedEnd > prefix &&
+    original[originalEnd - 1] === modified[modifiedEnd - 1]
+  ) {
+    originalEnd -= 1;
+    modifiedEnd -= 1;
   }
+  if (originalEnd === prefix && modifiedEnd === prefix) return [];
 
+  const hunk = (start: number, end: number, newStart: number, newEnd: number): LineDiffHunk => ({
+    removedStartLine: end > start ? start + 1 : null,
+    removedEndLine: end > start ? end : null,
+    afterLineNumber: end,
+    newLines: modified.slice(newStart, newEnd),
+    removedLineCount: end - start,
+    addedLineCount: newEnd - newStart,
+  });
+  const rows = originalEnd - prefix + 1;
+  const columns = modifiedEnd - prefix + 1;
+  // Keep adversarial/large responses bounded. A coarse hunk still reconstructs
+  // exactly; the existing anchor clamp rejects ambiguous cross-boundary edits.
+  if (rows * columns > 4_000_000) return [hunk(prefix, originalEnd, prefix, modifiedEnd)];
+  const lengths = new Uint32Array(rows * columns);
+  for (let i = rows - 2; i >= 0; i -= 1) {
+    for (let j = columns - 2; j >= 0; j -= 1) {
+      lengths[i * columns + j] =
+        original[prefix + i] === modified[prefix + j]
+          ? 1 + lengths[(i + 1) * columns + j + 1]
+          : Math.max(lengths[(i + 1) * columns + j], lengths[i * columns + j + 1]);
+    }
+  }
+  const result: LineDiffHunk[] = [];
+  let i = prefix;
+  let j = prefix;
+  let active: { original: number; modified: number } | null = null;
+  const finish = () => {
+    if (active) result.push(hunk(active.original, i, active.modified, j));
+    active = null;
+  };
+  while (i < originalEnd || j < modifiedEnd) {
+    if (i < originalEnd && j < modifiedEnd && original[i] === modified[j]) {
+      finish();
+      i += 1;
+      j += 1;
+      continue;
+    }
+    active ??= { original: i, modified: j };
+    if (
+      i < originalEnd &&
+      (j === modifiedEnd ||
+        lengths[(i - prefix + 1) * columns + j - prefix] >=
+          lengths[(i - prefix) * columns + j - prefix + 1])
+    )
+      i += 1;
+    else j += 1;
+  }
+  finish();
   return result;
 }
 
@@ -255,7 +294,7 @@ function lineHunkOverlapsAnchor(hunk: LineDiffHunk, anchor: InlineAnchorRange): 
  * 相交但增删行数对不上时的「边界错位」逐行归因。
  *
  * 文件末尾行尾换行不一致（源文件无尾换行，或模型返回丢了尾换行——LLM 常见）会让
- * buildPatchHunks 的公共前缀停在倒数第二行：末行文本带/不带 '\n' 与另一侧不等，于是把
+ * 旧句段 diff 的公共前缀停在倒数第二行：末行文本带/不带 '\n' 与另一侧不等，于是把
  * 前一行也卷进 hunk，得到 removedLineCount = addedLineCount + 1。多出的那一行其实是原样
  * 重抄的前一行（newLines 里逐字存在），真正的删除在被上移的越界行之后。无法这样对应上
  * （如两行合并成一行）就返回 null，交回调用方整块丢弃，绝不整块放行。
@@ -299,7 +338,7 @@ function reconcileByVerbatimPrefix(
 /**
  * 把与锚定范围相交的 hunk 夹到「只授权锚定行」。
  *
- * 相邻的改动行之间没有 equal 单元，buildPatchHunks 会把它们并成一个跨行 hunk——旧逻辑
+ * 相邻的改动行之间没有相同行时，行级 LCS 会把它们并成一个跨行 hunk——旧逻辑
  * 「相交即整块保留」，于是只授权第 1 行却把第 2 行的改动一起写回。这里对越界 hunk 按行拆开：
  * 增删行数一一对应时给出逐行 op，只留 original line 落在锚定范围内的；对不上（如两行合并
  * 删除成一行）无法精确归因，整块丢弃并计数，绝不整块保留。
@@ -418,7 +457,7 @@ export function planAnchoredInlineDiff(
 /**
  * 光标处续写的插入计划：不走 LCS 猜插入点——续写的落点是已知的，直接构造纯新增 hunk。
  *
- * 刻意不复用 planAnchoredInlineDiff：那条路会把新段跟上文做 diff，而 buildPatchHunks 会把
+ * 刻意不复用 planAnchoredInlineDiff：那条路会把新段跟上文做 diff，而行级 diff 可能把
  * 段间空行当可匹配单元吃进公共前缀，导致纯新增的 afterLineNumber 落到锚定容忍窗口之外被
  * 当成 drift 静默丢弃——而「光标停在段末空行按键」正是续写最典型的起手式。
  *

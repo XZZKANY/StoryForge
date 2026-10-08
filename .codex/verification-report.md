@@ -6615,3 +6615,18 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 证据任务：`patch-native-validation`，完成归档位置为 `D:/StoryForge/.trellis/tasks/archive/2026-10/10-07-patch-native-validation/`。`research/gui-verification-summary.json` 包含两轮 14 个阶段的实际 UI/原生状态及当前二进制哈希；`gui-final-verify`、`gui-final-rust-full`、`gui-final-native-api-mounted` 等日志记录绝对 cwd、命令、耗时和退出码。GUI 测试二进制 SHA256：`b3316bd0b1bdeb52280874b852f90d8a585a5745655ef2896f2499bbcc914ce3`。
 
 用户授权验证后合入本地主线；本节是合并前证据。没有远端推送、真实模型调用、安装覆盖或发版。GUI 证据为真实 WebView 的 DOM 点击与 hit-test，并非人工硬件输入；冷进程恢复由独立 Native IPC 证据覆盖。本验收不扩大到全部断电/多窗口/安装器矩阵、文学质量或上节明确未修复的独立问题。
+
+## 2026-10-08：Ctrl+K 行间候选精确投影与失败重试
+
+基线：`ef93dd26436d3338c545d2262a500ca7545ef2bb`。本批仅改动 6 个前端源码/测试文件，并追加本验证记录。
+
+- 修复句段 diff 被误提升为整行插入导致接受后旧句重复：行间展示改用有界行级 LCS，保持空行、末尾换行和 CRLF 归一后的精确重建；超过 4,000,000 单元时粗粒度回退，跨授权边界仍拒绝。
+- 写回失败时保留同一候选供重试；沿用原 suggestion 与回执身份，先核对原写回结果。迟到结果、陈旧稿件、重复接受、未知回执和写后审计警告均有维护回归。
+- 独立干净基线核验：1,389 个已跟踪 blob 全匹配，`git apply --check` 与应用成功，6 个结果文件逐字匹配冻结补丁。
+- `npm --prefix apps/desktop/frontend run test`（明确 zh-CN 语言环境）：维护套件 **1,677 passed / 1 skipped**；177 个测试文件，其中 176 passed / 1 skipped。另有 7 项临时场景回放，不计入维护套件数字，也不提交临时夹具。
+- `npm --prefix apps/desktop/frontend run typecheck`：通过。
+- `npm --prefix apps/desktop/frontend run build`：通过；有既有大 chunk 提示。
+- 6 个改动源码/测试文件的 ESLint 与 Prettier 检查：通过。
+- 独立 12 项压力/恢复复验：通过，包含 7,056 组全范围精确投影、保护范围、超预算回退、未知/丢失回执和迟到请求。
+
+限制：默认 en-US 下既有 project-context.test.ts allowlist 路径顺序断言失败；zh-CN 对应 16 项通过，未混入无关排序修复。HTTP/Native 写回边界为测试替身；未执行 Windows Tauri 真机、原生撤销/版本恢复、真实模型 provider、打包/安装/生产发布验收。未宣称完整 `pnpm verify` 或生产闭环通过。本批无付费模型调用，不修改后端、创作规则或用户原稿。发布为独立分支草稿 PR，不合并或部署。
