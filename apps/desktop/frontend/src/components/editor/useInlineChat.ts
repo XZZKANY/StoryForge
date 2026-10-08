@@ -754,7 +754,12 @@ export function useInlineChat({
         selection && !selection.isEmpty()
           ? {
               startLine: selection.startLineNumber,
-              endLine: selection.endLineNumber,
+              // Monaco 选区不含终点：停在下一行第 1 列只选到前一个换行符，
+              // 不能把未选中的下一行正文一起授权给模型或接受写回。
+              endLine:
+                selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber
+                  ? selection.endLineNumber - 1
+                  : selection.endLineNumber,
               text: model.getValueInRange(selection),
               isSelection: true,
             }

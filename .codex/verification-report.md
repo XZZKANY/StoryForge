@@ -6630,3 +6630,15 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 - 独立 12 项压力/恢复复验：通过，包含 7,056 组全范围精确投影、保护范围、超预算回退、未知/丢失回执和迟到请求。
 
 限制：默认 en-US 下既有 project-context.test.ts allowlist 路径顺序断言失败；zh-CN 对应 16 项通过，未混入无关排序修复。HTTP/Native 写回边界为测试替身；未执行 Windows Tauri 真机、原生撤销/版本恢复、真实模型 provider、打包/安装/生产发布验收。未宣称完整 `pnpm verify` 或生产闭环通过。本批无付费模型调用，不修改后端、创作规则或用户原稿。发布为独立分支草稿 PR，不合并或部署。
+
+## 2026-10-08：Ctrl+K Monaco 排他选区终点保护（第二批 UI）
+
+基线：`7bfd5b9fd0418a295888b6b719b4e41ba4902461`。仅修改 `useInlineChat.ts` 与 `inline-chat-lifecycle.test.tsx`，追加本记录。
+
+- Monaco 多行选区终点若为下一行第 1 列，该行正文未被选中；修复锚定范围错误包含此行，防止模型请求/接受写回越界。
+- 新增 12 项维护回归，覆盖点击/快捷键接受、正反选、空行、范围端点及不误缩减真实选中行。既有语义仍是 touched-line（触及的整行）范围，不宣称逐字符选区隔离。
+- 独立审查无阻塞问题，生命周期 50/50 通过。
+- 发布前重建并核验基线全部 1,391 个 blob，零差异；`git apply --check` 与正式应用通过，两结果文件 SHA-256 与冻结补丁一致。
+- 集成树 `LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 npm --prefix apps/desktop/frontend run test`：**1,689 passed / 1 skipped**（176 passed test files / 1 skipped）。不包含 9 项临时场景试验，临时夹具未提交。
+- 集成树 TypeScript typecheck、Vite build、两改动文件 ESLint 与 Prettier 检查全部退出 0；build 大 chunk 提示仍在。
+- 本批无后端、provider、生产数据或依赖变更；Windows Tauri、原生撤销、真实 provider 与完整 `pnpm verify` 限制同前批。只更新草稿 PR，不合并/部署。
