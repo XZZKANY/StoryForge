@@ -8,38 +8,46 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from bisect import bisect_left
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from app.common.generation_sources import observe_generation_selection, project_generation_source
+from app.common.manuscript import is_manuscript_path
 from app.domains.agent_runs.canon_assertions import format_chapter_window, render_assertion_metadata
 from app.domains.agent_runs.canon_rebuild import chapter_ordinals as _chapter_ordinals
 from app.domains.agent_runs.canon_store import read_canon, read_hooks
-from app.domains.agent_runs.fs_tools import FsToolError
+from app.domains.agent_runs.fs_tools import FsToolError, is_skipped_project_path
 
 # 与 chapter_writing_contracts 同款：正文文件名 `第NNN章.md` 约定。
 _CHAPTER_ORDINAL_PATTERN = re.compile(r"第\s*(\d+)\s*章")
 
 
-def _to_relative_posix(project_root: str, absolute_path: str) -> str | None:
-    """绝对路径 → 相对于项目根的 posix 路径；跨平台安全、越界返回 None。"""
+def _to_relative_posix(project_root: str, current_path: str) -> str | None:
+    """项目相对路径或绝对路径 → 同一项目内的规范路径；不放宽平台大小写边界。"""
     try:
         root = Path(project_root).resolve()
-        target = Path(absolute_path).resolve()
+        spelling = current_path.replace("\\", "/")
+        candidate = Path(spelling)
+        # 非本机绝对路径 / Windows 驱动器相对路径不可冒充项目内的新文件。
+        if PureWindowsPath(spelling).drive and not candidate.is_absolute():
+            return None
+        target = (root / candidate).resolve()
         return target.relative_to(root).as_posix()
-    except (ValueError, OSError):
+    except (ValueError, OSError, RuntimeError):
         return None
 
 
-def _unwritten_chapter_ordinal(project_root: str, rel: str) -> int | None:
-    """C09：目标章尚不存在时从文件名解析章号，避免互斥时间窗同时变当前约束。
+def _unwritten_chapter_ordinal(project_root: str, rel: str, ordinals: dict[str, int]) -> int | None:
+    """数字章名仅确认这是待写章节；章序仍按同一全书路径阅读序插入。
 
-    当前文件不在 ordinals（还没写）时旧逻辑退化为全书模式，_window_covers 对每条
-    single_holder 都判覆盖——「第 1-2 章持有者=A」与「第 3 章起持有者=B」互斥窗口
-    同时推出。只有文件确实不在磁盘上且文件名能解析出正章号才用解析值；已存在的
-    文件永远走 ordinals（阅读序口径），不制造第二事实源。
+    不能把分卷重置的「第001章」或有空号的文件名当成全书章序，否则同一目标
+    建立空占位前后会切换到另一组 canon 时间窗。未知名称继续保持分阶段声明。
     """
-    match = _CHAPTER_ORDINAL_PATTERN.search(Path(rel).name)
+    relative = Path(rel)
+    if not relative.match("*.md") or not is_manuscript_path(rel) or is_skipped_project_path(relative):
+        return None
+    match = _CHAPTER_ORDINAL_PATTERN.search(relative.name)
     if match is None:
         return None
     value = int(match.group(1))
@@ -50,7 +58,7 @@ def _unwritten_chapter_ordinal(project_root: str, rel: str) -> int | None:
             return None
     except (OSError, ValueError):
         return None
-    return value
+    return bisect_left(sorted(ordinals), rel) + 1
 
 
 def _window_covers(entry: dict[str, Any], cur: int) -> bool:
@@ -118,14 +126,14 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
             try:
                 ordinals = _chapter_ordinals(project_root, "*.md")
             except FsToolError:
-                ordinals = {}
-            cur = ordinals.get(rel)
-            if cur is None:
-                # 目标章尚不存在：从文件名解析章号，避免互斥时间窗同时变当前约束（C09）。
-                cur = _unwritten_chapter_ordinal(project_root, rel)
+                ordinals = None
+            if ordinals is not None:
+                cur = ordinals.get(rel)
+                if cur is None:
+                    cur = _unwritten_chapter_ordinal(project_root, rel, ordinals)
             observe_generation_selection("canon_chapter_order", {
                 "current_file": rel, "current_ordinal": cur,
-            }, ordinals=ordinals)
+            }, ordinals=ordinals or {})
 
     lines: list[str] = []
     inferred_lines: list[str] = []

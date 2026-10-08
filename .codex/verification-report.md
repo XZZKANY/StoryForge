@@ -6696,3 +6696,18 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 - 纯函数小场景约 0.03–4.04ms；hook/happy-dom 小场景约 2.4–10.1ms；最密集 100k 空行/对白整稿约 248ms、23,813 DOM 节点。这些是 Node/happy-dom 测量，不是浏览器帧率或 Windows/模型速度；未作猜测性算法优化。
 
 恢复仅覆盖 Ctrl+K revise；continuation 失败维持原行为。CRLF→LF 为继承规范化，不宣称原始字节不变。超预算不等长跨界候选仍拒绝。504 为受控 HTTP 结果，不代表测量真实 provider 超时。无付费调用、原生/GUI 或全 pnpm verify 通过声明；仅更新草稿，不合并/部署。
+
+## 2026-10-08：未创建章节的全局身份与设定窗口（章节身份批次）
+
+基线：`edc0999f31edd7a730465e95acabfe91c1c05773`。2 个后端源码 + 2 个维护测试文件。
+
+- 修复分卷同名未创建章节被按文件名数值当成全局章节的问题：原先新建空占位文件即可从全局 1 变成路径序第 3，导致同一真实创作请求的时态设定窗口改变。全局一基项目路径顺序是已有契约，不以文件名数字或 serial-plan 元数据替代。
+- 在项目边界内归一允许的相对/反斜线目标拼写，未创建且正编号章节按权威现有章节映射插入序计算。排除路径、非章节与扫描失败保持未知顺序，不猜测放权。
+- 复用已有扫描可见性谓词并公开其名称；不改谓词行为，不放宽 private-access 规则。前端 localeCompare 与后端 codepoint 排序差异是继承问题，不混入本批。
+- 新增 38 维护回归（生产者 10 + 独立对抗 28），覆盖真实 draft/continue 请求、改名/陈旧光标、同名章节、时间窗口、路径 containment、扫描失败及平台拼写。
+- 初始红证据：生产者 5 failed / 2 passed；独立 17 failed / 11 passed。首轮完整 API 发现 2 项新 private-access 架构失败，已用公开谓词修复，未削弱测试。
+- 发布集成树架构/文件系统/作者记忆/新回归 **75 passed**，API 全域 Ruff 通过；冻结四文件干净应用且 SHA-256 匹配。最终独立组合 **152 passed / 1 skipped**。
+- 最终完整 API：**3,616 passed / 25 skipped / 20 failed**，失败集合与上一批相同，零新增失败节点；不声称全套通过。
+- 额外 `pnpm verify` 实跑通过根 lint/format、前端 typecheck、shared contract、project-core 7 项及前端 1,763 passed / 1 skipped，随后真实 Monaco 浏览器门禁因缺少 `chromium_headless_shell-1223` 停止。后续聚合阶段未到达，API/Ruff 为独立运行。可用 pnpm 11.25.0 与仓库 pin 9.15.4 不同；无锁文件或依赖版本更改。
+
+无付费/配置 provider 调用，无真实用户稿件写入。Windows 原生行为、完整聚合与发布未验证；草稿 PR 不合并/部署。

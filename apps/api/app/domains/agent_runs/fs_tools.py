@@ -71,7 +71,8 @@ def _resolve_scoped(root: Path, subpath: str | None) -> Path:
     return resolved
 
 
-def _is_skipped(relative: Path) -> bool:
+def is_skipped_project_path(relative: Path) -> bool:
+    """统一项目扫描与待写章节投影的相对路径可见性规则。"""
     if relative.as_posix() in _VISIBLE_DOT_FILES:
         return False
     return any(part in _SKIPPED_DIR_NAMES or part.startswith(".") for part in relative.parts)
@@ -79,7 +80,7 @@ def _is_skipped(relative: Path) -> bool:
 
 def _iter_project_files(root: Path, *, scope: Path | None = None) -> list[Path]:
     return scan_project_files(
-        root, scope=scope, visible=lambda relative: not _is_skipped(relative), explicit_files=_VISIBLE_DOT_FILES
+        root, scope=scope, visible=lambda relative: not is_skipped_project_path(relative), explicit_files=_VISIBLE_DOT_FILES
     )
 
 
@@ -89,7 +90,7 @@ def _read_text(path: Path, *, max_bytes: int | None = None) -> str:
 
 def _visible_target(root: Path, path: Path) -> Path:
     target = scoped_target(root, path)
-    if _is_skipped(path.relative_to(root)) or _is_skipped(target.relative_to(root)):
+    if is_skipped_project_path(path.relative_to(root)) or is_skipped_project_path(target.relative_to(root)):
         raise FsToolError("隐藏路径不可通过文件工具读取。")
     return target
 
