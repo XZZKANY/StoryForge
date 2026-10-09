@@ -501,7 +501,11 @@ def test_resume_run_records_diagnostic_for_malformed_file_review_pending_call(se
     assert control.resume_diagnostic["requires_manual_restart"] is True
     assert control.event.payload["runtime_recovery"]["resume_diagnostic"]["artifact_id"] == pending.id
     events = _stored_run_events(session, run)
-    assert [event.event_type for event in events] == ["agent_artifact", "resume_run"]
+    assert [event.event_type for event in events] == ["agent_artifact", "resume_run", "agent_execution_claimed"]
+    from app.domains.agent_runs.service_execution import agent_execution_state
+
+    assert agent_execution_state(session, run) == "settled"
+    assert events[-1].payload["control_event_id"] == control.event.id
     projection = get_agent_run_save_points(session, run.public_id)
     assert projection["runtime_recovery"]["latest_resume_diagnostic"]["reason"] == "missing_resume_message"
     assert projection["runtime_recovery"]["latest_pending_call"]["pending_tool"] == "file.review"

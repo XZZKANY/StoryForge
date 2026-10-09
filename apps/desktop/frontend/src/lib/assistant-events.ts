@@ -22,6 +22,20 @@ export const REQUEST_CHAPTER_WRITE_EVENT = 'storyforge:request-chapter-write';
 // （保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE，无需新事件）。
 export const REQUEST_EDITOR_COMMAND_EVENT = 'storyforge:request-editor-command';
 
+export async function flushActiveEditorToDisk(filePath: string, timeoutMs = 2000): Promise<void> {
+  await requestActiveEditorSave(filePath, timeoutMs);
+}
+
+/** 关闭须得到原目标已保存的证明；不沿用 Agent 对非活动文件 skipped 的宽松语义。 */
+export async function saveActiveEditorForClose(
+  filePath: string,
+  timeoutMs = 2000,
+): Promise<() => boolean> {
+  const result = await requestActiveEditorSave(filePath, timeoutMs, true);
+  if (!result.canClose) throw new Error('缺少原文件保存确认，已取消关闭');
+  return result.canClose;
+}
+
 export type EditorCommand = 'toggle-history';
 
 export function emitEditorCommand(command: EditorCommand): void {
@@ -89,7 +103,16 @@ export function emitLocateInEditor(detail: LocateInEditorDetail): void {
 
 export type SaveActiveFileStatus = 'saved' | 'skipped' | 'error';
 
+export type SaveActiveFileRequestDetail = {
+  filePath: string;
+  requestId?: number;
+  forClose?: boolean;
+};
+
 export type SaveActiveFileDoneDetail = {
+  requestId?: number;
+  /** 仅关闭专用请求返回；最终关闭前再次核对原模型与已保存版本。 */
+  canClose?: () => boolean;
   filePath: string | null;
   status: SaveActiveFileStatus;
   message?: string;
@@ -342,8 +365,15 @@ export function emitReviewIssues(filePath: string, issues: ReviewIssueMarker[]):
  * 审稿/修订读盘前调用：请活动编辑器把未保存改动落盘，确保后端读到的是用户当前看到的内容。
  * 超时或保存失败会 reject，调用方必须停止读盘，避免 Agent 基于旧稿继续工作。
  */
-export function flushActiveEditorToDisk(filePath: string, timeoutMs = 2000): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve();
+let saveRequestSequence = 0;
+
+function requestActiveEditorSave(
+  filePath: string,
+  timeoutMs: number,
+  forClose = false,
+): Promise<SaveActiveFileDoneDetail> {
+  if (typeof window === 'undefined') return Promise.resolve({ filePath, status: 'skipped' });
+  const requestId = forClose ? ++saveRequestSequence : undefined;
   return new Promise((resolve, reject) => {
     let settled = false;
     const finish = (callback: () => void) => {
@@ -355,6 +385,7 @@ export function flushActiveEditorToDisk(filePath: string, timeoutMs = 2000): Pro
     };
     const onDone = (event: Event) => {
       const detail = (event as CustomEvent<SaveActiveFileDoneDetail>).detail;
+      if (forClose && (detail?.requestId !== requestId || detail.filePath !== filePath)) return;
       if (detail && detail.filePath && detail.filePath !== filePath) return;
       if (detail?.status === 'error') {
         finish(() =>
@@ -367,7 +398,11 @@ export function flushActiveEditorToDisk(filePath: string, timeoutMs = 2000): Pro
         );
         return;
       }
-      finish(resolve);
+      if (forClose && (detail?.status !== 'saved' || !detail.canClose?.())) {
+        finish(() => reject(new Error('原文件未确认保存或稿件已变化，已取消关闭')));
+        return;
+      }
+      finish(() => resolve(detail ?? { filePath, status: 'skipped' }));
     };
     const timer = window.setTimeout(
       () =>
@@ -383,8 +418,8 @@ export function flushActiveEditorToDisk(filePath: string, timeoutMs = 2000): Pro
     );
     window.addEventListener(SAVE_ACTIVE_FILE_DONE_EVENT, onDone);
     window.dispatchEvent(
-      new CustomEvent<{ filePath: string }>(REQUEST_SAVE_ACTIVE_FILE_EVENT, {
-        detail: { filePath },
+      new CustomEvent<SaveActiveFileRequestDetail>(REQUEST_SAVE_ACTIVE_FILE_EVENT, {
+        detail: forClose ? { filePath, requestId, forClose } : { filePath },
       }),
     );
   });

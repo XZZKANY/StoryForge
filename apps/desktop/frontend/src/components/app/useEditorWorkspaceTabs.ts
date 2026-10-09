@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import { flushActiveEditorToDisk } from '../../lib/assistant-events';
+import { saveActiveEditorForClose } from '../../lib/assistant-events';
 import { projectBasename } from '../../lib/project-context';
 import type { WorkspaceSession } from '../../lib/workspace-session';
 import type { AppDialogApi } from './AppDialog';
@@ -13,6 +13,8 @@ import {
   updateDirtyEditorFiles,
   type EditorTabPane,
 } from './editor-tabs-state';
+
+type CloseOperation = { current: () => boolean; canClose: (() => boolean) | null };
 
 type UseEditorWorkspaceTabsOptions = {
   activeProject: string | null;
@@ -47,11 +49,43 @@ export function useEditorWorkspaceTabs({
   // 当前激活的是预览页签还是固定页签；切到固定页签不再清空预览槽（修 #5：预览页签消失）。
   const [activePane, setActivePane] = useState<EditorTabPane>('file');
   const displayedFile = resolveDisplayedEditorFile(activePane, previewFile, currentFile);
+  const dirtyFilesRef = useRef(dirtyFiles);
+  const workspaceEpochRef = useRef(0);
+  const closeOperationRef = useRef(0);
+  const setLatestDirtyFiles = useCallback(
+    (update: Set<string> | ((current: Set<string>) => Set<string>)) => {
+      const next = typeof update === 'function' ? update(dirtyFilesRef.current) : update;
+      dirtyFilesRef.current = next;
+      setDirtyFiles(next);
+    },
+    [],
+  );
+  useLayoutEffect(() => {
+    workspaceEpochRef.current += 1;
+  }, [activeProject, currentFile, previewFile, openFiles]);
+  useLayoutEffect(
+    () => () => {
+      workspaceEpochRef.current += 1;
+    },
+    [],
+  );
+  const beginCloseOperation = useCallback((): CloseOperation => {
+    const token = ++closeOperationRef.current;
+    const epoch = workspaceEpochRef.current;
+    const operation: CloseOperation = {
+      canClose: null,
+      current: () =>
+        token === closeOperationRef.current &&
+        epoch === workspaceEpochRef.current &&
+        (operation.canClose?.() ?? true),
+    };
+    return operation;
+  }, []);
 
   const handleEditorDirtyChange = useCallback(
     (filePath: string | null, dirty: boolean) => {
       if (!filePath) return;
-      setDirtyFiles((current) => updateDirtyEditorFiles(current, filePath, dirty));
+      setLatestDirtyFiles((current) => updateDirtyEditorFiles(current, filePath, dirty));
       if (dirty && previewFile === filePath) {
         setOpenFiles((current) => openEditorFile(current, filePath));
         setPreviewFile(null);
@@ -59,27 +93,28 @@ export function useEditorWorkspaceTabs({
         selectFile(filePath);
       }
     },
-    [previewFile, selectFile],
+    [previewFile, selectFile, setLatestDirtyFiles],
   );
 
   const confirmDiscardFiles = useCallback(
-    async (paths: string[], actionLabel: string) => {
-      const dirtyPaths = paths.filter((path) => dirtyFiles.has(path));
-      if (dirtyPaths.length === 0) return true;
+    async (paths: string[], actionLabel: string, operation = beginCloseOperation()) => {
+      const dirtyPaths = paths.filter((path) => dirtyFilesRef.current.has(path));
+      if (dirtyPaths.length === 0) return operation.current();
 
-      // 「保存并…」只在唯一脏文件恰好是当前显示的文件时给：保存走 REQUEST_SAVE_ACTIVE_FILE，
-      // 非活动文件会被编辑器判为 skipped 直接放行，给了这个选项却什么都没存 = 静默丢稿。
+      // 「保存并…」只在唯一脏文件恰好是当前显示目标时给；关闭专用握手
+      // 必须确认该模型已保存，不把通用 Agent 路径的 skipped 当作关闭授权。
       const savablePath =
         dirtyPaths.length === 1 && dirtyPaths[0] === displayedFile ? dirtyPaths[0] : null;
 
       if (!savablePath) {
-        return dialogs.confirm({
+        const confirmed = await dialogs.confirm({
           title: '放弃未保存修改？',
           message: `${dirtyPaths.length} 个文件有未保存修改，${actionLabel}会放弃这些修改。`,
           confirmLabel: '放弃修改',
           cancelLabel: '继续编辑',
           tone: 'danger',
         });
+        return confirmed && operation.current();
       }
 
       const choice = await dialogs.choose({
@@ -91,26 +126,28 @@ export function useEditorWorkspaceTabs({
         ],
         cancelLabel: '继续编辑',
       });
+      if (!operation.current()) return false;
       if (choice === 'discard') return true;
       if (choice !== 'save') return false;
 
       try {
-        await flushActiveEditorToDisk(savablePath);
-        return true;
+        operation.canClose = await saveActiveEditorForClose(savablePath);
+        return operation.current();
       } catch (error) {
         // 保存失败就别关：关了这份稿就没了。
         await dialogs.alert({
-          title: '保存失败，已取消关闭',
+          title: '已取消操作，修改仍保留',
           message: error instanceof Error ? error.message : String(error),
         });
         return false;
       }
     },
-    [dialogs, dirtyFiles, displayedFile],
+    [beginCloseOperation, dialogs, displayedFile],
   );
 
   const openFile = useCallback(
     async (path: string, _actionLabel = '打开其他文件') => {
+      workspaceEpochRef.current += 1;
       setOpenFiles((current) => openEditorFile(current, path));
       // 只有固定的正是当前预览时才清预览槽（= 固定预览页签）；打开其他文件应保留已有预览页签。
       setPreviewFile((current) => (current === path ? null : current));
@@ -123,6 +160,7 @@ export function useEditorWorkspaceTabs({
 
   const previewFileOpen = useCallback(
     async (path: string) => {
+      workspaceEpochRef.current += 1;
       onShowEditor();
       if (openFiles.includes(path)) {
         // 单击已固定的文件：激活它的固定页签，不动预览槽（不再误清无关预览）。
@@ -162,39 +200,55 @@ export function useEditorWorkspaceTabs({
 
   const resetEditorFiles = useCallback(() => {
     setOpenFiles([]);
-    setDirtyFiles(new Set());
+    setLatestDirtyFiles(new Set());
     setPreviewFile(null);
     setActivePane('file');
-  }, []);
+  }, [setLatestDirtyFiles]);
 
   const selectProjectSafely = useCallback(
     async (path: string) => {
-      if (!(await confirmDiscardFiles(openFiles, '切换项目'))) return false;
+      const operation = beginCloseOperation();
+      if (!(await confirmDiscardFiles(openFiles, '切换项目', operation)) || !operation.current())
+        return false;
       resetEditorFiles();
       selectProject(path);
       return true;
     },
-    [confirmDiscardFiles, openFiles, resetEditorFiles, selectProject],
+    [beginCloseOperation, confirmDiscardFiles, openFiles, resetEditorFiles, selectProject],
   );
 
   const removeProjectSafely = useCallback(
     async (path: string) => {
       if (path === activeProject) {
-        if (!(await confirmDiscardFiles(openFiles, '移除当前项目'))) return;
+        const operation = beginCloseOperation();
+        if (
+          !(await confirmDiscardFiles(openFiles, '移除当前项目', operation)) ||
+          !operation.current()
+        )
+          return;
         setOpenFiles([]);
-        setDirtyFiles(new Set());
+        setLatestDirtyFiles(new Set());
       }
       removeProject(path);
     },
-    [activeProject, confirmDiscardFiles, openFiles, removeProject],
+    [
+      activeProject,
+      beginCloseOperation,
+      confirmDiscardFiles,
+      openFiles,
+      removeProject,
+      setLatestDirtyFiles,
+    ],
   );
 
   const handleFileClose = useCallback(
     async (path: string) => {
-      if (!(await confirmDiscardFiles([path], '关闭文件'))) return;
+      const operation = beginCloseOperation();
+      if (!(await confirmDiscardFiles([path], '关闭文件', operation)) || !operation.current())
+        return;
       const nextFile = nextEditorFileAfterClose(openFiles, path);
       setOpenFiles((current) => closeEditorFile(current, path));
-      setDirtyFiles((current) => updateDirtyEditorFiles(current, path, false));
+      setLatestDirtyFiles((current) => updateDirtyEditorFiles(current, path, false));
       if (currentFile === path) {
         if (nextFile) selectFile(nextFile);
         else {
@@ -204,15 +258,33 @@ export function useEditorWorkspaceTabs({
         }
       }
     },
-    [closeFile, confirmDiscardFiles, currentFile, openFiles, previewFile, selectFile],
+    [
+      beginCloseOperation,
+      closeFile,
+      confirmDiscardFiles,
+      currentFile,
+      openFiles,
+      previewFile,
+      selectFile,
+      setLatestDirtyFiles,
+    ],
   );
 
   const handleCloseAll = useCallback(async () => {
     const openPaths = previewFile ? [...openFiles, previewFile] : openFiles;
-    if (!(await confirmDiscardFiles(openPaths, '关闭全部页签'))) return;
+    const operation = beginCloseOperation();
+    if (!(await confirmDiscardFiles(openPaths, '关闭全部页签', operation)) || !operation.current())
+      return;
     resetEditorFiles();
     closeFile();
-  }, [closeFile, confirmDiscardFiles, openFiles, previewFile, resetEditorFiles]);
+  }, [
+    beginCloseOperation,
+    closeFile,
+    confirmDiscardFiles,
+    openFiles,
+    previewFile,
+    resetEditorFiles,
+  ]);
 
   const handleCloseOthers = useCallback(async () => {
     const keep = displayedFile;
@@ -220,8 +292,10 @@ export function useEditorWorkspaceTabs({
     const allOpen = previewFile ? [...openFiles, previewFile] : openFiles;
     const others = allOpen.filter((path) => path !== keep);
     if (others.length === 0) return;
-    if (!(await confirmDiscardFiles(others, '关闭其他页签'))) return;
-    setDirtyFiles((current) => {
+    const operation = beginCloseOperation();
+    if (!(await confirmDiscardFiles(others, '关闭其他页签', operation)) || !operation.current())
+      return;
+    setLatestDirtyFiles((current) => {
       const next = new Set(current);
       for (const path of others) next.delete(path);
       return next;
@@ -230,10 +304,19 @@ export function useEditorWorkspaceTabs({
     setPreviewFile(null);
     setActivePane('file');
     selectFile(keep);
-  }, [confirmDiscardFiles, displayedFile, openFiles, previewFile, selectFile]);
+  }, [
+    beginCloseOperation,
+    confirmDiscardFiles,
+    displayedFile,
+    openFiles,
+    previewFile,
+    selectFile,
+    setLatestDirtyFiles,
+  ]);
 
   const focusFile = useCallback(
     (path: string) => {
+      workspaceEpochRef.current += 1;
       onShowEditor();
       // 修 #5：只激活固定页签，不再清空预览槽——预览页签不会因切走而消失。
       setActivePane('file');
@@ -267,7 +350,7 @@ export function useEditorWorkspaceTabs({
     (path: string) => {
       const nextFile = nextEditorFileAfterClose(openFiles, path);
       setOpenFiles((current) => closeEditorFile(current, path));
-      setDirtyFiles((current) => updateDirtyEditorFiles(current, path, false));
+      setLatestDirtyFiles((current) => updateDirtyEditorFiles(current, path, false));
       if (previewFile === path) {
         setPreviewFile(null);
         setActivePane('file');
@@ -280,7 +363,7 @@ export function useEditorWorkspaceTabs({
         }
       }
     },
-    [closeFile, currentFile, openFiles, previewFile, selectFile],
+    [closeFile, currentFile, openFiles, previewFile, selectFile, setLatestDirtyFiles],
   );
 
   return {

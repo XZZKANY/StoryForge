@@ -7,6 +7,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.domains.agent_runs.event_types import (
+    AGENT_EXECUTION_CLAIMED,
     AGENT_EXECUTION_SETTLED,
     AGENT_EXECUTION_STARTED,
     AGENT_RUN_INTERRUPTED,
@@ -23,31 +24,60 @@ from app.domains.agent_runs.service_store import record_agent_event, rollback_fa
 
 
 def agent_execution_state(session: Session, run: AgentRun) -> str:
-    """Durable execution ownership, not an inference from a control request/status."""
+    """Durable ownership from started executions and committed resume claims."""
     latest = session.scalar(select(AgentRunEvent).where(
         AgentRunEvent.run_id == run.id,
-        AgentRunEvent.event_type.in_({AGENT_EXECUTION_STARTED, AGENT_EXECUTION_SETTLED, AGENT_RUN_INTERRUPTED}),
+        AgentRunEvent.event_type.in_({
+            AGENT_EXECUTION_CLAIMED, AGENT_EXECUTION_STARTED, AGENT_EXECUTION_SETTLED, AGENT_RUN_INTERRUPTED,
+        }),
     ).order_by(AgentRunEvent.sequence.desc()).limit(1))
     if latest is not None:
+        if latest.event_type == AGENT_EXECUTION_CLAIMED:
+            # The winning control owns the worker before its started event. A
+            # pause in this gap requests interruption; it cannot free a new owner.
+            claim_payload = latest.payload if isinstance(latest.payload, dict) else {}
+            control_id = claim_payload.get("control_event_id")
+            control = session.get(AgentRunEvent, control_id) if type(control_id) is int else None
+            recovery = control.payload.get("runtime_recovery") if control is not None and isinstance(control.payload, dict) else None
+            diagnostic = recovery.get("resume_diagnostic") if isinstance(recovery, dict) else None
+            return "settled" if isinstance(diagnostic, dict) and diagnostic.get("can_resume") is False else "in_flight"
         if latest.event_type == AGENT_EXECUTION_STARTED:
             return "in_flight"
-        started = session.scalar(select(AgentRunEvent).where(
-            AgentRunEvent.run_id == run.id, AgentRunEvent.event_type == AGENT_EXECUTION_STARTED,
+        active_owner = session.scalar(select(AgentRunEvent).where(
+            AgentRunEvent.run_id == run.id,
+            AgentRunEvent.event_type.in_({AGENT_EXECUTION_CLAIMED, AGENT_EXECUTION_STARTED}),
         ).order_by(AgentRunEvent.sequence.desc()).limit(1))
         owner = latest.payload.get("execution_id")
-        if started is not None and owner is not None and owner != started.id:
-            # A late finally from an earlier segment cannot settle the new owner.
+        if active_owner is not None and owner is not None and owner != active_owner.id:
+            # A late finally cannot settle a newer worker or its pre-start claim.
             matching = session.scalar(select(AgentRunEvent.id).where(
                 AgentRunEvent.run_id == run.id,
                 AgentRunEvent.event_type.in_({AGENT_EXECUTION_SETTLED, AGENT_RUN_INTERRUPTED}),
-                AgentRunEvent.sequence > started.sequence,
-                AgentRunEvent.payload["execution_id"].as_integer() == started.id,
+                AgentRunEvent.sequence > active_owner.sequence,
+                AgentRunEvent.payload["execution_id"].as_integer() == active_owner.id,
             ).limit(1))
             return "settled" if matching is not None else "in_flight"
         return "settled"
     # Existing parked/terminal runs have no worker; unstarted/running rows are not
     # proof of quiescence and must await their worker or explicit startup recovery.
     return "in_flight" if run.status == "running" else "settled"
+
+
+def settle_abandoned_resume_claims(session: Session) -> None:
+    """Startup only: no worker survives to consume a committed pre-start claim."""
+    for run in session.scalars(select(AgentRun).where(AgentRun.book_run_id.is_(None))):
+        latest = session.scalar(select(AgentRunEvent).where(
+            AgentRunEvent.run_id == run.id,
+            AgentRunEvent.event_type.in_({
+                AGENT_EXECUTION_CLAIMED, AGENT_EXECUTION_STARTED,
+            }),
+        ).order_by(AgentRunEvent.sequence.desc()).limit(1))
+        if (latest is not None and latest.event_type == AGENT_EXECUTION_CLAIMED
+                and agent_execution_state(session, run) == "in_flight"):
+            record_agent_event(session, run, event_type=AGENT_EXECUTION_SETTLED, actor="agent-runtime", payload={
+                "runtime_state": "settled", "execution_id": latest.id,
+                "run_status": run.status, "reason": "process_restart",
+            })
 
 
 def start_agent_execution(session: Session, run: AgentRun) -> AgentRunEvent:
@@ -112,7 +142,27 @@ def finish_agent_execution(
     # unwinds; uncommitted failure state is rolled back before writing its exit.
     if not session.is_active:
         session.rollback()
-    session.refresh(run)
+    # Serialize final publication with new ownership claims. A stale finally may
+    # retain its diagnostic history, but cannot publish a terminal for a new owner.
+    with rollback_failed_settlement(session):
+        owned = session.execute(update(AgentRun).where(
+            AgentRun.id == run.id, AgentRun.execution_owner_event_id == started.id,
+        ).values(current_step=AgentRun.current_step).execution_options(synchronize_session=False))
+        session.refresh(run)
+        if owned.rowcount != 1:
+            event = record_agent_event(session, run, event_type=AGENT_EXECUTION_SETTLED, actor="agent-runtime", payload={
+                "runtime_state": "settled", "execution_id": started.id,
+                "run_status": run.status, "reason": "execution_superseded",
+            })
+            if run.status in {"paused", "stopped"}:
+                result = interrupted_result(session, run, result)
+            return result, event
+        return _finish_owned_execution(session, run, started, result)
+
+
+def _finish_owned_execution(
+    session: Session, run: AgentRun, started: AgentRunEvent, result: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, AgentRunEvent]:
     from app.domains.agent_runs.loop.external_wait_state import is_external_step
 
     external_wait = is_external_step(run.current_step)

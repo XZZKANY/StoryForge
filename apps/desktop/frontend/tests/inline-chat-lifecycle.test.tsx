@@ -280,6 +280,7 @@ it('A06 an oversized stale submit cannot consume or replace an existing inline p
     FILE,
     BEFORE,
     after,
+    expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
   ]);
 });
 
@@ -329,6 +330,7 @@ it('A03 second identical occurrence is identified relative to the window and onl
     FILE,
     before,
     expected,
+    expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
   ]);
 });
 
@@ -608,6 +610,7 @@ it('accepting a current continuation hands the original target and intact suffix
     FILE,
     BEFORE,
     '首段。\n中段。\n\n新增段。\n尾段。',
+    expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
   ]);
 });
 
@@ -785,6 +788,7 @@ it.each(['click', 'shortcut'] as const)(
       FILE,
       BEFORE,
       '首段。\n改好中段。\n尾段。',
+      expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
     ]);
   },
 );
@@ -868,6 +872,7 @@ it('cancel then reopen uses the new exclusive range and ignores an older generat
     FILE,
     BEFORE,
     '新首段。\n中段。\n尾段。',
+    expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
   ]);
 });
 
@@ -936,6 +941,7 @@ it.each([false, true])(
       FILE,
       before,
       expected,
+      expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
     ]);
   },
 );
@@ -987,6 +993,7 @@ it('partial-character selection retains existing touched-line authorization rath
     FILE,
     BEFORE,
     expected,
+    expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
   ]);
 });
 

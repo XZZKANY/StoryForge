@@ -19,6 +19,7 @@ import {
   type EditorCommand,
   type LocateInEditorDetail,
   type SaveActiveFileDoneDetail,
+  type SaveActiveFileRequestDetail,
   type ReviewIssueMarker,
 } from '../lib/assistant-events';
 import { resolveAnchorLine } from '../lib/observations';
@@ -157,6 +158,10 @@ export function Editor({
 
   const cleanVersionIdRef = useRef<number | null>(null);
   const modelCacheRef = useRef<EditorModelCache>(new Map());
+  const dropOpenFilePathRef = useRef(dropOpenFilePath);
+  useLayoutEffect(() => {
+    dropOpenFilePathRef.current = dropOpenFilePath;
+  }, [dropOpenFilePath]);
   // 落盘串行队列：autosave 与 Ctrl+S 并发时按调用顺序依次写盘，防旧内容后落覆盖新内容。
   const [enqueueWriteback] = useState<WritebackQueue>(createWritebackQueue);
   const issueDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
@@ -621,14 +626,60 @@ export function Editor({
   // 审稿/修订读盘前，外部请活动编辑器先落盘，避免后端读到未保存的旧内容。
   useEffect(() => {
     const onRequestSave = (event: Event) => {
-      const detail = (event as CustomEvent<{ filePath: string }>).detail;
-      const respond = (detail: SaveActiveFileDoneDetail) =>
+      const detail = (event as CustomEvent<SaveActiveFileRequestDetail>).detail;
+      const respond = (result: SaveActiveFileDoneDetail) =>
         window.dispatchEvent(
           new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
-            detail,
+            detail: {
+              ...result,
+              ...(detail?.requestId !== undefined ? { requestId: detail.requestId } : {}),
+            },
           }),
         );
       const requestedFilePath = detail?.filePath ?? null;
+      if (detail?.forClose) {
+        const project = projectPathRef.current;
+        const targetEditor = editorRef.current;
+        const model = targetEditor?.getModel();
+        const target = modelCacheRef.current.get(detail.filePath);
+        if (
+          !project ||
+          !model ||
+          detail.filePath !== filePathRef.current ||
+          target?.model !== model
+        ) {
+          respond({ filePath: requestedFilePath, status: 'skipped' });
+          return;
+        }
+        const version = model.getVersionId?.() ?? model.getAlternativeVersionId();
+        const canClose = () =>
+          projectPathRef.current === project &&
+          modelCacheRef.current.get(detail.filePath) === target &&
+          filePathRef.current === detail.filePath &&
+          editorRef.current === targetEditor &&
+          targetEditor?.getModel() === model &&
+          !model.isDisposed() &&
+          (model.getVersionId?.() ?? model.getAlternativeVersionId()) === version &&
+          model.getValue() === target.originalContent &&
+          target.diskBaseline.kind === 'content' &&
+          model.getValue() === target.diskBaseline.content;
+        void saveCurrentFileRef
+          .current()
+          .then(() => {
+            if (!canClose())
+              throw new Error('原稿已保存，但等待期间稿件又变化；已取消关闭，请确认后重试');
+            respond({ filePath: requestedFilePath, status: 'saved', canClose });
+          })
+          .catch((error) =>
+            respond({
+              filePath: requestedFilePath,
+              status: 'error',
+              message: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        return;
+      }
+
       if (
         !detail ||
         detail.filePath !== filePathRef.current ||
@@ -790,7 +841,9 @@ export function Editor({
     }
     const currentContent = model.getValue();
     const branch = getActiveBranchSnapshot();
-    const baseline = modelCacheRef.current.get(path)?.diskBaseline;
+    const targetState = modelCacheRef.current.get(path);
+    const targetVersion = model.getVersionId?.() ?? model.getAlternativeVersionId();
+    const baseline = targetState?.diskBaseline;
     const checkDeleteBaseline = async () => {
       assertCurrent();
       if (!baseline || baseline.kind !== 'content')
@@ -838,12 +891,26 @@ export function Editor({
         if (!state.exists) await unmarkChapterWrittenInPlan(project, path);
       },
     });
-    if (!owner.current()) return;
-    if (state.exists) {
+    if (!state.exists) {
+      // 已完成删除须清理原目标页签；换到 B 只取消活动界面结算，不取消 A 的清理。
+      // 但后来输入、新模型或同路径重建的文件不能被这次迟到完成关掉。
+      const canRetireTarget = () =>
+        projectPathRef.current === project &&
+        modelCacheRef.current.get(path) === targetState &&
+        targetState?.model === model &&
+        !model.isDisposed() &&
+        (model.getVersionId?.() ?? model.getAlternativeVersionId()) === targetVersion &&
+        (filePathRef.current !== path || editorRef.current?.getModel() === model);
+      if (!canRetireTarget() || (await TauriFileSystem.pathExists(path)) || !canRetireTarget())
+        return;
+      const settleActive = owner.current();
+      // 页签回调本身也含活动文件闭包，必须使用最新已提交的回调。
+      dropOpenFilePathRef.current?.(path);
+      if (!settleActive) return;
+    } else {
+      if (!owner.current()) return;
       setLoadedContentPreview(state.content.slice(0, 120));
       setIsDirty(state.content !== originalContentRef.current);
-    } else {
-      dropOpenFilePath!(path);
     }
     setShowHistory(false);
     emitToast(

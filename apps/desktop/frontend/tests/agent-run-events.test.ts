@@ -101,3 +101,27 @@ test('returns null when a completed event lacks assistant_session_id to rebuild'
 
   assert.equal(message, null);
 });
+
+test('claim ownership keeps historical chronology while selecting the new terminal', () => {
+  const events = [
+    { event_type: 'agent_run_completed', payload: { assistant_session_id: 42, summary: 'old' } },
+    { event_type: 'agent_execution_claimed', payload: { control_event_id: 7 } },
+    { event_type: 'agent_runtime_progress', payload: { phase: 'diagnostic' } },
+    { event_type: 'agent_execution_started', payload: { run_id: CONTEXT.runId } },
+    { event_type: 'agent_run_completed', payload: { assistant_session_id: 42, summary: 'new' } },
+  ];
+  const before = structuredClone(events);
+  const message = reconstructAgentResultFromEvents(events, CONTEXT) as AgentResultMessage;
+  assert.equal(message.agent_result.summary, 'new');
+  assert.deepEqual(events, before);
+  const historical = reconstructAgentResultFromEvents(
+    events.slice(0, 1),
+    CONTEXT,
+  ) as AgentResultMessage;
+  assert.equal(historical.agent_result.summary, 'old');
+  const diagnostic = reconstructAgentResultFromEvents(
+    [events[0]!, events[2]!],
+    CONTEXT,
+  ) as AgentResultMessage;
+  assert.equal(diagnostic.agent_result.summary, 'old');
+});

@@ -3,15 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.common.performance import measured
 from app.domains.agent_runs.event_types import (
     AGENT_ARTIFACT,
     AGENT_PLAN_CREATED,
-    AGENT_RUN_COMPLETED,
-    AGENT_RUN_FAILED,
     PERMISSION_REQUIRED,
     SUBAGENT_COMPLETED,
     SUBAGENT_STARTED,
@@ -48,6 +46,10 @@ class _AgentRunEventSink:
     def __init__(self, session: Session, *, on_event: Callable[[AgentRunEvent], None] | None = None) -> None:
         self._session = session
         self._on_event = on_event
+        self._execution_id: int | None = None
+
+    def bind_execution(self, started: AgentRunEvent) -> None:
+        self._execution_id = started.id
 
     def _emit(self, event: AgentRunEvent) -> None:
         if self._on_event is not None:
@@ -174,17 +176,22 @@ class _AgentRunEventSink:
         # 这条 sink 在末轮产补丁的 post-loop 窗口执行，其间控制通道可能已从另一连接把 run 落成
         # stopped/failed；worker 用 expire_on_commit=False 下的 stale run（内存恒 running）无条件写
         # paused 会覆盖控制通道决定（last-writer-wins），把作者的停止复活成 reap 免疫 + 可 approve 的
-        # paused。先 refresh 取最新 status，仅在仍 running 时才落 paused，否则尊重控制通道的终态/中断
-        # 决定、静默跳过（不发 PERMISSION_REQUIRED）。
+        # paused。refresh 只供提前退出；条件 UPDATE 才能原子确认仍在 running，
+        # 只有胜出者发 PERMISSION_REQUIRED，不能把已确认的停止复活为可操作提案。
         self._session.refresh(run)
         if run.status != "running":
             return
         agent_result = result.get("agent_result") if isinstance(result.get("agent_result"), dict) else {}
         proposed_patch = result.get("proposed_patch") if isinstance(result.get("proposed_patch"), dict) else None
         with rollback_failed_settlement(self._session):
-            run.status = "paused"
-            run.current_step = "permission.confirm"
-            self._session.add(run)
+            changed = self._session.execute(update(AgentRun).where(
+                AgentRun.id == run.id, AgentRun.status == "running",
+                AgentRun.execution_owner_event_id == self._execution_id if self._execution_id is not None else True,
+            ).values(status="paused", current_step="permission.confirm").execution_options(synchronize_session=False))
+            self._session.refresh(run)
+            if changed.rowcount != 1:
+                self._session.commit()
+                return
             event = record_agent_event(
                 self._session,
                 run,
@@ -193,6 +200,7 @@ class _AgentRunEventSink:
                 message="该步骤需要作者确认后才能继续。",
                 payload={
                     "permission_profile": canonical_permission_profile(run.permission_profile),
+                    **({"execution_id": self._execution_id} if self._execution_id is not None else {}),
                     "intent": result.get("intent"),
                     # 断线/超时后前端拉事件表重建终态（F10）时，permission_required 也是终态之一，
                     # 而 reconstructAgentResultFromEvents 把 assistant_session_id 当重建必要字段，
@@ -251,14 +259,13 @@ class _AgentRunEventSink:
     def complete(self, run: AgentRun, result: dict[str, Any]) -> None:
         from app.domains.agent_runs.service import complete_agent_run
 
-        complete_agent_run(self._session, run, result=result)
-        self._emit_latest_event(run, AGENT_RUN_COMPLETED)
+        complete_agent_run(self._session, run, result=result, on_event=self._emit, expected_execution_id=self._execution_id)
 
     def fail(self, run: AgentRun, *, message: str, payload: dict[str, Any] | None = None) -> None:
         from app.domains.agent_runs.service import fail_agent_run
 
-        fail_agent_run(self._session, run, message=message, payload=payload)
-        self._emit_latest_event(run, AGENT_RUN_FAILED)
+        fail_agent_run(self._session, run, message=message, payload=payload, on_event=self._emit,
+                       expected_execution_id=self._execution_id)
 
     def record_runtime_progress(self, run: AgentRun, payload: dict[str, Any]) -> None:
         from app.domains.agent_runs.runtime_progress import record_runtime_progress

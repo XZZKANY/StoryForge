@@ -260,8 +260,18 @@ def test_runtime_initialization_failure_marks_agent_run_failed(
 
     failed = agent_run_service.get_agent_run(session, "run-runtime-init-failure")
     assert failed.status == "failed"
-    assert failed.events[-1].event_type == "agent_run_failed"
-    assert "role catalog" in failed.events[-1].message
+    from app.domains.agent_runs.service_execution import agent_execution_state
+
+    failures = [event for event in failed.events if event.event_type == "agent_run_failed"]
+    assert len(failures) == 1
+    assert "role catalog" in failures[0].message
+    assert failures[0].payload["execution_id"] == failed.execution_owner_event_id
+    assert failed.events[-1].event_type == "agent_execution_settled"
+    assert failed.events[-1].payload["execution_id"] == failed.execution_owner_event_id
+    assert agent_execution_state(session, failed) == "settled"
+    frames = [frame for event in failed.events for frame in agent_run_service.websocket_stream_events_from_agent_event(event)]
+    assert frames[-1]["type"] == "agent_run_failed"
+    assert "role catalog" in frames[-1]["message"]
 
 
 def test_readonly_subagent_roles_cannot_execute_write_tools() -> None:

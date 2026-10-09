@@ -57,7 +57,7 @@ type WriteAcceptedSuggestion = (
   path: string,
   previous: string,
   nextContent: string,
-  overrides?: { summary?: string; note?: string },
+  overrides?: { summary?: string; note?: string; recoveredSettlementGuard?: () => boolean },
 ) => Promise<RevisionLoopResult>;
 
 type UseInlineChatParams = {
@@ -107,6 +107,7 @@ type InlineSession = {
   writing: boolean;
   /** 重试沿用同一回执身份，先核对已落盘/未知结果，绝不换 ID 重放。 */
   acceptedSuggestion: AssistantFileSuggestion | null;
+  acceptedWriteOverrides?: { recoveredSettlementGuard: () => boolean };
 };
 
 function editorLineHeight(editor: monaco.editor.IStandaloneCodeEditor): number {
@@ -312,7 +313,17 @@ export function useInlineChat({
     }
 
     try {
-      const writeback = await writeAcceptedSuggestion(suggestion, path, previous, next);
+      const targetModel = session.textModel;
+      const targetVersion = session.modelVersion;
+      const overrides = (session.acceptedWriteOverrides ??= {
+        // 仅本次已确认请求的原模型、原版本可同步查证成功的回执；历史回执不能覆盖新输入。
+        // 写回器另核对缓存目标身份，导航后的结算仍只同步原文件，不碰新的活动编辑器。
+        recoveredSettlementGuard: () =>
+          session.acceptedSuggestion === suggestion &&
+          !targetModel.isDisposed() &&
+          targetModel.getVersionId() === targetVersion,
+      });
+      const writeback = await writeAcceptedSuggestion(suggestion, path, previous, next, overrides);
       if (!matchesSessionTarget(session)) return;
       if (sessionRef.current !== session) return;
       teardown();

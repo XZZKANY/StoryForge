@@ -31,6 +31,7 @@ class AgentRun(IdMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(40), nullable=False, default="running", index=True)
     root_plan: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     current_step: Mapped[str | None] = mapped_column(String(160))
+    execution_owner_event_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     assistant_session: Mapped[AssistantSession | None] = relationship()
     events: Mapped[list[AgentRunEvent]] = relationship(

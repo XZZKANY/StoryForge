@@ -401,22 +401,25 @@ it('a real failed event permits retry even if its savepoint read is an older pau
   expect(posts()).toHaveLength(2);
 });
 
-it('savepoint status alone and a permission terminal shadowed by execution_started cannot settle unknown', async () => {
-  await mount();
-  await startAndExhaustObservation();
-  projectionStatus = 'failed';
-  events = [
-    { sequence: 3, event_type: 'permission_required', payload: { assistant_session_id: 7 } },
-    { sequence: 4, event_type: 'agent_execution_started' },
-  ];
-  await clickReconcile();
-  expect(current.state.agentRun?.deliveryUnknown).toBeDefined();
-  expect(current.state.agentRun?.status).not.toBe('failed');
-  expect(current.state.agentBusy).toBe(false);
-  expect(retryButton()).toBeUndefined();
-  expect(posts()).toHaveLength(1);
-  button('run-reconcile');
-});
+it.each(['agent_execution_started', 'agent_execution_claimed'])(
+  'savepoint status and a permission shadowed by %s cannot settle unknown',
+  async (marker) => {
+    await mount();
+    await startAndExhaustObservation();
+    projectionStatus = 'failed';
+    events = [
+      { sequence: 3, event_type: 'permission_required', payload: { assistant_session_id: 7 } },
+      { sequence: 4, event_type: marker },
+    ];
+    await clickReconcile();
+    expect(current.state.agentRun?.deliveryUnknown).toBeDefined();
+    expect(current.state.agentRun?.status).not.toBe('failed');
+    expect(current.state.agentBusy).toBe(false);
+    expect(retryButton()).toBeUndefined();
+    expect(posts()).toHaveLength(1);
+    button('run-reconcile');
+  },
+);
 
 it.each(['reject', 'hang'] as const)(
   'GET %s releases observation and permits a later GET, not another POST',

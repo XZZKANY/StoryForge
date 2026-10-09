@@ -110,13 +110,33 @@ def bootstrap_sqlite_database(engine: Engine | None = None) -> None:
             Base.metadata.create_all(target_engine)
             migrations.stamp_head(target_engine)
         _reconcile_missing_columns(target_engine, Base)
+        _backfill_agent_execution_owners(target_engine)
     except Exception:  # noqa: BLE001 - 起服路径：alembic 收口失败回退 create_all，库仍可用
         logging.getLogger(__name__).warning(
             "sqlite alembic 收口失败，回退到 create_all（schema 未纳入 alembic 管理）。",
             exc_info=True,
         )
+        if has_business_tables and not has_alembic_version:
+            # Failed health/backup/adoption checks cannot authorize owner repair.
+            raise
         Base.metadata.create_all(target_engine)
         _ensure_agent_run_event_sequence_unique(target_engine)
+        _reconcile_missing_columns(target_engine, Base)
+        _backfill_agent_execution_owners(target_engine)
+
+
+def _backfill_agent_execution_owners(engine: Engine) -> None:
+    """Mirror the additive migration for legacy SQLite databases stamped at head."""
+    with engine.begin() as connection:
+        connection.exec_driver_sql("""
+            UPDATE agent_runs SET execution_owner_event_id = (
+                SELECT id FROM agent_run_events
+                WHERE run_id = agent_runs.id
+                  AND event_type IN ('agent_execution_started', 'agent_execution_claimed')
+                ORDER BY sequence DESC, id DESC LIMIT 1
+            )
+            WHERE execution_owner_event_id IS NULL
+        """)
 
 
 def _adopt_legacy_sqlite_database(engine: Engine, base, migrations) -> None:

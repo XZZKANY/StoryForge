@@ -32,7 +32,7 @@ def test_agent_run_models_are_registered_in_metadata() -> None:
 
 
 def test_agent_run_event_type_constants_preserve_existing_protocol_values() -> None:
-    """事件常量只收敛既有协议名，不夹带 turn/streaming 新模型。"""
+    """保留既有协议名，并允许内部执行归属标记；不新增客户端命令。"""
 
     from app.domains.agent_runs.service import _control_event_type
 
@@ -48,6 +48,7 @@ def test_agent_run_event_type_constants_preserve_existing_protocol_values() -> N
             "agent_run_completed",
             "agent_run_failed",
             "agent_run_interrupted",
+            "agent_execution_claimed",
             "agent_execution_started",
             "agent_execution_settled",
             "agent_runtime_progress",

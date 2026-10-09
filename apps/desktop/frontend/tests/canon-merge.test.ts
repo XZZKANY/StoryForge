@@ -188,3 +188,115 @@ test('assertion evidence survives observatory mapping, author merge and disk JSO
     assert.equal(saved.invariants.single_holder[0].assertion_type, 'model_inference');
   });
 });
+
+test('同 ID 伏笔的不同状态拒绝追加，保留作者文件原字节', async () => {
+  const path = canonDeclarationPathFor('/books/promise');
+  const original = { id: 'p1', title: '旧钥匙', status: 'planted' };
+  const text =
+    JSON.stringify({ version: 1, invariants: { promises: [original] } }, null, 3) + '\r\n';
+  await withMockFs({ [path]: text }, async (writes) => {
+    await assert.rejects(
+      mergeProposalIntoCanon('/books/promise', {
+        kind: 'claim',
+        invariant: 'promises',
+        entry: { ...original, status: 'resolved' },
+      }),
+      /相同 ID.*canon.json.*未写入/,
+    );
+    assert.equal(writes.length, 0);
+  });
+});
+
+test('伏笔 ID 与 scanner 一样去空白，缺失 ID 不臆造身份', () => {
+  const canon = { invariants: { promises: [{ id: ' p1 ', status: 'planted' }] } };
+  assert.throws(
+    () =>
+      applyCanonMerge(canon, {
+        kind: 'claim',
+        invariant: 'promises',
+        entry: { id: 'p1', status: 'resolved' },
+      }),
+    /相同 ID/,
+  );
+  const noId = applyCanonMerge(
+    { invariants: { promises: [{ title: '旧声明' }] } },
+    {
+      kind: 'claim',
+      invariant: 'promises',
+      entry: { title: '不同声明' },
+    },
+  );
+  assert.equal((noId.invariants as { promises: unknown[] }).promises.length, 2);
+});
+
+test('已有无效重复不清洗：相同声明仍 no-op，新 ID 和其他声明仍可并入', () => {
+  const original = { id: 'p1', status: 'planted' };
+  const canon = { invariants: { promises: [original, { id: 'p1', status: 'advancing' }] } };
+  assert.equal(
+    applyCanonMerge(canon, { kind: 'claim', invariant: 'promises', entry: original }),
+    canon,
+  );
+  assert.throws(
+    () =>
+      applyCanonMerge(canon, {
+        kind: 'claim',
+        invariant: 'promises',
+        entry: { id: 'p1', status: 'resolved' },
+      }),
+    /相同 ID/,
+  );
+  const fresh = applyCanonMerge(canon, {
+    kind: 'claim',
+    invariant: 'promises',
+    entry: { id: 'p2' },
+  });
+  assert.deepEqual((fresh.invariants as { promises: unknown[] }).promises, [
+    ...canon.invariants.promises,
+    { id: 'p2' },
+  ]);
+  const other = applyCanonMerge(canon, {
+    kind: 'claim',
+    invariant: 'lifespan',
+    entry: { id: 'p1', entity: 'char_a', exits_after_chapter: 3 },
+  });
+  assert.deepEqual(
+    (other.invariants as { promises: unknown[] }).promises,
+    canon.invariants.promises,
+  );
+});
+
+test('伏笔身份只剥离 Python str.strip 空白，保留 BOM 等非空白字符', () => {
+  const spaces =
+    '\u0009\u000a\u000b\u000c\u000d\u001c\u001d\u001e\u001f\u0020\u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000';
+  for (const space of spaces) {
+    const canon = { invariants: { promises: [{ id: `${space}p1${space}`, status: 'planted' }] } };
+    assert.throws(
+      () =>
+        applyCanonMerge(canon, {
+          kind: 'claim',
+          invariant: 'promises',
+          entry: { id: 'p1', status: 'resolved' },
+        }),
+      /相同 ID/,
+    );
+    assert.throws(
+      () =>
+        applyCanonMerge(
+          { invariants: { promises: [{ id: 'p1' }] } },
+          { kind: 'claim', invariant: 'promises', entry: { id: `${space}p1${space}` } },
+        ),
+      /相同 ID/,
+    );
+  }
+  for (const distinct of ['\ufeff', '\u200b']) {
+    const original = { id: `${distinct}p1${distinct}` };
+    const merged = applyCanonMerge(
+      { invariants: { promises: [original] } },
+      { kind: 'claim', invariant: 'promises', entry: { id: 'p1' } },
+    );
+    assert.deepEqual((merged.invariants as { promises: unknown[] }).promises, [
+      original,
+      { id: 'p1' },
+    ]);
+  }
+});

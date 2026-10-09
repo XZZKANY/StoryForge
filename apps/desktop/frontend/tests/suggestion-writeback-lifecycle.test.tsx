@@ -2252,7 +2252,7 @@ test('automatic writeback reads its existing completion without approving or lea
   assert.equal(effects.disk.get(FILE), 'after');
 });
 
-for (const invalid of ['missing-completion', 'later-execution'] as const) {
+for (const invalid of ['missing-completion', 'later-execution', 'later-claim'] as const) {
   test(`automatic writeback cannot invent a run completion: ${invalid}`, async () => {
     const proposal = { ...runProposal(`auto-${invalid}`), requiresConfirmation: false };
     const started = {
@@ -2265,7 +2265,7 @@ for (const invalid of ['missing-completion', 'later-execution'] as const) {
         : [
             started,
             { event_type: 'agent_run_completed', payload: { assistant_session_id: 7 } },
-            started,
+            invalid === 'later-claim' ? { event_type: 'agent_execution_claimed' } : started,
           ],
     );
     await show(proposal);
@@ -2441,3 +2441,15 @@ test.each([false, true])(
     }
   },
 );
+
+for (const marker of ['agent_execution_started', 'agent_execution_claimed']) {
+  test(`a newer ${marker} prevents old proposal approval`, async () => {
+    const proposal = runProposal(`later-owner-${marker}`);
+    effects.events.mockResolvedValue([...awaitingEvents(proposal), { event_type: marker }]);
+    await show(proposal);
+    await act(async () => handle.handleAcceptSuggestion());
+    assert.ok(handle.actionError?.includes('执行归属已变化'));
+    assert.equal(effects.control.mock.calls.length, 0);
+    assert.ok(await loadPendingSuggestion('D:/project', FILE));
+  });
+}

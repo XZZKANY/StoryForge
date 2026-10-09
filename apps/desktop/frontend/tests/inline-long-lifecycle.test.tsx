@@ -254,6 +254,7 @@ it.each(
     FILE,
     before,
     expected,
+    expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
   ]);
   metrics.push({
     size,

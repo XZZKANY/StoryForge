@@ -219,11 +219,16 @@ test('恢复“不存在”版本按保存脏缓冲→快照→真删除→退�
   const snapshotAt = restoreBlock.indexOf('snapshotBeforeWrite(');
   const deleteAt = restoreBlock.indexOf('TauriFileSystem.deletePath(');
   const unmarkAt = restoreBlock.indexOf('unmarkChapterWrittenInPlan(');
-  const dropAt = restoreBlock.search(/dropOpenFilePath!?\(path\)/);
+  const dropAt = restoreBlock.search(/dropOpenFilePathRef\.current\?\.\(path\)/);
   assert.ok(saveAt >= 0 && saveAt < snapshotAt, '脏缓冲必须先保存，才能进入删除快照');
   assert.ok(snapshotAt < deleteAt, '影子快照失败必须阻断真删除');
   assert.ok(deleteAt < unmarkAt, '文件真删除后才能回退连载计划');
   assert.ok(unmarkAt < dropAt, '删除链完成前不得先摘页签');
+  assert.match(
+    restoreBlock,
+    /canRetireTarget\(\)[\s\S]*?TauriFileSystem\.pathExists\(path\)[\s\S]*?canRetireTarget\(\)/,
+    '清理必须先后核对原目标与是否重建',
+  );
   assert.doesNotMatch(restoreBlock, /writeFile\([^)]*,\s*['"]{2}/, '不存在态不得写空串');
 });
 

@@ -113,8 +113,14 @@ test('App 切换文件保留多标签 buffer，仅关闭或离开项目时确认
   assert.match(editorTabsSource, /const \[dirtyFiles, setDirtyFiles\]/);
   assert.match(writingWorkspaceSource, /retainedFilePaths=\{tabs\.retainedEditorFiles\}/);
   assert.match(writingWorkspaceSource, /dirtyFiles=\{tabs\.dirtyFiles\}/);
-  assert.match(editorTabsSource, /confirmDiscardFiles\(\[path\], '关闭文件'\)/);
-  assert.match(editorTabsSource, /confirmDiscardFiles\(openFiles, '切换项目'\)/);
+  assert.match(
+    editorTabsSource,
+    /confirmDiscardFiles\(\[path\], '关闭文件', operation\)\)\s*\|\|\s*!operation\.current\(\)/,
+  );
+  assert.match(
+    editorTabsSource,
+    /confirmDiscardFiles\(openFiles, '切换项目', operation\)\)\s*\|\|\s*!operation\.current\(\)/,
+  );
   assert.doesNotMatch(appSource, /confirmDiscardDirtyEditor/);
 });
 

@@ -12,6 +12,7 @@ AGENT_ARTIFACT: Final = "agent_artifact"
 AGENT_RUN_COMPLETED: Final = "agent_run_completed"
 AGENT_RUN_FAILED: Final = "agent_run_failed"
 AGENT_RUN_INTERRUPTED: Final = "agent_run_interrupted"
+AGENT_EXECUTION_CLAIMED: Final = "agent_execution_claimed"
 AGENT_EXECUTION_STARTED: Final = "agent_execution_started"
 AGENT_EXECUTION_SETTLED: Final = "agent_execution_settled"
 SYSTEM_JOB: Final = "system_job"
@@ -52,6 +53,7 @@ AGENT_RUN_EVENT_TYPES: Final = EXTERNAL_WRITEBACK_EVENT_TYPES | frozenset(
         AGENT_RUN_COMPLETED,
         AGENT_RUN_FAILED,
         AGENT_RUN_INTERRUPTED,
+        AGENT_EXECUTION_CLAIMED,
         AGENT_EXECUTION_STARTED,
         AGENT_EXECUTION_SETTLED,
         SYSTEM_JOB,

@@ -10,6 +10,7 @@ import type {
 
 // 后端 GET /api/agent-runs/{id}/events 返回的单条事件形状（AgentRunEventRead 子集）。
 export type AgentRunEventRecord = {
+  id?: number;
   event_type: string;
   message?: string;
   payload?: Record<string, unknown> | null;
@@ -58,17 +59,28 @@ export function reconstructAgentResultFromEvents(
   events: AgentRunEventRecord[],
   context: { sessionId: string; runId: string },
 ): AgentSocketMessage | null {
-  const terminal = [...events]
+  // Claims own the next attempt before its worker starts. Older execution
+  // results stay in history but cannot settle the current attempt.
+  const owner = [...events]
     .reverse()
-    .find((event) => TERMINAL_EVENT_TYPES.has(event.event_type));
+    .find((event) =>
+      ['agent_execution_started', 'agent_execution_claimed'].includes(event.event_type),
+    );
+  const ownerIndex = owner ? events.indexOf(owner) : -1;
+  const terminal = events
+    .slice(ownerIndex + 1)
+    .reverse()
+    .find((event) => {
+      if (!TERMINAL_EVENT_TYPES.has(event.event_type)) return false;
+      const executionId = asRecord(event.payload).execution_id;
+      return (
+        owner?.id === undefined ||
+        executionId === undefined ||
+        executionId === null ||
+        executionId === owner.id
+      );
+    });
   if (terminal === undefined) return null;
-  // A same-run resume starts a new execution: an older pause/approval is not its outcome.
-  const terminalIndex = events.indexOf(terminal);
-  if (
-    events.slice(terminalIndex + 1).some((event) => event.event_type === 'agent_execution_started')
-  ) {
-    return null;
-  }
 
   const payload = asRecord(terminal.payload);
   if (payload.execution_result !== undefined) {
