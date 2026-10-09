@@ -128,7 +128,10 @@ def test_renamed_chapter_uses_current_global_order_and_same_basename_stays_disti
 
 
 @pytest.mark.parametrize("mode", ["renamed", "same_basename"])
-def test_live_continue_does_not_reuse_a_cursor_from_another_chapter_after_rename(client, tmp_path, monkeypatch, mode):
+@pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_live_continue_does_not_reuse_a_cursor_from_another_chapter_after_rename(
+    client, tmp_path, monkeypatch, mode, newline
+):
     import json
 
     from agent_loop_runtime_test_support import _enable_loop_env, _fake_llm_script
@@ -142,12 +145,15 @@ def test_live_continue_does_not_reuse_a_cursor_from_another_chapter_after_rename
     second.mkdir()
     old = first / "第001章.md"
     target = second / "第001章.md"
-    old.write_text("旧章开头。\n旧章中段。\n旧章后文。")
+    original_text = "旧章开头。\n旧章中段。\n旧章后文。"
+    old.write_text(original_text, encoding="utf-8", newline=newline)
     if mode == "renamed":
         old.rename(target)
     else:
-        target.write_text("目标开头。\n目标中段。\n目标后文。")
-    original = target.read_bytes()
+        original_text = "目标开头。\n目标中段。\n目标后文。"
+        target.write_text(original_text, encoding="utf-8", newline=newline)
+    original_bytes = target.read_bytes()
+    assert original_bytes == original_text.replace("\n", newline).encode("utf-8")
     _enable_loop_env(monkeypatch)
     calls = []
 
@@ -191,13 +197,14 @@ def test_live_continue_does_not_reuse_a_cursor_from_another_chapter_after_rename
     assert result["type"] == "agent_result", result
     patch = result["proposed_patch"]
     assert patch["file_path"] == str(target)
-    assert patch["before"] == original.decode()
+    # Proposal text follows fs_read's LF contract; disk bytes remain independently guarded.
+    assert patch["before"] == original_text
     assert patch["continue_audit"]["anchor_line"] == 3
-    assert patch["after"].startswith(original.decode()) and patch["after"].endswith("新的续写段。")
+    assert patch["after"].startswith(original_text) and patch["after"].endswith("新的续写段。")
     assert patch["requires_confirmation"] is True
-    assert len(calls) == 1 and target.read_bytes() == original
+    assert len(calls) == 1 and target.read_bytes() == original_bytes
     if mode == "same_basename":
-        assert old.read_text() == "旧章开头。\n旧章中段。\n旧章后文。"
+        assert old.read_text(encoding="utf-8") == "旧章开头。\n旧章中段。\n旧章后文。"
     else:
         assert not old.exists()
     predecessor = previous_chapter_tail(str(tmp_path), str(target))
