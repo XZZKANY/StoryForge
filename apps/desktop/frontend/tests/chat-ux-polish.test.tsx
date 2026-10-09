@@ -9,7 +9,6 @@ import {
   ContextSummaryPanel,
   MessageItem,
   RunActionBar,
-  WritingRunProgressPanel,
 } from '../src/components/chat-window/panels';
 import type { AgentRun } from '../src/components/chat-window/types';
 
@@ -272,37 +271,4 @@ test('compact context summary surfaces truncation on the fold header, not only w
   assert.match(html, /data-compact="true"/);
   assert.match(html, /data-expanded="false"/);
   assert.match(html, /data-testid="context-truncated-badge"/);
-});
-
-test('writing run progress draws a meter when total chapters is known', () => {
-  const html = renderToStaticMarkup(
-    <WritingRunProgressPanel
-      projection={{
-        writingRunId: 700,
-        status: 'running',
-        currentChapterIndex: 3,
-        totalChapters: 10,
-        completedCount: 4,
-        latestEvent: 'progress',
-      }}
-    />,
-  );
-  assert.match(html, /data-testid="writing-run-progress-meter"/);
-  assert.match(html, /aria-valuenow="40"/);
-});
-
-test('writing run progress omits the meter when total chapters is unknown', () => {
-  const html = renderToStaticMarkup(
-    <WritingRunProgressPanel
-      projection={{
-        writingRunId: 701,
-        status: 'running',
-        currentChapterIndex: null,
-        totalChapters: null,
-        completedCount: 2,
-        latestEvent: 'progress',
-      }}
-    />,
-  );
-  assert.doesNotMatch(html, /data-testid="writing-run-progress-meter"/);
 });

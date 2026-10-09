@@ -21,7 +21,7 @@ import type { LayoutMode } from '../shell/useShellState';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { contextBudgetText } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
-import type { AgentRun, AgentRunControlHandlers, Message, WritingRunProjection } from './types';
+import type { AgentRun, AgentRunControlHandlers, Message } from './types';
 
 // 会话下拉的 updated_at 是 ISO 原串：主行只露 MM-dd HH:mm 短格式，完整时间留在 title。
 function formatSessionTime(iso: string): string {
@@ -241,15 +241,11 @@ export function MessageList({
   messages,
   agentRun,
   agentRunRecovery,
-  writingRunProjection,
-  onRetryWritingRunSubscription,
 }: {
   conversationScope?: string | number;
   messages: Message[];
   agentRun: AgentRun | null;
   agentRunRecovery: AgentRunRecoveryDisplay | null;
-  writingRunProjection: WritingRunProjection | null;
-  onRetryWritingRunSubscription?: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -305,7 +301,7 @@ export function MessageList({
       }
     };
     updateContent();
-  }, [messages, agentRun, agentRunRecovery, writingRunProjection]);
+  }, [messages, agentRun, agentRunRecovery]);
 
   const jumpToLatest = () => {
     const element = scrollRef.current;
@@ -329,13 +325,6 @@ export function MessageList({
               <AgentRunRecoveryPanel recovery={agentRunRecovery} />
             )}
           </div>
-        )}
-
-        {writingRunProjection && (
-          <WritingRunProgressPanel
-            projection={writingRunProjection}
-            onRetrySubscription={onRetryWritingRunSubscription}
-          />
         )}
       </div>
     );
@@ -708,99 +697,6 @@ export function RunActionBar({
         </div>
       )}
     </div>
-  );
-}
-
-export function WritingRunProgressPanel({
-  projection,
-  onRetrySubscription,
-}: {
-  projection: WritingRunProjection;
-  onRetrySubscription?: () => void;
-}) {
-  // latestEvent==='error' 只由进度订阅失败写入（后端 SSE 事件名里没有 error），
-  // 用它把「任务运行中」与「进度信号丢失」两种状态分开：丢失后不再画可能过期的进度条。
-  const subscriptionLost = projection.latestEvent === 'error';
-  const chapters = projection.totalChapters
-    ? `${projection.completedCount ?? 0}/${projection.totalChapters}`
-    : projection.completedCount !== null
-      ? `${projection.completedCount} 已完成`
-      : '等待章节进度';
-  // 总章数已知时画一条细 meter：长写作任务的进度不该只靠读「3/10」文字。
-  const totalChapters = projection.totalChapters ?? 0;
-  const completed = Math.min(projection.completedCount ?? 0, totalChapters);
-  const progressPercent = totalChapters > 0 ? Math.round((completed / totalChapters) * 100) : null;
-  // 该行 truncate：完整串（含最近事件）进 title，截断处仍可悬停读到全量。
-  const detailText = `章节：${chapters}；最近事件：${projection.latestEvent}${
-    projection.currentChapterIndex !== null ? `；当前第 ${projection.currentChapterIndex} 章` : ''
-  }`;
-  return (
-    <section
-      className="animate-slide-up-fade rounded-lg border border-border bg-panel px-3 py-2"
-      data-testid="writing-run-progress"
-    >
-      <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-xs font-semibold text-foreground">
-            写作任务 #{projection.writingRunId} · {projection.status}
-            {subscriptionLost ? ' · 进度信号丢失' : ''}
-          </div>
-          {subscriptionLost ? (
-            <div className="mt-1 truncate text-xs text-subtle" title={`最后已知 ${chapters}`}>
-              最后已知进度：{chapters}
-            </div>
-          ) : (
-            <div className="mt-1 truncate text-xs text-subtle" title={detailText}>
-              {detailText}
-            </div>
-          )}
-        </div>
-        <span className="rounded-md border border-border px-2 py-1 text-xs text-subtle">
-          写作任务
-        </span>
-      </div>
-      {progressPercent !== null && !subscriptionLost && (
-        <div
-          className="mt-2 h-1 overflow-hidden rounded-full bg-elevated"
-          role="progressbar"
-          aria-valuenow={progressPercent}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          data-testid="writing-run-progress-meter"
-        >
-          <div
-            className="h-full rounded-full bg-agent transition-[width] duration-300 ease-out"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-      )}
-      {subscriptionLost ? (
-        <div
-          className="mt-2 flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2"
-          data-testid="writing-run-subscription-lost"
-        >
-          <span className="min-w-0 flex-1 break-words text-xs text-warning">
-            进度信号丢失：写作任务仍在后台继续，但这里不再有实时进度；重连一次试试。
-          </span>
-          {onRetrySubscription && (
-            <button
-              type="button"
-              className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 text-xs text-warning transition-colors hover:bg-elevated"
-              onClick={onRetrySubscription}
-              data-testid="writing-run-subscription-retry"
-            >
-              重试订阅
-            </button>
-          )}
-        </div>
-      ) : (
-        projection.failureReason && (
-          <div className="mt-2 text-xs text-warning" data-testid="writing-run-failure-reason">
-            {projection.failureReason}
-          </div>
-        )
-      )}
-    </section>
   );
 }
 

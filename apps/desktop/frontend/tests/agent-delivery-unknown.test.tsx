@@ -133,7 +133,6 @@ function Harness({
       onRemoveQueuedMessage={submission.removeQueuedMessage}
       conversationScope={submission.conversationScope}
       retryLastFailedRun={controls.retryLastFailedRun}
-      retryWritingRunSubscription={controls.retryWritingRunSubscription}
       agentRunControls={controls.agentRunControls}
     />
   );

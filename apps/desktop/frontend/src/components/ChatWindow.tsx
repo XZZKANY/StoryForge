@@ -46,8 +46,7 @@ export {
   statusFromAgentResult,
   stepsFromResumedAgentResult,
 } from './chat-window/resumed-result';
-export { AgentRunRecoveryPanel, WritingRunProgressPanel } from './chat-window/panels';
-export { applyWritingRunEventProjection, writingRunIdFromResult } from './chat-window/writing-run';
+export { AgentRunRecoveryPanel } from './chat-window/panels';
 export type { StableAgentRequestPayload } from './chat-window/types';
 export {
   overviewActivityActionLabel,
@@ -210,7 +209,6 @@ export function ChatWindow(props: ChatWindowProps) {
         queuedMessages={submission.queuedMessages}
         onRemoveQueuedMessage={submission.removeQueuedMessage}
         retryLastFailedRun={controls.retryLastFailedRun}
-        retryWritingRunSubscription={controls.retryWritingRunSubscription}
         agentRunControls={controls.agentRunControls}
       />
       <AppDialogHost

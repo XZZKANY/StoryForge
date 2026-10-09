@@ -42,11 +42,6 @@ import type {
 } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 export type { RunAuthorAgent } from './types';
-export {
-  markWritingRunSubscriptionLost,
-  startWritingRunProjectionSubscription,
-  WRITING_RUN_SUBSCRIPTION_LOST_REASON,
-} from './writing-run';
 
 export function useRunAuthorAgent(
   state: ChatWindowState,

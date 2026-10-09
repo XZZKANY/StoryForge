@@ -3,13 +3,11 @@ import { test } from 'vitest';
 
 import {
   getAgentRunSavePoints,
-  parseBookRunSseText,
   probeApiRuntimeHealth,
   probeProviderHealth,
   reviseFileContent,
   sendAgentControlMessage,
   sendAgentUserMessage,
-  subscribeWritingRunEvents,
 } from '../src/lib/api-client';
 
 test('inline revise serializes the controlled polishing gate', async () => {
@@ -146,45 +144,6 @@ test('agent SSE stream forwards events and resolves with the final result', asyn
     assert.equal(sent.user_message, '审一下');
     assert.equal(sent.permission_profile, 'autonomous');
     assert.deepEqual(sent.args, { file_path: '正文/第01章.md' });
-  } finally {
-    if (previousFetch) {
-      Object.defineProperty(globalThis, 'fetch', previousFetch);
-    } else {
-      Reflect.deleteProperty(globalThis, 'fetch');
-    }
-  }
-});
-
-test('writing run SSE uses fetch with API key header and parses named events', async () => {
-  const previousFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
-  const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
-
-  Object.defineProperty(globalThis, 'fetch', {
-    configurable: true,
-    value: async (input: RequestInfo | URL, init?: RequestInit) => {
-      fetchCalls.push({ url: String(input), init });
-      return new Response('event: progress\ndata: {"chapter":1}\n\n', {
-        status: 200,
-        headers: { 'content-type': 'text/event-stream' },
-      });
-    },
-  });
-
-  try {
-    const events: unknown[] = [];
-    const unsubscribe = await subscribeWritingRunEvents(12, (event) => events.push(event));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    unsubscribe();
-
-    assert.equal(fetchCalls[0].url, 'http://127.0.0.1:8000/api/ide/runs/12/events');
-    assert.equal(
-      (fetchCalls[0].init?.headers as Record<string, string>)['X-StoryForge-API-Key'],
-      'local-dev-key',
-    );
-    assert.deepEqual(events, [{ event: 'progress', data: { chapter: 1 } }]);
-    assert.deepEqual(parseBookRunSseText('event: completed\ndata: not-json\n\n'), [
-      { event: 'completed', data: { raw: 'not-json' } },
-    ]);
   } finally {
     if (previousFetch) {
       Object.defineProperty(globalThis, 'fetch', previousFetch);

@@ -31,7 +31,6 @@ test('消息列表在追加消息后，已有消息的 DOM 节点被保留（稳
         conversationScope={0}
         agentRun={null}
         agentRunRecovery={null}
-        writingRunProjection={null}
       />,
     );
   });
@@ -59,7 +58,6 @@ test('消息列表在追加消息后，已有消息的 DOM 节点被保留（稳
         conversationScope={0}
         agentRun={null}
         agentRunRecovery={null}
-        writingRunProjection={null}
       />,
     );
   });
@@ -94,7 +92,6 @@ test('消息列表在追加消息后，已有消息的 DOM 节点被保留（稳
         conversationScope={0}
         agentRun={null}
         agentRunRecovery={null}
-        writingRunProjection={null}
       />,
     );
   });
@@ -131,7 +128,6 @@ test('消息 key 对内容相同但 role 不同的消息产生不同 key', async
         conversationScope={0}
         agentRun={null}
         agentRunRecovery={null}
-        writingRunProjection={null}
       />,
     );
   });
@@ -149,7 +145,6 @@ test('消息 key 对内容相同但 role 不同的消息产生不同 key', async
         conversationScope={0}
         agentRun={null}
         agentRunRecovery={null}
-        writingRunProjection={null}
       />,
     );
   });

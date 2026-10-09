@@ -1,12 +1,11 @@
 /**
  * 对话区反馈缺口修复的行为测试：
- *  1. 写作任务进度订阅失败 → 面板明确区分「进度信号丢失」并提供「重试订阅」；
  *  2. 会话记录加载失败 / 项目上下文索引失败两条错误条可关闭且保留重试入口；
  *  3. run.status === 'failed' 时 live region 切 assertive 打断；
  *  4. 「停止本轮」两段式内联确认（第一次点只武装，超时/失焦/划走取消）。
  */
 import assert from 'node:assert/strict';
-import { act, useEffect, type Dispatch, type SetStateAction } from 'react';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, test, vi } from 'vitest';
 
@@ -16,32 +15,19 @@ vi.mock('../src/lib/api/chapter-checks', () => ({
 }));
 
 import { ChatWindowView } from '../src/components/chat-window/ChatWindowView';
-import {
-  ContextSummaryPanel,
-  RunActionBar,
-  WritingRunProgressPanel,
-} from '../src/components/chat-window/panels';
-import type { AgentRun, WritingRunProjection } from '../src/components/chat-window/types';
-import { useAgentRunControls } from '../src/components/chat-window/useAgentRunControls';
+import { ContextSummaryPanel, RunActionBar } from '../src/components/chat-window/panels';
+import type { AgentRun } from '../src/components/chat-window/types';
 import { useChatWindowState } from '../src/components/chat-window/useChatWindowState';
-import {
-  markWritingRunSubscriptionLost,
-  startWritingRunProjectionSubscription,
-} from '../src/components/chat-window/useRunAuthorAgent';
-import { subscribeWritingRunEvents } from '../src/lib/api-client';
 
 vi.mock('../src/lib/api-client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/lib/api-client')>();
   return {
     ...actual,
-    subscribeWritingRunEvents: vi.fn(),
     listAssistantSessions: vi.fn(async () => []),
   };
 });
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-const mockedSubscribe = vi.mocked(subscribeWritingRunEvents);
 
 let host: HTMLDivElement;
 let root: Root | undefined;
@@ -58,163 +44,6 @@ afterEach(async () => {
   await act(async () => root?.unmount());
   host?.remove();
   root = undefined;
-  mockedSubscribe.mockReset();
-});
-
-function fakeProjectionSetter(): [
-  () => WritingRunProjection | null,
-  Dispatch<SetStateAction<WritingRunProjection | null>>,
-] {
-  let current: WritingRunProjection | null = null;
-  const set: Dispatch<SetStateAction<WritingRunProjection | null>> = (updater) => {
-    current = typeof updater === 'function' ? updater(current) : updater;
-  };
-  return [() => current, set];
-}
-
-function runningProjection(overrides: Partial<WritingRunProjection> = {}): WritingRunProjection {
-  return {
-    writingRunId: 700,
-    status: 'running',
-    currentChapterIndex: 3,
-    totalChapters: 10,
-    completedCount: 4,
-    latestEvent: 'progress',
-    failureReason: null,
-    ...overrides,
-  };
-}
-
-// ---------- 缺陷 1：订阅失败静默降级 ----------
-
-test('订阅建立失败把投影标成进度信号丢失，终态任务不被误标', async () => {
-  mockedSubscribe.mockRejectedValue(new Error('connect failed'));
-  const [getProjection, setProjection] = fakeProjectionSetter();
-  setProjection(runningProjection());
-  const ref: { current: (() => void) | null } = { current: vi.fn() };
-
-  startWritingRunProjectionSubscription(700, ref, setProjection);
-  assert.equal(ref.current, null, '重开订阅前应先解除旧订阅');
-  await Promise.resolve();
-  await Promise.resolve();
-
-  assert.equal(getProjection()?.latestEvent, 'error');
-  assert.equal(getProjection()?.failureReason, '写作任务进度订阅失败');
-
-  setProjection(runningProjection({ status: 'completed', latestEvent: 'completed' }));
-  markWritingRunSubscriptionLost(setProjection);
-  assert.equal(getProjection()?.latestEvent, 'completed', '已完成任务不应被标成信号丢失');
-});
-
-test('订阅成功后保存解除函数，事件照常推进投影', async () => {
-  const unsubscribe = vi.fn();
-  let capturedOnEvent: ((event: unknown) => void) | undefined;
-  mockedSubscribe.mockImplementation(async (_id, onEvent) => {
-    capturedOnEvent = onEvent as (event: unknown) => void;
-    return unsubscribe;
-  });
-  const [getProjection, setProjection] = fakeProjectionSetter();
-  setProjection(runningProjection({ latestEvent: 'error', failureReason: '写作任务进度订阅失败' }));
-  const ref: { current: (() => void) | null } = { current: null };
-
-  startWritingRunProjectionSubscription(700, ref, setProjection);
-  await Promise.resolve();
-  await Promise.resolve();
-
-  assert.equal(ref.current, unsubscribe);
-  assert.ok(capturedOnEvent);
-  act(() =>
-    capturedOnEvent!({
-      event: 'progress',
-      data: { writing_run_id: 700, status: 'running', completed_count: 5 },
-    }),
-  );
-  assert.equal(getProjection()?.completedCount, 5);
-});
-
-test('进度信号丢失时面板隐藏进度条并给出重试订阅按钮', async () => {
-  const onRetry = vi.fn();
-  await renderNode(
-    <WritingRunProgressPanel
-      projection={runningProjection({
-        latestEvent: 'error',
-        failureReason: '写作任务进度订阅失败',
-      })}
-      onRetrySubscription={onRetry}
-    />,
-  );
-
-  assert.ok(host.querySelector('[data-testid="writing-run-subscription-lost"]'));
-  assert.match(host.textContent ?? '', /进度信号丢失/);
-  assert.equal(
-    host.querySelector('[data-testid="writing-run-progress-meter"]'),
-    null,
-    '信号丢失后不再显示可能过期的进度条',
-  );
-  assert.doesNotMatch(host.textContent ?? '', /最近事件：error/);
-  assert.match(host.textContent ?? '', /最后已知进度：4\/10/);
-
-  const retry = host.querySelector<HTMLButtonElement>(
-    '[data-testid="writing-run-subscription-retry"]',
-  );
-  assert.ok(retry);
-  await act(async () => retry.click());
-  assert.equal(onRetry.mock.calls.length, 1);
-});
-
-test('正常进度态不显示信号丢失块，进度条保留', async () => {
-  await renderNode(
-    <WritingRunProgressPanel projection={runningProjection()} onRetrySubscription={() => {}} />,
-  );
-  assert.equal(host.querySelector('[data-testid="writing-run-subscription-lost"]'), null);
-  assert.ok(host.querySelector('[data-testid="writing-run-progress-meter"]'));
-});
-
-type RetryHarnessApi = {
-  state: ReturnType<typeof useChatWindowState>;
-  retry: () => void;
-};
-
-function RetryHarness({ apiRef }: { apiRef: { current: RetryHarnessApi | null } }) {
-  const state = useChatWindowState({ projectPath: 'D:/book', currentFile: null });
-  const controls = useAgentRunControls(
-    state,
-    async () => undefined,
-    () => undefined,
-    {
-      updateAgentStep: () => undefined,
-      updateAgentStatus: () => undefined,
-      refreshAgentRunRecovery: async () => undefined,
-      applyResumedAgentResult: () => undefined,
-      applyResumeDiagnostic: () => undefined,
-    },
-  );
-  useEffect(() => {
-    apiRef.current = { state, retry: controls.retryWritingRunSubscription };
-  });
-  return null;
-}
-
-test('重试订阅会摘除丢失标记并重新建立同一写作任务的订阅', async () => {
-  const unsubscribe = vi.fn();
-  mockedSubscribe.mockResolvedValue(unsubscribe);
-  const apiRef: { current: RetryHarnessApi | null } = { current: null };
-  await renderNode(<RetryHarness apiRef={apiRef} />);
-  const api = apiRef.current;
-  assert.ok(api);
-
-  act(() =>
-    api.state.setWritingRunProjection(
-      runningProjection({ latestEvent: 'error', failureReason: '写作任务进度订阅失败' }),
-    ),
-  );
-  await act(async () => apiRef.current!.retry());
-
-  assert.equal(mockedSubscribe.mock.calls.length, 1);
-  assert.equal(mockedSubscribe.mock.calls[0]?.[0], 700);
-  assert.notEqual(apiRef.current!.state.writingRunProjection?.latestEvent, 'error');
-  assert.equal(apiRef.current!.state.writingRunProjection?.failureReason, null);
-  assert.equal(apiRef.current!.state.unsubscribeWritingRunRef.current, unsubscribe);
 });
 
 // ---------- 缺陷 2：两条常驻错误条可关闭且分子系统 ----------
@@ -248,7 +77,6 @@ function ViewHarness({
       handleComposerSubmit={async () => undefined}
       userMessageHistory={[]}
       retryLastFailedRun={() => undefined}
-      retryWritingRunSubscription={() => undefined}
       agentRunControls={{
         onApprovePermission: () => undefined,
         onDenyPermission: () => undefined,

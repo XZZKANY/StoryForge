@@ -71,7 +71,6 @@ function Fixture() {
         messages={state.messages}
         agentRun={state.agentRun}
         agentRunRecovery={state.agentRunRecovery}
-        writingRunProjection={null}
       />
       <footer className="shrink-0 border-t border-border p-3">
         <input className="w-full bg-panel p-2 text-sm" aria-label="输入焦点验收" />

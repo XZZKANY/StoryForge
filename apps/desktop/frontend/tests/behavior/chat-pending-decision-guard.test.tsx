@@ -38,7 +38,6 @@ function state(status: 'waiting' | 'completed'): ChatWindowState {
       ],
     },
     agentRunRecovery: null,
-    writingRunProjection: null,
     explicitContextPaths: [],
     contextCandidates: [],
     contextCandidatesLoading: false,
@@ -88,7 +87,6 @@ function render(status: 'waiting' | 'completed') {
       handleComposerSubmit={async () => undefined}
       userMessageHistory={[]}
       retryLastFailedRun={() => undefined}
-      retryWritingRunSubscription={() => undefined}
       agentRunControls={controls}
     />,
   );

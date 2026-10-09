@@ -170,12 +170,7 @@ function Fixture() {
           {phase} · POST {posts}
         </output>
       </header>
-      <MessageList
-        messages={messages}
-        agentRun={run}
-        agentRunRecovery={null}
-        writingRunProjection={null}
-      />
+      <MessageList messages={messages} agentRun={run} agentRunRecovery={null} />
       <footer className="shrink-0 border-t border-border p-3">
         <input
           className="w-full bg-panel p-2 text-sm"

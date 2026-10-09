@@ -133,16 +133,6 @@ export type AgentProposedPatch =
     }
   | Record<string, unknown>;
 
-export type WritingRunHandle = {
-  writing_run_id: number;
-  scope: string;
-  mode: string;
-  status: string;
-  book_run_id?: number | null;
-  book_run?: Record<string, unknown>;
-  [key: string]: unknown;
-};
-
 export type AgentResultMessage = {
   type: 'agent_result';
   runtime_interruption?: AgentRuntimeInterruption | null;
@@ -156,10 +146,6 @@ export type AgentResultMessage = {
     summary?: string;
     execution_outcome?: AgentExecutionOutcome;
     requires_user_confirmation?: boolean;
-    writing_run?: WritingRunHandle | null;
-    writing_run_id?: number | null;
-    book_run?: Record<string, unknown> | null;
-    book_run_id?: number | null;
     [key: string]: unknown;
   };
   tool_trace: AgentToolTrace[];
@@ -298,13 +284,6 @@ export type AgentRunSavePointProjection = {
   runtime_recovery: Record<string, unknown>;
   interruption_model: Record<string, unknown>;
 };
-
-export type BookRunEvent = {
-  event: string;
-  data: Record<string, unknown>;
-};
-
-export type WritingRunEvent = BookRunEvent;
 
 export type AssistantMessageRecord = {
   id: number;

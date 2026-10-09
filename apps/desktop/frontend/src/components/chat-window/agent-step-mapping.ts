@@ -25,7 +25,6 @@ export function planStepTitle(step: string): string {
     load_scene_packet: '读取场景包',
     'judge.run': '运行 Judge',
     'judge.repair': '生成修复建议',
-    'bookrun.start': '启动写作任务',
     'agent.provider': '模型请求',
     'writeback.auto': '自动写回准备完成',
     'context-agent': '选择上下文',
