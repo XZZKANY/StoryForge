@@ -413,7 +413,7 @@ def test_agent_run_save_points_endpoint_projects_tool_recovery_metadata(
 ) -> None:
     """save-points endpoint 可从旧 tool_trace 事件读取 recovery 元数据，不新增事件类型。"""
 
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     stream_agent_message(
         client,

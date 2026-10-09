@@ -299,7 +299,7 @@ def test_narrow_revise_flags_scope_warning_when_drift_large(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     before = "\n".join(["第一段。", "第二段。", "第三段。", "第四段。"])
     after = "\n".join(["改写一。", "改写二。", "改写三。", "改写四。"])
 
@@ -333,7 +333,7 @@ def test_broad_revise_does_not_flag_scope_warning(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     before = "\n".join(["第一段。", "第二段。", "第三段。", "第四段。"])
     after = "\n".join(["改写一。", "改写二。", "改写三。", "改写四。"])
 

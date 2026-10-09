@@ -45,7 +45,7 @@ def test_actual_root_chapter_draft_keeps_chapter_one_window(session, tmp_path, m
         },
     )
     calls = []
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
 
     def writer(_source, *, system_prompt, user_prompt):
@@ -97,7 +97,7 @@ def test_explicit_idea_note_context_is_still_delivered_to_actual_writer(client, 
     original = note.read_bytes()
     calls = []
     monkeypatch.setenv("STORYFORGE_LLM_MODEL", "controlled-fixture")
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "controlled-fixture"})
 
     def streamed(_source, payload, **_kwargs):

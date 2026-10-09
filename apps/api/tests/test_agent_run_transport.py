@@ -17,7 +17,7 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
 ) -> None:
     """IDE Agent user_message 必须创建可 REST 回放的 AgentRun 事件流。"""
 
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     frames = stream_agent_message(
         client,
@@ -114,7 +114,7 @@ def test_agent_run_records_permission_required_for_proposed_patch(
 
     from app.domains.assistant import service as assistant_service
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(
         assistant_service,
         "_call_llm",
@@ -239,7 +239,7 @@ def test_agent_runtime_chapter_polish_does_not_call_legacy_orchestrator(
         raise AssertionError("legacy orchestrator should not run for chapter_polish")
 
     monkeypatch.setattr(agent_runtime, "orchestrate_agent_message", fail_legacy)
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     message = agent_result(
         client,
@@ -267,7 +267,7 @@ def test_permission_approval_completes_paused_agent_run(
 
     from app.domains.assistant import service as assistant_service
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(
         assistant_service,
         "_call_llm",
@@ -310,7 +310,7 @@ def test_agent_run_sse_stream_replays_event_store(
 ) -> None:
     """SSE 端点只能从 AgentRunEvent Store 回放已有事件。"""
 
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     stream_agent_message(
         client,

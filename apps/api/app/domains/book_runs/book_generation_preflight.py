@@ -2,26 +2,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from app.common.llm_env import (  # noqa: F401  facade re-export（覆盖链已下沉 app/common/llm_env.py）
+from app.common.llm_env import (  # noqa: F401  facade re-export（覆盖链已下沉 app/common/llm_env.py）  # noqa: F401
     LLM_SETTINGS_ENV_KEYS,
+    REQUIRED_REAL_LLM_ENV,
+    missing_llm_env,
     resolved_llm_env,
 )
-from app.domains.book_runs.book_generation_llm import env_value as _env_value
 from app.domains.book_runs.errors import BookGenerationPreflightError
 
-REQUIRED_REAL_LLM_ENV = (
-    "STORYFORGE_LLM_API_KEY",
-    "STORYFORGE_LLM_BASE_URL",
-    "STORYFORGE_LLM_MODEL",
-    "STORYFORGE_LLM_PROVIDER",
-)
-
-
-def missing_book_generation_env(env: Mapping[str, str | None] | None = None) -> list[str]:
-    """列出真实 LLM 生成所需但尚未配置的环境变量名。"""
-
-    source = resolved_llm_env(env)
-    return [name for name in REQUIRED_REAL_LLM_ENV if not _env_value(source, name)]
+missing_book_generation_env = missing_llm_env
 
 
 def _assert_preflight(

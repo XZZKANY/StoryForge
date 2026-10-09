@@ -286,7 +286,7 @@ class TestContinueEndpoint:
     def test_streams_prose_and_records_evidence(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+        monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
         monkeypatch.setenv("STORYFORGE_LLM_MODEL", "test-model")
 
         captured: dict[str, object] = {}
@@ -335,7 +335,7 @@ class TestContinueEndpoint:
         """未配置必须是真 422，不能裹在流里以 200 送出。"""
 
         monkeypatch.setattr(
-            assistant_service, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"]
+            assistant_service, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"]
         )
         response = client.post(
             "/api/assistant/continue",
@@ -346,7 +346,7 @@ class TestContinueEndpoint:
     def test_llm_failure_becomes_error_frame_and_failed_tool_call(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+        monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
         monkeypatch.setenv("STORYFORGE_LLM_MODEL", "test-model")
 
         def boom(source, payload, **_kwargs):  # noqa: ANN001 - 测试桩
@@ -373,7 +373,7 @@ class TestContinueEndpoint:
     ) -> None:
         """模型只复述上文时后处理会掐空，此时必须报错而不是回一个空补丁。"""
 
-        monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+        monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
         monkeypatch.setenv("STORYFORGE_LLM_MODEL", "test-model")
 
         def echo(source, payload, **_kwargs):  # noqa: ANN001 - 测试桩
@@ -395,7 +395,7 @@ class TestContinueEndpoint:
     ) -> None:
         """跨项目复用会话必须拒绝：B 项目续写不得把消息落进 A 项目会话，也不得派发 provider。"""
 
-        monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+        monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
         calls: list[int] = []
 
         def fake_stream(source, payload, **_kwargs):  # noqa: ANN001 - 测试桩

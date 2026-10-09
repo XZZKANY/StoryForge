@@ -7,8 +7,8 @@ from urllib import error
 import pytest
 
 from app.common import llm_client, llm_http
+from app.common.llm_env import missing_llm_env
 from app.domains.assistant import service
-from app.domains.book_runs.book_generation import missing_book_generation_env
 
 OPAQUE = "Q7v9K2m8R4u6W1x3"
 SOURCE = {
@@ -29,10 +29,10 @@ def source_fixture(monkeypatch, **overrides):
 
     # 保留真实缺项判定；旧入口在缺项检查中无参数解析配置，会显露第二次读取。
     def missing(env=None):
-        return missing_book_generation_env(resolve() if env is None else env)
+        return missing_llm_env(resolve() if env is None else env)
 
     monkeypatch.setattr(service, "resolved_llm_env", resolve)
-    monkeypatch.setattr(service, "missing_book_generation_env", missing)
+    monkeypatch.setattr(service, "missing_llm_env", missing)
     return source, reads
 
 

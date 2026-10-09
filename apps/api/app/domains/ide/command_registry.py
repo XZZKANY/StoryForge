@@ -6,12 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError, NotFoundError
+from app.common.llm_env import missing_llm_env, resolved_llm_env
 from app.common.redaction import redact_sensitive
 from app.domains.agent_runs import book_context, serial_plan_update
 from app.domains.agent_runs.canon_service import run_canon_projection
 from app.domains.agent_runs.fs_tools import FsToolError
 from app.domains.agent_runs.observatory import run_observatory_scan
-from app.domains.book_runs.book_generation import missing_book_generation_env, resolved_llm_env
 from app.domains.book_runs.service import (
     BookRunBlockedError,
     BookRunError,
@@ -359,7 +359,7 @@ def _execute_book_breakdown_command(
         raise IdeCommandExecutionError("book.breakdown 的 target_count 必须在 3 到 12 之间。")
     try:
         llm_source = resolved_llm_env()
-        model_source = llm_source if not missing_book_generation_env(llm_source) else None
+        model_source = llm_source if not missing_llm_env(llm_source) else None
         analysis_id_arg = args.get("analysis_id")
         analysis_id = analysis_id_arg.strip() if isinstance(analysis_id_arg, str) and analysis_id_arg.strip() else None
         cancel_event = prepare_breakdown_cancellation(analysis_id) if analysis_id else None

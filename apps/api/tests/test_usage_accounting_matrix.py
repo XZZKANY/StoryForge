@@ -160,7 +160,7 @@ def test_chat_usage_fields_are_consistent_across_all_sinks(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(
         assistant_service,
         "resolved_llm_env",

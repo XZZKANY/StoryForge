@@ -32,7 +32,7 @@ def test_http_independent_keep_clauses_guard_each_literal(client, monkeypatch, q
     }[change]
     candidate = original.replace(source, replacement)
     calls = []
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
     monkeypatch.setattr(service, "_call_llm_streamed", lambda *a, **kw: calls.append(kw) or {"content": candidate})
     response = client.post(
@@ -74,7 +74,7 @@ def test_http_raw_literal_embedded_directive_remains_protected(client, monkeypat
         else original.replace("门外有人。", "有人站在门外。")
     )
     calls = []
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
     monkeypatch.setattr(service, "_call_llm_streamed", lambda *a, **kw: calls.append(kw) or {"content": candidate})
     response = client.post(

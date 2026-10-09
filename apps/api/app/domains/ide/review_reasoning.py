@@ -7,19 +7,11 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from app.common.craft import review_rubric_clause
+from app.common.llm_client import LLMError
+from app.common.llm_client import call_llm as _call_llm
 from app.common.llm_control import check_run_interruption, has_run_control
-from app.domains.book_runs.book_generation import (
-    BookGenerationError,
-)
-from app.domains.book_runs.book_generation import (
-    call_llm as _call_llm,
-)
-from app.domains.book_runs.book_generation import (
-    missing_book_generation_env as _missing_book_generation_env,
-)
-from app.domains.book_runs.book_generation import (
-    resolved_llm_env as _resolved_llm_env,
-)
+from app.common.llm_env import missing_llm_env as _missing_llm_env
+from app.common.llm_env import resolved_llm_env as _resolved_llm_env
 from app.domains.ide.review_skills import (
     REVIEW_SKILLS,
     character_agent_issues,
@@ -112,7 +104,7 @@ class LlmReviewReasoner:
                 latency_ms=_optional_int(result.get("latency_ms")),
                 coverage=_review_coverage(content, context_bundle, sent=True),
             )
-        except (BookGenerationError, ValueError, TypeError, KeyError) as exc:
+        except (LLMError, ValueError, TypeError, KeyError) as exc:
             fallback = _heuristic_result(key, content, paragraphs, context_bundle)
             return ReviewSubagentResult(
                 agent=fallback.agent,
@@ -123,8 +115,8 @@ class LlmReviewReasoner:
             )
 
 
-def missing_book_generation_env(env: Mapping[str, str | None] | None = None) -> list[str]:
-    return _missing_book_generation_env(env)
+def missing_llm_env(env: Mapping[str, str | None] | None = None) -> list[str]:
+    return _missing_llm_env(env)
 
 
 def resolved_llm_env(env: Mapping[str, str | None] | None = None) -> Mapping[str, str | None]:

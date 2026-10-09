@@ -33,7 +33,7 @@ from app.common.llm_client import (
     call_llm_streamed as _call_llm_streamed,
 )
 from app.common.llm_control import LLMRunInterrupted
-from app.common.llm_env import resolved_llm_env
+from app.common.llm_env import missing_llm_env, resolved_llm_env
 from app.common.manuscript import previous_chapter_tail
 from app.common.performance import measure_stage, measured
 from app.common.performance_logging import observe_run
@@ -63,10 +63,6 @@ from app.domains.assistant.schemas import (
 )
 from app.domains.assistant.session_scope import assert_session_project_matches
 from app.domains.assistant.writing_context import PreparedWritingContext, admit_writing_request
-from app.domains.book_runs.book_generation import (
-    BookGenerationError,
-    missing_book_generation_env,
-)
 from app.platform.ai_sdk.contracts import TokenUsage
 
 
@@ -299,7 +295,7 @@ def chat_reply(
     LLM 未配置或调用失败时明确抛错，不伪造兜底内容。"""
 
     llm_env = resolved_llm_env()
-    missing = missing_book_generation_env()
+    missing = missing_llm_env()
     if missing:
         raise AssistantLlmNotConfiguredError(missing)
 
@@ -331,7 +327,7 @@ def chat_reply(
             }),
         )
         raise
-    except BookGenerationError as exc:
+    except LLMError as exc:
         update_assistant_tool_call(
             session,
             tool_call.id,
@@ -424,7 +420,7 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
     """
 
     llm_env = resolved_llm_env()
-    missing = missing_book_generation_env()
+    missing = missing_llm_env()
     if missing:
         raise AssistantLlmNotConfiguredError(missing)
 
@@ -631,7 +627,7 @@ def draft_continuation(
     continuation.insert_at_anchor 完成，后端绝不写盘。"""
 
     llm_env = resolved_llm_env()
-    missing = missing_book_generation_env()
+    missing = missing_llm_env()
     if missing:
         raise AssistantLlmNotConfiguredError(missing)
 
@@ -724,7 +720,7 @@ def draft_continuation(
             ),
         )
         raise
-    except BookGenerationError as exc:
+    except LLMError as exc:
         update_assistant_tool_call(
             session,
             tool_call.id,
@@ -789,7 +785,7 @@ def revise_file_content(
     LLM 未配置或调用失败时明确抛错，不伪造兜底内容。"""
 
     llm_env = resolved_llm_env()
-    missing = missing_book_generation_env()
+    missing = missing_llm_env()
     if missing:
         raise AssistantLlmNotConfiguredError(missing)
 
@@ -865,7 +861,7 @@ def revise_file_content(
             ),
         )
         raise
-    except BookGenerationError as exc:
+    except LLMError as exc:
         update_assistant_tool_call(
             session,
             tool_call.id,
@@ -1017,7 +1013,7 @@ def draft_file_content(
     LLM 未配置或调用失败时明确抛错，不伪造兜底内容；本函数不写盘，写回由前端补丁确认承担。"""
 
     llm_env = resolved_llm_env()
-    missing = missing_book_generation_env()
+    missing = missing_llm_env()
     if missing:
         raise AssistantLlmNotConfiguredError(missing)
 
@@ -1077,7 +1073,7 @@ def draft_file_content(
             ),
         )
         raise
-    except BookGenerationError as exc:
+    except LLMError as exc:
         update_assistant_tool_call(
             session,
             tool_call.id,
@@ -1139,6 +1135,6 @@ def probe_provider_health() -> ProviderHealthResponse:
 def _probe_provider_health() -> ProviderHealthResponse:
     return provider_health.probe_provider_health(
         resolve_source=resolved_llm_env,
-        missing_env=missing_book_generation_env,
+        missing_env=missing_llm_env,
         fetch_models=_fetch_provider_models,
     )

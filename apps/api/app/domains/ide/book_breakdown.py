@@ -17,9 +17,9 @@ from threading import Event
 from typing import Any
 from xml.etree import ElementTree
 
+from app.common.llm_client import call_llm as _call_llm
 from app.domains.agent_runs.canon_store import atomic_write_json, atomic_write_text
 from app.domains.agent_runs.fs_tools import iter_project_files, resolve_project_root
-from app.domains.book_runs.book_generation import call_llm as _call_llm
 from app.domains.ide.book_breakdown_control import (
     prepare_breakdown_cancellation,
     release_breakdown_cancellation,

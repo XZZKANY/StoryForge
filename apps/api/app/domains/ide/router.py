@@ -9,6 +9,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import sessionmaker
 
+from app.common.llm_client import LLMError
+from app.common.llm_env import missing_llm_env, resolved_llm_env
 from app.db.deps import SessionDependency
 from app.domains.agent_runs.event_types import CONTROL_MESSAGE_TYPES
 from app.domains.agent_runs.external_admission import admit_stream_protocol
@@ -23,11 +25,6 @@ from app.domains.agent_runs.service import (
     websocket_stream_events_from_agent_event,
 )
 from app.domains.agent_runs.writeback_contracts import ExecutionProtocol
-from app.domains.book_runs.book_generation import (
-    BookGenerationError,
-    missing_book_generation_env,
-    resolved_llm_env,
-)
 from app.domains.book_runs.service import get_book_run
 from app.domains.ide.cross_chapter_consistency import check_cross_chapter_consistency
 from app.domains.ide.schemas import (
@@ -258,7 +255,7 @@ async def _agent_user_message_sse(session, *, session_id: str, message: dict[str
 def cross_chapter_consistency_endpoint(payload: IdeCrossChapterRequest) -> IdeCrossChapterResult:
     """对若干完整章节做跨章一致性审校,返回带原文出处的硬冲突(时间线/称谓/设定/角色离场/伏笔)。"""
 
-    missing = missing_book_generation_env()
+    missing = missing_llm_env()
     if missing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -269,7 +266,7 @@ def cross_chapter_consistency_endpoint(payload: IdeCrossChapterRequest) -> IdeCr
         result = check_cross_chapter_consistency(resolved_llm_env(), chapters, focus=payload.focus)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    except BookGenerationError as exc:
+    except LLMError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"跨章一致性 LLM 调用失败：{exc}",

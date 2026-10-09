@@ -70,7 +70,7 @@ calls=[]
 def writer(_source, *, system_prompt,user_prompt):
     calls.append('writer')
     return {'content':'一'*1800}
-assistant_service.missing_book_generation_env=lambda: []
+assistant_service.missing_llm_env=lambda: []
 assistant_service.resolved_llm_env=lambda: {'STORYFORGE_LLM_MODEL':'fake-model'}
 assistant_service._call_llm_streamed=writer
 assistant_service.chat_reply=lambda _session, **kwargs: chapter_check_reply(kwargs['user_message'],[])

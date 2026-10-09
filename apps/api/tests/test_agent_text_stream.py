@@ -66,7 +66,7 @@ def test_live_text_arrives_before_provider_terminal(session, novel_project, monk
         "STORYFORGE_LLM_API_KEY": "fixture-key",
         "STORYFORGE_LLM_TIMEOUT_SECONDS": "5", "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS": "1",
     }
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: source)
 
     async def scenario():
@@ -153,7 +153,7 @@ def test_many_small_deltas_coalesce_with_contiguous_renumbering(session, novel_p
         "STORYFORGE_LLM_API_KEY": "fixture-key",
         "STORYFORGE_LLM_TIMEOUT_SECONDS": "5", "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS": "1",
     }
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: source)
 
     async def scenario():
@@ -243,7 +243,7 @@ def test_steady_deltas_flush_before_the_provider_finishes_generating(session, no
         "STORYFORGE_LLM_API_KEY": "fixture-key",
         "STORYFORGE_LLM_TIMEOUT_SECONDS": "5", "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS": "1",
     }
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: source)
 
     async def scenario():

@@ -77,7 +77,7 @@ def test_fixed_revision_refreshes_after_review_not_only_context_load(client, tmp
     source.write_text(OLD, encoding="utf-8")
     target = tmp_path / "正文.md"
     target.write_text(ORIGINAL, encoding="utf-8")
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: [])
     monkeypatch.setattr(review_reasoning, "resolved_llm_env", lambda: {})
     reviews = []
 

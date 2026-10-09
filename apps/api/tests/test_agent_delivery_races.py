@@ -47,7 +47,7 @@ def test_revision_delivery_capture(client, monkeypatch, session_factory, tmp_pat
     target = tmp_path / "chapter.md"
     target.write_text(original, encoding="utf-8")
     calls, controls = [], []
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     def generate(*_args, **_kwargs):
         calls.append(True)
@@ -174,7 +174,7 @@ def test_real_worker_disconnect_preserves_pending_proposal(client, monkeypatch, 
     original = "林岚在灯塔前等待。\n"
     target = tmp_path / "chapter.md"
     target.write_text(original, encoding="utf-8")
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     def generate(*args, **kwargs):
         calls.append(True)
@@ -273,7 +273,7 @@ def test_stop_winning_during_permission_resolution_cannot_be_overwritten(
 
     session_id, run_id = "audit-permission-race-session", "audit-permission-race-run"
     original = "林岚走进港口。"
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(
         assistant_service,
         "_call_llm_streamed",
@@ -373,7 +373,7 @@ def test_concurrent_permission_control_settles_once(
     client, monkeypatch, session_factory, tmp_path, outer_control, inner_control
 ):
     session_id, run_id = "audit-extra-control-session", "audit-extra-control-run"
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(
         assistant_service,
         "_call_llm_streamed",

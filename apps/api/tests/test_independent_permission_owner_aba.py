@@ -18,7 +18,7 @@ def test_old_permission_decision_does_not_cross_new_execution_aba(client, monkey
     original = 'The light was out.\n'
     target.write_text(original)
     calls = []
-    monkeypatch.setattr(assistant_service, 'missing_book_generation_env', lambda: [])
+    monkeypatch.setattr(assistant_service, 'missing_llm_env', lambda: [])
     def generate(*args, **kwargs):
         calls.append(True)
         return {'content': f'The lighthouse was dark, version {len(calls)}.\n', 'completion_tokens': 8, 'latency_ms': 1}

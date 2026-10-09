@@ -141,7 +141,7 @@ def configure_fixture(data: Path, generation: str, stack: ExitStack):
         (external_admission, "agent_capabilities", capability),
         (writeback_router, "agent_capabilities", capability),
         (writeback_projection, "agent_capabilities", capability),
-        (assistant, "missing_book_generation_env", lambda: []),
+        (assistant, "missing_llm_env", lambda: []),
         (assistant, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "gui-deterministic-fixture"}),
         (assistant, "revise_file_content", revise),
         (loop_runtime, "build_llm_provider", lambda source: provider),

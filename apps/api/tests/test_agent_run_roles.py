@@ -294,7 +294,7 @@ def test_websocket_user_message_persists_agent_role_hints(
 ) -> None:
     """WebSocket args.agent_role_hints 会进入 AgentRun scope、started event 和 plan payload。"""
 
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     frames = stream_agent_message(
         client,
@@ -340,7 +340,7 @@ def test_unknown_agent_role_hint_is_ignored_or_warned(
 ) -> None:
     """unknown role hint 不进入可执行 hints，但会在 scope 中留下 warning 信息。"""
 
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     frames = stream_agent_message(
         client,
@@ -371,7 +371,7 @@ def test_role_hint_for_plot_runs_plot_reviewer(
 ) -> None:
     """用户只输入 @剧情 时，Runtime 至少运行 plot_reviewer。"""
 
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     result = agent_result(
         client,
@@ -397,7 +397,7 @@ def test_multiple_role_hints_run_requested_reviewers(
 ) -> None:
     """多个 role hints 会在 run events 中标出对应 reviewer 已被显式请求。"""
 
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     result = agent_result(
         client,
@@ -429,7 +429,7 @@ def test_writing_run_role_hint_does_not_bypass_permission_gate(
 
     from app.domains.assistant import service as assistant_service
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(
         assistant_service,
         "_call_llm",
@@ -470,7 +470,7 @@ def test_agent_run_selects_consistency_review_skill_for_consistency_goal(
 ) -> None:
     """Root Agent 应根据目标语义选择一致性审查 skill，并写入计划事件。"""
 
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     stream_agent_message(
         client,

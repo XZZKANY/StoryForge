@@ -201,7 +201,7 @@ def _issue_suggested_action(category: str, issue: dict[str, str]) -> str:
 
 
 def _select_review_reasoner() -> review_reasoning.ReviewReasoner:
-    missing = review_reasoning.missing_book_generation_env()
+    missing = review_reasoning.missing_llm_env()
     if missing:
         return HeuristicReviewReasoner()
     return LlmReviewReasoner(review_reasoning.resolved_llm_env())

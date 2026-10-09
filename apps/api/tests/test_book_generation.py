@@ -26,7 +26,7 @@ from app.domains.book_runs.book_generation import (
     _generate_chapter,
     _retry_story_state_changes_schema,
     _seed_consistency_data,
-    missing_book_generation_env,
+    missing_llm_env,
     run_book_generation,
 )
 from app.domains.book_runs.book_generation_changes import (
@@ -47,7 +47,7 @@ from app.domains.story_state.models import StoryStateEvent, StoryStateLedger
 def test_book_generation_reports_missing_private_env(session: Session) -> None:
     """缺少私有真实 LLM 配置时应明确阻止冒烟，且不触碰外部网络。"""
 
-    assert missing_book_generation_env({}) == [
+    assert missing_llm_env({}) == [
         "STORYFORGE_LLM_API_KEY",
         "STORYFORGE_LLM_BASE_URL",
         "STORYFORGE_LLM_MODEL",

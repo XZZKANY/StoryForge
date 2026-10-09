@@ -86,6 +86,7 @@ from app.domains.book_runs.book_generation_preflight import (  # noqa: F401  fac
     LLM_SETTINGS_ENV_KEYS,
     REQUIRED_REAL_LLM_ENV,
     missing_book_generation_env,
+    missing_llm_env,
     resolved_llm_env,
 )
 from app.domains.book_runs.book_generation_preflight import (

@@ -100,7 +100,7 @@ def test_public_resume_fields_cannot_rebind_private_project(session, tmp_path, m
         return {"content": "一" * 1800}
 
     monkeypatch.setattr(assistant_service, "chat_reply", chat)
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(assistant_service, "_call_llm_streamed", writer)
     run, initial = begin(

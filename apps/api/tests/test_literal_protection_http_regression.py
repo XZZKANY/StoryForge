@@ -6,7 +6,7 @@ from app.domains.assistant import service
 def test_revise_http_rejects_modification_of_explicitly_preserved_inches(client, monkeypatch):
     original = '他指着纸页说，屏幕显示 6"。\n门口传来一阵脚步声。'
     candidate = original.replace("6", "7")
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
     monkeypatch.setattr(service, "_call_llm_streamed", lambda *a, **kw: {"content": candidate})
     response = client.post(
@@ -30,7 +30,7 @@ def test_revise_http_raw_literal_rejects_only_the_protected_change(client, monke
         if change_protected
         else original.replace("门外有人。", "有人站在门外。")
     )
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
     monkeypatch.setattr(service, "_call_llm_streamed", lambda *a, **kw: {"content": candidate})
     response = client.post(
@@ -48,7 +48,7 @@ def test_revise_http_raw_literal_rejects_only_the_protected_change(client, monke
 @pytest.mark.parametrize("instruction", ["保留“原文逐字不变。", "请执行“保留「原文」逐字不变。"])
 def test_unresolved_literal_http_fails_explicitly_before_generation(client, monkeypatch, instruction):
     calls = []
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
     monkeypatch.setattr(service, "_call_llm_streamed", lambda *a, **kw: calls.append(kw) or {"content": "改写。"})
     response = client.post(

@@ -43,7 +43,7 @@ def model_response(tool=None):
 def setup_run(monkeypatch, tmp_path, session_factory, *, stop_type="stop_run", deadline=False, cancel_on_wait=True):
     env = {"STORYFORGE_LLM_MODEL": "fixture", "STORYFORGE_LLM_PROVIDER": "openai",
            "STORYFORGE_LLM_BASE_URL": "https://fixture.invalid/v1", "STORYFORGE_LLM_API_KEY": "fixture-key"}
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: env)
     manuscript = tmp_path / "chapter.md"
     manuscript.write_text("必须保留的原文。", encoding="utf-8")
