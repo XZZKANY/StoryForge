@@ -14,8 +14,6 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     *PROJECT_TOOL_SPECS,
     *CHAPTER_WRITING_TOOL_SPECS,
     *PATCH_TOOL_SPECS,
-    # bookrun.* 规格已随桌面入口摘除（2026-08-01 退役批量整书）；
-    # specs/bookrun_specs.py 保留，回滚 = 恢复 import 与这行 *BOOKRUN_TOOL_SPECS。
     *HOOK_TOOL_SPECS,
 )
 

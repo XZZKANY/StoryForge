@@ -19,8 +19,6 @@ test('第一阶段契约检查确认 OpenAPI 暴露关键端点', () => {
   assertOperation('/api/judge/issues', 'post', '结构化评审');
   assertOperation('/api/repair/patches', 'post', '定向修复');
   assertOperation('/api/continuity/chapter-approval', 'post', '章节连续性');
-  assertOperation('/api/books/{book_id}/exports/markdown', 'get', '作品导出');
-  assertOperation('/api/books/{book_id}/exports/epub', 'get', '作品导出');
 });
 
 test('Scene Packet 契约保留关键请求与响应字段', () => {
@@ -66,11 +64,4 @@ test('章节批准回写契约保留下一章继承与连续性字段', () => {
   const approvalReadSchema = openapi.components.schemas.ChapterApprovalRead;
   assert.ok(approvalReadSchema.properties.records, '批准响应必须包含回写记录');
   assert.ok(approvalReadSchema.properties.continuity_edge_count, '批准响应必须包含连续性边计数');
-});
-
-test('契约检查确认导出链路覆盖 Markdown 与 EPUB', () => {
-  const markdown = assertOperation('/api/books/{book_id}/exports/markdown', 'get', '作品导出');
-  const epub = assertOperation('/api/books/{book_id}/exports/epub', 'get', '作品导出');
-  assert.ok(markdown.responses['200'], 'Markdown 导出必须提供 200 响应');
-  assert.ok(epub.responses['200'], 'EPUB 导出必须提供 200 响应');
 });

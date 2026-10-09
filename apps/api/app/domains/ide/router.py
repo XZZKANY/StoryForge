@@ -25,7 +25,6 @@ from app.domains.agent_runs.service import (
     websocket_stream_events_from_agent_event,
 )
 from app.domains.agent_runs.writeback_contracts import ExecutionProtocol
-from app.domains.book_runs.service import get_book_run
 from app.domains.ide.cross_chapter_consistency import check_cross_chapter_consistency
 from app.domains.ide.schemas import (
     IdeCommandRequest,
@@ -34,8 +33,6 @@ from app.domains.ide.schemas import (
     IdeCrossChapterResult,
 )
 from app.domains.ide.service import (
-    build_run_events,
-    encode_sse_event,
     execute_ide_command_by_id,
 )
 from app.domains.ide.stream_measurement import StreamMeasurement
@@ -272,22 +269,6 @@ def cross_chapter_consistency_endpoint(payload: IdeCrossChapterRequest) -> IdeCr
             detail=f"跨章一致性 LLM 调用失败：{exc}",
         ) from exc
     return IdeCrossChapterResult.model_validate(result)
-
-
-@router.get(
-    "/runs/{book_run_id}/events",
-    summary="读取 IDE BookRun 事件流",
-)
-def stream_run_events(session: SessionDependency, book_run_id: int) -> StreamingResponse:
-    """返回 BookRun 当前状态投影生成的 SSE 快照事件。"""
-
-    book_run = get_book_run(session, book_run_id)
-
-    def event_stream():
-        for event in build_run_events(book_run):
-            yield encode_sse_event(event.event, event.data)
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.post(

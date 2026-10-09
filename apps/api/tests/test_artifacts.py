@@ -30,18 +30,7 @@ def artifact_scope(session_factory: sessionmaker[Session]) -> dict[str, int]:
         return {"workspace_id": workspace.id, "other_workspace_id": other_workspace.id, "book_id": book.id}
 
 
-def test_exports_and_manual_artifacts_are_registered(client: TestClient, artifact_scope: dict[str, int]) -> None:
-    markdown = client.get(
-        f"/api/books/{artifact_scope['book_id']}/exports/markdown",
-        params={"workspace_id": artifact_scope["workspace_id"]},
-    )
-    assert markdown.status_code == 200, markdown.text
-    epub = client.get(
-        f"/api/books/{artifact_scope['book_id']}/exports/epub",
-        params={"workspace_id": artifact_scope["workspace_id"]},
-    )
-    assert epub.status_code == 200, epub.text
-
+def test_manual_artifacts_are_registered(client: TestClient, artifact_scope: dict[str, int]) -> None:
     upload = client.post(
         "/api/artifacts",
         json={
@@ -61,7 +50,7 @@ def test_exports_and_manual_artifacts_are_registered(client: TestClient, artifac
     listing = client.get("/api/artifacts", params={"book_id": artifact_scope["book_id"]})
     assert listing.status_code == 200
     artifact_types = {item["artifact_type"] for item in listing.json()}
-    assert {"export", "upload"}.issubset(artifact_types)
+    assert "upload" in artifact_types
 
     artifact_id = upload.json()["id"]
     detail = client.get(

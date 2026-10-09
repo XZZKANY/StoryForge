@@ -1,6 +1,6 @@
 """_call_llm 有界重试 + 退避护栏的真实协议边界测试。
 
-沿用 test_book_generation.py 的惯例：用本地 HTTPServer 模拟 OpenAI 兼容端点，
+沿用 本地 HTTPServer 惯例：用本地 HTTPServer 模拟 OpenAI 兼容端点，
 走真实 urllib 路径，而非 monkeypatch urlopen。退避 base_delay/jitter 置 0 以免拖慢测试。
 """
 from __future__ import annotations
@@ -11,8 +11,8 @@ from threading import Thread
 
 import pytest
 
-from app.domains.book_runs.book_generation_llm import _call_llm
-from app.domains.book_runs.errors import BookGenerationError
+from app.common.llm_client import LLMError
+from app.common.llm_client import call_llm as _call_llm
 
 
 class _FlakyChatHandler(BaseHTTPRequestHandler):
@@ -109,13 +109,13 @@ def test_call_llm_retries_on_5xx() -> None:
 
 
 def test_call_llm_raises_after_exhausting_retries() -> None:
-    """持续 5xx 超过 max_attempts：抛 BookGenerationError，尝试次数不超过上限。"""
+    """持续 5xx 超过 max_attempts：抛 LLMError，尝试次数不超过上限。"""
 
     _FlakyChatHandler.fail_times = 5
     _FlakyChatHandler.status_code = 503
     server = _serve()
     try:
-        with pytest.raises(BookGenerationError):
+        with pytest.raises(LLMError):
             _call_llm(_source(server.server_address[1]), system_prompt="s", user_prompt="u")
     finally:
         server.shutdown()
@@ -129,7 +129,7 @@ def test_call_llm_does_not_retry_on_client_error() -> None:
     _FlakyChatHandler.status_code = 400
     server = _serve()
     try:
-        with pytest.raises(BookGenerationError):
+        with pytest.raises(LLMError):
             _call_llm(_source(server.server_address[1]), system_prompt="s", user_prompt="u")
     finally:
         server.shutdown()

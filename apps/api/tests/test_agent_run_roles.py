@@ -22,11 +22,7 @@ def test_agent_skills_endpoint_exposes_skills_v1_catalog(client: TestClient) -> 
         "short_story_draft",
         "long_chapter_generate",
         "consistency_review",
-        "bookrun_generation",
     ]
-    bookrun = next(skill for skill in skills if skill["name"] == "bookrun_generation")
-    assert bookrun["trigger_intents"] == ["bookrun.start"]
-    assert "bookrun_checkpoint" in bookrun["output_artifacts"]
 
 
 def test_agent_roles_endpoint_exposes_opencode_inspired_roles(client: TestClient) -> None:
@@ -45,7 +41,6 @@ def test_agent_roles_endpoint_exposes_opencode_inspired_roles(client: TestClient
         "continuity_reviewer",
         "repair_agent",
         "synthesizer",
-        "bookrun_agent",
         "context_explorer",
         "external_scout",
     ]
@@ -65,7 +60,6 @@ def test_agent_role_aliases_resolve_to_expected_subagents(client: TestClient) ->
         "@伏笔": "continuity_reviewer",
         "@设定": "continuity_reviewer",
         "@修复": "repair_agent",
-        "@写作任务": "bookrun_agent",
         "@探索": "context_explorer",
         "@资料": "external_scout",
     }
@@ -87,7 +81,7 @@ def test_readonly_agent_roles_do_not_bind_write_tools(client: TestClient) -> Non
 
     assert response.status_code == 200, response.text
     roles = response.json()
-    forbidden = {"file.revise", "judge.repair", "bookrun.start"}
+    forbidden = {"file.revise", "judge.repair"}
     readonly_names = {
         "plot_reviewer",
         "character_reviewer",
@@ -419,49 +413,6 @@ def test_multiple_role_hints_run_requested_reviewers(
         if trace["tool_name"].startswith("subagent.") and trace["input_summary"].get("explicitly_requested")
     }
     assert {"subagent.character_reviewer", "subagent.prose_reviewer"}.issubset(requested)
-
-
-def test_writing_run_role_hint_does_not_bypass_permission_gate(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """@写作任务 不能在普通 file.revise 中直接启动 managed run 或绕过权限确认。"""
-
-    from app.domains.assistant import service as assistant_service
-
-    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
-    monkeypatch.setattr(
-        assistant_service,
-        "_call_llm",
-        lambda source, *, system_prompt, user_prompt: {
-            "content": "修订后正文",
-            "completion_tokens": 8,
-            "latency_ms": 10,
-        },
-    )
-    # 产字三条路径走流式聚合传输：同一个假函数同时挡住两个符号。
-    monkeypatch.setattr(assistant_service, "_call_llm_streamed", assistant_service._call_llm)
-
-    result = agent_result(
-        client,
-        "session-agent-role-bookrun",
-        run_id="run-agent-role-bookrun",
-        user_message="@写作任务 把这个文件改得更紧一点",
-        intent="file.revise",
-        args={
-            "file_path": "正文/第08章.md",
-            "content": "当前正文",
-            "agent_role_hints": ["bookrun_agent"],
-            "agent_role_mentions": ["@写作任务"],
-        },
-    )
-
-    assert result["type"] == "agent_result"
-    assert result["intent"] == "file.revise"
-    assert [trace["tool_name"] for trace in result["tool_trace"] if trace["tool_name"] == "bookrun.start"] == []
-    events = client.get("/api/agent-runs/run-agent-role-bookrun/events").json()
-    event_types = [event["event_type"] for event in events]
-    assert "permission_required" in event_types
 
 
 def test_agent_run_selects_consistency_review_skill_for_consistency_goal(

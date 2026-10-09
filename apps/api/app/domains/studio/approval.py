@@ -4,7 +4,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import NotFoundError
-from app.domains.book_runs.book_context import clear_book_context_cache
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
 from app.domains.judge.models import JudgeIssue, RepairPatch
@@ -84,7 +83,6 @@ def _approve_scene_packet(session: Session, *, scene_packet_id: int) -> StudioAp
     scene_packet.status = "approved"
     continuity_summary = _record_chapter_approval(session, chapter=chapter, scene=scene, source_type="scene_packet", source_id=scene_packet.id)
     session.commit()
-    clear_book_context_cache(chapter.book_id)
     return _approval_execution(
         object_type="scene_packet",
         object_id=scene_packet.id,
@@ -132,7 +130,6 @@ def _approve_repair_patch(session: Session, *, repair_patch_id: int) -> StudioAp
     issue.status = "closed"
     continuity_summary = _record_chapter_approval(session, chapter=chapter, scene=scene, source_type="repair_patch", source_id=repair_patch.id)
     session.commit()
-    clear_book_context_cache(chapter.book_id)
     return _approval_execution(
         object_type="repair_patch",
         object_id=repair_patch.id,

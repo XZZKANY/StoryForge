@@ -28,7 +28,6 @@ from app.domains.agent_runs.runtime_recovery import (
     build_runtime_pending_call_resume_diagnostic,
     build_runtime_pending_call_summary,
 )
-from app.domains.agent_runs.service_bookrun_bridge import apply_book_run_control_if_needed
 from app.domains.agent_runs.service_execution import agent_execution_state, settle_agent_run_interruption
 from app.domains.agent_runs.service_store import (
     assert_run_session_ownership,
@@ -61,12 +60,6 @@ def record_agent_control_event(
     session.refresh(run)
     runtime_state = agent_execution_state(session, run)
     control_effect = "ignored"
-    writing_run_control_payload = apply_book_run_control_if_needed(
-        session,
-        run=run,
-        control_type=control_type,
-        payload=payload or {},
-    )
     event_type = run_payloads.control_event_type(control_type)
     event_payload = {
         "session_id": session_id,
@@ -74,8 +67,6 @@ def record_agent_control_event(
         "control_type": control_type,
         **(payload or {}),
     }
-    if writing_run_control_payload:
-        event_payload.update(writing_run_control_payload)
     # Execution ownership is granted only by the committed server transition.
     event_payload["control_effect"] = "ignored"
     event_payload.pop("runtime_recovery", None)
@@ -133,7 +124,7 @@ def record_agent_control_event(
             session.refresh(run)
             runtime_state = agent_execution_state(session, run)
             control_effect = "applied" if claimed.rowcount == 1 else "ignored"
-            if control_effect == "applied" and run.book_run_id is None:
+            if control_effect == "applied":
                 runtime_state = "in_flight"
         elif control_type == STOP_RUN and run.status not in AGENT_RUN_TERMINAL_STATUSES:
             changed = session.execute(update(AgentRun).where(
@@ -160,7 +151,7 @@ def record_agent_control_event(
             control_effect = "applied" if changed.rowcount == 1 else "ignored"
         event.payload = {**event.payload, "control_effect": control_effect, "runtime_state": runtime_state, "run_status": run.status}
         session.add_all([run, event])
-        if control_type in {PAUSE_RUN, STOP_RUN} and control_effect == "applied" and run.book_run_id is None:
+        if control_type in {PAUSE_RUN, STOP_RUN} and control_effect == "applied":
             settle_agent_run_interruption(session, run)
         elif control_type == APPROVE_PERMISSION_COMMAND and control_effect == "applied":
             record_agent_event(
@@ -194,7 +185,7 @@ def record_agent_control_event(
                     "permission_profile": canonical_permission_profile(run.permission_profile),
                 },
             )
-        elif control_type == RESUME_RUN and control_effect == "applied" and run.book_run_id is None:
+        elif control_type == RESUME_RUN and control_effect == "applied":
             record_agent_event(
                 session, run, event_type=AGENT_EXECUTION_CLAIMED, actor="agent-runtime",
                 payload={"control_event_id": event.id, "runtime_state": "in_flight"},
@@ -337,17 +328,16 @@ def _park_unresumable_resumed_run(
     *,
     public_id: str,
 ) -> dict[str, Any] | None:
-    """RESUME 落到「无 runtime pending anchor、且非 BookRun 支撑」的纯 agent 循环（如 chat.explain）时的兜底。
+    """RESUME 落到「无 runtime pending anchor」的纯 agent 循环（如 chat.explain）时的兜底。
 
     控制通道已无条件把 run 翻成 running/resumed（record_agent_control_event），但这类循环暂停即收尾、
     既没有活线程也没有可重放锚点，没人再驱动它 → 会永久钉在 running 僵尸态，只能等下次起服收尸。
     Path A：这类循环暂停即停止，恢复请重新发问；这里把 run 回落为 stopped 并记诊断，
-    避免僵尸 run 与 UI 空转。BookRun 支撑的 run 由 apply_book_run_control_if_needed 真正驱动恢复，
-    必须跳过不动。
+    避免僵尸 run 与 UI 空转。
     """
 
     run = get_agent_run(session, public_id)
-    if run.book_run_id is not None or run.status != "running":
+    if run.status != "running":
         return None
     from app.domains.agent_runs.loop.checkpoint_store import latest_checkpoint_artifact
 

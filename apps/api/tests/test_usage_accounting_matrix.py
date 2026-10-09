@@ -14,10 +14,6 @@ from app.domains.assistant.schemas import (
     AssistantReviseRequest,
     AssistantSessionCreate,
 )
-from app.domains.blueprints.models import BookBlueprint
-from app.domains.book_runs.book_generation import _record_model_run
-from app.domains.book_runs.models import BookRun
-from app.domains.books.models import Book, Chapter, Scene
 
 CORE_USAGE_FIELDS = {
     "prompt_tokens",
@@ -49,53 +45,6 @@ def _usage_result(content: str) -> dict[str, object]:
         },
         "latency_ms": 5,
     }
-
-
-def _record_book_run_usage(session: Session) -> dict[str, object]:
-    book = Book(title="usage matrix", status="draft")
-    session.add(book)
-    session.flush()
-    blueprint = BookBlueprint(
-        book_id=book.id,
-        premise="usage matrix",
-        tone="克制",
-        target_word_count=1000,
-        target_chapter_count=1,
-        chapter_word_count_min=600,
-        chapter_word_count_max=1200,
-        status="locked",
-    )
-    chapter = Chapter(book_id=book.id, ordinal=1, title="第一章", status="planned")
-    session.add_all([blueprint, chapter])
-    session.flush()
-    scene = Scene(chapter_id=chapter.id, ordinal=1, title="场景一", status="approved", content="正文")
-    book_run = BookRun(
-        book_id=book.id,
-        blueprint_id=blueprint.id,
-        status="completed",
-        current_chapter_index=1,
-        total_chapters=1,
-        progress={},
-        checkpoint=[],
-    )
-    session.add_all([scene, book_run])
-    session.commit()
-
-    generated = {
-        **_usage_result("正文"),
-        "prompt": "写第一章",
-    }
-    model_run = _record_model_run(
-        session,
-        book_run,
-        scene,
-        {
-            "STORYFORGE_LLM_PROVIDER": "openai-compatible",
-            "STORYFORGE_LLM_MODEL": "usage-test-model",
-        },
-        generated,
-    )
-    return {**model_run.payload, "token_usage": model_run.token_usage}
 
 
 def _record_agent_loop_usage(
@@ -177,7 +126,6 @@ def test_chat_usage_fields_are_consistent_across_all_sinks(
     project_path.mkdir()
 
     sinks = {
-        "book_run.model_run": _record_book_run_usage(session),
         "agent.chat_loop": _record_agent_loop_usage(client, monkeypatch, project_path),
         **_record_assistant_usage(session),
     }

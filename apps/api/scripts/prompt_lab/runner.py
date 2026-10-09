@@ -58,7 +58,7 @@ def _select_variants(kind: str, names: list[str] | None) -> dict[str, Any]:
     return registry
 
 
-# 变体产出的是 system prompt、任务自带 user 消息的两类 kind（其余 kind 是单条 user prompt）。
+# 变体产出的都是 system prompt，user 消息由任务自带。
 _SYSTEM_PROMPT_KINDS = frozenset({"agent", "live-draft"})
 
 
@@ -66,12 +66,6 @@ def _build_prompt(task: Any, variant: Any) -> str:
     kind = task.kind
     if kind in _SYSTEM_PROMPT_KINDS:
         return variant.build()
-    if kind == "draft":
-        return variant.build(task.ctx, preview_chars=task.preview_chars, full_chapter=task.full_chapter)
-    if kind == "critique":
-        return variant.build(task.ctx, task.draft)
-    if kind == "revision":
-        return variant.build(task.ctx, task.draft, task.issues)
     raise SystemExit(f"未知任务类型：{kind}")
 
 

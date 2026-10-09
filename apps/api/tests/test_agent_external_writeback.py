@@ -79,7 +79,6 @@ def test_publish_v2_is_private_wait_not_completed_and_budget_survives_hidden_pat
         assert f.context.outcome.proposed_patch is None and f.context.outcome.artifacts == []
         assert events[-1] == "agent_writeback_waiting"
         assert service.list_agent_artifacts(session, f.context.run.public_id) == []
-        assert service.list_agent_checkpoints(session, f.context.run.public_id) == []
         event_payload = session.scalar(select(AgentRunEvent).order_by(AgentRunEvent.id.desc())).payload
         assert AFTER not in json.dumps(event_payload, ensure_ascii=False)
         assert len(f.provider.requests) == 1 and f.calls == ["propose"]

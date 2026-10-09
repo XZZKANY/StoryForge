@@ -31,11 +31,9 @@ from app.domains.agent_runs.service import reap_non_terminal_agent_runs
 from app.domains.artifacts.router import router as artifacts_router
 from app.domains.assistant.router import router as assistant_router
 from app.domains.blueprints.router import router as blueprints_router
-from app.domains.book_runs.router import router as book_runs_router
 from app.domains.character_bible.router import router as character_bible_router
 from app.domains.continuity.router import router as continuity_router
 from app.domains.events.router import router as events_router
-from app.domains.exports.router import router as exports_router
 from app.domains.health.router import router as health_router
 from app.domains.ide.router import router as ide_router
 from app.domains.judge.router import router as judge_router
@@ -79,7 +77,6 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     warn_default_credentials()
     bootstrap_sqlite_database()
     _log_sqlite_schema_state()
-    _log_prompt_layer_state()
     _reap_stale_agent_runs()
     logger.info("storyforge_api_started")
     yield
@@ -104,19 +101,6 @@ def _log_sqlite_schema_state() -> None:
         )
     except Exception:  # noqa: BLE001 - 观测性日志失败不应影响起服
         logger.warning("sqlite_schema_state_log_failed", exc_info=True)
-
-
-def _log_prompt_layer_state() -> None:
-    """起服后确认进程内分层 prompt 构建器可用；sidecar-smoke 以此判定 F05 死路是否收口
-    （旧版按文件路径桥接相邻 apps/workflow，装机 exe 内该目录不存在会在 bookrun.start 才炸；
-    现 prompts 迁入 app.domains.book_runs.prompts 随 collect_submodules('app') 打包，此处即证其装配可达）。"""
-
-    try:
-        from app.domains.book_runs.prompts import build_draft_prompt_from_state
-
-        logger.info("prompt_layer_bundled", callable=callable(build_draft_prompt_from_state))
-    except Exception:  # noqa: BLE001 - 观测性日志失败不应影响起服
-        logger.warning("prompt_layer_state_log_failed", exc_info=True)
 
 
 def _reap_stale_agent_runs() -> None:
@@ -290,11 +274,9 @@ app.include_router(ide_router)
 app.include_router(artifacts_router)
 app.include_router(assistant_router)
 app.include_router(blueprints_router)
-app.include_router(book_runs_router)
 app.include_router(character_bible_router)
 app.include_router(events_router)
 app.include_router(continuity_router)
-app.include_router(exports_router)
 app.include_router(judge_router)
 app.include_router(model_runs_router)
 app.include_router(provider_gateway_router)

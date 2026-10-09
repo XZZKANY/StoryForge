@@ -7,7 +7,7 @@
 ## 分档定义
 
 - **live**：桌面产品直接 HTTP/SSE 命中的面（前端 `apps/desktop/frontend` 真调用）。
-- **backing**：不是产品主面，但被 live agent 循环 / managed BookRun 在**进程内**依赖（import service/models）。改这些要谨慎，会影响真链路。
+- **backing**：不是产品主面，但被 live agent 循环在**进程内**依赖（import service/models）。改这些要谨慎，会影响真链路。
 - **frozen**：web / 多租户 / 自动整书时代遗产。**router 已卸载或可卸载**；默认不必读，除非明确在做迁移/删除。域目录与 `models.py` 多数**保留**（被 backing 域 import，或在 `app/models.py` 聚合建表），物理删除按判据后评（不在 W4 范围）。
 
 ## live（桌面产品面）
@@ -17,21 +17,27 @@
 | `health` | `/health/live` `/health/ready` | 探活 + app_version 握手 |
 | `assistant` | `/api/assistant/*` | 对话式 agent 会话 / 消息 / chat |
 | `agent_runs` | SSE/REST `/api/ide/agent/sessions/*` + `/api/agent-runs/*` | live 工具循环主动脉 |
-| `ide` | `/api/ide/*`（5 条 live：cross-chapter / runs events / commands / agent stream / agent control） | 命令面板 + 审阅。6 条无 Desktop 调用方的旧读路由已从 router/OpenAPI 收窄；2026-09-28 经明确退役决定，删除对应四个读投影模块、18 个独占 DTO 和旧 re-export。live command / run events / cross-chapter 及其 service facade 保留，不删除底层质量能力。 |
+| `ide` | `/api/ide/*`（4 条 live：cross-chapter / commands / agent stream / agent control） | 命令面板 + 审阅。6 条无 Desktop 调用方的旧读路由已从 router/OpenAPI 收窄；2026-09-28 经明确退役决定，删除对应四个读投影模块、18 个独占 DTO 和旧 re-export。live command / cross-chapter 及其 service facade 保留，不删除底层质量能力。 |
 
 ## backing（进程内被 live 依赖，谨慎改）
 
-`book_runs`（managed BookRun；**`prompts/` 只服务 BookRun 产字，agent 循环不用它** —— 循环的产字 prompt 走 `app/common/craft.py::craft_prompt_clause`，`agent_runs` 从本域只导入 `BookRun` 模型与 2 个异常类。改 `book_runs/prompts/` 不会影响桌面日常写作）、`judge`、`retrieval`、`character_bible`、`story_state`、`blueprints`、`artifacts`、`exports`、`model_runs`、`provider_gateway`、`events`、`quality`、`repair`、`runtime_tools`、`scene_packets`、`continuity`、`timeline`。
+`judge`、`retrieval`、`character_bible`、`story_state`、`blueprints`、`artifacts`、`model_runs`、`provider_gateway`、`events`、`quality`、`repair`、`runtime_tools`、`scene_packets`、`continuity`、`timeline`。
 
 **router 可冻结但 service/models 是 live 依赖（不可删目录）**：
 - `studio` —— `studio.service.approve_studio_writeback` / `schemas` 被 **live `ide`** 用（`ide/command_registry.py:22-23,220`，经 `judge.approve` REST 命令 + agent loop 工具可达）。
-- `style_packs` —— `style_packs.service.list_style_packs` / `create_style_pack` / `schemas` 被 **backing `book_runs`** 生成链用（`book_generation.py:124-125`、`prompt_assembly.py:23`、`book_generation_judge.py:44`）。
+- `style_packs` —— 原调用方 BookRun 生成链已于 2026-10 删除，待核实是否还有其他调用方。
+
+## 2026-10 自动整书链退役
+
+作者拍板删除 BookRun 自动整书链：`book_runs` 只剩 `models.py`（`book_runs` 表与 4 处外键仍在，删表另走 Alembic 迁移）；
+`writing_runs`、`exports` 与 `books/lineage_service.py` 整体删除；IDE `bookrun.*` 命令、`/api/ide/runs/{id}/events`、
+`/api/book-runs/*`、`/api/books/{id}/exports/*` 与 Agent 托管适配器一并移除。live 模块的 LLM 调用统一走 `app/common/llm_client.py` / `llm_env.py`。
 
 ## frozen（web / 多租户 / 自动整书遗产）
 
 **2026-07-10 死码物理清理**：所有冻结域的 **HTTP 层（`router.py` / `service.py` / `schemas.py`）已物理删除**。`analytics` / `batch_refinery` / `worldbuilding`（无 models）**整目录删除**；`assets` / `collaboration` / `commercial` / `evaluations` / `prompt_packs` / `series` / `workspaces` **只剩 `models.py` + `__init__.py`**（`app/models.py` 聚合建表依赖，红线保留）。连带删 3 个 `*_service_acceptance` 死测、conftest `_reset_domain_caches` fixture（worldbuilding cache 已死）、`test_source_pruning` 的 worldbuilding/batch_refinery __init__ 卫生测；`test_redis_cache_strategy` 摘掉 3 个 worldbuilding/asset 缓存测、保留 artifacts + redis-util live 测。**OpenAPI 零变更**（router 早已卸载、schema 早已不在契约）。下方各 batch 记录为历史卸载过程。
 
-**2026-07-14 frozen 残留对齐**：`jobs` 同样是 models-only residual（`JobRun` 仍被 backing ORM / quality 代码引用），与上述 7 域合计 8 个 models-only 域；`books/lineage_service.py` 是零 app 调用方的历史批准回写模块，按 frozen 行为模块保留。`test_live_domains_do_not_add_frozen_imports` 禁止 live 四域新增这些依赖，只白名单保留 `ide/command_registry.py -> workspaces.models.Workspace` 这条既有 ORM 审计边。
+**2026-07-14 frozen 残留对齐**：`jobs` 同样是 models-only residual（`JobRun` 仍被 backing ORM / quality 代码引用），与上述 7 域合计 8 个 models-only 域。`test_live_domains_do_not_add_frozen_imports` 禁止 live 四域新增这些依赖，只白名单保留 `ide/command_registry.py -> workspaces.models.Workspace` 这条既有 ORM 审计边。
 
 ### 历史卸载经过（2026-07，留档；不作为今天的操作指令）
 
@@ -60,11 +66,9 @@
 ## 冻结/删除红线
 
 - 冻结 = 卸 router；**`models.py` 永不删**（打碎 `app/models.py` 聚合建表会连累 live）。冻结域的 router/service/schemas 已于 2026-07-10 物理删除（见本节顶部）；models-only 域只剩 `models.py` + `__init__.py`，三个无 models 域（analytics/batch_refinery/worldbuilding）整目录已删。
-- 质量轨资产（book_runs / judge / story_memory / 长程生成链）一行不删，直到真实长程重跑验收完成（见 `docs/archive/internal-history-2026-09/arch-review-blueprint-2026-07-03.md` §9）。
 
 ## 源码公共面与双轨入口
 
 - `agent_runs` 主链只经 `loop` / `tools` / `fs` / `events` / `permission` / `patches` 六公共面；读序与 service 子边界见 [`agent_runs/STRUCTURE.md`](agent_runs/STRUCTURE.md)。
-- 自由文本走 live loop；显式旧 intent 只经 `adapters/intent_fixed_pipeline_adapter.py`；managed BookRun 命令只经 `adapters/bookrun_managed_run_adapter.py`。
-- live `assistant` / `agent_runs` / `ide` 只经 BookRun 的 `book_generation` / `service` / `models` 公共模块；不得 import 生成内部 helper。
-- `tests/test_source_code_standards.py` 同时硬门禁跨模块私有依赖、双轨 import、BookRun 公共入口、体积上限与 live→frozen 依赖。
+- 自由文本走 live loop；显式旧 intent 只经 `adapters/intent_fixed_pipeline_adapter.py`。
+- `tests/test_source_code_standards.py` 同时硬门禁跨模块私有依赖、双轨 import、体积上限与 live→frozen 依赖。

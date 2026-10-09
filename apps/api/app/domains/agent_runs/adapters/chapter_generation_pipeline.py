@@ -5,10 +5,6 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.domains.agent_runs.adapters.intent_fixed_pipeline_adapter import FixedPipelineRequest
-from app.domains.agent_runs.bookrun_summary import bookrun_budget_details as _bookrun_budget_details
-from app.domains.agent_runs.bookrun_summary import bookrun_budget_summary as _bookrun_budget_summary
-from app.domains.agent_runs.bookrun_summary import bookrun_chapter_plan_summary as _bookrun_chapter_plan_summary
-from app.domains.agent_runs.bookrun_summary import bookrun_risk_summary as _bookrun_risk_summary
 from app.domains.agent_runs.events.review_sources import current_conversation_review
 from app.domains.agent_runs.events.runtime_support import base_response as _base_response
 from app.domains.agent_runs.events.runtime_support import (
@@ -21,9 +17,6 @@ from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.revise_scope import revision_references_review
 from app.domains.agent_runs.runtime_recovery import RUNTIME_PENDING_CALL_ARTIFACT_KIND
 from app.domains.agent_runs.tools import ToolExecutionContext
-from app.domains.agent_runs.tools.runtime_arguments import required_int as _required_int
-from app.domains.agent_runs.tools.runtime_arguments import safe_summary as _safe_summary
-from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.schemas import AssistantMessageCreate
 
@@ -38,16 +31,6 @@ class ChapterGenerationRuntimeMixin:
             user_message=request.user_message,
             args=request.args,
             intent=request.intent,
-        )
-
-    def run_bookrun_generation_pipeline(self, request: FixedPipelineRequest) -> dict[str, Any]:
-        return self._run_bookrun_generation(
-            request.session,
-            run=request.run,
-            agent_session_id=request.agent_session_id,
-            assistant_session_id=request.assistant_session_id,
-            user_message=request.user_message,
-            args=request.args,
         )
 
     def _record_chapter_review_pending_call(
@@ -200,138 +183,4 @@ class ChapterGenerationRuntimeMixin:
             role_hints=_role_hints(args),
             role_mentions=_role_mentions(args),
             tool_artifacts=[*review_artifacts, *revise.artifacts],
-        )
-
-    def _run_bookrun_generation(
-        self,
-        session: Session,
-        *,
-        run: AgentRun,
-        agent_session_id: str,
-        assistant_session_id: int,
-        user_message: str,
-        args: dict[str, Any],
-    ) -> dict[str, Any]:
-        command_args: dict[str, Any] = {
-            "book_id": _required_int(args, "book_id"),
-            "blueprint_id": _required_int(args, "blueprint_id"),
-        }
-        for key in ("token_budget", "time_budget_sec", "chapter_budget"):
-            value = args.get(key)
-            if isinstance(value, int) and value > 0:
-                command_args[key] = value
-
-        chapter_plan = _bookrun_chapter_plan_summary(command_args)
-        budget_summary = _bookrun_budget_summary(command_args)
-        structured_budget = _bookrun_budget_details(command_args)
-        risk_summary = _bookrun_risk_summary(command_args)
-        confirmed = args.get("confirmed") is True or args.get("user_confirmed") is True
-        if not confirmed:
-            summary = (
-                f"写作任务启动前计划：{chapter_plan}。预算：{budget_summary}。"
-                f"风险：{'；'.join(risk_summary)}。需要作者确认后才会以 managed 模式启动。"
-            )
-            assistant_service.append_assistant_message(
-                session,
-                assistant_session_id,
-                AssistantMessageCreate(role="user", content=user_message),
-            )
-            assistant_service.append_assistant_message(
-                session,
-                assistant_session_id,
-                AssistantMessageCreate(role="assistant", content=summary),
-            )
-            return _base_response(
-                agent_session_id=agent_session_id,
-                assistant_session_id=assistant_session_id,
-                intent="bookrun.start",
-                user_message=user_message,
-                plan=[
-                    _plan_step("bookrun.preflight", "展示写作任务章节计划、预算和风险，暂不启动。", "needs_approval"),
-                    _plan_step("permission.confirm", "等待作者二次确认后再执行 bookrun.start。", "needs_approval"),
-                ],
-                agent_result={
-                    "summary": summary,
-                    "bookrun_plan": {
-                        "chapters": chapter_plan,
-                        "budget": budget_summary,
-                        "budget_details": structured_budget,
-                        "risk_summary": risk_summary,
-                    },
-                    "confirmation_required": True,
-                    "confirmation_action": {"intent": "bookrun.start", "args": {**command_args, "confirmed": True}},
-                    "requires_user_confirmation": True,
-                },
-                tool_trace=[
-                    AgentToolTrace(
-                        tool_name="bookrun.start",
-                        status="needs_confirmation",
-                        input_summary=_safe_summary(command_args),
-                        output_summary={
-                            "bookrun_plan": {
-                                "chapters": chapter_plan,
-                                "budget": budget_summary,
-                                "budget_details": structured_budget,
-                                "risk_summary": risk_summary,
-                            }
-                        },
-                    )
-                ],
-                role_hints=_role_hints(args),
-                role_mentions=_role_mentions(args),
-            )
-
-        execution = self._execute_tool(
-            "bookrun.start",
-            ToolExecutionContext(session, run, agent_session_id, assistant_session_id, user_message, args),
-            command_args,
-        )
-        result_payload = execution.output["result"]
-        payload = result_payload.get("payload") if isinstance(result_payload.get("payload"), dict) else {}
-        book_run = payload.get("book_run") if isinstance(payload.get("book_run"), dict) else {}
-        writing_run = payload.get("writing_run") if isinstance(payload.get("writing_run"), dict) else {}
-        book_run_id = payload.get("book_run_id") if isinstance(payload.get("book_run_id"), int) else book_run.get("id")
-        writing_run_id = payload.get("writing_run_id") if isinstance(payload.get("writing_run_id"), int) else book_run_id
-        events_url = f"/api/ide/runs/{book_run_id}/events" if isinstance(book_run_id, int) else None
-        summary = (
-            f"写作任务已以 managed 模式启动：run_id={writing_run_id}，状态 {book_run.get('status')}。"
-            f"计划：{chapter_plan}。预算：{budget_summary}。进度会作为 Agent tool trace 返回，不切换主界面。"
-        )
-        assistant_service.append_assistant_message(
-            session,
-            assistant_session_id,
-            AssistantMessageCreate(role="user", content=user_message),
-        )
-        assistant_service.append_assistant_message(
-            session,
-            assistant_session_id,
-            AssistantMessageCreate(role="assistant", content=summary),
-        )
-        return _base_response(
-            agent_session_id=agent_session_id,
-            assistant_session_id=assistant_session_id,
-            intent="bookrun.start",
-            user_message=user_message,
-            plan=[
-                _plan_step("bookrun.start", "通过 Tool Registry 启动 managed 写作任务。", "completed"),
-                _plan_step("audit", "返回 command audit_event_id 供 IDE 追溯。", "completed"),
-            ],
-            agent_result={
-                "summary": summary,
-                "writing_run": writing_run,
-                "writing_run_id": writing_run_id,
-                "book_run": book_run,
-                "book_run_id": book_run_id,
-                "events_url": events_url,
-                "bookrun_plan": {
-                    "chapters": chapter_plan,
-                    "budget": budget_summary,
-                    "budget_details": structured_budget,
-                    "risk_summary": risk_summary,
-                },
-                "requires_user_confirmation": False,
-            },
-            tool_trace=[execution.trace],
-            role_hints=_role_hints(args),
-            role_mentions=_role_mentions(args),
         )

@@ -54,10 +54,9 @@ def assert_run_session_ownership(run: AgentRun, session_id: str) -> None:
 
     普通 chat run 的 session_id 由前端按 run 自己的会话配对（useAgentRunControls 用 run.sessionId），
     故必须严格匹配——否则调用方拿另一会话的 run_id 就能 pause/stop/approve/inspect 甚至 re-home 它
-    （B1-002）。managed 镜像 run（book_run_id 非空）走 book_run_id 路由、session_id 是合成的
-    bookrun:{id}，控制可能来自不同 session，故豁免。不符按「不存在」报错、不泄漏 run 存在性。"""
+    （B1-002）。不符按「不存在」报错、不泄漏 run 存在性。"""
 
-    if run.book_run_id is None and run.session_id != session_id:
+    if run.session_id != session_id:
         raise AgentRunNotFoundError("AgentRun 不存在。")
 
 
@@ -126,7 +125,7 @@ def _record_sequenced_event(
 
 @contextmanager
 def rollback_failed_settlement(session: Session) -> Iterator[None]:
-    """保护一次本地结算，不负责提交，也不跨模型调用或上游 BookRun 事务。
+    """保护一次本地结算，不负责提交，也不跨模型调用。
 
     块内先修改状态，最后用 record_agent_event（或更新已有证据的 commit）一起提交。
     事件 writer 的 SAVEPOINT 会预 flush 状态，故插入/提交失败必须回滚外层事务。
@@ -359,17 +358,6 @@ def list_agent_artifacts(session: Session, public_id: str) -> list[AgentArtifact
         session.scalars(
             select(AgentArtifact)
             .where(AgentArtifact.run_id == run.id, AgentArtifact.kind.not_in(HIDDEN_SYSTEM_ARTIFACT_KINDS))
-            .order_by(AgentArtifact.id.asc())
-        )
-    )
-
-
-def list_agent_checkpoints(session: Session, public_id: str) -> list[AgentArtifact]:
-    run = get_agent_run(session, public_id)
-    return list(
-        session.scalars(
-            select(AgentArtifact)
-            .where(AgentArtifact.run_id == run.id, AgentArtifact.kind == "bookrun_checkpoint")
             .order_by(AgentArtifact.id.asc())
         )
     )

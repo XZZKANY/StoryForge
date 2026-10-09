@@ -9,8 +9,8 @@ from agent_transport import agent_result, stream_agent_message
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.common.llm_client import LLMError
 from app.domains.assistant import service as assistant_service
-from app.domains.book_runs.book_generation import BookGenerationError
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ScenePacket
 from app.domains.ide import orchestrator as legacy_orchestrator
@@ -399,7 +399,7 @@ def test_file_review_degrades_per_subagent_on_llm_error(
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
         if "character-agent" in system_prompt:
-            raise BookGenerationError("character timeout")
+            raise LLMError("character timeout")
         return {
             "content": '[{"severity":"low","code":"llm.ok","message":"LLM 子代理完成。","evidence":"灯塔熄灭"}]',
             "completion_tokens": 8,
@@ -491,7 +491,7 @@ def test_file_review_reports_llm_failed_when_all_subagents_fail(
     )
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
-        raise BookGenerationError("endpoint down")
+        raise LLMError("endpoint down")
 
     monkeypatch.setattr(review_reasoning, "_call_llm", fake_call_llm)
 

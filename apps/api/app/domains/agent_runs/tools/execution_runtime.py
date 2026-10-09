@@ -22,8 +22,7 @@ class ToolExecutionRuntimeMixin:
     def _execute_tool(self, tool_name: str, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         check_run_interruption(f"before_tool:{tool_name}")
         tool = self._tool_registry.get(tool_name)
-        # fixed pipeline 的 `bookrun.start` 会从实际 command args 移除确认标记，避免把它传给
-        # WritingRun DTO；gate 仍需看见已完成的 preflight 确认，故仅在策略输入中补回该事实。
+        # 固定管线可能从 command args 移除确认标记；gate 仍需看见已完成的确认，故仅在策略输入中补回。
         permission_payload = dict(payload)
         if context.args.get("confirmed") is True or context.args.get("user_confirmed") is True:
             permission_payload["confirmed"] = True
@@ -62,27 +61,6 @@ class ToolExecutionRuntimeMixin:
                 kind="proposed_patch",
                 payload=proposed_patch,
                 requires_confirmation=bool(proposed_patch.get("requires_confirmation", True)),
-            )
-        book_run = agent_result.get("book_run")
-        if (
-            isinstance(book_run, dict)
-            and isinstance(book_run.get("checkpoint"), list)
-            and book_run["checkpoint"]
-            and "bookrun_checkpoint" not in recorded_kinds
-        ):
-            book_run_id = book_run.get("id")
-            self._event_sink.record_artifact(
-                run,
-                kind="bookrun_checkpoint",
-                payload={
-                    "writing_run_id": book_run_id,
-                    "scope": "full_book",
-                    "mode": "managed",
-                    "status": book_run.get("status"),
-                    "book_run_id": book_run_id,
-                    "checkpoint": book_run["checkpoint"],
-                },
-                requires_confirmation=False,
             )
 
     def _register_tools(self) -> None:

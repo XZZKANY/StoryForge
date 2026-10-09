@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
+from app.common.llm_client import LLMError
 from app.domains.assistant import service as assistant_service
-from app.domains.book_runs.book_generation import BookGenerationError
 
 NL = chr(10)
 
@@ -407,7 +407,7 @@ def test_revise_returns_502_and_marks_tool_call_failed(client: TestClient, monke
     monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     def boom(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
-        raise BookGenerationError("真实 LLM 返回 HTTP 500（耗时 1200ms）：upstream error")
+        raise LLMError("真实 LLM 返回 HTTP 500（耗时 1200ms）：upstream error")
 
     for _seam in ("_call_llm", "_call_llm_streamed"):
         monkeypatch.setattr(assistant_service, _seam, boom)

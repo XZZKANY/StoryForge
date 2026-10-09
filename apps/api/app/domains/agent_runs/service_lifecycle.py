@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.redaction import redact_sensitive, redact_sensitive_text
-from app.domains.agent_runs import run_payloads, skill_catalog
-from app.domains.agent_runs.event_types import AGENT_PLAN_CREATED, AGENT_RUN_STARTED
+from app.domains.agent_runs import run_payloads
+from app.domains.agent_runs.event_types import AGENT_RUN_STARTED
 from app.domains.agent_runs.host_lifecycle import host_admission
 from app.domains.agent_runs.loop.external_chat import ExternalExecutionLease
 from app.domains.agent_runs.models import AgentRun
@@ -19,9 +19,6 @@ from app.domains.agent_runs.permission import (
 from app.domains.agent_runs.role_catalog import normalize_agent_role_inputs
 from app.domains.agent_runs.service_store import assert_run_session_ownership, record_agent_event
 from app.domains.agent_runs.service_types import AGENT_RUN_TERMINAL_STATUSES, AgentRunStartResult
-
-if TYPE_CHECKING:
-    from app.domains.book_runs.models import BookRun
 
 
 def create_or_resume_agent_run(
@@ -148,66 +145,3 @@ def start_agent_user_message_run(
         },
     )
     return AgentRunStartResult(run=run, started_event=event)
-
-
-def create_or_resume_bookrun_agent_run(
-    session: Session,
-    *,
-    book_run: BookRun,
-    event_source: str,
-) -> AgentRun:
-    """为 BookRun 旁路进度建立对应 AgentRun，让进度也进入统一事件源。"""
-
-    from app.domains.writing_runs.service import full_book_writing_run_event_data
-
-    writing_run = full_book_writing_run_event_data(book_run.id, book_run.status)
-    mirror_public_id = f"bookrun-{book_run.id}"
-    existing_mirror = session.scalar(select(AgentRun).where(AgentRun.public_id == mirror_public_id))
-    inherited_profile: str | None = None
-    if existing_mirror is None:
-        source_profile = session.scalar(
-            select(AgentRun.permission_profile)
-            .where(AgentRun.book_run_id == book_run.id, AgentRun.public_id != mirror_public_id)
-            .order_by(AgentRun.id.desc())
-            .limit(1)
-        )
-        inherited_profile = canonical_permission_profile(source_profile)
-    run = create_or_resume_agent_run(
-        session,
-        public_id=mirror_public_id,
-        session_id=f"bookrun:{book_run.id}",
-        goal=f"写作任务 #{book_run.id} managed 运行",
-        scope={"book_id": book_run.book_id, "blueprint_id": book_run.blueprint_id, "book_run_id": book_run.id},
-        permission_profile=inherited_profile,
-        budget=run_payloads.book_run_budget(book_run),
-        # 终态快照是投影，不是重开指令；只有上游真正 retry 后才恢复 running。
-        resume_terminal=book_run.status not in AGENT_RUN_TERMINAL_STATUSES,
-    )
-    if not run_payloads.has_event(run, AGENT_RUN_STARTED):
-        record_agent_event(
-            session,
-            run,
-            event_type=AGENT_RUN_STARTED,
-            actor="bookrun-agent",
-            message="写作任务已进入 AgentRun 控制平面。",
-            payload={
-                **writing_run,
-                "source": event_source,
-                "permission_profile": canonical_permission_profile(run.permission_profile),
-            },
-        )
-    if not run_payloads.has_event(run, AGENT_PLAN_CREATED):
-        record_agent_event(
-            session,
-            run,
-            event_type=AGENT_PLAN_CREATED,
-            actor="root-agent",
-            message="Root Agent 已为写作任务选择 managed run skill。",
-            payload=skill_catalog.agent_plan_payload(
-                intent="bookrun.start",
-                goal=run.goal,
-                scope=run.scope,
-                plan=skill_catalog.skill_by_name("bookrun_generation")["plan_template"],
-            ),
-        )
-    return run

@@ -6789,3 +6789,13 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 - 最终完整 API **3,658 passed / 25 skipped / 20 failed**，精确失败集合与已验证基线相同，零新增/移除失败；不声称全套通过。
 
 本批不统一前端自动上下文分类、native *.md 或 entity budget 其他成员规则。symlink测试使用Linux临时项目，不支持/权限拒绝环境按既有跳过规则，不声称Windows原生行为。无配置/付费provider、用户数据修改或迁移；仅草稿PR，不合并/部署。
+
+
+## 2026-10-09 自动整书链（BookRun）退役
+
+作者拍板删除自动整书链。分三刀提交：A 解耦（live 模块改从 common 取 LLM 辅助函数）、B 删后端执行链、C 删前端写作任务进度投影。`book_runs` 表与 4 处外键暂留（只剩 `book_runs/models.py`），删表另走 Alembic 迁移，本批不动 schema。
+
+- 删除：`book_runs` 除 models 外全部、`writing_runs`、`exports`、`books/lineage_service.py`、Agent 托管适配器 / bridge / bookrun 规格与 skill / role、IDE `bookrun.*` 命令与 `/api/ide/runs/{id}/events`、`/api/agent-runs/{id}/checkpoints`、`scripts/run-golden.mjs`、`run_real_smoke.py`、`.codex` 下真实长程运行脚本与证据目录、对应测试；`prompt_lab` 收窄为 live 链（live-draft / agent）。
+- 前端：删 `writing-run.ts`、`run-events.ts`、`WritingRunProgressPanel` 与订阅状态、`@写作任务` 别名。
+- 验证（Linux 云端，Python 3.13 / Node 22）：API 全量 **3600 passed / 24 skipped / 3 failed**；3 项失败与改动前基线相同（大小写不敏感路径 2 项、symlink loop 1 项，Linux 环境相关）。改动前基线 20 failed，其余 17 项为本批删除的长程证据脚本测试。前端 vitest **1919 passed / 1 skipped / 1 failed**（`project-context` 中文排序，基线同样失败）；frontend typecheck、root lint、shared / project-core、`pnpm e2e` 19/19、OpenAPI 重新生成且 drift 检查通过（同环境下 HEAD 生成结果与仓库快照逐字节一致）。
+- 未验：daily / packaged sidecar 冒烟（`run_windows.py` 需 Windows）、Rust、真机 GUI；需在 Windows 本机跑 `pnpm.cmd verify`。

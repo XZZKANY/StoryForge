@@ -39,12 +39,6 @@ from app.domains.agent_runs.role_catalog import (
 )
 from app.domains.agent_runs.runtime import AgentRuntime
 from app.domains.agent_runs.schemas import AgentRoleRead
-from app.domains.agent_runs.service_bookrun_bridge import (
-    apply_book_run_control_if_needed as _apply_book_run_control_if_needed,
-)
-from app.domains.agent_runs.service_bookrun_bridge import (
-    record_book_run_snapshot,
-)
 from app.domains.agent_runs.service_control import (
     handle_agent_control_message as _handle_agent_control_message,
 )
@@ -57,7 +51,6 @@ from app.domains.agent_runs.service_control import (
 from app.domains.agent_runs.service_execution import finish_agent_execution, start_agent_execution
 from app.domains.agent_runs.service_lifecycle import (
     create_or_resume_agent_run,
-    create_or_resume_bookrun_agent_run,
     start_agent_user_message_run,
 )
 from app.domains.agent_runs.service_store import (
@@ -66,7 +59,6 @@ from app.domains.agent_runs.service_store import (
     get_agent_run,
     get_agent_run_save_points,
     list_agent_artifacts,
-    list_agent_checkpoints,
     list_agent_run_events,
     reap_non_terminal_agent_runs,
     record_agent_artifact,
@@ -93,9 +85,6 @@ from app.domains.agent_runs.service_types import (
 from app.domains.agent_runs.text_stream import TextObserver
 
 _AgentRunEventSink = AgentRunEventSink
-_book_run_budget = run_payloads.book_run_budget
-_book_run_id_from_result = run_payloads.book_run_id_from_result
-_book_run_snapshot_payload = run_payloads.book_run_snapshot_payload
 _budget_summary = run_payloads.budget_summary
 _control_event_message = run_payloads.control_event_message
 _control_event_type = run_payloads.control_event_type
@@ -117,10 +106,6 @@ __all__ = [
     "_AGENT_SKILL_DEFINITIONS",
     "_AgentRunEventSink",
     "_agent_plan_payload",
-    "_apply_book_run_control_if_needed",
-    "_book_run_budget",
-    "_book_run_id_from_result",
-    "_book_run_snapshot_payload",
     "_budget_summary",
     "_completed_event_payload",
     "_control_event_message",
@@ -147,7 +132,6 @@ __all__ = [
     "AgentRuntimeUserMessageResult",
     "complete_agent_run",
     "create_or_resume_agent_run",
-    "create_or_resume_bookrun_agent_run",
     "encode_agent_run_sse_event",
     "execute_agent_user_message_run",
     "fail_agent_run",
@@ -157,7 +141,6 @@ __all__ = [
     "handle_agent_control_message",
     "is_role_allowed_tool",
     "list_agent_artifacts",
-    "list_agent_checkpoints",
     "list_agent_roles",
     "list_agent_run_events",
     "list_agent_skills",
@@ -166,7 +149,6 @@ __all__ = [
     "record_agent_artifact",
     "record_agent_control_event",
     "record_agent_event",
-    "record_book_run_snapshot",
     "record_subagent_run",
     "rollback_failed_settlement",
     "resolve_agent_role_alias",
