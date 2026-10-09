@@ -10,28 +10,234 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 POLICY_VERSION = "author-edit-v1"
 _ANCHOR = re.compile(r"<<<(?:ANCHOR|FILE|CONTEXT)\b.*?(?:ANCHOR|FILE|CONTEXT)>>>", re.S)
 _CHANGE = re.compile(r"统一|替换|换成|换为|改成|改为|转换|调整|改用|修改|更改|改")
-_NEGATION = re.compile(r"(?:不要|不用|不必|别|禁止|不得|不准|不许|不|避免)[一-鿿]{0,6}$")
-_LITERAL_KEEP = re.compile(r"(?:保留|保持)[“「『\"](.+?)[”」』\"]\s*(?:逐字(?:不变|保留|不动)|原样(?:不变|保留)?|不动)")
+_NEGATION = re.compile(r"(?:不要|不用|不必|别|禁止|不得|不准|不许|请勿|勿|不允许|不可以|不可|不|避免)[一-鿿]{0,6}$")
+_QUOTE_END = {"“": "”", "「": "」", "『": "』", "‘": "’", '"': '"', "'": "'"}
+_KEEP_PREFIX = re.compile(r"(?:(?:逐字|原样)\s*)?(?:保留|保持)\s*$")
+_KEEP_SUFFIX = re.compile(r"\s*(?:逐字(?:不变|保留|不动)|原样(?:不变|保留)?|不动)")
+# 两个引用之间只能经过未引用文本；不枚举自然语言连接词。
+_NEXT_KEEP = re.compile(r"""[^“”「」『』‘’"'`~]*?(?:保留|保持)\s*(?=[“「『‘"'])""")
+_ADOPT_PREFIX = re.compile(
+    r"^\s*(?:请|本次(?:请|要求)|我的要求是|作者要求是)?(?:执行|遵循|采用|应用|按照|按)\s*(?:(?:下面|以下|这条|这个|此)(?:的)?)?"
+    r"\s*(?:(?:作者)?(?:要求|指令|规则|约定|命令))?\s*(?:执行|处理|修改|修订)?\s*[:：]?\s*$"
+)
+_ADOPT_SUFFIX = re.compile(
+    r"\s*[,，:：]?\s*(?:(?:这|此)(?:条|句)?(?:才)?是(?:我|作者)的(?:明确|实际|真实)?(?:要求|指令)"
+    r"|请(?:照做|执行|遵循|采用)|(?:当作|作为)(?:我的|作者的)(?:要求|指令)执行)\s*(?:[。；;\n]|$)"
+)
+_CONTROL_OPERANDS = frozenset(
+    ("第一人称", "第二人称", "第三人称", "引号", "直引号", "中文引号", "重复问号", "重复感叹号")
+)
 
 
-def _quote_change_requested(clause: str) -> bool:
+def _control_is_negated(text: str, offset: int) -> bool:
+    prefix = re.sub(r"[\s“”「」『』‘’\"']", "", text[:offset])
+    return bool(_NEGATION.search(prefix))
+
+
+def _paired_quote_end(text: str, start: int, opening: str, closing: str) -> int | None:
+    """Match a paired data/scope delimiter, retaining nested same-pair punctuation."""
+    depth = 1
+    for index in range(start + 1, len(text)):
+        current = text[index]
+        if current == opening:
+            depth += 1
+        elif current == closing:
+            if (
+                current == "’"
+                and index + 1 < len(text)
+                and text[index - 1].isascii()
+                and text[index - 1].isalnum()
+                and text[index + 1].isascii()
+                and text[index + 1].isalnum()
+            ):
+                continue
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return None
+
+
+def _literal_quote_end(text: str, start: int, source: str, enclosing_closer: str | None = None) -> int | None:
+    """Explicit keep literals are data: ASCII punctuation/backslashes are not syntax.
+
+    Only explicit keep-literal boundaries use this scanner. Generic
+    examples and permission rules retain the conservative material parser below.
+    Same-pair nesting is retained so an inner closing quote cannot truncate a span.
+    """
+    opening = text[start]
+    closing = _QUOTE_END.get(opening)
+    if closing is None or not _KEEP_PREFIX.search(text[:start]):
+        return None
+    if opening == closing:
+        # Symmetric delimiters can also occur as raw literal data (inch marks).
+        # The explicit keep suffix identifies the closing boundary, as in the
+        # original source-bound literal contract; backslashes remain verbatim.
+        # A keep-like phrase inside an example cannot consume a later real
+        # requirement outside that enclosing quoted region.
+        limit = len(text)
+        if enclosing_closer:
+            enclosing_opener = next(key for key, value in _QUOTE_END.items() if value == enclosing_closer)
+            if enclosing_opener != enclosing_closer:
+                boundary = _paired_quote_end(text, start, enclosing_opener, enclosing_closer)
+                if boundary is not None:
+                    limit = boundary - 1
+            else:
+                boundary = text.find(enclosing_closer, start + 1)
+                if boundary >= 0:
+                    limit = boundary
+        directive_end = None
+        for index in range(start + 1, limit):
+            if text[index] != closing:
+                continue
+            suffix = text[index + 1 : limit]
+            if _KEEP_SUFFIX.match(suffix):
+                # 完整 suffix 引用若逐字命中原文，内部“并保留”等只是正文数据。
+                if directive_end is None or text[start + 1 : index] in source:
+                    return index + 1
+                return directive_end
+            if directive_end is None and _NEXT_KEEP.match(suffix):
+                directive_end = index + 1
+        return directive_end
+    return _paired_quote_end(text, start, opening, closing)
+
+
+def _quoted_material(text: str, source: str) -> Iterator[tuple[int, int, str, str, bool]]:
+    """Yield complete top-level quoted/code regions; an unclosed region consumes the tail."""
+    index = 0
+    while index < len(text):
+        start = index
+        char = text[index]
+        if char == "`" or text.startswith("~~~", index):
+            end = index + 1
+            while end < len(text) and text[end] == char:
+                end += 1
+            marker = text[index:end]
+            close = re.search(rf"(?<!{re.escape(char)}){re.escape(marker)}(?!{re.escape(char)})", text[end:])
+            index = end + close.end() if close else len(text)
+            yield start, index, marker, marker, close is not None
+            continue
+        if char not in _QUOTE_END or (
+            char == "'" and index and text[index - 1].isascii() and text[index - 1].isalnum()
+        ):
+            index += 1
+            continue
+        closing = _QUOTE_END[char]
+        literal_end = _literal_quote_end(text, start, source)
+        if literal_end is not None:
+            index = literal_end
+            yield start, index, char, closing, True
+            continue
+        stack = [closing]
+        index += 1
+        while index < len(text) and stack:
+            current = text[index]
+            literal_end = _literal_quote_end(text, index, source, stack[-1])
+            if literal_end is not None:
+                index = literal_end
+                continue
+            # Apostrophes inside English words do not close surrounding sample
+            # quotes (for example 'I'm ...' or ‘Don’t ...’).
+            if (
+                current in ("'", "’")
+                and index + 1 < len(text)
+                and text[index - 1].isascii()
+                and text[index - 1].isalnum()
+                and text[index + 1].isascii()
+                and text[index + 1].isalnum()
+            ):
+                index += 1
+                continue
+            if current == "\\" and index + 1 < len(text):
+                index += 2
+                continue
+            if current == stack[-1]:
+                stack.pop()
+            elif current in _QUOTE_END and not (
+                current == "'" and text[index - 1].isascii() and text[index - 1].isalnum()
+            ):
+                stack.append(_QUOTE_END[current])
+            index += 1
+        yield start, index, char, closing, not stack
+
+
+def _has_literal_keep_requirement(text: str) -> bool:
+    """Detect a requested hard guard without interpreting its quoted payload."""
+    for keep in re.finditer(r"(?:(?:逐字|原样)\s*)?(?:保留|保持)\s*(?=[“「『‘\"'])", text):
+        if not _control_is_negated(text, keep.start()) and (
+            keep.group().startswith(("逐字", "原样")) or _KEEP_SUFFIX.search(text[keep.end() :])
+        ):
+            return True
+    return False
+
+
+def _author_control_projection(text: str, source: str, depth: int = 0) -> tuple[str, tuple[str, ...]]:
+    """Keep original instructions for the writer; extract controls outside material quotes.
+
+    Explicitly adopted quoted rules and quoted operand names remain usable. Literal
+    protection consumes the quoted payload as data, never as another edit command.
+    Offsets stay stable while quoted material is blanked, including multiline text.
+    """
+    if depth >= 16:
+        if _has_literal_keep_requirement(text):
+            raise AuthorEditPolicyError("逐字保留要求嵌套过深，请直接指定需要保护的原文片段。")
+        return " " * len(text), ()
+    projected = list(text)
+    literals: list[str] = []
+    for start, end, marker, closing, closed in _quoted_material(text, source):
+        raw = text[start:end]
+        body = raw[len(marker) : -len(closing)] if closed else raw[len(marker) :]
+        prefix = "".join(projected[:start])
+        suffix = text[end:]
+        keep = _KEEP_PREFIX.search(prefix)
+        adoption_prefix = re.split(r"[。；;\n]", prefix.rstrip())[-1]
+        adoption = _ADOPT_PREFIX.fullmatch(adoption_prefix)
+        if not closed:
+            direct_keep = bool(
+                keep
+                and not _control_is_negated(prefix, keep.start())
+                and (keep.group().startswith(("逐字", "原样")) or _KEEP_SUFFIX.search(body))
+            )
+            # Inspect an explicitly adopted body with the same material boundary
+            # rules; a keep-like phrase inside its unadopted example stays inert.
+            nested_keep = _author_control_projection(body, source, depth + 1)[1] if adoption else ()
+            if direct_keep or nested_keep:
+                raise AuthorEditPolicyError("无法确定逐字保留片段的引号边界，请使用完整配对引号重新指定。")
+        literal_keep = bool(
+            closed
+            and body
+            and keep
+            and not _control_is_negated(prefix, keep.start())
+            and (keep.group().startswith(("逐字", "原样")) or _KEEP_SUFFIX.match(suffix))
+        )
+        if literal_keep:
+            literals.append(body)
+        adopted = bool(closed and not literal_keep and (adoption or _ADOPT_SUFFIX.match(suffix)))
+        if adopted or (closed and body in _CONTROL_OPERANDS and not literal_keep):
+            inner, nested = _author_control_projection(body, source, depth + 1)
+            projected[start:end] = " " * len(marker) + inner + " " * len(closing)
+            literals.extend(nested)
+        else:
+            projected[start:end] = ["\n" if char == "\n" else " " for char in raw]
+    return "".join(projected), tuple(literals)
+
+
+def _quote_change_control(clause: str) -> bool | None:
     quotes = list(re.finditer("引号", clause))
     for change in _CHANGE.finditer(clause):
-        if _NEGATION.search(clause[max(0, change.start() - 10) : change.start()]):
-            continue
         for quote in quotes:
             left, right = (
                 (change.end(), quote.start()) if change.start() < quote.start() else (quote.end(), change.start())
             )
             bridge = clause[left:right]
             if len(bridge) <= 12 and not re.search(r"并|但|同时|再|而|错字|人称|句子|段落", bridge):
-                return True
-    return False
+                return not _control_is_negated(clause, change.start())
+    return None
 
 
 class AuthorEditPolicyError(ValueError):
@@ -93,33 +299,30 @@ def build_author_edit_policy(
     person_change = False
     spans = list(protected_spans)
     for text in (*requirements, command):
-        authorised_text = author_command_text(text)
-        for match in _LITERAL_KEEP.finditer(authorised_text):
-            if _NEGATION.search(authorised_text[max(0, match.start() - 10) : match.start()]):
-                continue
-            literal = match.group(1)
+        authorised_text, protected_literals = _author_control_projection(author_command_text(text), original)
+        for literal in protected_literals:
             offsets = list(re.finditer(re.escape(literal), original))
             if not offsets:
                 raise AuthorEditPolicyError("明确要求逐字保留的片段不在当前正文中，请重新指定。")
             spans.extend(ProtectedSpan(item.start(), item.end()) for item in offsets)
         for clause in re.split(r"[。；;，,\n]", authorised_text):
             if "引号" in clause:
-                if _quote_change_requested(clause):
+                quote_control = _quote_change_control(clause)
+                if quote_control is True:
                     allowed.add("quotes")
-                elif re.search(r"保留|保持|不改|不要改|别改|不调整|不要调整", clause):
+                elif quote_control is False or re.search(r"保留|保持|不改|不要改|别改|不调整|不要调整", clause):
                     allowed.discard("quotes")
             repeated = re.search(
                 r"(?:保留|保持).*(?:重复|连续).*(?:问号|感叹号)|(?:不折|不要折|不合并).*(?:问号|感叹号)", clause
             )
             if repeated:
                 # A later explicit denial also withdraws an older file control.
-                preserve_repeated = not bool(_NEGATION.search(clause[max(0, repeated.start() - 10) : repeated.start()]))
+                preserve_repeated = not _control_is_negated(clause, repeated.start())
             if re.search(r"(?:重复|连续).*(?:问号|感叹号).*(?:折成一个|合并成一个)", clause) and "不要" not in clause:
                 preserve_repeated = False
-            if re.search(r"(?:改为|改成|换成|转换为|改用).*(?:第一|第二|第三)人称", clause) and not _NEGATION.search(
-                clause.split("改", 1)[0]
-            ):
-                person_change = True
+            person = re.search(r"(?:改为|改成|换成|转换为|改用).*(?:第一|第二|第三)人称", clause)
+            if person:
+                person_change = not _control_is_negated(clause, person.start())
             if "人称" in clause and re.search(r"不改|不要改|别改|保留|保持", clause):
                 person_change = False
     spans = sorted(set(spans), key=lambda item: (item.start, item.end))

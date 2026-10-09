@@ -421,7 +421,9 @@ export async function settleSuggestionRun(
       .find((event) => event.event_type === 'agent_run_completed');
     const latestExecution = [...events]
       .reverse()
-      .find((event) => event.event_type === 'agent_execution_started');
+      .find((event) =>
+        ['agent_execution_started', 'agent_execution_claimed'].includes(event.event_type),
+      );
     if (
       !completed ||
       completed.payload?.assistant_session_id !== original.assistantSessionId ||
@@ -462,7 +464,11 @@ export async function settleSuggestionRun(
     started?.run_id !== original.runId ||
     typeof started.session_id !== 'string' ||
     !started.session_id ||
-    events.slice(pendingIndex + 1).some((event) => event.event_type === 'agent_execution_started')
+    events
+      .slice(pendingIndex + 1)
+      .some((event) =>
+        ['agent_execution_started', 'agent_execution_claimed'].includes(event.event_type),
+      )
   )
     throw new Error('原运行的执行归属已变化，不能用旧写回批准新执行');
   const terminal = events

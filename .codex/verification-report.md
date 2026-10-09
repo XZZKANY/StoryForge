@@ -6615,3 +6615,177 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 证据任务：`patch-native-validation`，完成归档位置为 `D:/StoryForge/.trellis/tasks/archive/2026-10/10-07-patch-native-validation/`。`research/gui-verification-summary.json` 包含两轮 14 个阶段的实际 UI/原生状态及当前二进制哈希；`gui-final-verify`、`gui-final-rust-full`、`gui-final-native-api-mounted` 等日志记录绝对 cwd、命令、耗时和退出码。GUI 测试二进制 SHA256：`b3316bd0b1bdeb52280874b852f90d8a585a5745655ef2896f2499bbcc914ce3`。
 
 用户授权验证后合入本地主线；本节是合并前证据。没有远端推送、真实模型调用、安装覆盖或发版。GUI 证据为真实 WebView 的 DOM 点击与 hit-test，并非人工硬件输入；冷进程恢复由独立 Native IPC 证据覆盖。本验收不扩大到全部断电/多窗口/安装器矩阵、文学质量或上节明确未修复的独立问题。
+
+## 2026-10-08：Ctrl+K 行间候选精确投影与失败重试
+
+基线：`ef93dd26436d3338c545d2262a500ca7545ef2bb`。本批仅改动 6 个前端源码/测试文件，并追加本验证记录。
+
+- 修复句段 diff 被误提升为整行插入导致接受后旧句重复：行间展示改用有界行级 LCS，保持空行、末尾换行和 CRLF 归一后的精确重建；超过 4,000,000 单元时粗粒度回退，跨授权边界仍拒绝。
+- 写回失败时保留同一候选供重试；沿用原 suggestion 与回执身份，先核对原写回结果。迟到结果、陈旧稿件、重复接受、未知回执和写后审计警告均有维护回归。
+- 独立干净基线核验：1,389 个已跟踪 blob 全匹配，`git apply --check` 与应用成功，6 个结果文件逐字匹配冻结补丁。
+- `npm --prefix apps/desktop/frontend run test`（明确 zh-CN 语言环境）：维护套件 **1,677 passed / 1 skipped**；177 个测试文件，其中 176 passed / 1 skipped。另有 7 项临时场景回放，不计入维护套件数字，也不提交临时夹具。
+- `npm --prefix apps/desktop/frontend run typecheck`：通过。
+- `npm --prefix apps/desktop/frontend run build`：通过；有既有大 chunk 提示。
+- 6 个改动源码/测试文件的 ESLint 与 Prettier 检查：通过。
+- 独立 12 项压力/恢复复验：通过，包含 7,056 组全范围精确投影、保护范围、超预算回退、未知/丢失回执和迟到请求。
+
+限制：默认 en-US 下既有 project-context.test.ts allowlist 路径顺序断言失败；zh-CN 对应 16 项通过，未混入无关排序修复。HTTP/Native 写回边界为测试替身；未执行 Windows Tauri 真机、原生撤销/版本恢复、真实模型 provider、打包/安装/生产发布验收。未宣称完整 `pnpm verify` 或生产闭环通过。本批无付费模型调用，不修改后端、创作规则或用户原稿。发布为独立分支草稿 PR，不合并或部署。
+
+## 2026-10-08：Ctrl+K Monaco 排他选区终点保护（第二批 UI）
+
+基线：`7bfd5b9fd0418a295888b6b719b4e41ba4902461`。仅修改 `useInlineChat.ts` 与 `inline-chat-lifecycle.test.tsx`，追加本记录。
+
+- Monaco 多行选区终点若为下一行第 1 列，该行正文未被选中；修复锚定范围错误包含此行，防止模型请求/接受写回越界。
+- 新增 12 项维护回归，覆盖点击/快捷键接受、正反选、空行、范围端点及不误缩减真实选中行。既有语义仍是 touched-line（触及的整行）范围，不宣称逐字符选区隔离。
+- 独立审查无阻塞问题，生命周期 50/50 通过。
+- 发布前重建并核验基线全部 1,391 个 blob，零差异；`git apply --check` 与正式应用通过，两结果文件 SHA-256 与冻结补丁一致。
+- 集成树 `LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 npm --prefix apps/desktop/frontend run test`：**1,689 passed / 1 skipped**（176 passed test files / 1 skipped）。不包含 9 项临时场景试验，临时夹具未提交。
+- 集成树 TypeScript typecheck、Vite build、两改动文件 ESLint 与 Prettier 检查全部退出 0；build 大 chunk 提示仍在。
+- 本批无后端、provider、生产数据或依赖变更；Windows Tauri、原生撤销、真实 provider 与完整 `pnpm verify` 限制同前批。只更新草稿 PR，不合并/部署。
+
+## 2026-10-08：Ctrl+K 整行范围提示与导航/写回集成回归（第三批 UI）
+
+基线：`abf603d9bcd70dcdecae901a1ddbba8d26ea7bd3`。唯一产品行为改动为标题明确说明“改写选区所在的完整行”或“改写光标所在的完整行”，与既有 touched-line 授权范围一致，不扩大或改变写回权限。
+
+- 4 个维护源码/测试文件，新增 18 项测试（1 项范围标题 + 17 项集成/并发回归）。真实 Editor、useInlineChat 与 guarded writer 共同挂载；Monaco、HTTP、文件系统与快照为测试替身。
+- 验证导航、同文异 model、删除/改名、延迟结果、作者新输入、接受结算与随后 Ctrl+S 的缓冲/磁盘基线。已有安全逻辑全部通过，未为通过测试修改生产安全逻辑。
+- 独立审查：75/75 通过；生命周期 56、实际 Editor 写回链集成 11、DOM 8。
+- 发布集成树干净应用补丁，4 文件 SHA-256 与独立审查冻结内容一致。`LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 npm --prefix apps/desktop/frontend run test`：**1,707 passed / 1 skipped**，无临时场景夹具。
+- 发布集成树 TypeScript typecheck、Vite build、4 改动文件 ESLint/Prettier 通过。构建大 chunk 提示仍在。
+- 本批无后端变化；headless 集成不能替代真实 Windows Tauri/GUI、原生撤销、provider 质量或完整 `pnpm verify`。保持草稿 PR，不合并/部署。
+
+## 2026-10-08：作者编辑控制的引文/代码材料与否定边界（第二批后端）
+
+集成基线：`913942ce85fb5a0fd3b4972f2592fb1f8de90d8e`。两文件：`apps/api/app/common/author_edit_policy.py` 与维护回归 `apps/api/tests/test_author_control_quotes.py`；前端保持上一批原样。
+
+- 引用例句、代码及逐字保护材料内的命令不再扩大引号、人称、重复标点编辑许可；明确采用的引文规则及带引号操作数仍受支持。
+- 当前明确否定撤销继承许可；保护前缀、多行、嵌套引号和英语撇号/缩写保持正确保护。作者原始输入仍原样传给模型；只修改确定性控制提取及其门禁后果，不声称理解任意自然语言。
+- 初始红证据：原后端新复现 16 failed / 1 passed。最终新维护回归 63 项；独立维护组合 90/90、23 控制矩阵及额外嵌套/肯定/4 缩写探针通过。
+- 冻结源码 SHA-256：`3c61c4cd553486db7de64371a44fe04791b9e077a7724651013b69cd0bb56244`；测试 `e53be2db073cdb3229f193572d8eea9cadc593bb3b4fab084d5716f78eafe6bf`。
+- 集成树 `python -m pytest tests/test_author_control_quotes.py tests/test_author_edit_policy_value.py tests/test_author_voice_delivery.py tests/test_author_voice_http_provider.py tests/test_author_voice_policy.py tests/test_craft_guidelines_reach.py tests/test_agent_review_protocol.py tests/test_assistant_revision_lifecycle.py -q`：**209 passed**。改动文件 Ruff 通过。补丁干净应用，源码/测试匹配独立审查冻结哈希。
+- 最终后端完整运行 `python -m pytest -q`：**3,558 passed / 25 skipped / 21 failed**（395.56 秒）。21 个失败节点均在未改后端干净基线独立复现，零新增失败节点；不能称完整 API 套件通过。
+- 失败分组：2 项 POSIX 大小写路径假设；1 项既有 chapter brief 事件带绝对项目路径；17 项缺少 PowerShell；1 项资源探针要求 `.git`，当前隔离源码快照没有 Git checkout。没有放宽生产边界或隐藏这些失败。
+- 两个原始场景候选回放 8 项通过（HTTP 修订、live 提案、显式行范围拒绝、审稿解析），复用原候选，未新调真实 provider/付费模型。
+
+上述验证为云端 headless/API 与测试替身；Windows Tauri/原生撤销、真实 provider 质量、打包发布及完整 `pnpm verify` 仍未验证。只更新独立分支草稿 PR，不合并/部署。
+
+## 2026-10-08：私有待恢复调用的公共事件边界（后端恢复批次）
+
+基线：`a5bf3364a920de4c10cd40d3a35a658e06a49dbe`。4 个 API 源码 + 2 个维护测试文件，前端与私有恢复资料保持不变。
+
+- 修复继承的章节 brief 等待事件泄露：原本不被普通 artifacts API 展示的私有 AgentArtifact 恢复正文被复制进公共事件，含绝对项目路径等恢复资料。
+- 新事件入库、REST serializer、SSE encoder 共用 runtime_pending_call 安全摘要投影；外层只允许固定 kind、整数 artifact_id、布尔 requires_confirmation。旧事件行读取同样保护；异常/已结算私有正文不回退原文，不覆写旧行或私有恢复资料。
+- 实际 resume 继续从私有 AgentArtifact 的原始 admitted 数据恢复，额外外来 project_path/args/resume_message 不能重绑目标；章节来源漂移与冷恢复护栏仍在。
+- 发布集成树 126 项受影响回归通过（24.39 秒），6 改动文件 Ruff 通过；干净应用及冻结 SHA-256 核验通过。
+- 独立 38 项回归通过，含 9 项异常元数据/非修改/项目重绑对抗、旧事件 REST/SSE、普通补丁、冷恢复和源绑定。
+- `app.openapi()`、`build_agent_ws_schema()` 按正式 JSON 格式生成，与已有契约逐字一致；无 schema/type 快照变更。WS 合同/模式回归在 126 项内。
+- 完整 API：**3,578 passed / 25 skipped / 20 failed**。失败集合恰为上一批 21 项减去已修复章节 brief 绝对路径泄露；零新增失败节点。剩余 2 项 POSIX 大小写假设、17 项缺 PowerShell、1 项源码快照缺 Git checkout。不是全套通过。
+
+无依赖、provider 或生产数据变更，无付费模型调用。不宣称 Windows Tauri、原生撤销、真实 provider、完整 pnpm verify 或生产验收通过；仅更新草稿 PR，不合并/部署。
+
+## 2026-10-08：长稿修订与失败输入恢复（长稿 UI 批次）
+
+集成基线：`c77a58e025bd14defde57fea79782e1b4b73ba70`。6 个前端源码/测试文件；后端保持原样。
+
+- 控制样本为 10k/50k/100k Unicode 字符，含普通段落、空行重复对白及单行长段，小场景与 API 限制内整稿均断言候选写回精确、未授权行不变。分段小场景发送约 2,990–3,004 字符上下文；单行长稿仍发送整行，不声称能在单行内开 3k 窗口。
+- 修复 revise 生成失败后丢失作者输入：保留原始输入 DOM、含空白文字及原锚点，当前会话/model/版本/权限有效且未主动取消时恢复可编辑输入，允许手动重试。旧请求、导航、继续编辑与 Escape 不会覆盖新输入。
+- 修复恢复后长按 Enter 的 repeat 事件自动再次发送；正常新 Enter 仍可手动重试。两类缺陷均有修复前失败证据；未增加自动重试或前端超时计时器。
+- 最终独立 131/131 通过，覆盖 25 纯函数、30 长稿 hook、56 既有生命周期、9 DOM、11 实际 Editor 写回集成；冻结六文件哈希一致。
+- 发布集成树完整维护前端 **1,763 passed / 1 skipped**（zh-CN），typecheck、Vite build、六改动文件 ESLint/Prettier 通过；补丁干净应用，结果与最终冻结哈希一致。
+- 实际 Pydantic 边界 8 检查：正文 120000 码点通过/120001 拒绝，指令 4000 通过/4001 拒绝，中文与 emoji 均覆盖。
+- 纯函数小场景约 0.03–4.04ms；hook/happy-dom 小场景约 2.4–10.1ms；最密集 100k 空行/对白整稿约 248ms、23,813 DOM 节点。这些是 Node/happy-dom 测量，不是浏览器帧率或 Windows/模型速度；未作猜测性算法优化。
+
+恢复仅覆盖 Ctrl+K revise；continuation 失败维持原行为。CRLF→LF 为继承规范化，不宣称原始字节不变。超预算不等长跨界候选仍拒绝。504 为受控 HTTP 结果，不代表测量真实 provider 超时。无付费调用、原生/GUI 或全 pnpm verify 通过声明；仅更新草稿，不合并/部署。
+
+## 2026-10-08：未创建章节的全局身份与设定窗口（章节身份批次）
+
+基线：`edc0999f31edd7a730465e95acabfe91c1c05773`。2 个后端源码 + 2 个维护测试文件。
+
+- 修复分卷同名未创建章节被按文件名数值当成全局章节的问题：原先新建空占位文件即可从全局 1 变成路径序第 3，导致同一真实创作请求的时态设定窗口改变。全局一基项目路径顺序是已有契约，不以文件名数字或 serial-plan 元数据替代。
+- 在项目边界内归一允许的相对/反斜线目标拼写，未创建且正编号章节按权威现有章节映射插入序计算。排除路径、非章节与扫描失败保持未知顺序，不猜测放权。
+- 复用已有扫描可见性谓词并公开其名称；不改谓词行为，不放宽 private-access 规则。前端 localeCompare 与后端 codepoint 排序差异是继承问题，不混入本批。
+- 新增 38 维护回归（生产者 10 + 独立对抗 28），覆盖真实 draft/continue 请求、改名/陈旧光标、同名章节、时间窗口、路径 containment、扫描失败及平台拼写。
+- 初始红证据：生产者 5 failed / 2 passed；独立 17 failed / 11 passed。首轮完整 API 发现 2 项新 private-access 架构失败，已用公开谓词修复，未削弱测试。
+- 发布集成树架构/文件系统/作者记忆/新回归 **75 passed**，API 全域 Ruff 通过；冻结四文件干净应用且 SHA-256 匹配。最终独立组合 **152 passed / 1 skipped**。
+- 最终完整 API：**3,616 passed / 25 skipped / 20 failed**，失败集合与上一批相同，零新增失败节点；不声称全套通过。
+- 额外 `pnpm verify` 实跑通过根 lint/format、前端 typecheck、shared contract、project-core 7 项及前端 1,763 passed / 1 skipped，随后真实 Monaco 浏览器门禁因缺少 `chromium_headless_shell-1223` 停止。后续聚合阶段未到达，API/Ruff 为独立运行。可用 pnpm 11.25.0 与仓库 pin 9.15.4 不同；无锁文件或依赖版本更改。
+
+无付费/配置 provider 调用，无真实用户稿件写入。Windows 原生行为、完整聚合与发布未验证；草稿 PR 不合并/部署。
+
+## 2026-10-08：版本恢复的文件/模型归属与异步竞态（恢复安全批次）
+
+集成基线：`399e3219ed03a2711b32827139b9611c77dd1e96`。6 个前端源码/维护测试文件。
+
+- 独立红测确认继承缺陷：A 等待版本读取/快照/脏稿确认时切到 B，A 历史内容可进入 B 缓冲，随后 Ctrl+S 写进 B 模拟磁盘；不存在态可错误删除 B。同路径新 model、新输入、离开再返回与竞争恢复也存在旧操作失效缺口。
+- VersionHistory 同步传递版本条目，Editor 在读取前冻结项目、路径、model、单调版本与操作序号。读取、确认、保存、快照、分支推进与最终写入逐步检查归属；导航、卸载、新操作使旧操作失效。
+- 写入冻结 model，await 后不重新选活动 editorRef；操作仅接受自身 setValue 产生的版本变化。不存在态删除前复核已知磁盘基线；版本列表和 busy 状态按项目/文件隔离，分支命名取消和迟到结果同样隔离。
+- 修复前后均使用内存文件系统/删除 spy，无真实文件删除。19 项独立维护回归覆盖异常和合法恢复；旧静态测试保留确认、保存→快照→删除→退出计划→摘除标签顺序，订阅计数适配新增 epoch 监听且卸载零订阅断言不变。
+- 最终独立 **75/75** 通过，六个发布文件哈希签核；含发布4测试文件58项与证据中17项临时恢复/真实后端候选正文重放。临时夹具不进入维护发布。
+- 发布集成树完整维护前端 **1,784 passed / 1 skipped**（zh-CN），typecheck/build/六文件 ESLint/Prettier 通过；干净应用，六文件 SHA-256 与冻结版本一致。后端不变。
+
+重要残余边界：Tauri delete_path 仍不是原子 compare-delete。前端读盘复核能阻止已观察到的漂移，但外部进程在复核与删除之间再次修改磁盘仍有 TOCTOU 窗口；不能声称原子删除安全。本批为 headless 归属/竞态验证，不等同 Windows Tauri/真实 GUI、全聚合或用户已安装应用更新。只发布独立分支草稿 PR，不合并/部署/安装。
+
+## 2026-10-08：自动前章上下文与后端 Unicode 路径顺序一致（上下文排序批次）
+
+集成基线：`e336029ec4438ce15795c0d1d2518c08cd013777`。1 个前端源码 + 2 个维护测试 + 1 个 Python oracle JSON，版本恢复安全修复保持原样。
+
+- 修复 buildDraftOrder 的 localeCompare 自动前章选择与后端 Python Unicode 码点排序不一致。实际 continue HTTP 请求和后端 writer prompt 在修复前可选入 FUTURE_ONLY 资料，修复后只包含权威前章，稿件未改；受控 transport 响应，无真实 provider 调用。
+- 内部比较器按 Unicode scalar 比较，覆盖补充平面，不用 JS UTF-16 排序代替。只修改已归类 draft 文件的前章顺序；不改变展示树、项目索引、显式 pin 优先级、其他类别排序、持久化 canon 或后端编号。
+- 码点顺序是既有契约，不声称自然人类章节顺序；前后端成员资格差异（未知目录、扩展名、跳过目录等）不在本批，只有共享合格路径的顺序一致。
+- 新维护 22 项（生产者 5 + 独立 17），含独立 Python sorted oracle。原始生产者 5 项红测；独立 10 failed / 7 passed。最终新组合在 zh-CN/en-US 各 22 通过。
+- 发布集成树完整维护前端 **1,806 passed / 1 skipped**（zh-CN），en-US 新组合 **22 passed**；typecheck、Vite build、改动 TS 的 ESLint 与四文件 Prettier 通过。四文件哈希与最终独立签核一致。
+- 生产者较早独立基线完整 zh-CN 1785/1skip，en-US 1784/1skip/1fail；单一失败是既有 project-context 资料索引 locale 顺序断言，独立恢复旧源码可复现。发布计数采用包含版本恢复的最新集成树，不沿用旧基线计数。
+
+后端未变；不把子集绿灯等同完整聚合，既有真实 Monaco headless-shell 前提缺失仍保留。无付费模型调用、原生或生产验收声明；仅更新草稿 PR，不合并/部署。
+
+## 2026-10-08：根目录保留灵感笔记不占章节身份（保留笔记批次）
+
+基线：`047dddeb387e8daa70b1b71afcba0c35a339f68c`。1 个 API 源码 + 2 个维护测试文件。
+
+- 应用 createNewBookProject 固定创建根目录 `灵感.md` 作为初始想法及侧栏载体，前端计为零正文；后端曾把该保留笔记计为章节 1，使首个根目录章节实际 draft prompt 得到错误第 2 章时态设定和灵感笔记前文。真实生产创建路径捕获/稿件提示已作受控红绿复验。
+- 仅在 manuscript membership 排除精确根相对路径 `灵感.md`；不移动/删除/隐藏笔记，搜索/读取及作者显式选择笔记上下文仍有效。其他根 Markdown、未知目录、嵌套 `正文/灵感.md`、异名、平台大小写和扩展名规则不变。
+- 生产者 2 项初始失败；新增 20 维护回归（5 生产者 + 15 独立），含进度/字符统计、实体排除、显式上下文、隐藏路径和既有成员资格控制。
+- 生产者受影响 343 通过；独立广泛 142 通过。发布集成树最终 70 项组合通过，API 全域 Ruff 通过，三文件干净应用/冻结哈希一致。
+- 最终完整 API **3,636 passed / 25 skipped / 20 failed**，精确失败集合与已验证基线相同，零新增失败节点；不是全套通过。
+
+已知继承别名边界：正文外观 symlink 指向非正文目标时，canon 词法成员过滤与公共前章解析目标角色仍可能不一致。本批不统一 alias 语义，不宣称解决该差异；root/未知目录、.markdown/.MD 等跨端差异也未扩展处理。所有稿件为临时合成样本，生成 transport 受控，无付费/配置 provider、原生或文学质量声明。仅草稿 PR，不合并/部署。
+
+## 2026-10-08：提案面板撤销重试与回执缓冲一致性（提案 Undo 批次）
+
+集成基线：`ee86a91cb9fc381ab3269e6f8a52f343819cc29d`。1 个 hook 源码 + 1 个维护集成测试（23 项），区别于 Ctrl+K 路径。
+
+- 撤销快照失败不再吞掉错误：ToastHost 保留同一动作手动重试，而非误当成功移除入口。
+- 撤销新建在项目绑定读盘后精确核对本次创建正文，再次复核操作/项目/文件/model/单调版本/导航 epoch，拒绝删除已观察到的外部新稿；合法未改创建仍可撤销。
+- 撤销已落盘但响应丢失，稍后同一回执确认成功时，只允许本次撤销拥有且首次版本未变的 model 同步原稿缓冲。普通历史回执保护不放宽；之后输入（即使改回相同字节）、替换 model 或导航仍保护新状态。后续 Ctrl+S 验证不会把旧候选重写回磁盘。
+- 稳定 operation key/请求身份，未知结果先查回执，不重复提交；审计失败仅补记录。
+- 红证据分开记录：原始源码复现失败入口和新建误删；回执缓冲红测基于仅让 catch 拒绝的中间副本，不误称未经干预原始基线。
+- 最终独立 5 文件 **180/180** 通过，精确两文件哈希签核。生产组件 Editor/PatchReviewPanel/ToastHost 与真实写回编排挂载，Monaco/HTTP/磁盘快照边界模拟。
+- 最新发布集成树完整前端 **1,829 passed / 1 skipped**（zh-CN，已含 context-order），typecheck/build/两文件 ESLint/Prettier 通过；干净应用，哈希与独立最终版本一致。旧生产者基线1807/1skip不替代本集成计数。
+
+残余：原生 delete_path 仍无条件删除，精确读盘复核→删除间仍可能有外部进程修改，非原子 compare-delete。无真实删除/用户稿件/付费 provider，不能称 Windows Tauri 或完整聚合验收；不改变既有 CRLF→LF 规则。仅草稿 PR，不合并/部署/安装。
+
+## 2026-10-08：多块提案的精确投影与审稿归属（投影完整性批次）
+
+基线：`1b81a74366c6ad3c7d62df4d6a0934c07f53e1cc`。3 个生产文件 + 3 个新维护测试 + 1 个既有静态调用断言适配。
+
+- 修复缩短/删换行时 afterText 是 beforeText 前缀，被误认作已应用而不写入；实际 Editor/PatchReviewPanel 两项红测确认。另一处插入接受后改变上下文，剩余变化也可能错误禁用/错投影。
+- 原稿精确未变时使用不可变原始块坐标；已有确认子集能按原坐标精确重建当前正文时，才据此应用下一处/剩余全部。无效/重复 ID、重叠范围、源片段不符不能成为证明；正文漂移继续保守定位，不能猜测覆盖作者输入。
+- 预览只更新临时确认集合，逐处接受传递实际确认记录；已消费块迟到重复不能因作者改回原文重获权限。前缀歧义且完整旧文本仍在时按冲突，不虚报审稿覆盖解决。
+- 新增 37 项维护测试，含 13 项实际面板集成和 17 项独立控制；最终独立 **236/236** 通过，七文件精确哈希签核（替代此前六文件219项）。既有静态断言保留源稿/不可变块并校验新增确认子集参数。
+- 84 个短文档、7,056 原稿/目标对、21,892 已接受子集及38,496下一步转换用独立原始坐标预期验证。探索失败条目不是独立漏洞数量；各修复阶段红证据单独保留。
+- 发布集成完整前端 **1,866 passed / 1 skipped**（zh-CN），typecheck/build/七文件 ESLint/Prettier 通过；干净应用，结果匹配冻结七哈希。
+
+无后端、源身份哈希合同或行尾规则修改；控制文本及headless模拟边界，不代表真实provider/Windows/浏览器。作者额外改动导致保守拒绝仍允许，不扩大范围。此前原生read→delete TOCTOU残余不变；无CI通过/原生验收声明，仅草稿PR，不合并/部署。
+
+## 2026-10-08：canon 文件别名的解析目标角色（别名角色批次）
+
+集成基线：`7e1934f8602c7538c25d9ef909f5b816d4856f07`。1 个 API 源码 + 2 个维护测试文件；前端投影修复保持原样。
+
+- 修复正文外观的 in-project symlink 指向设定/根灵感笔记时仍占 canon 章节，而公共前章扫描已排除的问题；实际 draft prompt 原先收到错误第2章约束，修复后使用首章约束且不含参考材料。
+- canon_rebuild 复用公共 scoped_target，要求解析后的相对目标同样通过既有 manuscript role 与 dot-path 排除。额外 `.storyforge/agent-instructions.md` 别名边界已补红测；正常指令文件 discovery/read、read_author_instructions 与系统提示注入保持有效。
+- 合法正文别名仍保留原词法键、排序、重复计数及 caller glob，不去重、不改扩展名/目录策略。不支持/失败的扫描解析沿 FsToolError 保守失败，不产生部分 ordinal map 或伪造硬窗口。
+- 新增22维护案例（6生产者+16独立）。初始生产者4项红、独立9failed/6passed；第一候选指令别名边界1failed/15passed，最终修复另留证据。
+- 发布集成组合 **92 passed**，API 全域 Ruff 通过；三文件干净应用并匹配冻结哈希。最终独立广泛 **191 passed / 1 skipped**；前一候选378项广泛通过仅作历史证据，不替代最终签核。
+- 最终完整 API **3,658 passed / 25 skipped / 20 failed**，精确失败集合与已验证基线相同，零新增/移除失败；不声称全套通过。
+
+本批不统一前端自动上下文分类、native *.md 或 entity budget 其他成员规则。symlink测试使用Linux临时项目，不支持/权限拒绝环境按既有跳过规则，不声称Windows原生行为。无配置/付费provider、用户数据修改或迁移；仅草稿PR，不合并/部署。

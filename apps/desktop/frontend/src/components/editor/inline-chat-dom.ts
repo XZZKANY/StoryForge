@@ -80,7 +80,7 @@ export function buildInputZoneDom(
   head.textContent =
     mode === 'continue'
       ? `续写 · ${lineLabel} 之后 · 接着往下写一段`
-      : `行间对话 · ${lineLabel} · 只改这附近，不整段重写`;
+      : `行间对话 · ${lineLabel} · ${anchor.isSelection ? '改写选区所在的完整行' : '改写光标所在的完整行'} · 接受后写入`;
 
   const textarea = document.createElement('textarea');
   textarea.className = 'sf-inline-chat__textarea sf-inner-input';
@@ -102,7 +102,8 @@ export function buildInputZoneDom(
     event.stopPropagation();
     if (event.key === 'Enter' && !event.shiftKey && !composing) {
       event.preventDefault();
-      handlers.onSend(textarea.value);
+      // 失败恢复输入后，长按 Enter 的键盘重复事件不应变成自动模型重试。
+      if (!event.repeat) handlers.onSend(textarea.value);
     } else if (event.key === 'Escape') {
       event.preventDefault();
       handlers.onCancel();

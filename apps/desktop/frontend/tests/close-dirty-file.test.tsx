@@ -34,13 +34,17 @@ type TabsApi = ReturnType<typeof useEditorWorkspaceTabs>;
 function installFakeEditor(activeFile: string | null, outcome: 'saved' | 'error' = 'saved') {
   const saved: string[] = [];
   const onRequest = (event: Event) => {
-    const detail = (event as CustomEvent<{ filePath: string }>).detail;
+    const detail = (
+      event as CustomEvent<{ filePath: string; requestId?: number; forClose?: boolean }>
+    ).detail;
     const isActive = detail?.filePath === activeFile;
     if (isActive && outcome === 'saved') saved.push(detail.filePath);
     window.dispatchEvent(
       new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
         detail: {
           filePath: detail?.filePath ?? null,
+          requestId: detail?.requestId,
+          canClose: isActive && outcome === 'saved' ? () => true : undefined,
           status: !isActive ? 'skipped' : outcome,
           message: outcome === 'error' ? '磁盘只读' : undefined,
         },

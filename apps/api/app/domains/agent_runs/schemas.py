@@ -114,7 +114,9 @@ class AgentRunEventRead(BaseModel):
 
     @field_serializer("payload", return_type=dict[str, Any])
     def serialize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return redact_sensitive(payload)
+        from app.domains.agent_runs.runtime_recovery import public_runtime_event_payload
+
+        return redact_sensitive(public_runtime_event_payload(self.event_type, payload))
 
 
 class AgentArtifactRead(BaseModel):

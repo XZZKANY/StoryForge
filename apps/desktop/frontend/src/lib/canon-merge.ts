@@ -34,6 +34,17 @@ export function canonDeclarationPathFor(projectPath: string): string {
   return [projectPath.replace(/[/\\]+$/, ''), ...CANON_RELATIVE].join(s);
 }
 
+// 与 promise_scan._promise_id 的 Python str.strip 保持一致；不改写声明原值。
+function promiseId(value: unknown): string {
+  return typeof value === 'string'
+    ? value.replace(
+        // eslint-disable-next-line no-control-regex -- Python str.strip 也剥离这些控制空白。
+        /^[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+|[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/g,
+        '',
+      )
+    : '';
+}
+
 /** 纯函数：把一条提案并入 canon 对象。已存在则原样返回（作者已有的声明优先）。 */
 export function applyCanonMerge(canon: CanonShape, target: CanonMergeTarget): CanonShape {
   if (target.kind === 'entity') {
@@ -54,6 +65,20 @@ export function applyCanonMerge(canon: CanonShape, target: CanonMergeTarget): Ca
     : [];
   const serialized = JSON.stringify(target.entry);
   if (existing.some((item) => JSON.stringify(item) === serialized)) return canon;
+  if (target.invariant === 'promises') {
+    const id = promiseId(target.entry.id);
+    if (
+      id &&
+      existing.some(
+        (item) =>
+          item && typeof item === 'object' && promiseId((item as { id?: unknown }).id) === id,
+      )
+    ) {
+      throw new Error(
+        `伏笔承诺「${id}」已有不同声明，不能追加相同 ID。请先在 canon.json 中核对并手动处理该声明，再重扫提案；本次未写入。`,
+      );
+    }
+  }
   invariants[target.invariant] = [...existing, target.entry];
   return { ...canon, invariants };
 }

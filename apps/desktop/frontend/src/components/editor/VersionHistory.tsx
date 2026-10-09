@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { buildGraph, type BranchManifest, type GraphNode } from '../../lib/branches';
 import { buildPatchHunks, type PatchHunk } from '../../lib/patch-hunks';
@@ -34,7 +34,7 @@ export function VersionHistory({
   projectPath: string | null;
   filePath: string;
   manifest: BranchManifest;
-  onRestore: (state: VersionState, entry: VersionEntry) => Promise<void> | void;
+  onRestore: (entry: VersionEntry) => Promise<void> | void;
   onCheckoutNode: (node: GraphNode) => void;
   onBranchFromNode: (node: GraphNode) => void;
   onSelectBranch: (branchId: string) => void;
@@ -42,10 +42,24 @@ export function VersionHistory({
   // 列表模式「对比当前」用：返回编辑器实时正文，与选中快照 diff 出 +/- 概要，恢复前不再盲选。
   getCurrentContent?: () => string;
 }) {
-  const [versions, setVersions] = useState<VersionEntry[] | null>(null);
+  const scope = useMemo(() => ({ projectPath, filePath }), [projectPath, filePath]);
+  const [versionState, setVersionState] = useState<{
+    scope: typeof scope;
+    items: VersionEntry[];
+  } | null>(null);
+  // 新文件的数据尚未到达时不展示旧文件的版本按钮。
+  const versions = versionState?.scope === scope ? versionState.items : null;
   const [error, setError] = useState<string | null>(null);
   // 恢复中的条目路径：只有被点的那一行显示「恢复中…」，其余行仅禁用。
-  const [busyPath, setBusyPath] = useState<string | null>(null);
+  const [busy, setBusy] = useState<{ scope: typeof scope; path: string } | null>(null);
+  const busyPath = busy?.scope === scope ? busy.path : null;
+  const restoreRequestRef = useRef<symbol | null>(null);
+  useLayoutEffect(
+    () => () => {
+      restoreRequestRef.current = null;
+    },
+    [scope],
+  );
   // 「对比当前」读取快照期间的条目路径：防并发点击把预览张冠李戴。
   const [previewLoadingPath, setPreviewLoadingPath] = useState<string | null>(null);
   // 读版本目录失败后的本地重试计数。
@@ -94,7 +108,7 @@ export function VersionHistory({
       try {
         const list = await listVersions(projectPath, filePath);
         if (!cancelled) {
-          setVersions(list);
+          setVersionState({ scope, items: list });
           setError(null);
         }
       } catch (err) {
@@ -104,25 +118,32 @@ export function VersionHistory({
     return () => {
       cancelled = true;
     };
-  }, [projectPath, filePath, retryNonce]);
+  }, [projectPath, filePath, retryNonce, scope]);
 
   const retryLoad = () => {
     setError(null);
-    setVersions(null);
+    setVersionState(null);
     setRetryNonce((value) => value + 1);
   };
 
   const restore = async (entry: VersionEntry) => {
-    setBusyPath(entry.path);
+    const request = Symbol('restore');
+    restoreRequestRef.current = request;
+    setBusy({ scope, path: entry.path });
     try {
-      const state = await readEntryState(entry);
-      await onRestore(state, entry);
+      // 父级在读取状态前冻结编辑器归属；本面板不先 await 再转交当前标签页。
+      await onRestore(entry);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '恢复版本失败');
+      if (restoreRequestRef.current === request)
+        setError(err instanceof Error ? err.message : '恢复版本失败');
     } finally {
-      setBusyPath(null);
+      if (restoreRequestRef.current === request) {
+        restoreRequestRef.current = null;
+        setBusy(null);
+      }
     }
   };
+
   const graph = useMemo(() => buildGraph(versions ?? [], manifest), [versions, manifest]);
   const visibleVersions = versions?.filter((version) =>
     sourceFilter === 'all' ? true : version.source === sourceFilter,

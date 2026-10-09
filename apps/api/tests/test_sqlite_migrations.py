@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import create_engine, inspect
 
 from alembic import command
@@ -278,8 +279,8 @@ def test_backup_retention_keeps_last_three(tmp_path) -> None:
         engine.dispose()
 
 
-def test_quick_check_failure_falls_back_to_create_all(tmp_path, monkeypatch) -> None:
-    """quick_check 判定库损坏时中止纳管，回退 create_all 保证 sidecar 仍能起服（不 stamp）。"""
+def test_quick_check_failure_fails_closed_without_schema_or_data_changes(tmp_path, monkeypatch) -> None:
+    """quick_check 失败时中止纳管，不新增 owner 列或回填事件归属。"""
 
     import app.models  # noqa: F401
     from app.db.base import Base
@@ -289,9 +290,14 @@ def test_quick_check_failure_falls_back_to_create_all(tmp_path, monkeypatch) -> 
         Base.metadata.create_all(engine)  # 存量库形态，触发纳管路径
         monkeypatch.setattr(migrations, "quick_check", lambda _engine: (False, "corrupt"))
 
-        db_session.bootstrap_sqlite_database(engine)
-
-        assert inspect(engine).has_table("books"), "回退后库仍应可用"
+        with engine.connect() as connection:
+            before_schema = connection.exec_driver_sql("SELECT type, name, sql FROM sqlite_master ORDER BY type, name").all()
+            before_dump = list(connection.connection.driver_connection.iterdump())
+        with pytest.raises(RuntimeError, match="quick_check"):
+            db_session.bootstrap_sqlite_database(engine)
+        with engine.connect() as connection:
+            assert connection.exec_driver_sql("SELECT type, name, sql FROM sqlite_master ORDER BY type, name").all() == before_schema
+            assert list(connection.connection.driver_connection.iterdump()) == before_dump
         assert migrations.current_revision(engine) is None, "损坏库不应被 stamp 纳管"
     finally:
         engine.dispose()

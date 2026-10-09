@@ -397,14 +397,17 @@ it('an older permission or pause cannot settle the lost resume response', async 
   expect(host.textContent).toContain('尚未找到本次请求的新结算');
   expect(sendAgentControlMessage).toHaveBeenCalledOnce();
 });
-it('a new worker start prevents the decoder from falling back to a previous terminal', () => {
-  expect(
-    reconstructAgentResultFromEvents(
-      [completedEvent(10), { event_type: 'agent_execution_started', sequence: 12 }],
-      { runId: 'run', sessionId: 'session' },
-    ),
-  ).toBeNull();
-});
+it.each(['agent_execution_started', 'agent_execution_claimed'])(
+  'a new %s prevents fallback to a previous terminal',
+  (marker) => {
+    expect(
+      reconstructAgentResultFromEvents([completedEvent(10), { event_type: marker, sequence: 12 }], {
+        runId: 'run',
+        sessionId: 'session',
+      }),
+    ).toBeNull();
+  },
+);
 it('readback arriving before the control ACK cannot deliver the result twice', async () => {
   await mount();
   let finish!: (value: Awaited<ReturnType<typeof sendAgentControlMessage>>) => void;

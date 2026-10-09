@@ -132,6 +132,25 @@ def build_runtime_pending_call_summary(
     return summary
 
 
+def public_runtime_event_payload(event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Project private resumable artifacts without changing their persisted resume body.
+
+    Apply both when recording new events and when presenting older event rows.
+    A malformed/resolved private body never falls back to public raw content.
+    """
+    if event_type != "agent_artifact" or payload.get("kind") != RUNTIME_PENDING_CALL_ARTIFACT_KIND:
+        return payload
+    public: dict[str, Any] = {
+        "kind": RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+        "payload": build_runtime_pending_call_summary(payload.get("payload")) or {},
+    }
+    if type(payload.get("artifact_id")) is int:
+        public["artifact_id"] = payload["artifact_id"]
+    if type(payload.get("requires_confirmation")) is bool:
+        public["requires_confirmation"] = payload["requires_confirmation"]
+    return public
+
+
 def build_runtime_pending_call_resume_diagnostic(
     *,
     run_status: object,

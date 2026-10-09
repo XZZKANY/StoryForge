@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.common.redaction import redact_sensitive
 from app.domains.agent_runs import run_payloads
 from app.domains.agent_runs.event_types import (
+    AGENT_EXECUTION_CLAIMED,
     AGENT_RUN_COMPLETED,
     AGENT_RUN_FAILED,
     APPROVE_PERMISSION_COMMAND,
@@ -75,6 +76,9 @@ def record_agent_control_event(
     }
     if writing_run_control_payload:
         event_payload.update(writing_run_control_payload)
+    # Execution ownership is granted only by the committed server transition.
+    event_payload["control_effect"] = "ignored"
+    event_payload.pop("runtime_recovery", None)
     event = record_agent_event(
         session,
         run,
@@ -84,6 +88,9 @@ def record_agent_control_event(
         payload=event_payload,
     )
     session.refresh(run)
+    # Immutable claim/start events identify execution ownership. The claim is
+    # appended atomically with its winning transition, after older settlements.
+    control_owner = run.execution_owner_event_id
     runtime_state = agent_execution_state(session, run)
     from app.domains.agent_runs.loop.external_wait_lifecycle import handle_external_control
 
@@ -111,6 +118,8 @@ def record_agent_control_event(
                 AgentRun.id == run.id, AgentRun.status == run.status, AgentRun.current_step == run.current_step,
             ).values(status="paused", current_step="paused").execution_options(synchronize_session=False))
             session.refresh(run)
+            if changed.rowcount != 1:
+                runtime_state = agent_execution_state(session, run)
             control_effect = ("requested" if runtime_state == "in_flight" else "applied") if changed.rowcount == 1 else "ignored"
         elif (control_type == RESUME_RUN and run.status == "paused" and runtime_state == "settled"
               and run.current_step != "permission.confirm"):
@@ -119,30 +128,41 @@ def record_agent_control_event(
             claimed = session.execute(update(AgentRun).where(
                 AgentRun.id == run.id, AgentRun.status == "paused",
                 AgentRun.current_step == run.current_step,
+                AgentRun.execution_owner_event_id.is_(None) if control_owner is None else AgentRun.execution_owner_event_id == control_owner,
             ).values(status="running", current_step="resumed").execution_options(synchronize_session=False))
             session.refresh(run)
+            runtime_state = agent_execution_state(session, run)
             control_effect = "applied" if claimed.rowcount == 1 else "ignored"
+            if control_effect == "applied" and run.book_run_id is None:
+                runtime_state = "in_flight"
         elif control_type == STOP_RUN and run.status not in AGENT_RUN_TERMINAL_STATUSES:
             changed = session.execute(update(AgentRun).where(
                 AgentRun.id == run.id, AgentRun.status == run.status, AgentRun.current_step == run.current_step,
             ).values(status="stopped", current_step="stopped").execution_options(synchronize_session=False))
             session.refresh(run)
+            if changed.rowcount != 1:
+                runtime_state = agent_execution_state(session, run)
             control_effect = ("requested" if runtime_state == "in_flight" else "applied") if changed.rowcount == 1 else "ignored"
         elif control_type == STOP_RUN and run.status == "stopped" and runtime_state == "in_flight":
             control_effect = "requested"
-        elif control_type == APPROVE_PERMISSION_COMMAND and permission_transition:
-            run.status = "failed" if resolution else "completed"
-            run.current_step = "permission.approved" if resolution else "completed"
-            control_effect = "applied"
-        elif control_type == DENY_PERMISSION_COMMAND and permission_transition:
-            run.status = "failed"
-            run.current_step = "permission.denied"
-            control_effect = "applied"
+        elif control_type in {APPROVE_PERMISSION_COMMAND, DENY_PERMISSION_COMMAND} and permission_transition:
+            approved = control_type == APPROVE_PERMISSION_COMMAND
+            next_status = "completed" if approved and not resolution else "failed"
+            next_step = "permission.approved" if approved and resolution else (
+                "completed" if approved else "permission.denied"
+            )
+            changed = session.execute(update(AgentRun).where(
+                AgentRun.id == run.id, AgentRun.status == "paused", AgentRun.current_step == "permission.confirm",
+                AgentRun.execution_owner_event_id.is_(None) if control_owner is None else AgentRun.execution_owner_event_id == control_owner,
+            ).values(status=next_status, current_step=next_step).execution_options(synchronize_session=False))
+            session.refresh(run)
+            runtime_state = agent_execution_state(session, run)
+            control_effect = "applied" if changed.rowcount == 1 else "ignored"
         event.payload = {**event.payload, "control_effect": control_effect, "runtime_state": runtime_state, "run_status": run.status}
         session.add_all([run, event])
         if control_type in {PAUSE_RUN, STOP_RUN} and control_effect == "applied" and run.book_run_id is None:
             settle_agent_run_interruption(session, run)
-        elif control_type == APPROVE_PERMISSION_COMMAND and permission_transition:
+        elif control_type == APPROVE_PERMISSION_COMMAND and control_effect == "applied":
             record_agent_event(
                 session,
                 run,
@@ -158,7 +178,7 @@ def record_agent_control_event(
                     "permission_profile": canonical_permission_profile(run.permission_profile),
                 },
             )
-        elif control_type == DENY_PERMISSION_COMMAND and permission_transition and run.status == "failed":
+        elif control_type == DENY_PERMISSION_COMMAND and control_effect == "applied":
             record_agent_event(
                 session,
                 run,
@@ -173,6 +193,11 @@ def record_agent_control_event(
                     "assistant_session_id": run.assistant_session_id,
                     "permission_profile": canonical_permission_profile(run.permission_profile),
                 },
+            )
+        elif control_type == RESUME_RUN and control_effect == "applied" and run.book_run_id is None:
+            record_agent_event(
+                session, run, event_type=AGENT_EXECUTION_CLAIMED, actor="agent-runtime",
+                payload={"control_event_id": event.id, "runtime_state": "in_flight"},
             )
         else:
             session.commit()

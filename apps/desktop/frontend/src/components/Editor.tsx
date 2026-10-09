@@ -19,6 +19,7 @@ import {
   type EditorCommand,
   type LocateInEditorDetail,
   type SaveActiveFileDoneDetail,
+  type SaveActiveFileRequestDetail,
   type ReviewIssueMarker,
 } from '../lib/assistant-events';
 import { resolveAnchorLine } from '../lib/observations';
@@ -27,12 +28,7 @@ import { invalidateContextBundleCache } from '../lib/project-context';
 import { emitToast } from '../lib/toast';
 import type { EditorLineNumbersMode } from '../lib/user-settings';
 import { TauriFileSystem } from '../lib/tauri-fs';
-import {
-  readVersionState,
-  snapshotBeforeWrite,
-  type VersionEntry,
-  type VersionState,
-} from '../lib/versions';
+import { readVersionState, snapshotBeforeWrite, type VersionEntry } from '../lib/versions';
 import { exportCurrentFile, recordRevisionLoop } from '../lib/author-loop';
 import { unmarkChapterWrittenInPlan } from '../lib/serial-plan';
 import { emitAuthorLoopResult } from '../lib/assistant-events';
@@ -162,6 +158,10 @@ export function Editor({
 
   const cleanVersionIdRef = useRef<number | null>(null);
   const modelCacheRef = useRef<EditorModelCache>(new Map());
+  const dropOpenFilePathRef = useRef(dropOpenFilePath);
+  useLayoutEffect(() => {
+    dropOpenFilePathRef.current = dropOpenFilePath;
+  }, [dropOpenFilePath]);
   // 落盘串行队列：autosave 与 Ctrl+S 并发时按调用顺序依次写盘，防旧内容后落覆盖新内容。
   const [enqueueWriteback] = useState<WritebackQueue>(createWritebackQueue);
   const issueDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
@@ -174,6 +174,8 @@ export function Editor({
   const filePathRef = useRef<string | null>(null);
   const projectPathRef = useRef<string | null>(null);
   const isDirtyRef = useRef(false);
+  // 导航、模型切换、卸载或新的恢复请求使旧操作失效，切走再切回也不能复活。
+  const restoreOperationRef = useRef(0);
   const {
     branchManifest,
     advanceBranchHead,
@@ -222,6 +224,13 @@ export function Editor({
     isDirtyRef.current = isDirty;
     autoSaveRef.current = autoSave;
   });
+
+  useLayoutEffect(() => {
+    restoreOperationRef.current += 1;
+    return () => {
+      restoreOperationRef.current += 1;
+    };
+  }, [projectPath, filePath]);
 
   const {
     loadedFilePath,
@@ -397,6 +406,18 @@ export function Editor({
     modelCacheRef,
     retainedFilePaths,
   });
+
+  useLayoutEffect(() => {
+    const editor = editorRef.current;
+    if (!editorReady || !editor) return;
+    const subscription = editor.onDidChangeModel?.(() => {
+      restoreOperationRef.current += 1;
+    });
+    return () => {
+      restoreOperationRef.current += 1;
+      subscription?.dispose();
+    };
+  }, [editorReady]);
 
   useEffect(() => {
     if (editorReady && loadedFilePath === filePath) void recoverPendingSuggestion(filePath);
@@ -605,14 +626,60 @@ export function Editor({
   // 审稿/修订读盘前，外部请活动编辑器先落盘，避免后端读到未保存的旧内容。
   useEffect(() => {
     const onRequestSave = (event: Event) => {
-      const detail = (event as CustomEvent<{ filePath: string }>).detail;
-      const respond = (detail: SaveActiveFileDoneDetail) =>
+      const detail = (event as CustomEvent<SaveActiveFileRequestDetail>).detail;
+      const respond = (result: SaveActiveFileDoneDetail) =>
         window.dispatchEvent(
           new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
-            detail,
+            detail: {
+              ...result,
+              ...(detail?.requestId !== undefined ? { requestId: detail.requestId } : {}),
+            },
           }),
         );
       const requestedFilePath = detail?.filePath ?? null;
+      if (detail?.forClose) {
+        const project = projectPathRef.current;
+        const targetEditor = editorRef.current;
+        const model = targetEditor?.getModel();
+        const target = modelCacheRef.current.get(detail.filePath);
+        if (
+          !project ||
+          !model ||
+          detail.filePath !== filePathRef.current ||
+          target?.model !== model
+        ) {
+          respond({ filePath: requestedFilePath, status: 'skipped' });
+          return;
+        }
+        const version = model.getVersionId?.() ?? model.getAlternativeVersionId();
+        const canClose = () =>
+          projectPathRef.current === project &&
+          modelCacheRef.current.get(detail.filePath) === target &&
+          filePathRef.current === detail.filePath &&
+          editorRef.current === targetEditor &&
+          targetEditor?.getModel() === model &&
+          !model.isDisposed() &&
+          (model.getVersionId?.() ?? model.getAlternativeVersionId()) === version &&
+          model.getValue() === target.originalContent &&
+          target.diskBaseline.kind === 'content' &&
+          model.getValue() === target.diskBaseline.content;
+        void saveCurrentFileRef
+          .current()
+          .then(() => {
+            if (!canClose())
+              throw new Error('原稿已保存，但等待期间稿件又变化；已取消关闭，请确认后重试');
+            respond({ filePath: requestedFilePath, status: 'saved', canClose });
+          })
+          .catch((error) =>
+            respond({
+              filePath: requestedFilePath,
+              status: 'error',
+              message: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        return;
+      }
+
       if (
         !detail ||
         detail.filePath !== filePathRef.current ||
@@ -691,139 +758,199 @@ export function Editor({
     return () => window.removeEventListener(REQUEST_EDITOR_COMMAND_EVENT, onEditorCommand);
   }, []);
 
-  // 存在态进 Monaco 脏缓冲；不存在态无法用空字符串表达，确认后走受保护真删除。
-  const handleRestore = async (state: VersionState, _entry: VersionEntry) => {
-    if (state.exists) {
-      const project = projectPathRef.current;
-      const path = filePathRef.current;
-      if (!project || !path || !editorRef.current) return;
-      // 覆盖编辑缓冲是破坏动作（setValue 还会清掉 Monaco 撤销栈）：先确认，再为当前内容
-      // 留一条「恢复前」版本。快照挂在影子 Git 工作树上，脏缓冲必须先保存落盘，
-      // 否则快照收不进未保存的新增内容；setValue 不在守卫内留快照，下一次
-      // autosave/Ctrl+S 的快照捕获的是覆盖后内容，当前稿会彻底丢失。
-      const dirty = isDirtyRef.current;
-      const confirmed = await dialogs.confirm({
-        title: '恢复到此版本？',
-        message: dirty
-          ? '当前文件有未保存的修改，恢复会用所选版本覆盖编辑区。将先保存这些修改并记录完整作品版本，之后仍可从版本记录找回当前内容。'
-          : '恢复会用所选版本覆盖当前编辑区。将先为当前内容记录完整作品版本，之后仍可从版本记录找回。',
-        confirmLabel: '覆盖并恢复',
-        cancelLabel: '取消',
-        tone: dirty ? 'danger' : 'default',
-      });
-      if (!confirmed) return;
-
-      if (dirty) await saveCurrentFileRef.current();
-      if (
-        projectPathRef.current !== project ||
-        filePathRef.current !== path ||
-        !editorRef.current
-      ) {
-        throw new Error('确认期间活动文件已变化，已取消恢复');
-      }
-      const currentContent = editorRef.current.getValue();
-      const branch = getActiveBranchSnapshot();
-      // 快照成功才把旧版本灌进缓冲（快照失败整体抛给版本历史面板，保持现状可重试）。
-      await performGuardedWriteback(true, {
-        snapshot: async () =>
-          snapshotBeforeWrite(project, path, currentContent, {
-            source: 'Editor',
-            summary: '恢复历史版本前快照',
-            branchId: branch.id,
-            branchLabel: branch.label,
-            parentId: branch.headNodeId,
-          }),
-        advanceBranchHead: async (timestamp) => {
-          await advanceBranchHead(timestamp, {
-            projectPath: project,
-            filePath: path,
-            branchId: branch.id,
-          });
-        },
-        write: async () => {
-          setLoadedContentPreview(state.content.slice(0, 120));
-          editorRef.current?.setValue(state.content);
-        },
-        record: async () => undefined,
-      });
-      setIsDirty(state.content !== originalContentRef.current);
-      setShowHistory(false);
-      emitToast('已恢复到所选版本，覆盖前的当前内容已留版本快照', { tone: 'success' });
-      return;
+  // 恢复操作在读取版本前冻结归属；不能在 await 后重新认领当前标签页。
+  const beginVersionRestore = () => {
+    const project = projectPath;
+    const path = filePath;
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (
+      !project ||
+      !path ||
+      !editor ||
+      !model ||
+      !editorReady ||
+      loadedFilePath !== path ||
+      projectPathRef.current !== project ||
+      filePathRef.current !== path ||
+      modelCacheRef.current.get(path)?.model !== model
+    ) {
+      throw new Error('恢复目标尚未就绪或活动文件已变化，已取消恢复');
     }
+    const operation = ++restoreOperationRef.current;
+    const version = () => model.getVersionId?.() ?? model.getAlternativeVersionId();
+    let expectedVersion = version();
+    const current = () =>
+      restoreOperationRef.current === operation &&
+      projectPathRef.current === project &&
+      filePathRef.current === path &&
+      editorRef.current === editor &&
+      editor.getModel() === model &&
+      modelCacheRef.current.get(path)?.model === model &&
+      !model.isDisposed() &&
+      version() === expectedVersion;
+    const assertCurrent = () => {
+      if (!current()) throw new Error('恢复期间活动文件、模型或稿件已变化，已取消恢复');
+    };
+    return {
+      project,
+      path,
+      model,
+      current,
+      assertCurrent,
+      acceptOwnVersion: () => {
+        expectedVersion = version();
+      },
+    };
+  };
 
-    const project = projectPathRef.current;
-    const path = filePathRef.current;
-    if (!project || !path || !editorRef.current) return;
-    if (!dropOpenFilePath) throw new Error('当前编辑器无法安全摘除已删除文件的页签');
-    const confirmed = await dialogs.confirm({
-      title: '恢复到文件不存在的版本？',
-      message: '将先保存当前编辑内容并记录完整作品版本，然后删除该文件。之后仍可从版本记录恢复。',
-      confirmLabel: '删除并恢复',
-      cancelLabel: '取消',
-      tone: 'danger',
-    });
+  // 读取、确认、保存、快照、分支推进和最终修改是同一个有归属的操作。
+  const handleRestore = async (entry: VersionEntry, owner = beginVersionRestore()) => {
+    const { project, path, model, assertCurrent } = owner;
+    assertCurrent();
+    const state = await readVersionState(project, entry);
+    assertCurrent();
+    const dirty = isDirtyRef.current;
+    if (!state.exists && !dropOpenFilePath)
+      throw new Error('当前编辑器无法安全摘除已删除文件的页签');
+    const confirmed = await dialogs.confirm(
+      state.exists
+        ? {
+            title: '恢复到此版本？',
+            message: dirty
+              ? '当前文件有未保存的修改，恢复会用所选版本覆盖编辑区。将先保存这些修改并记录完整作品版本，之后仍可从版本记录找回当前内容。'
+              : '恢复会用所选版本覆盖当前编辑区。将先为当前内容记录完整作品版本，之后仍可从版本记录找回。',
+            confirmLabel: '覆盖并恢复',
+            cancelLabel: '取消',
+            tone: dirty ? 'danger' : 'default',
+          }
+        : {
+            title: '恢复到文件不存在的版本？',
+            message:
+              '将先保存当前编辑内容并记录完整作品版本，然后删除该文件。之后仍可从版本记录恢复。',
+            confirmLabel: '删除并恢复',
+            cancelLabel: '取消',
+            tone: 'danger',
+          },
+    );
     if (!confirmed) return;
-
-    if (isDirtyRef.current) await saveCurrentFileRef.current();
-    if (projectPathRef.current !== project || filePathRef.current !== path || !editorRef.current) {
-      throw new Error('确认期间活动文件已变化，已取消恢复');
+    assertCurrent();
+    if (dirty) {
+      await saveCurrentFileRef.current();
+      assertCurrent();
     }
-    const currentContent = editorRef.current.getValue();
+    const currentContent = model.getValue();
     const branch = getActiveBranchSnapshot();
+    const targetState = modelCacheRef.current.get(path);
+    const targetVersion = model.getVersionId?.() ?? model.getAlternativeVersionId();
+    const baseline = targetState?.diskBaseline;
+    const checkDeleteBaseline = async () => {
+      assertCurrent();
+      if (!baseline || baseline.kind !== 'content')
+        throw new Error('缺少可核对的磁盘基线，已取消删除恢复');
+      const disk = await TauriFileSystem.readProjectFile(project, path);
+      assertCurrent();
+      if (disk !== baseline.content) throw new Error('磁盘内容已变化，已取消删除恢复');
+    };
+    if (!state.exists) await checkDeleteBaseline();
     await performGuardedWriteback(true, {
-      snapshot: async () =>
-        snapshotBeforeWrite(project, path, currentContent, {
+      snapshot: async () => {
+        assertCurrent();
+        return await snapshotBeforeWrite(project, path, currentContent, {
           source: 'Editor',
-          summary: '恢复“文件不存在”版本前快照',
+          summary: state.exists ? '恢复历史版本前快照' : '恢复“文件不存在”版本前快照',
           branchId: branch.id,
           branchLabel: branch.label,
           parentId: branch.headNodeId,
-        }),
+        });
+      },
       advanceBranchHead: async (timestamp) => {
+        assertCurrent();
         await advanceBranchHead(timestamp, {
           projectPath: project,
           filePath: path,
           branchId: branch.id,
         });
+        assertCurrent();
       },
-      write: async () => TauriFileSystem.deletePath(project, path),
-      record: async () => unmarkChapterWrittenInPlan(project, path),
+      write: async () => {
+        assertCurrent();
+        if (state.exists) {
+          // 写已冻结的 model，不通过可能已换页的 editorRef 寻找目标。
+          model.setValue(state.content);
+          owner.acceptOwnVersion();
+        } else {
+          // 原生 delete_path 尚非 compare-delete；此复核挡住已观察到的磁盘漂移，
+          // 不能宣称消除了复核与原生删除之间的外部进程 TOCTOU。
+          await checkDeleteBaseline();
+          await TauriFileSystem.deletePath(project, path);
+        }
+      },
+      // 已完成删除的原目标仍需结算计划；这里不读取新的活动文件。
+      record: async () => {
+        if (!state.exists) await unmarkChapterWrittenInPlan(project, path);
+      },
     });
-    dropOpenFilePath(path);
+    if (!state.exists) {
+      // 已完成删除须清理原目标页签；换到 B 只取消活动界面结算，不取消 A 的清理。
+      // 但后来输入、新模型或同路径重建的文件不能被这次迟到完成关掉。
+      const canRetireTarget = () =>
+        projectPathRef.current === project &&
+        modelCacheRef.current.get(path) === targetState &&
+        targetState?.model === model &&
+        !model.isDisposed() &&
+        (model.getVersionId?.() ?? model.getAlternativeVersionId()) === targetVersion &&
+        (filePathRef.current !== path || editorRef.current?.getModel() === model);
+      if (!canRetireTarget() || (await TauriFileSystem.pathExists(path)) || !canRetireTarget())
+        return;
+      const settleActive = owner.current();
+      // 页签回调本身也含活动文件闭包，必须使用最新已提交的回调。
+      dropOpenFilePathRef.current?.(path);
+      if (!settleActive) return;
+    } else {
+      if (!owner.current()) return;
+      setLoadedContentPreview(state.content.slice(0, 120));
+      setIsDirty(state.content !== originalContentRef.current);
+    }
     setShowHistory(false);
-    emitToast('已恢复到“文件不存在”，删除前作品版本已保留', { tone: 'success' });
+    emitToast(
+      state.exists
+        ? '已恢复到所选版本，覆盖前的当前内容已留版本快照'
+        : '已恢复到“文件不存在”，删除前作品版本已保留',
+      { tone: 'success' },
+    );
   };
 
-  // 分支画布：把某节点正文恢复到编辑器（checkout）。
   const handleCheckoutNode = async (node: GraphNode) => {
     try {
-      const project = projectPathRef.current;
-      if (!project) return;
-      const state = await readVersionState(project, node.version);
-      await handleRestore(state, node.version);
+      await handleRestore(node.version);
     } catch (err) {
-      console.error('读取版本快照失败:', err);
       emitToast(`恢复到此节点失败：${err instanceof Error ? err.message : String(err)}`, {
         tone: 'error',
       });
     }
   };
 
-  // 分支画布：从某节点开一条新分支并设为活动分支，随后把该节点正文带入编辑器。
+  // 分支名称对话也属于原文件操作，不能在等待期间把新标签页当作目标。
   const handleBranchFromNode = async (node: GraphNode) => {
-    const project = projectPathRef.current;
-    const path = filePathRef.current;
-    if (!project || !path) return;
-    const label = await dialogs.prompt({
-      title: '新分支',
-      message: '输入新分支名称：',
-      defaultValue: `分支 @ ${formatTimestamp(node.timestamp)}`,
-      confirmLabel: '创建',
-    });
-    if (label === null) return;
-    await createBranchFromNode(node.id, label);
-    await handleCheckoutNode(node);
+    try {
+      const owner = beginVersionRestore();
+      const label = await dialogs.prompt({
+        title: '新分支',
+        message: '输入新分支名称：',
+        defaultValue: `分支 @ ${formatTimestamp(node.timestamp)}`,
+        confirmLabel: '创建',
+      });
+      if (label === null) return;
+      owner.assertCurrent();
+      await createBranchFromNode(node.id, label);
+      owner.assertCurrent();
+      await handleRestore(node.version, owner);
+    } catch (error) {
+      emitToast(`创建分支或恢复失败：${error instanceof Error ? error.message : String(error)}`, {
+        tone: 'error',
+      });
+    }
   };
 
   const emptyStateHint = !projectPath

@@ -12,6 +12,7 @@ from typing import Any
 
 from app.common.manuscript import is_manuscript_path as _is_manuscript
 from app.domains.agent_runs.consistency_scan import consistency_scan
+from app.domains.agent_runs.fs_safety import scoped_target
 from app.domains.agent_runs.fs_tools import iter_project_files as _iter_project_files
 from app.domains.agent_runs.fs_tools import resolve_project_root as _resolve_root
 
@@ -31,6 +32,10 @@ def _chapter_ordinals(project_root: str, glob: str) -> dict[str, int]:
             continue
         relative = path.relative_to(root).as_posix()
         if relative.startswith(".") or not _is_manuscript(relative):
+            continue
+        # 与正文扫描的可见性一致：资料的文件别名不能因放入正文目录就占章号。
+        resolved_relative = scoped_target(root, path).relative_to(root).as_posix()
+        if resolved_relative.startswith(".") or not _is_manuscript(resolved_relative):
             continue
         index += 1
         ordinals[relative] = index

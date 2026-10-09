@@ -209,22 +209,15 @@ def execute_agent_user_message_run(
         external_lease.validate(run)
     external_execution = (ExternalChatExecution(external_lease, 0, resumed=started_event is not None)
                           if external_lease is not None else None)
+    started = started_event or start_agent_execution(session, run)
+    result = None
+    runtime = None
     try:
         sink = _AgentRunEventSink(session, on_event=on_event)
+        sink.bind_execution(started)
         options = {"on_text": on_text} if on_text is not None else {}
         runtime = (AgentRuntime(sink, **options) if external_execution is None
                    else AgentRuntime(sink, external_execution=external_execution, **options))
-    except AgentOrchestrationError as exc:
-        fail_agent_run(
-            session,
-            run,
-            message=str(exc),
-            payload={"session_id": agent_session_id, "run_id": run.public_id, "runtime": "agent_runtime"},
-        )
-        raise AgentRuntimeError(str(exc)) from exc
-    started = started_event or start_agent_execution(session, run)
-    result = None
-    try:
         if external_lease is not None:
             validate_execution_owner(session, run, started, external_lease, resumed=started_event is not None)
             external_execution.execution_id = started.id
@@ -242,6 +235,11 @@ def execute_agent_user_message_run(
             message=message,
         )
     except AgentOrchestrationError as exc:
+        if runtime is None:
+            fail_agent_run(
+                session, run, message=str(exc), expected_execution_id=started.id,
+                payload={"session_id": agent_session_id, "run_id": run.public_id, "runtime": "agent_runtime"},
+            )
         raise AgentRuntimeError(str(exc)) from exc
     finally:
         result, settled = finish_agent_execution(session, run, started, result)

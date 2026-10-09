@@ -280,6 +280,7 @@ it('A06 an oversized stale submit cannot consume or replace an existing inline p
     FILE,
     BEFORE,
     after,
+    expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
   ]);
 });
 
@@ -329,6 +330,7 @@ it('A03 second identical occurrence is identified relative to the window and onl
     FILE,
     before,
     expected,
+    expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
   ]);
 });
 
@@ -608,6 +610,7 @@ it('accepting a current continuation hands the original target and intact suffix
     FILE,
     BEFORE,
     '首段。\n中段。\n\n新增段。\n尾段。',
+    expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
   ]);
 });
 
@@ -669,3 +672,424 @@ it.each([null, 'false', 'true'])(
     expect(zones.getAttribute('aria-hidden')).toBe(original);
   },
 );
+
+it('failed writeback retains the same proposal and reuses its identity without another model request', async () => {
+  writeback.mockRejectedValueOnce(new Error('snapshot unavailable'));
+  await mount();
+  await send(await open());
+  const accept = zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!;
+  await act(async () => {
+    accept.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(accept.isConnected).toBe(true);
+  expect(accept.disabled).toBe(false);
+  expect(accept.textContent).toContain('重试');
+  expect(zones.querySelector('[aria-busy="true"]')).toBeNull();
+  expect(zones.querySelector('.sf-inline-diff-zone--settling')).toBeNull();
+  expect(model.getValue()).toBe(BEFORE);
+  const first = writeback.mock.calls[0];
+  await act(async () => {
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', altKey: true, bubbles: true }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', altKey: true, bubbles: true }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(writeback).toHaveBeenCalledTimes(2);
+  expect(writeback.mock.calls[1]).toEqual(first);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(zones.querySelector('.sf-inline-btn-accept')).toBeNull();
+});
+
+it('pending write locks decisions; acknowledged model updates do not report false stale failure', async () => {
+  const completion = deferred<{ writebackWarning: undefined }>();
+  writeback.mockImplementationOnce(() => completion.promise);
+  await mount();
+  await send(await open());
+  const accept = zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!;
+  const reject = zones.querySelector<HTMLButtonElement>('.sf-inline-btn-reject')!;
+  await act(async () => {
+    accept.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(accept.disabled).toBe(true);
+  expect(reject.disabled).toBe(true);
+  await act(async () => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', altKey: true, bubbles: true }),
+    );
+    model.setValue('首段。\n中段。\n\n新增段。\n尾段。');
+  });
+  expect(accept.isConnected).toBe(true);
+  expect(writeback).toHaveBeenCalledTimes(1);
+  expect(host.textContent).not.toContain('稿件已变化');
+  await act(async () => completion.resolve({ writebackWarning: undefined }));
+  expect(accept.isConnected).toBe(false);
+  expect(host.textContent).toContain('已写回');
+});
+
+it('typing during a failed write invalidates the proposal rather than offering stale retry', async () => {
+  let fail!: (reason: Error) => void;
+  writeback.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      }),
+  );
+  await mount();
+  await send(await open());
+  await act(async () => {
+    zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    model.setValue('作者等待时写下的新稿。');
+    fail(new Error('snapshot unavailable'));
+  });
+  expect(model.getValue()).toBe('作者等待时写下的新稿。');
+  expect(zones.querySelector('.sf-inline-btn-accept')).toBeNull();
+  expect(writeback).toHaveBeenCalledTimes(1);
+});
+
+it.each(['click', 'shortcut'] as const)(
+  'selection ending at next line column one protects that line via %s',
+  async (method) => {
+    await mount();
+    // Monaco's end coordinate is exclusive: this contains only 中段 and its newline.
+    editorRef.current!.getSelection = () =>
+      ({
+        startLineNumber: 2,
+        startColumn: 1,
+        endLineNumber: 3,
+        endColumn: 1,
+        isEmpty: () => false,
+      }) as Monaco.Selection;
+    model.getValueInRange = () => '中段。\n';
+    const modelAfter = '首段。\n改好中段。\n越界尾段。';
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ after: modelAfter, model: 'fixture', assistant_session_id: 71 }),
+    );
+    await send(await open('revise'), '只改选中的中段，尾段逐字保留');
+    expect.soft(body().instruction).toContain('原稿第 2–2 行；本次 content 第 2–2 行');
+    await act(async () => {
+      if (method === 'click')
+        zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+      else
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Enter', altKey: true, bubbles: true }),
+        );
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    expect(writeback).toHaveBeenCalledTimes(1);
+    expect(writeback.mock.calls[0]).toEqual([
+      expect.objectContaining({ before: BEFORE, after: '首段。\n改好中段。\n尾段。' }),
+      FILE,
+      BEFORE,
+      '首段。\n改好中段。\n尾段。',
+      expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
+    ]);
+  },
+);
+
+it.each([
+  { start: 2, end: 2, endColumn: 3, expected: '2–2' },
+  { start: 2, end: 3, endColumn: 2, expected: '2–3' },
+  { start: 1, end: 3, endColumn: 1, expected: '1–2' },
+])(
+  'selection range $start:$end:$endColumn preserves each genuinely selected line',
+  async ({ start, end, endColumn, expected }) => {
+    await mount();
+    editorRef.current!.getSelection = () =>
+      ({
+        startLineNumber: start,
+        startColumn: 1,
+        endLineNumber: end,
+        endColumn,
+        isEmpty: () => false,
+      }) as Monaco.Selection;
+    model.getValueInRange = () => '选中文字';
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ after: BEFORE, model: 'fixture', assistant_session_id: 71 }),
+    );
+    await send(await open('revise'), '保留原文');
+    expect(body().instruction).toContain(`原稿第 ${expected} 行；本次 content 第 ${expected} 行`);
+    expect(writeback).not.toHaveBeenCalled();
+  },
+);
+
+it('cancel then reopen uses the new exclusive range and ignores an older generated response', async () => {
+  await mount();
+  let selectedEnd = 3;
+  editorRef.current!.getSelection = () =>
+    ({
+      startLineNumber: 1,
+      startColumn: 1,
+      endLineNumber: selectedEnd,
+      endColumn: 1,
+      isEmpty: () => false,
+    }) as Monaco.Selection;
+  model.getValueInRange = () => (selectedEnd === 3 ? '首段。\n中段。\n' : '首段。\n');
+  const older = deferred<Response>();
+  fetchMock.mockImplementationOnce(() => older.promise);
+  await send(await open('revise'), '旧范围');
+  await act(async () =>
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+  );
+  selectedEnd = 2;
+  fetchMock.mockResolvedValueOnce(
+    Response.json({
+      after: '新首段。\n越界中段。\n尾段。',
+      model: 'fixture',
+      assistant_session_id: 72,
+    }),
+  );
+  await send(await open('revise'), '只改新选中的首段');
+  expect(body().instruction).toContain('原稿第 1–1 行；本次 content 第 1–1 行');
+  await act(async () =>
+    older.resolve(
+      Response.json({
+        after: '旧首段。\n旧中段。\n尾段。',
+        model: 'old-fixture',
+        assistant_session_id: 71,
+      }),
+    ),
+  );
+  expect(zones.textContent).toContain('新首段。');
+  expect(zones.textContent).not.toContain('旧首段。');
+  await act(async () => {
+    zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(writeback).toHaveBeenCalledTimes(1);
+  expect(writeback.mock.calls[0]).toEqual([
+    expect.objectContaining({
+      before: BEFORE,
+      after: '新首段。\n中段。\n尾段。',
+      assistantSessionId: 72,
+    }),
+    FILE,
+    BEFORE,
+    '新首段。\n中段。\n尾段。',
+    expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
+  ]);
+});
+
+it.each(['backward', 'newline-only'] as const)(
+  '%s selection excludes an untouched next line',
+  async (kind) => {
+    await mount();
+    editorRef.current!.getSelection = () =>
+      ({
+        startLineNumber: 2,
+        startColumn: kind === 'newline-only' ? '中段。'.length + 1 : 1,
+        endLineNumber: 3,
+        endColumn: 1,
+        selectionStartLineNumber: kind === 'backward' ? 3 : 2,
+        selectionStartColumn: kind === 'backward' ? 1 : '中段。'.length + 1,
+        positionLineNumber: kind === 'backward' ? 2 : 3,
+        positionColumn: 1,
+        isEmpty: () => false,
+      }) as Monaco.Selection;
+    model.getValueInRange = () => (kind === 'newline-only' ? '\n' : '中段。\n');
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        after: '首段。\n中段。\n越界尾段。',
+        model: 'fixture',
+        assistant_session_id: 71,
+      }),
+    );
+    await send(await open('revise'), '检查选中处，不改相邻正文');
+    expect(body().instruction).toContain('原稿第 2–2 行；本次 content 第 2–2 行');
+    expect(writeback).not.toHaveBeenCalled();
+    expect(zones.querySelector('.sf-inline-btn-accept')).toBeNull();
+    expect(model.getValue()).toBe(BEFORE);
+  },
+);
+
+it.each([false, true])(
+  'Ctrl+A whole document with terminal newline=%s respects touched-line scope',
+  async (terminalNewline) => {
+    const before = BEFORE + (terminalNewline ? '\n' : '');
+    model = makeModel(before);
+    position.lineNumber = 1;
+    await mount();
+    editorRef.current!.getSelection = () =>
+      ({
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: terminalNewline ? 4 : 3,
+        endColumn: terminalNewline ? 1 : '尾段。'.length + 1,
+        isEmpty: () => false,
+      }) as Monaco.Selection;
+    model.getValueInRange = () => before;
+    const candidate = '新首段。\n中段。\n尾段。';
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ after: candidate, model: 'fixture', assistant_session_id: 71 }),
+    );
+    await send(await open('revise'), '调整首段，其他正文保留');
+    expect(body().instruction).toContain('原稿第 1–3 行；本次 content 第 1–3 行');
+    await act(async () => {
+      zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    const expected = candidate + (terminalNewline ? '\n' : '');
+    expect(writeback).toHaveBeenCalledTimes(1);
+    expect(writeback.mock.calls[0]).toEqual([
+      expect.objectContaining({ before, after: expected }),
+      FILE,
+      before,
+      expected,
+      expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
+    ]);
+  },
+);
+
+it('empty document Ctrl+A is empty selection and Ctrl+K makes no request', async () => {
+  model = makeModel('');
+  position.lineNumber = 1;
+  await mount();
+  editorRef.current!.getSelection = () =>
+    ({
+      startLineNumber: 1,
+      startColumn: 1,
+      endLineNumber: 1,
+      endColumn: 1,
+      isEmpty: () => true,
+    }) as Monaco.Selection;
+  await act(async () => commands.get(5)?.());
+  expect(zones.querySelector('textarea')).toBeNull();
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(writeback).not.toHaveBeenCalled();
+  expect(host.textContent).toContain('先选中要改的文字');
+});
+
+it('partial-character selection retains existing touched-line authorization rather than claiming character-exact scope', async () => {
+  await mount();
+  editorRef.current!.getSelection = () =>
+    ({
+      startLineNumber: 2,
+      startColumn: 2,
+      endLineNumber: 2,
+      endColumn: 3,
+      isEmpty: () => false,
+    }) as Monaco.Selection;
+  model.getValueInRange = () => '段';
+  const candidate = '首段。\n替换整行。\n越界尾段。';
+  fetchMock.mockResolvedValueOnce(
+    Response.json({ after: candidate, model: 'fixture', assistant_session_id: 71 }),
+  );
+  await send(await open('revise'), '调整选中文字所在行，其他行保留');
+  expect(body().instruction).toContain('原稿第 2–2 行；本次 content 第 2–2 行');
+  await act(async () => {
+    zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  const expected = '首段。\n替换整行。\n尾段。';
+  expect(writeback).toHaveBeenCalledTimes(1);
+  expect(writeback.mock.calls[0]).toEqual([
+    expect.objectContaining({ before: BEFORE, after: expected }),
+    FILE,
+    BEFORE,
+    expected,
+    expect.objectContaining({ recoveredSettlementGuard: expect.any(Function) }),
+  ]);
+});
+
+it('相同路径与正文但模型实例已替换时拒绝旧候选', async () => {
+  await mount();
+  await send(await open());
+  const staleAccept = zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!;
+  model = makeModel(BEFORE);
+  await act(async () => {
+    for (const listener of modelListeners) listener();
+    staleAccept.click();
+  });
+  expect(writeback).not.toHaveBeenCalled();
+  expect(zones.querySelector('.sf-inline-btn-accept')).toBeNull();
+});
+
+it.each([null, FILE + '.renamed'])('接受动效期间目标变为 %s 时不进入写回', async (destination) => {
+  await mount();
+  await send(await open());
+  await act(async () => {
+    zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+    fileRef.current = destination;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(writeback).not.toHaveBeenCalled();
+});
+
+it('旧写回延迟失败不会关闭新文件输入框', async () => {
+  let fail!: (error: Error) => void;
+  writeback.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      }),
+  );
+  await mount();
+  await send(await open());
+  await act(async () => {
+    zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  expect(writeback).toHaveBeenCalledTimes(1);
+  const nextFile = FILE + '.other';
+  await act(async () => {
+    fileRef.current = nextFile;
+    model = makeModel('新文件正文。');
+    position = { lineNumber: 1, column: 1 };
+    root.render(<Harness file={nextFile} />);
+  });
+  const newInput = await open('revise');
+  await act(async () => fail(new Error('old snapshot failed')));
+  expect(newInput.isConnected).toBe(true);
+  expect(newInput.disabled).toBe(false);
+  expect(model.getValue()).toBe('新文件正文。');
+  expect(host.textContent).not.toContain('old snapshot failed');
+});
+
+it('切文件中止请求且迟到响应不能替换新输入框', async () => {
+  await mount();
+  const pending = deferred<Response>();
+  fetchMock.mockImplementationOnce(() => pending.promise);
+  await send(await open('revise'), '原文件指令');
+  const signal = fetchMock.mock.calls[0][1]?.signal;
+  const nextFile = FILE + '.other';
+  await act(async () => {
+    fileRef.current = nextFile;
+    model = makeModel('新文件正文。');
+    position = { lineNumber: 1, column: 1 };
+    root.render(<Harness file={nextFile} />);
+  });
+  expect(signal?.aborted).toBe(true);
+  const nextInput = await open('revise');
+  await act(async () =>
+    pending.resolve(
+      Response.json({ after: '旧文件返回内容', model: 'old', assistant_session_id: 1 }),
+    ),
+  );
+  expect(nextInput.isConnected).toBe(true);
+  expect(zones.textContent).not.toContain('旧文件返回内容');
+  expect(writeback).not.toHaveBeenCalled();
+});
+
+it('模型替换后的迟到写回成功不会移动新光标', async () => {
+  const completed = deferred<{ writebackWarning: undefined }>();
+  writeback.mockImplementationOnce(() => completed.promise);
+  await mount();
+  await send(await open());
+  await act(async () => {
+    zones.querySelector<HTMLButtonElement>('.sf-inline-btn-accept')!.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+  await act(async () => {
+    model = makeModel(BEFORE);
+    for (const listener of modelListeners) listener();
+    completed.resolve({ writebackWarning: undefined });
+  });
+  expect(editorRef.current!.setPosition).not.toHaveBeenCalled();
+  expect(host.textContent).not.toContain('已写回');
+});

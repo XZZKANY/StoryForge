@@ -57,7 +57,7 @@ type WriteAcceptedSuggestion = (
   path: string,
   previous: string,
   nextContent: string,
-  overrides?: { summary?: string; note?: string },
+  overrides?: { summary?: string; note?: string; recoveredSettlementGuard?: () => boolean },
 ) => Promise<RevisionLoopResult>;
 
 type UseInlineChatParams = {
@@ -83,6 +83,8 @@ type InlineSession = {
   mode: InlineMode;
   phase: InlinePhase;
   anchor: InlineAnchor;
+  /** 生成失败时恢复作者原始输入，不重读可能已移动的选区。 */
+  inputDom: ReturnType<typeof buildInputZoneDom> | null;
   zoneIds: string[];
   /** 落位动效要给绿块加 class，故除 id 外还留一份 DOM 引用。 */
   zoneDoms: HTMLElement[];
@@ -102,6 +104,10 @@ type InlineSession = {
    * （改前 teardown 是同步先跑的，第二次触发天然被 sessionRef 为空挡住。）
    */
   accepting: boolean;
+  writing: boolean;
+  /** 重试沿用同一回执身份，先核对已落盘/未知结果，绝不换 ID 重放。 */
+  acceptedSuggestion: AssistantFileSuggestion | null;
+  acceptedWriteOverrides?: { recoveredSettlementGuard: () => boolean };
 };
 
 function editorLineHeight(editor: monaco.editor.IStandaloneCodeEditor): number {
@@ -279,7 +285,7 @@ export function useInlineChat({
     };
     if (bailIfStale()) return;
 
-    const suggestion = createRemoteFileSuggestion({
+    const suggestion = (session.acceptedSuggestion ??= createRemoteFileSuggestion({
       filePath: path,
       before: session.capturedBefore,
       after: session.resultAfter,
@@ -289,7 +295,7 @@ export function useInlineChat({
       model: session.model,
       userIntent: session.userInstruction || (isContinue ? '光标处续写' : '行间对话修订'),
       assistantSessionId: sessionIdRef.current,
-    });
+    }));
     const previous = session.capturedBefore;
     const next = session.resultAfter;
     const anchorLine = session.caretLineAfterAccept;
@@ -299,11 +305,28 @@ export function useInlineChat({
     // 所以写回前把两件事都再验一遍（比改前只在入口验一次更严）。
     if (!qualifySession(session)) return;
     if (bailIfStale()) return;
-    teardown();
+    session.writing = true;
+    for (const dom of session.zoneDoms) {
+      dom.setAttribute('aria-busy', 'true');
+      for (const button of dom.querySelectorAll<HTMLButtonElement>('button'))
+        button.disabled = true;
+    }
 
     try {
-      const writeback = await writeAcceptedSuggestion(suggestion, path, previous, next);
+      const targetModel = session.textModel;
+      const targetVersion = session.modelVersion;
+      const overrides = (session.acceptedWriteOverrides ??= {
+        // 仅本次已确认请求的原模型、原版本可同步查证成功的回执；历史回执不能覆盖新输入。
+        // 写回器另核对缓存目标身份，导航后的结算仍只同步原文件，不碰新的活动编辑器。
+        recoveredSettlementGuard: () =>
+          session.acceptedSuggestion === suggestion &&
+          !targetModel.isDisposed() &&
+          targetModel.getVersionId() === targetVersion,
+      });
+      const writeback = await writeAcceptedSuggestion(suggestion, path, previous, next, overrides);
       if (!matchesSessionTarget(session)) return;
+      if (sessionRef.current !== session) return;
+      teardown();
       // writeAcceptedSuggestion 内部 setValue 会把光标重置到第 1 行；停回刚改的地方，
       // 免得下一次 Ctrl+K 又锚到开头。
       editor.setPosition({ lineNumber: anchorLine, column: 1 });
@@ -315,9 +338,20 @@ export function useInlineChat({
           (isContinue ? '续写已写回当前文件' : '行间修订已写回当前文件'),
       );
     } catch (error) {
-      if (!matchesSessionTarget(session)) return;
+      if (!qualifySession(session)) return;
+      session.accepting = false;
+      session.writing = false;
+      session.editor.getContainerDomNode?.()?.classList.remove('sf-inline-accepting');
+      for (const dom of session.zoneDoms) {
+        dom.classList.remove('sf-inline-diff-zone--settling');
+        dom.removeAttribute('aria-busy');
+        for (const button of dom.querySelectorAll<HTMLButtonElement>('button'))
+          button.disabled = false;
+        const accept = dom.querySelector<HTMLButtonElement>('.sf-inline-btn-accept');
+        if (accept) accept.textContent = '重试（Alt+Enter）';
+      }
       flashStatus(
-        `接受失败：${error instanceof Error ? error.message : String(error)}`,
+        `接受失败，候选已保留；可重试核对原写回：${error instanceof Error ? error.message : String(error)}`,
         'assertive',
       );
     }
@@ -411,7 +445,7 @@ export function useInlineChat({
                 if (isSessionActive(session)) void applyAccepted();
               },
               onReject: () => {
-                if (!isSessionActive(session)) return;
+                if (!isSessionActive(session) || session.writing) return;
                 const wasContinue = sessionRef.current?.mode === 'continue';
                 teardown();
                 flashStatus(wasContinue ? '已弃用这段续写' : '已弃用行间修订');
@@ -459,6 +493,7 @@ export function useInlineChat({
         } else if (event.key === 'Escape') {
           event.preventDefault();
           event.stopPropagation();
+          if (session.writing) return;
           const wasContinue = sessionRef.current?.mode === 'continue';
           teardown();
           flashStatus(wasContinue ? '已弃用这段续写' : '已弃用行间修订');
@@ -661,11 +696,13 @@ export function useInlineChat({
         // 拼回整文再交给 renderDiff：夹紧、陈旧判定与写回一律仍以整文件为单位。
         renderDiff(before, spliceInlineReviseWindow(before, window, result.after));
       } catch (error) {
-        // 已取消（abort→teardown 已跑，sessionRef 清空）或切走：不再报失败。
-        if (!qualifySession(session)) return;
-        teardown();
+        // 主动取消、换文件/模型、继续输入后，不得恢复旧指令覆盖新工作。
+        if (!qualifySession(session) || controller.signal.aborted) return;
+        detachLoadingEsc();
+        session.abortController = null;
+        restoreInputZone(session, () => isSessionActive(session) && session.phase === 'input');
         flashStatus(
-          `AI 修订失败：${error instanceof Error ? error.message : String(error)}`,
+          `AI 修订失败（指令已保留，可修改后手动重试）：${error instanceof Error ? error.message : String(error)}`,
           'assertive',
         );
       }
@@ -732,7 +769,12 @@ export function useInlineChat({
         selection && !selection.isEmpty()
           ? {
               startLine: selection.startLineNumber,
-              endLine: selection.endLineNumber,
+              // Monaco 选区不含终点：停在下一行第 1 列只选到前一个换行符，
+              // 不能把未选中的下一行正文一起授权给模型或接受写回。
+              endLine:
+                selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber
+                  ? selection.endLineNumber - 1
+                  : selection.endLineNumber,
               text: model.getValueInRange(selection),
               isSelection: true,
             }
@@ -760,6 +802,7 @@ export function useInlineChat({
         mode,
         phase: 'input',
         anchor,
+        inputDom: null,
         zoneIds: [],
         zoneDoms: [],
         decorations: null,
@@ -771,6 +814,8 @@ export function useInlineChat({
         model: '',
         caretLineAfterAccept: anchor.startLine,
         accepting: false,
+        writing: false,
+        acceptedSuggestion: null,
       };
       sessionRef.current = session;
 
@@ -783,6 +828,7 @@ export function useInlineChat({
           if (sessionRef.current === session) teardown();
         },
       });
+      session.inputDom = dom;
       // 先给一个够用的初值，随后按真实高度重排——写死高度会把气泡底边裁掉（「不是完整的气泡」）。
       const inputZone: monaco.editor.IViewZone = {
         afterLineNumber: anchor.endLine,
@@ -818,7 +864,12 @@ export function useInlineChat({
           dom.textarea.focus({ preventScroll: true });
       };
       window.requestAnimationFrame(() => {
-        if (!isSessionActive(session) || session.phase !== 'input') return;
+        if (
+          !isSessionActive(session) ||
+          session.phase !== 'input' ||
+          !session.zoneIds.includes(inputZoneId)
+        )
+          return;
         const measured = dom.container.offsetHeight;
         if (measured > 0 && editorRef.current && sessionRef.current === session) {
           // offsetHeight 不含外边距，补上 margin(4+6) 再留一点余量。
@@ -879,6 +930,9 @@ export function useInlineChat({
     if (!editorReady || !editor) return;
     const qualifyCurrent = () => {
       const session = sessionRef.current;
+      // Guarded writeback may update this model before its audit finishes. Keep the
+      // locked candidate until settlement; failures still recheck the captured version.
+      if (session?.writing && matchesSessionTarget(session)) return;
       if (session) qualifySession(session);
     };
     const modelSubscription = editor.onDidChangeModel?.(qualifyCurrent);
@@ -887,7 +941,7 @@ export function useInlineChat({
       modelSubscription?.dispose();
       contentSubscription?.dispose();
     };
-  }, [editorReady, editorRef, qualifySession]);
+  }, [editorReady, editorRef, matchesSessionTarget, qualifySession]);
 
   // 卸载时清掉 toast 与其计时器。
   useEffect(() => {
@@ -961,6 +1015,34 @@ function swapZoneToStreaming(
       window.requestAnimationFrame(relayout);
     },
   };
+}
+
+/** 仅在当前会话/稿件仍有效的生成失败后调用；保留原输入 DOM、文字与锚点。 */
+function restoreInputZone(session: InlineSession, isActive: () => boolean): void {
+  const input = session.inputDom;
+  if (!input) return;
+  session.phase = 'input';
+  const zone: monaco.editor.IViewZone = {
+    afterLineNumber: session.anchor.endLine,
+    heightInPx: 120,
+    domNode: input.container,
+  };
+  let zoneId = '';
+  session.editor.changeViewZones((accessor) => {
+    for (const id of session.zoneIds) accessor.removeZone(id);
+    zoneId = accessor.addZone(zone);
+    session.zoneIds = [zoneId];
+    session.zoneDoms = [input.container];
+  });
+  window.requestAnimationFrame(() => {
+    if (!isActive() || !session.zoneIds.includes(zoneId)) return;
+    const measured = input.container.offsetHeight;
+    if (measured > 0) {
+      zone.heightInPx = Math.max(100, measured + 14);
+      session.editor.changeViewZones((accessor) => accessor.layoutZone(zoneId));
+    }
+  });
+  focusWhenSettled(input.textarea, isActive);
 }
 
 function swapZoneToLoading(

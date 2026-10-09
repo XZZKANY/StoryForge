@@ -1,0 +1,34 @@
+[
+  {
+    "name": "case",
+    "ordered": ["正文/A.md", "正文/a.md", "正文/b.md"]
+  },
+  {
+    "name": "underscore",
+    "ordered": ["正文/第01章.md", "正文/第02章.md", "正文/第_01章.md"]
+  },
+  {
+    "name": "volume",
+    "ordered": [
+      "正文/卷一/第001章.md",
+      "正文/卷三/第001章.md",
+      "正文/卷二/第001章.md"
+    ]
+  },
+  {
+    "name": "numeric_lexical",
+    "ordered": ["正文/第10章.md", "正文/第1章.md", "正文/第2章.md"]
+  },
+  {
+    "name": "codepoint_surrogates",
+    "ordered": ["正文/.md", "正文/𐀀.md", "正文/😀.md", "正文/􏿿.md"]
+  },
+  {
+    "name": "normalization_preserved",
+    "ordered": ["正文/é.md", "正文/z.md", "正文/é.md"]
+  },
+  {
+    "name": "prefix_segments",
+    "ordered": ["正文/A.md", "正文/A/第001章.md", "正文/A0.md"]
+  }
+]
