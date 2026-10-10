@@ -107,7 +107,8 @@ def test_series_package_does_not_reexport_sqlalchemy_models() -> None:
 
 
 def test_context_compiler_package_does_not_reexport_service_functions() -> None:
-    """context_compiler 包级入口不应重复转导出服务函数，统一从 service.py 读取。"""
+    """context_compiler 的服务层已于 2026-10 随 scene_packets 一并删除（唯一消费方），
+    只留 models.py 建表；包级入口不得把它转导出复活。"""
 
     context_compiler_init = API_ROOT / "app" / "domains" / "context_compiler" / "__init__.py"
     context_compiler_init_source = context_compiler_init.read_text(encoding="utf-8")
@@ -196,30 +197,25 @@ def test_api_main_does_not_keep_slowapi_limiter_shell() -> None:
 
 
 def test_jobs_runtime_bridge_helper_stays_pruned() -> None:
-    """JobRun runtime 读写契约应由 model_runs 承担，不保留旧 helper。
+    """JobRun 的 runtime 读写契约不得退回 jobs 域的旧 helper。
 
     2026-07-26 `apps/workflow` 退役：原先对 workflow 侧 `model_run_sink` / `checkpoints`
-    两个文件内容的断言随之删除（被断言的文件已不存在）；API 侧读写链路断言原样保留。"""
+    两个文件内容的断言随之删除（被断言的文件已不存在）。
+    2026-10 `model_runs` 的读链路（`get_runs_job_run` / `runtime_diagnostics`）随其 router
+    卸载一并删除，故不再断言它存在；JobRun 模型本身仍被 live `studio.service` 经
+    `recovery_reads` 可达，progress 契约必须保留。"""
 
     jobs_service = API_ROOT / "app" / "domains" / "jobs" / "service.py"
     jobs_model = API_ROOT / "app" / "domains" / "jobs" / "models.py"
-    model_runs_service = API_ROOT / "app" / "domains" / "model_runs" / "service.py"
 
     jobs_service_source = jobs_service.read_text(encoding="utf-8") if jobs_service.exists() else ""
     jobs_model_source = jobs_model.read_text(encoding="utf-8")
-    model_runs_service_source = model_runs_service.read_text(encoding="utf-8")
 
     for required in (
         "class JobRun",
         "progress: Mapped[dict]",
     ):
         assert required in jobs_model_source, f"JobRun 读侧 progress 契约必须保留：{required}"
-
-    for required in (
-        "def get_runs_job_run(",
-        "runtime_diagnostics",
-    ):
-        assert required in model_runs_service_source, f"model_runs 真实读写链路必须保留：{required}"
 
     for forbidden in (
         "JobRuntimeBridgeError",
@@ -248,16 +244,6 @@ def test_orphaned_helpers_and_types_stay_pruned() -> None:
     assert "def cache_delete(" not in redis_source
 
 
-def test_unused_creative_registry_queries_stay_pruned() -> None:
-    """元数据生产消费者只走列表，已移除的无调用查询接口不应复活。"""
-
-    from app.domains.runtime_tools import creative_registry
-
-    assert not hasattr(creative_registry, "get_creative_tool")
-    for name in ("get", "require", "by_domain", "by_capability"):
-        assert not hasattr(creative_registry.CreativeToolRegistry, name)
-
-
 def test_workflow_compat_dispatch_and_payload_facade_stay_pruned() -> None:
     """workflow-dispatch 兼容链与 record_workflow_model_run_payload facade 已随 apps/workflow 退役，不应重新出现。
 
@@ -278,11 +264,9 @@ def test_workflow_compat_dispatch_and_payload_facade_stay_pruned() -> None:
     ]
     assert not fk_holders, f"仍有模型指向已删的 book_runs 表：{fk_holders}"
 
-    recording_source = (model_runs_root / "recording.py").read_text(encoding="utf-8")
-    model_runs_service_source = (model_runs_root / "service.py").read_text(encoding="utf-8")
-
-    assert "record_workflow_model_run_payload" not in recording_source
-    assert "record_workflow_model_run_payload" not in model_runs_service_source
+    # 2026-10：model_runs 的服务层（recording / router / runs_diagnostics / schemas / service）
+    # 已随 router 卸载一并删除，只留 models.py 供 app/models.py 聚合建表。
+    assert {path.name for path in model_runs_root.glob("*.py")} == {"__init__.py", "models.py"}
 
     registered_paths = {route.path for route in app.routes}
     assert "/api/book-runs/{book_run_id}/workflow-dispatch" not in registered_paths

@@ -28,7 +28,9 @@
 - `studio` —— `approve_studio_writeback` 与 schema，经 live `ide` 的 `/api/ide/commands/judge.approve` 可达。
 
 其余 `retrieval`、`character_bible`、`story_state`、`blueprints`、`artifacts`、`model_runs`、`provider_gateway`、
-`events`、`quality`、`runtime_tools`、`scene_packets`、`continuity`、`timeline`、`style_packs` **只被 `app/models.py` 聚合建表引用**（`.models`），目录必留但 service 零 live 调用方。
+`events`、`continuity`、`timeline` **只被 `app/models.py` 聚合建表引用**（`.models`），目录必留但 service 零 live 调用方。
+`quality` / `runtime_tools` / `scene_packets` / `style_packs` 零表零消费方，已于 2026-10 **整域删除**；
+`model_runs` 与 `context_compiler` 的服务层同期删除，只留 `models.py`。
 
 ## 2026-10 自动整书链退役
 
@@ -41,7 +43,12 @@
 桌面端是唯一客户端，实测只调 `/api/agent-runs`、`/api/assistant`、`/api/ide` 三个前缀（加 `/health`）。
 其余 16 个前缀的 router 已卸载：`artifacts`、`blueprints`、`character_bible`、`continuity`、`events`、`judge`、
 `model_runs`、`provider_gateway`、`quality`、`repair`、`retrieval`、`runtime_tools`、`scene_packets`、`studio`、
-`style_packs`、`timeline`。**只卸 router，不删 service/models**——上面 3 个域的 service 仍在进程内执行。
+`style_packs`、`timeline`。当时**只卸 router 不删 service/models**；其中 judge / repair / studio 的 service 仍在进程内执行。
+
+**2026-10 续刀：死服务层物理删除。** `quality` / `runtime_tools` / `scene_packets` / `style_packs` 零表零消费方，
+整域删除；`model_runs` 的 `recording` / `router` / `runs_diagnostics` / `schemas` / `service` 与 `context_compiler` 的
+`schemas` / `service` 一并删除（只留 `models.py` 供聚合建表）。判据=这些模块在 `app/` 内零外部导入；
+`context_compiler` 的唯一消费方是 `scene_packets`，随之孤儿化故同刀带走。约 3300 行。
 
 OpenAPI 路径 77 → 35。随之退役的还有 `tests/e2e/phase1-5` 五个阶段契约 spec（其断言对象即这些已卸端点），
 改由 `tests/e2e/live-surface-contract.spec.ts` 守「契约快照只含三个 live 前缀」+「运行时 app 与快照逐路径一致」。

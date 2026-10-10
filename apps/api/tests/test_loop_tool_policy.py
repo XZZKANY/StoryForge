@@ -262,10 +262,3 @@ def test_declared_file_policy_rejects_truncation_before_handler(run_declared_too
     assert payloads == []
     assert trace["status"] == "failed"
     assert "超过单次处理上限" in trace["error_message"]
-
-
-def test_internal_policy_is_not_part_of_tool_catalog_dto():
-    from app.domains.runtime_tools.service import list_runtime_tools
-
-    serialized = json.dumps([tool.model_dump(mode="json") for tool in list_runtime_tools()])
-    assert all(field not in serialized for field in POLICY_FIELDS)

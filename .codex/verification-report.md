@@ -7047,3 +7047,60 @@ live 路径脱敏覆盖由该文件剩余 3 条 + 另外 4 个文件保留。
 `test_drop_book_runs_upgrade_preserves_live_rows` 原先用 `command.downgrade(config, "-1")` 造存量形态。
 本刀新增迁移后 `-1` 指向的就不再是 book_runs 那条，用例随即失败。已把 downgrade 目标写死为
 `20261008_0001`（该迁移的前一版），此后每加一条迁移都不会再错位；新增的那条门禁同样写死版本号。
+
+
+## 2026-10-10 删除已卸域的死服务层
+
+接 #276（档① of 二）。#274 卸 router 时只卸不删，本刀把其中**完全无消费方**的实现物理删除。
+
+**范围与判据**
+
+判据 = 这些模块在 `app/` 内**零外部导入**（逐模块 grep 过，含局部导入与函数名直搜）。
+
+- **整域删除**（零表、零消费方）：`quality`、`runtime_tools`、`scene_packets`、`style_packs`。
+- **服务层删除、留 `models.py`**：`model_runs`（`recording` / `router` / `runs_diagnostics` / `schemas` /
+  `service`）、`context_compiler`（`schemas` / `service`）。
+
+两处范围扩张都是被证据逼出来的，不是顺手加的：
+
+- `model_runs` 是删 `runtime_tools` 的**唯一级联点**（`runs_diagnostics.py` 导入 `list_runtime_tools`）。
+  复核后确认 `model_runs` 整域除 `models.py` 外全死：`record_failed_runtime_model_run` /
+  `record_runtime_model_run` / `create_model_run` / `get_runs_job_run` 在 `app/` 内调用数均为 0，
+  全 `app/` 对 `model_runs` 的引用只剩 `app/models.py` 的建表注册。
+- `context_compiler` 的 `schemas` / `service` **唯一消费方就是 `scene_packets/context_blocks.py`**，
+  删 scene_packets 即把它孤儿化，故同刀带走；`models.py`（表 `compiled_contexts`）保留。
+
+**测试**
+
+整删 10 个文件（`test_context_compiler*` ×3、`test_scene_packet*` ×4、`test_job_runtime_bridge`、
+`test_phase2_service_acceptance`、`test_model_runs`），另 3 个文件逐条摘除 5 个用例：
+`test_runtime_tools` 摘 3 个 `creative_registry` 用例（**保留 3 个测 live `agent_runs.tooling` 的**）、
+`test_loop_tool_policy` 摘 1 个、`test_source_pruning` 摘 1 个。
+
+**三处 pruning 不变量改写（两条被加强，一条是真发现）**
+
+1. `test_workflow_compat_dispatch_and_payload_facade_stay_pruned`：原先读 `model_runs/recording.py`
+   与 `service.py` 的文本断言某字符串不存在，文件已删会 `FileNotFoundError`。改为
+   `assert {p.name for p in model_runs_root.glob("*.py")} == {"__init__.py", "models.py"}`，**比原断言更强**。
+2. `test_context_compiler_package_does_not_reexport_service_functions`：前提（service.py 存在）不再成立，
+   docstring 改为「服务层已删，包级入口不得把它转导出复活」，断言本身不变但语义加强。
+3. `test_jobs_runtime_bridge_helper_stays_pruned`（**全量跑出来的真发现**）：它有一条**正向**断言要求
+   `model_runs/service.py` 必须包含 `get_runs_job_run` / `runtime_diagnostics`，即「JobRun runtime 读契约
+   由 model_runs 承担」。该读链路随 router 卸载一并删除，故这个契约现在**无人承担**。已删掉正向断言，
+   保留仍成立的两半（JobRun 模型的 `progress` 契约、jobs 域不得退回旧 helper），并在 docstring 写明：
+   JobRun 模型本身仍被 **live** `studio.service` 经 `recovery_reads` 可达（`ide/command_registry.py` 从
+   `studio.service` 取 `approve_studio_writeback`，facade 拉进 `recovery_reads`），所以 jobs models 必须留。
+
+删后全仓扫描确认测试中已无对任何已删文件的路径引用。
+
+**验证**
+
+- API 全量 pytest **3466 passed / 51 skipped / 0 failed**；前端 vitest 1919 passed / 1 skipped。
+- e2e 6/6；**OpenAPI 零漂移**（符合预期：这些 router 在 #274 已卸载，删实现不改契约）。
+- typecheck、eslint（0 error）、prettier、ruff 全绿；daily 与 **packaged 冻结 exe** 冒烟均绿。
+- 行尾自检：两组 numstat 逐文件一致，无 CRCRLF。净 **19 增 / 4578 删**。
+
+**未动**
+
+`judge` / `repair` / `studio` 的 service 保留（live 进程内可达）；其余已卸域的 `models.py` 全部保留
+（`app/models.py` 聚合建表依赖）。15 张空表本身的去留属 schema 瘦身，另行评估。
