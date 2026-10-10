@@ -23,7 +23,6 @@ class AgentRun(IdMixin, TimestampMixin, Base):
         ForeignKey("assistant_sessions.id", ondelete="SET NULL"),
         index=True,
     )
-    book_run_id: Mapped[int | None] = mapped_column(ForeignKey("book_runs.id", ondelete="SET NULL"), index=True)
     goal: Mapped[str] = mapped_column(Text, nullable=False)
     scope: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     permission_profile: Mapped[str] = mapped_column(String(40), nullable=False, default=DEFAULT_PERMISSION_PROFILE)

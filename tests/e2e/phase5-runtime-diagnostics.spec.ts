@@ -41,7 +41,6 @@ const runtimeToolReadFields = [
 const runtimeToolReferencesFields = ['api_paths', 'page_refs', 'workflow_nodes'];
 const modelRunReadFields = [
   'book_id',
-  'book_run_id',
   'capability',
   'chapter_id',
   'cost_estimate',

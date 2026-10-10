@@ -269,9 +269,14 @@ def test_workflow_compat_dispatch_and_payload_facade_stay_pruned() -> None:
     book_runs_root = API_ROOT / "app" / "domains" / "book_runs"
     model_runs_root = API_ROOT / "app" / "domains" / "model_runs"
 
-    # 2026-10 自动整书链整体退役：book_runs 只剩 models.py 供既有表与外键使用。
-    assert {path.name for path in book_runs_root.glob("*.py")} == {"__init__.py", "models.py"}
-    assert not list((book_runs_root / "prompts").glob("*.py"))
+    # 2026-10 自动整书链整体退役，book_runs 表与 5 个外键也已随迁移删除：整个域不应再出现。
+    assert not list(book_runs_root.glob("*.py"))
+    fk_holders = [
+        path.relative_to(API_ROOT).as_posix()
+        for path in (API_ROOT / "app" / "domains").rglob("models.py")
+        if 'ForeignKey("book_runs.id"' in path.read_text(encoding="utf-8-sig")
+    ]
+    assert not fk_holders, f"仍有模型指向已删的 book_runs 表：{fk_holders}"
 
     recording_source = (model_runs_root / "recording.py").read_text(encoding="utf-8")
     model_runs_service_source = (model_runs_root / "service.py").read_text(encoding="utf-8")

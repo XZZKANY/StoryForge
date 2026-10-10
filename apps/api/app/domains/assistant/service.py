@@ -111,7 +111,6 @@ def create_assistant_session(session: Session, payload: AssistantSessionCreate) 
         task_type=payload.task_type,
         project_path=payload.project_path,
         blueprint_id=payload.blueprint_id,
-        book_run_id=payload.book_run_id,
         artifact_id=payload.artifact_id,
     )
     assistant_session.messages = [

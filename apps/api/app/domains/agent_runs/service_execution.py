@@ -65,7 +65,7 @@ def agent_execution_state(session: Session, run: AgentRun) -> str:
 
 def settle_abandoned_resume_claims(session: Session) -> None:
     """Startup only: no worker survives to consume a committed pre-start claim."""
-    for run in session.scalars(select(AgentRun).where(AgentRun.book_run_id.is_(None))):
+    for run in session.scalars(select(AgentRun)):
         latest = session.scalar(select(AgentRunEvent).where(
             AgentRunEvent.run_id == run.id,
             AgentRunEvent.event_type.in_({

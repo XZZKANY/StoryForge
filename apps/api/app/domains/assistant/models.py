@@ -11,7 +11,6 @@ from app.db.base import Base, IdMixin, TimestampMixin
 if TYPE_CHECKING:
     from app.domains.artifacts.models import Artifact
     from app.domains.blueprints.models import BookBlueprint
-    from app.domains.book_runs.models import BookRun
 
 
 class AssistantSession(IdMixin, TimestampMixin, Base):
@@ -23,7 +22,6 @@ class AssistantSession(IdMixin, TimestampMixin, Base):
     task_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     project_path: Mapped[str | None] = mapped_column(String(1024), index=True)
     blueprint_id: Mapped[int | None] = mapped_column(ForeignKey("book_blueprints.id", ondelete="SET NULL"), index=True)
-    book_run_id: Mapped[int | None] = mapped_column(ForeignKey("book_runs.id", ondelete="SET NULL"), index=True)
     artifact_id: Mapped[int | None] = mapped_column(ForeignKey("artifacts.id", ondelete="SET NULL"), index=True)
 
     messages: Mapped[list[AssistantMessage]] = relationship(
@@ -37,7 +35,6 @@ class AssistantSession(IdMixin, TimestampMixin, Base):
         order_by="AssistantToolCall.id",
     )
     blueprint: Mapped[BookBlueprint | None] = relationship()
-    book_run: Mapped[BookRun | None] = relationship()
     artifact: Mapped[Artifact | None] = relationship()
 
 

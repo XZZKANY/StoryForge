@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from app.common.exceptions import ConflictError, NotFoundError
 from app.common.llm_control import LLMRunInterrupted
 from app.common.llm_observation import ModelObservationError
-from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book
 from app.domains.continuity.edge_constraints import ContinuityEdgeCandidate, check_edge_constraints
 from app.domains.continuity.models import ContinuityEdge
@@ -93,7 +92,6 @@ def commit_story_state_changes(
     chapter_index: int,
     prose: str,
     changes: Sequence[StateChangeInput | Mapping[str, object]],
-    book_run_id: int | None = None,
     semantic_grounder: SemanticGrounder | None = None,
     drop_ungroundable: bool = False,
 ) -> CommitStoryStateResult:
@@ -104,7 +102,7 @@ def commit_story_state_changes(
     生成路径：一条别名错配的 change 不应连累整章好正文。显式工具/接口提交仍用默认严格语义。
     """
 
-    _assert_scope(session, book_id=book_id, book_run_id=book_run_id)
+    _assert_scope(session, book_id=book_id)
     normalized = [_coerce_change(item, seq=index) for index, item in enumerate(changes, start=1)]
     grounding = [_ground_change(change, prose) for change in normalized]
     dropped_grounding: list[StoryStateGroundingResult] = []
@@ -126,7 +124,7 @@ def commit_story_state_changes(
         semantic_grounder=semantic_grounder,
     )
 
-    projected = _current_ledgers(session, book_id=book_id, book_run_id=book_run_id)
+    projected = _current_ledgers(session, book_id=book_id)
     touched: set[tuple[str, str]] = set()
     edge_changes: list[StateChangeInput] = []
     for change in normalized:
@@ -150,7 +148,6 @@ def commit_story_state_changes(
         edge_count = _stage_continuity_edges(
             session,
             book_id=book_id,
-            book_run_id=book_run_id,
             chapter_index=chapter_index,
             changes=edge_changes,
         )
@@ -162,7 +159,6 @@ def commit_story_state_changes(
             events.append(
                 StoryStateEvent(
                     book_id=book_id,
-                    book_run_id=book_run_id,
                     chapter_index=chapter_index,
                     seq=int(change.seq or 1),
                     change_type=change.change_type,
@@ -179,7 +175,6 @@ def commit_story_state_changes(
         _persist_touched_ledgers(
             session,
             book_id=book_id,
-            book_run_id=book_run_id,
             projected=projected,
             touched=touched,
         )
@@ -214,15 +209,14 @@ def reproject_story_state(
     session: Session,
     *,
     book_id: int,
-    book_run_id: int | None = None,
     through_chapter: int | None = None,
 ) -> int:
     """按事件日志重建当前态投影；指定章节时先删除其后的事件。"""
 
-    _assert_scope(session, book_id=book_id, book_run_id=book_run_id)
+    _assert_scope(session, book_id=book_id)
     if through_chapter is not None:
         future_events = session.scalars(
-            _event_scope_query(book_id=book_id, book_run_id=book_run_id).where(
+            _event_scope_query(book_id=book_id).where(
                 StoryStateEvent.chapter_index > through_chapter
             )
         ).all()
@@ -230,15 +224,15 @@ def reproject_story_state(
             session.delete(event)
         session.flush()
 
-    _delete_story_state_edges(session, book_id=book_id, book_run_id=book_run_id, through_chapter=None)
+    _delete_story_state_edges(session, book_id=book_id, through_chapter=None)
 
-    existing_ledgers = session.scalars(_ledger_scope_query(book_id=book_id, book_run_id=book_run_id)).all()
+    existing_ledgers = session.scalars(_ledger_scope_query(book_id=book_id)).all()
     for ledger in existing_ledgers:
         session.delete(ledger)
     session.flush()
 
     events = session.scalars(
-        _event_scope_query(book_id=book_id, book_run_id=book_run_id).order_by(
+        _event_scope_query(book_id=book_id).order_by(
             StoryStateEvent.chapter_index,
             StoryStateEvent.seq,
             StoryStateEvent.id,
@@ -268,7 +262,6 @@ def reproject_story_state(
         _stage_continuity_edges(
             session,
             book_id=book_id,
-            book_run_id=book_run_id,
             chapter_index=event_chapter_index,
             changes=[change],
         )
@@ -276,7 +269,6 @@ def reproject_story_state(
     _persist_touched_ledgers(
         session,
         book_id=book_id,
-        book_run_id=book_run_id,
         projected=projected,
         touched=touched,
     )
@@ -284,15 +276,9 @@ def reproject_story_state(
     return len(touched)
 
 
-def _assert_scope(session: Session, *, book_id: int, book_run_id: int | None) -> None:
-    book = session.get(Book, book_id)
-    if book is None:
+def _assert_scope(session: Session, *, book_id: int) -> None:
+    if session.get(Book, book_id) is None:
         raise StoryStateNotFoundError("作品不存在，无法提交故事状态。")
-    if book_run_id is None:
-        return
-    book_run = session.get(BookRun, book_run_id)
-    if book_run is None or book_run.book_id != book_id:
-        raise StoryStateNotFoundError("BookRun 不存在或不属于当前作品，无法提交故事状态。")
 
 
 def _coerce_change(change: StateChangeInput | Mapping[str, object], *, seq: int) -> StateChangeInput:
@@ -394,9 +380,8 @@ def _current_ledgers(
     session: Session,
     *,
     book_id: int,
-    book_run_id: int | None,
 ) -> dict[tuple[str, str], _ProjectedLedger]:
-    ledgers = session.scalars(_ledger_scope_query(book_id=book_id, book_run_id=book_run_id)).all()
+    ledgers = session.scalars(_ledger_scope_query(book_id=book_id)).all()
     return {
         (ledger.entity_kind, ledger.entity_id): _ProjectedLedger(
             entity_kind=ledger.entity_kind,
@@ -414,13 +399,12 @@ def _persist_touched_ledgers(
     session: Session,
     *,
     book_id: int,
-    book_run_id: int | None,
     projected: dict[tuple[str, str], _ProjectedLedger],
     touched: set[tuple[str, str]],
 ) -> None:
     existing = {
         (ledger.entity_kind, ledger.entity_id): ledger
-        for ledger in session.scalars(_ledger_scope_query(book_id=book_id, book_run_id=book_run_id)).all()
+        for ledger in session.scalars(_ledger_scope_query(book_id=book_id)).all()
     }
     for key in touched:
         projection = projected[key]
@@ -429,7 +413,6 @@ def _persist_touched_ledgers(
             session.add(
                 StoryStateLedger(
                     book_id=book_id,
-                    book_run_id=book_run_id,
                     entity_kind=projection.entity_kind,
                     entity_id=projection.entity_id,
                     canonical_name=projection.canonical_name,
@@ -455,7 +438,6 @@ def _stage_continuity_edges(
     session: Session,
     *,
     book_id: int,
-    book_run_id: int | None,
     chapter_index: int,
     changes: Sequence[StateChangeInput],
 ) -> int:
@@ -468,7 +450,6 @@ def _stage_continuity_edges(
             raise StoryStateInvariantError(f"连续性边冲突，拒绝提交：{summary}")
         payload = dict(change.payload)
         payload["source"] = "story_state"
-        payload["book_run_id"] = book_run_id
         payload["chapter_index"] = chapter_index
         payload["change_type"] = change.change_type
         session.add(
@@ -528,15 +509,12 @@ def _delete_story_state_edges(
     session: Session,
     *,
     book_id: int,
-    book_run_id: int | None,
     through_chapter: int | None,
 ) -> None:
     edges = session.scalars(select(ContinuityEdge).where(ContinuityEdge.book_id == book_id)).all()
     for edge in edges:
         payload = edge.payload if isinstance(edge.payload, dict) else {}
         if payload.get("source") != "story_state":
-            continue
-        if payload.get("book_run_id") != book_run_id:
             continue
         if through_chapter is not None and edge.valid_from_chapter <= through_chapter:
             continue
@@ -693,18 +671,12 @@ def _change_from_event(event: StoryStateEvent) -> StateChangeInput:
     )
 
 
-def _ledger_scope_query(*, book_id: int, book_run_id: int | None) -> Any:
-    query = select(StoryStateLedger).where(StoryStateLedger.book_id == book_id)
-    if book_run_id is None:
-        return query.where(StoryStateLedger.book_run_id.is_(None))
-    return query.where(StoryStateLedger.book_run_id == book_run_id)
+def _ledger_scope_query(*, book_id: int) -> Any:
+    return select(StoryStateLedger).where(StoryStateLedger.book_id == book_id)
 
 
-def _event_scope_query(*, book_id: int, book_run_id: int | None) -> Any:
-    query = select(StoryStateEvent).where(StoryStateEvent.book_id == book_id)
-    if book_run_id is None:
-        return query.where(StoryStateEvent.book_run_id.is_(None))
-    return query.where(StoryStateEvent.book_run_id == book_run_id)
+def _event_scope_query(*, book_id: int) -> Any:
+    return select(StoryStateEvent).where(StoryStateEvent.book_id == book_id)
 
 
 def _canonical_name(change: StateChangeInput, fallback: str) -> str:

@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
 from app.domains.blueprints.models import BookBlueprint
-from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter
 from app.domains.jobs.models import JobRun
 from app.domains.prompt_packs.models import PromptPack
@@ -40,15 +39,6 @@ def run_scope(session_factory: sessionmaker[Session]) -> dict[str, int]:
         chapter = Chapter(book_id=book.id, blueprint_id=blueprint.id, ordinal=1, title="旧港", status="planned")
         session.add(chapter)
         session.flush()
-        book_run = BookRun(
-            book_id=book.id,
-            blueprint_id=blueprint.id,
-            status="running",
-            current_chapter_index=1,
-            total_chapters=1,
-            progress={},
-            checkpoint=[],
-        )
         prompt_pack = PromptPack(
             workspace_id=workspace.id,
             book_id=book.id,
@@ -59,13 +49,12 @@ def run_scope(session_factory: sessionmaker[Session]) -> dict[str, int]:
             payload={"system": "保持克制"},
             version=1,
         )
-        session.add_all([job, book_run, prompt_pack])
+        session.add_all([job, prompt_pack])
         session.commit()
         return {
             "workspace_id": workspace.id,
             "book_id": book.id,
             "chapter_id": chapter.id,
-            "book_run_id": book_run.id,
             "job_run_id": job.id,
             "prompt_pack_id": prompt_pack.id,
         }
@@ -77,7 +66,6 @@ def test_model_run_records_provider_latency_tokens_and_prompt_pack(client: TestC
         json={
             "workspace_id": run_scope["workspace_id"],
             "book_id": run_scope["book_id"],
-            "book_run_id": run_scope["book_run_id"],
             "chapter_id": run_scope["chapter_id"],
             "job_run_id": run_scope["job_run_id"],
             "prompt_pack_id": run_scope["prompt_pack_id"],
@@ -112,7 +100,6 @@ def test_model_run_records_provider_latency_tokens_and_prompt_pack(client: TestC
     assert result["repair_count"] == 2
     assert result["prompt_template_version"] == "draft.v2"
     assert result["prompt_hash"] == "sha256:testprompt"
-    assert result["book_run_id"] == run_scope["book_run_id"]
     assert result["chapter_id"] == run_scope["chapter_id"]
     assert result["prompt_pack_id"] == run_scope["prompt_pack_id"]
 

@@ -6830,3 +6830,60 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 **未验 / 未动**
 
 真机 GUI 观感未验。`book_runs` 表与 4 处外键暂留（删表需 Alembic 迁移，待作者决定）；judge / chapter.review 旧章节审稿链未删（待作者决定）。桌面端实际调用的 API 前缀仅 `agent-runs` / `assistant` / `ide` 三个，其余 16 个前缀零调用，但 `judge` / `blueprints` / `continuity` / `repair` / `studio` / `events` 仍被 live 域进程内引用，不可按「桌面端未调用」直接删。
+
+
+## 2026-10-09 删除 book_runs 表与 5 个外键（迁移 20261009_0001）
+
+接 PR #272 的后续第一刀（作者拍板「单独一刀」）。`book_runs` 整域物理删除，指向它的 5 个
+`book_run_id` 外键列一并摘掉，`story_state_ledgers` 的唯一约束同时收敛。
+
+**改动面**
+
+- 删 `app/domains/book_runs/`（`models.py` + `__init__.py`），`app/models.py` 摘掉 `BookRun` 导出。
+- 摘 5 处外键列与其 relationship / schema 字段：`agent_runs`、`assistant_sessions`、`model_runs`、
+  `story_state_events`、`story_state_ledgers`。
+- `story_state` 服务层的 `book_run_id` 作用域参数（约 30 处）整条摘除，作用域收敛为 `book_id`：
+  该域无 router、无 live 调用方（只被 `app/models.py` 注册建表与测试引用），真实路径上该参数恒为 `None`。
+  连续性边不再按 run 分片（payload 不写 `book_run_id`，删除时也不再按它过滤）。
+- `agent_runs.service_execution.settle_abandoned_resume_claims` 去掉 `book_run_id IS NULL` 过滤——
+  managed 镜像 run 已不存在，该过滤恒真。
+- 迁移 `20261009_0001`：5 张表 batch 删列 + 删索引，`uq_story_state_ledgers_scope_entity` 由
+  `(book_id, book_run_id, entity_kind, entity_id)` 换为 `(book_id, entity_kind, entity_id)`，最后删表。
+  downgrade 完整复原表、5 列、索引、外键与原约束。
+- 前端 `AssistantSessionRecord` 摘掉 `book_run_id`（后端已不返回，该类型此前是谎）；
+  e2e `modelRunReadFields` 治理清单同步；`blueprints` 创建接口描述不再提 BookRun。
+
+**迁移写了两道守卫，均由测试逼出来（首版缺这两道，4 个用例红）**
+
+1. `context.is_offline_mode()`：`alembic upgrade --sql` 下 `op.get_bind()` 是 MockConnection，
+   `sa.inspect` 直接抛 `NoInspectionAvailable`。offline 一律当作存在、无条件发 DDL。
+2. `_has_table`：`create_all` 建的新库里 `book_runs` 从一开始就不存在（模型已删），stamp 后再
+   `upgrade head` 会走到这条迁移——必须按「本就没有」跳过，否则 `DROP TABLE` 当场炸。
+   这是 sidecar 起服的真实 bootstrap 分支。
+
+**验证**
+
+- 作者本机装机版库副本（`%LOCALAPPDATA%\com.storyforge.ide\storyforge.sqlite3`，只读复制后操作）
+  跑 upgrade → downgrade → upgrade 往返：表与 5 列正确增删，**55 条 `agent_runs` 与 16 条
+  `assistant_sessions` 全程一行不少**，`PRAGMA foreign_key_check` 无违反、`PRAGMA quick_check` 为 ok，
+  唯一约束按预期收敛与复原。
+- 新增门禁 `test_drop_book_runs_upgrade_preserves_live_rows`：用该迁移自己的 downgrade 造出存量形态，
+  塞入两张活表的行再 upgrade head，断言表与列消失且行一条不少。**变异验证**：把 `op.drop_table("book_runs")`
+  换成 `pass` 即红，还原即绿。
+- `test_alembic_heads` 的 offline 用例补断言 `ALTER TABLE agent_runs DROP COLUMN book_run_id` 与
+  `DROP TABLE book_runs`，offline 路径此后被钉住；两处写死的 head 版本号同步为 `20261009_0001`。
+- `test_source_pruning` 的 book_runs 断言改为「整域无 .py」+「`app/domains/**/models.py` 中不得再有
+  指向 `book_runs.id` 的 ForeignKey」。
+- API 全量 pytest **3577 passed / 51 skipped / 0 failed**；前端 vitest 1920 passed / 1 skipped；e2e 19/19；
+  typecheck、eslint（0 error）、prettier、ruff 全绿；OpenAPI 四产物重生成零漂移、契约中 `BookRun` 归零（缩 60 行）；
+  **daily 与 packaged 冻结 exe 冒烟均绿**。
+- 行尾自检：`git diff --numstat` 与 `--ignore-all-space --numstat` 逐文件完全一致，全量无 CRCRLF。
+
+**未动（刻意留下，另行决定）**
+
+- `save_points.py` 的 `bookrun_checkpoint` 恢复路径及 `test_agent_run_save_points.py` 对应用例、
+  `save_point_projection.py` 与 `ide/command_registry.py` 读取 artifact payload 里 `book_run` / `writing_run`
+  键的分支：这些读的是事件 / 产物 payload 形状而非外键，且 BookRun 已不可能再产出此类 artifact，
+  属 PR #272 遗留的另一处死码，不在本刀范围。
+- `source_code_standards_baseline.json` 里的 `book_runs` 私有访问条目：冻结历史快照，
+  测试只校验其内部自洽（分项之和 == total），保留不动。

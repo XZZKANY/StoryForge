@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError
 from app.common.redaction import redact_sensitive, redact_sensitive_text
-from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.jobs.models import JobRun
 from app.domains.model_runs.models import ModelRun
@@ -46,7 +45,6 @@ def record_runtime_model_run(
     workspace_id: int | None = None,
     book_id: int | None = None,
     scene_id: int | None = None,
-    book_run_id: int | None = None,
     chapter_id: int | None = None,
     prompt_pack_id: int | None = None,
     input_tokens: int = 0,
@@ -64,7 +62,6 @@ def record_runtime_model_run(
         ModelRunCreate(
             workspace_id=workspace_id,
             book_id=book_id,
-            book_run_id=book_run_id,
             chapter_id=chapter_id,
             scene_id=scene_id,
             job_run_id=job_run_id,
@@ -102,7 +99,6 @@ def record_failed_runtime_model_run(
     workspace_id: int | None = None,
     book_id: int | None = None,
     scene_id: int | None = None,
-    book_run_id: int | None = None,
     chapter_id: int | None = None,
     prompt_pack_id: int | None = None,
     error_kind: str | None = None,
@@ -117,7 +113,6 @@ def record_failed_runtime_model_run(
         ModelRunCreate(
             workspace_id=workspace_id,
             book_id=book_id,
-            book_run_id=book_run_id,
             chapter_id=chapter_id,
             scene_id=scene_id,
             job_run_id=job_run_id,
@@ -146,8 +141,6 @@ def _validate_references(session: Session, payload: ModelRunCreate) -> None:
         raise ModelRunError("工作区不存在，无法记录模型运行日志。")
     if payload.book_id is not None and session.get(Book, payload.book_id) is None:
         raise ModelRunError("作品不存在，无法记录模型运行日志。")
-    if payload.book_run_id is not None and session.get(BookRun, payload.book_run_id) is None:
-        raise ModelRunError("BookRun 不存在，无法记录模型运行日志。")
     if payload.chapter_id is not None and session.get(Chapter, payload.chapter_id) is None:
         raise ModelRunError("章节不存在，无法记录模型运行日志。")
     if payload.scene_id is not None and session.get(Scene, payload.scene_id) is None:

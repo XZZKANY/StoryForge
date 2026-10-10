@@ -31,7 +31,7 @@ def _message_input_summary(message: dict[str, Any]) -> dict[str, Any]:
         "intent": message.get("intent"),
         "has_args": bool(args),
     }
-    for key in ("file_path", "scene_packet_id", "book_id", "blueprint_id", "book_run_id", "assistant_session_id"):
+    for key in ("file_path", "scene_packet_id", "book_id", "blueprint_id", "assistant_session_id"):
         value = args.get(key) if key in args else message.get(key)
         if value is not None:
             summary[key] = value
@@ -46,7 +46,7 @@ def _message_input_summary(message: dict[str, Any]) -> dict[str, Any]:
 
 def _scope_summary(args: dict[str, Any]) -> dict[str, Any]:
     scope: dict[str, Any] = {}
-    for key in ("file_path", "scene_packet_id", "book_id", "blueprint_id", "book_run_id", "project_name"):
+    for key in ("file_path", "scene_packet_id", "book_id", "blueprint_id", "project_name"):
         value = args.get(key)
         if isinstance(value, str | int):
             scope[key] = value
