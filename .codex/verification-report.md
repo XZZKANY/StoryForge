@@ -7012,3 +7012,38 @@ live 路径脱敏覆盖由该文件剩余 3 条 + 另外 4 个文件保留。
   字段整体移除后该混淆在结构上已不可能，断言改为 `expect(display).not.toHaveProperty('canRetryFromCheckpoint')`；
   把字段加回 → 报红，还原 → 绿。
 - 行尾自检：两组 numstat 逐文件一致，无 CRCRLF。净 21 增 / 237 删。
+
+
+## 2026-10-10 删除 assistant_sessions 的两个死外键（迁移 20261010_0001）
+
+接 #275。`blueprint_id` / `artifact_id` 与已删的 `book_run_id` 同一形状，按同一模板处理。
+
+**判死依据**
+
+- 桌面端对 `/api/assistant/sessions` **只有 list 与 get，没有 POST 创建**
+  （`lib/api/assistant.ts` 只有这两个函数）——会话由服务端在对话流程里建，从不带这两个字段。
+- 代码里只在 `assistant/service.py` 的 create payload 里透传，无其他读写方。
+- 作者装机版库：16 条会话两列非空计数均为 **0**，目标表 `book_blueprints` / `artifacts` 均 **0 行**。
+
+**改动**
+
+`assistant/models.py` 删两列、两个 relationship 与整个 `TYPE_CHECKING` 块；`schemas.py` 删 4 个字段
+（Create 2 + Read 2）；`service.py` 删 2 处透传；前端 `AssistantSessionRecord` 删 2 个字段；
+迁移 `20261010_0001` 删两列两索引，守卫与 `20261009_0001` 同（offline + 新库本就无此列）。
+
+**验证**
+
+- 作者库副本 upgrade：**16 条会话与 110 条消息全保**，两列已删，`foreign_key_check` 无违反、
+  `quick_check` 为 ok；downgrade 完整复原列与索引，再 upgrade 闭合。
+- 新增门禁 `test_drop_assistant_dead_fks_preserves_sessions`（与 book_runs 那条同形状）。
+  **变异验证**：摘掉 `batch.drop_column(column)` 即红，还原即绿。
+- 契约：`AssistantSessionCreate` / `AssistantSessionRead` 已不含这两个字段；契约中残留的
+  `artifact_id` 全部属于 Knowledge Proposal 系列 schema（那是 **agent artifact**，live 概念，不动）。
+- API 全量 pytest **3489 passed / 51 skipped / 0 failed**；前端 vitest 1919 passed / 1 skipped；e2e 6/6；
+  typecheck、eslint（0 error）、prettier、ruff 全绿；daily 与 packaged 冻结 exe 冒烟均绿。
+
+**顺带修掉上一刀埋的一个隐患**
+
+`test_drop_book_runs_upgrade_preserves_live_rows` 原先用 `command.downgrade(config, "-1")` 造存量形态。
+本刀新增迁移后 `-1` 指向的就不再是 book_runs 那条，用例随即失败。已把 downgrade 目标写死为
+`20261008_0001`（该迁移的前一版），此后每加一条迁移都不会再错位；新增的那条门禁同样写死版本号。

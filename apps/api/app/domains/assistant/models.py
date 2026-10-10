@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
-
-if TYPE_CHECKING:
-    from app.domains.artifacts.models import Artifact
-    from app.domains.blueprints.models import BookBlueprint
 
 
 class AssistantSession(IdMixin, TimestampMixin, Base):
@@ -21,8 +16,6 @@ class AssistantSession(IdMixin, TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     task_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     project_path: Mapped[str | None] = mapped_column(String(1024), index=True)
-    blueprint_id: Mapped[int | None] = mapped_column(ForeignKey("book_blueprints.id", ondelete="SET NULL"), index=True)
-    artifact_id: Mapped[int | None] = mapped_column(ForeignKey("artifacts.id", ondelete="SET NULL"), index=True)
 
     messages: Mapped[list[AssistantMessage]] = relationship(
         back_populates="session",
@@ -34,8 +27,6 @@ class AssistantSession(IdMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         order_by="AssistantToolCall.id",
     )
-    blueprint: Mapped[BookBlueprint | None] = relationship()
-    artifact: Mapped[Artifact | None] = relationship()
 
 
 class AssistantMessage(IdMixin, TimestampMixin, Base):

@@ -299,8 +299,6 @@ export type AssistantSessionRecord = {
   title: string;
   task_type: string;
   project_path: string | null;
-  blueprint_id: number | null;
-  artifact_id: number | null;
   messages: AssistantMessageRecord[];
   created_at: string;
   updated_at: string;

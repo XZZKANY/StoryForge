@@ -998,10 +998,6 @@ export interface components {
         };
         /** AssistantSessionCreate */
         AssistantSessionCreate: {
-            /** Artifact Id */
-            artifact_id?: number | null;
-            /** Blueprint Id */
-            blueprint_id?: number | null;
             /** Messages */
             messages?: components["schemas"]["AssistantMessageCreate"][];
             /** Project Path */
@@ -1013,10 +1009,6 @@ export interface components {
         };
         /** AssistantSessionRead */
         AssistantSessionRead: {
-            /** Artifact Id */
-            artifact_id: number | null;
-            /** Blueprint Id */
-            blueprint_id: number | null;
             /**
              * Created At
              * Format: date-time

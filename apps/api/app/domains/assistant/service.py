@@ -110,8 +110,6 @@ def create_assistant_session(session: Session, payload: AssistantSessionCreate) 
         title=redact_sensitive_text(payload.title),
         task_type=payload.task_type,
         project_path=payload.project_path,
-        blueprint_id=payload.blueprint_id,
-        artifact_id=payload.artifact_id,
     )
     assistant_session.messages = [
         AssistantMessage(role=message.role, content=redact_sensitive_text(message.content)) for message in payload.messages
