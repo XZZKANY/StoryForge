@@ -79,7 +79,7 @@ def _scope_string_list(scope: dict[str, Any] | None, key: str) -> list[str]:
 
 def _budget_summary(args: dict[str, Any]) -> dict[str, Any]:
     budget: dict[str, Any] = {}
-    for key in ("token_budget", "time_budget_sec", "chapter_budget"):
+    for key in ("token_budget", "time_budget_sec"):
         value = args.get(key)
         if isinstance(value, int) and value > 0:
             budget[key] = value

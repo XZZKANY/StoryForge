@@ -61,51 +61,8 @@ def test_save_point_projection_reconstructs_pending_permission_and_patch(session
     assert save_points[-1]["artifact_id"] == patch.id
 
 
-def test_save_point_projection_detects_bookrun_checkpoint(session: Session) -> None:
-    """BookRun checkpoint 是当前已有的真实可恢复边界。"""
-
-    from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
-    from app.domains.agent_runs.service import record_agent_artifact
-
-    run = _seed_agent_run(session, public_id="run-save-point-checkpoint")
-    checkpoint = record_agent_artifact(
-        session,
-        run,
-        kind="bookrun_checkpoint",
-        payload={
-            "book_run_id": 7,
-            "writing_run_id": 7,
-            "status": "running",
-            "tokens_used": 420,
-            "token_budget": 900,
-            "completed_count": 1,
-            "checkpoint": [{"chapter_index": 1, "status": "completed", "model_run_id": 11}],
-        },
-        requires_confirmation=False,
-    )
-
-    projection = build_agent_run_save_point_projection(
-        run,
-        events=_stored_run_events(session, run),
-        artifacts=_stored_run_artifacts(session, run),
-    )
-
-    assert projection["recoverability"]["can_retry_from_checkpoint"] is True
-    assert projection["recoverability"]["latest_checkpoint_artifact_id"] == checkpoint.id
-    assert projection["recoverability"]["resume_strategy"] == "bookrun_checkpoint"
-    checkpoint_save_point = next(item for item in projection["save_points"] if item["kind"] == "bookrun_checkpoint")
-    assert checkpoint_save_point["summary"]["book_run_id"] == 7
-    assert checkpoint_save_point["summary"]["checkpoint_count"] == 1
-    assert checkpoint_save_point["summary"]["tokens_used"] == 420
-    assert checkpoint_save_point["summary"]["token_budget"] == 900
-    assert checkpoint_save_point["summary"]["completed_count"] == 1
-    assert checkpoint_save_point["summary"]["latest_checkpoint_chapter_index"] == 1
-    assert checkpoint_save_point["summary"]["latest_checkpoint_status"] == "completed"
-    assert checkpoint_save_point["summary"]["latest_checkpoint_model_run_id"] == 11
-
-
-def test_save_point_projection_does_not_mark_failed_run_retryable_without_checkpoint(session: Session) -> None:
-    """失败 run 没有 checkpoint 时不能被投影成 retry-safe。"""
+def test_save_point_projection_marks_failed_run_as_manual_restart(session: Session) -> None:
+    """失败 run 必须被投影成「需要手动重启」，不得出现任何自动恢复口径。"""
 
     from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
     from app.domains.agent_runs.service import record_agent_event
@@ -131,9 +88,6 @@ def test_save_point_projection_does_not_mark_failed_run_retryable_without_checkp
     )
 
     assert projection["recoverability"] == {
-        "can_retry_from_checkpoint": False,
-        "latest_checkpoint_artifact_id": None,
-        "failed_without_checkpoint": True,
         "terminal_event_id": failed_event.id,
         "resume_strategy": "manual_restart_required",
     }
@@ -294,8 +248,8 @@ def test_save_point_projection_maps_tool_trace_to_tool_completed(session: Sessio
     }
 
 
-def test_failed_run_with_runtime_marker_still_requires_manual_restart_without_checkpoint(session: Session) -> None:
-    """runtime marker 本身不是 checkpoint；失败且无 checkpoint 仍不能自动恢复。"""
+def test_failed_run_with_runtime_marker_still_requires_manual_restart(session: Session) -> None:
+    """runtime marker 可重放不等于整轮可恢复；失败 run 仍须手动重启。"""
 
     from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
     from app.domains.agent_runs.service import record_agent_event
@@ -352,13 +306,11 @@ def test_failed_run_with_runtime_marker_still_requires_manual_restart_without_ch
     )
 
     assert projection["recoverability"]["resume_strategy"] == "manual_restart_required"
-    assert projection["recoverability"]["failed_without_checkpoint"] is True
     assert projection["runtime_recovery"]["latest_replay_safe_marker"]["tool_name"] == "context.load"
     assert projection["runtime_recovery"]["latest_failure"] == {
         "event_id": projection["recoverability"]["terminal_event_id"],
         "sequence": 2,
         "event_type": "agent_run_failed",
-        "failed_without_checkpoint": True,
         "manual_restart_required": True,
         "resume_strategy": "manual_restart_required",
         "message": "provider timeout",

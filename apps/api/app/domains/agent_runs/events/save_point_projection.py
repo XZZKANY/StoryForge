@@ -37,8 +37,6 @@ def save_point_from_event(event: AgentRunEvent) -> dict[str, Any] | None:
         return _event_save_point("permission_decided", event, {"decision": event.event_type})
     if event.event_type in {AGENT_RUN_COMPLETED, AGENT_RUN_FAILED}:
         return _event_save_point("run_completed" if event.event_type == AGENT_RUN_COMPLETED else "run_failed", event)
-    if event.event_type == STOP_RUN and event.actor == "bookrun-agent":
-        return _event_save_point("run_stopped", event)
     if event.event_type == AGENT_RUN_INTERRUPTED:
         return _event_save_point("run_interrupted", event, {"runtime_state": "settled"})
     if event.event_type in {PAUSE_RUN, STOP_RUN, RESUME_RUN, RETRY_FROM_CHECKPOINT}:
@@ -49,9 +47,7 @@ def save_point_from_event(event: AgentRunEvent) -> dict[str, Any] | None:
 
 
 def save_point_from_artifact(artifact: AgentArtifact) -> dict[str, Any]:
-    if artifact.kind == "bookrun_checkpoint":
-        kind = "bookrun_checkpoint"
-    elif artifact.kind == RUNTIME_PENDING_CALL_ARTIFACT_KIND:
+    if artifact.kind == RUNTIME_PENDING_CALL_ARTIFACT_KIND:
         kind = RUNTIME_PENDING_CALL_ARTIFACT_KIND
     elif artifact.kind == RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND:
         kind = RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND
@@ -137,22 +133,6 @@ def _control_event_summary(event: AgentRunEvent) -> dict[str, Any]:
         value = payload.get(key)
         if isinstance(value, str) and value:
             summary[key] = value
-    for key in ("book_run_id", "writing_run_id"):
-        value = payload.get(key)
-        if isinstance(value, int):
-            summary[key] = value
-    writing_run = payload.get("writing_run") if isinstance(payload.get("writing_run"), dict) else {}
-    book_run = payload.get("book_run") if isinstance(payload.get("book_run"), dict) else {}
-    for source, prefix in ((writing_run, "writing_run"), (book_run, "book_run")):
-        status = source.get("status")
-        if isinstance(status, str) and status:
-            summary[f"{prefix}_status"] = status
-        mode = source.get("mode")
-        if isinstance(mode, str) and mode:
-            summary[f"{prefix}_mode"] = mode
-        scope = source.get("scope")
-        if isinstance(scope, str) and scope:
-            summary[f"{prefix}_scope"] = scope
     return summary
 
 
@@ -189,8 +169,6 @@ def _artifact_summary(artifact: AgentArtifact) -> dict[str, Any]:
     for key in (
         "kind",
         "file_path",
-        "book_run_id",
-        "writing_run_id",
         "status",
         "intent",
         "boundary",
@@ -199,25 +177,12 @@ def _artifact_summary(artifact: AgentArtifact) -> dict[str, Any]:
         "resolved_by",
         "result_status",
         "pending_resume_strategy",
-        "tokens_used",
         "token_budget",
-        "completed_count",
-        "current_chapter_index",
         "total_chapters",
-        "checkpoint_count",
-        "resume_from_chapter_index",
-        "retry_from_chapter_index",
-        "retry_checkpoint_chapter_index",
     ):
         value = payload.get(key)
         if isinstance(value, str | int | bool):
             summary[key] = value
-    retry_checkpoint = payload.get("retry_checkpoint")
-    if isinstance(retry_checkpoint, dict):
-        for key in ("chapter_index", "status", "model_run_id", "judge_report_id", "approved_scene_id"):
-            value = retry_checkpoint.get(key)
-            if isinstance(value, str | int | bool):
-                summary[f"retry_checkpoint_{key}"] = value
     pending_artifact_id = payload.get("pending_artifact_id")
     if isinstance(pending_artifact_id, int):
         summary["pending_artifact_id"] = pending_artifact_id
@@ -229,31 +194,10 @@ def _artifact_summary(artifact: AgentArtifact) -> dict[str, Any]:
             summary["file_path"] = file_path
         if isinstance(content, str):
             summary["content_chars"] = len(content)
-    checkpoint = payload.get("checkpoint")
-    if isinstance(checkpoint, list):
-        summary["checkpoint_count"] = len(checkpoint)
-        latest_checkpoint = _latest_checkpoint_entry(checkpoint)
-        if latest_checkpoint is not None:
-            chapter_index = latest_checkpoint.get("chapter_index")
-            if isinstance(chapter_index, int):
-                summary["latest_checkpoint_chapter_index"] = chapter_index
-            for key in ("status", "model_run_id", "judge_report_id", "approved_scene_id"):
-                value = latest_checkpoint.get(key)
-                if isinstance(value, str | int | bool):
-                    summary[f"latest_checkpoint_{key}"] = value
     return summary
 
 
-def _latest_checkpoint_entry(checkpoint: list[object]) -> dict[str, Any] | None:
-    for item in reversed(checkpoint):
-        if isinstance(item, dict):
-            return item
-    return None
-
-
-def resume_strategy(run: AgentRun, *, checkpoint: AgentArtifact | None, pending_permission: bool) -> str:
-    if checkpoint is not None:
-        return "bookrun_checkpoint"
+def resume_strategy(run: AgentRun, *, pending_permission: bool) -> str:
     if pending_permission:
         return "await_permission_decision"
     if run.status == "failed":
@@ -267,7 +211,6 @@ def runtime_recovery_projection(
     run: AgentRun,
     events: list[AgentRunEvent],
     *,
-    checkpoint: AgentArtifact | None,
     pending_call: AgentArtifact | None,
     pending_resolution: AgentArtifact | None,
 ) -> dict[str, Any]:
@@ -284,7 +227,6 @@ def runtime_recovery_projection(
         "latest_replay_safe_marker": replay_safe_markers[-1] if replay_safe_markers else None,
         "latest_failure": _latest_runtime_failure(
             latest_event(events, AGENT_RUN_FAILED),
-            checkpoint=checkpoint,
             latest_execution_marker=latest_execution_marker,
         ),
         "latest_control": _latest_control_event(events),
@@ -293,7 +235,7 @@ def runtime_recovery_projection(
         "latest_pending_call": _pending_runtime_call_summary(pending_call),
         "latest_pending_call_resolution": _pending_runtime_call_resolution_summary(pending_resolution),
         "automatic_resume_supported": False,
-        "manual_restart_required": run.status == "failed" and checkpoint is None,
+        "manual_restart_required": run.status == "failed",
     }
 
 
@@ -358,24 +300,19 @@ def _latest_control_event(events: list[AgentRunEvent]) -> dict[str, Any] | None:
 def _latest_runtime_failure(
     event: AgentRunEvent | None,
     *,
-    checkpoint: AgentArtifact | None,
     latest_execution_marker: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     if event is None:
         return None
-    failed_without_checkpoint = checkpoint is None
     summary: dict[str, Any] = {
         "event_id": event.id,
         "sequence": event.sequence,
         "event_type": event.event_type,
-        "failed_without_checkpoint": failed_without_checkpoint,
-        "manual_restart_required": failed_without_checkpoint,
-        "resume_strategy": "manual_restart_required" if failed_without_checkpoint else "bookrun_checkpoint",
+        "manual_restart_required": True,
+        "resume_strategy": "manual_restart_required",
     }
     if event.message:
         summary["message"] = event.message[:500]
-    if checkpoint is not None:
-        summary["checkpoint_artifact_id"] = checkpoint.id
     if latest_execution_marker is not None:
         summary["latest_execution_marker"] = _runtime_marker_reference(latest_execution_marker)
     return summary

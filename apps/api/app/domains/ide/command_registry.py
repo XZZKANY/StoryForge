@@ -173,10 +173,6 @@ def _resolve_audit_workspace_id(session: Session, payload: dict[str, object]) ->
     """把成功执行的 IDE 写命令沉淀为可查询事件，并用事件 ID 作为审计标识。"""
 
     book_id = _int_or_none(payload.get("book_id"))
-    if book_id is None:
-        book_run = payload.get("book_run")
-        if isinstance(book_run, dict):
-            book_id = _int_or_none(book_run.get("book_id"))
     if book_id is not None:
         book = session.get(Book, book_id)
         if book is not None and book.workspace_id is not None:

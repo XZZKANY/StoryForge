@@ -90,6 +90,5 @@ def checkpoint_recovery_projection(session: Session, run: AgentRun, projection: 
         projection["recoverability"].update(
             resume_strategy=("await_settlement" if not settled else
                              "continue_checkpoint" if can_resume else "reconciliation_required"),
-            failed_without_checkpoint=False,
         )
         projection["runtime_recovery"]["manual_restart_required"] = False

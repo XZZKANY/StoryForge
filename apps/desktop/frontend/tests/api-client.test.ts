@@ -375,7 +375,7 @@ test('getAgentRunSavePoints fetches durable recovery projection', async () => {
             },
           ],
           pending: { permission_required: false },
-          recoverability: { resume_strategy: 'bookrun_checkpoint' },
+          recoverability: { resume_strategy: 'manual_restart_required' },
           runtime_recovery: {
             latest_control: { event_type: 'retry_from_checkpoint' },
           },

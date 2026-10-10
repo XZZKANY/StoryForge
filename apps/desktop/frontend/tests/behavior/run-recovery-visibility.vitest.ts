@@ -14,7 +14,6 @@ const display: AgentRunRecoveryDisplay = {
   boundaryText: '最近边界：file.revise · completed',
   checkpointText: null,
   tone: 'waiting',
-  canRetryFromCheckpoint: false,
   manualRestartRequired: false,
 };
 
