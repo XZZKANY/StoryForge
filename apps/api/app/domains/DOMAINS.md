@@ -21,17 +21,32 @@
 
 ## backing（进程内被 live 依赖，谨慎改）
 
-`judge`、`retrieval`、`character_bible`、`story_state`、`blueprints`、`artifacts`、`model_runs`、`provider_gateway`、`events`、`quality`、`repair`、`runtime_tools`、`scene_packets`、`continuity`、`timeline`。
+**service 真被 live 进程内调用的只有 3 个**（2026-10 逐域实证，判据 = live 四域里非 `.models` 的 import）：
 
-**router 可冻结但 service/models 是 live 依赖（不可删目录）**：
-- `studio` —— `studio.service.approve_studio_writeback` / `schemas` 被 **live `ide`** 用（`ide/command_registry.py:22-23,220`，经 `judge.approve` REST 命令 + agent loop 工具可达）。
-- `style_packs` —— 原调用方 BookRun 生成链已于 2026-10 删除，待核实是否还有其他调用方。
+- `judge` —— `semantic_judge_with_status`、`create_judge_issues` 与两组 schema。
+- `repair` —— `create_repair_patch` 与 schema。
+- `studio` —— `approve_studio_writeback` 与 schema，经 live `ide` 的 `/api/ide/commands/judge.approve` 可达。
+
+其余 `retrieval`、`character_bible`、`story_state`、`blueprints`、`artifacts`、`model_runs`、`provider_gateway`、
+`events`、`quality`、`runtime_tools`、`scene_packets`、`continuity`、`timeline`、`style_packs` **只被 `app/models.py` 聚合建表引用**（`.models`），目录必留但 service 零 live 调用方。
 
 ## 2026-10 自动整书链退役
 
 作者拍板删除 BookRun 自动整书链：`book_runs` **整域已删**（表与 5 个 `book_run_id` 外键随迁移 `20261009_0001` 一并删除，`story_state_ledgers` 唯一约束同时收敛为 `(book_id, entity_kind, entity_id)`）；
 `writing_runs`、`exports` 与 `books/lineage_service.py` 整体删除；IDE `bookrun.*` 命令、`/api/ide/runs/{id}/events`、
 `/api/book-runs/*`、`/api/books/{id}/exports/*` 与 Agent 托管适配器一并移除。live 模块的 LLM 调用统一走 `app/common/llm_client.py` / `llm_env.py`。
+
+## 2026-10 卸载桌面端零调用的 router
+
+桌面端是唯一客户端，实测只调 `/api/agent-runs`、`/api/assistant`、`/api/ide` 三个前缀（加 `/health`）。
+其余 16 个前缀的 router 已卸载：`artifacts`、`blueprints`、`character_bible`、`continuity`、`events`、`judge`、
+`model_runs`、`provider_gateway`、`quality`、`repair`、`retrieval`、`runtime_tools`、`scene_packets`、`studio`、
+`style_packs`、`timeline`。**只卸 router，不删 service/models**——上面 3 个域的 service 仍在进程内执行。
+
+OpenAPI 路径 77 → 35。随之退役的还有 `tests/e2e/phase1-5` 五个阶段契约 spec（其断言对象即这些已卸端点），
+改由 `tests/e2e/live-surface-contract.spec.ts` 守「契约快照只含三个 live 前缀」+「运行时 app 与快照逐路径一致」。
+后端侧护栏见 `tests/test_api_surface.py`（`test_api_surface_is_limited_to_desktop_consumed_prefixes` /
+`test_desktop_unused_domain_routers_stay_unmounted`，均已变异验证）。**回滚 = 把对应 `include_router` 加回 `main.py`**。
 
 ## frozen（web / 多租户 / 自动整书遗产）
 

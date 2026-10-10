@@ -335,7 +335,8 @@ it('real inline snapshot failure retains candidate; retry writes once with no ne
   await observe(() => expect(files.get(FILE)).toBe(AFTER));
   expect(writes.filter((path) => path === FILE)).toHaveLength(1);
   expect(fetchMock).toHaveBeenCalledTimes(1);
-  expect(host.querySelector('.sf-inline-btn-accept')).toBeNull();
+  // 候选收起发生在写盘落定之后的下一次渲染，裸断言会和该次渲染赛跑。
+  await observe(() => expect(host.querySelector('.sf-inline-btn-accept')).toBeNull());
 });
 
 it('navigating before accepting cannot apply an old detached button to the active file', async () => {

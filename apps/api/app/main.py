@@ -28,25 +28,9 @@ from app.common.version import APP_VERSION
 from app.db.session import SessionLocal, bootstrap_sqlite_database, get_engine
 from app.domains.agent_runs.router import router as agent_runs_router
 from app.domains.agent_runs.service import reap_non_terminal_agent_runs
-from app.domains.artifacts.router import router as artifacts_router
 from app.domains.assistant.router import router as assistant_router
-from app.domains.blueprints.router import router as blueprints_router
-from app.domains.character_bible.router import router as character_bible_router
-from app.domains.continuity.router import router as continuity_router
-from app.domains.events.router import router as events_router
 from app.domains.health.router import router as health_router
 from app.domains.ide.router import router as ide_router
-from app.domains.judge.router import router as judge_router
-from app.domains.model_runs.router import router as model_runs_router
-from app.domains.provider_gateway.router import router as provider_gateway_router
-from app.domains.quality.router import router as quality_router
-from app.domains.repair.router import router as repair_router
-from app.domains.retrieval.router import router as retrieval_router
-from app.domains.runtime_tools.router import router as runtime_tools_router
-from app.domains.scene_packets.router import router as scene_packets_router
-from app.domains.studio.router import router as studio_router
-from app.domains.style_packs.router import router as style_packs_router
-from app.domains.timeline.router import router as timeline_router
 
 logger = get_logger(__name__)
 
@@ -271,23 +255,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(health_router)
 app.include_router(agent_runs_router)
 app.include_router(ide_router)
-app.include_router(artifacts_router)
 app.include_router(assistant_router)
-app.include_router(blueprints_router)
-app.include_router(character_bible_router)
-app.include_router(events_router)
-app.include_router(continuity_router)
-app.include_router(judge_router)
-app.include_router(model_runs_router)
-app.include_router(provider_gateway_router)
-app.include_router(quality_router)
-app.include_router(repair_router)
-app.include_router(retrieval_router)
-app.include_router(runtime_tools_router)
-app.include_router(scene_packets_router)
-app.include_router(style_packs_router)
-app.include_router(studio_router)
-app.include_router(timeline_router)
 
 
 @app.exception_handler(DomainError)
