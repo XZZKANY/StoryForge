@@ -20,6 +20,9 @@ import { ExternalWritebackPanel } from '../app/ExternalWritebackPanel';
 import { AgentDecisionPrompt } from './AgentDecisionPrompt';
 import { ChapterCheckHistoryPanel } from './ChapterCheckHistoryPanel';
 import type { ChapterCheckHistoryState } from './useChapterCheckHistory';
+import { PartnerOpening } from './PartnerOpening';
+import type { ChapterHandoff } from '../../lib/chapter-handoff';
+import type { ChapterWriteRequest } from '../../lib/assistant-events';
 
 type Props = {
   state: ChatWindowState;
@@ -47,6 +50,9 @@ type Props = {
   onRemoveQueuedMessage?: (id: number) => void;
   retryLastFailedRun: () => void;
   agentRunControls: AgentRunControlHandlers;
+  /** 新会话开场「接着写」；null 时对话区保持空白。 */
+  opening?: ChapterHandoff | null;
+  onOpeningDraft?: (request: ChapterWriteRequest) => void;
 };
 
 export function ChatWindowView({
@@ -68,12 +74,15 @@ export function ChatWindowView({
   addExplicitContext,
   togglePinnedContext,
   handleSubmit,
+  handleComposerSubmit,
   userMessageHistory,
   conversationScope,
   queuedMessages = [],
   onRemoveQueuedMessage,
   retryLastFailedRun,
   agentRunControls,
+  opening = null,
+  onOpeningDraft,
 }: Props) {
   const externalWriteback = useExternalWritebackCoordinator();
   const dialogsActive = decisionDialogsActive && layoutMode !== 'editor';
@@ -178,6 +187,15 @@ export function ChatWindowView({
         messages={state.messages}
         agentRun={state.agentRun}
         agentRunRecovery={state.agentRunRecovery}
+        emptyState={
+          opening && onOpeningDraft ? (
+            <PartnerOpening
+              handoff={opening}
+              onDraft={onOpeningDraft}
+              onAsk={(prompt) => void handleComposerSubmit(prompt)}
+            />
+          ) : null
+        }
       />
 
       {externalWriteback && (

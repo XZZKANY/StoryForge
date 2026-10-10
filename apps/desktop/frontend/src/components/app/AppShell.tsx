@@ -408,6 +408,8 @@ export function AppShell({
                 agentPermissionProfile={agentPermission.profile}
                 onAgentPermissionProfileChange={agentPermission.changeProfile}
                 onAgentRunSummaryChange={onAgentRunSummaryChange}
+                bookChapters={bookContext.snapshot?.chapters ?? null}
+                bookPromises={observatory.promises}
               />
             </div>
           </AssistantPanelFrame>

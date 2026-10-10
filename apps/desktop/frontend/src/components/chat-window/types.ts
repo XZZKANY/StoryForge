@@ -3,6 +3,8 @@ import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { LocalConversationAction } from '../../lib/local-conversation-action';
 import type { ContextBundle } from '../../lib/project-context';
 import type { LayoutMode } from '../shell/useShellState';
+import type { HandoffChapter } from '../../lib/chapter-handoff';
+import type { ObservatoryPromises } from '../../lib/observations';
 
 export type ChatWindowProps = {
   projectPath: string | null;
@@ -24,6 +26,9 @@ export type ChatWindowProps = {
   onAgentPermissionProfileChange?: (profile: AgentPermissionProfile) => void;
   /** 将运行中的 Agent 状态投影给作品总览，避免右栏隐藏时失去可见性。 */
   onAgentRunSummaryChange?: (summary: AgentRunOverviewSummary | null) => void;
+  /** 后端阅读序章节与伏笔台账：新会话开场「接着写」的事实来源；不传就不开场。 */
+  bookChapters?: ReadonlyArray<HandoffChapter & { estimatedChars?: number | null }> | null;
+  bookPromises?: ObservatoryPromises | null;
 };
 
 export type Message = {

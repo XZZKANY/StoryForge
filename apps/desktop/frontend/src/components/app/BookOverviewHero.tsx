@@ -3,6 +3,7 @@ import type { ManuscriptChapter } from '../../lib/book-context';
 import { bookGoalProgress, formatWordCount } from '../../lib/book-profile';
 import type { BookProfileHandle } from './useBookProfile';
 import type { BookOverviewChaptersHandle } from './useBookOverviewChapters';
+import { stalePromiseDetail, type ChapterHandoff } from '../../lib/chapter-handoff';
 import { ArrowUp, BookOpen, ChevronRight, Sparkles } from '../icons/shell-icons';
 
 /**
@@ -53,10 +54,18 @@ export function BookOverviewHero({
   onRefresh = profile.refresh,
   onEditProfile,
   onDraftNextChapter,
+  resumeIsLatest = false,
+  nextChapterOrdinal,
+  handoff = null,
 }: {
   profile: BookProfileHandle;
   title: string;
   currentChapter: Pick<ManuscriptChapter, 'relativePath' | 'ordinal' | 'name'> | null;
+  /** currentChapter 不是当前页签而是阅读序最新一章（刚打开作品时）。 */
+  resumeIsLatest?: boolean;
+  nextChapterOrdinal?: number;
+  /** 「接着写」：上一章结尾与久未回收的伏笔；只在接着写的正是最新一章时显示。 */
+  handoff?: ChapterHandoff | null;
   chapterIndex?: BookOverviewChaptersHandle;
   chapterCount: number;
   chapterListRef: RefObject<HTMLDivElement | null>;
@@ -69,6 +78,15 @@ export function BookOverviewHero({
 }) {
   const book = profile.profile;
   const currentPath = currentChapter?.relativePath;
+  const samePath = (left?: string | null, right?: string | null) =>
+    typeof left === 'string' &&
+    typeof right === 'string' &&
+    left.replace(/\\/g, '/').toLowerCase() === right.replace(/\\/g, '/').toLowerCase();
+  const showHandoff =
+    handoff !== null &&
+    handoff.lastChapter !== null &&
+    samePath(currentPath, handoff.lastChapter.relativePath) &&
+    (handoff.excerpt !== null || handoff.stalePromises.length > 0);
   const totalChars = profile.totals?.chars ?? null;
   const staleTotals = Boolean(profile.totalsError || profile.refreshing);
   const progress =
@@ -153,6 +171,46 @@ export function BookOverviewHero({
             </>
           )}
           <div className="mt-auto pt-5">
+            {showHandoff && handoff?.lastChapter ? (
+              <figure className="mb-4 min-w-0" data-testid="book-overview-handoff">
+                {handoff.excerpt ? (
+                  <>
+                    <figcaption className="text-2xs text-subtle">
+                      第 {handoff.lastChapter.ordinal} 章停在这里
+                    </figcaption>
+                    <blockquote
+                      className="mt-1.5 space-y-1 border-l-2 border-border-strong pl-3 text-sm leading-6 text-muted"
+                      title={handoff.excerptSource ?? undefined}
+                    >
+                      {handoff.excerpt.map((paragraph, index) => (
+                        <p key={index} className="line-clamp-2">
+                          {index === 0 && handoff.excerptClipped ? '……' : ''}
+                          {paragraph}
+                        </p>
+                      ))}
+                    </blockquote>
+                  </>
+                ) : null}
+                {handoff.stalePromises.length > 0 ? (
+                  <p
+                    className="mt-2 text-2xs leading-5 text-muted"
+                    data-testid="book-overview-handoff-promises"
+                  >
+                    <span className="text-warning">
+                      {handoff.stalePromises.length === 1
+                        ? '还有一条线没收：'
+                        : `还有 ${handoff.stalePromises.length} 条线没收：`}
+                    </span>
+                    {handoff.stalePromises
+                      .map((promise) => {
+                        const detail = stalePromiseDetail(promise);
+                        return `「${promise.title}」${detail}`;
+                      })
+                      .join('；')}
+                  </p>
+                ) : null}
+              </figure>
+            ) : null}
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -167,7 +225,7 @@ export function BookOverviewHero({
                 data-testid="book-overview-continue"
               >
                 <ArrowUp size={16} strokeWidth={1.8} aria-hidden="true" />
-                {currentPath ? '继续写作' : '选择章节开始'}
+                {currentChapter ? `继续写第 ${currentChapter.ordinal} 章` : '选择章节开始'}
                 <ChevronRight size={15} strokeWidth={1.8} aria-hidden="true" />
               </button>
               {onDraftNextChapter ? (
@@ -178,16 +236,17 @@ export function BookOverviewHero({
                   data-testid="book-overview-hero-draft-next"
                 >
                   <Sparkles size={15} strokeWidth={1.8} aria-hidden="true" />
-                  AI 起草下一章
+                  {nextChapterOrdinal ? `AI 起草第 ${nextChapterOrdinal} 章` : 'AI 起草下一章'}
                 </button>
               ) : null}
             </div>
-            {currentChapter ? (
+            {showHandoff ? null : currentChapter ? (
               <p className="mt-2 truncate text-2xs text-subtle" title={currentChapter.relativePath}>
-                从第 {currentChapter.ordinal} 章 · {currentChapter.name} 继续
+                从{resumeIsLatest ? '最新的' : ''}第 {currentChapter.ordinal} 章 ·{' '}
+                {currentChapter.name} 继续
               </p>
             ) : (
-              <p className="mt-2 text-2xs text-subtle">没有可继续的当前章节，请在下方选择章节。</p>
+              <p className="mt-2 text-2xs text-subtle">还没有正文，从第 1 章写起。</p>
             )}
           </div>
         </div>

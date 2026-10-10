@@ -24,7 +24,6 @@ const LIVE_PATH_PYTESTS = [
   'tests/test_assistant_sessions_migration.py',
   'tests/test_assistant_tool_calls.py',
   'tests/test_ide_commands.py',
-  'tests/test_ide_run_events.py',
   'tests/test_llm_config_file_override.py',
 ];
 

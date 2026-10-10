@@ -1,6 +1,6 @@
 import { Button, IconButton, FloatingSurface } from '../ui';
 
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   semanticKindLabel,
   type ContextBundle,
@@ -241,11 +241,14 @@ export function MessageList({
   messages,
   agentRun,
   agentRunRecovery,
+  emptyState = null,
 }: {
   conversationScope?: string | number;
   messages: Message[];
   agentRun: AgentRun | null;
   agentRunRecovery: AgentRunRecoveryDisplay | null;
+  /** 没有任何消息时显示（新会话开场）；不进会话记录。 */
+  emptyState?: ReactNode;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -312,7 +315,13 @@ export function MessageList({
     setHasUnread(false);
   };
   const content =
-    messages.length === 0 ? null : (
+    messages.length === 0 ? (
+      emptyState ? (
+        <div className="mx-auto flex w-full max-w-[800px] flex-col gap-6 px-5 py-6">
+          {emptyState}
+        </div>
+      ) : null
+    ) : (
       <div className="mx-auto flex w-full max-w-[800px] flex-col gap-6 px-5 py-6">
         {messages.map((message, index) => (
           <MessageItem key={message.id ?? messageKey(message) + ':' + index} message={message} />
