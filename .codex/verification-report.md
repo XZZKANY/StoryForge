@@ -7299,7 +7299,9 @@ workspaces）、`judge/models.py`、`app/common/pagination.py`（app 内零消�
 
 **未验 / 不宣称**
 
-- 本环境没有 pnpm，未跑根级 `pnpm verify` / `pnpm e2e`；后端零改动，未重跑 API pytest 与 OpenAPI 生成。
+- pre-push 门禁实跑通过：本机 PATH 上没有 pnpm，用 corepack 缓存的锁定版本 pnpm 9.15.4 做临时 shim 放进 PATH，未绕过 hook。lint 0 error（2 条既有 warning 在无关测试文件）、OpenAPI 契约无漂移、活路径 pytest 124 passed、前端 1939 passed / 1 skipped。
+- 门禁自身的坏引用：`scripts/fast-tests.mjs` 仍列着 #272 已删除的 `tests/test_ide_run_events.py`，pytest 退出码 4，pre-push 自 #272 起在 master 上就跑不通；本 PR 单独一提交删掉这一行。
+- 未跑根级 `pnpm verify` 全量与 `pnpm e2e`；后端零改动，未重跑 API 全量 pytest。
 - 未重建 NSIS、未在装机版真机点穿；三个下一步按钮触发的真·LLM 对话 / 起草未实跑（不花作者的 key）。
 - 开场只在新会话出现：桌面端会按项目恢复上次会话，打开作品若落在旧会话里看不到它，要点「新建会话」；
   工作台中栏打开时仍是「未选择文件」。两者都是下一刀候选，本刀不动。
