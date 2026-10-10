@@ -853,30 +853,6 @@
       "AssistantSessionCreate": {
         "additionalProperties": false,
         "properties": {
-          "artifact_id": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Artifact Id"
-          },
-          "blueprint_id": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Blueprint Id"
-          },
           "messages": {
             "items": {
               "$ref": "#/components/schemas/AssistantMessageCreate"
@@ -919,28 +895,6 @@
       },
       "AssistantSessionRead": {
         "properties": {
-          "artifact_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Artifact Id"
-          },
-          "blueprint_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Blueprint Id"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -987,8 +941,6 @@
           "title",
           "task_type",
           "project_path",
-          "blueprint_id",
-          "artifact_id",
           "messages",
           "created_at",
           "updated_at"

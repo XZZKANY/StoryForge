@@ -268,6 +268,8 @@ def test_drop_book_runs_upgrade_preserves_live_rows(tmp_path) -> None:
     用该迁移自己的 downgrade 造出「还带 book_runs 与 5 个 book_run_id 外键」的存量形态，
     塞进 agent_runs / assistant_sessions 两张活表的行，再 upgrade head：表与列必须消失，
     行必须一条不少。变异点：把 upgrade 里任一 drop 去掉即红。
+
+    downgrade 目标写死在该迁移的前一版，不用 "-1"——否则后续每加一条迁移本用例就会错位。
     """
 
     engine = _make_engine(tmp_path)
@@ -278,7 +280,7 @@ def test_drop_book_runs_upgrade_preserves_live_rows(tmp_path) -> None:
         config = migrations.build_alembic_config(engine)
         with engine.connect() as conn:
             config.attributes["connection"] = conn
-            command.downgrade(config, "-1")
+            command.downgrade(config, "20261008_0001")
         assert "book_runs" in inspect(engine).get_table_names()
         for table in ("agent_runs", "assistant_sessions", "model_runs", "story_state_events", "story_state_ledgers"):
             assert "book_run_id" in _column_names(engine, table), table
@@ -302,6 +304,48 @@ def test_drop_book_runs_upgrade_preserves_live_rows(tmp_path) -> None:
         with engine.connect() as conn:
             assert conn.exec_driver_sql("SELECT title FROM assistant_sessions").scalars().all() == ["存量会话"]
             assert conn.exec_driver_sql("SELECT public_id FROM agent_runs").scalars().all() == ["run-legacy"]
+            assert conn.exec_driver_sql("PRAGMA quick_check").scalar() == "ok"
+            assert conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall() == []
+    finally:
+        engine.dispose()
+
+
+def test_drop_assistant_dead_fks_preserves_sessions(tmp_path) -> None:
+    """20261010_0001 删 assistant_sessions 的两个死外键时不得碰会话与消息。
+
+    同样用该迁移自己的 downgrade 造存量形态（目标写死前一版），塞入一条会话 + 一条消息，
+    再 upgrade head。变异点：把 upgrade 里任一 drop_column 去掉即红。
+    """
+
+    engine = _make_engine(tmp_path)
+    try:
+        db_session.bootstrap_sqlite_database(engine)
+        head = migrations.head_revision(engine)
+
+        config = migrations.build_alembic_config(engine)
+        with engine.connect() as conn:
+            config.attributes["connection"] = conn
+            command.downgrade(config, "20261009_0001")
+        for column in ("blueprint_id", "artifact_id"):
+            assert column in _column_names(engine, "assistant_sessions"), column
+
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                "INSERT INTO assistant_sessions (title, task_type) VALUES ('存量会话', 'chat')"
+            )
+            conn.exec_driver_sql(
+                "INSERT INTO assistant_messages (session_id, role, content)"
+                " VALUES (1, 'user', '续写第三章')"
+            )
+
+        migrations.upgrade_head(engine)
+
+        assert migrations.current_revision(engine) == head
+        for column in ("blueprint_id", "artifact_id"):
+            assert column not in _column_names(engine, "assistant_sessions"), column
+        with engine.connect() as conn:
+            assert conn.exec_driver_sql("SELECT title FROM assistant_sessions").scalars().all() == ["存量会话"]
+            assert conn.exec_driver_sql("SELECT content FROM assistant_messages").scalars().all() == ["续写第三章"]
             assert conn.exec_driver_sql("PRAGMA quick_check").scalar() == "ok"
             assert conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall() == []
     finally:
