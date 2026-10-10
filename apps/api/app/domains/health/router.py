@@ -14,7 +14,7 @@ from app.domains.health.schemas import LivenessResponse, ReadinessResponse
 
 router = APIRouter(prefix="/health", tags=["运行状态"])
 
-_CORE_TABLES = ["books", "artifacts", "workspaces"]
+_CORE_TABLES = ["agent_runs", "agent_run_events", "assistant_sessions"]
 
 
 def _desktop_skip_services() -> bool:

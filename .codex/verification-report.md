@@ -7175,3 +7175,80 @@ intent `chapter.review` / `chapter.repair` 及其检测分支；固定管线分�
 `kind="repair_patch"` 的 proposal 已无产出方，这些是恒返回 null 的防御性解析，**无死按钮**。
 不删的理由是 `repairPatchApproval` 接在 ChatWindow 审批流（P1-2「waiting 死路」守卫）里、牵连两个
 测试文件多条用例，而前端 patch kind 白名单历史上出过真 bug，为零行为收益动它不划算；要清单独开一刀。
+
+
+## 2026-10-10 删除 21 个退役域与它们的 37 张表（档③ 的 (b) 半）
+
+接 #278，收口档③。ORM 注册表 **44 → 7**，域 **26 → 5**。净 111 增 / 11544 删。
+
+**判据：从 `app.main` 静态算导入闭包**
+
+全仓零 `importlib` / `__import__` 动态导入（已核），故静态闭包可信。结果：**所有非 live 域在
+闭包里只剩 `models.py` 一条边**（被 `app/models.py` 聚合建表拉进来），其余 67 个文件全不可达。
+live 对非 live 的引用只有两处，均在本刀处理：`ide/command_registry.py` 的审计落库路径、
+`judge/schemas.py` 的 `JudgeIssueRead`。
+
+配合作者装机版库实测：那 37 张表**全部 0 行**（用了数月的真实库）。
+
+**删除**
+
+21 个域整域（artifacts / assets / blueprints / books / character_bible / collaboration /
+commercial / context_compiler / continuity / evaluations / events / jobs / model_runs /
+prompt_packs / provider_gateway / retrieval / series / story_memory / story_state / timeline /
+workspaces）、`judge/models.py`、`app/common/pagination.py`（app 内零消费方，随删除被孤儿化）；
+`app/models.py` 收敛为只聚合 agent_runs 与 assistant 两个域。
+
+迁移 `20261010_0002` 按外键依赖倒排（子表在前）drop 37 张表。
+
+**三个真 bug / 真缺陷**
+
+1. **`/health/ready` 会让桌面端起不来**（最危险的一处）：`_CORE_TABLES` 硬编码
+   `["books", "artifacts", "workspaces"]`，这三张全在删除清单里。不改的话 readiness 永远
+   `degraded: 0/3 core tables present`，sidecar 探活失败、桌面端打不开。已改为
+   `["agent_runs", "agent_run_events", "assistant_sessions"]`，两档冒烟实跑确认 `/health/ready`
+   正常就绪（daily 2774ms / packaged 3669ms）。
+2. **downgrade 生成器的方言陷阱**：首版生成出 `server_default=sa.text('now()')`——那是 PG 语法，
+   **SQLite 上 downgrade 会炸**。已统一成方言中立的 `sa.func.now()`。
+3. **`ide/command_registry` 的审计落库路径是死码**：`_attach_persistent_audit_event` 仅在
+   `command.writes` 为真时触发，而**全部 9 个内建命令都是 `writes=False`**，故 `EventLog` 行
+   永远不会被创建。连同 `_resolve_audit_workspace_id` 一并删除，ide 对 events / books /
+   workspaces 三个模型的依赖随之归零。
+
+**downgrade 不是手抄的**
+
+37 张表的建表定义由**删除前的 ORM 元数据生成**（经 `git worktree` 在 HEAD 上导出），712 行。
+往返由既有的 `test_downgrade_roundtrip_on_latest_migration` 实跑钉死。CLAUDE.md §6 要求
+「必须提供可用的 downgrade」，本刀遵守而非豁免。
+
+**测试**
+
+整删 19 个文件（15 个纯死域测试 + `test_pagination` + `test_alembic_schema_current_orm` 等），
+另从 8 个文件逐条摘除用例或 fixture。几处值得记的取舍：
+
+- `test_llm_client_channel.py`：`grounding` 参数变体来自已删的 story_state，`judge` 变体是 **live**
+  （`judge.semantic` 被 `project.deep_consistency` 用）。只去掉 grounding 维度，judge 侧 31 条全保。
+- `test_redis_cache_strategy.py`：只摘 3 条 artifacts 缓存用例；`_redis_client`（health 在用）与
+  `cache_delete_pattern` 两条纯函数用例保留。
+- `test_source_pruning.py`：7 条「某某包不得再导出模型/服务」的用例对象整域已删，合并为一条
+  **总闸** `test_retired_domains_stay_deleted`（目录不存在即过）。**变异验证**：放回
+  `app/domains/retrieval/` 即红，删除即绿。
+- `test_source_code_standards.py`：`LIVE_TO_FROZEN_IMPORT_ALLOWLIST` 里唯一一条
+  （ide → workspaces.models）已随审计路径删除，白名单清空。
+
+**验证**
+
+- API 全量 pytest **3299 passed / 51 skipped / 0 failed**；前端 vitest 1919 passed / 1 skipped。
+- **作者装机版库副本 upgrade：46 张表 → 8 张**（7 + alembic_version），六张 live 表行数分毫不差
+  （agent_runs 55 / assistant_sessions 16 / assistant_messages 110 / agent_run_events 524 /
+  agent_artifacts 71 / assistant_tool_calls 246），`foreign_key_check` 无违反、`quick_check` 为 ok。
+- e2e 6/6；OpenAPI 零漂移；typecheck、eslint（0 error）、prettier、ruff 全绿；
+  daily 与 **packaged 冻结 exe** 冒烟均绿。
+- 行尾自检：无 CRCRLF；两组 numstat 仅两个文件差 3-4 行，经核为删函数后空行归位，
+  文件本身无行尾空白、无多余连续空行。
+
+**文档**
+
+`DOMAINS.md` 头部整体重写：「live / backing / frozen 三档」已不适用，改为「今天的 5 个域 /
+7 张表」+ 收口时间线 + 红线（删表前先查 `_CORE_TABLES`；删表迁移要同时照顾存量库与
+`create_all` 新库）；旧分档叙述降级为历史留档。`CLAUDE.md` §3 域数、§5 域清单、
+`common/` 模块列表与 `creative_tool_registry` 路径同步。

@@ -7,42 +7,13 @@ from types import SimpleNamespace
 import pytest
 from agent_transport import agent_result, stream_agent_message
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 
 from app.common.llm_client import LLMError
 from app.domains.assistant import service as assistant_service
-from app.domains.books.models import Book, Chapter, Scene
-from app.domains.continuity.models import ScenePacket
 from app.domains.ide import orchestrator as legacy_orchestrator
 from app.domains.ide import review_reasoning
 from app.domains.ide.orchestrator import SUPPORTED_INTENTS, _detect_intent
-
-
-def _seed_chapter_review_context(session_factory: sessionmaker[Session]) -> dict[str, int | str]:
-    content = "林岚举起左臂，旁人看见左臂完好无损。作者直接解释这说明她早已摆脱旧伤，港口风声却仍很低。"
-    with session_factory() as session:
-        book = Book(title="灯塔余烬", status="draft", premise="林岚在港口追查失真的灯塔信号。")
-        session.add(book)
-        session.flush()
-        chapter = Chapter(book_id=book.id, ordinal=1, title="旧伤", status="draft", summary=None)
-        session.add(chapter)
-        session.flush()
-        scene = Scene(chapter_id=chapter.id, ordinal=1, title="港口谈判", status="draft", content=content)
-        session.add(scene)
-        session.flush()
-        packet = ScenePacket(
-            scene_id=scene.id,
-            status="assembled",
-            packet={
-                "必须包含事实": ["左臂受伤"],
-                "风格规则": ["克制"],
-                "证据链接": [{"source_ref": "asset://character/lin-lan#v1", "rationale": "角色资产要求左臂仍受伤。"}],
-            },
-            version=1,
-        )
-        session.add(packet)
-        session.commit()
-        return {"scene_id": scene.id, "scene_packet_id": packet.id, "content": content}
 
 
 def test_supported_intents_are_registered() -> None:

@@ -30,18 +30,9 @@ LIVE_DOMAIN_ROOTS = (
     API_ROOT / "app" / "domains" / "ide",
 )
 FROZEN_MODULE_PREFIXES = (
-    "app.domains.assets",
-    "app.domains.collaboration",
-    "app.domains.commercial",
-    "app.domains.evaluations",
-    "app.domains.jobs",
-    "app.domains.prompt_packs",
-    "app.domains.series",
-    "app.domains.workspaces",
 )
-LIVE_TO_FROZEN_IMPORT_ALLOWLIST = {
-    ("app/domains/ide/command_registry.py", "app.domains.workspaces.models", "Workspace"),
-}
+# 2026-10：ide 对 workspaces.models 的唯一一条审计边已随 DB 实体审稿链删除，白名单清空。
+LIVE_TO_FROZEN_IMPORT_ALLOWLIST: set[tuple[str, str, str]] = set()
 HARD_SOURCE_LINE_LIMITS = {
     "apps/api/app/domains/agent_runs/runtime.py": 400,
     "apps/api/app/domains/agent_runs/tooling.py": 500,

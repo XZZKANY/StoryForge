@@ -466,120 +466,6 @@ def _change(seq: int) -> SimpleNamespace:
     )
 
 
-def test_story_state_grounding_reads_resolved_llm_env(monkeypatch) -> None:
-    """W3 修漏迁：story_state grounding 必须吃 resolved_llm_env（含 llm-provider.json 覆盖），
-    而非裸 os.getenv——否则 sidecar 下 grounding 静默失活。"""
-
-    from app.domains.story_state import semantic as story_semantic
-
-    _ChatHandler.fail_times = 0
-    server = _serve()
-    _ChatHandler.response_message = {"content": json.dumps([{"seq": 1, "score": 90, "reason": "ok"}])}
-    # 清掉进程 env 的 JUDGE/LLM key，证明配置只能来自 resolved_llm_env 覆盖链。
-    for key in ("STORYFORGE_JUDGE_LLM_API_KEY", "STORYFORGE_LLM_API_KEY"):
-        monkeypatch.delenv(key, raising=False)
-    monkeypatch.setattr(
-        story_semantic,
-        "resolved_llm_env",
-        lambda: {
-            "STORYFORGE_LLM_API_KEY": _API_KEY,
-            "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_address[1]}/v1",
-            "STORYFORGE_LLM_MODEL": "test-model",
-        },
-    )
-    try:
-        advisories = story_semantic.semantic_ground_story_state_changes("正文", [_change(1)])
-    finally:
-        server.shutdown()
-    assert advisories[1].semantic_score == 90
-    assert (_ChatHandler.last_headers or {}).get("authorization") == f"Bearer {_API_KEY}"
-
-
-def test_story_state_grounding_preserves_payload_and_single_attempt(monkeypatch) -> None:
-    """story_state 迁移只换 transport：payload、专属覆盖与一次尝试语义保持。"""
-
-    from app.common import llm_client
-    from app.domains.story_state import semantic as story_semantic
-
-    captured: dict[str, object] = {}
-
-    def fake_request(source, payload, *, timeout_seconds=None, max_attempts=None):
-        captured.update(
-            {
-                "source": dict(source),
-                "payload": payload,
-                "timeout_seconds": timeout_seconds,
-                "max_attempts": max_attempts,
-            }
-        )
-        return {
-            "choices": [
-                {"message": {"content": json.dumps([{"seq": 1, "score": 91, "reason": "正文支持"}])}}
-            ]
-        }, 0.0
-
-    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", "judge-key")
-    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_BASE_URL", "https://judge.example/v1/ ")
-    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_MODEL", "judge-model")
-    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS", "17.5")
-    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_REASONING_EFFORT", "low")
-    monkeypatch.setattr(llm_client, "_request_chat_completions", fake_request)
-
-    advisories = story_semantic.semantic_ground_story_state_changes("正文", [_change(1)])
-
-    assert advisories[1].semantic_score == 91
-    assert captured["timeout_seconds"] == 17.5
-    assert captured["max_attempts"] == 1
-    source = captured["source"]
-    assert source["STORYFORGE_LLM_BASE_URL"] == "https://judge.example/v1"
-    assert source["STORYFORGE_LLM_API_KEY"] == "judge-key"
-    assert source["STORYFORGE_LLM_AUTH_HEADER"] == "bearer"
-    payload = captured["payload"]
-    assert set(payload) == {"model", "messages", "temperature", "reasoning_effort"}
-    assert payload["model"] == "judge-model"
-    assert payload["temperature"] == 0
-    assert payload["reasoning_effort"] == "low"
-
-
-def test_story_state_grounding_unconfigured_returns_empty(monkeypatch) -> None:
-    """resolved_llm_env 无 key 时静默跳过（返回空 advisory），不伪造、不报错。"""
-
-    from app.domains.story_state import semantic as story_semantic
-
-    for key in ("STORYFORGE_JUDGE_LLM_API_KEY", "STORYFORGE_LLM_API_KEY"):
-        monkeypatch.delenv(key, raising=False)
-    monkeypatch.setattr(story_semantic, "resolved_llm_env", dict)
-    assert story_semantic.semantic_ground_story_state_changes("正文", [_change(1)]) == {}
-
-
-def test_story_state_grounding_failure_redacts_key(monkeypatch, caplog) -> None:
-    """grounding 远程失败时，失败日志不得含凭据子串（脱敏三件套之一）。"""
-
-    from app.domains.story_state import semantic as story_semantic
-
-    _ChatHandler.fail_times = 9
-    _ChatHandler.status_code = 500
-    server = _serve()
-    for key in ("STORYFORGE_JUDGE_LLM_API_KEY", "STORYFORGE_LLM_API_KEY"):
-        monkeypatch.delenv(key, raising=False)
-    monkeypatch.setattr(
-        story_semantic,
-        "resolved_llm_env",
-        lambda: {
-            "STORYFORGE_LLM_API_KEY": _API_KEY,
-            "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_address[1]}/v1",
-            "STORYFORGE_LLM_MODEL": "test-model",
-        },
-    )
-    try:
-        with caplog.at_level(logging.WARNING):
-            advisories = story_semantic.semantic_ground_story_state_changes("正文", [_change(1)])
-    finally:
-        server.shutdown()
-    assert advisories[1].semantic_reason == "semantic_grounding_failed"
-    assert _API_KEY not in caplog.text
-
-
 def test_streamed_channel_retries_connection_reset_then_succeeds() -> None:
     """建连阶段被掐断 → 重试一次即成功，恰好尝试 2 次。
 
@@ -675,15 +561,13 @@ class _UsageObserver:
         pass
 
 
-@pytest.mark.parametrize("domain", ["judge", "grounding"])
 @pytest.mark.parametrize("result", ["valid", "invalid_json", "length", "partial_error", "unknown_error", "interrupted", "invalid_envelope"])
-def test_semantic_calls_observe_usage_once_even_when_rejected(monkeypatch, domain, result) -> None:
+def test_semantic_calls_observe_usage_once_even_when_rejected(monkeypatch, result) -> None:
     from app.common import llm_client
     from app.common.llm_control import LLMRunInterrupted
     from app.common.llm_observation import model_observation_scope
     from app.domains.judge import semantic as judge_semantic
     from app.domains.judge.schemas import SemanticJudgeInput
-    from app.domains.story_state import semantic as story_semantic
     from app.platform.ai_sdk import TokenUsage
 
     source = {
@@ -694,7 +578,6 @@ def test_semantic_calls_observe_usage_once_even_when_rejected(monkeypatch, domai
         "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "900",
     }
     monkeypatch.setattr(judge_semantic, "resolved_llm_env", lambda _: source)
-    monkeypatch.setattr(story_semantic, "resolved_llm_env", lambda: source)
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", _API_KEY)
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_BASE_URL", "https://judge.example/v1")
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_MODEL", "review-model")
@@ -719,7 +602,7 @@ def test_semantic_calls_observe_usage_once_even_when_rejected(monkeypatch, domai
             raise LLMRunInterrupted("stopped", usage=usage)
         if result == "invalid_envelope":
             return {"choices": [], "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}}, 0.0
-        content = "not json" if result == "invalid_json" else '[{"seq":1,"score":90}]' if domain == "grounding" else "[]"
+        content = "not json" if result == "invalid_json" else "[]"
         return {
             "choices": [{"message": {"content": content}, "finish_reason": "length" if result == "length" else "stop"}],
             "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
@@ -729,9 +612,7 @@ def test_semantic_calls_observe_usage_once_even_when_rejected(monkeypatch, domai
     observer = _UsageObserver()
 
     def invoke():
-        if domain == "judge":
-            return judge_semantic.semantic_judge_with_status(SemanticJudgeInput(content="正文"))
-        return story_semantic.semantic_ground_story_state_changes("正文", [_change(1)])
+        return judge_semantic.semantic_judge_with_status(SemanticJudgeInput(content="正文"))
 
     with model_observation_scope(observer):
         if result == "interrupted":
@@ -739,14 +620,11 @@ def test_semantic_calls_observe_usage_once_even_when_rejected(monkeypatch, domai
                 invoke()
         else:
             outcome = invoke()
-            if domain == "judge":
-                assert outcome.failed is (result != "valid")
-            else:
-                assert outcome[1].semantic_score == (90 if result == "valid" else None)
+            assert outcome.failed is (result != "valid")
     assert len(requests) == len(observer.requests) == len(observer.settlements) == 1
     request, operation = observer.requests[0]
     assert request.model == "review-model"
-    assert operation == ("judge.semantic" if domain == "judge" else "story_state.grounding")
+    assert operation == "judge.semantic"
     status, observed_usage = observer.settlements[0]
     expected_status = {
         "valid": "response_completed", "invalid_json": "response_completed",
@@ -761,28 +639,22 @@ def test_semantic_no_call_paths_create_no_model_attempt(monkeypatch) -> None:
     from app.common.llm_observation import model_observation_scope
     from app.domains.judge import semantic as judge_semantic
     from app.domains.judge.schemas import SemanticJudgeInput
-    from app.domains.story_state import semantic as story_semantic
 
     monkeypatch.delenv("STORYFORGE_JUDGE_LLM_API_KEY", raising=False)
     monkeypatch.setattr(judge_semantic, "resolved_llm_env", lambda _: {})
-    monkeypatch.setattr(story_semantic, "resolved_llm_env", dict)
     observer = _UsageObserver()
     with model_observation_scope(observer):
         assert not judge_semantic.semantic_judge_with_status(SemanticJudgeInput(content="正文")).configured
         assert not judge_semantic.semantic_judge_with_status(SemanticJudgeInput(content="正文"), provider=lambda _: []).failed
-        assert story_semantic.semantic_ground_story_state_changes("正文", [_change(1)]) == {}
         monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", _API_KEY)
-        assert story_semantic.semantic_ground_story_state_changes("正文", []) == {}
     assert observer.requests == observer.settlements == []
 
 
-@pytest.mark.parametrize("domain", ["judge", "grounding"])
 @pytest.mark.parametrize("fails", [False, True])
-def test_semantic_usage_observation_through_real_local_http(monkeypatch, domain, fails) -> None:
+def test_semantic_usage_observation_through_real_local_http(monkeypatch, fails) -> None:
     from app.common.llm_observation import model_observation_scope
     from app.domains.judge import semantic as judge_semantic
     from app.domains.judge.schemas import SemanticJudgeInput
-    from app.domains.story_state import semantic as story_semantic
 
     monkeypatch.setattr(_ChatHandler, "fail_times", 5 if fails else 0)
     monkeypatch.setattr(_ChatHandler, "status_code", 500)
@@ -790,21 +662,13 @@ def test_semantic_usage_observation_through_real_local_http(monkeypatch, domain,
     _ChatHandler.response_message = {"content": "[]"}
     source = _source(server.server_address[1])
     monkeypatch.setattr(judge_semantic, "resolved_llm_env", lambda _: source)
-    monkeypatch.setattr(story_semantic, "resolved_llm_env", lambda: source)
     for name in ("API_KEY", "BASE_URL", "MODEL", "TIMEOUT_SECONDS", "REASONING_EFFORT"):
         monkeypatch.delenv(f"STORYFORGE_JUDGE_LLM_{name}", raising=False)
     observer = _UsageObserver()
     try:
         with model_observation_scope(observer):
-            if domain == "judge":
-                outcome = judge_semantic.semantic_judge_with_status(SemanticJudgeInput(content="fixture"))
-                assert outcome.failed is fails
-            else:
-                outcome = story_semantic.semantic_ground_story_state_changes("fixture", [_change(1)])
-                if fails:
-                    assert outcome[1].semantic_reason == "semantic_grounding_failed"
-                else:
-                    assert outcome == {}
+            outcome = judge_semantic.semantic_judge_with_status(SemanticJudgeInput(content="fixture"))
+            assert outcome.failed is fails
     finally:
         server.shutdown()
         server.server_close()

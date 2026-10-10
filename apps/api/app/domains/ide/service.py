@@ -7,7 +7,5 @@ from app.domains.ide.command_registry import (  # noqa: F401  facade re-export
     IdeCommandExecutionError,
     IdeCommandNotFoundError,
     _accepted_command_result,
-    _attach_persistent_audit_event,
-    _resolve_audit_workspace_id,
     execute_ide_command_by_id,
 )

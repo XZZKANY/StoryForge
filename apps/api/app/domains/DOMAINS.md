@@ -1,39 +1,61 @@
-# StoryForge 域清单（live / backing / frozen）
+# StoryForge 域清单
 
-> 新会话第一入口：判断某个域是否值得读。StoryForge = 单机桌面作者辅助写作 IDE，
-> live 产品面很小；大量域是 web / 多租户 / 自动整书时代的遗产，已冻结。
-> 依据：2026-07-04 W4 死域冻结隔离（蓝图 §7）+ 逐域调用面实证。
+> 新会话第一入口。StoryForge = 单机桌面作者辅助写作 IDE，**后端只剩 5 个域、7 张表**。
+> 2026-10 收口后「live / backing / frozen」三档已不再需要：非 live 的域连同它们的 37 张表
+> 已物理删除，本文件下半部分的分档叙述是**历史留档**，不是今天的现状。
 
-## 分档定义
-
-- **live**：桌面产品直接 HTTP/SSE 命中的面（前端 `apps/desktop/frontend` 真调用）。
-- **backing**：不是产品主面，但被 live agent 循环在**进程内**依赖（import service/models）。改这些要谨慎，会影响真链路。
-- **frozen**：web / 多租户 / 自动整书时代遗产。**router 已卸载或可卸载**；默认不必读，除非明确在做迁移/删除。域目录与 `models.py` 多数**保留**（被 backing 域 import，或在 `app/models.py` 聚合建表），物理删除按判据后评（不在 W4 范围）。
-
-## live（桌面产品面）
+## 今天的全部域（5 个）
 
 | 域 | 面 | 说明 |
 |---|---|---|
-| `health` | `/health/live` `/health/ready` | 探活 + app_version 握手 |
+| `health` | `/health/live` `/health/ready` | 探活 + app_version 握手。`_CORE_TABLES` 必须与真实 live 表同步，否则 readiness 永远 degraded、桌面端起不来。 |
 | `assistant` | `/api/assistant/*` | 对话式 agent 会话 / 消息 / chat |
 | `agent_runs` | SSE/REST `/api/ide/agent/sessions/*` + `/api/agent-runs/*` | live 工具循环主动脉 |
-| `ide` | `/api/ide/*`（4 条 live：cross-chapter / commands / agent stream / agent control） | 命令面板 + 审阅。6 条无 Desktop 调用方的旧读路由已从 router/OpenAPI 收窄；2026-09-28 经明确退役决定，删除对应四个读投影模块、18 个独占 DTO 和旧 re-export。live command / cross-chapter 及其 service facade 保留，不删除底层质量能力。 |
+| `ide` | `/api/ide/*`（cross-chapter / commands / agent stream / agent control） | 命令面板 + 审阅 |
+| `judge` | 无 HTTP 面 | **只剩 `semantic.py` + `types.py` + `schemas.py`**：`semantic_judge_with_status` 被 agent 循环的 `project.deep_consistency` 工具调用（`agent_runs/deep_consistency.py`）。它没有模型、不碰 DB。 |
 
-## backing（进程内被 live 依赖，谨慎改）
+`/api` 下只有 `agent-runs` / `assistant` / `ide` 三个前缀，由 `tests/test_api_surface.py` 与
+`tests/e2e/live-surface-contract.spec.ts` 两侧钉死。
 
-**service 真被 live 进程内调用的只有 3 个**（2026-10 逐域实证，判据 = live 四域里非 `.models` 的 import）：
+## 今天的全部表（7 张）
 
-- `judge` —— **只剩 `semantic.py` 这一条**：`semantic_judge_with_status` 被 agent 循环的
-  `project.deep_consistency` 工具调用（`agent_runs/deep_consistency.py`），连带 `types.py` / `schemas.py`。
-  `create_judge_issues` 与 `consistency` / `deterministic` / `style_fingerprint` / `router` 已随
-  DB 实体审稿链于 2026-10 删除。
+`agent_runs`、`agent_run_events`、`agent_artifacts`、`subagent_runs`、
+`assistant_sessions`、`assistant_messages`、`assistant_tool_calls`。
 
-`repair` / `studio` 两个域已整域删除（见下「DB 实体审稿链退役」）。
+`app/models.py` 只聚合这两个域的模型；`create_all` 仍是 SQLite 建表器（见 CLAUDE.md §6）。
 
-其余 `retrieval`、`character_bible`、`story_state`、`blueprints`、`artifacts`、`model_runs`、`provider_gateway`、
-`events`、`continuity`、`timeline` **只被 `app/models.py` 聚合建表引用**（`.models`），目录必留但 service 零 live 调用方。
-`quality` / `runtime_tools` / `scene_packets` / `style_packs` 零表零消费方，已于 2026-10 **整域删除**；
-`model_runs` 与 `context_compiler` 的服务层同期删除，只留 `models.py`。
+## 2026-10 收口：从 25 个域 / 44 张表到 5 个域 / 7 张表
+
+按时间顺序，每刀都有独立证据：
+
+1. **自动整书链退役**（PR #272）——作者拍板删除 BookRun：生成链、导出、`bookrun.*` 命令、
+   `writing_runs` 全删。
+2. **删 `book_runs` 表与 5 个外键**（#273，迁移 `20261009_0001`）——作者装机版库里该表 0 行、
+   五处外键非空计数全 0。
+3. **卸载 16 个桌面端零调用的 router**（#274）——桌面端只调 3 个 `/api` 前缀，OpenAPI 路径 77 → 35。
+4. **清 BookRun checkpoint 恢复路径**（#275）——`bookrun_checkpoint` 与 `bookrun-agent` actor
+   全仓零产出方。注意**别和 live 的 `runtime_checkpoint` 混淆**，后者有产出方、是活的。
+5. **删已卸域的死服务层**（#277）——判据=模块在 `app/` 内零外部导入。
+6. **删 `assistant_sessions` 的两个死外键**（#276，迁移 `20261010_0001`）。
+7. **删 DB 实体审稿链**（#278）——`chapter.review` 需要 `scene_packet_id`，而 `ScenePacket` 的
+   唯一创建方已随 #277 归零，整条链「有入口无数据」。
+8. **删 21 个退役域与它们的 37 张表**（迁移 `20261010_0002`）——判据=从 `app.main` 静态算导入闭包
+   （全仓零 `importlib` 动态导入），这些域在闭包里只剩 `models.py` 一条边；作者用了数月的装机版库里
+   这 37 张表**全部 0 行**。
+
+**护栏**：`tests/test_source_pruning.py::test_retired_domains_stay_deleted`（已变异验证）。
+**回滚**：不能靠加回 `include_router`——代码已物理删除，只能从 git 历史取码并重新评审。
+
+## 红线
+
+- 删表迁移必须同时照顾两种库：存量库（真有表，要删）与 `create_all` 建的新库（表本就不存在，要静默跳过）。
+- 删表前先查 `health/router.py` 的 `_CORE_TABLES`：它硬编码表名，漏改会让 readiness 永远 degraded。
+- 判断「某模块是否可删」用**导入闭包 + 产出方 grep**，不要只看 router 是否挂载；反过来，
+  判断「某表是否可删」要同时看 ORM 引用面和作者库里的真实行数。
+
+---
+
+> 以下为 2026-07 ~ 2026-10 的分档与卸载过程留档，仅用于追溯决策来源，**不作为今天的现状**。
 
 ## 2026-10 自动整书链退役
 

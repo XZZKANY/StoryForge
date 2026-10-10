@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.orm import Session, sessionmaker
 from starlette.testclient import TestClient
 
-from app.common.redaction import REDACTED
-from app.domains.events.models import EventLog
 from app.domains.ide import command_registry
 from app.domains.ide.command_registry import IdeCommandDefinition
 
@@ -34,70 +31,6 @@ def sample_args() -> dict[str, str]:
     }
 
 
-def test_known_ide_command_returns_persistent_audit_event(
-    client: TestClient,
-    session_factory: sessionmaker[Session],
-    noop_write_command: str,
-) -> None:
-    """已注册写命令必须返回可查询的持久 audit_event_id。"""
-
-    args = sample_args()
-
-    response = client.post(f"/api/ide/commands/{noop_write_command}", json={"args": args})
-
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["command_id"] == noop_write_command
-    assert body["status"] == "accepted"
-    assert body["audit_event_id"].startswith("ide-command-event:")
-    assert body["payload"]["args"] == args
-    assert body["payload"]["category"] == "Test"
-
-    event_id = int(body["audit_event_id"].removeprefix("ide-command-event:"))
-    with session_factory() as session:
-        event = session.get(EventLog, event_id)
-
-    assert event is not None
-    assert event.event_type == "ide_command_executed"
-    assert event.source == "ide.command_registry"
-    assert event.payload["command_id"] == noop_write_command
-    assert event.payload["status"] == "accepted"
-    assert event.payload["args"] == args
-    assert event.payload["result"]["category"] == "Test"
-
-
-def test_known_ide_command_redacts_sensitive_args_in_response_and_audit(
-    client: TestClient,
-    session_factory: sessionmaker[Session],
-    noop_write_command: str,
-) -> None:
-    """IDE 命令响应和持久审计事件都不得保存原始凭据。"""
-
-    args = {
-        **sample_args(),
-        "api_key": "secret-ide-command-value",
-        "nested": {"token": "sk-secret-ide-command-token-123456"},
-    }
-
-    response = client.post(f"/api/ide/commands/{noop_write_command}", json={"args": args})
-
-    assert response.status_code == 200, response.text
-    assert "secret-ide-command-value" not in response.text
-    assert "sk-secret-ide-command-token-123456" not in response.text
-    body = response.json()
-    assert body["payload"]["args"]["api_key"] == REDACTED
-    assert body["payload"]["args"]["nested"]["token"] == REDACTED
-
-    event_id = int(body["audit_event_id"].removeprefix("ide-command-event:"))
-    with session_factory() as session:
-        event = session.get(EventLog, event_id)
-
-    assert event is not None
-    assert event.payload["args"]["api_key"] == REDACTED
-    assert event.payload["args"]["nested"]["token"] == REDACTED
-    assert event.payload["result"]["args"]["api_key"] == REDACTED
-
-
 def test_unknown_ide_command_still_returns_404(client: TestClient) -> None:
     """未知命令必须保持 404，避免前端误判为已审计。"""
 
@@ -114,23 +47,6 @@ def test_removed_fake_success_command_returns_404(client: TestClient) -> None:
 
     assert response.status_code == 404
     assert response.json() == {"detail": "未知 IDE 命令：memory.resolve_conflict"}
-
-
-def test_agent_write_command_uses_command_registry(
-    client: TestClient,
-    noop_write_command: str,
-) -> None:
-    """Agent 写操作必须经同一命令执行器返回 audit_event_id（WS 退役后走 REST 命令端点）。"""
-
-    args = sample_args()
-
-    response = client.post(f"/api/ide/commands/{noop_write_command}", json={"args": args})
-
-    assert response.status_code == 200
-    result = response.json()
-    assert result["command_id"] == noop_write_command
-    assert result["audit_event_id"].startswith("ide-command-event:")
-    assert result["payload"]["args"] == args
 
 
 def test_agent_unknown_command_reports_error(client: TestClient) -> None:
