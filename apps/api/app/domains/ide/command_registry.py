@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError, NotFoundError
@@ -12,9 +11,6 @@ from app.domains.agent_runs import book_context, serial_plan_update
 from app.domains.agent_runs.canon_service import run_canon_projection
 from app.domains.agent_runs.fs_tools import FsToolError
 from app.domains.agent_runs.observatory import run_observatory_scan
-from app.domains.books.models import Book
-from app.domains.events.models import EventLog
-from app.domains.ide._coerce import _int_or_none
 from app.domains.ide.book_breakdown import (
     BookBreakdownError,
     prepare_breakdown_cancellation,
@@ -23,7 +19,6 @@ from app.domains.ide.book_breakdown import (
 )
 from app.domains.ide.book_breakdown_control import request_breakdown_cancel
 from app.domains.ide.schemas import IdeCommandResult
-from app.domains.workspaces.models import Workspace
 
 
 @dataclass(frozen=True)
@@ -97,8 +92,6 @@ def execute_ide_command_by_id(
     else:
         result = _accepted_command_result(command, normalized_args, None)
 
-    if session is not None and command.writes:
-        return _attach_persistent_audit_event(session, result, normalized_args)
     return result
 
 
@@ -124,53 +117,6 @@ def _accepted_command_result(
         audit_event_id=audit_event_id,
         payload=redact_sensitive(payload),
     )
-
-
-def _attach_persistent_audit_event(
-    session: Session,
-    result: IdeCommandResult,
-    args: dict[str, object],
-) -> IdeCommandResult:
-    """把成功执行的 IDE 写命令沉淀为可查询事件，并用事件 ID 作为审计标识。"""
-
-    workspace_id = _resolve_audit_workspace_id(session, result.payload)
-    event = EventLog(
-        workspace_id=workspace_id,
-        book_id=_int_or_none(result.payload.get("book_id")),
-        scene_id=_int_or_none(result.payload.get("scene_id")),
-        member_id=None,
-        event_type="ide_command_executed",
-        source="ide.command_registry",
-        payload={
-            "command_id": result.command_id,
-            "status": result.status,
-            "args": redact_sensitive(args),
-            "result": redact_sensitive(result.payload),
-        },
-    )
-    session.add(event)
-    session.commit()
-    session.refresh(event)
-    return result.model_copy(update={"audit_event_id": f"ide-command-event:{event.id}"})
-
-
-def _resolve_audit_workspace_id(session: Session, payload: dict[str, object]) -> int:
-    """把成功执行的 IDE 写命令沉淀为可查询事件，并用事件 ID 作为审计标识。"""
-
-    book_id = _int_or_none(payload.get("book_id"))
-    if book_id is not None:
-        book = session.get(Book, book_id)
-        if book is not None and book.workspace_id is not None:
-            return book.workspace_id
-
-    workspace = session.scalars(select(Workspace).where(Workspace.slug == "storyforge-ide-audit")).first()
-    if workspace is None:
-        workspace = Workspace(title="StoryForge IDE ??", slug="storyforge-ide-audit", status="active", seat_limit=1)
-        session.add(workspace)
-        session.flush()
-    return workspace.id
-
-
 def _execute_canon_refresh_command(
     command: IdeCommandDefinition,
     args: dict[str, object],

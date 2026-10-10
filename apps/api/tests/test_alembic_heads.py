@@ -20,7 +20,7 @@ def test_alembic_migration_graph_has_single_head() -> None:
     config.set_main_option("script_location", str(REPO_ROOT / "alembic"))
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == ["20261010_0001"]
+    assert script.get_heads() == ["20261010_0002"]
 
 
 def test_alembic_offline_sql_upgrade_reaches_head_without_database() -> None:
@@ -36,13 +36,14 @@ def test_alembic_offline_sql_upgrade_reaches_head_without_database() -> None:
     )
 
     assert result.returncode == 0, result.stderr[-2000:]
-    assert "20261010_0001" in result.stdout
+    assert "20261010_0002" in result.stdout
     assert "ALTER TABLE agent_runs ADD COLUMN execution_owner_event_id INTEGER" in result.stdout
     assert "UPDATE agent_runs SET execution_owner_event_id" in result.stdout
     assert "WHERE execution_owner_event_id IS NULL" in result.stdout
     assert "ALTER TABLE agent_runs DROP COLUMN book_run_id" in result.stdout
     assert "DROP TABLE book_runs" in result.stdout
     assert "ALTER TABLE assistant_sessions DROP COLUMN blueprint_id" in result.stdout
+    assert "DROP TABLE workspaces" in result.stdout
 
 
 def test_backfill_phase2_tables_use_real_table_inspection_online(monkeypatch) -> None:

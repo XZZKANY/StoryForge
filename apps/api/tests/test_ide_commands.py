@@ -1,45 +1,10 @@
 from __future__ import annotations
 
-import pytest
-from sqlalchemy.orm import Session, sessionmaker
 from starlette.testclient import TestClient
 
 import app.models  # noqa: F401
 from app.common.redaction import REDACTED
-from app.domains.books.models import Book, Chapter, Scene
-from app.domains.continuity.models import ScenePacket
 from app.domains.ide.schemas import IdeCommandResult
-
-
-@pytest.fixture()
-def ide_judge_context(session_factory: sessionmaker[Session]) -> dict[str, int | str]:
-    """准备 IDE 命令闭环需要的章节、场景和上下文包。"""
-
-    content = "林岚举起左臂，旁人看见左臂完好无损。作者直接解释这说明她早已摆脱旧伤，港口风声却仍很低。"
-    with session_factory() as session:
-        book = Book(title="灯塔余烬", status="draft", premise="林岚在港口追查失真的灯塔信号。")
-        session.add(book)
-        session.flush()
-        chapter = Chapter(book_id=book.id, ordinal=1, title="旧伤", status="draft", summary=None)
-        session.add(chapter)
-        session.flush()
-        scene = Scene(chapter_id=chapter.id, ordinal=1, title="港口谈判", status="draft", content=content)
-        session.add(scene)
-        session.flush()
-        packet = ScenePacket(
-            scene_id=scene.id,
-            status="assembled",
-            packet={"必须包含事实": ["左臂受伤"], "风格规则": ["克制"]},
-            version=1,
-        )
-        session.add(packet)
-        session.commit()
-        return {
-            "scene_id": scene.id,
-            "scene_packet_id": packet.id,
-            "chapter_id": chapter.id,
-            "content": content,
-        }
 
 
 def test_unknown_ide_command_returns_404(client: TestClient) -> None:

@@ -6,17 +6,9 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
 from app.common import redis_cache
-from app.domains.artifacts.schemas import ArtifactCreate
-from app.domains.artifacts.service import (
-    _artifact_list_cache_key,
-    create_artifact,
-    list_artifacts_cached,
-)
-from app.domains.books.models import Book
 
 
 class _FakeCache:
@@ -63,85 +55,6 @@ def fake_cache(monkeypatch: pytest.MonkeyPatch) -> _FakeCache:
         artifacts_service, "cache_delete_pattern", lambda pattern: cache.delete_pattern(pattern)
     )
     return cache
-
-
-def test_artifact_list_cache_returns_cached_payload_on_second_call(
-    session: Session, fake_cache: _FakeCache
-) -> None:
-    book = Book(title="缓存样本", status="draft", premise="验证缓存。")
-    session.add(book)
-    session.commit()
-    create_artifact(
-        session,
-        ArtifactCreate(
-            book_id=book.id,
-            artifact_type="reference",
-            name="cache-target",
-            storage_uri="memory://a",
-            mime_type="text/plain",
-        ),
-    )
-
-    fake_cache.get_calls = 0
-    first = list_artifacts_cached(session, book_id=book.id)
-    second = list_artifacts_cached(session, book_id=book.id)
-
-    cache_key = _artifact_list_cache_key(None, book.id)
-    assert cache_key in fake_cache.store
-    assert fake_cache.get_calls == 2
-    assert [item.id for item in first] == [item.id for item in second]
-
-
-def test_artifact_list_cache_invalid_payload_is_treated_as_cache_miss(
-    session: Session, fake_cache: _FakeCache
-) -> None:
-    book = Book(title="缓存样本", status="draft", premise="验证坏缓存。")
-    session.add(book)
-    session.commit()
-    artifact = create_artifact(
-        session,
-        ArtifactCreate(
-            book_id=book.id,
-            artifact_type="reference",
-            name="cache-target",
-            storage_uri="memory://invalid-cache",
-            mime_type="text/plain",
-        ),
-    )
-
-    cache_key = _artifact_list_cache_key(None, book.id)
-    fake_cache.store[cache_key] = [{}]
-    fake_cache.delete_calls = 0
-
-    rendered = list_artifacts_cached(session, book_id=book.id)
-
-    assert [item.id for item in rendered] == [artifact.id]
-    assert fake_cache.delete_calls == 1
-    assert fake_cache.store[cache_key][0]["id"] == artifact.id
-
-
-def test_artifact_create_invalidates_list_cache(
-    session: Session, fake_cache: _FakeCache
-) -> None:
-    book = Book(title="缓存失效样本", status="draft", premise="验证失效。")
-    session.add(book)
-    session.commit()
-    list_artifacts_cached(session, book_id=book.id)
-    cache_key = _artifact_list_cache_key(None, book.id)
-    assert cache_key in fake_cache.store
-
-    create_artifact(
-        session,
-        ArtifactCreate(
-            book_id=book.id,
-            artifact_type="reference",
-            name="新增制品",
-            storage_uri="memory://b",
-            mime_type="text/plain",
-        ),
-    )
-
-    assert cache_key not in fake_cache.store
 
 
 def test_redis_client_uses_short_timeouts(monkeypatch: pytest.MonkeyPatch) -> None:

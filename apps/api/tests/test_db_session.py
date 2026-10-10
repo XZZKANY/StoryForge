@@ -155,9 +155,9 @@ def test_bootstrap_sqlite_database_creates_orm_tables(tmp_path, monkeypatch) -> 
     engine = get_engine()
     try:
         inspector = inspect(engine)
-        assert inspector.has_table("books")
-        assert inspector.has_table("artifacts")
-        assert inspector.has_table("workspaces")
+        assert inspector.has_table("agent_runs")
+        assert inspector.has_table("assistant_sessions")
+        assert inspector.has_table("agent_run_events")
     finally:
         engine.dispose()
         get_engine.cache_clear()

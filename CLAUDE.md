@@ -49,9 +49,9 @@ StoryForge 是面向长篇小说的 Desktop IDE-first AI 写作工作台（2026-
 apps/
   api/           FastAPI 业务真相源（领域驱动，每个子目录是一个 domain）
     app/
-      common/    auth、config、logging_config、middleware、pagination、redis_cache、metrics、sentry_config
+      common/    auth、config、logging_config、middleware、redis_cache、metrics、sentry_config、llm_client、craft
       db/        SQLAlchemy session、deps
-      domains/   ~25 个业务域，每个含 router.py / service.py / schemas.py / models.py
+      domains/   5 个域（health / assistant / agent_runs / ide / judge）；其余 21 个已于 2026-10 连同 37 张表删除
       main.py    FastAPI 应用装配 + 全局中间件
     alembic/     数据库迁移
   desktop/      Tauri 桌面 IDE（当前主产品体验）
@@ -140,8 +140,8 @@ uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/waveN --tas
 - **API 是业务真相源。** 任何流程的判定都在 FastAPI 路由 + service 层完成；前端不允许私自计算业务结论。
 - **Desktop IDE 是主体验。** 新的用户工作流默认落在 `apps/desktop`；Tauri 主进程负责本地文件系统、服务启动和 API 配置注入。
 - **Web 已退场。** 不新增 `apps/web` 代码、脚本、容器或测试；需要前端能力时优先落在 `apps/desktop`。
-- **域分档看 `apps/api/app/domains/DOMAINS.md`（新会话第一入口）。** live 产品面很小；大量域是 web / 多租户 / 自动整书遗产，已 **frozen**（router 卸载或可卸载）。判断某域是否值得读、能否改先查该清单。2026-07-04 W4 已卸载 `analytics` / `batch_refinery` / `collaboration` / `commercial` 四个 frozen router（护栏 `tests/test_api_surface.py`，回滚 = 加回一行 `include_router`）；冻结只卸 router 不删 `models.py`（打碎 `app/models.py` 建表会连累 live）。
-- **`apps/workflow` 已退役（2026-07-26）。** LangGraph 批量整书编排器整包删除；长任务边界、真实模型调用与 ModelRun 记录留在 `apps/api`（出网唯一通道 `app/common/llm_client.py`）。`creative_tool_registry` 已迁进程内 `app/domains/runtime_tools/creative_registry.py`。需要旧实现（`narrative/` 确定性闸、`extract/` 抽取 slice）时从 git 历史取。
+- **域清单看 `apps/api/app/domains/DOMAINS.md`（新会话第一入口）。** 2026-10 收口后后端**只剩 5 个域与 7 张表**：`health` / `assistant` / `agent_runs` / `ide` / `judge`（judge 只剩语义评审，无模型无表）。`/api` 下只有 `agent-runs` / `assistant` / `ide` 三个前缀，由 `tests/test_api_surface.py` 与 `tests/e2e/live-surface-contract.spec.ts` 两侧钉死；退役域不得复活由 `test_source_pruning.py::test_retired_domains_stay_deleted` 钉死。**「live / backing / frozen」三档已不再适用**，该文件下半部分是历史留档。回滚不能靠加回 `include_router`——代码已物理删除，只能从 git 历史取码并重新评审。
+- **`apps/workflow` 已退役（2026-07-26）。** LangGraph 批量整书编排器整包删除；长任务边界、真实模型调用与 ModelRun 记录留在 `apps/api`（出网唯一通道 `app/common/llm_client.py`）。`creative_tool_registry` 曾迁进程内 `runtime_tools/`，该域已于 2026-10 随零消费方死码删除。需要旧实现（`narrative/` 确定性闸、`extract/` 抽取 slice、creative registry）时从 git 历史取。
 - **OpenAPI 是后端对客户端的硬契约。** 任何路由签名变化都必须 `pnpm openapi` 刷新快照，并解释 diff 来源。
 
 ## 6. 协作约定

@@ -1,32 +1,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
 from app.common.redaction import REDACTED, is_sensitive_key
-from app.domains.books.models import Book, Chapter
-from app.domains.series.models import Series
-from app.domains.workspaces.models import Workspace
-
-
-def _seed_redaction_scope(session_factory: sessionmaker[Session]) -> dict[str, int]:
-    with session_factory() as session:
-        workspace = Workspace(title="红action团队", slug="redaction-team", status="active", seat_limit=3)
-        book = Book(title="边界测试", status="draft", premise="验证凭据不进入证据链。", workspace_id=None)
-        series = Series(title="边界系列", status="active", description="检索资料源测试。")
-        session.add_all([workspace, book, series])
-        session.flush()
-        book.workspace_id = workspace.id
-        chapter = Chapter(book_id=book.id, ordinal=1, title="第一章", status="draft")
-        session.add(chapter)
-        session.commit()
-        return {
-            "workspace_id": workspace.id,
-            "book_id": book.id,
-            "chapter_id": chapter.id,
-            "series_id": series.id,
-        }
 
 
 def test_validation_error_redacts_rejected_secret_input(client: TestClient) -> None:

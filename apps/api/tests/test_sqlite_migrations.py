@@ -41,7 +41,7 @@ def test_fresh_bootstrap_stamps_head(tmp_path) -> None:
     engine = _make_engine(tmp_path)
     try:
         db_session.bootstrap_sqlite_database(engine)
-        assert inspect(engine).has_table("books")
+        assert inspect(engine).has_table("agent_runs")
         assert inspect(engine).has_table("assistant_sessions")
         assert migrations.current_revision(engine) == migrations.head_revision(engine)
     finally:
@@ -299,7 +299,11 @@ def test_drop_book_runs_upgrade_preserves_live_rows(tmp_path) -> None:
 
         assert migrations.current_revision(engine) == head
         assert "book_runs" not in inspect(engine).get_table_names()
-        for table in ("agent_runs", "assistant_sessions", "model_runs", "story_state_events", "story_state_ledgers"):
+        # 20261010_0002 之后 model_runs / story_state_* 已整表删除，只剩两张活表可查列。
+        present = set(inspect(engine).get_table_names())
+        for table in ("model_runs", "story_state_events", "story_state_ledgers"):
+            assert table not in present, table
+        for table in ("agent_runs", "assistant_sessions"):
             assert "book_run_id" not in _column_names(engine, table), table
         with engine.connect() as conn:
             assert conn.exec_driver_sql("SELECT title FROM assistant_sessions").scalars().all() == ["存量会话"]
