@@ -244,17 +244,6 @@
             ],
             "title": "Assistant Session Id"
           },
-          "book_run_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Book Run Id"
-          },
           "budget": {
             "additionalProperties": true,
             "title": "Budget",
@@ -324,7 +313,6 @@
           "public_id",
           "session_id",
           "assistant_session_id",
-          "book_run_id",
           "goal",
           "scope",
           "permission_profile",
@@ -1212,18 +1200,6 @@
             ],
             "title": "Blueprint Id"
           },
-          "book_run_id": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Book Run Id"
-          },
           "messages": {
             "items": {
               "$ref": "#/components/schemas/AssistantMessageCreate"
@@ -1288,17 +1264,6 @@
             ],
             "title": "Blueprint Id"
           },
-          "book_run_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Book Run Id"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -1346,7 +1311,6 @@
           "task_type",
           "project_path",
           "blueprint_id",
-          "book_run_id",
           "artifact_id",
           "messages",
           "created_at",
@@ -3780,18 +3744,6 @@
             ],
             "title": "Book Id"
           },
-          "book_run_id": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Book Run Id"
-          },
           "capability": {
             "maxLength": 80,
             "minLength": 1,
@@ -4058,17 +4010,6 @@
             ],
             "title": "Book Id"
           },
-          "book_run_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Book Run Id"
-          },
           "capability": {
             "title": "Capability",
             "type": "string"
@@ -4262,7 +4203,6 @@
           "id",
           "workspace_id",
           "book_id",
-          "book_run_id",
           "chapter_id",
           "scene_id",
           "job_run_id",
@@ -9882,7 +9822,7 @@
         ]
       },
       "post": {
-        "description": "创建 Phase 9A 最小全书蓝图，作为章节规划和 BookRun 的输入。",
+        "description": "创建 Phase 9A 最小全书蓝图，作为章节规划的输入。",
         "operationId": "create_book_blueprint_endpoint_api_blueprints_post",
         "requestBody": {
           "content": {

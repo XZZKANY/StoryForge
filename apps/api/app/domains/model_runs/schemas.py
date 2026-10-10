@@ -11,7 +11,6 @@ from app.common.redaction import redact_sensitive, redact_sensitive_text
 class ModelRunCreate(BaseModel):
     workspace_id: int | None = Field(default=None, gt=0)
     book_id: int | None = Field(default=None, gt=0)
-    book_run_id: int | None = Field(default=None, gt=0)
     chapter_id: int | None = Field(default=None, gt=0)
     scene_id: int | None = Field(default=None, gt=0)
     job_run_id: int | None = Field(default=None, gt=0)
@@ -43,7 +42,6 @@ class ModelRunRead(BaseModel):
     id: int
     workspace_id: int | None
     book_id: int | None
-    book_run_id: int | None
     chapter_id: int | None
     scene_id: int | None
     job_run_id: int | None

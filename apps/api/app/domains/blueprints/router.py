@@ -36,7 +36,7 @@ def list_book_blueprints_endpoint(session: SessionDependency) -> list[BookBluepr
     summary="创建全书 Blueprint",
 )
 def create_book_blueprint_endpoint(payload: BookBlueprintCreate, session: SessionDependency) -> BookBlueprintRead:
-    """创建 Phase 9A 最小全书蓝图，作为章节规划和 BookRun 的输入。"""
+    """创建 Phase 9A 最小全书蓝图，作为章节规划的输入。"""
 
     try:
         return create_book_blueprint(session, payload)

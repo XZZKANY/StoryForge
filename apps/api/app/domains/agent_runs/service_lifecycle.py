@@ -41,7 +41,6 @@ def create_or_resume_agent_run(
         run = AgentRun(
             public_id=normalized_id,
             session_id=session_id,
-            book_run_id=run_payloads.optional_positive_int((scope or {}).get("book_run_id")),
             goal=redact_sensitive_text(goal),
             scope=redact_sensitive(scope or {}),
             permission_profile=requested_profile.profile,
@@ -53,13 +52,11 @@ def create_or_resume_agent_run(
         session.add(run)
     else:
         # 归属守卫：不允许把属于另一会话的普通 chat run 静默 re-home 到入参会话（B1-002）。
-        # managed 镜像 run（book_run_id 非空）session_id 恒为合成 bookrun:{id}、由 create_or_resume_bookrun
-        # 复用，天然豁免；不符按「不存在」报错。
+        # 不符按「不存在」报错。
         assert_run_session_ownership(run, session_id)
         run.session_id = session_id
         run.goal = redact_sensitive_text(goal)
         run.scope = redact_sensitive(scope or run.scope or {})
-        run.book_run_id = run_payloads.optional_positive_int((scope or {}).get("book_run_id")) or run.book_run_id
         # 续接读的是历史行，脏值不能把整次续跑打断——收敛到 canonical 即可（新值仍走严格校验）。
         run.permission_profile = (
             requested_profile.profile

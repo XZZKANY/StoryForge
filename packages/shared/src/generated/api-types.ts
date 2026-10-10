@@ -640,7 +640,7 @@ export interface paths {
         put?: never;
         /**
          * 创建全书 Blueprint
-         * @description 创建 Phase 9A 最小全书蓝图，作为章节规划和 BookRun 的输入。
+         * @description 创建 Phase 9A 最小全书蓝图，作为章节规划的输入。
          */
         post: operations["create_book_blueprint_endpoint_api_blueprints_post"];
         delete?: never;
@@ -1672,8 +1672,6 @@ export interface components {
         AgentRunRead: {
             /** Assistant Session Id */
             assistant_session_id: number | null;
-            /** Book Run Id */
-            book_run_id: number | null;
             /** Budget */
             budget: {
                 [key: string]: unknown;
@@ -2037,8 +2035,6 @@ export interface components {
             artifact_id?: number | null;
             /** Blueprint Id */
             blueprint_id?: number | null;
-            /** Book Run Id */
-            book_run_id?: number | null;
             /** Messages */
             messages?: components["schemas"]["AssistantMessageCreate"][];
             /** Project Path */
@@ -2054,8 +2050,6 @@ export interface components {
             artifact_id: number | null;
             /** Blueprint Id */
             blueprint_id: number | null;
-            /** Book Run Id */
-            book_run_id: number | null;
             /**
              * Created At
              * Format: date-time
@@ -2961,8 +2955,6 @@ export interface components {
         ModelRunCreate: {
             /** Book Id */
             book_id?: number | null;
-            /** Book Run Id */
-            book_run_id?: number | null;
             /** Capability */
             capability: string;
             /** Chapter Id */
@@ -3057,8 +3049,6 @@ export interface components {
         ModelRunRead: {
             /** Book Id */
             book_id: number | null;
-            /** Book Run Id */
-            book_run_id: number | null;
             /** Capability */
             capability: string;
             /** Chapter Id */

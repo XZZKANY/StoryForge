@@ -300,7 +300,6 @@ export type AssistantSessionRecord = {
   task_type: string;
   project_path: string | null;
   blueprint_id: number | null;
-  book_run_id: number | null;
   artifact_id: number | null;
   messages: AssistantMessageRecord[];
   created_at: string;

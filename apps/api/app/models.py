@@ -6,7 +6,6 @@ from app.domains.artifacts.models import Artifact
 from app.domains.assets.models import Asset, EvidenceLink
 from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
 from app.domains.blueprints.models import BookBlueprint
-from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.character_bible.models import CharacterBibleEntry
 from app.domains.collaboration.models import ApprovalDecision, ApprovalRequest, WorkspaceComment
@@ -31,7 +30,6 @@ __all__ = [
     "Base",
     "Book",
     "BookBlueprint",
-    "BookRun",
     "Chapter",
     "CharacterBibleEntry",
     "Scene",

@@ -12,7 +12,6 @@ def test_assistant_session_create_append_and_recent(client: TestClient) -> None:
             "title": "三章试读任务",
             "task_type": "trial_generation",
             "blueprint_id": 10,
-            "book_run_id": 20,
             "messages": [{"role": "user", "content": "写三章悬疑试读"}],
         },
     )
@@ -21,7 +20,6 @@ def test_assistant_session_create_append_and_recent(client: TestClient) -> None:
     assert created["title"] == "三章试读任务"
     assert created["task_type"] == "trial_generation"
     assert created["blueprint_id"] == 10
-    assert created["book_run_id"] == 20
     assert created["messages"][0]["content"] == "写三章悬疑试读"
 
     append_response = client.post(

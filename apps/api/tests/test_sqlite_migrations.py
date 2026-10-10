@@ -262,6 +262,52 @@ def test_downgrade_roundtrip_on_latest_migration(tmp_path) -> None:
         engine.dispose()
 
 
+def test_drop_book_runs_upgrade_preserves_live_rows(tmp_path) -> None:
+    """20261009_0001 要在存量库上删表删列且不碰作者数据。
+
+    用该迁移自己的 downgrade 造出「还带 book_runs 与 5 个 book_run_id 外键」的存量形态，
+    塞进 agent_runs / assistant_sessions 两张活表的行，再 upgrade head：表与列必须消失，
+    行必须一条不少。变异点：把 upgrade 里任一 drop 去掉即红。
+    """
+
+    engine = _make_engine(tmp_path)
+    try:
+        db_session.bootstrap_sqlite_database(engine)
+        head = migrations.head_revision(engine)
+
+        config = migrations.build_alembic_config(engine)
+        with engine.connect() as conn:
+            config.attributes["connection"] = conn
+            command.downgrade(config, "-1")
+        assert "book_runs" in inspect(engine).get_table_names()
+        for table in ("agent_runs", "assistant_sessions", "model_runs", "story_state_events", "story_state_ledgers"):
+            assert "book_run_id" in _column_names(engine, table), table
+
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                "INSERT INTO assistant_sessions (title, task_type) VALUES ('存量会话', 'chat')"
+            )
+            conn.exec_driver_sql(
+                "INSERT INTO agent_runs"
+                " (public_id, session_id, goal, scope, permission_profile, budget, status, root_plan)"
+                " VALUES ('run-legacy', 'sess-legacy', '续写', '{}', 'ask', '{}', 'completed', '[]')"
+            )
+
+        migrations.upgrade_head(engine)
+
+        assert migrations.current_revision(engine) == head
+        assert "book_runs" not in inspect(engine).get_table_names()
+        for table in ("agent_runs", "assistant_sessions", "model_runs", "story_state_events", "story_state_ledgers"):
+            assert "book_run_id" not in _column_names(engine, table), table
+        with engine.connect() as conn:
+            assert conn.exec_driver_sql("SELECT title FROM assistant_sessions").scalars().all() == ["存量会话"]
+            assert conn.exec_driver_sql("SELECT public_id FROM agent_runs").scalars().all() == ["run-legacy"]
+            assert conn.exec_driver_sql("PRAGMA quick_check").scalar() == "ok"
+            assert conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall() == []
+    finally:
+        engine.dispose()
+
+
 def test_backup_retention_keeps_last_three(tmp_path) -> None:
     """备份保留最近 3 份，多余的按 mtime 淘汰。"""
 

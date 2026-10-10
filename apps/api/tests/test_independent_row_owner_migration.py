@@ -111,7 +111,7 @@ def test_partially_added_column_upgrade_is_idempotent_and_ignores_payload_claims
         # before backfill/version bookkeeping. The retry must not add it twice.
         bootstrap_sqlite_database(engine)
         assert owners(engine) == expected
-        assert migrations.current_revision(engine) == '20261008_0001'
+        assert migrations.current_revision(engine) == '20261009_0001'
         bootstrap_sqlite_database(engine)
         assert owners(engine) == expected
     finally:

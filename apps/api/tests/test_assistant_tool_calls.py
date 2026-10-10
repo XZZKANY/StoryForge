@@ -9,7 +9,6 @@ def create_session(client: TestClient) -> int:
         json={
             "title": "工具调用追溯",
             "task_type": "trial_generation",
-            "book_run_id": 12,
             "messages": [{"role": "user", "content": "暂停 BookRun"}],
         },
     )

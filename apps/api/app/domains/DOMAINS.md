@@ -29,7 +29,7 @@
 
 ## 2026-10 自动整书链退役
 
-作者拍板删除 BookRun 自动整书链：`book_runs` 只剩 `models.py`（`book_runs` 表与 4 处外键仍在，删表另走 Alembic 迁移）；
+作者拍板删除 BookRun 自动整书链：`book_runs` **整域已删**（表与 5 个 `book_run_id` 外键随迁移 `20261009_0001` 一并删除，`story_state_ledgers` 唯一约束同时收敛为 `(book_id, entity_kind, entity_id)`）；
 `writing_runs`、`exports` 与 `books/lineage_service.py` 整体删除；IDE `bookrun.*` 命令、`/api/ide/runs/{id}/events`、
 `/api/book-runs/*`、`/api/books/{id}/exports/*` 与 Agent 托管适配器一并移除。live 模块的 LLM 调用统一走 `app/common/llm_client.py` / `llm_env.py`。
 

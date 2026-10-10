@@ -44,7 +44,6 @@ function sessionRecord(id = 1, content: string[] = []): AssistantSessionRecord {
     task_type: 'chat',
     project_path: 'D:/book',
     blueprint_id: null,
-    book_run_id: null,
     artifact_id: null,
     created_at: 'fixture',
     updated_at: 'fixture',

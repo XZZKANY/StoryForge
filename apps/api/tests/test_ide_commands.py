@@ -158,9 +158,9 @@ def test_ide_command_result_redacts_sensitive_payload_when_serialized() -> None:
 def test_bookrun_commands_stay_unregistered() -> None:
     """bookrun.* 桌面入口已摘除（2026-08-01 作者拍板退役批量整书）。
 
-    只摘注册、不删实现：`_execute_bookrun_command` 与 book_runs service / REST 全留着，
-    回滚 = 把 5 行 IdeCommandDefinition 加回 command_registry。底层「控制必须真更新状态」
-    的覆盖仍在 test_book_run_controls.py（REST 层），本刀没有削掉那份保证。
+    2026-10-09 整条 BookRun 链已物理删除：`_execute_bookrun_command`、book_runs service /
+    REST 与 test_book_run_controls.py 均不复存在，此处已无可回滚的实现，
+    本用例退化为「这些命令 id 不得再出现」的防回归闸。
     """
 
     from app.domains.ide.command_registry import _BUILTIN_COMMANDS

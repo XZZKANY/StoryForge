@@ -8,7 +8,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, IdMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.domains.book_runs.models import BookRun
     from app.domains.books.models import Book, Chapter, Scene
     from app.domains.jobs.models import JobRun
     from app.domains.prompt_packs.models import PromptPack
@@ -22,7 +21,6 @@ class ModelRun(IdMixin, TimestampMixin, Base):
 
     workspace_id: Mapped[int | None] = mapped_column(ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     book_id: Mapped[int | None] = mapped_column(ForeignKey("books.id", ondelete="SET NULL"), index=True)
-    book_run_id: Mapped[int | None] = mapped_column(ForeignKey("book_runs.id", ondelete="SET NULL"), index=True)
     chapter_id: Mapped[int | None] = mapped_column(ForeignKey("chapters.id", ondelete="SET NULL"), index=True)
     scene_id: Mapped[int | None] = mapped_column(ForeignKey("scenes.id", ondelete="SET NULL"), index=True)
     job_run_id: Mapped[int | None] = mapped_column(ForeignKey("job_runs.id", ondelete="SET NULL"), index=True)
@@ -49,7 +47,6 @@ class ModelRun(IdMixin, TimestampMixin, Base):
 
     workspace: Mapped[Workspace | None] = relationship()
     book: Mapped[Book | None] = relationship()
-    book_run: Mapped[BookRun | None] = relationship()
     chapter: Mapped[Chapter | None] = relationship()
     scene: Mapped[Scene | None] = relationship()
     job_run: Mapped[JobRun | None] = relationship()

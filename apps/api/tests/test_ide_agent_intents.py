@@ -164,9 +164,9 @@ def test_agent_user_message_chapter_review_stops_after_first_repair_patch(
 def test_bookrun_start_intent_no_longer_routes() -> None:
     """bookrun.start 显式 intent 已摘除（2026-08-01 作者拍板退役批量整书）。
 
-    原先两条端到端用例（preflight 需确认 / 确认后复用命令表）随入口一并下线；
-    BookRun 本身的行为覆盖仍在 test_book_run_*.py 的 REST 层，本刀没削掉那份保证。
-    回滚 = 把 "bookrun.start" 加回 intent.SUPPORTED_INTENTS 与固定管线分派表。
+    原先两条端到端用例（preflight 需确认 / 确认后复用命令表）随入口一并下线。
+    2026-10-09 整条 BookRun 链（含 REST 层与其测试）已物理删除，此处已无可回滚的实现，
+    本用例退化为「这个 intent 不得再出现」的防回归闸。
     """
 
     from app.domains.agent_runs.intent import SUPPORTED_INTENTS

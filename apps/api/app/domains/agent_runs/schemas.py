@@ -44,7 +44,6 @@ class AgentRunRead(BaseModel):
     public_id: str
     session_id: str
     assistant_session_id: int | None
-    book_run_id: int | None
     goal: str
     scope: dict[str, Any]
     permission_profile: str
