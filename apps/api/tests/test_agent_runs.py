@@ -188,8 +188,6 @@ def test_agent_runtime_supported_intents_are_registered() -> None:
             "file.review",
         "file.revise",
         "chapter.polish",
-        "chapter.review",
-        "chapter.repair",
     } == RUNTIME_SUPPORTED_INTENTS
 
 
@@ -307,21 +305,6 @@ def test_bootstrap_sqlite_renumbers_legacy_duplicate_sequences(tmp_path) -> None
     index_names = {index["name"] for index in sa_inspect(engine).get_indexes("agent_run_events")}
     assert "uq_agent_run_events_run_sequence" in index_names
     engine.dispose()
-
-
-def test_detect_intent_requires_scene_packet_for_chapter_review() -> None:
-    """自由文本「审阅」没带 scene_packet_id 时必须落回 chat.explain 工具循环：
-    chapter.review 绑定 DB 实体，路由过去只会因缺参报「这轮没跑通」。"""
-
-    assert detect_runtime_intent("帮我审阅一下这个项目", {}, None) == "chat.explain"
-    assert detect_runtime_intent("章节审阅", {}, None) == "chat.explain"
-    assert detect_runtime_intent("审阅这一章", {"scene_packet_id": 3}, None) == "chapter.review"
-    # F11：仅有文件上下文、无 reviewer role hint 的自由文本也落 chat.explain，
-    # 由循环内 file.review 工具自主决定，不再被「审阅」关键词劫进固定管线。
-    file_args = {"file_path": "正文/第01章.md", "content": "正文"}
-    assert detect_runtime_intent("审阅这份稿子", file_args, None) == "chat.explain"
-    # 带 reviewer role hint 才路由固定 file.review 管线。
-    assert detect_runtime_intent("审阅这份稿子", {**file_args, "agent_role_hints": ["prose_reviewer"]}, None) == "file.review"
 
 
 def test_reap_non_terminal_agent_runs_fails_stale_and_records_reason(session: Session) -> None:

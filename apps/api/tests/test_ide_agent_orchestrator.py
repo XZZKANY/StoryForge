@@ -52,9 +52,8 @@ def test_supported_intents_are_registered() -> None:
         "file.review",
         "file.revise",
         "chapter.polish",
-        "chapter.review",
-        "chapter.repair",
         # bookrun.start 已于 2026-08-01 摘除（作者拍板退役批量整书）。
+        # chapter.review / chapter.repair 已于 2026-10 随 DB 实体审稿链退役。
     } == SUPPORTED_INTENTS
 
 

@@ -176,8 +176,8 @@ def test_min_chunk_chars_is_a_real_floor() -> None:
 def test_judge_and_generator_share_one_fingerprint_implementation() -> None:
     """检查器与生成器必须是同一个对象——两份切句实现就会各按各的尺子说话。"""
 
-    from app.domains.judge.style_fingerprint import _style_fingerprint
     from app.domains.judge.types import StyleFingerprint
 
-    assert _style_fingerprint is style_fingerprint
+    # judge/style_fingerprint.py 的 facade 已于 2026-10 随 DB 实体审稿链删除：
+    # 现在全仓只剩 app/common 这一份实现，judge 侧只经 types 再导出同一个类。
     assert StyleFingerprint is style_fingerprint("句子。").__class__

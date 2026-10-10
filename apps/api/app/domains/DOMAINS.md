@@ -23,9 +23,12 @@
 
 **service 真被 live 进程内调用的只有 3 个**（2026-10 逐域实证，判据 = live 四域里非 `.models` 的 import）：
 
-- `judge` —— `semantic_judge_with_status`、`create_judge_issues` 与两组 schema。
-- `repair` —— `create_repair_patch` 与 schema。
-- `studio` —— `approve_studio_writeback` 与 schema，经 live `ide` 的 `/api/ide/commands/judge.approve` 可达。
+- `judge` —— **只剩 `semantic.py` 这一条**：`semantic_judge_with_status` 被 agent 循环的
+  `project.deep_consistency` 工具调用（`agent_runs/deep_consistency.py`），连带 `types.py` / `schemas.py`。
+  `create_judge_issues` 与 `consistency` / `deterministic` / `style_fingerprint` / `router` 已随
+  DB 实体审稿链于 2026-10 删除。
+
+`repair` / `studio` 两个域已整域删除（见下「DB 实体审稿链退役」）。
 
 其余 `retrieval`、`character_bible`、`story_state`、`blueprints`、`artifacts`、`model_runs`、`provider_gateway`、
 `events`、`continuity`、`timeline` **只被 `app/models.py` 聚合建表引用**（`.models`），目录必留但 service 零 live 调用方。
@@ -43,7 +46,23 @@
 桌面端是唯一客户端，实测只调 `/api/agent-runs`、`/api/assistant`、`/api/ide` 三个前缀（加 `/health`）。
 其余 16 个前缀的 router 已卸载：`artifacts`、`blueprints`、`character_bible`、`continuity`、`events`、`judge`、
 `model_runs`、`provider_gateway`、`quality`、`repair`、`retrieval`、`runtime_tools`、`scene_packets`、`studio`、
-`style_packs`、`timeline`。当时**只卸 router 不删 service/models**；其中 judge / repair / studio 的 service 仍在进程内执行。
+`style_packs`、`timeline`。当时**只卸 router 不删 service/models**。
+
+## 2026-10 DB 实体审稿链退役
+
+那条链已经**有入口无数据**：`chapter.review` intent 需要 `scene_packet_id`，而 `ScenePacket` 行的唯一
+创建方随 `scene_packets` 服务删除后归零；`chapter.repair` 需要的 `issue_id` 只能由 `chapter.review` 产生，
+`judge.approve` 需要的 `repair_patch_id` 只能由 `chapter.repair` 产生。桌面端实际只发 `chapter.write` /
+`chapter.polish` / `file.revise` / `chat.explain` 四个 intent，从不进入这条链。
+
+删除：IDE 命令 `judge.run` / `judge.repair` / `judge.approve`；intent `chapter.review` / `chapter.repair`；
+`repair` 与 `studio` 整域；`judge` 的 `service` / `router` / `consistency` / `deterministic` / `style_fingerprint`；
+`agent_runs/adapters/chapter_review_pipeline.py` 与它的 runtime mixin；agent 循环工具 `judge.repair`。
+
+**保留**：`judge/semantic.py`（live 的 `project.deep_consistency` 用）；agent 循环工具 `judge.run` —— 它被
+`file.revise` 管线用作产字后的确定性轻量自检（`mode="proposed_patch_smoke"` 那条纯函数分支），
+只砍掉了它转交 IDE 命令的尾巴。`chapter.repair` 作为**工具**（`chapter_writing_pipeline` 里 `chapter.write`
+流程的修复步）与被删的同名 intent 无关，保留。
 
 **2026-10 续刀：死服务层物理删除。** `quality` / `runtime_tools` / `scene_packets` / `style_packs` 零表零消费方，
 整域删除；`model_runs` 的 `recording` / `router` / `runs_diagnostics` / `schemas` / `service` 与 `context_compiler` 的

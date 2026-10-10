@@ -54,11 +54,11 @@ def test_fixed_intent_adapter_routes_every_explicit_pipeline() -> None:
     runtime = _RecordingFixedRuntime()
     request = _request("file.review")
 
-    for intent in ("file.review", "file.revise", "chapter.polish", "chapter.review", "chapter.repair"):
+    for intent in ("file.review", "file.revise", "chapter.polish"):
         result = run_fixed_intent_pipeline(runtime, replace(request, intent=intent))
         assert result == {"handler": intent}
 
-    assert runtime.calls == ["file.review", "file.revise", "chapter.polish", "chapter.review", "chapter.repair"]
+    assert runtime.calls == ["file.review", "file.revise", "chapter.polish"]
 
     with pytest.raises(AgentOrchestrationError, match="暂不支持的 Agent intent"):
         run_fixed_intent_pipeline(runtime, replace(request, intent="unknown.intent"))

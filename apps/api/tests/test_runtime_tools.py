@@ -54,7 +54,6 @@ def test_permission_fields_derive_from_risk_and_execution_mode() -> None:
             "file.create",
             "project.trim_prose",
             "prose.continue",
-            "judge.repair",
             "chapter.brief",
             "chapter.draft",
             "chapter.repair",

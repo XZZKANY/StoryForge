@@ -29,18 +29,12 @@ class FixedPipelineRuntime(Protocol):
 
     def run_controlled_chapter_polish_pipeline(self, request: FixedPipelineRequest) -> dict[str, Any]: ...
 
-    def run_chapter_review_pipeline(self, request: FixedPipelineRequest) -> dict[str, Any]: ...
-
-    def run_chapter_repair_pipeline(self, request: FixedPipelineRequest) -> dict[str, Any]: ...
-
 
 def run_fixed_intent_pipeline(runtime: FixedPipelineRuntime, request: FixedPipelineRequest) -> dict[str, Any]:
     handlers = {
         "file.review": runtime.run_file_review_pipeline,
         "file.revise": runtime.run_chapter_polish_pipeline,
         "chapter.polish": runtime.run_controlled_chapter_polish_pipeline,
-        "chapter.review": runtime.run_chapter_review_pipeline,
-        "chapter.repair": runtime.run_chapter_repair_pipeline,
     }
     if request.intent == "chapter.write":
         handler = getattr(runtime, "run_chapter_writing_pipeline", None)

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from app.common import llm_client
 from app.domains.judge.schemas import JudgeIssueCreate
-from app.domains.judge.service import DetectedIssue, semantic_judge, semantic_judge_with_status
+from app.domains.judge.semantic import semantic_judge, semantic_judge_with_status
+from app.domains.judge.types import DetectedIssue
 
 
 def _install_fake_transport(

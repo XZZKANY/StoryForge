@@ -2,17 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
 from app.common.redaction import REDACTED, is_sensitive_key, redact_sensitive_text
 from app.domains.agent_runs._text import compact_text as _compact_text
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.llm_context import llm_context_snapshot_trace_summary
 from app.domains.agent_runs.tools.loop_schema import list_loop_tool_specs
-from app.domains.books.models import Chapter, Scene
-from app.domains.continuity.models import ScenePacket
 
 PROTECTED_LOOP_TOOL_ARGUMENT_KEYS = frozenset(
     {
@@ -188,33 +183,6 @@ def _llm_context_input_summary(snapshot: object) -> dict[str, Any]:
             "selected_content_sha256": summary["selected_content_sha256"],
         },
     }
-
-
-def _judge_run_args_from_scene_packet(session: Session, scene_packet_id: int) -> dict[str, Any]:
-    row = session.execute(
-        select(ScenePacket, Scene, Chapter)
-        .join(Scene, ScenePacket.scene_id == Scene.id)
-        .join(Chapter, Scene.chapter_id == Chapter.id)
-        .where(ScenePacket.id == scene_packet_id)
-        .limit(1)
-    ).first()
-    if row is None:
-        raise AgentOrchestrationError("Scene Packet 不存在，无法执行章节审阅。")
-    scene_packet, scene, _chapter = row
-    content = (scene.content or "").strip()
-    if not content:
-        raise AgentOrchestrationError("场景正文为空，无法执行章节审阅。")
-    packet = scene_packet.packet or {}
-    return {
-        "scene_id": scene.id,
-        "scene_packet_id": scene_packet.id,
-        "content": content,
-        "required_facts": _string_list(packet.get("必须包含事实")),
-        "style_rules": _style_rules(packet.get("风格规则")),
-        "evidence_links": _dict_list(packet.get("证据链接")),
-    }
-
-
 def _string_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -246,46 +214,6 @@ def _payload_list(value: object) -> list[dict[str, Any]]:
     return [item for item in value if isinstance(item, dict)]
 
 
-def _can_repair_issue(issue: dict[str, Any], content: object) -> bool:
-    """Check if a judge issue is eligible for auto-repair."""
-    if not isinstance(content, str):
-        return False
-    if issue.get("status") != "open":
-        return False
-    if issue.get("recommended_repair_mode") == "none":
-        return False
-    start = issue.get("span_start")
-    end = issue.get("span_end")
-    return isinstance(start, int) and isinstance(end, int) and 0 <= start < end <= len(content)
-
-
-def _first_patch_payload(results: list[Any]) -> dict[str, Any] | None:
-    """Extract first patch from ToolResult list via output[result][payload][patch]."""
-    for result in results:
-        result_block = result.output.get("result", {}) if hasattr(result, "output") else {}
-        payload = result_block.get("payload") if isinstance(result_block.get("payload"), dict) else {}
-        patch = payload.get("patch")
-        if isinstance(patch, dict):
-            return patch
-    return None
-
-
-def _proposed_patch_from_repair_patch(patch: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Convert a raw repair patch into the proposed_patch contract."""
-    if not patch:
-        return None
-    patch_id = patch.get("id")
-    proposed: dict[str, Any] = {
-        "kind": "repair_patch",
-        "repair_patch": patch,
-        "requires_confirmation": True,
-        "approval_command": None,
-    }
-    if isinstance(patch_id, int):
-        proposed["approval_command"] = {"command_id": "judge.approve", "args": {"repair_patch_id": patch_id}}
-    return proposed
-
-
 fs_int_arg = _fs_int_arg
 chat_context_block = _chat_context_block
 sanitize_loop_tool_arguments = _sanitize_loop_tool_arguments
@@ -297,11 +225,7 @@ optional_int = _optional_int
 trim_prose_instruction = _trim_prose_instruction
 safe_summary = _safe_summary
 llm_context_input_summary = _llm_context_input_summary
-judge_run_args_from_scene_packet = _judge_run_args_from_scene_packet
 string_list = _string_list
 dict_list = _dict_list
 style_rules = _style_rules
 payload_list = _payload_list
-can_repair_issue = _can_repair_issue
-first_patch_payload = _first_patch_payload
-proposed_patch_from_repair_patch = _proposed_patch_from_repair_patch

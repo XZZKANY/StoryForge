@@ -25,22 +25,15 @@ from app.domains.agent_runs.revise_scope import scope_issues as _scope_issues
 from app.domains.agent_runs.revise_scope import scope_warning as _scope_warning
 from app.domains.agent_runs.tools import ToolArtifact, ToolExecutionContext, ToolHandler, ToolResult
 from app.domains.agent_runs.tools.runtime_arguments import llm_context_input_summary as _llm_context_input_summary
-from app.domains.agent_runs.tools.runtime_arguments import (
-    proposed_patch_from_repair_patch as _proposed_patch_from_repair_patch,
-)
 from app.domains.agent_runs.tools.runtime_arguments import required_string as _required_string
 from app.domains.agent_runs.tools.runtime_arguments import required_text as _required_text
-from app.domains.agent_runs.tools.runtime_arguments import safe_summary as _safe_summary
 from app.domains.agent_runs.tools.runtime_arguments import string_list as _string_list
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.schemas import (
     AssistantDraftRequest,
     AssistantReviseRequest,
-    AssistantToolCallCreate,
-    AssistantToolCallUpdate,
 )
-from app.domains.ide.service import IdeCommandExecutionError, IdeCommandNotFoundError, execute_ide_command_by_id
 
 
 class PatchRuntimeToolsMixin:
@@ -52,8 +45,29 @@ class PatchRuntimeToolsMixin:
             "file.create": self._file_create,
             "judge.run": self._judge_run,
         }
-        handlers["judge.repair"] = self._ide_command_tool("judge.repair")
         return handlers
+
+    def _judge_run(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        """对生成内容做确定性轻量自检（file.revise 管线产字后调用）。
+
+        2026-10 删 DB 实体审稿链后只剩这一条纯函数路径；原先 mode 不匹配时会转交
+        已删除的 judge.run IDE 命令。
+        """
+        content = str(payload.get("content") or "")
+        issue_count = 0
+        if any(marker in content for marker in ("这说明", "其实", "显然")):
+            issue_count += 1
+        output = {"issue_count": issue_count, "mode": "proposed_patch_smoke"}
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="judge.run",
+                status="completed",
+                input_summary={"content_chars": len(content), "mode": "proposed_patch_smoke"},
+                output_summary=output,
+            ),
+        )
 
     def _chapter_polish(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         file_path = _required_string(payload, "file_path")
@@ -396,86 +410,6 @@ class PatchRuntimeToolsMixin:
                 },
             ),
         )
-
-    def _judge_run(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
-        if payload.get("mode") == "proposed_patch_smoke":
-            content = str(payload.get("content") or "")
-            issue_count = 0
-            if any(marker in content for marker in ("这说明", "其实", "显然")):
-                issue_count += 1
-            output = {"issue_count": issue_count, "mode": "proposed_patch_smoke"}
-            return ToolResult(
-                status="completed",
-                output=output,
-                trace=AgentToolTrace(
-                    tool_name="judge.run",
-                    status="completed",
-                    input_summary={"content_chars": len(content), "mode": "proposed_patch_smoke"},
-                    output_summary=output,
-                ),
-            )
-        handler = self._ide_command_tool("judge.run")
-        return handler(context, payload)
-
-    def _ide_command_tool(self, command_id: str) -> ToolHandler:
-        def handler(context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
-            tool_call = assistant_service.create_assistant_tool_call(
-                context.session,
-                context.assistant_session_id,
-                AssistantToolCallCreate(tool_name=command_id, status="running", input_summary=_safe_summary(payload)),
-            )
-            try:
-                result = execute_ide_command_by_id(command_id, payload, context.session)
-            except (IdeCommandNotFoundError, IdeCommandExecutionError) as exc:
-                assistant_service.update_assistant_tool_call(
-                    context.session,
-                    tool_call.id,
-                    AssistantToolCallUpdate(status="failed", error_message=str(exc)[:4000]),
-                )
-                raise AgentOrchestrationError(str(exc)) from exc
-            output_summary = _safe_summary(result.payload)
-            tool_artifacts: list[ToolArtifact] = []
-            patch_proposal: PatchProposal | None = None
-            if command_id == "judge.repair":
-                patch_payload = result.payload.get("patch") if isinstance(result.payload.get("patch"), dict) else None
-                proposed_patch = _proposed_patch_from_repair_patch(patch_payload) if patch_payload else None
-                if proposed_patch is not None:
-                    repair_confirm = patch_requires_confirmation(context.run.permission_profile)
-                    proposed_patch["requires_confirmation"] = repair_confirm
-                    patch_proposal = PatchProposal.from_payload(proposed_patch)
-                    tool_artifacts.append(
-                        ToolArtifact(
-                            kind="proposed_patch", payload=proposed_patch, requires_confirmation=repair_confirm
-                        )
-                    )
-            assistant_service.update_assistant_tool_call(
-                context.session,
-                tool_call.id,
-                AssistantToolCallUpdate(
-                    status="completed",
-                    output_summary={**output_summary, "audit_event_id": result.audit_event_id},
-                ),
-            )
-            return ToolResult(
-                status="completed",
-                output={"result": result.model_dump()},
-                summary=f"{command_id} completed",
-                payload=result.payload,
-                artifacts=tuple(tool_artifacts),
-                metrics={"payload_key_count": len(result.payload)},
-                patch_proposal=patch_proposal,
-                trace=AgentToolTrace(
-                    tool_name=command_id,
-                    status="completed",
-                    input_summary=_safe_summary(payload),
-                    output_summary=output_summary,
-                    audit_event_id=result.audit_event_id,
-                    assistant_tool_call_id=tool_call.id,
-                ),
-            )
-
-        return handler
-
 
 def _dict_items(value: object) -> list[dict[str, Any]]:
     return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []

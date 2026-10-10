@@ -10,7 +10,6 @@ from app.domains.agent_runs.adapters.chapter_generation_pipeline import ChapterG
 from app.domains.agent_runs.adapters.chapter_polishing_pipeline import (
     ControlledChapterPolishingRuntimeMixin,
 )
-from app.domains.agent_runs.adapters.chapter_review_pipeline import ChapterReviewRuntimeMixin
 from app.domains.agent_runs.adapters.chapter_writing_pipeline import ChapterWritingRuntimeMixin
 from app.domains.agent_runs.adapters.file_review_pipeline import FileReviewRuntimeMixin
 from app.domains.agent_runs.adapters.intent_fixed_pipeline_adapter import (
@@ -82,14 +81,10 @@ _optional_int = runtime_arguments.optional_int
 _trim_prose_instruction = runtime_arguments.trim_prose_instruction
 _safe_summary = runtime_arguments.safe_summary
 _llm_context_input_summary = runtime_arguments.llm_context_input_summary
-_judge_run_args_from_scene_packet = runtime_arguments.judge_run_args_from_scene_packet
 _string_list = runtime_arguments.string_list
 _dict_list = runtime_arguments.dict_list
 _style_rules = runtime_arguments.style_rules
 _payload_list = runtime_arguments.payload_list
-_can_repair_issue = runtime_arguments.can_repair_issue
-_first_patch_payload = runtime_arguments.first_patch_payload
-_proposed_patch_from_repair_patch = runtime_arguments.proposed_patch_from_repair_patch
 
 
 class EventSink(Protocol):
@@ -125,7 +120,6 @@ class AgentRuntime(
     FileReviewRuntimeMixin,
     ChapterGenerationRuntimeMixin,
     ControlledChapterPolishingRuntimeMixin,
-    ChapterReviewRuntimeMixin,
     ChapterWritingRuntimeMixin,
     ToolExecutionRuntimeMixin,
     FsRuntimeToolsMixin,
