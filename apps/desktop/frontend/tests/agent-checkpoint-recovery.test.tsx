@@ -50,7 +50,6 @@ function projection(reason = 'durable_checkpoint_ready'): AgentRunSavePointProje
     pending: {},
     recoverability: {
       can_resume: checkpoint.can_resume,
-      can_retry_from_checkpoint: false,
       resume_strategy: checkpoint.resume_strategy,
     },
     runtime_recovery: { checkpoint_resume: checkpoint },
@@ -132,7 +131,7 @@ afterEach(async () => {
 it('safe checkpoint is a same-run continuation, not a BookRun retry', () => {
   const display = buildAgentRunRecoveryDisplay(projection());
   expect(display?.checkpointResume?.canResume).toBe(true);
-  expect(display?.canRetryFromCheckpoint).toBe(false);
+  expect(display).not.toHaveProperty('canRetryFromCheckpoint');
   expect(display?.resumeText).toContain('同一运行');
   expect(display?.checkpointText).toContain('#71');
 });

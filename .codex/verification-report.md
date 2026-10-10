@@ -6949,3 +6949,66 @@ live 路径脱敏覆盖由该文件剩余 3 条 + 另外 4 个文件保留。
 
 16 个域的 `service.py` / `schemas.py` / `models.py` 全部保留（`app/models.py` 聚合建表依赖，
 且 judge / repair / studio 的 service 仍在执行）。物理删除另行评估。
+
+
+## 2026-10-10 清掉 BookRun checkpoint 恢复路径
+
+接 #272 / #273 / #274。PR #272 退役自动整书链时漏下的一处：`bookrun_checkpoint` 存档点
+与 `bookrun-agent` actor 这条恢复投影链。
+
+**先证明它确实不可达（三条独立证据）**
+
+1. 现在实际产出的 artifact kind 只有 `book_breakdown_report`、知识提案、`runtime_pending_call`
+   及其 resolution，**无人再写 `kind="bookrun_checkpoint"`**。
+2. `actor="bookrun-agent"` **全仓只有两处比较、零处设置**（实际 actor 是 `agent-runtime` /
+   `author` / `desktop-ide` / `root-agent` 等），两个条件恒为假。
+3. 作者装机版库里 71 条真实 agent_artifacts，kind 分布为 `system_summary`(44) /
+   `proposed_patch`(13) / `system_compaction`(9) / `review_report`(3) / `chapter_brief`(1) /
+   `runtime_pending_call`(1)，**零条 `bookrun_checkpoint`**。
+
+**必须分清的两个 checkpoint（本刀的主要价值）**
+
+`recovery.ts` 里并排放着两个同名概念，极易误读：
+
+- **live**：`runtime_checkpoint`（`loop/checkpoint_store.py:26` 的 `RUNTIME_CHECKPOINT_KIND`，
+  由 `checkpoint_store.py:150` 产出，经 `loop/recovery.py:87-88` 注入
+  `runtime_recovery.checkpoint_resume` 与 `recoverability.can_resume`）。**本刀整条不动。**
+- **死的**：`bookrun_checkpoint`。本刀清除。
+
+核查过程中一度怀疑 `recoverability.can_resume` 是 live 路径的 bug（基础投影里确实没有这个键），
+追到 `loop/recovery.py:88` 的增强路径后确认不是，记此一笔以免后人重查。
+
+**改动**
+
+- `save_point_projection.py`：删 `bookrun-agent` 分支（删后 STOP_RUN 照旧落 `control_message`，
+  即 actor 不匹配时的原路径）、`bookrun_checkpoint` artifact 分支、控制事件 payload 的
+  `book_run*` / `writing_run*` 字段、artifact 摘要白名单里 7 个零产出方的章节字段
+  （`tokens_used` / `completed_count` / `current_chapter_index` / `checkpoint_count` /
+  `resume_from_chapter_index` / `retry_from_chapter_index` / `retry_checkpoint_chapter_index`）
+  与 `retry_checkpoint`、`checkpoint` 两块及 `_latest_checkpoint_entry` 助手；
+  `resume_strategy` / `runtime_recovery_projection` / `_latest_runtime_failure` 去掉 checkpoint 入参。
+  **`total_chapters`（`book_context.py:296` 产出）与 `token_budget`（`run_payloads.py:82` 产出）
+  有 live 产出方，保留**——逐键 grep 过产出侧才决定去留。
+- `save_points.py`：删 checkpoint 来源与 `bookrun-agent` 从句；`recoverability` 去掉
+  `can_retry_from_checkpoint` / `latest_checkpoint_artifact_id` / `failed_without_checkpoint`。
+- `loop/recovery.py`：增强路径不再写回已删的 `failed_without_checkpoint`（`dict.update` 会把它加回来）。
+- `ide/command_registry.py`：写命令的 workspace 归属不再从 `book_run` payload 兜底。
+- `run_payloads.py`：预算摘要去掉 `chapter_budget`（已删除的 `book_runs` 列名）。
+- 前端 `recovery.ts`：删 `checkpointSummary()` 整个函数与 `canRetryFromCheckpoint` 字段
+  （生产代码零消费方，仅 3 个测试引用）；`manualRestartRequired` 改读 `projection.status === 'failed'`
+  ——`failed_without_checkpoint` 的语义恒等于此，用户可见文案「恢复：需要手动重启本轮」不变；
+  `controlText` 去掉 `book_run_status` / `writing_run_status` 状态后缀（`latestControl` 里本就没有
+  可替代的 `status` 键，**没有凭空引入新字段**）。
+
+**契约影响：无。** `recoverability` / `save_points` 投影不在 OpenAPI 与 `agent-ws.schema.json` 里
+（三份产物各零命中），故无需重生成契约。
+
+**验证**
+
+- API 全量 pytest **3488 passed / 51 skipped / 0 failed**（= 3489 − 1 条随死路径退役的用例）。
+- 前端 vitest **1919 passed / 1 skipped / 0 failed**（= 1920 − 1 条喂死投影形状的用例）。
+- typecheck、eslint（0 error）、prettier、ruff 全绿；daily 与 packaged 冻结 exe 冒烟均绿。
+- **变异验证**：`agent-checkpoint-recovery.test.tsx` 原本断言「live 安全检查点不会被当成 BookRun 重试」，
+  字段整体移除后该混淆在结构上已不可能，断言改为 `expect(display).not.toHaveProperty('canRetryFromCheckpoint')`；
+  把字段加回 → 报红，还原 → 绿。
+- 行尾自检：两组 numstat 逐文件一致，无 CRCRLF。净 21 增 / 237 删。

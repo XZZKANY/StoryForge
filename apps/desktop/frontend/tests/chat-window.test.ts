@@ -220,9 +220,7 @@ function savePointProjection(
     save_points: [],
     pending: {},
     recoverability: {
-      can_retry_from_checkpoint: false,
       latest_checkpoint_artifact_id: null,
-      failed_without_checkpoint: false,
       terminal_event_id: null,
       resume_strategy: 'none',
     },
@@ -257,9 +255,7 @@ test('agent run recovery display summarizes pending permission and proposed patc
         proposed_patch_artifact_id: 12,
       },
       recoverability: {
-        can_retry_from_checkpoint: false,
         latest_checkpoint_artifact_id: null,
-        failed_without_checkpoint: false,
         terminal_event_id: null,
         resume_strategy: 'await_permission_decision',
       },
@@ -277,55 +273,11 @@ test('agent run recovery display summarizes pending permission and proposed patc
   assert.match(html, /等待权限：file\.revise/);
 });
 
-test('agent run recovery display surfaces checkpoint and latest retry control', () => {
-  const recovery = buildAgentRunRecoveryDisplay(
-    savePointProjection({
-      save_points: [
-        {
-          kind: 'bookrun_checkpoint',
-          source: 'artifact',
-          artifact_id: 77,
-          artifact_kind: 'bookrun_checkpoint',
-          requires_confirmation: false,
-          summary: {
-            latest_checkpoint_chapter_index: 4,
-            completed_count: 3,
-            total_chapters: 8,
-          },
-        },
-      ],
-      recoverability: {
-        can_retry_from_checkpoint: true,
-        latest_checkpoint_artifact_id: 77,
-        failed_without_checkpoint: false,
-        terminal_event_id: null,
-        resume_strategy: 'bookrun_checkpoint',
-      },
-      runtime_recovery: {
-        latest_control: {
-          event_type: 'retry_from_checkpoint',
-          book_run_status: 'running',
-        },
-      },
-    }),
-  );
-
-  assert.ok(recovery);
-  assert.equal(recovery.canRetryFromCheckpoint, true);
-  assert.equal(recovery.tone, 'ok');
-  assert.equal(recovery.resumeText, '恢复：可从检查点继续');
-  assert.equal(recovery.latestControlText, '最近操作：从检查点重试 · 运行中');
-  assert.equal(recovery.checkpointText, '检查点 · #77 · 第 4 章 · 3/8');
-});
-
 test('agent run recovery display keeps failed run without checkpoint conservative', () => {
   const recovery = buildAgentRunRecoveryDisplay(
     savePointProjection({
       status: 'failed',
       recoverability: {
-        can_retry_from_checkpoint: false,
-        latest_checkpoint_artifact_id: null,
-        failed_without_checkpoint: true,
         terminal_event_id: 9,
         resume_strategy: 'manual_restart_required',
       },

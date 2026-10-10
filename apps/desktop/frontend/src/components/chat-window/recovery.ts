@@ -1,4 +1,4 @@
-import type { AgentRunSavePoint, AgentRunSavePointProjection } from '../../lib/api-client';
+import type { AgentRunSavePointProjection } from '../../lib/api-client';
 import type { AgentRunStatus } from './types';
 
 export type AgentRunRecoveryTone = 'neutral' | 'ok' | 'waiting' | 'error';
@@ -18,7 +18,6 @@ export type AgentRunRecoveryDisplay = {
   boundaryText: string | null;
   checkpointText: string | null;
   tone: AgentRunRecoveryTone;
-  canRetryFromCheckpoint: boolean;
   manualRestartRequired: boolean;
   checkpointResume?: CheckpointResumeDisplay;
 };
@@ -69,21 +68,15 @@ export function buildAgentRunRecoveryDisplay(
           resume_strategy: strategy,
         })
       : null;
-  const canRetryFromCheckpoint =
-    !checkpointResume && booleanField(recoverability, 'can_retry_from_checkpoint') === true;
   const manualRestartRequired =
     !checkpointResume &&
     (booleanField(runtimeRecovery, 'manual_restart_required') === true ||
-      booleanField(recoverability, 'failed_without_checkpoint') === true);
+      projection.status === 'failed');
   const resumeStrategy = stringField(recoverability, 'resume_strategy') ?? 'none';
-  const checkpointText = checkpointResume
-    ? checkpointResume.artifactId !== null
+  const checkpointText =
+    checkpointResume && checkpointResume.artifactId !== null
       ? `安全检查点 · #${checkpointResume.artifactId}`
-      : null
-    : checkpointSummary(
-        projection.save_points,
-        numberField(recoverability, 'latest_checkpoint_artifact_id'),
-      );
+      : null;
   const pendingText = pendingSummary({
     pending,
     latestPendingCall,
@@ -103,7 +96,6 @@ export function buildAgentRunRecoveryDisplay(
       checkpointResume?.message ??
       resumeStrategyText({
         strategy: resumeStrategy,
-        canRetryFromCheckpoint,
         manualRestartRequired,
       }),
     pendingText,
@@ -115,10 +107,8 @@ export function buildAgentRunRecoveryDisplay(
       : toneFor({
           status: projection.status,
           pendingText,
-          canRetryFromCheckpoint,
           manualRestartRequired,
         }),
-    canRetryFromCheckpoint,
     manualRestartRequired,
     ...(checkpointResume ? { checkpointResume } : {}),
   };
@@ -166,7 +156,6 @@ export function recoveryDisplayFromCheckpoint(
     checkpointText:
       checkpointResume.artifactId !== null ? `安全检查点 · #${checkpointResume.artifactId}` : null,
     tone: 'waiting',
-    canRetryFromCheckpoint: false,
     manualRestartRequired: false,
     checkpointResume,
   };
@@ -268,42 +257,14 @@ function boundarySummary({
   return null;
 }
 
-function checkpointSummary(
-  savePoints: AgentRunSavePoint[],
-  latestCheckpointArtifactId: number | null,
-): string | null {
-  const checkpoint = [...savePoints].reverse().find((item) => item.kind === 'bookrun_checkpoint');
-  if (!checkpoint && latestCheckpointArtifactId === null) return null;
-
-  const summary = recordFrom(checkpoint?.summary);
-  const artifactId = checkpoint?.artifact_id ?? latestCheckpointArtifactId;
-  const chapterIndex =
-    numberField(summary, 'latest_checkpoint_chapter_index') ??
-    numberField(summary, 'retry_checkpoint_chapter_index') ??
-    numberField(summary, 'current_chapter_index');
-  const completedCount = numberField(summary, 'completed_count');
-  const totalChapters = numberField(summary, 'total_chapters');
-  const parts = [artifactId !== null ? `检查点 · #${artifactId}` : '检查点'];
-  if (chapterIndex !== null) parts.push(`第 ${chapterIndex} 章`);
-  if (completedCount !== null && totalChapters !== null) {
-    parts.push(`${completedCount}/${totalChapters}`);
-  }
-  return parts.join(' · ');
-}
-
 function resumeStrategyText({
   strategy,
-  canRetryFromCheckpoint,
   manualRestartRequired,
 }: {
   strategy: string;
-  canRetryFromCheckpoint: boolean;
   manualRestartRequired: boolean;
 }): string {
   if (manualRestartRequired) return '恢复：需要手动重启本轮';
-  if (canRetryFromCheckpoint || strategy === 'bookrun_checkpoint') {
-    return '恢复：可从检查点继续';
-  }
   if (strategy === 'await_permission_decision') return '恢复：等待你确认';
   if (strategy === 'stopped_by_user') return '恢复：已由你停止';
   if (strategy && strategy !== 'none') return `恢复：${strategy}`;
@@ -314,27 +275,21 @@ function controlText(control: Record<string, unknown> | null): string | null {
   if (!control) return null;
   const eventType = stringField(control, 'event_type') ?? stringField(control, 'control_type');
   if (!eventType) return null;
-  const status =
-    stringField(control, 'book_run_status') ?? stringField(control, 'writing_run_status');
-  return status
-    ? `最近操作：${controlLabel(eventType)} · ${statusLabel(status)}`
-    : `最近操作：${controlLabel(eventType)}`;
+  return `最近操作：${controlLabel(eventType)}`;
 }
 
 function toneFor({
   status,
   pendingText,
-  canRetryFromCheckpoint,
   manualRestartRequired,
 }: {
   status: string;
   pendingText: string | null;
-  canRetryFromCheckpoint: boolean;
   manualRestartRequired: boolean;
 }): AgentRunRecoveryTone {
   if (manualRestartRequired || status === 'failed') return 'error';
   if (pendingText || status === 'paused') return 'waiting';
-  if (canRetryFromCheckpoint || status === 'completed') return 'ok';
+  if (status === 'completed') return 'ok';
   return 'neutral';
 }
 

@@ -77,13 +77,12 @@ def build_agent_run_save_point_projection(
     latest_permission = _latest_event(ordered_events, PERMISSION_REQUIRED)
     latest_permission_decision = _latest_event(ordered_events, PERMISSION_APPROVED, PERMISSION_DENIED)
     proposed_patch = _latest_artifact(ordered_artifacts, "proposed_patch")
-    checkpoint = _latest_artifact(ordered_artifacts, "bookrun_checkpoint")
     latest_pending_fact = _latest_runtime_pending_fact(ordered_artifacts)
     pending_call = latest_pending_fact if _is_pending_runtime_call(latest_pending_fact) else None
     active_pending_call = pending_call if run.status in {"paused", "running"} else None
     pending_resolution = _latest_artifact(ordered_artifacts, RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND)
     terminal_event = _latest_event(
-        [event for event in ordered_events if event.event_type != STOP_RUN or event.actor == "bookrun-agent"],
+        [event for event in ordered_events if event.event_type != STOP_RUN],
         AGENT_RUN_COMPLETED, AGENT_RUN_FAILED, AGENT_RUN_INTERRUPTED, STOP_RUN,
     )
 
@@ -113,16 +112,12 @@ def build_agent_run_save_point_projection(
             "runtime_pending_tool": _pending_runtime_tool(active_pending_call),
         },
         "recoverability": {
-            "can_retry_from_checkpoint": checkpoint is not None,
-            "latest_checkpoint_artifact_id": checkpoint.id if checkpoint is not None else None,
-            "failed_without_checkpoint": run.status == "failed" and checkpoint is None,
             "terminal_event_id": terminal_event.id if terminal_event is not None else None,
-            "resume_strategy": _resume_strategy(run, checkpoint=checkpoint, pending_permission=pending_permission),
+            "resume_strategy": _resume_strategy(run, pending_permission=pending_permission),
         },
         "runtime_recovery": _runtime_recovery_projection(
             run,
             ordered_events,
-            checkpoint=checkpoint,
             pending_call=active_pending_call,
             pending_resolution=pending_resolution,
         ),
