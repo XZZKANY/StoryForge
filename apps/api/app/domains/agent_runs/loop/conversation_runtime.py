@@ -184,7 +184,7 @@ class ConversationRuntimeMixin:
             if self._external_execution is not None:
                 raise ValueError("external_writeback_requires_project")
             return None
-        if assistant_service.missing_book_generation_env():
+        if assistant_service.missing_llm_env():
             if self._external_execution is not None:
                 raise ValueError("external_writeback_requires_configured_provider")
             return None

@@ -283,7 +283,7 @@ def test_actual_chat_writer_receives_pinned_tail_and_stale_status(
     _enable_loop_env(monkeypatch)
     for seam in ("_call_llm", "_call_llm_streamed"):
         monkeypatch.setattr(assistant_service, seam, fake_inner_call)
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: [])
     monkeypatch.setattr(
         review_reasoning,
         "resolved_llm_env",

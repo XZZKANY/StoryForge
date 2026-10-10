@@ -123,7 +123,7 @@ def test_reopened_resume_rejects_independent_continuation_source_drift(
                     controller, public_id="source-run", session_id="source-session", control_type="pause_run"
                 )
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(assistant_service, "_call_llm_streamed", writer)
     monkeypatch.setattr(loop_runtime, "build_llm_provider", lambda source: Provider())
@@ -207,7 +207,7 @@ class Provider:
         return ChatResponse('续写提案已经保留。')
 def forbid_writer(*args, **kwargs):
     raise AssertionError('completed continuation was regenerated')
-assistant_service.missing_book_generation_env=lambda: []
+assistant_service.missing_llm_env=lambda: []
 assistant_service.resolved_llm_env=lambda: {'STORYFORGE_LLM_MODEL':'fake-model'}
 assistant_service._call_llm_streamed=forbid_writer
 loop_runtime.build_llm_provider=lambda source: Provider()
@@ -234,7 +234,7 @@ def receipt_fixture(session, tmp_path, monkeypatch):
     chapter = tmp_path / "第02章.md"
     chapter.write_text("他推开门。", encoding="utf-8")
     (tmp_path / "第01章.md").write_text("他把灯芯捻短了一寸。" * 60, encoding="utf-8")
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(
         assistant_service, "_call_llm_streamed", lambda *_args, **_kwargs: {"content": "门后传来两声叩响。"}
@@ -376,7 +376,7 @@ def test_style_prefix_replay_does_not_claim_unread_tail_bytes(session, tmp_path,
         samples.append(sample)
     current = tmp_path / "第01章.md"
     current.write_text("他推开门。", encoding="utf-8")
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(
         assistant_service, "_call_llm_streamed", lambda *_args, **_kwargs: {"content": "门后传来两声叩响。"}

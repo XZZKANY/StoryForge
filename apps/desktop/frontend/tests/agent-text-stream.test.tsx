@@ -74,7 +74,6 @@ function Harness({ project = 'D:/book' }: { project?: string }) {
       messages={state.messages}
       agentRun={state.agentRun}
       agentRunRecovery={state.agentRunRecovery}
-      writingRunProjection={null}
       conversationScope={project}
     />
   );

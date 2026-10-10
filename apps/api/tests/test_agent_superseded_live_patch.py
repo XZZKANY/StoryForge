@@ -21,7 +21,7 @@ def test_superseded_worker_drops_patch_when_stop_wins_before_permission_cas(
     lock = threading.Lock()
     paused_cas = False
     session_id, run_id = "superseded-patch-session", "superseded-patch-run"
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     def generate(*args, **kwargs):
         with lock:

@@ -131,7 +131,7 @@ def test_file_review_runtime_stop_in_review_loop_does_not_leak_tool_artifacts(
         return original_runtime_interruption(self, run, boundary=boundary)
 
     monkeypatch.setattr(agent_runtime.AgentRuntime, "_runtime_interruption", stop_at_first_review_trace)
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     run = _seed_agent_run(session, public_id="run-stop-mid-review-loop")
     result = AgentRuntime(_AgentRunEventSink(session)).run_user_message(
@@ -303,7 +303,7 @@ def test_resume_run_control_message_drives_pending_file_review_resume(
         return original_runtime_interruption(self, run, boundary=boundary)
 
     monkeypatch.setattr(agent_runtime.AgentRuntime, "_runtime_interruption", pause_once_after_context)
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     paused = agent_result(
         client,

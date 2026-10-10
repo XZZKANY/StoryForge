@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
+from app.common.llm_client import LLMError
 from app.domains.assistant import service as assistant_service
-from app.domains.book_runs.book_generation import BookGenerationError
 
 NL = chr(10)
 
@@ -16,7 +16,7 @@ def test_inline_unicode_instruction_budget_reaches_generator_or_rejects_before_i
     client: TestClient, monkeypatch: pytest.MonkeyPatch, extra: int,
 ) -> None:
     """P0-A: Python code points, not UTF-16 units, bound the transmitted instruction."""
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     protection = '逐字保留「铜灯」。'
     instruction = "中En😀" * 995 + "改" * (20 - len(protection)) + protection + "改" * extra
     assert len(instruction) == 4000 + extra
@@ -45,7 +45,7 @@ def test_inline_unicode_instruction_budget_reaches_generator_or_rejects_before_i
 def test_revise_returns_diff_and_records_tool_call(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """正常修订：返回 before/after，并把会话 + assistant.revise(completed) 落库。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
         assert "修订指令" in user_prompt
@@ -97,7 +97,7 @@ def test_revise_reverts_incidental_punctuation_drift(
     这条接缝，拆掉接线后单测仍会全绿。
     """
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     original = NL.join(["　　林岚走进港口。", "", "她停住了——很久很久……", "", "　　雾散了。"])
     # 模型只被要求改第一段，却顺手把全篇标点换成了 ASCII 形态。
@@ -129,7 +129,7 @@ def test_revise_marks_reasoning_leak_in_tool_call_evidence(
 ) -> None:
     """LLM 产物剥离过 think 泄漏时，assistant.revise 证据链带 reasoning_leak_stripped 标记。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
         return {
@@ -155,7 +155,7 @@ def test_revise_marks_reasoning_leak_in_tool_call_evidence(
 def test_inline_revise_quality_gate_records_a_passing_candidate(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     original = "林岚走进港口，海风卷起衣角。他停在旧仓门前，抬手敲了三下。"
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
@@ -189,7 +189,7 @@ def test_inline_revise_quality_gate_records_a_passing_candidate(
 def test_inline_revise_quality_gate_rejects_narrative_person_drift(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     original = "他推开门。他看见灯。他没有出声。他转身离开。他走进雨里。"
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
@@ -225,7 +225,7 @@ def test_revise_includes_desktop_context_bundle_in_prompt(
 ) -> None:
     """桌面 IDE 传入的项目上下文摘录要进入 revise prompt，并记录上下文文件数。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     captured: dict[str, str] = {}
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
@@ -285,7 +285,7 @@ def test_revise_accepts_context_bundle_budget_metadata(
     带 budget 会 422；schemas 放宽后这里固定该契约，避免再次错配。
     """
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
         return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
@@ -371,7 +371,7 @@ def test_revise_returns_422_when_llm_not_configured(client: TestClient, monkeypa
 
     monkeypatch.setattr(
         assistant_service,
-        "missing_book_generation_env",
+        "missing_llm_env",
         lambda: ["STORYFORGE_LLM_API_KEY"],
     )
 
@@ -386,7 +386,7 @@ def test_revise_returns_422_when_llm_not_configured(client: TestClient, monkeypa
 def test_revise_returns_404_when_session_missing(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """Assistant 会话不存在时由领域异常统一映射为 404。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     response = client.post(
         "/api/assistant/revise",
@@ -404,10 +404,10 @@ def test_revise_returns_404_when_session_missing(client: TestClient, monkeypatch
 def test_revise_returns_502_and_marks_tool_call_failed(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """真实 LLM 调用失败时返回 502，并把 tool-call 置为 failed。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     def boom(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
-        raise BookGenerationError("真实 LLM 返回 HTTP 500（耗时 1200ms）：upstream error")
+        raise LLMError("真实 LLM 返回 HTTP 500（耗时 1200ms）：upstream error")
 
     for _seam in ("_call_llm", "_call_llm_streamed"):
         monkeypatch.setattr(assistant_service, _seam, boom)
@@ -456,7 +456,7 @@ def test_revise_rejects_session_owned_by_another_project(
 ) -> None:
     """跨项目复用会话必须拒绝：B 项目请求不得把消息落进 A 项目会话。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     calls: list[int] = []
     _revision_stub(monkeypatch, calls)
 
@@ -486,7 +486,7 @@ def test_revise_allows_session_in_same_project(
 ) -> None:
     """正常对照：会话 project_path 与请求 project_root 一致时照旧成功。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     calls: list[int] = []
     _revision_stub(monkeypatch, calls)
 
@@ -513,7 +513,7 @@ def test_revise_rejects_legacy_session_without_project_path(
 ) -> None:
     """历史会话不自动认领项目；归属拒绝发生在证据和模型调用之前。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     calls: list[int] = []
     _revision_stub(monkeypatch, calls)
 

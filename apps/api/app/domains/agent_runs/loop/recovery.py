@@ -42,8 +42,6 @@ def park_checkpoint_run(session: Session, run: AgentRun, *, reason: str) -> None
 
 
 def park_orphaned_checkpoint_run(session: Session, run: AgentRun) -> bool:
-    if run.book_run_id is not None:
-        return False
     artifact = latest_checkpoint_artifact(session, run)
     if artifact is None:
         return False
@@ -74,7 +72,7 @@ def resume_checkpoint_run(
 
 def checkpoint_recovery_projection(session: Session, run: AgentRun, projection: dict[str, Any]) -> None:
     artifact = latest_checkpoint_artifact(session, run)
-    if artifact is None or run.book_run_id is not None:
+    if artifact is None:
         return
     diagnostic = checkpoint_diagnostic(artifact.payload, run)
     # Completed/stopped runs and existing approval waits remain authoritative.

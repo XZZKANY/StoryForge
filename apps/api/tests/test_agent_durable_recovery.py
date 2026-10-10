@@ -68,7 +68,7 @@ def test_control_resume_after_database_reopen_reuses_completed_tool_result(
                                     usage=TokenUsage(input_tokens=10, output_tokens=2))
             return ChatResponse(content="resumed answer", usage=TokenUsage(input_tokens=20, output_tokens=3))
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(loop_runtime, "build_llm_provider", lambda source: Provider())
 
@@ -202,7 +202,7 @@ def test_resume_unstarted_model_tool_batch_or_reconcile_native_state(durable_eng
         if pause_stage == "after_first_tool" and item.event_type == "tool_trace" and item.payload.get("index") == 0:
             pause()
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(loop_runtime, "build_llm_provider", lambda source: Provider())
     with Session(durable_engine) as worker:
@@ -262,7 +262,7 @@ def test_startup_unknown_outcome_is_parked_without_replaying(durable_engine, tmp
                 raise ProcessDied()
             return ChatResponse("", tool_calls=(ToolCall("edit", "file_revise", '{"path":"chapter.md","instruction":"Revise"}'),))
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(assistant_service, "revise_file_content", crash_revision)
     monkeypatch.setattr(loop_runtime, "build_llm_provider", lambda source: Provider())
@@ -315,7 +315,7 @@ def test_startup_reopens_committed_safe_boundary_without_repeating_model_or_comp
                 return ChatResponse("", tool_calls=(ToolCall("read", "fs_read", '{"path":"chapter.md"}'),))
             return ChatResponse("safe resume")
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(loop_runtime, "build_llm_provider", lambda source: Provider())
     monkeypatch.setattr(StoryForgeCheckpointStore, "save", crash_after_commit)
@@ -424,7 +424,7 @@ def test_resume_preserves_known_reply_or_pending_patch_without_regeneration(dura
         if item.event_type == "tool_trace" and item.payload.get("trace", {}).get("tool_name") == "file.revise":
             pause()
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(assistant_service, "revise_file_content", revise)
     monkeypatch.setattr(loop_runtime, "build_llm_provider", lambda source: Provider())

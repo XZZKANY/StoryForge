@@ -308,97 +308,6 @@ def test_post_commit_refresh_failure_keeps_committed_pair(session, engine, monke
     assert observe(engine, run.id) == state
 
 
-def seed_book_mirror(session, session_factory):
-    from test_book_runs import seed_locked_blueprint
-
-    from app.domains.book_runs.models import BookRun
-
-    scope = seed_locked_blueprint(session_factory)
-    book_run = BookRun(**scope, status="running", total_chapters=3, checkpoint=[])
-    session.add(book_run)
-    session.commit()
-    mirror = service.record_book_run_snapshot(session, book_run=book_run, source="fixture.start")
-    return book_run, mirror
-
-
-@pytest.mark.parametrize(
-    "status,event_type", [("completed", "agent_run_completed"), ("failed", "agent_run_failed"), ("stopped", "stop_run")]
-)
-@pytest.mark.parametrize("stage", ["insert", "commit"])
-def test_bookrun_settlement_failure_preserves_upstream_and_can_retry(
-    session, session_factory, engine, status, event_type, stage
-):
-    from app.domains.book_runs.models import BookRun
-
-    book_run, mirror = seed_book_mirror(session, session_factory)
-    run_id, book_id = mirror.id, book_run.id
-    book_run.status = status
-    book_run.checkpoint = [{"chapter_index": 1}]
-    session.commit()  # 上游事实先提交；镜像故障不得撤销它。
-    with (
-        fail_event_write(engine, run_id=run_id, event_type=event_type, stage=stage),
-        pytest.raises(SettlementFailure),
-    ):
-        service.record_book_run_snapshot(session, book_run=book_run, source="fixture.finish")
-    assert observe(engine, run_id)[0] == "running"
-    assert not any(kind == event_type for kind, _ in observe(engine, run_id)[2])
-    with Session(engine) as observer:
-        upstream = observer.get(BookRun, book_id)
-        assert upstream.status == status
-        assert upstream.checkpoint == [{"chapter_index": 1}]
-    service.record_book_run_snapshot(session, book_run=book_run, source="fixture.retry")
-    state = observe(engine, run_id)
-    assert state[0] == status
-    assert state[2][-1][0] == event_type
-    assert state[2][-1][1]["source"] == "fixture.retry"
-    assert state[2][-1][1]["writing_run_id"] == book_id
-    assert state[2][-1][1]["permission_profile"] == "ask"
-
-
-@pytest.mark.parametrize(
-    "status,event_type", [("completed", "agent_run_completed"), ("failed", "agent_run_failed"), ("stopped", "stop_run")]
-)
-@pytest.mark.parametrize("fail_at", ["tool_trace", "terminal"])
-def test_repeated_bookrun_terminal_snapshot_never_reopens_mirror(
-    session, session_factory, engine, status, event_type, fail_at
-):
-    book_run, mirror = seed_book_mirror(session, session_factory)
-    book_run.status = status
-    session.commit()
-    service.record_book_run_snapshot(session, book_run=book_run, source="fixture.finish")
-    count_before = sum(kind == event_type for kind, _ in observe(engine, mirror.id)[2])
-    target = event_type if fail_at == "terminal" else fail_at
-    with (
-        fail_event_write(engine, run_id=mirror.id, event_type=target, stage="insert"),
-        pytest.raises(SettlementFailure),
-    ):
-        service.record_book_run_snapshot(session, book_run=book_run, source="fixture.repeat")
-    # 普通 trace 的失败沿用调用方清理，但已经持久化的状态绝不能变为 running。
-    session.rollback()
-    assert observe(engine, mirror.id)[0] == status
-    service.record_book_run_snapshot(session, book_run=book_run, source="fixture.retry")
-    state = observe(engine, mirror.id)
-    assert state[0] == status
-    assert sum(kind == event_type for kind, _ in state[2]) == count_before + 1
-
-
-def test_bookrun_explicit_checkpoint_retry_can_reopen_and_settle_again(session, session_factory, engine):
-    from app.domains.writing_runs.service import retry_writing_run_from_checkpoint
-
-    book_run, mirror = seed_book_mirror(session, session_factory)
-    book_run.status = "failed"
-    book_run.checkpoint = [{"chapter_index": 1}]
-    session.commit()
-    service.record_book_run_snapshot(session, book_run=book_run, source="fixture.failure")
-    retry_writing_run_from_checkpoint(session, book_run_id=book_run.id)
-    service.record_book_run_snapshot(session, book_run=book_run, source="fixture.resume")
-    assert observe(engine, mirror.id)[0] == "running"
-    book_run.status = "completed"
-    session.commit()
-    service.record_book_run_snapshot(session, book_run=book_run, source="fixture.finish")
-    assert observe(engine, mirror.id)[0] == "completed"
-
-
 @pytest.mark.parametrize("stage", ["update", "commit"])
 def test_unanchored_resume_stop_and_diagnostic_are_atomic(session, engine, stage, monkeypatch):
     run = seed(session, status="paused")
@@ -449,20 +358,6 @@ def test_unanchored_resume_stop_and_diagnostic_are_atomic(session, engine, stage
     resume_event = next(payload for kind, payload in reversed(state[2]) if kind == "resume_run")
     assert resume_event["runtime_recovery"]["resume_diagnostic"]["reason"] == "no_pending_call"
     assert state[2][-1][0] == "agent_run_interrupted"
-
-
-def test_upstream_failure_settles_paused_mirror_without_weakening_worker_guard(session, session_factory, engine):
-    book_run, mirror = seed_book_mirror(session, session_factory)
-    mirror.status = "paused"
-    session.commit()
-    service.fail_agent_run(session, mirror, message="late worker failure")
-    assert observe(engine, mirror.id)[0] == "paused"
-    book_run.status = "failed"
-    session.commit()
-    service.record_book_run_snapshot(session, book_run=book_run, source="fixture.failure")
-    state = observe(engine, mirror.id)
-    assert state[:2] == ("failed", "failed")
-    assert state[2][-1][0] == "agent_run_failed"
 
 
 @pytest.mark.parametrize(

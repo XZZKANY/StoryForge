@@ -72,7 +72,7 @@ def test_resume_checks_no_excerpt_ordinary_source(tmp_path, monkeypatch, drift, 
                     controller, public_id="source-run", session_id="source-session", control_type="pause_run"
                 )
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(assistant_service, "_call_llm_streamed", writer)
     monkeypatch.setattr(loop_runtime, "build_llm_provider", lambda _source: Provider())

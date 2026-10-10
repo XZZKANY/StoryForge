@@ -25,7 +25,6 @@ import { recoveryDisplayFromCheckpoint } from './recovery';
 import { useAgentRunReconciliation } from './useAgentRunReconciliation';
 import { shouldApplyAgentControlAck } from './agent-result';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
-import { startWritingRunProjectionSubscription } from './writing-run';
 import type { AgentRunControlHandlers, AgentRunStatus, AgentStep, ChapterBrief } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 import type { RunAuthorAgent } from './useRunAuthorAgent';
@@ -60,9 +59,6 @@ export function useAgentRunControls(
     draftNonceRef,
     runStartConversationKeyRef,
     projectPathRef,
-    writingRunProjection,
-    setWritingRunProjection,
-    unsubscribeWritingRunRef,
   } = state;
   const {
     updateAgentStep,
@@ -96,22 +92,6 @@ export function useAgentRunControls(
       useMainModel: retryRequest.useMainModel,
     });
   }, [agentBusy, agentRun, agentRunRecovery, retryRequest, runAuthorAgent, setMessages]);
-
-  // 写作任务进度订阅断线后的手动重连：先摘掉丢失标记，重连失败会再标回。
-  const retryWritingRunSubscription = useCallback(() => {
-    const projection = writingRunProjection;
-    if (!projection || projection.latestEvent !== 'error') return;
-    setWritingRunProjection((current) =>
-      current && current.latestEvent === 'error'
-        ? { ...current, latestEvent: '重连中', failureReason: null }
-        : current,
-    );
-    startWritingRunProjectionSubscription(
-      projection.writingRunId,
-      unsubscribeWritingRunRef,
-      setWritingRunProjection,
-    );
-  }, [setWritingRunProjection, unsubscribeWritingRunRef, writingRunProjection]);
 
   const sendAgentRunControl = useCallback(
     async (type: AgentControlMessageType, payload: Record<string, unknown> = {}) => {
@@ -472,5 +452,5 @@ export function useAgentRunControls(
     updateAgentStep,
   ]);
 
-  return { retryLastFailedRun, retryWritingRunSubscription, agentRunControls };
+  return { retryLastFailedRun, agentRunControls };
 }

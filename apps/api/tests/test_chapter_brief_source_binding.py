@@ -129,7 +129,7 @@ def test_confirmed_brief_qualifies_original_knowledge_selection(session, tmp_pat
         return {"content": "一" * 1800 if len(writers) == 1 else "一" * 1799 + "二"}
 
     monkeypatch.setattr(assistant_service, "chat_reply", chat)
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(assistant_service, "_call_llm_streamed", writer)
     run, initial = begin(session, tmp_path, target, {"project_root": str(tmp_path), "files": []})

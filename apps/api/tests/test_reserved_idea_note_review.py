@@ -82,7 +82,7 @@ def test_explicit_note_context_reaches_writer_without_becoming_previous_chapter(
     note = write(tmp_path, "灵感.md", "PINNED_IDEA_SENTINEL")
     target = tmp_path / "第001章.md"
     prompts = []
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
 
     def writer(_source, *, system_prompt, user_prompt):

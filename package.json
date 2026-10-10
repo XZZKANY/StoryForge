@@ -23,7 +23,6 @@
     "e2e": "node scripts/run-e2e.mjs",
     "smoke:sidecar": "node scripts/sidecar-smoke.mjs",
     "smoke:sidecar:packaged": "node scripts/sidecar-smoke.mjs --packaged",
-    "golden": "node scripts/run-golden.mjs",
     "openapi": "node scripts/generate-openapi.mjs",
     "lint": "eslint . && prettier --check \"apps/desktop/frontend/src/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"scripts/**/*.mjs\"",
     "lint:fix": "eslint . --fix && prettier --write \"apps/desktop/frontend/src/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"scripts/**/*.mjs\""

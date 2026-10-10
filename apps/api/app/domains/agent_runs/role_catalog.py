@@ -7,7 +7,7 @@ from app.domains.agent_runs.permission import DEFAULT_PERMISSION_PROFILE
 from app.domains.agent_runs.schemas import AgentRoleRead
 
 READ_ONLY_ROLE_FORBIDDEN_TOOLS = frozenset(
-    {"file.revise", "chapter.polish", "judge.repair", "bookrun.start"}
+    {"file.revise", "chapter.polish", "judge.repair"}
 )
 
 _AGENT_ROLE_DEFINITIONS: tuple[dict[str, Any], ...] = (
@@ -49,17 +49,12 @@ _AGENT_ROLE_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "file.create",
             "judge.run",
             "judge.repair",
-            "bookrun.start",
-            "bookrun.pause",
-            "bookrun.resume",
-            "bookrun.retry_from_checkpoint",
         ],
         "output_artifacts": [
             "review_report",
             "proposed_patch",
             "knowledge_proposal",
             "chapter_draft",
-            "bookrun_checkpoint",
         ],
         "can_be_mentioned": False,
     },
@@ -143,18 +138,6 @@ _AGENT_ROLE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "allowed_tools": ["context.load", "file.review", "judge.run"],
         "output_artifacts": ["review_report"],
         "can_be_mentioned": False,
-    },
-    {
-        "name": "bookrun_agent",
-        "display_name": "Writing Run agent",
-        "kind": "subagent",
-        "description": "管理长程写作任务、checkpoint、暂停、恢复和从 checkpoint 重试。",
-        "aliases": ["@写作任务"],
-        "read_only": False,
-        "default_permission_profile": DEFAULT_PERMISSION_PROFILE,
-        "allowed_tools": ["bookrun.start", "bookrun.pause", "bookrun.resume", "bookrun.retry_from_checkpoint"],
-        "output_artifacts": ["chapter_draft", "bookrun_checkpoint"],
-        "can_be_mentioned": True,
     },
     {
         "name": "context_explorer",

@@ -9,6 +9,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import sessionmaker
 
+from app.common.llm_client import LLMError
+from app.common.llm_env import missing_llm_env, resolved_llm_env
 from app.db.deps import SessionDependency
 from app.domains.agent_runs.event_types import CONTROL_MESSAGE_TYPES
 from app.domains.agent_runs.external_admission import admit_stream_protocol
@@ -23,12 +25,6 @@ from app.domains.agent_runs.service import (
     websocket_stream_events_from_agent_event,
 )
 from app.domains.agent_runs.writeback_contracts import ExecutionProtocol
-from app.domains.book_runs.book_generation import (
-    BookGenerationError,
-    missing_book_generation_env,
-    resolved_llm_env,
-)
-from app.domains.book_runs.service import get_book_run
 from app.domains.ide.cross_chapter_consistency import check_cross_chapter_consistency
 from app.domains.ide.schemas import (
     IdeCommandRequest,
@@ -37,8 +33,6 @@ from app.domains.ide.schemas import (
     IdeCrossChapterResult,
 )
 from app.domains.ide.service import (
-    build_run_events,
-    encode_sse_event,
     execute_ide_command_by_id,
 )
 from app.domains.ide.stream_measurement import StreamMeasurement
@@ -258,7 +252,7 @@ async def _agent_user_message_sse(session, *, session_id: str, message: dict[str
 def cross_chapter_consistency_endpoint(payload: IdeCrossChapterRequest) -> IdeCrossChapterResult:
     """对若干完整章节做跨章一致性审校,返回带原文出处的硬冲突(时间线/称谓/设定/角色离场/伏笔)。"""
 
-    missing = missing_book_generation_env()
+    missing = missing_llm_env()
     if missing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -269,28 +263,12 @@ def cross_chapter_consistency_endpoint(payload: IdeCrossChapterRequest) -> IdeCr
         result = check_cross_chapter_consistency(resolved_llm_env(), chapters, focus=payload.focus)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    except BookGenerationError as exc:
+    except LLMError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"跨章一致性 LLM 调用失败：{exc}",
         ) from exc
     return IdeCrossChapterResult.model_validate(result)
-
-
-@router.get(
-    "/runs/{book_run_id}/events",
-    summary="读取 IDE BookRun 事件流",
-)
-def stream_run_events(session: SessionDependency, book_run_id: int) -> StreamingResponse:
-    """返回 BookRun 当前状态投影生成的 SSE 快照事件。"""
-
-    book_run = get_book_run(session, book_run_id)
-
-    def event_stream():
-        for event in build_run_events(book_run):
-            yield encode_sse_event(event.event, event.data)
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.post(

@@ -31,7 +31,6 @@ function Harness({ session = null }: { session?: number | null }) {
       messages={state.messages}
       agentRun={state.agentRun}
       agentRunRecovery={null}
-      writingRunProjection={null}
       conversationScope="fixture"
     />
   );

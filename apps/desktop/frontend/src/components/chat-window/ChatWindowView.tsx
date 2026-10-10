@@ -46,7 +46,6 @@ type Props = {
   queuedMessages?: readonly QueuedChatMessage[];
   onRemoveQueuedMessage?: (id: number) => void;
   retryLastFailedRun: () => void;
-  retryWritingRunSubscription: () => void;
   agentRunControls: AgentRunControlHandlers;
 };
 
@@ -74,7 +73,6 @@ export function ChatWindowView({
   queuedMessages = [],
   onRemoveQueuedMessage,
   retryLastFailedRun,
-  retryWritingRunSubscription,
   agentRunControls,
 }: Props) {
   const externalWriteback = useExternalWritebackCoordinator();
@@ -180,8 +178,6 @@ export function ChatWindowView({
         messages={state.messages}
         agentRun={state.agentRun}
         agentRunRecovery={state.agentRunRecovery}
-        writingRunProjection={state.writingRunProjection}
-        onRetryWritingRunSubscription={retryWritingRunSubscription}
       />
 
       {externalWriteback && (

@@ -106,7 +106,7 @@ def test_cross_run_second_issue_is_bound_to_current_session_report(
     target = tmp_path / "正文.md"
     original = "林岚停在门口。\n她拿着铜钥匙。"
     target.write_text(original, encoding="utf-8")
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: [])
     monkeypatch.setattr(review_reasoning, "resolved_llm_env", lambda: {})
     monkeypatch.setattr(
         review_reasoning,
@@ -280,7 +280,7 @@ def test_public_review_resume_keeps_project_and_original_conversation(session, s
     _enable_loop_env(monkeypatch)
     target = tmp_path / "正文.md"
     target.write_text("正文。", encoding="utf-8")
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: [])
     monkeypatch.setattr(review_reasoning, "resolved_llm_env", lambda: {})
     calls = []
     monkeypatch.setattr(review_reasoning, "_call_llm", lambda *_, **__: calls.append(True) or {"content": "[]"})

@@ -9,8 +9,8 @@ from agent_transport import agent_result, stream_agent_message
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.common.llm_client import LLMError
 from app.domains.assistant import service as assistant_service
-from app.domains.book_runs.book_generation import BookGenerationError
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ScenePacket
 from app.domains.ide import orchestrator as legacy_orchestrator
@@ -124,7 +124,7 @@ def test_agent_user_message_file_review_returns_multi_agent_report(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     message = agent_result(
         client,
@@ -197,7 +197,7 @@ def test_agent_user_message_file_review_can_stream_intermediate_events(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     frames = stream_agent_message(
         client,
@@ -233,7 +233,7 @@ def test_agent_user_message_streams_runtime_events_before_result(
     from app.domains.agent_runs.runtime import AgentRuntime
     from app.domains.ide import router as ide_router
 
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
     original_execute_tool = AgentRuntime._execute_tool  # noqa: SLF001 - test probes runtime boundary
     file_review_blocked = threading.Event()
     allow_file_review = threading.Event()
@@ -327,7 +327,7 @@ def test_file_review_uses_llm_when_configured(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: [])
     monkeypatch.setattr(
         review_reasoning,
         "resolved_llm_env",
@@ -386,7 +386,7 @@ def test_file_review_degrades_per_subagent_on_llm_error(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: [])
     monkeypatch.setattr(
         review_reasoning,
         "resolved_llm_env",
@@ -399,7 +399,7 @@ def test_file_review_degrades_per_subagent_on_llm_error(
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
         if "character-agent" in system_prompt:
-            raise BookGenerationError("character timeout")
+            raise LLMError("character timeout")
         return {
             "content": '[{"severity":"low","code":"llm.ok","message":"LLM 子代理完成。","evidence":"灯塔熄灭"}]',
             "completion_tokens": 8,
@@ -434,7 +434,7 @@ def test_file_review_parses_fenced_json_as_llm(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: [])
     monkeypatch.setattr(
         review_reasoning,
         "resolved_llm_env",
@@ -479,7 +479,7 @@ def test_file_review_reports_llm_failed_when_all_subagents_fail(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: [])
     monkeypatch.setattr(
         review_reasoning,
         "resolved_llm_env",
@@ -491,7 +491,7 @@ def test_file_review_reports_llm_failed_when_all_subagents_fail(
     )
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
-        raise BookGenerationError("endpoint down")
+        raise LLMError("endpoint down")
 
     monkeypatch.setattr(review_reasoning, "_call_llm", fake_call_llm)
 
@@ -521,7 +521,7 @@ def test_agent_user_message_file_revise_returns_proposed_patch(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
         return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
@@ -565,7 +565,7 @@ def test_agent_file_revise_rejects_unbound_legacy_review_report(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     captured: dict[str, str] = {}
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
@@ -608,7 +608,7 @@ def test_revise_scope_rejects_ordinal_without_current_report(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     captured: dict[str, str] = {}
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
@@ -668,7 +668,7 @@ def test_revise_constraints_reach_prompt(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     captured: dict[str, str] = {}
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
@@ -725,7 +725,7 @@ def test_revise_unknown_issue_id_is_reported(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
         return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}

@@ -76,7 +76,7 @@ def test_actual_http_quoted_example_cannot_authorise_punctuation_mutation(client
     candidate = original.replace("“", '"').replace("”", '"').replace("地扳", "地板")
     author = "只修复地扳这个错字；不要改引号。示例：“把引号改成直引号。”这只是参考材料。"
     calls = []
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
 
     def generate(_source, **kwargs):
@@ -100,7 +100,7 @@ def test_actual_http_quoted_example_cannot_authorise_punctuation_mutation(client
     ],
 )
 def test_actual_http_rejects_changed_prefix_or_multiline_literal(client, monkeypatch, original, author):
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
     monkeypatch.setattr(
         service, "_call_llm_streamed", lambda *a, **kw: {"content": original.replace("我自己叫", "你来叫")}
@@ -174,7 +174,7 @@ def test_nested_and_multiline_protected_literals_are_complete(literal):
 def test_actual_http_explicit_author_quote_change_remains_allowed(client, monkeypatch, author):
     original = "“灯还亮着。”她说。\n地扳很凉。"
     candidate = original.replace("“", '"').replace("”", '"').replace("地扳", "地板")
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
     monkeypatch.setattr(service, "_call_llm_streamed", lambda *a, **kw: {"content": candidate})
     result = client.post(
@@ -207,7 +207,7 @@ def test_negated_or_quoted_preservation_does_not_expand_protected_spans(author):
 def test_actual_http_person_control_follows_author_not_quoted_material(client, monkeypatch, author, expected):
     original = "他把灯关上。他坐下。他听见门响。他没有转身。他等了一会儿。\n窗外的风卷着碎叶，石阶已经凉透。檐下留着半截烛芯，烛泪凝成一圈白边。门框上新添的划痕还很浅。"
     candidate = original.replace("他", "我")
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
     monkeypatch.setattr(service, "_call_llm_streamed", lambda *a, **kw: {"content": candidate})
     result = client.post(
@@ -230,7 +230,7 @@ def test_long_multiline_author_request_retains_tail_protection_and_exact_prompt(
     )
     assert len(author) < 4000
     calls = []
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
 
     def generate(_source, **kwargs):

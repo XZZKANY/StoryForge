@@ -20,7 +20,7 @@ from app.platform.ai_sdk import (
 
 
 def _enable_loop_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
 
 

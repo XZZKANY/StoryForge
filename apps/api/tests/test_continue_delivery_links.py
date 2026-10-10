@@ -15,12 +15,12 @@ from sqlalchemy.pool import NullPool
 from app.common import generation_delivery
 from app.common.generation_delivery import GenerationDeliveryCapture, record_generation_delivery
 from app.common.generation_sources import GenerationSourceCapture
+from app.common.llm_client import LLMError
 from app.common.llm_control import LLMRunInterrupted
 from app.db.base import Base
 from app.domains.agent_runs import loop_runtime, service
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.models import AssistantToolCall
-from app.domains.book_runs.book_generation import BookGenerationError
 from app.platform.ai_sdk import ChatResponse, ToolCall
 
 
@@ -91,12 +91,12 @@ def test_continue_trace_links_exact_committed_writer_receipt_after_reopen(tmp_pa
             assert refs[0]["assistant_tool_call_id"] == inner.id
             assert refs[0]["manifest_sha256"] == digest(inner.input_summary["generation_sources"])
         if outcome == "failed":
-            raise BookGenerationError("isolated provider failure")
+            raise LLMError("isolated provider failure")
         if outcome == "paused":
             raise LLMRunInterrupted("paused")
         return {"content": "他蹲下身，摸了摸那道泥痕。"}
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(assistant_service, "_call_llm_streamed", writer)
     monkeypatch.setattr(loop_runtime, "build_llm_provider", lambda source: Provider())
@@ -201,7 +201,7 @@ def test_delivery_scope_resets_after_exception():
 def test_writer_receipt_commit_failure_never_publishes_delivery_or_calls_provider(session, tmp_path, monkeypatch):
     from app.domains.assistant.schemas import AssistantContinueRequest
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     update = assistant_service.update_assistant_tool_call
     calls = []
@@ -234,7 +234,7 @@ def test_writer_receipt_commit_failure_never_publishes_delivery_or_calls_provide
 def test_delivery_link_failure_marks_writer_failed_without_provider(session, tmp_path, monkeypatch, failure):
     from app.domains.assistant.schemas import AssistantContinueRequest
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     calls = []
     monkeypatch.setattr(assistant_service, "_call_llm_streamed", lambda *_args, **_kwargs: calls.append("provider"))

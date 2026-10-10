@@ -48,7 +48,7 @@ def live_setup(session, tmp_path, monkeypatch, *, responses=None, profile="ask",
             ToolCall("read", "fs_read", '{"path":"chapter.md"}'),
         )), ChatResponse("read the saved revision"),
     ])
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake"})
     monkeypatch.setattr(assistant_service, "revise_file_content", revise)
     monkeypatch.setattr(loop_runtime, "build_llm_provider", lambda source: provider)

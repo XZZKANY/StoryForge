@@ -33,7 +33,6 @@ from app.domains.agent_runs.service import (
     get_agent_run,
     get_agent_run_save_points,
     list_agent_artifacts,
-    list_agent_checkpoints,
     list_agent_roles,
     list_agent_run_events,
     list_agent_skills,
@@ -210,13 +209,6 @@ def list_agent_artifacts_endpoint(run_id: str, session: SessionDependency) -> li
     """读取 AgentRun 产物，包括审稿报告、待确认补丁和 checkpoint。"""
 
     return list_agent_artifacts(session, run_id)
-
-
-@router.get("/{run_id}/checkpoints", response_model=list[AgentArtifactRead], summary="读取 AgentRun checkpoints")
-def list_agent_checkpoints_endpoint(run_id: str, session: SessionDependency) -> list[AgentArtifactRead]:
-    """读取 AgentRun 派生的 BookRun checkpoint artifacts。"""
-
-    return list_agent_checkpoints(session, run_id)
 
 
 @router.get("/{run_id}/events/stream", summary="读取 AgentRun SSE 事件流")

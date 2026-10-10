@@ -28,11 +28,6 @@ export { executeIdeCommand } from './api/ide-commands';
 export { toAssistantContextBundlePayload } from './api/codecs';
 export { getApiConfig } from './api/config';
 export { probeApiRuntimeHealth } from './api/runtime-health';
-export {
-  parseBookRunSseText,
-  subscribeBookRunEvents,
-  subscribeWritingRunEvents,
-} from './api/run-events';
 export type {
   AgentControlAckMessage,
   AgentControlMessageRequest,
@@ -57,10 +52,7 @@ export type {
   AssistantContextBundlePayload,
   AssistantMessageRecord,
   AssistantSessionRecord,
-  BookRunEvent,
   CrossChapterFinding,
   CrossChapterRequest,
   CrossChapterResult,
-  WritingRunEvent,
-  WritingRunHandle,
 } from './api/types';

@@ -28,9 +28,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import app.models  # noqa: F401  (注册所有表)
+from app.common.llm_env import missing_llm_env, resolved_llm_env
 from app.db.base import Base
 from app.domains.agent_runs.service import run_agent_user_message
-from app.domains.book_runs.book_generation import missing_book_generation_env, resolved_llm_env
 from app.domains.ide.cross_chapter_consistency import check_cross_chapter_consistency
 
 DOC_EXT = (".md", ".txt")
@@ -142,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.model:
         os.environ["STORYFORGE_LLM_MODEL"] = args.model
 
-    missing = missing_book_generation_env()
+    missing = missing_llm_env()
     if missing:
         print("缺少真实 LLM 环境变量: " + ", ".join(missing))
         print("请先设置 STORYFORGE_LLM_API_KEY / _BASE_URL / _MODEL / _PROVIDER(本机私有 env,勿入库)。")

@@ -227,7 +227,7 @@ def test_actual_confirmed_chapter_pipeline_checks_full_contract_and_fails_closed
     draft = "他推开门，屋里没有人。\n她在窗口等他。\n" + "一" * 1780
     checks = 0
     repairs = 0
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     def chat_provider(_source, *, system_prompt, user_prompt):
         nonlocal checks

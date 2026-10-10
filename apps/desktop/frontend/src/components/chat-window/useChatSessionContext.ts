@@ -54,7 +54,6 @@ export function useChatSessionContext(
     chapterBrief,
     setAgentRun,
     setChapterBrief,
-    setWritingRunProjection,
     setRetryRequest,
     setMessages,
     setConversationTitle,
@@ -112,7 +111,6 @@ export function useChatSessionContext(
     if (shouldResetRunPanels(nextSessionId, selfPersistedSessionIdRef.current)) {
       setAgentRun(null);
       setChapterBrief(null);
-      setWritingRunProjection(null);
       setRetryRequest(null);
     } else {
       selfPersistedSessionIdRef.current = null;
@@ -160,7 +158,6 @@ export function useChatSessionContext(
     setMissingContextPaths,
     setRetryRequest,
     setSessionLoadError,
-    setWritingRunProjection,
   ]);
 
   useEffect(() => {
@@ -361,7 +358,6 @@ export function useChatSessionContext(
       // 旧 run/brief/projection，避免总览把上一轮活动错投影到新会话。
       setAgentRun(null);
       setChapterBrief(null);
-      setWritingRunProjection(null);
       setRetryRequest(null);
       // draft→draft「新建会话」时 assistantSessionId 恒为 null、上面 keyed-on-assistantSessionId 的
       // 重置 effect 不重跑，必须显式清空本地对话视图，否则旧（未持久化的失败）消息残留到新 draft（UF-10）。
@@ -401,7 +397,6 @@ export function useChatSessionContext(
     setMissingContextPaths,
     setRetryRequest,
     setSessionLoadError,
-    setWritingRunProjection,
   ]);
 
   const retryAssistantSessionLoad = useCallback(() => {

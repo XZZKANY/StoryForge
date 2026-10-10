@@ -16,7 +16,7 @@ _PROVIDER_SOURCE = {
 def test_provider_health_ok_lists_models(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """配置齐全且 /models 可达：返回 ok，带模型名、模型数与延迟。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda source=None: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda source=None: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: dict(_PROVIDER_SOURCE))
     monkeypatch.setattr(
         assistant_service,
@@ -43,7 +43,7 @@ def test_provider_health_misconfigured_skips_network(
     """缺必填环境变量时直接判 misconfigured，且绝不发起网络探测。"""
 
     monkeypatch.setattr(
-        assistant_service, "missing_book_generation_env", lambda source=None: ["STORYFORGE_LLM_API_KEY"]
+        assistant_service, "missing_llm_env", lambda source=None: ["STORYFORGE_LLM_API_KEY"]
     )
 
     def explode(source, *, timeout):  # noqa: ANN001 - 测试桩：被调用即失败
@@ -64,7 +64,7 @@ def test_provider_health_unauthorized_maps_401(
 ) -> None:
     """provider 返回 401 时判 unauthorized（服务可达但鉴权失败）。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda source=None: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda source=None: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: dict(_PROVIDER_SOURCE))
 
     def raise_401(source, *, timeout):  # noqa: ANN001 - 测试桩
@@ -84,7 +84,7 @@ def test_provider_health_unreachable_maps_connection_error(
 ) -> None:
     """连接失败/超时时判 unreachable。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda source=None: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda source=None: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: dict(_PROVIDER_SOURCE))
 
     def raise_conn(source, *, timeout):  # noqa: ANN001 - 测试桩
@@ -104,7 +104,7 @@ def test_provider_health_never_leaks_credential(
 ) -> None:
     """诊断响应在任何分支都不得回显凭据（密钥在请求头、不在响应体）。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda source=None: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda source=None: [])
     monkeypatch.setattr(
         assistant_service,
         "resolved_llm_env",
@@ -128,7 +128,7 @@ def test_provider_health_tolerates_non_numeric_timeout_env(
     """UF-06/C2-001: STORYFORGE_LLM_TIMEOUT_SECONDS 非数值时不得 500——optional_float 回退默认、
     探测照常发起，always-200 结构化契约不破。"""
 
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda source=None: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda source=None: [])
     monkeypatch.setattr(
         assistant_service,
         "resolved_llm_env",

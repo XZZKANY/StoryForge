@@ -64,7 +64,7 @@ def test_completed_review_is_preserved_without_late_success_messages(
 
     monkeypatch.setattr(run_control, "build_run_control", make_control)
     monkeypatch.setattr(service, "record_agent_event", record_event)
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: [])
     monkeypatch.setattr(review_reasoning, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fixture"})
     monkeypatch.setattr(review_reasoning, "_call_llm", model)
     message = {

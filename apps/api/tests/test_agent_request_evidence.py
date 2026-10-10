@@ -30,7 +30,7 @@ def configured(monkeypatch):
         "STORYFORGE_LLM_API_KEY": "opaque-configured-credential",
         "STORYFORGE_LLM_TEMPERATURE": "0.3", "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "700",
     }
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: source)
     return source
 

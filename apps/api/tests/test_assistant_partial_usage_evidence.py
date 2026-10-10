@@ -42,7 +42,7 @@ def test_partial_usage_is_durable_in_failed_or_interrupted_assistant_tool_call(
     session, monkeypatch, family, path, failure
 ):
     monkeypatch.setattr(service, "resolved_llm_env", lambda: fixture.source(family))
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     stopped = False
     calls = []
 
@@ -96,7 +96,7 @@ def test_partial_usage_is_durable_in_failed_or_interrupted_assistant_tool_call(
 
 def test_unknown_failed_usage_does_not_become_zero_provider_evidence(session, monkeypatch):
     monkeypatch.setattr(service, "resolved_llm_env", lambda: fixture.source("openai-compatible"))
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
 
     def fail(*args, **kwargs):
         raise llm_client.LLMError("fixture-only")
@@ -113,7 +113,7 @@ def test_unknown_failed_usage_does_not_become_zero_provider_evidence(session, mo
 @pytest.mark.parametrize("family", fixture.FAMILIES)
 def test_chat_length_retains_usage_in_failed_tool_call_and_typed_error(session, monkeypatch, family):
     monkeypatch.setattr(service, "resolved_llm_env", lambda: fixture.source(family))
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     data = fixture.completion(family)
     if family == "anthropic":
         data["stop_reason"] = "max_tokens"

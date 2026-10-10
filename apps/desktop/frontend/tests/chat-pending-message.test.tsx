@@ -61,7 +61,6 @@ function Harness({
       onRemoveQueuedMessage={submission.removeQueuedMessage}
       conversationScope={submission.conversationScope}
       retryLastFailedRun={() => {}}
-      retryWritingRunSubscription={() => {}}
       agentRunControls={{
         onApprovePermission: () => {},
         onDenyPermission: () => {},

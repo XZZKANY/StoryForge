@@ -20,9 +20,6 @@ from app.domains.agent_runs.models import AgentRun, AgentRunEvent
 from app.domains.agent_runs.permission import canonical_permission_profile
 from app.domains.agent_runs.result_contracts import execution_result_payload
 from app.domains.agent_runs.run_payloads import (
-    book_run_id_from_result as _book_run_id_from_result,
-)
-from app.domains.agent_runs.run_payloads import (
     current_plan_step as _current_plan_step,
 )
 from app.domains.agent_runs.run_payloads import (
@@ -76,7 +73,6 @@ class _AgentRunEventSink:
         run.root_plan = plan
         run.current_step = _current_plan_step(plan)
         run.assistant_session_id = _optional_positive_int(result.get("assistant_session_id"))
-        run.book_run_id = _book_run_id_from_result(result) or run.book_run_id
         self._session.add(run)
         self._session.commit()
         self._session.refresh(run)

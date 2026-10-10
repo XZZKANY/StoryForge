@@ -101,7 +101,7 @@ def test_actual_continue_keeps_selection_origin_and_reranks_before_writer(
         return {"content": "他把手收了回来。"}
 
     monkeypatch.setattr(prose_continue_runtime, "prepare_runtime_writing_context", before_dispatch)
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-model"})
     monkeypatch.setattr(assistant_service, "_call_llm_streamed", writer)
     monkeypatch.setattr(loop_runtime, "build_llm_provider", lambda _source: Provider())

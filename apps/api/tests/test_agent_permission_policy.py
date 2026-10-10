@@ -6,7 +6,6 @@ from typing import cast
 import pytest
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
-from test_book_runs import seed_locked_blueprint
 
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.permission import (
@@ -20,7 +19,6 @@ from app.domains.agent_runs.permission import (
 )
 from app.domains.agent_runs.service_lifecycle import (
     create_or_resume_agent_run,
-    create_or_resume_bookrun_agent_run,
     start_agent_user_message_run,
 )
 from app.domains.agent_runs.service_store import complete_agent_run
@@ -28,7 +26,6 @@ from app.domains.agent_runs.tools.execution import ToolDefinition, ToolExecution
 from app.domains.agent_runs.tools.execution_runtime import ToolExecutionRuntimeMixin
 from app.domains.agent_runs.tools.runtime_arguments import sanitize_loop_tool_arguments
 from app.domains.agent_runs.trace import AgentToolTrace
-from app.domains.book_runs.models import BookRun
 from app.domains.ide.router import AgentUserMessageStreamRequest
 
 
@@ -182,7 +179,7 @@ def test_long_running_start_still_needs_confirmation_below_full(profile: str) ->
     calls: list[str] = []
     runtime = _Runtime(
         _tool(
-            name="bookrun.start",
+            name="long.task",
             risk_level="long_running",
             requires_confirmation=True,
             execution_mode="long_running",
@@ -191,19 +188,19 @@ def test_long_running_start_still_needs_confirmation_below_full(profile: str) ->
     )
 
     with pytest.raises(AgentOrchestrationError, match="需要先获得权限确认"):
-        runtime._execute_tool("bookrun.start", _context(profile), {})
+        runtime._execute_tool("long.task", _context(profile), {})
     assert calls == []
 
-    result = runtime._execute_tool("bookrun.start", _context(profile), {"confirmed": True})
+    result = runtime._execute_tool("long.task", _context(profile), {"confirmed": True})
     assert result.status == "completed"
-    assert calls == ["bookrun.start"]
+    assert calls == ["long.task"]
 
 
 def test_full_profile_starts_long_running_without_a_confirmation_round_trip() -> None:
     calls: list[str] = []
     runtime = _Runtime(
         _tool(
-            name="bookrun.start",
+            name="long.task",
             risk_level="long_running",
             requires_confirmation=True,
             execution_mode="long_running",
@@ -211,10 +208,10 @@ def test_full_profile_starts_long_running_without_a_confirmation_round_trip() ->
         )
     )
 
-    result = runtime._execute_tool("bookrun.start", _context("full"), {})
+    result = runtime._execute_tool("long.task", _context("full"), {})
 
     assert result.status == "completed"
-    assert calls == ["bookrun.start"]
+    assert calls == ["long.task"]
 
 
 def test_model_supplied_confirmation_flags_are_stripped_before_the_gate_sees_them() -> None:
@@ -293,41 +290,6 @@ def test_lifecycle_records_legacy_profile_migration_and_terminal_profile(session
         },
     )
     assert started.run.events[-1].payload["permission_profile"] == "ask"
-
-
-def test_managed_bookrun_mirror_inherits_the_source_run_profile_once(
-    session: Session,
-    session_factory,
-) -> None:
-    scope = seed_locked_blueprint(session_factory)
-    book_run = BookRun(
-        book_id=scope["book_id"],
-        blueprint_id=scope["blueprint_id"],
-        total_chapters=3,
-    )
-    session.add(book_run)
-    session.commit()
-    session.refresh(book_run)
-
-    source = create_or_resume_agent_run(
-        session,
-        public_id="agent-bookrun-source",
-        session_id="permission-session",
-        goal="以自动档启动 managed BookRun",
-        scope={"book_run_id": book_run.id},
-        permission_profile="auto",
-    )
-    mirror = create_or_resume_bookrun_agent_run(session, book_run=book_run, event_source="test")
-
-    assert mirror.permission_profile == "auto"
-    session.expire(mirror, ["events"])
-    assert mirror.events[0].payload["permission_profile"] == "auto"
-
-    source.permission_profile = "read"
-    session.commit()
-    resumed_mirror = create_or_resume_bookrun_agent_run(session, book_run=book_run, event_source="test-resume")
-
-    assert resumed_mirror.permission_profile == "auto"
 
 
 def test_stream_request_only_accepts_known_permission_profiles() -> None:

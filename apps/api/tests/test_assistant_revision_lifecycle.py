@@ -25,7 +25,7 @@ def revision_sessions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterat
     engine = create_engine(f"sqlite:///{tmp_path / 'revision.sqlite'}")
     Base.metadata.create_all(engine)
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fixture-model"})
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     try:
         yield sessionmaker(bind=engine, expire_on_commit=False)
     finally:
@@ -153,7 +153,7 @@ def test_revision_preflight_failure_has_no_new_records(revision_sessions, monkey
 
     monkeypatch.setattr(service, "_call_llm_streamed", unexpected_model)
     if failure == "missing_config":
-        monkeypatch.setattr(service, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_MODEL"])
+        monkeypatch.setattr(service, "missing_llm_env", lambda: ["STORYFORGE_LLM_MODEL"])
         error = service.AssistantLlmNotConfiguredError
     elif failure == "broken_config":
 

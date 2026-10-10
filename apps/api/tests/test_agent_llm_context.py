@@ -387,7 +387,7 @@ def test_file_review_runtime_records_llm_context_snapshot_summary(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     context_bundle = _rich_context_bundle()
     context_bundle["project_root"] = str(tmp_path)
@@ -431,7 +431,7 @@ def test_file_review_llm_prompt_uses_sanitized_snapshot_context(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: [])
     monkeypatch.setattr(
         review_reasoning,
         "resolved_llm_env",
@@ -478,7 +478,7 @@ def test_file_revise_runtime_links_revise_trace_to_llm_context_snapshot(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     captured: dict[str, str] = {}
 
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub

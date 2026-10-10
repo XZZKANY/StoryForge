@@ -6789,3 +6789,44 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
 - 最终完整 API **3,658 passed / 25 skipped / 20 failed**，精确失败集合与已验证基线相同，零新增/移除失败；不声称全套通过。
 
 本批不统一前端自动上下文分类、native *.md 或 entity budget 其他成员规则。symlink测试使用Linux临时项目，不支持/权限拒绝环境按既有跳过规则，不声称Windows原生行为。无配置/付费provider、用户数据修改或迁移；仅草稿PR，不合并/部署。
+
+
+## 2026-10-09 自动整书链（BookRun）退役
+
+作者拍板删除自动整书链。分三刀提交：A 解耦（live 模块改从 common 取 LLM 辅助函数）、B 删后端执行链、C 删前端写作任务进度投影。`book_runs` 表与 4 处外键暂留（只剩 `book_runs/models.py`），删表另走 Alembic 迁移，本批不动 schema。
+
+- 删除：`book_runs` 除 models 外全部、`writing_runs`、`exports`、`books/lineage_service.py`、Agent 托管适配器 / bridge / bookrun 规格与 skill / role、IDE `bookrun.*` 命令与 `/api/ide/runs/{id}/events`、`/api/agent-runs/{id}/checkpoints`、`scripts/run-golden.mjs`、`run_real_smoke.py`、`.codex` 下真实长程运行脚本与证据目录、对应测试；`prompt_lab` 收窄为 live 链（live-draft / agent）。
+- 前端：删 `writing-run.ts`、`run-events.ts`、`WritingRunProgressPanel` 与订阅状态、`@写作任务` 别名。
+- 验证（Linux 云端，Python 3.13 / Node 22）：API 全量 **3600 passed / 24 skipped / 3 failed**；3 项失败与改动前基线相同（大小写不敏感路径 2 项、symlink loop 1 项，Linux 环境相关）。改动前基线 20 failed，其余 17 项为本批删除的长程证据脚本测试。前端 vitest **1919 passed / 1 skipped / 1 failed**（`project-context` 中文排序，基线同样失败）；frontend typecheck、root lint、shared / project-core、`pnpm e2e` 19/19、OpenAPI 重新生成且 drift 检查通过（同环境下 HEAD 生成结果与仓库快照逐字节一致）。
+- 未验：daily / packaged sidecar 冒烟（`run_windows.py` 需 Windows）、Rust、真机 GUI；需在 Windows 本机跑 `pnpm.cmd verify`。
+
+
+## 2026-10-09 BookRun 退役分支 Windows 本机复验与四处修复
+
+云端 `chore/retire-bookrun`（基线 1ce8ed1d，3 提交 / 242 文件 / +6028 −34875）在 Windows 本机复验。云端未覆盖 sidecar 冒烟、Rust 与冻结 exe；本批补齐并修四处缺陷。
+
+**门禁（全绿）**
+
+- API 全量 pytest **3576 passed / 51 skipped / 0 failed**（修前为 3575 passed / 51 skipped / **1 failed**）。
+- 前端 vitest **1920 passed / 1 skipped / 0 failed**；云端报的 1 项 `project-context` 中文排序失败为 Linux locale 相关，Windows 不复现。
+- Rust `cargo test` **109 passed / 4 ignored**；bundled git 7 passed + verify:git-bundle 通过。
+- frontend typecheck / build / verify:smoke / verify:inline-continuation / verify:agent-conversation 全绿；shared typecheck、project-core 7 passed。
+- eslint 0 error（2 项既有 `no-explicit-any` warning）、prettier 全绿、ruff 全绿。
+- e2e 契约 **19/19**（master 为 21，减少 2 项系随导出端点一并删除）。
+- OpenAPI 4 份产物重新生成后逐字节**无漂移**；契约中 12 条 book-run 路径已清零。
+- **daily sidecar 冒烟绿；packaged 冻结 exe 冒烟绿**（PyInstaller 重新冻结后起服 4695ms、alembic 纳管 managed=true）——此档为云端不可达项，证明删除未打碎打包链。
+
+**修复四处**
+
+1. `scripts/sidecar-smoke.mjs`：删除孤儿成功日志。B 刀移除了 `assertPromptLayerBundled` 与 `main.py` 的 `_log_prompt_layer_state()` 自检，却保留了成功日志行，冒烟会无条件打印「分层 prompt 构建器已随 exe 打包」假绿。
+2. `apps/api/tests/test_agent_run_roles.py`、`test_agent_request_evidence_durability.py`：行尾被整体翻转（CRLF→LF / LF→CRLF），制造 663 行幻影 diff。两文件在 master 上本为混合行尾，按逐行原终止符重建，真实改动降至 6/55 与 0/1；已断言重建后归一化内容与分支逐字节一致且无 CRCRLF。
+3. `apps/api/tests/test_source_pruning.py`：`assert not (book_runs_root / "prompts").exists()` 以目录存在性判定，遇 master 遗留 `__pycache__` 即误红（干净 checkout 不复现，云端因此未撞上）。改为 `glob("*.py")`，与紧邻上一行写法一致。变异验证：放回一个 `.py` 即报红，清除后转绿。
+4. `CLAUDE.md`：分支未更新项目主上下文文件，§2 仍称后台运行时由 BookRun 承载、§4 仍指 `book_runs/prompts/` 批量 prompt 链、§8「能做」仍宣称可跑最小整书闭环并导出 Markdown/EPUB、§8.1 仍称 BookRun 维持后台工具。四处改正为退役事实，整书与导出能力移入「不做」。§1.1 历史流水按其自身「不作为今天现状依据」的声明不动。
+
+**本机装机版数据库实测（只读副本，`%LOCALAPPDATA%\com.storyforge.ide\storyforge.sqlite3`）**
+
+`book_runs` 0 行；`agent_runs` 55 行、`assistant_sessions` 16 行，二者 `book_run_id` 非空计数均为 0；`model_runs` / `story_state_events` / `story_state_ledgers` 0 行；`chapters` / `judge_issues` / `repair_patches` / `books` 全 0 行。即暂留的表与 4 处外键在作者真实数据中零占用。
+
+**未验 / 未动**
+
+真机 GUI 观感未验。`book_runs` 表与 4 处外键暂留（删表需 Alembic 迁移，待作者决定）；judge / chapter.review 旧章节审稿链未删（待作者决定）。桌面端实际调用的 API 前缀仅 `agent-runs` / `assistant` / `ide` 三个，其余 16 个前缀零调用，但 `judge` / `blueprints` / `continuity` / `repair` / `studio` / `events` 仍被 live 域进程内引用，不可按「桌面端未调用」直接删。

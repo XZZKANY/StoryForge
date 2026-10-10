@@ -17,7 +17,6 @@ function renderList(
       conversationScope={conversationScope}
       agentRun={null}
       agentRunRecovery={null}
-      writingRunProjection={null}
     />
   );
 }

@@ -34,7 +34,7 @@ def test_http_revision_uses_project_author_control_for_mixed_quote_and_typo_edit
     target.write_text(original, encoding="utf-8", newline="")
     candidate = original.replace("“", '"').replace("”", '"').replace("地扳", "地板")
     requests = []
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fixture-model"})
 
     def generate(_source, **kwargs):
@@ -60,7 +60,7 @@ def test_http_revision_uses_project_author_control_for_mixed_quote_and_typo_edit
 
 
 def test_http_missing_protected_literal_records_failure_without_generation(client, session, monkeypatch):
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fixture-model"})
 
     def unexpected(*_, **__):

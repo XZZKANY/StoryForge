@@ -14,7 +14,6 @@ import type {
   PendingRepairCommand,
   RetryRequest,
   ReviewReport,
-  WritingRunProjection,
 } from './types';
 import { basename, relativePath } from './path-utils';
 
@@ -55,9 +54,6 @@ export function useChatWindowState({
   const [assistantSessions, setAssistantSessions] = useState<AssistantSessionRecord[]>([]);
   const [lastContextBundle, setLastContextBundle] = useState<ContextBundle | null>(null);
   const [missingContextPaths, setMissingContextPaths] = useState<string[]>([]);
-  const [writingRunProjection, setWritingRunProjection] = useState<WritingRunProjection | null>(
-    null,
-  );
 
   const projectName = projectPath ? basename(projectPath) : null;
   const contextRef = currentFile ? relativePath(projectPath, currentFile) : null;
@@ -76,7 +72,6 @@ export function useChatWindowState({
   const runStartConversationKeyRef = useRef(
     conversationKey(projectPath, assistantSessionId ?? null, initialDraftNonce),
   );
-  const unsubscribeWritingRunRef = useRef<(() => void) | null>(null);
 
   // layout effect：这些 ref 是提交期的归属判据（会话 id / 项目路径）。若放在被动 effect 里，
   // 同一 React 批内切会话后在跑的 await 恢复时会读到旧 ref，把旧资料拼进新会话请求。
@@ -96,14 +91,6 @@ export function useChatWindowState({
     window.addEventListener(EDITOR_AUTHOR_VIEW_EVENT, onAuthorView);
     return () => window.removeEventListener(EDITOR_AUTHOR_VIEW_EVENT, onAuthorView);
   }, []);
-
-  useEffect(
-    () => () => {
-      unsubscribeWritingRunRef.current?.();
-      unsubscribeWritingRunRef.current = null;
-    },
-    [],
-  );
 
   return {
     input,
@@ -151,8 +138,6 @@ export function useChatWindowState({
     setLastContextBundle,
     missingContextPaths,
     setMissingContextPaths,
-    writingRunProjection,
-    setWritingRunProjection,
     projectName,
     contextRef,
     contextRefRef,
@@ -165,7 +150,6 @@ export function useChatWindowState({
     selfPersistedSessionIdRef,
     draftNonceRef,
     runStartConversationKeyRef,
-    unsubscribeWritingRunRef,
   };
 }
 

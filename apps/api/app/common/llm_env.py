@@ -57,6 +57,21 @@ class ResolvedPolishLlm:
     source: Mapping[str, str | None] = field(repr=False)
 
 
+REQUIRED_REAL_LLM_ENV = (
+    "STORYFORGE_LLM_API_KEY",
+    "STORYFORGE_LLM_BASE_URL",
+    "STORYFORGE_LLM_MODEL",
+    "STORYFORGE_LLM_PROVIDER",
+)
+
+
+def missing_llm_env(env: Mapping[str, str | None] | None = None) -> list[str]:
+    """列出真实 LLM 调用所需但尚未配置的环境变量名。"""
+
+    source = resolved_llm_env(env)
+    return [name for name in REQUIRED_REAL_LLM_ENV if not env_value(source, name)]
+
+
 def resolved_llm_env(env: Mapping[str, str | None] | None = None) -> Mapping[str, str | None]:
     """返回真实 LLM 调用使用的配置源。
 

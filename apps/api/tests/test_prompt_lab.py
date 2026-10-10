@@ -12,65 +12,15 @@ import pytest
 
 from app.common.craft import craft_prompt_clause
 from app.domains.agent_runs.loop import prompt_context
-from app.domains.book_runs.prompts import builder
 from scripts.prompt_lab import runner as runner_module
 from scripts.prompt_lab.agent_registry import AGENT_VARIANTS
-from scripts.prompt_lab.fixtures import MANUAL_DRAFT, OPENING_CTX, TASKS, TRANSITION_CTX
-from scripts.prompt_lab.registry import BOOK_VARIANTS
+from scripts.prompt_lab.fixtures import TASKS
 from scripts.prompt_lab.report import render_report
 
 # --- 组 1：fixture 渲染锚串断言 ---
 
 
-def test_opening_ctx_renders_draft_preview() -> None:
-    prompt = builder.build_draft_prompt(OPENING_CTX, preview_chars=120)
-    assert "林岚在雾港追查失真的灯塔信号。" in prompt
-    assert "禁止表现：突然健谈" in prompt
-    assert "禁用表达（绝不能出现）：不禁" in prompt
-    assert "左臂受伤未愈（本段必须体现）" in prompt
-    # pacing.target_chars=400 优先于 preview_chars，走「篇幅」行（builder 真实行为）
-    assert "约 400 个中文字符，允许上下浮动 15%" in prompt
-    assert "林岚持有旧港灯塔密钥" in prompt
-
-
-def test_transition_ctx_renders_full_chapter() -> None:
-    prompt = builder.build_draft_prompt(TRANSITION_CTX, full_chapter=True)
-    assert "写出本章完整正文（600–1600 字）" in prompt
-    assert "上一章林岚在旧港发现灯塔密钥" in prompt
-    assert "上文衔接（保持连续，不要重复已写内容）" in prompt
-
-
-def test_critique_and_revision_render() -> None:
-    ctx = TASKS["critique-draft"].ctx
-    prompt = builder.build_critique_prompt(ctx, TASKS["critique-draft"].draft)
-    assert "评审问题清单" not in prompt
-    assert "待审正文" in prompt
-    assert "她不禁想起昨夜灯塔的异响" in prompt
-
-    revision = builder.build_revision_prompt(ctx, TASKS["revise-draft"].draft, TASKS["revise-draft"].issues)
-    assert "评审问题清单（逐条修复）" in revision
-    assert "prose_quality｜medium" in revision
-
-
 # --- 组 2：baseline 恒等 ---
-
-
-def test_draft_baseline_identical_to_real_builder() -> None:
-    for task_id in ("opening-preview", "transition-full"):
-        task = TASKS[task_id]
-        variant = BOOK_VARIANTS["draft"]["baseline"]
-        assert variant.build(task.ctx, preview_chars=task.preview_chars, full_chapter=task.full_chapter) == builder.build_draft_prompt(
-            task.ctx, preview_chars=task.preview_chars, full_chapter=task.full_chapter
-        )
-
-
-def test_critique_and_revision_baseline_identical() -> None:
-    ctx = TRANSITION_CTX
-    assert BOOK_VARIANTS["critique"]["baseline"].build(ctx, MANUAL_DRAFT) == builder.build_critique_prompt(ctx, MANUAL_DRAFT)
-    issues = ("prose_quality｜medium｜命中｜原因｜scene_patch｜保留｜删除｜目标",)
-    assert BOOK_VARIANTS["revision"]["baseline"].build(ctx, MANUAL_DRAFT, issues) == builder.build_revision_prompt(
-        ctx, MANUAL_DRAFT, issues
-    )
 
 
 def test_agent_baseline_identical_to_real_system_prompt() -> None:
@@ -78,34 +28,6 @@ def test_agent_baseline_identical_to_real_system_prompt() -> None:
 
 
 # --- 组 3：变体按文档差异 ---
-
-
-def test_no_craft_removes_craft_section() -> None:
-    prompt = BOOK_VARIANTS["draft"]["no-craft"].build(OPENING_CTX, preview_chars=120)
-    baseline = BOOK_VARIANTS["draft"]["baseline"].build(OPENING_CTX, preview_chars=120)
-    assert "【创作准则" not in prompt
-    assert "【创作准则" in baseline
-    assert "保持克制叙述" in prompt  # 其余 section 保留
-
-
-def test_no_style_removes_style_section() -> None:
-    prompt = BOOK_VARIANTS["draft"]["no-style"].build(OPENING_CTX, preview_chars=120)
-    baseline = BOOK_VARIANTS["draft"]["baseline"].build(OPENING_CTX, preview_chars=120)
-    assert "【文风要求" not in prompt
-    assert "【文风要求" in baseline
-    assert "【创作准则" in prompt
-
-
-def test_task_rewrite_replaces_task_line() -> None:
-    prompt = BOOK_VARIANTS["draft"]["task-rewrite"].build(OPENING_CTX, preview_chars=120)
-    assert "要么推进情节、要么加深人物、要么制造氛围" in prompt
-    assert "避免说明腔与大纲腔" not in prompt
-
-
-def test_critique_no_pass_appends_ban() -> None:
-    prompt = BOOK_VARIANTS["critique"]["no-pass"].build(TRANSITION_CTX, MANUAL_DRAFT)
-    assert "禁止输出单行“通过”" in prompt
-    assert "至少一条 ISSUE" in prompt
 
 
 def test_agent_no_craft_removes_craft_clause() -> None:
@@ -127,7 +49,7 @@ def _sample_run_data() -> dict[str, object]:
         "model": "deepseek-v4-flash",
         "temperature": "0.2",
         "variants": {
-            "opening-preview": {
+            "live-opening": {
                 "task_description": "雾港开场预览",
                 "variants": [
                     {"id": "baseline", "label": "原样", "description": "恒等", "prompt": baseline_prompt, "prompt_chars": len(baseline_prompt), "output": "正文甲", "output_chars": 3, "prompt_tokens": 10, "completion_tokens": 5, "latency_ms": 100, "cost_cny_estimated": 0.0001},
@@ -140,7 +62,7 @@ def _sample_run_data() -> dict[str, object]:
 
 def test_report_renders_metrics_outputs_and_diff() -> None:
     text = render_report(_sample_run_data(), dry_run=False)
-    assert "## 任务 opening-preview" in text
+    assert "## 任务 live-opening" in text
     assert "| A | 原样 |" in text
     assert "| B | 去准则 |" in text
     assert "正文甲" in text
@@ -182,7 +104,7 @@ def test_runner_dry_run_never_calls_llm(monkeypatch: pytest.MonkeyPatch, tmp_pat
     monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_streamed", fake_call)
     from scripts.prompt_lab.runner import main
 
-    code = main(["--task", "opening-preview", "--variants", "baseline,no-craft", "--dry-run", "--out", str(tmp_path)])
+    code = main(["--task", "live-opening", "--variants", "live-baseline,live-with-examples", "--dry-run", "--out", str(tmp_path)])
     assert code == 0
     assert calls == []
     assert (tmp_path / "run-metadata.json").exists()
@@ -198,11 +120,11 @@ def test_runner_failure_isolation(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_streamed", fake_call)
     from scripts.prompt_lab.runner import main
 
-    code = main(["--task", "opening-preview", "--variants", "baseline,no-craft", "--out", str(tmp_path)])
+    code = main(["--task", "live-opening", "--variants", "live-baseline,live-with-examples", "--out", str(tmp_path)])
     assert code == 1
     metadata = tmp_path / "run-metadata.json"
     data = __import__("json").loads(metadata.read_text(encoding="utf-8"))
-    entries = data["variants"]["opening-preview"]["variants"]
+    entries = data["variants"]["live-opening"]["variants"]
     assert len(entries) == 2
     assert all("error" in entry for entry in entries)
 
@@ -225,23 +147,23 @@ def test_runner_merge_replaces_only_selected_cells(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_streamed", fake_call)
 
     # 第一次跑：baseline + no-craft（全成功，no-craft 输出"旧输出"）
-    code = main(["--task", "opening-preview", "--variants", "baseline,no-craft", "--out", str(tmp_path)])
+    code = main(["--task", "live-opening", "--variants", "live-baseline,live-with-examples", "--out", str(tmp_path)])
     assert code == 0
     first = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
-    first_entries = first["variants"]["opening-preview"]["variants"]
-    assert {entry["id"] for entry in first_entries} == {"baseline", "no-craft"}
+    first_entries = first["variants"]["live-opening"]["variants"]
+    assert {entry["id"] for entry in first_entries} == {"live-baseline", "live-with-examples"}
 
-    # 合并补跑：只重跑 baseline（mock 返回"新输出"），no-craft 必须保留旧数据
-    code = main(["--merge", str(tmp_path), "--task", "opening-preview", "--variants", "baseline"])
+    # 合并补跑：只重跑 live-baseline（mock 返回"新输出"），live-with-examples 必须保留旧数据
+    code = main(["--merge", str(tmp_path), "--task", "live-opening", "--variants", "live-baseline"])
     assert code == 0
     merged = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
-    by_id = {entry["id"]: entry for entry in merged["variants"]["opening-preview"]["variants"]}
-    assert set(by_id) == {"baseline", "no-craft"}
-    assert by_id["baseline"]["output"] == "新输出"
-    assert by_id["no-craft"]["output"] == "旧输出"
+    by_id = {entry["id"]: entry for entry in merged["variants"]["live-opening"]["variants"]}
+    assert set(by_id) == {"live-baseline", "live-with-examples"}
+    assert by_id["live-baseline"]["output"] == "新输出"
+    assert by_id["live-with-examples"]["output"] == "旧输出"
 
 
-@pytest.mark.parametrize("change", ["description", "ctx", "kind", "draft", "issues", "user_prompt", "preview_chars", "full_chapter"])
+@pytest.mark.parametrize("change", ["description", "user_prompt"])
 def test_merge_rejects_changed_fixture_before_touching_artifacts(monkeypatch, tmp_path, change):
     from dataclasses import replace
 
@@ -249,21 +171,18 @@ def test_merge_rejects_changed_fixture_before_touching_artifacts(monkeypatch, tm
         "content": "original evidence", "cost_cny_estimated": 0.1, "latency_ms": 1,
     })
     # 未变化的任务排在变化任务前面，确保全部选中任务都会提前校验。
-    args = ["--task", "transition-full,opening-preview", "--variants", "baseline"]
+    args = ["--task", "live-transition,live-opening", "--variants", "live-baseline"]
     assert runner_module.main([*args, "--out", str(tmp_path), "--seed", "7"]) == 0
     before = {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
-    task = TASKS["opening-preview"]
+    task = TASKS["live-opening"]
     changes = {
         "description": "Different instructions for readers",
-        "ctx": replace(task.ctx, user_intent="Different input with the same task description"),
-        "kind": "critique", "draft": "different draft", "issues": ("new issue",),
-        "user_prompt": "new user prompt", "preview_chars": task.preview_chars + 1,
-        "full_chapter": not task.full_chapter,
+        "user_prompt": "new user prompt",
     }
     monkeypatch.setitem(runner_module.TASKS, task.id, replace(task, **{change: changes[change]}))
     monkeypatch.setattr(runner_module, "_build_prompt", lambda *a: pytest.fail("必须在装配 prompt 前校验"))
     monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: pytest.fail("不得分发调用"))
-    with pytest.raises(SystemExit, match="opening-preview.*固定输入.*--out.*新目录.*重新开始实验"):
+    with pytest.raises(SystemExit, match="live-opening.*固定输入.*--out.*新目录.*重新开始实验"):
         runner_module.main([*args, "--merge", str(tmp_path)])
     assert {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
 
@@ -275,8 +194,8 @@ def test_merge_rejects_legacy_fixture_identity_without_relabeling(monkeypatch, t
     runner_module._write_artifacts(tmp_path, data, dry_run=False, blind_seed=7)
     before = {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
     monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: pytest.fail("不得分发调用"))
-    with pytest.raises(SystemExit, match="opening-preview.*固定输入.*--out.*新目录.*重新开始实验"):
-        runner_module.main(["--merge", str(tmp_path), "--task", "opening-preview", "--variants", "baseline"])
+    with pytest.raises(SystemExit, match="live-opening.*固定输入.*--out.*新目录.*重新开始实验"):
+        runner_module.main(["--merge", str(tmp_path), "--task", "live-opening", "--variants", "live-baseline"])
     assert {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
     assert json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8")) == data
 
@@ -372,7 +291,7 @@ def test_realtime_and_final_output_files_agree(monkeypatch: pytest.MonkeyPatch, 
         return {"content": f"正文{calls['n']}", "cost_cny_estimated": 0.0, "latency_ms": 1}
 
     monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_streamed", fake_call)
-    main(["--task", "opening-preview", "--variants", "baseline", "--repeat", "3", "--out", str(tmp_path)])
+    main(["--task", "live-opening", "--variants", "live-baseline", "--repeat", "3", "--out", str(tmp_path)])
 
     files = sorted((tmp_path / "outputs").rglob("*.txt"))
     bodies = [f.read_text(encoding="utf-8") for f in files]
@@ -381,7 +300,7 @@ def test_realtime_and_final_output_files_agree(monkeypatch: pytest.MonkeyPatch, 
     # 编号口径的真不变量：rN 必须对应 repeats 里第 N 位的那次（并发下哪一次失败不固定，
     # 但「文件编号 ↔ repeats 位次」必须恒成立），失败位次留空档。
     meta = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
-    repeats = meta["variants"]["opening-preview"]["variants"][0]["repeats"]
+    repeats = meta["variants"]["live-opening"]["variants"][0]["repeats"]
     for f in files:
         position = int(f.name.rsplit('--r', 1)[1].removesuffix('.txt'))
         assert repeats[position - 1]["output"] == f.read_text(encoding="utf-8"), f"{f.name} 与 repeats 位次对不上"
@@ -411,12 +330,12 @@ def test_transport_level_exception_does_not_discard_completed_cells(
 
     monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_streamed", fake_call)
     code = main(
-        ["--task", "opening-preview", "--variants", "baseline", "--repeat", "3", "--out", str(tmp_path)]
+        ["--task", "live-opening", "--variants", "live-baseline", "--repeat", "3", "--out", str(tmp_path)]
     )
 
     assert code == 1  # 有失败格，退出码非 0
     meta = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
-    repeats = meta["variants"]["opening-preview"]["variants"][0]["repeats"]
+    repeats = meta["variants"]["live-opening"]["variants"][0]["repeats"]
     assert len(repeats) == 3, "整跑被打断，没跑满 repeats"
     assert sum(1 for r in repeats if "error" not in r) == 2, "已完成格被连坐丢弃"
     assert any("ConnectionResetError" in str(r.get("error", "")) for r in repeats)
@@ -439,7 +358,7 @@ def test_grid_identity_is_scheduled_before_completion(monkeypatch, tmp_path):
 
         def submit(self, function, *args):
             before = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
-            slots = before["variants"]["opening-preview"]["variants"][0]["repeats"]
+            slots = before["variants"]["live-opening"]["variants"][0]["repeats"]
             assert len(slots) == 3
             assert len({slot["sample_id"] for slot in slots}) == 3
             self.count += 1
@@ -451,12 +370,12 @@ def test_grid_identity_is_scheduled_before_completion(monkeypatch, tmp_path):
 
     monkeypatch.setattr(runner_module, "ThreadPoolExecutor", ControlledPool)
     monkeypatch.setattr(runner_module, "as_completed", lambda futures: [list(futures)[i] for i in (1, 2, 0)])
-    task = runner_module.TASKS["opening-preview"]
+    task = runner_module.TASKS["live-opening"]
     data, failed = runner_module._run_grid(
-        {"opening-preview": task}, {task.kind: runner_module._select_variants(task.kind, ["baseline"])},
+        {"live-opening": task}, {task.kind: runner_module._select_variants(task.kind, ["live-baseline"])},
         dry_run=False, repeat=3, out_dir=tmp_path,
     )
-    entry = data["variants"]["opening-preview"]["variants"][0]
+    entry = data["variants"]["live-opening"]["variants"][0]
     assert failed == 0
     assert [r["output"] for r in entry["repeats"]] == ["body-1", "body-2", "body-3"]
     assert entry["output"] == "body-1"
@@ -473,7 +392,7 @@ def test_failed_merge_excludes_stale_output_but_keeps_history(monkeypatch, tmp_p
     monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: {
         "content": "old success", "cost_cny_estimated": 0.2, "latency_ms": 1,
     })
-    args = ["--task", "opening-preview", "--variants", "baseline", "--repeat", "2"]
+    args = ["--task", "live-opening", "--variants", "live-baseline", "--repeat", "2"]
     assert runner_module.main([*args, "--out", str(tmp_path)]) == 0
     first = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
     old_output = first["current_outputs"][0]
@@ -486,7 +405,7 @@ def test_failed_merge_excludes_stale_output_but_keeps_history(monkeypatch, tmp_p
     monkeypatch.setattr(runner_module, "_build_prompt", broken)
     assert runner_module.main([*args, "--merge", str(tmp_path)]) == 1
     merged = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
-    entry = merged["variants"]["opening-preview"]["variants"][0]
+    entry = merged["variants"]["live-opening"]["variants"][0]
     assert merged["current_outputs"] == []
     assert entry["output"] is None
     assert len(entry["repeats"]) == 2
@@ -494,27 +413,27 @@ def test_failed_merge_excludes_stale_output_but_keeps_history(monkeypatch, tmp_p
     assert entry["resources"]["attempt_count"] == 4
     assert entry["resources"]["cost_cny_known"] == pytest.approx(0.4)
     assert (tmp_path / old_output["path"]).read_bytes() == original
-    assert entry["history"][0]["repeats"] == first["variants"]["opening-preview"]["variants"][0]["repeats"]
+    assert entry["history"][0]["repeats"] == first["variants"]["live-opening"]["variants"][0]["repeats"]
 
 
 def test_merge_adds_new_variant_and_does_not_mutate_input(monkeypatch):
     from copy import deepcopy
 
-    task = runner_module.TASKS["opening-preview"]
+    task = runner_module.TASKS["live-opening"]
     original, _ = runner_module._run_grid(
-        {task.id: task}, {task.kind: runner_module._select_variants(task.kind, ["baseline"])}, dry_run=True,
+        {task.id: task}, {task.kind: runner_module._select_variants(task.kind, ["live-baseline"])}, dry_run=True,
     )
     before = deepcopy(original)
     monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: {
         "content": "new", "cost_cny_estimated": 0.1, "latency_ms": 1,
     })
     data, failed = runner_module._run_grid(
-        {"opening-preview": task}, {task.kind: runner_module._select_variants(task.kind, ["no-craft"])},
+        {"live-opening": task}, {task.kind: runner_module._select_variants(task.kind, ["live-with-examples"])},
         dry_run=False, existing=original,
     )
     assert failed == 0
     assert original == before
-    assert {e["id"] for e in data["variants"]["opening-preview"]["variants"]} == {"baseline", "no-craft"}
+    assert {e["id"] for e in data["variants"]["live-opening"]["variants"]} == {"live-baseline", "live-with-examples"}
     assert data["variants"][task.id]["fixture_fingerprint"] == original["variants"][task.id]["fixture_fingerprint"]
     assert data["variants"][task.id]["variants"][0] == original["variants"][task.id]["variants"][0]
 
@@ -531,7 +450,7 @@ def test_call_once_keeps_partial_usage_and_redacts_source_secret(monkeypatch):
         raise LLMError(secret, usage=TokenUsage(input_tokens=12, output_tokens=3, source="provider_usage"))
 
     monkeypatch.setattr(runner_module, "call_llm_streamed", fail)
-    result = runner_module._call_once("prompt", runner_module.TASKS["opening-preview"])
+    result = runner_module._call_once("prompt", runner_module.TASKS["live-opening"])
     assert result["status"] == "failed"
     assert result["prompt_tokens"] == 12
     assert result["completion_tokens"] == 3
@@ -544,12 +463,12 @@ def test_blind_packet_has_no_operational_side_information():
 
     data = _sample_run_data()
     data["run_id"] = "run-example"
-    data["variants"]["another-task"] = __import__("copy").deepcopy(data["variants"]["opening-preview"])
+    data["variants"]["another-task"] = __import__("copy").deepcopy(data["variants"]["live-opening"])
     text, reveal = render_blind_packet(data, dry_run=False, seed=42)
     for forbidden in ("deepseek", "0.2", "0.000100", "token", "耗时", "成本", "温度", "原样", "去准则", "baseline"):
         assert forbidden not in text
     assert "正文甲" in text and "正文乙" in text
-    first = reveal["tasks"]["opening-preview"]
+    first = reveal["tasks"]["live-opening"]
     second = reveal["tasks"]["another-task"]
     assert {r["anonymous_id"] for r in first}.isdisjoint(r["anonymous_id"] for r in second)
     assert {r["variant_id"] for r in first} == {"baseline", "no-craft"}
@@ -562,21 +481,21 @@ def test_failed_sample_is_in_reveal_not_blind_diagnostics():
     from scripts.prompt_lab.report import render_blind_packet
 
     data = _sample_run_data()
-    entry = data["variants"]["opening-preview"]["variants"][0]
+    entry = data["variants"]["live-opening"]["variants"][0]
     entry["repeats"] = [{"sample_id": "one", "output": "current prose", "status": "ok"},
                         {"sample_id": "two", "status": "failed", "error": "provider-name-secret"}]
     entry["history"] = [{"output": "stale prose"}]
     text, reveal = render_blind_packet(data, dry_run=False, seed=9)
     assert "current prose" in text
     assert "provider-name-secret" not in text and "stale prose" not in text
-    assert len(reveal["tasks"]["opening-preview"]) == 3
-    assert sum(r["included"] for r in reveal["tasks"]["opening-preview"]) == 2
+    assert len(reveal["tasks"]["live-opening"]) == 3
+    assert sum(r["included"] for r in reveal["tasks"]["live-opening"]) == 2
 
 
 def test_interruption_keeps_pending_denominator_and_replaces_old_blind(monkeypatch, tmp_path):
     import json
 
-    args = ["--task", "opening-preview", "--variants", "baseline", "--repeat", "3", "--jobs", "1"]
+    args = ["--task", "live-opening", "--variants", "live-baseline", "--repeat", "3", "--jobs", "1"]
     monkeypatch.setattr(runner_module, "call_llm_streamed", lambda *a, **k: {
         "content": "old-body", "cost_cny_estimated": 0.1, "latency_ms": 1,
     })
@@ -593,7 +512,7 @@ def test_interruption_keeps_pending_denominator_and_replaces_old_blind(monkeypat
     with pytest.raises(KeyboardInterrupt):
         runner_module.main([*args, "--merge", str(tmp_path)])
     data = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
-    entry = data["variants"]["opening-preview"]["variants"][0]
+    entry = data["variants"]["live-opening"]["variants"][0]
     assert [s["status"] for s in entry["repeats"]] == ["ok", "scheduled", "scheduled"]
     assert entry["resources"]["attempt_count"] == 6
     assert entry["resources"]["cost_cny_known"] == pytest.approx(0.3)
@@ -603,14 +522,14 @@ def test_interruption_keeps_pending_denominator_and_replaces_old_blind(monkeypat
     blind = (tmp_path / "blind.md").read_text(encoding="utf-8")
     assert "old-body" not in blind and "new-body" in blind
     reveal = json.loads((tmp_path / "blind-reveal.json").read_text(encoding="utf-8"))
-    assert len(reveal["tasks"]["opening-preview"]) == 3
+    assert len(reveal["tasks"]["live-opening"]) == 3
 
 
 def test_legacy_cost_survives_repeated_checkpoints(tmp_path):
     data = _sample_run_data()
     for _ in range(3):
         runner_module._checkpoint(tmp_path, data)
-        entry = data["variants"]["opening-preview"]["variants"][0]
+        entry = data["variants"]["live-opening"]["variants"][0]
         assert entry["resources"]["cost_cny_known"] == pytest.approx(0.0001)
         assert entry["resources"]["legacy_count"] == 1
         assert entry["cost_cny_estimated"] is None
@@ -642,10 +561,10 @@ def test_prompt_lab_sdk_observation_retains_request_and_resources(monkeypatch, t
                "latency_ms": 7, "finish_reason": "stop"}
 
     monkeypatch.setattr(llm_client, "_raw_stream_chat_completions", stream)
-    assert runner_module.main(["--task", "opening-preview", "--variants", "baseline", "--repeat", "2",
+    assert runner_module.main(["--task", "live-opening", "--variants", "live-baseline", "--repeat", "2",
                                "--out", str(tmp_path)]) == 0
     data = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
-    entry = data["variants"]["opening-preview"]["variants"][0]
+    entry = data["variants"]["live-opening"]["variants"][0]
     assert len(calls) == 2
     for sample in entry["repeats"]:
         assert sample["model"] == "fixture-model"
@@ -666,7 +585,7 @@ def test_default_output_directory_is_chosen_once(monkeypatch, tmp_path):
         return tmp_path / f"run-{len(calls)}"
 
     monkeypatch.setattr(runner_module, "_default_out_dir", default_path)
-    assert runner_module.main(["--task", "opening-preview", "--variants", "baseline", "--dry-run"]) == 0
+    assert runner_module.main(["--task", "live-opening", "--variants", "live-baseline", "--dry-run"]) == 0
     assert len(calls) == 1
     assert (tmp_path / "run-1" / "run-metadata.json").exists()
 
@@ -697,10 +616,10 @@ def test_partial_failed_sample_counts_alongside_success(monkeypatch, tmp_path):
                 "latency_ms": 1, "cost_cny_estimated": 0.000020}
 
     monkeypatch.setattr(runner_module, "call_llm_streamed", call)
-    assert runner_module.main(["--task", "opening-preview", "--variants", "baseline", "--repeat", "2",
+    assert runner_module.main(["--task", "live-opening", "--variants", "live-baseline", "--repeat", "2",
                                "--jobs", "1", "--out", str(tmp_path)]) == 1
     data = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
-    entry = data["variants"]["opening-preview"]["variants"][0]
+    entry = data["variants"]["live-opening"]["variants"][0]
     assert entry["prompt_tokens"] == 20 and entry["completion_tokens"] == 10
     assert entry["cost_cny_estimated"] == pytest.approx(0.000040)
     assert entry["resources"]["success_count"] == 1
@@ -717,9 +636,9 @@ def test_configuration_failure_does_not_invent_paid_call(monkeypatch, tmp_path):
         raise LLMConfigError("invalid config")
 
     monkeypatch.setattr(runner_module, "resolved_llm_env", invalid)
-    assert runner_module.main(["--task", "opening-preview", "--variants", "baseline", "--out", str(tmp_path)]) == 1
+    assert runner_module.main(["--task", "live-opening", "--variants", "live-baseline", "--out", str(tmp_path)]) == 1
     data = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
-    entry = data["variants"]["opening-preview"]["variants"][0]
+    entry = data["variants"]["live-opening"]["variants"][0]
     assert entry["repeats"][0]["no_model_call"] is True
     assert entry["cost_cny_estimated"] == 0
     assert entry["resources"]["cost_cny_unknown_count"] == 0

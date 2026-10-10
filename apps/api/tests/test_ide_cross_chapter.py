@@ -4,7 +4,7 @@ import app.domains.ide.router as ide_router
 
 
 def test_cross_chapter_endpoint_returns_findings(client: TestClient, monkeypatch) -> None:
-    monkeypatch.setattr(ide_router, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(ide_router, "missing_llm_env", lambda: [])
 
     def fake_check(source, chapters, *, focus=None):
         assert len(chapters) == 2
@@ -42,7 +42,7 @@ def test_cross_chapter_endpoint_returns_findings(client: TestClient, monkeypatch
 
 
 def test_cross_chapter_endpoint_409_when_llm_not_configured(client: TestClient, monkeypatch) -> None:
-    monkeypatch.setattr(ide_router, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    monkeypatch.setattr(ide_router, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"])
     resp = client.post(
         "/api/ide/review/cross-chapter",
         json={"chapters": [{"name": "第1章", "content": "a"}, {"name": "第2章", "content": "b"}]},

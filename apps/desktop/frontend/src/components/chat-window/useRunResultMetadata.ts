@@ -4,7 +4,6 @@ import type { ChatWindowState } from './useChatWindowState';
 import type { ChatWindowProps } from './types';
 import { conversationKey } from './session-guard';
 import { titleFromSystemJobs } from './conversation-utils';
-import { startWritingRunProjectionSubscription, writingRunIdFromResult } from './writing-run';
 
 /** Existing final-result metadata projection, kept apart from external wait dispatch. */
 export function useRunResultMetadata(
@@ -17,8 +16,6 @@ export function useRunResultMetadata(
     projectPathRef,
     selfPersistedSessionIdRef,
     setConversationTitle,
-    setWritingRunProjection,
-    unsubscribeWritingRunRef,
   } = state;
   return useCallback(
     (response: AgentResultMessage) => {
@@ -33,23 +30,6 @@ export function useRunResultMetadata(
       onSessionChange?.(response.assistant_session_id);
       const title = titleFromSystemJobs(response);
       if (title) setConversationTitle(title);
-      const writingRunId = writingRunIdFromResult(response);
-      if (writingRunId !== null) {
-        setWritingRunProjection({
-          writingRunId,
-          status: 'running',
-          currentChapterIndex: null,
-          totalChapters: null,
-          completedCount: null,
-          latestEvent: 'started',
-          failureReason: null,
-        });
-        startWritingRunProjectionSubscription(
-          writingRunId,
-          unsubscribeWritingRunRef,
-          setWritingRunProjection,
-        );
-      }
     },
     [
       assistantSessionIdRef,
@@ -58,8 +38,6 @@ export function useRunResultMetadata(
       selfPersistedSessionIdRef,
       onSessionChange,
       setConversationTitle,
-      setWritingRunProjection,
-      unsubscribeWritingRunRef,
     ],
   );
 }

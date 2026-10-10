@@ -2,7 +2,7 @@
 
 与单章 review 的区别:review 只看当前章 + 300 字上下文摘录(`review_reasoning.py`),
 结构上看不到跨章问题(时间线/称谓漂移/设定不一/伏笔)。本模块专做跨章,喂整章正文。
-复用 book_generation 的 `call_llm` / `resolved_llm_env`(同一 STORYFORGE_LLM_* 客户端)。
+复用 common 的 `call_llm` / `resolved_llm_env`(同一 STORYFORGE_LLM_* 客户端)。
 """
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-from app.domains.book_runs.book_generation import BookGenerationError
-from app.domains.book_runs.book_generation import call_llm as _call_llm
+from app.common.llm_client import LLMError
+from app.common.llm_client import call_llm as _call_llm
 
 PER_CHAPTER_CHAR_BUDGET = 4000
 _MAX_FINDINGS = 12
@@ -76,10 +76,10 @@ def _build_user_prompt(chapters: list[dict[str, str]], focus: str | None) -> str
 
 def _parse_findings(raw: object) -> list[dict[str, Any]]:
     if not isinstance(raw, str) or not raw.strip():
-        raise BookGenerationError("跨章一致性 LLM 返回为空。")
+        raise LLMError("跨章一致性 LLM 返回为空。")
     parsed = _loads_json_array(raw)
     if not isinstance(parsed, list):
-        raise BookGenerationError("跨章一致性 LLM 返回的不是 JSON 数组。")
+        raise LLMError("跨章一致性 LLM 返回的不是 JSON 数组。")
     out: list[dict[str, Any]] = []
     for item in parsed[:_MAX_FINDINGS]:
         if not isinstance(item, dict):

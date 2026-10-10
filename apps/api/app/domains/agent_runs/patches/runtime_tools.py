@@ -53,8 +53,6 @@ class PatchRuntimeToolsMixin:
             "judge.run": self._judge_run,
         }
         handlers["judge.repair"] = self._ide_command_tool("judge.repair")
-        # managed bookrun 工具已随桌面入口一并摘除（2026-08-01 退役批量整书）；
-        # 回滚 = 恢复这一行 handlers.update(managed_bookrun_handlers())。
         return handlers
 
     def _chapter_polish(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:

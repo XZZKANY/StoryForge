@@ -24,13 +24,6 @@ class IdeCommandResult(BaseModel):
         return redact_sensitive(payload)
 
 
-class IdeRunEvent(BaseModel):
-    """IDE Run Panel 消费的 BookRun 事件。"""
-
-    event: str
-    data: dict[str, object] = Field(default_factory=dict)
-
-
 class IdeCrossChapterInput(BaseModel):
     """跨章一致性检查的单章输入（整章正文,非摘录）。"""
 

@@ -59,20 +59,6 @@ _AGENT_SKILL_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "output_artifacts": ["review_report"],
         "permission_profile": DEFAULT_PERMISSION_PROFILE,
     },
-    {
-        "name": "bookrun_generation",
-        "description": "managed Writing Run 长任务流程：按 checkpoint 推进长篇写作、暂停、恢复和失败重试。",
-        "trigger_intents": ["bookrun.start"],
-        "plan_template": [
-            {"step": "bookrun.preflight", "detail": "确认蓝图、预算和章节范围。", "status": "planned"},
-            {"step": "bookrun.start", "detail": "启动 managed Writing Run。", "status": "planned"},
-            {"step": "bookrun.checkpoint", "detail": "每章生成后写入事件和 checkpoint。", "status": "planned"},
-            {"step": "bookrun.resume", "detail": "支持暂停、恢复和从 checkpoint 重试。", "status": "planned"},
-        ],
-        "tool_sequence": ["bookrun.start", "bookrun.pause", "bookrun.resume", "bookrun.retry_from_checkpoint"],
-        "output_artifacts": ["chapter_draft", "bookrun_checkpoint"],
-        "permission_profile": DEFAULT_PERMISSION_PROFILE,
-    },
 )
 
 
@@ -117,8 +103,6 @@ def _agent_plan_payload(
 def _select_agent_skill(intent: object, goal: str, scope: dict[str, Any] | None) -> dict[str, Any]:
     normalized_intent = intent if isinstance(intent, str) else ""
     text = goal.lower()
-    if normalized_intent == "bookrun.start":
-        return _skill_by_name("bookrun_generation")
     if normalized_intent in {"file.revise", "chapter.repair"}:
         return _skill_by_name("chapter_polish")
     if normalized_intent in {"file.review", "chapter.review"}:

@@ -92,7 +92,6 @@ it('real ChatWindowView leaves messages/progress in Chat and sends permission/pa
         handleComposerSubmit={async () => {}}
         userMessageHistory={[]}
         retryLastFailedRun={noop}
-        retryWritingRunSubscription={noop}
         agentRunControls={{
           onApprovePermission: approve,
           onDenyPermission: noop,

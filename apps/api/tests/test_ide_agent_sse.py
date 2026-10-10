@@ -44,7 +44,7 @@ def test_agent_sse_stream_emits_started_events_and_result(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"]
+        review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"]
     )
     response = client.post(
         "/api/ide/agent/sessions/session-sse-review/stream",
@@ -89,7 +89,7 @@ def test_agent_control_post_pauses_run_and_returns_ack(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"]
+        review_reasoning, "missing_llm_env", lambda: ["STORYFORGE_LLM_API_KEY"]
     )
     stream = client.post(
         "/api/ide/agent/sessions/session-sse-control/stream",

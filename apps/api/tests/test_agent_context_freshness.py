@@ -301,7 +301,7 @@ def test_review_and_revision_keep_exact_utf8_source_identity(client, tmp_path, m
         return {"content": after}
 
     monkeypatch.setattr(assistant_service, "_call_llm_streamed", writer)
-    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(review_reasoning, "missing_llm_env", lambda: [])
     monkeypatch.setattr(review_reasoning, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "fake-reviewer"})
     monkeypatch.setattr(review_reasoning, "_call_llm", lambda *args, **kwargs: {"content": "[]"})
     script = [

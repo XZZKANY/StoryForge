@@ -6,17 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError, NotFoundError
+from app.common.llm_env import missing_llm_env, resolved_llm_env
 from app.common.redaction import redact_sensitive
 from app.domains.agent_runs import book_context, serial_plan_update
 from app.domains.agent_runs.canon_service import run_canon_projection
 from app.domains.agent_runs.fs_tools import FsToolError
 from app.domains.agent_runs.observatory import run_observatory_scan
-from app.domains.book_runs.book_generation import missing_book_generation_env, resolved_llm_env
-from app.domains.book_runs.service import (
-    BookRunBlockedError,
-    BookRunError,
-    BookRunNotFoundError,
-)
 from app.domains.books.models import Book
 from app.domains.events.models import EventLog
 from app.domains.ide._coerce import _int_or_none
@@ -35,15 +30,6 @@ from app.domains.repair.service import RepairInputError, create_repair_patch
 from app.domains.studio.schemas import StudioApprovalExecuteRequest
 from app.domains.studio.service import StudioApprovalSummaryNotFoundError, approve_studio_writeback
 from app.domains.workspaces.models import Workspace
-from app.domains.writing_runs.schemas import WritingRunStart
-from app.domains.writing_runs.service import (
-    pause_writing_run,
-    resume_writing_run,
-    retry_writing_run_from_checkpoint,
-    start_writing_run,
-    stop_writing_run,
-    writing_run_payload,
-)
 
 
 @dataclass(frozen=True)
@@ -62,9 +48,6 @@ _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
         IdeCommandDefinition(id="judge.run", title="运行 Judge", category="Judge"),
         IdeCommandDefinition(id="judge.repair", title="生成定向修复", category="Judge"),
         IdeCommandDefinition(id="judge.approve", title="批准修复写回", category="Judge"),
-        # bookrun.* 已于 2026-08-01 摘除桌面入口（作者拍板退役批量整书）：定义不再注册，
-        # 但 _execute_bookrun_command 与分派分支、book_runs service 全部保留。
-        # 回滚 = 把这 5 行 IdeCommandDefinition 加回来（同 W4 冻结域手法）。
         IdeCommandDefinition(id="audit.open", title="打开审计记录", category="Audit", writes=False),
         # canon.refresh 只写派生缓存（.storyforge/canon/derived/），不落 DB，故 writes=False 免审计工作区副作用。
         IdeCommandDefinition(id="canon.refresh", title="刷新 Canon 事实卡（dossier）", category="Canon", writes=False),
@@ -112,8 +95,6 @@ def execute_ide_command_by_id(
         result = _execute_judge_repair_command(command, normalized_args, None, session)
     elif session is not None and command.id == "judge.approve":
         result = _execute_judge_approve_command(command, normalized_args, None, session)
-    elif session is not None and command.id.startswith("bookrun."):
-        result = _execute_bookrun_command(command, normalized_args, None, session)
     elif command.id == "canon.refresh":
         result = _execute_canon_refresh_command(command, normalized_args, None)
     elif command.id == "observatory.scan":
@@ -269,41 +250,6 @@ def _execute_judge_approve_command(
     )
 
 
-def _execute_bookrun_command(
-    command: IdeCommandDefinition,
-    args: dict[str, object],
-    audit_event_id: str | None,
-    session: Session,
-) -> IdeCommandResult:
-    """把 IDE bookrun.* 兼容命令转交给 Writing Run seam。"""
-
-    try:
-        if command.id == "bookrun.start":
-            result = start_writing_run(
-                session,
-                WritingRunStart(scope="full_book", mode="managed", **args),
-            )
-        elif command.id == "bookrun.pause":
-            result = pause_writing_run(session, book_run_id=_required_book_run_id(args), reason=_optional_reason(args))
-        elif command.id == "bookrun.resume":
-            result = resume_writing_run(session, book_run_id=_required_book_run_id(args))
-        elif command.id == "bookrun.stop":
-            result = stop_writing_run(session, book_run_id=_required_book_run_id(args), reason=_optional_reason(args))
-        elif command.id == "bookrun.retry_from_checkpoint":
-            result = retry_writing_run_from_checkpoint(session, book_run_id=_required_book_run_id(args))
-        else:
-            raise IdeCommandExecutionError(f"未知 BookRun 命令：{command.id}")
-    except (TypeError, ValueError, BookRunError, BookRunBlockedError, BookRunNotFoundError) as exc:
-        raise IdeCommandExecutionError(str(exc)) from exc
-
-    return _accepted_command_result(
-        command,
-        args,
-        audit_event_id,
-        writing_run_payload(result),
-    )
-
-
 def _execute_canon_refresh_command(
     command: IdeCommandDefinition,
     args: dict[str, object],
@@ -359,7 +305,7 @@ def _execute_book_breakdown_command(
         raise IdeCommandExecutionError("book.breakdown 的 target_count 必须在 3 到 12 之间。")
     try:
         llm_source = resolved_llm_env()
-        model_source = llm_source if not missing_book_generation_env(llm_source) else None
+        model_source = llm_source if not missing_llm_env(llm_source) else None
         analysis_id_arg = args.get("analysis_id")
         analysis_id = analysis_id_arg.strip() if isinstance(analysis_id_arg, str) and analysis_id_arg.strip() else None
         cancel_event = prepare_breakdown_cancellation(analysis_id) if analysis_id else None
@@ -497,21 +443,3 @@ def _execute_plan_mark_written_command(
     )
     outcome = run(project_root.strip(), file_path.strip())
     return _accepted_command_result(command, args, audit_event_id, {"plan": outcome})
-
-
-def _required_book_run_id(args: dict[str, object]) -> int:
-    """从 IDE 命令参数中读取正整数 BookRun ID。"""
-
-    value = args.get("book_run_id")
-    if isinstance(value, int) and value > 0:
-        return value
-    raise IdeCommandExecutionError("BookRun 命令缺少 book_run_id。")
-
-
-def _optional_reason(args: dict[str, object]) -> str | None:
-    """读取可选中文操作原因，空白内容按未填写处理。"""
-
-    value = args.get("reason")
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None

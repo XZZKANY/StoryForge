@@ -10,14 +10,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 API_ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = Path(__file__).parent / "fixtures" / "source_code_standards_baseline.json"
-PRIVATE_ACCESS_ROOTS = (
-    API_ROOT / "app" / "domains" / "agent_runs",
-    API_ROOT / "app" / "domains" / "book_runs",
-)
+PRIVATE_ACCESS_ROOTS = (API_ROOT / "app" / "domains" / "agent_runs",)
 AGENT_RUNS_ROOT = API_ROOT / "app" / "domains" / "agent_runs"
 AGENT_RUNS_ADAPTER_ROOT = AGENT_RUNS_ROOT / "adapters"
 AGENT_RUNS_PUBLIC_FACES = ("loop", "tools", "fs", "events", "permission", "patches")
-BOOK_RUNS_ROOT = API_ROOT / "app" / "domains" / "book_runs"
 DESKTOP_FRONTEND_ROOT = REPO_ROOT / "apps" / "desktop" / "frontend" / "src"
 DESKTOP_LIVE_MODULE_ROOTS = (
     DESKTOP_FRONTEND_ROOT / "components" / "app",
@@ -27,22 +23,12 @@ DESKTOP_LIVE_MODULE_ROOTS = (
 DESKTOP_S0_LINE_EXCEPTIONS = {
     "apps/desktop/frontend/src/components/chat-window/panels.tsx",
 }
-LIVE_BOOK_RUNS_CONSUMER_ROOTS = (
-    API_ROOT / "app" / "domains" / "assistant",
-    AGENT_RUNS_ROOT,
-    API_ROOT / "app" / "domains" / "ide",
-)
 LIVE_DOMAIN_ROOTS = (
     API_ROOT / "app" / "domains" / "health",
     API_ROOT / "app" / "domains" / "assistant",
     AGENT_RUNS_ROOT,
     API_ROOT / "app" / "domains" / "ide",
 )
-BOOK_RUNS_PUBLIC_MODULES = {
-    "app.domains.book_runs.book_generation",
-    "app.domains.book_runs.models",
-    "app.domains.book_runs.service",
-}
 FROZEN_MODULE_PREFIXES = (
     "app.domains.assets",
     "app.domains.collaboration",
@@ -52,7 +38,6 @@ FROZEN_MODULE_PREFIXES = (
     "app.domains.prompt_packs",
     "app.domains.series",
     "app.domains.workspaces",
-    "app.domains.books.lineage_service",
 )
 LIVE_TO_FROZEN_IMPORT_ALLOWLIST = {
     ("app/domains/ide/command_registry.py", "app.domains.workspaces.models", "Workspace"),
@@ -64,9 +49,6 @@ HARD_SOURCE_LINE_LIMITS = {
     "apps/api/app/domains/agent_runs/loop_runtime.py": 500,
     "apps/api/app/domains/agent_runs/llm_context.py": 500,
     "apps/api/app/domains/agent_runs/save_points.py": 500,
-    "apps/api/app/domains/book_runs/book_context.py": 500,
-    "apps/api/app/domains/book_runs/book_generation.py": 500,
-    "apps/api/app/domains/book_runs/book_generation_judge.py": 500,
     "apps/desktop/frontend/src/App.tsx": 400,
     "apps/desktop/frontend/src/components/ChatWindow.tsx": 500,
     "apps/desktop/frontend/src/components/app/AppShell.tsx": 500,
@@ -88,15 +70,13 @@ HARD_LIVE_TEST_LINE_LIMITS = {
     "apps/api/tests/test_agent_canon.py": 800,
     "apps/api/tests/test_agent_loop_runtime.py": 800,
     "apps/api/tests/test_agent_runs.py": 800,
-    "apps/api/tests/test_book_generation.py": 800,
-    "apps/api/tests/test_book_runs.py": 800,
     "apps/api/tests/test_ide_agent_orchestrator.py": 800,
 }
 RUNTIME_COMPATIBILITY_HELPERS = (
     "_trim_prose_instruction",
     "_safe_summary",
 )
-LIVE_TEST_PATTERNS = ("test_agent*.py", "test_ide_agent*.py", "test_book*.py")
+LIVE_TEST_PATTERNS = ("test_agent*.py", "test_ide_agent*.py")
 NEW_LIVE_MODULE_LINE_LIMIT = 500
 NEW_LIVE_TEST_LINE_LIMIT = 800
 
@@ -274,42 +254,6 @@ def test_agent_runs_private_cross_module_access_is_zero() -> None:
     assert not current_accesses, "agent_runs cross-module private access:\n" + _format_private_accesses(current_accesses)
 
 
-def test_book_runs_private_cross_module_access_is_zero() -> None:
-    current_accesses = Counter(
-        {
-            access: count
-            for access, count in scan_private_accesses().items()
-            if access.owner.startswith("app/domains/book_runs/")
-        }
-    )
-
-    assert not current_accesses, "book_runs cross-module private access:\n" + _format_private_accesses(current_accesses)
-
-
-def test_live_consumers_use_book_runs_public_modules() -> None:
-    violations: list[str] = []
-    for root in LIVE_BOOK_RUNS_CONSUMER_ROOTS:
-        for path in sorted(root.rglob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
-            owner = path.relative_to(API_ROOT).as_posix()
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom):
-                    module = node.module or ""
-                    if not module.startswith("app.domains.book_runs"):
-                        continue
-                    if module not in BOOK_RUNS_PUBLIC_MODULES:
-                        violations.append(f"{owner}: imports internal book_runs module {module}")
-                    for alias in node.names:
-                        if _is_private_name(alias.name):
-                            violations.append(f"{owner}: imports private book_runs symbol {module}.{alias.name}")
-                elif isinstance(node, ast.Import):
-                    for alias in node.names:
-                        if alias.name.startswith("app.domains.book_runs") and alias.name not in BOOK_RUNS_PUBLIC_MODULES:
-                            violations.append(f"{owner}: imports internal book_runs module {alias.name}")
-
-    assert not violations, "Live consumers must use the BookRun public API:\n" + "\n".join(violations)
-
-
 def _is_frozen_module(module: str) -> bool:
     return any(module == prefix or module.startswith(f"{prefix}.") for prefix in FROZEN_MODULE_PREFIXES)
 
@@ -416,10 +360,7 @@ def test_loop_main_path_reads_business_payloads_through_typed_contracts() -> Non
 
 
 def test_dual_track_imports_stay_behind_explicit_adapters() -> None:
-    required_adapters = {
-        "intent_fixed_pipeline_adapter.py",
-        "bookrun_managed_run_adapter.py",
-    }
+    required_adapters = {"intent_fixed_pipeline_adapter.py"}
     assert required_adapters <= {path.name for path in AGENT_RUNS_ADAPTER_ROOT.glob("*.py")}
 
     loop_files = [AGENT_RUNS_ROOT / "loop_runtime.py", *(AGENT_RUNS_ROOT / "loop").glob("*.py")]
@@ -455,13 +396,11 @@ def test_dual_track_imports_stay_behind_explicit_adapters() -> None:
     assert not {
         "self._run_file_review_interruptible",
         "self._run_chapter_polish",
-        "self._run_bookrun_generation",
         "self._run_chapter_review",
         "self._run_chapter_review_repair",
     } & called_names
 
     patch_handlers = (AGENT_RUNS_ROOT / "patches" / "runtime_tools.py").read_text(encoding="utf-8")
-    assert "managed_bookrun_handlers()" in patch_handlers
     assert '"bookrun.start"' not in patch_handlers
 
 

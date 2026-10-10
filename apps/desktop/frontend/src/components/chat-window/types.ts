@@ -133,16 +133,6 @@ export type PendingRepairCommand = {
   args: Record<string, unknown>;
 };
 
-export type WritingRunProjection = {
-  writingRunId: number;
-  status: string;
-  currentChapterIndex: number | null;
-  totalChapters: number | null;
-  completedCount: number | null;
-  latestEvent: string;
-  failureReason?: string | null;
-};
-
 export type AgentRunControlHandlers = {
   onApprovePermission: () => void;
   onDenyPermission: () => void;

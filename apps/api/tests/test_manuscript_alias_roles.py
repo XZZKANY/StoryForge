@@ -63,7 +63,7 @@ def test_actual_draft_uses_first_window_without_counting_reference_alias(session
         },
     )
     calls = []
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
 
     def writer(_source, *, system_prompt, user_prompt):

@@ -236,7 +236,6 @@ def test_nested_requests_keep_distinct_attempts_and_restore_parent_progress(sess
     assert payloads[0]["transport_progress"] == [{"phase": "request_started", "request_number": 1}]
     assert payloads[1]["transport_progress"] == []
     assert not service.list_agent_artifacts(session, run.public_id)
-    assert not service.list_agent_checkpoints(session, run.public_id)
 
 
 @pytest.mark.parametrize("streaming", [False, True])

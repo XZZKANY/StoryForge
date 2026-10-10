@@ -47,7 +47,7 @@ def _strings(value):
 
 def _writer(monkeypatch):
     prompts = []
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
 
     def capture(_source, *, system_prompt, user_prompt, **_kwargs):
         prompts.append((system_prompt, user_prompt))
@@ -140,7 +140,7 @@ def test_continue_endpoint_delivers_suffix_and_pin(client, tmp_path, monkeypatch
     monkeypatch.setenv("STORYFORGE_LLM_MODEL", "test-model")
     (tmp_path / "设定").mkdir()
     (tmp_path / "设定/钥匙.md").write_text(PIN, encoding="utf-8")
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     captured = []
 
     def stream(_source, payload, **_kwargs):
@@ -388,7 +388,7 @@ def test_public_continue_admits_structured_pins(client, tmp_path, monkeypatch, s
         raw = raw.replace(claim, claim + "损坏")
     source = tmp_path / "设定/钥匙.md"
     source.write_text(raw, encoding="utf-8")
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setenv("STORYFORGE_LLM_MODEL", "test-model")
     prompts = []
 
@@ -446,7 +446,7 @@ def test_brief_source_guard_at_provider_and_recovery_boundaries(session, tmp_pat
         return {"content": "一" * 1800, "completion_tokens": 10, "latency_ms": 1}
 
     monkeypatch.setattr(assistant_service, "chat_reply", chat)
-    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(assistant_service, "_call_llm_streamed", writer)
     run = _seed_agent_run(session, public_id="run-brief-source-boundary")
     run.permission_profile = "ask"

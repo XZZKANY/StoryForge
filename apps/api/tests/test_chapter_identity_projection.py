@@ -59,7 +59,7 @@ def test_actual_draft_provider_gets_correct_same_basename_window(session, tmp_pa
     if existing:
         target.write_text("")
     calls = []
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {})
 
     def writer(_source, *, system_prompt, user_prompt):
@@ -83,7 +83,7 @@ def test_actual_continue_http_relative_path_does_not_fall_back_to_all_chapter_wi
     target.write_text("第三章正文。")
     calls = []
     monkeypatch.setenv("STORYFORGE_LLM_MODEL", "controlled-fixture")
-    monkeypatch.setattr(service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(service, "missing_llm_env", lambda: [])
     monkeypatch.setattr(service, "resolved_llm_env", lambda: {"STORYFORGE_LLM_MODEL": "controlled-fixture"})
 
     def streamed(_source, payload, **_kwargs):

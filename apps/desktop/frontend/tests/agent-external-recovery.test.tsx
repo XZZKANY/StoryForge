@@ -96,7 +96,6 @@ function Conversation({
         handleComposerSubmit={async () => {}}
         userMessageHistory={[]}
         retryLastFailedRun={noop}
-        retryWritingRunSubscription={noop}
         agentRunControls={{}}
       />{' '}
     </div>
@@ -685,7 +684,6 @@ it.each(['completed', 'failed', 'partial'] as const)(
           messages={state.messages}
           agentRun={state.agentRun}
           agentRunRecovery={null}
-          writingRunProjection={null}
           conversationScope="D:/book"
         />
       );
