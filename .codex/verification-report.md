@@ -7104,3 +7104,74 @@ live 路径脱敏覆盖由该文件剩余 3 条 + 另外 4 个文件保留。
 
 `judge` / `repair` / `studio` 的 service 保留（live 进程内可达）；其余已卸域的 `models.py` 全部保留
 （`app/models.py` 聚合建表依赖）。15 张空表本身的去留属 schema 瘦身，另行评估。
+
+
+## 2026-10-10 删除 DB 实体审稿链（档③ 的 (a) 半）
+
+接 #277。这是云端最初标给作者的「待决事项 2」，作者拍板 (a)+(b) 都做；本刀是 (a)，删表另走一刀。
+
+**先证明它已经「有入口无数据」**
+
+- `chapter.review` intent 需要 `scene_packet_id`，而 `ScenePacket` 行的**唯一创建方随 #277 删除的
+  `scene_packets` 服务一起归零**（全 app 内只剩模型类定义）。
+- `chapter.repair` 需要的 `issue_id` 只能由 `chapter.review` 产生 → 够不着。
+- `judge.approve` 需要的 `repair_patch_id` 只能由 `chapter.repair` 产生 → 够不着。
+- 桌面端源码里只出现 4 个 intent 字符串：`chapter.write` / `chapter.polish` / `file.revise` / `chat.explain`，
+  从不进入这条链。准确说法：**从桌面端 UI 完全走不通**，但三个 IDE 命令仍挂在 `/api/ide/commands`，
+  直接构造参数 POST 仍可跑——是死链而非不可达代码。
+
+**删除**
+
+IDE 命令 `judge.run` / `judge.repair` / `judge.approve`（含 `ide/service.py` 的 facade 再导出）；
+intent `chapter.review` / `chapter.repair` 及其检测分支；固定管线分派与两个 Protocol 声明；
+`repair` 与 `studio` 整域；`judge` 的 `service` / `router` / `consistency` / `deterministic` /
+`style_fingerprint`；`chapter_review_pipeline.py` 与 runtime mixin；agent 循环工具 `judge.repair`
+（spec + handler + 独占的 `_ide_command_tool`）；只服务该链的 4 个纯函数
+（`proposed_patch_from_repair_patch` / `can_repair_issue` / `first_patch_payload` /
+`judge_run_args_from_scene_packet`）；`skill_catalog` 里指向已删 intent 的 trigger。
+
+**保留（逐条有据）**
+
+- `judge/semantic.py` + `types.py` + `schemas.py`：`semantic_judge_with_status` 被 **live** agent 循环的
+  `project.deep_consistency` 工具调用（`agent_runs/deep_consistency.py`）。
+- **agent 循环工具 `judge.run`**：见下「全量跑逮到的真错误」。
+- `chapter.repair` **工具**（`chapter_writing_pipeline` 里 `chapter.write` 流程的修复步）与被删的
+  同名 **intent** 是两回事，保留。
+- `judge/models.py`：表与外键留给 (b) 刀。
+
+**全量跑逮到的真错误（救回一条 live 路径）**
+
+原计划把 `judge.run` / `judge.repair` 两个 agent 工具一起删。但 `file.revise` 管线在产字后会调
+`judge.run` 做轻量自检（`chapter_generation_pipeline.py:151`，传 `mode="proposed_patch_smoke"`），
+用的正是那条**纯函数分支**（无 DB、无 IDE 命令）。整删后 `test_agent_delivery_races` 12 个用例当场变红。
+已恢复成**只保留纯函数自检、砍掉转交 IDE 命令的尾巴**；`judge.repair` 工具确实全走 IDE 命令，照删。
+
+**顺带修两处被这刀打断、原计划未列的接线**
+
+- `skill_catalog.py` 的 `trigger_intents` 与 `_select_agent_skill` 仍挂着已删的
+  `chapter.review` / `chapter.repair`。
+- `test_style_baseline_reach` 原断言「检查器与生成器是同一个对象」要 import 已删的
+  `judge/style_fingerprint.py`。现在全仓只剩 `app/common/style_fingerprint.py` 一份实现，
+  断言改为钉死「judge 侧只经 `types` 再导出同一个类」。
+
+**测试**
+
+整删 6 个 judge DB 链测试文件（13 个用例）；`test_judge_semantic.py` 的 14 个用例**全部保留**，
+只把导入从已删的 `judge.service` facade 改指真实出处（`judge.semantic` / `judge.types`）。
+另从 5 个文件逐条摘除 6 个用例（已删 intent / 命令 / 恢复路径），并更新 4 处 intent 与工具清单断言。
+
+**验证**
+
+- API 全量 pytest **3447 passed / 51 skipped / 0 failed**；前端 vitest 1919 passed / 1 skipped
+  （前端零改动）。
+- e2e 6/6；**OpenAPI 零漂移**（这些 router 在 #274 已卸载）。
+- typecheck、eslint（0 error）、prettier、ruff 全绿；daily 与 **packaged 冻结 exe** 冒烟均绿。
+- 行尾自检：两组 numstat 逐文件一致，无 CRCRLF。净 **35 增 / 3834 删**。
+
+**已知残留（刻意不动，另行评估）**
+
+后端 `patches/types.py::_default_tool_name` 的 `kind == "repair_patch"` 分支、前端
+`agent-result.ts::repairPatchApproval` 与 `types.ts` 里的 `repair_patch` 联合成员：
+`kind="repair_patch"` 的 proposal 已无产出方，这些是恒返回 null 的防御性解析，**无死按钮**。
+不删的理由是 `repairPatchApproval` 接在 ChatWindow 审批流（P1-2「waiting 死路」守卫）里、牵连两个
+测试文件多条用例，而前端 patch kind 白名单历史上出过真 bug，为零行为收益动它不划算；要清单独开一刀。

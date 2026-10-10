@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 from agent_run_test_support import (
     _seed_agent_run,
-    _seed_chapter_review_scene_packet,
     _stored_run_artifacts,
     _stored_run_events,
 )
@@ -611,126 +610,6 @@ def test_file_review_resume_after_subagent_boundary_does_not_rerun_reviewers(
     completed_projection = get_agent_run_save_points(session, run.public_id)
     assert completed_projection["runtime_recovery"]["latest_pending_call"] is None
     assert completed_projection["runtime_recovery"]["latest_pending_call_resolution"]["pending_tool"] == "file.review.postprocess"
-
-
-def test_chapter_review_runtime_resumes_after_judge_run_without_repairing(
-    session: Session,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """chapter.review 可在 judge.run 后恢复，但恢复路径不自动进入 judge.repair 写工具。"""
-
-    from app.domains.agent_runs.event_sink import _AgentRunEventSink
-    from app.domains.agent_runs.runtime import AgentRuntime
-    from app.domains.agent_runs.service import (
-        get_agent_run_save_points,
-        handle_agent_control_message,
-        list_agent_artifacts,
-        record_agent_control_event,
-    )
-
-    class PauseAfterJudgeRunSink(_AgentRunEventSink):
-        def record_tool_trace(self, run: AgentRun, trace, index: int) -> None:  # noqa: ANN001
-            super().record_tool_trace(run, trace, index)
-            if trace.tool_name == "judge.run":
-                record_agent_control_event(
-                    session,
-                    public_id=run.public_id,
-                    session_id=run.session_id,
-                    control_type="pause_run",
-                    payload={"reason": "test pause after judge.run"},
-                )
-
-    counts = {"judge.run": 0, "judge.repair": 0}
-    original_execute_tool = AgentRuntime._execute_tool
-
-    def counting_execute_tool(self, tool_name, context, payload):  # noqa: ANN001
-        if tool_name in counts:
-            counts[tool_name] += 1
-        if tool_name == "judge.repair":
-            raise AssertionError("resume should not execute judge.repair")
-        return original_execute_tool(self, tool_name, context, payload)
-
-    monkeypatch.setattr(AgentRuntime, "_execute_tool", counting_execute_tool)
-
-    seeded = _seed_chapter_review_scene_packet(session)
-    run = _seed_agent_run(session, public_id="run-chapter-review-pending")
-    message = {
-        "type": "user_message",
-        "run_id": run.public_id,
-        "user_message": "审阅当前场景",
-        "intent": "chapter.review",
-        "args": {"scene_packet_id": seeded["scene_packet_id"]},
-    }
-
-    paused = AgentRuntime(PauseAfterJudgeRunSink(session)).run_user_message(
-        session,
-        run=run,
-        agent_session_id=run.session_id,
-        message=message,
-    )
-
-    assert paused["runtime_interruption"]["status"] == "paused"
-    assert paused["runtime_interruption"]["boundary"] == "after_tool:judge.run"
-    assert [trace["tool_name"] for trace in paused["tool_trace"]] == ["judge.run"]
-    assert counts == {"judge.run": 1, "judge.repair": 0}
-    assert list_agent_artifacts(session, run.public_id) == []
-
-    pause_projection = get_agent_run_save_points(session, run.public_id)
-    pending_artifact_id = pause_projection["pending"]["runtime_pending_call_artifact_id"]
-    assert isinstance(pending_artifact_id, int)
-    assert pause_projection["pending"]["runtime_pending_tool"] == "chapter.review.postprocess"
-    assert pause_projection["runtime_recovery"]["latest_pending_call"] == {
-        "artifact_id": pending_artifact_id,
-        "artifact_kind": "runtime_pending_call",
-        "intent": "chapter.review",
-        "boundary": "after_tool:judge.run",
-        "status": "pending",
-        "resume_strategy": "continue_chapter_review_postprocess",
-        "pending_tool": "chapter.review.postprocess",
-    }
-
-    control = handle_agent_control_message(
-        session,
-        public_id=run.public_id,
-        session_id=run.session_id,
-        control_type="resume_run",
-        payload={"reason": "continue chapter review"},
-    )
-
-    assert control.resume_diagnostic is None
-    assert control.resumed_result is not None
-    resumed = control.resumed_result
-    assert resumed["type"] == "agent_result"
-    assert resumed["intent"] == "chapter.review"
-    assert resumed["agent_result"]["resumed_from_pending_call"] is True
-    assert resumed["agent_result"]["pending_call_artifact_id"] == pending_artifact_id
-    assert resumed["agent_result"]["repair_patch_count"] == 0
-    assert resumed["agent_result"]["requires_user_confirmation"] is False
-    assert resumed.get("proposed_patch") is None
-    assert counts == {"judge.run": 1, "judge.repair": 0}
-
-    events = _stored_run_events(session, run)
-    judge_run_events = [
-        event
-        for event in events
-        if event.event_type == "tool_trace" and event.payload.get("trace", {}).get("tool_name") == "judge.run"
-    ]
-    judge_repair_events = [
-        event
-        for event in events
-        if event.event_type == "tool_trace" and event.payload.get("trace", {}).get("tool_name") == "judge.repair"
-    ]
-    assert len(judge_run_events) == 1
-    assert judge_repair_events == []
-    assert [event.event_type for event in events[-2:]] == ["agent_run_completed", "agent_execution_settled"]
-
-    completed_projection = get_agent_run_save_points(session, run.public_id)
-    assert completed_projection["pending"]["runtime_pending_call_artifact_id"] is None
-    assert completed_projection["runtime_recovery"]["latest_pending_call"] is None
-    resolution = completed_projection["runtime_recovery"]["latest_pending_call_resolution"]
-    assert resolution["pending_tool"] == "chapter.review.postprocess"
-    assert resolution["pending_resume_strategy"] == "continue_chapter_review_postprocess"
-    assert resolution["pending_artifact_id"] == pending_artifact_id
 
 
 def test_resume_run_records_diagnostic_for_malformed_chapter_review_pending_call(session: Session) -> None:

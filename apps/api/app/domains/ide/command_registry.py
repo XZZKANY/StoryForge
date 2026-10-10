@@ -23,12 +23,6 @@ from app.domains.ide.book_breakdown import (
 )
 from app.domains.ide.book_breakdown_control import request_breakdown_cancel
 from app.domains.ide.schemas import IdeCommandResult
-from app.domains.judge.schemas import JudgeIssueCreate, JudgeIssueRead
-from app.domains.judge.service import JudgeInputError, create_judge_issues
-from app.domains.repair.schemas import RepairPatchCreate, RepairPatchRead
-from app.domains.repair.service import RepairInputError, create_repair_patch
-from app.domains.studio.schemas import StudioApprovalExecuteRequest
-from app.domains.studio.service import StudioApprovalSummaryNotFoundError, approve_studio_writeback
 from app.domains.workspaces.models import Workspace
 
 
@@ -45,9 +39,6 @@ class IdeCommandDefinition:
 _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
     command.id: command
     for command in [
-        IdeCommandDefinition(id="judge.run", title="运行 Judge", category="Judge"),
-        IdeCommandDefinition(id="judge.repair", title="生成定向修复", category="Judge"),
-        IdeCommandDefinition(id="judge.approve", title="批准修复写回", category="Judge"),
         IdeCommandDefinition(id="audit.open", title="打开审计记录", category="Audit", writes=False),
         # canon.refresh 只写派生缓存（.storyforge/canon/derived/），不落 DB，故 writes=False 免审计工作区副作用。
         IdeCommandDefinition(id="canon.refresh", title="刷新 Canon 事实卡（dossier）", category="Canon", writes=False),
@@ -89,13 +80,7 @@ def execute_ide_command_by_id(
         raise IdeCommandNotFoundError(f"未知 IDE 命令：{command_id}")
 
     normalized_args = args or {}
-    if session is not None and command.id == "judge.run":
-        result = _execute_judge_run_command(command, normalized_args, None, session)
-    elif session is not None and command.id == "judge.repair":
-        result = _execute_judge_repair_command(command, normalized_args, None, session)
-    elif session is not None and command.id == "judge.approve":
-        result = _execute_judge_approve_command(command, normalized_args, None, session)
-    elif command.id == "canon.refresh":
+    if command.id == "canon.refresh":
         result = _execute_canon_refresh_command(command, normalized_args, None)
     elif command.id == "observatory.scan":
         result = _execute_observatory_scan_command(command, normalized_args, None)
@@ -184,66 +169,6 @@ def _resolve_audit_workspace_id(session: Session, payload: dict[str, object]) ->
         session.add(workspace)
         session.flush()
     return workspace.id
-
-
-def _execute_judge_run_command(
-    command: IdeCommandDefinition,
-    args: dict[str, object],
-    audit_event_id: str | None,
-    session: Session,
-) -> IdeCommandResult:
-    """把 IDE judge.run 命令转交给结构化评审服务。"""
-
-    try:
-        issues = create_judge_issues(session, JudgeIssueCreate(**args))
-    except (TypeError, ValueError, JudgeInputError) as exc:
-        raise IdeCommandExecutionError(str(exc)) from exc
-    return _accepted_command_result(
-        command,
-        args,
-        audit_event_id,
-        {"issues": [JudgeIssueRead.from_issue(issue).model_dump(mode="json") for issue in issues]},
-    )
-
-
-def _execute_judge_repair_command(
-    command: IdeCommandDefinition,
-    args: dict[str, object],
-    audit_event_id: str | None,
-    session: Session,
-) -> IdeCommandResult:
-    """把 IDE judge.repair 命令转交给定向修复服务。"""
-
-    try:
-        patch = create_repair_patch(session, RepairPatchCreate(**args))
-    except (TypeError, ValueError, RepairInputError) as exc:
-        raise IdeCommandExecutionError(str(exc)) from exc
-    return _accepted_command_result(
-        command,
-        args,
-        audit_event_id,
-        {"patch": RepairPatchRead.from_patch(patch).model_dump(mode="json")},
-    )
-
-
-def _execute_judge_approve_command(
-    command: IdeCommandDefinition,
-    args: dict[str, object],
-    audit_event_id: str | None,
-    session: Session,
-) -> IdeCommandResult:
-    """把 IDE judge.approve 命令转交给 Studio 批准写回服务。"""
-
-    try:
-        approval = approve_studio_writeback(session, StudioApprovalExecuteRequest(**args))
-    except (TypeError, ValueError, StudioApprovalSummaryNotFoundError) as exc:
-        raise IdeCommandExecutionError(str(exc)) from exc
-    return _accepted_command_result(
-        command,
-        args,
-        audit_event_id,
-        {"approval": approval.model_dump(mode="json")},
-    )
 
 
 def _execute_canon_refresh_command(

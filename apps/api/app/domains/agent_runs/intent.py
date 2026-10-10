@@ -15,8 +15,6 @@ SUPPORTED_INTENTS = frozenset(
         "file.review",
         "file.revise",
         "chapter.polish",
-        "chapter.review",
-        "chapter.repair",
     }
 )
 
@@ -31,14 +29,8 @@ def _detect_intent(user_message: str, args: dict[str, Any], explicit_intent: obj
     # 中文关键词表已下线（F11）：自由文本一律落 chat.explain 工具循环，
     # 由循环内工具（含 file.review / project.consistency 等）自主决定，
     # 不再被「审查/检查/一致性」等词劫离循环、也不再抢跑固定管线。
-    if _has_positive_int(args, "issue_id"):
-        return "chapter.repair"
     if has_file_context and _has_reviewer_role_hint(args):
         return "file.review"
-    # chapter.review 绑定 DB 场景实体，必须显式带 scene_packet_id；
-    # 没带参数的自由文本落回 chat.explain 工具循环，而不是路由进必然缺参报错的固定管线。
-    if _has_positive_int(args, "scene_packet_id"):
-        return "chapter.review"
     return "chat.explain"
 
 

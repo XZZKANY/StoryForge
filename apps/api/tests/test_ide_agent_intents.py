@@ -3,8 +3,6 @@ from __future__ import annotations
 import pytest
 from agent_transport import agent_result
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session, sessionmaker
-from test_ide_agent_orchestrator import _seed_chapter_review_context
 
 from app.domains.agent_runs.revise_scope import (
     _is_broad_revise,
@@ -98,67 +96,6 @@ def test_agent_user_message_returns_error_for_missing_assistant_session(client: 
     assert message["type"] == "error"
     assert message["session_id"] == "session-missing-assistant"
     assert "Assistant 会话不存在" in message["detail"]
-
-
-def test_agent_user_message_chapter_review_calls_registry_and_waits_for_confirmation(
-    client: TestClient,
-    session_factory: sessionmaker[Session],
-) -> None:
-    context = _seed_chapter_review_context(session_factory)
-
-    message = agent_result(
-        client,
-        "session-chapter-review",
-        user_message="审阅第二章，给我修复建议",
-        args={"scene_packet_id": context["scene_packet_id"]},
-    )
-
-    assert message["type"] == "agent_result"
-    assert message["intent"] == "chapter.review"
-    assert message["agent_result"]["requires_user_confirmation"] is True
-    assert message["proposed_patch"]["kind"] == "repair_patch"
-    assert message["proposed_patch"]["repair_patch"]["id"] > 0
-    assert message["proposed_patch"]["approval_command"]["command_id"] == "judge.approve"
-
-    tool_names = [item["tool_name"] for item in message["tool_trace"]]
-    assert tool_names[:2] == ["judge.run", "judge.repair"]
-
-    session_id = message["assistant_session_id"]
-    tool_calls = client.get(f"/api/assistant/sessions/{session_id}/tool-calls").json()
-    assert [item["tool_name"] for item in tool_calls][0] == "judge.run"
-    assert {item["tool_name"] for item in tool_calls[1:]} == {"judge.repair"}
-
-
-def test_agent_user_message_chapter_review_stops_after_first_repair_patch(
-    client: TestClient,
-    session_factory: sessionmaker[Session],
-) -> None:
-    """多个可修复 issue 时只生成第一个补丁：响应只能承载一个待确认补丁，
-    批量 judge.repair 会落库无人能确认的孤儿补丁并改掉 issue 状态。"""
-
-    from app.domains.judge.models import JudgeIssue, RepairPatch
-
-    context = _seed_chapter_review_context(session_factory)
-
-    message = agent_result(
-        client,
-        "session-chapter-review-single-patch",
-        user_message="审阅这一章，给我修复建议",
-        args={"scene_packet_id": context["scene_packet_id"]},
-    )
-
-    assert message["type"] == "agent_result"
-    assert message["agent_result"]["issue_count"] >= 2
-    assert message["agent_result"]["repair_patch_count"] == 1
-    assert message["agent_result"]["remaining_repairable_issue_count"] >= 1
-    assert message["proposed_patch"]["kind"] == "repair_patch"
-
-    with session_factory() as session:
-        patches = session.query(RepairPatch).all()
-        assert len(patches) == 1
-        touched_issues = session.query(JudgeIssue).filter(JudgeIssue.status == "requires_rejudge").all()
-        assert len(touched_issues) == 1
-        assert touched_issues[0].id == patches[0].judge_issue_id
 
 
 def test_bookrun_start_intent_no_longer_routes() -> None:

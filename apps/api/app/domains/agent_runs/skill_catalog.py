@@ -9,7 +9,7 @@ _AGENT_SKILL_DEFINITIONS: tuple[dict[str, Any], ...] = (
     {
         "name": "chapter_polish",
         "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
-        "trigger_intents": ["file.review", "file.revise", "chapter.review", "chapter.repair"],
+        "trigger_intents": ["file.review", "file.revise"],
         "plan_template": [
             {"step": "context.load", "detail": "读取当前章与项目上下文。", "status": "planned"},
             {"step": "subagents.review", "detail": "剧情、人物、文风和连续性子代理并行审稿。", "status": "planned"},
@@ -103,9 +103,9 @@ def _agent_plan_payload(
 def _select_agent_skill(intent: object, goal: str, scope: dict[str, Any] | None) -> dict[str, Any]:
     normalized_intent = intent if isinstance(intent, str) else ""
     text = goal.lower()
-    if normalized_intent in {"file.revise", "chapter.repair"}:
+    if normalized_intent == "file.revise":
         return _skill_by_name("chapter_polish")
-    if normalized_intent in {"file.review", "chapter.review"}:
+    if normalized_intent == "file.review":
         if any(keyword in goal for keyword in ("一致性", "设定", "伏笔", "时间线", "前后文", "连续性")):
             return _skill_by_name("consistency_review")
         return _skill_by_name("chapter_polish")
