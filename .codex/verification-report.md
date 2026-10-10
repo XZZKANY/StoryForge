@@ -7252,3 +7252,54 @@ workspaces）、`judge/models.py`、`app/common/pagination.py`（app 内零消�
 7 张表」+ 收口时间线 + 红线（删表前先查 `_CORE_TABLES`；删表迁移要同时照顾存量库与
 `create_all` 新库）；旧分档叙述降级为历史留档。`CLAUDE.md` §3 域数、§5 域清单、
 `common/` 模块列表与 `creative_tool_registry` 路径同步。
+
+## 2026-10-10 打开作品就知道该干嘛：作品总览「接着写」+ 新会话伙伴先开口
+
+作者 10-10 原话：「打开它想不起来该干嘛」。先在浏览器里跑**真前端 + 真后端（sqlite，无 LLM）+ 作品副本**
+逐屏截图看 v1 现状（mock FS 经 Playwright `exposeFunction` 映射到临时副本，原稿不碰），定位三处：
+
+1. 作品总览是打开作品后的第一屏，但刚打开时没有当前页签，主按钮永远是「选择章节开始」，下面写着
+   「没有可继续的当前章节，请在下方选择章节」——第一屏的主动作是个死胡同。
+2. 总览章节列表每一行都是「字数未知」：本地章节索引刻意不读正文（`estimatedChars: null`），而左栏手稿
+   视图同一时刻显示着后端底座的「约 3.0 千字」。
+3. 对话区新会话是一大片空白，只有输入框。
+
+**改动（只动前端，后端 / 路由 / OpenAPI 零改动）**
+
+- 新增纯函数 `lib/chapter-handoff.ts`：章节列表 + 上一章结尾 + 伏笔台账 → 交接模型（最后一章、下一章
+  起草请求、结尾摘录、久未推进的伏笔）。事实全部照抄后端投影：章序 / 字数来自 `book.context`，结尾来自
+  同一命令的 `previous_chapter`，伏笔来自观测镜台账；下一章与「AI 起草下一章」按钮同一推导
+  （`nextChapterWriteRequest`）。后端给的上一章若不是阅读序最后一章就不引用（宁可不说也不说错）。
+- 新增 hook `components/app/useChapterHandoff.ts`：以**下一章路径**为 `current_file` 再问一次 `book.context`
+  拿最后一章结尾（后端阅读序里未创建的章节也参与排序，`previous_chapter_tail` 的既有能力），带过期守卫。
+- 作品总览：没有当前页签时接着写阅读序最新一章（「继续写第 5 章」）；hero 引用「第 5 章停在这里」+
+  久未回收的伏笔一句；「AI 起草第 6 章」写出章号；章节行字数照抄底座同一章的估值。
+- 新会话（`assistantSessionId` 为空、无消息、无 run / brief、无欢迎页待发提示）显示 `PartnerOpening`：
+  上一章结尾摘录、伏笔提醒、「第 6 章从哪儿接？」，三个下一步——起草第 6 章（走既有 chapter.write 事件桥与
+  章纲确认）、先聊聊第 6 章怎么走、接上「某条伏笔」（后两者经 `handleComposerSubmit` 发一条明确写着
+  「先别写正文」的作者消息）；脚注写明依据。开场本身不调模型、不进会话记录。旧会话不插话，历史还没读回来
+  时也不闪。
+
+**验证**
+
+- 前端 vitest **1939 passed / 1 skipped**（#279 时 1919）；新增 `chapter-handoff.test.ts` 9 例、
+  `partner-opening.test.tsx` 6 例，`book-overview.test.tsx` 改写 2 例、新增 5 例。
+- 变异验证 7 处全部变红后还原：去掉旧会话守卫 `!assistantSessionId`（首版测试漏掉——旧会话夹具已有消息，
+  守卫真正保护的是历史加载窗口，已改为历史永不返回的夹具后才变红）、去掉 hook 过期守卫、去掉「上一章须是
+  最后一章」判定、去掉最新一章回落、去掉字数照抄、去掉 hero「接着写的正是最新一章」判定、去掉总览隐藏时不取结尾的开关（总览切走后仍挂载，
+  否则作者每次保存最后一章都会白取一遍）。
+- typecheck、eslint、prettier --check（14 个改动文件）全绿；`tests/test_source_code_standards.py` 14 passed
+  （AppShell 484 / 500、App 390 / 400、ChatWindow 240 / 500 未越线）；`scripts/verify-smoke.mjs` 浏览器冒烟通过
+  （空手稿不发带 `current_file` 的命令）。
+- 真作品副本浏览器导览（明暗两套主题）：总览出现「第 5 章停在这里」原文两行、「十七楼幸存者目击线 第 1 章
+  埋下，之后 4 章没再碰」、「继续写第 5 章」「AI 起草第 6 章」，章节行显示「约 1.8 千字」等；新会话伙伴开场
+  渲染正确；console error 0。
+- 行尾：改动文件各自保持原 EOL（ChatWindowView / panels / AppShell 为 CRLF，其余 LF），无 CRCRLF；
+  `git diff --numstat` 与 `--ignore-all-space --numstat` 一致。
+
+**未验 / 不宣称**
+
+- 本环境没有 pnpm，未跑根级 `pnpm verify` / `pnpm e2e`；后端零改动，未重跑 API pytest 与 OpenAPI 生成。
+- 未重建 NSIS、未在装机版真机点穿；三个下一步按钮触发的真·LLM 对话 / 起草未实跑（不花作者的 key）。
+- 开场只在新会话出现：桌面端会按项目恢复上次会话，打开作品若落在旧会话里看不到它，要点「新建会话」；
+  工作台中栏打开时仍是「未选择文件」。两者都是下一刀候选，本刀不动。

@@ -171,6 +171,7 @@ uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/waveN --tas
 
 - Desktop IDE：打开本地项目、文件树浏览、Monaco 编辑、版本记录、命令面板、保存快照和 API 配置注入；单色语义 token + 明暗双主题。
 - Desktop 对话式 Agent：项目级对话会话（切文件不丢，消息持久化于 `assistant_sessions`，左栏会话历史列表可切换 / 新建）、`chat.explain` 真·LLM 回话、chat 自由文本 LLM 工具循环（path-scoped 只读 `fs.list` / `fs.read` / `fs.search` + 一致性观察 `project.consistency` + 深度一致性语义评审 `project.deep_consistency`（本地人物 / 设定文件作 Character Bible 喂语义 judge，advisory issue 信号）+ 新文件起草 `file.create`，逐调用证据链，流程树全事件驱动）、真实文件修订、多视角 file.review、稳定 issue id、范围控制、proposed patch（含新文件补丁自动打开目标文件）和按项目权限确认或自动执行的 guarded writeback。注意：工具循环入口是 chat 自由文本，审稿 / 修订 / 起草 / 一致性观察 / 深度一致性已并入循环（一次对话最多一个 proposed patch），chapter.review / bookrun.* 不并入循环（后台定位，已记为决定）；默认 `ask` 档确认链与真·LLM tool-calling headless 实跑已有证据，`auto` / `full` 真机连续写回仍未验。
+- 打开作品的第一屏：作品总览「接着写」——没有当前页签时接着写阅读序最新一章，引用上一章结尾与久未回收的伏笔；新会话里伙伴先开口（同一份确定性事实、不调模型），给出起草下一章 / 先聊下一章 / 接上某条伏笔三个下一步（`lib/chapter-handoff.ts`）。旧会话不插话。
 - 私测 Alpha 单机后端：sidecar exe 独立起服（sqlite 自建表）、BYO-key、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar，均已本机验证。
 - 真实 LLM：1/3/10 章 smoke 有脱敏证据；30 章真实长程有链路和制品导出证据，但质量未通过；Q9 16 章真实跑门禁修复后人工通读通过。
 - Web：`apps/web` 已退场；旧页面只保留在历史文档和 git 历史中。

@@ -17,7 +17,9 @@ import { useChatWindowState } from './chat-window/useChatWindowState';
 import { useChapterCheckHistory } from './chat-window/useChapterCheckHistory';
 import { projectOverviewActivity } from './chat-window/overview-activity';
 import { useRunAuthorAgent } from './chat-window/useRunAuthorAgent';
+import { useChapterHandoff } from './app/useChapterHandoff';
 import {
+  emitChapterWriteRequest,
   REQUEST_CHAPTER_POLISH_EVENT,
   REQUEST_CHAPTER_WRITE_EVENT,
   RETRY_WITHOUT_KNOWLEDGE_EVENT,
@@ -81,6 +83,21 @@ export function ChatWindow(props: ChatWindowProps) {
   );
   const controls = useAgentRunControls(state, runAuthorAgent, applyAgentStreamEvent, recovery);
   const submission = useChatSubmission(state, runAuthorAgent, props);
+  // 只在新会话、还没说过一句话时开场；旧会话有自己的上下文，不插话。
+  const openingVisible =
+    Boolean(projectPath) &&
+    !assistantSessionId &&
+    state.messages.length === 0 &&
+    !state.agentRun &&
+    !state.chapterBrief &&
+    !state.agentBusy &&
+    !props.pendingInitialPrompt;
+  const handoff = useChapterHandoff({
+    projectPath,
+    chapters: props.bookChapters ?? null,
+    promises: props.bookPromises ?? null,
+    enabled: openingVisible,
+  });
 
   useEffect(() => {
     const scope = `${projectPath ?? ''}:${assistantSessionId ?? 'draft'}`;
@@ -210,6 +227,8 @@ export function ChatWindow(props: ChatWindowProps) {
         onRemoveQueuedMessage={submission.removeQueuedMessage}
         retryLastFailedRun={controls.retryLastFailedRun}
         agentRunControls={controls.agentRunControls}
+        opening={openingVisible ? handoff : null}
+        onOpeningDraft={emitChapterWriteRequest}
       />
       <AppDialogHost
         dialog={dialogs.dialog}

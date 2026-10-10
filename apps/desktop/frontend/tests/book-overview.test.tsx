@@ -7,6 +7,17 @@ import { emptyBookProfile } from '../src/lib/book-profile';
 import type { BookProfileHandle } from '../src/components/app/useBookProfile';
 import type { BookContextHandle } from '../src/components/app/useBookContext';
 import type { BookOverviewChaptersHandle } from '../src/components/app/useBookOverviewChapters';
+import { executeIdeCommand } from '../src/lib/api/ide-commands';
+
+// 总览按「下一章」向 book.context 要上一章结尾；默认没有上一章，个别用例自己给。
+vi.mock('../src/lib/api/ide-commands', () => ({
+  executeIdeCommand: vi.fn(async () => ({
+    command_id: 'book.context',
+    status: 'accepted',
+    payload: { book_context: { chapters: [], previous_chapter: null } },
+  })),
+}));
+const mockedExecute = vi.mocked(executeIdeCommand);
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const host = document.createElement('div');
@@ -140,19 +151,171 @@ test('长篇总览只展示当前章附近的八章，查看全部进入手稿�
   assert.deepEqual(openManuscript.mock.calls.at(-1), []);
   assert.equal(openWorkspace.mock.calls.length, 0);
 });
-test('无有效当前章节时选择按钮可操作且只聚焦章节列表，不打开假章节', async () => {
+test('无有效当前章节时接着写阅读序最新一章，不打开不存在的路径', async () => {
   root = createRoot(host);
   const open = vi.fn();
   const bookContext = context();
   bookContext.snapshot!.currentRelativePath = '不存在.md';
   await render({ context: bookContext, onContinueWriting: open });
   const button = host.querySelector<HTMLButtonElement>('[data-testid="book-overview-continue"]')!;
-  expect(button.disabled).toBe(false);
+  expect(button.textContent).toContain('继续写第 2 章');
+  await act(async () => button.click());
+  expect(open).toHaveBeenCalledWith('正文/02.md');
+  expect(open).not.toHaveBeenCalledWith('不存在.md');
+  expect(host.textContent).toContain('从最新的第 2 章');
+});
+
+test('空手稿时主按钮只聚焦章节列表，不打开假章节', async () => {
+  root = createRoot(host);
+  const open = vi.fn();
+  const emptyContext = context();
+  emptyContext.snapshot!.chapters = [];
+  emptyContext.snapshot!.currentRelativePath = null;
+  await render({ context: emptyContext, onContinueWriting: open });
+  const button = host.querySelector<HTMLButtonElement>('[data-testid="book-overview-continue"]')!;
+  expect(button.textContent).toContain('选择章节开始');
   await act(async () => button.click());
   expect(open).not.toHaveBeenCalled();
   expect(document.activeElement).toBe(
     host.querySelector('[data-testid="book-overview-recent-chapters"]'),
   );
+});
+
+test('本地章节索引没有字数时照抄底座同一章的估值，不显示「字数未知」', async () => {
+  root = createRoot(host);
+  const chapterIndex: BookOverviewChaptersHandle = {
+    chapters: [
+      {
+        ordinal: 1,
+        relativePath: '正文/01.md',
+        name: '01.md',
+        path: 'D:/book/正文/01.md',
+        modified: 1,
+        size: 600,
+        estimatedChars: null,
+      },
+      {
+        ordinal: 2,
+        relativePath: '正文\\02.md',
+        name: '02.md',
+        path: 'D:/book/正文/02.md',
+        modified: 1,
+        size: 900,
+        estimatedChars: null,
+      },
+      {
+        ordinal: 3,
+        relativePath: '正文/03.md',
+        name: '03.md',
+        path: 'D:/book/正文/03.md',
+        modified: 1,
+        size: 0,
+        estimatedChars: null,
+      },
+    ],
+    currentChapter: null,
+    status: 'available',
+    error: null,
+    refreshing: false,
+    refresh: vi.fn(),
+  };
+  await render({ chapters: chapterIndex });
+  const rows = [
+    ...host.querySelectorAll<HTMLButtonElement>('[data-testid="book-overview-chapter-row"]'),
+  ].map((row) => row.textContent ?? '');
+  expect(rows[0]).toContain('约 200 字');
+  expect(rows[1]).toContain('约 300 字');
+  // 底座里没有这一章就如实说不知道，不拿文件字节数冒充字数。
+  expect(rows[2]).toContain('字数未知');
+});
+
+test('接着写最新一章时 hero 引用上一章结尾并提久未回收的伏笔', async () => {
+  root = createRoot(host);
+  mockedExecute.mockResolvedValueOnce({
+    command_id: 'book.context',
+    status: 'accepted',
+    payload: {
+      book_context: {
+        chapters: [],
+        previous_chapter: {
+          relative_path: '正文/02.md',
+          tail: '他推开门。\n\n门外什么都没有，只有雨。',
+        },
+      },
+    },
+  } as unknown as Awaited<ReturnType<typeof executeIdeCommand>>);
+  const bookContext = context();
+  bookContext.snapshot!.currentRelativePath = null;
+  await render({
+    context: bookContext,
+    promises: {
+      currentChapter: 2,
+      ledger: [
+        {
+          id: 'p1',
+          title: '旧伤',
+          status: 'planted',
+          kind: 'foreshadow',
+          plantedChapter: 1,
+          dueChapter: 3,
+          resolvedChapter: null,
+          lastTouchChapter: 1,
+          issues: [],
+        },
+      ],
+    },
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(mockedExecute).toHaveBeenCalledWith('book.context', {
+    project_root: 'D:/book',
+    current_file: '正文/第003章.md',
+  });
+  const handoff = host.querySelector('[data-testid="book-overview-handoff"]');
+  expect(handoff?.textContent).toContain('第 2 章停在这里');
+  expect(handoff?.textContent).toContain('门外什么都没有，只有雨。');
+  expect(handoff?.textContent).toContain('还有一条线没收：「旧伤」第 1 章埋下，计划第 3 章回收');
+});
+
+test('总览不在前台（章节索引未激活）时不去取上一章结尾', async () => {
+  root = createRoot(host);
+  mockedExecute.mockClear();
+  const inactive: BookOverviewChaptersHandle = {
+    chapters: [],
+    currentChapter: null,
+    status: 'unavailable',
+    error: null,
+    refreshing: false,
+    refresh: vi.fn(),
+  };
+  await render({ chapters: inactive });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(mockedExecute).not.toHaveBeenCalled();
+});
+
+test('当前页签是前面某章时不引用最新一章的结尾', async () => {
+  root = createRoot(host);
+  mockedExecute.mockResolvedValueOnce({
+    command_id: 'book.context',
+    status: 'accepted',
+    payload: {
+      book_context: {
+        chapters: [],
+        previous_chapter: { relative_path: '正文/02.md', tail: '最新一章的结尾。' },
+      },
+    },
+  } as unknown as Awaited<ReturnType<typeof executeIdeCommand>>);
+  const bookContext = context();
+  bookContext.snapshot!.currentRelativePath = '正文/01.md';
+  await render({ context: bookContext });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(host.querySelector('[data-testid="book-overview-handoff"]')).toBeNull();
+  expect(host.textContent).toContain('继续写第 1 章');
 });
 test('统计失败不混入模型估值，显示可重试的显式错误', async () => {
   root = createRoot(host);
@@ -180,7 +343,7 @@ test('章节列表卡与 hero 都暴露「AI 起草下一章」入口并按最�
   const hero = host.querySelector<HTMLButtonElement>(
     '[data-testid="book-overview-hero-draft-next"]',
   );
-  expect(hero?.textContent).toContain('AI 起草下一章');
+  expect(hero?.textContent).toContain('AI 起草第 3 章');
   const next = host.querySelector<HTMLButtonElement>('[data-testid="book-overview-draft-next"]');
   // fixture 手稿有第 1、2 章，下一章应为第 3 章。
   expect(next?.textContent).toContain('AI 起草下一章 · 第 3 章');

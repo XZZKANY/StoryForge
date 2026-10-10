@@ -375,6 +375,7 @@ export function App() {
               onOpenAgentRun={showAgent}
               onEditProfile={openBookProfileEditor}
               onDraftNextChapter={draftNextChapter}
+              promises={observatory.promises}
             />
           ) : null
         }

@@ -13,6 +13,8 @@ import type { BookProfileHandle } from './useBookProfile';
 import type { AgentRunOverviewSummary } from '../chat-window/types';
 import { displayBookTitle } from '../../lib/book-profile';
 import { BookOverviewHero } from './BookOverviewHero';
+import { useChapterHandoff } from './useChapterHandoff';
+import type { ObservatoryPromises } from '../../lib/observations';
 import {
   BookOpen,
   ChevronRight,
@@ -47,7 +49,13 @@ export type BookOverviewProps = {
   onOpenAgentRun?: () => void;
   /** 「AI 起草下一章」入口：由壳层推导目标章并经事件桥交给 ChatWindow。 */
   onDraftNextChapter?: () => void;
+  /** 观测镜伏笔台账：「接着写」里提一句久未回收的线。 */
+  promises?: ObservatoryPromises | null;
 };
+
+function chapterKey(relativePath: string): string {
+  return relativePath.replace(/\\/g, '/').toLowerCase();
+}
 
 function ContextStatus({
   availability,
@@ -102,6 +110,7 @@ export function BookOverview({
   onOpenAgentRun,
   onEditProfile,
   onDraftNextChapter,
+  promises = null,
 }: BookOverviewProps) {
   const book = profile.profile;
   const chapterListRef = useRef<HTMLDivElement>(null);
@@ -112,8 +121,29 @@ export function BookOverview({
     chapterIndex?.currentChapter ??
     chapters.find((chapter) => chapter.relativePath === snapshot?.currentRelativePath) ??
     null;
-  const currentChapterIndex = currentChapter
-    ? chapters.findIndex((chapter) => chapter.relativePath === currentChapter.relativePath)
+  // 刚打开作品时没有当前页签：接着写阅读序最新一章，而不是让作者自己去列表里找。
+  const resumeChapter = currentChapter ?? chapters[chapters.length - 1] ?? null;
+  const handoff = useChapterHandoff({
+    projectPath,
+    chapters: snapshot?.chapters ?? null,
+    promises,
+    // 总览切走后仍挂载（CSS 隐藏）：跟着章节索引的 active 走，别在作者每次保存时白取一遍结尾。
+    enabled: chapterIndex?.status !== 'unavailable',
+  });
+  // 本地章节索引刻意不读正文，字数照抄后端底座同一章的估值。
+  const snapshotChars = new Map(
+    (snapshot?.chapters ?? []).map((chapter) => [
+      chapterKey(chapter.relativePath),
+      chapter.estimatedChars,
+    ]),
+  );
+  const rowCharsLabel = (chapter: { relativePath: string; estimatedChars: number | null }) => {
+    const chars =
+      chapter.estimatedChars ?? snapshotChars.get(chapterKey(chapter.relativePath)) ?? null;
+    return chars === null ? '字数未知' : formatEstimatedChars(chars);
+  };
+  const currentChapterIndex = resumeChapter
+    ? chapters.findIndex((chapter) => chapter.relativePath === resumeChapter.relativePath)
     : -1;
   const overviewChapterStart =
     chapters.length <= OVERVIEW_CHAPTER_LIMIT || currentChapterIndex < 0
@@ -187,7 +217,10 @@ export function BookOverview({
         <BookOverviewHero
           profile={profile}
           title={title}
-          currentChapter={currentChapter}
+          currentChapter={resumeChapter}
+          resumeIsLatest={currentChapter === null && resumeChapter !== null}
+          nextChapterOrdinal={nextChapterOrdinal}
+          handoff={handoff}
           chapterIndex={chapterIndex}
           chapterCount={chapters.length}
           chapterListRef={chapterListRef}
@@ -326,9 +359,7 @@ export function BookOverview({
                         {chapter.name}
                       </span>
                       <span className="text-2xs tabular-nums text-subtle">
-                        {chapter.estimatedChars === null
-                          ? '字数未知'
-                          : formatEstimatedChars(chapter.estimatedChars)}
+                        {rowCharsLabel(chapter)}
                       </span>
                     </button>
                   </li>
