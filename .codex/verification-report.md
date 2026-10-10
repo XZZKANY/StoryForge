@@ -6887,3 +6887,65 @@ docx §9 前报告 W02：legacy 审计失败可发 completed，聊天模板先�
   属 PR #272 遗留的另一处死码，不在本刀范围。
 - `source_code_standards_baseline.json` 里的 `book_runs` 私有访问条目：冻结历史快照，
   测试只校验其内部自洽（分项之和 == total），保留不动。
+
+
+## 2026-10-09 卸载 16 个桌面端零调用的 router
+
+接 PR #272 / #273 的后续第二刀（作者拍板「全卸 + 同步重写契约闸」）。桌面端是唯一客户端，
+实测只调 `/api/agent-runs`、`/api/assistant`、`/api/ide` 三个前缀（加 `/health`）。
+
+**改动面**
+
+- `main.py` 卸掉 16 个 router 及其 import：`artifacts` / `blueprints` / `character_bible` /
+  `continuity` / `events` / `judge` / `model_runs` / `provider_gateway` / `quality` / `repair` /
+  `retrieval` / `runtime_tools` / `scene_packets` / `studio` / `style_packs` / `timeline`。
+  **只卸 router，不删 service/models**，回滚 = 把对应 `include_router` 加回。
+- OpenAPI 路径 **77 → 35**，`api-types.ts` 7367 → 2932 行。
+- 后端测试：整删 11 个纯 REST 死面文件（62 个用例）—— `test_studio_book_list_api` / `test_scene_packet` /
+  `test_blueprint_api` / `test_timeline_events` / `test_quality_dashboard` / `test_style_packs_api` /
+  `test_style_packs` / `test_chapter_approval_edges` / `test_artifacts` / `test_retrieval_index` /
+  `test_judge_repair`；另从 8 个混合文件逐条摘除 28 个用例，非 REST 的用例全部保留。
+- e2e：删 `phase1-closed-loop` / `phase2-contract` / `phase3-contract` / `phase4-contract` /
+  `phase5-runtime-diagnostics` 五个阶段契约 spec（断言对象即这些已卸端点），新建
+  `live-surface-contract.spec.ts` —— 保留原 Phase 7 那条「仓库快照 vs 运行时 `app.openapi()`」的比对机制，
+  对象换成三个 live 前缀，并把「/api 下不得冒出第四个前缀」钉在契约层。`scripts/run-e2e.mjs` 清单同步。
+- `test_api_surface.py` 护栏重写：`test_api_surface_is_limited_to_desktop_consumed_prefixes` +
+  `test_desktop_unused_domain_routers_stay_unmounted`。
+- `DOMAINS.md` 记录卸载结果，并**按实证订正 backing 档**。
+
+**覆盖损失评估（动手前先量）**
+
+判据 = live 四域（`agent_runs` / `assistant` / `ide` / `common`）里非 `.models` 的 import。实测
+**只有 3 个域的 service 真被进程内调用**：`judge`（`semantic_judge_with_status`、`create_judge_issues`）、
+`repair`（`create_repair_patch`）、`studio`（`approve_studio_writeback`）。其余 13 个域只被
+`app/models.py` 聚合建表引用。而这 3 个的覆盖**本就不依赖被卸的 router**：前两者分别被 5 个和 6 个
+测试文件直调 service，`approve_studio_writeback` 经仍挂载的 `/api/ide/commands/judge.approve`
+由 `test_ide_commands.py` 覆盖。因此删掉的 90 个用例只覆盖「将被卸掉的 HTTP 面本身」，
+不损失任何 live 可达代码的覆盖，无需做 service 层改写。
+`test_redaction_boundaries` 摘掉的 5 条也同理（events / model_run / artifact / timeline / retrieval 均为死面），
+live 路径脱敏覆盖由该文件剩余 3 条 + 另外 4 个文件保留。
+
+**顺带修一个潜伏竞争（本刀暴露，非本刀引入）**
+
+`inline-editor-writeback-integration.test.tsx` 的「重试写盘后接受按钮应消失」是一条裸同步断言，
+满载下与写盘落定后的下一次渲染赛跑。契约文件体积骤减改变了 vitest 的转换/调度时序，把它暴露出来。
+已隔离验证：换回 master 版契约（其余改动不动）→ 1920 全过；用本刀契约 → 该条稳定失败；
+而 `import type` 运行时被完全擦除，不可能改变行为。该文件另两处同类断言（374 / 398 行）本就用
+`observe()` 包裹，339 行是漏网，已对齐。
+
+**验证**
+
+- API 全量 pytest **3489 passed / 51 skipped / 0 failed**（= 3577 − 90 删除 + 2 新增护栏，数字闭合）。
+- 前端 vitest **1920 passed / 1 skipped / 0 failed**；typecheck、eslint（0 error）、prettier、ruff 全绿。
+- e2e **6/6**（`ide-judge-repair` 4 条 + 新 `live-surface-contract` 2 条）。
+- OpenAPI 四产物重生成**零漂移**。
+- **daily 与 packaged 冻结 exe 冒烟均绿**。
+- **变异验证**（三处）：① 挂回 `judge` router → `test_api_surface` 2 条 + e2e 1 条同时报红，还原即绿；
+  ② 反转前端那条硬化断言 → 报红，还原即绿。
+- 行尾自检：两组 numstat 仅两个**机器生成**文件有差（JSON/TS 去掉嵌套后的缩进变化），
+  二者前后均为纯 LF、无 EOL 翻转；全量无 CRCRLF。
+
+**未动**
+
+16 个域的 `service.py` / `schemas.py` / `models.py` 全部保留（`app/models.py` 聚合建表依赖，
+且 judge / repair / studio 的 service 仍在执行）。物理删除另行评估。

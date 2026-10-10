@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
@@ -34,41 +33,6 @@ def packet_scope(session_factory: sessionmaker[Session]) -> dict[str, int]:
         session.add(character)
         session.commit()
         return {"book_id": book.id, "chapter_id": chapter.id, "scene_id": scene.id, "character_id": character.id}
-
-
-def test_scene_packet_can_auto_query_retrieval_hits(client: TestClient, packet_scope: dict[str, int]) -> None:
-    source = client.post(
-        "/api/retrieval/sources",
-        json={
-            "book_id": packet_scope["book_id"],
-            "source_type": "approved_chapter",
-            "title": "港口谈判资料",
-            "content_text": "林岚必须隐藏伤势。灯塔信号每七分钟重复一次。旧协议决定谈判窗口。",
-            "payload": {"origin": "approved_chapter"},
-        },
-    )
-    assert source.status_code == 201, source.text
-
-    response = client.post(
-        "/api/scene-packets",
-        json={
-            "book_id": packet_scope["book_id"],
-            "chapter_id": packet_scope["chapter_id"],
-            "scene_goal": "林岚在港口谈判中争取维修窗口。",
-            "active_asset_ids": [packet_scope["character_id"]],
-            "token_budget": 220,
-            "user_intent": "优先利用检索资料，不手工传 retrieval_snippets。",
-            "retrieval_snippets": [],
-        },
-    )
-    assert response.status_code == 201, response.text
-    packet = response.json()
-    assert packet["packet"]["检索片段"]
-    assert packet["packet"]["检索命中"]
-    retrieval_evidence = [link for link in packet["evidence_links"] if link["evidence_type"] == "retrieval_hit"]
-    assert retrieval_evidence
-    assert retrieval_evidence[0]["score"] is not None
-    assert retrieval_evidence[0]["rank"] == 1
 
 
 def test_retrieval_context_block_preserves_rerank_metadata() -> None:

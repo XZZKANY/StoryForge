@@ -4,11 +4,7 @@ import { basename, join } from 'node:path';
 import { spawn } from 'node:child_process';
 
 const defaultTests = [
-  'tests/e2e/phase1-closed-loop.spec.ts',
-  'tests/e2e/phase2-contract.spec.ts',
-  'tests/e2e/phase3-contract.spec.ts',
-  'tests/e2e/phase4-contract.spec.ts',
-  'tests/e2e/phase5-runtime-diagnostics.spec.ts',
+  'tests/e2e/live-surface-contract.spec.ts',
   'tests/e2e/ide-judge-repair.spec.ts',
 ];
 const rawArgs = process.argv.slice(2).filter((value) => value.trim().length > 0);

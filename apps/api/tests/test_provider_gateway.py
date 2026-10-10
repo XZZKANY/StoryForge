@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Generator
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
@@ -32,44 +31,6 @@ def workspace_id(session_factory: sessionmaker[Session]) -> int:
         session.add(workspace)
         session.commit()
         return workspace.id
-
-
-def test_provider_gateway_registers_and_resolves_capability(client: TestClient, workspace_id: int) -> None:
-    global_provider = client.post(
-        "/api/provider-gateway/providers",
-        json={
-            "provider_name": "openai-global",
-            "priority": 50,
-            "capabilities": ["llm", "embedding"],
-            "model_aliases": {"writer": "gpt-5.5"},
-            "credential_ref": "vault://global/openai",
-        },
-    )
-    assert global_provider.status_code == 201, global_provider.text
-
-    workspace_provider = client.post(
-        "/api/provider-gateway/providers",
-        json={
-            "workspace_id": workspace_id,
-            "provider_name": "anthropic-team",
-            "priority": 10,
-            "capabilities": ["llm"],
-            "model_aliases": {"reviewer": "claude-sonnet"},
-            "credential_ref": "vault://workspace/anthropic",
-        },
-    )
-    assert workspace_provider.status_code == 201, workspace_provider.text
-
-    listing = client.get("/api/provider-gateway/providers", params={"workspace_id": workspace_id})
-    assert listing.status_code == 200, listing.text
-    assert [item["provider_name"] for item in listing.json()] == ["anthropic-team", "openai-global"]
-
-    resolution = client.get("/api/provider-gateway/resolve", params={"workspace_id": workspace_id, "capability": "llm"})
-    assert resolution.status_code == 200, resolution.text
-    result = resolution.json()
-    assert result["provider_name"] == "anthropic-team"
-    assert result["model_aliases"]["reviewer"] == "claude-sonnet"
-    assert result["resolution_source"] == "database"
 
 
 def test_provider_gateway_uses_environment_llm_when_key_configured(
