@@ -280,8 +280,6 @@ async function main() {
     assertSchemaManagedByAlembic(serverLogs);
     log('sqlite schema 已由 alembic 纳管(managed=true)');
 
-    log('分层 prompt 构建器已随 exe 打包(F05 死路已收口)');
-
     log(`OK: ${tier} 冒烟全绿`);
   } catch (error) {
     fail(error.message);

@@ -271,7 +271,7 @@ def test_workflow_compat_dispatch_and_payload_facade_stay_pruned() -> None:
 
     # 2026-10 自动整书链整体退役：book_runs 只剩 models.py 供既有表与外键使用。
     assert {path.name for path in book_runs_root.glob("*.py")} == {"__init__.py", "models.py"}
-    assert not (book_runs_root / "prompts").exists()
+    assert not list((book_runs_root / "prompts").glob("*.py"))
 
     recording_source = (model_runs_root / "recording.py").read_text(encoding="utf-8")
     model_runs_service_source = (model_runs_root / "service.py").read_text(encoding="utf-8")

@@ -38,7 +38,7 @@ StoryForge 是面向长篇小说的 Desktop IDE-first AI 写作工作台（2026-
 
 - **API（后端事实源）：** FastAPI（Python 3.11+） + SQLAlchemy + Alembic + Pydantic v2，依赖管理走 `uv`。
 - **Desktop IDE（主产品入口）：** Tauri 2 + Vite + React 18 + Monaco Editor + 本地文件系统集成。
-- **后台运行时：** 由 `apps/api` 内的 BookRun/Agent runtime 承载长任务、checkpoint、真实模型调用边界；独立 Workflow app 已于 2026-07-26 退役。
+- **后台运行时：** 由 `apps/api` 内的 Agent runtime 承载长任务与真实模型调用边界；独立 Workflow app 已于 2026-07-26 退役，BookRun 自动整书链已于 2026-10-09 退役。
 - **共享契约：** `packages/shared`（TypeScript 包），其中 `src/contracts/storyforge.openapi.json` 是后端 OpenAPI 快照，必须随后端变化同步刷新。
 - **基础设施：** PostgreSQL（+ pgvector） + Redis + MinIO（对象存储） + Sentry（错误追踪） + Prometheus 指标。
 - **包管理：** pnpm 9.x（workspace），Python 侧 `uv sync`。
@@ -132,7 +132,7 @@ uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/waveN --tas
 ```
 
 - **变体纪律：** baseline 恒等引用真实构建器；变体一律「从 baseline 渲染结果做 section 级删除 / 替换」+ 删前断言目标块恰好出现一次，**不手抄 prompt 文案**（否则双源漂移）。
-- **两条 prompt 链是分开的**，别把一条的结论当另一条的：批量路径 `book_runs/prompts/`（多行 section 形态，BookRun 后台工具）、live 产字路径 `app/common/craft.py::craft_prompt_clause()`（扁平子句形态，chat 循环 / file.revise / file.create / prose.continue 四条）。共用 `CRAFT_GUIDELINES` 文本，其余各存各的。
+- **现在只剩一条 prompt 链**：live 产字路径 `app/common/craft.py::craft_prompt_clause()`（扁平子句形态，chat 循环 / file.revise / file.create / prose.continue 四条）。批量路径 `book_runs/prompts/` 已随 BookRun 于 2026-10-09 退役；「两条链结论不可互相外推」的告诫此后只在读旧实验报告时还适用。
 - **已裁定（2026-07-31~08-01，五波实验 + 三轮 workflow 评判）：** 删创作准则的好坏对照锚点 → adopt，两条链均已删（`test_craft_guidelines_reach` 钉死不许挂回）；wave4/5 在 live 链的开篇短格与高潮长格上补测，未复现「删例后丢必含事实」，此前的跨链外推转为实测；`half-examples` 不采用；**`task-rewrite` 已于 wave6 在无例基线上重测（完整章格 × 3 重复）：两组必含事实同为 3/3、情节要素与陈词无差异，未见优势，不 adopt**，变体保留在 `registry.py` 供后续更大样本复测。wave1-5 原始输出已于 2026-08-01 清理，结论与逐字核验引文记档在 `.codex/verification-report.md`（搜 `prompt_lab` / `wave`）。
 
 ## 5. 架构事实源
@@ -172,13 +172,13 @@ uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/waveN --tas
 - Desktop IDE：打开本地项目、文件树浏览、Monaco 编辑、版本记录、命令面板、保存快照和 API 配置注入；单色语义 token + 明暗双主题。
 - Desktop 对话式 Agent：项目级对话会话（切文件不丢，消息持久化于 `assistant_sessions`，左栏会话历史列表可切换 / 新建）、`chat.explain` 真·LLM 回话、chat 自由文本 LLM 工具循环（path-scoped 只读 `fs.list` / `fs.read` / `fs.search` + 一致性观察 `project.consistency` + 深度一致性语义评审 `project.deep_consistency`（本地人物 / 设定文件作 Character Bible 喂语义 judge，advisory issue 信号）+ 新文件起草 `file.create`，逐调用证据链，流程树全事件驱动）、真实文件修订、多视角 file.review、稳定 issue id、范围控制、proposed patch（含新文件补丁自动打开目标文件）和按项目权限确认或自动执行的 guarded writeback。注意：工具循环入口是 chat 自由文本，审稿 / 修订 / 起草 / 一致性观察 / 深度一致性已并入循环（一次对话最多一个 proposed patch），chapter.review / bookrun.* 不并入循环（后台定位，已记为决定）；默认 `ask` 档确认链与真·LLM tool-calling headless 实跑已有证据，`auto` / `full` 真机连续写回仍未验。
 - 私测 Alpha 单机后端：sidecar exe 独立起服（sqlite 自建表）、BYO-key、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar，均已本机验证。
-- BookRun（后台工具）：deterministic/mock provider 下可跑最小整书闭环，支持 checkpoint、预算暂停、provider 降级、Markdown/EPUB/审计报告导出；不作为主产品控制台。
 - 真实 LLM：1/3/10 章 smoke 有脱敏证据；30 章真实长程有链路和制品导出证据，但质量未通过；Q9 16 章真实跑门禁修复后人工通读通过。
 - Web：`apps/web` 已退场；旧页面只保留在历史文档和 git 历史中。
 - Provider/LLM：通过 Provider Gateway 真实接入与降级，敏感配置必须来自本机私有运行时环境变量。
 
 **不做：**
 
+- 不能跑自动整书，也不能导出 Markdown / EPUB / 审计报告：BookRun 链（整书生成、`bookrun.*` 命令、`writing_runs`、`exports`）已于 2026-10-09 退役；`book_runs` 表与 4 处外键（`agent_runs` / `assistant_sessions` / `model_runs` / `story_state_*`）暂留，删表另走 Alembic 迁移。
 - 不能宣称真实 3-5 万字长程质量验收通过；30 章真实长程已人工退回重跑。
 - 不能把自动审计、golden gate 或模型自评等同于人工通读通过。
 - 不能宣称稳定生产级长篇生产闭环。
@@ -193,7 +193,7 @@ uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/waveN --tas
 
 1. 编辑器做到「安全可日更」（第一段）：S7 装机前两小刀（Rust 写侧 containment、L7 单实例守卫）→ S14 尾巴（壳子 #2 面板 unmount 改 CSS 隐藏）→ S8 重建 0.1.2 NSIS（收进 PR #87-#125 全部修复）→ S9 AI 装机预验（headless 跑绿 WS/SSE）→ S10 真机第二轮堆积观感波（一次捆绑 2-3h：壳子新 UI、WS 子协议、SSE、IME、canon dossier、权限四轨、双开；首轮门禁 G.1 已于 2026-07-07 全 PASS）→ S11 修复波 + 轻量锁版 tag。
 2. 在编辑器上写作品（第二段）：S3 手稿保险（连载目录仓库外 git init + 自动 commit，开写前夕建）→ 接续 n=1 连载（创作资产存档 `D:\记事本\`，canon.json 首刷吃末世系统数字状态）；写作即 dogfood，摩擦日志驱动每周至多一刀 QoL。
-3. 质量轨已换锚（D1，后台）：3-5 万字长程重跑不排期，n=1 稳定后重评；BookRun 维持后台工具；Q1-Q8 一致性能力逐步做成 agent 工具挂进循环（已落 7 个观察 / advisory 工具）。
+3. 质量轨已换锚（D1，后台）：3-5 万字长程重跑不排期，n=1 稳定后重评；BookRun 已于 2026-10-09 退役（原「维持后台工具」作废）；Q1-Q8 一致性能力逐步做成 agent 工具挂进循环（已落 7 个观察 / advisory 工具）。
 
 ## 9. 常见陷阱
 
