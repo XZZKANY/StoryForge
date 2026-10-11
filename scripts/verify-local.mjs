@@ -32,6 +32,12 @@ const gates = [
     cwd: root,
   },
   {
+    name: 'TS engine 类型检查与 golden 契约测试',
+    command: 'pnpm',
+    args: ['run', 'test:engine'],
+    cwd: root,
+  },
+  {
     name: 'Desktop frontend 单元测试',
     command: 'npm',
     args: ['--prefix', 'apps/desktop/frontend', 'run', 'test'],

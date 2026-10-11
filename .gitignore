@@ -56,6 +56,7 @@ redis-data/
 .trellis/
 AGENTS.md
 output/
+packages/engine/golden-local/
 
 # 本地工具噪声
 .claude/settings.local.json

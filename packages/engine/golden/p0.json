@@ -1,0 +1,2503 @@
+{
+  "format_version": 1,
+  "suite": "p0",
+  "platform": "windows",
+  "sources": {
+    "app/common/manuscript.py": "a4069b5543df7faaa4952df8f0545024fba4a850c70bb3b993b775f3ec87368a",
+    "app/common/project_tree.py": "ec3803868d1896d23e0c86480b3552cf0afcfac1c8ae5d2c4de65c4dec585320",
+    "app/domains/agent_runs/book_context.py": "df49a517d3f765de92a72ce39ba69ee77a25c1cd10d8a6fc91ca93f89735c383",
+    "app/domains/agent_runs/prose_pattern_rules.py": "7e85fba9bf326b0cef5636f3402a20a4cfb6dbe5f9e8101b2dfdd058654a6768"
+  },
+  "membership": [
+    {
+      "input": "",
+      "output": false
+    },
+    {
+      "input": "灵感.md",
+      "output": false
+    },
+    {
+      "input": "正文/灵感.md",
+      "output": true
+    },
+    {
+      "input": "第01章.md",
+      "output": true
+    },
+    {
+      "input": "大纲/总纲.md",
+      "output": false
+    },
+    {
+      "input": "OUTLINE/a.md",
+      "output": false
+    },
+    {
+      "input": "正文\\卷一\\第01章.md",
+      "output": true
+    },
+    {
+      "input": "资料/素材.md",
+      "output": false
+    },
+    {
+      "input": "chapters/1.md",
+      "output": true
+    },
+    {
+      "input": "正文/.hidden/a.md",
+      "output": true
+    }
+  ],
+  "manuscript": [
+    {
+      "id": "empty",
+      "entries": [
+        {
+          "relative_path": "正文/目录.md",
+          "is_directory": true
+        }
+      ],
+      "output": []
+    },
+    {
+      "id": "membership",
+      "entries": [
+        {
+          "relative_path": "第01章.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "灵感.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/灵感.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "大纲/总纲.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "人物/主角.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "设定/规则.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "OUTLINE/a.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "资料/素材.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "knowledge/facts.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": ".storyforge/canon.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/.hidden/a.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/a.txt",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/第02章.MD",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/.draft.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "draft/3.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "manuscript/4.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "chapters/5.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/目录.md",
+          "is_directory": true
+        }
+      ],
+      "output": [
+        "chapters/5.md",
+        "draft/3.md",
+        "manuscript/4.md",
+        "正文/灵感.md",
+        "正文/第02章.MD",
+        "第01章.md"
+      ]
+    },
+    {
+      "id": "unicode-order",
+      "entries": [
+        {
+          "relative_path": "正文/𠀀.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/😀.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/é.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/é.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/A2.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/a1.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/b.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/第10章.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/第2章.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/A/第01章.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/A0.md",
+          "is_directory": false
+        },
+        {
+          "relative_path": "正文/目录.md",
+          "is_directory": true
+        }
+      ],
+      "output": [
+        "正文/A/第01章.md",
+        "正文/A0.md",
+        "正文/A2.md",
+        "正文/a1.md",
+        "正文/b.md",
+        "正文/é.md",
+        "正文/é.md",
+        "正文/第10章.md",
+        "正文/第2章.md",
+        "正文/.md",
+        "正文/😀.md",
+        "正文/𠀀.md"
+      ]
+    }
+  ],
+  "book_context": [
+    {
+      "id": "empty",
+      "input": {
+        "chapters": [],
+        "current_relative_path": null,
+        "current_ordinal": null,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": null
+    },
+    {
+      "id": "empty-open-note",
+      "input": {
+        "chapters": [],
+        "current_relative_path": "大纲/a.md",
+        "current_ordinal": null,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": null
+    },
+    {
+      "id": "size-0",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 0
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 0 字；平均每章 约 0 字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "size-1",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 3
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 1 字；平均每章 约 1 字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "size-999",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 2997
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 999 字；平均每章 约 999 字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "size-1000",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 3000
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 1.0 千字；平均每章 约 1.0 千字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "size-1250",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 3750
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 1.2 千字；平均每章 约 1.2 千字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "size-1350",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 4050
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 1.4 千字；平均每章 约 1.4 千字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "size-2250",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 6750
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 2.2 千字；平均每章 约 2.2 千字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "size-2350",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 7050
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 2.4 千字；平均每章 约 2.4 千字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "size-9999",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 29997
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 10.0 千字；平均每章 约 10.0 千字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "size-10000",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 30000
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 1.0 万字；平均每章 约 1.0 万字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "size-12500",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 37500
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 1.2 万字；平均每章 约 1.2 万字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "size-22500",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 67500
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 2.2 万字；平均每章 约 2.2 万字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "size-999999",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "正文/第01章.md",
+            "size_bytes": 2999997
+          }
+        ],
+        "current_relative_path": "正文/第01章.md",
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 100.0 万字；平均每章 约 100.0 万字；当前打开的是第 1 章（正文/第01章.md）。"
+    },
+    {
+      "id": "sum-before-floor",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "a.md",
+            "size_bytes": 2
+          },
+          {
+            "ordinal": 2,
+            "relative_path": "b.md",
+            "size_bytes": 2
+          }
+        ],
+        "current_relative_path": null,
+        "current_ordinal": null,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 2 章正文 · 约 1 字；平均每章 约 0 字；当前没有打开正文。"
+    },
+    {
+      "id": "null-path-with-ordinal",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "a.md",
+            "size_bytes": 30
+          }
+        ],
+        "current_relative_path": null,
+        "current_ordinal": 1,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 10 字；平均每章 约 10 字；当前打开的是第 1 章（None）。"
+    },
+    {
+      "id": "open-non-manuscript",
+      "input": {
+        "chapters": [
+          {
+            "ordinal": 1,
+            "relative_path": "a.md",
+            "size_bytes": 30
+          }
+        ],
+        "current_relative_path": "人物/主角.md",
+        "current_ordinal": null,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 1 章正文 · 约 10 字；平均每章 约 10 字；当前打开的 人物/主角.md 不计入阅读序（非正文目录）。"
+    },
+    {
+      "id": "skeleton-over-limit",
+      "input": {
+        "chapters": [],
+        "current_relative_path": null,
+        "current_ordinal": null,
+        "skeleton": [
+          {
+            "relative_path": "大纲/第1卷.md",
+            "estimated_chars": 1250,
+            "source_type": "outline"
+          },
+          {
+            "relative_path": "大纲/第2卷.md",
+            "estimated_chars": 2500,
+            "source_type": "outline"
+          },
+          {
+            "relative_path": "大纲/第3卷.md",
+            "estimated_chars": 3750,
+            "source_type": "outline"
+          },
+          {
+            "relative_path": "大纲/第4卷.md",
+            "estimated_chars": 5000,
+            "source_type": "outline"
+          },
+          {
+            "relative_path": "大纲/第5卷.md",
+            "estimated_chars": 6250,
+            "source_type": "outline"
+          },
+          {
+            "relative_path": "大纲/第6卷.md",
+            "estimated_chars": 7500,
+            "source_type": "outline"
+          },
+          {
+            "relative_path": "大纲/第7卷.md",
+            "estimated_chars": 8750,
+            "source_type": "outline"
+          },
+          {
+            "relative_path": "大纲/第8卷.md",
+            "estimated_chars": 10000,
+            "source_type": "outline"
+          },
+          {
+            "relative_path": "大纲/第9卷.md",
+            "estimated_chars": 11250,
+            "source_type": "outline"
+          },
+          {
+            "relative_path": "大纲/第10卷.md",
+            "estimated_chars": 12500,
+            "source_type": "outline"
+          },
+          {
+            "relative_path": "大纲/第11卷.md",
+            "estimated_chars": 13750,
+            "source_type": "outline"
+          },
+          {
+            "relative_path": "大纲/第12卷.md",
+            "estimated_chars": 15000,
+            "source_type": "outline"
+          },
+          {
+            "relative_path": "大纲/第13卷.md",
+            "estimated_chars": 16250,
+            "source_type": "outline"
+          }
+        ],
+        "skeleton_total": 18,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 0 章正文 · 约 0 字；当前没有打开正文。\n\n[Project Knowledge 索引 · 需要时用 project_knowledge read 展开]\n· 大纲/第1卷.md（outline · 约 1.2 千字）\n· 大纲/第2卷.md（outline · 约 2.5 千字）\n· 大纲/第3卷.md（outline · 约 3.8 千字）\n· 大纲/第4卷.md（outline · 约 5.0 千字）\n· 大纲/第5卷.md（outline · 约 6.2 千字）\n· 大纲/第6卷.md（outline · 约 7.5 千字）\n· 大纲/第7卷.md（outline · 约 8.8 千字）\n· 大纲/第8卷.md（outline · 约 1.0 万字）\n· 大纲/第9卷.md（outline · 约 1.1 万字）\n· 大纲/第10卷.md（outline · 约 1.2 万字）\n· 大纲/第11卷.md（outline · 约 1.4 万字）\n· 大纲/第12卷.md（outline · 约 1.5 万字）\n· 大纲/第13卷.md（outline · 约 1.6 万字）\n· …另有 6 份，用 project_knowledge list 看全。"
+    },
+    {
+      "id": "roster-branches",
+      "input": {
+        "chapters": [],
+        "current_relative_path": null,
+        "current_ordinal": null,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [
+          {
+            "canonical_name": "林舟",
+            "aliases": [
+              "阿舟",
+              "舟哥",
+              "船主",
+              "第四别名"
+            ],
+            "first_chapter": 1,
+            "last_chapter": 1,
+            "missing": false
+          },
+          {
+            "canonical_name": "沈禾",
+            "aliases": [],
+            "first_chapter": 2,
+            "last_chapter": 9,
+            "missing": false
+          },
+          {
+            "canonical_name": "巡夜人",
+            "aliases": [],
+            "first_chapter": 1,
+            "last_chapter": 5,
+            "missing": true
+          },
+          {
+            "canonical_name": "铜钟",
+            "aliases": [],
+            "first_chapter": null,
+            "last_chapter": 5,
+            "missing": false
+          },
+          {
+            "canonical_name": "旧钥匙",
+            "aliases": [],
+            "first_chapter": 2,
+            "last_chapter": null,
+            "missing": false
+          },
+          {
+            "canonical_name": "门锁",
+            "aliases": [],
+            "first_chapter": null,
+            "last_chapter": null,
+            "missing": false
+          }
+        ],
+        "roster_declared_total": 23,
+        "dossier_relative_path": null,
+        "previous_chapter": null
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 0 章正文 · 约 0 字；当前没有打开正文。\n\n[已声明的人物 / 实体台账]\n· 林舟（又称 阿舟 / 舟哥 / 船主） · 仅第 1 章在场\n· 沈禾 · 第 2–9 章在场\n· 巡夜人 · 正文中尚未登场\n· 铜钟\n· 旧钥匙\n· 门锁\n· …另有 3 位，见 canon.json。"
+    },
+    {
+      "id": "previous-20",
+      "input": {
+        "chapters": [],
+        "current_relative_path": null,
+        "current_ordinal": null,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": [
+          "正文/前章.md",
+          ""
+        ]
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 0 章正文 · 约 0 字；当前没有打开正文。\n\n[上一章结尾 · 正文/前章.md]\n"
+    },
+    {
+      "id": "previous-21",
+      "input": {
+        "chapters": [],
+        "current_relative_path": null,
+        "current_ordinal": null,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": [
+          "正文/前章.md",
+          "上一章收尾。"
+        ]
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 0 章正文 · 约 0 字；当前没有打开正文。\n\n[上一章结尾 · 正文/前章.md]\n上一章收尾。"
+    },
+    {
+      "id": "previous-22",
+      "input": {
+        "chapters": [],
+        "current_relative_path": null,
+        "current_ordinal": null,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": [
+          "正文/前章.md",
+          "第一段\n第二段\n"
+        ]
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 0 章正文 · 约 0 字；当前没有打开正文。\n\n[上一章结尾 · 正文/前章.md]\n第一段\n第二段\n"
+    },
+    {
+      "id": "previous-23",
+      "input": {
+        "chapters": [],
+        "current_relative_path": null,
+        "current_ordinal": null,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": [
+          "正文/前章.md",
+          "第一段\r\n第二段\r\n"
+        ]
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 0 章正文 · 约 0 字；当前没有打开正文。\n\n[上一章结尾 · 正文/前章.md]\n第一段\r\n第二段\r\n"
+    },
+    {
+      "id": "previous-24",
+      "input": {
+        "chapters": [],
+        "current_relative_path": null,
+        "current_ordinal": null,
+        "skeleton": [],
+        "skeleton_total": 0,
+        "roster": [],
+        "roster_declared_total": 0,
+        "dossier_relative_path": null,
+        "previous_chapter": [
+          "正文/前章.md",
+          "𠀀😀\r结束\n\n"
+        ]
+      },
+      "output": "[作品底座 · 确定性]\n· 全书 0 章正文 · 约 0 字；当前没有打开正文。\n\n[上一章结尾 · 正文/前章.md]\n𠀀😀\r结束\n\n"
+    }
+  ],
+  "paragraph_patterns": [
+    {
+      "id": "empty",
+      "input": "",
+      "output": []
+    },
+    {
+      "id": "clean",
+      "input": "他推开门，握紧刀，转身，看向巷口，又停下。",
+      "output": []
+    },
+    {
+      "id": "transitions",
+      "input": "与此同时，顾迟越过断桥。\n另一边，沈禾推开仓门。\n镜头一转，巡夜人抵达钟楼。\n雨水顺着铁门落下。\n雨水顺着铁门落下。\n雨水顺着铁门落下。\n雨水顺着铁门落下。\n雨水顺着铁门落下。",
+      "output": [
+        {
+          "dimension": "mechanical_transition",
+          "severity": "低",
+          "snippet": "与此同时、另一边、镜头一转",
+          "message": "段首转场套语命中 3 段，占非空段落 38%，转场节奏可能机械。",
+          "suggestion": "删去可由场景内容自行交代的转场词，用人物动作、地点细节或时间变化直接开段。",
+          "revision_strategy": "scene_patch"
+        }
+      ]
+    },
+    {
+      "id": "quarter-density",
+      "input": "与此同时，顾迟越过断桥。\n另一边，沈禾推开仓门。\n镜头一转，巡夜人抵达钟楼。\n雨水顺着铁门落下。\n雨水顺着铁门落下。\n雨水顺着铁门落下。\n雨水顺着铁门落下。\n雨水顺着铁门落下。\n雨水顺着铁门落下。\n雨水顺着铁门落下。\n雨水顺着铁门落下。\n雨水顺着铁门落下。",
+      "output": []
+    },
+    {
+      "id": "percentage-half-even",
+      "input": "与此同时，顾迟越过断桥。\n另一边，沈禾推开仓门。\n镜头一转，巡夜人抵达钟楼。\n与此同时，顾迟越过断桥。\n另一边，沈禾推开仓门。\n雨水落下。\n雨水落下。\n雨水落下。",
+      "output": [
+        {
+          "dimension": "mechanical_transition",
+          "severity": "低",
+          "snippet": "与此同时、另一边、镜头一转、与此同时",
+          "message": "段首转场套语命中 5 段，占非空段落 62%，转场节奏可能机械。",
+          "suggestion": "删去可由场景内容自行交代的转场词，用人物动作、地点细节或时间变化直接开段。",
+          "revision_strategy": "scene_patch"
+        }
+      ]
+    },
+    {
+      "id": "questions",
+      "input": "他真的能回来吗？\n难道门后有人？\n谁也没想到，门锁换了。",
+      "output": [
+        {
+          "dimension": "formulaic_question",
+          "severity": "低",
+          "snippet": "他真的能回来吗？ / 难道门后有人？ / 谁也没想到",
+          "message": "叙述性设问命中 3 段，约每千字 115.4 次，悬念表达可能公式化。",
+          "suggestion": "把部分设问改成可见的异常、选择代价或信息缺口，让悬念由事件产生。",
+          "revision_strategy": "line_edit"
+        }
+      ]
+    },
+    {
+      "id": "diluted-questions",
+      "input": "他真的能回来吗？\n难道门后有人？\n谁也没想到，门锁换了。\n石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙石墙",
+      "output": []
+    },
+    {
+      "id": "dialogue",
+      "input": "“你要去吗？”\n「难道现在就走？」\n\"到底是谁呢？\"\n“一切才刚刚开始。”",
+      "output": []
+    },
+    {
+      "id": "contrasts",
+      "input": "这不是退让，而是换路。\n与其说他在等，不如说他在计算。\n表面上仓库废弃，实际上炉火未熄。",
+      "output": [
+        {
+          "dimension": "binary_contrast",
+          "severity": "低",
+          "snippet": "不是退让，而是换路 / 与其说他在等，不如说他在计算 / 表面上仓库废弃，实际上炉火未熄",
+          "message": "二元对比句式命中 3 段，反复对偶可能让叙述显得预制。",
+          "suggestion": "保留真正改变理解的一处对比，其余改成具体行动、证据或人物判断。",
+          "revision_strategy": "line_edit"
+        }
+      ]
+    },
+    {
+      "id": "contrast-sentence-boundary",
+      "input": "这不是退让，而是换路。\n与其说他在等，不如说他在计算。\n这不是谎言。守卫沉默，而是转身。",
+      "output": []
+    },
+    {
+      "id": "summaries",
+      "input": "雨停了，一切才刚刚开始。\n他们离开广场，这一切都将改变未来。\n未来尚未揭晓！",
+      "output": [
+        {
+          "dimension": "hollow_summary",
+          "severity": "低",
+          "snippet": "雨停了，一切才刚刚开始。 / 他们离开广场，这一切都将改变未来。 / 未来尚未揭晓！",
+          "message": "发现 3 处段尾空泛总结，抽象收束可能替代了实际变化。",
+          "suggestion": "让段尾落在新事实、人物决定或可追踪后果上，少用泛化命运/未来总结。",
+          "revision_strategy": "scene_patch"
+        }
+      ]
+    },
+    {
+      "id": "all-four",
+      "input": "与此同时，顾迟越过断桥。\n另一边，沈禾推开仓门。\n镜头一转，巡夜人抵达钟楼。\n他真的能回来吗？\n难道门后有人？\n谁也没想到，门锁换了。\n这不是退让，而是换路。\n与其说他在等，不如说他在计算。\n表面上仓库废弃，实际上炉火未熄。\n雨停了，一切才刚刚开始。",
+      "output": [
+        {
+          "dimension": "mechanical_transition",
+          "severity": "低",
+          "snippet": "与此同时、另一边、镜头一转",
+          "message": "段首转场套语命中 3 段，占非空段落 30%，转场节奏可能机械。",
+          "suggestion": "删去可由场景内容自行交代的转场词，用人物动作、地点细节或时间变化直接开段。",
+          "revision_strategy": "scene_patch"
+        },
+        {
+          "dimension": "formulaic_question",
+          "severity": "低",
+          "snippet": "他真的能回来吗？ / 难道门后有人？ / 谁也没想到",
+          "message": "叙述性设问命中 3 段，约每千字 25.9 次，悬念表达可能公式化。",
+          "suggestion": "把部分设问改成可见的异常、选择代价或信息缺口，让悬念由事件产生。",
+          "revision_strategy": "line_edit"
+        },
+        {
+          "dimension": "binary_contrast",
+          "severity": "低",
+          "snippet": "不是退让，而是换路 / 与其说他在等，不如说他在计算 / 表面上仓库废弃，实际上炉火未熄",
+          "message": "二元对比句式命中 3 段，反复对偶可能让叙述显得预制。",
+          "suggestion": "保留真正改变理解的一处对比，其余改成具体行动、证据或人物判断。",
+          "revision_strategy": "line_edit"
+        },
+        {
+          "dimension": "hollow_summary",
+          "severity": "低",
+          "snippet": "雨停了，一切才刚刚开始。",
+          "message": "发现 1 处段尾空泛总结，抽象收束可能替代了实际变化。",
+          "suggestion": "让段尾落在新事实、人物决定或可追踪后果上，少用泛化命运/未来总结。",
+          "revision_strategy": "scene_patch"
+        }
+      ]
+    },
+    {
+      "id": "python-whitespace",
+      "input": "\u001c他真的能回来吗？\r\n难道门后有人？\r\n谁也没想到，门锁换了。\u001f",
+      "output": [
+        {
+          "dimension": "formulaic_question",
+          "severity": "低",
+          "snippet": "他真的能回来吗？ / 难道门后有人？ / 谁也没想到",
+          "message": "叙述性设问命中 3 段，约每千字 115.4 次，悬念表达可能公式化。",
+          "suggestion": "把部分设问改成可见的异常、选择代价或信息缺口，让悬念由事件产生。",
+          "revision_strategy": "line_edit"
+        }
+      ]
+    },
+    {
+      "id": "bom-not-whitespace",
+      "input": "﻿与此同时，顾迟越过断桥。\n另一边，沈禾推开仓门。\n镜头一转，巡夜人抵达钟楼。﻿",
+      "output": []
+    },
+    {
+      "id": "supplementary-slices",
+      "input": "不是𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀而是😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\n不是𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀而是😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\n不是𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀而是😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+      "output": [
+        {
+          "dimension": "binary_contrast",
+          "severity": "低",
+          "snippet": "不是𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀而是😀😀😀😀😀😀😀😀😀 / 不是𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀而是😀😀😀😀😀😀😀😀😀 / 不是𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀𠀀而是😀😀😀😀😀😀😀😀😀",
+          "message": "二元对比句式命中 3 段，反复对偶可能让叙述显得预制。",
+          "suggestion": "保留真正改变理解的一处对比，其余改成具体行动、证据或人物判断。",
+          "revision_strategy": "line_edit"
+        }
+      ]
+    },
+    {
+      "id": "question-patterns",
+      "input": "莫非钟楼无人？\n他真的会离开么?」\n门锁已经换过？不，钥匙还在。",
+      "output": [
+        {
+          "dimension": "formulaic_question",
+          "severity": "低",
+          "snippet": "莫非钟楼无人？ / 他真的会离开么?」 / 门锁已经换过？不，钥匙还在。",
+          "message": "叙述性设问命中 3 段，约每千字 100.0 次，悬念表达可能公式化。",
+          "suggestion": "把部分设问改成可见的异常、选择代价或信息缺口，让悬念由事件产生。",
+          "revision_strategy": "line_edit"
+        }
+      ]
+    },
+    {
+      "id": "markers",
+      "input": "没人料到，井底有门。\n真正的答案尚未揭晓。\n谁也没想到，雨停了。",
+      "output": [
+        {
+          "dimension": "formulaic_question",
+          "severity": "低",
+          "snippet": "没人料到 / 真正的答案尚未揭晓 / 谁也没想到",
+          "message": "叙述性设问命中 3 段，约每千字 100.0 次，悬念表达可能公式化。",
+          "suggestion": "把部分设问改成可见的异常、选择代价或信息缺口，让悬念由事件产生。",
+          "revision_strategy": "line_edit"
+        },
+        {
+          "dimension": "hollow_summary",
+          "severity": "低",
+          "snippet": "真正的答案尚未揭晓。",
+          "message": "发现 1 处段尾空泛总结，抽象收束可能替代了实际变化。",
+          "suggestion": "让段尾落在新事实、人物决定或可追踪后果上，少用泛化命运/未来总结。",
+          "revision_strategy": "scene_patch"
+        }
+      ]
+    },
+    {
+      "id": "remaining-contrasts",
+      "input": "看似仓门锁紧，实则窗后无人。\n并非他忘了，反倒记得更清楚。\n不是借口而是事实。",
+      "output": [
+        {
+          "dimension": "binary_contrast",
+          "severity": "低",
+          "snippet": "看似仓门锁紧，实则窗后无人 / 并非他忘了，反倒记得更清楚 / 不是借口而是事实",
+          "message": "二元对比句式命中 3 段，反复对偶可能让叙述显得预制。",
+          "suggestion": "保留真正改变理解的一处对比，其余改成具体行动、证据或人物判断。",
+          "revision_strategy": "line_edit"
+        }
+      ]
+    },
+    {
+      "id": "question-density-boundary",
+      "input": "他真的能回来吗？\n难道门后有人？\n谁也没想到，门锁换了。\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "output": []
+    }
+  ],
+  "fixed": [
+    {
+      "value": 0.0,
+      "digits": 0,
+      "output": "0"
+    },
+    {
+      "value": 0.0,
+      "digits": 1,
+      "output": "0.0"
+    },
+    {
+      "value": 0.0,
+      "digits": 2,
+      "output": "0.00"
+    },
+    {
+      "value": -0.0,
+      "digits": 0,
+      "output": "-0"
+    },
+    {
+      "value": -0.0,
+      "digits": 1,
+      "output": "-0.0"
+    },
+    {
+      "value": -0.0,
+      "digits": 2,
+      "output": "-0.00"
+    },
+    {
+      "value": 1.25,
+      "digits": 0,
+      "output": "1"
+    },
+    {
+      "value": 1.25,
+      "digits": 1,
+      "output": "1.2"
+    },
+    {
+      "value": 1.25,
+      "digits": 2,
+      "output": "1.25"
+    },
+    {
+      "value": 1.35,
+      "digits": 0,
+      "output": "1"
+    },
+    {
+      "value": 1.35,
+      "digits": 1,
+      "output": "1.4"
+    },
+    {
+      "value": 1.35,
+      "digits": 2,
+      "output": "1.35"
+    },
+    {
+      "value": 2.25,
+      "digits": 0,
+      "output": "2"
+    },
+    {
+      "value": 2.25,
+      "digits": 1,
+      "output": "2.2"
+    },
+    {
+      "value": 2.25,
+      "digits": 2,
+      "output": "2.25"
+    },
+    {
+      "value": 2.35,
+      "digits": 0,
+      "output": "2"
+    },
+    {
+      "value": 2.35,
+      "digits": 1,
+      "output": "2.4"
+    },
+    {
+      "value": 2.35,
+      "digits": 2,
+      "output": "2.35"
+    },
+    {
+      "value": 2.675,
+      "digits": 0,
+      "output": "3"
+    },
+    {
+      "value": 2.675,
+      "digits": 1,
+      "output": "2.7"
+    },
+    {
+      "value": 2.675,
+      "digits": 2,
+      "output": "2.67"
+    },
+    {
+      "value": 37.5,
+      "digits": 0,
+      "output": "38"
+    },
+    {
+      "value": 37.5,
+      "digits": 1,
+      "output": "37.5"
+    },
+    {
+      "value": 37.5,
+      "digits": 2,
+      "output": "37.50"
+    },
+    {
+      "value": 62.5,
+      "digits": 0,
+      "output": "62"
+    },
+    {
+      "value": 62.5,
+      "digits": 1,
+      "output": "62.5"
+    },
+    {
+      "value": 62.5,
+      "digits": 2,
+      "output": "62.50"
+    },
+    {
+      "value": 1e+20,
+      "digits": 0,
+      "output": "100000000000000000000"
+    },
+    {
+      "value": 1e+20,
+      "digits": 1,
+      "output": "100000000000000000000.0"
+    },
+    {
+      "value": 1e+20,
+      "digits": 2,
+      "output": "100000000000000000000.00"
+    },
+    {
+      "value": 1e-10,
+      "digits": 0,
+      "output": "0"
+    },
+    {
+      "value": 1e-10,
+      "digits": 1,
+      "output": "0.0"
+    },
+    {
+      "value": 1e-10,
+      "digits": 2,
+      "output": "0.00"
+    },
+    {
+      "value": -1.25,
+      "digits": 0,
+      "output": "-1"
+    },
+    {
+      "value": -1.25,
+      "digits": 1,
+      "output": "-1.2"
+    },
+    {
+      "value": -1.25,
+      "digits": 2,
+      "output": "-1.25"
+    },
+    {
+      "value": 31.487,
+      "digits": 0,
+      "output": "31"
+    },
+    {
+      "value": 31.487,
+      "digits": 1,
+      "output": "31.5"
+    },
+    {
+      "value": 31.487,
+      "digits": 2,
+      "output": "31.49"
+    },
+    {
+      "value": -273.1,
+      "digits": 0,
+      "output": "-273"
+    },
+    {
+      "value": -273.1,
+      "digits": 1,
+      "output": "-273.1"
+    },
+    {
+      "value": -273.1,
+      "digits": 2,
+      "output": "-273.10"
+    },
+    {
+      "value": 39.671,
+      "digits": 0,
+      "output": "40"
+    },
+    {
+      "value": 39.671,
+      "digits": 1,
+      "output": "39.7"
+    },
+    {
+      "value": 39.671,
+      "digits": 2,
+      "output": "39.67"
+    },
+    {
+      "value": -291.148,
+      "digits": 0,
+      "output": "-291"
+    },
+    {
+      "value": -291.148,
+      "digits": 1,
+      "output": "-291.1"
+    },
+    {
+      "value": -291.148,
+      "digits": 2,
+      "output": "-291.15"
+    },
+    {
+      "value": -415.035,
+      "digits": 0,
+      "output": "-415"
+    },
+    {
+      "value": -415.035,
+      "digits": 1,
+      "output": "-415.0"
+    },
+    {
+      "value": -415.035,
+      "digits": 2,
+      "output": "-415.04"
+    },
+    {
+      "value": -884.973,
+      "digits": 0,
+      "output": "-885"
+    },
+    {
+      "value": -884.973,
+      "digits": 1,
+      "output": "-885.0"
+    },
+    {
+      "value": -884.973,
+      "digits": 2,
+      "output": "-884.97"
+    },
+    {
+      "value": -916.104,
+      "digits": 0,
+      "output": "-916"
+    },
+    {
+      "value": -916.104,
+      "digits": 1,
+      "output": "-916.1"
+    },
+    {
+      "value": -916.104,
+      "digits": 2,
+      "output": "-916.10"
+    },
+    {
+      "value": -248.91,
+      "digits": 0,
+      "output": "-249"
+    },
+    {
+      "value": -248.91,
+      "digits": 1,
+      "output": "-248.9"
+    },
+    {
+      "value": -248.91,
+      "digits": 2,
+      "output": "-248.91"
+    },
+    {
+      "value": 6.5,
+      "digits": 0,
+      "output": "6"
+    },
+    {
+      "value": 6.5,
+      "digits": 1,
+      "output": "6.5"
+    },
+    {
+      "value": 6.5,
+      "digits": 2,
+      "output": "6.50"
+    },
+    {
+      "value": -922.02,
+      "digits": 0,
+      "output": "-922"
+    },
+    {
+      "value": -922.02,
+      "digits": 1,
+      "output": "-922.0"
+    },
+    {
+      "value": -922.02,
+      "digits": 2,
+      "output": "-922.02"
+    },
+    {
+      "value": 445.827,
+      "digits": 0,
+      "output": "446"
+    },
+    {
+      "value": 445.827,
+      "digits": 1,
+      "output": "445.8"
+    },
+    {
+      "value": 445.827,
+      "digits": 2,
+      "output": "445.83"
+    },
+    {
+      "value": -969.293,
+      "digits": 0,
+      "output": "-969"
+    },
+    {
+      "value": -969.293,
+      "digits": 1,
+      "output": "-969.3"
+    },
+    {
+      "value": -969.293,
+      "digits": 2,
+      "output": "-969.29"
+    },
+    {
+      "value": 479.323,
+      "digits": 0,
+      "output": "479"
+    },
+    {
+      "value": 479.323,
+      "digits": 1,
+      "output": "479.3"
+    },
+    {
+      "value": 479.323,
+      "digits": 2,
+      "output": "479.32"
+    },
+    {
+      "value": 814.844,
+      "digits": 0,
+      "output": "815"
+    },
+    {
+      "value": 814.844,
+      "digits": 1,
+      "output": "814.8"
+    },
+    {
+      "value": 814.844,
+      "digits": 2,
+      "output": "814.84"
+    },
+    {
+      "value": 597.532,
+      "digits": 0,
+      "output": "598"
+    },
+    {
+      "value": 597.532,
+      "digits": 1,
+      "output": "597.5"
+    },
+    {
+      "value": 597.532,
+      "digits": 2,
+      "output": "597.53"
+    },
+    {
+      "value": 407.796,
+      "digits": 0,
+      "output": "408"
+    },
+    {
+      "value": 407.796,
+      "digits": 1,
+      "output": "407.8"
+    },
+    {
+      "value": 407.796,
+      "digits": 2,
+      "output": "407.80"
+    },
+    {
+      "value": -275.886,
+      "digits": 0,
+      "output": "-276"
+    },
+    {
+      "value": -275.886,
+      "digits": 1,
+      "output": "-275.9"
+    },
+    {
+      "value": -275.886,
+      "digits": 2,
+      "output": "-275.89"
+    },
+    {
+      "value": -544.556,
+      "digits": 0,
+      "output": "-545"
+    },
+    {
+      "value": -544.556,
+      "digits": 1,
+      "output": "-544.6"
+    },
+    {
+      "value": -544.556,
+      "digits": 2,
+      "output": "-544.56"
+    },
+    {
+      "value": 989.733,
+      "digits": 0,
+      "output": "990"
+    },
+    {
+      "value": 989.733,
+      "digits": 1,
+      "output": "989.7"
+    },
+    {
+      "value": 989.733,
+      "digits": 2,
+      "output": "989.73"
+    },
+    {
+      "value": 381.595,
+      "digits": 0,
+      "output": "382"
+    },
+    {
+      "value": 381.595,
+      "digits": 1,
+      "output": "381.6"
+    },
+    {
+      "value": 381.595,
+      "digits": 2,
+      "output": "381.60"
+    },
+    {
+      "value": 268.493,
+      "digits": 0,
+      "output": "268"
+    },
+    {
+      "value": 268.493,
+      "digits": 1,
+      "output": "268.5"
+    },
+    {
+      "value": 268.493,
+      "digits": 2,
+      "output": "268.49"
+    },
+    {
+      "value": 112.876,
+      "digits": 0,
+      "output": "113"
+    },
+    {
+      "value": 112.876,
+      "digits": 1,
+      "output": "112.9"
+    },
+    {
+      "value": 112.876,
+      "digits": 2,
+      "output": "112.88"
+    },
+    {
+      "value": 802.232,
+      "digits": 0,
+      "output": "802"
+    },
+    {
+      "value": 802.232,
+      "digits": 1,
+      "output": "802.2"
+    },
+    {
+      "value": 802.232,
+      "digits": 2,
+      "output": "802.23"
+    },
+    {
+      "value": -731.149,
+      "digits": 0,
+      "output": "-731"
+    },
+    {
+      "value": -731.149,
+      "digits": 1,
+      "output": "-731.1"
+    },
+    {
+      "value": -731.149,
+      "digits": 2,
+      "output": "-731.15"
+    },
+    {
+      "value": -9.989,
+      "digits": 0,
+      "output": "-10"
+    },
+    {
+      "value": -9.989,
+      "digits": 1,
+      "output": "-10.0"
+    },
+    {
+      "value": -9.989,
+      "digits": 2,
+      "output": "-9.99"
+    },
+    {
+      "value": 915.547,
+      "digits": 0,
+      "output": "916"
+    },
+    {
+      "value": 915.547,
+      "digits": 1,
+      "output": "915.5"
+    },
+    {
+      "value": 915.547,
+      "digits": 2,
+      "output": "915.55"
+    },
+    {
+      "value": -944.802,
+      "digits": 0,
+      "output": "-945"
+    },
+    {
+      "value": -944.802,
+      "digits": 1,
+      "output": "-944.8"
+    },
+    {
+      "value": -944.802,
+      "digits": 2,
+      "output": "-944.80"
+    },
+    {
+      "value": -992.379,
+      "digits": 0,
+      "output": "-992"
+    },
+    {
+      "value": -992.379,
+      "digits": 1,
+      "output": "-992.4"
+    },
+    {
+      "value": -992.379,
+      "digits": 2,
+      "output": "-992.38"
+    },
+    {
+      "value": -517.233,
+      "digits": 0,
+      "output": "-517"
+    },
+    {
+      "value": -517.233,
+      "digits": 1,
+      "output": "-517.2"
+    },
+    {
+      "value": -517.233,
+      "digits": 2,
+      "output": "-517.23"
+    },
+    {
+      "value": 865.704,
+      "digits": 0,
+      "output": "866"
+    },
+    {
+      "value": 865.704,
+      "digits": 1,
+      "output": "865.7"
+    },
+    {
+      "value": 865.704,
+      "digits": 2,
+      "output": "865.70"
+    },
+    {
+      "value": -492.357,
+      "digits": 0,
+      "output": "-492"
+    },
+    {
+      "value": -492.357,
+      "digits": 1,
+      "output": "-492.4"
+    },
+    {
+      "value": -492.357,
+      "digits": 2,
+      "output": "-492.36"
+    },
+    {
+      "value": -684.534,
+      "digits": 0,
+      "output": "-685"
+    },
+    {
+      "value": -684.534,
+      "digits": 1,
+      "output": "-684.5"
+    },
+    {
+      "value": -684.534,
+      "digits": 2,
+      "output": "-684.53"
+    },
+    {
+      "value": -591.122,
+      "digits": 0,
+      "output": "-591"
+    },
+    {
+      "value": -591.122,
+      "digits": 1,
+      "output": "-591.1"
+    },
+    {
+      "value": -591.122,
+      "digits": 2,
+      "output": "-591.12"
+    },
+    {
+      "value": -222.443,
+      "digits": 0,
+      "output": "-222"
+    },
+    {
+      "value": -222.443,
+      "digits": 1,
+      "output": "-222.4"
+    },
+    {
+      "value": -222.443,
+      "digits": 2,
+      "output": "-222.44"
+    },
+    {
+      "value": 880.329,
+      "digits": 0,
+      "output": "880"
+    },
+    {
+      "value": 880.329,
+      "digits": 1,
+      "output": "880.3"
+    },
+    {
+      "value": 880.329,
+      "digits": 2,
+      "output": "880.33"
+    },
+    {
+      "value": 703.517,
+      "digits": 0,
+      "output": "704"
+    },
+    {
+      "value": 703.517,
+      "digits": 1,
+      "output": "703.5"
+    },
+    {
+      "value": 703.517,
+      "digits": 2,
+      "output": "703.52"
+    },
+    {
+      "value": 493.528,
+      "digits": 0,
+      "output": "494"
+    },
+    {
+      "value": 493.528,
+      "digits": 1,
+      "output": "493.5"
+    },
+    {
+      "value": 493.528,
+      "digits": 2,
+      "output": "493.53"
+    },
+    {
+      "value": -46.501,
+      "digits": 0,
+      "output": "-47"
+    },
+    {
+      "value": -46.501,
+      "digits": 1,
+      "output": "-46.5"
+    },
+    {
+      "value": -46.501,
+      "digits": 2,
+      "output": "-46.50"
+    },
+    {
+      "value": 279.225,
+      "digits": 0,
+      "output": "279"
+    },
+    {
+      "value": 279.225,
+      "digits": 1,
+      "output": "279.2"
+    },
+    {
+      "value": 279.225,
+      "digits": 2,
+      "output": "279.23"
+    },
+    {
+      "value": -386.27,
+      "digits": 0,
+      "output": "-386"
+    },
+    {
+      "value": -386.27,
+      "digits": 1,
+      "output": "-386.3"
+    },
+    {
+      "value": -386.27,
+      "digits": 2,
+      "output": "-386.27"
+    },
+    {
+      "value": -966.084,
+      "digits": 0,
+      "output": "-966"
+    },
+    {
+      "value": -966.084,
+      "digits": 1,
+      "output": "-966.1"
+    },
+    {
+      "value": -966.084,
+      "digits": 2,
+      "output": "-966.08"
+    },
+    {
+      "value": -705.255,
+      "digits": 0,
+      "output": "-705"
+    },
+    {
+      "value": -705.255,
+      "digits": 1,
+      "output": "-705.3"
+    },
+    {
+      "value": -705.255,
+      "digits": 2,
+      "output": "-705.25"
+    },
+    {
+      "value": -460.037,
+      "digits": 0,
+      "output": "-460"
+    },
+    {
+      "value": -460.037,
+      "digits": 1,
+      "output": "-460.0"
+    },
+    {
+      "value": -460.037,
+      "digits": 2,
+      "output": "-460.04"
+    },
+    {
+      "value": -123.648,
+      "digits": 0,
+      "output": "-124"
+    },
+    {
+      "value": -123.648,
+      "digits": 1,
+      "output": "-123.6"
+    },
+    {
+      "value": -123.648,
+      "digits": 2,
+      "output": "-123.65"
+    },
+    {
+      "value": 452.754,
+      "digits": 0,
+      "output": "453"
+    },
+    {
+      "value": 452.754,
+      "digits": 1,
+      "output": "452.8"
+    },
+    {
+      "value": 452.754,
+      "digits": 2,
+      "output": "452.75"
+    },
+    {
+      "value": -265.1,
+      "digits": 0,
+      "output": "-265"
+    },
+    {
+      "value": -265.1,
+      "digits": 1,
+      "output": "-265.1"
+    },
+    {
+      "value": -265.1,
+      "digits": 2,
+      "output": "-265.10"
+    },
+    {
+      "value": 619.248,
+      "digits": 0,
+      "output": "619"
+    },
+    {
+      "value": 619.248,
+      "digits": 1,
+      "output": "619.2"
+    },
+    {
+      "value": 619.248,
+      "digits": 2,
+      "output": "619.25"
+    },
+    {
+      "value": 537.904,
+      "digits": 0,
+      "output": "538"
+    },
+    {
+      "value": 537.904,
+      "digits": 1,
+      "output": "537.9"
+    },
+    {
+      "value": 537.904,
+      "digits": 2,
+      "output": "537.90"
+    },
+    {
+      "value": -576.806,
+      "digits": 0,
+      "output": "-577"
+    },
+    {
+      "value": -576.806,
+      "digits": 1,
+      "output": "-576.8"
+    },
+    {
+      "value": -576.806,
+      "digits": 2,
+      "output": "-576.81"
+    },
+    {
+      "value": -361.566,
+      "digits": 0,
+      "output": "-362"
+    },
+    {
+      "value": -361.566,
+      "digits": 1,
+      "output": "-361.6"
+    },
+    {
+      "value": -361.566,
+      "digits": 2,
+      "output": "-361.57"
+    },
+    {
+      "value": -535.011,
+      "digits": 0,
+      "output": "-535"
+    },
+    {
+      "value": -535.011,
+      "digits": 1,
+      "output": "-535.0"
+    },
+    {
+      "value": -535.011,
+      "digits": 2,
+      "output": "-535.01"
+    },
+    {
+      "value": 781.495,
+      "digits": 0,
+      "output": "781"
+    },
+    {
+      "value": 781.495,
+      "digits": 1,
+      "output": "781.5"
+    },
+    {
+      "value": 781.495,
+      "digits": 2,
+      "output": "781.50"
+    },
+    {
+      "value": -252.809,
+      "digits": 0,
+      "output": "-253"
+    },
+    {
+      "value": -252.809,
+      "digits": 1,
+      "output": "-252.8"
+    },
+    {
+      "value": -252.809,
+      "digits": 2,
+      "output": "-252.81"
+    },
+    {
+      "value": 67.45,
+      "digits": 0,
+      "output": "67"
+    },
+    {
+      "value": 67.45,
+      "digits": 1,
+      "output": "67.5"
+    },
+    {
+      "value": 67.45,
+      "digits": 2,
+      "output": "67.45"
+    },
+    {
+      "value": -774.586,
+      "digits": 0,
+      "output": "-775"
+    },
+    {
+      "value": -774.586,
+      "digits": 1,
+      "output": "-774.6"
+    },
+    {
+      "value": -774.586,
+      "digits": 2,
+      "output": "-774.59"
+    },
+    {
+      "value": 443.159,
+      "digits": 0,
+      "output": "443"
+    },
+    {
+      "value": 443.159,
+      "digits": 1,
+      "output": "443.2"
+    },
+    {
+      "value": 443.159,
+      "digits": 2,
+      "output": "443.16"
+    },
+    {
+      "value": -659.053,
+      "digits": 0,
+      "output": "-659"
+    },
+    {
+      "value": -659.053,
+      "digits": 1,
+      "output": "-659.1"
+    },
+    {
+      "value": -659.053,
+      "digits": 2,
+      "output": "-659.05"
+    },
+    {
+      "value": 445.415,
+      "digits": 0,
+      "output": "445"
+    },
+    {
+      "value": 445.415,
+      "digits": 1,
+      "output": "445.4"
+    },
+    {
+      "value": 445.415,
+      "digits": 2,
+      "output": "445.42"
+    },
+    {
+      "value": -54.724,
+      "digits": 0,
+      "output": "-55"
+    },
+    {
+      "value": -54.724,
+      "digits": 1,
+      "output": "-54.7"
+    },
+    {
+      "value": -54.724,
+      "digits": 2,
+      "output": "-54.72"
+    },
+    {
+      "value": -856.141,
+      "digits": 0,
+      "output": "-856"
+    },
+    {
+      "value": -856.141,
+      "digits": 1,
+      "output": "-856.1"
+    },
+    {
+      "value": -856.141,
+      "digits": 2,
+      "output": "-856.14"
+    },
+    {
+      "value": 825.12,
+      "digits": 0,
+      "output": "825"
+    },
+    {
+      "value": 825.12,
+      "digits": 1,
+      "output": "825.1"
+    },
+    {
+      "value": 825.12,
+      "digits": 2,
+      "output": "825.12"
+    },
+    {
+      "value": -7.45,
+      "digits": 0,
+      "output": "-7"
+    },
+    {
+      "value": -7.45,
+      "digits": 1,
+      "output": "-7.5"
+    },
+    {
+      "value": -7.45,
+      "digits": 2,
+      "output": "-7.45"
+    },
+    {
+      "value": -282.753,
+      "digits": 0,
+      "output": "-283"
+    },
+    {
+      "value": -282.753,
+      "digits": 1,
+      "output": "-282.8"
+    },
+    {
+      "value": -282.753,
+      "digits": 2,
+      "output": "-282.75"
+    },
+    {
+      "value": -284.687,
+      "digits": 0,
+      "output": "-285"
+    },
+    {
+      "value": -284.687,
+      "digits": 1,
+      "output": "-284.7"
+    },
+    {
+      "value": -284.687,
+      "digits": 2,
+      "output": "-284.69"
+    },
+    {
+      "value": -234.272,
+      "digits": 0,
+      "output": "-234"
+    },
+    {
+      "value": -234.272,
+      "digits": 1,
+      "output": "-234.3"
+    },
+    {
+      "value": -234.272,
+      "digits": 2,
+      "output": "-234.27"
+    },
+    {
+      "value": -395.001,
+      "digits": 0,
+      "output": "-395"
+    },
+    {
+      "value": -395.001,
+      "digits": 1,
+      "output": "-395.0"
+    },
+    {
+      "value": -395.001,
+      "digits": 2,
+      "output": "-395.00"
+    },
+    {
+      "value": -328.331,
+      "digits": 0,
+      "output": "-328"
+    },
+    {
+      "value": -328.331,
+      "digits": 1,
+      "output": "-328.3"
+    },
+    {
+      "value": -328.331,
+      "digits": 2,
+      "output": "-328.33"
+    },
+    {
+      "value": -28.424,
+      "digits": 0,
+      "output": "-28"
+    },
+    {
+      "value": -28.424,
+      "digits": 1,
+      "output": "-28.4"
+    },
+    {
+      "value": -28.424,
+      "digits": 2,
+      "output": "-28.42"
+    },
+    {
+      "value": 834.047,
+      "digits": 0,
+      "output": "834"
+    },
+    {
+      "value": 834.047,
+      "digits": 1,
+      "output": "834.0"
+    },
+    {
+      "value": 834.047,
+      "digits": 2,
+      "output": "834.05"
+    },
+    {
+      "value": -536.366,
+      "digits": 0,
+      "output": "-536"
+    },
+    {
+      "value": -536.366,
+      "digits": 1,
+      "output": "-536.4"
+    },
+    {
+      "value": -536.366,
+      "digits": 2,
+      "output": "-536.37"
+    },
+    {
+      "value": 694.731,
+      "digits": 0,
+      "output": "695"
+    },
+    {
+      "value": 694.731,
+      "digits": 1,
+      "output": "694.7"
+    },
+    {
+      "value": 694.731,
+      "digits": 2,
+      "output": "694.73"
+    },
+    {
+      "value": 515.054,
+      "digits": 0,
+      "output": "515"
+    },
+    {
+      "value": 515.054,
+      "digits": 1,
+      "output": "515.1"
+    },
+    {
+      "value": 515.054,
+      "digits": 2,
+      "output": "515.05"
+    },
+    {
+      "value": -541.105,
+      "digits": 0,
+      "output": "-541"
+    },
+    {
+      "value": -541.105,
+      "digits": 1,
+      "output": "-541.1"
+    },
+    {
+      "value": -541.105,
+      "digits": 2,
+      "output": "-541.11"
+    },
+    {
+      "value": -900.037,
+      "digits": 0,
+      "output": "-900"
+    },
+    {
+      "value": -900.037,
+      "digits": 1,
+      "output": "-900.0"
+    },
+    {
+      "value": -900.037,
+      "digits": 2,
+      "output": "-900.04"
+    },
+    {
+      "value": -753.759,
+      "digits": 0,
+      "output": "-754"
+    },
+    {
+      "value": -753.759,
+      "digits": 1,
+      "output": "-753.8"
+    },
+    {
+      "value": -753.759,
+      "digits": 2,
+      "output": "-753.76"
+    },
+    {
+      "value": 133.393,
+      "digits": 0,
+      "output": "133"
+    },
+    {
+      "value": 133.393,
+      "digits": 1,
+      "output": "133.4"
+    },
+    {
+      "value": 133.393,
+      "digits": 2,
+      "output": "133.39"
+    },
+    {
+      "value": -517.307,
+      "digits": 0,
+      "output": "-517"
+    },
+    {
+      "value": -517.307,
+      "digits": 1,
+      "output": "-517.3"
+    },
+    {
+      "value": -517.307,
+      "digits": 2,
+      "output": "-517.31"
+    },
+    {
+      "value": -934.699,
+      "digits": 0,
+      "output": "-935"
+    },
+    {
+      "value": -934.699,
+      "digits": 1,
+      "output": "-934.7"
+    },
+    {
+      "value": -934.699,
+      "digits": 2,
+      "output": "-934.70"
+    },
+    {
+      "value": 302.017,
+      "digits": 0,
+      "output": "302"
+    },
+    {
+      "value": 302.017,
+      "digits": 1,
+      "output": "302.0"
+    },
+    {
+      "value": 302.017,
+      "digits": 2,
+      "output": "302.02"
+    },
+    {
+      "value": 50.965,
+      "digits": 0,
+      "output": "51"
+    },
+    {
+      "value": 50.965,
+      "digits": 1,
+      "output": "51.0"
+    },
+    {
+      "value": 50.965,
+      "digits": 2,
+      "output": "50.97"
+    }
+  ],
+  "cpu": [
+    {
+      "id": "clean",
+      "block": "他推开门，握紧刀，转身，看向巷口，又停下。\n",
+      "repetitions": 16384,
+      "padding": 0,
+      "bytes": 1048576,
+      "codepoints": 360448,
+      "sha256": "36481cacacfa1fd14000a8b263888525888a90cd4e37de0bb34601b55d80a1e5",
+      "output": []
+    },
+    {
+      "id": "mixed",
+      "block": "与此同时，顾迟越过断桥。\n另一边，沈禾推开仓门。\n镜头一转，巡夜人抵达钟楼。\n他真的能回来吗？\n难道门后有人？\n谁也没想到，门锁换了。\n这不是退让，而是换路。\n与其说他在等，不如说他在计算。\n表面上仓库废弃，实际上炉火未熄。\n未来尚未揭晓！\n𠀀😀\n",
+      "repetitions": 2978,
+      "padding": 320,
+      "bytes": 1048576,
+      "codepoints": 369592,
+      "sha256": "d223d40181d9f9c6f16c98e0d43edf9eab1aa2405f67fa0c33eec98c69d01197",
+      "output": [
+        {
+          "dimension": "mechanical_transition",
+          "severity": "低",
+          "snippet": "与此同时、另一边、镜头一转、与此同时",
+          "message": "段首转场套语命中 8934 段，占非空段落 27%，转场节奏可能机械。",
+          "suggestion": "删去可由场景内容自行交代的转场词，用人物动作、地点细节或时间变化直接开段。",
+          "revision_strategy": "scene_patch"
+        },
+        {
+          "dimension": "formulaic_question",
+          "severity": "低",
+          "snippet": "他真的能回来吗？ / 难道门后有人？ / 谁也没想到",
+          "message": "叙述性设问命中 8934 段，约每千字 26.5 次，悬念表达可能公式化。",
+          "suggestion": "把部分设问改成可见的异常、选择代价或信息缺口，让悬念由事件产生。",
+          "revision_strategy": "line_edit"
+        },
+        {
+          "dimension": "binary_contrast",
+          "severity": "低",
+          "snippet": "不是退让，而是换路 / 与其说他在等，不如说他在计算 / 表面上仓库废弃，实际上炉火未熄",
+          "message": "二元对比句式命中 8934 段，反复对偶可能让叙述显得预制。",
+          "suggestion": "保留真正改变理解的一处对比，其余改成具体行动、证据或人物判断。",
+          "revision_strategy": "line_edit"
+        },
+        {
+          "dimension": "hollow_summary",
+          "severity": "低",
+          "snippet": "未来尚未揭晓！ / 未来尚未揭晓！ / 未来尚未揭晓！",
+          "message": "发现 2978 处段尾空泛总结，抽象收束可能替代了实际变化。",
+          "suggestion": "让段尾落在新事实、人物决定或可追踪后果上，少用泛化命运/未来总结。",
+          "revision_strategy": "scene_patch"
+        }
+      ]
+    },
+    {
+      "id": "long-paragraph",
+      "block": "雨水映出𠀀😀，他没有回答。",
+      "repetitions": 25575,
+      "padding": 1,
+      "bytes": 1048576,
+      "codepoints": 332476,
+      "sha256": "7e45531997abe0d913e88c75d463d4eefa62b8ae3b4eb8d0254d30b891baebf8",
+      "output": []
+    }
+  ]
+}

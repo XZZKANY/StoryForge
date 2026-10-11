@@ -1,3 +1,4 @@
+import { compareChapterPaths } from '@storyforge/project-core';
 import { TauriFileSystem } from '../tauri-fs';
 import { FS_MUTATION_EVENT } from '../tauri-fs';
 import { buildProjectIndex } from './index';
@@ -44,20 +45,6 @@ type DraftOrder = {
   /** 当前文件在阅读序中的位置；当前文件不是正文（比如在改人物卡）时为 null。 */
   currentPosition: number | null;
 };
-
-/** 与后端 Python 路径排序一致，按 Unicode 码点比较，不随界面语言改变章序。 */
-function compareChapterPaths(a: string, b: string): number {
-  let left = 0;
-  let right = 0;
-  while (left < a.length && right < b.length) {
-    const aPoint = a.codePointAt(left)!;
-    const bPoint = b.codePointAt(right)!;
-    if (aPoint !== bPoint) return aPoint - bPoint;
-    left += aPoint > 0xffff ? 2 : 1;
-    right += bPoint > 0xffff ? 2 : 1;
-  }
-  return (left < a.length ? 1 : 0) - (right < b.length ? 1 : 0);
-}
 
 function buildDraftOrder(files: SemanticFile[], currentFile: string | null): DraftOrder {
   const positionByPath = new Map<string, number>();

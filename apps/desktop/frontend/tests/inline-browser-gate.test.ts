@@ -50,6 +50,7 @@ it('local verifier runs the durable browser gate between frontend units and API 
     '--prefix apps/desktop/frontend run typecheck',
     '--filter @storyforge/shared test',
     '--filter @storyforge/project-core test',
+    'run test:engine',
     'run ruff check .',
     'scripts/sidecar-smoke.mjs',
     'scripts/check-openapi-drift.mjs',

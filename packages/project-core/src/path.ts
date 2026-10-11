@@ -2,6 +2,20 @@ export function normalizeRoot(path: string): string {
   return path.replace(/[/\\]+$/, '');
 }
 
+/** Python's path order compares Unicode code points, not locale or UTF-16 units. */
+export function compareChapterPaths(a: string, b: string): number {
+  let left = 0;
+  let right = 0;
+  while (left < a.length && right < b.length) {
+    const aPoint = a.codePointAt(left)!;
+    const bPoint = b.codePointAt(right)!;
+    if (aPoint !== bPoint) return aPoint - bPoint;
+    left += aPoint > 0xffff ? 2 : 1;
+    right += bPoint > 0xffff ? 2 : 1;
+  }
+  return (left < a.length ? 1 : 0) - (right < b.length ? 1 : 0);
+}
+
 function projectSeparator(path: string): '\\' | '/' {
   return path.includes('\\') ? '\\' : '/';
 }
