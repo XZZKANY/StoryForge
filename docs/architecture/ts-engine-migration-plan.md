@@ -1,6 +1,6 @@
 # 后端换 TS：Python sidecar → 单进程 Tauri 迁移计划
 
-状态：**草案，待作者拍板**（2026-10-10）。本文是这项迁移的唯一计划文档；拍板后按 §12 的决定表改成「执行中」，每个 PR 合并时在 §6 的清单里打勾。
+状态：**P0 已验收 · 准备 P1 规划**（2026-10-11）。作者已认可 P0、批准三批本机提交（不 push），并确认完整引擎继续使用 `packages/engine`、全量保留现有功能与 provider（§12 B/C）；P1 规划复核前不启动实现。付费真跑、作者数据操作、默认切换与真机安装仍按阶段确认。本文是这项迁移的唯一计划文档；每个 PR 合并时在 §6 的清单里打勾。
 
 ---
 
@@ -137,16 +137,18 @@ Tauri 命令 28 个，前端全部在用；迁移新增 2 个插件（§2.4）�
 
 ### 2.3 数据存储
 
-新建 `storyforge-engine.sqlite3`（与旧库并排），6 张表：`sessions`、`messages`、`runs`、`run_events`、`artifacts`、`tool_calls`；`schema_version` 表管前向迁移（TS 里手写 `migrations/0001.sql …`，无 alembic）。`subagent_runs` 确认无消费方后不建（§12 决定 C）。
+新建 `storyforge-engine.sqlite3`（与旧库并排），基础表：`sessions`、`messages`、`runs`、`run_events`、`artifacts`、`tool_calls`；`schema_version` 表管前向迁移（TS 里手写 `migrations/0001.sql …`，无 alembic）。2026-10-11 已确认全量保留，不能按原裁剪建议省略 `subagent_runs` 数据或功能；其新库映射在 P4 按实际消费契约确定。
 
 旧库**只读导入一次**（Phase 4）：sessions / messages 全导，runs / events / artifacts 按需导（终态 run 只导摘要），导入后写标记，旧文件永不改动——回滚 0.1.10 时数据完好。
 
-### 2.4 新增 Tauri 插件（crates.io 2026-10-10 查询）
+### 2.4 新增 Tauri 插件（2026-10-11 兼容锁解析）
 
 | 插件 | 版本 | 用途 | 替代方案 |
 | --- | --- | --- | --- |
-| `tauri-plugin-http` | 2.8.2 | 从 Rust 发模型请求，流式读响应 | 若流式不达标：自写一个 Rust 命令 `llm_stream`，reqwest 流 + `tauri::ipc::Channel` 推 chunk（约 80 行，Cargo 已有 reqwest） |
-| `tauri-plugin-sql` | 2.5.0 | sqlite | `tauri-plugin-store`（JSON，不够关系查询）；不选 |
+| `tauri-plugin-http` | 2.6.1（exact） | 从 Rust 发模型请求，流式读响应 | 若流式不达标：先定位请求/响应/IPC/reader 的失败点，再评估 Rust `llm_stream`；不先加平行实现 |
+| `tauri-plugin-sql` | 2.4.1（exact） | sqlite | `tauri-plugin-store`（JSON，不够关系查询）；不选 |
+
+原候选 HTTP 2.8.2 / SQL 2.5.0 要求 Tauri 2.12；本次保留 Tauri 2.11.2 / frontend API 2.11.0，仅依赖锁中 fs 2.5.1→2.5.2。P0 使用官方 crate 自带 global API；npm import wrapper 安装/调用单独验证，不能以 global 探针替代交付。SQL 无 db/path scope，`select` 可执行 mutating SQL，旧库只读必须由 driver `mode=ro`、拒写及 hash 实证保证。
 
 ### 2.5 事件流
 
@@ -188,6 +190,8 @@ Tauri 命令 28 个，前端全部在用；迁移新增 2 个插件（§2.4）�
 
 `shadow` 档两边都跑，结果给 Python 的，TS 的与之 deep-diff，差异写到 `%LOCALAPPDATA%\com.storyforge.ide\shadow-diffs.jsonl`（只记结构化差异与路径，不记正文）。用作者自己的书跑一周，差异归零才允许切 `ts`。对 LLM 路径影子模式只比 prompt 文本，不双倍花钱。
 
+2026-10-11 源码核对补充：IDE 目录的 `writes=False` 不是无副作用证明；canon/observatory 写派生文件，plan 写计划，breakdown 还可能调用模型并记录 DB run/artifact。影子比较不得对同一作者文件树/数据库双写：只读命令比较同一稳定输入，有写入的命令使用隔离副本或捕获 TS write-intents，且不重复模型调用/记账。具体 snapshot/适配合同在 P1/P2/P4 落实；依赖未就绪不把局部命令验证称九命令 shadow 验收完成，也不靠 catch-all 静默回切掩盖差异。
+
 ### 4.3 golden 预言机
 
 `apps/api/scripts/golden_dump.py`：对 §6 标「golden」的每个纯函数，用合成夹具（入库，`packages/engine/golden/*.json`）和作者作品副本（**不入库**，本机生成到 `packages/engine/golden-local/`，已 gitignore）各跑一遍，输出 `{input, output}`。TS 测试读同一文件断言 deep-equal / 字符串相等。Python 删除前把合成夹具的输出冻结入库，之后 TS 测试不再依赖 Python。
@@ -224,13 +228,15 @@ LLM 路径沿用 Python 的 `providers/deterministic.py` 思路：TS 一个 `Scr
 
 | # | 探针 | 做法 | 判据 |
 | --- | --- | --- | --- |
-| P0-1 | 流式响应 | 在 dev 构建里装 `plugin-http`，对作者的 baseUrl 发 `stream: true` 请求，记录首 token 延迟与是否逐块到达 | 逐块到达且首块 < 3 s；否则改 Rust `llm_stream` 命令 |
-| P0-2 | sqlite | `plugin-sql` 打开旧库只读查 16 个会话；新建库 + WAL；量启动耗时 | 读旧库成功；新库建表 < 100 ms |
-| P0-3 | CPU | 把 `prose_scan` 的正则部分手搬一小段，在合成 1 MB 正文上主线程跑 | < 200 ms 留主线程，否则规划 Worker |
+| P0-1 | 流式响应 | Native `plugin-http` 对受控合成服务逐块读取，验证跨块 UTF-8、结束前可见、取消/错误与 ACL；作者 baseUrl/key 另行批准真跑 | 合成首块 < 3 s 且逐块到达；真实模型 TTFT 尚未验证，失败先定位再决定替代方案 |
+| P0-2 | sqlite | 当前模型生成合成旧库及一致性副本，16 个合成会话只读查询/拒写/hash；独立新库 + WAL；分开量启动、load、建表 | 合成行正确，缺失只读库不被创建；新库建表 < 100 ms，不改作者库 |
+| P0-3 | CPU | 迁移真实段落规则四族，在三个精确 1 MiB UTF-8 合成正文上，真实 WebView2 主线程预热/采样各 10 次 | 记录 p50/p95/max 与长任务；p95 ≥ 200 ms 规划 Worker，低于门限不批准全扫描留主线程 |
 | P0-4 | golden 流水线 | 以 `manuscript` 读序 + `book_context` 渲染为样本打通 Python dump → TS 测试 | 两个函数逐字节相等，含 CRLF 与末尾换行 |
 | P0-5 | 无 sidecar 构建 | 临时去掉 `externalBin` 打 NSIS，量体积 | 预期 25 到 30 MB，给作者看 |
 
 P0 结束出一份 `verification-report` 记录，附数字，再决定 P1 开工。
+
+2026-10-11 进度：P0 五项合成技术门通过，作者已认可结果并批准三批本机提交及准备 P1 规划；尚未批准 P1 实现。P0-4 为 338 个 TS 用例，半偶舍入变异 11 个失败、还原全绿；只覆盖枚举后的手稿读序和 `book_context` renderer，不代表完整遍历/context builder 已迁移。P0-1/2 Native 合成边界复跑通过：五块 UTF-8/SSE、首块 31–40 ms、取消/503/ACL；只读行/拒写/hash、缺失库拒绝、新库 WAL，单事务建表 16.4–23.3 ms。P0-3 最新 p95 98.4 / 64.2 / 5.8 ms，有 10 / 10 / 0 个长任务，只回答该规则子集。P0-5 同 release/完整前端/MinGit 的 NSIS 为 75.304→29.756 MiB（-60.485%），离线提取的 main 与 368 个 MinGit 文件 hash 相同，仅 sidecar 缺席；未安装/运行 size-only 应用。真实 provider/作者库、npm imports、完整单进程运行尚未验。详细验证见 `.codex/verification-report.md`。
 
 ### P1 内核（PR P1-1 … P1-9）
 
@@ -272,7 +278,7 @@ P0 结束出一份 `verification-report` 记录，附数字，再决定 P1 开�
 
 | # | 范围 | 验证 |
 | --- | --- | --- |
-| P4-1 | `store/`：6 张表、`schema_version`、迁移机制、Db port 的 plugin-sql 适配器与内存适配器 | 单测；并发写顺序测试 |
+| P4-1 | `store/`：基础 6 张表及全量保留所需 subagent 数据映射、`schema_version`、迁移机制、Db port 的 plugin-sql 适配器与内存适配器 | 单测；并发写顺序测试；不能遗漏 subagent 消费契约 |
 | P4-2 | 会话列表 / 历史 / 消息持久化 / tool_calls 记账接到引擎（`listAssistantSessions`、`getAssistantSession` 走 `ts`） | 前端会话切换守卫测试全绿 |
 | P4-3 | 旧库导入：首启动检测旧库 → 事务导入 → 写 `imported_from_v1` 标记；失败则不标记、下次重试 | 用作者库副本导入：16 会话 / 110 消息 / 55 run 逐条比对 |
 
@@ -486,6 +492,8 @@ OpenAPI 生成与漂移检查、`tests/e2e` 契约 spec、sidecar-smoke（daily 
 
 ## 12. 需要作者拍板的决定
 
+2026-10-11 已确认：**A 立即实施；B 全量迁移 OpenAI 兼容、Anthropic、Gemini；C 全量保留现有功能，不采用下表原裁剪建议**。D 的样本包位置已用于 P0，完整引擎合同在 P1 复核；E–H 及真实数据/费用/默认切换仍按阶段确认。下表保留初始建议作历史参考，不得据 B/C 建议删除现有能力；`subagent_runs` 的存储映射须在 P4 按真实消费方调查，不预先裁掉。
+
 | # | 决定 | 我的建议 | 影响 |
 | --- | --- | --- | --- |
 | A | 做不做；什么时候开始 | 做；P0 立刻开始 | 全局 |
@@ -497,4 +505,4 @@ OpenAPI 生成与漂移检查、`tests/e2e` 契约 spec、sidecar-smoke（daily 
 | G | 真跑预算 | 四次 headless 真跑（P2-4、P3-8、P5 两次）各约 5 到 20 万 token；用你的 key，每次先报预估 | 费用 |
 | H | 版本号 | 0.2.0 | 发版 |
 
-拍板后把本文头部状态改为「执行中」，在 §5 的表里填开始日期。
+P0 开始日期：2026-10-11；其余阶段开始日期随验收推进补充。

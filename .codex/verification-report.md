@@ -7305,3 +7305,85 @@ workspaces）、`judge/models.py`、`app/common/pagination.py`（app 内零消�
 - 未重建 NSIS、未在装机版真机点穿；三个下一步按钮触发的真·LLM 对话 / 起草未实跑（不花作者的 key）。
 - 开场只在新会话出现：桌面端会按项目恢复上次会话，打开作品若落在旧会话里看不到它，要点「新建会话」；
   工作台中栏打开时仍是「未选择文件」。两者都是下一刀候选，本刀不动。
+
+## 2026-10-11 TS 引擎迁移 P0：golden 与 Native CPU 样本
+
+作者已要求持续迁移，并选择全量保留功能及 OpenAI 兼容 / Anthropic / Gemini provider；没有批准裁剪、付费调用、默认切换或安装 size-only 制品。P0 仍在执行，不代表迁移完成。
+
+**已实现 / 已验**
+
+- `packages/engine` 仅含当前确定性样本；Python exporter 调实际函数，合成目录与 BookContext 生成 oracle，源 SHA256 / Windows 平台留标签，`--check` 逐字节通过。手稿样本只验证 canonical manifest 读序；contained traversal、resolved-role/link 过滤和 context builder 尚未迁移。
+- 既有码点 comparator 原样移至 project-core，前端共用；Python `.1f` 半偶舍入、CRLF/tail 原样、空值、字节汇总后取整，以及四族段落规则均由 oracle 钉住。338 个 TS tests 全绿，包含三个精确 1 MiB corpus descriptor；半偶改 half-up 的变异导致 11 failed / 324 passed，还原全绿。
+- 普通 debug Native + 独立 P0 identity / owned data 与 WebView profile，真实 CDP / WebView2，没有 renderer 或 IPC mock。可执行文件放到 owned root markers 下，仅启动 stdlib Python health stub，避免普通 root 查找导入真实 API/.env；仍不宣称无 Python 启动。
+- WebView2 三组各 10 次预热 + 10 次采样，结果/UTF-8 bytes/SHA256 与 Python 精确一致。第二轮 p50/p95/max（ms）：clean `67.2/74.4/74.4`，mixed `47.8/63.6/63.6`，long-paragraph `4.6/4.9/4.9`。三组均低于 200 ms，但 clean 有 10 个、mixed 有 3 个约 50–74 ms 长任务；这不批准完整 prose_static_scan 留主线程。首轮也测得低于 200 ms，第二轮补齐 mixed 四族命中并按时间区间重叠计长任务。
+- engine / project-core typecheck 通过，project-core 9 tests、原前端排序 17 tests 保留；前端全量 1939 passed / 1 skipped，build 通过（既有 chunk warning）；相关 Python 63 passed / 6 skipped，source standards 14 passed，exporter Ruff 通过。root lint 0 errors / 2 既有 any warnings。
+- 新 engine gate 接入 root test / verify-local / fast-tests，保留 frontend unit → browser → API 的既有相邻顺序；初次插入破坏顺序，被既有测试抓到，已移动并加注册断言。完整 test:fast 重跑通过：活路径 Python 124 + 前端 1939 / 1 skipped + engine 类型检查与 338 tests。
+
+**重放 / 证据**
+
+```text
+apps/api/.venv/Scripts/python.exe scripts/golden_dump.py --suite p0 --output D:/StoryForge/packages/engine/golden/p0.json --check  (CWD apps/api)
+corepack pnpm --filter @storyforge/engine run test / run typecheck
+node apps/desktop/frontend/scripts/verify-engine-p0-native.mjs --cpu-only
+output/ts-engine-p0/golden/mutation-half-even.log
+output/ts-engine-p0/native/run-j9Zfem/evidence.json
+output/ts-engine-p0/native/run-PPt32T/evidence.json
+```
+
+本机 PATH 的备用 pnpm 为 11，锁为 9.15.4；执行嵌套 pnpm gate 时使用 output 下局部 corepack shim，未改全局环境或依赖。pnpm lock 只增加 engine importer，没有升级现有条目。真实/私有 golden-local 路径已 ignore。
+
+**继续 / 尚未验**
+
+- 原计划插件 HTTP 2.8.2 / SQL 2.5.0 要求 Tauri 2.12，当前 2.11.2 不升级。已通过官方 sparse registry 正常 TLS 解析兼容 HTTP 2.6.1 / SQL 2.4.1，保留已有版本，仅 fs 2.5.1→2.5.2；Native 依赖与注册已加入，编译/真实流/SQL 补充实测见下。npm JS tarball 正常 TLS 获取未成功；官方 crate global API 的 P0 探针不等于 npm import 交付验证。
+- SQL 插件没有 db/path scope，select 可以执行 mutating SQL；旧库只读必须靠 driver `mode=ro`、拒写与 hash 实证，不能靠 allow-select。paired NSIS 的后续实测见 P0-5 段。
+- 没用作者 key / 书稿 / 原库；未切开关、未删 Python、未安装/启动无 sidecar 安装包，未进行 P1–P7 验收。
+
+### P0 Native HTTP / SQLite 补充实测
+
+- 兼容锁的 `cargo check --no-default-features --locked --offline` 通过；普通 debug host 真实 WebView2 / Rust 插件边界已跑通。使用官方 crate global API，不是 browser fetch、Python 转发或 IPC mock；npm import wrapper 仍未验。
+- 三次独立 owned run 的 HTTP 首块为 31 / 40 / 33 ms，均为五块而非 EOF 后整包；汉字与补充平面字符 UTF-8 字节被刻意拆开，fatal incremental decoder 完整还原 SSE 文本，DOM 在服务结束前已可见。503 状态/正文正确，reader.cancel 与 AbortSignal 后服务端连接关闭，越界 `/outside` 未进入服务且被 ACL 拒绝。这不是实际模型首 token 延迟。
+- 当前七张模型表生成合成闭合旧库，16 会话及消息/JSON/null/时间/CRLF 原始行与 Python sqlite3 查询一致。绝对物理路径经 `database_list` 核对；旧连接 execute/select 两种写尝试均报 code 8 readonly；缺失 mode=ro 库报 code 14 且没有创建文件。原始库、查询副本及 WAL/SHM/journal 前后 hash 一致；副本 oracle 查询生成的空 WAL/SHM 明确记录，不假称没有关联文件。
+- 首版三次独立 schema execute 测得 243.2 ms，100 ms 门失败，证据保留。改为单 execute 内显式事务初始化两表及版本后，三个 fresh run 测得 23.3 / 16.4 / 18.9 ms，门限未改；这些成功批次不证明完整生产 migration 的异常回滚/并发契约。首次 new load 为 878.5 ms，后三次为 31 / 24.2 / 39.4 ms，不能把首次差异完全归因于事务或 IPC。
+- 最终 run：Native ready 7.315 秒（含普通启动和合成 Python stub），old load 9.8 ms / new load 39.4 ms / schema 18.9 ms；WAL 与新库行/版本查询正确。插件实际创建 `C:/Users/kanye/AppData/Roaming/com.storyforge.engine.p0`，目录为空，两个数据库仍只在 output；不声称 runtime-path override 接管了 SQL 插件。
+- 最终 CPU p50/p95/max 为 clean 82.6/98.4/98.4、mixed 60.8/64.2/64.2、long 5.2/5.8/5.8 ms，长任务 10/10/0；三组仍低于 200 ms，但不得泛化为完整扫描或无 UI 卡顿。每次 fresh owned profile，warmup/sample 各 10，结果/bytes/hash 与 Python 一致。
+- `cargo test --locked --offline`：109 passed / 4 ignored（显式 Native 互操作夹具未运行）。Native fixture strict tsc / scoped ESLint / Prettier、两个 Python exporter Ruff 均通过。`cargo fmt --check` 未通过；HEAD 的未修改 main.rs 单独 rustfmt 也退出 1，保留 baseline 日志，未把两行注册扩成无关整文件格式化。
+- 最新回归：root lint 0 errors / 2 既有 warnings，engine types + 338 tests、Python oracle `--check` 通过。默认高并发的 test:fast 两次在未修改的 proposal-projection-integrity 穷举用例触发 5s timeout（6.442s / 5.755s）；该组独跑 7 tests 通过（1.64s），全量 `--maxWorkers=2` 为 1939 passed / 1 skipped。进一步只对拥有的测试 PowerShell/子进程设 3 CPU affinity（Node 实测 availableParallelism=3），完整原 test:fast 命令通过：Python 124、前端 1939 / 1 skipped、engine 338 + types；finally 恢复 affinity/env。没有提高超时、减少病例或修改无关测试/实现；默认并发的资源敏感性仍应如实保留。
+
+```text
+node apps/desktop/frontend/scripts/verify-engine-p0-native.mjs --all
+output/ts-engine-p0/native/run-glFeV2/evidence.json  # initial 243.2ms failed gate
+output/ts-engine-p0/native/run-hd4gBR/evidence.json
+output/ts-engine-p0/native/run-Ml6j93/evidence.json
+output/ts-engine-p0/native/run-eHeZG1/evidence.json  # final source hashes match
+output/ts-engine-p0/rustfmt-baseline.log
+output/ts-engine-p0/sql-negative-path.log
+output/ts-engine-p0/sql-negative-overwrite.log
+```
+
+P0-1/2/3/4 合成边界已实测；paired NSIS 结果补充如下。P0 仍不是整个迁移完成，也未进行真实 provider/作者库/默认切换。
+
+### P0-5 paired NSIS size-only
+
+同一 release 编译、完整 production frontend 配置/源码/插件、相同 MinGit 与冻结 sidecar，仅第二次 bundle 的 `externalBin=[]` 不同。frontend 用 Vite API `envFile=false`，不载入已存在的作者 frontend `.env.local`；清除该构建进程的私有/模型/VITE/TAURI 环境后恢复。无安装、无运行两份 release 应用，生产 tauri.conf hash 不变。
+
+| 制品 | Bytes | MiB |
+| --- | ---: | ---: |
+| 含 sidecar NSIS | 78,961,936 | 75.304 |
+| 无 sidecar NSIS | 31,201,931 | 29.756 |
+| 差值 | 47,760,005 | 45.547（60.485%） |
+
+- 编译主 exe 22,872,576 bytes；release 298.112s，两个 bundle 分别 112.978 / 65.776s。现有 sidecar raw 48,496,091 bytes，SHA256 `da79f6ff27d0220651b0c76e5990c410090155e2aa055bca39dc6a60946f8d95`；其确切 source revision 仍 UNKNOWN，不称重建/运行验证过当前 Python。
+- 不仅比较打包前后的磁盘 exe：用现有 7-Zip 离线提取两包（不执行安装器/应用），packaged main SHA256 均为 `256b76569ce156e475b61528677d08e368d3b04b66ef150dbdf496d1c34b37ed`；MinGit 全部 368 文件 / 93,883,963 bytes 的逐文件 hash 相同；含 sidecar 的提取值等于冻结输入，无 sidecar 包没有该文件。
+- Tauri bundle 临时将 `__TAURI_BUNDLE_TYPE_VAR_UNK` 改成 `..._NSS` 并恢复磁盘 exe：与 compiled baseline 仅 offsets 17,667,998–17,668,000 的三个字节不同。不能把打包期间的 main hash 差异误称源码变化，也不能只靠 bundle 后的 restored hash 推断包内 payload 相同；本次已验证真实提取值。
+- 两份 NSIS SHA256 分别 `77c5bba958ec9873aa20bd97811fbcac22ffbe1c1061a2868295b73aa1cab87b` / `aff11569018dd291672c25fa7b9cc1d65dc8d26b2fd1e440d3a4db4341ad877a`。实际输出是 31.2 decimal MB / 29.756 MiB，不为原计划的预期数字削减资源。
+
+```text
+& D:/StoryForge/output/ts-engine-p0/paired-size-only.ps1
+& D:/StoryForge/output/ts-engine-p0/verify-paired-payload.ps1 -Run D:/StoryForge/output/ts-engine-p0/size-20261011-035219
+output/ts-engine-p0/size-20261011-035219/evidence.json
+output/ts-engine-p0/size-20261011-035219/payload-verification.json
+output/ts-engine-p0/size-20261011-035219/bundle-tag-diff.json
+output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
+```
+
+**P0 五项合成技术门通过，作者已认可结果并批准三批本机提交（不 push）及准备 P1 规划。** 完整引擎继续使用 `packages/engine`，全部功能与 provider 保留；P1 规划复核前不启动实现。完整无 Python 启动、npm wrapper、真实模型/作者库、全扫描、影子周用、默认切换、退役与安装升级均不在这次完成声明内。工作提交哈希记录在 P0 任务及会话日志；整个迁移目标尚未完成。
