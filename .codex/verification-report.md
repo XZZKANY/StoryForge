@@ -7571,3 +7571,14 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：回放 198 条。变异 70 处全部被抓住；首轮 4 处存活（24–239 字的短文、代码块包着的非数组、严重度两侧空白、上游截断标记不是布尔），补夹具后全部抓住。
 - 门禁：引擎 typecheck 通过、10899 通过 / 2 跳过；eslint、prettier、ruff 通过；12 套 golden `--check` 一致；源码无 U+2028 / U+2029 字面字符。
 - 未做：IDE 命令注册表与拆书（P1-8b）；审稿 / 跨章接到模型通道（P2）；未读真实作者数据；无付费调用。
+
+## 2026-10-12 P1-8b 拆书（TS 迁移，默认仍走 Python）
+
+- 范围：book_breakdown（TXT / Markdown / JSON / DOCX 参考文本解析、中英文章节标题识别、代表章选择、模型结构化分析与一次重试、报告落盘与过期判定、代表章上下文）+ book_breakdown_control（取消登记）。Python 用标准库 zipfile / ElementTree 读 DOCX，引擎里新增 `docx.ts`：zip 判定贴近 CPython zipfile（EOCD 查找、前置数据偏移、中心目录、Unicode Path 扩展、Windows 反斜杠名、重名后者生效、重叠条目、本地头名比对、CRC），XML 是只收 well-formed 文档的严格解析（命名空间、实体与字符引用、CDATA、注释、PI、重复属性含展开名），按 ElementTree 的 root.iter(w:p) / .text 语义取段落。模型调用与取消改为显式端口；Python 侧零改动。
+- 预言机：`apps/api/scripts/golden_breakdown.py`：109 条纯函数用例（章节识别 17、代表章选择 78、模型输出解析 12、取消登记 2）+ 4 个合成项目 63 次调用（单文件读取 41，其中 DOCX 35 种：好文件、坏 zip 变体、19 种不合法 XML；拆书 12 次，含模型重试成功 / 两次失败 / 部分字段、四个取消检查点、自动生成 id；报告状态 9 次，含缺失 / 新鲜 / 过期 / 损坏 / 非对象 / 空状态回落）。写盘字节逐个比对（Windows 上 CRLF）。`--check` 复跑一致。
+- 关键对齐点：Python 正则的 `\b` / `\s` 是 Unicode 语义（「第一章开端」不算标题、全角空格算空白、BOM 不算空白）；`round()` 半偶舍入决定代表章位置；非法 UTF-8 按替换字符解码两边一致；JSON 标量按 Python `str()` 输出（`True`、`None`、`1e+16`、`-0.0`）；Python 的 `or` 真值（空串、空容器、`0.0` 为假）。
+- 输入范围（新增，按 §4.3.1）：参考文本单文件上限 64 MiB；JSON 参考文本按公共底线，语法错误照旧跳过，但 Python 认而底线不认的（NaN / Infinity、超 64 层、不安全整数、孤立代理）直接报错；DOCX 的加密、zip64、bzip2 / lzma、DOCTYPE、非 UTF-8 正文直接报错（Python 对其中多数直接崩溃）；已有报告的 status / analysis_id / input_sha256 不是字符串时按报告损坏处理。均有专门测试。
+- 接受的差异：JSON 参考文本里整数形的键（"1"、"10"）按 JS 的数值序展开，Python 按文件序（公共底线：键序不属于契约）；deflate 流损坏时按读不出处理（Python 直接崩溃）。
+- 测试：回放 190 条。变异 51 处全部被抓住；首轮 1 处存活（重复 `xmlns:` 声明只有原始名检查能抓），补夹具后抓住；另 1 处等价不计（锚点最多 7 个位置，12 章上限永远不起作用）。
+- 门禁：引擎 typecheck 通过、11089 通过 / 2 跳过；eslint、prettier、ruff 通过；13 套 golden `--check` 一致。
+- 未做：IDE 命令注册表（P1-8c）；拆书接模型通道与运行记录（P2 / P4）；未读真实作者数据；无付费调用。
