@@ -291,6 +291,7 @@ P0 结束出一份 `verification-report` 记录，附数字，再决定 P1 开�
 - 扫描组（2026-10-12）：文笔气味、伏笔承诺、场景承重、实体预算搬完；4 个合成项目 55 次调用 + 23 条纯函数用例逐字节一致，16 处变异全部抓住；canon.json 的 promises 字段纳入输入范围校验。observatory 等 canon_delta 搬完后随 P1-5 做，cross_chapter 的模型调用随 P1-8。
 - 提案与连载计划组 + 观测镜（2026-10-12）：canon_delta、hooks_delta、serial_plan、serial_plan_update、observatory 搬完；6 个合成项目 57 次调用 + 16 条纯函数用例逐字节一致（含 proposals / serial-plan / observations 写盘字节），25 处变异全部抓住；serial-plan.json 读到的字段纳入输入范围校验，观测镜生成时间改由调用方注入时钟。
 - 知识组（2026-10-12）：知识块、知识读取 / 索引 / 子串检索、检索排序、提议组、普通上下文、知识上下文合并、物化编译搬完；132 条纯函数用例 + 67 次项目调用逐字节一致，变异 27 处抓住 24 处（余 3 处等价）。收件箱与对话压缩的存储 / 模型部分随 P3 / P4，正则知识检索随 P3 文件工具。
+- 文风与策略组（2026-10-12）：创作准则、文风指纹与基线、作者指令与产字 prompt 组装、作者编辑政策、生成送达、角色与技能目录搬完；112 条纯函数用例 + 20 次项目调用逐字节一致，27 处变异全部抓住。review_report、revise_scope 随 P1-8 与审稿栈一起搬。
 - 首片仍未完整验收：继续补深层 JSON/reader 矩阵，并在后续负载保留性能验收；真实 WebView → mapper 的合成响应链已验证，但生产完整配置来源/实际 UI admission 仍待后续 owner。实际路由仍 Python，handoff 相对输入不变；P1-8/9 仍依赖 P2/P3/P4 与作者副本周用授权，不把合成绿测当全量完成。证据详见 `.codex/verification-report.md`。
 
 ### P2 LLM 通道 + assistant（PR P2-1 … P2-4）

@@ -201,3 +201,64 @@ export {
   materializedSource,
   replaceSamePathProjectSources,
 } from './kernel/knowledgeMaterialization';
+export {
+  AUTHOR_CRAFT_PRIORITY,
+  CLICHE_PHRASES,
+  CRAFT_GUIDELINES,
+  craftPromptClause,
+  REVIEW_RUBRICS,
+  reviewRubricClause,
+  SCENE_COLLAPSE_TEST,
+  SCENE_DISCIPLINE_ITEMS,
+  sceneDisciplineClause,
+  sceneDisciplineGuardClause,
+} from './kernel/craft';
+export {
+  appendStyleBaselineToSystemPrompt,
+  buildStyleBaseline,
+  markerCount,
+  splitSentences,
+  styleBaselineClause,
+  styleFingerprint,
+} from './kernel/styleBaseline';
+export type { StyleBaseline, StyleFingerprint, StyleTarget } from './kernel/styleBaseline';
+export { pythonFloatSum } from './kernel/math';
+export {
+  appendAuthorInstructionsToSystemPrompt,
+  buildGenerationSystemPrompt,
+  CONVERSATION_PREFIX,
+  editPolicyFromGenerationPrompt,
+  GENERATION_PREFIX,
+  readAuthorInstructions,
+} from './kernel/authorVoice';
+export {
+  authorCommandText,
+  AuthorEditPolicyError,
+  authorEditPolicyFailures,
+  authorEditPolicyPrompt,
+  authorEditPolicySummary,
+  buildAuthorEditPolicy,
+  POLICY_VERSION,
+} from './kernel/authorEditPolicy';
+export type { AuthorEditPolicy, ProtectedSpan } from './kernel/authorEditPolicy';
+export {
+  GenerationDeliveryCapture,
+  generationDeliveryReference,
+} from './kernel/generationDelivery';
+export {
+  AgentRoleCatalogError,
+  getAgentRole,
+  isRoleAllowedTool,
+  listAgentRoles,
+  listSubagentRoles,
+  normalizeAgentRoleInputs,
+  resolveAgentRoleAlias,
+} from './kernel/roleCatalog';
+export type { AgentRole } from './kernel/roleCatalog';
+export {
+  agentPlanPayload,
+  DEFAULT_PERMISSION_PROFILE,
+  listAgentSkills,
+  skillByName,
+} from './kernel/skillCatalog';
+export type { AgentSkill } from './kernel/skillCatalog';
