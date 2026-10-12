@@ -361,6 +361,59 @@ export {
   PREVIOUS_TAIL_MAX_CHARS,
   previousChapterTail,
 } from './kernel/previousChapter';
+export {
+  applyDeterministicPolish,
+  DEFAULT_POLISH_GATE_CONFIG,
+  entitySpellingChanges,
+  evaluatePolishCandidate,
+  groundedFactContradictions,
+  POLISH_GATE_VERSION,
+  POLISH_RULE_VERSION,
+  rebuildPolishableMarkdown,
+  selectPolishCandidate,
+  splitPolishableMarkdown,
+} from './kernel/polishing';
+export type {
+  PolishCandidate,
+  PolishDecision,
+  PolishDocument,
+  PolishGateConfig,
+  PolishGateResult,
+} from './kernel/polishing';
+export {
+  buildContinuePrompt,
+  CONTINUE_SYSTEM_PROMPT,
+  DEFAULT_TARGET_CHARS,
+  finalizeContinuation,
+  insertAtAnchor,
+  manuscriptSuffix,
+  manuscriptTail,
+  resolveAnchorLine,
+  stripRepeatedPrefix,
+  SUFFIX_MAX_CHARS,
+  TAIL_MAX_CHARS,
+  trimToSentenceEnd,
+} from './assistant/continuation';
+export {
+  buildRevisionPrompt,
+  EXPANSION_POLISH_GATE_CONFIG,
+  instructionAuthorizesExpansion,
+  REVISION_SYSTEM_PROMPT,
+  reviseText,
+  RevisionQualityRejected,
+} from './assistant/revision';
+export type {
+  RevisionContextFile,
+  RevisionGenerator,
+  RevisionInput,
+  RevisionResult,
+} from './assistant/revision';
+export {
+  buildChatPrompt,
+  buildDraftPrompt,
+  CHAT_SYSTEM_PROMPT,
+  DRAFT_SYSTEM_PROMPT,
+} from './assistant/prompts';
 export type { IdeCommandDefinition, IdeCommandDeps } from './kernel/ideCommands';
 export {
   credentialHeaderValues,
