@@ -367,3 +367,59 @@ export type { ProviderModelList } from './llm/protocol';
 export { StreamingReasoningFilter, stripReasoningLeak, VisibleTextFilter } from './llm/text';
 export { costBreakdown, providerCacheHitTokens, tokenUsage } from './llm/usage';
 export type { CostBreakdown, LegacyUsage } from './llm/usage';
+export {
+  ChatMessage,
+  chatResponse,
+  MESSAGE_ROLES,
+  messagesFromOpenai,
+  ProviderError,
+  retainErrorUsage,
+  retainingStreamUsage,
+  toAssistantMessage,
+  TokenUsage,
+  ToolCall,
+  ToolSpec,
+  toolsFromOpenai,
+} from './llm/contracts';
+export type {
+  ChatRequest,
+  ChatResponse,
+  MessageRole,
+  ProviderContinuation,
+  ProviderErrorCategory,
+  ProviderErrorDetails,
+  StreamEvent,
+  StreamEventKind,
+} from './llm/contracts';
+export { checkRunInterruption, RunControl, RunInterrupted } from './llm/control';
+export type { RunProgress } from './llm/control';
+export { OpenAIToolStream, ToolStreamError } from './llm/openaiStream';
+export { OpenAICompatibleProvider } from './llm/openaiCompatible';
+export type { LlmProvider } from './llm/openaiCompatible';
+export {
+  HttpTransportError,
+  rawStreamChatCompletions,
+  requestChatCompletions,
+} from './llm/transport';
+export type {
+  HttpPort,
+  HttpRequest,
+  HttpResponse,
+  LlmContext,
+  StreamFrame,
+  TransportOptions,
+} from './llm/transport';
+export {
+  callLlm,
+  callLlmMessages,
+  callLlmStreamed,
+  ConfiguredLlmProvider,
+  errorUsageSummary,
+  fetchProviderModels,
+  legacyProviderError,
+  ModelListHttpError,
+  rejectIncompleteResponse,
+  sdkChatRequest,
+  sdkProvider,
+  streamChatCompletions,
+} from './llm/client';
