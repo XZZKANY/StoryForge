@@ -414,6 +414,35 @@ export {
   CHAT_SYSTEM_PROMPT,
   DRAFT_SYSTEM_PROMPT,
 } from './assistant/prompts';
+export {
+  AssistantLlmNotConfiguredError,
+  AssistantReviseError,
+  AssistantReviseQualityGateError,
+  AssistantSessionConflictError,
+  AssistantSessionNotFoundError,
+  chatReply,
+  draftFileContent,
+  engineAssistantLlm,
+  reviseFileContent,
+  streamContinueProse,
+} from './assistant/service';
+export type {
+  AssistantDeps,
+  AssistantLlm,
+  AssistantMessageInput,
+  AssistantSessionRef,
+  AssistantStore,
+  ContinueFrame,
+  ContinueRequest,
+  DraftRequest,
+  DraftResponse,
+  ReviseRequest,
+  ReviseResponse,
+  StoredToolCall,
+  ToolCallPatch,
+} from './assistant/service';
+export { PROBE_TIMEOUT_CAP_SECONDS, probeProviderHealth } from './assistant/providerHealth';
+export type { ProviderHealthDeps, ProviderHealthResponse } from './assistant/providerHealth';
 export type { IdeCommandDefinition, IdeCommandDeps } from './kernel/ideCommands';
 export {
   credentialHeaderValues,

@@ -172,6 +172,13 @@ function identity(
   return JSON.stringify([root, target, sha256Hex(content), intent]);
 }
 
+/** 两个项目根是否同一项目（词法规范化后大小写按平台比较；不认链接别名）。 */
+export function sameProjectRoot(left: string, right: string, platform: Platform): boolean {
+  return (
+    normcase(normpath(left, platform), platform) === normcase(normpath(right, platform), platform)
+  );
+}
+
 const TOKEN = Symbol('PreparedWritingContext');
 
 /** 不是请求 DTO，也不是客户端 / 模型能填的「已准入」标记：只能由本模块构造。 */

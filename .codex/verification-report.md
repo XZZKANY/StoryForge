@@ -7656,3 +7656,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 发现：Python 文笔扫描的套话表（7 个词）与 craft 的套话表（10 个词）不是同一份，TS 两处已分别照搬，行为一致；不是本刀引入，未改。
 - 门禁：引擎 12008 通过 / 2 跳过、typecheck；前端 typecheck；eslint、prettier；ruff（新预言机与 golden_dump）。Python 业务代码零改动。
 - 未做：P2-3b2（修订 / 续写 / 起草 / 对话 / 测试连接的编排：会话与工具调用证据链经 Python 现有会话接口落库、生成来源记账、模型调用与 SSE 帧）、P2-3c（前端按 `engine.assistant` 分流）、P2-4 真跑。未读真实作者数据；无付费调用；默认路由仍走 Python。
+
+## 2026-10-12 P2-3b2 assistant 编排（TS 迁移，默认仍走 Python）
+
+- 范围：`packages/engine/src/assistant/service.ts`——`reviseFileContent`（Ctrl+K）、`streamContinueProse`（Ctrl+Shift+K，帧 `start / delta / done / error` 逐个回调，前置校验与证据链落库在第一帧之前完成，未配置 / 会话冲突直接抛错）、`draftFileContent` 与 `chatReply`（agent 循环用，P3 接线）；`providerHealth.ts`——设置页「测试连接」。两个端口：`AssistantStore`（会话、消息、工具调用；脱敏归存储，P4 前由 Python 现有 `/api/assistant/sessions*` 接口实现）、`AssistantLlm`（`engineAssistantLlm` 把引擎 LLM 客户端绑上，传输选项取缺省）。错误类的状态码与文本照 Python：未配置 422、模型失败 502、润色门禁 409、会话冲突 409、会话不存在 404；传输层配置错误（422）原样抛出、工具调用停在 running，与 Python 相同。顺带：`generationSources.ts` 的字节预算超限改抛 `GenerationSourceBudgetError`（写作入口据此拒绝调用模型），`writingContext.ts` 加 `sameProjectRoot`，`protocol.ts` 导出 `urlsplit` / `hostInfo`。
+- 预言机：`apps/api/scripts/golden_assistant_service.py`（`p2-assistant-service`）。真实 Python 服务函数跑在合成项目上（复用 canon 链夹具，含 canon / 伏笔 / 作者指令 / 人物文件），会话存储与模型换成内存记录器和脚本化回复（就是 service 自己的那几处调用缝），生成来源的项目身份钉到合成根。39 个场景（修订 18、续写 12、起草 4、对话 5，覆盖新旧会话、会话不存在 / 归属冲突 / 未绑定、未配置、模型错误、控制面中断、传输配置错误、作者编辑政策无效、润色门禁通过 / 拒绝 / 带建议项、保护片段被改、无根带 bundle、超长路径与指令、超长后文、空串指令、流中断无终帧、续写结果为空）逐操作一致：存储调用序列与参数、模型调用与提示 / 请求体、返回值或错误类别 + 文本 + 状态码、续写帧；零写盘。诊断 18 个场景（正常 / 带 userinfo 与端口 / 部分列表 / Gemini / 401 / 403 / 503 / 坏 JSON / 坏形状 / 连不上 / 鉴权头配置错 / 地址值错 / 非 http / 无主机 / 坏 IPv6 / 模型名含密钥 / 缺配置 / 配置文件坏），虚拟时钟下延迟一致。`--check` 两次导出一致。
+- TS 回放：`assistantService.test.ts` 58 个用例全部一致（含 1 个生产绑定用例：经假 HttpPort 走流式聚合）。
+- 变异：46 处全部抓住（首轮 38 处，补了无根请求带有项目的会话、超长路径与指令、首尾空白指令、带建议项的通过门禁、超长后文、空串指令等夹具后全部抓住）。
+- 接受的差异：会话归属比较与写作上下文同为词法规范化（不认 junction 别名）；性能打点（`measure_stage` / `observe_run`）不搬，调用观测随 P4。
+- 门禁：引擎 12066 通过 / 2 跳过、typecheck；前端 typecheck；eslint、prettier；ruff；`p2-assistant-service` / `p2-assistant-pure` / `p2-writing-context` / `p2-llm-pure` / `p2-llm-client` 五套 golden `--check` 一致。Python 业务代码零改动。
+- 未做：P2-3c 前端 `assistant.ts` 按 `engine.assistant` 分流（含 HTTP 版 `AssistantStore`、取消信号接 `RunControl`）；P2-4 作者 key 真跑。未读真实作者数据；无付费调用；默认路由仍走 Python。

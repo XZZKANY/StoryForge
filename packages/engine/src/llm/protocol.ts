@@ -41,10 +41,10 @@ const isAscii = (text: string) => Array.from(text).every((char) => char.charCode
 const SCHEME_CHARS = /^[A-Za-z0-9+\-.]+$/;
 const WHITESPACE = new RegExp(PYTHON_WHITESPACE, 'u');
 
-type SplitResult = { scheme: string; netloc: string; path: string; query: string };
+export type SplitResult = { scheme: string; netloc: string; path: string; query: string };
 
 /** urllib.parse.urlsplit（CPython 3.13）；不合法时抛 RangeError。 */
-function urlsplit(input: string): SplitResult {
+export function urlsplit(input: string): SplitResult {
   // 先去掉开头的 C0 控制符与空格，再删掉所有制表与换行（WHATWG）。
   let start = 0;
   while (start < input.length && input.charCodeAt(start) <= 0x20) start += 1;
@@ -156,7 +156,7 @@ function isIPv6(text: string): boolean {
   return parts.slice(0, hi).every(hextet) && parts.slice(parts.length - lo).every(hextet);
 }
 
-function hostInfo(netloc: string): [string, string | null] {
+export function hostInfo(netloc: string): [string, string | null] {
   const info = netloc.slice(netloc.lastIndexOf('@') + 1);
   const open = info.indexOf('[');
   let hostname: string;

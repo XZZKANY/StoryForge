@@ -154,7 +154,7 @@ def p0_snapshot() -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=["p0", "p1-context", "p1-reader", "p1-punctuation", "p1-canon-gate", "p1-path-match", "p1-canon-chain", "p1-scans", "p1-plans", "p1-knowledge", "p1-style", "p1-review", "p1-breakdown", "p1-commands", "p2-llm-pure", "p2-llm-client", "p2-llm-native", "p2-writing-context", "p2-assistant-pure"], required=True)
+    parser.add_argument("--suite", choices=["p0", "p1-context", "p1-reader", "p1-punctuation", "p1-canon-gate", "p1-path-match", "p1-canon-chain", "p1-scans", "p1-plans", "p1-knowledge", "p1-style", "p1-review", "p1-breakdown", "p1-commands", "p2-llm-pure", "p2-llm-client", "p2-llm-native", "p2-writing-context", "p2-assistant-pure", "p2-assistant-service"], required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--fixture-root", type=Path, help="Fresh owned fixture directory (p1-reader only)")
@@ -167,6 +167,10 @@ def main() -> None:
         from golden_path_match import p1_path_match_snapshot
 
         snapshot = p1_path_match_snapshot()
+    elif args.suite == "p2-assistant-service":
+        from golden_assistant_service import p2_assistant_service_snapshot
+
+        snapshot = p2_assistant_service_snapshot()
     elif args.suite == "p2-assistant-pure":
         from golden_assistant_pure import p2_assistant_pure_snapshot
 
