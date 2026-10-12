@@ -154,11 +154,36 @@ def p0_snapshot() -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=["p0"], required=True)
+    parser.add_argument("--suite", choices=["p0", "p1-context", "p1-reader", "p1-punctuation", "p1-canon-gate", "p1-path-match"], required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--fixture-root", type=Path, help="Fresh owned fixture directory (p1-reader only)")
     args = parser.parse_args()
-    content = (json.dumps(p0_snapshot(), ensure_ascii=False, indent=2) + "\n").encode()
+    if args.fixture_root is not None and args.suite != "p1-reader":
+        parser.error("--fixture-root requires --suite p1-reader")
+    if args.suite == "p0":
+        snapshot = p0_snapshot()
+    elif args.suite == "p1-path-match":
+        from golden_path_match import p1_path_match_snapshot
+
+        snapshot = p1_path_match_snapshot()
+    elif args.suite == "p1-canon-gate":
+        from golden_canon_gate import p1_canon_gate_snapshot
+
+        snapshot = p1_canon_gate_snapshot()
+    elif args.suite == "p1-punctuation":
+        from golden_punctuation import p1_punctuation_snapshot
+
+        snapshot = p1_punctuation_snapshot()
+    elif args.suite == "p1-reader":
+        from golden_project_reader import p1_reader_snapshot
+
+        snapshot = p1_reader_snapshot(args.fixture_root)
+    else:
+        from golden_book_context import p1_context_snapshot
+
+        snapshot = p1_context_snapshot()
+    content = (json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n").encode("utf-8", errors="backslashreplace")
     if args.check:
         if args.output.read_bytes() != content:
             raise SystemExit(f"Golden snapshot differs: {args.output}")

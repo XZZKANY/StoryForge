@@ -1,0 +1,1434 @@
+{
+  "format_version": 1,
+  "suite": "p1-reader",
+  "platform": "windows",
+  "sources": {
+    "app/common/project_tree.py": "ec3803868d1896d23e0c86480b3552cf0afcfac1c8ae5d2c4de65c4dec585320"
+  },
+  "isolation": {
+    "network": "audit-denied",
+    "domain_writes": "audit-denied",
+    "author_reads": "audit-denied",
+    "trace_scope": "open/scandir/listdir; stat/resolve are not audited",
+    "cleanup": "owned fixtures retained"
+  },
+  "fixtures": [
+    {
+      "id": "empty",
+      "root": "p",
+      "files": [],
+      "directories": [
+        "p"
+      ],
+      "links": [],
+      "hidden_entries": 0,
+      "depth": 0,
+      "actions": [
+        {
+          "id": "default",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [],
+          "output": [],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        },
+        {
+          "id": "zero-budget",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [],
+          "max_entries": 0,
+          "output": [],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        }
+      ],
+      "skip": null
+    },
+    {
+      "id": "visibility-order",
+      "root": "p",
+      "files": [
+        "p/a.md",
+        "p/A2.md",
+        "p/𠀀.md",
+        "p/.md",
+        "p/😀.md",
+        "p/.hidden/x.md",
+        "p/sub/b.md"
+      ],
+      "directories": [
+        "p"
+      ],
+      "links": [],
+      "hidden_entries": 0,
+      "depth": 0,
+      "actions": [
+        {
+          "id": "default",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [],
+          "output": [
+            "A2.md",
+            "a.md",
+            "sub/b.md",
+            ".md",
+            "😀.md",
+            "𠀀.md"
+          ],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/sub",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        },
+        {
+          "id": "all",
+          "visible": "all",
+          "scope": ".",
+          "explicit_files": [],
+          "output": [
+            ".hidden/x.md",
+            "A2.md",
+            "a.md",
+            "sub/b.md",
+            ".md",
+            "😀.md",
+            "𠀀.md"
+          ],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/.hidden",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/sub",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        },
+        {
+          "id": "subscope",
+          "visible": "nonhidden",
+          "scope": "sub",
+          "explicit_files": [],
+          "output": [
+            "sub/b.md"
+          ],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p/sub",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        },
+        {
+          "id": "hidden-scope",
+          "visible": "nonhidden",
+          "scope": ".hidden",
+          "explicit_files": [],
+          "output": [],
+          "read_trace": [],
+          "write_trace": []
+        },
+        {
+          "id": "hidden-explicit",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [
+            ".hidden/x.md"
+          ],
+          "output": [
+            "A2.md",
+            "a.md",
+            "sub/b.md",
+            ".md",
+            "😀.md",
+            "𠀀.md"
+          ],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/sub",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        },
+        {
+          "id": "scope-file",
+          "visible": "nonhidden",
+          "scope": "a.md",
+          "explicit_files": [],
+          "error": {
+            "name": "ProjectTreeError",
+            "message": "项目目录无法完整遍历，请检查权限或文件是否已移动。"
+          },
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p/a.md",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        },
+        {
+          "id": "scope-missing",
+          "visible": "nonhidden",
+          "scope": "missing",
+          "explicit_files": [],
+          "error": {
+            "name": "ProjectTreeError",
+            "message": "项目目录无法完整遍历，请检查权限或文件是否已移动。"
+          },
+          "read_trace": [],
+          "write_trace": []
+        },
+        {
+          "id": "scope-parent-outside",
+          "visible": "nonhidden",
+          "scope": "..",
+          "explicit_files": [],
+          "error": {
+            "name": "ProjectTreeError",
+            "message": "路径越界，只允许访问项目目录内文件。"
+          },
+          "read_trace": [],
+          "write_trace": []
+        },
+        {
+          "id": "inside-parent-all",
+          "visible": "all",
+          "scope": "sub/..",
+          "explicit_files": [],
+          "output": [
+            "sub/../.hidden/x.md",
+            "sub/../A2.md",
+            "sub/../a.md",
+            "sub/../sub/b.md",
+            "sub/../.md",
+            "sub/../😀.md",
+            "sub/../𠀀.md"
+          ],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/.hidden",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/sub",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        },
+        {
+          "id": "inside-parent-hidden",
+          "visible": "nonhidden",
+          "scope": "sub/..",
+          "explicit_files": [],
+          "output": [],
+          "read_trace": [],
+          "write_trace": []
+        },
+        {
+          "id": "zero-budget",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [],
+          "max_entries": 0,
+          "error": {
+            "name": "ProjectTreeError",
+            "message": "项目目录项超过遍历预算，请缩小范围。"
+          },
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        }
+      ],
+      "skip": null
+    },
+    {
+      "id": "missing-root",
+      "root": "missing",
+      "files": [],
+      "directories": [
+        "p"
+      ],
+      "links": [],
+      "hidden_entries": 0,
+      "depth": 0,
+      "actions": [
+        {
+          "id": "default",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [],
+          "error": {
+            "name": "ProjectTreeError",
+            "message": "项目目录无法完整遍历，请检查权限或文件是否已移动。"
+          },
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "missing",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        }
+      ],
+      "skip": null
+    },
+    {
+      "id": "file-root",
+      "root": "p/a.md",
+      "files": [
+        "p/a.md"
+      ],
+      "directories": [
+        "p"
+      ],
+      "links": [],
+      "hidden_entries": 0,
+      "depth": 0,
+      "actions": [
+        {
+          "id": "default",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [],
+          "error": {
+            "name": "ProjectTreeError",
+            "message": "项目目录无法完整遍历，请检查权限或文件是否已移动。"
+          },
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p/a.md",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        }
+      ],
+      "skip": null
+    },
+    {
+      "id": "entry-limit",
+      "root": "p",
+      "files": [],
+      "directories": [
+        "p"
+      ],
+      "links": [],
+      "hidden_entries": 20000,
+      "depth": 0,
+      "actions": [
+        {
+          "id": "default",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [],
+          "output": [],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        }
+      ],
+      "skip": null
+    },
+    {
+      "id": "entry-over-limit",
+      "root": "p",
+      "files": [],
+      "directories": [
+        "p"
+      ],
+      "links": [],
+      "hidden_entries": 20001,
+      "depth": 0,
+      "actions": [
+        {
+          "id": "default",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [],
+          "error": {
+            "name": "ProjectTreeError",
+            "message": "项目目录项超过遍历预算，请缩小范围。"
+          },
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        }
+      ],
+      "skip": null
+    },
+    {
+      "id": "depth-limit",
+      "root": "p",
+      "files": [],
+      "directories": [
+        "p"
+      ],
+      "links": [],
+      "hidden_entries": 0,
+      "depth": 64,
+      "actions": [
+        {
+          "id": "default",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [],
+          "output": [
+            "d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/a.md"
+          ],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        }
+      ],
+      "skip": null
+    },
+    {
+      "id": "depth-over-limit",
+      "root": "p",
+      "files": [],
+      "directories": [
+        "p"
+      ],
+      "links": [],
+      "hidden_entries": 0,
+      "depth": 65,
+      "actions": [
+        {
+          "id": "default",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [],
+          "error": {
+            "name": "ProjectTreeError",
+            "message": "项目目录超过最大遍历深度，请缩小范围。"
+          },
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        }
+      ],
+      "skip": null
+    },
+    {
+      "id": "scope-depth",
+      "root": "p",
+      "files": [
+        "p/sub/d/a.md"
+      ],
+      "directories": [
+        "p"
+      ],
+      "links": [],
+      "hidden_entries": 0,
+      "depth": 0,
+      "actions": [
+        {
+          "id": "at-limit",
+          "visible": "nonhidden",
+          "scope": "sub",
+          "explicit_files": [],
+          "max_depth": 1,
+          "output": [
+            "sub/d/a.md"
+          ],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p/sub",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/sub/d",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        },
+        {
+          "id": "over-limit",
+          "visible": "nonhidden",
+          "scope": "sub",
+          "explicit_files": [],
+          "max_depth": 0,
+          "error": {
+            "name": "ProjectTreeError",
+            "message": "项目目录超过最大遍历深度，请缩小范围。"
+          },
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p/sub",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        }
+      ],
+      "skip": null
+    },
+    {
+      "id": "junction-roles",
+      "root": "p",
+      "files": [
+        "p/real/a.md",
+        "p/.hidden/h.md",
+        "o/out.md"
+      ],
+      "directories": [
+        "p/real",
+        "p/.hidden",
+        "o"
+      ],
+      "links": [
+        {
+          "path": "p/alias",
+          "target": "p/real",
+          "kind": "junction"
+        },
+        {
+          "path": "p/hidden-alias",
+          "target": "p/.hidden",
+          "kind": "junction"
+        },
+        {
+          "path": "p/outside",
+          "target": "o",
+          "kind": "junction"
+        }
+      ],
+      "hidden_entries": 0,
+      "depth": 0,
+      "actions": [
+        {
+          "id": "default",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [],
+          "output": [
+            "real/a.md"
+          ],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/real",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        },
+        {
+          "id": "alias-scope",
+          "visible": "nonhidden",
+          "scope": "alias",
+          "explicit_files": [],
+          "output": [],
+          "read_trace": [],
+          "write_trace": []
+        },
+        {
+          "id": "alias-explicit",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [
+            "alias/a.md"
+          ],
+          "output": [
+            "alias/a.md",
+            "real/a.md"
+          ],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/real",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        },
+        {
+          "id": "hidden-alias-explicit",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [
+            "hidden-alias/h.md"
+          ],
+          "output": [
+            "real/a.md"
+          ],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/real",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        },
+        {
+          "id": "outside-explicit",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [
+            "outside/out.md"
+          ],
+          "output": [
+            "real/a.md"
+          ],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            },
+            {
+              "operation": "os.scandir",
+              "path": "p/real",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        },
+        {
+          "id": "outside-scope",
+          "visible": "nonhidden",
+          "scope": "outside",
+          "explicit_files": [],
+          "error": {
+            "name": "ProjectTreeError",
+            "message": "路径越界，只允许访问项目目录内文件。"
+          },
+          "read_trace": [],
+          "write_trace": []
+        }
+      ],
+      "skip": null
+    },
+    {
+      "id": "junction-root",
+      "root": "r",
+      "files": [
+        "p/a.md"
+      ],
+      "directories": [
+        "p"
+      ],
+      "links": [
+        {
+          "path": "r",
+          "target": "p",
+          "kind": "junction"
+        }
+      ],
+      "hidden_entries": 0,
+      "depth": 0,
+      "actions": [
+        {
+          "id": "default",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [],
+          "output": [
+            "a.md"
+          ],
+          "read_trace": [
+            {
+              "operation": "os.scandir",
+              "path": "p",
+              "count": 1
+            }
+          ],
+          "write_trace": []
+        }
+      ],
+      "skip": null
+    },
+    {
+      "id": "file-alias-roles",
+      "root": "p",
+      "files": [
+        "p/real/a.md",
+        "p/.hidden/h.md",
+        "o/out.md"
+      ],
+      "directories": [
+        "p"
+      ],
+      "links": [
+        {
+          "path": "p/alias.md",
+          "target": "p/real/a.md",
+          "kind": "file-symlink"
+        },
+        {
+          "path": "p/hidden-alias.md",
+          "target": "p/.hidden/h.md",
+          "kind": "file-symlink"
+        },
+        {
+          "path": "p/outside.md",
+          "target": "o/out.md",
+          "kind": "file-symlink"
+        }
+      ],
+      "hidden_entries": 0,
+      "depth": 0,
+      "actions": [
+        {
+          "id": "default",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": []
+        },
+        {
+          "id": "explicit",
+          "visible": "nonhidden",
+          "scope": ".",
+          "explicit_files": [
+            "alias.md",
+            "hidden-alias.md",
+            "outside.md"
+          ]
+        }
+      ],
+      "skip": {
+        "operation": "file-symlink",
+        "winerror": 1314
+      }
+    }
+  ]
+}

@@ -85,3 +85,32 @@ export function renderBookContextBlock(context: BookContext): string | null {
   if (sections.length === 1 && !context.chapters.length) return null;
   return sections.join('\n\n');
 }
+
+/** Same value the Desktop sees after Python's JSON response is parsed in the browser. */
+export function toBookContextPayload(context: BookContext) {
+  return {
+    total_chapters: context.chapters.length,
+    total_estimated_chars: Math.floor(
+      context.chapters.reduce((sum, chapter) => sum + chapter.size_bytes, 0) / 3,
+    ),
+    current_relative_path: context.current_relative_path,
+    current_ordinal: context.current_ordinal,
+    chapters: context.chapters.map((chapter) => ({
+      ordinal: chapter.ordinal,
+      relative_path: chapter.relative_path,
+      estimated_chars: Math.floor(chapter.size_bytes / 3),
+    })),
+    skeleton: context.skeleton.map((entry) => ({ ...entry })),
+    skeleton_total: context.skeleton_total,
+    skeleton_limit: 12,
+    roster: context.roster.map((entity) => ({ ...entity, aliases: [...entity.aliases] })),
+    roster_declared_total: context.roster_declared_total,
+    roster_limit: 20,
+    dossier_relative_path: context.dossier_relative_path,
+    previous_chapter:
+      context.previous_chapter === null
+        ? null
+        : { relative_path: context.previous_chapter[0], tail: context.previous_chapter[1] },
+    prompt_block: renderBookContextBlock(context),
+  };
+}

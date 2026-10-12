@@ -1,4 +1,5 @@
 import { compareChapterPaths } from '@storyforge/project-core';
+import { matchPythonPath } from './pathMatch';
 
 const NON_MANUSCRIPT_DIRS = new Set([
   '大纲',
@@ -56,8 +57,7 @@ export function orderManuscriptFiles(
           if (entry.is_directory || !isManuscriptPath(entry.relative_path)) return false;
           const parts = entry.relative_path.split('/');
           if (parts.some((part) => part.startsWith('.'))) return false;
-          const basename = parts[parts.length - 1];
-          return (platform === 'windows' ? basename.toLowerCase() : basename).endsWith('.md');
+          return matchPythonPath(entry.relative_path, '*.md', platform);
         })
         .map((entry) => entry.relative_path),
     ),

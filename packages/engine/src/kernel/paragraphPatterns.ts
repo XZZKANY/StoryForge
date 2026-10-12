@@ -1,3 +1,4 @@
+import { PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 import { pythonFixed } from './math';
 
 export type StaticProseIssue = {
@@ -48,11 +49,7 @@ const SUMMARY_PATTERNS = [
   /(?:这一切|所有这些)(?:都|不过|只是)?[^。！？!?\n]{0,18}(?:命运|未来|人生|时代|意义|开始|序幕)[。！？!?]?$/u,
   /(?:命运|宿命|未来|真相|时代|传奇|意义|答案)[^。！？!?\n]{0,12}(?:刚刚开始|仍在继续|尚未揭晓|无法预知|即将展开)[。！？!?]?$/u,
 ];
-// Python str.strip/re \s include U+001C..001F but exclude U+FEFF.
-const WHITESPACE =
-  '[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]';
-const TRIM_WHITESPACE = new RegExp(`^${WHITESPACE}+|${WHITESPACE}+$`, 'gu');
-const ALL_WHITESPACE = new RegExp(`${WHITESPACE}+`, 'gu');
+const ALL_WHITESPACE = new RegExp(`${PYTHON_WHITESPACE}+`, 'gu');
 
 function dialogueOnly(paragraph: string): boolean {
   return [
@@ -76,7 +73,7 @@ export function checkParagraphPatterns(prose: string): StaticProseIssue[] {
   const paragraphs = prose
     .replace(/\r\n|\r/g, '\n')
     .split('\n')
-    .map((paragraph) => paragraph.replace(TRIM_WHITESPACE, ''))
+    .map(pythonStrip)
     .filter(Boolean);
   const issues: StaticProseIssue[] = [];
   const transitions = paragraphs
