@@ -7582,3 +7582,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：回放 190 条。变异 51 处全部被抓住；首轮 1 处存活（重复 `xmlns:` 声明只有原始名检查能抓），补夹具后抓住；另 1 处等价不计（锚点最多 7 个位置，12 章上限永远不起作用）。
 - 门禁：引擎 typecheck 通过、11089 通过 / 2 跳过；eslint、prettier、ruff 通过；13 套 golden `--check` 一致。
 - 未做：IDE 命令注册表（P1-8c）；拆书接模型通道与运行记录（P2 / P4）；未读真实作者数据；无付费调用。
+
+## 2026-10-12 P1-8c IDE 命令注册表（TS 迁移，默认仍走 Python）
+
+- 范围：command_registry 的九个命令（audit.open、canon.refresh、observatory.scan、book.breakdown、book.breakdown.cancel、book.breakdown.status、book.context、plan.mark_written、plan.unmark_written）在引擎侧的统一入口 `executeIdeCommand`，交出与 HTTP 响应相同的信封：请求体不是对象 → 422，未知命令 → 404，参数或领域状态不满足 → 400（原文给作者），其余 → 500；payload 按 Python 的四遍脱敏（args、extra、整体、字段序列化器）。book.context 沿用 P1 已有实现，参数范围校验抽成按命令名报错的公共函数。依赖全部显式注入：读写口、密钥快照、时钟、取消登记、拆书模型、拆书运行记录（P4，缺省不记）。Python 侧零改动。
+- 预言机：`apps/api/scripts/golden_commands.py`：3 个合成项目 49 次命令调用，覆盖九个命令的成功与报错路径、写盘字节、取消登记、配置模型的拆书；设置桩里放一把合成密钥，验证按键名、按配置密钥、按 Bearer 形态三种脱敏。复用 golden_plans 的 canon / 连载计划夹具。`--check` 复跑一致。
+- 输入范围（按 §4.3.1）：所有命令的 project_root 必须是绝对路径；参数里的孤立代理码点、超过 64 层的嵌套直接 400；canon.json 写错时 canon.refresh 以 400 把位置原文交给作者（Python 静默丢弃）。均有专门测试。
+- 接受的差异：读写盘的系统级错误（权限、占用）在 TS 里按 500 报「API 返回 500」，Python 对拆书三命令按 400 回系统错误原文。500 只核状态码，不核 Python 的异常文本（前端本来就只显示「API 返回 500」）。
+- 测试：回放 52 条 + 前门 7 条。变异 17 处全部被抓住；首轮 3 处存活（glob 夹具没改变结果、观测镜缺目录分支、数字请求体），补夹具后抓住；另 1 处等价不计（refresh=false 命中缓存与重建的输出、写盘字节相同，只省耗时）。
+- 门禁：引擎 typecheck 通过、11148 通过 / 2 跳过；eslint、prettier、ruff 通过；14 套 golden `--check` 一致。
+- 未做（P1-8 退出条件里「接到 executeIdeCommand 的 ts 档」的另一半）：前端 `lib/api/ide-commands.ts` 尚未按 `engine.ideCommands` 开关分流到 TS——还缺三个 owner：配置里的完整密钥快照（P2）、Tauri 侧只写 `.storyforge/` 的原生写口、拆书运行记录（P4）。P1-9 的 shadow 周用需要作者副本授权。未读真实作者数据；无付费调用。

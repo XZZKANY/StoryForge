@@ -329,3 +329,5 @@ export {
 } from './kernel/bookBreakdown';
 export type { BreakdownLlmPort, BreakdownModel } from './kernel/bookBreakdown';
 export { DocxReadError, readDocxText } from './kernel/docx';
+export { executeIdeCommand, IDE_COMMANDS } from './kernel/ideCommands';
+export type { IdeCommandDefinition, IdeCommandDeps } from './kernel/ideCommands';

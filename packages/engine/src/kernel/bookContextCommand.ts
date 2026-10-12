@@ -17,22 +17,22 @@ export class IdeCommandExecutionError extends Error {
 }
 
 /** 参数来自浏览器 JSON：键与字符串须是合法 Unicode，嵌套不超过 64 层（迁移计划 §4.3.1）。 */
-function assertArgsInDomain(value: PlainJson, depth: number): void {
+export function assertArgsInDomain(commandId: string, value: PlainJson, depth = 0): void {
   if (typeof value === 'string') {
     if (!isWellFormedText(value))
-      throw new IdeCommandExecutionError('book.context 的参数里有孤立的代理码点。');
+      throw new IdeCommandExecutionError(`${commandId} 的参数里有孤立的代理码点。`);
     return;
   }
   if (value === null || typeof value !== 'object') return;
   if (depth >= MAX_JSON_DEPTH)
-    throw new IdeCommandExecutionError(`book.context 的参数嵌套超过 ${MAX_JSON_DEPTH} 层。`);
+    throw new IdeCommandExecutionError(`${commandId} 的参数嵌套超过 ${MAX_JSON_DEPTH} 层。`);
   const entries: [string, PlainJson][] = Array.isArray(value)
     ? value.map((item, index) => [String(index), item])
     : Object.entries(value);
   for (const [key, item] of entries) {
     if (!isWellFormedText(key))
-      throw new IdeCommandExecutionError('book.context 的参数里有孤立的代理码点。');
-    assertArgsInDomain(item, depth + 1);
+      throw new IdeCommandExecutionError(`${commandId} 的参数里有孤立的代理码点。`);
+    assertArgsInDomain(commandId, item, depth + 1);
   }
 }
 
@@ -51,7 +51,7 @@ export async function executeBookContextCommand(
   if (supplied === null || Array.isArray(supplied) || typeof supplied !== 'object')
     throw new IdeCommandExecutionError('API 返回 422', 422);
   const original = supplied as { [key: string]: PlainJson };
-  assertArgsInDomain(original, 0);
+  assertArgsInDomain('book.context', original);
   const projectRoot = original.project_root;
   if (typeof projectRoot !== 'string' || !pythonStrip(projectRoot))
     throw new IdeCommandExecutionError('book.context 需要 project_root。');
