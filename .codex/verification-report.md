@@ -7704,3 +7704,14 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异 6 处全部抓住：assistant 默认改回 python、发行版读偏好、发行版偷读存储但返回值不变、存储被拒强制 python、`python` 显式切回失效、非法值强制 python；`flags.ts` 每处字节级还原。
 - 门禁：前端 vitest 2116 通过 / 1 跳过（单跑连续 6 次全绿）、typecheck、eslint、prettier。引擎、Python、Rust 零改动，OpenAPI 不涉及。
 - 未做：装机版切换（P5）；`suggestion-ops.test.ts` 的 30000 例 fuzz 在两个全量并行时会超时，master 上同样，与本次无关未动。
+
+## 2026-10-12 P3-1 SDK 工具循环（TS 迁移，默认仍走 Python）
+
+- 范围：`app/platform/ai_sdk/runtime`（loop、state、budget、feedback、models、ports）与 `tools`（models、registry、validation）搬进 `packages/engine/src/loop/`：`sdkLoop.ts`（ToolCallingRuntime）、`sdkPorts.ts`（端口、预算、工具反馈）、`sdkState.ts`（阶段、限额、检查点、运行状态）、`sdkTools.ts`（工具结果、注册表、schema 校验、参数解析、JSON 反馈）。模型、工具处理器、轨迹、检查点存储、用量记账都可 await。
+- 不搬：外部写回的 deferred 结果与外部等待阶段（`EXTERNAL_WRITEBACK_RELEASED=false`，生产从不协商）；SDK 审批阶段（StoryForge 策略只出 allow / deny，作者确认补丁走 run 结算后的 `permission.confirm`）。
+- 预言机：新 `apps/api/scripts/golden_sdk_runtime.py`（注册为 `golden_dump.py --suite p3-sdk-runtime`），在真实 Python `ToolCallingRuntime` 上跑 87 个脚本化场景、100 步（脚本化模型回复 / provider 错误 / 普通异常、工具成功 / 失败 / 抛错 / 重试、按边界 / 轨迹事件 / 检查点阶段 / 选择器触发的粘性中断、经共享检查点存储的暂停恢复与 JSON 往返、构造检查点覆盖全部对账分支、轨迹 / 检查点存储 / 用量记账失败），逐条记录轨迹事件（484 次检查点存盘、723 条轨迹）、模型请求、工具与策略调用、中断检查、用量记账、最终结果与没用完的脚本；另有 38 条 schema 校验、10 条参数解析、6 条限额校验。场景以 `spec_json` 文本存进 golden，TS 侧用自己的 JSON 解析读，保留 2 与 2.0 的区别。`--check` 复导逐字节一致。
+- TS 回放：`sdkRuntime.test.ts` 94 条全绿（87 场景 + 校验 / 解析 / 限额 / 检查点往返与形状不符报错 / 时间戳格式 / 范围外参数 / 消息副本）。
+- 变异：54 处，抓住 52 处；余 2 处等价（TS 的恢复命令类型只有 continue / null；空输出 schema 的校验本来就不出问题）。首轮 48/54，补了 4 个场景（无用量来源但累计 token 已到上限的恢复、第 0 轮带回答的恢复、检查点轨迹失败、单个 4 字节字符的最小长度）后 4 处全部抓住。
+- 接受的差异：模型给的工具参数按标准 JSON 解析（迁移计划 §4.3.1），NaN / Infinity、超出安全整数、孤立代理码点、嵌套超 64 层按「不是合法 JSON」反馈给模型（Python json.loads 接受其中一部分）；检查点字典只读回应用自己写的形状，形状不符直接报错，不再把缺字段 / 错类型硬转成 0 或空串。
+- 门禁：引擎 vitest 12160 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（corepack 9.15.4 shim；0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+- 未做：StoryForge 侧的适配器（provider / 策略 / 选择器 / 轨迹 / 用量 / 检查点存储）与 28 个工具随 P3-2 起各刀；`sdkLoop.ts` 格式化后 638 行，超过计划给引擎定的 500 行（既有 `assistant/service.ts` 807 行同样超），P6-4 定上限时一并处理。
