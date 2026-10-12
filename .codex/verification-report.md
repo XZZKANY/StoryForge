@@ -7540,3 +7540,14 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：回放 71 条 + 新增 3 条范围外测试（hooks 描述为数字、计划章序为字符串、回调遇写错计划不抛）。变异 25 处全部被抓住；首轮 5 处存活（草稿重复 id、字符重合恰为 0.6、跨回车符的承诺匹配、大写新描述、按路径认领挤占章序回退），补夹具后全部抓住。
 - 门禁：引擎 typecheck 通过、10366 通过 / 2 跳过；eslint、prettier 通过；三套新 golden `--check` 一致。
 - 未做：IDE 命令 canon.refresh / observatory.scan / plan.* 接 TS（P1-8）；工具接线（P3）；未读真实作者数据；无付费调用。
+
+## 2026-10-12 P1-6 知识组（TS 迁移，默认仍走 Python）
+
+- 范围：fs/knowledge_entries（知识块解析 / 渲染 / 合并、指纹、校验）、fs/project_knowledge（准入、读取、条目索引、子串检索、补丁编译用的原文读取）、fs/knowledge_retrieval（钉选 + 词面相关度排序、预算、来源哈希核验）、fs/knowledge_proposals（提议组校验与来源证据，新 id 与时钟由调用方注入）、fs/ordinary_context（普通来源采集与送达清单）、knowledge_context（结构化知识采集、恢复回执、合并）、events/knowledge_materialization 的纯编译部分（create / migrate / extend / retire / dispute / supersede）。另补 fs.read 等价函数、Python 的 casefold 与 splitlines 语义、同步 SHA-256（与 WebCrypto 对照）。Python 侧零改动。
+- 未搬（依赖数据库或模型，随 P3 / P4）：events/knowledge_inbox 与 knowledge_materialization 里查询 / 记录 AgentArtifact、AgentRunEvent 的部分；compaction / compaction_sources / compaction_job（会话消息、事件表与模型调用）；正则模式的知识检索（依赖 fs.search 匹配器与时间预算，随 P3 文件工具）。
+- 预言机：`apps/api/scripts/golden_knowledge.py`：132 条纯函数用例（50 种知识块 Markdown 的解析与块外说明、指纹、合并、物化编译 12 种、来源物化、项目指纹）+ 1 个合成项目 67 次真实调用（条目索引、知识读取 9、子串检索 6、普通来源读取 12、检索 10、提议组 22、普通上下文 2、知识上下文 5，含一次改动来源文件后的 stale 判定）。UUID 用确定性序列、时钟用固定时刻替身，格式化代码仍真实执行；项目指纹在提议组输出里换成占位，另以纯用例按路径字符串核对。`--check` 复跑一致。
+- 接受的差异：知识块元数据不是合法 JSON 时 warning 的措辞（Python json 模块原文 vs 本引擎的 JSON 报错），测试两边归一成同一占位比对；元数据里出现 NaN（Python json 接受、标准 JSON 不允许）时 TS 在解析处就记 warning；时间戳只收应用写出的 `YYYY-MM-DDTHH:MM:SS(.小数)Z`，Python fromisoformat 还接受的其它 ISO 写法视为损坏块；casefold 的折叠表由 CPython 3.13 生成（297 项），其余字符按宿主 JS 小写化。
+- 测试：回放 200 条 + SHA-256 对照 1 条。变异 27 处抓住 24 处；存活 3 处为等价变异（未闭合块后 continue 与 break 走向相同、检索摘录不可能为空、SHA-256 长度高位只在 512 MiB 以上起作用）。首轮另有 7 处存活（ß 折叠、retire 沿用旧 id、清单里结构化原文与知识条目同路径、受限目录下的缺失文件、自动检索条数上限、未入选文件的块外说明），补夹具后抓住。
+- 门禁：引擎 typecheck 通过、10567 通过 / 2 跳过；eslint、prettier 通过；前端 typecheck 通过；p1-context / canon-chain / scans / plans / knowledge 五套 golden `--check` 一致。
+- 坑：工具层会把源码里的 U+2028 / U+2029 的转义 转义写成真字符（JS 正则字面量里是行终止符），改用 String.fromCharCode 构造，并全量扫描确认没有残留。
+- 未做：工具与上下文组装接线（P3）；收件箱 / 压缩的存储部分（P4）；未读真实作者数据；无付费调用。

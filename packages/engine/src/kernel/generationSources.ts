@@ -5,24 +5,20 @@ import {
   type PlainJson,
   type SecretContext,
 } from './redaction';
+import { sha256Hex } from './sha256';
 
 export const MAX_SOURCE_REFS = 32;
 export const MAX_MANIFEST_BYTES = 20_000;
 
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(bytes).buffer);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-export function bytesSha256(bytes: Uint8Array): Promise<string> {
+export function bytesSha256(bytes: Uint8Array): string {
   return sha256Hex(bytes);
 }
 
-export function textSha256(text: string): Promise<string> {
-  return sha256Hex(new TextEncoder().encode(text));
+export function textSha256(text: string): string {
+  return sha256Hex(text);
 }
 
-export function selectionSha256(value: unknown): Promise<string> {
+export function selectionSha256(value: unknown): string {
   return textSha256(
     dumpJson(value, { ensureAscii: false, sortKeys: true, separators: [',', ':'] }),
   );

@@ -37,7 +37,7 @@ const EXPLICIT: Readonly<Record<string, string>> = {
   '.storyforge/canon/canon.json': 'canon',
   '.storyforge/canon/hooks.json': 'canon',
 };
-const BLOCKED = new Set([
+export const BLOCKED = new Set([
   'derived',
   'version',
   'versions',
@@ -51,8 +51,8 @@ const BLOCKED = new Set([
   'config',
   'configs',
 ]);
-const EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.json', '.yaml', '.yml']);
-const SENSITIVE =
+export const EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.json', '.yaml', '.yml']);
+export const SENSITIVE =
   /(?:^|[._-])(credentials?|secrets?|tokens?|password|passwd|api[-_]?key|private[-_]?key)(?:[._-]|$)/i;
 
 function normalize(path: string): string | null {
