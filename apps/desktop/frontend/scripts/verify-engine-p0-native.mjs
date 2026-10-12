@@ -40,24 +40,42 @@ assert.ok(
     '--reader-only',
     '--llm-only',
     '--assistant-only',
+    '--assistant-real',
   ].includes(mode) && extra.length === 0,
-  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only / --llm-only / --assistant-only',
+  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only / --llm-only / --assistant-only / --assistant-real',
 );
+const REAL_CHAPTERS = {
+  '正文/第001章.md':
+    '# 第一章 停电\n\n城里停电的第三天，林舟在楼道里数到第十七级台阶，才听见楼上传来敲门声。\n\n' +
+    '那声音很轻，三下一停，像是怕惊动什么。他握紧手里的消防斧，贴着墙往上走。四楼的门开着一条缝，' +
+    '冷风从里面灌出来，带着一股铁锈味。\n\n' +
+    '门后站着的是对门的老周。老周没说话，只把一张纸塞进他手里，纸上写着：别下楼，水厂那边出事了。\n',
+  '正文/第002章.md':
+    '# 第二章 水厂\n\n第二天一早，林舟还是下了楼。\n\n' +
+    '街上没有人。积水漫过了人行道，倒映着灰白的天，远处水厂的方向升起一道黑烟，一直没有散。' +
+    '他沿着墙根走，每走几步就停下来听一听，雨后的城市安静得过分，连鸟叫都没有。\n\n' +
+    '拐过超市的时候，他看见了那辆翻倒的运水车。车门被什么东西从里面撕开了，边缘卷得像纸，地上的水是红的。\n',
+};
 const contextOnly = mode === '--context-only';
 const readerOnly = mode === '--reader-only';
 const llmOnly = mode === '--llm-only';
 const assistantOnly = mode === '--assistant-only';
-const p2 = llmOnly || assistantOnly;
+// Paid run with the author's provider: the encrypted config is copied in, the key stays in Rust.
+const assistantReal = mode === '--assistant-real';
+const p2 = llmOnly || assistantOnly || assistantReal;
+const storeMode = assistantOnly || assistantReal;
 const p1 = contextOnly || readerOnly;
-const fixtureName = assistantOnly
-  ? 'engine-p2-assistant'
-  : llmOnly
-    ? 'engine-p2-llm'
-    : readerOnly
-      ? 'engine-p1-reader'
-      : contextOnly
-        ? 'engine-p1-context'
-        : 'engine-p0';
+const fixtureName = assistantReal
+  ? 'engine-p2-assistant-real'
+  : assistantOnly
+    ? 'engine-p2-assistant'
+    : llmOnly
+      ? 'engine-p2-llm'
+      : readerOnly
+        ? 'engine-p1-reader'
+        : contextOnly
+          ? 'engine-p1-context'
+          : 'engine-p0';
 const transports = mode === '--transport-only' || mode === '--all';
 const label = p2 ? 'P2' : p1 ? 'P1' : 'P0';
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -367,7 +385,14 @@ try {
     await writeFile(resolve(assistantProject, '正文/第002章.md'), '第二章上文。\n');
     assistantBefore = await contextFingerprint(assistantProject);
   }
-  if (p2) {
+  if (assistantReal) {
+    assistantProject = ownedPath(output, 'book');
+    await mkdir(resolve(assistantProject, '正文'), { recursive: true });
+    for (const [name, text] of Object.entries(REAL_CHAPTERS))
+      await writeFile(resolve(assistantProject, name), text);
+    assistantBefore = await contextFingerprint(assistantProject);
+  }
+  if (llmOnly || assistantOnly) {
     // Synthetic key generated per run: it must reach the provider, never the WebView.
     llmKey = `sk-p2-synthetic-${randomBytes(12).toString('hex')}`;
     const sse = [
@@ -521,7 +546,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
 `;
   await writeFile(
     resolve(apiDir, 'run_windows.py'),
-    assistantOnly
+    storeMode
       ? assistantScript
       : `import json, os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -539,24 +564,30 @@ class Handler(BaseHTTPRequestHandler):
 ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handler).serve_forever()
 `,
   );
-  await writeFile(
-    resolve(directories.configDir, 'llm-provider.json'),
-    JSON.stringify(
-      p2
-        ? {
-            provider: 'openai-compatible',
-            baseUrl: `${httpBaseUrl}/v1`,
-            model: 'p2-model',
-            apiKey: llmKey,
-          }
-        : {
-            provider: 'custom',
-            baseUrl: 'http://127.0.0.1:1',
-            model: 'p0-unused',
-            apiKey: 'synthetic-unused',
-          },
-    ),
-  );
+  if (assistantReal)
+    await copyFile(
+      resolve(process.env.APPDATA, 'com.storyforge.ide', 'llm-provider.json'),
+      resolve(directories.configDir, 'llm-provider.json'),
+    );
+  else
+    await writeFile(
+      resolve(directories.configDir, 'llm-provider.json'),
+      JSON.stringify(
+        p2
+          ? {
+              provider: 'openai-compatible',
+              baseUrl: `${httpBaseUrl}/v1`,
+              model: 'p2-model',
+              apiKey: llmKey,
+            }
+          : {
+              provider: 'custom',
+              baseUrl: 'http://127.0.0.1:1',
+              model: 'p0-unused',
+              apiKey: 'synthetic-unused',
+            },
+      ),
+    );
   vite = await createServer({
     root: frontend,
     configFile: false,
@@ -757,15 +788,17 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     });
   await page.waitForFunction(
     (key) => document.documentElement.dataset[key] === 'true',
-    assistantOnly
-      ? 'engineP2AssistantReady'
-      : llmOnly
-        ? 'engineP2LlmReady'
-        : readerOnly
-          ? 'engineP1ReaderReady'
-          : contextOnly
-            ? 'engineP1Ready'
-            : 'engineP0Ready',
+    assistantReal
+      ? 'engineP2AssistantRealReady'
+      : assistantOnly
+        ? 'engineP2AssistantReady'
+        : llmOnly
+          ? 'engineP2LlmReady'
+          : readerOnly
+            ? 'engineP1ReaderReady'
+            : contextOnly
+              ? 'engineP1Ready'
+              : 'engineP0Ready',
   );
   evidence.nativeReadyMs = Date.now() - nativeStartedAt;
   let timer;
@@ -1061,11 +1094,45 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             'The real key reached the WebView or evidence',
           );
         }
+        if (assistantReal) {
+          evidence.real = await page.evaluate(
+            (input) => window.__ENGINE_P2_ASSISTANT_REAL__.runAssistantRealRun(input),
+            { projectRoot: assistantProject, chapter: REAL_CHAPTERS['正文/第002章.md'] },
+          );
+          const real = evidence.real;
+          assert.equal(real.native, true);
+          assert.ok(
+            real.provider.keyIsPlaceholder,
+            'The WebView saw something other than the placeholder',
+          );
+          const log = JSON.parse(await readFile(storeLogPath, 'utf8'));
+          evidence.storeLog = log;
+          assert.ok(
+            log.every((entry) => entry.key === 'synthetic-p0-api'),
+            'Store auth missing',
+          );
+          evidence.toolCalls = log
+            .filter((entry) => entry.method === 'PATCH' && entry.body?.status)
+            .map((entry) => ({
+              status: entry.body.status,
+              error: entry.body.error_message ?? null,
+              ...entry.body.output_summary,
+            }));
+          assert.deepEqual(
+            await contextFingerprint(assistantProject),
+            assistantBefore,
+            'The real run wrote into the project',
+          );
+        }
         if (!p1 && !p2 && mode !== '--transport-only')
           evidence.cpu = await page.evaluate(() => window.__ENGINE_P0__.runCpuProbe());
       })(),
       new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error('Native probe exceeded 180 seconds')), 180000);
+        const limit = assistantReal ? 600000 : 180000;
+        timer = setTimeout(
+          () => reject(new Error(`Native probe exceeded ${limit / 1000} seconds`)),
+          limit,
+        );
       }),
     ]);
   } finally {
@@ -1153,6 +1220,10 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
       console.error(error);
     }
   }
+  // The copied author config is ciphertext bound to this Windows user; still never keep it.
+  if (assistantReal)
+    for (const name of await readdir(directories.configDir).catch(() => []))
+      if (name.startsWith('llm-provider')) await unlink(resolve(directories.configDir, name));
   if (p1 || p2) {
     await copyFile(fileURLToPath(import.meta.url), resolve(output, 'harness-source.mjs'));
     await copyFile(
