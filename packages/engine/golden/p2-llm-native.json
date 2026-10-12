@@ -1,0 +1,3404 @@
+{
+  "format_version": 1,
+  "suite": "p2-llm-native",
+  "app_version": "0.1.10",
+  "step_seconds": 0.25,
+  "random": 0.375,
+  "platform": "windows",
+  "sources": {
+    "app/common/llm_client.py": "ae45bb64bd1f41db4fc3e1de22bb2181185922f6685253cc70c97ebbf3a43520",
+    "app/platform/ai_sdk/providers/anthropic.py": "f5afedc5e80b8c1a9e94d9ad7e8fdbd2653d95d2b1cf7de82bbf612d6c0d3394",
+    "app/platform/ai_sdk/providers/gemini.py": "bbc08eceabfa093ad2a8697a518d6a93cd83f58b7ab737e2873ac34473732d1e"
+  },
+  "scenarios": [
+    {
+      "kind": "call_llm",
+      "name": "anthropic-ok",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789",
+        "STORYFORGE_LLM_TEMPERATURE": "0.3"
+      },
+      "args": {
+        "system": "系统",
+        "user": "用户"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"id\": \"msg_1\", \"type\": \"message\", \"stop_reason\": \"end_turn\", \"content\": [{\"type\": \"thinking\", \"thinking\": \"想一想\", \"signature\": \"sig-1\"}, {\"type\": \"text\", \"text\": \"正\"}, {\"type\": \"text\", \"text\": \"文\"}, {\"type\": \"tool_use\", \"id\": \"tu_9\", \"name\": \"fs.read\", \"input\": {\"path\": \"a\"}}, {\"type\": \"tool_use\", \"id\": \"tu_10\", \"name\": \"fs.list\", \"input\": \"bad\"}, 7], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30, \"cache_read_input_tokens\": 40}}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "正文",
+        "token_usage": 150,
+        "prompt_tokens": 120,
+        "completion_tokens": 30,
+        "cache_hit_tokens": 40,
+        "token_usage_source": "provider_usage",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250,
+        "tool_calls": [
+          {
+            "id": "tu_9",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "{\"path\": \"a\"}"
+            }
+          },
+          {
+            "id": "tu_10",
+            "type": "function",
+            "function": {
+              "name": "fs.list",
+              "arguments": "{}"
+            }
+          }
+        ]
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"用户\"}]}],\"max_tokens\":4096,\"system\":\"系统\",\"temperature\":0.3}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "anthropic-tools-choice",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "description": "读文件",
+              "parameters": {
+                "type": "object"
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.list",
+              "parameters": {
+                "type": "object"
+              }
+            }
+          }
+        ],
+        "tool_choice": "required"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"content\": [{\"type\": \"text\", \"text\": \"x\"}], \"stop_reason\": \"tool_use\"}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "x",
+        "token_usage": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cache_hit_tokens": null,
+        "token_usage_source": "unavailable",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7,\"tools\":[{\"name\":\"fs.read\",\"input_schema\":{\"type\":\"object\"},\"description\":\"读文件\"},{\"name\":\"fs.list\",\"input_schema\":{\"type\":\"object\"}}],\"tool_choice\":{\"type\":\"any\"}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "anthropic-refusal",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"content\": [], \"stop_reason\": \"refusal\", \"usage\": {\"input_tokens\": 5, \"output_tokens\": 0}}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic blocked the response for safety reasons.",
+        "usage": {
+          "token_usage": 5,
+          "prompt_tokens": 5,
+          "completion_tokens": 0,
+          "cache_hit_tokens": null,
+          "token_usage_source": "provider_usage"
+        },
+        "reason": null,
+        "usage_summary": {
+          "token_usage": 5,
+          "prompt_tokens": 5,
+          "completion_tokens": 0,
+          "cache_hit_tokens": null,
+          "token_usage_source": "provider_usage",
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "anthropic-error-body",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"type\": \"error\", \"error\": {\"type\": \"overloaded_error\"}, \"request_id\": \"req-1\"}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic request failed (overloaded_error).",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "anthropic-missing-content",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"stop_reason\": \"end_turn\"}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic response is missing content blocks.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "anthropic-529-then-401",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 529,
+          "headers": {
+            "retry-after": "3"
+          },
+          "body": "overloaded"
+        },
+        {
+          "status": 401,
+          "body": "invalid x-api-key native-secret-key-0123456789"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic返回 HTTP 401（耗时 3500ms，尝试 2/3）：invalid x-api-key ***",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+        },
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+        }
+      ],
+      "waits": [
+        3.0
+      ],
+      "progress": [],
+      "clock": 103.5,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "anthropic-connect-fail",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789",
+        "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS": "2"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "raise": "URLError",
+          "reason": "dns"
+        },
+        {
+          "raise": "TimeoutError",
+          "reason": "timed out"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic调用超时或连接失败（耗时 1093ms，timeout=300.0s，尝试 2/2）：timed out",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+        },
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+        }
+      ],
+      "waits": [
+        0.59375
+      ],
+      "progress": [],
+      "clock": 101.09375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "anthropic-bad-json",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789",
+        "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS": "1"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "not json"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic响应读取或解析失败（耗时 250ms，尝试 1/1）：JSONDecodeError",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "anthropic-roundtrip",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789",
+        "STORYFORGE_LLM_REASONING_EFFORT": "low",
+        "STORYFORGE_LLM_TEMPERATURE": "1",
+        "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "2048"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "系统一"
+          },
+          {
+            "role": "system",
+            "content": "  系统二  "
+          },
+          {
+            "role": "user",
+            "content": "读第一章"
+          },
+          {
+            "role": "assistant",
+            "content": "好的",
+            "tool_calls": [
+              {
+                "id": "tu_1",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"path\": \"正文/1.md\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "tu_1",
+            "content": "{\"text\": \"第一章\"}"
+          },
+          {
+            "role": "user",
+            "content": "继续"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "description": "读文件",
+              "parameters": {
+                "type": "object"
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.list",
+              "parameters": {
+                "type": "object"
+              }
+            }
+          }
+        ],
+        "tool_choice": {
+          "type": "function",
+          "function": {
+            "name": "fs.read"
+          }
+        }
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"content\": [{\"type\": \"tool_use\", \"id\": \"tu_5\", \"name\": \"fs.read\", \"input\": {}}], \"stop_reason\": \"tool_use\"}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "tu_5",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "{}"
+            }
+          }
+        ],
+        "token_usage": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cache_hit_tokens": null,
+        "token_usage_source": "unavailable",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"读第一章\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"好的\"},{\"type\":\"tool_use\",\"id\":\"tu_1\",\"name\":\"fs.read\",\"input\":{\"path\":\"正文/1.md\"}}]},{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"tu_1\",\"content\":\"{\\\"text\\\": \\\"第一章\\\"}\"}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"继续\"}]}],\"max_tokens\":2048,\"system\":\"系统一\\n\\n  系统二\",\"thinking\":{\"type\":\"enabled\",\"budget_tokens\":1024},\"temperature\":1.0,\"tools\":[{\"name\":\"fs.read\",\"input_schema\":{\"type\":\"object\"},\"description\":\"读文件\"},{\"name\":\"fs.list\",\"input_schema\":{\"type\":\"object\"}}],\"tool_choice\":{\"type\":\"tool\",\"name\":\"fs.read\"}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "anthropic-thinking-temperature",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789",
+        "STORYFORGE_LLM_REASONING_EFFORT": "high",
+        "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "9000"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "系统一"
+          },
+          {
+            "role": "system",
+            "content": "  系统二  "
+          },
+          {
+            "role": "user",
+            "content": "读第一章"
+          },
+          {
+            "role": "assistant",
+            "content": "好的",
+            "tool_calls": [
+              {
+                "id": "tu_1",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"path\": \"正文/1.md\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "tu_1",
+            "content": "{\"text\": \"第一章\"}"
+          },
+          {
+            "role": "user",
+            "content": "继续"
+          }
+        ]
+      },
+      "replies": [],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic thinking requests require temperature 1 or an omitted temperature.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [],
+      "waits": [],
+      "progress": [],
+      "clock": 100.0,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "anthropic-thinking-budget",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789",
+        "STORYFORGE_LLM_REASONING_EFFORT": "medium",
+        "STORYFORGE_LLM_TEMPERATURE": "1"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "系统一"
+          },
+          {
+            "role": "system",
+            "content": "  系统二  "
+          },
+          {
+            "role": "user",
+            "content": "读第一章"
+          },
+          {
+            "role": "assistant",
+            "content": "好的",
+            "tool_calls": [
+              {
+                "id": "tu_1",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"path\": \"正文/1.md\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "tu_1",
+            "content": "{\"text\": \"第一章\"}"
+          },
+          {
+            "role": "user",
+            "content": "继续"
+          }
+        ]
+      },
+      "replies": [],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic max_tokens must be greater than the thinking budget.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [],
+      "waits": [],
+      "progress": [],
+      "clock": 100.0,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "anthropic-bad-effort",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789",
+        "STORYFORGE_LLM_REASONING_EFFORT": "max"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "系统一"
+          },
+          {
+            "role": "system",
+            "content": "  系统二  "
+          },
+          {
+            "role": "user",
+            "content": "读第一章"
+          },
+          {
+            "role": "assistant",
+            "content": "好的",
+            "tool_calls": [
+              {
+                "id": "tu_1",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"path\": \"正文/1.md\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "tu_1",
+            "content": "{\"text\": \"第一章\"}"
+          },
+          {
+            "role": "user",
+            "content": "继续"
+          }
+        ]
+      },
+      "replies": [],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic reasoning effort must be low, medium, or high.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [],
+      "waits": [],
+      "progress": [],
+      "clock": 100.0,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "anthropic-bad-tool-args",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "t",
+                "function": {
+                  "name": "it's \"x\"",
+                  "arguments": "[1]"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "replies": [],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Tool call 'it\\'s \"x\"' arguments must be a JSON object.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [],
+      "waits": [],
+      "progress": [],
+      "clock": 100.0,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "anthropic-streamed",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "event: message_start\ndata: {\"type\": \"message_start\", \"message\": {\"id\": \"msg_s\", \"usage\": {\"input_tokens\": 12, \"output_tokens\": 1, \"cache_read_input_tokens\": 7}}}\n\ndata: {\"type\": \"ping\"}\n\ndata: {\"type\": \"content_block_start\", \"index\": 0, \"content_block\": {\"type\": \"thinking\", \"thinking\": \"\"}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"thinking_delta\", \"thinking\": \"想\"}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"signature_delta\", \"signature\": \"sig\"}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 0}\n\ndata: {\"type\": \"content_block_start\", \"index\": 1, \"content_block\": {\"type\": \"text\", \"text\": \"\"}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 1, \"delta\": {\"type\": \"text_delta\", \"text\": \"你好\"}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 1}\n\ndata: {\"type\": \"content_block_start\", \"index\": 2, \"content_block\": {\"type\": \"tool_use\", \"id\": \"tu_2\", \"name\": \"fs.read\", \"input\": {}}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 2, \"delta\": {\"type\": \"input_json_delta\", \"partial_json\": \"{\\\"path\\\":\"}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 2, \"delta\": {\"type\": \"input_json_delta\", \"partial_json\": \"\\\"a\\\"}\"}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 2}\n\ndata: {\"type\": \"content_block_start\", \"index\": 3, \"content_block\": {\"type\": \"tool_use\", \"id\": \"tu_3\", \"name\": \"fs.list\", \"input\": {\"dir\": \"正文\"}}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 3}\n\ndata: {\"type\": \"content_block_start\", \"index\": 4, \"content_block\": {\"type\": \"tool_use\", \"id\": \"tu_4\", \"name\": \"fs.list\", \"input\": {}}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 4}\n\ndata: {\"type\": \"message_delta\", \"delta\": {\"stop_reason\": \"tool_use\"}, \"usage\": {\"output_tokens\": 20}}\n\ndata: {\"type\": \"message_delta\", \"delta\": {}, \"usage\": {\"output_tokens\": 21}}\n\ndata: {\"type\": \"message_stop\"}\n\n"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "你好",
+        "token_usage": 33,
+        "prompt_tokens": 12,
+        "completion_tokens": 21,
+        "cache_hit_tokens": 7,
+        "token_usage_source": "provider_usage",
+        "reasoning_present": true,
+        "cost_cny_estimated": null,
+        "cost_breakdown": {}
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\": \"claude-test\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"system\": \"s\", \"temperature\": 0.7, \"stream\": true}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "anthropic-stream-events",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "claude-test",
+        "messages": [
+          {
+            "role": "system",
+            "content": "系统一"
+          },
+          {
+            "role": "system",
+            "content": "  系统二  "
+          },
+          {
+            "role": "user",
+            "content": "读第一章"
+          },
+          {
+            "role": "assistant",
+            "content": "好的",
+            "tool_calls": [
+              {
+                "id": "tu_1",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"path\": \"正文/1.md\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "tu_1",
+            "content": "{\"text\": \"第一章\"}"
+          },
+          {
+            "role": "user",
+            "content": "继续"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "description": "读文件",
+              "parameters": {
+                "type": "object"
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.list",
+              "parameters": {
+                "type": "object"
+              }
+            }
+          }
+        ],
+        "max_tokens": 64,
+        "tool_choice": "none"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"type\": \"message_start\", \"message\": {\"id\": \"msg_s\", \"usage\": {\"input_tokens\": 12, \"output_tokens\": 1, \"cache_read_input_tokens\": 7}}}\n\ndata: {\"type\": \"ping\"}\n\ndata: {\"type\": \"content_block_start\", \"index\": 0, \"content_block\": {\"type\": \"thinking\", \"thinking\": \"\"}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"thinking_delta\", \"thinking\": \"想\"}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"signature_delta\", \"signature\": \"sig\"}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 0}\n\ndata: {\"type\": \"content_block_start\", \"index\": 1, \"content_block\": {\"type\": \"text\", \"text\": \"\"}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 1, \"delta\": {\"type\": \"text_delta\", \"text\": \"你好\"}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 1}\n\ndata: {\"type\": \"content_block_start\", \"index\": 2, \"content_block\": {\"type\": \"tool_use\", \"id\": \"tu_2\", \"name\": \"fs.read\", \"input\": {}}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 2, \"delta\": {\"type\": \"input_json_delta\", \"partial_json\": \"{\\\"path\\\":\"}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 2, \"delta\": {\"type\": \"input_json_delta\", \"partial_json\": \"\\\"a\\\"}\"}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 2}\n\ndata: {\"type\": \"content_block_start\", \"index\": 3, \"content_block\": {\"type\": \"tool_use\", \"id\": \"tu_3\", \"name\": \"fs.list\", \"input\": {\"dir\": \"正文\"}}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 3}\n\ndata: {\"type\": \"content_block_start\", \"index\": 4, \"content_block\": {\"type\": \"tool_use\", \"id\": \"tu_4\", \"name\": \"fs.list\", \"input\": {}}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 4}\n\ndata: {\"type\": \"message_delta\", \"delta\": {\"stop_reason\": \"tool_use\"}, \"usage\": {\"output_tokens\": 20}}\n\ndata: {\"type\": \"message_delta\", \"delta\": {}, \"usage\": {\"output_tokens\": 21}}\n\ndata: {\"type\": \"message_stop\"}\n\n"
+        }
+      ],
+      "control": null,
+      "result": [
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 13,
+            "prompt_tokens": 12,
+            "completion_tokens": 1,
+            "cache_hit_tokens": 7,
+            "token_usage_source": "provider_usage"
+          }
+        },
+        {
+          "kind": "reasoning_delta",
+          "text": "想"
+        },
+        {
+          "kind": "text_delta",
+          "text": "你好"
+        },
+        {
+          "kind": "tool_call_delta",
+          "tool_call": {
+            "id": "tu_2",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "{\"path\":"
+            }
+          }
+        },
+        {
+          "kind": "tool_call_delta",
+          "tool_call": {
+            "id": "tu_2",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "\"a\"}"
+            }
+          }
+        },
+        {
+          "kind": "tool_call_completed",
+          "tool_call": {
+            "id": "tu_2",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "{\"path\":\"a\"}"
+            }
+          }
+        },
+        {
+          "kind": "tool_call_completed",
+          "tool_call": {
+            "id": "tu_3",
+            "type": "function",
+            "function": {
+              "name": "fs.list",
+              "arguments": "{\"dir\": \"正文\"}"
+            }
+          }
+        },
+        {
+          "kind": "tool_call_completed",
+          "tool_call": {
+            "id": "tu_4",
+            "type": "function",
+            "function": {
+              "name": "fs.list",
+              "arguments": "{}"
+            }
+          }
+        },
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 32,
+            "prompt_tokens": 12,
+            "completion_tokens": 20,
+            "cache_hit_tokens": 7,
+            "token_usage_source": "provider_usage"
+          }
+        },
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 33,
+            "prompt_tokens": 12,
+            "completion_tokens": 21,
+            "cache_hit_tokens": 7,
+            "token_usage_source": "provider_usage"
+          }
+        },
+        {
+          "kind": "completed",
+          "usage": {
+            "token_usage": 33,
+            "prompt_tokens": 12,
+            "completion_tokens": 21,
+            "cache_hit_tokens": 7,
+            "token_usage_source": "provider_usage"
+          },
+          "response": {
+            "content": "你好",
+            "finish_reason": "tool_calls",
+            "tool_calls": [
+              {
+                "id": "tu_2",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"path\":\"a\"}"
+                }
+              },
+              {
+                "id": "tu_3",
+                "type": "function",
+                "function": {
+                  "name": "fs.list",
+                  "arguments": "{\"dir\": \"正文\"}"
+                }
+              },
+              {
+                "id": "tu_4",
+                "type": "function",
+                "function": {
+                  "name": "fs.list",
+                  "arguments": "{}"
+                }
+              }
+            ],
+            "response_id": "msg_s",
+            "metadata": {
+              "reasoning_present": true
+            },
+            "continuation": {
+              "provider": "anthropic",
+              "state": {
+                "thinking_blocks": [
+                  {
+                    "type": "thinking",
+                    "thinking": "想",
+                    "signature": "sig"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\": \"claude-test\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"读第一章\"}]}, {\"role\": \"assistant\", \"content\": [{\"type\": \"text\", \"text\": \"好的\"}, {\"type\": \"tool_use\", \"id\": \"tu_1\", \"name\": \"fs.read\", \"input\": {\"path\": \"正文/1.md\"}}]}, {\"role\": \"user\", \"content\": [{\"type\": \"tool_result\", \"tool_use_id\": \"tu_1\", \"content\": \"{\\\"text\\\": \\\"第一章\\\"}\"}]}, {\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"继续\"}]}], \"max_tokens\": 64, \"system\": \"系统一\\n\\n  系统二\", \"temperature\": 0.7, \"tools\": [{\"name\": \"fs.read\", \"input_schema\": {\"type\": \"object\"}, \"description\": \"读文件\"}, {\"name\": \"fs.list\", \"input_schema\": {\"type\": \"object\"}}], \"tool_choice\": {\"type\": \"none\"}, \"stream\": true}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 13,
+            "prompt_tokens": 12,
+            "completion_tokens": 1,
+            "cache_hit_tokens": 7,
+            "token_usage_source": "provider_usage"
+          }
+        },
+        {
+          "kind": "reasoning_delta",
+          "text": "想"
+        },
+        {
+          "kind": "text_delta",
+          "text": "你好"
+        },
+        {
+          "kind": "tool_call_delta",
+          "tool_call": {
+            "id": "tu_2",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "{\"path\":"
+            }
+          }
+        },
+        {
+          "kind": "tool_call_delta",
+          "tool_call": {
+            "id": "tu_2",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "\"a\"}"
+            }
+          }
+        },
+        {
+          "kind": "tool_call_completed",
+          "tool_call": {
+            "id": "tu_2",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "{\"path\":\"a\"}"
+            }
+          }
+        },
+        {
+          "kind": "tool_call_completed",
+          "tool_call": {
+            "id": "tu_3",
+            "type": "function",
+            "function": {
+              "name": "fs.list",
+              "arguments": "{\"dir\": \"正文\"}"
+            }
+          }
+        },
+        {
+          "kind": "tool_call_completed",
+          "tool_call": {
+            "id": "tu_4",
+            "type": "function",
+            "function": {
+              "name": "fs.list",
+              "arguments": "{}"
+            }
+          }
+        },
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 32,
+            "prompt_tokens": 12,
+            "completion_tokens": 20,
+            "cache_hit_tokens": 7,
+            "token_usage_source": "provider_usage"
+          }
+        },
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 33,
+            "prompt_tokens": 12,
+            "completion_tokens": 21,
+            "cache_hit_tokens": 7,
+            "token_usage_source": "provider_usage"
+          }
+        },
+        {
+          "kind": "completed",
+          "usage": {
+            "token_usage": 33,
+            "prompt_tokens": 12,
+            "completion_tokens": 21,
+            "cache_hit_tokens": 7,
+            "token_usage_source": "provider_usage"
+          },
+          "response": {
+            "content": "你好",
+            "finish_reason": "tool_calls",
+            "tool_calls": [
+              {
+                "id": "tu_2",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"path\":\"a\"}"
+                }
+              },
+              {
+                "id": "tu_3",
+                "type": "function",
+                "function": {
+                  "name": "fs.list",
+                  "arguments": "{\"dir\": \"正文\"}"
+                }
+              },
+              {
+                "id": "tu_4",
+                "type": "function",
+                "function": {
+                  "name": "fs.list",
+                  "arguments": "{}"
+                }
+              }
+            ],
+            "response_id": "msg_s",
+            "metadata": {
+              "reasoning_present": true
+            },
+            "continuation": {
+              "provider": "anthropic",
+              "state": {
+                "thinking_blocks": [
+                  {
+                    "type": "thinking",
+                    "thinking": "想",
+                    "signature": "sig"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "anthropic-stream-no-stop",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"type\": \"message_start\", \"message\": {\"id\": \"x\"}}\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "ProviderError",
+        "message": "Anthropic stream ended before message_stop.",
+        "usage": null,
+        "details": {
+          "category": "response",
+          "retryable": false,
+          "status_code": null,
+          "provider_code": "missing_stream_terminal",
+          "request_id": null
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "cache_hit_tokens": null,
+            "token_usage_source": "unavailable"
+          }
+        }
+      ],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "anthropic-stream-refusal",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"type\": \"message_delta\", \"delta\": {\"stop_reason\": \"refusal\"}}\n\ndata: {\"type\": \"message_stop\"}\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "ProviderError",
+        "message": "Anthropic blocked the streamed response for safety reasons.",
+        "usage": null,
+        "details": {
+          "category": "content_filter",
+          "retryable": false,
+          "status_code": null,
+          "provider_code": "refusal",
+          "request_id": null
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "cache_hit_tokens": null,
+            "token_usage_source": "unavailable"
+          }
+        }
+      ],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "anthropic-stream-error-frame",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"type\": \"error\", \"error\": {\"type\": \"rate_limit_error\"}}\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "ProviderError",
+        "message": "Anthropic request failed (rate_limit_error).",
+        "usage": null,
+        "details": {
+          "category": "rate_limit",
+          "retryable": true,
+          "status_code": null,
+          "provider_code": "rate_limit_error",
+          "request_id": null
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "anthropic-stream-bad-json",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {oops\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic 流式事件不是合法 JSON。",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "anthropic-stream-reset",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"type\": \"message_start\", \"message\": {\"id\": \"msg_s\", \"usage\": {\"input_tokens\": 12, \"output_tokens\": 1, \"cache_read_input_tokens\": 7}}}\n\ndata: {\"type\": \"ping\"}\n\ndata: {\"type\": \"content_block_start\", \"index\": 0, \"content_block\": {\"type\": \"thinking\", \"thinking\": \"\"}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"thinking_delta\", \"thinking\": \"想\"}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"signature_delta\", \"signature\": \"sig\"}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 0}\n\ndata: {\"type\": \"content_block_start\", \"index\": 1, \"content_block\": {\"type\": \"text\", \"text\": \"\"}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 1, \"delta\": {\"type\": \"text_delta\", \"text\": \"你好\"}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 1}\n\ndata: {\"type\": \"content_block_start\", \"index\": 2, \"content_block\": {\"type\": \"tool_use\", \"id\": \"tu_2\", \"name\": \"fs.read\", \"input\": {}}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 2, \"delta\": {\"type\": \"input_json_delta\", \"partial_json\": \"{\\\"path\\\":\"}}\n\ndata: {\"type\": \"content_block_delta\", \"index\": 2, \"delta\": {\"type\": \"input_json_delta\", \"partial_json\": \"\\\"a\\\"}\"}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 2}\n\ndata: {\"type\": \"content_block_start\", \"index\": 3, \"content_block\": {\"type\": \"tool_use\", \"id\": \"tu_3\", \"name\": \"fs.list\", \"input\": {\"dir\": \"正文\"}}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 3}\n\ndata: {\"type\": \"content_block_start\", \"index\": 4, \"content_block\": {\"type\": \"tool_use\", \"id\": \"tu_4\", \"name\": \"fs.list\", \"input\": {}}}\n\ndata: {\"type\": \"content_block_stop\", \"index\": 4}\n\ndata: {\"type\": \"message_delta\", \"delta\": {\"stop_reason\": \"tool_use\"}, \"usage\": {\"output_tokens\": 20}}\n\ndata: {\"type\": \"message_delta\", \"delta\": {}, \"usage\": {\"output_tokens\": 21}}\n\ndata: {\"type\": \"message_stop\"}\n\n",
+          "fail_after_lines": 5,
+          "fail_with": "ConnectionResetError"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic 流式读取中断：ConnectionResetError",
+        "usage": {
+          "token_usage": 13,
+          "prompt_tokens": 12,
+          "completion_tokens": 1,
+          "cache_hit_tokens": 7,
+          "token_usage_source": "provider_usage"
+        },
+        "reason": null,
+        "usage_summary": {
+          "token_usage": 13,
+          "prompt_tokens": 12,
+          "completion_tokens": 1,
+          "cache_hit_tokens": 7,
+          "token_usage_source": "provider_usage",
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 13,
+            "prompt_tokens": 12,
+            "completion_tokens": 1,
+            "cache_hit_tokens": 7,
+            "token_usage_source": "provider_usage"
+          }
+        }
+      ],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "anthropic-stream-connect",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789",
+        "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS": "2"
+      },
+      "args": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 503,
+          "body": "x"
+        },
+        {
+          "raise": "RemoteDisconnected"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic 流式建连失败：RemoteDisconnected",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+        },
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+        }
+      ],
+      "waits": [
+        0.59375
+      ],
+      "progress": [],
+      "events": [],
+      "clock": 101.09375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "anthropic-stream-http",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 400,
+          "body": "bad"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic 流式返回 HTTP 400。",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_complete",
+      "name": "anthropic-continuation-replay",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          },
+          {
+            "role": "assistant",
+            "content": "a"
+          }
+        ],
+        "continuation": [
+          1,
+          {
+            "provider": "anthropic",
+            "state": {
+              "thinking_blocks": [
+                {
+                  "type": "thinking",
+                  "thinking": "旧"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"content\": [{\"type\": \"redacted_thinking\", \"data\": \"zz\"}], \"stop_reason\": \"max_tokens\"}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "",
+        "finish_reason": "length",
+        "tool_calls": [],
+        "response_id": null,
+        "metadata": {
+          "latency_ms": 250,
+          "reasoning_present": true
+        },
+        "continuation": {
+          "provider": "anthropic",
+          "state": {
+            "thinking_blocks": [
+              {
+                "type": "redacted_thinking",
+                "data": "zz"
+              }
+            ]
+          }
+        },
+        "usage": {
+          "token_usage": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cache_hit_tokens": null,
+          "token_usage_source": "unavailable"
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"旧\"},{\"type\":\"text\",\"text\":\"a\"}]}],\"max_tokens\":4096,\"temperature\":0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_complete",
+      "name": "anthropic-end-turn",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"content\": [{\"type\": \"text\", \"text\": \"好\"}], \"stop_reason\": \"end_turn\", \"usage\": {\"input_tokens\": -5, \"output_tokens\": 3}}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "finish_reason": "stop",
+        "tool_calls": [],
+        "response_id": null,
+        "metadata": {
+          "latency_ms": 250
+        },
+        "usage": {
+          "token_usage": 3,
+          "prompt_tokens": 0,
+          "completion_tokens": 3,
+          "cache_hit_tokens": null,
+          "token_usage_source": "provider_usage"
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"temperature\":0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_complete",
+      "name": "anthropic-unknown-stop",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"content\": [], \"stop_reason\": \"Pause_Turn\"}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "",
+        "finish_reason": "pause_turn",
+        "tool_calls": [],
+        "response_id": null,
+        "metadata": {
+          "latency_ms": 250
+        },
+        "usage": {
+          "token_usage": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cache_hit_tokens": null,
+          "token_usage_source": "unavailable"
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"temperature\":0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_complete",
+      "name": "anthropic-error-category",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"type\": \"error\", \"error\": {\"type\": \"overloaded_error\"}}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "ProviderError",
+        "message": "Anthropic request failed (overloaded_error).",
+        "usage": null,
+        "details": {
+          "category": "connection",
+          "retryable": true,
+          "status_code": null,
+          "provider_code": "overloaded_error",
+          "request_id": null
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"temperature\":0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "anthropic-long-error-body",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 400,
+          "body": "坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic返回 HTTP 400（耗时 250ms，尝试 1/3）：坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏坏",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "anthropic-repr-single-quote",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "t",
+                "function": {
+                  "name": "it's",
+                  "arguments": "[1]"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "replies": [],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Tool call \"it's\" arguments must be a JSON object.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [],
+      "waits": [],
+      "progress": [],
+      "clock": 100.0,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "anthropic-stream-connect-names",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": " Claude ",
+        "STORYFORGE_LLM_BASE_URL": "https://api.anthropic.example/v1/",
+        "STORYFORGE_LLM_MODEL": "claude-test",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789",
+        "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS": "2"
+      },
+      "args": {
+        "model": "m",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "raise": "URLError",
+          "reason": "dns"
+        },
+        {
+          "raise": "TimeoutError",
+          "reason": "timed out"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Anthropic 流式建连失败：TimeoutError",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+        },
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+        }
+      ],
+      "waits": [
+        0.59375
+      ],
+      "progress": [],
+      "events": [],
+      "clock": 101.09375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "gemini-max-tokens",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"candidates\": [{\"finishReason\": \"MAX_TOKENS\", \"content\": {\"parts\": [{\"text\": \"半\"}]}}]}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 输出被截断或过滤，不能把未完成正文当成稿。",
+        "usage": {
+          "token_usage": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cache_hit_tokens": null,
+          "token_usage_source": "unavailable"
+        },
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/gemini%202.5%3A%E4%B8%93%E4%B8%9A~x%28%E9%A2%84%E8%A7%88%29%21%2A%27:generateContent",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"u\"}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"s\"}]},\"generationConfig\":{\"temperature\":0.7}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "gemini-ok",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "系统",
+        "user": "用户"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"responseId\": \"r1\", \"candidates\": [{\"finishReason\": \"STOP\", \"content\": {\"parts\": [{\"text\": \"想\", \"thought\": true}, {\"text\": \"正文\"}, 3, {\"functionCall\": {\"name\": \"fs.read\", \"args\": {\"path\": \"a\"}}, \"thoughtSignature\": \"sig-g\"}, {\"functionCall\": {\"id\": \"fc-2\", \"name\": \"fs.list\", \"args\": \"bad\"}}]}}], \"usageMetadata\": {\"promptTokenCount\": 90, \"candidatesTokenCount\": 11, \"totalTokenCount\": 120, \"cachedContentTokenCount\": 5, \"thoughtsTokenCount\": 19}}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "正文",
+        "token_usage": 120,
+        "prompt_tokens": 90,
+        "completion_tokens": 11,
+        "cache_hit_tokens": 5,
+        "token_usage_source": "provider_usage",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250,
+        "tool_calls": [
+          {
+            "id": "gemini-call-3",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "{\"path\": \"a\"}"
+            }
+          },
+          {
+            "id": "fc-2",
+            "type": "function",
+            "function": {
+              "name": "fs.list",
+              "arguments": "{}"
+            }
+          }
+        ]
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/gemini%202.5%3A%E4%B8%93%E4%B8%9A~x%28%E9%A2%84%E8%A7%88%29%21%2A%27:generateContent",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"用户\"}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"系统\"}]},\"generationConfig\":{\"temperature\":0.7}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "gemini-safety",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"candidates\": [{\"finishReason\": \"safety\"}], \"usageMetadata\": {\"promptTokenCount\": 3}}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Gemini blocked the response for safety reasons.",
+        "usage": {
+          "token_usage": 3,
+          "prompt_tokens": 3,
+          "completion_tokens": 0,
+          "cache_hit_tokens": null,
+          "token_usage_source": "provider_usage"
+        },
+        "reason": null,
+        "usage_summary": {
+          "token_usage": 3,
+          "prompt_tokens": 3,
+          "completion_tokens": 0,
+          "cache_hit_tokens": null,
+          "token_usage_source": "provider_usage",
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/gemini%202.5%3A%E4%B8%93%E4%B8%9A~x%28%E9%A2%84%E8%A7%88%29%21%2A%27:generateContent",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"u\"}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"s\"}]},\"generationConfig\":{\"temperature\":0.7}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "gemini-malformed-call",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"candidates\": [{\"finishReason\": \"MALFORMED_FUNCTION_CALL\"}]}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Gemini returned a malformed function call.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/gemini%202.5%3A%E4%B8%93%E4%B8%9A~x%28%E9%A2%84%E8%A7%88%29%21%2A%27:generateContent",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"u\"}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"s\"}]},\"generationConfig\":{\"temperature\":0.7}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "gemini-error-body",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"error\": {\"code\": 429, \"status\": \"RESOURCE_EXHAUSTED\"}}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Gemini request failed (RESOURCE_EXHAUSTED).",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/gemini%202.5%3A%E4%B8%93%E4%B8%9A~x%28%E9%A2%84%E8%A7%88%29%21%2A%27:generateContent",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"u\"}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"s\"}]},\"generationConfig\":{\"temperature\":0.7}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "gemini-missing-candidates",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"candidates\": []}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Gemini response is missing candidates.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/gemini%202.5%3A%E4%B8%93%E4%B8%9A~x%28%E9%A2%84%E8%A7%88%29%21%2A%27:generateContent",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"u\"}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"s\"}]},\"generationConfig\":{\"temperature\":0.7}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "gemini-roundtrip",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789",
+        "STORYFORGE_LLM_REASONING_EFFORT": "high",
+        "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "512"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "系统一"
+          },
+          {
+            "role": "system",
+            "content": "  系统二  "
+          },
+          {
+            "role": "user",
+            "content": "读第一章"
+          },
+          {
+            "role": "assistant",
+            "content": "好的",
+            "tool_calls": [
+              {
+                "id": "tu_1",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"path\": \"正文/1.md\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "tu_1",
+            "content": "{\"text\": \"第一章\"}"
+          },
+          {
+            "role": "user",
+            "content": "继续"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "description": "读文件",
+              "parameters": {
+                "type": "object"
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.list",
+              "parameters": {
+                "type": "object"
+              }
+            }
+          }
+        ],
+        "tool_choice": "auto"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"candidates\": [{\"finishReason\": \"STOP\", \"content\": {\"parts\": [{\"text\": \"好\"}]}}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "tool_calls": [],
+        "token_usage": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cache_hit_tokens": null,
+        "token_usage_source": "unavailable",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/gemini%202.5%3A%E4%B8%93%E4%B8%9A~x%28%E9%A2%84%E8%A7%88%29%21%2A%27:generateContent",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"读第一章\"}]},{\"role\":\"model\",\"parts\":[{\"text\":\"好的\"},{\"functionCall\":{\"id\":\"tu_1\",\"name\":\"fs.read\",\"args\":{\"path\":\"正文/1.md\"}}}]},{\"role\":\"user\",\"parts\":[{\"functionResponse\":{\"name\":\"fs.read\",\"response\":{\"text\":\"第一章\"}}}]},{\"role\":\"user\",\"parts\":[{\"text\":\"继续\"}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"系统一\\n\\n  系统二\"}]},\"generationConfig\":{\"temperature\":0.7,\"maxOutputTokens\":512,\"thinkingConfig\":{\"thinkingBudget\":8192}},\"tools\":[{\"functionDeclarations\":[{\"name\":\"fs.read\",\"parameters\":{\"type\":\"object\"},\"description\":\"读文件\"},{\"name\":\"fs.list\",\"parameters\":{\"type\":\"object\"}}]}],\"toolConfig\":{\"functionCallingConfig\":{\"mode\":\"AUTO\"}}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "gemini-tool-choice-function",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "description": "读文件",
+              "parameters": {
+                "type": "object"
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.list",
+              "parameters": {
+                "type": "object"
+              }
+            }
+          }
+        ],
+        "tool_choice": {
+          "type": "function",
+          "function": {
+            "name": "fs.list"
+          }
+        }
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"candidates\": [{\"finishReason\": \"STOP\", \"content\": {\"parts\": [{\"text\": \"好\"}]}}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "tool_calls": [],
+        "token_usage": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cache_hit_tokens": null,
+        "token_usage_source": "unavailable",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/gemini%202.5%3A%E4%B8%93%E4%B8%9A~x%28%E9%A2%84%E8%A7%88%29%21%2A%27:generateContent",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"u\"}]}],\"generationConfig\":{\"temperature\":0.7},\"tools\":[{\"functionDeclarations\":[{\"name\":\"fs.read\",\"parameters\":{\"type\":\"object\"},\"description\":\"读文件\"},{\"name\":\"fs.list\",\"parameters\":{\"type\":\"object\"}}]}],\"toolConfig\":{\"functionCallingConfig\":{\"mode\":\"ANY\",\"allowedFunctionNames\":[\"fs.list\"]}}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "gemini-tool-result-not-object",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "c1",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "c1",
+            "content": "纯文本"
+          }
+        ]
+      },
+      "replies": [],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Tool result 'fs.read' must contain valid JSON.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [],
+      "waits": [],
+      "progress": [],
+      "clock": 100.0,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "gemini-tool-result-unnamed",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "tool",
+            "tool_call_id": "zz",
+            "content": "{}"
+          }
+        ]
+      },
+      "replies": [],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Gemini tool results require a tool name or a correlated tool call id.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [],
+      "waits": [],
+      "progress": [],
+      "clock": 100.0,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "gemini-bad-effort",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789",
+        "STORYFORGE_LLM_REASONING_EFFORT": "ultra"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Gemini reasoning effort must be low, medium, or high.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [],
+      "waits": [],
+      "progress": [],
+      "clock": 100.0,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "gemini-streamed",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"responseId\": \"rs\", \"candidates\": [{\"content\": {\"parts\": [{\"text\": \"想\", \"thought\": true}]}}]}\n\ndata: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"你\"}, {\"text\": \"好\"}]}}], \"usageMetadata\": {\"promptTokenCount\": 9, \"candidatesTokenCount\": 2}}\n\ndata: {\"candidates\": [{\"content\": {\"parts\": [{\"functionCall\": {\"name\": \"fs.read\", \"args\": {\"p\": 1}}, \"thoughtSignature\": \"sg\"}]}, \"finishReason\": \"STOP\"}], \"usageMetadata\": {\"totalTokenCount\": 30}}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "你好",
+        "token_usage": 30,
+        "prompt_tokens": 9,
+        "completion_tokens": 2,
+        "cache_hit_tokens": null,
+        "token_usage_source": "provider_usage",
+        "reasoning_present": true,
+        "cost_cny_estimated": null,
+        "cost_breakdown": {}
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/gemini%202.5%3A%E4%B8%93%E4%B8%9A~x%28%E9%A2%84%E8%A7%88%29%21%2A%27:streamGenerateContent?alt=sse",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\": [{\"role\": \"user\", \"parts\": [{\"text\": \"u\"}]}], \"systemInstruction\": {\"parts\": [{\"text\": \"s\"}]}, \"generationConfig\": {\"temperature\": 0.7}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "gemini-stream-events",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "gemini-x",
+        "messages": [
+          {
+            "role": "system",
+            "content": "系统一"
+          },
+          {
+            "role": "system",
+            "content": "  系统二  "
+          },
+          {
+            "role": "user",
+            "content": "读第一章"
+          },
+          {
+            "role": "assistant",
+            "content": "好的",
+            "tool_calls": [
+              {
+                "id": "tu_1",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"path\": \"正文/1.md\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "tu_1",
+            "content": "{\"text\": \"第一章\"}"
+          },
+          {
+            "role": "user",
+            "content": "继续"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"responseId\": \"rs\", \"candidates\": [{\"content\": {\"parts\": [{\"text\": \"想\", \"thought\": true}]}}]}\n\ndata: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"你\"}, {\"text\": \"好\"}]}}], \"usageMetadata\": {\"promptTokenCount\": 9, \"candidatesTokenCount\": 2}}\n\ndata: {\"candidates\": [{\"content\": {\"parts\": [{\"functionCall\": {\"name\": \"fs.read\", \"args\": {\"p\": 1}}, \"thoughtSignature\": \"sg\"}]}, \"finishReason\": \"STOP\"}], \"usageMetadata\": {\"totalTokenCount\": 30}}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": null,
+      "result": [
+        {
+          "kind": "reasoning_delta",
+          "text": "想"
+        },
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 11,
+            "prompt_tokens": 9,
+            "completion_tokens": 2,
+            "cache_hit_tokens": null,
+            "token_usage_source": "provider_usage"
+          }
+        },
+        {
+          "kind": "text_delta",
+          "text": "你"
+        },
+        {
+          "kind": "text_delta",
+          "text": "好"
+        },
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 30,
+            "prompt_tokens": 9,
+            "completion_tokens": 2,
+            "cache_hit_tokens": null,
+            "token_usage_source": "provider_usage"
+          }
+        },
+        {
+          "kind": "tool_call_completed",
+          "tool_call": {
+            "id": "gemini-call-0",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "{\"p\": 1}"
+            }
+          }
+        },
+        {
+          "kind": "completed",
+          "usage": {
+            "token_usage": 30,
+            "prompt_tokens": 9,
+            "completion_tokens": 2,
+            "cache_hit_tokens": null,
+            "token_usage_source": "provider_usage"
+          },
+          "response": {
+            "content": "你好",
+            "finish_reason": "stop",
+            "tool_calls": [
+              {
+                "id": "gemini-call-0",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"p\": 1}"
+                }
+              }
+            ],
+            "response_id": "rs",
+            "metadata": {
+              "reasoning_present": true
+            },
+            "continuation": {
+              "provider": "gemini",
+              "state": {
+                "function_call_signatures": {
+                  "gemini-call-0": "sg"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/gemini-x:streamGenerateContent?alt=sse",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\": [{\"role\": \"user\", \"parts\": [{\"text\": \"读第一章\"}]}, {\"role\": \"model\", \"parts\": [{\"text\": \"好的\"}, {\"functionCall\": {\"id\": \"tu_1\", \"name\": \"fs.read\", \"args\": {\"path\": \"正文/1.md\"}}}]}, {\"role\": \"user\", \"parts\": [{\"functionResponse\": {\"name\": \"fs.read\", \"response\": {\"text\": \"第一章\"}}}]}, {\"role\": \"user\", \"parts\": [{\"text\": \"继续\"}]}], \"systemInstruction\": {\"parts\": [{\"text\": \"系统一\\n\\n  系统二\"}]}, \"generationConfig\": {\"temperature\": 0.7}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [
+        {
+          "kind": "reasoning_delta",
+          "text": "想"
+        },
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 11,
+            "prompt_tokens": 9,
+            "completion_tokens": 2,
+            "cache_hit_tokens": null,
+            "token_usage_source": "provider_usage"
+          }
+        },
+        {
+          "kind": "text_delta",
+          "text": "你"
+        },
+        {
+          "kind": "text_delta",
+          "text": "好"
+        },
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 30,
+            "prompt_tokens": 9,
+            "completion_tokens": 2,
+            "cache_hit_tokens": null,
+            "token_usage_source": "provider_usage"
+          }
+        },
+        {
+          "kind": "tool_call_completed",
+          "tool_call": {
+            "id": "gemini-call-0",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "{\"p\": 1}"
+            }
+          }
+        },
+        {
+          "kind": "completed",
+          "usage": {
+            "token_usage": 30,
+            "prompt_tokens": 9,
+            "completion_tokens": 2,
+            "cache_hit_tokens": null,
+            "token_usage_source": "provider_usage"
+          },
+          "response": {
+            "content": "你好",
+            "finish_reason": "stop",
+            "tool_calls": [
+              {
+                "id": "gemini-call-0",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"p\": 1}"
+                }
+              }
+            ],
+            "response_id": "rs",
+            "metadata": {
+              "reasoning_present": true
+            },
+            "continuation": {
+              "provider": "gemini",
+              "state": {
+                "function_call_signatures": {
+                  "gemini-call-0": "sg"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "gemini-stream-no-finish",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "g",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"半\"}]}}]}\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "ProviderError",
+        "message": "Gemini stream ended without a finish reason.",
+        "usage": null,
+        "details": {
+          "category": "response",
+          "retryable": false,
+          "status_code": null,
+          "provider_code": "missing_stream_terminal",
+          "request_id": null
+        }
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/g:streamGenerateContent?alt=sse",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\": [{\"role\": \"user\", \"parts\": [{\"text\": \"u\"}]}], \"generationConfig\": {\"temperature\": 0.7}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [
+        {
+          "kind": "text_delta",
+          "text": "半"
+        }
+      ],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "gemini-stream-safety",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "g",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"半\"}]}, \"finishReason\": \"RECITATION\"}]}\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "ProviderError",
+        "message": "Gemini blocked the response for safety reasons.",
+        "usage": null,
+        "details": {
+          "category": "content_filter",
+          "retryable": false,
+          "status_code": null,
+          "provider_code": "RECITATION",
+          "request_id": null
+        }
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/g:streamGenerateContent?alt=sse",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\": [{\"role\": \"user\", \"parts\": [{\"text\": \"u\"}]}], \"generationConfig\": {\"temperature\": 0.7}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [
+        {
+          "kind": "text_delta",
+          "text": "半"
+        }
+      ],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_stream",
+      "name": "gemini-stream-error",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "g",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"error\": {\"status\": \"UNAVAILABLE\", \"code\": 503}}\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "ProviderError",
+        "message": "Gemini request failed (UNAVAILABLE).",
+        "usage": null,
+        "details": {
+          "category": "connection",
+          "retryable": true,
+          "status_code": 503,
+          "provider_code": "UNAVAILABLE",
+          "request_id": null
+        }
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/g:streamGenerateContent?alt=sse",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\": [{\"role\": \"user\", \"parts\": [{\"text\": \"u\"}]}], \"generationConfig\": {\"temperature\": 0.7}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "native_complete",
+      "name": "gemini-continuation-replay",
+      "source": {
+        "STORYFORGE_LLM_PROVIDER": "google",
+        "STORYFORGE_LLM_BASE_URL": "https://gemini.example/v1beta//",
+        "STORYFORGE_LLM_MODEL": "gemini 2.5:专业~x(预览)!*'",
+        "STORYFORGE_LLM_API_KEY": "native-secret-key-0123456789"
+      },
+      "args": {
+        "model": "g/x",
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          },
+          {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "c7",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"p\": 1}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "c7",
+            "content": "{\"ok\": true}"
+          }
+        ],
+        "continuation": [
+          1,
+          {
+            "provider": "gemini",
+            "state": {
+              "function_call_signatures": {
+                "c7": "sig-7",
+                "c8": 5
+              }
+            }
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"candidates\": [{\"finishReason\": \"STOP\", \"content\": {\"parts\": [{\"text\": \"只想\", \"thought\": true}]}}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "",
+        "finish_reason": "stop",
+        "tool_calls": [],
+        "response_id": null,
+        "metadata": {
+          "latency_ms": 250,
+          "reasoning_present": true
+        },
+        "continuation": {
+          "provider": "gemini",
+          "state": {}
+        },
+        "usage": {
+          "token_usage": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "cache_hit_tokens": null,
+          "token_usage_source": "unavailable"
+        }
+      },
+      "requests": [
+        {
+          "url": "https://gemini.example/v1beta/models/g%2Fx:generateContent",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-goog-api-key": "native-secret-key-0123456789"
+          },
+          "body": "{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"u\"}]},{\"role\":\"model\",\"parts\":[{\"functionCall\":{\"id\":\"c7\",\"name\":\"fs.read\",\"args\":{\"p\":1}},\"thoughtSignature\":\"sig-7\"}]},{\"role\":\"user\",\"parts\":[{\"functionResponse\":{\"name\":\"fs.read\",\"response\":{\"ok\":true}}}]}],\"generationConfig\":{\"temperature\":0.7}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    }
+  ]
+}

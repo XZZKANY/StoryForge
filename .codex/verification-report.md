@@ -7612,3 +7612,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：回放 57 个场景 + 66 个任意字节切块的流式回放 + 5 条用量保留判定。变异 48 处全部被抓住；首轮 10 处存活（jitter 默认值、stream_options 协商时的等待、`[DONE]` 与已有结束原因、两层读流前的中断检查、按配置补的 max_tokens、0 不进请求体、未写 description 的工具、错误用量的保留、工具流非正常结束），补夹具后全部抓住。另有 1 处变异让重试等待变成同步死循环，变异脚本加了超时与进程树清理，按「抓住」计。
 - 门禁：引擎 typecheck 通过、11652 通过 / 2 跳过；eslint、prettier、ruff 通过；16 套 golden `--check` 一致。
 - 未做：P2-1c 桌面适配器（plugin-http + Rust 交出已解密配置槽）；P2-2 Anthropic / Gemini；P2-3 assistant；P2-4 真跑。未读真实作者数据；无付费调用。
+
+## 2026-10-12 P2-2 Anthropic / Gemini 原生协议（TS 迁移，默认仍走 Python）
+
+- 范围：ai_sdk 的 Anthropic Messages 与 Gemini generateContent 适配器，以及 llm_client 里给它们用的出网（`post_json_with_retry`、`_provider_complete_json`、`_provider_sse_json`、`_provider_url`、模型名的 `quote`），新增 `engine/src/llm/` 的 anthropic、gemini、providerTransport、pythonRepr；`sdkProvider` 按 provider 家族分派（claude → Anthropic，google → Gemini，其余 OpenAI 兼容）。契约补上 `ChatResponse.continuation` 与 `toAssistantMessage`（思维块、函数调用签名原样回传）。按 §12 决定 B 全量保留三家协议。Python 侧零改动。
+- 预言机：`apps/api/scripts/golden_llm_native.py`，与 P2-1b 共用新抽出的 `golden_llm_harness.py`（P2-1b 的 golden 用新 harness 复跑逐字节不变）；46 个场景覆盖 system 合并、工具往返（tool_use / tool_result、functionCall / functionResponse）、思维预算与温度约束、tool_choice 映射、拒答与安全拦截（带用量）、错误体分类、续接状态回放、SSE 全事件序列、缺终止事件、坏 JSON 事件、读流中断、建连重试，以及 Gemini 模型名的百分号转义。TS 侧回放 harness 同样抽成 `recorded.test-support.ts` 两边共用。`--check` 复跑一致。
+- 关键对齐点：原生协议请求体用紧凑分隔符（`,` `:`），流式请求体用默认分隔符；Python 报错文案里的 `{name!r}` 按 Python repr（引号选择与转义）；`urllib.parse.quote` 的安全字符集；Gemini 的 finishReason 大小写归一；Anthropic 的 `max_tokens or 4096`。
+- 测试：回放 46 个场景 + 28 个任意字节切块的流式回放。变异 41 处全部被抓住；首轮 13 处存活（结束原因映射在 call_llm 返回里看不到、错误分类、负数用量、缓存数沿用前值、未知结束原因转小写、空 input 的 tool_use、后续 message_delta 不带结束原因、Gemini MAX_TOKENS、建连失败的异常名、`[DONE]` 行、错误体 2000 字截断、只含单引号的工具名、带括号的模型名），补夹具后全部抓住；另 2 处等价不计（Gemini 的 reasoning_tokens 在 Python 侧没有消费方；quote 唯一调用点的 safe 字符本就常驻安全）。
+- 门禁：引擎 typecheck 通过、11726 通过 / 2 跳过；eslint、prettier、ruff 通过；17 套 golden `--check` 一致。
+- 未做：P2-1c 桌面适配器；P2-3 assistant；P2-4 真跑。未读真实作者数据；无付费调用。
