@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectReader } from '../readPort';
 import { buildSceneConstraintBlock } from './canonContext';
+import { hooksDelta } from './canonHooksDelta';
 import { buildCanonProjection } from './canonService';
 import type { EncodedFile } from './contextFixture.test-support';
 import { GenerationSourceCapture } from './generationSources';
 import { InputDomainError } from './json';
 import { memoryProject } from './memoryProject.test-support';
+import { buildPlanBlock } from './serialPlan';
+import { markChapterWritten } from './serialPlanUpdate';
 
 const ROOT = 'D:\\synthetic-book';
 const file = (text: string): EncodedFile => ({
@@ -97,6 +100,36 @@ describe('canon declarations outside the input domain', () => {
     });
     expect(second.presence).toEqual(first.presence);
     expect(Object.keys(project.takeWrites())).toContain('.storyforge/canon/derived/presence.json');
+  });
+});
+
+describe('hooks and serial plan outside the input domain', () => {
+  it('rejects a non-text hook description instead of skipping it', async () => {
+    const project = memoryProject(ROOT, {
+      '.storyforge/canon/hooks.json': file('{"hooks":[{"id":"h","description":7}]}'),
+    });
+    await expect(hooksDelta(project.reader, ROOT, {})).rejects.toThrow('hooks[0].description');
+  });
+
+  it('rejects a plan ordinal written as text', async () => {
+    const project = memoryProject(ROOT, {
+      ...chapters,
+      '.storyforge/serial-plan.json': file('{"chapters":[{"ordinal":"1"}]}'),
+    });
+    await expect(buildPlanBlock(project.reader, ROOT, 'windows')).rejects.toThrow(
+      'chapters[0].ordinal',
+    );
+  });
+
+  it('keeps the post-writeback callback quiet on a malformed plan', async () => {
+    const project = memoryProject(ROOT, {
+      ...chapters,
+      '.storyforge/serial-plan.json': file('{"chapters":[{"ordinal":1.0}]}'),
+    });
+    await expect(
+      markChapterWritten(project.reader, project.writer, ROOT, '正文/第001章.md', 'windows'),
+    ).resolves.toEqual({ updated: false, reason: 'plan_unreadable' });
+    expect(project.takeWrites()).toEqual({});
   });
 });
 

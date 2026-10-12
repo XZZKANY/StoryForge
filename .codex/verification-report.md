@@ -7531,3 +7531,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：回放 78 条 + 新增 2 条 promises 越界测试。变异 16 处全部被抓住：对白占比阈值、91 字长句、4 字重复窗口、24000 字截断、结尾钩子末 40 字、必含事实成员判断、Python 与 JS 空白差异、沉睡阈值、节拍间隔、合法章号下限、issue 去重、「显式未定截止章」、三个调查动作桶、正文阅读序判据、第 30 章阈值、可删除标记。首轮 8 处存活（夹具没踩到边界），补边界夹具后全部抓住。
 - 门禁：引擎 typecheck 通过、10287 通过 / 2 跳过；eslint、prettier 通过。
 - 未做：工具接线（P3）；observatory（P1-5 一起）；未读真实作者数据；无付费调用。
+
+## 2026-10-12 P1-5 提案与连载计划 + 观测镜（TS 迁移，默认仍走 Python）
+
+- 范围：canon_delta（canon 增量提案、待确认提案差读）、canon_hooks_delta（伏笔增量提案与准入判定）、serial_plan（读取、投影、system 块、桌面载荷）、serial_plan_update（合并、未落盘拒标 done、盖路径、接受/撤销回调）、observatory（聚合 canon 闸门 / 伏笔承诺 / 文笔气味，写 observations.json）。observatory 的生成时间改由调用方注入时钟。Python 侧零改动。
+- 预言机：`apps/api/scripts/golden_plans.py`：6 个合成项目 57 次真实调用（canon_delta 23 含 18 条参数错误、待确认提案 5、伏笔提案 4、观测镜 4、计划投影 7、计划推进 3、接受回调 7、撤销回调 4）+ 3 次模拟作者改文件 / 删文件，外加 16 条纯函数用例（伏笔准入、计划合并、未落盘拒标）。观测镜在 Python 侧用固定时钟替身（毫秒非零与为零两种，后者验证 isoformat 省略小数）。模型传入的工具参数按原文记录，TS 用自己的 JSON 解析保留 2 与 2.0 的区别。写盘字节（proposals.json、presence.json、serial-plan.json、observations.json、dossier.md、report.json、canon.json 空模板）逐字节一致。`--check` 复跑一致。
+- 输入范围：serial-plan.json 读到的字段（chapters 的 ordinal 为整数、title / goal / status / note / path 为字符串；arcs 的 title、target_chapters、payoff_chapter；premise、每章字数）纳入 §4.3.1 校验，写错报错；Python 原先读失败静默不出计划块。接受 / 撤销回调遇到写错的计划仍返回 plan_unreadable 不抛（写盘之后的收尾不能污染已成功的写回）。proposals.json 草稿结构不合视为缓存失效。观测镜的文笔遍历改用统一项目遍历（2 万项 / 64 层预算、不跟随链接目录）；Python 用无预算的 rglob 且会跟随 junction，超预算时 TS 报错，属接受的差异。
+- 测试：回放 71 条 + 新增 3 条范围外测试（hooks 描述为数字、计划章序为字符串、回调遇写错计划不抛）。变异 25 处全部被抓住；首轮 5 处存活（草稿重复 id、字符重合恰为 0.6、跨回车符的承诺匹配、大写新描述、按路径认领挤占章序回退），补夹具后全部抓住。
+- 门禁：引擎 typecheck 通过、10366 通过 / 2 跳过；eslint、prettier 通过；三套新 golden `--check` 一致。
+- 未做：IDE 命令 canon.refresh / observatory.scan / plan.* 接 TS（P1-8）；工具接线（P3）；未读真实作者数据；无付费调用。

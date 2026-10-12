@@ -142,3 +142,33 @@ export function renderDossiersMarkdown(dossiers: readonly Dossier[]): string {
   for (const dossier of dossiers) out.push(...renderOne(dossier));
   return out.join('\n');
 }
+
+/** Python 侧 dossier 字典的同形同序投影（观测镜 observations.json 逐字节依赖它）。 */
+export function dossierToJson(dossier: Dossier): JsonObject {
+  const holding = ({ item, entry }: Dossier['holdings'][number]): JsonObject => ({
+    item,
+    from_chapter: entry.from_chapter ?? null,
+    to_chapter: entry.to_chapter ?? null,
+    ...assertionMetadata(entry),
+  });
+  const lifespan = dossier.lifespan;
+  return {
+    id: dossier.id,
+    canonical_name: dossier.canonical_name,
+    ...dossier.metadata,
+    kind: dossier.kind,
+    aliases: dossier.aliases,
+    appearance: dossier.appearance,
+    holdings: dossier.holdings.map(holding),
+    lifespan:
+      lifespan === null
+        ? null
+        : {
+            exits_after_chapter: lifespan.exits_after_chapter,
+            reason: lifespan.reason,
+            ...assertionMetadata(lifespan.entry),
+          },
+    provenance: dossier.provenance,
+    provenance_truncated: dossier.provenance_truncated,
+  };
+}

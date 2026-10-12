@@ -145,9 +145,12 @@ class Project:
             target.write_bytes(raw)
         self.calls: list[dict] = []
 
-    def call(self, fn: str, args: dict, run, *, errors: tuple = ()) -> object:
+    def call(self, fn: str, args: dict, run, *, errors: tuple = (), typed_args: bool = False) -> object:
         before = snapshot(self.root)
         row: dict = {"fn": fn, "args": args}
+        if typed_args:
+            # Keeps 2 vs 2.0 apart for the TS replay, which parses this text with its own JSON owner.
+            row["args_json"] = json.dumps(args, ensure_ascii=False)
         result = None
         try:
             result = run()
@@ -162,6 +165,12 @@ class Project:
         """An author edit between calls; replayed from the recorded writes."""
         before = snapshot(self.root)
         (self.root / path).write_bytes(raw)
+        self.calls.append({"fn": "author_write", "args": {"path": path}, "writes": tree_diff(before, snapshot(self.root))})
+
+    def remove(self, path: str) -> None:
+        """An author deletion between calls (for example an undone new chapter)."""
+        before = snapshot(self.root)
+        (self.root / path).unlink()
         self.calls.append({"fn": "author_write", "args": {"path": path}, "writes": tree_diff(before, snapshot(self.root))})
 
     def record(self, name: str) -> dict:

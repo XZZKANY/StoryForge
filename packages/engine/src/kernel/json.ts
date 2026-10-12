@@ -365,3 +365,40 @@ export function dumpJson(value: unknown, options: DumpOptions = {}): string {
   };
   return write(value, 0);
 }
+
+/** 深拷贝 JsonValue，保留 JsonFloat（structuredClone 会把它变成普通对象）。 */
+export function cloneJson<T extends JsonValue>(value: T): T {
+  if (value === null || typeof value !== 'object' || value instanceof JsonFloat) return value;
+  if (Array.isArray(value)) return value.map((item) => cloneJson(item)) as T;
+  const output: JsonObject = Object.create(null);
+  for (const [key, item] of Object.entries(value)) output[key] = cloneJson(item);
+  return output as T;
+}
+
+/** Python `==`：True == 1 == 1.0，列表按序、字典不看键序。 */
+export function pythonEquals(left: JsonValue | undefined, right: JsonValue | undefined): boolean {
+  const numeric = (value: JsonValue | undefined): number | null =>
+    typeof value === 'number'
+      ? value
+      : typeof value === 'boolean'
+        ? Number(value)
+        : value instanceof JsonFloat
+          ? value.value
+          : null;
+  const a = numeric(left);
+  const b = numeric(right);
+  if (a !== null || b !== null) return a !== null && b !== null && a === b;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((item, i) => pythonEquals(item, right[i]));
+  }
+  if (isJsonObject(left) && isJsonObject(right)) {
+    const keys = Object.keys(left);
+    if (keys.length !== Object.keys(right).length) return false;
+    return keys.every(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(right, key) && pythonEquals(left[key], right[key]),
+    );
+  }
+  return left === right;
+}
