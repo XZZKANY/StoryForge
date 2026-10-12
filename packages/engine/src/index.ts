@@ -311,3 +311,21 @@ export {
   PER_CHAPTER_CHAR_BUDGET,
 } from './kernel/crossChapter';
 export type { CrossChapterLlmPort } from './kernel/crossChapter';
+export {
+  ANALYSIS_KEYS,
+  ANALYSIS_SCHEMA_VERSION,
+  BookBreakdownCancelled,
+  BookBreakdownError,
+  BREAKDOWN_SYSTEM_PROMPT,
+  BreakdownCancellations,
+  loadProjectChapters,
+  MAX_SOURCE_BYTES,
+  parseChapters,
+  readBookBreakdownStatus,
+  runBookBreakdown,
+  selectedContext,
+  selectRepresentativeChapters,
+  SELECTION_STRATEGY_VERSION,
+} from './kernel/bookBreakdown';
+export type { BreakdownLlmPort, BreakdownModel } from './kernel/bookBreakdown';
+export { DocxReadError, readDocxText } from './kernel/docx';
