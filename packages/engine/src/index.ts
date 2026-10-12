@@ -328,6 +328,39 @@ export {
 export type { BreakdownLlmPort, BreakdownModel } from './kernel/bookBreakdown';
 export { DocxReadError, readDocxText } from './kernel/docx';
 export { executeIdeCommand, IDE_COMMANDS } from './kernel/ideCommands';
+export {
+  buildLlmContextSnapshot,
+  buildLlmContextSnapshotFromCollected,
+  contextChannelRequests,
+  llmContextSnapshotTraceSummary,
+  reviewChannelSource,
+} from './kernel/llmContext';
+export type { RunState, SnapshotInput } from './kernel/llmContext';
+export {
+  llmContextSnapshotToPromptContextBundle,
+  MAX_PROMPT_CONTEXT_FILES,
+  syntheticContextDelivery,
+  syntheticContextSelectedValues,
+} from './kernel/llmPromptContext';
+export {
+  admitWritingRequest,
+  ContextBundleValidationError,
+  PreparedWritingContext,
+  validateAssistantContextBundle,
+  WritingContextConflictError,
+  writingContextFromGuardedBundle,
+  writingContextFromSnapshot,
+} from './kernel/writingContext';
+export type {
+  AssistantContextBundle,
+  AssistantContextBundleFile,
+  WritingRequest,
+} from './kernel/writingContext';
+export {
+  iterManuscriptFiles,
+  PREVIOUS_TAIL_MAX_CHARS,
+  previousChapterTail,
+} from './kernel/previousChapter';
 export type { IdeCommandDefinition, IdeCommandDeps } from './kernel/ideCommands';
 export {
   credentialHeaderValues,

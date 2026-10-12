@@ -7636,3 +7636,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 残余风险（与 v1 相同，不因本刀扩大）：WebView 若被攻破，可经 `save_llm_config` 改 baseUrl 但保留已存 key，再让 Rust 代发到新地址；v1 里 Python sidecar 同样会照新 baseUrl 带 key 出网。本刀的收益是 key 不进 JS 内存、不进任何 WebView 可见数据。
 - 门禁：Rust 全量 134 通过 / 4 忽略，新代码 clippy 无告警、rustfmt 通过；引擎 11726 通过 / 2 跳过、typecheck 通过；前端 2104 通过 / 1 跳过、typecheck 通过（修 docx 之后）；eslint（0 错误，2 条既有告警在无关测试文件）、prettier 通过。Python 侧零改动，未跑 pytest / golden。
 - 未做：P2-3 assistant（接 `assistant.ts` 的 ts 档）；P2-4 作者 key 真跑（需单独批准与费用预估）。未读真实作者数据；无付费调用；默认路由仍走 Python。
+
+## 2026-10-12 P2-3a 写作上下文准入（TS 迁移，默认仍走 Python）
+
+- 范围：assistant 的修订 / 续写 / 起草都先过「写作上下文准入」，它依赖 llm_context 快照，计划原排在 P3-4，本刀提前搬。新增 `packages/engine/src/kernel/` 下 `contextValues.ts`（context_values / _text / limits）、`llmContext.ts`（llm_context、context_provenance、context_channel_requests）、`llmPromptContext.ts`（llm_prompt_context）、`writingContext.ts`（assistant/writing_context，含 AssistantContextBundle 的 pydantic 约束校验）、`previousChapter.ts`（manuscript.previous_chapter_tail 与正文列举）；`styleBaseline.ts` 的私有正文列举改用同一个 `iterManuscriptFiles`（Python 侧本就是同一个函数）。
+- 预言机：`apps/api/scripts/golden_writing_context.py`（注册为 `p2-writing-context`），在隔离环境里跑真实 Python：58 条纯函数用例（32 个快照组装、10 个旧快照投影、8 个守卫交接、8 个快照交接）+ 一个合成项目上 33 次调用（18 次上一章结尾、5 次带知识检索的 live 快照、7 次请求准入、3 次已准备上下文交接），每次记录输出、生成来源记账与写盘差异（均为零写入）。依赖真实运行目录的快照 id 两侧都在占位根下重算后比较；`--check` 两次导出一致。
+- TS 回放：`writingContext.test.ts` 94 个用例全部一致（含 3 个边界用例：交接对象不能伪造、无根无 bundle 原样返回、每次取 bundle 都是新值）。
+- 变异：39 处，抓住 37 处。2 处等价：空项目根时 `||` 换 `??`（合成根与空根在准入的可观测输出上相同）；按阅读序二分时 `>= 0` 换 `> 0`（精确命中先被大小写匹配截走）。首轮有 5 处没抓住，均补了夹具（裸文件名命中选中文件、增补平面字符摘录、恰好 13 项的列表、带截断标记的旧记忆、无空行的长章节）后抓住。
+- 接受的差异：项目 / 目标身份按词法规范化比较，Python 用 realpath 能把 Windows junction 别名认成同一项目，TS 不认（偏向拒绝，准入路径两侧来自同一串不受影响）；pydantic 校验报错文本是它自己的格式，只比较错误类别；循环读到的文件 relative_path 为 `.` 时 Python 抛 IndexError、TS 按不安全路径跳过；章节上下文里 `1.0` 这类整数值小数按整数渲染（应用写不出，§4.3.1）。
+- 门禁：引擎 11820 通过 / 2 跳过、typecheck 通过；前端 typecheck 通过；eslint、prettier 通过；ruff（新预言机与 golden_dump）通过。Python 业务代码零改动。
+- 未做：P2-3b（引擎侧修订 / 润色门禁 / 续写 / 起草 / 对话 / 测试连接用例）、P2-3c（前端 `assistant.ts` 按开关分流）、P2-4 作者 key 真跑。未读真实作者数据；无付费调用；默认路由仍走 Python。

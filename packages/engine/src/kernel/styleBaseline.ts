@@ -1,8 +1,8 @@
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import type { GenerationSourceCapture } from './generationSources';
-import { NON_MANUSCRIPT_DIRS, isManuscriptPath, orderManuscriptFiles } from './manuscript';
 import { pythonFixed, pythonFloatSum } from './math';
-import { ProjectTreeError, scanProjectFiles } from './projectTree';
+import { iterManuscriptFiles } from './previousChapter';
+import { ProjectTreeError } from './projectTree';
 import { pythonStrip } from './pythonText';
 
 // ---- 文风指纹：检查器与生成器共用的一套数学 ----
@@ -116,28 +116,6 @@ function meanWithCi(values: readonly number[]): StyleTarget | null {
   return { value: mean, half_width: critical * standardError };
 }
 
-/** 非 dot 目录下的正文 `*.md`，按路径序（= 阅读序）。大纲与人物设定不进语料。 */
-async function manuscriptFiles(
-  reader: ProjectReader,
-  root: string,
-  platform: 'windows' | 'posix',
-): Promise<string[]> {
-  const paths = await scanProjectFiles(reader, root, {
-    visible: (path) => {
-      const parts = path.split('/');
-      return (
-        !parts.some((part) => part.startsWith('.')) &&
-        !NON_MANUSCRIPT_DIRS.has(parts[0].toLowerCase()) &&
-        isManuscriptPath(path)
-      );
-    },
-  });
-  return orderManuscriptFiles(
-    paths.map((relative_path) => ({ relative_path, is_directory: false })),
-    platform,
-  );
-}
-
 async function readChunk(
   reader: ProjectReader,
   root: string,
@@ -190,7 +168,8 @@ export async function buildStyleBaseline(
     if ((await reader.inspectProjectPath(root, '.')).targetKind !== 'directory') return null;
     // 同一份文件经别名出现多次只算一次（以解析后的目标认身份）。
     const unique = new Map<string, string>();
-    for (const path of await manuscriptFiles(reader, root, platform)) {
+    // 大纲与人物设定不进语料。
+    for (const path of await iterManuscriptFiles(reader, root, platform)) {
       const target = (await reader.resolveProjectPath(root, path)).resolvedRelativePath;
       await reader.inspectProjectPath(root, target);
       if (!unique.has(target)) unique.set(target, target);
