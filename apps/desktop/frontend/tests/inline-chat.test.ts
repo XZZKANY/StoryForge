@@ -415,6 +415,63 @@ test('模型在窗口内跑到锚点之外时，拼回后仍被夹掉', () => {
   assert.ok(plan.droppedOffAnchor > 0);
 });
 
+// —— 模型丢掉末尾换行 + 段外零星改动（P2-4 真跑实测，2026-10-12）——————————————
+// 两者同时出现时，结尾空行与中间空行抢着对齐，锚定段与段外改动被粘成一个越界块，
+// 整次改写被夹紧丢弃，作者只看到「AI 的改动落在选定处之外」。下面原文与模型输出取自真跑。
+const P24_BEFORE =
+  '# 第二章 水厂\n\n第二天一早，林舟还是下了楼。\n\n' +
+  '街上没有人。积水漫过了人行道，倒映着灰白的天，远处水厂的方向升起一道黑烟，一直没有散。' +
+  '他沿着墙根走，每走几步就停下来听一听，雨后的城市安静得过分，连鸟叫都没有。\n\n' +
+  '拐过超市的时候，他看见了那辆翻倒的运水车。车门被什么东西从里面撕开了，边缘卷得像纸，地上的水是红的。\n';
+const P24_REWRITE =
+  '街上没有人。积水漫过人行道，水面碎了，又平了。远处水厂的方向，黑烟一直在升。' +
+  '他沿着墙根走，走几步，停，侧耳——什么都没有。脚步声落在水里，咕嘟一响。鸟也不叫。';
+const P24_MODEL_OUTPUT =
+  '# 第二章 水厂\n\n第二天一早，林舟还是下了楼。\n\n' +
+  P24_REWRITE +
+  '\n\n拐过超市的时候,他看见了那辆翻倒的运水车。车门被什么东西从里面撕开了,边缘卷得像纸,地上的水是红的。';
+
+test('模型丢了末尾换行又改了段外标点时，锚定段的改写仍然保住', () => {
+  const anchor = { startLine: 5, endLine: 5 };
+  const window = planInlineReviseWindow(P24_BEFORE, anchor);
+  const after = spliceInlineReviseWindow(P24_BEFORE, window, P24_MODEL_OUTPUT);
+  const plan = planAnchoredInlineDiff(P24_BEFORE, after, anchor);
+
+  assert.equal(plan.isNoop, false);
+  assert.equal(plan.droppedOffAnchor, 1, '段外的半角逗号改动照旧被丢弃');
+  assert.equal(
+    plan.clampedAfter,
+    P24_BEFORE.replace(P24_BEFORE.split('\n')[4], P24_REWRITE),
+    '只换锚定段；段外原文与末尾换行逐字保留',
+  );
+});
+
+test('节选窗口拼回时按原窗口还原末尾换行，不在正文中间插空行或吞掉文末换行', () => {
+  const content = longChapter(60);
+  const middle = planInlineReviseWindow(content, { startLine: 30, endLine: 30 });
+  const padded = spliceInlineReviseWindow(
+    content,
+    middle,
+    middle.text.replace('第30段。', '第30段·改。') + '\n\n',
+  );
+  assert.equal(padded.split('\n').length, content.split('\n').length);
+  assert.equal(
+    planAnchoredInlineDiff(content, padded, { startLine: 30, endLine: 30 }).droppedOffAnchor,
+    0,
+  );
+
+  const withNewline = content + '\n';
+  const bottom = planInlineReviseWindow(withNewline, { startLine: 60, endLine: 60 });
+  assert.equal(bottom.isWholeDocument, false);
+  const dropped = spliceInlineReviseWindow(
+    withNewline,
+    bottom,
+    bottom.text.replace('第60段。', '第60段·改。').replace(/\n+$/, ''),
+  );
+  assert.ok(dropped.endsWith('\n'), '文末换行必须保留');
+  assert.ok(dropped.includes('第60段·改。'));
+});
+
 test('切窗时指令必须告诉模型这是节选，否则它会给节选补开头结尾', () => {
   const excerpt = buildInlineReviseInstruction({
     anchorRange: { startLine: 1, endLine: 1 },

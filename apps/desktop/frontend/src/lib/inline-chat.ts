@@ -143,15 +143,26 @@ export function planInlineReviseWindow(
   };
 }
 
+/**
+ * 末尾换行是文件属性，不是作者在锚定处授权的改动。模型常把它丢掉（或多补几个），
+ * 原样拼回时结尾的空行会与正文中间的空行抢着对齐，把锚定段和段外的零星改动粘成
+ * 一个越界块，整次改写被夹紧丢弃（P2-4 真跑实测）。拼回前按原窗口还原。
+ */
+function withTrailingNewlines(text: string, like: string): string {
+  const trailing = (value: string) => value.length - value.replace(/\n+$/, '').length;
+  return text.replace(/\n+$/, '') + '\n'.repeat(trailing(like));
+}
+
 /** 把模型改过的窗口拼回整文，得到「整文件 after」——下游的夹紧与写回契约因此完全不变。 */
 export function spliceInlineReviseWindow(
   content: string,
   window: InlineReviseWindow,
   revisedWindowText: string,
 ): string {
-  if (window.isWholeDocument) return revisedWindowText.replace(/\r\n/g, '\n');
+  const revisedText = withTrailingNewlines(revisedWindowText.replace(/\r\n/g, '\n'), window.text);
+  if (window.isWholeDocument) return revisedText;
   const lines = content.replace(/\r\n/g, '\n').split('\n');
-  const revised = revisedWindowText.replace(/\r\n/g, '\n').split('\n');
+  const revised = revisedText.split('\n');
   lines.splice(window.startLine - 1, window.endLine - window.startLine + 1, ...revised);
   return lines.join('\n');
 }
