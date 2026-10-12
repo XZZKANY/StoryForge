@@ -10,7 +10,7 @@ import { sha256Hex } from './sha256';
 
 export const CONTEXT_FILE_TEXT_LIMIT = 2000;
 export const PROMPT_EXCERPT_TEXT_LIMIT = 4000;
-const UNSAFE_CONTEXT_KEYS = new Set([
+export const UNSAFE_CONTEXT_KEYS = new Set([
   'agent_events',
   'debug',
   'debug_json',
