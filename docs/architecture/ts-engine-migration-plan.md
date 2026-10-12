@@ -1,6 +1,6 @@
 # 后端换 TS：Python sidecar → 单进程 Tauri 迁移计划
 
-状态：**P0 已验收 · P1 实施中**（2026-10-11）。作者已认可 P0、批准三批本机提交（不 push），并已认可 P1 的 PRD/设计/实施清单、批准按保留现有路径行为启动。完整引擎继续使用 `packages/engine`，全量保留现有功能与 provider（§12 B/C）。P1 提交另行确认；付费真跑、作者数据操作、默认切换与真机安装仍按阶段确认。2026-10-11 作者另拍板「划定输入范围、范围外直接报错、不再模仿 Python」，JSON 嵌套上限定为 64 层，见 §4.3.1。本文是这项迁移的唯一计划文档；每个 PR 合并时在 §6 的清单里打勾。
+状态：**P0 已验收 · P1 内核与 P2 已合并 · P3 实施中**（2026-10-12；P1 首段状态写于 2026-10-11）。作者已认可 P0、批准三批本机提交（不 push），并已认可 P1 的 PRD/设计/实施清单、批准按保留现有路径行为启动。完整引擎继续使用 `packages/engine`，全量保留现有功能与 provider（§12 B/C）。P1 提交另行确认；付费真跑、作者数据操作、默认切换与真机安装仍按阶段确认。2026-10-11 作者另拍板「划定输入范围、范围外直接报错、不再模仿 Python」，JSON 嵌套上限定为 64 层，见 §4.3.1。本文是这项迁移的唯一计划文档；每个 PR 合并时在 §6 的清单里打勾。
 
 ---
 
@@ -328,6 +328,12 @@ P0 结束出一份 `verification-report` 记录，附数字，再决定 P1 开�
 | P3-6 | 管线：`adapters/chapter_writing_pipeline`、`chapter_writing_contracts`、`chapter_writing_tools`、`chapter_generation_pipeline`、`chapter_check_protocol`、`chapter_source_guard`、`chapter_polishing_pipeline`、`file_review_pipeline`、`intent_fixed_pipeline_adapter`；`patches/*`（polishing、polish_context、polish_fact_guards、writing_context、revise_input、runtime_tools）；`deep_consistency` + `judge/semantic` | 五条管线各一份录制回放；提示词 golden |
 | P3-7 | 接 `agent-socket.ts` 的 `ts` 档：进程内帧回调；控制通道（暂停 / 停止 / 恢复 / 权限批准 / 补丁决定） | 前端既有 ChatWindow 行为测试全绿（mock 换成引擎） |
 | P3-8 | 真跑：新会话 → 起草下一章 → 章纲确认 → 草稿 → 补丁接受写回；再跑一次审稿、一次修订 | 作者看结果；记录 token |
+
+P3 拆刀与进度（2026-10-12 起，每刀一个 PR、合并后接下一刀；P3-8 真跑前单独找作者批准与报预估）：
+
+- 外部写回协议（`loop/external_*`、deferred 工具结果、外部等待阶段）不搬：装机版 `EXTERNAL_WRITEBACK_RELEASED=false`，生产里从不协商。SDK 的审批阶段（`require_approval` / `approval_required`）也不搬：StoryForge 的策略只出 allow / deny，工具从不要求审批；作者确认补丁走的是 run 结算后的 `permission.confirm`，与 SDK 审批无关。
+- run 存储：P3 先用内存实现（引擎端口），P4 换 sqlite；会话、消息与工具调用证据照 P2-3 经现有 `/api/assistant/sessions*` 写回 Python 库。
+- SDK 工具循环（2026-10-12，P3-1）：`ai_sdk/runtime`（loop / state / budget / feedback / models / ports）与 `tools`（models / registry / validation）搬进 `engine/loop/`（`sdkLoop` / `sdkPorts` / `sdkState` / `sdkTools`），模型、工具、轨迹、检查点、用量记账端口一律可 await。预言机在真实 `ToolCallingRuntime` 上跑 87 个脚本化场景（100 步）（脚本化模型 / 工具结果 / 中断触发点 / 检查点恢复，含基础设施失败），逐条比对轨迹事件、每次检查点存盘、模型请求、工具与策略调用、中断检查、用量记账与最终结果，外加 38 条 schema 校验、10 条参数解析、6 条限额校验；54 处变异抓住 52 处（余 2 处等价：TS 的恢复命令只有 continue / null；空输出 schema 本就不出问题）。接受的差异：模型给的工具参数按标准 JSON 解析（§4.3.1），NaN / Infinity、超出安全整数、孤立代理码点按「不是合法 JSON」反馈给模型；检查点字典只读回应用自己写的形状，不再把错类型硬转。默认仍走 Python。
 
 ### P4 存储与导入（PR P4-1 … P4-3）
 
