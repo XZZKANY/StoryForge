@@ -7675,3 +7675,15 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 接受的差异：Python 档取消只断开前端请求，后端照常跑完并记 completed；TS 档会停下并记 paused（不再多烧 key）。HTTP 边界的请求体积上限（正文 120000 字等）在进程内调用里不再设。
 - 门禁：前端 2112 通过 / 1 跳过、typecheck；eslint（新文件零告警）、prettier；引擎零改动、Python 零改动。
 - 未做：切 `engine.assistant` 默认值（另起 PR）；P2-4 作者 key 真跑（需单独批准与费用预估）。未读真实作者数据；无付费调用；默认路由仍走 Python。
+
+## 2026-10-12 P2-4 assistant 真跑（作者批准；TS 迁移，默认仍走 Python）
+
+- 做法：`verify-engine-p0-native.mjs --assistant-real`（新模式）。普通 debug 构建 + 隔离用户目录；作者的 `llm-provider.json`（Windows 用户级 DPAPI 密文、无 entropy）复制进隔离配置目录，key 只在 Rust 里解开，WebView 看到的仍是占位串（已断言）；会话写进假 sidecar（不碰作者真实会话库）；正文是合成的两章（不读作者的书）。fixture `engine-p2-assistant-real.ts` 照编辑器真实路径调用：Ctrl+K = `planInlineReviseWindow` + `buildInlineReviseInstruction`（选中第二章第二段，指令「把这段改得更紧张一些，用动作和声音代替形容词」）+ polish 门禁；Ctrl+Shift+K = `resolveContinueAnchorLine` + `loadInlineContinueContext`（上下文包带上第一章）。跑完删除复制进来的配置文件，运行目录里只剩 exe 中的方案名常量。
+- 结果：两次都成功。
+  - Ctrl+K：总耗时 6.8 s（模型 6.56 s），polish 门禁通过（字数比 0.9931），锚定段改写为「积水漫过人行道，水面碎了，又平了……走几步，停，侧耳——什么都没有。脚步声落在水里，咕嘟一响。鸟也不叫。」
+  - Ctrl+Shift+K：首个增量 3.3 s，共 10.8 s，107 个增量，收尾 250 字（目标 300）；续写里出现了只在第一章出现过的「消防斧」，说明上一章 / 上下文包确实送达了模型。
+  - 用量（provider 回报，`provider_usage`）：修订 17,431 输入 + 176 输出；续写 8,198 输入 + 298 输出；合计 26,103 token。未配置单价，`cost_cny_estimated` 为空。
+- 提示核对：用真实 Python 服务函数对同一份输入组装提示（不出网），与 TS 真跑记录在生成来源证据里的 `request.system_sha256` / `user_sha256` 对比——修订两段都相同；续写带上同一个上下文包（第一章、kind `draft`）后两段也相同。我们的提示只有约 1,979 字（修订）与 2,474 字（续写），回报的输入 token 远大于此，多出的部分来自服务端（作者可在服务商后台核对计费）。
+- 发现（既有问题，与迁移无关）：本次 Ctrl+K 的模型输出同时 ①去掉了末尾换行 ②把锚定段外最后一段的全角逗号改成半角。用编辑器的 `planAnchoredInlineDiff` 在拼回的整章上复算：`isNoop: true`、`droppedOffAnchor: 2`——锚定段的改写被整体丢掉，作者只会看到「没有改动」。拆开测：只补回末尾换行，或只还原段外逗号，任一即可保住锚定改写（只丢段外那处）。TS 发出的提示与 Python 逐字节相同、前端 diff 代码未动，Python 路径遇到同样的模型输出结果一样。未修，待作者决定。
+- 门禁：本 PR 只加探针模式与 fixture；fixture 单独类型检查通过，探针语法检查与 prettier 通过。引擎、前端业务代码、Python 零改动。
+- 未做：切 `engine.assistant` 默认值（单独 PR）；上述锚定 diff 问题的修复。
