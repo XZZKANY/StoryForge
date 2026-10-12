@@ -267,3 +267,101 @@ export class JsonFields {
     return value === undefined || value === null ? null : this.boolean(value, path);
   }
 }
+
+export type DumpOptions = {
+  indent?: number;
+  ensureAscii?: boolean;
+  sortKeys?: boolean;
+  separators?: readonly [string, string];
+};
+
+const SHORT_ESCAPES: Readonly<Record<string, string>> = {
+  '"': '\\"',
+  '\\': '\\\\',
+  '\b': '\\b',
+  '\f': '\\f',
+  '\n': '\\n',
+  '\r': '\\r',
+  '\t': '\\t',
+};
+
+/** Python float.__repr__：最短往返位数，指数 < -4 或 ≥ 16 时用科学计数法。 */
+export function pythonFloatRepr(value: number): string {
+  if (!Number.isFinite(value)) throw new RangeError(`非有限小数 ${value} 不在输入范围内`);
+  if (Object.is(value, -0)) return '-0.0';
+  const [coefficient, exponentText] = value.toExponential().split('e');
+  const exponent = Number(exponentText);
+  if (exponent < -4 || exponent >= 16)
+    return `${coefficient}e${exponent < 0 ? '-' : '+'}${String(Math.abs(exponent)).padStart(2, '0')}`;
+  return Number.isInteger(value) ? `${value}.0` : String(value);
+}
+
+/** Python 的 sorted(str)：按码点比较，不是 UTF-16 码元。 */
+export function compareCodePoints(a: string, b: string): number {
+  const left = Array.from(a);
+  const right = Array.from(b);
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    const diff = left[i].codePointAt(0)! - right[i].codePointAt(0)!;
+    if (diff) return diff;
+  }
+  return left.length - right.length;
+}
+
+/**
+ * Python json.dumps 的逐字节等价，只接受范围内的值：整数值的 number 视为 int，
+ * 其余 number 与 JsonFloat 按 float 输出。对象键按插入序（JS 的整数形键会排到前面，
+ * 调用方不得把这类键交给需要保序的输出）。
+ */
+export function dumpJson(value: unknown, options: DumpOptions = {}): string {
+  const { indent, ensureAscii = true, sortKeys = false } = options;
+  const [itemSeparator, keySeparator] =
+    options.separators ?? (indent === undefined ? [', ', ': '] : [',', ': ']);
+  const quote = (text: string): string => {
+    let output = '"';
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const code = text.charCodeAt(i);
+      const short = SHORT_ESCAPES[char];
+      if (short !== undefined) output += short;
+      else if (code < 0x20 || (ensureAscii && code > 0x7e))
+        output += '\\u' + code.toString(16).padStart(4, '0');
+      else output += char;
+    }
+    return output + '"';
+  };
+  const write = (node: unknown, level: number): string => {
+    if (node === null) return 'null';
+    if (node === true) return 'true';
+    if (node === false) return 'false';
+    if (typeof node === 'string') return quote(node);
+    if (typeof node === 'number') {
+      if (Number.isInteger(node) && Number.isSafeInteger(node))
+        return String(node === 0 ? 0 : node);
+      return pythonFloatRepr(node);
+    }
+    if (node instanceof JsonFloat) return pythonFloatRepr(node.value);
+    const open = indent === undefined ? '' : '\n' + ' '.repeat(indent * (level + 1));
+    const close = indent === undefined ? '' : '\n' + ' '.repeat(indent * level);
+    if (Array.isArray(node)) {
+      if (!node.length) return '[]';
+      return (
+        '[' +
+        open +
+        node.map((item) => write(item, level + 1)).join(itemSeparator + open) +
+        close +
+        ']'
+      );
+    }
+    if (typeof node === 'object') {
+      const entries = Object.entries(node as Record<string, unknown>);
+      if (!entries.length) return '{}';
+      if (sortKeys) entries.sort(([a], [b]) => compareCodePoints(a, b));
+      const items = entries.map(
+        ([key, item]) => quote(key) + keySeparator + write(item, level + 1),
+      );
+      return '{' + open + items.join(itemSeparator + open) + close + '}';
+    }
+    throw new TypeError(`无法序列化 ${typeof node}`);
+  };
+  return write(value, 0);
+}

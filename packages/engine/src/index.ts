@@ -32,3 +32,52 @@ export {
 export { checkCanon } from './kernel/canonGate';
 export type { CanonGateResult, CanonIssue } from './kernel/canonGate';
 export { matchPythonPath } from './kernel/pathMatch';
+export { compareCodePoints, dumpJson, pythonFloatRepr } from './kernel/json';
+export type { DumpOptions } from './kernel/json';
+export { platformTextBytes } from './writePort';
+export type { ProjectWriter } from './writePort';
+export {
+  AUTHOR_INSTRUCTIONS_PATH,
+  FsBinaryFileError,
+  FsToolError,
+  isSkippedProjectPath,
+  iterProjectFiles,
+  nativeProjectPath,
+  readBoundedText,
+  resolveProjectRoot,
+  resolveScopedPath,
+} from './kernel/fsTools';
+export type { TextRead } from './kernel/fsTools';
+export {
+  GenerationSourceCapture,
+  MAX_MANIFEST_BYTES,
+  MAX_SOURCE_REFS,
+  bytesSha256,
+  selectionSha256,
+  textSha256,
+} from './kernel/generationSources';
+export type { ProjectionRow, SourceRow } from './kernel/generationSources';
+export { consistencyScan } from './kernel/consistencyScan';
+export type { ConsistencyScanResult } from './kernel/consistencyScan';
+export {
+  ASSERTION_METADATA_PROPERTIES,
+  assertionMetadata,
+  formatChapterWindow,
+  normalizeAssertionMetadata,
+  renderAssertionMetadata,
+} from './kernel/canonAssertions';
+export {
+  readCanon,
+  readDerived,
+  readHooks,
+  scaffoldCanonIfMissing,
+  writeDerived,
+  writeDerivedText,
+} from './kernel/canonFiles';
+export { chapterOrdinals, entitySurfaceForms, rebuildPresence } from './kernel/canonRebuild';
+export type { Presence, PresenceEntity, PresenceOccurrence } from './kernel/canonRebuild';
+export { buildDossiers, renderDossiersMarkdown } from './kernel/canonDossier';
+export type { Dossier } from './kernel/canonDossier';
+export { buildCanonProjection, UNCACHED_SCAN_NOTE } from './kernel/canonService';
+export type { CanonProjectionResult } from './kernel/canonService';
+export { buildSceneConstraintBlock } from './kernel/canonContext';
