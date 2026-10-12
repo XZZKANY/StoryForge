@@ -7522,3 +7522,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：回放 40 条 + 范围外声明与驱动器相对路径 10 条。变异 16 处全部被抓住：子句重复阈值、2000 文件上限、单词条 50 文件上限、截断处半个字符、dossier 20 处上限、Windows 换行、伏笔沉睡阈值、来源 id 长度、版本键位置、全角数字章名、强制刷新、引文截断长度、驱动器相对路径守卫、Python 与 JS 的空白差异、缓存失效判定、声明校验。首轮有 3 处没抓住（夹具没覆盖到），补夹具与专门测试后全部抓住。
 - 门禁：引擎 typecheck 通过、10207 通过 / 2 跳过；eslint、prettier 通过；前端 typecheck 通过。
 - 未做：IDE 命令 canon.refresh 未接 TS（P1-8）；Native 写口；未读真实作者数据；无付费调用。
+
+## 2026-10-12 P1-4 扫描组（文笔气味 / 伏笔承诺 / 场景承重 / 实体预算，TS 迁移，默认仍走 Python）
+
+- 范围：prose_scan（含既有段落套路规则）、promise_scan（检查、台账、项目入口）、collapse_scan、entity_budget_scan 搬进 `packages/engine`。consistency_scan 已随 #283 搬完；observatory 依赖 canon_delta 的待确认提案读取，随 P1-5 一起做；cross_chapter 的模型调用部分随 P1-8 与 ide 侧检查器一起做。Python 侧零改动。
+- 预言机：`apps/api/scripts/golden_scans.py`（复用 `golden_fs.py` 隔离与逐调用记录）：4 个合成项目 55 次真实调用（文笔气味 25、场景承重 16、实体预算 8、伏笔承诺 3 + 越界与空文件等报错路径），外加 23 条纯函数用例（带人物禁止表现、连续性事实、必含事实、场景节拍、结尾钩子的文笔检查；伏笔承诺按 6 个当前章 × 2 个沉睡阈值及空声明）。全部只读，写盘差异为空。`--check` 复跑逐字节一致。
+- 输入范围：canon.json 的 `invariants.promises` 读到的字段（id / title / status / kind 为字符串，各章号为整数，touches 为整数数组）纳入 §4.3.1 校验；纯函数本身仍按 Python 语义容忍非法章号（0、负数视为缺失）。
+- 测试：回放 78 条 + 新增 2 条 promises 越界测试。变异 16 处全部被抓住：对白占比阈值、91 字长句、4 字重复窗口、24000 字截断、结尾钩子末 40 字、必含事实成员判断、Python 与 JS 空白差异、沉睡阈值、节拍间隔、合法章号下限、issue 去重、「显式未定截止章」、三个调查动作桶、正文阅读序判据、第 30 章阈值、可删除标记。首轮 8 处存活（夹具没踩到边界），补边界夹具后全部抓住。
+- 门禁：引擎 typecheck 通过、10287 通过 / 2 跳过；eslint、prettier 通过。
+- 未做：工具接线（P3）；observatory（P1-5 一起）；未读真实作者数据；无付费调用。

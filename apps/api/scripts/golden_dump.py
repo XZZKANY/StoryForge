@@ -154,7 +154,7 @@ def p0_snapshot() -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=["p0", "p1-context", "p1-reader", "p1-punctuation", "p1-canon-gate", "p1-path-match", "p1-canon-chain"], required=True)
+    parser.add_argument("--suite", choices=["p0", "p1-context", "p1-reader", "p1-punctuation", "p1-canon-gate", "p1-path-match", "p1-canon-chain", "p1-scans"], required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--fixture-root", type=Path, help="Fresh owned fixture directory (p1-reader only)")
@@ -167,6 +167,10 @@ def main() -> None:
         from golden_path_match import p1_path_match_snapshot
 
         snapshot = p1_path_match_snapshot()
+    elif args.suite == "p1-scans":
+        from golden_scans import p1_scans_snapshot
+
+        snapshot = p1_scans_snapshot()
     elif args.suite == "p1-canon-chain":
         from golden_canon_chain import p1_canon_chain_snapshot
 

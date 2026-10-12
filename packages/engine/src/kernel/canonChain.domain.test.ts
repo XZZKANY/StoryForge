@@ -37,6 +37,16 @@ describe('canon declarations outside the input domain', () => {
       'entities[0].evidence[0].start_line',
     ],
     ['non-object entity', '{"entities":["林舟"]}', 'entities[0]'],
+    [
+      'promise chapter as text',
+      '{"invariants":{"promises":[{"id":"p","planted_chapter":"3"}]}}',
+      'invariants.promises[0].planted_chapter',
+    ],
+    [
+      'promise touch as float',
+      '{"invariants":{"promises":[{"id":"p","touches":[2.0]}]}}',
+      'invariants.promises[0].touches[0]',
+    ],
     ['syntax error', '{"entities":[}', '第 1 行'],
     ['byte order mark', '\ufeff{}', 'BOM'],
   ];
