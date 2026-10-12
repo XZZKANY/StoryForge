@@ -7592,3 +7592,14 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：回放 52 条 + 前门 7 条。变异 17 处全部被抓住；首轮 3 处存活（glob 夹具没改变结果、观测镜缺目录分支、数字请求体），补夹具后抓住；另 1 处等价不计（refresh=false 命中缓存与重建的输出、写盘字节相同，只省耗时）。
 - 门禁：引擎 typecheck 通过、11148 通过 / 2 跳过；eslint、prettier、ruff 通过；14 套 golden `--check` 一致。
 - 未做（P1-8 退出条件里「接到 executeIdeCommand 的 ts 档」的另一半）：前端 `lib/api/ide-commands.ts` 尚未按 `engine.ideCommands` 开关分流到 TS——还缺三个 owner：配置里的完整密钥快照（P2）、Tauri 侧只写 `.storyforge/` 的原生写口、拆书运行记录（P4）。P1-9 的 shadow 周用需要作者副本授权。未读真实作者数据；无付费调用。
+
+## 2026-10-12 P2-1a LLM 通道纯函数层（TS 迁移，默认仍走 Python）
+
+- 范围：llm_http / llm_protocol / llm_env（解析部分）/ stream_text / llm_client 里的纯函数，新增 `packages/engine/src/llm/`（config / text / usage / payload / protocol）：配置值解析（照 Python int() / float() 语法）、必填项与缺项清单、provider 家族与三家鉴权头、凭据头取值、模型列表解码、模型列表地址校验（照 CPython 的 urlsplit / parse_qsl / unquote / ipaddress 判定）、思维链剥离（整段版与流式版）、流式可见文本过滤（任意位置剥 think 块、把未写完的密钥扣到能判定为止）、provider 用量与估算、按缓存命中分段的成本、chat 请求体与请求字节、流帧解析、工具调用归一、可重试状态码 / Retry-After / 退避时长、密钥兜底脱敏。HTTP 传输、重试循环、SSE 读流与 provider 适配放 P2-1b；llm-provider.json 的读写与 DPAPI 解密仍归 Rust（llm_config_store），引擎只收已解密的配置槽。P1-8a 跨章检查里的占位错误类改用通道正式的 LlmConfigError / LlmError（与 Python 同为两类）。Python 侧零改动。
+- 预言机：`apps/api/scripts/golden_llm_pure.py`：373 条纯函数用例（模型列表地址 90、成本 63、数值配置 60、流式可见文本过滤 24、请求体 19、用量 16、Retry-After 13、模型列表 12、思维链剥离 10 + 流式 9、流帧 9、退避 8、鉴权头 7、provider 家族 7、其余 26），全部跑真实 Python 代码、不出网。`--check` 复跑一致。
+- 关键对齐点：Python 正则的忽略大小写还认土耳其 i 的两个变体、长 s 与开尔文符号（复用 P1 脱敏的 insensitive）；`$` 可在末尾换行前匹配；`\b` 按 Unicode 词字符；温度等配置值按 float 写进请求体（`"1"` → `1.0`）；成本按 Python 相同的运算次序逐位一致；用量估算按码点计长。
+- 输入范围（按 §4.3.1）：数值配置里的 Unicode 数字、超出安全整数的值按非法回退默认值（golden 中 1 条改判并钉住条数）；provider 回报的用量是布尔或小数时视为缺省，走估算。均有专门测试。
+- 接受的差异：等长且互相重叠的不同密钥，替换先后不保证与 Python 相同（Python 取决于集合迭代序）；模型列表地址被 urlsplit / ipaddress 拒绝时的报错原文不对齐（从不展示给作者，provider-health 统一换成固定文案），只核拒绝与否。
+- 测试：回放 373 条 + 改判钉数 1 条 + 范围 2 条。变异 45 处全部被抓住；首轮 9 处存活（词边界、末尾换行、密钥跨越切点、4096 阈值、码点计数、599、5 字密钥、方括号前的文字、IPv6 省略段为零），补夹具后全部抓住；另 2 处等价不计（ASCII 的 NFKC 即自身；合法 IPv6 文本最长 45 字，长度检查被其他判定覆盖）。
+- 门禁：引擎 typecheck 通过、11524 通过 / 2 跳过；eslint、prettier、ruff 通过；15 套 golden `--check` 一致。
+- 未做：P2-1b 传输与客户端（录制回放）与桌面适配器（plugin-http + Rust 交出已解密配置槽，按计划风险 13 的缓解）；P2-2 Anthropic / Gemini；P2-3 assistant；P2-4 真跑。未读真实作者数据；无付费调用。

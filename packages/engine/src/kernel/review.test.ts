@@ -4,10 +4,10 @@ import type { EncodedFile } from './contextFixture.test-support';
 import {
   crossChapterReview,
   crossChapterUserPrompt,
-  LlmCallError,
-  LlmConfigError,
   parseCrossChapterFindings,
 } from './crossChapter';
+import { LlmConfigError } from '../llm/config';
+import { LlmError } from '../llm/payload';
 import { FsToolError } from './fsTools';
 import { InputDomainError } from './json';
 import { memoryProject } from './memoryProject.test-support';
@@ -56,7 +56,7 @@ const ERROR_TYPES: Record<string, new (...args: never[]) => Error> = {
   ValueError: RangeError,
   JSONDecodeError: InputDomainError,
   AgentOrchestrationError,
-  LLMError: LlmCallError,
+  LLMError: LlmError,
   FsToolError,
 };
 
@@ -72,7 +72,7 @@ function scripted(replies: Reply[]) {
     if ('raise' in reply)
       throw reply.raise === 'LLMConfigError'
         ? new LlmConfigError(reply.message)
-        : new LlmCallError(reply.message);
+        : new LlmError(reply.message);
     return { content: reply.content, latency_ms: reply.latency_ms };
   };
   const checkInterruption = () => {

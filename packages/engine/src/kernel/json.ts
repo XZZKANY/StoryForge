@@ -402,3 +402,30 @@ export function pythonEquals(left: JsonValue | undefined, right: JsonValue | und
   }
   return left === right;
 }
+
+/** Python str()：标量按 Python 的写法；容器给出近似 repr（模型极少在此处返回容器）。 */
+export function pythonStr(value: JsonValue | undefined): string {
+  if (value === undefined || value === null) return 'None';
+  if (value === true) return 'True';
+  if (value === false) return 'False';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (value instanceof JsonFloat) return pythonFloatRepr(value.value);
+  const repr = (item: JsonValue): string =>
+    typeof item === 'string'
+      ? `'${item.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
+      : pythonStr(item);
+  if (Array.isArray(value)) return `[${value.map(repr).join(', ')}]`;
+  return `{${Object.entries(value)
+    .map(([key, item]) => `${repr(key)}: ${repr(item)}`)
+    .join(', ')}}`;
+}
+
+/** Python 真值：None、False、0、0.0、空串与空容器为假。 */
+export function pythonTruthy(value: JsonValue | undefined): boolean {
+  if (value === undefined || value === null || value === false || value === 0 || value === '')
+    return false;
+  if (value instanceof JsonFloat) return value.value !== 0;
+  if (Array.isArray(value)) return value.length > 0;
+  return typeof value !== 'object' || Object.keys(value).length > 0;
+}

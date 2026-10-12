@@ -304,8 +304,6 @@ export type { ReviseScope } from './kernel/reviseScope';
 export {
   CROSS_CHAPTER_SYSTEM_PROMPT,
   crossChapterReview,
-  LlmCallError,
-  LlmConfigError,
   MAX_CHAPTERS,
   MIN_CHAPTERS,
   PER_CHAPTER_CHAR_BUDGET,
@@ -331,3 +329,41 @@ export type { BreakdownLlmPort, BreakdownModel } from './kernel/bookBreakdown';
 export { DocxReadError, readDocxText } from './kernel/docx';
 export { executeIdeCommand, IDE_COMMANDS } from './kernel/ideCommands';
 export type { IdeCommandDefinition, IdeCommandDeps } from './kernel/ideCommands';
+export {
+  credentialHeaderValues,
+  envValue,
+  LlmConfigError,
+  llmRequestHeaders,
+  missingLlmEnv,
+  optionalFloat,
+  optionalInt,
+  providerFamily,
+  providerHeaders,
+  providerRequestHeaders,
+  pythonFloat,
+  pythonInt,
+  REQUIRED_REAL_LLM_ENV,
+  requiredEnv,
+  userAgent,
+} from './llm/config';
+export type { LlmSource, ProviderFamily } from './llm/config';
+export {
+  assistantMessage,
+  buildChatPayload,
+  chatPayloadText,
+  isRetryableStatus,
+  LlmError,
+  messageToolCalls,
+  redactSecrets,
+  RETRY_DELAY_CEILING_SECONDS,
+  retryAfterSeconds,
+  retryDelay,
+  streamDeltaText,
+  streamFinishReason,
+  withSecrets,
+} from './llm/payload';
+export { decodeModelList, InvalidModelList, modelsUrl, pythonUnquote } from './llm/protocol';
+export type { ProviderModelList } from './llm/protocol';
+export { StreamingReasoningFilter, stripReasoningLeak, VisibleTextFilter } from './llm/text';
+export { costBreakdown, providerCacheHitTokens, tokenUsage } from './llm/usage';
+export type { CostBreakdown, LegacyUsage } from './llm/usage';
