@@ -262,3 +262,52 @@ export {
   skillByName,
 } from './kernel/skillCatalog';
 export type { AgentSkill } from './kernel/skillCatalog';
+export {
+  CONFLICT_MARKERS,
+  ENDING_HOOK_MARKERS,
+  MOTIVATION_MARKERS,
+  REVIEW_SKILLS,
+  reviewContextSummary,
+  suggestedActionsForReview,
+} from './kernel/reviewSkills';
+export type { ReviewIssue } from './kernel/reviewSkills';
+export {
+  heuristicReviewReasoner,
+  llmReviewReasoner,
+  MAX_REVIEW_PROMPT_CHARS,
+  REVIEW_AGENT_KEYS,
+} from './kernel/reviewReasoning';
+export type { ReviewLlmPort, ReviewReasoner, ReviewSubagentResult } from './kernel/reviewReasoning';
+export {
+  buildMultiAgentReviewReport,
+  continuitySubagentHandler,
+  reviewReportSummary,
+} from './kernel/reviewReport';
+export type { AgentToolTrace, ReviewSubagentExecutor } from './kernel/reviewReport';
+export {
+  AgentOrchestrationError,
+  composeScopedInstruction,
+  INSTRUCTION_BUDGET,
+  verifyReviewSource,
+} from './kernel/reviseDelivery';
+export {
+  MINIMAL_EDIT_CONTRACT,
+  publicReviseScope,
+  resolveReviseScope,
+  reviseSummaryWithScope,
+  revisionReferencesReview,
+  scopedReviseInstruction,
+  scopeIssues,
+  scopeWarning,
+} from './kernel/reviseScope';
+export type { ReviseScope } from './kernel/reviseScope';
+export {
+  CROSS_CHAPTER_SYSTEM_PROMPT,
+  crossChapterReview,
+  LlmCallError,
+  LlmConfigError,
+  MAX_CHAPTERS,
+  MIN_CHAPTERS,
+  PER_CHAPTER_CHAR_BUDGET,
+} from './kernel/crossChapter';
+export type { CrossChapterLlmPort } from './kernel/crossChapter';

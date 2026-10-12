@@ -16,3 +16,15 @@ export function pythonSplitlines(text: string): string[] {
   if (LINE_BREAK.test(text.slice(-1))) lines.pop();
   return lines;
 }
+
+const WHITESPACE_RUN = new RegExp(`${PYTHON_WHITESPACE}+`, 'u');
+const TRAILING_WHITESPACE = new RegExp(`${PYTHON_WHITESPACE}+$`, 'u');
+
+/** _text.compact_text：空白折叠成单个空格；超长按码点截断、去尾部空白后补「...」。 */
+export function compactText(value: unknown, limit: number): string {
+  if (typeof value !== 'string') return '';
+  const text = value.split(WHITESPACE_RUN).filter(Boolean).join(' ');
+  const points = Array.from(text);
+  if (points.length <= limit) return text;
+  return points.slice(0, limit).join('').replace(TRAILING_WHITESPACE, '') + '...';
+}
