@@ -1,13 +1,9 @@
+import { LlmConfigError } from '../llm/config';
+import { LlmError } from '../llm/payload';
 import type { ProjectReader } from '../readPort';
 import { chapterOrdinals } from './canonRebuild';
 import { FsToolError, readBoundedText, resolveProjectRoot, resolveScopedPath } from './fsTools';
-import {
-  compareCodePoints,
-  isJsonObject,
-  JsonFloat,
-  pythonFloatRepr,
-  type JsonValue,
-} from './json';
+import { compareCodePoints, isJsonObject, pythonStr } from './json';
 import { compactText, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 import { loadsJsonArray } from './reviewReasoning';
 
@@ -36,46 +32,12 @@ export const CROSS_CHAPTER_SYSTEM_PROMPT =
   '不要报单章内的文风/节奏问题。每条冲突必须给出涉及的章节和各自的原文片段为证。' +
   '只输出 JSON 数组,不要解释,不要 Markdown,不要代码块标记。';
 
-/** 模型配置缺失（未配置 provider / key）。 */
-export class LlmConfigError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'LlmConfigError';
-  }
-}
-
-/** 模型调用失败或返回不可用。 */
-export class LlmCallError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'LlmCallError';
-  }
-}
-
 export type CrossChapterLlmPort = (request: {
   systemPrompt: string;
   userPrompt: string;
 }) => Promise<{ content: unknown; latency_ms?: unknown }>;
 
 const length = (text: string) => Array.from(text).length;
-
-/** Python str()：标量按 Python 的写法；容器给出近似 repr（模型极少在此处返回容器）。 */
-function pythonStr(value: JsonValue | undefined): string {
-  if (value === undefined || value === null) return 'None';
-  if (value === true) return 'True';
-  if (value === false) return 'False';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number') return String(value);
-  if (value instanceof JsonFloat) return pythonFloatRepr(value.value);
-  const repr = (item: JsonValue): string =>
-    typeof item === 'string'
-      ? `'${item.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
-      : pythonStr(item);
-  if (Array.isArray(value)) return `[${value.map(repr).join(', ')}]`;
-  return `{${Object.entries(value)
-    .map(([key, item]) => `${repr(key)}: ${repr(item)}`)
-    .join(', ')}}`;
-}
 
 function truncate(value: string, limit: number): string {
   const text = Array.from(pythonStrip(value));
@@ -109,10 +71,9 @@ export function crossChapterUserPrompt(
 }
 
 export function parseCrossChapterFindings(raw: unknown) {
-  if (typeof raw !== 'string' || !pythonStrip(raw))
-    throw new LlmCallError('跨章一致性 LLM 返回为空。');
+  if (typeof raw !== 'string' || !pythonStrip(raw)) throw new LlmError('跨章一致性 LLM 返回为空。');
   const parsed = loadsJsonArray(raw);
-  if (!Array.isArray(parsed)) throw new LlmCallError('跨章一致性 LLM 返回的不是 JSON 数组。');
+  if (!Array.isArray(parsed)) throw new LlmError('跨章一致性 LLM 返回的不是 JSON 数组。');
   return parsed
     .slice(0, MAX_FINDINGS)
     .filter(isJsonObject)
@@ -217,7 +178,7 @@ export async function crossChapterReview(
       throw new FsToolError(
         `跨章一致性未配置 LLM：请先在设置里配置模型服务，再做跨章检查。（${error.message}）`,
       );
-    if (error instanceof LlmCallError)
+    if (error instanceof LlmError)
       throw new FsToolError(
         `跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（${error.message}）`,
       );

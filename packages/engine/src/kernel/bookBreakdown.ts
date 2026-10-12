@@ -11,6 +11,7 @@ import {
   parseJson,
   parseJsonBytes,
   pythonFloatRepr,
+  pythonTruthy,
   type JsonValue,
 } from './json';
 import { PYTHON_WHITESPACE, pythonSplitlines, pythonStrip } from './pythonText';
@@ -163,15 +164,6 @@ function jsonText(value: JsonValue): string {
   if (value === true) return 'True';
   if (value === false) return 'False';
   return value instanceof JsonFloat ? pythonFloatRepr(value.value) : String(value);
-}
-
-/** Python 真值：None、False、0、0.0、空串与空容器为假。 */
-function pythonTruthy(value: JsonValue | undefined): boolean {
-  if (value === undefined || value === null || value === false || value === 0 || value === '')
-    return false;
-  if (value instanceof JsonFloat) return value.value !== 0;
-  if (Array.isArray(value)) return value.length > 0;
-  return typeof value !== 'object' || Object.keys(value).length > 0;
 }
 
 /** Python 的 json.loads 还认 NaN / Infinity；含这类字面量的文件属于范围外而不是「解析不了」。 */

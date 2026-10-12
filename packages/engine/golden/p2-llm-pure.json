@@ -1,0 +1,2084 @@
+{
+  "format_version": 1,
+  "suite": "p2-llm-pure",
+  "app_version": "0.1.10",
+  "base_source": {
+    "STORYFORGE_LLM_MODEL": " gpt-test ",
+    "STORYFORGE_LLM_API_KEY": "sk-test-1234567890abcdef",
+    "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1/",
+    "STORYFORGE_LLM_PROVIDER": "openai"
+  },
+  "sources": {
+    "app/common/llm_client.py": "ae45bb64bd1f41db4fc3e1de22bb2181185922f6685253cc70c97ebbf3a43520",
+    "app/common/llm_env.py": "fb8dfb9de4196e6d2f262f023addd5df49e5de0ad13dc46d31a916f86abbaf06",
+    "app/common/llm_http.py": "14ccee7b42385035249d4ec9c1a3c8bf292d6c9b9d7d152ebc1fdd1c134ac914",
+    "app/common/llm_protocol.py": "fc85075a3af21251dda464352e37aa293c1ba6342b81bad859f16503a619a7cf",
+    "app/common/stream_text.py": "4990cb4ebe4a7e2acde4ad445b5f2e733346f04645d65db2f07c99a92c01b277"
+  },
+  "pure": [
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"\"}",
+      "output_json": "\"-9.5\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"5\"}",
+      "output_json": "5"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"5\"}",
+      "output_json": "\"5.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \" 7 \"}",
+      "output_json": "7"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \" 7 \"}",
+      "output_json": "\"7.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"+3\"}",
+      "output_json": "3"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"+3\"}",
+      "output_json": "\"3.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"-2\"}",
+      "output_json": "-2"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"-2\"}",
+      "output_json": "\"-2.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"-0\"}",
+      "output_json": "0"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"-0\"}",
+      "output_json": "\"-0.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"1_000\"}",
+      "output_json": "1000"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"1_000\"}",
+      "output_json": "\"1000.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"1__0\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"1__0\"}",
+      "output_json": "\"-9.5\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"_1\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"_1\"}",
+      "output_json": "\"-9.5\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"1_\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"1_\"}",
+      "output_json": "\"-9.5\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"5.0\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"5.0\"}",
+      "output_json": "\"5.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"abc\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"abc\"}",
+      "output_json": "\"-9.5\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"0x10\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"0x10\"}",
+      "output_json": "\"-9.5\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"007\"}",
+      "output_json": "7"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"007\"}",
+      "output_json": "\"7.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"1e3\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"1e3\"}",
+      "output_json": "\"1000.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"0.7\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"0.7\"}",
+      "output_json": "\"0.7\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"1\"}",
+      "output_json": "1"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"1\"}",
+      "output_json": "\"1.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"1.\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"1.\"}",
+      "output_json": "\"1.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \".5\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \".5\"}",
+      "output_json": "\"0.5\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"1e-3\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"1e-3\"}",
+      "output_json": "\"0.001\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"1_000.5\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"1_000.5\"}",
+      "output_json": "\"1000.5\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"inf\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"inf\"}",
+      "output_json": "\"inf\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"-Infinity\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"-Infinity\"}",
+      "output_json": "\"-inf\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"NaN\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"NaN\"}",
+      "output_json": "\"nan\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"nan\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"nan\"}",
+      "output_json": "\"nan\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"1.e5\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"1.e5\"}",
+      "output_json": "\"100000.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \".e5\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \".e5\"}",
+      "output_json": "\"-9.5\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"1e1_0\"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"1e1_0\"}",
+      "output_json": "\"10000000000.0\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"99999999999999999999\"}",
+      "output_json": "99999999999999999999"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"99999999999999999999\"}",
+      "output_json": "\"1e+20\""
+    },
+    {
+      "fn": "optional_int",
+      "args_json": "{\"raw\": \"  2.5  \"}",
+      "output_json": "-9"
+    },
+    {
+      "fn": "optional_float",
+      "args_json": "{\"raw\": \"  2.5  \"}",
+      "output_json": "\"2.5\""
+    },
+    {
+      "fn": "env",
+      "args_json": "{\"value\": null}",
+      "output_json": "{\"value\": \"\", \"missing\": [\"STORYFORGE_LLM_PROVIDER\"]}"
+    },
+    {
+      "fn": "required_env",
+      "args_json": "{\"value\": null}",
+      "error": {
+        "type": "LLMConfigError",
+        "message": "缺少真实 LLM 生成环境变量：X。"
+      }
+    },
+    {
+      "fn": "env",
+      "args_json": "{\"value\": \"\"}",
+      "output_json": "{\"value\": \"\", \"missing\": [\"STORYFORGE_LLM_PROVIDER\"]}"
+    },
+    {
+      "fn": "required_env",
+      "args_json": "{\"value\": \"\"}",
+      "error": {
+        "type": "LLMConfigError",
+        "message": "缺少真实 LLM 生成环境变量：X。"
+      }
+    },
+    {
+      "fn": "env",
+      "args_json": "{\"value\": \"  \"}",
+      "output_json": "{\"value\": \"\", \"missing\": [\"STORYFORGE_LLM_PROVIDER\"]}"
+    },
+    {
+      "fn": "required_env",
+      "args_json": "{\"value\": \"  \"}",
+      "error": {
+        "type": "LLMConfigError",
+        "message": "缺少真实 LLM 生成环境变量：X。"
+      }
+    },
+    {
+      "fn": "env",
+      "args_json": "{\"value\": \" x \"}",
+      "output_json": "{\"value\": \"x\", \"missing\": []}"
+    },
+    {
+      "fn": "required_env",
+      "args_json": "{\"value\": \" x \"}",
+      "output_json": "\"x\""
+    },
+    {
+      "fn": "env",
+      "args_json": "{\"value\": \"　y　\"}",
+      "output_json": "{\"value\": \"y\", \"missing\": []}"
+    },
+    {
+      "fn": "required_env",
+      "args_json": "{\"value\": \"　y　\"}",
+      "output_json": "\"y\""
+    },
+    {
+      "fn": "provider_family",
+      "args_json": "{\"name\": \"\"}",
+      "output_json": "\"openai\""
+    },
+    {
+      "fn": "provider_family",
+      "args_json": "{\"name\": \"Anthropic\"}",
+      "output_json": "\"anthropic\""
+    },
+    {
+      "fn": "provider_family",
+      "args_json": "{\"name\": \" claude \"}",
+      "output_json": "\"anthropic\""
+    },
+    {
+      "fn": "provider_family",
+      "args_json": "{\"name\": \"GOOGLE\"}",
+      "output_json": "\"gemini\""
+    },
+    {
+      "fn": "provider_family",
+      "args_json": "{\"name\": \"gemini\"}",
+      "output_json": "\"gemini\""
+    },
+    {
+      "fn": "provider_family",
+      "args_json": "{\"name\": \"openai\"}",
+      "output_json": "\"openai\""
+    },
+    {
+      "fn": "provider_family",
+      "args_json": "{\"name\": \"x\"}",
+      "output_json": "\"openai\""
+    },
+    {
+      "fn": "headers",
+      "args_json": "{\"overrides\": {}}",
+      "output_json": "{\"llm\": {\"Content-Type\": \"application/json\", \"User-Agent\": \"StoryForge/0.1.10\", \"Authorization\": \"Bearer sk-test-1234567890abcdef\"}, \"provider\": {\"Content-Type\": \"application/json\", \"User-Agent\": \"StoryForge/0.1.10\", \"Authorization\": \"Bearer sk-test-1234567890abcdef\"}}"
+    },
+    {
+      "fn": "headers",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_AUTH_HEADER\": \"API-KEY\"}}",
+      "output_json": "{\"llm\": {\"Content-Type\": \"application/json\", \"User-Agent\": \"StoryForge/0.1.10\", \"api-key\": \"sk-test-1234567890abcdef\"}, \"provider\": {\"Content-Type\": \"application/json\", \"User-Agent\": \"StoryForge/0.1.10\", \"api-key\": \"sk-test-1234567890abcdef\"}}"
+    },
+    {
+      "fn": "headers",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_AUTH_HEADER\": \"basic\"}}",
+      "error": {
+        "type": "LLMConfigError",
+        "message": "STORYFORGE_LLM_AUTH_HEADER 只支持 api-key 或 bearer。"
+      }
+    },
+    {
+      "fn": "headers",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_PROVIDER\": \"Claude\"}}",
+      "output_json": "{\"llm\": {\"Content-Type\": \"application/json\", \"User-Agent\": \"StoryForge/0.1.10\", \"Authorization\": \"Bearer sk-test-1234567890abcdef\"}, \"provider\": {\"Content-Type\": \"application/json\", \"User-Agent\": \"StoryForge/0.1.10\", \"x-api-key\": \"sk-test-1234567890abcdef\", \"anthropic-version\": \"2023-06-01\"}}"
+    },
+    {
+      "fn": "headers",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_PROVIDER\": \"google\", \"STORYFORGE_LLM_AUTH_HEADER\": \"x\"}}",
+      "error": {
+        "type": "LLMConfigError",
+        "message": "STORYFORGE_LLM_AUTH_HEADER 只支持 api-key 或 bearer。"
+      }
+    },
+    {
+      "fn": "headers",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_API_KEY\": \"  \"}}",
+      "error": {
+        "type": "LLMConfigError",
+        "message": "缺少真实 LLM 生成环境变量：STORYFORGE_LLM_API_KEY。"
+      }
+    },
+    {
+      "fn": "headers",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_PROVIDER\": \"anthropic\", \"STORYFORGE_LLM_AUTH_HEADER\": \"basic\"}}",
+      "error": {
+        "type": "LLMConfigError",
+        "message": "STORYFORGE_LLM_AUTH_HEADER 只支持 api-key 或 bearer。"
+      }
+    },
+    {
+      "fn": "credential_values",
+      "args_json": "{\"headers\": {\"Authorization\": \"Bearer abcdef123456\"}}",
+      "output_json": "[\"Bearer abcdef123456\", \"abcdef123456\"]"
+    },
+    {
+      "fn": "credential_values",
+      "args_json": "{\"headers\": {\"api-key\": \"k1\", \"X-Api-Key\": \"k2\"}}",
+      "output_json": "[\"k1\", \"k2\"]"
+    },
+    {
+      "fn": "credential_values",
+      "args_json": "{\"headers\": {\"x-goog-api-key\": \"g\", \"Content-Type\": \"x\", \"authorization\": \"bearer zz\"}}",
+      "output_json": "[\"g\", \"bearer zz\", \"zz\"]"
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1\", \"credential\": \"\"}",
+      "output_json": "\"https://api.example.com/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://api.example.com/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1/\", \"credential\": \"\"}",
+      "output_json": "\"https://api.example.com/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1/\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://api.example.com/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"http://localhost:8080\", \"credential\": \"\"}",
+      "output_json": "\"http://localhost:8080/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"http://localhost:8080\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"http://localhost:8080/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"HTTPS://Api.Example.com/v1///\", \"credential\": \"\"}",
+      "output_json": "\"https://Api.Example.com/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"HTTPS://Api.Example.com/v1///\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://Api.Example.com/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?x=1\", \"credential\": \"\"}",
+      "output_json": "\"https://api.example.com/v1/models?x=1\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?x=1\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://api.example.com/v1/models?x=1\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?key=abc\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?key=abc\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?Key=\", \"credential\": \"\"}",
+      "output_json": "\"https://api.example.com/v1/models?Key=\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?Key=\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://api.example.com/v1/models?Key=\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?ke%79=x\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?ke%79=x\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?api_key=x\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?api_key=x\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?token=x\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?token=x\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?has_token=x\", \"credential\": \"\"}",
+      "output_json": "\"https://api.example.com/v1/models?has_token=x\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?has_token=x\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://api.example.com/v1/models?has_token=x\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?a+b=1&&c\", \"credential\": \"\"}",
+      "output_json": "\"https://api.example.com/v1/models?a+b=1&&c\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?a+b=1&&c\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://api.example.com/v1/models?a+b=1&&c\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://user:pw@api.example.com/v1\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://user:pw@api.example.com/v1\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://@api.example.com\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://@api.example.com\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com:99999/v1\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "Port out of range 0-65535"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com:99999/v1\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "Port out of range 0-65535"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com:abc/v1\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "Port could not be cast to integer value as 'abc'"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com:abc/v1\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "Port could not be cast to integer value as 'abc'"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com:/v1\", \"credential\": \"\"}",
+      "output_json": "\"https://api.example.com:/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com:/v1\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://api.example.com:/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"ftp://api.example.com\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"ftp://api.example.com\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"api.example.com/v1\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"api.example.com/v1\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https:///v1\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https:///v1\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v 1\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v 1\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[::1]:8080/v1\", \"credential\": \"\"}",
+      "output_json": "\"https://[::1]:8080/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[::1]:8080/v1\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://[::1]:8080/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[::1/v1\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "Invalid IPv6 URL"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[::1/v1\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "Invalid IPv6 URL"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[1.2.3.4]/v1\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "An IPv4 address cannot be in brackets"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[1.2.3.4]/v1\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "An IPv4 address cannot be in brackets"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[fe80::1%25eth0]/v1\", \"credential\": \"\"}",
+      "output_json": "\"https://[fe80::1%25eth0]/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[fe80::1%25eth0]/v1\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://[fe80::1%25eth0]/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[v1.abc]/v1\", \"credential\": \"\"}",
+      "output_json": "\"https://[v1.abc]/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[v1.abc]/v1\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://[v1.abc]/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[vz.abc]/v1\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "IPvFuture address is invalid"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[vz.abc]/v1\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "IPvFuture address is invalid"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[::ffff:1.2.3.4]/x\", \"credential\": \"\"}",
+      "output_json": "\"https://[::ffff:1.2.3.4]/x/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[::ffff:1.2.3.4]/x\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://[::ffff:1.2.3.4]/x/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[1:2:3:4:5:6:7:8:9]/\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "'1:2:3:4:5:6:7:8:9' does not appear to be an IPv4 or IPv6 address"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[1:2:3:4:5:6:7:8:9]/\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "'1:2:3:4:5:6:7:8:9' does not appear to be an IPv4 or IPv6 address"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[:1]/\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "':1' does not appear to be an IPv4 or IPv6 address"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[:1]/\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "':1' does not appear to be an IPv4 or IPv6 address"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[1::2::3]/\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "'1::2::3' does not appear to be an IPv4 or IPv6 address"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[1::2::3]/\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "'1::2::3' does not appear to be an IPv4 or IPv6 address"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[1:2:3:4:5:6:7:8]/\", \"credential\": \"\"}",
+      "output_json": "\"https://[1:2:3:4:5:6:7:8]/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[1:2:3:4:5:6:7:8]/\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://[1:2:3:4:5:6:7:8]/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[::]/\", \"credential\": \"\"}",
+      "output_json": "\"https://[::]/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[::]/\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://[::]/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[x]:80/\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "'x' does not appear to be an IPv4 or IPv6 address"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[x]:80/\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "'x' does not appear to be an IPv4 or IPv6 address"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://a[::1]/v1\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "Invalid IPv6 URL"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://a[::1]/v1\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "Invalid IPv6 URL"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[1:2:3:4:5:6:7::8]/\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "'1:2:3:4:5:6:7::8' does not appear to be an IPv4 or IPv6 address"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[1:2:3:4:5:6:7::8]/\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "'1:2:3:4:5:6:7::8' does not appear to be an IPv4 or IPv6 address"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[1::2:3:4:5:6:7:8]/\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "'1::2:3:4:5:6:7:8' does not appear to be an IPv4 or IPv6 address"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://[1::2:3:4:5:6:7:8]/\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "'1::2:3:4:5:6:7:8' does not appear to be an IPv4 or IPv6 address"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1#frag\", \"credential\": \"\"}",
+      "output_json": "\"https://api.example.com/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1#frag\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://api.example.com/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1/sk-SECRET123\", \"credential\": \"\"}",
+      "output_json": "\"https://api.example.com/v1/sk-SECRET123/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1/sk-SECRET123\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1/%73k-SECRET123\", \"credential\": \"\"}",
+      "output_json": "\"https://api.example.com/v1/%73k-SECRET123/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1/%73k-SECRET123\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "credentials_in_provider_url"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"\\u0001https://api.example.com/v1\", \"credential\": \"\"}",
+      "output_json": "\"https://api.example.com/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"\\u0001https://api.example.com/v1\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://api.example.com/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://ｅxample.com/v1\", \"credential\": \"\"}",
+      "output_json": "\"https://ｅxample.com/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://ｅxample.com/v1\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://ｅxample.com/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://example.com／x/v1\", \"credential\": \"\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "netloc 'example.com／x' contains invalid characters under NFKC normalization"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://example.com／x/v1\", \"credential\": \"sk-SECRET123\"}",
+      "error": {
+        "type": "ValueError",
+        "message": "netloc 'example.com／x' contains invalid characters under NFKC normalization"
+      }
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://例子.测试/v1\", \"credential\": \"\"}",
+      "output_json": "\"https://例子.测试/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://例子.测试/v1\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://例子.测试/v1/models\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?%ZZ=1\", \"credential\": \"\"}",
+      "output_json": "\"https://api.example.com/v1/models?%ZZ=1\""
+    },
+    {
+      "fn": "models_url",
+      "args_json": "{\"url\": \"https://api.example.com/v1?%ZZ=1\", \"credential\": \"sk-SECRET123\"}",
+      "output_json": "\"https://api.example.com/v1/models?%ZZ=1\""
+    },
+    {
+      "fn": "model_list",
+      "args_json": "{\"data\": {\"data\": [{\"id\": \"a\"}, {\"id\": \"b\"}]}, \"provider\": \"openai\", \"limit\": 200}",
+      "output_json": "{\"models\": [\"a\", \"b\"], \"received_count\": 2, \"partial\": false}"
+    },
+    {
+      "fn": "model_list",
+      "args_json": "{\"data\": {\"data\": [{\"id\": \"a\"}], \"has_more\": true}, \"provider\": \"openai\", \"limit\": 200}",
+      "output_json": "{\"models\": [\"a\"], \"received_count\": 1, \"partial\": true}"
+    },
+    {
+      "fn": "model_list",
+      "args_json": "{\"data\": {\"data\": [{\"id\": \" \"}]}, \"provider\": \"openai\", \"limit\": 200}",
+      "error": {
+        "type": "InvalidModelList",
+        "message": "invalid_model_identifier"
+      }
+    },
+    {
+      "fn": "model_list",
+      "args_json": "{\"data\": {\"data\": [{\"id\": 5}]}, \"provider\": \"openai\", \"limit\": 200}",
+      "error": {
+        "type": "InvalidModelList",
+        "message": "invalid_model_identifier"
+      }
+    },
+    {
+      "fn": "model_list",
+      "args_json": "{\"data\": {\"data\": \"x\"}, \"provider\": \"openai\", \"limit\": 200}",
+      "error": {
+        "type": "InvalidModelList",
+        "message": "invalid_models_response"
+      }
+    },
+    {
+      "fn": "model_list",
+      "args_json": "{\"data\": [1], \"provider\": \"openai\", \"limit\": 200}",
+      "error": {
+        "type": "InvalidModelList",
+        "message": "invalid_models_response"
+      }
+    },
+    {
+      "fn": "model_list",
+      "args_json": "{\"data\": {\"data\": [{\"id\": \"a\"}, {\"id\": \"b\"}, {\"id\": \"c\"}]}, \"provider\": \"openai\", \"limit\": 2}",
+      "output_json": "{\"models\": [\"a\", \"b\"], \"received_count\": 3, \"partial\": true}"
+    },
+    {
+      "fn": "model_list",
+      "args_json": "{\"data\": {\"models\": [{\"name\": \"models/g1\"}], \"nextPageToken\": \"t\"}, \"provider\": \"gemini\", \"limit\": 200}",
+      "output_json": "{\"models\": [\"g1\"], \"received_count\": 1, \"partial\": true}"
+    },
+    {
+      "fn": "model_list",
+      "args_json": "{\"data\": {\"models\": [{\"name\": \"g1\"}]}, \"provider\": \"gemini\", \"limit\": 200}",
+      "error": {
+        "type": "InvalidModelList",
+        "message": "invalid_model_resource_name"
+      }
+    },
+    {
+      "fn": "model_list",
+      "args_json": "{\"data\": {\"models\": [{\"name\": \"models/\"}]}, \"provider\": \"google\", \"limit\": 200}",
+      "error": {
+        "type": "InvalidModelList",
+        "message": "invalid_model_resource_name"
+      }
+    },
+    {
+      "fn": "model_list",
+      "args_json": "{\"data\": {\"models\": [], \"nextPageToken\": \"\"}, \"provider\": \"gemini\", \"limit\": 200}",
+      "output_json": "{\"models\": [], \"received_count\": 0, \"partial\": false}"
+    },
+    {
+      "fn": "model_list",
+      "args_json": "{\"data\": {\"data\": [{\"id\": \"x　\"}]}, \"provider\": \"anthropic\", \"limit\": 200}",
+      "output_json": "{\"models\": [\"x　\"], \"received_count\": 1, \"partial\": false}"
+    },
+    {
+      "fn": "strip_reasoning",
+      "args_json": "{\"text\": \"\"}",
+      "output_json": "\"\""
+    },
+    {
+      "fn": "strip_reasoning",
+      "args_json": "{\"text\": \"plain\"}",
+      "output_json": "\"plain\""
+    },
+    {
+      "fn": "strip_reasoning",
+      "args_json": "{\"text\": \"<think>a</think>正文\"}",
+      "output_json": "\"正文\""
+    },
+    {
+      "fn": "strip_reasoning",
+      "args_json": "{\"text\": \"  <THINK>x</Think>  正文  \"}",
+      "output_json": "\"正文\""
+    },
+    {
+      "fn": "strip_reasoning",
+      "args_json": "{\"text\": \"前<think>a</think>中<think>b</think>后\"}",
+      "output_json": "\"前中后\""
+    },
+    {
+      "fn": "strip_reasoning",
+      "args_json": "{\"text\": \"a</think>b</THINK>c\"}",
+      "output_json": "\"c\""
+    },
+    {
+      "fn": "strip_reasoning",
+      "args_json": "{\"text\": \"<think>unclosed\"}",
+      "output_json": "\"unclosed\""
+    },
+    {
+      "fn": "strip_reasoning",
+      "args_json": "{\"text\": \"x<think>y\"}",
+      "output_json": "\"xy\""
+    },
+    {
+      "fn": "strip_reasoning",
+      "args_json": "{\"text\": \"<thinK>k</thinK>z\"}",
+      "output_json": "\"z\""
+    },
+    {
+      "fn": "strip_reasoning",
+      "args_json": "{\"text\": \"<think>\\nmulti\\nline</think>\\n结果\"}",
+      "output_json": "\"结果\""
+    },
+    {
+      "fn": "streaming_filter",
+      "args_json": "{\"chunks\": [\"<think>abc</think>  Hello\", \" world\"]}",
+      "output_json": "{\"fed\": [\"Hello\", \" world\"], \"flush\": \"\", \"stripped\": true}"
+    },
+    {
+      "fn": "streaming_filter",
+      "args_json": "{\"chunks\": [\"Hel\", \"lo\"]}",
+      "output_json": "{\"fed\": [\"Hel\", \"lo\"], \"flush\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "streaming_filter",
+      "args_json": "{\"chunks\": [\"  <th\", \"ink>x\", \"</think>\", \"y\"]}",
+      "output_json": "{\"fed\": [\"\", \"\", \"\", \"y\"], \"flush\": \"\", \"stripped\": true}"
+    },
+    {
+      "fn": "streaming_filter",
+      "args_json": "{\"chunks\": [\"<think>never closed\"]}",
+      "output_json": "{\"fed\": [\"\"], \"flush\": \"never closed\", \"stripped\": true}"
+    },
+    {
+      "fn": "streaming_filter",
+      "args_json": "{\"chunks\": [\"<\", \"t\", \"x\"]}",
+      "output_json": "{\"fed\": [\"\", \"\", \"<tx\"], \"flush\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "streaming_filter",
+      "args_json": "{\"chunks\": [\"\", \"a\"]}",
+      "output_json": "{\"fed\": [\"\", \"a\"], \"flush\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "streaming_filter",
+      "args_json": "{\"chunks\": [\"  \", \"  \"]}",
+      "output_json": "{\"fed\": [\"\", \"\"], \"flush\": \"\", \"stripped\": true}"
+    },
+    {
+      "fn": "streaming_filter",
+      "args_json": "{\"chunks\": [\"<THINK>A</THINK>B\"]}",
+      "output_json": "{\"fed\": [\"B\"], \"flush\": \"\", \"stripped\": true}"
+    },
+    {
+      "fn": "streaming_filter",
+      "args_json": "{\"chunks\": [\"<think\", \">\"]}",
+      "output_json": "{\"fed\": [\"\", \"\"], \"flush\": \"\", \"stripped\": true}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"Hello \", \"<thi\", \"nk>secret thought</th\", \"ink> world\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"Hello \", \"\", \"\", \" world\"], \"finish\": \"\", \"stripped\": true}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"key is sk-abc\", \"def123456789 done.\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"key is \", \"[REDACTED] done.\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"Authorization: Bear\", \"er abcdefghijk next\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"\", \"Authorization: [REDACTED] abcdefghijk nex\"], \"finish\": \"t\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [\"MySecretValue123\"], \"chunks\": [\"xx MySec\", \"retValue123 yy\"]}",
+      "output_json": "{\"snapshot\": [\"MySecretValue123\"], \"fed\": [\"xx \", \"[REDACTED] yy\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \" tail\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"[REDACTED]\", \" tail\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"bbbb\", \" after\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"[REDACTED]\", \"\", \" after\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"<THINK>x</Think>y\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"y\"], \"finish\": \"\", \"stripped\": true}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"a<think>b\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"\"], \"finish\": \"a\", \"stripped\": true}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"my token\\n\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"my \"], \"finish\": \"token\\n\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"😀😀 api_k\", \"ey=12345678 ok\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"😀😀 \", \"api_key=[REDACTED] ok\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"ſk-abcdefghij more\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"ſk-abcdefghij more\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"İ<think>x</think>y\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"İ<y\"], \"finish\": \"\", \"stripped\": true}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [\"tokenABCDEF123\"], \"chunks\": [\"x tokenABC\", \"DEF123 y\"]}",
+      "output_json": "{\"snapshot\": [\"tokenABCDEF123\"], \"fed\": [\"x \", \"[REDACTED] y\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"\", \"\", \"ok\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"\", \"\", \"ok\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"password\", \": hunter2hunter2 \", \"end\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"\", \"password: [REDACTED] \", \"end\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"ghp_\", \"abcdefghijklmnopqrstuvwxyz1234 fin\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"\", \"[REDACTED] fin\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"foo_token=abc def\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"foo_token=abc def\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"xsk-abcdef\", \" end\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"xsk-abcdef\", \" end\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"mytoken=abc\", \"def ok\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"mytoken=ab\", \"cdef ok\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"key sk-abcdef\\n\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"key \"], \"finish\": \"sk-abcdef\\n\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [\"zz-token-zz9\"], \"chunks\": [\"pre zz-token-zz9\", \" post\"]}",
+      "output_json": "{\"snapshot\": [\"zz-token-zz9\"], \"fed\": [\"pre \", \"[REDACTED] pos\"], \"finish\": \"t\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [\"zz-token-zz9\"], \"chunks\": [\"pre zz-token-zz9x\", \" post\"]}",
+      "output_json": "{\"snapshot\": [\"zz-token-zz9\"], \"fed\": [\"pre \", \"[REDACTED]x pos\"], \"finish\": \"t\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [], \"chunks\": [\"sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \" tail\"]}",
+      "output_json": "{\"snapshot\": [], \"fed\": [\"[REDACTED]\", \" tail\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "visible_filter",
+      "args_json": "{\"secrets\": [\"abcde\", \"MySecretValue123\"], \"chunks\": [\"x abcde MySecretValue123 y\"]}",
+      "output_json": "{\"snapshot\": [\"MySecretValue123\"], \"fed\": [\"x abcde [REDACTED] y\"], \"finish\": \"\", \"stripped\": false}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": null, \"prompt\": \"abc\", \"content\": \"x\"}",
+      "output_json": "{\"token_usage\": 2, \"prompt_tokens\": 1, \"completion_tokens\": 1, \"cache_hit_tokens\": null, \"token_usage_source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {\"prompt_tokens\": 10, \"completion_tokens\": 5}}, \"prompt\": \"\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 15, \"prompt_tokens\": 10, \"completion_tokens\": 5, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {\"prompt_tokens\": 10, \"completion_tokens\": 5, \"total_tokens\": 20}}, \"prompt\": \"\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 20, \"prompt_tokens\": 10, \"completion_tokens\": 5, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {\"prompt_tokens\": 10, \"completion_tokens\": 5, \"total_tokens\": 0}}, \"prompt\": \"\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 15, \"prompt_tokens\": 10, \"completion_tokens\": 5, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {\"total_tokens\": 100}}, \"prompt\": \"一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 100, \"prompt_tokens\": 10, \"completion_tokens\": 90, \"cache_hit_tokens\": null, \"token_usage_source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {\"total_tokens\": 3}}, \"prompt\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 3, \"prompt_tokens\": 10, \"completion_tokens\": 0, \"cache_hit_tokens\": null, \"token_usage_source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {\"prompt_tokens\": -3, \"completion_tokens\": 5, \"total_tokens\": -1}}, \"prompt\": \"\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 2, \"prompt_tokens\": 0, \"completion_tokens\": 5, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {\"prompt_tokens\": 10, \"completion_tokens\": 5, \"prompt_cache_hit_tokens\": 7}}, \"prompt\": \"\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 15, \"prompt_tokens\": 10, \"completion_tokens\": 5, \"cache_hit_tokens\": 7, \"token_usage_source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {\"prompt_tokens\": 10, \"completion_tokens\": 5, \"prompt_tokens_details\": {\"cached_tokens\": 4}}}, \"prompt\": \"\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 15, \"prompt_tokens\": 10, \"completion_tokens\": 5, \"cache_hit_tokens\": 4, \"token_usage_source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {\"prompt_tokens\": 10, \"completion_tokens\": 5, \"prompt_cache_hit_tokens\": -2}}, \"prompt\": \"\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 15, \"prompt_tokens\": 10, \"completion_tokens\": 5, \"cache_hit_tokens\": 0, \"token_usage_source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {\"prompt_tokens\": 10.0, \"completion_tokens\": 5}}, \"prompt\": \"abcdefgh\", \"content\": \"abcd\"}",
+      "output_json": "{\"token_usage\": 3, \"prompt_tokens\": 2, \"completion_tokens\": 1, \"cache_hit_tokens\": null, \"token_usage_source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {}}, \"prompt\": \"\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 2, \"prompt_tokens\": 1, \"completion_tokens\": 1, \"cache_hit_tokens\": null, \"token_usage_source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": \"x\"}, \"prompt\": \"\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 2, \"prompt_tokens\": 1, \"completion_tokens\": 1, \"cache_hit_tokens\": null, \"token_usage_source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": null, \"prompt\": \"😀😀😀😀😀😀😀😀😀\", \"content\": \"ééééééé\"}",
+      "output_json": "{\"token_usage\": 3, \"prompt_tokens\": 2, \"completion_tokens\": 1, \"cache_hit_tokens\": null, \"token_usage_source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {\"total_tokens\": 9, \"prompt_tokens_details\": {\"cached_tokens\": 3}}}, \"prompt\": \"abcdabcdabcd\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 9, \"prompt_tokens\": 3, \"completion_tokens\": 6, \"cache_hit_tokens\": 3, \"token_usage_source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "token_usage",
+      "args_json": "{\"data\": {\"usage\": {\"total_tokens\": 100}}, \"prompt\": \"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\", \"content\": \"\"}",
+      "output_json": "{\"token_usage\": 100, \"prompt_tokens\": 10, \"completion_tokens\": 90, \"cache_hit_tokens\": null, \"token_usage_source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 500, \"token_usage_source\": \"estimated_split\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {}, \"usage\": {\"token_usage\": 3, \"prompt_tokens\": 1, \"completion_tokens\": 2, \"token_usage_source\": \"unavailable\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {}, \"usage\": {\"prompt_tokens\": 1, \"completion_tokens\": 2}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {}, \"usage\": {\"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {}, \"usage\": {\"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": -3, \"token_usage_source\": \"\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"cache_miss_tokens\": null, \"input_cny\": 0.02469, \"output_cny\": 0.005424, \"total_cny\": 0.030114000000000002, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"cache_miss_tokens\": 8345, \"input_cny\": 0.02469, \"output_cny\": 0.005424, \"total_cny\": 0.030114000000000002, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 500, \"token_usage_source\": \"estimated_split\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 100, \"cache_miss_tokens\": 0, \"input_cny\": 0.0002, \"output_cny\": 5.6e-05, \"total_cny\": 0.000256, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"token_usage\": 3, \"prompt_tokens\": 1, \"completion_tokens\": 2, \"token_usage_source\": \"unavailable\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"prompt_tokens\": 1, \"completion_tokens\": 2}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"cache_hit_tokens\": null, \"cache_miss_tokens\": null, \"input_cny\": 14000.0, \"output_cny\": 2.4e-05, \"total_cny\": 14000.000024, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": -3, \"token_usage_source\": \"\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": 0, \"cache_miss_tokens\": 5, \"input_cny\": 1e-05, \"output_cny\": 4e-05, \"total_cny\": 5e-05, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0.2\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"cache_miss_tokens\": null, \"input_cny\": 0.02469, \"output_cny\": 0.005424, \"total_cny\": 0.030114000000000002, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": 0.2, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0.2\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"cache_miss_tokens\": 8345, \"input_cny\": 0.01749, \"output_cny\": 0.005424, \"total_cny\": 0.022913999999999997, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": 0.2, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0.2\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 500, \"token_usage_source\": \"estimated_split\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 100, \"cache_miss_tokens\": 0, \"input_cny\": 2e-05, \"output_cny\": 5.6e-05, \"total_cny\": 7.6e-05, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": 0.2, \"source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0.2\"}, \"usage\": {\"token_usage\": 3, \"prompt_tokens\": 1, \"completion_tokens\": 2, \"token_usage_source\": \"unavailable\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0.2\"}, \"usage\": {\"prompt_tokens\": 1, \"completion_tokens\": 2}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0.2\"}, \"usage\": {\"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"cache_hit_tokens\": null, \"cache_miss_tokens\": null, \"input_cny\": 14000.0, \"output_cny\": 2.4e-05, \"total_cny\": 14000.000024, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": 0.2, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0.2\"}, \"usage\": {\"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": -3, \"token_usage_source\": \"\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": 0, \"cache_miss_tokens\": 5, \"input_cny\": 1e-05, \"output_cny\": 4e-05, \"total_cny\": 5e-05, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": 0.2, \"source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"-1\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"cache_miss_tokens\": null, \"input_cny\": 0.02469, \"output_cny\": 0.005424, \"total_cny\": 0.030114000000000002, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"-1\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"cache_miss_tokens\": 8345, \"input_cny\": 0.02469, \"output_cny\": 0.005424, \"total_cny\": 0.030114000000000002, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"-1\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 500, \"token_usage_source\": \"estimated_split\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 100, \"cache_miss_tokens\": 0, \"input_cny\": 0.0002, \"output_cny\": 5.6e-05, \"total_cny\": 0.000256, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"-1\"}, \"usage\": {\"token_usage\": 3, \"prompt_tokens\": 1, \"completion_tokens\": 2, \"token_usage_source\": \"unavailable\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"-1\"}, \"usage\": {\"prompt_tokens\": 1, \"completion_tokens\": 2}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"-1\"}, \"usage\": {\"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"cache_hit_tokens\": null, \"cache_miss_tokens\": null, \"input_cny\": 14000.0, \"output_cny\": 2.4e-05, \"total_cny\": 14000.000024, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"-1\"}, \"usage\": {\"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": -3, \"token_usage_source\": \"\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": 0, \"cache_miss_tokens\": 5, \"input_cny\": 1e-05, \"output_cny\": 4e-05, \"total_cny\": 5e-05, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"cache_miss_tokens\": null, \"input_cny\": 0.02469, \"output_cny\": 0.005424, \"total_cny\": 0.030114000000000002, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": 0.0, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"cache_miss_tokens\": 8345, \"input_cny\": 0.01669, \"output_cny\": 0.005424, \"total_cny\": 0.022114, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": 0.0, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 500, \"token_usage_source\": \"estimated_split\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 100, \"cache_miss_tokens\": 0, \"input_cny\": 0.0, \"output_cny\": 5.6e-05, \"total_cny\": 5.6e-05, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": 0.0, \"source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0\"}, \"usage\": {\"token_usage\": 3, \"prompt_tokens\": 1, \"completion_tokens\": 2, \"token_usage_source\": \"unavailable\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0\"}, \"usage\": {\"prompt_tokens\": 1, \"completion_tokens\": 2}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0\"}, \"usage\": {\"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"cache_hit_tokens\": null, \"cache_miss_tokens\": null, \"input_cny\": 14000.0, \"output_cny\": 2.4e-05, \"total_cny\": 14000.000024, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": 0.0, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"2\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\", \"STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS\": \"0\"}, \"usage\": {\"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": -3, \"token_usage_source\": \"\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": 0, \"cache_miss_tokens\": 5, \"input_cny\": 1e-05, \"output_cny\": 4e-05, \"total_cny\": 5e-05, \"input_cny_per_m_tokens\": 2.0, \"output_cny_per_m_tokens\": 8.0, \"cache_hit_input_cny_per_m_tokens\": 0.0, \"source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"nan\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"nan\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"nan\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 500, \"token_usage_source\": \"estimated_split\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"nan\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"token_usage\": 3, \"prompt_tokens\": 1, \"completion_tokens\": 2, \"token_usage_source\": \"unavailable\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"nan\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"prompt_tokens\": 1, \"completion_tokens\": 2}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"nan\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"nan\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": -3, \"token_usage_source\": \"\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"1e308\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"1e308\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"cache_miss_tokens\": null, \"input_cny\": 1.2345e+306, \"output_cny\": 6.78e+304, \"total_cny\": 1.3023e+306, \"input_cny_per_m_tokens\": 1e+308, \"output_cny_per_m_tokens\": 1e+308, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"1e308\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"1e308\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"cache_miss_tokens\": 8345, \"input_cny\": 1.2345e+306, \"output_cny\": 6.78e+304, \"total_cny\": 1.3023e+306, \"input_cny_per_m_tokens\": 1e+308, \"output_cny_per_m_tokens\": 1e+308, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"1e308\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"1e308\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 500, \"token_usage_source\": \"estimated_split\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 100, \"cache_miss_tokens\": 0, \"input_cny\": 1.0000000000000001e+304, \"output_cny\": 7e+302, \"total_cny\": 1.0700000000000001e+304, \"input_cny_per_m_tokens\": 1e+308, \"output_cny_per_m_tokens\": 1e+308, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"1e308\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"1e308\"}, \"usage\": {\"token_usage\": 3, \"prompt_tokens\": 1, \"completion_tokens\": 2, \"token_usage_source\": \"unavailable\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"1e308\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"1e308\"}, \"usage\": {\"prompt_tokens\": 1, \"completion_tokens\": 2}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"1e308\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"1e308\"}, \"usage\": {\"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"1e308\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"1e308\"}, \"usage\": {\"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": -3, \"token_usage_source\": \"\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": 0, \"cache_miss_tokens\": 5, \"input_cny\": 5.000000000000001e+302, \"output_cny\": 5.000000000000001e+302, \"total_cny\": 1.0000000000000002e+303, \"input_cny_per_m_tokens\": 1e+308, \"output_cny_per_m_tokens\": 1e+308, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"-1\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"-1\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"-1\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 500, \"token_usage_source\": \"estimated_split\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"-1\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"token_usage\": 3, \"prompt_tokens\": 1, \"completion_tokens\": 2, \"token_usage_source\": \"unavailable\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"-1\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"prompt_tokens\": 1, \"completion_tokens\": 2}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"-1\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"-1\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"8\"}, \"usage\": {\"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": -3, \"token_usage_source\": \"\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"0.15\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"0.6\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": null, \"cache_miss_tokens\": null, \"input_cny\": 0.0018517499999999999, \"output_cny\": 0.00040679999999999997, \"total_cny\": 0.00225855, \"input_cny_per_m_tokens\": 0.15, \"output_cny_per_m_tokens\": 0.6, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"0.15\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"0.6\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 12345, \"completion_tokens\": 678, \"cache_hit_tokens\": 4000, \"cache_miss_tokens\": 8345, \"input_cny\": 0.00185175, \"output_cny\": 0.00040679999999999997, \"total_cny\": 0.0022585500000000002, \"input_cny_per_m_tokens\": 0.15, \"output_cny_per_m_tokens\": 0.6, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"0.15\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"0.6\"}, \"usage\": {\"token_usage\": 30, \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 500, \"token_usage_source\": \"estimated_split\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 100, \"completion_tokens\": 7, \"cache_hit_tokens\": 100, \"cache_miss_tokens\": 0, \"input_cny\": 1.5e-05, \"output_cny\": 4.2e-06, \"total_cny\": 1.92e-05, \"input_cny_per_m_tokens\": 0.15, \"output_cny_per_m_tokens\": 0.6, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"0.15\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"0.6\"}, \"usage\": {\"token_usage\": 3, \"prompt_tokens\": 1, \"completion_tokens\": 2, \"token_usage_source\": \"unavailable\"}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"0.15\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"0.6\"}, \"usage\": {\"prompt_tokens\": 1, \"completion_tokens\": 2}}",
+      "output_json": "{}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"0.15\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"0.6\"}, \"usage\": {\"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"token_usage_source\": \"provider_usage\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 7000000000, \"completion_tokens\": 3, \"cache_hit_tokens\": null, \"cache_miss_tokens\": null, \"input_cny\": 1050.0, \"output_cny\": 1.8e-06, \"total_cny\": 1050.0000018, \"input_cny_per_m_tokens\": 0.15, \"output_cny_per_m_tokens\": 0.6, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"provider_usage\"}"
+    },
+    {
+      "fn": "cost",
+      "args_json": "{\"pricing\": {\"STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS\": \"0.15\", \"STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS\": \"0.6\"}, \"usage\": {\"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": -3, \"token_usage_source\": \"\"}}",
+      "output_json": "{\"currency\": \"CNY\", \"prompt_tokens\": 5, \"completion_tokens\": 5, \"cache_hit_tokens\": 0, \"cache_miss_tokens\": 5, \"input_cny\": 7.5e-07, \"output_cny\": 3e-06, \"total_cny\": 3.75e-06, \"input_cny_per_m_tokens\": 0.15, \"output_cny_per_m_tokens\": 0.6, \"cache_hit_input_cny_per_m_tokens\": null, \"source\": \"estimated_split\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {}, \"options\": {}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_TEMPERATURE\": \"1\"}, \"options\": {}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 1.0}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 1.0}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_TEMPERATURE\": \"abc\"}, \"options\": {}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_TEMPERATURE\": \"1e-7\"}, \"options\": {}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 1e-07}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 1e-07}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {}, \"options\": {\"temperature\": 0.3}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.3}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.3}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {}, \"options\": {\"temperature\": 0}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {}, \"options\": {\"temperature\": 1.0}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 1.0}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 1.0}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_MAX_COMPLETION_TOKENS\": \"2048\"}, \"options\": {}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7, \"max_completion_tokens\": 2048}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7, \\\"max_completion_tokens\\\": 2048}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_MAX_COMPLETION_TOKENS\": \" 0\"}, \"options\": {}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_MAX_COMPLETION_TOKENS\": \"-5\"}, \"options\": {}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_MAX_COMPLETION_TOKENS\": \"x\"}, \"options\": {\"max_completion_tokens\": 100}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7, \"max_completion_tokens\": 100}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7, \\\"max_completion_tokens\\\": 100}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_MAX_COMPLETION_TOKENS\": \"50\"}, \"options\": {\"max_completion_tokens\": 0}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_REASONING_EFFORT\": \" high \"}, \"options\": {}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7, \"reasoning_effort\": \"high\"}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7, \\\"reasoning_effort\\\": \\\"high\\\"}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {}, \"options\": {\"tools\": [], \"tool_choice\": \"auto\"}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {}, \"options\": {\"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"f\", \"parameters\": {\"type\": \"object\"}}}], \"tool_choice\": \"auto\"}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7, \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"f\", \"parameters\": {\"type\": \"object\"}}}], \"tool_choice\": \"auto\"}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7, \\\"tools\\\": [{\\\"type\\\": \\\"function\\\", \\\"function\\\": {\\\"name\\\": \\\"f\\\", \\\"parameters\\\": {\\\"type\\\": \\\"object\\\"}}}], \\\"tool_choice\\\": \\\"auto\\\"}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {}, \"options\": {\"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"f\"}}], \"tool_choice\": null}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7, \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"f\"}}]}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7, \\\"tools\\\": [{\\\"type\\\": \\\"function\\\", \\\"function\\\": {\\\"name\\\": \\\"f\\\"}}]}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {}, \"options\": {\"tools\": [{\"type\": \"function\"}], \"tool_choice\": {\"type\": \"function\", \"function\": {\"name\": \"f\"}}}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7, \"tools\": [{\"type\": \"function\"}], \"tool_choice\": {\"type\": \"function\", \"function\": {\"name\": \"f\"}}}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7, \\\"tools\\\": [{\\\"type\\\": \\\"function\\\"}], \\\"tool_choice\\\": {\\\"type\\\": \\\"function\\\", \\\"function\\\": {\\\"name\\\": \\\"f\\\"}}}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {}, \"options\": {\"stream\": true}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "output_json": "{\"payload\": {\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}, \"body\": \"{\\\"model\\\": \\\"gpt-test\\\", \\\"messages\\\": [{\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"系统\\\\t提示 \\\\\\\"引号\\\\\\\" \\\\\\\\ 反斜杠\\\"}, {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"你好😀 \\\\u0001\\\"}], \\\"temperature\\\": 0.7, \\\"stream\\\": true, \\\"stream_options\\\": {\\\"include_usage\\\": true}}\"}"
+    },
+    {
+      "fn": "payload",
+      "args_json": "{\"overrides\": {\"STORYFORGE_LLM_MODEL\": \"  \"}, \"options\": {}, \"messages\": [{\"role\": \"system\", \"content\": \"系统\\t提示 \\\"引号\\\" \\\\ 反斜杠\"}, {\"role\": \"user\", \"content\": \"你好😀 \\u0001\"}]}",
+      "error": {
+        "type": "LLMConfigError",
+        "message": "缺少真实 LLM 生成环境变量：STORYFORGE_LLM_MODEL。"
+      }
+    },
+    {
+      "fn": "chunk",
+      "args_json": "{\"chunk\": {}}",
+      "output_json": "{\"delta\": \"\", \"finish\": \"\"}"
+    },
+    {
+      "fn": "chunk",
+      "args_json": "{\"chunk\": {\"choices\": []}}",
+      "output_json": "{\"delta\": \"\", \"finish\": \"\"}"
+    },
+    {
+      "fn": "chunk",
+      "args_json": "{\"chunk\": {\"choices\": \"x\"}}",
+      "output_json": "{\"delta\": \"\", \"finish\": \"\"}"
+    },
+    {
+      "fn": "chunk",
+      "args_json": "{\"chunk\": {\"choices\": [5]}}",
+      "output_json": "{\"delta\": \"\", \"finish\": \"\"}"
+    },
+    {
+      "fn": "chunk",
+      "args_json": "{\"chunk\": {\"choices\": [{\"delta\": \"x\"}]}}",
+      "output_json": "{\"delta\": \"\", \"finish\": \"\"}"
+    },
+    {
+      "fn": "chunk",
+      "args_json": "{\"chunk\": {\"choices\": [{\"delta\": {\"content\": \"字\"}, \"finish_reason\": null}]}}",
+      "output_json": "{\"delta\": \"字\", \"finish\": \"\"}"
+    },
+    {
+      "fn": "chunk",
+      "args_json": "{\"chunk\": {\"choices\": [{\"delta\": {\"content\": 5}}]}}",
+      "output_json": "{\"delta\": \"\", \"finish\": \"\"}"
+    },
+    {
+      "fn": "chunk",
+      "args_json": "{\"chunk\": {\"choices\": [{\"finish_reason\": \"\"}, {\"finish_reason\": \"stop\"}]}}",
+      "output_json": "{\"delta\": \"\", \"finish\": \"stop\"}"
+    },
+    {
+      "fn": "chunk",
+      "args_json": "{\"chunk\": {\"choices\": [3, {\"finish_reason\": \"length\"}]}}",
+      "output_json": "{\"delta\": \"\", \"finish\": \"length\"}"
+    },
+    {
+      "fn": "assistant_message",
+      "args_json": "{\"data\": {}}",
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 响应缺少 choices，不能继续 BookRun 生成。"
+      }
+    },
+    {
+      "fn": "assistant_message",
+      "args_json": "{\"data\": {\"choices\": []}}",
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 响应缺少 choices，不能继续 BookRun 生成。"
+      }
+    },
+    {
+      "fn": "assistant_message",
+      "args_json": "{\"data\": {\"choices\": [5]}}",
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 响应 choices[0] 格式异常。"
+      }
+    },
+    {
+      "fn": "assistant_message",
+      "args_json": "{\"data\": {\"choices\": [{\"message\": \"x\"}]}}",
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 响应缺少 message，不能继续 BookRun 生成。"
+      }
+    },
+    {
+      "fn": "assistant_message",
+      "args_json": "{\"data\": {\"choices\": [{\"message\": {\"content\": \"正文\"}}]}}",
+      "output_json": "{\"content\": \"正文\"}"
+    },
+    {
+      "fn": "tool_calls",
+      "args_json": "{\"message\": {}}",
+      "output_json": "[]"
+    },
+    {
+      "fn": "tool_calls",
+      "args_json": "{\"message\": {\"tool_calls\": \"x\"}}",
+      "output_json": "[]"
+    },
+    {
+      "fn": "tool_calls",
+      "args_json": "{\"message\": {\"tool_calls\": [{\"id\": \"c1\", \"type\": \"function\", \"function\": {\"name\": \"fs.read\", \"arguments\": {\"path\": \"正文/1.md\", \"n\": 1.5}}}, {\"id\": 7, \"function\": {\"name\": \"f\", \"arguments\": [1, \"二\"]}}, {\"id\": 0, \"type\": null, \"function\": {\"arguments\": null}}, {\"function\": {\"name\": \"g\", \"arguments\": 5}}, {\"function\": {\"name\": \"h\", \"arguments\": 0}}, {\"function\": {\"name\": \"i\", \"arguments\": true}}, {\"function\": {\"name\": \"j\", \"arguments\": \"{\\\"a\\\":1}\"}}, {\"function\": {\"name\": \"k\", \"arguments\": {}}}, {\"function\": \"x\"}, 5, {\"id\": 1.0, \"function\": {\"name\": 2.5}}]}}",
+      "output_json": "[{\"id\": \"c1\", \"type\": \"function\", \"function\": {\"name\": \"fs.read\", \"arguments\": \"{\\\"path\\\": \\\"正文/1.md\\\", \\\"n\\\": 1.5}\"}}, {\"id\": \"7\", \"type\": \"function\", \"function\": {\"name\": \"f\", \"arguments\": \"[1, \\\"二\\\"]\"}}, {\"id\": \"\", \"type\": \"function\", \"function\": {\"name\": \"\", \"arguments\": \"\"}}, {\"id\": \"\", \"type\": \"function\", \"function\": {\"name\": \"g\", \"arguments\": \"5\"}}, {\"id\": \"\", \"type\": \"function\", \"function\": {\"name\": \"h\", \"arguments\": \"\"}}, {\"id\": \"\", \"type\": \"function\", \"function\": {\"name\": \"i\", \"arguments\": \"True\"}}, {\"id\": \"\", \"type\": \"function\", \"function\": {\"name\": \"j\", \"arguments\": \"{\\\"a\\\":1}\"}}, {\"id\": \"\", \"type\": \"function\", \"function\": {\"name\": \"k\", \"arguments\": \"{}\"}}, {\"id\": \"1.0\", \"type\": \"function\", \"function\": {\"name\": \"2.5\", \"arguments\": \"\"}}]"
+    },
+    {
+      "fn": "retryable",
+      "args_json": "{\"codes\": [395, 400, 405, 410, 415, 420, 425, 430, 435, 440, 445, 450, 455, 460, 465, 470, 475, 480, 485, 490, 495, 500, 505, 510, 515, 520, 525, 530, 535, 540, 545, 550, 555, 560, 565, 570, 575, 580, 585, 590, 595, 600, 429, 408, 499, 599]}",
+      "output_json": "[false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false, true, false, false, true]"
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": {}}",
+      "output_json": "\"None\""
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": {\"Retry-After\": \"\"}}",
+      "output_json": "\"None\""
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": {\"Retry-After\": \"5\"}}",
+      "output_json": "\"5.0\""
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": {\"Retry-After\": \" 2.5 \"}}",
+      "output_json": "\"2.5\""
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": {\"Retry-After\": \"-1\"}}",
+      "output_json": "\"None\""
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": {\"Retry-After\": \"abc\"}}",
+      "output_json": "\"None\""
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": {\"Retry-After\": \"inf\"}}",
+      "output_json": "\"inf\""
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": {\"Retry-After\": \"nan\"}}",
+      "output_json": "\"None\""
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": {\"Retry-After\": \"1e2\"}}",
+      "output_json": "\"100.0\""
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": {\"Retry-After\": \"1_0\"}}",
+      "output_json": "\"10.0\""
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": {\"Retry-After\": \"0\"}}",
+      "output_json": "\"0.0\""
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": {\"Retry-After\": \"-0\"}}",
+      "output_json": "\"-0.0\""
+    },
+    {
+      "fn": "retry_after",
+      "args_json": "{\"headers\": null}",
+      "output_json": "\"None\""
+    },
+    {
+      "fn": "retry_delay",
+      "args_json": "{\"attempt\": 1, \"base\": 0.5, \"jitter\": 0.25, \"retry_after\": null, \"random\": 0.375}",
+      "output_json": "\"0.59375\""
+    },
+    {
+      "fn": "retry_delay",
+      "args_json": "{\"attempt\": 3, \"base\": 0.5, \"jitter\": 0.25, \"retry_after\": null, \"random\": 0.375}",
+      "output_json": "\"2.09375\""
+    },
+    {
+      "fn": "retry_delay",
+      "args_json": "{\"attempt\": 10, \"base\": 0.5, \"jitter\": 0.25, \"retry_after\": null, \"random\": 0.375}",
+      "output_json": "\"60.0\""
+    },
+    {
+      "fn": "retry_delay",
+      "args_json": "{\"attempt\": 2, \"base\": 0.5, \"jitter\": 0.0, \"retry_after\": null, \"random\": 0.375}",
+      "output_json": "\"1.0\""
+    },
+    {
+      "fn": "retry_delay",
+      "args_json": "{\"attempt\": 1, \"base\": 0.5, \"jitter\": 0.25, \"retry_after\": 120.0, \"random\": 0.375}",
+      "output_json": "\"60.0\""
+    },
+    {
+      "fn": "retry_delay",
+      "args_json": "{\"attempt\": 1, \"base\": 0.5, \"jitter\": 0.25, \"retry_after\": 0.0, \"random\": 0.375}",
+      "output_json": "\"0.0\""
+    },
+    {
+      "fn": "retry_delay",
+      "args_json": "{\"attempt\": 2, \"base\": 0.3, \"jitter\": 0.1, \"retry_after\": null, \"random\": 0.375}",
+      "output_json": "\"0.6375\""
+    },
+    {
+      "fn": "retry_delay",
+      "args_json": "{\"attempt\": 4, \"base\": 1.7, \"jitter\": 0.25, \"retry_after\": 3.5, \"random\": 0.375}",
+      "output_json": "\"3.5\""
+    },
+    {
+      "fn": "redact_secrets",
+      "args_json": "{\"text\": \"text with sk-live-abcdefgh inside\", \"secrets\": [\"sk-live-abcdefgh\"]}",
+      "output_json": "\"text with *** inside\""
+    },
+    {
+      "fn": "redact_secrets",
+      "args_json": "{\"text\": \"Bearer abcdefghij token\", \"secrets\": [null, \"short\"]}",
+      "output_json": "\"Bearer [REDACTED] token\""
+    },
+    {
+      "fn": "redact_secrets",
+      "args_json": "{\"text\": \"密钥 MySecretValue123 与 api_key=zzzzzzzz\", \"secrets\": [\"MySecretValue123\"]}",
+      "output_json": "\"密钥 *** 与 api_key=[REDACTED]\""
+    },
+    {
+      "fn": "redact_secrets",
+      "args_json": "{\"text\": \"nothing\", \"secrets\": []}",
+      "output_json": "\"nothing\""
+    }
+  ],
+  "platform": "windows"
+}

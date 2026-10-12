@@ -75,7 +75,7 @@ export function isSensitiveKey(key: string): boolean {
 }
 
 // Python IGNORECASE with ASCII letters also accepts İ/ı, ſ and K.
-function insensitive(word: string): string {
+export function insensitive(word: string): string {
   return Array.from(word, (char) =>
     char === 'i'
       ? '[iIİı]'
