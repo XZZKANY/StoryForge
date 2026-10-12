@@ -1973,6 +1973,10 @@ fn main() {
             // 文件系统命令
             fs::read_file,
             fs::read_project_file,
+            fs::engine_reader::resolve_engine_project_path,
+            fs::engine_reader::inspect_engine_project_path,
+            fs::engine_reader::read_engine_project_directory,
+            fs::engine_reader::read_engine_project_bytes,
             managed_writeback::write_file,
             managed_writeback::write_file_if_unchanged,
             fs_writeback_receipts::describe_writeback_operation,

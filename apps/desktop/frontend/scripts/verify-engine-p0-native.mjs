@@ -12,11 +12,12 @@ import {
   open,
   readFile,
   readdir,
+  readlink,
   symlink,
   unlink,
   writeFile,
 } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
@@ -31,15 +32,28 @@ import {
 assert.equal(process.platform, 'win32', 'P0 Native probe currently targets Windows WebView2');
 const [mode, ...extra] = process.argv.slice(2);
 assert.ok(
-  ['--cpu-only', '--transport-only', '--all'].includes(mode) && extra.length === 0,
-  'Use --cpu-only, --transport-only or --all',
+  ['--cpu-only', '--transport-only', '--all', '--context-only', '--reader-only'].includes(mode) &&
+    extra.length === 0,
+  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only',
 );
-const transports = mode !== '--cpu-only';
+const contextOnly = mode === '--context-only';
+const readerOnly = mode === '--reader-only';
+const p1 = contextOnly || readerOnly;
+const fixtureName = readerOnly
+  ? 'engine-p1-reader'
+  : contextOnly
+    ? 'engine-p1-context'
+    : 'engine-p0';
+const transports = mode === '--transport-only' || mode === '--all';
+const label = p1 ? 'P1' : 'P0';
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const frontend = resolve(root, 'apps/desktop/frontend');
-const outputRoot = resolve(root, 'output/ts-engine-p0/native');
+const outputRoot = resolve(root, p1 ? 'output/ts-engine-p1/native' : 'output/ts-engine-p0/native');
 await mkdir(outputRoot, { recursive: true });
-const lockPath = resolve(outputRoot, 'active.lock');
+// Share the existing P0 lock: two probe modes must never race separate Native hosts.
+const lockRoot = resolve(root, 'output/ts-engine-p0/native');
+await mkdir(lockRoot, { recursive: true });
+const lockPath = resolve(lockRoot, 'active.lock');
 const lock = await open(lockPath, 'wx');
 const output = await mkdtemp(resolve(outputRoot, 'run-'));
 await lock.writeFile(JSON.stringify({ pid: process.pid, output }));
@@ -48,6 +62,14 @@ const directories = {
   configDir: resolve(output, 'config'),
   webviewDataDir: resolve(output, 'webview2'),
 };
+// Windows Known Folder APIs resolve below USERPROFILE and require existing folders;
+// LOCALAPPDATA alone does not isolate plugin HTTP cookies or SQL configuration.
+const knownFolders = {
+  home: resolve(output, 'home'),
+  local: resolve(output, 'home/AppData/Local'),
+  roaming: resolve(output, 'home/AppData/Roaming'),
+  temp: resolve(output, 'temp'),
+};
 const hostRoot = resolve(output, 'startup-stub');
 const apiDir = resolve(hostRoot, 'apps/api');
 const executable = resolve(hostRoot, 'bin/storyforge-desktop.exe');
@@ -55,7 +77,16 @@ const hash = async (path) =>
   createHash('sha256')
     .update(await readFile(path))
     .digest('hex');
-let vite, child, browser, build, httpServer;
+let vite,
+  child,
+  browser,
+  build,
+  httpServer,
+  contextInput,
+  contextBefore,
+  commandCount,
+  readerInput,
+  readerBefore;
 const evidence = {
   synthetic: true,
   rendererMocks: false,
@@ -76,6 +107,46 @@ const associatedHashes = async (path) => {
   }
   return Object.fromEntries(entries);
 };
+function ownedPath(base, name) {
+  const target = resolve(base, name);
+  const local = relative(base, target);
+  assert.ok(
+    local && local !== '..' && !local.startsWith(`..${sep}`) && !isAbsolute(local),
+    'Fixture path escaped owned root',
+  );
+  return target;
+}
+async function contextFingerprint(base, allowLinks = false) {
+  const result = [];
+  async function visit(directory, prefix) {
+    const entries = await readdir(directory, { withFileTypes: true });
+    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const entry of entries) {
+      const name = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const path = ownedPath(base, name);
+      if (entry.isSymbolicLink()) {
+        assert.ok(allowLinks, 'Plain context oracle unexpectedly contains a link');
+        result.push({ path: name, kind: 'link', target: await readlink(path) });
+        continue; // Fingerprint the link, never walk its target.
+      }
+      if (entry.isDirectory()) {
+        result.push({ path: name, kind: 'directory' });
+        await visit(path, name);
+      } else {
+        assert.ok(entry.isFile(), 'Unsupported fixture entry');
+        const bytes = await readFile(path);
+        result.push({
+          path: name,
+          kind: 'file',
+          bytes: bytes.length,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+        });
+      }
+    }
+  }
+  await visit(base, '');
+  return result;
+}
 try {
   const processes = spawnSync(
     'powershell.exe',
@@ -90,7 +161,12 @@ try {
   assert.ifError(processes.error);
   assert.equal(processes.status, 0, processes.stderr);
   assert.equal(processes.stdout.trim(), '', 'Existing Native app: refuse to reuse or kill it');
-  for (const path of [...Object.values(directories), apiDir, resolve(hostRoot, 'bin')]) {
+  for (const path of [
+    ...Object.values(directories),
+    ...Object.values(knownFolders),
+    apiDir,
+    resolve(hostRoot, 'bin'),
+  ]) {
     await mkdir(path, { recursive: true });
   }
   // find_project_root prefers ancestor markers over STORYFORGE_ROOT. Copy the executable
@@ -98,6 +174,96 @@ try {
   await writeFile(resolve(hostRoot, 'package.json'), '{"private":true,"synthetic":true}\n');
   await writeFile(resolve(hostRoot, 'docker-compose.yml'), '# P0 owned root marker only\n');
   await symlink(resolve(root, 'apps/api/.venv'), resolve(apiDir, '.venv'), 'junction');
+  if (contextOnly) {
+    const golden = JSON.parse(
+      await readFile(resolve(root, 'packages/engine/golden/p1-context.windows.json'), 'utf8'),
+    );
+    const ownedRoot = resolve(output, 'context-projects');
+    await mkdir(ownedRoot);
+    contextInput = { ownedRoot: ownedRoot.replaceAll('\\', '/'), projects: {} };
+    commandCount = 0;
+    for (const fixture of golden.book_context) {
+      assert.match(fixture.id, /^[a-z0-9-]+$/);
+      const project = ownedPath(ownedRoot, fixture.id);
+      await mkdir(project); // exclusive: duplicate fixture identities must fail, not overwrite
+      contextInput.projects[fixture.id] = project.replaceAll('\\', '/');
+      commandCount += fixture.commands.length;
+      for (const [name, encoded] of Object.entries(fixture.files)) {
+        const target = ownedPath(project, name);
+        const chunks = encoded.chunks.map(({ base64, repeat }) => {
+          assert.ok(Number.isSafeInteger(repeat) && repeat >= 0);
+          return { bytes: Buffer.from(base64, 'base64'), repeat };
+        });
+        const length = chunks.reduce((sum, chunk) => sum + chunk.bytes.length * chunk.repeat, 0);
+        assert.ok(
+          Number.isSafeInteger(length) && length <= 16 * 1024 * 1024,
+          'Unexpected fixture allocation',
+        );
+        const bytes = Buffer.alloc(length);
+        let offset = 0;
+        for (const chunk of chunks) {
+          const end = offset + chunk.bytes.length * chunk.repeat;
+          if (end > offset) bytes.fill(chunk.bytes, offset, end);
+          offset = end;
+        }
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(target, bytes, { flag: 'wx' });
+      }
+    }
+    contextBefore = await contextFingerprint(ownedRoot);
+    await writeFile(resolve(output, 'context-input.json'), JSON.stringify(contextInput, null, 2));
+    await writeFile(resolve(output, 'context-before.json'), JSON.stringify(contextBefore, null, 2));
+    evidence.contextProgress = [];
+  }
+  if (readerOnly) {
+    const ownedRoot = resolve(output, 'reader-projects');
+    const generated = spawnSync(
+      resolve(root, 'apps/api/.venv/Scripts/python.exe'),
+      [
+        resolve(root, 'apps/api/scripts/golden_dump.py'),
+        '--suite',
+        'p1-reader',
+        '--output',
+        resolve(root, 'packages/engine/golden/p1-reader.windows.json'),
+        '--check',
+        '--fixture-root',
+        ownedRoot,
+      ],
+      {
+        encoding: 'utf8',
+        windowsHide: true,
+        timeout: 180000,
+        env: {
+          SystemRoot: process.env.SystemRoot,
+          WINDIR: process.env.WINDIR,
+          PYTHONUTF8: '1',
+          PYTHONDONTWRITEBYTECODE: '1',
+        },
+      },
+    );
+    await writeFile(resolve(output, 'reader-oracle.log'), generated.stdout + generated.stderr);
+    assert.ifError(generated.error);
+    assert.equal(generated.status, 0, generated.stderr);
+    const golden = JSON.parse(
+      await readFile(resolve(root, 'packages/engine/golden/p1-reader.windows.json'), 'utf8'),
+    );
+    evidence.readerExpected = {
+      cases: golden.fixtures
+        .filter((fixture) => fixture.skip === null)
+        .reduce((sum, fixture) => sum + fixture.actions.length, 0),
+      skipped: golden.fixtures
+        .filter((fixture) => fixture.skip !== null)
+        .map((fixture) => ({
+          fixture: fixture.id,
+          actions: fixture.actions.length,
+          reason: fixture.skip,
+        })),
+    };
+    readerInput = { ownedRoot: ownedRoot.replaceAll('\\', '/') };
+    readerBefore = await contextFingerprint(ownedRoot, true);
+    await writeFile(resolve(output, 'reader-input.json'), JSON.stringify(readerInput, null, 2));
+    await writeFile(resolve(output, 'reader-before.json'), JSON.stringify(readerBefore, null, 2));
+  }
   const tauriConfig = JSON.parse(
     await readFile(resolve(root, 'apps/desktop/src-tauri/tauri.conf.json'), 'utf8'),
   );
@@ -201,7 +367,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     server: { host: 'localhost', port: 3007, strictPort: true, fs: { allow: [root] } },
     plugins: [
       {
-        name: 'p0-cpu-entry',
+        name: 'engine-native-entry',
         configureServer(server) {
           server.middlewares.use('/', async (req, res, next) => {
             if (req.url !== '/') return next();
@@ -209,7 +375,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             res.end(
               await server.transformIndexHtml(
                 '/',
-                '<html><body><h1>P0 Native synthetic probe</h1><script type="module" src="/scripts/fixtures/engine-p0.ts"></script></body></html>',
+                `<html><body><h1>${label} Native synthetic probe</h1><script type="module" src="/scripts/fixtures/${fixtureName}.ts"></script></body></html>`,
               ),
             );
           });
@@ -219,13 +385,13 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
   });
   await vite.listen(); // strictPort: never reuse the author's dev server.
   const overlay = {
-    productName: 'StoryForge P0 Probe',
-    identifier: 'com.storyforge.engine.p0',
+    productName: `StoryForge ${label} Probe`,
+    identifier: p1 ? 'com.storyforge.engine.p1' : 'com.storyforge.engine.p0',
     app: {
       security: {
         capabilities: [
           {
-            identifier: 'p0-probe',
+            identifier: p1 ? 'p1-probe' : 'p0-probe',
             windows: ['main'],
             permissions: [
               'core:default',
@@ -276,14 +442,18 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
   const cdpBaseUrl = await findFreeLoopbackApiBaseUrl();
   const inherited = Object.fromEntries(
     Object.entries(process.env).filter(([name]) =>
-      /^(PATH|SYSTEMROOT|WINDIR|TEMP|TMP|COMSPEC|PATHEXT|SYSTEMDRIVE|USERPROFILE|APPDATA|LOCALAPPDATA)$/i.test(
-        name,
-      ),
+      /^(PATH|SYSTEMROOT|WINDIR|COMSPEC|PATHEXT|SYSTEMDRIVE)$/i.test(name),
     ),
   );
   const env = createSmokeEnvironment(inherited, apiBaseUrl, directories);
   delete env.STORYFORGE_SHADOW_GIT_SMOKE_CLEAR_PATH;
   Object.assign(env, {
+    HOME: knownFolders.home,
+    USERPROFILE: knownFolders.home,
+    APPDATA: knownFolders.roaming,
+    LOCALAPPDATA: knownFolders.local,
+    TEMP: knownFolders.temp,
+    TMP: knownFolders.temp,
     STORYFORGE_ROOT: hostRoot,
     STORYFORGE_API_KEY: 'synthetic-p0-api',
     STORYFORGE_DESKTOP_USE_API_SIDECAR: '0',
@@ -310,6 +480,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     apiBaseUrl,
     cdpBaseUrl,
     directories,
+    knownFolders,
     overlay,
     locks: {
       cargo: await hash(resolve(root, 'apps/desktop/src-tauri/Cargo.lock')),
@@ -318,13 +489,48 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     },
     startup: 'ordinary debug setup + owned Python stdlib health stub; not a backend-free boot',
     sources: {
-      fixture: await hash(resolve(frontend, 'scripts/fixtures/engine-p0.ts')),
+      fixture: await hash(resolve(frontend, `scripts/fixtures/${fixtureName}.ts`)),
       harness: await hash(fileURLToPath(import.meta.url)),
       sqlGenerator: await hash(resolve(root, 'apps/api/scripts/engine_p0_sql_fixture.py')),
       main: await hash(resolve(root, 'apps/desktop/src-tauri/src/main.rs')),
     },
   });
-  console.log('P0 Native evidence:', output);
+  if (contextOnly) {
+    evidence.contextSources = {};
+    const sourcePaths = [
+      'packages/engine/golden/p1-context.windows.json',
+      'packages/engine/src/index.ts',
+      'packages/engine/src/readPort.ts',
+      'packages/project-core/src/path.ts',
+      'apps/desktop/frontend/src/lib/engine/reader.ts',
+      'apps/desktop/frontend/src/lib/book-context.ts',
+      'apps/desktop/src-tauri/src/fs.rs',
+      'apps/desktop/src-tauri/src/fs_engine_reader.rs',
+    ];
+    sourcePaths.push(
+      ...(await readdir(resolve(root, 'packages/engine/src/kernel')))
+        .filter((name) => /\.(ts|json)$/.test(name) && !name.includes('.test'))
+        .map((name) => 'packages/engine/src/kernel/' + name),
+    );
+    for (const name of sourcePaths) evidence.contextSources[name] = await hash(resolve(root, name));
+  }
+  if (readerOnly) {
+    evidence.readerSources = {};
+    for (const name of [
+      'apps/api/scripts/golden_dump.py',
+      'apps/api/scripts/golden_project_reader.py',
+      'apps/api/app/common/project_tree.py',
+      'packages/engine/golden/p1-reader.windows.json',
+      'packages/engine/src/readPort.ts',
+      'packages/engine/src/kernel/projectTree.ts',
+      'packages/project-core/src/path.ts',
+      'apps/desktop/frontend/src/lib/engine/reader.ts',
+      'apps/desktop/src-tauri/src/fs.rs',
+      'apps/desktop/src-tauri/src/fs_engine_reader.rs',
+    ])
+      evidence.readerSources[name] = await hash(resolve(root, name));
+  }
+  console.log(`${label} Native evidence:`, output);
   const deadline = Date.now() + 60000;
   while (!browser && Date.now() < deadline) {
     assert.equal(child.exitCode, null, 'Owned Native host exited before CDP');
@@ -339,7 +545,22 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
   assert.equal(pages.length, 1, 'Expected exactly one isolated Native page');
   const page = pages[0];
   page.on('pageerror', (error) => evidence.errors.push(error.message));
-  await page.waitForFunction(() => document.documentElement.dataset.engineP0Ready === 'true');
+  if (contextOnly)
+    page.on('console', (message) => {
+      const text = message.text();
+      if (text.startsWith('ENGINE_P1_START ')) evidence.activeContextCase = text.slice(16);
+      if (text.startsWith('ENGINE_P1_CASE ')) {
+        try {
+          evidence.contextProgress.push(JSON.parse(text.slice(15)));
+        } catch {
+          evidence.errors.push('Invalid Native context progress frame');
+        }
+      }
+    });
+  await page.waitForFunction(
+    (key) => document.documentElement.dataset[key] === 'true',
+    readerOnly ? 'engineP1ReaderReady' : contextOnly ? 'engineP1Ready' : 'engineP0Ready',
+  );
   evidence.nativeReadyMs = Date.now() - nativeStartedAt;
   let timer;
   try {
@@ -420,9 +641,68 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             sqlBefore,
             'Read-only query changed database or associated files',
           );
+          assert.equal(
+            resolve(evidence.sql.appConfigDir),
+            resolve(knownFolders.roaming, overlay.identifier),
+            'SQL plugin config escaped the owned Windows profile',
+          );
           evidence.sql.schemaBelow100Ms = evidence.sql.schemaMs < 100;
         }
-        if (mode !== '--transport-only')
+        if (contextOnly) {
+          evidence.context = await page.evaluate(
+            (input) => window.__ENGINE_P1__.runContextProbe(input),
+            contextInput,
+          );
+          assert.equal(evidence.context.native, true);
+          assert.equal(evidence.context.rows.length, commandCount);
+          const after = await contextFingerprint(contextInput.ownedRoot);
+          await writeFile(resolve(output, 'context-after.json'), JSON.stringify(after, null, 2));
+          assert.deepEqual(
+            after,
+            contextBefore,
+            'Native context changed the owned file tree or bytes',
+          );
+          for (const [name, expected] of Object.entries(evidence.contextSources))
+            assert.equal(
+              await hash(resolve(root, name)),
+              expected,
+              `Source changed during probe: ${name}`,
+            );
+          evidence.context.contentUnchanged = true;
+          evidence.context.traceScope =
+            'four real ProjectReader calls plus final tree/content hashes; not an OS-wide write audit';
+          delete evidence.contextProgress;
+          delete evidence.activeContextCase;
+        }
+        if (readerOnly) {
+          evidence.reader = await page.evaluate(
+            (input) => window.__ENGINE_P1_READER__.runReaderProbe(input),
+            readerInput,
+          );
+          assert.equal(evidence.reader.native, true);
+          assert.equal(evidence.reader.rows.length, evidence.readerExpected.cases);
+          assert.deepEqual(evidence.reader.skipped, evidence.readerExpected.skipped);
+          const after = await contextFingerprint(readerInput.ownedRoot, true);
+          await writeFile(resolve(output, 'reader-after.json'), JSON.stringify(after, null, 2));
+          assert.deepEqual(after, readerBefore, 'Native reader changed the owned fixtures');
+          evidence.reader.contentUnchanged = true;
+          evidence.reader.traceScope =
+            'real reader calls plus no-follow final tree/content hashes; not an OS-wide write audit';
+          for (const [name, expected] of Object.entries(evidence.readerSources))
+            assert.equal(
+              await hash(resolve(root, name)),
+              expected,
+              `Source changed during probe: ${name}`,
+            );
+          assert.deepEqual(
+            evidence.reader.rows
+              .filter((row) => !row.matched)
+              .map((row) => `${row.fixture}/${row.action}`),
+            [],
+            'Native reader differs from Python',
+          );
+        }
+        if (!p1 && mode !== '--transport-only')
           evidence.cpu = await page.evaluate(() => window.__ENGINE_P0__.runCpuProbe());
       })(),
       new Promise((_, reject) => {
@@ -442,6 +722,19 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     JSON.stringify(
       {
         status: evidence.status,
+        reader: evidence.reader && {
+          cases: evidence.reader.rows.length,
+          skipped: evidence.reader.skipped,
+          durationMs: evidence.reader.durationMs,
+          longTasks: evidence.reader.longTasks.length,
+          contentUnchanged: evidence.reader.contentUnchanged,
+        },
+        context: evidence.context && {
+          cases: evidence.context.rows.length,
+          durationMs: evidence.context.durationMs,
+          longTasks: evidence.context.longTasks.length,
+          contentUnchanged: evidence.context.contentUnchanged,
+        },
         cpu: evidence.cpu?.results.map(({ id, p50Ms, p95Ms, maxMs, longTasks }) => ({
           id,
           p50Ms,
@@ -490,6 +783,13 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
       process.exitCode = 1;
       console.error(error);
     }
+  }
+  if (p1) {
+    await copyFile(fileURLToPath(import.meta.url), resolve(output, 'harness-source.mjs'));
+    await copyFile(
+      resolve(frontend, `scripts/fixtures/${fixtureName}.ts`),
+      resolve(output, 'fixture-source.ts'),
+    );
   }
   evidence.closedAt = new Date().toISOString();
   await writeFile(resolve(output, 'evidence.json'), JSON.stringify(evidence, null, 2));

@@ -14,6 +14,7 @@
     "verify:agent-conversation": "node scripts/verify-agent-conversation.mjs"
   },
   "dependencies": {
+    "@storyforge/engine": "file:../../../packages/engine",
     "@storyforge/project-core": "file:../../../packages/project-core",
     "@tauri-apps/api": "^2.3.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
