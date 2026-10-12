@@ -60,6 +60,15 @@ export function checkCanonDeclaration(canon: JsonObject, source: string): void {
     fields.string(fields.member(entry, 'after'), `${at}.after`);
     checkAssertionMetadata(fields, entry, at);
   }
+  for (const [entry, at] of entries(fields, invariants, 'promises', 'invariants.promises')) {
+    for (const key of ['id', 'title', 'status', 'kind'])
+      fields.optionalString(fields.member(entry, key), `${at}.${key}`);
+    for (const key of ['planted_chapter', 'due_chapter', 'resolved_chapter', 'cadence_chapters'])
+      fields.optionalInteger(fields.member(entry, key), `${at}.${key}`);
+    fields
+      .optionalArray(fields.member(entry, 'touches'), `${at}.touches`)
+      .forEach((touch, index) => fields.integer(touch, `${at}.touches[${index}]`));
+  }
   for (const [entry, at] of entries(fields, invariants, 'lifespan', 'invariants.lifespan')) {
     fields.string(fields.member(entry, 'entity'), `${at}.entity`);
     fields.integer(fields.member(entry, 'exits_after_chapter'), `${at}.exits_after_chapter`);

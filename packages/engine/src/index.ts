@@ -81,3 +81,14 @@ export type { Dossier } from './kernel/canonDossier';
 export { buildCanonProjection, UNCACHED_SCAN_NOTE } from './kernel/canonService';
 export type { CanonProjectionResult } from './kernel/canonService';
 export { buildSceneConstraintBlock } from './kernel/canonContext';
+export { checkProseStaticQuality, proseStaticScan } from './kernel/proseScan';
+export type { ProseConstraints } from './kernel/proseScan';
+export {
+  buildPromiseLedger,
+  checkPromises,
+  DEFAULT_STALE_AFTER_CHAPTERS,
+  promiseCheck,
+} from './kernel/promiseScan';
+export type { PromiseCheckResult } from './kernel/promiseScan';
+export { collapseScan, entityBudgetScan } from './kernel/sceneChecks';
+export type { EntityBudgetOptions } from './kernel/sceneChecks';
