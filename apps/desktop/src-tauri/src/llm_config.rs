@@ -6,7 +6,7 @@ use tauri::AppHandle;
 
 pub use crate::llm_config_store::{LlmConfigResponse, SaveLlmConfigRequest};
 
-fn config_path(app: &AppHandle) -> Result<PathBuf> {
+pub(crate) fn config_path(app: &AppHandle) -> Result<PathBuf> {
     Ok(runtime_paths::app_config_dir(app)?.join("llm-provider.json"))
 }
 

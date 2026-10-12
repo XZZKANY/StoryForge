@@ -7621,3 +7621,18 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：回放 46 个场景 + 28 个任意字节切块的流式回放。变异 41 处全部被抓住；首轮 13 处存活（结束原因映射在 call_llm 返回里看不到、错误分类、负数用量、缓存数沿用前值、未知结束原因转小写、空 input 的 tool_use、后续 message_delta 不带结束原因、Gemini MAX_TOKENS、建连失败的异常名、`[DONE]` 行、错误体 2000 字截断、只含单引号的工具名、带括号的模型名），补夹具后全部抓住；另 2 处等价不计（Gemini 的 reasoning_tokens 在 Python 侧没有消费方；quote 唯一调用点的 safe 字符本就常驻安全）。
 - 门禁：引擎 typecheck 通过、11726 通过 / 2 跳过；eslint、prettier、ruff 通过；17 套 golden `--check` 一致。
 - 未做：P2-1c 桌面适配器；P2-3 assistant；P2-4 真跑。未读真实作者数据；无付费调用。
+
+## 2026-10-12 P2-1c 桌面出网适配器：key 不出 Rust（TS 迁移，默认仍走 Python）
+
+- 决定：作者同意推翻计划风险 13 的原方案（「key 从 Rust 读进 JS 内存」），改为 **key 不出 Rust**；计划文档架构图、§2.4、风险 7 / 13、§9 已同步改写。
+- 范围：新增 `apps/desktop/src-tauri/src/engine_llm.rs` 三个命令——`get_engine_llm_source`（配置源，key 是占位串 `[已隐藏的密钥]`）、`engine_llm_send`（Rust 代发，响应头经命令返回，响应体经 Channel 逐块推送）、`engine_llm_close`（中止读流）；`llm_config_store::read_revealed_slot`（解密只在 Rust 内用，故意不实现 Debug / Serialize）。前端 `src/lib/engine/llm.ts` 实现引擎的 `HttpPort` 与配置源；引擎 `llm/config.ts` 补 `LlmConfigFileError`（503，对应 Python `llm_config_file.LlmConfigError`）。
+- 出网策略：占位串只能出现在四个鉴权头（authorization / api-key / x-api-key / x-goog-api-key），出现在 URL、请求体或其他头一律拒绝；请求地址必须与已配置 baseUrl 同源（scheme、host、port），不许带 userinfo；重定向只跟同源，跨源停在 3xx 交回引擎；响应头、响应体与建连错误文本里的真 key 换回占位串，门槛与 Python `redact_secrets` 相同（≥ 6 字符），跨块回显只扣住「还可能长成 key 的尾巴」，普通 SSE 帧不延迟；响应以 key 前缀（≥ 6 字符）结尾时也遮住。超时语义照 Python socket timeout：建连到响应头一个时限，之后每次读块各一个时限。
+- 配置源对齐装机 sidecar 实际吃到的值：主槽 = 进程环境里的 15 个非密钥调参项 + 超时缺省 `60.0`（pydantic settings 缺省）+ 文件里的身份四项（API_BASE_URL 同 BASE_URL）；润色槽只有身份四项（Python `resolve_polish_llm` 同样不带调参项）。WebView 侧密钥快照就是占位串——P1-8c 缺的「完整密钥快照」owner 由此定案。
+- 测试：Rust 13 个用例（配置源、同源、占位串位置、方法 / 超时 / 请求体校验、任意两刀切块的回显遮盖、尾巴扣留、Python 门槛、本地假服务器上的真 key 出网与回显遮盖、错误状态原样返回、拒连 / 无响应 / 读块超时 / 截断、同源重定向带 key 而跨源不碰、IPC 形状）；配置存储 1 个用例（两槽解密、润色槽缺省、坏密文失败且不回显）；前端 5 个用例（配置源与快照、错误类别、请求序列化与早到 / 晚到块顺序、读流错误与 close、经引擎 `callLlmStreamed` / `callLlm` 走端口的端到端，401 回显的占位串被引擎脱敏为 `[REDACTED]`）。
+- 变异：Rust 24 处、前端 25 处，全部抓住。变异过程中发现前端一处真 bug：`Error` 实例会被当成 Native 错误对象改写成 TypeError，已修。
+- 真 WebView 合成探针：`verify-engine-p0-native.mjs --llm-only`（新模式），普通 debug 构建 + 隔离用户目录 + 每次随机生成的合成 key + 本地假 provider 与一个「外部源」假服务器；生产 capability 不加任何 http 插件授权。启动后经真 IPC 跑通：配置源只有占位串（超时 60.0、润色槽为空）；假 provider 在流式、非流式、模型列表三次请求里都收到了真 key；流式 3 个增量逐块到达，首个 9 ms、早于假服务器收尾；401 回显经 Rust 换成占位串、再被引擎脱敏为 `[REDACTED]`；模型列表的响应头与响应体回显都只剩占位串；发往外部源与占位串放错头的两次请求在出网前被拒（LlmConfigError），外部源一次都没被连到；`close()` 让慢流在服务端结束前断开；llm-provider.json 启动时已迁成 v2、不含明文；整个运行目录（含 WebView2 缓存与日志）扫不到合成 key。证据在 `output/ts-engine-p2/native/run-OtOQaX/`（gitignored）。
+- 顺带修：`packages/engine/src/kernel/docx.ts` 的 `new Blob([data])` 在前端（TS 5.9，`Uint8Array` 带泛型）类型检查报错，自 #289 起前端 typecheck 就是红的；改为 `data.slice()`，两版 TS 都过，DOCX 190 个用例仍绿。
+- 接受的差异：真 key 若出现在模型正文（非脱敏路径），TS 侧看到占位串而 Python 看到 key；短于 6 字符的「假 key」（本地服务常用）不遮盖，与 Python 不把它当密钥一致。跨源重定向不跟（Python 会带着 key 跟）；POST 遇同源 307 / 308 reqwest 会带体重发而 Python 报错。reqwest 0.11 读 Windows 注册表的 ProxyServer 但不读 ProxyOverride（Python 两者都读）。建连失败文本是系统错误原文，不仿 `<urlopen error …>`；读流中断的异常名按 io 错误类别近似（ConnectionResetError / IncompleteRead / RemoteDisconnected）。`.env` 文件里的调参项不再生效（装机版本来就没有 `.env`）。
+- 残余风险（与 v1 相同，不因本刀扩大）：WebView 若被攻破，可经 `save_llm_config` 改 baseUrl 但保留已存 key，再让 Rust 代发到新地址；v1 里 Python sidecar 同样会照新 baseUrl 带 key 出网。本刀的收益是 key 不进 JS 内存、不进任何 WebView 可见数据。
+- 门禁：Rust 全量 134 通过 / 4 忽略，新代码 clippy 无告警、rustfmt 通过；引擎 11726 通过 / 2 跳过、typecheck 通过；前端 2104 通过 / 1 跳过、typecheck 通过（修 docx 之后）；eslint（0 错误，2 条既有告警在无关测试文件）、prettier 通过。Python 侧零改动，未跑 pytest / golden。
+- 未做：P2-3 assistant（接 `assistant.ts` 的 ts 档）；P2-4 作者 key 真跑（需单独批准与费用预估）。未读真实作者数据；无付费调用；默认路由仍走 Python。

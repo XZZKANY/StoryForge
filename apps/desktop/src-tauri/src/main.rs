@@ -6,6 +6,7 @@ mod external_chat_bridge_tests;
 
 #[cfg(test)]
 mod external_native_ipc_fixture;
+mod engine_llm;
 mod fs;
 mod fs_writeback_receipts;
 mod host_close;
@@ -1969,6 +1970,7 @@ fn main() {
         .manage(Arc::clone(&manager))
         .manage(host_close_state::HostCloseState::default())
         .manage(shadow_git::ShadowGitState::default())
+        .manage(engine_llm::EngineLlmState::default())
         .invoke_handler(tauri::generate_handler![
             // 文件系统命令
             fs::read_file,
@@ -1998,6 +2000,10 @@ fn main() {
             host_close::read_host_close_diagnostic,
             llm_config::get_llm_config,
             llm_config::save_llm_config,
+            // 引擎出网：key 不出 Rust（占位串换真 key、只放行已配置 baseUrl 同源）
+            engine_llm::get_engine_llm_source,
+            engine_llm::engine_llm_send,
+            engine_llm::engine_llm_close,
             // 作品版本影子 Git 命令（固定 DTO，不暴露任意 Git 参数）
             shadow_git::create_shadow_snapshot,
             shadow_git::retain_shadow_snapshot,

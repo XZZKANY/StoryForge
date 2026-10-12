@@ -226,6 +226,46 @@ pub fn read(path: &Path) -> Result<LlmConfigResponse> {
     Ok(config.into())
 }
 
+// Deliberately no Debug/Serialize: the revealed key must stay inside Rust egress.
+pub struct RevealedSlot {
+    pub provider: String,
+    pub base_url: String,
+    pub model: String,
+    pub api_key: Option<String>,
+}
+
+/// Engine egress only. `None` means the dedicated polish slot was never configured.
+pub fn read_revealed_slot(path: &Path, polish: bool) -> Result<Option<RevealedSlot>> {
+    let _guard = CONFIG_LOCK
+        .lock()
+        .map_err(|_| anyhow::anyhow!("LLM 配置锁不可用"))?;
+    let (config, needs_write) = load(path)?;
+    if needs_write {
+        write(path, &config)?;
+    }
+    let (provider, base_url, model, api_key) = if polish {
+        match config.polish {
+            Some(slot) => (slot.provider, slot.base_url, slot.model, slot.api_key),
+            None => return Ok(None),
+        }
+    } else {
+        (
+            config.provider,
+            config.base_url,
+            config.model,
+            config.api_key,
+        )
+    };
+    Ok(Some(RevealedSlot {
+        provider: provider.trim().into(),
+        base_url: base_url.trim().into(),
+        model: model.trim().into(),
+        api_key: api_key
+            .map(|key| key.reveal().map(|value| value.trim().to_string()))
+            .transpose()?,
+    }))
+}
+
 fn update_key(
     key: &mut Option<ProtectedKey>,
     input: Option<String>,

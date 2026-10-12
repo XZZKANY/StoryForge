@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
 import { spawn, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { createServer as createHttpServer } from 'node:http';
 import {
@@ -32,23 +32,39 @@ import {
 assert.equal(process.platform, 'win32', 'P0 Native probe currently targets Windows WebView2');
 const [mode, ...extra] = process.argv.slice(2);
 assert.ok(
-  ['--cpu-only', '--transport-only', '--all', '--context-only', '--reader-only'].includes(mode) &&
-    extra.length === 0,
-  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only',
+  [
+    '--cpu-only',
+    '--transport-only',
+    '--all',
+    '--context-only',
+    '--reader-only',
+    '--llm-only',
+  ].includes(mode) && extra.length === 0,
+  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only / --llm-only',
 );
 const contextOnly = mode === '--context-only';
 const readerOnly = mode === '--reader-only';
+const llmOnly = mode === '--llm-only';
 const p1 = contextOnly || readerOnly;
-const fixtureName = readerOnly
-  ? 'engine-p1-reader'
-  : contextOnly
-    ? 'engine-p1-context'
-    : 'engine-p0';
+const fixtureName = llmOnly
+  ? 'engine-p2-llm'
+  : readerOnly
+    ? 'engine-p1-reader'
+    : contextOnly
+      ? 'engine-p1-context'
+      : 'engine-p0';
 const transports = mode === '--transport-only' || mode === '--all';
-const label = p1 ? 'P1' : 'P0';
+const label = llmOnly ? 'P2' : p1 ? 'P1' : 'P0';
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const frontend = resolve(root, 'apps/desktop/frontend');
-const outputRoot = resolve(root, p1 ? 'output/ts-engine-p1/native' : 'output/ts-engine-p0/native');
+const outputRoot = resolve(
+  root,
+  llmOnly
+    ? 'output/ts-engine-p2/native'
+    : p1
+      ? 'output/ts-engine-p1/native'
+      : 'output/ts-engine-p0/native',
+);
 await mkdir(outputRoot, { recursive: true });
 // Share the existing P0 lock: two probe modes must never race separate Native hosts.
 const lockRoot = resolve(root, 'output/ts-engine-p0/native');
@@ -82,6 +98,8 @@ let vite,
   browser,
   build,
   httpServer,
+  foreignServer,
+  llmKey,
   contextInput,
   contextBefore,
   commandCount,
@@ -332,6 +350,91 @@ try {
     });
     httpBaseUrl = `http://127.0.0.1:${httpServer.address().port}`;
   }
+  if (llmOnly) {
+    // Synthetic key generated per run: it must reach the provider, never the WebView.
+    llmKey = `sk-p2-synthetic-${randomBytes(12).toString('hex')}`;
+    const sse = [
+      'data: {"choices":[{"delta":{"content":"合成"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"流式"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"回放"},"finish_reason":"stop"}]}\n\n',
+      'data: {"choices":[],"usage":{"prompt_tokens":3,"completion_tokens":4,"total_tokens":7}}\n\ndata: [DONE]\n\n',
+    ];
+    evidence.llmServer = { records: [], foreign: [] };
+    httpServer = createHttpServer((request, response) => {
+      const record = {
+        method: request.method,
+        path: request.url,
+        authorization:
+          request.headers.authorization === `Bearer ${llmKey}`
+            ? 'real-key'
+            : (request.headers.authorization ?? null),
+        requestedAt: Date.now(),
+        endedAt: null,
+      };
+      evidence.llmServer.records.push(record);
+      let timer;
+      response.on('close', () => {
+        clearTimeout(timer);
+        record.closedAt = Date.now();
+        record.writableFinished = response.writableFinished;
+      });
+      const chunks = [];
+      request.on('data', (chunk) => chunks.push(chunk));
+      request.on('end', () => {
+        record.stream = Buffer.concat(chunks).toString('utf8').includes('"stream": true');
+        const echo = request.headers.authorization ?? '';
+        if (request.method === 'POST' && request.url === '/v1/chat/completions' && record.stream) {
+          response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+          let index = 0;
+          const emit = () => {
+            response.write(sse[index++]);
+            if (index < sse.length)
+              timer = setTimeout(emit, 200); // explicit fixture schedule
+            else {
+              record.endedAt = Date.now();
+              response.end();
+            }
+          };
+          emit();
+        } else if (request.method === 'POST' && request.url === '/v1/chat/completions') {
+          response.writeHead(401, { 'Content-Type': 'application/json' });
+          response.end(JSON.stringify({ error: { message: `invalid key ${echo}` } }));
+          record.endedAt = Date.now();
+        } else if (request.url === '/v1/models') {
+          response.writeHead(200, { 'Content-Type': 'application/json', 'X-Echo': echo });
+          response.end(JSON.stringify({ data: [{ id: 'p2-model' }], echo }));
+          record.endedAt = Date.now();
+        } else if (request.url === '/v1/slow') {
+          response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+          let index = 0;
+          const emit = () => {
+            response.write(`data: slow-${index++}\n\n`);
+            if (index < 25) timer = setTimeout(emit, 200);
+            else {
+              record.endedAt = Date.now();
+              response.end();
+            }
+          };
+          emit();
+        } else {
+          response.writeHead(404);
+          response.end();
+        }
+      });
+    });
+    foreignServer = createHttpServer((request, response) => {
+      evidence.llmServer.foreign.push({ method: request.method, path: request.url });
+      response.writeHead(200);
+      response.end('foreign');
+    });
+    for (const server of [httpServer, foreignServer])
+      await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(0, '127.0.0.1', resolve);
+      });
+    httpBaseUrl = `http://127.0.0.1:${httpServer.address().port}`;
+    evidence.llmServer.foreignUrl = `http://127.0.0.1:${foreignServer.address().port}/steal`;
+  }
   await writeFile(
     resolve(apiDir, 'run_windows.py'),
     `import json, os
@@ -352,12 +455,21 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
   );
   await writeFile(
     resolve(directories.configDir, 'llm-provider.json'),
-    JSON.stringify({
-      provider: 'custom',
-      baseUrl: 'http://127.0.0.1:1',
-      model: 'p0-unused',
-      apiKey: 'synthetic-unused',
-    }),
+    JSON.stringify(
+      llmOnly
+        ? {
+            provider: 'openai-compatible',
+            baseUrl: `${httpBaseUrl}/v1`,
+            model: 'p2-model',
+            apiKey: llmKey,
+          }
+        : {
+            provider: 'custom',
+            baseUrl: 'http://127.0.0.1:1',
+            model: 'p0-unused',
+            apiKey: 'synthetic-unused',
+          },
+    ),
   );
   vite = await createServer({
     root: frontend,
@@ -386,12 +498,12 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
   await vite.listen(); // strictPort: never reuse the author's dev server.
   const overlay = {
     productName: `StoryForge ${label} Probe`,
-    identifier: p1 ? 'com.storyforge.engine.p1' : 'com.storyforge.engine.p0',
+    identifier: `com.storyforge.engine.${label.toLowerCase()}`,
     app: {
       security: {
         capabilities: [
           {
-            identifier: p1 ? 'p1-probe' : 'p0-probe',
+            identifier: `${label.toLowerCase()}-probe`,
             windows: ['main'],
             permissions: [
               'core:default',
@@ -559,7 +671,13 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     });
   await page.waitForFunction(
     (key) => document.documentElement.dataset[key] === 'true',
-    readerOnly ? 'engineP1ReaderReady' : contextOnly ? 'engineP1Ready' : 'engineP0Ready',
+    llmOnly
+      ? 'engineP2LlmReady'
+      : readerOnly
+        ? 'engineP1ReaderReady'
+        : contextOnly
+          ? 'engineP1Ready'
+          : 'engineP0Ready',
   );
   evidence.nativeReadyMs = Date.now() - nativeStartedAt;
   let timer;
@@ -702,7 +820,64 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             'Native reader differs from Python',
           );
         }
-        if (!p1 && mode !== '--transport-only')
+        if (llmOnly) {
+          evidence.llm = await page.evaluate(
+            (input) => window.__ENGINE_P2_LLM__.runLlmProbe(input),
+            { foreignUrl: evidence.llmServer.foreignUrl },
+          );
+          const placeholder = evidence.llm.secrets[0];
+          assert.equal(evidence.llm.native, true);
+          assert.equal(evidence.llm.secrets.length, 1);
+          assert.deepEqual(evidence.llm.source, {
+            STORYFORGE_LLM_API_BASE_URL: `${httpBaseUrl}/v1`,
+            STORYFORGE_LLM_API_KEY: placeholder,
+            STORYFORGE_LLM_BASE_URL: `${httpBaseUrl}/v1`,
+            STORYFORGE_LLM_MODEL: 'p2-model',
+            STORYFORGE_LLM_PROVIDER: 'openai-compatible',
+            STORYFORGE_LLM_TIMEOUT_SECONDS: '60.0',
+          });
+          assert.ok(Object.values(evidence.llm.polishSource).every((value) => value === ''));
+          const records = evidence.llmServer.records;
+          const stream = records.find((record) => record.stream);
+          assert.ok(stream && stream.authorization === 'real-key', 'Provider never saw the key');
+          assert.equal(evidence.llm.deltas.map((delta) => delta.text).join(''), '合成流式回放');
+          assert.ok(
+            evidence.llm.deltas.length >= 3 && evidence.llm.deltas[0].receivedAt < stream.endedAt,
+            'No delta was visible before the synthetic stream ended',
+          );
+          evidence.llm.firstDeltaMs = evidence.llm.deltas[0].receivedAt - evidence.llm.startedAt;
+          assert.equal(evidence.llm.done.content, '合成流式回放');
+          assert.equal(evidence.llm.done.token_usage, 7);
+          assert.match(evidence.llm.failure.message, /HTTP 401/);
+          assert.match(evidence.llm.failure.message, /\[REDACTED\]/);
+          assert.equal(evidence.llm.models.status, 200);
+          assert.equal(evidence.llm.models.headers['x-echo'], `Bearer ${placeholder}`);
+          assert.ok(evidence.llm.models.body.includes(`Bearer ${placeholder}`));
+          assert.equal(evidence.llm.refusals.foreign.name, 'LlmConfigError');
+          assert.equal(evidence.llm.refusals.header.name, 'LlmConfigError');
+          assert.deepEqual(evidence.llmServer.foreign, [], 'Foreign origin was contacted');
+          assert.equal(
+            records.filter((record) => record.path === '/v1/models').length,
+            1,
+            'A refused request reached the provider',
+          );
+          assert.equal(evidence.llm.slow.first, 'data: slow-0\n\n');
+          const slow = records.find((record) => record.path === '/v1/slow');
+          const closeDeadline = Date.now() + 5000;
+          while (Date.now() < closeDeadline && !slow.closedAt) await delay(25);
+          assert.ok(slow.closedAt && !slow.writableFinished, 'close() did not abort the stream');
+          const stored = await readFile(
+            resolve(directories.configDir, 'llm-provider.json'),
+            'utf8',
+          );
+          assert.equal(JSON.parse(stored).schemaVersion, 2);
+          assert.ok(!stored.includes(llmKey), 'Config kept the plaintext key');
+          assert.ok(
+            !JSON.stringify(evidence).includes(llmKey),
+            'The real key reached the WebView or evidence',
+          );
+        }
+        if (!p1 && !llmOnly && mode !== '--transport-only')
           evidence.cpu = await page.evaluate(() => window.__ENGINE_P0__.runCpuProbe());
       })(),
       new Promise((_, reject) => {
@@ -742,6 +917,11 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
           maxMs,
           longTasks: longTasks.length,
         })),
+        llm: evidence.llm && {
+          firstDeltaMs: evidence.llm.firstDeltaMs,
+          deltas: evidence.llm.deltas.length,
+          requests: evidence.llmServer.records.length,
+        },
         http: evidence.http && {
           firstChunkMs: evidence.http.firstChunkMs,
           chunks: evidence.http.stream.chunks.length,
@@ -767,13 +947,13 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     () => browser?.close(),
     () => killProcessTree(child),
     () => vite?.close(),
-    async () => {
-      if (!httpServer) return;
-      httpServer.closeAllConnections();
+    ...[httpServer, foreignServer].map((server) => async () => {
+      if (!server) return;
+      server.closeAllConnections();
       await new Promise((resolve, reject) =>
-        httpServer.close((error) => (error ? reject(error) : resolve())),
+        server.close((error) => (error ? reject(error) : resolve())),
       );
-    },
+    }),
   ]) {
     try {
       await cleanup();
@@ -784,7 +964,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
       console.error(error);
     }
   }
-  if (p1) {
+  if (p1 || llmOnly) {
     await copyFile(fileURLToPath(import.meta.url), resolve(output, 'harness-source.mjs'));
     await copyFile(
       resolve(frontend, `scripts/fixtures/${fixtureName}.ts`),
