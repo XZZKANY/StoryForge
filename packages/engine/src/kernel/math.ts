@@ -30,3 +30,21 @@ export function pythonFixed(value: number, digits: number): string {
   if (digits === 0) return sign + rounded.toString();
   return `${sign}${rounded / scale}.${(rounded % scale).toString().padStart(digits, '0')}`;
 }
+
+/**
+ * CPython 3.12+ 内置 sum() 对浮点的结果：起始 0 与首项直接相加，其后用 Neumaier 补偿求和，
+ * 最后补上有限的补偿量。逐项相加在末位会与之不同。
+ */
+export function pythonFloatSum(values: readonly number[]): number {
+  if (!values.length) return 0;
+  let sum = 0 + values[0];
+  let compensation = 0;
+  for (const value of values.slice(1)) {
+    const total = sum + value;
+    if (Math.abs(sum) >= Math.abs(value)) compensation += sum - total + value;
+    else compensation += value - total + sum;
+    sum = total;
+  }
+  if (compensation && Number.isFinite(compensation)) sum += compensation;
+  return sum;
+}

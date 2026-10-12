@@ -1,7 +1,7 @@
 import { compareChapterPaths } from '@storyforge/project-core';
 import { matchPythonPath } from './pathMatch';
 
-const NON_MANUSCRIPT_DIRS = new Set([
+export const NON_MANUSCRIPT_DIRS = new Set([
   '大纲',
   'outline',
   'outlines',

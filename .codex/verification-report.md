@@ -7551,3 +7551,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 门禁：引擎 typecheck 通过、10567 通过 / 2 跳过；eslint、prettier 通过；前端 typecheck 通过；p1-context / canon-chain / scans / plans / knowledge 五套 golden `--check` 一致。
 - 坑：工具层会把源码里的 U+2028 / U+2029 的转义 转义写成真字符（JS 正则字面量里是行终止符），改用 String.fromCharCode 构造，并全量扫描确认没有残留。
 - 未做：工具与上下文组装接线（P3）；收件箱 / 压缩的存储部分（P4）；未读真实作者数据；无付费调用。
+
+## 2026-10-12 P1-7 文风与策略组（TS 迁移，默认仍走 Python）
+
+- 范围：craft（创作准则、场景纪律、审稿判据）、style_fingerprint / style_baseline（文风指纹、带 95% 置信区间的文风基线、注入子句）、author_voice（作者指令读取、产字 system prompt 唯一组装点、从组装好的 prompt 投影编辑政策）、author_edit_policy（从作者指令识别逐字保留 / 改引号 / 保留重复标点 / 换人称等显式控制，以及校验候选稿）、generation_delivery（写回送达引用）、role_catalog / skill_catalog（角色与流程目录、@提及归一化、计划载荷）。创作准则与目录数据由 Python 直接导出嵌入，不手抄。review_report、revise_scope 与 ide 审稿栈耦合，挪到 P1-8 一起搬。Python 侧零改动。
+- 预言机：`apps/api/scripts/golden_style.py`：112 条纯函数用例（准则子句 8、文风指纹 9、编辑政策 53、候选校验 7、从 prompt 投影 6、送达 2、目录与计划载荷 23、浮点求和 4）+ 11 个合成项目 20 次调用（文风基线 5 种语料、产字 prompt 组装、作者指令 8 种文件形态），生成来源记录逐项比对。`--check` 复跑一致。
+- 关键对齐点：CPython 3.12+ 内置 sum() 对浮点用 Neumaier 补偿求和，与逐项相加末位不同，新增 pythonFloatSum；round(x, 3) 按实际二进制值半偶舍入（复用 pythonFixed）；编辑政策内部下标用 UTF-16 码元，被涂白的增补平面字符用「空格 + 填充符」保持长度并在计长时剔除，测试把保护片段换算成码点再比。
+- 接受的差异：文风基线按解析后的路径去重（Python 按 inode，硬链接会被 TS 视为两份）；审稿判据未知视角报错的文字是键名本身（Python 是带引号的 KeyError 文本）。
+- 测试：回放 133 条 + 作者指令链接到项目外 1 条。变异 27 处全部被抓住；首轮 12 处存活（短文件阈值、80 万字总量预算、增补平面字符的对白占比、12 字桥接、16 层嵌套、引号里的反斜杠、单词里的撇号、对称引号的指令边界、「禁止改为」否定、后置「保持人称」、浮点补偿、链接逃出项目），补夹具与专门测试后全部抓住。
+- 门禁：引擎 typecheck 通过、10701 通过 / 2 跳过；eslint、prettier 通过；六套 golden `--check` 一致；源码无 U+2028 / U+2029 字面字符。
+- 未做：产字路径接线（P2 / P3）；未读真实作者数据；无付费调用。
