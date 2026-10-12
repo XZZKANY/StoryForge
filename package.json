@@ -14,18 +14,19 @@
     "dev:api": "node scripts/dev-start.mjs --api-only",
     "desktop:dev": "pnpm --filter @storyforge/desktop dev",
     "desktop:build": "pnpm --filter @storyforge/desktop build",
-    "test": "pnpm run test:desktop && pnpm run test:shared && pnpm run test:project-core && pnpm run test:api",
+    "test": "pnpm run test:desktop && pnpm run test:shared && pnpm run test:project-core && pnpm run test:engine && pnpm run test:api",
     "test:fast": "node scripts/fast-tests.mjs",
     "test:desktop": "npm --prefix apps/desktop run verify",
     "test:shared": "pnpm --filter @storyforge/shared test",
     "test:project-core": "pnpm --filter @storyforge/project-core test",
+    "test:engine": "pnpm --filter @storyforge/engine run typecheck && pnpm --filter @storyforge/engine test",
     "test:api": "cd apps/api && uv run pytest",
     "e2e": "node scripts/run-e2e.mjs",
     "smoke:sidecar": "node scripts/sidecar-smoke.mjs",
     "smoke:sidecar:packaged": "node scripts/sidecar-smoke.mjs --packaged",
     "openapi": "node scripts/generate-openapi.mjs",
-    "lint": "eslint . && prettier --check \"apps/desktop/frontend/src/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"scripts/**/*.mjs\"",
-    "lint:fix": "eslint . --fix && prettier --write \"apps/desktop/frontend/src/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"scripts/**/*.mjs\""
+    "lint": "eslint . && prettier --check \"apps/desktop/frontend/src/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"packages/engine/src/**/*.ts\" \"scripts/**/*.mjs\"",
+    "lint:fix": "eslint . --fix && prettier --write \"apps/desktop/frontend/src/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"packages/engine/src/**/*.ts\" \"scripts/**/*.mjs\""
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

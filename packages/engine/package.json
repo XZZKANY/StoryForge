@@ -1,0 +1,14 @@
+{
+  "name": "@storyforge/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "files": ["src"],
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": { "@storyforge/project-core": "workspace:*" },
+  "devDependencies": { "typescript": "5.8.3", "vitest": "^4.1.9" }
+}

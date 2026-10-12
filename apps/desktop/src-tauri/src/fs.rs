@@ -11,6 +11,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use walkdir::WalkDir;
 
+#[path = "fs_engine_reader.rs"]
+pub mod engine_reader;
+
 /// 原子写临时文件序号：进程内单调递增，保证同目标并发写不撞临时名。
 static ATOMIC_WRITE_COUNTER: AtomicU64 = AtomicU64::new(0);
 

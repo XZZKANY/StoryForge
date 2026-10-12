@@ -1,6 +1,6 @@
 # 后端换 TS：Python sidecar → 单进程 Tauri 迁移计划
 
-状态：**草案，待作者拍板**（2026-10-10）。本文是这项迁移的唯一计划文档；拍板后按 §12 的决定表改成「执行中」，每个 PR 合并时在 §6 的清单里打勾。
+状态：**P0 已验收 · P1 实施中**（2026-10-11）。作者已认可 P0、批准三批本机提交（不 push），并已认可 P1 的 PRD/设计/实施清单、批准按保留现有路径行为启动。完整引擎继续使用 `packages/engine`，全量保留现有功能与 provider（§12 B/C）。P1 提交另行确认；付费真跑、作者数据操作、默认切换与真机安装仍按阶段确认。2026-10-11 作者另拍板「划定输入范围、范围外直接报错、不再模仿 Python」，JSON 嵌套上限定为 64 层，见 §4.3.1。本文是这项迁移的唯一计划文档；每个 PR 合并时在 §6 的清单里打勾。
 
 ---
 
@@ -137,16 +137,18 @@ Tauri 命令 28 个，前端全部在用；迁移新增 2 个插件（§2.4）�
 
 ### 2.3 数据存储
 
-新建 `storyforge-engine.sqlite3`（与旧库并排），6 张表：`sessions`、`messages`、`runs`、`run_events`、`artifacts`、`tool_calls`；`schema_version` 表管前向迁移（TS 里手写 `migrations/0001.sql …`，无 alembic）。`subagent_runs` 确认无消费方后不建（§12 决定 C）。
+新建 `storyforge-engine.sqlite3`（与旧库并排），基础表：`sessions`、`messages`、`runs`、`run_events`、`artifacts`、`tool_calls`；`schema_version` 表管前向迁移（TS 里手写 `migrations/0001.sql …`，无 alembic）。2026-10-11 已确认全量保留，不能按原裁剪建议省略 `subagent_runs` 数据或功能；其新库映射在 P4 按实际消费契约确定。
 
 旧库**只读导入一次**（Phase 4）：sessions / messages 全导，runs / events / artifacts 按需导（终态 run 只导摘要），导入后写标记，旧文件永不改动——回滚 0.1.10 时数据完好。
 
-### 2.4 新增 Tauri 插件（crates.io 2026-10-10 查询）
+### 2.4 新增 Tauri 插件（2026-10-11 兼容锁解析）
 
 | 插件 | 版本 | 用途 | 替代方案 |
 | --- | --- | --- | --- |
-| `tauri-plugin-http` | 2.8.2 | 从 Rust 发模型请求，流式读响应 | 若流式不达标：自写一个 Rust 命令 `llm_stream`，reqwest 流 + `tauri::ipc::Channel` 推 chunk（约 80 行，Cargo 已有 reqwest） |
-| `tauri-plugin-sql` | 2.5.0 | sqlite | `tauri-plugin-store`（JSON，不够关系查询）；不选 |
+| `tauri-plugin-http` | 2.6.1（exact） | 从 Rust 发模型请求，流式读响应 | 若流式不达标：先定位请求/响应/IPC/reader 的失败点，再评估 Rust `llm_stream`；不先加平行实现 |
+| `tauri-plugin-sql` | 2.4.1（exact） | sqlite | `tauri-plugin-store`（JSON，不够关系查询）；不选 |
+
+原候选 HTTP 2.8.2 / SQL 2.5.0 要求 Tauri 2.12；本次保留 Tauri 2.11.2 / frontend API 2.11.0，仅依赖锁中 fs 2.5.1→2.5.2。P0 使用官方 crate 自带 global API；npm import wrapper 安装/调用单独验证，不能以 global 探针替代交付。SQL 无 db/path scope，`select` 可执行 mutating SQL，旧库只读必须由 driver `mode=ro`、拒写及 hash 实证保证。
 
 ### 2.5 事件流
 
@@ -169,7 +171,7 @@ Tauri 命令 28 个，前端全部在用；迁移新增 2 个插件（§2.4）�
 1. `.storyforge/` 下所有文件格式不变（`book.json`、`canon/canon.json`、`canon/derived/*`、`serial-plan.json`、`versions/`、`checkpoints/`、`author-loop/`）。
 2. 手稿只由 Rust `write_file*` 写；引擎永不写手稿（与「后端不写盘」红线同义）。
 3. 权限四档语义不变；`requires_confirmation` 的派生规则逐案例同 Python。
-4. 送进模型的 system / user 文本与 Python **逐字节相同**（craft、llm_context、book_context 块、五条管线提示词、工具描述）。
+4. 送进模型的 system / user 文本与 Python **逐字节相同**（仅限范围内输入，见 §4.3.1；craft、llm_context、book_context 块、五条管线提示词、工具描述）。
 5. 工具 JSON schema 与 Python 生成的逐字节相同（`test_loop_tool_schemas.py` 的 golden 搬过来）。
 6. 11 种帧的字段与语义不变。
 7. BYO key 位置与格式不变（`%APPDATA%\com.storyforge.ide\llm-provider.json`）。
@@ -188,9 +190,31 @@ Tauri 命令 28 个，前端全部在用；迁移新增 2 个插件（§2.4）�
 
 `shadow` 档两边都跑，结果给 Python 的，TS 的与之 deep-diff，差异写到 `%LOCALAPPDATA%\com.storyforge.ide\shadow-diffs.jsonl`（只记结构化差异与路径，不记正文）。用作者自己的书跑一周，差异归零才允许切 `ts`。对 LLM 路径影子模式只比 prompt 文本，不双倍花钱。
 
+2026-10-11 源码核对补充：IDE 目录的 `writes=False` 不是无副作用证明；canon/observatory 写派生文件，plan 写计划，breakdown 还可能调用模型并记录 DB run/artifact。影子比较不得对同一作者文件树/数据库双写：只读命令比较同一稳定输入，有写入的命令使用隔离副本或捕获 TS write-intents，且不重复模型调用/记账。具体 snapshot/适配合同在 P1/P2/P4 落实；依赖未就绪不把局部命令验证称九命令 shadow 验收完成，也不靠 catch-all 静默回切掩盖差异。
+
 ### 4.3 golden 预言机
 
 `apps/api/scripts/golden_dump.py`：对 §6 标「golden」的每个纯函数，用合成夹具（入库，`packages/engine/golden/*.json`）和作者作品副本（**不入库**，本机生成到 `packages/engine/golden-local/`，已 gitignore）各跑一遍，输出 `{input, output}`。TS 测试读同一文件断言 deep-equal / 字符串相等。Python 删除前把合成夹具的输出冻结入库，之后 TS 测试不再依赖 Python。
+
+### 4.3.1 输入范围（2026-10-11 作者拍板）
+
+golden「逐字节一致」只对**范围内**的输入成立。范围外的输入，TS 直接报错（`InputDomainError`，写明文件、字段与期望），不再复刻 Python 对它们的偶然行为。判断标准只有一条：应用自己写不出来、作者照文档也不会写出来的输入，就在范围外。golden 文件不重录；范围外的用例在测试里逐条改判为「应当报错」或「视为缓存失效」，并钉住条数，记作接受的差异。
+
+| 来源 | 范围内 | 范围外 |
+| --- | --- | --- |
+| 所有 JSON 文件的公共底线 | UTF-8 且不带 BOM；标准 JSON（RFC 8259，没有 NaN / Infinity）；嵌套不超过 64 层；整数是 JS 安全整数；字符串是合法 Unicode（没有孤立代理码点）；重复键后者生效；键的先后顺序不属于契约 | 见下面各行 |
+| 作者声明：`canon/canon.json`（`hooks.json`、`book.json`、`serial-plan.json` 迁移时同规则） | 字段类型与应用生成的格式一致：实体 `id`、`canonical_name` 是字符串或缺省，`aliases` 是字符串数组或缺省；不变量里的物品、持有者、实体、先后节点是字符串，章号是整数字面量或缺省。缺省字段与空白名字照旧按 Python 的语义处理；只有实体缺 `id` 时不取出场跨度（Python 会拿字符串 `None` 去匹配，属于意外） | 报错，所在命令失败并指出位置。Python 的做法是静默丢掉整份人物表，或者按 Python 语义继续（把 `true` 当第 1 章、把字符串别名拆成单字） |
+| 应用自己写的缓存与回执：`canon/derived/*.json`、`writeback-receipts/` | 与写入方的结构一致：presence 的 `id` 是字符串或 null，章号是整数或 null，`missing` 是布尔；回执字段集合与类型固定，时间戳是非负安全整数 | 视为缓存失效，与 Python 处理坏缓存的方式一致；但不再接受 UTF-16/32、BOM、代理码点、超大整数这类应用写不出的内容 |
+| 正文 `.md` | 任意文本：UTF-8，可带 BOM，任意换行；单文件不超过 2 MiB，前 1 KiB 没有 NUL | 沿用现有省略规则：读不了的上一章只省略结尾，不挡续写；非法 UTF-8 按替换字符解码，这是两边相同的自然行为，不算模仿 |
+| IDE 命令参数 | `project_root` 是绝对路径；`current_file` 是绝对路径或相对项目根的路径；参数里的字符串是合法 Unicode | 400 报错。相对的 `current_file` 一律按项目根解析：Python 的「当前文件」字段按进程工作目录解析属于意外，不复刻 |
+| glob 模式 | 任意字符串，模型工具与 IDE 命令都能传 | 没有范围外；完整保留 `Path.match` 语义 |
+| 文本的大小写与单词字符 | 以宿主 JS 引擎的 Unicode 为准 | 不再随源码携带 Python 3.13 的 Unicode 15.1 字符表。与 Python 不同、已接受的只有两处：新版 Unicode 才有的字符；glob 在 Windows 上不再把土耳其语 İ、ı 当成 i、I 的大小写（Python 正则特有的等价，JS 的 Unicode 大小写折叠没有）。脱敏的关键词匹配仍认这几个变体，宁可多遮 |
+
+由此定下的三件事：
+
+- **JSON 嵌套上限 64 层**，取代此前待审的 4096 方案。应用写出的文件最深是 presence 缓存，6 层（出场记录里的命中形式列表）；64 与目录遍历的深度上限一致。4096 只是为了容纳测试里人为构造的两千多层嵌套 ID。
+- **死代码不搬**：`common/math.py` 的 `safe_ratio` 在后端没有任何调用方，TS 侧删除 `safeRatio` 及其 golden。
+- **作者声明写错会报错**：这是作者看得见的行为变化，Python 原来静默丢弃。P1-8 接线到界面时要把错误原文显示给作者，不能吞成空结果。
 
 ### 4.4 录制回放
 
@@ -224,13 +248,15 @@ LLM 路径沿用 Python 的 `providers/deterministic.py` 思路：TS 一个 `Scr
 
 | # | 探针 | 做法 | 判据 |
 | --- | --- | --- | --- |
-| P0-1 | 流式响应 | 在 dev 构建里装 `plugin-http`，对作者的 baseUrl 发 `stream: true` 请求，记录首 token 延迟与是否逐块到达 | 逐块到达且首块 < 3 s；否则改 Rust `llm_stream` 命令 |
-| P0-2 | sqlite | `plugin-sql` 打开旧库只读查 16 个会话；新建库 + WAL；量启动耗时 | 读旧库成功；新库建表 < 100 ms |
-| P0-3 | CPU | 把 `prose_scan` 的正则部分手搬一小段，在合成 1 MB 正文上主线程跑 | < 200 ms 留主线程，否则规划 Worker |
+| P0-1 | 流式响应 | Native `plugin-http` 对受控合成服务逐块读取，验证跨块 UTF-8、结束前可见、取消/错误与 ACL；作者 baseUrl/key 另行批准真跑 | 合成首块 < 3 s 且逐块到达；真实模型 TTFT 尚未验证，失败先定位再决定替代方案 |
+| P0-2 | sqlite | 当前模型生成合成旧库及一致性副本，16 个合成会话只读查询/拒写/hash；独立新库 + WAL；分开量启动、load、建表 | 合成行正确，缺失只读库不被创建；新库建表 < 100 ms，不改作者库 |
+| P0-3 | CPU | 迁移真实段落规则四族，在三个精确 1 MiB UTF-8 合成正文上，真实 WebView2 主线程预热/采样各 10 次 | 记录 p50/p95/max 与长任务；p95 ≥ 200 ms 规划 Worker，低于门限不批准全扫描留主线程 |
 | P0-4 | golden 流水线 | 以 `manuscript` 读序 + `book_context` 渲染为样本打通 Python dump → TS 测试 | 两个函数逐字节相等，含 CRLF 与末尾换行 |
 | P0-5 | 无 sidecar 构建 | 临时去掉 `externalBin` 打 NSIS，量体积 | 预期 25 到 30 MB，给作者看 |
 
 P0 结束出一份 `verification-report` 记录，附数字，再决定 P1 开工。
+
+2026-10-11 P0 验收记录：P0 五项合成技术门通过，作者认可结果并批准三批本机提交及准备 P1 规划；当时未获 P1 实现授权，后续启动/增量见下。P0-4 为 338 个 TS 用例，半偶舍入变异 11 个失败、还原全绿；只覆盖枚举后的手稿读序和 `book_context` renderer，不代表完整遍历/context builder 已迁移。P0-1/2 Native 合成边界复跑通过：五块 UTF-8/SSE、首块 31–40 ms、取消/503/ACL；只读行/拒写/hash、缺失库拒绝、新库 WAL，单事务建表 16.4–23.3 ms。P0-3 最新 p95 98.4 / 64.2 / 5.8 ms，有 10 / 10 / 0 个长任务，只回答该规则子集。P0-5 同 release/完整前端/MinGit 的 NSIS 为 75.304→29.756 MiB（-60.485%），离线提取的 main 与 368 个 MinGit 文件 hash 相同，仅 sidecar 缺席；未安装/运行 size-only 应用。真实 provider/作者库、HTTP/SQL npm imports、完整单进程运行尚未验。详细验证见 `.codex/verification-report.md`。
 
 ### P1 内核（PR P1-1 … P1-9）
 
@@ -245,6 +271,23 @@ P0 结束出一份 `verification-report` 记录，附数字，再决定 P1 开�
 | P1-7 | 文风与策略：`craft`、`style_baseline`、`style_fingerprint`、`author_voice`、`author_edit_policy`、`generation_sources`、`generation_delivery`、`review_report`、`revise_scope`、`role_catalog`、`skill_catalog` | golden（prompt 子句逐字节） |
 | P1-8 | IDE 命令 9 个：`command_registry`、`book_breakdown*`、`review_reasoning`、`review_skills`、`cross_chapter_consistency`，接到 `executeIdeCommand` 的 `ts` 档 | golden + 前端既有测试（mock 不变） |
 | P1-9 | 切 `ideCommands=shadow`，作者副本跑一周 | 差异文件为空 |
+
+2026-10-11 首批增量（**不是 P1 整体验收**）：
+- 正式 frontend `file:../../../packages/engine` manifest/lock 已接入；owned clean root pnpm 9.15.4 → frontend npm bootstrap、真实包导入、单一 core 解析、typecheck、完整 React production build（`envFile=false`）通过。三键开发开关已实现，production 忽略实验值；实际所有 IDE/assistant/agent 路径仍 Python，完整配置脱敏来源就绪前不放行真实 UI。
+- 四项 uncached/bounded Native read 原语、typed port/binding 与 raw traversal 已实现。引擎 352 测试（含新 14 项）、Rust 118 passed/4 ignored；真实 junction、缺失普通余段、verbatim drive、16KiB/512KiB/2MiB `cap+1` 和目录末尾错误保留已验证。文件 symlink 新用例因 1314 明确跳过，不能计为通过；该轮未跑新 WebView IPC 或 Python reader golden，不声明完整路径兼容/race-free。过滤前预算变异在独立副本中 3 项变红、还原 14 项绿。
+- 后续同日增量：同一个 exporter 已新增 `p1-context`（50 文件夹具、29 JSON 边界），reader-backed builder/知识索引/canon 回执版本与台账/上章尾部及 browser payload 已实现；Engine 439 项、前端 2008 项通过（另 1 skip），46 组正式包 → 既有 mapper 合成结果一致。保留整数/浮点/bool 与大整数 prompt；独立期望树的整数变异 14 项失败、stamp 旁路 1 项失败，还原均绿。
+- Unicode/脱敏增量：真实文件反例证明 raw surrogatepass 合并会把人物章号 `2–3` 错配为 `98–99`；现已在既有 JSON owner 中保留字符串/字典键码点身份，并冻结 Python Unicode 15.1 分类。当时 59 文件夹具、51 JSON 边界、41 类敏感键/43 组脱敏输出，Engine 557 全绿；六项独立副本变异均检出。纯脱敏只消费完整有序合成 secrets 快照，不读取宿主配置、不代表 P2 配置 owner 已完成。
+- 命令响应增量：`executeBookContextCommand` 已复用 builder/renderer/redactor，保留原始 args 回显及三次脱敏。真实 registry/model/JSONResponse 与 owned ASGI 的 84 组命令（70 成功、9 个 400、5 个 500；其中 1 个 Python 成功的相对输入仍不准入 TS）和 4 组 422 比对通过。Engine 652、前端 2088+1skip，十项变异均检出并恢复绿；57 组 builder、69 组成功命令经过正式包与现有 mapper。
+- Native 合成链路增量：同一 Python v4 的 84 命令经真实 WebView/npm invoke→四项 Rust 读取→完整 engine→既有 mapper，两次新建隔离树均为 69 完全匹配/14 预期错误/1 相对输入零 IO 不准入，文件树字节未变。最终源码一致，正常全量前端2088+1skip/Engine652/core9/types/lint通过。大字节读仍有84–112ms长任务；P0共享启动器回归建表403.3ms超过100ms，保留failed、原因待定位，不能称全部验收通过。
+- 读边界性能/隔离增量：CPU对照仅改base64数组填充，reader自身采样279→30ms；最终无profiler的两次84合同Native回放均零长任务、字节不变。修复隔离Known Folder目录缺失引起的HTTP plugin启动错误；之后P0实测schema16.8ms通过原100ms门。旧403.3ms证据保留且不强行归因。当前前端2093+1skip/Engine652/core9/types/lint及fresh React97chunks构建通过。
+- reader真实文件树增量：同一Python描述由memory/真实Native回放，12树30动作中28一致，2个file-symlink因1314跳过。真实红基线定位并修复3处错误语义差异：typed containment错误不再变通用解析失败，missing/file根在读取目录阶段失败，writer根不变。最终Native reader28与完整命令84均当前源码/字节不变；前端2098+1skip/Engine680+2skip/core9/Rust120+4ignored、types/lint及fresh bootstrap通过。参见 `output/ts-engine-p1/reader-tree-evidence.json`；仍不等于完整reader/production admission/P1验收。
+- 深层ID增量：真实Python新增6个list/dict深层ID夹具，原61 context/51 JSON记录不变；旧TS的5处递归repr栈溢出已由既有owner内的显式栈修复，定向225全绿。Native完整90合同、0longtasks/字节不变；前端2110+1skip/Engine692+2skip/core9/types/lint/fresh97chunks构建通过。作者允许设计明确深度预算；具体4096层方案待审核、未实现，解析资源差异仍未关闭。证据 `output/ts-engine-p1/deep-json-evidence.json`；默认Python、未提交。
+- 标点内核增量：完整迁移比较规范化/原标点恢复/对话pattern，保留重复空行匹配、全文仅标点变化例外和引号授权单元边界。真实Python1142用例与emitted正式包一致；五项变异均检出并恢复绿。前端2110+1skip/Engine1834+2skip/core9/types/lint/fresh React97chunks通过；未接真实修订/策略来源/Native负载。math及其余内核继续，证据 `output/ts-engine-p1/punctuation-evidence.json`。
+- 数学内核增量：在原math.ts增加safeRatio、复用且原样保留pythonFixed；精确整数商→binary64→四位舍入，保留负零/混合数值/溢出。真实Python757项与emitted正式包一致，五项变异均检出并恢复绿；前端2110+1skip/Engine2591+2skip/core9/types/lint/fresh97chunks通过。共享纯oracle审计提取后标点snapshot字节不变；未改默认路由、未提交。证据 `output/ts-engine-p1/math-evidence.json`；继续canon及其余内核，P1-2剩余路径边界未以此关闭。
+- canon 闸门增量：迁移唯一持有/时间线/退场提示纯检查，保留闭区间、10**9哨兵、DFS顺序/深度64、稳定SHA-1 ID、重复issue及Python数值/容器/Unicode/错误语义。真实Python842项（含33预期错误）与正式emitted包一致，七项变异均检出并还原；前端2110+1skip/Engine3433+2skip/core9/types/lint/fresh97chunks通过，518source/100artifact hashes。默认Python、未提交；presence/assertions/dossier/cache/derived写入及命令接线仍待迁。证据 `output/ts-engine-p1/canon-gate-evidence.json`。
+- Path.match依赖增量：presence/consistency源码支持任意glob，现已迁词法匹配并接回正文排序；保留相对右匹配、锚点/UNC/盘符、非递归**、字符类与Unicode15.1大小写等价，未复用会折叠父路径的UI工具。7464真实Python项与正式包一致，七项变异检出；前端2110+1skip/Engine10899+2skip/core9/types/lint/fresh97chunks绿。规范绝对根与增量有界解码仍是完整presence链前置项；默认Python、未提交。证据 `output/ts-engine-p1/path-match-evidence.json`。
+- 输入范围改写（作者 10-11 拍板，见 §4.3.1）：新 `json.ts` 取代 Python 风格 JSON（标准 JSON、嵌套上限 64、安全整数、整数与小数字面量分开、无 BOM 的 UTF-8），canon 读取、book.context 命令、脱敏、canon 闸门都先校验成干净类型再跑原逻辑；删除死代码 `safeRatio` 及其 757 条 golden、Unicode 15.1 字符表（107 KB）和整套 Python 值模拟。golden 不重录，测试逐条改判：book.context 68 条（28 条与 Python 一致、20 条作者声明写错应报错、19 条缓存超范围视为失效、1 条相对路径按项目根解析）、canon 闸门 194 条一致 / 648 条应报错、JSON 边界 6 / 11 / 34、glob 7464 条中 16 条为已接受差异、脱敏 43 条中 42 条比对（17 条先成对剪去范围外或新版 Unicode 字符的叶子，1 条密钥本身含代理码点整条在范围外）。导出器只新增一条毫秒时间戳的合法回执用例，其余 golden 逐字节不变。九处变异全部被测试抓住。实际路由仍是 Python，未提交。
+- 首片仍未完整验收：继续补深层 JSON/reader 矩阵，并在后续负载保留性能验收；真实 WebView → mapper 的合成响应链已验证，但生产完整配置来源/实际 UI admission 仍待后续 owner。实际路由仍 Python，handoff 相对输入不变；P1-8/9 仍依赖 P2/P3/P4 与作者副本周用授权，不把合成绿测当全量完成。证据详见 `.codex/verification-report.md`。
 
 ### P2 LLM 通道 + assistant（PR P2-1 … P2-4）
 
@@ -272,7 +315,7 @@ P0 结束出一份 `verification-report` 记录，附数字，再决定 P1 开�
 
 | # | 范围 | 验证 |
 | --- | --- | --- |
-| P4-1 | `store/`：6 张表、`schema_version`、迁移机制、Db port 的 plugin-sql 适配器与内存适配器 | 单测；并发写顺序测试 |
+| P4-1 | `store/`：基础 6 张表及全量保留所需 subagent 数据映射、`schema_version`、迁移机制、Db port 的 plugin-sql 适配器与内存适配器 | 单测；并发写顺序测试；不能遗漏 subagent 消费契约 |
 | P4-2 | 会话列表 / 历史 / 消息持久化 / tool_calls 记账接到引擎（`listAssistantSessions`、`getAssistantSession` 走 `ts`） | 前端会话切换守卫测试全绿 |
 | P4-3 | 旧库导入：首启动检测旧库 → 事务导入 → 写 `imported_from_v1` 标记；失败则不标记、下次重试 | 用作者库副本导入：16 会话 / 110 消息 / 55 run 逐条比对 |
 
@@ -486,6 +529,10 @@ OpenAPI 生成与漂移检查、`tests/e2e` 契约 spec、sidecar-smoke（daily 
 
 ## 12. 需要作者拍板的决定
 
+2026-10-11 已确认：**A 立即实施；B 全量迁移 OpenAI 兼容、Anthropic、Gemini；C 全量保留现有功能，不采用下表原裁剪建议**。D 的样本包位置已用于 P0，完整引擎合同在 P1 复核；E–H 及真实数据/费用/默认切换仍按阶段确认。下表保留初始建议作历史参考，不得据 B/C 建议删除现有能力；`subagent_runs` 的存储映射须在 P4 按真实消费方调查，不预先裁掉。
+
+2026-10-11 另拍板：**输入范围**。golden 只要求范围内逐字节一致，范围外直接报错、不再模仿 Python；JSON 嵌套上限 64 层，取代此前待审的 4096 方案。细则见 §4.3.1。
+
 | # | 决定 | 我的建议 | 影响 |
 | --- | --- | --- | --- |
 | A | 做不做；什么时候开始 | 做；P0 立刻开始 | 全局 |
@@ -497,4 +544,4 @@ OpenAPI 生成与漂移检查、`tests/e2e` 契约 spec、sidecar-smoke（daily 
 | G | 真跑预算 | 四次 headless 真跑（P2-4、P3-8、P5 两次）各约 5 到 20 万 token；用你的 key，每次先报预估 | 费用 |
 | H | 版本号 | 0.2.0 | 发版 |
 
-拍板后把本文头部状态改为「执行中」，在 §5 的表里填开始日期。
+P0 开始日期：2026-10-11；其余阶段开始日期随验收推进补充。

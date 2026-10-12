@@ -1,5 +1,6 @@
 export type { FileEntry, ProjectFileSystem } from './filesystem';
 export {
+  compareChapterPaths,
   isPathInsideProject,
   joinProjectPath,
   looksAbsolutePath,

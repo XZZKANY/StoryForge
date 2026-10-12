@@ -1,6 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
-import { isPathInsideProject, relativePathInsideProject, resolveProjectRelativePath } from './path';
+import {
+  compareChapterPaths,
+  isPathInsideProject,
+  relativePathInsideProject,
+  resolveProjectRelativePath,
+} from './path';
+
+describe('chapter code-point order', () => {
+  it('keeps BMP before supplementary characters, without normalizing Unicode', () => {
+    expect(
+      ['正文/𠀀.md', '正文/\ue000.md', '正文/é.md', '正文/é.md'].sort(compareChapterPaths),
+    ).toEqual(['正文/é.md', '正文/é.md', '正文/\ue000.md', '正文/𠀀.md']);
+  });
+
+  it('compares equal strings and strict prefixes', () => {
+    expect(compareChapterPaths('正文/A', '正文/A')).toBe(0);
+    expect(compareChapterPaths('正文/A', '正文/A.md')).toBeLessThan(0);
+    expect(compareChapterPaths('正文/A.md', '正文/A')).toBeGreaterThan(0);
+  });
+});
 
 describe('project path boundary', () => {
   it('rejects traversal and sibling-prefix paths', () => {
