@@ -25,10 +25,18 @@ import {
   type ChatResponse,
   type StreamEvent,
 } from './contracts';
+import { AnthropicProvider } from './anthropic';
 import { checkRunInterruption, requestTimeout } from './control';
+import { GeminiProvider } from './gemini';
 import { OpenAICompatibleProvider, type LlmProvider } from './openaiCompatible';
 import { buildChatPayload, LlmError } from './payload';
 import { modelsUrl } from './protocol';
+import {
+  providerCompleteJson,
+  providerSseJson,
+  providerUrl,
+  pythonQuote,
+} from './providerTransport';
 import { stripReasoningLeak } from './text';
 import {
   HttpTransportError,
@@ -64,22 +72,55 @@ export function sdkChatRequest(source: LlmSource, options: ChatRequestOptions): 
   };
 }
 
-/** 按 provider 家族装配；Anthropic / Gemini 原生协议随 P2-2。 */
+/** 按 provider 家族装配：OpenAI 兼容、Anthropic Messages、Gemini generateContent。 */
 export function sdkProvider(
   source: LlmSource,
   options: TransportOptions & { streamPayload?: { [key: string]: unknown } | null },
   ctx: LlmContext,
 ): LlmProvider {
   const family = providerFamily(envValue(source, 'STORYFORGE_LLM_PROVIDER'));
-  if (family !== 'openai')
-    throw new ProviderError({
-      category: 'unsupported',
-      safeMessage: `${family} native provider is not available in the TS engine yet.`,
-    });
   const transportOptions = {
     timeoutSeconds: options.timeoutSeconds,
     maxAttempts: options.maxAttempts,
   };
+  if (family === 'anthropic') {
+    const url = providerUrl(source, 'messages');
+    const headers = providerRequestHeaders(source, ctx.appVersion);
+    const request = (payload: JsonObject) => ({ url, headers, payload, serviceLabel: 'Anthropic' });
+    return new AnthropicProvider({
+      completeTransport: (payload) =>
+        providerCompleteJson(source, request(payload), transportOptions, ctx),
+      streamTransport: (payload) =>
+        providerSseJson(source, request(payload), transportOptions, ctx),
+      clock: ctx.clock,
+    });
+  }
+  if (family === 'gemini') {
+    const headers = providerRequestHeaders(source, ctx.appVersion);
+    const request = (model: string, action: string, payload: JsonObject) => ({
+      url: providerUrl(source, `models/${pythonQuote(model, '-._')}:${action}`),
+      headers,
+      payload,
+      serviceLabel: 'Gemini',
+    });
+    return new GeminiProvider({
+      completeTransport: (model, payload) =>
+        providerCompleteJson(
+          source,
+          request(model, 'generateContent', payload),
+          transportOptions,
+          ctx,
+        ),
+      streamTransport: (model, payload) =>
+        providerSseJson(
+          source,
+          request(model, 'streamGenerateContent?alt=sse', payload),
+          transportOptions,
+          ctx,
+        ),
+      clock: ctx.clock,
+    });
+  }
   return new OpenAICompatibleProvider({
     completeTransport: (payload) => requestChatCompletions(source, payload, transportOptions, ctx),
     streamTransport: (payload) =>

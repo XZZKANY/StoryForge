@@ -423,3 +423,13 @@ export {
   sdkProvider,
   streamChatCompletions,
 } from './llm/client';
+export { AnthropicProvider } from './llm/anthropic';
+export { GeminiProvider } from './llm/gemini';
+export {
+  postJsonWithRetry,
+  providerCompleteJson,
+  providerSseJson,
+  providerUrl,
+  pythonQuote,
+} from './llm/providerTransport';
+export { pythonStrRepr } from './llm/pythonRepr';

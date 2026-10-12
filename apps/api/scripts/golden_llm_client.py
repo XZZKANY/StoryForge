@@ -5,16 +5,12 @@ mid-stream) on a virtual clock. Requests, waits, progress, frames and results ar
 from __future__ import annotations
 
 import base64
-import email.message
 import hashlib
-import http.client
-import io
 import json
 import os
-from types import SimpleNamespace
-from urllib import error
 
 from golden_fs import isolated_fs_oracle
+from golden_llm_harness import RANDOM, STEP, run_recorded, sse
 
 SOURCES = [
     "app/common/llm_client.py",
@@ -30,7 +26,6 @@ BASE = {"STORYFORGE_LLM_MODEL": "gpt-test", "STORYFORGE_LLM_API_KEY": KEY, "STOR
         "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"}
 PRICED = {**BASE, "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS": "2", "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS": "8"}
 DEFAULTS = {key: value for key, value in BASE.items() if "RETRY" not in key}
-STEP = 0.25
 
 
 def completion(content, *, finish="stop", usage=None, tool_calls=None, extra=None):
@@ -41,13 +36,6 @@ def completion(content, *, finish="stop", usage=None, tool_calls=None, extra=Non
     if usage is not None:
         body["usage"] = usage
     return {"status": 200, "body": json.dumps(body, ensure_ascii=False)}
-
-
-def sse(*chunks, done=True, tail=""):
-    lines = [f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n" for chunk in chunks]
-    if done:
-        lines.append("data: [DONE]\n\n")
-    return "".join(lines) + tail
 
 
 def delta(text, finish=None, **extra):
@@ -196,178 +184,10 @@ RETAIN_CASES = [
 ]
 
 
-class FakeBody(io.BytesIO):
-    def __init__(self, raw: bytes, fail_after: int | None, fail_with: str | None, read_raise: str | None):
-        super().__init__(raw)
-        self.fail_after, self.fail_with, self.read_raise, self.lines_read = fail_after, fail_with, read_raise, 0
-
-    def read(self, *args):
-        if self.read_raise:
-            raise make_error(self.read_raise, "timed out")
-        return super().read(*args)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.read_raise:
-            raise make_error(self.read_raise, "timed out")
-        if self.fail_after is not None and self.lines_read >= self.fail_after:
-            raise make_error(self.fail_with, "timed out")
-        line = self.readline()
-        if not line:
-            raise StopIteration
-        self.lines_read += 1
-        return line
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        self.close()
-        return False
-
-
-class UnreadableBody(io.BytesIO):
-    def read(self, *args):
-        raise OSError("socket closed")
-
-
-def make_error(name: str, reason: str):
-    if name == "URLError":
-        return error.URLError(reason)
-    if name == "TimeoutError":
-        return TimeoutError(reason)
-    if name == "IncompleteRead":
-        return http.client.IncompleteRead(b"")
-    if name == "RemoteDisconnected":
-        return http.client.RemoteDisconnected("Remote end closed connection without response")
-    return ConnectionResetError(10054, "reset")
-
-
 def p2_llm_client_snapshot() -> dict:
     with isolated_fs_oracle("llm-client-oracle-") as (api, run):
-        from app.common import llm_client as lc
-        from app.common import llm_control
-        from app.common.llm_client import LLMConfigError, LLMError
-        from app.common.llm_control import LLMRunControl, LLMRunInterrupted, llm_run_control
         from app.common.version import APP_VERSION
         from app.platform.ai_sdk import contracts
-        from app.platform.ai_sdk.providers import openai_compatible
-
-        clock = {"now": 100.0}
-        monotonic = SimpleNamespace(monotonic=lambda: clock["now"])
-        lc.time = monotonic
-        openai_compatible.time = monotonic
-        lc.random = lambda: 0.375
-        state = {"requests": [], "waits": [], "replies": [], "events": []}
-
-        def fake_wait(delay):
-            if delay > 0:
-                state["waits"].append(delay)
-                clock["now"] += delay
-
-        lc.wait_for_retry = lambda delay: llm_control.wait_for_retry(delay) if llm_control.has_run_control() else fake_wait(delay)
-
-        def fake_urlopen(req, timeout=None):
-            clock["now"] += STEP
-            body = req.data.decode("utf-8") if req.data is not None else None
-            state["requests"].append({"url": req.full_url, "method": req.get_method(), "timeout": timeout,
-                                      "headers": {key.lower(): value for key, value in req.header_items()},
-                                      "body": body})
-            reply = state["replies"].pop(0)
-            if "raise" in reply:
-                raise make_error(reply["raise"], reply.get("reason", ""))
-            raw = base64.b64decode(reply["body_b64"]) if "body_b64" in reply else reply.get("body", "").encode()
-            if reply["status"] >= 400:
-                headers = email.message.Message()
-                for key, value in reply.get("headers", {}).items():
-                    headers[key] = value
-                fp = UnreadableBody(b"") if reply.get("body_unreadable") else io.BytesIO(raw)
-                raise error.HTTPError(req.full_url, reply["status"], "error", headers, fp)
-            return FakeBody(raw, reply.get("fail_after_lines"), reply.get("fail_with"), reply.get("read_raise"))
-
-        lc.request.urlopen = fake_urlopen
-
-        def legacy_usage(exc):
-            usage = getattr(exc, "usage", None)
-            return usage.to_legacy() if isinstance(usage, contracts.TokenUsage) else None
-
-        def event_record(event):
-            record = {"kind": event.kind.value}
-            if event.text is not None:
-                record["text"] = event.text
-            if event.tool_call is not None:
-                record["tool_call"] = event.tool_call.to_openai()
-            if event.usage is not None:
-                record["usage"] = event.usage.to_legacy()
-            if event.response is not None:
-                record["response"] = {"content": event.response.content, "finish_reason": event.response.finish_reason,
-                                      "tool_calls": [call.to_openai() for call in event.response.tool_calls],
-                                      "response_id": event.response.response_id,
-                                      "metadata": dict(event.response.metadata)}
-            return record
-
-        def execute(kind, source, args):
-            if kind == "call_llm":
-                return lc.call_llm(source, system_prompt=args["system"], user_prompt=args["user"],
-                                   tools=args.get("tools"), tool_choice=args.get("tool_choice"))
-            if kind == "call_llm_messages":
-                return lc.call_llm_messages(source, messages=args["messages"], tools=args.get("tools"),
-                                            tool_choice=args.get("tool_choice"), timeout_seconds=args.get("timeout_seconds"),
-                                            max_attempts=args.get("max_attempts"))
-            if kind == "call_llm_streamed":
-                return lc.call_llm_streamed(source, system_prompt=args["system"], user_prompt=args["user"])
-            if kind == "provider_stream":
-                request = lc._sdk_chat_request(source, messages=args["messages"], tools=args.get("tools"),
-                                               tool_choice=args.get("tool_choice"))
-                for event in lc.build_llm_provider(source).stream(request):
-                    state["events"].append(event_record(event))
-                return state["events"]
-            if kind == "provider_complete":
-                request = contracts.ChatRequest(model="", messages=contracts.messages_from_openai(args["messages"]),
-                                                max_tokens=args.get("max_tokens"))
-                response = lc.build_llm_provider(source).complete(request)
-                return {"content": response.content, "usage": response.usage.to_legacy(),
-                        "finish_reason": response.finish_reason, "metadata": dict(response.metadata)}
-            return lc.fetch_provider_models(source, timeout=args["timeout"])
-
-        def run_scenario(kind, name, source, args, replies, control=None):
-            clock["now"] = 100.0
-            state["requests"], state["waits"], state["replies"], state["events"] = [], [], list(replies), []
-            progress, checks = [], {"n": 0}
-            record = {"kind": kind, "name": name, "source": source, "args": args, "replies": replies, "control": control}
-            try:
-                if control is None:
-                    result = execute(kind, source, args)
-                else:
-                    def check(boundary):
-                        checks["n"] += 1 if boundary == "before_stream_read" else 0
-                        return "stopped" if control["stop_at"] is not None and checks["n"] >= control["stop_at"] else None
-
-                    def control_wait(seconds):
-                        state["waits"].append(seconds)
-                        clock["now"] += seconds
-
-                    run_control = LLMRunControl(check, deadline=None if control["deadline"] is None else 100.0 + control["deadline"],
-                                                on_progress=progress.append, clock=lambda: clock["now"], wait=control_wait)
-                    with llm_run_control(run_control):
-                        result = execute(kind, source, args)
-                record["result"] = json.loads(json.dumps(result, ensure_ascii=False, default=str))
-            except (LLMError, LLMConfigError, LLMRunInterrupted, ValueError, error.HTTPError) as exc:
-                record["error"] = {"type": type(exc).__name__,
-                                   "message": str(exc) if not isinstance(exc, error.HTTPError) else f"HTTP {exc.code}",
-                                   "usage": legacy_usage(exc),
-                                   "reason": getattr(exc, "reason", None) if isinstance(exc, LLMRunInterrupted) else None,
-                                   "usage_summary": lc.error_usage_summary(exc, source=source)
-                                   if isinstance(exc, LLMError) else None}
-            record["requests"], record["waits"], record["progress"] = state["requests"], state["waits"], progress
-            if kind == "provider_stream":
-                record["events"] = state["events"]
-            record["clock"] = clock["now"]
-            record["unused_replies"] = len(state["replies"])
-            return record
-
         from app.platform.ai_sdk.stream_usage import retain_error_usage
 
         def retain_case(existing, new):
@@ -378,15 +198,13 @@ def p2_llm_client_snapshot() -> dict:
             usage = getattr(exc, "usage", None)
             return {"existing": existing, "new": new, "result": usage.to_legacy() if usage is not None else None}
 
-        records = [run_scenario(*scenario) for scenario in SCENARIOS]
-        records += [run_scenario(kind, name, source, args, replies, control)
-                    for kind, name, source, args, replies, control in CONTROL_SCENARIOS]
+        records = run_recorded(SCENARIOS, CONTROL_SCENARIOS)
         return {
             "format_version": 1,
             "suite": "p2-llm-client",
             "app_version": APP_VERSION,
             "step_seconds": STEP,
-            "random": 0.375,
+            "random": RANDOM,
             "platform": "windows" if os.name == "nt" else "posix",
             "sources": {path: hashlib.sha256((api / path).read_bytes()).hexdigest() for path in SOURCES},
             "scenarios": records,

@@ -297,6 +297,7 @@ P0 结束出一份 `verification-report` 记录，附数字，再决定 P1 开�
 - IDE 命令注册表（2026-10-12，P1-8c）：九个命令在引擎侧有统一入口 `executeIdeCommand`，交出与 HTTP 相同的信封（422 / 404 / 400 原文 / 500、四遍脱敏）；49 次命令调用逐字节一致，17 处变异全部抓住。P1 内核到此搬完；前端按 `engine.ideCommands` 分流到 TS 还缺三个 owner：完整密钥快照（P2）、Tauri 原生写口、拆书运行记录（P4），P1-9 shadow 周用需作者副本授权。
 - LLM 通道纯函数层（2026-10-12，P2-1a）：配置值解析、鉴权头、模型列表地址校验（照 CPython urlsplit / ipaddress）、思维链剥离与流式可见文本过滤、用量与成本、请求体、重试策略搬进 `engine/llm/`；373 条用例逐字节一致，45 处变异全部抓住。llm-provider.json 与 DPAPI 仍归 Rust，引擎只收已解密的配置槽。传输与客户端、桌面适配器随 P2-1b。
 - LLM 通道传输与客户端（2026-10-12，P2-1b）：契约、协作式中断、OpenAI 兼容 provider、带重试的非流式与流式传输、call_llm 系列入口搬进 `engine/llm/`，出网经 `HttpPort` 注入；57 个录制场景逐项一致（请求字节、等待、进度、错误与记账），48 处变异全部抓住。Anthropic / Gemini 随 P2-2，桌面适配器随 P2-1c，调用观测随 P4。
+- Anthropic / Gemini 原生协议（2026-10-12，P2-2）：两家适配器与原生出网（紧凑 JSON 的重试 POST、SSE 事件流、模型名 quote）搬进 `engine/llm/`，`sdkProvider` 按家族分派；46 个录制场景逐项一致（含思维块与函数调用签名的续接回放），41 处变异全部抓住。Python 与 TS 两侧的录制回放 harness 抽成共用模块。
 - 首片仍未完整验收：继续补深层 JSON/reader 矩阵，并在后续负载保留性能验收；真实 WebView → mapper 的合成响应链已验证，但生产完整配置来源/实际 UI admission 仍待后续 owner。实际路由仍 Python，handoff 相对输入不变；P1-8/9 仍依赖 P2/P3/P4 与作者副本周用授权，不把合成绿测当全量完成。证据详见 `.codex/verification-report.md`。
 
 ### P2 LLM 通道 + assistant（PR P2-1 … P2-4）
