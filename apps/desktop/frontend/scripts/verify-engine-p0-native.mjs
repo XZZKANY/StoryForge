@@ -39,27 +39,32 @@ assert.ok(
     '--context-only',
     '--reader-only',
     '--llm-only',
+    '--assistant-only',
   ].includes(mode) && extra.length === 0,
-  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only / --llm-only',
+  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only / --llm-only / --assistant-only',
 );
 const contextOnly = mode === '--context-only';
 const readerOnly = mode === '--reader-only';
 const llmOnly = mode === '--llm-only';
+const assistantOnly = mode === '--assistant-only';
+const p2 = llmOnly || assistantOnly;
 const p1 = contextOnly || readerOnly;
-const fixtureName = llmOnly
-  ? 'engine-p2-llm'
-  : readerOnly
-    ? 'engine-p1-reader'
-    : contextOnly
-      ? 'engine-p1-context'
-      : 'engine-p0';
+const fixtureName = assistantOnly
+  ? 'engine-p2-assistant'
+  : llmOnly
+    ? 'engine-p2-llm'
+    : readerOnly
+      ? 'engine-p1-reader'
+      : contextOnly
+        ? 'engine-p1-context'
+        : 'engine-p0';
 const transports = mode === '--transport-only' || mode === '--all';
-const label = llmOnly ? 'P2' : p1 ? 'P1' : 'P0';
+const label = p2 ? 'P2' : p1 ? 'P1' : 'P0';
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const frontend = resolve(root, 'apps/desktop/frontend');
 const outputRoot = resolve(
   root,
-  llmOnly
+  p2
     ? 'output/ts-engine-p2/native'
     : p1
       ? 'output/ts-engine-p1/native'
@@ -350,7 +355,19 @@ try {
     });
     httpBaseUrl = `http://127.0.0.1:${httpServer.address().port}`;
   }
-  if (llmOnly) {
+  const storeLogPath = resolve(output, 'store-log.json');
+  let assistantProject, assistantBefore;
+  if (assistantOnly) {
+    assistantProject = ownedPath(output, 'book');
+    await mkdir(resolve(assistantProject, '正文'), { recursive: true });
+    await writeFile(
+      resolve(assistantProject, '正文/第001章.md'),
+      '第一章开头。\n\n雨夜里他推开门，钟声响了三下。\n',
+    );
+    await writeFile(resolve(assistantProject, '正文/第002章.md'), '第二章上文。\n');
+    assistantBefore = await contextFingerprint(assistantProject);
+  }
+  if (p2) {
     // Synthetic key generated per run: it must reach the provider, never the WebView.
     llmKey = `sk-p2-synthetic-${randomBytes(12).toString('hex')}`;
     const sse = [
@@ -435,9 +452,78 @@ try {
     httpBaseUrl = `http://127.0.0.1:${httpServer.address().port}`;
     evidence.llmServer.foreignUrl = `http://127.0.0.1:${foreignServer.address().port}/steal`;
   }
+  const assistantScript = `import json, os, threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+VERSION = ${JSON.stringify(tauriConfig.version)}
+LOG_PATH = ${JSON.stringify(storeLogPath)}
+STATE = {'log': [], 'sessions': {}, 'tools': {}, 'next': 1}
+LOCK = threading.Lock()
+class Handler(BaseHTTPRequestHandler):
+    def send_json(self, status, payload):
+        data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
+        self.send_response(status)
+        self.send_header('Access-Control-Allow-Origin', self.headers.get('Origin') or '*')
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header('Access-Control-Allow-Origin', self.headers.get('Origin') or '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-StoryForge-API-Key')
+        self.send_header('Content-Length', '0')
+        self.end_headers()
+    def do_GET(self):
+        if self.path in ('/health/ready', '/health/live'):
+            return self.send_json(200, {'status': 'ready', 'app_version': VERSION, 'synthetic': True})
+        self.store('GET')
+    def do_POST(self):
+        self.store('POST')
+    def do_PATCH(self):
+        self.store('PATCH')
+    def store(self, method):
+        if not self.path.startswith('/api/assistant/'):
+            return self.send_json(404, {'detail': 'unknown route'})
+        length = int(self.headers.get('Content-Length') or 0)
+        body = json.loads(self.rfile.read(length).decode('utf-8')) if length else None
+        parts = self.path.split('/')[3:]
+        with LOCK:
+            STATE['log'].append({'method': method, 'path': self.path,
+                                 'key': self.headers.get('X-StoryForge-API-Key'), 'body': body})
+            with open(LOG_PATH, 'w', encoding='utf-8') as handle:
+                json.dump(STATE['log'], handle, ensure_ascii=False)
+            new_id = STATE['next']
+            if method == 'POST' and parts == ['sessions']:
+                STATE['next'] += 1
+                STATE['sessions'][new_id] = body.get('project_path')
+                return self.send_json(201, {'id': new_id, 'project_path': body.get('project_path')})
+            if parts[:1] == ['sessions'] and len(parts) >= 2 and parts[1].isdigit():
+                session_id = int(parts[1])
+                if session_id not in STATE['sessions']:
+                    return self.send_json(404, {'detail': 'Assistant 会话不存在：%d。' % session_id})
+                if method == 'GET' and len(parts) == 2:
+                    return self.send_json(200, {'id': session_id, 'project_path': STATE['sessions'][session_id]})
+                if method == 'POST' and parts[2:] == ['messages']:
+                    STATE['next'] += 1
+                    return self.send_json(201, {'id': new_id})
+                if method == 'POST' and parts[2:] == ['tool-calls']:
+                    STATE['next'] += 1
+                    STATE['tools'][new_id] = body.get('input_summary') or {}
+                    return self.send_json(201, {'id': new_id, 'input_summary': STATE['tools'][new_id]})
+            if method == 'PATCH' and parts[:1] == ['tool-calls'] and int(parts[1]) in STATE['tools']:
+                tool_id = int(parts[1])
+                if 'input_summary' in body:
+                    STATE['tools'][tool_id] = body['input_summary']
+                return self.send_json(200, {'id': tool_id, 'input_summary': STATE['tools'][tool_id]})
+            self.send_json(404, {'detail': 'unknown assistant route'})
+ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handler).serve_forever()
+`;
   await writeFile(
     resolve(apiDir, 'run_windows.py'),
-    `import json, os
+    assistantOnly
+      ? assistantScript
+      : `import json, os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -456,7 +542,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
   await writeFile(
     resolve(directories.configDir, 'llm-provider.json'),
     JSON.stringify(
-      llmOnly
+      p2
         ? {
             provider: 'openai-compatible',
             baseUrl: `${httpBaseUrl}/v1`,
@@ -671,13 +757,15 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     });
   await page.waitForFunction(
     (key) => document.documentElement.dataset[key] === 'true',
-    llmOnly
-      ? 'engineP2LlmReady'
-      : readerOnly
-        ? 'engineP1ReaderReady'
-        : contextOnly
-          ? 'engineP1Ready'
-          : 'engineP0Ready',
+    assistantOnly
+      ? 'engineP2AssistantReady'
+      : llmOnly
+        ? 'engineP2LlmReady'
+        : readerOnly
+          ? 'engineP1ReaderReady'
+          : contextOnly
+            ? 'engineP1Ready'
+            : 'engineP0Ready',
   );
   evidence.nativeReadyMs = Date.now() - nativeStartedAt;
   let timer;
@@ -877,7 +965,103 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             'The real key reached the WebView or evidence',
           );
         }
-        if (!p1 && !llmOnly && mode !== '--transport-only')
+        if (assistantOnly) {
+          evidence.assistant = await page.evaluate(
+            (input) => window.__ENGINE_P2_ASSISTANT__.runAssistantProbe(input),
+            { projectRoot: assistantProject },
+          );
+          const result = evidence.assistant;
+          assert.equal(result.native, true);
+          assert.equal(result.revise.after, '合成流式回放');
+          assert.equal(result.revise.model, 'p2-model');
+          assert.equal(
+            result.revise.summary,
+            `已按指令修订 ${assistantProject}\\正文\\第002章.md，修订后约 6 字。`,
+          );
+          assert.equal(result.continued.text, '合成流式回放');
+          assert.equal(result.deltas.map((delta) => delta.text).join(''), '合成流式回放');
+          assert.equal(result.cancelled?.name, 'RunInterrupted', 'Cancelling did not interrupt');
+          assert.equal(result.missing?.message, 'Assistant 会话不存在：999。');
+          assert.deepEqual(
+            {
+              status: result.health.status,
+              baseUrl: result.health.baseUrl,
+              model: result.health.model,
+              models: result.health.models,
+            },
+            { status: 'ok', baseUrl: `${httpBaseUrl}/v1`, model: 'p2-model', models: ['p2-model'] },
+          );
+          const streams = evidence.llmServer.records.filter((record) => record.stream);
+          assert.equal(streams.length, 3, 'Expected revise, continue and cancelled streams');
+          assert.ok(
+            streams.every((record) => record.authorization === 'real-key'),
+            'Provider never saw the key',
+          );
+          assert.ok(
+            result.deltas.length >= 3 && result.deltas[0].receivedAt < streams[1].endedAt,
+            'No continuation delta was visible before its stream ended',
+          );
+          evidence.assistant.firstDeltaMs = result.deltas[0].receivedAt - streams[1].requestedAt;
+          const closeDeadline = Date.now() + 5000;
+          while (Date.now() < closeDeadline && !streams[2].closedAt) await delay(25);
+          assert.ok(
+            streams[2].closedAt && !streams[2].writableFinished,
+            'Cancelling did not close the Native stream',
+          );
+          const log = JSON.parse(await readFile(storeLogPath, 'utf8'));
+          evidence.storeLog = log;
+          assert.ok(
+            log.every((entry) => entry.key === 'synthetic-p0-api'),
+            'Store auth missing',
+          );
+          const shape = log.map((entry) => `${entry.method} ${entry.path.replace(/\d+/g, 'N')}`);
+          assert.deepEqual(shape, [
+            'POST /api/assistant/sessions',
+            'POST /api/assistant/sessions/N/tool-calls',
+            'PATCH /api/assistant/tool-calls/N',
+            'PATCH /api/assistant/tool-calls/N',
+            'POST /api/assistant/sessions/N/messages',
+            'GET /api/assistant/sessions/N',
+            'POST /api/assistant/sessions/N/messages',
+            'POST /api/assistant/sessions/N/tool-calls',
+            'PATCH /api/assistant/tool-calls/N',
+            'PATCH /api/assistant/tool-calls/N',
+            'POST /api/assistant/sessions/N/messages',
+            'POST /api/assistant/sessions',
+            'POST /api/assistant/sessions/N/tool-calls',
+            'PATCH /api/assistant/tool-calls/N',
+            'PATCH /api/assistant/tool-calls/N',
+            'GET /api/assistant/sessions/N',
+          ]);
+          assert.equal(log[0].body.task_type, 'desktop_revise');
+          assert.equal(log[0].body.project_path, assistantProject);
+          assert.equal(log[3].body.status, 'completed');
+          const continueCall = log[7].body.input_summary;
+          assert.equal(continueCall.previous_chapter, '正文/第001章.md');
+          assert.equal(
+            log[8].body.input_summary.generation_sources.writing_context.current_file,
+            '正文/第002章.md',
+          );
+          assert.equal(log[9].body.status, 'completed');
+          assert.deepEqual(
+            [log[14].body.status, log[14].body.output_summary.interruption_reason],
+            ['paused', 'stopped'],
+          );
+          assert.deepEqual(
+            await contextFingerprint(assistantProject),
+            assistantBefore,
+            'The assistant probe wrote into the project',
+          );
+          assert.ok(
+            !JSON.stringify(log).includes(llmKey),
+            'The real key reached the session store',
+          );
+          assert.ok(
+            !JSON.stringify(evidence).includes(llmKey),
+            'The real key reached the WebView or evidence',
+          );
+        }
+        if (!p1 && !p2 && mode !== '--transport-only')
           evidence.cpu = await page.evaluate(() => window.__ENGINE_P0__.runCpuProbe());
       })(),
       new Promise((_, reject) => {
@@ -917,6 +1101,11 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
           maxMs,
           longTasks: longTasks.length,
         })),
+        assistant: evidence.assistant && {
+          firstDeltaMs: evidence.assistant.firstDeltaMs,
+          deltas: evidence.assistant.deltas.length,
+          storeCalls: evidence.storeLog.length,
+        },
         llm: evidence.llm && {
           firstDeltaMs: evidence.llm.firstDeltaMs,
           deltas: evidence.llm.deltas.length,
@@ -964,7 +1153,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
       console.error(error);
     }
   }
-  if (p1 || llmOnly) {
+  if (p1 || p2) {
     await copyFile(fileURLToPath(import.meta.url), resolve(output, 'harness-source.mjs'));
     await copyFile(
       resolve(frontend, `scripts/fixtures/${fixtureName}.ts`),

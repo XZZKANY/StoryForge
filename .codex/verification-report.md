@@ -7666,3 +7666,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 接受的差异：会话归属比较与写作上下文同为词法规范化（不认 junction 别名）；性能打点（`measure_stage` / `observe_run`）不搬，调用观测随 P4。
 - 门禁：引擎 12066 通过 / 2 跳过、typecheck；前端 typecheck；eslint、prettier；ruff；`p2-assistant-service` / `p2-assistant-pure` / `p2-writing-context` / `p2-llm-pure` / `p2-llm-client` 五套 golden `--check` 一致。Python 业务代码零改动。
 - 未做：P2-3c 前端 `assistant.ts` 按 `engine.assistant` 分流（含 HTTP 版 `AssistantStore`、取消信号接 `RunControl`）；P2-4 作者 key 真跑。未读真实作者数据；无付费调用；默认路由仍走 Python。
+
+## 2026-10-12 P2-3c assistant 前端分流（TS 迁移，默认仍走 Python）
+
+- 范围：`apps/desktop/frontend/src/lib/api/assistant.ts` 的 `reviseFileContent` / `streamContinueProse` / `probeProviderHealth` 在 `engine.assistant` 读出 `ts`（只在开发档生效，生产恒为 Python）时经动态 import 走 `lib/engine/assistant.ts`；`python` 与 `shadow` 档保持原来的单一 Python 传输，且不初始化引擎。`lib/engine/assistant.ts`：`pythonAssistantStore`（会话 / 消息 / 工具调用写回 Python 现有 `/api/assistant/sessions*` 与 `/api/assistant/tool-calls/{id}`，脱敏与字段校验仍由那一侧做，会话 404 映射成 `AssistantSessionNotFoundError`）、`engineAssistantDeps`（Native 读盘、`nativeLlmSource('main')` + Rust 代发、应用版本、平台）、引擎错误统一转成普通 `Error(message)`（文本即 Python 的 detail），续写帧转成既有的 `onDelta` + 结果语义。作者取消（Esc、换文件）接 `RunControl`：在下一个读流边界停下、关掉 Rust 流、工具调用记 paused（reason `stopped`）。
+- 行为测试：`tests/assistant-engine-routing-python.test.ts`（python / shadow 两档：单一 Python 传输、引擎零初始化，放独立文件以免模块缓存让断言变空）与 `tests/assistant-engine-routing.test.ts`（ts 档：修订的会话写回序列与字段、续写增量与收尾文本、请求体、未配置与会话不存在的报错文本与 Python 相同且是普通 Error、续写空结果转成报错、取消后停在读流边界并记 paused、测试连接）共 8 个用例；10 处变异全部抓住。
+- 真 WebView 合成探针：`verify-engine-p0-native.mjs --assistant-only`（新模式）。普通 debug 构建 + 隔离用户目录 + 随机合成 key + 本地假 provider + 假 sidecar（只有健康检查与会话接口，带 CORS，把每次存储调用记到文件）+ 磁盘上的合成项目（两章）。页面在真 WebView 里切到 ts 档，依次跑：修订（得到假 provider 的「合成流式回放」，摘要带绝对路径）、续写（首个增量 3 ms，早于假服务器收尾；上一章被识别为 `正文/第001章.md`，生成来源里 writing_context 为 `正文/第002章.md`）、取消中的续写（RunInterrupted，假服务器看到连接在收尾前被关）、会话不存在（`Assistant 会话不存在：999。`）、测试连接（ok、`p2-model`）。会话接口共收到 16 次调用，顺序与字段符合预期，全部带 `X-StoryForge-API-Key`；三次流式请求在 provider 侧都是真 key；项目文件指纹前后相同；合成 key 不出现在 WebView、会话接口记录与 evidence 里。证据在 `output/ts-engine-p2/native/run-34mOGJ/`（gitignored）。
+- 接受的差异：Python 档取消只断开前端请求，后端照常跑完并记 completed；TS 档会停下并记 paused（不再多烧 key）。HTTP 边界的请求体积上限（正文 120000 字等）在进程内调用里不再设。
+- 门禁：前端 2112 通过 / 1 跳过、typecheck；eslint（新文件零告警）、prettier；引擎零改动、Python 零改动。
+- 未做：切 `engine.assistant` 默认值（另起 PR）；P2-4 作者 key 真跑（需单独批准与费用预估）。未读真实作者数据；无付费调用；默认路由仍走 Python。
