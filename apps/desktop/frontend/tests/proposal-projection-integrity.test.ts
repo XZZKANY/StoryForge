@@ -76,7 +76,8 @@ it('7,056 对短源稿覆盖全部已接受子集及下一处选择，完整和�
   expect(pairs).toBe(7056);
   expect(subsets).toBeGreaterThan(15000);
   expect(transitions).toBeGreaterThan(20000);
-});
+  // 纯 CPU 穷举，单跑约 5 秒、满载约 10 秒：默认 5 秒预算会让结果取决于机器忙闲。
+}, 30_000);
 it.each([
   ['', '她说：“别走。”\n灯还亮着。\n'],
   ['灯还亮着。\n\n灯还亮着。\n\n灯还亮着。', '灯灭了。\n\n灯还亮着。\n'],
