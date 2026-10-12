@@ -1,0 +1,3904 @@
+{
+  "format_version": 1,
+  "suite": "p2-llm-client",
+  "app_version": "0.1.10",
+  "step_seconds": 0.25,
+  "random": 0.375,
+  "platform": "windows",
+  "sources": {
+    "app/common/llm_client.py": "ae45bb64bd1f41db4fc3e1de22bb2181185922f6685253cc70c97ebbf3a43520",
+    "app/common/llm_control.py": "09bae9b692a717d02e89e3ce5d94ad02fa1a1fd9b5e764039beb1bc1c471327b",
+    "app/platform/ai_sdk/contracts.py": "d01df336f2e766ce767b687d4e085b3b7ec47395d2282cab5e9ddc53f947d8a1",
+    "app/platform/ai_sdk/providers/openai_compatible.py": "94c6dde74c01cbd6d699c66ade8c46f75ad6b8f945f1e5b6479284f6fc08f188",
+    "app/platform/ai_sdk/providers/openai_stream.py": "40add99dfeeabe6be0b41e8e1668c46ec7d13490f0f396a967df163831cc7ef3",
+    "app/platform/ai_sdk/stream_usage.py": "ada67c3a0c92594d14fe4c1340713cd471aeec627714672abbfbb05b01002927"
+  },
+  "scenarios": [
+    {
+      "kind": "call_llm",
+      "name": "ok-priced",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS": "2",
+        "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS": "8"
+      },
+      "args": {
+        "system": "系统",
+        "user": "用户"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"  正文  \"}, \"finish_reason\": \"stop\"}], \"usage\": {\"prompt_tokens\": 1200, \"completion_tokens\": 300, \"total_tokens\": 1500, \"prompt_cache_hit_tokens\": 200}}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "正文",
+        "token_usage": 1500,
+        "prompt_tokens": 1200,
+        "completion_tokens": 300,
+        "cache_hit_tokens": 200,
+        "token_usage_source": "provider_usage",
+        "cost_cny_estimated": 0.0048000000000000004,
+        "cost_breakdown": {
+          "currency": "CNY",
+          "prompt_tokens": 1200,
+          "completion_tokens": 300,
+          "cache_hit_tokens": 200,
+          "cache_miss_tokens": 1000,
+          "input_cny": 0.0024000000000000002,
+          "output_cny": 0.0024,
+          "total_cny": 0.0048000000000000004,
+          "input_cny_per_m_tokens": 2.0,
+          "output_cny_per_m_tokens": 8.0,
+          "cache_hit_input_cny_per_m_tokens": null,
+          "source": "provider_usage"
+        },
+        "latency_ms": 250
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\"}, {\"role\": \"user\", \"content\": \"用户\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "retry-503-then-ok",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 503,
+          "body": "busy"
+        },
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"好\"}, \"finish_reason\": \"stop\"}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 1093
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [
+        0.59375
+      ],
+      "progress": [],
+      "clock": 101.09375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "retry-after",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 429,
+          "headers": {
+            "Retry-After": "2"
+          },
+          "body": "slow"
+        },
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"好\"}, \"finish_reason\": \"stop\"}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 2500
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [
+        2.0
+      ],
+      "progress": [],
+      "clock": 102.5,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "retry-after-huge",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 429,
+          "headers": {
+            "retry-after": "9000"
+          },
+          "body": ""
+        },
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"好\"}, \"finish_reason\": \"stop\"}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 60500
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [
+        60.0
+      ],
+      "progress": [],
+      "clock": 160.5,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "http-400-redacted",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 400,
+          "body": "bad key sk-client-secret-0123456789 长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 返回 HTTP 400（耗时 250ms，尝试 1/3）：bad key [REDACTED] 长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "http-503-exhausted",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 503,
+          "body": "x"
+        },
+        {
+          "status": 503,
+          "body": "x"
+        },
+        {
+          "status": 503,
+          "body": "x"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 返回 HTTP 503（耗时 2437ms，尝试 3/3）：x",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [
+        0.59375,
+        1.09375
+      ],
+      "progress": [],
+      "clock": 102.4375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "unreadable-error-body",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 401,
+          "body_unreadable": true
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 返回 HTTP 401（耗时 250ms，尝试 1/3）：<无法读取响应体>",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "connect-errors",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "raise": "URLError",
+          "reason": "getaddrinfo failed"
+        },
+        {
+          "raise": "TimeoutError",
+          "reason": "timed out"
+        },
+        {
+          "raise": "URLError",
+          "reason": "refused sk-client-secret-0123456789"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 调用超时或连接失败（耗时 2437ms，timeout=300.0s，尝试 3/3）：refused [REDACTED]",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [
+        0.59375,
+        1.09375
+      ],
+      "progress": [],
+      "clock": 102.4375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "timeout-then-ok",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "raise": "TimeoutError",
+          "reason": "timed out"
+        },
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"好\"}, \"finish_reason\": \"stop\"}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 1093
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [
+        0.59375
+      ],
+      "progress": [],
+      "clock": 101.09375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "read-errors",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "<html>gateway</html>"
+        },
+        {
+          "raise": "RemoteDisconnected"
+        },
+        {
+          "status": 200,
+          "body_b64": "//4="
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 响应读取或解析失败（耗时 2437ms，尝试 3/3）：UnicodeDecodeError",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [
+        0.59375,
+        1.09375
+      ],
+      "progress": [],
+      "clock": 102.4375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "read-timeout",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS": "1",
+        "STORYFORGE_LLM_TIMEOUT_SECONDS": "30"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{}",
+          "read_raise": "TimeoutError"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 调用超时或连接失败（耗时 250ms，timeout=30.0s，尝试 1/1）：timed out",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 30.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "incomplete-read",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS": "2"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{}",
+          "read_raise": "IncompleteRead"
+        },
+        {
+          "raise": "ConnectionResetError"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 响应读取或解析失败（耗时 1093ms，尝试 2/2）：ConnectionResetError",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [
+        0.59375
+      ],
+      "progress": [],
+      "clock": 101.09375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "think-stripped",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"<think>想</think>  正文\"}, \"finish_reason\": \"stop\"}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "正文",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250,
+        "reasoning_leak_stripped": true
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "think-only",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"<think>只有思考</think>\"}, \"finish_reason\": \"stop\"}]}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 返回仅含思维链、无正文，不能继续 BookRun 生成。",
+        "usage": {
+          "token_usage": 2,
+          "prompt_tokens": 1,
+          "completion_tokens": 1,
+          "cache_hit_tokens": null,
+          "token_usage_source": "estimated_split"
+        },
+        "reason": null,
+        "usage_summary": {
+          "token_usage": 2,
+          "prompt_tokens": 1,
+          "completion_tokens": 1,
+          "cache_hit_tokens": null,
+          "token_usage_source": "estimated_split",
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "empty",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"   \"}, \"finish_reason\": \"stop\"}]}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 返回内容为空，不能继续 BookRun 生成。",
+        "usage": {
+          "token_usage": 2,
+          "prompt_tokens": 1,
+          "completion_tokens": 1,
+          "cache_hit_tokens": null,
+          "token_usage_source": "estimated_split"
+        },
+        "reason": null,
+        "usage_summary": {
+          "token_usage": 2,
+          "prompt_tokens": 1,
+          "completion_tokens": 1,
+          "cache_hit_tokens": null,
+          "token_usage_source": "estimated_split",
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "truncated",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS": "2",
+        "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS": "8"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"半截\"}, \"finish_reason\": \"length\"}], \"usage\": {\"prompt_tokens\": 1200, \"completion_tokens\": 300, \"total_tokens\": 1500, \"prompt_cache_hit_tokens\": 200}}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 输出被截断或过滤，不能把未完成正文当成稿。",
+        "usage": {
+          "token_usage": 1500,
+          "prompt_tokens": 1200,
+          "completion_tokens": 300,
+          "cache_hit_tokens": 200,
+          "token_usage_source": "provider_usage"
+        },
+        "reason": null,
+        "usage_summary": {
+          "token_usage": 1500,
+          "prompt_tokens": 1200,
+          "completion_tokens": 300,
+          "cache_hit_tokens": 200,
+          "token_usage_source": "provider_usage",
+          "cost_cny_estimated": 0.0048000000000000004,
+          "cost_breakdown": {
+            "currency": "CNY",
+            "prompt_tokens": 1200,
+            "completion_tokens": 300,
+            "cache_hit_tokens": 200,
+            "cache_miss_tokens": 1000,
+            "input_cny": 0.0024000000000000002,
+            "output_cny": 0.0024,
+            "total_cny": 0.0048000000000000004,
+            "input_cny_per_m_tokens": 2.0,
+            "output_cny_per_m_tokens": 8.0,
+            "cache_hit_input_cny_per_m_tokens": null,
+            "source": "provider_usage"
+          }
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "missing-choices",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"usage\": {\"prompt_tokens\": 1200, \"completion_tokens\": 300, \"total_tokens\": 1500, \"prompt_cache_hit_tokens\": 200}}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 响应缺少 choices，不能继续 BookRun 生成。",
+        "usage": {
+          "token_usage": 1500,
+          "prompt_tokens": 1200,
+          "completion_tokens": 300,
+          "cache_hit_tokens": 200,
+          "token_usage_source": "provider_usage"
+        },
+        "reason": null,
+        "usage_summary": {
+          "token_usage": 1500,
+          "prompt_tokens": 1200,
+          "completion_tokens": 300,
+          "cache_hit_tokens": 200,
+          "token_usage_source": "provider_usage",
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "tools",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_REASONING_EFFORT": "low",
+        "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "99"
+      },
+      "args": {
+        "system": "s",
+        "user": "u",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "description": "读",
+              "parameters": {
+                "type": "object"
+              },
+              "strict": true
+            },
+            "x-extra": 1
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "g",
+              "parameters": {}
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "h",
+              "description": "",
+              "parameters": {}
+            }
+          }
+        ],
+        "tool_choice": "auto"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"要读文件\", \"tool_calls\": [{\"id\": \"call-1\", \"type\": \"function\", \"function\": {\"name\": \"fs.read\", \"arguments\": {\"path\": \"正文/1.md\"}}}]}, \"finish_reason\": \"tool_calls\"}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "要读文件",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250,
+        "tool_calls": [
+          {
+            "id": "call-1",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "{\"path\": \"正文/1.md\"}"
+            }
+          }
+        ]
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"max_completion_tokens\": 99, \"reasoning_effort\": \"low\", \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"fs.read\", \"parameters\": {\"type\": \"object\"}, \"description\": \"读\", \"strict\": true}, \"x-extra\": 1}, {\"type\": \"function\", \"function\": {\"name\": \"g\", \"parameters\": {}}}, {\"type\": \"function\", \"function\": {\"name\": \"h\", \"parameters\": {}, \"description\": \"\"}}], \"tool_choice\": \"auto\"}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "default-retry-settings",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 503,
+          "body": "busy"
+        },
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"好\"}, \"finish_reason\": \"stop\"}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 1093
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [
+        0.59375
+      ],
+      "progress": [],
+      "clock": 101.09375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "done-after-length",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"半截\"}, \"finish_reason\": \"length\"}]}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 输出被截断或过滤，不能把未完成正文当成稿。",
+        "usage": {
+          "token_usage": 2,
+          "prompt_tokens": 1,
+          "completion_tokens": 1,
+          "cache_hit_tokens": null,
+          "token_usage_source": "estimated_split"
+        },
+        "reason": null,
+        "usage_summary": {
+          "token_usage": 2,
+          "prompt_tokens": 1,
+          "completion_tokens": 1,
+          "cache_hit_tokens": null,
+          "token_usage_source": "estimated_split",
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "usage-then-reset",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS": "2",
+        "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS": "8"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"choices\": [], \"usage\": {\"prompt_tokens\": 1200, \"completion_tokens\": 300, \"total_tokens\": 1500, \"prompt_cache_hit_tokens\": 200}}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一二\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"三\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n",
+          "fail_after_lines": 4,
+          "fail_with": "ConnectionResetError"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 流式读取中断（已输出 2 字）：ConnectionResetError",
+        "usage": {
+          "token_usage": 1500,
+          "prompt_tokens": 1200,
+          "completion_tokens": 300,
+          "cache_hit_tokens": 200,
+          "token_usage_source": "provider_usage"
+        },
+        "reason": null,
+        "usage_summary": {
+          "token_usage": 1500,
+          "prompt_tokens": 1200,
+          "completion_tokens": 300,
+          "cache_hit_tokens": 200,
+          "token_usage_source": "provider_usage",
+          "cost_cny_estimated": 0.0048000000000000004,
+          "cost_breakdown": {
+            "currency": "CNY",
+            "prompt_tokens": 1200,
+            "completion_tokens": 300,
+            "cache_hit_tokens": 200,
+            "cache_miss_tokens": 1000,
+            "input_cny": 0.0024000000000000002,
+            "output_cny": 0.0024,
+            "total_cny": 0.0048000000000000004,
+            "input_cny_per_m_tokens": 2.0,
+            "output_cny_per_m_tokens": 8.0,
+            "cache_hit_input_cny_per_m_tokens": null,
+            "source": "provider_usage"
+          }
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "provider_stream",
+      "name": "tool-stream-incomplete",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "description": "读",
+              "parameters": {
+                "type": "object"
+              },
+              "strict": true
+            },
+            "x-extra": 1
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"r-9\", \"choices\": [{\"delta\": {\"tool_calls\": [{\"index\": 0, \"id\": \"call-\", \"function\": {\"name\": \"fs.\", \"arguments\": \"{\\\"pa\"}}]}}]}\n\ndata: {\"choices\": [{\"delta\": {\"tool_calls\": [{\"index\": 0, \"id\": \"1\", \"function\": {\"name\": \"read\", \"arguments\": \"th\\\":\\\"a\\\"}\"}}]}}]}\n\ndata: {\"choices\": [{\"delta\": {}, \"finish_reason\": \"function_call\"}]}\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Incomplete streamed tool response.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"fs.read\", \"parameters\": {\"type\": \"object\"}, \"description\": \"读\", \"strict\": true}, \"x-extra\": 1}], \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "provider_complete",
+      "name": "configured-max-tokens",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "77"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"好\"}, \"finish_reason\": \"stop\"}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "usage": {
+          "token_usage": 2,
+          "prompt_tokens": 1,
+          "completion_tokens": 1,
+          "cache_hit_tokens": null,
+          "token_usage_source": "estimated_split"
+        },
+        "finish_reason": "stop",
+        "metadata": {
+          "latency_ms": 250
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"max_completion_tokens\": 77}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "provider_complete",
+      "name": "explicit-zero-max-tokens",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "77"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ],
+        "max_tokens": 0
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"好\"}, \"finish_reason\": \"stop\"}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "usage": {
+          "token_usage": 2,
+          "prompt_tokens": 1,
+          "completion_tokens": 1,
+          "cache_hit_tokens": null,
+          "token_usage_source": "estimated_split"
+        },
+        "finish_reason": "stop",
+        "metadata": {
+          "latency_ms": 250
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "no-retry-config",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS": "0"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 500,
+          "body": "x"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 返回 HTTP 500（耗时 250ms，尝试 1/1）：x",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "missing-key",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [],
+      "control": null,
+      "error": {
+        "type": "LLMConfigError",
+        "message": "缺少真实 LLM 生成环境变量：STORYFORGE_LLM_API_KEY。",
+        "usage": null,
+        "reason": null,
+        "usage_summary": null
+      },
+      "requests": [],
+      "waits": [],
+      "progress": [],
+      "clock": 100.0,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "tool-only",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "s"
+          },
+          {
+            "role": "user",
+            "content": "u",
+            "extra": [
+              1
+            ]
+          },
+          {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call-1",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": {
+                    "path": "正文/1.md"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": 7,
+            "content": "结果",
+            "name": "fs.read"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "description": "读",
+              "parameters": {
+                "type": "object"
+              },
+              "strict": true
+            },
+            "x-extra": 1
+          }
+        ],
+        "timeout_seconds": 12.5,
+        "max_attempts": 1
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"\", \"tool_calls\": [{\"id\": \"call-1\", \"type\": \"function\", \"function\": {\"name\": \"fs.read\", \"arguments\": {\"path\": \"正文/1.md\"}}}]}, \"finish_reason\": \"tool_calls\"}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "call-1",
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "arguments": "{\"path\": \"正文/1.md\"}"
+            }
+          }
+        ],
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 12.5,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\", \"extra\": [1]}, {\"role\": \"assistant\", \"content\": null, \"tool_calls\": [{\"id\": \"call-1\", \"type\": \"function\", \"function\": {\"name\": \"fs.read\", \"arguments\": \"{\\\"path\\\": \\\"正文/1.md\\\"}\"}}]}, {\"role\": \"tool\", \"content\": \"结果\", \"tool_call_id\": \"7\", \"name\": \"fs.read\"}], \"temperature\": 0.7, \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"fs.read\", \"parameters\": {\"type\": \"object\"}, \"description\": \"读\", \"strict\": true}, \"x-extra\": 1}]}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "neither",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"\"}, \"finish_reason\": \"stop\"}]}"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 返回既无正文也无工具调用，无法继续。",
+        "usage": {
+          "token_usage": 2,
+          "prompt_tokens": 1,
+          "completion_tokens": 1,
+          "cache_hit_tokens": null,
+          "token_usage_source": "estimated_split"
+        },
+        "reason": null,
+        "usage_summary": {
+          "token_usage": 2,
+          "prompt_tokens": 1,
+          "completion_tokens": 1,
+          "cache_hit_tokens": null,
+          "token_usage_source": "estimated_split",
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_messages",
+      "name": "bad-role",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "robot",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [],
+      "control": null,
+      "error": {
+        "type": "ValueError",
+        "message": "'robot' is not a valid MessageRole",
+        "usage": null,
+        "reason": null,
+        "usage_summary": null
+      },
+      "requests": [],
+      "waits": [],
+      "progress": [],
+      "clock": 100.0,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-ok",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS": "2",
+        "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS": "8"
+      },
+      "args": {
+        "system": "系统",
+        "user": "写"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"你\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"好\"}, \"finish_reason\": \"stop\"}]}\n\ndata: {\"choices\": [], \"usage\": {\"prompt_tokens\": 1200, \"completion_tokens\": 300, \"total_tokens\": 1500, \"prompt_cache_hit_tokens\": 200}}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "你好",
+        "token_usage": 1500,
+        "prompt_tokens": 1200,
+        "completion_tokens": 300,
+        "cache_hit_tokens": 200,
+        "token_usage_source": "provider_usage",
+        "cost_cny_estimated": 0.0048000000000000004,
+        "cost_breakdown": {
+          "currency": "CNY",
+          "prompt_tokens": 1200,
+          "completion_tokens": 300,
+          "cache_hit_tokens": 200,
+          "cache_miss_tokens": 1000,
+          "input_cny": 0.0024000000000000002,
+          "output_cny": 0.0024,
+          "total_cny": 0.0048000000000000004,
+          "input_cny_per_m_tokens": 2.0,
+          "output_cny_per_m_tokens": 8.0,
+          "cache_hit_input_cny_per_m_tokens": null,
+          "source": "provider_usage"
+        },
+        "latency_ms": 250
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"系统\"}, {\"role\": \"user\", \"content\": \"写\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-options-rejected",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "  ",
+        "user": "写"
+      },
+      "replies": [
+        {
+          "status": 400,
+          "body": "unknown field stream_options"
+        },
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"好\"}, \"finish_reason\": \"stop\"}]}\n\n"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 500
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"写\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"写\"}], \"temperature\": 0.7, \"stream\": true}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.5,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-heartbeats",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": ": ping\n\ndata: {bad json\n\nevent: x\ndata: 5\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"字\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "字",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-no-terminal",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"从柜台下面摸出一\"}, \"finish_reason\": null}]}\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 流式在收到终止标记前中断（已输出 8 字），不能把半截正文当成稿。",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-empty",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"  \"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 流式返回内容为空。",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-think",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"<thi\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"nk>想</think>  正\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"文\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "正文",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250,
+        "reasoning_leak_stripped": true
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-reset-midway",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一二三\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"四五\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n",
+          "fail_after_lines": 4,
+          "fail_with": "ConnectionResetError"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 流式读取中断（已输出 5 字）：ConnectionResetError",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-timeout-midway",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一二三\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n",
+          "fail_after_lines": 2,
+          "fail_with": "TimeoutError"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 流式读取中断（已输出 3 字）：TimeoutError",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-connect-retry",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 503,
+          "headers": {
+            "Retry-After": "1.5"
+          },
+          "body": "x"
+        },
+        {
+          "raise": "RemoteDisconnected"
+        },
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"好\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 3343
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [
+        1.5,
+        1.09375
+      ],
+      "progress": [],
+      "clock": 103.34375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-connect-fail",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "raise": "URLError",
+          "reason": "proxy sk-client-secret-0123456789"
+        },
+        {
+          "raise": "URLError",
+          "reason": "proxy sk-client-secret-0123456789"
+        },
+        {
+          "raise": "URLError",
+          "reason": "proxy sk-client-secret-0123456789"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 流式建连超时或失败（耗时 2437ms，timeout=300.0s，尝试 3/3）：proxy ***",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [
+        0.59375,
+        1.09375
+      ],
+      "progress": [],
+      "clock": 102.4375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-http-401",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 401,
+          "body": "invalid sk-client-secret-0123456789 Bearer sk-client-secret-0123456789"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 流式返回 HTTP 401（耗时 250ms，尝试 1/3）：invalid *** ***",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-truncated",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS": "2",
+        "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS": "8"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"半截\"}, \"finish_reason\": \"length\"}]}\n\ndata: {\"choices\": [], \"usage\": {\"prompt_tokens\": 1200, \"completion_tokens\": 300, \"total_tokens\": 1500, \"prompt_cache_hit_tokens\": 200}}\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 输出被截断或过滤，不能把未完成正文当成稿。",
+        "usage": {
+          "token_usage": 1500,
+          "prompt_tokens": 1200,
+          "completion_tokens": 300,
+          "cache_hit_tokens": 200,
+          "token_usage_source": "provider_usage"
+        },
+        "reason": null,
+        "usage_summary": {
+          "token_usage": 1500,
+          "prompt_tokens": 1200,
+          "completion_tokens": 300,
+          "cache_hit_tokens": 200,
+          "token_usage_source": "provider_usage",
+          "cost_cny_estimated": 0.0048000000000000004,
+          "cost_breakdown": {
+            "currency": "CNY",
+            "prompt_tokens": 1200,
+            "completion_tokens": 300,
+            "cache_hit_tokens": 200,
+            "cache_miss_tokens": 1000,
+            "input_cny": 0.0024000000000000002,
+            "output_cny": 0.0024,
+            "total_cny": 0.0048000000000000004,
+            "input_cny_per_m_tokens": 2.0,
+            "output_cny_per_m_tokens": 8.0,
+            "cache_hit_input_cny_per_m_tokens": null,
+            "source": "provider_usage"
+          }
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-reset-at-connect",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS": "1"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "raise": "RemoteDisconnected"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "真实 LLM 流式建连被重置（耗时 250ms，尝试 1/1）：RemoteDisconnected",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "stream-bytes-crlf",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"甲\"}, \"finish_reason\": \"stop\"}]}\r\n\r\n"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "甲",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "provider_stream",
+      "name": "tool-stream",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "读第一章"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "description": "读",
+              "parameters": {
+                "type": "object"
+              },
+              "strict": true
+            },
+            "x-extra": 1
+          }
+        ],
+        "tool_choice": "auto"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"r-9\", \"choices\": [{\"delta\": {\"tool_calls\": [{\"index\": 0, \"id\": \"call-\", \"function\": {\"name\": \"fs.\", \"arguments\": \"{\\\"pa\"}}]}}]}\n\ndata: {\"choices\": [{\"delta\": {\"tool_calls\": [{\"index\": 0, \"id\": \"1\", \"function\": {\"name\": \"read\", \"arguments\": \"th\\\":\\\"a\\\"}\"}}]}}]}\n\ndata: {\"choices\": [{\"delta\": {\"content\": \"我先读 sk-\"}}]}\n\ndata: {\"choices\": [{\"delta\": {\"content\": \"abcdefgh 文件。\"}, \"finish_reason\": \"tool_calls\"}]}\n\ndata: {\"choices\": [], \"usage\": {\"prompt_tokens\": 50, \"completion_tokens\": 9}}\n\n"
+        }
+      ],
+      "control": null,
+      "result": [
+        {
+          "kind": "text_delta",
+          "text": "我先读 "
+        },
+        {
+          "kind": "text_delta",
+          "text": "[REDACTED] 文件。"
+        },
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 59,
+            "prompt_tokens": 50,
+            "completion_tokens": 9,
+            "cache_hit_tokens": null,
+            "token_usage_source": "provider_usage"
+          }
+        },
+        {
+          "kind": "completed",
+          "usage": {
+            "token_usage": 59,
+            "prompt_tokens": 50,
+            "completion_tokens": 9,
+            "cache_hit_tokens": null,
+            "token_usage_source": "provider_usage"
+          },
+          "response": {
+            "content": "我先读 [REDACTED] 文件。",
+            "finish_reason": "tool_calls",
+            "tool_calls": [
+              {
+                "id": "call-1",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"path\":\"a\"}"
+                }
+              }
+            ],
+            "response_id": "r-9",
+            "metadata": {
+              "cost_cny_estimated": null,
+              "cost_breakdown": {},
+              "latency_ms": 250
+            }
+          }
+        }
+      ],
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"读第一章\"}], \"temperature\": 0.7, \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"fs.read\", \"parameters\": {\"type\": \"object\"}, \"description\": \"读\", \"strict\": true}, \"x-extra\": 1}], \"tool_choice\": \"auto\", \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [
+        {
+          "kind": "text_delta",
+          "text": "我先读 "
+        },
+        {
+          "kind": "text_delta",
+          "text": "[REDACTED] 文件。"
+        },
+        {
+          "kind": "usage",
+          "usage": {
+            "token_usage": 59,
+            "prompt_tokens": 50,
+            "completion_tokens": 9,
+            "cache_hit_tokens": null,
+            "token_usage_source": "provider_usage"
+          }
+        },
+        {
+          "kind": "completed",
+          "usage": {
+            "token_usage": 59,
+            "prompt_tokens": 50,
+            "completion_tokens": 9,
+            "cache_hit_tokens": null,
+            "token_usage_source": "provider_usage"
+          },
+          "response": {
+            "content": "我先读 [REDACTED] 文件。",
+            "finish_reason": "tool_calls",
+            "tool_calls": [
+              {
+                "id": "call-1",
+                "type": "function",
+                "function": {
+                  "name": "fs.read",
+                  "arguments": "{\"path\":\"a\"}"
+                }
+              }
+            ],
+            "response_id": "r-9",
+            "metadata": {
+              "cost_cny_estimated": null,
+              "cost_breakdown": {},
+              "latency_ms": 250
+            }
+          }
+        }
+      ],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "provider_stream",
+      "name": "tool-stream-truncated",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "description": "读",
+              "parameters": {
+                "type": "object"
+              },
+              "strict": true
+            },
+            "x-extra": 1
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"r-9\", \"choices\": [{\"delta\": {\"tool_calls\": [{\"index\": 0, \"id\": \"call-\", \"function\": {\"name\": \"fs.\", \"arguments\": \"{\\\"pa\"}}]}}]}\n\ndata: {\"choices\": [{\"delta\": {}, \"finish_reason\": \"length\"}]}\n\n"
+        }
+      ],
+      "control": null,
+      "result": [
+        {
+          "kind": "completed",
+          "usage": {
+            "token_usage": 2,
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "cache_hit_tokens": null,
+            "token_usage_source": "estimated_split"
+          },
+          "response": {
+            "content": "",
+            "finish_reason": "length",
+            "tool_calls": [],
+            "response_id": "r-9",
+            "metadata": {
+              "cost_cny_estimated": null,
+              "cost_breakdown": {},
+              "latency_ms": 250
+            }
+          }
+        }
+      ],
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"fs.read\", \"parameters\": {\"type\": \"object\"}, \"description\": \"读\", \"strict\": true}, \"x-extra\": 1}], \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [
+        {
+          "kind": "completed",
+          "usage": {
+            "token_usage": 2,
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "cache_hit_tokens": null,
+            "token_usage_source": "estimated_split"
+          },
+          "response": {
+            "content": "",
+            "finish_reason": "length",
+            "tool_calls": [],
+            "response_id": "r-9",
+            "metadata": {
+              "cost_cny_estimated": null,
+              "cost_breakdown": {},
+              "latency_ms": 250
+            }
+          }
+        }
+      ],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "provider_stream",
+      "name": "tool-stream-invalid",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "description": "读",
+              "parameters": {
+                "type": "object"
+              },
+              "strict": true
+            },
+            "x-extra": 1
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"choices\": [{\"delta\": {\"tool_calls\": [{\"index\": 200}]}}]}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Invalid streamed tool response.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"fs.read\", \"parameters\": {\"type\": \"object\"}, \"description\": \"读\", \"strict\": true}, \"x-extra\": 1}], \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "provider_stream",
+      "name": "tool-stream-bad-args",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "fs.read",
+              "description": "读",
+              "parameters": {
+                "type": "object"
+              },
+              "strict": true
+            },
+            "x-extra": 1
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"choices\": [{\"delta\": {\"tool_calls\": [{\"index\": 0, \"id\": \"c\", \"function\": {\"name\": \"f\", \"arguments\": \"[1]\"}}]}, \"finish_reason\": \"tool_calls\"}]}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "LLMError",
+        "message": "Incomplete streamed tool response.",
+        "usage": null,
+        "reason": null,
+        "usage_summary": {
+          "cost_cny_estimated": null,
+          "cost_breakdown": {}
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"fs.read\", \"parameters\": {\"type\": \"object\"}, \"description\": \"读\", \"strict\": true}, \"x-extra\": 1}], \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "provider_stream",
+      "name": "plain-stream-configured",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "64"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"好\"}, \"finish_reason\": \"stop\"}]}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": null,
+      "result": [
+        {
+          "kind": "text_delta",
+          "text": "好"
+        },
+        {
+          "kind": "completed",
+          "usage": {
+            "token_usage": 2,
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "cache_hit_tokens": null,
+            "token_usage_source": "estimated_split"
+          },
+          "response": {
+            "content": "好",
+            "finish_reason": "stop",
+            "tool_calls": [],
+            "response_id": "chunk-1",
+            "metadata": {
+              "cost_cny_estimated": null,
+              "cost_breakdown": {},
+              "latency_ms": 250
+            }
+          }
+        }
+      ],
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"max_completion_tokens\": 64, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "events": [
+        {
+          "kind": "text_delta",
+          "text": "好"
+        },
+        {
+          "kind": "completed",
+          "usage": {
+            "token_usage": 2,
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "cache_hit_tokens": null,
+            "token_usage_source": "estimated_split"
+          },
+          "response": {
+            "content": "好",
+            "finish_reason": "stop",
+            "tool_calls": [],
+            "response_id": "chunk-1",
+            "metadata": {
+              "cost_cny_estimated": null,
+              "cost_breakdown": {},
+              "latency_ms": 250
+            }
+          }
+        }
+      ],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "provider_complete",
+      "name": "configured-complete",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25",
+        "STORYFORGE_LLM_TEMPERATURE": "1"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"好\"}, \"finish_reason\": \"stop\"}], \"usage\": {\"total_tokens\": 40}}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "usage": {
+          "token_usage": 40,
+          "prompt_tokens": 0,
+          "completion_tokens": 40,
+          "cache_hit_tokens": null,
+          "token_usage_source": "estimated_split"
+        },
+        "finish_reason": "stop",
+        "metadata": {
+          "latency_ms": 250
+        }
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 1.0}"
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "fetch_models",
+      "name": "models-ok",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "timeout": 5.0
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"data\": [{\"id\": \"m\"}]}"
+        }
+      ],
+      "control": null,
+      "result": {
+        "data": [
+          {
+            "id": "m"
+          }
+        ]
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/models",
+          "method": "GET",
+          "timeout": 5.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": null
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "fetch_models",
+      "name": "models-401",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "timeout": 5.0
+      },
+      "replies": [
+        {
+          "status": 401,
+          "body": "no"
+        }
+      ],
+      "control": null,
+      "error": {
+        "type": "HTTPError",
+        "message": "HTTP 401",
+        "usage": null,
+        "reason": null,
+        "usage_summary": null
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/models",
+          "method": "GET",
+          "timeout": 5.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": null
+        }
+      ],
+      "waits": [],
+      "progress": [],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "fetch_models",
+      "name": "models-bad-url",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "ftp://x",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "timeout": 5.0
+      },
+      "replies": [],
+      "control": null,
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_provider_url",
+        "usage": null,
+        "reason": null,
+        "usage_summary": null
+      },
+      "requests": [],
+      "waits": [],
+      "progress": [],
+      "clock": 100.0,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "control-deadline",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 503,
+          "body": "x"
+        },
+        {
+          "status": 503,
+          "body": "x"
+        }
+      ],
+      "control": {
+        "deadline": 1.0,
+        "stop_at": null
+      },
+      "error": {
+        "type": "LLMRunInterrupted",
+        "message": "LLM run interrupted.",
+        "usage": null,
+        "reason": "deadline_exceeded",
+        "usage_summary": null
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 1.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 0.15625,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.09375000000002842
+      ],
+      "progress": [
+        {
+          "phase": "request_started",
+          "request_number": 1,
+          "timeout_seconds": 1.0
+        },
+        {
+          "phase": "retry_wait",
+          "request_number": 1,
+          "delay_seconds": 0.59375
+        },
+        {
+          "phase": "retry_started",
+          "request_number": 1
+        },
+        {
+          "phase": "request_started",
+          "request_number": 2,
+          "timeout_seconds": 0.15625
+        }
+      ],
+      "clock": 101.09375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "control-stop-midstream",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"二\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"三\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": {
+        "deadline": null,
+        "stop_at": 3
+      },
+      "error": {
+        "type": "LLMRunInterrupted",
+        "message": "LLM run interrupted.",
+        "usage": null,
+        "reason": "stopped",
+        "usage_summary": null
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [
+        {
+          "phase": "request_started",
+          "request_number": 1,
+          "timeout_seconds": 300.0
+        }
+      ],
+      "clock": 100.25,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm",
+      "name": "control-progress",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 500,
+          "body": "x"
+        },
+        {
+          "status": 200,
+          "body": "{\"id\": \"resp-1\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"好\"}, \"finish_reason\": \"stop\"}]}"
+        }
+      ],
+      "control": {
+        "deadline": 100.0,
+        "stop_at": null
+      },
+      "result": {
+        "content": "好",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 1093
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 100.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 99.15625,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7}"
+        }
+      ],
+      "waits": [
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.09375000000002842
+      ],
+      "progress": [
+        {
+          "phase": "request_started",
+          "request_number": 1,
+          "timeout_seconds": 100.0
+        },
+        {
+          "phase": "retry_wait",
+          "request_number": 1,
+          "delay_seconds": 0.59375
+        },
+        {
+          "phase": "retry_started",
+          "request_number": 1
+        },
+        {
+          "phase": "request_started",
+          "request_number": 2,
+          "timeout_seconds": 99.15625
+        }
+      ],
+      "clock": 101.09375,
+      "unused_replies": 0
+    },
+    {
+      "kind": "call_llm_streamed",
+      "name": "control-stream-options",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "system": "s",
+        "user": "u"
+      },
+      "replies": [
+        {
+          "status": 400,
+          "body": "no stream_options"
+        },
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"好\"}, \"finish_reason\": \"stop\"}]}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": {
+        "deadline": 100.0,
+        "stop_at": null
+      },
+      "result": {
+        "content": "好",
+        "token_usage": 2,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 500
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 100.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 99.75,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true}"
+        }
+      ],
+      "waits": [],
+      "progress": [
+        {
+          "phase": "request_started",
+          "request_number": 1,
+          "timeout_seconds": 100.0
+        },
+        {
+          "phase": "retry_wait",
+          "request_number": 1,
+          "delay_seconds": 0
+        },
+        {
+          "phase": "retry_started",
+          "request_number": 1
+        },
+        {
+          "phase": "request_started",
+          "request_number": 2,
+          "timeout_seconds": 99.75
+        }
+      ],
+      "clock": 100.5,
+      "unused_replies": 0
+    },
+    {
+      "kind": "provider_stream",
+      "name": "control-stop-events",
+      "source": {
+        "STORYFORGE_LLM_MODEL": "gpt-test",
+        "STORYFORGE_LLM_API_KEY": "sk-client-secret-0123456789",
+        "STORYFORGE_LLM_PROVIDER": "openai",
+        "STORYFORGE_LLM_BASE_URL": "https://relay.example.com/v1//",
+        "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS": "0.5",
+        "STORYFORGE_LLM_RETRY_JITTER_SECONDS": "0.25"
+      },
+      "args": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "u"
+          }
+        ]
+      },
+      "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"二\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"三\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"四\"}, \"finish_reason\": \"stop\"}]}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "control": {
+        "deadline": null,
+        "stop_at": 6
+      },
+      "error": {
+        "type": "LLMRunInterrupted",
+        "message": "LLM run interrupted.",
+        "usage": null,
+        "reason": "stopped",
+        "usage_summary": null
+      },
+      "requests": [
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        }
+      ],
+      "waits": [],
+      "progress": [
+        {
+          "phase": "request_started",
+          "request_number": 1,
+          "timeout_seconds": 300.0
+        }
+      ],
+      "events": [
+        {
+          "kind": "text_delta",
+          "text": "一"
+        },
+        {
+          "kind": "text_delta",
+          "text": "二"
+        }
+      ],
+      "clock": 100.25,
+      "unused_replies": 0
+    }
+  ],
+  "retain": [
+    {
+      "existing": null,
+      "new": {
+        "input_tokens": 5,
+        "output_tokens": 2,
+        "total_tokens": 7,
+        "source": "provider_usage"
+      },
+      "result": {
+        "token_usage": 7,
+        "prompt_tokens": 5,
+        "completion_tokens": 2,
+        "cache_hit_tokens": null,
+        "token_usage_source": "provider_usage"
+      }
+    },
+    {
+      "existing": {
+        "source": "unavailable"
+      },
+      "new": {
+        "input_tokens": 5,
+        "output_tokens": 2,
+        "total_tokens": 7,
+        "source": "provider_usage"
+      },
+      "result": {
+        "token_usage": 7,
+        "prompt_tokens": 5,
+        "completion_tokens": 2,
+        "cache_hit_tokens": null,
+        "token_usage_source": "provider_usage"
+      }
+    },
+    {
+      "existing": {
+        "input_tokens": 1,
+        "total_tokens": 1,
+        "source": "estimated_split"
+      },
+      "new": {
+        "input_tokens": 5,
+        "output_tokens": 2,
+        "total_tokens": 7,
+        "source": "provider_usage"
+      },
+      "result": {
+        "token_usage": 1,
+        "prompt_tokens": 1,
+        "completion_tokens": 0,
+        "cache_hit_tokens": null,
+        "token_usage_source": "estimated_split"
+      }
+    },
+    {
+      "existing": null,
+      "new": {
+        "source": "unavailable"
+      },
+      "result": null
+    },
+    {
+      "existing": null,
+      "new": null,
+      "result": null
+    }
+  ]
+}

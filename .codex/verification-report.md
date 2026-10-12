@@ -7603,3 +7603,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：回放 373 条 + 改判钉数 1 条 + 范围 2 条。变异 45 处全部被抓住；首轮 9 处存活（词边界、末尾换行、密钥跨越切点、4096 阈值、码点计数、599、5 字密钥、方括号前的文字、IPv6 省略段为零），补夹具后全部抓住；另 2 处等价不计（ASCII 的 NFKC 即自身；合法 IPv6 文本最长 45 字，长度检查被其他判定覆盖）。
 - 门禁：引擎 typecheck 通过、11524 通过 / 2 跳过；eslint、prettier、ruff 通过；15 套 golden `--check` 一致。
 - 未做：P2-1b 传输与客户端（录制回放）与桌面适配器（plugin-http + Rust 交出已解密配置槽，按计划风险 13 的缓解）；P2-2 Anthropic / Gemini；P2-3 assistant；P2-4 真跑。未读真实作者数据；无付费调用。
+
+## 2026-10-12 P2-1b LLM 通道：传输与客户端（TS 迁移，默认仍走 Python）
+
+- 范围：llm_client 的出网部分与它所依赖的 ai_sdk 契约，新增 `engine/src/llm/` 的 contracts（TokenUsage / ToolCall / ToolSpec / ChatMessage / ChatRequest / ChatResponse / StreamEvent / ProviderError，往返保留未知字段以保证请求字节相同）、control（运行内协作式中断：暂停 / 停止 / 截止时间、进度事件）、openaiStream（流式工具调用拼装）、openaiCompatible（OpenAI 兼容 provider）、transport（非流式 chat/completions：429 / 5xx 退避重试并尊重 Retry-After、读取与解析失败重试、错误体脱敏截断；流式：只在建连阶段重试、首个 400 时摘掉 stream_options 再试一次、心跳帧跳过、思维链与未写完密钥不外泄、没收到终止标记宁可失败）、client（call_llm / call_llm_messages / call_llm_streamed / stream_chat_completions / 按配置补默认值的 provider / 模型列表探测 / 失败记账摘要）。出网经 `HttpPort` 端口注入（桌面端由 Rust 发请求，P2-1c），时钟、等待、随机数、密钥快照、运行控制都显式注入。Anthropic / Gemini 原生协议随 P2-2；模型调用观测（运行记录）随 P4。Python 侧零改动。
+- 预言机：`apps/api/scripts/golden_llm_client.py`：真实 Python 客户端跑在脚本化的假 `urlopen` 上（HTTP 错误带 Retry-After、建连失败、超时、读取重置与截断、SSE 中途断开），虚拟时钟只随网络往返与等待前进；57 个场景逐项记录请求（URL、方法、超时、请求头、请求体字节）、等待时长、进度事件、产出与错误（含错误上挂的用量与成本摘要），另 5 条 retain_error_usage 判定。`--check` 复跑一致。
+- 关键对齐点：urllib 的 HTTPError / URLError / TimeoutError / 读取异常四条分支各自的报错文案与是否重试；超时在建连与读体时都按「超时或连接失败」报；退避时长与 60 秒封顶逐位一致；流式按 `\n` 切行（任意字节切块回放结果相同）；`[DONE]` 不覆盖已收到的结束原因；流中先报了用量再断开时，错误带上那份用量。
+- 测试：回放 57 个场景 + 66 个任意字节切块的流式回放 + 5 条用量保留判定。变异 48 处全部被抓住；首轮 10 处存活（jitter 默认值、stream_options 协商时的等待、`[DONE]` 与已有结束原因、两层读流前的中断检查、按配置补的 max_tokens、0 不进请求体、未写 description 的工具、错误用量的保留、工具流非正常结束），补夹具后全部抓住。另有 1 处变异让重试等待变成同步死循环，变异脚本加了超时与进程树清理，按「抓住」计。
+- 门禁：引擎 typecheck 通过、11652 通过 / 2 跳过；eslint、prettier、ruff 通过；16 套 golden `--check` 一致。
+- 未做：P2-1c 桌面适配器（plugin-http + Rust 交出已解密配置槽）；P2-2 Anthropic / Gemini；P2-3 assistant；P2-4 真跑。未读真实作者数据；无付费调用。
