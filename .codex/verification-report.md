@@ -1,3 +1,119 @@
+## 2026-10-11 P1-2 Path.match 扫描依赖（当前增量，迁移未完成）
+
+- 复读 presence→consistency→FS 链后确认不能把任意 `glob` 降成 `*.md`，也不能复用会trim/折叠父段的UI路径工具。新增 `D:/StoryForge/packages/engine/src/kernel/pathMatch.ts`，正文排序复用它；实现相对右匹配、锚定路径、Windows盘符/UNC/device、POSIX双根、非递归**、字符类/反向范围和码点宽度。未改UI/Native路由。
+- 现有Unicode15.1 owner扩展v2：1427等价组/2886码点，完整0x110000代表值校验；原printable/word字段与mask逐项不变。真实 `PureWindowsPath/PurePosixPath.match` 7464项（含234预期empty-pattern错误），正式emitted包全部一致。focused7468含3Unicode测试及1单列TS200星号压力测试。
+- 七项副本变异分别284/85/12/2066/51/6/88失败，每次还原7468绿、生产hash不变。最终 `D:/StoryForge/output/ts-engine-p1/path-match-verification-PZbSyx/evidence.json`；path/unicode/canon/math/punctuation/P0/context七suite --check、Ruff/types通过。初始L1SS9x的3差异源于Windows原生splitroot按UTF-16定位伪盘符，不能以Python后备函数源码推翻实测；按runtime修复。
+- 全量 `validation-0BaSPf`：前端2110 passed/1skip、Engine10899 passed/2skip、core9、types/lint通过（2条既有any warnings）。初始OH4K7H发现联合判别type未收窄，拆成独立star/question变体后全量重跑，不加cast或ignore。fresh `bootstrap-qAeTwA`：171focused/React97chunks，emitted7464path+842canon+757math+1142punctuation+90context+5请求边界；521source/100artifact hashes复核。原build warnings保留。
+- 原大星号导出因耗时主动中断且已确认终止；独立有界 `glob-backtracking-probe-RJet1v` 区分分支：30/200个`*a`的true模式超过2s，添加末尾b的false模式因最小宽度可快速返回（先前xUlV9e只测false，不能证明慢分支）。正式Python golden用8/12，TS200压力另列，不伪造Python200true已完成结果，也未给生产输入新增长度上限。
+- 汇总 `D:/StoryForge/output/ts-engine-p1/path-match-evidence.json`。本轮未新跑Native/Rust/完整API pytest/e2e/作者shadow或性能准入。下一步真实canonical绝对根身份、512000字节增量解码、完整consistency/presence/cache/派生写入；本增量不是完整presence交付。默认Python、无作者读/付费/应用安装/commit/push，4096JSON具体方案未审核实施，P1及整体仍in_progress。
+
+## 2026-10-11 P1-3 canon 闸门纯内核（当前增量，迁移未完成）
+
+- 已复读 `canon.refresh → canon_service.build_canon_projection → canon_gate.check` 及 `canon_delta` 的 baseline/merged 比较。新增 `D:/StoryForge/packages/engine/src/kernel/canonGate.ts`：三类纯检查，不接 rebuild/cache/dossier/派生写入或实际命令。WebCrypto SHA-1 沿用稳定 ID 合同，不加依赖、LLM/FS port 或兼容 fallback；调用方在 await 期间持有稳定输入快照。
+- 保留闭区间/10**9开窗哨兵、原DFS插入顺序/first cycle/depth64、holder pair顺序及重复issue、退场strict-after与bool不对称、错误优先顺序及原错误类型/消息。既有 PythonJson owner 新增decoded值相等；原parser/str前缀字节不变。typed oracle序列化从context exporter移到已有golden_pure，共享而不复制。
+- `golden_dump.py --suite p1-canon-gate` 正常导入原domain、白名单环境/审计拒绝域执行IO；842项（809完整输出+33预期错误），含400组holder数值/容器交叉、窗口/图深度/shape/UTF-32原始代理码点。七项副本变异触发49/2/2/25/8/2/1失败，每次还原842通过；生产源hash不变。最终 `D:/StoryForge/output/ts-engine-p1/canon-gate-verification-3n8gG8/evidence.json`，旧P0/context/math/punctuation snapshots均--check原样通过，Ruff通过。
+- 全量 `validation-PbjuTr`：前端2110 passed/1skip、Engine3433 passed/2skip、core9、types/lint通过（2条既有any warnings）。fresh `bootstrap-Kszzda`：171focused/React97chunks；正式包emitted实际回放842canon+757math+1142punctuation+90context+5请求边界，518source/100artifact hashes复核。既有bundle-size/dynamic-import warnings保留。
+- 修复过程保留：初始 `validation-se69dd` 测试/types绿但prefer-const失败，修复后完整重跑；`canon-gate-verification-NUK7Vm` UTF-32夹具codec首次懒导入被审计阻断，改为执行审计前预载codec，未放宽审计。index.ts恢复原LF后才作最终验证/构建，未引入无关换行diff。
+- 汇总 `D:/StoryForge/output/ts-engine-p1/canon-gate-evidence.json`。本轮未重跑Native/Rust/API全套pytest/e2e/作者shadow或性能准入；无作者读/模型调用/应用安装/默认切换/commit/push。canon服务写回及其它P1组/P2-P4仍未完成；具体4096 JSON深度预算仍待审核、未实施。P1和全迁移保持in_progress。
+
+## 2026-10-11 P1-2 数学内核（当前增量，迁移未完成）
+
+- 在现有 `D:/StoryForge/packages/engine/src/kernel/math.ts` 添加safeRatio，原pythonFixed前缀逐字节未改。实际Python证明大整数先转Number会改变结果，甚至把合法huge/huge变NaN；实现先精确整数除法并舍入到binary64，再复用原四位舍入。保留非正分母早返回、负零、bool/int/float混合、非有限数与两类溢出，不新增数值范围限制/依赖/通用算术服务。
+- 新真实Python `p1-math` oracle757项，包含54个预期OverflowError（TS映射RangeError且原message保留）。非NaN按64位精确比较；NaN仅比较分类，不冒称payload bits相同。五项独立副本变异分别检出42/35/101/63/4失败，每次还原757全绿；最终 `D:/StoryForge/output/ts-engine-p1/math-verification-rqCqUH/evidence.json` 保证生产hash未被变异修改。
+- 数学与标点两个纯oracle共用从原标点脚本提取的 `golden_pure.py` 审计门；不是泛化reader/context的有IO合同。旧punctuation snapshot字节不变；math/punctuation/P0/context --check及Ruff通过，无settings/domain副作用。
+- `validation-Zn76IH`：前端2110 passed/1skip、Engine2591 passed/2skip、core9、types/lint通过（2条既有any warnings）。最终fresh `bootstrap-97K6h5`：当前源码515个hash、100artifact hashes，React97chunks，emitted757math+1142punctuation+90context+5请求边界通过。初次Prettier auto把追加混合换行变CRLF，已恢复math原LF减少diff，并重新跑数学变异和fresh构建；前一绿跑IE2gJI/ZLiJCv保留，不算最终source-hash证据。
+- 汇总 `D:/StoryForge/output/ts-engine-p1/math-evidence.json`。本轮未新跑Native/Rust/全API pytest/e2e/作者shadow，未改变真实路由；无作者读/模型调用/安装/commit/push。剩余路径/cache及canon/扫描/计划/知识/策略内核继续；4096 JSON具体预算仍未获实施确认、未改，P1及全迁移保持in_progress。
+
+## 2026-10-11 P1-2 标点确定性内核（当前增量，迁移未完成）
+
+- 完整迁移 `common/punctuation.py` 的确定性职责到 `D:/StoryForge/packages/engine/src/kernel/punctuation.ts`：比较用规范化、原标点恢复、对话匹配。保留最长连续行匹配/最早位置 tie、重复空行、全文仅标点变化例外、真实增删改和引号授权的逐单元边界。不引入通用diff依赖，不改全段落对话判断的不同合同，不复制完整AuthorEditPolicy构建器。
+- 新 `golden_dump.py --suite p1-punctuation` 正常导入原Python模块、无需settings，白名单环境及审计拒绝文件/网络/进程/DB副作用。33规范化+13对话+1096恢复（18明确场景及256 seeded序列，交叉4种policy）共1142项，字符串与UTF-8输出一致；含CRLF、CJK/ASCII换行差异、补充平面码点、未知授权不放行。
+- 独立副本五项变异分别触发45/20/172/12/1失败，每次还原1142全绿，生产源hash未变。证据 `D:/StoryForge/output/ts-engine-p1/punctuation-verification-3h7P2g/evidence.json`。首次 `v3Q283` runner的LF锚点不匹配CRLF源，失败保留；只修owned runner，不改生产换行迎合变异。
+- 全量 `validation-v0wvxA`：前端2110 passed/1skip、Engine1834 passed/2skip、core9、types/lint通过（2条既有any warnings）。fresh `bootstrap-cp5x8L`：正式frontend依赖的emitted engine实际重放1142标点+90context+5请求边界，React97chunks；513source/100artifact hashes已复核。Python punctuation/P0/context --check、Ruff、diff检查通过；既有bundle-size/dynamic-import warnings保留。
+- 汇总 `D:/StoryForge/output/ts-engine-p1/punctuation-evidence.json`。本轮是pure kernel，未接assistant/polish/scan/策略来源，不冒称Native修订/CPU负载准入；未新跑Rust/Native/Python API全套pytest/e2e。默认Python，未作者读/付费/安装/commit/push。math.safe_ratio、其余reader/cache/内核仍待迁，4096层JSON具体方案仍待审核未实施；P1和全迁移保持in_progress。
+
+## 2026-10-11 P1 深层 ID 字符串化修复（当前增量，迁移未完成）
+
+- 实测区分两类问题：Python 正常接受的深层 ID 在旧 TS 递归 repr 中栈溢出；更深 JSON 则存在运行时解析阈值/声明与派生错误分类差异。本轮只修前者：在现有 `pythonString` 内使用显式栈，复用原字符串/浮点格式、字典顺序及码点身份，只转换一次最终 repr。无新依赖/平行解析器/兜底/隐式重试；Python domain 未改。
+- 新增 list/dict × 1000/2000/2500 六个真实文件夹具，原61 context和51 JSON记录逐项不变。完整 Python domain→registry/model→owned ASGI均成功；查得7–9章跨度证明 ID 身份保持。定向225测试由5failed/220passed变为225passed。红/绿分别为 `D:/StoryForge/output/ts-engine-p1/deep-repr-check-r1uSEx` / `D:/StoryForge/output/ts-engine-p1/deep-repr-check-BPk4KD`。
+- 真实 Native `D:/StoryForge/output/ts-engine-p1/native/run-Q8yqFS/evidence.json`：90合同（75成功完整匹配、14预期错误、1relative不准入）、7.9113s、0longtasks、文件树/字节不变。最终源码hash及快照保留；不是OS全局写审计或全量性能准入。
+- 全量 `validation-Xue3mX`：前端2110 passed/1skip、Engine692 passed/2skip、core9、types/lint通过，2条既有any warnings。fresh `bootstrap-dtojyi`：171focused、React97chunks、emitted90命令+5请求边界，510source/100artifact hashes；已有bundle-size/dynamic-import warnings未掩盖。Python context --check、P0原snapshot --check、Ruff与diff检查通过。P0 runner最初误用不存在的p0.windows.json，失败保留；改为既有p0.json后通过，无snapshot变更。Rust/Native P0源码未改，本轮未重跑。
+- 用户已允许**设计明确TS深度预算**，具体4096层/原解析器显式栈/typed resource error方案在 `D:/StoryForge/.trellis/tasks/10-11-ts-engine-p1/design.md` 待具体评审，尚未实施。声明资源耗尽保留500类失败、derived/receipt失效；不把现有SyntaxError/RangeError一概吞掉，也不伪造Python黄金输出。现解析器仍递归，不能宣称全部深层JSON兼容。
+- 汇总 `D:/StoryForge/output/ts-engine-p1/deep-json-evidence.json`。默认Python、全部功能/provider范围不变；未作者读/付费调用/安装/commit/push。下一步具体预算审核与独立的reader/cache/其余内核工作；P1及全迁移保持in_progress。
+
+## 2026-10-11 P1 reader 真实文件树合同（当前增量，迁移未完成）
+
+- 新增 `golden_dump.py --suite p1-reader`：真实 Python domain + 12 个 Windows 合成文件树、30 个动作。memory 与 Native 复用同一描述；28 项实际执行一致，file-symlink 的2项因 WinError1314 明确 skip，不算通过。覆盖原始20,000/20,001项、64/65层、零预算、码点排序、双角色可见性、junction root/scope/explicit/outside、缺失/文件根与 contained parent scope。
+- 真实 Native 红基线 `D:/StoryForge/output/ts-engine-p1/native/run-rqr9bG/evidence.json` 发现3处差异：parent/outside junction scope 的越界错误被吞成通用解析错误，missing root 被 strict writer root 过早拒绝。最小修复：读接口传 `{kind: io|outside-project, message}`，binding 严格验证并保留 malformed-error cause；scanner 按类型映射，不解析中文文本。读根复用现有 missing-suffix resolver，写根 helper/全部写接口不变；contained parent 的原 scope 可见性仍由领域保留。
+- 最终 **同一当前源码** Native pair：`native/run-LEN6kW` reader28匹配/2skip；`native/run-G2jDhm` 完整84命令合同（69成功DTO/mapper/prompt、14预期错误、1relative零IO不准入）。两者 long tasks=0、原文件树/字节未变；本矩阵耗时不是全量scanner p95。新增模式复用唯一原启动器/锁/owned profile，Python先在同树真实执行并 `--check`；指纹不跟随链接。证据仍不是OS全局写审计/竞态安全证明。
+- 最终 `validation-cyRZBG`：前端 **2098 passed /1 skipped**、Engine **680 passed /2 skipped**、core9/types/root lint通过（2条既有any warnings）；Rust实际120 passed/4 ignored，另有原file-alias测试的1314 skip输出。fixture strict tsc、Ruff/rustfmt/scoped ESLint/Prettier/diff-check通过。fresh `bootstrap-oOmOPB`：159 focused、完整React97chunks、emitted84+5、510源hash和100制品hash已核验保存。P0/context/Unicode Python golden均重新check通过；未重跑整个API/全root e2e或P0 Native性能门。
+- 失败与修复均保留：Rust runner漏Git PATH；Vitest beforeEach返回mockReset的mock被当cleanup调用，改无return block而非吞拒绝；JSON union显式narrowing；新TypeError按既有ES2020方式挂cause。旧 Native `run-v6kXtK`/`run-37HOy5`是cause修补前中间证据，最终pair不复用它们冒充当前源码。
+- 汇总和可重放入口：`D:/StoryForge/output/ts-engine-p1/reader-tree-evidence.json`，`native-launch.mjs --reader-only` / `--context-only`。源码快照、runner、失败日志均留owned output；3项fixture-root独占/范围/suite防护反例通过。默认仍Python，全部功能/provider保留，无作者数据读取/付费调用/安装/commit/push。
+- 下一步：继续未覆盖的路径/链接/OS错误和深层JSON合同，再迁剩余P1内核；生产secrets/UI admission、P2/P3/P4依赖与授权周用门未完成。P1与总迁移保持进行中，不归档。
+
+## 2026-10-11 P1 字节解码性能与 Native 隔离启动修复（前一增量）
+
+- 先用临时 CDP CPU profiler 定位，再仅修改 `apps/desktop/frontend/src/lib/engine/reader.ts`：`Uint8Array.from(atob(...), callback)` 改为一次 `atob`、预分配数组和索引填充，没有新抽象/依赖/Worker。对照 `native/run-eetn2I` → `native/run-dxbqUs` 的 21 个关键源仅 reader 不同，fixture/harness 相同；reader 自身采样约 **278.72ms →29.93ms**，该场景 long tasks **3→0**，全部 84 命令合同仍满足。CPU 采样不是端到端 p95；临时 profiler 已恢复移除，源码快照留在 owned research 目录。
+- 补 5 组零长度、全部 0–255 octets、512KiB+1、2MiB、2MiB+1 的边界回归，绑定测试共17项。Native 最终无 profiler 两次 fresh run `D:/StoryForge/output/ts-engine-p1/native/run-HYm1sG/evidence.json` / `run-NDbyQL/evidence.json`：每次 69 精确 DTO/mapper/prompt、14 预期错误、1 relative 零 IO 不准入，long tasks=0，tree/content 未变；总耗时6.88s/7.00s，不冒称所有项目/扫描都无长任务。
+- 过程中保留 `native/run-KcExhY` 的启动失败：HTTP plugin `unknown path`、退出101。实证 Windows `SHGetKnownFolderPath(LocalAppData, flags=0)` 在隔离 `%USERPROFILE%/AppData/Local` 缺失时返回 **0x80070002**；只创建该 owned 目录后变为成功。现有 harness 因而负责预建并显式传递 owned HOME/USERPROFILE、Local/Roaming、TEMP/TMP，而不是依赖别的组件碰巧创建 Known Folders；P0 SQL 返回的实际 appConfigDir 还必须等于该 owned Roaming/id。HTTP cookies 的实际文件也已确认位于 owned Local/id，无作者 cookie/config 读取。
+- SQLite 排查没有弱化 durability：相同失败轮白名单环境、同 D 盘 owned 新库，Python sqlite3 FULL/WAL 建表5.6–8.4ms；同版本 SQLx0.8.6/SQLite3.46.0、原 create_database→Pool::connect→单事务 SQL 链为5.1–5.7ms。它们不是 Native门的替代。修正隔离前置条件后的真实 P0 `D:/StoryForge/output/ts-engine-p0/native/run-wqy9tw/evidence.json` 全过：schema **16.8ms <100ms**，new load21.2ms，HTTP首包16ms，CPU p95 69.2/51.3/4.5ms。旧403.3ms失败仍保留，其延迟根因尚不能完全归因于目录问题，不能声称已证明全局性能稳定。
+- `D:/StoryForge/output/ts-engine-p1/validation-XBBLFG/evidence.json`：正常并发前端 **2093 passed /1 skipped**、Engine652/core9/typecheck/root lint过；仅2条既有any warnings。Native fixture独立strict/noUnused tsc、scoped ESLint、harness syntax也过。`bootstrap-pyAQUw` fresh offline bootstrap：154 focused、完整React97chunks、实际emitted engine84+5回放、506源hash与100制品hash已核对/保存。
+- 权威增量汇总 `D:/StoryForge/output/ts-engine-p1/reader-performance-evidence.json`，直接诊断与失败制品均留在 owned output；没有改Rust生产代码、HTTP/SQL crate、SQLite pragma、provider范围、默认Python或现有handoff行为，无commit/push/安装。下一步继续 Native reader links/budgets/errors/deep JSON 和其余内核；生产secrets/实际UI admission、P2/P3/P4/授权shadow仍未完成。
+
+## 2026-10-11 P1 真实 Native context 回放（前一增量；后续修复见上节）
+
+- 复用 `apps/desktop/frontend/scripts/verify-engine-p0-native.mjs --context-only`，只新增一份 `engine-p1-context.ts` fixture；没有第二套宿主启动器，没有修改生产 reader/engine/路由。ordinary debug WebView2 经正式 npm invoke adapter 调用四个 Rust 只读接口，再执行完整命令并交给现有 mapper。启动仍靠 owned Python stdlib health stub，不是无后端启动或作者 UI 验收。
+- Python v4 同一套 61 文件树/84 命令被逐字节物化到新建隔离目录。最终两轮 `D:/StoryForge/output/ts-engine-p1/native/run-aVqyoh/evidence.json` 与 `D:/StoryForge/output/ts-engine-p1/native/run-sC66Yt/evidence.json` 均为 **69 DTO/mapper/prompt 字节完全一致、9 个预期 400、5 个预期 500、1 个 relative-current 明确不准入且零 Native IO**。各轮 1627 resolve /1325 inspect /235 directory /153 bytes 调用；366 个目录/文件 fingerprint 前后相同。两轮共享最终 fixture/harness hash，21 项关键源码、lock 和 executable hashes、截图与源快照均保留。
+- 启动器继续拒绝既有 Native app、独占已有 P0 lock、strictPort、envFile=false；白名单环境及独立 home/config/profile，构建 locked/offline，清理只针对本轮进程。不读取作者项目/provider/原库，不收费、不安装、不切换默认。文件 fingerprint + 四项读 port trace 不是 OS 全局写审计，也不证明链接竞态安全。
+- **性能仍待解决**：最终两轮共耗时 7.43s /7.04s，各 3 次 long task（84–112ms），与 `previous-at-byte-limit`、`previous-over-byte-limit`、`canon-oversize` 的 2MiB bytes 操作重叠。此处仅证明时间关联，未证明全部耗时来自 base64 decode；不是每种负载的 p95，也不据此新增 Worker 或放宽门限。
+- **共享 P0 回归有失败**：`D:/StoryForge/output/ts-engine-p0/native/run-I8nIB6/evidence.json` 的原单事务 SQLite 建表为 **403.3ms >100ms**；new DB load 669.3ms。HTTP 首包 18ms、旧库行/只读验证及 CPU 三组比较完成（p95 69.6/51.3/4.4ms），但整个 P0 run 必须保留 failed。fixture、SQL generator 与 Cargo.lock 未改；原因 **UNKNOWN**，没有重试取绿、修改性能阈值或偷偷重录基线。
+- `D:/StoryForge/output/ts-engine-p1/validation-UAPFd7/evidence.json`：正常并发前端 **2088 passed /1 skipped**、Engine652/core9、各 typecheck、root lint 全过（2 条既有 any warnings）；新 Native fixture 另行 strict/noUnused tsc、ESLint、Prettier、harness syntax 均过。Rust 源本轮未改；ordinary debug 已实际重新构建，未重复宣称之前的 Rust unit 结果为新结果。
+- 汇总：`D:/StoryForge/output/ts-engine-p1/native-context-evidence.json`；owned 环境重放入口 `D:/StoryForge/output/ts-engine-p1/native-launch.mjs`（默认 `--context-only`，`--all` 是 P0 回归）。首轮无时间关联字段的 `run-zwjmKR` 保留，但最终证据使用上述两次同源码 fresh run。
+- **下一步**：先窄定位新发现的 Native 大字节长任务/SQLite 性能失败，再补 reader 链接/预算/错误与深递归合同，继续其余 P1 内核。production secrets owner、真实 UI admission、P2/P3/P4 后置依赖和授权周用仍未完成。P1/总目标保持 active/in_progress；未 commit/push。
+
+## 2026-10-11 P1 book.context 命令响应与框架序列化（前一增量；Native 合成链路见上节）
+
+- `executeBookContextCommand` 已复用原 builder/renderer/redactor，按现有前端序列化 `{ args }` 一次；计算用 Python strip，回显保留原 JSON 参数，保留 args/extra → payload → field serializer 三次脱敏。没有新配置/FS/模型/存储 owner，实际 IDE/assistant/agent 仍 Python。
+- 同一真实 Python oracle v4 现有 61 文件夹具、51 JSON 边界及 84 组命令。实际 registry → Pydantic model → JSONResponse 与 thin owned ASGI 框架响应一致：70 成功、9 个 400、5 个 500；其中一个 Python 成功的相对 current 输入仍明确不准入 TS。另 4 组实际 ASGI 非对象 args 返回 422；省略 args 的 JS 请求序列化按默认空对象处理，零 IO。
+- 验证发现并保留两类响应行为：未脱敏的孤立代理字符在 Pydantic key/UTF-8 编码处会失败，UI 应看到 `API 返回 500`；Python 超大整数可在浏览器 JSON.parse 后成为 Infinity，不能再 JSON.stringify 将它变 null。普通领域错误也保留原 HTTP 显示，并留内部 cause 供诊断，不泄露为公开 detail、不重跑 Python、不伪造空成功。
+- ASGI 使用真实 registry/request/response model 与相同 domain-error 映射，不运行 production router/app.main、auth/session/lifespan，也不启动 loop、线程、socket 或 DB。正常 SQLAlchemy import 需要本机 gethostname，audit 仅允许这一 OS 身份查询，仍拒绝 DNS/socket/连接。production router 牵入无关 metrics 的 `/proc` 探针被正确拒绝，没有扩大文件读取白名单来绕过它。
+- `D:/StoryForge/output/ts-engine-p1/context-verification-4cuws1/evidence.json`：P0/P1/P1-repeat/Unicode `--check`、Ruff、零 domain writes；十项独立 copy 变异 63/28/5/30/18/2/9/1/2/2 项失败，各还原后 **Engine 652 项全绿**。新增变异检出漏 serializer、覆盖原 args、错误 JSON roundtrip 和误接收无法编码的响应。
+- `D:/StoryForge/output/ts-engine-p1/validation-GJygPM/evidence.json`：正常并发前端 **2088 passed / 1 skipped**、core9/Engine652/types/lint 全过（仅两条既有 any warnings）。正式包→既有 mapper 覆盖 57 组 builder 与 69 组成功命令；没有改 mapper、Hook 或 UI 状态。
+- `D:/StoryForge/output/ts-engine-p1/bootstrap-a2Axg9/evidence.json`：fresh offline 依赖 bootstrap、149 focused 前端测试、完整 production React 97 chunks；不仅类型检查，实际 emitted engine library 也回放 84 命令 +5 请求边界。runner、100 制品 hashes 及当前源码 hash 核对保留。最终汇总 `D:/StoryForge/output/ts-engine-p1/command-envelope-evidence.json`；早先 647-test 的 VTn5yT/bHZhmy/K9499u 是请求 wrapper 修正前证据，不作为当前终态。
+- **未完成**：真实 Native→完整 context/envelope→mapper、剩余 reader 链接/预算与深递归合同、生产完整 secrets 来源及实际 UI admission；其余 P1 内核与后置阶段仍待推进。已有 Rust/Native 单职责测试不是本次完整 IPC 验收。默认与相对 handoff 行为不变，无作者数据/配置/原库读取、付费调用、应用安装、commit 或 push。
+
+## 2026-10-11 P1 Unicode 身份修复与共享纯脱敏（当前增量，未完整验收）
+
+- 真实文件基线发现 UTF-8/32 raw surrogatepass 与补充平面 ID 被合并，人物章号从 Python `2–3` 错配为 `98–99`；既有 JSON owner 现保留字符串/字典键码点身份。新增 8 个文件案例与 21 个编码案例，不改 Python 行为。另一个实证差异是 Python Unicode 15.1 与 Node 24 Unicode 17 的分类；生成 printable/word 区间，并校验全部 1,114,112 个码点，修复 container-ID repr 与 Unicode 词边界。
+- 同一隔离 exporter 当前格式 v3：59 文件夹具（55 成功/null、3 原 TypeError、1 相对 cwd 不准入）、51 JSON 边界、41 类敏感键、43 组真实 Python 脱敏输出。纯 `redaction.ts` 处理完整有序 configured-secrets 快照、literal 优先、Unicode IGNORECASE/词边界、provider token 回溯、递归映射和重复脱敏；不读取环境/配置或另建 secrets owner。等长 secret 的 Python set 顺序不确定，因此 oracle 在启动前固定 `PYTHONHASHSEED=0`，记录真实返回顺序，而非让 TS 猜排序。
+- `D:/StoryForge/output/ts-engine-p1/context-verification-MbUUOE/evidence.json`：P0 不变、新 P1 两次 fresh `--check`、Unicode 生成物 `--check`、Ruff 全过，domain write trace=0。独立副本六种变异分别 40/24/4/30/11/1 项失败（整数、码点合并、host Unicode、ASCII 词边界、漏 configured literal、stamp 旁路），每次恢复后 Engine **557 项全绿**；期望侧直接使用 Python typed facts，不使用被测 parser/constructors。
+- `D:/StoryForge/output/ts-engine-p1/validation-YPNfEV/evidence.json`：正常并发前端 **2017 passed / 1 skipped**、Engine 557、core 9、三组 typecheck 全过；lint 0 errors / 2 既有 any warnings。正式包导入→既有 mapper 的合成案例增至 55，仍不是 Native IPC。
+- `D:/StoryForge/output/ts-engine-p1/bootstrap-2OTpLC/evidence.json`：全新 owned root frozen/offline→frontend npm bootstrap，78 个 focused 测试、Engine 557/types、完整 React production 97 chunks、实际包导入/production flag=Python 通过。保存 runner 与 100 个制品 hashes；没有装应用。汇总及源 hash 复核见 `D:/StoryForge/output/ts-engine-p1/unicode-redaction-evidence.json`。
+- **剩余门禁**：完整 command envelope 与 serializer 三次脱敏、生产完整配置来源、深层 JSON 递归/错误、reader 剩余链接/预算矩阵、真实 WebView→context→mapper；其它 P1 内核和 P2/P3/P4/影子周用仍待实施/阶段验收。前文旧 Unicode mismatch 已由本增量解决，不代表以上门禁通过。
+- 默认/实际路由仍 Python，全部功能/provider 和相对 handoff 行为保留。无作者数据/原库/私有配置读取、付费调用、应用安装、commit 或 push；P1 提交仍另行确认。
+
+## 2026-10-11 P1 book.context 文件预言机与 TS 合成链（继续实施，未完整验收）
+
+- `D:/StoryForge/apps/api/scripts/golden_dump.py --suite p1-context` 新增 scoped fixture exporter，正常导入真实 domain，合成 settings/白名单环境/audit 拒绝网络、作者文件读取与 domain 写入，并有拒绝自检。50 个文件夹具（46 成功/null、3 原 TypeError、1 相对 cwd 不准入）+29 JSON 边界；记录源 hash、精确 bytes、真实 source stamp、独立 typed facts、payload/prompt 与 read trace，domain write trace=0。P0 原快照 `--check` 未变，新 P1 重复 fresh baseline `--check` 一致。
+- 实现 reader-backed `buildBookContext`、knowledge 候选、canon/presence/receipt revision、previous tail 和原 renderer 的 browser payload 投影。JSON 整数用 bigint、float 保留 token 类型、bool chapter/空容器/字典顺序按 Python；先渲染精确大整数 prompt，后模拟原浏览器 JSON 数值投影。不改 mapper、不改作者路径、不启用 TS 路由。
+- `D:/StoryForge/output/ts-engine-p1/context-verification-woT09Y/evidence.json`：P0/P1/P1-repeat、Ruff 通过；独立副本 55 builder tests baseline/restore 绿，整数转 Number 14 failed、绕过 stamp 1 failed。先前 LvNFvd 期望侧使用被变异的生产 parser，48 failures 不作为独立 oracle 证据；现在期望由 Python typed tree 生成，该历史记录保留。
+- `D:/StoryForge/output/ts-engine-p1/validation-Qi2t4C/evidence.json`：frontend 2008 passed/1 skip（198 passed files/1 skipped），Engine439、core9，全部 typecheck 通过；root lint0error/2既有any警告，正常并发且 Vitest `envFile=false`；正式 frontend lock 未变。前一 5PfVeM 因新 builder 格式未通过 lint 已保存，格式修复后原 full 命令全部通过。
+- `D:/StoryForge/output/ts-engine-p1/bootstrap-TT7NtY/evidence.json`：新源码再次 fresh owned root frozen/offline → frontend npm offline bootstrap；frontend69 focused/engine439/types 通过，完整 React production97chunks、真实 engine 导入和 production flag=Python 通过，`envFile=false`。保存准确 runner 与100个构建产物 hash；仅依赖bootstrap，未安装应用。
+- 新增46条正式 `@storyforge/engine` → 既有 mapper 回归使用 memory port/Node，**不是 Native WebView IPC**。此次 Rust 实现未改，不重复计前次118/4结果；未运行API全量/full-root/e2e。
+- 仍有已验证差异：`D:/StoryForge/output/ts-engine-p1/json-boundary-evidence.json` 中 raw UTF-8/UTF-32 surrogatepass 相邻代理码点为 Python 两码点，TS 当前合为一，escaped 对照一致。首片/AC3不算完成；先补该 provenance，再做递归/reader边界、共享脱敏/envelope和真实Native链。完整配置来源仍待后续 owner，真实 UI 全 Python。
+- 无作者数据/配置/原库读取，无网络模型/付费调用，无应用安装、默认切换、commit 或 push；全功能/provider 范围不变，P1 提交另行确认。
+
+## 2026-10-11 TS 引擎 P1 首批增量（实施中，非整体验收）
+
+- 作者已直接认可最终 PRD/设计/实施清单并批准启动；当前任务 `D:/StoryForge/.trellis/tasks/10-11-ts-engine-p1` 为 `in_progress`。默认 Python、完整功能/provider、handoff 原相对输入不变；P1 本机提交须另行确认，此轮未 commit/push。
+- 已接正式 frontend `file:../../../packages/engine` 与最小 lockdiff（保留 engine 的 `workspace:*`）；DEV-only 三键 flags；四项 uncached/bounded Rust read command、typed port/binding 和 complete raw traversal。未改 UI FS cache/list/read/base64、writer、Python 路由或作者配置/数据。
+- **clean bootstrap** `D:/StoryForge/output/ts-engine-p1/bootstrap-EhKQQp/evidence.json`：无 node_modules 的 owned tracked-source copy，pnpm **9.15.4** frozen/offline workspace → npm **11.17.0** offline file links、Node **24.19.0**；engine transitive core 与 frontend core 指向同一 owned source。frontend typecheck、23新测试、engine352/types、正式 `vite.config.ts` 的完整 React production build **97 chunks**（`envFile=false`）和 emitted actual engine import/production flags PASS。无 alias/dist/pack/TLS禁用或应用安装；清空 inherited secrets、空 user/global npm config，不读取作者 dotenv。
+- **正式源码验证** `D:/StoryForge/output/ts-engine-p1/validation-rI68Yy/evidence.json`：npm 建立正式 package link，lock before/after SHA256 均 `b08ed4ead2003967ad102e743032fcfe5477ecfc4def20bfb6ed9cd579cdaada`；frontend typecheck、全量 **197文件/1962 passed、1 skip**（正常并发、未改 timeout/worker 数/affinity，49.09s）；engine **352**（338既有+14新）/types、core **9**/types、root lint PASS（0error、两既有 any warnings）。Vitest wrapper显式 `envFile=false`，不是裸 npm test 读取作者 `.env.local`。
+- **Rust** `D:/StoryForge/output/ts-engine-p1/rust-d9d4d6c5655b4c3ba5f67455f94426ba/evidence.json`：完整 `storyforge-desktop` unit **118 passed/4 ignored**；9新reader owner cases覆盖真实 junction、normal missing leaf/parents 不创建目录、verbatim drive、raw hidden/heavy/direct names、iterator prefix/error/sentinel、真实 16KiB/512KiB/2MiB capped bytes、short-read实际消费。新 file-symlink 用例 **1314 明确 skip**，其 harness虽然显示ok，不能计为真实alias读通过；junction独立实测通过。仅新 module rustfmt check 通过，既有 main/fs 全文件 rustfmt baseline未掩盖。
+- **变异** `D:/StoryForge/output/ts-engine-p1/mutation-oturOC/evidence.json`：在独立源副本把 raw计数改成仅visible计数，14项中 **3 failed/11 passed**；还原 **14 passed**，生产 source hash不变。binding12用例验证camelCase/counters、无import IO/无UI cache、prefix terminal error和invalid DTO不是optional fallback；routing4项断言未admit实验值仍原HTTP一次、未知id不重试、engine零初始化。
+- 失败记录保留在同一 owned output：最初 pnpm store-dir误多一层v3；npm空user/global共用文件触发double-loading；offline npm缺zwitch，随后仅正常TLS下载缺失依赖并fresh offline重放；probe误把Vite lib return当单对象及要求tree-shaken barrel必在chunk。分别修正runner假设，未改业务行为/TLS/协议/预算。snapshot `bootstrap-EhKQQp` 才是最终全步骤PASS；先前run不能计完整成功。
+- **仍未完成**：新的 Python reader/context oracle、完整 `book.context` builder/knowledge/cache/JSON shape/脱敏/envelope、真实 WebView FS IPC→原mapper。普通missing余段已支持，不声称全Python non-strict resolve、dangling links/UNC/大小写根别名/非法文件名/并发变树兼容或race-free。当前所有真实 IDE/assistant/agent 通路继续Python，不以合成空secrets放行生产。P1-8/9全命令、模型/存储/取消owner、作者副本周用仍依赖后续阶段和授权。本增量未运行API/full-root verify/e2e/付费/作者读取/安装或切默认；不将P0/本次green扩为整个迁移已完成。
+
 ## 2026-10-06 作者反馈已回收（仅当前样本）
 
 用户直接回复“保留 还过得去”。按原文保留pilot-v4唯一匿名样本19fff7819103f85b；理由仅记录“还过得去”，不补写评价、不赋分。最终保留文本引用原outputs文件，SHA256 7175480bba17fe24c99384e8e0d72b401bab688d22cb3f1d195b349f053989c4已与metadata及盲评映射核对。
@@ -7387,3 +7503,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 ```
 
 **P0 五项合成技术门通过，作者已认可结果并批准三批本机提交（不 push）及准备 P1 规划。** 完整引擎继续使用 `packages/engine`，全部功能与 provider 保留；P1 规划复核前不启动实现。完整无 Python 启动、npm wrapper、真实模型/作者库、全扫描、影子周用、默认切换、退役与安装升级均不在这次完成声明内。工作提交哈希记录在 P0 任务及会话日志；整个迁移目标尚未完成。
+
+## 2026-10-11 输入范围改写（作者拍板「范围外直接报错，不再模仿」，未提交）
+
+- 规则：`docs/architecture/ts-engine-migration-plan.md` §4.3.1。golden 逐字节只对范围内输入成立；JSON 嵌套上限 64，取代 4096 方案；Python `common/math.py` 的 `safe_ratio` 后端无调用方，TS 侧不搬。
+- 代码：新增 `packages/engine/src/kernel/json.ts`（标准 JSON、安全整数、整数与小数字面量分开、无 BOM 的 UTF-8、`InputDomainError` 带行列与字段路径）；canonStore、bookContext、buildBookContext、bookContextCommand、redaction、canonGate、pathMatch 改为先校验成干净类型再跑原逻辑。删除 `pythonJson.ts`、`pythonUnicode.json`、`safeRatio`、`math.test.ts`、`p1-math.json`、`golden_math.py`，`golden_dump.py` 去掉 p1-math / p1-unicode 两套。改动前的工作区完整备份在 `refs/backup/p1-before-input-domain`（不是分支）。
+- golden：p1-context 只新增一条 `receipts-valid-ms-timestamp`（原 `receipts-valid` 的时间戳是 u64 最大值，应用写不出，改判为回执作废），重新导出后其余内容逐项不变；`--check` 复跑 p0、p1-context、p1-punctuation、p1-canon-gate、p1-path-match 全部逐字节通过，ruff 通过。p1-context 的 `--check` 在 4 次里有 1 次被导出器自身的审计拦下（Oracle forbids writes during domain execution: open），未再复现，原因未查明。
+- 逐条改判：book.context 68 条（28 与 Python 一致、20 作者声明写错应报错、19 缓存超范围视为失效、1 相对路径按项目根解析，新行为的期望取同树兄弟用例的 Python 输出）；canon 闸门 194 一致 / 648 应报错（Python 报错的 33 条全在范围外）；JSON 边界 6 一致 / 11 两边都拒 / 34 范围外；glob 7464 条中 16 条为已接受差异（14 条土耳其语 İ/ı，2 条 Unicode 16 新字母）；脱敏 42 条比对，其中 17 条先成对剪去范围外或 U+1C89 的叶子。判定表在 `contextDomain.test-support.ts`，引擎测试、前端测试、Native 脚手架共用。
+- 变异：九处（深度 64→65、小数当整数、人物表吞掉声明错误、presence 非字符串 id 放行、单词字符去掉数字、Windows glob 区分大小写、跳过参数校验、from_chapter 默认 0、闸门不跳空白物品）全部被测试抓住；其中「非字符串 id」首轮未被抓住，补了专门测试后抓住。重写 redaction.ts 时曾把 4 处开尔文符号 U+212A 抄成 ASCII K，被 golden 抓出并修正，之后对所有重写文件核对了非 ASCII 字符清单。
+- 门禁：lint 0 错误（2 条既有 any 警告）；引擎 typecheck 通过、10157 通过 / 2 跳过；project-core 9；前端 typecheck 通过，测试 2098 通过 / 1 跳过 / 1 失败——失败的是 `proposal-projection-integrity.test.ts` 的 7,056 组合用例超出 5 秒时间预算（本次 9.4 秒），它只依赖前端 src，而前端 src 本次零改动；加长超时单独跑通过（实测 5.38 秒）。Native 脚手架严格 tsc 通过；Native WebView 回放与 Rust 未重跑（Rust 未改）。
+- 未做：未提交、未推送、未切默认路由；真实作者数据未读取；无付费调用。
