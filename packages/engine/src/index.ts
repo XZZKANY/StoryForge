@@ -123,3 +123,81 @@ export {
 export type { PlanUpdates } from './kernel/serialPlanUpdate';
 export { runObservatoryScan } from './kernel/observatory';
 export { cloneJson, pythonEquals } from './kernel/json';
+export { pythonCasefold } from './kernel/casefold';
+export { sha256Bytes, sha256Hex } from './kernel/sha256';
+export { pythonSplitlines } from './kernel/pythonText';
+export {
+  fsRead,
+  normalizeProjectRelativePath,
+  resolveProjectFile,
+  visibleTarget,
+} from './kernel/fsTools';
+export {
+  hasKnowledgeBlockMarker,
+  isKnowledgeSha256,
+  knowledgeClaimFingerprint,
+  KnowledgeEntryError,
+  parseKnowledgeMarkdown,
+  plainNotesOutsideKnowledgeBlocks,
+  renderKnowledgeEntry,
+  upsertKnowledgeEntry,
+  validateKnowledgeEntry,
+} from './kernel/knowledgeEntries';
+export type {
+  KnowledgeEntry,
+  KnowledgeParseResult,
+  KnowledgeSource,
+} from './kernel/knowledgeEntries';
+export {
+  loadProjectKnowledgeDocument,
+  projectKnowledgeEntryIndex,
+  projectKnowledgeRead,
+  projectKnowledgeSearch,
+  readProjectContextFile,
+  validateEligibleFile,
+  validateProjectKnowledgeMarkdownTarget,
+} from './kernel/projectKnowledgeFiles';
+export type {
+  IndexedProjectKnowledgeEntry,
+  ProjectKnowledgeEntryIndex,
+} from './kernel/projectKnowledgeFiles';
+export {
+  knowledgeEntryEvidenceState,
+  materializeKnowledgeSelection,
+  retrieveProjectKnowledge,
+  selectKnowledgeEntries,
+} from './kernel/knowledgeRetrieval';
+export type {
+  KnowledgeRetrievalResult,
+  KnowledgeSelection,
+  RetrievedKnowledgeEntry,
+} from './kernel/knowledgeRetrieval';
+export {
+  buildKnowledgeProposalGroup,
+  KNOWLEDGE_PROPOSAL_ARTIFACT_KIND,
+  projectFileEvidenceHash,
+  projectFingerprint,
+} from './kernel/knowledgeProposals';
+export type { ProposalEnvironment } from './kernel/knowledgeProposals';
+export {
+  collectOrdinaryContext,
+  looksLikeHarnessPayload,
+  ordinaryContextFileAsContext,
+  sourceDeliveryManifest,
+} from './kernel/ordinaryContext';
+export type {
+  CollectedOrdinaryContext,
+  ContextFileRequest,
+  OrdinaryContextFile,
+} from './kernel/ordinaryContext';
+export {
+  collectProjectKnowledgeContext,
+  mergeProjectKnowledgeEntries,
+  projectKnowledgeRecoveryReceipt,
+} from './kernel/knowledgeContext';
+export type { CollectedProjectKnowledge } from './kernel/knowledgeContext';
+export {
+  compileKnowledgeOperation,
+  materializedSource,
+  replaceSamePathProjectSources,
+} from './kernel/knowledgeMaterialization';

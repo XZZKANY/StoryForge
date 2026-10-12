@@ -1,5 +1,6 @@
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import { MAX_READ_BYTES, ProjectTreeError, scanProjectFiles } from './projectTree';
+import { pythonStrip as pythonStripText } from './pythonText';
 
 export const AUTHOR_INSTRUCTIONS_PATH = '.storyforge/agent-instructions.md';
 const SKIPPED_DIR_NAMES = new Set(['.git', '.storyforge', '.codex', 'node_modules', '__pycache__']);
@@ -134,4 +135,81 @@ export function nativeProjectPath(
 ): string {
   if (platform === 'posix') return `${root.replace(/\/+$/, '')}/${relative}`;
   return `${root.replace(/\//g, '\\').replace(/\\+$/, '')}\\${relative.replace(/\//g, '\\')}`;
+}
+
+const READ_LIMIT_DEFAULT = 20_000;
+const READ_LIMIT_MAX = 200_000;
+
+/** 规范化模型 / 作者给的项目相对路径（不解析链接）；绝对、带盘符或含 `..` 的拒绝。 */
+export function normalizeProjectRelativePath(path: string): string {
+  if (typeof path !== 'string' || !pythonStripText(path)) throw new FsToolError('path 不能为空。');
+  const raw = pythonStripText(path).replace(/\\/g, '/');
+  const parts = raw.split('/').filter((part) => part !== '' && part !== '.');
+  if (raw.startsWith('/') || !parts.length || parts[0].includes(':') || parts.includes('..'))
+    throw new FsToolError(`只接受规范化项目相对路径：${path}`);
+  return parts.join('/');
+}
+
+/** 词法上的项目相对路径（保留 `..`，不解析），用于判断调用方给的路径本身是否隐藏。 */
+function lexicalRelative(path: string): string {
+  return path
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter((part) => part !== '' && part !== '.')
+    .join('/');
+}
+
+/** 文件工具可见的目标：解析后越界、调用方路径或解析目标是隐藏路径都拒绝。 */
+export async function visibleTarget(
+  reader: ProjectReader,
+  root: string,
+  path: string,
+): Promise<string> {
+  const target = await scopedTarget(reader, root, path);
+  if (isSkippedProjectPath(lexicalRelative(path)) || isSkippedProjectPath(target))
+    throw new FsToolError('隐藏路径不可通过文件工具读取。');
+  return target;
+}
+
+/** fs.read：读取项目内单个文本文件的内容切片（按码点计）。 */
+export async function fsRead(
+  reader: ProjectReader,
+  root: string,
+  path: string,
+  options: { offset?: number; limit?: number } = {},
+) {
+  if (typeof path !== 'string' || !pythonStripText(path)) throw new FsToolError('path 不能为空。');
+  await resolveProjectRoot(reader, root);
+  const scoped = await resolveScopedPath(reader, root, path);
+  if ((await reader.inspectProjectPath(root, scoped)).targetKind !== 'file')
+    throw new FsToolError(`文件不存在：${path}`);
+  const target = await visibleTarget(reader, root, path);
+  const { offset = 0, limit = READ_LIMIT_DEFAULT } = options;
+  if (!Number.isSafeInteger(offset) || offset < 0) throw new FsToolError('offset 不能为负数。');
+  if (!Number.isSafeInteger(limit)) throw new FsToolError('limit 必须是整数。');
+  const bounded = Math.min(Math.max(limit, 1), READ_LIMIT_MAX);
+  const content = Array.from((await readBoundedText(reader, root, target)).content);
+  const slice = content.slice(offset, offset + bounded);
+  return {
+    path: target,
+    content: slice.join(''),
+    offset,
+    returned_chars: slice.length,
+    total_chars: content.length,
+    truncated: offset + slice.length < content.length,
+  };
+}
+
+/** 项目内已存在文件的解析后相对路径（越界拒绝）。 */
+export async function resolveProjectFile(
+  reader: ProjectReader,
+  root: string,
+  path: string,
+): Promise<string> {
+  if (typeof path !== 'string' || !pythonStripText(path)) throw new FsToolError('path 不能为空。');
+  await resolveProjectRoot(reader, root);
+  const target = await resolveScopedPath(reader, root, path);
+  if ((await reader.inspectProjectPath(root, target)).targetKind !== 'file')
+    throw new FsToolError(`文件不存在：${path}`);
+  return target;
 }

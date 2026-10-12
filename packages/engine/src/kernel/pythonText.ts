@@ -5,3 +5,14 @@ const TRIM_WHITESPACE = new RegExp(`^${PYTHON_WHITESPACE}+|${PYTHON_WHITESPACE}+
 export function pythonStrip(text: string): string {
   return text.replace(TRIM_WHITESPACE, '');
 }
+
+// str.splitlines(): CRLF, LF, CR, VT, FF, FS, GS, RS, NEL, LS, PS; no trailing empty line.
+const LINE_BREAK = new RegExp(
+  '\r\n|[\n\r\u000b\u000c\u001c\u001d\u001e\u0085' + String.fromCharCode(0x2028, 0x2029) + ']',
+);
+export function pythonSplitlines(text: string): string[] {
+  if (!text) return [];
+  const lines = text.split(LINE_BREAK);
+  if (LINE_BREAK.test(text.slice(-1))) lines.pop();
+  return lines;
+}
