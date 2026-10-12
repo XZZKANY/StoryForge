@@ -7646,3 +7646,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 接受的差异：项目 / 目标身份按词法规范化比较，Python 用 realpath 能把 Windows junction 别名认成同一项目，TS 不认（偏向拒绝，准入路径两侧来自同一串不受影响）；pydantic 校验报错文本是它自己的格式，只比较错误类别；循环读到的文件 relative_path 为 `.` 时 Python 抛 IndexError、TS 按不安全路径跳过；章节上下文里 `1.0` 这类整数值小数按整数渲染（应用写不出，§4.3.1）。
 - 门禁：引擎 11820 通过 / 2 跳过、typecheck 通过；前端 typecheck 通过；eslint、prettier 通过；ruff（新预言机与 golden_dump）通过。Python 业务代码零改动。
 - 未做：P2-3b（引擎侧修订 / 润色门禁 / 续写 / 起草 / 对话 / 测试连接用例）、P2-3c（前端 `assistant.ts` 按开关分流）、P2-4 作者 key 真跑。未读真实作者数据；无付费调用；默认路由仍走 Python。
+
+## 2026-10-12 P2-3b1 assistant 纯函数层（TS 迁移，默认仍走 Python）
+
+- 范围：新增 `packages/engine/src/assistant/`——`continuation.ts`（assistant/continuation 全部纯函数与续写 system 提示）、`revision.ts`（修订提示、扩写授权判定、`reviseText`：生成器由调用方注入，一次生成 → 标点还原 → 作者编辑政策 → 可选 polish 门禁）、`prompts.ts`（service 里的起草 / 对话 system 提示与 user 提示组装）；`kernel/polishing.ts`（patches/polishing + polish_fact_guards：可润色正文切分 / 重建、确定性润色、候选门禁、候选选择、实体错拼与事实矛盾守卫），计划原排 P3-6，修订的 polish 档要用所以提前搬。
+- 预言机：`apps/api/scripts/golden_assistant_pure.py`（`p2-assistant-pure`）188 条用例：常量提示 1、对话 2、起草 6、取窗 / 落点 / 插入 56、续写提示 5、后处理 13、扩写授权 25、修订提示 2、`revise_text` 12（脚本化生成器；失败时也记录生成器调用，区分生成前的政策自检与生成后的检查）、切分 12 + 确定性润色 12、门禁 28、选择 7、错拼 6、重建失配 1。`--check` 两次导出一致。
+- TS 回放：`assistantPure.test.ts` 188 个用例全部一致。
+- 变异：46 处，抓住 42 处。4 处等价：「严重问题增多」被「中级以上同类问题增多」那条完全覆盖；转交事件的名字按长度降序 / 升序（名字后必须紧跟「把」或否定词，锚定的整句匹配会回溯到同一解析）；`actor != recipient`（反向元组与原事件相同时已被「只看新增关系」排除）；续写取窗的 `boundary + 2` 换 `+ 1`（多出的换行随后被剥掉）。首轮 15 处没抓住，补了夹具（混合人称、同类问题升级、句首重复成对、谓语前已有否定、纯空白候选、真能通过门禁的本地 / 在线候选、「不过」开头、调用方给错政策、引号折叠后的标点还原、恰好 8 字的重复开头、半句末尾空白）后抓住 11 处。
+- 发现：Python 文笔扫描的套话表（7 个词）与 craft 的套话表（10 个词）不是同一份，TS 两处已分别照搬，行为一致；不是本刀引入，未改。
+- 门禁：引擎 12008 通过 / 2 跳过、typecheck；前端 typecheck；eslint、prettier；ruff（新预言机与 golden_dump）。Python 业务代码零改动。
+- 未做：P2-3b2（修订 / 续写 / 起草 / 对话 / 测试连接的编排：会话与工具调用证据链经 Python 现有会话接口落库、生成来源记账、模型调用与 SSE 帧）、P2-3c（前端按 `engine.assistant` 分流）、P2-4 真跑。未读真实作者数据；无付费调用；默认路由仍走 Python。
