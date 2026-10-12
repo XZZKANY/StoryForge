@@ -1,0 +1,1611 @@
+{
+  "format_version": 1,
+  "suite": "p1-plans",
+  "platform": "windows",
+  "synthetic_root": "D:\\synthetic-book",
+  "fixed_now": [
+    [
+      2026,
+      10,
+      12,
+      4,
+      30,
+      15,
+      123000
+    ],
+    [
+      2026,
+      10,
+      12,
+      4,
+      30,
+      15,
+      0
+    ]
+  ],
+  "sources": {
+    "app/domains/agent_runs/canon_delta.py": "75d74afaae3ef55f0d74b3013daeda25ddb1085ee416145ef46398e71fbef3df",
+    "app/domains/agent_runs/canon_hooks_delta.py": "60a39d33b40d1bf520b6c499a589f73e62941895e1e4db021d1fbd32554e2608",
+    "app/domains/agent_runs/observatory.py": "e4c20d55f0511976d8a618e06fc73ced3d2f1e1ea21bff905602eb191c6d3294",
+    "app/domains/agent_runs/serial_plan.py": "0e619b39314ffd92dc851d5a6d064fec960b80a683e411aac07abbbf2b9fcb9f",
+    "app/domains/agent_runs/serial_plan_update.py": "55f381445156b9c7dcfc7a585aeabfd8531cc2b57f4aa9ae9e2fb1e18773ceab"
+  },
+  "projects": [
+    {
+      "id": "delta",
+      "files": {
+        ".storyforge/canon/canon.json": {
+          "chunks": [
+            {
+              "base64": "ewogICJ2ZXJzaW9uIjogMSwKICAiZW50aXRpZXMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJjaGFyX2xpbiIsCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmnpfoiJ8iLAogICAgICAiYWxpYXNlcyI6IFsKICAgICAgICAi6Zi/6IifIgogICAgICBdLAogICAgICAia2luZCI6ICLkurrniakiCiAgICB9LAogICAgewogICAgICAiaWQiOiAiY2hhcl9zaGVuIiwKICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuayiOemviIsCiAgICAgICJhbGlhc2VzIjogW10KICAgIH0sCiAgICB7CiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLml6AgaWQg55qE5Lq6IgogICAgfQogIF0sCiAgImludmFyaWFudHMiOiB7CiAgICAic2luZ2xlX2hvbGRlciI6IFsKICAgICAgewogICAgICAgICJpdGVtIjogIuaWremtguWIgCIsCiAgICAgICAgImhvbGRlciI6ICJjaGFyX2xpbiIsCiAgICAgICAgImZyb21fY2hhcHRlciI6IDEsCiAgICAgICAgInRvX2NoYXB0ZXIiOiAzCiAgICAgIH0KICAgIF0sCiAgICAibGlmZXNwYW4iOiBbCiAgICAgIHsKICAgICAgICAiZW50aXR5IjogImNoYXJfc2hlbiIsCiAgICAgICAgImV4aXRzX2FmdGVyX2NoYXB0ZXIiOiAyLAogICAgICAgICJyZWFzb24iOiAi5Z2g5bSWIgogICAgICB9CiAgICBdLAogICAgInByb21pc2VzIjogWwogICAgICB7CiAgICAgICAgImlkIjogInAtb2xkIiwKICAgICAgICAidGl0bGUiOiAi5pen6LSmIiwKICAgICAgICAic3RhdHVzIjogInBsYW50ZWQiLAogICAgICAgICJwbGFudGVkX2NoYXB0ZXIiOiAxLAogICAgICAgICJkdWVfY2hhcHRlciI6IDIKICAgICAgfQogICAgXQogIH0sCiAgImN1c3RvbSI6IHsKICAgICJ3ZWlnaHQiOiAxLjUsCiAgICAibm90ZSI6ICLkvZzogIXoh6rlrprkuYnlrZfmrrXljp/moLfkv53nlZkiCiAgfQp9",
+              "repeat": 1
+            }
+          ]
+        },
+        ".storyforge/canon/hooks.json": {
+          "chunks": [
+            {
+              "base64": "ewogICJ2ZXJzaW9uIjogMSwKICAiaG9va3MiOiBbCiAgICB7CiAgICAgICJpZCI6ICJoMSIsCiAgICAgICJkZXNjcmlwdGlvbiI6ICLkupXlupXnmoTlo7Dpn7PmmK/osIEiLAogICAgICAic3RhdHVzIjogImFjdGl2ZSIKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJoMiIsCiAgICAgICJkZXNjcmlwdGlvbiI6ICLmlq3prYLliIDnmoTkuIvokL0iLAogICAgICAic3RhdHVzIjogInJlc29sdmVkIgogICAgfSwKICAgIHsKICAgICAgImlkIjogImgzIiwKICAgICAgInN0YXR1cyI6ICJhY3RpdmUiCiAgICB9CiAgXQp9",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/第001章.md": {
+          "chunks": [
+            {
+              "base64": "5p6X6Iif6YaS5p2l77yM6Zi/6Iif6Zi/6Iif77yM5rKI56a+5ZaK5LuW44CC5LuW5LiN56aB5LqU5ZGz5p2C6ZmI44CC5beh5aSc5Lq65o+Q54Gv6LWw6L+H44CC",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/第002章.md": {
+          "chunks": [
+            {
+              "base64": "5rKI56a+5Z2g5bSW44CC5p6X6Iif5o6o6Zeo6LWw5Ye65Y6777yM55yL5LqG5LiA55y844CC",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/第003章.md": {
+          "chunks": [
+            {
+              "base64": "5rKI56a+5Y+I5Ye6546w5LqG44CC5LiO5q2k5ZCM5pe277yM6aG+6L+f6LaK6L+H5pat5qGl44CCCuWPpuS4gOi+ue+8jOayiOemvuaOqOW8gOS7k+mXqOOAggrplZzlpLTkuIDovazvvIzlt6HlpJzkurrmirXovr7pkp/mpbzjgII=",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "read_pending_proposals",
+          "args": {},
+          "output_json": "{\"available\": false, \"new_entities\": [], \"new_invariants\": {}, \"pending_count\": 0}",
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "entities": [
+              {
+                "name": "林舟"
+              },
+              {
+                "name": " 阿舟 ",
+                "aliases": [
+                  "沈禾"
+                ]
+              },
+              {
+                "name": "巡夜人",
+                "aliases": [
+                  " 老周 ",
+                  "巡夜人",
+                  ""
+                ],
+                "assertion_type": "text_observation",
+                "evidence": [
+                  {
+                    "quote": "巡夜人提灯走过",
+                    "path": "正文/第001章.md",
+                    "start_line": 1
+                  }
+                ]
+              },
+              {
+                "name": "巡夜人",
+                "aliases": [
+                  "守夜的"
+                ],
+                "assertion_type": "text_observation",
+                "evidence": [
+                  {
+                    "quote": "巡夜人提灯走过",
+                    "path": "正文/第001章.md",
+                    "start_line": 1
+                  }
+                ]
+              },
+              {
+                "name": "铜钟"
+              }
+            ],
+            "holder_claims": [
+              {
+                "item": "断魂刀",
+                "holder": "ent_ghost",
+                "from_chapter": 2
+              },
+              {
+                "item": "断魂刀",
+                "holder": "char_lin",
+                "from_chapter": 1,
+                "to_chapter": 3
+              }
+            ],
+            "exit_claims": [
+              {
+                "entity": "char_lin",
+                "exits_after_chapter": 1,
+                "reason": " 坠崖 ",
+                "assertion_type": "model_inference"
+              }
+            ],
+            "timeline_claims": [
+              {
+                "before": "血月夜",
+                "after": "登基"
+              },
+              {
+                "before": "登基",
+                "after": "血月夜"
+              }
+            ],
+            "promise_claims": [
+              {
+                "title": " 井底的声音 ",
+                "planted_chapter": 1
+              },
+              {
+                "title": "铜钟何时再响",
+                "planted_chapter": 2,
+                "id": "p-bell",
+                "status": "advancing",
+                "due_chapter": null,
+                "cadence_chapters": 3,
+                "kind": "recurring",
+                "resolved_chapter": 5
+              },
+              {
+                "title": "铜钟何时再响",
+                "planted_chapter": 2,
+                "id": "",
+                "status": "",
+                "due_chapter": 4
+              }
+            ]
+          },
+          "args_json": "{\"entities\": [{\"name\": \"林舟\"}, {\"name\": \" 阿舟 \", \"aliases\": [\"沈禾\"]}, {\"name\": \"巡夜人\", \"aliases\": [\" 老周 \", \"巡夜人\", \"\"], \"assertion_type\": \"text_observation\", \"evidence\": [{\"quote\": \"巡夜人提灯走过\", \"path\": \"正文/第001章.md\", \"start_line\": 1}]}, {\"name\": \"巡夜人\", \"aliases\": [\"守夜的\"], \"assertion_type\": \"text_observation\", \"evidence\": [{\"quote\": \"巡夜人提灯走过\", \"path\": \"正文/第001章.md\", \"start_line\": 1}]}, {\"name\": \"铜钟\"}], \"holder_claims\": [{\"item\": \"断魂刀\", \"holder\": \"ent_ghost\", \"from_chapter\": 2}, {\"item\": \"断魂刀\", \"holder\": \"char_lin\", \"from_chapter\": 1, \"to_chapter\": 3}], \"exit_claims\": [{\"entity\": \"char_lin\", \"exits_after_chapter\": 1, \"reason\": \" 坠崖 \", \"assertion_type\": \"model_inference\"}], \"timeline_claims\": [{\"before\": \"血月夜\", \"after\": \"登基\"}, {\"before\": \"登基\", \"after\": \"血月夜\"}], \"promise_claims\": [{\"title\": \" 井底的声音 \", \"planted_chapter\": 1}, {\"title\": \"铜钟何时再响\", \"planted_chapter\": 2, \"id\": \"p-bell\", \"status\": \"advancing\", \"due_chapter\": null, \"cadence_chapters\": 3, \"kind\": \"recurring\", \"resolved_chapter\": 5}, {\"title\": \"铜钟何时再响\", \"planted_chapter\": 2, \"id\": \"\", \"status\": \"\", \"due_chapter\": 4}]}",
+          "output_json": "{\"cache_status\": \"verified\", \"proposals\": {\"new_entities\": [{\"id\": \"ent_4b30d188\", \"canonical_name\": \"巡夜人\", \"aliases\": [\"老周\", \"守夜的\"], \"assertion_type\": \"text_observation\", \"evidence\": [{\"quote\": \"巡夜人提灯走过\", \"path\": \"正文/第001章.md\", \"start_line\": 1}]}, {\"id\": \"ent_7e97b030\", \"canonical_name\": \"铜钟\", \"aliases\": []}], \"known_entities\": [{\"name\": \"林舟\", \"aliases\": [], \"matched_id\": \"char_lin\"}, {\"name\": \"阿舟\", \"aliases\": [\"沈禾\"], \"matched_ids\": [\"char_lin\", \"char_shen\"]}], \"holder_claims\": [{\"item\": \"断魂刀\", \"holder\": \"ent_ghost\", \"from_chapter\": 2}, {\"item\": \"断魂刀\", \"holder\": \"char_lin\", \"from_chapter\": 1, \"to_chapter\": 3}], \"exit_claims\": [{\"entity\": \"char_lin\", \"exits_after_chapter\": 1, \"reason\": \"坠崖\", \"assertion_type\": \"model_inference\"}], \"timeline_claims\": [{\"before\": \"血月夜\", \"after\": \"登基\"}, {\"before\": \"登基\", \"after\": \"血月夜\"}], \"promise_claims\": [{\"id\": \"promise_413a127e\", \"title\": \"井底的声音\", \"planted_chapter\": 1, \"status\": \"planted\"}, {\"id\": \"p-bell\", \"title\": \"铜钟何时再响\", \"planted_chapter\": 2, \"status\": \"advancing\", \"due_chapter\": null, \"resolved_chapter\": 5, \"cadence_chapters\": 3, \"kind\": \"recurring\"}, {\"id\": \"promise_545cdc6e\", \"title\": \"铜钟何时再响\", \"planted_chapter\": 2, \"status\": \"planted\", \"due_chapter\": 4}]}, \"alias_conflicts\": [{\"rule\": \"alias_conflict\", \"severity\": \"advisory\", \"detail\": \"同一提议实体的名称或别名命中多个既有实体，请作者核实身份归属。\", \"snippet\": \"阿舟、沈禾\", \"matched_ids\": [\"char_lin\", \"char_shen\"]}], \"new_conflicts\": [{\"id\": \"canon_9800edd1029c\", \"category\": \"single_holder\", \"severity\": \"blocking\", \"item\": \"断魂刀\", \"holders\": [\"char_lin\", \"ent_ghost\"], \"message\": \"唯一持有冲突：「断魂刀」在交叠章节窗口内同时被 char_lin 与 ent_ghost 持有。\"}, {\"id\": \"canon_c4ba68689d74\", \"category\": \"timeline_order\", \"severity\": \"blocking\", \"cycle\": [\"血月夜\", \"登基\", \"血月夜\"], \"message\": \"时间线先后声明成环：血月夜 → 登基 → 血月夜，无法确定一致的先后顺序。\"}], \"new_advisories\": [{\"id\": \"canon_ab4bfb4f454e\", \"category\": \"lifespan\", \"severity\": \"medium\", \"entity\": \"char_lin\", \"exits_after_chapter\": 1, \"hits\": [{\"path\": \"正文/第002章.md\", \"chapter\": 2, \"first_line\": 1}], \"message\": \"林舟 声明在第 1 章后退场（声明原因：坠崖），但正文在其后章节仍出现其表面形（1 处）。可能是回忆 / 提及 / 同名，请抽读核实。\"}], \"summary\": \"canon_delta 生成 12 条提议，发现 1 个别名冲突、2 个新增硬矛盾、1 个新增 advisory；canon.json 未改动，请审阅 proposals.json 草稿。\"}",
+          "writes": {
+            ".storyforge/canon/derived/presence.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAiZW50aXRpZXMiOiBbDQogICAgew0KICAgICAgImlkIjogImNoYXJfbGluIiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmnpfoiJ8iLA0KICAgICAgInN1cmZhY2VfZm9ybXMiOiBbDQogICAgICAgICLmnpfoiJ8iLA0KICAgICAgICAi6Zi/6IifIg0KICAgICAgXSwNCiAgICAgICJ0b3RhbF9jb3VudCI6IDQsDQogICAgICAibWlzc2luZyI6IGZhbHNlLA0KICAgICAgImZpcnN0X2NoYXB0ZXIiOiAxLA0KICAgICAgImxhc3RfY2hhcHRlciI6IDIsDQogICAgICAib2NjdXJyZW5jZXMiOiBbDQogICAgICAgIHsNCiAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAx56ugLm1kIiwNCiAgICAgICAgICAiY2hhcHRlciI6IDEsDQogICAgICAgICAgImNvdW50IjogMywNCiAgICAgICAgICAiZmlyc3RfbGluZSI6IDEsDQogICAgICAgICAgIm1hdGNoZWRfZm9ybXMiOiBbDQogICAgICAgICAgICAi5p6X6IifIiwNCiAgICAgICAgICAgICLpmL/oiJ8iDQogICAgICAgICAgXQ0KICAgICAgICB9LA0KICAgICAgICB7DQogICAgICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwMueroC5tZCIsDQogICAgICAgICAgImNoYXB0ZXIiOiAyLA0KICAgICAgICAgICJjb3VudCI6IDEsDQogICAgICAgICAgImZpcnN0X2xpbmUiOiAxLA0KICAgICAgICAgICJtYXRjaGVkX2Zvcm1zIjogWw0KICAgICAgICAgICAgIuael+iInyINCiAgICAgICAgICBdDQogICAgICAgIH0NCiAgICAgIF0NCiAgICB9LA0KICAgIHsNCiAgICAgICJpZCI6ICJjaGFyX3NoZW4iLA0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuayiOemviIsDQogICAgICAic3VyZmFjZV9mb3JtcyI6IFsNCiAgICAgICAgIuayiOemviINCiAgICAgIF0sDQogICAgICAidG90YWxfY291bnQiOiA0LA0KICAgICAgIm1pc3NpbmciOiBmYWxzZSwNCiAgICAgICJmaXJzdF9jaGFwdGVyIjogMSwNCiAgICAgICJsYXN0X2NoYXB0ZXIiOiAzLA0KICAgICAgIm9jY3VycmVuY2VzIjogWw0KICAgICAgICB7DQogICAgICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwMeeroC5tZCIsDQogICAgICAgICAgImNoYXB0ZXIiOiAxLA0KICAgICAgICAgICJjb3VudCI6IDEsDQogICAgICAgICAgImZpcnN0X2xpbmUiOiAxLA0KICAgICAgICAgICJtYXRjaGVkX2Zvcm1zIjogWw0KICAgICAgICAgICAgIuayiOemviINCiAgICAgICAgICBdDQogICAgICAgIH0sDQogICAgICAgIHsNCiAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAy56ugLm1kIiwNCiAgICAgICAgICAiY2hhcHRlciI6IDIsDQogICAgICAgICAgImNvdW50IjogMSwNCiAgICAgICAgICAiZmlyc3RfbGluZSI6IDEsDQogICAgICAgICAgIm1hdGNoZWRfZm9ybXMiOiBbDQogICAgICAgICAgICAi5rKI56a+Ig0KICAgICAgICAgIF0NCiAgICAgICAgfSwNCiAgICAgICAgew0KICAgICAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDPnq6AubWQiLA0KICAgICAgICAgICJjaGFwdGVyIjogMywNCiAgICAgICAgICAiY291bnQiOiAyLA0KICAgICAgICAgICJmaXJzdF9saW5lIjogMSwNCiAgICAgICAgICAibWF0Y2hlZF9mb3JtcyI6IFsNCiAgICAgICAgICAgICLmsojnpr4iDQogICAgICAgICAgXQ0KICAgICAgICB9DQogICAgICBdDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiBudWxsLA0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuaXoCBpZCDnmoTkuroiLA0KICAgICAgInN1cmZhY2VfZm9ybXMiOiBbDQogICAgICAgICLml6AgaWQg55qE5Lq6Ig0KICAgICAgXSwNCiAgICAgICJ0b3RhbF9jb3VudCI6IDAsDQogICAgICAibWlzc2luZyI6IHRydWUsDQogICAgICAiZmlyc3RfY2hhcHRlciI6IG51bGwsDQogICAgICAibGFzdF9jaGFwdGVyIjogbnVsbCwNCiAgICAgICJvY2N1cnJlbmNlcyI6IFtdDQogICAgfQ0KICBdLA0KICAiY2hhcHRlcl9jb3VudCI6IDMsDQogICJzY2FubmVkX2ZpbGVzIjogMywNCiAgInRlcm1zX3RydW5jYXRlZCI6IGZhbHNlLA0KICAiX3N0b3J5Zm9yZ2Vfc291cmNlX3JldmlzaW9uIjogImNhbm9uLXdyaXRlYmFjay12MTo5OWRkNmVkODk1NWUyODJhZGEzNWNiMmU0YjI2YmYxNzViNGMxOTc2YTE4NmVjYWI4MzFlYTg1MTFiMzk0OGQxIg0KfQ==",
+                  "repeat": 1
+                }
+              ]
+            },
+            ".storyforge/canon/derived/proposals.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAidmVyc2lvbiI6IDEsDQogICJlbnRpdGllcyI6IFsNCiAgICB7DQogICAgICAiaWQiOiAiY2hhcl9saW4iLA0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuael+iInyIsDQogICAgICAiYWxpYXNlcyI6IFsNCiAgICAgICAgIumYv+iInyINCiAgICAgIF0sDQogICAgICAia2luZCI6ICLkurrniakiDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAiY2hhcl9zaGVuIiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmsojnpr4iLA0KICAgICAgImFsaWFzZXMiOiBbXQ0KICAgIH0sDQogICAgew0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuaXoCBpZCDnmoTkuroiDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAiZW50XzRiMzBkMTg4IiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLlt6HlpJzkuroiLA0KICAgICAgImFsaWFzZXMiOiBbDQogICAgICAgICLogIHlkagiLA0KICAgICAgICAi5a6I5aSc55qEIg0KICAgICAgXSwNCiAgICAgICJhc3NlcnRpb25fdHlwZSI6ICJ0ZXh0X29ic2VydmF0aW9uIiwNCiAgICAgICJldmlkZW5jZSI6IFsNCiAgICAgICAgew0KICAgICAgICAgICJxdW90ZSI6ICLlt6HlpJzkurrmj5Dnga/otbDov4ciLA0KICAgICAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDHnq6AubWQiLA0KICAgICAgICAgICJzdGFydF9saW5lIjogMQ0KICAgICAgICB9DQogICAgICBdDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAiZW50XzdlOTdiMDMwIiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLpk5zpkp8iLA0KICAgICAgImFsaWFzZXMiOiBbXQ0KICAgIH0NCiAgXSwNCiAgImludmFyaWFudHMiOiB7DQogICAgInNpbmdsZV9ob2xkZXIiOiBbDQogICAgICB7DQogICAgICAgICJpdGVtIjogIuaWremtguWIgCIsDQogICAgICAgICJob2xkZXIiOiAiY2hhcl9saW4iLA0KICAgICAgICAiZnJvbV9jaGFwdGVyIjogMSwNCiAgICAgICAgInRvX2NoYXB0ZXIiOiAzDQogICAgICB9LA0KICAgICAgew0KICAgICAgICAiaXRlbSI6ICLmlq3prYLliIAiLA0KICAgICAgICAiaG9sZGVyIjogImVudF9naG9zdCIsDQogICAgICAgICJmcm9tX2NoYXB0ZXIiOiAyDQogICAgICB9DQogICAgXSwNCiAgICAibGlmZXNwYW4iOiBbDQogICAgICB7DQogICAgICAgICJlbnRpdHkiOiAiY2hhcl9zaGVuIiwNCiAgICAgICAgImV4aXRzX2FmdGVyX2NoYXB0ZXIiOiAyLA0KICAgICAgICAicmVhc29uIjogIuWdoOW0liINCiAgICAgIH0sDQogICAgICB7DQogICAgICAgICJlbnRpdHkiOiAiY2hhcl9saW4iLA0KICAgICAgICAiZXhpdHNfYWZ0ZXJfY2hhcHRlciI6IDEsDQogICAgICAgICJyZWFzb24iOiAi5Z2g5bSWIiwNCiAgICAgICAgImFzc2VydGlvbl90eXBlIjogIm1vZGVsX2luZmVyZW5jZSINCiAgICAgIH0NCiAgICBdLA0KICAgICJwcm9taXNlcyI6IFsNCiAgICAgIHsNCiAgICAgICAgImlkIjogInAtb2xkIiwNCiAgICAgICAgInRpdGxlIjogIuaXp+i0piIsDQogICAgICAgICJzdGF0dXMiOiAicGxhbnRlZCIsDQogICAgICAgICJwbGFudGVkX2NoYXB0ZXIiOiAxLA0KICAgICAgICAiZHVlX2NoYXB0ZXIiOiAyDQogICAgICB9LA0KICAgICAgew0KICAgICAgICAiaWQiOiAicHJvbWlzZV80MTNhMTI3ZSIsDQogICAgICAgICJ0aXRsZSI6ICLkupXlupXnmoTlo7Dpn7MiLA0KICAgICAgICAicGxhbnRlZF9jaGFwdGVyIjogMSwNCiAgICAgICAgInN0YXR1cyI6ICJwbGFudGVkIg0KICAgICAgfSwNCiAgICAgIHsNCiAgICAgICAgImlkIjogInAtYmVsbCIsDQogICAgICAgICJ0aXRsZSI6ICLpk5zpkp/kvZXml7blho3lk40iLA0KICAgICAgICAicGxhbnRlZF9jaGFwdGVyIjogMiwNCiAgICAgICAgInN0YXR1cyI6ICJhZHZhbmNpbmciLA0KICAgICAgICAiZHVlX2NoYXB0ZXIiOiBudWxsLA0KICAgICAgICAicmVzb2x2ZWRfY2hhcHRlciI6IDUsDQogICAgICAgICJjYWRlbmNlX2NoYXB0ZXJzIjogMywNCiAgICAgICAgImtpbmQiOiAicmVjdXJyaW5nIg0KICAgICAgfSwNCiAgICAgIHsNCiAgICAgICAgImlkIjogInByb21pc2VfNTQ1Y2RjNmUiLA0KICAgICAgICAidGl0bGUiOiAi6ZOc6ZKf5L2V5pe25YaN5ZONIiwNCiAgICAgICAgInBsYW50ZWRfY2hhcHRlciI6IDIsDQogICAgICAgICJzdGF0dXMiOiAicGxhbnRlZCIsDQogICAgICAgICJkdWVfY2hhcHRlciI6IDQNCiAgICAgIH0NCiAgICBdLA0KICAgICJ0aW1lbGluZV9vcmRlciI6IFsNCiAgICAgIHsNCiAgICAgICAgImJlZm9yZSI6ICLooYDmnIjlpJwiLA0KICAgICAgICAiYWZ0ZXIiOiAi55m75Z+6Ig0KICAgICAgfSwNCiAgICAgIHsNCiAgICAgICAgImJlZm9yZSI6ICLnmbvln7oiLA0KICAgICAgICAiYWZ0ZXIiOiAi6KGA5pyI5aScIg0KICAgICAgfQ0KICAgIF0NCiAgfSwNCiAgImN1c3RvbSI6IHsNCiAgICAid2VpZ2h0IjogMS41LA0KICAgICJub3RlIjogIuS9nOiAheiHquWumuS5ieWtl+auteWOn+agt+S/neeVmSINCiAgfQ0KfQ==",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fn": "canon_delta",
+          "args": {},
+          "args_json": "{}",
+          "output_json": "{\"cache_status\": \"verified\", \"proposals\": {\"new_entities\": [], \"known_entities\": [], \"holder_claims\": [], \"exit_claims\": [], \"timeline_claims\": [], \"promise_claims\": []}, \"alias_conflicts\": [], \"new_conflicts\": [{\"id\": \"canon_9800edd1029c\", \"category\": \"single_holder\", \"severity\": \"blocking\", \"item\": \"断魂刀\", \"holders\": [\"char_lin\", \"ent_ghost\"], \"message\": \"唯一持有冲突：「断魂刀」在交叠章节窗口内同时被 char_lin 与 ent_ghost 持有。\"}, {\"id\": \"canon_c4ba68689d74\", \"category\": \"timeline_order\", \"severity\": \"blocking\", \"cycle\": [\"血月夜\", \"登基\", \"血月夜\"], \"message\": \"时间线先后声明成环：血月夜 → 登基 → 血月夜，无法确定一致的先后顺序。\"}], \"new_advisories\": [{\"id\": \"canon_ab4bfb4f454e\", \"category\": \"lifespan\", \"severity\": \"medium\", \"entity\": \"char_lin\", \"exits_after_chapter\": 1, \"hits\": [{\"path\": \"正文/第002章.md\", \"chapter\": 2, \"first_line\": 1}], \"message\": \"林舟 声明在第 1 章后退场（声明原因：坠崖），但正文在其后章节仍出现其表面形（1 处）。可能是回忆 / 提及 / 同名，请抽读核实。\"}], \"summary\": \"本章没有 canon 事实提议；canon.json 未改动。\"}",
+          "writes": {}
+        },
+        {
+          "fn": "read_pending_proposals",
+          "args": {},
+          "output_json": "{\"available\": true, \"new_entities\": [{\"id\": \"ent_4b30d188\", \"canonical_name\": \"巡夜人\", \"aliases\": [\"老周\", \"守夜的\"], \"assertion_type\": \"text_observation\", \"evidence\": [{\"quote\": \"巡夜人提灯走过\", \"path\": \"正文/第001章.md\", \"start_line\": 1}]}, {\"id\": \"ent_7e97b030\", \"canonical_name\": \"铜钟\", \"aliases\": []}], \"new_invariants\": {\"single_holder\": [{\"item\": \"断魂刀\", \"holder\": \"ent_ghost\", \"from_chapter\": 2}], \"lifespan\": [{\"entity\": \"char_lin\", \"exits_after_chapter\": 1, \"reason\": \"坠崖\", \"assertion_type\": \"model_inference\"}], \"timeline_order\": [{\"before\": \"血月夜\", \"after\": \"登基\"}, {\"before\": \"登基\", \"after\": \"血月夜\"}], \"promises\": [{\"id\": \"promise_413a127e\", \"title\": \"井底的声音\", \"planted_chapter\": 1, \"status\": \"planted\"}, {\"id\": \"p-bell\", \"title\": \"铜钟何时再响\", \"planted_chapter\": 2, \"status\": \"advancing\", \"due_chapter\": null, \"resolved_chapter\": 5, \"cadence_chapters\": 3, \"kind\": \"recurring\"}, {\"id\": \"promise_545cdc6e\", \"title\": \"铜钟何时再响\", \"planted_chapter\": 2, \"status\": \"planted\", \"due_chapter\": 4}]}, \"pending_count\": 9}",
+          "writes": {}
+        },
+        {
+          "fn": "author_write",
+          "args": {
+            "path": ".storyforge/canon/canon.json"
+          },
+          "writes": {
+            ".storyforge/canon/canon.json": {
+              "chunks": [
+                {
+                  "base64": "ewogICJ2ZXJzaW9uIjogMSwKICAiZW50aXRpZXMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJjaGFyX2xpbiIsCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmnpfoiJ8iLAogICAgICAiYWxpYXNlcyI6IFsKICAgICAgICAi6Zi/6IifIgogICAgICBdLAogICAgICAia2luZCI6ICLkurrniakiCiAgICB9LAogICAgewogICAgICAiaWQiOiAiY2hhcl9zaGVuIiwKICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuayiOemviIsCiAgICAgICJhbGlhc2VzIjogW10KICAgIH0sCiAgICB7CiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLml6AgaWQg55qE5Lq6IgogICAgfSwKICAgIHsKICAgICAgImlkIjogImVudF83ZTk3YjAzMCIsCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLpk5zpkp8iLAogICAgICAiYWxpYXNlcyI6IFtdCiAgICB9CiAgXSwKICAiaW52YXJpYW50cyI6IHsKICAgICJzaW5nbGVfaG9sZGVyIjogWwogICAgICB7CiAgICAgICAgIml0ZW0iOiAi5pat6a2C5YiAIiwKICAgICAgICAiaG9sZGVyIjogImNoYXJfbGluIiwKICAgICAgICAiZnJvbV9jaGFwdGVyIjogMSwKICAgICAgICAidG9fY2hhcHRlciI6IDMKICAgICAgfQogICAgXSwKICAgICJsaWZlc3BhbiI6IFsKICAgICAgewogICAgICAgICJlbnRpdHkiOiAiY2hhcl9zaGVuIiwKICAgICAgICAiZXhpdHNfYWZ0ZXJfY2hhcHRlciI6IDIsCiAgICAgICAgInJlYXNvbiI6ICLlnaDltJYiCiAgICAgIH0KICAgIF0sCiAgICAicHJvbWlzZXMiOiBbCiAgICAgIHsKICAgICAgICAiaWQiOiAicC1vbGQiLAogICAgICAgICJ0aXRsZSI6ICLml6fotKYiLAogICAgICAgICJzdGF0dXMiOiAicGxhbnRlZCIsCiAgICAgICAgInBsYW50ZWRfY2hhcHRlciI6IDEsCiAgICAgICAgImR1ZV9jaGFwdGVyIjogMgogICAgICB9CiAgICBdLAogICAgInRpbWVsaW5lX29yZGVyIjogWwogICAgICB7CiAgICAgICAgImJlZm9yZSI6ICLooYDmnIjlpJwiLAogICAgICAgICJhZnRlciI6ICLnmbvln7oiCiAgICAgIH0KICAgIF0KICB9LAogICJjdXN0b20iOiB7CiAgICAid2VpZ2h0IjogMS41LAogICAgIm5vdGUiOiAi5L2c6ICF6Ieq5a6a5LmJ5a2X5q615Y6f5qC35L+d55WZIgogIH0KfQ==",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fn": "read_pending_proposals",
+          "args": {},
+          "output_json": "{\"available\": true, \"new_entities\": [{\"id\": \"ent_4b30d188\", \"canonical_name\": \"巡夜人\", \"aliases\": [\"老周\", \"守夜的\"], \"assertion_type\": \"text_observation\", \"evidence\": [{\"quote\": \"巡夜人提灯走过\", \"path\": \"正文/第001章.md\", \"start_line\": 1}]}], \"new_invariants\": {\"single_holder\": [{\"item\": \"断魂刀\", \"holder\": \"ent_ghost\", \"from_chapter\": 2}], \"lifespan\": [{\"entity\": \"char_lin\", \"exits_after_chapter\": 1, \"reason\": \"坠崖\", \"assertion_type\": \"model_inference\"}], \"timeline_order\": [{\"before\": \"登基\", \"after\": \"血月夜\"}], \"promises\": [{\"id\": \"promise_413a127e\", \"title\": \"井底的声音\", \"planted_chapter\": 1, \"status\": \"planted\"}, {\"id\": \"p-bell\", \"title\": \"铜钟何时再响\", \"planted_chapter\": 2, \"status\": \"advancing\", \"due_chapter\": null, \"resolved_chapter\": 5, \"cadence_chapters\": 3, \"kind\": \"recurring\"}, {\"id\": \"promise_545cdc6e\", \"title\": \"铜钟何时再响\", \"planted_chapter\": 2, \"status\": \"planted\", \"due_chapter\": 4}]}, \"pending_count\": 7}",
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "entities": [
+              {
+                "name": "铜钟"
+              },
+              {
+                "name": "铜钟",
+                "aliases": [
+                  "铜"
+                ]
+              }
+            ],
+            "promise_claims": [
+              {
+                "title": "旧账",
+                "planted_chapter": 1,
+                "id": "p-old"
+              }
+            ]
+          },
+          "args_json": "{\"entities\": [{\"name\": \"铜钟\"}, {\"name\": \"铜钟\", \"aliases\": [\"铜\"]}], \"promise_claims\": [{\"title\": \"旧账\", \"planted_chapter\": 1, \"id\": \"p-old\"}]}",
+          "output_json": "{\"cache_status\": \"verified\", \"proposals\": {\"new_entities\": [], \"known_entities\": [{\"name\": \"铜钟\", \"aliases\": [], \"matched_id\": \"ent_7e97b030\"}, {\"name\": \"铜钟\", \"aliases\": [\"铜\"], \"matched_id\": \"ent_7e97b030\"}], \"holder_claims\": [], \"exit_claims\": [], \"timeline_claims\": [], \"promise_claims\": [{\"id\": \"p-old\", \"title\": \"旧账\", \"planted_chapter\": 1, \"status\": \"planted\"}]}, \"alias_conflicts\": [], \"new_conflicts\": [{\"id\": \"canon_9800edd1029c\", \"category\": \"single_holder\", \"severity\": \"blocking\", \"item\": \"断魂刀\", \"holders\": [\"char_lin\", \"ent_ghost\"], \"message\": \"唯一持有冲突：「断魂刀」在交叠章节窗口内同时被 char_lin 与 ent_ghost 持有。\"}, {\"id\": \"canon_c4ba68689d74\", \"category\": \"timeline_order\", \"severity\": \"blocking\", \"cycle\": [\"血月夜\", \"登基\", \"血月夜\"], \"message\": \"时间线先后声明成环：血月夜 → 登基 → 血月夜，无法确定一致的先后顺序。\"}], \"new_advisories\": [{\"id\": \"canon_ab4bfb4f454e\", \"category\": \"lifespan\", \"severity\": \"medium\", \"entity\": \"char_lin\", \"exits_after_chapter\": 1, \"hits\": [{\"path\": \"正文/第002章.md\", \"chapter\": 2, \"first_line\": 1}], \"message\": \"林舟 声明在第 1 章后退场（声明原因：坠崖），但正文在其后章节仍出现其表面形（1 处）。可能是回忆 / 提及 / 同名，请抽读核实。\"}], \"summary\": \"canon_delta 生成 3 条提议，发现 0 个别名冲突、2 个新增硬矛盾、1 个新增 advisory；canon.json 未改动，请审阅 proposals.json 草稿。\"}",
+          "writes": {
+            ".storyforge/canon/derived/presence.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAiZW50aXRpZXMiOiBbDQogICAgew0KICAgICAgImlkIjogImNoYXJfbGluIiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmnpfoiJ8iLA0KICAgICAgInN1cmZhY2VfZm9ybXMiOiBbDQogICAgICAgICLmnpfoiJ8iLA0KICAgICAgICAi6Zi/6IifIg0KICAgICAgXSwNCiAgICAgICJ0b3RhbF9jb3VudCI6IDQsDQogICAgICAibWlzc2luZyI6IGZhbHNlLA0KICAgICAgImZpcnN0X2NoYXB0ZXIiOiAxLA0KICAgICAgImxhc3RfY2hhcHRlciI6IDIsDQogICAgICAib2NjdXJyZW5jZXMiOiBbDQogICAgICAgIHsNCiAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAx56ugLm1kIiwNCiAgICAgICAgICAiY2hhcHRlciI6IDEsDQogICAgICAgICAgImNvdW50IjogMywNCiAgICAgICAgICAiZmlyc3RfbGluZSI6IDEsDQogICAgICAgICAgIm1hdGNoZWRfZm9ybXMiOiBbDQogICAgICAgICAgICAi5p6X6IifIiwNCiAgICAgICAgICAgICLpmL/oiJ8iDQogICAgICAgICAgXQ0KICAgICAgICB9LA0KICAgICAgICB7DQogICAgICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwMueroC5tZCIsDQogICAgICAgICAgImNoYXB0ZXIiOiAyLA0KICAgICAgICAgICJjb3VudCI6IDEsDQogICAgICAgICAgImZpcnN0X2xpbmUiOiAxLA0KICAgICAgICAgICJtYXRjaGVkX2Zvcm1zIjogWw0KICAgICAgICAgICAgIuael+iInyINCiAgICAgICAgICBdDQogICAgICAgIH0NCiAgICAgIF0NCiAgICB9LA0KICAgIHsNCiAgICAgICJpZCI6ICJjaGFyX3NoZW4iLA0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuayiOemviIsDQogICAgICAic3VyZmFjZV9mb3JtcyI6IFsNCiAgICAgICAgIuayiOemviINCiAgICAgIF0sDQogICAgICAidG90YWxfY291bnQiOiA0LA0KICAgICAgIm1pc3NpbmciOiBmYWxzZSwNCiAgICAgICJmaXJzdF9jaGFwdGVyIjogMSwNCiAgICAgICJsYXN0X2NoYXB0ZXIiOiAzLA0KICAgICAgIm9jY3VycmVuY2VzIjogWw0KICAgICAgICB7DQogICAgICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwMeeroC5tZCIsDQogICAgICAgICAgImNoYXB0ZXIiOiAxLA0KICAgICAgICAgICJjb3VudCI6IDEsDQogICAgICAgICAgImZpcnN0X2xpbmUiOiAxLA0KICAgICAgICAgICJtYXRjaGVkX2Zvcm1zIjogWw0KICAgICAgICAgICAgIuayiOemviINCiAgICAgICAgICBdDQogICAgICAgIH0sDQogICAgICAgIHsNCiAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAy56ugLm1kIiwNCiAgICAgICAgICAiY2hhcHRlciI6IDIsDQogICAgICAgICAgImNvdW50IjogMSwNCiAgICAgICAgICAiZmlyc3RfbGluZSI6IDEsDQogICAgICAgICAgIm1hdGNoZWRfZm9ybXMiOiBbDQogICAgICAgICAgICAi5rKI56a+Ig0KICAgICAgICAgIF0NCiAgICAgICAgfSwNCiAgICAgICAgew0KICAgICAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDPnq6AubWQiLA0KICAgICAgICAgICJjaGFwdGVyIjogMywNCiAgICAgICAgICAiY291bnQiOiAyLA0KICAgICAgICAgICJmaXJzdF9saW5lIjogMSwNCiAgICAgICAgICAibWF0Y2hlZF9mb3JtcyI6IFsNCiAgICAgICAgICAgICLmsojnpr4iDQogICAgICAgICAgXQ0KICAgICAgICB9DQogICAgICBdDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiBudWxsLA0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuaXoCBpZCDnmoTkuroiLA0KICAgICAgInN1cmZhY2VfZm9ybXMiOiBbDQogICAgICAgICLml6AgaWQg55qE5Lq6Ig0KICAgICAgXSwNCiAgICAgICJ0b3RhbF9jb3VudCI6IDAsDQogICAgICAibWlzc2luZyI6IHRydWUsDQogICAgICAiZmlyc3RfY2hhcHRlciI6IG51bGwsDQogICAgICAibGFzdF9jaGFwdGVyIjogbnVsbCwNCiAgICAgICJvY2N1cnJlbmNlcyI6IFtdDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAiZW50XzdlOTdiMDMwIiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLpk5zpkp8iLA0KICAgICAgInN1cmZhY2VfZm9ybXMiOiBbDQogICAgICAgICLpk5zpkp8iDQogICAgICBdLA0KICAgICAgInRvdGFsX2NvdW50IjogMCwNCiAgICAgICJtaXNzaW5nIjogdHJ1ZSwNCiAgICAgICJmaXJzdF9jaGFwdGVyIjogbnVsbCwNCiAgICAgICJsYXN0X2NoYXB0ZXIiOiBudWxsLA0KICAgICAgIm9jY3VycmVuY2VzIjogW10NCiAgICB9DQogIF0sDQogICJjaGFwdGVyX2NvdW50IjogMywNCiAgInNjYW5uZWRfZmlsZXMiOiAzLA0KICAidGVybXNfdHJ1bmNhdGVkIjogZmFsc2UsDQogICJfc3Rvcnlmb3JnZV9zb3VyY2VfcmV2aXNpb24iOiAiY2Fub24td3JpdGViYWNrLXYxOmE5NjFiMGY5YjEzMzExMjU3ZDYxMzdiMzc5Mjk3YTE2YzlhOGViMWM4NzljYTlkMGE2MTUzMDJiYmQ5YmY3MTIiDQp9",
+                  "repeat": 1
+                }
+              ]
+            },
+            ".storyforge/canon/derived/proposals.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAidmVyc2lvbiI6IDEsDQogICJlbnRpdGllcyI6IFsNCiAgICB7DQogICAgICAiaWQiOiAiY2hhcl9saW4iLA0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuael+iInyIsDQogICAgICAiYWxpYXNlcyI6IFsNCiAgICAgICAgIumYv+iInyINCiAgICAgIF0sDQogICAgICAia2luZCI6ICLkurrniakiDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAiY2hhcl9zaGVuIiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmsojnpr4iLA0KICAgICAgImFsaWFzZXMiOiBbXQ0KICAgIH0sDQogICAgew0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuaXoCBpZCDnmoTkuroiDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAiZW50XzdlOTdiMDMwIiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLpk5zpkp8iLA0KICAgICAgImFsaWFzZXMiOiBbXQ0KICAgIH0sDQogICAgew0KICAgICAgImlkIjogImVudF80YjMwZDE4OCIsDQogICAgICAiY2Fub25pY2FsX25hbWUiOiAi5beh5aSc5Lq6IiwNCiAgICAgICJhbGlhc2VzIjogWw0KICAgICAgICAi6ICB5ZGoIiwNCiAgICAgICAgIuWuiOWknOeahCINCiAgICAgIF0sDQogICAgICAiYXNzZXJ0aW9uX3R5cGUiOiAidGV4dF9vYnNlcnZhdGlvbiIsDQogICAgICAiZXZpZGVuY2UiOiBbDQogICAgICAgIHsNCiAgICAgICAgICAicXVvdGUiOiAi5beh5aSc5Lq65o+Q54Gv6LWw6L+HIiwNCiAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAx56ugLm1kIiwNCiAgICAgICAgICAic3RhcnRfbGluZSI6IDENCiAgICAgICAgfQ0KICAgICAgXQ0KICAgIH0NCiAgXSwNCiAgImludmFyaWFudHMiOiB7DQogICAgInNpbmdsZV9ob2xkZXIiOiBbDQogICAgICB7DQogICAgICAgICJpdGVtIjogIuaWremtguWIgCIsDQogICAgICAgICJob2xkZXIiOiAiY2hhcl9saW4iLA0KICAgICAgICAiZnJvbV9jaGFwdGVyIjogMSwNCiAgICAgICAgInRvX2NoYXB0ZXIiOiAzDQogICAgICB9LA0KICAgICAgew0KICAgICAgICAiaXRlbSI6ICLmlq3prYLliIAiLA0KICAgICAgICAiaG9sZGVyIjogImVudF9naG9zdCIsDQogICAgICAgICJmcm9tX2NoYXB0ZXIiOiAyDQogICAgICB9DQogICAgXSwNCiAgICAibGlmZXNwYW4iOiBbDQogICAgICB7DQogICAgICAgICJlbnRpdHkiOiAiY2hhcl9zaGVuIiwNCiAgICAgICAgImV4aXRzX2FmdGVyX2NoYXB0ZXIiOiAyLA0KICAgICAgICAicmVhc29uIjogIuWdoOW0liINCiAgICAgIH0sDQogICAgICB7DQogICAgICAgICJlbnRpdHkiOiAiY2hhcl9saW4iLA0KICAgICAgICAiZXhpdHNfYWZ0ZXJfY2hhcHRlciI6IDEsDQogICAgICAgICJyZWFzb24iOiAi5Z2g5bSWIiwNCiAgICAgICAgImFzc2VydGlvbl90eXBlIjogIm1vZGVsX2luZmVyZW5jZSINCiAgICAgIH0NCiAgICBdLA0KICAgICJwcm9taXNlcyI6IFsNCiAgICAgIHsNCiAgICAgICAgImlkIjogInAtb2xkIiwNCiAgICAgICAgInRpdGxlIjogIuaXp+i0piIsDQogICAgICAgICJzdGF0dXMiOiAicGxhbnRlZCIsDQogICAgICAgICJwbGFudGVkX2NoYXB0ZXIiOiAxLA0KICAgICAgICAiZHVlX2NoYXB0ZXIiOiAyDQogICAgICB9LA0KICAgICAgew0KICAgICAgICAiaWQiOiAicHJvbWlzZV80MTNhMTI3ZSIsDQogICAgICAgICJ0aXRsZSI6ICLkupXlupXnmoTlo7Dpn7MiLA0KICAgICAgICAicGxhbnRlZF9jaGFwdGVyIjogMSwNCiAgICAgICAgInN0YXR1cyI6ICJwbGFudGVkIg0KICAgICAgfSwNCiAgICAgIHsNCiAgICAgICAgImlkIjogInAtYmVsbCIsDQogICAgICAgICJ0aXRsZSI6ICLpk5zpkp/kvZXml7blho3lk40iLA0KICAgICAgICAicGxhbnRlZF9jaGFwdGVyIjogMiwNCiAgICAgICAgInN0YXR1cyI6ICJhZHZhbmNpbmciLA0KICAgICAgICAiZHVlX2NoYXB0ZXIiOiBudWxsLA0KICAgICAgICAicmVzb2x2ZWRfY2hhcHRlciI6IDUsDQogICAgICAgICJjYWRlbmNlX2NoYXB0ZXJzIjogMywNCiAgICAgICAgImtpbmQiOiAicmVjdXJyaW5nIg0KICAgICAgfSwNCiAgICAgIHsNCiAgICAgICAgImlkIjogInByb21pc2VfNTQ1Y2RjNmUiLA0KICAgICAgICAidGl0bGUiOiAi6ZOc6ZKf5L2V5pe25YaN5ZONIiwNCiAgICAgICAgInBsYW50ZWRfY2hhcHRlciI6IDIsDQogICAgICAgICJzdGF0dXMiOiAicGxhbnRlZCIsDQogICAgICAgICJkdWVfY2hhcHRlciI6IDQNCiAgICAgIH0sDQogICAgICB7DQogICAgICAgICJpZCI6ICJwLW9sZCIsDQogICAgICAgICJ0aXRsZSI6ICLml6fotKYiLA0KICAgICAgICAicGxhbnRlZF9jaGFwdGVyIjogMSwNCiAgICAgICAgInN0YXR1cyI6ICJwbGFudGVkIg0KICAgICAgfQ0KICAgIF0sDQogICAgInRpbWVsaW5lX29yZGVyIjogWw0KICAgICAgew0KICAgICAgICAiYmVmb3JlIjogIuihgOaciOWknCIsDQogICAgICAgICJhZnRlciI6ICLnmbvln7oiDQogICAgICB9LA0KICAgICAgew0KICAgICAgICAiYmVmb3JlIjogIueZu+WfuiIsDQogICAgICAgICJhZnRlciI6ICLooYDmnIjlpJwiDQogICAgICB9DQogICAgXQ0KICB9LA0KICAiY3VzdG9tIjogew0KICAgICJ3ZWlnaHQiOiAxLjUsDQogICAgIm5vdGUiOiAi5L2c6ICF6Ieq5a6a5LmJ5a2X5q615Y6f5qC35L+d55WZIg0KICB9DQp9",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "entities": [
+              {
+                "aliases": []
+              }
+            ]
+          },
+          "args_json": "{\"entities\": [{\"aliases\": []}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "entities[0].name 必须是非空字符串。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "entities": [
+              {
+                "name": "a",
+                "aliases": "b"
+              }
+            ]
+          },
+          "args_json": "{\"entities\": [{\"name\": \"a\", \"aliases\": \"b\"}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "entities[0].aliases 必须是字符串数组。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "entities": [
+              {
+                "name": "a",
+                "aliases": null
+              }
+            ]
+          },
+          "args_json": "{\"entities\": [{\"name\": \"a\", \"aliases\": null}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "entities[0].aliases 必须是字符串数组。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "entities": [
+              {
+                "name": "a",
+                "assertion_type": "guess"
+              }
+            ]
+          },
+          "args_json": "{\"entities\": [{\"name\": \"a\", \"assertion_type\": \"guess\"}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "entities[0].assertion_type 必须是 author_setting / text_observation / model_inference / unknown。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "holder_claims": [
+              {
+                "item": "刀",
+                "holder": "a",
+                "from_chapter": 2.0
+              }
+            ]
+          },
+          "args_json": "{\"holder_claims\": [{\"item\": \"刀\", \"holder\": \"a\", \"from_chapter\": 2.0}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "holder_claims[0].from_chapter 必须是整数。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "holder_claims": [
+              {
+                "item": "刀",
+                "holder": " "
+              }
+            ]
+          },
+          "args_json": "{\"holder_claims\": [{\"item\": \"刀\", \"holder\": \" \"}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "holder_claims[0].holder 必须是非空字符串。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "exit_claims": [
+              {
+                "entity": "a"
+              }
+            ]
+          },
+          "args_json": "{\"exit_claims\": [{\"entity\": \"a\"}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "exit_claims[0].exits_after_chapter 必填。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "exit_claims": [
+              {
+                "entity": "a",
+                "exits_after_chapter": null
+              }
+            ]
+          },
+          "args_json": "{\"exit_claims\": [{\"entity\": \"a\", \"exits_after_chapter\": null}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "exit_claims[0].exits_after_chapter 必须是整数。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "exit_claims": [
+              {
+                "exits_after_chapter": 1,
+                "reason": 3
+              }
+            ]
+          },
+          "args_json": "{\"exit_claims\": [{\"exits_after_chapter\": 1, \"reason\": 3}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "exit_claims[0].entity 必须是非空字符串。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "timeline_claims": [
+              {
+                "before": "a"
+              }
+            ]
+          },
+          "args_json": "{\"timeline_claims\": [{\"before\": \"a\"}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "timeline_claims[0].after 必须是非空字符串。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "promise_claims": [
+              {
+                "title": "t"
+              }
+            ]
+          },
+          "args_json": "{\"promise_claims\": [{\"title\": \"t\"}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "promise_claims[0].planted_chapter 必填：不知道埋在第几章就算不了逾期。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "promise_claims": [
+              {
+                "title": "t",
+                "planted_chapter": 0
+              }
+            ]
+          },
+          "args_json": "{\"promise_claims\": [{\"title\": \"t\", \"planted_chapter\": 0}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "promise_claims[0].planted_chapter 必须 ≥ 1。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "promise_claims": [
+              {
+                "title": "t",
+                "planted_chapter": 1,
+                "status": "done"
+              }
+            ]
+          },
+          "args_json": "{\"promise_claims\": [{\"title\": \"t\", \"planted_chapter\": 1, \"status\": \"done\"}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "promise_claims[0].status 只能是 planted / advancing / resolved，收到 done。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "promise_claims": [
+              {
+                "title": "t",
+                "planted_chapter": 3,
+                "due_chapter": 2
+              }
+            ]
+          },
+          "args_json": "{\"promise_claims\": [{\"title\": \"t\", \"planted_chapter\": 3, \"due_chapter\": 2}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "promise_claims[0].due_chapter 不能早于 planted_chapter。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "promise_claims": [
+              {
+                "title": "t",
+                "planted_chapter": 3,
+                "due_chapter": "4"
+              }
+            ]
+          },
+          "args_json": "{\"promise_claims\": [{\"title\": \"t\", \"planted_chapter\": 3, \"due_chapter\": \"4\"}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "promise_claims[0].due_chapter 必须是整数或 null。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "promise_claims": [
+              {
+                "title": "t",
+                "planted_chapter": 3,
+                "cadence_chapters": 0
+              }
+            ]
+          },
+          "args_json": "{\"promise_claims\": [{\"title\": \"t\", \"planted_chapter\": 3, \"cadence_chapters\": 0}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "promise_claims[0].cadence_chapters 必须 ≥ 1。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "promise_claims": [
+              {
+                "title": "t",
+                "planted_chapter": 3,
+                "id": 5
+              }
+            ]
+          },
+          "args_json": "{\"promise_claims\": [{\"title\": \"t\", \"planted_chapter\": 3, \"id\": 5}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "promise_claims[0].id 必须是字符串。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "entities": [
+              {
+                "name": "新人",
+                "assertion_type": "author_setting"
+              },
+              {
+                "name": "新人",
+                "assertion_type": "model_inference"
+              }
+            ]
+          },
+          "args_json": "{\"entities\": [{\"name\": \"新人\", \"assertion_type\": \"author_setting\"}, {\"name\": \"新人\", \"assertion_type\": \"model_inference\"}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "同一待确认实体的来源类型或依据不同，请先整合为一条实体提案。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "hooks_delta",
+          "args": {
+            "observed_hooks": [
+              {
+                "description": "井底的声音是谁"
+              },
+              {
+                "description": " 井底的声音 "
+              },
+              {
+                "description": "断魂刀的下落去了哪"
+              },
+              {
+                "description": "断魂刀究竟在谁手里",
+                "category": " 悬念 ",
+                "note": "",
+                "verification": "第三章"
+              },
+              {
+                "description": "钟声"
+              },
+              {
+                "description": "钟声"
+              },
+              {
+                "description": "ABC 的秘密"
+              },
+              {
+                "description": "abc 的秘密"
+              }
+            ],
+            "evidence_text": "😀𠀀如果你走出这扇门，我就跟你走。还剩三天。\r只有他知道。如果他\r回来就好了。\n有个关于钟楼的秘密。绝不能开门，否则后果自负。他发誓一定会回来。达到十级便会解锁。"
+          },
+          "output_json": "{\"new_hooks\": [{\"description\": \"井底的声音\", \"status\": \"active\"}, {\"description\": \"断魂刀的下落去了哪\", \"status\": \"active\"}, {\"description\": \"断魂刀究竟在谁手里\", \"status\": \"active\", \"verification\": \"第三章\", \"category\": \"悬念\"}, {\"description\": \"钟声\", \"status\": \"active\"}, {\"description\": \"ABC 的秘密\", \"status\": \"active\"}], \"duplicates\": [{\"description\": \"井底的声音是谁\", \"status\": \"active\"}, {\"description\": \"钟声\", \"status\": \"active\"}, {\"description\": \"abc 的秘密\", \"status\": \"active\"}], \"related_hooks\": [{\"candidate\": {\"description\": \"井底的声音\", \"status\": \"active\"}, \"similar_hook\": {\"id\": \"h1\", \"description\": \"井底的声音是谁\", \"status\": \"active\"}, \"reason\": \"可能相关：描述子串重合，需核实主体、行为与对象\"}, {\"candidate\": {\"description\": \"断魂刀的下落去了哪\", \"status\": \"active\"}, \"similar_hook\": {\"id\": \"h2\", \"description\": \"断魂刀的下落\", \"status\": \"resolved\"}, \"reason\": \"可能相关：描述子串重合，需核实主体、行为与对象\"}], \"pattern_hits\": [{\"evidence\": \"如果你走出这扇门，我就跟你走。还剩三天。\\r只有他知道。如果他\\r回来就\", \"category\": \"conditional_promise\", \"position\": 2}, {\"evidence\": \"还剩三天\", \"category\": \"countdown\", \"position\": 17}, {\"evidence\": \"达到十级便会解锁\", \"category\": \"threshold\", \"position\": 72}, {\"evidence\": \"发誓一定会回来。达到十级便会\", \"category\": \"oath\", \"position\": 64}, {\"evidence\": \"有个关于钟楼的秘密\", \"category\": \"mystery\", \"position\": 40}, {\"evidence\": \"绝不能开门，否则后果\", \"category\": \"taboo\", \"position\": 50}, {\"evidence\": \"只有他知道\", \"category\": \"hidden_info\", \"position\": 23}], \"summary\": \"检测到 5 条新钩子；3 条描述与既有或同批钩子文本完全重复（非语义判定）；2 条可能相关，已保留为提案，需核实主体、行为与对象；正则模式命中 7 处（辅助参考）；这些只是提案，hooks.json 未改动——要记进伏笔账需作者自己确认。\"}",
+          "writes": {}
+        },
+        {
+          "fn": "hooks_delta",
+          "args": {
+            "observed_hooks": [
+              {
+                "description": "  "
+              }
+            ]
+          },
+          "error": {
+            "type": "FsToolError",
+            "message": "observed_hooks[0].description 必须是非空字符串。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "hooks_delta",
+          "args": {
+            "evidence_text": "  "
+          },
+          "output_json": "{\"new_hooks\": [], \"duplicates\": [], \"related_hooks\": [], \"pattern_hits\": [], \"summary\": \"本章未发现新的叙事承诺信号；这些只是提案，hooks.json 未改动——要记进伏笔账需作者自己确认。\"}",
+          "writes": {}
+        },
+        {
+          "fn": "hooks_delta",
+          "args": {},
+          "output_json": "{\"new_hooks\": [], \"duplicates\": [], \"related_hooks\": [], \"pattern_hits\": [], \"summary\": \"本章未发现新的叙事承诺信号；这些只是提案，hooks.json 未改动——要记进伏笔账需作者自己确认。\"}",
+          "writes": {}
+        },
+        {
+          "fn": "observatory_scan",
+          "args": {
+            "clock": 0
+          },
+          "output_json": "{\"version\": 2, \"cache_status\": \"published\", \"generated_at\": \"2026-10-12T04:30:15.123000+00:00\", \"observations\": [{\"id\": \"canon_f8d0c4f16994\", \"severity\": \"warning\", \"title\": \"char_shen 声明退场后仍出场\", \"detail\": \"沈禾 声明在第 2 章后退场（声明原因：坠崖），但正文在其后章节仍出现其表面形（1 处）。可能是回忆 / 提及 / 同名，请抽读核实。\", \"source\": \"canon·lifespan\", \"location\": {\"path\": \"正文/第003章.md\", \"line\": 1}}, {\"id\": \"promise_e4d1bda154f0\", \"severity\": \"warning\", \"title\": \"伏笔「旧账」逾期未回应\", \"detail\": \"伏笔承诺「旧账」已超过第 2 章截止窗口，当前正文到第 3 章仍未兑现。\", \"source\": \"promise·overdue\", \"location\": {\"path\": \".storyforge/canon/canon.json\"}}, {\"id\": \"prose_dbde436237a3\", \"severity\": \"warning\", \"title\": \"「不禁、五味杂陈」\", \"detail\": \"出现高频陈词套话，削弱画面和人物独特性。 · 替换为具体动作、感官细节或角色专属表达。 · 建议策略 line_edit\", \"source\": \"prose·套话\", \"location\": {\"path\": \"正文/第001章.md\", \"snippet\": \"不禁、五味杂陈\"}}, {\"id\": \"prose_4920f83de473\", \"severity\": \"warning\", \"title\": \"「沈禾又出现了。与此同时，顾迟越过断桥。\\n另一边，沈禾推开仓门。\\n镜头一转」\", \"detail\": \"静态描述偏多，缺少行动 beat。 · 加入目标、阻碍和段末变化，推动下一段。 · 建议策略 scene_patch\", \"source\": \"prose·节奏\", \"location\": {\"path\": \"正文/第003章.md\", \"snippet\": \"沈禾又出现了。与此同时，顾迟越过断桥。\\n另一边，沈禾推开仓门。\\n镜头一转\"}}], \"counts\": {\"error\": 0, \"warning\": 4, \"advisory\": 0, \"total\": 4}, \"checkers\": [{\"key\": \"canon\", \"tool\": \"project.canon\", \"status\": \"ran\", \"conflict_count\": 0, \"advisory_count\": 1, \"entity_count\": 4}, {\"key\": \"promise\", \"tool\": \"project.promise_check\", \"status\": \"ran\", \"conflict_count\": 0, \"advisory_count\": 1, \"promise_count\": 1, \"current_chapter\": 3}, {\"key\": \"prose\", \"tool\": \"project.prose_check\", \"status\": \"ran\", \"files_scanned\": 3, \"files_skipped\": 0, \"files_truncated\": false, \"issue_count\": 2}, {\"key\": \"consistency\", \"tool\": \"project.consistency\", \"status\": \"on_demand\", \"reason\": \"机械观察不下结论，Agent 内按需触发。\"}, {\"key\": \"collapse\", \"tool\": \"project.collapse_check\", \"status\": \"on_demand\", \"reason\": \"需要 Agent 提供场景节拍等语义参数，裸跑无信号。\"}, {\"key\": \"entity_budget\", \"tool\": \"project.entity_budget_check\", \"status\": \"on_demand\", \"reason\": \"需要 Agent 提供新实体清单，裸跑无信号。\"}, {\"key\": \"deep_consistency\", \"tool\": \"project.deep_consistency\", \"status\": \"on_demand\", \"reason\": \"语义评审走 LLM，永远按需触发，不进保存重扫。\"}], \"entities\": [{\"id\": \"char_lin\", \"canonical_name\": \"林舟\", \"kind\": \"人物\", \"aliases\": [\"阿舟\"], \"appearance\": {\"missing\": false, \"total_count\": 4, \"first_chapter\": 1, \"last_chapter\": 2}, \"holdings\": [{\"item\": \"断魂刀\", \"from_chapter\": 1, \"to_chapter\": 3}], \"lifespan\": null, \"provenance\": [{\"path\": \"正文/第001章.md\", \"chapter\": 1, \"first_line\": 1, \"count\": 3}, {\"path\": \"正文/第002章.md\", \"chapter\": 2, \"first_line\": 1, \"count\": 1}], \"provenance_truncated\": false, \"related_observation_ids\": []}, {\"id\": \"char_shen\", \"canonical_name\": \"沈禾\", \"kind\": null, \"aliases\": [], \"appearance\": {\"missing\": false, \"total_count\": 4, \"first_chapter\": 1, \"last_chapter\": 3}, \"holdings\": [], \"lifespan\": {\"exits_after_chapter\": 2, \"reason\": \"坠崖\"}, \"provenance\": [{\"path\": \"正文/第001章.md\", \"chapter\": 1, \"first_line\": 1, \"count\": 1}, {\"path\": \"正文/第002章.md\", \"chapter\": 2, \"first_line\": 1, \"count\": 1}, {\"path\": \"正文/第003章.md\", \"chapter\": 3, \"first_line\": 1, \"count\": 2}], \"provenance_truncated\": false, \"related_observation_ids\": [\"canon_f8d0c4f16994\"]}, {\"id\": \"ent_7e97b030\", \"canonical_name\": \"铜钟\", \"kind\": null, \"aliases\": [], \"appearance\": {\"missing\": true, \"total_count\": 0, \"first_chapter\": null, \"last_chapter\": null}, \"holdings\": [], \"lifespan\": null, \"provenance\": [], \"provenance_truncated\": false, \"related_observation_ids\": []}], \"promises\": {\"current_chapter\": 3, \"ledger\": [{\"id\": \"p-old\", \"title\": \"旧账\", \"status\": \"planted\", \"kind\": null, \"planted_chapter\": 1, \"due_chapter\": 2, \"resolved_chapter\": null, \"last_touch_chapter\": 1, \"issues\": [{\"id\": \"promise_e4d1bda154f0\", \"category\": \"overdue\", \"severity\": \"medium\", \"message\": \"伏笔承诺「旧账」已超过第 2 章截止窗口，当前正文到第 3 章仍未兑现。\"}]}]}, \"proposals\": {\"available\": true, \"new_entities\": [{\"id\": \"ent_4b30d188\", \"canonical_name\": \"巡夜人\", \"aliases\": [\"老周\", \"守夜的\"], \"assertion_type\": \"text_observation\", \"evidence\": [{\"quote\": \"巡夜人提灯走过\", \"path\": \"正文/第001章.md\", \"start_line\": 1}]}], \"new_invariants\": {\"single_holder\": [{\"item\": \"断魂刀\", \"holder\": \"ent_ghost\", \"from_chapter\": 2}], \"lifespan\": [{\"entity\": \"char_lin\", \"exits_after_chapter\": 1, \"reason\": \"坠崖\", \"assertion_type\": \"model_inference\"}], \"timeline_order\": [{\"before\": \"登基\", \"after\": \"血月夜\"}], \"promises\": [{\"id\": \"promise_413a127e\", \"title\": \"井底的声音\", \"planted_chapter\": 1, \"status\": \"planted\"}, {\"id\": \"p-bell\", \"title\": \"铜钟何时再响\", \"planted_chapter\": 2, \"status\": \"advancing\", \"due_chapter\": null, \"resolved_chapter\": 5, \"cadence_chapters\": 3, \"kind\": \"recurring\"}, {\"id\": \"promise_545cdc6e\", \"title\": \"铜钟何时再响\", \"planted_chapter\": 2, \"status\": \"planted\", \"due_chapter\": 4}, {\"id\": \"p-old\", \"title\": \"旧账\", \"planted_chapter\": 1, \"status\": \"planted\"}]}, \"pending_count\": 8}, \"note\": \"确定性参考信号（无 LLM）：advisory 需结合原文核实，不是质量判定。\"}",
+          "writes": {
+            ".storyforge/canon/derived/dossier.md": {
+              "chunks": [
+                {
+                  "base64": "PCEtLSBfc3Rvcnlmb3JnZV9zb3VyY2VfcmV2aXNpb246IGNhbm9uLXdyaXRlYmFjay12MTphOTYxYjBmOWIxMzMxMTI1N2Q2MTM3YjM3OTI5N2ExNmM5YThlYjFjODc5Y2E5ZDBhNjE1MzAyYmJkOWJmNzEyIC0tPg0KIyBDYW5vbiBEb3NzaWVy77yI5rS+55Sf57yT5a2Y77yM5Yu/5omL5pS577yJDQoNCj4g5pys5paH5Lu255SxIHByb2plY3QuY2Fub24g5LuOIGNhbm9uLmpzb24g5aOw5piOICsg5q2j5paH5Zyo5Zy65YiG5biD56Gu5a6a5oCn6YeN5bu677yMDQo+IOaYr+WPr+W8g+e8k+WtmO+8iOWIoOmZpOWQjuS4i+asoeiwg+eUqOiHquaEiO+8ie+8jOS4jeaYr+S9nOiAheaJi+eov+OAguimgeaUueS6i+Wunuivt+aUuSBjYW5vbi5qc29u44CCDQoNCiMjIOael+iIn++8iOS6uueJqe+8iQ0KDQotIOWunuS9k+WjsOaYju+8muadpea6kOexu+Wei+acquefpe+8m+S+neaNruacquaPkOS+mw0KLSDliKvlkI3vvJrpmL/oiJ8NCi0g5Ye65Zy677ya56ysIDHigJMyIOeroO+8jOWFsSA0IOWkhA0KLSDmjIHmnInlo7DmmI7vvJrmlq3prYLliIDvvIjnrKwgMeKAkzMg56ug77yJ77yb5p2l5rqQ57G75Z6L5pyq55+l77yb5L6d5o2u5pyq5o+Q5L6bDQotIHByb3ZlbmFuY2XvvIjlrp7kvZPmj5Dlj4rkvY3nva7vvIzpnZ7pgJDmnaHmlq3oqIDkvp3mja7vvInvvJoNCiAgLSDnrKwgMSDnq6AgYOato+aWhy/nrKwwMDHnq6AubWQ6MWDvvIgzIOWkhO+8iQ0KICAtIOesrCAyIOeroCBg5q2j5paHL+esrDAwMueroC5tZDoxYO+8iDEg5aSE77yJDQoNCiMjIOayiOemvg0KDQotIOWunuS9k+WjsOaYju+8muadpea6kOexu+Wei+acquefpe+8m+S+neaNruacquaPkOS+mw0KLSDlh7rlnLrvvJrnrKwgMeKAkzMg56ug77yM5YWxIDQg5aSEDQotIOeUn+WRveacn++8muWjsOaYjuesrCAyIOeroOWQjumAgOWcuu+8jOWOn+WboO+8muWdoOW0lu+8m+adpea6kOexu+Wei+acquefpe+8m+S+neaNruacquaPkOS+mw0KLSBwcm92ZW5hbmNl77yI5a6e5L2T5o+Q5Y+K5L2N572u77yM6Z2e6YCQ5p2h5pat6KiA5L6d5o2u77yJ77yaDQogIC0g56ysIDEg56ugIGDmraPmlocv56ysMDAx56ugLm1kOjFg77yIMSDlpITvvIkNCiAgLSDnrKwgMiDnq6AgYOato+aWhy/nrKwwMDLnq6AubWQ6MWDvvIgxIOWkhO+8iQ0KICAtIOesrCAzIOeroCBg5q2j5paHL+esrDAwM+eroC5tZDoxYO+8iDIg5aSE77yJDQoNCiMjIOmTnOmSnw0KDQotIOWunuS9k+WjsOaYju+8muadpea6kOexu+Wei+acquefpe+8m+S+neaNruacquaPkOS+mw0KLSDlh7rlnLrvvJrmnKrlnKjmraPmlofmo4Dlh7rooajpnaLlvaLvvIjlj6/og73mnKrnmbvlnLrmiJbooajpnaLlvaLkuI7mraPmlofkuI3nrKbvvIkNCg==",
+                  "repeat": 1
+                }
+              ]
+            },
+            ".storyforge/canon/derived/observations.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAidmVyc2lvbiI6IDIsDQogICJjYWNoZV9zdGF0dXMiOiAicHVibGlzaGVkIiwNCiAgImdlbmVyYXRlZF9hdCI6ICIyMDI2LTEwLTEyVDA0OjMwOjE1LjEyMzAwMCswMDowMCIsDQogICJvYnNlcnZhdGlvbnMiOiBbDQogICAgew0KICAgICAgImlkIjogImNhbm9uX2Y4ZDBjNGYxNjk5NCIsDQogICAgICAic2V2ZXJpdHkiOiAid2FybmluZyIsDQogICAgICAidGl0bGUiOiAiY2hhcl9zaGVuIOWjsOaYjumAgOWcuuWQjuS7jeWHuuWcuiIsDQogICAgICAiZGV0YWlsIjogIuayiOemviDlo7DmmI7lnKjnrKwgMiDnq6DlkI7pgIDlnLrvvIjlo7DmmI7ljp/lm6DvvJrlnaDltJbvvInvvIzkvYbmraPmloflnKjlhbblkI7nq6DoioLku43lh7rnjrDlhbbooajpnaLlvaLvvIgxIOWkhO+8ieOAguWPr+iDveaYr+WbnuW/hiAvIOaPkOWPiiAvIOWQjOWQje+8jOivt+aKveivu+aguOWunuOAgiIsDQogICAgICAic291cmNlIjogImNhbm9uwrdsaWZlc3BhbiIsDQogICAgICAibG9jYXRpb24iOiB7DQogICAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDPnq6AubWQiLA0KICAgICAgICAibGluZSI6IDENCiAgICAgIH0NCiAgICB9LA0KICAgIHsNCiAgICAgICJpZCI6ICJwcm9taXNlX2U0ZDFiZGExNTRmMCIsDQogICAgICAic2V2ZXJpdHkiOiAid2FybmluZyIsDQogICAgICAidGl0bGUiOiAi5LyP56yU44CM5pen6LSm44CN6YC+5pyf5pyq5Zue5bqUIiwNCiAgICAgICJkZXRhaWwiOiAi5LyP56yU5om/6K+644CM5pen6LSm44CN5bey6LaF6L+H56ysIDIg56ug5oiq5q2i56qX5Y+j77yM5b2T5YmN5q2j5paH5Yiw56ysIDMg56ug5LuN5pyq5YWR546w44CCIiwNCiAgICAgICJzb3VyY2UiOiAicHJvbWlzZcK3b3ZlcmR1ZSIsDQogICAgICAibG9jYXRpb24iOiB7DQogICAgICAgICJwYXRoIjogIi5zdG9yeWZvcmdlL2Nhbm9uL2Nhbm9uLmpzb24iDQogICAgICB9DQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAicHJvc2VfZGJkZTQzNjIzN2EzIiwNCiAgICAgICJzZXZlcml0eSI6ICJ3YXJuaW5nIiwNCiAgICAgICJ0aXRsZSI6ICLjgIzkuI3npoHjgIHkupTlkbPmnYLpmYjjgI0iLA0KICAgICAgImRldGFpbCI6ICLlh7rnjrDpq5jpopHpmYjor43lpZfor53vvIzliYrlvLHnlLvpnaLlkozkurrnianni6znibnmgKfjgIIgwrcg5pu/5o2i5Li65YW35L2T5Yqo5L2c44CB5oSf5a6Y57uG6IqC5oiW6KeS6Imy5LiT5bGe6KGo6L6+44CCIMK3IOW7uuiuruetlueVpSBsaW5lX2VkaXQiLA0KICAgICAgInNvdXJjZSI6ICJwcm9zZcK35aWX6K+dIiwNCiAgICAgICJsb2NhdGlvbiI6IHsNCiAgICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwMeeroC5tZCIsDQogICAgICAgICJzbmlwcGV0IjogIuS4jeemgeOAgeS6lOWRs+adgumZiCINCiAgICAgIH0NCiAgICB9LA0KICAgIHsNCiAgICAgICJpZCI6ICJwcm9zZV80OTIwZjgzZGU0NzMiLA0KICAgICAgInNldmVyaXR5IjogIndhcm5pbmciLA0KICAgICAgInRpdGxlIjogIuOAjOayiOemvuWPiOWHuueOsOS6huOAguS4juatpOWQjOaXtu+8jOmhvui/n+i2iui/h+aWreahpeOAglxu5Y+m5LiA6L6577yM5rKI56a+5o6o5byA5LuT6Zeo44CCXG7plZzlpLTkuIDovazjgI0iLA0KICAgICAgImRldGFpbCI6ICLpnZnmgIHmj4/ov7DlgY/lpJrvvIznvLrlsJHooYzliqggYmVhdOOAgiDCtyDliqDlhaXnm67moIfjgIHpmLvnoo3lkozmrrXmnKvlj5jljJbvvIzmjqjliqjkuIvkuIDmrrXjgIIgwrcg5bu66K6u562W55WlIHNjZW5lX3BhdGNoIiwNCiAgICAgICJzb3VyY2UiOiAicHJvc2XCt+iKguWljyIsDQogICAgICAibG9jYXRpb24iOiB7DQogICAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDPnq6AubWQiLA0KICAgICAgICAic25pcHBldCI6ICLmsojnpr7lj4jlh7rnjrDkuobjgILkuI7mraTlkIzml7bvvIzpob7ov5/otorov4fmlq3moaXjgIJcbuWPpuS4gOi+ue+8jOayiOemvuaOqOW8gOS7k+mXqOOAglxu6ZWc5aS05LiA6L2sIg0KICAgICAgfQ0KICAgIH0NCiAgXSwNCiAgImNvdW50cyI6IHsNCiAgICAiZXJyb3IiOiAwLA0KICAgICJ3YXJuaW5nIjogNCwNCiAgICAiYWR2aXNvcnkiOiAwLA0KICAgICJ0b3RhbCI6IDQNCiAgfSwNCiAgImNoZWNrZXJzIjogWw0KICAgIHsNCiAgICAgICJrZXkiOiAiY2Fub24iLA0KICAgICAgInRvb2wiOiAicHJvamVjdC5jYW5vbiIsDQogICAgICAic3RhdHVzIjogInJhbiIsDQogICAgICAiY29uZmxpY3RfY291bnQiOiAwLA0KICAgICAgImFkdmlzb3J5X2NvdW50IjogMSwNCiAgICAgICJlbnRpdHlfY291bnQiOiA0DQogICAgfSwNCiAgICB7DQogICAgICAia2V5IjogInByb21pc2UiLA0KICAgICAgInRvb2wiOiAicHJvamVjdC5wcm9taXNlX2NoZWNrIiwNCiAgICAgICJzdGF0dXMiOiAicmFuIiwNCiAgICAgICJjb25mbGljdF9jb3VudCI6IDAsDQogICAgICAiYWR2aXNvcnlfY291bnQiOiAxLA0KICAgICAgInByb21pc2VfY291bnQiOiAxLA0KICAgICAgImN1cnJlbnRfY2hhcHRlciI6IDMNCiAgICB9LA0KICAgIHsNCiAgICAgICJrZXkiOiAicHJvc2UiLA0KICAgICAgInRvb2wiOiAicHJvamVjdC5wcm9zZV9jaGVjayIsDQogICAgICAic3RhdHVzIjogInJhbiIsDQogICAgICAiZmlsZXNfc2Nhbm5lZCI6IDMsDQogICAgICAiZmlsZXNfc2tpcHBlZCI6IDAsDQogICAgICAiZmlsZXNfdHJ1bmNhdGVkIjogZmFsc2UsDQogICAgICAiaXNzdWVfY291bnQiOiAyDQogICAgfSwNCiAgICB7DQogICAgICAia2V5IjogImNvbnNpc3RlbmN5IiwNCiAgICAgICJ0b29sIjogInByb2plY3QuY29uc2lzdGVuY3kiLA0KICAgICAgInN0YXR1cyI6ICJvbl9kZW1hbmQiLA0KICAgICAgInJlYXNvbiI6ICLmnLrmorDop4Llr5/kuI3kuIvnu5PorrrvvIxBZ2VudCDlhoXmjInpnIDop6blj5HjgIIiDQogICAgfSwNCiAgICB7DQogICAgICAia2V5IjogImNvbGxhcHNlIiwNCiAgICAgICJ0b29sIjogInByb2plY3QuY29sbGFwc2VfY2hlY2siLA0KICAgICAgInN0YXR1cyI6ICJvbl9kZW1hbmQiLA0KICAgICAgInJlYXNvbiI6ICLpnIDopoEgQWdlbnQg5o+Q5L6b5Zy65pmv6IqC5ouN562J6K+t5LmJ5Y+C5pWw77yM6KO46LeR5peg5L+h5Y+344CCIg0KICAgIH0sDQogICAgew0KICAgICAgImtleSI6ICJlbnRpdHlfYnVkZ2V0IiwNCiAgICAgICJ0b29sIjogInByb2plY3QuZW50aXR5X2J1ZGdldF9jaGVjayIsDQogICAgICAic3RhdHVzIjogIm9uX2RlbWFuZCIsDQogICAgICAicmVhc29uIjogIumcgOimgSBBZ2VudCDmj5DkvpvmlrDlrp7kvZPmuIXljZXvvIzoo7jot5Hml6Dkv6Hlj7fjgIIiDQogICAgfSwNCiAgICB7DQogICAgICAia2V5IjogImRlZXBfY29uc2lzdGVuY3kiLA0KICAgICAgInRvb2wiOiAicHJvamVjdC5kZWVwX2NvbnNpc3RlbmN5IiwNCiAgICAgICJzdGF0dXMiOiAib25fZGVtYW5kIiwNCiAgICAgICJyZWFzb24iOiAi6K+t5LmJ6K+E5a6h6LWwIExMTe+8jOawuOi/nOaMiemcgOinpuWPke+8jOS4jei/m+S/neWtmOmHjeaJq+OAgiINCiAgICB9DQogIF0sDQogICJlbnRpdGllcyI6IFsNCiAgICB7DQogICAgICAiaWQiOiAiY2hhcl9saW4iLA0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuael+iInyIsDQogICAgICAia2luZCI6ICLkurrniakiLA0KICAgICAgImFsaWFzZXMiOiBbDQogICAgICAgICLpmL/oiJ8iDQogICAgICBdLA0KICAgICAgImFwcGVhcmFuY2UiOiB7DQogICAgICAgICJtaXNzaW5nIjogZmFsc2UsDQogICAgICAgICJ0b3RhbF9jb3VudCI6IDQsDQogICAgICAgICJmaXJzdF9jaGFwdGVyIjogMSwNCiAgICAgICAgImxhc3RfY2hhcHRlciI6IDINCiAgICAgIH0sDQogICAgICAiaG9sZGluZ3MiOiBbDQogICAgICAgIHsNCiAgICAgICAgICAiaXRlbSI6ICLmlq3prYLliIAiLA0KICAgICAgICAgICJmcm9tX2NoYXB0ZXIiOiAxLA0KICAgICAgICAgICJ0b19jaGFwdGVyIjogMw0KICAgICAgICB9DQogICAgICBdLA0KICAgICAgImxpZmVzcGFuIjogbnVsbCwNCiAgICAgICJwcm92ZW5hbmNlIjogWw0KICAgICAgICB7DQogICAgICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwMeeroC5tZCIsDQogICAgICAgICAgImNoYXB0ZXIiOiAxLA0KICAgICAgICAgICJmaXJzdF9saW5lIjogMSwNCiAgICAgICAgICAiY291bnQiOiAzDQogICAgICAgIH0sDQogICAgICAgIHsNCiAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAy56ugLm1kIiwNCiAgICAgICAgICAiY2hhcHRlciI6IDIsDQogICAgICAgICAgImZpcnN0X2xpbmUiOiAxLA0KICAgICAgICAgICJjb3VudCI6IDENCiAgICAgICAgfQ0KICAgICAgXSwNCiAgICAgICJwcm92ZW5hbmNlX3RydW5jYXRlZCI6IGZhbHNlLA0KICAgICAgInJlbGF0ZWRfb2JzZXJ2YXRpb25faWRzIjogW10NCiAgICB9LA0KICAgIHsNCiAgICAgICJpZCI6ICJjaGFyX3NoZW4iLA0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuayiOemviIsDQogICAgICAia2luZCI6IG51bGwsDQogICAgICAiYWxpYXNlcyI6IFtdLA0KICAgICAgImFwcGVhcmFuY2UiOiB7DQogICAgICAgICJtaXNzaW5nIjogZmFsc2UsDQogICAgICAgICJ0b3RhbF9jb3VudCI6IDQsDQogICAgICAgICJmaXJzdF9jaGFwdGVyIjogMSwNCiAgICAgICAgImxhc3RfY2hhcHRlciI6IDMNCiAgICAgIH0sDQogICAgICAiaG9sZGluZ3MiOiBbXSwNCiAgICAgICJsaWZlc3BhbiI6IHsNCiAgICAgICAgImV4aXRzX2FmdGVyX2NoYXB0ZXIiOiAyLA0KICAgICAgICAicmVhc29uIjogIuWdoOW0liINCiAgICAgIH0sDQogICAgICAicHJvdmVuYW5jZSI6IFsNCiAgICAgICAgew0KICAgICAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDHnq6AubWQiLA0KICAgICAgICAgICJjaGFwdGVyIjogMSwNCiAgICAgICAgICAiZmlyc3RfbGluZSI6IDEsDQogICAgICAgICAgImNvdW50IjogMQ0KICAgICAgICB9LA0KICAgICAgICB7DQogICAgICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwMueroC5tZCIsDQogICAgICAgICAgImNoYXB0ZXIiOiAyLA0KICAgICAgICAgICJmaXJzdF9saW5lIjogMSwNCiAgICAgICAgICAiY291bnQiOiAxDQogICAgICAgIH0sDQogICAgICAgIHsNCiAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAz56ugLm1kIiwNCiAgICAgICAgICAiY2hhcHRlciI6IDMsDQogICAgICAgICAgImZpcnN0X2xpbmUiOiAxLA0KICAgICAgICAgICJjb3VudCI6IDINCiAgICAgICAgfQ0KICAgICAgXSwNCiAgICAgICJwcm92ZW5hbmNlX3RydW5jYXRlZCI6IGZhbHNlLA0KICAgICAgInJlbGF0ZWRfb2JzZXJ2YXRpb25faWRzIjogWw0KICAgICAgICAiY2Fub25fZjhkMGM0ZjE2OTk0Ig0KICAgICAgXQ0KICAgIH0sDQogICAgew0KICAgICAgImlkIjogImVudF83ZTk3YjAzMCIsDQogICAgICAiY2Fub25pY2FsX25hbWUiOiAi6ZOc6ZKfIiwNCiAgICAgICJraW5kIjogbnVsbCwNCiAgICAgICJhbGlhc2VzIjogW10sDQogICAgICAiYXBwZWFyYW5jZSI6IHsNCiAgICAgICAgIm1pc3NpbmciOiB0cnVlLA0KICAgICAgICAidG90YWxfY291bnQiOiAwLA0KICAgICAgICAiZmlyc3RfY2hhcHRlciI6IG51bGwsDQogICAgICAgICJsYXN0X2NoYXB0ZXIiOiBudWxsDQogICAgICB9LA0KICAgICAgImhvbGRpbmdzIjogW10sDQogICAgICAibGlmZXNwYW4iOiBudWxsLA0KICAgICAgInByb3ZlbmFuY2UiOiBbXSwNCiAgICAgICJwcm92ZW5hbmNlX3RydW5jYXRlZCI6IGZhbHNlLA0KICAgICAgInJlbGF0ZWRfb2JzZXJ2YXRpb25faWRzIjogW10NCiAgICB9DQogIF0sDQogICJwcm9taXNlcyI6IHsNCiAgICAiY3VycmVudF9jaGFwdGVyIjogMywNCiAgICAibGVkZ2VyIjogWw0KICAgICAgew0KICAgICAgICAiaWQiOiAicC1vbGQiLA0KICAgICAgICAidGl0bGUiOiAi5pen6LSmIiwNCiAgICAgICAgInN0YXR1cyI6ICJwbGFudGVkIiwNCiAgICAgICAgImtpbmQiOiBudWxsLA0KICAgICAgICAicGxhbnRlZF9jaGFwdGVyIjogMSwNCiAgICAgICAgImR1ZV9jaGFwdGVyIjogMiwNCiAgICAgICAgInJlc29sdmVkX2NoYXB0ZXIiOiBudWxsLA0KICAgICAgICAibGFzdF90b3VjaF9jaGFwdGVyIjogMSwNCiAgICAgICAgImlzc3VlcyI6IFsNCiAgICAgICAgICB7DQogICAgICAgICAgICAiaWQiOiAicHJvbWlzZV9lNGQxYmRhMTU0ZjAiLA0KICAgICAgICAgICAgImNhdGVnb3J5IjogIm92ZXJkdWUiLA0KICAgICAgICAgICAgInNldmVyaXR5IjogIm1lZGl1bSIsDQogICAgICAgICAgICAibWVzc2FnZSI6ICLkvI/nrJTmib/or7rjgIzml6fotKbjgI3lt7LotoXov4fnrKwgMiDnq6DmiKrmraLnqpflj6PvvIzlvZPliY3mraPmlofliLDnrKwgMyDnq6Dku43mnKrlhZHnjrDjgIIiDQogICAgICAgICAgfQ0KICAgICAgICBdDQogICAgICB9DQogICAgXQ0KICB9LA0KICAicHJvcG9zYWxzIjogew0KICAgICJhdmFpbGFibGUiOiB0cnVlLA0KICAgICJuZXdfZW50aXRpZXMiOiBbDQogICAgICB7DQogICAgICAgICJpZCI6ICJlbnRfNGIzMGQxODgiLA0KICAgICAgICAiY2Fub25pY2FsX25hbWUiOiAi5beh5aSc5Lq6IiwNCiAgICAgICAgImFsaWFzZXMiOiBbDQogICAgICAgICAgIuiAgeWRqCIsDQogICAgICAgICAgIuWuiOWknOeahCINCiAgICAgICAgXSwNCiAgICAgICAgImFzc2VydGlvbl90eXBlIjogInRleHRfb2JzZXJ2YXRpb24iLA0KICAgICAgICAiZXZpZGVuY2UiOiBbDQogICAgICAgICAgew0KICAgICAgICAgICAgInF1b3RlIjogIuW3oeWknOS6uuaPkOeBr+i1sOi/hyIsDQogICAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAx56ugLm1kIiwNCiAgICAgICAgICAgICJzdGFydF9saW5lIjogMQ0KICAgICAgICAgIH0NCiAgICAgICAgXQ0KICAgICAgfQ0KICAgIF0sDQogICAgIm5ld19pbnZhcmlhbnRzIjogew0KICAgICAgInNpbmdsZV9ob2xkZXIiOiBbDQogICAgICAgIHsNCiAgICAgICAgICAiaXRlbSI6ICLmlq3prYLliIAiLA0KICAgICAgICAgICJob2xkZXIiOiAiZW50X2dob3N0IiwNCiAgICAgICAgICAiZnJvbV9jaGFwdGVyIjogMg0KICAgICAgICB9DQogICAgICBdLA0KICAgICAgImxpZmVzcGFuIjogWw0KICAgICAgICB7DQogICAgICAgICAgImVudGl0eSI6ICJjaGFyX2xpbiIsDQogICAgICAgICAgImV4aXRzX2FmdGVyX2NoYXB0ZXIiOiAxLA0KICAgICAgICAgICJyZWFzb24iOiAi5Z2g5bSWIiwNCiAgICAgICAgICAiYXNzZXJ0aW9uX3R5cGUiOiAibW9kZWxfaW5mZXJlbmNlIg0KICAgICAgICB9DQogICAgICBdLA0KICAgICAgInRpbWVsaW5lX29yZGVyIjogWw0KICAgICAgICB7DQogICAgICAgICAgImJlZm9yZSI6ICLnmbvln7oiLA0KICAgICAgICAgICJhZnRlciI6ICLooYDmnIjlpJwiDQogICAgICAgIH0NCiAgICAgIF0sDQogICAgICAicHJvbWlzZXMiOiBbDQogICAgICAgIHsNCiAgICAgICAgICAiaWQiOiAicHJvbWlzZV80MTNhMTI3ZSIsDQogICAgICAgICAgInRpdGxlIjogIuS6leW6leeahOWjsOmfsyIsDQogICAgICAgICAgInBsYW50ZWRfY2hhcHRlciI6IDEsDQogICAgICAgICAgInN0YXR1cyI6ICJwbGFudGVkIg0KICAgICAgICB9LA0KICAgICAgICB7DQogICAgICAgICAgImlkIjogInAtYmVsbCIsDQogICAgICAgICAgInRpdGxlIjogIumTnOmSn+S9leaXtuWGjeWTjSIsDQogICAgICAgICAgInBsYW50ZWRfY2hhcHRlciI6IDIsDQogICAgICAgICAgInN0YXR1cyI6ICJhZHZhbmNpbmciLA0KICAgICAgICAgICJkdWVfY2hhcHRlciI6IG51bGwsDQogICAgICAgICAgInJlc29sdmVkX2NoYXB0ZXIiOiA1LA0KICAgICAgICAgICJjYWRlbmNlX2NoYXB0ZXJzIjogMywNCiAgICAgICAgICAia2luZCI6ICJyZWN1cnJpbmciDQogICAgICAgIH0sDQogICAgICAgIHsNCiAgICAgICAgICAiaWQiOiAicHJvbWlzZV81NDVjZGM2ZSIsDQogICAgICAgICAgInRpdGxlIjogIumTnOmSn+S9leaXtuWGjeWTjSIsDQogICAgICAgICAgInBsYW50ZWRfY2hhcHRlciI6IDIsDQogICAgICAgICAgInN0YXR1cyI6ICJwbGFudGVkIiwNCiAgICAgICAgICAiZHVlX2NoYXB0ZXIiOiA0DQogICAgICAgIH0sDQogICAgICAgIHsNCiAgICAgICAgICAiaWQiOiAicC1vbGQiLA0KICAgICAgICAgICJ0aXRsZSI6ICLml6fotKYiLA0KICAgICAgICAgICJwbGFudGVkX2NoYXB0ZXIiOiAxLA0KICAgICAgICAgICJzdGF0dXMiOiAicGxhbnRlZCINCiAgICAgICAgfQ0KICAgICAgXQ0KICAgIH0sDQogICAgInBlbmRpbmdfY291bnQiOiA4DQogIH0sDQogICJub3RlIjogIuehruWumuaAp+WPguiAg+S/oeWPt++8iOaXoCBMTE3vvInvvJphZHZpc29yeSDpnIDnu5PlkIjljp/mlofmoLjlrp7vvIzkuI3mmK/otKjph4/liKTlrprjgIIiLA0KICAiX3N0b3J5Zm9yZ2Vfc291cmNlX3JldmlzaW9uIjogImNhbm9uLXdyaXRlYmFjay12MTphOTYxYjBmOWIxMzMxMTI1N2Q2MTM3YjM3OTI5N2ExNmM5YThlYjFjODc5Y2E5ZDBhNjE1MzAyYmJkOWJmNzEyIg0KfQ==",
+                  "repeat": 1
+                }
+              ]
+            },
+            ".storyforge/canon/derived/report.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAiY29uZmxpY3RzIjogW10sDQogICJhZHZpc29yaWVzIjogWw0KICAgIHsNCiAgICAgICJpZCI6ICJjYW5vbl9mOGQwYzRmMTY5OTQiLA0KICAgICAgImNhdGVnb3J5IjogImxpZmVzcGFuIiwNCiAgICAgICJzZXZlcml0eSI6ICJtZWRpdW0iLA0KICAgICAgImVudGl0eSI6ICJjaGFyX3NoZW4iLA0KICAgICAgImV4aXRzX2FmdGVyX2NoYXB0ZXIiOiAyLA0KICAgICAgImhpdHMiOiBbDQogICAgICAgIHsNCiAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAz56ugLm1kIiwNCiAgICAgICAgICAiY2hhcHRlciI6IDMsDQogICAgICAgICAgImZpcnN0X2xpbmUiOiAxDQogICAgICAgIH0NCiAgICAgIF0sDQogICAgICAibWVzc2FnZSI6ICLmsojnpr4g5aOw5piO5Zyo56ysIDIg56ug5ZCO6YCA5Zy677yI5aOw5piO5Y6f5Zug77ya5Z2g5bSW77yJ77yM5L2G5q2j5paH5Zyo5YW25ZCO56ug6IqC5LuN5Ye6546w5YW26KGo6Z2i5b2i77yIMSDlpITvvInjgILlj6/og73mmK/lm57lv4YgLyDmj5Dlj4ogLyDlkIzlkI3vvIzor7fmir3or7vmoLjlrp7jgIIiDQogICAgfQ0KICBdLA0KICAiY2hlY2tlZF9pbnZhcmlhbnRzIjogWw0KICAgICJzaW5nbGVfaG9sZGVyIiwNCiAgICAidGltZWxpbmVfb3JkZXIiLA0KICAgICJsaWZlc3BhbiINCiAgXSwNCiAgImVudGl0eV9jb3VudCI6IDQsDQogICJzY2FmZm9sZGVkX2Nhbm9uIjogZmFsc2UsDQogICJfc3Rvcnlmb3JnZV9zb3VyY2VfcmV2aXNpb24iOiAiY2Fub24td3JpdGViYWNrLXYxOmE5NjFiMGY5YjEzMzExMjU3ZDYxMzdiMzc5Mjk3YTE2YzlhOGViMWM4NzljYTlkMGE2MTUzMDJiYmQ5YmY3MTIiDQp9",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fn": "observatory_scan",
+          "args": {
+            "clock": 1
+          },
+          "output_json": "{\"version\": 2, \"cache_status\": \"published\", \"generated_at\": \"2026-10-12T04:30:15+00:00\", \"observations\": [{\"id\": \"canon_f8d0c4f16994\", \"severity\": \"warning\", \"title\": \"char_shen 声明退场后仍出场\", \"detail\": \"沈禾 声明在第 2 章后退场（声明原因：坠崖），但正文在其后章节仍出现其表面形（1 处）。可能是回忆 / 提及 / 同名，请抽读核实。\", \"source\": \"canon·lifespan\", \"location\": {\"path\": \"正文/第003章.md\", \"line\": 1}}, {\"id\": \"promise_e4d1bda154f0\", \"severity\": \"warning\", \"title\": \"伏笔「旧账」逾期未回应\", \"detail\": \"伏笔承诺「旧账」已超过第 2 章截止窗口，当前正文到第 3 章仍未兑现。\", \"source\": \"promise·overdue\", \"location\": {\"path\": \".storyforge/canon/canon.json\"}}, {\"id\": \"prose_dbde436237a3\", \"severity\": \"warning\", \"title\": \"「不禁、五味杂陈」\", \"detail\": \"出现高频陈词套话，削弱画面和人物独特性。 · 替换为具体动作、感官细节或角色专属表达。 · 建议策略 line_edit\", \"source\": \"prose·套话\", \"location\": {\"path\": \"正文/第001章.md\", \"snippet\": \"不禁、五味杂陈\"}}, {\"id\": \"prose_4920f83de473\", \"severity\": \"warning\", \"title\": \"「沈禾又出现了。与此同时，顾迟越过断桥。\\n另一边，沈禾推开仓门。\\n镜头一转」\", \"detail\": \"静态描述偏多，缺少行动 beat。 · 加入目标、阻碍和段末变化，推动下一段。 · 建议策略 scene_patch\", \"source\": \"prose·节奏\", \"location\": {\"path\": \"正文/第003章.md\", \"snippet\": \"沈禾又出现了。与此同时，顾迟越过断桥。\\n另一边，沈禾推开仓门。\\n镜头一转\"}}], \"counts\": {\"error\": 0, \"warning\": 4, \"advisory\": 0, \"total\": 4}, \"checkers\": [{\"key\": \"canon\", \"tool\": \"project.canon\", \"status\": \"ran\", \"conflict_count\": 0, \"advisory_count\": 1, \"entity_count\": 4}, {\"key\": \"promise\", \"tool\": \"project.promise_check\", \"status\": \"ran\", \"conflict_count\": 0, \"advisory_count\": 1, \"promise_count\": 1, \"current_chapter\": 3}, {\"key\": \"prose\", \"tool\": \"project.prose_check\", \"status\": \"ran\", \"files_scanned\": 3, \"files_skipped\": 0, \"files_truncated\": false, \"issue_count\": 2}, {\"key\": \"consistency\", \"tool\": \"project.consistency\", \"status\": \"on_demand\", \"reason\": \"机械观察不下结论，Agent 内按需触发。\"}, {\"key\": \"collapse\", \"tool\": \"project.collapse_check\", \"status\": \"on_demand\", \"reason\": \"需要 Agent 提供场景节拍等语义参数，裸跑无信号。\"}, {\"key\": \"entity_budget\", \"tool\": \"project.entity_budget_check\", \"status\": \"on_demand\", \"reason\": \"需要 Agent 提供新实体清单，裸跑无信号。\"}, {\"key\": \"deep_consistency\", \"tool\": \"project.deep_consistency\", \"status\": \"on_demand\", \"reason\": \"语义评审走 LLM，永远按需触发，不进保存重扫。\"}], \"entities\": [{\"id\": \"char_lin\", \"canonical_name\": \"林舟\", \"kind\": \"人物\", \"aliases\": [\"阿舟\"], \"appearance\": {\"missing\": false, \"total_count\": 4, \"first_chapter\": 1, \"last_chapter\": 2}, \"holdings\": [{\"item\": \"断魂刀\", \"from_chapter\": 1, \"to_chapter\": 3}], \"lifespan\": null, \"provenance\": [{\"path\": \"正文/第001章.md\", \"chapter\": 1, \"first_line\": 1, \"count\": 3}, {\"path\": \"正文/第002章.md\", \"chapter\": 2, \"first_line\": 1, \"count\": 1}], \"provenance_truncated\": false, \"related_observation_ids\": []}, {\"id\": \"char_shen\", \"canonical_name\": \"沈禾\", \"kind\": null, \"aliases\": [], \"appearance\": {\"missing\": false, \"total_count\": 4, \"first_chapter\": 1, \"last_chapter\": 3}, \"holdings\": [], \"lifespan\": {\"exits_after_chapter\": 2, \"reason\": \"坠崖\"}, \"provenance\": [{\"path\": \"正文/第001章.md\", \"chapter\": 1, \"first_line\": 1, \"count\": 1}, {\"path\": \"正文/第002章.md\", \"chapter\": 2, \"first_line\": 1, \"count\": 1}, {\"path\": \"正文/第003章.md\", \"chapter\": 3, \"first_line\": 1, \"count\": 2}], \"provenance_truncated\": false, \"related_observation_ids\": [\"canon_f8d0c4f16994\"]}, {\"id\": \"ent_7e97b030\", \"canonical_name\": \"铜钟\", \"kind\": null, \"aliases\": [], \"appearance\": {\"missing\": true, \"total_count\": 0, \"first_chapter\": null, \"last_chapter\": null}, \"holdings\": [], \"lifespan\": null, \"provenance\": [], \"provenance_truncated\": false, \"related_observation_ids\": []}], \"promises\": {\"current_chapter\": 3, \"ledger\": [{\"id\": \"p-old\", \"title\": \"旧账\", \"status\": \"planted\", \"kind\": null, \"planted_chapter\": 1, \"due_chapter\": 2, \"resolved_chapter\": null, \"last_touch_chapter\": 1, \"issues\": [{\"id\": \"promise_e4d1bda154f0\", \"category\": \"overdue\", \"severity\": \"medium\", \"message\": \"伏笔承诺「旧账」已超过第 2 章截止窗口，当前正文到第 3 章仍未兑现。\"}]}]}, \"proposals\": {\"available\": true, \"new_entities\": [{\"id\": \"ent_4b30d188\", \"canonical_name\": \"巡夜人\", \"aliases\": [\"老周\", \"守夜的\"], \"assertion_type\": \"text_observation\", \"evidence\": [{\"quote\": \"巡夜人提灯走过\", \"path\": \"正文/第001章.md\", \"start_line\": 1}]}], \"new_invariants\": {\"single_holder\": [{\"item\": \"断魂刀\", \"holder\": \"ent_ghost\", \"from_chapter\": 2}], \"lifespan\": [{\"entity\": \"char_lin\", \"exits_after_chapter\": 1, \"reason\": \"坠崖\", \"assertion_type\": \"model_inference\"}], \"timeline_order\": [{\"before\": \"登基\", \"after\": \"血月夜\"}], \"promises\": [{\"id\": \"promise_413a127e\", \"title\": \"井底的声音\", \"planted_chapter\": 1, \"status\": \"planted\"}, {\"id\": \"p-bell\", \"title\": \"铜钟何时再响\", \"planted_chapter\": 2, \"status\": \"advancing\", \"due_chapter\": null, \"resolved_chapter\": 5, \"cadence_chapters\": 3, \"kind\": \"recurring\"}, {\"id\": \"promise_545cdc6e\", \"title\": \"铜钟何时再响\", \"planted_chapter\": 2, \"status\": \"planted\", \"due_chapter\": 4}, {\"id\": \"p-old\", \"title\": \"旧账\", \"planted_chapter\": 1, \"status\": \"planted\"}]}, \"pending_count\": 8}, \"note\": \"确定性参考信号（无 LLM）：advisory 需结合原文核实，不是质量判定。\"}",
+          "writes": {
+            ".storyforge/canon/derived/observations.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAidmVyc2lvbiI6IDIsDQogICJjYWNoZV9zdGF0dXMiOiAicHVibGlzaGVkIiwNCiAgImdlbmVyYXRlZF9hdCI6ICIyMDI2LTEwLTEyVDA0OjMwOjE1KzAwOjAwIiwNCiAgIm9ic2VydmF0aW9ucyI6IFsNCiAgICB7DQogICAgICAiaWQiOiAiY2Fub25fZjhkMGM0ZjE2OTk0IiwNCiAgICAgICJzZXZlcml0eSI6ICJ3YXJuaW5nIiwNCiAgICAgICJ0aXRsZSI6ICJjaGFyX3NoZW4g5aOw5piO6YCA5Zy65ZCO5LuN5Ye65Zy6IiwNCiAgICAgICJkZXRhaWwiOiAi5rKI56a+IOWjsOaYjuWcqOesrCAyIOeroOWQjumAgOWcuu+8iOWjsOaYjuWOn+WboO+8muWdoOW0lu+8ie+8jOS9huato+aWh+WcqOWFtuWQjueroOiKguS7jeWHuueOsOWFtuihqOmdouW9ou+8iDEg5aSE77yJ44CC5Y+v6IO95piv5Zue5b+GIC8g5o+Q5Y+KIC8g5ZCM5ZCN77yM6K+35oq96K+75qC45a6e44CCIiwNCiAgICAgICJzb3VyY2UiOiAiY2Fub27Ct2xpZmVzcGFuIiwNCiAgICAgICJsb2NhdGlvbiI6IHsNCiAgICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwM+eroC5tZCIsDQogICAgICAgICJsaW5lIjogMQ0KICAgICAgfQ0KICAgIH0sDQogICAgew0KICAgICAgImlkIjogInByb21pc2VfZTRkMWJkYTE1NGYwIiwNCiAgICAgICJzZXZlcml0eSI6ICJ3YXJuaW5nIiwNCiAgICAgICJ0aXRsZSI6ICLkvI/nrJTjgIzml6fotKbjgI3pgL7mnJ/mnKrlm57lupQiLA0KICAgICAgImRldGFpbCI6ICLkvI/nrJTmib/or7rjgIzml6fotKbjgI3lt7LotoXov4fnrKwgMiDnq6DmiKrmraLnqpflj6PvvIzlvZPliY3mraPmlofliLDnrKwgMyDnq6Dku43mnKrlhZHnjrDjgIIiLA0KICAgICAgInNvdXJjZSI6ICJwcm9taXNlwrdvdmVyZHVlIiwNCiAgICAgICJsb2NhdGlvbiI6IHsNCiAgICAgICAgInBhdGgiOiAiLnN0b3J5Zm9yZ2UvY2Fub24vY2Fub24uanNvbiINCiAgICAgIH0NCiAgICB9LA0KICAgIHsNCiAgICAgICJpZCI6ICJwcm9zZV9kYmRlNDM2MjM3YTMiLA0KICAgICAgInNldmVyaXR5IjogIndhcm5pbmciLA0KICAgICAgInRpdGxlIjogIuOAjOS4jeemgeOAgeS6lOWRs+adgumZiOOAjSIsDQogICAgICAiZGV0YWlsIjogIuWHuueOsOmrmOmikemZiOivjeWll+ivne+8jOWJiuW8seeUu+mdouWSjOS6uueJqeeLrOeJueaAp+OAgiDCtyDmm7/mjaLkuLrlhbfkvZPliqjkvZzjgIHmhJ/lrpjnu4boioLmiJbop5LoibLkuJPlsZ7ooajovr7jgIIgwrcg5bu66K6u562W55WlIGxpbmVfZWRpdCIsDQogICAgICAic291cmNlIjogInByb3NlwrflpZfor50iLA0KICAgICAgImxvY2F0aW9uIjogew0KICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAx56ugLm1kIiwNCiAgICAgICAgInNuaXBwZXQiOiAi5LiN56aB44CB5LqU5ZGz5p2C6ZmIIg0KICAgICAgfQ0KICAgIH0sDQogICAgew0KICAgICAgImlkIjogInByb3NlXzQ5MjBmODNkZTQ3MyIsDQogICAgICAic2V2ZXJpdHkiOiAid2FybmluZyIsDQogICAgICAidGl0bGUiOiAi44CM5rKI56a+5Y+I5Ye6546w5LqG44CC5LiO5q2k5ZCM5pe277yM6aG+6L+f6LaK6L+H5pat5qGl44CCXG7lj6bkuIDovrnvvIzmsojnpr7mjqjlvIDku5Ppl6jjgIJcbumVnOWktOS4gOi9rOOAjSIsDQogICAgICAiZGV0YWlsIjogIumdmeaAgeaPj+i/sOWBj+Wkmu+8jOe8uuWwkeihjOWKqCBiZWF044CCIMK3IOWKoOWFpeebruagh+OAgemYu+eijeWSjOauteacq+WPmOWMlu+8jOaOqOWKqOS4i+S4gOauteOAgiDCtyDlu7rorq7nrZbnlaUgc2NlbmVfcGF0Y2giLA0KICAgICAgInNvdXJjZSI6ICJwcm9zZcK36IqC5aWPIiwNCiAgICAgICJsb2NhdGlvbiI6IHsNCiAgICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwM+eroC5tZCIsDQogICAgICAgICJzbmlwcGV0IjogIuayiOemvuWPiOWHuueOsOS6huOAguS4juatpOWQjOaXtu+8jOmhvui/n+i2iui/h+aWreahpeOAglxu5Y+m5LiA6L6577yM5rKI56a+5o6o5byA5LuT6Zeo44CCXG7plZzlpLTkuIDovawiDQogICAgICB9DQogICAgfQ0KICBdLA0KICAiY291bnRzIjogew0KICAgICJlcnJvciI6IDAsDQogICAgIndhcm5pbmciOiA0LA0KICAgICJhZHZpc29yeSI6IDAsDQogICAgInRvdGFsIjogNA0KICB9LA0KICAiY2hlY2tlcnMiOiBbDQogICAgew0KICAgICAgImtleSI6ICJjYW5vbiIsDQogICAgICAidG9vbCI6ICJwcm9qZWN0LmNhbm9uIiwNCiAgICAgICJzdGF0dXMiOiAicmFuIiwNCiAgICAgICJjb25mbGljdF9jb3VudCI6IDAsDQogICAgICAiYWR2aXNvcnlfY291bnQiOiAxLA0KICAgICAgImVudGl0eV9jb3VudCI6IDQNCiAgICB9LA0KICAgIHsNCiAgICAgICJrZXkiOiAicHJvbWlzZSIsDQogICAgICAidG9vbCI6ICJwcm9qZWN0LnByb21pc2VfY2hlY2siLA0KICAgICAgInN0YXR1cyI6ICJyYW4iLA0KICAgICAgImNvbmZsaWN0X2NvdW50IjogMCwNCiAgICAgICJhZHZpc29yeV9jb3VudCI6IDEsDQogICAgICAicHJvbWlzZV9jb3VudCI6IDEsDQogICAgICAiY3VycmVudF9jaGFwdGVyIjogMw0KICAgIH0sDQogICAgew0KICAgICAgImtleSI6ICJwcm9zZSIsDQogICAgICAidG9vbCI6ICJwcm9qZWN0LnByb3NlX2NoZWNrIiwNCiAgICAgICJzdGF0dXMiOiAicmFuIiwNCiAgICAgICJmaWxlc19zY2FubmVkIjogMywNCiAgICAgICJmaWxlc19za2lwcGVkIjogMCwNCiAgICAgICJmaWxlc190cnVuY2F0ZWQiOiBmYWxzZSwNCiAgICAgICJpc3N1ZV9jb3VudCI6IDINCiAgICB9LA0KICAgIHsNCiAgICAgICJrZXkiOiAiY29uc2lzdGVuY3kiLA0KICAgICAgInRvb2wiOiAicHJvamVjdC5jb25zaXN0ZW5jeSIsDQogICAgICAic3RhdHVzIjogIm9uX2RlbWFuZCIsDQogICAgICAicmVhc29uIjogIuacuuaisOinguWvn+S4jeS4i+e7k+iuuu+8jEFnZW50IOWGheaMiemcgOinpuWPkeOAgiINCiAgICB9LA0KICAgIHsNCiAgICAgICJrZXkiOiAiY29sbGFwc2UiLA0KICAgICAgInRvb2wiOiAicHJvamVjdC5jb2xsYXBzZV9jaGVjayIsDQogICAgICAic3RhdHVzIjogIm9uX2RlbWFuZCIsDQogICAgICAicmVhc29uIjogIumcgOimgSBBZ2VudCDmj5DkvpvlnLrmma/oioLmi43nrYnor63kuYnlj4LmlbDvvIzoo7jot5Hml6Dkv6Hlj7fjgIIiDQogICAgfSwNCiAgICB7DQogICAgICAia2V5IjogImVudGl0eV9idWRnZXQiLA0KICAgICAgInRvb2wiOiAicHJvamVjdC5lbnRpdHlfYnVkZ2V0X2NoZWNrIiwNCiAgICAgICJzdGF0dXMiOiAib25fZGVtYW5kIiwNCiAgICAgICJyZWFzb24iOiAi6ZyA6KaBIEFnZW50IOaPkOS+m+aWsOWunuS9k+a4heWNle+8jOijuOi3keaXoOS/oeWPt+OAgiINCiAgICB9LA0KICAgIHsNCiAgICAgICJrZXkiOiAiZGVlcF9jb25zaXN0ZW5jeSIsDQogICAgICAidG9vbCI6ICJwcm9qZWN0LmRlZXBfY29uc2lzdGVuY3kiLA0KICAgICAgInN0YXR1cyI6ICJvbl9kZW1hbmQiLA0KICAgICAgInJlYXNvbiI6ICLor63kuYnor4TlrqHotbAgTExN77yM5rC46L+c5oyJ6ZyA6Kem5Y+R77yM5LiN6L+b5L+d5a2Y6YeN5omr44CCIg0KICAgIH0NCiAgXSwNCiAgImVudGl0aWVzIjogWw0KICAgIHsNCiAgICAgICJpZCI6ICJjaGFyX2xpbiIsDQogICAgICAiY2Fub25pY2FsX25hbWUiOiAi5p6X6IifIiwNCiAgICAgICJraW5kIjogIuS6uueJqSIsDQogICAgICAiYWxpYXNlcyI6IFsNCiAgICAgICAgIumYv+iInyINCiAgICAgIF0sDQogICAgICAiYXBwZWFyYW5jZSI6IHsNCiAgICAgICAgIm1pc3NpbmciOiBmYWxzZSwNCiAgICAgICAgInRvdGFsX2NvdW50IjogNCwNCiAgICAgICAgImZpcnN0X2NoYXB0ZXIiOiAxLA0KICAgICAgICAibGFzdF9jaGFwdGVyIjogMg0KICAgICAgfSwNCiAgICAgICJob2xkaW5ncyI6IFsNCiAgICAgICAgew0KICAgICAgICAgICJpdGVtIjogIuaWremtguWIgCIsDQogICAgICAgICAgImZyb21fY2hhcHRlciI6IDEsDQogICAgICAgICAgInRvX2NoYXB0ZXIiOiAzDQogICAgICAgIH0NCiAgICAgIF0sDQogICAgICAibGlmZXNwYW4iOiBudWxsLA0KICAgICAgInByb3ZlbmFuY2UiOiBbDQogICAgICAgIHsNCiAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAx56ugLm1kIiwNCiAgICAgICAgICAiY2hhcHRlciI6IDEsDQogICAgICAgICAgImZpcnN0X2xpbmUiOiAxLA0KICAgICAgICAgICJjb3VudCI6IDMNCiAgICAgICAgfSwNCiAgICAgICAgew0KICAgICAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDLnq6AubWQiLA0KICAgICAgICAgICJjaGFwdGVyIjogMiwNCiAgICAgICAgICAiZmlyc3RfbGluZSI6IDEsDQogICAgICAgICAgImNvdW50IjogMQ0KICAgICAgICB9DQogICAgICBdLA0KICAgICAgInByb3ZlbmFuY2VfdHJ1bmNhdGVkIjogZmFsc2UsDQogICAgICAicmVsYXRlZF9vYnNlcnZhdGlvbl9pZHMiOiBbXQ0KICAgIH0sDQogICAgew0KICAgICAgImlkIjogImNoYXJfc2hlbiIsDQogICAgICAiY2Fub25pY2FsX25hbWUiOiAi5rKI56a+IiwNCiAgICAgICJraW5kIjogbnVsbCwNCiAgICAgICJhbGlhc2VzIjogW10sDQogICAgICAiYXBwZWFyYW5jZSI6IHsNCiAgICAgICAgIm1pc3NpbmciOiBmYWxzZSwNCiAgICAgICAgInRvdGFsX2NvdW50IjogNCwNCiAgICAgICAgImZpcnN0X2NoYXB0ZXIiOiAxLA0KICAgICAgICAibGFzdF9jaGFwdGVyIjogMw0KICAgICAgfSwNCiAgICAgICJob2xkaW5ncyI6IFtdLA0KICAgICAgImxpZmVzcGFuIjogew0KICAgICAgICAiZXhpdHNfYWZ0ZXJfY2hhcHRlciI6IDIsDQogICAgICAgICJyZWFzb24iOiAi5Z2g5bSWIg0KICAgICAgfSwNCiAgICAgICJwcm92ZW5hbmNlIjogWw0KICAgICAgICB7DQogICAgICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwMeeroC5tZCIsDQogICAgICAgICAgImNoYXB0ZXIiOiAxLA0KICAgICAgICAgICJmaXJzdF9saW5lIjogMSwNCiAgICAgICAgICAiY291bnQiOiAxDQogICAgICAgIH0sDQogICAgICAgIHsNCiAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAy56ugLm1kIiwNCiAgICAgICAgICAiY2hhcHRlciI6IDIsDQogICAgICAgICAgImZpcnN0X2xpbmUiOiAxLA0KICAgICAgICAgICJjb3VudCI6IDENCiAgICAgICAgfSwNCiAgICAgICAgew0KICAgICAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDPnq6AubWQiLA0KICAgICAgICAgICJjaGFwdGVyIjogMywNCiAgICAgICAgICAiZmlyc3RfbGluZSI6IDEsDQogICAgICAgICAgImNvdW50IjogMg0KICAgICAgICB9DQogICAgICBdLA0KICAgICAgInByb3ZlbmFuY2VfdHJ1bmNhdGVkIjogZmFsc2UsDQogICAgICAicmVsYXRlZF9vYnNlcnZhdGlvbl9pZHMiOiBbDQogICAgICAgICJjYW5vbl9mOGQwYzRmMTY5OTQiDQogICAgICBdDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAiZW50XzdlOTdiMDMwIiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLpk5zpkp8iLA0KICAgICAgImtpbmQiOiBudWxsLA0KICAgICAgImFsaWFzZXMiOiBbXSwNCiAgICAgICJhcHBlYXJhbmNlIjogew0KICAgICAgICAibWlzc2luZyI6IHRydWUsDQogICAgICAgICJ0b3RhbF9jb3VudCI6IDAsDQogICAgICAgICJmaXJzdF9jaGFwdGVyIjogbnVsbCwNCiAgICAgICAgImxhc3RfY2hhcHRlciI6IG51bGwNCiAgICAgIH0sDQogICAgICAiaG9sZGluZ3MiOiBbXSwNCiAgICAgICJsaWZlc3BhbiI6IG51bGwsDQogICAgICAicHJvdmVuYW5jZSI6IFtdLA0KICAgICAgInByb3ZlbmFuY2VfdHJ1bmNhdGVkIjogZmFsc2UsDQogICAgICAicmVsYXRlZF9vYnNlcnZhdGlvbl9pZHMiOiBbXQ0KICAgIH0NCiAgXSwNCiAgInByb21pc2VzIjogew0KICAgICJjdXJyZW50X2NoYXB0ZXIiOiAzLA0KICAgICJsZWRnZXIiOiBbDQogICAgICB7DQogICAgICAgICJpZCI6ICJwLW9sZCIsDQogICAgICAgICJ0aXRsZSI6ICLml6fotKYiLA0KICAgICAgICAic3RhdHVzIjogInBsYW50ZWQiLA0KICAgICAgICAia2luZCI6IG51bGwsDQogICAgICAgICJwbGFudGVkX2NoYXB0ZXIiOiAxLA0KICAgICAgICAiZHVlX2NoYXB0ZXIiOiAyLA0KICAgICAgICAicmVzb2x2ZWRfY2hhcHRlciI6IG51bGwsDQogICAgICAgICJsYXN0X3RvdWNoX2NoYXB0ZXIiOiAxLA0KICAgICAgICAiaXNzdWVzIjogWw0KICAgICAgICAgIHsNCiAgICAgICAgICAgICJpZCI6ICJwcm9taXNlX2U0ZDFiZGExNTRmMCIsDQogICAgICAgICAgICAiY2F0ZWdvcnkiOiAib3ZlcmR1ZSIsDQogICAgICAgICAgICAic2V2ZXJpdHkiOiAibWVkaXVtIiwNCiAgICAgICAgICAgICJtZXNzYWdlIjogIuS8j+eslOaJv+ivuuOAjOaXp+i0puOAjeW3sui2hei/h+esrCAyIOeroOaIquatoueql+WPo++8jOW9k+WJjeato+aWh+WIsOesrCAzIOeroOS7jeacquWFkeeOsOOAgiINCiAgICAgICAgICB9DQogICAgICAgIF0NCiAgICAgIH0NCiAgICBdDQogIH0sDQogICJwcm9wb3NhbHMiOiB7DQogICAgImF2YWlsYWJsZSI6IHRydWUsDQogICAgIm5ld19lbnRpdGllcyI6IFsNCiAgICAgIHsNCiAgICAgICAgImlkIjogImVudF80YjMwZDE4OCIsDQogICAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLlt6HlpJzkuroiLA0KICAgICAgICAiYWxpYXNlcyI6IFsNCiAgICAgICAgICAi6ICB5ZGoIiwNCiAgICAgICAgICAi5a6I5aSc55qEIg0KICAgICAgICBdLA0KICAgICAgICAiYXNzZXJ0aW9uX3R5cGUiOiAidGV4dF9vYnNlcnZhdGlvbiIsDQogICAgICAgICJldmlkZW5jZSI6IFsNCiAgICAgICAgICB7DQogICAgICAgICAgICAicXVvdGUiOiAi5beh5aSc5Lq65o+Q54Gv6LWw6L+HIiwNCiAgICAgICAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDHnq6AubWQiLA0KICAgICAgICAgICAgInN0YXJ0X2xpbmUiOiAxDQogICAgICAgICAgfQ0KICAgICAgICBdDQogICAgICB9DQogICAgXSwNCiAgICAibmV3X2ludmFyaWFudHMiOiB7DQogICAgICAic2luZ2xlX2hvbGRlciI6IFsNCiAgICAgICAgew0KICAgICAgICAgICJpdGVtIjogIuaWremtguWIgCIsDQogICAgICAgICAgImhvbGRlciI6ICJlbnRfZ2hvc3QiLA0KICAgICAgICAgICJmcm9tX2NoYXB0ZXIiOiAyDQogICAgICAgIH0NCiAgICAgIF0sDQogICAgICAibGlmZXNwYW4iOiBbDQogICAgICAgIHsNCiAgICAgICAgICAiZW50aXR5IjogImNoYXJfbGluIiwNCiAgICAgICAgICAiZXhpdHNfYWZ0ZXJfY2hhcHRlciI6IDEsDQogICAgICAgICAgInJlYXNvbiI6ICLlnaDltJYiLA0KICAgICAgICAgICJhc3NlcnRpb25fdHlwZSI6ICJtb2RlbF9pbmZlcmVuY2UiDQogICAgICAgIH0NCiAgICAgIF0sDQogICAgICAidGltZWxpbmVfb3JkZXIiOiBbDQogICAgICAgIHsNCiAgICAgICAgICAiYmVmb3JlIjogIueZu+WfuiIsDQogICAgICAgICAgImFmdGVyIjogIuihgOaciOWknCINCiAgICAgICAgfQ0KICAgICAgXSwNCiAgICAgICJwcm9taXNlcyI6IFsNCiAgICAgICAgew0KICAgICAgICAgICJpZCI6ICJwcm9taXNlXzQxM2ExMjdlIiwNCiAgICAgICAgICAidGl0bGUiOiAi5LqV5bqV55qE5aOw6Z+zIiwNCiAgICAgICAgICAicGxhbnRlZF9jaGFwdGVyIjogMSwNCiAgICAgICAgICAic3RhdHVzIjogInBsYW50ZWQiDQogICAgICAgIH0sDQogICAgICAgIHsNCiAgICAgICAgICAiaWQiOiAicC1iZWxsIiwNCiAgICAgICAgICAidGl0bGUiOiAi6ZOc6ZKf5L2V5pe25YaN5ZONIiwNCiAgICAgICAgICAicGxhbnRlZF9jaGFwdGVyIjogMiwNCiAgICAgICAgICAic3RhdHVzIjogImFkdmFuY2luZyIsDQogICAgICAgICAgImR1ZV9jaGFwdGVyIjogbnVsbCwNCiAgICAgICAgICAicmVzb2x2ZWRfY2hhcHRlciI6IDUsDQogICAgICAgICAgImNhZGVuY2VfY2hhcHRlcnMiOiAzLA0KICAgICAgICAgICJraW5kIjogInJlY3VycmluZyINCiAgICAgICAgfSwNCiAgICAgICAgew0KICAgICAgICAgICJpZCI6ICJwcm9taXNlXzU0NWNkYzZlIiwNCiAgICAgICAgICAidGl0bGUiOiAi6ZOc6ZKf5L2V5pe25YaN5ZONIiwNCiAgICAgICAgICAicGxhbnRlZF9jaGFwdGVyIjogMiwNCiAgICAgICAgICAic3RhdHVzIjogInBsYW50ZWQiLA0KICAgICAgICAgICJkdWVfY2hhcHRlciI6IDQNCiAgICAgICAgfSwNCiAgICAgICAgew0KICAgICAgICAgICJpZCI6ICJwLW9sZCIsDQogICAgICAgICAgInRpdGxlIjogIuaXp+i0piIsDQogICAgICAgICAgInBsYW50ZWRfY2hhcHRlciI6IDEsDQogICAgICAgICAgInN0YXR1cyI6ICJwbGFudGVkIg0KICAgICAgICB9DQogICAgICBdDQogICAgfSwNCiAgICAicGVuZGluZ19jb3VudCI6IDgNCiAgfSwNCiAgIm5vdGUiOiAi56Gu5a6a5oCn5Y+C6ICD5L+h5Y+377yI5pegIExMTe+8ie+8mmFkdmlzb3J5IOmcgOe7k+WQiOWOn+aWh+aguOWunu+8jOS4jeaYr+i0qOmHj+WIpOWumuOAgiIsDQogICJfc3Rvcnlmb3JnZV9zb3VyY2VfcmV2aXNpb24iOiAiY2Fub24td3JpdGViYWNrLXYxOmE5NjFiMGY5YjEzMzExMjU3ZDYxMzdiMzc5Mjk3YTE2YzlhOGViMWM4NzljYTlkMGE2MTUzMDJiYmQ5YmY3MTIiDQp9",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "no-canon-observatory",
+      "files": {
+        "README.MD": {
+          "chunks": [
+            {
+              "base64": "5LuW5LiN56aB6L2s6Lqr44CC",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/.hidden/b.md": {
+          "chunks": [
+            {
+              "base64": "eA==",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/a.md": {
+          "chunks": [
+            {
+              "base64": "5LuW5LiN56aB5Y+55rCU44CC",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "observatory_scan",
+          "args": {
+            "clock": 0
+          },
+          "output_json": "{\"version\": 2, \"cache_status\": \"published\", \"generated_at\": \"2026-10-12T04:30:15.123000+00:00\", \"observations\": [{\"id\": \"prose_890904cc058f\", \"severity\": \"advisory\", \"title\": \"「不禁」\", \"detail\": \"出现高频陈词套话，削弱画面和人物独特性。 · 替换为具体动作、感官细节或角色专属表达。 · 建议策略 line_edit\", \"source\": \"prose·套话\", \"location\": {\"path\": \"README.MD\", \"snippet\": \"不禁\"}}, {\"id\": \"prose_5271c02c4a4a\", \"severity\": \"advisory\", \"title\": \"「不禁」\", \"detail\": \"出现高频陈词套话，削弱画面和人物独特性。 · 替换为具体动作、感官细节或角色专属表达。 · 建议策略 line_edit\", \"source\": \"prose·套话\", \"location\": {\"path\": \"正文/a.md\", \"snippet\": \"不禁\"}}], \"counts\": {\"error\": 0, \"warning\": 0, \"advisory\": 2, \"total\": 2}, \"checkers\": [{\"key\": \"canon\", \"tool\": \"project.canon\", \"status\": \"ran\", \"conflict_count\": 0, \"advisory_count\": 0, \"entity_count\": 0}, {\"key\": \"promise\", \"tool\": \"project.promise_check\", \"status\": \"ran\", \"conflict_count\": 0, \"advisory_count\": 0, \"promise_count\": 0, \"current_chapter\": 2}, {\"key\": \"prose\", \"tool\": \"project.prose_check\", \"status\": \"ran\", \"files_scanned\": 2, \"files_skipped\": 0, \"files_truncated\": false, \"issue_count\": 2}, {\"key\": \"consistency\", \"tool\": \"project.consistency\", \"status\": \"on_demand\", \"reason\": \"机械观察不下结论，Agent 内按需触发。\"}, {\"key\": \"collapse\", \"tool\": \"project.collapse_check\", \"status\": \"on_demand\", \"reason\": \"需要 Agent 提供场景节拍等语义参数，裸跑无信号。\"}, {\"key\": \"entity_budget\", \"tool\": \"project.entity_budget_check\", \"status\": \"on_demand\", \"reason\": \"需要 Agent 提供新实体清单，裸跑无信号。\"}, {\"key\": \"deep_consistency\", \"tool\": \"project.deep_consistency\", \"status\": \"on_demand\", \"reason\": \"语义评审走 LLM，永远按需触发，不进保存重扫。\"}], \"entities\": [], \"promises\": {\"current_chapter\": 2, \"ledger\": []}, \"proposals\": {\"available\": false, \"new_entities\": [], \"new_invariants\": {}, \"pending_count\": 0}, \"note\": \"确定性参考信号（无 LLM）：advisory 需结合原文核实，不是质量判定。\"}",
+          "writes": {
+            ".storyforge/canon/canon.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAidmVyc2lvbiI6IDEsDQogICJlbnRpdGllcyI6IFtdLA0KICAiaW52YXJpYW50cyI6IHt9DQp9",
+                  "repeat": 1
+                }
+              ]
+            },
+            ".storyforge/canon/derived/dossier.md": {
+              "chunks": [
+                {
+                  "base64": "PCEtLSBfc3Rvcnlmb3JnZV9zb3VyY2VfcmV2aXNpb246IGNhbm9uLXdyaXRlYmFjay12MTo2YjRhMzI5MTAzNTJlZDBiYzE3YzA1ZWYzZTBmN2RlMDliYmQxOGRhYmVkN2Q2MjdjZDFmZWQxZTRkNzRiNjA2IC0tPg0KIyBDYW5vbiBEb3NzaWVy77yI5rS+55Sf57yT5a2Y77yM5Yu/5omL5pS577yJDQoNCj4g5pys5paH5Lu255SxIHByb2plY3QuY2Fub24g5LuOIGNhbm9uLmpzb24g5aOw5piOICsg5q2j5paH5Zyo5Zy65YiG5biD56Gu5a6a5oCn6YeN5bu677yMDQo+IOaYr+WPr+W8g+e8k+WtmO+8iOWIoOmZpOWQjuS4i+asoeiwg+eUqOiHquaEiO+8ie+8jOS4jeaYr+S9nOiAheaJi+eov+OAguimgeaUueS6i+Wunuivt+aUuSBjYW5vbi5qc29u44CCDQoNCl9jYW5vbi5qc29uIOWwmuaXoOWunuS9k+WjsOaYjuOAgl8NCg==",
+                  "repeat": 1
+                }
+              ]
+            },
+            ".storyforge/canon/derived/observations.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAidmVyc2lvbiI6IDIsDQogICJjYWNoZV9zdGF0dXMiOiAicHVibGlzaGVkIiwNCiAgImdlbmVyYXRlZF9hdCI6ICIyMDI2LTEwLTEyVDA0OjMwOjE1LjEyMzAwMCswMDowMCIsDQogICJvYnNlcnZhdGlvbnMiOiBbDQogICAgew0KICAgICAgImlkIjogInByb3NlXzg5MDkwNGNjMDU4ZiIsDQogICAgICAic2V2ZXJpdHkiOiAiYWR2aXNvcnkiLA0KICAgICAgInRpdGxlIjogIuOAjOS4jeemgeOAjSIsDQogICAgICAiZGV0YWlsIjogIuWHuueOsOmrmOmikemZiOivjeWll+ivne+8jOWJiuW8seeUu+mdouWSjOS6uueJqeeLrOeJueaAp+OAgiDCtyDmm7/mjaLkuLrlhbfkvZPliqjkvZzjgIHmhJ/lrpjnu4boioLmiJbop5LoibLkuJPlsZ7ooajovr7jgIIgwrcg5bu66K6u562W55WlIGxpbmVfZWRpdCIsDQogICAgICAic291cmNlIjogInByb3NlwrflpZfor50iLA0KICAgICAgImxvY2F0aW9uIjogew0KICAgICAgICAicGF0aCI6ICJSRUFETUUuTUQiLA0KICAgICAgICAic25pcHBldCI6ICLkuI3npoEiDQogICAgICB9DQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAicHJvc2VfNTI3MWMwMmM0YTRhIiwNCiAgICAgICJzZXZlcml0eSI6ICJhZHZpc29yeSIsDQogICAgICAidGl0bGUiOiAi44CM5LiN56aB44CNIiwNCiAgICAgICJkZXRhaWwiOiAi5Ye6546w6auY6aKR6ZmI6K+N5aWX6K+d77yM5YmK5byx55S76Z2i5ZKM5Lq654mp54us54m55oCn44CCIMK3IOabv+aNouS4uuWFt+S9k+WKqOS9nOOAgeaEn+WumOe7huiKguaIluinkuiJsuS4k+WxnuihqOi+vuOAgiDCtyDlu7rorq7nrZbnlaUgbGluZV9lZGl0IiwNCiAgICAgICJzb3VyY2UiOiAicHJvc2XCt+Wll+ivnSIsDQogICAgICAibG9jYXRpb24iOiB7DQogICAgICAgICJwYXRoIjogIuato+aWhy9hLm1kIiwNCiAgICAgICAgInNuaXBwZXQiOiAi5LiN56aBIg0KICAgICAgfQ0KICAgIH0NCiAgXSwNCiAgImNvdW50cyI6IHsNCiAgICAiZXJyb3IiOiAwLA0KICAgICJ3YXJuaW5nIjogMCwNCiAgICAiYWR2aXNvcnkiOiAyLA0KICAgICJ0b3RhbCI6IDINCiAgfSwNCiAgImNoZWNrZXJzIjogWw0KICAgIHsNCiAgICAgICJrZXkiOiAiY2Fub24iLA0KICAgICAgInRvb2wiOiAicHJvamVjdC5jYW5vbiIsDQogICAgICAic3RhdHVzIjogInJhbiIsDQogICAgICAiY29uZmxpY3RfY291bnQiOiAwLA0KICAgICAgImFkdmlzb3J5X2NvdW50IjogMCwNCiAgICAgICJlbnRpdHlfY291bnQiOiAwDQogICAgfSwNCiAgICB7DQogICAgICAia2V5IjogInByb21pc2UiLA0KICAgICAgInRvb2wiOiAicHJvamVjdC5wcm9taXNlX2NoZWNrIiwNCiAgICAgICJzdGF0dXMiOiAicmFuIiwNCiAgICAgICJjb25mbGljdF9jb3VudCI6IDAsDQogICAgICAiYWR2aXNvcnlfY291bnQiOiAwLA0KICAgICAgInByb21pc2VfY291bnQiOiAwLA0KICAgICAgImN1cnJlbnRfY2hhcHRlciI6IDINCiAgICB9LA0KICAgIHsNCiAgICAgICJrZXkiOiAicHJvc2UiLA0KICAgICAgInRvb2wiOiAicHJvamVjdC5wcm9zZV9jaGVjayIsDQogICAgICAic3RhdHVzIjogInJhbiIsDQogICAgICAiZmlsZXNfc2Nhbm5lZCI6IDIsDQogICAgICAiZmlsZXNfc2tpcHBlZCI6IDAsDQogICAgICAiZmlsZXNfdHJ1bmNhdGVkIjogZmFsc2UsDQogICAgICAiaXNzdWVfY291bnQiOiAyDQogICAgfSwNCiAgICB7DQogICAgICAia2V5IjogImNvbnNpc3RlbmN5IiwNCiAgICAgICJ0b29sIjogInByb2plY3QuY29uc2lzdGVuY3kiLA0KICAgICAgInN0YXR1cyI6ICJvbl9kZW1hbmQiLA0KICAgICAgInJlYXNvbiI6ICLmnLrmorDop4Llr5/kuI3kuIvnu5PorrrvvIxBZ2VudCDlhoXmjInpnIDop6blj5HjgIIiDQogICAgfSwNCiAgICB7DQogICAgICAia2V5IjogImNvbGxhcHNlIiwNCiAgICAgICJ0b29sIjogInByb2plY3QuY29sbGFwc2VfY2hlY2siLA0KICAgICAgInN0YXR1cyI6ICJvbl9kZW1hbmQiLA0KICAgICAgInJlYXNvbiI6ICLpnIDopoEgQWdlbnQg5o+Q5L6b5Zy65pmv6IqC5ouN562J6K+t5LmJ5Y+C5pWw77yM6KO46LeR5peg5L+h5Y+344CCIg0KICAgIH0sDQogICAgew0KICAgICAgImtleSI6ICJlbnRpdHlfYnVkZ2V0IiwNCiAgICAgICJ0b29sIjogInByb2plY3QuZW50aXR5X2J1ZGdldF9jaGVjayIsDQogICAgICAic3RhdHVzIjogIm9uX2RlbWFuZCIsDQogICAgICAicmVhc29uIjogIumcgOimgSBBZ2VudCDmj5DkvpvmlrDlrp7kvZPmuIXljZXvvIzoo7jot5Hml6Dkv6Hlj7fjgIIiDQogICAgfSwNCiAgICB7DQogICAgICAia2V5IjogImRlZXBfY29uc2lzdGVuY3kiLA0KICAgICAgInRvb2wiOiAicHJvamVjdC5kZWVwX2NvbnNpc3RlbmN5IiwNCiAgICAgICJzdGF0dXMiOiAib25fZGVtYW5kIiwNCiAgICAgICJyZWFzb24iOiAi6K+t5LmJ6K+E5a6h6LWwIExMTe+8jOawuOi/nOaMiemcgOinpuWPke+8jOS4jei/m+S/neWtmOmHjeaJq+OAgiINCiAgICB9DQogIF0sDQogICJlbnRpdGllcyI6IFtdLA0KICAicHJvbWlzZXMiOiB7DQogICAgImN1cnJlbnRfY2hhcHRlciI6IDIsDQogICAgImxlZGdlciI6IFtdDQogIH0sDQogICJwcm9wb3NhbHMiOiB7DQogICAgImF2YWlsYWJsZSI6IGZhbHNlLA0KICAgICJuZXdfZW50aXRpZXMiOiBbXSwNCiAgICAibmV3X2ludmFyaWFudHMiOiB7fSwNCiAgICAicGVuZGluZ19jb3VudCI6IDANCiAgfSwNCiAgIm5vdGUiOiAi56Gu5a6a5oCn5Y+C6ICD5L+h5Y+377yI5pegIExMTe+8ie+8mmFkdmlzb3J5IOmcgOe7k+WQiOWOn+aWh+aguOWunu+8jOS4jeaYr+i0qOmHj+WIpOWumuOAgiIsDQogICJfc3Rvcnlmb3JnZV9zb3VyY2VfcmV2aXNpb24iOiAiY2Fub24td3JpdGViYWNrLXYxOjZiNGEzMjkxMDM1MmVkMGJjMTdjMDVlZjNlMGY3ZGUwOWJiZDE4ZGFiZWQ3ZDYyN2NkMWZlZDFlNGQ3NGI2MDYiDQp9",
+                  "repeat": 1
+                }
+              ]
+            },
+            ".storyforge/canon/derived/presence.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAiZW50aXRpZXMiOiBbXSwNCiAgImNoYXB0ZXJfY291bnQiOiAyLA0KICAic2Nhbm5lZF9maWxlcyI6IDAsDQogICJ0ZXJtc190cnVuY2F0ZWQiOiBmYWxzZSwNCiAgIl9zdG9yeWZvcmdlX3NvdXJjZV9yZXZpc2lvbiI6ICJjYW5vbi13cml0ZWJhY2stdjE6NmI0YTMyOTEwMzUyZWQwYmMxN2MwNWVmM2UwZjdkZTA5YmJkMThkYWJlZDdkNjI3Y2QxZmVkMWU0ZDc0YjYwNiINCn0=",
+                  "repeat": 1
+                }
+              ]
+            },
+            ".storyforge/canon/derived/report.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAiY29uZmxpY3RzIjogW10sDQogICJhZHZpc29yaWVzIjogW10sDQogICJjaGVja2VkX2ludmFyaWFudHMiOiBbXSwNCiAgImVudGl0eV9jb3VudCI6IDAsDQogICJzY2FmZm9sZGVkX2Nhbm9uIjogdHJ1ZSwNCiAgIl9zdG9yeWZvcmdlX3NvdXJjZV9yZXZpc2lvbiI6ICJjYW5vbi13cml0ZWJhY2stdjE6NmI0YTMyOTEwMzUyZWQwYmMxN2MwNWVmM2UwZjdkZTA5YmJkMThkYWJlZDdkNjI3Y2QxZmVkMWU0ZDc0YjYwNiINCn0=",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "uncached-observatory",
+      "files": {
+        ".storyforge/canon/canon.json": {
+          "chunks": [
+            {
+              "base64": "ewogICJ2ZXJzaW9uIjogMSwKICAiZW50aXRpZXMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJjaGFyX2xpbiIsCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmnpfoiJ8iLAogICAgICAiYWxpYXNlcyI6IFsKICAgICAgICAi6Zi/6IifIgogICAgICBdLAogICAgICAia2luZCI6ICLkurrniakiCiAgICB9LAogICAgewogICAgICAiaWQiOiAiY2hhcl9zaGVuIiwKICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuayiOemviIsCiAgICAgICJhbGlhc2VzIjogW10KICAgIH0sCiAgICB7CiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLml6AgaWQg55qE5Lq6IgogICAgfQogIF0sCiAgImludmFyaWFudHMiOiB7CiAgICAic2luZ2xlX2hvbGRlciI6IFsKICAgICAgewogICAgICAgICJpdGVtIjogIuaWremtguWIgCIsCiAgICAgICAgImhvbGRlciI6ICJjaGFyX2xpbiIsCiAgICAgICAgImZyb21fY2hhcHRlciI6IDEsCiAgICAgICAgInRvX2NoYXB0ZXIiOiAzCiAgICAgIH0KICAgIF0sCiAgICAibGlmZXNwYW4iOiBbCiAgICAgIHsKICAgICAgICAiZW50aXR5IjogImNoYXJfc2hlbiIsCiAgICAgICAgImV4aXRzX2FmdGVyX2NoYXB0ZXIiOiAyLAogICAgICAgICJyZWFzb24iOiAi5Z2g5bSWIgogICAgICB9CiAgICBdLAogICAgInByb21pc2VzIjogWwogICAgICB7CiAgICAgICAgImlkIjogInAtb2xkIiwKICAgICAgICAidGl0bGUiOiAi5pen6LSmIiwKICAgICAgICAic3RhdHVzIjogInBsYW50ZWQiLAogICAgICAgICJwbGFudGVkX2NoYXB0ZXIiOiAxLAogICAgICAgICJkdWVfY2hhcHRlciI6IDIKICAgICAgfQogICAgXQogIH0sCiAgImN1c3RvbSI6IHsKICAgICJ3ZWlnaHQiOiAxLjUsCiAgICAibm90ZSI6ICLkvZzogIXoh6rlrprkuYnlrZfmrrXljp/moLfkv53nlZkiCiAgfQp9",
+              "repeat": 1
+            }
+          ]
+        },
+        ".storyforge/writeback-receipts/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.outcome.json": {
+          "chunks": [
+            {
+              "base64": "e30=",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/第001章.md": {
+          "chunks": [
+            {
+              "base64": "5p6X6Iif6YaS5p2l77yM6Zi/6Iif6Zi/6Iif77yM5rKI56a+5ZaK5LuW44CC5LuW5LiN56aB5LqU5ZGz5p2C6ZmI44CC5beh5aSc5Lq65o+Q54Gv6LWw6L+H44CC",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/第002章.md": {
+          "chunks": [
+            {
+              "base64": "5rKI56a+5Z2g5bSW44CC5p6X6Iif5o6o6Zeo6LWw5Ye65Y6777yM55yL5LqG5LiA55y844CC",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/第003章.md": {
+          "chunks": [
+            {
+              "base64": "5rKI56a+5Y+I5Ye6546w5LqG44CC5LiO5q2k5ZCM5pe277yM6aG+6L+f6LaK6L+H5pat5qGl44CCCuWPpuS4gOi+ue+8jOayiOemvuaOqOW8gOS7k+mXqOOAggrplZzlpLTkuIDovazvvIzlt6HlpJzkurrmirXovr7pkp/mpbzjgII=",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "observatory_scan",
+          "args": {
+            "clock": 0
+          },
+          "output_json": "{\"version\": 2, \"cache_status\": \"uncached_unverified\", \"generated_at\": \"2026-10-12T04:30:15.123000+00:00\", \"observations\": [{\"id\": \"canon_f8d0c4f16994\", \"severity\": \"warning\", \"title\": \"char_shen 声明退场后仍出场\", \"detail\": \"沈禾 声明在第 2 章后退场（声明原因：坠崖），但正文在其后章节仍出现其表面形（1 处）。可能是回忆 / 提及 / 同名，请抽读核实。\", \"source\": \"canon·lifespan\", \"location\": {\"path\": \"正文/第003章.md\", \"line\": 1}}, {\"id\": \"promise_e4d1bda154f0\", \"severity\": \"warning\", \"title\": \"伏笔「旧账」逾期未回应\", \"detail\": \"伏笔承诺「旧账」已超过第 2 章截止窗口，当前正文到第 3 章仍未兑现。\", \"source\": \"promise·overdue\", \"location\": {\"path\": \".storyforge/canon/canon.json\"}}, {\"id\": \"prose_dbde436237a3\", \"severity\": \"warning\", \"title\": \"「不禁、五味杂陈」\", \"detail\": \"出现高频陈词套话，削弱画面和人物独特性。 · 替换为具体动作、感官细节或角色专属表达。 · 建议策略 line_edit\", \"source\": \"prose·套话\", \"location\": {\"path\": \"正文/第001章.md\", \"snippet\": \"不禁、五味杂陈\"}}, {\"id\": \"prose_4920f83de473\", \"severity\": \"warning\", \"title\": \"「沈禾又出现了。与此同时，顾迟越过断桥。\\n另一边，沈禾推开仓门。\\n镜头一转」\", \"detail\": \"静态描述偏多，缺少行动 beat。 · 加入目标、阻碍和段末变化，推动下一段。 · 建议策略 scene_patch\", \"source\": \"prose·节奏\", \"location\": {\"path\": \"正文/第003章.md\", \"snippet\": \"沈禾又出现了。与此同时，顾迟越过断桥。\\n另一边，沈禾推开仓门。\\n镜头一转\"}}], \"counts\": {\"error\": 0, \"warning\": 4, \"advisory\": 0, \"total\": 4}, \"checkers\": [{\"key\": \"canon\", \"tool\": \"project.canon\", \"status\": \"ran\", \"conflict_count\": 0, \"advisory_count\": 1, \"entity_count\": 3}, {\"key\": \"promise\", \"tool\": \"project.promise_check\", \"status\": \"ran\", \"conflict_count\": 0, \"advisory_count\": 1, \"promise_count\": 1, \"current_chapter\": 3}, {\"key\": \"prose\", \"tool\": \"project.prose_check\", \"status\": \"ran\", \"files_scanned\": 3, \"files_skipped\": 0, \"files_truncated\": false, \"issue_count\": 2}, {\"key\": \"consistency\", \"tool\": \"project.consistency\", \"status\": \"on_demand\", \"reason\": \"机械观察不下结论，Agent 内按需触发。\"}, {\"key\": \"collapse\", \"tool\": \"project.collapse_check\", \"status\": \"on_demand\", \"reason\": \"需要 Agent 提供场景节拍等语义参数，裸跑无信号。\"}, {\"key\": \"entity_budget\", \"tool\": \"project.entity_budget_check\", \"status\": \"on_demand\", \"reason\": \"需要 Agent 提供新实体清单，裸跑无信号。\"}, {\"key\": \"deep_consistency\", \"tool\": \"project.deep_consistency\", \"status\": \"on_demand\", \"reason\": \"语义评审走 LLM，永远按需触发，不进保存重扫。\"}], \"entities\": [{\"id\": \"char_lin\", \"canonical_name\": \"林舟\", \"kind\": \"人物\", \"aliases\": [\"阿舟\"], \"appearance\": {\"missing\": false, \"total_count\": 4, \"first_chapter\": 1, \"last_chapter\": 2}, \"holdings\": [{\"item\": \"断魂刀\", \"from_chapter\": 1, \"to_chapter\": 3}], \"lifespan\": null, \"provenance\": [{\"path\": \"正文/第001章.md\", \"chapter\": 1, \"first_line\": 1, \"count\": 3}, {\"path\": \"正文/第002章.md\", \"chapter\": 2, \"first_line\": 1, \"count\": 1}], \"provenance_truncated\": false, \"related_observation_ids\": []}, {\"id\": \"char_shen\", \"canonical_name\": \"沈禾\", \"kind\": null, \"aliases\": [], \"appearance\": {\"missing\": false, \"total_count\": 4, \"first_chapter\": 1, \"last_chapter\": 3}, \"holdings\": [], \"lifespan\": {\"exits_after_chapter\": 2, \"reason\": \"坠崖\"}, \"provenance\": [{\"path\": \"正文/第001章.md\", \"chapter\": 1, \"first_line\": 1, \"count\": 1}, {\"path\": \"正文/第002章.md\", \"chapter\": 2, \"first_line\": 1, \"count\": 1}, {\"path\": \"正文/第003章.md\", \"chapter\": 3, \"first_line\": 1, \"count\": 2}], \"provenance_truncated\": false, \"related_observation_ids\": [\"canon_f8d0c4f16994\"]}], \"promises\": {\"current_chapter\": 3, \"ledger\": [{\"id\": \"p-old\", \"title\": \"旧账\", \"status\": \"planted\", \"kind\": null, \"planted_chapter\": 1, \"due_chapter\": 2, \"resolved_chapter\": null, \"last_touch_chapter\": 1, \"issues\": [{\"id\": \"promise_e4d1bda154f0\", \"category\": \"overdue\", \"severity\": \"medium\", \"message\": \"伏笔承诺「旧账」已超过第 2 章截止窗口，当前正文到第 3 章仍未兑现。\"}]}]}, \"proposals\": {\"available\": false, \"new_entities\": [], \"new_invariants\": {}, \"pending_count\": 0}, \"note\": \"确定性参考信号（无 LLM）：advisory 需结合原文核实，不是质量判定。写回历史无法完整核验；本次直接扫描结果仅供参考，扫描期间的来源一致性未经核验，未复用或发布正文派生缓存。\"}",
+          "writes": {}
+        },
+        {
+          "fn": "canon_delta",
+          "args": {
+            "entities": [
+              {
+                "name": "新人"
+              }
+            ]
+          },
+          "args_json": "{\"entities\": [{\"name\": \"新人\"}]}",
+          "output_json": "{\"cache_status\": \"uncached_unverified\", \"proposals\": {\"new_entities\": [{\"id\": \"ent_6a5e50e1\", \"canonical_name\": \"新人\", \"aliases\": []}], \"known_entities\": [], \"holder_claims\": [], \"exit_claims\": [], \"timeline_claims\": [], \"promise_claims\": []}, \"alias_conflicts\": [], \"new_conflicts\": [], \"new_advisories\": [], \"summary\": \"canon_delta 生成 1 条提议，发现 0 个别名冲突、0 个新增硬矛盾、0 个新增 advisory；canon.json 未改动，请审阅 proposals.json 草稿。写回历史无法完整核验；本次直接扫描结果仅供参考，扫描期间的来源一致性未经核验，未复用或发布正文派生缓存。\", \"note\": \"写回历史无法完整核验；本次直接扫描结果仅供参考，扫描期间的来源一致性未经核验，未复用或发布正文派生缓存。\"}",
+          "writes": {
+            ".storyforge/canon/derived/proposals.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAidmVyc2lvbiI6IDEsDQogICJlbnRpdGllcyI6IFsNCiAgICB7DQogICAgICAiaWQiOiAiY2hhcl9saW4iLA0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuael+iInyIsDQogICAgICAiYWxpYXNlcyI6IFsNCiAgICAgICAgIumYv+iInyINCiAgICAgIF0sDQogICAgICAia2luZCI6ICLkurrniakiDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAiY2hhcl9zaGVuIiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmsojnpr4iLA0KICAgICAgImFsaWFzZXMiOiBbXQ0KICAgIH0sDQogICAgew0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuaXoCBpZCDnmoTkuroiDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAiZW50XzZhNWU1MGUxIiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmlrDkuroiLA0KICAgICAgImFsaWFzZXMiOiBbXQ0KICAgIH0NCiAgXSwNCiAgImludmFyaWFudHMiOiB7DQogICAgInNpbmdsZV9ob2xkZXIiOiBbDQogICAgICB7DQogICAgICAgICJpdGVtIjogIuaWremtguWIgCIsDQogICAgICAgICJob2xkZXIiOiAiY2hhcl9saW4iLA0KICAgICAgICAiZnJvbV9jaGFwdGVyIjogMSwNCiAgICAgICAgInRvX2NoYXB0ZXIiOiAzDQogICAgICB9DQogICAgXSwNCiAgICAibGlmZXNwYW4iOiBbDQogICAgICB7DQogICAgICAgICJlbnRpdHkiOiAiY2hhcl9zaGVuIiwNCiAgICAgICAgImV4aXRzX2FmdGVyX2NoYXB0ZXIiOiAyLA0KICAgICAgICAicmVhc29uIjogIuWdoOW0liINCiAgICAgIH0NCiAgICBdLA0KICAgICJwcm9taXNlcyI6IFsNCiAgICAgIHsNCiAgICAgICAgImlkIjogInAtb2xkIiwNCiAgICAgICAgInRpdGxlIjogIuaXp+i0piIsDQogICAgICAgICJzdGF0dXMiOiAicGxhbnRlZCIsDQogICAgICAgICJwbGFudGVkX2NoYXB0ZXIiOiAxLA0KICAgICAgICAiZHVlX2NoYXB0ZXIiOiAyDQogICAgICB9DQogICAgXQ0KICB9LA0KICAiY3VzdG9tIjogew0KICAgICJ3ZWlnaHQiOiAxLjUsDQogICAgIm5vdGUiOiAi5L2c6ICF6Ieq5a6a5LmJ5a2X5q615Y6f5qC35L+d55WZIg0KICB9DQp9",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fn": "read_pending_proposals",
+          "args": {},
+          "output_json": "{\"available\": true, \"new_entities\": [{\"id\": \"ent_6a5e50e1\", \"canonical_name\": \"新人\", \"aliases\": []}], \"new_invariants\": {}, \"pending_count\": 1}",
+          "writes": {}
+        }
+      ]
+    },
+    {
+      "id": "duplicate-draft",
+      "files": {
+        ".storyforge/canon/canon.json": {
+          "chunks": [
+            {
+              "base64": "ewogICJ2ZXJzaW9uIjogMSwKICAiZW50aXRpZXMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJjaGFyX2xpbiIsCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmnpfoiJ8iLAogICAgICAiYWxpYXNlcyI6IFsKICAgICAgICAi6Zi/6IifIgogICAgICBdLAogICAgICAia2luZCI6ICLkurrniakiCiAgICB9LAogICAgewogICAgICAiaWQiOiAiY2hhcl9zaGVuIiwKICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuayiOemviIsCiAgICAgICJhbGlhc2VzIjogW10KICAgIH0sCiAgICB7CiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLml6AgaWQg55qE5Lq6IgogICAgfQogIF0sCiAgImludmFyaWFudHMiOiB7CiAgICAic2luZ2xlX2hvbGRlciI6IFsKICAgICAgewogICAgICAgICJpdGVtIjogIuaWremtguWIgCIsCiAgICAgICAgImhvbGRlciI6ICJjaGFyX2xpbiIsCiAgICAgICAgImZyb21fY2hhcHRlciI6IDEsCiAgICAgICAgInRvX2NoYXB0ZXIiOiAzCiAgICAgIH0KICAgIF0sCiAgICAibGlmZXNwYW4iOiBbCiAgICAgIHsKICAgICAgICAiZW50aXR5IjogImNoYXJfc2hlbiIsCiAgICAgICAgImV4aXRzX2FmdGVyX2NoYXB0ZXIiOiAyLAogICAgICAgICJyZWFzb24iOiAi5Z2g5bSWIgogICAgICB9CiAgICBdLAogICAgInByb21pc2VzIjogWwogICAgICB7CiAgICAgICAgImlkIjogInAtb2xkIiwKICAgICAgICAidGl0bGUiOiAi5pen6LSmIiwKICAgICAgICAic3RhdHVzIjogInBsYW50ZWQiLAogICAgICAgICJwbGFudGVkX2NoYXB0ZXIiOiAxLAogICAgICAgICJkdWVfY2hhcHRlciI6IDIKICAgICAgfQogICAgXQogIH0sCiAgImN1c3RvbSI6IHsKICAgICJ3ZWlnaHQiOiAxLjUsCiAgICAibm90ZSI6ICLkvZzogIXoh6rlrprkuYnlrZfmrrXljp/moLfkv53nlZkiCiAgfQp9",
+              "repeat": 1
+            }
+          ]
+        },
+        ".storyforge/canon/derived/proposals.json": {
+          "chunks": [
+            {
+              "base64": "ewogICJ2ZXJzaW9uIjogMSwKICAiZW50aXRpZXMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJjaGFyX2xpbiIsCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmnpfoiJ8iLAogICAgICAiYWxpYXNlcyI6IFsKICAgICAgICAi6Zi/6IifIgogICAgICBdLAogICAgICAia2luZCI6ICLkurrniakiCiAgICB9LAogICAgewogICAgICAiaWQiOiAiY2hhcl9zaGVuIiwKICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuayiOemviIsCiAgICAgICJhbGlhc2VzIjogW10KICAgIH0sCiAgICB7CiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLml6AgaWQg55qE5Lq6IgogICAgfSwKICAgIHsKICAgICAgImlkIjogImVudF9kdXAiLAogICAgICAiY2Fub25pY2FsX25hbWUiOiAi6YeN5ZCNIgogICAgfSwKICAgIHsKICAgICAgImlkIjogImVudF9kdXAiLAogICAgICAiY2Fub25pY2FsX25hbWUiOiAi6YeN5ZCN5LqMIgogICAgfQogIF0sCiAgImludmFyaWFudHMiOiB7CiAgICAic2luZ2xlX2hvbGRlciI6IFsKICAgICAgewogICAgICAgICJpdGVtIjogIuaWremtguWIgCIsCiAgICAgICAgImhvbGRlciI6ICJjaGFyX2xpbiIsCiAgICAgICAgImZyb21fY2hhcHRlciI6IDEsCiAgICAgICAgInRvX2NoYXB0ZXIiOiAzCiAgICAgIH0KICAgIF0sCiAgICAibGlmZXNwYW4iOiBbCiAgICAgIHsKICAgICAgICAiZW50aXR5IjogImNoYXJfc2hlbiIsCiAgICAgICAgImV4aXRzX2FmdGVyX2NoYXB0ZXIiOiAyLAogICAgICAgICJyZWFzb24iOiAi5Z2g5bSWIgogICAgICB9CiAgICBdLAogICAgInByb21pc2VzIjogWwogICAgICB7CiAgICAgICAgImlkIjogInAtb2xkIiwKICAgICAgICAidGl0bGUiOiAi5pen6LSmIiwKICAgICAgICAic3RhdHVzIjogInBsYW50ZWQiLAogICAgICAgICJwbGFudGVkX2NoYXB0ZXIiOiAxLAogICAgICAgICJkdWVfY2hhcHRlciI6IDIKICAgICAgfQogICAgXQogIH0sCiAgImN1c3RvbSI6IHsKICAgICJ3ZWlnaHQiOiAxLjUsCiAgICAibm90ZSI6ICLkvZzogIXoh6rlrprkuYnlrZfmrrXljp/moLfkv53nlZkiCiAgfQp9",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/第001章.md": {
+          "chunks": [
+            {
+              "base64": "5p6X6Iif6YaS5p2l77yM6Zi/6Iif6Zi/6Iif77yM5rKI56a+5ZaK5LuW44CC5LuW5LiN56aB5LqU5ZGz5p2C6ZmI44CC5beh5aSc5Lq65o+Q54Gv6LWw6L+H44CC",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/第002章.md": {
+          "chunks": [
+            {
+              "base64": "5rKI56a+5Z2g5bSW44CC5p6X6Iif5o6o6Zeo6LWw5Ye65Y6777yM55yL5LqG5LiA55y844CC",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/第003章.md": {
+          "chunks": [
+            {
+              "base64": "5rKI56a+5Y+I5Ye6546w5LqG44CC5LiO5q2k5ZCM5pe277yM6aG+6L+f6LaK6L+H5pat5qGl44CCCuWPpuS4gOi+ue+8jOayiOemvuaOqOW8gOS7k+mXqOOAggrplZzlpLTkuIDovazvvIzlt6HlpJzkurrmirXovr7pkp/mpbzjgII=",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "canon_delta",
+          "args": {
+            "entities": [
+              {
+                "name": "铜钟"
+              }
+            ]
+          },
+          "args_json": "{\"entities\": [{\"name\": \"铜钟\"}]}",
+          "output_json": "{\"cache_status\": \"verified\", \"proposals\": {\"new_entities\": [{\"id\": \"ent_7e97b030\", \"canonical_name\": \"铜钟\", \"aliases\": []}], \"known_entities\": [], \"holder_claims\": [], \"exit_claims\": [], \"timeline_claims\": [], \"promise_claims\": []}, \"alias_conflicts\": [], \"new_conflicts\": [], \"new_advisories\": [], \"summary\": \"canon_delta 生成 1 条提议，发现 0 个别名冲突、0 个新增硬矛盾、0 个新增 advisory；canon.json 未改动，请审阅 proposals.json 草稿。\"}",
+          "writes": {
+            ".storyforge/canon/derived/presence.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAiZW50aXRpZXMiOiBbDQogICAgew0KICAgICAgImlkIjogImNoYXJfbGluIiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmnpfoiJ8iLA0KICAgICAgInN1cmZhY2VfZm9ybXMiOiBbDQogICAgICAgICLmnpfoiJ8iLA0KICAgICAgICAi6Zi/6IifIg0KICAgICAgXSwNCiAgICAgICJ0b3RhbF9jb3VudCI6IDQsDQogICAgICAibWlzc2luZyI6IGZhbHNlLA0KICAgICAgImZpcnN0X2NoYXB0ZXIiOiAxLA0KICAgICAgImxhc3RfY2hhcHRlciI6IDIsDQogICAgICAib2NjdXJyZW5jZXMiOiBbDQogICAgICAgIHsNCiAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAx56ugLm1kIiwNCiAgICAgICAgICAiY2hhcHRlciI6IDEsDQogICAgICAgICAgImNvdW50IjogMywNCiAgICAgICAgICAiZmlyc3RfbGluZSI6IDEsDQogICAgICAgICAgIm1hdGNoZWRfZm9ybXMiOiBbDQogICAgICAgICAgICAi5p6X6IifIiwNCiAgICAgICAgICAgICLpmL/oiJ8iDQogICAgICAgICAgXQ0KICAgICAgICB9LA0KICAgICAgICB7DQogICAgICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwMueroC5tZCIsDQogICAgICAgICAgImNoYXB0ZXIiOiAyLA0KICAgICAgICAgICJjb3VudCI6IDEsDQogICAgICAgICAgImZpcnN0X2xpbmUiOiAxLA0KICAgICAgICAgICJtYXRjaGVkX2Zvcm1zIjogWw0KICAgICAgICAgICAgIuael+iInyINCiAgICAgICAgICBdDQogICAgICAgIH0NCiAgICAgIF0NCiAgICB9LA0KICAgIHsNCiAgICAgICJpZCI6ICJjaGFyX3NoZW4iLA0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuayiOemviIsDQogICAgICAic3VyZmFjZV9mb3JtcyI6IFsNCiAgICAgICAgIuayiOemviINCiAgICAgIF0sDQogICAgICAidG90YWxfY291bnQiOiA0LA0KICAgICAgIm1pc3NpbmciOiBmYWxzZSwNCiAgICAgICJmaXJzdF9jaGFwdGVyIjogMSwNCiAgICAgICJsYXN0X2NoYXB0ZXIiOiAzLA0KICAgICAgIm9jY3VycmVuY2VzIjogWw0KICAgICAgICB7DQogICAgICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwMeeroC5tZCIsDQogICAgICAgICAgImNoYXB0ZXIiOiAxLA0KICAgICAgICAgICJjb3VudCI6IDEsDQogICAgICAgICAgImZpcnN0X2xpbmUiOiAxLA0KICAgICAgICAgICJtYXRjaGVkX2Zvcm1zIjogWw0KICAgICAgICAgICAgIuayiOemviINCiAgICAgICAgICBdDQogICAgICAgIH0sDQogICAgICAgIHsNCiAgICAgICAgICAicGF0aCI6ICLmraPmlocv56ysMDAy56ugLm1kIiwNCiAgICAgICAgICAiY2hhcHRlciI6IDIsDQogICAgICAgICAgImNvdW50IjogMSwNCiAgICAgICAgICAiZmlyc3RfbGluZSI6IDEsDQogICAgICAgICAgIm1hdGNoZWRfZm9ybXMiOiBbDQogICAgICAgICAgICAi5rKI56a+Ig0KICAgICAgICAgIF0NCiAgICAgICAgfSwNCiAgICAgICAgew0KICAgICAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDPnq6AubWQiLA0KICAgICAgICAgICJjaGFwdGVyIjogMywNCiAgICAgICAgICAiY291bnQiOiAyLA0KICAgICAgICAgICJmaXJzdF9saW5lIjogMSwNCiAgICAgICAgICAibWF0Y2hlZF9mb3JtcyI6IFsNCiAgICAgICAgICAgICLmsojnpr4iDQogICAgICAgICAgXQ0KICAgICAgICB9DQogICAgICBdDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiBudWxsLA0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuaXoCBpZCDnmoTkuroiLA0KICAgICAgInN1cmZhY2VfZm9ybXMiOiBbDQogICAgICAgICLml6AgaWQg55qE5Lq6Ig0KICAgICAgXSwNCiAgICAgICJ0b3RhbF9jb3VudCI6IDAsDQogICAgICAibWlzc2luZyI6IHRydWUsDQogICAgICAiZmlyc3RfY2hhcHRlciI6IG51bGwsDQogICAgICAibGFzdF9jaGFwdGVyIjogbnVsbCwNCiAgICAgICJvY2N1cnJlbmNlcyI6IFtdDQogICAgfQ0KICBdLA0KICAiY2hhcHRlcl9jb3VudCI6IDMsDQogICJzY2FubmVkX2ZpbGVzIjogMywNCiAgInRlcm1zX3RydW5jYXRlZCI6IGZhbHNlLA0KICAiX3N0b3J5Zm9yZ2Vfc291cmNlX3JldmlzaW9uIjogImNhbm9uLXdyaXRlYmFjay12MTo2NDg1Njg5OTgxZTc0NTc5NTA5MjI5NzE4NTI4ZjhlZDJkMjQ2Mjk5N2RmYTllNWQ3NTkzMTY3NzJhMTNjNDdkIg0KfQ==",
+                  "repeat": 1
+                }
+              ]
+            },
+            ".storyforge/canon/derived/proposals.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAidmVyc2lvbiI6IDEsDQogICJlbnRpdGllcyI6IFsNCiAgICB7DQogICAgICAiaWQiOiAiY2hhcl9saW4iLA0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuael+iInyIsDQogICAgICAiYWxpYXNlcyI6IFsNCiAgICAgICAgIumYv+iInyINCiAgICAgIF0sDQogICAgICAia2luZCI6ICLkurrniakiDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAiY2hhcl9zaGVuIiwNCiAgICAgICJjYW5vbmljYWxfbmFtZSI6ICLmsojnpr4iLA0KICAgICAgImFsaWFzZXMiOiBbXQ0KICAgIH0sDQogICAgew0KICAgICAgImNhbm9uaWNhbF9uYW1lIjogIuaXoCBpZCDnmoTkuroiDQogICAgfSwNCiAgICB7DQogICAgICAiaWQiOiAiZW50X2R1cCIsDQogICAgICAiY2Fub25pY2FsX25hbWUiOiAi6YeN5ZCNIg0KICAgIH0sDQogICAgew0KICAgICAgImlkIjogImVudF83ZTk3YjAzMCIsDQogICAgICAiY2Fub25pY2FsX25hbWUiOiAi6ZOc6ZKfIiwNCiAgICAgICJhbGlhc2VzIjogW10NCiAgICB9DQogIF0sDQogICJpbnZhcmlhbnRzIjogew0KICAgICJzaW5nbGVfaG9sZGVyIjogWw0KICAgICAgew0KICAgICAgICAiaXRlbSI6ICLmlq3prYLliIAiLA0KICAgICAgICAiaG9sZGVyIjogImNoYXJfbGluIiwNCiAgICAgICAgImZyb21fY2hhcHRlciI6IDEsDQogICAgICAgICJ0b19jaGFwdGVyIjogMw0KICAgICAgfQ0KICAgIF0sDQogICAgImxpZmVzcGFuIjogWw0KICAgICAgew0KICAgICAgICAiZW50aXR5IjogImNoYXJfc2hlbiIsDQogICAgICAgICJleGl0c19hZnRlcl9jaGFwdGVyIjogMiwNCiAgICAgICAgInJlYXNvbiI6ICLlnaDltJYiDQogICAgICB9DQogICAgXSwNCiAgICAicHJvbWlzZXMiOiBbDQogICAgICB7DQogICAgICAgICJpZCI6ICJwLW9sZCIsDQogICAgICAgICJ0aXRsZSI6ICLml6fotKYiLA0KICAgICAgICAic3RhdHVzIjogInBsYW50ZWQiLA0KICAgICAgICAicGxhbnRlZF9jaGFwdGVyIjogMSwNCiAgICAgICAgImR1ZV9jaGFwdGVyIjogMg0KICAgICAgfQ0KICAgIF0NCiAgfSwNCiAgImN1c3RvbSI6IHsNCiAgICAid2VpZ2h0IjogMS41LA0KICAgICJub3RlIjogIuS9nOiAheiHquWumuS5ieWtl+auteWOn+agt+S/neeVmSINCiAgfQ0KfQ==",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fn": "read_pending_proposals",
+          "args": {},
+          "output_json": "{\"available\": true, \"new_entities\": [{\"id\": \"ent_dup\", \"canonical_name\": \"重名\"}, {\"id\": \"ent_7e97b030\", \"canonical_name\": \"铜钟\", \"aliases\": []}], \"new_invariants\": {}, \"pending_count\": 2}",
+          "writes": {}
+        }
+      ]
+    },
+    {
+      "id": "plan",
+      "files": {
+        ".storyforge/serial-plan.json": {
+          "chunks": [
+            {
+              "base64": "ewogICJ2ZXJzaW9uIjogMSwKICAicHJlbWlzZSI6ICIgIOacq+S4lumHjOeahOWQnuWZrOiAhSAgIiwKICAiY2hhcHRlcl93b3JkX2NvdW50X21pbiI6IDIwMDAsCiAgImNoYXB0ZXJfd29yZF9jb3VudF9tYXgiOiAzMDAwLAogICJjaGFwdGVycyI6IFsKICAgIHsKICAgICAgIm9yZGluYWwiOiAxLAogICAgICAidGl0bGUiOiAi6YaS5p2lIiwKICAgICAgImdvYWwiOiAi5p6X6Iif6YaS5p2lIiwKICAgICAgInN0YXR1cyI6ICJkb25lIiwKICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwMeeroC5tZCIKICAgIH0sCiAgICB7CiAgICAgICJvcmRpbmFsIjogMiwKICAgICAgInRpdGxlIjogIuWdoOW0liIsCiAgICAgICJnb2FsIjogIuayiOemvuWdoOW0liIsCiAgICAgICJzdGF0dXMiOiAicGVuZGluZyIsCiAgICAgICJub3RlIjogIiDorrDlvpflhpnpm6ggIgogICAgfSwKICAgIHsKICAgICAgIm9yZGluYWwiOiAzLAogICAgICAidGl0bGUiOiAi56m657y6IiwKICAgICAgInN0YXR1cyI6ICJkb25lIgogICAgfSwKICAgIHsKICAgICAgIm9yZGluYWwiOiA0LAogICAgICAiZ29hbCI6ICLnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIciLAogICAgICAic3RhdHVzIjogImJsb2NrZWQiLAogICAgICAibm90ZSI6ICLnrYnorr7lrpoiLAogICAgICAicGF0aCI6ICLmraPmlocv56ysMDA056ugLm1kIgogICAgfSwKICAgIHsKICAgICAgIm9yZGluYWwiOiA1LAogICAgICAidGl0bGUiOiAi5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOwIiwKICAgICAgInN0YXR1cyI6ICJ3ZWlyZCIKICAgIH0sCiAgICB7CiAgICAgICJvcmRpbmFsIjogNiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIgogICAgfSwKICAgIHsKICAgICAgIm9yZGluYWwiOiA3LAogICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAiZ29hbCI6ICLkuIMiCiAgICB9LAogICAgewogICAgICAib3JkaW5hbCI6IDgsCiAgICAgICJzdGF0dXMiOiAicGVuZGluZyIsCiAgICAgICJnb2FsIjogIuWFqyIKICAgIH0sCiAgICB7CiAgICAgICJvcmRpbmFsIjogMCwKICAgICAgInRpdGxlIjogIuaXoOaViOeroOW6jyIKICAgIH0sCiAgICB7CiAgICAgICJ0aXRsZSI6ICLmsqHmnInnq6Dluo8iCiAgICB9CiAgXSwKICAiYXJjcyI6IFsKICAgIHsKICAgICAgInRpdGxlIjogIuS6leW6leS5i+iwnCIsCiAgICAgICJ0YXJnZXRfY2hhcHRlcnMiOiBbCiAgICAgICAgMiwKICAgICAgICA1CiAgICAgIF0sCiAgICAgICJwYXlvZmZfY2hhcHRlciI6IDgKICAgIH0sCiAgICB7CiAgICAgICJ0aXRsZSI6ICLpkp/lo7AiLAogICAgICAicGF5b2ZmX2NoYXB0ZXIiOiAyCiAgICB9LAogICAgewogICAgICAidGl0bGUiOiAiICIsCiAgICAgICJ0YXJnZXRfY2hhcHRlcnMiOiBbCiAgICAgICAgMgogICAgICBdCiAgICB9CiAgXQp9",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/第001章.md": {
+          "chunks": [
+            {
+              "base64": "5LiA",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/第002章.md": {
+          "chunks": [
+            {
+              "base64": "5LqM",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/第004章.md": {
+          "chunks": [
+            {
+              "base64": "5Zub",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "plan_view",
+          "args": {},
+          "output_json": "{\"block\": \"[连载计划 · 确定性]\\n· 计划共 8 章；其中 3 章正文已落盘；每章目标 2000–3000 字。\\n· 主线：末世里的吞噬者\\n\\n[下一章待写]\\n· 第 3 章《空缺》\\n\\n[再往后]\\n· 第 5 章《回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声》\\n· 第 6 章\\n· 第 7 章：七\\n\\n[计划与正文对不上]\\n· 第 2 章《坠崖》：正文已存在，但计划仍标 pending\\n· 第 3 章《空缺》：计划标 done，但正文里找不到这一章\\n· 第 4 章：正文已存在，但计划仍标 blocked\\n以正文为准；确认后用 project_plan_update 把计划状态改对，不要照计划重写已有正文。\", \"payload\": {\"planned_total\": 8, \"written_count\": 3, \"premise\": \"末世里的吞噬者\", \"chapter_word_count_min\": 2000, \"chapter_word_count_max\": 3000, \"chapters\": [{\"ordinal\": 1, \"title\": \"醒来\", \"goal\": \"林舟醒来\", \"status\": \"done\", \"note\": null, \"written\": true, \"written_path\": \"正文/第001章.md\", \"drifted\": false}, {\"ordinal\": 2, \"title\": \"坠崖\", \"goal\": \"沈禾坠崖\", \"status\": \"pending\", \"note\": \"记得写雨\", \"written\": true, \"written_path\": \"正文/第002章.md\", \"drifted\": true}, {\"ordinal\": 3, \"title\": \"空缺\", \"goal\": null, \"status\": \"done\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": true}, {\"ordinal\": 4, \"title\": null, \"goal\": \"目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标\", \"status\": \"blocked\", \"note\": \"等设定\", \"written\": true, \"written_path\": \"正文/第004章.md\", \"drifted\": true}, {\"ordinal\": 5, \"title\": \"回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声\", \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 6, \"title\": null, \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 7, \"title\": null, \"goal\": \"七\", \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 8, \"title\": null, \"goal\": \"八\", \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}], \"next_ordinal\": 3, \"drifted_count\": 3, \"prompt_block\": \"[连载计划 · 确定性]\\n· 计划共 8 章；其中 3 章正文已落盘；每章目标 2000–3000 字。\\n· 主线：末世里的吞噬者\\n\\n[下一章待写]\\n· 第 3 章《空缺》\\n\\n[再往后]\\n· 第 5 章《回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声》\\n· 第 6 章\\n· 第 7 章：七\\n\\n[计划与正文对不上]\\n· 第 2 章《坠崖》：正文已存在，但计划仍标 pending\\n· 第 3 章《空缺》：计划标 done，但正文里找不到这一章\\n· 第 4 章：正文已存在，但计划仍标 blocked\\n以正文为准；确认后用 project_plan_update 把计划状态改对，不要照计划重写已有正文。\"}}",
+          "writes": {}
+        },
+        {
+          "fn": "mark_chapter_written",
+          "args": {
+            "path": "正文/第002章.md",
+            "absolute": false
+          },
+          "output_json": "{\"updated\": true, \"ordinal\": 2, \"path\": \"正文/第002章.md\", \"next_ordinal\": 3, \"next_goal\": null, \"plan_path\": \".storyforge/serial-plan.json\"}",
+          "writes": {
+            ".storyforge/serial-plan.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAidmVyc2lvbiI6IDEsDQogICJwcmVtaXNlIjogIiAg5pyr5LiW6YeM55qE5ZCe5Zms6ICFICAiLA0KICAiY2hhcHRlcl93b3JkX2NvdW50X21pbiI6IDIwMDAsDQogICJjaGFwdGVyX3dvcmRfY291bnRfbWF4IjogMzAwMCwNCiAgImNoYXB0ZXJzIjogWw0KICAgIHsNCiAgICAgICJvcmRpbmFsIjogMSwNCiAgICAgICJ0aXRsZSI6ICLphpLmnaUiLA0KICAgICAgImdvYWwiOiAi5p6X6Iif6YaS5p2lIiwNCiAgICAgICJzdGF0dXMiOiAiZG9uZSIsDQogICAgICAicGF0aCI6ICLmraPmlocv56ysMDAx56ugLm1kIg0KICAgIH0sDQogICAgew0KICAgICAgIm9yZGluYWwiOiAyLA0KICAgICAgInRpdGxlIjogIuWdoOW0liIsDQogICAgICAiZ29hbCI6ICLmsojnpr7lnaDltJYiLA0KICAgICAgInN0YXR1cyI6ICJkb25lIiwNCiAgICAgICJub3RlIjogIiDorrDlvpflhpnpm6ggIiwNCiAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDLnq6AubWQiDQogICAgfSwNCiAgICB7DQogICAgICAib3JkaW5hbCI6IDMsDQogICAgICAidGl0bGUiOiAi56m657y6IiwNCiAgICAgICJzdGF0dXMiOiAiZG9uZSINCiAgICB9LA0KICAgIHsNCiAgICAgICJvcmRpbmFsIjogNCwNCiAgICAgICJnb2FsIjogIuebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruaghyIsDQogICAgICAic3RhdHVzIjogImJsb2NrZWQiLA0KICAgICAgIm5vdGUiOiAi562J6K6+5a6aIiwNCiAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDTnq6AubWQiDQogICAgfSwNCiAgICB7DQogICAgICAib3JkaW5hbCI6IDUsDQogICAgICAidGl0bGUiOiAi5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOwIiwNCiAgICAgICJzdGF0dXMiOiAid2VpcmQiDQogICAgfSwNCiAgICB7DQogICAgICAib3JkaW5hbCI6IDYsDQogICAgICAic3RhdHVzIjogInBlbmRpbmciDQogICAgfSwNCiAgICB7DQogICAgICAib3JkaW5hbCI6IDcsDQogICAgICAic3RhdHVzIjogInBlbmRpbmciLA0KICAgICAgImdvYWwiOiAi5LiDIg0KICAgIH0sDQogICAgew0KICAgICAgIm9yZGluYWwiOiA4LA0KICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwNCiAgICAgICJnb2FsIjogIuWFqyINCiAgICB9DQogIF0sDQogICJhcmNzIjogWw0KICAgIHsNCiAgICAgICJ0aXRsZSI6ICLkupXlupXkuYvosJwiLA0KICAgICAgInRhcmdldF9jaGFwdGVycyI6IFsNCiAgICAgICAgMiwNCiAgICAgICAgNQ0KICAgICAgXSwNCiAgICAgICJwYXlvZmZfY2hhcHRlciI6IDgNCiAgICB9LA0KICAgIHsNCiAgICAgICJ0aXRsZSI6ICLpkp/lo7AiLA0KICAgICAgInBheW9mZl9jaGFwdGVyIjogMg0KICAgIH0sDQogICAgew0KICAgICAgInRpdGxlIjogIiAiLA0KICAgICAgInRhcmdldF9jaGFwdGVycyI6IFsNCiAgICAgICAgMg0KICAgICAgXQ0KICAgIH0NCiAgXQ0KfQ==",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fn": "plan_view",
+          "args": {},
+          "output_json": "{\"block\": \"[连载计划 · 确定性]\\n· 计划共 8 章；其中 3 章正文已落盘；每章目标 2000–3000 字。\\n· 主线：末世里的吞噬者\\n\\n[下一章待写]\\n· 第 3 章《空缺》\\n\\n[再往后]\\n· 第 5 章《回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声》\\n· 第 6 章\\n· 第 7 章：七\\n\\n[计划与正文对不上]\\n· 第 3 章《空缺》：计划标 done，但正文里找不到这一章\\n· 第 4 章：正文已存在，但计划仍标 blocked\\n以正文为准；确认后用 project_plan_update 把计划状态改对，不要照计划重写已有正文。\", \"payload\": {\"planned_total\": 8, \"written_count\": 3, \"premise\": \"末世里的吞噬者\", \"chapter_word_count_min\": 2000, \"chapter_word_count_max\": 3000, \"chapters\": [{\"ordinal\": 1, \"title\": \"醒来\", \"goal\": \"林舟醒来\", \"status\": \"done\", \"note\": null, \"written\": true, \"written_path\": \"正文/第001章.md\", \"drifted\": false}, {\"ordinal\": 2, \"title\": \"坠崖\", \"goal\": \"沈禾坠崖\", \"status\": \"done\", \"note\": \"记得写雨\", \"written\": true, \"written_path\": \"正文/第002章.md\", \"drifted\": false}, {\"ordinal\": 3, \"title\": \"空缺\", \"goal\": null, \"status\": \"done\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": true}, {\"ordinal\": 4, \"title\": null, \"goal\": \"目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标\", \"status\": \"blocked\", \"note\": \"等设定\", \"written\": true, \"written_path\": \"正文/第004章.md\", \"drifted\": true}, {\"ordinal\": 5, \"title\": \"回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声\", \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 6, \"title\": null, \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 7, \"title\": null, \"goal\": \"七\", \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 8, \"title\": null, \"goal\": \"八\", \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}], \"next_ordinal\": 3, \"drifted_count\": 2, \"prompt_block\": \"[连载计划 · 确定性]\\n· 计划共 8 章；其中 3 章正文已落盘；每章目标 2000–3000 字。\\n· 主线：末世里的吞噬者\\n\\n[下一章待写]\\n· 第 3 章《空缺》\\n\\n[再往后]\\n· 第 5 章《回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声》\\n· 第 6 章\\n· 第 7 章：七\\n\\n[计划与正文对不上]\\n· 第 3 章《空缺》：计划标 done，但正文里找不到这一章\\n· 第 4 章：正文已存在，但计划仍标 blocked\\n以正文为准；确认后用 project_plan_update 把计划状态改对，不要照计划重写已有正文。\"}}",
+          "writes": {}
+        },
+        {
+          "fn": "mark_chapter_written",
+          "args": {
+            "path": "正文/第002章.md",
+            "absolute": true
+          },
+          "output_json": "{\"updated\": false, \"reason\": \"already_done\", \"ordinal\": 2}",
+          "writes": {}
+        },
+        {
+          "fn": "mark_chapter_written",
+          "args": {
+            "path": "正文/第004章.md",
+            "absolute": false
+          },
+          "output_json": "{\"updated\": false, \"reason\": \"already_done\", \"ordinal\": 3}",
+          "writes": {}
+        },
+        {
+          "fn": "mark_chapter_written",
+          "args": {
+            "path": "正文/第009章.md",
+            "absolute": false
+          },
+          "output_json": "{\"updated\": false, \"reason\": \"not_a_manuscript_chapter\", \"path\": \"正文/第009章.md\"}",
+          "writes": {}
+        },
+        {
+          "fn": "mark_chapter_written",
+          "args": {
+            "path": "大纲/a.md",
+            "absolute": false
+          },
+          "output_json": "{\"updated\": false, \"reason\": \"not_a_manuscript_chapter\", \"path\": \"大纲/a.md\"}",
+          "writes": {}
+        },
+        {
+          "fn": "mark_chapter_written",
+          "args": {
+            "path": "../outside.md",
+            "absolute": false
+          },
+          "output_json": "{\"updated\": false, \"reason\": \"path_outside_project\"}",
+          "writes": {}
+        },
+        {
+          "fn": "unmark_chapter_written",
+          "args": {
+            "path": "正文/第002章.md",
+            "absolute": false
+          },
+          "output_json": "{\"updated\": false, \"reason\": \"manuscript_still_exists\", \"path\": \"正文/第002章.md\"}",
+          "writes": {}
+        },
+        {
+          "fn": "unmark_chapter_written",
+          "args": {
+            "path": "正文/第009章.md",
+            "absolute": false
+          },
+          "output_json": "{\"updated\": false, \"reason\": \"chapter_not_identifiable\", \"path\": \"正文/第009章.md\"}",
+          "writes": {}
+        },
+        {
+          "fn": "unmark_chapter_written",
+          "args": {
+            "path": "正文/第001章.md",
+            "absolute": false
+          },
+          "output_json": "{\"updated\": false, \"reason\": \"manuscript_still_exists\", \"path\": \"正文/第001章.md\"}",
+          "writes": {}
+        },
+        {
+          "fn": "author_write",
+          "args": {
+            "path": "正文/第003章.md"
+          },
+          "writes": {
+            "正文/第003章.md": {
+              "chunks": [
+                {
+                  "base64": "5LiJ",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fn": "plan_view",
+          "args": {},
+          "output_json": "{\"block\": \"[连载计划 · 确定性]\\n· 计划共 8 章；其中 4 章正文已落盘；每章目标 2000–3000 字。\\n· 主线：末世里的吞噬者\\n\\n[下一章待写]\\n· 第 5 章《回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声》\\n· 「井底之谜」本章是推进点，兑现在第 8 章\\n\\n[再往后]\\n· 第 6 章\\n· 第 7 章：七\\n· 第 8 章：八\\n\\n[计划与正文对不上]\\n· 第 4 章：正文已存在，但计划仍标 blocked\\n以正文为准；确认后用 project_plan_update 把计划状态改对，不要照计划重写已有正文。\", \"payload\": {\"planned_total\": 8, \"written_count\": 4, \"premise\": \"末世里的吞噬者\", \"chapter_word_count_min\": 2000, \"chapter_word_count_max\": 3000, \"chapters\": [{\"ordinal\": 1, \"title\": \"醒来\", \"goal\": \"林舟醒来\", \"status\": \"done\", \"note\": null, \"written\": true, \"written_path\": \"正文/第001章.md\", \"drifted\": false}, {\"ordinal\": 2, \"title\": \"坠崖\", \"goal\": \"沈禾坠崖\", \"status\": \"done\", \"note\": \"记得写雨\", \"written\": true, \"written_path\": \"正文/第002章.md\", \"drifted\": false}, {\"ordinal\": 3, \"title\": \"空缺\", \"goal\": null, \"status\": \"done\", \"note\": null, \"written\": true, \"written_path\": \"正文/第003章.md\", \"drifted\": false}, {\"ordinal\": 4, \"title\": null, \"goal\": \"目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标\", \"status\": \"blocked\", \"note\": \"等设定\", \"written\": true, \"written_path\": \"正文/第004章.md\", \"drifted\": true}, {\"ordinal\": 5, \"title\": \"回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声\", \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 6, \"title\": null, \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 7, \"title\": null, \"goal\": \"七\", \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 8, \"title\": null, \"goal\": \"八\", \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}], \"next_ordinal\": 5, \"drifted_count\": 1, \"prompt_block\": \"[连载计划 · 确定性]\\n· 计划共 8 章；其中 4 章正文已落盘；每章目标 2000–3000 字。\\n· 主线：末世里的吞噬者\\n\\n[下一章待写]\\n· 第 5 章《回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声》\\n· 「井底之谜」本章是推进点，兑现在第 8 章\\n\\n[再往后]\\n· 第 6 章\\n· 第 7 章：七\\n· 第 8 章：八\\n\\n[计划与正文对不上]\\n· 第 4 章：正文已存在，但计划仍标 blocked\\n以正文为准；确认后用 project_plan_update 把计划状态改对，不要照计划重写已有正文。\"}}",
+          "writes": {}
+        },
+        {
+          "fn": "apply_plan_update",
+          "args": {
+            "chapters": [
+              {
+                "ordinal": 5,
+                "status": "done"
+              },
+              {
+                "ordinal": 9,
+                "status": "done"
+              }
+            ]
+          },
+          "args_json": "{\"chapters\": [{\"ordinal\": 5, \"status\": \"done\"}, {\"ordinal\": 9, \"status\": \"done\"}]}",
+          "error": {
+            "type": "FsToolError",
+            "message": "第 5 章、第 9 章的正文还不存在，不能标 done。起草补丁不等于落盘——补丁要作者在界面点接受才写进正文，请等作者接受后再标记；本次调用未改动计划，回话时也不要说这章已完成。"
+          },
+          "writes": {}
+        },
+        {
+          "fn": "apply_plan_update",
+          "args": {
+            "chapters": [
+              {
+                "ordinal": 3,
+                "status": "done",
+                "path": "随便写的.md"
+              },
+              {
+                "ordinal": 2,
+                "title": " 新标题 ",
+                "goal": null,
+                "note": "  "
+              },
+              {
+                "ordinal": 9,
+                "title": "新增",
+                "status": "bogus"
+              },
+              {
+                "ordinal": 2.0,
+                "status": "done"
+              },
+              "not-an-object",
+              {
+                "status": "pending"
+              }
+            ],
+            "premise": "",
+            "chapter_word_count_min": 0,
+            "chapter_word_count_max": 4000,
+            "remove_ordinals": [
+              7,
+              7,
+              0,
+              "8",
+              99
+            ],
+            "arcs": [
+              {
+                "title": "新弧线",
+                "target_chapters": [
+                  3
+                ]
+              },
+              "bad"
+            ]
+          },
+          "args_json": "{\"chapters\": [{\"ordinal\": 3, \"status\": \"done\", \"path\": \"随便写的.md\"}, {\"ordinal\": 2, \"title\": \" 新标题 \", \"goal\": null, \"note\": \"  \"}, {\"ordinal\": 9, \"title\": \"新增\", \"status\": \"bogus\"}, {\"ordinal\": 2.0, \"status\": \"done\"}, \"not-an-object\", {\"status\": \"pending\"}], \"premise\": \"\", \"chapter_word_count_min\": 0, \"chapter_word_count_max\": 4000, \"remove_ordinals\": [7, 7, 0, \"8\", 99], \"arcs\": [{\"title\": \"新弧线\", \"target_chapters\": [3]}, \"bad\"]}",
+          "output_json": "{\"plan_path\": \".storyforge/serial-plan.json\", \"planned_total\": 8, \"next_ordinal\": 5, \"next_goal\": null, \"drifted_count\": 1, \"written_path\": \"$ROOT\\\\.storyforge\\\\serial-plan.json\", \"created_count\": 1, \"updated_count\": 2, \"removed_count\": 1, \"skipped_count\": 3}",
+          "writes": {
+            ".storyforge/serial-plan.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAidmVyc2lvbiI6IDEsDQogICJjaGFwdGVyX3dvcmRfY291bnRfbWluIjogMjAwMCwNCiAgImNoYXB0ZXJfd29yZF9jb3VudF9tYXgiOiA0MDAwLA0KICAiY2hhcHRlcnMiOiBbDQogICAgew0KICAgICAgIm9yZGluYWwiOiAxLA0KICAgICAgInRpdGxlIjogIumGkuadpSIsDQogICAgICAiZ29hbCI6ICLmnpfoiJ/phpLmnaUiLA0KICAgICAgInN0YXR1cyI6ICJkb25lIiwNCiAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDHnq6AubWQiDQogICAgfSwNCiAgICB7DQogICAgICAib3JkaW5hbCI6IDIsDQogICAgICAidGl0bGUiOiAi5paw5qCH6aKYIiwNCiAgICAgICJzdGF0dXMiOiAiZG9uZSIsDQogICAgICAicGF0aCI6ICLmraPmlocv56ysMDAy56ugLm1kIg0KICAgIH0sDQogICAgew0KICAgICAgIm9yZGluYWwiOiAzLA0KICAgICAgInRpdGxlIjogIuepuue8uiIsDQogICAgICAic3RhdHVzIjogImRvbmUiLA0KICAgICAgInBhdGgiOiAi5q2j5paHL+esrDAwM+eroC5tZCINCiAgICB9LA0KICAgIHsNCiAgICAgICJvcmRpbmFsIjogNCwNCiAgICAgICJnb2FsIjogIuebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruagh+ebruaghyIsDQogICAgICAic3RhdHVzIjogImJsb2NrZWQiLA0KICAgICAgIm5vdGUiOiAi562J6K6+5a6aIiwNCiAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDTnq6AubWQiDQogICAgfSwNCiAgICB7DQogICAgICAib3JkaW5hbCI6IDUsDQogICAgICAidGl0bGUiOiAi5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOw5Zue5aOwIiwNCiAgICAgICJzdGF0dXMiOiAid2VpcmQiDQogICAgfSwNCiAgICB7DQogICAgICAib3JkaW5hbCI6IDYsDQogICAgICAic3RhdHVzIjogInBlbmRpbmciDQogICAgfSwNCiAgICB7DQogICAgICAib3JkaW5hbCI6IDgsDQogICAgICAic3RhdHVzIjogInBlbmRpbmciLA0KICAgICAgImdvYWwiOiAi5YWrIg0KICAgIH0sDQogICAgew0KICAgICAgIm9yZGluYWwiOiA5LA0KICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwNCiAgICAgICJ0aXRsZSI6ICLmlrDlop4iDQogICAgfQ0KICBdLA0KICAiYXJjcyI6IFsNCiAgICB7DQogICAgICAidGl0bGUiOiAi5paw5byn57q/IiwNCiAgICAgICJ0YXJnZXRfY2hhcHRlcnMiOiBbDQogICAgICAgIDMNCiAgICAgIF0NCiAgICB9DQogIF0NCn0=",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fn": "plan_view",
+          "args": {},
+          "output_json": "{\"block\": \"[连载计划 · 确定性]\\n· 计划共 8 章；其中 4 章正文已落盘；每章目标 2000–4000 字。\\n\\n[下一章待写]\\n· 第 5 章《回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声》\\n\\n[再往后]\\n· 第 6 章\\n· 第 8 章：八\\n· 第 9 章《新增》\\n\\n[计划与正文对不上]\\n· 第 4 章：正文已存在，但计划仍标 blocked\\n以正文为准；确认后用 project_plan_update 把计划状态改对，不要照计划重写已有正文。\", \"payload\": {\"planned_total\": 8, \"written_count\": 4, \"premise\": null, \"chapter_word_count_min\": 2000, \"chapter_word_count_max\": 4000, \"chapters\": [{\"ordinal\": 1, \"title\": \"醒来\", \"goal\": \"林舟醒来\", \"status\": \"done\", \"note\": null, \"written\": true, \"written_path\": \"正文/第001章.md\", \"drifted\": false}, {\"ordinal\": 2, \"title\": \"新标题\", \"goal\": null, \"status\": \"done\", \"note\": null, \"written\": true, \"written_path\": \"正文/第002章.md\", \"drifted\": false}, {\"ordinal\": 3, \"title\": \"空缺\", \"goal\": null, \"status\": \"done\", \"note\": null, \"written\": true, \"written_path\": \"正文/第003章.md\", \"drifted\": false}, {\"ordinal\": 4, \"title\": null, \"goal\": \"目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标\", \"status\": \"blocked\", \"note\": \"等设定\", \"written\": true, \"written_path\": \"正文/第004章.md\", \"drifted\": true}, {\"ordinal\": 5, \"title\": \"回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声\", \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 6, \"title\": null, \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 8, \"title\": null, \"goal\": \"八\", \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 9, \"title\": \"新增\", \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}], \"next_ordinal\": 5, \"drifted_count\": 1, \"prompt_block\": \"[连载计划 · 确定性]\\n· 计划共 8 章；其中 4 章正文已落盘；每章目标 2000–4000 字。\\n\\n[下一章待写]\\n· 第 5 章《回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声》\\n\\n[再往后]\\n· 第 6 章\\n· 第 8 章：八\\n· 第 9 章《新增》\\n\\n[计划与正文对不上]\\n· 第 4 章：正文已存在，但计划仍标 blocked\\n以正文为准；确认后用 project_plan_update 把计划状态改对，不要照计划重写已有正文。\"}}",
+          "writes": {}
+        },
+        {
+          "fn": "author_write",
+          "args": {
+            "path": "正文/第003章.md"
+          },
+          "writes": {
+            "正文/第003章.md": null
+          }
+        },
+        {
+          "fn": "unmark_chapter_written",
+          "args": {
+            "path": "正文/第003章.md",
+            "absolute": false
+          },
+          "output_json": "{\"updated\": true, \"ordinal\": 3, \"path\": \"正文/第003章.md\", \"next_ordinal\": 3, \"plan_path\": \".storyforge/serial-plan.json\"}",
+          "writes": {
+            ".storyforge/serial-plan.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAidmVyc2lvbiI6IDEsDQogICJjaGFwdGVyX3dvcmRfY291bnRfbWluIjogMjAwMCwNCiAgImNoYXB0ZXJfd29yZF9jb3VudF9tYXgiOiA0MDAwLA0KICAiY2hhcHRlcnMiOiBbDQogICAgew0KICAgICAgIm9yZGluYWwiOiAxLA0KICAgICAgInRpdGxlIjogIumGkuadpSIsDQogICAgICAiZ29hbCI6ICLmnpfoiJ/phpLmnaUiLA0KICAgICAgInN0YXR1cyI6ICJkb25lIiwNCiAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDHnq6AubWQiDQogICAgfSwNCiAgICB7DQogICAgICAib3JkaW5hbCI6IDIsDQogICAgICAidGl0bGUiOiAi5paw5qCH6aKYIiwNCiAgICAgICJzdGF0dXMiOiAiZG9uZSIsDQogICAgICAicGF0aCI6ICLmraPmlocv56ysMDAy56ugLm1kIg0KICAgIH0sDQogICAgew0KICAgICAgIm9yZGluYWwiOiAzLA0KICAgICAgInRpdGxlIjogIuepuue8uiIsDQogICAgICAic3RhdHVzIjogInBlbmRpbmciDQogICAgfSwNCiAgICB7DQogICAgICAib3JkaW5hbCI6IDQsDQogICAgICAiZ29hbCI6ICLnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIfnm67moIciLA0KICAgICAgInN0YXR1cyI6ICJibG9ja2VkIiwNCiAgICAgICJub3RlIjogIuetieiuvuWumiIsDQogICAgICAicGF0aCI6ICLmraPmlocv56ysMDA056ugLm1kIg0KICAgIH0sDQogICAgew0KICAgICAgIm9yZGluYWwiOiA1LA0KICAgICAgInRpdGxlIjogIuWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsOWbnuWjsCIsDQogICAgICAic3RhdHVzIjogIndlaXJkIg0KICAgIH0sDQogICAgew0KICAgICAgIm9yZGluYWwiOiA2LA0KICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIg0KICAgIH0sDQogICAgew0KICAgICAgIm9yZGluYWwiOiA4LA0KICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwNCiAgICAgICJnb2FsIjogIuWFqyINCiAgICB9LA0KICAgIHsNCiAgICAgICJvcmRpbmFsIjogOSwNCiAgICAgICJzdGF0dXMiOiAicGVuZGluZyIsDQogICAgICAidGl0bGUiOiAi5paw5aKeIg0KICAgIH0NCiAgXSwNCiAgImFyY3MiOiBbDQogICAgew0KICAgICAgInRpdGxlIjogIuaWsOW8p+e6vyIsDQogICAgICAidGFyZ2V0X2NoYXB0ZXJzIjogWw0KICAgICAgICAzDQogICAgICBdDQogICAgfQ0KICBdDQp9",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fn": "plan_view",
+          "args": {},
+          "output_json": "{\"block\": \"[连载计划 · 确定性]\\n· 计划共 8 章；其中 3 章正文已落盘；每章目标 2000–4000 字。\\n\\n[下一章待写]\\n· 第 3 章《空缺》\\n· 「新弧线」本章是推进点\\n\\n[再往后]\\n· 第 5 章《回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声》\\n· 第 6 章\\n· 第 8 章：八\\n\\n[计划与正文对不上]\\n· 第 4 章：正文已存在，但计划仍标 blocked\\n以正文为准；确认后用 project_plan_update 把计划状态改对，不要照计划重写已有正文。\", \"payload\": {\"planned_total\": 8, \"written_count\": 3, \"premise\": null, \"chapter_word_count_min\": 2000, \"chapter_word_count_max\": 4000, \"chapters\": [{\"ordinal\": 1, \"title\": \"醒来\", \"goal\": \"林舟醒来\", \"status\": \"done\", \"note\": null, \"written\": true, \"written_path\": \"正文/第001章.md\", \"drifted\": false}, {\"ordinal\": 2, \"title\": \"新标题\", \"goal\": null, \"status\": \"done\", \"note\": null, \"written\": true, \"written_path\": \"正文/第002章.md\", \"drifted\": false}, {\"ordinal\": 3, \"title\": \"空缺\", \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 4, \"title\": null, \"goal\": \"目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标目标\", \"status\": \"blocked\", \"note\": \"等设定\", \"written\": true, \"written_path\": \"正文/第004章.md\", \"drifted\": true}, {\"ordinal\": 5, \"title\": \"回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声\", \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 6, \"title\": null, \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 8, \"title\": null, \"goal\": \"八\", \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}, {\"ordinal\": 9, \"title\": \"新增\", \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}], \"next_ordinal\": 3, \"drifted_count\": 1, \"prompt_block\": \"[连载计划 · 确定性]\\n· 计划共 8 章；其中 3 章正文已落盘；每章目标 2000–4000 字。\\n\\n[下一章待写]\\n· 第 3 章《空缺》\\n· 「新弧线」本章是推进点\\n\\n[再往后]\\n· 第 5 章《回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声回声》\\n· 第 6 章\\n· 第 8 章：八\\n\\n[计划与正文对不上]\\n· 第 4 章：正文已存在，但计划仍标 blocked\\n以正文为准；确认后用 project_plan_update 把计划状态改对，不要照计划重写已有正文。\"}}",
+          "writes": {}
+        }
+      ]
+    },
+    {
+      "id": "no-plan",
+      "files": {
+        "正文/第001章.md": {
+          "chunks": [
+            {
+              "base64": "5LiA",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "plan_view",
+          "args": {},
+          "output_json": "{\"block\": null, \"payload\": null}",
+          "writes": {}
+        },
+        {
+          "fn": "mark_chapter_written",
+          "args": {
+            "path": "正文/第001章.md",
+            "absolute": false
+          },
+          "output_json": "{\"updated\": false, \"reason\": \"no_plan\", \"ordinal\": 1}",
+          "writes": {}
+        },
+        {
+          "fn": "apply_plan_update",
+          "args": {
+            "premise": "新书",
+            "chapters": [
+              {
+                "ordinal": 1,
+                "status": "done",
+                "goal": "开篇"
+              },
+              {
+                "ordinal": 2
+              }
+            ]
+          },
+          "args_json": "{\"premise\": \"新书\", \"chapters\": [{\"ordinal\": 1, \"status\": \"done\", \"goal\": \"开篇\"}, {\"ordinal\": 2}]}",
+          "output_json": "{\"plan_path\": \".storyforge/serial-plan.json\", \"planned_total\": 2, \"next_ordinal\": 2, \"next_goal\": null, \"drifted_count\": 0, \"written_path\": \"$ROOT\\\\.storyforge\\\\serial-plan.json\", \"created_count\": 2, \"updated_count\": 0, \"removed_count\": 0, \"skipped_count\": 0}",
+          "writes": {
+            ".storyforge/serial-plan.json": {
+              "chunks": [
+                {
+                  "base64": "ew0KICAidmVyc2lvbiI6IDEsDQogICJjaGFwdGVycyI6IFsNCiAgICB7DQogICAgICAib3JkaW5hbCI6IDEsDQogICAgICAic3RhdHVzIjogImRvbmUiLA0KICAgICAgImdvYWwiOiAi5byA56+HIiwNCiAgICAgICJwYXRoIjogIuato+aWhy/nrKwwMDHnq6AubWQiDQogICAgfSwNCiAgICB7DQogICAgICAib3JkaW5hbCI6IDIsDQogICAgICAic3RhdHVzIjogInBlbmRpbmciDQogICAgfQ0KICBdLA0KICAiYXJjcyI6IFtdLA0KICAicHJlbWlzZSI6ICLmlrDkuaYiDQp9",
+                  "repeat": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fn": "plan_view",
+          "args": {},
+          "output_json": "{\"block\": \"[连载计划 · 确定性]\\n· 计划共 2 章；其中 1 章正文已落盘。\\n· 主线：新书\\n\\n[下一章待写]\\n· 第 2 章\", \"payload\": {\"planned_total\": 2, \"written_count\": 1, \"premise\": \"新书\", \"chapter_word_count_min\": null, \"chapter_word_count_max\": null, \"chapters\": [{\"ordinal\": 1, \"title\": null, \"goal\": \"开篇\", \"status\": \"done\", \"note\": null, \"written\": true, \"written_path\": \"正文/第001章.md\", \"drifted\": false}, {\"ordinal\": 2, \"title\": null, \"goal\": null, \"status\": \"pending\", \"note\": null, \"written\": false, \"written_path\": null, \"drifted\": false}], \"next_ordinal\": 2, \"drifted_count\": 0, \"prompt_block\": \"[连载计划 · 确定性]\\n· 计划共 2 章；其中 1 章正文已落盘。\\n· 主线：新书\\n\\n[下一章待写]\\n· 第 2 章\"}}",
+          "writes": {}
+        }
+      ]
+    }
+  ],
+  "pure": [
+    {
+      "fn": "evaluate_hook_admission",
+      "existing": {
+        "hooks": [
+          {
+            "description": "井底的声音是谁"
+          }
+        ]
+      },
+      "hook": {
+        "description": "井底的声音是谁？"
+      },
+      "output": {
+        "admitted": true,
+        "reason": "可能相关：描述子串重合，需核实主体、行为与对象",
+        "similar_hook": {
+          "description": "井底的声音是谁"
+        }
+      }
+    },
+    {
+      "fn": "evaluate_hook_admission",
+      "existing": {
+        "hooks": [
+          {
+            "description": "钟楼里的老人知道真相"
+          }
+        ]
+      },
+      "hook": {
+        "description": "老人知道钟楼真相"
+      },
+      "output": {
+        "admitted": true,
+        "reason": "可能相关：中文字符重合，不能据此判定重复",
+        "similar_hook": {
+          "description": "钟楼里的老人知道真相"
+        }
+      }
+    },
+    {
+      "fn": "evaluate_hook_admission",
+      "existing": {
+        "hooks": [
+          {
+            "description": "钟楼里的老人知道真相"
+          }
+        ]
+      },
+      "hook": {
+        "description": "钟楼老人"
+      },
+      "output": {
+        "admitted": true,
+        "reason": null,
+        "similar_hook": null
+      }
+    },
+    {
+      "fn": "evaluate_hook_admission",
+      "existing": {
+        "hooks": [
+          {
+            "description": "Mystery Box"
+          }
+        ]
+      },
+      "hook": {
+        "description": "  mystery box "
+      },
+      "output": {
+        "admitted": false,
+        "reason": "描述文本完全重复（非语义判定）",
+        "similar_hook": {
+          "description": "Mystery Box"
+        }
+      }
+    },
+    {
+      "fn": "evaluate_hook_admission",
+      "existing": {
+        "hooks": [
+          {
+            "description": "mystery box"
+          }
+        ]
+      },
+      "hook": {
+        "description": "MYSTERY BOX"
+      },
+      "output": {
+        "admitted": false,
+        "reason": "描述文本完全重复（非语义判定）",
+        "similar_hook": {
+          "description": "mystery box"
+        }
+      }
+    },
+    {
+      "fn": "evaluate_hook_admission",
+      "existing": {
+        "hooks": [
+          {
+            "description": "甲乙丙丁戊"
+          }
+        ]
+      },
+      "hook": {
+        "description": "甲乙丙己庚"
+      },
+      "output": {
+        "admitted": true,
+        "reason": null,
+        "similar_hook": null
+      }
+    },
+    {
+      "fn": "evaluate_hook_admission",
+      "existing": {
+        "hooks": [
+          {
+            "description": "甲乙丙丁戊"
+          }
+        ]
+      },
+      "hook": {
+        "description": "甲乙丙丁庚"
+      },
+      "output": {
+        "admitted": true,
+        "reason": "可能相关：中文字符重合，不能据此判定重复",
+        "similar_hook": {
+          "description": "甲乙丙丁戊"
+        }
+      }
+    },
+    {
+      "fn": "evaluate_hook_admission",
+      "existing": {
+        "hooks": "bad"
+      },
+      "hook": {
+        "description": "x"
+      },
+      "output": {
+        "admitted": true,
+        "reason": null,
+        "similar_hook": null
+      }
+    },
+    {
+      "fn": "evaluate_hook_admission",
+      "existing": {
+        "hooks": [
+          {
+            "description": "a"
+          },
+          {
+            "description": "ab"
+          },
+          {
+            "description": "a"
+          }
+        ]
+      },
+      "hook": {
+        "description": "a"
+      },
+      "output": {
+        "admitted": false,
+        "reason": "描述文本完全重复（非语义判定）",
+        "similar_hook": {
+          "description": "a"
+        }
+      }
+    },
+    {
+      "fn": "evaluate_hook_admission",
+      "existing": {},
+      "hook": {
+        "description": null
+      },
+      "output": {
+        "admitted": false,
+        "reason": "description 不可为空",
+        "similar_hook": null
+      }
+    },
+    {
+      "fn": "merge_plan_payload",
+      "existing": {},
+      "updates": {
+        "chapters": [
+          {
+            "ordinal": 1
+          }
+        ]
+      },
+      "merged_json": "{\"version\": 1, \"chapters\": [{\"ordinal\": 1, \"status\": \"pending\"}], \"arcs\": []}",
+      "counts": {
+        "created_count": 1,
+        "updated_count": 0,
+        "removed_count": 0,
+        "skipped_count": 0
+      }
+    },
+    {
+      "fn": "merge_plan_payload",
+      "existing": {
+        "chapters": [
+          {
+            "ordinal": 2,
+            "title": "旧",
+            "extra": true
+          },
+          {
+            "ordinal": 2,
+            "title": "后者"
+          }
+        ]
+      },
+      "updates": {
+        "chapters": [
+          {
+            "ordinal": 2,
+            "title": null
+          }
+        ],
+        "chapter_word_count_min": true
+      },
+      "merged_json": "{\"chapters\": [{\"ordinal\": 2}], \"version\": 1, \"arcs\": []}",
+      "counts": {
+        "created_count": 0,
+        "updated_count": 1,
+        "removed_count": 0,
+        "skipped_count": 0
+      }
+    },
+    {
+      "fn": "merge_plan_payload",
+      "existing": {
+        "version": 3,
+        "arcs": null
+      },
+      "updates": {
+        "remove_ordinals": [
+          1
+        ]
+      },
+      "merged_json": "{\"version\": 3, \"arcs\": null, \"chapters\": []}",
+      "counts": {
+        "created_count": 0,
+        "updated_count": 0,
+        "removed_count": 0,
+        "skipped_count": 0
+      }
+    },
+    {
+      "fn": "reject_premature_done",
+      "chapters": [
+        {
+          "ordinal": 2,
+          "status": "done"
+        },
+        {
+          "ordinal": 1,
+          "status": "done"
+        },
+        {
+          "ordinal": 3
+        }
+      ],
+      "written": [
+        1
+      ],
+      "output": [
+        2
+      ]
+    },
+    {
+      "fn": "reject_premature_done",
+      "chapters": null,
+      "written": [],
+      "output": []
+    },
+    {
+      "fn": "reject_premature_done",
+      "chapters": [
+        {
+          "ordinal": 0,
+          "status": "done"
+        },
+        "x"
+      ],
+      "written": [],
+      "output": []
+    }
+  ]
+}

@@ -92,3 +92,34 @@ export {
 export type { PromiseCheckResult } from './kernel/promiseScan';
 export { collapseScan, entityBudgetScan } from './kernel/sceneChecks';
 export type { EntityBudgetOptions } from './kernel/sceneChecks';
+export { canonDelta, INVARIANT_KEYS, readPendingProposals } from './kernel/canonDelta';
+export type { CanonDeltaInput } from './kernel/canonDelta';
+export { evaluateHookAdmission, hooksDelta } from './kernel/canonHooksDelta';
+export { dossierToJson } from './kernel/canonDossier';
+export {
+  ALLOWED_STATUSES,
+  buildPlan,
+  buildPlanBlock,
+  cleanText,
+  driftedChapters,
+  nextChapter,
+  PLAN_RELATIVE_PATH,
+  planExists,
+  positiveInt,
+  readPlan,
+  renderPlanBlock,
+  toPlanPayload,
+  writePlan,
+  writtenOrdinals,
+} from './kernel/serialPlan';
+export type { PlannedChapter, SerialPlan } from './kernel/serialPlan';
+export {
+  applyPlanUpdate,
+  markChapterWritten,
+  mergePlanPayload,
+  rejectPrematureDone,
+  unmarkChapterWritten,
+} from './kernel/serialPlanUpdate';
+export type { PlanUpdates } from './kernel/serialPlanUpdate';
+export { runObservatoryScan } from './kernel/observatory';
+export { cloneJson, pythonEquals } from './kernel/json';
