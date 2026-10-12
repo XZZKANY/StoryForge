@@ -91,7 +91,7 @@ export async function reviseFileContent(payload: {
   qualityGate?: 'polish';
   signal?: AbortSignal;
 }): Promise<AssistantReviseResult> {
-  // 引擎只在开发档显式切到 ts 时才加载；走 Python 时不初始化引擎。
+  // 开发档默认走引擎（设成 python 可切回）；发行版与 Python 档不初始化引擎。
   if (readEngineMode('engine.assistant') === 'ts')
     return (await import('../engine/assistant')).reviseWithEngine(payload);
   const { baseUrl, apiKey } = await getApiConfig();

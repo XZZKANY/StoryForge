@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { beforeEach, test } from 'vitest';
 
 import {
   getAgentRunSavePoints,
@@ -9,6 +9,9 @@ import {
   sendAgentControlMessage,
   sendAgentUserMessage,
 } from '../src/lib/api-client';
+
+// 测的是 Python 传输：开发档默认已走引擎，这里钉回 python。
+beforeEach(() => localStorage.setItem('engine.assistant', 'python'));
 
 test('inline revise serializes the controlled polishing gate', async () => {
   const previousFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');

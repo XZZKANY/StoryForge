@@ -184,7 +184,7 @@ Tauri 命令 28 个，前端全部在用；迁移新增 2 个插件（§2.4）�
 
 ### 4.1 三道开关
 
-`lib/engine/flags.ts`：`engine.ideCommands`、`engine.assistant`、`engine.agentLoop`，各三档 `python | ts | shadow`，存 `localStorage`（dev）与设置页（私测版）。默认值随阶段推进：Phase 1 末 ideCommands=shadow，Phase 2 末 assistant=ts，Phase 5 末全部 ts，Phase 6 删开关。
+`lib/engine/flags.ts`：`engine.ideCommands`、`engine.assistant`、`engine.agentLoop`，各三档 `python | ts | shadow`，存 `localStorage`（dev）与设置页（私测版）。默认值随阶段推进：Phase 1 末 ideCommands=shadow，Phase 2 末 assistant=ts，Phase 5 末全部 ts，Phase 6 删开关。2026-10-12 作者拍板：Phase 2 末只切开发档的 assistant 默认值，装机版随 P5 再切（见 P5-2）。
 
 ### 4.2 影子模式
 
@@ -304,6 +304,7 @@ P0 结束出一份 `verification-report` 记录，附数字，再决定 P1 开�
 - assistant 编排（2026-10-12，P2-3b2）：修订、光标处续写（逐帧回调，帧形与 SSE 的 event / data 相同）、起草、项目对话回复、模型服务诊断搬进 `engine/assistant/`；会话与工具调用证据链经 `AssistantStore` 端口（P4 前由 Python 现有会话接口实现，脱敏归存储），模型经 `AssistantLlm` 端口（生产绑定引擎 LLM 客户端）。预言机在合成项目上跑真实 Python 服务函数（内存假存储 + 脚本化模型替换它自己的那几处缝）：39 个场景逐操作一致（存储调用序列、模型调用与提示、返回值或错误类别 / 文本 / 状态码、续写帧），18 个诊断场景一致；46 处变异全部抓住。默认仍走 Python。
 - assistant 前端分流（2026-10-12，P2-3c）：`lib/api/assistant.ts` 的修订 / 续写 / 测试连接在开发档 `engine.assistant=ts` 时经动态 import 走引擎（Python 档零初始化引擎），`lib/engine/assistant.ts` 提供 HTTP 版会话存储（写回 Python 现有 `/api/assistant/sessions*`）、Native 读盘与 Rust 代发；作者取消（Esc / 换文件）接 `RunControl`，在下一个读流边界停下并把工具调用记为 paused。前端 8 个行为用例 + 10 处变异全部抓住；真 WebView 合成探针（`--assistant-only`）通过：修订、续写（首个增量 3 ms）、取消中的续写（Rust 流在服务端收尾前被关掉）、会话不存在、测试连接全部走引擎，会话接口收到 16 次调用且顺序与字段符合预期，项目文件零写入，合成 key 不出现在 WebView、会话接口与任何产物里。至此 P2-3 完成；默认仍走 Python，切默认值另起 PR，P2-4 真跑需作者批准。
 - 真跑（2026-10-12，P2-4，作者批准）：真 WebView + 作者自己的模型配置（DPAPI 加密文件复制进隔离目录，key 只在 Rust 里解开）+ 合成两章项目 + 假 sidecar 会话接口，照编辑器的真实路径各跑一次 Ctrl+K（锚定窗口 + 内联指令 + polish 门禁）与 Ctrl+Shift+K（内联上下文包）。两次都成功：修订 6.8 s、门禁通过；续写首个增量 3.3 s、共 10.8 s、250 字。两次发出的 system / user 提示经 sha256 核对与 Python 逐字节相同。用量（provider 回报）：修订 17,431 + 176、续写 8,198 + 298，合计 26,103 token；我们的提示只有约 2,000 / 2,500 字，多出的输入 token 来自服务端。真跑顺带发现一处既有问题（与迁移无关，Python 路径同样会发生）：模型同时去掉末尾换行并改动锚定段外的标点时，编辑器的锚定 diff 会把整次改写丢掉，作者只看到「没有改动」。
+- 切 assistant 默认值（2026-10-12，作者拍板只切开发档）：开发档没设 `engine.assistant` 时默认走引擎，设成 `python` 可切回；发行版仍一律 Python、不读存储，等 P5 装预览版再切。原因：P2-3c 探针与 P2-4 真跑都跑在 Vite 开发服务器上，发行版打包后的路径（分包后的动态 import + release Rust）还没被引擎跑过，装机版也没有切回手段。直接拿假 fetch 打 `/api/assistant/*` 的 9 个测试文件显式钉回 `python`（它们测的是 Python 传输与编辑器行为）；路由层补两条：开发档无偏好走引擎、发行版无偏好走 Python 且不初始化引擎。顺带修两处测试问题：happy-dom 下同一文件里第二次 `vi.spyOn(Storage.prototype, 'getItem')` 拦不到调用，开关测试里「存储被拒」「未知键不读存储」两条一直空转，改为替换整个 localStorage 并断言读没读；引擎路由测试的第一条用例要冷加载整个引擎包，满载时超过 5 秒（master 上同样满载可复现），挪进 `beforeAll`。6 处变异全部抓住。
 - 首片仍未完整验收：继续补深层 JSON/reader 矩阵，并在后续负载保留性能验收；真实 WebView → mapper 的合成响应链已验证，但生产完整配置来源/实际 UI admission 仍待后续 owner。实际路由仍 Python，handoff 相对输入不变；P1-8/9 仍依赖 P2/P3/P4 与作者副本周用授权，不把合成绿测当全量完成。证据详见 `.codex/verification-report.md`。
 
 ### P2 LLM 通道 + assistant（PR P2-1 … P2-4）

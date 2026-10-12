@@ -7695,3 +7695,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：`tests/inline-chat.test.ts` 新增 2 个用例——真跑的原文与模型原样输出（合成稿）走「切窗 → 拼回 → 夹紧」后：不再是 noop、只换锚定段、段外半角逗号照旧丢弃（droppedOffAnchor 1）、文末换行保留；节选窗口里模型多补两个换行不会在正文中间插空行、窗口到文末时模型丢掉换行不会吞掉文末换行。变异 3 处全部抓住（去掉还原、按模型自己的换行数还原、节选分支不用还原后的文本）。
 - 门禁：前端 2114 通过 / 1 跳过、typecheck；eslint、prettier。引擎与 Python 零改动。
 - 未做：作者装机版要等下一次打包才拿得到这个修复。
+
+## 2026-10-12 TS 迁移：开发档 engine.assistant 默认切到 ts（装机版不动）
+
+- 范围（作者拍板「只切开发档」）：`lib/engine/flags.ts` 改为按键给开发档默认值，`engine.assistant` 没设偏好时走引擎，设成 `python` 可切回；`ideCommands` / `agentLoop` 仍默认 Python。发行版仍一律 Python 且不读 localStorage——P2-3c 探针与 P2-4 真跑都跑在 Vite 开发服务器上，发行版打包后的路径还没被引擎跑过，装机版也没有切回手段，切装机版随 P5。存储被 WebView 拒绝时回落到该键的阶段默认值。
+- 测试：开关测试按键断言默认值、`python` 显式切回、非法值回落默认、发行版有无偏好都走 Python 且不读存储、存储被拒回落默认且确实读过存储；路由层新增「开发档无偏好时修订与测试连接走引擎」「发行版无偏好走 Python 且零初始化引擎」。直接拿假 fetch 打 `/api/assistant/*` 的 9 个文件（api-client、context-bundle 两个、inline-continue-context、inline-chat 两个、inline-long-lifecycle、inline-editor-writeback-integration、inline-live-receipt-settlement）在 beforeEach 里钉回 `python`：不钉时 10 个文件 105 条变红。
+- 顺带修的两处测试问题：①happy-dom（vitest 4.1.9）下同一文件里 `restoreAllMocks` 之后再 `vi.spyOn(Storage.prototype, 'getItem')` 拦不到调用（不计数、mockImplementation 也不生效，最小复现已验），开关测试里「存储被拒」「未知键不读存储」两条在 master 上就是空转；改为 `vi.stubGlobal('localStorage', …)` 并断言调用次数。②`assistant-engine-routing.test.ts` 第一条用例要冷加载整个引擎包，两个全量 vitest 并行（满载）时超 5 秒并连坐下一条（超时的用例在后台吃掉了下一条推入的模型回复）；`git stash` 回 master 同样满载复现 3 条红，确认是 #298 起潜伏的，冷加载挪进 `beforeAll`（60 秒）后满载复跑通过。
+- 变异 6 处全部抓住：assistant 默认改回 python、发行版读偏好、发行版偷读存储但返回值不变、存储被拒强制 python、`python` 显式切回失效、非法值强制 python；`flags.ts` 每处字节级还原。
+- 门禁：前端 vitest 2116 通过 / 1 跳过（单跑连续 6 次全绿）、typecheck、eslint、prettier。引擎、Python、Rust 零改动，OpenAPI 不涉及。
+- 未做：装机版切换（P5）；`suggestion-ops.test.ts` 的 30000 例 fuzz 在两个全量并行时会超时，master 上同样，与本次无关未动。
