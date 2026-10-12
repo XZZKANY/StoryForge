@@ -7,6 +7,9 @@ import {
 } from './redaction';
 import { sha256Hex } from './sha256';
 
+/** 最终交付证据超过字节预算（Python 的 ValueError）：写作入口据此拒绝调用模型。 */
+export class GenerationSourceBudgetError extends RangeError {}
+
 export const MAX_SOURCE_REFS = 32;
 export const MAX_MANIFEST_BYTES = 20_000;
 
@@ -298,7 +301,7 @@ export class GenerationSourceCapture {
     };
     const encoded = dumpJson(evidence, { ensureAscii: false, sortKeys: true });
     if (new TextEncoder().encode(encoded).length > MAX_MANIFEST_BYTES)
-      throw new Error('生成来源证据超过字节预算，不能静默省略。');
+      throw new GenerationSourceBudgetError('生成来源证据超过字节预算，不能静默省略。');
     return JSON.parse(encoded);
   }
 
