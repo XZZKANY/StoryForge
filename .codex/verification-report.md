@@ -7513,3 +7513,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：九处（深度 64→65、小数当整数、人物表吞掉声明错误、presence 非字符串 id 放行、单词字符去掉数字、Windows glob 区分大小写、跳过参数校验、from_chapter 默认 0、闸门不跳空白物品）全部被测试抓住；其中「非字符串 id」首轮未被抓住，补了专门测试后抓住。重写 redaction.ts 时曾把 4 处开尔文符号 U+212A 抄成 ASCII K，被 golden 抓出并修正，之后对所有重写文件核对了非 ASCII 字符清单。
 - 门禁：lint 0 错误（2 条既有 any 警告）；引擎 typecheck 通过、10157 通过 / 2 跳过；project-core 9；前端 typecheck 通过，测试 2098 通过 / 1 跳过 / 1 失败——失败的是 `proposal-projection-integrity.test.ts` 的 7,056 组合用例超出 5 秒时间预算（本次 9.4 秒），它只依赖前端 src，而前端 src 本次零改动；加长超时单独跑通过（实测 5.38 秒）。Native 脚手架严格 tsc 通过；Native WebView 回放与 Rust 未重跑（Rust 未改）。
 - 未做：未提交、未推送、未切默认路由；真实作者数据未读取；无付费调用。
+
+## 2026-10-12 P1-3 canon 链余下部分（TS 迁移，默认仍走 Python）
+
+- 范围：canon_assertions / canon_context / canon_dossier / canon_rebuild / canon_service，以及 canon_store 的声明与派生缓存读写；连带把三个前置依赖提前搬过来：consistency_scan（原属 P1-4）、generation_sources（原属 P1-7）、fs_tools 的有界读与项目遍历。新增只写 `.storyforge/` 的写口 `ProjectWriter`：内核交出与 Python 逐字节相同的内容，宿主负责原子落盘；Native 写口留到 P1-8 接命令时做。Python 侧零改动。
+- 预言机：新增 `apps/api/scripts/golden_fs.py`（白名单环境、无密钥的合成配置、审计钩子禁网络与进程、禁止读写运行目录以外的文件；逐次调用记录输出与写盘字节差异）和 `golden_canon_chain.py`：13 个合成项目上顺序执行 54 次真实调用（canon 投影 15、场景约束 26、一致性扫描 11、在场重建 2）+ 1 次模拟作者改 canon.json，外加 27 条断言元数据纯函数用例。场景约束同时比对生成来源记录（sources / selections / projections）。派生文件在 Windows 上是 CRLF（Python 文本模式写盘），TS 按平台逐字节对齐。`--check` 复跑逐字节一致。
+- 输入范围（§4.3.1）：canon.json / hooks.json 中被读到的字段先校验，写错（含 JSON 语法错、BOM）抛 InputDomainError；Python 原先是读失败静默跳过或按 Python 语义继续。presence 缓存结构不合视为失效并重建。glob 写成绝对路径时按调用方给的项目根拼写匹配（Python 用解析后的规范根），属接受的差异，未进 golden。
+- 测试：回放 40 条 + 范围外声明与驱动器相对路径 10 条。变异 16 处全部被抓住：子句重复阈值、2000 文件上限、单词条 50 文件上限、截断处半个字符、dossier 20 处上限、Windows 换行、伏笔沉睡阈值、来源 id 长度、版本键位置、全角数字章名、强制刷新、引文截断长度、驱动器相对路径守卫、Python 与 JS 的空白差异、缓存失效判定、声明校验。首轮有 3 处没抓住（夹具没覆盖到），补夹具与专门测试后全部抓住。
+- 门禁：引擎 typecheck 通过、10207 通过 / 2 跳过；eslint、prettier 通过；前端 typecheck 通过。
+- 未做：IDE 命令 canon.refresh 未接 TS（P1-8）；Native 写口；未读真实作者数据；无付费调用。
