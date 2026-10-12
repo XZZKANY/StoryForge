@@ -158,7 +158,10 @@ function readEntries(bytes: Uint8Array, source: string, platform: 'windows' | 'p
 
 async function inflate(data: Uint8Array): Promise<Uint8Array> {
   // Python 的 zlib 在流截断时交出已解出的部分、忽略流后垃圾；这里同样保留出错前已解出的字节，交给 CRC 判定。
-  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  // slice()：TS 5.9 的 BlobPart 只收 ArrayBuffer 背书的视图（前端用 5.9 编译引擎源码）。
+  const stream = new Blob([data.slice()])
+    .stream()
+    .pipeThrough(new DecompressionStream('deflate-raw'));
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   try {

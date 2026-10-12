@@ -12,6 +12,15 @@ export class LlmConfigError extends Error {
   }
 }
 
+/** 桌面配置文件读不出、格式坏或密钥解不开（Python 的 llm_config_file.LlmConfigError），HTTP 503。 */
+export class LlmConfigFileError extends Error {
+  readonly status = 503;
+  constructor(message: string) {
+    super(message);
+    this.name = 'LlmConfigFileError';
+  }
+}
+
 export const REQUIRED_REAL_LLM_ENV = [
   'STORYFORGE_LLM_API_KEY',
   'STORYFORGE_LLM_BASE_URL',

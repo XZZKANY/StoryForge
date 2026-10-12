@@ -333,6 +333,7 @@ export {
   credentialHeaderValues,
   envValue,
   LlmConfigError,
+  LlmConfigFileError,
   llmRequestHeaders,
   missingLlmEnv,
   optionalFloat,

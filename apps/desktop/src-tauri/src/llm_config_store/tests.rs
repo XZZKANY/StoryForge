@@ -274,3 +274,49 @@ fn two_unreadable_keys_can_be_replaced_independently() {
         "new-polish-test-sentinel"
     );
 }
+
+#[cfg(windows)]
+#[test]
+fn revealed_slots_feed_engine_egress_and_fail_closed() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    save(&path, request(Some("main-test-sentinel"), false)).unwrap();
+    let main = read_revealed_slot(&path, false).unwrap().unwrap();
+    assert_eq!(main.provider, "openai-compatible");
+    assert_eq!(main.base_url, "https://example.invalid/v1");
+    assert_eq!(main.model, "test-model");
+    assert_eq!(main.api_key.as_deref(), Some("main-test-sentinel"));
+    assert!(read_revealed_slot(&path, true).unwrap().is_none());
+
+    let mut payload = request(None, true);
+    payload.polish = Some(
+        serde_json::from_value(
+            json!({"provider":" gemini ", "baseUrl":" https://polish.invalid ",
+        "model":" p ", "apiKey":"polish-test-sentinel"}),
+        )
+        .unwrap(),
+    );
+    save(&path, payload).unwrap();
+    assert!(read_revealed_slot(&path, false)
+        .unwrap()
+        .unwrap()
+        .api_key
+        .is_none());
+    let polish = read_revealed_slot(&path, true).unwrap().unwrap();
+    assert_eq!(
+        (
+            polish.provider.as_str(),
+            polish.base_url.as_str(),
+            polish.model.as_str()
+        ),
+        ("gemini", "https://polish.invalid", "p")
+    );
+    assert_eq!(polish.api_key.as_deref(), Some("polish-test-sentinel"));
+
+    let mut data: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    data["polish"]["apiKey"]["ciphertext"] = json!("AAAA");
+    fs::write(&path, data.to_string()).unwrap();
+    let error = read_revealed_slot(&path, true).err().unwrap();
+    assert!(!format!("{error:#}").contains("AAAA"));
+    assert!(read_revealed_slot(&path, false).is_ok());
+}

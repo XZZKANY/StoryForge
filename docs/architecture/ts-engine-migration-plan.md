@@ -118,9 +118,9 @@ Tauri 命令 28 个，前端全部在用；迁移新增 2 个插件（§2.4）�
 │  └──────────────────────────────────────────────────────────────────────────────┘  │
 │   适配器（apps/desktop/frontend/src/engine/）：                                      │
 │     Fs  → 既有 Tauri 命令 read_project_file / list_dir / path_exists（containment 不变）│
-│     Http→ @tauri-apps/plugin-http（Rust reqwest 发请求，无 CORS）                    │
+│     Http→ Rust engine_llm_send 代发（只放行已配置 baseUrl 同源，Channel 流式回传）   │
 │     Db  → @tauri-apps/plugin-sql（sqlite，WAL）                                      │
-│     Key → 既有 get_llm_config / save_llm_config                                      │
+│     Key → 不出 Rust：引擎只拿占位串，Rust 发请求时换成真 key（2026-10-12 改）        │
 │   写回不变：performGuardedWriteback → Rust write_file*（快照 → 原子写 → 版本记录）    │
 ├──────────────────────────────────────────────────────────────────────────────────┤
 │  Rust 主进程：fs · shadow_git · llm_config_store · 窗口 · 单实例（无 sidecar）        │
@@ -145,7 +145,7 @@ Tauri 命令 28 个，前端全部在用；迁移新增 2 个插件（§2.4）�
 
 | 插件 | 版本 | 用途 | 替代方案 |
 | --- | --- | --- | --- |
-| `tauri-plugin-http` | 2.6.1（exact） | 从 Rust 发模型请求，流式读响应 | 若流式不达标：先定位请求/响应/IPC/reader 的失败点，再评估 Rust `llm_stream`；不先加平行实现 |
+| `tauri-plugin-http` | 2.6.1（exact） | 原计划承载模型请求；2026-10-12 起模型请求改走自有 `engine_llm_send` 命令（见风险 13），插件不再承载 key，P6 评估是否移除 | — |
 | `tauri-plugin-sql` | 2.4.1（exact） | sqlite | `tauri-plugin-store`（JSON，不够关系查询）；不选 |
 
 原候选 HTTP 2.8.2 / SQL 2.5.0 要求 Tauri 2.12；本次保留 Tauri 2.11.2 / frontend API 2.11.0，仅依赖锁中 fs 2.5.1→2.5.2。P0 使用官方 crate 自带 global API；npm import wrapper 安装/调用单独验证，不能以 global 探针替代交付。SQL 无 db/path scope，`select` 可执行 mutating SQL，旧库只读必须由 driver `mode=ro`、拒写及 hash 实证保证。
@@ -298,6 +298,7 @@ P0 结束出一份 `verification-report` 记录，附数字，再决定 P1 开�
 - LLM 通道纯函数层（2026-10-12，P2-1a）：配置值解析、鉴权头、模型列表地址校验（照 CPython urlsplit / ipaddress）、思维链剥离与流式可见文本过滤、用量与成本、请求体、重试策略搬进 `engine/llm/`；373 条用例逐字节一致，45 处变异全部抓住。llm-provider.json 与 DPAPI 仍归 Rust，引擎只收已解密的配置槽。传输与客户端、桌面适配器随 P2-1b。
 - LLM 通道传输与客户端（2026-10-12，P2-1b）：契约、协作式中断、OpenAI 兼容 provider、带重试的非流式与流式传输、call_llm 系列入口搬进 `engine/llm/`，出网经 `HttpPort` 注入；57 个录制场景逐项一致（请求字节、等待、进度、错误与记账），48 处变异全部抓住。Anthropic / Gemini 随 P2-2，桌面适配器随 P2-1c，调用观测随 P4。
 - Anthropic / Gemini 原生协议（2026-10-12，P2-2）：两家适配器与原生出网（紧凑 JSON 的重试 POST、SSE 事件流、模型名 quote）搬进 `engine/llm/`，`sdkProvider` 按家族分派；46 个录制场景逐项一致（含思维块与函数调用签名的续接回放），41 处变异全部抓住。Python 与 TS 两侧的录制回放 harness 抽成共用模块。
+- 桌面出网适配器（2026-10-12，P2-1c）：按改写后的风险 13，key 不出 Rust——新增 `engine_llm.rs` 三个命令（取配置源 / 代发 / 关闭），引擎配置源里的 key 是占位串，Rust 只在四个鉴权头里换成真 key、只放行已配置 baseUrl 同源（跨源重定向不跟），响应头 / 响应体 / 错误文本里的真 key 换回占位串；前端 `lib/engine/llm.ts` 实现 `HttpPort` 与配置源。配置源照装机 sidecar 实际吃到的值（超时缺省 60.0、继承进程环境里的非密钥调参项、润色槽只有身份四项）。P1-8c 缺的「完整密钥快照」由此定案：WebView 侧的快照就是占位串。Rust 14（含配置存储 1 个）+ 前端 5 个用例，变异 24 + 25 处全部抓住；真 WebView 合成探针（`--llm-only`，随机合成 key + 本地假 provider）通过，首个增量 9 ms 到达，key 未出现在 WebView 与任何产物里。P2-3 assistant 接线前默认仍走 Python。
 - 首片仍未完整验收：继续补深层 JSON/reader 矩阵，并在后续负载保留性能验收；真实 WebView → mapper 的合成响应链已验证，但生产完整配置来源/实际 UI admission 仍待后续 owner。实际路由仍 Python，handoff 相对输入不变；P1-8/9 仍依赖 P2/P3/P4 与作者副本周用授权，不把合成绿测当全量完成。证据详见 `.codex/verification-report.md`。
 
 ### P2 LLM 通道 + assistant（PR P2-1 … P2-4）
@@ -492,13 +493,13 @@ OpenAPI 生成与漂移检查、`tests/e2e` 契约 spec、sidecar-smoke（daily 
 | 4 | **换行**：Python 通用换行读文件把 CRLF 当 `\n`；读字节再 decode 又不是 | 字数、锚点、补丁偏移错位 | 引擎读文件统一「原样字节 → 文本」，另给一个 `normalizeNewlines`；golden 夹具含 CRLF 文件；前端 `text-metrics.ts` 口径对齐 |
 | 5 | **JSON 序列化**：`sort_keys` 9 处、`ensure_ascii=False`、浮点格式 | canon.json、derived 缓存、回执 hash 不一致 | 引擎 `stableStringify`（键排序、2 空格、末尾换行同 Python）；derived 文件逐字节 golden |
 | 6 | **`difflib`** 6 处（修订定位、相似度） | 补丁锚点 | 用同算法的 TS 实现（Ratcliff/Obershelp）并 golden；或改为引擎自有的精确子串定位（v1 已是整文件 before/after + 精确子串） |
-| 7 | **流式响应**在 plugin-http 不达标 | 续写、对话无逐字 | P0-1 探针；兜底 Rust `llm_stream` 命令 |
+| 7 | **流式响应**逐块到达不达标 | 续写、对话无逐字 | P0-1 探针（plugin-http 已过）；2026-10-12 模型请求改走 `engine_llm_send`，按网络块经 Channel 回传，回显擦除只扣住可能是 key 前缀的尾巴 |
 | 8 | **主线程卡顿**（大书扫描） | UI 冻结 | P0-3 探针；Worker |
 | 9 | **sqlite 并发**：引擎多个 run 同时写 | 事件顺序 | 单写队列；`sequence` 列由引擎分配 |
 | 10 | **旧库导入**不全（JSON 列、时区） | 丢会话 | 作者库副本逐条比对；失败不标记可重试 |
 | 11 | **估时偏差**：34k 行搬迁 | 拖期 | 每阶段末重估；决定 C 的裁剪是主要杠杆 |
 | 12 | **期间无新功能** | 作者 6 到 11 周看不到产品变化 | P0-5 的体积数字、P2-4 / P3-8 的真跑先给作者看；预览版 P5 提前装 |
-| 13 | **安全**：key 从 Rust 读后在 JS 内存 | 比 v1 多一层暴露 | key 不进 localStorage、不进日志、脱敏沿用；plugin-http 请求头由 JS 组装但只在进程内 |
+| 13 | **安全**：key 进 WebView 就多一层暴露 | 比 v1 多一层暴露 | 2026-10-12 推翻原「key 从 Rust 读进 JS 内存」：**key 不出 Rust**。引擎配置源里的 key 是占位串；Rust `engine_llm_send` 只在四个鉴权头里把占位串换成真 key，只放行与已配置 baseUrl 同源的地址（跨源重定向不跟），响应头、响应体与错误文本里出现的真 key 换回占位串（与 Python 同用 ≥ 6 字门槛）；引擎的密钥快照就是占位串 |
 | 14 | **token 计数与成本估算**依赖 Python 侧实现 | 记账不一致 | golden 比对同一响应的用量 |
 
 ---
@@ -511,7 +512,7 @@ OpenAPI 生成与漂移检查、`tests/e2e` 契约 spec、sidecar-smoke（daily 
 
 **先留后议**：`fs_writeback_receipts.rs`、`managed_writeback.rs` 与 `write_file_with_receipt` / `begin|end_writeback_delivery` / `create_writeback_audit` 等 9 个命令。它们是跨进程时代的台账，单进程后写回只剩「快照 → 原子写 → 版本记录」。P6 时评估：前端若已不调用，删；若 §2.6 的意图日志复用了回执格式，留 `write_file_with_receipt` 一个。
 
-**新增**：`tauri-plugin-http`、`tauri-plugin-sql`（sqlite 特性）；若 P0-1 失败，加 `llm_stream` 命令；可选 `search_project` 命令（P0-3 若发现 JS 全文搜索慢）。
+**新增**：`tauri-plugin-http`、`tauri-plugin-sql`（sqlite 特性）；`engine_llm.rs` 的三个命令（`get_engine_llm_source` / `engine_llm_send` / `engine_llm_close`，key 不出 Rust，见风险 13）；可选 `search_project` 命令（P0-3 若发现 JS 全文搜索慢）。
 
 ---
 
