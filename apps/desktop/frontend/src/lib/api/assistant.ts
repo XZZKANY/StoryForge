@@ -3,6 +3,7 @@ import type { ProviderHealth } from '../provider-config';
 import { getApiConfig, trimApiBaseUrl } from './config';
 import type { ApiProviderHealthResponse } from './contracts';
 import { readErrorDetail } from './errors';
+import { readEngineMode } from '../engine/flags';
 import { toAssistantContextBundlePayload } from './codecs';
 import type { AssistantSessionRecord, ReviseRequest } from './types';
 
@@ -90,6 +91,9 @@ export async function reviseFileContent(payload: {
   qualityGate?: 'polish';
   signal?: AbortSignal;
 }): Promise<AssistantReviseResult> {
+  // 引擎只在开发档显式切到 ts 时才加载；走 Python 时不初始化引擎。
+  if (readEngineMode('engine.assistant') === 'ts')
+    return (await import('../engine/assistant')).reviseWithEngine(payload);
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/assistant/revise`, {
     method: 'POST',
@@ -150,6 +154,8 @@ export async function streamContinueProse(payload: {
   signal?: AbortSignal;
   onDelta?: (text: string) => void;
 }): Promise<ContinueProseResult> {
+  if (readEngineMode('engine.assistant') === 'ts')
+    return (await import('../engine/assistant')).continueWithEngine(payload);
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/assistant/continue`, {
     method: 'POST',
@@ -214,6 +220,8 @@ export async function streamContinueProse(payload: {
 }
 
 export async function probeProviderHealth(): Promise<ProviderHealth> {
+  if (readEngineMode('engine.assistant') === 'ts')
+    return (await import('../engine/assistant')).probeWithEngine();
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/assistant/provider-health`, {
     method: 'GET',
