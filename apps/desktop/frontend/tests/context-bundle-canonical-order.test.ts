@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import {
   buildContextBundle,
   buildProjectIndexFromEntries,
@@ -39,6 +39,9 @@ for (const [label, ordered] of orders) {
     }
   });
 }
+
+// 测的是 Python 传输：开发档默认已走引擎，这里钉回 python。
+beforeEach(() => localStorage.setItem('engine.assistant', 'python'));
 
 afterEach(() => {
   delete window.__STORYFORGE_MOCK_FS__;

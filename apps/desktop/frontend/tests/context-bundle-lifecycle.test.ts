@@ -44,6 +44,8 @@ beforeEach(() => {
   disk.clear();
   disk.set(SOURCE, OLD);
   localStorage.clear();
+  // 测的是 Python 传输：开发档默认已走引擎，这里钉回 python。
+  localStorage.setItem('engine.assistant', 'python');
   window.__STORYFORGE_MOCK_FS__ = {
     readFile: readCurrent,
     listDir: entries,

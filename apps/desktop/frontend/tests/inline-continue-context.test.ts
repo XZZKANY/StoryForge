@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { streamContinueProse } from '../src/lib/api/assistant';
 import { loadInlineContinueContext } from '../src/lib/inline-continue-context';
@@ -8,6 +8,9 @@ vi.mock('../src/lib/project-context', () => ({
   buildContextBundle: vi.fn(),
   readProjectKnowledgeSelection: vi.fn(),
 }));
+
+// 测的是 Python 传输：开发档默认已走引擎，这里钉回 python。
+beforeEach(() => localStorage.setItem('engine.assistant', 'python'));
 
 afterEach(() => {
   vi.clearAllMocks();

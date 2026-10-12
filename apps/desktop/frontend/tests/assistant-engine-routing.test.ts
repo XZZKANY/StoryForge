@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 
 const engine = vi.hoisted(() => ({
   initialized: vi.fn(),
@@ -106,6 +106,11 @@ function stubStore(overrides: Record<string, Response> = {}) {
   );
 }
 
+// 冷加载整个引擎包在满载机器上会超过单条用例的 5 秒预算，先在这里加载。
+beforeAll(async () => {
+  await import('../src/lib/engine/assistant');
+}, 60_000);
+
 beforeEach(() => {
   engine.initialized.mockClear();
   engine.sent = [];
@@ -115,6 +120,24 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   localStorage.clear();
+});
+
+it('dev routes revise and provider health to the engine when no preference is set', async () => {
+  stubStore();
+  engine.replies.push(
+    { status: 200, chunks: sse('她回头。') },
+    { status: 200, chunks: [JSON.stringify({ data: [{ id: 'deepseek-v4' }] })] },
+  );
+  const { reviseFileContent, probeProviderHealth } = await import('../src/lib/api/assistant');
+  await reviseFileContent({ filePath: 'a.md', content: '他回头。', instruction: '改成她' });
+  await probeProviderHealth();
+  expect(engine.sent.map((request) => request.url)).toEqual([
+    'https://llm.example/v1/chat/completions',
+    'https://llm.example/v1/models',
+  ]);
+  expect(storeCalls.map((call) => call.url)).not.toContain(
+    'http://synthetic-api.invalid/api/assistant/revise',
+  );
 });
 
 it('ts revises through the engine and records the evidence chain in the Python session store', async () => {

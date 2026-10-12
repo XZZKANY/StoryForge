@@ -206,6 +206,8 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue(Response.json({ after: AFTER, model: 'fixture', assistant_session_id: 71 }));
   vi.stubGlobal('fetch', fetchMock);
+  // 测的是 Python 传输：开发档默认已走引擎，这里钉回 python。
+  localStorage.setItem('engine.assistant', 'python');
 });
 afterEach(() => {
   vi.unstubAllGlobals();

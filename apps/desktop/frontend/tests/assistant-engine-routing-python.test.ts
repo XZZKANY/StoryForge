@@ -69,38 +69,49 @@ vi.mock('../src/lib/api/config', () => ({
 beforeEach(() => engine.initialized.mockClear());
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   localStorage.clear();
 });
+
+async function expectPythonTransportOnly() {
+  const { reviseFileContent, probeProviderHealth } = await import('../src/lib/api/assistant');
+  const fetchMock = vi.fn(async (url: string) =>
+    url.endsWith('/provider-health')
+      ? new Response(JSON.stringify({ status: 'ok', reachable: true }), { status: 200 })
+      : new Response(
+          JSON.stringify({
+            before: 'a',
+            after: 'b',
+            summary: 's',
+            model: 'm',
+            latency_ms: 1,
+            completion_tokens: 2,
+            assistant_session_id: 3,
+          }),
+          { status: 200 },
+        ),
+  );
+  vi.stubGlobal('fetch', fetchMock);
+  await reviseFileContent({ filePath: 'a.md', content: 'a', instruction: '改' });
+  await probeProviderHealth();
+  expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+    'http://synthetic-api.invalid/api/assistant/revise',
+    'http://synthetic-api.invalid/api/assistant/provider-health',
+  ]);
+  expect(engine.initialized).not.toHaveBeenCalled();
+}
 
 // 独立成文件：vitest 按文件隔离模块，引擎模块在这里一定是首次加载，「零初始化」才有意义。
 it.each(['python', 'shadow'])(
   '%s keeps the single Python transport and never initializes the engine',
   async (mode) => {
     localStorage.setItem('engine.assistant', mode);
-    const { reviseFileContent, probeProviderHealth } = await import('../src/lib/api/assistant');
-    const fetchMock = vi.fn(async (url: string) =>
-      url.endsWith('/provider-health')
-        ? new Response(JSON.stringify({ status: 'ok', reachable: true }), { status: 200 })
-        : new Response(
-            JSON.stringify({
-              before: 'a',
-              after: 'b',
-              summary: 's',
-              model: 'm',
-              latency_ms: 1,
-              completion_tokens: 2,
-              assistant_session_id: 3,
-            }),
-            { status: 200 },
-          ),
-    );
-    vi.stubGlobal('fetch', fetchMock);
-    await reviseFileContent({ filePath: 'a.md', content: 'a', instruction: '改' });
-    await probeProviderHealth();
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      'http://synthetic-api.invalid/api/assistant/revise',
-      'http://synthetic-api.invalid/api/assistant/provider-health',
-    ]);
-    expect(engine.initialized).not.toHaveBeenCalled();
+    await expectPythonTransportOnly();
   },
 );
+
+// 开发档默认已切到引擎；装机版要等 P5 才切，这里钉住。
+it('production keeps the Python transport without any preference', async () => {
+  vi.stubEnv('DEV', false);
+  await expectPythonTransportOnly();
+});
