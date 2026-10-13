@@ -7715,3 +7715,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 接受的差异：模型给的工具参数按标准 JSON 解析（迁移计划 §4.3.1），NaN / Infinity、超出安全整数、孤立代理码点、嵌套超 64 层按「不是合法 JSON」反馈给模型（Python json.loads 接受其中一部分）；检查点字典只读回应用自己写的形状，形状不符直接报错，不再把缺字段 / 错类型硬转成 0 或空串。
 - 门禁：引擎 vitest 12160 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（corepack 9.15.4 shim；0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
 - 未做：StoryForge 侧的适配器（provider / 策略 / 选择器 / 轨迹 / 用量 / 检查点存储）与 28 个工具随 P3-2 起各刀；`sdkLoop.ts` 格式化后 638 行，超过计划给引擎定的 500 行（既有 `assistant/service.ts` 807 行同样超），P6-4 定上限时一并处理。
+
+## 2026-10-12 P3-2 Agent 契约层（TS 迁移，默认仍走 Python）
+
+- 范围：`permission/policy`（档位归一、阶段与工具裁决、按 run 快照档位的门）、`intent`、`run_payloads`、`result_contracts`、`event_types`、`event_encoders` + `ws_messages`（帧类型与编码）、`text_stream`、`runtime_progress`、`runtime_recovery` 里的纯函数（工具恢复标记、运行中断投影、未决调用摘要、事件对外投影）、`trace`、`loop/author_view`（从 P3-4 提前，`message_input_summary` 要用）搬进 `packages/engine/src/loop/`：`permission.ts`、`runPayloads.ts`、`authorView.ts`、`traces.ts`、`frames.ts`、`textStream.ts`。帧编码吃一个最小的 run / 事件视图（P4 前由内存存储提供），脱敏走引擎的密钥快照。
+- 不搬：外部写回等待帧（`EXTERNAL_WRITEBACK_RELEASED=false`）；中断投影里「托管宿主正在关闭」一支（单进程关窗即退出）；未决调用的恢复诊断与解决记录随 P3-6 章纲确认改为未决 Promise 时再定。
+- 预言机：新 `apps/api/scripts/golden_contracts.py`（`--suite p3-contracts`），35 个函数 1,571 条记录：16 种档位输入 × 6 个阶段 × 6 种工具风险 × 5 种载荷全组合（含 run 门的脏档位拒绝），17 条确认写回句式，96 条意图识别，载荷摘要 / 作用域 / 预算 / 计划步骤，结果契约的批准与拒绝，作者视图的码点窗口（7 段正文 × 5 个光标行 × 3 组窗口，含 4 字节字符与段落边界），工具轨迹与恢复标记，未决调用摘要，运行进度归一，两个 run × 17 种事件的帧编码（含配置密钥与 token 形态脱敏）与 4 条控制回执；另 15 个文本流场景（无观察者 / 不支持流式 / think 块与密钥 / 超 4096 字切块 / 截断 / 过滤 / 流未完成 / 非法结束原因 / 先后出现 unsupported / 两个中断边界）。`--check` 复导逐字节一致。
+- TS 回放：`contracts.test.ts`（函数记录 + 15 个文本流场景 + 进度时长有限性）与 `frameSchema.test.ts`（引擎会发出的每种帧，字段集合与 `packages/shared/src/contracts/agent-ws.schema.json` 完全一致、必填字段齐全、覆盖除外部等待帧外的全部帧）全绿。
+- 变异：68 处，首轮 62 处；补 4 组用例（短段落正文的下文段落截断、4 字节字符正文的上文码点长度、会话 id 为 0 的控制回执、进度时长 Infinity / NaN）后抓住 66 处；余 2 处等价：`draft` 阶段在非只读档永远放行，`write_pending` 的「可先产待确认 artifact」分支实际走不到（Python 同样是死分支）；@提及解析出的角色在第二轮还会再过一次可提及过滤。
+- 接受的差异：重试等待的进度文案按浮点写秒数（Python 只在「放弃 stream_options 重发」时发整数 0），`Retry-After: 0` 时 TS 显示「0」、Python 显示「0.0」。
+- 门禁：引擎 vitest 12178 通过 / 2 跳过（P3-2 新增后 `src/loop` 112 条）、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
