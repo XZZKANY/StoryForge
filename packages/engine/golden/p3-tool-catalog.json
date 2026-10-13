@@ -1,0 +1,3891 @@
+{
+  "format_version": 1,
+  "suite": "p3-tool-catalog",
+  "secret": "sk-oracle-secret-123456",
+  "sources": {
+    "app/domains/agent_runs/tools/spec_models.py": "f217e42e542dc4490533521b531958ac07b7aa6b0642cda0a6ad8dc275730159",
+    "app/domains/agent_runs/tools/spec_roles.py": "d3a15a8dc13143945d8999bc0e3f4245ba5b8afe31e3c1d37ac8919453a7ae4d",
+    "app/domains/agent_runs/tools/catalog.py": "9f238b2ebbefa6a05289d416acac78a7941bf127085cc7d3f81bd8f6aa72ffea",
+    "app/domains/agent_runs/tools/loop_schema.py": "0e5f935364aafe242bdc4dfa711652d377e9b507e0b93a40b43a4f7100f71652",
+    "app/domains/agent_runs/tools/runtime_arguments.py": "2b0631a137666bce233e24d6da965b6e8cef0d4363a0d4d8e39670acc5153294",
+    "app/domains/agent_runs/tools/specs/chapter_specs.py": "482e33708a48c3787f845a6ae12b64e5b5b2435851f251afab35297b0be30f23",
+    "app/domains/agent_runs/tools/specs/context_fs_specs.py": "c322b2dce5db37416780e737ebdb743bc6dc70023dd8233c4190425718a39822",
+    "app/domains/agent_runs/tools/specs/hook_specs.py": "16fbbafced1a1ff352d968117e58aa5d132380be59a90671aae4e48401d20f2a",
+    "app/domains/agent_runs/tools/specs/patch_specs.py": "fe79c4949dfbb7504a7cd62c94d0abf17b49e77a53063f46c92810bc34f0deba",
+    "app/domains/agent_runs/tools/specs/project_canon_specs.py": "f95eb5f0afbb4f5b8d39105043cb2c5650713ecc332ff764b45944b4b877fb20",
+    "app/domains/agent_runs/tools/specs/project_consistency_specs.py": "d780f24413f02f69dc45d6ad6fcab7099f5c6cacba11a6477f5a65b4bce929a7",
+    "app/domains/agent_runs/tools/specs/project_specs.py": "aee02fc2f4d3f72c6e49d2b7c4deaa9487262e7c7414d57f9fb9b9e70e0c5a83"
+  },
+  "platform": "windows",
+  "specs": [
+    {
+      "name": "context.load",
+      "description": "读取当前文件与上下文摘要。",
+      "domain": "context",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "plot_reviewer",
+        "character_reviewer",
+        "prose_reviewer",
+        "continuity_reviewer",
+        "repair_agent",
+        "synthesizer",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "file_path",
+        "context_file_count",
+        "context_kinds"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.context_load"
+        ]
+      },
+      "loop_schema": null,
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "fs.list",
+      "description": "列出项目目录内文件（path-scoped 只读）。",
+      "domain": "fs",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "entry_count",
+        "truncated"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.fs_list"
+        ]
+      },
+      "loop_schema": {
+        "description": "列出项目内文件（递归、相对路径）。可选 subpath 限定子目录。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "subpath": {
+              "type": "string",
+              "description": "限定列出的子目录，相对项目根。"
+            }
+          }
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "fs.read",
+      "description": "读取项目内单个文本文件切片（path-scoped 只读）。",
+      "domain": "fs",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "path",
+        "returned_chars",
+        "truncated"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.fs_read"
+        ]
+      },
+      "loop_schema": {
+        "description": "读取项目内单个文本文件的内容切片。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "相对项目根的文件路径。"
+            },
+            "offset": {
+              "type": "integer",
+              "description": "起始字符偏移，默认 0。"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "最多返回字符数，默认 20000。"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "fs.search",
+      "description": "在项目文本文件里跨文件检索（path-scoped 只读）。",
+      "domain": "fs",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "match_count",
+        "truncated"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.fs_search"
+        ]
+      },
+      "loop_schema": {
+        "description": "在项目文本文件里跨文件检索，返回文件、行号和摘录。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "要检索的文本或正则。"
+            },
+            "glob": {
+              "type": "string",
+              "description": "文件名过滤，默认 *.md。"
+            },
+            "use_regex": {
+              "type": "boolean",
+              "description": "query 是否按正则解释，默认 false。"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "project.knowledge",
+      "description": "受控发现、读取或检索项目创作资料。",
+      "domain": "fs",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "action",
+        "candidate_count",
+        "match_count",
+        "path",
+        "warning_count"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_knowledge"
+        ]
+      },
+      "loop_schema": {
+        "description": "列出、读取或检索受控 Project Knowledge。未知隐藏目录与内部状态不可访问。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "list",
+                "read",
+                "search"
+              ],
+              "description": "list 列候选，read 读单文件，search 检索候选。"
+            },
+            "path": {
+              "type": "string",
+              "description": "read 使用的项目相对路径。"
+            },
+            "query": {
+              "type": "string",
+              "description": "search 使用的文本或正则。"
+            },
+            "offset": {
+              "type": "integer",
+              "description": "read 起始字符偏移，默认 0。"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "read 最多返回字符数，默认 20000。"
+            },
+            "use_regex": {
+              "type": "boolean",
+              "description": "search 是否按正则解释 query。"
+            }
+          },
+          "required": [
+            "action"
+          ]
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "knowledge.propose",
+      "description": "提议将耐久创作事实沉淀到项目知识收件箱，不写项目文件。",
+      "domain": "fs",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent"
+      ],
+      "risk_level": "analyze",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [
+        "knowledge_proposal"
+      ],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "proposal_count",
+        "target_paths"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.knowledge_propose"
+        ]
+      },
+      "loop_schema": {
+        "description": "把 1–5 条跨章节耐久知识放入作者的 Knowledge Inbox。只提议，不创建或更新文件。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "proposals": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 5,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "create",
+                      "extend",
+                      "conflict",
+                      "dispute",
+                      "retire",
+                      "supersede",
+                      "migrate"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "claim": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "character_fact",
+                      "world_rule",
+                      "timeline_fact",
+                      "promise",
+                      "plan",
+                      "writing_rule",
+                      "reference"
+                    ]
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "author_declared",
+                      "project_observed",
+                      "inferred",
+                      "external_reference"
+                    ]
+                  },
+                  "sources": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "related_knowledge_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "target_path",
+                  "operation",
+                  "title",
+                  "claim",
+                  "kind",
+                  "confidence",
+                  "sources",
+                  "reason"
+                ]
+              }
+            }
+          },
+          "required": [
+            "proposals"
+          ]
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "handler",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "project.consistency",
+      "description": "项目级一致性观察扫描：词条出现分布、时间标记、跨文件重复子句（path-scoped 只读，不下结论）。",
+      "domain": "project",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "scanned_files",
+        "term_count",
+        "time_marker_count",
+        "repeated_clause_count"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_consistency"
+        ]
+      },
+      "loop_schema": {
+        "description": "项目级一致性观察扫描：给定人物名 / 称谓 / 设定词条，返回各文件出现分布（含从未出现的缺席词条）、全书时间标记罗列和跨文件重复子句。只报机械观察不下结论，用于称谓 / 时间线 / 重复表达检查。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "terms": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "要追踪的人物名 / 称谓 / 设定词条，最多 30 个；可先读设定文件再决定。"
+            },
+            "subpath": {
+              "type": "string",
+              "description": "限定扫描的子目录，相对项目根。"
+            },
+            "glob": {
+              "type": "string",
+              "description": "文件名过滤，默认 *.md。"
+            }
+          }
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "project.deep_consistency",
+      "description": "深度一致性评审：语义 judge 对照本地人物 / 设定文件检查单个稿件，产出 advisory issue 信号（不写盘、不落 DB）。",
+      "domain": "project",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent"
+      ],
+      "risk_level": "analyze",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [
+        "llm"
+      ],
+      "evidence_fields": [
+        "path",
+        "issue_count",
+        "bible_file_count"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_deep_consistency"
+        ]
+      },
+      "loop_schema": {
+        "description": "深度一致性评审（语义）：把单个稿件对照项目内人物 / 设定文件交给语义评审模型，返回结构化 issue（类别 / 严重度 / 行号 / 摘要）。比 project_consistency 更贵更慢，适合先用机械观察或检索定位疑点、再对目标章节深查；结果是参考信号，须抽读原文核实。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "相对项目根的稿件路径（要评审的正文）。"
+            },
+            "bible_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "作为约束的人物 / 设定文件路径；省略则自动取 人物/ 与 设定/ 下的 md 文件。"
+            },
+            "facts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "已核实的必含事实（如「左臂受伤」「地点：灯塔港」），正文与之矛盾会被标出；最多 40 条。"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "project.cross_chapter_check",
+      "description": "跨章一致性审校：把若干完整章节一起交给语义模型，找章与章之间的硬冲突（时间线、称谓漂移、设定不一、已退场角色再出场、伏笔未回收）；不写盘、不落 DB。",
+      "domain": "project",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent"
+      ],
+      "risk_level": "analyze",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [
+        "llm"
+      ],
+      "evidence_fields": [
+        "chapter_count",
+        "finding_count",
+        "model"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_cross_chapter_check"
+        ]
+      },
+      "loop_schema": {
+        "description": "跨章一致性审校（语义，烧 token）：一次给 2-6 个章节路径，模型同时读这几章的完整正文，只找它们**之间**的硬冲突——时间线矛盾、人物称谓漂移、设定或世界规则前后不一致、已退场角色再次出场、前文埋的伏笔后文未回收。这是 project_deep_consistency 结构上抓不到的那一类（那把只看单章）。章会按阅读序自动排好，不必自己排；每章按预算截断，truncated=true 表示模型没读全那一章。finding 是参考信号，回给作者前按 path 抽读核实。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "要比对的章节路径（相对项目根），2-6 个。"
+            },
+            "focus": {
+              "type": "string",
+              "description": "可选：作者特别关注的点，如「玄铁令到底在谁手上」。"
+            }
+          },
+          "required": [
+            "paths"
+          ]
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "project.canon",
+      "description": "项目 canon 闸：从正文重建实体在场缓存 + 校验作者在 .storyforge/canon/canon.json 声明的薄不变量（唯一持有 / 时间线先后 / 退场一致性），产出硬矛盾与 advisory 信号。会更新 .storyforge/canon/ 派生缓存（非手稿正文），不落 DB。",
+      "domain": "project",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "entity_count",
+        "checked_invariants",
+        "conflict_count",
+        "advisory_count"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_canon"
+        ]
+      },
+      "loop_schema": {
+        "description": "项目 canon 闸（确定性，无需 LLM）：从正文重建实体在场分布缓存，再校验作者声明的薄不变量——唯一持有（同一物件章节窗口内只能一个持有者）、时间线先后（声明不能成环）、退场一致性（声明退场后不应再出场）。返回硬矛盾（blocking，声明内部结构冲突）与 advisory （退场后仍出场，可能是回忆 / 提及 / 同名，须抽读核实）。它随书累积、比无状态深查更能抓跨章累积漂移。同时把每实体事实（身份 / 别名 / 出场跨度 / 绑定声明 / provenance）投影成人可读 dossier.md 缓存。调用会更新 .storyforge/canon/ 下的派生缓存（不改手稿）。作者尚未在 canon.json 声明不变量时，会建立空格式骨架并如实说明无可校验项。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "refresh": {
+              "type": "boolean",
+              "description": "是否强制从正文重建在场缓存，默认 true。"
+            },
+            "glob": {
+              "type": "string",
+              "description": "正文文件名过滤，默认 *.md。"
+            }
+          }
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "project.canon_delta",
+      "description": "确定性 canon 提案：把模型从正文观察到的实体、持有、退场、时间线与伏笔声明与既有 canon 做归并、别名冲突与不变量差量检查，草稿只写派生 proposals.json；不写 canon.json 或手稿。",
+      "domain": "project",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "new_entity_count",
+        "known_entity_count",
+        "alias_conflict_count",
+        "new_conflict_count",
+        "new_advisory_count"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_canon_delta"
+        ]
+      },
+      "loop_schema": {
+        "description": "canon 事实差量提案（确定性，无额外 LLM）：读完章节后，把观察到的实体、唯一持有、退场、时间线先后与新埋的伏笔作为结构化参数传入。伏笔走 promise_claims——它是**唯一**能把新伏笔写进账本的通道，project_promise_check 只读不写。每条实体/声明请附 assertion_type 和 evidence（原文 quote、可用的 path/行号），区分作者设定与模型推断；缺失时来源未知，不补造依据；这些字段不会被工具验证为事实。字段未传表示该类不提议；全空会诚实返回无提议。工具会归并既有实体、提示同名 / 别名身份冲突，并只报告提案新增的 canon 闸问题。合并草稿写入派生缓存 proposals.json（上一轮作者还没并入的提案会一并留着，不会被本轮覆盖），绝不修改 canon.json 或正文；作者审阅后再决定是否走待确认补丁。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "entities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "assertion_type": {
+                    "type": "string",
+                    "enum": [
+                      "author_setting",
+                      "text_observation",
+                      "model_inference",
+                      "unknown"
+                    ],
+                    "description": "逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。"
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "description": "支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "quote": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "项目相对路径（可选），不可越界。"
+                        },
+                        "start_line": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "end_line": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      },
+                      "required": [
+                        "quote"
+                      ]
+                    }
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "aliases": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              },
+              "description": "本章观察到的实体；name 为主表面形，aliases 为可选别名。"
+            },
+            "holder_claims": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "assertion_type": {
+                    "type": "string",
+                    "enum": [
+                      "author_setting",
+                      "text_observation",
+                      "model_inference",
+                      "unknown"
+                    ],
+                    "description": "逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。"
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "description": "支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "quote": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "项目相对路径（可选），不可越界。"
+                        },
+                        "start_line": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "end_line": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      },
+                      "required": [
+                        "quote"
+                      ]
+                    }
+                  },
+                  "item": {
+                    "type": "string"
+                  },
+                  "holder": {
+                    "type": "string"
+                  },
+                  "from_chapter": {
+                    "type": "integer"
+                  },
+                  "to_chapter": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "item",
+                  "holder"
+                ]
+              },
+              "description": "本章观察到的唯一持有声明。"
+            },
+            "exit_claims": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "assertion_type": {
+                    "type": "string",
+                    "enum": [
+                      "author_setting",
+                      "text_observation",
+                      "model_inference",
+                      "unknown"
+                    ],
+                    "description": "逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。"
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "description": "支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "quote": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "项目相对路径（可选），不可越界。"
+                        },
+                        "start_line": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "end_line": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      },
+                      "required": [
+                        "quote"
+                      ]
+                    }
+                  },
+                  "entity": {
+                    "type": "string"
+                  },
+                  "exits_after_chapter": {
+                    "type": "integer"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "entity",
+                  "exits_after_chapter"
+                ]
+              },
+              "description": "本章观察到的实体退场声明。"
+            },
+            "timeline_claims": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "assertion_type": {
+                    "type": "string",
+                    "enum": [
+                      "author_setting",
+                      "text_observation",
+                      "model_inference",
+                      "unknown"
+                    ],
+                    "description": "逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。"
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "description": "支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "quote": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "项目相对路径（可选），不可越界。"
+                        },
+                        "start_line": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "end_line": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      },
+                      "required": [
+                        "quote"
+                      ]
+                    }
+                  },
+                  "before": {
+                    "type": "string"
+                  },
+                  "after": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "before",
+                  "after"
+                ]
+              },
+              "description": "本章观察到的时间线先后声明。"
+            },
+            "promise_claims": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "assertion_type": {
+                    "type": "string",
+                    "enum": [
+                      "author_setting",
+                      "text_observation",
+                      "model_inference",
+                      "unknown"
+                    ],
+                    "description": "逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。"
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "description": "支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "quote": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "项目相对路径（可选），不可越界。"
+                        },
+                        "start_line": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "end_line": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      },
+                      "required": [
+                        "quote"
+                      ]
+                    }
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "planted_chapter": {
+                    "type": "integer"
+                  },
+                  "due_chapter": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "planted",
+                      "advancing",
+                      "resolved"
+                    ]
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "resolved_chapter": {
+                    "type": "integer"
+                  },
+                  "cadence_chapters": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "title",
+                  "planted_chapter"
+                ]
+              },
+              "description": "本章观察到的叙事承诺（伏笔 / 倒计时 / 誓约 / 悬念 / 禁忌）。due_chapter 传 null 表示开放窗口、不设到期；不确定第几章兑现就传 null，不要瞎猜一个章号——那会让 promise_check 报假逾期。id 会按标题确定性派生，重复观察同一条不会攒出多份。"
+            }
+          }
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "project.promise_check",
+      "description": "伏笔承诺记账：只读 canon.json 的作者 promises 声明，确定性检查声明矛盾、超窗未兑现、长期停滞与 recurring 断供；无 LLM、不写 canon、缓存或手稿。",
+      "domain": "project",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "current_chapter",
+        "promise_count",
+        "conflict_count",
+        "advisory_count"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_promise_check"
+        ]
+      },
+      "loop_schema": {
+        "description": "伏笔承诺记账（确定性，无需 LLM、纯只读）：读取 .storyforge/canon/canon.json 中作者声明的 invariants.promises，检查 resolved / 埋设 / 截止章的结构矛盾、重复 id，以及超窗未兑现、开放窗口长期停滞和 recurring cadence 断供。只返回 blocking 与 advisory 证据，绝不修改 canon.json、派生缓存或手稿；advisory 仍需结合原文核实。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "stale_after_chapters": {
+              "type": "integer",
+              "description": "开放窗口 planted 承诺的停滞章数阈值，默认 30。"
+            }
+          }
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "project.prose_check",
+      "description": "文笔气味静态检查：对单个稿件做确定性坏味道扫描（陈词套话 / 说明腔 / 情绪直述 / 解释性旁白 / 对白密度 / 句长 / 重复表达 / 静态节奏 / 机械过渡 / 公式化设问 / 二元对比 / 空泛总结），产出 advisory issue（无 LLM，不写盘）。",
+      "domain": "project",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "path",
+        "issue_count",
+        "dimension_count"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_prose_check"
+        ]
+      },
+      "loop_schema": {
+        "description": "文笔气味静态检查（确定性，无需 LLM、不烧 token）：对项目内单个稿件扫描常见坏味道——陈词套话、直述情绪的说明腔、解释性旁白、对白密度失衡、超长句 / 短句堆叠、短窗口重复、缺少行动 beat 的静态节奏，以及机械过渡、公式化设问、二元对比和空泛总结，返回带维度 / 严重度的 issue 列表。比 file_review 便宜得多，适合修订前先快速定位文笔问题；结果是参考信号，结合原文判断后再决定是否修改。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "相对项目根的稿件路径（要检查文笔的正文）。"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "project.collapse_check",
+      "description": "场景承重静态检查：结合正文与模型抽取的结构化观察值，确定性标记 process-only、情绪零变化、无不可逆后果、可删除和调查模板风险；仅供 advisory 参考，不是质量判定。",
+      "domain": "project",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "path",
+        "verdict",
+        "issue_count"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_collapse_check"
+        ]
+      },
+      "loop_schema": {
+        "description": "场景承重静态检查（确定性，无需额外 LLM、不写盘）：先读完正文，再把你从正文观察到的 beats、场景前后情绪、不可逆后果、是否可删除填入可选参数。未传字段会跳过对应规则；显式空串 / 空数组表示观察结果为无。工具还会扫描正文调查模板，返回 pass / warn advisory 信号。结果只是辅助判断，不是场景质量结论。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "相对项目根的正文文件路径。"
+            },
+            "beats": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "读完正文后提取的场景动作 beats；显式空数组表示没有 beats。"
+            },
+            "emotion_before": {
+              "type": "string",
+              "description": "场景开始时的情绪；显式空串表示没有可识别情绪。"
+            },
+            "emotion_after": {
+              "type": "string",
+              "description": "场景结束时的情绪；显式空串表示没有可识别情绪。"
+            },
+            "irreversible_consequence": {
+              "type": "string",
+              "description": "本场造成的不可逆后果；显式空串表示没有。"
+            },
+            "deletable": {
+              "type": "boolean",
+              "description": "删除本场后主线是否仍成立。"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "project.entity_budget_check",
+      "description": "长篇实体预算静态检查：结合章节序号与模型从正文抽取的新增实体，确定性标记后期新增地点 / 谜题 / 设备证据及关键人物、核心地点、核心证据、重大反转数量超预算；仅供 advisory 参考，不是质量判定。",
+      "domain": "project",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "path",
+        "chapter",
+        "verdict",
+        "issue_count"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_entity_budget_check"
+        ]
+      },
+      "loop_schema": {
+        "description": "长篇实体预算检查（确定性，无需额外 LLM、不写盘）：先读完正文，再把本章观察到的新增关键人物、核心地点、核心证据、重大反转、谜题和装备填入可选数组。字段未传会跳过对应规则，显式空数组表示本章无该类新增。chapter 未传时按项目文件阅读序推断。返回 pass / warn advisory 信号，仅供结构规划参考，不是质量判定。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "相对项目根的正文文件路径。"
+            },
+            "chapter": {
+              "type": "integer",
+              "description": "可选章节序号；未传时按项目文件阅读序推断。"
+            },
+            "new_key_characters": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "本章新增关键人物；显式空数组表示无新增。"
+            },
+            "new_core_locations": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "本章新增核心地点；显式空数组表示无新增。"
+            },
+            "new_core_evidence": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "本章新增核心证据；显式空数组表示无新增。"
+            },
+            "new_major_reversals": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "本章新增重大反转；显式空数组表示无新增。"
+            },
+            "new_mysteries": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "本章新增谜题；显式空数组表示无新增。"
+            },
+            "new_equipment": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "本章新增装备或设备型号；显式空数组表示无新增。"
+            },
+            "budget_key_characters": {
+              "type": "integer",
+              "description": "关键人物数量预算覆盖，默认 5。"
+            },
+            "budget_core_locations": {
+              "type": "integer",
+              "description": "核心地点数量预算覆盖，默认 3。"
+            },
+            "budget_core_evidence": {
+              "type": "integer",
+              "description": "核心证据数量预算覆盖，默认 3。"
+            },
+            "budget_major_reversals": {
+              "type": "integer",
+              "description": "重大反转数量预算覆盖，默认 2。"
+            },
+            "budget_new_core_entities_after_chapter_20": {
+              "type": "integer",
+              "description": "第 20 章后新增核心实体预算覆盖，默认 0。"
+            },
+            "budget_new_mysteries_after_chapter_25": {
+              "type": "integer",
+              "description": "第 25 章后新增谜题预算覆盖，默认 0。"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "project.plan_update",
+      "description": "连载计划推进：按章序 upsert 章节计划（标题 / 目标 / 状态 / 备注）与全书主线、字数区间、弧线，原子写 .storyforge/serial-plan.json。绝不碰手稿正文，不落 DB。",
+      "domain": "project",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "planned_total",
+        "next_ordinal",
+        "created_count",
+        "updated_count"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_plan_update"
+        ]
+      },
+      "loop_schema": {
+        "description": "连载计划推进（确定性，无需 LLM）：维护 .storyforge/serial-plan.json——每轮对话开头你看到的「连载计划」块就是它的投影。按 ordinal upsert：已存在的章**逐字段合并**，只传 status 不会清掉作者写的 title / goal。典型用法有两种：①某章正文确已落盘 → 传 {ordinal, status:'done'} 把它标掉，下一章才会正确前移；②作者给了大纲 → 一次传多章 {ordinal, title, goal} 建起计划。**正文不存在的章标 done 会被拒绝**：起草出待确认补丁不等于写完，补丁要作者点接受才落盘，此时标 done 等于让计划替作者做决定。等接受之后再标。写不下去时标 status:'blocked' 并在 note 写明卡在哪，之后不会再被当成下一章。**只写计划文件，绝不写手稿正文**——正文仍须走 file_create / file_revise 的待确认补丁。注意计划里的 status 只是声明，正文是否存在才是真相：块里报「计划与正文对不上」时，以正文为准把状态改对，不要照计划重写已有正文。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "chapters": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ordinal": {
+                    "type": "integer",
+                    "description": "章序，正整数，作为合并主键。"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "章节标题。"
+                  },
+                  "goal": {
+                    "type": "string",
+                    "description": "一句话本章目标（这一章要把故事推到哪儿）。"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "done",
+                      "blocked"
+                    ],
+                    "description": "待写 / 已完成 / 卡住；未传保留原状态。"
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "备注，如卡住的原因。"
+                  }
+                },
+                "required": [
+                  "ordinal"
+                ]
+              },
+              "description": "要新增或更新的章节；未传的字段保留原值。"
+            },
+            "premise": {
+              "type": "string",
+              "description": "全书主线一句话，写进计划头。"
+            },
+            "chapter_word_count_min": {
+              "type": "integer",
+              "description": "每章目标字数下限。"
+            },
+            "chapter_word_count_max": {
+              "type": "integer",
+              "description": "每章目标字数上限。"
+            },
+            "arcs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "arc_id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "target_chapters": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "payoff_chapter": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "title"
+                ]
+              },
+              "description": "弧线清单（推进章 + 兑现章）；传入即整体替换，不合并。"
+            },
+            "remove_ordinals": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "description": "要从计划里删除的章序（作者砍掉的计划章）。"
+            }
+          }
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "chapter.brief",
+      "description": "从可信项目上下文生成待作者确认的结构化 Chapter Brief。",
+      "domain": "chapter",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent"
+      ],
+      "risk_level": "write_pending",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [
+        "chapter_brief"
+      ],
+      "required_capabilities": [
+        "llm"
+      ],
+      "evidence_fields": [
+        "brief_id",
+        "revision",
+        "context_provenance"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.chapter_brief"
+        ]
+      },
+      "loop_schema": null,
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": true,
+      "permission_level": "confirm"
+    },
+    {
+      "name": "chapter.draft",
+      "description": "按已确认 Chapter Brief 起草正文，不写项目文件。",
+      "domain": "chapter",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent"
+      ],
+      "risk_level": "write_pending",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [
+        "chapter_candidate"
+      ],
+      "required_capabilities": [
+        "llm"
+      ],
+      "evidence_fields": [
+        "content_chars",
+        "model",
+        "brief_id"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.chapter_draft"
+        ]
+      },
+      "loop_schema": null,
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": true,
+      "permission_level": "confirm"
+    },
+    {
+      "name": "chapter.check",
+      "description": "按 Chapter Brief 检查草稿，分别记录检查执行、覆盖与稿件判断。",
+      "domain": "chapter",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent"
+      ],
+      "risk_level": "analyze",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [
+        "chapter_check"
+      ],
+      "required_capabilities": [
+        "llm"
+      ],
+      "evidence_fields": [
+        "status",
+        "hard_failure_count",
+        "advisory_count",
+        "execution_status",
+        "execution_code",
+        "coverage",
+        "manuscript_status",
+        "manuscript_hard_failure_count"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.chapter_check"
+        ]
+      },
+      "loop_schema": null,
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "chapter.repair",
+      "description": "针对 Chapter Brief 硬失败定向修复一次草稿，不写项目文件。",
+      "domain": "chapter",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent"
+      ],
+      "risk_level": "write_pending",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [
+        "chapter_candidate"
+      ],
+      "required_capabilities": [
+        "llm"
+      ],
+      "evidence_fields": [
+        "content_chars",
+        "brief_id"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.chapter_repair"
+        ]
+      },
+      "loop_schema": null,
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": true,
+      "permission_level": "confirm"
+    },
+    {
+      "name": "project.trim_prose",
+      "description": "压缩修订：按目标压缩率（默认 15%）对单个稿件做结构化压缩，攻击冗余副词、情绪直述、解释性旁白等过度表达，返回带字数审计报告的待确认补丁。",
+      "domain": "project",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "repair_agent"
+      ],
+      "risk_level": "write_pending",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [
+        "proposed_patch"
+      ],
+      "required_capabilities": [
+        "llm"
+      ],
+      "evidence_fields": [
+        "proposed_patch",
+        "original_chars",
+        "compressed_chars",
+        "compression_percent"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_trim_prose"
+        ]
+      },
+      "loop_schema": {
+        "description": "按目标压缩率压缩项目内单个稿件，攻击冗余副词（「他愤怒地说」→「他说」或直接用动作语气带）、情绪直述（「她感到恐惧」→ 生理反应或环境暗示）、解释性旁白、冗余重复和啰嗦比喻。保留所有剧情信息、情感高潮、关键动作和对话。调用前建议先 fs_read 确认内容。每条调用生成待确认补丁，一次对话最多一个补丁。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "相对项目根的稿件路径。"
+            },
+            "target_percent": {
+              "type": "integer",
+              "description": "目标压缩百分比，默认 15（即压缩到原字数的 85%）。"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      "loop_input_mode": "existing_file",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": true,
+      "permission_level": "confirm"
+    },
+    {
+      "name": "file.review",
+      "description": "执行 chapter_polish 多子代理审稿。",
+      "domain": "review",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "plot_reviewer",
+        "character_reviewer",
+        "prose_reviewer",
+        "continuity_reviewer",
+        "repair_agent",
+        "synthesizer"
+      ],
+      "risk_level": "analyze",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [
+        "review_report"
+      ],
+      "required_capabilities": [
+        "llm"
+      ],
+      "evidence_fields": [
+        "issue_count",
+        "mode",
+        "review_report"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.file_review"
+        ]
+      },
+      "loop_schema": {
+        "description": "对项目内单个稿件做多视角审稿（剧情 / 人物 / 文风 / 连续性），返回带稳定 id 的 issue 列表。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "相对项目根的稿件路径。"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      "loop_input_mode": "existing_file",
+      "loop_trusted_context": true,
+      "loop_trace_owner": "handler",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "file.revise",
+      "description": "生成待确认文件修订补丁。",
+      "domain": "file",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "repair_agent"
+      ],
+      "risk_level": "write_pending",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [
+        "proposed_patch"
+      ],
+      "required_capabilities": [
+        "llm"
+      ],
+      "evidence_fields": [
+        "proposed_patch",
+        "applied_scope",
+        "scope_warning"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.file_revise"
+        ]
+      },
+      "loop_schema": {
+        "description": "按明确指示修订项目内单个稿件，生成待作者确认的修订补丁；不会直接写盘。一次对话最多修订一个文件，修订前建议先 fs_read 或 file_review。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "相对项目根的稿件路径。"
+            },
+            "instruction": {
+              "type": "string",
+              "description": "修订指示：要改什么、保留什么。"
+            }
+          },
+          "required": [
+            "path",
+            "instruction"
+          ]
+        }
+      },
+      "loop_input_mode": "existing_file",
+      "loop_trusted_context": true,
+      "loop_trace_owner": "handler",
+      "requires_confirmation": true,
+      "permission_level": "confirm"
+    },
+    {
+      "name": "chapter.polish",
+      "description": "对既有小说正文执行受控润色，比较在线与本地候选并生成待确认补丁。",
+      "domain": "chapter",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "repair_agent"
+      ],
+      "risk_level": "write_pending",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [
+        "proposed_patch"
+      ],
+      "required_capabilities": [
+        "llm"
+      ],
+      "evidence_fields": [
+        "proposed_patch",
+        "provider",
+        "model",
+        "rule_version",
+        "gate_version",
+        "selected_source",
+        "degraded"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.chapter_polish"
+        ]
+      },
+      "loop_schema": {
+        "description": "保守润色项目内一章小说正文，保护 frontmatter、标题、围栏数据、事实、专名和人称，通过相对原文质量门禁后才生成待审阅补丁。不会直接写盘。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "相对项目根的 Markdown 或 TXT 正文路径。"
+            },
+            "style_instruction": {
+              "type": "string",
+              "description": "本次附加风格要求，例如更口语化、更克制；可省略。"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      "loop_input_mode": "existing_file",
+      "loop_trusted_context": true,
+      "loop_trace_owner": "handler",
+      "requires_confirmation": true,
+      "permission_level": "confirm"
+    },
+    {
+      "name": "file.create",
+      "description": "为尚不存在的新文件起草初稿，生成待确认新建文件补丁。",
+      "domain": "file",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent"
+      ],
+      "risk_level": "write_pending",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [
+        "proposed_patch"
+      ],
+      "required_capabilities": [
+        "llm"
+      ],
+      "evidence_fields": [
+        "proposed_patch",
+        "content_chars"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.file_create"
+        ]
+      },
+      "loop_schema": {
+        "description": "为项目内尚不存在的新文件、或作者预先建好的空文件起草完整初稿，生成待作者确认的新建文件补丁；不会直接写盘。目标文件已有正文时才会失败（那种情况改用 file_revise）；起草前建议先读大纲 / 设定 / 相邻章节。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "相对项目根的新文件路径（含目录与 .md 扩展名）。"
+            },
+            "instruction": {
+              "type": "string",
+              "description": "写作指令：写什么、篇幅、衔接哪些既有内容。"
+            }
+          },
+          "required": [
+            "path",
+            "instruction"
+          ]
+        }
+      },
+      "loop_input_mode": "new_file",
+      "loop_trusted_context": true,
+      "loop_trace_owner": "handler",
+      "requires_confirmation": true,
+      "permission_level": "confirm"
+    },
+    {
+      "name": "prose.continue",
+      "description": "在作者光标处接着往下写一段，生成待确认的插入补丁（不改动既有正文）。",
+      "domain": "prose",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "repair_agent"
+      ],
+      "risk_level": "write_pending",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [
+        "proposed_patch"
+      ],
+      "required_capabilities": [
+        "llm"
+      ],
+      "evidence_fields": [
+        "proposed_patch",
+        "inserted_chars",
+        "anchor_line"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.prose_continue"
+        ]
+      },
+      "loop_schema": {
+        "description": "在作者光标处接着往下写一段正文，生成待作者确认的插入补丁；既有正文一字不改，也不会直接写盘。作者说「接着写」「往下写一段」「继续」时用这把工具，不要用 file_revise（那会重写整篇）。落点缺省用作者当前光标位置——系统已把作者的光标与选区注入本轮对话，通常无需自己指定 anchor_line。一次只写一个自然段到一个小节拍，不收尾、不总结、不甩悬念收束句。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "相对项目根的稿件路径。"
+            },
+            "instruction": {
+              "type": "string",
+              "description": "对这一段的额外要求（可省略，省略即「就接着写」）。"
+            },
+            "target_chars": {
+              "type": "integer",
+              "description": "这一段的目标中文字符数，80–1200，缺省 300。"
+            },
+            "anchor_line": {
+              "type": "integer",
+              "description": "1-based 落点行（在该行之后插入）；缺省用作者当前光标行。"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      "loop_input_mode": "existing_file",
+      "loop_trusted_context": true,
+      "loop_trace_owner": "handler",
+      "requires_confirmation": true,
+      "permission_level": "confirm"
+    },
+    {
+      "name": "judge.run",
+      "description": "对生成内容执行轻量检查。",
+      "domain": "judge",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "plot_reviewer",
+        "character_reviewer",
+        "prose_reviewer",
+        "continuity_reviewer",
+        "repair_agent",
+        "synthesizer"
+      ],
+      "risk_level": "analyze",
+      "retry_safe": false,
+      "idempotent": false,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "issue_count",
+        "mode"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": []
+      },
+      "loop_schema": null,
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    },
+    {
+      "name": "project.hooks_delta",
+      "description": "hooks 差量提案：把模型从正文观察到的叙事承诺（伏笔）与既有 hooks 做文本去重与可能相关提示，并在证据文本上跑正则模式辅助检测。不写 hooks.json，仅输出提案供作者审阅（无写入通道）。",
+      "domain": "project",
+      "input_schema": {},
+      "output_schema": {},
+      "allowed_roles": [
+        "root_agent",
+        "context_explorer"
+      ],
+      "risk_level": "read",
+      "retry_safe": true,
+      "idempotent": true,
+      "execution_mode": "sync",
+      "artifact_kinds": [],
+      "required_capabilities": [],
+      "evidence_fields": [
+        "new_hook_count",
+        "duplicate_count",
+        "pattern_hit_count"
+      ],
+      "references": {
+        "page_refs": [],
+        "api_paths": [],
+        "workflow_nodes": [
+          "agent_runtime.project_hooks_delta"
+        ]
+      },
+      "loop_schema": {
+        "description": "叙事承诺钩子差量提案（完全相同文本去重 + 相关性与正则辅助，无额外 LLM）：读完章节后，把观察到的叙事承诺钩子作为 observed_hooks 传入。可同时传入 evidence_text 正文片段，工具会在其上跑正则模式检测作为辅助信号。子串或中文字符重合仅表示可能相关，不判重复；相关项仍保留为新提案。工具不写 hooks.json，你也没有写入 hooks.json 的工具——把新钩子清单如实报给作者，由作者决定要不要记进伏笔账。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "observed_hooks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "description": "钩子描述（如「青岩欠陆沉一把刀的情」），必填。"
+                  },
+                  "verification": {
+                    "type": "string",
+                    "description": "验证条件——读者读到什么就知道伏笔收了。"
+                  },
+                  "category": {
+                    "type": "string",
+                    "description": "钩子类型：conditional_promise / countdown / threshold / oath / mystery / taboo / hidden_info"
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "备注（如建议回收章序、召回条件）。"
+                  }
+                },
+                "required": [
+                  "description"
+                ]
+              },
+              "description": "本章观察到的叙事承诺钩子。"
+            },
+            "evidence_text": {
+              "type": "string",
+              "description": "正文片段（可选），工具会在其上跑正则模式检测辅助信号。"
+            }
+          }
+        }
+      },
+      "loop_input_mode": "project",
+      "loop_trusted_context": false,
+      "loop_trace_owner": "generic",
+      "requires_confirmation": false,
+      "permission_level": "auto"
+    }
+  ],
+  "loop_schemas_wire": "[{\"type\": \"function\", \"function\": {\"name\": \"fs_list\", \"description\": \"列出项目内文件（递归、相对路径）。可选 subpath 限定子目录。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"subpath\": {\"type\": \"string\", \"description\": \"限定列出的子目录，相对项目根。\"}}}}}, {\"type\": \"function\", \"function\": {\"name\": \"fs_read\", \"description\": \"读取项目内单个文本文件的内容切片。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\", \"description\": \"相对项目根的文件路径。\"}, \"offset\": {\"type\": \"integer\", \"description\": \"起始字符偏移，默认 0。\"}, \"limit\": {\"type\": \"integer\", \"description\": \"最多返回字符数，默认 20000。\"}}, \"required\": [\"path\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"fs_search\", \"description\": \"在项目文本文件里跨文件检索，返回文件、行号和摘录。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"query\": {\"type\": \"string\", \"description\": \"要检索的文本或正则。\"}, \"glob\": {\"type\": \"string\", \"description\": \"文件名过滤，默认 *.md。\"}, \"use_regex\": {\"type\": \"boolean\", \"description\": \"query 是否按正则解释，默认 false。\"}}, \"required\": [\"query\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_knowledge\", \"description\": \"列出、读取或检索受控 Project Knowledge。未知隐藏目录与内部状态不可访问。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"action\": {\"type\": \"string\", \"enum\": [\"list\", \"read\", \"search\"], \"description\": \"list 列候选，read 读单文件，search 检索候选。\"}, \"path\": {\"type\": \"string\", \"description\": \"read 使用的项目相对路径。\"}, \"query\": {\"type\": \"string\", \"description\": \"search 使用的文本或正则。\"}, \"offset\": {\"type\": \"integer\", \"description\": \"read 起始字符偏移，默认 0。\"}, \"limit\": {\"type\": \"integer\", \"description\": \"read 最多返回字符数，默认 20000。\"}, \"use_regex\": {\"type\": \"boolean\", \"description\": \"search 是否按正则解释 query。\"}}, \"required\": [\"action\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"knowledge_propose\", \"description\": \"把 1–5 条跨章节耐久知识放入作者的 Knowledge Inbox。只提议，不创建或更新文件。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"proposals\": {\"type\": \"array\", \"minItems\": 1, \"maxItems\": 5, \"items\": {\"type\": \"object\", \"properties\": {\"target_path\": {\"type\": \"string\"}, \"operation\": {\"type\": \"string\", \"enum\": [\"create\", \"extend\", \"conflict\", \"dispute\", \"retire\", \"supersede\", \"migrate\"]}, \"title\": {\"type\": \"string\"}, \"claim\": {\"type\": \"string\"}, \"kind\": {\"type\": \"string\", \"enum\": [\"character_fact\", \"world_rule\", \"timeline_fact\", \"promise\", \"plan\", \"writing_rule\", \"reference\"]}, \"confidence\": {\"type\": \"string\", \"enum\": [\"author_declared\", \"project_observed\", \"inferred\", \"external_reference\"]}, \"sources\": {\"type\": \"array\", \"minItems\": 1, \"items\": {\"type\": \"object\"}}, \"related_knowledge_ids\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}, \"reason\": {\"type\": \"string\"}}, \"required\": [\"target_path\", \"operation\", \"title\", \"claim\", \"kind\", \"confidence\", \"sources\", \"reason\"]}}}, \"required\": [\"proposals\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_consistency\", \"description\": \"项目级一致性观察扫描：给定人物名 / 称谓 / 设定词条，返回各文件出现分布（含从未出现的缺席词条）、全书时间标记罗列和跨文件重复子句。只报机械观察不下结论，用于称谓 / 时间线 / 重复表达检查。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"terms\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"description\": \"要追踪的人物名 / 称谓 / 设定词条，最多 30 个；可先读设定文件再决定。\"}, \"subpath\": {\"type\": \"string\", \"description\": \"限定扫描的子目录，相对项目根。\"}, \"glob\": {\"type\": \"string\", \"description\": \"文件名过滤，默认 *.md。\"}}}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_deep_consistency\", \"description\": \"深度一致性评审（语义）：把单个稿件对照项目内人物 / 设定文件交给语义评审模型，返回结构化 issue（类别 / 严重度 / 行号 / 摘要）。比 project_consistency 更贵更慢，适合先用机械观察或检索定位疑点、再对目标章节深查；结果是参考信号，须抽读原文核实。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\", \"description\": \"相对项目根的稿件路径（要评审的正文）。\"}, \"bible_paths\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"description\": \"作为约束的人物 / 设定文件路径；省略则自动取 人物/ 与 设定/ 下的 md 文件。\"}, \"facts\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"description\": \"已核实的必含事实（如「左臂受伤」「地点：灯塔港」），正文与之矛盾会被标出；最多 40 条。\"}}, \"required\": [\"path\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_cross_chapter_check\", \"description\": \"跨章一致性审校（语义，烧 token）：一次给 2-6 个章节路径，模型同时读这几章的完整正文，只找它们**之间**的硬冲突——时间线矛盾、人物称谓漂移、设定或世界规则前后不一致、已退场角色再次出场、前文埋的伏笔后文未回收。这是 project_deep_consistency 结构上抓不到的那一类（那把只看单章）。章会按阅读序自动排好，不必自己排；每章按预算截断，truncated=true 表示模型没读全那一章。finding 是参考信号，回给作者前按 path 抽读核实。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"paths\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"description\": \"要比对的章节路径（相对项目根），2-6 个。\"}, \"focus\": {\"type\": \"string\", \"description\": \"可选：作者特别关注的点，如「玄铁令到底在谁手上」。\"}}, \"required\": [\"paths\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_canon\", \"description\": \"项目 canon 闸（确定性，无需 LLM）：从正文重建实体在场分布缓存，再校验作者声明的薄不变量——唯一持有（同一物件章节窗口内只能一个持有者）、时间线先后（声明不能成环）、退场一致性（声明退场后不应再出场）。返回硬矛盾（blocking，声明内部结构冲突）与 advisory （退场后仍出场，可能是回忆 / 提及 / 同名，须抽读核实）。它随书累积、比无状态深查更能抓跨章累积漂移。同时把每实体事实（身份 / 别名 / 出场跨度 / 绑定声明 / provenance）投影成人可读 dossier.md 缓存。调用会更新 .storyforge/canon/ 下的派生缓存（不改手稿）。作者尚未在 canon.json 声明不变量时，会建立空格式骨架并如实说明无可校验项。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"refresh\": {\"type\": \"boolean\", \"description\": \"是否强制从正文重建在场缓存，默认 true。\"}, \"glob\": {\"type\": \"string\", \"description\": \"正文文件名过滤，默认 *.md。\"}}}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_canon_delta\", \"description\": \"canon 事实差量提案（确定性，无额外 LLM）：读完章节后，把观察到的实体、唯一持有、退场、时间线先后与新埋的伏笔作为结构化参数传入。伏笔走 promise_claims——它是**唯一**能把新伏笔写进账本的通道，project_promise_check 只读不写。每条实体/声明请附 assertion_type 和 evidence（原文 quote、可用的 path/行号），区分作者设定与模型推断；缺失时来源未知，不补造依据；这些字段不会被工具验证为事实。字段未传表示该类不提议；全空会诚实返回无提议。工具会归并既有实体、提示同名 / 别名身份冲突，并只报告提案新增的 canon 闸问题。合并草稿写入派生缓存 proposals.json（上一轮作者还没并入的提案会一并留着，不会被本轮覆盖），绝不修改 canon.json 或正文；作者审阅后再决定是否走待确认补丁。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"entities\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"assertion_type\": {\"type\": \"string\", \"enum\": [\"author_setting\", \"text_observation\", \"model_inference\", \"unknown\"], \"description\": \"逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。\"}, \"evidence\": {\"type\": \"array\", \"description\": \"支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。\", \"items\": {\"type\": \"object\", \"properties\": {\"quote\": {\"type\": \"string\", \"minLength\": 1}, \"path\": {\"type\": \"string\", \"description\": \"项目相对路径（可选），不可越界。\"}, \"start_line\": {\"type\": \"integer\", \"minimum\": 1}, \"end_line\": {\"type\": \"integer\", \"minimum\": 1}}, \"required\": [\"quote\"]}}, \"name\": {\"type\": \"string\"}, \"aliases\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}}, \"required\": [\"name\"]}, \"description\": \"本章观察到的实体；name 为主表面形，aliases 为可选别名。\"}, \"holder_claims\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"assertion_type\": {\"type\": \"string\", \"enum\": [\"author_setting\", \"text_observation\", \"model_inference\", \"unknown\"], \"description\": \"逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。\"}, \"evidence\": {\"type\": \"array\", \"description\": \"支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。\", \"items\": {\"type\": \"object\", \"properties\": {\"quote\": {\"type\": \"string\", \"minLength\": 1}, \"path\": {\"type\": \"string\", \"description\": \"项目相对路径（可选），不可越界。\"}, \"start_line\": {\"type\": \"integer\", \"minimum\": 1}, \"end_line\": {\"type\": \"integer\", \"minimum\": 1}}, \"required\": [\"quote\"]}}, \"item\": {\"type\": \"string\"}, \"holder\": {\"type\": \"string\"}, \"from_chapter\": {\"type\": \"integer\"}, \"to_chapter\": {\"type\": \"integer\"}}, \"required\": [\"item\", \"holder\"]}, \"description\": \"本章观察到的唯一持有声明。\"}, \"exit_claims\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"assertion_type\": {\"type\": \"string\", \"enum\": [\"author_setting\", \"text_observation\", \"model_inference\", \"unknown\"], \"description\": \"逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。\"}, \"evidence\": {\"type\": \"array\", \"description\": \"支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。\", \"items\": {\"type\": \"object\", \"properties\": {\"quote\": {\"type\": \"string\", \"minLength\": 1}, \"path\": {\"type\": \"string\", \"description\": \"项目相对路径（可选），不可越界。\"}, \"start_line\": {\"type\": \"integer\", \"minimum\": 1}, \"end_line\": {\"type\": \"integer\", \"minimum\": 1}}, \"required\": [\"quote\"]}}, \"entity\": {\"type\": \"string\"}, \"exits_after_chapter\": {\"type\": \"integer\"}, \"reason\": {\"type\": \"string\"}}, \"required\": [\"entity\", \"exits_after_chapter\"]}, \"description\": \"本章观察到的实体退场声明。\"}, \"timeline_claims\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"assertion_type\": {\"type\": \"string\", \"enum\": [\"author_setting\", \"text_observation\", \"model_inference\", \"unknown\"], \"description\": \"逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。\"}, \"evidence\": {\"type\": \"array\", \"description\": \"支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。\", \"items\": {\"type\": \"object\", \"properties\": {\"quote\": {\"type\": \"string\", \"minLength\": 1}, \"path\": {\"type\": \"string\", \"description\": \"项目相对路径（可选），不可越界。\"}, \"start_line\": {\"type\": \"integer\", \"minimum\": 1}, \"end_line\": {\"type\": \"integer\", \"minimum\": 1}}, \"required\": [\"quote\"]}}, \"before\": {\"type\": \"string\"}, \"after\": {\"type\": \"string\"}}, \"required\": [\"before\", \"after\"]}, \"description\": \"本章观察到的时间线先后声明。\"}, \"promise_claims\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"assertion_type\": {\"type\": \"string\", \"enum\": [\"author_setting\", \"text_observation\", \"model_inference\", \"unknown\"], \"description\": \"逐条区分作者设定、文本观察与模型推断；无法判断用 unknown。作者接受不改变来源类型。\"}, \"evidence\": {\"type\": \"array\", \"description\": \"支持本条断言的原文引用，不是实体提及位置或送达记录；没有依据不要编造。工具不验证引文或蕴含关系。\", \"items\": {\"type\": \"object\", \"properties\": {\"quote\": {\"type\": \"string\", \"minLength\": 1}, \"path\": {\"type\": \"string\", \"description\": \"项目相对路径（可选），不可越界。\"}, \"start_line\": {\"type\": \"integer\", \"minimum\": 1}, \"end_line\": {\"type\": \"integer\", \"minimum\": 1}}, \"required\": [\"quote\"]}}, \"title\": {\"type\": \"string\"}, \"planted_chapter\": {\"type\": \"integer\"}, \"due_chapter\": {\"type\": [\"integer\", \"null\"]}, \"status\": {\"type\": \"string\", \"enum\": [\"planted\", \"advancing\", \"resolved\"]}, \"kind\": {\"type\": \"string\"}, \"resolved_chapter\": {\"type\": \"integer\"}, \"cadence_chapters\": {\"type\": \"integer\"}}, \"required\": [\"title\", \"planted_chapter\"]}, \"description\": \"本章观察到的叙事承诺（伏笔 / 倒计时 / 誓约 / 悬念 / 禁忌）。due_chapter 传 null 表示开放窗口、不设到期；不确定第几章兑现就传 null，不要瞎猜一个章号——那会让 promise_check 报假逾期。id 会按标题确定性派生，重复观察同一条不会攒出多份。\"}}}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_promise_check\", \"description\": \"伏笔承诺记账（确定性，无需 LLM、纯只读）：读取 .storyforge/canon/canon.json 中作者声明的 invariants.promises，检查 resolved / 埋设 / 截止章的结构矛盾、重复 id，以及超窗未兑现、开放窗口长期停滞和 recurring cadence 断供。只返回 blocking 与 advisory 证据，绝不修改 canon.json、派生缓存或手稿；advisory 仍需结合原文核实。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"stale_after_chapters\": {\"type\": \"integer\", \"description\": \"开放窗口 planted 承诺的停滞章数阈值，默认 30。\"}}}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_prose_check\", \"description\": \"文笔气味静态检查（确定性，无需 LLM、不烧 token）：对项目内单个稿件扫描常见坏味道——陈词套话、直述情绪的说明腔、解释性旁白、对白密度失衡、超长句 / 短句堆叠、短窗口重复、缺少行动 beat 的静态节奏，以及机械过渡、公式化设问、二元对比和空泛总结，返回带维度 / 严重度的 issue 列表。比 file_review 便宜得多，适合修订前先快速定位文笔问题；结果是参考信号，结合原文判断后再决定是否修改。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\", \"description\": \"相对项目根的稿件路径（要检查文笔的正文）。\"}}, \"required\": [\"path\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_collapse_check\", \"description\": \"场景承重静态检查（确定性，无需额外 LLM、不写盘）：先读完正文，再把你从正文观察到的 beats、场景前后情绪、不可逆后果、是否可删除填入可选参数。未传字段会跳过对应规则；显式空串 / 空数组表示观察结果为无。工具还会扫描正文调查模板，返回 pass / warn advisory 信号。结果只是辅助判断，不是场景质量结论。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\", \"description\": \"相对项目根的正文文件路径。\"}, \"beats\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"description\": \"读完正文后提取的场景动作 beats；显式空数组表示没有 beats。\"}, \"emotion_before\": {\"type\": \"string\", \"description\": \"场景开始时的情绪；显式空串表示没有可识别情绪。\"}, \"emotion_after\": {\"type\": \"string\", \"description\": \"场景结束时的情绪；显式空串表示没有可识别情绪。\"}, \"irreversible_consequence\": {\"type\": \"string\", \"description\": \"本场造成的不可逆后果；显式空串表示没有。\"}, \"deletable\": {\"type\": \"boolean\", \"description\": \"删除本场后主线是否仍成立。\"}}, \"required\": [\"path\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_entity_budget_check\", \"description\": \"长篇实体预算检查（确定性，无需额外 LLM、不写盘）：先读完正文，再把本章观察到的新增关键人物、核心地点、核心证据、重大反转、谜题和装备填入可选数组。字段未传会跳过对应规则，显式空数组表示本章无该类新增。chapter 未传时按项目文件阅读序推断。返回 pass / warn advisory 信号，仅供结构规划参考，不是质量判定。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\", \"description\": \"相对项目根的正文文件路径。\"}, \"chapter\": {\"type\": \"integer\", \"description\": \"可选章节序号；未传时按项目文件阅读序推断。\"}, \"new_key_characters\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"description\": \"本章新增关键人物；显式空数组表示无新增。\"}, \"new_core_locations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"description\": \"本章新增核心地点；显式空数组表示无新增。\"}, \"new_core_evidence\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"description\": \"本章新增核心证据；显式空数组表示无新增。\"}, \"new_major_reversals\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"description\": \"本章新增重大反转；显式空数组表示无新增。\"}, \"new_mysteries\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"description\": \"本章新增谜题；显式空数组表示无新增。\"}, \"new_equipment\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"description\": \"本章新增装备或设备型号；显式空数组表示无新增。\"}, \"budget_key_characters\": {\"type\": \"integer\", \"description\": \"关键人物数量预算覆盖，默认 5。\"}, \"budget_core_locations\": {\"type\": \"integer\", \"description\": \"核心地点数量预算覆盖，默认 3。\"}, \"budget_core_evidence\": {\"type\": \"integer\", \"description\": \"核心证据数量预算覆盖，默认 3。\"}, \"budget_major_reversals\": {\"type\": \"integer\", \"description\": \"重大反转数量预算覆盖，默认 2。\"}, \"budget_new_core_entities_after_chapter_20\": {\"type\": \"integer\", \"description\": \"第 20 章后新增核心实体预算覆盖，默认 0。\"}, \"budget_new_mysteries_after_chapter_25\": {\"type\": \"integer\", \"description\": \"第 25 章后新增谜题预算覆盖，默认 0。\"}}, \"required\": [\"path\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_plan_update\", \"description\": \"连载计划推进（确定性，无需 LLM）：维护 .storyforge/serial-plan.json——每轮对话开头你看到的「连载计划」块就是它的投影。按 ordinal upsert：已存在的章**逐字段合并**，只传 status 不会清掉作者写的 title / goal。典型用法有两种：①某章正文确已落盘 → 传 {ordinal, status:'done'} 把它标掉，下一章才会正确前移；②作者给了大纲 → 一次传多章 {ordinal, title, goal} 建起计划。**正文不存在的章标 done 会被拒绝**：起草出待确认补丁不等于写完，补丁要作者点接受才落盘，此时标 done 等于让计划替作者做决定。等接受之后再标。写不下去时标 status:'blocked' 并在 note 写明卡在哪，之后不会再被当成下一章。**只写计划文件，绝不写手稿正文**——正文仍须走 file_create / file_revise 的待确认补丁。注意计划里的 status 只是声明，正文是否存在才是真相：块里报「计划与正文对不上」时，以正文为准把状态改对，不要照计划重写已有正文。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"chapters\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"ordinal\": {\"type\": \"integer\", \"description\": \"章序，正整数，作为合并主键。\"}, \"title\": {\"type\": \"string\", \"description\": \"章节标题。\"}, \"goal\": {\"type\": \"string\", \"description\": \"一句话本章目标（这一章要把故事推到哪儿）。\"}, \"status\": {\"type\": \"string\", \"enum\": [\"pending\", \"done\", \"blocked\"], \"description\": \"待写 / 已完成 / 卡住；未传保留原状态。\"}, \"note\": {\"type\": \"string\", \"description\": \"备注，如卡住的原因。\"}}, \"required\": [\"ordinal\"]}, \"description\": \"要新增或更新的章节；未传的字段保留原值。\"}, \"premise\": {\"type\": \"string\", \"description\": \"全书主线一句话，写进计划头。\"}, \"chapter_word_count_min\": {\"type\": \"integer\", \"description\": \"每章目标字数下限。\"}, \"chapter_word_count_max\": {\"type\": \"integer\", \"description\": \"每章目标字数上限。\"}, \"arcs\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"arc_id\": {\"type\": \"string\"}, \"title\": {\"type\": \"string\"}, \"target_chapters\": {\"type\": \"array\", \"items\": {\"type\": \"integer\"}}, \"payoff_chapter\": {\"type\": \"integer\"}}, \"required\": [\"title\"]}, \"description\": \"弧线清单（推进章 + 兑现章）；传入即整体替换，不合并。\"}, \"remove_ordinals\": {\"type\": \"array\", \"items\": {\"type\": \"integer\"}, \"description\": \"要从计划里删除的章序（作者砍掉的计划章）。\"}}}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_trim_prose\", \"description\": \"按目标压缩率压缩项目内单个稿件，攻击冗余副词（「他愤怒地说」→「他说」或直接用动作语气带）、情绪直述（「她感到恐惧」→ 生理反应或环境暗示）、解释性旁白、冗余重复和啰嗦比喻。保留所有剧情信息、情感高潮、关键动作和对话。调用前建议先 fs_read 确认内容。每条调用生成待确认补丁，一次对话最多一个补丁。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\", \"description\": \"相对项目根的稿件路径。\"}, \"target_percent\": {\"type\": \"integer\", \"description\": \"目标压缩百分比，默认 15（即压缩到原字数的 85%）。\"}}, \"required\": [\"path\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"file_review\", \"description\": \"对项目内单个稿件做多视角审稿（剧情 / 人物 / 文风 / 连续性），返回带稳定 id 的 issue 列表。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\", \"description\": \"相对项目根的稿件路径。\"}}, \"required\": [\"path\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"file_revise\", \"description\": \"按明确指示修订项目内单个稿件，生成待作者确认的修订补丁；不会直接写盘。一次对话最多修订一个文件，修订前建议先 fs_read 或 file_review。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\", \"description\": \"相对项目根的稿件路径。\"}, \"instruction\": {\"type\": \"string\", \"description\": \"修订指示：要改什么、保留什么。\"}}, \"required\": [\"path\", \"instruction\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"chapter_polish\", \"description\": \"保守润色项目内一章小说正文，保护 frontmatter、标题、围栏数据、事实、专名和人称，通过相对原文质量门禁后才生成待审阅补丁。不会直接写盘。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\", \"description\": \"相对项目根的 Markdown 或 TXT 正文路径。\"}, \"style_instruction\": {\"type\": \"string\", \"description\": \"本次附加风格要求，例如更口语化、更克制；可省略。\"}}, \"required\": [\"path\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"file_create\", \"description\": \"为项目内尚不存在的新文件、或作者预先建好的空文件起草完整初稿，生成待作者确认的新建文件补丁；不会直接写盘。目标文件已有正文时才会失败（那种情况改用 file_revise）；起草前建议先读大纲 / 设定 / 相邻章节。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\", \"description\": \"相对项目根的新文件路径（含目录与 .md 扩展名）。\"}, \"instruction\": {\"type\": \"string\", \"description\": \"写作指令：写什么、篇幅、衔接哪些既有内容。\"}}, \"required\": [\"path\", \"instruction\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"prose_continue\", \"description\": \"在作者光标处接着往下写一段正文，生成待作者确认的插入补丁；既有正文一字不改，也不会直接写盘。作者说「接着写」「往下写一段」「继续」时用这把工具，不要用 file_revise（那会重写整篇）。落点缺省用作者当前光标位置——系统已把作者的光标与选区注入本轮对话，通常无需自己指定 anchor_line。一次只写一个自然段到一个小节拍，不收尾、不总结、不甩悬念收束句。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\", \"description\": \"相对项目根的稿件路径。\"}, \"instruction\": {\"type\": \"string\", \"description\": \"对这一段的额外要求（可省略，省略即「就接着写」）。\"}, \"target_chars\": {\"type\": \"integer\", \"description\": \"这一段的目标中文字符数，80–1200，缺省 300。\"}, \"anchor_line\": {\"type\": \"integer\", \"description\": \"1-based 落点行（在该行之后插入）；缺省用作者当前光标行。\"}}, \"required\": [\"path\"]}}}, {\"type\": \"function\", \"function\": {\"name\": \"project_hooks_delta\", \"description\": \"叙事承诺钩子差量提案（完全相同文本去重 + 相关性与正则辅助，无额外 LLM）：读完章节后，把观察到的叙事承诺钩子作为 observed_hooks 传入。可同时传入 evidence_text 正文片段，工具会在其上跑正则模式检测作为辅助信号。子串或中文字符重合仅表示可能相关，不判重复；相关项仍保留为新提案。工具不写 hooks.json，你也没有写入 hooks.json 的工具——把新钩子清单如实报给作者，由作者决定要不要记进伏笔账。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"observed_hooks\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"description\": {\"type\": \"string\", \"description\": \"钩子描述（如「青岩欠陆沉一把刀的情」），必填。\"}, \"verification\": {\"type\": \"string\", \"description\": \"验证条件——读者读到什么就知道伏笔收了。\"}, \"category\": {\"type\": \"string\", \"description\": \"钩子类型：conditional_promise / countdown / threshold / oath / mystery / taboo / hidden_info\"}, \"note\": {\"type\": \"string\", \"description\": \"备注（如建议回收章序、召回条件）。\"}}, \"required\": [\"description\"]}, \"description\": \"本章观察到的叙事承诺钩子。\"}, \"evidence_text\": {\"type\": \"string\", \"description\": \"正文片段（可选），工具会在其上跑正则模式检测辅助信号。\"}}}}}]",
+  "loop_name_map": {
+    "fs_list": "fs.list",
+    "fs_read": "fs.read",
+    "fs_search": "fs.search",
+    "project_knowledge": "project.knowledge",
+    "knowledge_propose": "knowledge.propose",
+    "project_consistency": "project.consistency",
+    "project_deep_consistency": "project.deep_consistency",
+    "project_cross_chapter_check": "project.cross_chapter_check",
+    "project_canon": "project.canon",
+    "project_canon_delta": "project.canon_delta",
+    "project_promise_check": "project.promise_check",
+    "project_prose_check": "project.prose_check",
+    "project_collapse_check": "project.collapse_check",
+    "project_entity_budget_check": "project.entity_budget_check",
+    "project_plan_update": "project.plan_update",
+    "project_trim_prose": "project.trim_prose",
+    "file_review": "file.review",
+    "file_revise": "file.revise",
+    "chapter_polish": "chapter.polish",
+    "file_create": "file.create",
+    "prose_continue": "prose.continue",
+    "project_hooks_delta": "project.hooks_delta"
+  },
+  "loop_patch_tools": [
+    "project.trim_prose",
+    "file.revise",
+    "chapter.polish",
+    "file.create",
+    "prose.continue"
+  ],
+  "confirming_tool_names": [
+    "chapter.brief",
+    "chapter.draft",
+    "chapter.polish",
+    "chapter.repair",
+    "file.create",
+    "file.revise",
+    "project.trim_prose",
+    "prose.continue"
+  ],
+  "protected_keys": [
+    "_agent_intent",
+    "_trace_file_path",
+    "character_constraints",
+    "confirmed",
+    "content",
+    "context_bundle",
+    "context_provenance",
+    "continuity_facts",
+    "file_path",
+    "generation_delivery_refs",
+    "llm_context_snapshot",
+    "llm_prompt_context_bundle",
+    "loop_input_mode",
+    "loop_trace_owner",
+    "loop_trusted_context",
+    "online_enabled",
+    "prepared_context",
+    "project_root",
+    "protected_entities",
+    "required_facts",
+    "use_main_model",
+    "user_confirmed"
+  ],
+  "trusted_writing_context_tools": [
+    "chapter.polish",
+    "file.create",
+    "file.review",
+    "file.revise",
+    "prose.continue"
+  ],
+  "handler_owned_trace_tools": [
+    "chapter.polish",
+    "file.create",
+    "file.review",
+    "file.revise",
+    "knowledge.propose",
+    "prose.continue"
+  ],
+  "records": [
+    {
+      "fn": "fs_int_arg",
+      "args": {
+        "payload": {}
+      },
+      "output": 9
+    },
+    {
+      "fn": "fs_int_arg",
+      "args": {
+        "payload": {
+          "offset": 5
+        }
+      },
+      "output": 5
+    },
+    {
+      "fn": "fs_int_arg",
+      "args": {
+        "payload": {
+          "offset": true
+        }
+      },
+      "output": 9
+    },
+    {
+      "fn": "fs_int_arg",
+      "args": {
+        "payload": {
+          "offset": " 12 "
+        }
+      },
+      "output": 12
+    },
+    {
+      "fn": "fs_int_arg",
+      "args": {
+        "payload": {
+          "offset": "-3"
+        }
+      },
+      "output": -3
+    },
+    {
+      "fn": "fs_int_arg",
+      "args": {
+        "payload": {
+          "offset": "1.5"
+        }
+      },
+      "output": 9
+    },
+    {
+      "fn": "fs_int_arg",
+      "args": {
+        "payload": {
+          "offset": "abc"
+        }
+      },
+      "output": 9
+    },
+    {
+      "fn": "fs_int_arg",
+      "args": {
+        "payload": {
+          "offset": 2.5
+        }
+      },
+      "output": 9
+    },
+    {
+      "fn": "fs_int_arg",
+      "args": {
+        "payload": {
+          "offset": null
+        }
+      },
+      "output": 9
+    },
+    {
+      "fn": "fs_int_arg",
+      "args": {
+        "payload": {
+          "offset": ""
+        }
+      },
+      "output": 9
+    },
+    {
+      "fn": "fs_int_arg",
+      "args": {
+        "payload": {
+          "offset": "007"
+        }
+      },
+      "output": 7
+    },
+    {
+      "fn": "chat_context_block",
+      "args": {
+        "args": {}
+      },
+      "output": ""
+    },
+    {
+      "fn": "chat_context_block",
+      "args": {
+        "args": {
+          "context_bundle": "x"
+        }
+      },
+      "output": ""
+    },
+    {
+      "fn": "chat_context_block",
+      "args": {
+        "args": {
+          "context_bundle": {
+            "files": "x"
+          }
+        }
+      },
+      "output": ""
+    },
+    {
+      "fn": "chat_context_block",
+      "args": {
+        "args": {
+          "context_bundle": {
+            "files": [
+              1,
+              {
+                "excerpt": "  "
+              },
+              {
+                "excerpt": "第一段\n\n  第二段  ",
+                "relative_path": " 人物/主角.md ",
+                "kind": "character"
+              },
+              {
+                "excerpt": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "path": "a.md"
+              },
+              {
+                "excerpt": "无名"
+              },
+              {
+                "excerpt": "种类空",
+                "relative_path": "b.md",
+                "kind": " "
+              }
+            ]
+          }
+        }
+      },
+      "output": "### 人物/主角.md（character）\n<<<\n第一段 第二段\n>>>\n\n### a.md\n<<<\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...\n>>>\n\n### （未命名）\n<<<\n无名\n>>>\n\n### b.md\n<<<\n种类空\n>>>"
+    },
+    {
+      "fn": "required_string",
+      "args": {
+        "args": {
+          "k": null
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_text",
+      "args": {
+        "args": {
+          "k": null
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_int",
+      "args": {
+        "args": {
+          "k": null
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "optional_positive_int",
+      "args": {
+        "value": null
+      },
+      "output": null
+    },
+    {
+      "fn": "optional_int",
+      "args": {
+        "value": null
+      },
+      "output": null
+    },
+    {
+      "fn": "required_string",
+      "args": {
+        "args": {
+          "k": ""
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_text",
+      "args": {
+        "args": {
+          "k": ""
+        }
+      },
+      "output": ""
+    },
+    {
+      "fn": "required_int",
+      "args": {
+        "args": {
+          "k": ""
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "optional_positive_int",
+      "args": {
+        "value": ""
+      },
+      "output": null
+    },
+    {
+      "fn": "optional_int",
+      "args": {
+        "value": ""
+      },
+      "output": null
+    },
+    {
+      "fn": "required_string",
+      "args": {
+        "args": {
+          "k": "  "
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_text",
+      "args": {
+        "args": {
+          "k": "  "
+        }
+      },
+      "output": "  "
+    },
+    {
+      "fn": "required_int",
+      "args": {
+        "args": {
+          "k": "  "
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "optional_positive_int",
+      "args": {
+        "value": "  "
+      },
+      "output": null
+    },
+    {
+      "fn": "optional_int",
+      "args": {
+        "value": "  "
+      },
+      "output": null
+    },
+    {
+      "fn": "required_string",
+      "args": {
+        "args": {
+          "k": "x"
+        }
+      },
+      "output": "x"
+    },
+    {
+      "fn": "required_text",
+      "args": {
+        "args": {
+          "k": "x"
+        }
+      },
+      "output": "x"
+    },
+    {
+      "fn": "required_int",
+      "args": {
+        "args": {
+          "k": "x"
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "optional_positive_int",
+      "args": {
+        "value": "x"
+      },
+      "output": null
+    },
+    {
+      "fn": "optional_int",
+      "args": {
+        "value": "x"
+      },
+      "output": null
+    },
+    {
+      "fn": "required_string",
+      "args": {
+        "args": {
+          "k": " y "
+        }
+      },
+      "output": " y "
+    },
+    {
+      "fn": "required_text",
+      "args": {
+        "args": {
+          "k": " y "
+        }
+      },
+      "output": " y "
+    },
+    {
+      "fn": "required_int",
+      "args": {
+        "args": {
+          "k": " y "
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "optional_positive_int",
+      "args": {
+        "value": " y "
+      },
+      "output": null
+    },
+    {
+      "fn": "optional_int",
+      "args": {
+        "value": " y "
+      },
+      "output": null
+    },
+    {
+      "fn": "required_string",
+      "args": {
+        "args": {
+          "k": 3
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_text",
+      "args": {
+        "args": {
+          "k": 3
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_int",
+      "args": {
+        "args": {
+          "k": 3
+        }
+      },
+      "output": 3
+    },
+    {
+      "fn": "optional_positive_int",
+      "args": {
+        "value": 3
+      },
+      "output": 3
+    },
+    {
+      "fn": "optional_int",
+      "args": {
+        "value": 3
+      },
+      "output": 3
+    },
+    {
+      "fn": "required_string",
+      "args": {
+        "args": {
+          "k": true
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_text",
+      "args": {
+        "args": {
+          "k": true
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_int",
+      "args": {
+        "args": {
+          "k": true
+        }
+      },
+      "output": true
+    },
+    {
+      "fn": "optional_positive_int",
+      "args": {
+        "value": true
+      },
+      "output": null
+    },
+    {
+      "fn": "optional_int",
+      "args": {
+        "value": true
+      },
+      "output": null
+    },
+    {
+      "fn": "required_string",
+      "args": {
+        "args": {
+          "k": 0
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_text",
+      "args": {
+        "args": {
+          "k": 0
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_int",
+      "args": {
+        "args": {
+          "k": 0
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "optional_positive_int",
+      "args": {
+        "value": 0
+      },
+      "output": null
+    },
+    {
+      "fn": "optional_int",
+      "args": {
+        "value": 0
+      },
+      "output": 0
+    },
+    {
+      "fn": "required_string",
+      "args": {
+        "args": {
+          "k": -1
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_text",
+      "args": {
+        "args": {
+          "k": -1
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_int",
+      "args": {
+        "args": {
+          "k": -1
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "optional_positive_int",
+      "args": {
+        "value": -1
+      },
+      "output": null
+    },
+    {
+      "fn": "optional_int",
+      "args": {
+        "value": -1
+      },
+      "output": -1
+    },
+    {
+      "fn": "required_string",
+      "args": {
+        "args": {
+          "k": 2
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_text",
+      "args": {
+        "args": {
+          "k": 2
+        }
+      },
+      "error": "Agent intent 缺少参数：k。"
+    },
+    {
+      "fn": "required_int",
+      "args": {
+        "args": {
+          "k": 2
+        }
+      },
+      "output": 2
+    },
+    {
+      "fn": "optional_positive_int",
+      "args": {
+        "value": 2
+      },
+      "output": 2
+    },
+    {
+      "fn": "optional_int",
+      "args": {
+        "value": 2
+      },
+      "output": 2
+    },
+    {
+      "fn": "trim_prose_instruction",
+      "args": {
+        "percent": 15
+      },
+      "output": "将本章字数压缩 15%，要求：\n- 保留所有剧情信息、情感高潮、人物动作\n- 砍掉冗余的副词（「他愤怒地说」→「他说」或直接用动作语气带）\n- 砍掉情绪声明句（「她感到恐惧」→ 用生理反应/环境暗示替代）\n- 每段不超过 5 句（长段落拆开，除非是刻意营造的紧迫感）\n- 不要删除对话和关键描写\n- 在回复末尾给出字数审计报告：原字数 → 压缩后字数 → 压缩率（目标 15%）"
+    },
+    {
+      "fn": "trim_prose_instruction",
+      "args": {
+        "percent": 1
+      },
+      "output": "将本章字数压缩 1%，要求：\n- 保留所有剧情信息、情感高潮、人物动作\n- 砍掉冗余的副词（「他愤怒地说」→「他说」或直接用动作语气带）\n- 砍掉情绪声明句（「她感到恐惧」→ 用生理反应/环境暗示替代）\n- 每段不超过 5 句（长段落拆开，除非是刻意营造的紧迫感）\n- 不要删除对话和关键描写\n- 在回复末尾给出字数审计报告：原字数 → 压缩后字数 → 压缩率（目标 1%）"
+    },
+    {
+      "fn": "trim_prose_instruction",
+      "args": {
+        "percent": 50
+      },
+      "output": "将本章字数压缩 50%，要求：\n- 保留所有剧情信息、情感高潮、人物动作\n- 砍掉冗余的副词（「他愤怒地说」→「他说」或直接用动作语气带）\n- 砍掉情绪声明句（「她感到恐惧」→ 用生理反应/环境暗示替代）\n- 每段不超过 5 句（长段落拆开，除非是刻意营造的紧迫感）\n- 不要删除对话和关键描写\n- 在回复末尾给出字数审计报告：原字数 → 压缩后字数 → 压缩率（目标 50%）"
+    },
+    {
+      "fn": "safe_summary",
+      "args": {
+        "payload": {
+          "api_key": "x",
+          "content": "正文𠀀",
+          "note": "  多  空白  长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长",
+          "token_hint": "token=sk-oracle-secret-123456",
+          "count": 3,
+          "ratio": 0.5,
+          "flag": false,
+          "none": null,
+          "items": [
+            1,
+            2
+          ],
+          "obj": {
+            "b": 1,
+            "a": 2,
+            "中": 3,
+            "Z": 4
+          },
+          "content_extra": "x"
+        }
+      },
+      "output": {
+        "api_key": "[REDACTED]",
+        "content_chars": 3,
+        "note": "多 空白 长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长...",
+        "token_hint": "token=[REDACTED]",
+        "count": 3,
+        "ratio": 0.5,
+        "flag": false,
+        "none": null,
+        "items": {
+          "count": 2
+        },
+        "obj": {
+          "keys": [
+            "Z",
+            "a",
+            "b",
+            "中"
+          ]
+        },
+        "content_extra": "x"
+      }
+    },
+    {
+      "fn": "safe_summary",
+      "args": {
+        "payload": {
+          "content": 3,
+          "Authorization": "Bearer abc",
+          "has_token": true,
+          "obj": {
+            "0": 0,
+            "1": 1,
+            "2": 2,
+            "3": 3,
+            "4": 4,
+            "5": 5,
+            "6": 6,
+            "7": 7,
+            "8": 8,
+            "9": 9,
+            "10": 10,
+            "11": 11,
+            "12": 12,
+            "13": 13,
+            "14": 14,
+            "15": 15,
+            "16": 16,
+            "17": 17,
+            "18": 18,
+            "19": 19,
+            "20": 20,
+            "21": 21,
+            "22": 22,
+            "23": 23,
+            "24": 24
+          }
+        }
+      },
+      "output": {
+        "content": 3,
+        "Authorization": "[REDACTED]",
+        "has_token": true,
+        "obj": {
+          "keys": [
+            "0",
+            "1",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18",
+            "19",
+            "2",
+            "20",
+            "21",
+            "22",
+            "23",
+            "24",
+            "3",
+            "4"
+          ]
+        }
+      }
+    },
+    {
+      "fn": "safe_summary",
+      "args": {
+        "payload": {
+          "obj": {
+            "𠀀": 1,
+            "": 2,
+            "z": 3
+          }
+        }
+      },
+      "output": {
+        "obj": {
+          "keys": [
+            "z",
+            "",
+            "𠀀"
+          ]
+        }
+      }
+    },
+    {
+      "fn": "sanitize_loop_tool_arguments",
+      "args": {
+        "args": {
+          "path": "a.md",
+          "query": "q",
+          "content": "c",
+          "file_path": "f",
+          "confirmed": true,
+          "project_root": "r",
+          "_trace_file_path": "t",
+          "llm_context_snapshot": {},
+          "extra": 1
+        }
+      },
+      "output": {
+        "path": "a.md",
+        "query": "q",
+        "extra": 1
+      }
+    },
+    {
+      "fn": "string_list",
+      "args": {
+        "value": null
+      },
+      "output": []
+    },
+    {
+      "fn": "dict_list",
+      "args": {
+        "value": null
+      },
+      "output": []
+    },
+    {
+      "fn": "payload_list",
+      "args": {
+        "value": null
+      },
+      "output": []
+    },
+    {
+      "fn": "style_rules",
+      "args": {
+        "value": null
+      },
+      "output": []
+    },
+    {
+      "fn": "string_list",
+      "args": {
+        "value": "x"
+      },
+      "output": []
+    },
+    {
+      "fn": "dict_list",
+      "args": {
+        "value": "x"
+      },
+      "output": []
+    },
+    {
+      "fn": "payload_list",
+      "args": {
+        "value": "x"
+      },
+      "output": []
+    },
+    {
+      "fn": "style_rules",
+      "args": {
+        "value": "x"
+      },
+      "output": []
+    },
+    {
+      "fn": "string_list",
+      "args": {
+        "value": [
+          " a ",
+          "",
+          3,
+          "b"
+        ]
+      },
+      "output": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "fn": "dict_list",
+      "args": {
+        "value": [
+          " a ",
+          "",
+          3,
+          "b"
+        ]
+      },
+      "output": []
+    },
+    {
+      "fn": "payload_list",
+      "args": {
+        "value": [
+          " a ",
+          "",
+          3,
+          "b"
+        ]
+      },
+      "output": []
+    },
+    {
+      "fn": "style_rules",
+      "args": {
+        "value": [
+          " a ",
+          "",
+          3,
+          "b"
+        ]
+      },
+      "output": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "fn": "string_list",
+      "args": {
+        "value": [
+          {
+            "rule": " r1 "
+          },
+          {
+            "rule": ""
+          },
+          "s",
+          {
+            "x": 1
+          },
+          4
+        ]
+      },
+      "output": [
+        "s"
+      ]
+    },
+    {
+      "fn": "dict_list",
+      "args": {
+        "value": [
+          {
+            "rule": " r1 "
+          },
+          {
+            "rule": ""
+          },
+          "s",
+          {
+            "x": 1
+          },
+          4
+        ]
+      },
+      "output": [
+        {
+          "rule": " r1 "
+        },
+        {
+          "rule": ""
+        },
+        {
+          "x": 1
+        }
+      ]
+    },
+    {
+      "fn": "payload_list",
+      "args": {
+        "value": [
+          {
+            "rule": " r1 "
+          },
+          {
+            "rule": ""
+          },
+          "s",
+          {
+            "x": 1
+          },
+          4
+        ]
+      },
+      "output": [
+        {
+          "rule": " r1 "
+        },
+        {
+          "rule": ""
+        },
+        {
+          "x": 1
+        }
+      ]
+    },
+    {
+      "fn": "style_rules",
+      "args": {
+        "value": [
+          {
+            "rule": " r1 "
+          },
+          {
+            "rule": ""
+          },
+          "s",
+          {
+            "x": 1
+          },
+          4
+        ]
+      },
+      "output": [
+        "r1",
+        "s"
+      ]
+    },
+    {
+      "fn": "llm_context_input_summary",
+      "args": {
+        "snapshot": null
+      },
+      "output": {}
+    },
+    {
+      "fn": "llm_context_input_summary",
+      "args": {
+        "snapshot": {}
+      },
+      "output": {}
+    },
+    {
+      "fn": "llm_context_input_summary",
+      "args": {
+        "snapshot": {
+          "snapshot_id": ""
+        }
+      },
+      "output": {}
+    },
+    {
+      "fn": "llm_context_input_summary",
+      "args": {
+        "snapshot": {
+          "kind": "llm_context_snapshot",
+          "version": 1,
+          "intent": "file.revise",
+          "run": {},
+          "user_goal": "改一下",
+          "selected_file": {
+            "file_path": "正文/第1章.md",
+            "content_chars": 4,
+            "content_sha256": "8c88207cc65259056f996760035d72ddbd428d97023a3a165a6ad9b81167dd40",
+            "content_excerpt": "正文内容"
+          },
+          "role_hints": [],
+          "role_mentions": [],
+          "project": {},
+          "context_files": [
+            {
+              "relative_path": "人物/主角.md",
+              "kind": "character",
+              "title": "人物/主角.md",
+              "excerpt": "林舟",
+              "excerpt_chars": 2,
+              "truncated": false
+            },
+            {
+              "relative_path": "设定/城.md",
+              "kind": "other",
+              "title": "设定/城.md",
+              "excerpt": "铁城",
+              "excerpt_chars": 2,
+              "truncated": false
+            }
+          ],
+          "source_manifest": [
+            {
+              "relative_path": "人物/主角.md",
+              "purpose": "character",
+              "selection_source": "request_bundle",
+              "source_state": "unverified",
+              "source_text_sha256": null,
+              "excerpt_sha256": "475fe7b6fbd3ec67f16c535eb23fb4630efa5a8958a041408682f88e9685d4f1",
+              "delivered_chars": 2,
+              "disposition": "delivered",
+              "truncated": false
+            },
+            {
+              "relative_path": "设定/城.md",
+              "purpose": "other",
+              "selection_source": "request_bundle",
+              "source_state": "unverified",
+              "source_text_sha256": null,
+              "excerpt_sha256": "f90feef4ad51c8d68279321a0519e834dd475f78092b6ee64e62bd3191e642a8",
+              "delivered_chars": 2,
+              "disposition": "delivered",
+              "truncated": false
+            }
+          ],
+          "knowledge_recovery": null,
+          "channel_requests": {},
+          "context_budget": {
+            "truncated": false
+          },
+          "review_report": null,
+          "story_memory": {
+            "items": []
+          },
+          "chapter_context": {},
+          "included_sections": [
+            "run",
+            "selected_file",
+            "context_files"
+          ],
+          "warnings": [],
+          "omitted": {
+            "raw_event_count": 0,
+            "unsafe_context_key_count": 0,
+            "unsafe_context_file_count": 0,
+            "artifact_payload_count": 0
+          },
+          "snapshot_id": "llmctx-b1195171ef994746"
+        }
+      },
+      "output": {
+        "llm_context_snapshot_id": "llmctx-b1195171ef994746",
+        "context_provenance": {
+          "snapshot_id": "llmctx-b1195171ef994746",
+          "context_file_count": 2,
+          "context_files": [
+            "人物/主角.md",
+            "设定/城.md"
+          ],
+          "context_source": "request_bundle",
+          "knowledge_entry_count": 0,
+          "knowledge_entries": [],
+          "warning_count": 0,
+          "source_manifest": [
+            {
+              "relative_path": "人物/主角.md",
+              "purpose": "character",
+              "selection_source": "request_bundle",
+              "source_state": "unverified",
+              "source_text_sha256": null,
+              "excerpt_sha256": "475fe7b6fbd3ec67f16c535eb23fb4630efa5a8958a041408682f88e9685d4f1",
+              "delivered_chars": 2,
+              "disposition": "delivered",
+              "truncated": false
+            },
+            {
+              "relative_path": "设定/城.md",
+              "purpose": "other",
+              "selection_source": "request_bundle",
+              "source_state": "unverified",
+              "source_text_sha256": null,
+              "excerpt_sha256": "f90feef4ad51c8d68279321a0519e834dd475f78092b6ee64e62bd3191e642a8",
+              "delivered_chars": 2,
+              "disposition": "delivered",
+              "truncated": false
+            }
+          ],
+          "selected_content_sha256": "8c88207cc65259056f996760035d72ddbd428d97023a3a165a6ad9b81167dd40"
+        }
+      }
+    },
+    {
+      "fn": "llm_context_input_summary",
+      "args": {
+        "snapshot": {
+          "kind": "llm_context_snapshot",
+          "version": 1,
+          "intent": "file.review",
+          "run": {},
+          "user_goal": "审稿",
+          "selected_file": {
+            "file_path": "a.md",
+            "content_chars": 0,
+            "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "content_excerpt": ""
+          },
+          "role_hints": [],
+          "role_mentions": [],
+          "project": {},
+          "context_files": [],
+          "source_manifest": [],
+          "knowledge_recovery": null,
+          "channel_requests": {},
+          "context_budget": {
+            "truncated": false
+          },
+          "review_report": null,
+          "story_memory": {
+            "items": []
+          },
+          "chapter_context": {},
+          "included_sections": [
+            "run",
+            "selected_file"
+          ],
+          "warnings": [],
+          "omitted": {
+            "raw_event_count": 0,
+            "unsafe_context_key_count": 0,
+            "unsafe_context_file_count": 0,
+            "artifact_payload_count": 0
+          },
+          "snapshot_id": "llmctx-d808973ee876b787"
+        }
+      },
+      "output": {
+        "llm_context_snapshot_id": "llmctx-d808973ee876b787",
+        "context_provenance": {
+          "snapshot_id": "llmctx-d808973ee876b787",
+          "context_file_count": 0,
+          "context_files": [],
+          "context_source": "request_bundle",
+          "knowledge_entry_count": 0,
+          "knowledge_entries": [],
+          "warning_count": 0,
+          "source_manifest": [],
+          "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    {
+      "fn": "llm_context_input_summary",
+      "args": {
+        "snapshot": {
+          "kind": "llm_context_snapshot",
+          "version": 1,
+          "intent": "file.revise",
+          "run": {},
+          "user_goal": "改一下",
+          "selected_file": {
+            "file_path": "正文/第1章.md",
+            "content_chars": 4,
+            "content_sha256": "8c88207cc65259056f996760035d72ddbd428d97023a3a165a6ad9b81167dd40",
+            "content_excerpt": "正文内容"
+          },
+          "role_hints": [],
+          "role_mentions": [],
+          "project": {},
+          "context_files": [
+            {
+              "relative_path": "人物/主角.md",
+              "kind": "character",
+              "title": "人物/主角.md",
+              "excerpt": "林舟",
+              "excerpt_chars": 2,
+              "truncated": false
+            },
+            {
+              "relative_path": "设定/城.md",
+              "kind": "other",
+              "title": "设定/城.md",
+              "excerpt": "铁城",
+              "excerpt_chars": 2,
+              "truncated": false
+            },
+            {
+              "relative_path": "设定/知识.md",
+              "knowledge_id": "k-1",
+              "selection_source": "retrieval",
+              "evidence_state": "current",
+              "warning_count": 2
+            }
+          ],
+          "source_manifest": [
+            {
+              "relative_path": "人物/主角.md",
+              "purpose": "character",
+              "selection_source": "request_bundle",
+              "source_state": "unverified",
+              "source_text_sha256": null,
+              "excerpt_sha256": "475fe7b6fbd3ec67f16c535eb23fb4630efa5a8958a041408682f88e9685d4f1",
+              "delivered_chars": 2,
+              "disposition": "delivered",
+              "truncated": false
+            },
+            {
+              "relative_path": "设定/城.md",
+              "purpose": "other",
+              "selection_source": "request_bundle",
+              "source_state": "unverified",
+              "source_text_sha256": null,
+              "excerpt_sha256": "f90feef4ad51c8d68279321a0519e834dd475f78092b6ee64e62bd3191e642a8",
+              "delivered_chars": 2,
+              "disposition": "delivered",
+              "truncated": false
+            }
+          ],
+          "knowledge_recovery": null,
+          "channel_requests": {},
+          "context_budget": {
+            "truncated": false
+          },
+          "review_report": null,
+          "story_memory": {
+            "items": []
+          },
+          "chapter_context": {},
+          "included_sections": [
+            "run",
+            "selected_file",
+            "context_files"
+          ],
+          "warnings": [],
+          "omitted": {
+            "raw_event_count": 0,
+            "unsafe_context_key_count": 0,
+            "unsafe_context_file_count": 0,
+            "artifact_payload_count": 0
+          },
+          "snapshot_id": "llmctx-b1195171ef994746"
+        }
+      },
+      "output": {
+        "llm_context_snapshot_id": "llmctx-b1195171ef994746",
+        "context_provenance": {
+          "snapshot_id": "llmctx-b1195171ef994746",
+          "context_file_count": 3,
+          "context_files": [
+            "人物/主角.md",
+            "设定/城.md",
+            "设定/知识.md"
+          ],
+          "context_source": "request_bundle",
+          "knowledge_entry_count": 1,
+          "knowledge_entries": [
+            {
+              "knowledge_id": "k-1",
+              "relative_path": "设定/知识.md",
+              "selection_source": "retrieval",
+              "evidence_state": "current",
+              "warning_count": 2,
+              "snapshot_id": "llmctx-b1195171ef994746"
+            }
+          ],
+          "warning_count": 0,
+          "source_manifest": [
+            {
+              "relative_path": "人物/主角.md",
+              "purpose": "character",
+              "selection_source": "request_bundle",
+              "source_state": "unverified",
+              "source_text_sha256": null,
+              "excerpt_sha256": "475fe7b6fbd3ec67f16c535eb23fb4630efa5a8958a041408682f88e9685d4f1",
+              "delivered_chars": 2,
+              "disposition": "delivered",
+              "truncated": false
+            },
+            {
+              "relative_path": "设定/城.md",
+              "purpose": "other",
+              "selection_source": "request_bundle",
+              "source_state": "unverified",
+              "source_text_sha256": null,
+              "excerpt_sha256": "f90feef4ad51c8d68279321a0519e834dd475f78092b6ee64e62bd3191e642a8",
+              "delivered_chars": 2,
+              "disposition": "delivered",
+              "truncated": false
+            }
+          ],
+          "selected_content_sha256": "8c88207cc65259056f996760035d72ddbd428d97023a3a165a6ad9b81167dd40"
+        }
+      }
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "read",
+        "mode": "sync"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "read",
+        "mode": "sync"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "read",
+        "mode": "control"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "read",
+        "mode": "control"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "read",
+        "mode": "managed_run"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "read",
+        "mode": "managed_run"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "analyze",
+        "mode": "sync"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "analyze",
+        "mode": "sync"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "analyze",
+        "mode": "control"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "analyze",
+        "mode": "control"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "analyze",
+        "mode": "managed_run"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "analyze",
+        "mode": "managed_run"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "write_pending",
+        "mode": "sync"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "write_pending",
+        "mode": "sync"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "write_pending",
+        "mode": "control"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "write_pending",
+        "mode": "control"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "write_pending",
+        "mode": "managed_run"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "write_pending",
+        "mode": "managed_run"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "high_cost",
+        "mode": "sync"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "high_cost",
+        "mode": "sync"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "high_cost",
+        "mode": "control"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "high_cost",
+        "mode": "control"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "high_cost",
+        "mode": "managed_run"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "high_cost",
+        "mode": "managed_run"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "propose_patch",
+        "mode": "sync"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "propose_patch",
+        "mode": "sync"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "propose_patch",
+        "mode": "control"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "propose_patch",
+        "mode": "control"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "propose_patch",
+        "mode": "managed_run"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "propose_patch",
+        "mode": "managed_run"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "network",
+        "mode": "sync"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "network",
+        "mode": "sync"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "network",
+        "mode": "control"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "network",
+        "mode": "control"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "network",
+        "mode": "managed_run"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "network",
+        "mode": "managed_run"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "long_running",
+        "mode": "sync"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "long_running",
+        "mode": "sync"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "long_running",
+        "mode": "control"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "long_running",
+        "mode": "control"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "long_running",
+        "mode": "managed_run"
+      },
+      "output": true
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "long_running",
+        "mode": "managed_run"
+      },
+      "output": "confirm"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "write",
+        "mode": "sync"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "write",
+        "mode": "sync"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "write",
+        "mode": "control"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "write",
+        "mode": "control"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "write",
+        "mode": "managed_run"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "write",
+        "mode": "managed_run"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "confirm",
+        "mode": "sync"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "confirm",
+        "mode": "sync"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "confirm",
+        "mode": "control"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "confirm",
+        "mode": "control"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "derive_requires_confirmation",
+      "args": {
+        "risk": "confirm",
+        "mode": "managed_run"
+      },
+      "output": false
+    },
+    {
+      "fn": "derive_permission_level",
+      "args": {
+        "risk": "confirm",
+        "mode": "managed_run"
+      },
+      "output": "auto"
+    },
+    {
+      "fn": "llm_tool_name",
+      "args": {
+        "name": "fs.read"
+      },
+      "output": "fs_read"
+    },
+    {
+      "fn": "llm_tool_name",
+      "args": {
+        "name": "a.b.c"
+      },
+      "output": "a_b_c"
+    },
+    {
+      "fn": "llm_tool_name",
+      "args": {
+        "name": "plain"
+      },
+      "output": "plain"
+    }
+  ]
+}

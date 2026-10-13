@@ -1,0 +1,66 @@
+import { toolSpec } from '../specModels';
+
+/** 伏笔提案工具。声明顺序即注册顺序与模型看到的工具顺序。 */
+export const HOOK_TOOL_SPECS = [
+  toolSpec({
+    name: 'project.hooks_delta',
+    description:
+      'hooks 差量提案：把模型从正文观察到的叙事承诺（伏笔）与既有 hooks 做文本去重与可能相关提示，并在证据文本上跑正则模式辅助检测。' +
+      '不写 hooks.json，仅输出提案供作者审阅（无写入通道）。',
+    domain: 'project',
+    input_schema: {},
+    output_schema: {},
+    allowed_roles: ['root_agent', 'context_explorer'],
+    risk_level: 'read',
+    retry_safe: true,
+    idempotent: true,
+    execution_mode: 'sync',
+    evidence_fields: ['new_hook_count', 'duplicate_count', 'pattern_hit_count'],
+    references: {
+      workflow_nodes: ['agent_runtime.project_hooks_delta'],
+    },
+    loop_schema: {
+      description:
+        '叙事承诺钩子差量提案（完全相同文本去重 + 相关性与正则辅助，无额外 LLM）：读完章节后，把观察到的叙事承诺钩子作为 observed_hooks 传入。' +
+        '可同时传入 evidence_text 正文片段，工具会在其上跑正则模式检测作为辅助信号。' +
+        '子串或中文字符重合仅表示可能相关，不判重复；' +
+        '相关项仍保留为新提案。工具不写 hooks.json，你也没有写入 hooks.json 的工具——把新钩子清单如实报给作者，由作者决定要不要记进伏笔账。',
+      parameters: {
+        type: 'object',
+        properties: {
+          observed_hooks: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                description: {
+                  type: 'string',
+                  description: '钩子描述（如「青岩欠陆沉一把刀的情」），必填。',
+                },
+                verification: {
+                  type: 'string',
+                  description: '验证条件——读者读到什么就知道伏笔收了。',
+                },
+                category: {
+                  type: 'string',
+                  description:
+                    '钩子类型：conditional_promise / countdown / threshold / oath / mystery / taboo / hidden_info',
+                },
+                note: {
+                  type: 'string',
+                  description: '备注（如建议回收章序、召回条件）。',
+                },
+              },
+              required: ['description'],
+            },
+            description: '本章观察到的叙事承诺钩子。',
+          },
+          evidence_text: {
+            type: 'string',
+            description: '正文片段（可选），工具会在其上跑正则模式检测辅助信号。',
+          },
+        },
+      },
+    },
+  }),
+] as const;

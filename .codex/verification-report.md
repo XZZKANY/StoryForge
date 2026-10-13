@@ -7725,3 +7725,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：68 处，首轮 62 处；补 4 组用例（短段落正文的下文段落截断、4 字节字符正文的上文码点长度、会话 id 为 0 的控制回执、进度时长 Infinity / NaN）后抓住 66 处；余 2 处等价：`draft` 阶段在非只读档永远放行，`write_pending` 的「可先产待确认 artifact」分支实际走不到（Python 同样是死分支）；@提及解析出的角色在第二轮还会再过一次可提及过滤。
 - 接受的差异：重试等待的进度文案按浮点写秒数（Python 只在「放弃 stream_options 重发」时发整数 0），`Retry-After: 0` 时 TS 显示「0」、Python 显示「0.0」。
 - 门禁：引擎 vitest 12178 通过 / 2 跳过（P3-2 新增后 `src/loop` 112 条）、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+
+## 2026-10-12 P3-3a 工具目录（TS 迁移，默认仍走 Python）
+
+- 范围：`tools/spec_models`、`spec_roles`、`catalog`、`loop_schema`、7 个 `specs/*`、`execution`（工具定义、agent 层注册表、子代理执行器）、`runtime_arguments` 搬进 `packages/engine/src/loop/tools/`。7 个声明文件（1,548 行）由一次性生成脚本 `output/ts-engine-p3/gen_tool_specs.py`（gitignored）从 Python 声明产出，长描述按句号断成多段拼接；此后它们就是源码，由 golden 钉住。处理器不在本刀：只读 / 检查 / canon 随 P3-3b，产补丁 / 章节 / 深度一致性随 P3-6。
+- 预言机：新 `apps/api/scripts/golden_tool_catalog.py`（`--suite p3-tool-catalog`）：28 个声明逐字段（含派生的 requires_confirmation / permission_level）；`build_loop_tool_schemas()` 的 `json.dumps` 原文 18,360 字符逐字节一致（键序也算）；名映射、补丁工具、确认集合、受保护参数、可信上下文与处理器自带轨迹两组策略；151 条辅助函数记录（整数参数容错、上下文摘录、必填 / 可选参数、压缩指令、证据摘要含脱敏与码点排序、快照摘要含知识条目、9 种风险级 × 3 种执行模式的确认位派生、多点工具名）。`--check` 复导逐字节一致。
+- 变异：28 处，抓住 27 处；余 1 处等价（所有循环参数本就以 `type: object` 开头，重复写一次不改键序）。首轮 29 处里另有 1 处是 JS 里永远走不到的布尔分支（Python 的 bool 是 int 的子类才需要），已删掉该分支并改为注释。
+- 接受的差异：模型给的整数字符串只认 ASCII 数字与可选负号（Python 的 `str.isdigit` 还认全角 / 上标数字，其中一部分 `int()` 会抛错）。
+- 门禁：引擎 vitest 12183 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
