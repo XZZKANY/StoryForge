@@ -48,6 +48,8 @@ window.__STORYFORGE_MOCK_FS__ = {
   writeFile: (path, content) => disk.set(path, content),
 };
 localStorage.clear();
+// 夹具只替身 HTTP（没有 Tauri IPC）；开发档默认走 TS 引擎，要显式钉回 Python 才会打到下面的 fetch 替身。
+localStorage.setItem('engine.assistant', 'python');
 localStorage.setItem('storyforge:project-knowledge:' + A, JSON.stringify(['素材/作者固定.md']));
 const fetchOriginal = window.fetch.bind(window);
 window.fetch = async (input, init) => {

@@ -7757,3 +7757,9 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 预言机：新 `apps/api/scripts/golden_run_store.py`（`--suite p3-run-store`），内存 sqlite + 真实 ORM，13 个操作脚本 77 步（正常路径、权限等待与重复请求、作者暂停后的完成 / 失败 / 权限被挡、停止且无结果、失败、终态续接、章纲确认、跨会话续接被拒、无参续接保留档位与范围、三轮停止取最新中断事件、带中断信息的暂停、权限确认步但无需确认），每步记录新增行、帧与 run 行。首轮变异 47 / 54，存活项里有 3 处是预言机缺陷：Python 收尾函数原地改写结果字典，预言机记下的「输入」已是处理后的样子；改为执行前深拷贝后补场景，54 / 54 全部抓住。`--check` 复导逐字节一致。
 - 不搬：执行权租约（`execution_owner_event_id` 比较交换与 `execution_superseded` 分支，单进程里执行权恒为本次）、外部写回等待、宿主关闭分支。`resultRequiresConfirmation` 等随 P3-5b 的循环用例覆盖。
 - 门禁：引擎 vitest 12447 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+
+## 2026-10-13 修行间续写浏览器门禁（验收 F4）
+
+- 来源：P1 至 P3-5a 累计验收（`output/ts-engine-p1-p3-5a-acceptance/run-20261013-audit/findings.md` F4）。#301 把开发档 `engine.assistant` 默认切到 ts 后，`verify:inline-continuation`（`pnpm verify` 注册门禁）的夹具只替身 `/api/assistant/continue` 的 HTTP、清空 localStorage 后没有钉 Python，续写请求走进引擎，页面等「接受」按钮 30 秒超时。#301 当时只给 9 个单测钉了 Python，漏了这个真实 Monaco 夹具。
+- 修复：`apps/desktop/frontend/scripts/fixtures/inline-continuation.jsx` 清空 localStorage 后设 `engine.assistant=python`（文件 CRLF，按原行尾写入）。TS 路由仍由独立的 Native assistant 探针覆盖。
+- 验证：修前复现失败（`TimeoutError` 等待「接受（Alt+Enter）」）；修后 5 个 Monaco 场景全过。其他会打到分流接口（续写 / 修订 / 测试连接）的入口只有设置页的手动「测试连接」，不在任何自动门禁里。prettier 通过。
