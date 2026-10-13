@@ -1,6 +1,7 @@
 import type { ToolCall, ToolSpec } from '../llm/contracts';
 import {
   cloneJson,
+  deepFreeze,
   dumpJson,
   InputDomainError,
   isJsonObject,
@@ -24,7 +25,7 @@ export const runtimeArtifact = (
   kind: string,
   payload: JsonObject,
   reference: string | null = null,
-): RuntimeArtifact => ({ kind, payload: cloneJson(payload), reference });
+): RuntimeArtifact => Object.freeze({ kind, payload: deepFreeze(cloneJson(payload)), reference });
 
 /**
  * 工具结果只有成功与失败两种。Python SDK 的 deferred（外部写回等待）没有生产调用方

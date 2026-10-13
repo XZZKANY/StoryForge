@@ -397,7 +397,7 @@ export class ToolCallingRuntime {
       }
       const previous: PendingToolCall = pending!;
       const attempt = previous.attempt + 1;
-      pending = { ...previous, attempt };
+      pending = Object.freeze({ ...previous, attempt });
       state.pending = pending;
       state.toolAttempts += 1;
       state.phase = 'tool_started';

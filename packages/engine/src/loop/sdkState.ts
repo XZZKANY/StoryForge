@@ -1,6 +1,7 @@
 import { ChatMessage, ToolCall, type MessageRole } from '../llm/contracts';
 import {
   cloneJson,
+  deepFreeze,
   InputDomainError,
   JsonFields,
   JsonFloat,
@@ -70,7 +71,18 @@ export const pendingToolCall = (
   name: string,
   args: JsonObject,
   attempt = 0,
-): PendingToolCall => ({ callId, name, arguments: cloneJson(args), attempt });
+): PendingToolCall =>
+  Object.freeze({ callId, name, arguments: deepFreeze(cloneJson(args)), attempt });
+
+/** 消息与 Python 的 frozen ChatMessage 一样不可变：工具调用、metadata、provider 续接状态都冻结。 */
+function freezeMessage(message: ChatMessage): ChatMessage {
+  if (Object.isFrozen(message)) return message;
+  message.toolCalls.forEach((call) => Object.freeze(call));
+  Object.freeze(message.toolCalls);
+  deepFreeze(message.metadata);
+  deepFreeze(message.continuation);
+  return Object.freeze(message);
+}
 
 type CheckpointFields = {
   runId: string;
@@ -114,12 +126,14 @@ export class RuntimeCheckpoint {
   readonly interruptionReason!: string | null;
   readonly continuationOmitted!: boolean;
 
+  // 与 Python 的 frozen dataclass 一样整棵不可变：交给钩子与存储的快照改不动活动状态。
   constructor(fields: CheckpointFields) {
     Object.assign(this, fields, {
-      messages: [...fields.messages],
-      completedToolCallIds: [...fields.completedToolCallIds],
-      artifacts: [...fields.artifacts],
+      messages: Object.freeze(fields.messages.map(freezeMessage)),
+      completedToolCallIds: Object.freeze([...fields.completedToolCallIds]),
+      artifacts: Object.freeze([...fields.artifacts]),
     });
+    Object.freeze(this);
   }
 
   toDict(): JsonObject {
