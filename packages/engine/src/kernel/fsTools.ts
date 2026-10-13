@@ -77,11 +77,16 @@ export async function scopedTarget(
 }
 
 /** 文件工具可见的全部项目文件（跳过隐藏与工具目录，但保留作者自定义指令），按路径排序。 */
-export async function iterProjectFiles(reader: ProjectReader, root: string): Promise<string[]> {
+export async function iterProjectFiles(
+  reader: ProjectReader,
+  root: string,
+  scope?: string,
+): Promise<string[]> {
   try {
     return await scanProjectFiles(reader, root, {
       visible: (relative) => !isSkippedProjectPath(relative),
       explicitFiles: [AUTHOR_INSTRUCTIONS_PATH],
+      ...(scope === undefined ? {} : { scope }),
     });
   } catch (error) {
     if (!(error instanceof ProjectTreeError)) throw error;

@@ -9,6 +9,7 @@ import {
   resolveProjectRoot,
   resolveScopedPath,
 } from './fsTools';
+import { jsRegexCompiler, SearchMatcher, type RegexCompiler } from './fsProjectTools';
 import { compareCodePoints } from './json';
 import {
   hasKnowledgeBlockMarker,
@@ -31,7 +32,6 @@ const MAX_KNOWLEDGE_FILE_BYTES = 512 * 1024;
 const SEARCH_MAX_MATCHES = 50;
 export const SEARCH_MAX_FILES = 2_000;
 const MAX_SEARCH_BYTES = 16 * 1024 * 1024;
-const MAX_QUERY_CHARS = 2_048;
 const READ_LIMIT_MAX = 200_000;
 const SEMANTIC_SOURCES = [
   'outline',
@@ -228,18 +228,24 @@ export async function loadProjectKnowledgeDocument(
   };
 }
 
-/**
- * 在 Project Knowledge 来源里做子串检索（脱敏后逐行匹配）。正则检索依赖 fs.search 的
- * 匹配器与时间预算，随 P3 文件工具一起迁移。
- */
+/** 在 Project Knowledge 来源里检索（脱敏后逐行匹配，子串或正则，与 fs.search 同一个匹配器）。 */
 export async function projectKnowledgeSearch(
   reader: ProjectReader,
   root: string,
   query: string,
-  options: { secrets: SecretContext; maxMatches?: number },
+  options: {
+    secrets: SecretContext;
+    maxMatches?: number;
+    useRegex?: boolean;
+    compile?: RegexCompiler;
+    clock?: () => number;
+  },
 ) {
-  if (typeof query !== 'string' || !pythonStrip(query)) throw new FsToolError('query 不能为空。');
-  if (query.length > MAX_QUERY_CHARS) throw new FsToolError(`query 超过 ${MAX_QUERY_CHARS} 字符。`);
+  const matcher = new SearchMatcher(query, {
+    useRegex: options.useRegex === true,
+    compile: options.compile ?? jsRegexCompiler,
+    clock: options.clock ?? (() => performance.now() / 1000),
+  });
   const maxMatches = positiveLimit(
     options.maxMatches ?? SEARCH_MAX_MATCHES,
     'max_matches',
@@ -279,7 +285,7 @@ export async function projectKnowledgeSearch(
       warnings.add(`Project Knowledge 已脱敏：${normalized}`);
     }
     for (const [index, line] of pythonSplitlines(content).entries()) {
-      if (!line.includes(query)) continue;
+      if (!matcher.search(line)) continue;
       if (matches.length >= maxMatches) {
         truncated = true;
         break;

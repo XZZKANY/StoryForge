@@ -7733,3 +7733,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：28 处，抓住 27 处；余 1 处等价（所有循环参数本就以 `type: object` 开头，重复写一次不改键序）。首轮 29 处里另有 1 处是 JS 里永远走不到的布尔分支（Python 的 bool 是 int 的子类才需要），已删掉该分支并改为注释。
 - 接受的差异：模型给的整数字符串只认 ASCII 数字与可选负号（Python 的 `str.isdigit` 还认全角 / 上标数字，其中一部分 `int()` 会抛错）。
 - 门禁：引擎 vitest 12183 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+
+## 2026-10-12 P3-3b 只读 / 检查 / canon 工具处理器（TS 迁移，默认仍走 Python）
+
+- 范围：`fs/runtime_tools`（context.load、fs.list / read / search、project.knowledge、knowledge.propose）、`tools/project_checks_runtime`（除 deep_consistency 外的 7 个）、`tools/project_canon_runtime`（除 trim_prose 外的 3 个）的处理器搬进 `packages/engine/src/loop/tools/`（`fsHandlers` / `checkHandlers` / `canonHandlers` + `handlerDeps`）。依赖在注册时注入：读写口、平台、密钥快照、知识提议的 uuid 与时钟、已落库 artifact 查询端口（P4 前由内存存储实现）、跨章模型端口、正则编译器、单调时钟。产补丁的 trim_prose / prose.continue、深度一致性、章节与补丁工具随 P3-6。
+- 内核补齐：`kernel/fsProjectTools.ts`（`fsList`、`fsSearch` + `SearchMatcher`、`resolveNewProjectFile`、`readProjectFileRaw`），`iterProjectFiles` 支持作用域；`projectKnowledgeSearch` 补上 P1 留下的正则模式，改用同一个匹配器（查询长度改按码点算，P1 版按 UTF-16 算）。
+- 预言机：新 `apps/api/scripts/golden_tool_handlers.py`（`--suite p3-tool-handlers`）：真实 `AgentRuntime` 的处理器（假 session 只回答两种 artifact 查询，跨章模型调用脚本化，知识提议的 uuid / 时钟 / 项目指纹钉到合成根）在两个合成项目上跑 123 次——20 种调用（16 个工具 + 4 个直接文件函数），含知识提议的冲突（含全角标题 NFKC）/ 去重 / 迁移、承诺与三类不变量、canon 增量写盘、U+2028 断行、超 200 字查询、505 个文件触发列表与知识候选上限；逐项比对 ToolResult（输出、轨迹、artifact、指标）、上下文参数副作用与写盘字节。导入 runtime 会经 prometheus_client 探 `/proc`，预言机在审计钩子前预先导入它。`--check` 复导逐字节一致。
+- 变异：41 处，首轮 42 处只抓住 22 处（场景太浅，几个文件函数处理器根本走不到），补场景与直接调用后抓住 38 / 41；余 3 处等价：已知指纹的提议在冲突判定之后被去重、非数组 arcs 早被拒、内核本就忽略非整数章号。另删掉一处与「是目录」重复的项目根判断。
+- 接受的差异：fs.search / 知识检索的正则用 JS 方言（Python 用 regex 模块 VERSION0），无效正则的报错原文不同（测试只比前缀）；**JS 在进程内打断不了单次正则匹配，只能在行间核累计 2 秒预算——P3-7 接线时必须换成能打断的实现（Worker 或 Rust 的线性时间正则）**；canon.json 写错时 project.consistency 按 §4.3.1 报错（Python 静默丢掉 canon 别名，有 TS 侧用例钉住）；`remove_ordinals` 里的布尔值不再当作 0 / 1。
+- 门禁：引擎 vitest 12307 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
