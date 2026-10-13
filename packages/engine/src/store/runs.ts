@@ -1,0 +1,147 @@
+import { cloneJson, type JsonValue } from '../kernel/json';
+
+/**
+ * Agent run 的存储端口：runs / run_events / artifacts / subagent_runs 四张表的行。
+ * P4 前只有内存实现（窗口生命周期内有效）；P4 换成 sqlite，接口不变。
+ * id 全局自增、事件 sequence 按 run 自增，与 Python 库一致（帧与证据里都看得到这两个数）。
+ */
+
+export type Obj = { [key: string]: unknown };
+
+export type RunRecord = {
+  readonly id: number;
+  public_id: string;
+  session_id: string;
+  assistant_session_id: number | null;
+  goal: string;
+  scope: Obj;
+  permission_profile: string;
+  budget: Obj;
+  status: string;
+  root_plan: unknown[];
+  current_step: string | null;
+};
+
+export type RunEventRecord = {
+  readonly id: number;
+  readonly run_id: number;
+  readonly event_type: string;
+  readonly actor: string;
+  readonly message: string;
+  readonly payload: Obj;
+  readonly sequence: number;
+};
+
+export type ArtifactRecord = {
+  readonly id: number;
+  readonly run_id: number;
+  readonly kind: string;
+  readonly payload: Obj;
+  readonly requires_confirmation: boolean;
+};
+
+export type SubagentRecord = {
+  readonly id: number;
+  readonly run_id: number;
+  readonly parent_run_id: number | null;
+  readonly role: string;
+  readonly input: Obj;
+  readonly output: Obj;
+  readonly status: string;
+};
+
+export interface RunStore {
+  findRun(publicId: string): Promise<RunRecord | null>;
+  getRun(id: number): Promise<RunRecord>;
+  insertRun(fields: Omit<RunRecord, 'id'>): Promise<RunRecord>;
+  updateRun(id: number, patch: Partial<Omit<RunRecord, 'id'>>): Promise<RunRecord>;
+  /** 追加一条事件：id 全局递增，sequence = 该 run 当前最大值 + 1。 */
+  appendEvent(fields: Omit<RunEventRecord, 'id' | 'sequence'>): Promise<RunEventRecord>;
+  insertArtifact(fields: Omit<ArtifactRecord, 'id'>): Promise<ArtifactRecord>;
+  insertSubagent(fields: Omit<SubagentRecord, 'id'>): Promise<SubagentRecord>;
+  events(runId: number): Promise<readonly RunEventRecord[]>;
+  artifacts(runId: number): Promise<readonly ArtifactRecord[]>;
+  runsOfAssistantSession(assistantSessionId: number): Promise<readonly RunRecord[]>;
+}
+
+// JsonFloat 要保留类身份（structuredClone 会把它变成普通对象）。
+const clone = <T>(value: T): T => cloneJson(value as JsonValue) as T;
+
+/** 内存实现：返回值都是副本，调用方改了不影响存储（与重新读库同义）。 */
+export class MemoryRunStore implements RunStore {
+  private readonly runs: RunRecord[] = [];
+  private readonly eventRows: RunEventRecord[] = [];
+  private readonly artifactRows: ArtifactRecord[] = [];
+  private readonly subagentRows: SubagentRecord[] = [];
+
+  async findRun(publicId: string): Promise<RunRecord | null> {
+    const run = this.runs.find((item) => item.public_id === publicId);
+    return run ? clone(run) : null;
+  }
+
+  async getRun(id: number): Promise<RunRecord> {
+    const run = this.runs.find((item) => item.id === id);
+    if (!run) throw new RangeError(`run ${id} 不存在`);
+    return clone(run);
+  }
+
+  async insertRun(fields: Omit<RunRecord, 'id'>): Promise<RunRecord> {
+    const run = { id: this.runs.length + 1, ...clone(fields) };
+    this.runs.push(run);
+    return clone(run);
+  }
+
+  async updateRun(id: number, patch: Partial<Omit<RunRecord, 'id'>>): Promise<RunRecord> {
+    const run = this.runs.find((item) => item.id === id);
+    if (!run) throw new RangeError(`run ${id} 不存在`);
+    Object.assign(run, clone(patch));
+    return clone(run);
+  }
+
+  async appendEvent(fields: Omit<RunEventRecord, 'id' | 'sequence'>): Promise<RunEventRecord> {
+    const sequence =
+      this.eventRows
+        .filter((event) => event.run_id === fields.run_id)
+        .reduce((max, event) => Math.max(max, event.sequence), 0) + 1;
+    const event = { id: this.eventRows.length + 1, sequence, ...clone(fields) };
+    this.eventRows.push(event);
+    return clone(event);
+  }
+
+  async insertArtifact(fields: Omit<ArtifactRecord, 'id'>): Promise<ArtifactRecord> {
+    const artifact = { id: this.artifactRows.length + 1, ...clone(fields) };
+    this.artifactRows.push(artifact);
+    return clone(artifact);
+  }
+
+  async insertSubagent(fields: Omit<SubagentRecord, 'id'>): Promise<SubagentRecord> {
+    const subagent = { id: this.subagentRows.length + 1, ...clone(fields) };
+    this.subagentRows.push(subagent);
+    return clone(subagent);
+  }
+
+  async events(runId: number): Promise<readonly RunEventRecord[]> {
+    return clone(
+      this.eventRows
+        .filter((event) => event.run_id === runId)
+        .sort((a, b) => a.sequence - b.sequence || a.id - b.id),
+    );
+  }
+
+  async artifacts(runId: number): Promise<readonly ArtifactRecord[]> {
+    return clone(this.artifactRows.filter((artifact) => artifact.run_id === runId));
+  }
+
+  async runsOfAssistantSession(assistantSessionId: number): Promise<readonly RunRecord[]> {
+    return clone(this.runs.filter((run) => run.assistant_session_id === assistantSessionId));
+  }
+
+  /** 测试与对账用：某个 id 之后新增的行。 */
+  rowsAfter(cursor: { events: number; artifacts: number; subagents: number }) {
+    return {
+      events: clone(this.eventRows.filter((row) => row.id > cursor.events)),
+      artifacts: clone(this.artifactRows.filter((row) => row.id > cursor.artifacts)),
+      subagents: clone(this.subagentRows.filter((row) => row.id > cursor.subagents)),
+    };
+  }
+}

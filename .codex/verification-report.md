@@ -7750,3 +7750,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：46 处，首轮 35 处；补伪造检查点等场景后 46 / 46 全部抓住。
 - 接受的差异：P4 前经 HTTP 读回的会话消息是 Python 序列化时已脱敏的文本，消息里含密钥时历史投影与 Python 不同；压缩请求的 metadata 只在 Python 的 ChatRequest 对象上、从不进请求体，TS 不搬；当前文件按绝对路径传（Python 对相对路径按进程工作目录解析，§4.3.1 已裁定不复刻）。
 - 门禁：引擎 vitest 12370 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff；其他 golden 套件在新守卫下 `--check` 仍一致。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+
+## 2026-10-12 P3-5a run 存储与事件落库（TS 迁移，默认仍走 Python）
+
+- 范围：`packages/engine/src/store/runs.ts`（run / 事件 / artifact / 子代理四张表的存储端口 + 内存实现；id 全局自增、事件 sequence 按 run 自增；副本经 `cloneJson` 保留 JsonFloat）；`packages/engine/src/loop/runEvents.ts`（`event_sink` 全部记录方法、`service_lifecycle` 建 run / 续接、`service_execution` 执行开始 / 收尾 / 中断结算、`events/contracts` 完成载荷、`events/runtime_support` 结果整形）。完成 / 失败 / 权限请求都先看 run 状态，不覆盖控制通道落成的 paused / stopped；续接只认同一会话，不符按「不存在」报错。
+- 预言机：新 `apps/api/scripts/golden_run_store.py`（`--suite p3-run-store`），内存 sqlite + 真实 ORM，13 个操作脚本 77 步（正常路径、权限等待与重复请求、作者暂停后的完成 / 失败 / 权限被挡、停止且无结果、失败、终态续接、章纲确认、跨会话续接被拒、无参续接保留档位与范围、三轮停止取最新中断事件、带中断信息的暂停、权限确认步但无需确认），每步记录新增行、帧与 run 行。首轮变异 47 / 54，存活项里有 3 处是预言机缺陷：Python 收尾函数原地改写结果字典，预言机记下的「输入」已是处理后的样子；改为执行前深拷贝后补场景，54 / 54 全部抓住。`--check` 复导逐字节一致。
+- 不搬：执行权租约（`execution_owner_event_id` 比较交换与 `execution_superseded` 分支，单进程里执行权恒为本次）、外部写回等待、宿主关闭分支。`resultRequiresConfirmation` 等随 P3-5b 的循环用例覆盖。
+- 门禁：引擎 vitest 12447 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
