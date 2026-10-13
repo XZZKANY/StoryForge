@@ -7788,3 +7788,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 接受的差异：整数值的费用在 TS 里是整数（Python `2.0` / TS `2`，比对按数值，检查点摘要按「整数值浮点记整数」的规范化计算）；「没有控制所有者」的分支不搬（唯一调用方总会建控制所有者）。
 - 门禁：引擎 vitest 12503 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（corepack 9.15.4 shim；0 错误，2 条既有 warning）、ruff（`scripts/golden_chat_loop.py`、`golden_dump.py`）。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
 - 未做：P3-5b2 对话轮次编排（`conversation_runtime`、`run_user_message` 的 chat 分支、隐藏系统任务、模型请求证据与观察 provider、`run_agent_user_message` 组装）；P3-5c 控制通道与续跑。
+
+## 2026-10-13 P3-5b2a 模型请求证据与隐藏系统任务（TS 迁移，默认仍走 Python）
+
+- 范围：`request_evidence`（`request_snapshot`、`_route_origin`、`_AgentRequestObserver` / `_StoredAttempt`）、`llm_observation`（观察 provider、操作与来源、传输进度）、`system_jobs`、`compaction_job` 搬进 `packages/engine/src/loop/requestEvidence.ts`、`packages/engine/src/llm/observation.ts`、`packages/engine/src/loop/systemJobs.ts`。Python 的三个 ContextVar 合成一个随 `LlmContext.observation` 显式传递的 `ModelObservation`，`sdkProvider` 是唯一挂钩点。连带改动：`ChatRequest` 加只进证据的 `metadata`；P3-4 `createCompactionCheckpoint` 补 `conversation.compact` 操作来源与 metadata、`onResponse` 可 await；`RunStore.updateArtifact`；`AssistantStore.createToolCall` 放宽状态与可选 `output_summary`；`RequestEvidenceError` 收归 `requestEvidence.ts`（`chatLoop.ts` 再导出）。
+- 预言机：新 `apps/api/scripts/golden_run_evidence.py`（`golden_dump.py --suite p3-run-evidence`），内存 sqlite + 真实 `observe_provider` / `agent_request_evidence_scope` / `prepare_conversation_compaction`：2 份请求快照、15 个路由来源、21 步观察 provider 场景、10 个标题、4 组任务计划、12 个压缩任务场景（明细见迁移计划 P3-5b2a 条）。逐项比对结果、错误连同携带的用量、证据 artifact 行与工具调用行。`--check` 复导逐字节一致。
+- TS 回放：`runEvidence.test.ts` 21 条全绿（含 3 条直接测试：同一观察范围里操作与当前派发的恢复、进度写入失败使结算失败、`sdkProvider` 挂钩）。
+- 变异：85 处，抓住 84 处；余 1 处等价（`_StoredAttempt.finish` 的「已结算不再结算」守卫，观察 provider 在任何路径上都只结算一次）。首轮 71/85，存活的 13 处都是场景缺口（同一范围里的恢复、完成事件不带用量、流式错误自带用量、`sdkProvider` 挂钩、只在配置源里的凭据、键名里的凭据、敏感键、码点计数、进度写入失败、阈值内缺模型名、响应后中断、父检查点），补预言机场景与直接测试后全部抓住。
+- 接受的差异：传输进度写入证据失败时，TS 在这次派发结算时报 `RequestEvidenceError`（进度写入排队、结算前等待），Python 在下一次传输边界就报。
+- 门禁：引擎 vitest 12524 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+- 未做：隐藏任务的编排（`_run_hidden_system_jobs`）随 P3-5b2b；`run_user_message` / `run_agent_user_message` 组装与运行状态的同步视图随 P3-5b2b。

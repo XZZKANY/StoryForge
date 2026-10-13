@@ -81,6 +81,8 @@ export interface RunStore {
   /** 追加一条事件：id 全局递增，sequence = 该 run 当前最大值 + 1。 */
   appendEvent(fields: RunEventFields): Promise<RunEventRecord>;
   insertArtifact(fields: Omit<ArtifactRecord, 'id'>): Promise<ArtifactRecord>;
+  /** 整行覆盖一个 artifact 的载荷（模型请求证据逐次结算用）。 */
+  updateArtifact(id: number, payload: Obj): Promise<ArtifactRecord>;
   insertSubagent(fields: Omit<SubagentRecord, 'id'>): Promise<SubagentRecord>;
   events(runId: number): Promise<readonly RunEventRecord[]>;
   artifacts(runId: number): Promise<readonly ArtifactRecord[]>;
@@ -157,6 +159,13 @@ export class MemoryRunStore implements RunStore {
     const artifact = { id: this.artifactRows.length + 1, ...clone(fields) };
     this.artifactRows.push(artifact);
     return clone(artifact);
+  }
+
+  async updateArtifact(id: number, payload: Obj): Promise<ArtifactRecord> {
+    const index = this.artifactRows.findIndex((item) => item.id === id);
+    if (index < 0) throw new RangeError(`artifact ${id} 不存在`);
+    this.artifactRows[index] = { ...this.artifactRows[index], payload: clone(payload) };
+    return clone(this.artifactRows[index]);
   }
 
   async insertSubagent(fields: Omit<SubagentRecord, 'id'>): Promise<SubagentRecord> {

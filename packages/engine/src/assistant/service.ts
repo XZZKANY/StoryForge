@@ -116,9 +116,15 @@ export interface AssistantStore {
   /** 查不到时抛 AssistantSessionNotFoundError。 */
   getSession(id: number): Promise<AssistantSessionRef>;
   appendMessage(sessionId: number, message: AssistantMessageInput): Promise<void>;
+  /** 循环里先记 running 再结算；压缩任务一步记下已结束的调用（附用量摘要）。 */
   createToolCall(
     sessionId: number,
-    input: { tool_name: string; status: 'running'; input_summary: Obj },
+    input: {
+      tool_name: string;
+      status: 'running' | 'completed' | 'failed' | 'paused';
+      input_summary: Obj;
+      output_summary?: Obj;
+    },
   ): Promise<StoredToolCall>;
   updateToolCall(toolCallId: number, patch: ToolCallPatch): Promise<StoredToolCall>;
 }

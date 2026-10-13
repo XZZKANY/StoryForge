@@ -1,3 +1,4 @@
+import type { ModelObservation } from './observation';
 import {
   InputDomainError,
   isJsonObject,
@@ -80,6 +81,8 @@ export type LlmContext = {
   /** 配置 owner 交来的完整有序密钥快照。 */
   secrets: SecretContext;
   control?: RunControl | null;
+  /** agent 运行里的本地模型请求证据范围；助手直连路径没有。 */
+  observation?: ModelObservation | null;
 };
 
 export type TransportOptions = { timeoutSeconds?: number | null; maxAttempts?: number | null };
