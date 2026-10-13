@@ -151,13 +151,28 @@ def test_save_failure_does_not_advance_sources_or_latest_checkpoint(engine, tmp_
 def test_failed_build_does_not_modify_context_or_add_artifact(engine, tmp_path):
     with Session(engine, expire_on_commit=False) as session:
         ctx, cp, root = context(session, tmp_path)
-        (root / "directory").mkdir()
-        ctx.recovery_message["args"]["file_path"] = "directory"
-        with pytest.raises(ValueError, match="recovery_source_not_file"):
+        ctx.recovery_message["args"]["project_path"] = str(root / "missing")
+        with pytest.raises(FileNotFoundError):
             checkpoint_store.build_checkpoint_payload(ctx, cp)
         assert ctx.recovery_sources is None and ctx.latest_checkpoint is None
         session.commit()
         assert observed(engine, ctx.run.id) == ("running", [], [])
+
+
+def test_directory_named_by_the_model_is_not_a_source_and_does_not_fail_the_save(engine, tmp_path):
+    with Session(engine, expire_on_commit=False) as session:
+        ctx, cp, root = context(session, tmp_path)
+        (root / "正文").mkdir()
+        (root / "正文" / "第001章.md").write_bytes(b"text")
+        ctx.recovery_message["args"]["file_path"] = "正文"
+        read_folder = ChatMessage(MessageRole.ASSISTANT, None, (
+            ToolCall("c1", "fs_read", '{"path":"正文"}'), ToolCall("c2", "fs_read", '{"path":"正文/第001章.md"}')))
+        checkpoint_store.StoryForgeCheckpointStore(ctx).save(replace(cp, messages=(*cp.messages, read_folder)))
+        session.commit()
+        assert set(ctx.recovery_sources["files"]) == {"正文/第001章.md", ".storyforge/agent-instructions.md"}
+        status, payloads, _ = observed(engine, ctx.run.id)
+        assert status == "running" and [payload["sources"]["files"] for payload in payloads] == [
+            ctx.recovery_sources["files"]]
 
 
 def test_save_wrapper_keeps_v1_payload_digest_and_legacy_patch_confirmation(engine, tmp_path):

@@ -368,16 +368,14 @@ const expectSame = (actual: unknown, expected: unknown) =>
   expect(plain(stable(actual))).toEqual(plain(expected));
 
 const scenarios = (golden.scenarios as Obj[]).map((scenario) => [scenario.id, scenario] as const);
-/** 唯一接受的差异：Python 对目录调 fs_read 时检查点来源指纹抛错，整轮以基础设施失败结束。 */
-const DIRECTORY_READ = 'fs-read-directory';
 
 describe('chat loop replays the Python oracle', () => {
   it('pins the oracle sources and scenario count', () => {
-    expect(Object.keys(golden.sources)).toHaveLength(7);
+    expect(Object.keys(golden.sources)).toHaveLength(8);
     expect(scenarios).toHaveLength(36);
   });
 
-  it.each(scenarios.filter(([id]) => id !== DIRECTORY_READ))('%s', async (_id, scenario) => {
+  it.each(scenarios)('%s', async (_id, scenario) => {
     const { record, outcome, error } = await replay(scenario);
     if (scenario.error) {
       expect(outcome).toBeNull();
@@ -405,28 +403,6 @@ describe('chat loop replays the Python oracle', () => {
       'owner_interruption',
     ])
       expectSame({ [key]: record[key] }, { [key]: scenario[key] });
-  });
-
-  it('keeps going when the model reads a directory (Python fails the whole turn)', async () => {
-    const scenario = scenarios.find(([id]) => id === DIRECTORY_READ)![1];
-    expect(scenario.outcome.execution_outcome).toEqual({
-      status: 'failed',
-      code: 'runtime_infrastructure',
-      message: '本轮未完成：Checkpoint store failed.',
-    });
-    const { record, outcome } = await replay(scenario);
-    expect(outcome!.executionOutcome).toBeNull();
-    expect(outcome!.answer).toBe('那是目录。');
-    expect(record.unused_model_steps).toBe(0);
-    expect(record.traces).toEqual([
-      {
-        tool_name: 'fs.read',
-        status: 'failed',
-        input_summary: { path: '正文' },
-        error_message: '不是文件：正文',
-        assistant_tool_call_id: 1,
-      },
-    ]);
   });
 });
 

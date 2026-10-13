@@ -54,6 +54,10 @@ def source_versions(checkpoint: RuntimeCheckpoint, message: dict[str, Any]) -> d
         except ValueError:
             # Never inspect paths outside the trusted project, even in checkpoint input.
             continue
+        if path.exists() and not path.is_file():
+            # A folder is never source text (e.g. the model fs_read a directory and the tool said so);
+            # fingerprinting it used to fail the checkpoint save and with it the whole turn.
+            continue
         # Keep the requested alias as well as its resolved target. Saving only
         # the latter would miss a symlink/junction being removed or retargeted.
         files[value] = {"path": relative, "sha256": file_digest(path)}
