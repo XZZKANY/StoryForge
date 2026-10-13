@@ -351,8 +351,12 @@ export class AgentRuntime {
       roleHints: hints,
       roleMentions: mentions,
     });
-    let planRecorded = false;
-    let traceIndex = 0;
+    // 续跑：计划与已完成的轨迹在上一段执行里已落库，序号接着往下记。
+    let planRecorded = run.current_step === 'resumed';
+    let traceIndex = planRecorded
+      ? (await this.deps.store.events(run.id)).filter((event) => event.event_type === 'tool_trace')
+          .length
+      : 0;
     const ensurePlanRecorded = async () => {
       if (!planRecorded) {
         run = await this.sink.recordPlan(run, started);
@@ -852,7 +856,46 @@ export class AgentRuntimeUserMessageError extends Error {
   }
 }
 
-/** 一条作者消息的完整执行：建 run → 执行开始 → 运行时 → 收尾结算（Python 的 run_agent_user_message）。 */
+export type ExecuteRunInput = {
+  readonly agentSessionId: string;
+  readonly message: Obj;
+  readonly onEvent?: EventObserver | null;
+  readonly onText?: TextObserver | null;
+};
+
+/** 已建好的 run 跑一次执行：执行开始 → 运行时 → 收尾结算（Python 的 execute_agent_user_message_run）。 */
+export async function executeAgentUserMessageRun(
+  deps: AgentRuntimeDeps,
+  run: RunRecord,
+  input: ExecuteRunInput,
+): Promise<Obj> {
+  const services: RunServices = { store: deps.store, secrets: deps.secrets };
+  const onEvent = input.onEvent ?? null;
+  const started = await startAgentExecution(services, run);
+  let result: Obj | null = null;
+  const sink = new AgentRunEventSink(services, onEvent);
+  sink.bindExecution(started);
+  try {
+    result = await new AgentRuntime(deps, sink, input.onText ?? null).runUserMessage(
+      run,
+      input.agentSessionId,
+      input.message,
+    );
+  } finally {
+    await sink.drainRuntimeProgress();
+    const [output, settled, current] = await finishAgentExecution(
+      services,
+      run.id,
+      started,
+      result,
+    );
+    result = output;
+    onEvent?.(settled, current);
+  }
+  return result!;
+}
+
+/** 一条作者消息的完整执行：建 run → 执行（Python 的 run_agent_user_message）。 */
 export async function runAgentUserMessage(
   deps: AgentRuntimeDeps,
   input: {
@@ -872,33 +915,21 @@ export async function runAgentUserMessage(
   });
   onEvent?.(start.startedEvent, start.run);
   const runId = start.run.public_id;
-  const started = await startAgentExecution(services, start.run);
-  let result: Obj | null = null;
-  const sink = new AgentRunEventSink(services, onEvent);
-  sink.bindExecution(started);
+  let result: Obj;
   try {
-    result = await new AgentRuntime(deps, sink, input.onText ?? null).runUserMessage(
-      start.run,
-      input.agentSessionId,
-      { ...input.message, run_id: runId },
-    );
+    result = await executeAgentUserMessageRun(deps, start.run, {
+      agentSessionId: input.agentSessionId,
+      message: { ...input.message, run_id: runId },
+      onEvent,
+      onText: input.onText,
+    });
   } catch (error) {
     if (error instanceof AgentOrchestrationError)
       throw new AgentRuntimeUserMessageError(error.message, start.run, start.startedEvent);
     throw error;
-  } finally {
-    await sink.drainRuntimeProgress();
-    const [output, settled, run] = await finishAgentExecution(
-      services,
-      start.run.id,
-      started,
-      result,
-    );
-    result = output;
-    onEvent?.(settled, run);
   }
-  result!.run_id = runId;
-  return { run: start.run, startedEvent: start.startedEvent, result: result! };
+  result.run_id = runId;
+  return { run: start.run, startedEvent: start.startedEvent, result };
 }
 
 export { SYSTEM_SUMMARY_ARTIFACT_KIND };

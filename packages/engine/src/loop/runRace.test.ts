@@ -154,6 +154,33 @@ describe('RunStore 原子操作的契约', () => {
     await expect(store.getRun(2)).rejects.toThrow(RangeError);
   });
 
+  it('updateRunIf 只在状态与步骤都对上时写（控制通道的比较交换）', async () => {
+    const store = new MemoryRunStore();
+    const run = await store.insertRun({ ...fields, status: 'paused', current_step: 'paused' });
+    const claim = { status: 'running', current_step: 'resumed' };
+    expect(await store.updateRunIf(run.id, { status: 'running' }, claim)).toBeNull();
+    expect(
+      await store.updateRunIf(
+        run.id,
+        { status: 'paused', current_step: 'permission.confirm' },
+        claim,
+      ),
+    ).toBeNull();
+    expect([
+      (await store.getRun(run.id)).status,
+      (await store.getRun(run.id)).current_step,
+    ]).toEqual(['paused', 'paused']);
+    expect(
+      (await store.updateRunIf(
+        run.id,
+        { status: ['running', 'paused'], current_step: 'paused' },
+        claim,
+      ))!.current_step,
+    ).toBe('resumed');
+    // 第二个认领者读到的仍是 paused，但行已经变了。
+    expect(await store.updateRunIf(run.id, { status: 'paused' }, claim)).toBeNull();
+  });
+
   it('settleRun 状态不符时什么都不写', async () => {
     const store = new MemoryRunStore();
     const run = await store.insertRun({ ...fields, status: 'stopped' });

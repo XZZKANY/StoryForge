@@ -85,7 +85,7 @@ export class StoryForgeProviderAdapter implements RuntimeProvider {
   async complete(request: ChatRequest): Promise<ChatResponse> {
     const context = this.context;
     context.providerAttempts += 1;
-    this.checkpoints.modelStarted(request);
+    await this.checkpoints.modelStarted(request);
     const streamed = await completeWithTextStream(this.provider, request, {
       onText: context.onText,
       runId: context.run.public_id,

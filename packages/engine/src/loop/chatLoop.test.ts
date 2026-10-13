@@ -428,12 +428,15 @@ function bareContext(overrides: Partial<RuntimeContextFields> = {}): StoryForgeR
 }
 
 describe('chat loop guards', () => {
-  it('rejects a checkpoint for another run', () => {
+  it('rejects a checkpoint for another run', async () => {
     const context = bareContext();
-    const store = new StoryForgeCheckpointStore(context, new LoopCheckpointStore());
-    store.modelStarted({ model: 'm', messages: [], tools: [] } as unknown as ChatRequest);
+    const store = new StoryForgeCheckpointStore(context, new LoopCheckpointStore(), {
+      reader: memoryProject(ROOT, {}).reader,
+    });
+    context.recoveryMessage.args = { project_path: ROOT };
+    await store.modelStarted({ model: 'm', messages: [], tools: [] } as unknown as ChatRequest);
     const other = new RuntimeCheckpoint({ ...context.latestCheckpoint!, runId: 'run-2' });
-    expect(() => store.save(other)).toThrow('checkpoint_identity_mismatch');
+    await expect(store.save(other)).rejects.toThrow('checkpoint_identity_mismatch');
   });
 
   it('hands an allowed call id to the handler that claims it (续跑据此判定已处理)', async () => {
