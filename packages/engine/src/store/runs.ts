@@ -50,13 +50,36 @@ export type SubagentRecord = {
   readonly status: string;
 };
 
+export type RunPatch = Partial<Omit<RunRecord, 'id'>>;
+export type RunEventFields = Omit<RunEventRecord, 'id' | 'sequence'>;
+
+/** public_id 唯一约束被违反（等价 Python 库 `agent_runs.public_id` 的 unique 索引）。 */
+export class RunPublicIdConflictError extends Error {
+  constructor(publicId: string) {
+    super(`run ${publicId} 已存在`);
+    this.name = 'RunPublicIdConflictError';
+  }
+}
+
 export interface RunStore {
   findRun(publicId: string): Promise<RunRecord | null>;
   getRun(id: number): Promise<RunRecord>;
+  /** public_id 已存在时抛 RunPublicIdConflictError，不覆盖、不重复插入。 */
   insertRun(fields: Omit<RunRecord, 'id'>): Promise<RunRecord>;
-  updateRun(id: number, patch: Partial<Omit<RunRecord, 'id'>>): Promise<RunRecord>;
+  updateRun(id: number, patch: RunPatch): Promise<RunRecord>;
+  /**
+   * 条件结算：仅当 run 当前状态是 `from` 时写入 patch 并追加 event（同一原子边界，
+   * 等价 Python 的 `UPDATE … WHERE status = 'running'` 与同事务记事件）；否则什么都不写、返回 null。
+   * 控制通道在结算前落下的 paused / stopped 因此不会被覆盖，也不会多出终态事件。
+   */
+  settleRun(
+    id: number,
+    from: string,
+    patch: RunPatch,
+    event: (run: RunRecord) => RunEventFields,
+  ): Promise<{ run: RunRecord; event: RunEventRecord } | null>;
   /** 追加一条事件：id 全局递增，sequence = 该 run 当前最大值 + 1。 */
-  appendEvent(fields: Omit<RunEventRecord, 'id' | 'sequence'>): Promise<RunEventRecord>;
+  appendEvent(fields: RunEventFields): Promise<RunEventRecord>;
   insertArtifact(fields: Omit<ArtifactRecord, 'id'>): Promise<ArtifactRecord>;
   insertSubagent(fields: Omit<SubagentRecord, 'id'>): Promise<SubagentRecord>;
   events(runId: number): Promise<readonly RunEventRecord[]>;
@@ -86,19 +109,41 @@ export class MemoryRunStore implements RunStore {
   }
 
   async insertRun(fields: Omit<RunRecord, 'id'>): Promise<RunRecord> {
+    if (this.runs.some((item) => item.public_id === fields.public_id))
+      throw new RunPublicIdConflictError(fields.public_id);
     const run = { id: this.runs.length + 1, ...clone(fields) };
     this.runs.push(run);
     return clone(run);
   }
 
-  async updateRun(id: number, patch: Partial<Omit<RunRecord, 'id'>>): Promise<RunRecord> {
+  async updateRun(id: number, patch: RunPatch): Promise<RunRecord> {
     const run = this.runs.find((item) => item.id === id);
     if (!run) throw new RangeError(`run ${id} 不存在`);
     Object.assign(run, clone(patch));
     return clone(run);
   }
 
-  async appendEvent(fields: Omit<RunEventRecord, 'id' | 'sequence'>): Promise<RunEventRecord> {
+  // 检查、写入与记事件之间没有 await：其他调用插不进来。
+  async settleRun(
+    id: number,
+    from: string,
+    patch: RunPatch,
+    event: (run: RunRecord) => RunEventFields,
+  ): Promise<{ run: RunRecord; event: RunEventRecord } | null> {
+    const run = this.runs.find((item) => item.id === id);
+    if (!run) throw new RangeError(`run ${id} 不存在`);
+    if (run.status !== from) return null;
+    // 先算事件：回调抛错时什么都没写（对应事务回滚）。
+    const fields = event({ ...clone(run), ...clone(patch) });
+    Object.assign(run, clone(patch));
+    return { run: clone(run), event: this.pushEvent(fields) };
+  }
+
+  async appendEvent(fields: RunEventFields): Promise<RunEventRecord> {
+    return this.pushEvent(fields);
+  }
+
+  private pushEvent(fields: RunEventFields): RunEventRecord {
     const sequence =
       this.eventRows
         .filter((event) => event.run_id === fields.run_id)

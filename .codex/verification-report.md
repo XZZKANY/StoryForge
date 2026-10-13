@@ -7763,3 +7763,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 来源：P1 至 P3-5a 累计验收（`output/ts-engine-p1-p3-5a-acceptance/run-20261013-audit/findings.md` F4）。#301 把开发档 `engine.assistant` 默认切到 ts 后，`verify:inline-continuation`（`pnpm verify` 注册门禁）的夹具只替身 `/api/assistant/continue` 的 HTTP、清空 localStorage 后没有钉 Python，续写请求走进引擎，页面等「接受」按钮 30 秒超时。#301 当时只给 9 个单测钉了 Python，漏了这个真实 Monaco 夹具。
 - 修复：`apps/desktop/frontend/scripts/fixtures/inline-continuation.jsx` 清空 localStorage 后设 `engine.assistant=python`（文件 CRLF，按原行尾写入）。TS 路由仍由独立的 Native assistant 探针覆盖。
 - 验证：修前复现失败（`TimeoutError` 等待「接受（Alt+Enter）」）；修后 5 个 Monaco 场景全过。其他会打到分流接口（续写 / 修订 / 测试连接）的入口只有设置页的手动「测试连接」，不在任何自动门禁里。prettier 通过。
+
+## 2026-10-13 修 run 存储原子边界（验收 F1 / F2）
+
+- 来源：P1 至 P3-5a 累计验收 F1、F2（`output/ts-engine-p1-p3-5a-acceptance/run-20261013-audit/findings.md`），源码核实成立。F1：`completeAgentRun` / `failAgentRun` / `recordPermissionRequired` 先 `await getRun()` 判 running、再无条件 `updateRun()`，两次 await 之间控制通道写下的 stopped 会被覆盖并多记终态事件；Python 是 `UPDATE … WHERE status='running'`，只有改到行的一方在同一事务记事件。F2：`createOrResumeAgentRun` 查与插分两次 await，`MemoryRunStore.insertRun` 不校验 public_id 唯一，并发创建同一 run 时后到者跳过会话归属守卫插出第二行；Python 库 public_id 是 unique。
+- 修复：`RunStore` 新增 `settleRun(id, from, patch, event)`：仅当状态仍是 from 时写入并在同一原子边界追加事件（事件回调先算，抛错时什么都不写），否则返回 null；三个结算入口改用它，只有赢家发帧。`insertRun` 遇重复 public_id 抛 `RunPublicIdConflictError`；`createOrResumeAgentRun` 捕获后重读并按续接重走归属守卫（跨会话 → `AgentRunNotFoundError`，同会话 → 续接同一行，与先后到达同义）。接受的差异：Python 并发创建的后到者拿到 IntegrityError，TS 按串行语义处理。
+- 验证：新增 `runRace.test.ts` 14 例——每次存储调用先让出一拍的异步存储上，三个结算入口 × stopped / paused 在落库前插入控制写，均不覆盖、不记事件、不发帧；跨会话并发创建（同步 / 异步存储）后到者被拒且库里一条；同会话并发指向同一行；`settleRun` / `insertRun` 契约。变异 9 / 9 抓住（含把三处 `'running'` 换回「先读再按读到的状态写」的修复前写法）。77 步 golden 回放与 `--check` 不变。引擎 vitest 12461 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误）。
+- 验收探针复验（重新打包，产物在 `output/ts-engine-p3/acceptance-recheck/`，未改验收目录）：并发创建的第二个调用被拒、库里只有一条。状态竞争那段在修复后变为「结算在调用当下原子完成并记事件，之后探针那次无条件 `updateRun` 把状态写成 stopped」——「读到 running 后、写入前插进停止」的窗口已不存在；探针里的无条件写不代表真实控制通道（Python 的停止本身是条件写，终态 run 不被迟到的停止拖回），P3-5c 照此实现。
