@@ -29,6 +29,7 @@ import { AnthropicProvider } from './anthropic';
 import { checkRunInterruption, requestTimeout } from './control';
 import { GeminiProvider } from './gemini';
 import { OpenAICompatibleProvider, type LlmProvider } from './openaiCompatible';
+import { observeProvider } from './observation';
 import { buildChatPayload, LlmError } from './payload';
 import { modelsUrl } from './protocol';
 import {
@@ -72,8 +73,17 @@ export function sdkChatRequest(source: LlmSource, options: ChatRequestOptions): 
   };
 }
 
-/** 按 provider 家族装配：OpenAI 兼容、Anthropic Messages、Gemini generateContent。 */
+/** 按 provider 家族装配；在 agent 运行里还套一层本地请求证据（Python 的 _sdk_provider）。 */
 export function sdkProvider(
+  source: LlmSource,
+  options: TransportOptions & { streamPayload?: { [key: string]: unknown } | null },
+  ctx: LlmContext,
+): LlmProvider {
+  return observeProvider(baseSdkProvider(source, options, ctx), source, ctx.observation);
+}
+
+/** 按 provider 家族装配：OpenAI 兼容、Anthropic Messages、Gemini generateContent。 */
+function baseSdkProvider(
   source: LlmSource,
   options: TransportOptions & { streamPayload?: { [key: string]: unknown } | null },
   ctx: LlmContext,

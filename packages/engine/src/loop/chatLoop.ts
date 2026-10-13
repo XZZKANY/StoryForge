@@ -28,7 +28,7 @@ import {
 import { ChatLoopOutcome } from './chatLoopTypes';
 import type { ConversationSources } from './conversationHistory';
 import { storyforgeMessages } from './loopMessages';
-import { AgentOrchestrationError } from './runPayloads';
+import { RequestEvidenceError } from './requestEvidence';
 import { finishInterruptedRun, RUN_MAX_DURATION_SECONDS, type RunControlScope } from './runControl';
 import { ToolCallingRuntime } from './sdkLoop';
 import { runtimeLimits } from './sdkState';
@@ -62,14 +62,6 @@ export class ChatLoopUnavailableError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ChatLoopUnavailableError';
-  }
-}
-
-/** 本地模型请求证据没能确认：结果需要核对，不交付、不重放。 */
-export class RequestEvidenceError extends AgentOrchestrationError {
-  constructor(message: string) {
-    super(message);
-    this.name = 'RequestEvidenceError';
   }
 }
 
@@ -232,3 +224,5 @@ export async function runChatLoop(
   outcome.exhausted = true;
   return outcome;
 }
+
+export { RequestEvidenceError };

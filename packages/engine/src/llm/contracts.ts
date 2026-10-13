@@ -182,6 +182,8 @@ export type ChatRequest = {
   maxTokens: number | null;
   toolChoice: JsonValue | null;
   reasoningEffort: string | null;
+  /** 只进本地请求证据、从不进请求体（压缩请求标记自己的操作与提示版本）。 */
+  metadata?: { readonly [key: string]: unknown };
 };
 
 export type ChatResponse = {

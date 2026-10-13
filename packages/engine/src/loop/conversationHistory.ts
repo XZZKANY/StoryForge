@@ -1,3 +1,4 @@
+import type { ModelObservation } from '../llm/observation';
 import {
   dumpJson,
   InputDomainError,
@@ -439,7 +440,9 @@ export async function createCompactionCheckpoint(
     model: string;
     secrets: SecretContext;
     control?: RunControl | null;
-    onResponse?: (response: ChatResponse) => void;
+    /** agent 运行里的模型请求证据范围（压缩这次派发记为 conversation.compact）。 */
+    observation?: ModelObservation | null;
+    onResponse?: (response: ChatResponse) => void | Promise<void>;
   },
 ): Promise<Obj | null> {
   const control = options.control ?? null;
@@ -474,19 +477,34 @@ export async function createCompactionCheckpoint(
   };
   checkContextBudget(modelInput, COMPACTION_INPUT_BUDGET_BYTES);
   checkRunInterruption(control, 'before_compaction_provider');
-  const response = await options.provider.complete({
-    model: options.model,
-    messages: [
-      new ChatMessage('system', COMPACTION_SYSTEM_PROMPT),
-      new ChatMessage('user', canonicalJson(modelInput)),
-    ],
-    tools: [],
-    temperature: null,
-    maxTokens: 8192,
-    toolChoice: null,
-    reasoningEffort: null,
-  });
-  options.onResponse?.(response);
+  const complete = () =>
+    options.provider.complete({
+      model: options.model,
+      messages: [
+        new ChatMessage('system', COMPACTION_SYSTEM_PROMPT),
+        new ChatMessage('user', canonicalJson(modelInput)),
+      ],
+      tools: [],
+      temperature: null,
+      maxTokens: 8192,
+      toolChoice: null,
+      reasoningEffort: null,
+      metadata: { operation: 'conversation.compact', prompt_version: 2 },
+    });
+  const response = options.observation
+    ? await options.observation.withOperation(
+        'conversation.compact',
+        {
+          assistant_session_id: sessionId,
+          source_messages: covered.map(sourceReference),
+          source_evidence: evidence.map(sourceReference),
+          parent_artifact_id: previous === null ? null : previous.id,
+          prompt_version: 2,
+        },
+        complete,
+      )
+    : await complete();
+  await options.onResponse?.(response);
   checkRunInterruption(control, 'after_compaction_provider');
   if (response.finishReason !== 'stop' || response.toolCalls.length)
     throw new CompactionRejected('压缩候选未完整结束或包含工具调用，未发布检查点。');
