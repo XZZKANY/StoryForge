@@ -80,7 +80,7 @@
   "fixed_now": "2026-10-12T08:30:00Z",
   "sources": {
     "app/domains/agent_runs/runtime.py": "279c22fcf26a681a28eb4001bf291ce48f207509c8e45ca5de93694f1aeabb6d",
-    "app/domains/agent_runs/loop/conversation_runtime.py": "145dbaa10efbf1030e70b003ea59376f544c99f8402904ba2d18180cce621444",
+    "app/domains/agent_runs/loop/conversation_runtime.py": "c3f9e7222ad083292a7a7925c01e4691823f97166c9a86134b620dfe385e8345",
     "app/domains/agent_runs/tools/execution_runtime.py": "fe45f61ace0149e3dd361feac7537fa8a7dd08a9b5f5753bcee4e3604d420b61",
     "app/domains/agent_runs/runtime_delivery.py": "e077b5342f655c9b272b6ec6b3772d06b23b83c8de4e6db45b280eeff5ff77cf",
     "app/domains/agent_runs/service.py": "1081b8a919949af4e57f4b903009a883659b9e399b53df82d347e10bce7f8d1a",
