@@ -159,6 +159,116 @@ def scenarios():
     return s
 
 
+CONTROL_SOURCES = [
+    "app/domains/agent_runs/service_control.py",
+    "app/domains/agent_runs/service_execution.py",
+    "app/domains/agent_runs/loop/recovery.py",
+    "app/domains/agent_runs/loop/checkpoint_store.py",
+    "app/domains/agent_runs/loop/recovery_sources.py",
+]
+PATCH = {"id": "patch-1", "kind": "file_revision", "file_path": "正文/第001章.md", "before": "旧", "after": "新",
+         "requires_confirmation": True, "created_by_tool": "file.revise"}
+
+
+def waiting(outcome=None):
+    agent_result = {"summary": "补丁待确认", "requires_user_confirmation": True}
+    if outcome:
+        agent_result["execution_outcome"] = outcome
+    return {"type": "agent_result", "session_id": "sess-1", "assistant_session_id": None, "intent": "file.revise",
+            "user_message": "改第一章", "agent_result": agent_result, "tool_trace": [], "proposed_patch": PATCH,
+            "plan": [{"step": "file.revise", "detail": "修订", "status": "completed"},
+                     {"step": "permission.confirm", "detail": "等作者确认", "status": "needs_approval"}]}
+
+
+def control_scenarios():
+    pause, stop = {"type": "pause_run"}, {"type": "stop_run"}
+    resume = {"op": "control", "type": "resume_run"}
+    s = []
+    s.append(scenario("pause-then-resume", message("先列目录再答"), [
+        completion("", [("c1", "fs_list", "{}")], controls=[pause]), completion("看完了。")], ops=[resume]))
+    s.append(scenario("pause-edit-then-resume", message("先读再答"), [
+        completion("", [("c1", "fs_read", '{"path":"正文/第002章.md"}')], controls=[pause])],
+        ops=[{"op": "edit", "path": "正文/第001章.md", "content": "第一章 改过"}, resume]))
+    after_tool = [{"boundary": "after_tool", "nth": 1, "status": "paused", "current_step": "paused"}]
+    # Paused after the first of two reads (the second, a directory, is still pending); the resumed run finishes
+    # it, runs one more round and answers, numbering traces after the ones already recorded.
+    s.append(scenario("pause-after-tool-then-resume", message("读人物再答"), [
+        completion("", [("c1", "fs_read", '{"path":"人物/主角.md"}'), ("c2", "fs_read", '{"path":"正文"}')]),
+        completion("", [("c3", "fs_list", "{}")]), completion("看过了。")], triggers=after_tool, ops=[resume]))
+    s.append(scenario("pause-after-tool-unknown-tool-pending-then-resume", message("读人物再答"), [
+        completion("", [("c1", "fs_read", '{"path":"人物/主角.md"}'), ("c2", "no_such_tool", "{}")]),
+        completion("好。")], triggers=after_tool, ops=[resume]))
+    s.append(scenario("pause-before-read-tool-then-resume", message("读人物再答"), [
+        completion("", [("c1", "fs_read", '{"path":"人物/主角.md"}')]), completion("看过了。")],
+        triggers=[{"boundary": "before_tool:fs.read", "nth": 1, "status": "paused", "current_step": "paused"}],
+        ops=[resume]))
+    s.append(scenario("pause-after-tool-create-instructions-then-resume", message("读人物再答"), [
+        completion("", [("c1", "fs_read", '{"path":"人物/主角.md"}')])], triggers=after_tool,
+        ops=[{"op": "edit", "path": ".storyforge/agent-instructions.md", "content": "只写短句"}, resume]))
+    s.append(scenario("edit-read-file-mid-turn-then-resume", message("读人物再答"), [
+        completion("", [("c1", "fs_read", '{"path":"人物/主角.md"}')]),
+        completion("", [("c2", "fs_list", "{}")], edits={"人物/主角.md": "# 林舟 中途改过"}, controls=[pause])],
+        ops=[resume]))
+    s.append(scenario("pause-context-file-edit-then-resume", message("对照人物答", args={"context_bundle": {
+        "files": [{"relative_path": "人物/主角.md", "excerpt": "左臂有旧伤。"}]}}), [
+        completion("", [("c1", "fs_list", "{}")], controls=[pause])],
+        ops=[{"op": "edit", "path": "人物/主角.md", "content": "# 林舟 改过"}, resume]))
+    s.append(scenario("pause-before-finalize-then-resume", message("收尾前停"), [completion("答完了。")],
+                      triggers=[{"boundary": "before_finalize:assistant.chat_loop", "nth": 1, "status": "paused",
+                                 "current_step": "paused"}], ops=[resume]))
+    s.append(scenario("pause-and-resume-in-flight", message("先列目录再答"), [
+        completion("", [("c1", "fs_list", "{}")], controls=[pause, {"type": "resume_run"}]),
+        completion("看完了。")], ops=[resume]))
+    s.append(scenario("pause-after-tool-edit-read-file-then-resume", message("读人物再答"), [
+        completion("", [("c1", "fs_read", '{"path":"人物/主角.md"}')])], triggers=after_tool,
+        ops=[{"op": "edit", "path": "人物/主角.md", "content": "# 林舟 改过"}, resume]))
+    s.append(scenario("pause-resume-then-resume-again", message("再恢复一次"), [
+        completion("", [("c1", "fs_list", "{}")], controls=[pause]), completion("好。")], ops=[resume, resume]))
+    s.append(scenario("stop-in-flight-then-resume", message("停"), [
+        completion("答到一半", controls=[stop, stop])], ops=[resume]))
+    s.append(scenario("controls-on-completed-run", message("答完"), [completion("好。")],
+                      ops=[{"op": "control", "type": "pause_run"}, {"op": "control", "type": "stop_run"}, resume]))
+    s.append(scenario("resume-without-checkpoint", message("单轮", project=False, file=False),
+                      triggers=[{"boundary": "before_fallback", "nth": 1, "status": "paused",
+                                 "current_step": "paused"}], ops=[resume]))
+    s.append(scenario("resume-model-outcome-unknown", message("流式"), [streamed(["半句"], controls=[pause])],
+                      stream=True, ops=[resume]))
+    s.append(scenario("resume-tool-outcome-unknown", message("记设定"), [
+        completion("", [("c1", "knowledge_propose", json.dumps({"proposals": [PROPOSAL]}, ensure_ascii=False))])],
+        triggers=[{"boundary": "before_tool:knowledge.propose", "nth": 1, "status": "paused",
+                   "current_step": "paused"}], ops=[resume]))
+    s.append(scenario("resume-while-running", message("恢复正在跑的"), [
+        completion("好。", controls=[{"type": "resume_run"}])], ops=[]))
+    s.append(scenario("approve-plain", None, setup="permission_wait", wait_result=waiting(),
+                      ops=[{"op": "control", "type": "approve_permission"}]))
+    s.append(scenario("approve-with-outcome", None, setup="permission_wait",
+                      wait_result=waiting({"status": "partial", "code": "provider_error", "message": "部分完成"}),
+                      ops=[{"op": "control", "type": "approve_permission"},
+                           {"op": "control", "type": "approve_permission"}]))
+    s.append(scenario("deny", None, setup="permission_wait", wait_result=waiting(),
+                      ops=[{"op": "control", "type": "deny_permission"}]))
+    s.append(scenario("pause-run-not-yet-executing", None, setup="started_only",
+                      ops=[{"op": "control", "type": "pause_run"}, resume]))
+    s.append(scenario("resume-permission-wait", None, setup="permission_wait", wait_result=waiting(), ops=[resume]))
+    s.append(scenario("pause-permission-wait-then-resume", None, setup="permission_wait", wait_result=waiting(),
+                      ops=[{"op": "control", "type": "pause_run"}, resume]))
+    s.append(scenario("forged-control-payload", message("答完"), [completion("好。")], ops=[
+        {"op": "control", "type": "pause_run",
+         "payload": {"control_effect": "applied", "runtime_recovery": {"resume_diagnostic": {"can_resume": True}},
+                     "note": "作者附言"}}]))
+    s.append(scenario("resume-again-while-resumed-run-in-flight", message("先列目录再答"), [
+        completion("", [("c1", "fs_list", "{}")], controls=[pause]),
+        completion("看完了。", controls=[{"type": "resume_run"}])], ops=[resume]))
+    s.append(scenario("foreign-session-control", message("别人的 run"), [completion("好。")],
+                      ops=[{"op": "control", "type": "pause_run", "session": "sess-other"}]))
+    return s
+
+
+def write_file(path, content):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content.encode("utf-8"))
+
+
 def renumber_artifacts(record):
     """Checkpoints stay in engine memory in TS (§2.6), so they are dropped here and the remaining artifacts are
     numbered by rank; every `artifact_id` that pointed at one of them is rewritten the same way."""
@@ -200,6 +310,24 @@ def compact(value):
 
 
 def p3_agent_run_snapshot() -> dict:
+    return _snapshot("p3-agent-run", scenarios(), SOURCES)
+
+
+def p3_agent_control_snapshot() -> dict:
+    return _snapshot("p3-agent-control", control_scenarios(), SOURCES + CONTROL_SOURCES)
+
+
+def drop_checkpoint_artifact_ids(value):
+    """TS keeps checkpoints in engine memory (no artifact row), so its resume diagnostics carry no artifact_id."""
+    if isinstance(value, dict):
+        return {key: drop_checkpoint_artifact_ids(item) for key, item in value.items()
+                if not (key == "artifact_id" and value.get("kind") == "runtime_checkpoint_resume")}
+    if isinstance(value, list):
+        return [drop_checkpoint_artifact_ids(item) for item in value]
+    return value
+
+
+def _snapshot(suite: str, specs: list, sources: list) -> dict:
     with isolated_fs_oracle("storyforge-golden-agent-run-", fixed=True) as (api, run_dir):
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
@@ -209,7 +337,7 @@ def p3_agent_run_snapshot() -> dict:
         from app.common import llm_control
         from app.common.version import APP_VERSION
         from app.db.base import Base
-        from app.domains.agent_runs import event_sink, request_evidence, service, text_stream
+        from app.domains.agent_runs import event_sink, request_evidence, service, service_execution, text_stream
         from app.domains.agent_runs.event_encoders import websocket_stream_events_from_agent_event
         from app.domains.agent_runs.fs import knowledge_proposals as proposals_module
         from app.domains.agent_runs.loop import run_control
@@ -257,6 +385,10 @@ def p3_agent_run_snapshot() -> dict:
             reply = state["replies"].pop(0)
             if reply.get("set_status"):
                 set_status(*reply["set_status"])
+            for path, content in reply.get("edits", {}).items():
+                write_file(state["project"].root / path, content)
+            for control in reply.get("controls", []):
+                state["controls"].append(run_control(control))
             clock["now"] += reply.get("advance", 0)
             if reply.get("compaction_quote"):
                 model_input = json.loads(body["messages"][1]["content"])
@@ -269,9 +401,22 @@ def p3_agent_run_snapshot() -> dict:
                 raise error.HTTPError(req.full_url, reply["status"], "error", headers, io.BytesIO(raw))
             return FakeBody(raw, None, None, None)
 
+        def run_control(control):
+            # The control channel is another connection in production: a separate session on the same database.
+            try:
+                result = service.handle_agent_control_message(
+                    state["control_db"], public_id="run-1", session_id=control.get("session", "sess-1"),
+                    control_type=control["type"],
+                    payload=control.get("payload"))
+            except Exception as exc:  # noqa: BLE001 - the oracle records every failure shape
+                return {"error": {"type": type(exc).__name__, "message": str(exc)}}
+            return {"event": {"event_type": result.event.event_type, "sequence": result.event.sequence,
+                              "payload": result.event.payload},
+                    "resumed_result": result.resumed_result, "resume_diagnostic": result.resume_diagnostic}
+
         lc.request.urlopen = fake_urlopen
         records = []
-        for spec in scenarios():
+        for spec in specs:
             if (run_dir / "book").exists():
                 shutil.rmtree(run_dir / "book")
             project = Project(run_dir, "book", FILES)
@@ -304,22 +449,52 @@ def p3_agent_run_snapshot() -> dict:
             proposal_ids = iter(range(1, 100))
             proposals_module.uuid4 = lambda proposal_ids=proposal_ids: UUID(f"00000000-0000-4000-8000-{next(proposal_ids):012x}")
             text_stream.uuid4 = lambda streams=streams: f"stream-{next(streams)}"
-            state.update(db=db, checks=[], requests=[], replies=json.loads(json.dumps(spec["replies"])),
+            control_db = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)()
+            state.update(db=db, control_db=control_db, project=project, checks=[], requests=[], controls=[],
+                         replies=json.loads(json.dumps(spec["replies"])),
                          triggers=spec["triggers"], trigger_counts=[0] * len(spec["triggers"]))
             frames, text_frames = [], []
-            msg = json.loads(json.dumps(spec["message"]).replace("$ROOT", root.replace("\\", "\\\\")))
-            if "file_path" in msg["args"]:
-                msg["args"]["file_path"] = str(project.root / "正文" / "第001章.md")
+
+            def on_event(event, frames=frames):
+                frames.extend(websocket_stream_events_from_agent_event(event))
+
             record = {"id": spec["id"], "spec_json": json.dumps(spec, ensure_ascii=False)}
-            try:
-                out = service.run_agent_user_message(
-                    db, agent_session_id="sess-1", message=msg,
-                    on_event=lambda event, frames=frames: frames.extend(websocket_stream_events_from_agent_event(event)),
-                    on_text=(lambda frame, text_frames=text_frames: text_frames.append(frame.model_dump()))
-                    if spec["stream"] else None)
-                record["result"] = out.result
-            except AgentRuntimeUserMessageError as exc:
-                record["error"] = {"type": type(exc).__name__, "message": str(exc)}
+            if spec.get("setup"):
+                # Built through the real lifecycle and sink: a run just created (no execution yet), or one
+                # settled at permission.confirm.
+                start = service.start_agent_user_message_run(
+                    db, agent_session_id="sess-1", message={"user_message": "改第一章", "run_id": "run-1"})
+                on_event(start.started_event)
+                record["result"] = None
+            if spec.get("setup") == "permission_wait":
+                started = service_execution.start_agent_execution(db, start.run)
+                sink = event_sink.AgentRunEventSink(db, on_event=on_event)
+                sink.bind_execution(started)
+                wait = json.loads(json.dumps(spec["wait_result"]))
+                sink.record_permission_required(start.run, wait, reason="requires_user_confirmation")
+                out_result, settled = service_execution.finish_agent_execution(db, start.run, started, wait)
+                on_event(settled)
+                record["result"] = out_result
+            elif not spec.get("setup"):
+                msg = json.loads(json.dumps(spec["message"]).replace("$ROOT", root.replace("\\", "\\\\")))
+                if "file_path" in msg["args"]:
+                    msg["args"]["file_path"] = str(project.root / "正文" / "第001章.md")
+                try:
+                    out = service.run_agent_user_message(
+                        db, agent_session_id="sess-1", message=msg, on_event=on_event,
+                        on_text=(lambda frame, text_frames=text_frames: text_frames.append(frame.model_dump()))
+                        if spec["stream"] else None)
+                    record["result"] = out.result
+                except AgentRuntimeUserMessageError as exc:
+                    record["error"] = {"type": type(exc).__name__, "message": str(exc)}
+            for op in spec.get("ops", []):
+                if op["op"] == "edit":
+                    write_file(project.root / op["path"], op["content"])
+                else:
+                    state["controls"].append(run_control(op))
+            if "ops" in spec:
+                record["controls"] = state["controls"]
+            control_db.close()
             db.expire_all()
             record.update(
                 frames=frames, text_frames=text_frames, checks=state["checks"], requests=state["requests"],
@@ -343,13 +518,13 @@ def p3_agent_run_snapshot() -> dict:
                             for r in db.query(AssistantToolCall).order_by(AssistantToolCall.id)],
             )
             plain = json.loads(json.dumps(record, ensure_ascii=False, default=str))
-            normalized = compact(renumber_artifacts(stable(plain, project.root)))
+            normalized = compact(renumber_artifacts(drop_checkpoint_artifact_ids(stable(plain, project.root))))
             records.append({**normalized, "spec_json": record["spec_json"]})
             db.close()
         event_sink.AgentRunEventSink.runtime_interruption = real_check
         return {
             "format_version": 1,
-            "suite": "p3-agent-run",
+            "suite": suite,
             "secret": SECRET,
             "source": SOURCE,
             "files": FILES,
@@ -357,7 +532,7 @@ def p3_agent_run_snapshot() -> dict:
             "app_version": APP_VERSION,
             "step_seconds": STEP,
             "fixed_now": "2026-10-12T08:30:00Z",
-            "sources": {path: hashlib.sha256((api / path).read_bytes()).hexdigest() for path in SOURCES},
+            "sources": {path: hashlib.sha256((api / path).read_bytes()).hexdigest() for path in sources},
             "platform": "windows" if os.name == "nt" else "posix",
             "project_root": str(run_dir / "book"),
             "scenarios": records,

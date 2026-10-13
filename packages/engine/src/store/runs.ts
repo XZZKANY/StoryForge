@@ -78,6 +78,17 @@ export interface RunStore {
     patch: RunPatch,
     event: (run: RunRecord) => RunEventFields,
   ): Promise<{ run: RunRecord; event: RunEventRecord } | null>;
+  /**
+   * 控制通道的比较交换：仅当 run 的状态与步骤仍是读到的值时写入 patch，否则不写、返回 null
+   * （Python 的 `UPDATE … WHERE status = ? AND current_step = ?`）。
+   */
+  updateRunIf(
+    id: number,
+    expected: { status: string | readonly string[]; current_step?: string | null },
+    patch: RunPatch,
+  ): Promise<RunRecord | null>;
+  /** 控制事件先占序号、裁决后回写载荷（Python 同一事务里改这一行）。 */
+  updateEvent(id: number, payload: Obj): Promise<RunEventRecord>;
   /** 追加一条事件：id 全局递增，sequence = 该 run 当前最大值 + 1。 */
   appendEvent(fields: RunEventFields): Promise<RunEventRecord>;
   insertArtifact(fields: Omit<ArtifactRecord, 'id'>): Promise<ArtifactRecord>;
@@ -152,8 +163,31 @@ export class MemoryRunStore implements RunStore, RunStatusView {
     return { run: clone(run), event: this.pushEvent(fields) };
   }
 
+  async updateRunIf(
+    id: number,
+    expected: { status: string | readonly string[]; current_step?: string | null },
+    patch: RunPatch,
+  ): Promise<RunRecord | null> {
+    const run = this.runs.find((item) => item.id === id);
+    if (!run) throw new RangeError(`run ${id} 不存在`);
+    const statuses: readonly string[] =
+      typeof expected.status === 'string' ? [expected.status] : expected.status;
+    if (!statuses.includes(run.status)) return null;
+    if (expected.current_step !== undefined && run.current_step !== expected.current_step)
+      return null;
+    Object.assign(run, clone(patch));
+    return clone(run);
+  }
+
   async appendEvent(fields: RunEventFields): Promise<RunEventRecord> {
     return this.pushEvent(fields);
+  }
+
+  async updateEvent(id: number, payload: Obj): Promise<RunEventRecord> {
+    const index = this.eventRows.findIndex((item) => item.id === id);
+    if (index < 0) throw new RangeError(`event ${id} 不存在`);
+    this.eventRows[index] = { ...this.eventRows[index], payload: clone(payload) };
+    return clone(this.eventRows[index]);
   }
 
   private pushEvent(fields: RunEventFields): RunEventRecord {

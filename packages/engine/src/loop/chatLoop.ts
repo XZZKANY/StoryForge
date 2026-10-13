@@ -8,7 +8,12 @@ import { RunInterrupted } from '../llm/control';
 import type { ModelObservation } from '../llm/observation';
 import { LlmError } from '../llm/payload';
 import type { AuthorView } from './authorView';
-import { LoopCheckpointStore, StoryForgeCheckpointStore } from './chatLoopCheckpoints';
+import {
+  diagnoseCheckpoint,
+  LoopCheckpointStore,
+  restoreCheckpointContext,
+  StoryForgeCheckpointStore,
+} from './chatLoopCheckpoints';
 import {
   StoryForgeRuntimeContext,
   type LoopRunView,
@@ -146,7 +151,7 @@ export async function runChatLoop(
     },
     newStreamId: deps.newStreamId,
   });
-  const checkpoints = new StoryForgeCheckpointStore(context, deps.checkpoints);
+  const checkpoints = new StoryForgeCheckpointStore(context, deps.checkpoints, deps);
   let provider: StoryForgeProviderAdapter;
   let model: string;
   try {
@@ -161,6 +166,18 @@ export async function runChatLoop(
     throw error;
   }
   context.callControl = deps.scope.control;
+  // 控制通道认领续跑时把步骤写成 resumed；诊断在认领后已做过一次，这里再核一遍再恢复。
+  const saved =
+    input.run.current_step === 'resumed' ? deps.checkpoints.latest(input.run.public_id) : null;
+  if (saved !== null) {
+    const diagnostic = await diagnoseCheckpoint(deps, saved, {
+      public_id: input.run.public_id,
+      assistant_session_id: input.run.assistant_session_id ?? null,
+      permission_profile: input.run.permission_profile,
+    });
+    if (diagnostic.can_resume !== true) throw new Error(String(diagnostic.reason));
+    restoreCheckpointContext(context, saved);
+  }
   const runtime = new ToolCallingRuntime(provider, buildStoryforgeToolRegistry(context), {
     policy: new StoryForgeRuntimePolicy(context),
     selector: new StoryForgeToolSelector(),
@@ -184,6 +201,7 @@ export async function runChatLoop(
           finalMessage: FINAL_ROUND_NOTICE,
         }),
         applicationContext: context,
+        resume: saved === null ? null : { checkpoint: saved.checkpoint, command: 'continue' },
       });
     result = deps.observation
       ? await deps.observation.withOperation('agent.loop', provenance, run)

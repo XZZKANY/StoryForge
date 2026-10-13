@@ -196,6 +196,7 @@ export const AGENT_RUN_FAILED = 'agent_run_failed';
 export const AGENT_RUN_INTERRUPTED = 'agent_run_interrupted';
 export const AGENT_EXECUTION_STARTED = 'agent_execution_started';
 export const AGENT_EXECUTION_SETTLED = 'agent_execution_settled';
+export const AGENT_EXECUTION_CLAIMED = 'agent_execution_claimed';
 export const SYSTEM_JOB = 'system_job';
 export const AGENT_RUNTIME_PROGRESS = 'agent_runtime_progress';
 export const PERMISSION_APPROVED = 'permission_approved';

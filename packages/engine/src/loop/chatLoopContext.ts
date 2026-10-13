@@ -4,6 +4,7 @@ import type { SecretContext } from '../kernel/redaction';
 import type { LlmSource } from '../llm/config';
 import { ToolCall, type ChatResponse } from '../llm/contracts';
 import type { RunControl } from '../llm/control';
+import type { RecoverySources } from './chatLoopCheckpoints';
 import type { ChatLoopOutcome } from './chatLoopTypes';
 import type { InterruptionCallback } from './runControl';
 import type { RuntimeCheckpoint } from './sdkState';
@@ -29,6 +30,9 @@ export type TraceCallback = (trace: AgentToolTrace) => void | Promise<void>;
 export type LoopRunView = {
   readonly public_id: string;
   readonly permission_profile: string;
+  /** 续跑时是 'resumed'（控制通道认领后写下）。 */
+  readonly current_step?: string | null;
+  readonly assistant_session_id?: number | null;
 };
 
 export type RuntimeContextFields = {
@@ -68,6 +72,8 @@ export class StoryForgeRuntimeContext {
   completedModelRounds = 0;
   interruption: Obj | null = null;
   latestCheckpoint: RuntimeCheckpoint | null = null;
+  /** 本轮读过文件的指纹（第一次读到时记下，续跑时原样恢复）。 */
+  recoverySources: RecoverySources | null = null;
   callControl: RunControl | null = null;
   handledCallIds = new Set<string>();
   callsById = new Map<string, ToolCall>();
