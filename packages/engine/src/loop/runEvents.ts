@@ -7,7 +7,13 @@ import {
   type SecretContext,
 } from '../kernel/redaction';
 import { agentPlanPayload } from '../kernel/skillCatalog';
-import type { RunEventRecord, RunRecord, RunStore } from '../store/runs';
+import {
+  RunPublicIdConflictError,
+  type RunEventFields,
+  type RunEventRecord,
+  type RunRecord,
+  type RunStore,
+} from '../store/runs';
 import { canonicalPermissionProfile, normalizePermissionProfile } from './permission';
 import {
   AGENT_ARTIFACT,
@@ -71,14 +77,15 @@ export type EventObserver = (event: RunEventRecord, run: RunRecord) => void;
 
 export type RunServices = { store: RunStore; secrets: SecretContext };
 
-/** 追加事件：消息与载荷脱敏，私有可恢复 artifact 只留对外摘要。 */
-export async function recordAgentEvent(
-  services: RunServices,
+type AgentEventInput = { eventType: string; actor: string; message?: string; payload?: Obj | null };
+
+/** 事件行：消息与载荷脱敏，私有可恢复 artifact 只留对外摘要。 */
+function agentEventFields(
+  secrets: SecretContext,
   run: RunRecord,
-  fields: { eventType: string; actor: string; message?: string; payload?: Obj | null },
-): Promise<RunEventRecord> {
-  const { store, secrets } = services;
-  return store.appendEvent({
+  fields: AgentEventInput,
+): RunEventFields {
+  return {
     run_id: run.id,
     event_type: fields.eventType,
     actor: fields.actor,
@@ -87,8 +94,15 @@ export async function recordAgentEvent(
       publicRuntimeEventPayload(fields.eventType, deepCopy(fields.payload ?? {})) as PlainJson,
       secrets,
     ) as Obj,
-  });
+  };
 }
+
+export const recordAgentEvent = (
+  services: RunServices,
+  run: RunRecord,
+  fields: AgentEventInput,
+): Promise<RunEventRecord> =>
+  services.store.appendEvent(agentEventFields(services.secrets, run, fields));
 
 function artifactEventPayload(kind: string, payload: Obj): Obj {
   if (kind !== KNOWLEDGE_PROPOSAL_ARTIFACT_KIND) return payload;
@@ -143,20 +157,28 @@ export async function createOrResumeAgentRun(
   const { store, secrets } = services;
   const requested = normalizePermissionProfile(fields.permissionProfile);
   const redact = (value: Obj) => redactSensitive(deepCopy(value) as PlainJson, secrets) as Obj;
-  const existing = await store.findRun(fields.publicId);
-  if (existing === null)
-    return store.insertRun({
-      public_id: fields.publicId,
-      session_id: fields.sessionId,
-      assistant_session_id: null,
-      goal: redactSensitiveText(fields.goal, secrets),
-      scope: redact(fields.scope),
-      permission_profile: requested.profile,
-      budget: redact(fields.budget),
-      status: 'running',
-      root_plan: [],
-      current_step: null,
-    });
+  let existing = await store.findRun(fields.publicId);
+  if (existing === null) {
+    try {
+      return await store.insertRun({
+        public_id: fields.publicId,
+        session_id: fields.sessionId,
+        assistant_session_id: null,
+        goal: redactSensitiveText(fields.goal, secrets),
+        scope: redact(fields.scope),
+        permission_profile: requested.profile,
+        budget: redact(fields.budget),
+        status: 'running',
+        root_plan: [],
+        current_step: null,
+      });
+    } catch (error) {
+      // 同一 run 被并发创建：唯一约束挡下后到者，它按续接重走下面的归属守卫（与先后到达同义）。
+      if (!(error instanceof RunPublicIdConflictError)) throw error;
+      existing = await store.findRun(fields.publicId);
+      if (existing === null) throw error;
+    }
+  }
   // 归属守卫：不能把另一会话的 run 静默搬到本会话，不符按「不存在」报错。
   if (existing.session_id !== fields.sessionId) throw new AgentRunNotFoundError();
   const pick = (value: Obj, fallback: Obj) => (Object.keys(value).length ? value : fallback);
@@ -323,26 +345,30 @@ export async function completeAgentRun(
   result: Obj,
   options: { executionId: number | null; onEvent?: EventObserver },
 ): Promise<RunRecord> {
-  const current = await services.store.getRun(run.id);
-  if (current.status !== 'running') return current;
   const agentResult = isObj(result.agent_result) ? result.agent_result : {};
-  const updated = await services.store.updateRun(run.id, {
-    status: 'completed',
-    current_step: 'completed',
-    assistant_session_id: sessionColumn(result.assistant_session_id),
-  });
-  const event = await recordAgentEvent(services, updated, {
-    eventType: AGENT_RUN_COMPLETED,
-    actor: 'root-agent',
-    message: String(agentResult.summary || 'AgentRun 已完成。'),
-    payload: {
-      ...completedEventPayload(result, agentResult),
-      permission_profile: canonicalPermissionProfile(updated.permission_profile),
-      ...(options.executionId !== null ? { execution_id: options.executionId } : {}),
+  const settled = await services.store.settleRun(
+    run.id,
+    'running',
+    {
+      status: 'completed',
+      current_step: 'completed',
+      assistant_session_id: sessionColumn(result.assistant_session_id),
     },
-  });
-  options.onEvent?.(event, updated);
-  return updated;
+    (updated) =>
+      agentEventFields(services.secrets, updated, {
+        eventType: AGENT_RUN_COMPLETED,
+        actor: 'root-agent',
+        message: String(agentResult.summary || 'AgentRun 已完成。'),
+        payload: {
+          ...completedEventPayload(result, agentResult),
+          permission_profile: canonicalPermissionProfile(updated.permission_profile),
+          ...(options.executionId !== null ? { execution_id: options.executionId } : {}),
+        },
+      }),
+  );
+  if (settled === null) return services.store.getRun(run.id);
+  options.onEvent?.(settled.event, settled.run);
+  return settled.run;
 }
 
 export async function failAgentRun(
@@ -351,24 +377,25 @@ export async function failAgentRun(
   fields: { message: string; payload?: Obj | null },
   options: { executionId: number | null; onEvent?: EventObserver },
 ): Promise<RunRecord> {
-  const current = await services.store.getRun(run.id);
-  if (current.status !== 'running') return current;
-  const updated = await services.store.updateRun(run.id, {
-    status: 'failed',
-    current_step: 'failed',
-  });
-  const event = await recordAgentEvent(services, updated, {
-    eventType: AGENT_RUN_FAILED,
-    actor: 'root-agent',
-    message: fields.message,
-    payload: {
-      ...(fields.payload ?? {}),
-      permission_profile: canonicalPermissionProfile(updated.permission_profile),
-      ...(options.executionId !== null ? { execution_id: options.executionId } : {}),
-    },
-  });
-  options.onEvent?.(event, updated);
-  return updated;
+  const settled = await services.store.settleRun(
+    run.id,
+    'running',
+    { status: 'failed', current_step: 'failed' },
+    (updated) =>
+      agentEventFields(services.secrets, updated, {
+        eventType: AGENT_RUN_FAILED,
+        actor: 'root-agent',
+        message: fields.message,
+        payload: {
+          ...(fields.payload ?? {}),
+          permission_profile: canonicalPermissionProfile(updated.permission_profile),
+          ...(options.executionId !== null ? { execution_id: options.executionId } : {}),
+        },
+      }),
+  );
+  if (settled === null) return services.store.getRun(run.id);
+  options.onEvent?.(settled.event, settled.run);
+  return settled.run;
 }
 
 // ---- 收尾：worker 返回之后按 run 状态结算（单进程里执行权恒为本次） ----
@@ -579,37 +606,38 @@ export class AgentRunEventSink {
   }
 
   async recordPermissionRequired(run: RunRecord, result: Obj, reason: string): Promise<void> {
-    const current = await this.services.store.getRun(run.id);
-    if (current.status !== 'running') return;
     const agent = isObj(result.agent_result) ? result.agent_result : {};
     const patch = isObj(result.proposed_patch) ? result.proposed_patch : null;
-    const updated = await this.services.store.updateRun(run.id, {
-      status: 'paused',
-      current_step: 'permission.confirm',
-    });
-    const event = await recordAgentEvent(this.services, updated, {
-      eventType: PERMISSION_REQUIRED,
-      actor: 'permission-gate',
-      message: '该步骤需要作者确认后才能继续。',
-      payload: {
-        permission_profile: canonicalPermissionProfile(updated.permission_profile),
-        ...(this.executionId !== null ? { execution_id: this.executionId } : {}),
-        intent: result.intent ?? null,
-        // 断线后前端重建终态时，assistant_session_id 是必要字段。
-        assistant_session_id: updated.assistant_session_id,
-        summary: agent.summary ?? null,
-        requires_user_confirmation: true,
-        ...(agent.execution_outcome ? executionResultPayload(result) : {}),
-        reason,
-        proposed_patch: patch,
-        confirmation_action: agent.confirmation_action ?? null,
-        confirmation_kind: agent.confirmation_kind ?? null,
-        chapter_brief: agent.chapter_brief ?? null,
-        blocked_tool:
-          patch !== null ? patch.created_by_tool || 'file.revise' : (result.intent ?? null),
-      },
-    });
-    await this.emit(event);
+    const settled = await this.services.store.settleRun(
+      run.id,
+      'running',
+      { status: 'paused', current_step: 'permission.confirm' },
+      (updated) =>
+        agentEventFields(this.services.secrets, updated, {
+          eventType: PERMISSION_REQUIRED,
+          actor: 'permission-gate',
+          message: '该步骤需要作者确认后才能继续。',
+          payload: {
+            permission_profile: canonicalPermissionProfile(updated.permission_profile),
+            ...(this.executionId !== null ? { execution_id: this.executionId } : {}),
+            intent: result.intent ?? null,
+            // 断线后前端重建终态时，assistant_session_id 是必要字段。
+            assistant_session_id: updated.assistant_session_id,
+            summary: agent.summary ?? null,
+            requires_user_confirmation: true,
+            ...(agent.execution_outcome ? executionResultPayload(result) : {}),
+            reason,
+            proposed_patch: patch,
+            confirmation_action: agent.confirmation_action ?? null,
+            confirmation_kind: agent.confirmation_kind ?? null,
+            chapter_brief: agent.chapter_brief ?? null,
+            blocked_tool:
+              patch !== null ? patch.created_by_tool || 'file.revise' : (result.intent ?? null),
+          },
+        }),
+    );
+    // 只有赢得结算的一方发帧；输了说明控制通道已经落了终态。
+    if (settled !== null) this.onEvent?.(settled.event, settled.run);
   }
 
   async recordSystemJob(
