@@ -89,11 +89,16 @@ export interface RunStore {
   runsOfAssistantSession(assistantSessionId: number): Promise<readonly RunRecord[]>;
 }
 
+/** 同步读出某个 run 当前的状态与步骤（运行控制在传输层的同步检查要用）。 */
+export interface RunStatusView {
+  peek(id: number): { readonly status: string; readonly current_step: string | null };
+}
+
 // JsonFloat 要保留类身份（structuredClone 会把它变成普通对象）。
 const clone = <T>(value: T): T => cloneJson(value as JsonValue) as T;
 
 /** 内存实现：返回值都是副本，调用方改了不影响存储（与重新读库同义）。 */
-export class MemoryRunStore implements RunStore {
+export class MemoryRunStore implements RunStore, RunStatusView {
   private readonly runs: RunRecord[] = [];
   private readonly eventRows: RunEventRecord[] = [];
   private readonly artifactRows: ArtifactRecord[] = [];
@@ -102,6 +107,12 @@ export class MemoryRunStore implements RunStore {
   async findRun(publicId: string): Promise<RunRecord | null> {
     const run = this.runs.find((item) => item.public_id === publicId);
     return run ? clone(run) : null;
+  }
+
+  peek(id: number) {
+    const run = this.runs.find((item) => item.id === id);
+    if (!run) throw new RangeError(`run ${id} 不存在`);
+    return { status: run.status, current_step: run.current_step };
   }
 
   async getRun(id: number): Promise<RunRecord> {

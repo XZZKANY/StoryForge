@@ -175,7 +175,8 @@ const modelOf = (llm: AssistantLlm) => envValue(llm.source, 'STORYFORGE_LLM_MODE
 const cpLen = (text: string) => Array.from(text).length;
 const cpSlice = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 
-function assertSessionProjectMatches(
+/** 会话归属必须与当前项目一致；无项目的会话保持无项目。 */
+export function assertSessionProjectMatches(
   session: AssistantSessionRef,
   projectRoot: string | null,
   platform: Platform,

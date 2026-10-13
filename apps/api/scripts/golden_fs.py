@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import shutil
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -65,7 +66,18 @@ def stable(value: object, root: Path) -> object:
 
 
 @contextmanager
-def isolated_fs_oracle(prefix: str):
+def _fixed_directory(path: Path):
+    if path.exists():
+        shutil.rmtree(path)
+    path.mkdir()
+    try:
+        yield str(path)
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
+
+
+@contextmanager
+def isolated_fs_oracle(prefix: str, *, fixed: bool = False):
     api = Path(__file__).resolve().parents[1]
     repo = api.parents[1]
     owned = repo / "output/ts-engine-p1"
@@ -77,7 +89,9 @@ def isolated_fs_oracle(prefix: str):
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(api))
     runtime_roots = [Path(sys.prefix), Path(sys.base_prefix)]
-    with TemporaryDirectory(prefix=prefix, dir=owned) as temporary:
+    # fixed=True: a stable run directory, so digests over absolute project paths are reproducible
+    # (the golden records the root; the TS replay uses the same string).
+    with (_fixed_directory(owned / prefix.strip("-")) if fixed else TemporaryDirectory(prefix=prefix, dir=owned)) as temporary:
         run = Path(temporary)
         home = run / "home"
         home.mkdir()

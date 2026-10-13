@@ -7798,3 +7798,15 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 接受的差异：传输进度写入证据失败时，TS 在这次派发结算时报 `RequestEvidenceError`（进度写入排队、结算前等待），Python 在下一次传输边界就报。
 - 门禁：引擎 vitest 12524 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
 - 未做：隐藏任务的编排（`_run_hidden_system_jobs`）随 P3-5b2b；`run_user_message` / `run_agent_user_message` 组装与运行状态的同步视图随 P3-5b2b。
+
+## 2026-10-13 P3-5b2b 对话轮次编排（TS 迁移，默认仍走 Python）
+
+- 范围：`runtime.run_user_message`（chat 分支）、`loop/conversation_runtime`（`_try_chat_loop` / `_run_chat_explain` / `_run_hidden_system_jobs` / `_runtime_interruption`）、`tools/execution_runtime._execute_tool` 与 `_record_result_artifacts`、`runtime_delivery.interrupted_delivery_result`、`events/review_sources.current_conversation_review`、`events/runtime_support.base_response`、`service.run_agent_user_message` 组装 → `packages/engine/src/loop/agentRuntime.ts`。连带：`MemoryRunStore` 实现同步状态读 `RunStatusView.peek`；`AgentRunEventSink` 加传输进度排队（`queueRuntimeProgress` / `drainRuntimeProgress`，其余记录前先排空）；`runChatLoop` 在 `agent.loop` 操作范围里跑并带上消息来源指纹；`assertSessionProjectMatches` 导出。
+- P3-6 之前的边界：固定管线 intent 与文件输入模式的循环工具直接报「随 P3-6 搬迁」；补丁确认、作用域绑定、审稿报告交接与 writer 送达事实的代码已搬，由 P3-6 的场景验证。
+- 预言机：新 `apps/api/scripts/golden_agent_run.py`（`golden_dump.py --suite p3-agent-run`），真实 `run_agent_user_message`，模型在 HTTP 层脚本化（复用 `golden_llm_harness` 的响应体），控制写按中断边界（包一层 `AgentRunEventSink.runtime_interruption` 记录边界并触发）或在请求进行中触发，传输 / 运行控制 / llm_control 三处时钟虚拟化；25 个场景（明细见迁移计划 P3-5b2b 条）。`golden_fs.isolated_fs_oracle` 新增 `fixed=True`（固定运行目录），让含绝对路径的请求证据摘要可复现，根路径记进 golden。`--check` 复导逐字节一致；其他用到 `golden_fs` 的套件（p3-chat-loop / p3-run-evidence / p3-conversation / p3-tool-handlers）`--check` 仍一致。
+- TS 回放：`agentRun.test.ts` 31 条全绿（25 个场景逐项一致 + 场景计数 + 5 个场景在「每次调用先让出一拍、传输进度写得更慢」的异步存储上事件与帧顺序仍一致）。
+- 变异：67 处，抓住 65 处；余 2 处等价（中断投递里的 `writeback_blocked_until_user_confirms=false` 随后又由 5a 的 `interruptedResult` 设一次；完成结算前的进度排空在任何路径上都已被系统任务事件排空）。首轮 61/67，进度排队相关 5 处在内存存储上不可观测（写入同步完成），补乱序异步存储测试与「两轮工具」「压缩请求后停止」两个场景后抓住 4 处。
+- 逮到 Python 既有缺陷（未修，等作者定）：`_run_hidden_system_jobs` 用 `get_assistant_session` 读消息，生产 session 是 `expire_on_commit=False`，会话的消息集合停在本轮开头第一次加载时，本轮刚写的作者 / 回答两条读不到——新会话的隐藏摘要永远记 0 条、`last_user_message` 为空、标题来源记成 `agent_result`；有历史的会话摘要少两条、`last_user_message` 是上一轮的。预言机在隐藏任务前只让消息集合失效以记录本意，TS 读当前消息。
+- 接受的差异：`runtime_checkpoint` 不进 TS 的 artifact 表（§2.6），其余 artifact 的 id 前移（预言机去掉检查点行、按顺序重新编号并改写 `artifact_id`）；整数值费用的 2.0 / 2 差异会进入压缩的模型输入与证据摘要（两边各自自洽；预言机用 2.5 / 8.5 的费率避开）。
+- 门禁：引擎 vitest 12555 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+- 未做：P3-5c 控制通道（暂停 / 停止 / 恢复，条件写）与续跑；P3-6 管线；P3-7 接线（`ts` 档、会话标题写回的端口实现、正则换可打断实现）。
