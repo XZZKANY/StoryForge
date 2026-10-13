@@ -5,6 +5,7 @@ import type { ProjectReader } from '../readPort';
 import { LlmConfigError, requiredEnv, type LlmSource } from '../llm/config';
 import { messagesFromOpenai } from '../llm/contracts';
 import { RunInterrupted } from '../llm/control';
+import type { ModelObservation } from '../llm/observation';
 import { LlmError } from '../llm/payload';
 import type { AuthorView } from './authorView';
 import { LoopCheckpointStore, StoryForgeCheckpointStore } from './chatLoopCheckpoints';
@@ -79,6 +80,8 @@ export type ChatLoopDeps = {
   readonly newStreamId: () => string;
   /** SDK 轨迹时间戳。 */
   readonly now?: () => string;
+  /** 模型请求证据范围：循环自己的派发记为 agent.loop，并带上消息来源指纹。 */
+  readonly observation?: ModelObservation | null;
 };
 
 export type ChatLoopInput = {
@@ -107,6 +110,7 @@ export async function runChatLoop(
   deps: ChatLoopDeps,
   input: ChatLoopInput,
 ): Promise<ChatLoopOutcome> {
+  const provenance = input.provenance ?? {};
   const messages = messagesFromOpenai(
     (await storyforgeMessages(
       deps,
@@ -118,7 +122,7 @@ export async function runChatLoop(
         authorView: input.authorView ?? null,
         pinnedContext: input.pinnedContext ?? null,
       },
-      input.provenance ?? {},
+      provenance,
     )) as JsonObject[],
   );
   const outcome = new ChatLoopOutcome('');
@@ -169,17 +173,21 @@ export async function runChatLoop(
   });
   let result;
   try {
-    result = await runtime.run(messages, {
-      model,
-      runId: input.run.public_id,
-      limits: runtimeLimits({
-        maxRounds: LOOP_MAX_ROUNDS,
-        maxToolCalls: 32,
-        maxToolOutputChars: LOOP_TOOL_OUTPUT_BUDGET_CHARS,
-        finalMessage: FINAL_ROUND_NOTICE,
-      }),
-      applicationContext: context,
-    });
+    const run = () =>
+      runtime.run(messages, {
+        model,
+        runId: input.run.public_id,
+        limits: runtimeLimits({
+          maxRounds: LOOP_MAX_ROUNDS,
+          maxToolCalls: 32,
+          maxToolOutputChars: LOOP_TOOL_OUTPUT_BUDGET_CHARS,
+          finalMessage: FINAL_ROUND_NOTICE,
+        }),
+        applicationContext: context,
+      });
+    result = deps.observation
+      ? await deps.observation.withOperation('agent.loop', provenance, run)
+      : await run();
   } catch (error) {
     if (error instanceof RunInterrupted)
       return finishInterruptedRun(context, error.reason, deps.scope);

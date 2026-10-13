@@ -511,6 +511,8 @@ export async function finishAgentExecution(
  */
 export class AgentRunEventSink {
   private executionId: number | null = null;
+  /** 传输进度是同步回调：先排队，后续每次记录前都等它落库（与 Python 同步提交同序）。 */
+  private progress: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly services: RunServices,
@@ -529,7 +531,17 @@ export class AgentRunEventSink {
     if (this.onEvent) this.onEvent(event, await this.services.store.getRun(event.run_id));
   }
 
+  queueRuntimeProgress(run: RunRecord, progress: Obj): void {
+    this.progress = this.progress.then(() => this.recordRuntimeProgress(run, progress));
+  }
+
+  /** 排队中的传输进度全部落库（收尾之前、以及每次记别的事件之前）。 */
+  drainRuntimeProgress(): Promise<void> {
+    return this.progress;
+  }
+
   async recordPlan(run: RunRecord, result: Obj): Promise<RunRecord> {
+    await this.progress;
     const plan = Array.isArray(result.plan) ? result.plan : [];
     const updated = await this.services.store.updateRun(run.id, {
       root_plan: plan,
@@ -553,6 +565,7 @@ export class AgentRunEventSink {
   }
 
   async recordToolTrace(run: RunRecord, trace: AgentToolTrace, index: number): Promise<void> {
+    await this.progress;
     const input = trace.input_summary;
     const output = trace.output_summary ?? {};
     if (trace.tool_name.startsWith('subagent.')) {
@@ -601,11 +614,13 @@ export class AgentRunEventSink {
     run: RunRecord,
     fields: { kind: string; payload: Obj; requiresConfirmation: boolean },
   ): Promise<void> {
+    await this.progress;
     const { event } = await recordAgentArtifact(this.services, run, fields);
     await this.emit(event);
   }
 
   async recordPermissionRequired(run: RunRecord, result: Obj, reason: string): Promise<void> {
+    await this.progress;
     const agent = isObj(result.agent_result) ? result.agent_result : {};
     const patch = isObj(result.proposed_patch) ? result.proposed_patch : null;
     const settled = await this.services.store.settleRun(
@@ -649,6 +664,7 @@ export class AgentRunEventSink {
       artifactPayload?: Obj | null;
     },
   ): Promise<void> {
+    await this.progress;
     if (
       fields.artifactKind &&
       fields.artifactPayload !== null &&
@@ -670,14 +686,16 @@ export class AgentRunEventSink {
     );
   }
 
-  complete(run: RunRecord, result: Obj): Promise<RunRecord> {
+  async complete(run: RunRecord, result: Obj): Promise<RunRecord> {
+    await this.progress;
     return completeAgentRun(this.services, run, result, {
       executionId: this.executionId,
       onEvent: this.onEvent ?? undefined,
     });
   }
 
-  fail(run: RunRecord, message: string, payload: Obj | null = null): Promise<RunRecord> {
+  async fail(run: RunRecord, message: string, payload: Obj | null = null): Promise<RunRecord> {
+    await this.progress;
     return failAgentRun(
       this.services,
       run,
