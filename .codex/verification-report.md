@@ -7817,3 +7817,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 修复：`source_versions` 跳过存在但不是文件的路径（目录从来不是正文来源）；`sources_unchanged` 不变（记过的文件后来变成目录仍判为来源已变）。`recovery_sources.py` 是 CRLF，按字节修改。
 - 测试：新增 `test_directory_named_by_the_model_is_not_a_source_and_does_not_fail_the_save`（当前文件与模型 `fs_read` 都指向目录时照常保存、目录不进指纹、真实文件照记）；原 `test_failed_build_does_not_modify_context_or_add_artifact` 借目录触发构建失败，改为用不存在的项目根触发。变异：撤掉修复，新测试变红（1/1）。`pytest -k "agent or checkpoint or recovery or loop"` 1499 通过 / 25 跳过。
 - TS 迁移同步：`golden_chat_loop.py` 钉住的源文件加入 `recovery_sources.py`，重导 `p3-chat-loop`；`fs-read-directory` 场景 Python 现在照常继续（「那是目录。」），TS 回放去掉特例改为普通比对，39 条全绿。
+
+## 2026-10-13 修：隐藏摘要 / 标题任务漏掉本轮消息（Python）
+
+- 来源：P3-5b2b 预言机实证。`loop/conversation_runtime._run_hidden_system_jobs` 用 `get_assistant_session` 拿会话再读 `messages`；生产 session 是 `expire_on_commit=False`，会话对象在本轮更早处（建会话或按 id 解析）已加载过，`selectinload` 不刷新已加载的集合，本轮刚写入的作者 / 回答两条读不到。结果：新会话的隐藏摘要永远记 0 条、`last_user_message` 为空、标题来源记成 `agent_result`；有历史的会话摘要少两条、`last_user_message` 是上一轮的。
+- 修复：读消息前 `session.refresh(assistant_session, attribute_names=["messages"])`（按关系上的 `order_by` 重载），只影响这一处。
+- 测试：新增 `test_hidden_summary_and_title_see_this_turns_messages`（真实 SSE 接口、未配置模型走单轮回落；摘要记 2 条、标题来源 `first_user_message`）。变异：撤掉刷新，新测试变红（1/1）。`test_actual_request_committed_before_dispatch_and_rebuildable` 末尾断言「任何 agent_artifact 事件都不含作者原话」此前靠这个 bug 成立（摘要的 `last_user_message` 恒空）；按其本意收窄为「请求证据不作为 artifact 事件出现、除按设计带作者最近一句的隐藏摘要外其他 artifact 事件不含请求原文」（agent_artifact 事件不编码成帧，作者原话本就在 agent_run_started 里）。`pytest -k "agent or compaction or assistant or ide"` 1893 通过 / 32 跳过。
+- TS 迁移同步：`golden_agent_run.py` 去掉「隐藏任务前让消息集合失效」的临时补丁，重导 `p3-agent-run` 与修复前逐字节一致（只有钉住的 `conversation_runtime.py` 摘要变化），TS 回放 31 条全绿。

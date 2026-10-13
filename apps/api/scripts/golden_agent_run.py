@@ -213,7 +213,6 @@ def p3_agent_run_snapshot() -> dict:
         from app.domains.agent_runs.event_encoders import websocket_stream_events_from_agent_event
         from app.domains.agent_runs.fs import knowledge_proposals as proposals_module
         from app.domains.agent_runs.loop import run_control
-        from app.domains.agent_runs.loop.conversation_runtime import ConversationRuntimeMixin
         from app.domains.agent_runs.models import AgentArtifact, AgentRun, AgentRunEvent, SubagentRun
         from app.domains.agent_runs.service_types import AgentRuntimeUserMessageError
         from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
@@ -242,19 +241,6 @@ def p3_agent_run_snapshot() -> dict:
             return real_check(self, run, boundary=boundary)
 
         event_sink.AgentRunEventSink.runtime_interruption = runtime_interruption
-        # Production keeps the conversation's message collection from its first load in this request
-        # (expire_on_commit=False), so the hidden summary / title jobs miss this turn's two messages. TS reads the
-        # current messages (accepted difference); the oracle records that intended behaviour by expiring only
-        # the message collections right before the hidden jobs read them.
-        real_jobs = ConversationRuntimeMixin._run_hidden_system_jobs
-
-        def hidden_jobs(self, session, **kwargs):
-            for item in list(session.identity_map.values()):
-                if isinstance(item, AssistantSession):
-                    session.expire(item, ["messages"])
-            return real_jobs(self, session, **kwargs)
-
-        ConversationRuntimeMixin._run_hidden_system_jobs = hidden_jobs
 
         def set_status(status, step):
             db = state["db"]
@@ -361,7 +347,6 @@ def p3_agent_run_snapshot() -> dict:
             records.append({**normalized, "spec_json": record["spec_json"]})
             db.close()
         event_sink.AgentRunEventSink.runtime_interruption = real_check
-        ConversationRuntimeMixin._run_hidden_system_jobs = real_jobs
         return {
             "format_version": 1,
             "suite": "p3-agent-run",

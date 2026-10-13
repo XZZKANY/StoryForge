@@ -405,3 +405,20 @@ def test_control_from_foreign_session_is_rejected_without_leaking_existence(clie
     )
     assert ack["status"] == "recorded"
 
+
+def test_hidden_summary_and_title_see_this_turns_messages(client: TestClient) -> None:
+    """隐藏摘要 / 标题任务要读到本轮刚写的作者与回答两条，不能停在会话首次加载时的旧集合。"""
+
+    frames = stream_agent_message(
+        client,
+        "session-hidden-jobs",
+        run_id="run-hidden-jobs",
+        user_message="帮我想想第一章的开头",
+        args={"project_path": "D:/novels/demo"},
+    )
+    assert frames[-1]["system_jobs"]["summary"]["message_count"] == 2
+    events = client.get("/api/agent-runs/run-hidden-jobs/events").json()
+    title = next(event for event in events if event["event_type"] == "system_job"
+                 and event["payload"].get("job_name") == "conversation.title.generate")
+    assert title["payload"]["source"] == "first_user_message"
+    assert title["payload"]["title"] == "想想第一章的开头"

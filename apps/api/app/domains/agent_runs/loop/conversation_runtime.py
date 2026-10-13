@@ -61,6 +61,9 @@ class ConversationRuntimeMixin:
         result: dict[str, Any],
     ) -> None:
         assistant_session = assistant_service.get_assistant_session(session, assistant_session_id)
+        # expire_on_commit=False keeps the collection from this request's first load, which predates the
+        # author / reply messages just appended; the summary and title must see this turn.
+        session.refresh(assistant_session, attribute_names=["messages"])
         compaction_payload = prepare_conversation_compaction(session, assistant_session_id)
         jobs = build_conversation_system_jobs(
             assistant_session_id=assistant_session.id,
