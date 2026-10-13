@@ -80,8 +80,12 @@ def test_actual_request_committed_before_dispatch_and_rebuildable(session, tmp_p
     assert rebuilt.model == sent[0]["model"]
     assert [message.to_openai() for message in rebuilt.messages] == sent[0]["messages"]
     assert not service.list_agent_artifacts(session, "request-evidence")
+    # Evidence is never broadcast as an artifact event; only the hidden summary carries the author's latest
+    # message by design (it saw this turn once the stale message collection was fixed).
+    artifact_events = list(session.scalars(select(AgentRunEvent).where(AgentRunEvent.event_type == "agent_artifact")))
+    assert all(event.payload["kind"] != "model_request_evidence" for event in artifact_events)
     assert all("检查人物对白" not in json.dumps(event.payload, ensure_ascii=False)
-               for event in session.scalars(select(AgentRunEvent).where(AgentRunEvent.event_type == "agent_artifact")))
+               for event in artifact_events if event.payload["kind"] != "system_summary")
 
 
 def test_snapshot_redacts_secrets_and_omits_continuation(session, tmp_path, monkeypatch):
