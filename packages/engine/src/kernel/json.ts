@@ -367,6 +367,13 @@ export function dumpJson(value: unknown, options: DumpOptions = {}): string {
 }
 
 /** 深拷贝 JsonValue，保留 JsonFloat（structuredClone 会把它变成普通对象）。 */
+/** 原地深冻结（返回同一对象），对应 Python SDK 的 freeze：之后的赋值在严格模式下抛 TypeError。 */
+export function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== 'object') return value;
+  for (const item of Object.values(value)) deepFreeze(item);
+  return Object.freeze(value);
+}
+
 export function cloneJson<T extends JsonValue>(value: T): T {
   if (value === null || typeof value !== 'object' || value instanceof JsonFloat) return value;
   if (Array.isArray(value)) return value.map((item) => cloneJson(item)) as T;
