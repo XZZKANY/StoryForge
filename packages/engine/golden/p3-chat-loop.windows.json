@@ -22,6 +22,7 @@
     "app/domains/agent_runs/loop/types.py": "1c8215160bee243f480373b2dadcecedc0f6aa47c0d94b05e1cf7eba18afd551",
     "app/domains/agent_runs/loop/run_control.py": "1b875756a9e971db656f7dced54bba84ea11cb645545fdcfbe0fbe0ee417e320",
     "app/domains/agent_runs/loop/checkpoint_store.py": "8d6a24d5731da17f7905be32ec00e4a7121d80a69dcf076de9422b179c4d4075",
+    "app/domains/agent_runs/loop/recovery_sources.py": "a280d52cc13b0d5d67d8d196f0516f9e4457f86f403e5c0aab4c8dbe79c82173",
     "app/domains/agent_runs/patches/types.py": "bb25f9358c2fb0f04436773526f47d34f01d2196affb9150ebb145c577bde810"
   },
   "platform": "windows",
@@ -17879,8 +17880,8 @@
       "id": "fs-read-directory",
       "spec_json": "{\"id\": \"fs-read-directory\", \"model\": [{\"content\": \"\", \"calls\": [[\"c1\", \"fs_read\", \"{\\\"path\\\":\\\"正文\\\"}\"]], \"usage\": [12, 5, 17, \"provider_usage\"], \"finish\": \"stop\"}, {\"content\": \"那是目录。\", \"calls\": [], \"usage\": null, \"finish\": \"stop\"}], \"tools\": {\"fs.read\": [{\"raise\": {\"type\": \"FsToolError\", \"message\": \"不是文件：正文\"}}]}, \"profile\": \"ask\", \"source\": {}, \"streaming\": false, \"triggers\": [], \"user_message\": \"看看第一章\", \"current_file\": \"正文/第001章.md\"}",
       "outcome": {
-        "answer": "本轮未完成：Checkpoint store failed.",
-        "rounds": 1,
+        "answer": "那是目录。",
+        "rounds": 2,
         "tool_call_count": 1,
         "completion_tokens": 5,
         "prompt_tokens": 12,
@@ -17899,18 +17900,24 @@
           "completion_tokens": 5,
           "source": "provider_usage"
         },
-        "exhausted": true,
-        "execution_outcome": {
-          "status": "failed",
-          "code": "runtime_infrastructure",
-          "message": "本轮未完成：Checkpoint store failed."
-        },
+        "exhausted": false,
+        "execution_outcome": null,
         "review_report": null,
         "proposed_patch": null,
         "interrupted": false,
         "interruption": null,
         "artifacts": [],
-        "traces": []
+        "traces": [
+          {
+            "tool_name": "fs.read",
+            "status": "failed",
+            "input_summary": {
+              "path": "正文"
+            },
+            "assistant_tool_call_id": 1,
+            "error_message": "不是文件：正文"
+          }
+        ]
       },
       "owner_interruption": null,
       "requests": [
@@ -17963,20 +17970,133 @@
           "max_tokens": null,
           "tool_choice": null,
           "reasoning_effort": null
+        },
+        {
+          "streaming": false,
+          "model": "m-1",
+          "messages": [
+            {
+              "role": "system",
+              "content": {
+                "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
+                "length": 2853
+              }
+            },
+            {
+              "role": "system",
+              "content": "[作品底座 · 确定性]\n· 全书 2 章正文 · 约 23 字；平均每章 约 11 字；当前打开的是第 1 章（正文/第001章.md）。\n\n[Project Knowledge 索引 · 需要时用 project_knowledge read 展开]\n· 人物/主角.md（character · 约 9 字）"
+            },
+            {
+              "role": "user",
+              "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：看看第一章"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "type": "function",
+                  "function": {
+                    "name": "fs_read",
+                    "arguments": "{\"path\":\"正文\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "{\"error\": \"不是文件：正文\"}",
+              "tool_call_id": "c1"
+            }
+          ],
+          "tools": [
+            "fs_list",
+            "fs_read",
+            "fs_search",
+            "project_knowledge",
+            "knowledge_propose",
+            "project_consistency",
+            "project_deep_consistency",
+            "project_cross_chapter_check",
+            "project_canon",
+            "project_canon_delta",
+            "project_promise_check",
+            "project_prose_check",
+            "project_collapse_check",
+            "project_entity_budget_check",
+            "project_plan_update",
+            "project_trim_prose",
+            "file_review",
+            "file_revise",
+            "chapter_polish",
+            "file_create",
+            "prose_continue",
+            "project_hooks_delta"
+          ],
+          "tools_sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+          "temperature": null,
+          "max_tokens": null,
+          "tool_choice": null,
+          "reasoning_effort": null
         }
       ],
       "checks": [
         "before_round:1",
-        "before_model_dispatch"
+        "before_model_dispatch",
+        "after_model",
+        "before_tool_dispatch",
+        "after_tool_policy",
+        "before_tool_attempt",
+        "before_tool_dispatch",
+        "after_tool",
+        "after_tool",
+        "before_round:2",
+        "before_model_dispatch",
+        "after_model"
       ],
-      "assistant_ops": [],
-      "traces": [],
+      "assistant_ops": [
+        {
+          "op": "create_tool_call",
+          "session_id": 1,
+          "tool_name": "fs.read",
+          "status": "running",
+          "input_summary": {
+            "path": "正文"
+          }
+        },
+        {
+          "op": "update_tool_call",
+          "id": 1,
+          "status": "failed",
+          "input_summary": {
+            "path": "正文"
+          },
+          "error_message": "不是文件：正文"
+        }
+      ],
+      "traces": [
+        {
+          "tool_name": "fs.read",
+          "status": "failed",
+          "input_summary": {
+            "path": "正文"
+          },
+          "assistant_tool_call_id": 1,
+          "error_message": "不是文件：正文"
+        }
+      ],
       "text_frames": [],
-      "tool_calls": [],
-      "unused_model_steps": 1,
-      "unused_tool_steps": {
-        "fs.read": 1
-      },
+      "tool_calls": [
+        {
+          "registry_name": "fs.read",
+          "arguments": {
+            "path": "正文"
+          }
+        }
+      ],
+      "unused_model_steps": 0,
+      "unused_tool_steps": {},
       "checkpoints": [
         {
           "phase": "before_model",
@@ -17985,13 +18105,85 @@
           "dispatch_state": "model_outcome_unknown",
           "checkpoint_sha256": "38c0843a769991eb2cfac3ff225856ad94651c83937e3b808b42c7877105255d",
           "outcome_sha256": "c552ecf1f9f26fc4c98d3d94ff1f00618991fae15b36ab920d91a118ecd6828a"
+        },
+        {
+          "phase": "model_completed",
+          "round_count": 1,
+          "sequence": 3,
+          "dispatch_state": "checkpointed",
+          "checkpoint_sha256": "98946b1d4d06516a789f25c7ca8e3c46927a5fbc15fd04d322a7c5d28c6a34ad",
+          "outcome_sha256": "aaa93ab47d4d3d15d4ffb3f613271f14609e140868731d8abcbab2e8a677d357"
+        },
+        {
+          "phase": "model_completed",
+          "round_count": 1,
+          "sequence": 4,
+          "dispatch_state": "checkpointed",
+          "checkpoint_sha256": "703f66932a6d790a245672d3c0a18505987054806a6df156d8c7eada73d76887",
+          "outcome_sha256": "aaa93ab47d4d3d15d4ffb3f613271f14609e140868731d8abcbab2e8a677d357"
+        },
+        {
+          "phase": "tool_started",
+          "round_count": 1,
+          "sequence": 5,
+          "dispatch_state": "checkpointed",
+          "checkpoint_sha256": "a61d1960ba491916f9bf132554ad990fac485632f1dc43ef332a62a6732f41f4",
+          "outcome_sha256": "aaa93ab47d4d3d15d4ffb3f613271f14609e140868731d8abcbab2e8a677d357"
+        },
+        {
+          "phase": "tool_started",
+          "round_count": 1,
+          "sequence": 6,
+          "dispatch_state": "checkpointed",
+          "checkpoint_sha256": "8d5c608963d52a25037f710aa6d604046fbd23a0dcaba969f631368fbf2fbcce",
+          "outcome_sha256": "aaa93ab47d4d3d15d4ffb3f613271f14609e140868731d8abcbab2e8a677d357"
+        },
+        {
+          "phase": "after_tool",
+          "round_count": 1,
+          "sequence": 7,
+          "dispatch_state": "checkpointed",
+          "checkpoint_sha256": "0545ccec6366f927f9fd1f0f8110be04b6f5c420f2ae8858ba92fe4a9d91c801",
+          "outcome_sha256": "56866d65386643e65302002b728502bffd24882401e89d119a4e62df313789ca"
+        },
+        {
+          "phase": "after_tool",
+          "round_count": 1,
+          "sequence": 8,
+          "dispatch_state": "checkpointed",
+          "checkpoint_sha256": "fbf599d952b7f7e67968a7337d1c242c61ac1cfbab4aa130052b85cabcba4753",
+          "outcome_sha256": "56866d65386643e65302002b728502bffd24882401e89d119a4e62df313789ca"
+        },
+        {
+          "phase": "before_model",
+          "round_count": 2,
+          "sequence": 8,
+          "dispatch_state": "model_outcome_unknown",
+          "checkpoint_sha256": "e6522c3943f4896b1c16d259f56090f3679de1a64cc3d7b9dbb853905302588d",
+          "outcome_sha256": "56866d65386643e65302002b728502bffd24882401e89d119a4e62df313789ca"
+        },
+        {
+          "phase": "completed",
+          "round_count": 2,
+          "sequence": 10,
+          "dispatch_state": "checkpointed",
+          "checkpoint_sha256": "59aa914ddd59af9d261cba03c0be4a0342a01320b28bf0a5d389053580b101f7",
+          "outcome_sha256": "56866d65386643e65302002b728502bffd24882401e89d119a4e62df313789ca"
+        },
+        {
+          "phase": "completed",
+          "round_count": 2,
+          "sequence": 11,
+          "dispatch_state": "checkpointed",
+          "checkpoint_sha256": "a8e79a3120c533fa87b02245d34e67967ff9e35481b5067d4aee0a15beaa36db",
+          "outcome_sha256": "56866d65386643e65302002b728502bffd24882401e89d119a4e62df313789ca"
         }
       ],
       "final_checkpoint": {
         "checkpoint": {
           "run_id": "run-1",
           "model": "m-1",
-          "phase": "before_model",
+          "phase": "completed",
           "messages": [
             {
               "role": "system",
@@ -18016,38 +18208,89 @@
               "tool_calls": [],
               "tool_call_id": null,
               "name": null
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "name": "fs_read",
+                  "arguments_json": "{\"path\":\"正文\"}",
+                  "type": "function"
+                }
+              ],
+              "tool_call_id": null,
+              "name": null
+            },
+            {
+              "role": "tool",
+              "content": "{\"error\": \"不是文件：正文\"}",
+              "tool_calls": [],
+              "tool_call_id": "c1",
+              "name": null
+            },
+            {
+              "role": "assistant",
+              "content": "那是目录。",
+              "tool_calls": [],
+              "tool_call_id": null,
+              "name": null
             }
           ],
-          "round_count": 1,
-          "tool_attempts": 0,
-          "tool_output_chars": 0,
-          "total_tokens": 0,
-          "total_cost": null,
-          "usage_available": false,
-          "cost_available": false,
+          "round_count": 2,
+          "tool_attempts": 1,
+          "tool_output_chars": 20,
+          "total_tokens": 17,
+          "total_cost": 6.400000000000001e-05,
+          "usage_available": true,
+          "cost_available": true,
           "pending": null,
-          "completed_tool_call_ids": [],
+          "completed_tool_call_ids": [
+            "c1"
+          ],
           "artifacts": [],
           "exhausted": false,
-          "sequence": 0,
+          "sequence": 11,
           "interruption_reason": null,
           "continuation_omitted": false
         },
         "outcome": {
           "rounds": 0,
-          "tool_call_count": 0,
-          "completion_tokens": 0,
-          "prompt_tokens": 0,
-          "token_usage": 0,
-          "token_usage_source": "unavailable",
-          "cost_cny_estimated": null,
-          "cost_breakdown": {},
+          "tool_call_count": 1,
+          "completion_tokens": 5,
+          "prompt_tokens": 12,
+          "token_usage": 17,
+          "token_usage_source": "provider_usage",
+          "cost_cny_estimated": 6.400000000000001e-05,
+          "cost_breakdown": {
+            "input_cny": 2.4e-05,
+            "output_cny": 4e-05,
+            "total_cny": 6.400000000000001e-05,
+            "currency": "CNY",
+            "input_cny_per_m_tokens": 2.0,
+            "output_cny_per_m_tokens": 8.0,
+            "cache_hit_input_cny_per_m_tokens": null,
+            "prompt_tokens": 12,
+            "completion_tokens": 5,
+            "source": "provider_usage"
+          },
           "review_report": null,
-          "traces": [],
+          "traces": [
+            {
+              "tool_name": "fs.read",
+              "status": "failed",
+              "input_summary": {
+                "path": "正文"
+              },
+              "assistant_tool_call_id": 1,
+              "error_message": "不是文件：正文"
+            }
+          ],
           "proposed_patch": null,
           "artifacts": []
         },
-        "dispatch_state": "model_outcome_unknown",
+        "dispatch_state": "checkpointed",
         "permission_profile": "ask",
         "assistant_session_id": 1,
         "resume_message": {

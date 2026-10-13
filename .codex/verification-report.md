@@ -7810,3 +7810,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 接受的差异：`runtime_checkpoint` 不进 TS 的 artifact 表（§2.6），其余 artifact 的 id 前移（预言机去掉检查点行、按顺序重新编号并改写 `artifact_id`）；整数值费用的 2.0 / 2 差异会进入压缩的模型输入与证据摘要（两边各自自洽；预言机用 2.5 / 8.5 的费率避开）。
 - 门禁：引擎 vitest 12555 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
 - 未做：P3-5c 控制通道（暂停 / 停止 / 恢复，条件写）与续跑；P3-6 管线；P3-7 接线（`ts` 档、会话标题写回的端口实现、正则换可打断实现）。
+
+## 2026-10-13 修：模型对目录调 fs_read 后整轮失败（Python）
+
+- 来源：P3-5b1 预言机实证（场景 `fs-read-directory`）。`loop/recovery_sources.source_versions` 给检查点记来源指纹时，对模型调用过 `fs_read` / 文件工具的路径逐个取摘要；路径是目录时 `file_digest` 抛 `recovery_source_not_file`，SDK 把它当检查点存储失败，整轮以「本轮未完成：Checkpoint store failed.」结束——工具本身已经正常回了「不是文件」，作者却看到整轮作废。
+- 修复：`source_versions` 跳过存在但不是文件的路径（目录从来不是正文来源）；`sources_unchanged` 不变（记过的文件后来变成目录仍判为来源已变）。`recovery_sources.py` 是 CRLF，按字节修改。
+- 测试：新增 `test_directory_named_by_the_model_is_not_a_source_and_does_not_fail_the_save`（当前文件与模型 `fs_read` 都指向目录时照常保存、目录不进指纹、真实文件照记）；原 `test_failed_build_does_not_modify_context_or_add_artifact` 借目录触发构建失败，改为用不存在的项目根触发。变异：撤掉修复，新测试变红（1/1）。`pytest -k "agent or checkpoint or recovery or loop"` 1499 通过 / 25 跳过。
+- TS 迁移同步：`golden_chat_loop.py` 钉住的源文件加入 `recovery_sources.py`，重导 `p3-chat-loop`；`fs-read-directory` 场景 Python 现在照常继续（「那是目录。」），TS 回放去掉特例改为普通比对，39 条全绿。

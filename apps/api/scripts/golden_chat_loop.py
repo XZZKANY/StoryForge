@@ -24,6 +24,7 @@ SOURCES = [
     "app/domains/agent_runs/loop/types.py",
     "app/domains/agent_runs/loop/run_control.py",
     "app/domains/agent_runs/loop/checkpoint_store.py",
+    "app/domains/agent_runs/loop/recovery_sources.py",
     "app/domains/agent_runs/patches/types.py",
 ]
 SOURCE = {
