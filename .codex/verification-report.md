@@ -7742,3 +7742,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：41 处，首轮 42 处只抓住 22 处（场景太浅，几个文件函数处理器根本走不到），补场景与直接调用后抓住 38 / 41；余 3 处等价：已知指纹的提议在冲突判定之后被去重、非数组 arcs 早被拒、内核本就忽略非整数章号。另删掉一处与「是目录」重复的项目根判断。
 - 接受的差异：fs.search / 知识检索的正则用 JS 方言（Python 用 regex 模块 VERSION0），无效正则的报错原文不同（测试只比前缀）；**JS 在进程内打断不了单次正则匹配，只能在行间核累计 2 秒预算——P3-7 接线时必须换成能打断的实现（Worker 或 Rust 的线性时间正则）**；canon.json 写错时 project.consistency 按 §4.3.1 报错（Python 静默丢掉 canon 别名，有 TS 侧用例钉住）；`remove_ordinals` 里的布尔值不再当作 0 / 1。
 - 门禁：引擎 vitest 12307 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+
+## 2026-10-12 P3-4 对话上下文（TS 迁移，默认仍走 Python）
+
+- 范围：`loop/prompt_context`（system prompt 与作者记忆条款，`packages/engine/src/loop/promptContext.ts` 由一次性脚本 `output/ts-engine-p3/gen_prompt_context.py` 从 Python 运行时取「前段 + 记忆条款 + 创作准则 + 后段」生成，长句按句号断行）、`loop_runtime._storyforge_messages`（`loopMessages.ts`）、`compaction` + `compaction_sources`（`conversationHistory.ts`：来源投影、证据覆盖、检查点有效性判定与父链、检查点生成、发布前复核、历史投影与 128 KB 保真预算）、`loop/support` 的工具输出摘要 / 审稿与修订反馈 / 成本合并（`toolFeedback.ts`）。会话事实经 `ConversationSources` 端口读。Python 里以整数 run id 为键的字典，在 TS 里用 Map 表示、序列化时按数值排序（Python `sort_keys` 对整数键按数值排）。`support.parse_tool_arguments` 无调用方，不搬；`ChatLoopOutcome` / `LoopToolFeedback` 依赖补丁提案，随 P3-5 / P3-6。
+- 预言机：新 `apps/api/scripts/golden_conversation.py`（`--suite p3-conversation`）。`golden_fs.py` 的审计钩子改为只放行 `sqlite3.connect(":memory:")`（其余仍拒绝），由此**首次用内存 sqlite 跑真实 ORM**：真实 `project_conversation_history` / `create_compaction_checkpoint`（脚本化模型按输入逐条引用来源前十个码点，另有 10 种失败模式）/ `_storyforge_messages` 在真库与合成项目上执行，记录每次调用前的库行供 TS 回放。覆盖：空会话、跨 3 个 run 的证据（权限的已生效 / 被忽略 / 终态佐证 / 取消、手稿正文摘要化、排除的 artifact 种类、`conversation.compact` 工具调用）、10 个 run 的数值键排序、两代检查点、6 份只破坏一处并重算摘要的伪造检查点（结尾落在作者消息 / 账本 / 证据引用 / 漏引 / 父摘要 / 父条目前缀）、恰好 12 条的阈值、预算超限、5 种消息组装（作者视图、选区、计划、canon 约束、带检查点的历史）。57 条记录 + 5 次组装；含项目根的段落指纹不可复现，预言机写占位、TS 用替换回合成根的 Python 消息重算。`--check` 复导逐字节一致（第一次复导抓到了这个不确定性）。
+- 变异：46 处，首轮 35 处；补伪造检查点等场景后 46 / 46 全部抓住。
+- 接受的差异：P4 前经 HTTP 读回的会话消息是 Python 序列化时已脱敏的文本，消息里含密钥时历史投影与 Python 不同；压缩请求的 metadata 只在 Python 的 ChatRequest 对象上、从不进请求体，TS 不搬；当前文件按绝对路径传（Python 对相对路径按进程工作目录解析，§4.3.1 已裁定不复刻）。
+- 门禁：引擎 vitest 12370 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff；其他 golden 套件在新守卫下 `--check` 仍一致。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。

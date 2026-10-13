@@ -87,6 +87,9 @@ def isolated_fs_oracle(prefix: str):
         def guard(event: str, args: tuple) -> None:
             if not state["enabled"]:
                 return
+            # In-memory sqlite only: the run / session oracles drive the real ORM without touching a file.
+            if event == "sqlite3.connect/handle" or (event == "sqlite3.connect" and args[0] == ":memory:"):
+                return
             if (event.startswith(("socket.", "subprocess.", "sqlite3.connect")) and event != "socket.gethostname") or event in {"os.system", "os.spawn"}:
                 raise AssertionError(f"Oracle forbids {event}")
             writes = event in {"os.mkdir", "os.remove", "os.rmdir", "os.rename", "os.replace", "os.link", "os.symlink", "os.truncate"}
