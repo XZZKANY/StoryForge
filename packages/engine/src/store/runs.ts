@@ -100,6 +100,8 @@ export interface RunStore {
   artifact(id: number): Promise<ArtifactRecord | null>;
   /** 所有 run 里某种 artifact，按 id 升序（知识提议跨 run 去重要用）。 */
   artifactsOfKind(kind: string): Promise<readonly ArtifactRecord[]>;
+  /** 所有 run 里这几种事件，按 id 升序（知识收件箱按事件推导提议状态）。 */
+  eventsOfTypes(types: readonly string[]): Promise<readonly RunEventRecord[]>;
   runsOfAssistantSession(assistantSessionId: number): Promise<readonly RunRecord[]>;
   /** 全部 run，按 id 升序（起服收尸要用）。 */
   allRuns(): Promise<readonly RunRecord[]>;
@@ -244,6 +246,14 @@ export class MemoryRunStore implements RunStore, RunStatusView {
   async artifactsOfKind(kind: string): Promise<readonly ArtifactRecord[]> {
     return clone(
       this.artifactRows.filter((artifact) => artifact.kind === kind).sort((a, b) => a.id - b.id),
+    );
+  }
+
+  async eventsOfTypes(types: readonly string[]): Promise<readonly RunEventRecord[]> {
+    return clone(
+      this.eventRows
+        .filter((event) => types.includes(event.event_type))
+        .sort((a, b) => a.id - b.id),
     );
   }
 
