@@ -12,6 +12,8 @@ import { sha256Hex } from '../kernel/sha256';
 import type { HttpPort } from '../llm/transport';
 import { migratedMemoryDb } from '../store/nodeSqlite.test-support';
 import { MemoryRunStore, type RunEventRecord, type RunRecord } from '../store/runs';
+import { decodeJsonColumn, type Db } from '../store/db';
+import { SqlAssistantStore } from '../store/sqlAssistant';
 import { SqlRunStore } from '../store/sqlRuns';
 import { runAgentUserMessage, type AgentRuntimeDeps, type SessionTitlePort } from './agentRuntime';
 import { LoopCheckpointStore } from './chatLoopCheckpoints';
@@ -279,7 +281,81 @@ export function agentRunReplay(golden: Obj) {
         find(id).title = title;
       },
     };
-    return { sessions, messages, toolCalls, store, titles };
+    const conversation: Pick<ConversationSources, 'messages' | 'toolCalls'> = {
+      messages: async (sessionId) =>
+        messages
+          .filter((row) => row.session_id === sessionId)
+          .map(({ id, role, content }) => ({ id, role, content })),
+      toolCalls: async (sessionId) =>
+        toolCalls
+          .filter((row) => row.session_id === sessionId)
+          .map((row) => ({
+            id: row.id,
+            tool_name: row.tool_name,
+            status: row.status,
+            input_summary: row.input_summary,
+            output_summary: row.output_summary,
+            related_type: null,
+            related_id: null,
+          })),
+    };
+    const rows = async () => ({ sessions, messages, tool_calls: toolCalls });
+    return { sessions, messages, toolCalls, store, titles, conversation, rows };
+  }
+
+  /** 同一份会话事实放进 sqlite 会话存储（P4-1b），与 run 存储共用一个引擎库。 */
+  async function sqlAssistantDb(engineDb: Db, initial: Obj[], history: [string, string][]) {
+    const at = '2026-10-14T00:00:00Z';
+    for (const row of initial)
+      await engineDb.transaction([
+        {
+          sql:
+            'INSERT INTO assistant_sessions (title, task_type, project_path, created_at, updated_at) ' +
+            "VALUES ($1, 'ide_agent_orchestration', $2, $3, $3)",
+          params: [row.title as string, (row.project_path as string).replace('$ROOT', ROOT), at],
+        },
+      ]);
+    for (const [role, content] of history)
+      await engineDb.transaction([
+        {
+          sql:
+            'INSERT INTO assistant_messages (session_id, role, content, created_at, updated_at) ' +
+            'VALUES (1, $1, $2, $3, $3)',
+          params: [role, content, at],
+        },
+      ]);
+    const store = new SqlAssistantStore(engineDb, SECRETS, () => at);
+    const rows = async () => ({
+      sessions: (
+        await engineDb.select(
+          'SELECT id, title, task_type, project_path FROM assistant_sessions ORDER BY id',
+        )
+      ).map((row) => ({ ...row })),
+      messages: (
+        await engineDb.select(
+          'SELECT id, session_id, role, content FROM assistant_messages ORDER BY id',
+        )
+      ).map((row) => ({ ...row })),
+      tool_calls: (
+        await engineDb.select(
+          'SELECT id, session_id, tool_name, status, input_summary, output_summary, error_message FROM assistant_tool_calls ORDER BY id',
+        )
+      ).map((row) => ({
+        ...row,
+        input_summary: decodeJsonColumn(row.input_summary),
+        output_summary: decodeJsonColumn(row.output_summary),
+      })),
+    });
+    return {
+      store: store as AssistantStore,
+      titles: store as SessionTitlePort,
+      conversation: {
+        messages: store.messages.bind(store),
+        toolCalls: store.toolCalls.bind(store),
+      },
+      rows,
+      messages: [] as Obj[],
+    };
   }
 
   type ReplayOptions = { yielding?: boolean; parallelControls?: boolean };
@@ -320,13 +396,20 @@ export function agentRunReplay(golden: Obj) {
     const big = (spec.big_files ?? {}) as Record<string, [string, number]>;
     for (const [path, [unit, count]] of Object.entries(big))
       project.apply({ [path]: encoded(unit.repeat(count)) });
-    const runs =
-      storeKind === 'sql'
-        ? await SqlRunStore.open(await migratedMemoryDb(), () => '2026-10-14T00:00:00Z')
-        : new MemoryRunStore();
-    const db = assistantDb(spec.sessions as Obj[]);
-    for (const [role, content] of (spec.history ?? []) as [string, string][])
-      db.messages.push({ id: db.messages.length + 1, session_id: 1, role, content });
+    const engineDb = storeKind === 'sql' ? await migratedMemoryDb() : null;
+    const runs = engineDb
+      ? await SqlRunStore.open(engineDb, () => '2026-10-14T00:00:00Z')
+      : new MemoryRunStore();
+    const db = engineDb
+      ? await sqlAssistantDb(
+          engineDb,
+          spec.sessions as Obj[],
+          (spec.history ?? []) as [string, string][],
+        )
+      : assistantDb(spec.sessions as Obj[]);
+    if (!engineDb)
+      for (const [role, content] of (spec.history ?? []) as [string, string][])
+        db.messages.push({ id: db.messages.length + 1, session_id: 1, role, content });
     if (spec.seed_review) {
       const earlier = await runs.insertRun({
         public_id: 'run-0',
@@ -350,22 +433,8 @@ export function agentRunReplay(golden: Obj) {
     // 本次作者消息建的 run 排在预置 run 之后。
     const RUN_ID = spec.seed_review ? 2 : 1;
     const conversation: ConversationSources = {
-      messages: async (sessionId) =>
-        db.messages
-          .filter((row) => row.session_id === sessionId)
-          .map(({ id, role, content }) => ({ id, role, content })),
-      toolCalls: async (sessionId) =>
-        db.toolCalls
-          .filter((row) => row.session_id === sessionId)
-          .map((row) => ({
-            id: row.id,
-            tool_name: row.tool_name,
-            status: row.status,
-            input_summary: row.input_summary,
-            output_summary: row.output_summary,
-            related_type: null,
-            related_id: null,
-          })),
+      messages: db.conversation.messages,
+      toolCalls: db.conversation.toolCalls,
       ...storeRunSources(runs),
     };
     const clock = { now: 100 };
@@ -738,9 +807,7 @@ export function agentRunReplay(golden: Obj) {
           output,
           status,
         })),
-        sessions: db.sessions,
-        messages: db.messages,
-        tool_calls: db.toolCalls,
+        ...(await db.rows()),
       },
     };
   }

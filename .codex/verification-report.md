@@ -7932,3 +7932,9 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 范围：`packages/engine/src/store/db.ts`（Db 端口、JSON 列编码、串行队列）、`schema.ts`（迁移 0001：七张表 + schema_version）、`sqlRuns.ts`（SqlRunStore）、`nodeSqlite.test-support.ts`（测试用 node:sqlite 端口）；回放台改为内存 / sqlite 双存储比对；`runStore.test.ts`、`runRace.test.ts` 参数化到两种存储；新 `store/sqlRuns.test.ts`。P4 拆五刀写进迁移计划。
 - 测试：引擎 vitest 13068 通过 / 2 跳过（每个 agent-run 预言机场景在两种存储上逐项一致）、typecheck、`pnpm lint`；变异 32 / 32（首轮 25，补直接测试后全抓住）。
 - 未接线：桌面端仍用内存存储（ts 档）/ Python（默认），plugin-sql 适配与切换随 4-1c。
+
+## 2026-10-14 P4-1b 会话 / 消息 / 工具调用存储（TS 迁移，默认仍走 Python）
+
+- 范围：`packages/engine/src/store/sqlAssistant.ts`（SqlAssistantStore）；预言机 `apps/api/scripts/golden_assistant_store.py`（`--suite p4-assistant-store`，39 个操作）；回放台 sqlite 那一遍改用 SqlAssistantStore。
+- 测试：`store/sqlAssistant.test.ts`（预言机逐操作一致 + 直接测试）；引擎 vitest 13074 通过 / 2 跳过；`--check` 复导一致；ruff、`pnpm lint`。变异 32 / 32。
+- 修正：写方法参数校验失败时改为返回拒绝的 Promise（原先同步抛错）。

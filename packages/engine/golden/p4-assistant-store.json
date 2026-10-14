@@ -1,0 +1,4445 @@
+{
+  "format_version": 1,
+  "suite": "p4-assistant-store",
+  "secret": "sk-oracle-secret-123456",
+  "sources": {
+    "app/domains/assistant/service.py": "cb96eaefcf8576751c503c75434a74fe4be68402890a852591b599be90b03f8d",
+    "app/domains/assistant/schemas.py": "1e51b7c79b228a0e0c2019f5b304fd4145326dc00842c3da7730653142043b51",
+    "app/domains/assistant/models.py": "7b6ceff8733ddf1be5c4fe7bc056c12e7a62b5c22f3587b378096daa7cf0e414",
+    "app/common/redaction.py": "13163782b72db0dd53b05adf9da800fcdb4289a92bcd74cd6576cf011c16c1ff"
+  },
+  "records": [
+    {
+      "op": {
+        "op": "create_session",
+        "payload": {
+          "title": "修订 token=sk-oracle-secret-123456",
+          "task_type": "desktop_revise",
+          "project_path": "D:/book",
+          "messages": [
+            {
+              "role": "user",
+              "content": "我的 key 是 sk-oracle-secret-123456"
+            },
+            {
+              "role": "assistant",
+              "content": "收到。"
+            }
+          ]
+        }
+      },
+      "result": {
+        "id": 1,
+        "title": "修订 token=[REDACTED]",
+        "task_type": "desktop_revise",
+        "project_path": "D:/book",
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          }
+        ]
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          }
+        ],
+        "tool_calls": []
+      }
+    },
+    {
+      "op": {
+        "op": "create_session",
+        "payload": {
+          "title": "IDE Agent: 你好",
+          "task_type": "ide_agent_orchestration",
+          "project_path": null,
+          "messages": []
+        }
+      },
+      "result": {
+        "id": 2,
+        "title": "IDE Agent: 你好",
+        "task_type": "ide_agent_orchestration",
+        "project_path": null,
+        "messages": []
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          }
+        ],
+        "tool_calls": []
+      }
+    },
+    {
+      "op": {
+        "op": "create_session",
+        "payload": {
+          "title": "别的书",
+          "task_type": "ide_agent_orchestration",
+          "project_path": "D:/other",
+          "messages": []
+        }
+      },
+      "result": {
+        "id": 3,
+        "title": "别的书",
+        "task_type": "ide_agent_orchestration",
+        "project_path": "D:/other",
+        "messages": []
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          }
+        ],
+        "tool_calls": []
+      }
+    },
+    {
+      "op": {
+        "op": "append_message",
+        "session": 1,
+        "payload": {
+          "role": "user",
+          "content": "再说一次 sk-oracle-secret-123456"
+        }
+      },
+      "result": {
+        "id": 3,
+        "session_id": 1,
+        "role": "user",
+        "content": "再说一次 [REDACTED]"
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          }
+        ],
+        "tool_calls": []
+      }
+    },
+    {
+      "op": {
+        "op": "append_message",
+        "session": 2,
+        "payload": {
+          "role": "system",
+          "content": "系统提示"
+        }
+      },
+      "result": {
+        "id": 4,
+        "session_id": 2,
+        "role": "system",
+        "content": "系统提示"
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": []
+      }
+    },
+    {
+      "op": {
+        "op": "append_message",
+        "session": 99,
+        "payload": {
+          "role": "user",
+          "content": "不存在的会话"
+        }
+      },
+      "error": {
+        "type": "AssistantSessionNotFoundError",
+        "message": "Assistant 会话不存在：99。"
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": []
+      }
+    },
+    {
+      "op": {
+        "op": "create_tool_call",
+        "session": 1,
+        "payload": {
+          "tool_name": "fs.read",
+          "status": "running",
+          "input_summary": {
+            "path": "正文/第001章.md",
+            "api_key": "k",
+            "nested": {
+              "note": "带 sk-oracle-secret-123456"
+            }
+          }
+        }
+      },
+      "result": {
+        "id": 1,
+        "session_id": 1,
+        "tool_name": "fs.read",
+        "status": "running",
+        "input_summary": {
+          "path": "正文/第001章.md",
+          "api_key": "[REDACTED]",
+          "nested": {
+            "note": "带 [REDACTED]"
+          }
+        },
+        "output_summary": {},
+        "error_message": null,
+        "related_type": null,
+        "related_id": null
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "running",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_tool_call",
+        "session": 1,
+        "payload": {
+          "tool_name": "assistant.chat_loop",
+          "status": "completed",
+          "input_summary": {},
+          "output_summary": {
+            "rounds": 2,
+            "cost": 2.5,
+            "flag": true,
+            "items": [
+              1,
+              null,
+              "x"
+            ]
+          },
+          "error_message": "失败了 sk-oracle-secret-123456",
+          "related_type": "agent_run",
+          "related_id": 3
+        }
+      },
+      "result": {
+        "id": 2,
+        "session_id": 1,
+        "tool_name": "assistant.chat_loop",
+        "status": "completed",
+        "input_summary": {},
+        "output_summary": {
+          "rounds": 2,
+          "cost": 2.5,
+          "flag": true,
+          "items": [
+            1,
+            null,
+            "x"
+          ]
+        },
+        "error_message": "失败了 [REDACTED]",
+        "related_type": "agent_run",
+        "related_id": 3
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "running",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "失败了 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_tool_call",
+        "session": 2,
+        "payload": {
+          "tool_name": "file.review",
+          "status": "paused",
+          "input_summary": {
+            "x": 1
+          }
+        }
+      },
+      "result": {
+        "id": 3,
+        "session_id": 2,
+        "tool_name": "file.review",
+        "status": "paused",
+        "input_summary": {
+          "x": 1
+        },
+        "output_summary": {},
+        "error_message": null,
+        "related_type": null,
+        "related_id": null
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "running",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "失败了 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "paused",
+            "input_summary": {
+              "x": 1
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "update_tool_call",
+        "id": 1,
+        "payload": {
+          "status": "completed",
+          "output_summary": {
+            "returned_chars": 12,
+            "token": "sk-oracle-secret-123456"
+          }
+        }
+      },
+      "result": {
+        "id": 1,
+        "session_id": 1,
+        "tool_name": "fs.read",
+        "status": "completed",
+        "input_summary": {
+          "path": "正文/第001章.md",
+          "api_key": "[REDACTED]",
+          "nested": {
+            "note": "带 [REDACTED]"
+          }
+        },
+        "output_summary": {
+          "returned_chars": 12,
+          "token": "[REDACTED]"
+        },
+        "error_message": null,
+        "related_type": null,
+        "related_id": null
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "失败了 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "paused",
+            "input_summary": {
+              "x": 1
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "update_tool_call",
+        "id": 2,
+        "payload": {
+          "error_message": "只改错误 sk-oracle-secret-123456"
+        }
+      },
+      "result": {
+        "id": 2,
+        "session_id": 1,
+        "tool_name": "assistant.chat_loop",
+        "status": "completed",
+        "input_summary": {},
+        "output_summary": {
+          "rounds": 2,
+          "cost": 2.5,
+          "flag": true,
+          "items": [
+            1,
+            null,
+            "x"
+          ]
+        },
+        "error_message": "只改错误 [REDACTED]",
+        "related_type": "agent_run",
+        "related_id": 3
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "paused",
+            "input_summary": {
+              "x": 1
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "update_tool_call",
+        "id": 3,
+        "payload": {
+          "input_summary": {
+            "y": 2
+          },
+          "status": "failed"
+        }
+      },
+      "result": {
+        "id": 3,
+        "session_id": 2,
+        "tool_name": "file.review",
+        "status": "failed",
+        "input_summary": {
+          "y": 2
+        },
+        "output_summary": {},
+        "error_message": null,
+        "related_type": null,
+        "related_id": null
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "update_tool_call",
+        "id": 99,
+        "payload": {
+          "status": "failed"
+        }
+      },
+      "error": {
+        "type": "AssistantToolCallNotFoundError",
+        "message": "Assistant 工具调用不存在：99。"
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "list_tool_calls",
+        "session": 1
+      },
+      "result": [
+        {
+          "id": 1,
+          "session_id": 1,
+          "tool_name": "fs.read",
+          "status": "completed",
+          "input_summary": {
+            "path": "正文/第001章.md",
+            "api_key": "[REDACTED]",
+            "nested": {
+              "note": "带 [REDACTED]"
+            }
+          },
+          "output_summary": {
+            "returned_chars": 12,
+            "token": "[REDACTED]"
+          },
+          "error_message": null,
+          "related_type": null,
+          "related_id": null
+        },
+        {
+          "id": 2,
+          "session_id": 1,
+          "tool_name": "assistant.chat_loop",
+          "status": "completed",
+          "input_summary": {},
+          "output_summary": {
+            "rounds": 2,
+            "cost": 2.5,
+            "flag": true,
+            "items": [
+              1,
+              null,
+              "x"
+            ]
+          },
+          "error_message": "只改错误 [REDACTED]",
+          "related_type": "agent_run",
+          "related_id": 3
+        }
+      ],
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "list_tool_calls",
+        "session": 99
+      },
+      "error": {
+        "type": "AssistantSessionNotFoundError",
+        "message": "Assistant 会话不存在：99。"
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "get_session",
+        "session": 1
+      },
+      "result": {
+        "id": 1,
+        "title": "修订 token=[REDACTED]",
+        "task_type": "desktop_revise",
+        "project_path": "D:/book",
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          }
+        ]
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "get_session",
+        "session": 99
+      },
+      "error": {
+        "type": "AssistantSessionNotFoundError",
+        "message": "Assistant 会话不存在：99。"
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "IDE Agent: 你好",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "set_title",
+        "session": 2,
+        "title": "你好 sk-oracle-secret-123456"
+      },
+      "result": null,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "list_recent",
+        "kwargs": {}
+      },
+      "result": [
+        {
+          "id": 3,
+          "title": "别的书",
+          "task_type": "ide_agent_orchestration",
+          "project_path": "D:/other",
+          "messages": []
+        },
+        {
+          "id": 2,
+          "title": "你好 [REDACTED]",
+          "task_type": "ide_agent_orchestration",
+          "project_path": null,
+          "messages": [
+            {
+              "id": 4,
+              "session_id": 2,
+              "role": "system",
+              "content": "系统提示"
+            }
+          ]
+        },
+        {
+          "id": 1,
+          "title": "修订 token=[REDACTED]",
+          "task_type": "desktop_revise",
+          "project_path": "D:/book",
+          "messages": [
+            {
+              "id": 1,
+              "session_id": 1,
+              "role": "user",
+              "content": "我的 key 是 [REDACTED]"
+            },
+            {
+              "id": 2,
+              "session_id": 1,
+              "role": "assistant",
+              "content": "收到。"
+            },
+            {
+              "id": 3,
+              "session_id": 1,
+              "role": "user",
+              "content": "再说一次 [REDACTED]"
+            }
+          ]
+        }
+      ],
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "list_recent",
+        "kwargs": {
+          "project_path": "D:/book"
+        }
+      },
+      "result": [
+        {
+          "id": 1,
+          "title": "修订 token=[REDACTED]",
+          "task_type": "desktop_revise",
+          "project_path": "D:/book",
+          "messages": [
+            {
+              "id": 1,
+              "session_id": 1,
+              "role": "user",
+              "content": "我的 key 是 [REDACTED]"
+            },
+            {
+              "id": 2,
+              "session_id": 1,
+              "role": "assistant",
+              "content": "收到。"
+            },
+            {
+              "id": 3,
+              "session_id": 1,
+              "role": "user",
+              "content": "再说一次 [REDACTED]"
+            }
+          ]
+        }
+      ],
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "list_recent",
+        "kwargs": {
+          "limit": 1
+        }
+      },
+      "result": [
+        {
+          "id": 3,
+          "title": "别的书",
+          "task_type": "ide_agent_orchestration",
+          "project_path": "D:/other",
+          "messages": []
+        }
+      ],
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "list_recent",
+        "kwargs": {
+          "project_path": "D:/none"
+        }
+      },
+      "result": [],
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_session",
+        "payload": {
+          "title": "",
+          "task_type": "t",
+          "messages": []
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_session",
+        "payload": {
+          "title": "长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长",
+          "task_type": "t",
+          "messages": []
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_session",
+        "payload": {
+          "title": "t",
+          "task_type": "",
+          "messages": []
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_session",
+        "payload": {
+          "title": "t",
+          "task_type": "t",
+          "project_path": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+          "messages": []
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_session",
+        "payload": {
+          "title": "t",
+          "task_type": "t",
+          "messages": [
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            },
+            {
+              "role": "user",
+              "content": "x"
+            }
+          ]
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_session",
+        "payload": {
+          "title": "t",
+          "task_type": "t",
+          "messages": [],
+          "extra": 1
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "append_message",
+        "session": 1,
+        "payload": {
+          "role": "bot",
+          "content": "x"
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "append_message",
+        "session": 1,
+        "payload": {
+          "role": "user",
+          "content": ""
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "append_message",
+        "session": 1,
+        "payload": {
+          "role": "user",
+          "content": "长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长"
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_tool_call",
+        "session": 1,
+        "payload": {
+          "tool_name": "",
+          "status": "running"
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_tool_call",
+        "session": 1,
+        "payload": {
+          "tool_name": "ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+          "status": "running"
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_tool_call",
+        "session": 1,
+        "payload": {
+          "tool_name": "t",
+          "status": "weird"
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_tool_call",
+        "session": 1,
+        "payload": {
+          "tool_name": "t",
+          "status": "planned",
+          "related_id": 0
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_tool_call",
+        "session": 1,
+        "payload": {
+          "tool_name": "t",
+          "status": "needs_approval",
+          "error_message": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_tool_call",
+        "session": 1,
+        "payload": {
+          "tool_name": "t",
+          "status": "planned",
+          "related_type": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "update_tool_call",
+        "id": 1,
+        "payload": {
+          "status": "weird"
+        }
+      },
+      "rejected": 422,
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    },
+    {
+      "op": {
+        "op": "create_tool_call",
+        "session": 1,
+        "payload": {
+          "tool_name": "t",
+          "status": "planned"
+        }
+      },
+      "result": {
+        "id": 4,
+        "session_id": 1,
+        "tool_name": "t",
+        "status": "planned",
+        "input_summary": {},
+        "output_summary": {},
+        "error_message": null,
+        "related_type": null,
+        "related_id": null
+      },
+      "raw": {
+        "sessions": [
+          {
+            "id": 1,
+            "title": "修订 token=[REDACTED]",
+            "project_path": "D:/book"
+          },
+          {
+            "id": 2,
+            "title": "你好 sk-oracle-secret-123456",
+            "project_path": null
+          },
+          {
+            "id": 3,
+            "title": "别的书",
+            "project_path": "D:/other"
+          }
+        ],
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。"
+          },
+          {
+            "id": 3,
+            "session_id": 1,
+            "role": "user",
+            "content": "再说一次 [REDACTED]"
+          },
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示"
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "tool_name": "fs.read",
+            "status": "completed",
+            "input_summary": {
+              "path": "正文/第001章.md",
+              "api_key": "[REDACTED]",
+              "nested": {
+                "note": "带 [REDACTED]"
+              }
+            },
+            "output_summary": {
+              "returned_chars": 12,
+              "token": "[REDACTED]"
+            },
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "tool_name": "assistant.chat_loop",
+            "status": "completed",
+            "input_summary": {},
+            "output_summary": {
+              "rounds": 2,
+              "cost": 2.5,
+              "flag": true,
+              "items": [
+                1,
+                null,
+                "x"
+              ]
+            },
+            "error_message": "只改错误 [REDACTED]",
+            "related_type": "agent_run",
+            "related_id": 3
+          },
+          {
+            "id": 3,
+            "session_id": 2,
+            "tool_name": "file.review",
+            "status": "failed",
+            "input_summary": {
+              "y": 2
+            },
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          },
+          {
+            "id": 4,
+            "session_id": 1,
+            "tool_name": "t",
+            "status": "planned",
+            "input_summary": {},
+            "output_summary": {},
+            "error_message": null,
+            "related_type": null,
+            "related_id": null
+          }
+        ]
+      }
+    }
+  ]
+}
