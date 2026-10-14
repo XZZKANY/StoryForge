@@ -100,10 +100,30 @@ async function runAgentProbe(input: { projectRoot: string }) {
   };
 }
 
+// After a WebView reload: a new JS context opens the engine database again and must still own the
+// runs it kept (localStorage keeps the ts flag), without asking the Python store.
+async function readBackAfterReload(input: { runIds: string[] }) {
+  assert(isTauri(), 'Agent probe requires the real Native host');
+  const runs = [];
+  for (const runId of input.runIds) {
+    const events = await getAgentRunEvents(runId);
+    const savePoints = await getAgentRunSavePoints(runId);
+    runs.push({
+      runId,
+      events: events.map((event) => event.event_type),
+      status: savePoints.status,
+    });
+  }
+  return runs;
+}
+
 declare global {
   interface Window {
-    __ENGINE_P3_AGENT__: { runAgentProbe: typeof runAgentProbe };
+    __ENGINE_P3_AGENT__: {
+      runAgentProbe: typeof runAgentProbe;
+      readBackAfterReload: typeof readBackAfterReload;
+    };
   }
 }
-window.__ENGINE_P3_AGENT__ = { runAgentProbe };
+window.__ENGINE_P3_AGENT__ = { runAgentProbe, readBackAfterReload };
 document.documentElement.dataset.engineP3AgentReady = 'true';

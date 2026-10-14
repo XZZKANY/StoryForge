@@ -7945,3 +7945,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：`cargo test --offline --bin storyforge-desktop engine_db` 5 通过；引擎 vitest 全量通过；前端 `tests/engine-db.test.ts` 2 通过；前端与引擎 typecheck；p3-run-store `--check` 复导一致。
 - 变异：引擎 15 / 15，Rust 7 / 7（日志 `output/ts-engine-p4/mutations-4-1c*.log`）。
 - 未接线：ts 档 run 存储仍是内存，4-1c2 接；会话存储随 4-2 搬。
+
+## 2026-10-14 P4-1c2 ts 档 run 存储接引擎库（TS 迁移，默认仍走 Python）
+
+- 范围：前端 `lib/engine/agent.ts` 的 `engineRuns()`（迁移 + SqlRunStore 载入 + 起服收尸，WebView 内只开一次，失败不缓存；时间戳 UTC `YYYY-MM-DD HH:MM:SS` 与 Python 库一致）；`agentRoutes.ownsRun` 库打不开时不认领；`engine-agent-loader` ts 档读接口 / 控制会先加载引擎查库；node:sqlite 测试端口改用 `process.getBuiltinModule`。
+- 测试：前端 vitest 全量 2167 通过 / 1 跳过（新增 `engine-runs-store`、重启后归属与 Python 档零初始化、库打不开不认领、ChatWindow 两条重启流程）；引擎 vitest 13139 通过；前端 typecheck；`pnpm lint`（2 条警告在既有的 independent-claim-history.test.ts）。变异 8 / 8。
+- 真 WebView 探针：`node scripts/verify-engine-p0-native.mjs --agent-only` 通过（证据 `output/ts-engine-p3/native/run-WiiBkK`）：重载页面后从引擎库读回 run A completed / run B stopped、事件序列不变；隔离本地数据目录下 `storyforge-engine.sqlite3` 版本 1、两行 run、WAL。
+- 未联通：会话与消息仍在 Python 库（4-2）；Python 档跑过的 run 引擎看不到（4-3 导入）；装机版仍是 Python。

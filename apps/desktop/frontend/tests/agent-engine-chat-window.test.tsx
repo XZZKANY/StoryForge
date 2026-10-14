@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   scanRegexLines,
+  type Db,
   type HttpPort,
   type ProjectReader,
   type ProjectWriter,
@@ -32,9 +33,17 @@ const fixture = vi.hoisted(() => ({
   requests: [] as Obj[],
   /** 下一次读文件字节之前执行一次（工具正在跑时发控制）。 */
   beforeRead: null as null | (() => Promise<void>),
+  /** 引擎库：模块重置（模拟重启）后仍是同一个库。 */
+  db: null as Db | null,
 }));
 
 vi.mock('@tauri-apps/api/app', () => ({ getVersion: async () => '0.1.10' }));
+vi.mock('../src/lib/engine/db', async () => {
+  const { nodeSqliteDb } =
+    await import('../../../../packages/engine/src/store/nodeSqlite.test-support');
+  fixture.db ??= nodeSqliteDb();
+  return { nativeEngineDb: fixture.db };
+});
 vi.mock('../src/lib/api/config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/lib/api/config')>()),
   getApiConfig: async () => ({ baseUrl: 'http://python.test', apiKey: 'k' }),
@@ -304,6 +313,18 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
+const revise = () =>
+  fixture.replies.push(
+    {
+      reply: streamed(
+        [],
+        [['c1', 'file_revise', { path: '正文/第001章.md', instruction: '把开门写得更有力' }]],
+      ),
+    },
+    { reply: streamed(['第一章 风起\n\n林舟一脚踹开了门。\n']) },
+    { reply: streamed(['改好了，等你确认。']) },
+  );
+
 describe('ChatWindow author path on the TS engine', () => {
   it('streams an answer, settles the run and leaves replayable events', async () => {
     fixture.replies.push({ reply: streamed(['第一章', '节奏很紧。']) });
@@ -380,11 +401,6 @@ describe('ChatWindow author path on the TS engine', () => {
       await settle();
     });
     expect(fixture.requests).toHaveLength(2);
-    console.log(
-      'DEBUG',
-      JSON.stringify(current.state.messages.slice(-3)),
-      JSON.stringify(current.state.agentRun?.steps.slice(-3)),
-    );
     expect(current.state.agentRun?.status).toBe('completed');
     expect(JSON.stringify(current.state.messages)).toContain('读完了。');
   });
@@ -416,18 +432,6 @@ describe('ChatWindow author path on the TS engine', () => {
     expect(current.state.agentBusy).toBe(false);
     expect((await getAgentRunSavePoints(current.state.agentRun!.id)).status).toBe('stopped');
   });
-
-  const revise = () =>
-    fixture.replies.push(
-      {
-        reply: streamed(
-          [],
-          [['c1', 'file_revise', { path: '正文/第001章.md', instruction: '把开门写得更有力' }]],
-        ),
-      },
-      { reply: streamed(['第一章 风起\n\n林舟一脚踹开了门。\n']) },
-      { reply: streamed(['改好了，等你确认。']) },
-    );
 
   it.each([
     ['onApprovePermission', 'completed'],
@@ -507,5 +511,86 @@ describe('ChatWindow author path on the TS engine', () => {
     await expect(
       fixture.reader.inspectProjectPath('D:/book', '正文/第003章.md'),
     ).resolves.toMatchObject({ entryKind: 'missing' });
+  });
+});
+
+// 放在最后：重启会重置模块，静态导入的 hooks 仍握着重启前的引擎实例（它的 run 镜像与 id 已过期）。
+describe('ChatWindow on the TS engine across a restart', () => {
+  /** 关掉再打开：模块全部重新加载，引擎库还是同一个，内存里的续跑检查点没了。 */
+  async function restart() {
+    await act(async () => root?.unmount());
+    root = undefined;
+    vi.resetModules();
+    return {
+      socket: await import('../src/lib/api/agent-socket'),
+      runs: await import('../src/lib/api/agent-runs'),
+    };
+  }
+  const runRow = async (where: string, params: (string | number)[] = []) =>
+    (
+      await fixture.db!.select(
+        `SELECT public_id, session_id, status FROM agent_runs WHERE ${where}`,
+        params,
+      )
+    )[0];
+
+  it('keeps a patch waiting for the author across a restart', async () => {
+    revise();
+    await mount('ask');
+    await act(async () => current.run('改一下第一章开门那句', 'agent'));
+    const runId = current.state.agentRun!.id;
+    const { session_id: sessionId } = await runRow('public_id = $1', [runId]);
+    const { socket, runs } = await restart();
+    expect((await runs.getAgentRunSavePoints(runId)).pending).toMatchObject({
+      permission_required: true,
+    });
+    const ack = await socket.sendAgentControlMessage({
+      sessionId: String(sessionId),
+      runId,
+      type: 'approve_permission',
+      payload: { source: 'desktop.timeline' },
+    });
+    expect(ack).toMatchObject({ type: 'permission_approved', run_id: runId });
+    expect((await runs.getAgentRunSavePoints(runId)).status).toBe('completed');
+    expect(fixture.requests).toHaveLength(3);
+  });
+
+  it('reaps a run cut off mid-tool and cannot resume it after a restart', async () => {
+    // 这一条只用重启后重新加载的模块：先「打开」一次，跑到工具执行中再「关掉」。
+    const before = await restart();
+    fixture.replies.push({ reply: streamed([], [['c1', 'fs_read', { path: '人物/主角.md' }]]) });
+    let reading = false;
+    fixture.beforeRead = () => {
+      reading = true;
+      return new Promise<void>(() => undefined);
+    };
+    void before.socket
+      .sendAgentUserMessage({
+        sessionId: 'cut-session',
+        runId: 'cut-run',
+        userMessage: '读人物再答',
+        permissionProfile: 'ask',
+        assistantSessionId: 7,
+        args: { project_path: 'D:/book' },
+      })
+      .catch(() => undefined);
+    await vi.waitFor(() => expect(reading).toBe(true));
+    expect(await runRow('public_id = $1', ['cut-run'])).toMatchObject({ status: 'running' });
+    const { socket, runs } = await restart();
+    const events = await runs.getAgentRunEvents('cut-run');
+    expect(events.at(-1)).toMatchObject({
+      event_type: 'agent_run_failed',
+      payload: { reason: 'process_restart', run_id: 'cut-run' },
+    });
+    expect((await runs.getAgentRunSavePoints('cut-run')).status).toBe('failed');
+    const ack = await socket.sendAgentControlMessage({
+      sessionId: 'cut-session',
+      runId: 'cut-run',
+      type: 'resume_run',
+      payload: { source: 'desktop.timeline' },
+    });
+    expect(ack).toMatchObject({ run_id: 'cut-run' });
+    expect((await runs.getAgentRunSavePoints('cut-run')).status).toBe('failed');
+    expect(fixture.requests).toHaveLength(1);
   });
 });

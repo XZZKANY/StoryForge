@@ -4,6 +4,11 @@ import { AssistantSessionNotFoundError } from '@storyforge/engine';
 
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true, invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/app', () => ({ getVersion: async () => '0.1.10' }));
+vi.mock('../src/lib/engine/db', async () => {
+  const { nodeSqliteDb } =
+    await import('../../../../packages/engine/src/store/nodeSqlite.test-support');
+  return { nativeEngineDb: nodeSqliteDb() };
+});
 vi.mock('../src/lib/api/config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/lib/api/config')>()),
   getApiConfig: async () => ({ baseUrl: 'http://127.0.0.1:8000/', apiKey: 'k' }),
@@ -153,8 +158,9 @@ describe('Python half of the conversation sources', () => {
 describe('engineAgentDeps', () => {
   it('binds every tool, the shared run store and both model slots', async () => {
     const deps = await engineAgentDeps();
-    expect(deps.store).toBe(engineRuns.store);
-    expect(deps.checkpoints).toBe(engineRuns.checkpoints);
+    const runs = await engineRuns();
+    expect(deps.store).toBe(runs.store);
+    expect(deps.checkpoints).toBe(runs.checkpoints);
     expect((await engineAgentDeps()).store).toBe(deps.store);
     expect(deps.tools.all()).toHaveLength(28);
     expect(deps.secrets).toEqual({ values: ['[已隐藏的密钥]', '[润色槽]'] });

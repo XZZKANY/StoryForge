@@ -25,9 +25,16 @@ function rejected(error: unknown): unknown {
   return error instanceof AgentHostRejection ? new Error(error.message) : error;
 }
 
-/** 这个 WebView 里的引擎是否认识这个 run（读接口与控制按 run 归属分流）。 */
+/**
+ * 引擎库里有没有这个 run（读接口与控制按 run 归属分流）。库打不开（或存储已坏）时当作不认识：
+ * Python 档跑过的 run 照常可读，引擎的 run 这时本来也读不出来。
+ */
 export async function ownsRun(runId: string): Promise<boolean> {
-  return (await engineRuns.store.findRun(runId)) !== null;
+  try {
+    return (await (await engineRuns()).store.findRun(runId)) !== null;
+  } catch {
+    return false;
+  }
 }
 
 /**
