@@ -7861,3 +7861,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - TS 回放：`packages/engine/src/loop/deepConsistency.test.ts` 29 条全绿（28 个场景 + 计数）。首轮回放即逐项一致（含 judge 覆盖端点、Python `int()` 的报错原文）。
 - 变异：72 处首轮 50 处，补 7 个场景后重跑存活 22 处抓住 13 处，合计 63 / 72；余 9 处逐条核为等价或不可观测（明细见迁移计划）。
 - 门禁：引擎 vitest 12695 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+
+## 2026-10-13 P3-6d 固定管线（TS 迁移，默认仍走 Python）
+
+- 范围：`run_user_message` 非对话分支、`intent_fixed_pipeline_adapter`、`file_review_pipeline`（含未决调用记录与恢复）、`chapter_generation_pipeline` 的 file.revise 分支、`chapter_polishing_pipeline`、`check_result_delivery`、恢复诊断 / 消费记录、控制通道按未决调用恢复 → `packages/engine/src/loop/fixedPipelines.ts`（新）、`traces.ts`、`runControlChannel.ts`、`agentRuntime.ts`、`runEvents.ts`（`recordRuntimePendingCall`）。
+- 预言机：`golden_agent_run.py` 新增 `--suite p3-fixed-pipelines`（钉住的源文件 19 个），29 个场景 + 40 条恢复诊断 + 10 条消费记录（明细见迁移计划 P3-6d 条）；固定 intent 的消息自带 `file_path`，预言机与回放台都只改写对话消息里的缺省占位；`_snapshot` 支持在隔离环境里追加纯函数记录。控制写改为写前 refresh（原先第二次暂停与缓存旧值相同，不发 UPDATE）。`--check` 复导一致，其余五个 agent-run 套件复导不变。
+- TS 回放：`packages/engine/src/loop/fixedPipelines.test.ts` 80 条全绿（29 个场景 + 计数 + 50 条纯函数记录），首轮回放即逐项一致。
+- 变异：62 处首轮 44 处，补场景与纯函数记录后重跑存活项抓住 9 处，合计 53 / 62；余 9 处逐条核为等价（明细见迁移计划）。
+- 门禁：引擎 vitest 12775 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。

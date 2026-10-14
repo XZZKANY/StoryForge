@@ -6,6 +6,7 @@ import {
   type ExecuteRunInput,
 } from './agentRuntime';
 import { diagnoseCheckpoint } from './chatLoopCheckpoints';
+import { latestRuntimePendingCall } from './fixedPipelines';
 import { canonicalPermissionProfile } from './permission';
 import {
   AGENT_RUN_TERMINAL_STATUSES,
@@ -32,6 +33,7 @@ import {
   RESUME_RUN,
   STOP_RUN,
 } from './runPayloads';
+import { buildRuntimePendingCallResumeDiagnostic } from './traces';
 
 type Obj = { [key: string]: unknown };
 const isObj = (value: unknown): value is Obj =>
@@ -296,6 +298,40 @@ async function resumeCheckpointRun(
 }
 
 /**
+ * 恢复：有可恢复的未决调用就按它记下的消息重放（固定管线停在边界上的那一步），
+ * 没有就从内存检查点接着跑。
+ */
+async function resumeAgentRunIfPending(
+  deps: AgentRuntimeDeps,
+  run: RunRecord,
+  input: ExecuteRunInput,
+): Promise<[Obj | null, Obj | null]> {
+  const pending = await latestRuntimePendingCall(deps.store, run);
+  if (pending === null) return resumeCheckpointRun(deps, run, input);
+  const payload = isObj(pending.payload) ? pending.payload : {};
+  const diagnostic = buildRuntimePendingCallResumeDiagnostic({
+    runStatus: run.status,
+    currentStep: run.current_step,
+    payload,
+    artifactId: pending.id,
+    artifactKind: pending.kind,
+  });
+  if (diagnostic.can_resume !== true) return [null, diagnostic];
+  const message = isObj(payload.resume_message) ? payload.resume_message : null;
+  if (message === null) return [null, diagnostic];
+  const result = await executeAgentUserMessageRun(deps, run, {
+    ...input,
+    message: {
+      ...message,
+      run_id: run.public_id,
+      intent: typeof payload.intent === 'string' ? payload.intent : message.intent,
+    },
+  });
+  result.run_id = run.public_id;
+  return [result, null];
+}
+
+/**
  * 认领了续跑却没有检查点可接（例如回落单轮在第一次模型调用前就停了）：没有执行在驱动它，
  * 回落为 stopped 并记诊断，作者重新发问。
  */
@@ -354,7 +390,7 @@ export async function handleAgentControlMessage(
   if (input.controlType === RESUME_RUN) {
     if (event.payload.control_effect === 'applied') {
       const run = await ownedRun(deps.store, input.publicId, input.sessionId);
-      [resumedResult, resumeDiagnostic] = await resumeCheckpointRun(deps, run, {
+      [resumedResult, resumeDiagnostic] = await resumeAgentRunIfPending(deps, run, {
         agentSessionId: input.sessionId,
         message: {},
         onEvent: input.onEvent,
@@ -366,7 +402,11 @@ export async function handleAgentControlMessage(
         [resumeDiagnostic, event] = await parkUnresumableResumedRun(deps, event, input.publicId);
     } else {
       const run = (await deps.store.findRun(input.publicId))!;
-      if (run.status === 'running' && run.current_step === 'resumed')
+      if (
+        run.status === 'running' &&
+        run.current_step === 'resumed' &&
+        (await latestRuntimePendingCall(deps.store, run)) === null
+      )
         [resumeDiagnostic, event] = await parkUnresumableResumedRun(deps, event, input.publicId);
     }
     const run = (await deps.store.findRun(input.publicId))!;
