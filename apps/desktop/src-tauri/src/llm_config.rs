@@ -13,7 +13,7 @@ pub(crate) fn config_path(app: &AppHandle) -> Result<PathBuf> {
 pub fn sqlite_database_url(app: &AppHandle) -> Result<String> {
     let data_dir = runtime_paths::app_local_data_dir(app)?;
     fs::create_dir_all(&data_dir).context("无法创建应用数据目录")?;
-    let db_path = data_dir.join("storyforge.sqlite3");
+    let db_path = data_dir.join(crate::engine_db::PYTHON_DB_FILE);
     let path = db_path.to_string_lossy().replace('\\', "/");
     Ok(format!("sqlite+pysqlite:///{}", path))
 }

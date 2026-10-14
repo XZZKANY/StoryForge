@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { readEngineMode, type EngineMode } from '../src/lib/engine/flags';
+import { legacyImportOnOpen, readEngineMode, type EngineMode } from '../src/lib/engine/flags';
 
 const keys = ['engine.ideCommands', 'engine.assistant', 'engine.agentLoop'] as const;
 const devDefaults: [(typeof keys)[number], EngineMode][] = [
@@ -67,5 +67,23 @@ it('unavailable storage falls back to the stage default only at preference selec
 it('an unknown runtime key cannot activate an engine capability', () => {
   const read = stubStorage(() => 'ts');
   expect(Reflect.apply(readEngineMode, undefined, ['engine.future'])).toBe('python');
+  expect(read).not.toHaveBeenCalled();
+});
+
+it('imports the Python database only when dev explicitly switches it on', () => {
+  expect(legacyImportOnOpen()).toBe(false);
+  for (const value of ['', 'ON', 'true', 'ts', ' on']) {
+    localStorage.setItem('engine.legacyImport', value);
+    expect(legacyImportOnOpen()).toBe(false);
+  }
+  localStorage.setItem('engine.legacyImport', 'on');
+  expect(legacyImportOnOpen()).toBe(true);
+  stubStorage(() => {
+    throw new DOMException('controlled denied storage', 'SecurityError');
+  });
+  expect(legacyImportOnOpen()).toBe(false);
+  vi.stubEnv('DEV', false);
+  const read = stubStorage(() => 'on');
+  expect(legacyImportOnOpen()).toBe(false);
   expect(read).not.toHaveBeenCalled();
 });

@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
-import { nativeEngineDb } from '../src/lib/engine/db';
+import { nativeEngineDb, nativePythonDb } from '../src/lib/engine/db';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
@@ -38,4 +38,17 @@ it('turns the string rejections of Tauri commands into errors', async () => {
   const original = new Error('boom');
   vi.mocked(invoke).mockRejectedValue(original);
   await expect(nativeEngineDb.select('x')).rejects.toBe(original);
+});
+
+it('reads the Python database through the read-only snapshot command', async () => {
+  vi.mocked(invoke).mockResolvedValue(null);
+  const queries = ['SELECT 1', 'SELECT 2'];
+  expect(await nativePythonDb.snapshot(queries)).toBeNull();
+  expect(invoke).toHaveBeenLastCalledWith('engine_python_db_snapshot', { queries });
+  vi.mocked(invoke).mockResolvedValue([[{ n: 1 }], []]);
+  expect(await nativePythonDb.snapshot(queries)).toEqual([[{ n: 1 }], []]);
+  vi.mocked(invoke).mockRejectedValue('attempt to write a readonly database');
+  await expect(nativePythonDb.snapshot(queries)).rejects.toThrow(
+    new Error('attempt to write a readonly database'),
+  );
 });

@@ -5,15 +5,20 @@ use crate::runtime_paths;
 use serde::Deserialize;
 use serde_json::{Map, Number, Value};
 use sqlx::sqlite::{
-    SqliteArguments, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
+    SqliteArguments, SqliteConnectOptions, SqliteConnection, SqliteJournalMode, SqlitePoolOptions,
+    SqliteRow,
 };
-use sqlx::{Column, Row, Sqlite, SqlitePool, Transaction, TypeInfo, ValueRef};
+use sqlx::{
+    Column, ConnectOptions, Connection, Row, Sqlite, SqlitePool, Transaction, TypeInfo, ValueRef,
+};
 use std::path::Path;
 use std::time::Duration;
 use tauri::{AppHandle, State};
 use tokio::sync::OnceCell;
 
 pub const ENGINE_DB_FILE: &str = "storyforge-engine.sqlite3";
+/// The Python sidecar's database, next to the engine database (read once by the P4-3 import).
+pub const PYTHON_DB_FILE: &str = "storyforge.sqlite3";
 
 type Rows = Vec<Map<String, Value>>;
 type Query<'q> = sqlx::query::Query<'q, Sqlite, SqliteArguments<'q>>;
@@ -136,6 +141,51 @@ pub(crate) async fn transaction(pool: &SqlitePool, steps: &[EngineDbStep]) -> Re
     }
 }
 
+async fn read_all(
+    connection: &mut SqliteConnection,
+    queries: &[String],
+) -> Result<Vec<Rows>, String> {
+    let mut tx = connection
+        .begin()
+        .await
+        .map_err(|error| error.to_string())?;
+    let mut sets = Vec::with_capacity(queries.len());
+    for sql in queries {
+        let rows = sqlx::query(sql)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|error| error.to_string())?;
+        sets.push(rows.iter().map(row_json).collect::<Result<_, _>>()?);
+    }
+    tx.rollback().await.map_err(|error| error.to_string())?;
+    Ok(sets)
+}
+
+/// Reads the Python database for the one-time import (P4-3). Opened read-only, so the driver
+/// refuses any write (also one placed after a SELECT); never created and its journal mode is
+/// left alone. All queries run in one read transaction: one snapshot while the sidecar may be
+/// writing. `None` when the file does not exist.
+pub(crate) async fn python_snapshot(
+    path: &Path,
+    queries: &[String],
+) -> Result<Option<Vec<Rows>>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let mut connection = SqliteConnectOptions::new()
+        .filename(path)
+        .read_only(true)
+        .busy_timeout(Duration::from_secs(5))
+        .connect()
+        .await
+        .map_err(|error| format!("无法只读打开旧库：{error}"))?;
+    let sets = read_all(&mut connection, queries).await;
+    let closed = connection.close().await;
+    let sets = sets?;
+    closed.map_err(|error| error.to_string())?;
+    Ok(Some(sets))
+}
+
 async fn pool<'a>(app: &AppHandle, state: &'a EngineDbState) -> Result<&'a SqlitePool, String> {
     state
         .0
@@ -165,6 +215,15 @@ pub async fn engine_db_transaction(
     steps: Vec<EngineDbStep>,
 ) -> Result<Rows, String> {
     transaction(pool(&app, &state).await?, &steps).await
+}
+
+#[tauri::command]
+pub async fn engine_python_db_snapshot(
+    app: AppHandle,
+    queries: Vec<String>,
+) -> Result<Option<Vec<Rows>>, String> {
+    let dir = runtime_paths::app_local_data_dir(&app).map_err(|error| error.to_string())?;
+    python_snapshot(&dir.join(PYTHON_DB_FILE), &queries).await
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from '@storyforge/engine';
 import { nodeSqliteDb } from '../../../../packages/engine/src/store/nodeSqlite.test-support';
 
@@ -39,6 +39,12 @@ const fetchMock = vi.fn(
       { status: 200 },
     ),
 );
+
+// 冷加载整个引擎包在满载机器上会超过单条用例的 5 秒预算，先在这里加载
+// （之后每条用例 resetModules 只重新求值，不再转换）。
+beforeAll(async () => {
+  await import('../src/lib/engine/store');
+}, 60_000);
 
 beforeEach(() => {
   vi.resetModules();

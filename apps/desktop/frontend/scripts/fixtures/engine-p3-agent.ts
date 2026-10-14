@@ -36,6 +36,9 @@ function frameOf(message: AgentSocketMessage): Frame {
 async function runAgentProbe(input: { projectRoot: string }) {
   assert(isTauri(), 'Agent probe requires the real Native host');
   localStorage.setItem('engine.agentLoop', 'ts');
+  // The harness put a synthetic Python database next to the engine one: the first engine open
+  // imports it (read-only) before anything else writes.
+  localStorage.setItem('engine.legacyImport', 'on');
 
   // 1. Regex runs in a real Worker: a catastrophic pattern is cut off by the watchdog while the
   //    page keeps ticking.
@@ -104,7 +107,11 @@ async function runAgentProbe(input: { projectRoot: string }) {
 
 // After a WebView reload: a new JS context opens the engine database again and must still own the
 // runs it kept (localStorage keeps the ts flag), without asking the Python store.
-async function readBackAfterReload(input: { runIds: string[]; projectRoot: string }) {
+async function readBackAfterReload(input: {
+  runIds: string[];
+  projectRoot: string;
+  sessionId: number;
+}) {
   assert(isTauri(), 'Agent probe requires the real Native host');
   const runs = [];
   for (const runId of input.runIds) {
@@ -118,10 +125,10 @@ async function readBackAfterReload(input: { runIds: string[]; projectRoot: strin
   }
   // The knowledge inbox reads the same engine database and the project through the Rust reader.
   const inbox = await refreshKnowledgeProposals(input.projectRoot);
-  // Chapter check history: run A's conversation (session 1 of the engine database) has none.
+  // Chapter check history: run A's conversation has none.
   const checks = await queryChapterCheckHistory({
     project_root: input.projectRoot,
-    assistant_session_id: 1,
+    assistant_session_id: input.sessionId,
     limit: 20,
   });
   return {
