@@ -7920,3 +7920,9 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 用量：模型 claude-sonnet-5；7 次请求，输入 55,175 / 输出 9,880 token（起草 3 / 审稿 3 / 修订 1）；耗时约 3 分钟。
 - 逮到既有问题（未修，待作者定）：修订输出把全角逗号 / 冒号 / 问号换成半角，标点还原闸的折叠表不含 `，`↔`,`，这些行被当成真实改动（修订报改动 85% 的行）；Python `restore_incidental_punctuation` 对同一对文本结果相同。
 - 证据：`output/ts-engine-p3/native/run-*/`（`report.md`、`evidence.json`）。开关默认值不变。
+
+## 2026-10-14 全角 / 半角标点漂移（只改 TS，作者拍板）
+
+- 范围：`packages/engine/src/kernel/punctuation.ts` 折叠表加 `，：；？！（）`↔半角（不折 `。`）；`punctuation.test.ts` 两条规范形用例按「Python 输出再折这几对」改判并新增 TS 专属用例。
+- 效果（P3-8 真跑那对修订文本，一次性核对脚本未提交）：`reviseDriftCounts` 从 33 / 39 行降到 5 / 39 行；没点名的行全部还原；剩下带半角逗号的 8 行都是真实改写或新增段落。
+- 测试：引擎 vitest 12971 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`；变异 9 / 9。Python 未改（装机版 P5 前照旧，属接受的差异）。
