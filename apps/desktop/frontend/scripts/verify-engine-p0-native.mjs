@@ -1407,6 +1407,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             { runIds: ['p3-agent-run-a', 'p3-agent-run-b'], projectRoot: agentProject },
           );
           assert.deepEqual(evidence.agentReload.inbox, { items: 0, pending: 0 });
+          assert.deepEqual(evidence.agentReload.checks, { entries: 0, truncated: false });
           assert.deepEqual(
             evidence.agentReload.runs.map((entry) => entry.status),
             ['completed', 'stopped'],

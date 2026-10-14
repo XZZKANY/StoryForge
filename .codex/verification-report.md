@@ -7967,3 +7967,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：服务 43 处抓住 41 处（余 2 处等价），前端接线 7 / 7（含补测后的 1 处）。
 - 真 WebView 探针：`--agent-only` 通过（重载后收件箱刷新走引擎库与 Rust 读口）。
 - 接受的差异：FsToolError 在 Python 是 500（detail 为 Internal Server Error），TS 交出它自己的文案。未联通：章节检查历史（4-2c）。
+
+## 2026-10-14 P4-2c 章节检查历史接引擎库（TS 迁移，默认仍走 Python；P4-2 收口）
+
+- 范围：`packages/engine/src/loop/chapterCheckHistory.ts`（照 Python `query_chapter_check_history` 与 `ChapterCheckHistoryQuery` / `ChapterCheckHistoryRead`）；`RunStore.artifactCreatedAt`；前端 `lib/api/chapter-checks.ts` 按会话开关分流到 `lib/engine/chapterChecks.ts`；预言机 `golden_chapter_checks.py`（`--suite p4-chapter-checks`，72 个操作）。
+- 修正：`kernel/redaction.ts` 的 `redactSensitive` 不再把 `JsonFloat` 拆成 `{value}`（TS 既有缺陷，经脱敏落库的载荷里的整数值浮点会被写坏）。
+- 测试：引擎 vitest 13148 通过（检查历史内存 / sqlite 各回放 72 步一致）；前端 vitest 2177 通过（新增 `chapter-checks-engine` 3 条）；前端 / 引擎 typecheck；`pnpm lint`；`--check` 复导一致。
+- 变异：服务 25 / 26（余 1 处等价），脱敏修正 1 / 1，前端接线 3 / 3。真 WebView 探针 `--agent-only` 通过（重载后检查历史与收件箱都走引擎库）。

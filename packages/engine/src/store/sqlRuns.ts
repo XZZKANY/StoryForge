@@ -410,6 +410,12 @@ export class SqlRunStore implements RunStore, RunStatusView {
     );
   }
 
+  artifactCreatedAt(id: number): Promise<string | null> {
+    return this.read('SELECT created_at FROM agent_artifacts WHERE id = $1', [id], (rows) =>
+      rows.length ? String(rows[0].created_at) : null,
+    );
+  }
+
   artifactsOfKind(kind: string): Promise<readonly ArtifactRecord[]> {
     return this.read('SELECT * FROM agent_artifacts WHERE kind = $1 ORDER BY id', [kind], (rows) =>
       rows.map(artifactFromRow),

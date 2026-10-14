@@ -1,3 +1,4 @@
+import { JsonFloat } from './json';
 import { PYTHON_WHITESPACE } from './pythonText';
 
 export const REDACTED = '[REDACTED]';
@@ -180,6 +181,8 @@ export function redactSensitiveText(text: string, context: SecretContext): strin
 
 export function redactSensitive(value: PlainJson, context: SecretContext): PlainJson {
   if (Array.isArray(value)) return value.map((item) => redactSensitive(item, context));
+  // Python 的整数值浮点（3000.0）是数字，不是对象：原样保留，别拆成 { value }。
+  if ((value as unknown) instanceof JsonFloat) return value;
   if (value !== null && typeof value === 'object') {
     const output: { [key: string]: PlainJson } = Object.create(null);
     for (const [key, item] of Object.entries(value))
