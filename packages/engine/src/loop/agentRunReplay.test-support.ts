@@ -14,7 +14,9 @@ import { MemoryRunStore, type RunEventRecord, type RunRecord } from '../store/ru
 import { runAgentUserMessage, type AgentRuntimeDeps, type SessionTitlePort } from './agentRuntime';
 import { LoopCheckpointStore } from './chatLoopCheckpoints';
 import type { ConversationSources } from './conversationHistory';
+import { AgentHostRejection, postAgentControl, streamAgentUserMessage } from './agentHost';
 import { framesForEvent } from './frames';
+import { agentRunSavePoints, listAgentRunEvents } from './savePoints';
 import { handleAgentControlMessage } from './runControlChannel';
 import {
   AgentRunEventSink,
@@ -111,6 +113,80 @@ function yieldingStore(base: MemoryRunStore): MemoryRunStore {
  * Python `golden_agent_run.py` 预言机的回放台：同一个合成项目、HTTP 层脚本化的模型、虚拟时钟、
  * 中断边界触发的状态写，以及在请求进行中或 run 结束后经控制通道发出的作者控制。
  */
+/** 普通回包遇上流式请求（SSE 路由总是流式）：同一条消息改成 SSE（与预言机的 as_stream 同构）。 */
+function asStream(text: string): string {
+  const data = parseJson(text, 'reply') as Obj;
+  const choice = data.choices[0];
+  const message = choice.message as Obj;
+  const events: Obj[] = message.content
+    ? [{ choices: [{ index: 0, delta: { content: message.content } }] }]
+    : [];
+  ((message.tool_calls ?? []) as Obj[]).forEach((call, index) =>
+    events.push({
+      choices: [
+        {
+          index: 0,
+          delta: {
+            tool_calls: [
+              {
+                index,
+                id: call.id,
+                type: 'function',
+                function: { name: call.function.name, arguments: call.function.arguments },
+              },
+            ],
+          },
+        },
+      ],
+    }),
+  );
+  events.push({ choices: [{ index: 0, delta: {}, finish_reason: choice.finish_reason }] });
+  events.push({ choices: [], usage: data.usage });
+  return (
+    events.map((event) => `data: ${dumpJson(event, { ensureAscii: false })}\n\n`).join('') +
+    'data: [DONE]\n\n'
+  );
+}
+
+const HOST_BODY_KEYS = [
+  'user_message',
+  'run_id',
+  'assistant_session_id',
+  'intent',
+  'permission_profile',
+  'args',
+];
+
+/** 合并窗口跟着墙钟走：同一流同一轮的连续增量拼成一段（先核 chunk_sequence 按轮从 1 连续），只比文本与帧序。 */
+export function mergeTextDeltas(payloads: Obj[]): Obj[] {
+  const merged: Obj[] = [];
+  const sequences = new Map<string, number>();
+  for (const payload of payloads) {
+    if (payload.type !== 'agent_text_delta') {
+      merged.push(payload);
+      continue;
+    }
+    const key = JSON.stringify([payload.run_id, payload.stream_id, payload.round_index]);
+    const expected = (sequences.get(key) ?? 0) + 1;
+    expect(payload.chunk_sequence, 'chunk_sequence').toBe(expected);
+    sequences.set(key, expected);
+    const last = merged[merged.length - 1];
+    if (
+      last?.type === 'agent_text_delta' &&
+      JSON.stringify([last.run_id, last.stream_id, last.round_index]) === key
+    )
+      last.text_delta += payload.text_delta;
+    else {
+      const { chunk_sequence: _sequence, ...rest } = payload;
+      merged.push(rest);
+    }
+  }
+  return merged;
+}
+
+/** 永不触发的合并窗口：增量只在遇到非增量帧或终态时冲出（墙钟窗口由合并规范化抹平）。 */
+const IDLE_SCHEDULER = { setTimer: () => ({}), clearTimer: () => undefined };
+
 export function agentRunReplay(golden: Obj) {
   const ROOT = golden.project_root as string;
   const platform = golden.platform as 'windows' | 'posix';
@@ -415,6 +491,12 @@ export function agentRunReplay(golden: Obj) {
             ),
           };
         }
+        if (
+          (body as Obj | null)?.stream === true &&
+          reply.status < 400 &&
+          !String(reply.body ?? '').startsWith('data:')
+        )
+          reply = { ...reply, body: asStream(reply.body as string) };
         const raw = new TextEncoder().encode(reply.body ?? '');
         async function* lines() {
           let start = 0;
@@ -533,6 +615,7 @@ export function agentRunReplay(golden: Obj) {
       frames.push(...framesForEvent(run, event, SECRETS));
     let result: Obj | null = null;
     let error: unknown = null;
+    const host: Obj = {};
     if (spec.setup) {
       // 经真实的建 run / 执行开始 / sink / 收尾得来：刚建好还没执行的 run，或停在 permission.confirm 的 run。
       const services: RunServices = { store, secrets: SECRETS };
@@ -557,6 +640,33 @@ export function agentRunReplay(golden: Obj) {
         onEvent(settled, current);
         result = output;
       }
+    } else if (spec.host) {
+      const message = parseJson(
+        dumpJson(spec.message).split('$ROOT').join(JSON.stringify(ROOT).slice(1, -1)),
+        'message',
+      ) as Obj;
+      if ((message.args as Obj).file_path === `${ROOT}/正文/第001章.md`)
+        (message.args as Obj).file_path =
+          `${ROOT}${platform === 'windows' ? '\\正文\\第001章.md' : '/正文/第001章.md'}`;
+      const body: Obj = Object.fromEntries(
+        HOST_BODY_KEYS.filter((key) => key in message).map((key) => [key, message[key]]),
+      );
+      Object.assign(body, spec.body_override ?? {});
+      const payloads: Obj[] = [];
+      try {
+        await streamAgentUserMessage(
+          { ...deps, newRunId: () => 'unused', scheduler: IDLE_SCHEDULER },
+          'sess-1',
+          body,
+          (frame) => payloads.push(frame),
+        );
+        host.payloads = mergeTextDeltas(payloads);
+      } catch (caught) {
+        if (!(caught instanceof AgentHostRejection)) throw caught;
+        expect(payloads).toEqual([]);
+        host.payloads = { rejected: caught.status };
+      }
+      host.body = body;
     } else {
       const message = parseJson(
         dumpJson(spec.message).split('$ROOT').join(JSON.stringify(ROOT).slice(1, -1)),
@@ -581,7 +691,39 @@ export function agentRunReplay(golden: Obj) {
       }
     }
     const ops = (spec.ops ?? []) as Obj[];
-    if (options.parallelControls) {
+    if (spec.host) {
+      const reads = async (): Promise<Obj> => {
+        try {
+          return {
+            events: await listAgentRunEvents(deps, 'run-1'),
+            save_points: await agentRunSavePoints(deps, 'run-1'),
+          };
+        } catch (caught) {
+          return { error: { type: (caught as Error).name, message: (caught as Error).message } };
+        }
+      };
+      host.reads = [await reads()];
+      host.host_controls = [];
+      for (const op of ops) {
+        if (op.op === 'edit') project.apply({ [op.path]: encoded(op.content) });
+        else {
+          const body: Obj = {
+            type: op.type,
+            run_id: op.run_id ?? 'run-1',
+            payload: op.payload ?? {},
+            ...(op.body_override ?? {}),
+          };
+          try {
+            const ack = await postAgentControl(deps, op.session ?? 'sess-1', body);
+            (host.host_controls as Obj[]).push({ body, ack });
+          } catch (caught) {
+            if (!(caught instanceof AgentHostRejection)) throw caught;
+            (host.host_controls as Obj[]).push({ body, rejected: caught.status });
+          }
+        }
+        (host.reads as Obj[]).push(await reads());
+      }
+    } else if (options.parallelControls) {
       // 每条控制各走一条连接、同时发出（只用于没有改文件步骤的场景）。
       expect(ops.every((op) => op.op === 'control')).toBe(true);
       controls.push(...(await Promise.all(ops.map(runControl))));
@@ -594,6 +736,7 @@ export function agentRunReplay(golden: Obj) {
     return {
       error,
       record: {
+        ...host,
         result,
         ...('ops' in spec ? { controls } : {}),
         frames,
@@ -601,7 +744,10 @@ export function agentRunReplay(golden: Obj) {
         checks,
         requests,
         unused_replies: replies.length,
-        runs: [...(spec.seed_review ? [await runs.getRun(1)] : []), await runs.getRun(RUN_ID)],
+        runs: [
+          ...(spec.seed_review ? [await runs.getRun(1)] : []),
+          ...((await runs.findRun('run-1')) ? [await runs.getRun(RUN_ID)] : []),
+        ],
         events: rows.events,
         artifacts: rows.artifacts,
         subagents: rows.subagents.map(({ id, run_id, role, input, output, status }) => ({

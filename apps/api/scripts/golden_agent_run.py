@@ -24,6 +24,7 @@ from uuid import UUID
 import prometheus_client  # noqa: F401 - imported before the audit hook: its process collector probes /proc
 from golden_fs import Project, isolated_fs_oracle, stable
 from golden_llm_harness import FakeBody, sse
+from golden_save_points import save_point_records
 
 SECRET = "sk-oracle-secret-123456"
 STEP = 0.25
@@ -77,6 +78,18 @@ def streamed(chunks=(), calls=(), finish="stop", usage=(12, 5), **effects):
     events.append({"choices": [], "usage": {"prompt_tokens": usage[0], "completion_tokens": usage[1],
                                             "total_tokens": usage[0] + usage[1]}})
     return {"status": 200, "body": sse(*events), **effects}
+
+
+def as_stream(reply):
+    """A plain completion served to a streaming request (the SSE route always streams): the same message as SSE."""
+    data = json.loads(reply["body"])
+    choice, usage = data["choices"][0], data["usage"]
+    message = choice["message"]
+    calls = [(call["id"], call["function"]["name"], call["function"]["arguments"])
+             for call in message.get("tool_calls", [])]
+    chunks = [message["content"]] if message.get("content") else []
+    return {**reply, "body": streamed(chunks, calls, choice["finish_reason"],
+                                      (usage["prompt_tokens"], usage["completion_tokens"]))["body"]}
 
 
 def message(text, run_id="run-1", project=True, file=True, **extra):
@@ -889,24 +902,30 @@ def write_file(path, content):
     path.write_bytes(content.encode("utf-8"))
 
 
-def renumber_artifacts(record):
+def renumber_artifacts(record, host=False):
     """Checkpoints stay in engine memory in TS (§2.6), so they are dropped here and the remaining artifacts are
     numbered by rank; every `artifact_id` that pointed at one of them is rewritten the same way."""
     kept = [row for row in record["artifacts"] if row["kind"] != "runtime_checkpoint"]
     mapping = {row["id"]: rank for rank, row in enumerate(kept, start=1)}
 
-    def remap(value):
+    def remap(value, every=False):
         if isinstance(value, dict):
-            return {key: mapping.get(item, item) if key == "artifact_id" and isinstance(item, int) else remap(item)
+            return {key: mapping.get(item, item)
+                    if (key.endswith("artifact_id") if every else key == "artifact_id") and type(item) is int
+                    else remap(item, every)
                     for key, item in value.items()}
         if isinstance(value, list):
-            return [remap(item) for item in value]
+            return [remap(item, every) for item in value]
         return value
 
     record["artifacts"] = [{**row, "id": mapping[row["id"]]} for row in kept]
     for key in ("events", "frames", "result"):
         if key in record:
             record[key] = remap(record[key])
+    if host:
+        for key in ("payloads", "host_controls", "reads"):
+            if key in record:
+                record[key] = remap(record[key], every=True)
     return record
 
 
@@ -1095,6 +1114,188 @@ def p3_wiring_snapshot() -> dict:
     return _snapshot("p3-wiring", wiring_scenarios(), SOURCES + WIRING_SOURCES)
 
 
+HOST_SOURCES = [
+    "app/domains/ide/router.py",
+    "app/domains/agent_runs/router.py",
+    "app/domains/agent_runs/schemas.py",
+    "app/domains/agent_runs/service_store.py",
+    "app/domains/agent_runs/save_points.py",
+    "app/domains/agent_runs/events/save_point_projection.py",
+    "app/domains/agent_runs/loop/recovery.py",
+]
+HOST_BODY_KEYS = ("user_message", "run_id", "assistant_session_id", "intent", "permission_profile", "args")
+
+
+def merge_text_deltas(payloads):
+    """Coalescing windows follow wall time; consecutive deltas of one stream round are joined (after checking that
+    chunk_sequence counts 1, 2, ... per round) so only the text and the frame order are compared."""
+    merged, sequences = [], {}
+    for payload in payloads:
+        if payload.get("type") != "agent_text_delta":
+            merged.append(payload)
+            continue
+        key = (payload["run_id"], payload["stream_id"], payload["round_index"])
+        expected = sequences.get(key, 0) + 1
+        assert payload["chunk_sequence"] == expected, (payload, expected)
+        sequences[key] = expected
+        last = merged[-1] if merged else None
+        if last is not None and last.get("type") == "agent_text_delta" and (
+                last["run_id"], last["stream_id"], last["round_index"]) == key:
+            last["text_delta"] += payload["text_delta"]
+        else:
+            merged.append({k: v for k, v in payload.items() if k != "chunk_sequence"})
+    return merged
+
+
+def host_stream(loop, db, body):
+    from pydantic import ValidationError
+
+    from app.domains.ide.router import AgentUserMessageStreamRequest, stream_agent_user_message_endpoint
+
+    try:
+        request = AgentUserMessageStreamRequest.model_validate(body)
+    except ValidationError:
+        return {"rejected": 422}
+
+    async def collect():
+        response = await stream_agent_user_message_endpoint("sess-1", request, db, host_generation=None)
+        return [chunk async for chunk in response.body_iterator]
+
+    payloads = []
+    for chunk in loop.run_until_complete(collect()):
+        assert chunk.startswith("data: ") and chunk.endswith("\n\n"), chunk
+        payloads.append(json.loads(chunk[len("data: "):-2]))
+    return merge_text_deltas(payloads)
+
+
+def host_control(control_db, op):
+    from pydantic import ValidationError
+
+    from app.domains.ide.router import AgentControlRequest, post_agent_control_endpoint
+
+    body = {"type": op["type"], "run_id": op.get("run_id", "run-1"), "payload": op.get("payload", {})}
+    body.update(op.get("body_override", {}))
+    try:
+        request = AgentControlRequest.model_validate(body)
+    except ValidationError:
+        return {"body": body, "rejected": 422}
+    return {"body": body, "ack": post_agent_control_endpoint(op.get("session", "sess-1"), request, control_db)}
+
+
+def host_reads(db):
+    from app.domains.agent_runs.router import get_agent_run_save_points_endpoint, list_agent_run_events_endpoint
+    from app.domains.agent_runs.schemas import AgentRunEventRead
+    from app.domains.agent_runs.service_types import AgentRunNotFoundError
+
+    db.expire_all()
+    try:
+        events = [{k: v for k, v in AgentRunEventRead.model_validate(event).model_dump(mode="json").items()
+                   if k not in ("created_at", "updated_at")}
+                  for event in list_agent_run_events_endpoint("run-1", db)]
+        save_points = get_agent_run_save_points_endpoint("run-1", db)
+    except AgentRunNotFoundError as exc:
+        return {"error": {"type": type(exc).__name__, "message": str(exc)}}
+    return {"events": events, "save_points": save_points}
+
+
+def coalescer_records():
+    """Scripted feed / flush sequences against the router's text-delta coalescer (no clock involved)."""
+    def delta(text, stream="s1", round_index=1, sequence=0):
+        return {"type": "agent_text_delta", "run_id": "run-1", "stream_id": stream, "round_index": round_index,
+                "chunk_sequence": sequence, "text_delta": text}
+
+    step = {"type": "agent_step", "run_id": "run-1", "step": "x", "status": "running"}
+    started = {"type": "agent_text_stream_started", "run_id": "run-1", "stream_id": "s2", "round_index": 1}
+    big = "长" * 4000
+    sequences = {
+        "first-then-buffer": [("feed", delta("a")), ("feed", delta("b")), ("feed", delta("c")), ("flush",)],
+        "non-delta-flushes-first": [("feed", delta("a")), ("feed", delta("b")), ("feed", step), ("feed", delta("c"))],
+        "new-stream-flushes-old": [("feed", delta("a")), ("feed", delta("b")), ("feed", delta("x", stream="s2")),
+                                   ("feed", delta("y", stream="s2")), ("flush",)],
+        "new-round-flushes-old": [("feed", delta("a")), ("feed", delta("b")), ("feed", delta("x", round_index=2)),
+                                  ("flush",), ("feed", delta("y", round_index=2)), ("flush",)],
+        "char-budget": [("feed", delta("a")), ("feed", delta(big)), ("feed", delta("长" * 97)), ("feed", delta("z")),
+                        ("flush",)],
+        "char-budget-exact": [("feed", delta("a")), ("feed", delta("长" * 4095)), ("feed", delta("长")),
+                              ("feed", delta("z")), ("flush",)],
+        "flush-empty": [("flush",), ("feed", step), ("flush",)],
+        "renumber-after-flush": [("feed", delta("a")), ("flush",), ("feed", delta("b")), ("flush",),
+                                 ("feed", delta("c")), ("feed", delta("d")), ("flush",)],
+        "started-frame-between": [("feed", delta("a")), ("feed", delta("b")), ("feed", started),
+                                  ("feed", delta("x", stream="s2")), ("flush",)],
+        "back-to-earlier-round": [("feed", delta("a")), ("feed", delta("x", stream="s2")), ("feed", delta("b")),
+                                  ("flush",)],
+        # Astral characters count once (Python len), not twice (UTF-16 units).
+        "char-budget-astral": [("feed", delta("a")), ("feed", delta("😀" * 2048)), ("feed", delta("😀" * 2048)),
+                               ("feed", delta("z")), ("flush",)],
+    }
+    from app.domains.ide.router import _TextDeltaCoalescer
+
+    records = {}
+    for name, ops in sequences.items():
+        coalescer, outputs = _TextDeltaCoalescer(), []
+        for op in ops:
+            if op[0] == "feed":
+                frames, armed = coalescer.feed(json.loads(json.dumps(op[1])))
+                outputs.append({"frames": frames, "armed": armed})
+            else:
+                outputs.append({"flushed": coalescer.flush()})
+        records[name] = {"ops": [list(op) for op in ops], "outputs": outputs}
+    return records
+
+
+def host_scenarios():
+    picked = {spec["id"]: spec for spec in
+              scenarios() + control_scenarios() + fixed_scenarios() + chapter_scenarios() + patch_scenarios()}
+    ids = ["answer", "streaming", "session-project-mismatch", "session-missing", "fallback-llm-error",
+           "loop-provider-error", "stop-during-request", "knowledge-proposal", "pause-after-tool-then-resume",
+           "pause-after-tool-edit-read-file-then-resume", "stop-in-flight-then-resume", "resume-model-outcome-unknown",
+           "resume-tool-outcome-unknown", "approve-plain", "approve-with-outcome", "deny", "resume-permission-wait",
+           "pause-run-not-yet-executing", "foreign-session-control", "forged-control-payload",
+           "pause-and-resume-in-flight", "revise-ask", "revise-auto", "pause-during-review"]
+    s = [{**picked[name], "id": f"host-{name}", "host": True} for name in ids]
+    s += [{**spec, "id": f"host-{spec['id']}", "host": True} for spec in fixed_scenarios()
+          if "pause" in spec["id"] or "stop" in spec["id"]][:4]
+    s += [{**spec, "id": f"host-{spec['id']}", "host": True} for spec in chapter_scenarios()
+          if spec["id"] in {"write-brief", "write-brief-then-pass", "write-stale-brief"}]
+    s.append(scenario("host-bad-permission-profile", message("坏档位", permission_profile="bogus"), host=True))
+    s.append(scenario("host-bad-args", message("坏参数"), host=True, body_override={"args": "x"}))
+    s.append(scenario("host-bad-session-id", message("坏会话号"), host=True,
+                      body_override={"assistant_session_id": "abc"}))
+    s.append(scenario("host-secret-in-message", message(f"我的 key 是 {SECRET}"), [completion("收到。")], host=True))
+    s.append(scenario("host-legacy-profile", message("旧档位", permission_profile="risk_confirm"),
+                      [completion("好。")], host=True))
+    s.append(scenario("host-control-errors", message("答完"), [completion("好。")], host=True, ops=[
+        {"op": "control", "type": "bogus_type"},
+        {"op": "control", "type": "pause_run", "run_id": "   "},
+        {"op": "control", "type": "pause_run", "run_id": " run-1 "},
+        {"op": "control", "type": "stop_run", "run_id": "run-404"},
+        {"op": "control", "type": "pause_run", "body_override": {"payload": ["x"]}},
+        {"op": "control", "type": "pause_run", "body_override": {"payload": None}},
+        {"op": "control", "type": "resume_run", "session": "sess-other"},
+    ]))
+    return s
+
+
+def host_records() -> dict:
+    from app.domains.ide import router
+
+    return {"coalescer": coalescer_records(), "save_point_records": save_point_records(),
+            "coalescer_limits": {"window_seconds": router._TEXT_COALESCE_WINDOW_SECONDS,
+                                 "max_chars": router._TEXT_COALESCE_MAX_CHARS}}
+
+
+def p3_host_snapshot() -> dict:
+    import asyncio
+
+    loop = asyncio.new_event_loop()  # created before the audit hook: the loop's self-pipe is a socket pair
+    try:
+        return _snapshot("p3-host", host_scenarios(), SOURCES + CONTROL_SOURCES + HOST_SOURCES, host_loop=loop,
+                         after=host_records)
+    finally:
+        loop.close()
+
+
 def p3_polish_snapshot() -> dict:
     return _snapshot("p3-polish", polish_scenarios(), SOURCES + POLISH_SOURCES, extra={"polish_secret": POLISH_SECRET})
 
@@ -1109,7 +1310,7 @@ def drop_checkpoint_artifact_ids(value):
     return value
 
 
-def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None, after=None) -> dict:
+def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None, after=None, host_loop=None) -> dict:
     with isolated_fs_oracle("storyforge-golden-agent-run-", fixed=True) as (api, run_dir):
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
@@ -1212,6 +1413,9 @@ def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None,
                 entries = [{"category": "decision", "text": f"摘要 {source['key']}", "source_id": source["key"],
                             "quote": source["content"][:10]} for source in model_input["new_sources"]]
                 reply = completion(json.dumps({"entries": entries}, ensure_ascii=False))
+            if (isinstance(body, dict) and body.get("stream") is True and reply["status"] < 400
+                    and not reply.get("body", "").startswith("data:")):
+                reply = as_stream(reply)
             raw = reply.get("body", "").encode()
             if reply["status"] >= 400:
                 headers = email.message.Message()
@@ -1311,6 +1515,14 @@ def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None,
                 out_result, settled = service_execution.finish_agent_execution(db, start.run, started, wait)
                 on_event(settled)
                 record["result"] = out_result
+            elif spec.get("host") and not spec.get("setup"):
+                msg = json.loads(json.dumps(spec["message"]).replace("$ROOT", root.replace("\\", "\\\\")))
+                if msg["args"].get("file_path") == root + "/正文/第001章.md":
+                    msg["args"]["file_path"] = str(project.root / "正文" / "第001章.md")
+                body = {key: msg[key] for key in HOST_BODY_KEYS if key in msg}
+                body.update(spec.get("body_override", {}))
+                record["body"] = body
+                record["payloads"] = host_stream(host_loop, db, body)
             elif not spec.get("setup"):
                 msg = json.loads(json.dumps(spec["message"]).replace("$ROOT", root.replace("\\", "\\\\")))
                 if msg["args"].get("file_path") == root + "/正文/第001章.md":
@@ -1323,11 +1535,18 @@ def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None,
                     record["result"] = out.result
                 except AgentRuntimeUserMessageError as exc:
                     record["error"] = {"type": type(exc).__name__, "message": str(exc)}
+            if spec.get("host"):
+                record["reads"] = [host_reads(db)]
+                record["host_controls"] = []
             for op in spec.get("ops", []):
                 if op["op"] == "edit":
                     write_file(project.root / op["path"], op["content"])
+                elif spec.get("host"):
+                    record["host_controls"].append(host_control(control_db, op))
                 else:
                     state["controls"].append(run_control(op))
+                if spec.get("host"):
+                    record["reads"].append(host_reads(db))
             if "ops" in spec:
                 record["controls"] = state["controls"]
             control_db.close()
@@ -1354,7 +1573,8 @@ def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None,
                             for r in db.query(AssistantToolCall).order_by(AssistantToolCall.id)],
             )
             plain = json.loads(json.dumps(record, ensure_ascii=False, default=str))
-            normalized = compact(renumber_artifacts(drop_checkpoint_artifact_ids(stable(plain, project.root))))
+            normalized = compact(renumber_artifacts(drop_checkpoint_artifact_ids(stable(plain, project.root)),
+                                                    host=bool(spec.get("host"))))
             records.append({**normalized, "spec_json": record["spec_json"]})
             db.close()
         event_sink.AgentRunEventSink.runtime_interruption = real_check
