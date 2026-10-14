@@ -42,8 +42,9 @@ assert.ok(
     '--assistant-only',
     '--assistant-real',
     '--agent-only',
+    '--agent-real',
   ].includes(mode) && extra.length === 0,
-  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only / --llm-only / --assistant-only / --assistant-real / --agent-only',
+  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only / --llm-only / --assistant-only / --assistant-real / --agent-only / --agent-real',
 );
 const REAL_CHAPTERS = {
   '正文/第001章.md':
@@ -66,22 +67,27 @@ const assistantReal = mode === '--assistant-real';
 const p2 = llmOnly || assistantOnly || assistantReal;
 // P3: the agent loop on the TS engine (routing, Worker regex, Rust .storyforge writer, controls).
 const agentOnly = mode === '--agent-only';
-const p3 = agentOnly;
-const storeMode = assistantOnly || assistantReal || agentOnly;
+// P3-8: paid run of the agent loop with the author's provider (copied ciphertext, key stays in Rust).
+const agentReal = mode === '--agent-real';
+const p3 = agentOnly || agentReal;
+const realProvider = assistantReal || agentReal;
+const storeMode = assistantOnly || assistantReal || agentOnly || agentReal;
 const p1 = contextOnly || readerOnly;
-const fixtureName = agentOnly
-  ? 'engine-p3-agent'
-  : assistantReal
-    ? 'engine-p2-assistant-real'
-    : assistantOnly
-      ? 'engine-p2-assistant'
-      : llmOnly
-        ? 'engine-p2-llm'
-        : readerOnly
-          ? 'engine-p1-reader'
-          : contextOnly
-            ? 'engine-p1-context'
-            : 'engine-p0';
+const fixtureName = agentReal
+  ? 'engine-p3-agent-real'
+  : agentOnly
+    ? 'engine-p3-agent'
+    : assistantReal
+      ? 'engine-p2-assistant-real'
+      : assistantOnly
+        ? 'engine-p2-assistant'
+        : llmOnly
+          ? 'engine-p2-llm'
+          : readerOnly
+            ? 'engine-p1-reader'
+            : contextOnly
+              ? 'engine-p1-context'
+              : 'engine-p0';
 const transports = mode === '--transport-only' || mode === '--all';
 const label = p3 ? 'P3' : p2 ? 'P2' : p1 ? 'P1' : 'P0';
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -165,6 +171,95 @@ function ownedPath(base, name) {
   );
   return target;
 }
+/** Token totals per step and per model operation, from the engine's own request evidence. */
+function agentRealSummary(real) {
+  const steps = {
+    write: real.resumedUsage ?? real.write?.usage ?? [],
+    review: real.review?.usage ?? [],
+    revise: real.revise?.usage ?? [],
+  };
+  const total = (rows) =>
+    rows.reduce(
+      (sum, row) => ({
+        requests: sum.requests + 1,
+        prompt: sum.prompt + row.prompt,
+        completion: sum.completion + row.completion,
+      }),
+      { requests: 0, prompt: 0, completion: 0 },
+    );
+  const byStep = Object.fromEntries(
+    Object.entries(steps).map(([name, rows]) => [name, total(rows)]),
+  );
+  const all = total(Object.values(steps).flat());
+  return {
+    model: real.provider?.model,
+    briefConfirmed: Boolean(real.brief),
+    patch: real.patch
+      ? { kind: real.patch.kind, chars: [...(real.patch.after ?? '')].length }
+      : null,
+    writeback: real.writeback,
+    reviewOk: real.review?.result?.ok ?? false,
+    reviseOk: real.revise?.result?.ok ?? false,
+    tokens: { ...byStep, total: all },
+  };
+}
+
+/** A Markdown report for the author: brief, chapter, review, revision, tokens and timings. */
+function agentRealReport(real) {
+  const fence = (text) => ['```text', String(text ?? '').trim(), '```'].join('\n');
+  const json = (value) => ['```json', JSON.stringify(value, null, 2), '```'].join('\n');
+  const result = (step) => (step?.result?.ok ? step.result.message : step?.result?.error);
+  const agentResult = (step) => result(step)?.agent_result ?? null;
+  const summary = agentRealSummary(real);
+  const rows = (name, list) =>
+    (list ?? []).map(
+      (row) =>
+        `| ${name} | ${row.operation ?? ''} | ${row.status ?? ''} | ${row.finish ?? ''} | ${row.prompt} | ${row.completion} |`,
+    );
+  return [
+    '# P3-8 真跑报告（TS 引擎 · 作者的模型配置 · 合成两章）',
+    '',
+    `- 模型：${summary.model}`,
+    `- 起草（含章纲）耗时：${real.write?.ms ?? '-'} ms + 确认后 ${real.confirm?.ms ?? '-'} ms；审稿 ${real.review?.ms ?? '-'} ms；修订 ${real.revise?.ms ?? '-'} ms`,
+    `- 补丁写回：${JSON.stringify(real.writeback)}`,
+    '',
+    '## 1. 章纲（作者确认前）',
+    json(real.brief),
+    '',
+    '## 2. 起草结果',
+    `结果摘要：${agentResult({ result: { ok: true, message: real.resumed } })?.summary ?? JSON.stringify(real.confirm)}`,
+    '',
+    '写回后的第三章全文：',
+    fence(real.written ?? real.patch?.after ?? '（没有产出补丁）'),
+    '',
+    '## 3. 审稿',
+    `对象：${real.reviewTarget}`,
+    '',
+    fence(agentResult(real.review)?.summary ?? JSON.stringify(result(real.review))),
+    json(
+      agentResult(real.review)?.review_report?.issues ??
+        agentResult(real.review)?.review_report ??
+        null,
+    ),
+    '',
+    '## 4. 修订（只看补丁，不写回）',
+    fence(agentResult(real.revise)?.summary ?? JSON.stringify(result(real.revise))),
+    '修订后的全文：',
+    fence(result(real.revise)?.proposed_patch?.after ?? '（没有产出补丁）'),
+    '',
+    '## 5. 用量（引擎本地请求证据）',
+    '',
+    '| 步骤 | 操作 | 状态 | 结束原因 | 输入 token | 输出 token |',
+    '| --- | --- | --- | --- | --- | --- |',
+    ...rows('起草', real.resumedUsage ?? real.write?.usage),
+    ...rows('审稿', real.review?.usage),
+    ...rows('修订', real.revise?.usage),
+    '',
+    json(summary.tokens),
+    '',
+  ].join('\n');
+}
+
 async function contextFingerprint(base, allowLinks = false) {
   const result = [];
   async function visit(directory, prefix) {
@@ -401,6 +496,13 @@ try {
     assistantBefore = await contextFingerprint(assistantProject);
   }
   let agentProject, agentBefore;
+  if (agentReal) {
+    agentProject = ownedPath(output, 'book');
+    await mkdir(resolve(agentProject, '正文'), { recursive: true });
+    for (const [name, text] of Object.entries(REAL_CHAPTERS))
+      await writeFile(resolve(agentProject, name), text);
+    agentBefore = await contextFingerprint(agentProject);
+  }
   if (agentOnly) {
     agentProject = ownedPath(output, 'book');
     await mkdir(resolve(agentProject, '正文'), { recursive: true });
@@ -699,7 +801,7 @@ class Handler(BaseHTTPRequestHandler):
 ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handler).serve_forever()
 `,
   );
-  if (assistantReal)
+  if (realProvider)
     await copyFile(
       resolve(process.env.APPDATA, 'com.storyforge.ide', 'llm-provider.json'),
       resolve(directories.configDir, 'llm-provider.json'),
@@ -923,19 +1025,21 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     });
   await page.waitForFunction(
     (key) => document.documentElement.dataset[key] === 'true',
-    agentOnly
-      ? 'engineP3AgentReady'
-      : assistantReal
-        ? 'engineP2AssistantRealReady'
-        : assistantOnly
-          ? 'engineP2AssistantReady'
-          : llmOnly
-            ? 'engineP2LlmReady'
-            : readerOnly
-              ? 'engineP1ReaderReady'
-              : contextOnly
-                ? 'engineP1Ready'
-                : 'engineP0Ready',
+    agentReal
+      ? 'engineP3AgentRealReady'
+      : agentOnly
+        ? 'engineP3AgentReady'
+        : assistantReal
+          ? 'engineP2AssistantRealReady'
+          : assistantOnly
+            ? 'engineP2AssistantReady'
+            : llmOnly
+              ? 'engineP2LlmReady'
+              : readerOnly
+                ? 'engineP1ReaderReady'
+                : contextOnly
+                  ? 'engineP1Ready'
+                  : 'engineP0Ready',
   );
   evidence.nativeReadyMs = Date.now() - nativeStartedAt;
   let timer;
@@ -1308,6 +1412,47 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             'The real key reached the WebView or evidence',
           );
         }
+        if (agentReal) {
+          evidence.agentReal = await page.evaluate(
+            (input) => window.__ENGINE_P3_AGENT_REAL__.runAgentRealRun(input),
+            { projectRoot: agentProject },
+          );
+          const real = evidence.agentReal;
+          assert.equal(real.native, true);
+          assert.ok(
+            real.provider.keyIsPlaceholder,
+            'The WebView saw something other than the placeholder',
+          );
+          const log = JSON.parse(await readFile(storeLogPath, 'utf8'));
+          evidence.storeLog = log;
+          assert.ok(
+            log.every((entry) => entry.key === 'synthetic-p0-api'),
+            'Store auth missing',
+          );
+          // Manuscripts: chapters 1-2 byte-identical; the only new manuscript is the accepted chapter 3.
+          const after = await contextFingerprint(agentProject);
+          const manuscripts = (entries) =>
+            entries.filter((entry) => !entry.path.startsWith('.storyforge'));
+          const before = manuscripts(agentBefore);
+          const changed = manuscripts(after).filter(
+            (entry) => !before.some((old) => JSON.stringify(old) === JSON.stringify(entry)),
+          );
+          assert.ok(
+            before.every((old) =>
+              after.some((entry) => JSON.stringify(entry) === JSON.stringify(old)),
+            ),
+            'An existing manuscript changed',
+          );
+          assert.deepEqual(
+            changed.map((entry) => entry.path),
+            real.writeback?.ok ? ['正文/第003章.md'] : [],
+            'Only the accepted chapter may appear',
+          );
+          evidence.agentReal.storyforgeFiles = after
+            .filter((entry) => entry.path.startsWith('.storyforge') && entry.kind === 'file')
+            .map((entry) => entry.path);
+          await writeFile(resolve(output, 'report.md'), agentRealReport(real));
+        }
         if (assistantReal) {
           evidence.real = await page.evaluate(
             (input) => window.__ENGINE_P2_ASSISTANT_REAL__.runAssistantRealRun(input),
@@ -1342,7 +1487,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
           evidence.cpu = await page.evaluate(() => window.__ENGINE_P0__.runCpuProbe());
       })(),
       new Promise((_, reject) => {
-        const limit = assistantReal ? 600000 : 180000;
+        const limit = agentReal ? 1800000 : assistantReal ? 600000 : 180000;
         timer = setTimeout(
           () => reject(new Error(`Native probe exceeded ${limit / 1000} seconds`)),
           limit,
@@ -1382,6 +1527,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
           maxMs,
           longTasks: longTasks.length,
         })),
+        agentReal: evidence.agentReal && agentRealSummary(evidence.agentReal),
         agent: evidence.agent && {
           firstDeltaMs: evidence.agent.firstDeltaMs,
           runawayMs: Math.round(evidence.agent.runawayMs),
@@ -1442,7 +1588,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     }
   }
   // The copied author config is ciphertext bound to this Windows user; still never keep it.
-  if (assistantReal)
+  if (realProvider)
     for (const name of await readdir(directories.configDir).catch(() => []))
       if (name.startsWith('llm-provider')) await unlink(resolve(directories.configDir, name));
   if (p1 || p2 || p3) {
