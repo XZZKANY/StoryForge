@@ -455,12 +455,6 @@ export function agentRunReplay(golden: Obj) {
         runHasArtifact: async () => false,
         artifactPayloads: async () => [],
       },
-      crossChapter: {
-        model: null,
-        callLlm: async () => {
-          throw new Error('unused');
-        },
-      },
       // 补丁与审稿报告共用一个计数（预言机把四处 uuid4().hex 换成同一个计数器）。
       newHex: () => (++hex).toString(16).padStart(32, '0'),
     };

@@ -7879,3 +7879,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - Python 既有边角问题（未修，待作者定）：写章消息含已配置的 key 时，来源守卫存脱敏后的消息，知识选择查询哈希对不上，整理 brief 时即报来源已变化（一次性脚本 `output/ts-engine-p3/debug_secret_brief.py` 实证：`AgentRuntimeUserMessageError: Chapter Brief 的来源在确认期间已变化…`，模型未被调用）。TS 行为相同。
 - 延后：检查历史 HTTP 读接口随 P4-2；检查点生成回执按 §2.6 不搬。
 - 门禁：引擎 vitest 12845 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+
+## 2026-10-14 P3-7a 接线前置（TS 迁移，默认仍走 Python）
+
+- 范围：引擎正则端口改为按文件整批的异步扫描（`kernel/regexScan.ts` 的 `scanRegexLines` 收拢 Python `SearchMatcher` 的单行超时与累计预算语义，`fsProjectTools.ts` / `projectKnowledgeFiles.ts` 改用整批扫描）；前端新增 Worker 正则（`apps/desktop/frontend/src/lib/engine/regex.ts`、`regex.worker.ts`、`regexWorkerCore.ts`，看门狗 + 回包校验，尚未接线）；`project.cross_chapter_check` 改用本次 run 的模型服务（`ToolRunServices.model.complete`），删 `ToolDeps.crossChapter`；引擎包加 `./regexScan` 子路径导出。P3-7 拆四刀，写进迁移计划。
+- 预言机：新 `apps/api/scripts/golden_regex_budget.py`（`--suite p3-regex-budget`，15 个场景）；`golden_agent_run.py` 新套件 `--suite p3-wiring`（9 个场景）。两者 `--check` 复导一致；`p3-deep-consistency` 复导不变。
+- TS 回放：`packages/engine/src/kernel/regexBudget.test.ts`、`src/loop/wiring.test.ts` 全绿，首轮回放即一致；前端 `tests/engine-regex-worker.test.ts` 18 条。
+- 变异：引擎 24 / 25（余 1 处等价：子串模式命中上限，调用方在同一处截断）；前端首轮 10 / 15，逐条补畸形回包后 15 / 15。
+- 门禁：引擎 vitest 12873 通过 / 2 跳过、引擎与前端 typecheck、前端 vitest 2134 通过 / 1 跳过、`pnpm lint`（0 错误，2 条既有 warning）、ruff（预言机脚本）。Python 业务代码、Rust 零改动，OpenAPI 不涉及。
+- 未验：Worker 在真 WebView / 发行版打包里的加载随 7d 的真 WebView 探针验证（本刀没有生产调用点）。

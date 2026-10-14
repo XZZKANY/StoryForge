@@ -57,14 +57,17 @@ export type ToolRunServices = {
   readonly checkInterruption: (boundary: string) => void;
   /** 润色用的两个模型槽（主模型 / 专用润色槽）。 */
   readonly polish: PolishModels;
-  /** 直接发消息的工具（语义 judge）：本次 run 的主模型配置源，请求挂在给定的模型操作下记证据。 */
+  /** 直接发消息的工具：本次 run 的主模型配置源，请求绑定本次的运行控制与模型观察。 */
   readonly model: {
     readonly source: LlmSource;
+    /** 语义 judge：请求挂在给定的模型操作下记证据。 */
     call(
       operation: string,
       source: LlmSource,
       options: { messages: Obj[]; timeoutSeconds: number; maxAttempts: number },
     ): Promise<Obj>;
+    /** 跨章检查（Python 的 call_llm）：主模型、一条 system + 一条 user，记在工具自己的操作下。 */
+    complete(prompt: { systemPrompt: string; userPrompt: string }): Promise<Obj>;
   };
 };
 

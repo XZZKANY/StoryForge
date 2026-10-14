@@ -48,6 +48,8 @@ export {
   resolveScopedPath,
 } from './kernel/fsTools';
 export type { TextRead } from './kernel/fsTools';
+export type { RegexCompiler, SearchPattern } from './kernel/fsProjectTools';
+export { REGEX_MATCH_SECONDS, scanRegexLines, type RegexScan } from './kernel/regexScan';
 export {
   GenerationSourceCapture,
   MAX_MANIFEST_BYTES,

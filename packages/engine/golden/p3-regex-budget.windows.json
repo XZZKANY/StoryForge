@@ -1,0 +1,2076 @@
+{
+  "format_version": 1,
+  "suite": "p3-regex-budget",
+  "sources": {
+    "app/domains/agent_runs/fs_safety.py": "6ef163f8a3e60b6aae4265d32926d0b33b3129eb97f8d68cd8e73ccee84335f7",
+    "app/domains/agent_runs/fs_tools.py": "aa03331a3c62f8f72f2b955dd75debfad034493e8e9dbeb88b75d000bd5c7296",
+    "app/domains/agent_runs/fs/project_knowledge.py": "2b2be3e2c797c9c6bcc70a7130864fb7ffa3fabf226de3decbb5e68e608ba47b"
+  },
+  "platform": "windows",
+  "scenarios": [
+    {
+      "id": "hits-under-budget",
+      "files": {
+        "正文/a.md": {
+          "chunks": [
+            {
+              "base64": "YTAKYTEKYTIKYTMKYTQKYTUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/b.md": {
+          "chunks": [
+            {
+              "base64": "YjAKYjEKYjIKYjMKYjQKYjUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/c.md": {
+          "chunks": [
+            {
+              "base64": "YzAKYzEKYzIKYzMK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "search",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 50
+          },
+          "output_json": "{\"matches\": [{\"path\": \"正文/a.md\", \"line\": 2, \"excerpt\": \"a1\"}, {\"path\": \"正文/b.md\", \"line\": 1, \"excerpt\": \"b0\"}, {\"path\": \"正文/c.md\", \"line\": 4, \"excerpt\": \"c3\"}], \"truncated\": false, \"scanned_files\": 3}",
+          "writes": {}
+        }
+      ],
+      "fn": "search",
+      "timings": {
+        "a1": [
+          0.002,
+          true
+        ],
+        "b0": [
+          0.01,
+          true
+        ],
+        "c3": [
+          0.001,
+          true
+        ]
+      },
+      "asked": [
+        "a0",
+        "a1",
+        "a2",
+        "a3",
+        "a4",
+        "a5",
+        "b0",
+        "b1",
+        "b2",
+        "b3",
+        "b4",
+        "b5",
+        "c0",
+        "c1",
+        "c2",
+        "c3"
+      ]
+    },
+    {
+      "id": "max-matches-stops-mid-file",
+      "files": {
+        "正文/a.md": {
+          "chunks": [
+            {
+              "base64": "YTAKYTEKYTIKYTMKYTQKYTUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/b.md": {
+          "chunks": [
+            {
+              "base64": "YjAKYjEKYjIKYjMKYjQKYjUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/c.md": {
+          "chunks": [
+            {
+              "base64": "YzAKYzEKYzIKYzMK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "search",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 2
+          },
+          "output_json": "{\"matches\": [{\"path\": \"正文/a.md\", \"line\": 1, \"excerpt\": \"a0\"}, {\"path\": \"正文/a.md\", \"line\": 3, \"excerpt\": \"a2\"}], \"truncated\": true, \"scanned_files\": 1}",
+          "writes": {}
+        }
+      ],
+      "fn": "search",
+      "timings": {
+        "a0": [
+          0.001,
+          true
+        ],
+        "a2": [
+          0.001,
+          true
+        ],
+        "a4": [
+          0.001,
+          true
+        ],
+        "b1": [
+          0.001,
+          true
+        ]
+      },
+      "asked": [
+        "a0",
+        "a1",
+        "a2",
+        "a3",
+        "a4"
+      ]
+    },
+    {
+      "id": "max-matches-filled-at-file-end",
+      "files": {
+        "正文/a.md": {
+          "chunks": [
+            {
+              "base64": "YTAKYTEKYTIKYTMKYTQKYTUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/b.md": {
+          "chunks": [
+            {
+              "base64": "YjAKYjEKYjIKYjMKYjQKYjUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/c.md": {
+          "chunks": [
+            {
+              "base64": "YzAKYzEKYzIKYzMK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "search",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 2
+          },
+          "output_json": "{\"matches\": [{\"path\": \"正文/a.md\", \"line\": 5, \"excerpt\": \"a4\"}, {\"path\": \"正文/a.md\", \"line\": 6, \"excerpt\": \"a5\"}], \"truncated\": true, \"scanned_files\": 2}",
+          "writes": {}
+        }
+      ],
+      "fn": "search",
+      "timings": {
+        "a4": [
+          0.001,
+          true
+        ],
+        "a5": [
+          0.001,
+          true
+        ],
+        "b3": [
+          0.001,
+          true
+        ],
+        "c0": [
+          0.001,
+          true
+        ]
+      },
+      "asked": [
+        "a0",
+        "a1",
+        "a2",
+        "a3",
+        "a4",
+        "a5",
+        "b0",
+        "b1",
+        "b2",
+        "b3"
+      ]
+    },
+    {
+      "id": "single-line-timeout",
+      "files": {
+        "正文/a.md": {
+          "chunks": [
+            {
+              "base64": "YTAKYTEKYTIKYTMKYTQKYTUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/b.md": {
+          "chunks": [
+            {
+              "base64": "YjAKYjEKYjIKYjMKYjQKYjUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/c.md": {
+          "chunks": [
+            {
+              "base64": "YzAKYzEKYzIKYzMK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "search",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 50
+          },
+          "error": {
+            "type": "FsToolError",
+            "message": "正则搜索超时，请简化查询。"
+          },
+          "writes": {}
+        }
+      ],
+      "fn": "search",
+      "timings": {
+        "a1": [
+          0.001,
+          true
+        ],
+        "b2": [
+          0.06,
+          true
+        ]
+      },
+      "asked": [
+        "a0",
+        "a1",
+        "a2",
+        "a3",
+        "a4",
+        "a5",
+        "b0",
+        "b1",
+        "b2"
+      ]
+    },
+    {
+      "id": "line-just-over-timeout",
+      "files": {
+        "正文/a.md": {
+          "chunks": [
+            {
+              "base64": "YTAKYTEKYTIKYTMKYTQKYTUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/b.md": {
+          "chunks": [
+            {
+              "base64": "YjAKYjEKYjIKYjMKYjQKYjUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/c.md": {
+          "chunks": [
+            {
+              "base64": "YzAKYzEKYzIKYzMK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "search",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 50
+          },
+          "error": {
+            "type": "FsToolError",
+            "message": "正则搜索超时，请简化查询。"
+          },
+          "writes": {}
+        }
+      ],
+      "fn": "search",
+      "timings": {
+        "a3": [
+          0.055,
+          true
+        ]
+      },
+      "asked": [
+        "a0",
+        "a1",
+        "a2",
+        "a3"
+      ]
+    },
+    {
+      "id": "line-exactly-at-timeout",
+      "files": {
+        "正文/a.md": {
+          "chunks": [
+            {
+              "base64": "YTAKYTEKYTIKYTMKYTQKYTUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/b.md": {
+          "chunks": [
+            {
+              "base64": "YjAKYjEKYjIKYjMKYjQKYjUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/c.md": {
+          "chunks": [
+            {
+              "base64": "YzAKYzEKYzIKYzMK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "search",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 50
+          },
+          "output_json": "{\"matches\": [{\"path\": \"正文/a.md\", \"line\": 4, \"excerpt\": \"a3\"}], \"truncated\": false, \"scanned_files\": 3}",
+          "writes": {}
+        }
+      ],
+      "fn": "search",
+      "timings": {
+        "a3": [
+          0.05,
+          true
+        ]
+      },
+      "asked": [
+        "a0",
+        "a1",
+        "a2",
+        "a3",
+        "a4",
+        "a5",
+        "b0",
+        "b1",
+        "b2",
+        "b3",
+        "b4",
+        "b5",
+        "c0",
+        "c1",
+        "c2",
+        "c3"
+      ]
+    },
+    {
+      "id": "budget-exhausted",
+      "files": {
+        "正文/slow.md": {
+          "chunks": [
+            {
+              "base64": "czAKczEKczIKczMKczQKczUKczYKczcKczgKczkKczEwCnMxMQpzMTIKczEzCnMxNApzMTUKczE2CnMxNwpzMTgKczE5CnMyMApzMjEKczIyCnMyMwpzMjQKczI1CnMyNgpzMjcKczI4CnMyOQpzMzAKczMxCnMzMgpzMzMKczM0CnMzNQpzMzYKczM3CnMzOApzMzkKczQwCnM0MQpzNDIKczQzCnM0NApzNDUKczQ2CnM0NwpzNDgKczQ5CnM1MApzNTEKczUyCnM1MwpzNTQKczU1CnM1NgpzNTcKczU4CnM1OQpzNjAKczYxCnM2MgpzNjMKczY0CnM2NQpzNjYKczY3CnM2OApzNjkK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "search",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 50
+          },
+          "error": {
+            "type": "FsToolError",
+            "message": "正则搜索累计时间预算已耗尽，请简化查询。"
+          },
+          "writes": {}
+        }
+      ],
+      "fn": "search",
+      "timings": {
+        "s0": [
+          0.03125,
+          true
+        ],
+        "s1": [
+          0.03125,
+          false
+        ],
+        "s2": [
+          0.03125,
+          false
+        ],
+        "s3": [
+          0.03125,
+          false
+        ],
+        "s4": [
+          0.03125,
+          false
+        ],
+        "s5": [
+          0.03125,
+          false
+        ],
+        "s6": [
+          0.03125,
+          false
+        ],
+        "s7": [
+          0.03125,
+          true
+        ],
+        "s8": [
+          0.03125,
+          false
+        ],
+        "s9": [
+          0.03125,
+          false
+        ],
+        "s10": [
+          0.03125,
+          false
+        ],
+        "s11": [
+          0.03125,
+          false
+        ],
+        "s12": [
+          0.03125,
+          false
+        ],
+        "s13": [
+          0.03125,
+          false
+        ],
+        "s14": [
+          0.03125,
+          true
+        ],
+        "s15": [
+          0.03125,
+          false
+        ],
+        "s16": [
+          0.03125,
+          false
+        ],
+        "s17": [
+          0.03125,
+          false
+        ],
+        "s18": [
+          0.03125,
+          false
+        ],
+        "s19": [
+          0.03125,
+          false
+        ],
+        "s20": [
+          0.03125,
+          false
+        ],
+        "s21": [
+          0.03125,
+          true
+        ],
+        "s22": [
+          0.03125,
+          false
+        ],
+        "s23": [
+          0.03125,
+          false
+        ],
+        "s24": [
+          0.03125,
+          false
+        ],
+        "s25": [
+          0.03125,
+          false
+        ],
+        "s26": [
+          0.03125,
+          false
+        ],
+        "s27": [
+          0.03125,
+          false
+        ],
+        "s28": [
+          0.03125,
+          true
+        ],
+        "s29": [
+          0.03125,
+          false
+        ],
+        "s30": [
+          0.03125,
+          false
+        ],
+        "s31": [
+          0.03125,
+          false
+        ],
+        "s32": [
+          0.03125,
+          false
+        ],
+        "s33": [
+          0.03125,
+          false
+        ],
+        "s34": [
+          0.03125,
+          false
+        ],
+        "s35": [
+          0.03125,
+          true
+        ],
+        "s36": [
+          0.03125,
+          false
+        ],
+        "s37": [
+          0.03125,
+          false
+        ],
+        "s38": [
+          0.03125,
+          false
+        ],
+        "s39": [
+          0.03125,
+          false
+        ],
+        "s40": [
+          0.03125,
+          false
+        ],
+        "s41": [
+          0.03125,
+          false
+        ],
+        "s42": [
+          0.03125,
+          true
+        ],
+        "s43": [
+          0.03125,
+          false
+        ],
+        "s44": [
+          0.03125,
+          false
+        ],
+        "s45": [
+          0.03125,
+          false
+        ],
+        "s46": [
+          0.03125,
+          false
+        ],
+        "s47": [
+          0.03125,
+          false
+        ],
+        "s48": [
+          0.03125,
+          false
+        ],
+        "s49": [
+          0.03125,
+          true
+        ],
+        "s50": [
+          0.03125,
+          false
+        ],
+        "s51": [
+          0.03125,
+          false
+        ],
+        "s52": [
+          0.03125,
+          false
+        ],
+        "s53": [
+          0.03125,
+          false
+        ],
+        "s54": [
+          0.03125,
+          false
+        ],
+        "s55": [
+          0.03125,
+          false
+        ],
+        "s56": [
+          0.03125,
+          true
+        ],
+        "s57": [
+          0.03125,
+          false
+        ],
+        "s58": [
+          0.03125,
+          false
+        ],
+        "s59": [
+          0.03125,
+          false
+        ],
+        "s60": [
+          0.03125,
+          false
+        ],
+        "s61": [
+          0.03125,
+          false
+        ],
+        "s62": [
+          0.03125,
+          false
+        ],
+        "s63": [
+          0.03125,
+          true
+        ],
+        "s64": [
+          0.03125,
+          false
+        ],
+        "s65": [
+          0.03125,
+          false
+        ],
+        "s66": [
+          0.03125,
+          false
+        ],
+        "s67": [
+          0.03125,
+          false
+        ],
+        "s68": [
+          0.03125,
+          false
+        ],
+        "s69": [
+          0.03125,
+          false
+        ]
+      },
+      "asked": [
+        "s0",
+        "s1",
+        "s2",
+        "s3",
+        "s4",
+        "s5",
+        "s6",
+        "s7",
+        "s8",
+        "s9",
+        "s10",
+        "s11",
+        "s12",
+        "s13",
+        "s14",
+        "s15",
+        "s16",
+        "s17",
+        "s18",
+        "s19",
+        "s20",
+        "s21",
+        "s22",
+        "s23",
+        "s24",
+        "s25",
+        "s26",
+        "s27",
+        "s28",
+        "s29",
+        "s30",
+        "s31",
+        "s32",
+        "s33",
+        "s34",
+        "s35",
+        "s36",
+        "s37",
+        "s38",
+        "s39",
+        "s40",
+        "s41",
+        "s42",
+        "s43",
+        "s44",
+        "s45",
+        "s46",
+        "s47",
+        "s48",
+        "s49",
+        "s50",
+        "s51",
+        "s52",
+        "s53",
+        "s54",
+        "s55",
+        "s56",
+        "s57",
+        "s58",
+        "s59",
+        "s60",
+        "s61",
+        "s62",
+        "s63"
+      ]
+    },
+    {
+      "id": "timeout-capped-by-remaining-budget",
+      "files": {
+        "正文/slow.md": {
+          "chunks": [
+            {
+              "base64": "czAKczEKczIKczMKczQKczUKczYKczcKczgKczkKczEwCnMxMQpzMTIKczEzCnMxNApzMTUKczE2CnMxNwpzMTgKczE5CnMyMApzMjEKczIyCnMyMwpzMjQKczI1CnMyNgpzMjcKczI4CnMyOQpzMzAKczMxCnMzMgpzMzMKczM0CnMzNQpzMzYKczM3CnMzOApzMzkKczQwCnM0MQpzNDIKczQzCnM0NApzNDUKczQ2CnM0NwpzNDgKczQ5CnM1MApzNTEKczUyCnM1MwpzNTQKczU1CnM1NgpzNTcKczU4CnM1OQpzNjAKczYxCnM2MgpzNjMKczY0CnM2NQpzNjYKczY3CnM2OApzNjkK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "search",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 50
+          },
+          "error": {
+            "type": "FsToolError",
+            "message": "正则搜索超时，请简化查询。"
+          },
+          "writes": {}
+        }
+      ],
+      "fn": "search",
+      "timings": {
+        "s0": [
+          0.049,
+          false
+        ],
+        "s1": [
+          0.049,
+          false
+        ],
+        "s2": [
+          0.049,
+          false
+        ],
+        "s3": [
+          0.049,
+          false
+        ],
+        "s4": [
+          0.049,
+          false
+        ],
+        "s5": [
+          0.049,
+          false
+        ],
+        "s6": [
+          0.049,
+          false
+        ],
+        "s7": [
+          0.049,
+          false
+        ],
+        "s8": [
+          0.049,
+          false
+        ],
+        "s9": [
+          0.049,
+          false
+        ],
+        "s10": [
+          0.049,
+          false
+        ],
+        "s11": [
+          0.049,
+          false
+        ],
+        "s12": [
+          0.049,
+          false
+        ],
+        "s13": [
+          0.049,
+          false
+        ],
+        "s14": [
+          0.049,
+          false
+        ],
+        "s15": [
+          0.049,
+          false
+        ],
+        "s16": [
+          0.049,
+          false
+        ],
+        "s17": [
+          0.049,
+          false
+        ],
+        "s18": [
+          0.049,
+          false
+        ],
+        "s19": [
+          0.049,
+          false
+        ],
+        "s20": [
+          0.049,
+          false
+        ],
+        "s21": [
+          0.049,
+          false
+        ],
+        "s22": [
+          0.049,
+          false
+        ],
+        "s23": [
+          0.049,
+          false
+        ],
+        "s24": [
+          0.049,
+          false
+        ],
+        "s25": [
+          0.049,
+          false
+        ],
+        "s26": [
+          0.049,
+          false
+        ],
+        "s27": [
+          0.049,
+          false
+        ],
+        "s28": [
+          0.049,
+          false
+        ],
+        "s29": [
+          0.049,
+          false
+        ],
+        "s30": [
+          0.049,
+          false
+        ],
+        "s31": [
+          0.049,
+          false
+        ],
+        "s32": [
+          0.049,
+          false
+        ],
+        "s33": [
+          0.049,
+          false
+        ],
+        "s34": [
+          0.049,
+          false
+        ],
+        "s35": [
+          0.049,
+          false
+        ],
+        "s36": [
+          0.049,
+          false
+        ],
+        "s37": [
+          0.049,
+          false
+        ],
+        "s38": [
+          0.049,
+          false
+        ],
+        "s39": [
+          0.049,
+          false
+        ],
+        "s40": [
+          0.045,
+          true
+        ]
+      },
+      "asked": [
+        "s0",
+        "s1",
+        "s2",
+        "s3",
+        "s4",
+        "s5",
+        "s6",
+        "s7",
+        "s8",
+        "s9",
+        "s10",
+        "s11",
+        "s12",
+        "s13",
+        "s14",
+        "s15",
+        "s16",
+        "s17",
+        "s18",
+        "s19",
+        "s20",
+        "s21",
+        "s22",
+        "s23",
+        "s24",
+        "s25",
+        "s26",
+        "s27",
+        "s28",
+        "s29",
+        "s30",
+        "s31",
+        "s32",
+        "s33",
+        "s34",
+        "s35",
+        "s36",
+        "s37",
+        "s38",
+        "s39",
+        "s40"
+      ]
+    },
+    {
+      "id": "budget-spans-files",
+      "files": {
+        "正文/a.md": {
+          "chunks": [
+            {
+              "base64": "YTAKYTEKYTIKYTMKYTQKYTUKYTYKYTcKYTgKYTkKYTEwCmExMQphMTIKYTEzCmExNAphMTUKYTE2CmExNwphMTgKYTE5CmEyMAphMjEKYTIyCmEyMwphMjQKYTI1CmEyNgphMjcKYTI4CmEyOQphMzAKYTMxCmEzMgphMzMKYTM0CmEzNQphMzYKYTM3CmEzOAphMzkK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/b.md": {
+          "chunks": [
+            {
+              "base64": "YjAKYjEKYjIKYjMKYjQKYjUKYjYKYjcKYjgKYjkKYjEwCmIxMQpiMTIKYjEzCmIxNApiMTUKYjE2CmIxNwpiMTgKYjE5CmIyMApiMjEKYjIyCmIyMwpiMjQKYjI1CmIyNgpiMjcKYjI4CmIyOQpiMzAKYjMxCmIzMgpiMzMKYjM0CmIzNQpiMzYKYjM3CmIzOApiMzkK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "search",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 50
+          },
+          "error": {
+            "type": "FsToolError",
+            "message": "正则搜索累计时间预算已耗尽，请简化查询。"
+          },
+          "writes": {}
+        }
+      ],
+      "fn": "search",
+      "timings": {
+        "a0": [
+          0.03125,
+          false
+        ],
+        "a1": [
+          0.03125,
+          false
+        ],
+        "a2": [
+          0.03125,
+          false
+        ],
+        "a3": [
+          0.03125,
+          true
+        ],
+        "a4": [
+          0.03125,
+          false
+        ],
+        "a5": [
+          0.03125,
+          false
+        ],
+        "a6": [
+          0.03125,
+          false
+        ],
+        "a7": [
+          0.03125,
+          false
+        ],
+        "a8": [
+          0.03125,
+          false
+        ],
+        "a9": [
+          0.03125,
+          false
+        ],
+        "a10": [
+          0.03125,
+          false
+        ],
+        "a11": [
+          0.03125,
+          false
+        ],
+        "a12": [
+          0.03125,
+          false
+        ],
+        "a13": [
+          0.03125,
+          false
+        ],
+        "a14": [
+          0.03125,
+          false
+        ],
+        "a15": [
+          0.03125,
+          false
+        ],
+        "a16": [
+          0.03125,
+          false
+        ],
+        "a17": [
+          0.03125,
+          false
+        ],
+        "a18": [
+          0.03125,
+          false
+        ],
+        "a19": [
+          0.03125,
+          false
+        ],
+        "a20": [
+          0.03125,
+          false
+        ],
+        "a21": [
+          0.03125,
+          false
+        ],
+        "a22": [
+          0.03125,
+          false
+        ],
+        "a23": [
+          0.03125,
+          false
+        ],
+        "a24": [
+          0.03125,
+          false
+        ],
+        "a25": [
+          0.03125,
+          false
+        ],
+        "a26": [
+          0.03125,
+          false
+        ],
+        "a27": [
+          0.03125,
+          false
+        ],
+        "a28": [
+          0.03125,
+          false
+        ],
+        "a29": [
+          0.03125,
+          false
+        ],
+        "a30": [
+          0.03125,
+          false
+        ],
+        "a31": [
+          0.03125,
+          false
+        ],
+        "a32": [
+          0.03125,
+          false
+        ],
+        "a33": [
+          0.03125,
+          false
+        ],
+        "a34": [
+          0.03125,
+          false
+        ],
+        "a35": [
+          0.03125,
+          false
+        ],
+        "a36": [
+          0.03125,
+          false
+        ],
+        "a37": [
+          0.03125,
+          false
+        ],
+        "a38": [
+          0.03125,
+          false
+        ],
+        "a39": [
+          0.03125,
+          false
+        ],
+        "b0": [
+          0.03125,
+          false
+        ],
+        "b1": [
+          0.03125,
+          false
+        ],
+        "b2": [
+          0.03125,
+          true
+        ],
+        "b3": [
+          0.03125,
+          false
+        ],
+        "b4": [
+          0.03125,
+          false
+        ],
+        "b5": [
+          0.03125,
+          false
+        ],
+        "b6": [
+          0.03125,
+          false
+        ],
+        "b7": [
+          0.03125,
+          false
+        ],
+        "b8": [
+          0.03125,
+          false
+        ],
+        "b9": [
+          0.03125,
+          false
+        ],
+        "b10": [
+          0.03125,
+          false
+        ],
+        "b11": [
+          0.03125,
+          false
+        ],
+        "b12": [
+          0.03125,
+          false
+        ],
+        "b13": [
+          0.03125,
+          false
+        ],
+        "b14": [
+          0.03125,
+          false
+        ],
+        "b15": [
+          0.03125,
+          false
+        ],
+        "b16": [
+          0.03125,
+          false
+        ],
+        "b17": [
+          0.03125,
+          false
+        ],
+        "b18": [
+          0.03125,
+          false
+        ],
+        "b19": [
+          0.03125,
+          false
+        ],
+        "b20": [
+          0.03125,
+          false
+        ],
+        "b21": [
+          0.03125,
+          false
+        ],
+        "b22": [
+          0.03125,
+          false
+        ],
+        "b23": [
+          0.03125,
+          false
+        ],
+        "b24": [
+          0.03125,
+          false
+        ],
+        "b25": [
+          0.03125,
+          false
+        ],
+        "b26": [
+          0.03125,
+          false
+        ],
+        "b27": [
+          0.03125,
+          false
+        ],
+        "b28": [
+          0.03125,
+          false
+        ],
+        "b29": [
+          0.03125,
+          false
+        ],
+        "b30": [
+          0.03125,
+          false
+        ],
+        "b31": [
+          0.03125,
+          false
+        ],
+        "b32": [
+          0.03125,
+          false
+        ],
+        "b33": [
+          0.03125,
+          false
+        ],
+        "b34": [
+          0.03125,
+          false
+        ],
+        "b35": [
+          0.03125,
+          false
+        ],
+        "b36": [
+          0.03125,
+          false
+        ],
+        "b37": [
+          0.03125,
+          false
+        ],
+        "b38": [
+          0.03125,
+          false
+        ],
+        "b39": [
+          0.03125,
+          false
+        ]
+      },
+      "asked": [
+        "a0",
+        "a1",
+        "a2",
+        "a3",
+        "a4",
+        "a5",
+        "a6",
+        "a7",
+        "a8",
+        "a9",
+        "a10",
+        "a11",
+        "a12",
+        "a13",
+        "a14",
+        "a15",
+        "a16",
+        "a17",
+        "a18",
+        "a19",
+        "a20",
+        "a21",
+        "a22",
+        "a23",
+        "a24",
+        "a25",
+        "a26",
+        "a27",
+        "a28",
+        "a29",
+        "a30",
+        "a31",
+        "a32",
+        "a33",
+        "a34",
+        "a35",
+        "a36",
+        "a37",
+        "a38",
+        "a39",
+        "b0",
+        "b1",
+        "b2",
+        "b3",
+        "b4",
+        "b5",
+        "b6",
+        "b7",
+        "b8",
+        "b9",
+        "b10",
+        "b11",
+        "b12",
+        "b13",
+        "b14",
+        "b15",
+        "b16",
+        "b17",
+        "b18",
+        "b19",
+        "b20",
+        "b21",
+        "b22",
+        "b23"
+      ]
+    },
+    {
+      "id": "budget-ends-exactly-at-file-end",
+      "files": {
+        "正文/a.md": {
+          "chunks": [
+            {
+              "base64": "YTAKYTEKYTIKYTMKYTQKYTUKYTYKYTcKYTgKYTkKYTEwCmExMQphMTIKYTEzCmExNAphMTUKYTE2CmExNwphMTgKYTE5CmEyMAphMjEKYTIyCmEyMwphMjQKYTI1CmEyNgphMjcKYTI4CmEyOQphMzAKYTMxCmEzMgphMzMKYTM0CmEzNQphMzYKYTM3CmEzOAphMzkKYTQwCmE0MQphNDIKYTQzCmE0NAphNDUKYTQ2CmE0NwphNDgKYTQ5CmE1MAphNTEKYTUyCmE1MwphNTQKYTU1CmE1NgphNTcKYTU4CmE1OQphNjAKYTYxCmE2MgphNjMK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/b.md": {
+          "chunks": [
+            {
+              "base64": "YjAKYjEK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "search",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 50
+          },
+          "error": {
+            "type": "FsToolError",
+            "message": "正则搜索累计时间预算已耗尽，请简化查询。"
+          },
+          "writes": {}
+        }
+      ],
+      "fn": "search",
+      "timings": {
+        "a0": [
+          0.03125,
+          false
+        ],
+        "a1": [
+          0.03125,
+          false
+        ],
+        "a2": [
+          0.03125,
+          false
+        ],
+        "a3": [
+          0.03125,
+          false
+        ],
+        "a4": [
+          0.03125,
+          false
+        ],
+        "a5": [
+          0.03125,
+          false
+        ],
+        "a6": [
+          0.03125,
+          false
+        ],
+        "a7": [
+          0.03125,
+          false
+        ],
+        "a8": [
+          0.03125,
+          false
+        ],
+        "a9": [
+          0.03125,
+          false
+        ],
+        "a10": [
+          0.03125,
+          false
+        ],
+        "a11": [
+          0.03125,
+          false
+        ],
+        "a12": [
+          0.03125,
+          false
+        ],
+        "a13": [
+          0.03125,
+          false
+        ],
+        "a14": [
+          0.03125,
+          false
+        ],
+        "a15": [
+          0.03125,
+          false
+        ],
+        "a16": [
+          0.03125,
+          false
+        ],
+        "a17": [
+          0.03125,
+          false
+        ],
+        "a18": [
+          0.03125,
+          false
+        ],
+        "a19": [
+          0.03125,
+          false
+        ],
+        "a20": [
+          0.03125,
+          false
+        ],
+        "a21": [
+          0.03125,
+          false
+        ],
+        "a22": [
+          0.03125,
+          false
+        ],
+        "a23": [
+          0.03125,
+          false
+        ],
+        "a24": [
+          0.03125,
+          false
+        ],
+        "a25": [
+          0.03125,
+          false
+        ],
+        "a26": [
+          0.03125,
+          false
+        ],
+        "a27": [
+          0.03125,
+          false
+        ],
+        "a28": [
+          0.03125,
+          false
+        ],
+        "a29": [
+          0.03125,
+          false
+        ],
+        "a30": [
+          0.03125,
+          false
+        ],
+        "a31": [
+          0.03125,
+          false
+        ],
+        "a32": [
+          0.03125,
+          false
+        ],
+        "a33": [
+          0.03125,
+          false
+        ],
+        "a34": [
+          0.03125,
+          false
+        ],
+        "a35": [
+          0.03125,
+          false
+        ],
+        "a36": [
+          0.03125,
+          false
+        ],
+        "a37": [
+          0.03125,
+          false
+        ],
+        "a38": [
+          0.03125,
+          false
+        ],
+        "a39": [
+          0.03125,
+          false
+        ],
+        "a40": [
+          0.03125,
+          false
+        ],
+        "a41": [
+          0.03125,
+          false
+        ],
+        "a42": [
+          0.03125,
+          false
+        ],
+        "a43": [
+          0.03125,
+          false
+        ],
+        "a44": [
+          0.03125,
+          false
+        ],
+        "a45": [
+          0.03125,
+          false
+        ],
+        "a46": [
+          0.03125,
+          false
+        ],
+        "a47": [
+          0.03125,
+          false
+        ],
+        "a48": [
+          0.03125,
+          false
+        ],
+        "a49": [
+          0.03125,
+          false
+        ],
+        "a50": [
+          0.03125,
+          false
+        ],
+        "a51": [
+          0.03125,
+          false
+        ],
+        "a52": [
+          0.03125,
+          false
+        ],
+        "a53": [
+          0.03125,
+          false
+        ],
+        "a54": [
+          0.03125,
+          false
+        ],
+        "a55": [
+          0.03125,
+          false
+        ],
+        "a56": [
+          0.03125,
+          false
+        ],
+        "a57": [
+          0.03125,
+          false
+        ],
+        "a58": [
+          0.03125,
+          false
+        ],
+        "a59": [
+          0.03125,
+          false
+        ],
+        "a60": [
+          0.03125,
+          false
+        ],
+        "a61": [
+          0.03125,
+          false
+        ],
+        "a62": [
+          0.03125,
+          false
+        ],
+        "a63": [
+          0.03125,
+          true
+        ],
+        "b0": [
+          0.0,
+          true
+        ]
+      },
+      "asked": [
+        "a0",
+        "a1",
+        "a2",
+        "a3",
+        "a4",
+        "a5",
+        "a6",
+        "a7",
+        "a8",
+        "a9",
+        "a10",
+        "a11",
+        "a12",
+        "a13",
+        "a14",
+        "a15",
+        "a16",
+        "a17",
+        "a18",
+        "a19",
+        "a20",
+        "a21",
+        "a22",
+        "a23",
+        "a24",
+        "a25",
+        "a26",
+        "a27",
+        "a28",
+        "a29",
+        "a30",
+        "a31",
+        "a32",
+        "a33",
+        "a34",
+        "a35",
+        "a36",
+        "a37",
+        "a38",
+        "a39",
+        "a40",
+        "a41",
+        "a42",
+        "a43",
+        "a44",
+        "a45",
+        "a46",
+        "a47",
+        "a48",
+        "a49",
+        "a50",
+        "a51",
+        "a52",
+        "a53",
+        "a54",
+        "a55",
+        "a56",
+        "a57",
+        "a58",
+        "a59",
+        "a60",
+        "a61",
+        "a62",
+        "a63"
+      ]
+    },
+    {
+      "id": "substring-ignores-timings",
+      "files": {
+        "正文/a.md": {
+          "chunks": [
+            {
+              "base64": "YTAKYTEKYTIKYTMKYTQKYTUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/b.md": {
+          "chunks": [
+            {
+              "base64": "YjAKYjEKYjIKYjMKYjQKYjUK",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/c.md": {
+          "chunks": [
+            {
+              "base64": "YzAKYzEKYzIKYzMK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "search",
+          "args": {
+            "query": "b",
+            "use_regex": false,
+            "max_matches": 50
+          },
+          "output_json": "{\"matches\": [{\"path\": \"正文/b.md\", \"line\": 1, \"excerpt\": \"b0\"}, {\"path\": \"正文/b.md\", \"line\": 2, \"excerpt\": \"b1\"}, {\"path\": \"正文/b.md\", \"line\": 3, \"excerpt\": \"b2\"}, {\"path\": \"正文/b.md\", \"line\": 4, \"excerpt\": \"b3\"}, {\"path\": \"正文/b.md\", \"line\": 5, \"excerpt\": \"b4\"}, {\"path\": \"正文/b.md\", \"line\": 6, \"excerpt\": \"b5\"}], \"truncated\": false, \"scanned_files\": 3}",
+          "writes": {}
+        }
+      ],
+      "fn": "search",
+      "timings": {
+        "a1": [
+          5.0,
+          true
+        ]
+      },
+      "asked": []
+    },
+    {
+      "id": "empty-file-costs-nothing",
+      "files": {
+        "正文/a.md": {
+          "chunks": [
+            {
+              "base64": "",
+              "repeat": 1
+            }
+          ]
+        },
+        "正文/b.md": {
+          "chunks": [
+            {
+              "base64": "YjAKYjEK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "search",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 50
+          },
+          "output_json": "{\"matches\": [{\"path\": \"正文/b.md\", \"line\": 2, \"excerpt\": \"b1\"}], \"truncated\": false, \"scanned_files\": 2}",
+          "writes": {}
+        }
+      ],
+      "fn": "search",
+      "timings": {
+        "b1": [
+          0.03,
+          true
+        ]
+      },
+      "asked": [
+        "b0",
+        "b1"
+      ]
+    },
+    {
+      "id": "knowledge-hits",
+      "files": {
+        "人物/主角.md": {
+          "chunks": [
+            {
+              "base64": "cDAKcDEKcDIKcDMKcDQK",
+              "repeat": 1
+            }
+          ]
+        },
+        "设定/规则.md": {
+          "chunks": [
+            {
+              "base64": "azAKazEKazIKazMKazQK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "knowledge",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 20
+          },
+          "output_json": "{\"matches\": [{\"path\": \"人物/主角.md\", \"source_type\": \"character\", \"line\": 5, \"excerpt\": \"p4\"}, {\"path\": \"设定/规则.md\", \"source_type\": \"setting\", \"line\": 2, \"excerpt\": \"k1\"}], \"scanned_files\": 2, \"truncated\": false, \"redacted\": false, \"warnings\": []}",
+          "writes": {}
+        }
+      ],
+      "fn": "knowledge",
+      "timings": {
+        "k1": [
+          0.002,
+          true
+        ],
+        "p4": [
+          0.002,
+          true
+        ]
+      },
+      "asked": [
+        "p0",
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "k0",
+        "k1",
+        "k2",
+        "k3",
+        "k4"
+      ]
+    },
+    {
+      "id": "knowledge-max-matches",
+      "files": {
+        "人物/主角.md": {
+          "chunks": [
+            {
+              "base64": "cDAKcDEKcDIKcDMKcDQK",
+              "repeat": 1
+            }
+          ]
+        },
+        "设定/规则.md": {
+          "chunks": [
+            {
+              "base64": "azAKazEKazIKazMKazQK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "knowledge",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 1
+          },
+          "output_json": "{\"matches\": [{\"path\": \"人物/主角.md\", \"source_type\": \"character\", \"line\": 1, \"excerpt\": \"p0\"}], \"scanned_files\": 1, \"truncated\": true, \"redacted\": false, \"warnings\": []}",
+          "writes": {}
+        }
+      ],
+      "fn": "knowledge",
+      "timings": {
+        "k0": [
+          0.001,
+          true
+        ],
+        "k3": [
+          0.001,
+          true
+        ],
+        "p0": [
+          0.001,
+          true
+        ]
+      },
+      "asked": [
+        "p0",
+        "p1",
+        "p2",
+        "p3",
+        "p4"
+      ]
+    },
+    {
+      "id": "knowledge-timeout",
+      "files": {
+        "人物/主角.md": {
+          "chunks": [
+            {
+              "base64": "cDAKcDEKcDIKcDMKcDQK",
+              "repeat": 1
+            }
+          ]
+        },
+        "设定/规则.md": {
+          "chunks": [
+            {
+              "base64": "azAKazEKazIKazMKazQK",
+              "repeat": 1
+            }
+          ]
+        }
+      },
+      "calls": [
+        {
+          "fn": "knowledge",
+          "args": {
+            "query": "x",
+            "use_regex": true,
+            "max_matches": 20
+          },
+          "error": {
+            "type": "FsToolError",
+            "message": "正则搜索超时，请简化查询。"
+          },
+          "writes": {}
+        }
+      ],
+      "fn": "knowledge",
+      "timings": {
+        "k2": [
+          0.2,
+          true
+        ]
+      },
+      "asked": [
+        "p0",
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "k0",
+        "k1",
+        "k2"
+      ]
+    }
+  ]
+}

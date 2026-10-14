@@ -9,7 +9,7 @@ import {
   resolveProjectRoot,
   resolveScopedPath,
 } from './fsTools';
-import { jsRegexCompiler, SearchMatcher, type RegexCompiler } from './fsProjectTools';
+import { SearchMatcher, type RegexCompiler } from './fsProjectTools';
 import { compareCodePoints } from './json';
 import {
   hasKnowledgeBlockMarker,
@@ -243,8 +243,8 @@ export async function projectKnowledgeSearch(
 ) {
   const matcher = new SearchMatcher(query, {
     useRegex: options.useRegex === true,
-    compile: options.compile ?? jsRegexCompiler,
-    clock: options.clock ?? (() => performance.now() / 1000),
+    compile: options.compile,
+    clock: options.clock,
   });
   const maxMatches = positiveLimit(
     options.maxMatches ?? SEARCH_MAX_MATCHES,
@@ -284,8 +284,9 @@ export async function projectKnowledgeSearch(
       redacted = true;
       warnings.add(`Project Knowledge 已脱敏：${normalized}`);
     }
-    for (const [index, line] of pythonSplitlines(content).entries()) {
-      if (!matcher.search(line)) continue;
+    const lines = pythonSplitlines(content);
+    for (const index of await matcher.scan(lines, maxMatches - matches.length + 1)) {
+      const line = lines[index];
       if (matches.length >= maxMatches) {
         truncated = true;
         break;

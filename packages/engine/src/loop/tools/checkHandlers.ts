@@ -266,7 +266,7 @@ export function checkToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
     });
   };
 
-  const crossChapter: ToolHandler = async (_context, payload) => {
+  const crossChapter: ToolHandler = async (context, payload) => {
     const root = requiredString(payload, 'project_root');
     const raw = payload.paths;
     if (!Array.isArray(raw)) throw new FsToolError('paths 必须是字符串数组（至少两个章节路径）。');
@@ -274,8 +274,11 @@ export function checkToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
     const output = (await crossChapterReview(reader, root, nonBlankStrings(raw), {
       platform,
       focus,
-      callLlm: deps.crossChapter.callLlm,
-      model: deps.crossChapter.model,
+      callLlm: async (prompt) => {
+        const result = await context.services.model.complete(prompt);
+        return { content: result.content, latency_ms: result.latency_ms };
+      },
+      model: context.services.model.source.STORYFORGE_LLM_MODEL ?? null,
     })) as Obj;
     return completed(output, {
       tool_name: 'project.cross_chapter_check',

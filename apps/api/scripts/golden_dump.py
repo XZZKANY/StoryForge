@@ -154,7 +154,7 @@ def p0_snapshot() -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=["p0", "p1-context", "p1-reader", "p1-punctuation", "p1-canon-gate", "p1-path-match", "p1-canon-chain", "p1-scans", "p1-plans", "p1-knowledge", "p1-style", "p1-review", "p1-breakdown", "p1-commands", "p2-llm-pure", "p2-llm-client", "p2-llm-native", "p2-writing-context", "p2-assistant-pure", "p2-assistant-service", "p3-sdk-runtime", "p3-contracts", "p3-tool-catalog", "p3-tool-handlers", "p3-conversation", "p3-run-store", "p3-chat-loop", "p3-run-evidence", "p3-agent-run", "p3-agent-control", "p3-patch-tools", "p3-polish", "p3-deep-consistency", "p3-fixed-pipelines", "p3-chapter-writing"], required=True)
+    parser.add_argument("--suite", choices=["p0", "p1-context", "p1-reader", "p1-punctuation", "p1-canon-gate", "p1-path-match", "p1-canon-chain", "p1-scans", "p1-plans", "p1-knowledge", "p1-style", "p1-review", "p1-breakdown", "p1-commands", "p2-llm-pure", "p2-llm-client", "p2-llm-native", "p2-writing-context", "p2-assistant-pure", "p2-assistant-service", "p3-sdk-runtime", "p3-contracts", "p3-tool-catalog", "p3-tool-handlers", "p3-conversation", "p3-run-store", "p3-chat-loop", "p3-run-evidence", "p3-agent-run", "p3-agent-control", "p3-patch-tools", "p3-polish", "p3-deep-consistency", "p3-fixed-pipelines", "p3-chapter-writing", "p3-regex-budget", "p3-wiring"], required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--fixture-root", type=Path, help="Fresh owned fixture directory (p1-reader only)")
@@ -163,6 +163,14 @@ def main() -> None:
         parser.error("--fixture-root requires --suite p1-reader")
     if args.suite == "p0":
         snapshot = p0_snapshot()
+    elif args.suite == "p3-wiring":
+        from golden_agent_run import p3_wiring_snapshot
+
+        snapshot = p3_wiring_snapshot()
+    elif args.suite == "p3-regex-budget":
+        from golden_regex_budget import p3_regex_budget_snapshot
+
+        snapshot = p3_regex_budget_snapshot()
     elif args.suite == "p1-path-match":
         from golden_path_match import p1_path_match_snapshot
 
