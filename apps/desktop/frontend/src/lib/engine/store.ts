@@ -1,4 +1,5 @@
 import {
+  importLegacyDb,
   LoopCheckpointStore,
   migrateEngineDb,
   reapInterruptedRuns,
@@ -7,7 +8,8 @@ import {
   SqlRunStore,
   type SecretContext,
 } from '@storyforge/engine';
-import { nativeEngineDb } from './db';
+import { nativeEngineDb, nativePythonDb } from './db';
+import { legacyImportOnOpen } from './flags';
 import { nativeLlmSource } from './llm';
 
 /** 与 Python 库同一种时间戳（UTC、精确到秒）：旧库导入的行与引擎写的行按同一种格式排序。 */
@@ -25,7 +27,11 @@ function once<T>(open: () => Promise<T>): () => Promise<T> {
   };
 }
 
-const migrated = once(() => migrateEngineDb(nativeEngineDb));
+const migrated = once(async () => {
+  await migrateEngineDb(nativeEngineDb);
+  // 旧库导入要在引擎第一次写库之前（id 原样照搬）：失败不缓存，下次打开再试，期间引擎库不写任何行。
+  if (legacyImportOnOpen()) await importLegacyDb(nativeEngineDb, nativePythonDb, dbNow);
+});
 
 /**
  * run / 事件 / artifact 落引擎库：迁移、载入 run、把上次没跑完的 run 收尸（迁移计划 §2.6：

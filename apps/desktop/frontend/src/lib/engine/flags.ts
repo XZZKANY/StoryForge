@@ -23,5 +23,18 @@ export function readEngineMode(key: EngineFlagKey): EngineMode {
   }
 }
 
+/**
+ * 引擎库打开时把旧库导进来（P4-3）。作者拍板只在 P5 切默认时做一次：在那之前 Python 档还在往旧库写，
+ * 提前导入会过期（导完就不再读旧库）。发行版恒为关；开发档要显式设 `engine.legacyImport` 为 `on`。
+ */
+export function legacyImportOnOpen(): boolean {
+  if (!import.meta.env.DEV) return false;
+  try {
+    return localStorage.getItem('engine.legacyImport') === 'on';
+  } catch {
+    return false;
+  }
+}
+
 /** 会话放哪个库跟着 agent 循环的开关走：左栏、agent 循环、Ctrl+K / 续写记的会话都在同一个库。 */
 export const sessionsInEngine = (): boolean => readEngineMode('engine.agentLoop') === 'ts';

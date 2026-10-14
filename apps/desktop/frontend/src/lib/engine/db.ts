@@ -1,9 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Db, SqlRow } from '@storyforge/engine';
+import type { Db, LegacySnapshotSource, SqlRow } from '@storyforge/engine';
 
-async function native(command: string, args: Record<string, unknown>): Promise<SqlRow[]> {
+async function native<T>(command: string, args: Record<string, unknown>): Promise<T> {
   try {
-    return await invoke<SqlRow[]>(command, args);
+    return await invoke<T>(command, args);
   } catch (error) {
     throw error instanceof Error ? error : new Error(String(error));
   }
@@ -14,9 +14,18 @@ async function native(command: string, args: Record<string, unknown>): Promise<S
  * 在应用本地数据目录，与 Python 的库并排；单连接，一组语句一个真事务，失败整组回滚。
  */
 export const nativeEngineDb: Db = {
-  select: (sql, params = []) => native('engine_db_select', { sql, params }),
+  select: (sql, params = []) => native<SqlRow[]>('engine_db_select', { sql, params }),
   transaction: (steps) =>
-    native('engine_db_transaction', {
+    native<SqlRow[]>('engine_db_transaction', {
       steps: steps.map((step) => ({ sql: step.sql, params: step.params ?? [] })),
     }),
+};
+
+/**
+ * Python sidecar 的库（同一目录的 `storyforge.sqlite3`），旧库导入时读一次：驱动层只读打开、
+ * 不存在时为 null、所有查询在一个读事务里（`engine_python_db_snapshot`）。
+ */
+export const nativePythonDb: LegacySnapshotSource = {
+  snapshot: (queries) =>
+    native<SqlRow[][] | null>('engine_python_db_snapshot', { queries: [...queries] }),
 };

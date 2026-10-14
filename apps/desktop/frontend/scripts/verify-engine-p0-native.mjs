@@ -495,7 +495,7 @@ try {
       await writeFile(resolve(assistantProject, name), text);
     assistantBefore = await contextFingerprint(assistantProject);
   }
-  let agentProject, agentBefore;
+  let agentProject, agentBefore, legacyGolden, pythonDbBefore;
   if (agentReal) {
     agentProject = ownedPath(output, 'book');
     await mkdir(resolve(agentProject, '正文'), { recursive: true });
@@ -511,6 +511,18 @@ try {
     await writeFile(resolve(agentProject, '正文/第002章.md'), '第二章 夜行\n\n钟声响了三下。\n');
     await writeFile(resolve(agentProject, '人物/主角.md'), '# 林舟\n\n左臂有旧伤。\n');
     agentBefore = await contextFingerprint(agentProject);
+    // A synthetic Python database next to the engine one (the P4-3 oracle's file, written by the
+    // real services): with the import switched on, the first engine open copies it read-only.
+    legacyGolden = JSON.parse(
+      await readFile(resolve(root, 'packages/engine/golden/p4-legacy-import.json'), 'utf8'),
+    );
+    await mkdir(directories.localDataDir, { recursive: true });
+    const { DatabaseSync } = await import('node:sqlite');
+    const python = new DatabaseSync(resolve(directories.localDataDir, 'storyforge.sqlite3'));
+    python.exec('PRAGMA foreign_keys = OFF');
+    for (const statement of legacyGolden.legacy_sql) python.exec(statement);
+    python.close();
+    pythonDbBefore = await hash(resolve(directories.localDataDir, 'storyforge.sqlite3'));
     // Synthetic key generated per run: it must reach the provider, never the WebView.
     llmKey = `sk-p3-synthetic-${randomBytes(12).toString('hex')}`;
     const event = (payload) => `data: ${JSON.stringify(payload)}\n\n`;
@@ -1404,7 +1416,12 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
           );
           evidence.agentReload = await page.evaluate(
             (input) => window.__ENGINE_P3_AGENT__.readBackAfterReload(input),
-            { runIds: ['p3-agent-run-a', 'p3-agent-run-b'], projectRoot: agentProject },
+            {
+              runIds: ['p3-agent-run-a', 'p3-agent-run-b'],
+              projectRoot: agentProject,
+              // Run A's conversation is the first session after the imported ones.
+              sessionId: legacyGolden.rows.assistant_sessions + 1,
+            },
           );
           assert.deepEqual(evidence.agentReload.inbox, { items: 0, pending: 0 });
           assert.deepEqual(evidence.agentReload.checks, { entries: 0, truncated: false });
@@ -1439,33 +1456,61 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
                 )
                 .all()
                 .map((row) => ({ ...row })),
+              marker: JSON.parse(
+                engineDb
+                  .prepare("SELECT value FROM engine_meta WHERE key = 'imported_from_v1'")
+                  .get().value,
+              ),
             };
           } finally {
             engineDb.close();
           }
+          const imported = legacyGolden.rows.assistant_sessions;
           assert.deepEqual(
-            { ...evidence.engineDb, sessions: evidence.engineDb.sessions.length },
+            {
+              ...evidence.engineDb,
+              sessions: evidence.engineDb.sessions.length,
+              marker: { ...evidence.engineDb.marker, imported_at: 'checked below' },
+            },
             {
               version: 2,
               runs: [
+                // The Python database's runs come first, ids unchanged; the one Python left
+                // running is imported and then reaped like any interrupted run.
+                { public_id: 'legacy-run-1', status: 'completed' },
+                { public_id: 'legacy-run-2', status: 'paused' },
+                { public_id: 'legacy-run-3', status: 'failed' },
+                { public_id: 'legacy-run-4', status: 'failed' },
+                { public_id: 'legacy-run-5', status: 'stopped' },
                 { public_id: 'p3-agent-run-a', status: 'completed' },
                 { public_id: 'p3-agent-run-b', status: 'stopped' },
               ],
               journal: 'wal',
-              sessions: 2,
+              sessions: imported + 2,
+              marker: { imported_at: 'checked below', source_found: true, rows: legacyGolden.rows },
             },
+          );
+          assert.match(
+            evidence.engineDb.marker.imported_at,
+            /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
+          );
+          // Read through a read-only connection: the Python file is byte for byte unchanged.
+          assert.equal(
+            await hash(resolve(directories.localDataDir, 'storyforge.sqlite3')),
+            pythonDbBefore,
+            'The import wrote to the Python database',
           );
           // Run A keeps its user / assistant pair and gets the hidden title job's rename (the
           // Python store could not rename); run B was stopped mid-stream and keeps no messages.
           assert.deepEqual(
             evidence.engineDb.sessions.map((row) => row.messages),
-            [2, 0],
+            [3, 1, 1, 0, 2, 0],
           );
           assert.ok(
-            !evidence.engineDb.sessions[0].title.startsWith('IDE Agent:'),
+            !evidence.engineDb.sessions[imported].title.startsWith('IDE Agent:'),
             'The hidden title job did not rename the engine session',
           );
-          assert.equal(evidence.engineDb.sessions[1].title, 'IDE Agent: 慢慢说');
+          assert.equal(evidence.engineDb.sessions[imported + 1].title, 'IDE Agent: 慢慢说');
           for (const suffix of ['', '-wal']) {
             const bytes = await readFile(
               resolve(directories.localDataDir, `storyforge-engine.sqlite3${suffix}`),

@@ -203,3 +203,80 @@ async fn blobs_are_refused_instead_of_guessed() {
     let error = select(&pool, "SELECT X'00' AS b", &[]).await.unwrap_err();
     assert!(error.contains("不支持的类型 BLOB"), "{error}");
 }
+
+fn digest(path: &Path) -> Vec<u8> {
+    std::fs::read(path).unwrap_or_default()
+}
+
+#[tokio::test]
+async fn python_snapshot_is_none_for_a_missing_file_and_never_creates_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(PYTHON_DB_FILE);
+    assert!(python_snapshot(&path, &["SELECT 1".to_string()])
+        .await
+        .unwrap()
+        .is_none());
+    assert!(!path.exists());
+}
+
+#[tokio::test]
+async fn python_snapshot_reads_uncheckpointed_wal_rows_and_writes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(PYTHON_DB_FILE);
+    // The sidecar's writer stays open in WAL mode: its rows live only in the -wal file.
+    let writer = open(&path).await.unwrap();
+    setup(&writer).await;
+    transaction(
+        &writer,
+        &[step(
+            "INSERT INTO parent (id, title) VALUES (1, '旧'), (2, '库')",
+            json!([]),
+        )],
+    )
+    .await
+    .unwrap();
+    let wal = dir.path().join(format!("{PYTHON_DB_FILE}-wal"));
+    let before = (digest(&path), digest(&wal));
+    assert!(!before.1.is_empty());
+
+    let sets = python_snapshot(
+        &path,
+        &[
+            "SELECT id, title FROM parent ORDER BY id".to_string(),
+            "SELECT COUNT(*) AS n FROM parent".to_string(),
+        ],
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let sets: Vec<Value> = sets
+        .into_iter()
+        .map(|rows| Value::Array(rows.into_iter().map(Value::Object).collect()))
+        .collect();
+    assert_eq!(
+        sets,
+        vec![
+            json!([{ "id": 1, "title": "旧" }, { "id": 2, "title": "库" }]),
+            json!([{ "n": 2 }])
+        ]
+    );
+
+    // The driver refuses writes, also one placed after a SELECT in the same query.
+    let error = python_snapshot(&path, &["SELECT 1; DELETE FROM parent".to_string()])
+        .await
+        .unwrap_err();
+    assert!(error.contains("readonly"), "{error}");
+    // Whatever a journal-mode change returns, the files and the mode stay as they were.
+    let _ = python_snapshot(&path, &["PRAGMA journal_mode = DELETE".to_string()]).await;
+    assert_eq!((digest(&path), digest(&wal)), before);
+    assert_eq!(
+        select(&writer, "PRAGMA journal_mode", &[]).await.unwrap()[0]["journal_mode"],
+        json!("wal")
+    );
+    assert_eq!(
+        select(&writer, "SELECT COUNT(*) AS n FROM parent", &[])
+            .await
+            .unwrap()[0]["n"],
+        json!(2)
+    );
+}

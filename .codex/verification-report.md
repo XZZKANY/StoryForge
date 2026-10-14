@@ -7985,3 +7985,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 已知差异：库里有 `runtime_checkpoint` 的 run，Python 保存点附检查点诊断，引擎没有持久检查点（作者库里没有这种 artifact）。整数形的键被 JS 对象排前（引擎所有载荷皆如此，作者库里没有）。
 - 真 WebView 探针 `--agent-only` 通过（引擎库在真窗口里迁到版本 2）。
 - 未联通：Rust 只读快照命令、前端接线与真窗口探针（4-3b）；导入开关在 P5 打开。
+
+## 2026-10-14 P4-3b 旧库导入接线：Rust 只读快照、前端开关与真窗口探针（TS 迁移，默认仍走 Python；P4 收口）
+
+- 范围：`src-tauri/src/engine_db.rs` 新命令 `engine_python_db_snapshot`（驱动层只读、不创建、一个读事务、文件不存在返回 null）；`PYTHON_DB_FILE` 常量，`llm_config.rs` 的 sidecar `DATABASE_URL` 共用；`main.rs` 注册命令。前端 `lib/engine/db.ts`（`nativePythonDb`）、`lib/engine/flags.ts`（`legacyImportOnOpen`：发行版恒关，开发档 `engine.legacyImport = on`）、`lib/engine/store.ts`（迁移 → 导入 → 载入 run → 收尸）。探针 `verify-engine-p0-native.mjs --agent-only` 与 fixture `engine-p3-agent.ts`。
+- 测试：cargo test 145 通过（新增 2 条：文件不存在不创建；只在 -wal 里的行照样读到、SELECT 后夹带的 DELETE 被拒、主文件与 -wal 字节不变）；前端 vitest 2183 通过（新增 `engine-legacy-import` 4 条，`engine-flags` / `engine-db` 各 1 条）；两个全量 vitest 并行仍全绿；前端 typecheck；eslint / prettier；rustfmt。
+- 变异：前端 6 / 6（去掉导入、开关恒开、去掉发行版判断、开关只看非空、存储被拒视为开、命令名写错），Rust 2 / 2（只读改成可写、去掉文件存在判断）。
+- 真 WebView 探针 `--agent-only` 通过：隔离本地数据目录里的合成旧库被导入，引擎库 run 依次为 legacy-run-1…5（running 的被收尸成 failed，paused 保留）与探针的两个，会话 6 个、消息数 [3, 1, 1, 0, 2, 0]，`imported_from_v1` 行数与预言机一致，旧库文件哈希不变。
+- 顺带修正：四个冷加载整个引擎包的前端用例文件（本刀新增 + 4-2 的三个）在 vitest「先跑上次失败的文件」时连环超 5 秒（master 上同样复现、清结果缓存后全绿），照既有写法把冷加载挪进 `beforeAll(..., 60_000)`。
+- 未联通：导入开关在 P5 切默认时打开；plugin-sql 去留随 P6 评估。
