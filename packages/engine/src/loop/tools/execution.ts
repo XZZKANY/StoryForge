@@ -2,6 +2,7 @@ import type { AssistantDeps } from '../../assistant/service';
 import type { GenerationDeliveryCapture } from '../../kernel/generationDelivery';
 import { getAgentRole, isRoleAllowedTool, listSubagentRoles } from '../../kernel/roleCatalog';
 import type { PatchProposal } from '../chatLoopTypes';
+import type { LlmSource } from '../../llm/config';
 import type { PolishModels } from './polishService';
 import type { ConversationSources } from '../conversationHistory';
 import { AgentOrchestrationError } from '../runPayloads';
@@ -56,6 +57,15 @@ export type ToolRunServices = {
   readonly checkInterruption: (boundary: string) => void;
   /** 润色用的两个模型槽（主模型 / 专用润色槽）。 */
   readonly polish: PolishModels;
+  /** 直接发消息的工具（语义 judge）：本次 run 的主模型配置源，请求挂在给定的模型操作下记证据。 */
+  readonly model: {
+    readonly source: LlmSource;
+    call(
+      operation: string,
+      source: LlmSource,
+      options: { messages: Obj[]; timeoutSeconds: number; maxAttempts: number },
+    ): Promise<Obj>;
+  };
 };
 
 export type ToolExecutionContext = {

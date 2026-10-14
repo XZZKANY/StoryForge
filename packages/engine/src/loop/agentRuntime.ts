@@ -11,14 +11,14 @@ import {
 } from '../assistant/service';
 import { readProjectFileRaw, resolveNewProjectFile } from '../kernel/fsProjectTools';
 import { FsToolError, fsRead, nativeProjectPath, resolveProjectFile } from '../kernel/fsTools';
-import { pythonTruthy, type JsonValue } from '../kernel/json';
+import { pythonTruthy, type JsonObject, type JsonValue } from '../kernel/json';
 import { buildLlmContextSnapshot } from '../kernel/llmContext';
 import { llmContextSnapshotToPromptContextBundle } from '../kernel/llmPromptContext';
 import { compactText } from '../kernel/pythonText';
 import type { PlainJson, SecretContext } from '../kernel/redaction';
 import { revisionReferencesReview } from '../kernel/reviseScope';
 import type { ProjectReader } from '../readPort';
-import { ConfiguredLlmProvider } from '../llm/client';
+import { callLlmMessages, ConfiguredLlmProvider } from '../llm/client';
 import { missingLlmEnv, type LlmSource } from '../llm/config';
 import { checkRunInterruption, RunInterrupted } from '../llm/control';
 import { ModelObservation } from '../llm/observation';
@@ -313,6 +313,21 @@ export class AgentRuntime {
       },
       conversation: this.deps.conversation,
       checkInterruption: (boundary) => checkRunInterruption(this.control, boundary),
+      model: {
+        source: this.deps.source,
+        call: (operation, source, options) =>
+          this.observation!.withOperation(operation, null, () =>
+            callLlmMessages(
+              source,
+              {
+                messages: options.messages as JsonObject[],
+                timeoutSeconds: options.timeoutSeconds,
+                maxAttempts: options.maxAttempts,
+              },
+              this.llmContext(),
+            ),
+          ),
+      },
       polish: {
         main: this.deps.source,
         dedicated: this.deps.polish.source,

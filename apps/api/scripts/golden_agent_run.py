@@ -553,6 +553,105 @@ def polish_scenarios():
     return s
 
 
+DEEP_SOURCES = [
+    "app/domains/agent_runs/deep_consistency.py",
+    "app/domains/agent_runs/tools/project_checks_runtime.py",
+    "app/domains/judge/semantic.py",
+    "app/domains/judge/schemas.py",
+]
+ISSUE = {"category": "setting_conflict", "severity": "high", "span_start": 0, "span_end": 2, "matched_text": "推开门",
+         "expected_text": "左臂受伤", "replacement_text": "用右手推开门", "summary": "左臂有旧伤，不该推门。"}
+
+
+def judged(*items):
+    return completion(json.dumps(list(items), ensure_ascii=False))
+
+
+def deep_scenarios():
+    s = []
+    path = "正文/第001章.md"
+    call = ("c1", "project_deep_consistency", tool_args(path=path))
+    done = completion("看完了。")
+    rules = {"设定/规则.md": "铁城入夜宵禁。\n"}
+    s.append(scenario("deep-default", message("深查第一章"), [completion("", [call]), judged(ISSUE), done],
+                      extra_files=rules))
+    s.append(scenario("deep-no-issues", message("深查第一章"), [completion("", [call]), judged(), done]))
+    s.append(scenario("deep-fenced", message("深查第一章"), [
+        completion("", [call]), completion("```json\n" + json.dumps([ISSUE], ensure_ascii=False) + "\n```"), done]))
+    s.append(scenario("deep-array-in-prose", message("深查第一章"), [
+        completion("", [call]), completion("结果如下：" + json.dumps([ISSUE], ensure_ascii=False) + " 以上。"), done]))
+    s.append(scenario("deep-invalid", message("深查第一章"), [completion("", [call]), completion("不是 JSON"), done]))
+    s.append(scenario("deep-not-list", message("深查第一章"), [completion("", [call]), completion('{"a": 1}'), done]))
+    s.append(scenario("deep-provider-error", message("深查第一章"), [
+        completion("", [call]), {"status": 500, "body": '{"error":{"message":"judge down"}}'}, done]))
+    s.append(scenario("deep-explicit-bible-and-facts", message("深查第一章"), [
+        completion("", [("c1", "project_deep_consistency", tool_args(
+            path=path, bible_paths=["人物/主角.md", " ", "设定/规则.md"], facts=["林舟左臂有伤", "林舟左臂有伤", "  "]))]),
+        judged(), done], extra_files=rules))
+    s.append(scenario("deep-bible-missing", message("深查第一章"), [
+        completion("", [("c1", "project_deep_consistency", tool_args(path=path, bible_paths=["人物/不存在.md"]))]),
+        done]))
+    s.append(scenario("deep-empty-target", message("深查空章"), [
+        completion("", [("c1", "project_deep_consistency", tool_args(path="正文/空.md"))]), done],
+        extra_files={"正文/空.md": " \n"}))
+    s.append(scenario("deep-target-directory", message("深查正文目录"), [
+        completion("", [("c1", "project_deep_consistency", tool_args(path="正文"))]), done]))
+    s.append(scenario("deep-judge-overrides", message("深查第一章"), [completion("", [call]), judged(ISSUE), done],
+                      env={"STORYFORGE_JUDGE_LLM_MODEL": "judge-1", "STORYFORGE_JUDGE_LLM_BASE_URL": "https://judge.example/v1/",
+                           "STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS": "45"}))
+    s.append(scenario("deep-item-normalization", message("深查第一章"), [completion("", [call]), judged(
+        {"category": "timeline_conflict", "severity": "critical", "span_start": "3", "span_end": 99},
+        {"category": "style_drift", "matched_text": "  林舟  ", "expected_text": None, "summary": "", "span_start": True},
+        {"severity": "low"}, "不是对象",
+        {"category": "relationship_conflict", "span_start": 2.9, "span_end": -4, "expected_text": "敌人",
+         "matched_text": ["列表"]},
+        {"category": "style_drift", "span_start": True, "span_end": 3},
+        {"category": "style_drift", "matched_text": True},
+        {"category": "arc_continuity_drift", "span_start": " +1_0 "},
+        {"category": "repetition_echo", "span_start": 999}), done]))
+    s.append(scenario("deep-bad-span", message("深查第一章"), [
+        completion("", [call]), judged({"category": "setting_conflict", "span_start": "abc"}), done]))
+    s.append(scenario("deep-null-span", message("深查第一章"), [
+        completion("", [call]), judged({"category": "setting_conflict", "span_start": None}), done]))
+    s.append(scenario("deep-nearest-match", message("深查第六章"), [
+        completion("", [("c1", "project_deep_consistency", tool_args(path="正文/第006章.md"))]),
+        judged({**ISSUE, "matched_text": "门", "span_start": 9, "span_end": 10}), done],
+        extra_files={"正文/第006章.md": "门外有门，\n门里还有门。\n"}))
+    s.append(scenario("deep-many-bible-files", message("深查第一章"), [completion("", [call]), judged(), done],
+                      extra_files={f"设定/条目{i:02d}.md": f"条目{i}：" + "设定内容。" * 300 for i in range(13)}))
+    s.append(scenario("deep-long-content", message("深查长章"), [
+        completion("", [("c1", "project_deep_consistency", tool_args(path="正文/长.md"))]), judged(), done],
+        big_files={"正文/长.md": ["雨夜里他推开门。\n", 3001]}))
+    s.append(scenario("deep-stop-during-request", message("深查第一章"), [
+        completion("", [call]), {**judged(ISSUE), "set_status": ["stopped", "stopped"]}]))
+    s.append(scenario("deep-hidden-target", message("深查作者指令"), [
+        completion("", [("c1", "project_deep_consistency", tool_args(path=".storyforge/agent-instructions.md"))]),
+        judged(), done], extra_files={".storyforge/agent-instructions.md": "少用套话。"}))
+    s.append(scenario("deep-json-string-reply", message("深查第一章"), [
+        completion("", [call]), completion(json.dumps("[]")), done]))
+    s.append(scenario("deep-fenced-object", message("深查第一章"), [
+        completion("", [call]), completion("```JSON\n" + json.dumps({"issues": [ISSUE]}, ensure_ascii=False) + "\n```"),
+        done]))
+    s.append(scenario("deep-fragment-bracket-in-string", message("深查第一章"), [
+        completion("", [call]), completion("说明：" + json.dumps(
+            [{"category": "style_drift", "summary": '含]括号"]', "matched_text": "林舟"}], ensure_ascii=False) + " 尾"),
+        done]))
+    s.append(scenario("deep-stop-on-provider-error", message("深查第一章"), [
+        completion("", [call]),
+        {"status": 500, "body": '{"error":{"message":"judge down"}}', "set_status": ["stopped", "stopped"]}]))
+    s.append(scenario("deep-many-facts", message("深查第一章"), [
+        completion("", [("c1", "project_deep_consistency", tool_args(path=path, facts=[f"事实{i}" for i in range(41)]))]),
+        judged(), done]))
+    s.append(scenario("deep-target-in-bible-dir", message("深查主角设定"), [
+        completion("", [("c1", "project_deep_consistency", tool_args(path="人物/主角.md"))]), judged(), done],
+        extra_files=rules))
+    s.append(scenario("deep-main-max-tokens", message("深查第一章"), [completion("", [call]), judged(), done],
+                      env={"STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "512"}))
+    s.append(scenario("deep-uppercase-markdown", message("深查第一章"), [completion("", [call]), judged(), done],
+                      extra_files={"设定/大写.MD": "大写后缀的设定。", "人物/配角.txt": "不是 Markdown。"}))
+    return s
+
+
 def write_file(path, content):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content.encode("utf-8"))
@@ -608,6 +707,10 @@ def p3_agent_control_snapshot() -> dict:
 
 def p3_patch_tools_snapshot() -> dict:
     return _snapshot("p3-patch-tools", patch_scenarios(), SOURCES + PATCH_SOURCES)
+
+
+def p3_deep_consistency_snapshot() -> dict:
+    return _snapshot("p3-deep-consistency", deep_scenarios(), SOURCES + DEEP_SOURCES)
 
 
 def p3_polish_snapshot() -> dict:
@@ -755,7 +858,7 @@ def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None)
                 write_file(project.root / path, unit * count)
             root = str(project.root)
             for key in list(os.environ):
-                if key.startswith(("STORYFORGE_LLM_", "STORYFORGE_POLISH_LLM_")):
+                if key.startswith(("STORYFORGE_LLM_", "STORYFORGE_POLISH_LLM_", "STORYFORGE_JUDGE_LLM_")):
                     del os.environ[key]
             os.environ.update({k: v for k, v in {**SOURCE, **spec["env"]}.items() if v is not None})
             engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})

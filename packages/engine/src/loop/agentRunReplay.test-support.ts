@@ -30,6 +30,7 @@ import { checkToolHandlers } from './tools/checkHandlers';
 import { AgentToolRegistry, toolDefinitionFromSpec, type ToolHandler } from './tools/execution';
 import { fsToolHandlers } from './tools/fsHandlers';
 import { patchToolHandlers } from './tools/patchHandlers';
+import { deepConsistencyToolHandlers } from './tools/deepConsistency';
 import { polishToolHandlers } from './tools/polishHandlers';
 import type { ToolDeps } from './tools/handlerDeps';
 
@@ -442,6 +443,7 @@ export function agentRunReplay(golden: Obj) {
       ...canonToolHandlers(toolDeps),
       ...patchToolHandlers(toolDeps),
       ...polishToolHandlers(toolDeps),
+      ...deepConsistencyToolHandlers(toolDeps),
     };
     const tools = new AgentToolRegistry();
     for (const item of AGENT_RUNTIME_TOOL_SPECS)

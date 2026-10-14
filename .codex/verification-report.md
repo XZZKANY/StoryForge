@@ -7853,3 +7853,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - TS 回放：`packages/engine/src/loop/polish.test.ts` 25 条全绿（22 个场景 + 计数 + 润色槽解析契约测试 2 条）；回放台给主槽与润色槽各一个按 baseUrl 校验的出网端口。
 - 变异：63 处首轮 35 处，补场景 / 按槽校验 / 契约测试后重跑存活 28 处抓住 19 处，合计 54 / 63；余 9 处逐条核为等价或循环里走不到（明细见迁移计划）。首轮全部场景的约束计数都是 0（钉的人物文件不在磁盘上，钉选文件会按磁盘重读），由变异暴露后改成真实存在的文件并补故事记忆与章节目标。
 - 门禁：引擎 vitest 12666 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+
+## 2026-10-13 P3-6c 深度一致性与语义 judge（TS 迁移，默认仍走 Python）
+
+- 范围：`agent_runs/deep_consistency.py`、`judge/semantic.py`、`project.deep_consistency` 处理器 → `packages/engine/src/judge/semantic.ts`、`judge/prompts.ts`（一次性脚本从 Python 取 `_JUDGE_SYSTEM_PROMPT` / `_JUDGE_FEW_SHOT` 原文生成）、`loop/tools/deepConsistency.ts`；`ToolRunServices.model`（主模型配置源 + 挂在指定模型操作下的 `callLlmMessages`）。
+- 预言机：`golden_agent_run.py` 新增 `--suite p3-deep-consistency`（钉住的源文件再加 4 个），28 个场景（明细见迁移计划 P3-6c 条）；场景之间清理 `STORYFORGE_JUDGE_LLM_*` 环境变量。`--check` 复导一致；`p3-polish`、`p3-patch-tools`、`p3-agent-run`、`p3-agent-control` 复导不变。
+- TS 回放：`packages/engine/src/loop/deepConsistency.test.ts` 29 条全绿（28 个场景 + 计数）。首轮回放即逐项一致（含 judge 覆盖端点、Python `int()` 的报错原文）。
+- 变异：72 处首轮 50 处，补 7 个场景后重跑存活 22 处抓住 13 处，合计 63 / 72；余 9 处逐条核为等价或不可观测（明细见迁移计划）。
+- 门禁：引擎 vitest 12695 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
