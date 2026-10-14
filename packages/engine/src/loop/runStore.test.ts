@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import golden from '../../golden/p3-run-store.json';
 import { dumpJson, JsonFloat, parseJson } from '../kernel/json';
-import { MemoryRunStore, type RunEventRecord, type RunRecord } from '../store/runs';
+import { migratedMemoryDb } from '../store/nodeSqlite.test-support';
+import { MemoryRunStore, type RunEventRecord, type RunRecord, type RunStore } from '../store/runs';
+import { SqlRunStore } from '../store/sqlRuns';
 import { framesForEvent } from './frames';
 import {
   AgentRunEventSink,
@@ -25,10 +27,25 @@ const native = (value: unknown): unknown =>
         ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, native(item)]))
         : value;
 
-describe('P3-5a run 存储与事件落库（Python 预言机）', () => {
+describe.each([
+  [
+    '内存存储',
+    async (): Promise<
+      RunStore & { rowsAfter: MemoryRunStore['rowsAfter'] | SqlRunStore['rowsAfter'] }
+    > => new MemoryRunStore(),
+  ],
+  [
+    'sqlite 存储',
+    async () => SqlRunStore.open(await migratedMemoryDb(), () => '2026-10-14T00:00:00Z'),
+  ],
+] as const)('P3-5a run 存储与事件落库（Python 预言机，%s）', (_label, make) => {
   // 与 Python 一样，所有脚本共用一个库：续接 run-a 要看到第一个脚本留下的行。
-  const store = new MemoryRunStore();
-  const services: RunServices = { store, secrets };
+  let store: Awaited<ReturnType<typeof make>>;
+  let services: RunServices;
+  beforeAll(async () => {
+    store = await make();
+    services = { store, secrets };
+  });
   const frames: unknown[] = [];
   const onEvent = (event: RunEventRecord, run: RunRecord) =>
     frames.push(...framesForEvent(run, event, secrets));
@@ -123,7 +140,7 @@ describe('P3-5a run 存储与事件落库（Python 预言机）', () => {
               throw new Error(`unknown op ${op.op}`);
           }
         }
-        const rows = store.rowsAfter(cursor);
+        const rows = await store.rowsAfter(cursor);
         for (const key of ['events', 'artifacts', 'subagents'] as const)
           if (rows[key].length) cursor[key] = rows[key][rows[key].length - 1].id;
         expect(

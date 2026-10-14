@@ -5,6 +5,8 @@ import { agentRunReplay, REPLAY_KEYS } from './agentRunReplay.test-support';
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 脚本按 Python 预言机的 JSON 形状读
 const { replay, expectSame } = agentRunReplay(golden);
+// 每个场景在内存与 sqlite 两种存储上各跑一遍，异步存储每次写都要让出若干拍。
+const YIELDING_TIMEOUT_MS = 30_000;
 
 describe('agent control channel replays the Python oracle', () => {
   it('pins the oracle sources and scenario count', () => {
@@ -36,34 +38,42 @@ describe('agent control channel replays the Python oracle', () => {
     'resume-tool-outcome-unknown',
     'approve-with-outcome',
     'pause-permission-wait-then-resume',
-  ])('keeps the control outcome on an asynchronous store: %s', async (id) => {
-    const scenario = (golden.scenarios as Obj[]).find((item) => item.id === id)!;
-    const { record, error } = await replay(scenario, { yielding: true });
-    if (error) throw error;
-    for (const key of ['controls', 'runs', 'events', 'artifacts'])
-      expectSame(record[key], scenario[key], key);
-  });
+  ])(
+    'keeps the control outcome on an asynchronous store: %s',
+    async (id) => {
+      const scenario = (golden.scenarios as Obj[]).find((item) => item.id === id)!;
+      const { record, error } = await replay(scenario, { yielding: true });
+      if (error) throw error;
+      for (const key of ['controls', 'runs', 'events', 'artifacts'])
+        expectSame(record[key], scenario[key], key);
+    },
+    YIELDING_TIMEOUT_MS,
+  );
 
   // 两条控制连接同时恢复同一个暂停的 run：都读到已结算的 paused，只有赢得比较交换的一条认领并续跑。
-  it('two concurrent resumes claim once and run the resumed execution once', async () => {
-    const scenario = (golden.scenarios as Obj[]).find(
-      (item) => item.id === 'pause-resume-then-resume-again',
-    )!;
-    const { record, error } = await replay(scenario, { yielding: true, parallelControls: true });
-    if (error) throw error;
-    const resumes = (record.controls as Obj[]).slice(1);
-    expect(resumes.map((item) => item.event.payload.control_effect).sort()).toEqual([
-      'applied',
-      'ignored',
-    ]);
-    expect(resumes.filter((item) => item.resumed_result !== null)).toHaveLength(1);
-    const types = (record.events as Obj[]).map((event) => event.event_type);
-    expect(types.filter((type) => type === 'agent_execution_claimed')).toHaveLength(1);
-    expect(types.filter((type) => type === 'agent_execution_started')).toHaveLength(2);
-    expect([record.runs[0].status, record.runs[0].current_step]).toEqual([
-      'completed',
-      'completed',
-    ]);
-    expectSame(record.requests, scenario.requests, 'requests');
-  });
+  it(
+    'two concurrent resumes claim once and run the resumed execution once',
+    async () => {
+      const scenario = (golden.scenarios as Obj[]).find(
+        (item) => item.id === 'pause-resume-then-resume-again',
+      )!;
+      const { record, error } = await replay(scenario, { yielding: true, parallelControls: true });
+      if (error) throw error;
+      const resumes = (record.controls as Obj[]).slice(1);
+      expect(resumes.map((item) => item.event.payload.control_effect).sort()).toEqual([
+        'applied',
+        'ignored',
+      ]);
+      expect(resumes.filter((item) => item.resumed_result !== null)).toHaveLength(1);
+      const types = (record.events as Obj[]).map((event) => event.event_type);
+      expect(types.filter((type) => type === 'agent_execution_claimed')).toHaveLength(1);
+      expect(types.filter((type) => type === 'agent_execution_started')).toHaveLength(2);
+      expect([record.runs[0].status, record.runs[0].current_step]).toEqual([
+        'completed',
+        'completed',
+      ]);
+      expectSame(record.requests, scenario.requests, 'requests');
+    },
+    YIELDING_TIMEOUT_MS,
+  );
 });

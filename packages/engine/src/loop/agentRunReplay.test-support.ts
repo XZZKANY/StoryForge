@@ -10,7 +10,9 @@ import { memoryProject } from '../kernel/memoryProject.test-support';
 import { redactSensitive, redactSensitiveText, type PlainJson } from '../kernel/redaction';
 import { sha256Hex } from '../kernel/sha256';
 import type { HttpPort } from '../llm/transport';
+import { migratedMemoryDb } from '../store/nodeSqlite.test-support';
 import { MemoryRunStore, type RunEventRecord, type RunRecord } from '../store/runs';
+import { SqlRunStore } from '../store/sqlRuns';
 import { runAgentUserMessage, type AgentRuntimeDeps, type SessionTitlePort } from './agentRuntime';
 import { LoopCheckpointStore } from './chatLoopCheckpoints';
 import type { ConversationSources } from './conversationHistory';
@@ -83,7 +85,7 @@ function compact(value: unknown): unknown {
  * 真异步、且写入完成先后不一的存储（P4 的 sqlite 走 IPC）：每次调用先让出一拍，传输进度事件故意写得更慢。
  * 同步状态读与测试里的控制写仍走底层存储。
  */
-function yieldingStore(base: MemoryRunStore): MemoryRunStore {
+function yieldingStore<T extends object>(base: T): T {
   const ticks = async (count: number) => {
     for (let i = 0; i < count; i++) await new Promise<void>((resolve) => setTimeout(resolve, 0));
   };
@@ -280,9 +282,28 @@ export function agentRunReplay(golden: Obj) {
     return { sessions, messages, toolCalls, store, titles };
   }
 
-  async function replay(
+  type ReplayOptions = { yielding?: boolean; parallelControls?: boolean };
+
+  /**
+   * 每个场景跑两遍：内存存储与 sqlite 存储（P4-1）。两遍的行、帧、结果与错误必须逐项相同，
+   * 回放比对的是内存那一遍——sqlite 存储因此被全部 agent-run 预言机套件覆盖。
+   */
+  async function replay(scenario: Obj, options: ReplayOptions = {}): Promise<Replay> {
+    const memory = await replayWith(scenario, options, 'memory');
+    const sql = await replayWith(scenario, options, 'sql');
+    expect(plain(normalize(sql.record)), 'sqlite store record').toEqual(
+      plain(normalize(memory.record)),
+    );
+    const failure = (error: unknown) =>
+      error ? { name: (error as Error).name, message: (error as Error).message } : null;
+    expect(failure(sql.error), 'sqlite store error').toEqual(failure(memory.error));
+    return memory;
+  }
+
+  async function replayWith(
     scenario: Obj,
-    options: { yielding?: boolean; parallelControls?: boolean } = {},
+    options: ReplayOptions,
+    storeKind: 'memory' | 'sql',
   ): Promise<Replay> {
     const spec = parseJson(scenario.spec_json, 'spec') as Obj;
     const project = memoryProject(
@@ -299,7 +320,10 @@ export function agentRunReplay(golden: Obj) {
     const big = (spec.big_files ?? {}) as Record<string, [string, number]>;
     for (const [path, [unit, count]] of Object.entries(big))
       project.apply({ [path]: encoded(unit.repeat(count)) });
-    const runs = new MemoryRunStore();
+    const runs =
+      storeKind === 'sql'
+        ? await SqlRunStore.open(await migratedMemoryDb(), () => '2026-10-14T00:00:00Z')
+        : new MemoryRunStore();
     const db = assistantDb(spec.sessions as Obj[]);
     for (const [role, content] of (spec.history ?? []) as [string, string][])
       db.messages.push({ id: db.messages.length + 1, session_id: 1, role, content });
@@ -688,7 +712,7 @@ export function agentRunReplay(golden: Obj) {
         if (op.op === 'edit') project.apply({ [op.path]: encoded(op.content) });
         else controls.push(await runControl(op));
       }
-    const rows = runs.rowsAfter({ events: 0, artifacts: 0, subagents: 0 });
+    const rows = await runs.rowsAfter({ events: 0, artifacts: 0, subagents: 0 });
     return {
       error,
       record: {

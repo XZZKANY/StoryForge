@@ -7926,3 +7926,9 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 范围：`packages/engine/src/kernel/punctuation.ts` 折叠表加 `，：；？！（）`↔半角（不折 `。`）；`punctuation.test.ts` 两条规范形用例按「Python 输出再折这几对」改判并新增 TS 专属用例。
 - 效果（P3-8 真跑那对修订文本，一次性核对脚本未提交）：`reviseDriftCounts` 从 33 / 39 行降到 5 / 39 行；没点名的行全部还原；剩下带半角逗号的 8 行都是真实改写或新增段落。
 - 测试：引擎 vitest 12971 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`；变异 9 / 9。Python 未改（装机版 P5 前照旧，属接受的差异）。
+
+## 2026-10-14 P4-1a 库端口、迁移与 run 存储（TS 迁移，默认仍走 Python）
+
+- 范围：`packages/engine/src/store/db.ts`（Db 端口、JSON 列编码、串行队列）、`schema.ts`（迁移 0001：七张表 + schema_version）、`sqlRuns.ts`（SqlRunStore）、`nodeSqlite.test-support.ts`（测试用 node:sqlite 端口）；回放台改为内存 / sqlite 双存储比对；`runStore.test.ts`、`runRace.test.ts` 参数化到两种存储；新 `store/sqlRuns.test.ts`。P4 拆五刀写进迁移计划。
+- 测试：引擎 vitest 13068 通过 / 2 跳过（每个 agent-run 预言机场景在两种存储上逐项一致）、typecheck、`pnpm lint`；变异 32 / 32（首轮 25，补直接测试后全抓住）。
+- 未接线：桌面端仍用内存存储（ts 档）/ Python（默认），plugin-sql 适配与切换随 4-1c。
