@@ -7888,3 +7888,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：引擎 24 / 25（余 1 处等价：子串模式命中上限，调用方在同一处截断）；前端首轮 10 / 15，逐条补畸形回包后 15 / 15。
 - 门禁：引擎 vitest 12873 通过 / 2 跳过、引擎与前端 typecheck、前端 vitest 2134 通过 / 1 跳过、`pnpm lint`（0 错误，2 条既有 warning）、ruff（预言机脚本）。Python 业务代码、Rust 零改动，OpenAPI 不涉及。
 - 未验：Worker 在真 WebView / 发行版打包里的加载随 7d 的真 WebView 探针验证（本刀没有生产调用点）。
+
+## 2026-10-14 P3-7b 宿主层（TS 迁移，默认仍走 Python）
+
+- 范围：`packages/engine/src/loop/agentHost.ts`（SSE 流的进程内版本：请求体校验、文本增量合并帧泵、终态 / 错误帧；控制路由语义）、`savePoints.ts`（事件读接口、保存点投影与检查点续跑投影）；回放台 `agentRunReplay.test-support.ts` 加宿主模式与普通回包转 SSE。
+- 预言机：`golden_agent_run.py` 新套件 `--suite p3-host`（37 个场景经真实 FastAPI 路由函数 + 11 组合并器脚本 + 19 条保存点投影纯函数记录，投影记录在新文件 `apps/api/scripts/golden_save_points.py`）。`--check` 复导一致；其余八个 agent-run 套件复导逐字节不变。
+- TS 回放：`packages/engine/src/loop/agentHost.test.ts` 93 条全绿（首轮 62 / 64，差的两条是源文件计数与 P3-5c 已记的检查点脱敏差异，后者只在那一个场景按说明改写期望值）。
+- 变异：103 处首轮 76 处，补记录、场景与直接契约测试后合计 100 / 103；余 1 处空操作变异（生成脚本写错）+ 2 处等价。
+- 门禁：引擎 vitest 12966 通过 / 2 跳过、引擎 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff（scripts）。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+- 未接线：本刀没有生产调用点；前端接线与真 WebView 探针随 7c / 7d。
