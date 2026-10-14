@@ -101,6 +101,8 @@ export interface RunStore {
   /** 所有 run 里某种 artifact，按 id 升序（知识提议跨 run 去重要用）。 */
   artifactsOfKind(kind: string): Promise<readonly ArtifactRecord[]>;
   runsOfAssistantSession(assistantSessionId: number): Promise<readonly RunRecord[]>;
+  /** 全部 run，按 id 升序（起服收尸要用）。 */
+  allRuns(): Promise<readonly RunRecord[]>;
 }
 
 /** 同步读出某个 run 当前的状态与步骤（运行控制在传输层的同步检查要用）。 */
@@ -247,6 +249,10 @@ export class MemoryRunStore implements RunStore, RunStatusView {
 
   async runsOfAssistantSession(assistantSessionId: number): Promise<readonly RunRecord[]> {
     return clone(this.runs.filter((run) => run.assistant_session_id === assistantSessionId));
+  }
+
+  async allRuns(): Promise<readonly RunRecord[]> {
+    return clone(this.runs);
   }
 
   /** 测试与对账用：某个 id 之后新增的行。 */

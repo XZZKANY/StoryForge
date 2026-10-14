@@ -27,6 +27,16 @@ const event = (runId: number, type: string, payload: object = {}) => ({
   payload: payload as { [key: string]: unknown },
 });
 
+describe('test port binds like the desktop port', () => {
+  it('binds integers as INTEGER and other numbers as REAL', async () => {
+    const db = nodeSqliteDb();
+    expect(
+      await db.select('SELECT typeof($1) AS a, typeof($2) AS b, CAST($1 AS TEXT) AS c', [5, 0.5]),
+    ).toEqual([{ a: 'integer', b: 'real', c: '5' }]);
+    db.close();
+  });
+});
+
 describe('JSON column codec', () => {
   it('keeps plain numbers, JsonFloat identity and prototype-less objects', () => {
     const value = decodeJsonColumn(
@@ -191,7 +201,7 @@ describe('SqlRunStore persistence', () => {
     expect(await inner.select('SELECT COUNT(*) AS n FROM agent_run_events')).toEqual([{ n: 0 }]);
   });
 
-  it('serialises reads behind slower writes (plugin-sql runs them on a connection pool)', async () => {
+  it('serialises reads behind slower writes (the port does not promise ordering across calls)', async () => {
     const inner = await migratedMemoryDb();
     const db: Db = {
       select: (sql, params) => inner.select(sql, params),

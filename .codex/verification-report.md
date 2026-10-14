@@ -7938,3 +7938,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 范围：`packages/engine/src/store/sqlAssistant.ts`（SqlAssistantStore）；预言机 `apps/api/scripts/golden_assistant_store.py`（`--suite p4-assistant-store`，39 个操作）；回放台 sqlite 那一遍改用 SqlAssistantStore。
 - 测试：`store/sqlAssistant.test.ts`（预言机逐操作一致 + 直接测试）；引擎 vitest 13074 通过 / 2 跳过；`--check` 复导一致；ruff、`pnpm lint`。变异 32 / 32。
 - 修正：写方法参数校验失败时改为返回拒绝的 Promise（原先同步抛错）。
+
+## 2026-10-14 P4-1c1 引擎库原生端口与起服收尸（TS 迁移，默认仍走 Python）
+
+- 范围：Rust `src-tauri/src/engine_db.rs`（`engine_db_select` / `engine_db_transaction`，sqlx 单连接真事务，库文件 `storyforge-engine.sqlite3` 在应用本地数据目录）；前端 `lib/engine/db.ts`；引擎 `reapInterruptedRuns`、`RunStore.allRuns`；node:sqlite 测试端口整数按 INTEGER 绑定；预言机 p3-run-store 加 `claim` / `reap` 与 `restart-reap` 脚本。
+- 测试：`cargo test --offline --bin storyforge-desktop engine_db` 5 通过；引擎 vitest 全量通过；前端 `tests/engine-db.test.ts` 2 通过；前端与引擎 typecheck；p3-run-store `--check` 复导一致。
+- 变异：引擎 15 / 15，Rust 7 / 7（日志 `output/ts-engine-p4/mutations-4-1c*.log`）。
+- 未接线：ts 档 run 存储仍是内存，4-1c2 接；会话存储随 4-2 搬。

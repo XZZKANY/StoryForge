@@ -24,6 +24,7 @@ SOURCES = [
     "app/domains/agent_runs/service_execution.py",
     "app/domains/agent_runs/events/contracts.py",
     "app/domains/agent_runs/events/runtime_support.py",
+    "app/domains/agent_runs/loop/recovery.py",
 ]
 PATCH = {"id": "patch-1", "kind": "file_revision", "file_path": "正文/第001章.md", "before": "旧", "after": "新",
          "requires_confirmation": True, "created_by_tool": "file.revise"}
@@ -188,6 +189,43 @@ SCRIPTS = [
         {"op": "set_status", "run": "run-j", "status": "paused", "current_step": "permission.confirm"},
         {"op": "finish", "run": "run-j", "result": result("无需确认")},
     ]),
+    # Startup reap: no durable checkpoint artifacts, as in the engine (its checkpoints live in memory).
+    # Runs resumed above without an execution (run-a, run-e) are still running when this script starts.
+    ("restart-reap", [
+        {"op": "start", "agent_session_id": "sess-k", "message": {"user_message": f"跑着 {SECRET}", "run_id": "run-k"}},
+        {"op": "execution_start", "run": "run-k"},
+        {"op": "start", "agent_session_id": "sess-l", "message": {"user_message": "停着", "run_id": "run-l"}},
+        {"op": "execution_start", "run": "run-l"},
+        {"op": "set_status", "run": "run-l", "status": "paused", "current_step": "paused"},
+        {"op": "start", "agent_session_id": "sess-m", "message": {"user_message": "续着", "run_id": "run-m"}},
+        {"op": "execution_start", "run": "run-m"},
+        {"op": "set_status", "run": "run-m", "status": "paused", "current_step": "paused"},
+        {"op": "finish", "run": "run-m", "result": None},
+        {"op": "claim", "run": "run-m", "control_payload": {"session_id": "sess-m", "run_id": "run-m"}},
+        {"op": "set_status", "run": "run-m", "status": "running", "current_step": "agent.loop"},
+        {"op": "start", "agent_session_id": "sess-n", "message": {"user_message": "认领被拒", "run_id": "run-n"}},
+        {"op": "execution_start", "run": "run-n"},
+        {"op": "set_status", "run": "run-n", "status": "paused", "current_step": "paused"},
+        {"op": "finish", "run": "run-n", "result": None},
+        {"op": "claim", "run": "run-n", "control_payload": {"runtime_recovery": {
+            "resume_diagnostic": {"can_resume": False, "reason": "no_pending_call"}}}},
+        {"op": "start", "agent_session_id": "sess-o", "message": {"user_message": "认领未开始", "run_id": "run-o"}},
+        {"op": "execution_start", "run": "run-o"},
+        {"op": "set_status", "run": "run-o", "status": "paused", "current_step": "paused"},
+        {"op": "finish", "run": "run-o", "result": None},
+        {"op": "claim", "run": "run-o", "control_payload": {}},
+        {"op": "start", "agent_session_id": "sess-q", "message": {"user_message": "认领后已开始", "run_id": "run-q"}},
+        {"op": "execution_start", "run": "run-q"},
+        {"op": "set_status", "run": "run-q", "status": "paused", "current_step": "paused"},
+        {"op": "finish", "run": "run-q", "result": None},
+        {"op": "claim", "run": "run-q", "control_payload": {}},
+        {"op": "execution_start", "run": "run-q"},
+        {"op": "set_status", "run": "run-q", "status": "paused", "current_step": "paused"},
+        {"op": "start", "agent_session_id": "sess-p", "message": {"user_message": "等待", "run_id": "run-p"}},
+        {"op": "set_status", "run": "run-p", "status": "waiting", "current_step": "permission.confirm"},
+        {"op": "reap", "run": "run-k"},
+        {"op": "reap", "run": "run-k"},
+    ]),
 ]
 
 
@@ -203,6 +241,7 @@ def p3_run_store_snapshot() -> dict:
         from app.domains.agent_runs.event_encoders import websocket_stream_events_from_agent_event
         from app.domains.agent_runs.event_sink import AgentRunEventSink
         from app.domains.agent_runs.models import AgentArtifact, AgentRun, AgentRunEvent, SubagentRun
+        from app.domains.agent_runs.service_store import reap_non_terminal_agent_runs, record_agent_event
         from app.domains.agent_runs.service_types import AgentRunNotFoundError
         from app.domains.agent_runs.trace import AgentToolTrace
         from app.domains.assistant.models import AssistantSession  # noqa: F401 - registers the FK target
@@ -298,6 +337,15 @@ def p3_run_store_snapshot() -> dict:
                             db, row, started[op["run"]], op["result"])
                         on_event(settled)
                         returned = out_result
+                    elif kind == "claim":
+                        # The control channel's accepted resume: control event, then the execution claim.
+                        control = record_agent_event(db, row, event_type="resume_run", actor="desktop-ide",
+                                                     message="恢复运行", payload=op["control_payload"])
+                        record_agent_event(db, row, event_type=service_execution.AGENT_EXECUTION_CLAIMED,
+                                           actor="agent-runtime",
+                                           payload={"control_event_id": control.id, "runtime_state": "in_flight"})
+                    elif kind == "reap":
+                        returned = reap_non_terminal_agent_runs(db)
                 steps.append({
                     "op": written, "returned": returned,
                     "events": new_rows(AgentRunEvent, "events", ("id", "run_id", "event_type", "actor", "message",
@@ -309,6 +357,11 @@ def p3_run_store_snapshot() -> dict:
                     "frames": [frame for batch in frames for frame in batch],
                     "run": snapshot(run_row(op["message"]["run_id"] if kind == "start" else op["run"])),
                 })
+                if kind == "reap":
+                    db.expire_all()
+                    steps[-1]["runs"] = [{"public_id": row.public_id, "status": row.status,
+                                          "current_step": row.current_step}
+                                         for row in db.query(AgentRun).order_by(AgentRun.id)]
             scripts.append({"id": name, "steps_json": json.dumps(steps, ensure_ascii=False, default=str)})
         return {
             "format_version": 1,

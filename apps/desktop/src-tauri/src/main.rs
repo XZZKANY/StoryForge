@@ -6,6 +6,7 @@ mod external_chat_bridge_tests;
 
 #[cfg(test)]
 mod external_native_ipc_fixture;
+mod engine_db;
 mod engine_llm;
 mod fs;
 mod fs_writeback_receipts;
@@ -1971,6 +1972,7 @@ fn main() {
         .manage(host_close_state::HostCloseState::default())
         .manage(shadow_git::ShadowGitState::default())
         .manage(engine_llm::EngineLlmState::default())
+        .manage(engine_db::EngineDbState::default())
         .invoke_handler(tauri::generate_handler![
             // 文件系统命令
             fs::read_file,
@@ -2005,6 +2007,9 @@ fn main() {
             engine_llm::get_engine_llm_source,
             engine_llm::engine_llm_send,
             engine_llm::engine_llm_close,
+            // 引擎库：一组语句一个真事务（表与迁移归引擎）
+            engine_db::engine_db_select,
+            engine_db::engine_db_transaction,
             // 作品版本影子 Git 命令（固定 DTO，不暴露任意 Git 参数）
             shadow_git::create_shadow_snapshot,
             shadow_git::retain_shadow_snapshot,

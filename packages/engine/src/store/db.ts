@@ -3,11 +3,12 @@ import { JsonFloat } from '../kernel/json';
 /** 绑定参数：整数、浮点、文本或 NULL（布尔存 0 / 1，JSON 列存文本）。 */
 export type SqlValue = string | number | null;
 export type SqlRow = { readonly [column: string]: SqlValue };
-/** 一条语句；参数一律写成 `$1`、`$2` 这种带编号的形式（plugin-sql 按编号、node:sqlite 按名字绑定）。 */
+/** 一条语句；参数一律写成 `$1`、`$2` 这种带编号的形式（Rust 端口按编号、node:sqlite 按名字绑定）。 */
 export type SqlStep = { readonly sql: string; readonly params?: readonly SqlValue[] };
 
 /**
- * 引擎库的端口。桌面端由 plugin-sql 实现，测试用 Node 自带的 node:sqlite。
+ * 引擎库的端口。桌面端由 Rust 命令 `engine_db_select` / `engine_db_transaction` 实现
+ * （`src-tauri/src/engine_db.rs`，单连接、整组一个真事务），测试用 Node 自带的 node:sqlite。
  * 写操作一律经 `transaction`：同一组语句在一个事务里提交，失败整组回滚。
  */
 export interface Db {
