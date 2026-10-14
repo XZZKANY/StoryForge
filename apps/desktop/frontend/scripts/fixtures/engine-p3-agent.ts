@@ -1,5 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { getAgentRunEvents, getAgentRunSavePoints } from '../../src/lib/api/agent-runs';
+import { queryChapterCheckHistory } from '../../src/lib/api/chapter-checks';
 import { refreshKnowledgeProposals } from '../../src/lib/api/knowledge-proposals';
 import { sendAgentControlMessage, sendAgentUserMessage } from '../../src/lib/api/agent-socket';
 import type { AgentSocketMessage } from '../../src/lib/api/types';
@@ -117,7 +118,17 @@ async function readBackAfterReload(input: { runIds: string[]; projectRoot: strin
   }
   // The knowledge inbox reads the same engine database and the project through the Rust reader.
   const inbox = await refreshKnowledgeProposals(input.projectRoot);
-  return { runs, inbox: { items: inbox.items.length, pending: inbox.pending_count } };
+  // Chapter check history: run A's conversation (session 1 of the engine database) has none.
+  const checks = await queryChapterCheckHistory({
+    project_root: input.projectRoot,
+    assistant_session_id: 1,
+    limit: 20,
+  });
+  return {
+    runs,
+    inbox: { items: inbox.items.length, pending: inbox.pending_count },
+    checks: { entries: checks.entries.length, truncated: checks.truncated },
+  };
 }
 
 declare global {

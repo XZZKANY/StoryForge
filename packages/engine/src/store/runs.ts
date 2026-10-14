@@ -105,6 +105,8 @@ export interface RunStore {
   runsOfAssistantSession(assistantSessionId: number): Promise<readonly RunRecord[]>;
   /** 全部 run，按 id 升序（起服收尸要用）。 */
   allRuns(): Promise<readonly RunRecord[]>;
+  /** artifact 落库的时间（库里的存储格式；章节检查历史要用），不存在时为 null。 */
+  artifactCreatedAt(id: number): Promise<string | null>;
 }
 
 /** 同步读出某个 run 当前的状态与步骤（运行控制在传输层的同步检查要用）。 */
@@ -121,6 +123,13 @@ export class MemoryRunStore implements RunStore, RunStatusView {
   private readonly eventRows: RunEventRecord[] = [];
   private readonly artifactRows: ArtifactRecord[] = [];
   private readonly subagentRows: SubagentRecord[] = [];
+  private readonly artifactTimes = new Map<number, string>();
+
+  /** `now`：artifact 的落库时间，格式同库里的存储（UTC、精确到秒）。 */
+  constructor(
+    private readonly now: () => string = () =>
+      new Date().toISOString().slice(0, 19).replace('T', ' '),
+  ) {}
 
   async findRun(publicId: string): Promise<RunRecord | null> {
     const run = this.runs.find((item) => item.public_id === publicId);
@@ -210,7 +219,12 @@ export class MemoryRunStore implements RunStore, RunStatusView {
   async insertArtifact(fields: Omit<ArtifactRecord, 'id'>): Promise<ArtifactRecord> {
     const artifact = { id: this.artifactRows.length + 1, ...clone(fields) };
     this.artifactRows.push(artifact);
+    this.artifactTimes.set(artifact.id, this.now());
     return clone(artifact);
+  }
+
+  async artifactCreatedAt(id: number): Promise<string | null> {
+    return this.artifactTimes.get(id) ?? null;
   }
 
   async updateArtifact(id: number, payload: Obj): Promise<ArtifactRecord> {

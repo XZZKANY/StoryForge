@@ -5,6 +5,7 @@ import {
   textFromCodePoints,
   type TypedValue,
 } from './pythonFacts.test-support';
+import { JsonFloat } from './json';
 import { isSensitiveKey, redactSensitive, redactSensitiveText } from './redaction';
 
 // 迁移计划 §4.3.1：超大整数、非有限小数、孤立代理码点到不了脱敏（命令入口先拒收）。
@@ -119,5 +120,18 @@ describe('redaction (audited Python with explicit synthetic configured values)',
     expect(redactSensitiveText('𠀀sk-abcdefgh', context)).toBe('𠀀sk-abcdefgh');
     expect(redactSensitiveText('😀sk-abcdefgh', context)).toBe('😀[REDACTED]');
     expect(redactSensitiveText('token=abcdef1', context)).toBe('token=[REDACTED]');
+  });
+});
+
+describe('redactSensitive keeps Python integral floats', () => {
+  it('returns JsonFloat values untouched instead of splitting them into objects', () => {
+    const float = new JsonFloat(3000);
+    const output = redactSensitive(
+      { target_chars_max: float, nested: [float], token: 'x' } as never,
+      { values: [] },
+    ) as unknown as { target_chars_max: unknown; nested: unknown[]; token: unknown };
+    expect(output.target_chars_max).toBe(float);
+    expect(output.nested[0]).toBe(float);
+    expect(output.token).toBe('[REDACTED]');
   });
 });

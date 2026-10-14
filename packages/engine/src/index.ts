@@ -607,3 +607,8 @@ export {
   reviseKnowledgeProposalGroup,
   type KnowledgeInboxDeps,
 } from './loop/knowledgeInbox';
+export {
+  ChapterCheckHistoryRequestError,
+  queryChapterCheckHistory,
+  type ChapterCheckHistoryDeps,
+} from './loop/chapterCheckHistory';

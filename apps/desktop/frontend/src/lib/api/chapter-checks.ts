@@ -1,6 +1,7 @@
 import type { components } from '../../../../../../packages/shared/src/generated/api-types';
 import { getApiConfig, trimApiBaseUrl } from './config';
 import { readErrorDetail } from './errors';
+import { sessionsInEngine } from '../engine/flags';
 
 export type ChapterCheckHistoryRequest = components['schemas']['ChapterCheckHistoryQuery'];
 type ExecutionStatus = 'completed' | 'failed' | 'incomplete';
@@ -198,6 +199,12 @@ export async function queryChapterCheckHistory(
   request: ChapterCheckHistoryRequest,
   options: { signal?: AbortSignal } = {},
 ): Promise<ChapterCheckHistory> {
+  // 检查历史是会话下 run 的 artifact：跟着会话放在哪个库走（Python 档不初始化引擎）。
+  if (sessionsInEngine())
+    return decodeChapterCheckHistory(
+      await (await import('../engine/chapterChecks')).queryEngineChapterChecks(request),
+      request,
+    );
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/agent-runs/chapter-checks/query`, {
     method: 'POST',
