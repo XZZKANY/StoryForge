@@ -754,6 +754,136 @@ def fixed_scenarios():
     return s
 
 
+CHAPTER_SOURCES = [
+    "app/domains/agent_runs/adapters/chapter_writing_pipeline.py",
+    "app/domains/agent_runs/adapters/chapter_writing_contracts.py",
+    "app/domains/agent_runs/adapters/chapter_writing_tools.py",
+    "app/domains/agent_runs/adapters/chapter_check_protocol.py",
+    "app/domains/agent_runs/adapters/chapter_source_guard.py",
+    "app/domains/agent_runs/loop/generation_recovery.py",
+    "app/domains/agent_runs/loop/knowledge_recovery.py",
+    "app/domains/agent_runs/loop/ordinary_recovery.py",
+    "app/domains/agent_runs/service_control.py",
+]
+BRIEF_ID = "chapter-brief-" + f"{1:032x}"
+DRAFT = "第三章 入城\n\n沈禾带林舟穿过城门。\n守卫看了他们一眼。\n"
+BEAT = {"rule": "missing_required_beat", "severity": "hard", "message": "缺少夜宿情节", "line": 3,
+        "evidence": "沈禾带林舟穿过城门。"}
+
+
+def brief_reply(**fields):
+    body = {"target_path": "正文/第003章.md", "chapter_ordinal": None, "chapter_title": "入城", "goal": "沈禾带林舟入城",
+            "pov": "林舟", "setting": "城门", "required_beats": ["入城", "夜宿"], "forbidden_items": ["回忆"],
+            "continuity_constraints": ["林舟左臂有旧伤"], "target_chars_min": 10, "target_chars_max": 400, **fields}
+    return completion(json.dumps(body, ensure_ascii=False))
+
+
+def checked(*findings, corrupt=False):
+    """The checker echoes the check source from its own prompt (both sides build it the same way)."""
+    return {"chapter_check": {"findings": list(findings), "corrupt": corrupt}}
+
+
+def confirmed_brief(**fields):
+    return {"brief_id": BRIEF_ID, "revision": 1, "chapter_title": "入城", "goal": "沈禾带林舟入城，夜宿客栈",
+            "pov": "林舟", "setting": "城门", "required_beats": ["入城", "夜宿"], "forbidden_items": ["回忆"],
+            "continuity_constraints": ["林舟左臂有旧伤"], "target_chars_min": 10, "target_chars_max": 400, **fields}
+
+
+def chapter_scenarios():
+    s = []
+    target = "$ROOT/正文/第003章.md"
+
+    def write(text="写第三章：沈禾带林舟入城", **extra):
+        args = {"file_path": target, **extra.pop("args", {})}
+        return message(text, intent="chapter.write", args=args, **extra)
+
+    def confirm(**fields):
+        return {"op": "control", "type": "resume_run", "payload": {"chapter_brief": confirmed_brief(**fields)}}
+
+    s.append(scenario("write-brief", write(), [brief_reply()]))
+    s.append(scenario("write-brief-then-pass", write(), [brief_reply(), streamed([DRAFT]), checked()],
+                      ops=[confirm()]))
+    s.append(scenario("write-auto-profile", write(permission_profile="auto"),
+                      [brief_reply(), streamed([DRAFT]), checked()], ops=[confirm()]))
+    s.append(scenario("write-repair-then-pass", write(), [
+        brief_reply(), streamed([DRAFT]), checked(BEAT),
+        streamed(["第三章 入城\n\n沈禾带林舟穿过城门，夜宿客栈。\n守卫看了他们一眼。\n"]), checked()], ops=[confirm()]))
+    s.append(scenario("write-repair-still-failing", write(), [
+        brief_reply(), streamed([DRAFT]), checked(BEAT), streamed([DRAFT]), checked(BEAT)], ops=[confirm()]))
+    s.append(scenario("write-check-advisory-only", write(), [
+        brief_reply(), streamed([DRAFT]),
+        checked({"rule": "advisory", "severity": "hard", "message": "可以更紧凑", "line": None, "evidence": None},
+                {"rule": "pov_violation", "severity": "advisory", "message": "视角略有游移", "line": 4,
+                 "evidence": "守卫看了他们一眼。"})], ops=[confirm()]))
+    s.append(scenario("write-check-invalid", write(), [brief_reply(), streamed([DRAFT]), completion("不是 JSON")],
+                      ops=[confirm()]))
+    s.append(scenario("write-check-source-mismatch", write(), [brief_reply(), streamed([DRAFT]), checked(corrupt=True)],
+                      ops=[confirm()]))
+    s.append(scenario("write-check-bad-evidence", write(), [brief_reply(), streamed([DRAFT]), checked(
+        {**BEAT, "line": 4})], ops=[confirm()]))
+    s.append(scenario("write-check-too-many", write(), [brief_reply(), streamed([DRAFT]), checked(
+        *[{"rule": "advisory", "severity": "advisory", "message": f"建议{i}", "line": None, "evidence": None}
+          for i in range(101)])], ops=[confirm()]))
+    s.append(scenario("write-check-provider-error", write(), [
+        brief_reply(), streamed([DRAFT]), {"status": 500, "body": '{"error":{"message":"check down"}}'}],
+        ops=[confirm()]))
+    s.append(scenario("write-word-count-repair", write(), [
+        brief_reply(), streamed(["第三章\n\n短。\n"]), checked(),
+        streamed([DRAFT]), checked()], ops=[confirm(target_chars_min=40, target_chars_max=400)]))
+    s.append(scenario("write-stale-brief", write(), [brief_reply()], ops=[confirm(brief_id="chapter-brief-stale")]))
+    s.append(scenario("write-bad-word-range", write(), [brief_reply()],
+                      ops=[confirm(target_chars_min=500, target_chars_max=100)]))
+    s.append(scenario("write-missing-brief-on-resume", write(), [brief_reply()],
+                      ops=[{"op": "control", "type": "resume_run"}]))
+    s.append(scenario("write-source-drift", write(), [brief_reply()],
+                      ops=[{"op": "edit", "path": ".storyforge/agent-instructions.md", "content": "只写短句"}, confirm()]))
+    s.append(scenario("write-previous-chapter-drift", write(), [brief_reply()],
+                      ops=[{"op": "edit", "path": "正文/第002章.md", "content": "第二章 改过\n\n沈禾问路。\n"}, confirm()]))
+    s.append(scenario("write-no-project", write(project=False), []))
+    s.append(scenario("write-existing-target", write(args={"file_path": "$ROOT/正文/第001章.md"}), []))
+    s.append(scenario("write-outside-target", write(args={"file_path": "D:/elsewhere/第003章.md"}), []))
+    plan = {"premise": "末世", "chapter_word_count_min": 300, "chapter_word_count_max": 600, "chapters": [
+        {"ordinal": 1, "status": "done", "path": "正文/第001章.md"},
+        {"ordinal": 2, "status": "done", "path": "正文/第002章.md"},
+        {"ordinal": 3, "title": "入城", "goal": "沈禾带林舟入城", "status": "pending"}]}
+    plan_file = {".storyforge/serial-plan.json": json.dumps(plan, ensure_ascii=False)}
+    s.append(scenario("write-planned-next", write(args={"file_path": None}), [brief_reply(chapter_title=None)],
+                      extra_files=plan_file))
+    s.append(scenario("write-explicit-target-not-planned", write(args={"file_path": "$ROOT/正文/第009章.md"}),
+                      [brief_reply(target_path="正文/第009章.md")], extra_files=plan_file))
+    s.append(scenario("write-brief-not-json", write(), [completion("好的，我来写。")]))
+    s.append(scenario("write-brief-fenced-and-swapped", write(), [completion(
+        "```json\n" + json.dumps({"goal": "  ", "target_chars_min": 900, "target_chars_max": 300,
+                                   "required_beats": ["a", "a", " ", 3] + [f"b{i}" for i in range(20)]},
+                                  ensure_ascii=False) + "\n```")]))
+    s.append(scenario("write-pause-before-brief-finalize", write(), [brief_reply()],
+                      triggers=[{"boundary": "before_finalize:chapter.brief", "nth": 1, "status": "paused",
+                                 "current_step": "paused"}]))
+    s.append(scenario("write-brief-with-pinned-context", write(args={"context_bundle": {"files": [
+        {"relative_path": "人物/主角.md", "excerpt": "左臂有旧伤。", "kind": "character"}]}}),
+        [brief_reply(), streamed([DRAFT]), checked()], ops=[confirm()]))
+    s.append(scenario("write-pinned-source-drift", write(args={"context_bundle": {"files": [
+        {"relative_path": "人物/主角.md", "excerpt": "左臂有旧伤。", "kind": "character"}]}}),
+        [brief_reply()], ops=[{"op": "edit", "path": "人物/主角.md", "content": "# 林舟\n\n右臂有旧伤。\n"}, confirm()]))
+    declared = {**plan, "chapters": [*plan["chapters"][:2],
+                                     {"ordinal": 3, "title": "入城", "goal": "沈禾带林舟入城", "status": "pending",
+                                      "path": "正文/第三章-入城.md"}]}
+    s.append(scenario("write-explicit-target-vs-declared", write(), [brief_reply()],
+                      extra_files={".storyforge/serial-plan.json": json.dumps(declared, ensure_ascii=False)}))
+    s.append(scenario("write-stale-revision", write(), [brief_reply()], ops=[confirm(revision=2)]))
+    s.append(scenario("write-knowledge-added-drift", write("写第三章：铁城宵禁那夜"), [brief_reply()],
+                      ops=[{"op": "edit", "path": "设定/世界观.md", "content": KNOWLEDGE_ENTRY}, confirm()]))
+    s.append(scenario("write-drift-during-brief", write(), [
+        {**brief_reply(), "edits": {".storyforge/agent-instructions.md": "只写短句"}}]))
+    s.append(scenario("write-project-name", write(args={"project_name": "末世吞噬"}),
+                      [brief_reply(), streamed([DRAFT]), checked()], ops=[confirm()]))
+    s.append(scenario("write-secret-in-brief", write(), [brief_reply(), streamed([DRAFT]), checked()],
+                      ops=[confirm(goal=f"入城，口令是 {SECRET}")]))
+    s.append(scenario("write-empty-placeholder-target", write(), [brief_reply(), streamed([DRAFT]), checked()],
+                      extra_files={"正文/第003章.md": " \n"}, ops=[confirm()]))
+    return s
+
+
 def write_file(path, content):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content.encode("utf-8"))
@@ -847,6 +977,75 @@ def pending_call_records() -> dict:
     return {"pending_call_diagnostics": diagnostics, "pending_call_resolutions": resolutions}
 
 
+def chapter_check_records() -> dict:
+    """The check protocol on hand-made checker replies (validation branches the scenarios cannot reach)."""
+    from app.domains.agent_runs.adapters.chapter_check_protocol import build_check, check_prompt, check_source
+
+    brief = {"brief_id": "b-1", "revision": 2, "goal": "入城", "pov": "林舟", "setting": None, "required_beats": ["入城"],
+             "forbidden_items": [], "continuity_constraints": [], "target_chars_min": 10, "target_chars_max": 400}
+    content = "第三章\r\n\r\n沈禾带林舟穿过城门。\n守卫看了\n他们一眼。\n"
+    source = check_source(content, brief)
+
+    def reply(findings, **extra):
+        return json.dumps({**source, "findings": findings, **extra}, ensure_ascii=False)
+
+    hard = {"rule": "missing_required_beat", "severity": "hard", "message": "缺夜宿", "line": 3,
+            "evidence": "沈禾带林舟穿过城门。"}
+    raws = {
+        "pass": reply([]),
+        "fenced": "```JSON\n" + reply([]) + "\n```",
+        "hard": reply([hard]),
+        "multiline-evidence": reply([{**hard, "line": 4, "evidence": "守卫看了\n他们一眼。"}]),
+        "advisory-claims-hard": reply([{**hard, "rule": "advisory"}]),
+        "advisory-null-quote": reply([{"rule": "pov_violation", "severity": "advisory", "message": "略", "line": None,
+                                       "evidence": None}]),
+        "advisory-bad-quote": reply([{**hard, "severity": "advisory", "evidence": "不存在的句子"}]),
+        "hard-without-evidence": reply([{**hard, "evidence": None, "line": None}]),
+        "line-without-evidence": reply([{**hard, "severity": "advisory", "evidence": None}]),
+        "line-beyond": reply([{**hard, "line": 99}]),
+        "evidence-other-line": reply([{**hard, "line": 1}]),
+        "line-zero": reply([{**hard, "line": 0}]),
+        "line-bool": reply([{**hard, "line": True}]),
+        "line-float": reply([{**hard, "line": 3.0}]),
+        "unknown-rule": reply([{**hard, "rule": "made_up"}]),
+        "bad-severity": reply([{**hard, "severity": "critical"}]),
+        "empty-message": reply([{**hard, "message": "  "}]),
+        "long-message": reply([{**hard, "message": "长" * 2001}]),
+        "blank-evidence": reply([{**hard, "evidence": " "}]),
+        "missing-key": reply([{k: v for k, v in hard.items() if k != "line"}]),
+        "not-object-finding": reply(["hard"]),
+        "findings-missing": json.dumps(source),
+        "findings-not-list": reply({}),
+        "too-many": reply([{"rule": "advisory", "severity": "advisory", "message": "x", "line": None,
+                            "evidence": None}] * 101),
+        "version-float": json.dumps({**source, "protocol_version": 2.0, "findings": []}),
+        "version-bool": json.dumps({**source, "protocol_version": True, "findings": []}),
+        "wrong-brief-sha": json.dumps({**source, "brief_sha256": "0" * 64, "findings": []}),
+        "duplicate-key": '{"findings": [], "findings": []}',
+        "not-object": "[]",
+        "not-json": "检查完毕，没有问题。",
+        "oversized": " " * 256_001,
+    }
+    records = [{"name": name, "raw": raw, "content": content, "result": build_check(content, brief, raw)}
+               for name, raw in raws.items()]
+    for record in records:
+        if record["name"] == "oversized":  # Rebuilt on the TS side instead of storing 256 KB of spaces.
+            record["raw"], record["raw_repeat"] = None, [" ", 256_001]
+    extremes = [
+        {"name": "empty-draft", "content": " \n", "raw": None, "provider_failed": True},
+        {"name": "too-short", "content": "短", "raw": None, "provider_failed": True},
+        {"name": "too-long", "content": "长" * 600, "raw": None, "provider_failed": True},
+    ]
+    for item in extremes:
+        records.append({**item, "result": build_check(item["content"], brief, item["raw"], provider_failed=True)})
+    return {"check_brief": brief, "check_records": records, "check_prompt": check_prompt(brief, content)}
+
+
+def p3_chapter_writing_snapshot() -> dict:
+    return _snapshot("p3-chapter-writing", chapter_scenarios(), SOURCES + CONTROL_SOURCES + CHAPTER_SOURCES,
+                     after=chapter_check_records)
+
+
 def p3_fixed_pipelines_snapshot() -> dict:
     return _snapshot("p3-fixed-pipelines", fixed_scenarios(), SOURCES + CONTROL_SOURCES + FIXED_SOURCES,
                      extra={"polish_secret": POLISH_SECRET}, after=pending_call_records)
@@ -889,6 +1088,7 @@ def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None,
             service_execution,
             text_stream,
         )
+        from app.domains.agent_runs.adapters import chapter_writing_contracts, chapter_writing_pipeline
         from app.domains.agent_runs.event_encoders import websocket_stream_events_from_agent_event
         from app.domains.agent_runs.fs import knowledge_proposals as proposals_module
         from app.domains.agent_runs.loop import conversation_runtime, run_control
@@ -959,6 +1159,14 @@ def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None,
                 if rule["drop_last"]:
                     segments = segments[:-1]
                 reply = completion(json.dumps({"segments": segments}, ensure_ascii=False), finish=rule["finish"])
+            if reply.get("chapter_check") is not None:
+                rule = reply["chapter_check"]
+                prompt = body["messages"][-1]["content"]
+                start = prompt.index("检查源：") + len("检查源：")
+                source = json.loads(prompt[start:prompt.index("\n", start)])
+                if rule["corrupt"]:
+                    source["content_sha256"] = "0" * 64
+                reply = completion(json.dumps({**source, "findings": rule["findings"]}, ensure_ascii=False))
             if reply.get("compaction_quote"):
                 model_input = json.loads(body["messages"][1]["content"])
                 entries = [{"category": "decision", "text": f"摘要 {source['key']}", "source_id": source["key"],
@@ -1034,7 +1242,8 @@ def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None,
             # Patch and review ids share one counter (uuid4().hex shape), in call order across the four modules.
             hex_ids = iter(range(1, 100))
             fake_uuid = SimpleNamespace(uuid4=lambda hex_ids=hex_ids: SimpleNamespace(hex=f"{next(hex_ids):032x}"))
-            for module in (patch_runtime_tools, project_canon_runtime, prose_continue_runtime, review_report):
+            for module in (patch_runtime_tools, project_canon_runtime, prose_continue_runtime, review_report,
+                           chapter_writing_contracts, chapter_writing_pipeline):
                 module.uuid = fake_uuid
             control_db = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)()
             state.update(db=db, control_db=control_db, project=project, checks=[], requests=[], controls=[],

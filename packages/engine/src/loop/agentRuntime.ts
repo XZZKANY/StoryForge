@@ -121,7 +121,12 @@ export type AgentRuntimeDeps = {
   readonly llm: Omit<LlmContext, 'secrets' | 'control' | 'observation'>;
   readonly tools: AgentToolRegistry;
   readonly checkpoints: LoopCheckpointStore;
-  readonly ids: { readonly stream: () => string; readonly attempt: () => string };
+  readonly ids: {
+    readonly stream: () => string;
+    readonly attempt: () => string;
+    /** 管线自己生成的补丁 id（与工具共用一个十六进制生成器）。 */
+    readonly hex: () => string;
+  };
   readonly now?: () => string;
   /** 每次中断检查的边界（诊断与测试用；控制写只经存储）。 */
   readonly onInterruptionCheck?: (runId: number, boundary: string) => void;
@@ -802,6 +807,10 @@ export class AgentRuntime {
       store: this.deps.store,
       assistant: this.deps.assistant,
       conversation: this.deps.conversation,
+      reader: this.deps.reader,
+      platform: this.deps.platform,
+      secrets: this.deps.secrets,
+      newHex: () => this.deps.ids.hex(),
       executeTool: (run, toolName, context, payload) =>
         this.executeTool(run, toolName, context, payload),
       toolContext: async (run, request, currentReviewReport = null) => ({
@@ -1004,8 +1013,16 @@ export class AgentRuntime {
   }
 }
 
+/** 执行期间的编排失败（Python 的 AgentRuntimeError）：控制通道里的续跑失败也按它报。 */
+export class AgentRuntimeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AgentRuntimeError';
+  }
+}
+
 /** user_message 失败但 run 已建好：调用方要用 run 发实时错误帧。 */
-export class AgentRuntimeUserMessageError extends Error {
+export class AgentRuntimeUserMessageError extends AgentRuntimeError {
   constructor(
     message: string,
     readonly run: RunRecord,
@@ -1041,6 +1058,9 @@ export async function executeAgentUserMessageRun(
       input.agentSessionId,
       input.message,
     );
+  } catch (error) {
+    if (error instanceof AgentOrchestrationError) throw new AgentRuntimeError(error.message);
+    throw error;
   } finally {
     await sink.drainRuntimeProgress();
     const [output, settled, current] = await finishAgentExecution(
@@ -1084,7 +1104,7 @@ export async function runAgentUserMessage(
       onText: input.onText,
     });
   } catch (error) {
-    if (error instanceof AgentOrchestrationError)
+    if (error instanceof AgentRuntimeError)
       throw new AgentRuntimeUserMessageError(error.message, start.run, start.startedEvent);
     throw error;
   }

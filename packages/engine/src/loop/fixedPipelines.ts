@@ -1,7 +1,10 @@
 import type { AssistantStore } from '../assistant/service';
+import type { SecretContext } from '../kernel/redaction';
+import type { ProjectReader } from '../readPort';
 import { pythonTruthy, type JsonValue } from '../kernel/json';
 import { revisionReferencesReview } from '../kernel/reviseScope';
 import type { RunRecord, RunStore } from '../store/runs';
+import { isChapterResume, resumeChapterWriting, startChapterBrief } from './chapterWritingPipeline';
 import type { ConversationSources } from './conversationHistory';
 import { currentConversationReview } from './reviewSources';
 import { planStep, runtimeInterruptedResponse, type AgentRunEventSink } from './runEvents';
@@ -30,6 +33,11 @@ export interface FixedPipelineHost {
   readonly store: RunStore;
   readonly assistant: AssistantStore;
   readonly conversation: ConversationSources;
+  readonly reader: ProjectReader;
+  readonly platform: 'windows' | 'posix';
+  readonly secrets: SecretContext;
+  /** 补丁 id（Python 的 uuid4().hex）。 */
+  newHex(): string;
   /** 先过中断边界与权限门，再在工具自己的模型操作范围里跑处理器。 */
   executeTool(
     run: RunRecord,
@@ -583,7 +591,14 @@ async function runChapterPolish(
   });
 }
 
-/** 显式 intent 的固定管线分派（intent_fixed_pipeline_adapter）。写章随 P3-6e。 */
+/** 写章：有待确认的 brief 就从确认后接着写，否则先整理 brief（chapter_writing_pipeline）。 */
+async function runChapterWriting(host: FixedPipelineHost, request: FixedPipelineRequest) {
+  const pending = await latestRuntimePendingCall(host.store, request.run);
+  if (isChapterResume(request.run, pending)) return resumeChapterWriting(host, request, pending);
+  return startChapterBrief(host, request);
+}
+
+/** 显式 intent 的固定管线分派（intent_fixed_pipeline_adapter）。 */
 export function runFixedIntentPipeline(
   host: FixedPipelineHost,
   request: FixedPipelineRequest,
@@ -591,7 +606,6 @@ export function runFixedIntentPipeline(
   if (request.intent === 'file.review') return runFileReview(host, request);
   if (request.intent === 'file.revise') return runFileRevise(host, request);
   if (request.intent === 'chapter.polish') return runChapterPolish(host, request);
-  if (request.intent === 'chapter.write')
-    throw new AgentOrchestrationError('固定管线 chapter.write 随 P3-6e 搬迁，引擎暂不支持。');
+  if (request.intent === 'chapter.write') return runChapterWriting(host, request);
   throw new AgentOrchestrationError(`暂不支持的 Agent intent：${request.intent}`);
 }
