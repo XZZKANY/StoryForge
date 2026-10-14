@@ -22,7 +22,7 @@ import { ConfiguredLlmProvider } from '../llm/client';
 import { missingLlmEnv, type LlmSource } from '../llm/config';
 import { checkRunInterruption, RunInterrupted } from '../llm/control';
 import { ModelObservation } from '../llm/observation';
-import type { LlmContext } from '../llm/transport';
+import type { HttpPort, LlmContext } from '../llm/transport';
 import type { RunEventRecord, RunRecord, RunStatusView, RunStore } from '../store/runs';
 import { authorViewFromPayload } from './authorView';
 import { ChatLoopUnavailableError, runChatLoop } from './chatLoop';
@@ -109,6 +109,8 @@ export type AgentRuntimeDeps = {
   readonly platform: 'windows' | 'posix';
   /** 这次 run 用的模型配置快照（Python 的 resolved_llm_env）。 */
   readonly source: LlmSource;
+  /** 专用润色槽：只有身份四项（键名已映射成 STORYFORGE_LLM_*），出网按槽换真 key。 */
+  readonly polish: { readonly source: LlmSource; readonly http: HttpPort };
   /** 出网、时钟与版本；密钥快照、运行控制与证据范围由运行时补上。 */
   readonly llm: Omit<LlmContext, 'secrets' | 'control' | 'observation'>;
   readonly tools: AgentToolRegistry;
@@ -311,6 +313,17 @@ export class AgentRuntime {
       },
       conversation: this.deps.conversation,
       checkInterruption: (boundary) => checkRunInterruption(this.control, boundary),
+      polish: {
+        main: this.deps.source,
+        dedicated: this.deps.polish.source,
+        provider: (slot, source) =>
+          new ConfiguredLlmProvider(
+            source,
+            slot === 'polish'
+              ? { ...this.llmContext(), http: this.deps.polish.http }
+              : this.llmContext(),
+          ),
+      },
     };
   }
 

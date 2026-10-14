@@ -454,6 +454,105 @@ def patch_scenarios():
     return s
 
 
+POLISH_SOURCES = [
+    "app/domains/agent_runs/patches/runtime_tools.py",
+    "app/domains/agent_runs/patches/polishing_service.py",
+    "app/domains/agent_runs/patches/polish_context.py",
+    "app/domains/agent_runs/patches/polishing.py",
+    "app/domains/agent_runs/patches/polish_fact_guards.py",
+    "app/domains/agent_runs/patches/writing_context.py",
+    "app/common/llm_env.py",
+]
+POLISH_SECRET = "sk-polish-secret-654321"
+POLISH_ENV = {
+    "STORYFORGE_POLISH_LLM_PROVIDER": "openai",
+    "STORYFORGE_POLISH_LLM_BASE_URL": "https://polish.example/v1",
+    "STORYFORGE_POLISH_LLM_MODEL": "p-1",
+    "STORYFORGE_POLISH_LLM_API_KEY": POLISH_SECRET,
+}
+NO_POLISH = {key: None for key in POLISH_ENV}
+ROUGH = "# 第四章 雨夜\n\n林舟推开门，，屋里很暗。。\n他不禁五味杂陈...\n沈禾说：“走吧！！”\n"
+CLEAN = "# 第五章\n\n林舟推开门，屋里很暗。\n沈禾说：“走吧。”\n"
+SMOOTH = [["，，", "，"], ["。。", "。"], ["他不禁五味杂陈...", "他心里乱成一团……"]]
+
+
+def polished(*replace, drop_last=False, finish="stop"):
+    """The polish model echoes the request's segments with these replacements (both sides build it the same way)."""
+    return {"polish": {"replace": [list(pair) for pair in replace], "drop_last": drop_last, "finish": finish}}
+
+
+def polish_scenarios():
+    s = []
+    path = "正文/第004章.md"
+    rough = {path: ROUGH}
+    call = ("c1", "chapter_polish", tool_args(path=path))
+    done = completion("润色好了。")
+    s.append(scenario("polish-online-accepted", message("润色第四章"), [
+        completion("", [call]), polished(*SMOOTH), done], extra_files=rough, env=POLISH_ENV))
+    s.append(scenario("polish-online-accepted-auto", message("润色第四章", permission_profile="auto"), [
+        completion("", [call]), polished(*SMOOTH), done], extra_files=rough, env=POLISH_ENV))
+    s.append(scenario("polish-not-configured", message("润色第四章"), [completion("", [call]), done],
+                      extra_files=rough, env=NO_POLISH))
+    s.append(scenario("polish-partial-slot", message("润色第四章"), [completion("", [call]), done],
+                      extra_files=rough, env={**POLISH_ENV, "STORYFORGE_POLISH_LLM_MODEL": None}))
+    s.append(scenario("polish-invalid-json", message("润色第四章"), [
+        completion("", [call]), completion("这不是 JSON"), done], extra_files=rough, env=POLISH_ENV))
+    s.append(scenario("polish-fenced-json", message("润色第四章"), [
+        completion("", [call]), completion('```json\n{"segments":[{"index":0,"text":"林舟推门。\\n"}]}\n```'), done],
+        extra_files=rough, env=POLISH_ENV))
+    s.append(scenario("polish-segment-count-changed", message("润色第四章"), [
+        completion("", [call]), polished(*SMOOTH, drop_last=True), done], extra_files=rough, env=POLISH_ENV))
+    s.append(scenario("polish-provider-error", message("润色第四章"), [
+        # The dedicated slot carries only its identity keys, so the client's default three attempts apply.
+        completion("", [call]), *[{"status": 500, "body": '{"error":{"message":"polish down"}}'}] * 3, done],
+        extra_files=rough, env=POLISH_ENV))
+    s.append(scenario("polish-truncated", message("润色第四章"), [
+        completion("", [call]), polished(*SMOOTH, finish="length"), done], extra_files=rough, env=POLISH_ENV))
+    s.append(scenario("polish-noop", message("润色第五章"), [
+        completion("", [("c1", "chapter_polish", tool_args(path="正文/第005章.md"))]), polished(), done],
+        extra_files={"正文/第005章.md": CLEAN}, env=POLISH_ENV))
+    # Pinned files are re-read from disk, so every pinned path exists; memory and chapter values feed required facts.
+    trusted = {"context_bundle": {
+        "files": [{"relative_path": "人物/主角.md", "excerpt": "林舟，左臂有旧伤。", "kind": "character", "title": "林舟"},
+                  {"relative_path": "设定/规则.md", "excerpt": "铁城入夜宵禁。", "kind": "setting"},
+                  {"relative_path": "大纲/时间线.md", "excerpt": "第四章在雨夜。", "kind": "timeline"}],
+        "story_memory": {"items": [{"entity": "沈禾", "kind": "character", "text": "沈禾是城里的向导。"}]},
+        "chapter_context": {"goal": "林舟与沈禾出城", "beats": ["推门", "出城"]}}}
+    trusted_files = {**rough, "设定/规则.md": "铁城入夜宵禁。\n", "大纲/时间线.md": "第四章在雨夜。\n"}
+    s.append(scenario("polish-entity-renamed", message("润色第四章", args=trusted), [
+        completion("", [call]), polished(*SMOOTH, ["林舟", "林洲"]), done], extra_files=trusted_files, env=POLISH_ENV))
+    s.append(scenario("polish-trusted-constraints", message("润色第四章", args=trusted), [
+        completion("", [call]), polished(*SMOOTH), done], extra_files=trusted_files, env=POLISH_ENV))
+    s.append(scenario("polish-degraded-auto", message("润色第四章", permission_profile="auto"), [
+        completion("", [call]), done], extra_files=rough, env=NO_POLISH))
+    s.append(scenario("polish-segments-missing", message("润色第四章"), [
+        completion("", [call]), completion('{"items": []}'), done], extra_files=rough, env=POLISH_ENV))
+    s.append(scenario("polish-index-changed", message("润色第四章"), [
+        completion("", [call]), completion('{"segments": [{"index": 1, "text": "林舟推门。"}]}'), done],
+        extra_files=rough, env=POLISH_ENV))
+    s.append(scenario("polish-forbidden-dir", message("润色证据稿"), [
+        completion("", [("c1", "chapter_polish", tool_args(path="Evidence/章.md"))]), done],
+        extra_files={"Evidence/章.md": ROUGH}, env=POLISH_ENV))
+    s.append(scenario("polish-style-instruction", message("润色第四章"), [
+        completion("", [("c1", "chapter_polish", tool_args(path=path, style_instruction="冷峻一些"))]),
+        polished(*SMOOTH), done], extra_files=rough, env={**POLISH_ENV, "STORYFORGE_POLISH_LLM_PROVIDER": "OpenAI"}))
+    s.append(scenario("polish-author-instructions", message("润色第四章"), [
+        completion("", [call]), polished(*SMOOTH), done],
+        extra_files={**rough, ".storyforge/agent-instructions.md": "保留感叹号的叠用。"}, env=POLISH_ENV))
+    s.append(scenario("polish-structured-file", message("润色数据表"), [
+        completion("", [("c1", "chapter_polish", tool_args(path="数据/表.json"))]), done],
+        extra_files={"数据/表.json": "{}"}, env=POLISH_ENV))
+    s.append(scenario("polish-empty-file", message("润色空章"), [
+        completion("", [("c1", "chapter_polish", tool_args(path="正文/空.md"))]), done],
+        extra_files={"正文/空.md": "  \n"}, env=POLISH_ENV))
+    s.append(scenario("polish-stop-during-request", message("润色第四章"), [
+        completion("", [call]), {**polished(*SMOOTH), "set_status": ["stopped", "stopped"]}],
+        extra_files=rough, env=POLISH_ENV))
+    s.append(scenario("polish-read-only-profile", message("润色第四章", permission_profile="read"), [
+        completion("", [call]), done], extra_files=rough, env=POLISH_ENV))
+    return s
+
+
 def write_file(path, content):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content.encode("utf-8"))
@@ -511,6 +610,10 @@ def p3_patch_tools_snapshot() -> dict:
     return _snapshot("p3-patch-tools", patch_scenarios(), SOURCES + PATCH_SOURCES)
 
 
+def p3_polish_snapshot() -> dict:
+    return _snapshot("p3-polish", polish_scenarios(), SOURCES + POLISH_SOURCES, extra={"polish_secret": POLISH_SECRET})
+
+
 def drop_checkpoint_artifact_ids(value):
     """TS keeps checkpoints in engine memory (no artifact row), so its resume diagnostics carry no artifact_id."""
     if isinstance(value, dict):
@@ -521,7 +624,7 @@ def drop_checkpoint_artifact_ids(value):
     return value
 
 
-def _snapshot(suite: str, specs: list, sources: list) -> dict:
+def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None) -> dict:
     with isolated_fs_oracle("storyforge-golden-agent-run-", fixed=True) as (api, run_dir):
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
@@ -598,6 +701,15 @@ def _snapshot(suite: str, specs: list, sources: list) -> dict:
             for control in reply.get("controls", []):
                 state["controls"].append(run_control(control))
             clock["now"] += reply.get("advance", 0)
+            if reply.get("polish") is not None:
+                rule = reply["polish"]
+                segments = json.loads(body["messages"][1]["content"])["segments"]
+                for segment in segments:
+                    for old, new in rule["replace"]:
+                        segment["text"] = segment["text"].replace(old, new)
+                if rule["drop_last"]:
+                    segments = segments[:-1]
+                reply = completion(json.dumps({"segments": segments}, ensure_ascii=False), finish=rule["finish"])
             if reply.get("compaction_quote"):
                 model_input = json.loads(body["messages"][1]["content"])
                 entries = [{"category": "decision", "text": f"摘要 {source['key']}", "source_id": source["key"],
@@ -643,7 +755,7 @@ def _snapshot(suite: str, specs: list, sources: list) -> dict:
                 write_file(project.root / path, unit * count)
             root = str(project.root)
             for key in list(os.environ):
-                if key.startswith("STORYFORGE_LLM_"):
+                if key.startswith(("STORYFORGE_LLM_", "STORYFORGE_POLISH_LLM_")):
                     del os.environ[key]
             os.environ.update({k: v for k, v in {**SOURCE, **spec["env"]}.items() if v is not None})
             engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
@@ -762,5 +874,6 @@ def _snapshot(suite: str, specs: list, sources: list) -> dict:
             "platform": "windows" if os.name == "nt" else "posix",
             "project_root": str(run_dir / "book"),
             "scenarios": records,
+            **(extra or {}),
         }
 
