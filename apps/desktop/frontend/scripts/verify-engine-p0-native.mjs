@@ -1446,7 +1446,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
           assert.deepEqual(
             { ...evidence.engineDb, sessions: evidence.engineDb.sessions.length },
             {
-              version: 1,
+              version: 2,
               runs: [
                 { public_id: 'p3-agent-run-a', status: 'completed' },
                 { public_id: 'p3-agent-run-b', status: 'stopped' },

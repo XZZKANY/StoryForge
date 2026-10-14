@@ -595,6 +595,13 @@ export {
   SqlAssistantStore,
 } from './store/sqlAssistant';
 export { EngineSchemaError, migrateEngineDb } from './store/schema';
+export {
+  importLegacyDb,
+  LEGACY_IMPORT_KEY,
+  LegacyImportError,
+  type LegacyImportResult,
+  type LegacySnapshotSource,
+} from './store/legacyImport';
 export { RunStoreBrokenError, SqlRunStore } from './store/sqlRuns';
 export { reapInterruptedRuns } from './loop/runControlChannel';
 export {

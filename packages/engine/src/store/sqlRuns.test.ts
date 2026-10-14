@@ -78,6 +78,7 @@ describe('engine schema migrations', () => {
       'assistant_messages',
       'assistant_sessions',
       'assistant_tool_calls',
+      'engine_meta',
       'schema_version',
       'sqlite_sequence',
       'subagent_runs',
