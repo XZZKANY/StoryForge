@@ -35,10 +35,11 @@ vi.mock('@storyforge/engine', async (importOriginal) => {
 });
 vi.mock('../src/lib/engine/agent', async () => {
   const { LoopCheckpointStore, MemoryRunStore: Store } = await import('@storyforge/engine');
+  const runs = { store: new Store(), checkpoints: new LoopCheckpointStore() };
   return {
     engineAgentDeps: async () => host.deps,
     engineReadDeps: async () => host.deps,
-    engineRuns: { store: new Store(), checkpoints: new LoopCheckpointStore() },
+    engineRuns: vi.fn(async () => runs),
   };
 });
 
@@ -158,7 +159,7 @@ describe('engine agent routes', () => {
 
   it('owns only the runs in its own store', async () => {
     expect(await routes.ownsRun('run-x')).toBe(false);
-    await (engineRuns.store as MemoryRunStore).insertRun({
+    await ((await engineRuns()).store as unknown as MemoryRunStore).insertRun({
       public_id: 'run-x',
       session_id: 's',
       assistant_session_id: null,
@@ -170,6 +171,14 @@ describe('engine agent routes', () => {
       root_plan: [],
       current_step: null,
     });
+    expect(await routes.ownsRun('run-x')).toBe(true);
+  });
+
+  it('owns nothing when the engine database cannot be opened', async () => {
+    vi.mocked(engineRuns).mockRejectedValueOnce(
+      new Error('引擎库版本 2 比这个版本的 StoryForge 新'),
+    );
+    expect(await routes.ownsRun('run-x')).toBe(false);
     expect(await routes.ownsRun('run-x')).toBe(true);
   });
 });

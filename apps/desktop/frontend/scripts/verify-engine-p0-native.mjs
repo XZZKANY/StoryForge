@@ -1397,6 +1397,52 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             streams[2].closedAt && !streams[2].writableFinished,
             'Stopping did not close the Native stream',
           );
+          // Runs live in the engine database: a reloaded WebView reads both back from it.
+          const storeCallsBeforeReload = JSON.parse(await readFile(storeLogPath, 'utf8')).length;
+          await page.reload();
+          await page.waitForFunction(
+            () => document.documentElement.dataset.engineP3AgentReady === 'true',
+          );
+          evidence.agentReload = await page.evaluate(
+            (input) => window.__ENGINE_P3_AGENT__.readBackAfterReload(input),
+            { runIds: ['p3-agent-run-a', 'p3-agent-run-b'] },
+          );
+          assert.deepEqual(
+            evidence.agentReload.map((entry) => entry.status),
+            ['completed', 'stopped'],
+          );
+          assert.deepEqual(evidence.agentReload[0].events, result.events, 'Run A events changed');
+          assert.equal(
+            JSON.parse(await readFile(storeLogPath, 'utf8')).length,
+            storeCallsBeforeReload,
+            'Reading engine runs after the reload asked the Python store',
+          );
+          // The database file sits in the isolated local data directory (runtime_paths).
+          const { DatabaseSync } = await import('node:sqlite');
+          const engineDb = new DatabaseSync(
+            resolve(directories.localDataDir, 'storyforge-engine.sqlite3'),
+            { readOnly: true },
+          );
+          try {
+            evidence.engineDb = {
+              version: engineDb.prepare('SELECT version FROM schema_version').get().version,
+              runs: engineDb
+                .prepare('SELECT public_id, status FROM agent_runs ORDER BY id')
+                .all()
+                .map((row) => ({ ...row })),
+              journal: engineDb.prepare('PRAGMA journal_mode').get().journal_mode,
+            };
+          } finally {
+            engineDb.close();
+          }
+          assert.deepEqual(evidence.engineDb, {
+            version: 1,
+            runs: [
+              { public_id: 'p3-agent-run-a', status: 'completed' },
+              { public_id: 'p3-agent-run-b', status: 'stopped' },
+            ],
+            journal: 'wal',
+          });
           const log = JSON.parse(await readFile(storeLogPath, 'utf8'));
           evidence.storeLog = log;
           assert.ok(

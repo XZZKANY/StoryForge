@@ -6,7 +6,10 @@ type Statement = { all(named?: Record<string, SqlValue | bigint>): SqlRow[] };
 type DatabaseSync = { exec(sql: string): void; prepare(sql: string): Statement; close(): void };
 type SqliteModule = { DatabaseSync: new (path: string) => DatabaseSync };
 
-const sqlite = (await import(/* @vite-ignore */ 'node:sqlite' as string)) as SqliteModule;
+// 不经 import：前端测试跑在 happy-dom 环境，vite 拒绝解析 node 内置模块。
+const sqlite = (
+  globalThis as unknown as { process: { getBuiltinModule(id: string): unknown } }
+).process.getBuiltinModule('node:sqlite') as SqliteModule;
 
 /**
  * `$1`、`$2` 在 node:sqlite 里是具名参数：按名字绑定。node:sqlite 把 number 一律绑成 REAL，

@@ -132,10 +132,24 @@ describe('agent loop routing', () => {
     ]);
   });
 
-  it('does not route reads to an engine that was never loaded', async () => {
+  it('after a restart on ts, reads and controls find the runs the engine database kept', async () => {
     localStorage.setItem('engine.agentLoop', 'ts');
+    routes.owned.add('kept-run');
+    const { socket, runs } = await load();
+    await runs.getAgentRunEvents('kept-run');
+    await socket.sendAgentControlMessage(control('kept-run'));
+    await runs.getAgentRunSavePoints('python-run');
+    expect(routes.calls).toEqual(['events:kept-run', 'control:kept-run:pause_run']);
+    expect(fetchMock.mock.calls.map(([url]) => new URL(url as string).pathname)).toEqual([
+      '/api/agent-runs/python-run/save-points',
+    ]);
+  });
+
+  it('on python, never opens the engine for reads even if it kept runs', async () => {
+    localStorage.setItem('engine.agentLoop', 'python');
+    routes.owned.add('kept-run');
     const { runs } = await load();
-    await runs.getAgentRunEvents('anything');
+    await runs.getAgentRunEvents('kept-run');
     expect(routes.initialized).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledOnce();
   });

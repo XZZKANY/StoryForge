@@ -19,9 +19,10 @@ const describe = (error: unknown) => ({
 
 /** 每次模型派发的本地证据：操作名、状态、用量（只读引擎存储，不出网）。 */
 async function usageOf(runId: string) {
-  const run = await engineRuns.store.findRun(runId);
+  const { store } = await engineRuns();
+  const run = await store.findRun(runId);
   if (!run) return [];
-  return (await engineRuns.store.artifacts(run.id))
+  return (await store.artifacts(run.id))
     .filter((artifact) => artifact.kind === 'model_request_evidence')
     .map((artifact) => {
       const payload = artifact.payload as Obj;
