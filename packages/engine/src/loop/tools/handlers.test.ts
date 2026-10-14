@@ -16,7 +16,7 @@ import { AgentOrchestrationError } from '../runPayloads';
 import { traceAsDict } from '../traces';
 import { canonToolHandlers } from './canonHandlers';
 import { checkToolHandlers } from './checkHandlers';
-import type { ToolExecutionContext, ToolHandler } from './execution';
+import type { ToolExecutionContext, ToolHandler, ToolRunServices } from './execution';
 import { fsToolHandlers } from './fsHandlers';
 import type { ToolDeps } from './handlerDeps';
 
@@ -41,6 +41,13 @@ const ERRORS: Record<string, new (...args: never[]) => Error> = {
   AgentOrchestrationError,
   ValueError: RangeError,
 };
+
+/** 这些处理器不调模型、不读会话：用到 run 服务就是回归。 */
+const UNUSED_SERVICES = new Proxy({} as ToolRunServices, {
+  get() {
+    throw new Error('只读 / 检查 / canon 处理器不该用到 run 服务');
+  },
+});
 
 function harness(record: ProjectRecord) {
   const project = memoryProject(ROOT, record.files);
@@ -71,6 +78,9 @@ function harness(record: ProjectRecord) {
       },
     },
     clock: () => (tick += 0.001),
+    newHex: () => {
+      throw new Error('只读 / 检查 / canon 处理器不产补丁 id');
+    },
   };
   const handlers: Record<string, ToolHandler> = {
     ...fsToolHandlers(deps),
@@ -101,6 +111,8 @@ async function runHandler(h: ReturnType<typeof harness>, call: Call, spec: Obj) 
     args,
     currentReviewReport: null,
     writingReadSources: [],
+    services: UNUSED_SERVICES,
+    deliveries: null,
   };
   const payload = spec.payload as Obj;
   const full = 'project_root' in payload ? payload : { ...payload, project_root: ROOT };
@@ -212,6 +224,8 @@ describe('P3-3b 接受的差异', () => {
       args: {},
       currentReviewReport: null,
       writingReadSources: [],
+      services: UNUSED_SERVICES,
+      deliveries: null,
     };
     await expect(
       h.handlers['project.consistency'](context, { project_root: ROOT, terms: ['x'] }),

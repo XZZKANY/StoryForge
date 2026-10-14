@@ -1,3 +1,4 @@
+import { LlmError } from '../llm/payload';
 import { reviewRubricClause } from './craft';
 import {
   dumpJson,
@@ -227,6 +228,14 @@ export function llmReviewReasoner(options: {
             coverage: reviewCoverage(content, contextBundle, true),
           });
         } catch (error) {
+          // 只有模型失败与输出 / 输入不合格才降级（Python 捕获 LLMError / ValueError / TypeError /
+          // KeyError，JSON 解析错误是 ValueError）；运行中断、证据落库失败等必须照常抛出，不能伪装成启发式结果。
+          const degradable =
+            error instanceof LlmError ||
+            error instanceof InputDomainError ||
+            error instanceof RangeError ||
+            error instanceof TypeError;
+          if (!degradable) throw error;
           const fallback = heuristicResult(key, content, paragraphs, contextBundle);
           results.push({
             ...fallback,

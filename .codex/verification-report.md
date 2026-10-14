@@ -7835,3 +7835,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 接受的差异：TS 续跑诊断没有 `artifact_id`（检查点不落库，预言机删字段）；provider 续接状态在内存，不会出现 `provider_continuation_unavailable`；检查点摘要 / 脱敏 / 工具策略版本核对不搬。
 - 不搬或延后：章纲确认的待定调用续跑（`runtime_pending_call`、`chapter_brief`）与生成回执随 P3-6；执行权租约不搬；起服收尸不需要（内存存储）；`save_points` 状态投影另起一刀。
 - 门禁：引擎 vitest 12590 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+
+## 2026-10-13 P3-6a 循环内产补丁工具（TS 迁移，默认仍走 Python）
+
+- 拆刀：作者说「做 P3-6」；按依赖拆 6a 产补丁工具 / 6b 润色 / 6c 深度一致性 / 6d 固定管线 / 6e 写章管线，写进迁移计划。
+- 范围：循环工具的文件输入模式（`loop/conversation_runtime.execute_fs_tool`）、`patches/runtime_tools`（file.review / file.revise / file.create / judge.run）、`patches/writing_context`、`patches/revise_input`、`events/review_sources`、`tools/prose_continue_runtime`、压缩修订、assistant 的 `draft_continuation` → `packages/engine/src/loop/tools/patchHandlers.ts`、`patchContext.ts`、`loop/reviewSources.ts`、`assistant/service.ts`（`draftContinuation`）、`loop/agentRuntime.ts`。`ToolExecutionContext` 加 `services`（绑定本次 run 运行控制与模型观察的 assistant 依赖、会话产物读取、中断检查）与 `deliveries`；`ToolDeps` 加 `newHex`。
+- 预言机：`apps/api/scripts/golden_agent_run.py` 新增 `--suite p3-patch-tools`（钉住的源文件再加 8 个），47 个场景（明细见迁移计划 P3-6a 条）。场景可声明 `extra_files` / `big_files`；补丁与审稿报告 id 用同一个计数器替换四处 `uuid4().hex`；快照入口滤掉 `runtime_checkpoint`（§2.6 的接受差异）；虚拟 `sleep` 推进虚拟时钟、`llm_client.random` 钉成 0.375。命令：`cd apps/api && uv run python scripts/golden_dump.py --suite p3-patch-tools --output ../../packages/engine/golden/p3-patch-tools.windows.json`，`--check` 复导一致；`p3-agent-run`、`p3-agent-control` `--check` 仍一致。
+- TS 回放：`packages/engine/src/loop/patchTools.test.ts` 51 条全绿（47 个场景逐项一致 + 场景计数 + 3 条审稿推理错误分类的契约测试）。回放台支持 `extra_files` / `big_files`、十六进制 id、等待推进虚拟时钟，`encoded()` 分块展开（60 万字节的大文件一次展开会撑爆调用栈）。
+- 逮到的 TS 既有问题：`kernel/reviewReasoning.ts` 的模型审稿对所有异常都降级，审稿请求进行中的停止 / 暂停（`RunInterrupted`）与 `RequestEvidenceError` 会被吞；已收窄为只对 `LlmError` / `InputDomainError` / `RangeError` / `TypeError` 降级（对应 Python 的 LLMError / ValueError / TypeError / KeyError），场景 `stop-during-review-request` 与三条契约测试钉住。
+- 变异：87 处首轮 52 处；补场景与契约测试后重跑存活 35 处抓住 19 处，再收紧两个夹具（整数压缩比例、超出快照文本上限的旧报告条目）抓住 2 处，合计 73 / 87；余 14 处逐条核为等价或循环里走不到（明细见迁移计划 P3-6a 条）。脚本 `output/ts-engine-p3/gen_mutations_patch_tools.py`（gitignored）。
+- 门禁：引擎 vitest 12641 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（corepack 9.15.4 shim；0 错误，2 条既有 warning）、ruff（`golden_agent_run.py`、`golden_dump.py`）。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。

@@ -1,4 +1,8 @@
+import type { AssistantDeps } from '../../assistant/service';
+import type { GenerationDeliveryCapture } from '../../kernel/generationDelivery';
 import { getAgentRole, isRoleAllowedTool, listSubagentRoles } from '../../kernel/roleCatalog';
+import type { PatchProposal } from '../chatLoopTypes';
+import type { ConversationSources } from '../conversationHistory';
 import { AgentOrchestrationError } from '../runPayloads';
 import type { AgentToolTrace } from '../traces';
 import {
@@ -25,8 +29,8 @@ export type ToolResult = {
   readonly metrics?: Obj;
   readonly retry_metadata?: Obj | null;
   readonly checkpoint_metadata?: Obj | null;
-  /** 产补丁的工具交给循环的提案（形状随 P3-6 的补丁层定）。 */
-  readonly patch_proposal?: unknown;
+  /** 产补丁的工具交给循环的提案。 */
+  readonly patch_proposal?: PatchProposal | null;
 };
 
 /** 工具处理器看到的 run（P4 前来自内存存储）。 */
@@ -40,8 +44,22 @@ export type ToolRunView = {
   readonly artifacts: readonly Obj[];
 };
 
+/**
+ * 本次 run 绑定的服务：Python 处理器经 DB 会话与 ContextVar（运行控制、模型观察）隐式拿到的那些。
+ * 模型端口已绑定本次 run 的运行控制与模型观察，处理器不另建出网通道。
+ */
+export type ToolRunServices = {
+  readonly assistant: AssistantDeps;
+  readonly conversation: ConversationSources;
+  /** 运行控制的中断检查（Python 的 check_run_interruption）。 */
+  readonly checkInterruption: (boundary: string) => void;
+};
+
 export type ToolExecutionContext = {
   readonly run: ToolRunView;
+  readonly services: ToolRunServices;
+  /** 嵌套 writer 的送达回执；循环外的调用没有（Python 的 ContextVar 未设置）。 */
+  readonly deliveries: GenerationDeliveryCapture | null;
   readonly agentSessionId: string;
   readonly assistantSessionId: number;
   readonly userMessage: string;

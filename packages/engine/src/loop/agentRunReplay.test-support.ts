@@ -29,15 +29,21 @@ import { AGENT_RUNTIME_TOOL_SPECS } from './tools/catalog';
 import { checkToolHandlers } from './tools/checkHandlers';
 import { AgentToolRegistry, toolDefinitionFromSpec, type ToolHandler } from './tools/execution';
 import { fsToolHandlers } from './tools/fsHandlers';
+import { patchToolHandlers } from './tools/patchHandlers';
 import type { ToolDeps } from './tools/handlerDeps';
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 脚本按 Python 预言机的 JSON 形状读
 
 export type Replay = { record: Obj; error: unknown };
 
-const encoded = (text: string): EncodedFile => ({
-  chunks: [{ base64: btoa(String.fromCharCode(...new TextEncoder().encode(text))), repeat: 1 }],
-});
+function encoded(text: string): EncodedFile {
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  // 分块展开：大文件一次展开会撑爆调用栈。
+  for (let index = 0; index < bytes.length; index += 0x8000)
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  return { chunks: [{ base64: btoa(binary), repeat: 1 }] };
+}
 
 function plain(value: unknown): unknown {
   if (value instanceof JsonFloat) return value.value;
@@ -211,6 +217,11 @@ export function agentRunReplay(golden: Obj) {
         ]),
       ),
     );
+    for (const [path, text] of Object.entries((spec.extra_files ?? {}) as Record<string, string>))
+      project.apply({ [path]: encoded(text) });
+    const big = (spec.big_files ?? {}) as Record<string, [string, number]>;
+    for (const [path, [unit, count]] of Object.entries(big))
+      project.apply({ [path]: encoded(unit.repeat(count)) });
     const runs = new MemoryRunStore();
     const db = assistantDb(spec.sessions as Obj[]);
     for (const [role, content] of (spec.history ?? []) as [string, string][])
@@ -360,6 +371,7 @@ export function agentRunReplay(golden: Obj) {
       Object.entries({ ...golden.source, ...spec.env }).filter(([, value]) => value !== null),
     ) as Record<string, string>;
     let uuid = 0;
+    let hex = 0;
     const toolDeps: ToolDeps = {
       reader: project.reader,
       writer: project.writer,
@@ -379,11 +391,14 @@ export function agentRunReplay(golden: Obj) {
           throw new Error('unused');
         },
       },
+      // 补丁与审稿报告共用一个计数（预言机把四处 uuid4().hex 换成同一个计数器）。
+      newHex: () => (++hex).toString(16).padStart(32, '0'),
     };
     const handlers: Record<string, ToolHandler> = {
       ...fsToolHandlers(toolDeps),
       ...checkToolHandlers(toolDeps),
       ...canonToolHandlers(toolDeps),
+      ...patchToolHandlers(toolDeps),
     };
     const tools = new AgentToolRegistry();
     for (const item of AGENT_RUNTIME_TOOL_SPECS)
@@ -411,7 +426,10 @@ export function agentRunReplay(golden: Obj) {
       llm: {
         http,
         clock: () => clock.now,
-        wait: async () => {},
+        // 等待推进虚拟时钟：重试退避按时钟轮询，直到等满。
+        wait: async (seconds) => {
+          clock.now += seconds;
+        },
         random: () => 0.375,
         appVersion: golden.app_version,
       },
@@ -518,7 +536,7 @@ export function agentRunReplay(golden: Obj) {
     };
   }
 
-  return { replay, expectSame };
+  return { replay, expectSame, normalize: (value: unknown) => plain(normalize(value)) };
 }
 
 export const REPLAY_KEYS = [

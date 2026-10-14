@@ -9,9 +9,13 @@ import {
   type AssistantSessionRef,
   type AssistantStore,
 } from '../assistant/service';
+import { readProjectFileRaw, resolveNewProjectFile } from '../kernel/fsProjectTools';
+import { FsToolError, fsRead, nativeProjectPath, resolveProjectFile } from '../kernel/fsTools';
 import { pythonTruthy, type JsonValue } from '../kernel/json';
+import { buildLlmContextSnapshot } from '../kernel/llmContext';
+import { llmContextSnapshotToPromptContextBundle } from '../kernel/llmPromptContext';
 import { compactText } from '../kernel/pythonText';
-import type { SecretContext } from '../kernel/redaction';
+import type { PlainJson, SecretContext } from '../kernel/redaction';
 import { revisionReferencesReview } from '../kernel/reviseScope';
 import type { ProjectReader } from '../readPort';
 import { ConfiguredLlmProvider } from '../llm/client';
@@ -28,6 +32,7 @@ import type { LoopToolExecutor } from './chatLoopContext';
 import type { ConversationSources } from './conversationHistory';
 import { gateDecide } from './permission';
 import { AgentRequestObserver } from './requestEvidence';
+import { currentConversationReview } from './reviewSources';
 import {
   AgentRunEventSink,
   finishAgentExecution,
@@ -63,6 +68,7 @@ import type {
   ToolArtifact,
   ToolExecutionContext,
   ToolResult,
+  ToolRunServices,
 } from './tools/execution';
 import {
   chatContextBlock,
@@ -78,6 +84,7 @@ const isObj = (value: unknown): value is Obj =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const cpSlice = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 const truthy = (value: unknown) => pythonTruthy(value as JsonValue);
+const STRICT_UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
 const UNANSWERED = '（模型这轮没返回内容，换个说法再问我一次？）';
 const NOT_CONFIGURED =
@@ -266,31 +273,6 @@ export class AgentRuntime {
       });
   }
 
-  /** 当前会话最新的审稿报告；前端交来的报告必须就是它（不认孤立的 issue id）。 */
-  private async currentConversationReview(
-    sessionId: number,
-    offered: Obj | null,
-    required: boolean,
-  ): Promise<Obj | null> {
-    const reports = (await this.deps.conversation.runArtifacts(sessionId)).filter(
-      (row) => row.kind === 'review_report',
-    );
-    const latest = reports.length ? reports[reports.length - 1].payload : null;
-    const stored = isObj(latest) ? latest : null;
-    if (offered !== null) {
-      if (!truthy(offered.report_id) && !truthy(offered.content_sha256) && !required)
-        return offered;
-      if (stored === null || !truthy(stored.report_id) || offered.report_id !== stored.report_id)
-        throw new AgentOrchestrationError('审稿报告不是当前会话的最新报告，请重新审稿后修订。');
-    }
-    if (
-      required &&
-      (stored === null || !truthy(stored.report_id) || !truthy(stored.content_sha256))
-    )
-      throw new AgentOrchestrationError('当前会话没有已绑定的审稿报告，请先审稿再选择问题。');
-    return stored;
-  }
-
   /** 一次工具执行：先过中断边界与权限门，再在工具自己的模型操作范围里跑处理器。 */
   private async executeTool(
     run: RunRecord,
@@ -313,6 +295,23 @@ export class AgentRuntime {
     return this.observation!.withOperation(toolName, isObj(snapshot) ? snapshot : null, () =>
       tool.handler(context, payload),
     );
+  }
+
+  /** 工具处理器用的本次 run 服务：模型端口绑定本次的运行控制与模型观察。 */
+  private toolServices(): ToolRunServices {
+    return {
+      assistant: {
+        reader: this.deps.reader,
+        store: this.deps.assistant,
+        platform: this.deps.platform,
+        llm: async () => {
+          const { secrets: _secrets, ...context } = this.llmContext();
+          return engineAssistantLlm(this.deps.source, this.deps.secrets, context);
+        },
+      },
+      conversation: this.deps.conversation,
+      checkInterruption: (boundary) => checkRunInterruption(this.control, boundary),
+    };
   }
 
   private async toolRunView(run: RunRecord) {
@@ -372,23 +371,93 @@ export class AgentRuntime {
     const requiredReview = revisionReferencesReview(userMessage);
     let latestReview =
       offered !== null || requiredReview
-        ? await this.currentConversationReview(
-            sessionId,
+        ? await currentConversationReview(this.deps.conversation, sessionId, {
             offered,
-            requiredReview && offered !== null,
-          )
+            required: requiredReview && offered !== null,
+          })
         : null;
-    // 循环里 fs.read 读到的独特事实，交给之后的 writer 工具做送达保证（P3-6 的 writer 消费）。
+    // 循环里 fs.read 读到的独特事实：writer 的快照只吃前端 bundle，不显式交接就没有送达保证。
     const loopReadFacts = new Map<string, Obj>();
-    const executeTool: LoopToolExecutor = async (registryName, rawArguments) => {
+    const { reader, platform, secrets } = this.deps;
+    const executeTool: LoopToolExecutor = async (registryName, rawArguments, deliveries) => {
       // 路径、正文与内层上下文都由后端生成；模型只能提交 ToolSpec 声明的业务参数。
       const payload = sanitizeLoopToolArguments(rawArguments);
       const definition = this.deps.tools.get(registryName);
-      if (definition.loop_input_mode !== 'project')
-        throw new AgentOrchestrationError(`工具 ${registryName} 的文件输入随 P3-6 搬迁。`);
-      payload.project_root = projectPath;
+      if (definition.loop_input_mode === 'existing_file') {
+        const relPath = optionalString(payload.path);
+        delete payload.path;
+        if (!relPath) throw new FsToolError('缺少 path：请提供项目内的相对文件路径。');
+        if (registryName === 'file.revise' || registryName === 'file.review') {
+          // 审稿哈希与补丁区间绑定同一份作者原文（不归一换行）。
+          const { target, raw } = await readProjectFileRaw(reader, projectPath, relPath);
+          payload.file_path = nativeProjectPath(projectPath, target, platform);
+          payload.content = STRICT_UTF8.decode(raw);
+          payload._trace_file_path = relPath;
+        } else {
+          const read = await fsRead(reader, projectPath, relPath, { offset: 0, limit: 200_000 });
+          if (read.truncated)
+            throw new FsToolError(
+              '文件超过单次处理上限，请缩小范围（分章 / 拆文件）后再审稿或修订。',
+            );
+          payload.file_path = nativeProjectPath(
+            projectPath,
+            await resolveProjectFile(reader, projectPath, relPath),
+            platform,
+          );
+          payload.content = read.content;
+          payload._trace_file_path = read.path;
+        }
+      } else if (definition.loop_input_mode === 'new_file') {
+        const relPath = optionalString(payload.path);
+        delete payload.path;
+        if (!relPath) throw new FsToolError('缺少 path：请提供项目内的相对文件路径。');
+        const target = await resolveNewProjectFile(reader, projectPath, relPath);
+        payload.file_path = nativeProjectPath(projectPath, target, platform);
+        payload._trace_file_path = target;
+      } else payload.project_root = projectPath;
+      // 作者指令与 canon 约束都要项目根定位；产字工具走上面的分支，这里补上。
+      if (!('project_root' in payload)) payload.project_root = projectPath;
+      const view = await this.toolRunView(run);
+      if (definition.loop_trusted_context) {
+        const bundle = args.context_bundle;
+        const snapshot = await buildLlmContextSnapshot(
+          reader,
+          {
+            runState: {
+              public_id: view.public_id,
+              goal: view.goal,
+              status: view.status,
+              current_step: view.current_step,
+            },
+            intent: registryName,
+            userMessage,
+            filePath: String(payload._trace_file_path),
+            content: String(payload.content || ''),
+            contextBundle: {
+              ...(isObj(bundle) ? bundle : {}),
+              project_root: projectPath,
+            } as PlainJson,
+            roleHints: roleHints(args),
+            roleMentions: roleMentions(args),
+            reviewReport: latestReview as PlainJson,
+            eventHistory: view.events as PlainJson[],
+            artifacts: view.artifacts as PlainJson[],
+            extraContextFiles: [...loopReadFacts.values()] as PlainJson[],
+          },
+          { platform, secrets },
+        );
+        if (registryName === 'file.revise')
+          payload.review_report = truthy(latestReview) ? latestReview : snapshot.review_report;
+        payload.llm_context_snapshot = snapshot;
+        payload.llm_prompt_context_bundle = llmContextSnapshotToPromptContextBundle(
+          snapshot,
+          secrets,
+        );
+      }
       const context: ToolExecutionContext = {
-        run: await this.toolRunView(run),
+        run: view,
+        services: this.toolServices(),
+        deliveries,
         agentSessionId,
         assistantSessionId: sessionId,
         userMessage,
