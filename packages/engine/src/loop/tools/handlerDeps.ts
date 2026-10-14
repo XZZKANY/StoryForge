@@ -26,4 +26,6 @@ export type ToolDeps = {
   readonly regex?: RegexCompiler;
   /** 单调时钟（秒），只给正则累计预算用。 */
   readonly clock?: () => number;
+  /** 补丁与审稿报告的随机 id（Python 的 uuid4().hex，32 位十六进制）。 */
+  readonly newHex: () => string;
 };

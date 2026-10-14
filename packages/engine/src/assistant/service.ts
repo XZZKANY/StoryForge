@@ -3,6 +3,7 @@ import { AuthorEditPolicyError } from '../kernel/authorEditPolicy';
 import { buildGenerationSystemPrompt, editPolicyFromGenerationPrompt } from '../kernel/authorVoice';
 import { buildSceneConstraintBlock } from '../kernel/canonContext';
 import { FsToolError } from '../kernel/fsTools';
+import type { GenerationDeliveryCapture } from '../kernel/generationDelivery';
 import { GenerationSourceBudgetError, GenerationSourceCapture } from '../kernel/generationSources';
 import { InputDomainError } from '../kernel/json';
 import { previousChapterTail } from '../kernel/previousChapter';
@@ -675,6 +676,137 @@ export async function streamContinueProse(
     }
     return recordLlmFailure(deps, toolCall, llm, error);
   }
+}
+
+/**
+ * 非流式光标处续写，给 agent 循环的 prose.continue 用：与流式共用取窗 / 提示 / 确定性后处理，
+ * 只换传输。返回的只是要插入的那一段，落点插入由调用方完成；后端绝不写盘。
+ */
+export async function draftContinuation(
+  deps: AssistantDeps,
+  request: ContinueRequest,
+  options: {
+    preparedContext?: PreparedWritingContext | null;
+    /** 嵌套 writer 的送达回执（Python 经 ContextVar 收集）。 */
+    deliveries?: GenerationDeliveryCapture | null;
+  } = {},
+): Promise<DraftResponse> {
+  const llm = await configuredLlm(deps);
+  const sources = await GenerationSourceCapture.create({
+    root: request.project_root ?? null,
+    platform: deps.platform,
+    secrets: llm.secrets,
+    writingContextFile: await currentFileIdentity(
+      deps,
+      request.project_root ?? null,
+      request.file_path,
+    ),
+  });
+  const payload = await admitWritingRequest(deps.reader, request, {
+    intent: 'prose.continue',
+    preparedContext: options.preparedContext ?? null,
+    platform: deps.platform,
+    secrets: llm.secrets,
+    capture: sources,
+  });
+  const projectRoot = payload.project_root ?? null;
+  const cursorLine = payload.cursor_line ?? 0;
+  const anchorLine = resolveAnchorLine(payload.content, cursorLine);
+  const tail = manuscriptTail(payload.content, anchorLine);
+  const suffix = manuscriptSuffix(payload.content, anchorLine);
+  const targetChars = payload.target_chars || DEFAULT_TARGET_CHARS;
+  await sources.continuation(payload.content, anchorLine, tail, suffix, SUFFIX_MAX_CHARS);
+  const constraints = await sceneConstraints(deps, projectRoot, payload.file_path, sources);
+  const previousChapter = projectRoot
+    ? await previousChapterTail(deps.reader, projectRoot, payload.file_path, {
+        platform: deps.platform,
+        capture: sources,
+      })
+    : null;
+  const instruction = payload.instruction ?? null;
+  const session = await existingOrNewSession(deps, {
+    sessionId: payload.assistant_session_id,
+    projectRoot,
+    title: `续写 ${payload.file_path}`,
+    taskType: 'desktop_continue',
+    message: instruction || `续写 ${payload.file_path}`,
+    appendToExisting: false,
+  });
+  const contextBundle = payload.context_bundle ?? null;
+  const suffixChars = cpLen(suffix);
+  const toolCall = await deps.store.createToolCall(session.id, {
+    tool_name: 'assistant.continue',
+    status: 'running',
+    input_summary: {
+      file_path: payload.file_path,
+      cursor_line: cursorLine,
+      tail_chars: cpLen(tail),
+      suffix_chars: Math.min(suffixChars, SUFFIX_MAX_CHARS),
+      suffix_truncated: suffixChars > SUFFIX_MAX_CHARS,
+      context_file_count: contextBundle ? contextBundle.files.length : 0,
+      target_chars: targetChars,
+      has_instruction: instruction !== null,
+      has_scene_constraints: constraints !== null,
+      previous_chapter: previousChapter ? previousChapter[0] : null,
+      transport: 'tool_loop',
+    },
+  });
+  let result: Obj;
+  try {
+    const systemPrompt = await buildGenerationSystemPrompt(
+      deps.reader,
+      CONTINUE_SYSTEM_PROMPT,
+      projectRoot,
+      { platform: deps.platform, capture: sources },
+    );
+    const userPrompt = buildContinuePrompt({
+      tail,
+      filePath: payload.file_path,
+      suffix,
+      contextBundle,
+      instruction,
+      sceneConstraints: constraints,
+      previousChapter,
+      targetChars,
+    });
+    const stored = await recordGenerationSources(deps, toolCall, sources, systemPrompt, userPrompt);
+    try {
+      options.deliveries?.record(
+        stored.id,
+        stored.input_summary.generation_sources as { [key: string]: PlainJson },
+      );
+    } catch {
+      // 送达回执必须先于模型调用落定，失败就不发请求。
+      const message = '生成送达关联未能持久化，未调用模型。';
+      await deps.store.updateToolCall(toolCall.id, { status: 'failed', error_message: message });
+      throw new AssistantReviseError(message);
+    }
+    result = await llm.callStreamed({ systemPrompt, userPrompt });
+  } catch (error) {
+    return recordLlmFailure(deps, toolCall, llm, error);
+  }
+  const finalText = finalizeContinuation(tail, String(result.content));
+  if (!finalText) {
+    const message = '模型这一轮没有写出新内容（可能只是复述了上文）。';
+    await deps.store.updateToolCall(toolCall.id, { status: 'failed', error_message: message });
+    throw new AssistantReviseError(message);
+  }
+  const latency = latencyOf(result);
+  const output: Obj = {
+    final_chars: cpLen(finalText),
+    ...usageSummary(result),
+    latency_ms: latency,
+  };
+  if (result.reasoning_leak_stripped) output.reasoning_leak_stripped = true;
+  await deps.store.updateToolCall(toolCall.id, { status: 'completed', output_summary: output });
+  return {
+    content: finalText,
+    summary: `已在 ${payload.file_path} 光标处续写约 ${cpLen(finalText)} 字，待作者确认。`,
+    model: modelOf(llm),
+    latency_ms: latency,
+    completion_tokens: intOrNull(result.completion_tokens),
+    assistant_session_id: session.id,
+  };
 }
 
 // ---- 新文件起草（agent 循环的 file.create，P3 接线） ----

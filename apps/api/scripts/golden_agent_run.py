@@ -264,6 +264,196 @@ def control_scenarios():
     return s
 
 
+PATCH_SOURCES = [
+    "app/domains/agent_runs/patches/runtime_tools.py",
+    "app/domains/agent_runs/patches/writing_context.py",
+    "app/domains/agent_runs/patches/revise_input.py",
+    "app/domains/agent_runs/tools/prose_continue_runtime.py",
+    "app/domains/agent_runs/tools/project_canon_runtime.py",
+    "app/domains/agent_runs/review_report.py",
+    "app/domains/ide/review_reasoning.py",
+    "app/domains/assistant/service.py",
+]
+CHAPTER_ONE = FILES["正文/第001章.md"]
+REVIEW_ISSUES = json.dumps([{"severity": "high", "code": "plot.hook_missing", "message": "章尾缺少钩子",
+                             "evidence": "林舟推开门。"}], ensure_ascii=False)
+
+
+def review_replies(*contents):
+    return [completion(content) for content in contents or (REVIEW_ISSUES, "[]", "[]")]
+
+
+def tool_args(**arguments):
+    return json.dumps(arguments, ensure_ascii=False)
+
+
+# Rendered by knowledge_entries.render_knowledge_entry (a structured world rule the retriever can auto-select).
+KNOWLEDGE_ENTRY = "<!-- storyforge-knowledge:v1\n{\"claim_fingerprint\":\"sha256:49eab88fac81fdfa3ac2a365325f2041bd9d9391e853995b80b3f37a8b3940ab\",\"created_at\":\"2026-10-01T00:00:00Z\",\"evidence_state\":\"current\",\"id\":\"pk_22222222-2222-4222-8222-222222222222\",\"kind\":\"world_rule\",\"sources\":[{\"agent_event_id\":\"ake_1\",\"type\":\"author_statement\"}],\"status\":\"active\",\"updated_at\":\"2026-10-02T00:00:00Z\"}\n-->\n## 铁城宵禁\n\n铁城入夜宵禁，城门落锁。\n<!-- /storyforge-knowledge -->\n"
+
+
+def patch_scenarios():
+    s = []
+    path = "正文/第001章.md"
+    revise = ("c1", "file_revise", tool_args(path=path, instruction="把开门写得更有力"))
+    revised = streamed(["第一章 风起\n\n林舟一脚踹开了门。\n"])
+    s.append(scenario("revise-ask", message("改一下第一章开门那句"), [
+        completion("", [revise]), revised, completion("改好了，等你确认。")]))
+    s.append(scenario("revise-auto", message("改一下第一章开门那句", permission_profile="auto"), [
+        completion("", [revise]), revised, completion("改好了。")]))
+    s.append(scenario("revise-read-only-profile", message("改一下第一章", permission_profile="read"), [
+        completion("", [revise]), completion("只读档改不了。")]))
+    s.append(scenario("read-then-revise", message("对照人物改第一章"), [
+        completion("", [("c1", "fs_read", tool_args(path="人物/主角.md"))]), completion("", [revise]), revised,
+        completion("改好了。")]))
+    s.append(scenario("revise-with-context-bundle", message("对照人物改第一章", args={"context_bundle": {
+        "files": [{"relative_path": "人物/主角.md", "excerpt": "左臂有旧伤。", "kind": "character"}]}}), [
+        completion("", [revise]), revised, completion("改好了。")]))
+    s.append(scenario("review-then-answer", message("审一下第一章"), [
+        completion("", [("c1", "file_review", tool_args(path=path))]), *review_replies(), completion("审完了。")]))
+    s.append(scenario("review-llm-degraded", message("审一下第一章"), [
+        completion("", [("c1", "file_review", tool_args(path=path))]),
+        {"status": 500, "body": '{"error":{"message":"down"}}'}, completion('{"issues": []}'), completion("[]"),
+        completion("审完了。")]))
+    s.append(scenario("review-then-revise-by-ordinal", message("先审稿，再按审稿意见改第1条"), [
+        completion("", [("c1", "file_review", tool_args(path=path))]), *review_replies(),
+        completion("", [("c2", "file_revise", tool_args(path=path, instruction="按第1条改"))]), revised,
+        completion("按第1条改好了。")]))
+    seeded = {"report_id": "rr-1", "file_path": path, "content_sha256": hashlib.sha256(CHAPTER_ONE.encode()).hexdigest(),
+              "issues": [{"id": "plot-1", "category": "plot", "severity": "high", "code": "plot.hook_missing",
+                          "message": "章尾缺少钩子", "evidence": "林舟推开门。"}]}
+    s.append(scenario("revise-offered-review", message(
+        "按审稿意见修改第1条", assistant_session_id=1,
+        args={"review_report": {"report_id": "rr-1", "content_sha256": seeded["content_sha256"]}}),
+        [completion("", [revise]), revised, completion("改好了。")],
+        sessions=[{"title": "审稿会话", "project_path": "$ROOT"}], seed_review=seeded))
+    s.append(scenario("revise-stale-offered-review", message(
+        "按审稿意见修改第1条", assistant_session_id=1,
+        args={"review_report": {"report_id": "rr-1", "content_sha256": seeded["content_sha256"]}}),
+        [completion("", [revise]), completion("审稿过期了。")],
+        sessions=[{"title": "审稿会话", "project_path": "$ROOT"}], seed_review=seeded,
+        extra_files={path: "第一章 风起\n\n林舟推开门，又关上。\n"}))
+    s.append(scenario("revise-llm-error", message("改第一章"), [
+        completion("", [revise]), {"status": 500, "body": '{"error":{"message":"upstream down"}}'},
+        completion("没改成。")]))
+    s.append(scenario("revise-hidden-path", message("改指令文件"), [
+        completion("", [("c1", "file_revise", tool_args(path=".storyforge/agent-instructions.md", instruction="改"))]),
+        completion("改不了。")]))
+    s.append(scenario("revise-missing-file", message("改第九章"), [
+        completion("", [("c1", "file_revise", tool_args(path="正文/第009章.md", instruction="改"))]),
+        completion("没有这章。")]))
+    s.append(scenario("revise-crlf-bom-file", message("改第五章"), [
+        completion("", [("c1", "file_revise", tool_args(path="正文/第005章.md", instruction="改"))]),
+        streamed(["第五章\n\n改过了。\n"]), completion("改好了。")],
+        extra_files={"正文/第005章.md": "﻿第五章\r\n\r\n原文。\r\n"}))
+    s.append(scenario("revise-nul-file", message("改坏文件"), [
+        completion("", [("c1", "file_revise", tool_args(path="正文/坏.md", instruction="改"))]),
+        completion("文件坏了。")], extra_files={"正文/坏.md": "第一行\u0000第二行"}))
+    s.append(scenario("stop-during-revise-request", message("改第一章"), [
+        completion("", [revise]), streamed(["第一章"], set_status=["stopped", "stopped"])]))
+    s.append(scenario("pause-during-review", message("审一下第一章"), [
+        completion("", [("c1", "file_review", tool_args(path=path))]), completion(REVIEW_ISSUES),
+        completion("[]", controls=[{"type": "pause_run"}])], ops=[]))
+    s.append(scenario("two-patch-tools-one-round", message("改第一章再起草第三章"), [
+        completion("", [revise, ("c2", "file_create", tool_args(path="正文/第003章.md", instruction="写第三章"))]),
+        revised, completion("先改了第一章。")]))
+    s.append(scenario("create-new", message("起草第三章"), [
+        completion("", [("c1", "file_create", tool_args(path="正文/第003章.md", instruction="写第三章：沈禾入城"))]),
+        streamed(["第三章 入城\n\n沈禾入城。\n"]), completion("起草好了。")]))
+    s.append(scenario("create-empty-placeholder", message("写第三章"), [
+        completion("", [("c1", "file_create", tool_args(path="正文/第003章.md", instruction="写第三章"))]),
+        streamed(["第三章\n\n正文。\n"]), completion("写好了。")], extra_files={"正文/第003章.md": "  \n"}))
+    s.append(scenario("create-existing", message("起草第一章"), [
+        completion("", [("c1", "file_create", tool_args(path=path, instruction="写第一章"))]),
+        completion("第一章已经有了。")]))
+    s.append(scenario("create-outside", message("起草外面的文件"), [
+        completion("", [("c1", "file_create", tool_args(path="../外面.md", instruction="写"))]),
+        completion("不能写到外面。")]))
+    view = {"author_view": {"file_path": path, "cursor_line": 1}}
+    s.append(scenario("continue-at-cursor", message("接着写", args=view), [
+        completion("", [("c1", "prose_continue", tool_args(path=path))]),
+        streamed(["林舟踏进门槛，屋里一股霉味。"]), completion("续上了。")]))
+    s.append(scenario("continue-explicit-anchor", message("在第三行后接着写"), [
+        completion("", [("c1", "prose_continue", tool_args(path=path, anchor_line=3, target_chars=120,
+                                                    instruction="写得短一点"))]),
+        streamed(["门外的风停了。"]), completion("续上了。")]))
+    s.append(scenario("continue-other-file-cursor", message("接着写第二章", args=view), [
+        completion("", [("c1", "prose_continue", tool_args(path="正文/第002章.md"))]),
+        streamed(["沈禾指了指北边。"]), completion("续上了。")]))
+    s.append(scenario("continue-repeat-only", message("接着写"), [
+        completion("", [("c1", "prose_continue", tool_args(path=path))]),
+        streamed(["风起\n\n林舟推开门。"]), completion("没写出新内容。")]))
+    s.append(scenario("continue-bad-target", message("接着写"), [
+        completion("", [("c1", "prose_continue", tool_args(path=path, target_chars=10))]),
+        completion("字数不对。")]))
+    s.append(scenario("continue-crlf-file", message("接着写第五章"), [
+        completion("", [("c1", "prose_continue", tool_args(path="正文/第005章.md"))]),
+        streamed(["新的一段。"]), completion("续上了。")],
+        extra_files={"正文/第005章.md": "第五章\r\n\r\n原文。\r\n"}))
+    s.append(scenario("trim-default", message("压缩第一章"), [
+        completion("", [("c1", "project_trim_prose", tool_args(path=path))]),
+        streamed(["第一章 风起\n\n林舟推门。\n"]), completion("压缩好了。")]))
+    s.append(scenario("trim-target", message("压缩第一章两成", permission_profile="full"), [
+        completion("", [("c1", "project_trim_prose", tool_args(path=path, target_percent=20))]),
+        streamed(["第一章\n\n林舟推门。\n"]), completion("压缩好了。")]))
+    s.append(scenario("trim-bad-percent", message("压缩第一章八成"), [
+        completion("", [("c1", "project_trim_prose", tool_args(path=path, target_percent=80))]),
+        completion("压缩比例不对。")]))
+    s.append(scenario("review-continuity-signal", message("审一下第六章"), [
+        completion("", [("c1", "file_review", tool_args(path="正文/第006章.md"))]), *review_replies(),
+        completion("审完了。")], extra_files={"正文/第006章.md": "第六章\n\n他昨天才第一次见她，前后矛盾。\n"}))
+    s.append(scenario("review-pinned-context-and-roles-then-revise", message("审稿后按意见改第一章", args={
+        "context_bundle": {"files": [{"relative_path": "人物/主角.md", "excerpt": "左臂有旧伤。", "kind": "character"}]},
+        "agent_role_hints": ["plot_reviewer"]}), [
+        completion("", [("c1", "file_review", tool_args(path=path))]), *review_replies(),
+        completion("", [("c2", "file_revise", tool_args(path=path, instruction="补上章尾钩子"))]), revised,
+        completion("改好了。")]))
+    s.append(scenario("revise-directed-without-review", message("按审稿意见改第一章"), [
+        completion("", [revise]), completion("还没有审稿。")]))
+    s.append(scenario("revise-unknown-ordinal", message("先审稿，再按审稿意见改第9条"), [
+        completion("", [("c1", "file_review", tool_args(path=path))]), *review_replies(),
+        completion("", [("c2", "file_revise", tool_args(path=path, instruction="按第9条改"))]),
+        completion("没有第9条。")]))
+    # The message is longer than the snapshot's review text limit: the writer must get the report itself.
+    legacy = {"issues": [{"id": "plot-1", "category": "plot", "severity": "high", "message": "章尾缺少钩子，" * 100,
+                          "evidence": "林舟推开门。"}]}
+    s.append(scenario("revise-legacy-offered-review", message("改第一章", args={"review_report": legacy}), [
+        completion("", [("c1", "file_revise", tool_args(path=path, instruction="按第1条和第9条改"))]), revised,
+        completion("改好了。")]))
+    s.append(scenario("revise-with-auto-retrieved-knowledge", message("按铁城宵禁的设定改第一章"), [
+        completion("", [revise]), revised, completion("改好了。")],
+        extra_files={"设定/世界观.md": KNOWLEDGE_ENTRY}))
+    s.append(scenario("create-long-instruction", message("起草第三章"), [
+        completion("", [("c1", "file_create", tool_args(path="正文/第003章.md", instruction="写第三章：" + "沈禾入城。" * 60))]),
+        streamed(["第三章\n\n沈禾入城。\n"]), completion("起草好了。")]))
+    s.append(scenario("continue-auto", message("接着写", permission_profile="auto"), [
+        completion("", [("c1", "prose_continue", tool_args(path=path))]),
+        streamed(["林舟踏进门槛。"]), completion("续上了。")]))
+    s.append(scenario("trim-integral-percent", message("压缩第一章"), [
+        completion("", [("c1", "project_trim_prose", tool_args(path=path))]),
+        streamed(["第一章\n\n林舟推开了门。\n"]), completion("压缩好了。")]))
+    s.append(scenario("revise-blank-path", message("改第一章"), [
+        completion("", [("c1", "file_revise", tool_args(path="  ", instruction="改"))]), completion("缺路径。")]))
+    s.append(scenario("review-crlf-file", message("审一下第五章"), [
+        completion("", [("c1", "file_review", tool_args(path="正文/第005章.md"))]), *review_replies(),
+        completion("审完了。")], extra_files={"正文/第005章.md": "第五章\r\n\r\n原文。\r\n"}))
+    s.append(scenario("revise-unnormalized-path", message("改第一章"), [
+        completion("", [("c1", "file_revise", tool_args(path="./正文//第001章.md", instruction="改"))]), revised,
+        completion("改好了。")]))
+    s.append(scenario("continue-unnormalized-path", message("接着写"), [
+        completion("", [("c1", "prose_continue", tool_args(path="./正文//第001章.md"))]),
+        streamed(["林舟踏进门槛。"]), completion("续上了。")]))
+    s.append(scenario("continue-over-read-limit", message("接着写长章"), [
+        completion("", [("c1", "prose_continue", tool_args(path="正文/长.md"))]), completion("太长了。")],
+        big_files={"正文/长.md": ["雨夜里他推开门。", 25001]}))
+    s.append(scenario("stop-during-review-request", message("审一下第一章"), [
+        completion("", [("c1", "file_review", tool_args(path=path))]),
+        completion(REVIEW_ISSUES, set_status=["stopped", "stopped"])]))
+    s.append(scenario("trim-empty-file", message("压缩空文件"), [
+        completion("", [("c1", "project_trim_prose", tool_args(path="正文/空.md"))]),
+        completion("文件是空的。")], extra_files={"正文/空.md": ""}))
+    return s
+
+
 def write_file(path, content):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content.encode("utf-8"))
@@ -317,6 +507,10 @@ def p3_agent_control_snapshot() -> dict:
     return _snapshot("p3-agent-control", control_scenarios(), SOURCES + CONTROL_SOURCES)
 
 
+def p3_patch_tools_snapshot() -> dict:
+    return _snapshot("p3-patch-tools", patch_scenarios(), SOURCES + PATCH_SOURCES)
+
+
 def drop_checkpoint_artifact_ids(value):
     """TS keeps checkpoints in engine memory (no artifact row), so its resume diagnostics carry no artifact_id."""
     if isinstance(value, dict):
@@ -337,12 +531,23 @@ def _snapshot(suite: str, specs: list, sources: list) -> dict:
         from app.common import llm_control
         from app.common.version import APP_VERSION
         from app.db.base import Base
-        from app.domains.agent_runs import event_sink, request_evidence, service, service_execution, text_stream
+        from app.domains.agent_runs import (
+            event_sink,
+            llm_context,
+            request_evidence,
+            review_report,
+            service,
+            service_execution,
+            text_stream,
+        )
         from app.domains.agent_runs.event_encoders import websocket_stream_events_from_agent_event
         from app.domains.agent_runs.fs import knowledge_proposals as proposals_module
-        from app.domains.agent_runs.loop import run_control
+        from app.domains.agent_runs.loop import conversation_runtime, run_control
         from app.domains.agent_runs.models import AgentArtifact, AgentRun, AgentRunEvent, SubagentRun
+        from app.domains.agent_runs.patches import runtime_tools as patch_runtime_tools
+        from app.domains.agent_runs.patches import writing_context as patch_writing_context
         from app.domains.agent_runs.service_types import AgentRuntimeUserMessageError
+        from app.domains.agent_runs.tools import project_canon_runtime, prose_continue_runtime
         from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
         from app.platform.ai_sdk.providers import openai_compatible
 
@@ -353,7 +558,10 @@ def _snapshot(suite: str, specs: list, sources: list) -> dict:
 
         proposals_module.datetime = FixedDatetime
         clock = {"now": 100.0}
-        virtual = SimpleNamespace(monotonic=lambda: clock["now"], sleep=lambda _s: None, time=lambda: clock["now"])
+        # Sleeping advances the virtual clock: retry waits poll it until the backoff has elapsed.
+        virtual = SimpleNamespace(monotonic=lambda: clock["now"], time=lambda: clock["now"],
+                                  sleep=lambda seconds: clock.__setitem__("now", clock["now"] + seconds))
+        lc.random = lambda: 0.375
         for module in (lc, openai_compatible, run_control, llm_control):
             module.time = virtual
         real_check = event_sink.AgentRunEventSink.runtime_interruption
@@ -415,11 +623,24 @@ def _snapshot(suite: str, specs: list, sources: list) -> dict:
                     "resumed_result": result.resumed_result, "resume_diagnostic": result.resume_diagnostic}
 
         lc.request.urlopen = fake_urlopen
+        real_snapshot = llm_context.build_llm_context_snapshot
+
+        def snapshot_without_checkpoints(*, artifacts=None, **kwargs):
+            # TS keeps checkpoints in engine memory (§2.6): they never reach the artifact list a snapshot counts.
+            kept = None if artifacts is None else [a for a in artifacts if getattr(a, "kind", None) != "runtime_checkpoint"]
+            return real_snapshot(artifacts=kept, **kwargs)
+
+        for module in (conversation_runtime, patch_writing_context):
+            module.build_llm_context_snapshot = snapshot_without_checkpoints
         records = []
         for spec in specs:
             if (run_dir / "book").exists():
                 shutil.rmtree(run_dir / "book")
             project = Project(run_dir, "book", FILES)
+            for path, content in spec.get("extra_files", {}).items():
+                write_file(project.root / path, content)
+            for path, (unit, count) in spec.get("big_files", {}).items():
+                write_file(project.root / path, unit * count)
             root = str(project.root)
             for key in list(os.environ):
                 if key.startswith("STORYFORGE_LLM_"):
@@ -449,6 +670,11 @@ def _snapshot(suite: str, specs: list, sources: list) -> dict:
             proposal_ids = iter(range(1, 100))
             proposals_module.uuid4 = lambda proposal_ids=proposal_ids: UUID(f"00000000-0000-4000-8000-{next(proposal_ids):012x}")
             text_stream.uuid4 = lambda streams=streams: f"stream-{next(streams)}"
+            # Patch and review ids share one counter (uuid4().hex shape), in call order across the four modules.
+            hex_ids = iter(range(1, 100))
+            fake_uuid = SimpleNamespace(uuid4=lambda hex_ids=hex_ids: SimpleNamespace(hex=f"{next(hex_ids):032x}"))
+            for module in (patch_runtime_tools, project_canon_runtime, prose_continue_runtime, review_report):
+                module.uuid = fake_uuid
             control_db = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)()
             state.update(db=db, control_db=control_db, project=project, checks=[], requests=[], controls=[],
                          replies=json.loads(json.dumps(spec["replies"])),
