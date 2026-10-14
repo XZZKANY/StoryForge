@@ -1404,13 +1404,18 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
           );
           evidence.agentReload = await page.evaluate(
             (input) => window.__ENGINE_P3_AGENT__.readBackAfterReload(input),
-            { runIds: ['p3-agent-run-a', 'p3-agent-run-b'] },
+            { runIds: ['p3-agent-run-a', 'p3-agent-run-b'], projectRoot: agentProject },
           );
+          assert.deepEqual(evidence.agentReload.inbox, { items: 0, pending: 0 });
           assert.deepEqual(
-            evidence.agentReload.map((entry) => entry.status),
+            evidence.agentReload.runs.map((entry) => entry.status),
             ['completed', 'stopped'],
           );
-          assert.deepEqual(evidence.agentReload[0].events, result.events, 'Run A events changed');
+          assert.deepEqual(
+            evidence.agentReload.runs[0].events,
+            result.events,
+            'Run A events changed',
+          );
           // The database file sits in the isolated local data directory (runtime_paths).
           const { DatabaseSync } = await import('node:sqlite');
           const engineDb = new DatabaseSync(

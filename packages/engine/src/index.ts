@@ -597,3 +597,13 @@ export {
 export { EngineSchemaError, migrateEngineDb } from './store/schema';
 export { RunStoreBrokenError, SqlRunStore } from './store/sqlRuns';
 export { reapInterruptedRuns } from './loop/runControlChannel';
+export {
+  KnowledgeInboxConflictError,
+  KnowledgeInboxRequestError,
+  materializeKnowledgeProposal,
+  queryKnowledgeInbox,
+  refreshKnowledgeEvidence,
+  resolveKnowledgeProposal,
+  reviseKnowledgeProposalGroup,
+  type KnowledgeInboxDeps,
+} from './loop/knowledgeInbox';

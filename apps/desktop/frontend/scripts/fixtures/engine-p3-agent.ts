@@ -1,5 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { getAgentRunEvents, getAgentRunSavePoints } from '../../src/lib/api/agent-runs';
+import { refreshKnowledgeProposals } from '../../src/lib/api/knowledge-proposals';
 import { sendAgentControlMessage, sendAgentUserMessage } from '../../src/lib/api/agent-socket';
 import type { AgentSocketMessage } from '../../src/lib/api/types';
 import { workerRegexCompiler } from '../../src/lib/engine/regex';
@@ -102,7 +103,7 @@ async function runAgentProbe(input: { projectRoot: string }) {
 
 // After a WebView reload: a new JS context opens the engine database again and must still own the
 // runs it kept (localStorage keeps the ts flag), without asking the Python store.
-async function readBackAfterReload(input: { runIds: string[] }) {
+async function readBackAfterReload(input: { runIds: string[]; projectRoot: string }) {
   assert(isTauri(), 'Agent probe requires the real Native host');
   const runs = [];
   for (const runId of input.runIds) {
@@ -114,7 +115,9 @@ async function readBackAfterReload(input: { runIds: string[] }) {
       status: savePoints.status,
     });
   }
-  return runs;
+  // The knowledge inbox reads the same engine database and the project through the Rust reader.
+  const inbox = await refreshKnowledgeProposals(input.projectRoot);
+  return { runs, inbox: { items: inbox.items.length, pending: inbox.pending_count } };
 }
 
 declare global {

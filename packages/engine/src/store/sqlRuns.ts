@@ -416,6 +416,15 @@ export class SqlRunStore implements RunStore, RunStatusView {
     );
   }
 
+  eventsOfTypes(types: readonly string[]): Promise<readonly RunEventRecord[]> {
+    const marks = types.map((_type, index) => `$${index + 1}`).join(', ');
+    return this.read(
+      `SELECT * FROM agent_run_events WHERE event_type IN (${marks || 'NULL'}) ORDER BY id`,
+      types,
+      (rows) => rows.map(eventFromRow),
+    );
+  }
+
   async runsOfAssistantSession(assistantSessionId: number): Promise<readonly RunRecord[]> {
     this.guard();
     return [...this.runs.values()]

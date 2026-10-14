@@ -7959,3 +7959,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：前端 vitest 全量 2170 通过 / 1 跳过（新增 `assistant-sessions-engine` 5 条）；引擎 vitest 13139 通过；前端 typecheck；`pnpm lint`；p4-assistant-store `--check` 复导一致。变异 14 处抓住 13 处（余 1 处等价：共用写队列）。
 - 真 WebView 探针：`--agent-only` 通过（证据 `output/ts-engine-p3/native/run-6fgtAq`）：假 Python 会话库 0 次请求；引擎库两个会话（run A 一问一答、标题被隐藏标题任务改写；run B 中途停、不记消息）；库文件与 WAL 不含合成 key。
 - 未联通：ts 档左栏看不到 Python 档旧会话（4-3 导入）；知识收件箱、章节检查历史仍问 Python（4-2b / 4-2c）。
+
+## 2026-10-14 P4-2b 知识收件箱接引擎库（TS 迁移，默认仍走 Python）
+
+- 范围：`packages/engine/src/loop/knowledgeInbox.ts`（查询 / 刷新证据 / 修订 / 接受与拒绝 / 物化，照 Python `events/knowledge_inbox.py`、`knowledge_materialization.py` 与路由的请求 / 响应模型）；`RunStore.eventsOfTypes`；前端 `lib/api/knowledge-proposals.ts` 按 `sessionsInEngine()` 分流到 `lib/engine/knowledge.ts`；预言机 `golden_knowledge_inbox.py`（`--suite p4-knowledge-inbox`，65 个操作）。
+- 测试：引擎 vitest 13143 通过（`knowledgeInbox.test.ts` 内存 / sqlite 各回放 65 步逐项一致）；前端 vitest 2174 通过（新增 `knowledge-proposals-engine` 3 条）；前端 / 引擎 typecheck；`pnpm lint`；`--check` 复导一致；ruff。
+- 变异：服务 43 处抓住 41 处（余 2 处等价），前端接线 7 / 7（含补测后的 1 处）。
+- 真 WebView 探针：`--agent-only` 通过（重载后收件箱刷新走引擎库与 Rust 读口）。
+- 接受的差异：FsToolError 在 Python 是 500（detail 为 Internal Server Error），TS 交出它自己的文案。未联通：章节检查历史（4-2c）。
