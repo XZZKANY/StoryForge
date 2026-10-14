@@ -30,6 +30,7 @@ import { checkToolHandlers } from './tools/checkHandlers';
 import { AgentToolRegistry, toolDefinitionFromSpec, type ToolHandler } from './tools/execution';
 import { fsToolHandlers } from './tools/fsHandlers';
 import { patchToolHandlers } from './tools/patchHandlers';
+import { polishToolHandlers } from './tools/polishHandlers';
 import type { ToolDeps } from './tools/handlerDeps';
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 脚本按 Python 预言机的 JSON 形状读
@@ -111,7 +112,12 @@ function yieldingStore(base: MemoryRunStore): MemoryRunStore {
 export function agentRunReplay(golden: Obj) {
   const ROOT = golden.project_root as string;
   const platform = golden.platform as 'windows' | 'posix';
-  const SECRETS = { values: [golden.secret as string] };
+  const SECRETS = {
+    values: [
+      golden.secret as string,
+      ...(golden.polish_secret ? [golden.polish_secret as string] : []),
+    ],
+  };
   const ESCAPED_ROOTS = [ROOT, ROOT.replace(/\\/g, '/')].map((root) =>
     JSON.stringify(root).slice(1, -1),
   );
@@ -329,6 +335,33 @@ export function agentRunReplay(golden: Obj) {
         for (const control of (reply.controls ?? []) as Obj[])
           controls.push(await runControl(control));
         clock.now += reply.advance ?? 0;
+        if (reply.polish) {
+          // 润色模型按请求里的片段原样回显，再做脚本给的替换（与预言机同一套构造）。
+          const rule = reply.polish as Obj;
+          let segments = (parseJson((body as Obj).messages[1].content, 'polish input') as Obj)
+            .segments as Obj[];
+          segments = segments.map((segment) => {
+            let text = segment.text as string;
+            for (const [old, replacement] of rule.replace as [string, string][])
+              text = text.split(old).join(replacement);
+            return { index: segment.index, text };
+          });
+          if (rule.drop_last) segments = segments.slice(0, -1);
+          const content = dumpJson({ segments }, { ensureAscii: false });
+          reply = {
+            status: 200,
+            body: dumpJson(
+              {
+                id: 'resp-1',
+                choices: [
+                  { index: 0, message: { role: 'assistant', content }, finish_reason: rule.finish },
+                ],
+                usage: { prompt_tokens: 12, completion_tokens: 5, total_tokens: 17 },
+              },
+              { ensureAscii: false },
+            ),
+          };
+        }
         if (reply.compaction_quote) {
           const modelInput = parseJson((body as Obj).messages[1].content, 'input') as Obj;
           const entries = (modelInput.new_sources as Obj[]).map((source) => ({
@@ -370,6 +403,15 @@ export function agentRunReplay(golden: Obj) {
     const source = Object.fromEntries(
       Object.entries({ ...golden.source, ...spec.env }).filter(([, value]) => value !== null),
     ) as Record<string, string>;
+    // Rust 按槽只放行该槽 baseUrl 同源的请求：润色槽的请求走错槽就是回归。
+    const slotHttp = (slot: 'main' | 'polish'): HttpPort => ({
+      send(request) {
+        const polishBase = source.STORYFORGE_POLISH_LLM_BASE_URL;
+        const toPolish = Boolean(polishBase) && request.url.startsWith(polishBase);
+        if (toPolish !== (slot === 'polish')) throw new Error(`${slot} 槽不应发往 ${request.url}`);
+        return http.send(request);
+      },
+    });
     let uuid = 0;
     let hex = 0;
     const toolDeps: ToolDeps = {
@@ -399,6 +441,7 @@ export function agentRunReplay(golden: Obj) {
       ...checkToolHandlers(toolDeps),
       ...canonToolHandlers(toolDeps),
       ...patchToolHandlers(toolDeps),
+      ...polishToolHandlers(toolDeps),
     };
     const tools = new AgentToolRegistry();
     for (const item of AGENT_RUNTIME_TOOL_SPECS)
@@ -423,8 +466,19 @@ export function agentRunReplay(golden: Obj) {
       reader: project.reader,
       platform,
       source,
+      // 专用润色槽只有身份四项（Python 从 STORYFORGE_POLISH_LLM_* 映射），与主模型共用脚本化的出网。
+      polish: {
+        source: Object.fromEntries(
+          ['PROVIDER', 'BASE_URL', 'MODEL', 'API_KEY'].flatMap((key) =>
+            `STORYFORGE_POLISH_LLM_${key}` in source
+              ? [[`STORYFORGE_LLM_${key}`, source[`STORYFORGE_POLISH_LLM_${key}`]]]
+              : [],
+          ),
+        ),
+        http: slotHttp('polish'),
+      },
       llm: {
-        http,
+        http: slotHttp('main'),
         clock: () => clock.now,
         // 等待推进虚拟时钟：重试退避按时钟轮询，直到等满。
         wait: async (seconds) => {

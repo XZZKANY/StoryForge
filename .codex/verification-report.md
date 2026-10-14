@@ -7845,3 +7845,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 逮到的 TS 既有问题：`kernel/reviewReasoning.ts` 的模型审稿对所有异常都降级，审稿请求进行中的停止 / 暂停（`RunInterrupted`）与 `RequestEvidenceError` 会被吞；已收窄为只对 `LlmError` / `InputDomainError` / `RangeError` / `TypeError` 降级（对应 Python 的 LLMError / ValueError / TypeError / KeyError），场景 `stop-during-review-request` 与三条契约测试钉住。
 - 变异：87 处首轮 52 处；补场景与契约测试后重跑存活 35 处抓住 19 处，再收紧两个夹具（整数压缩比例、超出快照文本上限的旧报告条目）抓住 2 处，合计 73 / 87；余 14 处逐条核为等价或循环里走不到（明细见迁移计划 P3-6a 条）。脚本 `output/ts-engine-p3/gen_mutations_patch_tools.py`（gitignored）。
 - 门禁：引擎 vitest 12641 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（corepack 9.15.4 shim；0 错误，2 条既有 warning）、ruff（`golden_agent_run.py`、`golden_dump.py`）。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+
+## 2026-10-13 P3-6b 润色（TS 迁移，默认仍走 Python）
+
+- 范围：`patches/polishing_service`、`patches/polish_context`、`llm_env.resolve_polish_llm`、`chapter.polish` 处理器 → `packages/engine/src/loop/tools/polishService.ts`、`polishContext.ts`、`polishHandlers.ts`；`ToolRunServices.polish`（两个模型槽 + 按槽出网的 provider）、`AgentRuntimeDeps.polish`（专用槽配置源与出网端口）。
+- 预言机：`golden_agent_run.py` 新增 `--suite p3-polish`（钉住的源文件再加 7 个），22 个场景（明细见迁移计划 P3-6b 条）；润色模型回包由请求里的片段按脚本替换构造（`polish` 回复，两侧同一套），`_snapshot` 支持附加字段（`polish_secret`，专用槽密钥也进回放的脱敏上下文）。`--check` 复导一致；`p3-patch-tools`、`p3-agent-run`、`p3-agent-control` 复导不变。
+- TS 回放：`packages/engine/src/loop/polish.test.ts` 25 条全绿（22 个场景 + 计数 + 润色槽解析契约测试 2 条）；回放台给主槽与润色槽各一个按 baseUrl 校验的出网端口。
+- 变异：63 处首轮 35 处，补场景 / 按槽校验 / 契约测试后重跑存活 28 处抓住 19 处，合计 54 / 63；余 9 处逐条核为等价或循环里走不到（明细见迁移计划）。首轮全部场景的约束计数都是 0（钉的人物文件不在磁盘上，钉选文件会按磁盘重读），由变异暴露后改成真实存在的文件并补故事记忆与章节目标。
+- 门禁：引擎 vitest 12666 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。

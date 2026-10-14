@@ -2,6 +2,7 @@ import type { AssistantDeps } from '../../assistant/service';
 import type { GenerationDeliveryCapture } from '../../kernel/generationDelivery';
 import { getAgentRole, isRoleAllowedTool, listSubagentRoles } from '../../kernel/roleCatalog';
 import type { PatchProposal } from '../chatLoopTypes';
+import type { PolishModels } from './polishService';
 import type { ConversationSources } from '../conversationHistory';
 import { AgentOrchestrationError } from '../runPayloads';
 import type { AgentToolTrace } from '../traces';
@@ -53,6 +54,8 @@ export type ToolRunServices = {
   readonly conversation: ConversationSources;
   /** 运行控制的中断检查（Python 的 check_run_interruption）。 */
   readonly checkInterruption: (boundary: string) => void;
+  /** 润色用的两个模型槽（主模型 / 专用润色槽）。 */
+  readonly polish: PolishModels;
 };
 
 export type ToolExecutionContext = {
