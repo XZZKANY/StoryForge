@@ -11,6 +11,7 @@ import { canonicalPermissionProfile } from './permission';
 import {
   AGENT_RUN_TERMINAL_STATUSES,
   AgentRunNotFoundError,
+  failAgentRun,
   interruptedResult,
   recordAgentEvent,
   settleAgentRunInterruption,
@@ -92,6 +93,52 @@ export async function agentExecutionState(store: RunStore, run: RunRecord): Prom
     return matching ? 'settled' : 'in_flight';
   }
   return 'settled';
+}
+
+/**
+ * 起服收尸（Python `reap_non_terminal_agent_runs`）：上次进程里没跑完的 run 已没有执行在驱动，
+ * running 收为 failed（reason=process_restart）；paused 是等作者确认 / 恢复的持久态，不动。
+ * 引擎的检查点只在内存，没有 Python 那样可停放到 runtime.recovery 的持久检查点；
+ * 已提交却没开始的续跑认领补一条结算事件。返回非终态且非 paused 的 run 数。
+ */
+export async function reapInterruptedRuns(services: RunServices): Promise<number> {
+  const stale = (await services.store.allRuns()).filter(
+    (run) => !AGENT_RUN_TERMINAL_STATUSES.has(run.status) && run.status !== 'paused',
+  );
+  for (const run of stale)
+    await failAgentRun(
+      services,
+      run,
+      {
+        message: '进程重启，运行未完成即收尸。',
+        payload: { reason: 'process_restart', run_id: run.public_id },
+      },
+      { executionId: null },
+    );
+  for (const run of await services.store.allRuns()) {
+    const latest = [...(await services.store.events(run.id))]
+      .reverse()
+      .find(
+        (event) =>
+          event.event_type === AGENT_EXECUTION_CLAIMED ||
+          event.event_type === AGENT_EXECUTION_STARTED,
+      );
+    if (
+      latest?.event_type === AGENT_EXECUTION_CLAIMED &&
+      (await agentExecutionState(services.store, run)) === 'in_flight'
+    )
+      await recordAgentEvent(services, run, {
+        eventType: AGENT_EXECUTION_SETTLED,
+        actor: 'agent-runtime',
+        payload: {
+          runtime_state: 'settled',
+          execution_id: latest.id,
+          run_status: run.status,
+          reason: 'process_restart',
+        },
+      });
+  }
+  return stale.length;
 }
 
 async function ownedRun(store: RunStore, publicId: string, sessionId: string): Promise<RunRecord> {

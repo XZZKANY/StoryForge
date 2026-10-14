@@ -423,6 +423,11 @@ export class SqlRunStore implements RunStore, RunStatusView {
       .map((run) => copy(run));
   }
 
+  async allRuns(): Promise<readonly RunRecord[]> {
+    this.guard();
+    return [...this.runs.values()].map((run) => copy(run));
+  }
+
   /** 测试与对账用：某个 id 之后新增的行（读的是库，不是镜像）。 */
   rowsAfter(cursor: { events: number; artifacts: number; subagents: number }) {
     return this.queue.run(async () => ({

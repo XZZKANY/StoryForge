@@ -10,9 +10,12 @@ import {
   AgentRunNotFoundError,
   finishAgentExecution,
   startAgentExecution,
+  recordAgentEvent,
   startAgentUserMessageRun,
   type RunServices,
 } from './runEvents';
+import { reapInterruptedRuns } from './runControlChannel';
+import { AGENT_EXECUTION_CLAIMED } from './runPayloads';
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- golden 操作脚本是任意 JSON
 const secrets = { values: [golden.secret] };
@@ -136,6 +139,23 @@ describe.each([
               returned = output;
               break;
             }
+            case 'claim': {
+              const control = await recordAgentEvent(services, run, {
+                eventType: 'resume_run',
+                actor: 'desktop-ide',
+                message: '恢复运行',
+                payload: op.control_payload,
+              });
+              await recordAgentEvent(services, run, {
+                eventType: AGENT_EXECUTION_CLAIMED,
+                actor: 'agent-runtime',
+                payload: { control_event_id: control.id, runtime_state: 'in_flight' },
+              });
+              break;
+            }
+            case 'reap':
+              returned = await reapInterruptedRuns(services);
+              break;
             default:
               throw new Error(`unknown op ${op.op}`);
           }
@@ -151,6 +171,15 @@ describe.each([
             subagents: rows.subagents,
             frames,
             run: await store.getRun(run.id),
+            ...('runs' in expected
+              ? {
+                  runs: (await store.allRuns()).map(({ public_id, status, current_step }) => ({
+                    public_id,
+                    status,
+                    current_step,
+                  })),
+                }
+              : {}),
           }),
         ).toEqual(
           plain({
@@ -160,6 +189,7 @@ describe.each([
             subagents: expected.subagents,
             frames: expected.frames,
             run: expected.run,
+            ...('runs' in expected ? { runs: expected.runs } : {}),
           }),
         );
       });
