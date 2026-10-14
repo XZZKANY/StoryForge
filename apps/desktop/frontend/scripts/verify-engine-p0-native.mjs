@@ -41,8 +41,9 @@ assert.ok(
     '--llm-only',
     '--assistant-only',
     '--assistant-real',
+    '--agent-only',
   ].includes(mode) && extra.length === 0,
-  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only / --llm-only / --assistant-only / --assistant-real',
+  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only / --llm-only / --assistant-only / --assistant-real / --agent-only',
 );
 const REAL_CHAPTERS = {
   '正文/第001章.md':
@@ -63,30 +64,37 @@ const assistantOnly = mode === '--assistant-only';
 // Paid run with the author's provider: the encrypted config is copied in, the key stays in Rust.
 const assistantReal = mode === '--assistant-real';
 const p2 = llmOnly || assistantOnly || assistantReal;
-const storeMode = assistantOnly || assistantReal;
+// P3: the agent loop on the TS engine (routing, Worker regex, Rust .storyforge writer, controls).
+const agentOnly = mode === '--agent-only';
+const p3 = agentOnly;
+const storeMode = assistantOnly || assistantReal || agentOnly;
 const p1 = contextOnly || readerOnly;
-const fixtureName = assistantReal
-  ? 'engine-p2-assistant-real'
-  : assistantOnly
-    ? 'engine-p2-assistant'
-    : llmOnly
-      ? 'engine-p2-llm'
-      : readerOnly
-        ? 'engine-p1-reader'
-        : contextOnly
-          ? 'engine-p1-context'
-          : 'engine-p0';
+const fixtureName = agentOnly
+  ? 'engine-p3-agent'
+  : assistantReal
+    ? 'engine-p2-assistant-real'
+    : assistantOnly
+      ? 'engine-p2-assistant'
+      : llmOnly
+        ? 'engine-p2-llm'
+        : readerOnly
+          ? 'engine-p1-reader'
+          : contextOnly
+            ? 'engine-p1-context'
+            : 'engine-p0';
 const transports = mode === '--transport-only' || mode === '--all';
-const label = p2 ? 'P2' : p1 ? 'P1' : 'P0';
+const label = p3 ? 'P3' : p2 ? 'P2' : p1 ? 'P1' : 'P0';
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const frontend = resolve(root, 'apps/desktop/frontend');
 const outputRoot = resolve(
   root,
-  p2
-    ? 'output/ts-engine-p2/native'
-    : p1
-      ? 'output/ts-engine-p1/native'
-      : 'output/ts-engine-p0/native',
+  p3
+    ? 'output/ts-engine-p3/native'
+    : p2
+      ? 'output/ts-engine-p2/native'
+      : p1
+        ? 'output/ts-engine-p1/native'
+        : 'output/ts-engine-p0/native',
 );
 await mkdir(outputRoot, { recursive: true });
 // Share the existing P0 lock: two probe modes must never race separate Native hosts.
@@ -392,6 +400,114 @@ try {
       await writeFile(resolve(assistantProject, name), text);
     assistantBefore = await contextFingerprint(assistantProject);
   }
+  let agentProject, agentBefore;
+  if (agentOnly) {
+    agentProject = ownedPath(output, 'book');
+    await mkdir(resolve(agentProject, '正文'), { recursive: true });
+    await mkdir(resolve(agentProject, '人物'), { recursive: true });
+    await writeFile(resolve(agentProject, '正文/第001章.md'), '第一章 风起\n\n雨夜里他推开门。\n');
+    await writeFile(resolve(agentProject, '正文/第002章.md'), '第二章 夜行\n\n钟声响了三下。\n');
+    await writeFile(resolve(agentProject, '人物/主角.md'), '# 林舟\n\n左臂有旧伤。\n');
+    agentBefore = await contextFingerprint(agentProject);
+    // Synthetic key generated per run: it must reach the provider, never the WebView.
+    llmKey = `sk-p3-synthetic-${randomBytes(12).toString('hex')}`;
+    const event = (payload) => `data: ${JSON.stringify(payload)}\n\n`;
+    const delta = (value, finish) =>
+      event({
+        choices: [{ index: 0, delta: value, ...(finish ? { finish_reason: finish } : {}) }],
+      });
+    const call = (index, id, name, args) =>
+      delta({
+        tool_calls: [
+          { index, id, type: 'function', function: { name, arguments: JSON.stringify(args) } },
+        ],
+      });
+    const tail =
+      event({ choices: [], usage: { prompt_tokens: 3, completion_tokens: 4, total_tokens: 7 } }) +
+      'data: [DONE]\n\n';
+    // One scripted stream per model request, in order: run A tool round, run A answer, run B slow answer.
+    const script = [
+      [
+        call(0, 'c1', 'fs_search', { query: '钟.|雨夜', use_regex: true }),
+        call(1, 'c2', 'project_plan_update', {
+          chapters: [{ ordinal: 3, title: '入城', goal: '沈禾带林舟入城' }],
+        }),
+        delta({}, 'tool_calls'),
+        tail,
+      ],
+      [
+        delta({ content: '找到了' }),
+        delta({ content: '两处，' }),
+        delta({ content: '计划已记下。' }),
+        delta({}, 'stop'),
+        tail,
+      ],
+      [
+        ...Array.from({ length: 25 }, (_, index) => delta({ content: `慢${index}` })),
+        delta({}, 'stop'),
+        tail,
+      ],
+    ];
+    evidence.llmServer = { records: [], foreign: [] };
+    httpServer = createHttpServer((request, response) => {
+      const record = {
+        method: request.method,
+        path: request.url,
+        authorization:
+          request.headers.authorization === `Bearer ${llmKey}`
+            ? 'real-key'
+            : (request.headers.authorization ?? null),
+        requestedAt: Date.now(),
+        endedAt: null,
+      };
+      evidence.llmServer.records.push(record);
+      let timer;
+      response.on('close', () => {
+        clearTimeout(timer);
+        record.closedAt = Date.now();
+        record.writableFinished = response.writableFinished;
+      });
+      const chunks = [];
+      request.on('data', (chunk) => chunks.push(chunk));
+      request.on('end', () => {
+        let body;
+        try {
+          body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        } catch {
+          body = null;
+        }
+        record.stream = body?.stream === true;
+        record.tools = Array.isArray(body?.tools) ? body.tools.length : 0;
+        const events =
+          request.method === 'POST' && request.url === '/v1/chat/completions' && record.stream
+            ? script[evidence.llmServer.records.filter((item) => item.stream).length - 1]
+            : null;
+        if (!events) {
+          response.writeHead(500, { 'Content-Type': 'application/json' });
+          response.end(JSON.stringify({ error: { message: 'unscripted request' } }));
+          record.endedAt = Date.now();
+          return;
+        }
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        let index = 0;
+        const emit = () => {
+          response.write(events[index++]);
+          if (index < events.length)
+            timer = setTimeout(emit, 200); // explicit fixture schedule
+          else {
+            record.endedAt = Date.now();
+            response.end();
+          }
+        };
+        emit();
+      });
+    });
+    await new Promise((resolve, reject) => {
+      httpServer.once('error', reject);
+      httpServer.listen(0, '127.0.0.1', resolve);
+    });
+    httpBaseUrl = `http://127.0.0.1:${httpServer.address().port}`;
+  }
   if (llmOnly || assistantOnly) {
     // Synthetic key generated per run: it must reach the provider, never the WebView.
     llmKey = `sk-p2-synthetic-${randomBytes(12).toString('hex')}`;
@@ -481,7 +597,7 @@ try {
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 VERSION = ${JSON.stringify(tauriConfig.version)}
 LOG_PATH = ${JSON.stringify(storeLogPath)}
-STATE = {'log': [], 'sessions': {}, 'tools': {}, 'next': 1}
+STATE = {'log': [], 'sessions': {}, 'titles': {}, 'messages': {}, 'tools': {}, 'rows': {}, 'next': 1}
 LOCK = threading.Lock()
 class Handler(BaseHTTPRequestHandler):
     def send_json(self, status, payload):
@@ -522,24 +638,43 @@ class Handler(BaseHTTPRequestHandler):
             if method == 'POST' and parts == ['sessions']:
                 STATE['next'] += 1
                 STATE['sessions'][new_id] = body.get('project_path')
-                return self.send_json(201, {'id': new_id, 'project_path': body.get('project_path')})
+                STATE['titles'][new_id] = body.get('title') or ''
+                STATE['messages'][new_id] = []
+                return self.send_json(201, {'id': new_id, 'title': STATE['titles'][new_id],
+                                            'project_path': body.get('project_path'), 'messages': []})
             if parts[:1] == ['sessions'] and len(parts) >= 2 and parts[1].isdigit():
                 session_id = int(parts[1])
                 if session_id not in STATE['sessions']:
                     return self.send_json(404, {'detail': 'Assistant 会话不存在：%d。' % session_id})
                 if method == 'GET' and len(parts) == 2:
-                    return self.send_json(200, {'id': session_id, 'project_path': STATE['sessions'][session_id]})
+                    return self.send_json(200, {'id': session_id, 'title': STATE['titles'][session_id],
+                                                'project_path': STATE['sessions'][session_id],
+                                                'messages': STATE['messages'][session_id]})
+                if method == 'GET' and parts[2:] == ['tool-calls']:
+                    return self.send_json(200, [row for row in STATE['rows'].values()
+                                                if row['session_id'] == session_id])
                 if method == 'POST' and parts[2:] == ['messages']:
                     STATE['next'] += 1
+                    STATE['messages'][session_id].append({'id': new_id, 'role': body.get('role'),
+                                                          'content': body.get('content')})
                     return self.send_json(201, {'id': new_id})
                 if method == 'POST' and parts[2:] == ['tool-calls']:
                     STATE['next'] += 1
                     STATE['tools'][new_id] = body.get('input_summary') or {}
+                    STATE['rows'][new_id] = {'id': new_id, 'session_id': session_id, 'tool_name': body.get('tool_name'),
+                                             'status': body.get('status'), 'input_summary': STATE['tools'][new_id],
+                                             'output_summary': body.get('output_summary') or {},
+                                             'related_type': None, 'related_id': None}
                     return self.send_json(201, {'id': new_id, 'input_summary': STATE['tools'][new_id]})
             if method == 'PATCH' and parts[:1] == ['tool-calls'] and int(parts[1]) in STATE['tools']:
                 tool_id = int(parts[1])
                 if 'input_summary' in body:
                     STATE['tools'][tool_id] = body['input_summary']
+                row = STATE['rows'][tool_id]
+                row['input_summary'] = STATE['tools'][tool_id]
+                for key in ('status', 'output_summary'):
+                    if body.get(key) is not None:
+                        row[key] = body[key]
                 return self.send_json(200, {'id': tool_id, 'input_summary': STATE['tools'][tool_id]})
             self.send_json(404, {'detail': 'unknown assistant route'})
 ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handler).serve_forever()
@@ -573,7 +708,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     await writeFile(
       resolve(directories.configDir, 'llm-provider.json'),
       JSON.stringify(
-        p2
+        p2 || p3
           ? {
               provider: 'openai-compatible',
               baseUrl: `${httpBaseUrl}/v1`,
@@ -788,17 +923,19 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     });
   await page.waitForFunction(
     (key) => document.documentElement.dataset[key] === 'true',
-    assistantReal
-      ? 'engineP2AssistantRealReady'
-      : assistantOnly
-        ? 'engineP2AssistantReady'
-        : llmOnly
-          ? 'engineP2LlmReady'
-          : readerOnly
-            ? 'engineP1ReaderReady'
-            : contextOnly
-              ? 'engineP1Ready'
-              : 'engineP0Ready',
+    agentOnly
+      ? 'engineP3AgentReady'
+      : assistantReal
+        ? 'engineP2AssistantRealReady'
+        : assistantOnly
+          ? 'engineP2AssistantReady'
+          : llmOnly
+            ? 'engineP2LlmReady'
+            : readerOnly
+              ? 'engineP1ReaderReady'
+              : contextOnly
+                ? 'engineP1Ready'
+                : 'engineP0Ready',
   );
   evidence.nativeReadyMs = Date.now() - nativeStartedAt;
   let timer;
@@ -1094,6 +1231,83 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             'The real key reached the WebView or evidence',
           );
         }
+        if (agentOnly) {
+          evidence.agent = await page.evaluate(
+            (input) => window.__ENGINE_P3_AGENT__.runAgentProbe(input),
+            { projectRoot: agentProject },
+          );
+          const result = evidence.agent;
+          assert.equal(result.native, true);
+          // Worker regex: the runaway match is cut off by the watchdog and the page keeps ticking.
+          assert.deepEqual([result.runaway.failure, result.runaway.hits], ['timeout', []]);
+          assert.ok(result.runawayMs >= 1000 && result.runawayMs < 5000, 'Watchdog timing');
+          assert.ok(result.ticks >= 10, 'The page stopped ticking while the regex ran');
+          assert.deepEqual(result.quick.hits, [0, 1]);
+          // Run A: a tool round then a streamed answer, all in the WebView.
+          assert.equal(result.result.type, 'agent_result');
+          assert.ok(
+            JSON.stringify(result.result).includes('找到了两处，计划已记下。'),
+            'Answer missing',
+          );
+          const tools = result.frames.filter((frame) => frame.tool).map((frame) => frame.tool);
+          assert.ok(
+            tools.includes('fs.search') && tools.includes('project.plan_update'),
+            'Tool traces missing',
+          );
+          const search = result.frames.find((frame) => frame.tool === 'fs.search');
+          assert.equal(search.summary?.match_count, 2, 'Regex search did not find both lines');
+          const streams = evidence.llmServer.records.filter((record) => record.stream);
+          assert.equal(streams.length, 3, 'Expected two rounds for run A and one stream for run B');
+          assert.ok(
+            streams.every((record) => record.authorization === 'real-key'),
+            'Provider never saw the key',
+          );
+          assert.ok(streams[0].tools > 0, 'The loop request carried no tools');
+          const deltas = result.frames.filter((frame) => frame.type === 'agent_text_delta');
+          assert.ok(
+            deltas.length >= 1 && deltas[0].receivedAt < streams[1].endedAt,
+            'No delta before the answer ended',
+          );
+          evidence.agent.firstDeltaMs = deltas[0].receivedAt - streams[1].requestedAt;
+          assert.ok(
+            result.events.includes('agent_run_completed'),
+            'Run A events missing completion',
+          );
+          assert.equal(result.savePoints.status, 'completed');
+          // The engine wrote only its app file, through the Rust writer; manuscripts are untouched.
+          const plan = JSON.parse(
+            await readFile(resolve(agentProject, '.storyforge/serial-plan.json'), 'utf8'),
+          );
+          assert.equal(plan.chapters[0].title, '入城');
+          const after = (await contextFingerprint(agentProject)).filter(
+            (entry) => !entry.path.startsWith('.storyforge'),
+          );
+          assert.deepEqual(after, agentBefore, 'The agent probe wrote outside .storyforge/');
+          // Run B: a stop while streaming settles the run and closes the Native stream early.
+          assert.equal(result.stopAck?.control_effect, 'requested');
+          assert.equal(result.stoppedStatus, 'stopped');
+          assert.equal(result.stopped.runtime_interruption?.status, 'stopped');
+          const closeDeadline = Date.now() + 5000;
+          while (Date.now() < closeDeadline && !streams[2].closedAt) await delay(25);
+          assert.ok(
+            streams[2].closedAt && !streams[2].writableFinished,
+            'Stopping did not close the Native stream',
+          );
+          const log = JSON.parse(await readFile(storeLogPath, 'utf8'));
+          evidence.storeLog = log;
+          assert.ok(
+            log.every((entry) => entry.key === 'synthetic-p0-api'),
+            'Store auth missing',
+          );
+          assert.ok(
+            !JSON.stringify(log).includes(llmKey),
+            'The real key reached the session store',
+          );
+          assert.ok(
+            !JSON.stringify(evidence).includes(llmKey),
+            'The real key reached the WebView or evidence',
+          );
+        }
         if (assistantReal) {
           evidence.real = await page.evaluate(
             (input) => window.__ENGINE_P2_ASSISTANT_REAL__.runAssistantRealRun(input),
@@ -1124,7 +1338,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             'The real run wrote into the project',
           );
         }
-        if (!p1 && !p2 && mode !== '--transport-only')
+        if (!p1 && !p2 && !p3 && mode !== '--transport-only')
           evidence.cpu = await page.evaluate(() => window.__ENGINE_P0__.runCpuProbe());
       })(),
       new Promise((_, reject) => {
@@ -1168,6 +1382,13 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
           maxMs,
           longTasks: longTasks.length,
         })),
+        agent: evidence.agent && {
+          firstDeltaMs: evidence.agent.firstDeltaMs,
+          runawayMs: Math.round(evidence.agent.runawayMs),
+          ticks: evidence.agent.ticks,
+          frames: evidence.agent.frames.length,
+          storeCalls: evidence.storeLog.length,
+        },
         assistant: evidence.assistant && {
           firstDeltaMs: evidence.assistant.firstDeltaMs,
           deltas: evidence.assistant.deltas.length,
@@ -1224,7 +1445,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
   if (assistantReal)
     for (const name of await readdir(directories.configDir).catch(() => []))
       if (name.startsWith('llm-provider')) await unlink(resolve(directories.configDir, name));
-  if (p1 || p2) {
+  if (p1 || p2 || p3) {
     await copyFile(fileURLToPath(import.meta.url), resolve(output, 'harness-source.mjs'));
     await copyFile(
       resolve(frontend, `scripts/fixtures/${fixtureName}.ts`),

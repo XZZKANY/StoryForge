@@ -7904,3 +7904,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：`cargo test --bin storyforge-desktop` 138 通过 / 4 忽略（新增写口 4 条）；引擎 vitest 12968 通过 / 2 跳过（十个 agent-run 套件经新装配照常一致）；前端 vitest 2139 通过 / 1 跳过；两侧 typecheck；`pnpm lint`。
 - 变异：引擎 7 / 8、前端 15 / 15、Rust 5 / 7（余下均为等价，明细见迁移计划 P3-7c 条）。
 - 未接线：`agent-socket` / `agent-runs` 仍只走 Python，接线、ChatWindow 行为测试与真 WebView 探针随 7d。
+
+## 2026-10-14 P3-7d 分流与验收（TS 迁移，默认仍走 Python；P3-7 收口）
+
+- 范围：`apps/desktop/frontend/src/lib/api/agent-socket.ts`、`agent-runs.ts`（按开关 / run 归属分流）、新 `engine-agent-loader.ts`、`lib/engine/agentRoutes.ts`（ts 档的发消息 / 控制 / 读）、`lib/engine/agent.ts` 加只读依赖；探针 `scripts/verify-engine-p0-native.mjs --agent-only` 与页面 `scripts/fixtures/engine-p3-agent.ts`（假会话库补上标题、消息与工具调用列表）。
+- 测试：`tests/agent-engine-chat-window.test.tsx` 9 个流程、`tests/agent-engine-routing.test.ts` 4 条；前端 vitest 2159 通过 / 1 跳过。
+- 真 WebView 探针：通过（看门狗 1.21 秒掐掉失控匹配，期间页面计时器照走 24 次；首个文本增量 4 ms；13 帧；会话库 17 次调用；证据在 `output/ts-engine-p3/native/`）。
+- 变异：前端分流 21 处首轮抓住 11 处（ChatWindow 流程不钉请求体映射与错误整形），补路由模块的直接单测与 shadow 档用例后 21 / 21。
+- 未验 / 不做：默认值不切（开发档与装机版仍走 Python）；发行版打包路径（分包动态 import + release Rust）未跑；P3-8 真跑另找作者批准。
