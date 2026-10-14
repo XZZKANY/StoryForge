@@ -551,3 +551,38 @@ export {
   pythonQuote,
 } from './llm/providerTransport';
 export { pythonStrRepr } from './llm/pythonRepr';
+
+// ---- Agent 循环宿主（P3-7：agent-socket / agent-runs 的 ts 档） ----
+export {
+  AgentHostRejection,
+  postAgentControl,
+  streamAgentUserMessage,
+  type AgentControlAck,
+  type AgentHostDeps,
+  type FrameScheduler,
+} from './loop/agentHost';
+export { agentRunSavePoints, listAgentRunEvents, type RunReadDeps } from './loop/savePoints';
+export {
+  AgentRuntimeError,
+  type AgentRuntimeDeps,
+  type SessionTitlePort,
+} from './loop/agentRuntime';
+export { LoopCheckpointStore } from './loop/chatLoopCheckpoints';
+export type {
+  ArtifactRow,
+  ConversationSources,
+  MessageRow,
+  RunEventRow,
+  ToolCallRow,
+} from './loop/conversationHistory';
+export { AgentRunNotFoundError } from './loop/runEvents';
+export { createAgentToolRegistry } from './loop/tools/registry';
+export { storeRunSources, storeToolArtifactQuery } from './loop/storeSources';
+export type { ToolDeps } from './loop/tools/handlerDeps';
+export {
+  MemoryRunStore,
+  type ArtifactRecord,
+  type RunEventRecord,
+  type RunRecord,
+  type RunStore,
+} from './store/runs';

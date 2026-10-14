@@ -92,8 +92,8 @@ export const pythonAssistantStore: AssistantStore = {
   },
 };
 
-const clock = () => performance.now() / 1000;
-const wait = (seconds: number) =>
+export const clock = () => performance.now() / 1000;
+export const wait = (seconds: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, seconds * 1000));
 
 /** 作者取消（Esc、换文件）时在下一个读流边界停下，不再继续烧 key。 */
@@ -119,7 +119,7 @@ async function transportContext(
   };
 }
 
-const platform = (): 'windows' | 'posix' =>
+export const platform = (): 'windows' | 'posix' =>
   navigator.userAgent.includes('Windows') ? 'windows' : 'posix';
 
 export async function engineAssistantDeps(signal?: AbortSignal): Promise<AssistantDeps> {

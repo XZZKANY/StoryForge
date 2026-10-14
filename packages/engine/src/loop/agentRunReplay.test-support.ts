@@ -26,16 +26,9 @@ import {
   type RunServices,
 } from './runEvents';
 import type { TextFrame } from './textStream';
-import { canonToolHandlers } from './tools/canonHandlers';
-import { AGENT_RUNTIME_TOOL_SPECS } from './tools/catalog';
-import { checkToolHandlers } from './tools/checkHandlers';
-import { AgentToolRegistry, toolDefinitionFromSpec, type ToolHandler } from './tools/execution';
-import { fsToolHandlers } from './tools/fsHandlers';
-import { patchToolHandlers } from './tools/patchHandlers';
-import { chapterWritingToolHandlers } from './tools/chapterWritingTools';
-import { deepConsistencyToolHandlers } from './tools/deepConsistency';
-import { polishToolHandlers } from './tools/polishHandlers';
 import type { ToolDeps } from './tools/handlerDeps';
+import { createAgentToolRegistry } from './tools/registry';
+import { storeRunSources, storeToolArtifactQuery } from './storeSources';
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 脚本按 Python 预言机的 JSON 形状读
 
@@ -349,22 +342,7 @@ export function agentRunReplay(golden: Obj) {
             related_type: null,
             related_id: null,
           })),
-      runEvents: async (sessionId) => {
-        const ids = new Set((await runs.runsOfAssistantSession(sessionId)).map((run) => run.id));
-        return runs
-          .rowsAfter({ events: 0, artifacts: 0, subagents: 0 })
-          .events.filter((row) => ids.has(row.run_id));
-      },
-      runArtifacts: async (sessionId) => {
-        const ids = new Set((await runs.runsOfAssistantSession(sessionId)).map((run) => run.id));
-        return runs
-          .rowsAfter({ events: 0, artifacts: 0, subagents: 0 })
-          .artifacts.filter((row) => ids.has(row.run_id));
-      },
-      artifact: async (id) =>
-        runs
-          .rowsAfter({ events: 0, artifacts: 0, subagents: 0 })
-          .artifacts.find((row) => row.id === id) ?? null,
+      ...storeRunSources(runs),
     };
     const clock = { now: 100 };
     const replies = [...(spec.replies as Obj[])];
@@ -533,33 +511,11 @@ export function agentRunReplay(golden: Obj) {
         newUuid: () => `00000000-0000-4000-8000-${(++uuid).toString(16).padStart(12, '0')}`,
         now: () => new Date(golden.fixed_now),
       },
-      artifacts: {
-        runHasArtifact: async () => false,
-        artifactPayloads: async () => [],
-      },
+      artifacts: storeToolArtifactQuery(runs),
       // 补丁与审稿报告共用一个计数（预言机把四处 uuid4().hex 换成同一个计数器）。
       newHex: () => (++hex).toString(16).padStart(32, '0'),
     };
-    const handlers: Record<string, ToolHandler> = {
-      ...fsToolHandlers(toolDeps),
-      ...checkToolHandlers(toolDeps),
-      ...canonToolHandlers(toolDeps),
-      ...patchToolHandlers(toolDeps),
-      ...polishToolHandlers(toolDeps),
-      ...deepConsistencyToolHandlers(toolDeps),
-      ...chapterWritingToolHandlers(toolDeps),
-    };
-    const tools = new AgentToolRegistry();
-    for (const item of AGENT_RUNTIME_TOOL_SPECS)
-      tools.register(
-        toolDefinitionFromSpec(
-          item,
-          handlers[item.name] ??
-            (async () => {
-              throw new Error(`${item.name} 随 P3-6`);
-            }),
-        ),
-      );
+    const tools = createAgentToolRegistry(toolDeps);
     let streams = 0;
     let attempts = 0;
     const store = options.yielding ? yieldingStore(runs) : runs;
