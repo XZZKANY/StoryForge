@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { migratedMemoryDb } from '../store/nodeSqlite.test-support';
 import {
   MemoryRunStore,
   RunPublicIdConflictError,
   type RunEventFields,
   type RunPatch,
   type RunRecord,
+  type RunStore,
 } from '../store/runs';
+import { SqlRunStore } from '../store/sqlRuns';
 import {
   AgentRunEventSink,
   AgentRunNotFoundError,
@@ -16,6 +19,15 @@ import {
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 /** 每次存储调用先让出一拍（模拟异步驱动）；control 直写不让，代表另一路的控制通道。 */
+/** 同一组契约在内存实现与 sqlite 实现上各跑一遍（P4-1）。 */
+const STORES: [string, () => Promise<RunStore>][] = [
+  ['内存存储', async () => new MemoryRunStore()],
+  [
+    'sqlite 存储',
+    async () => SqlRunStore.open(await migratedMemoryDb(), () => '2026-10-14T00:00:00Z'),
+  ],
+];
+
 class YieldingRunStore extends MemoryRunStore {
   override async findRun(publicId: string) {
     await tick();
@@ -96,13 +108,13 @@ describe('run 结算与控制通道交错（验收 F1）', () => {
 });
 
 describe('同 public_id 并发创建（验收 F2）', () => {
-  const stores: [string, () => MemoryRunStore][] = [
-    ['同步存储', () => new MemoryRunStore()],
-    ['异步存储', () => new YieldingRunStore()],
+  const stores: [string, () => Promise<RunStore>][] = [
+    ...STORES,
+    ['异步存储', async () => new YieldingRunStore()],
   ];
   for (const [label, make] of stores)
     it(`跨会话：后到者按续接被归属守卫拒绝，库里只有一条（${label}）`, async () => {
-      const store = make();
+      const store = await make();
       const services: RunServices = { store, secrets: { values: [] } };
       const outcomes = await Promise.allSettled([
         createOrResumeAgentRun(services, runFields('session-a')),
@@ -118,8 +130,8 @@ describe('同 public_id 并发创建（验收 F2）', () => {
       await expect(store.getRun(2)).rejects.toThrow(RangeError);
     });
 
-  it('同会话：两个都成功、指向同一条 run', async () => {
-    const store = new MemoryRunStore();
+  it.each(STORES)('同会话：两个都成功、指向同一条 run（%s）', async (_label, make) => {
+    const store = await make();
     const services: RunServices = { store, secrets: { values: [] } };
     const [first, second] = await Promise.all([
       createOrResumeAgentRun(services, runFields('session-a')),
@@ -130,7 +142,7 @@ describe('同 public_id 并发创建（验收 F2）', () => {
   });
 });
 
-describe('RunStore 原子操作的契约', () => {
+describe.each(STORES)('RunStore 原子操作的契约（%s）', (_label, make) => {
   const fields = {
     public_id: 'run-x',
     session_id: 's',
@@ -145,7 +157,7 @@ describe('RunStore 原子操作的契约', () => {
   };
 
   it('insertRun 拒绝重复的 public_id，不覆盖原行', async () => {
-    const store = new MemoryRunStore();
+    const store = await make();
     await store.insertRun(fields);
     await expect(store.insertRun({ ...fields, session_id: 'other' })).rejects.toBeInstanceOf(
       RunPublicIdConflictError,
@@ -155,7 +167,7 @@ describe('RunStore 原子操作的契约', () => {
   });
 
   it('updateRunIf 只在状态与步骤都对上时写（控制通道的比较交换）', async () => {
-    const store = new MemoryRunStore();
+    const store = await make();
     const run = await store.insertRun({ ...fields, status: 'paused', current_step: 'paused' });
     const claim = { status: 'running', current_step: 'resumed' };
     expect(await store.updateRunIf(run.id, { status: 'running' }, claim)).toBeNull();
@@ -182,7 +194,7 @@ describe('RunStore 原子操作的契约', () => {
   });
 
   it('settleRun 状态不符时什么都不写', async () => {
-    const store = new MemoryRunStore();
+    const store = await make();
     const run = await store.insertRun({ ...fields, status: 'stopped' });
     const event = () => ({ run_id: run.id, event_type: 'x', actor: 'a', message: '', payload: {} });
     expect(await store.settleRun(run.id, 'running', { status: 'completed' }, event)).toBeNull();
@@ -191,7 +203,7 @@ describe('RunStore 原子操作的契约', () => {
   });
 
   it('settleRun 的事件回调抛错时状态也不变', async () => {
-    const store = new MemoryRunStore();
+    const store = await make();
     const run = await store.insertRun(fields);
     const boom = () => {
       throw new Error('boom');
@@ -204,7 +216,7 @@ describe('RunStore 原子操作的契约', () => {
   });
 
   it('settleRun 成功时事件看到的是更新后的行', async () => {
-    const store = new MemoryRunStore();
+    const store = await make();
     const run = await store.insertRun(fields);
     const settled = await store.settleRun(
       run.id,

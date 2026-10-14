@@ -5,6 +5,8 @@ import { agentRunReplay, REPLAY_KEYS as KEYS } from './agentRunReplay.test-suppo
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 脚本按 Python 预言机的 JSON 形状读
 const { replay, expectSame } = agentRunReplay(golden);
+// 每个场景在内存与 sqlite 两种存储上各跑一遍，异步存储每次写都要让出若干拍。
+const YIELDING_TIMEOUT_MS = 30_000;
 
 describe('agent run replays the Python oracle', () => {
   it('pins the oracle sources and scenario count', () => {
@@ -34,11 +36,15 @@ describe('agent run replays the Python oracle', () => {
     'long-history-compaction',
     'stop-after-compaction',
     'loop-provider-error',
-  ])('keeps event and frame order on an asynchronous store: %s', async (id) => {
-    const scenario = (golden.scenarios as Obj[]).find((item) => item.id === id)!;
-    const { record, error } = await replay(scenario, { yielding: true });
-    if (error) throw error;
-    for (const key of ['frames', 'events', 'artifacts', 'tool_calls'])
-      expectSame(record[key], scenario[key], key);
-  });
+  ])(
+    'keeps event and frame order on an asynchronous store: %s',
+    async (id) => {
+      const scenario = (golden.scenarios as Obj[]).find((item) => item.id === id)!;
+      const { record, error } = await replay(scenario, { yielding: true });
+      if (error) throw error;
+      for (const key of ['frames', 'events', 'artifacts', 'tool_calls'])
+        expectSame(record[key], scenario[key], key);
+    },
+    YIELDING_TIMEOUT_MS,
+  );
 });
