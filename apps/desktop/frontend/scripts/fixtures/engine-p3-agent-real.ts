@@ -3,7 +3,7 @@ import { getAgentRunEvents } from '../../src/lib/api/agent-runs';
 import { sendAgentControlMessage, sendAgentUserMessage } from '../../src/lib/api/agent-socket';
 import type { AgentResultMessage, AgentSocketMessage } from '../../src/lib/api/types';
 import { chapterBriefFromAgentResult } from '../../src/components/chat-window/chapter-brief';
-import { engineRuns } from '../../src/lib/engine/agent';
+import { engineRuns } from '../../src/lib/engine/store';
 import { nativeLlmSource } from '../../src/lib/engine/llm';
 import { TauriFileSystem } from '../../src/lib/tauri-fs';
 

@@ -21,8 +21,10 @@ import { toAssistantContextBundlePayload } from '../api/codecs';
 import type { AssistantReviseResult, ContinueProseResult } from '../api/assistant';
 import type { ReviseRequest } from '../api/types';
 import type { ProviderHealth } from '../provider-config';
+import { sessionsInEngine } from './flags';
 import { nativeHttpPort, nativeLlmSource } from './llm';
 import { nativeProjectReader } from './reader';
+import { engineSecrets, engineSessions } from './store';
 
 type Json = { [key: string]: unknown };
 
@@ -125,7 +127,8 @@ export const platform = (): 'windows' | 'posix' =>
 export async function engineAssistantDeps(signal?: AbortSignal): Promise<AssistantDeps> {
   return {
     reader: nativeProjectReader,
-    store: pythonAssistantStore,
+    // 会话放哪个库跟着 agent 循环的开关走，Ctrl+K / 续写记的会话与左栏同库。
+    store: sessionsInEngine() ? await engineSessions(await engineSecrets()) : pythonAssistantStore,
     llm: async () => {
       const { source, secrets } = await nativeLlmSource('main');
       return engineAssistantLlm(source, secrets, await transportContext(signal));

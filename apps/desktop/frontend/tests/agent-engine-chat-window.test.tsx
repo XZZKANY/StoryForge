@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  migrateEngineDb,
   scanRegexLines,
   type Db,
   type HttpPort,
@@ -9,6 +10,7 @@ import {
   type ProjectWriter,
 } from '@storyforge/engine';
 import { memoryProject } from '../../../../packages/engine/src/kernel/memoryProject.test-support';
+import { nodeSqliteDb } from '../../../../packages/engine/src/store/nodeSqlite.test-support';
 
 import { useChatWindowState } from '../src/components/chat-window/useChatWindowState';
 import { useRunAuthorAgent } from '../src/components/chat-window/useRunAuthorAgent';
@@ -38,12 +40,12 @@ const fixture = vi.hoisted(() => ({
 }));
 
 vi.mock('@tauri-apps/api/app', () => ({ getVersion: async () => '0.1.10' }));
-vi.mock('../src/lib/engine/db', async () => {
-  const { nodeSqliteDb } =
-    await import('../../../../packages/engine/src/store/nodeSqlite.test-support');
-  fixture.db ??= nodeSqliteDb();
-  return { nativeEngineDb: fixture.db };
-});
+vi.mock('../src/lib/engine/db', () => ({
+  nativeEngineDb: {
+    select: (...args: Parameters<Db['select']>) => fixture.db!.select(...args),
+    transaction: (...args: Parameters<Db['transaction']>) => fixture.db!.transaction(...args),
+  },
+}));
 vi.mock('../src/lib/api/config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/lib/api/config')>()),
   getApiConfig: async () => ({ baseUrl: 'http://python.test', apiKey: 'k' }),
@@ -182,67 +184,6 @@ function sse({ chunks, calls }: Reply) {
   return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('') + 'data: [DONE]\n\n';
 }
 
-/** Python 会话库的替身：只实现引擎经现有接口会调到的那几条。 */
-function pythonSessions() {
-  const sessions: Obj[] = [
-    { id: 7, title: '新的创作会话', task_type: 'ide_agent_orchestration', project_path: 'D:/book' },
-  ];
-  const messages: Obj[] = [];
-  const toolCalls: Obj[] = [];
-  const json = (status: number, body: unknown) =>
-    new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-  const session = (id: number) => sessions.find((row) => row.id === id);
-  const fetchStub = vi.fn(async (url: string, init: RequestInit = {}) => {
-    const path = new URL(url).pathname;
-    const body = init.body ? JSON.parse(String(init.body)) : null;
-    const method = init.method ?? 'GET';
-    let match: RegExpMatchArray | null;
-    if (method === 'POST' && path === '/api/assistant/sessions') {
-      const row = { id: sessions.length + 7, ...body };
-      sessions.push(row);
-      return json(200, { ...row, messages: [] });
-    }
-    if ((match = path.match(/^\/api\/assistant\/sessions\/(\d+)$/)) && method === 'GET') {
-      const row = session(Number(match[1]));
-      if (!row) return json(404, { detail: `Assistant 会话不存在：${match[1]}。` });
-      return json(200, {
-        ...row,
-        messages: messages.filter((item) => item.session_id === row.id),
-      });
-    }
-    if ((match = path.match(/^\/api\/assistant\/sessions\/(\d+)\/messages$/))) {
-      const row = { id: messages.length + 1, session_id: Number(match[1]), ...body };
-      messages.push(row);
-      return json(200, row);
-    }
-    if ((match = path.match(/^\/api\/assistant\/sessions\/(\d+)\/tool-calls$/))) {
-      if (method === 'GET')
-        return json(
-          200,
-          toolCalls.filter((item) => item.session_id === Number(match![1])),
-        );
-      const row = {
-        id: toolCalls.length + 1,
-        session_id: Number(match[1]),
-        input_summary: {},
-        output_summary: {},
-        related_type: null,
-        related_id: null,
-        ...body,
-      };
-      toolCalls.push(row);
-      return json(200, row);
-    }
-    if ((match = path.match(/^\/api\/assistant\/tool-calls\/(\d+)$/)) && method === 'PATCH') {
-      const row = toolCalls.find((item) => item.id === Number(match![1]))!;
-      Object.assign(row, body);
-      return json(200, row);
-    }
-    throw new Error(`ts 档不该打到 Python：${method} ${path}`);
-  });
-  return { sessions, messages, toolCalls, fetchStub };
-}
-
 const FILES = {
   '正文/第001章.md': '第一章 风起\n\n林舟推开门。\n',
   '人物/主角.md': '# 林舟\n\n左臂有旧伤。\n',
@@ -255,7 +196,12 @@ const encoded = (text: string) => ({
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
 let host: HTMLDivElement | undefined;
-let python: ReturnType<typeof pythonSessions>;
+/** ts 档的会话也在引擎库：任何发给 Python 的请求都是错的。 */
+const pythonGuard = vi.fn(async (url: string, init: RequestInit = {}) => {
+  throw new Error(`ts 档不该打到 Python：${init.method ?? 'GET'} ${new URL(url).pathname}`);
+});
+const engineRows = async (sql: string) =>
+  (await fixture.db!.select(sql)).map((row) => ({ ...row }));
 let current: {
   state: ReturnType<typeof useChatWindowState>;
   run: ReturnType<typeof useRunAuthorAgent>;
@@ -291,8 +237,21 @@ async function mount(profile: AgentPermissionProfile = 'ask') {
   await act(async () => root!.render(<Harness profile={profile} />));
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   localStorage.setItem('engine.agentLoop', 'ts');
+  // 引擎库在整个文件里共用（run 存储有镜像，不能清 run 表）；会话三表每条用例重来，放回会话 7。
+  fixture.db ??= nodeSqliteDb();
+  await migrateEngineDb(fixture.db);
+  await fixture.db.transaction([
+    { sql: 'DELETE FROM assistant_tool_calls' },
+    { sql: 'DELETE FROM assistant_messages' },
+    { sql: 'DELETE FROM assistant_sessions' },
+    {
+      sql:
+        'INSERT INTO assistant_sessions (id, title, task_type, project_path, created_at, updated_at) ' +
+        "VALUES (7, '新的创作会话', 'ide_agent_orchestration', 'D:/book', '2026-10-14 00:00:00', '2026-10-14 00:00:00')",
+    },
+  ]);
   const project = memoryProject(
     'D:/book',
     Object.fromEntries(Object.entries(FILES).map(([path, text]) => [path, encoded(text)])),
@@ -302,8 +261,7 @@ beforeEach(() => {
   fixture.replies = [];
   fixture.requests = [];
   fixture.beforeRead = null;
-  python = pythonSessions();
-  vi.stubGlobal('fetch', python.fetchStub);
+  vi.stubGlobal('fetch', pythonGuard);
 });
 afterEach(async () => {
   await act(async () => root?.unmount());
@@ -336,7 +294,9 @@ describe('ChatWindow author path on the TS engine', () => {
     expect(current.state.messages.at(-1)).toMatchObject({ role: 'assistant' });
     expect(JSON.stringify(current.state.messages.at(-1))).toContain('第一章节奏很紧。');
     expect(fixture.requests).toHaveLength(1);
-    expect(python.messages.map((row) => row.role)).toEqual(['user', 'assistant']);
+    expect(
+      await engineRows('SELECT role FROM assistant_messages WHERE session_id = 7 ORDER BY id'),
+    ).toEqual([{ role: 'user' }, { role: 'assistant' }]);
     // 断线重建读的是引擎自己的事件表（按 run 归属分流），重建出同一个终态。
     const events = await getAgentRunEvents(run.id);
     const replay = reconstructAgentResultFromEvents(events, {
@@ -359,7 +319,9 @@ describe('ChatWindow author path on the TS engine', () => {
     // 第二轮请求里带着工具结果（读到的正文）。
     expect(JSON.stringify(fixture.requests[1].messages)).toContain('左臂有旧伤');
     expect(JSON.stringify(current.state.agentRun?.steps)).toContain('fs.read');
-    expect(python.toolCalls.map((row) => row.tool_name)).toContain('fs.read');
+    expect(
+      await engineRows('SELECT tool_name FROM assistant_tool_calls WHERE session_id = 7'),
+    ).toContainEqual({ tool_name: 'fs.read' });
   });
 
   const settle = async () => {
@@ -454,7 +416,7 @@ describe('ChatWindow author path on the TS engine', () => {
   });
 
   it('reports a missing assistant session as the run error', async () => {
-    python.sessions.splice(0);
+    await fixture.db!.transaction([{ sql: 'DELETE FROM assistant_sessions WHERE id = 7' }]);
     await mount();
     await act(async () => current.run('会话没了', 'agent'));
     expect(current.state.agentRun?.status).toBe('failed');

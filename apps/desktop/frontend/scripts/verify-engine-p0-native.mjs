@@ -1398,7 +1398,6 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             'Stopping did not close the Native stream',
           );
           // Runs live in the engine database: a reloaded WebView reads both back from it.
-          const storeCallsBeforeReload = JSON.parse(await readFile(storeLogPath, 'utf8')).length;
           await page.reload();
           await page.waitForFunction(
             () => document.documentElement.dataset.engineP3AgentReady === 'true',
@@ -1412,11 +1411,6 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             ['completed', 'stopped'],
           );
           assert.deepEqual(evidence.agentReload[0].events, result.events, 'Run A events changed');
-          assert.equal(
-            JSON.parse(await readFile(storeLogPath, 'utf8')).length,
-            storeCallsBeforeReload,
-            'Reading engine runs after the reload asked the Python store',
-          );
           // The database file sits in the isolated local data directory (runtime_paths).
           const { DatabaseSync } = await import('node:sqlite');
           const engineDb = new DatabaseSync(
@@ -1431,28 +1425,51 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
                 .all()
                 .map((row) => ({ ...row })),
               journal: engineDb.prepare('PRAGMA journal_mode').get().journal_mode,
+              // On ts the sessions live in the engine database too: one per run, with its messages.
+              sessions: engineDb
+                .prepare(
+                  'SELECT s.id, s.title, COUNT(m.id) AS messages FROM assistant_sessions s ' +
+                    'LEFT JOIN assistant_messages m ON m.session_id = s.id GROUP BY s.id ORDER BY s.id',
+                )
+                .all()
+                .map((row) => ({ ...row })),
             };
           } finally {
             engineDb.close();
           }
-          assert.deepEqual(evidence.engineDb, {
-            version: 1,
-            runs: [
-              { public_id: 'p3-agent-run-a', status: 'completed' },
-              { public_id: 'p3-agent-run-b', status: 'stopped' },
-            ],
-            journal: 'wal',
-          });
-          const log = JSON.parse(await readFile(storeLogPath, 'utf8'));
+          assert.deepEqual(
+            { ...evidence.engineDb, sessions: evidence.engineDb.sessions.length },
+            {
+              version: 1,
+              runs: [
+                { public_id: 'p3-agent-run-a', status: 'completed' },
+                { public_id: 'p3-agent-run-b', status: 'stopped' },
+              ],
+              journal: 'wal',
+              sessions: 2,
+            },
+          );
+          // Run A keeps its user / assistant pair and gets the hidden title job's rename (the
+          // Python store could not rename); run B was stopped mid-stream and keeps no messages.
+          assert.deepEqual(
+            evidence.engineDb.sessions.map((row) => row.messages),
+            [2, 0],
+          );
+          assert.ok(
+            !evidence.engineDb.sessions[0].title.startsWith('IDE Agent:'),
+            'The hidden title job did not rename the engine session',
+          );
+          assert.equal(evidence.engineDb.sessions[1].title, 'IDE Agent: 慢慢说');
+          for (const suffix of ['', '-wal']) {
+            const bytes = await readFile(
+              resolve(directories.localDataDir, `storyforge-engine.sqlite3${suffix}`),
+            ).catch(() => Buffer.alloc(0));
+            assert.ok(!bytes.includes(llmKey), `The real key reached the engine database${suffix}`);
+          }
+          // Nothing on ts asks the Python session store any more.
+          const log = await readFile(storeLogPath, 'utf8').then(JSON.parse, () => []);
           evidence.storeLog = log;
-          assert.ok(
-            log.every((entry) => entry.key === 'synthetic-p0-api'),
-            'Store auth missing',
-          );
-          assert.ok(
-            !JSON.stringify(log).includes(llmKey),
-            'The real key reached the session store',
-          );
+          assert.deepEqual(log, [], 'The ts agent loop asked the Python session store');
           assert.ok(
             !JSON.stringify(evidence).includes(llmKey),
             'The real key reached the WebView or evidence',

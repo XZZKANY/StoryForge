@@ -3,7 +3,7 @@ import type { ProviderHealth } from '../provider-config';
 import { getApiConfig, trimApiBaseUrl } from './config';
 import type { ApiProviderHealthResponse } from './contracts';
 import { readErrorDetail } from './errors';
-import { readEngineMode } from '../engine/flags';
+import { readEngineMode, sessionsInEngine } from '../engine/flags';
 import { toAssistantContextBundlePayload } from './codecs';
 import type { AssistantSessionRecord, ReviseRequest } from './types';
 
@@ -11,6 +11,8 @@ export async function listAssistantSessions(options?: {
   projectPath?: string;
   limit?: number;
 }): Promise<AssistantSessionRecord[]> {
+  // 会话放哪个库跟着 agent 循环的开关走；Python 档不初始化引擎。
+  if (sessionsInEngine()) return (await import('../engine/sessions')).listEngineSessions(options);
   const { baseUrl, apiKey } = await getApiConfig();
   const params = new URLSearchParams();
   if (options?.projectPath) params.set('project_path', options.projectPath);
@@ -37,6 +39,8 @@ export async function listAssistantSessions(options?: {
 export async function getAssistantSession(
   assistantSessionId: number,
 ): Promise<AssistantSessionRecord> {
+  if (sessionsInEngine())
+    return (await import('../engine/sessions')).getEngineSession(assistantSessionId);
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(
     `${trimApiBaseUrl(baseUrl)}/api/assistant/sessions/${assistantSessionId}`,

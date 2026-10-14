@@ -7952,3 +7952,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：前端 vitest 全量 2167 通过 / 1 跳过（新增 `engine-runs-store`、重启后归属与 Python 档零初始化、库打不开不认领、ChatWindow 两条重启流程）；引擎 vitest 13139 通过；前端 typecheck；`pnpm lint`（2 条警告在既有的 independent-claim-history.test.ts）。变异 8 / 8。
 - 真 WebView 探针：`node scripts/verify-engine-p0-native.mjs --agent-only` 通过（证据 `output/ts-engine-p3/native/run-WiiBkK`）：重载页面后从引擎库读回 run A completed / run B stopped、事件序列不变；隔离本地数据目录下 `storyforge-engine.sqlite3` 版本 1、两行 run、WAL。
 - 未联通：会话与消息仍在 Python 库（4-2）；Python 档跑过的 run 引擎看不到（4-3 导入）；装机版仍是 Python。
+
+## 2026-10-14 P4-2a 会话存储接引擎库（TS 迁移，默认仍走 Python）
+
+- 范围：会话放哪个库跟着 `engine.agentLoop` 走（`flags.sessionsInEngine()`）：ts 档下 agent 循环、Ctrl+K / 续写记的会话、左栏会话列表 / 详情、建议恢复的会话核对都走引擎库；新增 `lib/engine/store.ts`（迁移一次、`engineRuns`、`engineSessions`、`engineSecrets`）与 `lib/engine/sessions.ts`；删 agent.ts 里经 Python 只读接口取会话事实的 `pythonConversation` / `pythonTitles`；`SqlAssistantStore` 写队列可注入、读模型时间戳照 Python 接口输出 `YYYY-MM-DDTHH:MM:SS`；预言机 p4-assistant-store 加时间戳形状。
+- 测试：前端 vitest 全量 2170 通过 / 1 跳过（新增 `assistant-sessions-engine` 5 条）；引擎 vitest 13139 通过；前端 typecheck；`pnpm lint`；p4-assistant-store `--check` 复导一致。变异 14 处抓住 13 处（余 1 处等价：共用写队列）。
+- 真 WebView 探针：`--agent-only` 通过（证据 `output/ts-engine-p3/native/run-6fgtAq`）：假 Python 会话库 0 次请求；引擎库两个会话（run A 一问一答、标题被隐藏标题任务改写；run B 中途停、不记消息）；库文件与 WAL 不含合成 key。
+- 未联通：ts 档左栏看不到 Python 档旧会话（4-3 导入）；知识收件箱、章节检查历史仍问 Python（4-2b / 4-2c）。

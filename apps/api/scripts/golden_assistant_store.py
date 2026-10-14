@@ -26,6 +26,25 @@ SOURCES = [
 TIMESTAMPS = {"created_at", "updated_at", "started_at", "finished_at"}
 
 
+def timestamp_shapes(value) -> list[str]:
+    """Serialized timestamps with every digit replaced by 0: the values move with the clock, the format must not."""
+    shapes: set[str] = set()
+
+    def walk(item):
+        if isinstance(item, dict):
+            for key, child in item.items():
+                if key in TIMESTAMPS:
+                    shapes.add(None if child is None else "".join("0" if ch.isdigit() else ch for ch in child))
+                else:
+                    walk(child)
+        elif isinstance(item, list):
+            for child in item:
+                walk(child)
+
+    walk(value)
+    return sorted(shapes, key=lambda shape: (shape is None, shape or ""))
+
+
 def operations() -> list[dict]:
     long = "长" * 12001
     return [
@@ -113,8 +132,12 @@ def p4_assistant_store_snapshot() -> dict:
         Base.metadata.create_all(engine)
         db = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)()
 
+        shapes: list = []
+
         def dump(model, row):
-            return {k: v for k, v in model.model_validate(row).model_dump(mode="json").items() if k not in TIMESTAMPS}
+            full = model.model_validate(row).model_dump(mode="json")
+            shapes.append(full)
+            return {k: v for k, v in full.items() if k not in TIMESTAMPS}
 
         def session_read(row):
             value = dump(AssistantSessionRead, row)
@@ -138,6 +161,7 @@ def p4_assistant_store_snapshot() -> dict:
         records = []
         for op in operations():
             record = {"op": op}
+            shapes.clear()
             try:
                 if op["op"] == "create_session":
                     record["result"] = session_read(
@@ -173,6 +197,8 @@ def p4_assistant_store_snapshot() -> dict:
                 record["rejected"] = 422
             except Exception as exc:  # noqa: BLE001 - the oracle records every failure shape
                 record["error"] = {"type": type(exc).__name__, "message": str(exc)}
+            if "result" in record:
+                record["timestamp_shapes"] = timestamp_shapes(shapes)
             record["raw"] = raw()
             records.append(record)
         return {

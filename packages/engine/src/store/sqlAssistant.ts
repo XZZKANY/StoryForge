@@ -108,6 +108,10 @@ function toolCallFields(value: Obj, where: string, create: boolean): Obj {
   return fields;
 }
 
+/** 读模型的时间戳照 Python 接口的序列化：库里存 `YYYY-MM-DD HH:MM:SS`（UTC），接口给 `YYYY-MM-DDTHH:MM:SS`。 */
+const apiTime = (value: SqlRow[string]) =>
+  typeof value === 'string' ? value.replace(' ', 'T') : value;
+
 function sessionRef(row: SqlRow): AssistantSessionRef {
   return {
     id: Number(row.id),
@@ -120,14 +124,14 @@ function sessionRef(row: SqlRow): AssistantSessionRef {
  * 写入时脱敏（标题、消息正文、工具调用摘要与错误），读模型再脱敏一次；部分更新只改给出的字段；
  * 会话的 updated_at 只在会话行本身改动（改标题）时前移，最近会话按 updated_at、id 倒序。
  * 同时实现 agent 循环读会话事实的端口（标题、消息、工具调用的原始行）。
+ * 密钥快照随调用方的配置变：每次按当时的配置新建一个实例，共用同一个写队列（`queue`）。
  */
 export class SqlAssistantStore implements AssistantStore {
-  private readonly queue = new SerialQueue();
-
   constructor(
     private readonly db: Db,
     private readonly secrets: SecretContext,
     private readonly now: () => string,
+    private readonly queue: SerialQueue = new SerialQueue(),
   ) {}
 
   private redactText = (value: string) => redactSensitiveText(value, this.secrets);
@@ -337,10 +341,10 @@ export class SqlAssistantStore implements AssistantStore {
       error_message: row.error_message === null ? null : this.redactText(String(row.error_message)),
       related_type: row.related_type === null ? null : String(row.related_type),
       related_id: row.related_id === null ? null : Number(row.related_id),
-      started_at: row.started_at,
-      finished_at: row.finished_at,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
+      started_at: apiTime(row.started_at),
+      finished_at: apiTime(row.finished_at),
+      created_at: apiTime(row.created_at),
+      updated_at: apiTime(row.updated_at),
     };
   }
 
@@ -359,11 +363,11 @@ export class SqlAssistantStore implements AssistantStore {
         session_id: Number(message.session_id),
         role: String(message.role),
         content: this.redactText(String(message.content)),
-        created_at: message.created_at,
-        updated_at: message.updated_at,
+        created_at: apiTime(message.created_at),
+        updated_at: apiTime(message.updated_at),
       })),
-      created_at: row.created_at,
-      updated_at: row.updated_at,
+      created_at: apiTime(row.created_at),
+      updated_at: apiTime(row.updated_at),
     };
   }
 

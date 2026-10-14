@@ -22,3 +22,6 @@ export function readEngineMode(key: EngineFlagKey): EngineMode {
     return devDefaults[key];
   }
 }
+
+/** 会话放哪个库跟着 agent 循环的开关走：左栏、agent 循环、Ctrl+K / 续写记的会话都在同一个库。 */
+export const sessionsInEngine = (): boolean => readEngineMode('engine.agentLoop') === 'ts';
