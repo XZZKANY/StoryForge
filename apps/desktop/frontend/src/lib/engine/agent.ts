@@ -7,6 +7,7 @@ import {
   storeRunSources,
   storeToolArtifactQuery,
   type AgentHostDeps,
+  type RunReadDeps,
   type ConversationSources,
   type MessageRow,
   type SessionTitlePort,
@@ -121,14 +122,26 @@ export const pythonTitles: SessionTitlePort = {
   setTitle: async () => undefined,
 };
 
+async function slots() {
+  const [main, polish] = await Promise.all([nativeLlmSource('main'), nativeLlmSource('polish')]);
+  const secrets = { values: [...new Set([...main.secrets.values, ...polish.secrets.values])] };
+  return { main, polish, secrets };
+}
+
+/** 读接口（事件 / 保存点）只要存储、脱敏用的密钥快照与读口，不建工具。 */
+export async function engineReadDeps(): Promise<RunReadDeps> {
+  const { secrets } = await slots();
+  return {
+    store: engineRuns.store,
+    checkpoints: engineRuns.checkpoints,
+    reader: nativeProjectReader,
+    secrets,
+  };
+}
+
 /** 一次作者消息 / 控制消息用的依赖：模型配置每次重新取（设置里换模型下一条就生效）。 */
 export async function engineAgentDeps(): Promise<AgentHostDeps> {
-  const [main, polish, appVersion] = await Promise.all([
-    nativeLlmSource('main'),
-    nativeLlmSource('polish'),
-    getVersion(),
-  ]);
-  const secrets = { values: [...new Set([...main.secrets.values, ...polish.secrets.values])] };
+  const [{ main, polish, secrets }, appVersion] = await Promise.all([slots(), getVersion()]);
   const os = platform();
   const tools = createAgentToolRegistry({
     reader: nativeProjectReader,

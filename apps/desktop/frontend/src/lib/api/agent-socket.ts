@@ -1,6 +1,7 @@
 import { AgentRunOutcomeUnknownError, readAgentRunWithin } from './agent-delivery';
 import { reconstructAgentResultFromEvents } from './agent-run-events';
 import { getAgentRunEvents } from './agent-runs';
+import { engineAgentForNewRun, engineAgentOwning } from './engine-agent-loader';
 import { parseAgentSseFrame } from './agent-sse-frame';
 import { getApiConfig, trimApiBaseUrl } from './config';
 import { readErrorDetail } from './errors';
@@ -100,6 +101,9 @@ function delay(ms: number): Promise<void> {
 export async function sendAgentUserMessage(
   request: AgentUserMessageRequest,
 ): Promise<AgentSocketMessage> {
+  // 新 run 按开关分流（迁移计划 §4.1）；ts 档在进程内跑，没有流与轮询。
+  const engine = engineAgentForNewRun();
+  if (engine) return (await engine).sendAgentUserMessage(request);
   const config = await getApiConfig();
   const { baseUrl, apiKey } = config;
   const external = request.executionProtocol === 'external_writeback_v1';
@@ -355,6 +359,9 @@ async function pollAgentRunUntilTerminal(
 export async function sendAgentControlMessage(
   request: AgentControlMessageRequest,
 ): Promise<AgentControlAckMessage | AgentErrorMessage> {
+  // 控制按 run 归属分流：引擎里跑的 run 由引擎收，其余（含 Python 档的历史 run）照旧发给 Python。
+  const engine = await engineAgentOwning(request.runId);
+  if (engine) return engine.sendAgentControlMessage(request);
   const { baseUrl, apiKey } = await getApiConfig();
   const url = `${trimApiBaseUrl(baseUrl)}/api/ide/agent/sessions/${encodeURIComponent(
     request.sessionId,

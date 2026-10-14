@@ -1,12 +1,15 @@
 import { getApiConfig, trimApiBaseUrl } from './config';
 import { readErrorDetail } from './errors';
 import type { AgentRunEventRecord } from './agent-run-events';
+import { engineAgentOwning } from './engine-agent-loader';
 import type { AgentRunSavePointProjection, ApiConfig } from './types';
 
 export async function getAgentRunSavePoints(
   runId: string,
   options: { signal?: AbortSignal } = {},
 ): Promise<AgentRunSavePointProjection> {
+  const engine = await engineAgentOwning(runId);
+  if (engine) return engine.agentRunSavePoints(runId);
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(
     `${trimApiBaseUrl(baseUrl)}/api/agent-runs/${encodeURIComponent(runId)}/save-points`,
@@ -32,6 +35,8 @@ export async function getAgentRunEvents(
   runId: string,
   options: { signal?: AbortSignal; config?: ApiConfig } = {},
 ): Promise<AgentRunEventRecord[]> {
+  const engine = await engineAgentOwning(runId);
+  if (engine) return engine.agentRunEvents(runId);
   const { baseUrl, apiKey } = options.config ?? (await getApiConfig());
   const response = await fetch(
     `${trimApiBaseUrl(baseUrl)}/api/agent-runs/${encodeURIComponent(runId)}/events`,
