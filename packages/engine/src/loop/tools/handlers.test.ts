@@ -43,11 +43,15 @@ const ERRORS: Record<string, new (...args: never[]) => Error> = {
 };
 
 /** 这些处理器不调模型、不读会话：用到 run 服务就是回归。 */
-const UNUSED_SERVICES = new Proxy({} as ToolRunServices, {
-  get() {
-    throw new Error('只读 / 检查 / canon 处理器不该用到 run 服务');
-  },
-});
+/** 只读 / 检查 / canon 处理器只有跨章检查会用 run 服务（主模型）。 */
+function runServices(model: ToolRunServices['model']): ToolRunServices {
+  return new Proxy({} as ToolRunServices, {
+    get(_target, key) {
+      if (key === 'model') return model;
+      throw new Error('只读 / 检查 / canon 处理器不该用到 run 服务');
+    },
+  });
+}
 
 function harness(record: ProjectRecord) {
   const project = memoryProject(ROOT, record.files);
@@ -68,26 +72,29 @@ function harness(record: ProjectRecord) {
       artifactPayloads: async () =>
         state.session === null ? [] : (state.session.payloads as unknown[]),
     },
-    crossChapter: {
-      model: ' cross-model ',
-      callLlm: async ({ systemPrompt, userPrompt }) => {
-        state.llmCalls.push({ system: systemPrompt, user: userPrompt });
-        const reply = state.replies.shift()!;
-        if ('error' in reply) throw new LlmError(reply.error as string);
-        return reply as { content: unknown; latency_ms?: unknown };
-      },
-    },
     clock: () => (tick += 0.001),
     newHex: () => {
       throw new Error('只读 / 检查 / canon 处理器不产补丁 id');
     },
   };
+  const services = runServices({
+    source: { STORYFORGE_LLM_MODEL: ' cross-model ' },
+    call: async () => {
+      throw new Error('跨章检查只用 complete');
+    },
+    complete: async ({ systemPrompt, userPrompt }) => {
+      state.llmCalls.push({ system: systemPrompt, user: userPrompt });
+      const reply = state.replies.shift()!;
+      if ('error' in reply) throw new LlmError(reply.error as string);
+      return reply;
+    },
+  });
   const handlers: Record<string, ToolHandler> = {
     ...fsToolHandlers(deps),
     ...checkToolHandlers(deps),
     ...canonToolHandlers(deps),
   };
-  return { project, state, handlers };
+  return { project, state, handlers, services };
 }
 
 async function runHandler(h: ReturnType<typeof harness>, call: Call, spec: Obj) {
@@ -111,7 +118,7 @@ async function runHandler(h: ReturnType<typeof harness>, call: Call, spec: Obj) 
     args,
     currentReviewReport: null,
     writingReadSources: [],
-    services: UNUSED_SERVICES,
+    services: h.services,
     deliveries: null,
   };
   const payload = spec.payload as Obj;
@@ -224,7 +231,7 @@ describe('P3-3b 接受的差异', () => {
       args: {},
       currentReviewReport: null,
       writingReadSources: [],
-      services: UNUSED_SERVICES,
+      services: h.services,
       deliveries: null,
     };
     await expect(

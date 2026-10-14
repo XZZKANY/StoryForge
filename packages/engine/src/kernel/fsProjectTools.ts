@@ -13,6 +13,7 @@ import {
 import { matchPythonPath } from './pathMatch';
 import { MAX_READ_BYTES } from './projectTree';
 import { pythonSplitlines, pythonStrip } from './pythonText';
+import { scanRegexLines, type RegexScan } from './regexScan';
 
 const LIST_MAX_ENTRIES_DEFAULT = 500;
 const SEARCH_MAX_MATCHES_DEFAULT = 50;
@@ -52,51 +53,66 @@ export async function fsList(
   return { entries, truncated };
 }
 
-/** 一次检索里的单行匹配；正则方言由编译器决定。 */
-export type SearchPattern = { test(line: string): boolean };
+/**
+ * 一次检索的正则：按文件整批扫描（预算语义见 `scanRegexLines`）。异步是为了让实现能离开主线程、
+ * 超时就整个掐掉——JS 在进程内打断不了单次匹配。
+ */
+export type SearchPattern = {
+  scan(lines: readonly string[], limit: number, remainingSeconds: number): Promise<RegexScan>;
+};
 /** 编译失败抛错，消息会接在「正则表达式无效：」后面给模型。 */
 export type RegexCompiler = (query: string) => SearchPattern;
 
+const monotonicSeconds = () => performance.now() / 1000;
+
 /**
- * 进程内的默认正则：JS RegExp（u 标志）。Python 用 regex 模块 VERSION0 且每行有 50 ms 超时；
- * JS 在进程内无法打断单次匹配，只能在行与行之间核累计预算。桌面接线时应换成能打断的实现。
+ * 进程内的正则：JS RegExp（u 标志；Python 用 regex 模块 VERSION0）。单行超时只能事后判定，
+ * 跑飞的那一次匹配会卡住线程——桌面端换成 Worker 实现，这里只给测试与非循环路径用。
  */
-export const jsRegexCompiler: RegexCompiler = (query) => {
-  const pattern = new RegExp(query, 'u');
-  return { test: (line) => pattern.test(line) };
-};
+export function inProcessRegexCompiler(clock: () => number = monotonicSeconds): RegexCompiler {
+  return (query) => {
+    const pattern = new RegExp(query, 'u');
+    return {
+      scan: async (lines, limit, remainingSeconds) =>
+        scanRegexLines((line) => pattern.test(line), lines, limit, remainingSeconds, clock),
+    };
+  };
+}
 
 /** 一次检索的匹配器：子串或正则；正则的累计耗时有上限。 */
 export class SearchMatcher {
   private readonly pattern: SearchPattern | null;
-  private readonly clock: () => number;
   private remainingSeconds = REGEX_TOTAL_SECONDS;
 
   constructor(
     readonly query: string,
-    options: { useRegex: boolean; compile: RegexCompiler; clock: () => number },
+    options: { useRegex: boolean; compile?: RegexCompiler; clock?: () => number },
   ) {
     if (typeof query !== 'string' || !pythonStrip(query)) throw new FsToolError('query 不能为空。');
     if (points(query).length > MAX_QUERY_CHARS)
       throw new FsToolError(`query 超过 ${MAX_QUERY_CHARS} 字符。`);
-    this.clock = options.clock;
+    const compile = options.compile ?? inProcessRegexCompiler(options.clock);
     try {
-      this.pattern = options.useRegex ? options.compile(query) : null;
+      this.pattern = options.useRegex ? compile(query) : null;
     } catch (error) {
       throw new FsToolError(`正则表达式无效：${(error as Error).message}`);
     }
   }
 
-  search(line: string): boolean {
-    if (this.pattern === null) return line.includes(this.query);
-    if (this.remainingSeconds <= 0)
-      throw new FsToolError('正则搜索累计时间预算已耗尽，请简化查询。');
-    const started = this.clock();
-    try {
-      return this.pattern.test(line);
-    } finally {
-      this.remainingSeconds -= this.clock() - started;
+  /** 依次匹配一个文件的各行，返回命中行下标；命中到 limit 个即停（调用方随后就截断）。 */
+  async scan(lines: readonly string[], limit: number): Promise<readonly number[]> {
+    if (this.pattern === null) {
+      const hits: number[] = [];
+      for (let index = 0; index < lines.length && hits.length < limit; index++)
+        if (lines[index].includes(this.query)) hits.push(index);
+      return hits;
     }
+    const result = await this.pattern.scan(lines, limit, this.remainingSeconds);
+    this.remainingSeconds = result.remainingSeconds;
+    if (result.failure === 'timeout') throw new FsToolError('正则搜索超时，请简化查询。');
+    if (result.failure === 'budget')
+      throw new FsToolError('正则搜索累计时间预算已耗尽，请简化查询。');
+    return result.hits;
   }
 }
 
@@ -118,8 +134,8 @@ export async function fsSearch(
   const { glob = '*.md', platform } = options;
   const matcher = new SearchMatcher(query, {
     useRegex: options.useRegex === true,
-    compile: options.compile ?? jsRegexCompiler,
-    clock: options.clock ?? (() => performance.now() / 1000),
+    compile: options.compile,
+    clock: options.clock,
   });
   const maxMatches = positiveLimit(
     options.maxMatches ?? SEARCH_MAX_MATCHES_DEFAULT,
@@ -156,8 +172,7 @@ export async function fsSearch(
     remainingBytes -= read.bytesRead;
     truncated = truncated || read.truncated;
     const lines = pythonSplitlines(read.content);
-    for (let index = 0; index < lines.length; index++) {
-      if (!matcher.search(lines[index])) continue;
+    for (const index of await matcher.scan(lines, maxMatches - matches.length + 1)) {
       if (matches.length >= maxMatches) {
         truncated = true;
         break;

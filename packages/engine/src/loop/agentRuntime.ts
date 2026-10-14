@@ -18,7 +18,7 @@ import { compactText } from '../kernel/pythonText';
 import type { PlainJson, SecretContext } from '../kernel/redaction';
 import { revisionReferencesReview } from '../kernel/reviseScope';
 import type { ProjectReader } from '../readPort';
-import { callLlmMessages, ConfiguredLlmProvider } from '../llm/client';
+import { callLlm, callLlmMessages, ConfiguredLlmProvider } from '../llm/client';
 import { missingLlmEnv, type LlmSource } from '../llm/config';
 import { checkRunInterruption, RunInterrupted } from '../llm/control';
 import { ModelObservation } from '../llm/observation';
@@ -338,6 +338,7 @@ export class AgentRuntime {
               this.llmContext(),
             ),
           ),
+        complete: (prompt) => callLlm(this.deps.source, prompt, this.llmContext()),
       },
       polish: {
         main: this.deps.source,

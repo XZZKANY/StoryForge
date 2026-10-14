@@ -1055,6 +1055,46 @@ def p3_deep_consistency_snapshot() -> dict:
     return _snapshot("p3-deep-consistency", deep_scenarios(), SOURCES + DEEP_SOURCES)
 
 
+WIRING_SOURCES = [
+    "app/domains/agent_runs/cross_chapter.py",
+    "app/domains/ide/cross_chapter_consistency.py",
+    "app/domains/agent_runs/tools/project_checks_runtime.py",
+    "app/domains/agent_runs/fs_safety.py",
+    "app/domains/agent_runs/fs_tools.py",
+]
+CROSS_FINDING = {"type": "setting", "severity": "high", "chapters": ["第1章", "第2章"], "finding": "门的朝向矛盾",
+                 "evidence": "推开门/问路"}
+
+
+def wiring_scenarios():
+    """P3-7a: the cross-chapter check now calls the model bound to this run (control, evidence, model name)."""
+    s = []
+    chapters = ["正文/第002章.md", "正文/第001章.md"]
+    call = ("c1", "project_cross_chapter_check", tool_args(paths=chapters, focus=" 道具 "))
+    done = completion("看完了。")
+    found = completion(json.dumps([CROSS_FINDING], ensure_ascii=False))
+    s.append(scenario("cross-default", message("查第一二章"), [completion("", [call]), found, done]))
+    s.append(scenario("cross-no-findings", message("查第一二章"), [completion("", [call]), completion("[]"), done]))
+    s.append(scenario("cross-empty-content", message("查第一二章"), [completion("", [call]), completion("  "), done]))
+    s.append(scenario("cross-provider-error", message("查第一二章"), [
+        completion("", [call]), {"status": 500, "body": '{"error":{"message":"cross down"}}'}, done]))
+    s.append(scenario("cross-stop-during-request", message("查第一二章"), [
+        completion("", [call]), completion("[]", set_status=["stopped", "stopped"])]))
+    s.append(scenario("cross-model-name-stripped", message("查第一二章"), [completion("", [call]), found, done],
+                      env={"STORYFORGE_LLM_MODEL": "  m-2  "}))
+    s.append(scenario("cross-one-chapter", message("查第一章"), [
+        completion("", [("c1", "project_cross_chapter_check", tool_args(paths=["正文/第001章.md"]))]), done]))
+    s.append(scenario("search-regex", message("找林舟或沈禾"), [
+        completion("", [("c1", "fs_search", tool_args(query="林.|沈禾", use_regex=True))]), done]))
+    s.append(scenario("search-regex-glob", message("在人物文件里找伤"), [
+        completion("", [("c1", "fs_search", tool_args(query="左.有", use_regex=True, glob="人物/*.md"))]), done]))
+    return s
+
+
+def p3_wiring_snapshot() -> dict:
+    return _snapshot("p3-wiring", wiring_scenarios(), SOURCES + WIRING_SOURCES)
+
+
 def p3_polish_snapshot() -> dict:
     return _snapshot("p3-polish", polish_scenarios(), SOURCES + POLISH_SOURCES, extra={"polish_secret": POLISH_SECRET})
 

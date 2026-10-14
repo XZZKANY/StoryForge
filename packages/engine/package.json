@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "files": ["src"],
-  "exports": { ".": "./src/index.ts" },
+  "exports": { ".": "./src/index.ts", "./regexScan": "./src/kernel/regexScan.ts" },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

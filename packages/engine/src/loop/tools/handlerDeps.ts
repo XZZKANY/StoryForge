@@ -1,5 +1,4 @@
 import type { RegexCompiler } from '../../kernel/fsProjectTools';
-import type { CrossChapterLlmPort } from '../../kernel/crossChapter';
 import type { ProposalEnvironment } from '../../kernel/knowledgeProposals';
 import type { SecretContext } from '../../kernel/redaction';
 import type { ProjectReader } from '../../readPort';
@@ -21,7 +20,6 @@ export type ToolDeps = {
   readonly secrets: SecretContext;
   readonly proposals: ProposalEnvironment;
   readonly artifacts: ToolArtifactQuery;
-  readonly crossChapter: { readonly callLlm: CrossChapterLlmPort; readonly model: string | null };
   /** fs.search 的正则编译器；缺省用进程内 JS RegExp。 */
   readonly regex?: RegexCompiler;
   /** 单调时钟（秒），只给正则累计预算用。 */
