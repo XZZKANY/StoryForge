@@ -1,0 +1,1001 @@
+{
+  "format_version": 1,
+  "suite": "p4-legacy-import",
+  "secret": "sk-oracle-legacy-123456",
+  "sources": {
+    "app/domains/assistant/service.py": "cb96eaefcf8576751c503c75434a74fe4be68402890a852591b599be90b03f8d",
+    "app/domains/assistant/schemas.py": "1e51b7c79b228a0e0c2019f5b304fd4145326dc00842c3da7730653142043b51",
+    "app/domains/assistant/models.py": "7b6ceff8733ddf1be5c4fe7bc056c12e7a62b5c22f3587b378096daa7cf0e414",
+    "app/domains/agent_runs/models.py": "af27835f36a60c9fb8f01203e619712df618a37d015c1927da186eace484f2d3",
+    "app/domains/agent_runs/service_store.py": "9e6df558cc49db338c078d7b4f28af965d88a5fc15eafcda4ff34fbf67fd9cbf",
+    "app/domains/agent_runs/save_points.py": "8dabd43275605b5009d6706fabcb4214a1eaa73519b3c7f8a95f793450137383",
+    "app/db/base.py": "765fb6053081c0a9b9d8c75aae3da4633a811fe8c4301f392004732076157e14"
+  },
+  "legacy_sql": [
+    "BEGIN TRANSACTION;",
+    "CREATE TABLE agent_artifacts (\n\trun_id INTEGER NOT NULL, \n\tkind VARCHAR(80) NOT NULL, \n\tpayload JSON NOT NULL, \n\trequires_confirmation BOOLEAN NOT NULL, \n\tid INTEGER NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(run_id) REFERENCES agent_runs (id) ON DELETE CASCADE\n);",
+    "INSERT INTO \"agent_artifacts\" VALUES(1,'review_report','{\"kind\": \"review\", \"file_path\": \"\\u6b63\\u6587/\\u7b2c001\\u7ae0.md\", \"issues\": [{\"id\": \"i-1\", \"score\": 0.75}], \"token_budget\": 3000.0}',0,1,'2026-07-02 10:01:00','2026-07-02 11:01:30');",
+    "INSERT INTO \"agent_artifacts\" VALUES(2,'proposed_patch','{\"kind\": \"file_revision\", \"file_path\": \"\\u6b63\\u6587/\\u7b2c001\\u7ae0.md\", \"before\": \"\\u65e7\", \"after\": \"\\u65b0\\ud83d\\ude00\", \"requires_confirmation\": true}',1,2,'2026-07-02 10:02:00','2026-07-02 11:02:30');",
+    "INSERT INTO \"agent_artifacts\" VALUES(2,'runtime_pending_call','{\"status\": \"pending\", \"intent\": \"file.review\", \"boundary\": \"after_tool:context.load\", \"pending_tool\": \"file.review\", \"resume_strategy\": \"continue_pending_call\"}',0,3,'2026-07-02 10:03:00','2026-07-02 11:03:30');",
+    "INSERT INTO \"agent_artifacts\" VALUES(1,'system_summary','{\"summary\": \"\\u9690\\u85cf\\u7684\\u7cfb\\u7edf\\u6458\\u8981\"}',0,4,'2026-07-02 10:04:00','2026-07-02 11:04:30');",
+    "CREATE TABLE agent_run_events (\n\trun_id INTEGER NOT NULL, \n\tevent_type VARCHAR(80) NOT NULL, \n\tactor VARCHAR(80) NOT NULL, \n\tmessage TEXT NOT NULL, \n\tpayload JSON NOT NULL, \n\tsequence INTEGER NOT NULL, \n\tid INTEGER NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(run_id) REFERENCES agent_runs (id) ON DELETE CASCADE\n);",
+    "INSERT INTO \"agent_run_events\" VALUES(1,'agent_run_started','root_agent','开始','{\"goal\": \"\\u5ba1\\u4e00\\u904d\\u7b2c\\u4e00\\u7ae0\", \"budget\": {\"tokens\": 3000.0}}',1,1,'2026-07-02 10:01:00','2026-07-02 11:01:30');",
+    "INSERT INTO \"agent_run_events\" VALUES(2,'agent_run_started','root_agent','开始 sk-oracle-legacy-123456','{\"goal\": \"\\u6539\\u7b2c\\u4e00\\u7ae0 sk-oracle-legacy-123456\"}',1,2,'2026-07-02 10:02:00','2026-07-02 11:02:30');",
+    "INSERT INTO \"agent_run_events\" VALUES(1,'tool_trace','root_agent','读取','{\"trace\": {\"tool_name\": \"fs.read\", \"status\": \"completed\", \"audit_event_id\": \"a1\"}, \"index\": 1, \"summary\": {\"path\": \"\\u6b63\\u6587/\\u7b2c001\\u7ae0.md\", \"ratio\": 0.5, \"budget\": 3000.0, \"flags\": [true, false, null], \"10\": \"\\u6574\\u6570\\u5f62\\u7684\\u952e\", \"emoji\": \"\\ud83d\\ude00\\u2028\", \"nested\": {\"quote\": \"\\\"\\u5f15\\u53f7\\\"\\n\\u6362\\u884c\", \"empty\": {}}}}',2,3,'2026-07-02 10:03:00','2026-07-02 11:03:30');",
+    "INSERT INTO \"agent_run_events\" VALUES(2,'tool_trace','root_agent','','{\"trace\": {\"tool_name\": \"file.revise\", \"status\": \"completed\"}, \"index\": 1}',2,4,'2026-07-02 10:04:00','2026-07-02 11:04:30');",
+    "INSERT INTO \"agent_run_events\" VALUES(2,'permission_required','root_agent','等待确认','{\"blocked_tool\": \"file.revise\", \"permission_profile\": \"ask\"}',3,5,'2026-07-02 10:05:00','2026-07-02 11:05:30');",
+    "INSERT INTO \"agent_run_events\" VALUES(1,'agent_run_completed','root_agent','完成','{\"assistant_session_id\": 1, \"result\": {\"status\": \"completed\", \"proposed_patch\": null}}',3,6,'2026-07-02 10:06:00','2026-07-02 11:06:30');",
+    "INSERT INTO \"agent_run_events\" VALUES(3,'agent_run_failed','root_agent','失败','{\"error\": \"provider 401 sk-oracle-legacy-123456\", \"reason\": \"llm_error\"}',1,7,'2026-07-02 10:07:00','2026-07-02 11:07:30');",
+    "INSERT INTO \"agent_run_events\" VALUES(4,'agent_run_started','root_agent','开始','{}',1,8,'2026-07-02 10:08:00','2026-07-02 11:08:30');",
+    "INSERT INTO \"agent_run_events\" VALUES(5,'stop_run','author','停止','{\"control_type\": \"stop_run\", \"source\": \"desktop\"}',1,9,'2026-07-02 10:09:00','2026-07-02 11:09:30');",
+    "CREATE TABLE agent_runs (\n\tpublic_id VARCHAR(64) NOT NULL, \n\tsession_id VARCHAR(160) NOT NULL, \n\tassistant_session_id INTEGER, \n\tgoal TEXT NOT NULL, \n\tscope JSON NOT NULL, \n\tpermission_profile VARCHAR(40) NOT NULL, \n\tbudget JSON NOT NULL, \n\tstatus VARCHAR(40) NOT NULL, \n\troot_plan JSON NOT NULL, \n\tcurrent_step VARCHAR(160), \n\texecution_owner_event_id INTEGER, \n\tid INTEGER NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, book_run_id INTEGER, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(assistant_session_id) REFERENCES assistant_sessions (id) ON DELETE SET NULL\n);",
+    "INSERT INTO \"agent_runs\" VALUES('legacy-run-1','agent-1',1,'审一遍第一章','{\"project_root\": \"D:/book\", \"paths\": [\"\\u6b63\\u6587/\\u7b2c001\\u7ae0.md\"]}','ask','{\"max_steps\": 8, \"tokens\": 3000.0}','completed','[{\"step\": \"fs.read\", \"status\": \"done\"}, {\"step\": \"file.review\", \"status\": \"done\"}]','done',NULL,1,'2026-07-02 10:01:00','2026-07-02 11:01:30',NULL);",
+    "INSERT INTO \"agent_runs\" VALUES('legacy-run-2','agent-1',1,'改第一章 sk-oracle-legacy-123456','{}','ask','{}','paused','[]','permission.confirm',NULL,2,'2026-07-02 10:02:00','2026-07-02 11:02:30',NULL);",
+    "INSERT INTO \"agent_runs\" VALUES('legacy-run-3','agent-2',NULL,'没有绑会话的 run','{\"project_root\": \"D:/other\"}','auto','{\"ratio\": 0.25}','failed','[]',NULL,NULL,3,'2026-07-02 10:03:00','2026-07-02 11:03:30',NULL);",
+    "INSERT INTO \"agent_runs\" VALUES('legacy-run-4','agent-3',3,'跑到一半','{}','read','{}','running','[]','tool:fs.read',NULL,4,'2026-07-02 10:04:00','2026-07-02 11:04:30',NULL);",
+    "INSERT INTO \"agent_runs\" VALUES('legacy-run-5','agent-3',3,'作者停下','{}','ask','{}','stopped','[]','stopped',NULL,5,'2026-07-02 10:05:00','2026-07-02 11:05:30',NULL);",
+    "CREATE TABLE assistant_messages (\n\tsession_id INTEGER NOT NULL, \n\trole VARCHAR(20) NOT NULL, \n\tcontent TEXT NOT NULL, \n\tid INTEGER NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(session_id) REFERENCES assistant_sessions (id) ON DELETE CASCADE\n);",
+    "INSERT INTO \"assistant_messages\" VALUES(1,'user','我的 key 是 [REDACTED]',1,'2026-07-02 10:01:00','2026-07-02 11:01:30');",
+    "INSERT INTO \"assistant_messages\" VALUES(1,'assistant','收到。😀\r\n第二行 \"引号\"',2,'2026-07-02 10:02:00','2026-07-02 11:02:30');",
+    "INSERT INTO \"assistant_messages\" VALUES(3,'user','你好',3,'2026-07-02 10:03:00','2026-07-02 11:03:30');",
+    "INSERT INTO \"assistant_messages\" VALUES(2,'system','系统提示',4,'2026-07-02 10:04:00','2026-07-02 11:04:30');",
+    "INSERT INTO \"assistant_messages\" VALUES(1,'user','再写一章',5,'2026-07-02 10:05:00','2026-07-02 11:05:30');",
+    "CREATE TABLE assistant_sessions (\n\ttitle VARCHAR(160) NOT NULL, \n\ttask_type VARCHAR(50) NOT NULL, \n\tproject_path VARCHAR(1024), \n\tid INTEGER NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, blueprint_id INTEGER, book_run_id INTEGER, artifact_id INTEGER, \n\tPRIMARY KEY (id)\n);",
+    "INSERT INTO \"assistant_sessions\" VALUES('修订 token=[REDACTED]','ide_agent_orchestration','D:/book',1,'2026-06-30 11:00:00','2026-07-03 09:00:00',NULL,NULL,NULL);",
+    "INSERT INTO \"assistant_sessions\" VALUES('单轮修订','desktop_revise',NULL,2,'2026-06-30 12:00:00','2026-07-05 12:30:00',NULL,NULL,NULL);",
+    "INSERT INTO \"assistant_sessions\" VALUES('别的书','ide_agent_orchestration','D:/other',3,'2026-06-30 13:00:00','2026-07-03 09:00:00',NULL,NULL,NULL);",
+    "INSERT INTO \"assistant_sessions\" VALUES('同一本书的第二个会话','ide_agent_orchestration','D:/book',4,'2026-06-30 14:00:00','2026-07-01 08:00:00',NULL,NULL,NULL);",
+    "CREATE TABLE assistant_tool_calls (\n\tsession_id INTEGER NOT NULL, \n\ttool_name VARCHAR(120) NOT NULL, \n\tstatus VARCHAR(40) NOT NULL, \n\tinput_summary JSON NOT NULL, \n\toutput_summary JSON NOT NULL, \n\terror_message TEXT, \n\trelated_type VARCHAR(80), \n\trelated_id INTEGER, \n\tstarted_at DATETIME, \n\tfinished_at DATETIME, \n\tid INTEGER NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(session_id) REFERENCES assistant_sessions (id) ON DELETE CASCADE\n);",
+    "INSERT INTO \"assistant_tool_calls\" VALUES(1,'fs.read','completed','{\"path\": \"\\u6b63\\u6587/\\u7b2c001\\u7ae0.md\", \"ratio\": 0.5, \"budget\": 3000.0, \"flags\": [true, false, null], \"10\": \"\\u6574\\u6570\\u5f62\\u7684\\u952e\", \"emoji\": \"\\ud83d\\ude00\\u2028\", \"nested\": {\"quote\": \"\\\"\\u5f15\\u53f7\\\"\\n\\u6362\\u884c\", \"empty\": {}}}','{\"chars\": 1200, \"excerpt\": \"\\u542b [REDACTED] \\u7684\\u6458\\u5f55\"}',NULL,NULL,NULL,'2026-07-02 10:00:05',NULL,1,'2026-07-02 10:01:00','2026-07-02 11:01:30');",
+    "INSERT INTO \"assistant_tool_calls\" VALUES(3,'file.revise','failed','{\"path\": \"a.md\"}','{}','模型请求失败：[REDACTED]','agent_run',2,NULL,NULL,2,'2026-07-02 10:02:00','2026-07-02 11:02:30');",
+    "INSERT INTO \"assistant_tool_calls\" VALUES(1,'project.consistency','planned','{}','{}',NULL,NULL,NULL,NULL,NULL,3,'2026-07-02 10:03:00','2026-07-02 11:03:30');",
+    "CREATE TABLE book_runs (id INTEGER NOT NULL PRIMARY KEY, status VARCHAR(50) NOT NULL);",
+    "INSERT INTO \"book_runs\" VALUES(7,'completed');",
+    "CREATE TABLE subagent_runs (\n\trun_id INTEGER NOT NULL, \n\tparent_run_id INTEGER, \n\trole VARCHAR(80) NOT NULL, \n\tinput JSON NOT NULL, \n\toutput JSON NOT NULL, \n\tstatus VARCHAR(40) NOT NULL, \n\tid INTEGER NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(run_id) REFERENCES agent_runs (id) ON DELETE CASCADE, \n\tFOREIGN KEY(parent_run_id) REFERENCES agent_runs (id) ON DELETE SET NULL\n);",
+    "INSERT INTO \"subagent_runs\" VALUES(1,NULL,'reviewer','{\"path\": \"\\u6b63\\u6587/\\u7b2c001\\u7ae0.md\"}','{\"issues\": 1, \"score\": 0.5}','completed',1,'2026-07-02 10:01:00','2026-07-02 11:01:30');",
+    "INSERT INTO \"subagent_runs\" VALUES(5,1,'writer','{}','{}','failed',2,'2026-07-02 10:02:00','2026-07-02 11:02:30');",
+    "CREATE INDEX ix_agent_artifacts_kind ON agent_artifacts (kind);",
+    "CREATE INDEX ix_agent_artifacts_run_id ON agent_artifacts (run_id);",
+    "CREATE INDEX ix_agent_run_events_event_type ON agent_run_events (event_type);",
+    "CREATE INDEX ix_agent_run_events_run_id ON agent_run_events (run_id);",
+    "CREATE INDEX ix_agent_runs_assistant_session_id ON agent_runs (assistant_session_id);",
+    "CREATE INDEX ix_agent_runs_session_id ON agent_runs (session_id);",
+    "CREATE INDEX ix_agent_runs_status ON agent_runs (status);",
+    "CREATE INDEX ix_assistant_messages_session_id ON assistant_messages (session_id);",
+    "CREATE INDEX ix_assistant_sessions_project_path ON assistant_sessions (project_path);",
+    "CREATE INDEX ix_assistant_sessions_task_type ON assistant_sessions (task_type);",
+    "CREATE INDEX ix_assistant_tool_calls_related_id ON assistant_tool_calls (related_id);",
+    "CREATE INDEX ix_assistant_tool_calls_session_id ON assistant_tool_calls (session_id);",
+    "CREATE INDEX ix_assistant_tool_calls_status ON assistant_tool_calls (status);",
+    "CREATE INDEX ix_assistant_tool_calls_tool_name ON assistant_tool_calls (tool_name);",
+    "CREATE INDEX ix_subagent_runs_parent_run_id ON subagent_runs (parent_run_id);",
+    "CREATE INDEX ix_subagent_runs_role ON subagent_runs (role);",
+    "CREATE INDEX ix_subagent_runs_run_id ON subagent_runs (run_id);",
+    "CREATE INDEX ix_subagent_runs_status ON subagent_runs (status);",
+    "CREATE UNIQUE INDEX ix_agent_runs_public_id ON agent_runs (public_id);",
+    "CREATE UNIQUE INDEX uq_agent_run_events_run_sequence ON agent_run_events (run_id, sequence);",
+    "COMMIT;"
+  ],
+  "rows": {
+    "assistant_sessions": 4,
+    "assistant_messages": 5,
+    "assistant_tool_calls": 3,
+    "agent_runs": 5,
+    "agent_run_events": 9,
+    "agent_artifacts": 4,
+    "subagent_runs": 2
+  },
+  "reads": [
+    {
+      "op": "session",
+      "id": 1,
+      "result": {
+        "id": 1,
+        "title": "修订 token=[REDACTED]",
+        "task_type": "ide_agent_orchestration",
+        "project_path": "D:/book",
+        "messages": [
+          {
+            "id": 1,
+            "session_id": 1,
+            "role": "user",
+            "content": "我的 key 是 [REDACTED]",
+            "created_at": "2026-07-02T10:01:00",
+            "updated_at": "2026-07-02T11:01:30"
+          },
+          {
+            "id": 2,
+            "session_id": 1,
+            "role": "assistant",
+            "content": "收到。😀\r\n第二行 \"引号\"",
+            "created_at": "2026-07-02T10:02:00",
+            "updated_at": "2026-07-02T11:02:30"
+          },
+          {
+            "id": 5,
+            "session_id": 1,
+            "role": "user",
+            "content": "再写一章",
+            "created_at": "2026-07-02T10:05:00",
+            "updated_at": "2026-07-02T11:05:30"
+          }
+        ],
+        "created_at": "2026-06-30T11:00:00",
+        "updated_at": "2026-07-03T09:00:00"
+      }
+    },
+    {
+      "op": "tool_calls",
+      "id": 1,
+      "result": [
+        {
+          "id": 1,
+          "session_id": 1,
+          "tool_name": "fs.read",
+          "status": "completed",
+          "input_summary": {
+            "path": "正文/第001章.md",
+            "ratio": 0.5,
+            "budget": 3000.0,
+            "flags": [
+              true,
+              false,
+              null
+            ],
+            "10": "整数形的键",
+            "emoji": "😀 ",
+            "nested": {
+              "quote": "\"引号\"\n换行",
+              "empty": {}
+            }
+          },
+          "output_summary": {
+            "chars": 1200,
+            "excerpt": "含 [REDACTED] 的摘录"
+          },
+          "error_message": null,
+          "related_type": null,
+          "related_id": null,
+          "started_at": "2026-07-02T10:00:05",
+          "finished_at": null,
+          "created_at": "2026-07-02T10:01:00",
+          "updated_at": "2026-07-02T11:01:30"
+        },
+        {
+          "id": 3,
+          "session_id": 1,
+          "tool_name": "project.consistency",
+          "status": "planned",
+          "input_summary": {},
+          "output_summary": {},
+          "error_message": null,
+          "related_type": null,
+          "related_id": null,
+          "started_at": null,
+          "finished_at": null,
+          "created_at": "2026-07-02T10:03:00",
+          "updated_at": "2026-07-02T11:03:30"
+        }
+      ]
+    },
+    {
+      "op": "session",
+      "id": 2,
+      "result": {
+        "id": 2,
+        "title": "单轮修订",
+        "task_type": "desktop_revise",
+        "project_path": null,
+        "messages": [
+          {
+            "id": 4,
+            "session_id": 2,
+            "role": "system",
+            "content": "系统提示",
+            "created_at": "2026-07-02T10:04:00",
+            "updated_at": "2026-07-02T11:04:30"
+          }
+        ],
+        "created_at": "2026-06-30T12:00:00",
+        "updated_at": "2026-07-05T12:30:00"
+      }
+    },
+    {
+      "op": "tool_calls",
+      "id": 2,
+      "result": []
+    },
+    {
+      "op": "session",
+      "id": 3,
+      "result": {
+        "id": 3,
+        "title": "别的书",
+        "task_type": "ide_agent_orchestration",
+        "project_path": "D:/other",
+        "messages": [
+          {
+            "id": 3,
+            "session_id": 3,
+            "role": "user",
+            "content": "你好",
+            "created_at": "2026-07-02T10:03:00",
+            "updated_at": "2026-07-02T11:03:30"
+          }
+        ],
+        "created_at": "2026-06-30T13:00:00",
+        "updated_at": "2026-07-03T09:00:00"
+      }
+    },
+    {
+      "op": "tool_calls",
+      "id": 3,
+      "result": [
+        {
+          "id": 2,
+          "session_id": 3,
+          "tool_name": "file.revise",
+          "status": "failed",
+          "input_summary": {
+            "path": "a.md"
+          },
+          "output_summary": {},
+          "error_message": "模型请求失败：[REDACTED]",
+          "related_type": "agent_run",
+          "related_id": 2,
+          "started_at": null,
+          "finished_at": null,
+          "created_at": "2026-07-02T10:02:00",
+          "updated_at": "2026-07-02T11:02:30"
+        }
+      ]
+    },
+    {
+      "op": "session",
+      "id": 4,
+      "result": {
+        "id": 4,
+        "title": "同一本书的第二个会话",
+        "task_type": "ide_agent_orchestration",
+        "project_path": "D:/book",
+        "messages": [],
+        "created_at": "2026-06-30T14:00:00",
+        "updated_at": "2026-07-01T08:00:00"
+      }
+    },
+    {
+      "op": "tool_calls",
+      "id": 4,
+      "result": []
+    },
+    {
+      "op": "recent",
+      "kwargs": {
+        "limit": 20,
+        "project_path": null
+      },
+      "result": [
+        {
+          "id": 2,
+          "title": "单轮修订",
+          "task_type": "desktop_revise",
+          "project_path": null,
+          "messages": [
+            {
+              "id": 4,
+              "session_id": 2,
+              "role": "system",
+              "content": "系统提示",
+              "created_at": "2026-07-02T10:04:00",
+              "updated_at": "2026-07-02T11:04:30"
+            }
+          ],
+          "created_at": "2026-06-30T12:00:00",
+          "updated_at": "2026-07-05T12:30:00"
+        },
+        {
+          "id": 3,
+          "title": "别的书",
+          "task_type": "ide_agent_orchestration",
+          "project_path": "D:/other",
+          "messages": [
+            {
+              "id": 3,
+              "session_id": 3,
+              "role": "user",
+              "content": "你好",
+              "created_at": "2026-07-02T10:03:00",
+              "updated_at": "2026-07-02T11:03:30"
+            }
+          ],
+          "created_at": "2026-06-30T13:00:00",
+          "updated_at": "2026-07-03T09:00:00"
+        },
+        {
+          "id": 1,
+          "title": "修订 token=[REDACTED]",
+          "task_type": "ide_agent_orchestration",
+          "project_path": "D:/book",
+          "messages": [
+            {
+              "id": 1,
+              "session_id": 1,
+              "role": "user",
+              "content": "我的 key 是 [REDACTED]",
+              "created_at": "2026-07-02T10:01:00",
+              "updated_at": "2026-07-02T11:01:30"
+            },
+            {
+              "id": 2,
+              "session_id": 1,
+              "role": "assistant",
+              "content": "收到。😀\r\n第二行 \"引号\"",
+              "created_at": "2026-07-02T10:02:00",
+              "updated_at": "2026-07-02T11:02:30"
+            },
+            {
+              "id": 5,
+              "session_id": 1,
+              "role": "user",
+              "content": "再写一章",
+              "created_at": "2026-07-02T10:05:00",
+              "updated_at": "2026-07-02T11:05:30"
+            }
+          ],
+          "created_at": "2026-06-30T11:00:00",
+          "updated_at": "2026-07-03T09:00:00"
+        },
+        {
+          "id": 4,
+          "title": "同一本书的第二个会话",
+          "task_type": "ide_agent_orchestration",
+          "project_path": "D:/book",
+          "messages": [],
+          "created_at": "2026-06-30T14:00:00",
+          "updated_at": "2026-07-01T08:00:00"
+        }
+      ]
+    },
+    {
+      "op": "recent",
+      "kwargs": {
+        "limit": 2,
+        "project_path": null
+      },
+      "result": [
+        {
+          "id": 2,
+          "title": "单轮修订",
+          "task_type": "desktop_revise",
+          "project_path": null,
+          "messages": [
+            {
+              "id": 4,
+              "session_id": 2,
+              "role": "system",
+              "content": "系统提示",
+              "created_at": "2026-07-02T10:04:00",
+              "updated_at": "2026-07-02T11:04:30"
+            }
+          ],
+          "created_at": "2026-06-30T12:00:00",
+          "updated_at": "2026-07-05T12:30:00"
+        },
+        {
+          "id": 3,
+          "title": "别的书",
+          "task_type": "ide_agent_orchestration",
+          "project_path": "D:/other",
+          "messages": [
+            {
+              "id": 3,
+              "session_id": 3,
+              "role": "user",
+              "content": "你好",
+              "created_at": "2026-07-02T10:03:00",
+              "updated_at": "2026-07-02T11:03:30"
+            }
+          ],
+          "created_at": "2026-06-30T13:00:00",
+          "updated_at": "2026-07-03T09:00:00"
+        }
+      ]
+    },
+    {
+      "op": "recent",
+      "kwargs": {
+        "limit": 20,
+        "project_path": "D:/book"
+      },
+      "result": [
+        {
+          "id": 1,
+          "title": "修订 token=[REDACTED]",
+          "task_type": "ide_agent_orchestration",
+          "project_path": "D:/book",
+          "messages": [
+            {
+              "id": 1,
+              "session_id": 1,
+              "role": "user",
+              "content": "我的 key 是 [REDACTED]",
+              "created_at": "2026-07-02T10:01:00",
+              "updated_at": "2026-07-02T11:01:30"
+            },
+            {
+              "id": 2,
+              "session_id": 1,
+              "role": "assistant",
+              "content": "收到。😀\r\n第二行 \"引号\"",
+              "created_at": "2026-07-02T10:02:00",
+              "updated_at": "2026-07-02T11:02:30"
+            },
+            {
+              "id": 5,
+              "session_id": 1,
+              "role": "user",
+              "content": "再写一章",
+              "created_at": "2026-07-02T10:05:00",
+              "updated_at": "2026-07-02T11:05:30"
+            }
+          ],
+          "created_at": "2026-06-30T11:00:00",
+          "updated_at": "2026-07-03T09:00:00"
+        },
+        {
+          "id": 4,
+          "title": "同一本书的第二个会话",
+          "task_type": "ide_agent_orchestration",
+          "project_path": "D:/book",
+          "messages": [],
+          "created_at": "2026-06-30T14:00:00",
+          "updated_at": "2026-07-01T08:00:00"
+        }
+      ]
+    },
+    {
+      "op": "recent",
+      "kwargs": {
+        "limit": 20,
+        "project_path": "D:/other"
+      },
+      "result": [
+        {
+          "id": 3,
+          "title": "别的书",
+          "task_type": "ide_agent_orchestration",
+          "project_path": "D:/other",
+          "messages": [
+            {
+              "id": 3,
+              "session_id": 3,
+              "role": "user",
+              "content": "你好",
+              "created_at": "2026-07-02T10:03:00",
+              "updated_at": "2026-07-02T11:03:30"
+            }
+          ],
+          "created_at": "2026-06-30T13:00:00",
+          "updated_at": "2026-07-03T09:00:00"
+        }
+      ]
+    },
+    {
+      "op": "events",
+      "run": "legacy-run-1",
+      "result": [
+        {
+          "id": 1,
+          "run_id": 1,
+          "event_type": "agent_run_started",
+          "actor": "root_agent",
+          "message": "开始",
+          "payload": {
+            "goal": "审一遍第一章",
+            "budget": {
+              "tokens": 3000.0
+            }
+          },
+          "sequence": 1
+        },
+        {
+          "id": 3,
+          "run_id": 1,
+          "event_type": "tool_trace",
+          "actor": "root_agent",
+          "message": "读取",
+          "payload": {
+            "trace": {
+              "tool_name": "fs.read",
+              "status": "completed",
+              "audit_event_id": "a1"
+            },
+            "index": 1,
+            "summary": {
+              "path": "正文/第001章.md",
+              "ratio": 0.5,
+              "budget": 3000.0,
+              "flags": [
+                true,
+                false,
+                null
+              ],
+              "10": "整数形的键",
+              "emoji": "😀 ",
+              "nested": {
+                "quote": "\"引号\"\n换行",
+                "empty": {}
+              }
+            }
+          },
+          "sequence": 2
+        },
+        {
+          "id": 6,
+          "run_id": 1,
+          "event_type": "agent_run_completed",
+          "actor": "root_agent",
+          "message": "完成",
+          "payload": {
+            "assistant_session_id": 1,
+            "result": {
+              "status": "completed",
+              "proposed_patch": null
+            }
+          },
+          "sequence": 3
+        }
+      ]
+    },
+    {
+      "op": "save_points",
+      "run": "legacy-run-1",
+      "result": {
+        "run_id": "legacy-run-1",
+        "status": "completed",
+        "current_step": "done",
+        "save_points": [
+          {
+            "kind": "run_started",
+            "source": "event",
+            "event_id": 1,
+            "event_type": "agent_run_started",
+            "sequence": 1,
+            "summary": {}
+          },
+          {
+            "kind": "tool_completed",
+            "source": "event",
+            "event_id": 3,
+            "event_type": "tool_trace",
+            "sequence": 2,
+            "summary": {
+              "tool_name": "fs.read",
+              "status": "completed",
+              "audit_event_id": "a1",
+              "index": 1
+            }
+          },
+          {
+            "kind": "run_completed",
+            "source": "event",
+            "event_id": 6,
+            "event_type": "agent_run_completed",
+            "sequence": 3,
+            "summary": {}
+          },
+          {
+            "kind": "artifact_persisted",
+            "source": "artifact",
+            "artifact_id": 1,
+            "artifact_kind": "review_report",
+            "requires_confirmation": false,
+            "summary": {
+              "kind": "review",
+              "file_path": "正文/第001章.md"
+            }
+          }
+        ],
+        "pending": {
+          "permission_required": false,
+          "permission_event_id": null,
+          "blocked_tool": null,
+          "proposed_patch_artifact_id": null,
+          "runtime_pending_call_artifact_id": null,
+          "runtime_pending_tool": null
+        },
+        "recoverability": {
+          "terminal_event_id": 6,
+          "resume_strategy": "none"
+        },
+        "runtime_recovery": {
+          "latest_execution_marker": null,
+          "latest_replay_safe_marker": null,
+          "latest_failure": null,
+          "latest_control": null,
+          "latest_interruption": null,
+          "latest_resume_diagnostic": null,
+          "latest_pending_call": null,
+          "latest_pending_call_resolution": null,
+          "automatic_resume_supported": false,
+          "manual_restart_required": false
+        },
+        "interruption_model": {
+          "uses_existing_paused_status": false,
+          "uses_existing_stopped_status": false,
+          "has_interrupted_event": false,
+          "runtime_state": "settled"
+        }
+      }
+    },
+    {
+      "op": "events",
+      "run": "legacy-run-2",
+      "result": [
+        {
+          "id": 2,
+          "run_id": 2,
+          "event_type": "agent_run_started",
+          "actor": "root_agent",
+          "message": "开始 [REDACTED]",
+          "payload": {
+            "goal": "改第一章 [REDACTED]"
+          },
+          "sequence": 1
+        },
+        {
+          "id": 4,
+          "run_id": 2,
+          "event_type": "tool_trace",
+          "actor": "root_agent",
+          "message": "",
+          "payload": {
+            "trace": {
+              "tool_name": "file.revise",
+              "status": "completed"
+            },
+            "index": 1
+          },
+          "sequence": 2
+        },
+        {
+          "id": 5,
+          "run_id": 2,
+          "event_type": "permission_required",
+          "actor": "root_agent",
+          "message": "等待确认",
+          "payload": {
+            "blocked_tool": "file.revise",
+            "permission_profile": "ask"
+          },
+          "sequence": 3
+        }
+      ]
+    },
+    {
+      "op": "save_points",
+      "run": "legacy-run-2",
+      "result": {
+        "run_id": "legacy-run-2",
+        "status": "paused",
+        "current_step": "permission.confirm",
+        "save_points": [
+          {
+            "kind": "run_started",
+            "source": "event",
+            "event_id": 2,
+            "event_type": "agent_run_started",
+            "sequence": 1,
+            "summary": {}
+          },
+          {
+            "kind": "tool_completed",
+            "source": "event",
+            "event_id": 4,
+            "event_type": "tool_trace",
+            "sequence": 2,
+            "summary": {
+              "tool_name": "file.revise",
+              "status": "completed",
+              "index": 1
+            }
+          },
+          {
+            "kind": "permission_required",
+            "source": "event",
+            "event_id": 5,
+            "event_type": "permission_required",
+            "sequence": 3,
+            "summary": {
+              "blocked_tool": "file.revise",
+              "requires_user_decision": true
+            }
+          },
+          {
+            "kind": "artifact_persisted",
+            "source": "artifact",
+            "artifact_id": 2,
+            "artifact_kind": "proposed_patch",
+            "requires_confirmation": true,
+            "summary": {
+              "kind": "file_revision",
+              "file_path": "正文/第001章.md"
+            }
+          },
+          {
+            "kind": "runtime_pending_call",
+            "source": "artifact",
+            "artifact_id": 3,
+            "artifact_kind": "runtime_pending_call",
+            "requires_confirmation": false,
+            "summary": {
+              "status": "pending",
+              "intent": "file.review",
+              "boundary": "after_tool:context.load",
+              "resume_strategy": "continue_pending_call"
+            }
+          }
+        ],
+        "pending": {
+          "permission_required": true,
+          "permission_event_id": 5,
+          "blocked_tool": "file.revise",
+          "proposed_patch_artifact_id": 2,
+          "runtime_pending_call_artifact_id": 3,
+          "runtime_pending_tool": "file.review"
+        },
+        "recoverability": {
+          "terminal_event_id": null,
+          "resume_strategy": "await_permission_decision"
+        },
+        "runtime_recovery": {
+          "latest_execution_marker": null,
+          "latest_replay_safe_marker": null,
+          "latest_failure": null,
+          "latest_control": null,
+          "latest_interruption": null,
+          "latest_resume_diagnostic": null,
+          "latest_pending_call": {
+            "artifact_id": 3,
+            "artifact_kind": "runtime_pending_call",
+            "intent": "file.review",
+            "boundary": "after_tool:context.load",
+            "status": "pending",
+            "resume_strategy": "continue_pending_call",
+            "pending_tool": "file.review"
+          },
+          "latest_pending_call_resolution": null,
+          "automatic_resume_supported": false,
+          "manual_restart_required": false
+        },
+        "interruption_model": {
+          "uses_existing_paused_status": true,
+          "uses_existing_stopped_status": false,
+          "has_interrupted_event": false,
+          "runtime_state": "settled"
+        }
+      }
+    },
+    {
+      "op": "events",
+      "run": "legacy-run-3",
+      "result": [
+        {
+          "id": 7,
+          "run_id": 3,
+          "event_type": "agent_run_failed",
+          "actor": "root_agent",
+          "message": "失败",
+          "payload": {
+            "error": "provider 401 [REDACTED]",
+            "reason": "llm_error"
+          },
+          "sequence": 1
+        }
+      ]
+    },
+    {
+      "op": "save_points",
+      "run": "legacy-run-3",
+      "result": {
+        "run_id": "legacy-run-3",
+        "status": "failed",
+        "current_step": null,
+        "save_points": [
+          {
+            "kind": "run_failed",
+            "source": "event",
+            "event_id": 7,
+            "event_type": "agent_run_failed",
+            "sequence": 1,
+            "summary": {}
+          }
+        ],
+        "pending": {
+          "permission_required": false,
+          "permission_event_id": null,
+          "blocked_tool": null,
+          "proposed_patch_artifact_id": null,
+          "runtime_pending_call_artifact_id": null,
+          "runtime_pending_tool": null
+        },
+        "recoverability": {
+          "terminal_event_id": 7,
+          "resume_strategy": "manual_restart_required"
+        },
+        "runtime_recovery": {
+          "latest_execution_marker": null,
+          "latest_replay_safe_marker": null,
+          "latest_failure": {
+            "event_id": 7,
+            "sequence": 1,
+            "event_type": "agent_run_failed",
+            "manual_restart_required": true,
+            "resume_strategy": "manual_restart_required",
+            "message": "失败"
+          },
+          "latest_control": null,
+          "latest_interruption": null,
+          "latest_resume_diagnostic": null,
+          "latest_pending_call": null,
+          "latest_pending_call_resolution": null,
+          "automatic_resume_supported": false,
+          "manual_restart_required": true
+        },
+        "interruption_model": {
+          "uses_existing_paused_status": false,
+          "uses_existing_stopped_status": false,
+          "has_interrupted_event": false,
+          "runtime_state": "settled"
+        }
+      }
+    },
+    {
+      "op": "events",
+      "run": "legacy-run-4",
+      "result": [
+        {
+          "id": 8,
+          "run_id": 4,
+          "event_type": "agent_run_started",
+          "actor": "root_agent",
+          "message": "开始",
+          "payload": {},
+          "sequence": 1
+        }
+      ]
+    },
+    {
+      "op": "save_points",
+      "run": "legacy-run-4",
+      "result": {
+        "run_id": "legacy-run-4",
+        "status": "running",
+        "current_step": "tool:fs.read",
+        "save_points": [
+          {
+            "kind": "run_started",
+            "source": "event",
+            "event_id": 8,
+            "event_type": "agent_run_started",
+            "sequence": 1,
+            "summary": {}
+          }
+        ],
+        "pending": {
+          "permission_required": false,
+          "permission_event_id": null,
+          "blocked_tool": null,
+          "proposed_patch_artifact_id": null,
+          "runtime_pending_call_artifact_id": null,
+          "runtime_pending_tool": null
+        },
+        "recoverability": {
+          "terminal_event_id": null,
+          "resume_strategy": "none"
+        },
+        "runtime_recovery": {
+          "latest_execution_marker": null,
+          "latest_replay_safe_marker": null,
+          "latest_failure": null,
+          "latest_control": null,
+          "latest_interruption": null,
+          "latest_resume_diagnostic": null,
+          "latest_pending_call": null,
+          "latest_pending_call_resolution": null,
+          "automatic_resume_supported": false,
+          "manual_restart_required": false
+        },
+        "interruption_model": {
+          "uses_existing_paused_status": false,
+          "uses_existing_stopped_status": false,
+          "has_interrupted_event": false,
+          "runtime_state": "in_flight"
+        }
+      }
+    },
+    {
+      "op": "events",
+      "run": "legacy-run-5",
+      "result": [
+        {
+          "id": 9,
+          "run_id": 5,
+          "event_type": "stop_run",
+          "actor": "author",
+          "message": "停止",
+          "payload": {
+            "control_type": "stop_run",
+            "source": "desktop"
+          },
+          "sequence": 1
+        }
+      ]
+    },
+    {
+      "op": "save_points",
+      "run": "legacy-run-5",
+      "result": {
+        "run_id": "legacy-run-5",
+        "status": "stopped",
+        "current_step": "stopped",
+        "save_points": [
+          {
+            "kind": "control_message",
+            "source": "event",
+            "event_id": 9,
+            "event_type": "stop_run",
+            "sequence": 1,
+            "summary": {
+              "control_type": "stop_run",
+              "source": "desktop"
+            }
+          }
+        ],
+        "pending": {
+          "permission_required": false,
+          "permission_event_id": null,
+          "blocked_tool": null,
+          "proposed_patch_artifact_id": null,
+          "runtime_pending_call_artifact_id": null,
+          "runtime_pending_tool": null
+        },
+        "recoverability": {
+          "terminal_event_id": null,
+          "resume_strategy": "stopped_by_user"
+        },
+        "runtime_recovery": {
+          "latest_execution_marker": null,
+          "latest_replay_safe_marker": null,
+          "latest_failure": null,
+          "latest_control": {
+            "event_id": 9,
+            "sequence": 1,
+            "event_type": "stop_run",
+            "control_type": "stop_run",
+            "source": "desktop"
+          },
+          "latest_interruption": {
+            "event_id": 9,
+            "sequence": 1,
+            "event_type": "stop_run",
+            "status": "stopped",
+            "resume_strategy": "stopped_by_user",
+            "automatic_resume_supported": false
+          },
+          "latest_resume_diagnostic": null,
+          "latest_pending_call": null,
+          "latest_pending_call_resolution": null,
+          "automatic_resume_supported": false,
+          "manual_restart_required": false
+        },
+        "interruption_model": {
+          "uses_existing_paused_status": false,
+          "uses_existing_stopped_status": true,
+          "has_interrupted_event": false,
+          "runtime_state": "settled"
+        }
+      }
+    }
+  ]
+}

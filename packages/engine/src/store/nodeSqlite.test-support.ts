@@ -56,3 +56,28 @@ export async function migratedMemoryDb() {
   await migrateEngineDb(db);
   return db;
 }
+
+/**
+ * 旧库快照端口的测试实现：先执行 `statements` 建出旧库（外键照 Python 库不开），
+ * 快照的查询在一个读事务里依次执行；`snapshots` 记被读了几次。
+ */
+export function nodeLegacySource(statements: readonly string[]) {
+  const db = new sqlite.DatabaseSync(':memory:');
+  db.exec('PRAGMA foreign_keys = OFF');
+  for (const statement of statements) db.exec(statement);
+  const legacy = {
+    snapshots: 0,
+    exec: (sql: string) => db.exec(sql),
+    select: (sql: string) => db.prepare(sql).all(),
+    async snapshot(queries: readonly string[]) {
+      legacy.snapshots += 1;
+      db.exec('BEGIN');
+      try {
+        return queries.map((sql) => db.prepare(sql).all());
+      } finally {
+        db.exec('COMMIT');
+      }
+    },
+  };
+  return legacy;
+}

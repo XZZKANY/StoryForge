@@ -96,6 +96,8 @@ export const ENGINE_MIGRATIONS: readonly (readonly string[])[] = [
     )`,
     'CREATE INDEX ix_subagent_runs_run_id ON subagent_runs (run_id)',
   ],
+  // 引擎自己的标记（旧库导入 `imported_from_v1` 等），值是 JSON 文本。
+  ['CREATE TABLE engine_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)'],
 ];
 
 export class EngineSchemaError extends Error {

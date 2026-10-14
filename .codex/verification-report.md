@@ -7974,3 +7974,14 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 修正：`kernel/redaction.ts` 的 `redactSensitive` 不再把 `JsonFloat` 拆成 `{value}`（TS 既有缺陷，经脱敏落库的载荷里的整数值浮点会被写坏）。
 - 测试：引擎 vitest 13148 通过（检查历史内存 / sqlite 各回放 72 步一致）；前端 vitest 2177 通过（新增 `chapter-checks-engine` 3 条）；前端 / 引擎 typecheck；`pnpm lint`；`--check` 复导一致。
 - 变异：服务 25 / 26（余 1 处等价），脱敏修正 1 / 1，前端接线 3 / 3。真 WebView 探针 `--agent-only` 通过（重载后检查历史与收件箱都走引擎库）。
+
+## 2026-10-14 P4-3a 旧库只读导入：引擎导入器与作者库副本验收（TS 迁移，默认仍走 Python）
+
+- 作者确认：可用装机库只读副本做验收；导入只在 P5 切默认时做一次。4-3 拆两刀，本刀不接线。
+- 范围：`packages/engine/src/store/legacyImport.ts`（`importLegacyDb` / `LegacySnapshotSource` / `LegacyImportError`）；迁移 0002 建 `engine_meta`（`imported_from_v1` 标记）；预言机 `apps/api/scripts/golden_legacy_import.py`（`--suite p4-legacy-import`，合成旧库的 `iterdump()` + 22 个路由读模型）；测试端口 `nodeLegacySource`；探针里引擎库版本改为 2。
+- 测试：引擎 vitest 13165 通过（新增 `legacyImport.test.ts` 17 条：预言机回放逐行逐列 + 22 个读模型、只导一次、旧库不存在、引擎库已有数据、范围外 / 写入失败整组回滚后可重试、快照组数、改快照）；前端 vitest 2177 通过；引擎 / 前端 typecheck；eslint；ruff；`--check` 连续三次复导一致。
+- 变异：22 处首轮 20 / 22（存活：非空检查、文本检查——旧库的 NOT NULL 与文本亲和性让这两种值在 SQL 里造不出来），补「改快照」测试后 22 / 22。
+- 作者库副本（只读复制到 output/，不入库，只输出计数与位置）：复制前后原库主文件与 WAL 哈希不变；副本 0.1.10 schema（alembic 20260703_0001）。导入 16 会话 / 110 消息 / 246 工具调用 / 55 run / 524 事件 / 71 artifact / 0 subagent；9882 格逐格比对零差异，1252 个 JSON 格按 Python 格式重写后逐字节相同；副本再经新版 sidecar 起服收口（upgrade head 到 20261010_0002）后导入，引擎库逐行相同；148 个读模型（16 会话详情、16 工具调用列表、6 种最近会话、55 个 run 的事件与保存点）与 Python 逐项一致；副本前后哈希不变。
+- 已知差异：库里有 `runtime_checkpoint` 的 run，Python 保存点附检查点诊断，引擎没有持久检查点（作者库里没有这种 artifact）。整数形的键被 JS 对象排前（引擎所有载荷皆如此，作者库里没有）。
+- 真 WebView 探针 `--agent-only` 通过（引擎库在真窗口里迁到版本 2）。
+- 未联通：Rust 只读快照命令、前端接线与真窗口探针（4-3b）；导入开关在 P5 打开。
