@@ -1,7 +1,23 @@
 /** Dialogue forms shared by prose scans and polishing; use matchAll/replace, not exec state. */
 export const DIALOGUE_PATTERN = /“[^“”]*”|「[^「」]*」|『[^『』]*』|"[^"\n]*"/gsu;
 
+/**
+ * 全角 / 半角的同一个标点也算「只是形态变了」（2026-10-14 起，只在 TS；Python 的折叠表没有这几对）：
+ * 模型把整篇的 `，` 换成 `,` 时，没点名的行要还原，改动比例也不该被这种漂移撑大。
+ * 不折 `。`：它和 `.` / `…` 混在一起会把刻意改成省略号的那一下也当成漂移。
+ */
+const WIDTH_FOLDS: Readonly<Record<string, string>> = {
+  '，': ',',
+  '：': ':',
+  '；': ';',
+  '？': '?',
+  '！': '!',
+  '（': '(',
+  '）': ')',
+};
+
 const FOLDS: Readonly<Record<string, string>> = {
+  ...WIDTH_FOLDS,
   '“': '"',
   '”': '"',
   '「': '"',
