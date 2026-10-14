@@ -536,7 +536,8 @@ export function agentRunReplay(golden: Obj) {
         dumpJson(spec.message).split('$ROOT').join(JSON.stringify(ROOT).slice(1, -1)),
         'message',
       ) as Obj;
-      if ('file_path' in (message.args as Obj))
+      // 固定管线自带 file_path；只改写对话消息里的缺省占位（与预言机一致）。
+      if ((message.args as Obj).file_path === `${ROOT}/正文/第001章.md`)
         (message.args as Obj).file_path =
           `${ROOT}${platform === 'windows' ? '\\正文\\第001章.md' : '/正文/第001章.md'}`;
       try {

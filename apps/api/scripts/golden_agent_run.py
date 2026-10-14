@@ -652,6 +652,108 @@ def deep_scenarios():
     return s
 
 
+FIXED_SOURCES = [
+    "app/domains/agent_runs/adapters/intent_fixed_pipeline_adapter.py",
+    "app/domains/agent_runs/adapters/file_review_pipeline.py",
+    "app/domains/agent_runs/adapters/chapter_generation_pipeline.py",
+    "app/domains/agent_runs/adapters/chapter_polishing_pipeline.py",
+    "app/domains/agent_runs/patches/runtime_tools.py",
+    "app/domains/agent_runs/runtime_recovery.py",
+    "app/domains/agent_runs/events/runtime_support.py",
+    "app/domains/agent_runs/fs/runtime_tools.py",
+]
+
+
+def fixed(text, intent, content=None, **extra):
+    args = {"content": CHAPTER_ONE if content is None else content, **extra.pop("args", {})}
+    return message(text, intent=intent, args=args, **extra)
+
+
+def fixed_scenarios():
+    s = []
+    resume = {"op": "control", "type": "resume_run"}
+    paused_at = lambda boundary: [{"boundary": boundary, "nth": 1, "status": "paused", "current_step": "paused"}]  # noqa: E731
+    stopped_at = lambda boundary: [{"boundary": boundary, "nth": 1, "status": "stopped", "current_step": "stopped"}]  # noqa: E731
+    s.append(scenario("review-fixed", fixed("审一下这章", "file.review"), review_replies()))
+    s.append(scenario("review-fixed-heuristic", fixed("审一下这章", "file.review"), [],
+                      env={"STORYFORGE_LLM_API_KEY": None}))
+    s.append(scenario("review-fixed-roles-and-context", fixed("审一下这章", "file.review", args={
+        "agent_role_hints": ["plot_reviewer"], "context_bundle": {"files": [
+            {"relative_path": "人物/主角.md", "excerpt": "左臂有旧伤。", "kind": "character"}]}}), review_replies()))
+    s.append(scenario("review-fixed-pause-after-plan", fixed("审一下这章", "file.review"), [],
+                      triggers=paused_at("after_plan"), ops=[resume]))
+    s.append(scenario("review-fixed-pause-after-context", fixed("审一下这章", "file.review"), review_replies(),
+                      triggers=paused_at("after_tool:context.load"), ops=[resume]))
+    s.append(scenario("review-fixed-stop-after-context", fixed("审一下这章", "file.review"), [],
+                      triggers=stopped_at("after_tool:context.load"), ops=[resume]))
+    s.append(scenario("review-fixed-pause-during-delivery", fixed("审一下这章", "file.review"), review_replies(),
+                      triggers=paused_at("after_tool:subagent.character_reviewer"), ops=[resume]))
+    s.append(scenario("review-fixed-stop-during-delivery", fixed("审一下这章", "file.review"), review_replies(),
+                      triggers=stopped_at("after_tool:subagent.plot_reviewer")))
+    s.append(scenario("review-fixed-pause-before-deliver", fixed("审一下这章", "file.review"), review_replies(),
+                      triggers=paused_at("before_deliver:file.review"), ops=[resume, resume]))
+    s.append(scenario("review-fixed-pause-before-finalize", fixed("审一下这章", "file.review"), review_replies(),
+                      triggers=paused_at("before_finalize:agent_runtime"), ops=[resume]))
+    # The resumed run pauses again during delivery: the second pending call (with the review output) wins.
+    s.append(scenario("review-fixed-pause-twice", fixed("审一下这章", "file.review"), review_replies(),
+                      triggers=[*paused_at("after_tool:context.load"),
+                                *paused_at("after_tool:subagent.prose_reviewer")], ops=[resume, resume]))
+    # Settlement records the resolution before the hidden jobs; a later pause has no pending call left.
+    s.append(scenario("review-fixed-pause-after-resolution", fixed("审一下这章", "file.review"), review_replies(),
+                      triggers=[*paused_at("after_tool:context.load"),
+                                *paused_at("before_publish:system_job:title")], ops=[resume, resume]))
+    in_flight = review_replies()
+    in_flight[0] = {**in_flight[0], "controls": [{"type": "resume_run"}]}
+    s.append(scenario("review-fixed-resume-while-resumed", fixed("审一下这章", "file.review"), in_flight,
+                      triggers=paused_at("after_tool:context.load"), ops=[resume]))
+    s.append(scenario("review-fixed-deadline", fixed("审一下这章", "file.review"), [
+        completion(REVIEW_ISSUES, advance=901), completion("[]"), completion("[]")]))
+    revised = streamed(["第一章 风起\n\n林舟一脚踹开了门。\n"])
+    s.append(scenario("revise-fixed", fixed("把开门写得更有力", "file.revise"), [*review_replies(), revised]))
+    s.append(scenario("revise-fixed-auto", fixed("把开门写得更有力", "file.revise", permission_profile="auto"),
+                      [*review_replies(), revised]))
+    s.append(scenario("revise-fixed-judge-marker", fixed("把开门写得更有力", "file.revise"), [
+        *review_replies(), streamed(["第一章 风起\n\n其实林舟一脚踹开了门。\n"])]))
+    seeded = {"report_id": "rr-1", "file_path": "正文/第001章.md",
+              "content_sha256": hashlib.sha256(CHAPTER_ONE.encode()).hexdigest(),
+              "issues": [{"id": "plot-1", "category": "plot", "severity": "high", "code": "plot.hook_missing",
+                          "message": "章尾缺少钩子", "evidence": "林舟推开门。"}]}
+    s.append(scenario("revise-fixed-offered-review", fixed(
+        "按审稿意见修改第1条", "file.revise", assistant_session_id=1,
+        args={"review_report": {"report_id": "rr-1", "content_sha256": seeded["content_sha256"]}}), [revised],
+        sessions=[{"title": "审稿会话", "project_path": "$ROOT"}], seed_review=seeded))
+    s.append(scenario("revise-fixed-scope-warning", fixed(
+        "按审稿意见修改第1条", "file.revise", assistant_session_id=1,
+        args={"review_report": {"report_id": "rr-1", "content_sha256": seeded["content_sha256"]}}),
+        [streamed(["第一章 别的名字\n\n全部重写了一遍。\n另起一段。\n再起一段。\n"])],
+        sessions=[{"title": "审稿会话", "project_path": "$ROOT"}], seed_review=seeded))
+    s.append(scenario("revise-fixed-directed-without-review", fixed("按审稿意见改第1条", "file.revise"), []))
+    s.append(scenario("revise-fixed-llm-error", fixed("把开门写得更有力", "file.revise"), [
+        *review_replies(), {"status": 500, "body": '{"error":{"message":"upstream down"}}'}]))
+    s.append(scenario("revise-fixed-pause-after-revise", fixed("把开门写得更有力", "file.revise"),
+                      [*review_replies(), revised], triggers=paused_at("after_tool:file.revise"), ops=[resume]))
+    s.append(scenario("polish-fixed-main-model", fixed("润色这章", "chapter.polish", content=ROUGH, args={
+        "file_path": "$ROOT/正文/第004章.md", "style_instruction": "冷峻一些", "use_main_model": True}),
+        [polished(*SMOOTH)], extra_files={"正文/第004章.md": ROUGH}))
+    s.append(scenario("polish-fixed-auto-accepted", fixed("润色这章", "chapter.polish", content=ROUGH,
+                                                       permission_profile="auto", args={
+                                                           "file_path": "$ROOT/正文/第004章.md", "use_main_model": True}),
+                      [polished(*SMOOTH)], extra_files={"正文/第004章.md": ROUGH}))
+    s.append(scenario("polish-fixed-offline", fixed("润色这章", "chapter.polish", content=ROUGH, args={
+        "file_path": "$ROOT/正文/第004章.md", "online_enabled": False}), [], extra_files={"正文/第004章.md": ROUGH}))
+    s.append(scenario("polish-fixed-dedicated-noop", fixed("润色这章", "chapter.polish", content=CLEAN, args={
+        "file_path": "$ROOT/正文/第005章.md"}), [polished()], extra_files={"正文/第005章.md": CLEAN}, env=POLISH_ENV))
+    s.append(scenario("polish-fixed-auto-degraded", fixed("润色这章", "chapter.polish", content=ROUGH,
+                                                       permission_profile="auto",
+                                                       args={"file_path": "$ROOT/正文/第004章.md"}),
+                      [], extra_files={"正文/第004章.md": ROUGH}, env=NO_POLISH))
+    s.append(scenario("polish-fixed-outside-path", fixed("润色这章", "chapter.polish", content=ROUGH, args={
+        "file_path": "D:/elsewhere/第004章.md"}), []))
+    s.append(scenario("polish-fixed-relative-path", fixed("润色这章", "chapter.polish", content=ROUGH, args={
+        "file_path": "正文/第004章.md"}), [], extra_files={"正文/第004章.md": ROUGH}, env=NO_POLISH))
+    return s
+
+
 def write_file(path, content):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content.encode("utf-8"))
@@ -709,6 +811,47 @@ def p3_patch_tools_snapshot() -> dict:
     return _snapshot("p3-patch-tools", patch_scenarios(), SOURCES + PATCH_SOURCES)
 
 
+def pending_call_records() -> dict:
+    """Pure pending-call helpers on hand-made payloads (branches the end-to-end scenarios cannot reach)."""
+    from app.domains.agent_runs.runtime_recovery import (
+        build_runtime_pending_call_resolution_payload,
+        build_runtime_pending_call_resume_diagnostic,
+    )
+
+    message = {"type": "user_message", "user_message": "x"}
+    payloads = {
+        "not-pending": {"status": "resolved", "intent": "file.review"},
+        "unsupported": {"status": "pending", "intent": "chat.explain", "resume_message": message},
+        "review-ready": {"status": "pending", "intent": "file.review", "boundary": "after_tool:context.load",
+                         "resume_strategy": "continue_after_context_load", "resume_message": message},
+        "review-postprocess": {"status": "pending", "intent": "file.review", "boundary": "before_deliver:file.review",
+                               "next_trace_index": 3, "resume_message": message},
+        "review-no-message": {"status": "pending", "intent": "file.review"},
+        "chapter-review-no-judge": {"status": "pending", "intent": "chapter.review", "resume_message": message},
+        "chapter-review-ready": {"status": "pending", "intent": "chapter.review", "resume_message": message,
+                                 "judge_output": {}, "judge_trace": {}},
+        "chapter-write-no-brief": {"status": "pending", "intent": "chapter.write", "resume_message": message},
+        "chapter-write-ready": {"status": "pending", "intent": "chapter.write", "resume_message": message,
+                                "chapter_brief": {"goal": "g"}},
+        "not-a-dict": "pending",
+    }
+    diagnostics = []
+    for name, payload in payloads.items():
+        for status, step in (("running", "resumed"), ("running", "agent.loop"), ("paused", "paused"), (None, None)):
+            diagnostics.append({"name": name, "run_status": status, "current_step": step, "payload": payload,
+                                "result": build_runtime_pending_call_resume_diagnostic(
+                                    run_status=status, current_step=step, payload=payload, artifact_id=7)})
+    resolutions = [{"name": name, "payload": payload,
+                    "result": build_runtime_pending_call_resolution_payload(payload, artifact_id=7)}
+                   for name, payload in payloads.items()]
+    return {"pending_call_diagnostics": diagnostics, "pending_call_resolutions": resolutions}
+
+
+def p3_fixed_pipelines_snapshot() -> dict:
+    return _snapshot("p3-fixed-pipelines", fixed_scenarios(), SOURCES + CONTROL_SOURCES + FIXED_SOURCES,
+                     extra={"polish_secret": POLISH_SECRET}, after=pending_call_records)
+
+
 def p3_deep_consistency_snapshot() -> dict:
     return _snapshot("p3-deep-consistency", deep_scenarios(), SOURCES + DEEP_SOURCES)
 
@@ -727,7 +870,7 @@ def drop_checkpoint_artifact_ids(value):
     return value
 
 
-def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None) -> dict:
+def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None, after=None) -> dict:
     with isolated_fs_oracle("storyforge-golden-agent-run-", fixed=True) as (api, run_dir):
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
@@ -787,6 +930,9 @@ def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None)
         def set_status(status, step):
             db = state["db"]
             row = db.query(AgentRun).filter(AgentRun.public_id == "run-1").one()
+            # Another session (the control channel) may have moved the row since: refresh, or an unchanged
+            # cached value would make this assignment a no-op that never reaches the database.
+            db.refresh(row)
             row.status, row.current_step = status, step
             db.add(row)
             db.commit()
@@ -918,7 +1064,7 @@ def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None)
                 record["result"] = out_result
             elif not spec.get("setup"):
                 msg = json.loads(json.dumps(spec["message"]).replace("$ROOT", root.replace("\\", "\\\\")))
-                if "file_path" in msg["args"]:
+                if msg["args"].get("file_path") == root + "/正文/第001章.md":
                     msg["args"]["file_path"] = str(project.root / "正文" / "第001章.md")
                 try:
                     out = service.run_agent_user_message(
@@ -978,5 +1124,6 @@ def _snapshot(suite: str, specs: list, sources: list, extra: dict | None = None)
             "project_root": str(run_dir / "book"),
             "scenarios": records,
             **(extra or {}),
+            **(after() if after is not None else {}),
         }
 

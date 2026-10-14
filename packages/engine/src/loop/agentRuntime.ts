@@ -30,6 +30,7 @@ import type { LoopProvider } from './chatLoopAdapters';
 import type { LoopCheckpointStore } from './chatLoopCheckpoints';
 import type { LoopToolExecutor } from './chatLoopContext';
 import type { ConversationSources } from './conversationHistory';
+import { runFixedIntentPipeline, type FixedPipelineHost } from './fixedPipelines';
 import { gateDecide } from './permission';
 import { AgentRequestObserver } from './requestEvidence';
 import { currentConversationReview } from './reviewSources';
@@ -75,7 +76,12 @@ import {
   optionalPositiveInt,
   sanitizeLoopToolArguments,
 } from './tools/runtimeArguments';
-import { buildRuntimeInterruptionPayload, traceAsDict, type AgentToolTrace } from './traces';
+import {
+  buildRuntimeInterruptionPayload,
+  traceAsDict,
+  traceObjects,
+  type AgentToolTrace,
+} from './traces';
 import { validateCompactionPublication, CompactionRejected } from './conversationHistory';
 import { pythonStrip } from '../kernel/pythonText';
 
@@ -789,6 +795,40 @@ export class AgentRuntime {
   }
 
   /** 被中断的结果：撤回未送达的写入；截止时间按失败记，作者的暂停 / 停止按中断记。 */
+  /** 固定管线看到的运行时能力。 */
+  private fixedPipelineHost(): FixedPipelineHost {
+    return {
+      sink: this.sink,
+      store: this.deps.store,
+      assistant: this.deps.assistant,
+      conversation: this.deps.conversation,
+      executeTool: (run, toolName, context, payload) =>
+        this.executeTool(run, toolName, context, payload),
+      toolContext: async (run, request, currentReviewReport = null) => ({
+        run: await this.toolRunView(run),
+        services: this.toolServices(),
+        deliveries: null,
+        agentSessionId: request.agentSessionId,
+        assistantSessionId: request.assistantSessionId,
+        userMessage: request.userMessage,
+        args: request.args,
+        currentReviewReport,
+        writingReadSources: [],
+      }),
+      runtimeInterruption: (run, boundary) => this.runtimeInterruption(run, boundary),
+      checkResultDelivery: (result, boundary, eventsRecorded) => {
+        try {
+          checkRunInterruption(this.control, boundary);
+        } catch (error) {
+          if (!(error instanceof RunInterrupted)) throw error;
+          return this.interruptedDeliveryResult(result, error.reason, eventsRecorded);
+        }
+        return null;
+      },
+      baseResponse,
+    };
+  }
+
   private interruptedDeliveryResult(result: Obj, reason: string, eventsRecorded = false): Obj {
     const agent = result.agent_result as Obj;
     result.proposed_patch = null;
@@ -892,9 +932,23 @@ export class AgentRuntime {
       session = await this.resolveAssistantSession(userMessage, message, args);
       if (run.assistant_session_id !== session.id)
         run = await this.deps.store.updateRun(run.id, { assistant_session_id: session.id });
-      if (intent !== 'chat.explain')
-        throw new AgentOrchestrationError(`固定管线 ${intent} 随 P3-6 搬迁，引擎暂不支持。`);
-      result = await this.runChatExplain(run, agentSessionId, session.id, userMessage, args);
+      if (intent === 'chat.explain')
+        result = await this.runChatExplain(run, agentSessionId, session.id, userMessage, args);
+      else {
+        result = await runFixedIntentPipeline(this.fixedPipelineHost(), {
+          run,
+          agentSessionId,
+          assistantSessionId: session.id,
+          userMessage,
+          args,
+          intent,
+        });
+        if (
+          result._runtime_interrupted !== true &&
+          !truthy((result.agent_result as Obj).execution_outcome)
+        )
+          checkRunInterruption(this.control, 'before_finalize:agent_runtime');
+      }
     } catch (error) {
       if (error instanceof RunInterrupted) {
         if (result === null)
@@ -936,7 +990,16 @@ export class AgentRuntime {
       popRuntimeInternalMarkers(result);
       return result;
     }
-    // 回落单轮没有工具轨迹（tool_trace 恒为空），这里只剩结算。
+    // 固定管线的轨迹在这里逐条落库，每条之后都给控制通道一个停下的机会。
+    for (const [index, trace] of traceObjects(result).entries()) {
+      await this.sink.recordToolTrace(run, trace, index);
+      const stop = this.runtimeInterruption(run, `after_tool:${trace.tool_name}`);
+      if (stop !== null) {
+        runtimeInterruptedResponse(result, stop);
+        popRuntimeInternalMarkers(result);
+        return result;
+      }
+    }
     return this.finalize(run, session.id, result, false);
   }
 }

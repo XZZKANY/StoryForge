@@ -46,6 +46,7 @@ import {
   buildToolRecoveryPayload,
   normalizeRuntimeProgress,
   publicRuntimeEventPayload,
+  RUNTIME_PENDING_CALL_ARTIFACT_KIND,
   traceAsDict,
   type AgentToolTrace,
 } from './traces';
@@ -617,6 +618,18 @@ export class AgentRunEventSink {
     await this.progress;
     const { event } = await recordAgentArtifact(this.services, run, fields);
     await this.emit(event);
+  }
+
+  /** 可恢复的未决调用：私有正文进 artifact，事件里只露摘要；带上当时的权限档位。 */
+  async recordRuntimePendingCall(run: RunRecord, payload: Obj): Promise<void> {
+    await this.recordArtifact(run, {
+      kind: RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+      payload: {
+        ...payload,
+        permission_profile: canonicalPermissionProfile(run.permission_profile),
+      },
+      requiresConfirmation: false,
+    });
   }
 
   async recordPermissionRequired(run: RunRecord, result: Obj, reason: string): Promise<void> {

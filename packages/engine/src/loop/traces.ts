@@ -110,6 +110,30 @@ export function buildRuntimeInterruptionPayload(
 }
 
 export const RUNTIME_PENDING_CALL_ARTIFACT_KIND = 'runtime_pending_call';
+export const RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND = 'runtime_pending_call_resolution';
+export const SUPPORTED_RUNTIME_PENDING_CALL_INTENTS = new Set([
+  'chapter.review',
+  'file.review',
+  'chapter.write',
+]);
+
+/** 结果里的轨迹（字典或已有轨迹）规整成轨迹对象；缺字段按 Python 的缺省补。 */
+export function traceObjects(result: Obj): AgentToolTrace[] {
+  const traces = Array.isArray(result.tool_trace) ? result.tool_trace : [];
+  return traces.filter(isObj).map((trace) => ({
+    tool_name: String(trace.tool_name || 'unknown'),
+    status: String(trace.status || 'completed'),
+    input_summary: isObj(trace.input_summary) ? trace.input_summary : {},
+    output_summary: isObj(trace.output_summary) ? trace.output_summary : null,
+    audit_event_id: typeof trace.audit_event_id === 'string' ? trace.audit_event_id : null,
+    assistant_tool_call_id:
+      typeof trace.assistant_tool_call_id === 'number' &&
+      Number.isInteger(trace.assistant_tool_call_id)
+        ? trace.assistant_tool_call_id
+        : null,
+    error_message: typeof trace.error_message === 'string' ? trace.error_message : null,
+  }));
+}
 
 /** 未决调用 artifact 的安全摘要：只挑几个已知字段，私有正文不外露。 */
 export function buildRuntimePendingCallSummary(
@@ -133,6 +157,104 @@ export function buildRuntimePendingCallSummary(
   const next = payload.next_trace_index;
   if (typeof next === 'number' && Number.isInteger(next)) summary.next_trace_index = next;
   return summary;
+}
+
+/** 未决调用能不能经控制通道恢复，以及不能的原因（runtime_recovery 的恢复诊断）。 */
+export function buildRuntimePendingCallResumeDiagnostic(input: {
+  runStatus: unknown;
+  currentStep: unknown;
+  payload: unknown;
+  artifactId?: number | null;
+  artifactKind?: string | null;
+}): Obj {
+  const artifactId = input.artifactId ?? null;
+  const artifactKind =
+    input.artifactKind === undefined ? RUNTIME_PENDING_CALL_ARTIFACT_KIND : input.artifactKind;
+  const summary = buildRuntimePendingCallSummary(input.payload, artifactId, artifactKind);
+  const diagnostic: Obj = {
+    kind: 'runtime_pending_call_resume',
+    can_resume: false,
+    resume_via_control_channel: false,
+    requires_manual_restart: true,
+    reason: 'invalid_pending_call',
+    resume_strategy: 'manual_restart_required',
+  };
+  if (artifactId !== null) diagnostic.artifact_id = artifactId;
+  if (artifactKind) diagnostic.artifact_kind = artifactKind;
+  if (typeof input.runStatus === 'string') diagnostic.run_status = input.runStatus;
+  if (typeof input.currentStep === 'string') diagnostic.current_step = input.currentStep;
+  if (summary === null) return diagnostic;
+  for (const key of ['intent', 'boundary', 'status', 'pending_tool', 'next_trace_index']) {
+    const value = summary[key];
+    if (typeof value === 'string' || typeof value === 'number') diagnostic[key] = value;
+  }
+  const pendingStrategy = summary.resume_strategy;
+  if (typeof pendingStrategy === 'string' && pendingStrategy)
+    diagnostic.pending_resume_strategy = pendingStrategy;
+  const intent = summary.intent;
+  if (typeof intent !== 'string' || !SUPPORTED_RUNTIME_PENDING_CALL_INTENTS.has(intent)) {
+    diagnostic.reason = 'unsupported_pending_call_intent';
+    return diagnostic;
+  }
+  if (input.runStatus !== 'running' || input.currentStep !== 'resumed') {
+    diagnostic.reason = 'run_not_resumed';
+    diagnostic.requires_manual_restart = false;
+    diagnostic.resume_strategy = 'await_resume';
+    return diagnostic;
+  }
+  const payload = input.payload as Obj;
+  if (!isObj(payload.resume_message)) {
+    diagnostic.reason = 'missing_resume_message';
+    return diagnostic;
+  }
+  if (
+    intent === 'chapter.review' &&
+    (!isObj(payload.judge_output) || !isObj(payload.judge_trace))
+  ) {
+    diagnostic.reason = 'missing_resume_payload';
+    return diagnostic;
+  }
+  if (intent === 'chapter.write' && !isObj(payload.chapter_brief)) {
+    diagnostic.reason = 'missing_resume_payload';
+    return diagnostic;
+  }
+  diagnostic.can_resume = true;
+  diagnostic.resume_via_control_channel = true;
+  diagnostic.requires_manual_restart = false;
+  diagnostic.reason = 'pending_call_ready';
+  diagnostic.resume_strategy =
+    typeof pendingStrategy === 'string' && pendingStrategy
+      ? pendingStrategy
+      : 'continue_pending_call';
+  return diagnostic;
+}
+
+/** 消费掉的未决调用留一条只增不改的隐藏记录。 */
+export function buildRuntimePendingCallResolutionPayload(
+  payload: unknown,
+  artifactId: number,
+  artifactKind: string = RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+): Obj {
+  const pending = buildRuntimePendingCallSummary(payload, artifactId, artifactKind);
+  const result: Obj = {
+    kind: RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
+    status: 'resolved',
+    resolution: 'resumed',
+    resolved_by: 'agent_runtime',
+    result_status: 'completed',
+    pending_artifact_id: artifactId,
+    pending_artifact_kind: artifactKind,
+  };
+  if (pending !== null) {
+    result.pending_call = pending;
+    for (const key of ['intent', 'boundary', 'pending_tool', 'next_trace_index']) {
+      const value = pending[key];
+      if (typeof value === 'string' || typeof value === 'number') result[key] = value;
+    }
+    const strategy = pending.resume_strategy;
+    if (typeof strategy === 'string' && strategy) result.pending_resume_strategy = strategy;
+  }
+  return result;
 }
 
 /** 私有的可恢复 artifact 对外只给摘要；其余事件原样。 */
