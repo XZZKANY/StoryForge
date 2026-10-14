@@ -30,6 +30,7 @@ import { checkToolHandlers } from './tools/checkHandlers';
 import { AgentToolRegistry, toolDefinitionFromSpec, type ToolHandler } from './tools/execution';
 import { fsToolHandlers } from './tools/fsHandlers';
 import { patchToolHandlers } from './tools/patchHandlers';
+import { chapterWritingToolHandlers } from './tools/chapterWritingTools';
 import { deepConsistencyToolHandlers } from './tools/deepConsistency';
 import { polishToolHandlers } from './tools/polishHandlers';
 import type { ToolDeps } from './tools/handlerDeps';
@@ -363,6 +364,32 @@ export function agentRunReplay(golden: Obj) {
             ),
           };
         }
+        if (reply.chapter_check) {
+          // 检查模型按自己提示里的检查源回显摘要，再附上脚本给的 findings（与预言机同一套构造）。
+          const rule = reply.chapter_check as Obj;
+          const messages = (body as Obj).messages as Obj[];
+          const prompt = messages[messages.length - 1].content as string;
+          const start = prompt.indexOf('检查源：') + '检查源：'.length;
+          const source = parseJson(
+            prompt.slice(start, prompt.indexOf('\n', start)),
+            'check source',
+          ) as Obj;
+          if (rule.corrupt) source.content_sha256 = '0'.repeat(64);
+          const content = dumpJson({ ...source, findings: rule.findings }, { ensureAscii: false });
+          reply = {
+            status: 200,
+            body: dumpJson(
+              {
+                id: 'resp-1',
+                choices: [
+                  { index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' },
+                ],
+                usage: { prompt_tokens: 12, completion_tokens: 5, total_tokens: 17 },
+              },
+              { ensureAscii: false },
+            ),
+          };
+        }
         if (reply.compaction_quote) {
           const modelInput = parseJson((body as Obj).messages[1].content, 'input') as Obj;
           const entries = (modelInput.new_sources as Obj[]).map((source) => ({
@@ -444,6 +471,7 @@ export function agentRunReplay(golden: Obj) {
       ...patchToolHandlers(toolDeps),
       ...polishToolHandlers(toolDeps),
       ...deepConsistencyToolHandlers(toolDeps),
+      ...chapterWritingToolHandlers(toolDeps),
     };
     const tools = new AgentToolRegistry();
     for (const item of AGENT_RUNTIME_TOOL_SPECS)
@@ -491,7 +519,11 @@ export function agentRunReplay(golden: Obj) {
       },
       tools,
       checkpoints: new LoopCheckpointStore(),
-      ids: { stream: () => `stream-${++streams}`, attempt: () => `attempt-${++attempts}` },
+      ids: {
+        stream: () => `stream-${++streams}`,
+        attempt: () => `attempt-${++attempts}`,
+        hex: () => toolDeps.newHex(),
+      },
       onInterruptionCheck: (_runId, boundary) => {
         checks.push(boundary);
         (spec.triggers as Obj[]).forEach((trigger, index) => {

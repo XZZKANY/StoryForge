@@ -7869,3 +7869,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - TS 回放：`packages/engine/src/loop/fixedPipelines.test.ts` 80 条全绿（29 个场景 + 计数 + 50 条纯函数记录），首轮回放即逐项一致。
 - 变异：62 处首轮 44 处，补场景与纯函数记录后重跑存活项抓住 9 处，合计 53 / 62；余 9 处逐条核为等价（明细见迁移计划）。
 - 门禁：引擎 vitest 12775 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
+
+## 2026-10-14 P3-6e 写章管线（TS 迁移，默认仍走 Python；P3-6 收口）
+
+- 范围：`chapter_writing_pipeline` / `chapter_writing_contracts` / `chapter_writing_tools` / `chapter_check_protocol` / `chapter_source_guard`、`writing_context_sources_unchanged`（含知识 / 普通来源重放）、控制通道恢复时注入作者确认的 brief → `packages/engine/src/loop/chapterWritingPipeline.ts`、`chapterWritingContracts.ts`、`chapterCheckProtocol.ts`、`chapterSourceGuard.ts`、`writingContextRecovery.ts`、`tools/chapterWritingTools.ts`；`kernel/json.ts` 的 `parseJson` 加可选 `uniqueKeys`；`agentRuntime.ts` 加 `AgentRuntimeError` 并把执行期编排失败照 Python 包装。
+- 预言机：`golden_agent_run.py` 新增 `--suite p3-chapter-writing`（钉住的源文件 19 个），34 个场景 + 34 条检查协议纯函数记录 + 检查提示原文（明细见迁移计划 P3-6e 条）；补丁 / brief id 的计数器扩到写章两个模块。`--check` 复导一致；其余六个 agent-run 套件复导不变。
+- TS 回放：`packages/engine/src/loop/chapterWriting.test.ts` 70 条全绿，首轮回放即逐项一致。
+- 变异：70 处首轮 47 处，补场景与检查协议记录后重跑存活项抓住 13 处，合计 60 / 70；余 10 处逐条核为等价或不可观测（明细见迁移计划）。
+- Python 既有边角问题（未修，待作者定）：写章消息含已配置的 key 时，来源守卫存脱敏后的消息，知识选择查询哈希对不上，整理 brief 时即报来源已变化（一次性脚本 `output/ts-engine-p3/debug_secret_brief.py` 实证：`AgentRuntimeUserMessageError: Chapter Brief 的来源在确认期间已变化…`，模型未被调用）。TS 行为相同。
+- 延后：检查历史 HTTP 读接口随 P4-2；检查点生成回执按 §2.6 不搬。
+- 门禁：引擎 vitest 12845 通过 / 2 跳过、引擎与前端 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。

@@ -305,6 +305,7 @@ async function resumeAgentRunIfPending(
   deps: AgentRuntimeDeps,
   run: RunRecord,
   input: ExecuteRunInput,
+  controlPayload: Obj | null,
 ): Promise<[Obj | null, Obj | null]> {
   const pending = await latestRuntimePendingCall(deps.store, run);
   if (pending === null) return resumeCheckpointRun(deps, run, input);
@@ -319,10 +320,20 @@ async function resumeAgentRunIfPending(
   if (diagnostic.can_resume !== true) return [null, diagnostic];
   const message = isObj(payload.resume_message) ? payload.resume_message : null;
   if (message === null) return [null, diagnostic];
+  const resumeMessage: Obj = { ...message };
+  if (payload.intent === 'chapter.write') {
+    // 作者确认（可能改过）的 brief 随恢复控制一起交来，脱敏后放进重放消息。
+    const candidate = (controlPayload ?? {}).chapter_brief;
+    if (isObj(candidate))
+      resumeMessage.args = {
+        ...(isObj(message.args) ? message.args : {}),
+        chapter_brief: redactSensitive(candidate as PlainJson, deps.secrets),
+      };
+  }
   const result = await executeAgentUserMessageRun(deps, run, {
     ...input,
     message: {
-      ...message,
+      ...resumeMessage,
       run_id: run.public_id,
       intent: typeof payload.intent === 'string' ? payload.intent : message.intent,
     },
@@ -390,12 +401,17 @@ export async function handleAgentControlMessage(
   if (input.controlType === RESUME_RUN) {
     if (event.payload.control_effect === 'applied') {
       const run = await ownedRun(deps.store, input.publicId, input.sessionId);
-      [resumedResult, resumeDiagnostic] = await resumeAgentRunIfPending(deps, run, {
-        agentSessionId: input.sessionId,
-        message: {},
-        onEvent: input.onEvent,
-        onText: input.onText,
-      });
+      [resumedResult, resumeDiagnostic] = await resumeAgentRunIfPending(
+        deps,
+        run,
+        {
+          agentSessionId: input.sessionId,
+          message: {},
+          onEvent: input.onEvent,
+          onText: input.onText,
+        },
+        input.payload ?? null,
+      );
       if (resumeDiagnostic !== null)
         event = await recordResumeDiagnostic(services, event, resumeDiagnostic);
       else if (resumedResult === null)

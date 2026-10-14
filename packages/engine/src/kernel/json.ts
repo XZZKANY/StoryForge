@@ -45,7 +45,11 @@ const LITERALS = [
 ] as const;
 
 /** 解析 JSON 文本；`source` 只用于报错，例如 `.storyforge/canon/canon.json`。 */
-export function parseJson(text: string, source: string): JsonValue {
+export function parseJson(
+  text: string,
+  source: string,
+  options: { uniqueKeys?: boolean } = {},
+): JsonValue {
   const number = /-?(?:0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?/y;
   let index = 0;
 
@@ -125,6 +129,8 @@ export function parseJson(text: string, source: string): JsonValue {
       skipSpace();
       if (text[index] !== '"') return fail('对象的键必须是带引号的字符串');
       const key = readString();
+      // 需要时拒绝重复键（Python 用 object_pairs_hook 拒绝的那类输入）；缺省仍是后者覆盖前者。
+      if (options.uniqueKeys && key in output) return fail(`对象里有重复的键 ${key}`);
       skipSpace();
       if (text[index] !== ':') return fail('键后面缺少冒号');
       index += 1;
