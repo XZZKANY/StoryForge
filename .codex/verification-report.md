@@ -7912,3 +7912,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 真 WebView 探针：通过（看门狗 1.21 秒掐掉失控匹配，期间页面计时器照走 24 次；首个文本增量 4 ms；13 帧；会话库 17 次调用；证据在 `output/ts-engine-p3/native/`）。
 - 变异：前端分流 21 处首轮抓住 11 处（ChatWindow 流程不钉请求体映射与错误整形），补路由模块的直接单测与 shadow 档用例后 21 / 21。
 - 未验 / 不做：默认值不切（开发档与装机版仍走 Python）；发行版打包路径（分包动态 import + release Rust）未跑；P3-8 真跑另找作者批准。
+
+## 2026-10-14 P3-8 真跑（TS 迁移，作者批准；P3 收口）
+
+- 做法：`apps/desktop/frontend/scripts/verify-engine-p0-native.mjs --agent-real`（新模式）+ 页面 `scripts/fixtures/engine-p3-agent-real.ts`；作者 DPAPI 密文配置复制进隔离目录、key 只在 Rust 解开（页面只见占位串，已断言），跑完删除副本（已核对配置目录为空）；假 sidecar 会话库；合成两章。
+- 流程与结果：起草第三章（章纲 → 确认 → 草稿 → 检查 → 补丁 → 原生条件写写回）→ 审稿 → 修订，全部成功；第三章 1793 字写入；审稿 12 条；修订产出补丁（未写回）。第一、二章逐字节不变，只多了第三章，`.storyforge/` 无写入。探针 `status: passed`。
+- 用量：模型 claude-sonnet-5；7 次请求，输入 55,175 / 输出 9,880 token（起草 3 / 审稿 3 / 修订 1）；耗时约 3 分钟。
+- 逮到既有问题（未修，待作者定）：修订输出把全角逗号 / 冒号 / 问号换成半角，标点还原闸的折叠表不含 `，`↔`,`，这些行被当成真实改动（修订报改动 85% 的行）；Python `restore_incidental_punctuation` 对同一对文本结果相同。
+- 证据：`output/ts-engine-p3/native/run-*/`（`report.md`、`evidence.json`）。开关默认值不变。
