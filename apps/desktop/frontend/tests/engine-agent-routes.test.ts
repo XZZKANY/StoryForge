@@ -33,18 +33,18 @@ vi.mock('@storyforge/engine', async (importOriginal) => {
     },
   };
 });
-vi.mock('../src/lib/engine/agent', async () => {
+vi.mock('../src/lib/engine/agent', () => ({
+  engineAgentDeps: async () => host.deps,
+  engineReadDeps: async () => host.deps,
+}));
+vi.mock('../src/lib/engine/store', async () => {
   const { LoopCheckpointStore, MemoryRunStore: Store } = await import('@storyforge/engine');
   const runs = { store: new Store(), checkpoints: new LoopCheckpointStore() };
-  return {
-    engineAgentDeps: async () => host.deps,
-    engineReadDeps: async () => host.deps,
-    engineRuns: vi.fn(async () => runs),
-  };
+  return { engineRuns: vi.fn(async () => runs) };
 });
 
 import * as routes from '../src/lib/engine/agentRoutes';
-import { engineRuns } from '../src/lib/engine/agent';
+import { engineRuns } from '../src/lib/engine/store';
 
 beforeEach(() => {
   host.bodies = [];

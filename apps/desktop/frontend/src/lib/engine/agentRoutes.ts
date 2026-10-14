@@ -15,7 +15,8 @@ import type {
   AgentSocketMessage,
   AgentUserMessageRequest,
 } from '../api/types';
-import { engineAgentDeps, engineReadDeps, engineRuns } from './agent';
+import { engineAgentDeps, engineReadDeps } from './agent';
+import { engineRuns } from './store';
 
 /** 与 SSE 线上同一种编码：Python json.dumps 写、前端 JSON.parse 读（整数值浮点读回成整数）。 */
 const wire = <T>(value: unknown): T => JSON.parse(dumpJson(value, { ensureAscii: false })) as T;

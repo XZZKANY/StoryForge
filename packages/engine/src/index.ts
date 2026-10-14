@@ -588,7 +588,12 @@ export {
 } from './store/runs';
 
 // ---- 引擎库（P4：run 存储落 sqlite，起服收尸） ----
-export type { Db, SqlRow, SqlStep, SqlValue } from './store/db';
+export { SerialQueue, type Db, type SqlRow, type SqlStep, type SqlValue } from './store/db';
+export {
+  AssistantStoreValidationError,
+  AssistantToolCallNotFoundError,
+  SqlAssistantStore,
+} from './store/sqlAssistant';
 export { EngineSchemaError, migrateEngineDb } from './store/schema';
 export { RunStoreBrokenError, SqlRunStore } from './store/sqlRuns';
 export { reapInterruptedRuns } from './loop/runControlChannel';

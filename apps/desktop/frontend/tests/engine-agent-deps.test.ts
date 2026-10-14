@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
-import { AssistantSessionNotFoundError } from '@storyforge/engine';
 
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true, invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/app', () => ({ getVersion: async () => '0.1.10' }));
@@ -22,12 +21,8 @@ vi.mock('../src/lib/engine/llm', async (importOriginal) => ({
   nativeHttpPort: (slot: string) => ({ slot, send: vi.fn() }),
 }));
 
-import {
-  engineAgentDeps,
-  engineRuns,
-  pythonConversation,
-  pythonTitles,
-} from '../src/lib/engine/agent';
+import { engineAgentDeps } from '../src/lib/engine/agent';
+import { engineRuns } from '../src/lib/engine/store';
 import { nativeProjectWriter } from '../src/lib/engine/writer';
 
 const fetchMock = vi.fn();
@@ -37,9 +32,6 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => vi.unstubAllGlobals());
-
-const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 describe('nativeProjectWriter', () => {
   it('hands the bytes to the Rust .storyforge writer as base64', async () => {
@@ -64,94 +56,31 @@ describe('nativeProjectWriter', () => {
   });
 });
 
-describe('Python half of the conversation sources', () => {
-  it('reads messages and tool calls in id order and checks their shape', async () => {
-    fetchMock.mockImplementation(async (url: string) =>
-      url.endsWith('/tool-calls')
-        ? json(200, [
-            {
-              id: 9,
-              tool_name: 'fs.read',
-              status: 'completed',
-              input_summary: {},
-              output_summary: { path: 'a.md' },
-              related_type: null,
-              related_id: null,
-              started_at: null,
-            },
-            {
-              id: 4,
-              tool_name: 'fs.list',
-              status: 'completed',
-              input_summary: {},
-              output_summary: {},
-              related_type: 'agent_run',
-              related_id: 2,
-            },
-          ])
-        : json(200, {
-            id: 7,
-            title: 'IDE Agent: 你好',
-            messages: [
-              { id: 3, role: 'assistant', content: '好的' },
-              { id: 2, role: 'user', content: '你好', created_at: 'x' },
-            ],
-          }),
-    );
-    expect(await pythonConversation.messages(7)).toEqual([
-      { id: 2, role: 'user', content: '你好' },
-      { id: 3, role: 'assistant', content: '好的' },
-    ]);
-    expect((await pythonConversation.toolCalls(7)).map((row) => row.id)).toEqual([4, 9]);
-    expect(await pythonTitles.title(7)).toBe('IDE Agent: 你好');
-    await pythonTitles.setTitle(7, '新标题');
-    expect(fetchMock.mock.calls.every(([, init]) => (init as RequestInit).method === 'GET')).toBe(
-      true,
-    );
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      'http://127.0.0.1:8000/api/assistant/sessions/7',
-      'http://127.0.0.1:8000/api/assistant/sessions/7/tool-calls',
-      'http://127.0.0.1:8000/api/assistant/sessions/7',
-    ]);
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({
-      headers: { 'X-StoryForge-API-Key': 'k' },
+describe('engineAgentDeps sessions', () => {
+  it('keeps sessions, messages, tool calls and titles in the engine database', async () => {
+    const deps = await engineAgentDeps();
+    const ref = await deps.assistant.createSession({
+      title: 'IDE Agent: 你好',
+      task_type: 'ide_agent_orchestration',
+      project_path: 'D:/book',
+      messages: [{ role: 'user', content: '你好' }],
     });
-  });
-
-  it('maps a missing session to the engine error and refuses malformed rows', async () => {
-    fetchMock.mockResolvedValueOnce(json(404, { detail: 'Assistant 会话不存在：9。' }));
-    await expect(pythonConversation.messages(9)).rejects.toBeInstanceOf(
-      AssistantSessionNotFoundError,
-    );
-    fetchMock.mockResolvedValueOnce(json(200, { id: 7, title: 't', messages: [{ id: '1' }] }));
-    await expect(pythonConversation.messages(7)).rejects.toThrow(TypeError);
-    fetchMock.mockResolvedValueOnce(json(200, { id: 8, title: 't', messages: [] }));
-    await expect(pythonConversation.messages(7)).rejects.toThrow(TypeError);
-    fetchMock.mockResolvedValueOnce(
-      json(200, { id: 7, title: 't', messages: [{ role: 'user', content: '缺 id' }] }),
-    );
-    await expect(pythonConversation.messages(7)).rejects.toThrow(TypeError);
-    const call = {
-      id: 1,
-      tool_name: 'x',
-      status: 's',
-      input_summary: {},
-      output_summary: {},
-      related_type: null,
-      related_id: null,
-    };
-    for (const broken of [
-      { input_summary: undefined },
-      { output_summary: [] },
-      { id: 0 },
-      { related_type: 3 },
-      { related_id: 1.5 },
-    ]) {
-      fetchMock.mockResolvedValueOnce(json(200, [{ ...call, ...broken }]));
-      await expect(pythonConversation.toolCalls(7)).rejects.toThrow(TypeError);
-    }
-    fetchMock.mockResolvedValueOnce(json(200, [call]));
-    expect(await pythonConversation.toolCalls(7)).toHaveLength(1);
+    await deps.assistant.appendMessage(ref.id, { role: 'assistant', content: '好的' });
+    const call = await deps.assistant.createToolCall(ref.id, {
+      tool_name: 'fs.read',
+      status: 'running',
+      input_summary: { path: 'a.md' },
+    });
+    expect(await deps.conversation.messages(ref.id)).toEqual([
+      { id: 1, role: 'user', content: '你好' },
+      { id: 2, role: 'assistant', content: '好的' },
+    ]);
+    expect((await deps.conversation.toolCalls(ref.id)).map((row) => row.id)).toEqual([call.id]);
+    expect(await deps.titles.title(ref.id)).toBe('IDE Agent: 你好');
+    // 引擎库里改标题是真的改（Python 库那一半在 P4 前做不到）。
+    await deps.titles.setTitle(ref.id, '新标题');
+    expect(await (await engineAgentDeps()).titles.title(ref.id)).toBe('新标题');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

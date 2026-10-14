@@ -17,6 +17,22 @@ const plain = (value: unknown): unknown =>
             .map(([key, item]) => [key, plain(item)]),
         )
       : value;
+/** 时间戳的形状（数字一律换成 0）：值随时钟变，格式要与 Python 接口一致。 */
+function timestampShapes(value: unknown): (string | null)[] {
+  const shapes = new Set<string | null>();
+  const walk = (item: unknown) => {
+    if (Array.isArray(item)) item.forEach(walk);
+    else if (item !== null && typeof item === 'object')
+      for (const [key, child] of Object.entries(item))
+        if (TIMESTAMPS.has(key))
+          shapes.add(child === null ? null : String(child).replace(/[0-9]/g, '0'));
+        else walk(child);
+  };
+  walk(value);
+  return [...shapes].sort((a, b) =>
+    a === null ? 1 : b === null ? -1 : a < b ? -1 : a > b ? 1 : 0,
+  );
+}
 
 describe('assistant session store replays the Python services', () => {
   it('pins the oracle sources and operation count', () => {
@@ -26,11 +42,11 @@ describe('assistant session store replays the Python services', () => {
 
   it('replays every operation with the same results, errors and rows', async () => {
     const db = await migratedMemoryDb();
-    // 预言机的写入都落在同一秒：最近会话按 id 倒序，这里用固定时钟复现。
+    // 预言机的写入都落在同一秒：最近会话按 id 倒序，这里用固定时钟复现（库里的存储格式）。
     const store = new SqlAssistantStore(
       db,
       { values: [golden.secret] },
-      () => '2026-10-14T00:00:00Z',
+      () => '2026-10-14 00:00:00',
     );
     const toolCall = async (id: number) => {
       const rows = await db.select('SELECT session_id FROM assistant_tool_calls WHERE id = $1', [
@@ -111,6 +127,7 @@ describe('assistant session store replays the Python services', () => {
       } else {
         if (failure) throw failure;
         expect(plain(result), label).toEqual(record.result);
+        expect(timestampShapes(result), `${label} timestamps`).toEqual(record.timestamp_shapes);
       }
       expect(await raw(), `${label} rows`).toEqual(record.raw);
     }

@@ -48,6 +48,9 @@
           }
         ]
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00"
+      ],
       "raw": {
         "sessions": [
           {
@@ -90,6 +93,9 @@
         "project_path": null,
         "messages": []
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00"
+      ],
       "raw": {
         "sessions": [
           {
@@ -137,6 +143,9 @@
         "project_path": "D:/other",
         "messages": []
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00"
+      ],
       "raw": {
         "sessions": [
           {
@@ -187,6 +196,9 @@
         "role": "user",
         "content": "再说一次 [REDACTED]"
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00"
+      ],
       "raw": {
         "sessions": [
           {
@@ -243,6 +255,9 @@
         "role": "system",
         "content": "系统提示"
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00"
+      ],
       "raw": {
         "sessions": [
           {
@@ -383,6 +398,10 @@
         "related_type": null,
         "related_id": null
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00",
+        null
+      ],
       "raw": {
         "sessions": [
           {
@@ -491,6 +510,10 @@
         "related_type": "agent_run",
         "related_id": 3
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00",
+        null
+      ],
       "raw": {
         "sessions": [
           {
@@ -601,6 +624,10 @@
         "related_type": null,
         "related_id": null
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00",
+        null
+      ],
       "raw": {
         "sessions": [
           {
@@ -731,6 +758,10 @@
         "related_type": null,
         "related_id": null
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00",
+        null
+      ],
       "raw": {
         "sessions": [
           {
@@ -860,6 +891,10 @@
         "related_type": "agent_run",
         "related_id": 3
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00",
+        null
+      ],
       "raw": {
         "sessions": [
           {
@@ -985,6 +1020,10 @@
         "related_type": null,
         "related_id": null
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00",
+        null
+      ],
       "raw": {
         "sessions": [
           {
@@ -1246,6 +1285,10 @@
           "related_id": 3
         }
       ],
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00",
+        null
+      ],
       "raw": {
         "sessions": [
           {
@@ -1488,6 +1531,9 @@
           }
         ]
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00"
+      ],
       "raw": {
         "sessions": [
           {
@@ -1706,6 +1752,7 @@
         "title": "你好 sk-oracle-secret-123456"
       },
       "result": null,
+      "timestamp_shapes": [],
       "raw": {
         "sessions": [
           {
@@ -1861,6 +1908,9 @@
           ]
         }
       ],
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00"
+      ],
       "raw": {
         "sessions": [
           {
@@ -1997,6 +2047,9 @@
           ]
         }
       ],
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00"
+      ],
       "raw": {
         "sessions": [
           {
@@ -2114,6 +2167,9 @@
           "messages": []
         }
       ],
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00"
+      ],
       "raw": {
         "sessions": [
           {
@@ -2223,6 +2279,7 @@
         }
       },
       "result": [],
+      "timestamp_shapes": [],
       "raw": {
         "sessions": [
           {
@@ -4329,6 +4386,10 @@
         "related_type": null,
         "related_id": null
       },
+      "timestamp_shapes": [
+        "0000-00-00T00:00:00",
+        null
+      ],
       "raw": {
         "sessions": [
           {

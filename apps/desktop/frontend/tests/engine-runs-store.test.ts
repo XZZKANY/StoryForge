@@ -46,7 +46,8 @@ it('opens once per WebView and reaps the runs the previous one left running', as
   await before.insertRun(run('left-running', 'running'));
   await before.insertRun(run('left-paused', 'paused'));
 
-  const { engineRuns, engineReadDeps } = await import('../src/lib/engine/agent');
+  const { engineRuns } = await import('../src/lib/engine/store');
+  const { engineReadDeps } = await import('../src/lib/engine/agent');
   const [first, second] = await Promise.all([engineRuns(), engineRuns()]);
   expect(second).toBe(first);
   expect((await engineReadDeps()).store).toBe(first.store);
@@ -65,7 +66,7 @@ it('opens once per WebView and reaps the runs the previous one left running', as
 
 it('does not keep a failed open: the next call tries again', async () => {
   fixture.failSelects = 1;
-  const { engineRuns } = await import('../src/lib/engine/agent');
+  const { engineRuns } = await import('../src/lib/engine/store');
   await expect(engineRuns()).rejects.toThrow('引擎库被占用');
   const runs = await engineRuns();
   await runs.store.insertRun(run('fresh', 'running'));
