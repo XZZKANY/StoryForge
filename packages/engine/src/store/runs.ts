@@ -97,6 +97,9 @@ export interface RunStore {
   insertSubagent(fields: Omit<SubagentRecord, 'id'>): Promise<SubagentRecord>;
   events(runId: number): Promise<readonly RunEventRecord[]>;
   artifacts(runId: number): Promise<readonly ArtifactRecord[]>;
+  artifact(id: number): Promise<ArtifactRecord | null>;
+  /** 所有 run 里某种 artifact，按 id 升序（知识提议跨 run 去重要用）。 */
+  artifactsOfKind(kind: string): Promise<readonly ArtifactRecord[]>;
   runsOfAssistantSession(assistantSessionId: number): Promise<readonly RunRecord[]>;
 }
 
@@ -229,6 +232,17 @@ export class MemoryRunStore implements RunStore, RunStatusView {
 
   async artifacts(runId: number): Promise<readonly ArtifactRecord[]> {
     return clone(this.artifactRows.filter((artifact) => artifact.run_id === runId));
+  }
+
+  async artifact(id: number): Promise<ArtifactRecord | null> {
+    const row = this.artifactRows.find((artifact) => artifact.id === id);
+    return row ? clone(row) : null;
+  }
+
+  async artifactsOfKind(kind: string): Promise<readonly ArtifactRecord[]> {
+    return clone(
+      this.artifactRows.filter((artifact) => artifact.kind === kind).sort((a, b) => a.id - b.id),
+    );
   }
 
   async runsOfAssistantSession(assistantSessionId: number): Promise<readonly RunRecord[]> {

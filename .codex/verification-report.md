@@ -7897,3 +7897,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：103 处首轮 76 处，补记录、场景与直接契约测试后合计 100 / 103；余 1 处空操作变异（生成脚本写错）+ 2 处等价。
 - 门禁：引擎 vitest 12966 通过 / 2 跳过、引擎 typecheck、`pnpm lint`（0 错误，2 条既有 warning）、ruff（scripts）。Python 业务代码、前端、Rust 零改动，OpenAPI 不涉及。
 - 未接线：本刀没有生产调用点；前端接线与真 WebView 探针随 7c / 7d。
+
+## 2026-10-14 P3-7c 原生写口与依赖装配（TS 迁移，默认仍走 Python）
+
+- 范围：Rust `apps/desktop/src-tauri/src/fs_engine_writer.rs`（`write_engine_project_file`，只写 `.storyforge/`，逐级核真实路径，原子写）并在 `main.rs` 注册；引擎 `loop/tools/registry.ts`、`loop/storeSources.ts`，`store/runs.ts` 加 `artifact` / `artifactsOfKind`，入口导出；回放台改用注册表工厂与存储侧来源；前端 `lib/engine/writer.ts`、`lib/engine/agent.ts`（`engineAgentDeps`），`assistant.ts` / `llm.ts` 导出共用辅助函数。
+- 测试：`cargo test --bin storyforge-desktop` 138 通过 / 4 忽略（新增写口 4 条）；引擎 vitest 12968 通过 / 2 跳过（十个 agent-run 套件经新装配照常一致）；前端 vitest 2139 通过 / 1 跳过；两侧 typecheck；`pnpm lint`。
+- 变异：引擎 7 / 8、前端 15 / 15、Rust 5 / 7（余下均为等价，明细见迁移计划 P3-7c 条）。
+- 未接线：`agent-socket` / `agent-runs` 仍只走 Python，接线、ChatWindow 行为测试与真 WebView 探针随 7d。

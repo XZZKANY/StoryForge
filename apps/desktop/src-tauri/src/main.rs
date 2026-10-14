@@ -1979,6 +1979,7 @@ fn main() {
             fs::engine_reader::inspect_engine_project_path,
             fs::engine_reader::read_engine_project_directory,
             fs::engine_reader::read_engine_project_bytes,
+            fs::engine_writer::write_engine_project_file,
             managed_writeback::write_file,
             managed_writeback::write_file_if_unchanged,
             fs_writeback_receipts::describe_writeback_operation,
