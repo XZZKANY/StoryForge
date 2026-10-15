@@ -41,6 +41,30 @@ type EngineOutcome = TsCapture | { unavailable: string };
 
 const RUN_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
+/** 准备（开临时库、读快照）最多挡作者这么久，超时照常发送，这一次记成引擎侧没取到。 */
+export const PREPARE_TIMEOUT_MS = 3000;
+
+class ShadowSetupTimeout extends Error {
+  override name = 'ShadowSetupTimeout';
+}
+
+async function prepareWithin(): Promise<Prepared> {
+  const preparing = prepare();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new ShadowSetupTimeout()), PREPARE_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([preparing, timeout]);
+  } catch (error) {
+    // 超时之后才开起来的临时库也要关掉。
+    void preparing.then((late) => late.db.close()).catch(() => undefined);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** 挡在发送前面的只有「读快照」这一步；导进临时库在后台继续。 */
 async function prepare(): Promise<Prepared> {
   const db = await nativeScratchDb();
@@ -178,7 +202,7 @@ export async function shadowAgentMessage(
   let prepared: Prepared | null = null;
   let setupError: string | null = null;
   try {
-    prepared = await prepare();
+    prepared = await prepareWithin();
   } catch (error) {
     setupError = errorName(error);
   }

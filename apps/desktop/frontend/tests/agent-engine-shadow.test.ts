@@ -17,6 +17,7 @@ const fixture = vi.hoisted(() => ({
   opened: 0,
   closed: 0,
   scratchFails: false,
+  scratchHangs: null as null | ((value: unknown) => void),
   sent: 0,
   untouched: [] as string[],
 }));
@@ -44,6 +45,10 @@ vi.mock('../src/lib/engine/db', () => ({
   nativePythonDb: { snapshot: (queries: readonly string[]) => fixture.python.snapshot(queries) },
   nativeScratchDb: async () => {
     if (fixture.scratchFails) throw new Error('临时库已开到上限 4 个');
+    if (fixture.scratchHangs)
+      await new Promise((resolve) => {
+        fixture.scratchHangs = resolve;
+      });
     fixture.opened += 1;
     const db = nodeSqliteDb();
     return {
@@ -154,6 +159,7 @@ beforeEach(() => {
     opened: 0,
     closed: 0,
     scratchFails: false,
+    scratchHangs: null,
     sent: 0,
     untouched: [],
   });
@@ -258,4 +264,29 @@ it('the Python database going away before the comparison is unavailable, not a d
   const { check, diffs: found } = await settled();
   expect(check).toMatchObject({ outcome: 'unavailable', reason: 'python_db_missing' });
   expect(found).toEqual([]);
+}, 60_000);
+
+it('a hanging scratch database delays the message by at most the preparation timeout', async () => {
+  const scenario = golden.scenarios[0];
+  fixture.reader = memoryProject(scenario.project_root, scenario.files).reader;
+  fixture.python = nodeLegacySource(scenario.before_sql);
+  fixture.scratchHangs = () => undefined;
+  const { shadowAgentMessage, PREPARE_TIMEOUT_MS } = await import('../src/lib/engine/agentShadow');
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  try {
+    const seen = { snapshots: [] as number[] };
+    const pending = shadowAgentMessage(request(scenario), python(scenario, seen));
+    await vi.advanceTimersByTimeAsync(PREPARE_TIMEOUT_MS - 1);
+    expect(seen.snapshots).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(pending).resolves.toEqual(terminal(scenario));
+    const { check } = await settled();
+    expect(check).toMatchObject({ outcome: 'diff', ts_error: 'ShadowSetupTimeout' });
+    // 临时库后来开起来了，也要关掉。
+    (fixture.scratchHangs as unknown as (value: unknown) => void)(undefined);
+    await vi.waitFor(() => expect(fixture.opened).toBe(1));
+    await vi.waitFor(() => expect(fixture.closed).toBe(1));
+  } finally {
+    vi.useRealTimers();
+  }
 }, 60_000);

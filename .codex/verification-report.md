@@ -8013,3 +8013,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：前端 16 处抓住 15 处——影子分流、发送前不等快照、真出网、取第二条证据、不导入旧库、比完不关库、Python 失败不关库、库消失记成差异、Python 证据倒序取、叠加读口三处、叠加写口、两处加载兜底；存活 1 处是等价改动（`step` 改读 `run_step ?? step`，`run_step` 为空时回落）。另有「取最后一条证据」与原实现等价（引擎侧被拒发后只产生一条证据），改成取第二条即被抓住。Rust 3 / 3（插入时不判上限、关库不移除、按 id 取库取错）。开库前与插入时两道上限检查互为冗余、单删任一道都不红，已删掉开库前那道。
 - 全量：`pnpm verify` 通过（lint、前端 typecheck、引擎 13165、前端 vitest 2224、真实 Monaco 续写回归、pytest 3306、ruff、sidecar 冒烟 daily 档、OpenAPI 漂移）；cargo test 151 通过；clippy 无新告警；改动的 Rust 文件 rustfmt。
 - 未联通：发行版仍不读开关（5-1c 预览版打开影子默认值并出包）；真窗口里的影子比对随 5-1c 验收。代价：影子档下每条 agent 消息发送前多读一次 Python 库（作者库约 1.9 MB）。
+
+## 2026-10-15 P5-1c 预览版 0.1.11：发行版两开关默认影子档、设置页可关、准备超时上限（TS 迁移，结果仍用 Python）
+
+- 范围：`lib/engine/flags.ts`（按构建给可选档位，第一个为默认：发行版修订 / 续写与 agent 循环是「影子、Python」，默认影子，IDE 命令只有 Python，ts 档等 P5-2；不允许的值与存储被拒都回落默认；`writeEngineMode` 只写允许的档位；`engineModeChoices`）、`components/SettingsView.tsx`（关于区末尾两行「新引擎比对：行间修订与续写 / Agent 对话」，选项「后台比对 / 关闭」）、`lib/engine/agentShadow.ts`（发送前准备最多挡 3 秒，超时照常发送并记 `ShadowSetupTimeout`，晚开的临时库也关掉）。版本 0.1.10 → 0.1.11（`version.py`、`pyproject.toml`、`tauri.conf.json`、`Cargo.toml`、OpenAPI `info.version`，连同 `uv.lock`、`Cargo.lock`）。旧库导入开关在发行版仍恒为关。
+- 测试：`engine-flags` 改写发行版用例（三个开关的默认、不允许 ts、存储被拒回落、可选档位与写入）；`settings-engine-shadow` 2 条（预览版两行默认后台比对、只有两个选项、关掉后存下且只影响那一个开关；回显先前的选择）；`agent-engine-shadow` 加 1 条（临时库卡住时消息在超时那一刻发出，记 `ShadowSetupTimeout`，晚开的库被关掉）；`assistant-engine-routing-python` 的发行版用例改为「切回 Python 后零初始化」；`settings-accessibility` 的焦点环绕末端改为新增的下拉框。
+- 变异：前端 7 / 7（发行版默认改成 Python、发行版放出 ts、写入不查档位、开发 / 发行判断反了、去掉准备超时、晚开的库不关、设置页不写）。其中「晚开的库不关」首轮存活，原因是测试等的是 `closed === opened`，第一次检查时两边都是 0 就成立了；改成先等临时库开起来、再等它被关掉后抓住。
+- 全量：`pnpm verify` 通过（引擎 13165、前端 vitest 2231、真实 Monaco 续写回归、pytest 3306、ruff、sidecar 冒烟 daily 档、OpenAPI 漂移）；`test_version_alignment` 通过。
+- 出包：`pnpm desktop:build` → `StoryForge IDE_0.1.11_x64-setup.exe`，80.9 MB，SHA256 `f7bf07ee…2065edb`；桌面 exe 与安装包 FileVersion 0.1.11，sidecar 同批重打。比 0.1.10 大约 30 MB，来自 8 月起内置的 MinGit（影子 Git 版本）；前端产物 6.1 MB，影子代码确在分包里（`engine_shadow_append`、`X-StoryForge-Shadow`、`engine_scratch_db_open`、设置页 `engine-shadow-agent`）。`sidecar-smoke --packaged --skip-build` 全绿。定向断言（`output/ts-engine-p5/packaged-shadow-check.mjs`，不入库）：冻结 exe 的 `app_version` 0.1.11；本机假模型服务下，带头修订交回的快照与线上发出的消息逐条相同、摘要 64 位十六进制、响应里不含 key；不带头无 `shadow_requests`；带头续写帧序 `start,delta,delta,done,shadow`。
+- 装机须知：0.1.11 会把 0.1.10（7-30）之后合并的全部改动一次送到作者机器上；起服时 sidecar 对已纳管的会话库 `upgrade head`（含 `20261010_0002` 删 37 张退役表），这条路径不自动备份。作者库副本里这些表全是空表，P4-3a 已在副本上验过升级后读模型逐项一致。
+- 未联通：作者装机与真实使用一段时间后，`shadow-checks.jsonl` 有行且 `shadow-diffs.jsonl` 为空，才算 P5-1 验收。
