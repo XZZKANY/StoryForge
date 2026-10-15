@@ -279,9 +279,7 @@ class ChapterWritingRuntimeMixin(ChapterWritingToolsMixin):
         )
         traces.append(draft.trace)
         content = str(draft.output["content"])
-        check = self._execute_tool("chapter.check", context, {"brief": confirmed, "content": content, "attempt": 1})
-        traces.append(check.trace)
-        final_check = check.output["check"]
+        final_check = self._check_chapter(context, confirmed, content, 1, traces)
         repair_count = 0
         if final_check["status"] == "repairable":
             repaired = self._execute_tool(
@@ -301,9 +299,7 @@ class ChapterWritingRuntimeMixin(ChapterWritingToolsMixin):
             traces.append(repaired.trace)
             content = str(repaired.output["content"])
             repair_count = 1
-            check = self._execute_tool("chapter.check", context, {"brief": confirmed, "content": content, "attempt": 2})
-            traces.append(check.trace)
-            final_check = check.output["check"]
+            final_check = self._check_chapter(context, confirmed, content, 2, traces)
         assert_chapter_sources(project_root, target_absolute, payload.get("source_guard"))
         for index, trace in enumerate(traces):
             self._event_sink.record_tool_trace(request.run, trace, index)
@@ -311,18 +307,27 @@ class ChapterWritingRuntimeMixin(ChapterWritingToolsMixin):
             ToolArtifact(kind=CHAPTER_BRIEF_ARTIFACT_KIND, payload=confirmed),
             ToolArtifact(
                 kind=CHAPTER_CHECK_ARTIFACT_KIND,
-                payload={**final_check, "attempt": 2 if repair_count else 1, "repair_count": repair_count},
+                payload={
+                    **final_check,
+                    "attempt": 2 if repair_count else 1,
+                    "repair_count": repair_count,
+                    "recheck_count": sum(
+                        trace.tool_name == "chapter.check" and trace.input_summary.get("recheck") is True
+                        for trace in traces
+                    ),
+                },
             ),
             runtime_pending_call_resolution_artifact(pending),
         ]
-        if final_check["status"] != "pass":
-            execution_status = final_check["execution_status"]
+        execution_status = final_check["execution_status"]
+        # The checker failing even after a recheck says nothing about the manuscript: the author still gets
+        # the draft, always behind an explicit confirmation. Program-found problems (empty, length) still block.
+        unchecked = execution_status != "completed" and final_check["manuscript_hard_failure_count"] == 0
+        if final_check["status"] != "pass" and not unchecked:
             if execution_status == "completed":
                 detail = f"章节检查已完成：发现 {final_check['manuscript_hard_failure_count']} 个稿件硬失败。"
-            elif execution_status == "incomplete":
-                detail = "章节检查未完整执行：结果超过协议预算，不能据此判断稿件通过。"
             else:
-                detail = "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。"
+                detail = self._checker_failure_detail(execution_status)
             summary = f"{detail} 候选稿已保留在运行证据中，未生成补丁。"
             candidate = {
                 "target_path": target_relative,
@@ -360,7 +365,7 @@ class ChapterWritingRuntimeMixin(ChapterWritingToolsMixin):
             )
             result["_events_recorded"] = True
             return result
-        requires_confirmation = patch_requires_confirmation(request.run.permission_profile)
+        requires_confirmation = unchecked or patch_requires_confirmation(request.run.permission_profile)
         proposed_patch = {
             "id": f"chapter-writing-{uuid.uuid4().hex}",
             "kind": "file_revision",
@@ -375,13 +380,25 @@ class ChapterWritingRuntimeMixin(ChapterWritingToolsMixin):
         tool_artifacts.append(
             ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=requires_confirmation)
         )
-        summary = f"章节草稿已通过 brief 检查，生成 {target_relative} 的待审阅补丁。"
+        if unchecked:
+            summary = (
+                "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。"
+                f"已生成 {target_relative} 的待审阅补丁，请通读后再决定是否接受。"
+            )
+            plan = self._completed_plan(
+                check_status="failed",
+                patch_status="completed",
+                check_detail=self._checker_failure_detail(execution_status),
+            )
+        else:
+            summary = f"章节草稿已通过 brief 检查，生成 {target_relative} 的待审阅补丁。"
+            plan = self._completed_plan(check_status="completed", patch_status="completed")
         result = base_response(
             agent_session_id=request.agent_session_id,
             assistant_session_id=request.assistant_session_id,
             intent=CHAPTER_WRITE_INTENT,
             user_message=request.user_message,
-            plan=self._completed_plan(check_status="completed", patch_status="completed"),
+            plan=plan,
             agent_result={
                 "summary": summary,
                 "requires_user_confirmation": requires_confirmation,
@@ -397,6 +414,30 @@ class ChapterWritingRuntimeMixin(ChapterWritingToolsMixin):
         )
         result["_events_recorded"] = True
         return result
+
+    def _check_chapter(
+        self,
+        context: ToolExecutionContext,
+        brief: dict[str, Any],
+        content: str,
+        attempt: int,
+        traces: list[AgentToolTrace],
+    ) -> dict[str, Any]:
+        """A checker that failed to deliver a usable result (not a manuscript verdict) is asked once more."""
+
+        payload = {"brief": brief, "content": content, "attempt": attempt}
+        check = self._execute_tool("chapter.check", context, payload)
+        traces.append(check.trace)
+        if check.output["check"]["execution_status"] != "completed":
+            check = self._execute_tool("chapter.check", context, {**payload, "recheck": True})
+            traces.append(check.trace)
+        return check.output["check"]
+
+    @staticmethod
+    def _checker_failure_detail(execution_status: str) -> str:
+        if execution_status == "incomplete":
+            return "章节检查未完整执行：结果超过协议预算，不能据此判断稿件通过。"
+        return "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。"
 
     @staticmethod
     def _is_chapter_resume(run: AgentRun, pending: AgentArtifact | None) -> bool:
@@ -437,7 +478,7 @@ class ChapterWritingRuntimeMixin(ChapterWritingToolsMixin):
             plan_step("chapter.brief.confirm", "Chapter Brief 已确认。", "completed"),
             plan_step("chapter.draft", "已按 brief 起草正文。", "completed"),
             plan_step("chapter.check", check_detail, check_status),
-            plan_step("chapter.patch", "仅检查通过时生成 proposed patch。", patch_status),
+            plan_step("chapter.patch", "未发现稿件硬问题时生成 proposed patch。", patch_status),
         ]
 
 

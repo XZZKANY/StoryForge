@@ -105,7 +105,11 @@ class ChapterWritingToolsMixin:
             trace=AgentToolTrace(
                 tool_name="chapter.check",
                 status=trace_status,
-                input_summary={"brief_id": payload["brief"]["brief_id"], "attempt": payload["attempt"]},
+                input_summary={
+                    "brief_id": payload["brief"]["brief_id"],
+                    "attempt": payload["attempt"],
+                    "recheck": payload.get("recheck", False),
+                },
                 output_summary={
                     "status": check["status"],
                     "execution_status": check["execution_status"],
