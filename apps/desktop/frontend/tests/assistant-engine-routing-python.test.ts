@@ -102,13 +102,11 @@ async function expectPythonTransportOnly() {
 }
 
 // 独立成文件：vitest 按文件隔离模块，引擎模块在这里一定是首次加载，「零初始化」才有意义。
-it.each(['python', 'shadow'])(
-  '%s keeps the single Python transport and never initializes the engine',
-  async (mode) => {
-    localStorage.setItem('engine.assistant', mode);
-    await expectPythonTransportOnly();
-  },
-);
+// 影子档（P5-1）要在引擎里复算 prompt，见 assistant-engine-shadow。
+it('python keeps the single Python transport and never initializes the engine', async () => {
+  localStorage.setItem('engine.assistant', 'python');
+  await expectPythonTransportOnly();
+});
 
 // 开发档默认已切到引擎；装机版要等 P5 才切，这里钉住。
 it('production keeps the Python transport without any preference', async () => {

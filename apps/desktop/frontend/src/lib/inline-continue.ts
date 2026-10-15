@@ -10,7 +10,9 @@ export type ContinueSseFrame =
   | { kind: 'start'; assistantSessionId: number; model: string }
   | { kind: 'delta'; text: string }
   | { kind: 'done'; text: string; model: string; assistantSessionId: number }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string }
+  /** 影子档（迁移 P5-1）才有：Python 这次派发给模型的请求快照，流尽后补发。 */
+  | { kind: 'shadow'; requests: unknown };
 
 export function parseContinueSseFrame(raw: string): ContinueSseFrame | null {
   let event = '';
@@ -46,6 +48,8 @@ export function parseContinueSseFrame(raw: string): ContinueSseFrame | null {
       };
     case 'error':
       return { kind: 'error', message: String(payload.message ?? '续写失败。') };
+    case 'shadow':
+      return { kind: 'shadow', requests: payload.requests };
     default:
       return null;
   }

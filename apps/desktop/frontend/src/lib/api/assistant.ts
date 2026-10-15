@@ -96,8 +96,22 @@ export async function reviseFileContent(payload: {
   signal?: AbortSignal;
 }): Promise<AssistantReviseResult> {
   // 开发档默认走引擎（设成 python 可切回）；发行版与 Python 档不初始化引擎。
-  if (readEngineMode('engine.assistant') === 'ts')
-    return (await import('../engine/assistant')).reviseWithEngine(payload);
+  const mode = readEngineMode('engine.assistant');
+  if (mode === 'ts') return (await import('../engine/assistant')).reviseWithEngine(payload);
+  if (mode === 'shadow')
+    return (await import('../engine/shadow')).shadowRevise(payload, () =>
+      pythonRevise(payload, true),
+    );
+  return (await pythonRevise(payload, false)).result;
+}
+
+/** 影子档带上请求头，Python 把这次派发给模型的请求快照一并交回（迁移计划 §4.2）。 */
+const SHADOW_HEADERS = { 'X-StoryForge-Shadow': 'prompts' };
+
+async function pythonRevise(
+  payload: Parameters<typeof reviseFileContent>[0],
+  shadow: boolean,
+): Promise<{ result: AssistantReviseResult; captures: unknown }> {
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/assistant/revise`, {
     method: 'POST',
@@ -106,6 +120,7 @@ export async function reviseFileContent(payload: {
     headers: {
       'Content-Type': 'application/json',
       'X-StoryForge-API-Key': apiKey,
+      ...(shadow ? SHADOW_HEADERS : {}),
     },
     body: JSON.stringify({
       file_path: payload.filePath,
@@ -122,15 +137,20 @@ export async function reviseFileContent(payload: {
     throw new Error(await readErrorDetail(response));
   }
 
-  const data = (await response.json()) as ApiAssistantReviseResponse;
+  const data = (await response.json()) as ApiAssistantReviseResponse & {
+    shadow_requests?: unknown;
+  };
   return {
-    before: data.before,
-    after: data.after,
-    summary: data.summary,
-    model: data.model,
-    latencyMs: data.latency_ms,
-    completionTokens: data.completion_tokens,
-    assistantSessionId: data.assistant_session_id,
+    result: {
+      before: data.before,
+      after: data.after,
+      summary: data.summary,
+      model: data.model,
+      latencyMs: data.latency_ms,
+      completionTokens: data.completion_tokens,
+      assistantSessionId: data.assistant_session_id,
+    },
+    captures: data.shadow_requests,
   };
 }
 
@@ -146,7 +166,7 @@ export type ContinueProseResult = {
  *
  * onDelta 只用于「让作者看到笔在动」；最终写回一律用 resolve 出来的 text。
  */
-export async function streamContinueProse(payload: {
+type ContinuePayload = {
   filePath: string;
   content: string;
   cursorLine: number;
@@ -157,9 +177,22 @@ export async function streamContinueProse(payload: {
   contextBundle?: ReviseRequest['contextBundle'];
   signal?: AbortSignal;
   onDelta?: (text: string) => void;
-}): Promise<ContinueProseResult> {
-  if (readEngineMode('engine.assistant') === 'ts')
-    return (await import('../engine/assistant')).continueWithEngine(payload);
+};
+
+export async function streamContinueProse(payload: ContinuePayload): Promise<ContinueProseResult> {
+  const mode = readEngineMode('engine.assistant');
+  if (mode === 'ts') return (await import('../engine/assistant')).continueWithEngine(payload);
+  if (mode === 'shadow')
+    return (await import('../engine/shadow')).shadowContinue(payload, () =>
+      pythonContinue(payload, true),
+    );
+  return (await pythonContinue(payload, false)).result;
+}
+
+async function pythonContinue(
+  payload: ContinuePayload,
+  shadow: boolean,
+): Promise<{ result: ContinueProseResult; captures: unknown }> {
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/assistant/continue`, {
     method: 'POST',
@@ -169,6 +202,7 @@ export async function streamContinueProse(payload: {
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
       'X-StoryForge-API-Key': apiKey,
+      ...(shadow ? SHADOW_HEADERS : {}),
     },
     body: JSON.stringify({
       file_path: payload.filePath,
@@ -191,6 +225,7 @@ export async function streamContinueProse(payload: {
   let buffer = '';
   let result: ContinueProseResult | null = null;
   let failure: string | null = null;
+  let captures: unknown;
 
   try {
     while (true) {
@@ -211,6 +246,7 @@ export async function streamContinueProse(payload: {
             assistantSessionId: frame.assistantSessionId,
           };
         } else if (frame?.kind === 'error') failure = frame.message;
+        else if (frame?.kind === 'shadow') captures = frame.requests;
         separator = buffer.search(/\r?\n\r?\n/);
       }
     }
@@ -220,10 +256,11 @@ export async function streamContinueProse(payload: {
 
   if (failure) throw new Error(failure);
   if (!result) throw new Error('续写流在返回结果前结束。');
-  return result;
+  return { result, captures };
 }
 
 export async function probeProviderHealth(): Promise<ProviderHealth> {
+  // 测连接不组 prompt，影子档照走 Python。
   if (readEngineMode('engine.assistant') === 'ts')
     return (await import('../engine/assistant')).probeWithEngine();
   const { baseUrl, apiKey } = await getApiConfig();

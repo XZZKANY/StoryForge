@@ -511,6 +511,8 @@ export type {
 } from './llm/contracts';
 export { checkRunInterruption, RunControl, RunInterrupted } from './llm/control';
 export type { RunProgress } from './llm/control';
+export { ModelObservation } from './llm/observation';
+export type { ModelAttempt, ModelObserver } from './llm/observation';
 export { OpenAIToolStream, ToolStreamError } from './llm/openaiStream';
 export { OpenAICompatibleProvider } from './llm/openaiCompatible';
 export type { LlmProvider } from './llm/openaiCompatible';
@@ -576,6 +578,7 @@ export type {
   ToolCallRow,
 } from './loop/conversationHistory';
 export { AgentRunNotFoundError } from './loop/runEvents';
+export { REQUEST_EVIDENCE_KIND, requestSnapshot } from './loop/requestEvidence';
 export { createAgentToolRegistry } from './loop/tools/registry';
 export { storeRunSources, storeToolArtifactQuery } from './loop/storeSources';
 export type { ToolDeps } from './loop/tools/handlerDeps';

@@ -7994,3 +7994,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 真 WebView 探针 `--agent-only` 通过：隔离本地数据目录里的合成旧库被导入，引擎库 run 依次为 legacy-run-1…5（running 的被收尸成 failed，paused 保留）与探针的两个，会话 6 个、消息数 [3, 1, 1, 0, 2, 0]，`imported_from_v1` 行数与预言机一致，旧库文件哈希不变。
 - 顺带修正：四个冷加载整个引擎包的前端用例文件（本刀新增 + 4-2 的三个）在 vitest「先跑上次失败的文件」时连环超 5 秒（master 上同样复现、清结果缓存后全绿），照既有写法把冷加载挪进 `beforeAll(..., 60_000)`。
 - 未联通：导入开关在 P5 切默认时打开；plugin-sql 去留随 P6 评估。
+
+## 2026-10-14 P5-1a Ctrl+K / 续写的影子档：Python 回传请求快照、引擎复算比对、差异记本地文件（TS 迁移，默认仍走 Python）
+
+- 范围：Python `app/domains/assistant/shadow.py`（`ShadowPromptCapture` 观察者只取快照、返回 None；`captured_stream` 逐步在观察范围里推进续写流、流尽补一帧 `shadow`）、`router.py`（请求头 `X-StoryForge-Shadow: prompts`，`include_in_schema=False`；修订响应加 `shadow_requests`）。Rust `src-tauri/src/engine_shadow.rs`（`engine_shadow_append`：固定两个文件 `shadow-checks.jsonl` / `shadow-diffs.jsonl`，一行一个 JSON 对象、单行 ≤ 64 KiB、单文件到 16 MiB 后不再追加）。引擎 `index.ts` 补导出 `ModelObservation`、`requestSnapshot`。前端 `lib/engine/shadowDiff.ts`（摘要比对 + 结构差异，不带正文）、`lib/engine/shadow.ts`（影子驱动：与 Python 请求同时起引擎复算，会话只读、写丢弃，观察者在第一次派发前取快照并中止，出网端口拒发；后台比对记账）、`lib/api/assistant.ts`（`engine.assistant = shadow` 分流；测连接照走 Python）、`lib/inline-continue.ts`（`shadow` 帧）。预言机 `golden_shadow_capture.py`（`--suite p5-shadow`）。
+- 测试：pytest 新增 5 条（修订带头返回与线上请求体一致的快照且不含 key；不带头响应与请求体不变；快照失败不影响作者这次请求；续写流尽补 `shadow` 帧、不可吞异常即失败；不带头无 `shadow` 帧）；cargo test 新增 4 条（逐行追加且各进各的文件、拒绝非对象与超长、到上限停写且保留旧行、只认两个文件名）；前端新增 `assistant-engine-shadow` 12 条（预言机 8 个场景首轮全部判一致、改一个字后差异落在 `messages[0].content` 且记录里不含正文、引擎侧坏了作者照样拿到 Python 结果、Python 档不带头不记账、Python 失败原样抛出不比对）、`engine-shadow-diff` 15 条、`inline-continue` 1 条；`assistant-engine-routing-python` 的影子用例改为只钉 Python 档零初始化（影子档按新语义要初始化引擎）。
+- 变异：Python 6 / 6（观察者挂派发记录 → ContextVar 跨 Context 复位被抓、去掉观察范围、路由不认头、快照失败不兜底、续写不包流、快照不带消息）；前端 14 / 14（修订 / 续写不带头、不收 `shadow` 帧、解析器不认 `shadow`、写进真会话、两道不出网保险同时拆掉、无差异也记 diffs、列号、后缀、摘要格式、`step`、`streaming`、摘要比较、两侧都没派发）；Rust 3 / 3（不查对象、上限判断、单行上限）。单独拆掉「观察者中止」一道保险时测试不红：第二道「拒发端口」照样挡住出网，结果等价，已记为设计上的双保险。
+- 预言机：8 个场景经真实路由、真实服务与模型客户端（只换 HTTP 传输），续写按 Starlette 方式在线程池里逐步迭代；Python 交回的快照与线上发出的消息逐条相同；`--check` 逐字节复现。整数值配置（温度 1、上限 4096）那组 Python 发 `1.0`，引擎摘要一致。
+- 全量：`pnpm verify` 通过（lint、前端 typecheck、引擎 13165、前端 vitest 2210、真实 Monaco 续写回归、pytest 3306、ruff、sidecar 冒烟 daily 档、OpenAPI 漂移）；cargo test 149 通过；clippy 新文件无告警；新 Rust 文件 rustfmt（仓库里其他文件既有的格式差异未动）。
+- OpenAPI：`pnpm openapi` 重新生成零漂移（请求头不进契约）。
+- 未联通：agent 循环的影子档（5-1b）；发行版仍不读开关、影子档只在开发档可选，预览版出包与作者装机随 5-1c；真窗口里的影子比对随 5-1c 的预览版验收。

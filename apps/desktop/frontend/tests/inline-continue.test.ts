@@ -106,6 +106,12 @@ describe('parseContinueSseFrame', () => {
     });
   });
 
+  it('解析影子档的 shadow 帧（请求快照原样交出，由影子比对校验形状）', () => {
+    expect(
+      parseContinueSseFrame('event: shadow\ndata: {"requests": [{"step": "agent.model"}]}'),
+    ).toEqual({ kind: 'shadow', requests: [{ step: 'agent.model' }] });
+  });
+
   it('坏 JSON / 未知事件 / 缺字段一律返回 null 而不是抛错', () => {
     expect(parseContinueSseFrame('event: delta\ndata: {不是JSON')).toBeNull();
     expect(parseContinueSseFrame('event: heartbeat\ndata: {}')).toBeNull();
