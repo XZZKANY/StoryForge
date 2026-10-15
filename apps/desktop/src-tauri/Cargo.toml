@@ -1,6 +1,6 @@
 [package]
 name = "storyforge-desktop"
-version = "0.1.12"
+version = "0.1.13"
 description = "StoryForge 桌面写作 IDE"
 authors = ["StoryForge Team"]
 edition = "2021"

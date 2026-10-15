@@ -146,6 +146,63 @@ def test_checker_receives_all_confirmed_contract_fields_and_source_identity():
             assert str(value) in prompt
 
 
+def test_checker_is_not_asked_to_judge_length():
+    prompt = check_prompt({**BRIEF, "target_chars_min": 1357, "target_chars_max": 2468}, CONTENT)
+    assert "target_chars" not in prompt and "1357" not in prompt and "2468" not in prompt
+    assert "篇幅由程序另行核对" in prompt
+
+
+def _advisory(message):
+    return {"rule": "advisory", "severity": "advisory", "message": message, "line": None, "evidence": None}
+
+
+def test_dialogue_quoted_with_unescaped_straight_quotes_is_still_read():
+    # The shape real checkers returned when the draft used straight quotes for dialogue.
+    raw = "```json\n" + json.dumps(_reply([_advisory("MSG")]), ensure_ascii=False, indent=2) + "\n```"
+    # An escaped quote the checker did get right stays as it is.
+    message = '他说\\"走\\"，两条短信（"后天见"和"别忘了"）引入了悬念'
+    result = build_check(CONTENT, BRIEF, raw.replace("MSG", message))
+    assert result["execution_status"] == "completed"
+    assert result["findings"][0]["message"] == '他说"走"，两条短信（"后天见"和"别忘了"）引入了悬念'
+    assert result["checker_reply_excerpt"] is None
+
+
+def test_repaired_quote_in_evidence_is_still_located_verbatim():
+    content = '第一章\n\n守卫喝道:"站住。"\n林舟停下。\n'
+    brief = {**BRIEF, "target_chars_min": 10, "target_chars_max": 400}
+    hard = _hard(line=3, evidence="EVIDENCE")
+    raw = json.dumps(_reply([hard], content=content, brief=brief), ensure_ascii=False)
+    result = build_check(content, brief, raw.replace("EVIDENCE", '守卫喝道:"站住。"'))
+    assert result["execution_status"] == "completed"
+    assert result["findings"][0]["evidence"] == '守卫喝道:"站住。"'
+    assert result["findings"][0]["evidence_verified"] is True
+    forged = build_check(content, brief, raw.replace("EVIDENCE", '守卫喝道:"别动。"'))
+    assert forged["execution_status"] == "failed"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # A stray quote right before a comma reads as the end of the string: still invalid, never guessed.
+        json.dumps(_reply([_advisory("MSG")]), ensure_ascii=False).replace("MSG", '"好",她说'),
+        # The repair cannot hide a duplicate key.
+        json.dumps(_reply([]), ensure_ascii=False)[:-1].replace('"findings"', '"note": "说"好"", "findings"')
+        + ', "findings": []}',
+    ],
+)
+def test_quote_repair_does_not_admit_what_it_cannot_read(raw):
+    result = build_check(CONTENT, BRIEF, raw)
+    assert result["execution_status"] == "failed"
+    assert result["checker_reply_excerpt"] == raw
+
+
+def test_failed_result_keeps_a_bounded_excerpt_of_the_reply():
+    raw = "检查完毕" + "长" * 3000
+    assert build_check(CONTENT, BRIEF, raw)["checker_reply_excerpt"] == raw[:2000]
+    assert build_check(CONTENT, BRIEF, None, provider_failed=True)["checker_reply_excerpt"] is None
+    assert build_check(CONTENT, BRIEF, json.dumps(_reply([])))["checker_reply_excerpt"] is None
+
+
 def test_large_result_cannot_hide_late_hard_failure_behind_budget():
     advisory = {"rule": "advisory", "severity": "advisory", "message": "建议", "line": None, "evidence": None}
     result = build_check(CONTENT, BRIEF, _reply([advisory] * 1000 + [_hard()]))
@@ -212,9 +269,19 @@ def test_failed_or_incomplete_checker_cannot_claim_manuscript_failure(failure):
 
 @pytest.mark.parametrize(
     "failure",
-    ["valid-empty", "invalid-empty", "fake-quote", "stale-source", "hard-at-31", "duplicate", "over-limit", "provider"],
+    [
+        "valid-empty",
+        "invalid-empty",
+        "fake-quote",
+        "stale-source",
+        "hard-at-31",
+        "duplicate",
+        "over-limit",
+        "provider",
+        "recovers-on-recheck",
+    ],
 )
-def test_actual_confirmed_chapter_pipeline_checks_full_contract_and_fails_closed(
+def test_actual_confirmed_chapter_pipeline_rechecks_once_and_offers_unchecked_draft_for_confirmation(
     session,
     tmp_path,
     monkeypatch,
@@ -244,6 +311,8 @@ def test_actual_confirmed_chapter_pipeline_checks_full_contract_and_fails_closed
             for key in ("goal", "pov", "setting", "required_beats", "forbidden_items", "continuity_constraints"):
                 assert str(BRIEF[key][0] if isinstance(BRIEF[key], list) else BRIEF[key]) in user_prompt
             findings = []
+            if failure == "recovers-on-recheck" and checks == 1:
+                return {"content": "{}", "completion_tokens": 5, "latency_ms": 1}
             if failure == "hard-at-31":
                 advisory = {
                     "rule": "advisory",
@@ -277,7 +346,8 @@ def test_actual_confirmed_chapter_pipeline_checks_full_contract_and_fails_closed
     monkeypatch.setattr(assistant_service, "_call_llm", chat_provider)
     monkeypatch.setattr(assistant_service, "_call_llm_streamed", text_provider)
     run = _seed_agent_run(session, public_id=f"run-check-protocol-{failure}")
-    run.permission_profile = "ask"
+    # Auto profile: a checked draft lands without a click, an unchecked one never does.
+    run.permission_profile = "auto"
     session.commit()
     initial = AgentRuntime(_AgentRunEventSink(session)).run_user_message(
         session,
@@ -302,35 +372,41 @@ def test_actual_confirmed_chapter_pipeline_checks_full_contract_and_fails_closed
     )
     result = control.resumed_result
     assert result is not None
-    if failure == "valid-empty":
-        assert result["proposed_patch"]["after"] == draft
-        assert result["agent_result"]["chapter_check"]["status"] == "pass"
-    else:
+    checked = failure in {"valid-empty", "recovers-on-recheck"}
+    unchecked = failure not in {"valid-empty", "recovers-on-recheck", "hard-at-31"}
+    if failure == "hard-at-31":
         assert result.get("proposed_patch") is None
-        assert result["agent_result"]["chapter_check"]["status"] == (
-            "repairable" if failure == "hard-at-31" else "blocked"
-        )
-    assert checks == (2 if failure == "hard-at-31" else 1)
+        assert result["agent_result"]["chapter_check"]["status"] == "repairable"
+    else:
+        assert result["proposed_patch"]["after"] == draft
+        assert result["proposed_patch"]["requires_confirmation"] is unchecked
+        assert result["agent_result"]["requires_user_confirmation"] is unchecked
+        assert result["agent_result"]["chapter_check"]["status"] == ("pass" if checked else "blocked")
+        assert ("未经检查" in result["agent_result"]["summary"]) is unchecked
+    assert checks == (1 if failure == "valid-empty" else 2)
     assert repairs == (1 if failure == "hard-at-31" else 0)
     assert result["agent_result"]["repair_count"] == repairs
     check = result["agent_result"]["chapter_check"]
     expected_execution = (
         "completed"
-        if failure in {"valid-empty", "hard-at-31"}
+        if failure in {"valid-empty", "hard-at-31", "recovers-on-recheck"}
         else "incomplete"
         if failure == "over-limit"
         else "failed"
     )
     assert check["execution_status"] == expected_execution
-    assert check["manuscript_status"] == (
-        "pass" if failure == "valid-empty" else "fail" if failure == "hard-at-31" else "unknown"
-    )
+    assert check["manuscript_status"] == ("pass" if checked else "fail" if failure == "hard-at-31" else "unknown")
     check_traces = [trace for trace in result["tool_trace"] if trace["tool_name"] == "chapter.check"]
-    assert all(
-        trace["status"] == ("completed" if expected_execution == "completed" else "failed") for trace in check_traces
+    assert [trace["input_summary"]["recheck"] for trace in check_traces] == (
+        [False] if failure == "valid-empty" else [False, False] if failure == "hard-at-31" else [False, True]
     )
-    assert all(trace["output_summary"]["execution_status"] == expected_execution for trace in check_traces)
-    assert all(trace["output_summary"]["coverage"] == check["coverage"] for trace in check_traces)
+    assert check_traces[-1]["status"] == ("completed" if expected_execution == "completed" else "failed")
+    assert check_traces[-1]["output_summary"]["execution_status"] == expected_execution
+    assert check_traces[-1]["output_summary"]["coverage"] == check["coverage"]
+    saved_check = session.scalars(
+        select(AgentArtifact).where(AgentArtifact.run_id == run.id, AgentArtifact.kind == "chapter_check")
+    ).one()
+    assert saved_check.payload["recheck_count"] == (0 if failure in {"valid-empty", "hard-at-31"} else 1)
     persisted_traces = session.scalars(
         select(AgentRunEvent).where(
             AgentRunEvent.run_id == run.id,
@@ -346,7 +422,7 @@ def test_actual_confirmed_chapter_pipeline_checks_full_contract_and_fails_closed
             AgentArtifact.kind == "chapter_candidate",
         )
     ).all()
-    if failure == "valid-empty":
+    if failure != "hard-at-31":
         assert not candidates
     else:
         candidate = result["agent_result"]["chapter_candidate"]
@@ -357,9 +433,6 @@ def test_actual_confirmed_chapter_pipeline_checks_full_contract_and_fails_closed
         assert "approval_action" not in candidate and "after" not in candidate
         assert len(candidates) == 1 and candidates[0].payload == candidate
         assert candidates[0].requires_confirmation is False
-        summary = result["agent_result"]["summary"]
-        assert "候选稿" in summary
-        if expected_execution != "completed":
-            assert "硬失败" not in summary
+        assert "候选稿" in result["agent_result"]["summary"]
     assert len(prompts) == checks + 1
     assert target.read_text(encoding="utf-8") == ""

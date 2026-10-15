@@ -18,7 +18,7 @@ from app.domains.assistant.service import create_assistant_session
 
 
 @pytest.mark.parametrize("mode", ["valid", "invalid", "duplicate", "over-limit", "provider", "length"])
-def test_confirmed_chapter_check_over_owned_http_retains_non_writable_candidate(
+def test_confirmed_chapter_check_over_owned_http_rechecks_then_offers_unchecked_patch(
     session,
     client,
     tmp_path,
@@ -155,7 +155,18 @@ def test_confirmed_chapter_check_over_owned_http_retains_non_writable_candidate(
             if mode == "valid"
             else "invalid_result"
         )
-        assert len(requests) == 3
+        # A checker that fails to deliver is asked once more with the same prompt.
+        expected_requests = 3 if mode == "valid" else 4
+        assert len(requests) == expected_requests
+        if mode != "valid":
+            assert requests[3]["messages"] == requests[2]["messages"]
+        excerpt = check["checker_reply_excerpt"]
+        if mode in {"valid", "provider", "length"}:
+            assert excerpt is None
+        elif mode == "invalid":
+            assert excerpt == "{}"
+        else:
+            assert excerpt.startswith('{"protocol_version"') and len(excerpt) <= 2000
         prompt = requests[-1]["messages"][-1]["content"]
         for sentinel in (draft, "GOAL_HTTP", "POV_HTTP", "SETTING_HTTP", "BEAT_HTTP"):
             assert sentinel in prompt
@@ -163,27 +174,24 @@ def test_confirmed_chapter_check_over_owned_http_retains_non_writable_candidate(
         response = client.get(f"/api/agent-runs/{run.public_id}/artifacts")
         assert response.status_code == 200
         candidates = [artifact for artifact in response.json() if artifact["kind"] == "chapter_candidate"]
-        if mode == "valid":
-            assert resumed["proposed_patch"]["after"] == draft
-            assert not candidates
-        else:
-            assert resumed.get("proposed_patch") is None
-            assert len(candidates) == 1
-            assert candidates[0]["payload"] == resumed["agent_result"]["chapter_candidate"]
-            assert candidates[0]["payload"]["content"] == draft
-            assert candidates[0]["requires_confirmation"] is False
+        assert not candidates
+        assert resumed["proposed_patch"]["after"] == draft
+        assert resumed["proposed_patch"]["requires_confirmation"] is True
+        summary = resumed["agent_result"]["summary"]
+        assert ("未经检查" in summary) is (mode != "valid")
+        rechecks = 0 if mode == "valid" else 1
+        if mode != "valid":
             events = client.get(f"/api/agent-runs/{run.public_id}/events")
             assert events.status_code == 200
-            settled = next(event for event in reversed(events.json()) if event["event_type"] == "agent_run_completed")
-            # CompletedEventPayload is intentionally a compact terminal reference;
-            # full bodies survive in the normal artifact API/events, not that row.
-            assert settled["payload"]["summary"] == resumed["agent_result"]["summary"]
-            assert settled["payload"]["has_proposed_patch"] is False
+            # The unchecked draft waits for the author exactly like a checked one.
+            pending = next(event for event in reversed(events.json()) if event["event_type"] == "permission_required")
+            assert pending["payload"]["summary"] == summary
+            assert pending["payload"]["proposed_patch"]["after"] == draft
             artifact_events = [event["payload"] for event in events.json() if event["event_type"] == "agent_artifact"]
-            saved = next(event["payload"] for event in artifact_events if event["kind"] == "chapter_candidate")
-            assert saved == resumed["agent_result"]["chapter_candidate"]
             saved_check = next(event["payload"] for event in artifact_events if event["kind"] == "chapter_check")
-            assert saved_check == {**check, "attempt": 1, "repair_count": 0}
+            assert saved_check == {**check, "attempt": 1, "repair_count": 0, "recheck_count": 1}
+            check_traces = [trace for trace in resumed["tool_trace"] if trace["tool_name"] == "chapter.check"]
+            assert [trace["input_summary"]["recheck"] for trace in check_traces] == [False, True]
         assert target.read_text(encoding="utf-8") == ""
         history = client.post(
             "/api/agent-runs/chapter-checks/query",
@@ -192,15 +200,11 @@ def test_confirmed_chapter_check_over_owned_http_retains_non_writable_candidate(
         assert history.status_code == 200
         entry = history.json()["entries"][0]
         assert entry["run_id"] == run.public_id
-        assert entry["check"] == {**check, "attempt": 1, "repair_count": 0}
+        assert entry["check"] == {**check, "attempt": 1, "repair_count": 0, "recheck_count": rechecks}
         assert entry["target_path"] == "正文/第001章.md"
         assert entry["candidate_error"] is None
-        if mode == "valid":
-            assert entry["candidate"] is None
-        else:
-            assert entry["candidate"] == resumed["agent_result"]["chapter_candidate"]
-            assert entry["candidate"]["content"] == draft
-        assert len(requests) == 3  # History reads never execute the provider again.
+        assert entry["candidate"] is None
+        assert len(requests) == expected_requests  # History reads never execute the provider again.
         assert target.read_text(encoding="utf-8") == ""
         assert not server_errors
     finally:

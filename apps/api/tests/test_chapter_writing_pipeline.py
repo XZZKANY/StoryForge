@@ -191,3 +191,64 @@ def test_chapter_write_repairs_once_then_blocks_without_patch(
     assert check_calls == 2
     assert repair_calls == 1
     assert target.read_text(encoding="utf-8") == ""
+
+
+def test_failed_checker_does_not_release_a_draft_the_program_already_rejected(
+    session,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "project"
+    (project / "正文").mkdir(parents=True)
+    target = project / "正文" / "第001章.md"
+    target.write_text("", encoding="utf-8")
+    check_calls = 0
+
+    def fake_chat(_session, *, user_message, context_block, assistant_session_id):
+        nonlocal check_calls
+        if "整理成 Chapter Brief" in user_message:
+            return {"reply": '{"goal":"建立冲突","target_chars_min":1600,"target_chars_max":2600}'}
+        check_calls += 1
+        return {"reply": "{}"}
+
+    monkeypatch.setattr(assistant_service, "chat_reply", fake_chat)
+    monkeypatch.setattr(
+        assistant_service,
+        "draft_file_content",
+        lambda *_args, **_kwargs: AssistantDraftResponse(
+            content="一" * 100,
+            summary="草稿完成",
+            model="fake",
+            latency_ms=1,
+            completion_tokens=10,
+            assistant_session_id=1,
+        ),
+    )
+    run = _seed_agent_run(session, public_id="run-chapter-short-unchecked")
+    run.permission_profile = "auto"
+    session.commit()
+    initial = AgentRuntime(_AgentRunEventSink(session)).run_user_message(
+        session,
+        run=run,
+        agent_session_id=run.session_id,
+        message={
+            "intent": "chapter.write",
+            "user_message": "写第一章",
+            "args": {"project_path": str(project), "file_path": str(target), "context_bundle": {"files": []}},
+        },
+    )
+    resumed = handle_agent_control_message(
+        session,
+        public_id=run.public_id,
+        session_id=run.session_id,
+        control_type="resume_run",
+        payload={"chapter_brief": initial["agent_result"]["chapter_brief"]},
+    ).resumed_result
+    assert resumed is not None
+    check = resumed["agent_result"]["chapter_check"]
+    assert check["execution_status"] == "failed"
+    assert [item["rule"] for item in check["findings"]] == ["word_count_out_of_range", "checker_failure"]
+    assert resumed.get("proposed_patch") is None
+    assert resumed["agent_result"]["chapter_candidate"]["content"] == "一" * 100
+    assert check_calls == 2
+    assert target.read_text(encoding="utf-8") == ""

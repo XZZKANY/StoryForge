@@ -53,9 +53,14 @@ function completedPlan(checkStatus: string, patchStatus: string, checkDetail = '
     planStep('chapter.brief.confirm', 'Chapter Brief 已确认。', 'completed'),
     planStep('chapter.draft', '已按 brief 起草正文。', 'completed'),
     planStep('chapter.check', checkDetail, checkStatus),
-    planStep('chapter.patch', '仅检查通过时生成 proposed patch。', patchStatus),
+    planStep('chapter.patch', '未发现稿件硬问题时生成 proposed patch。', patchStatus),
   ];
 }
+
+const checkerFailureDetail = (executionStatus: unknown) =>
+  executionStatus === 'incomplete'
+    ? '章节检查未完整执行：结果超过协议预算，不能据此判断稿件通过。'
+    : '章节检查执行失败：未取得有效、来源与证据可核实的完整结果。';
 
 export function isChapterResume(
   run: FixedPipelineRequest['run'],
@@ -265,13 +270,18 @@ export async function resumeChapterWriting(
   const draft = await host.executeTool(run, 'chapter.draft', context, writer);
   traces.push(draft.trace);
   let content = String(draft.output.content);
-  let check = await host.executeTool(run, 'chapter.check', context, {
-    brief: confirmed,
-    content,
-    attempt: 1,
-  });
-  traces.push(check.trace);
-  let finalCheck = check.output.check as Obj;
+  // 检查器没给出可用结果（不是稿件结论）时同一份正文再查一次。
+  const checkChapter = async (attempt: number): Promise<Obj> => {
+    const input = { brief: confirmed, content, attempt };
+    let check = await host.executeTool(run, 'chapter.check', context, input);
+    traces.push(check.trace);
+    if ((check.output.check as Obj).execution_status !== 'completed') {
+      check = await host.executeTool(run, 'chapter.check', context, { ...input, recheck: true });
+      traces.push(check.trace);
+    }
+    return check.output.check as Obj;
+  };
+  let finalCheck = await checkChapter(1);
   let repairCount = 0;
   if (finalCheck.status === 'repairable') {
     const repaired = await host.executeTool(run, 'chapter.repair', context, {
@@ -282,13 +292,7 @@ export async function resumeChapterWriting(
     traces.push(repaired.trace);
     content = String(repaired.output.content);
     repairCount = 1;
-    check = await host.executeTool(run, 'chapter.check', context, {
-      brief: confirmed,
-      content,
-      attempt: 2,
-    });
-    traces.push(check.trace);
-    finalCheck = check.output.check as Obj;
+    finalCheck = await checkChapter(2);
   }
   await assertChapterSources(deps, root, target, payload.source_guard);
   for (const [index, trace] of traces.entries()) await host.sink.recordToolTrace(run, trace, index);
@@ -296,7 +300,14 @@ export async function resumeChapterWriting(
     { kind: CHAPTER_BRIEF_ARTIFACT_KIND, payload: confirmed, requires_confirmation: false },
     {
       kind: CHAPTER_CHECK_ARTIFACT_KIND,
-      payload: { ...finalCheck, attempt: repairCount ? 2 : 1, repair_count: repairCount },
+      payload: {
+        ...finalCheck,
+        attempt: repairCount ? 2 : 1,
+        repair_count: repairCount,
+        recheck_count: traces.filter(
+          (trace) => trace.tool_name === 'chapter.check' && trace.input_summary.recheck === true,
+        ).length,
+      },
       requires_confirmation: false,
     },
     {
@@ -321,14 +332,15 @@ export async function resumeChapterWriting(
     result._events_recorded = true;
     return result;
   };
-  if (finalCheck.status !== 'pass') {
-    const executionStatus = finalCheck.execution_status;
+  const executionStatus = finalCheck.execution_status;
+  // 重查后检查器仍失败，说明不了稿件好坏：稿子照给，但一律要作者确认；程序查出的问题（空稿、字数）仍拦下。
+  const unchecked =
+    executionStatus !== 'completed' && finalCheck.manuscript_hard_failure_count === 0;
+  if (finalCheck.status !== 'pass' && !unchecked) {
     const detail =
       executionStatus === 'completed'
         ? `章节检查已完成：发现 ${finalCheck.manuscript_hard_failure_count} 个稿件硬失败。`
-        : executionStatus === 'incomplete'
-          ? '章节检查未完整执行：结果超过协议预算，不能据此判断稿件通过。'
-          : '章节检查执行失败：未取得有效、来源与证据可核实的完整结果。';
+        : checkerFailureDetail(executionStatus);
     const candidate = {
       target_path: relative,
       brief_id: confirmed.brief_id,
@@ -360,7 +372,7 @@ export async function resumeChapterWriting(
       },
     });
   }
-  const requiresConfirmation = patchRequiresConfirmation(run.permission_profile);
+  const requiresConfirmation = unchecked || patchRequiresConfirmation(run.permission_profile);
   const proposedPatch = {
     id: `chapter-writing-${host.newHex()}`,
     kind: 'file_revision',
@@ -378,9 +390,14 @@ export async function resumeChapterWriting(
     requires_confirmation: requiresConfirmation,
   });
   return response({
-    plan: completedPlan('completed', 'completed'),
+    plan: unchecked
+      ? completedPlan('failed', 'completed', checkerFailureDetail(executionStatus))
+      : completedPlan('completed', 'completed'),
     agentResult: {
-      summary: `章节草稿已通过 brief 检查，生成 ${relative} 的待审阅补丁。`,
+      summary: unchecked
+        ? '章节检查重查一次后仍未取得可用结果，这份稿子未经检查。' +
+          `已生成 ${relative} 的待审阅补丁，请通读后再决定是否接受。`
+        : `章节草稿已通过 brief 检查，生成 ${relative} 的待审阅补丁。`,
       requires_user_confirmation: requiresConfirmation,
       chapter_brief: confirmed,
       chapter_check: finalCheck,

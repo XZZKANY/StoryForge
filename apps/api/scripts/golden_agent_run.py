@@ -828,18 +828,31 @@ def chapter_scenarios():
         checked({"rule": "advisory", "severity": "hard", "message": "可以更紧凑", "line": None, "evidence": None},
                 {"rule": "pov_violation", "severity": "advisory", "message": "视角略有游移", "line": 4,
                  "evidence": "守卫看了他们一眼。"})], ops=[confirm()]))
-    s.append(scenario("write-check-invalid", write(), [brief_reply(), streamed([DRAFT]), completion("不是 JSON")],
-                      ops=[confirm()]))
-    s.append(scenario("write-check-source-mismatch", write(), [brief_reply(), streamed([DRAFT]), checked(corrupt=True)],
-                      ops=[confirm()]))
-    s.append(scenario("write-check-bad-evidence", write(), [brief_reply(), streamed([DRAFT]), checked(
-        {**BEAT, "line": 4})], ops=[confirm()]))
-    s.append(scenario("write-check-too-many", write(), [brief_reply(), streamed([DRAFT]), checked(
-        *[{"rule": "advisory", "severity": "advisory", "message": f"建议{i}", "line": None, "evidence": None}
-          for i in range(101)])], ops=[confirm()]))
-    s.append(scenario("write-check-provider-error", write(), [
-        brief_reply(), streamed([DRAFT]), {"status": 500, "body": '{"error":{"message":"check down"}}'}],
+    # A checker that fails to deliver is asked once more; failing again, the draft is still offered unchecked.
+    s.append(scenario("write-check-invalid", write(), [
+        brief_reply(), streamed([DRAFT]), completion("不是 JSON"), completion("不是 JSON")], ops=[confirm()]))
+    s.append(scenario("write-check-invalid-auto-profile", write(permission_profile="auto"), [
+        brief_reply(), streamed([DRAFT]), completion("不是 JSON"), completion("不是 JSON")], ops=[confirm()]))
+    s.append(scenario("write-check-source-mismatch", write(), [
+        brief_reply(), streamed([DRAFT]), checked(corrupt=True), checked()], ops=[confirm()]))
+    s.append(scenario("write-check-bad-evidence", write(), [
+        brief_reply(), streamed([DRAFT]), checked({**BEAT, "line": 4}), checked({**BEAT, "line": 4})],
         ops=[confirm()]))
+    too_many = checked(*[{"rule": "advisory", "severity": "advisory", "message": f"建议{i}", "line": None,
+                          "evidence": None} for i in range(101)])
+    s.append(scenario("write-check-too-many", write(), [brief_reply(), streamed([DRAFT]), too_many, too_many],
+                      ops=[confirm()]))
+    down = {"status": 500, "body": '{"error":{"message":"check down"}}'}
+    s.append(scenario("write-check-provider-error", write(), [brief_reply(), streamed([DRAFT]), down, down],
+                      ops=[confirm()]))
+    s.append(scenario("write-repair-then-check-invalid", write(), [
+        brief_reply(), streamed([DRAFT]), checked(BEAT),
+        streamed(["第三章 入城\n\n沈禾带林舟穿过城门，夜宿客栈。\n守卫看了他们一眼。\n"]),
+        completion("不是 JSON"), completion("不是 JSON")], ops=[confirm()]))
+    # A problem the program finds itself (length) still blocks the patch when the checker fails.
+    s.append(scenario("write-check-invalid-short-draft", write(), [
+        brief_reply(), streamed(["第三章\n\n短。\n"]), completion("不是 JSON"), completion("不是 JSON")],
+        ops=[confirm(target_chars_min=40, target_chars_max=400)]))
     s.append(scenario("write-word-count-repair", write(), [
         brief_reply(), streamed(["第三章\n\n短。\n"]), checked(),
         streamed([DRAFT]), checked()], ops=[confirm(target_chars_min=40, target_chars_max=400)]))
@@ -1044,12 +1057,25 @@ def chapter_check_records() -> dict:
         "not-object": "[]",
         "not-json": "检查完毕，没有问题。",
         "oversized": " " * 256_001,
+        "stray-quotes-repaired": reply([{"rule": "advisory", "severity": "advisory", "message": "QUOTE",
+                                         "line": None, "evidence": None}]).replace(
+            "QUOTE", '他说"好"又' + "\\" + '"走\\n"'),
+        "stray-quote-before-comma": reply([{"rule": "advisory", "severity": "advisory", "message": "QUOTE",
+                                            "line": None, "evidence": None}]).replace("QUOTE", '"好",她说'),
+        "stray-quotes-with-duplicate": reply([]).replace('"findings"', '"note": "说"好"", "findings"')[:-1]
+        + ', "findings": []}',
     }
     records = [{"name": name, "raw": raw, "content": content, "result": build_check(content, brief, raw)}
                for name, raw in raws.items()]
     for record in records:
         if record["name"] == "oversized":  # Rebuilt on the TS side instead of storing 256 KB of spaces.
             record["raw"], record["raw_repeat"] = None, [" ", 256_001]
+    dialogue = '第三章\n\n守卫喝道:"站住。"\n林舟停下。\n'
+    quoted = json.dumps({**check_source(dialogue, brief), "findings": [
+        {"rule": "missing_required_beat", "severity": "hard", "message": "缺夜宿", "line": 3, "evidence": "EVIDENCE"}]},
+        ensure_ascii=False).replace("EVIDENCE", '守卫喝道:"站住。"')
+    records.append({"name": "stray-quotes-in-evidence", "raw": quoted, "content": dialogue,
+                    "result": build_check(dialogue, brief, quoted)})
     extremes = [
         {"name": "empty-draft", "content": " \n", "raw": None, "provider_failed": True},
         {"name": "too-short", "content": "短", "raw": None, "provider_failed": True},

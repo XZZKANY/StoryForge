@@ -75,7 +75,7 @@
       "第13条消息。。。。。。。。。。。。。。。。。。。。"
     ]
   ],
-  "app_version": "0.1.10",
+  "app_version": "0.1.13",
   "step_seconds": 0.25,
   "fixed_now": "2026-10-12T08:30:00Z",
   "sources": {
@@ -47356,7 +47356,8 @@
                   "status": "completed",
                   "input_summary": {
                     "brief_id": "chapter-brief-00000000000000000000000000000001",
-                    "attempt": 1
+                    "attempt": 1,
+                    "recheck": false
                   },
                   "output_summary": {
                     "status": "pass",
@@ -47482,8 +47483,10 @@
                   "hard_failure_count": 0,
                   "advisory_count": 0,
                   "findings": [],
+                  "checker_reply_excerpt": null,
                   "attempt": 1,
-                  "repair_count": 0
+                  "repair_count": 0,
+                  "recheck_count": 0
                 }
               },
               "sequence": 18
@@ -48035,7 +48038,7 @@
                 },
                 {
                   "step": "chapter.patch",
-                  "detail": "仅检查通过时生成 proposed patch。",
+                  "detail": "未发现稿件硬问题时生成 proposed patch。",
                   "status": "completed"
                 }
               ],
@@ -48099,7 +48102,8 @@
                   "model_finding_count": 0,
                   "hard_failure_count": 0,
                   "advisory_count": 0,
-                  "findings": []
+                  "findings": [],
+                  "checker_reply_excerpt": null
                 },
                 "repair_count": 0,
                 "writeback_blocked_until_user_confirms": true
@@ -48122,7 +48126,8 @@
                   "status": "completed",
                   "input_summary": {
                     "brief_id": "chapter-brief-00000000000000000000000000000001",
-                    "attempt": 1
+                    "attempt": 1,
+                    "recheck": false
                   },
                   "output_summary": {
                     "status": "pass",
@@ -48280,8 +48285,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "adc61bda73fce27867afe5f8be14a9d2b02db0f78005dd74761b708ed6e459a8",
-                  "length": 1061
+                  "sha256": "70f29c65d7fca09d45e8ee939ce869fcbbd331cb88d1ea905714afca444b0a77",
+                  "length": 1057
                 }
               }
             ],
@@ -48841,7 +48846,8 @@
               "status": "completed",
               "input_summary": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
-                "attempt": 1
+                "attempt": 1,
+                "recheck": false
               },
               "output_summary": {
                 "status": "pass",
@@ -48967,8 +48973,10 @@
               "hard_failure_count": 0,
               "advisory_count": 0,
               "findings": [],
+              "checker_reply_excerpt": null,
               "attempt": 1,
-              "repair_count": 0
+              "repair_count": 0,
+              "recheck_count": 0
             }
           },
           "sequence": 18
@@ -49607,8 +49615,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "adc61bda73fce27867afe5f8be14a9d2b02db0f78005dd74761b708ed6e459a8",
-                    "length": 1061
+                    "sha256": "70f29c65d7fca09d45e8ee939ce869fcbbd331cb88d1ea905714afca444b0a77",
+                    "length": 1057
                   }
                 }
               ],
@@ -49619,7 +49627,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "b8b8c444820e3a380a51992eee17c6c933132477121016fe178315412435aafa",
+            "request_digest": "d755ef3738017dfe7f2586e41248fd66f4f63254a952528c84cd090a1eb6b7ee",
             "redacted": false,
             "omissions": [],
             "prompt_version": "4bd5d0d1c7179d7aedd5bcce6a7b854ac07313d5e9c9f756df680961cdc9fe66",
@@ -49636,8 +49644,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "54251d49e19546eac13100222e6e66cf8e6e1df0f2bc5bcbb389b59a82653b95",
-                "content_chars": 1061
+                "sha256": "3b5314c9b44c4bb6ec0003e1d48a8d828eaf234942ede225474f5a9936f1acc9",
+                "content_chars": 1057
               }
             ],
             "reconstruction": {
@@ -49733,8 +49741,10 @@
             "hard_failure_count": 0,
             "advisory_count": 0,
             "findings": [],
+            "checker_reply_excerpt": null,
             "attempt": 1,
-            "repair_count": 0
+            "repair_count": 0,
+            "recheck_count": 0
           },
           "requires_confirmation": false
         },
@@ -50113,7 +50123,7 @@
           "status": "completed",
           "input_summary": {
             "message": {
-              "sha256": "353a8ec89ed5690236112fc1274d8a55d885efcea5ec205f0c58e8958eca96fd",
+              "sha256": "933fb17b4fea3be7f4362e314c2837ee40ddeee6d3be54d3e6244b9640f07dc5",
               "length": 500
             },
             "context_chars": 0

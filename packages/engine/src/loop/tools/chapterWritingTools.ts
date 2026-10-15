@@ -122,7 +122,11 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
       trace: {
         tool_name: 'chapter.check',
         status,
-        input_summary: { brief_id: confirmed.brief_id, attempt: payload.attempt },
+        input_summary: {
+          brief_id: confirmed.brief_id,
+          attempt: payload.attempt,
+          recheck: payload.recheck ?? false,
+        },
         output_summary: {
           status: result.status,
           execution_status: result.execution_status,

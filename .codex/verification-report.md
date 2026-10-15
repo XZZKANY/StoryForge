@@ -8035,3 +8035,17 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 顺带看到（Python 那一侧，未处理）：作者这次写章的候选稿 2256 字，`chapter.check` 回 `invalid_result`（检查结果无效、未绑定当前来源），结果未生成补丁；同一 run 有 10 次 `deny_permission` 被忽略（`source desktop.timeline`）。
 - 出包（合并后，master `32d9b2f1`）：`pnpm desktop:build` → `StoryForge IDE_0.1.12_x64-setup.exe`，77.1 MiB，SHA256 `245F0543…48AEFCC`；桌面 exe 与安装包 FileVersion 0.1.12，sidecar 同批重打；前端分包含 `AgentErrorFrame` / `ts_detail`。`sidecar-smoke --packaged --skip-build` 全绿；影子头定向断言（`output/ts-engine-p5/packaged-shadow-check.mjs`）：冻结 exe `app_version` 0.1.12，带头修订快照与线上消息一致、无 key，续写帧序以 `done,shadow` 结尾。作者机器上实测已装 0.1.11（16:55），0.1.12 待装。
 - 未联通：0.1.12 装机后，作者真实使用一段时间，新版本的 checks 有行、diffs 为空，才算 P5-1 验收。
+
+## 2026-10-15 P5-1e 写章检查「结果无效」：契约去字数、直引号窄修补、检查器失败重查一次、仍失败也给待确认补丁（Python 与引擎同改，0.1.13）
+
+- 起因：作者在 0.1.11 上点「起草第1章」（run 56），2256 字的候选稿在 `chapter.check` 回 `invalid_result`（`source_verified false`、`findings_received null`），没出补丁。模型原始回复当时不落库。
+- 定位（真模型，作者配置的 provider，共 20 次检查请求，约 10 万 token）：用作者库副本里的请求证据原样重放 10 次，2 次失败、1 次险些失败，都是模型数错字数（实际 2256 字，它说约 3600–3800 字、超出 brief 上限 2600）而报硬问题：一次引用行号对不上，一次引用里的正文英文直引号没转义、整段 JSON 解析失败。去掉字数后再重放 10 次仍坏 2 次：两条「建议」引用对白时带了没转义的直引号，回复 749 / 677 字、523 / 424 token，与作者那次（769 字、562 token）同形——模型这时没有先推理。这篇稿子全用半角逗号与直引号（0 个全角）。脚本与回复在 `output/ts-engine-p5/check-replay/`（gitignored）。
+- 修复（`chapter_check_protocol.py` / `chapterCheckProtocol.ts`、`chapter_writing_pipeline.py` / `chapterWritingPipeline.ts`、`chapter_writing_tools.py` / `chapterWritingTools.ts`）：
+  - 检查契约不再带 `target_chars_min/max`，提示词加「篇幅由程序另行核对，不在检查范围内」与转义提醒；字数仍由程序按 0.7–1.3 倍判。
+  - 严格解析失败才做一次窄修补：字符串里的引号，下一个非空白字符不是 `,:}]` 就当内容转义（已转义的字符原样跳过）；修补后照走来源回显、条数、引用逐字定位等全部校验，修不好仍判无效。合法 JSON 上修补是恒等变换，重复键与 NaN 照样拒。
+  - 检查器自身失败（无效 / 不完整 / 模型出错）时同一份正文重查一次；仍失败、且程序没判出空稿或字数问题，就照样出补丁：一律要作者确认（自动档也不例外），摘要写明「这份稿子未经检查」，计划步骤 `chapter.check` 记 failed。程序判出的问题照旧拦下、只留只读候选稿。检查记录加 `recheck_count`，失败的检查结果留 `checker_reply_excerpt`（原始回复前 2000 码点），工具记录 `input_summary` 加 `recheck`。
+- 离线复核：20 份真实回复过新 `build_check`，新提示词下 10/10 读通（含那 2 份直引号回复），旧提示词下 2 份字数误报仍判无效（引用行号对不上）。
+- 覆盖：预言机 `golden_agent_run.py` 场景 34 → 37（失败场景都补了重查回复；新增自动档下未经检查仍要确认、修复后检查失败、短稿 + 检查器失败照旧拦下），协议记录加 4 条直引号情形（修补成功、引号后紧跟逗号仍无效、修补不掩盖重复键、证据里的直引号逐字定位）；`--check` 复导逐字节一致，引擎回放 77 条全过；`p3-host` 里的写章场景随之复导（检查记录新字段与计划文案；该文件记的 `app_version` 此前停在 0.1.10，这次一并更新到 0.1.13，回放不比它），第一次全量门禁就是因为漏了它挂在 `agentHost.test.ts`。pytest：`test_agent_check_protocol.py`（新增去字数、直引号修补、修补边界、回复摘录；流程用例改自动档，断言重查与强制确认）、`test_chapter_check_http_provider.py`（经真 HTTP：失败模式 4 个请求、第二次与第一次提示词相同、补丁要确认、摘要写「未经检查」）、`test_chapter_writing_pipeline.py`（短稿 + 检查器失败不出补丁）。
+- 变异：21 / 21（Python 10：不重查、不强制确认、程序判出的问题不拦、不留摘录、不修补、冒号不算字符串结尾、不跳过已转义字符、契约仍带字数、不记重查标记、重查次数数错；引擎 11：同上 10 项加摘录少截一个码点）。
+- 全量：`pnpm verify` 通过（引擎 13175、前端 vitest 2234、pytest 3314、ruff、sidecar 冒烟 daily 档、OpenAPI 只变版本号）。版本 bump 到 0.1.13（五处加两个锁文件）。
+- 未联通：作者装 0.1.13 后真实写章里的检查通过率与「未经检查」补丁的观感未验。
