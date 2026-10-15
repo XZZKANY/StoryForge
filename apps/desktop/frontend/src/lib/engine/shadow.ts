@@ -70,10 +70,17 @@ function snapshotOf(
   }
 }
 
-export type TsCapture = { capture: PromptCapture | null; error: string | null };
+export type TsCapture = { capture: PromptCapture | null; error: string | null; detail?: string };
 
 /** 只记错误类名：错误文本可能带着作者的稿子。 */
 export const errorName = (error: unknown) => (error instanceof Error ? error.name : typeof error);
+
+/**
+ * agent 宿主错误帧的文案：引擎在发出第一个请求前失败时写的是固定提示（配置、路径、版本核对），
+ * 不经模型、不引正文；仍截短，免得哪条提示带出长路径。
+ */
+export const errorDetail = (detail: unknown) =>
+  typeof detail === 'string' ? Array.from(detail).slice(0, 160).join('') : typeof detail;
 
 /** 用作者这一次的输入跑一遍引擎，只取第一次派发的快照。 */
 async function captureEngine(run: (deps: AssistantDeps) => Promise<unknown>): Promise<TsCapture> {
@@ -152,6 +159,7 @@ export async function recordShadow(
     ts_digest: digest(ts.capture),
     python_requests: python?.length ?? null,
     ...(ts.error ? { ts_error: ts.error } : {}),
+    ...(ts.detail ? { ts_detail: ts.detail } : {}),
   };
   await append('checks', check);
   if (comparison.outcome === 'diff')

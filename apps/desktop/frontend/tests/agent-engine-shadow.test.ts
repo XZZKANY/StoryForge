@@ -115,6 +115,7 @@ function request(scenario: Scenario, userMessage?: string): AgentUserMessageRequ
   const body = scenario.target.body as {
     user_message: string;
     run_id: string;
+    intent?: AgentUserMessageRequest['intent'];
     assistant_session_id?: number;
     permission_profile: AgentUserMessageRequest['permissionProfile'];
     args: Record<string, unknown>;
@@ -124,6 +125,7 @@ function request(scenario: Scenario, userMessage?: string): AgentUserMessageRequ
     sessionId: body.run_id,
     runId: body.run_id,
     userMessage: userMessage ?? body.user_message,
+    intent: body.intent,
     assistantSessionId: body.assistant_session_id ?? null,
     permissionProfile: body.permission_profile,
     args: body.args,
@@ -150,6 +152,11 @@ async function settled() {
 
 // 冷加载整个引擎包在满载机器上会超过单条用例的 5 秒预算，先在这里加载。
 beforeAll(async () => {
+  // 预言机录在 Windows 上：宿主平台照真实 WebView2 判成 windows（happy-dom 的 userAgent 会判成 posix）。
+  if (golden.platform === 'windows')
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edg/141.0.0.0',
+    );
   await import('../src/lib/engine/agentShadow');
 }, 60_000);
 
@@ -183,7 +190,7 @@ for (const scenario of golden.scenarios) {
     expect(check).toMatchObject({
       surface: 'agent.loop',
       outcome: 'match',
-      step: 'agent.loop',
+      step: scenario.python_step,
       python_digest: scenario.python_digest,
       ts_digest: scenario.python_digest,
     });
@@ -211,6 +218,27 @@ it('records where the prompts part ways, without the text', async () => {
   }
   expect(differences).toContainEqual(expect.objectContaining({ python_span: 1, ts_span: 1 }));
   expect(JSON.stringify(found[0].record)).not.toContain('伏');
+}, 60_000);
+
+it('an engine run that fails before its first request records why (the host returns it as an error frame)', async () => {
+  const scenario = golden.scenarios[0];
+  fixture.reader = memoryProject(scenario.project_root, scenario.files).reader;
+  fixture.python = nodeLegacySource(scenario.before_sql);
+  const shadowAgentMessage = await load();
+  // 只有引擎看到的那份 args 指向另一个会话：引擎在派发前就判归属冲突。
+  const conflicting = request(scenario);
+  conflicting.args = { ...conflicting.args, assistant_session_id: 2 };
+  const result = await shadowAgentMessage(conflicting, python(scenario, { snapshots: [] }));
+  expect(result).toEqual(terminal(scenario));
+  const { check, diffs: found } = await settled();
+  expect(check).toMatchObject({
+    outcome: 'diff',
+    python_digest: scenario.python_digest,
+    ts_digest: null,
+    ts_error: 'AgentErrorFrame',
+    ts_detail: 'Agent 会话归属冲突：assistant_session_id 外层=1 args=2。',
+  });
+  expect(found[0].record.differences).toEqual([{ path: 'request', kind: 'missing_in_ts' }]);
 }, 60_000);
 
 it('a scratch database that does not open still sends, and is recorded as missing on the engine side', async () => {
@@ -290,3 +318,11 @@ it('a hanging scratch database delays the message by at most the preparation tim
     vi.useRealTimers();
   }
 }, 60_000);
+
+it('keeps at most 160 characters of an error frame, counted by code point', async () => {
+  const { errorDetail } = await import('../src/lib/engine/shadow');
+  const long = '𠀀'.repeat(170);
+  expect(Array.from(errorDetail(long))).toHaveLength(160);
+  expect(errorDetail('短')).toBe('短');
+  expect(errorDetail(undefined)).toBe('undefined');
+});

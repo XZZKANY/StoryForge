@@ -18,6 +18,7 @@ import { agentRequestBody } from './agentRoutes';
 import { nativePythonDb, nativeScratchDb } from './db';
 import { nativeProjectReader } from './reader';
 import {
+  errorDetail,
   errorName,
   recordShadow,
   recordShadowUnavailable,
@@ -130,8 +131,12 @@ async function runEngine(
       wait: async () => undefined,
     });
     let error: string | null = null;
+    let terminal: { type?: unknown; detail?: unknown } = {};
     try {
-      await streamAgentUserMessage(deps, request.sessionId, agentRequestBody(request), () => {});
+      // 宿主把出错（含建 run 之前的）都收成错误帧、不抛出：没取到请求时原因只在这一帧里。
+      await streamAgentUserMessage(deps, request.sessionId, agentRequestBody(request), (frame) => {
+        terminal = frame;
+      });
     } catch (caught) {
       error = errorName(caught);
     }
@@ -145,7 +150,10 @@ async function runEngine(
     const capture = first
       ? evidenceCapture(JSON.parse(dumpJson(first.payload, { ensureAscii: false })))
       : null;
-    return { capture, error: capture ? null : error };
+    if (capture) return { capture, error: null };
+    if (error === null && terminal.type === 'error')
+      return { capture: null, error: 'AgentErrorFrame', detail: errorDetail(terminal.detail) };
+    return { capture: null, error };
   } catch (error) {
     return { capture: null, error: errorName(error) };
   }

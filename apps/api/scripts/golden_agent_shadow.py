@@ -46,6 +46,29 @@ def turn(text, run_id, replies, *, session=None, profile="ask"):
     return {"body": body, "replies": replies}
 
 
+BRIEF = completion(json.dumps({
+    "target_path": "正文/第003章.md", "chapter_ordinal": 3, "chapter_title": "入城", "goal": "沈禾带林舟入城",
+    "pov": None, "setting": None, "required_beats": [], "forbidden_items": [], "continuity_constraints": [],
+    "target_chars_min": 1600, "target_chars_max": 2600}, ensure_ascii=False))
+
+
+def chapter_write(text, run_id):
+    """The "draft the next chapter" button: a new conversation, a relative target that does not exist yet and the
+    request bundle the desktop builds (its first request reads the chapter sources through the host reader)."""
+
+    bundle = {"project_root": "$ROOT",
+              "files": [{"path": "$ROOT/人物/主角.md", "relative_path": "人物/主角.md", "kind": "character",
+                         "title": "主角.md", "excerpt": "# 林舟 左臂有旧伤。"}],
+              "summary": {"counts": {"character": 1, "draft": 2}, "hasStoryStructure": True},
+              "budget": {"file_count": 1, "char_count": 12, "max_files": 12, "max_excerpt_chars": 4000,
+                         "truncated": False}}
+    body = {"user_message": text, "run_id": run_id, "intent": "chapter.write", "permission_profile": "ask",
+            "args": {"project_path": "$ROOT", "instruction": text, "project_name": "book",
+                     "assistant_session_id": None, "context_bundle": bundle, "file_path": "正文/第003章.md",
+                     "agent_role_hints": [], "agent_role_mentions": []}}
+    return {"body": body, "replies": [BRIEF]}
+
+
 def scenarios():
     read = turn("读一下第一章再说", "run-a1", [
         completion("", [("c1", "fs_read", tool_args(path="正文/第001章.md"))]), completion("读完了，开头很紧。")])
@@ -59,6 +82,8 @@ def scenarios():
          # Two requests in the target run: only the first is compared.
          "target": turn("只看不改", "run-d2", [completion("", [("c2", "fs_read", tool_args(path="人物/主角.md"))]),
                                               ANSWER], session=1, profile="read")},
+        # The fixed pipeline: its first request is the Chapter Brief, after the chapter sources were read.
+        {"id": "chapter-write-new-file", "history": [read], "target": chapter_write("起草第3章", "run-e2")},
     ]
 
 
@@ -193,16 +218,17 @@ def _snapshot(loop: asyncio.AbstractEventLoop) -> dict:
             dump(engine)
             with engine.connect() as connection:
                 evidence = connection.execute(text(
-                    "SELECT r.id, a.id, json_extract(a.payload, '$.request_digest') FROM agent_artifacts a "
+                    "SELECT r.id, a.id, json_extract(a.payload, '$.request_digest'), "
+                    "json_extract(a.payload, '$.step') FROM agent_artifacts a "
                     "JOIN agent_runs r ON a.run_id = r.id WHERE r.public_id = :run "
                     "AND a.kind = 'model_request_evidence' ORDER BY a.id"),
                     {"run": target["body"]["run_id"]}).all()
-                digest = evidence[0][2]
+                digest, step = evidence[0][2], evidence[0][3]
                 rows = [insert_statement(connection, "agent_runs", evidence[0][0]),
                         *(insert_statement(connection, "agent_artifacts", row[1]) for row in evidence)]
             records.append({"id": spec["id"], "project_root": root, "files": tree, "history": history,
                             "before_sql": before,
-                            "target": target, "python_rows": rows, "python_digest": digest})
+                            "target": target, "python_rows": rows, "python_digest": digest, "python_step": step})
 
         return {
             "format_version": 1,
