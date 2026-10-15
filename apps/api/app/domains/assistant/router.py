@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, status
-from fastapi.responses import StreamingResponse
+from typing import Annotated
 
+from fastapi import APIRouter, Header, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, StreamingResponse
+
+from app.common.llm_observation import model_observation_scope
 from app.db.deps import SessionDependency
 from app.domains.assistant.schemas import (
     AssistantContinueRequest,
@@ -29,8 +33,12 @@ from app.domains.assistant.service import (
     stream_continue_prose,
     update_assistant_tool_call,
 )
+from app.domains.assistant.shadow import SHADOW_HEADER, SHADOW_PROMPTS, ShadowPromptCapture, captured_stream
 
 router = APIRouter(prefix="/api/assistant", tags=["Assistant 会话"])
+
+# 影子档（TS 迁移 P5-1）专用，不进 OpenAPI 契约。
+ShadowHeader = Annotated[str | None, Header(alias=SHADOW_HEADER, include_in_schema=False)]
 
 
 @router.post(
@@ -132,28 +140,35 @@ def list_assistant_tool_calls_endpoint(
 def revise_file_content_endpoint(
     payload: AssistantReviseRequest,
     session: SessionDependency,
-) -> AssistantReviseResponse:
+    shadow: ShadowHeader = None,
+) -> AssistantReviseResponse | JSONResponse:
     """桌面 AI 交互区调用：输入文件全文 + 指令，返回真实 LLM 修订后全文。
 
     LLM 未配置返回 422，调用失败返回 502，错误原样透出，不伪造兜底。"""
 
-    return revise_file_content(session, payload)
+    if shadow != SHADOW_PROMPTS:
+        return revise_file_content(session, payload)
+    capture = ShadowPromptCapture()
+    with model_observation_scope(capture):
+        result = revise_file_content(session, payload)
+    return JSONResponse({**jsonable_encoder(result), "shadow_requests": capture.requests})
 
 
 @router.post("/continue", summary="在光标处续写正文（SSE 流）")
 def continue_prose_endpoint(
     payload: AssistantContinueRequest,
     session: SessionDependency,
+    shadow: ShadowHeader = None,
 ) -> StreamingResponse:
     """桌面行间续写调用：吃全文 + 光标行，逐块吐出续写正文。
 
     帧：`start`（会话/模型）、`delta`（原始增量，仅供即时观感）、`done`（`text` 为经确定性
     后处理的权威结果，前端须以它覆盖累积缓冲）、`error`。LLM 未配置在建流前返回 422。"""
 
-    return StreamingResponse(
-        stream_continue_prose(session, payload),
-        media_type="text/event-stream",
-    )
+    frames = stream_continue_prose(session, payload)
+    if shadow == SHADOW_PROMPTS:
+        frames = captured_stream(frames, ShadowPromptCapture())
+    return StreamingResponse(frames, media_type="text/event-stream")
 
 
 @router.get(

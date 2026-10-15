@@ -8,6 +8,7 @@ mod external_chat_bridge_tests;
 mod external_native_ipc_fixture;
 mod engine_db;
 mod engine_llm;
+mod engine_shadow;
 mod fs;
 mod fs_writeback_receipts;
 mod host_close;
@@ -2011,6 +2012,8 @@ fn main() {
             engine_db::engine_db_select,
             engine_db::engine_db_transaction,
             engine_db::engine_python_db_snapshot,
+            // 影子档（迁移 P5-1）：只收结构化差异，不收正文
+            engine_shadow::engine_shadow_append,
             // 作品版本影子 Git 命令（固定 DTO，不暴露任意 Git 参数）
             shadow_git::create_shadow_snapshot,
             shadow_git::retain_shadow_snapshot,

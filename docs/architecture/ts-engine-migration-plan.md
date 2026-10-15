@@ -386,6 +386,12 @@ P4 拆刀与进度（2026-10-14 起，作者说「继续」即开工；每刀一
 | P5-2 | 三开关默认 `ts`；Python 仍在、可切回 | 一周真实使用无回切 |
 | P5-3 | 回归：前端全量 vitest、浏览器导览截图（`tour.mjs` 升级为仓库脚本）、Rust 测试 | 全绿 |
 
+P5 拆刀与进度（2026-10-14 起，作者说「做 P5-1」；每刀一个 PR，合并后接下一刀）：
+
+- 拆刀：5-1a Ctrl+K / 续写的影子档；5-1b agent 循环的影子档；5-1c 预览版（发行版两个开关默认影子、出包、作者装）。影子这一侧守三条：不出网（观察者在派发前取快照即中止，出网端口也一律拒发）；不写作者文件与会话；不写引擎库（P5-2 打开旧库导入时引擎库必须是空的）。结果一律给 Python 的，影子这一侧出什么错都不影响作者。
+- 比对与记录（随 5-1a）：两侧各用自己的请求快照函数（Python `request_snapshot` / 引擎 `requestSnapshot`，脱敏与 Python 规范编码相同，P3-5b2a 已对齐），先比摘要，再比 `step` 与是否流式。摘要不同时，`lib/engine/shadowDiff.ts` 给出结构差异：字段名、消息序号与角色、工具名，以及文本第一处不同的行、列、码点偏移和两侧不同段的长度，不带正文。Rust `engine_shadow_append`（`src-tauri/src/engine_shadow.rs`）把记录追加到本地数据目录（`%LOCALAPPDATA%\com.storyforge.ide\`）：每次比对一行 `shadow-checks.jsonl`，用来证明影子确实跑过；有差异另记一行 `shadow-diffs.jsonl`。一行一个 JSON 对象，单行不超过 64 KiB，单个文件到 16 MiB 后不再追加。验收看 diffs 为空、checks 有行。
+- Ctrl+K / 续写的影子档（2026-10-14，P5-1a）：`engine.assistant = shadow` 时，修订与续写照常请求 Python，并带上请求头 `X-StoryForge-Shadow: prompts`（不进 OpenAPI）。Python 路由在观察范围里跑原来的用例（`app/domains/assistant/shadow.py`），把这次派发给模型的请求快照交回：修订放在响应 JSON 的 `shadow_requests` 里，续写在流尽后补一帧 `shadow`。观察者只取快照、返回 None，ObservedProvider 因此走未观察的路径。如果挂上派发记录，它会在续写的流式生成器里跨 yield 设置、复位 ContextVar，而 Starlette 每一步换一个 Context，复位时就会抛错（已用变异实证；续写用例因此把「被吞掉的异常」也当失败）。前端 `lib/engine/shadow.ts` 在请求 Python 的同时起一份引擎复算：输入相同；会话存储只读、只用来核对会话归属，写一律丢弃；观察者在第一次派发前取快照并中止；出网端口拒发。两边都结束后在后台比对、记账。Python 失败就把错误原样交给作者，这一次不比。测连接不组 prompt，影子档照走 Python。预言机 `golden_shadow_capture.py`（`--suite p5-shadow`）经真实路由、真实服务与模型客户端（只换 HTTP 传输）跑 8 个场景：新会话、已有会话、润色闸、整数值配置、无项目的修订，以及带要求、新章、带 bundle 的续写；续写按 Starlette 的方式在线程池里逐步迭代。录下的 Python 快照在前端回放，首轮即全部判一致。
+
 ### P6 拆除（PR P6-1 … P6-7）
 
 | # | 范围 |
