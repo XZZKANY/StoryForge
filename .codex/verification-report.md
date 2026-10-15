@@ -8033,4 +8033,5 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：10 / 10（错误帧不看、文案不截、文案不记、平台恒 posix、上限回到 2 MiB 两处、两个替身不查上限、来源校验预算超上限、Rust 上限回到 2 MiB）。
 - 全量：`pnpm verify` 通过（引擎 13168、前端 vitest 2234、pytest 3306、ruff、sidecar 冒烟 daily 档、OpenAPI 无漂移；lint 的 2 条 warning 在既有的 `independent-claim-history.test.ts`）；`cargo test --bin storyforge-desktop` 152 通过。
 - 顺带看到（Python 那一侧，未处理）：作者这次写章的候选稿 2256 字，`chapter.check` 回 `invalid_result`（检查结果无效、未绑定当前来源），结果未生成补丁；同一 run 有 10 次 `deny_permission` 被忽略（`source desktop.timeline`）。
+- 出包（合并后，master `32d9b2f1`）：`pnpm desktop:build` → `StoryForge IDE_0.1.12_x64-setup.exe`，77.1 MiB，SHA256 `245F0543…48AEFCC`；桌面 exe 与安装包 FileVersion 0.1.12，sidecar 同批重打；前端分包含 `AgentErrorFrame` / `ts_detail`。`sidecar-smoke --packaged --skip-build` 全绿；影子头定向断言（`output/ts-engine-p5/packaged-shadow-check.mjs`）：冻结 exe `app_version` 0.1.12，带头修订快照与线上消息一致、无 key，续写帧序以 `done,shadow` 结尾。作者机器上实测已装 0.1.11（16:55），0.1.12 待装。
 - 未联通：0.1.12 装机后，作者真实使用一段时间，新版本的 checks 有行、diffs 为空，才算 P5-1 验收。
