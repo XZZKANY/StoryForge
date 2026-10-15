@@ -24,6 +24,12 @@ export interface RawProjectBytes {
   exceeded: boolean;
 }
 
+/**
+ * 宿主读口一次读取接受的最大预算：Rust `fs_engine_reader.rs` 的 `MAX_BYTES` 与它相等，超出即拒读。
+ * 取各读取方声明的最大预算（拆书读源文件 64 MiB）；内存替身也按它拒读，预算超出在测试里就暴露。
+ */
+export const MAX_NATIVE_READ_BYTES = 64 * 1024 * 1024;
+
 /** Only expected host read failures are optional sources; programming errors are not. */
 export class ProjectReadError extends Error {
   constructor(

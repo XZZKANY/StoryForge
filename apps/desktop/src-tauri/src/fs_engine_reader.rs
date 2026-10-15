@@ -8,7 +8,8 @@ use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
 
 const MAX_ENTRIES: usize = 20_000;
-const MAX_BYTES: usize = 2 * 1024 * 1024;
+// Must equal the engine's MAX_NATIVE_READ_BYTES (readPort.ts): the largest budget any reader asks for.
+const MAX_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 
 // Preserve containment failures across IPC; callers must not parse localized messages.
@@ -516,11 +517,19 @@ mod tests {
     }
 
     #[test]
+    fn read_cap_is_the_engine_budget_ceiling() {
+        // The engine asks for up to this much (chapter source guard 4,000,000, book breakdown 64 MiB).
+        let port = include_str!("../../../../packages/engine/src/readPort.ts");
+        assert!(port.contains("export const MAX_NATIVE_READ_BYTES = 64 * 1024 * 1024;"));
+        assert_eq!(MAX_BYTES, 64 * 1024 * 1024);
+    }
+
+    #[test]
     fn full_read_cap_is_enforced_on_an_oversized_real_file() {
         let temp = tempfile::tempdir().unwrap();
         let bytes = vec![0xff; MAX_BYTES + 4096];
         fs::write(temp.path().join("large.md"), &bytes).unwrap();
-        for cap in [16 * 1024, 512 * 1024, MAX_BYTES] {
+        for cap in [16 * 1024, 512 * 1024, 4_000_000, MAX_BYTES] {
             let result = read_engine_project_bytes(root(&temp), "large.md".into(), cap).unwrap();
             assert_eq!(result.bytes_read, cap + 1);
             assert!(result.exceeded);

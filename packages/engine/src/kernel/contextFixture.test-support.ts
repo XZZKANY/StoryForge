@@ -1,4 +1,4 @@
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { MAX_NATIVE_READ_BYTES, ProjectReadError, type ProjectReader } from '../readPort';
 
 export type EncodedFile = { chunks: { base64: string; repeat: number }[] };
 export function decodeFixtureBytes(file: EncodedFile): Uint8Array {
@@ -80,6 +80,7 @@ export function contextFixtureReader(fixture: {
     async readProjectBytes(base, input, cap) {
       const path = relative(base, input);
       trace.push({ operation: 'bytes', path, cap });
+      if (cap > MAX_NATIVE_READ_BYTES) throw new ProjectReadError('项目文件读取预算无效');
       const bytes = files.get(path);
       if (!bytes) throw new ProjectReadError('Not a fixture file');
       return { bytes: bytes.slice(0, cap + 1), exceeded: bytes.length > cap };
