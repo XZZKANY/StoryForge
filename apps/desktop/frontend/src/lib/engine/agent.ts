@@ -4,7 +4,12 @@ import {
   storeRunSources,
   storeToolArtifactQuery,
   type AgentHostDeps,
+  type HttpPort,
+  type LoopCheckpointStore,
+  type ProjectReader,
+  type ProjectWriter,
   type RunReadDeps,
+  type SqlAssistantStore,
 } from '@storyforge/engine';
 import { clock, platform, wait } from './assistant';
 import { nativeHttpPort, nativeLlmSource } from './llm';
@@ -16,7 +21,7 @@ import { nativeProjectWriter } from './writer';
 const regex = workerRegexCompiler();
 const hex = () => crypto.randomUUID().replace(/-/g, '');
 
-async function slots() {
+export async function slots() {
   const [main, polish] = await Promise.all([nativeLlmSource('main'), nativeLlmSource('polish')]);
   const secrets = { values: [...new Set([...main.secrets.values, ...polish.secrets.values])] };
   return { main, polish, secrets };
@@ -43,35 +48,66 @@ export async function engineAgentDeps(): Promise<AgentHostDeps> {
     getVersion(),
     engineRuns(),
   ]);
-  const sessions = await engineSessions(secrets);
-  const os = platform();
-  const tools = createAgentToolRegistry({
+  return hostDeps({
+    ...runs,
+    sessions: await engineSessions(secrets),
+    slots: { main, polish, secrets },
+    appVersion,
     reader: nativeProjectReader,
     writer: nativeProjectWriter,
+    http: nativeHttpPort,
+    wait,
+  });
+}
+
+/** 宿主依赖的装配：存储、读写口与出网端口由调用方给（影子档换成临时库、叠加读写口与拒发端口）。 */
+export function hostDeps(parts: {
+  store: AgentHostDeps['store'];
+  checkpoints: LoopCheckpointStore;
+  sessions: SqlAssistantStore;
+  slots: Awaited<ReturnType<typeof slots>>;
+  appVersion: string;
+  reader: ProjectReader;
+  writer: ProjectWriter;
+  http: (slot: 'main' | 'polish') => HttpPort;
+  wait: (seconds: number) => Promise<void>;
+}): AgentHostDeps {
+  const { store, sessions, reader, writer } = parts;
+  const { main, polish, secrets } = parts.slots;
+  const os = platform();
+  const tools = createAgentToolRegistry({
+    reader,
+    writer,
     platform: os,
     secrets,
     proposals: { newUuid: () => crypto.randomUUID(), now: () => new Date() },
-    artifacts: storeToolArtifactQuery(runs.store),
+    artifacts: storeToolArtifactQuery(store),
     regex,
     clock,
     newHex: hex,
   });
   return {
-    store: runs.store,
-    checkpoints: runs.checkpoints,
+    store,
+    checkpoints: parts.checkpoints,
     secrets,
     assistant: sessions,
     titles: sessions,
     conversation: {
       messages: (sessionId) => sessions.messages(sessionId),
       toolCalls: (sessionId) => sessions.toolCalls(sessionId),
-      ...storeRunSources(runs.store),
+      ...storeRunSources(store),
     },
-    reader: nativeProjectReader,
+    reader,
     platform: os,
     source: main.source,
-    polish: { source: polish.source, http: nativeHttpPort('polish') },
-    llm: { http: nativeHttpPort('main'), clock, wait, random: Math.random, appVersion },
+    polish: { source: polish.source, http: parts.http('polish') },
+    llm: {
+      http: parts.http('main'),
+      clock,
+      wait: parts.wait,
+      random: Math.random,
+      appVersion: parts.appVersion,
+    },
     tools,
     ids: { stream: () => crypto.randomUUID(), attempt: () => crypto.randomUUID(), hex },
     newRunId: hex,

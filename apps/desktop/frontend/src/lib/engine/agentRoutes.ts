@@ -42,11 +42,8 @@ export async function ownsRun(runId: string): Promise<boolean> {
  * 作者消息的 ts 档：同一个请求体交给进程内宿主，帧按产生顺序回调，结果帧或错误帧即终态。
  * 没有传输层，所以没有超时转轮询：模型请求自己的超时由引擎出网客户端负责。
  */
-export async function sendAgentUserMessage(
-  request: AgentUserMessageRequest,
-): Promise<AgentSocketMessage> {
-  if (request.executionProtocol === 'external_writeback_v1')
-    throw new Error('当前宿主未开放连续写回协议');
+/** 与 SSE 路由同一个请求体（同一种编码：undefined 的键不出现）。 */
+export function agentRequestBody(request: AgentUserMessageRequest): unknown {
   const args = {
     ...(request.args ?? {}),
     ...(request.agentRoleHints ? { agent_role_hints: request.agentRoleHints } : {}),
@@ -60,13 +57,20 @@ export async function sendAgentUserMessage(
     permission_profile: request.permissionProfile,
     args,
   };
+  return JSON.parse(JSON.stringify(body));
+}
+
+export async function sendAgentUserMessage(
+  request: AgentUserMessageRequest,
+): Promise<AgentSocketMessage> {
+  if (request.executionProtocol === 'external_writeback_v1')
+    throw new Error('当前宿主未开放连续写回协议');
   let terminal: AgentSocketMessage | null = null;
   try {
     await streamAgentUserMessage(
       await engineAgentDeps(),
       request.sessionId,
-      // 与 HTTP 请求体同一种编码：undefined 的键不出现。
-      JSON.parse(JSON.stringify(body)),
+      agentRequestBody(request),
       (frame) => {
         const message = wire<AgentSocketMessage>(frame);
         request.onEvent?.(message);

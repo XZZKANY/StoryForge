@@ -1974,6 +1974,7 @@ fn main() {
         .manage(shadow_git::ShadowGitState::default())
         .manage(engine_llm::EngineLlmState::default())
         .manage(engine_db::EngineDbState::default())
+        .manage(engine_db::EngineScratchState::default())
         .invoke_handler(tauri::generate_handler![
             // 文件系统命令
             fs::read_file,
@@ -2012,6 +2013,10 @@ fn main() {
             engine_db::engine_db_select,
             engine_db::engine_db_transaction,
             engine_db::engine_python_db_snapshot,
+            engine_db::engine_scratch_db_open,
+            engine_db::engine_scratch_db_select,
+            engine_db::engine_scratch_db_transaction,
+            engine_db::engine_scratch_db_close,
             // 影子档（迁移 P5-1）：只收结构化差异，不收正文
             engine_shadow::engine_shadow_append,
             // 作品版本影子 Git 命令（固定 DTO，不暴露任意 Git 参数）

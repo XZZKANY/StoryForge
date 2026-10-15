@@ -30,6 +30,14 @@ vi.mock('../src/lib/engine/agentRoutes', () => {
     },
   };
 });
+// 影子档（P5-1b）照走 Python，只多一层旁路复算：这里只记它被调用、原样交出 Python 的结果。
+const shadow = vi.hoisted(() => ({ calls: [] as string[] }));
+vi.mock('../src/lib/engine/agentShadow', () => ({
+  shadowAgentMessage: async (request: { runId: string }, python: () => Promise<unknown>) => {
+    shadow.calls.push(request.runId);
+    return python();
+  },
+}));
 vi.mock('../src/lib/api/config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/lib/api/config')>()),
   getApiConfig: async () => ({ baseUrl: 'http://python.test', apiKey: 'k' }),
@@ -51,6 +59,7 @@ beforeEach(() => {
   routes.initialized.mockClear();
   routes.owned.clear();
   routes.calls = [];
+  shadow.calls = [];
   fetchMock.mockClear();
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -77,7 +86,7 @@ const control = (runId: string) => ({
 
 describe('agent loop routing', () => {
   it.each(['python', 'shadow'])(
-    'stays on Python without ever loading the engine (%s)',
+    'stays on Python without ever loading the engine routes (%s)',
     async (flag) => {
       localStorage.setItem('engine.agentLoop', flag);
       const { socket, runs } = await load();
@@ -87,6 +96,8 @@ describe('agent loop routing', () => {
       await runs.getAgentRunSavePoints('py');
       expect(routes.initialized).not.toHaveBeenCalled();
       expect(routes.calls).toEqual([]);
+      // 只有作者消息走影子；控制与读接口都是 Python 的 run。
+      expect(shadow.calls).toEqual(flag === 'shadow' ? ['py'] : []);
       expect(fetchMock.mock.calls.map(([url]) => new URL(url as string).pathname)).toEqual([
         '/api/ide/agent/sessions/py/stream',
         '/api/ide/agent/sessions/py/control',
