@@ -8049,3 +8049,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：21 / 21（Python 10：不重查、不强制确认、程序判出的问题不拦、不留摘录、不修补、冒号不算字符串结尾、不跳过已转义字符、契约仍带字数、不记重查标记、重查次数数错；引擎 11：同上 10 项加摘录少截一个码点）。
 - 全量：`pnpm verify` 通过（引擎 13175、前端 vitest 2234、pytest 3314、ruff、sidecar 冒烟 daily 档、OpenAPI 只变版本号）。版本 bump 到 0.1.13（五处加两个锁文件）。
 - 未联通：作者装 0.1.13 后真实写章里的检查通过率与「未经检查」补丁的观感未验。
+
+## 2026-10-15 P5-1e 出包记录 0.1.13
+
+- 构建：master `8fe6a29f`（#342）上 `pnpm desktop:build`，exit 0。安装包 `apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_0.1.13_x64-setup.exe`，80,871,430 字节，SHA256 `94D03577326223BA16B4711ADE07CBDF638ADA01E8591FBD5A5C379B82AF66D2`；安装包与桌面 exe 的 FileVersion 都是 0.1.13。
+- 冻结 sidecar：`node scripts/sidecar-smoke.mjs --packaged --skip-build` 全绿（SSE 流、控制往返、alembic 纳管）。
+- 定向断言（`output/ts-engine-p5/check-replay/packaged-check.mjs`，gitignored）：冻结 exe 报 `app_version` 0.1.13；本机假模型 + 临时库与项目，真走「起草第1章 → 确认 brief → 起草 → 检查」。A：检查回复里引用对白的直引号没转义，读通，出正常补丁（询问档要确认），检查提示词不含 `target_chars`、含「篇幅由程序另行核对」；B：自动档、检查两次都回非 JSON，两次检查提示词相同，`recheck` 为 `[false, true]`，出「这份稿子未经检查」的补丁且 `requires_confirmation` 为 true，`checker_reply_excerpt` 记下原回复；两次都没写项目文件。
+- 前端产物：`dist/assets/store-*.js` 含新计划文案与 `checker_reply_excerpt`（引擎随前端打包）。
+- 未联通：作者装机后的真实写章表现。
