@@ -108,8 +108,9 @@ it('python keeps the single Python transport and never initializes the engine', 
   await expectPythonTransportOnly();
 });
 
-// 开发档默认已切到引擎；装机版要等 P5 才切，这里钉住。
-it('production keeps the Python transport without any preference', async () => {
+// 装机版默认影子档（P5-1 预览版）；作者在设置里切回 Python 后，零初始化引擎、只走 Python。
+it('production switched back to Python keeps the single Python transport', async () => {
   vi.stubEnv('DEV', false);
+  localStorage.setItem('engine.assistant', 'python');
   await expectPythonTransportOnly();
 });

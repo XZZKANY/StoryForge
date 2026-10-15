@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { legacyImportOnOpen, readEngineMode, type EngineMode } from '../src/lib/engine/flags';
+import {
+  engineModeChoices,
+  legacyImportOnOpen,
+  readEngineMode,
+  writeEngineMode,
+  type EngineMode,
+} from '../src/lib/engine/flags';
 
 const keys = ['engine.ideCommands', 'engine.assistant', 'engine.agentLoop'] as const;
 const devDefaults: [(typeof keys)[number], EngineMode][] = [
@@ -48,12 +54,51 @@ it('reads preferences per request without changing a previously selected mode', 
   expect(readEngineMode(keys[2])).toBe('python');
 });
 
-it('production stays on Python without accessing storage, with or without preferences', () => {
+// P5-1 预览版：修订 / 续写与 agent 循环默认影子档，作者可切回 Python；ts 档等 P5-2。
+const releaseDefaults: [(typeof keys)[number], EngineMode][] = [
+  ['engine.ideCommands', 'python'],
+  ['engine.assistant', 'shadow'],
+  ['engine.agentLoop', 'shadow'],
+];
+
+it.each(releaseDefaults)('production defaults %s to %s and never allows ts', (key, fallback) => {
   vi.stubEnv('DEV', false);
-  for (const key of keys) expect(readEngineMode(key)).toBe('python');
-  const read = stubStorage(() => 'ts');
-  for (const key of keys) expect(readEngineMode(key)).toBe('python');
-  expect(read).not.toHaveBeenCalled();
+  expect(readEngineMode(key)).toBe(fallback);
+  for (const value of ['ts', 'TS', 'shadow ', '']) {
+    localStorage.setItem(key, value);
+    expect(readEngineMode(key)).toBe(fallback);
+  }
+  localStorage.setItem(key, 'python');
+  expect(readEngineMode(key)).toBe('python');
+  localStorage.setItem(key, 'shadow');
+  expect(readEngineMode(key)).toBe(key === 'engine.ideCommands' ? 'python' : 'shadow');
+});
+
+it('production falls back to its stage default when storage is denied', () => {
+  vi.stubEnv('DEV', false);
+  stubStorage(() => {
+    throw new DOMException('controlled denied storage', 'SecurityError');
+  });
+  for (const [key, fallback] of releaseDefaults) expect(readEngineMode(key)).toBe(fallback);
+});
+
+it('offers each build only its allowed modes, default first, and writes only those', () => {
+  expect(engineModeChoices('engine.assistant')).toEqual(['ts', 'python', 'shadow']);
+  expect(engineModeChoices('engine.agentLoop')).toEqual(['python', 'ts', 'shadow']);
+  vi.stubEnv('DEV', false);
+  expect(engineModeChoices('engine.assistant')).toEqual(['shadow', 'python']);
+  expect(engineModeChoices('engine.ideCommands')).toEqual(['python']);
+  expect(writeEngineMode('engine.agentLoop', 'ts')).toBe(false);
+  expect(localStorage.getItem('engine.agentLoop')).toBeNull();
+  expect(writeEngineMode('engine.agentLoop', 'python')).toBe(true);
+  expect(readEngineMode('engine.agentLoop')).toBe('python');
+  expect(writeEngineMode('engine.ideCommands', 'shadow')).toBe(false);
+  vi.stubGlobal('localStorage', {
+    setItem: () => {
+      throw new DOMException('controlled denied storage', 'SecurityError');
+    },
+  });
+  expect(writeEngineMode('engine.assistant', 'python')).toBe(false);
 });
 
 it('unavailable storage falls back to the stage default only at preference selection', () => {

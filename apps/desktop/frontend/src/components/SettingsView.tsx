@@ -22,6 +22,12 @@ import {
 import { Info, Palette, Pencil, Sparkles, Type } from './icons/shell-icons';
 import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from './editor/options';
 import { checkForUpdate, currentAppVersion, type UpdateCheckResult } from '../lib/update-check';
+import {
+  engineModeChoices,
+  readEngineMode,
+  writeEngineMode,
+  type EngineMode,
+} from '../lib/engine/flags';
 import { useProviderSettings, type ProbeState } from './settings/useProviderSettings';
 import {
   applyProviderPreset,
@@ -581,6 +587,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                 <SettingGroup id="about" title="关于">
                   <SettingCard>
                     <AboutRows />
+                    <EngineShadowRows />
                   </SettingCard>
                 </SettingGroup>
                 <p className="sf-settings-empty" data-testid="settings-no-results">
@@ -1045,6 +1052,54 @@ function ActionRow({
         </Button>
       </div>
     </RowShell>
+  );
+}
+
+const ENGINE_MODE_LABELS: Record<EngineMode, string> = {
+  shadow: '后台比对',
+  python: '关闭',
+  ts: '只用新引擎（开发档）',
+};
+
+type ShadowFlag = 'engine.assistant' | 'engine.agentLoop';
+
+/**
+ * 迁移预览（P5-1）：新引擎在后台用同一份输入再组一遍发给模型的请求，与现有引擎比对；
+ * 结果照旧用现有引擎的。作者随时可以关掉；关掉即只走现有引擎。
+ */
+function EngineShadowRows() {
+  const [modes, setModes] = useState<Record<ShadowFlag, EngineMode>>(() => ({
+    'engine.assistant': readEngineMode('engine.assistant'),
+    'engine.agentLoop': readEngineMode('engine.agentLoop'),
+  }));
+  const row = (key: ShadowFlag, title: string, description: string, testId: string) => (
+    <SelectRow
+      title={title}
+      description={description}
+      value={modes[key]}
+      onChange={(value) => {
+        if (writeEngineMode(key, value as EngineMode))
+          setModes((current) => ({ ...current, [key]: readEngineMode(key) }));
+      }}
+      options={engineModeChoices(key).map((value) => ({ value, label: ENGINE_MODE_LABELS[value] }))}
+      testId={testId}
+    />
+  );
+  return (
+    <>
+      {row(
+        'engine.assistant',
+        '新引擎比对：行间修订与续写',
+        '迁移预览：新引擎在后台用同一份输入再组一遍发给模型的请求，与现有引擎比对；不出网、不花钱，结果照旧。差异记在本机数据目录的 shadow-diffs.jsonl，不含正文。',
+        'engine-shadow-assistant',
+      )}
+      {row(
+        'engine.agentLoop',
+        '新引擎比对：Agent 对话',
+        '同上；开着时，每条消息发送前会多读一次本机的会话记录。',
+        'engine-shadow-agent',
+      )}
+    </>
   );
 }
 
