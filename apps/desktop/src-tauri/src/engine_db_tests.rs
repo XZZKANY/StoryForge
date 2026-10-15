@@ -280,3 +280,48 @@ async fn python_snapshot_reads_uncheckpointed_wal_rows_and_writes_nothing() {
         json!(2)
     );
 }
+
+#[tokio::test]
+async fn scratch_databases_keep_their_rows_apart_until_closed() {
+    let state = EngineScratchState::default();
+    let first = state.open().await.unwrap();
+    let second = state.open().await.unwrap();
+    setup(&state.get(first).unwrap()).await;
+    transaction(
+        &state.get(first).unwrap(),
+        &[step(
+            "INSERT INTO parent (id, title) VALUES ($1, $2)",
+            json!([1, "a"]),
+        )],
+    )
+    .await
+    .unwrap();
+    // The memory database lives in its one connection: a later call still sees the row.
+    assert_eq!(
+        select(&state.get(first).unwrap(), "SELECT title FROM parent", &[])
+            .await
+            .unwrap()[0]["title"],
+        json!("a")
+    );
+    assert!(
+        select(&state.get(second).unwrap(), "SELECT title FROM parent", &[])
+            .await
+            .is_err()
+    );
+    state.close(first).await;
+    state.close(first).await;
+    assert!(state.get(first).is_err());
+    assert!(state.get(second).is_ok());
+}
+
+#[tokio::test]
+async fn scratch_databases_are_capped() {
+    let state = EngineScratchState::default();
+    let mut ids = Vec::new();
+    for _ in 0..MAX_SCRATCH_DBS {
+        ids.push(state.open().await.unwrap());
+    }
+    assert!(state.open().await.is_err());
+    state.close(ids[0]).await;
+    assert!(state.open().await.is_ok());
+}

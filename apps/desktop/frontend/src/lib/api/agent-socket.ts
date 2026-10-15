@@ -1,6 +1,7 @@
 import { AgentRunOutcomeUnknownError, readAgentRunWithin } from './agent-delivery';
 import { reconstructAgentResultFromEvents } from './agent-run-events';
 import { getAgentRunEvents } from './agent-runs';
+import { readEngineMode } from '../engine/flags';
 import { engineAgentForNewRun, engineAgentOwning } from './engine-agent-loader';
 import { parseAgentSseFrame } from './agent-sse-frame';
 import { getApiConfig, trimApiBaseUrl } from './config';
@@ -104,6 +105,22 @@ export async function sendAgentUserMessage(
   // 新 run 按开关分流（迁移计划 §4.1）；ts 档在进程内跑，没有流与轮询。
   const engine = engineAgentForNewRun();
   if (engine) return (await engine).sendAgentUserMessage(request);
+  // 影子档：照走 Python，引擎在临时库上复算首轮请求（连续写回协议不比）。
+  // 影子模块加载失败也不能挡住作者：照走 Python，这一次不比。
+  if (
+    readEngineMode('engine.agentLoop') === 'shadow' &&
+    request.executionProtocol !== 'external_writeback_v1'
+  ) {
+    const shadow = await import('../engine/agentShadow').catch(() => null);
+    if (shadow)
+      return shadow.shadowAgentMessage(request, () => sendPythonAgentUserMessage(request));
+  }
+  return sendPythonAgentUserMessage(request);
+}
+
+async function sendPythonAgentUserMessage(
+  request: AgentUserMessageRequest,
+): Promise<AgentSocketMessage> {
   const config = await getApiConfig();
   const { baseUrl, apiKey } = config;
   const external = request.executionProtocol === 'external_writeback_v1';

@@ -98,12 +98,18 @@ export async function reviseFileContent(payload: {
   // 开发档默认走引擎（设成 python 可切回）；发行版与 Python 档不初始化引擎。
   const mode = readEngineMode('engine.assistant');
   if (mode === 'ts') return (await import('../engine/assistant')).reviseWithEngine(payload);
-  if (mode === 'shadow')
-    return (await import('../engine/shadow')).shadowRevise(payload, () =>
-      pythonRevise(payload, true),
-    );
+  if (mode === 'shadow') {
+    const shadow = await loadShadow();
+    if (shadow) return shadow.shadowRevise(payload, () => pythonRevise(payload, true));
+  }
   return (await pythonRevise(payload, false)).result;
 }
+
+/**
+ * 影子模块加载失败（比如发行版分包缺失）也不能挡住作者：照走 Python，这一次不比，
+ * checks 文件缺行即说明影子没跑上。
+ */
+const loadShadow = () => import('../engine/shadow').catch(() => null);
 
 /** 影子档带上请求头，Python 把这次派发给模型的请求快照一并交回（迁移计划 §4.2）。 */
 const SHADOW_HEADERS = { 'X-StoryForge-Shadow': 'prompts' };
@@ -182,10 +188,10 @@ type ContinuePayload = {
 export async function streamContinueProse(payload: ContinuePayload): Promise<ContinueProseResult> {
   const mode = readEngineMode('engine.assistant');
   if (mode === 'ts') return (await import('../engine/assistant')).continueWithEngine(payload);
-  if (mode === 'shadow')
-    return (await import('../engine/shadow')).shadowContinue(payload, () =>
-      pythonContinue(payload, true),
-    );
+  if (mode === 'shadow') {
+    const shadow = await loadShadow();
+    if (shadow) return shadow.shadowContinue(payload, () => pythonContinue(payload, true));
+  }
   return (await pythonContinue(payload, false)).result;
 }
 

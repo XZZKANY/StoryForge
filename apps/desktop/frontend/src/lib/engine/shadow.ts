@@ -28,12 +28,12 @@ import {
  * 比对结果交 Rust 追加到本地数据目录：每次比对一行 `shadow-checks.jsonl`，有差异另记一行
  * `shadow-diffs.jsonl`。影子这一侧出什么错都不影响作者拿到的结果。
  */
-export type ShadowSurface = 'assistant.revise' | 'assistant.continue';
+export type ShadowSurface = 'assistant.revise' | 'assistant.continue' | 'agent.loop';
 
 class ShadowCaptured extends Error {}
 
 /** 双保险：观察者在派发前就中止；万一有路径绕过观察者，这个端口也不出网。 */
-const refusingHttp: HttpPort = {
+export const refusingHttp: HttpPort = {
   send: () => Promise.reject(new Error('影子档不出网')),
 };
 
@@ -70,7 +70,10 @@ function snapshotOf(
   }
 }
 
-type TsCapture = { capture: PromptCapture | null; error: string | null };
+export type TsCapture = { capture: PromptCapture | null; error: string | null };
+
+/** 只记错误类名：错误文本可能带着作者的稿子。 */
+export const errorName = (error: unknown) => (error instanceof Error ? error.name : typeof error);
 
 /** 用作者这一次的输入跑一遍引擎，只取第一次派发的快照。 */
 async function captureEngine(run: (deps: AssistantDeps) => Promise<unknown>): Promise<TsCapture> {
@@ -102,8 +105,7 @@ async function captureEngine(run: (deps: AssistantDeps) => Promise<unknown>): Pr
     });
     return { capture, error: null };
   } catch (error) {
-    // 只记错误类名：错误文本可能带着作者的稿子。
-    return { capture, error: capture ? null : error instanceof Error ? error.name : typeof error };
+    return { capture, error: capture ? null : errorName(error) };
   }
 }
 
@@ -115,7 +117,18 @@ async function append(log: 'diffs' | 'checks', record: Record<string, unknown>):
   }
 }
 
-async function record(
+const checkHeader = async (surface: ShadowSurface) => ({
+  at: new Date().toISOString(),
+  app_version: await getVersion().catch(() => null),
+  surface,
+});
+
+/** 这一次没法比（比如 Python 的库不在本机）：只记一行 checks，不算差异。 */
+export async function recordShadowUnavailable(surface: ShadowSurface, reason: string) {
+  await append('checks', { ...(await checkHeader(surface)), outcome: 'unavailable', reason });
+}
+
+export async function recordShadow(
   surface: ShadowSurface,
   python: PromptCapture[] | null,
   ts: TsCapture,
@@ -132,9 +145,7 @@ async function record(
   const digest = (capture: PromptCapture | null) =>
     capture && 'requestDigest' in capture ? capture.requestDigest : null;
   const check: Record<string, unknown> = {
-    at: new Date().toISOString(),
-    app_version: await getVersion().catch(() => null),
-    surface,
+    ...(await checkHeader(surface)),
     outcome: comparison.outcome,
     step: first?.step ?? ts.capture?.step ?? null,
     python_digest: digest(first),
@@ -162,7 +173,7 @@ async function shadowed<T>(
 ): Promise<T> {
   const ts = captureEngine(engine);
   const { result, captures } = await python();
-  void ts.then((capture) => record(surface, parsePythonCaptures(captures), capture));
+  void ts.then((capture) => recordShadow(surface, parsePythonCaptures(captures), capture));
   return result;
 }
 

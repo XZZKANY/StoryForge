@@ -13,7 +13,7 @@ import { legacyImportOnOpen } from './flags';
 import { nativeLlmSource } from './llm';
 
 /** 与 Python 库同一种时间戳（UTC、精确到秒）：旧库导入的行与引擎写的行按同一种格式排序。 */
-const dbNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
+export const dbNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
 
 /** 同一个 WebView 只做一次；失败不缓存，下次调用再试。 */
 function once<T>(open: () => Promise<T>): () => Promise<T> {
