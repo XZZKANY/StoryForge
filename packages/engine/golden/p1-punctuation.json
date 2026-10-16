@@ -3,7 +3,7 @@
   "suite": "p1-punctuation",
   "python": "3.13.9",
   "sources": {
-    "app/common/punctuation.py": "d0de2a01c8bf3dd6b03e4394af4e8a7dec8442dc9790df50249761aadd8d14a1",
+    "app/common/punctuation.py": "b6f444eebfcf83b11f54574ceba35630e2befcdb6da2c2641dce629b8b24cced",
     "app/common/author_edit_policy.py": "49dddbbd45127b57081aa6efa68bbdd240e39fa503c2ea9b5119fb767c2eee84",
     "stdlib/difflib.py": "0fc85357cdf45c242079be40245466b7b014b6f5f35064eec3d1b951e00d31ca"
   },
@@ -9147,6 +9147,2054 @@
         "unknown"
       ],
       "output": "\n--"
+    }
+  ],
+  "fullwidth": [
+    {
+      "id": "fullwidth-0",
+      "input": "",
+      "output": "",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-1",
+      "input": "林晚星醒来的时候,窗外还是暗的.",
+      "output": "林晚星醒来的时候，窗外还是暗的。",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-2",
+      "input": "守卫喝道:\"站住.\"",
+      "output": "守卫喝道：“站住。”",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-3",
+      "input": "他说, 走吧. 我说: \"好\"",
+      "output": "他说，走吧。我说：“好”",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-4",
+      "input": "3,000元, 10:30到.",
+      "output": "3,000元， 10:30到。",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-5",
+      "input": "见[第一章](第一章.md)!",
+      "output": "见[第一章](第一章.md)!",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-6",
+      "input": "看![图](a.png)",
+      "output": "看![图](a.png)",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-7",
+      "input": "他用了iPhone.",
+      "output": "他用了iPhone.",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-8",
+      "input": "林舟--他...",
+      "output": "林舟——他……",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-9",
+      "input": "林舟—他…走",
+      "output": "林舟——他……走",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-10",
+      "input": "\"OK\" is fine.",
+      "output": "\"OK\" is fine.",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-11",
+      "input": "she don't 说'好'",
+      "output": "she don't 说‘好’",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-12",
+      "input": "(注:这是旧事)",
+      "output": "（注：这是旧事）",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-13",
+      "input": "(OK)而已",
+      "output": "(OK)而已",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-14",
+      "input": "---",
+      "output": "---",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-15",
+      "input": "- 列表项,继续",
+      "output": "- 列表项，继续",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-16",
+      "input": "# 第一章: 风起",
+      "output": "# 第一章：风起",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-17",
+      "input": "\"奇数\"个\"引号",
+      "output": "\"奇数\"个\"引号",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-18",
+      "input": "什么?!",
+      "output": "什么？！",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-19",
+      "input": "他?她!",
+      "output": "他？她！",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-20",
+      "input": "a;b 和 甲;乙",
+      "output": "a;b 和 甲；乙",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-21",
+      "input": "http://x.cn/林",
+      "output": "http://x.cn/林",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-22",
+      "input": "第2.5章",
+      "output": "第2.5章",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-23",
+      "input": "....林..",
+      "output": "……林..",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-24",
+      "input": "林...\n...舟",
+      "output": "林……\n……舟",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-25",
+      "input": "😀,林",
+      "output": "😀，林",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-26",
+      "input": "𠀀,𠀀.",
+      "output": "𠀀，𠀀。",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-27",
+      "input": "林\r\n舟,\r\n",
+      "output": "林\r\n舟，\r\n",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-28",
+      "input": "（已全角，“不动”）",
+      "output": "（已全角，“不动”）",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-29",
+      "input": "林 , 舟",
+      "output": "林 , 舟",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-30",
+      "input": "林， 舟",
+      "output": "林， 舟",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-31",
+      "input": "林. \"走\"",
+      "output": "林。“走”",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-32",
+      "input": "((林))",
+      "output": "（（林））",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-33",
+      "input": "(林(舟)",
+      "output": "(林（舟）",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-34",
+      "input": "林)(舟",
+      "output": "林)(舟",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-35",
+      "input": "'\"林\"'",
+      "output": "‘“林”’",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-36",
+      "input": "__proto__,林",
+      "output": "__proto__，林",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-37",
+      "input": "林,　舟",
+      "output": "林，　舟",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-38",
+      "input": "林:\t舟",
+      "output": "林：\t舟",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-39",
+      "input": "Ａ,林",
+      "output": "Ａ，林",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-40",
+      "input": "林~舟",
+      "output": "林~舟",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-41",
+      "input": ",]😀林。舟,[\r\r?　，?",
+      "output": ",]😀林。舟，[\r\r？　，？",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-42",
+      "input": "0，:“-!:\r0舟。林][1林]　，—“,。].😀舟𠀀0:!\tAA…)",
+      "output": "0，：“-!:\r0舟。林][1林]　，——“，。].😀舟𠀀0:!\tAA…)",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-43",
+      "input": "。\t~",
+      "output": "。\t~",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-44",
+      "input": "!\n𠀀𠀀林(.。)A!😀]~\r:!0\n林[—\r",
+      "output": "!\n𠀀𠀀林(.。)A!😀]~\r:!0\n林[—\r",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-45",
+      "input": "—,—\r--，。””舟0~0) \"—”b(—;)\r\"😀，! '",
+      "output": "—，——\r——，。””舟0~0) “——”b(—；)\r”😀，！'",
+      "count": 8
+    },
+    {
+      "id": "fullwidth-46",
+      "input": "!“bb1\t，1b。b[)-…，00𠀀",
+      "output": "！“bb1\t，1b。b[)-……，00𠀀",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-47",
+      "input": "b\t\n舟\r\"—，。“\r，;.~…\t，,—。“)😀",
+      "output": "b\t\n舟\r\"——，。“\r，；.~…\t，，——。“)😀",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-48",
+      "input": "…—;(A，b　?1”林!",
+      "output": "……——；(A，b　？1”林！",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-49",
+      "input": ")林，\n。)b;“　.,😀😀 “;-(\t”([\"]1-…0[!",
+      "output": ")林，\n。)b；“　.,😀😀 “；-(\t”([\"]1-…0[!",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-50",
+      "input": "”-?…\"!0😀0",
+      "output": "”-？……\"!0😀0",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-51",
+      "input": "A-\"，0。1\r”林-\t\r.\t1”]𠀀𠀀",
+      "output": "A-\"，0。1\r”林-\t\r.\t1”]𠀀𠀀",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-52",
+      "input": "!\r.)—.:]",
+      "output": "!\r.)—.:]",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-53",
+      "input": "，,\n\t,😀",
+      "output": "，，\n\t,😀",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-54",
+      "input": "!~.“。舟00…　。舟?舟A~😀!]~0 b😀　(\n,,( [b[。(",
+      "output": "!~.“。舟00……　。舟？舟A~😀!]~0 b😀　(\n,,( [b[。(",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-55",
+      "input": "1\"—[\t]林𠀀b\"1舟[;b]\t;”——\t林—,[舟 \n",
+      "output": "1“——[\t]林𠀀b”1舟[;b]\t；”——\t林——，[舟 \n",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-56",
+      "input": "\r~，1\n\"😀",
+      "output": "\r~，1\n\"😀",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-57",
+      "input": "\n….)",
+      "output": "\n….)",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-58",
+      "input": "]，.”bAbb1~,　舟—😀 ;舟,]\"~!b",
+      "output": "]，。”bAbb1~，　舟——😀 ；舟，]\"~!b",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-59",
+      "input": "”.b “b(”“[1)林:",
+      "output": "”.b “b(”“[1)林：",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-60",
+      "input": "];)\"，舟[; 舟[…]\"𠀀\"“'\r。—(A，:\t?。)).\t.0\r?舟😀)",
+      "output": "];)\"，舟[; 舟[…]\"𠀀\"“'\r。——(A，：\t？。)).\t.0\r？舟😀)",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-61",
+      "input": "　林[",
+      "output": "　林[",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-62",
+      "input": "“?\r)'[1\tb)”'(.'　林—[—",
+      "output": "“？\r)'[1\tb)”'(.'　林——[—",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-63",
+      "input": "A0𠀀\"",
+      "output": "A0𠀀\"",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-64",
+      "input": "?舟0𠀀!　~",
+      "output": "？舟0𠀀！　~",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-65",
+      "input": "~\r0“。\"𠀀𠀀舟?-”-!]0b𠀀",
+      "output": "~\r0“。\"𠀀𠀀舟？-”-!]0b𠀀",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-66",
+      "input": ":…\n　“林1\t“，A\r)[A0舟\n",
+      "output": ":…\n　“林1\t“，A\r)[A0舟\n",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-67",
+      "input": "林",
+      "output": "林",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-68",
+      "input": "\"!“，　[—',; ]?;A\r😀1“ ([[舟𠀀",
+      "output": "\"！“，　[—',; ]?;A\r😀1“ ([[舟𠀀",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-69",
+      "input": ":\r']~…-0 ,-~('!A…:”]~“10😀…[  ”",
+      "output": ":\r']~…-0 ,-~('!A…：”]~“10😀…[  ”",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-70",
+      "input": "　舟。:—'!-A-。。””[\"",
+      "output": "　舟。：——'!-A-。。””[\"",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-71",
+      "input": "—1”!。?”😀;，\"　1(\n;\n?,,。-\t—\"　\t—。?\t)') ~-。",
+      "output": "—1”！。？”😀；，\"　1(\n;\n?,，。-\t—\"　\t——。？\t)') ~-。",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-72",
+      "input": "舟 ,~;“:;———。]“?\n\t;",
+      "output": "舟 ,~；“：；———。]“？\n\t;",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-73",
+      "input": " ](𠀀\"-“0，0;0],;[“(A~~林\r[…A!)",
+      "output": " ](𠀀\"-“0，0;0],;[“（A~~林\r[…A!）",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-74",
+      "input": "𠀀0",
+      "output": "𠀀0",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-75",
+      "input": ":😀):!)b\"?'林,…。0",
+      "output": ":😀):!)b\"?'林，……。0",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-76",
+      "input": "(-!\r0-\"A?')林“?“　):''　”林 𠀀舟:",
+      "output": "(-!\r0-\"A?')林“？“　):''　”林 𠀀舟：",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-77",
+      "input": ".𠀀b舟1。　𠀀~\r[, 舟b:😀b”0]…(，舟)𠀀……“",
+      "output": ".𠀀b舟1。　𠀀~\r[, 舟b:😀b”0]…（，舟）𠀀……“",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-78",
+      "input": "\nb\r;!1]“\r?😀].\n;𠀀舟1!\t\"A:~\n，~— “𠀀]~?b”“林(",
+      "output": "\nb\r;!1]“\r?😀].\n；𠀀舟1!\t\"A:~\n，~— “𠀀]~?b”“林(",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-79",
+      "input": "舟0A)—(!——\r舟\n,A.b",
+      "output": "舟0A)—(！——\r舟\n,A.b",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-80",
+      "input": ";😀'—，?—.\t\")舟\"　—[",
+      "output": ";😀'——，？——。\t“)舟”　——[",
+      "count": 7
+    },
+    {
+      "id": "fullwidth-81",
+      "input": "~) 😀!A，](",
+      "output": "~) 😀!A，](",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-82",
+      "input": " …\":\"舟'…;[(A“\t:😀~😀:　林[\n舟)-[",
+      "output": " …“：”舟'…；[(A“\t:😀~😀:　林[\n舟)-[",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-83",
+      "input": "'\n林\n　😀~林]——[?b1",
+      "output": "'\n林\n　😀~林]——[?b1",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-84",
+      "input": "'!. \r-A””“-[“.-😀[!。…“",
+      "output": "'!. \r-A””“-[“.-😀[！。……“",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-85",
+      "input": "𠀀0",
+      "output": "𠀀0",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-86",
+      "input": "林舟 ~\r;，?𠀀，(”\"”b\")",
+      "output": "林舟 ~\r；，？𠀀，(”“”b”)",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-87",
+      "input": "😀[1b\t(~.:!)\r)",
+      "output": "😀[1b\t(~.:!)\r)",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-88",
+      "input": "𠀀!\t",
+      "output": "𠀀！\t",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-89",
+      "input": "　A，\".,;　“10A。😀😀“\r1”“1。,?:𠀀。\r;~　\"b)𠀀　\t”\"",
+      "output": "　A，\".,；　“10A。😀😀“\r1”“1。，？：𠀀。\r;~　\"b)𠀀　\t”\"",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-90",
+      "input": "\rb舟1~ ?b，A，A];😀[ !?𠀀𠀀 \t)(…\t\"!,，",
+      "output": "\rb舟1~ ?b，A，A];😀[ !？𠀀𠀀 \t)(…\t\"!，，",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-91",
+      "input": "　 “",
+      "output": "　 “",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-92",
+      "input": "?—…林-“舟😀?”\n~'?舟\"",
+      "output": "？——……林-“舟😀？”\n~'？舟\"",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-93",
+      "input": "?“?”A!(~)b𠀀[:;…“?舟😀 ",
+      "output": "？“？”A!(~)b𠀀[:；……“？舟😀 ",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-94",
+      "input": "-[　林.，。?A，",
+      "output": "-[　林。，。？A，",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-95",
+      "input": "!𠀀",
+      "output": "！𠀀",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-96",
+      "input": "😀舟𠀀~A—，'舟~林b1\"",
+      "output": "😀舟𠀀~A——，'舟~林b1\"",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-97",
+      "input": "。0，",
+      "output": "。0，",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-98",
+      "input": "?😀林林，[—0\t”\"林”\"b)😀\t];\t!- ",
+      "output": "?😀林林，[—0\t”“林””b)😀\t];\t!- ",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-99",
+      "input": "\r”，~0;\r",
+      "output": "\r”，~0;\r",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-100",
+      "input": "， ]0A(—(😀![! \"… 。😀\n\t林;'[A\"林!，“",
+      "output": "， ]0A(—(😀![! \"… 。😀\n\t林；'[A\"林！，“",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-101",
+      "input": ":”);, ,　。，:…1”林。林，0)A:-0——　[",
+      "output": ":”);, ，　。，：……1”林。林，0)A:-0——　[",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-102",
+      "input": "b,\"A.\"b).)”　,　( bA'~\".;?😀; -1b　b…)A　…",
+      "output": "b,\"A.\"b).)”　，　( bA'~\".;?😀; -1b　b…)A　……",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-103",
+      "input": "A\rb“\r",
+      "output": "A\rb“\r",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-104",
+      "input": "1，:A ",
+      "output": "1，：A ",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-105",
+      "input": "0“!0\r😀!1😀\t.。",
+      "output": "0“！0\r😀!1😀\t.。",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-106",
+      "input": "林[;,[;",
+      "output": "林[;,[;",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-107",
+      "input": "'。　，…𠀀舟。\"~-，'):",
+      "output": "‘。　，……𠀀舟。\"~-，’):",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-108",
+      "input": "—\r林",
+      "output": "—\r林",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-109",
+      "input": "😀?(\n-😀(“b[0],0 舟　().，",
+      "output": "😀?(\n-😀(“b[0],0 舟　().，",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-110",
+      "input": "1”——!(\rA)0;林舟”-—…??…—。'1”“林[",
+      "output": "1”——！(\rA)0；林舟”-——……？？……——。'1”“林[",
+      "count": 8
+    },
+    {
+      "id": "fullwidth-111",
+      "input": "[]A[“。。.—11(\"-~.b~?,A。，…[舟0\r.)A𠀀",
+      "output": "[]A[“。。。——11（\"-~.b~?,A。，……[舟0\r.）A𠀀",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-112",
+      "input": "1;舟",
+      "output": "1；舟",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-113",
+      "input": "-!?\t-\n?𠀀\n.A”0\n'!1林!!\"0'林",
+      "output": "-!?\t-\n？𠀀\n.A”0\n‘！1林！！\"0’林",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-114",
+      "input": "\r\n1]　',\r!0.\r𠀀!']0\r，\n:“”?　舟)舟--。;𠀀(…:\",",
+      "output": "\r\n1]　‘，\r!0.\r𠀀！’]0\r，\n:“”？　舟)舟——。；𠀀(…：\",",
+      "count": 8
+    },
+    {
+      "id": "fullwidth-115",
+      "input": "A—0!",
+      "output": "A—0!",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-116",
+      "input": "\t”😀~)。\"]b[”b!—　:?b-]“!.“\r,",
+      "output": "\t”😀~)。\"]b[”b！——　：？b-]“！。“\r,",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-117",
+      "input": "“[𠀀”😀,—]。?0\"A\r.[。\"😀.[\n)…\tb。林-;:1— A舟\"",
+      "output": "“[𠀀”😀，——]。？0“A\r.[。”😀.[\n)…\tb。林-;:1— A舟\"",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-118",
+      "input": "'…]\"　😀? :\t A…,“:舟“",
+      "output": "'…]\"　😀? :\t A…，“：舟“",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-119",
+      "input": "“';”“…)\n\r[)?…　-𠀀，A,~　，)~;0—]\"\n)舟;”1林-…",
+      "output": "“'；”“……)\n\r[)？……　-𠀀，A,~　，)~;0—]\"\n)舟；”1林-…",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-120",
+      "input": "”\n“.\t'b…“”😀-　 (\n，—",
+      "output": "”\n“。\t'b……“”😀-　 (\n，——",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-121",
+      "input": "“　]𠀀林—…b”“林0😀'，舟[林].，0…]",
+      "output": "“　]𠀀林——……b”“林0😀'，舟[林].，0…]",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-122",
+      "input": " 0\r”b)”𠀀，\n　00[,，;-",
+      "output": " 0\r”b)”𠀀，\n　00[，，；-",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-123",
+      "input": "。，?1(\t。.~[\"“—　[?0“!😀,…~:[0",
+      "output": "。，？1(\t。.~[\"“——　[?0“！😀，……~:[0",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-124",
+      "input": "~;\tb\n　林“舟 \"𠀀\r …\"0~?-:",
+      "output": "~;\tb\n　林“舟 “𠀀\r …”0~?-:",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-125",
+      "input": "舟.林.)…]\"~0)𠀀　…(A)”''-𠀀\"　[“\t.…\t\t",
+      "output": "舟。林.)…]“~0)𠀀　……(A)”‘’-𠀀”　[“\t.…\t\t",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-126",
+      "input": "0?'",
+      "output": "0?'",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-127",
+      "input": ".b",
+      "output": ".b",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-128",
+      "input": "😀舟1A…!舟林:，“林;—;b]1;b?—，",
+      "output": "😀舟1A…！舟林：，“林；——；b]1;b？——，",
+      "count": 7
+    },
+    {
+      "id": "fullwidth-129",
+      "input": ".]”\t: ][)\r“, )).,😀?　?😀)0A𠀀)-。林]舟\"—",
+      "output": ".]”\t: ][)\r“， )).,😀？　？😀)0A𠀀)-。林]舟\"—",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-130",
+      "input": "林~b[\"\r:。舟𠀀?𠀀.A—“舟~b…A　\t)?.0]…。)舟“——b",
+      "output": "林~b[\"\r:。舟𠀀？𠀀.A——“舟~b…A　\t)?.0]……。)舟“——b",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-131",
+      "input": "　;林)\t😀~b𠀀“.;林😀。;\":𠀀-",
+      "output": "　；林)\t😀~b𠀀“.；林😀。；\":𠀀-",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-132",
+      "input": "—0　\"0?𠀀'b,)~　”\n ，!(　舟-𠀀“　　[b0𠀀…",
+      "output": "—0　\"0？𠀀'b,)~　”\n ，！(　舟-𠀀“　　[b0𠀀……",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-133",
+      "input": "　😀\"”　𠀀 !　]",
+      "output": "　😀\"”　𠀀 ！　]",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-134",
+      "input": "'-',;-\r…\nb,;😀—b.A,A.，A-😀，𠀀AA'\"",
+      "output": "'-',;-\r…\nb,;😀—b.A,A.，A-😀，𠀀AA'\"",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-135",
+      "input": "~[]",
+      "output": "~[]",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-136",
+      "input": "1　A",
+      "output": "1　A",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-137",
+      "input": " 舟“b';”-[—",
+      "output": " 舟“b'；”-[—",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-138",
+      "input": "“,.😀[:😀]林).!　\"，\r\n]”0-\n“(;林-“\tA.—:",
+      "output": "“，.😀[:😀]林).！　\"，\r\n]”0-\n“(；林-“\tA.—：",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-139",
+      "input": "']",
+      "output": "']",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-140",
+      "input": "舟",
+      "output": "舟",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-141",
+      "input": "林　\r。:(-，\n”A?𠀀林0:\r1 。“",
+      "output": "林　\r。：(-，\n”A？𠀀林0:\r1 。“",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-142",
+      "input": "[",
+      "output": "[",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-143",
+      "input": "　!😀A 1b-':\t1”] [!林~1　0]:\"\t?舟-“𠀀[\rA)",
+      "output": "　！😀A 1b-':\t1”] [！林~1　0]:\"\t？舟-“𠀀[\rA)",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-144",
+      "input": ";.[。.\nA 1舟\n\r𠀀，",
+      "output": ";.[。。\nA 1舟\n\r𠀀，",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-145",
+      "input": "…11舟。”b)\n　-?!林 ;…舟.…舟😀\t”?::.“,'\t",
+      "output": "…11舟。”b)\n　-?！林 ；……舟。……舟😀\t”？：：。“，'\t",
+      "count": 10
+    },
+    {
+      "id": "fullwidth-146",
+      "input": ", 1:]'(]]\tA“ ](。,”1(林。.\": 𠀀",
+      "output": ", 1:]'(]]\tA“ ](。，”1(林。。\": 𠀀",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-147",
+      "input": "𠀀\"0!“.𠀀]…“舟~,A　…(b，",
+      "output": "𠀀\"0！“。𠀀]……“舟~,A　……(b，",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-148",
+      "input": "A).，[舟😀-;林—。!:.].~~,~舟A舟\"]?",
+      "output": "A).，[舟😀-；林——。！：.].~~,~舟A舟\"]?",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-149",
+      "input": "”''，😀.”\r-A-;  ,\r.'\r😀!舟…\r“舟“，.!.1”林𠀀𠀀'",
+      "output": "”‘’，😀.”\r-A-;  ,\r.‘\r😀！舟……\r“舟“，.!.1”林𠀀𠀀’",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-150",
+      "input": "-。:“😀”\n…”\";?!'”。”\t(\t😀\"\n𠀀",
+      "output": "-。：“😀”\n……”\";?!'”。”\t(\t😀\"\n𠀀",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-151",
+      "input": "0”…，”\"　，;。-\r",
+      "output": "0”……，”\"　，；。-\r",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-152",
+      "input": "林　~林;,。!”.\n: ”舟林~b—A\r,—A~1😀\"，A(",
+      "output": "林　~林；，。！”。\n: ”舟林~b—A\r，——A~1😀\"，A(",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-153",
+      "input": "(11(\r。—。。”-\rA",
+      "output": "(11(\r。——。。”-\rA",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-154",
+      "input": "—\"\r\r.,:0!。?:][!:]林)“1;\"\"\n\t…-.“b!　?“林",
+      "output": "—\"\r\r.,:0！。？：][!:]林)“1;\"\"\n\t…-.“b！　？“林",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-155",
+      "input": "!.𠀀…　\r\r舟 ",
+      "output": "!.𠀀……　\r\r舟 ",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-156",
+      "input": "1\n\r\n.😀1?😀\t…舟—舟，0😀",
+      "output": "1\n\r\n.😀1?😀\t……舟——舟，0😀",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-157",
+      "input": "]林( ;\t:(😀b ] ~𠀀)A",
+      "output": "]林( ;\t:（😀b ] ~𠀀）A",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-158",
+      "input": "\n:0\r,b.　1\"A-?;舟b\t",
+      "output": "\n:0\r,b.　1\"A-?；舟b\t",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-159",
+      "input": "𠀀[\t，\"b;林!　𠀀",
+      "output": "𠀀[\t，\"b；林！　𠀀",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-160",
+      "input": "]:!舟𠀀😀\nb;-。𠀀'，𠀀:\n林，。'1。.。",
+      "output": "]:！舟𠀀😀\nb;-。𠀀'，𠀀：\n林，。'1。。。",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-161",
+      "input": "”~A。.!A!,\t?~\t:;林\t　01“'”?,舟。林\"-[!\r'",
+      "output": "”~A。.!A!,\t?~\t:；林\t　01“‘”？，舟。林\"-[!\r’",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-162",
+      "input": "']“:??;!?;.~;)(\t\r𠀀[~-\r”林—，。A林“1　(\n?\t",
+      "output": "']“：？？；！？；.~;)(\t\r𠀀[~-\r”林——，。A林“1　(\n?\t",
+      "count": 8
+    },
+    {
+      "id": "fullwidth-163",
+      "input": "𠀀—;””舟(;:.)A",
+      "output": "𠀀——；””舟(;:.)A",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-164",
+      "input": "!—[…𠀀”)b-!😀𠀀😀1!\n..0。　~ ?:“😀)[.𠀀“~林?“).\n",
+      "output": "！——[……𠀀”)b-!😀𠀀😀1!\n..0。　~ ?:“😀)[.𠀀“~林？“).\n",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-165",
+      "input": ":",
+      "output": ":",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-166",
+      "input": "…-:([~“!,'b",
+      "output": "…-:([~“！，'b",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-167",
+      "input": ",0(　0)0.。)林 ",
+      "output": ",0(　0)0.。)林 ",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-168",
+      "input": "! .\"。'1",
+      "output": "! .\"。'1",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-169",
+      "input": "…",
+      "output": "…",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-170",
+      "input": "?;;林，\r;b AA”",
+      "output": "?;；林，\r;b AA”",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-171",
+      "input": "~”b0!\"A　𠀀\n，\n]”((…?，b—\r-':林:A，\n1\n'(。,.A",
+      "output": "~”b0!\"A　𠀀\n，\n]”((…？，b—\r-':林：A，\n1\n'(。，.A",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-172",
+      "input": ")\r-\"\n😀　😀 ”😀'\r𠀀'舟　\t。!?\t)—1， ",
+      "output": ")\r-\"\n😀　😀 ”😀‘\r𠀀’舟　\t。！？\t)—1， ",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-173",
+      "input": "1—~”😀0\n",
+      "output": "1—~”😀0\n",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-174",
+      "input": "?\r1\n)",
+      "output": "?\r1\n)",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-175",
+      "input": "林[\n]，~林，😀—:“”—-\t):0😀b—😀—…𠀀']，)~，— \t",
+      "output": "林[\n]，~林，😀—：“”——-\t):0😀b—😀——……𠀀']，)~，—— \t",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-176",
+      "input": "\r😀b𠀀'?。1“--:林[A😀:…,\t]，",
+      "output": "\r😀b𠀀'？。1“——：林[A😀:…，\t]，",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-177",
+      "input": ")1””—.[𠀀\r~;(;𠀀A1“)!　]\t\r!.",
+      "output": ")1””——.[𠀀\r~;（；𠀀A1“）！　]\t\r!.",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-178",
+      "input": "。…",
+      "output": "。……",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-179",
+      "input": ";~𠀀-A\"1-",
+      "output": ";~𠀀-A\"1-",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-180",
+      "input": "“.",
+      "output": "“。",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-181",
+      "input": " …\n\t1A]……”0“\r!\".;-𠀀。“\t]　。\t.",
+      "output": " …\n\t1A]……”0“\r!\".;-𠀀。“\t]　。\t.",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-182",
+      "input": "。😀\r--~(.(— (]:舟[“,",
+      "output": "。😀\r--~(.(— (]:舟[“，",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-183",
+      "input": "~𠀀-\n”",
+      "output": "~𠀀-\n”",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-184",
+      "input": "\t~)1\";)\r 。.~-，b",
+      "output": "\t~)1\";)\r 。.~-，b",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-185",
+      "input": "b。。:舟!　1\r，”?林\tA11",
+      "output": "b。。：舟！　1\r，”？林\tA11",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-186",
+      "input": "舟'!\n\r林林—\r ,　\"😀舟?\n[\n　",
+      "output": "舟'!\n\r林林——\r ，　\"😀舟？\n[\n　",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-187",
+      "input": "]😀\t“舟。;A[1 \"，😀舟0,，''😀A　(??“，，~0 A ]",
+      "output": "]😀\t“舟。；A[1 \"，😀舟0，，‘’😀A　(?？“，，~0 A ]",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-188",
+      "input": "…",
+      "output": "…",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-189",
+      "input": ":　𠀀'”“:?。\t)~~\t:' b.]“…'",
+      "output": ":　𠀀'”“：？。\t)~~\t:' b.]“……'",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-190",
+      "input": "[\n\t\"\"\r).1　”--” ;舟]]]…~。0?😀(?\"'。,，\r",
+      "output": "[\n\t\"\"\r).1　”——” ；舟]]]…~。0?😀(?\"'。，，\r",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-191",
+      "input": "“—\r",
+      "output": "“——\r",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-192",
+      "input": ",𠀀舟[:!-.舟\n　林-b…..　': 1\n",
+      "output": "，𠀀舟[:!-.舟\n　林-b…..　': 1\n",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-193",
+      "input": "𠀀-.(😀—!1\t],”,　-\"(",
+      "output": "𠀀-.(😀—！1\t]，”，　-\"(",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-194",
+      "input": ".?𠀀A　1\t““,(“~~:01- (~“。(\n“",
+      "output": ".？𠀀A　1\t““，(“~~:01- (~“。(\n“",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-195",
+      "input": "0'\t'舟[”0?b舟😀\n　😀(林1，…('𠀀()林",
+      "output": "0‘\t’舟[”0?b舟😀\n　😀(林1，……('𠀀()林",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-196",
+      "input": " 11,舟😀—'];,\r林;\n\r,𠀀…]~;舟",
+      "output": " 11，舟😀—'];,\r林；\n\r，𠀀……]~；舟",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-197",
+      "input": "!\n林\t。",
+      "output": "!\n林\t。",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-198",
+      "input": "林\t')𠀀!\n.“…-!，\r(:-~(，0“林[\n?，.\r~:~　-[[(",
+      "output": "林\t')𠀀！\n.“……-！，\r(:-~(，0“林[\n？，。\r~:~　-[[(",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-199",
+      "input": ");—1，AA林\r“.😀林[\n…舟']\n:…;",
+      "output": ")；——1，AA林\r“.😀林[\n……舟']\n:…；",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-200",
+      "input": "”;\r,0-林,舟\t\r'”0b",
+      "output": "”；\r,0-林，舟\t\r'”0b",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-201",
+      "input": ",,　1:舟\t1 ;['　　-—\n?",
+      "output": ",，　1:舟\t1 ;['　　-—\n?",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-202",
+      "input": "\"0 1'1\n(0?。~0b\t—(　𠀀.;! --\n",
+      "output": "\"0 1'1\n(0？。~0b\t—(　𠀀.;! --\n",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-203",
+      "input": "\"。𠀀100.(，0-“林.-\r𠀀[0林…，𠀀—　”“]1",
+      "output": "\"。𠀀100.(，0-“林.-\r𠀀[0林……，𠀀——　”“]1",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-204",
+      "input": "'?;):林~…",
+      "output": "'?;):林~…",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-205",
+      "input": "𠀀😀",
+      "output": "𠀀😀",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-206",
+      "input": "😀 -;𠀀\t'　A— ",
+      "output": "😀 -；𠀀\t'　A— ",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-207",
+      "input": "—-林,",
+      "output": "—-林，",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-208",
+      "input": ")",
+      "output": ")",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-209",
+      "input": "\r:A",
+      "output": "\r:A",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-210",
+      "input": ")(\n“]1…,;　(”\r😀']A　",
+      "output": ")(\n“]1…，；　(”\r😀']A　",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-211",
+      "input": "?😀😀?!",
+      "output": "?😀😀?!",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-212",
+      "input": "\r\r\t,…0",
+      "output": "\r\r\t，……0",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-213",
+      "input": "~林…",
+      "output": "~林……",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-214",
+      "input": ";\tb[?\n.~:]",
+      "output": ";\tb[?\n.~:]",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-215",
+      "input": "—　”",
+      "output": "——　”",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-216",
+      "input": "“[\t—~林1\t1““]“林舟[—~)—(林(b舟b~!]!。!\"　—(b?。",
+      "output": "“[\t—~林1\t1““]“林舟[—~)—(林(b舟b~!]！。！\"　——(b？。",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-217",
+      "input": ";\r\r",
+      "output": ";\r\r",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-218",
+      "input": "0)”~　[….:\n\n林 ; ,林A—;𠀀\nb😀林'\t,😀\n…;?",
+      "output": "0)”~　[….:\n\n林 ; ，林A—；𠀀\nb😀林'\t,😀\n…；？",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-219",
+      "input": ".:(𠀀\r舟 ”　1—!舟，~[00';\n )，b)\r\"b，",
+      "output": ".:(𠀀\r舟 ”　1—！舟，~[00';\n )，b)\r\"b，",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-220",
+      "input": "—“，“林)“1;b\"1]。]",
+      "output": "——“，“林)“1;b\"1]。]",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-221",
+      "input": "。😀林“1A)[]",
+      "output": "。😀林“1A)[]",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-222",
+      "input": "。—0[]",
+      "output": "。——0[]",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-223",
+      "input": "　-'(””]1)",
+      "output": "　-'(””]1)",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-224",
+      "input": ")]。1[\"[]\r(😀舟A'~，\n'。\t(😀\"“\t\r，,0　b]0…“(舟",
+      "output": ")]。1[\"[]\r(😀舟A'~，\n'。\t(😀\"“\t\r，，0　b]0……“(舟",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-225",
+      "input": "A“b林",
+      "output": "A“b林",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-226",
+      "input": "~ 　b!\"…。—[𠀀0 ”?",
+      "output": "~ 　b!\"……。——[𠀀0 ”？",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-227",
+      "input": "(\t!\"",
+      "output": "(\t!\"",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-228",
+      "input": "😀0\r!]\t\n—. ，“舟　“A",
+      "output": "😀0\r!]\t\n—。，“舟　“A",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-229",
+      "input": "(]1b.\r0…\r-[”-A]b—.?-!\t?[]~林- 1).。 ，",
+      "output": "（]1b.\r0…\r-[”-A]b—.?-!\t?[]~林- 1）。。 ，",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-230",
+      "input": "-，;\";)𠀀，—“A0\t\r —.”，\n\r　😀舟\t[𠀀\r(\t　(A[1~",
+      "output": "-，；\";)𠀀，——“A0\t\r —。”，\n\r　😀舟\t[𠀀\r(\t　(A[1~",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-231",
+      "input": "]…'\n\r舟\"，\n~，舟，林~\r　(",
+      "output": "]…'\n\r舟\"，\n~，舟，林~\r　(",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-232",
+      "input": "\t”",
+      "output": "\t”",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-233",
+      "input": "(;]]\r….\nA”舟 😀(A𠀀 0…?.\n。😀;A　b\r。0舟𠀀\n",
+      "output": "(;]]\r…。\nA”舟 😀(A𠀀 0…？。\n。😀;A　b\r。0舟𠀀\n",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-234",
+      "input": ":0😀]\" -—　　”?舟…。，—1😀，😀“\r  “'“~0",
+      "output": ":0😀]\" -——　　”？舟……。，——1😀，😀“\r  “'“~0",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-235",
+      "input": "-.林-—”A舟[1(:…\t”。?",
+      "output": "-.林-——”A舟[1(:…\t”。？",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-236",
+      "input": "\"')'😀?林",
+      "output": "\"‘)’😀？林",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-237",
+      "input": "\r.𠀀-~b.~~-;??舟林][\t。\r;.\"",
+      "output": "\r.𠀀-~b.~~-;?？舟林][\t。\r;.\"",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-238",
+      "input": "0，𠀀—\r林—””😀?\n:，”舟舟,)?AA林\n~:…\t!-“0 \r)林",
+      "output": "0，𠀀——\r林——””😀?\n:，”舟舟，)?AA林\n~:…\t!-“0 \r)林",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-239",
+      "input": "… …𠀀][😀”林01\"”—，~\"”!b😀A)]];;",
+      "output": "… ……𠀀][😀”林01“”——，~””！b😀A)]];;",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-240",
+      "input": "-",
+      "output": "-",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-241",
+      "input": "𠀀 ]",
+      "output": "𠀀 ]",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-242",
+      "input": "(😀.].\r𠀀\"\rA.”",
+      "output": "(😀.].\r𠀀\"\rA.”",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-243",
+      "input": "　\"",
+      "output": "　\"",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-244",
+      "input": "],.舟?舟“　1林😀.b　]…舟(”\n。.. A”.\t~1舟𠀀𠀀😀\n",
+      "output": "],.舟？舟“　1林😀.b　]……舟(”\n。.. A”。\t~1舟𠀀𠀀😀\n",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-245",
+      "input": "“ 😀\"",
+      "output": "“ 😀\"",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-246",
+      "input": "'“~(\n",
+      "output": "'“~(\n",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-247",
+      "input": ")'😀A1)0)𠀀。”')\r。\"。-林1,“~!\n。(…]:😀]，\r-A“，",
+      "output": ")‘😀A1)0)𠀀。”’)\r。\"。-林1，“~!\n。(…]:😀]，\r-A“，",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-248",
+      "input": "A“…\"\r:!'，(”𠀀林\t”。:舟，😀;:\" '?~\nA?1😀1,[",
+      "output": "A“……“\r:!‘，(”𠀀林\t”。：舟，😀;:” ’？~\nA?1😀1,[",
+      "count": 7
+    },
+    {
+      "id": "fullwidth-249",
+      "input": "𠀀舟1，.)😀\n\n\t].)“~,!",
+      "output": "𠀀舟1，.)😀\n\n\t].)“~,!",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-250",
+      "input": "1　:-\n—舟)，😀,\n“",
+      "output": "1　：-\n——舟)，😀,\n“",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-251",
+      "input": "-舟林　舟)A0\t…舟:…!\r,[。?;]-\"舟b”1[]-",
+      "output": "-舟林　舟)A0\t……舟：……！\r,[。？；]-\"舟b”1[]-",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-252",
+      "input": "]林。[“\r0 。“!𠀀\"　😀.-,𠀀舟-~”?😀",
+      "output": "]林。[“\r0 。“！𠀀\"　😀.-，𠀀舟-~”？😀",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-253",
+      "input": "“]😀舟\t.　A　(—1;",
+      "output": "“]😀舟\t.　A　(—1;",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-254",
+      "input": ")-?))舟\t\t]。　",
+      "output": ")-?))舟\t\t]。　",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-255",
+      "input": "\"?11。。。1'[😀'\t，.\r，”0A' \r! 。)~~-\nb'。𠀀\r \"",
+      "output": "\"?11。。。1'[😀'\t，。\r，”0A' \r! 。)~~-\nb'。𠀀\r \"",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-256",
+      "input": ";\rA\t0。。",
+      "output": ";\rA\t0。。",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-257",
+      "input": "b~“]”'😀-(𠀀?)，b\n~b'\r0~\n:(　?\r\n😀[,:((",
+      "output": "b~“]”'😀-（𠀀？），b\n~b'\r0~\n:(　？\r\n😀[,:((",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-258",
+      "input": "[[AA“…—…“]",
+      "output": "[[AA“……——……“]",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-259",
+      "input": "\t𠀀A，”-\"]).—)][,;;",
+      "output": "\t𠀀A，”-\"]).—)][,;;",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-260",
+      "input": "b”A，",
+      "output": "b”A，",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-261",
+      "input": "\r] ，[，😀舟\t]\",\"𠀀)舟'A!。，。舟 A?!0]😀(:''”,b~。",
+      "output": "\r] ，[，😀舟\t]“，”𠀀)舟'A！。，。舟 A?!0]😀(:''”，b~。",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-262",
+      "input": "“!”,”",
+      "output": "“！”，”",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-263",
+      "input": "-1",
+      "output": "-1",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-264",
+      "input": "-!—b0，]-b1\t\"\r。,:\n —。;…[”“",
+      "output": "-！——b0，]-b1\t\"\r。，：\n ——。；……[”“",
+      "count": 7
+    },
+    {
+      "id": "fullwidth-265",
+      "input": "[;。,(—林:~b”]—'\"。\n!…!b,\t[ \n林…(\t林?\t。\n舟\r:\"",
+      "output": "[；。，(——林：~b”]—'\"。\n！……！b,\t[ \n林……(\t林？\t。\n舟\r:\"",
+      "count": 9
+    },
+    {
+      "id": "fullwidth-266",
+      "input": "😀　….- . ?;",
+      "output": "😀　…….- . ?;",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-267",
+      "input": "~1?b0””'",
+      "output": "~1?b0””'",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-268",
+      "input": "A.b.—\"A[。'!?:-0?:~)\tb01。~0\r😀;'']:—-1　\n",
+      "output": "A.b.—\"A[。'!?:-0?:~)\tb01。~0\r😀;'']:—-1　\n",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-269",
+      "input": "，😀。舟林\r。舟。舟'\n.:-.，—。!\t“",
+      "output": "，😀。舟林\r。舟。舟'\n.:-.，——。！\t“",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-270",
+      "input": "\n\"?,。舟—　)0 !?”\r　A\t;林。b!”",
+      "output": "\n\"?，。舟——　)0 !？”\r　A\t；林。b！”",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-271",
+      "input": "'1　;1;”:b.?'…b\"😀\n]",
+      "output": "'1　；1；”：b.?'…b\"😀\n]",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-272",
+      "input": "“0-😀:)\" !\r。]),…)-]!~]\t\n”.A!; [",
+      "output": "“0-😀:)\" !\r。])，……)-]!~]\t\n”.A!; [",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-273",
+      "input": "A林…;\t]”林?😀,",
+      "output": "A林……；\t]”林？😀,",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-274",
+      "input": "—𠀀“\":　['-𠀀(1\"舟。0'𠀀　b0,林A\t—\" \t",
+      "output": "——𠀀“\":　[‘-𠀀(1\"舟。0’𠀀　b0，林A\t—\" \t",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-275",
+      "input": ")“.'。.𠀀\r0;1\t　-，—'😀)\n,:𠀀林1~",
+      "output": ")“。‘。。𠀀\r0;1\t　-，——’😀)\n,:𠀀林1~",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-276",
+      "input": "; …”，𠀀  ? !林\"”~ 林-。)\t\t— :;林?—，舟𠀀]𠀀-.林“舟",
+      "output": "; ……”，𠀀  ? ！林\"”~ 林-。)\t\t— :；林？——，舟𠀀]𠀀-.林“舟",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-277",
+      "input": "(A:",
+      "output": "(A:",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-278",
+      "input": "'“!—~A(-\n—",
+      "output": "'“！——~A(-\n—",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-279",
+      "input": "😀~“))[;—“:(:𠀀\n\n(“——，\" ….，",
+      "output": "😀~“))[；——“：(:𠀀\n\n(“——，\" …。，",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-280",
+      "input": ")!…林…-\t舟1.舟，舟”。😀😀　!]b　舟;，“—A",
+      "output": ")！……林……-\t舟1.舟，舟”。😀😀　！]b　舟；，“——A",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-281",
+      "input": "😀!\r",
+      "output": "😀!\r",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-282",
+      "input": "“b。-，。…A",
+      "output": "“b。-，。……A",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-283",
+      "input": "~.-",
+      "output": "~.-",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-284",
+      "input": ";…\r\t!? 林—.\n\"—\"?…舟\r“~?。.?—　?'A:",
+      "output": "；……\r\t!? 林——。\n“——”？……舟\r“~？。.？——　？'A:",
+      "count": 13
+    },
+    {
+      "id": "fullwidth-285",
+      "input": "舟;.…A\"\n?b…;",
+      "output": "舟；。……A\"\n?b…；",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-286",
+      "input": "1“”b:",
+      "output": "1“”b:",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-287",
+      "input": "”，。1𠀀;“';—.”.[!𠀀…:A…😀\"——。　\t\t“?0林",
+      "output": "”，。1𠀀；“'；——。”.[！𠀀……：A…😀\"——。　\t\t“？0林",
+      "count": 8
+    },
+    {
+      "id": "fullwidth-288",
+      "input": "A?。　　[“𠀀1?　😀舟)😀 ?!舟。,… [))\t. b.-“0　]”",
+      "output": "A？。　　[“𠀀1？　😀舟)😀 ?！舟。，…… [))\t. b.-“0　]”",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-289",
+      "input": "'",
+      "output": "'",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-290",
+      "input": "!\r)\n,。\r:，𠀀;𠀀\t，\"“，\nA…?!)(11😀",
+      "output": "!\r)\n，。\r:，𠀀；𠀀\t，\"“，\nA…？！)(11😀",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-291",
+      "input": "0.“",
+      "output": "0.“",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-292",
+      "input": "😀1)-[\t1b林。;~b—…?，01𠀀,1:':!,'”,,林…",
+      "output": "😀1)-[\t1b林。；~b——……？，01𠀀，1:‘：！，’”，，林……",
+      "count": 13
+    },
+    {
+      "id": "fullwidth-293",
+      "input": "!,0—1-)…;…A—]1\"\"，'\r0)”(~!!　”0\n-—😀",
+      "output": "!,0—1-)…；……A—]1\"\"，'\r0)”(~!！　”0\n-—😀",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-294",
+      "input": ";\"1.;:(—.(:　“' :，",
+      "output": ";\"1.;:(—.(:　“' :，",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-295",
+      "input": "'林“　:-b”[”。舟((\n\t。。…;~—舟—.\n舟\";\"\"😀;;",
+      "output": "'林“　：-b”[”。舟((\n\t。。……；~——舟——。\n舟\";\"\"😀;;",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-296",
+      "input": "林\"1林. ?,\t“",
+      "output": "林\"1林。 ?,\t“",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-297",
+      "input": "!~.𠀀)”..…(",
+      "output": "!~.𠀀)”..…(",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-298",
+      "input": "……:.1 —” 　)—[1~b",
+      "output": "……：.1 ——” 　)—[1~b",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-299",
+      "input": ",　林",
+      "output": "，　林",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-300",
+      "input": "舟",
+      "output": "舟",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-301",
+      "input": "\"'",
+      "output": "\"'",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-302",
+      "input": "'1[,\t😀 林”b舟　0,“𠀀…　b?:😀",
+      "output": "'1[,\t😀 林”b舟　0，“𠀀……　b?:😀",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-303",
+      "input": "𠀀林\t舟…”　，\r舟“b",
+      "output": "𠀀林\t舟……”　，\r舟“b",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-304",
+      "input": "b!𠀀]—('𠀀　𠀀",
+      "output": "b！𠀀]—('𠀀　𠀀",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-305",
+      "input": "𠀀~!…林0\r)。[\r林…𠀀~",
+      "output": "𠀀~！……林0\r)。[\r林……𠀀~",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-306",
+      "input": ")—𠀀",
+      "output": ")——𠀀",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-307",
+      "input": "(\n—”0;;\r;𠀀;\n\n,“]1(1。'(1~\r[舟'",
+      "output": "(\n——”0;;\r；𠀀；\n\n，“]1(1。‘(1~\r[舟’",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-308",
+      "input": "林舟1舟?\";]: !0😀舟𠀀。A😀?\r\r…::?;)A…,",
+      "output": "林舟1舟？\";]: !0😀舟𠀀。A😀?\r\r…：：？；)A…，",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-309",
+      "input": "-\t;?林'b-舟];A\"…[\r0;1，，\n[.𠀀\"　(1)\"?　]",
+      "output": "-\t;？林'b-舟];A\"…[\r0;1，，\n[.𠀀“　(1)”？　]",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-310",
+      "input": "!。[。:\t　\n\n—0\tb!林0!.~\n:A\n,b“[!A—\r舟。 ~— ",
+      "output": "！。[。：\t　\n\n—0\tb！林0!.~\n:A\n,b“[!A—\r舟。 ~— ",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-311",
+      "input": "1舟林”b[舟(,😀1\n —,,;林['—.，;b😀.,舟\"𠀀~A—",
+      "output": "1舟林”b[舟(,😀1\n —，，；林['—。，；b😀.，舟\"𠀀~A—",
+      "count": 6
+    },
+    {
+      "id": "fullwidth-312",
+      "input": "([~\r\t\r'”0\"~，𠀀b　['　0'\" \n…，😀 ~“😀",
+      "output": "([~\r\t\r'”0“~，𠀀b　['　0'” \n……，😀 ~“😀",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-313",
+      "input": "\"~:'林;”'”!':。”“𠀀)😀?",
+      "output": "\"~:'林；”'”！':。”“𠀀)😀?",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-314",
+      "input": "!0舟-;A!\t!)𠀀A\n“\r,\n　]\r(\r林\r,",
+      "output": "!0舟-;A!\t!)𠀀A\n“\r,\n　]\r(\r林\r,",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-315",
+      "input": "舟\r~(]…~.-[:!-(。;;林",
+      "output": "舟\r~(]…~.-[:!-(。；；林",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-316",
+      "input": "\"",
+      "output": "\"",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-317",
+      "input": ",—𠀀1!:01A\n?A1.𠀀　”! A:0!';['?—\t",
+      "output": "，——𠀀1!:01A\n?A1.𠀀　”！ A:0!‘；[’？——\t",
+      "count": 8
+    },
+    {
+      "id": "fullwidth-318",
+      "input": "[[\"?~\t ?[)b0!。?😀\t\"!:A!)—　。[\t”)?]!..。(　",
+      "output": "[[\"?~\t ?[)b0！。？😀\t\"!:A!)——　。[\t”)?]!..。(　",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-319",
+      "input": "…林,]:\t。，1!~”\r]~.舟　-;'",
+      "output": "……林，]:\t。，1!~”\r]~.舟　-;'",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-320",
+      "input": "-[林\":😀—-\t\t,11! 𠀀\n0—--　1，,.舟.\n.A”—~\t",
+      "output": "-[林\":😀—-\t\t,11! 𠀀\n0———　1，，。舟。\n.A”——~\t",
+      "count": 5
+    },
+    {
+      "id": "fullwidth-321",
+      "input": "! —A:，\n],('\"舟( 林'",
+      "output": "! —A:，\n],(‘\"舟( 林’",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-322",
+      "input": "，~A;A\r“😀　",
+      "output": "，~A;A\r“😀　",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-323",
+      "input": "]\r… )'11],\r .😀:\t!林。A舟(. .—:]\r",
+      "output": "]\r… )'11],\r .😀:\t！林。A舟(. .—：]\r",
+      "count": 2
+    },
+    {
+      "id": "fullwidth-324",
+      "input": "　[\t……)林\t—😀[…\nb-'…𠀀\"~“舟𠀀　-林(\rb林)舟\t\r",
+      "output": "　[\t……)林\t—😀[…\nb-'……𠀀\"~“舟𠀀　-林（\rb林）舟\t\r",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-325",
+      "input": "　😀，'\t(。",
+      "output": "　😀，'\t(。",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-326",
+      "input": "，\r0(:𠀀';，　A0\t\"　…b\"[",
+      "output": "，\r0(:𠀀'；，　A0\t“　……b”[",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-327",
+      "input": "\r”𠀀-1!　.A林　—“𠀀.…”\t!\t\"A:😀A林A?bA\n.(… -.😀",
+      "output": "\r”𠀀-1！　.A林　——“𠀀。……”\t!\t\"A:😀A林A?bA\n.(… -.😀",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-328",
+      "input": "\"],'”11)\n，)~“”“",
+      "output": "\"],'”11)\n，)~“”“",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-329",
+      "input": "0𠀀。😀??😀林\t。。林😀bA:A “[A0-….1—，[,林.。b …\n:[",
+      "output": "0𠀀。😀??😀林\t。。林😀bA:A “[A0-….1——，[，林。。b …\n:[",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-330",
+      "input": "0\r?。.\r…“𠀀[!(\t林　!…“,林…”)　\t]舟\n",
+      "output": "0\r？。。\r……“𠀀[!（\t林　！……“，林……”）　\t]舟\n",
+      "count": 9
+    },
+    {
+      "id": "fullwidth-331",
+      "input": "(",
+      "output": "(",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-332",
+      "input": "”1011𠀀林'林0,A舟0林 😀　;b.?1b1",
+      "output": "”1011𠀀林'林0,A舟0林 😀　；b.?1b1",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-333",
+      "input": "~,!“)舟[?0\"—:,0)?!;𠀀",
+      "output": "~,！“)舟[?0\"—：，0)?!；𠀀",
+      "count": 4
+    },
+    {
+      "id": "fullwidth-334",
+      "input": "b!b!0\r1(",
+      "output": "b!b!0\r1(",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-335",
+      "input": "(\",\r]:",
+      "output": "(\",\r]:",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-336",
+      "input": "-　?;!).-!😀(　",
+      "output": "-　？；！).-!😀(　",
+      "count": 3
+    },
+    {
+      "id": "fullwidth-337",
+      "input": "(,,。;:\":舟[\n“.0\t1-\"!(\"~林A𠀀，1)林-)b1'\"A\"",
+      "output": "(,，。；：\":舟[\n“.0\t1-“！（”~林A𠀀，1）林-)b1'“A”",
+      "count": 10
+    },
+    {
+      "id": "fullwidth-338",
+      "input": "”\n“b1。”。-。]”　 …]A，舟　”,",
+      "output": "”\n“b1。”。-。]”　 …]A，舟　”，",
+      "count": 1
+    },
+    {
+      "id": "fullwidth-339",
+      "input": "”0~?)\t。0\"",
+      "output": "”0~?)\t。0\"",
+      "count": 0
+    },
+    {
+      "id": "fullwidth-340",
+      "input": "。,舟(\rA\t'\r,;'[('—--;“",
+      "output": "。，舟(\rA\t'\r,;'[('———；“",
+      "count": 3
     }
   ]
 }

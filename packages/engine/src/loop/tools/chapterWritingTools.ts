@@ -7,6 +7,7 @@ import {
 } from '../../assistant/service';
 import { dumpJson } from '../../kernel/json';
 import { llmContextSnapshotTraceSummary } from '../../kernel/llmContext';
+import { fullwidthCjkPunctuation } from '../../kernel/punctuation';
 import { buildCheck, checkPrompt } from '../chapterCheckProtocol';
 import { prepareChapterWritingContext } from '../chapterSourceGuard';
 import {
@@ -166,9 +167,13 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
       },
       { preparedContext: prepared },
     );
+    // 修复走修订链路，改到的行可能又写回半角；与起草一样统一成全角。
+    const [repaired, punctuationNormalized] = fullwidthCjkPunctuation(response.after);
+    const outputSummary: Obj = { content_chars: cpLen(repaired), model: response.model };
+    if (punctuationNormalized) outputSummary.punctuation_normalized = punctuationNormalized;
     return {
       status: 'completed',
-      output: { content: response.after, model: response.model },
+      output: { content: repaired, model: response.model },
       trace: {
         tool_name: 'chapter.repair',
         status: 'completed',
@@ -176,7 +181,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
           brief_id: confirmed.brief_id,
           hard_failure_count: findings.hard_failure_count,
         },
-        output_summary: { content_chars: cpLen(response.after), model: response.model },
+        output_summary: outputSummary,
       },
     };
   };

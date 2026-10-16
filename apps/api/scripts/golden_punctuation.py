@@ -14,7 +14,12 @@ def p1_punctuation_snapshot() -> dict:
         import difflib
 
         from app.common.author_edit_policy import AuthorEditPolicy
-        from app.common.punctuation import DIALOGUE_PATTERN, canonical_punctuation, restore_incidental_punctuation
+        from app.common.punctuation import (
+            DIALOGUE_PATTERN,
+            canonical_punctuation,
+            fullwidth_cjk_punctuation,
+            restore_incidental_punctuation,
+        )
 
         sources = {name: hashlib.sha256((api / name).read_bytes()).hexdigest() for name in
                    ["app/common/punctuation.py", "app/common/author_edit_policy.py"]}
@@ -72,8 +77,24 @@ def p1_punctuation_snapshot() -> dict:
                 restoration.append({"id": f"{name}/{forms}", "before": before, "after": after,
                                     "allowed_punctuation_forms": forms,
                                     "output": restore_incidental_punctuation(before, after, edit_policy=policy)})
+        fullwidth_texts = [
+            "", "林晚星醒来的时候,窗外还是暗的.", '守卫喝道:"站住."', "他说, 走吧. 我说: \"好\"", "3,000元, 10:30到.",
+            "见[第一章](第一章.md)!", "看![图](a.png)", "他用了iPhone.", "林舟--他...", "林舟—他…走", '"OK" is fine.',
+            "she don't 说'好'", "(注:这是旧事)", "(OK)而已", "---", "- 列表项,继续", "# 第一章: 风起",
+            '"奇数"个"引号', "什么?!", "他?她!", "a;b 和 甲;乙", "http://x.cn/林", "第2.5章", "....林..", "林...\n...舟",
+            "😀,林", "𠀀,𠀀.", "林\r\n舟,\r\n", "（已全角，“不动”）", "林 , 舟", "林， 舟", "林. \"走\"", "((林))",
+            "(林(舟)", "林)(舟", "'\"林\"'", "__proto__,林", "林,\u3000舟", "林:\t舟", "Ａ,林", "林~舟",
+        ]
+        alphabet = ["林", "舟", "。", "，", "“", "”", "…", "—", "A", "b", "1", "0", ",", ".", "?", "!", ";", ":",
+                    "(", ")", '"', "'", "-", " ", "\t", "\r", "\n", "[", "]", "𠀀", "😀", "\u3000", "~"]
+        rng = random.Random(20261015)
+        fullwidth_texts.extend("".join(rng.choice(alphabet) for _ in range(rng.randrange(1, 40))) for _ in range(300))
+        fullwidth = []
+        for i, text in enumerate(fullwidth_texts):
+            output, count = fullwidth_cjk_punctuation(text)
+            fullwidth.append({"id": f"fullwidth-{i}", "input": text, "output": output, "count": count})
         assert "app.common.config" not in sys.modules
         return {"format_version": 1, "suite": "p1-punctuation", "python": sys.version.split()[0], "sources": sources,
                 "isolation": {"normal_domain_imports": True, "domain_io": "audit-denied", "network": "audit-denied",
                               "settings_imported": False, "audit_self_tests": ["author-read", "network", "write"]},
-                "canonical": canonical, "dialogue": dialogue, "restoration": restoration}
+                "canonical": canonical, "dialogue": dialogue, "restoration": restoration, "fullwidth": fullwidth}

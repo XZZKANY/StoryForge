@@ -3,7 +3,7 @@
   "suite": "p4-legacy-import",
   "secret": "sk-oracle-legacy-123456",
   "sources": {
-    "app/domains/assistant/service.py": "cb96eaefcf8576751c503c75434a74fe4be68402890a852591b599be90b03f8d",
+    "app/domains/assistant/service.py": "e3f5864e4ad2f8e488b55382b79d53b898fcf9474b82fb53c834bac8e5fb0ace",
     "app/domains/assistant/schemas.py": "1e51b7c79b228a0e0c2019f5b304fd4145326dc00842c3da7730653142043b51",
     "app/domains/assistant/models.py": "7b6ceff8733ddf1be5c4fe7bc056c12e7a62b5c22f3587b378096daa7cf0e414",
     "app/domains/agent_runs/models.py": "af27835f36a60c9fb8f01203e619712df618a37d015c1927da186eace484f2d3",

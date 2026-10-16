@@ -75,7 +75,7 @@
       "第13条消息。。。。。。。。。。。。。。。。。。。。"
     ]
   ],
-  "app_version": "0.1.10",
+  "app_version": "0.1.14",
   "step_seconds": 0.25,
   "fixed_now": "2026-10-12T08:30:00Z",
   "sources": {
@@ -92,7 +92,7 @@
     "app/domains/agent_runs/tools/project_canon_runtime.py": "bc4d32e00df79c5aa52bb4f6945ff970fccaf089d3a7b3fbf4c92f1ba228d11f",
     "app/domains/agent_runs/review_report.py": "98e7a04ff219143381964ca9abf3bb15f486eefe1d2bdedd8e3f31670e52ce3c",
     "app/domains/ide/review_reasoning.py": "498a79ca6121fad8574daac040ad6d23da79817ba8e18e455312e108c7ab86b5",
-    "app/domains/assistant/service.py": "cb96eaefcf8576751c503c75434a74fe4be68402890a852591b599be90b03f8d"
+    "app/domains/assistant/service.py": "e3f5864e4ad2f8e488b55382b79d53b898fcf9474b82fb53c834bac8e5fb0ace"
   },
   "platform": "windows",
   "project_root": "D:\\StoryForge\\output\\ts-engine-p1\\storyforge-golden-agent-run\\book",

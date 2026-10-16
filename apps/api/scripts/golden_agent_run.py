@@ -828,6 +828,10 @@ def chapter_scenarios():
         checked({"rule": "advisory", "severity": "hard", "message": "可以更紧凑", "line": None, "evidence": None},
                 {"rule": "pov_violation", "severity": "advisory", "message": "视角略有游移", "line": 4,
                  "evidence": "守卫看了他们一眼。"})], ops=[confirm()]))
+    # The repair runs through the revision chain; half-width marks on the lines it touched are made full-width.
+    s.append(scenario("write-repair-half-width", write(), [
+        brief_reply(), streamed([DRAFT]), checked(BEAT),
+        streamed(["第三章 入城\n\n沈禾带林舟穿过城门,夜宿客栈.\n守卫看了他们一眼。\n"]), checked()], ops=[confirm()]))
     # A checker that fails to deliver is asked once more; failing again, the draft is still offered unchecked.
     s.append(scenario("write-check-invalid", write(), [
         brief_reply(), streamed([DRAFT]), completion("不是 JSON"), completion("不是 JSON")], ops=[confirm()]))
