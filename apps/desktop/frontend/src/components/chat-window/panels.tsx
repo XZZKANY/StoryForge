@@ -7,7 +7,7 @@ import {
   type SemanticFile,
 } from '../../lib/project-context';
 import type { AssistantSessionRecord } from '../../lib/api-client';
-import { AgentStepsPanel } from '../AgentStepsPanel';
+import { AgentStepsPanel, hasProcess } from '../AgentStepsPanel';
 import {
   ChevronDown,
   Maximize2,
@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from '../icons/shell-icons';
 import type { LayoutMode } from '../shell/useShellState';
+import { isModelRequestStep } from './agent-step-mapping';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { CHAT_COLUMN } from './column';
 import { contextBudgetText } from './display-utils';
@@ -319,12 +320,13 @@ export function MessageList({
   };
   // 思考过程排在这一轮回答的上面（先想、后答）；回答还没出现时排在最后。同一个 key 在
   // 父节点里换位置只会移动节点，折叠面板的手动开合不会因为回答出现而重置。
-  const hasProcess = Boolean(
-    agentRun && (agentRun.steps.length > 0 || agentRun.notes?.some((note) => note.text.trim())),
-  );
   const process =
-    agentRun && hasProcess ? (
-      <div key={`agent-run-process:${agentRun.id}`} className="animate-slide-up-fade">
+    agentRun && hasProcess(agentRun) ? (
+      <div
+        key={`agent-run-process:${agentRun.id}`}
+        className="animate-slide-up-fade"
+        data-testid="agent-run-process"
+      >
         <AgentStepsPanel run={agentRun} />
       </div>
     ) : null;
@@ -558,6 +560,19 @@ export function RunActionBar({
                             run.steps.find((step) => step.status === 'running') ??
                             run.steps.find((step) => step.status === 'waiting') ??
                             run.steps.find((step) => step.status === 'pending');
+                          // 模型请求只在这一行报（思考过程里不列）：重试 / 退避时（引擎这两句都带「重试」）不管它排在第几步，
+                          // 都把原因写出来，作者才知道为什么慢；平时照当前步骤名。
+                          const backoff = run.steps.find(
+                            (step) =>
+                              isModelRequestStep(step) &&
+                              step.status === 'running' &&
+                              /重试/.test(step.detail),
+                          );
+                          const activeText = backoff
+                            ? backoff.detail
+                            : activeStep
+                              ? activeStep.title
+                              : '正在处理';
                           return (
                             <span
                               className="inline-flex items-baseline gap-2"
@@ -568,9 +583,7 @@ export function RunActionBar({
                                 <span />
                                 <span />
                               </span>
-                              <span className="text-foreground">
-                                {activeStep ? activeStep.title : '正在处理'}
-                              </span>
+                              <span className="text-foreground">{activeText}</span>
                               {run.startedAt !== undefined && <RunElapsed since={run.startedAt} />}
                             </span>
                           );

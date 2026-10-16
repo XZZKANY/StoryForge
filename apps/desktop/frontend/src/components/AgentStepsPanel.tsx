@@ -7,21 +7,29 @@
  */
 
 import { useState, type ReactNode } from 'react';
+import { processSteps } from './chat-window/agent-step-mapping';
 import type { AgentRun, AgentRunStatus, AgentStep, AgentStepStatus } from './chat-window/types';
+
+/** 思考过程里有没有东西可看：模型请求只在底部运行条上报，不算。 */
+export function hasProcess(run: AgentRun): boolean {
+  return processSteps(run.steps).length > 0 || Boolean(run.notes?.some((note) => note.text.trim()));
+}
 
 export function AgentStepsPanel({ run }: { run: AgentRun }) {
   // null = 跟随运行状态；true/false = 作者手动覆盖。
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
+  if (!hasProcess(run)) return null;
+  const steps = processSteps(run.steps);
   const isLive = run.status === 'running' || run.status === 'waiting';
   const open = manualOpen ?? (run.status !== 'completed' && run.status !== 'stopped');
 
-  const stepCount = run.steps.length;
-  const toolCount = run.steps.filter((step) => step.id.startsWith('tool-')).length;
+  const stepCount = steps.length;
+  const toolCount = steps.filter((step) => step.id.startsWith('tool-')).length;
   // 仅活动态在折叠头部显示当前活动步骤：作者收起也想看到「正在跑哪个工具」。
   const activeStep = isLive
-    ? (run.steps.find((step) => step.status === 'running') ??
-      run.steps.find((step) => step.status === 'waiting') ??
-      run.steps.find((step) => step.status === 'pending'))
+    ? (steps.find((step) => step.status === 'running') ??
+      steps.find((step) => step.status === 'waiting') ??
+      steps.find((step) => step.status === 'pending'))
     : null;
 
   return (
@@ -66,7 +74,7 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
         }`}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="ml-[18px] mt-1 flex flex-col py-0.5">{processRows(run)}</div>
+          <div className="ml-[18px] mt-1 flex flex-col py-0.5">{processRows(run, steps)}</div>
         </div>
       </div>
     </div>
@@ -74,7 +82,7 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
 }
 
 /** 步骤按到达顺序排；前几轮模型说的话按 toolIndex 插在它之后那批工具的前面。 */
-function processRows(run: AgentRun): ReactNode[] {
+function processRows(run: AgentRun, steps: readonly AgentStep[]): ReactNode[] {
   const notes = (run.notes ?? [])
     .filter((note) => note.text.trim())
     .sort((a, b) => a.toolIndex - b.toolIndex || a.round - b.round);
@@ -96,7 +104,7 @@ function processRows(run: AgentRun): ReactNode[] {
       next += 1;
     }
   };
-  for (const step of run.steps) {
+  for (const step of steps) {
     if (step.id.startsWith('tool-')) {
       flushNotes(toolOrdinal);
       toolOrdinal += 1;

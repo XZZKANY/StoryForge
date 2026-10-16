@@ -16,6 +16,18 @@ export function mapAgentStepStatus(status: string): AgentStepStatus {
   return 'pending';
 }
 
+/**
+ * 模型请求（「准备第 N 次模型请求」）每轮都有、和底部运行条重复，不进思考过程；
+ * 运行条照常拿它当当前步骤显示，重试 / 退避时把原因写出来。
+ */
+export function isModelRequestStep(step: AgentStep): boolean {
+  return step.tool === 'agent.provider';
+}
+
+export function processSteps(steps: readonly AgentStep[]): AgentStep[] {
+  return steps.filter((step) => !isModelRequestStep(step));
+}
+
 // 思考过程里工具的叫法：作者看到的是「读取 正文/第005章.md」，不是「fs.read completed」。
 const TOOL_LABELS: Record<string, string> = {
   'context.load': '读取上下文',

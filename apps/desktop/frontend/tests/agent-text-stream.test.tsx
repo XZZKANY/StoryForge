@@ -752,6 +752,8 @@ it('a step after visible text stops the typing caret; a step before any text cha
   await start();
   await stepEvent('准备第 1 次模型请求。', 1);
   expect(current.state.messages[0].stream?.phase).toBe('waiting');
+  // 只有模型请求时思考过程整个不出现（连同外层容器，免得在消息之间留一段空白）。
+  expect(host.querySelector('[data-testid="agent-run-process"]')).toBeNull();
   await delta('好，我来改结尾。', 1);
   await flushTimers();
   expect(current.state.messages[0].stream?.phase).toBe('streaming');
