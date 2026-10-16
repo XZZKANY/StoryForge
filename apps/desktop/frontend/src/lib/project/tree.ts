@@ -37,10 +37,13 @@ export function buildProjectTree(entries: FileEntry[], projectPath: string): Pro
     }
   }
 
+  // 点开头的（.草稿 .留底 .资料 .storyforge 这类作者 / 应用的工作区）排在同类后面：
+  // 打开文件树先看到的应该是正文，而不是一屏点目录（作者 10-16：「正文在最底下」）。
+  const dotted = (node: ProjectTreeNode) => node.name.startsWith('.');
   const sortNodes = (nodes: ProjectTreeNode[]) => {
     nodes.sort((a, b) => {
-      if (a.isDir && !b.isDir) return -1;
-      if (!a.isDir && b.isDir) return 1;
+      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+      if (dotted(a) !== dotted(b)) return dotted(a) ? 1 : -1;
       return a.name.localeCompare(b.name);
     });
     nodes.forEach((node) => sortNodes(node.children));
