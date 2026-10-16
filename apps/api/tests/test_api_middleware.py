@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -234,10 +235,49 @@ def test_request_timeout_middleware_returns_504_for_slow_handlers(monkeypatch) -
     monkeypatch.setenv("STORYFORGE_REQUEST_TIMEOUT_SECONDS", "0.01")
 
     with TestClient(app, headers={"X-StoryForge-API-Key": "local-dev-key"}) as client:
-        response = client.get(route_path)
+        response = client.get(route_path, headers={"Origin": "http://localhost:3007"})
 
     assert response.status_code == 504
     assert response.json() == {"detail": "请求处理超时。"}
+    # 不带跨域头的 504 在浏览器里只是 Failed to fetch，前端分不清超时与断线。
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3007"
+
+
+def test_agent_control_request_is_not_cut_by_request_timeout(client, monkeypatch) -> None:
+    """「开始起草」的控制请求要等起草与检查跑完才回执，不能被请求总时限截成 504。"""
+
+    def slow_control(*_args, **_kwargs):
+        time.sleep(0.2)
+        raise RuntimeError("慢控制探针")
+
+    monkeypatch.setattr("app.domains.ide.router.handle_agent_control_message", slow_control)
+    monkeypatch.setenv("STORYFORGE_REQUEST_TIMEOUT_SECONDS", "0.01")
+
+    response = client.post(
+        "/api/ide/agent/sessions/session-slow/control",
+        json={"type": "resume_run", "run_id": "run-slow", "payload": {}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["detail"] == "慢控制探针"
+
+
+def test_auth_and_rate_limit_rejections_carry_cors_header(monkeypatch) -> None:
+    """认证失败与限流也要带跨域头，前端才能按状态码报错，而不是只见 Failed to fetch。"""
+
+    origin = "http://localhost:3007"
+    with TestClient(app) as client:
+        unauthenticated = client.get("/api/agent-runs", headers={"Origin": origin})
+
+    assert unauthenticated.status_code == 401
+    assert unauthenticated.headers["access-control-allow-origin"] == origin
+
+    monkeypatch.setattr("app.main._rate_strategy.hit", lambda *_args, **_kwargs: False)
+    with TestClient(app, headers={"X-StoryForge-API-Key": "local-dev-key"}) as client:
+        limited = client.get("/api/agent-runs", headers={"Origin": origin})
+
+    assert limited.status_code == 429
+    assert limited.headers["access-control-allow-origin"] == origin
 
 
 def test_warn_default_credentials_logs_warning_in_non_development(monkeypatch, caplog, reset_settings_cache) -> None:

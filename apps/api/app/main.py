@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -141,6 +142,12 @@ def _rate_limit_key(request: Request) -> str:
     )
 
 
+# 「开始起草」的 resume_run 控制请求要在这一个请求里把起草、检查与修复跑完才回执，真实模型下
+# 常超过两分钟。到点也停不下线程池里的这一轮（run 照样跑完、落库），只会让前端拿不到结果，
+# 所以这条路由不设总时限，由模型调用超时与前端的整轮等待兜底。
+_UNTIMED_REQUEST_PATH = re.compile(r"^/api/ide/agent/sessions/[^/]+/control$")
+
+
 def _request_timeout_seconds() -> float:
     """读取请求处理超时上限，配置无效时回退到默认值。"""
 
@@ -176,25 +183,12 @@ _READ_LIMIT = parse_limit("120/minute")
 _WRITE_LIMIT = parse_limit("60/minute")
 _BATCH_LIMIT = parse_limit("10/minute")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins(),
-    # 打包桌面 app 的 webview 源固定为 tauri://localhost 或 http(s)://tauri.localhost，
-    # 与开发 Vite 端口不同，必须放行，否则前端 fetch 后端会 CORS 失败（Failed to fetch）。
-    allow_origin_regex=r"^(tauri://localhost|https?://tauri\.localhost)$",
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    # 桌面端发出的每个自定义请求头都要列在这里，否则跨域预检被拒、请求根本发不出去
-    # （0.1.11 起 Ctrl+K / 续写带的影子头就是这样失败的），由 test_desktop_cors_headers 钉住。
-    allow_headers=["content-type", "x-storyforge-api-key", "authorization", "x-storyforge-host-generation",
-                   "x-storyforge-shadow"],
-)
-
-
 @app.middleware("http")
 async def enforce_request_timeout(request: Request, call_next):
     """限制单个请求的处理时长，避免下游永久占用工作线程。"""
 
+    if _UNTIMED_REQUEST_PATH.match(request.url.path):
+        return await call_next(request)
     try:
         return await asyncio.wait_for(call_next(request), timeout=_request_timeout_seconds())
     except TimeoutError:
@@ -251,6 +245,21 @@ async def require_authentication(request: Request, call_next):
     return JSONResponse(status_code=401, content={"detail": "缺少认证凭据。"})
 
 
+# 跨域头要包在认证、限流与超时外面：这三层自己回的 401 / 429 / 504 不带跨域头时，
+# 浏览器只报 Failed to fetch，前端分不清是超时、被限流还是后端没起。
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins(),
+    # 打包桌面 app 的 webview 源固定为 tauri://localhost 或 http(s)://tauri.localhost，
+    # 与开发 Vite 端口不同，必须放行，否则前端 fetch 后端会 CORS 失败（Failed to fetch）。
+    allow_origin_regex=r"^(tauri://localhost|https?://tauri\.localhost)$",
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    # 桌面端发出的每个自定义请求头都要列在这里，否则跨域预检被拒、请求根本发不出去
+    # （0.1.11 起 Ctrl+K / 续写带的影子头就是这样失败的），由 test_desktop_cors_headers 钉住。
+    allow_headers=["content-type", "x-storyforge-api-key", "authorization", "x-storyforge-host-generation",
+                   "x-storyforge-shadow"],
+)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
