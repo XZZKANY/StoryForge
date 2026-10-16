@@ -7,7 +7,7 @@
     "app/domains/agent_runs/patches/polishing.py": "6dcfc063a237d897b69321bfb77fff43496c0ac20d0afdbd754a3e69537ef0c1",
     "app/domains/assistant/continuation.py": "1cff74bd7369c0fc2a03c9fbadf9362552e95da635c251f1aac68985a3d4d1c6",
     "app/domains/assistant/revision.py": "b8695a62d17df9348ccd1e550393d6b0421c1e25beaa98e4fdf37dbe5c3a282a",
-    "app/domains/assistant/service.py": "cb96eaefcf8576751c503c75434a74fe4be68402890a852591b599be90b03f8d"
+    "app/domains/assistant/service.py": "e3f5864e4ad2f8e488b55382b79d53b898fcf9474b82fb53c834bac8e5fb0ace"
   },
   "pure": [
     {

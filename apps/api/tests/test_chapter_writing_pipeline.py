@@ -252,3 +252,77 @@ def test_failed_checker_does_not_release_a_draft_the_program_already_rejected(
     assert resumed["agent_result"]["chapter_candidate"]["content"] == "一" * 100
     assert check_calls == 2
     assert target.read_text(encoding="utf-8") == ""
+
+
+def test_repaired_chapter_comes_back_full_width(session, tmp_path, monkeypatch) -> None:
+    project = tmp_path / "project"
+    (project / "正文").mkdir(parents=True)
+    target = project / "正文" / "第001章.md"
+    target.write_text("", encoding="utf-8")
+    check_calls = 0
+
+    def fake_chat(_session, *, user_message, context_block, assistant_session_id):
+        nonlocal check_calls
+        if "整理成 Chapter Brief" in user_message:
+            return {"reply": '{"goal":"建立冲突","required_beats":["见面"]}'}
+        check_calls += 1
+        missing = {
+            "rule": "missing_required_beat",
+            "severity": "hard",
+            "message": "缺少见面",
+            "line": 1,
+            "evidence": "一",
+        }
+        return chapter_check_reply(user_message, [missing] if check_calls == 1 else [])
+
+    monkeypatch.setattr(assistant_service, "chat_reply", fake_chat)
+    monkeypatch.setattr(
+        assistant_service,
+        "draft_file_content",
+        lambda *_args, **_kwargs: AssistantDraftResponse(
+            content="一" * 1800,
+            summary="草稿完成",
+            model="fake",
+            latency_ms=1,
+            completion_tokens=10,
+            assistant_session_id=1,
+        ),
+    )
+    monkeypatch.setattr(
+        assistant_service,
+        "revise_file_content",
+        lambda *_args, **_kwargs: AssistantReviseResponse(
+            before="一" * 1800,
+            after="二," * 900,
+            summary="修复完成",
+            model="fake",
+            latency_ms=1,
+            completion_tokens=10,
+            assistant_session_id=1,
+        ),
+    )
+    run = _seed_agent_run(session, public_id="run-chapter-repair-fullwidth")
+    run.permission_profile = "ask"
+    session.commit()
+    initial = AgentRuntime(_AgentRunEventSink(session)).run_user_message(
+        session,
+        run=run,
+        agent_session_id=run.session_id,
+        message={
+            "intent": "chapter.write",
+            "user_message": "写第一章",
+            "args": {"project_path": str(project), "file_path": str(target), "context_bundle": {"files": []}},
+        },
+    )
+    resumed = handle_agent_control_message(
+        session,
+        public_id=run.public_id,
+        session_id=run.session_id,
+        control_type="resume_run",
+        payload={"chapter_brief": initial["agent_result"]["chapter_brief"]},
+    ).resumed_result
+    assert resumed is not None
+    assert resumed["proposed_patch"]["after"] == "二，" * 900
+    repair = next(trace for trace in resumed["tool_trace"] if trace["tool_name"] == "chapter.repair")
+    assert repair["output_summary"]["punctuation_normalized"] == 900
+    assert check_calls == 2

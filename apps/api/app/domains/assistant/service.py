@@ -37,6 +37,7 @@ from app.common.llm_env import missing_llm_env, resolved_llm_env
 from app.common.manuscript import previous_chapter_tail
 from app.common.performance import measure_stage, measured
 from app.common.performance_logging import observe_run
+from app.common.punctuation import fullwidth_cjk_punctuation
 from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.assistant import continuation, provider_health
 from app.domains.assistant.continue_context import admitted_continue_context
@@ -1082,7 +1083,7 @@ def draft_file_content(
         )
         raise AssistantReviseError(str(exc), usage=exc.usage) from exc
 
-    content = str(result["content"])
+    content, punctuation_normalized = fullwidth_cjk_punctuation(str(result["content"]))
     model = str(llm_env.get("STORYFORGE_LLM_MODEL") or "")
     completion_tokens = result.get("completion_tokens")
     latency_ms = int(result.get("latency_ms", 0) or 0)
@@ -1101,6 +1102,8 @@ def draft_file_content(
     if result.get("reasoning_leak_stripped"):
         # 剥离过 think 泄漏的产物可能被吞正文（已实证吞标题），证据链留标记供归因与人工复核。
         draft_output_summary["reasoning_leak_stripped"] = True
+    if punctuation_normalized:
+        draft_output_summary["punctuation_normalized"] = punctuation_normalized
     update_assistant_tool_call(
         session,
         tool_call.id,

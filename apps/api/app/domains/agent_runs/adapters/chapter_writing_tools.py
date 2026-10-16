@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.common.punctuation import fullwidth_cjk_punctuation
 from app.domains.agent_runs.adapters.chapter_source_guard import prepare_chapter_writing_context
 from app.domains.agent_runs.adapters.chapter_writing_contracts import (
     brief_prompt,
@@ -145,9 +146,14 @@ class ChapterWritingToolsMixin:
             ),
             prepared_context=prepared,
         )
+        # 修复走修订链路，改到的行可能又写回半角；与起草一样统一成全角。
+        content, punctuation_normalized = fullwidth_cjk_punctuation(response.after)
+        output_summary: dict[str, Any] = {"content_chars": len(content), "model": response.model}
+        if punctuation_normalized:
+            output_summary["punctuation_normalized"] = punctuation_normalized
         return ToolResult(
             status="completed",
-            output={"content": response.after, "model": response.model},
+            output={"content": content, "model": response.model},
             trace=AgentToolTrace(
                 tool_name="chapter.repair",
                 status="completed",
@@ -155,6 +161,6 @@ class ChapterWritingToolsMixin:
                     "brief_id": payload["brief"]["brief_id"],
                     "hard_failure_count": payload["check"]["hard_failure_count"],
                 },
-                output_summary={"content_chars": len(response.after), "model": response.model},
+                output_summary=output_summary,
             ),
         )

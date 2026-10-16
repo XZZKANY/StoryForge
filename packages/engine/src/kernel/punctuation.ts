@@ -145,3 +145,147 @@ export function restoreIncidentalPunctuation(
   for (; position < afterLines.length; position++) restored.push(afterLines[position]);
   return restored.join('\n');
 }
+
+// 起草统一成全角（2026-10-15 作者拍板）：模型偶尔整章写成半角逗号与直引号，只看相邻字符判断是不是中文语境，
+// 两侧都不是中文（数字、英文、网址、Markdown 语法）就不动（fullwidth_cjk_punctuation）。
+const HAN_RANGES: readonly (readonly [number, number])[] = [
+  [0x3400, 0x4dbf],
+  [0x4e00, 0x9fff],
+  [0xf900, 0xfaff],
+  [0x20000, 0x3134f],
+];
+const CJK_MARKS = '“”‘’…—';
+const CONTEXT_FULLWIDTH: Readonly<Record<string, string>> = {
+  ',': '，',
+  '?': '？',
+  '!': '！',
+  ';': '；',
+};
+// 转成这些全角标点后，紧跟的一个半角空格是半角排版的残留。
+const SPACE_EATERS = new Set(['，', '。', '？', '！', '；', '：']);
+
+const han = (char: string | null): boolean => {
+  if (char === null) return false;
+  const code = char.codePointAt(0) as number;
+  return HAN_RANGES.some(([low, high]) => low <= code && code <= high);
+};
+
+const cjk = (char: string | null): boolean => {
+  if (char === null) return false;
+  const code = char.codePointAt(0) as number;
+  return (
+    han(char) ||
+    (0x3000 <= code && code <= 0x303f) ||
+    (0xff00 <= code && code <= 0xffef) ||
+    CJK_MARKS.includes(char)
+  );
+};
+
+const asciiAlnum = (char: string): boolean => /^[A-Za-z0-9]$/.test(char);
+
+/**
+ * 中文语境里的半角标点统一成全角，返回新文本与改动处数（一串省略号或破折号算一处）。
+ * 引号与括号按行成对处理：一行里直引号个数为奇数、括号配不上对、括号里没有汉字时都不动，留给作者看。
+ */
+export function fullwidthCjkPunctuation(text: string): [string, number] {
+  let total = 0;
+  const lines = text.split('\n').map((line) => {
+    const [converted, count] = fullwidthLine(Array.from(line));
+    total += count;
+    return converted;
+  });
+  return [lines.join('\n'), total];
+}
+
+function pairedMarks(chars: string[]): Map<number, string> {
+  const pairs = new Map<number, string>();
+  if (!chars.some(han)) return pairs;
+  const doubles = chars.flatMap((char, index) => (char === '"' ? [index] : []));
+  // 两侧都是英文字母或数字的单引号是撇号（don't、90's），不算引号。
+  const singles = chars.flatMap((char, index) =>
+    char === "'" &&
+    !(
+      0 < index &&
+      index < chars.length - 1 &&
+      asciiAlnum(chars[index - 1]) &&
+      asciiAlnum(chars[index + 1])
+    )
+      ? [index]
+      : [],
+  );
+  for (const [positions, left, right] of [
+    [doubles, '“', '”'],
+    [singles, '‘', '’'],
+  ] as const) {
+    if (positions.length % 2 === 0)
+      positions.forEach((index, order) => pairs.set(index, order % 2 === 0 ? left : right));
+  }
+  const opened: number[] = [];
+  chars.forEach((char, index) => {
+    if (char === '(') opened.push(index);
+    else if (char === ')' && opened.length) {
+      const start = opened.pop() as number;
+      // `](` 是 Markdown 链接。
+      if (!(start > 0 && chars[start - 1] === ']') && chars.slice(start + 1, index).some(han)) {
+        pairs.set(start, '（');
+        pairs.set(index, '）');
+      }
+    }
+  });
+  return pairs;
+}
+
+function fullwidthLine(chars: string[]): [string, number] {
+  const pairs = pairedMarks(chars);
+  const out: string[] = [];
+  let count = 0;
+  let index = 0;
+  while (index < chars.length) {
+    const char = chars[index];
+    let end = index + 1;
+    let piece: string | null;
+    if (pairs.has(index)) piece = pairs.get(index) as string;
+    else {
+      while ('.-…—'.includes(char) && end < chars.length && chars[end] === char) end += 1;
+      const tail = out.length ? Array.from(out[out.length - 1]) : [];
+      const last = tail.length ? tail[tail.length - 1] : null;
+      const after = end < chars.length ? chars[end] : null;
+      piece = fullwidthPiece(char, end - index, last, after);
+    }
+    if (piece === null) out.push(chars.slice(index, end).join(''));
+    else {
+      out.push(piece);
+      count += 1;
+      if (
+        SPACE_EATERS.has(piece) &&
+        end + 1 < chars.length &&
+        chars[end] === ' ' &&
+        (cjk(chars[end + 1]) || '"\''.includes(chars[end + 1]))
+      )
+        end += 1;
+    }
+    index = end;
+  }
+  return [out.join(''), count];
+}
+
+function fullwidthPiece(
+  char: string,
+  run: number,
+  last: string | null,
+  after: string | null,
+): string | null {
+  const context = cjk(last) || cjk(after);
+  if (char === '.') {
+    if (run >= 3) return context ? '……' : null;
+    if (run === 1 && cjk(last) && (after === null || ' \t\r"\''.includes(after) || cjk(after)))
+      return '。';
+    return null;
+  }
+  if (char === '-') return run >= 2 && context ? '——' : null;
+  if (char === '…' || char === '—') return run === 1 && context ? char.repeat(2) : null;
+  if (char === ':') return cjk(last) ? '：' : null;
+  if (char === '!' && after === '[') return null; // Markdown 图片
+  if (char in CONTEXT_FULLWIDTH && context) return CONTEXT_FULLWIDTH[char];
+  return null;
+}

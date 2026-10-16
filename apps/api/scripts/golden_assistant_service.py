@@ -255,6 +255,9 @@ def p2_assistant_service_snapshot() -> dict:
                                    "project_name": "末世"}, [done]),
             ("draft", "draft-existing-session", {"file_path": "正文/第005章.md", "instruction": "写", "project_root": "$ROOT",
                                                  "assistant_session_id": 1}, [{"content": "初稿。", "reasoning_leak_stripped": True}]),
+            # 模型整段写成半角：出稿前统一成全角，工具记录记下改了几处。
+            ("draft", "draft-half-width", {"file_path": "正文/第006章.md", "instruction": "写", "project_root": "$ROOT"},
+             [{"content": '他说,走吧."站住!"他等了很久...'}]),
             ("draft", "draft-llm-error", {"file_path": "正文/第005章.md", "instruction": "写", "project_root": "$ROOT"},
              [{"raise": "LLMError", "message": "超时"}]),
             ("draft", "draft-interrupted", {"file_path": "正文/第005章.md", "instruction": "写"},

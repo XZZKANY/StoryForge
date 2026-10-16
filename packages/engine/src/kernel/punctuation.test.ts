@@ -3,6 +3,7 @@ import golden from '../../golden/p1-punctuation.json';
 import {
   canonicalPunctuation,
   DIALOGUE_PATTERN,
+  fullwidthCjkPunctuation,
   restoreIncidentalPunctuation,
 } from './punctuation';
 
@@ -38,6 +39,11 @@ describe('real Python punctuation oracle', () => {
         expect(DIALOGUE_PATTERN.lastIndex).toBe(0);
       }
     });
+  }
+  for (const fixture of golden.fullwidth) {
+    it(fixture.id, () =>
+      expect(fullwidthCjkPunctuation(fixture.input)).toEqual([fixture.output, fixture.count]),
+    );
   }
   for (const fixture of golden.restoration) {
     it(fixture.id, () => {

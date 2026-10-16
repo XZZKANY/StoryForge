@@ -129,3 +129,122 @@ def _punctuation_units(text: str) -> list[tuple[str, str]]:
         else:
             units.append((canonical, char))
     return units
+
+
+# 起草统一成全角（2026-10-15 作者拍板）：模型偶尔整章写成半角逗号与直引号，只看相邻字符判断是不是中文语境，
+# 两侧都不是中文（数字、英文、网址、Markdown 语法）就不动。
+_HAN_RANGES = ((0x3400, 0x4DBF), (0x4E00, 0x9FFF), (0xF900, 0xFAFF), (0x20000, 0x3134F))
+_CJK_MARKS = "“”‘’…—"
+_CONTEXT_FULLWIDTH = {",": "，", "?": "？", "!": "！", ";": "；"}
+# 转成这些全角标点后，紧跟的一个半角空格是半角排版的残留。
+_SPACE_EATERS = frozenset("，。？！；：")
+
+
+def _han(char: str | None) -> bool:
+    return char is not None and any(low <= ord(char) <= high for low, high in _HAN_RANGES)
+
+
+def _cjk(char: str | None) -> bool:
+    if char is None:
+        return False
+    code = ord(char)
+    return _han(char) or 0x3000 <= code <= 0x303F or 0xFF00 <= code <= 0xFFEF or char in _CJK_MARKS
+
+
+def _ascii_alnum(char: str) -> bool:
+    return char.isascii() and char.isalnum()
+
+
+def fullwidth_cjk_punctuation(text: str) -> tuple[str, int]:
+    """中文语境里的半角标点统一成全角，返回新文本与改动处数（一串省略号或破折号算一处）。
+
+    引号与括号按行成对处理：一行里直引号个数为奇数、括号配不上对、括号里没有汉字时都不动，留给作者看。"""
+
+    total = 0
+    lines = []
+    for line in text.split("\n"):
+        converted, count = _fullwidth_line(list(line))
+        lines.append(converted)
+        total += count
+    return "\n".join(lines), total
+
+
+def _paired_marks(chars: list[str]) -> dict[int, str]:
+    pairs: dict[int, str] = {}
+    if not any(_han(char) for char in chars):
+        return pairs
+    doubles = [index for index, char in enumerate(chars) if char == '"']
+    # 两侧都是英文字母或数字的单引号是撇号（don't、90's），不算引号。
+    singles = [
+        index
+        for index, char in enumerate(chars)
+        if char == "'"
+        and not (0 < index < len(chars) - 1 and _ascii_alnum(chars[index - 1]) and _ascii_alnum(chars[index + 1]))
+    ]
+    for positions, (left, right) in ((doubles, "“”"), (singles, "‘’")):
+        if len(positions) % 2 == 0:
+            for order, index in enumerate(positions):
+                pairs[index] = left if order % 2 == 0 else right
+    opened: list[int] = []
+    for index, char in enumerate(chars):
+        if char == "(":
+            opened.append(index)
+        elif char == ")" and opened:
+            start = opened.pop()
+            # `](` 是 Markdown 链接。
+            if not (start > 0 and chars[start - 1] == "]") and any(_han(inner) for inner in chars[start + 1 : index]):
+                pairs[start], pairs[index] = "（", "）"
+    return pairs
+
+
+def _fullwidth_line(chars: list[str]) -> tuple[str, int]:
+    pairs = _paired_marks(chars)
+    out: list[str] = []
+    count = 0
+    index = 0
+    while index < len(chars):
+        char = chars[index]
+        end = index + 1
+        if index in pairs:
+            piece: str | None = pairs[index]
+        else:
+            while char in ".-…—" and end < len(chars) and chars[end] == char:
+                end += 1
+            last = out[-1][-1] if out else None
+            after = chars[end] if end < len(chars) else None
+            piece = _fullwidth_piece(char, end - index, last, after)
+        if piece is None:
+            out.append("".join(chars[index:end]))
+        else:
+            out.append(piece)
+            count += 1
+            if (
+                piece in _SPACE_EATERS
+                and end + 1 < len(chars)
+                and chars[end] == " "
+                and (_cjk(chars[end + 1]) or chars[end + 1] in "\"'")
+            ):
+                end += 1
+        index = end
+    return "".join(out), count
+
+
+def _fullwidth_piece(char: str, run: int, last: str | None, after: str | None) -> str | None:
+    context = _cjk(last) or _cjk(after)
+    if char == ".":
+        if run >= 3:
+            return "……" if context else None
+        if run == 1 and _cjk(last) and (after is None or after in " \t\r\"'" or _cjk(after)):
+            return "。"
+        return None
+    if char == "-":
+        return "——" if run >= 2 and context else None
+    if char in "…—":
+        return char * 2 if run == 1 and context else None
+    if char == ":":
+        return "：" if _cjk(last) else None
+    if char == "!" and after == "[":  # Markdown 图片
+        return None
+    if char in _CONTEXT_FULLWIDTH and context:
+        return _CONTEXT_FULLWIDTH[char]
+    return None

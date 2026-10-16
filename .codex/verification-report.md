@@ -8057,3 +8057,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 定向断言（`output/ts-engine-p5/check-replay/packaged-check.mjs`，gitignored）：冻结 exe 报 `app_version` 0.1.13；本机假模型 + 临时库与项目，真走「起草第1章 → 确认 brief → 起草 → 检查」。A：检查回复里引用对白的直引号没转义，读通，出正常补丁（询问档要确认），检查提示词不含 `target_chars`、含「篇幅由程序另行核对」；B：自动档、检查两次都回非 JSON，两次检查提示词相同，`recheck` 为 `[false, true]`，出「这份稿子未经检查」的补丁且 `requires_confirmation` 为 true，`checker_reply_excerpt` 记下原回复；两次都没写项目文件。
 - 前端产物：`dist/assets/store-*.js` 含新计划文案与 `checker_reply_excerpt`（引擎随前端打包）。
 - 未联通：作者装机后的真实写章表现。
+
+## 2026-10-15 起草统一成全角（Python 与引擎同改，0.1.14）
+
+- 起因：作者那篇 2256 字的起草稿，逗号与引号全是半角（113 个半角逗号、24 个直引号、0 个全角），而那次起草请求本身几乎全用全角（系统提示全角逗号 33 个、半角 1 个），可见提示词管不住。作者拍板统一成全角，且问明「不是放在提示词里吧」——确认不改提示词，做成出稿后的确定性转换。
+- 实现：`app/common/punctuation.py::fullwidth_cjk_punctuation` 与 `packages/engine/src/kernel/punctuation.ts::fullwidthCjkPunctuation`，逐行、按码点只看相邻字符：前或后是中文（汉字、CJK 标点、全角字符、弯引号、省略号、破折号）才转；`,?!;` 看两侧，`:` 与单个 `.` 只看前一个字（`.` 还要求后面是行尾、空白、引号或中文），三个以上 `.` → `……`，两个以上 `-` → `——`，单个 `…` `—` 补成两个；直引号与单引号按行成对（个数为奇数整行不动，两侧都是英文字母或数字的单引号是撇号），括号按栈配对且里面有汉字才转，`](` 是 Markdown 链接、`![` 是图片都不动；转成 `，。？！；：` 后紧跟的一个半角空格（后面接中文或引号）一并收掉。接入点：`assistant.service.draft_file_content` / `draftFileContent`（起草第N章、循环 `file.create`、桌面直接起草三条都经这里）与写章 `chapter.repair` 工具的输出（修复走修订链路，改到的行可能又写回半角）；转了几处记 `punctuation_normalized`（为 0 不记）。续写与修订（Ctrl+K / Ctrl+Shift+K / `file.revise`）不在范围内。
+- 实测：作者那篇稿子转换后 141 处，半角逗号与直引号归零；数字（3,000、10:30、2.5）、网址、英文、Markdown 链接与图片不动。
+- 覆盖：p1-punctuation 加 341 条转换用例（41 条固定 + 300 条随机，种子 20261015），引擎逐条一致；p2-assistant-service 加 `draft-half-width`，p3-chapter-writing 加 `write-repair-half-width`（场景 38）；只改了源文件哈希的 p2-assistant-pure / p3-patch-tools / p4-assistant-store / p4-legacy-import 随之复导。全部 44 份基准逐份 `--check`：其余受影响的只有记录里的 `app_version` / User-Agent 停在 0.1.10（p2-llm-*、p3-agent-run、p3-agent-control、p3-polish、p3-deep-consistency、p3-fixed-pipelines、p3-wiring，历次升版本未复导，回放不比这些字段）与 p5-shadow 的耗时毫秒抖动，均与本次无关，未动。pytest：`test_fullwidth_drafts.py`（规则、不动的情形、起草出稿与记录处数）、`test_chapter_writing_pipeline.py`（修复稿统一成全角）。
+- 变异：21 / 21（Python 10：起草不转、不记处数、修复稿不转、奇数引号也配对、撇号算引号、Markdown 链接括号也转、图片感叹号也转、不收空格、无汉字的行也配引号、句点只看后一字；引擎 11：前 9 项同上加码点越界判断错、省略号只认三个以上）。
+- 全量：门禁 11 道全过。后台 `pnpm verify` 因本机内存不足被系统停掉，停之前前 5 道已在同一份代码上通过（lint 0 错误 / 2 条既有 warning、前端类型检查、shared 与 project-core 契约、引擎 13518）；剩下 6 道在前台分段补跑：前端 vitest（`--maxWorkers=3`）2234、行间续写真实 Monaco 回归（第一次 Vite 冷启动 `page.goto` 30 秒超时，重跑 5 项全过）、pytest 分五段合计 3326 通过 / 51 跳过、ruff、sidecar 冒烟 daily 档、OpenAPI 无漂移（只变版本号）。版本 bump 到 0.1.14。
+- 未联通：作者装机后真实起草的观感。

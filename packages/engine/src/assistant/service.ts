@@ -7,6 +7,7 @@ import type { GenerationDeliveryCapture } from '../kernel/generationDelivery';
 import { GenerationSourceBudgetError, GenerationSourceCapture } from '../kernel/generationSources';
 import { InputDomainError } from '../kernel/json';
 import { previousChapterTail } from '../kernel/previousChapter';
+import { fullwidthCjkPunctuation } from '../kernel/punctuation';
 import { ProjectTreeError } from '../kernel/projectTree';
 import { pythonStrip } from '../kernel/pythonText';
 import type { PlainJson, SecretContext } from '../kernel/redaction';
@@ -887,7 +888,7 @@ export async function draftFileContent(
   } catch (error) {
     return recordLlmFailure(deps, toolCall, llm, error);
   }
-  const content = String(result.content);
+  const [content, punctuationNormalized] = fullwidthCjkPunctuation(String(result.content));
   const latency = latencyOf(result);
   const output: Obj = {
     content_chars: cpLen(content),
@@ -896,6 +897,7 @@ export async function draftFileContent(
   };
   // 剥离过思维链泄漏的产物可能被吞正文，证据链留标记供归因与人工复核。
   if (result.reasoning_leak_stripped) output.reasoning_leak_stripped = true;
+  if (punctuationNormalized) output.punctuation_normalized = punctuationNormalized;
   await deps.store.updateToolCall(toolCall.id, { status: 'completed', output_summary: output });
   return {
     content,

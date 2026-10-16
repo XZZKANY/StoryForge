@@ -75,7 +75,7 @@
       "第13条消息。。。。。。。。。。。。。。。。。。。。"
     ]
   ],
-  "app_version": "0.1.12",
+  "app_version": "0.1.14",
   "step_seconds": 0.25,
   "fixed_now": "2026-10-12T08:30:00Z",
   "sources": {
@@ -92,7 +92,7 @@
     "app/domains/agent_runs/loop/recovery_sources.py": "a280d52cc13b0d5d67d8d196f0516f9e4457f86f403e5c0aab4c8dbe79c82173",
     "app/domains/agent_runs/adapters/chapter_writing_pipeline.py": "c1037e2b5ce048bf84f56e4afadba41300dc542211eaf66c94a2fc381c8a71f4",
     "app/domains/agent_runs/adapters/chapter_writing_contracts.py": "9f66f9a3f7ea1b86602892aeca7406b0df8bc190d11efb716c791a4e41d96be8",
-    "app/domains/agent_runs/adapters/chapter_writing_tools.py": "59faf8c6abe186d536cb9c5e73bb232e2153177522f3c0b592afdbd20b94e6e6",
+    "app/domains/agent_runs/adapters/chapter_writing_tools.py": "0b422ea42d0663641bda31dda2e6d9024ec1c42b5454252313899ea3408ee4ab",
     "app/domains/agent_runs/adapters/chapter_check_protocol.py": "c9c3c30c1d88ca55ae063f60d6c2a94bdb78566d55ffc9c033f9ee89fc8313f1",
     "app/domains/agent_runs/adapters/chapter_source_guard.py": "78584f6f59120d53ba1b42c15751444be7324cb5cb29416a689ebb125e0d569c",
     "app/domains/agent_runs/loop/generation_recovery.py": "ad840fb2038d962d0cf7832911d22e5eeac714f57861ba558f54bca1daabbb6b",
@@ -14977,6 +14977,3163 @@
           },
           "output_summary": {
             "reply_chars": 409,
+            "model": "m-1",
+            "prompt_tokens": 12,
+            "completion_tokens": 5,
+            "token_usage": 17,
+            "cost_cny_estimated": 7.25e-05,
+            "cost_breakdown": {
+              "currency": "CNY",
+              "prompt_tokens": 12,
+              "completion_tokens": 5,
+              "cache_hit_tokens": null,
+              "cache_miss_tokens": null,
+              "input_cny": 3e-05,
+              "output_cny": 4.25e-05,
+              "total_cny": 7.25e-05,
+              "input_cny_per_m_tokens": 2.5,
+              "output_cny_per_m_tokens": 8.5,
+              "cache_hit_input_cny_per_m_tokens": null,
+              "source": "provider_usage"
+            },
+            "token_usage_source": "provider_usage"
+          },
+          "error_message": null
+        }
+      ]
+    },
+    {
+      "id": "write-repair-half-width",
+      "spec_json": "{\"id\": \"write-repair-half-width\", \"message\": {\"type\": \"user_message\", \"user_message\": \"写第三章：沈禾带林舟入城\", \"run_id\": \"run-1\", \"args\": {\"project_path\": \"$ROOT\", \"file_path\": \"$ROOT/正文/第003章.md\"}, \"intent\": \"chapter.write\"}, \"replies\": [{\"status\": 200, \"body\": \"{\\\"id\\\": \\\"resp-1\\\", \\\"choices\\\": [{\\\"index\\\": 0, \\\"message\\\": {\\\"role\\\": \\\"assistant\\\", \\\"content\\\": \\\"{\\\\\\\"target_path\\\\\\\": \\\\\\\"正文/第003章.md\\\\\\\", \\\\\\\"chapter_ordinal\\\\\\\": null, \\\\\\\"chapter_title\\\\\\\": \\\\\\\"入城\\\\\\\", \\\\\\\"goal\\\\\\\": \\\\\\\"沈禾带林舟入城\\\\\\\", \\\\\\\"pov\\\\\\\": \\\\\\\"林舟\\\\\\\", \\\\\\\"setting\\\\\\\": \\\\\\\"城门\\\\\\\", \\\\\\\"required_beats\\\\\\\": [\\\\\\\"入城\\\\\\\", \\\\\\\"夜宿\\\\\\\"], \\\\\\\"forbidden_items\\\\\\\": [\\\\\\\"回忆\\\\\\\"], \\\\\\\"continuity_constraints\\\\\\\": [\\\\\\\"林舟左臂有旧伤\\\\\\\"], \\\\\\\"target_chars_min\\\\\\\": 10, \\\\\\\"target_chars_max\\\\\\\": 400}\\\"}, \\\"finish_reason\\\": \\\"stop\\\"}], \\\"usage\\\": {\\\"prompt_tokens\\\": 12, \\\"completion_tokens\\\": 5, \\\"total_tokens\\\": 17}}\"}, {\"status\": 200, \"body\": \"data: {\\\"choices\\\": [{\\\"index\\\": 0, \\\"delta\\\": {\\\"content\\\": \\\"第三章 入城\\\\n\\\\n沈禾带林舟穿过城门。\\\\n守卫看了他们一眼。\\\\n\\\"}}]}\\n\\ndata: {\\\"choices\\\": [{\\\"index\\\": 0, \\\"delta\\\": {}, \\\"finish_reason\\\": \\\"stop\\\"}]}\\n\\ndata: {\\\"choices\\\": [], \\\"usage\\\": {\\\"prompt_tokens\\\": 12, \\\"completion_tokens\\\": 5, \\\"total_tokens\\\": 17}}\\n\\ndata: [DONE]\\n\\n\"}, {\"chapter_check\": {\"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺少夜宿情节\", \"line\": 3, \"evidence\": \"沈禾带林舟穿过城门。\"}], \"corrupt\": false}}, {\"status\": 200, \"body\": \"data: {\\\"choices\\\": [{\\\"index\\\": 0, \\\"delta\\\": {\\\"content\\\": \\\"第三章 入城\\\\n\\\\n沈禾带林舟穿过城门,夜宿客栈.\\\\n守卫看了他们一眼。\\\\n\\\"}}]}\\n\\ndata: {\\\"choices\\\": [{\\\"index\\\": 0, \\\"delta\\\": {}, \\\"finish_reason\\\": \\\"stop\\\"}]}\\n\\ndata: {\\\"choices\\\": [], \\\"usage\\\": {\\\"prompt_tokens\\\": 12, \\\"completion_tokens\\\": 5, \\\"total_tokens\\\": 17}}\\n\\ndata: [DONE]\\n\\n\"}, {\"chapter_check\": {\"findings\": [], \"corrupt\": false}}], \"env\": {}, \"triggers\": [], \"stream\": false, \"history\": null, \"sessions\": [], \"ops\": [{\"op\": \"control\", \"type\": \"resume_run\", \"payload\": {\"chapter_brief\": {\"brief_id\": \"chapter-brief-00000000000000000000000000000001\", \"revision\": 1, \"chapter_title\": \"入城\", \"goal\": \"沈禾带林舟入城，夜宿客栈\", \"pov\": \"林舟\", \"setting\": \"城门\", \"required_beats\": [\"入城\", \"夜宿\"], \"forbidden_items\": [\"回忆\"], \"continuity_constraints\": [\"林舟左臂有旧伤\"], \"target_chars_min\": 10, \"target_chars_max\": 400}}}]}",
+      "result": {
+        "type": "agent_result",
+        "session_id": "sess-1",
+        "assistant_session_id": 1,
+        "intent": "chapter.write",
+        "user_message": "写第三章：沈禾带林舟入城",
+        "agent_role_hints": [],
+        "agent_role_mentions": [],
+        "plan": [
+          {
+            "step": "chapter.brief",
+            "detail": "已生成可编辑 Chapter Brief。",
+            "status": "completed"
+          },
+          {
+            "step": "chapter.brief.confirm",
+            "detail": "等待作者确认 Chapter Brief。",
+            "status": "needs_approval"
+          },
+          {
+            "step": "chapter.draft",
+            "detail": "确认后起草正文。",
+            "status": "pending"
+          },
+          {
+            "step": "chapter.check",
+            "detail": "检查并在必要时定向修复一次。",
+            "status": "pending"
+          },
+          {
+            "step": "chapter.patch",
+            "detail": "检查通过后生成 proposed patch。",
+            "status": "pending"
+          }
+        ],
+        "agent_result": {
+          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "requires_user_confirmation": true,
+          "confirmation_kind": "chapter_brief",
+          "chapter_brief": {
+            "brief_id": "chapter-brief-00000000000000000000000000000001",
+            "revision": 1,
+            "target_path": "正文/第003章.md",
+            "chapter_ordinal": null,
+            "chapter_title": "入城",
+            "goal": "沈禾带林舟入城",
+            "pov": "林舟",
+            "setting": "城门",
+            "required_beats": [
+              "入城",
+              "夜宿"
+            ],
+            "forbidden_items": [
+              "回忆"
+            ],
+            "continuity_constraints": [
+              "林舟左臂有旧伤"
+            ],
+            "target_chars_min": 10,
+            "target_chars_max": 400,
+            "context_provenance": {
+              "snapshot_id": "llmctx-6470ffe12d5929df",
+              "source_manifest": [],
+              "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "section_count": 3,
+              "context_file_count": 0,
+              "context_files": [],
+              "knowledge_entries": [],
+              "story_memory_count": 0,
+              "has_chapter_context": false,
+              "has_review_report": false,
+              "warning_count": 0
+            }
+          },
+          "confirmation_action": {
+            "kind": "chapter_brief",
+            "chapter_brief": {
+              "brief_id": "chapter-brief-00000000000000000000000000000001",
+              "revision": 1,
+              "target_path": "正文/第003章.md",
+              "chapter_ordinal": null,
+              "chapter_title": "入城",
+              "goal": "沈禾带林舟入城",
+              "pov": "林舟",
+              "setting": "城门",
+              "required_beats": [
+                "入城",
+                "夜宿"
+              ],
+              "forbidden_items": [
+                "回忆"
+              ],
+              "continuity_constraints": [
+                "林舟左臂有旧伤"
+              ],
+              "target_chars_min": 10,
+              "target_chars_max": 400,
+              "context_provenance": {
+                "snapshot_id": "llmctx-6470ffe12d5929df",
+                "source_manifest": [],
+                "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "section_count": 3,
+                "context_file_count": 0,
+                "context_files": [],
+                "knowledge_entries": [],
+                "story_memory_count": 0,
+                "has_chapter_context": false,
+                "has_review_report": false,
+                "warning_count": 0
+              }
+            }
+          }
+        },
+        "tool_trace": [
+          {
+            "tool_name": "chapter.brief",
+            "status": "completed",
+            "input_summary": {
+              "target_path": "正文/第003章.md",
+              "snapshot_id": "llmctx-6470ffe12d5929df",
+              "source_manifest": [],
+              "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "section_count": 3,
+              "context_file_count": 0,
+              "context_files": [],
+              "knowledge_entries": [],
+              "story_memory_count": 0,
+              "has_chapter_context": false,
+              "has_review_report": false,
+              "warning_count": 0
+            },
+            "output_summary": {
+              "brief_id": "chapter-brief-00000000000000000000000000000001",
+              "revision": 1
+            }
+          }
+        ],
+        "proposed_patch": null,
+        "runtime_mode": "agent_runtime",
+        "run_id": "run-1"
+      },
+      "controls": [
+        {
+          "event": {
+            "event_type": "resume_run",
+            "sequence": 10,
+            "payload": {
+              "session_id": "sess-1",
+              "run_id": "run-1",
+              "control_type": "resume_run",
+              "chapter_brief": {
+                "brief_id": "chapter-brief-00000000000000000000000000000001",
+                "revision": 1,
+                "chapter_title": "入城",
+                "goal": "沈禾带林舟入城，夜宿客栈",
+                "pov": "林舟",
+                "setting": "城门",
+                "required_beats": [
+                  "入城",
+                  "夜宿"
+                ],
+                "forbidden_items": [
+                  "回忆"
+                ],
+                "continuity_constraints": [
+                  "林舟左臂有旧伤"
+                ],
+                "target_chars_min": 10,
+                "target_chars_max": 400
+              },
+              "control_effect": "applied",
+              "runtime_state": "settled",
+              "run_status": "paused"
+            }
+          },
+          "resumed_result": {
+            "type": "agent_result",
+            "session_id": "sess-1",
+            "assistant_session_id": 1,
+            "intent": "chapter.write",
+            "user_message": "写第三章：沈禾带林舟入城",
+            "agent_role_hints": [],
+            "agent_role_mentions": [],
+            "plan": [
+              {
+                "step": "chapter.brief",
+                "detail": "作者已确认 Chapter Brief。",
+                "status": "completed"
+              },
+              {
+                "step": "chapter.brief.confirm",
+                "detail": "Chapter Brief 已确认。",
+                "status": "completed"
+              },
+              {
+                "step": "chapter.draft",
+                "detail": "已按 brief 起草正文。",
+                "status": "completed"
+              },
+              {
+                "step": "chapter.check",
+                "detail": "章节检查已完成。",
+                "status": "completed"
+              },
+              {
+                "step": "chapter.patch",
+                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "status": "completed"
+              }
+            ],
+            "agent_result": {
+              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "requires_user_confirmation": true,
+              "chapter_brief": {
+                "brief_id": "chapter-brief-00000000000000000000000000000001",
+                "revision": 2,
+                "target_path": "正文/第003章.md",
+                "chapter_ordinal": null,
+                "chapter_title": "入城",
+                "goal": "沈禾带林舟入城，夜宿客栈",
+                "pov": "林舟",
+                "setting": "城门",
+                "required_beats": [
+                  "入城",
+                  "夜宿"
+                ],
+                "forbidden_items": [
+                  "回忆"
+                ],
+                "continuity_constraints": [
+                  "林舟左臂有旧伤"
+                ],
+                "target_chars_min": 10,
+                "target_chars_max": 400,
+                "context_provenance": {
+                  "snapshot_id": "llmctx-6470ffe12d5929df",
+                  "source_manifest": [],
+                  "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "section_count": 3,
+                  "context_file_count": 0,
+                  "context_files": [],
+                  "knowledge_entries": [],
+                  "story_memory_count": 0,
+                  "has_chapter_context": false,
+                  "has_review_report": false,
+                  "warning_count": 0
+                },
+                "status": "confirmed"
+              },
+              "chapter_check": {
+                "protocol_version": 2,
+                "content_sha256": "802ae167e649cdcbfdb2819240315cb9f9e6e6e751c55b125a93b36a25f999f5",
+                "brief_sha256": "6355decb404ea4d28da75a302d6cc22c2e186d0720a5186b3924d6013ded7484",
+                "status": "pass",
+                "execution_status": "completed",
+                "execution_code": null,
+                "coverage": {
+                  "supplied_content_chars": 33,
+                  "source_verified": true,
+                  "findings_received": 0,
+                  "findings_validated": 0,
+                  "findings_limit": 100,
+                  "result_complete": true
+                },
+                "manuscript_status": "pass",
+                "manuscript_hard_failure_count": 0,
+                "content_chars": 33,
+                "model_finding_count": 0,
+                "hard_failure_count": 0,
+                "advisory_count": 0,
+                "findings": [],
+                "checker_reply_excerpt": null
+              },
+              "repair_count": 1,
+              "writeback_blocked_until_user_confirms": true
+            },
+            "tool_trace": [
+              {
+                "tool_name": "chapter.draft",
+                "status": "completed",
+                "input_summary": {
+                  "brief_id": "chapter-brief-00000000000000000000000000000001",
+                  "target_path": "正文/第003章.md"
+                },
+                "output_summary": {
+                  "content_chars": 28,
+                  "model": "m-1"
+                }
+              },
+              {
+                "tool_name": "chapter.check",
+                "status": "completed",
+                "input_summary": {
+                  "brief_id": "chapter-brief-00000000000000000000000000000001",
+                  "attempt": 1,
+                  "recheck": false
+                },
+                "output_summary": {
+                  "status": "repairable",
+                  "execution_status": "completed",
+                  "execution_code": null,
+                  "coverage": {
+                    "supplied_content_chars": 28,
+                    "source_verified": true,
+                    "findings_received": 1,
+                    "findings_validated": 1,
+                    "findings_limit": 100,
+                    "result_complete": true
+                  },
+                  "manuscript_status": "fail",
+                  "manuscript_hard_failure_count": 1,
+                  "hard_failure_count": 1,
+                  "advisory_count": 0
+                }
+              },
+              {
+                "tool_name": "chapter.repair",
+                "status": "completed",
+                "input_summary": {
+                  "brief_id": "chapter-brief-00000000000000000000000000000001",
+                  "hard_failure_count": 1
+                },
+                "output_summary": {
+                  "content_chars": 33,
+                  "model": "m-1",
+                  "punctuation_normalized": 2
+                }
+              },
+              {
+                "tool_name": "chapter.check",
+                "status": "completed",
+                "input_summary": {
+                  "brief_id": "chapter-brief-00000000000000000000000000000001",
+                  "attempt": 2,
+                  "recheck": false
+                },
+                "output_summary": {
+                  "status": "pass",
+                  "execution_status": "completed",
+                  "execution_code": null,
+                  "coverage": {
+                    "supplied_content_chars": 33,
+                    "source_verified": true,
+                    "findings_received": 0,
+                    "findings_validated": 0,
+                    "findings_limit": 100,
+                    "result_complete": true
+                  },
+                  "manuscript_status": "pass",
+                  "manuscript_hard_failure_count": 0,
+                  "hard_failure_count": 0,
+                  "advisory_count": 0
+                }
+              }
+            ],
+            "proposed_patch": {
+              "id": "chapter-writing-00000000000000000000000000000002",
+              "kind": "file_revision",
+              "created_by_tool": "chapter.write",
+              "file_path": "$ROOT\\正文\\第003章.md",
+              "before": "",
+              "after": "第三章 入城\n\n沈禾带林舟穿过城门，夜宿客栈。\n守卫看了他们一眼。",
+              "requires_confirmation": true,
+              "approval_action": "desktop.confirm_file_writeback",
+              "brief_id": "chapter-brief-00000000000000000000000000000001"
+            },
+            "runtime_mode": "agent_runtime",
+            "run_id": "run-1",
+            "system_jobs": {
+              "title": {
+                "job_name": "conversation.title.generate",
+                "actor": "system-title-agent",
+                "hidden": true,
+                "mode": "deterministic",
+                "status": "completed",
+                "assistant_session_id": 1,
+                "title": "写第三章沈禾带林舟入城",
+                "updated_session_title": true
+              },
+              "summary": {
+                "job_name": "conversation.summary.update",
+                "actor": "system-summary-agent",
+                "hidden": true,
+                "mode": "deterministic",
+                "status": "completed",
+                "assistant_session_id": 1,
+                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+                "message_count": 4,
+                "tool_count": 4,
+                "review_issue_count": 0
+              }
+            }
+          },
+          "resume_diagnostic": null
+        }
+      ],
+      "frames": [
+        {
+          "type": "agent_run_started",
+          "session_id": "sess-1",
+          "run_id": "run-1",
+          "user_message": "写第三章：沈禾带林舟入城",
+          "event_id": 1,
+          "permission_profile": "ask",
+          "agent_role_hints": [],
+          "agent_role_mentions": []
+        },
+        {
+          "type": "agent_step",
+          "session_id": "sess-1",
+          "run_id": "run-1",
+          "assistant_session_id": 1,
+          "event_id": 3,
+          "sequence": 3,
+          "index": 0,
+          "step": "chapter.brief",
+          "detail": "整理章节目标与可信上下文。",
+          "status": "running"
+        },
+        {
+          "type": "agent_step",
+          "session_id": "sess-1",
+          "run_id": "run-1",
+          "assistant_session_id": 1,
+          "event_id": 3,
+          "sequence": 3,
+          "index": 1,
+          "step": "chapter.brief.confirm",
+          "detail": "等待作者确认 Chapter Brief。",
+          "status": "pending"
+        },
+        {
+          "type": "agent_step",
+          "session_id": "sess-1",
+          "run_id": "run-1",
+          "assistant_session_id": 1,
+          "event_id": 3,
+          "sequence": 3,
+          "index": 2,
+          "step": "chapter.draft",
+          "detail": "按确认后的 brief 起草正文。",
+          "status": "pending"
+        },
+        {
+          "type": "agent_step",
+          "session_id": "sess-1",
+          "run_id": "run-1",
+          "assistant_session_id": 1,
+          "event_id": 3,
+          "sequence": 3,
+          "index": 3,
+          "step": "chapter.check",
+          "detail": "检查并在必要时定向修复一次。",
+          "status": "pending"
+        },
+        {
+          "type": "agent_step",
+          "session_id": "sess-1",
+          "run_id": "run-1",
+          "assistant_session_id": 1,
+          "event_id": 3,
+          "sequence": 3,
+          "index": 4,
+          "step": "chapter.patch",
+          "detail": "生成待审阅 proposed patch。",
+          "status": "pending"
+        },
+        {
+          "type": "agent_step",
+          "session_id": "sess-1",
+          "run_id": "run-1",
+          "assistant_session_id": 1,
+          "event_id": 4,
+          "sequence": 4,
+          "index": -1,
+          "step": "agent.provider",
+          "detail": "准备第 1 次模型请求。",
+          "status": "running"
+        },
+        {
+          "type": "tool_trace",
+          "session_id": "sess-1",
+          "run_id": "run-1",
+          "assistant_session_id": 1,
+          "event_id": 5,
+          "sequence": 5,
+          "index": 0,
+          "trace": {
+            "tool_name": "chapter.brief",
+            "status": "completed",
+            "input_summary": {
+              "target_path": "正文/第003章.md",
+              "snapshot_id": "llmctx-6470ffe12d5929df",
+              "source_manifest": [],
+              "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "section_count": 3,
+              "context_file_count": 0,
+              "context_files": [],
+              "knowledge_entries": [],
+              "story_memory_count": 0,
+              "has_chapter_context": false,
+              "has_review_report": false,
+              "warning_count": 0
+            },
+            "output_summary": {
+              "brief_id": "chapter-brief-00000000000000000000000000000001",
+              "revision": 1
+            }
+          }
+        },
+        {
+          "type": "permission_required",
+          "session_id": "sess-1",
+          "run_id": "run-1",
+          "assistant_session_id": 1,
+          "event_id": 8,
+          "sequence": 8,
+          "permission_profile": "ask",
+          "reason": "chapter_brief_confirmation",
+          "proposed_patch": null,
+          "confirmation_action": {
+            "kind": "chapter_brief",
+            "chapter_brief": {
+              "brief_id": "chapter-brief-00000000000000000000000000000001",
+              "revision": 1,
+              "target_path": "正文/第003章.md",
+              "chapter_ordinal": null,
+              "chapter_title": "入城",
+              "goal": "沈禾带林舟入城",
+              "pov": "林舟",
+              "setting": "城门",
+              "required_beats": [
+                "入城",
+                "夜宿"
+              ],
+              "forbidden_items": [
+                "回忆"
+              ],
+              "continuity_constraints": [
+                "林舟左臂有旧伤"
+              ],
+              "target_chars_min": 10,
+              "target_chars_max": 400,
+              "context_provenance": {
+                "snapshot_id": "llmctx-6470ffe12d5929df",
+                "source_manifest": [],
+                "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "section_count": 3,
+                "context_file_count": 0,
+                "context_files": [],
+                "knowledge_entries": [],
+                "story_memory_count": 0,
+                "has_chapter_context": false,
+                "has_review_report": false,
+                "warning_count": 0
+              }
+            }
+          },
+          "blocked_tool": "chapter.write"
+        }
+      ],
+      "text_frames": [],
+      "checks": [
+        "before_tool:chapter.brief",
+        "before_http_request",
+        "before_http_dispatch",
+        "before_finalize:chapter.brief",
+        "before_tool:chapter.draft",
+        "before_stream_read",
+        "before_http_request",
+        "before_http_dispatch",
+        "before_stream_read",
+        "before_stream_yield",
+        "before_stream_read",
+        "before_stream_read",
+        "before_stream_read",
+        "before_stream_read",
+        "before_stream_read",
+        "before_stream_yield",
+        "before_stream_read",
+        "before_stream_read",
+        "before_stream_read",
+        "before_stream_yield",
+        "before_stream_read",
+        "before_stream_yield",
+        "before_tool:chapter.check",
+        "before_http_request",
+        "before_http_dispatch",
+        "before_tool:chapter.repair",
+        "before_stream_read",
+        "before_http_request",
+        "before_http_dispatch",
+        "before_stream_read",
+        "before_stream_yield",
+        "before_stream_read",
+        "before_stream_read",
+        "before_stream_read",
+        "before_stream_read",
+        "before_stream_read",
+        "before_stream_yield",
+        "before_stream_read",
+        "before_stream_read",
+        "before_stream_read",
+        "before_stream_yield",
+        "before_stream_read",
+        "before_stream_yield",
+        "before_tool:chapter.check",
+        "before_http_request",
+        "before_http_dispatch",
+        "before_finalize:agent_runtime",
+        "before_publish:system_job:title",
+        "before_publish:system_job:summary"
+      ],
+      "requests": [
+        {
+          "url": "https://llm.example/v1/chat/completions",
+          "method": "POST",
+          "timeout": 60.0,
+          "body": {
+            "model": "m-1",
+            "messages": [
+              {
+                "role": "system",
+                "content": "你是 StoryForge 的中文长篇小说创作助手，在作者的整个项目上协作。作者会围绕这个项目（大纲、人物、设定、时间线、各章正文）跟你对话——提问、讨论走向、让你审读或出主意。依据提供的项目上下文回答；上下文不足以支撑结论时，直说你还需要看哪些文件或章节，不要编造情节、人物或设定。回答用简洁自然的中文，直接说事，不堆前后缀，也不要整段回抄原文。"
+              },
+              {
+                "role": "user",
+                "content": {
+                  "sha256": "77a1db65dc2a33608e88b9633b021e4e2277522615c7359de76ab7b80e8bd056",
+                  "length": 848
+                }
+              }
+            ],
+            "temperature": 0.7
+          }
+        },
+        {
+          "url": "https://llm.example/v1/chat/completions",
+          "method": "POST",
+          "timeout": 60.0,
+          "body": {
+            "model": "m-1",
+            "messages": [
+              {
+                "role": "system",
+                "content": {
+                  "sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
+                  "length": 1108
+                }
+              },
+              {
+                "role": "user",
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+              }
+            ],
+            "temperature": 0.7,
+            "stream": true,
+            "stream_options": {
+              "include_usage": true
+            }
+          }
+        },
+        {
+          "url": "https://llm.example/v1/chat/completions",
+          "method": "POST",
+          "timeout": 60.0,
+          "body": {
+            "model": "m-1",
+            "messages": [
+              {
+                "role": "system",
+                "content": "你是 StoryForge 的中文长篇小说创作助手，在作者的整个项目上协作。作者会围绕这个项目（大纲、人物、设定、时间线、各章正文）跟你对话——提问、讨论走向、让你审读或出主意。依据提供的项目上下文回答；上下文不足以支撑结论时，直说你还需要看哪些文件或章节，不要编造情节、人物或设定。回答用简洁自然的中文，直接说事，不堆前后缀，也不要整段回抄原文。"
+              },
+              {
+                "role": "user",
+                "content": {
+                  "sha256": "70f29c65d7fca09d45e8ee939ce869fcbbd331cb88d1ea905714afca444b0a77",
+                  "length": 1057
+                }
+              }
+            ],
+            "temperature": 0.7
+          }
+        },
+        {
+          "url": "https://llm.example/v1/chat/completions",
+          "method": "POST",
+          "timeout": 60.0,
+          "body": {
+            "model": "m-1",
+            "messages": [
+              {
+                "role": "system",
+                "content": {
+                  "sha256": "48160a2820e3f20a6b4476261d20147940d160fa7b09df30b1a7e961818ba430",
+                  "length": 925
+                }
+              },
+              {
+                "role": "user",
+                "content": {
+                  "sha256": "2e591c7b87d378bed38cdf66a35abb610f3bcf4736b58b592ee16165d0857423",
+                  "length": 741
+                }
+              }
+            ],
+            "temperature": 0.7,
+            "stream": true,
+            "stream_options": {
+              "include_usage": true
+            }
+          }
+        },
+        {
+          "url": "https://llm.example/v1/chat/completions",
+          "method": "POST",
+          "timeout": 60.0,
+          "body": {
+            "model": "m-1",
+            "messages": [
+              {
+                "role": "system",
+                "content": "你是 StoryForge 的中文长篇小说创作助手，在作者的整个项目上协作。作者会围绕这个项目（大纲、人物、设定、时间线、各章正文）跟你对话——提问、讨论走向、让你审读或出主意。依据提供的项目上下文回答；上下文不足以支撑结论时，直说你还需要看哪些文件或章节，不要编造情节、人物或设定。回答用简洁自然的中文，直接说事，不堆前后缀，也不要整段回抄原文。"
+              },
+              {
+                "role": "user",
+                "content": {
+                  "sha256": "2df23d13c6aef0dcd93e93dcbcf6eeb38f9f8887186d6dfb25f6e37fa0bad0b4",
+                  "length": 1062
+                }
+              }
+            ],
+            "temperature": 0.7
+          }
+        }
+      ],
+      "unused_replies": 0,
+      "runs": [
+        {
+          "id": 1,
+          "public_id": "run-1",
+          "session_id": "sess-1",
+          "assistant_session_id": 1,
+          "goal": "写第三章：沈禾带林舟入城",
+          "scope": {
+            "file_path": "$ROOT/正文/第003章.md"
+          },
+          "permission_profile": "ask",
+          "budget": {},
+          "status": "paused",
+          "root_plan": [
+            {
+              "step": "chapter.brief",
+              "detail": "整理章节目标与可信上下文。",
+              "status": "running"
+            },
+            {
+              "step": "chapter.brief.confirm",
+              "detail": "等待作者确认 Chapter Brief。",
+              "status": "pending"
+            },
+            {
+              "step": "chapter.draft",
+              "detail": "按确认后的 brief 起草正文。",
+              "status": "pending"
+            },
+            {
+              "step": "chapter.check",
+              "detail": "检查并在必要时定向修复一次。",
+              "status": "pending"
+            },
+            {
+              "step": "chapter.patch",
+              "detail": "生成待审阅 proposed patch。",
+              "status": "pending"
+            }
+          ],
+          "current_step": "permission.confirm"
+        }
+      ],
+      "events": [
+        {
+          "id": 1,
+          "run_id": 1,
+          "event_type": "agent_run_started",
+          "actor": "root-agent",
+          "message": "Root Agent 已接收作者目标。",
+          "payload": {
+            "session_id": "sess-1",
+            "run_id": "run-1",
+            "user_message": "写第三章：沈禾带林舟入城",
+            "input_summary": {
+              "type": "user_message",
+              "intent": "chapter.write",
+              "has_args": true,
+              "file_path": "$ROOT/正文/第003章.md"
+            },
+            "agent_role_hints": [],
+            "agent_role_mentions": [],
+            "unknown_agent_role_hints": [],
+            "unknown_agent_role_mentions": [],
+            "permission_profile": "ask"
+          },
+          "sequence": 1
+        },
+        {
+          "id": 2,
+          "run_id": 1,
+          "event_type": "agent_execution_started",
+          "actor": "agent-runtime",
+          "message": "",
+          "payload": {
+            "runtime_state": "in_flight",
+            "run_id": "run-1",
+            "session_id": "sess-1"
+          },
+          "sequence": 2
+        },
+        {
+          "id": 3,
+          "run_id": 1,
+          "event_type": "agent_plan_created",
+          "actor": "root-agent",
+          "message": "Root Agent 已创建执行计划。",
+          "payload": {
+            "intent": "chapter.write",
+            "plan": [
+              {
+                "step": "chapter.brief",
+                "detail": "整理章节目标与可信上下文。",
+                "status": "running"
+              },
+              {
+                "step": "chapter.brief.confirm",
+                "detail": "等待作者确认 Chapter Brief。",
+                "status": "pending"
+              },
+              {
+                "step": "chapter.draft",
+                "detail": "按确认后的 brief 起草正文。",
+                "status": "pending"
+              },
+              {
+                "step": "chapter.check",
+                "detail": "检查并在必要时定向修复一次。",
+                "status": "pending"
+              },
+              {
+                "step": "chapter.patch",
+                "detail": "生成待审阅 proposed patch。",
+                "status": "pending"
+              }
+            ],
+            "agent_role_hints": [],
+            "agent_role_mentions": [],
+            "skill_version": "skills_v1",
+            "selected_skill": {
+              "name": "chapter_polish",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "permission_profile": "ask",
+              "tool_sequence": [
+                "context.load",
+                "file.review",
+                "file.revise",
+                "judge.run",
+                "judge.repair"
+              ],
+              "output_artifacts": [
+                "review_report",
+                "proposed_patch"
+              ]
+            },
+            "skill_plan_template": [
+              {
+                "step": "context.load",
+                "detail": "读取当前章与项目上下文。",
+                "status": "planned"
+              },
+              {
+                "step": "subagents.review",
+                "detail": "剧情、人物、文风和连续性子代理并行审稿。",
+                "status": "planned"
+              },
+              {
+                "step": "repair.propose",
+                "detail": "将审稿结论综合为 proposed patch。",
+                "status": "planned"
+              },
+              {
+                "step": "permission.confirm",
+                "detail": "文件写回前等待作者确认。",
+                "status": "planned"
+              }
+            ]
+          },
+          "sequence": 3
+        },
+        {
+          "id": 4,
+          "run_id": 1,
+          "event_type": "agent_runtime_progress",
+          "actor": "provider-transport",
+          "message": "模型传输阶段更新。",
+          "payload": {
+            "phase": "request_started",
+            "request_number": 1,
+            "timeout_seconds": 60.0
+          },
+          "sequence": 4
+        },
+        {
+          "id": 5,
+          "run_id": 1,
+          "event_type": "tool_trace",
+          "actor": "tool-registry",
+          "message": "工具 chapter.brief 返回 completed。",
+          "payload": {
+            "index": 0,
+            "trace": {
+              "tool_name": "chapter.brief",
+              "status": "completed",
+              "input_summary": {
+                "target_path": "正文/第003章.md",
+                "snapshot_id": "llmctx-6470ffe12d5929df",
+                "source_manifest": [],
+                "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "section_count": 3,
+                "context_file_count": 0,
+                "context_files": [],
+                "knowledge_entries": [],
+                "story_memory_count": 0,
+                "has_chapter_context": false,
+                "has_review_report": false,
+                "warning_count": 0
+              },
+              "output_summary": {
+                "brief_id": "chapter-brief-00000000000000000000000000000001",
+                "revision": 1
+              }
+            },
+            "recovery": {
+              "kind": "tool_completed",
+              "tool_name": "chapter.brief",
+              "status": "completed",
+              "index": 0,
+              "retry_safe": false,
+              "idempotent": false,
+              "execution_mode": "sync",
+              "artifact_kinds": [
+                "chapter_brief"
+              ],
+              "execution_marker": {
+                "kind": "after_tool",
+                "source": "tool_trace",
+                "tool_name": "chapter.brief",
+                "tool_index": 0,
+                "status": "completed",
+                "replay_safe": false,
+                "resume_strategy": "manual_restart_required",
+                "reason": "tool_not_retry_safe"
+              }
+            }
+          },
+          "sequence": 5
+        },
+        {
+          "id": 6,
+          "run_id": 1,
+          "event_type": "agent_artifact",
+          "actor": "root-agent",
+          "message": "Root Agent 产出 runtime_pending_call artifact。",
+          "payload": {
+            "kind": "runtime_pending_call",
+            "payload": {
+              "artifact_kind": "runtime_pending_call",
+              "intent": "chapter.write",
+              "boundary": "after_tool:chapter.brief",
+              "status": "pending",
+              "resume_strategy": "continue_chapter_writing_after_brief",
+              "pending_tool": "chapter.write.brief_confirm"
+            },
+            "artifact_id": 2,
+            "requires_confirmation": false
+          },
+          "sequence": 6
+        },
+        {
+          "id": 7,
+          "run_id": 1,
+          "event_type": "agent_artifact",
+          "actor": "root-agent",
+          "message": "Root Agent 产出 chapter_brief artifact。",
+          "payload": {
+            "artifact_id": 3,
+            "kind": "chapter_brief",
+            "requires_confirmation": true,
+            "payload": {
+              "brief_id": "chapter-brief-00000000000000000000000000000001",
+              "revision": 1,
+              "target_path": "正文/第003章.md",
+              "chapter_ordinal": null,
+              "chapter_title": "入城",
+              "goal": "沈禾带林舟入城",
+              "pov": "林舟",
+              "setting": "城门",
+              "required_beats": [
+                "入城",
+                "夜宿"
+              ],
+              "forbidden_items": [
+                "回忆"
+              ],
+              "continuity_constraints": [
+                "林舟左臂有旧伤"
+              ],
+              "target_chars_min": 10,
+              "target_chars_max": 400,
+              "context_provenance": {
+                "snapshot_id": "llmctx-6470ffe12d5929df",
+                "source_manifest": [],
+                "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "section_count": 3,
+                "context_file_count": 0,
+                "context_files": [],
+                "knowledge_entries": [],
+                "story_memory_count": 0,
+                "has_chapter_context": false,
+                "has_review_report": false,
+                "warning_count": 0
+              },
+              "status": "proposed"
+            }
+          },
+          "sequence": 7
+        },
+        {
+          "id": 8,
+          "run_id": 1,
+          "event_type": "permission_required",
+          "actor": "permission-gate",
+          "message": "该步骤需要作者确认后才能继续。",
+          "payload": {
+            "permission_profile": "ask",
+            "execution_id": 2,
+            "intent": "chapter.write",
+            "assistant_session_id": 1,
+            "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
+            "requires_user_confirmation": true,
+            "reason": "chapter_brief_confirmation",
+            "proposed_patch": null,
+            "confirmation_action": {
+              "kind": "chapter_brief",
+              "chapter_brief": {
+                "brief_id": "chapter-brief-00000000000000000000000000000001",
+                "revision": 1,
+                "target_path": "正文/第003章.md",
+                "chapter_ordinal": null,
+                "chapter_title": "入城",
+                "goal": "沈禾带林舟入城",
+                "pov": "林舟",
+                "setting": "城门",
+                "required_beats": [
+                  "入城",
+                  "夜宿"
+                ],
+                "forbidden_items": [
+                  "回忆"
+                ],
+                "continuity_constraints": [
+                  "林舟左臂有旧伤"
+                ],
+                "target_chars_min": 10,
+                "target_chars_max": 400,
+                "context_provenance": {
+                  "snapshot_id": "llmctx-6470ffe12d5929df",
+                  "source_manifest": [],
+                  "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "section_count": 3,
+                  "context_file_count": 0,
+                  "context_files": [],
+                  "knowledge_entries": [],
+                  "story_memory_count": 0,
+                  "has_chapter_context": false,
+                  "has_review_report": false,
+                  "warning_count": 0
+                }
+              }
+            },
+            "confirmation_kind": "chapter_brief",
+            "chapter_brief": {
+              "brief_id": "chapter-brief-00000000000000000000000000000001",
+              "revision": 1,
+              "target_path": "正文/第003章.md",
+              "chapter_ordinal": null,
+              "chapter_title": "入城",
+              "goal": "沈禾带林舟入城",
+              "pov": "林舟",
+              "setting": "城门",
+              "required_beats": [
+                "入城",
+                "夜宿"
+              ],
+              "forbidden_items": [
+                "回忆"
+              ],
+              "continuity_constraints": [
+                "林舟左臂有旧伤"
+              ],
+              "target_chars_min": 10,
+              "target_chars_max": 400,
+              "context_provenance": {
+                "snapshot_id": "llmctx-6470ffe12d5929df",
+                "source_manifest": [],
+                "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "section_count": 3,
+                "context_file_count": 0,
+                "context_files": [],
+                "knowledge_entries": [],
+                "story_memory_count": 0,
+                "has_chapter_context": false,
+                "has_review_report": false,
+                "warning_count": 0
+              }
+            },
+            "blocked_tool": "chapter.write"
+          },
+          "sequence": 8
+        },
+        {
+          "id": 9,
+          "run_id": 1,
+          "event_type": "agent_execution_settled",
+          "actor": "agent-runtime",
+          "message": "",
+          "payload": {
+            "runtime_state": "settled",
+            "execution_id": 2,
+            "run_status": "paused",
+            "run_id": "run-1",
+            "session_id": "sess-1"
+          },
+          "sequence": 9
+        },
+        {
+          "id": 10,
+          "run_id": 1,
+          "event_type": "resume_run",
+          "actor": "desktop-ide",
+          "message": "作者已恢复 AgentRun。",
+          "payload": {
+            "session_id": "sess-1",
+            "run_id": "run-1",
+            "control_type": "resume_run",
+            "chapter_brief": {
+              "brief_id": "chapter-brief-00000000000000000000000000000001",
+              "revision": 1,
+              "chapter_title": "入城",
+              "goal": "沈禾带林舟入城，夜宿客栈",
+              "pov": "林舟",
+              "setting": "城门",
+              "required_beats": [
+                "入城",
+                "夜宿"
+              ],
+              "forbidden_items": [
+                "回忆"
+              ],
+              "continuity_constraints": [
+                "林舟左臂有旧伤"
+              ],
+              "target_chars_min": 10,
+              "target_chars_max": 400
+            },
+            "control_effect": "applied",
+            "runtime_state": "settled",
+            "run_status": "paused"
+          },
+          "sequence": 10
+        },
+        {
+          "id": 11,
+          "run_id": 1,
+          "event_type": "agent_execution_claimed",
+          "actor": "agent-runtime",
+          "message": "",
+          "payload": {
+            "control_event_id": 10,
+            "runtime_state": "in_flight"
+          },
+          "sequence": 11
+        },
+        {
+          "id": 12,
+          "run_id": 1,
+          "event_type": "agent_execution_started",
+          "actor": "agent-runtime",
+          "message": "",
+          "payload": {
+            "runtime_state": "in_flight",
+            "run_id": "run-1",
+            "session_id": "sess-1"
+          },
+          "sequence": 12
+        },
+        {
+          "id": 13,
+          "run_id": 1,
+          "event_type": "agent_runtime_progress",
+          "actor": "provider-transport",
+          "message": "模型传输阶段更新。",
+          "payload": {
+            "phase": "request_started",
+            "request_number": 1,
+            "timeout_seconds": 60.0
+          },
+          "sequence": 13
+        },
+        {
+          "id": 14,
+          "run_id": 1,
+          "event_type": "agent_runtime_progress",
+          "actor": "provider-transport",
+          "message": "模型传输阶段更新。",
+          "payload": {
+            "phase": "request_started",
+            "request_number": 2,
+            "timeout_seconds": 60.0
+          },
+          "sequence": 14
+        },
+        {
+          "id": 15,
+          "run_id": 1,
+          "event_type": "agent_runtime_progress",
+          "actor": "provider-transport",
+          "message": "模型传输阶段更新。",
+          "payload": {
+            "phase": "request_started",
+            "request_number": 3,
+            "timeout_seconds": 60.0
+          },
+          "sequence": 15
+        },
+        {
+          "id": 16,
+          "run_id": 1,
+          "event_type": "agent_runtime_progress",
+          "actor": "provider-transport",
+          "message": "模型传输阶段更新。",
+          "payload": {
+            "phase": "request_started",
+            "request_number": 4,
+            "timeout_seconds": 60.0
+          },
+          "sequence": 16
+        },
+        {
+          "id": 17,
+          "run_id": 1,
+          "event_type": "tool_trace",
+          "actor": "tool-registry",
+          "message": "工具 chapter.draft 返回 completed。",
+          "payload": {
+            "index": 0,
+            "trace": {
+              "tool_name": "chapter.draft",
+              "status": "completed",
+              "input_summary": {
+                "brief_id": "chapter-brief-00000000000000000000000000000001",
+                "target_path": "正文/第003章.md"
+              },
+              "output_summary": {
+                "content_chars": 28,
+                "model": "m-1"
+              }
+            },
+            "recovery": {
+              "kind": "tool_completed",
+              "tool_name": "chapter.draft",
+              "status": "completed",
+              "index": 0,
+              "retry_safe": false,
+              "idempotent": false,
+              "execution_mode": "sync",
+              "artifact_kinds": [
+                "chapter_candidate"
+              ],
+              "execution_marker": {
+                "kind": "after_tool",
+                "source": "tool_trace",
+                "tool_name": "chapter.draft",
+                "tool_index": 0,
+                "status": "completed",
+                "replay_safe": false,
+                "resume_strategy": "manual_restart_required",
+                "reason": "tool_not_retry_safe"
+              }
+            }
+          },
+          "sequence": 17
+        },
+        {
+          "id": 18,
+          "run_id": 1,
+          "event_type": "tool_trace",
+          "actor": "tool-registry",
+          "message": "工具 chapter.check 返回 completed。",
+          "payload": {
+            "index": 1,
+            "trace": {
+              "tool_name": "chapter.check",
+              "status": "completed",
+              "input_summary": {
+                "brief_id": "chapter-brief-00000000000000000000000000000001",
+                "attempt": 1,
+                "recheck": false
+              },
+              "output_summary": {
+                "status": "repairable",
+                "execution_status": "completed",
+                "execution_code": null,
+                "coverage": {
+                  "supplied_content_chars": 28,
+                  "source_verified": true,
+                  "findings_received": 1,
+                  "findings_validated": 1,
+                  "findings_limit": 100,
+                  "result_complete": true
+                },
+                "manuscript_status": "fail",
+                "manuscript_hard_failure_count": 1,
+                "hard_failure_count": 1,
+                "advisory_count": 0
+              }
+            },
+            "recovery": {
+              "kind": "tool_completed",
+              "tool_name": "chapter.check",
+              "status": "completed",
+              "index": 1,
+              "retry_safe": false,
+              "idempotent": false,
+              "execution_mode": "sync",
+              "artifact_kinds": [
+                "chapter_check"
+              ],
+              "execution_marker": {
+                "kind": "after_tool",
+                "source": "tool_trace",
+                "tool_name": "chapter.check",
+                "tool_index": 1,
+                "status": "completed",
+                "replay_safe": false,
+                "resume_strategy": "manual_restart_required",
+                "reason": "tool_not_retry_safe"
+              }
+            }
+          },
+          "sequence": 18
+        },
+        {
+          "id": 19,
+          "run_id": 1,
+          "event_type": "tool_trace",
+          "actor": "tool-registry",
+          "message": "工具 chapter.repair 返回 completed。",
+          "payload": {
+            "index": 2,
+            "trace": {
+              "tool_name": "chapter.repair",
+              "status": "completed",
+              "input_summary": {
+                "brief_id": "chapter-brief-00000000000000000000000000000001",
+                "hard_failure_count": 1
+              },
+              "output_summary": {
+                "content_chars": 33,
+                "model": "m-1",
+                "punctuation_normalized": 2
+              }
+            },
+            "recovery": {
+              "kind": "tool_completed",
+              "tool_name": "chapter.repair",
+              "status": "completed",
+              "index": 2,
+              "retry_safe": false,
+              "idempotent": false,
+              "execution_mode": "sync",
+              "artifact_kinds": [
+                "chapter_candidate"
+              ],
+              "execution_marker": {
+                "kind": "after_tool",
+                "source": "tool_trace",
+                "tool_name": "chapter.repair",
+                "tool_index": 2,
+                "status": "completed",
+                "replay_safe": false,
+                "resume_strategy": "manual_restart_required",
+                "reason": "tool_not_retry_safe"
+              }
+            }
+          },
+          "sequence": 19
+        },
+        {
+          "id": 20,
+          "run_id": 1,
+          "event_type": "tool_trace",
+          "actor": "tool-registry",
+          "message": "工具 chapter.check 返回 completed。",
+          "payload": {
+            "index": 3,
+            "trace": {
+              "tool_name": "chapter.check",
+              "status": "completed",
+              "input_summary": {
+                "brief_id": "chapter-brief-00000000000000000000000000000001",
+                "attempt": 2,
+                "recheck": false
+              },
+              "output_summary": {
+                "status": "pass",
+                "execution_status": "completed",
+                "execution_code": null,
+                "coverage": {
+                  "supplied_content_chars": 33,
+                  "source_verified": true,
+                  "findings_received": 0,
+                  "findings_validated": 0,
+                  "findings_limit": 100,
+                  "result_complete": true
+                },
+                "manuscript_status": "pass",
+                "manuscript_hard_failure_count": 0,
+                "hard_failure_count": 0,
+                "advisory_count": 0
+              }
+            },
+            "recovery": {
+              "kind": "tool_completed",
+              "tool_name": "chapter.check",
+              "status": "completed",
+              "index": 3,
+              "retry_safe": false,
+              "idempotent": false,
+              "execution_mode": "sync",
+              "artifact_kinds": [
+                "chapter_check"
+              ],
+              "execution_marker": {
+                "kind": "after_tool",
+                "source": "tool_trace",
+                "tool_name": "chapter.check",
+                "tool_index": 3,
+                "status": "completed",
+                "replay_safe": false,
+                "resume_strategy": "manual_restart_required",
+                "reason": "tool_not_retry_safe"
+              }
+            }
+          },
+          "sequence": 20
+        },
+        {
+          "id": 21,
+          "run_id": 1,
+          "event_type": "agent_artifact",
+          "actor": "root-agent",
+          "message": "Root Agent 产出 chapter_brief artifact。",
+          "payload": {
+            "artifact_id": 8,
+            "kind": "chapter_brief",
+            "requires_confirmation": false,
+            "payload": {
+              "brief_id": "chapter-brief-00000000000000000000000000000001",
+              "revision": 2,
+              "target_path": "正文/第003章.md",
+              "chapter_ordinal": null,
+              "chapter_title": "入城",
+              "goal": "沈禾带林舟入城，夜宿客栈",
+              "pov": "林舟",
+              "setting": "城门",
+              "required_beats": [
+                "入城",
+                "夜宿"
+              ],
+              "forbidden_items": [
+                "回忆"
+              ],
+              "continuity_constraints": [
+                "林舟左臂有旧伤"
+              ],
+              "target_chars_min": 10,
+              "target_chars_max": 400,
+              "context_provenance": {
+                "snapshot_id": "llmctx-6470ffe12d5929df",
+                "source_manifest": [],
+                "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "section_count": 3,
+                "context_file_count": 0,
+                "context_files": [],
+                "knowledge_entries": [],
+                "story_memory_count": 0,
+                "has_chapter_context": false,
+                "has_review_report": false,
+                "warning_count": 0
+              },
+              "status": "confirmed"
+            }
+          },
+          "sequence": 21
+        },
+        {
+          "id": 22,
+          "run_id": 1,
+          "event_type": "agent_artifact",
+          "actor": "root-agent",
+          "message": "Root Agent 产出 chapter_check artifact。",
+          "payload": {
+            "artifact_id": 9,
+            "kind": "chapter_check",
+            "requires_confirmation": false,
+            "payload": {
+              "protocol_version": 2,
+              "content_sha256": "802ae167e649cdcbfdb2819240315cb9f9e6e6e751c55b125a93b36a25f999f5",
+              "brief_sha256": "6355decb404ea4d28da75a302d6cc22c2e186d0720a5186b3924d6013ded7484",
+              "status": "pass",
+              "execution_status": "completed",
+              "execution_code": null,
+              "coverage": {
+                "supplied_content_chars": 33,
+                "source_verified": true,
+                "findings_received": 0,
+                "findings_validated": 0,
+                "findings_limit": 100,
+                "result_complete": true
+              },
+              "manuscript_status": "pass",
+              "manuscript_hard_failure_count": 0,
+              "content_chars": 33,
+              "model_finding_count": 0,
+              "hard_failure_count": 0,
+              "advisory_count": 0,
+              "findings": [],
+              "checker_reply_excerpt": null,
+              "attempt": 2,
+              "repair_count": 1,
+              "recheck_count": 0
+            }
+          },
+          "sequence": 22
+        },
+        {
+          "id": 23,
+          "run_id": 1,
+          "event_type": "agent_artifact",
+          "actor": "root-agent",
+          "message": "Root Agent 产出 runtime_pending_call_resolution artifact。",
+          "payload": {
+            "artifact_id": 10,
+            "kind": "runtime_pending_call_resolution",
+            "requires_confirmation": false,
+            "payload": {
+              "kind": "runtime_pending_call_resolution",
+              "status": "resolved",
+              "resolution": "resumed",
+              "resolved_by": "agent_runtime",
+              "result_status": "completed",
+              "pending_artifact_id": 2,
+              "pending_artifact_kind": "runtime_pending_call",
+              "pending_call": {
+                "artifact_id": 2,
+                "artifact_kind": "runtime_pending_call",
+                "intent": "chapter.write",
+                "boundary": "after_tool:chapter.brief",
+                "status": "pending",
+                "resume_strategy": "continue_chapter_writing_after_brief",
+                "pending_tool": "chapter.write.brief_confirm"
+              },
+              "intent": "chapter.write",
+              "boundary": "after_tool:chapter.brief",
+              "pending_tool": "chapter.write.brief_confirm",
+              "pending_resume_strategy": "continue_chapter_writing_after_brief"
+            }
+          },
+          "sequence": 23
+        },
+        {
+          "id": 24,
+          "run_id": 1,
+          "event_type": "agent_artifact",
+          "actor": "root-agent",
+          "message": "Root Agent 产出 proposed_patch artifact。",
+          "payload": {
+            "artifact_id": 11,
+            "kind": "proposed_patch",
+            "requires_confirmation": true,
+            "payload": {
+              "id": "chapter-writing-00000000000000000000000000000002",
+              "kind": "file_revision",
+              "created_by_tool": "chapter.write",
+              "file_path": "$ROOT\\正文\\第003章.md",
+              "before": "",
+              "after": "第三章 入城\n\n沈禾带林舟穿过城门，夜宿客栈。\n守卫看了他们一眼。",
+              "requires_confirmation": true,
+              "approval_action": "desktop.confirm_file_writeback",
+              "brief_id": "chapter-brief-00000000000000000000000000000001"
+            }
+          },
+          "sequence": 24
+        },
+        {
+          "id": 25,
+          "run_id": 1,
+          "event_type": "system_job",
+          "actor": "system-title-agent",
+          "message": "隐藏标题任务已生成会话标题。",
+          "payload": {
+            "job_name": "conversation.title.generate",
+            "actor": "system-title-agent",
+            "hidden": true,
+            "mode": "deterministic",
+            "status": "completed",
+            "assistant_session_id": 1,
+            "title": "写第三章沈禾带林舟入城",
+            "updated_session_title": true,
+            "source": "first_user_message"
+          },
+          "sequence": 25
+        },
+        {
+          "id": 26,
+          "run_id": 1,
+          "event_type": "agent_artifact",
+          "actor": "root-agent",
+          "message": "Root Agent 产出 system_summary artifact。",
+          "payload": {
+            "artifact_id": 12,
+            "kind": "system_summary",
+            "requires_confirmation": false,
+            "payload": {
+              "kind": "system_summary",
+              "job_name": "conversation.summary.update",
+              "hidden": true,
+              "mode": "deterministic",
+              "assistant_session_id": 1,
+              "intent": "chapter.write",
+              "message_count": 4,
+              "last_user_message": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文： - missing_required_beat: 缺少夜宿情节 章节目标：沈禾带林舟入城，夜宿客栈 目标字数：10–400 字 视角：林舟 场景：城门 必达节拍：入城；夜宿 禁写事项：回忆 连续性约束：林舟左臂有旧伤",
+              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "tool_count": 4,
+              "review_issue_count": 0,
+              "requires_user_confirmation": true
+            }
+          },
+          "sequence": 26
+        },
+        {
+          "id": 27,
+          "run_id": 1,
+          "event_type": "system_job",
+          "actor": "system-summary-agent",
+          "message": "隐藏摘要任务已更新会话摘要。",
+          "payload": {
+            "job_name": "conversation.summary.update",
+            "actor": "system-summary-agent",
+            "hidden": true,
+            "mode": "deterministic",
+            "status": "completed",
+            "assistant_session_id": 1,
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "message_count": 4,
+            "tool_count": 4,
+            "review_issue_count": 0
+          },
+          "sequence": 27
+        },
+        {
+          "id": 28,
+          "run_id": 1,
+          "event_type": "permission_required",
+          "actor": "permission-gate",
+          "message": "该步骤需要作者确认后才能继续。",
+          "payload": {
+            "permission_profile": "ask",
+            "execution_id": 12,
+            "intent": "chapter.write",
+            "assistant_session_id": 1,
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "requires_user_confirmation": true,
+            "reason": "requires_user_confirmation",
+            "proposed_patch": {
+              "id": "chapter-writing-00000000000000000000000000000002",
+              "kind": "file_revision",
+              "created_by_tool": "chapter.write",
+              "file_path": "$ROOT\\正文\\第003章.md",
+              "before": "",
+              "after": "第三章 入城\n\n沈禾带林舟穿过城门，夜宿客栈。\n守卫看了他们一眼。",
+              "requires_confirmation": true,
+              "approval_action": "desktop.confirm_file_writeback",
+              "brief_id": "chapter-brief-00000000000000000000000000000001"
+            },
+            "confirmation_action": null,
+            "confirmation_kind": null,
+            "chapter_brief": {
+              "brief_id": "chapter-brief-00000000000000000000000000000001",
+              "revision": 2,
+              "target_path": "正文/第003章.md",
+              "chapter_ordinal": null,
+              "chapter_title": "入城",
+              "goal": "沈禾带林舟入城，夜宿客栈",
+              "pov": "林舟",
+              "setting": "城门",
+              "required_beats": [
+                "入城",
+                "夜宿"
+              ],
+              "forbidden_items": [
+                "回忆"
+              ],
+              "continuity_constraints": [
+                "林舟左臂有旧伤"
+              ],
+              "target_chars_min": 10,
+              "target_chars_max": 400,
+              "context_provenance": {
+                "snapshot_id": "llmctx-6470ffe12d5929df",
+                "source_manifest": [],
+                "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "section_count": 3,
+                "context_file_count": 0,
+                "context_files": [],
+                "knowledge_entries": [],
+                "story_memory_count": 0,
+                "has_chapter_context": false,
+                "has_review_report": false,
+                "warning_count": 0
+              },
+              "status": "confirmed"
+            },
+            "blocked_tool": "chapter.write"
+          },
+          "sequence": 28
+        },
+        {
+          "id": 29,
+          "run_id": 1,
+          "event_type": "agent_execution_settled",
+          "actor": "agent-runtime",
+          "message": "",
+          "payload": {
+            "runtime_state": "settled",
+            "execution_id": 12,
+            "run_status": "paused",
+            "run_id": "run-1",
+            "session_id": "sess-1"
+          },
+          "sequence": 29
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 1,
+          "run_id": 1,
+          "kind": "model_request_evidence",
+          "payload": {
+            "schema_version": 1,
+            "run_id": "run-1",
+            "assistant_session_id": 1,
+            "attempt_id": "attempt-1",
+            "step": "chapter.brief",
+            "run_step": "chapter.brief",
+            "status": "response_completed",
+            "streaming": false,
+            "provider_family": "openai",
+            "provider_label": "openai",
+            "route_origin": "https://llm.example",
+            "transport_omissions": [
+              "credentials_headers",
+              "route_path_query_fragment",
+              "provider_native_wire"
+            ],
+            "request": {
+              "model": "m-1",
+              "messages": [
+                {
+                  "role": "system",
+                  "content": "你是 StoryForge 的中文长篇小说创作助手，在作者的整个项目上协作。作者会围绕这个项目（大纲、人物、设定、时间线、各章正文）跟你对话——提问、讨论走向、让你审读或出主意。依据提供的项目上下文回答；上下文不足以支撑结论时，直说你还需要看哪些文件或章节，不要编造情节、人物或设定。回答用简洁自然的中文，直接说事，不堆前后缀，也不要整段回抄原文。"
+                },
+                {
+                  "role": "user",
+                  "content": {
+                    "sha256": "77a1db65dc2a33608e88b9633b021e4e2277522615c7359de76ab7b80e8bd056",
+                    "length": 848
+                  }
+                }
+              ],
+              "tools": [],
+              "temperature": 0.7,
+              "max_tokens": null,
+              "tool_choice": null,
+              "reasoning_effort": null,
+              "metadata": {}
+            },
+            "request_digest": "f79c699d79ea1841bfe312d7f5338ebfd246f49e623bc5b3132ea16c57ede0ad",
+            "redacted": false,
+            "omissions": [],
+            "prompt_version": "4bd5d0d1c7179d7aedd5bcce6a7b854ac07313d5e9c9f756df680961cdc9fe66",
+            "tool_schema_version": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "sources": [
+              {
+                "kind": "compiled_message",
+                "index": 0,
+                "role": "system",
+                "sha256": "0c2d92d0176ca4c400e3c863bdc4527aac795594f3cddd50e04e3002e9855eba",
+                "content_chars": 174
+              },
+              {
+                "kind": "compiled_message",
+                "index": 1,
+                "role": "user",
+                "sha256": "fb6a62844b3f75aee019fd113ce21907c395e45c1a5b78003316bdcbc0760bc9",
+                "content_chars": 848
+              }
+            ],
+            "reconstruction": {
+              "normalized_request": true,
+              "native_wire_replay": false,
+              "requires_reconciliation": false
+            },
+            "context_provenance": {
+              "kind": "llm_context_snapshot",
+              "version": 1,
+              "intent": "chapter.write",
+              "run": {
+                "run_id": "run-1",
+                "goal": "写第三章：沈禾带林舟入城",
+                "status": "running"
+              },
+              "user_goal": "写第三章：沈禾带林舟入城",
+              "selected_file": {
+                "file_path": "正文/第003章.md",
+                "content_chars": 0,
+                "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "content_excerpt": ""
+              },
+              "role_hints": [],
+              "role_mentions": [],
+              "project": {
+                "project_root": "$ROOT",
+                "current_file": "正文/第003章.md"
+              },
+              "context_files": [],
+              "source_manifest": [],
+              "knowledge_recovery": {
+                "author_notes_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                "excluded_ids": [],
+                "pinned_paths": [],
+                "query_sha256": "cfd16c1878a893271d39c3f4836c92e823e824a02567ee8cccbd1f68058f3987",
+                "requested_paths": [],
+                "selection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                "structured_admission_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                "version": "project-knowledge-selection-v1"
+              },
+              "channel_requests": {},
+              "context_budget": {
+                "truncated": false
+              },
+              "review_report": null,
+              "story_memory": {
+                "items": []
+              },
+              "chapter_context": {},
+              "included_sections": [
+                "run",
+                "selected_file",
+                "project"
+              ],
+              "warnings": [],
+              "omitted": {
+                "raw_event_count": 2,
+                "unsafe_context_key_count": 0,
+                "unsafe_context_file_count": 0,
+                "artifact_payload_count": 0
+              },
+              "snapshot_id": "llmctx-6470ffe12d5929df"
+            },
+            "transport_progress": [
+              {
+                "phase": "request_started",
+                "request_number": 1,
+                "timeout_seconds": 60.0
+              }
+            ],
+            "usage": {
+              "token_usage": 17,
+              "prompt_tokens": 12,
+              "completion_tokens": 5,
+              "cache_hit_tokens": null,
+              "token_usage_source": "provider_usage"
+            },
+            "finish_reason": "stop",
+            "error_code": null
+          },
+          "requires_confirmation": false
+        },
+        {
+          "id": 2,
+          "run_id": 1,
+          "kind": "runtime_pending_call",
+          "payload": {
+            "kind": "runtime_pending_call",
+            "intent": "chapter.write",
+            "boundary": "after_tool:chapter.brief",
+            "status": "pending",
+            "resume_strategy": "continue_chapter_writing_after_brief",
+            "resume_message": {
+              "type": "user_message",
+              "intent": "chapter.write",
+              "user_message": "写第三章：沈禾带林舟入城",
+              "assistant_session_id": 1,
+              "args": {
+                "project_path": "$ROOT",
+                "project_name": null,
+                "file_path": "正文/第003章.md",
+                "context_bundle": {
+                  "project_root": ".",
+                  "current_file": "正文/第003章.md",
+                  "files": [],
+                  "summary": {},
+                  "budget": {
+                    "file_count": 0,
+                    "char_count": 0,
+                    "max_files": 12,
+                    "max_excerpt_chars": 4000,
+                    "truncated": false
+                  }
+                }
+              }
+            },
+            "chapter_brief": {
+              "brief_id": "chapter-brief-00000000000000000000000000000001",
+              "revision": 1,
+              "target_path": "正文/第003章.md",
+              "chapter_ordinal": null,
+              "chapter_title": "入城",
+              "goal": "沈禾带林舟入城",
+              "pov": "林舟",
+              "setting": "城门",
+              "required_beats": [
+                "入城",
+                "夜宿"
+              ],
+              "forbidden_items": [
+                "回忆"
+              ],
+              "continuity_constraints": [
+                "林舟左臂有旧伤"
+              ],
+              "target_chars_min": 10,
+              "target_chars_max": 400,
+              "context_provenance": {
+                "snapshot_id": "llmctx-6470ffe12d5929df",
+                "source_manifest": [],
+                "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "section_count": 3,
+                "context_file_count": 0,
+                "context_files": [],
+                "knowledge_entries": [],
+                "story_memory_count": 0,
+                "has_chapter_context": false,
+                "has_review_report": false,
+                "warning_count": 0
+              }
+            },
+            "target_relative": "正文/第003章.md",
+            "source_guard": {
+              "version": 2,
+              "project_identity_sha256": "0717831652c1f0e1c7e3f984d0931d2b7bb4793f4a5cf3d623090fd00ee4d029",
+              "target_relative": "正文/第003章.md",
+              "paths": [
+                ".storyforge/agent-instructions.md",
+                ".storyforge/canon/canon.json",
+                ".storyforge/canon/hooks.json"
+              ],
+              "context": {
+                "current_file": "正文/第003章.md",
+                "user_message": "写第三章：沈禾带林舟入城",
+                "receipt": {
+                  "knowledge": {
+                    "author_notes_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "excluded_ids": [],
+                    "pinned_paths": [],
+                    "query_sha256": "cfd16c1878a893271d39c3f4836c92e823e824a02567ee8cccbd1f68058f3987",
+                    "requested_paths": [],
+                    "selection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "structured_admission_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "version": "project-knowledge-selection-v1"
+                  },
+                  "prompt_files_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                  "source_manifest": [],
+                  "source_manifest_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                  "version": "writer-context-v1"
+                }
+              },
+              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+            },
+            "llm_prompt_context_bundle": {
+              "project_root": ".",
+              "current_file": "正文/第003章.md",
+              "files": [],
+              "summary": {},
+              "budget": {
+                "file_count": 0,
+                "char_count": 0,
+                "max_files": 12,
+                "max_excerpt_chars": 4000,
+                "truncated": false
+              }
+            },
+            "permission_profile": "ask"
+          },
+          "requires_confirmation": false
+        },
+        {
+          "id": 3,
+          "run_id": 1,
+          "kind": "chapter_brief",
+          "payload": {
+            "brief_id": "chapter-brief-00000000000000000000000000000001",
+            "revision": 1,
+            "target_path": "正文/第003章.md",
+            "chapter_ordinal": null,
+            "chapter_title": "入城",
+            "goal": "沈禾带林舟入城",
+            "pov": "林舟",
+            "setting": "城门",
+            "required_beats": [
+              "入城",
+              "夜宿"
+            ],
+            "forbidden_items": [
+              "回忆"
+            ],
+            "continuity_constraints": [
+              "林舟左臂有旧伤"
+            ],
+            "target_chars_min": 10,
+            "target_chars_max": 400,
+            "context_provenance": {
+              "snapshot_id": "llmctx-6470ffe12d5929df",
+              "source_manifest": [],
+              "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "section_count": 3,
+              "context_file_count": 0,
+              "context_files": [],
+              "knowledge_entries": [],
+              "story_memory_count": 0,
+              "has_chapter_context": false,
+              "has_review_report": false,
+              "warning_count": 0
+            },
+            "status": "proposed"
+          },
+          "requires_confirmation": true
+        },
+        {
+          "id": 4,
+          "run_id": 1,
+          "kind": "model_request_evidence",
+          "payload": {
+            "schema_version": 1,
+            "run_id": "run-1",
+            "assistant_session_id": 1,
+            "attempt_id": "attempt-2",
+            "step": "chapter.draft",
+            "run_step": "resumed",
+            "status": "response_completed",
+            "streaming": true,
+            "provider_family": "openai",
+            "provider_label": "openai",
+            "route_origin": "https://llm.example",
+            "transport_omissions": [
+              "credentials_headers",
+              "route_path_query_fragment",
+              "provider_native_wire"
+            ],
+            "request": {
+              "model": "m-1",
+              "messages": [
+                {
+                  "role": "system",
+                  "content": {
+                    "sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
+                    "length": 1108
+                  }
+                },
+                {
+                  "role": "user",
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                }
+              ],
+              "tools": [],
+              "temperature": 0.7,
+              "max_tokens": null,
+              "tool_choice": null,
+              "reasoning_effort": null,
+              "metadata": {}
+            },
+            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "redacted": false,
+            "omissions": [],
+            "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
+            "tool_schema_version": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "sources": [
+              {
+                "kind": "compiled_message",
+                "index": 0,
+                "role": "system",
+                "sha256": "eaa35f0ac47893cccb5e211d3106a03be6f4d2c0f1415a4128136cfc74d1112d",
+                "content_chars": 1108
+              },
+              {
+                "kind": "compiled_message",
+                "index": 1,
+                "role": "user",
+                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
+                "content_chars": 241
+              }
+            ],
+            "reconstruction": {
+              "normalized_request": true,
+              "native_wire_replay": false,
+              "requires_reconciliation": false
+            },
+            "context_provenance": {},
+            "transport_progress": [
+              {
+                "phase": "request_started",
+                "request_number": 1,
+                "timeout_seconds": 60.0
+              }
+            ],
+            "usage": {
+              "token_usage": 17,
+              "prompt_tokens": 12,
+              "completion_tokens": 5,
+              "cache_hit_tokens": null,
+              "token_usage_source": "provider_usage"
+            },
+            "finish_reason": "stop",
+            "error_code": null
+          },
+          "requires_confirmation": false
+        },
+        {
+          "id": 5,
+          "run_id": 1,
+          "kind": "model_request_evidence",
+          "payload": {
+            "schema_version": 1,
+            "run_id": "run-1",
+            "assistant_session_id": 1,
+            "attempt_id": "attempt-3",
+            "step": "chapter.check",
+            "run_step": "resumed",
+            "status": "response_completed",
+            "streaming": false,
+            "provider_family": "openai",
+            "provider_label": "openai",
+            "route_origin": "https://llm.example",
+            "transport_omissions": [
+              "credentials_headers",
+              "route_path_query_fragment",
+              "provider_native_wire"
+            ],
+            "request": {
+              "model": "m-1",
+              "messages": [
+                {
+                  "role": "system",
+                  "content": "你是 StoryForge 的中文长篇小说创作助手，在作者的整个项目上协作。作者会围绕这个项目（大纲、人物、设定、时间线、各章正文）跟你对话——提问、讨论走向、让你审读或出主意。依据提供的项目上下文回答；上下文不足以支撑结论时，直说你还需要看哪些文件或章节，不要编造情节、人物或设定。回答用简洁自然的中文，直接说事，不堆前后缀，也不要整段回抄原文。"
+                },
+                {
+                  "role": "user",
+                  "content": {
+                    "sha256": "70f29c65d7fca09d45e8ee939ce869fcbbd331cb88d1ea905714afca444b0a77",
+                    "length": 1057
+                  }
+                }
+              ],
+              "tools": [],
+              "temperature": 0.7,
+              "max_tokens": null,
+              "tool_choice": null,
+              "reasoning_effort": null,
+              "metadata": {}
+            },
+            "request_digest": "d755ef3738017dfe7f2586e41248fd66f4f63254a952528c84cd090a1eb6b7ee",
+            "redacted": false,
+            "omissions": [],
+            "prompt_version": "4bd5d0d1c7179d7aedd5bcce6a7b854ac07313d5e9c9f756df680961cdc9fe66",
+            "tool_schema_version": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "sources": [
+              {
+                "kind": "compiled_message",
+                "index": 0,
+                "role": "system",
+                "sha256": "0c2d92d0176ca4c400e3c863bdc4527aac795594f3cddd50e04e3002e9855eba",
+                "content_chars": 174
+              },
+              {
+                "kind": "compiled_message",
+                "index": 1,
+                "role": "user",
+                "sha256": "3b5314c9b44c4bb6ec0003e1d48a8d828eaf234942ede225474f5a9936f1acc9",
+                "content_chars": 1057
+              }
+            ],
+            "reconstruction": {
+              "normalized_request": true,
+              "native_wire_replay": false,
+              "requires_reconciliation": false
+            },
+            "context_provenance": {},
+            "transport_progress": [
+              {
+                "phase": "request_started",
+                "request_number": 2,
+                "timeout_seconds": 60.0
+              }
+            ],
+            "usage": {
+              "token_usage": 17,
+              "prompt_tokens": 12,
+              "completion_tokens": 5,
+              "cache_hit_tokens": null,
+              "token_usage_source": "provider_usage"
+            },
+            "finish_reason": "stop",
+            "error_code": null
+          },
+          "requires_confirmation": false
+        },
+        {
+          "id": 6,
+          "run_id": 1,
+          "kind": "model_request_evidence",
+          "payload": {
+            "schema_version": 1,
+            "run_id": "run-1",
+            "assistant_session_id": 1,
+            "attempt_id": "attempt-4",
+            "step": "chapter.repair",
+            "run_step": "resumed",
+            "status": "response_completed",
+            "streaming": true,
+            "provider_family": "openai",
+            "provider_label": "openai",
+            "route_origin": "https://llm.example",
+            "transport_omissions": [
+              "credentials_headers",
+              "route_path_query_fragment",
+              "provider_native_wire"
+            ],
+            "request": {
+              "model": "m-1",
+              "messages": [
+                {
+                  "role": "system",
+                  "content": {
+                    "sha256": "48160a2820e3f20a6b4476261d20147940d160fa7b09df30b1a7e961818ba430",
+                    "length": 925
+                  }
+                },
+                {
+                  "role": "user",
+                  "content": {
+                    "sha256": "2e591c7b87d378bed38cdf66a35abb610f3bcf4736b58b592ee16165d0857423",
+                    "length": 741
+                  }
+                }
+              ],
+              "tools": [],
+              "temperature": 0.7,
+              "max_tokens": null,
+              "tool_choice": null,
+              "reasoning_effort": null,
+              "metadata": {}
+            },
+            "request_digest": "96137409ea54599ba4857d8b90f2fdc381169f9000bda42386ae232e488e4943",
+            "redacted": false,
+            "omissions": [],
+            "prompt_version": "1e662bdc9036b9d2e53d2773d4cb1a17a5bc209ddcf1f1d64314278bf78c1e4c",
+            "tool_schema_version": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "sources": [
+              {
+                "kind": "compiled_message",
+                "index": 0,
+                "role": "system",
+                "sha256": "510c98b9c0715fa1e6b0f5d84eabc3229ac6f12efcf3c789204c99fa9ec28229",
+                "content_chars": 925
+              },
+              {
+                "kind": "compiled_message",
+                "index": 1,
+                "role": "user",
+                "sha256": "2b2a5a9dc63f3db6481ddbf2a42e93d96a73dd8c80b125019e1aaf49811a1125",
+                "content_chars": 802
+              }
+            ],
+            "reconstruction": {
+              "normalized_request": true,
+              "native_wire_replay": false,
+              "requires_reconciliation": false
+            },
+            "context_provenance": {},
+            "transport_progress": [
+              {
+                "phase": "request_started",
+                "request_number": 3,
+                "timeout_seconds": 60.0
+              }
+            ],
+            "usage": {
+              "token_usage": 17,
+              "prompt_tokens": 12,
+              "completion_tokens": 5,
+              "cache_hit_tokens": null,
+              "token_usage_source": "provider_usage"
+            },
+            "finish_reason": "stop",
+            "error_code": null
+          },
+          "requires_confirmation": false
+        },
+        {
+          "id": 7,
+          "run_id": 1,
+          "kind": "model_request_evidence",
+          "payload": {
+            "schema_version": 1,
+            "run_id": "run-1",
+            "assistant_session_id": 1,
+            "attempt_id": "attempt-5",
+            "step": "chapter.check",
+            "run_step": "resumed",
+            "status": "response_completed",
+            "streaming": false,
+            "provider_family": "openai",
+            "provider_label": "openai",
+            "route_origin": "https://llm.example",
+            "transport_omissions": [
+              "credentials_headers",
+              "route_path_query_fragment",
+              "provider_native_wire"
+            ],
+            "request": {
+              "model": "m-1",
+              "messages": [
+                {
+                  "role": "system",
+                  "content": "你是 StoryForge 的中文长篇小说创作助手，在作者的整个项目上协作。作者会围绕这个项目（大纲、人物、设定、时间线、各章正文）跟你对话——提问、讨论走向、让你审读或出主意。依据提供的项目上下文回答；上下文不足以支撑结论时，直说你还需要看哪些文件或章节，不要编造情节、人物或设定。回答用简洁自然的中文，直接说事，不堆前后缀，也不要整段回抄原文。"
+                },
+                {
+                  "role": "user",
+                  "content": {
+                    "sha256": "2df23d13c6aef0dcd93e93dcbcf6eeb38f9f8887186d6dfb25f6e37fa0bad0b4",
+                    "length": 1062
+                  }
+                }
+              ],
+              "tools": [],
+              "temperature": 0.7,
+              "max_tokens": null,
+              "tool_choice": null,
+              "reasoning_effort": null,
+              "metadata": {}
+            },
+            "request_digest": "4feacb4818cc30e2fb34695e1877800acde10e3a5aa2277b58ff37e748ec056a",
+            "redacted": false,
+            "omissions": [],
+            "prompt_version": "4bd5d0d1c7179d7aedd5bcce6a7b854ac07313d5e9c9f756df680961cdc9fe66",
+            "tool_schema_version": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "sources": [
+              {
+                "kind": "compiled_message",
+                "index": 0,
+                "role": "system",
+                "sha256": "0c2d92d0176ca4c400e3c863bdc4527aac795594f3cddd50e04e3002e9855eba",
+                "content_chars": 174
+              },
+              {
+                "kind": "compiled_message",
+                "index": 1,
+                "role": "user",
+                "sha256": "86319230b1449ec266ae0f0e44b1c0ae8b990fd4a9d88ba3fbe7bb663e3ea12a",
+                "content_chars": 1062
+              }
+            ],
+            "reconstruction": {
+              "normalized_request": true,
+              "native_wire_replay": false,
+              "requires_reconciliation": false
+            },
+            "context_provenance": {},
+            "transport_progress": [
+              {
+                "phase": "request_started",
+                "request_number": 4,
+                "timeout_seconds": 60.0
+              }
+            ],
+            "usage": {
+              "token_usage": 17,
+              "prompt_tokens": 12,
+              "completion_tokens": 5,
+              "cache_hit_tokens": null,
+              "token_usage_source": "provider_usage"
+            },
+            "finish_reason": "stop",
+            "error_code": null
+          },
+          "requires_confirmation": false
+        },
+        {
+          "id": 8,
+          "run_id": 1,
+          "kind": "chapter_brief",
+          "payload": {
+            "brief_id": "chapter-brief-00000000000000000000000000000001",
+            "revision": 2,
+            "target_path": "正文/第003章.md",
+            "chapter_ordinal": null,
+            "chapter_title": "入城",
+            "goal": "沈禾带林舟入城，夜宿客栈",
+            "pov": "林舟",
+            "setting": "城门",
+            "required_beats": [
+              "入城",
+              "夜宿"
+            ],
+            "forbidden_items": [
+              "回忆"
+            ],
+            "continuity_constraints": [
+              "林舟左臂有旧伤"
+            ],
+            "target_chars_min": 10,
+            "target_chars_max": 400,
+            "context_provenance": {
+              "snapshot_id": "llmctx-6470ffe12d5929df",
+              "source_manifest": [],
+              "selected_content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "section_count": 3,
+              "context_file_count": 0,
+              "context_files": [],
+              "knowledge_entries": [],
+              "story_memory_count": 0,
+              "has_chapter_context": false,
+              "has_review_report": false,
+              "warning_count": 0
+            },
+            "status": "confirmed"
+          },
+          "requires_confirmation": false
+        },
+        {
+          "id": 9,
+          "run_id": 1,
+          "kind": "chapter_check",
+          "payload": {
+            "protocol_version": 2,
+            "content_sha256": "802ae167e649cdcbfdb2819240315cb9f9e6e6e751c55b125a93b36a25f999f5",
+            "brief_sha256": "6355decb404ea4d28da75a302d6cc22c2e186d0720a5186b3924d6013ded7484",
+            "status": "pass",
+            "execution_status": "completed",
+            "execution_code": null,
+            "coverage": {
+              "supplied_content_chars": 33,
+              "source_verified": true,
+              "findings_received": 0,
+              "findings_validated": 0,
+              "findings_limit": 100,
+              "result_complete": true
+            },
+            "manuscript_status": "pass",
+            "manuscript_hard_failure_count": 0,
+            "content_chars": 33,
+            "model_finding_count": 0,
+            "hard_failure_count": 0,
+            "advisory_count": 0,
+            "findings": [],
+            "checker_reply_excerpt": null,
+            "attempt": 2,
+            "repair_count": 1,
+            "recheck_count": 0
+          },
+          "requires_confirmation": false
+        },
+        {
+          "id": 10,
+          "run_id": 1,
+          "kind": "runtime_pending_call_resolution",
+          "payload": {
+            "kind": "runtime_pending_call_resolution",
+            "status": "resolved",
+            "resolution": "resumed",
+            "resolved_by": "agent_runtime",
+            "result_status": "completed",
+            "pending_artifact_id": 2,
+            "pending_artifact_kind": "runtime_pending_call",
+            "pending_call": {
+              "artifact_id": 2,
+              "artifact_kind": "runtime_pending_call",
+              "intent": "chapter.write",
+              "boundary": "after_tool:chapter.brief",
+              "status": "pending",
+              "resume_strategy": "continue_chapter_writing_after_brief",
+              "pending_tool": "chapter.write.brief_confirm"
+            },
+            "intent": "chapter.write",
+            "boundary": "after_tool:chapter.brief",
+            "pending_tool": "chapter.write.brief_confirm",
+            "pending_resume_strategy": "continue_chapter_writing_after_brief"
+          },
+          "requires_confirmation": false
+        },
+        {
+          "id": 11,
+          "run_id": 1,
+          "kind": "proposed_patch",
+          "payload": {
+            "id": "chapter-writing-00000000000000000000000000000002",
+            "kind": "file_revision",
+            "created_by_tool": "chapter.write",
+            "file_path": "$ROOT\\正文\\第003章.md",
+            "before": "",
+            "after": "第三章 入城\n\n沈禾带林舟穿过城门，夜宿客栈。\n守卫看了他们一眼。",
+            "requires_confirmation": true,
+            "approval_action": "desktop.confirm_file_writeback",
+            "brief_id": "chapter-brief-00000000000000000000000000000001"
+          },
+          "requires_confirmation": true
+        },
+        {
+          "id": 12,
+          "run_id": 1,
+          "kind": "system_summary",
+          "payload": {
+            "kind": "system_summary",
+            "job_name": "conversation.summary.update",
+            "hidden": true,
+            "mode": "deterministic",
+            "assistant_session_id": 1,
+            "intent": "chapter.write",
+            "message_count": 4,
+            "last_user_message": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文： - missing_required_beat: 缺少夜宿情节 章节目标：沈禾带林舟入城，夜宿客栈 目标字数：10–400 字 视角：林舟 场景：城门 必达节拍：入城；夜宿 禁写事项：回忆 连续性约束：林舟左臂有旧伤",
+            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "tool_count": 4,
+            "review_issue_count": 0,
+            "requires_user_confirmation": true
+          },
+          "requires_confirmation": false
+        }
+      ],
+      "subagents": [],
+      "sessions": [
+        {
+          "id": 1,
+          "title": "写第三章沈禾带林舟入城",
+          "task_type": "ide_agent_orchestration",
+          "project_path": "$ROOT"
+        }
+      ],
+      "messages": [
+        {
+          "id": 1,
+          "session_id": 1,
+          "role": "user",
+          "content": "写第三章：沈禾带林舟入城"
+        },
+        {
+          "id": 2,
+          "session_id": 1,
+          "role": "assistant",
+          "content": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。"
+        },
+        {
+          "id": 3,
+          "session_id": 1,
+          "role": "user",
+          "content": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文：\n- missing_required_beat: 缺少夜宿情节\n\n章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤"
+        },
+        {
+          "id": 4,
+          "session_id": 1,
+          "role": "assistant",
+          "content": "已按指令修订 $ROOT\\正文\\第003章.md，修订后约 33 字。"
+        }
+      ],
+      "tool_calls": [
+        {
+          "id": 1,
+          "session_id": 1,
+          "tool_name": "assistant.chat",
+          "status": "completed",
+          "input_summary": {
+            "message": {
+              "sha256": "3271146c2e508da21d6cd3bc6cc9d180ec91294600c89857b0b4dc82ac277dfc",
+              "length": 500
+            },
+            "context_chars": 260
+          },
+          "output_summary": {
+            "reply_chars": 274,
+            "model": "m-1",
+            "prompt_tokens": 12,
+            "completion_tokens": 5,
+            "token_usage": 17,
+            "cost_cny_estimated": 7.25e-05,
+            "cost_breakdown": {
+              "currency": "CNY",
+              "prompt_tokens": 12,
+              "completion_tokens": 5,
+              "cache_hit_tokens": null,
+              "cache_miss_tokens": null,
+              "input_cny": 3e-05,
+              "output_cny": 4.25e-05,
+              "total_cny": 7.25e-05,
+              "input_cny_per_m_tokens": 2.5,
+              "output_cny_per_m_tokens": 8.5,
+              "cache_hit_input_cny_per_m_tokens": null,
+              "source": "provider_usage"
+            },
+            "token_usage_source": "provider_usage"
+          },
+          "error_message": null
+        },
+        {
+          "id": 2,
+          "session_id": 1,
+          "tool_name": "assistant.draft",
+          "status": "completed",
+          "input_summary": {
+            "file_path": "$ROOT\\正文\\第003章.md",
+            "instruction": "章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤",
+            "context_file_count": 0,
+            "has_scene_constraints": false,
+            "previous_chapter": "正文/第002章.md",
+            "generation_sources": {
+              "context_delivery": {
+                "knowledge": {
+                  "author_notes_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                  "excluded_ids": [],
+                  "pinned_paths": [],
+                  "query_sha256": "cfd16c1878a893271d39c3f4836c92e823e824a02567ee8cccbd1f68058f3987",
+                  "requested_paths": [],
+                  "selection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                  "structured_admission_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                  "version": "project-knowledge-selection-v1"
+                },
+                "prompt_files_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                "source_manifest": [],
+                "source_manifest_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                "version": "writer-context-v1"
+              },
+              "delivery_boundary": "writer_provider_seam",
+              "project_identity_sha256": "0717831652c1f0e1c7e3f984d0931d2b7bb4793f4a5cf3d623090fd00ee4d029",
+              "projections": [
+                {
+                  "channel": "user",
+                  "delivered": false,
+                  "delivered_chars": 0,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": null,
+                  "omission_reason": "no_active_constraints",
+                  "omitted_source_count": 0,
+                  "purpose": "canon_constraints",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "identity",
+                  "truncated": false
+                },
+                {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 13,
+                  "delivered_source_count": 1,
+                  "excerpt_sha256": "e29dec146f9596a09481328c0ca7920189329b0ab02f66a3e2a061310e7dc7ea",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "previous_chapter",
+                  "requested_source_count": 1,
+                  "selected_source_count": 1,
+                  "source_ids": [
+                    "gsrc-724af63267a4286988fc0490"
+                  ],
+                  "source_span": {
+                    "basis": "normalized_text",
+                    "end": 13,
+                    "start": 0,
+                    "unit": "chars"
+                  },
+                  "transformation": "previous_paragraph_tail_v1",
+                  "truncated": false
+                },
+                {
+                  "channel": "system",
+                  "delivered": false,
+                  "delivered_chars": 0,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": null,
+                  "omission_reason": "insufficient_style_evidence",
+                  "omitted_source_count": 2,
+                  "purpose": "style_baseline",
+                  "requested_source_count": 2,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "style_statistics_v1",
+                  "truncated": false
+                },
+                {
+                  "channel": "system",
+                  "delivered": false,
+                  "delivered_chars": 0,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": null,
+                  "omission_reason": "missing_source",
+                  "omitted_source_count": 1,
+                  "purpose": "author_instructions",
+                  "requested_source_count": 1,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "identity",
+                  "truncated": false
+                }
+              ],
+              "request": {
+                "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
+                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+              },
+              "selections": [
+                {
+                  "purpose": "canon_chapter_order",
+                  "value": {
+                    "current_file": "正文/第003章.md",
+                    "current_ordinal": 3,
+                    "ordinals_sha256": "e2198bf79ecce9974f8e396754ae634a6038bc8b85bd8f644c8e4663a4eb321e"
+                  }
+                },
+                {
+                  "purpose": "previous_chapter",
+                  "value": {
+                    "current_file": "正文/第003章.md",
+                    "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
+                    "selected_file": "正文/第002章.md"
+                  }
+                }
+              ],
+              "sources": [
+                {
+                  "content_sha256": null,
+                  "evidence_state": "unavailable",
+                  "file_bytes_sha256": null,
+                  "observed_bytes": null,
+                  "observed_bytes_sha256": null,
+                  "observed_content_sha256": null,
+                  "omission_reason": "missing_source",
+                  "purpose": "canon_declaration",
+                  "relative_path": ".storyforge/canon/canon.json",
+                  "selection_source": "independent_writer_read",
+                  "source_complete": null,
+                  "source_id": "gsrc-72beb8afaca997c0777b6709"
+                },
+                {
+                  "content_sha256": null,
+                  "evidence_state": "unavailable",
+                  "file_bytes_sha256": null,
+                  "observed_bytes": null,
+                  "observed_bytes_sha256": null,
+                  "observed_content_sha256": null,
+                  "omission_reason": "missing_source",
+                  "purpose": "hook_declaration",
+                  "relative_path": ".storyforge/canon/hooks.json",
+                  "selection_source": "independent_writer_read",
+                  "source_complete": null,
+                  "source_id": "gsrc-7759160c408b9e5b2b92750d"
+                },
+                {
+                  "content_sha256": "e29dec146f9596a09481328c0ca7920189329b0ab02f66a3e2a061310e7dc7ea",
+                  "evidence_state": "observed",
+                  "file_bytes_sha256": "b42b995d41f9a2bf2b998f72ebadd4e26dff1d43df7e433a156fdda5e757f028",
+                  "observed_bytes": 34,
+                  "observed_bytes_sha256": "b42b995d41f9a2bf2b998f72ebadd4e26dff1d43df7e433a156fdda5e757f028",
+                  "observed_content_sha256": "e29dec146f9596a09481328c0ca7920189329b0ab02f66a3e2a061310e7dc7ea",
+                  "omission_reason": null,
+                  "purpose": "previous_chapter",
+                  "relative_path": "正文/第002章.md",
+                  "selection_source": "independent_writer_read",
+                  "source_complete": true,
+                  "source_id": "gsrc-724af63267a4286988fc0490"
+                },
+                {
+                  "content_sha256": "aec436d57d363196bc7bf2b535d11727b6a90fe0e794be06aa03b0159b5acf33",
+                  "evidence_state": "observed",
+                  "file_bytes_sha256": "848f45ee1e896b1b753edeec98508d83468f25618861e15163fb1842b6f9ba40",
+                  "observed_bytes": 37,
+                  "observed_bytes_sha256": "848f45ee1e896b1b753edeec98508d83468f25618861e15163fb1842b6f9ba40",
+                  "observed_content_sha256": "aec436d57d363196bc7bf2b535d11727b6a90fe0e794be06aa03b0159b5acf33",
+                  "omission_reason": "short_source",
+                  "purpose": "style_sample",
+                  "relative_path": "正文/第001章.md",
+                  "selection_source": "independent_writer_read",
+                  "source_complete": true,
+                  "source_id": "gsrc-ff27184daa2f0ea9e579b8ad"
+                },
+                {
+                  "content_sha256": "e29dec146f9596a09481328c0ca7920189329b0ab02f66a3e2a061310e7dc7ea",
+                  "evidence_state": "observed",
+                  "file_bytes_sha256": "b42b995d41f9a2bf2b998f72ebadd4e26dff1d43df7e433a156fdda5e757f028",
+                  "observed_bytes": 34,
+                  "observed_bytes_sha256": "b42b995d41f9a2bf2b998f72ebadd4e26dff1d43df7e433a156fdda5e757f028",
+                  "observed_content_sha256": "e29dec146f9596a09481328c0ca7920189329b0ab02f66a3e2a061310e7dc7ea",
+                  "omission_reason": "short_source",
+                  "purpose": "style_sample",
+                  "relative_path": "正文/第002章.md",
+                  "selection_source": "independent_writer_read",
+                  "source_complete": true,
+                  "source_id": "gsrc-0a4db20ff622b626b3b042fd"
+                },
+                {
+                  "content_sha256": null,
+                  "evidence_state": "unavailable",
+                  "file_bytes_sha256": null,
+                  "observed_bytes": null,
+                  "observed_bytes_sha256": null,
+                  "observed_content_sha256": null,
+                  "omission_reason": "missing_source",
+                  "purpose": "author_instructions",
+                  "relative_path": ".storyforge/agent-instructions.md",
+                  "selection_source": "independent_writer_read",
+                  "source_complete": null,
+                  "source_id": "gsrc-1e8b755e5a0717348ec39e87"
+                }
+              ],
+              "unobserved_purposes": [],
+              "version": "generation-sources-v1",
+              "writing_context": null
+            }
+          },
+          "output_summary": {
+            "content_chars": 28,
+            "prompt_tokens": 12,
+            "completion_tokens": 5,
+            "token_usage": 17,
+            "cost_cny_estimated": 7.25e-05,
+            "cost_breakdown": {
+              "currency": "CNY",
+              "prompt_tokens": 12,
+              "completion_tokens": 5,
+              "cache_hit_tokens": null,
+              "cache_miss_tokens": null,
+              "input_cny": 3e-05,
+              "output_cny": 4.25e-05,
+              "total_cny": 7.25e-05,
+              "input_cny_per_m_tokens": 2.5,
+              "output_cny_per_m_tokens": 8.5,
+              "cache_hit_input_cny_per_m_tokens": null,
+              "source": "provider_usage"
+            },
+            "token_usage_source": "provider_usage",
+            "latency_ms": 250
+          },
+          "error_message": null
+        },
+        {
+          "id": 3,
+          "session_id": 1,
+          "tool_name": "assistant.chat",
+          "status": "completed",
+          "input_summary": {
+            "message": {
+              "sha256": "933fb17b4fea3be7f4362e314c2837ee40ddeee6d3be54d3e6244b9640f07dc5",
+              "length": 500
+            },
+            "context_chars": 0
+          },
+          "output_summary": {
+            "reply_chars": 320,
+            "model": "m-1",
+            "prompt_tokens": 12,
+            "completion_tokens": 5,
+            "token_usage": 17,
+            "cost_cny_estimated": 7.25e-05,
+            "cost_breakdown": {
+              "currency": "CNY",
+              "prompt_tokens": 12,
+              "completion_tokens": 5,
+              "cache_hit_tokens": null,
+              "cache_miss_tokens": null,
+              "input_cny": 3e-05,
+              "output_cny": 4.25e-05,
+              "total_cny": 7.25e-05,
+              "input_cny_per_m_tokens": 2.5,
+              "output_cny_per_m_tokens": 8.5,
+              "cache_hit_input_cny_per_m_tokens": null,
+              "source": "provider_usage"
+            },
+            "token_usage_source": "provider_usage"
+          },
+          "error_message": null
+        },
+        {
+          "id": 4,
+          "session_id": 1,
+          "tool_name": "assistant.revise",
+          "status": "completed",
+          "input_summary": {
+            "file_path": "$ROOT\\正文\\第003章.md",
+            "instruction": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文：\n- missing_required_beat: 缺少夜宿情节\n\n章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤",
+            "content_chars": 28,
+            "context_file_count": 0,
+            "has_scene_constraints": false,
+            "generation_sources": {
+              "context_delivery": {
+                "knowledge": {
+                  "author_notes_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                  "excluded_ids": [],
+                  "pinned_paths": [],
+                  "query_sha256": "cfd16c1878a893271d39c3f4836c92e823e824a02567ee8cccbd1f68058f3987",
+                  "requested_paths": [],
+                  "selection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                  "structured_admission_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                  "version": "project-knowledge-selection-v1"
+                },
+                "prompt_files_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                "source_manifest": [],
+                "source_manifest_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                "version": "writer-context-v1"
+              },
+              "delivery_boundary": "writer_provider_seam",
+              "project_identity_sha256": "0717831652c1f0e1c7e3f984d0931d2b7bb4793f4a5cf3d623090fd00ee4d029",
+              "projections": [
+                {
+                  "channel": "user",
+                  "delivered": false,
+                  "delivered_chars": 0,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": null,
+                  "omission_reason": "no_active_constraints",
+                  "omitted_source_count": 0,
+                  "purpose": "canon_constraints",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "identity",
+                  "truncated": false
+                },
+                {
+                  "channel": "system",
+                  "delivered": false,
+                  "delivered_chars": 0,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": null,
+                  "omission_reason": "insufficient_style_evidence",
+                  "omitted_source_count": 2,
+                  "purpose": "style_baseline",
+                  "requested_source_count": 2,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "style_statistics_v1",
+                  "truncated": false
+                },
+                {
+                  "channel": "system",
+                  "delivered": false,
+                  "delivered_chars": 0,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": null,
+                  "omission_reason": "missing_source",
+                  "omitted_source_count": 1,
+                  "purpose": "author_instructions",
+                  "requested_source_count": 1,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "identity",
+                  "truncated": false
+                }
+              ],
+              "request": {
+                "system_sha256": "48160a2820e3f20a6b4476261d20147940d160fa7b09df30b1a7e961818ba430",
+                "user_sha256": "d6dea4f6b70965e9162eec0768fc48f5d42a57fa4dc4bccbd02d3d4105613cb1"
+              },
+              "selections": [
+                {
+                  "purpose": "canon_chapter_order",
+                  "value": {
+                    "current_file": "正文/第003章.md",
+                    "current_ordinal": 3,
+                    "ordinals_sha256": "e2198bf79ecce9974f8e396754ae634a6038bc8b85bd8f644c8e4663a4eb321e"
+                  }
+                }
+              ],
+              "sources": [
+                {
+                  "content_sha256": null,
+                  "evidence_state": "unavailable",
+                  "file_bytes_sha256": null,
+                  "observed_bytes": null,
+                  "observed_bytes_sha256": null,
+                  "observed_content_sha256": null,
+                  "omission_reason": "missing_source",
+                  "purpose": "canon_declaration",
+                  "relative_path": ".storyforge/canon/canon.json",
+                  "selection_source": "independent_writer_read",
+                  "source_complete": null,
+                  "source_id": "gsrc-72beb8afaca997c0777b6709"
+                },
+                {
+                  "content_sha256": null,
+                  "evidence_state": "unavailable",
+                  "file_bytes_sha256": null,
+                  "observed_bytes": null,
+                  "observed_bytes_sha256": null,
+                  "observed_content_sha256": null,
+                  "omission_reason": "missing_source",
+                  "purpose": "hook_declaration",
+                  "relative_path": ".storyforge/canon/hooks.json",
+                  "selection_source": "independent_writer_read",
+                  "source_complete": null,
+                  "source_id": "gsrc-7759160c408b9e5b2b92750d"
+                },
+                {
+                  "content_sha256": "aec436d57d363196bc7bf2b535d11727b6a90fe0e794be06aa03b0159b5acf33",
+                  "evidence_state": "observed",
+                  "file_bytes_sha256": "848f45ee1e896b1b753edeec98508d83468f25618861e15163fb1842b6f9ba40",
+                  "observed_bytes": 37,
+                  "observed_bytes_sha256": "848f45ee1e896b1b753edeec98508d83468f25618861e15163fb1842b6f9ba40",
+                  "observed_content_sha256": "aec436d57d363196bc7bf2b535d11727b6a90fe0e794be06aa03b0159b5acf33",
+                  "omission_reason": "short_source",
+                  "purpose": "style_sample",
+                  "relative_path": "正文/第001章.md",
+                  "selection_source": "independent_writer_read",
+                  "source_complete": true,
+                  "source_id": "gsrc-ff27184daa2f0ea9e579b8ad"
+                },
+                {
+                  "content_sha256": "e29dec146f9596a09481328c0ca7920189329b0ab02f66a3e2a061310e7dc7ea",
+                  "evidence_state": "observed",
+                  "file_bytes_sha256": "b42b995d41f9a2bf2b998f72ebadd4e26dff1d43df7e433a156fdda5e757f028",
+                  "observed_bytes": 34,
+                  "observed_bytes_sha256": "b42b995d41f9a2bf2b998f72ebadd4e26dff1d43df7e433a156fdda5e757f028",
+                  "observed_content_sha256": "e29dec146f9596a09481328c0ca7920189329b0ab02f66a3e2a061310e7dc7ea",
+                  "omission_reason": "short_source",
+                  "purpose": "style_sample",
+                  "relative_path": "正文/第002章.md",
+                  "selection_source": "independent_writer_read",
+                  "source_complete": true,
+                  "source_id": "gsrc-0a4db20ff622b626b3b042fd"
+                },
+                {
+                  "content_sha256": null,
+                  "evidence_state": "unavailable",
+                  "file_bytes_sha256": null,
+                  "observed_bytes": null,
+                  "observed_bytes_sha256": null,
+                  "observed_content_sha256": null,
+                  "omission_reason": "missing_source",
+                  "purpose": "author_instructions",
+                  "relative_path": ".storyforge/agent-instructions.md",
+                  "selection_source": "independent_writer_read",
+                  "source_complete": null,
+                  "source_id": "gsrc-1e8b755e5a0717348ec39e87"
+                }
+              ],
+              "unobserved_purposes": [],
+              "version": "generation-sources-v1",
+              "writing_context": null
+            }
+          },
+          "output_summary": {
+            "after_chars": 33,
+            "prompt_tokens": 12,
+            "completion_tokens": 5,
+            "token_usage": 17,
+            "cost_cny_estimated": 7.25e-05,
+            "cost_breakdown": {
+              "currency": "CNY",
+              "prompt_tokens": 12,
+              "completion_tokens": 5,
+              "cache_hit_tokens": null,
+              "cache_miss_tokens": null,
+              "input_cny": 3e-05,
+              "output_cny": 4.25e-05,
+              "total_cny": 7.25e-05,
+              "input_cny_per_m_tokens": 2.5,
+              "output_cny_per_m_tokens": 8.5,
+              "cache_hit_input_cny_per_m_tokens": null,
+              "source": "provider_usage"
+            },
+            "token_usage_source": "provider_usage",
+            "latency_ms": 250
+          },
+          "error_message": null
+        },
+        {
+          "id": 5,
+          "session_id": 1,
+          "tool_name": "assistant.chat",
+          "status": "completed",
+          "input_summary": {
+            "message": {
+              "sha256": "933fb17b4fea3be7f4362e314c2837ee40ddeee6d3be54d3e6244b9640f07dc5",
+              "length": 500
+            },
+            "context_chars": 0
+          },
+          "output_summary": {
+            "reply_chars": 209,
             "model": "m-1",
             "prompt_tokens": 12,
             "completion_tokens": 5,
