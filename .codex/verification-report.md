@@ -8282,3 +8282,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 没跑：P0 真宿主探针（`--assistant-only` 等）——作者的 StoryForge（0.1.15）开着，探针按设计拒绝与已有原生应用并行；留到出 0.2.0 前作者关掉应用时跑。
 - 发现的既有问题（不是本刀引入）：`verify:smoke` 与 `verify:agent-conversation` 两个浏览器回归自 P6-1a 起就红（在页面里模拟旧 HTTP 后端，前端改走引擎后读作品底座需要 Tauri 原生端口，报 `Cannot read properties of undefined (reading 'invoke')`）；在 master（d5599608）的临时 worktree 上复跑同样失败。它们只在 `apps/desktop` 的 `npm run verify` 里、不在根 `pnpm verify`。下一刀修。
 - 范围：63 个文件 +192 / -4931（Rust 25 个 +57 / -3157，前端 36 个 +100 / -1608，冒烟脚本 2 个 +35 / -166）。
+
+## 2026-10-16 修 P6-1a 起就红的两个浏览器回归（verify:smoke / verify:agent-conversation）
+
+- 问题：两个回归在页面里模拟旧 HTTP 后端（`/api/ide/commands/*`、知识提议、检查历史、会话、agent SSE），P6-1a 起前端只走进程内引擎，浏览器里没有 Tauri 原生端口，读作品底座与观测重扫报 `Cannot read properties of undefined (reading 'invoke')`，外壳之后的流程全断。它们只在 `apps/desktop` 的 `npm run verify` 里，根 `pnpm verify` 不跑，所以一直没被发现。
+- 修复：新增 `apps/desktop/frontend/scripts/http-doubles-plugin.mjs`，三个浏览器回归共用（行间续写原先的单模块插件并入）：把 `lib/api` 下走引擎的 assistant / agent-socket / chapter-checks / cross-chapter / ide-commands / knowledge-proposals 换成虚拟包装模块——其余导出照用原模块，替身导出的同名函数盖过它；替身与界面测试同一套 `tests/support/http-*-double.ts`，新增 ide-commands、knowledge、chapter-checks 三个（沿用早先 HTTP 报文形状，检查历史仍走产品的解码器）。坑：Vite 对浏览器直接请求的 URL 也走 `resolveId`、importer 缺省记成 `index.html`，包装层引用的原模块 URL 会被再次重定向成自引用（报「does not provide an export named …」），所以只替换相对路径导入。
+- `verify:agent-conversation` 另有一处更早的过期（#280 起）：作品总览「接着写」以下一章（`正文/第002章.md`）为当前文件发 `book.context`，假后端只认当前打开的文件；补上这个放行，并只在当前文件是打开的章节时回填当前章。删掉两个假后端里已无人请求的 `/health/ready` 与 `/api/agent-runs/writeback-recovery` 路由（`/health/` 前缀仍按意外请求拒）。
+- 验证：`verify:smoke`、`verify:agent-conversation`、`verify:inline-continuation` 三个均通过；新替身用临时 tsconfig 做类型检查无报错；prettier / eslint 干净。变异 1 / 1（插件去掉 ide-commands 替换 → `verify:smoke` 红、报原错误）。
+- 留给 P6-4：这两个回归不在根 `pnpm verify` 里才会烂掉，重排门禁时考虑并入。
