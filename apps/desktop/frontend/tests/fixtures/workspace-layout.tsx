@@ -4,8 +4,13 @@ import { createRoot } from 'react-dom/client';
 import * as monaco from 'monaco-editor';
 import '../../src/index.css';
 import { ensureMonacoThemes } from '../../src/lib/theme';
-import { ACTIVITY_BAR_WIDTH, WORKSPACE_PRIMARY_MIN_WIDTH } from '../../src/lib/workspace-layout';
-import { useWorkspaceSidePanelLimit } from '../../src/components/shell/useWorkspaceSidePanelLimit';
+import {
+  ACTIVITY_BAR_WIDTH,
+  ASSISTANT_PANEL_MIN_WIDTH,
+  WORKSPACE_PRIMARY_MIN_WIDTH,
+  widthToRatio,
+} from '../../src/lib/workspace-layout';
+import { useWorkspaceColumns } from '../../src/components/shell/useWorkspaceColumns';
 import { SidePanel } from '../../src/components/shell/SidePanel';
 import { AssistantPanelFrame } from '../../src/components/shell/AssistantPanelFrame';
 import { PatchReviewPanel } from '../../src/components/PatchReviewPanel';
@@ -15,10 +20,15 @@ ensureMonacoThemes(monaco);
 
 function Fixture() {
   const [mode, setMode] = useState<LayoutMode>('balanced');
-  const [sideWidth, setSideWidth] = useState(420);
+  const [sideRatio, setSideRatio] = useState<number | null>(0.3);
+  const [assistantRatio, setAssistantRatio] = useState<number | null>(null);
   const [sidebar, setSidebar] = useState(true);
   const [action, setAction] = useState('未操作');
-  const maxWidth = useWorkspaceSidePanelLimit(true, mode);
+  const { viewportWidth, columns } = useWorkspaceColumns(mode, sidebar, {
+    sideRatio,
+    assistantRatio,
+  });
+  const toRatio = (px: number) => (viewportWidth ? widthToRatio(px, viewportWidth) : null);
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
       <header className="flex flex-wrap items-center gap-3 border-b border-border p-2 text-xs">
@@ -29,7 +39,8 @@ function Fixture() {
           </button>
         ))}
         <button onClick={() => setSidebar((value) => !value)}>切换侧栏</button>
-        <output aria-label="保存的侧栏宽度">{sideWidth}</output>
+        <output aria-label="保存的侧栏比例">{sideRatio ?? '默认'}</output>
+        <output aria-label="保存的对话栏比例">{assistantRatio ?? '默认'}</output>
         <output aria-label="测试回调">{action}</output>
       </header>
       <div className="relative flex min-h-0 flex-1" data-testid="fixture-workspace">
@@ -38,9 +49,10 @@ function Fixture() {
           {sidebar && (
             <SidePanel
               view="book"
-              width={sideWidth}
-              maxWidth={maxWidth}
-              onWidthChange={setSideWidth}
+              width={columns?.side ?? 220}
+              maxWidth={columns?.sideMax}
+              onWidthChange={(px) => setSideRatio(toRatio(px))}
+              onWidthReset={() => setSideRatio(null)}
               projects={[]}
               activeProject={null}
               currentFile={null}
@@ -91,7 +103,14 @@ function Fixture() {
             onRetryWithoutKnowledge={() => {}}
           />
         </main>
-        <AssistantPanelFrame visible={mode !== 'editor'} wide={mode === 'chat'}>
+        <AssistantPanelFrame
+          visible={mode !== 'editor'}
+          wide={mode === 'chat'}
+          width={columns?.assistant ?? ASSISTANT_PANEL_MIN_WIDTH}
+          maxWidth={columns?.assistantMax ?? ASSISTANT_PANEL_MIN_WIDTH}
+          onWidthChange={(px) => setAssistantRatio(toRatio(px))}
+          onWidthReset={() => setAssistantRatio(null)}
+        >
           <p className="p-3 text-xs">Agent 栏挂载状态控件；不会发送消息。</p>
           <textarea
             className="min-h-0 w-full flex-1 bg-panel p-3"

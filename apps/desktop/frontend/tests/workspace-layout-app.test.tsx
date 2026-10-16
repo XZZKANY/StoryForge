@@ -34,9 +34,11 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
   );
   localStorage.clear();
   localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(['D:/layout-test-project']));
-  // 旧格式（按视图 map、无单宽字段）种子：启动即迁移，整轮运行不得覆盖成别的宽度。
+  // 旧格式（按视图 map、无比例字段）种子：启动即迁成比例 420/1400=0.3，整轮运行不得覆盖成别的比例；
+  // 显示宽度随窗口换算：1024 平衡态被编辑区保底收到 220，1440 时 0.3×1440=432。
   const legacySettings: Record<string, unknown> = { ...DEFAULT_APP_SETTINGS };
-  delete legacySettings.sidePanelWidth;
+  delete legacySettings.sidePanelRatio;
+  delete legacySettings.assistantPanelRatio;
   legacySettings.sidePanelWidths = { book: 420 };
   localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(legacySettings));
   const container = document.createElement('div');
@@ -57,8 +59,8 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
     // 作品图标现在是总览目的地；编辑资料仍沿用原 book 面板与宽度偏好。
     await click(container.querySelector('[data-testid="edit-book-profile"]'));
     const panel = () => container.querySelector<HTMLElement>('[data-testid="shell-side-panel"]');
-    expect(panel()?.style.width).toBe('236px');
-    expect(loadAppSettings().sidePanelWidth).toBe(420);
+    expect(panel()?.style.width).toBe('220px');
+    expect(loadAppSettings().sidePanelRatio).toBe(0.3);
     const editor = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'editor-probe:0',
     );
@@ -71,7 +73,7 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
       viewport = 1440;
       window.dispatchEvent(new Event('resize'));
     });
-    expect(panel()?.style.width).toBe('420px');
+    expect(panel()?.style.width).toBe('432px');
     await act(async () => {
       viewport = 1024;
       window.dispatchEvent(new Event('resize'));
@@ -100,8 +102,8 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
       expect(editor?.textContent).toBe('editor-probe:1');
       expect(agent?.textContent).toBe('agent-probe:1');
     }
-    expect(panel()?.style.width).toBe('236px');
-    expect(loadAppSettings().sidePanelWidth).toBe(420);
+    expect(panel()?.style.width).toBe('220px');
+    expect(loadAppSettings().sidePanelRatio).toBe(0.3);
     expect(
       container.querySelector<HTMLElement>('[data-testid="shell-center"]')?.style.minWidth,
     ).toBe('420px');
@@ -122,7 +124,7 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
         true,
       );
       expect(localStorage.getItem('storyforge:shell:layoutMode')).toBe('balanced');
-      expect(loadAppSettings().sidePanelWidth).toBe(420);
+      expect(loadAppSettings().sidePanelRatio).toBe(0.3);
       expect(
         container.querySelector<HTMLElement>('[data-testid="shell-center"]')?.style.minWidth,
       ).toBe('0');
@@ -164,7 +166,30 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
     expect(editor?.isConnected && agent?.isConnected).toBe(true);
     expect(editor?.textContent).toBe('editor-probe:1');
     expect(agent?.textContent).toBe('agent-probe:1');
-    expect(loadAppSettings().sidePanelWidth).toBe(420);
+    expect(loadAppSettings().sidePanelRatio).toBe(0.3);
+
+    // 对话栏宽度跟窗口走：1440 平衡态默认 0.27×1440≈389，侧栏 0.3×1440=432。
+    await act(async () => {
+      viewport = 1440;
+      window.dispatchEvent(new Event('resize'));
+    });
+    const assistantFrame = () =>
+      container.querySelector<HTMLElement>('[data-testid="assistant-panel"]');
+    expect(assistantFrame()?.style.width).toBe('389px');
+    expect(panel()?.style.width).toBe('432px');
+    // 只有作者显式调宽才改偏好：调完的像素按当时窗口宽记成比例。
+    const press = (testId: string, key: string) =>
+      act(async () =>
+        container
+          .querySelector<HTMLElement>(`[data-testid="${testId}"]`)!
+          .dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })),
+      );
+    await press('assistant-panel-resize', 'ArrowLeft');
+    expect(loadAppSettings().assistantPanelRatio).toBe(0.2771);
+    expect(assistantFrame()?.style.width).toBe('399px');
+    await press('side-panel-resize', 'ArrowLeft');
+    expect(loadAppSettings().sidePanelRatio).toBe(0.2931);
+    expect(panel()?.style.width).toBe('422px');
   } finally {
     await act(async () => root.unmount());
     container.remove();

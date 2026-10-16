@@ -50,9 +50,13 @@ export function useAppPreferences() {
     }));
   }, []);
 
-  // 侧面板宽度全左栏共享一份：切视图只换内容，右边界不动。
-  const setSidePanelWidth = useCallback((width: number) => {
-    setSettings((prev) => ({ ...prev, sidePanelWidth: width }));
+  // 侧栏 / 对话栏宽度存成占窗口宽的比例（null = 默认比例），窗口变了三栏一起跟着变。
+  // 侧栏全左栏共享一份：切视图只换内容，右边界不动。
+  const setSidePanelRatio = useCallback((ratio: number | null) => {
+    setSettings((prev) => ({ ...prev, sidePanelRatio: ratio }));
+  }, []);
+  const setAssistantPanelRatio = useCallback((ratio: number | null) => {
+    setSettings((prev) => ({ ...prev, assistantPanelRatio: ratio }));
   }, []);
 
   const modelLabel =
@@ -65,7 +69,8 @@ export function useAppPreferences() {
     toggleTheme,
     toggleFontMode,
     cycleProseMeasure,
-    setSidePanelWidth,
+    setSidePanelRatio,
+    setAssistantPanelRatio,
     modelLabel,
   };
 }

@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { WORKSPACE_COMPACT_BREAKPOINT } from '../../lib/workspace-layout';
-import { useWorkspaceViewportWidth } from './useWorkspaceSidePanelLimit';
+import { useWorkspaceViewportWidth } from './useWorkspaceColumns';
 
 export type SidePanelView =
   | 'book'

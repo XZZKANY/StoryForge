@@ -17,8 +17,13 @@ import { Titlebar } from '../shell/Titlebar';
 import type { SidePanelView } from '../shell/useShellState';
 import { ToastHost } from '../shell/ToastHost';
 import { useDeference } from '../shell/useDeference';
-import { useWorkspaceSidePanelLimit } from '../shell/useWorkspaceSidePanelLimit';
-import { WORKSPACE_PRIMARY_MIN_WIDTH } from '../../lib/workspace-layout';
+import { useWorkspaceColumns } from '../shell/useWorkspaceColumns';
+import {
+  ASSISTANT_PANEL_MIN_WIDTH,
+  WORKSPACE_PRIMARY_MIN_WIDTH,
+  widthToRatio,
+} from '../../lib/workspace-layout';
+import { SIDE_PANEL_WIDTH_MIN } from '../../lib/side-panel-width';
 import { emitToast } from '../../lib/toast';
 import { emitExportCurrentFile } from '../../lib/assistant-events';
 import { shellActions } from './shell-actions';
@@ -139,7 +144,12 @@ export function AppShell({
   );
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarVisible = !shell.sidebarHidden && (projectOpen || shell.view !== 'explorer');
-  const sidePanelMaxWidth = useWorkspaceSidePanelLimit(projectOpen, shell.layoutMode);
+  // 三栏随窗口自适应：侧栏 / 对话栏按作者存的比例（没拖过用默认）换算成这一刻的像素。
+  const { viewportWidth, columns } = useWorkspaceColumns(shell.layoutMode, sidebarVisible, {
+    sideRatio: preferences.settings.sidePanelRatio,
+    assistantRatio: preferences.settings.assistantPanelRatio,
+  });
+  const toRatio = (px: number) => (viewportWidth ? widthToRatio(px, viewportWidth) : null);
   const agentPermission = useAgentPermission(activeProject);
   const knowledgeInbox = useKnowledgeInbox(activeProject);
   const rightPanelVisible = workspaceVisible && !shell.rightCollapsed;
@@ -224,9 +234,10 @@ export function AppShell({
             >
               <SidePanel
                 view={shell.view}
-                width={preferences.settings.sidePanelWidth}
-                maxWidth={sidePanelMaxWidth}
-                onWidthChange={preferences.setSidePanelWidth}
+                width={columns?.side ?? SIDE_PANEL_WIDTH_MIN}
+                maxWidth={columns?.sideMax}
+                onWidthChange={(px) => preferences.setSidePanelRatio(toRatio(px))}
+                onWidthReset={() => preferences.setSidePanelRatio(null)}
                 projects={projects}
                 activeProject={activeProject}
                 currentFile={currentFile}
@@ -408,6 +419,10 @@ export function AppShell({
             visible={rightPanelVisible}
             wide={shell.layoutMode === 'chat'}
             compact={shell.compact}
+            width={columns?.assistant ?? ASSISTANT_PANEL_MIN_WIDTH}
+            maxWidth={columns?.assistantMax ?? ASSISTANT_PANEL_MIN_WIDTH}
+            onWidthChange={(px) => preferences.setAssistantPanelRatio(toRatio(px))}
+            onWidthReset={() => preferences.setAssistantPanelRatio(null)}
           >
             <div
               className="flex min-h-0 flex-1 flex-col overflow-hidden"
