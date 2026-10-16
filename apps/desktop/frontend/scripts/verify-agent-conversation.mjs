@@ -1,4 +1,5 @@
 import { createServer } from 'vite';
+import { httpDoublesPlugin } from './http-doubles-plugin.mjs';
 import { chromium } from 'playwright';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -16,6 +17,7 @@ const server = await createServer({
     'import.meta.env.VITE_STORYFORGE_API_KEY': JSON.stringify('smoke-fixture-key'),
   },
   server: { port: 0, strictPort: false },
+  plugins: [httpDoublesPlugin()],
 });
 
 let browser;
@@ -161,11 +163,14 @@ try {
               )
             : {};
         const args = requestBody.args ?? {};
+        // 作品总览的「接着写」以下一章（这本书只有一章，故为第 002 章）为当前文件要上一章结尾。
+        const handoffTarget = '正文/第002章.md';
+        const opened = args.current_file === filePath;
         if (
           requestPath.startsWith('/api/ide/commands/') &&
           (method !== 'POST' ||
             args.project_root !== projectPath ||
-            (args.current_file && args.current_file !== filePath))
+            (args.current_file && !opened && args.current_file !== handoffTarget))
         )
           rejectRequest();
         if (requestPath === '/api/agent-runs/knowledge-proposals/refresh') {
@@ -174,7 +179,7 @@ try {
         }
         if (requestPath === '/api/ide/commands/book.context') {
           const estimatedChars = Math.floor(new TextEncoder().encode(fileContent).length / 3);
-          const currentChapter = args.current_file
+          const currentChapter = opened
             ? '当前打开的是第 1 章（正文/第三章.md）'
             : '当前没有打开正文';
           return json({
@@ -196,8 +201,8 @@ try {
                 ],
                 total_chapters: 1,
                 total_estimated_chars: estimatedChars,
-                current_relative_path: args.current_file ? '正文/第三章.md' : null,
-                current_ordinal: args.current_file ? 1 : null,
+                current_relative_path: opened ? '正文/第三章.md' : null,
+                current_ordinal: opened ? 1 : null,
                 skeleton: [],
                 skeleton_total: 0,
                 skeleton_limit: 12,
@@ -263,31 +268,6 @@ try {
           });
         }
 
-        if (requestPath === '/api/agent-runs/writeback-recovery') {
-          if (
-            method !== 'GET' ||
-            parsedUrl.searchParams.get('project_path') !== projectPath ||
-            parsedUrl.searchParams.get('after_id') !== '0' ||
-            parsedUrl.searchParams.get('limit') !== '20'
-          )
-            rejectRequest();
-          return json({ items: [], next_after_id: null });
-        }
-
-        if (requestPath === '/health/ready') {
-          if (method !== 'GET') rejectRequest();
-          return new Response(
-            JSON.stringify({
-              status: 'ready',
-              app_version: 'smoke-fixture',
-              checks: { db: 'ok', redis: 'skipped' },
-            }),
-            {
-              status: 200,
-              headers: { 'content-type': 'application/json' },
-            },
-          );
-        }
         if (requestPath === '/api/assistant/sessions/101') {
           if (method !== 'GET' || !latestAgentPayload) rejectRequest();
           const now = new Date().toISOString();

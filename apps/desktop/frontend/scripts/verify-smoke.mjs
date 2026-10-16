@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
+import { httpDoublesPlugin } from './http-doubles-plugin.mjs';
 
 /* global Request, Response */
 
@@ -17,6 +18,7 @@ const server = await createServer({
     'import.meta.env.VITE_STORYFORGE_API_KEY': JSON.stringify('smoke-fixture-key'),
   },
   server: { port: 0, strictPort: false },
+  plugins: [httpDoublesPlugin()],
 });
 
 let browser;
@@ -138,36 +140,12 @@ try {
           },
         });
       }
-      if (requestPath === '/api/agent-runs/writeback-recovery') {
-        if (
-          method !== 'GET' ||
-          parsedUrl.searchParams.get('project_path') !== projectPath ||
-          parsedUrl.searchParams.get('after_id') !== '0' ||
-          parsedUrl.searchParams.get('limit') !== '20'
-        )
-          rejectRequest();
-        return json({ items: [], next_after_id: null });
-      }
       if (requestPath === '/api/assistant/sessions') {
         if (method !== 'GET' || parsedUrl.searchParams.get('project_path') !== projectPath)
           rejectRequest();
         return json([]);
       }
 
-      if (requestPath === '/health/ready') {
-        if (method !== 'GET') rejectRequest();
-        return new Response(
-          JSON.stringify({
-            status: 'ready',
-            app_version: 'smoke-fixture',
-            checks: { db: 'ok', redis: 'skipped' },
-          }),
-          {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          },
-        );
-      }
       if (isApi || parsedUrl.origin !== window.location.origin) {
         rejectRequest();
       }
