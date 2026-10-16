@@ -8334,3 +8334,9 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 途中逮到并修掉的：#367 删 Provider 时连带删了退出握手的前端确认与上次退出诊断（#368 补回）；`verify:smoke` / `verify:agent-conversation` 自 P6-1a 起红（页面里还在模拟旧 HTTP 后端，#370 用共用 fetch 替身插件修好并在 #372 并入根门禁）；`http-config` 把替身地址写死导致行间续写回归红（P6-2 内修）。
 - 没做 / 没验：真宿主探针（作者的 StoryForge 开着，探针拒绝并行）；NSIS 隔离安装；新引擎在作者真实写作里的使用（0.2.0 是第一次）。可另开的小清理：`tauri-plugin-http` / `tauri-plugin-sql` 产品已不用；帧 schema 里外部写回的等待帧；为 pytest 保留跟踪的几个 `.codex` 文件；本地 `apps/api/` 未跟踪残留。
 - 注意：P6-3 的本地验证构建覆盖了 `bundle/nsis/` 里已发布的 0.1.16 安装包（作者没装 0.1.16，不影响）；验证包挪到 `output/ts-engine-p6/p6-3-local-build/` 并标 NOT-FOR-INSTALL。
+
+## 2026-10-16 修 P6-5 留下的 Rust 测试红：删 Python 互通测试
+
+- 问题：`llm_config_store::tests::rust_saved_keys_are_resolved_live_by_python` 用 `apps/api/.venv` 的 Python 跑 `tests.llm_config_interop_probe`，验证 Python 能读 Rust 存的 DPAPI key。#373 删了 `apps/api` 后它必红；P6-5 只跑了 `pnpm verify`（不含 Rust 测试），出 0.2.0 前跑 `cargo test` 才发现。
+- 修复：删掉这条测试（读 key 的 Python 端已不存在；Rust 侧保存 / 读取 / 迁移 / 只改润色槽不动主 key 等另有测试）。
+- 验证：`cargo test` 129 passed / 0 failed / 1 ignored。教训：删一整块代码后，门外的测试（Rust、冒烟）也要重跑一遍。

@@ -145,37 +145,6 @@ fn locked_destination_keeps_original_and_cleans_encrypted_staging() {
 
 #[cfg(windows)]
 #[test]
-fn rust_saved_keys_are_resolved_live_by_python() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("llm-provider.json");
-    let mut payload = request(Some("main-test-sentinel"), false);
-    payload.polish = Some(
-        serde_json::from_value(json!({"provider":"gemini",
-        "baseUrl":"https://polish.invalid/v1","model":"polish-test-model",
-        "apiKey":"polish-test-sentinel"}))
-        .unwrap(),
-    );
-    save(&path, payload).unwrap();
-    let api = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../api");
-    let output = std::process::Command::new(api.join(".venv/Scripts/python.exe"))
-        .current_dir(&api)
-        .args(["-m", "tests.llm_config_interop_probe"])
-        .arg(&path)
-        .output()
-        .expect("native interop requires the API .venv Python");
-    assert!(
-        output.status.success(),
-        "Python native interop failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout).trim(),
-        "DPAPI_INTEROP_OK"
-    );
-}
-
-#[cfg(windows)]
-#[test]
 fn polish_save_and_clear_never_modify_main_key() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("llm-provider.json");
