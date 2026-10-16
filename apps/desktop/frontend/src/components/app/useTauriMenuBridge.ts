@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { probeApiRuntimeHealth } from '../../lib/api-client';
 import { isTauriRuntime } from '../../lib/tauri-env';
 
 /**
@@ -18,7 +17,6 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
   const [isDesktopRuntime, setIsDesktopRuntime] = useState(false);
   const [tauriMenuReady, setTauriMenuReady] = useState(false);
   const [tauriMenuError, setTauriMenuError] = useState('');
-  const [smokeApiReady, setSmokeApiReady] = useState(false);
   const callbacksRef = useRef({ onRestoreFullLayout });
 
   useEffect(() => {
@@ -30,25 +28,6 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
 
     let isCancelled = false;
     const unlistenFns: Array<() => void> = [];
-
-    const setSmokeReadyAttribute = (ready: boolean) => {
-      const shell = document.querySelector('[data-testid="desktop-shell"]');
-      shell?.setAttribute('data-smoke-api-ready', ready ? 'true' : 'false');
-    };
-
-    const probeRuntimeHealth = async () => {
-      const health = await probeApiRuntimeHealth();
-      if (isCancelled) return;
-      const ready = health.status === 'ready';
-      setSmokeApiReady(ready);
-      setSmokeReadyAttribute(ready);
-    };
-
-    void probeRuntimeHealth().catch(() => {
-      if (isCancelled) return;
-      setSmokeApiReady(false);
-      setSmokeReadyAttribute(false);
-    });
 
     const registerMenuListeners = async () => {
       let listen: typeof import('@tauri-apps/api/event').listen;
@@ -84,9 +63,7 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
       isCancelled = true;
       setIsDesktopRuntime(false);
       setTauriMenuReady(false);
-      setSmokeApiReady(false);
       setTauriMenuError('');
-      setSmokeReadyAttribute(false);
       unlistenFns.forEach((fn) => fn());
     };
   }, []);
@@ -95,6 +72,5 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
     isDesktopRuntime,
     tauriMenuReady,
     tauriMenuError,
-    smokeApiReady,
   };
 }

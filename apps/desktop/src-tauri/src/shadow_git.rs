@@ -3,11 +3,6 @@ mod core;
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
-mod bridge_fixture;
-#[cfg(test)]
-pub(crate) use bridge_fixture::dispatch_fixture_command;
-
 use crate::runtime_paths;
 use core::{CoreSnapshot, ShadowGitCore, SharedState};
 use serde::{Deserialize, Serialize};

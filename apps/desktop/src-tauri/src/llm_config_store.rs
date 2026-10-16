@@ -197,29 +197,19 @@ fn write(path: &Path, config: &StoredLlmConfig) -> Result<()> {
     Ok(())
 }
 
-pub fn prepare(path: &Path) -> Result<()> {
-    prepare_with_protector(path, &ProtectedKey::protect)
+/// 读配置；旧版配置在这里迁移到 v2 并原子写回（加密失败则原文件不动）。
+pub fn read(path: &Path) -> Result<LlmConfigResponse> {
+    read_with_protector(path, &ProtectedKey::protect)
 }
 
-fn prepare_with_protector(
+fn read_with_protector(
     path: &Path,
     protect: &impl Fn(&str) -> Result<ProtectedKey>,
-) -> Result<()> {
+) -> Result<LlmConfigResponse> {
     let _guard = CONFIG_LOCK
         .lock()
         .map_err(|_| anyhow::anyhow!("LLM 配置锁不可用"))?;
     let (config, needs_write) = load_with_protector(path, protect)?;
-    if needs_write {
-        write(path, &config)?;
-    }
-    Ok(())
-}
-
-pub fn read(path: &Path) -> Result<LlmConfigResponse> {
-    let _guard = CONFIG_LOCK
-        .lock()
-        .map_err(|_| anyhow::anyhow!("LLM 配置锁不可用"))?;
-    let (config, needs_write) = load(path)?;
     if needs_write {
         write(path, &config)?;
     }

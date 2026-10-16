@@ -7,8 +7,8 @@ const ROOT = 'D:\\book';
 const fixture = vi.hoisted(() => ({ db: null as Db | null, reader: null as ProjectReader | null }));
 
 vi.mock('@tauri-apps/api/app', () => ({ getVersion: async () => '0.1.10' }));
-vi.mock('../src/lib/api/config', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../src/lib/api/config')>()),
+vi.mock('./support/http-config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./support/http-config')>()),
   getApiConfig: async () => ({ baseUrl: 'http://python.test', apiKey: 'k' }),
 }));
 vi.mock('../src/lib/engine/llm', async (importOriginal) => ({

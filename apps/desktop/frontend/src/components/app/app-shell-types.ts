@@ -32,7 +32,6 @@ type RuntimeProps = {
   isDesktopRuntime: boolean;
   tauriMenuReady: boolean;
   tauriMenuError: string;
-  smokeApiReady: boolean;
 };
 
 /** 观测句柄：useObservatory 全量数据 + App 级定位回调（观测行 / 台账锚点两种入口）。 */

@@ -1,25 +1,15 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-#[cfg(test)]
-mod external_chat_bridge_tests;
-
-#[cfg(test)]
-mod external_native_ipc_fixture;
 mod engine_db;
 mod engine_llm;
-mod engine_shadow;
 mod fs;
 mod fs_writeback_receipts;
 mod host_close;
 mod host_close_state;
-#[cfg(feature = "gui-fixture")]
-mod lifecycle_gui_fixture;
 mod llm_config;
 mod llm_config_store;
-mod managed_agent_host;
 mod managed_writeback;
-mod owned_process_tree;
 mod runtime_paths;
 mod secret_protection;
 mod shadow_git;
@@ -27,588 +17,18 @@ mod smoke_ui;
 
 use anyhow::{Context, Result};
 use runtime_paths::is_smoke_mode;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::fs as std_fs;
-use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
 use std::sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
-    mpsc, Arc, Mutex,
+    atomic::{AtomicU64, Ordering},
+    mpsc,
 };
 use std::thread;
 use std::time::Duration;
 use tauri::Manager;
-use tauri_plugin_shell::process::{CommandChild, CommandEvent};
-use tauri_plugin_shell::ShellExt;
 
-type SharedServiceManager = Arc<Mutex<ServiceManager>>;
 static SMOKE_PROJECT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
-
-/// 全局状态：保存所有启动的子进程，用于退出时清理
-struct ServiceManager {
-    children: Vec<Child>,
-    sidecars: Vec<ManagedSidecar>,
-    api_lease: Option<managed_agent_host::ManagedApiLease>,
-}
-
-struct ManagedSidecar {
-    child: CommandChild,
-    terminated: Arc<AtomicBool>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ApiConfig {
-    base_url: String,
-    api_key: String,
-    #[serde(flatten)]
-    host_capability: managed_agent_host::HostCapability,
-}
-
-impl ServiceManager {
-    fn new() -> Self {
-        Self {
-            children: Vec::new(),
-            sidecars: Vec::new(),
-            api_lease: None,
-        }
-    }
-
-    fn add(&mut self, child: Child) {
-        self.children.push(child);
-    }
-
-    fn add_sidecar(&mut self, child: CommandChild, terminated: Arc<AtomicBool>) {
-        self.sidecars.push(ManagedSidecar { child, terminated });
-    }
-
-    fn shutdown(&mut self) {
-        self.api_lease = None;
-        println!("正在停止所有服务...");
-        for mut child in self.children.drain(..) {
-            match child.try_wait() {
-                Ok(Some(_)) => continue,
-                Ok(None) if cfg!(windows) => {
-                    if !kill_windows_process_tree(child.id()) {
-                        let _ = child.kill();
-                    }
-                }
-                Ok(None) => {
-                    if let Err(error) = child.kill() {
-                        eprintln!("停止进程失败: {error}");
-                    }
-                }
-                Err(error) => {
-                    eprintln!("读取受管进程状态失败，仍将通过进程句柄停止: {error}");
-                    let _ = child.kill();
-                }
-            }
-        }
-        for managed in self.sidecars.drain(..) {
-            let child = managed.child;
-            if cfg!(windows)
-                && !managed.terminated.load(Ordering::Acquire)
-                && kill_windows_process_tree(child.pid())
-            {
-                continue;
-            }
-            if let Err(error) = child.kill() {
-                eprintln!("停止 sidecar 失败: {error}");
-            }
-        }
-        println!("所有服务已停止");
-    }
-}
-
-fn kill_windows_process_tree(pid: u32) -> bool {
-    if !cfg!(windows) {
-        return false;
-    }
-    matches!(
-        Command::new("taskkill.exe")
-            .args(["/PID", &pid.to_string(), "/T", "/F"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status(),
-        Ok(status) if status.success()
-    )
-}
-
-fn shutdown_managed_services(manager: &SharedServiceManager) {
-    let mut services = match manager.lock() {
-        Ok(services) => services,
-        Err(poisoned) => {
-            eprintln!("服务管理器锁已损坏，仍将尝试停止受管服务");
-            poisoned.into_inner()
-        }
-    };
-    services.shutdown();
-}
-
-/// 检测 TCP 端口是否可达
-fn check_port(host: &str, port: u16, timeout_secs: u64) -> bool {
-    let addr = format!("{}:{}", host, port);
-    for _ in 0..(timeout_secs * 2) {
-        if TcpStream::connect(&addr).is_ok() {
-            return true;
-        }
-        thread::sleep(Duration::from_millis(500));
-    }
-    false
-}
-
-/// 检测命令是否存在
-fn command_exists(cmd: &str) -> bool {
-    let checker = if cfg!(target_os = "windows") {
-        "where"
-    } else {
-        "which"
-    };
-    Command::new(checker)
-        .arg(cmd)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
-}
-
-/// 启动并等待 Docker Compose 服务
-fn start_docker_services(project_root: &str) -> Result<()> {
-    if !command_exists("docker") {
-        anyhow::bail!("未找到 docker 命令，请安装 Docker Desktop");
-    }
-
-    println!("启动 Docker Compose 服务（postgres, redis, minio）...");
-
-    let status = Command::new("docker")
-        .args(&["compose", "up", "-d", "postgres", "redis", "minio"])
-        .current_dir(project_root)
-        .status()
-        .context("执行 docker compose up 失败")?;
-
-    if !status.success() {
-        anyhow::bail!("docker compose up 执行失败");
-    }
-
-    println!("等待 PostgreSQL (55432) 可达...");
-    if !check_port("127.0.0.1", 55432, 30) {
-        anyhow::bail!("PostgreSQL 未在 30 秒内启动");
-    }
-
-    println!("✓ PostgreSQL 已就绪");
-
-    println!("等待 Redis (6379) 可达...");
-    if !check_port("127.0.0.1", 6379, 30) {
-        anyhow::bail!("Redis 未在 30 秒内启动");
-    }
-
-    println!("✓ Redis 已就绪");
-    println!("✓ Docker 服务全部就绪");
-
-    Ok(())
-}
-
-/// 执行数据库迁移
-fn run_migrations(project_root: &str) -> Result<()> {
-    if !command_exists("uv") {
-        anyhow::bail!("未找到 uv 命令，请安装：https://github.com/astral-sh/uv");
-    }
-
-    println!("执行数据库迁移 (alembic upgrade head)...");
-
-    let api_dir = format!("{}/apps/api", project_root);
-    let status = Command::new("uv")
-        .args(&["run", "alembic", "upgrade", "head"])
-        .current_dir(&api_dir)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .context("执行 alembic upgrade 失败")?;
-
-    if !status.success() {
-        anyhow::bail!("数据库迁移失败");
-    }
-
-    println!("✓ 数据库迁移完成");
-    Ok(())
-}
-
-fn is_api_ready(base_url: &str) -> bool {
-    reqwest::blocking::get(format!("{}/health/ready", base_url.trim_end_matches('/')))
-        .map(|resp| resp.status().is_success())
-        .unwrap_or(false)
-}
-
-/// 读 /health/ready 的 app_version：用于覆盖安装后判断在跑的是不是旧孤儿 sidecar（W1）。
-fn fetch_api_version(base_url: &str) -> Option<String> {
-    let resp =
-        reqwest::blocking::get(format!("{}/health/ready", base_url.trim_end_matches('/'))).ok()?;
-    if !resp.status().is_success() {
-        return None;
-    }
-    // reqwest 未启用 json feature，直接取文本用 serde_json 解析，避免动 Cargo 依赖。
-    let text = resp.text().ok()?;
-    let body: serde_json::Value = serde_json::from_str(&text).ok()?;
-    body.get("app_version")
-        .and_then(|value: &serde_json::Value| value.as_str())
-        .map(|value: &str| value.to_string())
-}
-
-/// 按端口杀掉占用者（Windows netstat 定位 PID → taskkill /F）。用于强杀旧版本孤儿 sidecar，
-/// 再由正常 spawn 流程拉起当前版本。非 Windows 走 lsof + kill。
-fn kill_process_on_port(port: u16) {
-    #[cfg(windows)]
-    {
-        let output = Command::new("netstat").args(["-ano", "-p", "tcp"]).output();
-        let Ok(output) = output else {
-            eprintln!("netstat 执行失败，无法定位端口 {} 的孤儿进程", port);
-            return;
-        };
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let needle = format!(":{}", port);
-        let mut pids: Vec<String> = Vec::new();
-        for line in stdout.lines() {
-            if !line.contains("LISTENING") || !line.contains(&needle) {
-                continue;
-            }
-            if let Some(pid) = line.split_whitespace().last() {
-                if pid.chars().all(|c| c.is_ascii_digit()) && !pids.contains(&pid.to_string()) {
-                    pids.push(pid.to_string());
-                }
-            }
-        }
-        for pid in pids {
-            println!("强杀端口 {} 上的旧 sidecar 进程 PID={}", port, pid);
-            let _ = Command::new("taskkill").args(["/F", "/PID", &pid]).output();
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        if let Ok(output) = Command::new("lsof")
-            .args(["-t", &format!("-i:{}", port)])
-            .output()
-        {
-            for pid in String::from_utf8_lossy(&output.stdout).split_whitespace() {
-                println!("强杀端口 {} 上的旧 sidecar 进程 PID={}", port, pid);
-                let _ = Command::new("kill").args(["-9", pid]).output();
-            }
-        }
-    }
-}
-
-fn desktop_api_base_url() -> String {
-    std::env::var("STORYFORGE_API_BASE_URL")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| "http://127.0.0.1:8000".to_string())
-}
-
-fn desktop_api_port(base_url: &str) -> u16 {
-    base_url
-        .rsplit_once(':')
-        .and_then(|(_, port)| port.trim_end_matches('/').parse::<u16>().ok())
-        .unwrap_or(8000)
-}
-
-fn backend_env(
-    app: &tauri::AppHandle,
-    api_base_url: &str,
-    local_mode: bool,
-    host_generation: &str,
-) -> Result<Vec<(String, String)>> {
-    let mut env = vec![
-        ("STORYFORGE_API_HOST".to_string(), "127.0.0.1".to_string()),
-        (
-            "STORYFORGE_API_PORT".to_string(),
-            desktop_api_port(api_base_url).to_string(),
-        ),
-    ];
-    if local_mode {
-        env.push((
-            "STORYFORGE_DESKTOP_SKIP_SERVICES".to_string(),
-            "1".to_string(),
-        ));
-        env.push(("STORYFORGE_ENV".to_string(), "local".to_string()));
-        env.push((
-            "DATABASE_URL".to_string(),
-            llm_config::sqlite_database_url(app)?,
-        ));
-    }
-    env.extend(llm_config::llm_env_for_backend(app)?);
-    env.extend(managed_agent_host::backend_env(host_generation));
-    Ok(env)
-}
-
-fn spawn_api_sidecar(
-    app: &tauri::AppHandle,
-    api_base_url: &str,
-    manager: &Arc<Mutex<ServiceManager>>,
-) -> Result<()> {
-    let generation = managed_agent_host::new_generation();
-    let sidecar_name = "storyforge-api";
-    let mut command = app
-        .shell()
-        .sidecar(sidecar_name)
-        .context("无法构建 API sidecar 命令")?;
-
-    for (key, value) in backend_env(app, api_base_url, true, &generation)? {
-        command = command.env(key, value);
-    }
-
-    let (mut rx, child) = command.spawn().context("启动 API sidecar 失败")?;
-    let terminated = Arc::new(AtomicBool::new(false));
-    {
-        let mut services = manager.lock().unwrap();
-        services.api_lease = Some(managed_agent_host::ManagedApiLease {
-            generation,
-            base_url: api_base_url.to_string(),
-            pid: child.pid(),
-            terminated: Arc::clone(&terminated),
-        });
-        services.add_sidecar(child, Arc::clone(&terminated));
-    }
-    tauri::async_runtime::spawn(async move {
-        while let Some(event) = rx.recv().await {
-            match event {
-                CommandEvent::Stdout(line) => {
-                    println!("[api-sidecar] {}", String::from_utf8_lossy(&line));
-                }
-                CommandEvent::Stderr(line) => {
-                    eprintln!("[api-sidecar] {}", String::from_utf8_lossy(&line));
-                }
-                CommandEvent::Error(err) => {
-                    eprintln!("[api-sidecar] error: {}", err);
-                }
-                CommandEvent::Terminated(payload) => {
-                    terminated.store(true, Ordering::Release);
-                    println!("[api-sidecar] terminated: {:?}", payload.code);
-                    break;
-                }
-                _ => {}
-            }
-        }
-    });
-    Ok(())
-}
-
-fn spawn_dev_api_server(
-    app: &tauri::AppHandle,
-    project_root: &str,
-    api_base_url: &str,
-    manager: &Arc<Mutex<ServiceManager>>,
-) -> Result<()> {
-    let api_dir = format!("{}/apps/api", project_root);
-    let venv_python = if cfg!(windows) {
-        format!("{}/.venv/Scripts/python.exe", api_dir)
-    } else {
-        format!("{}/.venv/bin/python", api_dir)
-    };
-
-    let generation = managed_agent_host::new_generation();
-    let mut command = Command::new(&venv_python);
-    #[cfg(feature = "gui-fixture")]
-    let api_entry = lifecycle_gui_fixture::api_entry(app, project_root)?;
-    #[cfg(not(feature = "gui-fixture"))]
-    let api_entry = "run_windows.py".to_string();
-    command
-        .args([api_entry])
-        .current_dir(&api_dir)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
-    for (key, value) in backend_env(app, api_base_url, should_skip_services(), &generation)? {
-        command.env(key, value);
-    }
-
-    let child = command.spawn().context("启动 uvicorn 失败")?;
-    let mut services = manager.lock().unwrap();
-    services.api_lease = Some(managed_agent_host::ManagedApiLease {
-        generation,
-        base_url: api_base_url.to_string(),
-        pid: child.id(),
-        terminated: Arc::new(AtomicBool::new(false)),
-    });
-    services.add(child);
-    Ok(())
-}
-
-/// 启动 FastAPI 服务：拉起 sidecar / dev 进程（快）。wait_ready=true 时同步等待就绪；
-/// 正常启动传 false，就绪由调用方在后台线程等待，避免阻塞窗口首帧（#3 启动慢）。
-fn start_api_server(
-    app: &tauri::AppHandle,
-    project_root: Option<&str>,
-    manager: &Arc<Mutex<ServiceManager>>,
-    wait_ready: bool,
-) -> Result<()> {
-    let api_base_url = desktop_api_base_url();
-    let local_mode = should_skip_services() || should_use_api_sidecar();
-    if is_api_ready(&api_base_url) {
-        if is_smoke_mode() {
-            anyhow::bail!(
-                "Smoke API 地址已被占用，拒绝复用或终止现有进程: {}",
-                api_base_url
-            );
-        }
-        // 端口上已有 API：可能是覆盖安装遗留的旧版本孤儿，也可能是上次崩溃/被强杀未清理
-        // 留下的**同版本**孤儿 sidecar（W1 握手，决策=taskkill+respawn）。
-        let expected_version = app.package_info().version.to_string();
-        let running_version = fetch_api_version(&api_base_url);
-        let version_matches = running_version
-            .as_deref()
-            .map(|value| value == expected_version)
-            .unwrap_or(false);
-        // 仅当「版本一致」且「非本地模式，或显式允许复用」时才复用现有服务。
-        // 本地桌面模式必须用自带 sidecar 注入 BYO-key LLM 配置，故不复用——此时无论版本是否
-        // 相同都把端口上的孤儿强杀重启。旧逻辑对同版本孤儿走 bail，会让上次崩溃残留的 sidecar
-        // 占着端口后**每次启动都闪退**（真机实证），故改为一律强杀。
-        let reuse_existing = version_matches && (!local_mode || should_reuse_existing_api());
-        if reuse_existing {
-            println!("✓ 复用已有 FastAPI 服务 ({}/health/ready)", api_base_url);
-            return Ok(());
-        }
-        if version_matches {
-            println!(
-                "本地模式检测到端口上已有同版本 API，判定为残留孤儿 sidecar，强杀后启动自带后端。"
-            );
-        } else {
-            println!(
-                "检测到端口上运行的 API 版本为 {:?}，与当前应用 {} 不符，强杀旧 sidecar 后重启。",
-                running_version, expected_version
-            );
-        }
-        kill_process_on_port(desktop_api_port(&api_base_url));
-        // 给旧进程释放端口留出时间，避免紧接着的 spawn 撞端口。
-        thread::sleep(Duration::from_secs(1));
-    }
-
-    println!("启动 FastAPI 服务 ({})...", api_base_url);
-
-    if should_use_api_sidecar() {
-        spawn_api_sidecar(app, &api_base_url, manager)?;
-    } else {
-        let project_root = project_root.context("开发态启动 API 需要 project_root")?;
-        spawn_dev_api_server(app, project_root, &api_base_url, manager)?;
-    }
-
-    if !wait_ready {
-        return Ok(());
-    }
-    wait_api_ready(&api_base_url)
-}
-
-/// 轮询 /health/ready 直到就绪或超时。先查后睡、250ms 粒度：原先固定先 sleep(2s) 再查，
-/// 即使 sidecar 秒起也白等 ≥2s（#3）。
-fn wait_api_ready(api_base_url: &str) -> Result<()> {
-    println!("等待 API 服务就绪 ({}/health/ready)...", api_base_url);
-    let deadline = std::time::Instant::now() + Duration::from_secs(60);
-    loop {
-        if is_api_ready(api_base_url) {
-            println!("✓ FastAPI 已就绪");
-            return Ok(());
-        }
-        if std::time::Instant::now() >= deadline {
-            anyhow::bail!("API 服务未在 60 秒内就绪");
-        }
-        thread::sleep(Duration::from_millis(250));
-    }
-}
-
-/// 获取项目根目录（从当前可执行文件向上查找）
-fn find_project_root() -> Result<String> {
-    let mut current = std::env::current_exe().context("无法获取当前可执行文件路径")?;
-
-    // 开发模式：apps/desktop/src-tauri/target/debug/storyforge-desktop.exe
-    // 向上查找包含 package.json 和 docker-compose.yml 的目录
-    for _ in 0..10 {
-        current.pop();
-        let package_json = current.join("package.json");
-        let docker_compose = current.join("docker-compose.yml");
-
-        if package_json.exists() && docker_compose.exists() {
-            return Ok(current.to_string_lossy().to_string());
-        }
-    }
-
-    // 回退方案：使用环境变量
-    if let Ok(root) = std::env::var("STORYFORGE_ROOT") {
-        return Ok(root);
-    }
-
-    anyhow::bail!("无法找到项目根目录。请设置环境变量 STORYFORGE_ROOT 或从项目目录运行")
-}
-
-fn should_skip_services() -> bool {
-    std::env::var("STORYFORGE_DESKTOP_SKIP_SERVICES")
-        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
-        .unwrap_or(false)
-}
-
-fn should_reuse_existing_api() -> bool {
-    std::env::var("STORYFORGE_DESKTOP_REUSE_API")
-        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
-        .unwrap_or(false)
-}
-
-fn should_use_api_sidecar() -> bool {
-    if std::env::var("STORYFORGE_DESKTOP_USE_API_SIDECAR")
-        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
-        .unwrap_or(false)
-    {
-        return true;
-    }
-    !cfg!(debug_assertions)
-}
-
-fn desktop_api_key() -> String {
-    std::env::var("STORYFORGE_API_KEY")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| "local-dev-key".to_string())
-}
-
-#[tauri::command]
-fn get_api_config(
-    manager: tauri::State<'_, SharedServiceManager>,
-    close_state: tauri::State<'_, host_close_state::HostCloseState>,
-) -> ApiConfig {
-    let mut services = manager
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let lease = services.api_lease.clone();
-    let live = lease
-        .as_ref()
-        .map(|lease| {
-            let dev_live = services
-                .children
-                .iter_mut()
-                .find(|child| child.id() == lease.pid)
-                .map(|child| matches!(child.try_wait(), Ok(None)))
-                .unwrap_or(false);
-            dev_live
-                || services.sidecars.iter().any(|sidecar| {
-                    sidecar.child.pid() == lease.pid && !sidecar.terminated.load(Ordering::Acquire)
-                })
-        })
-        .unwrap_or(false);
-    let host_capability =
-        managed_agent_host::project_capability(lease.as_ref(), live && !close_state.is_closing());
-    #[cfg(feature = "gui-fixture")]
-    let host_capability = lifecycle_gui_fixture::project_capability(
-        lease.as_ref(),
-        live && !close_state.is_closing(),
-        host_capability,
-    );
-    ApiConfig {
-        base_url: lease
-            .as_ref()
-            .filter(|_| live)
-            .map(|lease| lease.base_url.clone())
-            .unwrap_or_else(desktop_api_base_url),
-        api_key: desktop_api_key(),
-        host_capability,
-    }
-}
 
 fn eval_window_json<R: tauri::Runtime>(
     window: &tauri::WebviewWindow<R>,
@@ -762,14 +182,12 @@ fn remove_smoke_project(path: &Path) -> Result<()> {
 }
 
 fn cleanup_smoke_probe(
-    manager: &SharedServiceManager,
     original_path: Option<&std::ffi::OsStr>,
     smoke_project: Option<&Path>,
 ) -> Result<()> {
     if let Some(path) = original_path {
         std::env::set_var("PATH", path);
     }
-    shutdown_managed_services(manager);
     if let Some(path) = smoke_project {
         remove_smoke_project(path)?;
     }
@@ -869,11 +287,7 @@ fn find_smoke_shadow_version_meta(
         })
 }
 
-fn run_smoke_probe<R: tauri::Runtime>(
-    window: tauri::WebviewWindow<R>,
-    app: tauri::AppHandle<R>,
-    manager: SharedServiceManager,
-) {
+fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: tauri::AppHandle<R>) {
     thread::spawn(move || {
         let original_path =
             if runtime_paths::environment_flag("STORYFORGE_SHADOW_GIT_SMOKE_CLEAR_PATH") {
@@ -887,7 +301,6 @@ fn run_smoke_probe<R: tauri::Runtime>(
         macro_rules! fail_smoke {
             () => {{
                 if let Err(error) = cleanup_smoke_probe(
-                    &manager,
                     original_path.as_deref(),
                     smoke_project_for_cleanup.as_deref(),
                 ) {
@@ -919,7 +332,6 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 hasShell: Boolean(shell),
                 isTauri: shell?.getAttribute('data-tauri-runtime') === 'true',
                 tauriMenuReady: shell?.getAttribute('data-tauri-menu-ready') === 'true',
-                smokeApiReady: shell?.getAttribute('data-smoke-api-ready') === 'true',
                 smokeHookReady: typeof window.__STORYFORGE_SMOKE__?.openProject === 'function',
                 title: document.title,
                 mainSurface: shell?.getAttribute('data-main-surface') ?? '',
@@ -1018,49 +430,6 @@ fn run_smoke_probe<R: tauri::Runtime>(
         println!(
             "Desktop native navigation evidence: phase=project-library-startup state={initial}"
         );
-
-        let expected_api_base_url = desktop_api_base_url();
-        let expected_api_key = desktop_api_key();
-        let expected_api_key_json =
-            serde_json::to_string(&expected_api_key).unwrap_or_else(|_| "\"\"".to_string());
-        let api_config_script = r#"
-            (() => {
-              const config = window.__STORYFORGE_SMOKE__?.getApiConfigSnapshot?.();
-              return {
-                baseUrl: config?.baseUrl ?? '',
-                hasApiKey: Boolean(config?.apiKey),
-                apiKeyMatches: config?.apiKey === __EXPECTED_API_KEY__
-              };
-            })()
-"#
-        .replace("__EXPECTED_API_KEY__", &expected_api_key_json);
-        let api_config = match wait_for_window_state(
-            &window,
-            &api_config_script,
-            20,
-            Duration::from_millis(150),
-            |value| {
-                value
-                    .get("baseUrl")
-                    .and_then(|entry| entry.as_str())
-                    .map(|entry| !entry.is_empty())
-                    .unwrap_or(false)
-                    && has_bool(value, "hasApiKey", true)
-            },
-        ) {
-            Ok(value) => value,
-            Err(error) => {
-                eprintln!("Smoke 失败: 无法读取 API 配置: {}", error);
-                fail_smoke!();
-            }
-        };
-        if api_config.get("baseUrl").and_then(|entry| entry.as_str())
-            != Some(expected_api_base_url.as_str())
-            || !has_bool(&api_config, "apiKeyMatches", true)
-        {
-            eprintln!("Smoke 失败: API 配置不符合预期: {}", api_config);
-            fail_smoke!();
-        }
 
         // The library deliberately hides ActivityBar. Use the existing isolated
         // project-selection seam, then test visible workspace navigation below.
@@ -1863,9 +1232,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
             shadow_evidence.executable_path,
             shadow_evidence.repository_path,
         );
-        if let Err(error) =
-            cleanup_smoke_probe(&manager, original_path.as_deref(), Some(&smoke_project))
-        {
+        if let Err(error) = cleanup_smoke_probe(original_path.as_deref(), Some(&smoke_project)) {
             eprintln!("Smoke 失败: 无法完成成功态清理: {error}");
             std::process::exit(1);
         }
@@ -1877,85 +1244,24 @@ fn run_smoke_probe<R: tauri::Runtime>(
 fn main() {
     println!("=== StoryForge 桌面 IDE 启动中 ===\n");
 
-    // 必须在 API/sidecar/WebView spawn 前建立 OS 寿命边界；强杀不执行 shutdown/Drop。
-    if let Err(error) = owned_process_tree::initialize() {
-        eprintln!("受管进程树保护初始化失败，拒绝启动后台服务: {error}");
-        std::process::exit(1);
-    }
-
-    let manager = Arc::new(Mutex::new(ServiceManager::new()));
-    let manager_clone = Arc::clone(&manager);
-    let manager_for_setup = Arc::clone(&manager);
-
-    // 注册退出处理
-    ctrlc::set_handler(move || {
-        manager_clone.lock().unwrap().shutdown();
-        std::process::exit(0);
-    })
-    .expect("设置 Ctrl+C 处理器失败");
-
-    let project_root = if cfg!(debug_assertions) || !should_use_api_sidecar() {
-        match find_project_root() {
-            Ok(root) => {
-                println!("项目根目录: {}\n", root);
-                Some(root)
-            }
-            Err(error) => {
-                if should_use_api_sidecar() {
-                    println!("未找到项目根目录，将使用打包 API sidecar: {}", error);
-                    None
-                } else {
-                    eprintln!("错误: {}", error);
-                    eprintln!("\n提示: 请从项目目录运行，或设置环境变量：");
-                    eprintln!("  export STORYFORGE_ROOT=/path/to/StoryForge");
-                    std::process::exit(1);
-                }
-            }
-        }
-    } else {
-        None
-    };
-
-    if should_skip_services() {
-        println!("本地桌面模式：跳过 Docker / Alembic 外部服务，后端将使用 sqlite。");
-    } else if let Some(root) = project_root.as_deref() {
-        // 1. 启动 Docker 服务
-        if let Err(e) = start_docker_services(root) {
-            eprintln!("Docker 服务启动失败: {}", e);
-            std::process::exit(1);
-        }
-
-        // 2. 执行数据库迁移
-        if let Err(e) = run_migrations(root) {
-            eprintln!("数据库迁移失败: {}", e);
-            manager.lock().unwrap().shutdown();
-            std::process::exit(1);
-        }
-    }
-
-    // 3. 检查桌面前端是否已经在运行。
-    // Vite dev server 由独立终端或 Tauri devUrl 工作流提供。
-    if cfg!(debug_assertions) {
+    // 开发档：桌面前端由 Vite dev server 提供（独立终端或 Tauri devUrl 工作流）。
+    if cfg!(debug_assertions) && !is_smoke_mode() {
         println!("检查前端服务 (http://localhost:3007)...");
         if reqwest::blocking::get("http://localhost:3007").is_ok() {
             println!("✓ 前端服务已就绪");
         } else {
             eprintln!("错误: 前端服务未运行！请先手动启动:");
             eprintln!("  cd apps/desktop/frontend && npm run dev");
-            manager.lock().unwrap().shutdown();
             std::process::exit(1);
         }
     }
 
-    println!("\n=== 所有服务已就绪，正在打开桌面应用 ===\n");
-
-    // 4. 启动 Tauri 应用
     let builder = tauri::Builder::default();
     let builder = if is_smoke_mode() {
-        // Smoke 使用隔离 API/data/WebView profile，必须独立运行并产出真实 marker。
+        // Smoke 使用隔离的 data / WebView profile，必须独立运行并产出真实 marker。
         builder
     } else {
-        // 必须先注册：第二个进程只负责唤醒首个窗口，不得继续启动自己的 sidecar。
+        // 第二个进程只负责唤醒首个窗口。
         builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
@@ -1965,16 +1271,13 @@ fn main() {
         }))
     };
     builder
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .manage(Arc::clone(&manager))
         .manage(host_close_state::HostCloseState::default())
         .manage(shadow_git::ShadowGitState::default())
         .manage(engine_llm::EngineLlmState::default())
         .manage(engine_db::EngineDbState::default())
-        .manage(engine_db::EngineScratchState::default())
         .invoke_handler(tauri::generate_handler![
             // 文件系统命令
             fs::read_file,
@@ -1998,7 +1301,7 @@ fn main() {
             fs::path_exists,
             managed_writeback::copy_into_project,
             fs::read_project_file_base64,
-            get_api_config,
+            // 退出握手：写回交付票据与前端「已停手」确认
             host_close_state::begin_writeback_delivery,
             host_close_state::end_writeback_delivery,
             host_close_state::acknowledge_host_closing,
@@ -2009,16 +1312,10 @@ fn main() {
             engine_llm::get_engine_llm_source,
             engine_llm::engine_llm_send,
             engine_llm::engine_llm_close,
-            // 引擎库：一组语句一个真事务（表与迁移归引擎）
+            // 引擎库：一组语句一个真事务（表与迁移归引擎）；旧版库只读快照用于一次性导入
             engine_db::engine_db_select,
             engine_db::engine_db_transaction,
             engine_db::engine_python_db_snapshot,
-            engine_db::engine_scratch_db_open,
-            engine_db::engine_scratch_db_select,
-            engine_db::engine_scratch_db_transaction,
-            engine_db::engine_scratch_db_close,
-            // 影子档（迁移 P5-1）：只收结构化差异，不收正文
-            engine_shadow::engine_shadow_append,
             // 作品版本影子 Git 命令（固定 DTO，不暴露任意 Git 参数）
             shadow_git::create_shadow_snapshot,
             shadow_git::retain_shadow_snapshot,
@@ -2040,89 +1337,37 @@ fn main() {
         })
         .setup(move |app| {
             if is_smoke_mode() {
-                // smoke：同步等后端就绪后再跑探针，保持既有时序与断言不变。
                 println!("Desktop Tauri smoke mode enabled");
                 println!(
                     "Desktop Tauri smoke isolation: {}",
                     runtime_paths::SMOKE_ISOLATION_PROTOCOL
                 );
-                let smoke_setup = (|| -> Result<()> {
-                    start_api_server(
-                        app.handle(),
-                        project_root.as_deref(),
-                        &manager_for_setup,
-                        true,
-                    )?;
-                    if runtime_paths::environment_flag(
-                        "STORYFORGE_DESKTOP_SMOKE_FORCE_SETUP_FAILURE",
-                    ) {
-                        anyhow::bail!("已触发 sidecar 启动后 smoke setup 清理回归探针");
-                    }
-                    let window = app
-                        .get_webview_window("main")
-                        .context("Smoke 失败: 未找到 main 窗口")?;
-                    if runtime_paths::is_lifecycle_smoke_mode() {
-                        #[cfg(feature = "gui-fixture")]
-                        window.set_title("StoryForge IDE [GUI fixture]")?;
-                        println!("Desktop lifecycle smoke ready");
-                    } else {
-                        run_smoke_probe(
-                            window,
-                            app.handle().clone(),
-                            Arc::clone(&manager_for_setup),
-                        );
-                    }
-                    Ok(())
-                })();
-                if let Err(error) = smoke_setup {
-                    eprintln!("Smoke setup 失败: {error}");
-                    shutdown_managed_services(&manager_for_setup);
-                    std::process::exit(1);
-                }
-            } else {
-                // 正常启动（#3）：只 spawn 进程（快）即返回，让窗口立刻出帧；就绪在后台线程等。
-                // 失败只记日志——窗口已在，StatusBar 会显示「连接中断」，用户可在设置里保存并应用
-                // 重试，不再在窗口出现后强杀整个 app。
-                if let Err(error) = start_api_server(
-                    app.handle(),
-                    project_root.as_deref(),
-                    &manager_for_setup,
-                    false,
-                ) {
-                    eprintln!(
-                        "API sidecar 拉起失败（窗口已就绪，可在设置里重试）: {}",
-                        error
-                    );
+                let window = app
+                    .get_webview_window("main")
+                    .context("Smoke 失败: 未找到 main 窗口")?;
+                if runtime_paths::is_lifecycle_smoke_mode() {
+                    println!("Desktop lifecycle smoke ready");
                 } else {
-                    let base_url = desktop_api_base_url();
-                    thread::spawn(move || {
-                        if let Err(error) = wait_api_ready(&base_url) {
-                            eprintln!("API 服务未就绪（可在设置里重试）: {}", error);
-                        }
-                    });
+                    run_smoke_probe(window, app.handle().clone());
                 }
             }
-
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("构建 Tauri 应用时出错")
-        .run(move |app_handle, event| match event {
-            tauri::RunEvent::ExitRequested { api, code, .. } => {
+        .run(move |app_handle, event| {
+            if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
                 let state = app_handle.state::<host_close_state::HostCloseState>();
                 if !state.is_finished() {
                     api.prevent_exit();
                     if state.begin_close() {
                         host_close::start(
                             app_handle.clone(),
-                            Arc::clone(&manager),
                             state.inner().clone(),
                             code.unwrap_or(0),
                         );
                     }
                 }
             }
-            tauri::RunEvent::Exit => shutdown_managed_services(&manager),
-            _ => {}
         });
 }

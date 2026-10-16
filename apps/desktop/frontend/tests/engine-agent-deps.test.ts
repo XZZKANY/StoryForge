@@ -8,8 +8,8 @@ vi.mock('../src/lib/engine/db', async () => {
     await import('../../../../packages/engine/src/store/nodeSqlite.test-support');
   return { nativeEngineDb: nodeSqliteDb() };
 });
-vi.mock('../src/lib/api/config', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../src/lib/api/config')>()),
+vi.mock('./support/http-config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./support/http-config')>()),
   getApiConfig: async () => ({ baseUrl: 'http://127.0.0.1:8000/', apiKey: 'k' }),
 }));
 vi.mock('../src/lib/engine/llm', async (importOriginal) => ({

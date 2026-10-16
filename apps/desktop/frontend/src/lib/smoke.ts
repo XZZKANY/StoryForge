@@ -4,7 +4,6 @@
  * 这里把它与具体组件解耦：组件挂载时注册一个 loader，hook 收到的路径会转发给它。
  */
 
-import { getApiConfig } from './api-client';
 import { createRemoteFileSuggestion } from './assistant-suggestions';
 import { emitAcceptCurrentFileSuggestion, emitFileSuggestion } from './assistant-events';
 import {
@@ -12,8 +11,6 @@ import {
   installWritebackProbe,
   restoreWritebackProbe,
 } from './smoke-writeback-probe';
-
-type SmokeApiConfig = Awaited<ReturnType<typeof getApiConfig>>;
 
 type SmokeController = {
   openProject: (path: string) => void;
@@ -32,8 +29,6 @@ type SmokeController = {
   acceptCurrentSuggestion: () => void;
   setCurrentEditorContent: (content: string) => boolean;
   getCurrentEditorContent: () => string | null;
-  getApiConfig: () => ReturnType<typeof getApiConfig>;
-  getApiConfigSnapshot: () => SmokeApiConfig | null;
   installWritebackProbe: typeof installWritebackProbe;
   getWritebackProbeSnapshot: typeof getWritebackProbeSnapshot;
   restoreWritebackProbe: typeof restoreWritebackProbe;
@@ -55,16 +50,8 @@ let pendingSmokeFilePath: string | null = null;
 let smokeProjectLoader: ((path: string) => Promise<void> | void) | null = null;
 let smokeFileLoader: ((path: string) => Promise<void> | void) | null = null;
 let smokeEditorController: SmokeEditorController | null = null;
-let apiConfigSnapshot: SmokeApiConfig | null = null;
-
-function refreshApiConfigSnapshot() {
-  void getApiConfig().then((config) => {
-    apiConfigSnapshot = config;
-  });
-}
 
 if (typeof window !== 'undefined') {
-  refreshApiConfigSnapshot();
   window.__STORYFORGE_SMOKE__ = {
     openProject(path: string) {
       pendingSmokeProjectPath = path;
@@ -99,13 +86,9 @@ if (typeof window !== 'undefined') {
     getCurrentEditorContent() {
       return smokeEditorController?.getContent() ?? null;
     },
-    getApiConfig,
     installWritebackProbe,
     getWritebackProbeSnapshot,
     restoreWritebackProbe,
-    getApiConfigSnapshot() {
-      return apiConfigSnapshot;
-    },
   };
 }
 

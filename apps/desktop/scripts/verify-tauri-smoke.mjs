@@ -48,7 +48,7 @@ if (explicitDirectoryCount !== 0 && explicitDirectoryCount !== 3) {
   );
 }
 
-export async function findFreeLoopbackApiBaseUrl() {
+export async function findFreeLoopbackBaseUrl() {
   const port = await new Promise((resolvePort, reject) => {
     const server = createServer();
     server.once('error', reject);
@@ -56,7 +56,7 @@ export async function findFreeLoopbackApiBaseUrl() {
       const address = server.address();
       if (!address || typeof address === 'string') {
         server.close();
-        reject(new Error('Failed to allocate a loopback API port for Tauri smoke'));
+        reject(new Error('Failed to allocate a loopback port for Tauri smoke'));
         return;
       }
       server.close((error) => {
@@ -68,12 +68,12 @@ export async function findFreeLoopbackApiBaseUrl() {
   return `http://127.0.0.1:${port}`;
 }
 
-export function createSmokeEnvironment(environment, apiBaseUrl, directories) {
+export function createSmokeEnvironment(environment, directories) {
   for (const [name, path] of Object.entries(directories)) {
     if (!isAbsolute(path)) throw new Error(`Tauri smoke ${name} must be absolute: ${path}`);
   }
   // reqwest 0.11 on Windows reads ProxyServer but not the system ProxyOverride.
-  // Keep the isolated API direct without disabling the user's proxy for other hosts.
+  // Keep loopback providers direct without disabling the user's proxy for other hosts.
   const inherited = { ...environment };
   const bypasses = new Set();
   for (const [name, value] of Object.entries(inherited)) {
@@ -87,11 +87,8 @@ export function createSmokeEnvironment(environment, apiBaseUrl, directories) {
   return {
     ...inherited,
     NO_PROXY: [...bypasses].join(','),
-    STORYFORGE_API_BASE_URL: apiBaseUrl,
     STORYFORGE_DESKTOP_SMOKE_LOCAL_DATA_DIR: directories.localDataDir,
     STORYFORGE_DESKTOP_SMOKE_CONFIG_DIR: directories.configDir,
-    STORYFORGE_DESKTOP_REUSE_API: '0',
-    STORYFORGE_DESKTOP_SKIP_SERVICES: '1',
     STORYFORGE_DESKTOP_SMOKE: '1',
     STORYFORGE_SHADOW_GIT_SMOKE_CLEAR_PATH: '1',
     WEBVIEW2_USER_DATA_FOLDER: directories.webviewDataDir,
@@ -240,36 +237,8 @@ async function isUrlReady(url) {
   }
 }
 
-export async function isUrlReachable(url, fetchImpl = fetch) {
-  try {
-    const response = await fetchImpl(url, { signal: globalThis.AbortSignal.timeout(2000) });
-    try {
-      await response.body?.cancel?.();
-    } catch {
-      // Receiving the response already proves reachability; body cleanup is best-effort.
-    }
-    return true;
-  } catch (error) {
-    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') return true;
-    return false;
-  }
-}
-
-async function waitForUrlToStop(url, timeoutMs = 15000) {
-  const started = Date.now();
-  while (Date.now() - started < timeoutMs) {
-    if (!(await isUrlReachable(url))) return;
-    await delay(250);
-  }
-  throw new Error(`Tauri smoke API remained reachable after process cleanup: ${url}`);
-}
-
-export async function removeTemporaryDataRootIfApiStopped(
-  temporaryDataRoot,
-  apiStopped,
-  remover = rm,
-) {
-  if (!temporaryDataRoot || !apiStopped) return false;
+export async function removeTemporaryDataRoot(temporaryDataRoot, remover = rm) {
+  if (!temporaryDataRoot) return false;
   await remover(temporaryDataRoot, {
     recursive: true,
     force: true,
@@ -281,40 +250,24 @@ export async function removeTemporaryDataRootIfApiStopped(
 
 export async function settleSmokeCleanup(
   failure,
-  smokeApiReadyUrl,
   temporaryDataRoot,
-  waitForStop = waitForUrlToStop,
-  removeDataRoot = removeTemporaryDataRootIfApiStopped,
+  removeDataRoot = removeTemporaryDataRoot,
 ) {
-  let cleanupFailure = failure;
-  let apiStopped = !smokeApiReadyUrl;
-  if (smokeApiReadyUrl) {
-    try {
-      await waitForStop(smokeApiReadyUrl);
-      apiStopped = true;
-    } catch (error) {
-      cleanupFailure = cleanupFailure
-        ? new AggregateError([cleanupFailure, error], 'Tauri smoke or API cleanup failed')
-        : error;
-    }
+  if (!temporaryDataRoot) return failure;
+  try {
+    await removeDataRoot(temporaryDataRoot);
+    return failure;
+  } catch (error) {
+    return failure
+      ? new AggregateError([failure, error], 'Tauri smoke or data cleanup failed')
+      : error;
   }
-  if (temporaryDataRoot) {
-    try {
-      await removeDataRoot(temporaryDataRoot, apiStopped);
-    } catch (error) {
-      cleanupFailure = cleanupFailure
-        ? new AggregateError([cleanupFailure, error], 'Tauri smoke or data cleanup failed')
-        : error;
-    }
-  }
-  return cleanupFailure;
 }
 
 export async function verifyTauriSmoke() {
   let frontend;
   let tauri;
   let temporaryDataRoot;
-  let smokeApiReadyUrl;
   let failure;
 
   try {
@@ -351,9 +304,7 @@ export async function verifyTauriSmoke() {
         webviewDataDir: join(temporaryDataRoot, 'webview2'),
       };
     }
-    const apiBaseUrl = await findFreeLoopbackApiBaseUrl();
-    smokeApiReadyUrl = `${apiBaseUrl}/health/ready`;
-    const smokeEnvironment = createSmokeEnvironment(process.env, apiBaseUrl, smokeDirectories);
+    const smokeEnvironment = createSmokeEnvironment(process.env, smokeDirectories);
     tauri = releaseMode
       ? runProcess(smokeExecutable, [], {
           cwd: explicitExecutable ? dirname(smokeExecutable) : tauriDir,
@@ -386,7 +337,7 @@ export async function verifyTauriSmoke() {
   } finally {
     killProcessTree(tauri);
     killProcessTree(frontend);
-    failure = await settleSmokeCleanup(failure, smokeApiReadyUrl, temporaryDataRoot);
+    failure = await settleSmokeCleanup(failure, temporaryDataRoot);
   }
   if (failure) throw failure;
 }

@@ -32,16 +32,6 @@ vi.mock('../src/components/app/useEditorWorkspaceTabs', async (importOriginal) =
     await importOriginal<typeof import('../src/components/app/useEditorWorkspaceTabs')>();
   return { ...actual, useEditorWorkspaceTabs: vi.fn(actual.useEditorWorkspaceTabs) };
 });
-vi.mock('../src/lib/api/runtime-health', () => ({
-  probeApiRuntimeHealth: async () => ({
-    status: 'unreachable',
-    reachable: false,
-    baseUrl: 'http://127.0.0.1:8000',
-    latencyMs: 0,
-    checks: {},
-    detail: 'mocked in shortcuts test',
-  }),
-}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

@@ -46,8 +46,8 @@ vi.mock('../src/lib/engine/db', () => ({
     transaction: (...args: Parameters<Db['transaction']>) => fixture.db!.transaction(...args),
   },
 }));
-vi.mock('../src/lib/api/config', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../src/lib/api/config')>()),
+vi.mock('./support/http-config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./support/http-config')>()),
   getApiConfig: async () => ({ baseUrl: 'http://python.test', apiKey: 'k' }),
 }));
 vi.mock('../src/lib/project-context', async (importOriginal) => ({

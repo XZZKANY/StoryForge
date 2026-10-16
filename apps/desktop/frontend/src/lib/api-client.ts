@@ -26,8 +26,6 @@ export type { AssistantReviseResult } from './api/assistant';
 export { requestCrossChapterConsistency } from './api/cross-chapter';
 export { executeIdeCommand } from './api/ide-commands';
 export { toAssistantContextBundlePayload } from './api/codecs';
-export { getApiConfig } from './api/config';
-export { probeApiRuntimeHealth } from './api/runtime-health';
 export type {
   AgentControlAckMessage,
   AgentControlMessageRequest,
@@ -47,8 +45,6 @@ export type {
   AgentToolTrace,
   AgentToolTraceEventMessage,
   AgentUserMessageRequest,
-  ApiRuntimeHealth,
-  ApiRuntimeHealthStatus,
   AssistantContextBundlePayload,
   AssistantMessageRecord,
   AssistantSessionRecord,

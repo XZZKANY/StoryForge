@@ -7,7 +7,7 @@
  */
 import { parseContinueSseFrame } from '../../src/lib/inline-continue';
 import type { ProviderHealth } from '../../src/lib/provider-config';
-import { getApiConfig, trimApiBaseUrl } from '../../src/lib/api/config';
+import { getApiConfig, trimApiBaseUrl } from './http-config';
 import type { ApiProviderHealthResponse } from '../../src/lib/api/contracts';
 import { readErrorDetail } from '../../src/lib/api/errors';
 import { toAssistantContextBundlePayload } from '../../src/lib/api/codecs';

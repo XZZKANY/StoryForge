@@ -45,9 +45,6 @@ impl Drop for Admission {
 }
 
 impl HostCloseState {
-    pub fn is_closing(&self) -> bool {
-        self.0.lock().unwrap().closing
-    }
     pub fn is_finished(&self) -> bool {
         self.0.lock().unwrap().finished
     }
@@ -74,7 +71,7 @@ impl HostCloseState {
         if state.closing {
             return Err("managed_host_closing".into());
         }
-        let ticket = crate::managed_agent_host::new_generation();
+        let ticket = new_ticket();
         state.tickets.insert(ticket.clone(), (root, 0));
         Ok(ticket)
     }
@@ -197,4 +194,21 @@ mod tests {
         assert!(state.admit(first_root, Some(&ticket)).is_err());
         assert!(state.end_delivery(&ticket).is_err());
     }
+}
+
+static TICKET_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// 写回交付票据：本进程内唯一的不透明标识（不是鉴权凭据）。
+fn new_ticket() -> String {
+    use sha2::{Digest, Sha256};
+    let input = format!(
+        "{}:{}:{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos(),
+        TICKET_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    );
+    format!("{:x}", Sha256::digest(input.as_bytes()))
 }

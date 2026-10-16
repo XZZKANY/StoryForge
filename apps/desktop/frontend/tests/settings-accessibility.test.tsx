@@ -32,9 +32,6 @@ vi.mock('../src/lib/api-client', async (importOriginal) => {
     })),
   };
 });
-vi.mock('../src/lib/api/runtime-health', () => ({
-  probeApiRuntimeHealth: async () => ({ status: 'unreachable', reachable: false, checks: {} }),
-}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

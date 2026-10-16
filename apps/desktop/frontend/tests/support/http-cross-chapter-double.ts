@@ -3,7 +3,7 @@
  * TS 引擎里跑；用它的界面测试关心的是聊天提交怎么分到跨章检查。接法：
  *   vi.mock('../src/lib/api/cross-chapter', () => import('./support/http-cross-chapter-double'));
  */
-import { getApiConfig, trimApiBaseUrl } from '../../src/lib/api/config';
+import { getApiConfig, trimApiBaseUrl } from './http-config';
 import { readErrorDetail } from '../../src/lib/api/errors';
 import type {
   CrossChapterFinding,
