@@ -330,6 +330,7 @@ export {
 export type { BreakdownLlmPort, BreakdownModel } from './kernel/bookBreakdown';
 export { DocxReadError, readDocxText } from './kernel/docx';
 export { executeIdeCommand, IDE_COMMANDS } from './kernel/ideCommands';
+export { recordBookBreakdownRun } from './loop/bookBreakdownRun';
 export {
   buildLlmContextSnapshot,
   buildLlmContextSnapshotFromCollected,

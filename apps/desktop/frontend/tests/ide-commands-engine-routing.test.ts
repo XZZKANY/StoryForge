@@ -20,12 +20,19 @@ vi.mock('../src/lib/api/config', () => ({
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   localStorage.clear();
 });
 
-it.each(['python', 'ts', 'shadow'])(
-  'unadmitted %s requests keep the original single Python transport with zero engine initialization',
-  async (mode) => {
+// ts 档走引擎（engine-ide-commands.test.ts）；影子档还没接，与 Python 档一样只发一次 Python 请求。
+it.each([
+  ['python', true],
+  ['shadow', true],
+  ['ts', false],
+])(
+  '%s requests keep the original single Python transport with zero engine initialization (dev build: %s)',
+  async (mode, dev) => {
+    vi.stubEnv('DEV', dev);
     localStorage.setItem('engine.ideCommands', mode);
     const args = { project_root: 'D:/synthetic-book', current_file: '正文/next.md' };
     const response = { status: 'accepted', payload: { prompt_block: 'synthetic' } };
