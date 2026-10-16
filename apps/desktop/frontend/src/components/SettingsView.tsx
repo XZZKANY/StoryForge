@@ -1045,16 +1045,15 @@ function ActionRow({
 }
 
 const ENGINE_MODE_LABELS: Record<EngineMode, string> = {
-  shadow: '后台比对',
-  python: '关闭',
-  ts: '只用新引擎（开发档）',
+  ts: '新引擎',
+  python: '旧引擎（Python）',
+  shadow: '旧引擎 + 后台比对（开发档）',
 };
 
 type ShadowFlag = 'engine.assistant' | 'engine.agentLoop' | 'engine.ideCommands';
 
 /**
- * 迁移预览（P5-1）：新引擎在后台用同一份输入再组一遍发给模型的请求，与现有引擎比对；
- * 结果照旧用现有引擎的。作者随时可以关掉；关掉即只走现有引擎。
+ * 迁移（P5-2）：默认走新引擎，作者随时可以切回旧引擎（Python）。开发档另有「后台比对」。
  */
 function EngineShadowRows() {
   const [modes, setModes] = useState<Record<ShadowFlag, EngineMode>>(() => ({
@@ -1079,20 +1078,20 @@ function EngineShadowRows() {
     <>
       {row(
         'engine.assistant',
-        '新引擎比对：行间修订与续写',
-        '迁移预览：新引擎在后台用同一份输入再组一遍发给模型的请求，与现有引擎比对；不出网、不花钱，结果照旧。差异记在本机数据目录的 shadow-diffs.jsonl，不含正文。',
+        '引擎：行间修订、续写与跨章检查',
+        '默认用新引擎；遇到问题可以切回旧引擎（Python），切换后下一次调用生效。',
         'engine-shadow-assistant',
       )}
       {row(
         'engine.agentLoop',
-        '新引擎比对：Agent 对话',
-        '同上；开着时，每条消息发送前会多读一次本机的会话记录。',
+        '引擎：Agent 对话',
+        '同上；会话记录随之切换：新引擎第一次打开时会把旧引擎的会话一次性导入，之后切回旧引擎写的会话不再同步过来。',
         'engine-shadow-agent',
       )}
       {row(
         'engine.ideCommands',
-        '新引擎比对：作品底座与 Canon',
-        '作品底座、Canon 刷新、观测镜与连载计划：新引擎在后台用同一份参数再算一遍、与现有引擎比对，只在内存里算、不写你的文件，结果照旧。开着时，每次调用前会多读几份 .storyforge/ 下的小文件。',
+        '引擎：作品底座与 Canon',
+        '作品底座、Canon 刷新、观测镜、连载计划与拆书。',
         'engine-shadow-commands',
       )}
     </>

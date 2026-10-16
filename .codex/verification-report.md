@@ -8244,3 +8244,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 引擎：`crossChapter.ts` 新增 `checkCrossChapterConsistency`（Python `ide.cross_chapter_consistency.check_cross_chapter_consistency`：有正文的不足两章报 RangeError，模型名去空白、空则 null，latency_ms 原样）。预言机 p1-review 加 6 条 `cross_check`（有 finding 带耗时、空数组、坏 JSON 抛 JSONDecodeError、一章空白、模型错误、模型配置错误），只追加，`--check` 可复现；回放 204 / 204。
 - 前端：`lib/engine/crossChapter.ts`，与修订 / 续写同一个开关（`engine.assistant = ts`）；错误文本与 Python 路由一致：缺配置「真实 LLM 未配置：…」、请求体不合格「API 返回 422」、有正文不足两章与解析失败给原文、模型错误「跨章一致性 LLM 调用失败：…」。
 - 测试：`engine-cross-chapter` 3 条（经原生端口发一次请求并回 finding / 模型名 / 耗时；四种错误文本；Python 档仍是默认且不加载引擎）。变异 6 / 6。
+
+## 2026-10-16 P5-2b 发行版三个开关默认走新引擎，旧库导入打开（TS 迁移）
+
+- `lib/engine/flags.ts`：发行版 `engine.ideCommands` / `engine.assistant` / `engine.agentLoop` 的可选档位改为「ts、Python」，默认 ts；影子档是拿 Python 的结果比的，结果改用引擎后不再给发行版（开发档保留）。`legacyImportOnOpen()` 发行版恒为开：引擎库第一次打开时把 Python 库只读导入一次（P4-3 的导入器；作者拍板只在切默认时导一次）。开发档默认值不动——大量测试拿假 fetch 测 Python 传输，随 P6-1 删 Python 传输一起处理。
+- 设置页：三行改为「引擎：行间修订、续写与跨章检查 / Agent 对话 / 作品底座与 Canon」，选项「新引擎 / 旧引擎（Python）」，Agent 对话一行写明会话随之切换、导入只做一次。
+- 测试：`engine-flags`（发行版默认 ts、不认影子档、存储被拒回落 ts、发行版恒导旧库且不读存储）、`engine-legacy-import`（发行版首次打开即导入、开发档未打开不读旧库）、`settings-engine-shadow`、`engine-command-shadow` 按新档位改判；前端全量 2273 / 2273。变异 2 / 2（发行版默认回到 Python、发行版不导旧库）。
+- 这一版不出包（作者拍板一路做到删 Python 再出 0.2.0）。

@@ -264,8 +264,9 @@ it('a snapshot that does not come back delays the command by at most the timeout
   expect(checks()[0].record).toMatchObject({ outcome: 'unavailable', reason: 'preimage_failed' });
 });
 
-it('a release build sends IDE commands through the shadow by default, with one Python request', async () => {
-  vi.stubEnv('DEV', false);
+it('the shadow mode (dev builds since P5-2) routes IDE commands through the shadow, with one Python request', async () => {
+  vi.stubEnv('DEV', true);
+  localStorage.setItem('engine.ideCommands', 'shadow');
   const project = memoryProject(ROOT, projects[0].files);
   fixture.reader = project.reader;
   const body = { command_id: 'audit.open', status: 'accepted', audit_event_id: null, payload: {} };

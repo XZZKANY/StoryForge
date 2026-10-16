@@ -54,25 +54,28 @@ it('reads preferences per request without changing a previously selected mode', 
   expect(readEngineMode(keys[2])).toBe('python');
 });
 
-// P5-1 预览版：三个开关都默认影子档，作者可切回 Python；ts 档等 P5-2。
+// P5-2 起：三个开关都默认走新引擎，作者可切回 Python；影子档不再给发行版。
 const releaseDefaults: [(typeof keys)[number], EngineMode][] = [
-  ['engine.ideCommands', 'shadow'],
-  ['engine.assistant', 'shadow'],
-  ['engine.agentLoop', 'shadow'],
+  ['engine.ideCommands', 'ts'],
+  ['engine.assistant', 'ts'],
+  ['engine.agentLoop', 'ts'],
 ];
 
-it.each(releaseDefaults)('production defaults %s to %s and never allows ts', (key, fallback) => {
-  vi.stubEnv('DEV', false);
-  expect(readEngineMode(key)).toBe(fallback);
-  for (const value of ['ts', 'TS', 'shadow ', '']) {
-    localStorage.setItem(key, value);
+it.each(releaseDefaults)(
+  'production defaults %s to %s and never allows shadow',
+  (key, fallback) => {
+    vi.stubEnv('DEV', false);
     expect(readEngineMode(key)).toBe(fallback);
-  }
-  localStorage.setItem(key, 'python');
-  expect(readEngineMode(key)).toBe('python');
-  localStorage.setItem(key, 'shadow');
-  expect(readEngineMode(key)).toBe('shadow');
-});
+    for (const value of ['shadow', 'PYTHON', 'python ', '']) {
+      localStorage.setItem(key, value);
+      expect(readEngineMode(key)).toBe(fallback);
+    }
+    localStorage.setItem(key, 'python');
+    expect(readEngineMode(key)).toBe('python');
+    localStorage.setItem(key, 'ts');
+    expect(readEngineMode(key)).toBe('ts');
+  },
+);
 
 it('production falls back to its stage default when storage is denied', () => {
   vi.stubEnv('DEV', false);
@@ -86,13 +89,13 @@ it('offers each build only its allowed modes, default first, and writes only tho
   expect(engineModeChoices('engine.assistant')).toEqual(['ts', 'python', 'shadow']);
   expect(engineModeChoices('engine.agentLoop')).toEqual(['python', 'ts', 'shadow']);
   vi.stubEnv('DEV', false);
-  expect(engineModeChoices('engine.assistant')).toEqual(['shadow', 'python']);
-  expect(engineModeChoices('engine.ideCommands')).toEqual(['shadow', 'python']);
-  expect(writeEngineMode('engine.agentLoop', 'ts')).toBe(false);
+  expect(engineModeChoices('engine.assistant')).toEqual(['ts', 'python']);
+  expect(engineModeChoices('engine.ideCommands')).toEqual(['ts', 'python']);
+  expect(writeEngineMode('engine.agentLoop', 'shadow')).toBe(false);
   expect(localStorage.getItem('engine.agentLoop')).toBeNull();
   expect(writeEngineMode('engine.agentLoop', 'python')).toBe(true);
   expect(readEngineMode('engine.agentLoop')).toBe('python');
-  expect(writeEngineMode('engine.ideCommands', 'ts')).toBe(false);
+  expect(writeEngineMode('engine.ideCommands', 'shadow')).toBe(false);
   vi.stubGlobal('localStorage', {
     setItem: () => {
       throw new DOMException('controlled denied storage', 'SecurityError');
@@ -115,7 +118,7 @@ it('an unknown runtime key cannot activate an engine capability', () => {
   expect(read).not.toHaveBeenCalled();
 });
 
-it('imports the Python database only when dev explicitly switches it on', () => {
+it('imports the Python database when dev explicitly switches it on, and always in a release build', () => {
   expect(legacyImportOnOpen()).toBe(false);
   for (const value of ['', 'ON', 'true', 'ts', ' on']) {
     localStorage.setItem('engine.legacyImport', value);
@@ -128,7 +131,7 @@ it('imports the Python database only when dev explicitly switches it on', () => 
   });
   expect(legacyImportOnOpen()).toBe(false);
   vi.stubEnv('DEV', false);
-  const read = stubStorage(() => 'on');
-  expect(legacyImportOnOpen()).toBe(false);
+  const read = stubStorage(() => 'off');
+  expect(legacyImportOnOpen()).toBe(true);
   expect(read).not.toHaveBeenCalled();
 });
