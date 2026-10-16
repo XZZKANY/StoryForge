@@ -117,7 +117,7 @@ describe('engine agent routes', () => {
     );
   });
 
-  it('turns a host rejection into a plain Error and refuses the external protocol up front', async () => {
+  it('turns a host rejection into a plain Error', async () => {
     host.failure = new AgentHostRejection(422, null);
     const failure = await routes.sendAgentUserMessage(request).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(Error);
@@ -128,10 +128,6 @@ describe('engine agent routes', () => {
       .catch((error: unknown) => error);
     expect(controlFailure).not.toBeInstanceOf(AgentHostRejection);
     host.failure = null;
-    await expect(
-      routes.sendAgentUserMessage({ ...request, executionProtocol: 'external_writeback_v1' }),
-    ).rejects.toThrow('当前宿主未开放连续写回协议');
-    expect(host.bodies).toHaveLength(1);
   });
 
   it('passes the control payload through and wire-encodes the ack', async () => {

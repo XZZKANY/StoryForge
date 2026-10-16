@@ -63,8 +63,6 @@ export function agentRequestBody(request: AgentUserMessageRequest): unknown {
 export async function sendAgentUserMessage(
   request: AgentUserMessageRequest,
 ): Promise<AgentSocketMessage> {
-  if (request.executionProtocol === 'external_writeback_v1')
-    throw new Error('当前宿主未开放连续写回协议');
   let terminal: AgentSocketMessage | null = null;
   try {
     await streamAgentUserMessage(

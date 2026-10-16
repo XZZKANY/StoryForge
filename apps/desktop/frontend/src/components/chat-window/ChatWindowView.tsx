@@ -15,8 +15,6 @@ import type { AgentRunControlHandlers, ChatWindowProps } from './types';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { ChatWindowState } from './useChatWindowState';
 import type { QueuedChatMessage } from './useChatSubmission';
-import { useExternalWritebackCoordinator } from '../app/ExternalWritebackProvider';
-import { ExternalWritebackPanel } from '../app/ExternalWritebackPanel';
 import { AgentDecisionPrompt } from './AgentDecisionPrompt';
 import { ChapterCheckHistoryPanel } from './ChapterCheckHistoryPanel';
 import type { ChapterCheckHistoryState } from './useChapterCheckHistory';
@@ -84,11 +82,8 @@ export function ChatWindowView({
   opening = null,
   onOpeningDraft,
 }: Props) {
-  const externalWriteback = useExternalWritebackCoordinator();
   const dialogsActive = decisionDialogsActive && layoutMode !== 'editor';
-  const legacyDecision =
-    state.agentRun?.status === 'waiting' &&
-    state.agentRun.executionProtocol !== 'external_writeback_v1';
+  const legacyDecision = state.agentRun?.status === 'waiting';
   const waitingForPermission = state.agentRun?.steps.some(
     (step) => step.id === 'permission-required' && step.status === 'waiting',
   );
@@ -197,15 +192,6 @@ export function ChatWindowView({
           ) : null
         }
       />
-
-      {externalWriteback && (
-        <ExternalWritebackPanel
-          coordinator={externalWriteback}
-          project={projectPath}
-          assistantSessionId={assistantSessionId ?? null}
-          decisionDialogsActive={dialogsActive}
-        />
-      )}
 
       {chapterCheckHistory && <ChapterCheckHistoryPanel history={chapterCheckHistory} />}
 

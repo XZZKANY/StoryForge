@@ -75,10 +75,6 @@ import {
   persistPendingSuggestion,
   type PendingSuggestionDescriptor,
 } from '../../lib/suggestion-recovery';
-import {
-  useExternalWritebackEditor,
-  type ExternalWriteOverrides,
-} from './useExternalWritebackEditor';
 
 export type SuggestionStatusTone = 'success' | 'error' | 'info';
 
@@ -531,7 +527,7 @@ export function useSuggestionWriteback({
         recoveredRecord?: RevisionLoopRecord;
         /** 仅同一次活动撤销可同步已查证回执，历史回执不得覆盖后来输入。 */
         recoveredSettlementGuard?: () => boolean;
-      } & ExternalWriteOverrides = {},
+      } = {},
     ) => {
       const projectRoot = projectPathRef.current;
       if (!projectRoot) throw new Error('未打开项目，不能写入修订结果');
@@ -542,8 +538,7 @@ export function useSuggestionWriteback({
       }
       const targetStateAtStart = modelCacheRef.current.get(path);
       if (!targetStateAtStart) throw new Error('缺少补丁目标的磁盘基线，请重新读取后确认');
-      overrides.admissionGuard?.();
-      const branch = overrides.frozenBranch ?? getActiveBranchSnapshot();
+      const branch = getActiveBranchSnapshot();
       const assistantSessionId = suggestion.assistantSessionId ?? assistantSessionIdRef.current;
       return enqueueWriteback(() =>
         withNativeDelivery(projectRoot, async (deliveryTicket) => {
@@ -554,7 +549,7 @@ export function useSuggestionWriteback({
           const contentChanged = expected.kind === 'missing' || expected.content !== nextContent;
           // 这次写入是不是「凭空建出这个文件」。撤销一次新建要删文件而不是写回空串，
           // 否则盘上会留一个空文件，看着像回退了其实没有。
-          const request = overrides.externalRequest ?? {
+          const request = {
             operationKey: `${suggestion.id}:${overrides.operationKind ?? 'whole'}`,
             source: JSON.stringify([
               suggestion.id,
@@ -584,7 +579,7 @@ export function useSuggestionWriteback({
           const recordReceipt = (receipt: WritebackReceipt, ticket = deliveryTicket) =>
             recordRevisionLoop({
               ...record,
-              retainRecoveryPayload: !overrides.externalRequest,
+              retainRecoveryPayload: true,
               operationId: receipt.operationId,
               deliveryTicket: ticket,
             });
@@ -594,7 +589,6 @@ export function useSuggestionWriteback({
             inspect: () => TauriFileSystem.inspectWritebackReceipt(projectRoot, request),
             repairCaches: () => TauriFileSystem.repairWritebackCanonCache(projectRoot, request),
             validate: () => {
-              overrides.admissionGuard?.();
               if (overrides.recoveredRecord)
                 throw new Error('原写回回执缺失，结果未知；审计记录不能授权再次写入');
               if (
@@ -607,7 +601,6 @@ export function useSuggestionWriteback({
               }
             },
             snapshot: async () => {
-              overrides.admissionGuard?.();
               const result = await snapshotBeforeWrite(
                 projectRoot,
                 path,
@@ -629,36 +622,29 @@ export function useSuggestionWriteback({
                 },
                 deliveryTicket,
               );
-              overrides.admissionGuard?.();
               return result;
             },
             advanceBranchHead: async (timestamp) => {
-              overrides.admissionGuard?.();
               await advanceBranchHead(timestamp, {
                 projectPath: projectRoot,
                 filePath: path,
                 branchId: branch.id,
                 deliveryTicket,
               });
-              overrides.admissionGuard?.();
             },
             write: async (checkpointTimestamp) => {
-              await overrides.beforeNativeAdmission?.();
-              overrides.admissionGuard?.();
-              if (!overrides.externalRequest) {
-                const owner = overrides.recoveryOwner ?? suggestionOperationStates.get(suggestion);
-                if (owner) {
-                  if (!owner.recovery || owner.recovery.projectPath !== projectRoot)
-                    throw new Error('原提案恢复信息未保存，已阻止写回；请重新生成修订');
-                  await owner.recovery.ready;
-                  await rememberSuggestionRequest(
-                    projectRoot,
-                    owner.recovery.descriptor,
-                    request,
-                    revisionLoopSemanticPayload(record),
-                    deliveryTicket,
-                  );
-                }
+              const owner = overrides.recoveryOwner ?? suggestionOperationStates.get(suggestion);
+              if (owner) {
+                if (!owner.recovery || owner.recovery.projectPath !== projectRoot)
+                  throw new Error('原提案恢复信息未保存，已阻止写回；请重新生成修订');
+                await owner.recovery.ready;
+                await rememberSuggestionRequest(
+                  projectRoot,
+                  owner.recovery.descriptor,
+                  request,
+                  revisionLoopSemanticPayload(record),
+                  deliveryTicket,
+                );
               }
               return TauriFileSystem.writeFileWithReceipt(
                 projectRoot,
@@ -715,7 +701,6 @@ export function useSuggestionWriteback({
           });
           if (
             overrides.recoveredRecord &&
-            !overrides.externalRequest &&
             !loopRecord.auditError &&
             loopRecord.receipt.receiptPersisted
           ) {
@@ -780,7 +765,7 @@ export function useSuggestionWriteback({
                     await withNativeDelivery(projectRoot, (ticket) =>
                       recordReceipt(receipt, ticket),
                     );
-                    if (!overrides.externalRequest && !onRepaired && suggestion.runId) {
+                    if (!onRepaired && suggestion.runId) {
                       const owner = suggestionOperationStates.get(suggestion)?.recovery;
                       const stored = await loadPendingSuggestion(projectRoot, path);
                       if (!owner || !stored || owner.descriptor.owner !== stored.owner)
@@ -847,18 +832,6 @@ export function useSuggestionWriteback({
       setLoadedContentPreview,
     ],
   );
-
-  const externalIsBusy = useCallback(() => actionInFlightRef.current !== null, []);
-  useExternalWritebackEditor({
-    projectPathRef,
-    filePathRef,
-    modelCacheRef,
-    mountedRef,
-    isBusy: externalIsBusy,
-    branch: getActiveBranchSnapshot,
-    normalize: normalizeEol,
-    write: writeAcceptedSuggestion,
-  });
 
   /**
    * 写回成功后弹一条带「撤销」的通知：撤销就是把 previous 再走一遍同一条守卫写回

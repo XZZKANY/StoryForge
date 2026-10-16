@@ -5,7 +5,7 @@ import type { ChatWindowProps } from './types';
 import { conversationKey } from './session-guard';
 import { titleFromSystemJobs } from './conversation-utils';
 
-/** Existing final-result metadata projection, kept apart from external wait dispatch. */
+/** 终态结果的元数据投影（会话归属、标题等）。 */
 export function useRunResultMetadata(
   state: ChatWindowState,
   onSessionChange: ChatWindowProps['onAssistantSessionChange'],
