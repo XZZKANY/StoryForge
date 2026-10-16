@@ -8222,3 +8222,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：前端 6 / 6（取消登记表每次新建、不记运行、无视模型配置、引擎错误原样抛出、ts 档不分流、影子档也走引擎），引擎记录函数 3 / 3（会话名、完成摘要、选章数）；另一处 `retries` 缺省值等价（拆书报告总带 retries），已把这几处走不到的 `has` 判断删掉。
 - P5-2 切默认前还要补（记在计划里）：ts 档 `book.context` 在作者声明写错时回 400 并带原文，界面现在只把可用性置成 error、不显示文案；影子档与真宿主探针随下一刀。
 - 门禁：引擎 / 前端类型检查、eslint、prettier、ruff 通过；全量见 push 前钩子。
+
+## 2026-10-16 P5-1g2 IDE 命令的影子档，发行版默认打开（TS 迁移，结果仍用 Python）
+
+- 目标：补上 P1-9（IDE 命令切影子档、作者真实使用）。g1 接好 ts 档之后，九个命令里有七个可以在后台比对：作品底座、拆书状态、canon 刷新、观测镜、连载计划标记 / 撤销、审计。拆书要调模型、拆书取消依赖 Python 进程里的登记表，这两个不比。
+- 难点与做法：canon 刷新、观测镜、连载计划会改 `.storyforge/`，引擎若在 Python 之后直接复算，读到的已是 Python 改过的状态（例如连载计划已经标过）。所以调用 Python 前先读一份「改前快照」：9 个文件（canon.json / hooks.json、5 份派生缓存、serial-plan.json、拆书报告），各命令共用同一组，同时在跑的另一个命令改了它们也不会污染比对；最多挡作者 3 秒，超时照常调用、这一次记 unavailable。Python 答完，先读改后快照，再让引擎在叠加读写口上复算——截下的写入优先、其次改前快照、最后真实读口（`shadowProject.ts` 的 `overlayProject` 新增 `preimage` 参数与 `written()`），不写作者文件、不写引擎库、不出网。比两样：响应体（`generated_at` 两边各取各的钟，遮掉）与这组文件加上引擎写到的路径的最终字节（同样遮掉时间戳）。差异只记 JSON 键路径、文件路径、两边字节数与第一处不同的偏移，不带正文；记在 `shadow-checks.jsonl` / `shadow-diffs.jsonl`，surface `ide.command`、step 为命令 id。Python 出错原样抛给作者，两边错误文案相同算一致；连不上 Python（fetch 的 TypeError）记 unavailable，不算差异。
+- 开关：发行版 `engine.ideCommands` 的可选档位改为「影子、Python」，默认影子；设置页「关于」加第三行「新引擎比对：作品底座与 Canon」，可关。影子模块加载失败照走 Python。
+- 测试：`engine-command-shadow` 用 p1-commands 预言机回放——「Python」一侧按录下的写盘字节改项目、交回录下的响应或错误文案——全部调用经影子档判一致，七个命令各至少一次真比上（不是全落到 unavailable）；另测差异记法不带内容、Python 失败原样抛出与错误文案比对、不比的命令不读快照不记行、快照挂住最多挡 3 秒、发行版默认经影子档且只发一次 Python 请求。`engine-shadow-project` 加改前快照的读法；`engine-shadow-unloadable` 加 IDE 命令；`engine-flags`、`ide-commands-engine-routing`、`settings-engine-shadow` 按新档位改判。
+- 变异：13 / 13（不用改前快照、响应不遮时间戳、文件不遮时间戳、文件恒等、响应恒等、拆书也比、吞掉 Python 错误、不认 TypeError、快照不设时限、叠加层查询不认「调用前不存在」、读取不认「调用前不存在」、影子档不分流、发行版不开影子）。第一轮在 6 条旧断言还红着的基线上跑，结果不可信，改完旧断言、基线全绿后重跑；「查询不认调用前不存在」一开始没被抓住（预言机里没有「调用前没有 canon.json」的场景），补了叠加层的直接用例后抓住。
+- 未做：真宿主探针（影子这一侧出错只会记成差异或 unavailable，不影响作者拿到的结果，现场记录会暴露原生端口的问题）；ts 档 `book.context` 报 400 时把原文显示给作者，仍是 P5-2 前置项。

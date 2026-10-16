@@ -24,11 +24,10 @@ afterEach(() => {
   localStorage.clear();
 });
 
-// ts 档走引擎（engine-ide-commands.test.ts）；影子档还没接，与 Python 档一样只发一次 Python 请求。
+// ts 档走引擎（engine-ide-commands.test.ts），影子档另见 engine-command-shadow.test.ts。
 it.each([
   ['python', true],
-  ['shadow', true],
-  ['ts', false],
+  ['python', false],
 ])(
   '%s requests keep the original single Python transport with zero engine initialization (dev build: %s)',
   async (mode, dev) => {

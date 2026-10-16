@@ -1050,7 +1050,7 @@ const ENGINE_MODE_LABELS: Record<EngineMode, string> = {
   ts: '只用新引擎（开发档）',
 };
 
-type ShadowFlag = 'engine.assistant' | 'engine.agentLoop';
+type ShadowFlag = 'engine.assistant' | 'engine.agentLoop' | 'engine.ideCommands';
 
 /**
  * 迁移预览（P5-1）：新引擎在后台用同一份输入再组一遍发给模型的请求，与现有引擎比对；
@@ -1060,6 +1060,7 @@ function EngineShadowRows() {
   const [modes, setModes] = useState<Record<ShadowFlag, EngineMode>>(() => ({
     'engine.assistant': readEngineMode('engine.assistant'),
     'engine.agentLoop': readEngineMode('engine.agentLoop'),
+    'engine.ideCommands': readEngineMode('engine.ideCommands'),
   }));
   const row = (key: ShadowFlag, title: string, description: string, testId: string) => (
     <SelectRow
@@ -1087,6 +1088,12 @@ function EngineShadowRows() {
         '新引擎比对：Agent 对话',
         '同上；开着时，每条消息发送前会多读一次本机的会话记录。',
         'engine-shadow-agent',
+      )}
+      {row(
+        'engine.ideCommands',
+        '新引擎比对：作品底座与 Canon',
+        '作品底座、Canon 刷新、观测镜与连载计划：新引擎在后台用同一份参数再算一遍、与现有引擎比对，只在内存里算、不写你的文件，结果照旧。开着时，每次调用前会多读几份 .storyforge/ 下的小文件。',
+        'engine-shadow-commands',
       )}
     </>
   );

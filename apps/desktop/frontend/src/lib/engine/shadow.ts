@@ -28,7 +28,11 @@ import {
  * 比对结果交 Rust 追加到本地数据目录：每次比对一行 `shadow-checks.jsonl`，有差异另记一行
  * `shadow-diffs.jsonl`。影子这一侧出什么错都不影响作者拿到的结果。
  */
-export type ShadowSurface = 'assistant.revise' | 'assistant.continue' | 'agent.loop';
+export type ShadowSurface =
+  | 'assistant.revise'
+  | 'assistant.continue'
+  | 'agent.loop'
+  | 'ide.command';
 
 class ShadowCaptured extends Error {}
 
@@ -116,7 +120,10 @@ async function captureEngine(run: (deps: AssistantDeps) => Promise<unknown>): Pr
   }
 }
 
-async function append(log: 'diffs' | 'checks', record: Record<string, unknown>): Promise<void> {
+export async function appendShadow(
+  log: 'diffs' | 'checks',
+  record: Record<string, unknown>,
+): Promise<void> {
   try {
     await invoke('engine_shadow_append', { log, record });
   } catch {
@@ -124,7 +131,7 @@ async function append(log: 'diffs' | 'checks', record: Record<string, unknown>):
   }
 }
 
-const checkHeader = async (surface: ShadowSurface) => ({
+export const shadowCheckHeader = async (surface: ShadowSurface) => ({
   at: new Date().toISOString(),
   app_version: await getVersion().catch(() => null),
   surface,
@@ -132,7 +139,11 @@ const checkHeader = async (surface: ShadowSurface) => ({
 
 /** 这一次没法比（比如 Python 的库不在本机）：只记一行 checks，不算差异。 */
 export async function recordShadowUnavailable(surface: ShadowSurface, reason: string) {
-  await append('checks', { ...(await checkHeader(surface)), outcome: 'unavailable', reason });
+  await appendShadow('checks', {
+    ...(await shadowCheckHeader(surface)),
+    outcome: 'unavailable',
+    reason,
+  });
 }
 
 export async function recordShadow(
@@ -152,7 +163,7 @@ export async function recordShadow(
   const digest = (capture: PromptCapture | null) =>
     capture && 'requestDigest' in capture ? capture.requestDigest : null;
   const check: Record<string, unknown> = {
-    ...(await checkHeader(surface)),
+    ...(await shadowCheckHeader(surface)),
     outcome: comparison.outcome,
     step: first?.step ?? ts.capture?.step ?? null,
     python_digest: digest(first),
@@ -161,9 +172,9 @@ export async function recordShadow(
     ...(ts.error ? { ts_error: ts.error } : {}),
     ...(ts.detail ? { ts_detail: ts.detail } : {}),
   };
-  await append('checks', check);
+  await appendShadow('checks', check);
   if (comparison.outcome === 'diff')
-    await append('diffs', {
+    await appendShadow('diffs', {
       ...check,
       differences: comparison.differences,
       ...(comparison.truncated ? { truncated: true } : {}),

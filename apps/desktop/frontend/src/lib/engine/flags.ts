@@ -12,10 +12,10 @@ const devDefaults: Record<EngineFlagKey, EngineMode> = {
   'engine.agentLoop': 'python',
 };
 
-// 发行版（P5-1 预览版起）：修订 / 续写与 agent 循环默认影子档——结果仍用 Python，引擎在后台比对；
-// 作者可在设置里关掉（切回 Python）。ts 档要等 P5-2 才对发行版开放，IDE 命令还没接引擎。
+// 发行版（P5-1 预览版起）：三个开关都默认影子档——结果仍用 Python，引擎在后台比对；
+// 作者可在设置里关掉（切回 Python）。ts 档要等 P5-2 才对发行版开放。
 const releaseModes: Record<EngineFlagKey, readonly EngineMode[]> = {
-  'engine.ideCommands': ['python'],
+  'engine.ideCommands': ['shadow', 'python'],
   'engine.assistant': ['shadow', 'python'],
   'engine.agentLoop': ['shadow', 'python'],
 };

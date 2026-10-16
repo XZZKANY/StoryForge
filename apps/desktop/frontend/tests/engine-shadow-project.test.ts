@@ -83,3 +83,39 @@ it('lists written files beside real ones, including directories only the overlay
     '第001章.md',
   ]);
 });
+
+it('serves the preimage before the real reader: what Python changed is read as it was', async () => {
+  const base = memoryProject(ROOT, {
+    '.storyforge/canon/canon.json': text('{"after":true}'),
+    '.storyforge/serial-plan.json': text('{"after":true}'),
+  });
+  // 调用 Python 前：canon.json 还不存在，serial-plan.json 是旧版本。
+  const overlay = overlayProject(
+    base.reader,
+    new Map([
+      ['.storyforge/canon/canon.json', null],
+      ['.storyforge/serial-plan.json', bytes('{"before":true}')],
+    ]),
+  );
+  expect(await overlay.reader.inspectProjectPath(ROOT, '.storyforge/canon/canon.json')).toEqual({
+    entryKind: 'missing',
+    targetKind: 'missing',
+    isReparsePoint: false,
+    sizeBytes: 0,
+  });
+  await expect(
+    overlay.reader.readProjectBytes(ROOT, `${ROOT}/.storyforge/canon/canon.json`, 99),
+  ).rejects.toThrow('调用前这个文件不存在');
+  expect(
+    decode((await overlay.reader.readProjectBytes(ROOT, '.storyforge/serial-plan.json', 99)).bytes),
+  ).toBe('{"before":true}');
+  expect(
+    (await overlay.reader.inspectProjectPath(ROOT, '.storyforge/serial-plan.json')).sizeBytes,
+  ).toBe(15);
+  // 引擎自己写过之后读到的是自己写的。
+  await overlay.writer.writeProjectFile(ROOT, '.storyforge/canon/canon.json', bytes('{}'));
+  expect(
+    decode((await overlay.reader.readProjectBytes(ROOT, '.storyforge/canon/canon.json', 99)).bytes),
+  ).toBe('{}');
+  expect(decode(overlay.written().get('.storyforge/canon/canon.json')!)).toBe('{}');
+});
