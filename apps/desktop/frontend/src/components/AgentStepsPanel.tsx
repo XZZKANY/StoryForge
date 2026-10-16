@@ -6,22 +6,32 @@
  * 作者手动切换后以手动为准。
  */
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { processSteps } from './chat-window/agent-step-mapping';
 import type { AgentRun, AgentRunStatus, AgentStep, AgentStepStatus } from './chat-window/types';
+
+/** 思考过程里有没有东西可看：模型请求只在底部运行条上报，不算。 */
+export function hasProcess(run: AgentRun): boolean {
+  return processSteps(run.steps).length > 0 || Boolean(run.notes?.some((note) => note.text.trim()));
+}
 
 export function AgentStepsPanel({ run }: { run: AgentRun }) {
   // null = 跟随运行状态；true/false = 作者手动覆盖。
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
-  const isLive = run.status === 'running' || run.status === 'waiting';
+  if (!hasProcess(run)) return null;
+  const steps = processSteps(run.steps);
+  // 等作者决定时不是在跑：头部不再跳动，写「等你决定」（选项在对话底部）。
+  const isLive = run.status === 'running';
+  const isWaiting = run.status === 'waiting';
   const open = manualOpen ?? (run.status !== 'completed' && run.status !== 'stopped');
 
-  const stepCount = run.steps.length;
-  const toolCount = run.steps.filter((step) => step.id.startsWith('tool-')).length;
+  const stepCount = steps.length;
+  const toolCount = steps.filter((step) => step.id.startsWith('tool-')).length;
   // 仅活动态在折叠头部显示当前活动步骤：作者收起也想看到「正在跑哪个工具」。
   const activeStep = isLive
-    ? (run.steps.find((step) => step.status === 'running') ??
-      run.steps.find((step) => step.status === 'waiting') ??
-      run.steps.find((step) => step.status === 'pending'))
+    ? (steps.find((step) => step.status === 'running') ??
+      steps.find((step) => step.status === 'waiting') ??
+      steps.find((step) => step.status === 'pending'))
     : null;
 
   return (
@@ -46,6 +56,10 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
               {toolCount > 0 ? ` · ${toolCount} 工具` : ''}
             </span>
           </span>
+        ) : isWaiting ? (
+          <span className="text-muted" data-testid="thinking-waiting-header">
+            等你决定 · {stepCount} 步{toolCount > 0 ? ` · ${toolCount} 工具` : ''}
+          </span>
         ) : (
           <span
             className={run.status === 'failed' ? 'text-error' : undefined}
@@ -66,15 +80,45 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
         }`}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="ml-[18px] mt-1 flex flex-col py-0.5">
-            {run.steps.map((step) => (
-              <StepRow key={step.id} step={step} />
-            ))}
-          </div>
+          <div className="ml-[18px] mt-1 flex flex-col py-0.5">{processRows(run, steps)}</div>
         </div>
       </div>
     </div>
   );
+}
+
+/** 步骤按到达顺序排；前几轮模型说的话按 toolIndex 插在它之后那批工具的前面。 */
+function processRows(run: AgentRun, steps: readonly AgentStep[]): ReactNode[] {
+  const notes = (run.notes ?? [])
+    .filter((note) => note.text.trim())
+    .sort((a, b) => a.toolIndex - b.toolIndex || a.round - b.round);
+  const rows: ReactNode[] = [];
+  let next = 0;
+  let toolOrdinal = 0;
+  const flushNotes = (upTo: number) => {
+    while (next < notes.length && notes[next].toolIndex <= upTo) {
+      const note = notes[next];
+      rows.push(
+        <p
+          key={`note-${note.round}`}
+          className="whitespace-pre-wrap break-words px-1 py-0.5 text-xs leading-5 text-muted"
+          data-testid="agent-run-note"
+        >
+          {note.text}
+        </p>,
+      );
+      next += 1;
+    }
+  };
+  for (const step of steps) {
+    if (step.id.startsWith('tool-')) {
+      flushNotes(toolOrdinal);
+      toolOrdinal += 1;
+    }
+    rows.push(<StepRow key={step.id} step={step} />);
+  }
+  flushNotes(Number.POSITIVE_INFINITY);
+  return rows;
 }
 
 function StepRow({ step }: { step: AgentStep }) {
@@ -91,7 +135,11 @@ function StepRow({ step }: { step: AgentStep }) {
       <span className={`flex-shrink-0 ${glyphClass(step.status)}`} aria-hidden="true">
         {statusGlyph(step.status)}
       </span>
-      <span className={`flex-shrink-0 ${isToolStep ? 'text-foreground' : 'text-muted'}`}>
+      {/* 工具标题带着文件路径，窄栏里会很长：可以截断，悬停看全名。 */}
+      <span
+        className={`min-w-0 truncate ${isToolStep ? 'text-foreground' : 'text-muted'}`}
+        title={step.title}
+      >
         {step.title}
       </span>
       {/* 有结构化指标时首行让位给 chip 行；仅纯文本 detail（如 plan step）仍在首行内联。 */}

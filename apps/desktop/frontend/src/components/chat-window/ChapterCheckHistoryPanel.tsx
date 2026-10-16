@@ -12,7 +12,7 @@ const manuscriptLabel = { pass: '自动检查通过', fail: '发现稿件问题'
 function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
   const check = entry.check;
   return (
-    <details className="rounded-md border border-default p-2" data-testid="chapter-check-entry">
+    <details className="rounded-md border border-border p-2" data-testid="chapter-check-entry">
       <summary className="cursor-pointer text-xs text-foreground">
         <span className="break-words">{entry.targetPath ?? '目标来源未核实'}</span>
         <span className="ml-2 text-muted">
@@ -97,7 +97,7 @@ export function ChapterCheckHistoryPanel({ history }: { history: ChapterCheckHis
     return null;
   return (
     <section
-      className="max-h-[35vh] flex-shrink-0 space-y-2 overflow-auto border-t border-default px-4 py-2"
+      className="mx-auto max-h-[35vh] w-[calc(100%-1.5rem)] max-w-[800px] flex-shrink-0 space-y-2 overflow-auto border-t border-border px-1 py-2"
       aria-label="章节检查记录"
       data-testid="chapter-check-history"
     >

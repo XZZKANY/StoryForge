@@ -23,11 +23,14 @@ describe('#11 恢复卡片可见性', () => {
     expect(shouldShowAgentRunRecovery('stopped', display)).toBe(false);
   });
 
-  it('paused / waiting / failed / running 仍展示', () => {
+  it('paused / failed / running 仍展示', () => {
     expect(shouldShowAgentRunRecovery('paused', display)).toBe(true);
-    expect(shouldShowAgentRunRecovery('waiting', display)).toBe(true);
     expect(shouldShowAgentRunRecovery('failed', display)).toBe(true);
     expect(shouldShowAgentRunRecovery('running', display)).toBe(true);
+  });
+
+  it('waiting 时底部选择框已在问，卡片不再重复「等待你确认」', () => {
+    expect(shouldShowAgentRunRecovery('waiting', display)).toBe(false);
   });
 
   it('无恢复数据时不展示', () => {

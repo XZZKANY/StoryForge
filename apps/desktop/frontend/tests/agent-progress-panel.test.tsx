@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it } from 'vitest';
 
 import { AgentStepsPanel } from '../src/components/AgentStepsPanel';
+import { RunActionBar } from '../src/components/chat-window/panels';
 import {
   stepFromAgentPlanEvent,
   stepsFromAgentResult,
@@ -18,6 +19,13 @@ let current: {
   state: ReturnType<typeof useChatWindowState>;
   onEvent: ReturnType<typeof useAgentStreamEvent>;
 };
+const controls = {
+  onPauseRun: () => undefined,
+  onResumeRun: () => undefined,
+  onStopRun: () => undefined,
+  onApprovePermission: () => undefined,
+  onDenyPermission: () => undefined,
+};
 function Harness() {
   const state = useChatWindowState({
     projectPath: 'D:/book',
@@ -26,7 +34,14 @@ function Harness() {
   });
   const onEvent = useAgentStreamEvent(state, async () => undefined);
   current = { state, onEvent };
-  return state.agentRun ? <AgentStepsPanel run={state.agentRun} /> : null;
+  return state.agentRun ? (
+    <>
+      <div data-testid="process-host">
+        <AgentStepsPanel run={state.agentRun} />
+      </div>
+      <RunActionBar run={state.agentRun} controls={controls} />
+    </>
+  ) : null;
 }
 async function mount() {
   host = document.createElement('div');
@@ -70,21 +85,13 @@ async function progress(detail: string, sequence: number) {
     }),
   );
 }
-function expectVisibleProvider(detail: string) {
-  // 不能只查整棵 DOM 的 textContent：折叠面板仍保留隐藏的行。
-  expect(toggle().getAttribute('aria-expanded')).toBe('true');
-  const row = Array.from(host.querySelectorAll('button')).find(
-    (button) => button.textContent?.includes('模型请求') && button.textContent.includes(detail),
-  );
-  expect(row).toBeDefined();
-  expect(row?.isConnected).toBe(true);
-  const disclosure = row?.closest('.grid');
-  expect(disclosure?.classList.contains('grid-rows-[1fr]')).toBe(true);
-  expect(disclosure?.classList.contains('opacity-100')).toBe(true);
-  expect(disclosure?.classList.contains('grid-rows-[0fr]')).toBe(false);
-}
+const processText = () => host.querySelector('[data-testid="process-host"]')?.textContent ?? '';
+const barText = () =>
+  host.querySelector('[data-testid="run-action-active-step"]')?.textContent ?? '';
 
-it('provider request and backoff are visible in the real expanded panel despite an earlier running loop', async () => {
+// 作者 10-16：思考过程里那行「模型请求 · 准备第 N 次模型请求」不要了，用底部运行条（转圈的那行）显示。
+// 退避 / 重试的原因仍要看得到——改由运行条报，即使「整理回答」排在模型请求前面。
+it('model requests stay out of the process; the run bar reports them and spells out backoff', async () => {
   await mount();
   const details = [
     '准备第 1 次模型请求。',
@@ -93,7 +100,8 @@ it('provider request and backoff are visible in the real expanded panel despite 
   ];
   for (const [index, detail] of details.entries()) {
     await progress(detail, 10 + index);
-    expectVisibleProvider(detail);
+    expect(processText()).not.toContain('模型请求');
+    expect(processText()).not.toContain(detail);
     expect(current.state.agentRun?.steps).toHaveLength(2);
     expect(current.state.agentRun?.steps[0]).toMatchObject({
       tool: 'agent.loop',
@@ -102,11 +110,18 @@ it('provider request and backoff are visible in the real expanded panel despite 
     expect(current.state.agentBusy).toBe(true);
     expect(current.state.messages).toEqual([]);
   }
-  expect(host.textContent).not.toContain(details[0]);
-  expect(host.textContent).not.toContain(details[1]);
+  // 平时写当前步骤名，不把「准备第 N 次」念出来；重试 / 退避时写原因。
+  await progress('准备第 2 次模型请求。', 20);
+  expect(barText()).toContain('整理回答');
+  expect(barText()).not.toContain('准备第 2 次模型请求');
+  await progress('模型请求暂不可用，等待 2 秒后重试。', 21);
+  expect(barText()).toContain('模型请求暂不可用，等待 2 秒后重试。');
+  await progress('退避结束，准备重试。', 22);
+  expect(barText()).toContain('退避结束，准备重试。');
+  expect(barText()).not.toContain('等待 2 秒后重试');
 });
 
-it('manually reopening the real panel exposes the latest backoff detail without forcing author disclosure state', async () => {
+it('model-request events never reopen or refill the author-collapsed process', async () => {
   await mount();
   await progress('准备第 1 次模型请求。', 10);
   await act(async () => toggle().click());
@@ -114,8 +129,16 @@ it('manually reopening the real panel exposes the latest backoff detail without 
   await progress('模型请求暂不可用，等待 2 秒后重试。', 11);
   expect(toggle().getAttribute('aria-expanded')).toBe('false');
   await act(async () => toggle().click());
-  expectVisibleProvider('模型请求暂不可用，等待 2 秒后重试。');
-  expect(host.textContent).not.toContain('准备第 1 次模型请求。');
+  expect(processText()).not.toContain('模型请求');
+  expect(barText()).toContain('模型请求暂不可用，等待 2 秒后重试。');
+});
+
+it('a run with only model requests shows no process at all, just the run bar', async () => {
+  await mount();
+  await act(async () => current.state.setAgentRun((run) => (run ? { ...run, steps: [] } : run)));
+  await progress('准备第 1 次模型请求。', 10);
+  expect(host.querySelector('[data-testid="thinking-fold-toggle"]')).toBeNull();
+  expect(barText()).toContain('模型请求');
 });
 
 it('a completed auto-writeback preparation step does not claim a Desktop write or snapshot receipt', async () => {

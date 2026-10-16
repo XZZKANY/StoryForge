@@ -299,6 +299,21 @@ body {
 .sf-thinking-dots span:nth-child(3) {
   animation-delay: 0.3s;
 }
+/* 回答区：模型说完这一轮、转去读文件调工具时三点停住变淡——还在跑，只是不在打字。 */
+.sf-thinking-dots--idle span {
+  animation: none;
+  opacity: 0.45;
+}
+/* 输出中挂在最后一个字后面的小圆点（AssistantMarkdown 的 rehype 插件插入），代替另起一行的「正在输出…」。 */
+.sf-stream-caret {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-left: 0.25em;
+  border-radius: 999px;
+  background: rgb(var(--agent));
+  vertical-align: 0.05em;
+}
 
 /* 降低动效偏好下关闭过场动画 */
 @media (prefers-reduced-motion: reduce) {
@@ -940,6 +955,23 @@ button:disabled[aria-busy='true'] {
 .assistant-md ol {
   margin: 0.45em 0;
   padding-left: 1.35em;
+}
+/* Tailwind preflight 把列表符号清成 none：回复里的「三个问题」没有序号、要点没有圆点。 */
+.assistant-md ul {
+  list-style: disc;
+}
+.assistant-md ol {
+  list-style: decimal;
+}
+.assistant-md ul ul {
+  list-style: circle;
+}
+.assistant-md li::marker {
+  color: rgb(var(--muted));
+}
+.assistant-md ul.contains-task-list {
+  list-style: none;
+  padding-left: 0.2em;
 }
 .assistant-md li {
   margin: 0.2em 0;

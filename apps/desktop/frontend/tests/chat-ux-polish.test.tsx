@@ -5,6 +5,7 @@ import { test } from 'vitest';
 import { AgentStepsPanel } from '../src/components/AgentStepsPanel';
 import { AssistantMarkdown } from '../src/components/chat-window/AssistantMarkdown';
 import { runStatusText } from '../src/components/chat-window/display-utils';
+import { formatElapsed } from '../src/components/chat-window/RunElapsed';
 import {
   ContextSummaryPanel,
   MessageItem,
@@ -168,7 +169,7 @@ test('run action bar drops destructive stop while awaiting patch confirm', () =>
       }}
     />,
   );
-  assert.match(html, /AI 修订已生成，可接受或拒绝/);
+  assert.match(html, /AI 修订已生成/);
   assert.match(html, /data-testid="run-accept-patch"/);
   assert.match(html, /data-testid="run-reject-patch"/);
   assert.doesNotMatch(html, /data-testid="run-stop"/);
@@ -271,4 +272,75 @@ test('compact context summary surfaces truncation on the fold header, not only w
   assert.match(html, /data-compact="true"/);
   assert.match(html, /data-expanded="false"/);
   assert.match(html, /data-testid="context-truncated-badge"/);
+});
+
+test('the typing dot hangs after the last character, inside the deepest last block', () => {
+  const place = (content: string) => {
+    const host = document.createElement('div');
+    host.innerHTML = renderToStaticMarkup(<AssistantMarkdown content={content} streaming />);
+    const carets = host.querySelectorAll('[data-testid="stream-indicator"]');
+    assert.equal(carets.length, 1);
+    return carets[0].parentElement?.tagName.toLowerCase();
+  };
+  assert.equal(place('第一段\n\n第二段'), 'p');
+  assert.equal(place('要点：\n\n- 一项\n- 二项'), 'li');
+  assert.equal(place('> 卷帘门底下有一道拖痕'), 'p');
+  assert.equal(place('**粗体结尾**'), 'strong');
+  const done = renderToStaticMarkup(<AssistantMarkdown content="第一段" />);
+  assert.doesNotMatch(done, /stream-indicator/);
+});
+
+test('waiting and working show dots without words; only problems are spelled out', () => {
+  const render = (phase: 'waiting' | 'streaming' | 'working' | 'interrupted') => {
+    const host = document.createElement('div');
+    host.innerHTML = renderToStaticMarkup(
+      <MessageItem
+        message={{
+          role: 'assistant',
+          content: phase === 'waiting' ? '' : '正文',
+          stream: { runId: 'r', phase },
+        }}
+      />,
+    );
+    const status = host.querySelector('[data-testid="stream-phase"]');
+    const visible = [...(status?.querySelectorAll('span') ?? [])]
+      .filter((node) => !node.closest('.sr-only') && node.textContent?.trim())
+      .map((node) => node.textContent);
+    return { host, status, visible };
+  };
+  for (const phase of ['waiting', 'streaming', 'working'] as const) {
+    const { status, visible } = render(phase);
+    assert.equal(status?.getAttribute('role'), 'status');
+    assert.deepEqual(visible, [], `${phase} 不该再另起一行写字`);
+  }
+  assert.ok(render('waiting').host.querySelector('.sf-thinking-dots:not(.sf-thinking-dots--idle)'));
+  assert.ok(render('working').host.querySelector('.sf-thinking-dots--idle'));
+  assert.ok(render('streaming').host.querySelector('.sf-stream-caret'));
+  assert.deepEqual(render('interrupted').visible, ['回复未完成']);
+});
+
+test('run action bar counts the elapsed time while running', () => {
+  assert.equal(formatElapsed(5), '5 秒');
+  assert.equal(formatElapsed(65), '1 分 5 秒');
+  assert.equal(formatElapsed(120), '2 分');
+  const controls = {
+    onApprovePermission: () => undefined,
+    onDenyPermission: () => undefined,
+    onPauseRun: () => undefined,
+    onResumeRun: () => undefined,
+    onStopRun: () => undefined,
+  };
+  const run: AgentRun = {
+    id: 'run-1',
+    sessionId: 'run-1',
+    goal: '改结尾',
+    status: 'running',
+    steps: [{ id: 's1', title: '思考', tool: 'think', status: 'running', detail: '' }],
+    startedAt: Date.now() - 65_000,
+  };
+  assert.match(renderToStaticMarkup(<RunActionBar run={run} controls={controls} />), /1 分 5 秒/);
+  const fresh = renderToStaticMarkup(
+    <RunActionBar run={{ ...run, startedAt: Date.now() }} controls={controls} />,
+  );
+  assert.doesNotMatch(fresh, /data-testid="run-elapsed"/);
 });

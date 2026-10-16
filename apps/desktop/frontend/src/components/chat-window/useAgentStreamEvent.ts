@@ -13,6 +13,7 @@ import { isAgentPermissionProfile } from '../../lib/agent-permission';
 import { stepFromAgentPlanEvent, stepFromToolTraceEvent } from './agent-step-mapping';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
 import type { AgentRun, AgentStep } from './types';
+import type { TextRoundStart } from './useChatTextStream';
 import type { ChatWindowState } from './useChatWindowState';
 
 export function useAgentStreamEvent(
@@ -45,7 +46,9 @@ export function useAgentStreamEvent(
         return;
       }
       if (isAgentTextFrame(message)) {
-        textStream.accept(message);
+        const started = textStream.accept(message);
+        if (started)
+          setAgentRun((run) => (run?.id === started.runId ? withRoundStarted(run, started) : run));
         return;
       }
       if (isAgentRunStartedMessage(message)) {
@@ -58,6 +61,7 @@ export function useAgentStreamEvent(
         return;
       }
       if (isAgentStepEventMessage(message)) {
+        textStream.roundTextDone(message.run_id);
         const nextStep = stepFromAgentPlanEvent(
           message.index,
           message.step,
@@ -164,6 +168,30 @@ export function useAgentStreamEvent(
       textStream,
     ],
   );
+}
+
+/**
+ * 新一轮开始：上一轮说完的话记进 notes（空话不记），再给新一轮占位。
+ * 最后一轮的正文就是回答本身，没有下一轮来挪它，所以回答永远不会跑进思考过程。
+ */
+function withRoundStarted(run: AgentRun, started: TextRoundStart): AgentRun {
+  const notes = [...(run.notes ?? [])];
+  const toolIndex = run.steps.filter((step) => step.id.startsWith('tool-')).length;
+  const previous = started.previous;
+  const text = previous?.text.trim();
+  if (previous && text) {
+    let index = -1;
+    for (let i = notes.length - 1; i >= 0; i -= 1) {
+      if (notes[i].round === previous.round) {
+        index = i;
+        break;
+      }
+    }
+    if (index >= 0) notes[index] = { ...notes[index], text };
+    else notes.push({ round: previous.round, toolIndex, text });
+  }
+  notes.push({ round: started.round, toolIndex, text: '' });
+  return { ...run, notes };
 }
 
 function upsertAgentStep(run: AgentRun | null, nextStep: AgentStep): AgentRun | null {

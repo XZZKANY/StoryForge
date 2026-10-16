@@ -7,7 +7,7 @@ import {
   type SemanticFile,
 } from '../../lib/project-context';
 import type { AssistantSessionRecord } from '../../lib/api-client';
-import { AgentStepsPanel } from '../AgentStepsPanel';
+import { AgentStepsPanel, hasProcess } from '../AgentStepsPanel';
 import {
   ChevronDown,
   Maximize2,
@@ -18,9 +18,14 @@ import {
   Sparkles,
 } from '../icons/shell-icons';
 import type { LayoutMode } from '../shell/useShellState';
+import { isModelRequestStep } from './agent-step-mapping';
 import { AssistantMarkdown } from './AssistantMarkdown';
+import { CHAT_COLUMN } from './column';
+import { DecisionChoices } from './DecisionChoices';
 import { contextBudgetText } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
+import { RunElapsed } from './RunElapsed';
+import { StreamPhase } from './StreamPhase';
 import type { AgentRun, AgentRunControlHandlers, Message } from './types';
 
 // 会话下拉的 updated_at 是 ISO 原串：主行只露 MM-dd HH:mm 短格式，完整时间留在 title。
@@ -314,27 +319,42 @@ export function MessageList({
     setNearBottom(true);
     setHasUnread(false);
   };
+  // 思考过程排在这一轮回答的上面（先想、后答）；回答还没出现时排在最后。同一个 key 在
+  // 父节点里换位置只会移动节点，折叠面板的手动开合不会因为回答出现而重置。
+  const process =
+    agentRun && hasProcess(agentRun) ? (
+      <div
+        key={`agent-run-process:${agentRun.id}`}
+        className="animate-slide-up-fade"
+        data-testid="agent-run-process"
+      >
+        <AgentStepsPanel run={agentRun} />
+      </div>
+    ) : null;
+  const replyIndex = process
+    ? messages.findIndex((message) => message.stream?.runId === agentRun?.id)
+    : -1;
+  const items: ReactNode[] = [];
+  messages.forEach((message, index) => {
+    if (index === replyIndex) items.push(process);
+    items.push(
+      <MessageItem key={message.id ?? messageKey(message) + ':' + index} message={message} />,
+    );
+  });
+  if (process && replyIndex < 0) items.push(process);
   const content =
     messages.length === 0 ? (
       emptyState ? (
-        <div className="mx-auto flex w-full max-w-[800px] flex-col gap-6 px-5 py-6">
-          {emptyState}
-        </div>
+        <div className={`${CHAT_COLUMN} flex flex-col gap-6 px-5 py-6`}>{emptyState}</div>
       ) : null
     ) : (
-      <div className="mx-auto flex w-full max-w-[800px] flex-col gap-6 px-5 py-6">
-        {messages.map((message, index) => (
-          <MessageItem key={message.id ?? messageKey(message) + ':' + index} message={message} />
-        ))}
-
-        {agentRun && agentRun.steps.length > 0 && (
-          <div className="animate-slide-up-fade space-y-2">
-            <AgentStepsPanel run={agentRun} />
-            {shouldShowAgentRunRecovery(agentRun.status, agentRunRecovery) && (
-              <AgentRunRecoveryPanel recovery={agentRunRecovery} />
-            )}
-          </div>
-        )}
+      <div className={`${CHAT_COLUMN} flex flex-col gap-6 px-5 py-6`}>
+        {items}
+        {agentRun &&
+          agentRun.steps.length > 0 &&
+          shouldShowAgentRunRecovery(agentRun.status, agentRunRecovery) && (
+            <AgentRunRecoveryPanel recovery={agentRunRecovery} />
+          )}
       </div>
     );
   return (
@@ -404,20 +424,22 @@ function recoveryToneClass(tone: AgentRunRecoveryDisplay['tone']): string {
 
 /**
  * Composer 上方固定操作条：统一 run 控制单一来源。
- * 包括暂停/恢复/停止 + 权限批准/拒绝 + 补丁接受/拒绝。
+ * 运行 / 暂停时是暂停 / 恢复 / 停止；要作者拍板（权限、补丁）时换成就地的编号选项。
  */
 export function RunActionBar({
   run,
   controls,
   recovery,
   resumePending = false,
+  onTypeAhead,
 }: {
   run: AgentRun;
   controls: AgentRunControlHandlers;
   recovery?: AgentRunRecoveryDisplay | null;
   resumePending?: boolean;
+  /** 选项有焦点时作者开始打字：把焦点还给输入框（免得回车误选了「接受」）。 */
+  onTypeAhead?: () => void;
 }) {
-  const [rejectDraft, setRejectDraft] = useState<string | null>(null);
   // 停止是破坏性终态动作：第一次点击只进入待确认，再点才执行；超时/失焦/划走都取消。
   const [stopConfirmArmed, setStopConfirmArmed] = useState(false);
   const stopConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -431,7 +453,7 @@ export function RunActionBar({
     (step) => step.id === 'permission-required' && step.status === 'waiting',
   );
   // status==='waiting' 且非权限 = run 已产出补丁、等作者确认。此时「停止」会把 run 误标 failed
-  // 却不清掉待确认补丁（放弃应走下方或编辑器里拒绝），故这里只给操作入口、不给破坏性停止。
+  // 却不清掉待确认补丁（放弃应走拒绝），故这里只给接受 / 拒绝，不给破坏性停止。
   const awaitingConfirm = run.status === 'waiting' && !waitingForPermission;
   // 暂停态给「恢复」出口（不再是死胡同），并保留「停止」；停止是终态、由轻状态条中性收尾。
   const isPaused = run.status === 'paused';
@@ -440,20 +462,6 @@ export function RunActionBar({
   const isTerminal =
     run.status === 'completed' || run.status === 'failed' || run.status === 'stopped';
   if (isTerminal && !run.deliveryUnknown) return null;
-
-  const handleAcceptPatch = () => {
-    controls.onAcceptPatch?.();
-  };
-
-  const handleRejectPatch = () => {
-    if (rejectDraft === null) {
-      setRejectDraft('');
-      return;
-    }
-    const direction = rejectDraft.trim();
-    setRejectDraft(null);
-    controls.onRejectPatch?.(direction);
-  };
 
   const cancelStopConfirm = () => {
     if (stopConfirmTimerRef.current) {
@@ -473,45 +481,136 @@ export function RunActionBar({
     controls.onStopRun();
   };
 
+  const stopButton = (
+    <Button
+      size="sm"
+      variant="danger"
+      className={runActionButtonClass}
+      onClick={handleStopClick}
+      onBlur={cancelStopConfirm}
+      onMouseLeave={cancelStopConfirm}
+      title={stopConfirmArmed ? '再次点击确认停止本轮' : '停止本轮'}
+      data-testid="run-stop"
+      data-armed={stopConfirmArmed ? 'true' : 'false'}
+    >
+      {stopConfirmArmed ? '确认停止本轮？' : '停止'}
+    </Button>
+  );
+
   if (run.deliveryUnknown)
     return (
-      <div
-        className="flex flex-wrap items-center gap-2 border-t border-border p-3"
-        data-testid="run-action-bar"
-      >
-        <span role="status" className="text-xs text-warning" data-testid="run-action-status">
-          本轮结果未知；连接结束不代表执行失败。请核对原运行，不会自动重放。
-        </span>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={controls.onReconcileRun}
-          data-testid="run-reconcile"
+      <div className="flex-shrink-0 px-3 pt-2" data-testid="run-action-bar">
+        <div
+          className={`${CHAT_COLUMN} flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-background px-3 py-2`}
         >
-          核对状态
-        </Button>
-        <Button size="sm" variant="secondary" onClick={controls.onPauseRun} data-testid="run-pause">
-          请求暂停
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={handleStopClick}
-          onBlur={cancelStopConfirm}
-          data-testid="run-stop"
-        >
-          {stopConfirmArmed ? '确认停止' : '请求停止'}
-        </Button>
+          <span role="status" className="text-xs text-warning" data-testid="run-action-status">
+            本轮结果未知；连接结束不代表执行失败。请核对原运行，不会自动重放。
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={controls.onReconcileRun}
+            data-testid="run-reconcile"
+          >
+            核对状态
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={controls.onPauseRun}
+            data-testid="run-pause"
+          >
+            请求暂停
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleStopClick}
+            onBlur={cancelStopConfirm}
+            data-testid="run-stop"
+          >
+            {stopConfirmArmed ? '确认停止' : '请求停止'}
+          </Button>
+        </div>
       </div>
     );
 
+  // 要作者拍板的两种：就地给一组编号选项（不弹居中窗口），一次只问一件；
+  // key 跟着这件事走，下一件出来时重新选，不沿用上一件的高亮。
+  if (waitingForPermission || awaitingConfirm) {
+    const permission = run.steps.find((step) => step.id === 'permission-required');
+    const approval = run.steps.find((step) => step.id === 'approval');
+    const target = approval?.filePath?.split(/[\\/]/).pop();
+    return (
+      <div className="flex-shrink-0 animate-slide-in-up px-3 pt-2" data-testid="run-action-bar">
+        <div
+          className={`${CHAT_COLUMN} flex flex-col gap-1 rounded-lg border border-border bg-background px-2 py-2`}
+        >
+          {waitingForPermission ? (
+            <DecisionChoices
+              key={`${run.id}:permission`}
+              title="等待你确认：允许 AI 执行这一步吗？"
+              detail={permission?.detail}
+              onTypeAhead={onTypeAhead}
+              choices={[
+                {
+                  label: '允许',
+                  testid: 'run-approve-permission',
+                  onSelect: controls.onApprovePermission,
+                },
+                {
+                  label: '不允许',
+                  testid: 'run-deny-permission',
+                  onSelect: controls.onDenyPermission,
+                },
+              ]}
+            />
+          ) : (
+            <DecisionChoices
+              key={`${run.id}:patch:${approval?.patchId ?? ''}`}
+              title="AI 修订已生成，要写进稿子吗？"
+              detail={
+                target
+                  ? `对比在编辑器里（${target}），看完再选；逐块接受、存成旁注在编辑器底部。`
+                  : '对比在编辑器里，看完再选。'
+              }
+              onTypeAhead={onTypeAhead}
+              choices={[
+                {
+                  label: '接受，写进稿子',
+                  testid: 'run-accept-patch',
+                  onSelect: () => controls.onAcceptPatch?.(),
+                },
+                {
+                  label: '拒绝',
+                  testid: 'run-reject-patch',
+                  onSelect: () => controls.onRejectPatch?.(''),
+                },
+                {
+                  label: '拒绝，并告诉 AI 怎么改',
+                  testid: 'run-reject-explain',
+                  needsText: {
+                    placeholder: '说说该怎么改，回车发出',
+                    submitLabel: '否掉并重来',
+                    inputTestid: 'run-reject-input',
+                    submitTestid: 'run-reject-confirm',
+                  },
+                  onSelect: (text) => controls.onRejectPatch?.(text ?? ''),
+                },
+              ]}
+            />
+          )}
+          {waitingForPermission && <div className="flex justify-end px-2">{stopButton}</div>}
+        </div>
+      </div>
+    );
+  }
+
+  // 操作条是对话栏里的一张卡片，与输入框同宽：对话占满中右时不再拉成横跨整宽的工具带。
   return (
-    <div
-      className="flex flex-shrink-0 flex-col border-t border-border bg-panel shadow-bar-top animate-slide-in-up"
-      data-testid="run-action-bar"
-    >
-      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-        <div className="mx-auto flex w-full max-w-[800px] flex-wrap items-center gap-2">
+    <div className="flex-shrink-0 animate-slide-in-up px-3 pt-2" data-testid="run-action-bar">
+      <div className={`${CHAT_COLUMN} flex flex-col rounded-lg border border-border bg-background`}>
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2">
           <div className="flex items-center gap-3">
             {isRunning && (
               <span className="relative flex h-3 w-3">
@@ -524,36 +623,44 @@ export function RunActionBar({
               title={`运行 ${run.id}`}
               data-testid="run-action-status"
             >
-              {waitingForPermission
-                ? '等待你确认'
-                : awaitingConfirm
-                  ? 'AI 修订已生成，可接受或拒绝'
-                  : isPaused
-                    ? '已暂停'
-                    : isRunning
-                      ? (() => {
-                          // 运行中：三点动画 + 当前活动步骤名，作者一眼看到「正在跑哪个工具」。
-                          const activeStep =
-                            run.steps.find((step) => step.status === 'running') ??
-                            run.steps.find((step) => step.status === 'waiting') ??
-                            run.steps.find((step) => step.status === 'pending');
-                          return (
-                            <span
-                              className="inline-flex items-baseline gap-2"
-                              data-testid="run-action-active-step"
-                            >
-                              <span className="sf-thinking-dots" aria-hidden="true">
-                                <span />
-                                <span />
-                                <span />
-                              </span>
-                              <span className="text-foreground">
-                                {activeStep ? activeStep.title : '正在处理'}
-                              </span>
-                            </span>
-                          );
-                        })()
-                      : '准备中'}
+              {isPaused
+                ? '已暂停'
+                : isRunning
+                  ? (() => {
+                      // 运行中：三点动画 + 当前活动步骤名，作者一眼看到「正在跑哪个工具」。
+                      const activeStep =
+                        run.steps.find((step) => step.status === 'running') ??
+                        run.steps.find((step) => step.status === 'waiting') ??
+                        run.steps.find((step) => step.status === 'pending');
+                      // 模型请求只在这一行报（思考过程里不列）：重试 / 退避时（引擎这两句都带「重试」）
+                      // 不管它排在第几步，都把原因写出来，作者才知道为什么慢；平时照当前步骤名。
+                      const backoff = run.steps.find(
+                        (step) =>
+                          isModelRequestStep(step) &&
+                          step.status === 'running' &&
+                          /重试/.test(step.detail),
+                      );
+                      const activeText = backoff
+                        ? backoff.detail
+                        : activeStep
+                          ? activeStep.title
+                          : '正在处理';
+                      return (
+                        <span
+                          className="inline-flex items-baseline gap-2"
+                          data-testid="run-action-active-step"
+                        >
+                          <span className="sf-thinking-dots" aria-hidden="true">
+                            <span />
+                            <span />
+                            <span />
+                          </span>
+                          <span className="text-foreground">{activeText}</span>
+                          {run.startedAt !== undefined && <RunElapsed since={run.startedAt} />}
+                        </span>
+                      );
+                    })()
+                  : '准备中'}
             </div>
           </div>
           {/* 运行态：暂停按钮 */}
@@ -600,109 +707,10 @@ export function RunActionBar({
               核对状态
             </Button>
           )}
-          {/* 权限确认：批准/拒绝 */}
-          {waitingForPermission && (
-            <>
-              <Button
-                size="sm"
-                variant="primary"
-                className={runActionButtonClass}
-                onClick={controls.onApprovePermission}
-                title="批准权限请求"
-                data-testid="run-approve-permission"
-              >
-                批准
-              </Button>
-              <Button
-                size="sm"
-                variant="danger"
-                className={runActionButtonClass}
-                onClick={controls.onDenyPermission}
-                title="拒绝权限请求"
-                data-testid="run-deny-permission"
-              >
-                拒绝
-              </Button>
-            </>
-          )}
-          {/* 补丁确认：接受/拒绝 */}
-          {awaitingConfirm && (
-            <>
-              <Button
-                size="sm"
-                variant="primary"
-                className={runActionButtonClass}
-                onClick={handleAcceptPatch}
-                title="接受这版修订并写回"
-                data-testid="run-accept-patch"
-              >
-                接受
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                className={runActionButtonClass}
-                onClick={handleRejectPatch}
-                title="拒绝这版修订"
-                data-testid="run-reject-patch"
-              >
-                {rejectDraft === null ? '拒绝' : '取消'}
-              </Button>
-            </>
-          )}
-          {/* 停止按钮：在运行/暂停/等待权限时可用，补丁确认时不显示（避免误操作）。
-              两段式确认：先点变「确认停止本轮？」，再点才执行（内联确认，不开弹窗）。 */}
-          {(isRunning || isPaused || waitingForPermission) && (
-            <Button
-              size="sm"
-              variant="danger"
-              className={runActionButtonClass}
-              onClick={handleStopClick}
-              onBlur={cancelStopConfirm}
-              onMouseLeave={cancelStopConfirm}
-              title={stopConfirmArmed ? '再次点击确认停止本轮' : '停止本轮'}
-              data-testid="run-stop"
-              data-armed={stopConfirmArmed ? 'true' : 'false'}
-            >
-              {stopConfirmArmed ? '确认停止本轮？' : '停止'}
-            </Button>
-          )}
+          {/* 停止按钮：运行 / 暂停时可用。两段式确认：先点变「确认停止本轮？」，再点才执行。 */}
+          {(isRunning || isPaused) && stopButton}
         </div>
       </div>
-      {rejectDraft !== null && awaitingConfirm && (
-        <div
-          className="flex items-center gap-2 border-t border-border px-4 py-2"
-          data-testid="run-reject-form"
-        >
-          <div className="mx-auto flex w-full max-w-[800px] items-center gap-2">
-            <input
-              autoFocus
-              value={rejectDraft}
-              onChange={(e) => setRejectDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleRejectPatch();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setRejectDraft(null);
-                }
-              }}
-              placeholder="说说该怎么改（回车发出，留空则只否掉这版）"
-              className="sf-input min-w-0 flex-1 rounded-md border border-border bg-elevated px-2 py-1 text-xs text-foreground placeholder:text-muted"
-              data-testid="run-reject-input"
-            />
-            <button
-              type="button"
-              onClick={handleRejectPatch}
-              className="h-7 flex-shrink-0 rounded-md border border-border px-2.5 text-xs text-foreground transition-colors hover:bg-elevated"
-              data-testid="run-reject-confirm"
-            >
-              {rejectDraft.trim() ? '否掉并重来' : '否掉'}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -757,7 +765,7 @@ export function ContextSummaryPanel({
 
   return (
     <section
-      className="mx-3 mb-2 max-h-[40%] flex-shrink-0 overflow-y-auto rounded-lg bg-background px-3 py-2"
+      className="mx-auto mb-2 mt-2 max-h-[40%] w-[calc(100%-1.5rem)] max-w-[800px] flex-shrink-0 overflow-y-auto rounded-lg bg-background px-3 py-2"
       data-testid="context-summary"
       data-compact={compact ? 'true' : 'false'}
       data-expanded={detailsOpen ? 'true' : 'false'}
@@ -917,7 +925,7 @@ export function ContextSummaryPanel({
                   data-context-path={file.relativePath}
                   title={file.relativePath}
                 >
-                  <span className="w-10 flex-shrink-0 text-subtle">
+                  <span className="w-14 flex-shrink-0 whitespace-nowrap text-subtle">
                     {semanticKindLabel(file.kind)}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
@@ -967,40 +975,12 @@ export const MessageItem = memo(function MessageItem({ message }: { message: Mes
       data-testid="assistant-message"
     >
       <div className="py-1">
-        <AssistantMarkdown content={message.content} />
+        <AssistantMarkdown
+          content={message.content}
+          streaming={message.stream?.phase === 'streaming'}
+        />
         {message.stream && message.stream.phase !== 'complete' && (
-          <div
-            className="mt-2 flex items-center gap-2 text-xs text-muted"
-            data-testid="stream-phase"
-            role="status"
-          >
-            {(message.stream.phase === 'waiting' ||
-              message.stream.phase === 'streaming' ||
-              message.stream.phase === 'working') && (
-              <span
-                aria-hidden="true"
-                data-testid="stream-indicator"
-                data-phase={message.stream.phase}
-                className={
-                  message.stream.phase === 'streaming'
-                    ? 'h-1.5 w-1.5 rounded-full bg-agent motion-safe:animate-pulse'
-                    : 'h-1.5 w-1.5 rounded-full bg-agent/60'
-                }
-              />
-            )}
-            <span>
-              {
-                {
-                  waiting: '等待正文输出…',
-                  streaming: '正在输出…',
-                  working: '等待下一步…',
-                  unknown: '连接或内容不完整，等待核对结果',
-                  interrupted: '回复未完成',
-                  complete: '',
-                }[message.stream.phase]
-              }
-            </span>
-          </div>
+          <StreamPhase phase={message.stream.phase} />
         )}
         {message.stream?.detail && (
           <p className="mt-1 text-xs text-muted">{message.stream.detail}</p>
@@ -1021,7 +1001,7 @@ export function LightweightStatus({
 }) {
   return (
     <div className="flex-shrink-0 bg-panel px-5 py-2">
-      <div className="mx-auto flex max-w-[800px] items-center gap-3">
+      <div className={`${CHAT_COLUMN} flex items-center gap-3`}>
         <div className="min-w-0 flex-1 truncate text-xs text-muted" title={text}>
           {text}
         </div>

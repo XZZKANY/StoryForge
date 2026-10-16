@@ -16,6 +16,57 @@ export function mapAgentStepStatus(status: string): AgentStepStatus {
   return 'pending';
 }
 
+/**
+ * 模型请求（「准备第 N 次模型请求」）每轮都有、和底部运行条重复，不进思考过程；
+ * 运行条照常拿它当当前步骤显示，重试 / 退避时把原因写出来。
+ */
+export function isModelRequestStep(step: AgentStep): boolean {
+  return step.tool === 'agent.provider';
+}
+
+// 等作者拍板的步骤（权限、补丁确认）由对话底部的选择框来问，思考过程里不再写一遍「等你确认」。
+const DECISION_TOOLS = new Set(['author.approval', 'permission-gate', 'permission.confirm']);
+
+export function isDecisionStep(step: AgentStep): boolean {
+  return DECISION_TOOLS.has(step.tool);
+}
+
+export function processSteps(steps: readonly AgentStep[]): AgentStep[] {
+  return steps.filter((step) => !isModelRequestStep(step) && !isDecisionStep(step));
+}
+
+// 思考过程里工具的叫法：作者看到的是「读取 正文/第005章.md」，不是「fs.read completed」。
+const TOOL_LABELS: Record<string, string> = {
+  'context.load': '读取上下文',
+  'fs.list': '查看目录',
+  'fs.read': '读取',
+  'fs.search': '搜索',
+  'project.knowledge': '查创作资料',
+  'knowledge.propose': '提议记入创作资料',
+  'file.review': '审稿',
+  'file.revise': '改写',
+  'file.create': '起草新文件',
+  'chapter.polish': '润色',
+  'prose.continue': '续写',
+  'judge.run': '自检',
+  'chapter.brief': '拟章纲',
+  'chapter.draft': '起草正文',
+  'chapter.check': '检查草稿',
+  'chapter.repair': '修补草稿',
+  'project.consistency': '一致性扫描',
+  'project.deep_consistency': '深度一致性检查',
+  'project.cross_chapter_check': '跨章一致性检查',
+  'project.canon': '核对设定',
+  'project.canon_delta': '整理设定变化',
+  'project.hooks_delta': '整理伏笔变化',
+  'project.promise_check': '伏笔检查',
+  'project.prose_check': '文笔检查',
+  'project.collapse_check': '场景承重检查',
+  'project.entity_budget_check': '新增人物地点检查',
+  'project.plan_update': '更新连载计划',
+  'project.trim_prose': '压缩冗余',
+};
+
 export function planStepTitle(step: string): string {
   const titleByStep: Record<string, string> = {
     intent: '识别意图',
@@ -23,9 +74,11 @@ export function planStepTitle(step: string): string {
     revise: '生成修订',
     approval: '等待作者确认',
     load_scene_packet: '读取场景包',
-    'judge.run': '运行 Judge',
+    'judge.run': '自检',
     'judge.repair': '生成修复建议',
     'agent.provider': '模型请求',
+    'agent.loop': '整理回答',
+    'permission.confirm': '等你确认',
     'writeback.auto': '自动写回准备完成',
     'context-agent': '选择上下文',
     'plot-agent': '剧情结构审稿',
@@ -34,24 +87,49 @@ export function planStepTitle(step: string): string {
     'synthesizer-agent': '合并审稿报告',
     audit: '记录审计',
   };
-  return titleByStep[step] ?? step;
+  return titleByStep[step] ?? TOOL_LABELS[step] ?? step;
 }
 
+function planStepDetail(step: string, detail: string): string {
+  return step === 'agent.loop' ? detail.replace(/^工具循环完成：/, '完成：') : detail;
+}
+
+// 读文件的工具记 path，改稿 / 起草记 file_path；绝对路径太长，只留文件名。
+function toolTarget(input: Record<string, unknown>): string | null {
+  for (const key of ['path', 'file_path', 'target_path']) {
+    const value = input[key];
+    if (typeof value !== 'string' || !value.trim()) continue;
+    const text = value.trim();
+    return /^([a-zA-Z]:[\\/]|[\\/])/.test(text) ? (text.split(/[\\/]/).pop() ?? text) : text;
+  }
+  return null;
+}
+
+/** 工具步骤的标题：中文动作 + 对象（文件路径或检索词）；不认识的工具照原名。 */
+export function toolStepTitle(trace: ChatWindowAgentToolTrace): string {
+  const label = TOOL_LABELS[trace.tool_name] ?? trace.tool_name;
+  const input = trace.input_summary ?? {};
+  const target = toolTarget(input);
+  if (target) return `${label} ${target}`;
+  if (typeof input.query === 'string' && input.query.trim())
+    return `${label}「${input.query.trim()}」`;
+  return label;
+}
+
+/** 成败已由行首的 ✓ / ✗ 表示，这里不再写英文状态；只留错误原文与对作者有意义的数字。 */
 export function toolTraceDetail(trace: ChatWindowAgentToolTrace): string {
   if (trace.error_message) return trace.error_message;
   const output = trace.output_summary ?? {};
-  const audit = trace.audit_event_id ? `；审计 ${trace.audit_event_id}` : '';
-  const model = typeof output.model === 'string' ? `；模型 ${output.model}` : '';
-  const latency = typeof output.latency_ms === 'number' ? `；${output.latency_ms}ms` : '';
-  const contextCount =
-    typeof output.context_file_count === 'number' ? `；上下文 ${output.context_file_count} 个` : '';
-  const issueCount =
-    typeof output.issue_count === 'number' ? `；问题 ${output.issue_count} 个` : '';
-  const actionCount =
-    typeof output.suggested_action_count === 'number'
-      ? `；建议 ${output.suggested_action_count} 条`
-      : '';
-  return `${trace.status}${model}${latency}${contextCount}${issueCount}${actionCount}${audit}`;
+  const parts: string[] = [];
+  if (typeof output.model === 'string') parts.push(`模型 ${output.model}`);
+  if (typeof output.latency_ms === 'number') parts.push(`${output.latency_ms}ms`);
+  if (typeof output.context_file_count === 'number')
+    parts.push(`上下文 ${output.context_file_count} 个`);
+  if (typeof output.issue_count === 'number') parts.push(`问题 ${output.issue_count} 个`);
+  if (typeof output.suggested_action_count === 'number')
+    parts.push(`建议 ${output.suggested_action_count} 条`);
+  if (trace.audit_event_id) parts.push(`审计 ${trace.audit_event_id}`);
+  return parts.join('；');
 }
 
 // 从 output_summary 抽结构化指标供小 chip 平铺；detail 纯文本仍作展开时的完整回退。
@@ -78,11 +156,11 @@ export function stepsFromAgentResult(message: ChatWindowAgentResult): AgentStep[
     title: planStepTitle(step.step),
     tool: step.step,
     status: mapAgentStepStatus(step.status),
-    detail: step.detail,
+    detail: planStepDetail(step.step, step.detail),
   }));
   const toolSteps = message.tool_trace.map((trace: ChatWindowAgentToolTrace, index) => ({
     id: `tool-${index}-${trace.tool_name}`,
-    title: trace.tool_name,
+    title: toolStepTitle(trace),
     tool: trace.tool_name,
     status: mapAgentStepStatus(trace.status),
     detail: toolTraceDetail(trace),
@@ -102,14 +180,14 @@ export function stepFromAgentPlanEvent(
     title: planStepTitle(step),
     tool: step,
     status: mapAgentStepStatus(status),
-    detail,
+    detail: planStepDetail(step, detail),
   };
 }
 
 export function stepFromToolTraceEvent(index: number, trace: ChatWindowAgentToolTrace): AgentStep {
   return {
     id: `tool-${index}-${trace.tool_name}`,
-    title: trace.tool_name,
+    title: toolStepTitle(trace),
     tool: trace.tool_name,
     status: mapAgentStepStatus(trace.status),
     detail: toolTraceDetail(trace),

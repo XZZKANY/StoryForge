@@ -173,6 +173,7 @@ export function useRunAuthorAgent(
         status: 'running',
         steps: [],
         permissionProfile: agentPermissionProfile,
+        startedAt: Date.now(),
       });
       setChapterBrief(null);
       try {

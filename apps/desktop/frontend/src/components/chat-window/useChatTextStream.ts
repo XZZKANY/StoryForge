@@ -3,6 +3,12 @@ import type { AgentTextFrame } from '../../lib/api/agent-text-stream';
 import type { AgentRunStatus, AgentTextSettlement, Message } from './types';
 
 type Phase = NonNullable<Message['stream']>['phase'];
+/** 新一轮模型输出开始：交出上一轮说完的话（可能为空），由持有 run 的一方挪进思考过程。 */
+export type TextRoundStart = {
+  runId: string;
+  round: number;
+  previous: { round: number; text: string } | null;
+};
 type Draft = {
   runId: string;
   active: () => boolean;
@@ -78,7 +84,7 @@ export function useChatTextStream(setMessages: Dispatch<SetStateAction<Message[]
           accepting: true,
         };
       },
-      accept(frame: AgentTextFrame) {
+      accept(frame: AgentTextFrame): TextRoundStart | null {
         const current = draft.current;
         if (
           !alive.current ||
@@ -87,10 +93,11 @@ export function useChatTextStream(setMessages: Dispatch<SetStateAction<Message[]
           current.runId !== frame.run_id ||
           !current.active()
         )
-          return;
+          return null;
         if (frame.type === 'agent_text_stream_started') {
           // Rounds strictly advance; duplicate/recreated same-round starts must not erase text.
-          if (frame.round_index <= current.round) return;
+          if (frame.round_index <= current.round) return null;
+          const previous = current.round > 0 ? { round: current.round, text: current.text } : null;
           cancelTimer();
           current.streamId = frame.stream_id;
           current.round = frame.round_index;
@@ -98,14 +105,14 @@ export function useChatTextStream(setMessages: Dispatch<SetStateAction<Message[]
           current.text = '';
           current.phase = 'waiting';
           setMessages((messages) => replaceTrailingStream(messages, current.runId, '', 'waiting'));
-          return;
+          return { runId: current.runId, round: frame.round_index, previous };
         }
         if (
           frame.stream_id !== current.streamId ||
           frame.round_index !== current.round ||
           frame.chunk_sequence <= current.sequence
         )
-          return;
+          return null;
         if (
           frame.chunk_sequence !== current.sequence + 1 ||
           // This display-only cap is UTF-16 units, not the wire's code-point or tool-JSON budget.
@@ -114,7 +121,7 @@ export function useChatTextStream(setMessages: Dispatch<SetStateAction<Message[]
           current.phase = 'unknown';
           current.accepting = false;
           flush();
-          return;
+          return null;
         }
         current.sequence = frame.chunk_sequence;
         const first = current.text.length === 0;
@@ -123,6 +130,26 @@ export function useChatTextStream(setMessages: Dispatch<SetStateAction<Message[]
         if (current.phase === 'waiting') current.phase = 'streaming';
         if (first) flush();
         else if (timer.current === null) timer.current = setTimeout(flush, 40);
+        return null;
+      },
+      /**
+       * 步骤事件只在模型这一轮说完话之后才来（读文件、调工具、准备下一次请求）：
+       * 回答区从「输出中」转成「等下一步」，免得改稿那几十秒里一直像在打字。迟到的字照收。
+       */
+      roundTextDone(runId: string) {
+        const current = draft.current;
+        if (
+          !alive.current ||
+          !current ||
+          current.runId !== runId ||
+          !current.accepting ||
+          current.phase !== 'streaming' ||
+          !current.active()
+        )
+          return;
+        cancelTimer();
+        current.phase = 'working';
+        render(current);
       },
       hold(runId: string, phase: Phase, close = true) {
         const current = draft.current;

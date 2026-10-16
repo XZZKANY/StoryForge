@@ -676,3 +676,92 @@ it('tool hold before the first visible text also remains working until a newer r
   expect(current.state.messages[0].stream?.phase).toBe('working');
   await finish();
 });
+
+async function toolTrace(index: number, toolName = 'fs.read') {
+  await act(async () =>
+    current.onEvent({
+      type: 'tool_trace',
+      run_id: current.state.agentRunIdRef.current!,
+      index,
+      trace: { tool_name: toolName, status: 'completed', input_summary: {}, output_summary: {} },
+    }),
+  );
+}
+async function stepEvent(detail: string, sequence: number) {
+  await act(async () =>
+    current.onEvent({
+      type: 'agent_step',
+      run_id: current.state.agentRunIdRef.current!,
+      session_id: current.state.agentRunIdRef.current!,
+      assistant_session_id: 7,
+      event_id: sequence,
+      sequence,
+      index: -1,
+      step: 'agent.provider',
+      status: 'running',
+      detail,
+    }),
+  );
+}
+const flushTimers = () =>
+  act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  });
+const precedes = (a: Node | null, b: Node | null) =>
+  Boolean(a && b && a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+it('earlier-round words move into the process instead of vanishing; only the answer stays in the reply', async () => {
+  await begin();
+  await start();
+  await delta('我先把第 5 章读一遍。', 1);
+  await toolTrace(0);
+  await start(2);
+  await delta('读完了，问题在后半。', 1, 2);
+  await flushTimers();
+  expect(current.state.messages[0].content).toBe('读完了，问题在后半。');
+  const notes = () => [...host.querySelectorAll('[data-testid="agent-run-note"]')];
+  expect(notes().map((note) => note.textContent)).toEqual(['我先把第 5 章读一遍。']);
+  // 这句话排在它之后调用的工具前面。
+  const toolTitle = [...host.querySelectorAll('span')].find((span) => span.textContent === '读取');
+  expect(precedes(notes()[0], toolTitle ?? null)).toBe(true);
+  await finish('读完了，问题在后半。');
+  await flushTimers();
+  // 回答本身不会跑进思考过程，前几轮的话结算后仍在。
+  expect(notes().map((note) => note.textContent)).toEqual(['我先把第 5 章读一遍。']);
+  expect(current.state.messages[0].content).toBe('读完了，问题在后半。');
+});
+
+it('the process sits above the reply, before and after the run settles', async () => {
+  await begin();
+  await start();
+  await delta('先说一句', 1);
+  await toolTrace(0);
+  await start(2);
+  await delta('正式回答', 1, 2);
+  await flushTimers();
+  const fold = () => host.querySelector('[data-testid="thinking-fold-toggle"]');
+  const reply = () => host.querySelector('[data-testid="assistant-message"]');
+  expect(precedes(fold(), reply())).toBe(true);
+  await finish('正式回答');
+  await flushTimers();
+  expect(precedes(fold(), reply())).toBe(true);
+});
+
+it('a step after visible text stops the typing caret; a step before any text changes nothing', async () => {
+  await begin();
+  await start();
+  await stepEvent('准备第 1 次模型请求。', 1);
+  expect(current.state.messages[0].stream?.phase).toBe('waiting');
+  // 只有模型请求时思考过程整个不出现（连同外层容器，免得在消息之间留一段空白）。
+  expect(host.querySelector('[data-testid="agent-run-process"]')).toBeNull();
+  await delta('好，我来改结尾。', 1);
+  await flushTimers();
+  expect(current.state.messages[0].stream?.phase).toBe('streaming');
+  expect(host.querySelector('.sf-stream-caret')).not.toBeNull();
+  // 模型说完这一轮转去调工具（例如改稿要几十秒）：不能还像在打字。
+  await stepEvent('准备第 2 次模型请求。', 2);
+  expect(current.state.messages[0].stream?.phase).toBe('working');
+  expect(host.querySelector('.sf-stream-caret')).toBeNull();
+  expect(host.textContent).not.toContain('正在输出');
+  await finish();
+});
