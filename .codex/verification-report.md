@@ -8197,3 +8197,18 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 验证：前端 typecheck 通过；vitest 220 文件 / 2254 用例通过（1 skip）；`pnpm lint` 0 error、prettier 通过；`App.tsx` 396 行（硬上限 400）；截图复验空书总览 → 点主按钮后对话占满并显示新开场、末世吞噬副本开场按钮顺序。
 - 同轮排查作者说的「设置好像没有了」：只读元信息与本机 localStorage 中的设置项（网址 / 模型打码、不读密钥）核对——模型配置（服务商、地址、模型、加密密钥）、字号 16、书稿字体、最近作品三本都在；「恢复上次写作现场」在装 0.1.15 之前就已是关（旧版开关画反期间被点成关的可能性大），自动保存一直是关（旧版显示成开）；作者在新外观页切到了浅色 + 暖色。未发现被清空的设置，待作者说明具体指哪项。
 - 未联通：装机版观感需作者点穿。
+
+## 2026-10-16 出包 0.1.16（#350 #351 #352 #353 #354 #355）
+
+- 收进 0.1.15 之后合并的六刀：#350 Ctrl+K / Ctrl+Shift+K 续写带的影子请求头进 CORS 允许清单（0.1.11 起装机版发不出请求）；#352 影子比对 counts 键序与 Python 一致；#351 「开始起草」的控制请求不再被后端 120 秒请求时限掐断，超时 / 限流 / 认证失败的回复带跨域头；#353 章节检查引文按原文定位时不计较全角 / 半角与空白；#354 章纲默认字数取本书最近几章、字数不算空白；#355 章纲卡片显示视角、场景与连续性约束。#351/#353/#354/#355 是另一个窗口做的，约好由这边统一出 0.1.16、那边不另出。
+- bump（#357）：五处版本号加两个锁文件，7 文件各一行；OpenAPI 只变 `info.version`。这一版没有新的数据库迁移。
+- 门禁（release 分支，已 rebase 到含六刀的 master）：版本对齐 2 passed；pytest 分五段 3351 passed / 51 skipped；引擎 13533、前端 2254 passed（push 前钩子）；lint 0 error（2 条既有 warning）；前端类型检查、ruff、shared / project-core、行间续写真 Monaco 回归（内存紧，首跑 page.goto 冷启动超时、重跑通过）、daily sidecar 冒烟、OpenAPI 无漂移。
+- 出包：`pnpm desktop:build`。`StoryForge IDE_0.1.16_x64-setup.exe` 80,893,288 字节，SHA256 `B5F5B24589B4483D82D7A86DE3228221B218761C6E5F2F05FE368DA8C1F3643E`；desktop exe 与 NSIS 同为 17:21、FileVersion 0.1.16，sidecar 17:14 重打（48,508,341 字节）。
+- packaged 冒烟（`--packaged --skip-build`）全绿。
+- 定向断言（冻结 sidecar，本机临时库与假模型，不读作者配置）：
+  - CORS（`output/release-0.1.16/cors-check.mjs`）：`app_version` 0.1.16；`http://tauri.localhost`、`tauri://localhost` 两个源对修订与续写带 `x-storyforge-shadow` 的预检都回 200、放行该头；带影子头的修订请求到达后端（未配模型回 422，带跨域头）。
+  - 后端三刀（另一个窗口的 `packaged-check-0116.mjs`）：401 带跨域头；两章长稿时章纲默认字数 700–1100；请求总时限 2 秒、假模型起草 4 秒时控制请求 4595 ms 仍拿到结果；换行多的稿子不报字数问题；直引号 + 报 999 行的引文定位到实际第 3 行。
+  - 前端产物：本次构建的 `dist/assets` 里有 #352 的特征串（`counts 含整数形的键`）。
+- 坑：PyInstaller onefile 的 sidecar 被 `child.kill()` 只杀掉引导进程，子进程留着锁住临时库与 `binaries/` 里的 exe；断言脚本改用 `taskkill /T /F`，跑完核一次没有仓库路径下的 `storyforge-api` 进程。
+- 不在包里：#358（先聊书再动笔）09:15 合进 master，这次打包从 `1d0352f1` 出、前端 09:15 已编完，没有带上；要带得出 0.1.17。
+- 未联通：作者装 0.1.16 后在装机版里真按一次 Ctrl+K 与 Ctrl+Shift+K；影子比对看 app_version 0.1.16 的 checks 有行、diffs 为空。
