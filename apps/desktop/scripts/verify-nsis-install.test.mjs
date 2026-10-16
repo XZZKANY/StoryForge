@@ -96,7 +96,10 @@ test('owned process filter selects only executable paths below the fixed test in
     selectOwnedProcessIds(
       [
         { ProcessId: 101, ExecutablePath: `${installDir}\\storyforge-desktop.exe` },
-        { ProcessId: 102, ExecutablePath: `${installDir}\\resources\\storyforge-api.exe` },
+        {
+          ProcessId: 102,
+          ExecutablePath: `${installDir}\\resources\\mingit\\runtime\\cmd\\git.exe`,
+        },
         {
           ProcessId: 103,
           ExecutablePath: `${productionInstallDir}\\storyforge-desktop.exe`,

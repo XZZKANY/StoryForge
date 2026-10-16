@@ -19,7 +19,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "externalBin": ["binaries/storyforge-api"],
     "resources": [
       "resources/mingit/manifest.json",
       "resources/mingit/THIRD_PARTY_NOTICES.md",

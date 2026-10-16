@@ -62,12 +62,6 @@ const gates = [
     cwd: resolve(root, 'apps/api'),
   },
   {
-    name: 'Sidecar 交付形态冒烟(daily 档)',
-    command: 'node',
-    args: ['scripts/sidecar-smoke.mjs'],
-    cwd: root,
-  },
-  {
     // drift 校验单实现：scripts/check-openapi-drift.mjs（刷新 + 漂移检查）
     name: 'OpenAPI 契约刷新与漂移检查',
     command: 'node',

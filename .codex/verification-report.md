@@ -8290,3 +8290,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - `verify:agent-conversation` 另有一处更早的过期（#280 起）：作品总览「接着写」以下一章（`正文/第002章.md`）为当前文件发 `book.context`，假后端只认当前打开的文件；补上这个放行，并只在当前文件是打开的章节时回填当前章。删掉两个假后端里已无人请求的 `/health/ready` 与 `/api/agent-runs/writeback-recovery` 路由（`/health/` 前缀仍按意外请求拒）。
 - 验证：`verify:smoke`、`verify:agent-conversation`、`verify:inline-continuation` 三个均通过；新替身用临时 tsconfig 做类型检查无报错；prettier / eslint 干净。变异 1 / 1（插件去掉 ide-commands 替换 → `verify:smoke` 红、报原错误）。
 - 留给 P6-4：这两个回归不在根 `pnpm verify` 里才会烂掉，重排门禁时考虑并入。
+
+## 2026-10-16 P6-3 打包去掉 Python sidecar
+
+- 改动：`tauri.conf.json` 删 `externalBin`（`binaries/storyforge-api`）；删 `apps/desktop/scripts/build-api-sidecar.mjs` 与 `scripts/sidecar-smoke.mjs`；`apps/desktop/package.json` 的 `build` / `build:release-smoke` / `verify:nsis-install` 不再先打 PyInstaller exe，删 `build:api-sidecar`；根 `package.json` 删 `smoke:sidecar` / `smoke:sidecar:packaged`；`verify-local.mjs` 删「Sidecar 交付形态冒烟」一道门（`inline-browser-gate` 测试的门清单同步）；`verify-nsis-install.test.mjs` 的「安装目录下的子进程」样例从 `storyforge-api.exe` 换成随包的 `git.exe`。PyInstaller spec 在 `apps/api/build/`，本就不入库，无需删。
+- 验证：`node --test scripts/verify-nsis-install.test.mjs scripts/verify-tauri-smoke.test.mjs` 20 / 20；`inline-browser-gate` 4 / 4；`pnpm desktop:build` 成功（不再先打 exe），NSIS **32,795,237 字节**（0.1.16 带 sidecar 时 80,893,288 字节），`target/release/nsis/x64/installer.nsi` 里 `storyforge-api` 出现 0 次；发行版 exe 跑 `verify-tauri-smoke.mjs --release` 通过（书库 → 总览 → 工作台 → 补丁审阅 → 写回，不起后端）。
+- 注意：这次是同名 0.1.16 的本地验证构建，把 `target/release/bundle` 里已发布的 0.1.16 安装包（SHA256 B5F5B245…C1F3643E）覆盖了；作者没装 0.1.16、下一个版本就是 0.2.0，不影响作者。验证包已挪到 `output/ts-engine-p6/p6-3-local-build/` 并改名 `NOT-FOR-INSTALL_*`，不可交付。以后出包后先把安装包另存一份。
+- 没跑：`verify:nsis-install`（隔离身份装 / 跑 / 卸）留到 P7 出 0.2.0 时一起跑。
