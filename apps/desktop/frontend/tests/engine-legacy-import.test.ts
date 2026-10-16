@@ -49,37 +49,39 @@ afterEach(() => {
   localStorage.clear();
 });
 
-it('imports the Python database on the first open when switched on, before the reaper runs', async () => {
-  localStorage.setItem('engine.legacyImport', 'on');
-  const python = nodeLegacySource(golden.legacy_sql);
-  fixture.python = python;
-  const { engineRuns } = await import('../src/lib/engine/store');
-  const { listEngineSessions } = await import('../src/lib/engine/sessions');
-  const [{ store }, sessions] = await Promise.all([engineRuns(), listEngineSessions()]);
-  expect(python.snapshots).toBe(1);
-  // 左栏照 Python 的排序：updated_at 倒序，同一时刻按 id 倒序。
-  expect(sessions.map((session) => session.id)).toEqual([2, 3, 1, 4]);
-  // Python 档跑到一半的 run 导入后才被收尸；等作者确认的 run 保持 paused。
-  expect(await store.findRun('legacy-run-4')).toMatchObject({ status: 'failed' });
-  expect(await store.findRun('legacy-run-2')).toMatchObject({ status: 'paused' });
-  expect(await count('engine_meta')).toBe(1);
-
-  // 下一个 WebView：有标记，不再读旧库。
-  vi.resetModules();
-  python.exec(
-    "INSERT INTO assistant_sessions (title, task_type, created_at, updated_at) VALUES ('后来的', 'x', '2026-07-09 00:00:00', '2026-07-09 00:00:00')",
-  );
-  await (await import('../src/lib/engine/store')).engineRuns();
-  expect(python.snapshots).toBe(1);
-  expect(await count('assistant_sessions')).toBe(4);
-});
-
 it.each([
-  ['switched off in dev', null, true],
-  ['release builds even when switched on', 'on', false],
-])('never reads the Python database when %s', async (_label, flag, dev) => {
-  vi.stubEnv('DEV', dev);
-  if (flag) localStorage.setItem('engine.legacyImport', flag);
+  ['switched on in dev', true],
+  ['a release build (always on since P5-2)', false],
+])(
+  'imports the Python database on the first open when %s, before the reaper runs',
+  async (_label, dev) => {
+    vi.stubEnv('DEV', dev);
+    if (dev) localStorage.setItem('engine.legacyImport', 'on');
+    const python = nodeLegacySource(golden.legacy_sql);
+    fixture.python = python;
+    const { engineRuns } = await import('../src/lib/engine/store');
+    const { listEngineSessions } = await import('../src/lib/engine/sessions');
+    const [{ store }, sessions] = await Promise.all([engineRuns(), listEngineSessions()]);
+    expect(python.snapshots).toBe(1);
+    // 左栏照 Python 的排序：updated_at 倒序，同一时刻按 id 倒序。
+    expect(sessions.map((session) => session.id)).toEqual([2, 3, 1, 4]);
+    // Python 档跑到一半的 run 导入后才被收尸；等作者确认的 run 保持 paused。
+    expect(await store.findRun('legacy-run-4')).toMatchObject({ status: 'failed' });
+    expect(await store.findRun('legacy-run-2')).toMatchObject({ status: 'paused' });
+    expect(await count('engine_meta')).toBe(1);
+
+    // 下一个 WebView：有标记，不再读旧库。
+    vi.resetModules();
+    python.exec(
+      "INSERT INTO assistant_sessions (title, task_type, created_at, updated_at) VALUES ('后来的', 'x', '2026-07-09 00:00:00', '2026-07-09 00:00:00')",
+    );
+    await (await import('../src/lib/engine/store')).engineRuns();
+    expect(python.snapshots).toBe(1);
+    expect(await count('assistant_sessions')).toBe(4);
+  },
+);
+
+it('never reads the Python database when switched off in dev', async () => {
   const snapshot = vi.fn();
   fixture.python = { snapshot };
   const { engineRuns } = await import('../src/lib/engine/store');

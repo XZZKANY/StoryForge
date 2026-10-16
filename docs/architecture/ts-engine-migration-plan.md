@@ -413,6 +413,7 @@ P5 拆刀与进度（2026-10-14 起，作者说「做 P5-1」；每刀一个 PR�
 - IDE 命令接上引擎的 ts 档（2026-10-16，P5-1g1；P1-9 的前半）：`engine.ideCommands` 此前没有任何调用点，九个命令只走 Python。前端 `lib/engine/ideCommands.ts` 装配 `executeIdeCommand` 的依赖（原生读写口、合并密钥快照、进程内唯一的拆书取消登记、配置齐了才给的拆书模型端口、拆书运行记录），`lib/api/ide-commands.ts` 在 ts 档走引擎；开发档默认仍是 Python，发行版只有 Python。拆书运行记录新写 `recordBookBreakdownRun`（Python 生产路由带 DB 会话，每次拆书记一个 run 与 `book_breakdown_report` 产物），p1-commands 预言机加带 DB 会话的项目逐行比对 runs / events / artifacts。**P5-2 切默认前还要补**：ts 档 `book.context` 在作者声明写错时回 400 带原文（§4.3.1），要把原文显示给作者（**2026-10-16 已补**：`useBookContext` 交出 `errorMessage`，手稿视图与作品总览在读取失败时显示原文；连不上与只有状态码的失败仍是通用提示）；影子档（结果用 Python，引擎在叠加读写口上复算，比响应体与要写的派生文件）与真宿主探针是下一刀 g2。
 - IDE 命令的影子档（2026-10-16，P5-1g2；补上 P1-9）：作品底座、拆书状态、canon 刷新、观测镜、连载计划两件、审计在后台比对，拆书与拆书取消不比（调模型 / Python 进程内状态）。会改 `.storyforge/` 的命令要按改前的样子复算：调用 Python 前读一组 9 个文件的改前快照（最多挡 3 秒），Python 答完后引擎在叠加读写口上复算（截下的写入 > 改前快照 > 真实读口），比响应体与这组文件的最终字节（`generated_at` 遮掉），差异只记路径、字节数与偏移；surface `ide.command`。发行版 `engine.ideCommands` 改为默认影子、可切回 Python，设置页第三行开关。预言机 p1-commands 经影子档回放全部判一致，变异 13 / 13。下一步：出预览版收现场记录（与 agent / 修订影子一起看 diffs 是否为空）。
 - 作者拍板一路做到删 Python（2026-10-16）：P5-2 → P5-3 → P6 → P7 连做出 0.2.0，不再出中间预览包、不等现场影子数据（原计划「切默认后真实用一周再删」放弃）。P5-2a 先补 ts 档最后一处 Python 调用：跨章一致性检查接引擎（`checkCrossChapterConsistency`，p1-review 预言机加 6 条）；健康轮询与外部写回（生产宿主从未开放）随 P6 删。
+- 切默认（2026-10-16，P5-2b）：发行版三个开关默认 ts、可切回 Python，影子档不再给发行版；`legacyImportOnOpen()` 发行版恒开（引擎库第一次打开时导一次旧库）。设置页三行改为「新引擎 / 旧引擎（Python）」。不出包；P5-2 的「一周真实使用」由出 0.2.0 前的真宿主探针与冻结 exe 断言替代（作者拍板）。
 
 ### P6 拆除（PR P6-1 … P6-7）
 

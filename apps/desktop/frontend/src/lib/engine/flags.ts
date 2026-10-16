@@ -12,12 +12,12 @@ const devDefaults: Record<EngineFlagKey, EngineMode> = {
   'engine.agentLoop': 'python',
 };
 
-// 发行版（P5-1 预览版起）：三个开关都默认影子档——结果仍用 Python，引擎在后台比对；
-// 作者可在设置里关掉（切回 Python）。ts 档要等 P5-2 才对发行版开放。
+// 发行版（P5-2 起）：三个开关都默认走新引擎，作者可在设置里切回 Python。影子档是拿 Python 的结果比的，
+// 结果改用引擎之后它就不再给发行版。
 const releaseModes: Record<EngineFlagKey, readonly EngineMode[]> = {
-  'engine.ideCommands': ['shadow', 'python'],
-  'engine.assistant': ['shadow', 'python'],
-  'engine.agentLoop': ['shadow', 'python'],
+  'engine.ideCommands': ['ts', 'python'],
+  'engine.assistant': ['ts', 'python'],
+  'engine.agentLoop': ['ts', 'python'],
 };
 
 const isFlagKey = (key: string): key is EngineFlagKey =>
@@ -54,11 +54,11 @@ export function writeEngineMode(key: EngineFlagKey, mode: EngineMode): boolean {
 }
 
 /**
- * 引擎库打开时把旧库导进来（P4-3）。作者拍板只在 P5 切默认时做一次：在那之前 Python 档还在往旧库写，
- * 提前导入会过期（导完就不再读旧库）。发行版恒为关；开发档要显式设 `engine.legacyImport` 为 `on`。
+ * 引擎库打开时把旧库导进来（P4-3）。作者拍板只在 P5 切默认时做一次（导完就不再读旧库）：发行版从 P5-2
+ * 起总是打开——引擎库第一次打开时导一次；开发档要显式设 `engine.legacyImport` 为 `on`。
  */
 export function legacyImportOnOpen(): boolean {
-  if (!import.meta.env.DEV) return false;
+  if (!import.meta.env.DEV) return true;
   try {
     return localStorage.getItem('engine.legacyImport') === 'on';
   } catch {

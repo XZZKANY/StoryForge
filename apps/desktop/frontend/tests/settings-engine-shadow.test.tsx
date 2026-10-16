@@ -50,17 +50,17 @@ afterEach(() => {
   localStorage.clear();
 });
 
-it('the preview build shows all three comparisons on, offers only on / off, and switching off sticks', async () => {
+it('a release build defaults all three to the new engine, offers only new / old, and switching back sticks', async () => {
   const select = await render();
   for (const testId of [
     'engine-shadow-assistant',
     'engine-shadow-agent',
     'engine-shadow-commands',
   ]) {
-    expect(select(testId).value).toBe('shadow');
+    expect(select(testId).value).toBe('ts');
     expect([...select(testId).options].map((option) => [option.value, option.text])).toEqual([
-      ['shadow', '后台比对'],
-      ['python', '关闭'],
+      ['ts', '新引擎'],
+      ['python', '旧引擎（Python）'],
     ]);
   }
   const agent = select('engine-shadow-agent');
@@ -70,7 +70,7 @@ it('the preview build shows all three comparisons on, offers only on / off, and 
   });
   expect(agent.value).toBe('python');
   expect(readEngineMode('engine.agentLoop')).toBe('python');
-  expect(readEngineMode('engine.assistant')).toBe('shadow');
+  expect(readEngineMode('engine.assistant')).toBe('ts');
   const commands = select('engine-shadow-commands');
   await act(async () => {
     commands.value = 'python';
@@ -83,5 +83,5 @@ it('shows a choice the author made earlier', async () => {
   localStorage.setItem('engine.assistant', 'python');
   const select = await render();
   expect(select('engine-shadow-assistant').value).toBe('python');
-  expect(select('engine-shadow-agent').value).toBe('shadow');
+  expect(select('engine-shadow-agent').value).toBe('ts');
 });
