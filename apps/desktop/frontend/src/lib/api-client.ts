@@ -4,6 +4,7 @@
  */
 
 export {
+  DEFAULT_AGENT_TIMEOUT_MS,
   isAgentControlAckMessage,
   isAgentErrorMessage,
   isAgentPermissionRequiredMessage,

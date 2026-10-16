@@ -12,6 +12,7 @@ import {
 } from '../../lib/assistant-events';
 import { emitToast } from '../../lib/toast';
 import {
+  DEFAULT_AGENT_TIMEOUT_MS,
   executeIdeCommand,
   isAgentErrorMessage,
   isAgentResultMessage,
@@ -139,6 +140,9 @@ export function useAgentRunControls(
           runId: run.id,
           type,
           payload: { source: 'desktop.timeline', ...payload },
+          // 恢复在这一个请求里把剩下的步骤跑完（写章要起草加检查，常要一两分钟），按整轮对话的时限等；
+          // 30 秒就放弃会让章纲卡片留在原地，它的「取消」会误打到随后出来的补丁上。
+          ...(type === 'resume_run' ? { timeoutMs: DEFAULT_AGENT_TIMEOUT_MS } : {}),
         });
         if (
           !active() ||
@@ -185,6 +189,13 @@ export function useAgentRunControls(
           return;
         }
         applyAgentStreamEvent(ack);
+        // 已结束的一轮不会再等章纲确认。
+        if (
+          ack.run_status === 'stopped' ||
+          ack.run_status === 'failed' ||
+          ack.run_status === 'completed'
+        )
+          setChapterBrief(null);
         if (ack.resume_diagnostic) {
           applyResumeDiagnostic(ack.resume_diagnostic);
           if (ack.runtime_state === 'settled') settleResume(run.id);

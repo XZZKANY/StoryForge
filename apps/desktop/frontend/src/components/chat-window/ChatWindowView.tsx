@@ -220,7 +220,9 @@ export function ChatWindowView({
               <ChapterBriefCard
                 brief={state.chapterBrief}
                 onConfirm={agentRunControls.onConfirmChapterBrief ?? (() => undefined)}
-                onCancel={agentRunControls.onDenyPermission}
+                // 取消就是停掉这一轮：章纲待确认时后端不认「拒绝」，那个「拒绝」只会落到之后的补丁上。
+                onCancel={agentRunControls.onStopRun}
+                busy={state.agentBusy}
               />
             </div>
           </div>

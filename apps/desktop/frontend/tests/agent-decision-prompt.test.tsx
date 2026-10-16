@@ -17,6 +17,8 @@ it('real ChatWindowView leaves messages/progress in Chat and sends permission/pa
   const approve = vi.fn();
   const accept = vi.fn();
   const confirm = vi.fn();
+  const deny = vi.fn();
+  const stop = vi.fn();
   const noop = () => {};
   const brief: ChapterBrief = {
     briefId: 'brief',
@@ -36,9 +38,11 @@ it('real ChatWindowView leaves messages/progress in Chat and sends permission/pa
   function Harness({
     mode,
     active = true,
+    busy = false,
   }: {
     mode: 'running' | 'permission' | 'patch' | 'brief';
     active?: boolean;
+    busy?: boolean;
   }) {
     const state = useChatWindowState({
       projectPath: 'D:/book',
@@ -50,6 +54,7 @@ it('real ChatWindowView leaves messages/progress in Chat and sends permission/pa
         state={{
           ...state,
           messages: [{ role: 'user', content: '原始聊天' }],
+          agentBusy: busy,
           chapterBrief: mode === 'brief' ? brief : null,
           agentRun:
             mode === 'brief'
@@ -94,10 +99,10 @@ it('real ChatWindowView leaves messages/progress in Chat and sends permission/pa
         retryLastFailedRun={noop}
         agentRunControls={{
           onApprovePermission: approve,
-          onDenyPermission: noop,
+          onDenyPermission: deny,
           onPauseRun: noop,
           onResumeRun: noop,
-          onStopRun: noop,
+          onStopRun: stop,
           onAcceptPatch: accept,
           onConfirmChapterBrief: confirm,
         }}
@@ -157,6 +162,25 @@ it('real ChatWindowView leaves messages/progress in Chat and sends permission/pa
     )!;
     await act(async () => confirmButton.click());
     expect(confirm).toHaveBeenCalledWith({ ...brief, goal: '作者调整后的目标' });
+    // 章纲待确认时后端不认「拒绝」；取消要真的停掉这一轮。
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>('[role="dialog"] [data-testid="chapter-brief-cancel"]')!
+        .click(),
+    );
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(deny).not.toHaveBeenCalled();
+    // 点了开始起草、结果还没回来：窗口把「起草中」传给卡片，两个按钮都点不了。
+    await act(async () => root.render(<Harness mode="brief" busy />));
+    const drafting = host.querySelector<HTMLButtonElement>(
+      '[role="dialog"] [data-testid="chapter-brief-confirm"]',
+    )!;
+    expect(drafting.textContent).toBe('起草中…');
+    expect(drafting.disabled).toBe(true);
+    expect(
+      host.querySelector<HTMLButtonElement>('[role="dialog"] [data-testid="chapter-brief-cancel"]')!
+        .disabled,
+    ).toBe(true);
     expect(host.querySelector('[aria-label="对话消息"]')?.textContent).toContain('原始聊天');
   } finally {
     await act(async () => root.unmount());

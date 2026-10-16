@@ -137,3 +137,45 @@ test('chapter brief card submits edited fields and can cancel', () => {
     container.remove();
   }
 });
+
+// 点了开始起草、结果还没回来时，卡片要看得出在起草，也不能再点「取消」误打到随后出来的补丁上。
+test('a busy chapter brief card says it is drafting and takes no further choice', () => {
+  let confirmed = 0;
+  let cancelled = 0;
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(
+      <ChapterBriefCard
+        brief={brief}
+        busy
+        onConfirm={() => {
+          confirmed += 1;
+        }}
+        onCancel={() => {
+          cancelled += 1;
+        }}
+      />,
+    );
+  });
+  try {
+    const confirm = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chapter-brief-confirm"]',
+    );
+    const cancel = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chapter-brief-cancel"]',
+    );
+    assert.ok(confirm && cancel);
+    assert.equal(confirm.textContent, '起草中…');
+    assert.equal(confirm.disabled, true);
+    assert.equal(cancel.disabled, true);
+    act(() => confirm.click());
+    act(() => cancel.click());
+    assert.equal(confirmed, 0);
+    assert.equal(cancelled, 0);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});

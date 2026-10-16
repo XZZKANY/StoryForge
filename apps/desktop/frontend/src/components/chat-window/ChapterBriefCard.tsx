@@ -8,10 +8,13 @@ export function ChapterBriefCard({
   brief,
   onConfirm,
   onCancel,
+  busy = false,
 }: {
   brief: ChapterBrief;
   onConfirm: (brief: ChapterBrief) => void;
   onCancel: () => void;
+  /** 已点开始起草、结果还没回来：两个按钮都不能再点。 */
+  busy?: boolean;
 }) {
   const [draft, setDraft] = useState(brief);
   const update = (key: keyof ChapterBrief, value: string | number) => {
@@ -94,6 +97,7 @@ export function ChapterBriefCard({
           variant="secondary"
           className="text-xs"
           onClick={onCancel}
+          disabled={busy}
           data-testid="chapter-brief-cancel"
         >
           取消
@@ -104,9 +108,10 @@ export function ChapterBriefCard({
           variant="agent"
           className="text-xs"
           onClick={() => onConfirm(draft)}
+          disabled={busy}
           data-testid="chapter-brief-confirm"
         >
-          开始起草
+          {busy ? '起草中…' : '开始起草'}
         </Button>
       </div>
     </section>
