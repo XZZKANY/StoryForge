@@ -184,7 +184,10 @@ export function stalePromiseDetail(promise: HandoffPromise): string {
 export function discussNextChapterPrompt(handoff: ChapterHandoff): string {
   const n = handoff.next.chapterOrdinal;
   if (!handoff.lastChapter) {
-    return '这本书还没开写。先别写正文：问我三五个关键问题，帮我把第 1 章想清楚。';
+    return (
+      '我想写一本新书，还没想清楚。先别写正文：像编辑那样一次只问我一个关键问题' +
+      '（题材、主角、核心冲突、卖点、开篇钩子），等我答完再问下一个，最后帮我把这本书的方向理一理。'
+    );
   }
   return (
     `第 ${n} 章还没动笔。先别写正文：结合第 ${handoff.lastChapter.ordinal} 章的结尾和还没回收的伏笔，` +
@@ -199,3 +202,9 @@ export function pickUpPromisePrompt(handoff: ChapterHandoff, promise: HandoffPro
     '先别写正文，给我三种接法，每种两三句话。'
   );
 }
+
+/** 空书开场的另两个话头：先把主角、世界观聊出来，不急着写正文。 */
+export const DISCUSS_PROTAGONIST_PROMPT =
+  '先别写正文：帮我把这本书的主角想清楚。先问我两三个问题，再给我三个主角方向，每个两三句话。';
+export const DISCUSS_WORLD_PROMPT =
+  '先别写正文：帮我把这本书的世界观搭起来。先问我两三个问题，再给我三个世界观方向，每个两三句话。';

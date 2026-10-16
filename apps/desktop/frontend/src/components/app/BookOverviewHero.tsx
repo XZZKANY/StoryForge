@@ -54,6 +54,7 @@ export function BookOverviewHero({
   onRefresh = profile.refresh,
   onEditProfile,
   onDraftNextChapter,
+  onDiscussBook,
   resumeIsLatest = false,
   nextChapterOrdinal,
   handoff = null,
@@ -75,6 +76,8 @@ export function BookOverviewHero({
   onEditProfile?: () => void;
   /** 「AI 起草下一章」入口：次级按钮，与「继续写作」并排。 */
   onDraftNextChapter?: () => void;
+  /** 空书的主按钮：打开对话和 AI 聊这本书（先聊后写）。 */
+  onDiscussBook?: () => void;
 }) {
   const book = profile.profile;
   const currentPath = currentChapter?.relativePath;
@@ -216,6 +219,7 @@ export function BookOverviewHero({
                 type="button"
                 onClick={() => {
                   if (currentPath) onContinueWriting(currentPath);
+                  else if (onDiscussBook) onDiscussBook();
                   else {
                     chapterListRef.current?.scrollIntoView?.({ block: 'nearest' });
                     chapterListRef.current?.focus();
@@ -224,8 +228,14 @@ export function BookOverviewHero({
                 className="interactive-press inline-flex h-9 items-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
                 data-testid="book-overview-continue"
               >
-                <ArrowUp size={16} strokeWidth={1.8} aria-hidden="true" />
-                {currentChapter ? `继续写第 ${currentChapter.ordinal} 章` : '选择章节开始'}
+                {currentChapter || !onDiscussBook ? (
+                  <ArrowUp size={16} strokeWidth={1.8} aria-hidden="true" />
+                ) : null}
+                {currentChapter
+                  ? `继续写第 ${currentChapter.ordinal} 章`
+                  : onDiscussBook
+                    ? '和 AI 聊聊这本书'
+                    : '选择章节开始'}
                 <ChevronRight size={15} strokeWidth={1.8} aria-hidden="true" />
               </button>
               {onDraftNextChapter ? (
@@ -246,7 +256,11 @@ export function BookOverviewHero({
                 {currentChapter.name} 继续
               </p>
             ) : (
-              <p className="mt-2 text-2xs text-subtle">还没有正文，从第 1 章写起。</p>
+              <p className="mt-2 text-2xs text-subtle">
+                {onDiscussBook
+                  ? '还没有正文。先和 AI 聊聊想写什么，想清楚了再动笔。'
+                  : '还没有正文，从第 1 章写起。'}
+              </p>
             )}
           </div>
         </div>

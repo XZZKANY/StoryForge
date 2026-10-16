@@ -50,6 +50,8 @@ export type BookOverviewProps = {
   onOpenAgentRun?: () => void;
   /** 「AI 起草下一章」入口：由壳层推导目标章并经事件桥交给 ChatWindow。 */
   onDraftNextChapter?: () => void;
+  /** 空书的主按钮：打开对话和 AI 聊这本书。 */
+  onDiscussBook?: () => void;
   /** 观测镜伏笔台账：「接着写」里提一句久未回收的线。 */
   promises?: ObservatoryPromises | null;
 };
@@ -111,6 +113,7 @@ export function BookOverview({
   onOpenAgentRun,
   onEditProfile,
   onDraftNextChapter,
+  onDiscussBook,
   promises = null,
 }: BookOverviewProps) {
   const book = profile.profile;
@@ -229,6 +232,7 @@ export function BookOverview({
           onRefresh={onRefresh}
           onEditProfile={onEditProfile}
           onDraftNextChapter={onDraftNextChapter}
+          onDiscussBook={onDiscussBook}
         />
 
         {pendingPatchCount > 0 && onOpenPendingPatches ? (
@@ -375,21 +379,11 @@ export function BookOverview({
                   {chapterIndex?.status === 'loading'
                     ? '正在读取章节索引…'
                     : chapterIndex?.status === 'available'
-                      ? '还没有检测到正文章节，可进入写作工作台新建文件。'
+                      ? '还没有正文章节。'
                       : chapterIndex?.status === 'error'
                         ? `章节索引读取失败：${chapterIndex.error ?? '未知错误'}`
                         : '章节尚未读取完成；加载失败时请重试。'}
                 </p>
-                {onDraftNextChapter && chapterIndex?.status === 'available' ? (
-                  <button
-                    type="button"
-                    onClick={onDraftNextChapter}
-                    className="mt-4 inline-flex h-8 items-center gap-2 rounded-md border border-agent/40 px-3 text-xs text-agent transition-colors hover:bg-agent/10"
-                    data-testid="book-overview-draft-first"
-                  >
-                    <Sparkles size={13} aria-hidden="true" />让 AI 起草第 1 章
-                  </button>
-                ) : null}
               </div>
             )}
             {hasMoreChapters ? (
