@@ -1,9 +1,14 @@
+import { compareChapterPaths } from '@storyforge/project-core';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
 import { resolveNewProjectFile } from '../kernel/fsProjectTools';
+import { normcase } from '../kernel/generationSources';
 import { dumpJson, InputDomainError, isJsonObject, parseJson } from '../kernel/json';
+import { iterManuscriptFiles } from '../kernel/previousChapter';
+import { MAX_READ_BYTES, ProjectTreeError } from '../kernel/projectTree';
 import { PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
 import { buildPlan, nextChapter, type PlannedChapter, type SerialPlan } from '../kernel/serialPlan';
 import { ProjectReadError, type ProjectReader } from '../readPort';
+import { chapterChars } from './chapterCheckProtocol';
 import { AgentOrchestrationError } from './runPayloads';
 
 type Obj = { [key: string]: unknown };
@@ -139,13 +144,70 @@ export async function resolveTarget(
   return { relative, target, planned };
 }
 
+// 没有连载计划时，章纲默认字数取本书最近几章：写死的 1600–2600 不认书，一章三四千字的书按它起草，
+// 检查要么以「字数严重偏离」拦下整章，要么修复把稿子压短。不足 MIN_SAMPLE_CHARS 的占位短章不算样本。
+const LENGTH_SAMPLES = 3;
+const LENGTH_SCAN = 10;
+const MIN_SAMPLE_CHARS = 500;
+
+/** 阅读序上目标章之前最近几章的字数（近的在前）；读不到、二进制、超预算或太短的跳过。 */
+export async function recentChapterChars(
+  reader: ProjectReader,
+  root: string,
+  targetRelative: string,
+  platform: 'windows' | 'posix',
+): Promise<number[]> {
+  let keys: string[];
+  try {
+    keys = await iterManuscriptFiles(reader, root, platform);
+  } catch (error) {
+    if (error instanceof ProjectReadError || error instanceof ProjectTreeError) return [];
+    throw error;
+  }
+  let index = keys.findIndex(
+    (key) => normcase(key, platform) === normcase(targetRelative, platform),
+  );
+  if (index === -1) {
+    index = keys.findIndex((key) => compareChapterPaths(key, targetRelative) >= 0);
+    if (index === -1) index = keys.length;
+  }
+  const counts: number[] = [];
+  for (const key of keys.slice(0, index).reverse().slice(0, LENGTH_SCAN)) {
+    let bytes: Uint8Array;
+    try {
+      const resolved = (await reader.resolveProjectPath(root, key)).resolvedRelativePath;
+      const read = await reader.readProjectBytes(root, resolved, MAX_READ_BYTES);
+      if (read.exceeded || read.bytes.subarray(0, 1024).includes(0)) continue;
+      bytes = read.bytes;
+    } catch (error) {
+      if (error instanceof ProjectReadError || error instanceof FsToolError) continue;
+      throw error;
+    }
+    const count = chapterChars(new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes));
+    if (count >= MIN_SAMPLE_CHARS) {
+      counts.push(count);
+      if (counts.length === LENGTH_SAMPLES) break;
+    }
+  }
+  return counts;
+}
+
+/** 近几章字数中位数下浮两成、上浮两成，分别向下、向上取整到百位；不足两章不下结论。 */
+export function bookChapterRange(counts: readonly number[]): readonly [number, number] | null {
+  if (counts.length < 2) return null;
+  const middle = [...counts].sort((a, b) => a - b)[Math.floor((counts.length - 1) / 2)];
+  return [Math.max(100, Math.floor((middle * 4) / 500) * 100), Math.ceil((middle * 6) / 500) * 100];
+}
+
 export function buildBriefSeed(input: {
   userMessage: string;
   targetPath: string;
   planned: PlannedChapter | null;
   plan: SerialPlan | null;
+  recentChars?: readonly number[];
 }): Obj {
   const { planned, plan } = input;
+  const bookRange = bookChapterRange(input.recentChars ?? []);
   return {
     target_path: input.targetPath,
     chapter_ordinal: planned !== null ? planned.ordinal : null,
@@ -156,8 +218,10 @@ export function buildBriefSeed(input: {
     required_beats: [],
     forbidden_items: [],
     continuity_constraints: [],
-    target_chars_min: (plan !== null ? plan.chapterWordCountMin : null) || 1600,
-    target_chars_max: (plan !== null ? plan.chapterWordCountMax : null) || 2600,
+    target_chars_min:
+      (plan !== null ? plan.chapterWordCountMin : null) || (bookRange?.[0] ?? null) || 1600,
+    target_chars_max:
+      (plan !== null ? plan.chapterWordCountMax : null) || (bookRange?.[1] ?? null) || 2600,
   };
 }
 

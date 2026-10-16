@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
 from app.domains.agent_runs import serial_plan
-from app.domains.agent_runs.adapters.chapter_check_protocol import check_source
+from app.domains.agent_runs.adapters.chapter_check_protocol import chapter_chars, check_source
 from app.domains.agent_runs.adapters.chapter_writing_contracts import (
+    book_chapter_range,
     build_brief_seed,
     build_check,
     confirm_brief,
     parse_brief,
+    recent_chapter_chars,
     resolve_target,
 )
 from app.domains.agent_runs.errors import AgentOrchestrationError
@@ -197,3 +200,65 @@ def test_build_check_blocks_hard_contract_failures_but_advisory_passes() -> None
     )
     assert hard["status"] == "repairable"
     assert hard["hard_failure_count"] == 1
+
+
+def _word_count_findings(content: str, minimum: int, maximum: int) -> list[dict[str, object]]:
+    brief = {**_seed(), "brief_id": "b", "revision": 2, "target_chars_min": minimum, "target_chars_max": maximum}
+    result = build_check(content, brief, None, provider_failed=True)
+    return [item for item in result["findings"] if item["rule"] == "word_count_out_of_range"]
+
+
+def test_word_count_counts_characters_not_line_breaks() -> None:
+    # 120 个字，每段一行再空一行：按全部字符是 360，会被当成超出 100 的 1.3 倍。
+    assert chapter_chars("字。\n\n" * 60) == 120
+    assert chapter_chars("他 推\t门。\u3000\u00a0\r\n") == 4
+    assert _word_count_findings("字。\n\n" * 60, 100, 100) == []
+    assert _word_count_findings("字\n" * 200, 100, 100)[0]["message"] == "正文 200 字，严重偏离 100–100 字。"
+
+
+def test_recent_chapter_chars_reads_chapters_before_the_target(tmp_path) -> None:
+    files = {
+        "正文/第001章.md": "第一章 待写\n",
+        "正文/第002章.md": "甲" * 600 + "\n" * 50,
+        "正文/第003章.md": "乙" * 900,
+        "正文/第004章.md": "丙" * 1200,
+        "正文/第006章.md": "戊" * 3000,
+        "大纲/总纲.md": "丁" * 5000,
+    }
+    for relative, text in files.items():
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+
+    assert recent_chapter_chars(str(tmp_path), "正文/第005章.md") == [1200, 900, 600]
+    # 占位短章不算样本；目标之后的章与大纲都不算。
+    assert recent_chapter_chars(str(tmp_path), "正文/第003章.md") == [600]
+    assert recent_chapter_chars(str(tmp_path / "missing"), "正文/第001章.md") == []
+
+
+@pytest.mark.parametrize(
+    ("counts", "expected"),
+    [
+        ([1200, 900, 600], (700, 1100)),
+        ([2972, 4017, 3963], (3100, 4800)),
+        ([600, 1000], (400, 800)),
+        ([500, 501], (400, 600)),
+        ([3000], None),
+        ([], None),
+    ],
+)
+def test_book_chapter_range(counts, expected) -> None:
+    assert book_chapter_range(counts) == expected
+
+
+def test_brief_seed_prefers_plan_then_book_then_default() -> None:
+    def seed(**extra):
+        return build_brief_seed(user_message="写下一章", target_path="正文/第005章.md", planned=None, **extra)
+
+    book = seed(plan=None, recent_chars=[1200, 900, 600])
+    assert (book["target_chars_min"], book["target_chars_max"]) == (700, 1100)
+    default = seed(plan=None)
+    assert (default["target_chars_min"], default["target_chars_max"]) == (1600, 2600)
+    plan = SimpleNamespace(chapter_word_count_min=2000, chapter_word_count_max=3000)
+    planned = seed(plan=plan, recent_chars=[1200, 900, 600])
+    assert (planned["target_chars_min"], planned["target_chars_max"]) == (2000, 3000)

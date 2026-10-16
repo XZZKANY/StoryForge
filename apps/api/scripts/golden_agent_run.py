@@ -857,9 +857,10 @@ def chapter_scenarios():
     s.append(scenario("write-check-invalid-short-draft", write(), [
         brief_reply(), streamed(["第三章\n\n短。\n"]), completion("不是 JSON"), completion("不是 JSON")],
         ops=[confirm(target_chars_min=40, target_chars_max=400)]))
+    # Word count ignores whitespace: the repaired DRAFT has 24 characters, above 0.7 × 30.
     s.append(scenario("write-word-count-repair", write(), [
         brief_reply(), streamed(["第三章\n\n短。\n"]), checked(),
-        streamed([DRAFT]), checked()], ops=[confirm(target_chars_min=40, target_chars_max=400)]))
+        streamed([DRAFT]), checked()], ops=[confirm(target_chars_min=30, target_chars_max=400)]))
     s.append(scenario("write-stale-brief", write(), [brief_reply()], ops=[confirm(brief_id="chapter-brief-stale")]))
     s.append(scenario("write-bad-word-range", write(), [brief_reply()],
                       ops=[confirm(target_chars_min=500, target_chars_max=100)]))
@@ -911,6 +912,9 @@ def chapter_scenarios():
                       ops=[confirm(goal=f"入城，口令是 {SECRET}")]))
     s.append(scenario("write-empty-placeholder-target", write(), [brief_reply(), streamed([DRAFT]), checked()],
                       extra_files={"正文/第003章.md": " \n"}, ops=[confirm()]))
+    # Without a serial plan the seed's default range comes from the book's recent chapters (900 and 1,200).
+    s.append(scenario("write-brief-seed-from-book", write(), [brief_reply()],
+                      big_files={"正文/第001章.md": ["甲", 900], "正文/第002章.md": ["乙", 1200]}))
     return s
 
 

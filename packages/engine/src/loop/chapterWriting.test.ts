@@ -10,7 +10,7 @@ const { replay, expectSame } = agentRunReplay(golden);
 describe('chapter writing pipeline replays the Python oracle', () => {
   it('pins the oracle sources and scenario count', () => {
     expect(Object.keys(golden.sources)).toHaveLength(19);
-    expect(golden.scenarios).toHaveLength(38);
+    expect(golden.scenarios).toHaveLength(39);
   });
 
   it.each((golden.scenarios as Obj[]).map((item) => [item.id, item] as const))(

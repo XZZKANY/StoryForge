@@ -12,6 +12,7 @@ import {
   CHAPTER_CHECK_ARTIFACT_KIND,
   CHAPTER_WRITE_INTENT,
   confirmBrief,
+  recentChapterChars,
   resolveTarget,
 } from './chapterWritingContracts';
 import type { FixedPipelineHost, FixedPipelineRequest } from './fixedPipelines';
@@ -123,7 +124,13 @@ export async function startChapterBrief(
     snapshot,
     userMessage,
   });
-  const seed = buildBriefSeed({ userMessage, targetPath: relative, planned, plan });
+  const seed = buildBriefSeed({
+    userMessage,
+    targetPath: relative,
+    planned,
+    plan,
+    recentChars: await recentChapterChars(host.reader, root, relative, host.platform),
+  });
   const response = (fields: { plan: Obj[]; agentResult: Obj; toolTrace: AgentToolTrace[] }) =>
     host.baseResponse({
       agentSessionId: request.agentSessionId,
