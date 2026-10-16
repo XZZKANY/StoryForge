@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import golden from '../../golden/p3-contracts.json';
-import rawSchema from '../../../shared/src/contracts/agent-ws.schema.json';
+import rawSchema from '../../golden/agent-ws.schema.json';
 
 type Schema = {
   $defs: Record<string, { properties: Record<string, unknown>; required?: string[] }>;

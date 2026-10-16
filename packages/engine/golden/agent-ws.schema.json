@@ -678,7 +678,7 @@
   },
   "$id": "https://storyforge.local/contracts/agent-ws.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Agent SSE stream 与 REST control 帧的单一事实源（由 app.domains.agent_runs.ws_messages 的 Pydantic 模型派生）。改字段名 / 增删字段须走后端模型，pnpm openapi 重新生成本文件，前端派生类型据此漂移即门禁红；agent-ws.schema.json 是保留的历史兼容路径。",
+  "description": "Agent 流帧与控制回执的契约。原由后端 Pydantic 模型派生，后端移除时（2026-10，P6-4）冻结在这里。改字段要同改引擎 loop/frames.ts（frameSchema.test.ts 比对）与本文件，再跑 node scripts/lib/emit-agent-ws-types.mjs --write 重新生成前端类型（agent-contract-generation.test.ts 比对）。",
   "oneOf": [
     {
       "$ref": "#/$defs/AgentRunStartedFrame"

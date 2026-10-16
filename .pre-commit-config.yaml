@@ -20,7 +20,6 @@ repos:
             .*node_modules/.*|
             .*\.next/.*|
             .*/generated/.*|
-            packages/shared/src/contracts/.*|
             pnpm-lock\.yaml
           )$
 

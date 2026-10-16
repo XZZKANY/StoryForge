@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 
-import schema from '../../../../packages/shared/src/contracts/agent-ws.schema.json';
+import schema from '../../../../packages/engine/golden/agent-ws.schema.json';
 import { emitAgentWsTypes } from '../../../../scripts/lib/emit-agent-ws-types.mjs';
 
 it('generates reusable outcome values without adding a wire frame', () => {
@@ -21,4 +22,8 @@ it('generates reusable outcome values without adding a wire frame', () => {
   for (const frame of schema.oneOf) {
     expect(union).toContain(frame.$ref.replace('#/$defs/', ''));
   }
+});
+
+it('committed frame types are exactly what the schema generates', () => {
+  expect(readFileSync('src/lib/api/generated/agent-ws.ts', 'utf8')).toBe(emitAgentWsTypes(schema));
 });

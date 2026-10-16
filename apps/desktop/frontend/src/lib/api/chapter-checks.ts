@@ -1,6 +1,6 @@
-import type { components } from '../../../../../../packages/shared/src/generated/api-types';
+import type { ApiChapterCheckHistoryQuery } from './contracts';
 
-export type ChapterCheckHistoryRequest = components['schemas']['ChapterCheckHistoryQuery'];
+export type ChapterCheckHistoryRequest = ApiChapterCheckHistoryQuery;
 type ExecutionStatus = 'completed' | 'failed' | 'incomplete';
 type ManuscriptStatus = 'pass' | 'fail' | 'unknown';
 

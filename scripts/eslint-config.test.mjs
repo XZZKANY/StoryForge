@@ -22,7 +22,7 @@ test('root lint retains source, release scripts and their rules', async () => {
     'eslint.config.mjs',
     'scripts/verify-local.mjs',
     'apps/desktop/frontend/src/App.tsx',
-    'packages/shared/src/index.ts',
+    'packages/engine/src/index.ts',
     'packages/project-core/src/index.ts',
     'apps/desktop/frontend/src/output/example.ts',
   ]) {

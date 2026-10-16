@@ -1,6 +1,10 @@
-// 把 agent-ws.schema.json（Agent 实时帧契约的历史兼容路径）投影成前端 TS 接口。
-// 确定性纯函数：同一 schema 每次产出一字不差，供 drift 门禁校验。
+// 把 packages/engine/golden/agent-ws.schema.json（Agent 帧契约）投影成前端 TS 接口。
+// 确定性纯函数：同一 schema 每次产出一字不差；前端 agent-contract-generation.test.ts 比对已入库的生成文件。
+// 重新生成：node scripts/lib/emit-agent-ws-types.mjs --write
 // 出线语义：帧的每个字段都在（to_wire 不 exclude_none），可空字段为 `X | null` 而非可选省略。
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 function tsTypeOf(propSchema) {
   if (propSchema.const !== undefined) {
@@ -47,9 +51,9 @@ export function emitAgentWsTypes(schema) {
   const frameNames = (schema.oneOf ?? []).map((entry) => entry.$ref.replace('#/$defs/', ''));
 
   const header = [
-    '// 该文件由 scripts/generate-openapi.mjs 从',
-    '// packages/shared/src/contracts/agent-ws.schema.json 生成，请勿手改。',
-    '// 改 Agent 帧字段要改后端 app/domains/agent_runs/ws_messages.py 再跑 `pnpm openapi`。',
+    '// 该文件由 scripts/lib/emit-agent-ws-types.mjs 从',
+    '// packages/engine/golden/agent-ws.schema.json 生成，请勿手改。',
+    '// 改 Agent 帧字段要同改 schema 与引擎 loop/frames.ts，再跑 `node scripts/lib/emit-agent-ws-types.mjs --write`。',
     '// 出线语义：帧的每个字段都在（to_wire 不 exclude_none），可空字段为 `X | null`。',
   ].join('\n');
 
@@ -66,4 +70,17 @@ export function emitAgentWsTypes(schema) {
   ].join('\n');
 
   return `${header}\n\n${interfaces.join('\n\n')}\n\n${union}\n`;
+}
+
+const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : '';
+if (invokedPath === import.meta.url && process.argv.includes('--write')) {
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const schema = JSON.parse(
+    readFileSync(resolve(root, 'packages/engine/golden/agent-ws.schema.json'), 'utf8'),
+  );
+  writeFileSync(
+    resolve(root, 'apps/desktop/frontend/src/lib/api/generated/agent-ws.ts'),
+    emitAgentWsTypes(schema),
+    'utf8',
+  );
 }

@@ -7,7 +7,7 @@ const verifier = resolve('../../../scripts/verify-local.mjs');
 
 function executeVerifier(outcome: 'success' | 'failed' | 'unavailable') {
   // Execute the real public ESM entry. The preload intercepts only child gate
-  // dispatch, so this test never launches API/provider/native tasks.
+  // dispatch, so this test never launches browser/provider/native tasks.
   const preload = `
     import childProcess from 'node:child_process';
     import { syncBuiltinESMExports } from 'node:module';
@@ -34,25 +34,23 @@ function executeVerifier(outcome: 'success' | 'failed' | 'unavailable') {
   return { result, calls };
 }
 
-it('local verifier runs the durable browser gate between frontend units and API without removing other gates', () => {
+it('local verifier runs the durable browser gate right after frontend units, before the other browser gates', () => {
   const { result, calls } = executeVerifier('success');
   expect(result.status).toBe(0);
   const units = calls.findIndex(
     (call) => call.args.join(' ') === '--prefix apps/desktop/frontend run test',
   );
   const browser = calls.findIndex((call) => call.args.includes('verify:inline-continuation'));
-  const api = calls.findIndex((call) => call.args.join(' ') === 'run pytest');
+  const smoke = calls.findIndex((call) => call.args.includes('verify:smoke'));
   expect(units).toBeGreaterThanOrEqual(0);
   expect(browser).toBe(units + 1);
-  expect(api).toBe(browser + 1);
+  expect(smoke).toBe(browser + 1);
   for (const args of [
     'run lint',
     '--prefix apps/desktop/frontend run typecheck',
-    '--filter @storyforge/shared test',
     '--filter @storyforge/project-core test',
     'run test:engine',
-    'run ruff check .',
-    'scripts/check-openapi-drift.mjs',
+    '--prefix apps/desktop/frontend run verify:agent-conversation',
   ])
     expect(calls.some((call) => call.args.join(' ') === args)).toBe(true);
 });
@@ -63,7 +61,7 @@ it.each(['failed', 'unavailable'] as const)(
     const { result, calls } = executeVerifier(outcome);
     expect(result.status).toBe(outcome === 'failed' ? 7 : 1);
     expect(calls.at(-1)?.args).toContain('verify:inline-continuation');
-    expect(calls.some((call) => call.args.join(' ') === 'run pytest')).toBe(false);
+    expect(calls.some((call) => call.args.includes('verify:smoke'))).toBe(false);
     expect(result.stdout).not.toContain('所有本地核心门禁通过');
   },
 );

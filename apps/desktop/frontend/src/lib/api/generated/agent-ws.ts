@@ -1,6 +1,6 @@
-// 该文件由 scripts/generate-openapi.mjs 从
-// packages/shared/src/contracts/agent-ws.schema.json 生成，请勿手改。
-// 改 Agent 帧字段要改后端 app/domains/agent_runs/ws_messages.py 再跑 `pnpm openapi`。
+// 该文件由 scripts/lib/emit-agent-ws-types.mjs 从
+// packages/engine/golden/agent-ws.schema.json 生成，请勿手改。
+// 改 Agent 帧字段要同改 schema 与引擎 loop/frames.ts，再跑 `node scripts/lib/emit-agent-ws-types.mjs --write`。
 // 出线语义：帧的每个字段都在（to_wire 不 exclude_none），可空字段为 `X | null`。
 
 export interface AgentRunStartedFrame {
