@@ -1,10 +1,21 @@
 # StoryForge 待办清单
 
-更新时间：2026-10-06
+更新时间：2026-10-16
 
-## 2026-10-11 进行中：后端换 TS（Python sidecar → 单进程 Tauri）
+## 2026-10-16 当前入口：出 0.2.0（第一个没有 Python 的装机版）
 
-完整计划见 `docs/architecture/ts-engine-migration-plan.md`（现状清点、目标架构、绞杀机制、7 个阶段与逐 PR 清单、逐模块搬迁表、测试与门禁迁移、风险登记簿、作者要拍板的 8 个决定）。2026-10-11 作者已批准并开工：P0 完成，P1 内核分批推进（进度见计划 §5 P1 段与 `.codex/verification-report.md`），内核按 §4.3.1 的输入范围移植，范围外直接报错、不模仿 Python。期间 Python 只修不加，新功能一律写 TS。首刀 #280（总览「接着写」+ 新会话伙伴开场）是纯前端，迁移后原样保留。
+后端迁移已做完：业务逻辑全部在 `packages/engine`，宿主不起后端，仓库里不再有 Python（#366–#373，删除前最后一版 `5e6f8e58`）。作者拍板不出中间包、不等现场影子数据，一路做到删 Python 再出 0.2.0；装上后出问题没有 Python 可切回，只能修。
+
+1. **出包前补足真机证据（替代原计划里「切默认后真实用一周」）**：真宿主探针 `--agent-only` / `--assistant-only` / `--context-only` / `--reader-only` / `--llm-only`（要作者先关掉 StoryForge，探针拒绝与已有应用并行）、`verify:nsis-install` 隔离安装、发行版 Tauri 冒烟；用作者库的只读副本走一遍旧库导入。
+2. **出 0.2.0**：按 `docs/operations/release-checklist.md` 改版本号（`tauri.conf.json` + `Cargo.toml`）、`pnpm verify` + Rust 测试、`pnpm desktop:build`、安装包另存 `output/release-0.2.0/`；提醒作者装前备份 `%LOCALAPPDATA%\com.storyforge.ide\` 下的 `.sqlite3`，首次打开会一次性导入旧库。
+3. **装上之后**：第一次真实使用的差异优先修；小说环节的候选（定稿、接受时看事实、规矩进起草）等作者提名。
+4. **可以另开的小清理**（不急）：`tauri-plugin-http` / `tauri-plugin-sql` 产品已不用；帧契约 schema 里还留着外部写回的等待帧；`.gitignore` 为 pytest 事实源保留跟踪的几个 `.codex` 文件已失去用途；本地 `apps/api/` 下未跟踪的 `.venv` 等残留可手动删。
+
+下面 10-11 以前的段落是迁移前后各轮会话的入口记录，涉及 Python / sidecar / pytest 的命令都已失效，只作历史参考。
+
+## 2026-10-11 至 10-16：后端换 TS（已完成）
+
+完整计划与逐刀进度见 `docs/architecture/ts-engine-migration-plan.md`。P0–P4 逐模块搬进引擎，P5 切默认，P6 拆除 Python（见上面的当前入口）；首刀 #280（总览「接着写」+ 新会话伙伴开场）是纯前端，迁移后原样保留。
 
 ## 2026-10-06 下一步入口
 
@@ -38,20 +49,11 @@ Windows 0.1.10 私测候选所需工程/安装主链与单份作者保留反馈�
 
 ```powershell
 cd D:/StoryForge
-pnpm.cmd lint
-pnpm.cmd verify
-pnpm.cmd check:drift
-pnpm.cmd smoke:sidecar:packaged
-npm --prefix apps/desktop/frontend run typecheck
-npm --prefix apps/desktop/frontend run test
-```
-
-```powershell
-cd D:/StoryForge/apps/api
-uv run pytest tests/test_phase9_fact_sources.py -q
-uv run pytest tests/test_ide_agent_orchestrator.py tests/test_real_llm_long_evidence_validator.py -q
-uv run pytest tests/test_agent_fs_tools.py tests/test_agent_fs_boundaries.py tests/test_agent_fs_budget_feedback.py -q
-uv run ruff check app/domains/agent_runs app/domains/ide tests
+pnpm.cmd verify                                   # 8 道门
+npm --prefix apps/desktop run test:rust
+npm --prefix apps/desktop run verify:tauri-smoke
+cd apps/desktop/frontend
+node scripts/verify-engine-p0-native.mjs --agent-only   # 真宿主探针，先关掉 StoryForge
 ```
 
 真实 LLM 使用独立授权的本地配置和明确预算，不把密钥或私有小说正文写入报告。

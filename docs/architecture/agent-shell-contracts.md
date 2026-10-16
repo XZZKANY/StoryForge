@@ -1,5 +1,7 @@
 # Agent 壳子接线契约（新桌面壳子必须继续对接的接缝）
 
+> **2026-10-16 现状**：本文写于 Python 后端时期。后端已迁到 TS 引擎并删除（最后一版 `5e6f8e58`）：帧形状的金测现在是 `packages/engine/golden/agent-ws.schema.json` + 引擎 `src/loop/frameSchema.test.ts`（引擎发出的帧与 schema 一致）+ 前端 `tests/agent-contract-generation.test.ts`（生成的帧类型与 schema 一致）；帧编码在 `packages/engine/src/loop/frames.ts`。下文的 `apps/api` 路径用 `git show 5e6f8e58:<路径>` 查；接缝本身（前端各解码路径读哪些键）仍然有效。
+
 > 目的：`apps/desktop/frontend` 的对话/编辑壳子在重做。壳子的**视觉与组件结构**可以随便改，
 > 但下面这些**接缝**是后端 FastAPI、Rust 侧 Tauri 命令、以及既有纯逻辑模块已经依赖的硬契约。
 > 重连壳子时对着本文逐条核对；每条都有金测钉死，漂移即红。

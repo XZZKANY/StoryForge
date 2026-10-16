@@ -5,7 +5,7 @@
  * 而把「自动落盘」这种授权写进 `.storyforge/` 会随 git 一起传播给克隆的人，所以跟
  * 最近项目、日更账本一样落在 localStorage 里，按项目路径 keyed。
  *
- * 档位的业务后果由 API 判定（见 apps/api 的 permission/policy.py）：补丁能不能免点击落盘，
+ * 档位的业务后果由引擎判定（见 packages/engine/src/loop/permission.ts）：补丁能不能免点击落盘，
  * 前端只读补丁上的 `requires_confirmation`，不在这里按档位字符串自己推。这里只做两件事：
  * 存/取作者的选择，以及「只读档不许发起写类动作」这一条本地闸。
  */

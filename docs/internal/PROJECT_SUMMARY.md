@@ -1,12 +1,12 @@
 # StoryForge 项目总结
 
-更新时间：2026-09-28
+更新时间：2026-10-16
 
 ## 项目定位
 
 StoryForge 是 Desktop IDE-first AI writing workbench，服务长篇小说作者的本地写作、对话审稿、修订、diff 确认及版本追踪。`apps/desktop` 是唯一主体验；`apps/web` 与独立 `apps/workflow` 已退役。BookRun 保留后台历史兼容，不是桌面自动整书主线。
 
-技术主线为 Tauri / React / Monaco 桌面端与 FastAPI / SQLAlchemy API sidecar。正文真相在本地项目文件；API 保留会话、运行记录与证据；OpenAPI 和派生 Agent 帧 schema 承接契约。
+技术主线为 Tauri / React / Monaco 桌面端：业务逻辑在 TS 引擎（`packages/engine`，桌面 WebView 里进程内运行），Rust 宿主管本地文件、引擎库、模型出网与影子 git。正文真相在本地项目文件；会话、运行记录与证据在引擎库；帧契约 schema 与 14 个数据形状冻结在仓库里。2026-10-16 之前业务逻辑在 FastAPI 后端（sidecar），已迁完并删除（最后一版 `5e6f8e58`）。
 
 ## 当前能力
 
@@ -15,6 +15,10 @@ StoryForge 是 Desktop IDE-first AI writing workbench，服务长篇小说作者
 本轮基础改进把修订能力与会话、采集与纯选择、工具声明与执行策略分开，并补齐结算/证据故障回归、安全诊断、统一测量与受控润色复用。改动按切片可回退，仍未提交；不追求 SDK 本身，也不承诺未来所有需求零跨层修改。入口见 [写作能力反馈地图](../architecture/authoring-feedback.md)。文风有界读取已有精确语义对照和资源改善，不能据此声称整体 Agent 更快；其链接 containment/目录遍历预算仍待独立修复。
 
 ## 验证摘要
+
+2026-10-16 后端迁移收口（#366–#373）：`pnpm verify` 8 道全绿（引擎 13543 passed / 2 skipped，前端 207 files / 2079 tests，三个浏览器回归），Rust 130 passed / 1 ignored，新宿主开发档与发行版 Tauri 冒烟通过，NSIS 32.8 MB。真宿主探针与 NSIS 隔离安装本轮未跑；新引擎尚未在作者真实写作中使用。详见 `current-phase.md` 顶部补记。
+
+以下为迁移前的历史验证，其中 API / pytest / sidecar 相关条目已随 Python 删除：
 
 2026-09-28 Agent 可靠性 R1–R8 已完成本地实现与规定集成：同 run 恢复、失败/截断、磁盘基线、阶段取消、压缩保真、请求证据、有限恢复与 Knowledge 回执核对完成；自动档进度不再混淆准备和已落盘；最终审计补齐非2xx错误正文挂起时不恢复的真实红绿回归。完整 verify 通过（API 2349 passed / 7 skipped、FE 149 files / 1231 passed、project-core 7），E2E 20、Rust 82 / 1 ignored、Desktop runner 30 通过；API/Desktop 当前重建、packaged、两条 browser 与两次隔离 native GUI 通过。源码及产物绑定见 current-phase 和验证报告。未提交、未发布；不是全部权限真机、真实模型或长篇质量验收。
 

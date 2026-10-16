@@ -436,6 +436,7 @@ P6 进度（2026-10-16 起；作者拍板一路做到删 Python）：
 - P6-3 打包去掉 sidecar：删 `externalBin`、PyInstaller 构建脚本与 sidecar 冒烟门，`desktop:build` 直接 `tauri build`。NSIS 从 80.9 MB 降到 32.8 MB，发行版 Tauri 冒烟通过；隔离安装测试留到 P7。
 - P6-4 门禁：前端源码标准测试接手行数上限，并新增「界面只经 lib/api 进引擎」；帧契约 schema 冻结进 `packages/engine/golden/`，前端测试比对生成的帧类型；14 个 API 类型冻结进 `lib/api/contracts.ts`；删 `packages/shared`、OpenAPI 生成与漂移门、`tests/e2e`。根门禁 8 道（比计划多两道浏览器回归），pre-push 去掉 pytest。
 - P6-5 删 Python：`apps/api`（603 个文件）、docker-compose、deploy、迁移与 dev-start 脚本、两个离线实验脚本全删，-119,251 行；删除前最后一版是 `5e6f8e58`。P0 探针的读者模式改用 Node 按 golden 落盘夹具（与 Python 原落盘器逐项比对 0 差异），传输试验模式删除。
+- P6-6 文档：CLAUDE.md §2–§9、README、CONTEXT、TODO、current-phase、PROJECT_SUMMARY、运维四份与 apps/desktop 文档按迁移后的现状重写；删 `alembic-validation.md` 与两份 `.env*.example`；三份架构文档顶部加现状说明。
 
 ### P7 发版
 

@@ -1,181 +1,59 @@
 # StoryForge 故障手册
 
-更新时间：2026-09-28
+更新时间：2026-10-16
 
 ## 1. 使用原则
 
-本文只记录当前仓库中已经出现或已经由脚本显式处理的故障场景。排查时先保留原始命令和输出，再按下列步骤缩小范围，避免把环境限制误判为功能缺陷。
+只记录当前仓库里出现过或由脚本显式处理的故障。排查时先保留原始命令和输出，再缩小范围，避免把环境限制误判为功能缺陷；属于环境限制的失败写进 `.codex/verification-report.md`，不能声称完整通过。
 
-当前本地仓库路径为 `D:/StoryForge`。本文中的本地命令默认在 Windows PowerShell 中执行；如果使用其他 shell，先等价切换到相同目录。
+## 2. `pnpm verify` 某道门红
 
-## 2. Docker 或基础容器未运行
+- 按日志里的 `[verify:local] <门名>` 找到失败的那道，单独复跑它的命令（日志里 `$` 开头那行）。
+- 前端单测满载红、单跑绿时**不要直接判 flaky**：把改动临时挪开（`git stash`），在 master 上用同样的并发复跑；master 也红才是既有问题。内存紧时用 `npx vitest run --maxWorkers=3`。
+- 改了引擎后前端类型检查红：前端经 `lib/engine` 直接编译引擎源码，引擎的导出或类型变了要同步改前端。
 
-### 现象
+## 3. 浏览器回归红（`verify:inline-continuation` / `verify:smoke` / `verify:agent-conversation`）
 
-- `pnpm dev` 默认开发模式提示 Docker 命令不可用，或 PostgreSQL、Redis、MinIO 容器未运行。
-- API 迁移、数据库连接或对象存储相关步骤无法继续。
+- 三个回归在普通 Chromium 里跑真界面，走引擎的 `lib/api` 模块由 `apps/desktop/frontend/scripts/http-doubles-plugin.mjs` 换成 `tests/support/http-*-double.ts` 的 fetch 替身，页面里再由各脚本的假后端应答。
+- 报 `Cannot read properties of undefined (reading 'invoke')`：有一个走引擎的 `lib/api` 模块没被替换，在浏览器里碰了 Tauri 原生端口。把它加进插件的 `DOUBLES` 并写对应替身。
+- 报 `Unexpected browser smoke request: <路径>`：界面发出了假后端没预期的请求。先确认是产品行为变了（例如新功能多发了一次命令）还是回归脚本过期，再改假后端的放行条件。
+- Vite 提示 `The above dynamic import cannot be analyzed by Vite`（Monaco 依赖块里）是已知的无害警告。
 
-说明：`pnpm verify` 本身不探活 Docker；只有默认开发启动（Tauri 主进程或 `scripts/dev-start.mjs` maintenance 入口）和需要真实 PostgreSQL 的验证才依赖这些容器。单机无 Docker 开发可改用 `STORYFORGE_DESKTOP_SKIP_SERVICES=1`（SQLite，见 `apps/desktop/USAGE.md`）。
+## 4. 真宿主探针（`verify-engine-p0-native.mjs`）起不来
 
-### 排查
+- `Existing Native app: refuse to reuse or kill it`：本机有 StoryForge 在跑。探针按设计拒绝与已有原生应用并行、也不替你关它；关掉应用再跑。
+- 提示锁被占用：`output/ts-engine-p0/native/active.lock` 是上一次探针留下的。确认没有探针在跑后删掉它。
+- 探针要 `cargo build --locked --offline`：依赖没下载过时先在联网状态下 `cargo fetch`。
 
-```powershell
-docker version
-docker compose ps
-docker ps --filter "name=storyforge"
-```
+## 5. Tauri 冒烟失败
 
-### 处理
+- 开发档要桌面 Vite 在 `3007` 上：脚本会自己起，若端口被别的进程占用会复用它；看日志里有没有 `Reusing existing desktop frontend`。
+- debug exe 直接跑报「前端服务未运行」：debug 宿主要 `http://localhost:3007`，先 `npm --prefix apps/desktop/frontend run dev -- --host 127.0.0.1`，再用 `--executable` 指向 debug exe。
+- 发行版冒烟报 `does not support isolated Tauri smoke`：exe 不是当前源码打的，先重新 `pnpm desktop:build`。
 
-```powershell
-cd D:/StoryForge
-docker compose up -d postgres redis minio
-pnpm dev
-```
+## 6. 模型调用失败
 
-如果 Docker 本身不可用，先启动 Docker Desktop 或安装 Docker，再重新运行验证。若失败属于当前环境限制，必须写入 `.codex/verification-report.md`，不能声称完整通过。
+- 先在「设置 → 模型服务」点测试连接，看返回的状态码与原文。
+- `llm-provider.json` 里的 key 用 Windows 用户级 DPAPI 加密：换了 Windows 用户或拷到别的机器后解不开，需要重新填 key。
+- 走本机回环地址的 provider（如合成服务）要绕过系统代理：冒烟脚本会把 `127.0.0.1` / `localhost` / `::1` 加进 `NO_PROXY`。
 
-## 3. FastAPI HTTP pytest 失败
+## 7. 旧库导入
 
-### 现象
+- 新引擎第一次打开时把 `%LOCALAPPDATA%\com.storyforge.ide\storyforge.sqlite3`（Python 时期的库）只读导入引擎库，要求引擎库为空；之后不再读它。
+- 别删旧库，也别在导入前手动往引擎库里写东西。要重来时先备份两个库再处理。
 
-- `pnpm verify` 或 `pnpm test` 在 API pytest 阶段失败。
-- 直接运行某个 HTTP route pytest 返回非零退出码。
+## 8. 打包
 
-### 判断
+- 出包用 `pnpm desktop:build`（直接 `tauri build`，约 4 分钟，NSIS 约 33 MB）。
+- 本地验证构建与已发布版本同名时会覆盖 `apps/desktop/src-tauri/target/release/bundle/nsis/` 里的发布安装包：出包后先把安装包另存到 `output/release-<版本>/`，验证构建产物挪走并标明不可安装。
 
-这是发布门禁红灯。HTTP pytest 由 `pnpm verify`（API pytest 阶段）和 `pnpm test` 覆盖；`pnpm e2e` 只做 OpenAPI 漂移检查与 Node 契约断言，不再执行 pytest。不得探测失败后改写为服务层补偿验收。
-
-### 处理
-
-- 不要删除 HTTP route 测试文件，也不要把失败改写为补偿通过。
-- 在 `apps/api` 下复跑失败目标，例如 `uv run pytest tests/test_model_runs.py -q` 或日志中点名的具体测试。
-- 根据失败信息修复 API router、service、schema、测试夹具、Alembic 迁移或 OpenAPI 契约。
-- 修复后回到仓库根重新运行 `pnpm verify`。
-
-## 4. Alembic 多 head 曾导致远端 E2E 失败
-
-> 本节只保留历史远端 run 作为迁移审计证据。GitHub Actions `E2E` workflow 已于 2026-06-30 退役，当前迁移门禁为 `pnpm verify` API pytest 阶段的 `tests/test_alembic_heads.py`；下方 `gh run` 命令仅适用于仍存在的外部历史副本。
-
-### 现象
-
-- 历史远端 `E2E` run `26915457170`（2026-06-03T21:55:39Z）失败。
-- 失败点为 `uv run alembic upgrade head`。
-- 错误包含 Alembic `Multiple head revisions`。
-
-### 判断
-
-这是 Phase 9 远端 E2E 的历史失败边界。本地已新增 Alembic merge revision `20260604_0001`，并将 `tests/test_alembic_heads.py` 纳入本地 `pnpm e2e` 的 API verification 预检，用于验证 Alembic 单 head 与离线 SQL smoke；在线 PostgreSQL 迁移已在本轮复验，临时库 `storyforge_phase9_online_verify` 执行 `uv run alembic upgrade head` 与 `uv run alembic current --check-heads` 均退出码为 0，验证后已删除。修复已合入 `master`，最新远端 `master` E2E run `26944063055`（2026-06-04T09:45:05Z）已通过。
-
-该状态不能替代真实 10 章或 3-5 万字长程验收。
-
-### 排查
+## 9. Git 工作区
 
 ```powershell
-cd D:/StoryForge/apps/api
-uv run pytest tests/test_alembic_heads.py -q
-uv run alembic heads --verbose
-```
-
-如需核对远端失败日志：
-
-```powershell
-gh run list --repo XZZKANY/StoryForge --workflow E2E --limit 5
-gh run view 26915457170 --repo XZZKANY/StoryForge --log-failed
-```
-
-### 处理
-
-1. 确认本地迁移图只剩一个 Alembic head。
-2. 确认 `tests/test_alembic_heads.py` 在本地通过（现由 `pnpm verify` 的 API pytest 阶段覆盖；历史上它曾挂在 `pnpm e2e` 的 API verification 预检中）。
-3. 历史流程（远端 workflow 退役前）：确认包含 `20260604_0001` 的提交进入远端分支后，再重新运行远端 E2E。
-4. 历史记录义务（当时有效）：若未来远端 E2E 再次失败，所有计划、README、TODO、故障手册和验证报告都必须记录新的失败 run、提交和失败步骤；远端 workflow 退役后该要求失效，若重建远端门禁再恢复。
-
-## 5. OpenAPI 刷新失败
-
-### 现象
-
-- `pnpm openapi` 失败。
-- `pnpm e2e` 在刷新 OpenAPI 契约阶段停止。
-- 输出包含 `OpenAPI 契约刷新失败`。
-
-### 排查
-
-```powershell
-cd D:/StoryForge
-pnpm openapi
-git diff -- packages/shared/src/contracts/storyforge.openapi.json
-```
-
-### 处理
-
-1. 确认 `uv`、`python3` 或 `python` 至少一个可用，且 Python 版本满足项目要求。
-2. 先修复 API 语法或导入错误。
-3. 确认 `apps/api/app/main.py` 可以导入 `app`。
-4. 重新执行 `pnpm openapi`；脚本会输出实际使用的 Python 运行时。
-5. 如果契约发生变化，复核 `packages/shared/src/contracts/storyforge.openapi.json` 的 diff 来源并同步相关审查记录。
-
-OpenAPI 生成失败时不得继续使用旧契约作为发布依据。
-
-## 6. Provider、embedding 或 reranker 未配置
-
-### 现象
-
-- 真实 LLM、embedding 或 reranker 私有变量未在当前进程中提供。
-- Phase 9 真实 LLM smoke 以外的本地启动仍使用 deterministic provider、本地 embedding 或禁用 reranker 路径。
-
-### 判断
-
-这是本地开发与验证的已知降级路径，不是基础功能回归。真实 provider token、API key、secret 或 password 只能存在于本机私有运行时环境，不得写入仓库、日志、验证报告或截图。
-
-### 处理
-
-- 当前阶段不要把真实 provider 调用作为本地启动前置条件。
-- 本地保持 `STORYFORGE_LLM_PROVIDER=deterministic`、`STORYFORGE_EMBEDDING_PROVIDER=local`、`STORYFORGE_RERANKER_PROVIDER=disabled`。
-- 调整这些变量后，优先运行 Provider Gateway、Embedding、Reranker 相关本地测试；真实外部密钥不可用时只接受回退路径验证。
-- 真实 LLM smoke 只依据脱敏证据目录记录结果，不能输出 provider token。
-
-## 7. `pnpm verify` 失败
-
-### 现象
-
-- 工具缺失：Node.js、pnpm、Python、uv 不可用。
-- 必需文件缺失：`package.json`、`docker-compose.yml`、`.env.example` 或应用配置不存在。
-- lint、typecheck、某栈测试、sidecar smoke 或 OpenAPI 漂移检查中任一阶段非零退出。
-
-### 排查
-
-```powershell
-cd D:/StoryForge
-pnpm verify
-node --version
-pnpm --version
-python --version
-```
-
-### 处理
-
-- 工具缺失：安装对应工具后重试。
-- 文件缺失：检查 Git 工作区是否误删文件，必要时从当前分支恢复。
-- 某阶段失败：按该阶段日志复跑最小目标（如对应 pytest / vitest / lint），修复后重跑 `pnpm verify`。
-- 若失败属于当前环境限制，必须写入 `.codex/verification-report.md`，不能声称完整通过。
-
-## 8. Git 工作区不干净
-
-### 现象
-
-- `git status --short --branch` 显示未提交修改或未跟踪文件。
-- 当前分支显示 ahead/behind。
-
-### 处理
-
-```powershell
-cd D:/StoryForge
 git status --short --branch
-git diff --stat
-git diff
+git diff --numstat
+git diff --ignore-all-space --numstat
 ```
 
-- 将每个修改归属到具体任务。
-- 不提交临时文件、缓存、私有配置或无法解释来源的文件。
-- 本任务明确禁止自动提交时，只能记录状态并在汇报中说明。
+- 仓库常驻本机脚手架与 `output/` 产物，提交只用显式路径。
+- 两种 numstat 不一致说明改出了行尾噪音：按文件原有行尾（CRLF / LF 混用）重写；`.codex/verification-report.md` 是混合行尾，只做字节级追加。

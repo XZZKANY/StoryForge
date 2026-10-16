@@ -1,5 +1,7 @@
 # 写作能力的阶段测量与回归入口
 
+> **2026-10-16 现状**：本文写于 Python 后端时期，表中的域路径、pytest 入口与两份测量脚本（`scripts/measure-authoring.py`、`measure-style-read.py`）已随后端删除（最后一版 `5e6f8e58`）。现行的选测入口是 `pnpm verify` 的 8 道门、引擎 `pnpm --filter @storyforge/engine test` 与真宿主探针（见 `docs/operations/local-start.md`）；业务所有者从 `apps/api/app/domains/*` 换成了 `packages/engine/src/*`。下文的测量结论与方法仍可参考，但命令不能照跑。
+
 本页描述持续迭代的反馈接缝，不代表发布、真实模型质量或桌面写回已经验收。当前产品主链仍是 Desktop → Agent SSE → 对话工具循环 → proposed patch；显式 intent 是另一适配入口，后端不写原稿。
 
 ## 真实路径与职责地图

@@ -5,6 +5,7 @@
 > - watcher/notify 整链与 `get_file_info` 已于 2026-09-28 退役（见阶段 2 补记）；`retired-desktop-features.test.ts` 锁定 StatusBar、watchFile 等不存在，实时文件监听与状态栏不再是当前能力。
 > - 「原生菜单栏已完成」是 2026-06 记录；当前壳未挂原生菜单（`useTauriMenuBridge.ts` 只监听 smoke reset 等事件），不得引为现状。
 > - 阶段 2/3 的代码样例（`TauriFileSystem.writeFile` 二参调用、`PathUtils`、`LocalFileEditor` 等）与现行 frontend 实现不符，不可照抄。
+> - 阶段 1 的「自动启动服务」（Docker / 迁移 / FastAPI / sidecar）已于 2026-10-16 随 Python 后端整体删除，宿主不再起任何后端进程。
 > - 当前能力与边界以 `docs/internal/current-phase.md`、本目录 `README.md` / `USAGE.md` 为准。
 
 ---

@@ -8315,3 +8315,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - P0 真宿主探针去 Python：读者模式原先跑 `golden_dump.py --check` 让 Python 预言机把夹具项目落盘并复核 golden，现在按已入库的 `p1-reader.windows.json` 用 Node 落盘（`materializeReaderFixture`：.md 正文、隐藏填充项、深层目录、junction / 文件符号链接；无符号链接权限时记跳过并与 golden 的 `skip` 比对）。移植前在本机对 12 组夹具分别用 Python 原落盘器与 Node 版各落一份，逐项比对两棵树：40,186 项、0 差异（含 junction 目标与文件字节）；`file-alias-roles` 两边都因 1314 跳过，与 golden 一致。传输模式（`--transport-only` / `--all`，P0 选型时比较 plugin-http / plugin-sql 的试验，SQL 夹具靠 Python 生成）整段删除，P0 夹具里对应的 HTTP / SQL 探针函数随之删；`--cpu-only` 保留。
 - 未删：本地 `apps/api/` 目录里未跟踪的 `.venv`、`build/`、缓存仍在磁盘上（协作窗口的分支可能还在用；可手动删）；`tauri-plugin-http` / `tauri-plugin-sql` 两个插件产品代码已不用（只有删掉的 P0 传输试验用过），是否从 Cargo 去掉另议；`.gitignore` 里为 pytest 事实源保留跟踪的几个 `.codex` 文件已失去用途，留给 P6-6/7 决定。
 - 验证：`pnpm verify` 8 道全绿（引擎 13543 passed，前端 207 files / 2079 tests，三个浏览器回归通过，lint 在本地 `.venv` 残留在场时通过）；`node --test scripts/eslint-config.test.mjs` 2 / 2；探针 `node --check` 与 eslint 通过；`git diff --numstat` 与 `--ignore-all-space` 一致。P0 真宿主探针本身仍要等作者关掉 StoryForge 再跑。
+
+## 2026-10-16 P6-6 文档改成迁移后的现状
+
+- 入口文档：`CLAUDE.md` §2–§9 按现状重写（TS 引擎是业务真相源、Rust 宿主管本地副作用、8 道门、真宿主探针、引擎库迁移规矩、帧契约与 14 个数据形状冻结的位置、删除前最后一版 `5e6f8e58`），§1.1 补一条迁移流水；`README.md`（去 Python 徽章与 Docker 快速开始、技术栈与仓库结构、项目状态写明新引擎还没在真实写作里用过）、`CONTEXT.md`（Current Truth / 术语 / 架构规则）重写。
+- 内部文档：`docs/internal/TODO.md` 顶部加 10-16 当前入口（出 0.2.0 前要补的真机证据、出包步骤、装上之后、可另开的小清理），迁移段标为完成，「本地验证入口」换成现行命令，旧段落标为历史；`current-phase.md` 顶部加 10-16 补记（这一轮合并、已有证据、还没有的证据、golden 的边界）并给能力表补 TS 对应位置；`PROJECT_SUMMARY.md` 改技术主线与验证摘要。
+- 运维文档：`docs/operations/README.md`、`local-start.md`、`troubleshooting.md`、`release-checklist.md` 按现状重写（不再需要 Python / Docker；本机数据位置；浏览器回归与真宿主探针的排障；新的出包步骤）；删 `alembic-validation.md`。`apps/desktop/README.md`、`USAGE.md` 重写，`STATUS.md` 的历史标注补一条。三份架构文档（`agent-shell-contracts.md`、`authoring-feedback.md`、`ide-first-product-direction.md`）顶部加现状说明与旧路径取法，正文不改。
+- 其它：删只服务 Python / docker 的 `.env.example` 与 `.env.production.example`（无消费者）；前端三处注释（`agent-permission.ts`、`book-context.ts`、`observations.ts`）从 `apps/api` 的 Python 文件改指引擎里的对应文件。
+- 核对：文中命令、路径、文件名逐个对照了仓库（`craftPromptClause`、`ENGINE_MIGRATIONS`、`windows-dpapi-user-v1`、引擎库与旧库文件名、探针模式、冒烟报错原文等）；版本号只剩 `tauri.conf.json` 与 `Cargo.toml` 两处。重写的文件保持原有行尾（`CONTEXT.md` 恢复 CRLF，混合行尾的 `ide-first-product-direction.md` 按字节插入）。

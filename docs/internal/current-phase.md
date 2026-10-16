@@ -1,6 +1,17 @@
 # StoryForge 当前阶段事实源
 
-更新时间：2026-10-06（Windows 私测候选，非公开发版声明）
+更新时间：2026-10-16（后端迁到 TS 引擎、删除 Python；0.2.0 未出包）
+
+## 2026-10-16 当前补记：业务逻辑全部在 TS 引擎，仓库里不再有 Python
+
+此补记覆盖下文所有关于 `apps/api`、sidecar、pytest、OpenAPI 的描述；下文保留为迁移前的历史证据，其中的 Python 文件路径可在删除前最后一版 `5e6f8e58` 里查到。
+
+- **架构**：Desktop IDE 是唯一产品；业务逻辑（agent 工具循环、修订 / 续写 / 起草、IDE 命令、知识提议、章节检查、跨章一致性、语义评审）在 `packages/engine`，在桌面 WebView 里进程内运行；Rust 宿主管文件读写、引擎库（`storyforge-engine.sqlite3`）、模型出网（key 不出 Rust）、影子 git 与退出握手，不起任何后端进程。迁移计划与逐刀进度见 `docs/architecture/ts-engine-migration-plan.md`。
+- **这一轮合并**：前端只走引擎、删三个开关与影子档（#366）；删外部写回协议与托管宿主协商（#367，回归修 #368）；宿主不再起后端（#369）；修 P6-1a 起就红的两个浏览器回归（#370）；打包去 sidecar（#371，NSIS 80.9 → 32.8 MB）；门禁去 Python / OpenAPI，源码标准搬进前端，帧契约冻结进引擎（#372）；删 `apps/api` 与 docker / deploy / 迁移脚本（#373，-119,644 行）。
+- **已有证据**：`pnpm verify` 8 道全绿（引擎 56 files / 13543 passed + 2 skipped，前端 207 files / 2079 tests，行间续写 / 浏览器冒烟 / Agent 对话三个浏览器回归）；Rust 130 passed / 1 ignored；新宿主 Tauri 冒烟（debug exe 与发行版 exe）走完书库 → 总览 → 工作台 → 补丁审阅 → 写回、全程不起后端；`pnpm desktop:build` 产出 32.8 MB 安装包且安装脚本不含 sidecar。迁移期间各模块有 golden 预言机逐项比对 Python 行为（冻结在 `packages/engine/golden/`）。
+- **还没有的证据**：本轮的真宿主探针没跑（作者的 StoryForge 开着，探针拒绝并行）；NSIS 隔离安装验证没跑；**新引擎从没在作者的真实写作里用过**——作者机一直是 0.1.15（Python），0.1.16 与影子数据都没到过作者手里，作者拍板不等现场数据直接删 Python。0.2.0 装上后出问题没有 Python 可切回。
+- **golden 的边界**：golden 证明引擎与迁移前的 Python 行为一致，不证明行为是对的；Python 时期的既有问题按作者意见只在 TS 里修。
+- 下一步见 `docs/internal/TODO.md` 的 2026-10-16 入口。
 
 ## 2026-10-06 当前补记：Windows 私测候选与单样本作者验收
 
@@ -26,11 +37,13 @@
 
 ## 当前阶段
 
-StoryForge 是面向长篇小说作者的 Desktop IDE-first AI writing workbench，产品方向为 Cursor for Fiction。`apps/desktop` 是唯一主体验；`apps/api` 负责运行时、业务判断及证据；manuscript truth 是本地项目文件。`apps/web` 已退场，`apps/workflow` 已于 2026-07-26 退役，不恢复旧入口。
+StoryForge 是面向长篇小说作者的 Desktop IDE-first AI writing workbench，产品方向为 Cursor for Fiction。`apps/desktop` 是唯一主体验；业务判断与运行证据在 `packages/engine`（2026-10-16 之前在 `apps/api`）；manuscript truth 是本地项目文件。`apps/web` 已退场，`apps/workflow` 已于 2026-07-26 退役，不恢复旧入口。
 
 当前已完成本轮作者辅助 IDE 的持续演进基础计划及本地分档验收。修订能力、输入选择、工具策略、结算一致性、provider 诊断和性能反馈已增量落地；这不等于“发布就绪”，后续仍按真实使用反馈小步迭代。保留既定写作优先方向，以真实写作摩擦决定功能需求。本轮没有读取仓库外连载资产，不把 7 月章节数当作当前写作进度。
 
 ## 已实现的能力与证据
+
+> 下表「当前代码依据」一列是迁移前的 Python 路径；TS 引擎里对应的位置：工具循环 `packages/engine/src/loop/chatLoop.ts` / `agentRuntime.ts`，固定 intent `loop/fixedPipelines.ts`，工具注册 `loop/tools/catalog.ts` / `registry.ts`，文件工具与边界 `kernel/fsTools.ts` / `fsProjectTools.ts`（宿主侧 `apps/desktop/src-tauri/src/fs.rs`），项目知识 `kernel/projectKnowledge.ts`，结构化拆书 `kernel/bookBreakdown.ts`。
 
 | 能力 | 当前代码依据 | 证据边界 |
 | --- | --- | --- |

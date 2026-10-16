@@ -4,41 +4,37 @@
 
 StoryForge is a Desktop IDE-first AI writing workbench for long-form fiction. The product direction is an author-facing writing IDE: authors open a local novel project, ask an Agent to review or revise files, inspect a diff, and either confirm or explicitly authorize project-scoped automatic write-back while keeping version history.
 
-The project keeps a verifiable long-form generation pipeline, but that pipeline is a backend tool and heavy engine, not the primary product surface.
-
 ## Current Truth
 
-- **Desktop IDE** is the main product experience under `apps/desktop`.
-- **API** is the business truth source under `apps/api`.
-- **Workflow app retired (2026-07-26).** The standalone LangGraph orchestrator under `apps/workflow` was deleted; long-running generation, provider calls, and ModelRun records live in `apps/api` (single egress: `app/common/llm_client.py`).
-- **BookRun** is the auditable whole-book generation run. It can generate, judge, repair, write memory, and export artifacts. Today it survives as a background managed Writing Run and CLI path: the live conversation runtime does not register `bookrun.*` tools, so the conversational Agent cannot start or drive a BookRun directly; background compatibility must not be read as a live agent capability.
-- **Desktop IDE Agent** is the local project assistant path: open file, review, targeted revision, proposed patch, permission-aware confirmation, guarded write-back, version record.
-- **OpenAPI contract** is the hard seam from API to clients. Backend route changes must refresh `packages/shared/src/contracts/storyforge.openapi.json`.
-- **Web** has exited. Do not add or maintain `apps/web` as a product entry.
+- **Desktop IDE** under `apps/desktop` is the only product. There is no server.
+- **TS engine** under `packages/engine` is the business truth source: agent tool loop, revision / continuation / drafting, IDE commands, knowledge proposals, chapter checks, cross-chapter consistency, semantic judging, and the model-call protocol. It runs in-process inside the desktop WebView; the UI reaches it only through `apps/desktop/frontend/src/lib/api`.
+- **Rust host** under `apps/desktop/src-tauri` owns local side effects: project-scoped file reads and atomic writes, the SQLite engine database, model egress (the API key never leaves Rust), shadow-git snapshots, and the close handshake. It starts no backend process.
+- **Python backend retired (2026-10-16).** The FastAPI app under `apps/api`, the OpenAPI contract, and the Docker stack were deleted after every module moved to the TS engine (last revision: `5e6f8e58`). Behaviour recorded from Python during the migration is frozen as golden fixtures in `packages/engine/golden/`.
+- **Frozen contracts:** stream frames in `packages/engine/golden/agent-ws.schema.json`; the data shapes exchanged between engine and UI in `apps/desktop/frontend/src/lib/api/contracts.ts`.
+- **BookRun** (whole-book generation and export) was retired on 2026-10-09; **Web** has exited. Do not reintroduce either as a product entry.
 
 ## Domain Glossary
 
-- **Novel project**: a local writing workspace opened by the Desktop IDE.
-- **Manuscript file**: a user-authored text file inside a novel project.
-- **Agent conversation**: the Desktop IDE interaction where the user asks for review, revision, or project assistance.
+- **Novel project**: a local writing workspace opened by the Desktop IDE; project-level data lives in its `.storyforge/` folder.
+- **Manuscript file**: a user-authored chapter file inside a novel project; reading order is path order.
+- **Agent conversation**: a project-scoped session in which the author asks for review, revision, drafting, or project assistance.
+- **Agent run**: one execution of the agent tool loop, recorded with its event stream in the engine database.
 - **Issue**: a stable review finding produced by the Agent, often targeted by later revision.
-- **Proposed patch**: an Agent-produced edit; the backend never writes it directly to a manuscript file.
+- **Proposed patch**: an Agent-produced edit; the engine never writes it directly to a manuscript file.
 - **Diff confirmation**: the per-patch user approval required by the default `ask` profile; explicitly selected project-scoped `auto` / `full` profiles may skip the click but not guarded write-back.
-- **Version record**: local evidence of a write-back so the author can audit changes.
-- **BookRun**: a long-running generation workflow for a whole book or chapter batch.
-- **ModelRun**: recorded evidence for a model invocation or model-backed step.
-- **Provider Gateway**: the seam for real model providers and deterministic/mock providers.
-- **Judge**: quality review logic that evaluates generated or revised text.
-- **Repair**: targeted correction logic driven by Judge findings.
-- **Story Memory**: persistent extracted facts for continuity.
-- **Artifact**: exported Markdown, EPUB, audit report, or related output.
-- **Audit evidence**: durable proof of inputs, steps, outputs, checks, and decisions.
+- **Guarded write-back**: snapshot before write → atomic write → version record, refusing writes when the file drifted on disk.
+- **Version record**: local evidence of a write-back so the author can audit and undo changes.
+- **Canon**: author-declared facts and invariants under `.storyforge/canon/`, with derived caches the Agent may read but not write.
+- **Knowledge proposal**: an Agent-suggested addition to project knowledge, reviewed by the author before it is materialized.
+- **Chapter check**: a check run on a drafted chapter, recorded under its session as check history.
+- **Judge**: semantic review logic that evaluates generated or revised text; its findings are advisory.
+- **Legacy import**: the one-time read-only import of the Python-era database into the engine database.
 
 ## Architecture Rules
 
-- API decisions belong in FastAPI routes, domain modules, and service logic; clients should not invent business conclusions.
-- Desktop owns local file UX, permission-aware confirmation, and guarded write-back ergonomics; it should call API or Tauri commands for durable effects.
-- API owns long tasks and model-provider uncertainty inside its BookRun/Agent runtime; keep transaction boundaries crisp.
+- Business decisions belong in the TS engine; the UI must not invent business conclusions or import the engine except through `lib/api`.
+- Durable side effects go through Rust host commands injected into the engine as ports; the engine does not touch the disk or the network directly.
+- Engine database schema changes are append-only migrations in `packages/engine/src/store/schema.ts`.
 - Tests and callers should cross meaningful module interfaces, not private implementation details.
 - Missing data should surface as an explicit error, not a fake fallback object.
-- Real provider secrets must stay in local environment variables and never enter committed logs or docs.
+- Real provider secrets stay encrypted on the local machine and never enter committed logs, docs, the WebView, or evidence.
