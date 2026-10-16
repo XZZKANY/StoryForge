@@ -239,6 +239,18 @@ test('a failed read says so instead of rendering an empty book', async () => {
   assert.match(dom.textContent ?? '', /读取失败/);
 });
 
+test('a failed read shows the text that points at the mistake', async () => {
+  const message = 'canon.json 第 3 行：entities[0].id 必须是字符串';
+  const dom = await renderView({ snapshot: null, availability: 'error', errorMessage: message });
+
+  // 看得见的列表区与读屏播报都要带上原文。
+  const live = dom.querySelector('[data-testid="manuscript-live"]');
+  const visible = [...dom.querySelectorAll('p')].filter((node) => !live?.contains(node));
+  assert.ok(visible.some((node) => /读取失败：canon\.json 第 3 行/.test(node.textContent ?? '')));
+  assert.match(live?.textContent ?? '', /手稿结构读取失败：canon\.json 第 3 行/);
+  assert.equal(dom.querySelector('[data-testid="manuscript-chapter-list"]'), null);
+});
+
 // --- hook ---
 
 type BookContextApi = ReturnType<typeof useBookContext>;
@@ -307,4 +319,33 @@ test('a payload whose shape changed is reported as an error, not an empty manusc
 
   assert.equal(latest?.availability, 'error');
   assert.equal(latest?.snapshot, null);
+});
+
+test('the hook hands over the text a command gave, and only that', async () => {
+  const declared = 'canon.json 第 3 行：entities[0].id 必须是字符串';
+  const cases = [
+    [new Error(declared), declared],
+    [new TypeError('Failed to fetch'), null],
+    [new Error('API 返回 500'), null],
+  ] as const;
+  for (const [index, [error, expected]] of cases.entries()) {
+    mockedExecute.mockRejectedValueOnce(error);
+    // 每次换一个项目：同一个项目不会重读。
+    await renderHook(`D:/book-${index}`, null);
+    await vi.waitFor(() => {
+      assert.equal(latest?.availability, 'error');
+      assert.equal(latest?.errorMessage, expected);
+    });
+  }
+  // 改好之后再读成功，原文就不该还挂着。
+  mockedExecute.mockRejectedValueOnce(new Error(declared));
+  await renderHook('D:/fixed-book', null);
+  await vi.waitFor(() => assert.equal(latest?.errorMessage, declared));
+  mockedExecute.mockResolvedValue(commandResult());
+  await act(async () => {
+    latest?.refresh();
+    await Promise.resolve();
+  });
+  await vi.waitFor(() => assert.equal(latest?.availability, 'available'));
+  assert.equal(latest?.errorMessage, null);
 });

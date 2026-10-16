@@ -17,11 +17,20 @@ import { mapBookContextPayload, type BookContextSnapshot } from '../../lib/book-
 // 与观测镜同档：autoSave 防抖 900ms 之上再叠一层，连续小写只触发一次重取。
 const REFRESH_DEBOUNCE_MS = 1200;
 
+/** 连不上（fetch 的 TypeError）或只有状态码的失败没什么可告诉作者的，其余是命令给的原文。 */
+function authorFacingError(error: unknown): string | null {
+  if (!(error instanceof Error) || error instanceof TypeError) return null;
+  const message = error.message.trim();
+  return message && !/^API 返回 \d+$/.test(message) ? message : null;
+}
+
 export type BookContextAvailability = 'unavailable' | 'loading' | 'available' | 'error';
 
 export type BookContextHandle = {
   snapshot: BookContextSnapshot | null;
   availability: BookContextAvailability;
+  /** 读取失败时给作者看的原文（比如作者声明哪一行写错了）；没有可说的就是 null。 */
+  errorMessage: string | null;
   refreshing: boolean;
   refresh: () => void;
 };
@@ -35,6 +44,7 @@ export function useBookContext({
 }): BookContextHandle {
   const [snapshot, setSnapshot] = useState<BookContextSnapshot | null>(null);
   const [availability, setAvailability] = useState<BookContextAvailability>('unavailable');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const seqRef = useRef(0);
   // 上一次取数的项目：只有换项目才该清空面板，切页签也清会让章节列表每次闪一下。
@@ -55,14 +65,17 @@ export function useBookContext({
       const mapped = mapBookContextPayload(payload);
       if (!mapped) {
         // 形状不对就如实报错，不拿空手稿糊弄——空列表会让作者以为书里没东西。
+        setErrorMessage(null);
         setAvailability('error');
         return;
       }
       setSnapshot(mapped);
+      setErrorMessage(null);
       setAvailability('available');
     } catch (error) {
       if (seq !== seqRef.current) return;
       console.error('读取作品底座失败', error);
+      setErrorMessage(authorFacingError(error));
       setAvailability('error');
     } finally {
       if (seq === seqRef.current) setRefreshing(false);
@@ -76,6 +89,7 @@ export function useBookContext({
     if (loadedProjectRef.current !== activeProject) {
       loadedProjectRef.current = activeProject;
       setSnapshot(null);
+      setErrorMessage(null);
       setAvailability(activeProject ? 'loading' : 'unavailable');
       setRefreshing(false);
     }
@@ -101,5 +115,5 @@ export function useBookContext({
 
   const refresh = useCallback(() => void load(), [load]);
 
-  return { snapshot, availability, refreshing, refresh };
+  return { snapshot, availability, errorMessage, refreshing, refresh };
 }
