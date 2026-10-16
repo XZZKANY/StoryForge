@@ -8067,3 +8067,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：21 / 21（Python 10：起草不转、不记处数、修复稿不转、奇数引号也配对、撇号算引号、Markdown 链接括号也转、图片感叹号也转、不收空格、无汉字的行也配引号、句点只看后一字；引擎 11：前 9 项同上加码点越界判断错、省略号只认三个以上）。
 - 全量：门禁 11 道全过。后台 `pnpm verify` 因本机内存不足被系统停掉，停之前前 5 道已在同一份代码上通过（lint 0 错误 / 2 条既有 warning、前端类型检查、shared 与 project-core 契约、引擎 13518）；剩下 6 道在前台分段补跑：前端 vitest（`--maxWorkers=3`）2234、行间续写真实 Monaco 回归（第一次 Vite 冷启动 `page.goto` 30 秒超时，重跑 5 项全过）、pytest 分五段合计 3326 通过 / 51 跳过、ruff、sidecar 冒烟 daily 档、OpenAPI 无漂移（只变版本号）。版本 bump 到 0.1.14。
 - 未联通：作者装机后真实起草的观感。
+
+## 2026-10-15 起草统一成全角 出包记录 0.1.14
+
+- 构建：master `ea4d7835`（#344）上 `pnpm desktop:build`（前台跑，避开内存不足时后台任务被系统停掉），exit 0。安装包 `apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_0.1.14_x64-setup.exe`，80,887,431 字节，SHA256 `39421B6BF331FECBD6222BEC848D654794C6CC2E23447891E2DA1990BDDCCD8D`；安装包与桌面 exe 的 FileVersion 都是 0.1.14。
+- 冻结 sidecar：`node scripts/sidecar-smoke.mjs --packaged --skip-build` 全绿。
+- 定向断言（`output/ts-engine-p5/fullwidth/packaged-check.mjs`，gitignored）：冻结 exe 报 `app_version` 0.1.14；本机假模型回一篇半角起草稿（`守卫喝道:"站住."`、`停下脚步,…旧匾.`），真走「起草第1章 → 确认 brief → 起草 → 检查」，补丁正文是 `守卫喝道：“站住。”` / `停下脚步，…旧匾。`，检查器收到的也是全角稿；0.1.13 的两条（直引号回复读通、自动档检查器两次无效给「未经检查」并强制确认）照旧通过，项目文件未写。
+- 前端产物：`dist/assets/store-*.js`、`agentRoutes-*.js` 含 `punctuation_normalized`（引擎随前端打包）。
+- 未联通：作者装机后真实起草的观感。
