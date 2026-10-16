@@ -20,6 +20,16 @@ export function formatTimestamp(ms: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+function versionTrace(v: VersionEntry): string {
+  return [
+    v.patchId ? `补丁 ${v.patchId}` : null,
+    v.assistantSessionId ? `会话 ${v.assistantSessionId}` : null,
+    v.issueIds?.length ? v.issueIds.join(', ') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 export function VersionHistory({
   projectPath,
   filePath,
@@ -169,7 +179,7 @@ export function VersionHistory({
               key={value}
               type="button"
               aria-pressed={viewMode === value}
-              className={`rounded-md px-2 py-1 text-xs transition-colors ${viewMode === value ? 'bg-agent/10 text-agent' : 'text-muted hover:bg-elevated'}`}
+              className={`rounded-md px-2 py-1 text-xs transition-colors ${viewMode === value ? 'bg-elevated text-foreground' : 'text-muted hover:bg-elevated'}`}
               onClick={() => setViewMode(value)}
               data-testid={`version-view-${value}`}
             >
@@ -228,7 +238,7 @@ export function VersionHistory({
                 type="button"
                 aria-pressed={sourceFilter === value}
                 title={value === 'Agent' ? 'Agent 操作产生的快照' : undefined}
-                className={`rounded-md px-2 py-1 text-xs transition-colors ${sourceFilter === value ? 'bg-agent/10 text-agent' : 'text-muted hover:bg-elevated'}`}
+                className={`rounded-md px-2 py-1 text-xs transition-colors ${sourceFilter === value ? 'bg-elevated text-foreground' : 'text-muted hover:bg-elevated'}`}
                 onClick={() => setSourceFilter(value)}
                 data-testid={`version-filter-${value}`}
               >
@@ -320,7 +330,7 @@ export function VersionHistory({
                           disabled={busyPath !== null || !!v.unavailableReason}
                           aria-busy={busyPath === v.path || undefined}
                           onClick={() => void restore(v)}
-                          className="interactive-press rounded-md bg-agent px-2.5 py-1 text-xs text-agent-foreground transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="interactive-press rounded-md bg-accent px-2.5 py-1 text-xs text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {busyPath === v.path ? '恢复中…' : v.created ? '恢复为不存在' : '恢复'}
                         </button>
@@ -328,7 +338,9 @@ export function VersionHistory({
                     </div>
                     <div
                       className="mt-1 truncate text-2xs text-muted"
-                      title={v.summary ?? v.file ?? ''}
+                      title={[v.summary ?? v.file ?? '', versionTrace(v)]
+                        .filter(Boolean)
+                        .join('\n')}
                     >
                       {v.source ? `${v.source} · ` : ''}
                       {v.summary ?? v.file ?? '版本快照'}
@@ -336,16 +348,6 @@ export function VersionHistory({
                     {v.unavailableReason && (
                       <div className="mt-1 text-2xs text-error" data-testid="version-unavailable">
                         {v.unavailableReason}
-                      </div>
-                    )}
-                    {(v.patchId || v.assistantSessionId || v.issueIds?.length) && (
-                      <div
-                        className="mt-1 truncate text-2xs text-muted"
-                        data-testid="version-agent-meta"
-                      >
-                        {v.patchId ? `patch ${v.patchId}` : ''}
-                        {v.assistantSessionId ? ` · session ${v.assistantSessionId}` : ''}
-                        {v.issueIds?.length ? ` · ${v.issueIds.join(', ')}` : ''}
                       </div>
                     )}
                     {preview?.path === v.path && (

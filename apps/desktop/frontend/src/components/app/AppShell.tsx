@@ -151,7 +151,7 @@ export function AppShell({
 
   const { showShortcuts, settingsMenu } = createShellHelp({
     dialogs,
-    theme: preferences.settings.theme,
+    theme: preferences.resolvedTheme,
     toggleTheme: preferences.toggleTheme,
     openSettings,
     openCommands: () => setPalette('commands'),

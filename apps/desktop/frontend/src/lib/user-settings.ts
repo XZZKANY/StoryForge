@@ -1,6 +1,19 @@
 import type { EditorFontMode, ProseMeasure } from '../components/editor/options';
 import { isProviderKind } from './provider-config';
 import { clampSidePanelWidth, SIDE_PANEL_WIDTH_DEFAULT } from './side-panel-width';
+import {
+  ACCENT_CHOICES,
+  DEFAULT_APPEARANCE,
+  normalizeHex,
+  PALETTE_PRESETS,
+  UI_FONTS,
+  type AccentChoice,
+  type CustomColors,
+  type PalettePreset,
+  type ThemeMode,
+  type ThemePreference,
+  type UiFont,
+} from './appearance';
 
 export type ProviderKind =
   | 'openai'
@@ -21,7 +34,7 @@ export type ProviderSettings = {
   apiKeyRef: string;
 };
 
-export type ThemeMode = 'dark' | 'light';
+export type { ThemeMode, ThemePreference } from './appearance';
 
 /** auto = 正文（Markdown）关行号、数据/代码文件开；on/off = 一刀切覆盖。 */
 export type EditorLineNumbersMode = 'auto' | 'on' | 'off';
@@ -31,10 +44,16 @@ export type AppSettings = {
   editorFontMode: EditorFontMode;
   editorProseMeasure: ProseMeasure;
   editorLineNumbers: EditorLineNumbersMode;
-  /** 日更目标字数；0 = 不设目标，稿件卡不显示进度条。 */
+  /** 日更目标字数；0 = 不设目标，不显示进度条。 */
   dailyWordGoal: number;
   autoSave: boolean;
-  theme: ThemeMode;
+  /** 作者选的模式；实际生效的深 / 浅要经 resolveThemeMode（跟随系统时看 Windows）。 */
+  theme: ThemePreference;
+  palette: PalettePreset;
+  accent: AccentChoice;
+  /** 深 / 浅各自一份自定义背景与前景；null = 用主题底色。 */
+  customColors: CustomColors;
+  uiFont: UiFont;
   provider: ProviderSettings;
   polishProvider: ProviderSettings;
   /** 旧欢迎页偏好，仅保留序列化兼容；作品库不再由此隐藏。 */
@@ -54,7 +73,11 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   editorLineNumbers: 'auto',
   dailyWordGoal: 3000,
   autoSave: false,
-  theme: 'dark',
+  theme: DEFAULT_APPEARANCE.theme,
+  palette: DEFAULT_APPEARANCE.palette,
+  accent: DEFAULT_APPEARANCE.accent,
+  customColors: DEFAULT_APPEARANCE.customColors,
+  uiFont: DEFAULT_APPEARANCE.uiFont,
   provider: {
     kind: 'openai',
     baseUrl: 'https://api.openai.com',
@@ -139,6 +162,23 @@ function isProseMeasure(value: unknown): value is ProseMeasure {
   return value === 'narrow' || value === 'medium' || value === 'wide' || value === 'full';
 }
 
+function isKeyOf<T extends string>(record: Record<T, unknown>, value: unknown): value is T {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(record, value);
+}
+
+function sanitizeCustomColors(value: unknown): CustomColors {
+  const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const pick = (mode: ThemeMode) => {
+    const entry = source[mode];
+    const record = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : {};
+    return {
+      background: normalizeHex(record.background),
+      foreground: normalizeHex(record.foreground),
+    };
+  };
+  return { dark: pick('dark'), light: pick('light') };
+}
+
 export function sanitizeAppSettings(value: unknown): AppSettings {
   if (!value || typeof value !== 'object') return DEFAULT_APP_SETTINGS;
 
@@ -164,7 +204,18 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
         : DEFAULT_APP_SETTINGS.dailyWordGoal,
     autoSave:
       typeof candidate.autoSave === 'boolean' ? candidate.autoSave : DEFAULT_APP_SETTINGS.autoSave,
-    theme: candidate.theme === 'light' ? 'light' : DEFAULT_APP_SETTINGS.theme,
+    theme:
+      candidate.theme === 'light' || candidate.theme === 'dark' || candidate.theme === 'system'
+        ? candidate.theme
+        : DEFAULT_APP_SETTINGS.theme,
+    palette: isKeyOf(PALETTE_PRESETS, candidate.palette)
+      ? candidate.palette
+      : DEFAULT_APP_SETTINGS.palette,
+    accent: isKeyOf(ACCENT_CHOICES, candidate.accent)
+      ? candidate.accent
+      : DEFAULT_APP_SETTINGS.accent,
+    customColors: sanitizeCustomColors(candidate.customColors),
+    uiFont: isKeyOf(UI_FONTS, candidate.uiFont) ? candidate.uiFont : DEFAULT_APP_SETTINGS.uiFont,
     provider: sanitizeProviderSettings(candidate.provider, DEFAULT_APP_SETTINGS.provider),
     polishProvider: sanitizeProviderSettings(
       candidate.polishProvider,

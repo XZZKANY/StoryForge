@@ -165,7 +165,7 @@ test('四分区渲染：提案诚实空态、伏笔两卡、实体两卡、检�
     await renderView();
     assert.match(
       container!.querySelector('[data-testid="obs-section-proposals"]')!.textContent ?? '',
-      /暂无提案草稿/,
+      /暂无待确认的设定变更/,
     );
     assert.equal(container!.querySelectorAll('[data-testid="promise-card"]').length, 2);
     assert.equal(container!.querySelectorAll('[data-testid="entity-card"]').length, 2);

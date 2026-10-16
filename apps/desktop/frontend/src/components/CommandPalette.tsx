@@ -107,7 +107,7 @@ function HighlightedLabel({ label, positions }: { label: string; positions: numb
     <span className="truncate">
       {parts.map((part, i) =>
         part.match ? (
-          <span key={i} className="font-semibold text-agent">
+          <span key={i} className="font-semibold text-foreground underline underline-offset-2">
             {part.text}
           </span>
         ) : (
@@ -496,7 +496,7 @@ export function CommandPalette({
                 onClick={() => choose(index)}
                 className={`flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm transition-colors ${
                   index === active
-                    ? 'bg-agent/10 text-foreground'
+                    ? 'bg-elevated text-foreground'
                     : 'text-foreground hover:bg-elevated'
                 }`}
               >
@@ -517,7 +517,7 @@ export function CommandPalette({
                 onClick={() => choose(index)}
                 className={`flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm transition-colors ${
                   index === active
-                    ? 'bg-agent/10 text-foreground'
+                    ? 'bg-elevated text-foreground'
                     : 'text-foreground hover:bg-elevated'
                 }`}
               >
@@ -525,7 +525,9 @@ export function CommandPalette({
                 {item.shortcut ? (
                   <kbd
                     className={`flex-shrink-0 rounded-sm border px-1.5 py-0.5 font-mono text-3xs ${
-                      index === active ? 'border-agent/30 text-agent' : 'border-border text-subtle'
+                      index === active
+                        ? 'border-border-strong text-foreground'
+                        : 'border-border text-subtle'
                     }`}
                   >
                     {item.shortcut}

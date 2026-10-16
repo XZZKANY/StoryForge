@@ -79,7 +79,7 @@ function GoalBar({ progress, testid, label }: { progress: number; testid: string
       aria-valuenow={percent}
     >
       <div
-        className="h-full rounded-full bg-agent transition-[width] duration-300"
+        className="h-full rounded-full bg-accent transition-[width] duration-300"
         style={{ width: `${percent}%` }}
         data-testid={testid}
         data-progress={percent}

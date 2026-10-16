@@ -3,12 +3,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import * as monaco from 'monaco-editor';
 import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
 import { isEditableTarget } from '../lib/browser-guards';
+import { relativeToProject } from '../lib/project/path';
 import { buildPatchHunks, type PatchHunk } from '../lib/patch-hunks';
 import { currentMonacoTheme } from '../lib/theme';
 import { proseReadingTypography, STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from './editor/options';
 
 type PatchReviewPanelProps = {
   suggestion: AssistantFileSuggestion;
+  projectPath?: string | null;
   // 接受/拒绝这块 diff 是要逐字核对的决策界面：字号跟随编辑器设置、字体用 CJK 2:1 栈避免中英错位。
   editorFontSize: number;
   editorFontFamily: string;
@@ -80,6 +82,7 @@ function diffStats(before: string, after: string): DiffStats {
 
 export function PatchReviewPanel({
   suggestion,
+  projectPath = null,
   editorFontSize,
   editorFontFamily,
   onAccept,
@@ -350,8 +353,10 @@ export function PatchReviewPanel({
               </p>
             )}
             <div className="mt-1 flex flex-wrap gap-2 text-2xs text-muted" data-testid="patch-meta">
-              <span className="break-all" data-testid="patch-file">
-                {suggestion.filePath}
+              <span className="break-all" data-testid="patch-file" title={suggestion.filePath}>
+                {projectPath
+                  ? relativeToProject(projectPath, suggestion.filePath)
+                  : suggestion.filePath}
               </span>
               <span data-testid="patch-stats">
                 +{stats.addedLines} / -{stats.removedLines}

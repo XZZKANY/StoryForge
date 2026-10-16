@@ -6,16 +6,28 @@
   <link rel="icon" type="image/png" href="/favicon.png" />
   <title>StoryForge IDE</title>
   <script>
-    // 首帧渲染前同步落地 data-theme，避免浅色主题启动时闪一整帧深色（FOUC）。
-    // 存储 key 与结构必须与 lib/user-settings.ts 保持同步。
+    // 首帧渲染前同步落地 data-theme 与外观色，避免启动时闪一整帧默认色（FOUC）。
+    // 存储 key 与结构必须与 lib/user-settings.ts、lib/appearance.ts 保持同步。
     (function () {
+      var root = document.documentElement;
       try {
         var raw = localStorage.getItem('storyforge-app-settings');
-        var theme = raw ? JSON.parse(raw).theme : null;
-        if (theme !== 'light' && theme !== 'dark') theme = 'dark';
-        document.documentElement.dataset.theme = theme;
+        var pref = raw ? JSON.parse(raw).theme : null;
+        var mode = pref === 'light' || pref === 'dark' ? pref : 'dark';
+        if (pref === 'system' && window.matchMedia) {
+          mode = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+        root.dataset.theme = mode;
+        var cache = JSON.parse(localStorage.getItem('storyforge-appearance-cache') || 'null');
+        if (cache && cache.v === 1) {
+          var vars = cache[mode] || {};
+          for (var name in vars) {
+            if (name.indexOf('--') === 0) root.style.setProperty(name, vars[name]);
+          }
+          if (typeof cache.font === 'string') root.style.setProperty('--font-ui', cache.font);
+        }
       } catch (e) {
-        document.documentElement.dataset.theme = 'dark';
+        root.dataset.theme = root.dataset.theme || 'dark';
       }
     })();
   </script>

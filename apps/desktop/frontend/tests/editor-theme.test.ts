@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as monaco from 'monaco-editor';
 import { afterEach, beforeEach, test, vi } from 'vitest';
+import { contrastRatio, hexToRgb } from '../src/lib/appearance';
 
 const themeCalls = vi.hoisted(() => ({
   defineTheme:
@@ -46,7 +47,10 @@ test('Monaco 注册的深色/浅色正文、gutter 与 CSS 画布对齐，浅色
     const [, definition] = entry;
     assert.equal(definition.base, mode === 'dark' ? 'vs-dark' : 'vs');
     assert.equal(definition.inherit, true);
-    assert.deepEqual(definition.rules, []);
+    // Markdown 标题走前景色加粗，不再继承内置主题的语法蓝。
+    const heading = definition.rules.find((rule) => rule.token === 'keyword.md');
+    assert.equal(heading?.fontStyle, 'bold');
+    assert.equal(`#${heading?.foreground}`, cssHex('foreground', mode));
     assert.equal(definition.colors['editor.background'], cssHex('background', mode));
     assert.equal(definition.colors['editor.foreground'], cssHex('foreground', mode));
     // gutter 双主题都钉到画布色，不继承 base 主题默认（浅色 vs 默认白会拼出第三底色）。
@@ -63,16 +67,17 @@ test('Monaco 注册的深色/浅色正文、gutter 与 CSS 画布对齐，浅色
     }
     if (mode === 'light') {
       assert.deepEqual(definition.colors, {
-        'editor.background': '#f3f3f5',
-        'editorGutter.background': '#f3f3f5',
-        'editor.foreground': '#1a1a1d',
-        // P2-E：#71717a 对画布（#f7f7f8 时代起）≥4.5:1（AA），旧 #8e8e96 仅 3.04:1。
-        'editorLineNumber.foreground': '#71717a',
-        'editorLineNumber.activeForeground': '#5e5e66',
-        'scrollbarSlider.background': '#c9c9d059',
-        'scrollbarSlider.hoverBackground': '#c9c9d099',
-        'scrollbarSlider.activeBackground': '#c9c9d0cc',
+        'editor.background': '#f5f5f5',
+        'editorGutter.background': '#f5f5f5',
+        'editor.foreground': '#1a1a1a',
+        // P2-E：浅色行号直接用提示文字色，对画布 ≥ 4.5:1（AA）。
+        'editorLineNumber.foreground': '#686868',
+        'editorLineNumber.activeForeground': '#5f5f5f',
+        'scrollbarSlider.background': '#cfcfcf59',
+        'scrollbarSlider.hoverBackground': '#cfcfcf99',
+        'scrollbarSlider.activeBackground': '#cfcfcfcc',
       });
+      assert.ok(contrastRatio(hexToRgb('#686868'), hexToRgb(cssHex('background', 'light'))) >= 4.5);
     }
   }
   ensureMonacoThemes(monaco);

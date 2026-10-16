@@ -145,23 +145,22 @@ test('空态居中图标 + 说明文字，LiveStatus 分相位播报读取中 �
   }
 });
 
-test('D1 视觉对齐：不再残留旧 accent token，主操作走 agent 系', async () => {
+test('外观对齐：主操作走强调色（作者可在外观里换），紫色只留给 AI', async () => {
   mocked.versions = [entry(100)];
   const view = renderHistory(() => undefined);
   try {
     await view.settle();
     const rootEl = view.container.querySelector('[data-testid="version-history"]');
     assert.ok(rootEl);
-    const offenders = rootEl.querySelectorAll('.bg-accent, .text-accent-foreground');
-    assert.equal(offenders.length, 0, '版本历史不应再使用旧 bg-accent / text-accent-foreground');
-    // 选中态与主操作按钮已是 agent 系。
+    const offenders = rootEl.querySelectorAll('[class*="-agent"]');
+    assert.equal(offenders.length, 0, '版本历史不是 AI 操作，不应使用 AI 紫');
     assert.ok(
-      rootEl.querySelector('[data-testid="version-view-list"]')?.classList.contains('bg-agent/10'),
+      rootEl.querySelector('[data-testid="version-view-list"]')?.classList.contains('bg-elevated'),
     );
     const restore = [...rootEl.querySelectorAll('button')].find((button) =>
       button.textContent?.includes('恢复'),
     );
-    assert.ok(restore?.classList.contains('bg-agent'));
+    assert.ok(restore?.classList.contains('bg-accent'));
     // 关闭按钮用 shell-icons 矢量图标（svg 由图标库渲染，不再是手写 path）。
     const close = rootEl.querySelector('button[aria-label="关闭版本历史"]');
     assert.ok(close?.querySelector('svg'), '关闭按钮应渲染 shell-icons 图标');
