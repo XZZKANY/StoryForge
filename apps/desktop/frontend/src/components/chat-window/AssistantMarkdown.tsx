@@ -1,6 +1,8 @@
 import type { Element, Root, Text } from 'hast';
 import ReactMarkdown from 'react-markdown';
+import remarkCjkFriendly from 'remark-cjk-friendly';
 import remarkGfm from 'remark-gfm';
+import { closeStreamingMarkdown } from './streaming-markdown';
 
 const CARET_STOP = new Set(['br', 'hr', 'img', 'input']);
 
@@ -40,6 +42,8 @@ function rehypeStreamCaret() {
 }
 
 const STREAMING_REHYPE = [rehypeStreamCaret];
+// CommonMark 不认紧贴汉字、又以中文标点开头或收尾的加粗（是**「醒来」**三段），模型偏偏常这么写。
+const REMARK = [remarkGfm, remarkCjkFriendly];
 
 export function AssistantMarkdown({
   content,
@@ -52,7 +56,7 @@ export function AssistantMarkdown({
     <div className="assistant-md" data-testid="assistant-markdown">
       <ReactMarkdown
         skipHtml
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={REMARK}
         rehypePlugins={streaming ? STREAMING_REHYPE : undefined}
         components={{
           a: ({ href, children }) => (
@@ -62,7 +66,7 @@ export function AssistantMarkdown({
           ),
         }}
       >
-        {content}
+        {streaming ? closeStreamingMarkdown(content) : content}
       </ReactMarkdown>
     </div>
   );

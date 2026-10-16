@@ -956,6 +956,23 @@ button:disabled[aria-busy='true'] {
   margin: 0.45em 0;
   padding-left: 1.35em;
 }
+/* Tailwind preflight 把列表符号清成 none：回复里的「三个问题」没有序号、要点没有圆点。 */
+.assistant-md ul {
+  list-style: disc;
+}
+.assistant-md ol {
+  list-style: decimal;
+}
+.assistant-md ul ul {
+  list-style: circle;
+}
+.assistant-md li::marker {
+  color: rgb(var(--muted));
+}
+.assistant-md ul.contains-task-list {
+  list-style: none;
+  padding-left: 0.2em;
+}
 .assistant-md li {
   margin: 0.2em 0;
 }
