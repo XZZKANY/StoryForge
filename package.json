@@ -9,8 +9,6 @@
     "verify:fast": "pnpm run lint",
     "hooks:install": "git config core.hooksPath .githooks",
     "dev": "pnpm desktop:dev",
-    "dev:maintenance": "node scripts/dev-start.mjs",
-    "dev:api": "node scripts/dev-start.mjs --api-only",
     "desktop:dev": "pnpm --filter @storyforge/desktop dev",
     "desktop:build": "pnpm --filter @storyforge/desktop build",
     "test": "pnpm run test:desktop && pnpm run test:project-core && pnpm run test:engine",

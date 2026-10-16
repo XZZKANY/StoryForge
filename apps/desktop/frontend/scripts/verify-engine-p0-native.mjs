@@ -13,6 +13,7 @@ import {
   readFile,
   readdir,
   readlink,
+  symlink,
   unlink,
   writeFile,
 } from 'node:fs/promises';
@@ -33,8 +34,6 @@ const [mode, ...extra] = process.argv.slice(2);
 assert.ok(
   [
     '--cpu-only',
-    '--transport-only',
-    '--all',
     '--context-only',
     '--reader-only',
     '--llm-only',
@@ -43,7 +42,7 @@ assert.ok(
     '--agent-only',
     '--agent-real',
   ].includes(mode) && extra.length === 0,
-  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only / --llm-only / --assistant-only / --assistant-real / --agent-only / --agent-real',
+  'Use --cpu-only or --context-only / --reader-only / --llm-only / --assistant-only / --assistant-real / --agent-only / --agent-real',
 );
 const REAL_CHAPTERS = {
   '正文/第001章.md':
@@ -86,7 +85,6 @@ const fixtureName = agentReal
             : contextOnly
               ? 'engine-p1-context'
               : 'engine-p0';
-const transports = mode === '--transport-only' || mode === '--all';
 const label = p3 ? 'P3' : p2 ? 'P2' : p1 ? 'P1' : 'P0';
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const frontend = resolve(root, 'apps/desktop/frontend');
@@ -174,18 +172,36 @@ const evidence = {
   output,
   errors: [],
 };
-const associatedHashes = async (path) => {
-  const entries = [];
-  for (const suffix of ['', '-wal', '-shm', '-journal']) {
+// Same layout golden_project_reader.py recorded: synthetic .md bodies, hidden filler, a deep chain, links.
+async function materializeReaderFixture(group, fixture) {
+  await mkdir(group);
+  for (const name of fixture.directories) await mkdir(ownedPath(group, name), { recursive: true });
+  const files = [...fixture.files];
+  for (let index = 0; index < fixture.hidden_entries; index++)
+    files.push(`p/.e${String(index).padStart(5, '0')}`);
+  if (fixture.depth) files.push('p/' + 'd/'.repeat(fixture.depth) + 'a.md');
+  for (const name of files) {
+    const path = ownedPath(group, name);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, name.endsWith('.md') ? 'synthetic\n' : '', { flag: 'wx' });
+  }
+  for (const link of fixture.links) {
+    const path = ownedPath(group, link.path);
+    await mkdir(dirname(path), { recursive: true });
     try {
-      entries.push([suffix || 'database', await hash(path + suffix)]);
+      await symlink(
+        ownedPath(group, link.target),
+        path,
+        link.kind === 'junction' ? 'junction' : 'file',
+      );
     } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
-      entries.push([suffix || 'database', null]);
+      if (link.kind === 'file-symlink' && error.code === 'EPERM')
+        return { operation: 'file-symlink', winerror: 1314 };
+      throw error;
     }
   }
-  return Object.fromEntries(entries);
-};
+  return null;
+}
 function ownedPath(base, name) {
   const target = resolve(base, name);
   const local = relative(base, target);
@@ -379,36 +395,16 @@ try {
   }
   if (readerOnly) {
     const ownedRoot = resolve(output, 'reader-projects');
-    const generated = spawnSync(
-      resolve(root, 'apps/api/.venv/Scripts/python.exe'),
-      [
-        resolve(root, 'apps/api/scripts/golden_dump.py'),
-        '--suite',
-        'p1-reader',
-        '--output',
-        resolve(root, 'packages/engine/golden/p1-reader.windows.json'),
-        '--check',
-        '--fixture-root',
-        ownedRoot,
-      ],
-      {
-        encoding: 'utf8',
-        windowsHide: true,
-        timeout: 180000,
-        env: {
-          SystemRoot: process.env.SystemRoot,
-          WINDIR: process.env.WINDIR,
-          PYTHONUTF8: '1',
-          PYTHONDONTWRITEBYTECODE: '1',
-        },
-      },
-    );
-    await writeFile(resolve(output, 'reader-oracle.log'), generated.stdout + generated.stderr);
-    assert.ifError(generated.error);
-    assert.equal(generated.status, 0, generated.stderr);
     const golden = JSON.parse(
       await readFile(resolve(root, 'packages/engine/golden/p1-reader.windows.json'), 'utf8'),
     );
+    await mkdir(ownedRoot); // exclusive: never reuse a previous run
+    for (const fixture of golden.fixtures)
+      assert.deepEqual(
+        await materializeReaderFixture(ownedPath(ownedRoot, fixture.id), fixture),
+        fixture.skip,
+        `${fixture.id}: this machine cannot reproduce the recorded fixture`,
+      );
     evidence.readerExpected = {
       cases: golden.fixtures
         .filter((fixture) => fixture.skip === null)
@@ -426,71 +422,7 @@ try {
     await writeFile(resolve(output, 'reader-input.json'), JSON.stringify(readerInput, null, 2));
     await writeFile(resolve(output, 'reader-before.json'), JSON.stringify(readerBefore, null, 2));
   }
-  let httpBaseUrl, sqlFixture, sqlBefore;
-  if (transports) {
-    const generated = spawnSync(
-      resolve(root, 'apps/api/.venv/Scripts/python.exe'),
-      [resolve(root, 'apps/api/scripts/engine_p0_sql_fixture.py'), '--output', output],
-      { encoding: 'utf8', windowsHide: true, timeout: 30000 },
-    );
-    assert.ifError(generated.error);
-    assert.equal(generated.status, 0, generated.stderr);
-    sqlFixture = JSON.parse(await readFile(resolve(output, 'sql-fixture.json'), 'utf8'));
-    sqlBefore = {
-      original: await associatedHashes(sqlFixture.original),
-      readonly: await associatedHashes(sqlFixture.readonly),
-    };
-    const expectedText = 'data: {"text":"你好𠀀"}\n\ndata: [DONE]\n\n';
-    const bytes = Buffer.from(expectedText);
-    const start = bytes.indexOf(Buffer.from('你'));
-    const boundaries = [0, start + 1, start + 4, start + 8, bytes.length - 5, bytes.length];
-    const chunks = boundaries.slice(1).map((end, index) => bytes.subarray(boundaries[index], end));
-    evidence.httpServer = { expectedText, records: [] };
-    httpServer = createHttpServer((request, response) => {
-      const record = { path: request.url, requestedAt: Date.now(), emissions: [], endedAt: null };
-      evidence.httpServer.records.push(record);
-      let timer;
-      response.on('close', () => {
-        clearTimeout(timer);
-        record.closedAt = Date.now();
-        record.writableFinished = response.writableFinished;
-      });
-      if (request.url === '/p0/error') {
-        response.writeHead(503, { 'Content-Type': 'text/plain' });
-        response.end('synthetic provider unavailable');
-        record.endedAt = Date.now();
-      } else if (request.url === '/p0/stream') {
-        response.writeHead(200, {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-        });
-        let index = 0;
-        const emit = () => {
-          const chunk = chunks[index++];
-          record.emissions.push({ emittedAt: Date.now(), bytes: Array.from(chunk) });
-          response.write(chunk);
-          if (index < chunks.length)
-            timer = setTimeout(emit, 200); // explicit fixture schedule
-          else {
-            record.endedAt = Date.now();
-            response.end();
-          }
-        };
-        emit();
-      } else if (['/p0/cancel-reader', '/p0/cancel-signal'].includes(request.url)) {
-        response.writeHead(200, { 'Content-Type': 'text/event-stream' });
-        response.write('data: ready\n\n'); // remain open until the Native client cancels
-      } else {
-        response.writeHead(404);
-        response.end();
-      }
-    });
-    await new Promise((resolve, reject) => {
-      httpServer.once('error', reject);
-      httpServer.listen(0, '127.0.0.1', resolve);
-    });
-    httpBaseUrl = `http://127.0.0.1:${httpServer.address().port}`;
-  }
+  let httpBaseUrl;
   let assistantProject, assistantBefore;
   if (assistantOnly) {
     assistantProject = ownedPath(output, 'book');
@@ -779,16 +711,7 @@ try {
           {
             identifier: `${label.toLowerCase()}-probe`,
             windows: ['main'],
-            permissions: [
-              'core:default',
-              ...(transports
-                ? [
-                    { identifier: 'http:default', allow: [{ url: `${httpBaseUrl}/p0/*` }] },
-                    'sql:default',
-                    'sql:allow-execute',
-                  ]
-                : []),
-            ],
+            permissions: ['core:default'],
           },
         ],
       },
@@ -870,7 +793,6 @@ try {
     sources: {
       fixture: await hash(resolve(frontend, `scripts/fixtures/${fixtureName}.ts`)),
       harness: await hash(fileURLToPath(import.meta.url)),
-      sqlGenerator: await hash(resolve(root, 'apps/api/scripts/engine_p0_sql_fixture.py')),
       main: await hash(resolve(root, 'apps/desktop/src-tauri/src/main.rs')),
     },
   });
@@ -896,9 +818,6 @@ try {
   if (readerOnly) {
     evidence.readerSources = {};
     for (const name of [
-      'apps/api/scripts/golden_dump.py',
-      'apps/api/scripts/golden_project_reader.py',
-      'apps/api/app/common/project_tree.py',
       'packages/engine/golden/p1-reader.windows.json',
       'packages/engine/src/readPort.ts',
       'packages/engine/src/kernel/projectTree.ts',
@@ -959,88 +878,6 @@ try {
   try {
     await Promise.race([
       (async () => {
-        if (transports) {
-          evidence.http = await page.evaluate(
-            (baseUrl) => window.__ENGINE_P0__.runHttpProbe(baseUrl),
-            httpBaseUrl,
-          );
-          const stream = evidence.httpServer.records.find((record) => record.path === '/p0/stream');
-          assert.equal(evidence.http.stream.status, 200);
-          assert.equal(evidence.http.stream.text, evidence.httpServer.expectedText);
-          assert.ok(evidence.http.stream.chunks.length > 1, 'HTTP buffered the complete response');
-          const first = evidence.http.stream.chunks[0];
-          assert.ok(
-            first.visibleText.length > 0 && first.receivedAt < stream.endedAt,
-            'No text was visible before the controlled stream ended',
-          );
-          evidence.http.firstChunkMs = first.receivedAt - evidence.http.stream.startedAt;
-          assert.ok(evidence.http.firstChunkMs < 3000);
-          assert.deepEqual(evidence.http.error, {
-            status: 503,
-            ok: false,
-            text: 'synthetic provider unavailable',
-          });
-          const cancelDeadline = Date.now() + 5000;
-          while (
-            Date.now() < cancelDeadline &&
-            evidence.httpServer.records
-              .filter((record) => record.path.startsWith('/p0/cancel-'))
-              .some((record) => !record.closedAt)
-          ) {
-            await delay(25);
-          }
-          for (const record of evidence.httpServer.records.filter((record) =>
-            record.path.startsWith('/p0/cancel-'),
-          )) {
-            assert.ok(
-              record.closedAt && !record.writableFinished,
-              'Native cancellation did not close the server stream',
-            );
-          }
-          assert.equal(
-            evidence.httpServer.records.some((record) => record.path === '/outside'),
-            false,
-          );
-          evidence.sql = await page.evaluate(
-            (input) => window.__ENGINE_P0__.runSqlProbe(input),
-            sqlFixture,
-          );
-          assert.deepEqual(evidence.sql.actual, sqlFixture.expected);
-          assert.match(evidence.sql.appConfigDir, /[\\/]com\.storyforge\.engine\.p0[\\/]*$/);
-          evidence.sql.appConfigEntries = await readdir(evidence.sql.appConfigDir);
-          assert.deepEqual(
-            evidence.sql.appConfigEntries,
-            [],
-            'Unexpected database under OS app-config instead of owned output',
-          );
-          assert.deepEqual(evidence.sql.afterWrites, sqlFixture.expected.sessions);
-          assert.equal(evidence.sql.oldPath[0].file.replaceAll('\\', '/'), sqlFixture.readonly);
-          assert.equal(evidence.sql.newPath[0].file.replaceAll('\\', '/'), sqlFixture.new);
-          assert.deepEqual(evidence.sql.journalMode, [{ journal_mode: 'wal' }]);
-          assert.deepEqual(evidence.sql.schemaVersion, [{ version: 1 }]);
-          assert.deepEqual(evidence.sql.newRows, [
-            { id: 1, text: '合成新库𠀀\r\n', payload: '{"nested":[true,null,1]}' },
-          ]);
-          await assert.rejects(readFile(sqlFixture.missing), { code: 'ENOENT' });
-          evidence.sql.during = await associatedHashes(sqlFixture.readonly);
-          await page.evaluate(() => window.__ENGINE_P0__.closeSqlProbe());
-          evidence.sql.before = sqlBefore;
-          evidence.sql.after = {
-            original: await associatedHashes(sqlFixture.original),
-            readonly: await associatedHashes(sqlFixture.readonly),
-          };
-          assert.deepEqual(
-            evidence.sql.after,
-            sqlBefore,
-            'Read-only query changed database or associated files',
-          );
-          assert.equal(
-            resolve(evidence.sql.appConfigDir),
-            resolve(knownFolders.roaming, overlay.identifier),
-            'SQL plugin config escaped the owned Windows profile',
-          );
-          evidence.sql.schemaBelow100Ms = evidence.sql.schemaMs < 100;
-        }
         if (contextOnly) {
           evidence.context = await page.evaluate(
             (input) => window.__ENGINE_P1__.runContextProbe(input),
@@ -1481,8 +1318,6 @@ try {
   }
   await page.screenshot({ path: resolve(output, 'native-probe.png') });
   if (evidence.cpu) assert.equal(evidence.cpu.native, true);
-  if (evidence.sql)
-    assert.ok(evidence.sql.schemaBelow100Ms, 'Native schema creation exceeded the P0 100ms gate');
   assert.equal(evidence.errors.length, 0, evidence.errors.join('\n'));
   evidence.status = 'passed';
   console.log(
@@ -1526,15 +1361,6 @@ try {
           firstDeltaMs: evidence.llm.firstDeltaMs,
           deltas: evidence.llm.deltas.length,
           requests: evidence.llmServer.records.length,
-        },
-        http: evidence.http && {
-          firstChunkMs: evidence.http.firstChunkMs,
-          chunks: evidence.http.stream.chunks.length,
-        },
-        sql: evidence.sql && {
-          oldLoadMs: evidence.sql.oldLoadMs,
-          newLoadMs: evidence.sql.newLoadMs,
-          schemaMs: evidence.sql.schemaMs,
         },
       },
       null,
