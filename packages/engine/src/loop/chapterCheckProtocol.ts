@@ -161,16 +161,26 @@ const QUOTE_FOLD = new Map([
   ['（', '('],
   ['）', ')'],
 ]);
-const QUOTE_SPACE = new Set(
+const WHITESPACE = new Set(
   [0x20, 0x09, 0x0a, 0x0d, 0x0c, 0x0b, 0x3000, 0xa0].map((code) => String.fromCodePoint(code)),
 );
+
+/**
+ * 正文字数：空白以外的每个字。把换行也算进去，短段落的稿子会被虚抬一成以上
+ * （10-16 真书第 6 章：2826 个汉字算成 3547）。
+ */
+export function chapterChars(text: string): number {
+  let count = 0;
+  for (const char of text) if (!WHITESPACE.has(char)) count += 1;
+  return count;
+}
 
 /** 折叠后的码点序列，及每个码点在原文里的下标。 */
 function foldForQuote(chars: readonly string[]): { folded: string[]; positions: number[] } {
   const folded: string[] = [];
   const positions: number[] = [];
   chars.forEach((char, index) => {
-    if (QUOTE_SPACE.has(char)) return;
+    if (WHITESPACE.has(char)) return;
     folded.push(QUOTE_FOLD.get(char) ?? char);
     positions.push(index);
   });
@@ -258,9 +268,10 @@ export function buildCheck(
   if (!pythonStrip(content)) findings.push(failure('draft_empty', '正文为空。'));
   const minimum = Math.trunc(Number(brief.target_chars_min));
   const maximum = Math.trunc(Number(brief.target_chars_max));
-  if (length < Math.trunc(minimum * 0.7) || length > Math.trunc(maximum * 1.3))
+  const chars = chapterChars(content);
+  if (chars < Math.trunc(minimum * 0.7) || chars > Math.trunc(maximum * 1.3))
     findings.push(
-      failure('word_count_out_of_range', `正文 ${length} 字，严重偏离 ${minimum}–${maximum} 字。`),
+      failure('word_count_out_of_range', `正文 ${chars} 字，严重偏离 ${minimum}–${maximum} 字。`),
     );
   let modelFindingCount = 0;
   const coverage: Obj = {

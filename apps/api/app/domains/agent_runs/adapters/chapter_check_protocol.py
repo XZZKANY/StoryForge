@@ -80,9 +80,10 @@ def build_check(
     if not content.strip():
         findings.append(_failure("draft_empty", "正文为空。"))
     minimum, maximum = int(brief["target_chars_min"]), int(brief["target_chars_max"])
-    if len(content) < int(minimum * 0.7) or len(content) > int(maximum * 1.3):
+    chars = chapter_chars(content)
+    if chars < int(minimum * 0.7) or chars > int(maximum * 1.3):
         findings.append(
-            _failure("word_count_out_of_range", f"正文 {len(content)} 字，严重偏离 {minimum}–{maximum} 字。")
+            _failure("word_count_out_of_range", f"正文 {chars} 字，严重偏离 {minimum}–{maximum} 字。")
         )
     model_finding_count = 0
     coverage = {
@@ -260,7 +261,17 @@ _QUOTE_FOLD = {
     "（": "(",
     "）": ")",
 }
-_QUOTE_SPACE = frozenset(chr(code) for code in (0x20, 0x09, 0x0A, 0x0D, 0x0C, 0x0B, 0x3000, 0xA0))
+_WHITESPACE = frozenset(chr(code) for code in (0x20, 0x09, 0x0A, 0x0D, 0x0C, 0x0B, 0x3000, 0xA0))
+
+
+def chapter_chars(text: str) -> int:
+    """Word count of a draft: every character except whitespace.
+
+    Counting line breaks lets short-paragraph drafts read a tenth or more longer than they are
+    (the 10-16 chapter 6 draft: 2,826 Han characters counted as 3,547).
+    """
+
+    return sum(char not in _WHITESPACE for char in text)
 
 
 def _fold_for_quote(text: str) -> tuple[str, list[int]]:
@@ -269,7 +280,7 @@ def _fold_for_quote(text: str) -> tuple[str, list[int]]:
     folded: list[str] = []
     positions: list[int] = []
     for index, char in enumerate(text):
-        if char in _QUOTE_SPACE:
+        if char in _WHITESPACE:
             continue
         folded.append(_QUOTE_FOLD.get(char, char))
         positions.append(index)

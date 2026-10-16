@@ -469,3 +469,38 @@ def test_actual_confirmed_chapter_pipeline_rechecks_once_and_offers_unchecked_dr
         assert "候选稿" in result["agent_result"]["summary"]
     assert len(prompts) == checks + 1
     assert target.read_text(encoding="utf-8") == ""
+
+
+def test_brief_seed_takes_its_default_length_from_the_books_recent_chapters(session, tmp_path, monkeypatch):
+    for name, text in (("第001章.md", "甲" * 900), ("第002章.md", "乙" * 1200), ("第003章.md", "")):
+        path = tmp_path / "正文" / name
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    prompts = []
+    monkeypatch.setattr(assistant_service, "missing_llm_env", lambda: [])
+
+    def chat_provider(_source, *, system_prompt, user_prompt):
+        prompts.append(user_prompt)
+        unsized = {k: v for k, v in BRIEF.items() if not k.startswith("target_chars") and k not in {"brief_id", "revision"}}
+        return {"content": json.dumps(unsized, ensure_ascii=False), "completion_tokens": 5, "latency_ms": 1}
+
+    monkeypatch.setattr(assistant_service, "_call_llm", chat_provider)
+    run = _seed_agent_run(session, public_id="run-brief-seed-from-book")
+    initial = AgentRuntime(_AgentRunEventSink(session)).run_user_message(
+        session,
+        run=run,
+        agent_session_id=run.session_id,
+        message={
+            "intent": "chapter.write",
+            "user_message": "写第三章",
+            "args": {
+                "project_path": str(tmp_path),
+                "file_path": str(tmp_path / "正文/第003章.md"),
+                "context_bundle": {"files": []},
+            },
+        },
+    )
+    brief = initial["agent_result"]["chapter_brief"]
+    # 模型没给字数：按本书最近两章（900、1200 字）的中位数取低位 900，下浮两成 700、上浮两成 1100。
+    assert (brief["target_chars_min"], brief["target_chars_max"]) == (700, 1100)
+    assert '"target_chars_min": 700, "target_chars_max": 1100' in prompts[0]

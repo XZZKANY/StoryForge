@@ -13,6 +13,7 @@ from app.domains.agent_runs.adapters.chapter_writing_contracts import (
     CHAPTER_WRITE_INTENT,
     build_brief_seed,
     confirm_brief,
+    recent_chapter_chars,
     resolve_target,
 )
 from app.domains.agent_runs.adapters.chapter_writing_contracts import (
@@ -110,6 +111,7 @@ class ChapterWritingRuntimeMixin(ChapterWritingToolsMixin):
             target_path=target_relative,
             planned=planned,
             plan=plan,
+            recent_chars=recent_chapter_chars(project_root, target_relative),
         )
         context = ToolExecutionContext(
             request.session,

@@ -3,12 +3,16 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from collections.abc import Mapping
+from bisect import bisect_left
+from collections.abc import Mapping, Sequence
+from os.path import normcase
 from pathlib import Path
 from typing import Any
 
+from app.common.manuscript import iter_manuscript_files
+from app.common.project_tree import MAX_READ_BYTES
 from app.domains.agent_runs import fs_tools, serial_plan
-from app.domains.agent_runs.adapters.chapter_check_protocol import build_check, check_prompt
+from app.domains.agent_runs.adapters.chapter_check_protocol import build_check, chapter_chars, check_prompt
 from app.domains.agent_runs.errors import AgentOrchestrationError
 
 CHAPTER_BRIEF_ARTIFACT_KIND = "chapter_brief"
@@ -41,15 +45,63 @@ def resolve_target(project_root: str, requested_path: object) -> tuple[str, str,
     return relative, absolute, planned
 
 
+# 没有连载计划时，章纲默认字数取本书最近几章：写死的 1600–2600 不认书，一章三四千字的书按它起草，
+# 检查要么以「字数严重偏离」拦下整章，要么修复把稿子压短。不足 _MIN_SAMPLE_CHARS 的占位短章不算样本。
+_LENGTH_SAMPLES = 3
+_LENGTH_SCAN = 10
+_MIN_SAMPLE_CHARS = 500
+
+
+def recent_chapter_chars(project_root: str, target_relative: str) -> list[int]:
+    """阅读序上目标章之前最近几章的字数（近的在前）；读不到、二进制、超预算或太短的跳过。"""
+
+    try:
+        root = Path(project_root).resolve()
+        ordered = iter_manuscript_files(root)
+    except OSError:
+        return []
+    keys = [path.relative_to(root).as_posix() for path in ordered]
+    existing = next((i for i, key in enumerate(keys) if normcase(key) == normcase(target_relative)), None)
+    index = existing if existing is not None else bisect_left(keys, target_relative)
+    counts: list[int] = []
+    for path in list(reversed(ordered[:index]))[:_LENGTH_SCAN]:
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(root)
+            with resolved.open("rb", buffering=0) as stream:
+                raw = stream.read(MAX_READ_BYTES + 1)
+        except (OSError, ValueError):
+            continue
+        if len(raw) > MAX_READ_BYTES or b"\x00" in raw[:1024]:
+            continue
+        count = chapter_chars(raw.decode("utf-8", errors="replace"))
+        if count >= _MIN_SAMPLE_CHARS:
+            counts.append(count)
+            if len(counts) == _LENGTH_SAMPLES:
+                break
+    return counts
+
+
+def book_chapter_range(counts: Sequence[int]) -> tuple[int, int] | None:
+    """近几章字数中位数下浮两成、上浮两成，分别向下、向上取整到百位；不足两章不下结论。"""
+
+    if len(counts) < 2:
+        return None
+    middle = sorted(counts)[(len(counts) - 1) // 2]
+    return max(100, middle * 4 // 500 * 100), -(-(middle * 6) // 500) * 100
+
+
 def build_brief_seed(
     *,
     user_message: str,
     target_path: str,
     planned: serial_plan.PlannedChapter | None,
     plan: serial_plan.SerialPlan | None,
+    recent_chars: Sequence[int] = (),
 ) -> dict[str, Any]:
     minimum = plan.chapter_word_count_min if plan is not None else None
     maximum = plan.chapter_word_count_max if plan is not None else None
+    book_minimum, book_maximum = book_chapter_range(recent_chars) or (None, None)
     return {
         "target_path": target_path,
         "chapter_ordinal": planned.ordinal if planned is not None else None,
@@ -60,8 +112,8 @@ def build_brief_seed(
         "required_beats": [],
         "forbidden_items": [],
         "continuity_constraints": [],
-        "target_chars_min": minimum or 1600,
-        "target_chars_max": maximum or 2600,
+        "target_chars_min": minimum or book_minimum or 1600,
+        "target_chars_max": maximum or book_maximum or 2600,
     }
 
 
@@ -229,12 +281,14 @@ __all__ = [
     "CHAPTER_CHECK_ARTIFACT_KIND",
     "CHAPTER_WRITE_INTENT",
     "brief_prompt",
+    "book_chapter_range",
     "build_brief_seed",
     "build_check",
     "check_prompt",
     "confirm_brief",
     "draft_instruction",
     "parse_brief",
+    "recent_chapter_chars",
     "repair_instruction",
     "resolve_target",
 ]
