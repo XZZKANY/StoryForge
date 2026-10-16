@@ -94,7 +94,18 @@ export function PatchReviewPanel({
   actionKind = null,
   error = null,
 }: PatchReviewPanelProps) {
-  const [expanded, setExpanded] = useState(false);
+  // 补丁一来审阅就占满编辑区、停在第一处改动（作者 10-16：此前默认在正文下方劈出一块、从第 1 行
+  // 开始，改动在文末时上下两半都看不到）。作者收起只对这一版补丁算数，下一版补丁又占满。
+  const [collapsedId, setCollapsedId] = useState<string | null>(null);
+  const expanded = collapsedId !== suggestion.id;
+  const setExpanded = useCallback(
+    (next: boolean | ((value: boolean) => boolean)) =>
+      setCollapsedId((collapsed) => {
+        const current = collapsed !== suggestion.id;
+        return (typeof next === 'function' ? next(current) : next) ? null : suggestion.id;
+      }),
+    [suggestion.id],
+  );
   const [rejection, setRejection] = useState<{
     suggestion: AssistantFileSuggestion;
     draft: string | null;
@@ -234,12 +245,14 @@ export function PatchReviewPanel({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [actionBusy, onAccept, runAction, suggestion]);
+  }, [actionBusy, onAccept, runAction, setExpanded, suggestion]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const diffEditorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
   const originalModelRef = useRef<monaco.editor.ITextModel | null>(null);
   const modifiedModelRef = useRef<monaco.editor.ITextModel | null>(null);
+  // 差异是异步算出来的：算完那一刻再停到第一处改动；挂载时与换了新补丁时各等一次。
+  const revealPendingRef = useRef(true);
 
   // 挂载期创建只读内联 diff 编辑器；suggestion 变化时只更新 model 内容，不销毁重建（保留滚动位置）。
   useEffect(() => {
@@ -263,11 +276,17 @@ export function PatchReviewPanel({
     diffEditor.getOriginalEditor().updateOptions({ lineNumbers: 'on' });
     const original = monaco.editor.createModel(suggestion.before, 'markdown');
     const modified = monaco.editor.createModel(suggestion.after, 'markdown');
+    const revealSubscription = diffEditor.onDidUpdateDiff(() => {
+      if (!revealPendingRef.current) return;
+      revealPendingRef.current = false;
+      diffEditor.revealFirstDiff();
+    });
     diffEditor.setModel({ original, modified });
     diffEditorRef.current = diffEditor;
     originalModelRef.current = original;
     modifiedModelRef.current = modified;
     return () => {
+      revealSubscription.dispose();
       diffEditor.dispose();
       original.dispose();
       modified.dispose();
@@ -278,28 +297,24 @@ export function PatchReviewPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 挂载期一次性创建 diff 编辑器；before/after 后续变化由下方 effect 同步到 model，避免销毁重建
   }, []);
 
-  // 同一面板实例上换了新补丁时，只刷新两个 model 的内容。
-  // 换新补丁（id 变化）时滚动到第一处差异：旧补丁的滚动位置对新 diff 没有意义，
-  // 停在中段会让作者以为面板是空的；同一补丁被分块接受局部刷新（id 不变）则保留位置。
+  // 同一面板实例上换了新补丁时，只刷新两个 model 的内容；新补丁（id 变化）等差异重算完再停到
+  // 第一处改动——立刻读 getLineChanges 拿到的还是上一版的差异。同一补丁被分块接受局部刷新（id 不变）
+  // 则保留位置。
   const lastSuggestionIdRef = useRef(suggestion.id);
   useEffect(() => {
+    let changed = false;
     if (originalModelRef.current && originalModelRef.current.getValue() !== suggestion.before) {
       originalModelRef.current.setValue(suggestion.before);
+      changed = true;
     }
     if (modifiedModelRef.current && modifiedModelRef.current.getValue() !== suggestion.after) {
       modifiedModelRef.current.setValue(suggestion.after);
+      changed = true;
     }
     if (lastSuggestionIdRef.current !== suggestion.id) {
       lastSuggestionIdRef.current = suggestion.id;
-      const diffEditor = diffEditorRef.current;
-      if (diffEditor) {
-        const firstChange = diffEditor.getLineChanges()?.[0];
-        if (firstChange && firstChange.originalStartLineNumber > 0) {
-          diffEditor.getOriginalEditor().revealLineNearTop(firstChange.originalStartLineNumber);
-        } else {
-          diffEditor.getOriginalEditor().setScrollTop(0);
-        }
-      }
+      revealPendingRef.current = changed;
+      if (!changed) diffEditorRef.current?.revealFirstDiff();
     }
   }, [suggestion.id, suggestion.before, suggestion.after]);
 
@@ -319,7 +334,7 @@ export function PatchReviewPanel({
       className={
         expanded
           ? 'absolute inset-0 z-10 flex min-h-0 flex-col overflow-hidden bg-panel'
-          : 'flex max-h-[70%] min-h-0 flex-shrink-0 flex-col overflow-hidden border-t border-border bg-panel animate-slide-up-fade'
+          : 'flex flex-shrink-0 flex-col overflow-hidden border-t border-border bg-panel animate-slide-up-fade'
       }
       data-review-expanded={expanded}
       onKeyDown={(event) => {
@@ -415,12 +430,12 @@ export function PatchReviewPanel({
               onClick={() => setExpanded((value) => !value)}
               data-testid="patch-expand"
               aria-expanded={expanded}
-              title={`${expanded ? '退出审阅 · Esc' : '专注审阅'} · Ctrl E`}
+              title={`${expanded ? '收起对比 · Esc' : '查看对比'} · Ctrl E`}
               size="xs"
               variant="secondary"
               className="text-xs"
             >
-              {expanded ? '退出审阅' : '专注审阅'}
+              {expanded ? '收起对比' : '查看对比'}
             </Button>
             <Button
               type="button"
@@ -547,11 +562,12 @@ export function PatchReviewPanel({
           </div>
         )}
       </div>
+      {/* 收起时只留上面一条操作栏，不在正文下方再劈出半块对比；展开时对比占满剩下的高度。 */}
       <div
         ref={containerRef}
         data-testid="patch-diff"
-        className="min-h-[160px] flex-1 border-t border-border w-full"
-        style={{ flexBasis: expanded ? 320 : 200 }}
+        className={`${expanded ? 'flex-1' : 'hidden'} min-h-[160px] w-full border-t border-border`}
+        hidden={!expanded}
       />
     </div>
   );

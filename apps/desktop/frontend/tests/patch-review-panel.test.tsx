@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, test } from 'vitest';
+import { __getLastDiffEditor } from 'monaco-editor';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -196,12 +197,16 @@ test('补丁操作有分组，展开和拒绝状态可读，拒绝输入具有�
   const group = container.querySelector('[role="group"][aria-label="补丁操作"]');
   assert.ok(group);
   assert.equal(group.querySelectorAll('button').length, 4);
-  assert.equal(byTestId('patch-expand')?.getAttribute('aria-expanded'), 'false');
-  click('patch-expand');
+  // 补丁一来审阅就占满编辑区；Esc 或「收起对比」收成一条操作栏，再点「查看对比」展开。
   assert.equal(byTestId('patch-expand')?.getAttribute('aria-expanded'), 'true');
   assert.equal(byTestId('patch-review')?.getAttribute('data-review-expanded'), 'true');
-  assert.equal(byTestId('patch-expand')?.textContent, '退出审阅');
+  assert.equal(byTestId('patch-expand')?.textContent, '收起对比');
   press('patch-expand', 'Escape');
+  assert.equal(byTestId('patch-review')?.getAttribute('data-review-expanded'), 'false');
+  assert.equal(byTestId('patch-expand')?.textContent, '查看对比');
+  click('patch-expand');
+  assert.equal(byTestId('patch-review')?.getAttribute('data-review-expanded'), 'true');
+  click('patch-expand');
   assert.equal(byTestId('patch-review')?.getAttribute('data-review-expanded'), 'false');
   assert.equal(byTestId('suggestion-reject')?.getAttribute('aria-expanded'), 'false');
   click('suggestion-reject');
@@ -575,4 +580,43 @@ test('审阅栏的说明是纯文本：模型回复里的 **加粗** 不露星�
   );
   assert.match(html, /结尾换成了卷帘门底下的拖痕，把悬念/);
   assert.doesNotMatch(html, /\*\*/);
+});
+
+test('补丁一来审阅占满编辑区，差异算完才停到第一处改动；同一补丁再算不再跳', () => {
+  mountPanel();
+  assert.equal(byTestId('patch-review')?.getAttribute('data-review-expanded'), 'true');
+  assert.equal(byTestId('patch-review')?.className.includes('absolute inset-0'), true);
+  const diff = __getLastDiffEditor();
+  assert.equal(diff.revealFirstDiffCalls, 0, '差异还没算完就跳，跳到的是空的');
+  act(() => diff.__fireDiffUpdate());
+  assert.equal(diff.revealFirstDiffCalls, 1);
+  act(() => diff.__fireDiffUpdate());
+  assert.equal(diff.revealFirstDiffCalls, 1, '作者滚开之后差异重算（比如改了字号）不该把他拽回去');
+});
+
+test('换了新补丁：收起只对上一版算数，新补丁又占满，并在新差异算完后停到它的第一处改动', () => {
+  mountPanel({ id: 'patch-a' });
+  const diff = __getLastDiffEditor();
+  act(() => diff.__fireDiffUpdate());
+  click('patch-expand');
+  assert.equal(byTestId('patch-review')?.getAttribute('data-review-expanded'), 'false');
+  mountPanel({
+    id: 'patch-b',
+    after: ['另一版的第一行', '第二行', ''].join(String.fromCharCode(10)),
+  });
+  assert.equal(byTestId('patch-review')?.getAttribute('data-review-expanded'), 'true');
+  assert.equal(diff.revealFirstDiffCalls, 1, '新补丁的差异没算完，不能拿上一版的差异去跳');
+  act(() => diff.__fireDiffUpdate());
+  assert.equal(diff.revealFirstDiffCalls, 2);
+});
+
+test('收起时只剩一条操作栏，不在正文下方再劈出半块对比', () => {
+  mountPanel();
+  click('patch-expand');
+  const panel = byTestId('patch-review')!;
+  assert.equal(panel.className.includes('max-h-[70%]'), false);
+  assert.equal(byTestId('patch-diff')?.hidden, true);
+  assert.ok(byTestId('suggestion-accept'), '收起后接受 / 拒绝仍然够得着');
+  click('patch-expand');
+  assert.equal(byTestId('patch-diff')?.hidden, false);
 });
