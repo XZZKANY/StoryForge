@@ -121,7 +121,7 @@ export function BookOverviewHero({
               <BookOpen size={24} strokeWidth={1.4} aria-hidden="true" />
               <span className="text-xs">{profile.profileError ? '封面未读取' : '暂无封面'}</span>
               {!profile.profileError && (
-                <span className="text-2xs leading-5 text-subtle group-hover:text-agent">
+                <span className="text-2xs leading-5 text-subtle group-hover:text-foreground">
                   {onEditProfile ? '点击添加' : '可在作品资料中添加'}
                 </span>
               )}
@@ -221,7 +221,7 @@ export function BookOverviewHero({
                     chapterListRef.current?.focus();
                   }
                 }}
-                className="interactive-press inline-flex h-9 items-center gap-2 rounded-md bg-agent px-4 text-sm font-medium text-agent-foreground transition-colors hover:bg-agent/90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="interactive-press inline-flex h-9 items-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
                 data-testid="book-overview-continue"
               >
                 <ArrowUp size={16} strokeWidth={1.8} aria-hidden="true" />
@@ -255,8 +255,8 @@ export function BookOverviewHero({
       <div className="min-h-[248px] rounded-lg bg-panel p-5" data-testid="book-overview-progress">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-medium text-foreground">写作进度</h2>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-agent/10">
-            <BookOpen size={16} className="text-agent" aria-hidden="true" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-elevated">
+            <BookOpen size={16} className="text-muted" aria-hidden="true" />
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-baseline gap-x-2">

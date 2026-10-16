@@ -132,7 +132,7 @@ test('迟到读取保留外观编辑，同时加载两个未编辑模型槽位',
   const read = deferred<DesktopLlmConfig | null>();
   vi.mocked(getDesktopLlmConfig).mockReturnValueOnce(read.promise);
   const view = await mount();
-  await edit(view.container, 'appearance-theme', 'light');
+  await click(required(view.container, '[data-testid="appearance-mode-light"]'));
   await act(async () => read.resolve(config));
   assert.equal(view.latest().theme, 'light');
   assert.equal(view.latest().provider.model, 'stored-main');
@@ -176,7 +176,7 @@ test('主槽保存迟到成功不回滚主题与润色草稿，清空提交密�
   const view = await mount();
   await edit(view.container, 'provider-api-key', 'synthetic-test-input');
   await click(button(view.container, 'provider', '保存并应用'));
-  await edit(view.container, 'appearance-theme', 'light');
+  await click(required(view.container, '[data-testid="appearance-mode-light"]'));
   await edit(view.container, 'polish-provider-model', 'fresh-polish');
   await act(async () => save.resolve(config));
   assert.equal(view.latest().theme, 'light');
@@ -193,7 +193,7 @@ test('润色保存迟到成功不回滚外观输入', async () => {
   vi.mocked(saveDesktopLlmConfig).mockReturnValueOnce(save.promise);
   const view = await mount();
   await click(button(view.container, 'polish-provider', '保存并应用'));
-  await edit(view.container, 'appearance-theme', 'light');
+  await click(required(view.container, '[data-testid="appearance-mode-light"]'));
   await act(async () => save.resolve(config));
   assert.equal(view.latest().theme, 'light');
   assert.equal(view.latest().polishProvider.apiKeyRef, 'stored://storyforge/llm-provider/polish');

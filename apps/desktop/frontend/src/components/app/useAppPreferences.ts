@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { resolveThemeMode } from '../../lib/appearance';
 import { getProviderPreset } from '../../lib/provider-config';
-import { applyTheme } from '../../lib/theme';
+import { applyAppearance } from '../../lib/theme';
 import { loadAppSettings, saveAppSettings } from '../../lib/user-settings';
 import { PROSE_MEASURE_ORDER, type ProseMeasure } from '../editor/options';
+import { useSystemPrefersDark } from './useSystemPrefersDark';
 
 function nextProseMeasure(current: ProseMeasure): ProseMeasure {
   const index = PROSE_MEASURE_ORDER.indexOf(current);
@@ -12,18 +14,25 @@ function nextProseMeasure(current: ProseMeasure): ProseMeasure {
 
 export function useAppPreferences() {
   const [settings, setSettings] = useState(() => loadAppSettings());
+  const prefersDark = useSystemPrefersDark();
+  const resolvedTheme = resolveThemeMode(settings.theme, prefersDark);
 
   useEffect(() => {
     saveAppSettings(settings);
   }, [settings]);
 
+  const { theme, palette, accent, customColors, uiFont } = settings;
   useEffect(() => {
-    applyTheme(settings.theme);
-  }, [settings.theme]);
+    applyAppearance({ theme, palette, accent, customColors, uiFont }, resolvedTheme);
+  }, [theme, palette, accent, customColors, uiFont, resolvedTheme]);
 
+  // 菜单里的「切换到浅色 / 深色」按眼前看到的切；跟随系统时切完就固定成那一档。
   const toggleTheme = useCallback(() => {
-    setSettings((prev) => ({ ...prev, theme: prev.theme === 'dark' ? 'light' : 'dark' }));
-  }, []);
+    setSettings((prev) => ({
+      ...prev,
+      theme: resolveThemeMode(prev.theme, prefersDark) === 'dark' ? 'light' : 'dark',
+    }));
+  }, [prefersDark]);
 
   // Q9 双轨字体：格子（CJK 2:1 等宽，中英对齐）↔ 书稿（衬线比例字体，长文像书）。
   const toggleFontMode = useCallback(() => {
@@ -52,6 +61,7 @@ export function useAppPreferences() {
   return {
     settings,
     setSettings,
+    resolvedTheme,
     toggleTheme,
     toggleFontMode,
     cycleProseMeasure,

@@ -113,7 +113,7 @@ function Tab({
         >
           {dirty && (
             <span
-              className="absolute h-2 w-2 rounded-full bg-agent transition-opacity group-hover:opacity-0 group-focus-within:opacity-0"
+              className="absolute h-2 w-2 rounded-full bg-muted transition-opacity group-hover:opacity-0 group-focus-within:opacity-0"
               data-testid="editor-tab-dirty"
             />
           )}

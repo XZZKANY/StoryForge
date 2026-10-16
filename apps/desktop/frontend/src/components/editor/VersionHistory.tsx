@@ -179,7 +179,7 @@ export function VersionHistory({
               key={value}
               type="button"
               aria-pressed={viewMode === value}
-              className={`rounded-md px-2 py-1 text-xs transition-colors ${viewMode === value ? 'bg-agent/10 text-agent' : 'text-muted hover:bg-elevated'}`}
+              className={`rounded-md px-2 py-1 text-xs transition-colors ${viewMode === value ? 'bg-elevated text-foreground' : 'text-muted hover:bg-elevated'}`}
               onClick={() => setViewMode(value)}
               data-testid={`version-view-${value}`}
             >
@@ -238,7 +238,7 @@ export function VersionHistory({
                 type="button"
                 aria-pressed={sourceFilter === value}
                 title={value === 'Agent' ? 'Agent 操作产生的快照' : undefined}
-                className={`rounded-md px-2 py-1 text-xs transition-colors ${sourceFilter === value ? 'bg-agent/10 text-agent' : 'text-muted hover:bg-elevated'}`}
+                className={`rounded-md px-2 py-1 text-xs transition-colors ${sourceFilter === value ? 'bg-elevated text-foreground' : 'text-muted hover:bg-elevated'}`}
                 onClick={() => setSourceFilter(value)}
                 data-testid={`version-filter-${value}`}
               >
@@ -330,7 +330,7 @@ export function VersionHistory({
                           disabled={busyPath !== null || !!v.unavailableReason}
                           aria-busy={busyPath === v.path || undefined}
                           onClick={() => void restore(v)}
-                          className="interactive-press rounded-md bg-agent px-2.5 py-1 text-xs text-agent-foreground transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="interactive-press rounded-md bg-accent px-2.5 py-1 text-xs text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {busyPath === v.path ? '恢复中…' : v.created ? '恢复为不存在' : '恢复'}
                         </button>

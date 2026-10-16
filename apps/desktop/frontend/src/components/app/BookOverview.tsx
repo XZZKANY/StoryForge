@@ -175,8 +175,8 @@ export function BookOverview({
           className="flex items-center gap-3 animate-fade-in-up"
           data-testid="book-overview-header"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-agent/10">
-            <Library size={20} strokeWidth={1.6} className="text-agent" aria-hidden="true" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-elevated">
+            <Library size={20} strokeWidth={1.6} className="text-muted" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-2xs uppercase tracking-[0.18em] text-subtle">作品总览</p>
@@ -353,7 +353,7 @@ export function BookOverview({
                       className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors hover:bg-elevated disabled:cursor-default"
                       data-testid="book-overview-chapter-row"
                     >
-                      <span className="flex h-7 w-8 flex-shrink-0 items-center justify-center rounded-md bg-elevated font-mono text-2xs text-subtle transition-colors group-hover:bg-agent/10 group-hover:text-agent">
+                      <span className="flex h-7 w-8 flex-shrink-0 items-center justify-center rounded-md bg-elevated font-mono text-2xs text-subtle transition-colors group-hover:bg-border group-hover:text-foreground">
                         {String(chapter.ordinal).padStart(2, '0')}
                       </span>
                       <span className="min-w-0 flex-1 truncate text-sm text-muted transition-colors group-hover:text-foreground">
@@ -397,7 +397,7 @@ export function BookOverview({
                 <button
                   type="button"
                   onClick={() => (onOpenAllChapters ?? onContinueWriting)()}
-                  className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-agent transition-colors hover:bg-agent/10"
+                  className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
                   data-testid="book-overview-view-all-chapters"
                 >
                   <span>查看全部章节</span>

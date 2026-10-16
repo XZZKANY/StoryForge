@@ -6,18 +6,20 @@
 /* StoryForge 桌面 IDE 中性深色调 —— 颜色 token 以空格分隔 RGB 通道暴露，
    供 Tailwind 的 rgb(var(--x) / <alpha-value>) 透明度修饰符使用。 */
 :root {
-  /* 近黑画布：导航提亮一档（三栏之间不画线，靠底色台阶分栏），卡片与交互再各抬一档。 */
-  --background: 16 16 18; /* #101012 画布底 */
-  --panel: 26 26 30; /* #1a1a1e 导航/Agent/头部：与画布拉开台阶，取代竖向分隔线 */
-  --surface: 33 33 37; /* #212125 卡片/浮层 */
-  --elevated: 42 42 47; /* #2a2a2f hover/选中态 */
-  --border: 52 52 57; /* #343439 控件描边 */
-  --border-strong: 72 72 79; /* #48484f 强调描边 */
-  --foreground: 237 237 237; /* #ededed 主文本 */
-  --muted: 168 168 178; /* #a8a8b2 次级文本（提升对比度至 4.5:1+） */
-  --subtle: 163 163 174; /* #a3a3ae 提示文本：含 elevated 表面均达到普通文字 AA */
-  --accent: 235 235 235; /* 单色强调：深色模式用近白，无品牌橙 */
-  --accent-foreground: 24 24 27;
+  /* 近黑画布：导航提亮一档（三栏之间不画线，靠底色台阶分栏），卡片与交互再各抬一档。
+     下面这组颜色 = lib/appearance.ts 默认外观（黑白、单色强调）的派生结果，首帧 JS 未跑时用它；
+     改一边必须同步另一边（tests/appearance.test.ts 逐值比对）。作者在「外观」里改色时由内联变量覆盖。 */
+  --background: 16 16 16; /* #101010 画布底 */
+  --panel: 27 27 27; /* #1b1b1b 导航/Agent/头部：与画布拉开台阶，取代竖向分隔线 */
+  --surface: 36 36 36; /* #242424 卡片/浮层 */
+  --elevated: 45 45 45; /* #2d2d2d hover/选中态 */
+  --border: 56 56 56; /* #383838 控件描边 */
+  --border-strong: 75 75 75; /* #4b4b4b 强调描边 */
+  --foreground: 236 236 236; /* #ececec 主文本 */
+  --muted: 170 170 170; /* #aaaaaa 次级文本：各常用表面均 ≥ 4.5:1 */
+  --subtle: 157 157 157; /* #9d9d9d 提示文本：含 elevated 表面均达到普通文字 AA */
+  --accent: 236 236 236; /* 单色强调：深色模式用前景色；作者可在「外观」换成彩色 */
+  --accent-foreground: 16 16 16;
   --error: 229 91 91;
   --warning: 235 201 126;
   --success: 115 202 128;
@@ -90,17 +92,17 @@
 
 /* 浅色主题：与深色共用同一组语义 token，仅翻转色值；单色强调改为近黑。 */
 :root[data-theme='light'] {
-  --background: 243 243 245; /* #f3f3f5 画布：与白面板拉开台阶，取代竖向分隔线 */
+  --background: 245 245 245; /* #f5f5f5 画布：与白面板拉开台阶，取代竖向分隔线 */
   --panel: 255 255 255; /* #ffffff 导航/头部 */
   --surface: 255 255 255; /* #ffffff 卡片（靠描边区分） */
-  --elevated: 238 238 241; /* #eeeef1 hover */
-  --border: 226 226 230; /* #e2e2e6 */
-  --border-strong: 201 201 208; /* #c9c9d0 */
-  --foreground: 26 26 29; /* #1a1a1d 主文本 */
-  --muted: 94 94 102; /* #5e5e66 次级文本 */
-  --subtle: 104 104 114; /* #686872 提示文本：白底与 elevated 表面均达到 AA */
-  --accent: 24 24 27; /* 单色强调：浅色模式用近黑 */
-  --accent-foreground: 250 250 250;
+  --elevated: 239 239 239; /* #efefef hover */
+  --border: 230 230 230; /* #e6e6e6 */
+  --border-strong: 207 207 207; /* #cfcfcf */
+  --foreground: 26 26 26; /* #1a1a1a 主文本 */
+  --muted: 95 95 95; /* #5f5f5f 次级文本 */
+  --subtle: 104 104 104; /* #686868 提示文本：画布与 elevated 表面均达到 AA */
+  --accent: 26 26 26; /* 单色强调：浅色模式用前景色 */
+  --accent-foreground: 255 255 255;
   --error: 200 56 56;
   /* P1 / P2-E：浅色主题下旧色（#b07a11 / #2a8c54）在 bg / panel / surface / elevated 四种底均
    * 不达 WCAG AA 4.5:1（最差 3.04:1）。新值按「最严底 surface #e8e8ea」设计：

@@ -112,14 +112,13 @@ test('设置有 dialog 语义并聚焦搜索，偏好重渲染不抢回当前控
     document.activeElement === required(container, '[data-testid="settings-search"]'),
     true,
   );
-  const theme = required<HTMLSelectElement>(container, '[data-testid="appearance-theme"]');
+  const light = required<HTMLButtonElement>(container, '[data-testid="appearance-mode-light"]');
   await act(async () => {
-    theme.focus();
-    theme.value = 'light';
-    theme.dispatchEvent(new Event('change', { bubbles: true }));
+    light.focus();
+    light.click();
   });
-  assert.equal(theme.value, 'light');
-  assert.equal(document.activeElement === theme, true);
+  assert.equal(light.getAttribute('aria-checked'), 'true');
+  assert.equal(document.activeElement === light, true);
 });
 
 test('设置 Tab 首尾环绕，Escape 关闭并恢复入口焦点', async () => {

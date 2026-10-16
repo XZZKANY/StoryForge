@@ -1,71 +1,78 @@
 /**
- * 主题应用：把 AppSettings.theme 落到根元素的 data-theme（驱动 index.css 的语义 token），
- * 并同步切换 Monaco 编辑器主题。深色为默认。
+ * 主题应用：把解析后的深 / 浅模式落到根元素的 data-theme，把外观派生出的 token 写成内联 CSS 变量
+ * （见 lib/appearance.ts），并同步切换 Monaco 编辑器主题。深色为默认。
  *
- * Monaco 不认 CSS 变量，只认 hex：内置 vs-dark 背景 (#1e1e1e) 与壳子 --background
- * (#101012) 有色差，会在编辑区凑出第三种底色，故自定义 storyforge 主题把编辑器
- * 背景 / 行号 / 滚动条 thumb 对齐 token。改 index.css 的 token 色值时必须同步这里。
+ * Monaco 不认 CSS 变量，只认 hex：内置 vs-dark 背景 (#1e1e1e) 与壳子 --background 有色差，
+ * 会在编辑区凑出第三种底色，故 storyforge 主题把编辑器背景 / 行号 / 滚动条 thumb 对齐同一份派生色板。
+ * Markdown 标题等语法色也改成色板里的前景（加粗）：内置 vs 主题会把 `# 第一章` 染成语法蓝。
  */
-import type { ThemeMode } from './user-settings';
+import {
+  DEFAULT_APPEARANCE,
+  applyAppearanceToDocument,
+  derivePalette,
+  mixRgb,
+  rgbToHex,
+  type AppearanceSettings,
+  type Palette,
+  type ThemeMode,
+} from './appearance';
 
 type MonacoModule = typeof import('monaco-editor');
+type MonacoThemeData = import('monaco-editor').editor.IStandaloneThemeData;
 
 export type StoryforgeMonacoTheme = 'storyforge-dark' | 'storyforge-light';
 
-const STORYFORGE_MONACO_THEMES: Array<{
-  name: StoryforgeMonacoTheme;
-  base: 'vs' | 'vs-dark';
-  colors: Record<string, string>;
-}> = [
-  {
-    name: 'storyforge-dark',
-    base: 'vs-dark',
-    colors: {
-      'editor.background': '#101012', // --background
-      'editorGutter.background': '#101012', // 行号边槽与正文保持同一底色
-      'editor.foreground': '#ededed', // --foreground
-      'editorLineNumber.foreground': '#7c7c85', // --subtle
-      'editorLineNumber.activeForeground': '#a1a1aa', // --muted
-      'scrollbarSlider.background': '#48484f59', // --border-strong @35%
-      'scrollbarSlider.hoverBackground': '#48484f99',
-      'scrollbarSlider.activeBackground': '#48484fcc',
-    },
-  },
-  {
-    name: 'storyforge-light',
-    base: 'vs',
-    colors: {
-      'editor.background': '#f3f3f5', // --background
-      // 与深色同规则：gutter 显式钉到画布色，不继承 base:'vs' 默认白，
-      // 否则编辑区左缘会拼出第三条底色（见 V1 审查）。
-      'editorGutter.background': '#f3f3f5',
-      'editor.foreground': '#1a1a1d', // --foreground
-      // P2-E 对比度：旧 #8e8e96 对 #f7f7f8 仅 3.04:1，未达 WCAG AA 4.5:1；
-      // #71717a = 4.51:1，且与 --muted (#5e5e66, 6.00:1) 仍能区分活跃/非活跃行号。
-      'editorLineNumber.foreground': '#71717a',
-      'editorLineNumber.activeForeground': '#5e5e66', // --muted
-      'scrollbarSlider.background': '#c9c9d059', // --border-strong @35%
-      'scrollbarSlider.hoverBackground': '#c9c9d099',
-      'scrollbarSlider.activeBackground': '#c9c9d0cc',
-    },
-  },
-];
+let currentAppearance: AppearanceSettings = DEFAULT_APPEARANCE;
+let definedSignature: string | null = null;
 
-let themesDefined = false;
+const paletteSignature = ({ palette, accent, customColors }: AppearanceSettings) =>
+  JSON.stringify({ palette, accent, customColors });
 
-/** 幂等注册 storyforge 主题；vitest 的 monaco stub 无 defineTheme，静默跳过。 */
+export function monacoThemeData(mode: ThemeMode, palette: Palette): MonacoThemeData {
+  const hex = rgbToHex;
+  const bare = (rgb: Palette[keyof Palette]) => rgbToHex(rgb).slice(1);
+  // 深色行号再压一档（装饰性信息）；浅色直接用提示文字色，保住 4.5:1。
+  const lineNumber =
+    mode === 'light' ? palette.subtle : mixRgb(palette.foreground, palette.background, 0.55);
+  return {
+    base: mode === 'dark' ? 'vs-dark' : 'vs',
+    inherit: true,
+    rules: [
+      { token: 'keyword.md', foreground: bare(palette.foreground), fontStyle: 'bold' },
+      { token: 'comment.md', foreground: bare(palette.muted) },
+      { token: 'string.link.md', foreground: bare(palette.muted) },
+      { token: 'string.md', foreground: bare(palette.foreground) },
+      { token: 'variable.md', foreground: bare(palette.foreground) },
+      { token: 'variable.source.md', foreground: bare(palette.foreground) },
+      { token: 'strong.md', fontStyle: 'bold' },
+      { token: 'emphasis.md', fontStyle: 'italic' },
+    ],
+    colors: {
+      'editor.background': hex(palette.background),
+      // gutter 显式钉到画布色，不继承 base 主题默认（浅色 vs 默认白会拼出第三底色）。
+      'editorGutter.background': hex(palette.background),
+      'editor.foreground': hex(palette.foreground),
+      'editorLineNumber.foreground': hex(lineNumber),
+      'editorLineNumber.activeForeground': hex(palette.muted),
+      'scrollbarSlider.background': `${hex(palette['border-strong'])}59`,
+      'scrollbarSlider.hoverBackground': `${hex(palette['border-strong'])}99`,
+      'scrollbarSlider.activeBackground': `${hex(palette['border-strong'])}cc`,
+    },
+  };
+}
+
+/** 按当前外观注册 storyforge 主题；色板没变就不重复注册。vitest 的 monaco stub 无 defineTheme，静默跳过。 */
 export function ensureMonacoThemes(monaco: MonacoModule): void {
-  if (themesDefined) return;
   if (typeof monaco.editor?.defineTheme !== 'function') return;
-  for (const theme of STORYFORGE_MONACO_THEMES) {
-    monaco.editor.defineTheme(theme.name, {
-      base: theme.base,
-      inherit: true,
-      rules: [],
-      colors: theme.colors,
-    });
+  const signature = paletteSignature(currentAppearance);
+  if (signature === definedSignature) return;
+  for (const mode of ['dark', 'light'] as const) {
+    monaco.editor.defineTheme(
+      monacoThemeFor(mode),
+      monacoThemeData(mode, derivePalette(mode, currentAppearance)),
+    );
   }
-  themesDefined = true;
+  definedSignature = signature;
 }
 
 export function monacoThemeFor(theme: ThemeMode): StoryforgeMonacoTheme {
@@ -80,10 +87,14 @@ export function currentMonacoTheme(): StoryforgeMonacoTheme {
     : 'storyforge-dark';
 }
 
+/** 外观设置变了（主题 / 强调色 / 自定义颜色 / 字体 / 模式）：记下来并按解析后的模式整体重刷。 */
+export function applyAppearance(settings: AppearanceSettings, mode: ThemeMode): void {
+  currentAppearance = settings;
+  applyTheme(mode);
+}
+
 export function applyTheme(theme: ThemeMode): void {
-  if (typeof document !== 'undefined') {
-    document.documentElement.dataset.theme = theme;
-  }
+  applyAppearanceToDocument(theme, currentAppearance);
   // 已打开的 Monaco 实例通过全局 setTheme 跟随；懒加载避免在非编辑场景引入 monaco。
   void import('monaco-editor')
     .then((monaco) => {
