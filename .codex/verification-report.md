@@ -8109,3 +8109,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 全量（本机内存吃紧，前台分段跑）：lint 0 错误 / 2 条既有 warning、前端类型检查、shared 与 project-core 契约、引擎 13518、前端 vitest（`--maxWorkers=3`）2236、行间续写真实 Monaco 回归（第一次 Vite 冷启动 `page.goto` 30 秒超时，重跑通过——两次门禁都是这样，内存紧时冷启动慢）、pytest 分五段合计 3326 通过 / 51 跳过、ruff、sidecar 冒烟 daily 档、OpenAPI 无漂移（只变版本号）。版本 bump 到 0.1.15。
 - 顺带：run 57 那篇被拒的稿子（1797 字）导出到 `output/ts-engine-p5/check-replay/练手实验-第001章-0.1.14稿.md`（gitignored）；稿中半角逗号与直引号为 0、全角逗号 106 个，0.1.14 的起草统一全角在作者真机上已生效。
 - 未联通：作者装 0.1.15 后在真窗口里点穿「开始起草 → 起草中… → 出补丁 → 接受」；起草超过 360 秒的极端情况仍会走结果未知分支（此时按钮保持置灰，靠「核对状态」取回）。
+
+## 2026-10-16 「开始起草」修复 出包记录 0.1.15
+
+- 构建：master `81ea6845`（#348，同时含另一窗口合入的 #345 设置页与文案清理、#347 外观设置）上 `pnpm desktop:build`（前台），exit 0。安装包 `apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_0.1.15_x64-setup.exe`，80,883,676 字节，SHA256 `8C2D2637A5367D94730C322FD66A5E39327F7DC1CB04D44DDBEE5851C0BB26E6`；安装包与桌面 exe 的 FileVersion 都是 0.1.15。
+- #348 合并前与 master 冲突（只有本文件，两边各自追加条目），按「master 在前、本 PR 条目在后」拼接解决；合并后的树上重跑 lint、前端类型检查、前端 vitest（2253）、行间续写真实 Monaco 回归，均通过。
+- 冻结 sidecar：`--packaged --skip-build` 冒烟全绿；起草定向断言（半角稿转全角、直引号回复读通、自动档检查器两次无效给「未经检查」并强制确认）照旧通过，冻结 exe 报 `app_version` 0.1.15。
+- 前端产物：`dist/assets/index-*.js` 含「起草中…」与 360000 时限。
+- 未联通：作者在真窗口里点穿「开始起草 → 起草中… → 出补丁 → 接受」。
