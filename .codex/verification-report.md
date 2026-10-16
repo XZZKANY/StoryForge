@@ -8695,3 +8695,9 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 改动：`VersionHistory` 改成 `fixed` 抽屉，顶在标题栏（h-9）下、贴窗口右缘，宽度继承壳层的 `--sf-history-drawer-width`：平衡态正好等于对话栏宽、压在对话栏上，编辑聚焦 / 窄窗轮流时 360（正文按行宽折行，右边多半是空的）；`AppShell` 根元素按 `historyDrawerWidth()` 写这个变量。抽屉一开就接过焦点，Esc（非组字）关掉，关后把焦点还给打开前的地方（通常是正文）。注释写明祖先不能带 transform（否则 fixed 改按祖先定位）。宽度用 Tailwind 任意值类 `w-[var(--sf-history-drawer-width,360px)]`（happy-dom 不认行内 `var()` 宽度，类名可测）。
 - 测试：新增 `version-history-drawer` 2 条（宽度规则；fixed 而非 absolute、接焦点、Esc 关、组字 Esc 不关、关后还焦点）；`workspace-layout-app` 加壳层变量 = 对话栏宽（1440 平衡态 389px）。变异 5 / 5 全杀。
 - 验证：前端 typecheck 绿；版本记录与布局相关 3 个测试文件 10 条绿；全量与真宿主截图见本组最后一条。
+
+## 2026-10-16 写作台入口与章节索引挪进 useWritingDesk，App.tsx 回到 400 行硬上限内
+
+- 起因：根门禁 `pnpm verify` 第 5 道（前端单测）里 `source-standards` 报 `src/App.tsx: 416 > 400`——上面「进写作台不再是空中栏」那刀把停下的章、写作台入口、中栏去处的接线写进了 App。
+- 改动：新增 `components/app/useWritingDesk.tsx`，章节索引（`useBookOverviewChapters`，含「写作台中栏空着时也激活」）、停下的那一章、`enterWritingDesk`、中栏去处节点都在这里；App 一行调用、`bookChapters` 取 `desk.chapters`，其余用法不变。行为不变。App.tsx 416 → 396 行。
+- 验证：`source-standards` 绿；写作台 / 总览 / 布局相关 6 个测试文件 28 条绿；搬家后的接线变异 4 / 4 全杀（不自动开章、取第一章、空书判定、索引不激活）。

@@ -4,14 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PaletteMode } from './components/CommandPalette';
 import { AppShell } from './components/app/AppShell';
 import { BookOverview } from './components/app/BookOverview';
-import { WritingDeskEmptyState } from './components/app/WritingDeskEmptyState';
 import { useMainSurface } from './components/app/useMainSurface';
 import { useOverviewActivity } from './components/app/useOverviewActivity';
 import { useAppDialog } from './components/app/AppDialog';
 import { useAppPreferences } from './components/app/useAppPreferences';
 import { useBookContext } from './components/app/useBookContext';
-import { useBookOverviewChapters } from './components/app/useBookOverviewChapters';
 import { useBookProfile } from './components/app/useBookProfile';
+import { useWritingDesk } from './components/app/useWritingDesk';
 import { nextCyclicEditorFile } from './components/app/editor-tabs-state';
 import { useEditorNavigation } from './components/app/useEditorNavigation';
 import { useEditorWorkspaceTabs } from './components/app/useEditorWorkspaceTabs';
@@ -272,15 +271,6 @@ export function App() {
     activeProject: workspace.activeProject,
     active: mainSurface === 'overview' || (shell.view === 'book' && !shell.sidebarHidden),
   });
-  const bookChapters = useBookOverviewChapters({
-    projectPath: workspace.activeProject,
-    currentFile: workspace.currentFile,
-    // 写作台中栏空着时也要知道停在哪一章，好给「接着写第 N 章」。
-    active: mainSurface === 'overview' || (mainSurface === 'workspace' && !tabs.displayedFile),
-  });
-  // 停下的那一章：与总览「继续写」同一条规则——当前章，否则阅读序最新一章。
-  const resumeChapter =
-    bookChapters.currentChapter ?? bookChapters.chapters[bookChapters.chapters.length - 1] ?? null;
 
   const search = useProjectSearch(workspace.activeProject);
   const {
@@ -312,14 +302,12 @@ export function App() {
     showRight();
   }, [showEditor, showRight]);
   // 空书「和 AI 聊聊这本书」：对话占满中右，先聊后写；之后打开任何文件编辑区会自己回来。
-  // 进写作台中栏不该空着（作者 10-16 ①）：没开着文件就打开停下的那一章；空书留给中栏的「先聊聊」。
-  const enterWritingDesk = useCallback(() => {
-    continueWriting(tabs.displayedFile ? undefined : resumeChapter?.relativePath);
-  }, [continueWriting, resumeChapter, tabs.displayedFile]);
   const discussBook = useCallback(() => {
     showEditor();
     shell.setLayoutMode('chat');
   }, [showEditor, shell]);
+  const desk = useWritingDesk(workspace, tabs, mainSurface, continueWriting, discussBook);
+  const bookChapters = desk.chapters;
   // 「AI 起草下一章」：先展开右栏（brief 在右栏确认），事件由常驻 ChatWindow 消费；
   // 章节源优先总览索引，总览未激活时（手稿视图）回落到底座快照。
   const draftNextChapter = useCallback(() => {
@@ -391,22 +379,14 @@ export function App() {
               agentRun={activity.agentRun}
               onOpenAgentRun={showAgent}
               onEditProfile={openBookProfileEditor}
-              onEnterWritingDesk={enterWritingDesk}
+              onEnterWritingDesk={desk.enterWritingDesk}
               onDraftNextChapter={draftNextChapter}
               onDiscussBook={discussBook}
               promises={observatory.promises}
             />
           ) : null
         }
-        writingDeskEmptyState={
-          <WritingDeskEmptyState
-            resumeOrdinal={resumeChapter?.ordinal ?? null}
-            bookEmpty={bookChapters.status === 'available' && bookChapters.chapters.length === 0}
-            loading={bookChapters.status === 'loading' || bookChapters.status === 'unavailable'}
-            onResume={resumeChapter ? () => continueWriting(resumeChapter.relativePath) : undefined}
-            onDiscussBook={discussBook}
-          />
-        }
+        writingDeskEmptyState={desk.emptyState}
         initialCursors={session.initialCursors}
         onCursorPersist={session.recordCursor}
         onOpenLibrary={openLibrary}
