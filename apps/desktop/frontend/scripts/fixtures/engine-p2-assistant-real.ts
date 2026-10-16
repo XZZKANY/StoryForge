@@ -23,7 +23,6 @@ const describe = (error: unknown) => ({
 // polish gate; Ctrl+Shift+K continues from the last line with the inline context bundle.
 async function runAssistantRealRun(input: { projectRoot: string; chapter: string }) {
   assert(isTauri(), 'Real run requires the real Native host');
-  localStorage.setItem('engine.assistant', 'ts');
   const { source, secrets } = await nativeLlmSource('main');
   const filePath = `${input.projectRoot}\\正文\\第002章.md`;
   const before = input.chapter.replace(/\r\n?/g, '\n');

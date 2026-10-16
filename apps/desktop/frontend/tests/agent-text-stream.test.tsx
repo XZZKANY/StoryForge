@@ -9,6 +9,12 @@ import { MessageList } from '../src/components/chat-window/panels';
 import { isAgentTextFrame } from '../src/lib/api/agent-text-stream';
 import type { AgentResultMessage } from '../src/lib/api-client';
 
+// 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
+vi.mock('../src/lib/api/agent-socket', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/lib/api/agent-socket')>()),
+  ...(await import('./support/http-agent-double')),
+}));
+
 vi.mock('../src/lib/api/config', async (original) => ({
   ...(await original<typeof import('../src/lib/api/config')>()),
   getApiConfig: vi.fn(async () => ({ baseUrl: 'http://fixture', apiKey: 'fixture' })),

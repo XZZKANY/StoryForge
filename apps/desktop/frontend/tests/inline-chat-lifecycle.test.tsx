@@ -7,6 +7,12 @@ import { useInlineChat } from '../src/components/editor/useInlineChat';
 import { invalidateFileSystemCache } from '../src/lib/tauri-fs';
 import { writeAgentPermissionProfile } from '../src/lib/agent-permission';
 
+// 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
+vi.mock('../src/lib/api/assistant', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/lib/api/assistant')>()),
+  ...(await import('./support/http-assistant-double')),
+}));
+
 vi.mock('monaco-editor', () => ({
   KeyMod: { CtrlCmd: 1, Shift: 2 },
   KeyCode: { KeyK: 4 },
@@ -130,8 +136,6 @@ beforeEach(() => {
     return frames.length;
   });
   localStorage.clear();
-  // 测的是 Python 传输：开发档默认已走引擎，这里钉回 python。
-  localStorage.setItem('engine.assistant', 'python');
   window.__STORYFORGE_MOCK_FS__ = { listDir: () => [], readFile: () => '' };
   invalidateFileSystemCache();
   host = document.createElement('div');

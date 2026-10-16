@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 import {
   buildContextBundle,
   buildProjectIndexFromEntries,
@@ -6,6 +6,12 @@ import {
 } from '../src/lib/project-context';
 import { streamContinueProse } from '../src/lib/api/assistant';
 import { invalidateFileSystemCache } from '../src/lib/tauri-fs';
+
+// 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
+vi.mock('../src/lib/api/assistant', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/lib/api/assistant')>()),
+  ...(await import('./support/http-assistant-double')),
+}));
 
 const ROOT = '/tmp/storyforge-context-order-fixture';
 const entries = (paths: string[]) =>
@@ -39,9 +45,6 @@ for (const [label, ordered] of orders) {
     }
   });
 }
-
-// 测的是 Python 传输：开发档默认已走引擎，这里钉回 python。
-beforeEach(() => localStorage.setItem('engine.assistant', 'python'));
 
 afterEach(() => {
   delete window.__STORYFORGE_MOCK_FS__;

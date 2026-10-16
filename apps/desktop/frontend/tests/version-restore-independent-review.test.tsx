@@ -36,6 +36,8 @@ vi.mock('../src/lib/author-loop', async (load) => ({
 vi.mock('../src/lib/serial-plan', async (load) => ({
   ...(await load<typeof import('../src/lib/serial-plan')>()),
   markChapterWrittenInPlan: effects.mark,
+  // 撤销连载计划标记是另一条 IDE 命令（引擎里跑），这里只看恢复与删除怎么收尾。
+  unmarkChapterWrittenInPlan: effects.mark,
 }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const PROJECT = 'D:/disk-contract';

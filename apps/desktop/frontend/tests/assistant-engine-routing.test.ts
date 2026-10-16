@@ -1,10 +1,13 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
+import type { Db } from '@storyforge/engine';
+import { nodeSqliteDb } from '../../../../packages/engine/src/store/nodeSqlite.test-support';
 
 const engine = vi.hoisted(() => ({
   initialized: vi.fn(),
   sent: [] as { url: string; body: unknown }[],
   replies: [] as { status: number; chunks: string[] }[],
   source: {} as Record<string, string>,
+  db: null as unknown as Db,
 }));
 
 vi.mock('@tauri-apps/api/app', () => ({ getVersion: async () => '0.1.10' }));
@@ -61,9 +64,13 @@ vi.mock('../src/lib/engine/reader', () => {
     },
   };
 });
-vi.mock('../src/lib/api/config', () => ({
-  getApiConfig: async () => ({ baseUrl: 'http://synthetic-api.invalid/', apiKey: 'transport-key' }),
-  trimApiBaseUrl: (url: string) => url.replace(/\/+$/, ''),
+// 会话与工具调用证据链写进引擎库（node:sqlite 替身）。
+vi.mock('../src/lib/engine/db', () => ({
+  nativeEngineDb: {
+    select: (sql: string, params?: never[]) => engine.db.select(sql, params),
+    transaction: (steps: never[]) => engine.db.transaction(steps),
+  },
+  nativePythonDb: { snapshot: async () => null },
 }));
 
 const SOURCE = {
@@ -83,32 +90,18 @@ const sse = (...texts: string[]) => [
   'data: [DONE]\n\n',
 ];
 
-type StoreCall = { method: string; url: string; body: Record<string, unknown> | null };
-let storeCalls: StoreCall[] = [];
-let nextId = 1;
-
-function stubStore(overrides: Record<string, Response> = {}) {
-  storeCalls = [];
-  nextId = 1;
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string, init: RequestInit) => {
-      const body = init.body ? JSON.parse(init.body as string) : null;
-      storeCalls.push({ method: init.method!, url, body });
-      const override = overrides[`${init.method} ${url}`];
-      if (override) return override;
-      const id = nextId++;
-      return new Response(
-        JSON.stringify({ id, project_path: 'D:/book', input_summary: body?.input_summary ?? {} }),
-        { status: 200 },
-      );
-    }),
-  );
-}
+type Row = Record<string, unknown>;
+const rows = (sql: string, params: unknown[] = []) =>
+  engine.db.select(sql, params as never[]) as Promise<Row[]>;
+const json = (value: unknown) => JSON.parse(String(value)) as Record<string, unknown>;
+const latestSession = async () =>
+  (await rows('SELECT * FROM assistant_sessions ORDER BY id DESC LIMIT 1'))[0];
 
 // 冷加载整个引擎包在满载机器上会超过单条用例的 5 秒预算，先在这里加载。
 beforeAll(async () => {
   await import('../src/lib/engine/assistant');
+  // 引擎库在一个 WebView 里只打开一次：整个文件共用一个库。
+  engine.db = nodeSqliteDb();
 }, 60_000);
 
 beforeEach(() => {
@@ -116,14 +109,19 @@ beforeEach(() => {
   engine.sent = [];
   engine.replies = [];
   engine.source = { ...SOURCE };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      throw new Error('修订、续写与会话都在进程内跑，不该再发 HTTP');
+    }),
+  );
 });
 afterEach(() => {
   vi.unstubAllGlobals();
   localStorage.clear();
 });
 
-it('dev routes revise and provider health to the engine when no preference is set', async () => {
-  stubStore();
+it('revise and provider health run on the engine', async () => {
   engine.replies.push(
     { status: 200, chunks: sse('她回头。') },
     { status: 200, chunks: [JSON.stringify({ data: [{ id: 'deepseek-v4' }] })] },
@@ -135,14 +133,10 @@ it('dev routes revise and provider health to the engine when no preference is se
     'https://llm.example/v1/chat/completions',
     'https://llm.example/v1/models',
   ]);
-  expect(storeCalls.map((call) => call.url)).not.toContain(
-    'http://synthetic-api.invalid/api/assistant/revise',
-  );
+  expect(fetch).not.toHaveBeenCalled();
 });
 
-it('ts revises through the engine and records the evidence chain in the Python session store', async () => {
-  localStorage.setItem('engine.assistant', 'ts');
-  stubStore();
+it('revises through the engine and records the evidence chain in the engine database', async () => {
   engine.replies.push({ status: 200, chunks: sse('她回头。') });
   const { reviseFileContent } = await import('../src/lib/api/assistant');
   const result = await reviseFileContent({
@@ -158,26 +152,27 @@ it('ts revises through the engine and records the evidence chain in the Python s
     model: 'deepseek-v4',
     latencyMs: expect.any(Number),
     completionTokens: 2,
-    assistantSessionId: 1,
+    assistantSessionId: expect.any(Number),
   });
-  expect(storeCalls.map((call) => `${call.method} ${call.url}`)).toEqual([
-    'POST http://synthetic-api.invalid/api/assistant/sessions',
-    'POST http://synthetic-api.invalid/api/assistant/sessions/1/tool-calls',
-    'PATCH http://synthetic-api.invalid/api/assistant/tool-calls/2',
-    'PATCH http://synthetic-api.invalid/api/assistant/tool-calls/2',
-    'POST http://synthetic-api.invalid/api/assistant/sessions/1/messages',
-  ]);
-  expect(storeCalls[0].body).toEqual({
+  const session = await latestSession();
+  expect(session).toMatchObject({
+    id: result.assistantSessionId,
     title: '修订 正文/第001章.md',
     task_type: 'desktop_revise',
     project_path: 'D:/book',
-    messages: [{ role: 'user', content: '改成她' }],
   });
-  expect(storeCalls[2].body).toHaveProperty('input_summary.generation_sources.version');
-  expect(storeCalls[3].body).toMatchObject({
-    status: 'completed',
-    output_summary: { after_chars: 4 },
-  });
+  const messages = await rows(
+    'SELECT role, content FROM assistant_messages WHERE session_id = $1 ORDER BY id',
+    [session.id],
+  );
+  expect(messages[0]).toEqual({ role: 'user', content: '改成她' });
+  expect(messages.map((message) => message.role)).toEqual(['user', 'assistant']);
+  const [call] = await rows('SELECT * FROM assistant_tool_calls WHERE session_id = $1', [
+    session.id,
+  ]);
+  expect(call.status).toBe('completed');
+  expect(json(call.input_summary)).toHaveProperty('generation_sources.version');
+  expect(json(call.output_summary)).toMatchObject({ after_chars: 4 });
   expect(engine.sent).toHaveLength(1);
   expect(engine.sent[0]).toMatchObject({
     url: 'https://llm.example/v1/chat/completions',
@@ -185,9 +180,7 @@ it('ts revises through the engine and records the evidence chain in the Python s
   });
 });
 
-it('ts continues with deltas and returns the post-processed done text', async () => {
-  localStorage.setItem('engine.assistant', 'ts');
-  stubStore();
+it('continues with deltas and returns the post-processed done text', async () => {
   engine.replies.push({ status: 200, chunks: sse('他推开门。', '雨很大。半') });
   const { streamContinueProse } = await import('../src/lib/api/assistant');
   const deltas: string[] = [];
@@ -202,15 +195,14 @@ it('ts continues with deltas and returns the post-processed done text', async ()
   expect(result).toEqual({
     text: '他推开门。雨很大。',
     model: 'deepseek-v4',
-    assistantSessionId: 1,
+    assistantSessionId: (await latestSession()).id,
   });
   expect(engine.sent[0].body).toMatchObject({ max_completion_tokens: 900, stream: true });
 });
 
-it('ts surfaces the same plain error text Python would put in detail', async () => {
-  localStorage.setItem('engine.assistant', 'ts');
+it('surfaces plain error texts (the same ones Python put in detail)', async () => {
   engine.source = { ...SOURCE, STORYFORGE_LLM_MODEL: '' };
-  stubStore();
+  const before = (await rows('SELECT id FROM assistant_sessions')).length;
   const { reviseFileContent, streamContinueProse } = await import('../src/lib/api/assistant');
   const error = await reviseFileContent({
     filePath: 'a.md',
@@ -220,23 +212,15 @@ it('ts surfaces the same plain error text Python would put in detail', async () 
   expect(error).toBeInstanceOf(Error);
   expect((error as Error).constructor).toBe(Error);
   expect((error as Error).message).toBe('真实 LLM 未配置，缺少环境变量：STORYFORGE_LLM_MODEL');
-  expect(storeCalls).toEqual([]);
+  expect((await rows('SELECT id FROM assistant_sessions')).length).toBe(before);
 
   engine.source = { ...SOURCE };
-  stubStore({
-    'GET http://synthetic-api.invalid/api/assistant/sessions/7': new Response(
-      JSON.stringify({ detail: 'Assistant 会话不存在：7。' }),
-      { status: 404 },
-    ),
-  });
   await expect(
-    streamContinueProse({ filePath: 'a.md', content: 'a', cursorLine: 1, assistantSessionId: 7 }),
-  ).rejects.toThrow('Assistant 会话不存在：7。');
+    streamContinueProse({ filePath: 'a.md', content: 'a', cursorLine: 1, assistantSessionId: 999 }),
+  ).rejects.toThrow('Assistant 会话不存在：999。');
 });
 
-it('ts turns an error frame into a thrown error, like the Python SSE parser', async () => {
-  localStorage.setItem('engine.assistant', 'ts');
-  stubStore();
+it('turns an error frame into a thrown error', async () => {
   engine.replies.push({ status: 200, chunks: sse('他推开门走进雨里去了。') });
   const { streamContinueProse } = await import('../src/lib/api/assistant');
   await expect(
@@ -244,9 +228,7 @@ it('ts turns an error frame into a thrown error, like the Python SSE parser', as
   ).rejects.toThrow('模型这一轮没有写出新内容（可能只是复述了上文）。');
 });
 
-it('ts stops at the next stream read once the author cancels and records the run as paused', async () => {
-  localStorage.setItem('engine.assistant', 'ts');
-  stubStore();
+it('stops at the next stream read once the author cancels and records the call as paused', async () => {
   engine.replies.push({ status: 200, chunks: sse('他推开门。', '雨很大。') });
   const { streamContinueProse } = await import('../src/lib/api/assistant');
   const controller = new AbortController();
@@ -259,15 +241,12 @@ it('ts stops at the next stream read once the author cancels and records the run
     onDelta: () => controller.abort(),
   }).catch((caught: unknown) => caught);
   expect((outcome as Error).name).toBe('RunInterrupted');
-  const last = storeCalls[storeCalls.length - 1];
-  expect(last).toMatchObject({
-    method: 'PATCH',
-    body: { status: 'paused', output_summary: { interruption_reason: 'stopped' } },
-  });
+  const [last] = await rows('SELECT * FROM assistant_tool_calls ORDER BY id DESC LIMIT 1');
+  expect(last.status).toBe('paused');
+  expect(json(last.output_summary)).toMatchObject({ interruption_reason: 'stopped' });
 });
 
-it('ts probes provider health through the engine', async () => {
-  localStorage.setItem('engine.assistant', 'ts');
+it('probes provider health through the engine', async () => {
   engine.replies.push({
     status: 200,
     chunks: [JSON.stringify({ data: [{ id: 'deepseek-v4' }] })],

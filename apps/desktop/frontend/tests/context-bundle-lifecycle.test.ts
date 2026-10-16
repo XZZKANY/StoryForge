@@ -6,6 +6,12 @@ import { loadInlineContinueContext } from '../src/lib/inline-continue-context';
 import { buildContextBundle, invalidateContextBundleCache } from '../src/lib/project-context';
 import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/tauri-fs';
 
+// 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
+vi.mock('../src/lib/api/assistant', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/lib/api/assistant')>()),
+  ...(await import('./support/http-assistant-double')),
+}));
+
 const PROJECT = 'D:/Books/context-lifecycle';
 const SOURCE = `${PROJECT}/设定/a.md`;
 const OLD = 'OLD_SOURCE：铜钥匙。';
@@ -44,8 +50,6 @@ beforeEach(() => {
   disk.clear();
   disk.set(SOURCE, OLD);
   localStorage.clear();
-  // 测的是 Python 传输：开发档默认已走引擎，这里钉回 python。
-  localStorage.setItem('engine.assistant', 'python');
   window.__STORYFORGE_MOCK_FS__ = {
     readFile: readCurrent,
     listDir: entries,

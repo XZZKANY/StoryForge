@@ -66,8 +66,6 @@ beforeEach(() => {
   fixture.source = CONFIGURED;
   fixture.sent = [];
   fixture.reply = () => ({ status: 200, text: completion(FINDINGS) });
-  vi.stubEnv('DEV', true);
-  localStorage.setItem('engine.assistant', 'ts');
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => {
@@ -106,16 +104,4 @@ it("fails with the same texts as Python's route", async () => {
 
   fixture.reply = () => ({ status: 500, text: '{"error":{"message":"上游出错"}}' });
   await expect(request({ chapters: TWO })).rejects.toThrow(/^跨章一致性 LLM 调用失败：/);
-});
-
-it('the Python route stays the default and does not load the engine', async () => {
-  localStorage.setItem('engine.assistant', 'python');
-  const fetchMock = vi.fn(
-    async () =>
-      new Response(JSON.stringify({ findings: [], model: 'm', latency_ms: 5 }), { status: 200 }),
-  );
-  vi.stubGlobal('fetch', fetchMock);
-  expect(await request({ chapters: TWO })).toEqual({ findings: [], model: 'm', latencyMs: 5 });
-  expect(fetchMock).toHaveBeenCalledOnce();
-  expect(fixture.sent).toEqual([]);
 });

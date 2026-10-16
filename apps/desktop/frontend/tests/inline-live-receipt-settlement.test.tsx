@@ -10,6 +10,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { editor as monacoEditor, __getLastEditor, __resetMonacoStub } from 'monaco-editor';
 import { Editor } from '../src/components/Editor';
 
+// 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
+vi.mock('../src/lib/api/assistant', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/lib/api/assistant')>()),
+  ...(await import('./support/http-assistant-double')),
+}));
+
 const effects = vi.hoisted(() => ({
   snapshot: vi.fn(async () => ({ timestamp: 1, created: false })),
   record: vi.fn(async (_record: RevisionLoopRecord) => ({
@@ -206,8 +212,6 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue(Response.json({ after: AFTER, model: 'fixture', assistant_session_id: 71 }));
   vi.stubGlobal('fetch', fetchMock);
-  // 测的是 Python 传输：开发档默认已走引擎，这里钉回 python。
-  localStorage.setItem('engine.assistant', 'python');
 });
 afterEach(() => {
   vi.unstubAllGlobals();

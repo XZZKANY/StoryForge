@@ -1,7 +1,4 @@
 import type { components } from '../../../../../../packages/shared/src/generated/api-types';
-import { getApiConfig, trimApiBaseUrl } from './config';
-import { readErrorDetail } from './errors';
-import { sessionsInEngine } from '../engine/flags';
 
 export type ChapterCheckHistoryRequest = components['schemas']['ChapterCheckHistoryQuery'];
 type ExecutionStatus = 'completed' | 'failed' | 'incomplete';
@@ -195,24 +192,13 @@ export function decodeChapterCheckHistory(
   return { entries, truncated: raw.truncated };
 }
 
+/** 检查历史是会话下 run 的 artifact，与会话同在引擎库。 */
 export async function queryChapterCheckHistory(
   request: ChapterCheckHistoryRequest,
-  options: { signal?: AbortSignal } = {},
+  _options?: { signal?: AbortSignal },
 ): Promise<ChapterCheckHistory> {
-  // 检查历史是会话下 run 的 artifact：跟着会话放在哪个库走（Python 档不初始化引擎）。
-  if (sessionsInEngine())
-    return decodeChapterCheckHistory(
-      await (await import('../engine/chapterChecks')).queryEngineChapterChecks(request),
-      request,
-    );
-  const { baseUrl, apiKey } = await getApiConfig();
-  const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/agent-runs/chapter-checks/query`, {
-    method: 'POST',
-    signal: options.signal,
-    cache: 'no-store',
-    headers: { 'Content-Type': 'application/json', 'X-StoryForge-API-Key': apiKey },
-    body: JSON.stringify(request),
-  });
-  if (!response.ok) throw new Error(await readErrorDetail(response));
-  return decodeChapterCheckHistory(await response.json(), request);
+  return decodeChapterCheckHistory(
+    await (await import('../engine/chapterChecks')).queryEngineChapterChecks(request),
+    request,
+  );
 }

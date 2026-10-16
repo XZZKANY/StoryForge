@@ -43,15 +43,13 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
-  localStorage.removeItem('engine.agentLoop');
   vi.unstubAllGlobals();
 });
 
 const sessionsApi = () => import('../src/lib/api/assistant');
 
-describe('left rail sessions follow the agent loop flag', () => {
+describe('left rail sessions live in the engine database', () => {
   it('reads the engine database on ts, in the Python API shape', async () => {
-    localStorage.setItem('engine.agentLoop', 'ts');
     const { engineSessions } = await import('../src/lib/engine/store');
     const store = await engineSessions({ values: [] });
     await store.createSession({
@@ -86,7 +84,6 @@ describe('left rail sessions follow the agent loop flag', () => {
   });
 
   it('caps the list at 50 like the Python route', async () => {
-    localStorage.setItem('engine.agentLoop', 'ts');
     const { engineSessions } = await import('../src/lib/engine/store');
     await engineSessions({ values: [] });
     await fixture.db!.transaction([
@@ -101,30 +98,13 @@ describe('left rail sessions follow the agent loop flag', () => {
     expect(await listAssistantSessions({ limit: 99 })).toHaveLength(50);
     expect(await listAssistantSessions()).toHaveLength(20);
   });
-
-  it.each(['python', 'shadow'])(
-    'stays on the Python API without opening the engine (%s)',
-    async (flag) => {
-      localStorage.setItem('engine.agentLoop', flag);
-      const { listAssistantSessions } = await sessionsApi();
-      await listAssistantSessions({ projectPath: 'D:/book', limit: 20 });
-      expect(fetchMock).toHaveBeenCalledOnce();
-      expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe(
-        'http://python.test/api/assistant/sessions?project_path=D%3A%2Fbook&limit=20',
-      );
-      expect(fixture.selects).toBe(0);
-    },
-  );
 });
 
-describe('Ctrl+K / continue record their sessions where the agent loop keeps them', () => {
-  it('uses the engine database on ts and the Python store otherwise', async () => {
-    localStorage.setItem('engine.agentLoop', 'ts');
+describe('Ctrl+K / continue record their sessions beside the agent loop', () => {
+  it('uses the engine database', async () => {
     const assistant = await import('../src/lib/engine/assistant');
     // 模块已重置：类要从同一轮加载的引擎模块里取。
     const { SqlAssistantStore } = await import('@storyforge/engine');
     expect((await assistant.engineAssistantDeps()).store).toBeInstanceOf(SqlAssistantStore);
-    localStorage.setItem('engine.agentLoop', 'python');
-    expect((await assistant.engineAssistantDeps()).store).toBe(assistant.pythonAssistantStore);
   });
 });

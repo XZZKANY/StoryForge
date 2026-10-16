@@ -80,7 +80,6 @@ async function send(input: {
 // The author's real provider through Rust; a synthetic project and a synthetic session store.
 async function runAgentRealRun(input: { projectRoot: string }) {
   assert(isTauri(), 'Real run requires the real Native host');
-  localStorage.setItem('engine.agentLoop', 'ts');
   const { source } = await nativeLlmSource('main');
   const provider = {
     model: source.STORYFORGE_LLM_MODEL ?? null,

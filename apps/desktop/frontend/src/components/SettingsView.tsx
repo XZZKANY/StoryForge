@@ -20,12 +20,6 @@ import {
 import { Info, Palette, Pencil, Sparkles, Type } from './icons/shell-icons';
 import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from './editor/options';
 import { checkForUpdate, currentAppVersion, type UpdateCheckResult } from '../lib/update-check';
-import {
-  engineModeChoices,
-  readEngineMode,
-  writeEngineMode,
-  type EngineMode,
-} from '../lib/engine/flags';
 import { useProviderSettings, type ProbeState } from './settings/useProviderSettings';
 import { AppearanceSection } from './settings/AppearanceSection';
 import { SettingsSearchContext } from './settings/search-context';
@@ -576,7 +570,6 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                 <SettingGroup id="about" title="关于">
                   <SettingCard>
                     <AboutRows />
-                    <EngineShadowRows />
                   </SettingCard>
                 </SettingGroup>
                 <p className="sf-settings-empty" data-testid="settings-no-results">
@@ -1041,60 +1034,6 @@ function ActionRow({
         </Button>
       </div>
     </RowShell>
-  );
-}
-
-const ENGINE_MODE_LABELS: Record<EngineMode, string> = {
-  ts: '新引擎',
-  python: '旧引擎（Python）',
-  shadow: '旧引擎 + 后台比对（开发档）',
-};
-
-type ShadowFlag = 'engine.assistant' | 'engine.agentLoop' | 'engine.ideCommands';
-
-/**
- * 迁移（P5-2）：默认走新引擎，作者随时可以切回旧引擎（Python）。开发档另有「后台比对」。
- */
-function EngineShadowRows() {
-  const [modes, setModes] = useState<Record<ShadowFlag, EngineMode>>(() => ({
-    'engine.assistant': readEngineMode('engine.assistant'),
-    'engine.agentLoop': readEngineMode('engine.agentLoop'),
-    'engine.ideCommands': readEngineMode('engine.ideCommands'),
-  }));
-  const row = (key: ShadowFlag, title: string, description: string, testId: string) => (
-    <SelectRow
-      title={title}
-      description={description}
-      value={modes[key]}
-      onChange={(value) => {
-        if (writeEngineMode(key, value as EngineMode))
-          setModes((current) => ({ ...current, [key]: readEngineMode(key) }));
-      }}
-      options={engineModeChoices(key).map((value) => ({ value, label: ENGINE_MODE_LABELS[value] }))}
-      testId={testId}
-    />
-  );
-  return (
-    <>
-      {row(
-        'engine.assistant',
-        '引擎：行间修订、续写与跨章检查',
-        '默认用新引擎；遇到问题可以切回旧引擎（Python），切换后下一次调用生效。',
-        'engine-shadow-assistant',
-      )}
-      {row(
-        'engine.agentLoop',
-        '引擎：Agent 对话',
-        '同上；会话记录随之切换：新引擎第一次打开时会把旧引擎的会话一次性导入，之后切回旧引擎写的会话不再同步过来。',
-        'engine-shadow-agent',
-      )}
-      {row(
-        'engine.ideCommands',
-        '引擎：作品底座与 Canon',
-        '作品底座、Canon 刷新、观测镜、连载计划与拆书。',
-        'engine-shadow-commands',
-      )}
-    </>
   );
 }
 

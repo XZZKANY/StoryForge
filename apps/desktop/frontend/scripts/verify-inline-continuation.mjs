@@ -30,6 +30,19 @@ const server = await createServer({
   },
   plugins: [
     {
+      // 续写在产品里跑进程内的 TS 引擎（要 Tauri 原生端口）；这条浏览器回归只看真 Monaco 与真钩子怎么走，
+      // 后端换成可编排的 fetch 替身（与界面测试同一份）。
+      name: 'assistant-http-double',
+      enforce: 'pre',
+      async resolveId(source, importer, options) {
+        if (!importer || importer.includes('http-assistant-double')) return null;
+        const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
+        if (resolved?.id.replace(/\\/g, '/').endsWith('/src/lib/api/assistant.ts'))
+          return resolve(cwd, 'tests/support/http-assistant-double.ts');
+        return null;
+      },
+    },
+    {
       name: 'isolated-entry',
       configureServer(s) {
         s.middlewares.use('/__inline-audit', async (_req, res) => {

@@ -8251,3 +8251,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 设置页：三行改为「引擎：行间修订、续写与跨章检查 / Agent 对话 / 作品底座与 Canon」，选项「新引擎 / 旧引擎（Python）」，Agent 对话一行写明会话随之切换、导入只做一次。
 - 测试：`engine-flags`（发行版默认 ts、不认影子档、存储被拒回落 ts、发行版恒导旧库且不读存储）、`engine-legacy-import`（发行版首次打开即导入、开发档未打开不读旧库）、`settings-engine-shadow`、`engine-command-shadow` 按新档位改判；前端全量 2273 / 2273。变异 2 / 2（发行版默认回到 Python、发行版不导旧库）。
 - 这一版不出包（作者拍板一路做到删 Python 再出 0.2.0）。
+
+## 2026-10-16 P6-1a 前端只走引擎：删三个开关、各模块的 Python 传输与影子档（TS 迁移拆除）
+
+- 源码：`lib/api/` 的修订 / 续写 / 测连接 / 会话（`assistant.ts`）、IDE 命令、跨章检查、章节检查历史、知识收件箱、run 事件与保存点、agent 消息与控制（`agent-socket.ts` 510 → 约 40 行，消息守卫挪进 `agent-messages.ts`）都只交给进程内引擎；`engine-agent-loader` 只剩按需加载一次。删影子档五个模块（`shadow` / `agentShadow` / `commandShadow` / `shadowDiff` / `shadowProject`）、`nativeScratchDb` 端口、设置页三行引擎开关、引擎侧写进 Python 会话库的 `pythonAssistantStore`；`flags.ts` 只剩 `legacyImportOnOpen`（发行版恒开、开发档显式打开）。真 WebView 探针去掉 `--agent-shadow` 模式与夹具。外部写回、跨进程恢复、健康轮询、API 配置注入留给 P6-1b / 1c。
+- 测试：
+  - 删：影子档 7 个文件；测 HTTP 传输不确定性（投递未知、GET 对账、SSE 断线转轮询）的 `agent-delivery-unknown` / `agent-socket-recovery`、外部写回传输 `agent-external-transport`、Python 档路由 `assistant-engine-routing-python` / `ide-commands-engine-routing`；`api-client` 里 8 条 HTTP 传输用例；四个引擎数据测试里的 Python / 影子档用例。
+  - 改：`assistant-engine-routing` 的证据链断言从「发给 Python 会话库的 HTTP 请求」改成「引擎库里的会话、消息与工具调用行」（node:sqlite）；`agent-engine-routing` 改成一条钉子（消息、控制、读取都进引擎、只加载一次、不发 HTTP）；`chapter-check-history-api` 改成直接测解码（指向别的会话报归属、坏形状不当空历史）；`engine-flags` 只剩旧库导入开关；`settings-accessibility` 的最后一个可聚焦控件改回「检查更新」。
+  - 替身：界面生命周期类测试（行间修订 / 续写 / 写回回执 / Agent 文本流等 11 个文件、约 150 条）本来拿 fetch 当后端，新增 `tests/support/http-assistant-double.ts`、`http-agent-double.ts`、`http-cross-chapter-double.ts`（沿用早先 HTTP 报文形状的可编排后端，由旧传输代码删去引擎 / 影子 / 外部写回分支生成），用 `vi.mock(..., importOriginal 合并)` 接入；版本恢复两个文件把「撤销连载计划标记」也替身掉（它走 IDE 命令进引擎）。行间续写真 Monaco 浏览器回归的 Vite 配置加解析插件，把应用里的 `lib/api/assistant` 换成同一份替身。
+- 结果：前端全量 2121 / 2121（删掉约 150 条传输与开关用例）、行间续写浏览器回归通过、类型检查与 eslint / prettier 干净；45 个文件 +256 / -2242（不含删除的整文件）。
