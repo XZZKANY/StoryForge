@@ -8,6 +8,7 @@
 import { useRef } from 'react';
 import type { BookContextAvailability, BookContextHandle } from './useBookContext';
 import { formatEstimatedChars } from '../../lib/book-context';
+import { displayDocName } from '../../lib/fs-path-ops';
 import type { BookOverviewChaptersHandle } from './useBookOverviewChapters';
 import type { BookProfileHandle } from './useBookProfile';
 import type { AgentRunOverviewSummary } from '../chat-window/types';
@@ -356,7 +357,7 @@ export function BookOverview({
                         {String(chapter.ordinal).padStart(2, '0')}
                       </span>
                       <span className="min-w-0 flex-1 truncate text-sm text-muted transition-colors group-hover:text-foreground">
-                        {chapter.name}
+                        {displayDocName(chapter.name)}
                       </span>
                       <span className="text-2xs tabular-nums text-subtle">
                         {rowCharsLabel(chapter)}

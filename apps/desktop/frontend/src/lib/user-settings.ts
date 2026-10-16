@@ -31,7 +31,7 @@ export type AppSettings = {
   editorFontMode: EditorFontMode;
   editorProseMeasure: ProseMeasure;
   editorLineNumbers: EditorLineNumbersMode;
-  /** 日更目标字数；0 = 不设目标，稿件卡不显示进度条。 */
+  /** 日更目标字数；0 = 不设目标，不显示进度条。 */
   dailyWordGoal: number;
   autoSave: boolean;
   theme: ThemeMode;

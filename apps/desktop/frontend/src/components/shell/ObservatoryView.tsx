@@ -23,7 +23,7 @@ import type { Observation, ObservationAvailability } from './ObsPanel';
 import { LiveStatus } from './LiveStatus';
 
 const CHECKER_LABELS: Record<string, string> = {
-  canon: 'canon 闸门',
+  canon: '设定检查',
   promise: '伏笔承诺账',
   prose: '文笔气味',
   consistency: '一致性观察',
@@ -139,7 +139,9 @@ function ProposalsSection({
       testid="proposals"
     >
       {!proposals.available ? (
-        <EmptyLine>暂无提案草稿——由对话内 Agent 的 canon_delta 工具生成。</EmptyLine>
+        <EmptyLine>
+          暂无待确认的设定变更。在对话里请 AI 核对本章设定，它提出的修改会先放在这里。
+        </EmptyLine>
       ) : proposals.pendingCount === 0 ? (
         <EmptyLine>无待确认提案。</EmptyLine>
       ) : (
@@ -381,7 +383,7 @@ function CheckerRow({ checker }: { checker: ObservatoryChecker }) {
     ? (
         [
           ['conflict_count', '冲突'],
-          ['advisory_count', 'advisory'],
+          ['advisory_count', '提醒'],
           ['issue_count', '问题'],
         ] as const
       )
@@ -404,7 +406,7 @@ function CheckerRow({ checker }: { checker: ObservatoryChecker }) {
       <span className="min-w-0 flex-1 truncate text-foreground">{label}</span>
       {counts && <span className="flex-shrink-0 font-mono text-3xs text-subtle">{counts}</span>}
       <span className="flex-shrink-0 font-mono text-3xs text-subtle">
-        {ran ? '确定性 · 保存时' : isLLM ? 'LLM · 按需' : '按需'}
+        {ran ? '保存时自动' : isLLM ? '调用模型 · 按需' : '按需'}
       </span>
     </div>
   );
@@ -481,7 +483,7 @@ export function ObservatoryView({
         <button
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
-          title="重新扫描（确定性 · 无 LLM）"
+          title="重新扫描（不调用模型）"
           aria-label="重新扫描世界观"
           onClick={onRescan}
           disabled={busy}
@@ -565,7 +567,7 @@ export function ObservatoryView({
               )}
             </Section>
             <p className="px-3 py-3 text-3xs leading-relaxed text-subtle">
-              确定性参考信号（无 LLM）：advisory 需结合原文核实，不是质量判定。
+              以上是按规则算出的参考信号，不调用模型；提醒需要对照原文核实，不代表写得好坏。
             </p>
           </>
         )}

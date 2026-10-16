@@ -184,7 +184,7 @@ const PANEL_HEADINGS = [
   { file: 'src/components/shell/ManuscriptView.tsx', level: 'h2', text: '手稿' },
   { file: 'src/components/shell/BookProfileView.tsx', level: 'h2', text: '作品' },
   { file: 'src/components/shell/ObservatoryView.tsx', level: 'h2', text: '世界线观测镜' },
-  { file: 'src/components/shell/KnowledgeInboxView.tsx', level: 'h2', text: 'Knowledge Inbox' },
+  { file: 'src/components/shell/KnowledgeInboxView.tsx', level: 'h2', text: '知识收件箱' },
   { file: 'src/components/shell/ObsPanel.tsx', level: 'h4', text: '观测' },
 ];
 

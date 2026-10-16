@@ -20,6 +20,16 @@ export function formatTimestamp(ms: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+function versionTrace(v: VersionEntry): string {
+  return [
+    v.patchId ? `补丁 ${v.patchId}` : null,
+    v.assistantSessionId ? `会话 ${v.assistantSessionId}` : null,
+    v.issueIds?.length ? v.issueIds.join(', ') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 export function VersionHistory({
   projectPath,
   filePath,
@@ -328,7 +338,9 @@ export function VersionHistory({
                     </div>
                     <div
                       className="mt-1 truncate text-2xs text-muted"
-                      title={v.summary ?? v.file ?? ''}
+                      title={[v.summary ?? v.file ?? '', versionTrace(v)]
+                        .filter(Boolean)
+                        .join('\n')}
                     >
                       {v.source ? `${v.source} · ` : ''}
                       {v.summary ?? v.file ?? '版本快照'}
@@ -336,16 +348,6 @@ export function VersionHistory({
                     {v.unavailableReason && (
                       <div className="mt-1 text-2xs text-error" data-testid="version-unavailable">
                         {v.unavailableReason}
-                      </div>
-                    )}
-                    {(v.patchId || v.assistantSessionId || v.issueIds?.length) && (
-                      <div
-                        className="mt-1 truncate text-2xs text-muted"
-                        data-testid="version-agent-meta"
-                      >
-                        {v.patchId ? `patch ${v.patchId}` : ''}
-                        {v.assistantSessionId ? ` · session ${v.assistantSessionId}` : ''}
-                        {v.issueIds?.length ? ` · ${v.issueIds.join(', ')}` : ''}
                       </div>
                     )}
                     {preview?.path === v.path && (

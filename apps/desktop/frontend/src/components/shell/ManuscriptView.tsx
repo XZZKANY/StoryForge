@@ -18,6 +18,7 @@ import {
 } from '../../lib/book-context';
 import type { BookContextAvailability } from '../app/useBookContext';
 import { LiveStatus } from './LiveStatus';
+import { displayDocName } from '../../lib/fs-path-ops';
 import { PanelSection } from './PanelSection';
 
 function rosterSpanLabel(entry: RosterEntry): string {
@@ -162,7 +163,9 @@ export function ManuscriptView({
                         <span className="w-6 flex-shrink-0 text-right font-mono text-3xs text-subtle">
                           {chapter.ordinal}
                         </span>
-                        <span className="min-w-0 flex-1 truncate">{chapter.name}</span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {displayDocName(chapter.name)}
+                        </span>
                         <span className="flex-shrink-0 font-mono text-3xs text-subtle">
                           {formatEstimatedChars(chapter.estimatedChars)}
                         </span>

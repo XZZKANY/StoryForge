@@ -968,12 +968,6 @@ export const MessageItem = memo(function MessageItem({ message }: { message: Mes
       className="max-w-[760px] animate-slide-up-fade text-sm leading-7 text-foreground"
       data-testid="assistant-message"
     >
-      <div className="mb-2 flex items-center gap-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-agent text-2xs font-semibold text-agent-foreground shadow-sm">
-          AI
-        </span>
-        <span className="text-2xs text-subtle">StoryForge</span>
-      </div>
       <div className="py-1">
         <AssistantMarkdown content={message.content} />
         {message.stream && message.stream.phase !== 'complete' && (

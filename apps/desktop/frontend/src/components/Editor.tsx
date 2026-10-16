@@ -1051,6 +1051,7 @@ export function Editor({
         pendingSuggestion.filePath === filePath && (
           <PatchReviewPanel
             suggestion={pendingSuggestion}
+            projectPath={projectPath}
             actionKind={actionState?.kind ?? null}
             error={actionError}
             editorFontSize={editorFontSize}

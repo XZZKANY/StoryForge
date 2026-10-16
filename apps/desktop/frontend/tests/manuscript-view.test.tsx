@@ -96,7 +96,8 @@ test('chapters render in reading order with the open one marked current', async 
 
   const rows = [...dom.querySelectorAll('[data-testid="manuscript-chapter-row"]')];
   assert.equal(rows.length, 2);
-  assert.match(rows[0].textContent ?? '', /第001章\.md/);
+  assert.match(rows[0].textContent ?? '', /第001章/);
+  assert.doesNotMatch(rows[0].textContent ?? '', /\.md/);
   assert.equal(rows[0].getAttribute('data-current'), 'false');
   assert.equal(rows[1].getAttribute('data-current'), 'true');
   // D4 信息级层：面板标题是语义 h2，读屏按 H 跳得到。

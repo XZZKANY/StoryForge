@@ -541,7 +541,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                     />
                     <RangeRow
                       title="日更目标"
-                      description="状态栏稿件卡按此显示今日进度；拖到 0 表示不设目标，不显示进度条。"
+                      description="作品资料里按此显示今日进度；拖到 0 表示不设目标，不显示进度条。"
                       value={safeSettings.dailyWordGoal}
                       min={0}
                       max={10000}
@@ -878,7 +878,7 @@ function ToggleRow({
           }`}
         >
           <span
-            className={`absolute top-0.5 h-[18px] w-[18px] rounded-full transition-transform ${
+            className={`absolute left-0 top-0.5 h-[18px] w-[18px] rounded-full transition-transform ${
               checked ? 'translate-x-[18px] bg-accent-foreground' : 'translate-x-0.5 bg-foreground'
             }`}
           />
@@ -1185,7 +1185,7 @@ function AboutRows() {
       </RowShell>
       <RowShell
         title="检查更新"
-        description="对比 GitHub 最新版本 tag；有新版后仍需重建安装包升级。网络走代理，失败属常态。"
+        description="联网查看有没有新版本；有新版时需要下载新的安装包升级。网络不通时会检查失败，不影响写作。"
       >
         <div className="flex items-center gap-3">
           {updateLabel && (
