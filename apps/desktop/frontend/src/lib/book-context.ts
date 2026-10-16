@@ -3,7 +3,7 @@
  *
  * 数据来自后端 `book.context` IDE 命令。**这里刻意不做任何推算**：章序、字数、截断条数
  * 全部照抄后端投影。前端自己另算一遍就会出现「面板说第 12 章、模型以为第 13 章」，
- * 那比不显示更糟——同一份事实必须只有一个算法（见 `apps/api/app/domains/agent_runs/book_context.py`）。
+ * 那比不显示更糟——同一份事实必须只有一个算法（见引擎 `packages/engine/src/kernel/buildBookContext.ts`）。
  *
  * payload 形状不对时返回 null（由调用方显示错误），不伪造空对象：一个空手稿会让作者
  * 以为「书里什么都没有」。

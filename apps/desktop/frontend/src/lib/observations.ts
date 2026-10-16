@@ -1,7 +1,7 @@
 /**
  * 观测信号纯逻辑：observatory.scan 后端 payload → ObsPanel Observation 映射 + 编辑器锚点解析。
  *
- * 后端形状（apps/api app/domains/agent_runs/observatory.py）：
+ * 引擎形状（packages/engine/src/kernel/observatory.ts）：
  * observations[{id, severity, title, detail, source, location{path, line?, snippet?}}]。
  * severity 已在后端归一化为 error/warning/advisory；id 跨次运行稳定（前端凭它记忆已处理态）。
  */

@@ -1,5 +1,7 @@
 # IDE-first product direction
 
+> **2026-10-16 现状**：下文「`apps/api` 负责业务 API、OpenAPI…」等职责划分已过时：业务逻辑迁到 TS 引擎 `packages/engine`（桌面 WebView 里进程内运行），Python 后端与 OpenAPI 契约已删除（最后一版 `5e6f8e58`）。IDE-first 的产品决策本身不变。
+
 生成时间：2026-06-15 +08:00
 
 ## 决策
