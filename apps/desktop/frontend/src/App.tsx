@@ -303,6 +303,11 @@ export function App() {
     showEditor();
     showRight();
   }, [showEditor, showRight]);
+  // 空书「和 AI 聊聊这本书」：对话占满中右，先聊后写；之后打开任何文件编辑区会自己回来。
+  const discussBook = useCallback(() => {
+    showEditor();
+    shell.setLayoutMode('chat');
+  }, [showEditor, shell]);
   // 「AI 起草下一章」：先展开右栏（brief 在右栏确认），事件由常驻 ChatWindow 消费；
   // 章节源优先总览索引，总览未激活时（手稿视图）回落到底座快照。
   const draftNextChapter = useCallback(() => {
@@ -375,6 +380,7 @@ export function App() {
               onOpenAgentRun={showAgent}
               onEditProfile={openBookProfileEditor}
               onDraftNextChapter={draftNextChapter}
+              onDiscussBook={discussBook}
               promises={observatory.promises}
             />
           ) : null

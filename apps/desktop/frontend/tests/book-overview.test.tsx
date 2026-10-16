@@ -354,7 +354,7 @@ test('章节列表卡与 hero 都暴露「AI 起草下一章」入口并按最�
   expect(draft).toHaveBeenCalledTimes(2);
 });
 
-test('空章节索引时提供「让 AI 起草第 1 章」入口', async () => {
+test('空书主按钮是「和 AI 聊聊这本书」，起草第 1 章只留在次级按钮', async () => {
   root = createRoot(host);
   const draft = vi.fn();
   const emptyIndex: BookOverviewChaptersHandle = {
@@ -367,12 +367,30 @@ test('空章节索引时提供「让 AI 起草第 1 章」入口', async () => {
   };
   const emptyContext = context();
   emptyContext.snapshot!.chapters = [];
-  await render({ chapters: emptyIndex, context: emptyContext, onDraftNextChapter: draft });
+  const discuss = vi.fn();
+  const open = vi.fn();
+  await render({
+    chapters: emptyIndex,
+    context: emptyContext,
+    onDraftNextChapter: draft,
+    onDiscussBook: discuss,
+    onContinueWriting: open,
+  });
 
-  const first = host.querySelector<HTMLButtonElement>('[data-testid="book-overview-draft-first"]');
-  expect(first?.textContent).toContain('让 AI 起草第 1 章');
+  const primary = host.querySelector<HTMLButtonElement>('[data-testid="book-overview-continue"]')!;
+  expect(primary.textContent).toContain('和 AI 聊聊这本书');
+  expect(host.textContent).toContain('先和 AI 聊聊想写什么');
+  await act(async () => primary.click());
+  expect(discuss).toHaveBeenCalledOnce();
+  expect(open).not.toHaveBeenCalled();
+  // 章节列表空态只说明状态，不再第三次推作者起草。
+  expect(host.querySelector('[data-testid="book-overview-draft-first"]')).toBeNull();
   expect(host.querySelector('[data-testid="book-overview-draft-next"]')).toBeNull();
-  await act(async () => first!.click());
+  const hero = host.querySelector<HTMLButtonElement>(
+    '[data-testid="book-overview-hero-draft-next"]',
+  )!;
+  expect(hero.textContent).toContain('AI 起草第 1 章');
+  await act(async () => hero.click());
   expect(draft).toHaveBeenCalledOnce();
 });
 

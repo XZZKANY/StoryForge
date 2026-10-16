@@ -109,6 +109,12 @@ test('开场引用上一章结尾与久未推进的伏笔，三个下一步各�
   expect(text).toContain('陈默把最后一块面饼塞进嘴里');
   expect(text).toContain('「十七楼幸存者目击线」第 1 章埋下，之后 4 章没再碰');
   expect(text).toContain('第 6 章从哪儿接？');
+  // 先聊后写：讨论在前，起草排最后。
+  expect([...host.querySelectorAll('button')].map((button) => button.textContent?.trim())).toEqual([
+    '先聊聊第 6 章怎么走',
+    '接上「十七楼幸存者目击线」',
+    '起草第 6 章',
+  ]);
   expect(text).toContain('依据：正文/第005章.md 结尾 · 观测镜伏笔账');
 
   await act(async () =>
@@ -128,15 +134,37 @@ test('开场引用上一章结尾与久未推进的伏笔，三个下一步各�
   expect(onAsk.mock.calls.at(-1)?.[0]).toContain('第 6 章想接上「十七楼幸存者目击线」');
 });
 
-test('空手稿开场只问开篇，不编上一章，也没有接伏笔的按钮', async () => {
+test('空书开场先聊这本书：讨论在前、起草放最后，不编上一章，也没有接伏笔的按钮', async () => {
   const host = mount();
+  const onDraft = vi.fn();
+  const onAsk = vi.fn();
   const handoff = buildChapterHandoff({ chapters: [], previousChapter: null, promises: null });
   await act(async () =>
-    root!.render(<PartnerOpening handoff={handoff} onDraft={vi.fn()} onAsk={vi.fn()} />),
+    root!.render(<PartnerOpening handoff={handoff} onDraft={onDraft} onAsk={onAsk} />),
   );
-  expect(host.textContent).toContain('这本书还没有正文');
-  expect(host.textContent).toContain('起草第 1 章');
-  expect(host.textContent).toContain('先聊聊开篇');
+  expect(host.textContent).toContain('这本书还是一张白纸');
+  expect([...host.querySelectorAll('button')].map((button) => button.textContent?.trim())).toEqual([
+    '聊聊这本书想写什么',
+    '先想主角',
+    '先搭世界观',
+    '直接起草第 1 章',
+  ]);
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-testid="partner-opening-discuss"]')!.click(),
+  );
+  expect(onAsk.mock.calls.at(-1)?.[0]).toContain('一次只问我一个关键问题');
+  expect(onAsk.mock.calls.at(-1)?.[0]).not.toContain('第 1 章');
+  for (const [testid, topic] of [
+    ['partner-opening-protagonist', '主角'],
+    ['partner-opening-world', '世界观'],
+  ]) {
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>(`[data-testid="${testid}"]`)!.click(),
+    );
+    expect(onAsk.mock.calls.at(-1)?.[0]).toContain(topic);
+    expect(onAsk.mock.calls.at(-1)?.[0]).toContain('先别写正文');
+  }
+  expect(onDraft).not.toHaveBeenCalled();
   expect(host.textContent).not.toContain('停在这里');
   expect(host.querySelector('[data-testid="partner-opening-promise"]')).toBeNull();
   expect(host.textContent).not.toContain('依据');

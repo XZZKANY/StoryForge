@@ -123,13 +123,16 @@ test('只提久未推进或已到期的未回收伏笔，到期优先、再按�
   expect(stalePromiseDetail(handoff.stalePromises[1])).toBe('第 1 章埋下，之后 4 章没再碰');
 });
 
-test('空手稿：没有上一章，下一章是第 1 章，提示词先问问题不写正文', () => {
+test('空手稿：没有上一章，下一章是第 1 章；提示词先聊这本书本身，一次问一个问题，不写正文', () => {
   const handoff = buildChapterHandoff({ chapters: [], previousChapter: null, promises: null });
   expect(handoff.lastChapter).toBeNull();
   expect(handoff.next.chapterOrdinal).toBe(1);
   expect(handoff.stalePromises).toEqual([]);
-  expect(discussNextChapterPrompt(handoff)).toContain('先别写正文');
-  expect(discussNextChapterPrompt(handoff)).toContain('第 1 章');
+  const prompt = discussNextChapterPrompt(handoff);
+  expect(prompt).toContain('先别写正文');
+  expect(prompt).toContain('一次只问我一个关键问题');
+  // 空书先聊书，不是先聊第 1 章。
+  expect(prompt).not.toContain('第 1 章');
 });
 
 test('聊下一章与接伏笔的提示词都点名章号并要求先别写正文', () => {

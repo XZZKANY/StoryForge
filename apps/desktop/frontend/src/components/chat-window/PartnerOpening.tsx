@@ -1,5 +1,7 @@
 import type { ChapterWriteRequest } from '../../lib/assistant-events';
 import {
+  DISCUSS_PROTAGONIST_PROMPT,
+  DISCUSS_WORLD_PROMPT,
   discussNextChapterPrompt,
   pickUpPromisePrompt,
   stalePromiseDetail,
@@ -10,6 +12,7 @@ import { Sparkles } from '../icons/shell-icons';
 /**
  * 新会话的开场：伙伴先开口，每一句都来自这本书的确定性事实（上一章结尾、伏笔台账、章序），
  * 不调模型、不花钱。作者点一个下一步就进入正常对话；点之前它只是一张卡，不进会话记录。
+ * 先聊后写：讨论的按钮排在前面，起草放最后——空书尤其不该一上来就推作者写第 1 章。
  */
 export function PartnerOpening({
   handoff,
@@ -37,7 +40,7 @@ export function PartnerOpening({
     >
       <div className="space-y-3 py-1">
         {last === null ? (
-          <p>这本书还没有正文。第 1 章想从哪儿开始？</p>
+          <p>这本书还是一张白纸。想写个什么样的故事？先聊聊吧。</p>
         ) : (
           <>
             {handoff.excerpt ? (
@@ -71,20 +74,31 @@ export function PartnerOpening({
           <button
             type="button"
             className={chip}
-            onClick={() => onDraft(handoff.next)}
-            data-testid="partner-opening-draft"
-          >
-            <Sparkles size={13} strokeWidth={1.8} aria-hidden="true" />
-            起草第 {next} 章
-          </button>
-          <button
-            type="button"
-            className={chip}
             onClick={() => onAsk(discussNextChapterPrompt(handoff))}
             data-testid="partner-opening-discuss"
           >
-            {last === null ? '先聊聊开篇' : `先聊聊第 ${next} 章怎么走`}
+            {last === null ? '聊聊这本书想写什么' : `先聊聊第 ${next} 章怎么走`}
           </button>
+          {last === null ? (
+            <>
+              <button
+                type="button"
+                className={chip}
+                onClick={() => onAsk(DISCUSS_PROTAGONIST_PROMPT)}
+                data-testid="partner-opening-protagonist"
+              >
+                先想主角
+              </button>
+              <button
+                type="button"
+                className={chip}
+                onClick={() => onAsk(DISCUSS_WORLD_PROMPT)}
+                data-testid="partner-opening-world"
+              >
+                先搭世界观
+              </button>
+            </>
+          ) : null}
           {promise ? (
             <button
               type="button"
@@ -96,6 +110,15 @@ export function PartnerOpening({
               <span className="truncate">接上「{promise.title}」</span>
             </button>
           ) : null}
+          <button
+            type="button"
+            className={chip}
+            onClick={() => onDraft(handoff.next)}
+            data-testid="partner-opening-draft"
+          >
+            <Sparkles size={13} strokeWidth={1.8} aria-hidden="true" />
+            {last === null ? '直接起草第 1 章' : `起草第 ${next} 章`}
+          </button>
         </div>
         {sources.length > 0 ? (
           <p className="text-2xs leading-5 text-subtle">依据：{sources.join(' · ')}</p>
