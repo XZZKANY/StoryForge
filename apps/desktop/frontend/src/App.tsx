@@ -382,6 +382,7 @@ export function App() {
               agentRun={activity.agentRun}
               onOpenAgentRun={showAgent}
               onEditProfile={openBookProfileEditor}
+              onEnterWritingDesk={() => continueWriting()}
               onDraftNextChapter={draftNextChapter}
               onDiscussBook={discussBook}
               promises={observatory.promises}

@@ -368,24 +368,6 @@ export function AppShell({
                   hidden={!overviewVisible}
                   data-testid="book-overview-surface"
                 >
-                  <div className="flex flex-shrink-0 flex-wrap justify-end gap-2 px-5 py-2">
-                    <button
-                      type="button"
-                      className="rounded-sm px-3 py-1 text-xs text-muted hover:bg-elevated"
-                      data-testid="edit-book-profile"
-                      onClick={() => openSideView('book')}
-                    >
-                      编辑作品资料
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-sm px-3 py-1 text-xs text-muted hover:bg-elevated"
-                      data-testid="open-writing-workspace"
-                      onClick={openWorkspace}
-                    >
-                      写作工作台 →
-                    </button>
-                  </div>
                   {overview}
                 </div>
               )}

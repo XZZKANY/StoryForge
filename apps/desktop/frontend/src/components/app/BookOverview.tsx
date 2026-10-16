@@ -13,18 +13,11 @@ import type { BookOverviewChaptersHandle } from './useBookOverviewChapters';
 import type { BookProfileHandle } from './useBookProfile';
 import type { AgentRunOverviewSummary } from '../chat-window/types';
 import { displayBookTitle } from '../../lib/book-profile';
+import { BookOverviewHeader } from './BookOverviewHeader';
 import { BookOverviewHero } from './BookOverviewHero';
 import { useChapterHandoff } from './useChapterHandoff';
 import type { ObservatoryPromises } from '../../lib/observations';
-import {
-  BookOpen,
-  ChevronRight,
-  FileText,
-  Library,
-  RefreshCw,
-  Sparkles,
-} from '../icons/shell-icons';
-import { IconButton } from '../ui';
+import { BookOpen, ChevronRight, FileText, RefreshCw, Sparkles } from '../icons/shell-icons';
 import { LiveStatus } from '../shell/LiveStatus';
 
 const OVERVIEW_CHAPTER_LIMIT = 8;
@@ -42,8 +35,10 @@ export type BookOverviewProps = {
   onOpenChapter?: (relativePath: string) => void;
   onOpenOutline?: (path: string, line: number) => void;
   onRefresh?: () => void;
-  /** P2-C：封面空态点击后落到「编辑作品资料」动作的入口。 */
+  /** P2-C：封面空态点击后落到「编辑作品资料」动作的入口；标题行的同名按钮也走它。 */
   onEditProfile?: () => void;
+  /** 标题行「写作工作台」：进写作台（没开着文件就打开停下的那一章，由壳层决定）。 */
+  onEnterWritingDesk?: () => void;
   pendingPatchCount?: number;
   onOpenPendingPatches?: () => void;
   agentRun?: AgentRunOverviewSummary | null;
@@ -116,6 +111,7 @@ export function BookOverview({
   agentRun = null,
   onOpenAgentRun,
   onEditProfile,
+  onEnterWritingDesk,
   onDraftNextChapter,
   onDiscussBook,
   promises = null,
@@ -168,6 +164,9 @@ export function BookOverview({
   const nextChapterOrdinal =
     chapters.reduce((max, chapter) => Math.max(max, chapter.ordinal), 0) + 1;
   const outlineItems = profile.outline.slice(0, 6);
+  // 没有大纲时不再半屏空卡片：章节列表占满整行，大纲收成下面一行说明。
+  const outlineEmpty =
+    !profile.loading && !profile.outlineLoading && !profile.outlineError && !outlineItems.length;
 
   return (
     <div
@@ -178,39 +177,13 @@ export function BookOverview({
       aria-busy={profile.loading}
     >
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-5 md:px-8 md:py-6">
-        <header
-          className="flex items-center gap-3 animate-fade-in-up"
-          data-testid="book-overview-header"
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-elevated">
-            <Library size={20} strokeWidth={1.6} className="text-muted" aria-hidden="true" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-2xs uppercase tracking-[0.18em] text-subtle">作品总览</p>
-            <h1
-              className="truncate text-xl font-semibold text-foreground md:text-2xl"
-              title={title}
-            >
-              {title || '未命名作品'}
-            </h1>
-          </div>
-          {onRefresh ? (
-            <IconButton
-              size="md"
-              label="重新读取作品资料"
-              icon={
-                <RefreshCw
-                  size={15}
-                  className={profile.refreshing ? 'animate-spin' : ''}
-                  aria-hidden="true"
-                />
-              }
-              onClick={onRefresh}
-              disabled={profile.refreshing}
-              data-testid="book-overview-refresh"
-            />
-          ) : null}
-        </header>
+        <BookOverviewHeader
+          title={title}
+          refreshing={profile.refreshing}
+          onRefresh={onRefresh}
+          onEditProfile={onEditProfile}
+          onEnterWritingDesk={onEnterWritingDesk}
+        />
 
         {/* 常驻 sr-only live region：profile.loading 翻转时播报「正在读取」；
             可见观感交给骨架屏（下面 BookOverviewSkeleton），见字不听字。 */}
@@ -326,7 +299,7 @@ export function BookOverview({
         ) : null}
 
         <section
-          className="grid gap-5 lg:grid-cols-2 animate-fade-in-up"
+          className={`grid gap-5 ${outlineEmpty ? '' : 'lg:grid-cols-2'} animate-fade-in-up`}
           style={{ animationDelay: '100ms' }}
         >
           <div
@@ -427,7 +400,11 @@ export function BookOverview({
             ) : null}
           </div>
 
-          <div className="rounded-lg bg-panel" data-testid="book-overview-outline">
+          <div
+            className="rounded-lg bg-panel"
+            data-testid="book-overview-outline"
+            data-empty={outlineEmpty ? 'true' : undefined}
+          >
             <div className="flex items-center justify-between px-4 py-3">
               <h2 className="text-sm font-medium text-foreground">大纲速览</h2>
               <span className="rounded-full bg-elevated px-2 py-0.5 text-2xs text-subtle">
@@ -479,12 +456,10 @@ export function BookOverview({
                 ))}
               </ul>
             ) : (
-              <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
-                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-elevated">
-                  <BookOpen size={20} className="text-subtle" aria-hidden="true" />
-                </div>
-                <p className="text-xs text-subtle">还没有可展示的大纲标题。</p>
-              </div>
+              <p className="flex items-center gap-2 px-4 pb-3 text-xs text-subtle">
+                <BookOpen size={14} className="flex-shrink-0" aria-hidden="true" />
+                还没有可展示的大纲标题。
+              </p>
             )}
           </div>
         </section>

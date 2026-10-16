@@ -8660,3 +8660,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 数值（默认比例）：1400 → 侧栏 224 / 编辑区 750 / 对话栏 378；1920 → 307 / 1047 / 518；2560 → 360 / 1512 / 640。作者存的 220 迁成 0.1571，1400 下仍是 220，2560 下 402。
 - 测试：`workspace-layout` 重写 8 条（三种窗口宽的默认值、作者比例换算、编辑区保底、两栏到下限、聚焦两态、侧栏收起、比例换算、resize 实时换算且比例不变）；`workspace-compact-breakpoint` 第三条改成性质测试（1024–3840 每 7px × 默认 / 极端比例 × 侧栏开关，平衡态两栏 + 编辑区硬下限都不横向溢出）；`assistant-panel` +3（左缘把手拖动方向与夹限、键盘方向与复位、聚焦 / 窄窗无把手）；`side-panel-resize` 迁移三条改写为比例语义、复位改走回调；`workspace-layout-app` 加真 App 里 1440 的显示宽度与键盘调宽落成比例；`book-overview-app` 随迁移改判。变异 6 / 6 全杀（AppShell 三处接线、编辑区保底、迁移基准 1400、把手方向）。
 - 验证：前端 typecheck 绿；`pnpm lint` 0 error（2 个 warning 在 `tests/independent-claim-history.test.ts`，master 原有）；前端全量 vitest 210 个文件 2109 条绿。真宿主截图对比见本组后续条目。
+
+## 2026-10-16 作品总览：进写作台、编辑作品资料挪进标题行；没有大纲时不再半屏空卡片
+
+- 起因：作者挑中 ⑤「总览进写作台的入口是右上角一行小字、空大纲卡片占半屏」。截图里两个入口是标题上方单独一行的小字链接，和书名不在一条线；没大纲时右下「大纲速览」空卡被网格拉到与章节列表等高。
+- 改动：新增 `BookOverviewHeader`，书名与「刷新 / 编辑作品资料 / 写作工作台」同一行，窄窗口时按钮组换到书名下一行；`AppShell` 删掉总览上方那条链接带和重复的 `openBookProfileEditor`（总览的编辑入口沿用 App 已传给封面空态的同一函数），`App` 经新 prop `onEnterWritingDesk` 进写作台。`data-testid` 保留 `open-writing-workspace` / `edit-book-profile`，浏览器回归与冒烟脚本照旧能点。没有大纲（读取完、无错误、零条）时网格改单栏，章节列表占满整行，大纲收成一行说明；读取中与读取失败不算空。`AppShell` 497 → 470 行。
+- 测试：`book-overview` +2（标题行按钮与回调、没给去处不画按钮；空大纲单栏 / 有大纲两栏 / 读取中不算空）。变异 3 / 3 全杀（App 不传入口、空大纲仍两栏、按钮不调回调）。
+- 验证：前端 typecheck 绿；总览相关 5 个测试文件 27 条绿；全量与真宿主截图见本组最后一条。
