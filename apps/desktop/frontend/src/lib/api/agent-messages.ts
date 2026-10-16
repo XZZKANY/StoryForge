@@ -4,7 +4,6 @@ import type {
   AgentPermissionRequiredMessage,
   AgentResultMessage,
   AgentRunStartedMessage,
-  AgentRunWaitingMessage,
   AgentSocketMessage,
   AgentStepEventMessage,
   AgentToolTraceEventMessage,
@@ -29,36 +28,6 @@ export function isAgentRunStartedMessage(
   return (
     message.type === 'agent_run_started' &&
     typeof (message as AgentRunStartedMessage).run_id === 'string'
-  );
-}
-
-export function isAgentRunWaitingMessage(
-  message: AgentSocketMessage,
-): message is AgentRunWaitingMessage {
-  const value = message as Partial<AgentRunWaitingMessage>;
-  return (
-    value.type === 'agent_run_waiting' &&
-    value.protocol === 'external_writeback_v1' &&
-    typeof value.run_id === 'string' &&
-    typeof value.session_id === 'string' &&
-    typeof value.wait_id === 'string' &&
-    Number.isSafeInteger(value.revision) &&
-    Number(value.revision) > 0 &&
-    Number.isSafeInteger(value.assistant_session_id) &&
-    Number(value.assistant_session_id) > 0 &&
-    Number.isSafeInteger(value.event_id) &&
-    Number(value.event_id) > 0 &&
-    Number.isSafeInteger(value.sequence) &&
-    Number(value.sequence) > 0 &&
-    (value.execution_epoch === null ||
-      (typeof value.execution_epoch === 'string' && value.execution_epoch.length > 0)) &&
-    [
-      'await_authorization',
-      'awaiting_receipt',
-      'reconciliation',
-      'receipt_ready',
-      'claimed',
-    ].includes(String(value.stage))
   );
 }
 

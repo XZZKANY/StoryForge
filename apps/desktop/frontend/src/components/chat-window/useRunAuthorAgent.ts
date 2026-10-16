@@ -1,7 +1,6 @@
 import { executionOutcomeFromResult } from '../../lib/api/execution-outcome';
 import { statusFromAgentResult, textSettlementFromAgentResult } from './resumed-result';
 import { useCallback } from 'react';
-import { useExternalAgentConversation } from './useExternalAgentConversation';
 import { useAgentRunAdmission } from './useAgentRunAdmission';
 
 import {
@@ -53,12 +52,6 @@ export function useRunAuthorAgent(
 ): RunAuthorAgent {
   const { textStream } = state;
   const adoptResultMetadata = useRunResultMetadata(state, onAssistantSessionChange);
-  const { coordinator: externalWriteback, handleWaiting } = useExternalAgentConversation(
-    state,
-    updateAgentStatus,
-    refreshAgentRunRecovery,
-    onAssistantSessionChange,
-  );
   const {
     setMessages,
     projectPathRef,
@@ -99,16 +92,6 @@ export function useRunAuthorAgent(
         draftNonceRef.current,
       );
       if (rejectBlockedAdmission(scope)) return;
-      if (projectPathRef.current && externalWriteback?.hasPending(projectPathRef.current)) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: '原运行仍有连续修订待办，请先核对或处理，不能另起一轮写回。',
-          },
-        ]);
-        return;
-      }
       const writebackOnly = action === 'file.writeback';
       const exportOnly = action === 'file.export';
       const project = projectPathRef.current;
@@ -253,16 +236,8 @@ export function useRunAuthorAgent(
         }
         const agentRoleMentions = extractAgentRoleMentions(goal);
         const agentRoleHints = mapAgentRoleMentionsToHints(agentRoleMentions);
-        const externalNegotiated =
-          !intent &&
-          !!file &&
-          content !== null &&
-          !!externalWriteback &&
-          (await externalWriteback.negotiate());
-        // 协商只决定协议，不决定归属：协商期间切走同样撤权，不发出本轮请求。
         if (abandonIfTaskMoved()) return;
         const response = await sendAgentUserMessage({
-          ...(externalNegotiated ? { executionProtocol: 'external_writeback_v1' } : {}),
           sessionId: runId,
           runId,
           stream: true,
@@ -281,15 +256,6 @@ export function useRunAuthorAgent(
           },
         });
 
-        const waiting = await handleWaiting(response, {
-          negotiated: externalNegotiated,
-          project,
-          runId,
-          owned: ownsRun(),
-        });
-        // 等待帧（含外部写回）在已切走时会跳过它自己的 busy 归位；这里补上，否则新会话永久 busy。
-        if (!ownsRun() && isClaimedBy(runId)) setAgentBusy(false);
-        if (waiting) return;
         if (!ownsRun()) {
           // 归属判据用 claim 而非 active()：切会话会让 active() 为 false，那样 busy 永不归位；
           // claim 已被更新的 run 接管时才不动作，避免误清新 run 的 busy。
@@ -325,8 +291,6 @@ export function useRunAuthorAgent(
         const agentSteps = stepsFromAgentResult(response);
         const responseChapterBrief = chapterBriefFromAgentResult(response);
         const proposed = writableFilePatch(response);
-        if (externalNegotiated && proposed)
-          throw new Error('连续协议返回了旧写回补丁，已阻止重复投递');
         setChapterBrief(responseChapterBrief);
         void refreshAgentRunRecovery(response.run_id ?? runId);
         const approvalSteps = approvalStepFromAgentResult(
@@ -417,8 +381,6 @@ export function useRunAuthorAgent(
     },
     [
       textStream,
-      externalWriteback,
-      handleWaiting,
       adoptResultMetadata,
       rejectBlockedAdmission,
       claimRun,

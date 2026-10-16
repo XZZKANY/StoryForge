@@ -1,5 +1,4 @@
 import type { ApiAssistantContextBundle } from './contracts';
-import type { components } from '../../../../../../packages/shared/src/generated/api-types';
 import type { AgentPermissionProfile } from '../agent-permission';
 import type {
   AgentExecutionOutcome,
@@ -17,8 +16,6 @@ import type {
 export type ApiConfig = {
   baseUrl: string;
   apiKey: string;
-  managedHostGeneration?: string | null;
-  executionProtocols?: readonly 'external_writeback_v1'[];
 };
 
 export type ApiRuntimeHealthStatus = 'ready' | 'degraded' | 'unreachable';
@@ -238,7 +235,6 @@ export type AgentSocketMessage =
     };
 
 export type AgentUserMessageRequest = {
-  executionProtocol?: components['schemas']['AgentUserMessageStreamRequest']['execution_protocol'];
   sessionId: string;
   userMessage: string;
   assistantSessionId?: number | null;

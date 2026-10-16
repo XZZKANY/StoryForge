@@ -7,7 +7,7 @@ import type { IssueCounts, IssueResolution } from './suggestion-ops';
 export type RevisionLoopRecord = {
   /** Ephemeral admission, excluded from semantic payload and stored evidence. */
   deliveryTicket?: string;
-  /** Ordinary suggestions lose their request journal after settlement; external waits do not. */
+  /** 写回审计里是否保留语义载荷（补丁写回保留，供重启后核对恢复）。 */
   retainRecoveryPayload?: boolean;
   projectPath: string | null;
   filePath: string;

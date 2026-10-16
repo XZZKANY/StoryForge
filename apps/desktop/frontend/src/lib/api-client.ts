@@ -10,7 +10,6 @@ export {
   isAgentPermissionRequiredMessage,
   isAgentResultMessage,
   isAgentRunStartedMessage,
-  isAgentRunWaitingMessage,
   isAgentStepEventMessage,
   isAgentToolTraceEventMessage,
   sendAgentControlMessage,

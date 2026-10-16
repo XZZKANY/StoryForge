@@ -9,21 +9,15 @@ import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-import { ExternalWritebackProvider } from '../src/components/app/ExternalWritebackProvider';
 import { useChatWindowState } from '../src/components/chat-window/useChatWindowState';
 import { useRunAuthorAgent } from '../src/components/chat-window/useRunAuthorAgent';
 import {
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
 } from '../src/lib/assistant-events';
-import {
-  sendAgentUserMessage,
-  type AgentSocketMessage,
-  type AgentUserMessageRequest,
-} from '../src/lib/api-client';
+import { sendAgentUserMessage, type AgentUserMessageRequest } from '../src/lib/api-client';
 import { buildContextBundle, type ContextBundle } from '../src/lib/project-context';
 import { TauriFileSystem } from '../src/lib/tauri-fs';
-import type { ExternalWritebackCoordinator } from '../src/lib/external-writeback/coordinator';
 
 vi.mock('../src/lib/api-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/lib/api-client')>()),
@@ -101,16 +95,14 @@ function Shell({
   project,
   initialSession,
   currentFile,
-  coordinator,
 }: {
   project: string;
   initialSession: number | null;
   currentFile: string | null;
-  coordinator?: ExternalWritebackCoordinator;
 }) {
   const [session, setSession] = useState<number | null>(initialSession);
   changeSession = setSession;
-  const body = (
+  return (
     <Body
       project={project}
       session={session}
@@ -118,20 +110,12 @@ function Shell({
       onSessionChange={setSession}
     />
   );
-  return coordinator ? (
-    <ExternalWritebackProvider project={project} coordinator={coordinator}>
-      {body}
-    </ExternalWritebackProvider>
-  ) : (
-    body
-  );
 }
 
 let harnessProps: {
   project: string;
   initialSession: number | null;
   currentFile: string | null;
-  coordinator?: ExternalWritebackCoordinator;
 } = { project: PROJECT, initialSession: 7, currentFile: null };
 
 async function render(next: Partial<typeof harnessProps> = {}) {
@@ -142,12 +126,6 @@ async function render(next: Partial<typeof harnessProps> = {}) {
 async function startRun() {
   await act(async () => {
     void api.run(RUN_GOAL, 'agent');
-  });
-}
-
-async function flush(): Promise<void> {
-  await act(async () => {
-    for (let i = 0; i < 8; i += 1) await Promise.resolve();
   });
 }
 
@@ -170,34 +148,6 @@ function acknowledgeFlush(event: Event) {
       detail: { filePath: detail.filePath, status: 'ok' },
     }),
   );
-}
-
-function createFakeCoordinator() {
-  let resolveNegotiate: ((value: boolean) => void) | null = null;
-  const negotiate = vi.fn(
-    () =>
-      new Promise<boolean>((resolve) => {
-        resolveNegotiate = resolve;
-      }),
-  );
-  // useSyncExternalStore 要求快照引用稳定；每次返回新数组会触发无限重渲染。
-  const emptySnapshot: readonly never[] = [];
-  const track = vi.fn(async () => undefined);
-  const coordinator = {
-    negotiate,
-    hasPending: () => false,
-    subscribe: () => () => undefined,
-    getSnapshot: () => emptySnapshot,
-    setProject: () => undefined,
-    discover: async () => undefined,
-    track,
-  } as unknown as ExternalWritebackCoordinator;
-  return {
-    coordinator,
-    negotiate,
-    track,
-    resolveNegotiate: (value: boolean) => resolveNegotiate?.(value),
-  };
 }
 
 beforeEach(() => {
@@ -330,19 +280,6 @@ it('同一 React 批内切会话 + 释放 gate：同步观测到撤权，不发�
   expect(sentRequests()).toHaveLength(0);
 });
 
-it('协商等待点变体：negotiate 挂起期间切会话，撤权不发出', async () => {
-  const fake = createFakeCoordinator();
-  await render({ currentFile: FILE, coordinator: fake.coordinator });
-  await startRun();
-  await releaseContext();
-  expect(fake.negotiate).toHaveBeenCalledTimes(1);
-
-  await act(async () => changeSession!(8));
-  await act(async () => fake.resolveNegotiate(true));
-
-  expect(sentRequests()).toHaveLength(0);
-});
-
 it('正常对照：不切换时请求体与现状逐字段一致', async () => {
   await render({ currentFile: null });
   await startRun();
@@ -358,44 +295,4 @@ it('正常对照：不切换时请求体与现状逐字段一致', async () => {
   expect(requests[0].args?.project_path).toBe(PROJECT);
   expect(requests[0].args?.project_name).toBe('wu-gang');
   expect(requests[0].args?.instruction).toBe(RUN_GOAL);
-});
-
-function waitingFrame(): AgentSocketMessage {
-  return {
-    type: 'agent_run_waiting',
-    protocol: 'external_writeback_v1',
-    run_id: 'run-1',
-    session_id: 'run-1',
-    wait_id: 'wait-1',
-    revision: 1,
-    assistant_session_id: 7,
-    event_id: 1,
-    sequence: 1,
-    execution_epoch: null,
-    stage: 'awaiting_receipt',
-  } as unknown as AgentSocketMessage;
-}
-
-it('外部等待帧返回时已切走：busy 必须归位，不把新会话卡住', async () => {
-  const fake = createFakeCoordinator();
-  let releaseSend!: (value: AgentSocketMessage) => void;
-  vi.mocked(sendAgentUserMessage).mockImplementation(
-    () =>
-      new Promise((resolve) => {
-        releaseSend = resolve;
-      }),
-  );
-  await render({ currentFile: FILE, coordinator: fake.coordinator, initialSession: 7 });
-  await startRun();
-  await releaseContext();
-  await act(async () => fake.resolveNegotiate(true));
-  await flush();
-  expect(api.state.agentBusy).toBe(true);
-
-  await act(async () => changeSession!(8));
-  await act(async () => releaseSend(waitingFrame()));
-  await flush();
-
-  expect(fake.track).toHaveBeenCalled();
-  expect(api.state.agentBusy).toBe(false);
 });

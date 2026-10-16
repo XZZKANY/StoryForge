@@ -13,7 +13,6 @@ export {
   isAgentPermissionRequiredMessage,
   isAgentResultMessage,
   isAgentRunStartedMessage,
-  isAgentRunWaitingMessage,
   isAgentStepEventMessage,
   isAgentToolTraceEventMessage,
 } from './agent-messages';
