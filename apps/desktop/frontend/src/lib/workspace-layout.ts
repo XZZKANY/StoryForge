@@ -120,3 +120,20 @@ export function widthToRatio(width: number, viewport: number): number | null {
   if (!Number.isFinite(width) || !Number.isFinite(viewport) || viewport <= 0) return null;
   return Math.round((width / viewport) * 10000) / 10000;
 }
+
+/** 版本记录抽屉没有对话栏可盖时（编辑聚焦 / 窄窗轮流）的宽度。 */
+export const HISTORY_DRAWER_DEFAULT_WIDTH = 360;
+
+/**
+ * 版本记录抽屉压在右栏的位置上（作者 10-16 ④：此前是编辑区里一条 320px 竖栏，把正文拦腰盖住）：
+ * 平衡态正好盖住对话栏、与它同宽；编辑聚焦时没有对话栏，落在编辑区右侧（正文按行宽折行，右边多半是空的）。
+ */
+export function historyDrawerWidth(
+  mode: LayoutMode,
+  rightPanelVisible: boolean,
+  assistant: number,
+) {
+  return mode === 'balanced' && rightPanelVisible && assistant > 0
+    ? assistant
+    : HISTORY_DRAWER_DEFAULT_WIDTH;
+}

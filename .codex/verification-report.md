@@ -8688,3 +8688,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 改动：`PatchReviewPanel` 默认展开（原「专注审阅」那种占满编辑区的遮罩），收起只对这一版补丁算数、下一版补丁又占满；按钮改叫「收起对比 / 查看对比」，Esc 仍收起。收起时只剩一条操作栏（接受 / 保存旁注 / 拒绝 / 分块接受都在），不在正文下方再劈出半块对比。订阅 Monaco `onDidUpdateDiff`：挂载时与换了新补丁时，等差异算完那一刻 `revealFirstDiff()` 一次；同一补丁的差异重算（如改字号）不再把作者拽回去；新补丁文本没变时直接跳。
 - 测试：`patch-review-panel` 改 1 条（默认展开、Esc 收起、来回切换）、新增 3 条（差异算完才跳且只跳一次；换新补丁重新占满并等新差异再跳；收起后没有半块对比、操作仍够得着）；Monaco 替身补 `onDidUpdateDiff` / `revealFirstDiff`。变异 5 / 5 全杀。
 - 验证：前端 typecheck 绿；`patch-review-panel` 23 条绿；全量与真宿主截图见本组最后一条。
+
+## 2026-10-16 版本记录改成压在右栏位置的抽屉：不盖正文，Esc 关得上
+
+- 起因：作者挑中 ④「版本记录挤掉编辑区」。截图（1400 平衡态）里 Ctrl+Shift+H 打开的版本记录是编辑区里 `absolute right-0 w-80` 的竖栏，盖住正文右半，每行像被截断；按 Esc 没关上（焦点在正文里，Esc 被 Monaco 吃掉）。
+- 改动：`VersionHistory` 改成 `fixed` 抽屉，顶在标题栏（h-9）下、贴窗口右缘，宽度继承壳层的 `--sf-history-drawer-width`：平衡态正好等于对话栏宽、压在对话栏上，编辑聚焦 / 窄窗轮流时 360（正文按行宽折行，右边多半是空的）；`AppShell` 根元素按 `historyDrawerWidth()` 写这个变量。抽屉一开就接过焦点，Esc（非组字）关掉，关后把焦点还给打开前的地方（通常是正文）。注释写明祖先不能带 transform（否则 fixed 改按祖先定位）。宽度用 Tailwind 任意值类 `w-[var(--sf-history-drawer-width,360px)]`（happy-dom 不认行内 `var()` 宽度，类名可测）。
+- 测试：新增 `version-history-drawer` 2 条（宽度规则；fixed 而非 absolute、接焦点、Esc 关、组字 Esc 不关、关后还焦点）；`workspace-layout-app` 加壳层变量 = 对话栏宽（1440 平衡态 389px）。变异 5 / 5 全杀。
+- 验证：前端 typecheck 绿；版本记录与布局相关 3 个测试文件 10 条绿；全量与真宿主截图见本组最后一条。

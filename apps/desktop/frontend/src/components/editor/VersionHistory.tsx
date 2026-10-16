@@ -54,6 +54,16 @@ export function VersionHistory({
   getCurrentContent?: () => string;
 }) {
   const scope = useMemo(() => ({ projectPath, filePath }), [projectPath, filePath]);
+  // 抽屉一开就接过焦点：焦点留在正文里时 Esc 会被 Monaco 自己吃掉，焦点在抽屉上 Esc 才关得上；
+  // 关掉后把焦点还给打开前的地方（通常是正文）。
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    drawerRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (previous?.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, []);
   const [versionState, setVersionState] = useState<{
     scope: typeof scope;
     items: VersionEntry[];
@@ -167,9 +177,20 @@ export function VersionHistory({
       : `版本历史读取完成，共 ${visibleVersions?.length ?? 0} 条。`;
 
   return (
+    // 压在右栏的位置上、不盖正文（作者 10-16 ④）：fixed 顶在标题栏（h-9）下面，宽度继承壳层
+    // --sf-history-drawer-width（平衡态 = 对话栏宽）。祖先不能带 transform，否则 fixed 会改按祖先定位。
     <div
-      className="absolute top-0 right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-panel-lift z-30 animate-slide-up-fade"
+      ref={drawerRef}
+      tabIndex={-1}
+      aria-label="版本记录"
+      className="fixed bottom-0 right-0 top-9 z-30 flex w-[var(--sf-history-drawer-width,360px)] flex-col border-l border-border bg-panel shadow-panel-lift outline-none animate-slide-up-fade"
       data-testid="version-history"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || event.nativeEvent.isComposing) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }}
     >
       <LiveStatus text={liveText} testid="version-history-live" />
       <div className="sf-panel-header">

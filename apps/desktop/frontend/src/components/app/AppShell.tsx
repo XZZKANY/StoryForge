@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, type CSSProperties } from 'react';
 
 import { ChatWindow } from '../ChatWindow';
 import { CommandPalette } from '../CommandPalette';
@@ -20,6 +20,7 @@ import { useDeference } from '../shell/useDeference';
 import { useWorkspaceColumns } from '../shell/useWorkspaceColumns';
 import {
   ASSISTANT_PANEL_MIN_WIDTH,
+  historyDrawerWidth,
   WORKSPACE_PRIMARY_MIN_WIDTH,
   widthToRatio,
 } from '../../lib/workspace-layout';
@@ -189,6 +190,12 @@ export function AppShell({
   return (
     <div
       className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
+      // 版本记录抽屉（编辑器里 position: fixed）从这里继承宽度，好正好压在对话栏上。
+      style={
+        {
+          '--sf-history-drawer-width': `${historyDrawerWidth(shell.layoutMode, rightPanelVisible, columns?.assistant ?? 0)}px`,
+        } as CSSProperties
+      }
       data-testid="desktop-shell"
       data-main-surface={mainSurface}
       data-layout-mode={shell.view}

@@ -176,6 +176,12 @@ test('真实 App 项目态 resize / 聚焦布局不改宽度偏好或卸载 Edit
     const assistantFrame = () =>
       container.querySelector<HTMLElement>('[data-testid="assistant-panel"]');
     expect(assistantFrame()?.style.width).toBe('389px');
+    // 版本记录抽屉从壳层继承宽度，正好压在对话栏上。
+    expect(
+      container
+        .querySelector<HTMLElement>('[data-testid="desktop-shell"]')
+        ?.style.getPropertyValue('--sf-history-drawer-width'),
+    ).toBe('389px');
     expect(panel()?.style.width).toBe('432px');
     // 只有作者显式调宽才改偏好：调完的像素按当时窗口宽记成比例。
     const press = (testId: string, key: string) =>
