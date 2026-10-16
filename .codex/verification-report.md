@@ -8136,3 +8136,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 变异：4 / 4（不排序 ×2 处测试、去掉整数形键闸、改成 UTF-16 默认排序）。
 - 顺带查明：0.1.15 的 run 57、58 两次起草没有比对记录，是因为当时比对开关是关的——WebView 本地存储里 `engine.agentLoop` 先被写成 `python`，10-16 06:14:55（UTC）才写回 `shadow`，正好在 run 58 与 run 59 之间。用作者库副本退回 run 58 发送前、练手项目按当时的文件，在 vitest 里重放影子，照常落记录，影子本身没有漏记。
 - 未联通：作者装上带这一刀的版本后，新版本的 checks 有行、diffs 为空，才算 P5-1 验收。
+
+## 2026-10-16 「开始起草」被后端 120 秒请求时限掐断；超时 / 限流 / 认证失败的回复不带跨域头
+
+- 起因：在真书副本（末世吞噬，作者配置 claude-sonnet-5）上点「AI 起草第 6 章 → 开始起草」：起草 86 秒 + 检查 34 秒 + 重查 16 秒约 136 秒，第 120 秒后端 `enforce_request_timeout` 回 504；该中间件注册在 CORS 外层，504 不带 `Access-Control-Allow-Origin`，前端只见 `Failed to fetch`，章纲卡片停在「起草中…」。后端在 136 秒时照常跑完落库。#348 把前端 resume_run 的等待改成 360 秒，被这道 120 秒先截住；Tauri 起 sidecar 不设 `STORYFORGE_REQUEST_TIMEOUT_SECONDS`，装机版同样是 120 秒。证据（脚本、截图、导出的运行记录）在 `output/novel-loop-20261016/`（gitignored）。
+- 修复（`apps/api/app/main.py`）：`POST /api/ide/agent/sessions/{id}/control` 不设总时限——到点也停不下线程池里的这一轮，只会让前端拿不到结果，由模型调用超时与前端 360 秒整轮等待兜底；CORS 中间件挪到认证、限流、超时三层外面，401 / 429 / 504 都带跨域头。SSE 流式路由不受这道时限影响（`call_next` 在响应头发出时即返回）。
+- 覆盖：`tests/test_api_middleware.py` 新增 2 条、改 1 条——慢于时限的控制请求仍拿到 200 回执；504 带跨域头；401 与 429 带跨域头。变异 2/2：去掉免时限 → 控制请求那条红；CORS 放回最里层 → 两条跨域断言红（文件按字节还原）。
+- 门禁：`pnpm verify` 全过——lint、前端类型检查、shared 与 project-core 契约、引擎 13518 通过 / 2 跳过、前端 vitest 2253 通过 / 1 跳过、行间续写真实 Monaco 回归、pytest 3328 通过 / 51 跳过、ruff、sidecar 冒烟 daily 档（含 Agent control REST 往返）、OpenAPI 无漂移。
+- 未联通：装机版要出包后在真窗口点穿；本刀只解决「拿不到结果」，同一次跑出的检查器作废与字数规则另起两刀。
