@@ -178,6 +178,7 @@ it('clicking safe continuation sends resume_run for the same ID; accepted is not
     runId: 'run',
     type: 'resume_run',
     payload: { source: 'desktop.timeline' },
+    timeoutMs: 360_000,
   });
   expect(runAuthorAgent).not.toHaveBeenCalled();
   expect(current.state.agentRun?.status).not.toBe('completed');
@@ -583,6 +584,7 @@ it('legacy ChapterBrief resume keeps its payload and captures a read-only recove
       runId: 'run',
       sessionId: 'session',
       type: 'resume_run',
+      timeoutMs: 360_000,
       payload: expect.objectContaining({
         chapter_brief: expect.objectContaining({
           brief_id: 'brief-1',
@@ -667,3 +669,46 @@ it.each([
     expect(runAuthorAgent).not.toHaveBeenCalled();
   },
 );
+
+it('a control ACK that ends the run takes the pending chapter brief down with it', async () => {
+  await mount();
+  await act(async () =>
+    current.state.setChapterBrief({
+      briefId: 'brief-1',
+      revision: 1,
+      targetPath: 'chapter.md',
+      chapterOrdinal: 1,
+      chapterTitle: null,
+      goal: '推进冲突',
+      pov: null,
+      setting: null,
+      requiredBeats: [],
+      forbiddenItems: [],
+      continuityConstraints: [],
+      targetCharsMin: 1000,
+      targetCharsMax: 2000,
+    }),
+  );
+  vi.mocked(sendAgentControlMessage).mockResolvedValue({
+    ...controlAck(),
+    type: 'stop_run',
+    runtime_state: 'settled',
+    run_status: 'paused',
+  });
+  await act(async () => current.controls.agentRunControls.onStopRun());
+  expect(current.state.chapterBrief).not.toBeNull();
+  vi.mocked(sendAgentControlMessage).mockResolvedValue({
+    ...controlAck(),
+    type: 'stop_run',
+    runtime_state: 'settled',
+    run_status: 'stopped',
+  });
+  await act(async () => current.controls.agentRunControls.onStopRun());
+  expect(sendAgentControlMessage).toHaveBeenLastCalledWith({
+    sessionId: 'session',
+    runId: 'run',
+    type: 'stop_run',
+    payload: { source: 'desktop.timeline' },
+  });
+  expect(current.state.chapterBrief).toBeNull();
+});

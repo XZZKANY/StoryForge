@@ -8099,3 +8099,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   6. 紫色归位：色板注释一直写「紫色只给 AI」，但 9-29 的 D1 波把版本记录等主操作改成了紫色，与设置页 / 补丁「接受」的单色主按钮并存。为让强调色设置真正生效，统一为「主操作 / 选中 = 强调色，紫色 = AI」：总览「继续写」、版本「恢复」与筛选选中、命令面板匹配高亮与选中项、搜索命中高亮、未保存小圆点、日更进度条、总览图标改回强调色或中性色；权限档位徽标、知识提案、AI 起草、@ 提及、观测镜提醒、焦点环保持紫色。`version-history.test.tsx` 那条 D1 断言按新规则改写。
 - 验证：前端 `npm run typecheck` 通过；`npx vitest run` 220 文件 / 2251 用例通过（1 skip，新增 `appearance.test.ts` 8 条、`appearance-settings.test.tsx` 6 条、`theme-fouc` 3 条）；`pnpm lint` 0 error（2 条既有 warning）、prettier 通过；改动文件行尾逐个与 HEAD 一致。截图复验五组（默认深 / 默认浅 / 暖色深 / 暖色浅 / 纯黑底 + 蓝色强调）：外观页缩略图与取色正确、编辑器标题不再发蓝、蓝色强调下「继续写」变蓝而「AI 起草」仍是紫色描边。截图在 `C:/Users/kanye/AppData/Local/Temp/sf-uiux-tour-1015/verify-pr2/`（临时目录）。
 - 未联通：装机版观感、Windows 切换深浅色时「跟随系统」的实时跟随（WebView2 行为）需真机点穿；本刀与 #345 都不在 0.1.14 里，要 bump 0.1.15 才送达作者。
+
+## 2026-10-16 「开始起草」没反应：确认请求 30 秒超时、章纲卡片留在原地，它的「取消」把写好的稿子拒掉（前端，0.1.15）
+
+- 起因：作者装 0.1.14 后点「开始起草」说没用。作者库只读副本（run 57）：12:59:34 `resume_run` 已生效、起草开始；12:59:37 起陆续 10 次 `deny_permission`；13:00:29 起草加检查完成（约 55 秒），生成待确认补丁；13:01:21 一次 `deny_permission` 生效，补丁被拒、run `failed / permission.denied`；13:01:29 又一次带同一份章纲的 `resume_run`（即章纲卡片的「开始起草」，被忽略）。run 56（10-15）、run 55（09-26「起草第46章」）同一模式。
+- 根因：「开始起草」发的 `resume_run` 控制请求要在后端把剩下的步骤（起草 + 检查）跑完才回执，前端 `sendAgentControlMessage` 默认 30 秒就 abort；超时分支只把本轮标成结果未知，不清 `chapterBrief`，章纲卡片（弹窗）一直开着、两个按钮可点。卡片的「取消」接的是 `onDenyPermission`：章纲待确认时后端不认「拒绝」（`current_step` 是 `chapter.brief.confirm` 不是 `permission.confirm`，一律 ignored），只有补丁出来后它才生效——正好把写好的稿子拒掉。
+- 修复（`apps/desktop/frontend`）：`resume_run` 控制请求按整轮对话的时限等（`DEFAULT_AGENT_TIMEOUT_MS` 360 秒，导出复用）；章纲卡片加 `busy`（`state.agentBusy`）：两个按钮置灰，「开始起草」显示「起草中…」；卡片「取消」改接 `onStopRun`（真的停掉这一轮）；控制回执报告本轮已结束（stopped / failed / completed）时清掉章纲。后端未改。
+- 覆盖：`chapter-brief.test.tsx`（起草中卡片两个按钮都点不了、文案）、`agent-decision-prompt.test.tsx`（真 ChatWindowView：取消走停止不走拒绝；起草中从窗口传到卡片）、`agent-checkpoint-recovery.test.tsx`（恢复带 `timeoutMs: 360_000`、章纲恢复同样；停止回执未结束不清、结束才清章纲）。变异 8 / 8（恢复仍按 30 秒、取消仍发拒绝、起草中不传给卡片、起草中取消 / 开始仍可点、起草中不改文案、结束的一轮不清章纲、未结束也清章纲）。
+- 全量（本机内存吃紧，前台分段跑）：lint 0 错误 / 2 条既有 warning、前端类型检查、shared 与 project-core 契约、引擎 13518、前端 vitest（`--maxWorkers=3`）2236、行间续写真实 Monaco 回归（第一次 Vite 冷启动 `page.goto` 30 秒超时，重跑通过——两次门禁都是这样，内存紧时冷启动慢）、pytest 分五段合计 3326 通过 / 51 跳过、ruff、sidecar 冒烟 daily 档、OpenAPI 无漂移（只变版本号）。版本 bump 到 0.1.15。
+- 顺带：run 57 那篇被拒的稿子（1797 字）导出到 `output/ts-engine-p5/check-replay/练手实验-第001章-0.1.14稿.md`（gitignored）；稿中半角逗号与直引号为 0、全角逗号 106 个，0.1.14 的起草统一全角在作者真机上已生效。
+- 未联通：作者装 0.1.15 后在真窗口里点穿「开始起草 → 起草中… → 出补丁 → 接受」；起草超过 360 秒的极端情况仍会走结果未知分支（此时按钮保持置灰，靠「核对状态」取回）。

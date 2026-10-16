@@ -25,7 +25,7 @@ import type {
 // Agent 本地 SSE 流等待 LLM 编排返回的默认上限。必须大于后端 _call_llm 的
 // STORYFORGE_LLM_TIMEOUT_SECONDS（默认 300s）——审稿会并行发 3 路真模型调用，
 // DeepSeek 等慢响应下 120s 远不够，会在后端还没返回时被前端误判超时。
-const DEFAULT_AGENT_TIMEOUT_MS = 360_000;
+export const DEFAULT_AGENT_TIMEOUT_MS = 360_000;
 
 // SSE 超时后只读查询同 run 的持久事件。观察预算不是执行预算：耗尽只能判为结果未知，
 // 不能据此判断后台失败或允许重新 POST。作者可继续显式核对。
