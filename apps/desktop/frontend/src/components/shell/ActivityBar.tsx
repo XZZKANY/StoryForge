@@ -51,7 +51,7 @@ export const VIEW_ENTRIES: ViewEntry[] = [
     view: 'knowledge',
     icon: Inbox,
     title: '知识收件箱 · Ctrl Shift I',
-    label: '知识库收件箱',
+    label: '知识收件箱',
     projectOnly: true,
   },
   {

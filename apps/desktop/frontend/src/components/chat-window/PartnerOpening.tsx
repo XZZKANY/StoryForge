@@ -35,12 +35,6 @@ export function PartnerOpening({
       className="max-w-[760px] animate-slide-up-fade text-sm leading-7 text-foreground"
       data-testid="partner-opening"
     >
-      <div className="mb-2 flex items-center gap-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-agent text-2xs font-semibold text-agent-foreground shadow-sm">
-          AI
-        </span>
-        <span className="text-2xs text-subtle">StoryForge</span>
-      </div>
       <div className="space-y-3 py-1">
         {last === null ? (
           <p>这本书还没有正文。第 1 章想从哪儿开始？</p>

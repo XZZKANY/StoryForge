@@ -44,19 +44,19 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
       <LiveStatus
         text={
           handle.loading
-            ? '正在刷新 Knowledge Inbox…'
+            ? '正在刷新知识收件箱…'
             : `${handle.inbox.pending_count} 条待处理知识提案。`
         }
         testid="knowledge-inbox-live"
       />
       <div className="flex h-shell-row flex-shrink-0 items-center gap-2 px-2.5">
-        <h2 className="min-w-0 flex-1 truncate text-xs font-semibold">Knowledge Inbox</h2>
+        <h2 className="min-w-0 flex-1 truncate text-xs font-semibold">知识收件箱</h2>
         <span className="font-mono text-3xs text-subtle" data-testid="knowledge-inbox-count">
           {handle.inbox.pending_count}
         </span>
         <IconButton
           size="xs"
-          label="刷新 Knowledge Inbox"
+          label="刷新知识收件箱"
           icon={<RefreshCw size={13} className={handle.loading ? 'animate-spin' : ''} />}
           disabled={handle.loading}
           onClick={() => void handle.refresh()}
@@ -66,7 +66,7 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
       <div
         className="grid grid-cols-4 gap-1 p-1"
         role="tablist"
-        aria-label="Knowledge Inbox 分类"
+        aria-label="知识收件箱分类"
         onKeyDown={(event) => {
           if (
             event.key !== 'ArrowLeft' &&
@@ -110,9 +110,7 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
           </button>
         ))}
       </div>
-      {handle.error && (
-        <PanelError title="Knowledge Inbox 操作失败" detail={handle.error} compact />
-      )}
+      {handle.error && <PanelError title="知识收件箱操作失败" detail={handle.error} compact />}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {rows.length === 0 && !handle.loading ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-3 py-8 text-center">

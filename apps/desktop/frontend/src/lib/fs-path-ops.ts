@@ -37,6 +37,11 @@ export function sanitizeEntryName(raw: string): string | null {
   return name;
 }
 
+/** 给作者看的章节名：去掉 `.md` / `.markdown` 后缀；路径与匹配仍用原文件名。 */
+export function displayDocName(name: string): string {
+  return name.replace(/\.(md|markdown)$/i, '') || name;
+}
+
 /** 新建 Markdown 文件名：规整后补 `.md` 扩展名（已带则不重复）。 */
 export function ensureMarkdownName(raw: string): string | null {
   const name = sanitizeEntryName(raw);

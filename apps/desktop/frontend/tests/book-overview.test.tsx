@@ -96,8 +96,9 @@ test('总览进度使用真实扫描且章节按阅读序；继续写作只传�
   const rows = host.querySelectorAll<HTMLButtonElement>(
     '[data-testid="book-overview-chapter-row"]',
   );
-  expect(rows[0].textContent).toContain('01.md');
-  expect(rows[1].textContent).toContain('02.md');
+  expect(rows[0].textContent).toContain('01');
+  expect(rows[0].textContent).not.toContain('.md');
+  expect(rows[1].textContent).not.toContain('.md');
   expect(host.textContent).not.toContain('最近章节');
   await act(async () =>
     host.querySelector<HTMLButtonElement>('[data-testid="book-overview-continue"]')!.click(),
