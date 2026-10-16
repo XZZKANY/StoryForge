@@ -19,6 +19,7 @@ import {
 } from '../icons/shell-icons';
 import type { LayoutMode } from '../shell/useShellState';
 import { AssistantMarkdown } from './AssistantMarkdown';
+import { CHAT_COLUMN } from './column';
 import { contextBudgetText } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
 import type { AgentRun, AgentRunControlHandlers, Message } from './types';
@@ -317,12 +318,10 @@ export function MessageList({
   const content =
     messages.length === 0 ? (
       emptyState ? (
-        <div className="mx-auto flex w-full max-w-[800px] flex-col gap-6 px-5 py-6">
-          {emptyState}
-        </div>
+        <div className={`${CHAT_COLUMN} flex flex-col gap-6 px-5 py-6`}>{emptyState}</div>
       ) : null
     ) : (
-      <div className="mx-auto flex w-full max-w-[800px] flex-col gap-6 px-5 py-6">
+      <div className={`${CHAT_COLUMN} flex flex-col gap-6 px-5 py-6`}>
         {messages.map((message, index) => (
           <MessageItem key={message.id ?? messageKey(message) + ':' + index} message={message} />
         ))}
@@ -475,43 +474,47 @@ export function RunActionBar({
 
   if (run.deliveryUnknown)
     return (
-      <div
-        className="flex flex-wrap items-center gap-2 border-t border-border p-3"
-        data-testid="run-action-bar"
-      >
-        <span role="status" className="text-xs text-warning" data-testid="run-action-status">
-          本轮结果未知；连接结束不代表执行失败。请核对原运行，不会自动重放。
-        </span>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={controls.onReconcileRun}
-          data-testid="run-reconcile"
+      <div className="flex-shrink-0 px-3 pt-2" data-testid="run-action-bar">
+        <div
+          className={`${CHAT_COLUMN} flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-background px-3 py-2`}
         >
-          核对状态
-        </Button>
-        <Button size="sm" variant="secondary" onClick={controls.onPauseRun} data-testid="run-pause">
-          请求暂停
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={handleStopClick}
-          onBlur={cancelStopConfirm}
-          data-testid="run-stop"
-        >
-          {stopConfirmArmed ? '确认停止' : '请求停止'}
-        </Button>
+          <span role="status" className="text-xs text-warning" data-testid="run-action-status">
+            本轮结果未知；连接结束不代表执行失败。请核对原运行，不会自动重放。
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={controls.onReconcileRun}
+            data-testid="run-reconcile"
+          >
+            核对状态
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={controls.onPauseRun}
+            data-testid="run-pause"
+          >
+            请求暂停
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleStopClick}
+            onBlur={cancelStopConfirm}
+            data-testid="run-stop"
+          >
+            {stopConfirmArmed ? '确认停止' : '请求停止'}
+          </Button>
+        </div>
       </div>
     );
 
+  // 操作条是对话栏里的一张卡片，与输入框同宽：对话占满中右时不再拉成横跨整宽的工具带。
   return (
-    <div
-      className="flex flex-shrink-0 flex-col border-t border-border bg-panel shadow-bar-top animate-slide-in-up"
-      data-testid="run-action-bar"
-    >
-      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-        <div className="mx-auto flex w-full max-w-[800px] flex-wrap items-center gap-2">
+    <div className="flex-shrink-0 animate-slide-in-up px-3 pt-2" data-testid="run-action-bar">
+      <div className={`${CHAT_COLUMN} flex flex-col rounded-lg border border-border bg-background`}>
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2">
           <div className="flex items-center gap-3">
             {isRunning && (
               <span className="relative flex h-3 w-3">
@@ -668,13 +671,11 @@ export function RunActionBar({
             </Button>
           )}
         </div>
-      </div>
-      {rejectDraft !== null && awaitingConfirm && (
-        <div
-          className="flex items-center gap-2 border-t border-border px-4 py-2"
-          data-testid="run-reject-form"
-        >
-          <div className="mx-auto flex w-full max-w-[800px] items-center gap-2">
+        {rejectDraft !== null && awaitingConfirm && (
+          <div
+            className="flex items-center gap-2 border-t border-border px-3 py-2"
+            data-testid="run-reject-form"
+          >
             <input
               autoFocus
               value={rejectDraft}
@@ -701,8 +702,8 @@ export function RunActionBar({
               {rejectDraft.trim() ? '否掉并重来' : '否掉'}
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -757,7 +758,7 @@ export function ContextSummaryPanel({
 
   return (
     <section
-      className="mx-3 mb-2 max-h-[40%] flex-shrink-0 overflow-y-auto rounded-lg bg-background px-3 py-2"
+      className="mx-auto mb-2 mt-2 max-h-[40%] w-[calc(100%-1.5rem)] max-w-[800px] flex-shrink-0 overflow-y-auto rounded-lg bg-background px-3 py-2"
       data-testid="context-summary"
       data-compact={compact ? 'true' : 'false'}
       data-expanded={detailsOpen ? 'true' : 'false'}
@@ -917,7 +918,7 @@ export function ContextSummaryPanel({
                   data-context-path={file.relativePath}
                   title={file.relativePath}
                 >
-                  <span className="w-10 flex-shrink-0 text-subtle">
+                  <span className="w-14 flex-shrink-0 whitespace-nowrap text-subtle">
                     {semanticKindLabel(file.kind)}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
@@ -1021,7 +1022,7 @@ export function LightweightStatus({
 }) {
   return (
     <div className="flex-shrink-0 bg-panel px-5 py-2">
-      <div className="mx-auto flex max-w-[800px] items-center gap-3">
+      <div className={`${CHAT_COLUMN} flex items-center gap-3`}>
         <div className="min-w-0 flex-1 truncate text-xs text-muted" title={text}>
           {text}
         </div>

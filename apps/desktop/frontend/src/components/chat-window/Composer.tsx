@@ -4,6 +4,7 @@ import { AGENT_ROLE_SUGGESTIONS } from '../../lib/agent-roles';
 import { type AgentPermissionProfile } from '../../lib/agent-permission';
 import { basename } from '../app/helpers';
 import { ArrowUp, Plus } from '../icons/shell-icons';
+import { CHAT_COLUMN } from './column';
 import { roleMentionQuery } from './display-utils';
 import { PermissionProfileSelector } from './PermissionProfileSelector';
 import type { QueuedChatMessage } from './useChatSubmission';
@@ -45,7 +46,7 @@ export function ComposerBox({
 }) {
   return (
     <div className="flex-shrink-0 p-3">
-      <div className="mx-auto max-w-[800px]">
+      <div className={CHAT_COLUMN}>
         <form
           onSubmit={(event) => {
             event.preventDefault();

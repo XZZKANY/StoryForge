@@ -1,5 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, DialogSurface } from '../ui';
+import { CHAT_COLUMN } from './column';
 
 /** Presentation only: dismissing is neither rejection nor execution authority. */
 export function AgentDecisionPrompt({
@@ -35,19 +36,21 @@ export function AgentDecisionPrompt({
   return (
     <>
       {decisionKey && (
-        <div className="flex shrink-0 items-center justify-between gap-2 px-5 py-2 text-sm">
-          <span className="min-w-0 text-muted">{title}</span>
-          <Button
-            ref={openerRef}
-            size="xs"
-            onClick={() => {
-              setRequested(decisionKey);
-              onRequestOpen?.();
-            }}
-            data-testid="agent-decision-open"
-          >
-            查看并决定
-          </Button>
+        <div className="shrink-0 px-5 py-2 text-sm">
+          <div className={`${CHAT_COLUMN} flex items-center justify-between gap-2`}>
+            <span className="min-w-0 text-muted">{title}</span>
+            <Button
+              ref={openerRef}
+              size="xs"
+              onClick={() => {
+                setRequested(decisionKey);
+                onRequestOpen?.();
+              }}
+              data-testid="agent-decision-open"
+            >
+              查看并决定
+            </Button>
+          </div>
         </div>
       )}
       {/* Keep editable decision drafts mounted; a hidden Chat owns no modal layer. */}

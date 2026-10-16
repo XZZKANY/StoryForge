@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { emitToast } from '../../lib/toast';
 import { ComposerBox } from './Composer';
 import { ChapterBriefCard } from './ChapterBriefCard';
+import { CHAT_COLUMN } from './column';
 import { runLivePhaseText, runStatusText } from './display-utils';
 import { LiveStatus } from '../shell/LiveStatus';
 import {
@@ -148,32 +149,34 @@ export function ChatWindowView({
 
       {state.sessionLoadError && state.sessionLoadError !== dismissedSessionError && (
         <div
-          className="flex flex-shrink-0 items-center gap-3 border-b border-warning/40 bg-warning/10 px-4 py-2 text-xs text-warning"
+          className="flex-shrink-0 border-b border-warning/40 bg-warning/10 px-4 py-2 text-xs text-warning"
           data-testid="assistant-session-load-error"
         >
-          <span className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs font-medium leading-4 text-warning">
-            会话记录加载失败
-          </span>
-          <span className="min-w-0 flex-1 break-words">{state.sessionLoadError}</span>
-          <button
-            type="button"
-            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 text-xs transition-colors hover:bg-elevated"
-            onClick={() => {
-              setDismissedSessionError(null);
-              retryAssistantSessionLoad();
-            }}
-            data-testid="assistant-session-load-retry"
-          >
-            重试
-          </button>
-          <button
-            type="button"
-            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 text-xs transition-colors hover:bg-elevated"
-            onClick={() => setDismissedSessionError(state.sessionLoadError)}
-            data-testid="assistant-session-load-error-dismiss"
-          >
-            关闭
-          </button>
+          <div className={`${CHAT_COLUMN} flex items-center gap-3`}>
+            <span className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs font-medium leading-4 text-warning">
+              会话记录加载失败
+            </span>
+            <span className="min-w-0 flex-1 break-words">{state.sessionLoadError}</span>
+            <button
+              type="button"
+              className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 text-xs transition-colors hover:bg-elevated"
+              onClick={() => {
+                setDismissedSessionError(null);
+                retryAssistantSessionLoad();
+              }}
+              data-testid="assistant-session-load-retry"
+            >
+              重试
+            </button>
+            <button
+              type="button"
+              className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 text-xs transition-colors hover:bg-elevated"
+              onClick={() => setDismissedSessionError(state.sessionLoadError)}
+              data-testid="assistant-session-load-error-dismiss"
+            >
+              关闭
+            </button>
+          </div>
         </div>
       )}
 
@@ -202,7 +205,7 @@ export function ChatWindowView({
           title="确认章纲后开始起草"
         >
           <div className="flex-shrink-0 px-5 py-3">
-            <div className="mx-auto w-full max-w-[800px]">
+            <div className={CHAT_COLUMN}>
               <ChapterBriefCard
                 brief={state.chapterBrief}
                 onConfirm={agentRunControls.onConfirmChapterBrief ?? (() => undefined)}
