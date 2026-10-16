@@ -99,11 +99,44 @@ def test_31st_hard_finding_is_not_lost_after_thirty_advisories():
     assert result["model_finding_count"] == 31
 
 
-@pytest.mark.parametrize("finding", [_hard(evidence="伪造引文"), _hard(line=999), _hard(line=1), _hard(evidence=None)])
+@pytest.mark.parametrize("finding", [_hard(evidence="伪造引文"), _hard(evidence=None)])
 def test_ungrounded_hard_results_are_blocked_not_auto_repaired(finding):
     result = build_check(CONTENT, BRIEF, _reply([finding]))
     assert result["status"] == "blocked"
     assert not any(item["rule"] == "missing_required_beat" for item in result["findings"])
+
+
+@pytest.mark.parametrize("line", [1, 999, None])
+def test_quote_with_wrong_or_missing_line_is_located_at_its_real_line(line):
+    result = build_check(CONTENT, BRIEF, _reply([_hard(line=line)]))
+    assert result["status"] == "repairable"
+    finding = result["findings"][0]
+    assert finding["evidence_verified"] is True
+    assert finding["line_start"] == 2 and finding["line_end"] == 2
+    assert CONTENT[finding["char_start"] : finding["char_end"]] == "她在窗口等他。"
+
+
+def test_quote_folds_full_and_half_width_marks_and_ignores_whitespace():
+    content = "守卫喝道：“站住，别动！”\n林舟停下。\n" + "一" * 1200
+    evidence = '守卫喝道: "站住,别动!"'
+    result = build_check(content, BRIEF, _reply([_hard(line=1, evidence=evidence)], content=content))
+    assert result["status"] == "repairable"
+    finding = result["findings"][0]
+    assert content[finding["char_start"] : finding["char_end"]] == "守卫喝道：“站住，别动！”"
+    assert finding["line_start"] == 1 and finding["line_end"] == 1
+
+
+def test_several_matches_pick_the_one_nearest_the_reported_line():
+    # 10-16 真书第 6 章：检查器把全角引号写成直引号，行号报在两处原文之前，整份检查因此作废。
+    prompt = "【检测到进化点达到阈值。可激活“随机变异池”。是否激活？】"
+    content = "\n".join(["他走进车间。", prompt, "他没有回答。", prompt, "一" * 1200]) + "\n"
+    evidence = '【检测到进化点达到阈值。可激活"随机变异池"。是否激活？】'
+    for line, expected in ((1, 2), (3, 2), (4, 4), (99, 4), (None, 2)):
+        result = build_check(content, BRIEF, _reply([_hard(line=line, evidence=evidence)], content=content))
+        finding = result["findings"][0]
+        assert result["status"] == "repairable"
+        assert finding["line_start"] == expected
+        assert content[finding["char_start"] : finding["char_end"]] == prompt
 
 
 @pytest.mark.parametrize("field", ["content_sha256", "brief_sha256", "protocol_version"])

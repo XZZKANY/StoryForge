@@ -143,27 +143,67 @@ function escapeStrayQuotes(text: string): string {
   return out;
 }
 
-/** 引用必须真在所报的那一行起头的正文里（码点下标）。 */
+// 检查器引用原文时常把全角标点写成半角（稿子出稿后统一成全角，模型照旧写直引号），行号也常数错。
+// 引文按「同一个标点的全角 / 半角算同一个字、空白不计」在全文里找，所报行号只在多处命中时挑最近的一处；
+// 原文里没有这句仍判无效——要的是原文真有，不是模型数对了行。
+const QUOTE_FOLD = new Map([
+  ['“', '"'],
+  ['”', '"'],
+  ['＂', '"'],
+  ['‘', "'"],
+  ['’', "'"],
+  ['＇', "'"],
+  ['，', ','],
+  ['：', ':'],
+  ['；', ';'],
+  ['？', '?'],
+  ['！', '!'],
+  ['（', '('],
+  ['）', ')'],
+]);
+const QUOTE_SPACE = new Set(
+  [0x20, 0x09, 0x0a, 0x0d, 0x0c, 0x0b, 0x3000, 0xa0].map((code) => String.fromCodePoint(code)),
+);
+
+/** 折叠后的码点序列，及每个码点在原文里的下标。 */
+function foldForQuote(chars: readonly string[]): { folded: string[]; positions: number[] } {
+  const folded: string[] = [];
+  const positions: number[] = [];
+  chars.forEach((char, index) => {
+    if (QUOTE_SPACE.has(char)) return;
+    folded.push(QUOTE_FOLD.get(char) ?? char);
+    positions.push(index);
+  });
+  return { folded, positions };
+}
+
+/** 引用必须真在正文里（码点下标）；行号按引用实际所在行回报。 */
 function quoteLocation(content: string, evidence: string, line: number | null): Obj {
-  const lines = splitlinesKeepends(content);
-  if (line === null || line > lines.length) throw new InvalidCheck('引用起始行不在正文内。');
   const chars = points(content);
-  const start = lines.slice(0, line - 1).reduce((total, text) => total + points(text).length, 0);
-  const needle = points(evidence);
-  let offset = -1;
-  for (let index = start; index + needle.length <= chars.length; index++)
-    if (needle.every((char, i) => chars[index + i] === char)) {
-      offset = index;
-      break;
-    }
-  if (offset < start || offset >= start + points(lines[line - 1]).length)
-    throw new InvalidCheck('引用与所报行号不一致。');
-  const end = offset + needle.length;
+  const { folded, positions } = foldForQuote(chars);
+  const needle = foldForQuote(points(evidence)).folded;
+  const starts: number[] = [];
+  if (needle.length > 0)
+    for (let index = 0; index + needle.length <= folded.length; index++)
+      if (needle.every((char, i) => folded[index + i] === char)) starts.push(index);
+  if (starts.length === 0) throw new InvalidCheck('引用在正文里找不到。');
+  const lineOffsets = [0];
+  for (const text of splitlinesKeepends(content))
+    lineOffsets.push(lineOffsets[lineOffsets.length - 1] + points(text).length);
+  const lineOf = (offset: number) => lineOffsets.filter((start) => start <= offset).length;
+  let best = starts[0];
+  if (line !== null) {
+    const distance = (start: number) => Math.abs(lineOf(positions[start]) - line);
+    for (const start of starts) if (distance(start) < distance(best)) best = start;
+  }
+  const offset = positions[best];
+  const end = positions[best + needle.length - 1] + 1;
+  const lineStart = lineOf(offset);
   return {
     char_start: offset,
     char_end: end,
-    line_start: line,
-    line_end: line + pythonSplitlines(chars.slice(offset, end).join('')).length - 1,
+    line_start: lineStart,
+    line_end: lineStart + pythonSplitlines(chars.slice(offset, end).join('')).length - 1,
   };
 }
 

@@ -93,7 +93,7 @@
     "app/domains/agent_runs/adapters/chapter_writing_pipeline.py": "c1037e2b5ce048bf84f56e4afadba41300dc542211eaf66c94a2fc381c8a71f4",
     "app/domains/agent_runs/adapters/chapter_writing_contracts.py": "9f66f9a3f7ea1b86602892aeca7406b0df8bc190d11efb716c791a4e41d96be8",
     "app/domains/agent_runs/adapters/chapter_writing_tools.py": "0b422ea42d0663641bda31dda2e6d9024ec1c42b5454252313899ea3408ee4ab",
-    "app/domains/agent_runs/adapters/chapter_check_protocol.py": "c9c3c30c1d88ca55ae063f60d6c2a94bdb78566d55ffc9c033f9ee89fc8313f1",
+    "app/domains/agent_runs/adapters/chapter_check_protocol.py": "53474896bbd5fc5c97fe9c459d20745d9ce2d723347314d0039544d2b5b645a0",
     "app/domains/agent_runs/adapters/chapter_source_guard.py": "78584f6f59120d53ba1b42c15751444be7324cb5cb29416a689ebb125e0d569c",
     "app/domains/agent_runs/loop/generation_recovery.py": "ad840fb2038d962d0cf7832911d22e5eeac714f57861ba558f54bca1daabbb6b",
     "app/domains/agent_runs/loop/knowledge_recovery.py": "a9d9d893bb782cedd3704267496d04cd92e31073f5f6dbc2bd5b50a3d8badbd0",
@@ -26423,7 +26423,7 @@
     },
     {
       "id": "write-check-bad-evidence",
-      "spec_json": "{\"id\": \"write-check-bad-evidence\", \"message\": {\"type\": \"user_message\", \"user_message\": \"写第三章：沈禾带林舟入城\", \"run_id\": \"run-1\", \"args\": {\"project_path\": \"$ROOT\", \"file_path\": \"$ROOT/正文/第003章.md\"}, \"intent\": \"chapter.write\"}, \"replies\": [{\"status\": 200, \"body\": \"{\\\"id\\\": \\\"resp-1\\\", \\\"choices\\\": [{\\\"index\\\": 0, \\\"message\\\": {\\\"role\\\": \\\"assistant\\\", \\\"content\\\": \\\"{\\\\\\\"target_path\\\\\\\": \\\\\\\"正文/第003章.md\\\\\\\", \\\\\\\"chapter_ordinal\\\\\\\": null, \\\\\\\"chapter_title\\\\\\\": \\\\\\\"入城\\\\\\\", \\\\\\\"goal\\\\\\\": \\\\\\\"沈禾带林舟入城\\\\\\\", \\\\\\\"pov\\\\\\\": \\\\\\\"林舟\\\\\\\", \\\\\\\"setting\\\\\\\": \\\\\\\"城门\\\\\\\", \\\\\\\"required_beats\\\\\\\": [\\\\\\\"入城\\\\\\\", \\\\\\\"夜宿\\\\\\\"], \\\\\\\"forbidden_items\\\\\\\": [\\\\\\\"回忆\\\\\\\"], \\\\\\\"continuity_constraints\\\\\\\": [\\\\\\\"林舟左臂有旧伤\\\\\\\"], \\\\\\\"target_chars_min\\\\\\\": 10, \\\\\\\"target_chars_max\\\\\\\": 400}\\\"}, \\\"finish_reason\\\": \\\"stop\\\"}], \\\"usage\\\": {\\\"prompt_tokens\\\": 12, \\\"completion_tokens\\\": 5, \\\"total_tokens\\\": 17}}\"}, {\"status\": 200, \"body\": \"data: {\\\"choices\\\": [{\\\"index\\\": 0, \\\"delta\\\": {\\\"content\\\": \\\"第三章 入城\\\\n\\\\n沈禾带林舟穿过城门。\\\\n守卫看了他们一眼。\\\\n\\\"}}]}\\n\\ndata: {\\\"choices\\\": [{\\\"index\\\": 0, \\\"delta\\\": {}, \\\"finish_reason\\\": \\\"stop\\\"}]}\\n\\ndata: {\\\"choices\\\": [], \\\"usage\\\": {\\\"prompt_tokens\\\": 12, \\\"completion_tokens\\\": 5, \\\"total_tokens\\\": 17}}\\n\\ndata: [DONE]\\n\\n\"}, {\"chapter_check\": {\"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺少夜宿情节\", \"line\": 4, \"evidence\": \"沈禾带林舟穿过城门。\"}], \"corrupt\": false}}, {\"chapter_check\": {\"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺少夜宿情节\", \"line\": 4, \"evidence\": \"沈禾带林舟穿过城门。\"}], \"corrupt\": false}}], \"env\": {}, \"triggers\": [], \"stream\": false, \"history\": null, \"sessions\": [], \"ops\": [{\"op\": \"control\", \"type\": \"resume_run\", \"payload\": {\"chapter_brief\": {\"brief_id\": \"chapter-brief-00000000000000000000000000000001\", \"revision\": 1, \"chapter_title\": \"入城\", \"goal\": \"沈禾带林舟入城，夜宿客栈\", \"pov\": \"林舟\", \"setting\": \"城门\", \"required_beats\": [\"入城\", \"夜宿\"], \"forbidden_items\": [\"回忆\"], \"continuity_constraints\": [\"林舟左臂有旧伤\"], \"target_chars_min\": 10, \"target_chars_max\": 400}}}]}",
+      "spec_json": "{\"id\": \"write-check-bad-evidence\", \"message\": {\"type\": \"user_message\", \"user_message\": \"写第三章：沈禾带林舟入城\", \"run_id\": \"run-1\", \"args\": {\"project_path\": \"$ROOT\", \"file_path\": \"$ROOT/正文/第003章.md\"}, \"intent\": \"chapter.write\"}, \"replies\": [{\"status\": 200, \"body\": \"{\\\"id\\\": \\\"resp-1\\\", \\\"choices\\\": [{\\\"index\\\": 0, \\\"message\\\": {\\\"role\\\": \\\"assistant\\\", \\\"content\\\": \\\"{\\\\\\\"target_path\\\\\\\": \\\\\\\"正文/第003章.md\\\\\\\", \\\\\\\"chapter_ordinal\\\\\\\": null, \\\\\\\"chapter_title\\\\\\\": \\\\\\\"入城\\\\\\\", \\\\\\\"goal\\\\\\\": \\\\\\\"沈禾带林舟入城\\\\\\\", \\\\\\\"pov\\\\\\\": \\\\\\\"林舟\\\\\\\", \\\\\\\"setting\\\\\\\": \\\\\\\"城门\\\\\\\", \\\\\\\"required_beats\\\\\\\": [\\\\\\\"入城\\\\\\\", \\\\\\\"夜宿\\\\\\\"], \\\\\\\"forbidden_items\\\\\\\": [\\\\\\\"回忆\\\\\\\"], \\\\\\\"continuity_constraints\\\\\\\": [\\\\\\\"林舟左臂有旧伤\\\\\\\"], \\\\\\\"target_chars_min\\\\\\\": 10, \\\\\\\"target_chars_max\\\\\\\": 400}\\\"}, \\\"finish_reason\\\": \\\"stop\\\"}], \\\"usage\\\": {\\\"prompt_tokens\\\": 12, \\\"completion_tokens\\\": 5, \\\"total_tokens\\\": 17}}\"}, {\"status\": 200, \"body\": \"data: {\\\"choices\\\": [{\\\"index\\\": 0, \\\"delta\\\": {\\\"content\\\": \\\"第三章 入城\\\\n\\\\n沈禾带林舟穿过城门。\\\\n守卫看了他们一眼。\\\\n\\\"}}]}\\n\\ndata: {\\\"choices\\\": [{\\\"index\\\": 0, \\\"delta\\\": {}, \\\"finish_reason\\\": \\\"stop\\\"}]}\\n\\ndata: {\\\"choices\\\": [], \\\"usage\\\": {\\\"prompt_tokens\\\": 12, \\\"completion_tokens\\\": 5, \\\"total_tokens\\\": 17}}\\n\\ndata: [DONE]\\n\\n\"}, {\"chapter_check\": {\"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺少夜宿情节\", \"line\": 3, \"evidence\": \"城门外下着雨。\"}], \"corrupt\": false}}, {\"chapter_check\": {\"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺少夜宿情节\", \"line\": 3, \"evidence\": \"城门外下着雨。\"}], \"corrupt\": false}}], \"env\": {}, \"triggers\": [], \"stream\": false, \"history\": null, \"sessions\": [], \"ops\": [{\"op\": \"control\", \"type\": \"resume_run\", \"payload\": {\"chapter_brief\": {\"brief_id\": \"chapter-brief-00000000000000000000000000000001\", \"revision\": 1, \"chapter_title\": \"入城\", \"goal\": \"沈禾带林舟入城，夜宿客栈\", \"pov\": \"林舟\", \"setting\": \"城门\", \"required_beats\": [\"入城\", \"夜宿\"], \"forbidden_items\": [\"回忆\"], \"continuity_constraints\": [\"林舟左臂有旧伤\"], \"target_chars_min\": 10, \"target_chars_max\": 400}}}]}",
       "result": {
         "type": "agent_result",
         "session_id": "sess-1",
@@ -26703,7 +26703,7 @@
                     "evidence": null
                   }
                 ],
-                "checker_reply_excerpt": "{\"protocol_version\": 2, \"content_sha256\": \"39b9be8c55c1745db27790daa802a5d2108a2df1368291d125bb49a902eabf7d\", \"brief_sha256\": \"6355decb404ea4d28da75a302d6cc22c2e186d0720a5186b3924d6013ded7484\", \"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺少夜宿情节\", \"line\": 4, \"evidence\": \"沈禾带林舟穿过城门。\"}]}"
+                "checker_reply_excerpt": "{\"protocol_version\": 2, \"content_sha256\": \"39b9be8c55c1745db27790daa802a5d2108a2df1368291d125bb49a902eabf7d\", \"brief_sha256\": \"6355decb404ea4d28da75a302d6cc22c2e186d0720a5186b3924d6013ded7484\", \"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺少夜宿情节\", \"line\": 3, \"evidence\": \"城门外下着雨。\"}]}"
               },
               "repair_count": 0,
               "writeback_blocked_until_user_confirms": true
@@ -27867,7 +27867,7 @@
                   "evidence": null
                 }
               ],
-              "checker_reply_excerpt": "{\"protocol_version\": 2, \"content_sha256\": \"39b9be8c55c1745db27790daa802a5d2108a2df1368291d125bb49a902eabf7d\", \"brief_sha256\": \"6355decb404ea4d28da75a302d6cc22c2e186d0720a5186b3924d6013ded7484\", \"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺少夜宿情节\", \"line\": 4, \"evidence\": \"沈禾带林舟穿过城门。\"}]}",
+              "checker_reply_excerpt": "{\"protocol_version\": 2, \"content_sha256\": \"39b9be8c55c1745db27790daa802a5d2108a2df1368291d125bb49a902eabf7d\", \"brief_sha256\": \"6355decb404ea4d28da75a302d6cc22c2e186d0720a5186b3924d6013ded7484\", \"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺少夜宿情节\", \"line\": 3, \"evidence\": \"城门外下着雨。\"}]}",
               "attempt": 1,
               "repair_count": 0,
               "recheck_count": 1
@@ -28732,7 +28732,7 @@
                 "evidence": null
               }
             ],
-            "checker_reply_excerpt": "{\"protocol_version\": 2, \"content_sha256\": \"39b9be8c55c1745db27790daa802a5d2108a2df1368291d125bb49a902eabf7d\", \"brief_sha256\": \"6355decb404ea4d28da75a302d6cc22c2e186d0720a5186b3924d6013ded7484\", \"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺少夜宿情节\", \"line\": 4, \"evidence\": \"沈禾带林舟穿过城门。\"}]}",
+            "checker_reply_excerpt": "{\"protocol_version\": 2, \"content_sha256\": \"39b9be8c55c1745db27790daa802a5d2108a2df1368291d125bb49a902eabf7d\", \"brief_sha256\": \"6355decb404ea4d28da75a302d6cc22c2e186d0720a5186b3924d6013ded7484\", \"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺少夜宿情节\", \"line\": 3, \"evidence\": \"城门外下着雨。\"}]}",
             "attempt": 1,
             "repair_count": 0,
             "recheck_count": 1
@@ -29120,7 +29120,7 @@
             "context_chars": 0
           },
           "output_summary": {
-            "reply_chars": 320,
+            "reply_chars": 317,
             "model": "m-1",
             "prompt_tokens": 12,
             "completion_tokens": 5,
@@ -29157,7 +29157,7 @@
             "context_chars": 0
           },
           "output_summary": {
-            "reply_chars": 320,
+            "reply_chars": 317,
             "model": "m-1",
             "prompt_tokens": 12,
             "completion_tokens": 5,
@@ -71777,33 +71777,38 @@
         "protocol_version": 2,
         "content_sha256": "38aedd3e399a9668f902390f3c147ccaf999e6b7b6501a2291b6db4d75fc850e",
         "brief_sha256": "69b7e7dff9eeba7caa45d543ffab6e7fcadadaf511b9d0109fd04c6448aeb191",
-        "status": "blocked",
-        "execution_status": "failed",
-        "execution_code": "invalid_result",
+        "status": "repairable",
+        "execution_status": "completed",
+        "execution_code": null,
         "coverage": {
           "supplied_content_chars": 29,
           "source_verified": true,
           "findings_received": 1,
-          "findings_validated": 0,
+          "findings_validated": 1,
           "findings_limit": 100,
-          "result_complete": false
+          "result_complete": true
         },
-        "manuscript_status": "unknown",
-        "manuscript_hard_failure_count": 0,
+        "manuscript_status": "fail",
+        "manuscript_hard_failure_count": 1,
         "content_chars": 29,
         "model_finding_count": 1,
         "hard_failure_count": 1,
         "advisory_count": 0,
         "findings": [
           {
-            "rule": "checker_failure",
+            "rule": "missing_required_beat",
             "severity": "hard",
-            "message": "检查结果无效、未绑定当前来源或证据无法核实；请重新检查。",
-            "line": null,
-            "evidence": null
+            "message": "缺夜宿",
+            "line": 99,
+            "evidence": "沈禾带林舟穿过城门。",
+            "evidence_verified": true,
+            "char_start": 7,
+            "char_end": 17,
+            "line_start": 3,
+            "line_end": 3
           }
         ],
-        "checker_reply_excerpt": "{\"protocol_version\": 2, \"content_sha256\": \"38aedd3e399a9668f902390f3c147ccaf999e6b7b6501a2291b6db4d75fc850e\", \"brief_sha256\": \"69b7e7dff9eeba7caa45d543ffab6e7fcadadaf511b9d0109fd04c6448aeb191\", \"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺夜宿\", \"line\": 99, \"evidence\": \"沈禾带林舟穿过城门。\"}]}"
+        "checker_reply_excerpt": null
       }
     },
     {
@@ -71814,33 +71819,38 @@
         "protocol_version": 2,
         "content_sha256": "38aedd3e399a9668f902390f3c147ccaf999e6b7b6501a2291b6db4d75fc850e",
         "brief_sha256": "69b7e7dff9eeba7caa45d543ffab6e7fcadadaf511b9d0109fd04c6448aeb191",
-        "status": "blocked",
-        "execution_status": "failed",
-        "execution_code": "invalid_result",
+        "status": "repairable",
+        "execution_status": "completed",
+        "execution_code": null,
         "coverage": {
           "supplied_content_chars": 29,
           "source_verified": true,
           "findings_received": 1,
-          "findings_validated": 0,
+          "findings_validated": 1,
           "findings_limit": 100,
-          "result_complete": false
+          "result_complete": true
         },
-        "manuscript_status": "unknown",
-        "manuscript_hard_failure_count": 0,
+        "manuscript_status": "fail",
+        "manuscript_hard_failure_count": 1,
         "content_chars": 29,
         "model_finding_count": 1,
         "hard_failure_count": 1,
         "advisory_count": 0,
         "findings": [
           {
-            "rule": "checker_failure",
+            "rule": "missing_required_beat",
             "severity": "hard",
-            "message": "检查结果无效、未绑定当前来源或证据无法核实；请重新检查。",
-            "line": null,
-            "evidence": null
+            "message": "缺夜宿",
+            "line": 1,
+            "evidence": "沈禾带林舟穿过城门。",
+            "evidence_verified": true,
+            "char_start": 7,
+            "char_end": 17,
+            "line_start": 3,
+            "line_end": 3
           }
         ],
-        "checker_reply_excerpt": "{\"protocol_version\": 2, \"content_sha256\": \"38aedd3e399a9668f902390f3c147ccaf999e6b7b6501a2291b6db4d75fc850e\", \"brief_sha256\": \"69b7e7dff9eeba7caa45d543ffab6e7fcadadaf511b9d0109fd04c6448aeb191\", \"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺夜宿\", \"line\": 1, \"evidence\": \"沈禾带林舟穿过城门。\"}]}"
+        "checker_reply_excerpt": null
       }
     },
     {
@@ -72734,6 +72744,174 @@
             "evidence_verified": true,
             "char_start": 5,
             "char_end": 15,
+            "line_start": 3,
+            "line_end": 3
+          }
+        ],
+        "checker_reply_excerpt": null
+      }
+    },
+    {
+      "name": "evidence-folded-marks",
+      "raw": "{\"protocol_version\": 2, \"content_sha256\": \"c810554f3ddf9654a6f8eb822edc6fea4f96b17034db818fbf36b738747ec0ea\", \"brief_sha256\": \"69b7e7dff9eeba7caa45d543ffab6e7fcadadaf511b9d0109fd04c6448aeb191\", \"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺夜宿\", \"line\": 1, \"evidence\": \"守卫喝道: \\\"站住,别动!\\\"\"}]}",
+      "content": "第三章\n\n守卫喝道：“站住，别动！”\n林舟停下。\n守卫喝道：“站住，别动！”\n",
+      "result": {
+        "protocol_version": 2,
+        "content_sha256": "c810554f3ddf9654a6f8eb822edc6fea4f96b17034db818fbf36b738747ec0ea",
+        "brief_sha256": "69b7e7dff9eeba7caa45d543ffab6e7fcadadaf511b9d0109fd04c6448aeb191",
+        "status": "repairable",
+        "execution_status": "completed",
+        "execution_code": null,
+        "coverage": {
+          "supplied_content_chars": 39,
+          "source_verified": true,
+          "findings_received": 1,
+          "findings_validated": 1,
+          "findings_limit": 100,
+          "result_complete": true
+        },
+        "manuscript_status": "fail",
+        "manuscript_hard_failure_count": 1,
+        "content_chars": 39,
+        "model_finding_count": 1,
+        "hard_failure_count": 1,
+        "advisory_count": 0,
+        "findings": [
+          {
+            "rule": "missing_required_beat",
+            "severity": "hard",
+            "message": "缺夜宿",
+            "line": 1,
+            "evidence": "守卫喝道: \"站住,别动!\"",
+            "evidence_verified": true,
+            "char_start": 5,
+            "char_end": 18,
+            "line_start": 3,
+            "line_end": 3
+          }
+        ],
+        "checker_reply_excerpt": null
+      }
+    },
+    {
+      "name": "evidence-folded-nearest-line",
+      "raw": "{\"protocol_version\": 2, \"content_sha256\": \"c810554f3ddf9654a6f8eb822edc6fea4f96b17034db818fbf36b738747ec0ea\", \"brief_sha256\": \"69b7e7dff9eeba7caa45d543ffab6e7fcadadaf511b9d0109fd04c6448aeb191\", \"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺夜宿\", \"line\": 5, \"evidence\": \"守卫喝道: \\\"站住,别动!\\\"\"}]}",
+      "content": "第三章\n\n守卫喝道：“站住，别动！”\n林舟停下。\n守卫喝道：“站住，别动！”\n",
+      "result": {
+        "protocol_version": 2,
+        "content_sha256": "c810554f3ddf9654a6f8eb822edc6fea4f96b17034db818fbf36b738747ec0ea",
+        "brief_sha256": "69b7e7dff9eeba7caa45d543ffab6e7fcadadaf511b9d0109fd04c6448aeb191",
+        "status": "repairable",
+        "execution_status": "completed",
+        "execution_code": null,
+        "coverage": {
+          "supplied_content_chars": 39,
+          "source_verified": true,
+          "findings_received": 1,
+          "findings_validated": 1,
+          "findings_limit": 100,
+          "result_complete": true
+        },
+        "manuscript_status": "fail",
+        "manuscript_hard_failure_count": 1,
+        "content_chars": 39,
+        "model_finding_count": 1,
+        "hard_failure_count": 1,
+        "advisory_count": 0,
+        "findings": [
+          {
+            "rule": "missing_required_beat",
+            "severity": "hard",
+            "message": "缺夜宿",
+            "line": 5,
+            "evidence": "守卫喝道: \"站住,别动!\"",
+            "evidence_verified": true,
+            "char_start": 25,
+            "char_end": 38,
+            "line_start": 5,
+            "line_end": 5
+          }
+        ],
+        "checker_reply_excerpt": null
+      }
+    },
+    {
+      "name": "evidence-folded-tie-earlier",
+      "raw": "{\"protocol_version\": 2, \"content_sha256\": \"c810554f3ddf9654a6f8eb822edc6fea4f96b17034db818fbf36b738747ec0ea\", \"brief_sha256\": \"69b7e7dff9eeba7caa45d543ffab6e7fcadadaf511b9d0109fd04c6448aeb191\", \"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺夜宿\", \"line\": 4, \"evidence\": \"守卫喝道: \\\"站住,别动!\\\"\"}]}",
+      "content": "第三章\n\n守卫喝道：“站住，别动！”\n林舟停下。\n守卫喝道：“站住，别动！”\n",
+      "result": {
+        "protocol_version": 2,
+        "content_sha256": "c810554f3ddf9654a6f8eb822edc6fea4f96b17034db818fbf36b738747ec0ea",
+        "brief_sha256": "69b7e7dff9eeba7caa45d543ffab6e7fcadadaf511b9d0109fd04c6448aeb191",
+        "status": "repairable",
+        "execution_status": "completed",
+        "execution_code": null,
+        "coverage": {
+          "supplied_content_chars": 39,
+          "source_verified": true,
+          "findings_received": 1,
+          "findings_validated": 1,
+          "findings_limit": 100,
+          "result_complete": true
+        },
+        "manuscript_status": "fail",
+        "manuscript_hard_failure_count": 1,
+        "content_chars": 39,
+        "model_finding_count": 1,
+        "hard_failure_count": 1,
+        "advisory_count": 0,
+        "findings": [
+          {
+            "rule": "missing_required_beat",
+            "severity": "hard",
+            "message": "缺夜宿",
+            "line": 4,
+            "evidence": "守卫喝道: \"站住,别动!\"",
+            "evidence_verified": true,
+            "char_start": 5,
+            "char_end": 18,
+            "line_start": 3,
+            "line_end": 3
+          }
+        ],
+        "checker_reply_excerpt": null
+      }
+    },
+    {
+      "name": "evidence-folded-no-line",
+      "raw": "{\"protocol_version\": 2, \"content_sha256\": \"c810554f3ddf9654a6f8eb822edc6fea4f96b17034db818fbf36b738747ec0ea\", \"brief_sha256\": \"69b7e7dff9eeba7caa45d543ffab6e7fcadadaf511b9d0109fd04c6448aeb191\", \"findings\": [{\"rule\": \"missing_required_beat\", \"severity\": \"hard\", \"message\": \"缺夜宿\", \"line\": null, \"evidence\": \"守卫喝道: \\\"站住,别动!\\\"\"}]}",
+      "content": "第三章\n\n守卫喝道：“站住，别动！”\n林舟停下。\n守卫喝道：“站住，别动！”\n",
+      "result": {
+        "protocol_version": 2,
+        "content_sha256": "c810554f3ddf9654a6f8eb822edc6fea4f96b17034db818fbf36b738747ec0ea",
+        "brief_sha256": "69b7e7dff9eeba7caa45d543ffab6e7fcadadaf511b9d0109fd04c6448aeb191",
+        "status": "repairable",
+        "execution_status": "completed",
+        "execution_code": null,
+        "coverage": {
+          "supplied_content_chars": 39,
+          "source_verified": true,
+          "findings_received": 1,
+          "findings_validated": 1,
+          "findings_limit": 100,
+          "result_complete": true
+        },
+        "manuscript_status": "fail",
+        "manuscript_hard_failure_count": 1,
+        "content_chars": 39,
+        "model_finding_count": 1,
+        "hard_failure_count": 1,
+        "advisory_count": 0,
+        "findings": [
+          {
+            "rule": "missing_required_beat",
+            "severity": "hard",
+            "message": "缺夜宿",
+            "line": null,
+            "evidence": "守卫喝道: \"站住,别动!\"",
+            "evidence_verified": true,
+            "char_start": 5,
+            "char_end": 18,
             "line_start": 3,
             "line_end": 3
           }
