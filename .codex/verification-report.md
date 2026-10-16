@@ -8266,3 +8266,9 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 外部写回（`external_writeback_v1`）是 Python 进程与桌面之间的跨进程写回协调；生产宿主里 `EXTERNAL_WRITEBACK_RELEASED = false`，协商永远是 false，从未对作者开放。删：`lib/external-writeback/`（coordinator / discovery / ports / cold-audit）、`api/external-writeback.ts`、`api/writeback-recovery.ts`、`api/managed-agent-host.ts`、`ExternalWritebackProvider` / `ExternalWritebackPanel` / `HostCloseNotice`、`useExternalAgentConversation`、`useExternalWritebackEditor`；`useRunAuthorAgent` 去掉协商、等待帧与「原运行仍有连续修订待办」的拦截，`useChatSessionContext` 去掉外部等待的冷历史重载与「持有活跃等待」判断，`useSuggestionWriteback` 去掉只服务外部编辑器的覆盖参数（准入闸、冻结分支、外部请求），`ChatWindowView` / `display-utils` / `panels` 去掉 `executionProtocol` 分支，类型去掉 `executionProtocol` 与托管字段，删等待帧守卫；`config.ts` 内联只读 baseUrl / apiKey 的解码（随 P6-2 的 `get_api_config` 一起删）。
 - 保留：写回回执（intent / outcome 收据，`fs_writeback_receipts`）——那是进程内补丁写回的防撞写安全网，普通接受也在用；健康轮询与冒烟窗口的 API 配置随 P6-2 和 Rust 冒烟一起改。
 - 测试：删外部写回 5 个文件、`host-close-notice`、`managed-agent-host`、`tests/support/external-native-bridge.ts`；`run-author-agent-ownership` 删两条外部写回用例与假协调器，`engine-agent-routes` 去掉外部协议那段断言。前端全量 2073 / 2073、行间续写浏览器回归通过、类型检查与 eslint 干净；18 个文件 +94 / -370（不含删除的整文件）。
+
+## 2026-10-16 修 P6-1b 引入的回归：退出握手的前端确认与上次退出诊断提示随外部写回 Provider 一起被删
+
+- 问题：#367 把 `ExternalWritebackProvider` 整个删掉，但它除了外部写回，还挂着两件与 Python 无关的事：监听宿主的 `storyforge:host-closing` 广播并回 `acknowledge_host_closing`（退出握手三道闸里「前端已停手」那一道），以及渲染 `HostCloseNotice`（上次退出若有写回交付没结算完，提示作者只读核对）。删掉后 master 上每次退出都会等满 10 秒期限、写一条 `close_timeout_unsettled` 诊断，且诊断再也不显示。未出包，作者不受影响。
+- 修复：`lib/host-close.ts` 新增 `useAcknowledgeHostClosing`（收到广播即回确认，失败不阻塞，宿主期限独立生效），`App` 调用它并在外壳前渲染 `HostCloseNotice`（从 git 历史原样取回，DOM 结构与原 Provider 渲染的一致）；`host-close-notice` 测试一并取回，新增 `host-close-ack`（收到广播才回确认、卸载时取消监听）。变异 1 / 1（不回确认）。
+- 关闭握手里「等 Python 收尾」那道闸随 P6-2 改为恒过；写回交付票据与关闭期间的写入准入保留。
