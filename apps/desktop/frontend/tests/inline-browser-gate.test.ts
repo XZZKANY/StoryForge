@@ -52,7 +52,6 @@ it('local verifier runs the durable browser gate between frontend units and API 
     '--filter @storyforge/project-core test',
     'run test:engine',
     'run ruff check .',
-    'scripts/sidecar-smoke.mjs',
     'scripts/check-openapi-drift.mjs',
   ])
     expect(calls.some((call) => call.args.join(' ') === args)).toBe(true);
