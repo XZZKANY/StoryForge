@@ -305,6 +305,7 @@ export {
 export type { ReviseScope } from './kernel/reviseScope';
 export {
   CROSS_CHAPTER_SYSTEM_PROMPT,
+  checkCrossChapterConsistency,
   crossChapterReview,
   MAX_CHAPTERS,
   MIN_CHAPTERS,

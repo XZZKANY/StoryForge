@@ -1,3 +1,4 @@
+import { readEngineMode } from '../engine/flags';
 import { getApiConfig, trimApiBaseUrl } from './config';
 import { readErrorDetail } from './errors';
 import type { CrossChapterFinding, CrossChapterRequest, CrossChapterResult } from './types';
@@ -6,6 +7,9 @@ import type { CrossChapterFinding, CrossChapterRequest, CrossChapterResult } fro
 export async function requestCrossChapterConsistency(
   request: CrossChapterRequest,
 ): Promise<CrossChapterResult> {
+  // 与修订 / 续写同一个开关：都是一次模型调用，ts 档在进程内跑引擎。
+  if (readEngineMode('engine.assistant') === 'ts')
+    return (await import('../engine/crossChapter')).crossChapterWithEngine(request);
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/ide/review/cross-chapter`, {
     method: 'POST',

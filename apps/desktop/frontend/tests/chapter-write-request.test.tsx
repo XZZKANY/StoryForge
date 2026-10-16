@@ -86,6 +86,8 @@ const pendingBrief: ChapterBrief = {
 };
 
 beforeEach(async () => {
+  // 跨章端点走 Python 传输（开发档 engine.assistant 默认是 ts）。
+  localStorage.setItem('engine.assistant', 'python');
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
