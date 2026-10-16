@@ -408,6 +408,7 @@ P5 拆刀与进度（2026-10-14 起，作者说「做 P5-1」；每刀一个 PR�
   - 检查器自身失败（结果无效 / 不完整 / 模型出错）时，同一份正文重查一次。仍失败、且程序没判出空稿或字数问题，就照样出补丁，一律要作者确认（自动档也不例外），摘要写明「未经检查」；程序判出的问题照旧拦下、只留候选稿。检查记录加 `recheck_count`，失败的检查结果留 `checker_reply_excerpt`（原始回复前 2000 字），工具记录的 `input_summary` 加 `recheck`。
   - 预言机 p3-chapter-writing 场景 34 → 37，协议记录加 4 条直引号情形；p3-host 里的写章场景同步复导；影子档只比首个请求（brief），不受影响。版本 bump 到 0.1.13。
 - 起草统一成全角（2026-10-15，作者拍板；Python 与引擎同改）：模型起草出的正文（`draft_file_content` / `draftFileContent`，覆盖「起草第N章」、循环里的 `file.create`、桌面直接起草）与写章定向修复稿，出稿前过 `fullwidth_cjk_punctuation` / `fullwidthCjkPunctuation`：中文语境里的半角标点（`,.?!;:`、成对直引号与括号、`...`、`--`、单个 `…` `—`）转成全角，两侧都不是中文就不动；一行里直引号个数为奇数、括号配不上对或括号里没有汉字时整行不动。提示词不变（影子比对的请求不受影响），转了几处记在工具记录的 `punctuation_normalized`。p1-punctuation 加 341 条用例（固定 + 随机），p2-assistant-service 加半角起草场景，p3-chapter-writing 加半角修复场景（38 个）。版本 bump 到 0.1.14。
+- 影子请求头没进 CORS 允许清单（2026-10-16 修）：P5-1a 给修订与续写加的 `X-StoryForge-Shadow` 让浏览器先发预检，`app/main.py` 的 `allow_headers` 里没有它，装机版（默认影子档）从 0.1.11 起 Ctrl+K 与 Ctrl+Shift+K 的请求都发不出去，作者看到的是「Failed to fetch」后输入框原样恢复。冻结 exe 的定向断言用 node 直连、前端回放用替身 fetch，都不过预检，所以没抓到。修法是把头加进清单；`test_desktop_cors_headers.py` 扫描桌面端源码里的每个 `X-StoryForge-*` 头，逐个过三个桌面源的预检。
 
 ### P6 拆除（PR P6-1 … P6-7）
 
