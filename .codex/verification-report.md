@@ -8212,3 +8212,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 坑：PyInstaller onefile 的 sidecar 被 `child.kill()` 只杀掉引导进程，子进程留着锁住临时库与 `binaries/` 里的 exe；断言脚本改用 `taskkill /T /F`，跑完核一次没有仓库路径下的 `storyforge-api` 进程。
 - 不在包里：#358（先聊书再动笔）09:15 合进 master，这次打包从 `1d0352f1` 出、前端 09:15 已编完，没有带上；要带得出 0.1.17。
 - 未联通：作者装 0.1.16 后在装机版里真按一次 Ctrl+K 与 Ctrl+Shift+K；影子比对看 app_version 0.1.16 的 checks 有行、diffs 为空。
+
+## 2026-10-16 P5-1g1 IDE 命令接上引擎的 ts 档（TS 迁移，开发档可选，发行版仍只走 Python）
+
+- 起因：P5-2 要三个开关都切到 ts，但 `engine.ideCommands` 一直没有调用点——九个 IDE 命令（作品底座、canon 刷新、观测镜、拆书三件、连载计划两件、审计）在前端只走 Python。引擎入口 `executeIdeCommand` 在 P1-8c 就搬完了，当时缺的三样里密钥快照（P2）与原生 `.storyforge/` 写口（P3）后来都有了，只剩拆书的运行记录。
+- 拆书运行记录：生产路由把 DB 会话传给命令，Python 每次拆书都记一个 Agent run（`breakdown-<analysis_id>`，同一 analysis_id 再拆续接同一个 run）、一份 `book_breakdown_report` 产物和完成事件。引擎新增 `loop/bookBreakdownRun.ts` 的 `recordBookBreakdownRun`，用已移植的 `createOrResumeAgentRun` / `recordAgentArtifact` / `completeAgentRun` 照做。预言机 `golden_commands.py` 加一个带内存 sqlite 会话的项目（新拆书、指定 analysis_id 带模型、同一 analysis_id 续接、模型两次都回坏 JSON 记下 `structured_analysis_failed`），每次调用后导出 runs / events / artifacts 三张表；p1-commands 只追加这个项目，原有记录不变。引擎回放在自己的库里记录后读回三张表逐行比对，63 / 63。
+- 前端：`lib/engine/ideCommands.ts` 装配依赖——原生读写口、两个模型槽合并的密钥快照、平台、进程内唯一的拆书取消登记表（拆书与取消命令必须共用）、配置齐了才给拆书的模型端口（引擎 `callLlm` 经 Rust 出网口）、32 位十六进制 analysis_id、拆书运行记进引擎库；引擎错误转成普通 Error，文本即 Python 的 detail。`lib/api/ide-commands.ts` 在 `engine.ideCommands = ts` 时走引擎；影子档还没接，与 Python 档一样只发一次 Python 请求；发行版的可选档位仍只有 Python。
+- 测试：`engine-ide-commands`（6 条：作品底座在进程内回 HTTP 同形响应体；canon 刷新经原生写口写 canon.json 与三份派生缓存；错误文本与 Python 相同且是普通 Error；未配模型的拆书是确定性底稿、不出网、记成引擎库里的 completed run 与产物；配了模型的拆书经原生端口发一次请求；模型还没回时发取消命令，拆书在下一个检查点收成 cancelled）；`ide-commands-engine-routing` 改为钉住 Python 档、影子档与发行版里存了 ts 的情况都只走 Python、引擎零初始化。
+- 变异：前端 6 / 6（取消登记表每次新建、不记运行、无视模型配置、引擎错误原样抛出、ts 档不分流、影子档也走引擎），引擎记录函数 3 / 3（会话名、完成摘要、选章数）；另一处 `retries` 缺省值等价（拆书报告总带 retries），已把这几处走不到的 `has` 判断删掉。
+- P5-2 切默认前还要补（记在计划里）：ts 档 `book.context` 在作者声明写错时回 400 并带原文，界面现在只把可用性置成 error、不显示文案；影子档与真宿主探针随下一刀。
+- 门禁：引擎 / 前端类型检查、eslint、prettier、ruff 通过；全量见 push 前钩子。

@@ -5,6 +5,11 @@ import { IdeCommandExecutionError } from './bookContextCommand';
 import { decodeFixtureBytes, type EncodedFile } from './contextFixture.test-support';
 import { executeIdeCommand, IDE_COMMANDS, type IdeCommandDeps } from './ideCommands';
 import { memoryProject } from './memoryProject.test-support';
+import { recordBookBreakdownRun } from '../loop/bookBreakdownRun';
+import { nodeSqliteDb } from '../store/nodeSqlite.test-support';
+import { migrateEngineDb } from '../store/schema';
+import { SqlRunStore } from '../store/sqlRuns';
+import { dumpJson } from './json';
 
 const ROOT = golden.synthetic_root;
 const platform = golden.platform as 'windows' | 'posix';
@@ -38,11 +43,35 @@ function withRoot(value: unknown): unknown {
   return value;
 }
 
+/** 生产路由带着 DB 会话：拆书顺带记一个 run。引擎这一侧记进自己的库，读回与 Python 同样的三张表。 */
+async function engineRunsDb() {
+  const db = nodeSqliteDb();
+  await migrateEngineDb(db);
+  const store = await SqlRunStore.open(db, () => '2026-10-12 04:30:15');
+  const plain = (value: unknown) => JSON.parse(dumpJson(value, { ensureAscii: false })) as unknown;
+  return {
+    record: (output: { [key: string]: unknown }) =>
+      recordBookBreakdownRun({ store, secrets }, output),
+    async rows() {
+      const runs = await store.allRuns();
+      const events = (await Promise.all(runs.map((run) => store.events(run.id)))).flat();
+      const artifacts = (await Promise.all(runs.map((run) => store.artifacts(run.id)))).flat();
+      const byId = (a: { id: number }, b: { id: number }) => a.id - b.id;
+      return plain({
+        runs: [...runs].sort(byId),
+        events: [...events].sort(byId),
+        artifacts: [...artifacts].sort(byId),
+      });
+    },
+  };
+}
+
 describe('real Python IDE command envelope replay', () => {
   for (const record of projects) {
     describe(record.id, () => {
       const project = memoryProject(ROOT, record.files);
       const cancellations = new BreakdownCancellations();
+      const runsDb = engineRunsDb();
       for (const [index, call] of record.calls.entries()) {
         it(`#${index} ${call.fn} ${JSON.stringify(call.args).slice(0, 70)}`, async () => {
           if (call.fn === 'author_write') {
@@ -82,14 +111,21 @@ describe('real Python IDE command envelope replay', () => {
           const expected = withRoot(JSON.parse(call.output_json!)) as {
             result?: unknown;
             calls?: unknown;
+            db?: unknown;
             error?: { status: number; message: string };
           };
+          const recorder = expected.db === undefined ? null : await runsDb;
+          if (recorder) deps.recordBreakdownRun = recorder.record;
           const outcome = await executeIdeCommand(
             commandId,
             (args === null ? undefined : withRoot(args)) as Record<string, unknown>,
             deps,
           ).then(
-            (result) => ({ result, calls }),
+            async (result) => ({
+              result,
+              calls,
+              ...(recorder ? { db: await recorder.rows() } : {}),
+            }),
             (error: unknown) => ({ error }),
           );
           if (expected.error) {

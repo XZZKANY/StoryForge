@@ -50,7 +50,7 @@ def p1_commands_snapshot() -> dict:
                 return [hydrate(item, root) for item in value]
             return value
 
-        def command(p: Project, command_id: str, args: dict | None, *, model: list | None = None):
+        def command(p: Project, command_id: str, args: dict | None, *, model: list | None = None, db=None):
             calls = []
 
             def execute():
@@ -67,14 +67,40 @@ def p1_commands_snapshot() -> dict:
                     command_registry.missing_llm_env = lambda source: ["STORYFORGE_LLM_API_KEY"]
                 try:
                     result = command_registry.execute_ide_command_by_id(
-                        command_id, None if args is None else hydrate(args, p.root), None)
-                    return {"result": result.model_dump(mode="json"), "calls": calls}
+                        command_id, None if args is None else hydrate(args, p.root), db)
+                    recorded = {"result": result.model_dump(mode="json"), "calls": calls}
+                    if db is not None:
+                        recorded["db"] = db_rows(db)
+                    return recorded
                 except DomainError as error:
                     return {"error": {"status": error.status_code, "message": str(error)}}
                 except Exception as error:  # noqa: BLE001 - the HTTP layer turns these into 500
                     return {"error": {"status": 500, "message": str(error)}}
 
             p.call("command", {"command_id": command_id, "args": args, "model": model}, execute)
+
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from sqlalchemy.pool import StaticPool
+
+        from app.db.base import Base
+        from app.domains.agent_runs.models import AgentArtifact, AgentRun, AgentRunEvent
+        from app.domains.assistant.models import AssistantSession  # noqa: F401 - registers the FK target
+
+        def db_rows(db):
+            """The rows the production route leaves behind (the HTTP route passes its DB session)."""
+
+            def rows(model, columns):
+                return [{column: getattr(row, column) for column in columns}
+                        for row in db.query(model).order_by(model.id).all()]
+
+            return {
+                "runs": rows(AgentRun, ("id", "public_id", "session_id", "assistant_session_id", "goal", "scope",
+                                        "permission_profile", "budget", "status", "root_plan", "current_step")),
+                "events": rows(AgentRunEvent, ("id", "run_id", "event_type", "actor", "message", "payload",
+                                               "sequence")),
+                "artifacts": rows(AgentArtifact, ("id", "run_id", "kind", "payload", "requires_confirmation")),
+            }
 
         secret_args = {"api_key": "sk-live-abcdefghijklmnopqrstuv", "note": f"带上 {SECRET} 的备注",
                        "nested": [{"token": "x"}, f"Bearer {SECRET}"], "plain": 1.5, "flag": True}
@@ -124,6 +150,18 @@ def p1_commands_snapshot() -> dict:
         command(empty, "book.breakdown", {"project_root": "$ROOT"})
         command(empty, "book.breakdown.status", {"project_root": "$ROOT"})
 
+        # The production route passes its DB session: every breakdown is also recorded as an agent run.
+        engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
+        Base.metadata.create_all(engine)
+        db = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)()
+        recorded = Project(run, "recorded", dict(BREAKDOWN_BOOK))
+        command(recorded, "book.breakdown", {"project_root": "$ROOT", "target_count": 3}, db=db)
+        command(recorded, "book.breakdown", {"project_root": "$ROOT", "analysis_id": "run-1"}, model=[good], db=db)
+        command(recorded, "book.breakdown", {"project_root": "$ROOT", "analysis_id": " run-1 "}, db=db)
+        bad = {"content": "不是 JSON"}
+        command(recorded, "book.breakdown", {"project_root": "$ROOT", "analysis_id": "run-2"}, model=[bad, bad], db=db)
+        db.close()
+
         plan = Project(run, "plan", {**PLAN_CHAPTERS, ".storyforge/serial-plan.json": _dumps(PLAN)})
         for command_id in ("plan.mark_written", "plan.unmark_written"):
             command(plan, command_id, {})
@@ -143,5 +181,5 @@ def p1_commands_snapshot() -> dict:
             "secrets": [SECRET],
             "fixed_now": FIXED_NOW,
             "sources": {path: hashlib.sha256((api / path).read_bytes()).hexdigest() for path in SOURCES},
-            "projects": [p.record("book"), empty.record("empty"), plan.record("plan")],
+            "projects": [p.record("book"), empty.record("empty"), plan.record("plan"), recorded.record("recorded")],
         }
