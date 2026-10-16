@@ -1,16 +1,7 @@
 //! Finite off-event-loop handshake. Unknown settlement stays unknown.
 use crate::host_close_state::{CloseDiagnostic, HostCloseState};
-use crate::SharedServiceManager;
-use serde::Deserialize;
 use std::time::{Duration, Instant};
 use tauri::Emitter;
-
-#[derive(Deserialize)]
-struct ApiClose {
-    closing: bool,
-    settled: bool,
-    in_flight_owners: usize,
-}
 
 fn diagnostic_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     crate::runtime_paths::app_data_dir(app)
@@ -58,54 +49,13 @@ pub fn wait_until_quiet(
     }
 }
 
-pub fn start(
-    app: tauri::AppHandle,
-    manager: SharedServiceManager,
-    state: HostCloseState,
-    exit_code: i32,
-) {
+pub fn start(app: tauri::AppHandle, state: HostCloseState, exit_code: i32) {
     let started = Instant::now();
     let _ = app.emit("storyforge:host-closing", ());
     std::thread::spawn(move || {
-        let lease = manager
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .api_lease
-            .clone();
-        let mut closed = false;
-        let key = crate::desktop_api_key();
-        let diagnostic = wait_until_quiet(&state, started + Duration::from_secs(10), |remaining| {
-            let lease = lease.as_ref()?;
-            let client = reqwest::blocking::Client::builder()
-                .timeout(remaining.min(Duration::from_millis(600)))
-                .build()
-                .ok()?;
-            let url = format!(
-                "{}/api/agent-runs/host/closing",
-                lease.base_url.trim_end_matches('/')
-            );
-            let request = if closed {
-                client.get(&url)
-            } else {
-                client.post(&url)
-            };
-            let response = request
-                .header("X-StoryForge-API-Key", &key)
-                .header("X-StoryForge-Host-Generation", &lease.generation)
-                .send()
-                .ok()?;
-            if !response.status().is_success() {
-                return None;
-            }
-            use std::io::Read;
-            let mut bytes = Vec::new();
-            response.take(8193).read_to_end(&mut bytes).ok()?;
-            if bytes.len() > 8192 {
-                return None;
-            }
-            let status: ApiClose = serde_json::from_slice(&bytes).ok()?;
-            closed = status.closing;
-            Some((status.closing && status.settled, status.in_flight_owners))
+        // 没有后台进程要等：只等前端回「已停手」与写回交付票据清零。
+        let diagnostic = wait_until_quiet(&state, started + Duration::from_secs(10), |_| {
+            Some((true, 0))
         });
         if let Ok(path) = diagnostic_path(&app) {
             if let Some(parent) = path.parent() {
@@ -120,7 +70,6 @@ pub fn start(
                 }
             }
         }
-        crate::shutdown_managed_services(&manager);
         state.finish();
         app.exit(exit_code);
     });
@@ -129,24 +78,6 @@ pub fn start(
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn exit_cleanup_reuses_idempotent_poison_tolerant_service_shutdown() {
-        let manager = std::sync::Arc::new(std::sync::Mutex::new(crate::ServiceManager::new()));
-        let owned = manager.clone();
-        assert!(std::thread::spawn(move || {
-            let _guard = owned.lock().unwrap();
-            panic!("isolated service-manager poison fixture");
-        })
-        .join()
-        .is_err());
-        crate::shutdown_managed_services(&manager);
-        crate::shutdown_managed_services(&manager);
-        assert!(manager
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .api_lease
-            .is_none());
-    }
     #[test]
     fn finite_deadline_does_not_lie_about_unfinished_pipeline() {
         let state = HostCloseState::default();

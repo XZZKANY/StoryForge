@@ -7,36 +7,24 @@ import {
   assertSmokeBinaryCapability,
   assertSmokeEvidence,
   createSmokeEnvironment,
-  findFreeLoopbackApiBaseUrl,
-  isUrlReachable,
+  findFreeLoopbackBaseUrl,
   killProcessTree,
-  removeTemporaryDataRootIfApiStopped,
+  removeTemporaryDataRoot,
   settleSmokeCleanup,
   SMOKE_ISOLATION_PROTOCOL,
   verifiedSmokeExecutable,
   waitForExit,
 } from './verify-tauri-smoke.mjs';
 
-test('smoke environment overrides inherited API identity with an isolated endpoint', () => {
+test('smoke environment points the host at its isolated directories', () => {
   const directories = {
     localDataDir: 'C:\\Temp\\storyforge-smoke\\local-data',
     configDir: 'C:\\Temp\\storyforge-smoke\\config',
     webviewDataDir: 'C:\\Temp\\storyforge-smoke\\webview2',
   };
-  const environment = createSmokeEnvironment(
-    {
-      STORYFORGE_API_BASE_URL: 'http://127.0.0.1:8000',
-      STORYFORGE_DESKTOP_REUSE_API: '1',
-      STORYFORGE_UNRELATED_VALUE: 'kept',
-    },
-    'http://127.0.0.1:54321',
-    directories,
-  );
+  const environment = createSmokeEnvironment({ STORYFORGE_UNRELATED_VALUE: 'kept' }, directories);
 
-  assert.equal(environment.STORYFORGE_API_BASE_URL, 'http://127.0.0.1:54321');
   assert.equal(environment.NO_PROXY, '127.0.0.1,localhost,::1');
-  assert.equal(environment.STORYFORGE_DESKTOP_REUSE_API, '0');
-  assert.equal(environment.STORYFORGE_DESKTOP_SKIP_SERVICES, '1');
   assert.equal(environment.STORYFORGE_DESKTOP_SMOKE, '1');
   assert.equal(environment.STORYFORGE_DESKTOP_SMOKE_LOCAL_DATA_DIR, directories.localDataDir);
   assert.equal(environment.STORYFORGE_DESKTOP_SMOKE_CONFIG_DIR, directories.configDir);
@@ -167,67 +155,10 @@ test('process wait rejects signal termination instead of reporting success', asy
   await assert.rejects(exit, /test child terminated by signal SIGTERM/);
 });
 
-test('API cleanup treats every HTTP response as reachable and preserves data until stop', async () => {
-  let requestOptions;
-  const reachable = await isUrlReachable(
-    'http://127.0.0.1:54321/health/ready',
-    async (_url, options) => {
-      requestOptions = options;
-      return { body: { cancel: async () => undefined }, ok: false, status: 503 };
-    },
-  );
-  assert.equal(reachable, true);
-  assert.ok(requestOptions.signal instanceof globalThis.AbortSignal);
-  assert.equal(
-    await isUrlReachable('http://127.0.0.1:54321/health/ready', async () => {
-      throw new Error('connection refused');
-    }),
-    false,
-  );
-
-  assert.equal(
-    await isUrlReachable('http://127.0.0.1:54321/health/ready', async () => ({
-      body: {
-        cancel: async () => {
-          throw new Error('body cleanup failed');
-        },
-      },
-      ok: true,
-      status: 200,
-    })),
-    true,
-    'a response remains proof of reachability when body cleanup fails',
-  );
-
-  const timeoutError = new Error('request timed out');
-  timeoutError.name = 'TimeoutError';
-  assert.equal(
-    await isUrlReachable('http://127.0.0.1:54321/health/ready', async () => {
-      throw timeoutError;
-    }),
-    true,
-    'a timed-out probe is unknown, so cleanup must keep waiting and preserve data',
-  );
-  const abortError = new Error('request aborted');
-  abortError.name = 'AbortError';
-  assert.equal(
-    await isUrlReachable('http://127.0.0.1:54321/health/ready', async () => {
-      throw abortError;
-    }),
-    true,
-    'an aborted probe is also unknown and cannot authorize data removal',
-  );
-
+test('cleanup removes the temporary data root and aggregates a removal failure', async () => {
   const removals = [];
   assert.equal(
-    await removeTemporaryDataRootIfApiStopped('C:\\Temp\\smoke-data', false, async (...args) => {
-      removals.push(args);
-    }),
-    false,
-  );
-  assert.equal(removals.length, 0);
-  assert.equal(
-    await removeTemporaryDataRootIfApiStopped('C:\\Temp\\smoke-data', true, async (...args) => {
+    await removeTemporaryDataRoot('C:\\Temp\\smoke-data', async (...args) => {
       removals.push(args);
     }),
     true,
@@ -235,48 +166,35 @@ test('API cleanup treats every HTTP response as reachable and preserves data unt
   assert.equal(removals.length, 1);
   assert.equal(removals[0][0], 'C:\\Temp\\smoke-data');
   assert.equal(removals[0][1].recursive, true);
-});
+  assert.equal(await removeTemporaryDataRoot(''), false);
 
-test('cleanup orchestration preserves data and aggregates an API stop failure', async () => {
   const primaryError = new Error('smoke failed');
-  const stopError = new Error('API remained reachable');
-  const removals = [];
-
-  const failure = await settleSmokeCleanup(
-    primaryError,
-    'http://127.0.0.1:54321/health/ready',
-    'C:\\Temp\\smoke-data',
-    async () => {
-      throw stopError;
-    },
-    async (root, apiStopped) =>
-      removeTemporaryDataRootIfApiStopped(root, apiStopped, async (...args) => {
-        removals.push(args);
-      }),
-  );
-
+  const removeError = new Error('data root busy');
+  const failure = await settleSmokeCleanup(primaryError, 'C:\\Temp\\smoke-data', async () => {
+    throw removeError;
+  });
   assert.ok(failure instanceof AggregateError);
-  assert.deepEqual(failure.errors, [primaryError, stopError]);
-  assert.equal(failure.message, 'Tauri smoke or API cleanup failed');
-  assert.equal(removals.length, 0, 'unknown API state must preserve the temporary data root');
+  assert.deepEqual(failure.errors, [primaryError, removeError]);
+  assert.equal(failure.message, 'Tauri smoke or data cleanup failed');
+  assert.equal(await settleSmokeCleanup(primaryError, ''), primaryError);
 });
 
-test('smoke API endpoint uses an ephemeral loopback port', async () => {
-  const baseUrl = new URL(await findFreeLoopbackApiBaseUrl());
+test('free loopback port is ephemeral', async () => {
+  const baseUrl = new URL(await findFreeLoopbackBaseUrl());
   const port = Number(baseUrl.port);
 
   assert.equal(baseUrl.protocol, 'http:');
   assert.equal(baseUrl.hostname, '127.0.0.1');
   assert.equal(Number.isInteger(port) && port > 0 && port <= 65535, true);
 });
-test('smoke readiness bypasses proxies only for loopback and preserves inherited bypasses', () => {
+test('smoke environment bypasses proxies only for loopback and preserves inherited bypasses', () => {
   const inherited = {
     HTTPS_PROXY: 'http://proxy.example:8080',
     NO_PROXY: 'internal.example, localhost',
     no_proxy: 'second.internal,127.0.0.1',
   };
   const before = { ...inherited };
-  const environment = createSmokeEnvironment(inherited, 'http://127.0.0.1:54321', {
+  const environment = createSmokeEnvironment(inherited, {
     localDataDir: 'C:\\Temp\\smoke\\local-data',
     configDir: 'C:\\Temp\\smoke\\config',
     webviewDataDir: 'C:\\Temp\\smoke\\webview2',

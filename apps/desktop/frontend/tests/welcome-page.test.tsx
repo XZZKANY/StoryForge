@@ -17,18 +17,6 @@ import {
 // LLM 配置 / 版本历史）在无 tauri、无后端的测试环境里出网。
 vi.mock('../src/components/SettingsView', () => ({ SettingsView: () => null }));
 vi.mock('../src/components/Editor', () => ({ Editor: () => null }));
-// StatusBar 常驻挂载，会轮询 /health/ready；无后端时打向 127.0.0.1:8000 徒增网络噪声与
-// 悬挂计时器。桩成「不可达」即可，健康态与欢迎页行为无关。
-vi.mock('../src/lib/api/runtime-health', () => ({
-  probeApiRuntimeHealth: async () => ({
-    status: 'unreachable',
-    reachable: false,
-    baseUrl: 'http://127.0.0.1:8000',
-    latencyMs: 0,
-    checks: {},
-    detail: 'mocked in welcome-page test',
-  }),
-}));
 
 // App 挂载后走真实状态机：useProjectWorkspace / useTauriMenuBridge 均以 isTauriRuntime() 为闸，
 // 非 tauri 环境下只吃 localStorage，故整个 App 可在 happy-dom 里零 tauri mock 挂载。

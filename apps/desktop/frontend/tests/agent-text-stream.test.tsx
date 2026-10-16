@@ -15,8 +15,8 @@ vi.mock('../src/lib/api/agent-socket', async (importOriginal) => ({
   ...(await import('./support/http-agent-double')),
 }));
 
-vi.mock('../src/lib/api/config', async (original) => ({
-  ...(await original<typeof import('../src/lib/api/config')>()),
+vi.mock('./support/http-config', async (original) => ({
+  ...(await original<typeof import('./support/http-config')>()),
   getApiConfig: vi.fn(async () => ({ baseUrl: 'http://fixture', apiKey: 'fixture' })),
 }));
 vi.mock('../src/lib/api-client', async (original) => ({

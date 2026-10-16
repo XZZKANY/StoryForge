@@ -14,7 +14,7 @@ import {
 import { reconstructAgentResultFromEvents } from '../../src/lib/api/agent-run-events';
 import type { AgentRunEventRecord } from '../../src/lib/api/agent-run-events';
 import { parseAgentSseFrame } from '../../src/lib/api/agent-sse-frame';
-import { getApiConfig, trimApiBaseUrl } from '../../src/lib/api/config';
+import { getApiConfig, trimApiBaseUrl } from './http-config';
 import { readErrorDetail } from '../../src/lib/api/errors';
 import type {
   AgentControlAckMessage,

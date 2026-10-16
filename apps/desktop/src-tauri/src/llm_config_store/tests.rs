@@ -13,7 +13,7 @@ fn request(key: Option<&str>, clear: bool) -> SaveLlmConfigRequest {
 fn missing_configuration_is_initialized_without_secrets() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("llm-provider.json");
-    prepare(&path).unwrap();
+    read(&path).unwrap();
     let value: serde_json::Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
     assert_eq!(value["schemaVersion"], 2);
     assert!(value["apiKey"].is_null());
@@ -29,7 +29,7 @@ fn legacy_both_slots_migrate_atomically_and_idempotently() {
     legacy["polish"] = json!({"provider":"gemini","baseUrl":"https://polish.invalid","model":"p",
         "apiKey":"polish-test-sentinel"});
     fs::write(&path, legacy.to_string()).unwrap();
-    prepare(&path).unwrap();
+    read(&path).unwrap();
     let bytes = fs::read(&path).unwrap();
     let data: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(data["schemaVersion"], 2);
@@ -52,7 +52,7 @@ fn legacy_both_slots_migrate_atomically_and_idempotently() {
             .unwrap(),
         "polish-test-sentinel"
     );
-    prepare(&path).unwrap();
+    read(&path).unwrap();
     assert_eq!(fs::read(&path).unwrap(), bytes);
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
     let response = serde_json::to_string(&read(&path).unwrap()).unwrap();
@@ -93,7 +93,7 @@ fn invalid_versions_and_plaintext_v2_do_not_mutate_or_echo() {
         r#"{"schemaVersion":2,"provider":"p","baseUrl":"b","model":"m","apiKey":"private-test-value"}"#,
     ] {
         fs::write(&path, raw).unwrap();
-        let error = prepare(&path).unwrap_err();
+        let error = read(&path).unwrap_err();
         assert!(!format!("{error:#}").contains("private-test-value"));
         assert_eq!(fs::read_to_string(&path).unwrap(), raw);
     }
@@ -120,7 +120,7 @@ fn malformed_second_legacy_slot_leaves_original_bytes_untouched() {
     let path = dir.path().join("llm-provider.json");
     let raw = r#"{"provider":"p","baseUrl":"b","model":"m","apiKey":"main-test-sentinel","polish":{"provider":"p","baseUrl":"b","model":"m","apiKey":42}}"#;
     fs::write(&path, raw).unwrap();
-    assert!(prepare(&path).is_err());
+    assert!(read(&path).is_err());
     assert_eq!(fs::read_to_string(&path).unwrap(), raw);
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
 }
@@ -222,7 +222,7 @@ fn second_slot_protection_failure_aborts_entire_migration() {
         }
         ProtectedKey::protect(key)
     };
-    assert!(prepare_with_protector(&path, &protect).is_err());
+    assert!(read_with_protector(&path, &protect).is_err());
     assert_eq!(calls.get(), 2);
     assert_eq!(fs::read_to_string(&path).unwrap(), raw);
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);

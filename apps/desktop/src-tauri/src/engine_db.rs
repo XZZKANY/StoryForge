@@ -11,11 +11,7 @@ use sqlx::sqlite::{
 use sqlx::{
     Column, ConnectOptions, Connection, Row, Sqlite, SqlitePool, Transaction, TypeInfo, ValueRef,
 };
-use std::collections::HashMap;
 use std::path::Path;
-use std::str::FromStr;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, State};
 use tokio::sync::OnceCell;
@@ -190,69 +186,6 @@ pub(crate) async fn python_snapshot(
     Ok(Some(sets))
 }
 
-/// Scratch databases (P5-1 shadow mode): in memory, one connection each that is never recycled
-/// (the database lives as long as that connection), gone on close. A handful at most, so a
-/// caller that forgets to close cannot pile them up.
-#[derive(Default)]
-pub struct EngineScratchState {
-    next: AtomicU64,
-    pools: Mutex<HashMap<u64, SqlitePool>>,
-}
-
-pub const MAX_SCRATCH_DBS: usize = 4;
-
-impl EngineScratchState {
-    fn pools(&self) -> std::sync::MutexGuard<'_, HashMap<u64, SqlitePool>> {
-        self.pools
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-    }
-
-    pub(crate) async fn open(&self) -> Result<u64, String> {
-        let options = SqliteConnectOptions::from_str("sqlite::memory:")
-            .map_err(|error| error.to_string())?
-            .foreign_keys(true);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .min_connections(1)
-            .idle_timeout(None)
-            .max_lifetime(None)
-            .connect_with(options)
-            .await
-            .map_err(|error| format!("无法打开临时库：{error}"))?;
-        let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
-        let refused = {
-            let mut pools = self.pools();
-            if pools.len() >= MAX_SCRATCH_DBS {
-                true
-            } else {
-                pools.insert(id, pool.clone());
-                false
-            }
-        };
-        if refused {
-            pool.close().await;
-            return Err(format!("临时库已开到上限 {MAX_SCRATCH_DBS} 个"));
-        }
-        Ok(id)
-    }
-
-    pub(crate) fn get(&self, id: u64) -> Result<SqlitePool, String> {
-        self.pools()
-            .get(&id)
-            .cloned()
-            .ok_or_else(|| "临时库不存在或已关闭".to_string())
-    }
-
-    /// Closing an unknown or already closed id is not an error.
-    pub(crate) async fn close(&self, id: u64) {
-        let pool = self.pools().remove(&id);
-        if let Some(pool) = pool {
-            pool.close().await;
-        }
-    }
-}
-
 async fn pool<'a>(app: &AppHandle, state: &'a EngineDbState) -> Result<&'a SqlitePool, String> {
     state
         .0
@@ -292,40 +225,3 @@ pub async fn engine_python_db_snapshot(
     let dir = runtime_paths::app_local_data_dir(&app).map_err(|error| error.to_string())?;
     python_snapshot(&dir.join(PYTHON_DB_FILE), &queries).await
 }
-
-#[tauri::command]
-pub async fn engine_scratch_db_open(state: State<'_, EngineScratchState>) -> Result<u64, String> {
-    state.open().await
-}
-
-#[tauri::command]
-pub async fn engine_scratch_db_select(
-    state: State<'_, EngineScratchState>,
-    id: u64,
-    sql: String,
-    params: Vec<Value>,
-) -> Result<Rows, String> {
-    select(&state.get(id)?, &sql, &params).await
-}
-
-#[tauri::command]
-pub async fn engine_scratch_db_transaction(
-    state: State<'_, EngineScratchState>,
-    id: u64,
-    steps: Vec<EngineDbStep>,
-) -> Result<Rows, String> {
-    transaction(&state.get(id)?, &steps).await
-}
-
-#[tauri::command]
-pub async fn engine_scratch_db_close(
-    state: State<'_, EngineScratchState>,
-    id: u64,
-) -> Result<(), String> {
-    state.close(id).await;
-    Ok(())
-}
-
-#[cfg(test)]
-#[path = "engine_db_tests.rs"]
-mod tests;

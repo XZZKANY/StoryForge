@@ -8,8 +8,6 @@ async fn run_mutation<T: Send + 'static>(
     ticket: Option<String>,
     work: impl FnOnce() -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
-    #[cfg(feature = "gui-fixture")]
-    crate::lifecycle_gui_fixture::require_project_scope(&root)?;
     let admission = state.admit(&root, ticket.as_deref())?;
     tokio::task::spawn_blocking(move || {
         let _admission = admission;
@@ -31,17 +29,7 @@ pub async fn write_file(
         state.inner().clone(),
         project_root.clone(),
         delivery_ticket,
-        move || {
-            #[cfg(feature = "gui-fixture")]
-            if std::path::Path::new(&path)
-                .file_name()
-                .and_then(|value| value.to_str())
-                == Some("branches.json")
-            {
-                crate::lifecycle_gui_fixture::at_boundary(&project_root, "snapshot", None)?;
-            }
-            fs::write_file(project_root, path, content)
-        },
+        move || fs::write_file(project_root, path, content),
     )
     .await
 }
@@ -146,8 +134,6 @@ pub async fn write_file_with_receipt(
         project_root.clone(),
         delivery_ticket,
         move || {
-            #[cfg(feature = "gui-fixture")]
-            crate::lifecycle_gui_fixture::at_boundary(&project_root, "branch", None)?;
             receipts::write_file_with_receipt(project_root, request, expected, checkpoint_timestamp)
         },
     )
@@ -167,15 +153,7 @@ pub async fn create_writeback_audit(
         project_root.clone(),
         delivery_ticket,
         move || {
-            #[cfg(feature = "gui-fixture")]
-            crate::lifecycle_gui_fixture::before_audit(&project_root, &operation_id)?;
             receipts::create_writeback_audit(project_root.clone(), operation_id.clone(), content)?;
-            #[cfg(feature = "gui-fixture")]
-            crate::lifecycle_gui_fixture::at_boundary(
-                &project_root,
-                "audit_done",
-                Some(&operation_id),
-            )?;
             Ok(())
         },
     )

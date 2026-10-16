@@ -180,7 +180,7 @@ vi.mock('monaco-editor', async (load) => {
     },
   };
 });
-vi.mock('../src/lib/api/config', () => ({
+vi.mock('./support/http-config', () => ({
   getApiConfig: async () => ({ baseUrl: 'http://inline-integration.test', apiKey: 'fixture' }),
   trimApiBaseUrl: (url: string) => url,
 }));

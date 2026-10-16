@@ -415,20 +415,10 @@ fn apply_with(
         // Another process may own this identity. No contender gets to dispatch.
         return inspect(&location)?.ok_or(error);
     }
-    #[cfg(feature = "gui-fixture")]
-    crate::lifecycle_gui_fixture::at_boundary(project_root, "intent", Some(&intent.operation_id))?;
     let (state, mut detail) = match write(expected) {
         Ok(()) => ("applied", None),
         Err(error) => ("not_written", Some(error)),
     };
-    #[cfg(feature = "gui-fixture")]
-    if state == "applied" {
-        crate::lifecycle_gui_fixture::at_boundary(
-            project_root,
-            "body",
-            Some(&intent.operation_id),
-        )?;
-    }
     // D04：正文落盘成功后使 canon 派生缓存失效（可弃缓存，缺失即触发后端按需重建）。
     // proposals.json 不在此列——它承载 canon_delta 的待决提案草稿，不是正文派生。
     // 正文结果与缓存清理分别记账；失败必须警告，后端读取另有来源版本校验。

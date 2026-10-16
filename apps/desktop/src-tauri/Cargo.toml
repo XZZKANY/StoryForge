@@ -10,17 +10,11 @@ default-run = "storyforge-desktop"
 name = "storyforge-desktop"
 path = "src/main.rs"
 
-[[bin]]
-name = "storyforge-gui-fixture"
-path = "src/main.rs"
-required-features = ["gui-fixture"]
-
 [build-dependencies]
 tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
 tauri = { version = "2.3", features = [] }
-tauri-plugin-shell = "2.0"
 tauri-plugin-dialog = "2.0"
 tauri-plugin-http = "=2.6.1"
 tauri-plugin-sql = { version = "=2.4.1", features = ["sqlite"] }
@@ -31,7 +25,6 @@ serde_json = "1"
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.11", features = ["blocking"] }
 anyhow = "1.0"
-ctrlc = "3.4"
 walkdir = "2.5"
 chrono = "0.4"
 base64 = "0.22"
@@ -39,9 +32,8 @@ sha2 = "0.10"
 tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_JobObjects", "Win32_System_Threading"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
 
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
-gui-fixture = []

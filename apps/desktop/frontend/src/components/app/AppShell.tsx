@@ -170,7 +170,6 @@ export function AppShell({
       data-shell-deferred={deferred ? 'true' : 'false'}
       data-tauri-runtime={runtime.isDesktopRuntime ? 'true' : 'false'}
       data-tauri-menu-ready={runtime.tauriMenuReady ? 'true' : 'false'}
-      data-smoke-api-ready={runtime.smokeApiReady ? 'true' : 'false'}
       data-tauri-menu-error={runtime.tauriMenuError}
     >
       <Titlebar

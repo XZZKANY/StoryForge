@@ -13,7 +13,6 @@ import {
   readFile,
   readdir,
   readlink,
-  symlink,
   unlink,
   writeFile,
 } from 'node:fs/promises';
@@ -24,7 +23,7 @@ import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import {
   createSmokeEnvironment,
-  findFreeLoopbackApiBaseUrl,
+  findFreeLoopbackBaseUrl,
   killProcessTree,
   waitForExit,
 } from '../../scripts/verify-tauri-smoke.mjs';
@@ -71,7 +70,6 @@ const agentOnly = mode === '--agent-only';
 const agentReal = mode === '--agent-real';
 const p3 = agentOnly || agentReal;
 const realProvider = assistantReal || agentReal;
-const storeMode = assistantOnly || assistantReal || agentOnly || agentReal;
 const p1 = contextOnly || readerOnly;
 const fixtureName = agentReal
   ? 'engine-p3-agent-real'
@@ -123,9 +121,35 @@ const knownFolders = {
   roaming: resolve(output, 'home/AppData/Roaming'),
   temp: resolve(output, 'temp'),
 };
-const hostRoot = resolve(output, 'startup-stub');
-const apiDir = resolve(hostRoot, 'apps/api');
+const hostRoot = resolve(output, 'host');
 const executable = resolve(hostRoot, 'bin/storyforge-desktop.exe');
+// The host's own database (runtime_paths puts it in the isolated local data directory).
+async function readEngineStore() {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(resolve(directories.localDataDir, 'storyforge-engine.sqlite3'), {
+    readOnly: true,
+  });
+  try {
+    const rows = (sql) =>
+      db
+        .prepare(sql)
+        .all()
+        .map((row) => ({ ...row }));
+    return {
+      sessions: rows('SELECT id, task_type, project_path FROM assistant_sessions ORDER BY id'),
+      toolCalls: rows(
+        'SELECT session_id, tool_name, status, input_summary, output_summary, error_message ' +
+          'FROM assistant_tool_calls ORDER BY id',
+      ).map((call) => ({
+        ...call,
+        input_summary: JSON.parse(call.input_summary),
+        output_summary: JSON.parse(call.output_summary),
+      })),
+    };
+  } finally {
+    db.close();
+  }
+}
 const hash = async (path) =>
   createHash('sha256')
     .update(await readFile(path))
@@ -298,7 +322,7 @@ try {
       '-NoProfile',
       '-NonInteractive',
       '-Command',
-      "Get-CimInstance Win32_Process -Filter \"Name = 'storyforge-desktop.exe' OR Name = 'storyforge-gui-fixture.exe'\" | Select-Object ProcessId,ExecutablePath | ConvertTo-Json -Compress",
+      'Get-CimInstance Win32_Process -Filter "Name = \'storyforge-desktop.exe\'" | Select-Object ProcessId,ExecutablePath | ConvertTo-Json -Compress',
     ],
     { encoding: 'utf8', windowsHide: true, timeout: 15000 },
   );
@@ -308,16 +332,10 @@ try {
   for (const path of [
     ...Object.values(directories),
     ...Object.values(knownFolders),
-    apiDir,
     resolve(hostRoot, 'bin'),
   ]) {
     await mkdir(path, { recursive: true });
   }
-  // find_project_root prefers ancestor markers over STORYFORGE_ROOT. Copy the executable
-  // under these owned markers so ordinary setup cannot import the author's API/.env.
-  await writeFile(resolve(hostRoot, 'package.json'), '{"private":true,"synthetic":true}\n');
-  await writeFile(resolve(hostRoot, 'docker-compose.yml'), '# P0 owned root marker only\n');
-  await symlink(resolve(root, 'apps/api/.venv'), resolve(apiDir, '.venv'), 'junction');
   if (contextOnly) {
     const golden = JSON.parse(
       await readFile(resolve(root, 'packages/engine/golden/p1-context.windows.json'), 'utf8'),
@@ -408,9 +426,6 @@ try {
     await writeFile(resolve(output, 'reader-input.json'), JSON.stringify(readerInput, null, 2));
     await writeFile(resolve(output, 'reader-before.json'), JSON.stringify(readerBefore, null, 2));
   }
-  const tauriConfig = JSON.parse(
-    await readFile(resolve(root, 'apps/desktop/src-tauri/tauri.conf.json'), 'utf8'),
-  );
   let httpBaseUrl, sqlFixture, sqlBefore;
   if (transports) {
     const generated = spawnSync(
@@ -476,7 +491,6 @@ try {
     });
     httpBaseUrl = `http://127.0.0.1:${httpServer.address().port}`;
   }
-  const storeLogPath = resolve(output, 'store-log.json');
   let assistantProject, assistantBefore;
   if (assistantOnly) {
     assistantProject = ownedPath(output, 'book');
@@ -707,112 +721,6 @@ try {
     httpBaseUrl = `http://127.0.0.1:${httpServer.address().port}`;
     evidence.llmServer.foreignUrl = `http://127.0.0.1:${foreignServer.address().port}/steal`;
   }
-  const assistantScript = `import json, os, threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-VERSION = ${JSON.stringify(tauriConfig.version)}
-LOG_PATH = ${JSON.stringify(storeLogPath)}
-STATE = {'log': [], 'sessions': {}, 'titles': {}, 'messages': {}, 'tools': {}, 'rows': {}, 'next': 1}
-LOCK = threading.Lock()
-class Handler(BaseHTTPRequestHandler):
-    def send_json(self, status, payload):
-        data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
-        self.send_response(status)
-        self.send_header('Access-Control-Allow-Origin', self.headers.get('Origin') or '*')
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Content-Length', str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
-    def do_OPTIONS(self):
-        self.send_response(204)
-        self.send_header('Access-Control-Allow-Origin', self.headers.get('Origin') or '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-StoryForge-API-Key')
-        self.send_header('Content-Length', '0')
-        self.end_headers()
-    def do_GET(self):
-        if self.path in ('/health/ready', '/health/live'):
-            return self.send_json(200, {'status': 'ready', 'app_version': VERSION, 'synthetic': True})
-        self.store('GET')
-    def do_POST(self):
-        self.store('POST')
-    def do_PATCH(self):
-        self.store('PATCH')
-    def store(self, method):
-        if not self.path.startswith('/api/assistant/'):
-            return self.send_json(404, {'detail': 'unknown route'})
-        length = int(self.headers.get('Content-Length') or 0)
-        body = json.loads(self.rfile.read(length).decode('utf-8')) if length else None
-        parts = self.path.split('/')[3:]
-        with LOCK:
-            STATE['log'].append({'method': method, 'path': self.path,
-                                 'key': self.headers.get('X-StoryForge-API-Key'), 'body': body})
-            with open(LOG_PATH, 'w', encoding='utf-8') as handle:
-                json.dump(STATE['log'], handle, ensure_ascii=False)
-            new_id = STATE['next']
-            if method == 'POST' and parts == ['sessions']:
-                STATE['next'] += 1
-                STATE['sessions'][new_id] = body.get('project_path')
-                STATE['titles'][new_id] = body.get('title') or ''
-                STATE['messages'][new_id] = []
-                return self.send_json(201, {'id': new_id, 'title': STATE['titles'][new_id],
-                                            'project_path': body.get('project_path'), 'messages': []})
-            if parts[:1] == ['sessions'] and len(parts) >= 2 and parts[1].isdigit():
-                session_id = int(parts[1])
-                if session_id not in STATE['sessions']:
-                    return self.send_json(404, {'detail': 'Assistant 会话不存在：%d。' % session_id})
-                if method == 'GET' and len(parts) == 2:
-                    return self.send_json(200, {'id': session_id, 'title': STATE['titles'][session_id],
-                                                'project_path': STATE['sessions'][session_id],
-                                                'messages': STATE['messages'][session_id]})
-                if method == 'GET' and parts[2:] == ['tool-calls']:
-                    return self.send_json(200, [row for row in STATE['rows'].values()
-                                                if row['session_id'] == session_id])
-                if method == 'POST' and parts[2:] == ['messages']:
-                    STATE['next'] += 1
-                    STATE['messages'][session_id].append({'id': new_id, 'role': body.get('role'),
-                                                          'content': body.get('content')})
-                    return self.send_json(201, {'id': new_id})
-                if method == 'POST' and parts[2:] == ['tool-calls']:
-                    STATE['next'] += 1
-                    STATE['tools'][new_id] = body.get('input_summary') or {}
-                    STATE['rows'][new_id] = {'id': new_id, 'session_id': session_id, 'tool_name': body.get('tool_name'),
-                                             'status': body.get('status'), 'input_summary': STATE['tools'][new_id],
-                                             'output_summary': body.get('output_summary') or {},
-                                             'related_type': None, 'related_id': None}
-                    return self.send_json(201, {'id': new_id, 'input_summary': STATE['tools'][new_id]})
-            if method == 'PATCH' and parts[:1] == ['tool-calls'] and int(parts[1]) in STATE['tools']:
-                tool_id = int(parts[1])
-                if 'input_summary' in body:
-                    STATE['tools'][tool_id] = body['input_summary']
-                row = STATE['rows'][tool_id]
-                row['input_summary'] = STATE['tools'][tool_id]
-                for key in ('status', 'output_summary'):
-                    if body.get(key) is not None:
-                        row[key] = body[key]
-                return self.send_json(200, {'id': tool_id, 'input_summary': STATE['tools'][tool_id]})
-            self.send_json(404, {'detail': 'unknown assistant route'})
-ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handler).serve_forever()
-`;
-  await writeFile(
-    resolve(apiDir, 'run_windows.py'),
-    storeMode
-      ? assistantScript
-      : `import json, os
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path not in ('/health/ready', '/health/live'):
-            self.send_error(404)
-            return
-        payload = json.dumps({'status': 'ready', 'app_version': ${JSON.stringify(tauriConfig.version)}, 'synthetic': True}).encode()
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Content-Length', str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
-ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handler).serve_forever()
-`,
-  );
   if (realProvider)
     await copyFile(
       resolve(process.env.APPDATA, 'com.storyforge.ide', 'llm-provider.json'),
@@ -916,14 +824,13 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     resolve(root, 'apps/desktop/src-tauri/target/debug/storyforge-desktop.exe'),
     executable,
   );
-  const apiBaseUrl = await findFreeLoopbackApiBaseUrl();
-  const cdpBaseUrl = await findFreeLoopbackApiBaseUrl();
+  const cdpBaseUrl = await findFreeLoopbackBaseUrl();
   const inherited = Object.fromEntries(
     Object.entries(process.env).filter(([name]) =>
       /^(PATH|SYSTEMROOT|WINDIR|COMSPEC|PATHEXT|SYSTEMDRIVE)$/i.test(name),
     ),
   );
-  const env = createSmokeEnvironment(inherited, apiBaseUrl, directories);
+  const env = createSmokeEnvironment(inherited, directories);
   delete env.STORYFORGE_SHADOW_GIT_SMOKE_CLEAR_PATH;
   Object.assign(env, {
     HOME: knownFolders.home,
@@ -932,13 +839,8 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     LOCALAPPDATA: knownFolders.local,
     TEMP: knownFolders.temp,
     TMP: knownFolders.temp,
-    STORYFORGE_ROOT: hostRoot,
-    STORYFORGE_API_KEY: 'synthetic-p0-api',
-    STORYFORGE_DESKTOP_USE_API_SIDECAR: '0',
     STORYFORGE_DESKTOP_SMOKE_LIFECYCLE_ONLY: '1',
     WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${new URL(cdpBaseUrl).port} --remote-debugging-address=127.0.0.1`,
-    PYTHONUTF8: '1',
-    PYTHONUNBUFFERED: '1',
   });
   const nativeStartedAt = Date.now();
   child = spawn(executable, [], {
@@ -955,7 +857,6 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     pid: child.pid,
     executable,
     executableSha256: await hash(executable),
-    apiBaseUrl,
     cdpBaseUrl,
     directories,
     knownFolders,
@@ -965,7 +866,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
       pnpm: await hash(resolve(root, 'pnpm-lock.yaml')),
       frontend: await hash(resolve(frontend, 'package-lock.json')),
     },
-    startup: 'ordinary debug setup + owned Python stdlib health stub; not a backend-free boot',
+    startup: 'ordinary debug setup; the host starts no backend',
     sources: {
       fixture: await hash(resolve(frontend, `scripts/fixtures/${fixtureName}.ts`)),
       harness: await hash(fileURLToPath(import.meta.url)),
@@ -1294,52 +1195,36 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             streams[2].closedAt && !streams[2].writableFinished,
             'Cancelling did not close the Native stream',
           );
-          const log = JSON.parse(await readFile(storeLogPath, 'utf8'));
-          evidence.storeLog = log;
-          assert.ok(
-            log.every((entry) => entry.key === 'synthetic-p0-api'),
-            'Store auth missing',
+          const store = await readEngineStore();
+          evidence.store = store;
+          assert.deepEqual(
+            store.sessions.map((session) => [session.task_type, session.project_path]),
+            [
+              ['desktop_revise', assistantProject],
+              ['desktop_continue', assistantProject],
+            ],
           );
-          const shape = log.map((entry) => `${entry.method} ${entry.path.replace(/\d+/g, 'N')}`);
-          assert.deepEqual(shape, [
-            'POST /api/assistant/sessions',
-            'POST /api/assistant/sessions/N/tool-calls',
-            'PATCH /api/assistant/tool-calls/N',
-            'PATCH /api/assistant/tool-calls/N',
-            'POST /api/assistant/sessions/N/messages',
-            'GET /api/assistant/sessions/N',
-            'POST /api/assistant/sessions/N/messages',
-            'POST /api/assistant/sessions/N/tool-calls',
-            'PATCH /api/assistant/tool-calls/N',
-            'PATCH /api/assistant/tool-calls/N',
-            'POST /api/assistant/sessions/N/messages',
-            'POST /api/assistant/sessions',
-            'POST /api/assistant/sessions/N/tool-calls',
-            'PATCH /api/assistant/tool-calls/N',
-            'PATCH /api/assistant/tool-calls/N',
-            'GET /api/assistant/sessions/N',
-          ]);
-          assert.equal(log[0].body.task_type, 'desktop_revise');
-          assert.equal(log[0].body.project_path, assistantProject);
-          assert.equal(log[3].body.status, 'completed');
-          const continueCall = log[7].body.input_summary;
-          assert.equal(continueCall.previous_chapter, '正文/第001章.md');
+          assert.deepEqual(
+            store.toolCalls.map((call) => [call.session_id, call.status]),
+            [
+              [store.sessions[0].id, 'completed'],
+              [store.sessions[0].id, 'completed'],
+              [store.sessions[1].id, 'paused'],
+            ],
+          );
+          assert.equal(store.toolCalls[1].input_summary.previous_chapter, '正文/第001章.md');
           assert.equal(
-            log[8].body.input_summary.generation_sources.writing_context.current_file,
+            store.toolCalls[1].input_summary.generation_sources.writing_context.current_file,
             '正文/第002章.md',
           );
-          assert.equal(log[9].body.status, 'completed');
-          assert.deepEqual(
-            [log[14].body.status, log[14].body.output_summary.interruption_reason],
-            ['paused', 'stopped'],
-          );
+          assert.equal(store.toolCalls[2].output_summary.interruption_reason, 'stopped');
           assert.deepEqual(
             await contextFingerprint(assistantProject),
             assistantBefore,
             'The assistant probe wrote into the project',
           );
           assert.ok(
-            !JSON.stringify(log).includes(llmKey),
+            !JSON.stringify(store).includes(llmKey),
             'The real key reached the session store',
           );
           assert.ok(
@@ -1517,10 +1402,6 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             ).catch(() => Buffer.alloc(0));
             assert.ok(!bytes.includes(llmKey), `The real key reached the engine database${suffix}`);
           }
-          // Nothing on ts asks the Python session store any more.
-          const log = await readFile(storeLogPath, 'utf8').then(JSON.parse, () => []);
-          evidence.storeLog = log;
-          assert.deepEqual(log, [], 'The ts agent loop asked the Python session store');
           assert.ok(
             !JSON.stringify(evidence).includes(llmKey),
             'The real key reached the WebView or evidence',
@@ -1536,12 +1417,6 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
           assert.ok(
             real.provider.keyIsPlaceholder,
             'The WebView saw something other than the placeholder',
-          );
-          const log = JSON.parse(await readFile(storeLogPath, 'utf8'));
-          evidence.storeLog = log;
-          assert.ok(
-            log.every((entry) => entry.key === 'synthetic-p0-api'),
-            'Store auth missing',
           );
           // Manuscripts: chapters 1-2 byte-identical; the only new manuscript is the accepted chapter 3.
           const after = await contextFingerprint(agentProject);
@@ -1578,19 +1453,12 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             real.provider.keyIsPlaceholder,
             'The WebView saw something other than the placeholder',
           );
-          const log = JSON.parse(await readFile(storeLogPath, 'utf8'));
-          evidence.storeLog = log;
-          assert.ok(
-            log.every((entry) => entry.key === 'synthetic-p0-api'),
-            'Store auth missing',
-          );
-          evidence.toolCalls = log
-            .filter((entry) => entry.method === 'PATCH' && entry.body?.status)
-            .map((entry) => ({
-              status: entry.body.status,
-              error: entry.body.error_message ?? null,
-              ...entry.body.output_summary,
-            }));
+          evidence.store = await readEngineStore();
+          evidence.toolCalls = evidence.store.toolCalls.map((call) => ({
+            status: call.status,
+            error: call.error_message,
+            ...call.output_summary,
+          }));
           assert.deepEqual(
             await contextFingerprint(assistantProject),
             assistantBefore,
@@ -1648,12 +1516,11 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
           runawayMs: Math.round(evidence.agent.runawayMs),
           ticks: evidence.agent.ticks,
           frames: evidence.agent.frames.length,
-          storeCalls: evidence.storeLog.length,
         },
         assistant: evidence.assistant && {
           firstDeltaMs: evidence.assistant.firstDeltaMs,
           deltas: evidence.assistant.deltas.length,
-          storeCalls: evidence.storeLog.length,
+          toolCalls: evidence.store.toolCalls.length,
         },
         llm: evidence.llm && {
           firstDeltaMs: evidence.llm.firstDeltaMs,

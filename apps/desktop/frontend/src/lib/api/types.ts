@@ -13,22 +13,6 @@ import type {
   ToolTraceFrame,
 } from './generated/agent-ws';
 
-export type ApiConfig = {
-  baseUrl: string;
-  apiKey: string;
-};
-
-export type ApiRuntimeHealthStatus = 'ready' | 'degraded' | 'unreachable';
-
-export type ApiRuntimeHealth = {
-  status: ApiRuntimeHealthStatus;
-  reachable: boolean;
-  baseUrl: string;
-  latencyMs: number | null;
-  checks: Record<string, string>;
-  detail: string | null;
-};
-
 export type ReviseRequest = {
   filePath: string;
   content: string;
