@@ -137,12 +137,22 @@ function expectSameError(run: () => unknown, error: { type: string; message: str
   expect((thrown as Error).message).toBe(error.message);
 }
 
+/** 嵌套键序：toEqual 不看键序，而 prompt 里的 JSON 是按插入序写出来的。 */
+function keyOrder(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(keyOrder);
+  if (value === null || typeof value !== 'object') return null;
+  return Object.entries(value).map(([key, item]) => [key, keyOrder(item)]);
+}
+
 describe('real Python LLM context snapshot / prompt projection / writing context', () => {
   for (const [index, row] of (golden.pure as PureRow[]).entries()) {
     const name = JSON.parse(row.args_json).name;
     it(`${index} ${row.fn} ${name}`, () => {
       if (row.error) return expectSameError(() => runPure(row), row.error);
-      expect(runPure(row)).toEqual(JSON.parse(row.output_json!));
+      const output = runPure(row);
+      const expected = JSON.parse(row.output_json!);
+      expect(output).toEqual(expected);
+      expect(keyOrder(output)).toEqual(keyOrder(expected));
     });
   }
 });
@@ -294,6 +304,38 @@ describe('real Python writing context project replay', () => {
 });
 
 describe('writing context boundaries', () => {
+  it('counts reach the prompt in code-point order; integer-like keys could not keep it', () => {
+    const promptCounts = (counts: PlainJson) => {
+      const snapshot = buildLlmContextSnapshotFromCollected(
+        EMPTY,
+        {
+          runState: null,
+          intent: 'chapter.write',
+          userMessage: '起草第1章',
+          filePath: '正文/第001章.md',
+          content: '',
+          contextBundle: { summary: { counts } },
+        },
+        { platform, secrets },
+      );
+      const bundle = llmContextSnapshotToPromptContextBundle(snapshot, secrets);
+      return Object.keys((bundle.summary as { counts: Obj }).counts);
+    };
+    // 桌面端 emptyCounts 的顺序。
+    expect(promptCounts({ outline: 1, character: 0, draft: 2, export: 0, Zeta: 1 })).toEqual([
+      'Zeta',
+      'character',
+      'draft',
+      'export',
+      'outline',
+    ]);
+    // Python 按码点排：U+FF5E 在 U+1F600 之前（按 UTF-16 码元排会反过来）。
+    expect(promptCounts({ '😀': 1, '～': 1 })).toEqual(['～', '😀']);
+    expect(() => promptCounts({ '10': 1, '2': 1, draft: 1 })).toThrow(RangeError);
+    // 单个整数形的键本来就排在最前，码点序保得住。
+    expect(promptCounts({ draft: 1, '7': 1 })).toEqual(['7', 'draft']);
+  });
+
   it('only the admission module can construct a prepared context', () => {
     expect(() => new PreparedWritingContext(Symbol('forged') as never, '[]', '{}', null)).toThrow(
       TypeError,

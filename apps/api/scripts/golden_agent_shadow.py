@@ -59,7 +59,10 @@ def chapter_write(text, run_id):
     bundle = {"project_root": "$ROOT",
               "files": [{"path": "$ROOT/人物/主角.md", "relative_path": "人物/主角.md", "kind": "character",
                          "title": "主角.md", "excerpt": "# 林舟 左臂有旧伤。"}],
-              "summary": {"counts": {"character": 1, "draft": 2}, "hasStoryStructure": True},
+              # The desktop's own key order (emptyCounts), not alphabetical: Python sorts it into the prompt.
+              "summary": {"counts": {"outline": 0, "character": 1, "setting": 0, "timeline": 0, "foreshadowing": 0,
+                                     "knowledge": 0, "draft": 2, "quality": 0, "export": 0, "other": 0},
+                          "hasStoryStructure": True},
               "budget": {"file_count": 1, "char_count": 12, "max_files": 12, "max_excerpt_chars": 4000,
                          "truncated": False}}
     body = {"user_message": text, "run_id": run_id, "intent": "chapter.write", "permission_profile": "ask",
