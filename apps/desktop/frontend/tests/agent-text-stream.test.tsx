@@ -722,10 +722,8 @@ it('earlier-round words move into the process instead of vanishing; only the ans
   const notes = () => [...host.querySelectorAll('[data-testid="agent-run-note"]')];
   expect(notes().map((note) => note.textContent)).toEqual(['我先把第 5 章读一遍。']);
   // 这句话排在它之后调用的工具前面。
-  const toolRow = [...host.querySelectorAll('button')].find((row) =>
-    row.textContent?.includes('fs.read'),
-  );
-  expect(precedes(notes()[0], toolRow ?? null)).toBe(true);
+  const toolTitle = [...host.querySelectorAll('span')].find((span) => span.textContent === '读取');
+  expect(precedes(notes()[0], toolTitle ?? null)).toBe(true);
   await finish('读完了，问题在后半。');
   await flushTimers();
   // 回答本身不会跑进思考过程，前几轮的话结算后仍在。

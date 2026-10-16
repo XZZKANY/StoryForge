@@ -45,7 +45,10 @@ test('failed：头部 error 色显示「已失败 · N 步」并带 ✗ 标记�
   assert.match(html, /aria-expanded="true"/);
   assert.match(html, /grid-rows-\[1fr\]/);
   // 失败步的 ✗ 字形必须随默认展开一起可见（折叠态下 CSS 仍渲染 DOM，此断言锁展开标记）。
-  assert.match(html, /✗<\/span><span class="flex-shrink-0 text-foreground">file\.revise/);
+  assert.match(
+    html,
+    /✗<\/span><span class="min-w-0 truncate text-foreground" title="file\.revise">file\.revise/,
+  );
 });
 
 test('stopped：计入终态显示「已停止 · N 步」，动画停止，默认收起', () => {

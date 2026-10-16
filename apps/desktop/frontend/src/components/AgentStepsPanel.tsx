@@ -121,7 +121,11 @@ function StepRow({ step }: { step: AgentStep }) {
       <span className={`flex-shrink-0 ${glyphClass(step.status)}`} aria-hidden="true">
         {statusGlyph(step.status)}
       </span>
-      <span className={`flex-shrink-0 ${isToolStep ? 'text-foreground' : 'text-muted'}`}>
+      {/* 工具标题带着文件路径，窄栏里会很长：可以截断，悬停看全名。 */}
+      <span
+        className={`min-w-0 truncate ${isToolStep ? 'text-foreground' : 'text-muted'}`}
+        title={step.title}
+      >
         {step.title}
       </span>
       {/* 有结构化指标时首行让位给 chip 行；仅纯文本 detail（如 plan step）仍在首行内联。 */}

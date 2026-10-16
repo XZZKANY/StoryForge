@@ -8379,3 +8379,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 修复：`.assistant-md` 补列表符号（无序圆点、嵌套空心圆、有序数字、符号用 muted 色，任务列表不加符号）；回复渲染加 `remark-cjk-friendly`（MIT，作者 tats-u，专门放宽 CJK 旁的加粗定界；锁文件只新增它和 4 个依赖）；新增 `streaming-markdown.ts` 的 `closeStreamingMarkdown`，只在输出中渲染前临时补齐最后一段的半截标记——没关的代码块补围栏、落单的行内代码补反引号、落单的 `**` 补收尾、末尾刚吐出的一两颗星先藏起来；结算后照原文渲染，不替模型补标记。
 - 测试：新增 `assistant-markdown-cjk`（3 条：两种紧贴汉字的加粗都渲染成 `<strong>` 且不露星号；列表符号样式；半截标记补齐的 9 种情形、输出中的粗体里挂着输出圆点、结算后照原文）。变异 9 / 9。
 - 验证：前端 typecheck 绿；相关测试绿；改后截图在 gitignored 的 `output/agent-chat-polish/shots-after-c/`。
+
+## 2026-10-16 思考过程里的步骤说人话
+
+- 起因：同一轮截图里，思考过程每一行都是工程词：`fs.read completed`、`agent.loop 读取项目文件、检索并整理回答。`、改稿时 `permission.confirm 文件写回前等待作者确认。`、`file.revise`，结算后还有「工具循环完成：2 轮、1 次工具调用。」；折叠头与操作条在等确认时也显示 `permission.confirm`。
+- 修复（只改显示，`tool` 字段与步骤 id 不变）：`agent-step-mapping.ts` 加工具叫法表（依据后端工具规格里的中文说明起名：读取 / 搜索 / 查看目录 / 改写 / 起草新文件 / 审稿 / 润色 / 续写 / 拟章纲 / 起草正文 / 检查草稿 / 修补草稿 / 各类检查等），工具步骤标题 = 叫法 + 对象（`读取 正文/第005章.md`、`搜索「刘哥」`；读文件记 `path`、改稿 / 起草记 `file_path`，绝对路径只留文件名），不认识的工具照原名；工具详情去掉英文状态（成败由行首 ✓ / ✗ 表示），只留错误原文与模型、耗时、问题数等；计划步骤 `agent.loop` → 整理回答、`permission.confirm` → 等你确认、`judge.run` → 自检，其余带点号的步骤名按同一张表；「工具循环完成：」改成「完成：」。模型请求的进度说明（重试、退避）原样保留。步骤标题带着路径会很长，标题允许截断、悬停看全名。
+- 测试：新增 `agent-step-labels`（3 条：工具标题、工具详情不带英文状态、计划步骤与结算后的步骤）；`agent-steps-panel` 一条断言随标题的截断样式改判；`agent-text-stream` 新加的那条改按「读取」找工具行。变异 10 / 10（第一版截图里「改写」后面没带文件名——改稿的调用记录把路径记在 `file_path`，补上后另加了这两处的变异）。
+- 验证：前端 typecheck 绿；前端全量 vitest 226 个文件 2289 条绿（1 个既有跳过；前一次全量里 `focus-styles` 现编整套 Tailwind 的那条在满载下超了 5 秒默认时限，单跑 2.2 秒，重跑全量未复现）；改后截图在 gitignored 的 `output/agent-chat-polish/shots-after-d/`。
+- 未做：补丁出来后的恢复卡片（「等待权限：file.revise；有待你确认的修订（#53）」「最近边界：file.revise · completed」）仍是工程词——它和「同一个修订四处问你接不接受」是一件事，等作者定怎么收再动。
