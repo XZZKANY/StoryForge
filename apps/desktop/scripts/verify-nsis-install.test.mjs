@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, test } from 'node:test';
@@ -199,4 +199,18 @@ test('NSIS preflight refuses any foreign or unidentifiable Native process', () =
         assertNoForeignNativeProcesses([owned, { ProcessId: 2, ExecutablePath: other }], install),
       /close other StoryForge.*2/,
     );
+});
+
+test('installer removes the sidecar an older version left behind, after install and before uninstall', async () => {
+  const tauriDir = new URL('../src-tauri/', import.meta.url);
+  const config = JSON.parse(await readFile(new URL('tauri.conf.json', tauriDir), 'utf8'));
+  const hooksPath = config.bundle.windows.nsis.installerHooks;
+  const hooks = await readFile(new URL(hooksPath, tauriDir), 'utf8');
+  for (const macro of ['NSIS_HOOK_POSTINSTALL', 'NSIS_HOOK_PREUNINSTALL']) {
+    const body = hooks.slice(
+      hooks.indexOf(`!macro ${macro}`),
+      hooks.indexOf('!macroend', hooks.indexOf(`!macro ${macro}`)),
+    );
+    assert.match(body, /Delete "\$INSTDIR\\storyforge-api\.exe"/, macro);
+  }
 });
