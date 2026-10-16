@@ -30,10 +30,10 @@ import {
 import { emitToast } from './lib/toast';
 import { checkForUpdate, currentAppVersion } from './lib/update-check';
 import { isEditableTarget } from './lib/browser-guards';
-import { useAcknowledgeHostClosing } from './lib/host-close';
-import { HostCloseNotice } from './components/app/HostCloseNotice';
+import { useAcknowledgeHostClosing, useHostCloseNotice } from './lib/host-close';
 export function App() {
   useAcknowledgeHostClosing();
+  useHostCloseNotice();
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [palette, setPalette] = useState<PaletteMode | null>(null);
   const [obsPanelOpen, setObsPanelOpen] = useState(false);
@@ -334,7 +334,6 @@ export function App() {
 
   return (
     <>
-      <HostCloseNotice />
       <AppShell
         workspace={workspace}
         tabs={tabs}

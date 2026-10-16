@@ -8417,3 +8417,9 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 取证：`%APPDATA%\com.storyforge.ide\host-close-diagnostic.json` 写于 10-16 17:00，`{"reason":"close_timeout_unsettled","activeCommands":0,"deliveryTickets":0,"rendererFenced":false,"apiSettled":false,"apiInFlightOwners":null}`——是 0.1.15 最后一次退出（作者为跑探针关应用，旧版要等 Python 后端收尾，10 秒期限超时）留下的，0.2.0 第一次打开时显示了它。两个计数都是 0：退出时没有在途的写回，什么都没丢。
 - 修复：`HostCloseNotice` 在交付票据与原生命令都为 0 时不提示（磁盘上不可能有状态不明的写入，没什么可核对）；真有在途写回时改为「上次关闭时还有 N 个写回操作没确认完成。请打开最近改过的文件核对内容；StoryForge 不会自动重做这些操作。」，读不到记录时同样改成大白话。测试补「计数为 0 时不提示」，变异 1 / 1；`host-close-notice` + `host-close-ack` 6 / 6，类型检查通过。
 - 不单独出包：随下一个版本（与布局那一批一起）。0.2.0 下次正常关闭时会用自己的结算结果覆盖这份记录。
+
+## 2026-10-17 上次退出诊断改走右下角通知，不再横在窗口最顶上
+
+- 作者反馈：「那也不应该放在这上面吧」——诊断提示原先是挂在外壳之上的整宽横幅（#368 原样恢复的位置），看起来像出了大事。
+- 改动：删 `HostCloseNotice` 组件，读诊断挪进 `lib/host-close.ts` 的 `useHostCloseNotice`，结果走 `emitToast` 进右下角通知栈（与「并入失败」等同一处，可手动关、悬停暂停）：有在途写回时用 error 色、停 15 秒；读不到记录时用普通提示。hook 在 `App` 里调用——父组件的 effect 晚于子树执行，`ToastHost` 的监听已经挂好，不会丢通知（集成测试覆盖）。`App.tsx` 397 → 396 行。
+- 测试：`host-close-notice` 改成测通知事件（计数为 0 不提示、有在途写回时一条 error 通知、数据异常 / 读失败给普通提示、页面上不再有横幅），加一条「父组件调 hook、子树里挂 ToastHost 时通知确实显示」的集成测试，加一条源码护栏钉住 `App` 调用了这个 hook（P6-1b 删 Provider 时这类调用被悄悄带走过）。变异 2 / 2（去掉 `App` 里的调用、去掉计数为 0 不提示）。前端全量 210 files / 2103 tests、类型检查、eslint / prettier 通过。
