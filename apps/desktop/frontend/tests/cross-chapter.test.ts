@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { beforeEach, test } from 'vitest';
 
 import {
   chapterTargetPath,
@@ -10,6 +10,9 @@ import {
 } from '../src/components/chat-window/cross-chapter';
 import { requestCrossChapterConsistency } from '../src/lib/api/cross-chapter';
 import type { SemanticFile } from '../src/lib/project/types';
+
+// 这里测的是 Python 传输（开发档 engine.assistant 默认是 ts）。
+beforeEach(() => localStorage.setItem('engine.assistant', 'python'));
 
 function draft(name: string, path: string): SemanticFile {
   return { path, relativePath: name, name, kind: 'draft', modified: 0, size: 0 };

@@ -250,6 +250,27 @@ def p1_review_snapshot() -> dict:
                     '[{"finding":"' + "很长" * 200 + '","evidence":"' + "证 " * 200 + '"}]']:
             record("cross_parse", {"raw": raw}, lambda raw=raw: ccc._parse_findings(raw))
 
+        # The desktop's POST /api/ide/review/cross-chapter: whole chapters in, findings + model + latency out.
+        cross_reply = {"content": '[{"type":"setting","severity":"high","chapters":["第1章","第2章"],'
+                                  '"finding":"左右手矛盾","evidence":"左臂受伤/左手拔剑"}]', "latency_ms": 321}
+        two = [{"name": "第1章", "content": "林舟左臂受伤。"}, {"name": "第2章", "content": "林舟用左手拔剑。"}]
+        for case, replies, focus, model in [
+            (two, [cross_reply], " 伤势 ", " cross-model "),
+            (two, [{"content": "[]"}], None, None),
+            (two, [{"content": "bad"}], None, "  "),
+            ([two[0], {"name": "第2章", "content": "  "}], [cross_reply], None, "m"),
+            (two, [LLMError("超时")], None, "m"),
+            (two, [LLMConfigError("未配置 key")], None, "m"),
+        ]:
+            def check(case=case, replies=replies, focus=focus, model=model):
+                fake, calls = scripted(replies)
+                ccc._call_llm = fake
+                result = ccc.check_cross_chapter_consistency({"STORYFORGE_LLM_MODEL": model}, case, focus=focus)
+                return {"result": result, "calls": calls}
+            record("cross_check", {"chapters": case, "focus": focus, "model": model,
+                                   "replies": [encode(reply) for reply in replies]}, check,
+                   errors=(ValueError, LLMError, LLMConfigError))
+
         p = Project(run, "cross", {
             "正文/第001章.md": "林舟左臂受伤。", "正文/第002章.md": "林舟用左手拔剑。\n", "正文/第003章.md": "  \n",
             "大纲/总纲.md": "大纲内容。", "正文/第004章.md": "长" * 4100,

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import golden from '../../golden/p1-review.windows.json';
 import type { EncodedFile } from './contextFixture.test-support';
 import {
+  checkCrossChapterConsistency,
   crossChapterReview,
   crossChapterUserPrompt,
   parseCrossChapterFindings,
@@ -57,6 +58,7 @@ const ERROR_TYPES: Record<string, new (...args: never[]) => Error> = {
   JSONDecodeError: InputDomainError,
   AgentOrchestrationError,
   LLMError: LlmError,
+  LLMConfigError: LlmConfigError,
   FsToolError,
 };
 
@@ -194,6 +196,14 @@ async function runPure(row: PureRow): Promise<unknown> {
       return crossChapterUserPrompt(args.chapters, args.focus);
     case 'cross_parse':
       return parseCrossChapterFindings(args.raw);
+    case 'cross_check': {
+      const { calls, callLlm } = scripted(args.replies);
+      const result = await checkCrossChapterConsistency(args.chapters, args.focus, {
+        callLlm,
+        model: args.model,
+      });
+      return { result, calls };
+    }
     default:
       throw new Error(`Unknown pure oracle ${row.fn}`);
   }

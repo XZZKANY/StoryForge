@@ -155,6 +155,8 @@ function posts() {
   return fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
 }
 beforeEach(() => {
+  // 跨章端点走 Python 传输（开发档 engine.assistant 默认是 ts）。
+  localStorage.setItem('engine.assistant', 'python');
   vi.useFakeTimers();
   events = [];
   activeRun = '';

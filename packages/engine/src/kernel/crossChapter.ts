@@ -140,6 +140,28 @@ export async function orderedChapters(
   );
 }
 
+/**
+ * 桌面端「跨章检查」（Python `ide.cross_chapter_consistency.check_cross_chapter_consistency`）：整章正文进，
+ * finding、模型名与耗时出；有正文的不足两章报 RangeError，模型错误原样抛出。
+ */
+export async function checkCrossChapterConsistency(
+  chapters: readonly { name?: string | null; content?: string | null }[],
+  focus: string | null,
+  options: { callLlm: CrossChapterLlmPort; model: string | null },
+) {
+  if (chapters.filter((item) => pythonStrip(item.content || '')).length < MIN_CHAPTERS)
+    throw new RangeError('跨章一致性检查至少需要两章有正文的章节。');
+  const result = await options.callLlm({
+    systemPrompt: CROSS_CHAPTER_SYSTEM_PROMPT,
+    userPrompt: crossChapterUserPrompt(chapters, focus),
+  });
+  return {
+    findings: parseCrossChapterFindings(result.content),
+    model: options.model && pythonStrip(options.model) ? pythonStrip(options.model) : null,
+    latency_ms: result.latency_ms === undefined ? null : result.latency_ms,
+  };
+}
+
 /** 对若干章做跨章一致性审校，返回 advisory finding；未配置模型或调用失败显式报错。 */
 export async function crossChapterReview(
   reader: ProjectReader,

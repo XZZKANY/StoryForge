@@ -8237,3 +8237,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 起因：迁移计划 §4.3.1 约定作者声明写错时引擎直接报错（`book.context` 回 400，带出错位置的原文；Python 是静默丢掉那份声明），并承诺接到界面时把原文显示给作者。g1 接好 ts 档后界面仍只把可用性置成 error，手稿视图与作品总览只写「读取失败」，P5-2 一切默认作者就只能看到一句没有信息的失败。
 - 修复：`useBookContext` 多交出 `errorMessage`——命令给的原文照原样交出；连不上（fetch 的 TypeError）与只有状态码的「API 返回 N」没什么可说，交 null；读成功、形状不对、换项目时清空。手稿视图（列表区与读屏播报）与作品总览的底座状态在失败时显示「读取失败：<原文>」，没有原文时仍是原来的通用提示。Python 档同样受益（它的 400 原文现在也会显示）。
 - 测试：`manuscript-view` 加两条（视图的列表区与播报都带原文；hook 只交命令原文、不交网络错误与状态码文案、读成功后清空），`book-overview` 加一条。变异 6 / 6（原文一律不交、网络错误也当原文、状态码文案也当原文、成功后不清、手稿视图列表区不显示、总览不显示）；「列表区不显示」第一轮没被抓住（断言在整个视图文本里找、播报区域里也有这段字），收窄到列表区后抓住。
+
+## 2026-10-16 P5-2a ts 档补齐：跨章一致性检查接引擎（TS 迁移；作者拍板一路做到删 Python）
+
+- 背景：作者 10-16 拍板迁移一路做到删掉 Python（P5-2 → P5-3 → P6 → P7 出 0.2.0），中途不出预览包、不等现场影子数据。先盘 ts 档下前端还会打到 Python 的地方：`lib/api/` 里会 `fetch` 的函数逐个看分流，只剩跨章一致性检查（`POST /api/ide/review/cross-chapter`）、后端健康轮询（只给冒烟测试设属性，作者不可见）与外部写回协议（生产宿主里 `EXTERNAL_WRITEBACK_RELEASED = false`，协商永远是 false，ts 档用不到）；后两者随 P6 删。
+- 引擎：`crossChapter.ts` 新增 `checkCrossChapterConsistency`（Python `ide.cross_chapter_consistency.check_cross_chapter_consistency`：有正文的不足两章报 RangeError，模型名去空白、空则 null，latency_ms 原样）。预言机 p1-review 加 6 条 `cross_check`（有 finding 带耗时、空数组、坏 JSON 抛 JSONDecodeError、一章空白、模型错误、模型配置错误），只追加，`--check` 可复现；回放 204 / 204。
+- 前端：`lib/engine/crossChapter.ts`，与修订 / 续写同一个开关（`engine.assistant = ts`）；错误文本与 Python 路由一致：缺配置「真实 LLM 未配置：…」、请求体不合格「API 返回 422」、有正文不足两章与解析失败给原文、模型错误「跨章一致性 LLM 调用失败：…」。
+- 测试：`engine-cross-chapter` 3 条（经原生端口发一次请求并回 finding / 模型名 / 耗时；四种错误文本；Python 档仍是默认且不加载引擎）。变异 6 / 6。
