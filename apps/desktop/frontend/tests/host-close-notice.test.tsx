@@ -27,6 +27,16 @@ it('does not present a confirmed handshake as an outstanding error', async () =>
   await withNotice((element) => expect(element.textContent).toBe(''));
 });
 
+it('stays quiet when nothing was in flight at the last exit', async () => {
+  invoke.mockResolvedValue({
+    reason: 'close_timeout_unsettled',
+    deliveryTickets: 0,
+    activeCommands: 0,
+    rendererFenced: false,
+  });
+  await withNotice((element) => expect(element.textContent).toBe(''));
+});
+
 it('shows bounded counts without requesting approval or replaying an operation', async () => {
   invoke.mockResolvedValue({
     reason: 'close_timeout_unsettled',
@@ -34,8 +44,8 @@ it('shows bounded counts without requesting approval or replaying an operation',
     activeCommands: 1,
   });
   await withNotice((element) => {
-    expect(element.querySelector('[role="status"]')?.textContent).toContain('交付 2');
-    expect(element.textContent).toContain('未知结果不会自动重放');
+    expect(element.querySelector('[role="status"]')?.textContent).toContain('3 个写回操作');
+    expect(element.textContent).toContain('不会自动重做');
     expect(element.querySelector('button')).toBeNull();
     expect(invoke).toHaveBeenCalledTimes(1);
   });
@@ -47,13 +57,13 @@ it('does not render malformed diagnostic data as trustworthy settlement', async 
     deliveryTickets: 'invalid',
     activeCommands: 1,
   });
-  await withNotice((element) => expect(element.textContent).toContain('诊断无法读取'));
+  await withNotice((element) => expect(element.textContent).toContain('没读到上次关闭时的记录'));
 });
 
 it('read failure remains a nonblocking warning, not a successful shutdown', async () => {
   invoke.mockRejectedValue(new Error('unavailable'));
   await withNotice((element) => {
-    expect(element.textContent).toContain('不会自动重放');
+    expect(element.textContent).toContain('不会自动重做');
     expect(element.querySelector('[role="dialog"]')).toBeNull();
   });
 });

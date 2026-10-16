@@ -21,12 +21,18 @@ export function HostCloseNotice() {
           !Number.isSafeInteger(row.activeCommands)
         )
           throw new Error('invalid close diagnostic');
+        // 两个计数都为 0：退出时没有在途的写回，磁盘上不可能有状态不明的写入，没什么可核对的。
+        const pending = (row.deliveryTickets as number) + (row.activeCommands as number);
+        if (pending === 0) return;
         setMessage(
-          `上次退出未确认完整结算（交付 ${row.deliveryTickets}，原生命令 ${row.activeCommands}）。请只读核对原运行；未知结果不会自动重放。`,
+          `上次关闭时还有 ${pending} 个写回操作没确认完成。请打开最近改过的文件核对内容；StoryForge 不会自动重做这些操作。`,
         );
       })
       .catch(() => {
-        if (!disposed) setMessage('上次退出诊断无法读取，请核对原运行；不会自动重放。');
+        if (!disposed)
+          setMessage(
+            '没读到上次关闭时的记录，请核对最近改过的文件；StoryForge 不会自动重做任何操作。',
+          );
       });
     return () => {
       disposed = true;
