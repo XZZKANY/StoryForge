@@ -201,7 +201,6 @@ export function ChatWindow(props: ChatWindowProps) {
         chapterCheckHistory={chapterCheckHistory}
         projectPath={props.projectPath}
         assistantSessionId={props.assistantSessionId}
-        decisionDialogsActive={props.decisionDialogsActive !== false && !dialogs.dialog}
         layoutMode={props.layoutMode}
         onSetLayoutMode={props.onSetLayoutMode}
         onOpenObservatory={props.onOpenObservatory}

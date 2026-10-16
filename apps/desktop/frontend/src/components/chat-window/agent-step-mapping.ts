@@ -24,8 +24,15 @@ export function isModelRequestStep(step: AgentStep): boolean {
   return step.tool === 'agent.provider';
 }
 
+// 等作者拍板的步骤（权限、补丁确认）由对话底部的选择框来问，思考过程里不再写一遍「等你确认」。
+const DECISION_TOOLS = new Set(['author.approval', 'permission-gate', 'permission.confirm']);
+
+export function isDecisionStep(step: AgentStep): boolean {
+  return DECISION_TOOLS.has(step.tool);
+}
+
 export function processSteps(steps: readonly AgentStep[]): AgentStep[] {
-  return steps.filter((step) => !isModelRequestStep(step));
+  return steps.filter((step) => !isModelRequestStep(step) && !isDecisionStep(step));
 }
 
 // 思考过程里工具的叫法：作者看到的是「读取 正文/第005章.md」，不是「fs.read completed」。

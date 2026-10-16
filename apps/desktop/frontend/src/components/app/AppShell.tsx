@@ -390,9 +390,6 @@ export function AppShell({
               data-testid="right-chat-pane"
             >
               <ChatWindow
-                decisionDialogsActive={
-                  rightPanelVisible && !settingsVisible && !palette && !dialogs.dialog
-                }
                 projectPath={activeProject}
                 currentFile={tabs.displayedFile ?? currentFile}
                 assistantSessionId={

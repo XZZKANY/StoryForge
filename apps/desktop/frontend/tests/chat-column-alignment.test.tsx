@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vitest';
 
-import { AgentDecisionPrompt } from '../src/components/chat-window/AgentDecisionPrompt';
 import { ChapterCheckHistoryPanel } from '../src/components/chat-window/ChapterCheckHistoryPanel';
 import { CHAT_COLUMN } from '../src/components/chat-window/column';
 import {
@@ -124,15 +123,25 @@ test('context summary and chapter check history are column-width', () => {
   assert.equal(history.innerHTML.includes('border-default'), false);
 });
 
-test('decision prompt opener and lightweight status sit in the chat column', () => {
-  const prompt = mount(
-    renderToStaticMarkup(
-      <AgentDecisionPrompt decisionKey="k" active={false} title="确认章纲后开始起草">
-        <p>章纲</p>
-      </AgentDecisionPrompt>,
-    ),
-  );
-  assert.ok(inColumn(prompt.querySelector('[data-testid="agent-decision-open"]')));
+test('decision choices and lightweight status sit in the chat column', () => {
+  const patchRun: AgentRun = {
+    ...runningRun,
+    status: 'waiting',
+    steps: [
+      {
+        id: 'approval',
+        title: '等待作者确认',
+        tool: 'author.approval',
+        status: 'waiting',
+        detail: '',
+        filePath: 'D:/book/正文/第005章.md',
+        patchId: 'patch-1',
+      },
+    ],
+  };
+  const decision = mount(renderToStaticMarkup(<RunActionBar run={patchRun} controls={controls} />));
+  assert.ok(inColumn(decision.querySelector('[data-testid="run-accept-patch"]')));
+  assert.equal(decision.querySelector('[role="dialog"]'), null);
 
   const status = mount(renderToStaticMarkup(<LightweightStatus text="本轮已停止" retryVisible />));
   assert.ok(inColumn(status.querySelector('button')));

@@ -7,7 +7,8 @@
  * 这里钉住核心不变量：
  * ①待确认补丁时 RunActionBar 必须渲染（awaitingConfirm 判定正确）；
  * ②接受按钮调 controls.onAcceptPatch，请求编辑器接受同一 patchId；
- * ③拒绝按钮调 controls.onRejectPatch，请求编辑器清理后再广播拒绝结果。
+ * ③拒绝选项调 controls.onRejectPatch（「拒绝」直接发空方向，「拒绝，并告诉 AI 怎么改」写完再发），
+ *   请求编辑器清理后再广播拒绝结果。
  */
 import assert from 'node:assert/strict';
 import { act } from 'react';
@@ -132,34 +133,45 @@ test('点接受按钮调 controls.onAcceptPatch', () => {
   assert.equal(acceptCalls.length, 1, '点接受按钮没调 onAcceptPatch');
 });
 
-test('点拒绝按钮调 controls.onRejectPatch', () => {
+test('选「拒绝」直接否掉这版；选「拒绝，并告诉 AI 怎么改」先写一句再发', () => {
   act(() => {
     root.render(<RunActionBar run={makeRun()} controls={mockControls} />);
   });
 
-  const buttons = container.querySelectorAll('button');
-  const rejectButton = Array.from(buttons).find((btn) => btn.textContent?.includes('拒绝'));
-  assert.ok(rejectButton, '找不到拒绝按钮');
-
+  const plainReject = container.querySelector(
+    '[data-testid="run-reject-patch"]',
+  ) as HTMLButtonElement;
+  assert.ok(plainReject, '找不到「拒绝」选项');
   act(() => {
-    rejectButton.click();
+    plainReject.click();
   });
+  assert.deepEqual(rejectCalls, [{ direction: '' }], '「拒绝」应直接否掉、方向为空串');
 
-  // 第一次点展开输入框，第二次点才真发
-  assert.equal(rejectCalls.length, 0, '第一次点拒绝不该立即调 onRejectPatch');
+  const explain = container.querySelector(
+    '[data-testid="run-reject-explain"]',
+  ) as HTMLButtonElement;
+  assert.ok(explain, '找不到「拒绝，并告诉 AI 怎么改」选项');
+  act(() => {
+    explain.click();
+  });
+  assert.equal(rejectCalls.length, 1, '选了「告诉 AI 怎么改」还没写就不该发');
 
-  // 展开后顶部按钮文案变「取消」，真正的确认按钮在输入框里（「否掉」或「否掉并重来」）
+  const input = container.querySelector('[data-testid="run-reject-input"]') as HTMLInputElement;
+  assert.ok(input, '选了之后应出现输入框');
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      input,
+      '  结尾留个悬念  ',
+    );
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   const confirmButton = container.querySelector(
     '[data-testid="run-reject-confirm"]',
   ) as HTMLButtonElement;
-  assert.ok(confirmButton, '展开后找不到输入框里的确认按钮');
-
   act(() => {
     confirmButton.click();
   });
-
-  assert.equal(rejectCalls.length, 1, '点确认按钮没调 onRejectPatch');
-  assert.equal(rejectCalls[0].direction, '', '空方向应传空串');
+  assert.deepEqual(rejectCalls[1], { direction: '结尾留个悬念' });
 });
 
 test('run 已完成或停止时 RunActionBar 不渲染；运行中显示暂停和停止', () => {

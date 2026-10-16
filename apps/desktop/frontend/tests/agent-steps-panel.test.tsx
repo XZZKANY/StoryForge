@@ -77,12 +77,18 @@ test('running：保留活动态动画与当前步骤标题', () => {
   assert.match(html, /aria-expanded="true"/);
 });
 
-test('waiting：补丁待确认仍是活动态，动画与步骤标题照常显示', () => {
+test('waiting：等作者决定时头部静止写「等你决定」，确认步骤不在思考过程里重复', () => {
   const run = makeRun('waiting');
-  run.steps[1].status = 'waiting';
-  run.steps[1].title = '等待作者确认';
+  run.steps.push({
+    id: 'approval',
+    title: '等待作者确认',
+    tool: 'author.approval',
+    status: 'waiting',
+    detail: '等待作者在编辑器里确认 diff',
+  });
   const html = renderToStaticMarkup(<AgentStepsPanel run={run} />);
-  assert.match(html, /sf-thinking-dots/);
-  assert.match(html, /等待作者确认 · 2 步/);
+  assert.doesNotMatch(html, /sf-thinking-dots/);
+  assert.match(html, /等你决定 · 2 步 · 1 工具/);
+  assert.doesNotMatch(html, /等待作者确认/);
   assert.match(html, /aria-expanded="true"/);
 });

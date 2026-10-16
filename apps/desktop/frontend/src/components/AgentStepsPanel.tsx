@@ -20,7 +20,9 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
   if (!hasProcess(run)) return null;
   const steps = processSteps(run.steps);
-  const isLive = run.status === 'running' || run.status === 'waiting';
+  // 等作者决定时不是在跑：头部不再跳动，写「等你决定」（选项在对话底部）。
+  const isLive = run.status === 'running';
+  const isWaiting = run.status === 'waiting';
   const open = manualOpen ?? (run.status !== 'completed' && run.status !== 'stopped');
 
   const stepCount = steps.length;
@@ -53,6 +55,10 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
               {activeStep ? activeStep.title : '思考中'} · {stepCount} 步
               {toolCount > 0 ? ` · ${toolCount} 工具` : ''}
             </span>
+          </span>
+        ) : isWaiting ? (
+          <span className="text-muted" data-testid="thinking-waiting-header">
+            等你决定 · {stepCount} 步{toolCount > 0 ? ` · ${toolCount} 工具` : ''}
           </span>
         ) : (
           <span

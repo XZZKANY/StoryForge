@@ -16,7 +16,6 @@ import type { AgentRunControlHandlers, ChatWindowProps } from './types';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { ChatWindowState } from './useChatWindowState';
 import type { QueuedChatMessage } from './useChatSubmission';
-import { AgentDecisionPrompt } from './AgentDecisionPrompt';
 import { ChapterCheckHistoryPanel } from './ChapterCheckHistoryPanel';
 import type { ChapterCheckHistoryState } from './useChapterCheckHistory';
 import { PartnerOpening } from './PartnerOpening';
@@ -28,7 +27,6 @@ type Props = {
   chapterCheckHistory?: ChapterCheckHistoryState;
   projectPath: ChatWindowProps['projectPath'];
   assistantSessionId: ChatWindowProps['assistantSessionId'];
-  decisionDialogsActive?: boolean;
   layoutMode: ChatWindowProps['layoutMode'];
   onSetLayoutMode: ChatWindowProps['onSetLayoutMode'];
   onOpenObservatory: ChatWindowProps['onOpenObservatory'];
@@ -59,7 +57,6 @@ export function ChatWindowView({
   chapterCheckHistory,
   projectPath,
   assistantSessionId,
-  decisionDialogsActive = true,
   layoutMode,
   onSetLayoutMode,
   onOpenObservatory,
@@ -83,11 +80,6 @@ export function ChatWindowView({
   opening = null,
   onOpeningDraft,
 }: Props) {
-  const dialogsActive = decisionDialogsActive && layoutMode !== 'editor';
-  const legacyDecision = state.agentRun?.status === 'waiting';
-  const waitingForPermission = state.agentRun?.steps.some(
-    (step) => step.id === 'permission-required' && step.status === 'waiting',
-  );
   const statusText = runStatusText(state.agentRun);
   // 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉当前 run，
   // 并让编辑器里尚未处理的补丁失去对应操作条。先完成本轮作者决策再允许发送。
@@ -113,8 +105,8 @@ export function ChatWindowView({
     if (awaitingConfirm) {
       emitToast(
         state.chapterBrief
-          ? '先确认或取消 Chapter Brief，再发下一条'
-          : '先处理下方待确认的修订（接受或拒绝），再发下一条',
+          ? '先确认或取消上面的章纲，再发下一条'
+          : '先在上面选好这版修订要不要，再发下一条',
         { tone: 'info' },
       );
       return;
@@ -198,24 +190,24 @@ export function ChatWindowView({
 
       {chapterCheckHistory && <ChapterCheckHistoryPanel history={chapterCheckHistory} />}
 
+      {/* 要作者拍板的事一次只在这里出一件（章纲、权限、补丁），不弹居中窗口、不盖住编辑器。 */}
       {state.chapterBrief && (
-        <AgentDecisionPrompt
-          decisionKey={`${projectPath}:${assistantSessionId}:brief:${state.chapterBrief.briefId}:${state.chapterBrief.revision}`}
-          active={dialogsActive}
-          title="确认章纲后开始起草"
+        <section
+          className="max-h-[60%] flex-shrink-0 overflow-y-auto px-5 py-3"
+          aria-label="确认章纲后开始起草"
+          data-testid="chapter-brief-decision"
         >
-          <div className="flex-shrink-0 px-5 py-3">
-            <div className={CHAT_COLUMN}>
-              <ChapterBriefCard
-                brief={state.chapterBrief}
-                onConfirm={agentRunControls.onConfirmChapterBrief ?? (() => undefined)}
-                // 取消就是停掉这一轮：章纲待确认时后端不认「拒绝」，那个「拒绝」只会落到之后的补丁上。
-                onCancel={agentRunControls.onStopRun}
-                busy={state.agentBusy}
-              />
-            </div>
+          <div className={CHAT_COLUMN}>
+            <ChapterBriefCard
+              key={`${state.chapterBrief.briefId}:${state.chapterBrief.revision}`}
+              brief={state.chapterBrief}
+              onConfirm={agentRunControls.onConfirmChapterBrief ?? (() => undefined)}
+              // 取消就是停掉这一轮：章纲待确认时后端不认「拒绝」，那个「拒绝」只会落到之后的补丁上。
+              onCancel={agentRunControls.onStopRun}
+              busy={state.agentBusy}
+            />
           </div>
-        </AgentDecisionPrompt>
+        </section>
       )}
 
       {showLightweightStatus && statusText && (
@@ -232,29 +224,15 @@ export function ChatWindowView({
         />
       )}
 
-      {state.agentRun &&
-        !state.chapterBrief &&
-        (legacyDecision ? (
-          <AgentDecisionPrompt
-            decisionKey={`${projectPath}:${assistantSessionId}:${state.agentRun.id}:${waitingForPermission ? 'permission' : 'patch'}`}
-            active={dialogsActive}
-            title={waitingForPermission ? '是否允许 Agent 执行这一步？' : '是否接受这版修订？'}
-          >
-            <RunActionBar
-              run={state.agentRun}
-              controls={agentRunControls}
-              recovery={state.agentRunRecovery}
-              resumePending={state.agentBusy}
-            />
-          </AgentDecisionPrompt>
-        ) : (
-          <RunActionBar
-            run={state.agentRun}
-            controls={agentRunControls}
-            recovery={state.agentRunRecovery}
-            resumePending={state.agentBusy}
-          />
-        ))}
+      {state.agentRun && !state.chapterBrief && (
+        <RunActionBar
+          run={state.agentRun}
+          controls={agentRunControls}
+          recovery={state.agentRunRecovery}
+          resumePending={state.agentBusy}
+          onTypeAhead={() => inputRef.current?.focus()}
+        />
+      )}
 
       <ContextSummaryPanel
         compact

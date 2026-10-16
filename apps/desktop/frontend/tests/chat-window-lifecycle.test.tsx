@@ -567,3 +567,33 @@ for (const scenario of [
     }
   });
 }
+
+// 作者 10-16：补丁出来时对话底部的选择框已经在问，不再插一条重复的「已生成对…的 AI 修订」；失败照写。
+test('修订就绪不往对话里插重复提示，修订失败照写', () => {
+  const seen: Message[][] = [];
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const send = (detail: { status: 'ready' | 'error'; message: string }) =>
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(SUGGESTION_RESULT_EVENT, {
+          detail: { filePath: 'D:/Books/story/正文/第01章.md', ...detail },
+        }),
+      );
+    });
+  try {
+    act(() =>
+      root.render(<AuthorLoopResultHarness onRender={(messages) => seen.push(messages)} />),
+    );
+    send({ status: 'ready', message: '' });
+    assert.equal((seen.at(-1) ?? []).length, 0);
+    send({ status: 'error', message: '模型没交回内容' });
+    const content = (seen.at(-1) ?? []).map((message) => message.content).join('\n');
+    assert.match(content, /AI 修订失败：模型没交回内容/);
+    assert.doesNotMatch(content, /已生成对/);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});

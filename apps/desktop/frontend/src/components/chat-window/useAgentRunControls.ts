@@ -322,11 +322,6 @@ export function useAgentRunControls(
       ) {
         return;
       }
-      const ref = result.filePath ? relativePath(projectPathRef.current, result.filePath) : null;
-      const content =
-        result.status === 'ready'
-          ? `已生成对 \`${ref ?? result.filePath}\` 的 AI 修订，请在编辑器里查看 diff，可接受、拒绝或保存旁注。`
-          : `AI 修订失败：${result.message}`;
       if (agentRunIdRef.current) {
         updateAgentStep('approval', {
           status: result.status === 'ready' ? 'waiting' : 'failed',
@@ -334,7 +329,12 @@ export function useAgentRunControls(
         });
         updateAgentStatus(result.status === 'ready' ? 'waiting' : 'failed');
       }
-      setMessages((prev) => [...prev, { role: 'assistant', content }]);
+      // 修订就绪时对话底部的选择框已经在问要不要，不再插一条重复的「已生成对…」；失败照写。
+      if (result.status !== 'ready')
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `AI 修订失败：${result.message}` },
+        ]);
     };
     window.addEventListener(SUGGESTION_RESULT_EVENT, onResult);
     return () => window.removeEventListener(SUGGESTION_RESULT_EVENT, onResult);

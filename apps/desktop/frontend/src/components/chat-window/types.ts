@@ -10,8 +10,6 @@ export type ChatWindowProps = {
   projectPath: string | null;
   currentFile: string | null;
   assistantSessionId?: number | null;
-  /** Visible Agent surface, excluding other dialogs; presentation never grants authority. */
-  decisionDialogsActive?: boolean;
   pendingInitialPrompt?: string | null;
   onPendingInitialPromptConsumed?: () => void;
   onAssistantSessionChange?: (assistantSessionId: number | null) => void;
