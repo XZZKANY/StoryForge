@@ -437,6 +437,7 @@ P6 进度（2026-10-16 起；作者拍板一路做到删 Python）：
 - P6-4 门禁：前端源码标准测试接手行数上限，并新增「界面只经 lib/api 进引擎」；帧契约 schema 冻结进 `packages/engine/golden/`，前端测试比对生成的帧类型；14 个 API 类型冻结进 `lib/api/contracts.ts`；删 `packages/shared`、OpenAPI 生成与漂移门、`tests/e2e`。根门禁 8 道（比计划多两道浏览器回归），pre-push 去掉 pytest。
 - P6-5 删 Python：`apps/api`（603 个文件）、docker-compose、deploy、迁移与 dev-start 脚本、两个离线实验脚本全删，-119,251 行；删除前最后一版是 `5e6f8e58`。P0 探针的读者模式改用 Node 按 golden 落盘夹具（与 Python 原落盘器逐项比对 0 差异），传输试验模式删除。
 - P6-6 文档：CLAUDE.md §2–§9、README、CONTEXT、TODO、current-phase、PROJECT_SUMMARY、运维四份与 apps/desktop 文档按迁移后的现状重写；删 `alembic-validation.md` 与两份 `.env*.example`；三份架构文档顶部加现状说明。
+- P6-7 总结：验证报告记一条 P6 总账（NSIS 80.9 → 32.8 MB；删 apps/api 113,955 行 Python；门禁 8 道；没验的项）。P6 收口，下一步 P5-3 回归 + P7 出 0.2.0（真宿主探针需作者先关掉应用）。
 
 ### P7 发版
 
