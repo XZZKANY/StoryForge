@@ -44,7 +44,7 @@ export function ChapterBriefCard({
           <Textarea
             {...control}
             controlSize="sm"
-            rows={2}
+            rows={3}
             className="mt-1 min-h-16 text-xs"
             value={draft.goal}
             onChange={(event) => update('goal', event.target.value)}
@@ -52,6 +52,32 @@ export function ChapterBriefCard({
           />
         )}
       </Field>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <Field label="视角">
+          {(control) => (
+            <Input
+              {...control}
+              controlSize="sm"
+              className="mt-1 text-xs"
+              value={draft.pov ?? ''}
+              onChange={(event) => update('pov', event.target.value)}
+              data-testid="chapter-brief-pov"
+            />
+          )}
+        </Field>
+        <Field label="场景">
+          {(control) => (
+            <Input
+              {...control}
+              controlSize="sm"
+              className="mt-1 text-xs"
+              value={draft.setting ?? ''}
+              onChange={(event) => update('setting', event.target.value)}
+              data-testid="chapter-brief-setting"
+            />
+          )}
+        </Field>
+      </div>
       <div className="mt-2 grid grid-cols-2 gap-2">
         <Field label="最少字数">
           {(control) => (
@@ -83,12 +109,23 @@ export function ChapterBriefCard({
       <BriefList
         label="必达节拍"
         values={draft.requiredBeats}
-        onChange={(values) => setDraft({ ...draft, requiredBeats: values })}
+        onChange={(values) => setDraft((current) => ({ ...current, requiredBeats: values }))}
+        testId="chapter-brief-beats"
       />
       <BriefList
         label="禁写事项"
         values={draft.forbiddenItems}
-        onChange={(values) => setDraft({ ...draft, forbiddenItems: values })}
+        onChange={(values) => setDraft((current) => ({ ...current, forbiddenItems: values }))}
+        testId="chapter-brief-forbidden"
+      />
+      {/* 起草拿这几条当既成事实；模型拿不准时会写「需核实」，作者要在这里看得到、改得了。 */}
+      <BriefList
+        label="连续性约束"
+        values={draft.continuityConstraints}
+        onChange={(values) =>
+          setDraft((current) => ({ ...current, continuityConstraints: values }))
+        }
+        testId="chapter-brief-continuity"
       />
       <div className="mt-3 flex justify-end gap-2">
         <Button
@@ -118,31 +155,39 @@ export function ChapterBriefCard({
   );
 }
 
+/** 一行一条：挤在一行里用分号隔开，长条目会被截断，条目里自带的分号还会把一条拆成两条。 */
 function BriefList({
   label,
   values,
   onChange,
+  testId,
 }: {
   label: string;
   values: string[];
   onChange: (values: string[]) => void;
+  testId: string;
 }) {
+  // 文本框自己记住原文：边打字边按行过滤，空行一出现就被吃掉，光标会跳。
+  const [text, setText] = useState(values.join('\n'));
   return (
     <Field label={label} className="mt-2">
       {(control) => (
-        <Input
+        <Textarea
           {...control}
           controlSize="sm"
+          rows={Math.min(6, Math.max(2, values.length))}
           className="mt-1 text-xs"
-          value={values.join('；')}
-          onChange={(event) =>
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value);
             onChange(
               event.target.value
-                .split(/[;；]/)
+                .split('\n')
                 .map((value) => value.trim())
                 .filter(Boolean),
-            )
-          }
+            );
+          }}
+          data-testid={testId}
         />
       )}
     </Field>

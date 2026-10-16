@@ -179,3 +179,61 @@ test('a busy chapter brief card says it is drafting and takes no further choice'
     container.remove();
   }
 });
+
+// 起草把连续性约束当既成事实；模型拿不准时会写「需核实」，作者得在卡片上看得到、改得了。
+test('chapter brief card shows pov, setting and constraints one per line and submits edits', () => {
+  const confirmed: ChapterBrief[] = [];
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const stale = '进化点：4 点（第 5 章累计 7 点，需核实；按 4 点处理）';
+  act(() => {
+    root.render(
+      <ChapterBriefCard
+        brief={{ ...brief, continuityConstraints: ['左臂仍受伤', stale] }}
+        onConfirm={(value) => confirmed.push(value)}
+        onCancel={() => undefined}
+      />,
+    );
+  });
+  const field = <T extends Element>(id: string) => {
+    const element = container.querySelector<T>(`[data-testid="chapter-brief-${id}"]`);
+    assert.ok(element, id);
+    return element;
+  };
+  const type = (element: HTMLInputElement | HTMLTextAreaElement, value: string) =>
+    act(() => {
+      const prototype =
+        element instanceof HTMLTextAreaElement
+          ? HTMLTextAreaElement.prototype
+          : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype, 'value')?.set?.call(element, value);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  try {
+    assert.equal(field<HTMLInputElement>('pov').value, '林岚');
+    assert.equal(field<HTMLInputElement>('setting').value, '港口');
+    assert.equal(field<HTMLTextAreaElement>('beats').value, '见面');
+    assert.equal(field<HTMLTextAreaElement>('forbidden').value, '提前揭晓身份');
+    // 一条一行：条目里自带的分号不再把它拆成两条。
+    const continuity = field<HTMLTextAreaElement>('continuity');
+    assert.equal(continuity.value, `左臂仍受伤\n${stale}`);
+
+    type(continuity, '左臂仍受伤\n\n进化点：7 点；随机变异池 1/3');
+    type(field<HTMLInputElement>('pov'), '');
+    type(field<HTMLTextAreaElement>('beats'), '见面\n交出钥匙');
+    act(() => field<HTMLButtonElement>('confirm').click());
+
+    // 作者一行里写两件事，仍算一条。
+    assert.deepEqual(confirmed[0]?.continuityConstraints, [
+      '左臂仍受伤',
+      '进化点：7 点；随机变异池 1/3',
+    ]);
+    assert.deepEqual(confirmed[0]?.requiredBeats, ['见面', '交出钥匙']);
+    assert.equal(confirmed[0]?.pov, '');
+    assert.equal(confirmed[0]?.setting, '港口');
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
