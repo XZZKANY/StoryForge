@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PaletteMode } from './components/CommandPalette';
 import { AppShell } from './components/app/AppShell';
 import { BookOverview } from './components/app/BookOverview';
+import { WritingDeskEmptyState } from './components/app/WritingDeskEmptyState';
 import { useMainSurface } from './components/app/useMainSurface';
 import { useOverviewActivity } from './components/app/useOverviewActivity';
 import { useAppDialog } from './components/app/AppDialog';
@@ -274,8 +275,12 @@ export function App() {
   const bookChapters = useBookOverviewChapters({
     projectPath: workspace.activeProject,
     currentFile: workspace.currentFile,
-    active: mainSurface === 'overview',
+    // 写作台中栏空着时也要知道停在哪一章，好给「接着写第 N 章」。
+    active: mainSurface === 'overview' || (mainSurface === 'workspace' && !tabs.displayedFile),
   });
+  // 停下的那一章：与总览「继续写」同一条规则——当前章，否则阅读序最新一章。
+  const resumeChapter =
+    bookChapters.currentChapter ?? bookChapters.chapters[bookChapters.chapters.length - 1] ?? null;
 
   const search = useProjectSearch(workspace.activeProject);
   const {
@@ -307,6 +312,10 @@ export function App() {
     showRight();
   }, [showEditor, showRight]);
   // 空书「和 AI 聊聊这本书」：对话占满中右，先聊后写；之后打开任何文件编辑区会自己回来。
+  // 进写作台中栏不该空着（作者 10-16 ①）：没开着文件就打开停下的那一章；空书留给中栏的「先聊聊」。
+  const enterWritingDesk = useCallback(() => {
+    continueWriting(tabs.displayedFile ? undefined : resumeChapter?.relativePath);
+  }, [continueWriting, resumeChapter, tabs.displayedFile]);
   const discussBook = useCallback(() => {
     showEditor();
     shell.setLayoutMode('chat');
@@ -382,12 +391,21 @@ export function App() {
               agentRun={activity.agentRun}
               onOpenAgentRun={showAgent}
               onEditProfile={openBookProfileEditor}
-              onEnterWritingDesk={() => continueWriting()}
+              onEnterWritingDesk={enterWritingDesk}
               onDraftNextChapter={draftNextChapter}
               onDiscussBook={discussBook}
               promises={observatory.promises}
             />
           ) : null
+        }
+        writingDeskEmptyState={
+          <WritingDeskEmptyState
+            resumeOrdinal={resumeChapter?.ordinal ?? null}
+            bookEmpty={bookChapters.status === 'available' && bookChapters.chapters.length === 0}
+            loading={bookChapters.status === 'loading' || bookChapters.status === 'unavailable'}
+            onResume={resumeChapter ? () => continueWriting(resumeChapter.relativePath) : undefined}
+            onDiscussBook={discussBook}
+          />
         }
         initialCursors={session.initialCursors}
         onCursorPersist={session.recordCursor}

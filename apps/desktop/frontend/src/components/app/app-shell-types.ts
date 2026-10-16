@@ -80,6 +80,8 @@ export type AppShellProps = {
    * have not adopted the overview yet.
    */
   overview?: ReactNode;
+  /** 写作工作台中栏没开文件时的去处（接着写停下的那章 / 空书先聊）。 */
+  writingDeskEmptyState?: ReactNode;
   /** App owns the destination; legacy embedders default to the writing workspace. */
   mainSurface?: MainSurface;
   onMainSurfaceChange?: (surface: MainSurface) => void;

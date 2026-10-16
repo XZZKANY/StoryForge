@@ -71,6 +71,7 @@ export function AppShell({
   search,
   onOpenSearchHit,
   overview,
+  writingDeskEmptyState,
   mainSurface = 'workspace',
   onMainSurfaceChange,
   onSwitchView = shell.switchView,
@@ -361,6 +362,7 @@ export function AppShell({
                 onOverview={overview ? () => setMainSurface('overview') : undefined}
                 activeCenterTab={activeCenterTab}
                 permissionProfile={agentPermission.profile}
+                emptyState={writingDeskEmptyState}
               />
               {overview && (
                 <div
