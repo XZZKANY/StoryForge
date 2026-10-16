@@ -8323,3 +8323,14 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 运维文档：`docs/operations/README.md`、`local-start.md`、`troubleshooting.md`、`release-checklist.md` 按现状重写（不再需要 Python / Docker；本机数据位置；浏览器回归与真宿主探针的排障；新的出包步骤）；删 `alembic-validation.md`。`apps/desktop/README.md`、`USAGE.md` 重写，`STATUS.md` 的历史标注补一条。三份架构文档（`agent-shell-contracts.md`、`authoring-feedback.md`、`ide-first-product-direction.md`）顶部加现状说明与旧路径取法，正文不改。
 - 其它：删只服务 Python / docker 的 `.env.example` 与 `.env.production.example`（无消费者）；前端三处注释（`agent-permission.ts`、`book-context.ts`、`observations.ts`）从 `apps/api` 的 Python 文件改指引擎里的对应文件。
 - 核对：文中命令、路径、文件名逐个对照了仓库（`craftPromptClause`、`ENGINE_MIGRATIONS`、`windows-dpapi-user-v1`、引擎库与旧库文件名、探针模式、冒烟报错原文等）；版本号只剩 `tauri.conf.json` 与 `Cargo.toml` 两处。重写的文件保持原有行尾（`CONTEXT.md` 恢复 CRLF，混合行尾的 `ide-first-product-direction.md` 按字节插入）。
+
+## 2026-10-16 P6 拆除总结（P6-1 … P6-7，#366–#375）
+
+- 结果：仓库里不再有 Python。业务逻辑全部在 TS 引擎 `packages/engine`（桌面 WebView 进程内运行），Rust 宿主管文件、引擎库、模型出网、影子 git 与退出握手，不起任何后端进程。删除前最后一版 `5e6f8e58`。
+- 体积：NSIS 安装包 80,893,288 字节（0.1.16，带 PyInstaller sidecar）→ 32,795,237 字节（P6-3 本地验证构建，不含 sidecar）。已跟踪文件 1,495（`5e6f8e58`）→ 875。
+- 代码量（行，含测试）：删掉的 `apps/api` Python 113,955 行（`5e6f8e58` 时点）；P6 合计删除约 -128,000 行（#369 -4,931、#371 -437、#372 -8,554、#373 -119,644、#374 文档 -1,243 / +340 等）。现存：引擎 `packages/engine/src` 52,797 行（不含测试 41,221），前端 `apps/desktop/frontend/src` 41,044 行（P6-1 前 44,639），Rust `src-tauri/src` 10,605 行（P6-2 前 12,932）。
+- 门禁：根 `pnpm verify` 8 道——lint、前端类型检查、project-core、TS 引擎类型检查与 golden 契约、前端单测、行间续写 / 浏览器冒烟 / Agent 对话三个浏览器回归；删掉的门：Shared 契约、API pytest、Ruff、sidecar 冒烟、OpenAPI 漂移、`pnpm e2e`。pre-push：lint + 前端单测 + TS 引擎（去掉活路径 pytest）。门外出包前必跑：Rust 测试、Tauri 冒烟（开发档 / 发行版）、NSIS 隔离安装、真宿主探针。
+- 最后一次全量：`pnpm verify` 8 道全绿（引擎 56 files / 13543 passed + 2 skipped，前端 207 files / 2079 tests）；Rust 130 passed / 1 ignored；Tauri 冒烟开发档（debug exe）与发行版 exe 通过。
+- 途中逮到并修掉的：#367 删 Provider 时连带删了退出握手的前端确认与上次退出诊断（#368 补回）；`verify:smoke` / `verify:agent-conversation` 自 P6-1a 起红（页面里还在模拟旧 HTTP 后端，#370 用共用 fetch 替身插件修好并在 #372 并入根门禁）；`http-config` 把替身地址写死导致行间续写回归红（P6-2 内修）。
+- 没做 / 没验：真宿主探针（作者的 StoryForge 开着，探针拒绝并行）；NSIS 隔离安装；新引擎在作者真实写作里的使用（0.2.0 是第一次）。可另开的小清理：`tauri-plugin-http` / `tauri-plugin-sql` 产品已不用；帧 schema 里外部写回的等待帧；为 pytest 保留跟踪的几个 `.codex` 文件；本地 `apps/api/` 未跟踪残留。
+- 注意：P6-3 的本地验证构建覆盖了 `bundle/nsis/` 里已发布的 0.1.16 安装包（作者没装 0.1.16，不影响）；验证包挪到 `output/ts-engine-p6/p6-3-local-build/` 并标 NOT-FOR-INSTALL。
