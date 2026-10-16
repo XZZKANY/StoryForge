@@ -50,9 +50,13 @@ afterEach(() => {
   localStorage.clear();
 });
 
-it('the preview build shows both comparisons on, offers only on / off, and switching off sticks', async () => {
+it('the preview build shows all three comparisons on, offers only on / off, and switching off sticks', async () => {
   const select = await render();
-  for (const testId of ['engine-shadow-assistant', 'engine-shadow-agent']) {
+  for (const testId of [
+    'engine-shadow-assistant',
+    'engine-shadow-agent',
+    'engine-shadow-commands',
+  ]) {
     expect(select(testId).value).toBe('shadow');
     expect([...select(testId).options].map((option) => [option.value, option.text])).toEqual([
       ['shadow', '后台比对'],
@@ -67,6 +71,12 @@ it('the preview build shows both comparisons on, offers only on / off, and switc
   expect(agent.value).toBe('python');
   expect(readEngineMode('engine.agentLoop')).toBe('python');
   expect(readEngineMode('engine.assistant')).toBe('shadow');
+  const commands = select('engine-shadow-commands');
+  await act(async () => {
+    commands.value = 'python';
+    commands.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  expect(readEngineMode('engine.ideCommands')).toBe('python');
 });
 
 it('shows a choice the author made earlier', async () => {

@@ -54,9 +54,9 @@ it('reads preferences per request without changing a previously selected mode', 
   expect(readEngineMode(keys[2])).toBe('python');
 });
 
-// P5-1 预览版：修订 / 续写与 agent 循环默认影子档，作者可切回 Python；ts 档等 P5-2。
+// P5-1 预览版：三个开关都默认影子档，作者可切回 Python；ts 档等 P5-2。
 const releaseDefaults: [(typeof keys)[number], EngineMode][] = [
-  ['engine.ideCommands', 'python'],
+  ['engine.ideCommands', 'shadow'],
   ['engine.assistant', 'shadow'],
   ['engine.agentLoop', 'shadow'],
 ];
@@ -71,7 +71,7 @@ it.each(releaseDefaults)('production defaults %s to %s and never allows ts', (ke
   localStorage.setItem(key, 'python');
   expect(readEngineMode(key)).toBe('python');
   localStorage.setItem(key, 'shadow');
-  expect(readEngineMode(key)).toBe(key === 'engine.ideCommands' ? 'python' : 'shadow');
+  expect(readEngineMode(key)).toBe('shadow');
 });
 
 it('production falls back to its stage default when storage is denied', () => {
@@ -87,12 +87,12 @@ it('offers each build only its allowed modes, default first, and writes only tho
   expect(engineModeChoices('engine.agentLoop')).toEqual(['python', 'ts', 'shadow']);
   vi.stubEnv('DEV', false);
   expect(engineModeChoices('engine.assistant')).toEqual(['shadow', 'python']);
-  expect(engineModeChoices('engine.ideCommands')).toEqual(['python']);
+  expect(engineModeChoices('engine.ideCommands')).toEqual(['shadow', 'python']);
   expect(writeEngineMode('engine.agentLoop', 'ts')).toBe(false);
   expect(localStorage.getItem('engine.agentLoop')).toBeNull();
   expect(writeEngineMode('engine.agentLoop', 'python')).toBe(true);
   expect(readEngineMode('engine.agentLoop')).toBe('python');
-  expect(writeEngineMode('engine.ideCommands', 'shadow')).toBe(false);
+  expect(writeEngineMode('engine.ideCommands', 'ts')).toBe(false);
   vi.stubGlobal('localStorage', {
     setItem: () => {
       throw new DOMException('controlled denied storage', 'SecurityError');

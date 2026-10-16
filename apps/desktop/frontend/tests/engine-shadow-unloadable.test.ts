@@ -7,12 +7,17 @@ vi.mock('../src/lib/engine/shadow', () => {
 vi.mock('../src/lib/engine/agentShadow', () => {
   throw new Error('chunk failed to load');
 });
+vi.mock('../src/lib/engine/commandShadow', () => {
+  throw new Error('chunk failed to load');
+});
 vi.mock('../src/lib/api/config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/lib/api/config')>()),
   getApiConfig: async () => ({ baseUrl: 'http://python.test', apiKey: 'k' }),
 }));
 
 const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+  if (url.includes('/api/ide/commands/'))
+    return new Response(JSON.stringify({ command_id: 'book.context', status: 'accepted' }));
   if (url.endsWith('/revise'))
     return new Response(
       JSON.stringify({
@@ -37,6 +42,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
   localStorage.setItem('engine.assistant', 'shadow');
   localStorage.setItem('engine.agentLoop', 'shadow');
+  localStorage.setItem('engine.ideCommands', 'shadow');
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -61,4 +67,14 @@ it('an unloadable agent shadow module still sends the message to Python', async 
   });
   expect(result).toMatchObject({ type: 'error', detail: 'python' });
   expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/api/ide/agent/sessions/run-1/stream');
+});
+
+it('an unloadable command shadow module still runs the IDE command through Python', async () => {
+  const { executeIdeCommand } = await import('../src/lib/api/ide-commands');
+  expect(await executeIdeCommand('book.context', { project_root: 'D:/book' })).toEqual({
+    command_id: 'book.context',
+    status: 'accepted',
+  });
+  expect(fetchMock).toHaveBeenCalledOnce();
+  expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/api/ide/commands/book.context');
 });
