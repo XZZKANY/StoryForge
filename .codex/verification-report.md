@@ -8340,3 +8340,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 问题：`llm_config_store::tests::rust_saved_keys_are_resolved_live_by_python` 用 `apps/api/.venv` 的 Python 跑 `tests.llm_config_interop_probe`，验证 Python 能读 Rust 存的 DPAPI key。#373 删了 `apps/api` 后它必红；P6-5 只跑了 `pnpm verify`（不含 Rust 测试），出 0.2.0 前跑 `cargo test` 才发现。
 - 修复：删掉这条测试（读 key 的 Python 端已不存在；Rust 侧保存 / 读取 / 迁移 / 只改润色槽不动主 key 等另有测试）。
 - 验证：`cargo test` 129 passed / 0 failed / 1 ignored。教训：删一整块代码后，门外的测试（Rust、冒烟）也要重跑一遍。
+
+## 2026-10-16 0.2.0 出包（第一个没有 Python 的装机版；尚未交付作者）
+
+- 版本号：`tauri.conf.json` 与 `Cargo.toml` 0.1.16 → 0.2.0（`Cargo.lock` 随之更新）。
+- 门禁：`pnpm verify` 8 道全绿（引擎 56 files / 13543 passed + 2 skipped，前端 207 files / 2079 tests，三个浏览器回归）；`cargo test` 129 passed / 1 ignored（先修了 #376 那条依赖已删 Python 的互通测试）；门外的 `test:git-bundle` 7 / 7、`verify:git-bundle`、`test:nsis-install` 20 / 20、`native-smoke-ui` 5 / 5、前端生产构建、`eslint-config` 2 / 2 均通过。
+- 构建：`pnpm desktop:build`，NSIS `StoryForge IDE_0.2.0_x64-setup.exe` **32,781,047 字节**，SHA256 `2D664C461D9CF9B22DCBEE1CC0AC7B8434C25F748CABE2D604738F8D6DA5A046`，另存 `output/release-0.2.0/`；exe 文件版本 0.2.0；安装脚本里 `storyforge-api` 出现 0 次。
+- 定向断言：前端产物里 `get_api_config`、`x-storyforge-shadow`、`/health/ready`、`X-StoryForge-API-Key`、`/api/assistant/`、`/api/agent-runs/`、`127.0.0.1:8000` 均出现 0 次（不再有任何旧后端调用）；发行版 exe 里没有 `storyforge-api` / `run_windows` / sidecar 开关字样。
+- 冒烟：发行版 exe `verify-tauri-smoke.mjs --release` 通过（书库 → 总览 → 工作台 → 补丁审阅 → 写回，不起后端）。
+- 旧库导入回归：作者库 10-16 只读快照（复制前后原库主文件与 WAL 哈希不变；schema `20261010_0002`）导入引擎库：17 会话 / 122 消息 / 263 工具调用 / 60 run / 681 事件 / 123 artifact / 0 subagent；12,023 格逐格零差异，1,510 个 JSON 格按原格式重写后逐字节相同；160 个读模型（17 会话详情、17 工具调用列表、6 个项目的最近会话、60 个 run 的事件与保存点）全部加载成功；副本前后哈希不变。脚本在 `output/ts-engine-p6/legacycheck/`（不入库）。
+- **还没跑**：真宿主探针（`--agent-only` / `--assistant-only` / `--context-only` / `--reader-only` / `--llm-only`）与 `verify:nsis-install`——作者的 StoryForge 开着，两者都拒绝与已有原生应用并行。跑完再交付；交付时提醒作者装前备份 `%LOCALAPPDATA%\com.storyforge.ide\` 下的 `.sqlite3`。

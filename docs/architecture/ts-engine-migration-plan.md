@@ -441,6 +441,8 @@ P6 进度（2026-10-16 起；作者拍板一路做到删 Python）：
 
 ### P7 发版
 
+P7 进度（2026-10-16）：版本号改 0.2.0、门禁与 Rust 测试全绿、NSIS 32.8 MB 已打出并通过发行版冒烟与定向断言、作者库快照的旧库导入回归零差异；真宿主探针与 NSIS 隔离安装待作者关掉应用后跑，跑完交付。原计划在 0.2.0 留「启动时清理 `storyforge-api*` 孤儿进程」，P6-2 已随握手一起删掉、不加回：作者机上的 0.1.15 用 Windows Job 对象（`KILL_ON_JOB_CLOSE`）托管 sidecar，关窗或宿主崩溃时 sidecar 随之退出，覆盖安装不会留孤儿；新引擎读旧库只走只读快照，旧进程即便还在也不影响导入。安装前让作者先关掉应用（安装器也会提示）。
+
 版本号从 5 处（`tauri.conf.json`、`Cargo.toml`、`pyproject.toml`、根与 desktop `package.json`、OpenAPI `info.version`）变 3 处（`tauri.conf.json`、`Cargo.toml`、`package.json`）；0.2.0；作者机从 0.1.10 覆盖安装：旧 sidecar 若仍在跑先 taskkill（保留 main.rs 里那段握手逻辑的最后一次用途：启动时清理名为 `storyforge-api*` 的孤儿进程，0.3 删）；验证会话在、书打开、起草一章。
 
 ---
