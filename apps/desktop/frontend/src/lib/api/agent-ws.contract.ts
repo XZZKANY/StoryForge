@@ -1,8 +1,8 @@
 // Agent 实时帧「后端 → 前端」编译期契约（历史文件名保留作兼容）。
 //
-// generated/agent-ws.ts 由后端 Pydantic 帧经 agent-ws.schema.json 派生（单一事实源）。
-// 本文件把「前端各解码路径实际读取的字段」钉在生成帧上：后端改一个帧字段名并 `pnpm openapi`
-// 重新生成后，被改的键从生成帧的 keyof 里消失，下面的约束即违约 → 前端 typecheck 红。
+// generated/agent-ws.ts 由 packages/engine/golden/agent-ws.schema.json 派生（单一事实源）。
+// 本文件把「前端各解码路径实际读取的字段」钉在生成帧上：改一个帧字段名并重新生成后，
+// 被改的键从生成帧的 keyof 里消失，下面的约束即违约 → 前端 typecheck 红。
 // 这是跨端 gate：「故意改一个 Agent 帧字段名 → 前端 typecheck 红」。
 //
 // 只做键名 + 核心字段类型两级校验，不做整帧可赋值校验：出线帧字段恒在（可空为 X|null），

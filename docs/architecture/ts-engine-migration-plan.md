@@ -434,6 +434,7 @@ P6 进度（2026-10-16 起；作者拍板一路做到删 Python）：
 - P6-2 宿主不再起后端：`main.rs` 删 sidecar / docker / 迁移 / 版本握手 / `get_api_config`，删托管宿主、进程树、外部 IPC 夹具、引擎影子与 gui-fixture；关闭握手里等 Python 的那道闸恒过；前端删健康轮询与 API 配置；冒烟编排与 P0 探针去 API（探针的会话断言改读引擎库）。新宿主 Tauri 冒烟通过。`verify:smoke` / `verify:agent-conversation` 两个浏览器回归自 P6-1a 起就红（页面里模拟的是旧 HTTP 后端），下一刀修。
 - 浏览器回归修复：`verify:smoke` / `verify:agent-conversation` 自 P6-1a 起红，新增共用 Vite 插件把走引擎的 `lib/api` 模块在浏览器里换成 fetch 替身（与界面测试同一套）；对话回归补上「接着写」发的下一章 `book.context`（#280 起过期）。这两个回归不在根 `pnpm verify` 里，P6-4 重排门禁时考虑并入。
 - P6-3 打包去掉 sidecar：删 `externalBin`、PyInstaller 构建脚本与 sidecar 冒烟门，`desktop:build` 直接 `tauri build`。NSIS 从 80.9 MB 降到 32.8 MB，发行版 Tauri 冒烟通过；隔离安装测试留到 P7。
+- P6-4 门禁：前端源码标准测试接手行数上限，并新增「界面只经 lib/api 进引擎」；帧契约 schema 冻结进 `packages/engine/golden/`，前端测试比对生成的帧类型；14 个 API 类型冻结进 `lib/api/contracts.ts`；删 `packages/shared`、OpenAPI 生成与漂移门、`tests/e2e`。根门禁 8 道（比计划多两道浏览器回归），pre-push 去掉 pytest。
 
 ### P7 发版
 

@@ -19,7 +19,7 @@ import {
 } from './runPayloads';
 
 /**
- * Agent 实时帧：字段名、顺序与可空性同 packages/shared/src/contracts/agent-ws.schema.json；
+ * Agent 实时帧：字段名、顺序与可空性同 packages/engine/golden/agent-ws.schema.json；
  * 空值键一律保留（前端按 type 判别后按需取键）。外部写回的等待帧在单进程里不存在，不搬。
  */
 export type AgentRunStartedFrame = {

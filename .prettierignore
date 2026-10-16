@@ -3,7 +3,6 @@ dist
 .next
 *.json
 generated
-packages/shared/src/contracts
 pnpm-lock.yaml
 .pytest-tmp
 .pytest_cache

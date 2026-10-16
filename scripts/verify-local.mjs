@@ -18,12 +18,6 @@ const gates = [
     cwd: root,
   },
   {
-    name: 'Shared 契约测试',
-    command: 'pnpm',
-    args: ['--filter', '@storyforge/shared', 'test'],
-    cwd: root,
-  },
-  {
     // project-core 是全产品路径围栏（isPathInsideProject 等）的单一事实源；其自带
     // 围栏测试必须在门禁跑到，否则是断门禁的假安全信号。
     name: 'project-core 契约测试',
@@ -50,22 +44,16 @@ const gates = [
     cwd: root,
   },
   {
-    name: 'API 单元测试',
-    command: 'uv',
-    args: ['run', 'pytest'],
-    cwd: resolve(root, 'apps/api'),
+    // 这两条浏览器回归原先只在 apps/desktop 的 npm run verify 里，没进根门禁，P6-1a 起红了一阵才发现。
+    name: 'Desktop 浏览器冒烟回归（隔离 FS/HTTP fixture）',
+    command: 'npm',
+    args: ['--prefix', 'apps/desktop/frontend', 'run', 'verify:smoke'],
+    cwd: root,
   },
   {
-    name: 'API Ruff 检查',
-    command: 'uv',
-    args: ['run', 'ruff', 'check', '.'],
-    cwd: resolve(root, 'apps/api'),
-  },
-  {
-    // drift 校验单实现：scripts/check-openapi-drift.mjs（刷新 + 漂移检查）
-    name: 'OpenAPI 契约刷新与漂移检查',
-    command: 'node',
-    args: ['scripts/check-openapi-drift.mjs'],
+    name: 'Desktop Agent 对话浏览器回归（隔离 FS/HTTP fixture）',
+    command: 'npm',
+    args: ['--prefix', 'apps/desktop/frontend', 'run', 'verify:agent-conversation'],
     cwd: root,
   },
 ];
