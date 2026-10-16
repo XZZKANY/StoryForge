@@ -8117,3 +8117,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 冻结 sidecar：`--packaged --skip-build` 冒烟全绿；起草定向断言（半角稿转全角、直引号回复读通、自动档检查器两次无效给「未经检查」并强制确认）照旧通过，冻结 exe 报 `app_version` 0.1.15。
 - 前端产物：`dist/assets/index-*.js` 含「起草中…」与 360000 时限。
 - 未联通：作者在真窗口里点穿「开始起草 → 起草中… → 出补丁 → 接受」。
+
+## 2026-10-16 修 Ctrl+K / 续写在装机版里发不出请求：影子请求头没进 CORS 允许清单（0.1.11 起）
+
+- 起因：作者在 0.1.15 里按 Ctrl+K、输入修订指令（中文输入法，上屏后按一次回车）后「没有反应」：输入框还在、指令原样留着，没有出现「正在…」。作者库里这段时间没有任何新的修订工具调用，`shadow-checks.jsonl` 里也从没有过 `assistant.*` 的行。
+- 定位：隔离钩子的真 Chromium + 真 Monaco 探针（影子 / Python 档 × 键盘输入 / CDP 模拟输入法上屏）四种组合都正常发出请求；把整个前端连同真 Python 后端（临时 sqlite、本机假模型服务，练手项目的临时副本）跑起来再按 Ctrl+K，复现作者的现象：请求停在跨域预检，控制台 `blocked by CORS policy: Response to preflight request doesn't pass access control check`，右下角提示「AI 修订失败（指令已保留…）：Failed to fetch」，输入框按失败恢复原样。根因：P5-1a（0.1.11）给修订与续写请求加了 `X-StoryForge-Shadow: prompts`，自定义头让浏览器先发预检，而 `app/main.py` 的 CORS `allow_headers` 里没有它，预检回 400，请求根本没发出去。装机版默认就是影子档，所以 0.1.11 以来 Ctrl+K 与 Ctrl+Shift+K 在作者机器上一直发不出去。当时的验证没抓到：冻结 exe 的定向断言用 node 直连（不过预检），前端回放用替身 fetch，浏览器导览固定在 Python 档（不带影子头）。
+- 修复：`allow_headers` 加 `x-storyforge-shadow`。
+- 覆盖：新增 `tests/test_desktop_cors_headers.py`——扫描桌面端源码里出现的每个 `X-StoryForge-*` 请求头，三个桌面源（开发 Vite、`http://tauri.localhost`、`tauri://localhost`）逐个过预检；修订与续写两条路由带影子头的预检。未修时 9 条红，修后全绿；既有 `test_agent_external_cors.py` 照绿。完整应用探针修后：请求到达 Python、经假模型回来，出现「行间修订建议已就绪：+1 / -1」。探针脚本在 `output/ts-engine-p5/ctrlk/`（gitignored）。
+- 未联通：作者装上带这一刀的新版本后，在装机版里真按一次 Ctrl+K 与 Ctrl+Shift+K。

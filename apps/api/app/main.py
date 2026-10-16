@@ -184,7 +184,10 @@ app.add_middleware(
     allow_origin_regex=r"^(tauri://localhost|https?://tauri\.localhost)$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["content-type", "x-storyforge-api-key", "authorization", "x-storyforge-host-generation"],
+    # 桌面端发出的每个自定义请求头都要列在这里，否则跨域预检被拒、请求根本发不出去
+    # （0.1.11 起 Ctrl+K / 续写带的影子头就是这样失败的），由 test_desktop_cors_headers 钉住。
+    allow_headers=["content-type", "x-storyforge-api-key", "authorization", "x-storyforge-host-generation",
+                   "x-storyforge-shadow"],
 )
 
 
