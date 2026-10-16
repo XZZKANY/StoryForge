@@ -62,10 +62,12 @@ function chapterKey(relativePath: string): string {
 
 function ContextStatus({
   availability,
+  errorMessage,
   refreshing,
   onRefresh,
 }: {
   availability: BookContextAvailability;
+  errorMessage: string | null;
   refreshing: boolean;
   onRefresh?: () => void;
 }) {
@@ -74,7 +76,9 @@ function ContextStatus({
     availability === 'loading'
       ? '正在读取手稿结构…'
       : availability === 'error'
-        ? '手稿结构读取失败'
+        ? errorMessage
+          ? `手稿结构读取失败：${errorMessage}`
+          : '手稿结构读取失败'
         : '打开项目后显示手稿结构';
   return (
     <div
@@ -298,6 +302,7 @@ export function BookOverview({
         {!chapterIndex ? (
           <ContextStatus
             availability={context?.availability ?? 'unavailable'}
+            errorMessage={context?.errorMessage ?? null}
             refreshing={context?.refreshing ?? false}
             onRefresh={context?.refresh ?? onRefresh}
           />

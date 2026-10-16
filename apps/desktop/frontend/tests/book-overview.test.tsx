@@ -49,6 +49,7 @@ function profile(): BookProfileHandle {
 function context(): BookContextHandle {
   return {
     availability: 'available',
+    errorMessage: null,
     refreshing: false,
     refresh: vi.fn(),
     snapshot: {
@@ -485,4 +486,15 @@ test('大纲读取中不声称为空，字数失败不把旧进度当成当前�
     '上次统计',
   );
   expect(host.querySelector('[data-testid="book-overview-progress-bar"]')).toBeNull();
+});
+
+test('总览在底座读取失败时把指出错处的原文给作者看', async () => {
+  root = createRoot(host);
+  const message = 'canon.json 第 3 行：entities[0].id 必须是字符串';
+  await render({
+    context: { ...context(), availability: 'error', errorMessage: message, snapshot: null },
+  });
+  expect(host.querySelector('[data-testid="book-overview-context-status"]')?.textContent).toContain(
+    `手稿结构读取失败：${message}`,
+  );
 });

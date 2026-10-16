@@ -258,6 +258,7 @@ export function AppShell({
                     <ManuscriptView
                       snapshot={bookContext.snapshot}
                       availability={bookContext.availability}
+                      errorMessage={bookContext.errorMessage}
                       refreshing={bookContext.refreshing}
                       onRefresh={bookContext.refresh}
                       onOpenChapter={handleOpenManuscriptChapter}

@@ -52,6 +52,7 @@ function DroppedNote({ total, shown, unit }: { total: number; shown: number; uni
 export function ManuscriptView({
   snapshot,
   availability,
+  errorMessage = null,
   refreshing,
   onRefresh,
   onOpenChapter,
@@ -60,6 +61,8 @@ export function ManuscriptView({
 }: {
   snapshot: BookContextSnapshot | null;
   availability: BookContextAvailability;
+  /** 读取失败的原文（作者声明写错时指出位置），有就照原样给作者看。 */
+  errorMessage?: string | null;
   refreshing: boolean;
   onRefresh: () => void;
   onOpenChapter: (relativePath: string) => void;
@@ -79,7 +82,9 @@ export function ManuscriptView({
   const liveText = busy
     ? '正在读取手稿结构…'
     : availability === 'error'
-      ? '手稿结构读取失败，请点上方刷新重试。'
+      ? errorMessage
+        ? `手稿结构读取失败：${errorMessage}`
+        : '手稿结构读取失败，请点上方刷新重试。'
       : snapshot
         ? `手稿读取完成，共 ${snapshot.totalChapters} 章。`
         : '';
@@ -133,7 +138,9 @@ export function ManuscriptView({
             {availability === 'loading'
               ? '正在读取手稿结构。'
               : availability === 'error'
-                ? '读取失败，请点上方刷新重试。'
+                ? errorMessage
+                  ? `读取失败：${errorMessage} 改好后点上方刷新。`
+                  : '读取失败，请点上方刷新重试。'
                 : '打开一个项目后，这里显示按阅读序排列的章节。'}
           </p>
         ) : (
