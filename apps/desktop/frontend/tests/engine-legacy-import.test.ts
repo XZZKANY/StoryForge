@@ -41,7 +41,6 @@ beforeEach(() => {
   vi.stubEnv('DEV', true);
   fixture.db = nodeSqliteDb();
   localStorage.clear();
-  localStorage.setItem('engine.agentLoop', 'ts');
 });
 
 afterEach(() => {

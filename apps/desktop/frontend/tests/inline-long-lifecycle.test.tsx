@@ -1,7 +1,7 @@
 import { longManuscript } from './support/long-manuscript';
 import { performance } from 'node:perf_hooks';
 import { writeFileSync } from 'node:fs';
-import { afterAll } from 'vitest';
+import { afterAll, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type * as Monaco from 'monaco-editor';
@@ -9,6 +9,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { useInlineChat } from '../src/components/editor/useInlineChat';
 import { invalidateFileSystemCache } from '../src/lib/tauri-fs';
+
+// 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
+vi.mock('../src/lib/api/assistant', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/lib/api/assistant')>()),
+  ...(await import('./support/http-assistant-double')),
+}));
 
 vi.mock('monaco-editor', () => ({
   KeyMod: { CtrlCmd: 1, Shift: 2 },
@@ -127,8 +133,6 @@ beforeEach(() => {
     return frames.length;
   });
   localStorage.clear();
-  // 测的是 Python 传输：开发档默认已走引擎，这里钉回 python。
-  localStorage.setItem('engine.assistant', 'python');
   window.__STORYFORGE_MOCK_FS__ = { listDir: () => [], readFile: () => '' };
   invalidateFileSystemCache();
   host = document.createElement('div');

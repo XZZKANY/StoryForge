@@ -1,58 +1,19 @@
-import { getApiConfig, trimApiBaseUrl } from './config';
-import { readErrorDetail } from './errors';
 import type { AgentRunEventRecord } from './agent-run-events';
-import { engineAgentOwning } from './engine-agent-loader';
-import type { AgentRunSavePointProjection, ApiConfig } from './types';
+import { engineAgent } from './engine-agent-loader';
+import type { AgentRunSavePointProjection } from './types';
 
+// 读取在进程内、不需要中止；形参兼容跨进程恢复层的调用方（P6-1b 删）。
 export async function getAgentRunSavePoints(
   runId: string,
-  options: { signal?: AbortSignal } = {},
+  _options?: { signal?: AbortSignal },
 ): Promise<AgentRunSavePointProjection> {
-  const engine = await engineAgentOwning(runId);
-  if (engine) return engine.agentRunSavePoints(runId);
-  const { baseUrl, apiKey } = await getApiConfig();
-  const response = await fetch(
-    `${trimApiBaseUrl(baseUrl)}/api/agent-runs/${encodeURIComponent(runId)}/save-points`,
-    {
-      method: 'GET',
-      signal: options.signal,
-      cache: 'no-store',
-      headers: {
-        'X-StoryForge-API-Key': apiKey,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(await readErrorDetail(response));
-  }
-
-  return (await response.json()) as AgentRunSavePointProjection;
+  return (await engineAgent()).agentRunSavePoints(runId);
 }
 
-// 断线/超时后拉持久化事件表重放，配合 reconstructAgentResultFromEvents 重建终态（F10）。
+/** 持久化事件表：配合 reconstructAgentResultFromEvents 重建终态。 */
 export async function getAgentRunEvents(
   runId: string,
-  options: { signal?: AbortSignal; config?: ApiConfig } = {},
+  _options?: { signal?: AbortSignal; config?: unknown },
 ): Promise<AgentRunEventRecord[]> {
-  const engine = await engineAgentOwning(runId);
-  if (engine) return engine.agentRunEvents(runId);
-  const { baseUrl, apiKey } = options.config ?? (await getApiConfig());
-  const response = await fetch(
-    `${trimApiBaseUrl(baseUrl)}/api/agent-runs/${encodeURIComponent(runId)}/events`,
-    {
-      method: 'GET',
-      signal: options.signal,
-      cache: 'no-store',
-      headers: {
-        'X-StoryForge-API-Key': apiKey,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(await readErrorDetail(response));
-  }
-
-  return (await response.json()) as AgentRunEventRecord[];
+  return (await engineAgent()).agentRunEvents(runId);
 }

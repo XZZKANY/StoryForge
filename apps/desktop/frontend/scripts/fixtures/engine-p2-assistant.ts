@@ -18,7 +18,6 @@ const describe = (error: unknown) => ({
 // by the harness and must never reach this page.
 async function runAssistantProbe(input: { projectRoot: string }) {
   assert(isTauri(), 'Assistant probe requires the real Native host');
-  localStorage.setItem('engine.assistant', 'ts');
   const chapter = `${input.projectRoot}\\正文\\第002章.md`;
   const startedAt = Date.now();
   const revise = await reviseFileContent({

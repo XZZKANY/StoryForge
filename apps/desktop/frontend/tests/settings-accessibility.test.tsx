@@ -124,8 +124,8 @@ test('设置有 dialog 语义并聚焦搜索，偏好重渲染不抢回当前控
 test('设置 Tab 首尾环绕，Escape 关闭并恢复入口焦点', async () => {
   const { container, opener } = await openSettings();
   const first = required<HTMLButtonElement>(container, '[data-testid="settings-close"]');
-  // 最后一个可聚焦控件：关于区末尾的「新引擎比对：作品底座与 Canon」（P5-1 预览）。
-  const last = required<HTMLSelectElement>(container, '[data-testid="engine-shadow-commands"]');
+  // 最后一个可聚焦控件：关于区末尾的「检查更新」。
+  const last = required<HTMLButtonElement>(container, '[data-testid="about-update-check"]');
   first.focus();
   assert.equal(key(first, 'Tab', { shiftKey: true }).defaultPrevented, true);
   assert.equal(document.activeElement === last, true);

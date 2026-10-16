@@ -113,7 +113,6 @@ beforeEach(() => {
   fixture.sent = [];
   fixture.reply = null;
   vi.stubEnv('DEV', true);
-  localStorage.setItem('engine.ideCommands', 'ts');
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => {

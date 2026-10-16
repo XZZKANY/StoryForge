@@ -1,6 +1,5 @@
 import { getVersion } from '@tauri-apps/api/app';
 import {
-  AssistantSessionNotFoundError,
   engineAssistantLlm,
   fetchProviderModels,
   probeProviderHealth,
@@ -9,90 +8,17 @@ import {
   streamContinueProse,
   validateAssistantContextBundle,
   type AssistantDeps,
-  type AssistantStore,
   type LlmContext,
   type PlainJson,
   type SecretContext,
-  type StoredToolCall,
 } from '@storyforge/engine';
-import { getApiConfig, trimApiBaseUrl } from '../api/config';
-import { readErrorDetail } from '../api/errors';
 import { toAssistantContextBundlePayload } from '../api/codecs';
 import type { AssistantReviseResult, ContinueProseResult } from '../api/assistant';
 import type { ReviseRequest } from '../api/types';
 import type { ProviderHealth } from '../provider-config';
-import { sessionsInEngine } from './flags';
 import { nativeHttpPort, nativeLlmSource } from './llm';
 import { nativeProjectReader } from './reader';
 import { engineSecrets, engineSessions } from './store';
-
-type Json = { [key: string]: unknown };
-
-function plainObject(value: unknown): value is Json {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-/**
- * 会话与工具调用证据链。P4 之前仍写进 Python 那个库（左栏会话史不分家），走它现有的接口；
- * 脱敏与字段校验由那一侧完成。
- */
-async function storeRequest(
-  method: 'GET' | 'POST' | 'PATCH',
-  path: string,
-  body: Json | null,
-  sessionNotFound: boolean,
-): Promise<Json> {
-  const { baseUrl, apiKey } = await getApiConfig();
-  const response = await fetch(`${trimApiBaseUrl(baseUrl)}${path}`, {
-    method,
-    cache: 'no-store',
-    headers: { 'Content-Type': 'application/json', 'X-StoryForge-API-Key': apiKey },
-    body: body === null ? undefined : JSON.stringify(body),
-  });
-  if (!response.ok) {
-    const detail = await readErrorDetail(response);
-    if (response.status === 404 && sessionNotFound) throw new AssistantSessionNotFoundError(detail);
-    throw new Error(detail);
-  }
-  const data: unknown = await response.json();
-  if (!plainObject(data) || typeof data.id !== 'number' || !Number.isSafeInteger(data.id))
-    throw new TypeError('Invalid assistant store response');
-  return data;
-}
-
-function storedToolCall(data: Json): StoredToolCall {
-  if (!plainObject(data.input_summary)) throw new TypeError('Invalid assistant tool call response');
-  return { id: data.id as number, input_summary: data.input_summary };
-}
-
-function sessionRef(data: Json) {
-  const projectPath = data.project_path;
-  if (projectPath !== null && typeof projectPath !== 'string')
-    throw new TypeError('Invalid assistant session response');
-  return { id: data.id as number, project_path: projectPath };
-}
-
-export const pythonAssistantStore: AssistantStore = {
-  async createSession(input) {
-    return sessionRef(await storeRequest('POST', '/api/assistant/sessions', input, false));
-  },
-  async getSession(id) {
-    return sessionRef(await storeRequest('GET', `/api/assistant/sessions/${id}`, null, true));
-  },
-  async appendMessage(sessionId, message) {
-    await storeRequest('POST', `/api/assistant/sessions/${sessionId}/messages`, message, true);
-  },
-  async createToolCall(sessionId, input) {
-    return storedToolCall(
-      await storeRequest('POST', `/api/assistant/sessions/${sessionId}/tool-calls`, input, true),
-    );
-  },
-  async updateToolCall(id, patch) {
-    return storedToolCall(
-      await storeRequest('PATCH', `/api/assistant/tool-calls/${id}`, patch, false),
-    );
-  },
-};
 
 export const clock = () => performance.now() / 1000;
 export const wait = (seconds: number) =>
@@ -127,8 +53,8 @@ export const platform = (): 'windows' | 'posix' =>
 export async function engineAssistantDeps(signal?: AbortSignal): Promise<AssistantDeps> {
   return {
     reader: nativeProjectReader,
-    // 会话放哪个库跟着 agent 循环的开关走，Ctrl+K / 续写记的会话与左栏同库。
-    store: sessionsInEngine() ? await engineSessions(await engineSecrets()) : pythonAssistantStore,
+    // Ctrl+K / 续写记的会话与左栏、agent 循环同在引擎库。
+    store: await engineSessions(await engineSecrets()),
     llm: async () => {
       const { source, secrets } = await nativeLlmSource('main');
       return engineAssistantLlm(source, secrets, await transportContext(signal));

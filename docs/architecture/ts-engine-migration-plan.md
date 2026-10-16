@@ -427,6 +427,10 @@ P5 拆刀与进度（2026-10-14 起，作者说「做 P5-1」；每刀一个 PR�
 | P6-6 | 文档：CLAUDE.md §2 §3 §4 §5 §6 §9、`DOMAINS.md` 退役、`STRUCTURE.md`、`authoring-feedback.md`、`current-phase.md`、`TODO.md` |
 | P6-7 | 记忆与报告：`verification-report` 总结一条，含前后体积、代码量、门禁清单 |
 
+P6 进度（2026-10-16 起；作者拍板一路做到删 Python）：
+
+- P6-1a 前端只走引擎：`lib/api/` 各模块只交给进程内引擎，删三个开关、影子档五个模块、`pythonAssistantStore`、设置页引擎开关与探针的 `--agent-shadow`；测 HTTP 传输不确定性与 Python 档路由的测试删掉，界面生命周期类测试改用 `tests/support/http-*-double.ts`（可编排的 fetch 后端），浏览器回归经 Vite 解析插件用同一份替身。外部写回、跨进程恢复、健康轮询、API 配置注入随 P6-1b / 1c。
+
 ### P7 发版
 
 版本号从 5 处（`tauri.conf.json`、`Cargo.toml`、`pyproject.toml`、根与 desktop `package.json`、OpenAPI `info.version`）变 3 处（`tauri.conf.json`、`Cargo.toml`、`package.json`）；0.2.0；作者机从 0.1.10 覆盖安装：旧 sidecar 若仍在跑先 taskkill（保留 main.rs 里那段握手逻辑的最后一次用途：启动时清理名为 `storyforge-api*` 的孤儿进程，0.3 删）；验证会话在、书打开、起草一章。

@@ -54,13 +54,11 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
-  localStorage.removeItem('engine.agentLoop');
   vi.unstubAllGlobals();
 });
 
 describe('knowledge inbox follows the agent loop flag', () => {
   it('runs on the engine database on ts, even when the model config cannot be read', async () => {
-    localStorage.setItem('engine.agentLoop', 'ts');
     const api = await import('../src/lib/api/knowledge-proposals');
     expect(await api.refreshKnowledgeProposals(ROOT)).toEqual({ items: [], pending_count: 0 });
     // 一次 ts 档 run 留下的提议（与 agent 循环里 knowledge.propose 落的是同一种 artifact）。
@@ -160,19 +158,4 @@ describe('knowledge inbox follows the agent loop flag', () => {
     ).rejects.toThrow('Knowledge proposal 编辑项与当前 revision 不匹配。');
     expect(fetchMock).not.toHaveBeenCalled();
   });
-
-  it.each(['python', 'shadow'])(
-    'stays on the Python API without opening the engine (%s)',
-    async (flag) => {
-      localStorage.setItem('engine.agentLoop', flag);
-      const select = vi.spyOn(fixture.db!, 'select');
-      const api = await import('../src/lib/api/knowledge-proposals');
-      await api.refreshKnowledgeProposals(ROOT);
-      expect(fetchMock).toHaveBeenCalledOnce();
-      expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe(
-        'http://python.test/api/agent-runs/knowledge-proposals/refresh',
-      );
-      expect(select).not.toHaveBeenCalled();
-    },
-  );
 });

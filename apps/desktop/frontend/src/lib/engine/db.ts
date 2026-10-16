@@ -29,20 +29,3 @@ export const nativePythonDb: LegacySnapshotSource = {
   snapshot: (queries) =>
     native<SqlRow[][] | null>('engine_python_db_snapshot', { queries: [...queries] }),
 };
-
-/**
- * 影子档（P5-1）的临时库：Rust 里的内存库，一条连接、关掉即消失（`engine_scratch_db_*`）。
- * 用完必须 `close`：Rust 端最多同时留几个。
- */
-export async function nativeScratchDb(): Promise<Db & { close(): Promise<void> }> {
-  const id = await native<number>('engine_scratch_db_open', {});
-  return {
-    select: (sql, params = []) => native<SqlRow[]>('engine_scratch_db_select', { id, sql, params }),
-    transaction: (steps) =>
-      native<SqlRow[]>('engine_scratch_db_transaction', {
-        id,
-        steps: steps.map((step) => ({ sql: step.sql, params: step.params ?? [] })),
-      }),
-    close: () => native<void>('engine_scratch_db_close', { id }),
-  };
-}

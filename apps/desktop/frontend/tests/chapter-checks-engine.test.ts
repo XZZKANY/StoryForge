@@ -53,7 +53,6 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
-  localStorage.removeItem('engine.agentLoop');
   vi.unstubAllGlobals();
 });
 
@@ -119,7 +118,6 @@ async function seedRun() {
 
 describe('chapter check history follows the agent loop flag', () => {
   it('reads the engine database on ts and decodes it like the Python response', async () => {
-    localStorage.setItem('engine.agentLoop', 'ts');
     const { sessionId, checkId } = await seedRun();
     const { queryChapterCheckHistory } = await import('../src/lib/api/chapter-checks');
     const history = await queryChapterCheckHistory({
@@ -155,19 +153,4 @@ describe('chapter check history follows the agent loop flag', () => {
     ).rejects.toThrow('Assistant 会话归属冲突，请使用当前项目的会话。');
     expect(fetchMock).not.toHaveBeenCalled();
   });
-
-  it.each(['python', 'shadow'])(
-    'stays on the Python API without opening the engine (%s)',
-    async (flag) => {
-      localStorage.setItem('engine.agentLoop', flag);
-      const select = vi.spyOn(fixture.db!, 'select');
-      const { queryChapterCheckHistory } = await import('../src/lib/api/chapter-checks');
-      await queryChapterCheckHistory({ project_root: ROOT, assistant_session_id: 1, limit: 20 });
-      expect(fetchMock).toHaveBeenCalledOnce();
-      expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe(
-        'http://python.test/api/agent-runs/chapter-checks/query',
-      );
-      expect(select).not.toHaveBeenCalled();
-    },
-  );
 });

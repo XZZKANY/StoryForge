@@ -35,7 +35,6 @@ function frameOf(message: AgentSocketMessage): Frame {
 // by the harness and must never reach this page.
 async function runAgentProbe(input: { projectRoot: string }) {
   assert(isTauri(), 'Agent probe requires the real Native host');
-  localStorage.setItem('engine.agentLoop', 'ts');
   // The harness put a synthetic Python database next to the engine one: the first engine open
   // imports it (read-only) before anything else writes.
   localStorage.setItem('engine.legacyImport', 'on');

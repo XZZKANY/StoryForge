@@ -238,7 +238,6 @@ async function mount(profile: AgentPermissionProfile = 'ask') {
 }
 
 beforeEach(async () => {
-  localStorage.setItem('engine.agentLoop', 'ts');
   // 引擎库在整个文件里共用（run 存储有镜像，不能清 run 表）；会话三表每条用例重来，放回会话 7。
   fixture.db ??= nodeSqliteDb();
   await migrateEngineDb(fixture.db);
@@ -266,7 +265,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await act(async () => root?.unmount());
   host?.remove();
-  localStorage.removeItem('engine.agentLoop');
   vi.unstubAllGlobals();
   vi.clearAllMocks();
 });

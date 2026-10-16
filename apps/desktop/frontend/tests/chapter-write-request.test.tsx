@@ -61,6 +61,9 @@ import { TauriFileSystem } from '../src/lib/tauri-fs';
 import type { SemanticFile } from '../src/lib/project/types';
 import { TOAST_EVENT, type ToastDetail } from '../src/lib/toast';
 
+// 跨章检查用可编排的 fetch 替身（产品里在进程内引擎；这里测的是提交怎么分流）。
+vi.mock('../src/lib/api/cross-chapter', () => import('./support/http-cross-chapter-double'));
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;
 let host: HTMLDivElement;
@@ -86,8 +89,6 @@ const pendingBrief: ChapterBrief = {
 };
 
 beforeEach(async () => {
-  // 跨章端点走 Python 传输（开发档 engine.assistant 默认是 ts）。
-  localStorage.setItem('engine.assistant', 'python');
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);

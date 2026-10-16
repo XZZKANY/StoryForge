@@ -43,9 +43,8 @@ assert.ok(
     '--assistant-real',
     '--agent-only',
     '--agent-real',
-    '--agent-shadow',
   ].includes(mode) && extra.length === 0,
-  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only / --llm-only / --assistant-only / --assistant-real / --agent-only / --agent-real / --agent-shadow',
+  'Use --cpu-only, --transport-only, --all or --context-only / --reader-only / --llm-only / --assistant-only / --assistant-real / --agent-only / --agent-real',
 );
 const REAL_CHAPTERS = {
   '正文/第001章.md':
@@ -71,9 +70,6 @@ const agentOnly = mode === '--agent-only';
 // P3-8: paid run of the agent loop with the author's provider (copied ciphertext, key stays in Rust).
 const agentReal = mode === '--agent-real';
 const p3 = agentOnly || agentReal;
-// P5: the agent shadow (scratch database + legacy import + refusing port) in the real host.
-const agentShadow = mode === '--agent-shadow';
-const p5 = agentShadow;
 const realProvider = assistantReal || agentReal;
 const storeMode = assistantOnly || assistantReal || agentOnly || agentReal;
 const p1 = contextOnly || readerOnly;
@@ -91,24 +87,20 @@ const fixtureName = agentReal
             ? 'engine-p1-reader'
             : contextOnly
               ? 'engine-p1-context'
-              : agentShadow
-                ? 'engine-p5-agent-shadow'
-                : 'engine-p0';
+              : 'engine-p0';
 const transports = mode === '--transport-only' || mode === '--all';
-const label = p5 ? 'P5' : p3 ? 'P3' : p2 ? 'P2' : p1 ? 'P1' : 'P0';
+const label = p3 ? 'P3' : p2 ? 'P2' : p1 ? 'P1' : 'P0';
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const frontend = resolve(root, 'apps/desktop/frontend');
 const outputRoot = resolve(
   root,
-  p5
-    ? 'output/ts-engine-p5/native'
-    : p3
-      ? 'output/ts-engine-p3/native'
-      : p2
-        ? 'output/ts-engine-p2/native'
-        : p1
-          ? 'output/ts-engine-p1/native'
-          : 'output/ts-engine-p0/native',
+  p3
+    ? 'output/ts-engine-p3/native'
+    : p2
+      ? 'output/ts-engine-p2/native'
+      : p1
+        ? 'output/ts-engine-p1/native'
+        : 'output/ts-engine-p0/native',
 );
 await mkdir(outputRoot, { recursive: true });
 // Share the existing P0 lock: two probe modes must never race separate Native hosts.
@@ -511,42 +503,6 @@ try {
       await writeFile(resolve(agentProject, name), text);
     agentBefore = await contextFingerprint(agentProject);
   }
-  if (agentShadow) {
-    // The template a new project starts from: an outline note, empty manuscript folders.
-    agentProject = ownedPath(output, 'book');
-    for (const folder of [
-      '世界观',
-      '人物',
-      '伏笔',
-      '大纲',
-      '时间线',
-      '正文',
-      '设定',
-      '.storyforge/canon',
-    ])
-      await mkdir(resolve(agentProject, folder), { recursive: true });
-    await writeFile(
-      resolve(agentProject, '大纲/项目说明.md'),
-      '# 项目说明\n\n- 大纲：存放总纲、章节节点、反转表。\n- 正文：存放章节正文。\n',
-    );
-    await writeFile(
-      resolve(agentProject, '.storyforge/canon/canon.json'),
-      JSON.stringify({ version: 1, entities: [], invariants: {} }, null, 2),
-    );
-    agentBefore = await contextFingerprint(agentProject);
-    legacyGolden = JSON.parse(
-      await readFile(resolve(root, 'packages/engine/golden/p4-legacy-import.json'), 'utf8'),
-    );
-    await mkdir(directories.localDataDir, { recursive: true });
-    const { DatabaseSync } = await import('node:sqlite');
-    const python = new DatabaseSync(resolve(directories.localDataDir, 'storyforge.sqlite3'));
-    python.exec('PRAGMA foreign_keys = OFF');
-    for (const statement of legacyGolden.legacy_sql) python.exec(statement);
-    python.close();
-    // The shadow never sends: this provider address must stay untouched.
-    llmKey = `sk-p5-synthetic-${randomBytes(12).toString('hex')}`;
-    httpBaseUrl = 'http://127.0.0.1:9';
-  }
   if (agentOnly) {
     agentProject = ownedPath(output, 'book');
     await mkdir(resolve(agentProject, '正文'), { recursive: true });
@@ -866,7 +822,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
     await writeFile(
       resolve(directories.configDir, 'llm-provider.json'),
       JSON.stringify(
-        p2 || p3 || p5
+        p2 || p3
           ? {
               provider: 'openai-compatible',
               baseUrl: `${httpBaseUrl}/v1`,
@@ -1095,9 +1051,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
                 ? 'engineP1ReaderReady'
                 : contextOnly
                   ? 'engineP1Ready'
-                  : agentShadow
-                    ? 'engineP5ShadowReady'
-                    : 'engineP0Ready',
+                  : 'engineP0Ready',
   );
   evidence.nativeReadyMs = Date.now() - nativeStartedAt;
   let timer;
@@ -1393,51 +1347,6 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             'The real key reached the WebView or evidence',
           );
         }
-        if (agentShadow) {
-          evidence.shadow = await page.evaluate(
-            (input) => window.__ENGINE_P5_SHADOW__.runShadowProbe(input),
-            { projectRoot: agentProject },
-          );
-          assert.equal(evidence.shadow.native, true);
-          // The comparison settles in the background after Python's answer: wait for both rows.
-          const checksPath = resolve(directories.localDataDir, 'shadow-checks.jsonl');
-          const settleDeadline = Date.now() + 30000;
-          while (
-            Date.now() < settleDeadline &&
-            (await readFile(checksPath, 'utf8').catch(() => '')).split('\n').filter(Boolean)
-              .length < 2
-          )
-            await delay(100);
-          const logs = {};
-          for (const name of ['shadow-checks.jsonl', 'shadow-diffs.jsonl'])
-            logs[name] = (
-              await readFile(resolve(directories.localDataDir, name), 'utf8').catch(() => '')
-            )
-              .split('\n')
-              .filter(Boolean)
-              .map((line) => JSON.parse(line));
-          evidence.shadowLogs = logs;
-          // Through the Rust reader and scratch database the engine reaches its first request on both
-          // paths (the chapter brief first reads the chapter sources), then the refusing port stops it.
-          const [chapter, chat] = evidence.shadow.direct;
-          for (const [run, step] of [
-            [chapter, 'chapter.brief'],
-            [chat, 'agent.loop'],
-          ]) {
-            assert.equal(run.sourceFound, true);
-            assert.equal(run.platform, 'windows');
-            assert.equal(run.evidenceSteps[0], step, `No ${step} request: ${run.terminal?.detail}`);
-            assert.equal(run.terminal?.detail, '影子档不出网');
-          }
-          const checks = logs['shadow-checks.jsonl'];
-          assert.equal(checks.length, 2, 'Both comparisons should be recorded');
-          for (const check of checks) {
-            assert.match(check.ts_digest ?? '', /^[0-9a-f]{64}$/, JSON.stringify(check));
-            assert.equal(check.ts_error, undefined);
-          }
-          const after = await contextFingerprint(agentProject);
-          assert.deepEqual(after, agentBefore, 'The shadow wrote into the project');
-        }
         if (agentOnly) {
           evidence.agent = await page.evaluate(
             (input) => window.__ENGINE_P3_AGENT__.runAgentProbe(input),
@@ -1688,7 +1597,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
             'The real run wrote into the project',
           );
         }
-        if (!p1 && !p2 && !p3 && !p5 && mode !== '--transport-only')
+        if (!p1 && !p2 && !p3 && mode !== '--transport-only')
           evidence.cpu = await page.evaluate(() => window.__ENGINE_P0__.runCpuProbe());
       })(),
       new Promise((_, reject) => {
@@ -1797,7 +1706,7 @@ ThreadingHTTPServer(('127.0.0.1', int(os.environ['STORYFORGE_API_PORT'])), Handl
   if (realProvider)
     for (const name of await readdir(directories.configDir).catch(() => []))
       if (name.startsWith('llm-provider')) await unlink(resolve(directories.configDir, name));
-  if (p1 || p2 || p3 || p5) {
+  if (p1 || p2 || p3) {
     await copyFile(fileURLToPath(import.meta.url), resolve(output, 'harness-source.mjs'));
     await copyFile(
       resolve(frontend, `scripts/fixtures/${fixtureName}.ts`),
