@@ -2,7 +2,6 @@ import { Field, type FieldControlProps, DialogSurface, Button, Input, Select } f
 import { AppDialogHost, useAppDialog } from './app/AppDialog';
 
 import {
-  createContext,
   useContext,
   useEffect,
   useId,
@@ -17,7 +16,6 @@ import {
   type AppSettings,
   type EditorLineNumbersMode,
   type ProviderKind,
-  type ThemeMode,
 } from '../lib/user-settings';
 import { Info, Palette, Pencil, Sparkles, Type } from './icons/shell-icons';
 import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from './editor/options';
@@ -29,6 +27,8 @@ import {
   type EngineMode,
 } from '../lib/engine/flags';
 import { useProviderSettings, type ProbeState } from './settings/useProviderSettings';
+import { AppearanceSection } from './settings/AppearanceSection';
+import { SettingsSearchContext } from './settings/search-context';
 import {
   applyProviderPreset,
   describeProviderHealth,
@@ -53,11 +53,6 @@ type SettingsViewProps = {
  */
 const settingsNav = ['模型服务', '润色模型', '外观', '编辑器', '关于'] as const;
 
-const THEME_OPTIONS: ReadonlyArray<{ value: ThemeMode; label: string }> = [
-  { value: 'dark', label: '深色' },
-  { value: 'light', label: '浅色' },
-];
-
 const LINE_NUMBER_OPTIONS: ReadonlyArray<{ value: EditorLineNumbersMode; label: string }> = [
   { value: 'auto', label: '智能（正文隐藏）' },
   { value: 'on', label: '总是显示' },
@@ -73,8 +68,6 @@ const PROSE_MEASURE_OPTIONS: ReadonlyArray<{ value: ProseMeasure; label: string 
   PROSE_MEASURE_ORDER.map((value) => ({ value, label: PROSE_MEASURE_LABELS[value] }));
 
 // 设置搜索：RowShell 按标题+描述自过滤，空查询显示全部。
-const SettingsSearchContext = createContext('');
-
 export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: SettingsViewProps) {
   const searchRef = useRef<HTMLInputElement>(null);
   const safeSettings = sanitizeAppSettings(settings);
@@ -479,13 +472,9 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
 
                 <SettingGroup id="appearance" title="外观">
                   <SettingCard>
-                    <SelectRow
-                      title="主题"
-                      description="切换深色 / 浅色界面；编辑器主题随之联动。"
-                      value={safeSettings.theme}
-                      onChange={(value) => update('theme', value === 'light' ? 'light' : 'dark')}
-                      options={THEME_OPTIONS}
-                      testId="appearance-theme"
+                    <AppearanceSection
+                      settings={safeSettings}
+                      onChange={(key, value) => update(key, value as AppSettings[typeof key])}
                     />
                   </SettingCard>
                 </SettingGroup>

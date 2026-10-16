@@ -24,7 +24,7 @@ function HitRow({ hit, onSelect }: { hit: SearchHit; onSelect: () => void }) {
       </span>
       <span className="min-w-0 flex-1 truncate">
         {hit.text.slice(0, hit.start)}
-        <mark className="rounded-xs bg-agent/30 px-0.5 text-foreground">
+        <mark className="rounded-xs bg-accent/25 px-0.5 text-foreground">
           {hit.text.slice(hit.start, hit.end)}
         </mark>
         {hit.text.slice(hit.end)}
