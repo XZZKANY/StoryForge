@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from bisect import bisect_right
 from collections.abc import Mapping
 from typing import Any
 
@@ -239,20 +240,68 @@ def _validate_finding(item: object, content: str, index: int) -> dict[str, Any]:
     }
 
 
+# Checkers quote the draft with half-width punctuation (drafts are normalized to full width after
+# generation, the model still writes straight quotes) and often miscount lines. A quote is matched with
+# the full- and half-width forms of one mark folded together and whitespace ignored, anywhere in the
+# draft; the reported line only picks the nearest of several matches. A quote that is not in the draft
+# still fails: the requirement is that the text exists, not that the model counted lines right.
+_QUOTE_FOLD = {
+    "“": '"',
+    "”": '"',
+    "＂": '"',
+    "‘": "'",
+    "’": "'",
+    "＇": "'",
+    "，": ",",
+    "：": ":",
+    "；": ";",
+    "？": "?",
+    "！": "!",
+    "（": "(",
+    "）": ")",
+}
+_QUOTE_SPACE = frozenset(chr(code) for code in (0x20, 0x09, 0x0A, 0x0D, 0x0C, 0x0B, 0x3000, 0xA0))
+
+
+def _fold_for_quote(text: str) -> tuple[str, list[int]]:
+    """The folded text, with the original index of every folded character."""
+
+    folded: list[str] = []
+    positions: list[int] = []
+    for index, char in enumerate(text):
+        if char in _QUOTE_SPACE:
+            continue
+        folded.append(_QUOTE_FOLD.get(char, char))
+        positions.append(index)
+    return "".join(folded), positions
+
+
 def _quote_location(content: str, evidence: str, line: int | None) -> dict[str, Any]:
-    lines = content.splitlines(keepends=True)
-    if line is None or line > len(lines):
-        raise ValueError("引用起始行不在正文内。")
-    start = sum(len(text) for text in lines[: line - 1])
-    offset = content.find(evidence, start)
-    if offset < start or offset >= start + len(lines[line - 1]):
-        raise ValueError("引用与所报行号不一致。")
-    end = offset + len(evidence)
+    folded_content, positions = _fold_for_quote(content)
+    folded_evidence, _ = _fold_for_quote(evidence)
+    starts: list[int] = []
+    cursor = folded_content.find(folded_evidence) if folded_evidence else -1
+    while cursor >= 0:
+        starts.append(cursor)
+        cursor = folded_content.find(folded_evidence, cursor + 1)
+    if not starts:
+        raise ValueError("引用在正文里找不到。")
+    line_offsets = [0]
+    for text in content.splitlines(keepends=True):
+        line_offsets.append(line_offsets[-1] + len(text))
+
+    def line_of(offset: int) -> int:
+        return bisect_right(line_offsets, offset)
+
+    best = starts[0] if line is None else min(starts, key=lambda start: (abs(line_of(positions[start]) - line), start))
+    offset = positions[best]
+    end = positions[best + len(folded_evidence) - 1] + 1
+    line_start = line_of(offset)
     return {
         "char_start": offset,
         "char_end": end,
-        "line_start": line,
-        "line_end": line + len(content[offset:end].splitlines()) - 1,
+        "line_start": line_start,
+        "line_end": line_start + len(content[offset:end].splitlines()) - 1,
     }
 
 

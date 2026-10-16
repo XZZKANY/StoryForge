@@ -840,7 +840,7 @@ def chapter_scenarios():
     s.append(scenario("write-check-source-mismatch", write(), [
         brief_reply(), streamed([DRAFT]), checked(corrupt=True), checked()], ops=[confirm()]))
     s.append(scenario("write-check-bad-evidence", write(), [
-        brief_reply(), streamed([DRAFT]), checked({**BEAT, "line": 4}), checked({**BEAT, "line": 4})],
+        brief_reply(), streamed([DRAFT]), checked({**BEAT, "evidence": "城门外下着雨。"}), checked({**BEAT, "evidence": "城门外下着雨。"})],
         ops=[confirm()]))
     too_many = checked(*[{"rule": "advisory", "severity": "advisory", "message": f"建议{i}", "line": None,
                           "evidence": None} for i in range(101)])
@@ -1080,6 +1080,14 @@ def chapter_check_records() -> dict:
         ensure_ascii=False).replace("EVIDENCE", '守卫喝道:"站住。"')
     records.append({"name": "stray-quotes-in-evidence", "raw": quoted, "content": dialogue,
                     "result": build_check(dialogue, brief, quoted)})
+    # Drafts are normalized to full-width marks; checkers quote them half-width and miscount lines.
+    curly = "第三章\n\n守卫喝道：“站住，别动！”\n林舟停下。\n守卫喝道：“站住，别动！”\n"
+    for name, line in (("evidence-folded-marks", 1), ("evidence-folded-nearest-line", 5),
+                       ("evidence-folded-tie-earlier", 4), ("evidence-folded-no-line", None)):
+        folded = json.dumps({**check_source(curly, brief), "findings": [
+            {"rule": "missing_required_beat", "severity": "hard", "message": "缺夜宿", "line": line,
+             "evidence": '守卫喝道: "站住,别动!"'}]}, ensure_ascii=False)
+        records.append({"name": name, "raw": folded, "content": curly, "result": build_check(curly, brief, folded)})
     extremes = [
         {"name": "empty-draft", "content": " \n", "raw": None, "provider_failed": True},
         {"name": "too-short", "content": "短", "raw": None, "provider_failed": True},
