@@ -22,6 +22,8 @@ import { AssistantMarkdown } from './AssistantMarkdown';
 import { CHAT_COLUMN } from './column';
 import { contextBudgetText } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
+import { RunElapsed } from './RunElapsed';
+import { StreamPhase } from './StreamPhase';
 import type { AgentRun, AgentRunControlHandlers, Message } from './types';
 
 // 会话下拉的 updated_at 是 ISO 原串：主行只露 MM-dd HH:mm 短格式，完整时间留在 title。
@@ -315,6 +317,28 @@ export function MessageList({
     setNearBottom(true);
     setHasUnread(false);
   };
+  // 思考过程排在这一轮回答的上面（先想、后答）；回答还没出现时排在最后。同一个 key 在
+  // 父节点里换位置只会移动节点，折叠面板的手动开合不会因为回答出现而重置。
+  const hasProcess = Boolean(
+    agentRun && (agentRun.steps.length > 0 || agentRun.notes?.some((note) => note.text.trim())),
+  );
+  const process =
+    agentRun && hasProcess ? (
+      <div key={`agent-run-process:${agentRun.id}`} className="animate-slide-up-fade">
+        <AgentStepsPanel run={agentRun} />
+      </div>
+    ) : null;
+  const replyIndex = process
+    ? messages.findIndex((message) => message.stream?.runId === agentRun?.id)
+    : -1;
+  const items: ReactNode[] = [];
+  messages.forEach((message, index) => {
+    if (index === replyIndex) items.push(process);
+    items.push(
+      <MessageItem key={message.id ?? messageKey(message) + ':' + index} message={message} />,
+    );
+  });
+  if (process && replyIndex < 0) items.push(process);
   const content =
     messages.length === 0 ? (
       emptyState ? (
@@ -322,18 +346,12 @@ export function MessageList({
       ) : null
     ) : (
       <div className={`${CHAT_COLUMN} flex flex-col gap-6 px-5 py-6`}>
-        {messages.map((message, index) => (
-          <MessageItem key={message.id ?? messageKey(message) + ':' + index} message={message} />
-        ))}
-
-        {agentRun && agentRun.steps.length > 0 && (
-          <div className="animate-slide-up-fade space-y-2">
-            <AgentStepsPanel run={agentRun} />
-            {shouldShowAgentRunRecovery(agentRun.status, agentRunRecovery) && (
-              <AgentRunRecoveryPanel recovery={agentRunRecovery} />
-            )}
-          </div>
-        )}
+        {items}
+        {agentRun &&
+          agentRun.steps.length > 0 &&
+          shouldShowAgentRunRecovery(agentRun.status, agentRunRecovery) && (
+            <AgentRunRecoveryPanel recovery={agentRunRecovery} />
+          )}
       </div>
     );
   return (
@@ -553,6 +571,7 @@ export function RunActionBar({
                               <span className="text-foreground">
                                 {activeStep ? activeStep.title : '正在处理'}
                               </span>
+                              {run.startedAt !== undefined && <RunElapsed since={run.startedAt} />}
                             </span>
                           );
                         })()
@@ -968,40 +987,12 @@ export const MessageItem = memo(function MessageItem({ message }: { message: Mes
       data-testid="assistant-message"
     >
       <div className="py-1">
-        <AssistantMarkdown content={message.content} />
+        <AssistantMarkdown
+          content={message.content}
+          streaming={message.stream?.phase === 'streaming'}
+        />
         {message.stream && message.stream.phase !== 'complete' && (
-          <div
-            className="mt-2 flex items-center gap-2 text-xs text-muted"
-            data-testid="stream-phase"
-            role="status"
-          >
-            {(message.stream.phase === 'waiting' ||
-              message.stream.phase === 'streaming' ||
-              message.stream.phase === 'working') && (
-              <span
-                aria-hidden="true"
-                data-testid="stream-indicator"
-                data-phase={message.stream.phase}
-                className={
-                  message.stream.phase === 'streaming'
-                    ? 'h-1.5 w-1.5 rounded-full bg-agent motion-safe:animate-pulse'
-                    : 'h-1.5 w-1.5 rounded-full bg-agent/60'
-                }
-              />
-            )}
-            <span>
-              {
-                {
-                  waiting: '等待正文输出…',
-                  streaming: '正在输出…',
-                  working: '等待下一步…',
-                  unknown: '连接或内容不完整，等待核对结果',
-                  interrupted: '回复未完成',
-                  complete: '',
-                }[message.stream.phase]
-              }
-            </span>
-          </div>
+          <StreamPhase phase={message.stream.phase} />
         )}
         {message.stream?.detail && (
           <p className="mt-1 text-xs text-muted">{message.stream.detail}</p>

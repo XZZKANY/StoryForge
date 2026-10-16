@@ -105,7 +105,14 @@ export type AgentRun = {
   executionOutcome?: AgentResultMessage['agent_result']['execution_outcome'];
   /** UI delivery uncertainty only; status is the last observed runtime state, not a new API state. */
   deliveryUnknown?: { scope: string; retryRequest: RetryRequest };
+  /** 前几轮模型在调工具之前说的话：回答区只留最后一轮正文，这些挪进思考过程，不随下一轮清空。 */
+  notes?: AgentRunNote[];
+  /** 本机发起时刻（毫秒），只给操作条显示已用时间。 */
+  startedAt?: number;
 };
+
+/** toolIndex = 这一轮开始时已经出现的工具步骤数，思考过程据此把这句话排在它之后的工具前面。 */
+export type AgentRunNote = { round: number; toolIndex: number; text: string };
 
 export type RetryRequest = {
   goal: string;

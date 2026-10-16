@@ -6,7 +6,7 @@
  * 作者手动切换后以手动为准。
  */
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { AgentRun, AgentRunStatus, AgentStep, AgentStepStatus } from './chat-window/types';
 
 export function AgentStepsPanel({ run }: { run: AgentRun }) {
@@ -66,15 +66,45 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
         }`}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="ml-[18px] mt-1 flex flex-col py-0.5">
-            {run.steps.map((step) => (
-              <StepRow key={step.id} step={step} />
-            ))}
-          </div>
+          <div className="ml-[18px] mt-1 flex flex-col py-0.5">{processRows(run)}</div>
         </div>
       </div>
     </div>
   );
+}
+
+/** 步骤按到达顺序排；前几轮模型说的话按 toolIndex 插在它之后那批工具的前面。 */
+function processRows(run: AgentRun): ReactNode[] {
+  const notes = (run.notes ?? [])
+    .filter((note) => note.text.trim())
+    .sort((a, b) => a.toolIndex - b.toolIndex || a.round - b.round);
+  const rows: ReactNode[] = [];
+  let next = 0;
+  let toolOrdinal = 0;
+  const flushNotes = (upTo: number) => {
+    while (next < notes.length && notes[next].toolIndex <= upTo) {
+      const note = notes[next];
+      rows.push(
+        <p
+          key={`note-${note.round}`}
+          className="whitespace-pre-wrap break-words px-1 py-0.5 text-xs leading-5 text-muted"
+          data-testid="agent-run-note"
+        >
+          {note.text}
+        </p>,
+      );
+      next += 1;
+    }
+  };
+  for (const step of run.steps) {
+    if (step.id.startsWith('tool-')) {
+      flushNotes(toolOrdinal);
+      toolOrdinal += 1;
+    }
+    rows.push(<StepRow key={step.id} step={step} />);
+  }
+  flushNotes(Number.POSITIVE_INFINITY);
+  return rows;
 }
 
 function StepRow({ step }: { step: AgentStep }) {
