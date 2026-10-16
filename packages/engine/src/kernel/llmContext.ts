@@ -1,7 +1,7 @@
 import type { ProjectReader } from '../readPort';
 import { FsToolError, normalizeProjectRelativePath } from './fsTools';
 import { normcase } from './generationSources';
-import { dumpJson, pythonTruthy } from './json';
+import { compareCodePoints, dumpJson, pythonTruthy } from './json';
 import {
   collectProjectKnowledgeContext,
   mergeProjectKnowledgeEntries,
@@ -536,12 +536,20 @@ function projectSummary(bundle: Obj | null): Obj {
     if (typeof hasStoryStructure === 'boolean') result.has_story_structure = hasStoryStructure;
     const counts = get(summary, 'counts');
     if (isObj(counts)) {
-      // Python 按 str(key) 的码点序挑出数（bool 是 int 子类）；快照只按排序键哈希，输出键序无关。
+      // Python 按 str(key) 的码点序挑出数（bool 是 int 子类），这个键序原样进 prompt；
+      // 桌面端给的是 emptyCounts 的顺序，不排就和 Python 差一段。
       const safeCounts: Obj = {};
-      for (const [key, value] of Object.entries(counts)) {
-        if (typeof value === 'number' || typeof value === 'boolean') safeCounts[key] = value;
+      const kept: string[] = [];
+      for (const key of Object.keys(counts).sort(compareCodePoints)) {
+        const value = get(counts, key);
+        if (typeof value !== 'number' && typeof value !== 'boolean') continue;
+        safeCounts[key] = value;
+        kept.push(key);
       }
-      if (Object.keys(safeCounts).length) result.counts = safeCounts;
+      // JS 对象把整数形的键排到最前，保不住这个键序。
+      if (Object.keys(safeCounts).some((key, index) => key !== kept[index]))
+        throw new RangeError('counts 含整数形的键，不在输入范围内');
+      if (kept.length) result.counts = safeCounts;
     }
   }
   return result;

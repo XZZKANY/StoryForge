@@ -8125,3 +8125,14 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 修复：`allow_headers` 加 `x-storyforge-shadow`。
 - 覆盖：新增 `tests/test_desktop_cors_headers.py`——扫描桌面端源码里出现的每个 `X-StoryForge-*` 请求头，三个桌面源（开发 Vite、`http://tauri.localhost`、`tauri://localhost`）逐个过预检；修订与续写两条路由带影子头的预检。未修时 9 条红，修后全绿；既有 `test_agent_external_cors.py` 照绿。完整应用探针修后：请求到达 Python、经假模型回来，出现「行间修订建议已就绪：+1 / -1」。探针脚本在 `output/ts-engine-p5/ctrlk/`（gitignored）。
 - 未联通：作者装上带这一刀的新版本后，在装机版里真按一次 Ctrl+K 与 Ctrl+Shift+K。
+
+## 2026-10-16 P5-1f 预览版第一条 prompt 差异：bundle 摘要里 counts 的键序（TS 迁移，结果仍用 Python）
+
+- 起因：作者装上 0.1.15（10-16 14:08）后起草第2章，本机 `shadow-diffs.jsonl` 记了一条差异：`surface agent.loop`、`step chapter.brief`、`kind text`、`messages[1].content` 第 2 行第 1020 列，两边都是 1878 字、差 139 字。
+- 定位：作者库只读副本（backup API、`mode=ro`，复制前后主文件与 WAL 哈希不变；只输出位置与键名，不打印正文）里取 run 59 的 Python 请求证据，偏移 1052 起的 139 字正是 prompt 里 bundle 摘要的 `summary.counts`。Python 的 `llm_context._project_summary` 按 `str(key)` 的码点序挑出数，这个顺序原样进 prompt；引擎 `llmContext.ts` 保留了桌面端给的顺序（`emptyCounts`：outline、character、setting…），旧注释以为「快照只按排序键哈希、输出键序无关」。
+- 为什么预言机没抓到：p5-agent-shadow 写章场景的 `counts` 恰好是字母序（character、draft）；p2-writing-context 的 `summary` 用例本来就是乱序输入，但回放用 `toEqual` 比，不看键序。
+- 修复：`projectSummary` 按 `compareCodePoints` 排序挑数；JS 对象会把整数形的键排到最前、保不住码点序，这类键判为范围外（`RangeError`，照 §4.3.1）。
+- 覆盖：预言机 `golden_agent_shadow.py` 写章场景的 `counts` 改成桌面端真实的 10 个类别与键序，重录 p5-agent-shadow（只变这个场景的输入与 Python 摘要）；p2-writing-context 回放加嵌套键序比对（94 条里只有 `summary` 一条因此变红，修后全绿）；新增用例：桌面端键序进 prompt 后是码点序、U+FF5E 排在 U+1F600 之前、两个整数形键报 `RangeError`、单个整数形键照常。修前前端回放 `agent-engine-shadow` 的写章场景判不一致，修后 13 / 13。
+- 变异：4 / 4（不排序 ×2 处测试、去掉整数形键闸、改成 UTF-16 默认排序）。
+- 顺带查明：0.1.15 的 run 57、58 两次起草没有比对记录，是因为当时比对开关是关的——WebView 本地存储里 `engine.agentLoop` 先被写成 `python`，10-16 06:14:55（UTC）才写回 `shadow`，正好在 run 58 与 run 59 之间。用作者库副本退回 run 58 发送前、练手项目按当时的文件，在 vitest 里重放影子，照常落记录，影子本身没有漏记。
+- 未联通：作者装上带这一刀的版本后，新版本的 checks 有行、diffs 为空，才算 P5-1 验收。
