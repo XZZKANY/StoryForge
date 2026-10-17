@@ -20,7 +20,8 @@ import { useDeference } from '../shell/useDeference';
 import { useWorkspaceSidePanelLimit } from '../shell/useWorkspaceSidePanelLimit';
 import { WORKSPACE_PRIMARY_MIN_WIDTH } from '../../lib/workspace-layout';
 import { emitToast } from '../../lib/toast';
-import { emitExportCurrentFile, emitNewSessionRequest } from '../../lib/assistant-events';
+import { emitExportCurrentFile } from '../../lib/assistant-events';
+import { shellActions } from './shell-actions';
 import { AppDialogHost } from './AppDialog';
 import { resolveActiveCenterTab } from './editor-tabs-state';
 import { createShellHelp } from './shell-help';
@@ -172,6 +173,7 @@ export function AppShell({
   });
 
   const deferred = useDeference();
+  const actions = shellActions(shell, openWorkspace);
 
   return (
     <div
@@ -303,6 +305,8 @@ export function AppShell({
                       onLocateObservation={observatory.locateObservation}
                       onLocateAnchor={observatory.locateAnchor}
                       onMergeProposal={(target) => void observatory.mergeProposal(target)}
+                      onResolveObservation={observatory.resolveObservation}
+                      onAskAgent={actions.onAskAgent}
                     />
                   ) : (
                     <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
@@ -445,28 +449,12 @@ export function AppShell({
           onToggleWorkspace={toggleWorkspaceFromCommand}
           onOpenSettings={openSettings}
           onShowShortcuts={showShortcuts}
-          onFocusAssistantOnly={() => {
-            openWorkspace();
-            shell.showRight();
-            shell.setLayoutMode('chat');
-          }}
-          onFocusWorkspaceOnly={() => {
-            openWorkspace();
-            shell.showSidebar();
-            shell.setLayoutMode('editor');
-          }}
-          onRestoreLayout={() => {
-            openWorkspace();
-            shell.showSidebar();
-            shell.setLayoutMode('balanced');
-          }}
+          onFocusAssistantOnly={actions.onFocusAssistantOnly}
+          onFocusWorkspaceOnly={actions.onFocusWorkspaceOnly}
+          onRestoreLayout={actions.onRestoreLayout}
           onShowView={activeProject ? openSideView : undefined}
           fileActions={fileActions}
-          onNewSession={() => {
-            openWorkspace();
-            shell.showRight();
-            emitNewSessionRequest();
-          }}
+          onNewSession={actions.onNewSession}
           onToggleFontMode={preferences.toggleFontMode}
           onCycleProseMeasure={preferences.cycleProseMeasure}
           fontModeLabel={

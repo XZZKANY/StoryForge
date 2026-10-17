@@ -288,3 +288,86 @@ test('非 available 态诚实显示，不渲染任何台账分区', async () => 
     cleanup();
   }
 });
+
+const PROSE_FINDINGS: Observation[] = [
+  {
+    id: 'prose_1',
+    severity: 'advisory',
+    title: '「像是被谁按住了」',
+    detail: '比喻堆叠 · 建议策略 line_edit',
+    source: 'prose·metaphor',
+    location: '正文/第03章.md',
+    anchor: { path: '正文/第03章.md', snippet: '像是被谁按住了' },
+  },
+  {
+    id: 'prose_2',
+    severity: 'advisory',
+    title: '「一股莫名的」',
+    source: 'prose·cliche',
+    location: '正文/第03章.md',
+    anchor: { path: '正文/第03章.md', snippet: '一股莫名的' },
+  },
+];
+
+const checkerRow = (key: string) =>
+  container!.querySelector<HTMLElement>(`[data-testid="checker-row"][data-checker="${key}"]`)!;
+
+test('检查器的数字点得开：文笔气味展开成逐条问题，点一条回原文、勾一条记已处理', async () => {
+  const located: Observation[] = [];
+  const resolved: string[] = [];
+  try {
+    await renderView({
+      observations: [...OBSERVATIONS, ...PROSE_FINDINGS],
+      checkers: CHECKERS.map((checker) =>
+        checker.key === 'prose' ? { ...checker, issue_count: 2 } : checker,
+      ),
+      onLocateObservation: (observation) => located.push(observation),
+      onResolveObservation: (id) => resolved.push(id),
+    });
+    const prose = checkerRow('prose');
+    assert.equal(prose.querySelector('[data-testid="checker-findings"]'), null);
+    // 没有逐条观测的检查器不给展开。
+    assert.equal(checkerRow('promise').querySelector('[data-testid="checker-toggle"]'), null);
+
+    await act(async () =>
+      prose.querySelector<HTMLElement>('[data-testid="checker-toggle"]')!.click(),
+    );
+    const findings = prose.querySelectorAll('[data-testid="checker-finding"]');
+    assert.equal(findings.length, 2);
+    assert.match(findings[0]?.textContent ?? '', /像是被谁按住了/);
+    // 修订策略 id 换成作者看得懂的改法。
+    assert.match(findings[0]?.textContent ?? '', /改法：逐句改/);
+    assert.equal((findings[0]?.textContent ?? '').includes('line_edit'), false);
+    // 观测按产出它的检查器归位：设定检查的那条不混进文笔气味。
+    assert.equal((prose.textContent ?? '').includes('唯一持有冲突'), false);
+
+    await act(async () =>
+      findings[0]!.querySelector<HTMLElement>('[data-testid="checker-finding-locate"]')!.click(),
+    );
+    await act(async () =>
+      findings[1]!.querySelector<HTMLElement>('[data-testid="checker-finding-resolve"]')!.click(),
+    );
+    assert.equal(located[0]?.id, 'prose_1');
+    assert.deepEqual(resolved, ['prose_2']);
+  } finally {
+    cleanup();
+  }
+});
+
+test('「按需」检查器给「让 AI 查」按钮，按下替作者在对话里把话说出来', async () => {
+  const asked: string[] = [];
+  try {
+    await renderView({ onAskAgent: (text) => asked.push(text) });
+    for (const key of ['consistency', 'collapse', 'entity_budget', 'deep_consistency']) {
+      assert.ok(checkerRow(key).querySelector('[data-testid="checker-ask"]'), key);
+    }
+    assert.equal(checkerRow('prose').querySelector('[data-testid="checker-ask"]'), null);
+    await act(async () =>
+      checkerRow('consistency').querySelector<HTMLElement>('[data-testid="checker-ask"]')!.click(),
+    );
+    assert.equal(asked.length, 1);
+    assert.match(asked[0] ?? '', /一致性/);
+  } finally {
+    cleanup();
+  }
+});

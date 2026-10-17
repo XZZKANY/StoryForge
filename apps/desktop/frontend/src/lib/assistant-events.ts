@@ -19,6 +19,7 @@ export const REVIEW_ISSUES_EVENT = 'storyforge:review-issues';
 export const REQUEST_CHAPTER_POLISH_EVENT = 'storyforge:request-chapter-polish';
 export const REQUEST_CHAPTER_WRITE_EVENT = 'storyforge:request-chapter-write';
 export const REQUEST_NEW_SESSION_EVENT = 'storyforge:request-new-session';
+export const REQUEST_AGENT_PROMPT_EVENT = 'storyforge:request-agent-prompt';
 // Q3a：编辑区工具行收进 EditorTabs「…」菜单后，历史视图这类编辑器内部态用命令事件驱动
 // （保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE，无需新事件）。
 export const REQUEST_EDITOR_COMMAND_EVENT = 'storyforge:request-editor-command';
@@ -160,6 +161,15 @@ export type AuthorLoopResult = {
 export function emitNewSessionRequest(): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(REQUEST_NEW_SESSION_EVENT));
+  }
+}
+
+/** 以作者的名义在对话里发一句话（与输入框发送同一条路径，AI 忙时同样排队）。 */
+export function emitAgentPromptRequest(text: string): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<{ text: string }>(REQUEST_AGENT_PROMPT_EVENT, { detail: { text } }),
+    );
   }
 }
 
