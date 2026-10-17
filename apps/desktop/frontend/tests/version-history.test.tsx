@@ -257,3 +257,22 @@ test('旧文件恢复迟到失败不能清除新文件的忙状态或错误展�
     view.cleanup();
   }
 });
+
+test('版本行的说明是一行纯文本：AI 回复原文不露星号和分隔线，来源叫「AI」', async () => {
+  mocked.versions = [
+    entry(1785422183736, {
+      source: 'Agent',
+      summary: '**第4章已起草，请确认写盘。** 内容概要：\n---\n### 第4章·《缝隙》',
+      patchId: 'file-creation-cde8055a',
+    }),
+  ];
+  const view = renderHistory(() => undefined);
+  try {
+    await view.settle();
+    const text = view.container.querySelector('[data-testid="version-history"]')!.textContent ?? '';
+    assert.match(text, /AI · 第4章已起草，请确认写盘。 内容概要： 第4章·《缝隙》/);
+    assert.doesNotMatch(text, /\*\*|---|###|Agent ·/);
+  } finally {
+    view.cleanup();
+  }
+});
