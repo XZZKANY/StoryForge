@@ -1,7 +1,7 @@
 import { Button, Input, InputShell } from '../ui';
 
 import { useId, useState } from 'react';
-import { ChevronRight, BookOpen, FolderOpen, Plus, Search } from '../icons/shell-icons';
+import { ChevronRight, BookOpen, FolderOpen, Plus, Search, X } from '../icons/shell-icons';
 import { basename } from './helpers';
 
 type ProjectLibraryProps = {
@@ -13,6 +13,10 @@ type ProjectLibraryProps = {
   onSelectProject: (path: string) => void;
   onResumeProject: () => void;
   onOpenSettings: () => void;
+  /** 书名（作品资料里起过名就用书名，否则文件夹名）；缺省用文件夹名。 */
+  titleOf?: (path: string) => string;
+  /** 从作品库移除：只是不再列出，文件夹不动。 */
+  onRemoveProject?: (path: string) => void;
 };
 
 /** 作品入口不是可关闭的引导页；这里仅投影真实最近目录，不读取或伪造作品统计。 */
@@ -25,11 +29,16 @@ export function ProjectLibrary({
   onSelectProject,
   onResumeProject,
   onOpenSettings,
+  titleOf = basename,
+  onRemoveProject,
 }: ProjectLibraryProps) {
   const [query, setQuery] = useState('');
   const searchId = useId();
-  const matching = projects.filter((path) =>
-    path.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
+  const needle = query.trim().toLocaleLowerCase();
+  const matching = projects.filter(
+    (path) =>
+      path.toLocaleLowerCase().includes(needle) ||
+      titleOf(path).toLocaleLowerCase().includes(needle),
   );
   return (
     <section
@@ -79,7 +88,7 @@ export function ProjectLibrary({
             <span className="min-w-0 flex-1">
               <span className="block text-xs text-muted">当前作品</span>
               <span className="mt-1 block truncate text-sm font-medium text-foreground">
-                {basename(activeProject)}
+                {titleOf(activeProject)}
               </span>
             </span>
             <span className="flex shrink-0 items-center gap-2 text-sm text-accent">
@@ -120,7 +129,7 @@ export function ProjectLibrary({
           {matching.length > 0 ? (
             <ul className="space-y-2">
               {matching.map((path) => (
-                <li key={path}>
+                <li key={path} className="group/row relative">
                   <button
                     type="button"
                     data-project-path={path}
@@ -135,19 +144,32 @@ export function ProjectLibrary({
                     <BookOpen size={20} aria-hidden="true" className="shrink-0 text-subtle" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-foreground">
-                        {basename(path)}
+                        {titleOf(path)}
                       </span>
                       <span className="mt-1 block truncate text-xs text-muted">{path}</span>
                     </span>
                     {path === activeProject && (
                       <span className="shrink-0 text-xs text-muted">已打开</span>
                     )}
+                    {onRemoveProject && path !== activeProject && <span className="w-7 shrink-0" />}
                     <ChevronRight
                       size={15}
                       aria-hidden="true"
                       className="shrink-0 text-subtle group-hover:text-foreground"
                     />
                   </button>
+                  {onRemoveProject && path !== activeProject && (
+                    <button
+                      type="button"
+                      aria-label={`从作品库移除：${titleOf(path)}`}
+                      title="从作品库移除（文件夹不动，随时可以再打开）"
+                      onClick={() => onRemoveProject(path)}
+                      data-testid="library-remove-project"
+                      className="absolute right-12 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-subtle opacity-0 transition-opacity hover:bg-background hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100"
+                    >
+                      <X size={14} aria-hidden="true" />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
