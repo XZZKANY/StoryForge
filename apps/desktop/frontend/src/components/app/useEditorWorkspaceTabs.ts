@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { saveActiveEditorForClose } from '../../lib/assistant-events';
+import { useHostCloseGuard } from '../../lib/host-close';
 import { projectBasename } from '../../lib/project-context';
 import type { WorkspaceSession } from '../../lib/workspace-session';
 import type { AppDialogApi } from './AppDialog';
@@ -409,6 +410,13 @@ export function useEditorWorkspaceTabs({
     },
     [currentFile, selectFile, setLatestDirtyFiles],
   );
+
+  // 关整个窗口也走同一套未保存确认：退出之后就没有机会再存了。
+  const confirmExit = useCallback(
+    () => confirmDiscardFiles(retainedEditorFiles, '退出'),
+    [confirmDiscardFiles, retainedEditorFiles],
+  );
+  useHostCloseGuard(confirmExit);
 
   return {
     previewFile,
