@@ -25,7 +25,36 @@ const CLAUSE_END = /[，；,;]/u;
 export type HandoffChapter = {
   ordinal: number;
   relativePath: string;
+  /** 后端估算字数；不知道就不判断是否还空着。 */
+  estimatedChars?: number | null;
 };
+
+/** 估算字数低于这个数的最后一章算「还空着」：刚新建、只有一行标题，不能当成写完的上一章。 */
+export const HANDOFF_BLANK_CHAPTER_MAX_CHARS = 30;
+
+/**
+ * 交接从哪一章说起：最后一章还空着时，上一章是它前面那章，下一章就是这个空章本身
+ * （起草写进已有的空文件，不再往后另开一章）。
+ */
+export function resolveHandoffChapters(chapters: ReadonlyArray<HandoffChapter>): {
+  lastChapter: HandoffChapter | null;
+  next: ChapterWriteRequest & { chapterOrdinal: number };
+} {
+  const sorted = [...chapters].sort((left, right) => left.ordinal - right.ordinal);
+  const last = sorted[sorted.length - 1] ?? null;
+  const blank =
+    last !== null &&
+    typeof last.estimatedChars === 'number' &&
+    last.estimatedChars < HANDOFF_BLANK_CHAPTER_MAX_CHARS;
+  if (last && blank) {
+    return {
+      lastChapter: sorted[sorted.length - 2] ?? null,
+      next: { targetPath: last.relativePath, chapterOrdinal: last.ordinal, chapterTitle: null },
+    };
+  }
+  const request = nextChapterWriteRequest(chapters);
+  return { lastChapter: last, next: { ...request, chapterOrdinal: request.chapterOrdinal ?? 1 } };
+}
 
 export type HandoffPromise = {
   title: string;
@@ -144,12 +173,7 @@ function stalePromises(promises: ObservatoryPromises | null, fallbackCurrent: nu
 }
 
 export function buildChapterHandoff(input: ChapterHandoffInput): ChapterHandoff {
-  const lastChapter = input.chapters.reduce<HandoffChapter | null>(
-    (latest, chapter) => (latest === null || chapter.ordinal > latest.ordinal ? chapter : latest),
-    null,
-  );
-  const request = nextChapterWriteRequest(input.chapters);
-  const next = { ...request, chapterOrdinal: request.chapterOrdinal ?? 1 };
+  const { lastChapter, next } = resolveHandoffChapters(input.chapters);
   // 上一章摘录只认阅读序最后一章：后端按「下一章」推的上一章若不是它，说明正文刚变过，宁可不说。
   const previous =
     input.previousChapter &&

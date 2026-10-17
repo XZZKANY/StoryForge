@@ -10,17 +10,6 @@ export function basename(path: string): string {
   return path.split(/[/\\]/).pop() ?? path;
 }
 
-export function normalizeMarkdownFileName(input: string): string {
-  const raw = input.trim();
-  if (!raw || /^[a-zA-Z]:/.test(raw) || raw.startsWith('/') || raw.startsWith('\\')) return '';
-  const trimmed = raw.replace(/^[/\\]+/, '');
-  if (!trimmed) return '';
-  const withExtension = /\.(md|markdown)$/i.test(trimmed) ? trimmed : `${trimmed}.md`;
-  const segments = withExtension.replace(/\\/g, '/').split('/');
-  if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return '';
-  return withExtension;
-}
-
 export function loadProjectAssistantSessions(): Record<string, number> {
   try {
     const raw = localStorage.getItem(PROJECT_ASSISTANT_SESSIONS_KEY);

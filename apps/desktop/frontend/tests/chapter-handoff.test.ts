@@ -149,3 +149,32 @@ test('聊下一章与接伏笔的提示词都点名章号并要求先别写正�
     '第 6 章想接上「十七楼幸存者目击线」（第 1 章埋下，之后 4 章没再碰）。先别写正文，给我三种接法，每种两三句话。',
   );
 });
+
+test('最后一章还空着（刚新建、只有标题）：上一章是它前面那章，下一章就是这个空章，不再往后另开', () => {
+  const withBlank = [
+    ...chapters.map((chapter) => ({ ...chapter, estimatedChars: 1800 })),
+    { ordinal: 6, relativePath: '正文/第006章.md', estimatedChars: 4 },
+  ];
+  const handoff = buildChapterHandoff({
+    chapters: withBlank,
+    previousChapter: { relativePath: '正文/第005章.md', tail: TAIL },
+    promises: null,
+  });
+  expect(handoff.lastChapter?.ordinal).toBe(5);
+  expect(handoff.next.chapterOrdinal).toBe(6);
+  expect(handoff.next.targetPath).toBe('正文/第006章.md');
+  expect(handoff.excerptSource).toBe('正文/第005章.md');
+});
+
+test('最后一章写了正文就照旧算上一章；不知道字数时不猜它空不空', () => {
+  const written = buildChapterHandoff({
+    chapters: [...chapters, { ordinal: 6, relativePath: '正文/第006章.md', estimatedChars: 1200 }],
+    previousChapter: null,
+    promises: null,
+  });
+  expect(written.lastChapter?.ordinal).toBe(6);
+  expect(written.next.chapterOrdinal).toBe(7);
+  const unknown = buildChapterHandoff({ chapters, previousChapter: null, promises: null });
+  expect(unknown.lastChapter?.ordinal).toBe(5);
+  expect(unknown.next.chapterOrdinal).toBe(6);
+});

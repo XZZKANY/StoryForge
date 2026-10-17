@@ -73,7 +73,6 @@ test('主外壳统一 panel，横向细线只留顶栏底缘；二级面板以�
         onSelectProject={noop}
         onRemoveProject={noop}
         onOpenProject={noop}
-        onNewFile={noop}
         onFileSelect={noop}
         onFilePreview={noop}
         width={300}

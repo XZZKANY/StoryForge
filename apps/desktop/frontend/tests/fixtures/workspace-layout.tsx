@@ -49,7 +49,6 @@ function Fixture() {
               onSelectProject={() => {}}
               onRemoveProject={() => {}}
               onOpenProject={() => {}}
-              onNewFile={() => {}}
               onFileSelect={() => {}}
               onFilePreview={() => {}}
               book={

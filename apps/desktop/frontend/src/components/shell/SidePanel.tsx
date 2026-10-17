@@ -32,6 +32,8 @@ import {
 } from '../../lib/side-panel-width';
 import { StoryNavigator } from '../StoryNavigator';
 import { basename } from '../app/helpers';
+import { isSameOrInsidePath } from '../app/editor-tabs-state';
+import { entryName, parentDir } from '../../lib/fs-path-ops';
 import type { FileTreeActions } from '../app/useFileTreeActions';
 import type { SidePanelView } from './useShellState';
 import { ChevronDown, FilePlus, FolderOpen, FolderPlus, X } from '../icons/shell-icons';
@@ -46,7 +48,6 @@ type SidePanelProps = {
   onSelectProject: (path: string) => void;
   onRemoveProject: (path: string) => void;
   onOpenProject: () => void;
-  onNewFile: (projectPath?: string) => void;
   onFileSelect: (filePath: string) => void;
   onFilePreview: (filePath: string) => void;
   fileActions?: FileTreeActions;
@@ -217,7 +218,6 @@ function ExplorerView({
   onSelectProject,
   onRemoveProject,
   onOpenProject,
-  onNewFile,
   onFileSelect,
   onFilePreview,
   fileActions,
@@ -229,6 +229,14 @@ function ExplorerView({
     // #4：左栏空态删除——打开项目 / 最近打开只留在中栏欢迎页，避免两个欢迎面重复。
     return <div className="flex-1" data-testid="explorer-empty" />;
   }
+  // 新文件落在正在写的那章旁边：建在作品根目录的 .md 会被手稿当成第 1 章，章序整体顺延。
+  const openPath = currentFile ?? previewFile;
+  const newFileDir =
+    openPath && isSameOrInsidePath(openPath, activeProject) ? parentDir(openPath) : activeProject;
+  const newFileLabel =
+    newFileDir === activeProject
+      ? '在作品根目录新建文件'
+      : `在「${entryName(newFileDir)}」里新建文件`;
 
   return (
     <>
@@ -247,15 +255,17 @@ function ExplorerView({
           <span className="min-w-0 flex-1 truncate text-left">{basename(activeProject)}</span>
           <ChevronDown size={13} strokeWidth={1.6} className="text-subtle" />
         </button>
-        <button
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-          aria-label="在项目根目录新建文件"
-          title="在项目根目录新建文件"
-          onClick={() => onNewFile(activeProject)}
-          data-testid="side-new-file"
-        >
-          <FilePlus size={14} strokeWidth={1.6} />
-        </button>
+        {fileActions && (
+          <button
+            className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+            aria-label={newFileLabel}
+            title={newFileLabel}
+            onClick={() => void fileActions.onNewFile(newFileDir)}
+            data-testid="side-new-file"
+          >
+            <FilePlus size={14} strokeWidth={1.6} />
+          </button>
+        )}
         {fileActions && (
           <button
             className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
