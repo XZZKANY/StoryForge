@@ -49,6 +49,7 @@ let selectionEndLine: number | null;
 let frames: FrameRequestCallback[];
 let modelListeners: Set<() => void>;
 let contentListeners: Set<() => void>;
+let textFocus: boolean;
 const writeback = vi.fn(async () => ({ writebackWarning: undefined }));
 const status = vi.fn();
 
@@ -149,6 +150,9 @@ beforeEach(() => {
   model = makeModel();
   position = { lineNumber: 2, column: 1 };
   selectionEndLine = null;
+  textFocus = false;
+  // happy-dom 不排版，矩形恒为 0；正文看得见要显式给个宽度。
+  zones.getBoundingClientRect = () => ({ width: 800 }) as DOMRect;
   fileRef = { current: FILE };
   projectRef = { current: PROJECT };
   const zoneNodes = new Map<string, HTMLElement>();
@@ -163,6 +167,8 @@ beforeEach(() => {
     }),
     getOption: (option: number) => (option === 1 ? { fontFamily: 'fixture' } : 22),
     getContainerDomNode: () => zones,
+    getDomNode: () => zones,
+    hasTextFocus: () => textFocus,
     addCommand: (key: number, callback: () => void) => commands.set(key, callback),
     onDidChangeCursorPosition: () => ({ dispose: () => {} }),
     onDidChangeModel: (listener: () => void) => {
@@ -1098,4 +1104,75 @@ it('模型替换后的迟到写回成功不会移动新光标', async () => {
   });
   expect(editorRef.current!.setPosition).not.toHaveBeenCalled();
   expect(host.textContent).not.toContain('已写回');
+});
+
+function pressK(target: EventTarget, shift = false) {
+  const event = new KeyboardEvent('keydown', {
+    key: shift ? 'K' : 'k',
+    ctrlKey: true,
+    shiftKey: shift,
+    bubbles: true,
+    cancelable: true,
+  });
+  target.dispatchEvent(event);
+  return event;
+}
+
+it('焦点在文件树或对话框时按 Ctrl+K，把正文拉回焦点并按光标行打开行间框', async () => {
+  await mount();
+  const outside = document.createElement('button');
+  document.body.append(outside);
+  let event!: KeyboardEvent;
+  await act(async () => {
+    event = pressK(outside);
+  });
+  expect(event.defaultPrevented).toBe(true);
+  expect(editorRef.current!.focus).toHaveBeenCalled();
+  expect(zones.textContent).toContain('行间对话 · 第 2 行 · 改写光标所在的完整行');
+  outside.remove();
+});
+
+it('焦点在正文外按 Ctrl+Shift+K 打开的是续写框', async () => {
+  await mount();
+  await act(async () => {
+    pressK(document.body, true);
+  });
+  expect(zones.textContent).toContain('续写 · ');
+});
+
+it('正文自己有焦点、按键来自行间框或弹窗、正文不可见时都不接管', async () => {
+  await mount();
+  textFocus = true;
+  await act(async () => {
+    pressK(document.body);
+  });
+  expect(zones.querySelector('textarea')).toBeNull();
+  textFocus = false;
+
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'dialog');
+  const field = document.createElement('input');
+  dialog.append(field);
+  document.body.append(dialog);
+  await act(async () => {
+    pressK(field);
+  });
+  expect(zones.querySelector('textarea')).toBeNull();
+  dialog.remove();
+
+  zones.getBoundingClientRect = () => ({ width: 0 }) as DOMRect;
+  await act(async () => {
+    pressK(document.body);
+  });
+  expect(zones.querySelector('textarea')).toBeNull();
+  zones.getBoundingClientRect = () => ({ width: 800 }) as DOMRect;
+
+  // 行间框里的按钮（接受 / 弃用）也在正文 DOM 里：在那儿按 Ctrl+K 不能拆掉正开着的框重开。
+  const input = await open('revise');
+  const inZone = document.createElement('button');
+  zones.append(inZone);
+  await act(async () => {
+    pressK(inZone);
+  });
+  expect(zones.querySelector('textarea')).toBe(input);
 });
