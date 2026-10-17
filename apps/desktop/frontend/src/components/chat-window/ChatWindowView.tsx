@@ -3,7 +3,7 @@ import { emitToast } from '../../lib/toast';
 import { ComposerBox } from './Composer';
 import { ChapterBriefCard } from './ChapterBriefCard';
 import { CHAT_COLUMN } from './column';
-import { runLivePhaseText, runStatusText } from './display-utils';
+import { isAuthorRejection, runLivePhaseText, runStatusText } from './display-utils';
 import { LiveStatus } from '../shell/LiveStatus';
 import {
   ContextSummaryPanel,
@@ -124,7 +124,11 @@ export function ChatWindowView({
             : runLivePhaseText(state.agentRun)
         }
         testid="agent-run-live"
-        tone={state.agentRun?.status === 'failed' ? 'assertive' : 'polite'}
+        tone={
+          state.agentRun?.status === 'failed' && !isAuthorRejection(state.agentRun)
+            ? 'assertive'
+            : 'polite'
+        }
       />
 
       <ConversationHeader
@@ -215,6 +219,7 @@ export function ChatWindowView({
           text={statusText}
           retryVisible={
             state.agentRun?.status === 'failed' &&
+            !isAuthorRejection(state.agentRun) &&
             state.retryRequest !== null &&
             !state.agentBusy &&
             !state.agentRunRecovery?.checkpointResume &&

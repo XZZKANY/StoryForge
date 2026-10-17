@@ -32,6 +32,7 @@ export function runStatusText(run: AgentRun | null): string | null {
   if (run.status === 'paused') return '已暂停 · 点“恢复”继续本轮。';
   // 作者主动停止是中性收尾，不套用「遇到问题…详情在回复里」的失败措辞（此刻没有失败回复）。
   if (run.status === 'stopped') return '已由你停止本轮。';
+  if (isAuthorRejection(run)) return '你拒绝了这次修改。';
   if (run.status === 'failed') return '本轮遇到问题，详情在回复里。';
 
   const active =
@@ -60,10 +61,16 @@ export function runLivePhaseText(run: AgentRun | null): string {
   }
   if (run.status === 'paused') return '本轮已暂停。';
   if (run.status === 'stopped') return '本轮已由你停止。';
+  if (isAuthorRejection(run)) return '你拒绝了这次修改。';
   if (run.status === 'failed') return '本轮遇到问题，详情在回复里。';
   if (run.status === 'completed') return '本轮已完成。';
   // 运行中：恒定一句，不随步骤详情变化，避免长程 run 每一步都念一遍。
   return 'Agent 正在处理本轮…';
+}
+
+/** 拒绝修改是作者的正常决定：引擎记成 failed，界面不能按失败报。 */
+export function isAuthorRejection(run: AgentRun | null | undefined): boolean {
+  return run?.status === 'failed' && run.rejectedByAuthor === true;
 }
 
 export function roleMentionQuery(value: string): string | null {

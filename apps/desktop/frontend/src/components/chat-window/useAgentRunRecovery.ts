@@ -90,10 +90,14 @@ export function useAgentRunRecovery(
   );
 
   const updateAgentStatus = useCallback(
-    (status: AgentRun['status']) => {
+    (status: AgentRun['status'], extra?: Pick<AgentRun, 'rejectedByAuthor'>) => {
       setAgentRun((run) =>
         run
-          ? { ...run, status: status === 'completed' && run.executionOutcome ? 'failed' : status }
+          ? {
+              ...run,
+              ...extra,
+              status: status === 'completed' && run.executionOutcome ? 'failed' : status,
+            }
           : run,
       );
       setAgentBusy(status === 'running');

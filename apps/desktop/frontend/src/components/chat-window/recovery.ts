@@ -41,6 +41,9 @@ export function buildAgentRunRecoveryDisplay(
   projection: AgentRunSavePointProjection | null | undefined,
 ): AgentRunRecoveryDisplay | null {
   if (!projection) return null;
+  // 作者拒绝了修改：引擎记成 failed，但没有要恢复的东西，不出「失败 · 需要手动重启本轮」卡。
+  if (projection.status === 'failed' && projection.current_step === 'permission.denied')
+    return null;
 
   const pending = recordFrom(projection.pending);
   const recoverability = recordFrom(projection.recoverability);
