@@ -290,6 +290,8 @@ async function readDraft(reader: ProjectReader, root: string): Promise<JsonObjec
   return draft;
 }
 
+const promiseKey = (id: JsonValue | undefined) => (typeof id === 'string' ? pythonStrip(id) : '');
+
 /** 把 proposals.json 草稿与作者 canon 差读出仍待确认的提议（只读）。 */
 export async function readPendingProposals(reader: ProjectReader, root: string) {
   const draft = await readDraft(reader, root);
@@ -311,8 +313,15 @@ export async function readPendingProposals(reader: ProjectReader, root: string) 
     const list = (value: JsonValue | undefined) =>
       Array.isArray(value) ? value.filter(isJsonObject) : [];
     const existing = list((canonInvariants as JsonObject)[key]);
+    // 伏笔按 id 认：并入后作者又标了回收，草稿里的旧版和 canon 不再全等，但同一 id 已经声明过、
+    // 界面并入也按 id 拒绝，再列出来就是一条点不掉的待办。
+    const declared =
+      key === 'promises'
+        ? new Set(existing.map((item) => promiseKey(item.id)).filter(Boolean))
+        : null;
     const pending = list((draftInvariants as JsonObject)[key]).filter(
-      (entry) => !existing.some((item) => pythonEquals(item, entry)),
+      (entry) =>
+        !existing.some((item) => pythonEquals(item, entry)) && !declared?.has(promiseKey(entry.id)),
     );
     if (pending.length) newInvariants[key] = pending;
   }

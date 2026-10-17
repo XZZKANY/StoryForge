@@ -97,6 +97,44 @@ async function execute(project: ReturnType<typeof memoryProject>, call: Call): P
   }
 }
 
+/**
+ * 接受的差异：canon 里已声明同 id 的伏笔不再算待确认。Python 按整对象比较，作者并入后又标了回收，
+ * 草稿里的旧版就重新冒出来，界面并入却按 id 拒绝。改判时从 Python 的期望里剔掉这些条目。
+ */
+let droppedDeclaredPromises = 0;
+async function declaredPromiseIds(project: ReturnType<typeof memoryProject>) {
+  const path = '.storyforge/canon/canon.json';
+  if ((await project.reader.inspectProjectPath(ROOT, path)).entryKind !== 'file')
+    return new Set<string>();
+  const { bytes } = await project.reader.readProjectBytes(ROOT, path, 1_000_000);
+  let canon: { invariants?: { promises?: { id?: unknown }[] } };
+  try {
+    canon = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return new Set<string>();
+  }
+  const promises = canon.invariants?.promises;
+  return new Set(
+    (Array.isArray(promises) ? promises : [])
+      .map((item) => String(item?.id ?? '').trim())
+      .filter(Boolean),
+  );
+}
+function dropDeclaredPromises(
+  proposals: { new_invariants?: { promises?: { id?: unknown }[] }; pending_count?: number },
+  declared: Set<string>,
+) {
+  const promises = proposals?.new_invariants?.promises;
+  if (!Array.isArray(promises)) return 0;
+  const kept = promises.filter((item) => !declared.has(String(item.id ?? '').trim()));
+  const dropped = promises.length - kept.length;
+  if (!dropped) return 0;
+  if (kept.length) proposals.new_invariants!.promises = kept;
+  else delete proposals.new_invariants!.promises;
+  proposals.pending_count! -= dropped;
+  return dropped;
+}
+
 describe('real Python proposal / plan / observatory replay', () => {
   for (const record of projects) {
     describe(record.id, () => {
@@ -107,16 +145,31 @@ describe('real Python proposal / plan / observatory replay', () => {
             project.apply(call.writes);
             return;
           }
+          const declared = await declaredPromiseIds(project);
+          let dropped = 0;
           if (call.error) {
             await expect(execute(project, call)).rejects.toThrow(FsToolError);
             await expect(execute(project, call)).rejects.toThrow(call.error.message);
           } else {
-            expect(stable(await execute(project, call))).toEqual(JSON.parse(call.output_json!));
+            const expected = JSON.parse(call.output_json!);
+            if (call.fn === 'read_pending_proposals' || call.fn === 'observatory_scan')
+              dropped = dropDeclaredPromises(
+                call.fn === 'observatory_scan' ? expected.proposals : expected,
+                declared,
+              );
+            droppedDeclaredPromises += dropped;
+            expect(stable(await execute(project, call))).toEqual(expected);
           }
           const writes = project.takeWrites();
           expect(Object.keys(writes).sort()).toEqual(Object.keys(call.writes).sort());
           for (const [path, file] of Object.entries(call.writes)) {
             const expected = decodeFixtureBytes(file!);
+            if (dropped && path.endsWith('derived/observations.json')) {
+              const cache = JSON.parse(new TextDecoder().decode(expected));
+              expect(dropDeclaredPromises(cache.proposals, declared), path).toBe(dropped);
+              expect(JSON.parse(new TextDecoder().decode(writes[path])), path).toEqual(cache);
+              continue;
+            }
             expect(new TextDecoder().decode(writes[path]), path).toBe(
               new TextDecoder().decode(expected),
             );
@@ -126,6 +179,8 @@ describe('real Python proposal / plan / observatory replay', () => {
       }
     });
   }
+  it('接受的差异恰好两处：delta 的两次观测镜扫描里 canon 已声明的 p-old', () =>
+    expect(droppedDeclaredPromises).toBe(2));
 });
 
 type PureCase = {
