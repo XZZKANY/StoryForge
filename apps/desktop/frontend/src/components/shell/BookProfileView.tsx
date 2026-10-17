@@ -28,6 +28,7 @@ import {
   FileText,
   ImagePlus,
   Library,
+  Pencil,
   Plus,
   RefreshCw,
   X,
@@ -130,6 +131,8 @@ export function BookProfileView({
   const [draft, setDraft] = useState<Draft>(() => toDraft(profile));
   const [tagDraft, setTagDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
+  // 正在改的那条速记（按行号认）：回车或移开焦点就保存，Esc 放弃。
+  const [editingNote, setEditingNote] = useState<{ line: number; text: string } | null>(null);
 
   // 档案换了一份（切项目 / 点刷新重读磁盘）就把编辑框拉回磁盘上的值。渲染期调整而不是
   // effect：后者会多跑一轮，那一轮里编辑框显示的还是上一本书的简介。
@@ -581,28 +584,64 @@ export function BookProfileView({
                   data-testid="book-note-row"
                   data-done={note.done}
                 >
+                  {editingNote?.line === note.line ? (
+                    <input
+                      autoFocus
+                      className="sf-input min-w-0 flex-1 rounded-sm border border-border-strong bg-background px-1.5 py-0.5 text-2xs text-foreground outline-none"
+                      aria-label="改这条速记"
+                      value={editingNote.text}
+                      onChange={(event) =>
+                        setEditingNote({ line: note.line, text: event.target.value })
+                      }
+                      onKeyDown={(event) => {
+                        if (event.nativeEvent.isComposing) return;
+                        if (event.key === 'Escape') setEditingNote(null);
+                        if (event.key !== 'Enter') return;
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }}
+                      onBlur={() => {
+                        const draft = editingNote;
+                        setEditingNote(null);
+                        if (draft && draft.text.trim() && draft.text.trim() !== note.text)
+                          void handle.editNote(note, draft.text);
+                      }}
+                      data-testid="book-note-edit-input"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 items-start gap-1.5 text-left"
+                      title={note.done ? '标记为未完成' : '标记为已完成'}
+                      aria-label={note.done ? '标记为未完成' : '标记为已完成'}
+                      aria-pressed={note.done}
+                      onClick={() => void handle.toggleNote(note)}
+                    >
+                      <span
+                        className={`mt-px grid h-4 w-4 flex-shrink-0 place-items-center rounded-xs border ${
+                          note.done ? 'border-muted text-muted' : 'border-border text-transparent'
+                        } hover:border-muted`}
+                      >
+                        <Check size={11} strokeWidth={3} aria-hidden="true" />
+                      </span>
+                      <span
+                        className={`min-w-0 flex-1 break-words text-2xs leading-snug ${
+                          note.done ? 'text-subtle line-through' : 'text-muted'
+                        }`}
+                      >
+                        {note.text}
+                      </span>
+                    </button>
+                  )}
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-start gap-1.5 text-left"
-                    title={note.done ? '标记为未完成' : '标记为已完成'}
-                    aria-label={note.done ? '标记为未完成' : '标记为已完成'}
-                    aria-pressed={note.done}
-                    onClick={() => void handle.toggleNote(note)}
+                    className="mt-[2px] flex-shrink-0 text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+                    title="改这条"
+                    aria-label={`改速记 ${note.text}`}
+                    onClick={() => setEditingNote({ line: note.line, text: note.text })}
+                    data-testid="book-note-edit"
                   >
-                    <span
-                      className={`mt-px grid h-4 w-4 flex-shrink-0 place-items-center rounded-xs border ${
-                        note.done ? 'border-muted text-muted' : 'border-border text-transparent'
-                      } hover:border-muted`}
-                    >
-                      <Check size={11} strokeWidth={3} aria-hidden="true" />
-                    </span>
-                    <span
-                      className={`min-w-0 flex-1 break-words text-2xs leading-snug ${
-                        note.done ? 'text-subtle line-through' : 'text-muted'
-                      }`}
-                    >
-                      {note.text}
-                    </span>
+                    <Pencil size={11} strokeWidth={2} />
                   </button>
                   <button
                     type="button"

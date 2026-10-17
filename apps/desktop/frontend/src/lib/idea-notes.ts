@@ -63,6 +63,25 @@ export function removeIdeaNote(content: string, line: number): string {
   return lines.join('\n');
 }
 
+/** 改一条的文字：缩进与勾选状态照旧；行号对不上或新文字为空就原样返回。 */
+export function editIdeaNote(content: string, line: number, text: string): string {
+  const next = text.trim();
+  const lines = content.split('\n');
+  if (!next || line < 0 || line >= lines.length) return content;
+  const match = lines[line].match(ITEM_PATTERN);
+  if (!match) return content;
+  const [, indent, mark] = match;
+  lines[line] = mark === undefined ? `${indent}- ${next}` : `${indent}- [${mark}] ${next}`;
+  return lines.join('\n');
+}
+
+/** 撤销删除：把删掉的那一行原样放回原来的位置。 */
+export function restoreIdeaNoteLine(content: string, line: number, raw: string): string {
+  const lines = content.split('\n');
+  lines.splice(Math.min(Math.max(line, 0), lines.length), 0, raw);
+  return lines.join('\n');
+}
+
 export function ideaNotesPath(projectPath: string): string {
   const separator = projectPath.includes('\\') ? '\\' : '/';
   return `${projectPath.replace(/[\\/]+$/, '')}${separator}灵感.md`;

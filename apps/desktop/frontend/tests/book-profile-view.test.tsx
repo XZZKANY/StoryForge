@@ -37,6 +37,7 @@ function makeHandle(overrides: Partial<BookProfileHandle> = {}): BookProfileHand
     addNote: vi.fn(async () => {}),
     toggleNote: vi.fn(async () => {}),
     removeNote: vi.fn(async () => {}),
+    editNote: vi.fn(async () => {}),
     refreshing: false,
     refresh: vi.fn(),
     ...overrides,
@@ -336,4 +337,26 @@ test('拆书运行中提供取消入口', async () => {
   assert.ok(cancel);
   await act(async () => cancel.click());
   assert.equal(onCancelBreakdown.mock.calls.length, 1);
+});
+
+test('速记能就地改字：点改、换文字、回车，交给 editNote 存', async () => {
+  const note = { line: 2, text: '十七楼那个人是刘哥的弟弟', done: false };
+  const handle = makeHandle({ notes: [note] });
+  const view = await renderView(handle);
+  await act(async () =>
+    view.querySelector<HTMLButtonElement>('[data-testid="book-note-edit"]')!.click(),
+  );
+  const input = view.querySelector<HTMLInputElement>('[data-testid="book-note-edit-input"]')!;
+  assert.equal(input.value, note.text);
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      input,
+      '十七楼是刘哥的弟弟',
+    );
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () =>
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+  );
+  assert.deepEqual(vi.mocked(handle.editNote).mock.calls[0], [note, '十七楼是刘哥的弟弟']);
 });
