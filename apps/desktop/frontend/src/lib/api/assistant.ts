@@ -12,6 +12,13 @@ export async function listAssistantSessions(options?: {
   return (await sessions()).listEngineSessions(options);
 }
 
+export async function renameAssistantSession(
+  assistantSessionId: number,
+  title: string,
+): Promise<void> {
+  await (await sessions()).renameEngineSession(assistantSessionId, title);
+}
+
 export async function getAssistantSession(
   assistantSessionId: number,
 ): Promise<AssistantSessionRecord> {

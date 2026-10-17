@@ -1,4 +1,4 @@
-import { Button, IconButton, FloatingSurface } from '../ui';
+import { Button, IconButton } from '../ui';
 
 import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
@@ -22,11 +22,11 @@ import { isModelRequestStep } from './agent-step-mapping';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { CHAT_COLUMN } from './column';
 import { DecisionChoices } from './DecisionChoices';
+import { SessionMenu } from './SessionMenu';
 import { contextBudgetText } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
 import { RunElapsed } from './RunElapsed';
 import { StreamPhase } from './StreamPhase';
-import { formatStoredTimeFull, formatStoredTimeShort } from '../../lib/stored-time';
 import type { AgentRun, AgentRunControlHandlers, Message } from './types';
 
 // RunActionBar 按钮统一到 Button 原语后的公共类：保留等效 h-8/text-xs 与按压反馈。
@@ -41,6 +41,8 @@ export function ConversationHeader({
   activeSessionId = null,
   onSelectSession,
   onNewSession,
+  onRenameSession,
+  onRemoveSession,
   layoutMode,
   onSetLayoutMode,
   onOpenObservatory,
@@ -51,6 +53,8 @@ export function ConversationHeader({
   activeSessionId?: number | null;
   onSelectSession?: (id: number) => void;
   onNewSession?: () => void;
+  onRenameSession?: (id: number, title: string) => void | Promise<void>;
+  onRemoveSession?: (id: number) => void;
   layoutMode?: LayoutMode;
   onSetLayoutMode?: (mode: LayoutMode) => void;
   onOpenObservatory?: () => void;
@@ -168,67 +172,16 @@ export function ConversationHeader({
           </>
         ))}
       {menuOpen && (
-        <>
-          <FloatingSurface
-            role="menu"
-            aria-label="操作"
-            triggerRef={menuTriggerRef}
-            onDismiss={() => setMenuOpen(false)}
-            className="animate-fade-in overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-dropdown w-64"
-          >
-            <div className="px-2 py-1 text-3xs uppercase tracking-[0.08em] text-subtle">
-              本项目的会话
-            </div>
-            {sessionList.length === 0 ? (
-              <div className="px-2 py-1.5 text-xs text-subtle">暂无历史会话</div>
-            ) : (
-              sessionList.map((session) => {
-                const active = session.id === activeSessionId;
-                return (
-                  <button
-                    role="menuitem"
-                    key={session.id}
-                    type="button"
-                    className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs transition-colors hover:bg-elevated ${
-                      active ? 'text-foreground' : 'text-muted hover:text-foreground'
-                    }`}
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onSelectSession?.(session.id);
-                    }}
-                    title={`会话 #${session.id} · ${formatStoredTimeFull(session.updated_at)}`}
-                    data-testid="session-item"
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {active ? '✓ ' : ''}
-                      {session.title.replace(/^IDE Agent:\s*/, '') || `会话 #${session.id}`}
-                    </span>
-                    <span className="flex-shrink-0 text-3xs text-subtle">
-                      {formatStoredTimeShort(session.updated_at)}
-                    </span>
-                  </button>
-                );
-              })
-            )}
-            {onNewSession && (
-              <>
-                <div className="mx-1.5 my-1 h-px bg-border" />
-                <button
-                  role="menuitem"
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onNewSession();
-                  }}
-                >
-                  <Plus size={13} strokeWidth={1.7} />
-                  新建会话
-                </button>
-              </>
-            )}
-          </FloatingSurface>
-        </>
+        <SessionMenu
+          sessions={sessionList}
+          activeSessionId={activeSessionId}
+          triggerRef={menuTriggerRef}
+          onDismiss={() => setMenuOpen(false)}
+          onSelectSession={onSelectSession}
+          onNewSession={onNewSession}
+          onRenameSession={onRenameSession}
+          onRemoveSession={onRemoveSession}
+        />
       )}
     </header>
   );

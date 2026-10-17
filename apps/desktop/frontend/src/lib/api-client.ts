@@ -20,6 +20,7 @@ export {
   getAssistantSession,
   listAssistantSessions,
   probeProviderHealth,
+  renameAssistantSession,
   reviseFileContent,
 } from './api/assistant';
 export type { AssistantReviseResult } from './api/assistant';

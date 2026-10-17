@@ -12,6 +12,7 @@ import { useAgentRunControls } from './chat-window/useAgentRunControls';
 import { useAgentRunRecovery } from './chat-window/useAgentRunRecovery';
 import { useAgentStreamEvent } from './chat-window/useAgentStreamEvent';
 import { useChatSessionContext } from './chat-window/useChatSessionContext';
+import { useSessionManagement } from './chat-window/useSessionManagement';
 import { useChatSubmission } from './chat-window/useChatSubmission';
 import { useChatWindowState } from './chat-window/useChatWindowState';
 import { useChapterCheckHistory } from './chat-window/useChapterCheckHistory';
@@ -71,6 +72,14 @@ export function ChatWindow(props: ChatWindowProps) {
   // 切会话/新建前的「有待确认内容」确认弹窗：ChatWindow 不消费壳层 dialogs，自挂一个 host。
   const dialogs = useAppDialog();
   const session = useChatSessionContext(state, props, { confirmLeave: dialogs.confirm });
+  const sessionManagement = useSessionManagement({
+    projectPath: props.projectPath ?? null,
+    sessions: state.assistantSessions,
+    setSessions: state.setAssistantSessions,
+    activeSessionId: props.assistantSessionId ?? null,
+    setConversationTitle: state.setConversationTitle,
+    onRemovedActive: () => void session.handleNewSession(),
+  });
   const recovery = useAgentRunRecovery(state, props.onAssistantSessionChange);
   const applyAgentStreamEvent = useAgentStreamEvent(state, recovery.refreshAgentRunRecovery);
   const runAuthorAgent = useRunAuthorAgent(
@@ -208,6 +217,9 @@ export function ChatWindow(props: ChatWindowProps) {
         agentPermissionProfile={agentPermissionProfile}
         onAgentPermissionProfileChange={onAgentPermissionProfileChange}
         handleSelectSession={session.handleSelectSession}
+        sessions={sessionManagement.visibleSessions}
+        onRenameSession={sessionManagement.renameSession}
+        onRemoveSession={sessionManagement.removeSession}
         handleNewSession={() => {
           // 待确认守卫可能拦下新建：只有真正切走了才清排队消息。
           void Promise.resolve(session.handleNewSession()).then((switched) => {
