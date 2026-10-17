@@ -667,14 +667,17 @@ export function useSuggestionWriteback({
               // 目标缓冲永远同步（切回来看到的就是已写回的内容），活动编辑器 UI 态只在目标仍在前台时动。
               const targetState = modelCacheRef.current.get(path) ?? null;
               const retainedTarget = targetState && targetState === targetStateAtStart;
+              let replaced = false;
               if (retainedTarget) {
                 targetState.originalContent = nextContent;
                 // Never replace typing that happened while snapshot/write/record awaited.
                 if (
                   (!restored || overrides.recoveredSettlementGuard?.()) &&
                   normalizeEol(targetState.model.getValue()) === normalizeEol(previous)
-                )
+                ) {
                   targetState.model.setValue(nextContent);
+                  replaced = true;
+                }
               }
               const targetStillActive = shouldSettleActiveEditor(
                 path,
@@ -688,6 +691,12 @@ export function useSuggestionWriteback({
                 targetStillActive
               ) {
                 originalContentRef.current = nextContent;
+                // 整篇换内容会把光标和滚动都拉回开头：停到第一处改动，作者接受完就看得到改了什么。
+                const changedLine = replaced ? firstChangedLine(previous, nextContent) : null;
+                if (changedLine !== null) {
+                  editorRef.current?.setPosition?.({ lineNumber: changedLine, column: 1 });
+                  editorRef.current?.revealLineInCenter?.(changedLine);
+                }
                 const currentContent = targetState!.model.getValue();
                 const dirty = normalizeEol(currentContent) !== normalizeEol(nextContent);
                 cleanVersionIdRef.current = dirty
@@ -1681,4 +1690,12 @@ export function useSuggestionWriteback({
     // 行间对话（Ctrl+K）接受时复用同一套快照 + 写盘 + 闭环记录 + 分支头，避免另起一套写回。
     writeAcceptedSuggestion,
   };
+}
+
+function firstChangedLine(before: string, after: string): number | null {
+  const left = before.split(/\r?\n/);
+  const right = after.split(/\r?\n/);
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1)
+    if (left[index] !== right[index]) return index + 1;
+  return null;
 }
