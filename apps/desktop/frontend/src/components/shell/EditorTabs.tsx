@@ -174,7 +174,7 @@ export function EditorTabs({
   onToggleHistory?: () => void;
   onExportActive?: () => void;
   onPolishActive?: (useMainModel: boolean) => void;
-  onCloseOthers?: () => void;
+  onCloseOthers?: (keep?: string) => void;
   onCloseAll?: () => void;
 }) {
   const showPreview = Boolean(previewFile) && !openFiles.includes(previewFile as string);
@@ -380,10 +380,15 @@ export function EditorTabs({
               label: '关闭',
               onSelect: () => requestClose(tabMenu.path, () => onCloseFile(tabMenu.path)),
             },
-            { label: '关闭其他', onSelect: () => onCloseOthers?.(), disabled: !onCloseOthers },
+            {
+              label: '关闭其他',
+              onSelect: () => onCloseOthers?.(tabMenu.path),
+              disabled: !onCloseOthers,
+            },
             { label: '关闭全部', onSelect: () => onCloseAll?.(), disabled: !onCloseAll },
           ]}
           onClose={() => setTabMenu(null)}
+          triggerRef={{ current: tabMenu.origin }}
         />
       )}
     </div>
