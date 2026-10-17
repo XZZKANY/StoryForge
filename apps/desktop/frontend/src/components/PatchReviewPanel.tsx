@@ -5,6 +5,7 @@ import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
 import { isEditableTarget } from '../lib/browser-guards';
 import { relativeToProject } from '../lib/project/path';
 import { buildPatchHunks, type PatchHunk } from '../lib/patch-hunks';
+import { markdownToPlainLine } from '../lib/plain-text';
 import { currentMonacoTheme } from '../lib/theme';
 import { proseReadingTypography, STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from './editor/options';
 
@@ -346,7 +347,9 @@ export function PatchReviewPanel({
             data-testid="patch-trace"
           >
             <p className="text-xs font-semibold text-warning">{suggestion.title}</p>
-            <p className="mt-1 text-xs text-muted">{suggestion.summary}</p>
+            <p className="mt-1 text-xs text-muted">
+              {markdownToPlainLine(suggestion.summary) ?? suggestion.summary}
+            </p>
             {suggestion.scopeWarning && (
               <p className="mt-1 text-xs text-warning" data-testid="patch-scope-warning">
                 ⚠ {suggestion.scopeWarning}
