@@ -428,3 +428,16 @@ test('写设定期间页头说明正在写入', async () => {
     cleanup();
   }
 });
+
+test('自动跑的检查器不再挂「保存时自动」，说明放进悬停提示', async () => {
+  try {
+    await renderView();
+    const row = container!
+      .querySelector<HTMLElement>('[data-testid="checker-row"][data-checker="canon"]')!
+      .querySelector<HTMLElement>('div')!;
+    assert.equal((row.textContent ?? '').includes('保存时自动'), false);
+    assert.equal(row.title, '设定检查：每次保存后自动重查');
+  } finally {
+    cleanup();
+  }
+});
