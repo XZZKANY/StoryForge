@@ -5,18 +5,18 @@ import {
   applyProviderPreset,
   describeProviderHealth,
   isProviderKind,
-  PROVIDER_RUNTIME_ENV_VARS,
   PROVIDER_OPTIONS,
   type ProviderHealth,
 } from '../src/lib/provider-config';
 import { sanitizeAppSettings } from '../src/lib/user-settings';
 
 test('provider configuration exposes stable presets for settings UI', () => {
-  assert.ok(
-    PROVIDER_OPTIONS.some(
-      (option) => option.value === 'local' && option.label.includes('StoryForge'),
-    ),
+  // 「StoryForge 本地网关」指向已删的 Python 后端，不再作为选项。
+  assert.equal(
+    PROVIDER_OPTIONS.some((option) => option.label.includes('StoryForge')),
+    false,
   );
+  assert.equal(isProviderKind('local'), false);
   assert.ok(PROVIDER_OPTIONS.some((option) => option.value === 'anthropic'));
   assert.ok(PROVIDER_OPTIONS.some((option) => option.value === 'gemini'));
   assert.ok(isProviderKind('openai'));
@@ -41,8 +41,15 @@ test('provider configuration exposes stable presets for settings UI', () => {
   });
 });
 
-test('provider configuration exposes the backend runtime environment key', () => {
-  assert.ok(PROVIDER_RUNTIME_ENV_VARS.includes('STORYFORGE_LLM_API_KEY'));
+test('旧版存过「本地网关」的配置按兼容 OpenAI 读，地址原样保留', () => {
+  const settings = sanitizeAppSettings({
+    provider: { kind: 'local', baseUrl: 'http://localhost:8000', model: 'm', apiKeyRef: '' },
+    polishProvider: { kind: 'local', baseUrl: 'http://localhost:8000', model: 'p', apiKeyRef: '' },
+  });
+  assert.equal(settings.provider.kind, 'openai-compatible');
+  assert.equal(settings.provider.baseUrl, 'http://localhost:8000');
+  // 润色槽的缺省是 anthropic；旧网关不能掉进去，否则请求换成另一族协议。
+  assert.equal(settings.polishProvider.kind, 'openai-compatible');
 });
 
 test('app settings sanitizer shares provider kind validation with provider configuration', () => {
@@ -162,5 +169,11 @@ test('describeProviderHealth marks misconfigured with missing env as a warning',
     health({ status: 'misconfigured', reachable: false, missingEnv: ['STORYFORGE_LLM_API_KEY'] }),
   );
   assert.equal(display.tone, 'warn');
-  assert.ok(display.label.includes('STORYFORGE_LLM_API_KEY'));
+  assert.equal(display.label, '还没填：API Key');
+});
+
+test('describeProviderHealth 不再说「后端」', () => {
+  const ok = describeProviderHealth(health({ status: 'ok' }));
+  const bare = describeProviderHealth(health({ status: 'misconfigured', reachable: false }));
+  for (const label of [ok.label, bare.label]) assert.equal(label.includes('后端'), false, label);
 });

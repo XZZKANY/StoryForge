@@ -28,7 +28,6 @@ import {
   describeProviderHealth,
   isProviderKind,
   PROVIDER_OPTIONS,
-  PROVIDER_RUNTIME_ENV_VARS,
 } from '../lib/provider-config';
 
 type SettingsViewProps = {
@@ -725,7 +724,8 @@ function ProbeRow({
 
 function ProviderRuntimeEnvNotice() {
   const query = useContext(SettingsSearchContext).trim().toLowerCase();
-  const description = `配置保存在本机 llm-provider.json，由桌面应用提供给后端。真实模型调用读取后端环境变量：${PROVIDER_RUNTIME_ENV_VARS.join('、')}。密钥不写入浏览器 localStorage。`;
+  const description =
+    '配置保存在本机 llm-provider.json，API Key 加密存放，保存后界面不再读回明文。模型请求由桌面应用直接发到你填的服务地址；密钥不写进浏览器存储，也不进日志。';
   if (query && !`连接与存储详情 ${description}`.toLowerCase().includes(query)) return null;
   return (
     <details
@@ -736,7 +736,7 @@ function ProviderRuntimeEnvNotice() {
       <summary className="cursor-pointer rounded-sm py-1 hover:text-foreground">
         连接与存储详情
         <span className="ml-2 text-muted" data-testid="provider-runtime-env-source">
-          桌面注入
+          仅存本机
         </span>
       </summary>
       <p className="mt-2 break-words leading-relaxed">{description}</p>

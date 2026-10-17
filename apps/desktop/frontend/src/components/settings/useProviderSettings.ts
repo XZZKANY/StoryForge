@@ -8,7 +8,7 @@ import {
 } from '../../lib/desktop-llm-config';
 import {
   describeProviderHealth,
-  isProviderKind,
+  providerKindOr,
   type ProviderHealth,
 } from '../../lib/provider-config';
 import { DEFAULT_APP_SETTINGS, type AppSettings } from '../../lib/user-settings';
@@ -25,7 +25,7 @@ const scopeKey = (provider: AppSettings['provider'], secret: string) =>
 const storedKey = (slot: Slot, value: DesktopLlmSlotConfig) =>
   scopeKey(
     {
-      kind: isProviderKind(value.provider) ? value.provider : DEFAULT_APP_SETTINGS[slot].kind,
+      kind: providerKindOr(value.provider, DEFAULT_APP_SETTINGS[slot].kind),
       baseUrl: value.baseUrl.trim(),
       model: value.model.trim(),
       apiKeyRef: '',
@@ -147,9 +147,7 @@ export function useProviderSettings(settings: AppSettings, onChange: (next: AppS
             if (!value || dirtyRef.current[slot]) return latest[slot];
             return {
               ...latest[slot],
-              kind: isProviderKind(value.provider)
-                ? value.provider
-                : DEFAULT_APP_SETTINGS[slot].kind,
+              kind: providerKindOr(value.provider, DEFAULT_APP_SETTINGS[slot].kind),
               baseUrl: value.baseUrl || latest[slot].baseUrl,
               model: value.model || latest[slot].model,
               apiKeyRef: value.hasApiKey

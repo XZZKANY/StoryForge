@@ -287,13 +287,11 @@ test('模型技术详情默认折叠但保留真实配置来源，探测的保�
   );
   assert.equal(details.open, false);
   assert.match(details.textContent ?? '', /llm-provider\.json/);
-  assert.match(details.textContent ?? '', /真实模型调用读取后端环境变量/);
-  for (const variable of ['PROVIDER', 'BASE_URL', 'MODEL', 'API_KEY']) {
-    assert.ok(details.textContent?.includes(`STORYFORGE_LLM_${variable}`));
-  }
+  assert.match(details.textContent ?? '', /由桌面应用直接发到你填的服务地址/);
+  assert.doesNotMatch(details.textContent ?? '', /后端|环境变量|STORYFORGE_LLM_/);
   assert.equal(
     required(container, '[data-testid="provider-runtime-env-source"]').textContent,
-    '桌面注入',
+    '仅存本机',
   );
   const detector = required<HTMLButtonElement>(container, '[data-testid="provider-detect-models"]');
   const descriptionId = detector.getAttribute('aria-describedby');
@@ -310,7 +308,7 @@ test('搜索可以找到技术详情，无匹配时 Tab 不落入被过滤的控
   const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
   assert.ok(setValue);
   await act(async () => {
-    setValue.call(search, 'STORYFORGE_LLM_API_KEY');
+    setValue.call(search, 'llm-provider');
     search.dispatchEvent(new Event('input', { bubbles: true }));
   });
   assert.equal(
