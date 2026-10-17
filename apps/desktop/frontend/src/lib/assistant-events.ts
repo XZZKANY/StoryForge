@@ -27,9 +27,12 @@ export async function flushActiveEditorToDisk(filePath: string, timeoutMs = 2000
 }
 
 /** 关闭须得到原目标已保存的证明；不沿用 Agent 对非活动文件 skipped 的宽松语义。 */
+// 作者在确认框里选了「保存并…」才走这里：保存前要给整本书拍影子快照，书大或机器忙时几秒很正常。
+export const SAVE_FOR_CLOSE_TIMEOUT_MS = 15000;
+
 export async function saveActiveEditorForClose(
   filePath: string,
-  timeoutMs = 2000,
+  timeoutMs = SAVE_FOR_CLOSE_TIMEOUT_MS,
 ): Promise<() => boolean> {
   const result = await requestActiveEditorSave(filePath, timeoutMs, true);
   if (!result.canClose) throw new Error('缺少原文件保存确认，已取消关闭');
@@ -410,7 +413,9 @@ function requestActiveEditorSave(
           reject(
             new ActiveEditorFlushError(
               'timeout',
-              `活动编辑器在 ${timeoutMs}ms 内没有确认保存，已停止发送给 Agent。`,
+              forClose
+                ? `保存没有在 ${Math.max(1, Math.round(timeoutMs / 1000))} 秒内完成，这次操作已取消；修改还在编辑器里。`
+                : `活动编辑器在 ${timeoutMs}ms 内没有确认保存，已停止发送给 Agent。`,
             ),
           ),
         ),
