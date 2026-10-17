@@ -225,6 +225,14 @@ it('stop is not settled on request, retains partial output and rejects late delt
   expect(host.textContent).not.toContain('迟到内容');
 });
 
+it('stopped before any text: no empty reply is added', async () => {
+  await begin();
+  await finish('AgentRun 已在 before_stream_yield 边界停止。', 'stopped');
+  expect(current.state.messages).toEqual([]);
+  expect(host.querySelector('[data-testid="assistant-message"]')).toBeNull();
+  expect(current.state.agentRun?.status).toBe('stopped');
+});
+
 it('gaps stop preview instead of inventing text; final still reconciles', async () => {
   await begin();
   await start();
@@ -495,15 +503,19 @@ it('failed review renders the authoritative formatted report instead of the mode
 });
 
 it.each(['stopped', 'paused'] as const)(
-  '%s runtime interruption with an execution outcome still retains preview and separate diagnosis',
+  '%s runtime interruption with an execution outcome retains preview without restating the stop',
   async (status) => {
     await begin();
     await start();
     await delta('保留控制前片段', 1);
     await delta('以及尚未刷新的片段', 2);
     const node = host.querySelector('[data-testid="assistant-message"]');
-    const reason = status === 'stopped' ? '本轮已停止' : '本轮已暂停';
-    await finish(reason, status, {
+    // 引擎 summary 的真实措辞（golden 冻结）；作者看到的是翻译后的话。
+    const summary =
+      status === 'stopped'
+        ? 'AgentRun 已在 before_stream_yield 边界停止。'
+        : 'AgentRun 已在 before_stream_yield 边界暂停，等待继续指令。';
+    await finish(summary, status, {
       execution_outcome: {
         status: 'partial',
         code: 'fixture_failure',
@@ -511,7 +523,10 @@ it.each(['stopped', 'paused'] as const)(
       },
     });
     expect(current.state.messages[0].content).toBe('保留控制前片段以及尚未刷新的片段');
-    expect(current.state.messages[0].stream?.detail).toBe(reason);
+    expect(current.state.messages[0].stream?.detail).toBeFalsy();
+    const reply = host.querySelector('[data-testid="assistant-message"]')!.textContent;
+    expect(reply).toContain('回复未完成');
+    expect(reply).not.toMatch(/AgentRun|before_stream_yield|边界|停下|已暂停/);
     expect(current.state.agentRun?.status).toBe(status);
     expect(host.querySelector('[data-testid="assistant-message"]')).toBe(node);
   },

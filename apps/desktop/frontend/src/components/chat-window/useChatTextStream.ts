@@ -177,7 +177,11 @@ export function useChatTextStream(setMessages: Dispatch<SetStateAction<Message[]
         const content = diagnostic ? settlement.detail : settlement.content;
         setMessages((messages) => {
           const index = messages.findIndex((message) => runId && message.stream?.runId === runId);
-          if (index < 0) return append ? [...messages, { role: 'assistant', content }] : messages;
+          // 出字之前就停了：不补一条空回复。
+          if (index < 0)
+            return append && (content || !diagnostic)
+              ? [...messages, { role: 'assistant', content }]
+              : messages;
           const previous = messages[index];
           const partial = current?.text ?? previous.content;
           const retainPartial = interrupted && !!partial && (diagnostic || !content.trim());
