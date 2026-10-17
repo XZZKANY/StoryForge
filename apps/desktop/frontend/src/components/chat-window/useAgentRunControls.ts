@@ -420,18 +420,24 @@ export function useAgentRunControls(
         return;
       }
       const ref = relativePath(projectPathRef.current, result.filePath);
+      // 说作者的话：写进了哪个文件就够了；内部记录文件的路径不进对话（导出的位置作者用得上，留着）。
       const content =
         result.status === 'completed'
           ? result.action === 'exported'
-            ? `作者闭环已完成：\`${ref}\` 已导出为交付稿。\n${result.artifactPath ?? result.message}`
+            ? `已把 \`${ref}\` 导出到：\n${result.artifactPath ?? result.message}`
             : result.warning
-              ? `正文已写回，但闭环记录未完成：\`${ref}\` 的记录需要补齐，不要重新应用补丁。\n${result.warning}`
-              : `作者闭环已完成：\`${ref}\` 已写回正文，并生成闭环记录。\n${result.recordPath ?? result.message}`
-          : `作者闭环失败：${result.message}`;
+              ? `已写进 \`${ref}\`，但这次的写作记录没存完整（正文不受影响），不要再点一次接受。\n${result.warning}`
+              : `已写进 \`${ref}\`。`
+          : `没能写进稿子：${result.message}`;
       if (result.runId && agentRunIdRef.current === result.runId) {
         updateAgentStep('approval', {
           status: result.status === 'completed' ? 'completed' : 'failed',
-          detail: result.artifactPath ?? result.recordPath ?? result.message,
+          detail:
+            result.status !== 'completed'
+              ? result.message
+              : result.action === 'exported'
+                ? (result.artifactPath ?? result.message)
+                : `已写进 ${ref}`,
         });
         if (result.runStatus) {
           updateAgentStatus(result.runStatus);

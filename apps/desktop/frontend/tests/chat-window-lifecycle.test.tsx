@@ -340,7 +340,7 @@ test('ChatWindow run 结果事件监听器在卸载时以原回调移除', () =>
   }
 });
 
-/** W02：正文已写回但闭环记录未完成时，聊天文案不得宣称「闭环记录已生成」。 */
+/** W02：正文已写回但写作记录没存完整时，聊天文案如实说，不说「都好了」。 */
 function AuthorLoopResultHarness({ onRender }: { onRender: (messages: Message[]) => void }) {
   const state = useChatWindowState({
     projectPath,
@@ -385,8 +385,8 @@ test('W02：审计失败降级文案如实说明记录未完成，不宣称闭�
 
     const last = seen.at(-1) ?? [];
     const content = last.map((message) => message.content).join('\n');
-    assert.match(content, /正文已写回，但闭环记录未完成/);
-    assert.doesNotMatch(content, /已写回正文，并生成闭环记录/);
+    assert.match(content, /已写进 `正文\/第01章.md`，但这次的写作记录没存完整/);
+    assert.match(content, /不要再点一次接受/);
     assert.match(content, /不要重新应用补丁/);
   } finally {
     act(() => root.unmount());
@@ -420,8 +420,9 @@ test('W02 对照：记录齐全的正常完成仍宣称闭环完成', () => {
 
     const last = seen.at(-1) ?? [];
     const content = last.map((message) => message.content).join('\n');
-    assert.match(content, /已写回正文，并生成闭环记录/);
-    assert.doesNotMatch(content, /闭环记录未完成/);
+    // 只说写进了哪个文件；内部记录文件的路径和「闭环」这类说法不进对话。
+    assert.match(content, /已写进 `正文\/第01章.md`。/);
+    assert.doesNotMatch(content, /author-loop|闭环|没存完整/);
   } finally {
     act(() => root.unmount());
     container.remove();
@@ -500,7 +501,7 @@ for (const scenario of [
           ?.map((message) => message.content)
           .join('\n') ?? '';
       if (scenario === 'other-project' || scenario === 'other-session') assert.equal(text, '');
-      else assert.match(text, /verified audit/);
+      else assert.match(text, /已写进 `chapter.md`/);
       if (scenario === 'failed-run') assert.match(text, /不代表整轮成功/);
     } finally {
       act(() => root.unmount());

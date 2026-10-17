@@ -404,3 +404,15 @@ it('keeps author-view selection, debounced model/content updates and cleanup aft
     modelSpy.mockRestore();
   }
 });
+
+it('接受改稿后编辑器停到第一处改动那一行，不跳回开头', async () => {
+  await open('第一段。\n第二段。\n第三段。\n第四段。\n');
+  await propose(
+    '第一段。\n第二段。\n第三段。\n第四段。\n',
+    '第一段。\n第二段。\n第三段改过。\n第四段。\n',
+  );
+  await accept();
+  await observe(() => expect(files.get(FILE)).toBe('第一段。\n第二段。\n第三段改过。\n第四段。\n'));
+  expect(__getLastEditor()?.revealedLine).toBe(3);
+  expect(__getLastEditor()?.position).toEqual({ lineNumber: 3, column: 1 });
+});

@@ -76,6 +76,16 @@ class FakeEditor {
   layout() {}
   dispose() {}
 
+  // 接受改稿后编辑器停到哪一行：测试读这两个值。
+  revealedLine: number | null = null;
+  position: { lineNumber: number; column: number } | null = null;
+  revealLineInCenter(line: number) {
+    this.revealedLine = line;
+  }
+  setPosition(position: { lineNumber: number; column: number }) {
+    this.position = position;
+  }
+
   updateOptions(options: Record<string, unknown>) {
     this.options = { ...this.options, ...options };
   }
