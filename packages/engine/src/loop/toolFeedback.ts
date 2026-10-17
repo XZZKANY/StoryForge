@@ -218,10 +218,17 @@ export function reviewFeedback(output: Obj): Obj {
 
 /** 修订反馈不带 before / after：既省预算，也防模型把未确认补丁当成已写回。 */
 export const reviseFeedback = (output: Obj): Obj =>
-  filled({
-    status: 'proposed_patch_created',
-    file_path: output.file_path,
-    summary: output.summary,
-    applied_scope: output.applied_scope,
-    note: '修订补丁已生成，等待作者在界面确认后才会写盘；不要假设已写回。',
-  });
+  output.unchanged === true
+    ? filled({
+        status: 'unchanged',
+        file_path: output.file_path,
+        summary: output.summary,
+        note: '修订结果与原文一字不差，没有生成补丁。如实告诉作者这次没有改动，不要说「改好了」。',
+      })
+    : filled({
+        status: 'proposed_patch_created',
+        file_path: output.file_path,
+        summary: output.summary,
+        applied_scope: output.applied_scope,
+        note: '修订补丁已生成，等待作者在界面确认后才会写盘；不要假设已写回。',
+      });
