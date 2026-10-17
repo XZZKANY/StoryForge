@@ -25,9 +25,16 @@ export const AGENT_PERMISSION_PROFILE_OPTIONS: ReadonlyArray<{
 }> = [
   { value: 'read', label: '只读', hint: '只读项目、只回答，不产生任何改动' },
   { value: 'ask', label: '询问', hint: '产出改动，但每次都要你在 diff 里点接受' },
-  { value: 'auto', label: '自动', hint: '项目内改动直接写盘（写前存快照），长任务仍要确认' },
-  { value: 'full', label: '完全放行', hint: '在「自动」之上，连烧 key 的长任务也不再二次确认' },
+  { value: 'auto', label: '自动', hint: '项目内改动直接写盘（写前存快照，可撤销）' },
 ];
+
+/**
+ * 「完全放行」只比「自动」多免一道长任务确认，而对话里已经没有长任务工具，两档实际一样，
+ * 选项里不再列它；已经存成 full 的作品照常可用（引擎仍认这个档位），这里按「自动」显示。
+ */
+export function visiblePermissionProfile(profile: AgentPermissionProfile): AgentPermissionProfile {
+  return profile === 'full' ? 'auto' : profile;
+}
 
 /** 与后端同表：所有历史档位一律落到 ask，迁移绝不把人升级成免点击落盘。 */
 const LEGACY_PROFILE_ALIASES: Record<string, AgentPermissionProfile> = {
