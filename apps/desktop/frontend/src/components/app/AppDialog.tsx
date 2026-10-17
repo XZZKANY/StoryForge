@@ -1,6 +1,6 @@
 import { DialogSurface, Input, Button } from '../ui';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 type DialogBase = {
   title: string;
@@ -184,6 +184,14 @@ export function AppDialogHost({
 }) {
   const primaryRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // 每个输入框只在弹出时选一次：选中扩展名前面的部分，直接打字就换掉名字、保留 .md。
+  const promptInstance = dialog?.kind === 'prompt' ? dialog.resolve : null;
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    if (!promptInstance || !input) return;
+    const dot = input.value.lastIndexOf('.');
+    input.setSelectionRange(0, dot > 0 ? dot : input.value.length);
+  }, [promptInstance]);
 
   if (!dialog) return null;
   const isPrompt = dialog.kind === 'prompt';

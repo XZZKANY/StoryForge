@@ -222,7 +222,6 @@ export function AppShell({
                 onSelectProject={(path) => void tabs.selectProjectSafely(path)}
                 onRemoveProject={(path) => void tabs.removeProjectSafely(path)}
                 onOpenProject={commands.handleOpenProject}
-                onNewFile={commands.handleNewFile}
                 onFileSelect={tabs.openFile}
                 onFilePreview={tabs.previewFileOpen}
                 fileActions={fileActions}

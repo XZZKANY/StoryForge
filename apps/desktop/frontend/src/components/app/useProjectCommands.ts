@@ -8,12 +8,10 @@ import {
   createSampleStoryProject,
   initializeStoryProject,
   relativePathInsideProject,
-  resolveProjectRelativePath,
 } from '../../lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from '../../lib/smoke';
-import { FS_MUTATION_EVENT, invalidateFileSystemCache, TauriFileSystem } from '../../lib/tauri-fs';
+import { FS_MUTATION_EVENT, invalidateFileSystemCache } from '../../lib/tauri-fs';
 import type { AppDialogApi } from './AppDialog';
-import { normalizeMarkdownFileName } from './helpers';
 import { useBookBreakdown } from './useBookBreakdown';
 import { useNewProject } from './useNewProject';
 import { normalizePathForMatch, normalizeRoot } from '../../lib/project/path';
@@ -198,54 +196,6 @@ export function useProjectCommands({
     return () => window.removeEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
   }, [activeProject, currentFile, onShowEditor, openFile]);
 
-  const handleNewFile = useCallback(
-    async (projectOverride?: string) => {
-      const targetProject = projectOverride ?? activeProject;
-      if (!targetProject) {
-        await handleOpenProject();
-        return;
-      }
-      const input = await dialogs.prompt({
-        title: '新建文件',
-        message: '输入文件名（带 .md 扩展名）：',
-        defaultValue: 'untitled.md',
-        confirmLabel: '创建',
-      });
-      if (input === null) return;
-      const relativePath = normalizeMarkdownFileName(input);
-      if (!relativePath) return;
-      const filePath = resolveProjectRelativePath(targetProject, relativePath);
-      if (!filePath) {
-        await dialogs.alert({
-          title: '新建文件失败',
-          message: '文件名必须位于当前项目内，不能使用绝对路径或 .. 跳出项目。',
-        });
-        return;
-      }
-      try {
-        const exists = await TauriFileSystem.pathExists(filePath);
-        if (exists) {
-          const shouldOpen = await dialogs.confirm({
-            title: '文件已存在',
-            message: '是否直接打开这个文件？',
-            confirmLabel: '打开',
-          });
-          if (!shouldOpen) return;
-        } else {
-          await TauriFileSystem.writeFile(targetProject, filePath, '# 新建文件\n\n');
-        }
-        await openFile(filePath, '打开新文件');
-      } catch (error) {
-        console.error('新建文件失败', error);
-        await dialogs.alert({
-          title: '新建文件失败',
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    },
-    [activeProject, dialogs, handleOpenProject, openFile],
-  );
-
   const handleInitializeStoryProject = useCallback(
     async (projectOverride?: string) => {
       const targetProject = projectOverride ?? activeProject;
@@ -335,7 +285,6 @@ export function useProjectCommands({
     handleOpenProject,
     handleWelcomeSend,
     handleCreateSampleProject,
-    handleNewFile,
     handleInitializeStoryProject,
     handleRefreshCanon,
     handleBookBreakdown,

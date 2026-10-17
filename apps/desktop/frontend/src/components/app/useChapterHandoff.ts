@@ -13,10 +13,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { executeIdeCommand } from '../../lib/api/ide-commands';
-import { nextChapterWriteRequest } from '../../lib/assistant-events';
 import { mapBookContextPayload } from '../../lib/book-context';
 import {
   buildChapterHandoff,
+  resolveHandoffChapters,
   type ChapterHandoff,
   type HandoffChapter,
 } from '../../lib/chapter-handoff';
@@ -32,19 +32,17 @@ export function useChapterHandoff({
 }: {
   projectPath: string | null;
   /** 后端阅读序章节（book.context）；尚未读到时传 null，不当成空手稿。 */
-  chapters: ReadonlyArray<HandoffChapter & { estimatedChars?: number | null }> | null;
+  chapters: ReadonlyArray<HandoffChapter> | null;
   promises: ObservatoryPromises | null;
   enabled?: boolean;
 }): ChapterHandoff | null {
   const [fetched, setFetched] = useState<{ key: string; previous: PreviousChapter } | null>(null);
   const seqRef = useRef(0);
 
-  const target =
-    chapters && chapters.length > 0 ? nextChapterWriteRequest(chapters).targetPath : null;
-  const last = chapters?.reduce<(typeof chapters)[number] | null>(
-    (latest, chapter) => (latest === null || chapter.ordinal > latest.ordinal ? chapter : latest),
-    null,
-  );
+  // 与交接同一推导：最后一章还空着时按它问，后端给回的正是前一章（真正写到的地方）的结尾。
+  const resolved = chapters && chapters.length > 0 ? resolveHandoffChapters(chapters) : null;
+  const target = resolved?.next.targetPath ?? null;
+  const last = resolved?.lastChapter ?? null;
   // 最后一章字数变了，结尾多半也变了：带进 key，写完回来看到的是新结尾。
   const key =
     projectPath && target && last

@@ -3,11 +3,13 @@ import { useCallback } from 'react';
 import { relativePathInsideProject, invalidateContextBundleCache } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import {
+  displayDocName,
   ensureMarkdownName,
   entryName,
   joinChild,
   sanitizeEntryName,
   siblingPath,
+  suggestNewFileName,
 } from '../../lib/fs-path-ops';
 import type { AppDialogApi } from './AppDialog';
 import { emitToast } from '../../lib/toast';
@@ -57,10 +59,11 @@ export function useFileTreeActions({
   const onNewFile = useCallback(
     async (dir: string) => {
       if (!activeProject) return;
+      const siblings = await TauriFileSystem.listDir(dir, false).catch(() => []);
       const input = await dialogs.prompt({
         title: '新建文件',
         message: `在 ${entryName(dir)} 下新建 Markdown 文件：`,
-        defaultValue: 'untitled.md',
+        defaultValue: suggestNewFileName(siblings.map((entry) => entry.name)),
         confirmLabel: '创建',
       });
       if (input === null) return;
@@ -77,7 +80,7 @@ export function useFileTreeActions({
           emitToast('该文件已存在，已为你打开');
           return;
         }
-        await TauriFileSystem.writeFile(activeProject, target, '# 新建文件\n\n');
+        await TauriFileSystem.writeFile(activeProject, target, `# ${displayDocName(name)}\n\n`);
         invalidateContextBundleCache(activeProject);
         await openFile(target, '打开新文件');
       } catch (error) {

@@ -42,6 +42,22 @@ export function displayDocName(name: string): string {
   return name.replace(/\.(md|markdown)$/i, '') || name;
 }
 
+/**
+ * 新建文件的默认名：同目录已有「第N章」就接着编下一章（位数照最宽的那个补零），
+ * 否则给「未命名.md」。
+ */
+export function suggestNewFileName(siblingNames: readonly string[]): string {
+  let next = 0;
+  let width = 3;
+  for (const name of siblingNames) {
+    const match = /^第(\d+)章/.exec(name);
+    if (!match) continue;
+    next = Math.max(next, Number(match[1]) + 1);
+    width = Math.max(width, match[1].length);
+  }
+  return next > 0 ? `第${String(next).padStart(width, '0')}章.md` : '未命名.md';
+}
+
 /** 新建 Markdown 文件名：规整后补 `.md` 扩展名（已带则不重复）。 */
 export function ensureMarkdownName(raw: string): string | null {
   const name = sanitizeEntryName(raw);
