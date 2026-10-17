@@ -21,7 +21,9 @@ import {
   appendIdeaNote,
   ideaNotesPath,
   parseIdeaNotes,
+  editIdeaNote,
   removeIdeaNote,
+  restoreIdeaNoteLine,
   toggleIdeaNote,
   type IdeaNote,
 } from '../../lib/idea-notes';
@@ -57,6 +59,7 @@ export type BookProfileHandle = {
   addNote: (text: string) => Promise<void>;
   toggleNote: (note: IdeaNote) => Promise<void>;
   removeNote: (note: IdeaNote) => Promise<void>;
+  editNote: (note: IdeaNote, text: string) => Promise<void>;
   refreshing: boolean;
   refresh: () => void;
 };
@@ -272,8 +275,23 @@ export function useBookProfile({
     (note: IdeaNote) => writeNotes(toggleIdeaNote(notesSource.current, note.line, !note.done)),
     [writeNotes],
   );
+  const editNote = useCallback(
+    (note: IdeaNote, text: string) =>
+      writeNotes(editIdeaNote(notesSource.current, note.line, text)),
+    [writeNotes],
+  );
   const removeNote = useCallback(
-    (note: IdeaNote) => writeNotes(removeIdeaNote(notesSource.current, note.line)),
+    async (note: IdeaNote) => {
+      const raw = notesSource.current.split('\n')[note.line];
+      await writeNotes(removeIdeaNote(notesSource.current, note.line));
+      if (raw === undefined) return;
+      emitToast('已删除这条速记', {
+        action: {
+          label: '撤销',
+          run: () => writeNotes(restoreIdeaNoteLine(notesSource.current, note.line, raw)),
+        },
+      });
+    },
     [writeNotes],
   );
 
@@ -300,6 +318,7 @@ export function useBookProfile({
     addNote,
     toggleNote,
     removeNote,
+    editNote,
     refreshing,
     refresh,
   };
