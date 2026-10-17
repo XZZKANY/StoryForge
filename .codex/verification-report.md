@@ -8606,3 +8606,9 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 真宿主实测（#380 rebase 后的巡检，侧栏 220px，作者常用宽度）：观测镜「检查器」里自动跑的三行写成「设… 冲突 0 · 提醒 0 保存时自动」，名字被挤得只剩一个字；悬停提示还是工具 id（`project.prose_check`）。
 - 改动：自动跑的检查器只靠绿点表示，不再挂「保存时自动」字样；这句话挪进悬停提示，写成「设定检查：每次保存后自动重查」。「按需」那几行不变。
 - 测试：`observatory-view` 加 1 条。变异 2 / 2。`pnpm verify` 8 道全过。真宿主复核：侧栏 220px 下七个检查器名字都不截断（逐个量 scrollWidth ≤ clientWidth）。
+
+## 2026-10-17 设置搜索框的 Esc 先清空搜索（复查 AUD-06）
+
+- 复查报告 AUD-06（真宿主巡检，两次重开设置复现）：设置顶部搜索框输入「不存在的设置项XYZ」后按 Esc，设置直接关掉、回到写作台。源码核实：搜索框的 `onKeyDown` 本想在有查询时先清空，但弹层系统在 window 捕获阶段处理顶层弹层的 Esc（`stopImmediatePropagation` 后关闭），只放行 Monaco 和带 `data-esc-handled` 的元素，搜索框没有声明。
+- 改动：搜索框有查询时挂 `data-esc-handled`，Esc 先清空搜索，清空后再按 Esc 才关设置；输入法组字中按 Esc 只取消组字，不清搜索。
+- 测试：`settings-accessibility` 加 2 条。变异 3 / 3（去掉标记、组字也清、空查询也自理 Esc）。`pnpm verify` 8 道全过。

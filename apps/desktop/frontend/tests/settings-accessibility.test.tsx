@@ -325,3 +325,36 @@ test('搜索可以找到技术详情，无匹配时 Tab 不落入被过滤的控
   key(first, 'Tab', { shiftKey: true });
   assert.equal(document.activeElement === search, true);
 });
+
+test('搜索有内容时 Esc 只清空搜索、设置不关，清空后再按 Esc 才关', async () => {
+  const { container, opener } = await openSettings();
+  const search = required<HTMLInputElement>(container, '[data-testid="settings-search"]');
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  assert.ok(setValue);
+  await act(async () => {
+    setValue.call(search, '不存在的设置项XYZ');
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const first = key(search, 'Escape');
+  assert.equal(search.value, '');
+  assert.equal(first.defaultPrevented, false);
+  assert.ok(container.querySelector('[role="dialog"]'));
+  assert.equal(document.activeElement === search, true);
+  key(search, 'Escape');
+  assert.equal(container.querySelector('[role="dialog"]'), null);
+  assert.equal(document.activeElement === opener, true);
+});
+
+test('输入法组字中按 Esc 不清搜索', async () => {
+  const { container } = await openSettings();
+  const search = required<HTMLInputElement>(container, '[data-testid="settings-search"]');
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  assert.ok(setValue);
+  await act(async () => {
+    setValue.call(search, '外观');
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  key(search, 'Escape', { isComposing: true });
+  assert.equal(search.value, '外观');
+  assert.ok(container.querySelector('[role="dialog"]'));
+});
