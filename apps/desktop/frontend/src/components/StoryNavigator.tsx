@@ -3,7 +3,7 @@
  * 文件视角保持真实目录树，故事视角按 StoryForge 语义目录重组同一批 Markdown 文件。
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildProjectIndex,
   semanticKindLabel,
@@ -11,10 +11,13 @@ import {
   type SemanticFile,
   type SemanticKind,
 } from '../lib/project-context';
+import { invalidateFileSystemCache } from '../lib/tauri-fs';
+import { RefreshCw } from './icons/shell-icons';
 import { PanelError } from './shell/PanelError';
 import { ResourceExplorer } from './ResourceExplorer';
 import { MarkdownFileIcon } from './StoryIcons';
 import type { FileTreeActions } from './app/useFileTreeActions';
+import { IconButton } from './ui';
 
 type StoryNavigatorProps = {
   projectPath: string | null;
@@ -27,6 +30,9 @@ type StoryNavigatorProps = {
 };
 
 type NavigatorTab = 'files' | 'story';
+
+// 窗口刚拿回焦点时 focus 与 visibilitychange 常常一起来，只读一次盘。
+const FOCUS_REFRESH_MIN_INTERVAL_MS = 1500;
 
 const STORY_GROUPS: Array<{ kind: SemanticKind; description: string }> = [
   { kind: 'outline', description: '总纲、章节节点、场景计划' },
@@ -76,9 +82,35 @@ export function StoryNavigator({
   const [error, setError] = useState<string | null>(null);
   // 索引装载失败后的本地重试计数；与 refreshVersion 并列驱动同一个 effect。
   const [retryNonce, setRetryNonce] = useState(0);
+  // 应用外的改动（在系统资源管理器里建文件夹、挪文件）只能靠重读发现：手动刷新或切回窗口。
+  const [localRefresh, setLocalRefresh] = useState(0);
+  const lastReloadRef = useRef(0);
+  const indexProjectRef = useRef<string | null>(null);
+  const reload = useCallback(() => {
+    if (!projectPath) return;
+    lastReloadRef.current = Date.now();
+    invalidateFileSystemCache(projectPath);
+    setLocalRefresh((value) => value + 1);
+  }, [projectPath]);
+  useEffect(() => {
+    if (!projectPath) return;
+    const onReturn = () => {
+      if (document.visibilityState === 'hidden') return;
+      if (Date.now() - lastReloadRef.current < FOCUS_REFRESH_MIN_INTERVAL_MS) return;
+      reload();
+    };
+    window.addEventListener('focus', onReturn);
+    document.addEventListener('visibilitychange', onReturn);
+    return () => {
+      window.removeEventListener('focus', onReturn);
+      document.removeEventListener('visibilitychange', onReturn);
+    };
+  }, [projectPath, reload]);
+  const treeRefresh = refreshVersion + localRefresh;
 
   useEffect(() => {
     if (!projectPath || activeTab !== 'story') {
+      indexProjectRef.current = null;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 项目或视图失效时同步清空派生索引
       setIndex(null);
       setError(null);
@@ -87,15 +119,22 @@ export function StoryNavigator({
     }
 
     let cancelled = false;
-    setLoading(true);
+    // 同一本书重读时不闪「加载中」，索引原地换新。
+    if (indexProjectRef.current !== projectPath) setLoading(true);
     setError(null);
 
     void (async () => {
       try {
         const nextIndex = await buildProjectIndex(projectPath);
-        if (!cancelled) setIndex(nextIndex);
+        if (!cancelled) {
+          indexProjectRef.current = projectPath;
+          setIndex(nextIndex);
+        }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : '加载故事索引失败');
+        if (!cancelled) {
+          indexProjectRef.current = null;
+          setError(err instanceof Error ? err.message : '加载故事索引失败');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -104,7 +143,7 @@ export function StoryNavigator({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, projectPath, refreshVersion, retryNonce]);
+  }, [activeTab, projectPath, treeRefresh, retryNonce]);
 
   const storyGroups = useMemo(() => buildStoryNavigationGroups(index?.files ?? []), [index]);
 
@@ -123,11 +162,23 @@ export function StoryNavigator({
             onClick={() => setActiveTab('story')}
           />
         </div>
-        {index && activeTab === 'story' && (
-          <span className="text-2xs text-subtle" data-testid="story-file-count">
-            {index.files.length} 个文件
-          </span>
-        )}
+        <div className="flex items-center gap-1">
+          {index && activeTab === 'story' && (
+            <span className="text-2xs text-subtle" data-testid="story-file-count">
+              {index.files.length} 个文件
+            </span>
+          )}
+          {projectPath && (
+            <IconButton
+              size="xs"
+              label="重新读取文件列表"
+              tooltip="重新读取文件列表（在别处改过文件夹时用；切回窗口也会自动重读）"
+              icon={<RefreshCw size={13} strokeWidth={1.6} />}
+              onClick={reload}
+              data-testid="file-tree-refresh"
+            />
+          )}
+        </div>
       </div>
 
       <div className="min-h-0 flex-1">
@@ -136,7 +187,7 @@ export function StoryNavigator({
             projectPath={projectPath}
             currentFile={currentFile}
             previewFile={previewFile}
-            refreshVersion={refreshVersion}
+            refreshVersion={treeRefresh}
             onFileSelect={onFileSelect}
             onFilePreview={onFilePreview}
             fileActions={fileActions}

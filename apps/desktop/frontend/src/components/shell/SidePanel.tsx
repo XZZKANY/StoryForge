@@ -253,6 +253,7 @@ function ExplorerView({
           onClick={() => setMenuOpen((open) => !open)}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
+          title={`${titleOf(activeProject)}（切换作品）`}
           data-testid="toggle-project-library"
         >
           <span className="min-w-0 flex-1 truncate text-left">{titleOf(activeProject)}</span>
