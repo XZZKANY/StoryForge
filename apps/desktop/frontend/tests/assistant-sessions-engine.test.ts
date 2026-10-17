@@ -83,7 +83,7 @@ describe('left rail sessions live in the engine database', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('caps the list at 50 like the Python route', async () => {
+  it('缺省 20 条；要多少给多少，上限 500（会话多了也能在列表里搜到早先的）', async () => {
     const { engineSessions } = await import('../src/lib/engine/store');
     await engineSessions({ values: [] });
     await fixture.db!.transaction([
@@ -95,7 +95,8 @@ describe('left rail sessions live in the engine database', () => {
       },
     ]);
     const { listAssistantSessions } = await sessionsApi();
-    expect(await listAssistantSessions({ limit: 99 })).toHaveLength(50);
+    expect(await listAssistantSessions({ limit: 55 })).toHaveLength(55);
+    expect(await listAssistantSessions({ limit: 9999 })).toHaveLength(60);
     expect(await listAssistantSessions()).toHaveLength(20);
   });
 });

@@ -1,0 +1,170 @@
+/**
+ * 对话头的会话下拉：本项目的会话列表（可搜）、就地改名、从列表移除、新建会话。
+ * 改名在行内改，不弹居中对话框；回车保存，Esc 放弃。
+ */
+import { useState, type RefObject } from 'react';
+
+import type { AssistantSessionRecord } from '../../lib/api-client';
+import { formatStoredTimeFull, formatStoredTimeShort } from '../../lib/stored-time';
+import { Pencil, Plus, Search, X } from '../icons/shell-icons';
+import { FloatingSurface } from '../ui';
+import { sessionDisplayTitle } from './useSessionManagement';
+
+const actionClass =
+  'grid h-6 w-6 flex-shrink-0 place-items-center rounded-sm text-subtle opacity-0 transition-opacity hover:bg-elevated hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100';
+
+export function SessionMenu({
+  sessions,
+  activeSessionId,
+  triggerRef,
+  onDismiss,
+  onSelectSession,
+  onNewSession,
+  onRenameSession,
+  onRemoveSession,
+}: {
+  sessions: AssistantSessionRecord[];
+  activeSessionId: number | null;
+  triggerRef: RefObject<HTMLButtonElement | null>;
+  onDismiss: () => void;
+  onSelectSession?: (id: number) => void;
+  onNewSession?: () => void;
+  onRenameSession?: (id: number, title: string) => void | Promise<void>;
+  onRemoveSession?: (id: number) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [editing, setEditing] = useState<{ id: number; title: string } | null>(null);
+  const needle = query.trim().toLowerCase();
+  const shown = needle
+    ? sessions.filter((session) => sessionDisplayTitle(session).toLowerCase().includes(needle))
+    : sessions;
+
+  const commitRename = () => {
+    if (!editing) return;
+    const { id, title } = editing;
+    setEditing(null);
+    void onRenameSession?.(id, title);
+  };
+
+  return (
+    <FloatingSurface
+      role="menu"
+      aria-label="本项目的会话"
+      triggerRef={triggerRef}
+      onDismiss={onDismiss}
+      className="animate-fade-in w-72 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-dropdown"
+    >
+      <div className="px-2 py-1 text-3xs uppercase tracking-[0.08em] text-subtle">本项目的会话</div>
+      {sessions.length > 0 && (
+        <label className="sf-form-shell mx-1 mb-1 flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs">
+          <Search size={12} strokeWidth={1.7} className="flex-shrink-0 text-subtle" />
+          <input
+            className="sf-inner-input min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-subtle"
+            placeholder="搜会话标题"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            data-testid="session-search"
+          />
+        </label>
+      )}
+      {sessions.length === 0 ? (
+        <div className="px-2 py-1.5 text-xs text-subtle">暂无历史会话</div>
+      ) : shown.length === 0 ? (
+        <div className="px-2 py-1.5 text-xs text-subtle">没有标题里含「{query.trim()}」的会话</div>
+      ) : (
+        shown.map((session) => {
+          const active = session.id === activeSessionId;
+          const title = sessionDisplayTitle(session);
+          if (editing?.id === session.id)
+            return (
+              <div key={session.id} className="px-1 py-0.5">
+                <input
+                  autoFocus
+                  className="sf-input w-full rounded-sm border border-border-strong bg-background px-2 py-1 text-xs text-foreground outline-none"
+                  aria-label="会话新标题"
+                  value={editing.title}
+                  onChange={(event) => setEditing({ id: session.id, title: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.nativeEvent.isComposing || event.key !== 'Enter') return;
+                    event.preventDefault();
+                    commitRename();
+                  }}
+                  onBlur={commitRename}
+                  data-testid="session-rename-input"
+                />
+              </div>
+            );
+          return (
+            <div
+              key={session.id}
+              className="group flex items-center gap-0.5 rounded-sm hover:bg-elevated"
+            >
+              <button
+                role="menuitem"
+                type="button"
+                className={`flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-xs ${
+                  active ? 'text-foreground' : 'text-muted hover:text-foreground'
+                }`}
+                onClick={() => {
+                  onDismiss();
+                  onSelectSession?.(session.id);
+                }}
+                title={`会话 #${session.id} · ${formatStoredTimeFull(session.updated_at)}`}
+                data-testid="session-item"
+              >
+                <span className="min-w-0 flex-1 truncate">
+                  {active ? '✓ ' : ''}
+                  {title}
+                </span>
+                <span className="flex-shrink-0 text-3xs text-subtle">
+                  {formatStoredTimeShort(session.updated_at)}
+                </span>
+              </button>
+              {onRenameSession && (
+                <button
+                  type="button"
+                  className={actionClass}
+                  aria-label={`改名：${title}`}
+                  title="改名"
+                  onClick={() => setEditing({ id: session.id, title })}
+                  data-testid="session-rename"
+                >
+                  <Pencil size={12} strokeWidth={1.7} />
+                </button>
+              )}
+              {onRemoveSession && (
+                <button
+                  type="button"
+                  className={actionClass}
+                  aria-label={`从列表移除：${title}`}
+                  title="从列表移除（记录仍保留在本机）"
+                  onClick={() => onRemoveSession(session.id)}
+                  data-testid="session-remove"
+                >
+                  <X size={12} strokeWidth={1.7} />
+                </button>
+              )}
+            </div>
+          );
+        })
+      )}
+      {onNewSession && (
+        <>
+          <div className="mx-1.5 my-1 h-px bg-border" />
+          <button
+            role="menuitem"
+            type="button"
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
+            onClick={() => {
+              onDismiss();
+              onNewSession();
+            }}
+          >
+            <Plus size={13} strokeWidth={1.7} />
+            新建会话
+          </button>
+        </>
+      )}
+    </FloatingSurface>
+  );
+}

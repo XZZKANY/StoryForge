@@ -14,6 +14,7 @@ import {
 } from './panels';
 import type { AgentRunControlHandlers, ChatWindowProps } from './types';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
+import type { AssistantSessionRecord } from '../../lib/api-client';
 import type { ChatWindowState } from './useChatWindowState';
 import type { QueuedChatMessage } from './useChatSubmission';
 import { ChapterCheckHistoryPanel } from './ChapterCheckHistoryPanel';
@@ -35,6 +36,10 @@ type Props = {
   onAgentPermissionProfileChange: (profile: AgentPermissionProfile) => void;
   handleSelectSession: (id: number) => void;
   handleNewSession: () => void;
+  /** 列表里该显示的会话（已移除的藏掉）；缺省用全部。 */
+  sessions?: AssistantSessionRecord[];
+  onRenameSession?: (id: number, title: string) => void | Promise<void>;
+  onRemoveSession?: (id: number) => void;
   retryAssistantSessionLoad: () => void;
   retryContextCandidates: () => void;
   addExplicitContext: () => void;
@@ -65,6 +70,9 @@ export function ChatWindowView({
   onAgentPermissionProfileChange,
   handleSelectSession,
   handleNewSession,
+  sessions,
+  onRenameSession,
+  onRemoveSession,
   retryAssistantSessionLoad,
   retryContextCandidates,
   addExplicitContext,
@@ -133,10 +141,12 @@ export function ChatWindowView({
 
       <ConversationHeader
         title={state.conversationTitle}
-        sessions={state.assistantSessions}
+        sessions={sessions ?? state.assistantSessions}
         activeSessionId={assistantSessionId ?? null}
         onSelectSession={handleSelectSession}
         onNewSession={handleNewSession}
+        onRenameSession={onRenameSession}
+        onRemoveSession={onRemoveSession}
         layoutMode={layoutMode}
         onSetLayoutMode={onSetLayoutMode}
         onOpenObservatory={onOpenObservatory}

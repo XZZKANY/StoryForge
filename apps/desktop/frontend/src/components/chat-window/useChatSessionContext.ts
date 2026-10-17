@@ -173,7 +173,7 @@ export function useChatSessionContext(
   useEffect(() => {
     if (!projectPath) return;
     let cancelled = false;
-    void listAssistantSessions({ projectPath, limit: 20 })
+    void listAssistantSessions({ projectPath, limit: 100 })
       .then((records) => {
         if (!cancelled) setAssistantSessions(records);
       })
