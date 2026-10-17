@@ -128,22 +128,58 @@ export async function snapshotBeforeWrite(
   deliveryTicket?: string,
 ): Promise<{ path: string; timestamp: number; created: boolean } | null> {
   if (!projectPath) return null;
+  if (!versionDirFor(projectPath, filePath)) return null;
+  const created = !(await targetFileExists(filePath));
+  const snapshot = await createShadowSnapshot(projectPath, deliveryTicket);
+  return await recordShadowVersion(
+    projectPath,
+    filePath,
+    snapshot.treeHash,
+    created,
+    metadata,
+    deliveryTicket,
+  );
+}
+
+/**
+ * 删除前给要删的每个文件各记一条版本：整本书只拍一次影子快照（文件夹里文件多时逐个拍太慢），
+ * 每个文件各写一条元数据与保活 ref。任一步失败都会 reject，调用方不得继续删除。
+ */
+export async function snapshotBeforeDelete(
+  projectPath: string,
+  filePaths: readonly string[],
+): Promise<void> {
+  if (filePaths.length === 0) return;
+  const snapshot = await createShadowSnapshot(projectPath);
+  for (const filePath of filePaths) {
+    await recordShadowVersion(projectPath, filePath, snapshot.treeHash, false, {
+      source: 'Editor',
+      summary: '删除前快照',
+    });
+  }
+}
+
+async function recordShadowVersion(
+  projectPath: string,
+  filePath: string,
+  treeHash: string,
+  created: boolean,
+  metadata: VersionSnapshotMetadata,
+  deliveryTicket?: string,
+): Promise<{ path: string; timestamp: number; created: boolean } | null> {
   const dir = versionDirFor(projectPath, filePath);
   const relativeFile = relativePathInsideProject(projectPath, filePath);
   if (!dir || !relativeFile) return null;
-
-  const created = !(await targetFileExists(filePath));
   const checkpoint = metadata.checkpoint === true;
   const s = sep(projectPath);
   const targetDir = checkpoint ? `${dir}${s}${CHECKPOINT_DIR}` : dir;
   const timestamp = nextTimestamp();
   const recordId = nextRecordId(timestamp);
   const metaPath = `${targetDir}${s}${timestamp}${META_SUFFIX}`;
-  const snapshot = await createShadowSnapshot(projectPath, deliveryTicket);
   const stored: StoredVersionMetadata = {
     schemaVersion: 2,
     storage: 'shadow-git',
-    treeHash: snapshot.treeHash,
+    treeHash,
     recordId,
     source: metadata.source ?? 'Editor',
     summary: metadata.summary ?? '手动保存前快照',
@@ -166,7 +202,7 @@ export async function snapshotBeforeWrite(
       `${JSON.stringify(stored, null, 2)}\n`,
       deliveryTicket,
     );
-    await retainShadowSnapshot(projectPath, snapshot.treeHash, recordId, deliveryTicket);
+    await retainShadowSnapshot(projectPath, treeHash, recordId, deliveryTicket);
   } catch (error) {
     await Promise.allSettled([
       releaseShadowSnapshot(projectPath, recordId, deliveryTicket),
