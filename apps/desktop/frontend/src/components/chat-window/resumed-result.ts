@@ -32,13 +32,19 @@ export function statusFromAgentResult(response: AgentResultMessage): AgentRun['s
       : 'completed';
 }
 
+// 引擎的中断 summary 写的是运行器边界名（golden 冻结），给作者看的话在这里说。
+// 回复里不复述：停了 / 暂停由底部状态条说，回复只标「回复未完成」。
+function interruptionText(status: 'stopped' | 'paused'): string {
+  return status === 'stopped' ? '已按你的要求停下。' : '已暂停。';
+}
+
 /** A runtime interruption carries a diagnosis; execution_outcome alone does not demote its body. */
 export function textSettlementFromAgentResult(
   response: AgentResultMessage,
   content: string,
 ): AgentTextSettlement {
   return runtimeInterruptionFromResult(response)
-    ? { kind: 'diagnostic', detail: response.agent_result.summary ?? content }
+    ? { kind: 'diagnostic', detail: '' }
     : { kind: 'result', content };
 }
 
@@ -52,7 +58,7 @@ export function stepsFromResumedAgentResult(response: AgentResultMessage): Agent
         title: interruption.status === 'stopped' ? '本轮已停止' : '本轮已暂停',
         tool: 'agent.runtime.control',
         status: 'completed',
-        detail: response.agent_result.summary ?? '当前操作已结束。',
+        detail: interruptionText(interruption.status),
       },
     ];
   }

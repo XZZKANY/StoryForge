@@ -329,6 +329,31 @@ test('resumed agent result maps to completed recovery steps when no confirmation
   assert.equal(steps.at(-1)?.status, 'completed');
 });
 
+test('resumed stopped run tells the author it stopped, not the runner boundary', () => {
+  const response = {
+    type: 'agent_result',
+    session_id: 'agent-session',
+    run_id: 'run-1',
+    assistant_session_id: 42,
+    intent: 'chat.explain',
+    user_message: '写一段',
+    plan: [],
+    tool_trace: [],
+    proposed_patch: null,
+    agent_result: {
+      summary: 'AgentRun 已在 before_stream_yield 边界停止。',
+      requires_user_confirmation: false,
+      runtime_interrupted: true,
+    },
+    runtime_interruption: { status: 'stopped', boundary: 'before_stream_yield' },
+  };
+
+  assert.equal(statusFromAgentResult(response), 'stopped');
+  const control = stepsFromResumedAgentResult(response).at(-1);
+  assert.equal(control?.title, '本轮已停止');
+  assert.equal(control?.detail, '已按你的要求停下。');
+});
+
 test('resumed agent result preserves waiting status for confirmation results', () => {
   const response = {
     type: 'agent_result',
