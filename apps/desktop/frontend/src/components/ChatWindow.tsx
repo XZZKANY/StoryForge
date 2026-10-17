@@ -23,6 +23,7 @@ import {
   emitChapterWriteRequest,
   REQUEST_CHAPTER_POLISH_EVENT,
   REQUEST_CHAPTER_WRITE_EVENT,
+  REQUEST_AGENT_PROMPT_EVENT,
   REQUEST_NEW_SESSION_EVENT,
   RETRY_WITHOUT_KNOWLEDGE_EVENT,
   type ChapterPolishRequest,
@@ -210,15 +211,22 @@ export function ChatWindow(props: ChatWindowProps) {
       if (switched) submission.clearQueuedMessages();
     });
   };
-  const startNewSessionRef = useRef(startNewSession);
+  const bridgeRef = useRef({ startNewSession, submit: submission.handleComposerSubmit });
   useLayoutEffect(() => {
-    startNewSessionRef.current = startNewSession;
+    bridgeRef.current = { startNewSession, submit: submission.handleComposerSubmit };
   });
-  // 命令面板「新建会话」走事件桥：与对话头按钮同一条路径，同样会被待确认守卫拦下。
+  // 命令面板「新建会话」、观测镜「让 AI 查」走事件桥：与对话头按钮、输入框发送同一条路径，
+  // 同样受待确认守卫与排队约束。
   useEffect(() => {
-    const onNewSession = () => startNewSessionRef.current();
+    const onNewSession = () => bridgeRef.current.startNewSession();
+    const onPrompt = (event: Event) =>
+      void bridgeRef.current.submit((event as CustomEvent<{ text?: string }>).detail?.text ?? '');
     window.addEventListener(REQUEST_NEW_SESSION_EVENT, onNewSession);
-    return () => window.removeEventListener(REQUEST_NEW_SESSION_EVENT, onNewSession);
+    window.addEventListener(REQUEST_AGENT_PROMPT_EVENT, onPrompt);
+    return () => {
+      window.removeEventListener(REQUEST_NEW_SESSION_EVENT, onNewSession);
+      window.removeEventListener(REQUEST_AGENT_PROMPT_EVENT, onPrompt);
+    };
   }, []);
 
   return (
