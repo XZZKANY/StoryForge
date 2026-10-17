@@ -6,12 +6,26 @@
  * 过期响应守卫：项目切换或新扫描发起后，旧响应一律丢弃（同 F26 会话切换守卫纪律）。
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { AppDialogApi } from './AppDialog';
 import type { Observation, ObservationAvailability } from '../shell/ObsPanel';
 import { executeIdeCommand } from '../../lib/api/ide-commands';
 import { EDITOR_CURSOR_LINE_EVENT, type EditorCursorLineDetail } from '../../lib/assistant-events';
-import { mergeProposalIntoCanon, type CanonMergeTarget } from '../../lib/canon-merge';
+import {
+  applyCanonMerge,
+  applyPromiseResolved,
+  type CanonDeclaration,
+  type CanonMergeTarget,
+} from '../../lib/canon-merge';
+import { writeCanonGuarded } from '../../lib/canon-write';
+import {
+  DISMISSED_PROPOSALS_EVENT,
+  loadDismissedProposals,
+  proposalKey,
+  saveDismissedProposals,
+  withoutDismissed,
+} from '../../lib/dismissed-proposals';
 import { emitToast } from '../../lib/toast';
 import { FS_MUTATION_EVENT } from '../../lib/tauri-fs';
 import {
@@ -23,6 +37,7 @@ import {
   saveResolvedObservationIds,
   type ObservatoryChecker,
   type ObservatoryEntity,
+  type ObservatoryPromise,
   type ObservatoryPromises,
   type ObservatoryProposals,
 } from '../../lib/observations';
@@ -50,7 +65,17 @@ const EMPTY_STATE: ObservatoryState = {
   availability: 'unavailable',
 };
 
-export function useObservatory({ activeProject }: { activeProject: string | null }) {
+const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const CANON_WRITE_NOTE =
+  '会写进 .storyforge/canon/canon.json。写之前先存一版快照，写完右下角可以撤销。';
+
+export function useObservatory({
+  activeProject,
+  dialogs,
+}: {
+  activeProject: string | null;
+  dialogs: Pick<AppDialogApi, 'confirm' | 'prompt'>;
+}) {
   const [state, setState] = useState<ObservatoryState>(EMPTY_STATE);
   const [litEntityIds, setLitEntityIds] = useState<string[]>([]);
   // scanning 独立于 availability：已有数据时重扫仍静默保留旧观测（availability 停 available），
@@ -58,6 +83,7 @@ export function useObservatory({ activeProject }: { activeProject: string | null
   const [scanning, setScanning] = useState(false);
   const [merging, setMerging] = useState(false);
   const resolvedIdsRef = useRef<Set<string>>(new Set());
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
   const scanSeqRef = useRef(0);
 
   const runScan = useCallback(async () => {
@@ -111,6 +137,7 @@ export function useObservatory({ activeProject }: { activeProject: string | null
     });
     setLitEntityIds([]);
     setScanning(false);
+    setDismissed(loadDismissedProposals(activeProject));
     if (activeProject) void runScan();
   }, [activeProject, runScan]);
 
@@ -161,19 +188,48 @@ export function useObservatory({ activeProject }: { activeProject: string | null
     [activeProject],
   );
 
-  // 并入提案：读盘 → 追加 → 写回 canon.json。写盘会触发 FS_MUTATION_EVENT，
-  // 防抖重扫后该条从后端差集里自然消失（自愈），故这里不必手改本地提案态。
-  const mergeProposal = useCallback(
-    async (target: CanonMergeTarget) => {
+  // 观测镜对 canon.json 的写（并入提案、伏笔已回收）都走 writeCanonGuarded：确认 → 快照 → 写 → 可撤销。
+  // 写盘会触发 FS_MUTATION_EVENT，防抖重扫后已并入的提案从后端差集里自然消失。
+  const writeCanon = useCallback(
+    async ({
+      edit,
+      confirm,
+      summary,
+      done,
+    }: {
+      edit: (canon: CanonDeclaration['canon']) => CanonDeclaration['canon'];
+      confirm: () => Promise<boolean>;
+      summary: string;
+      done: string;
+    }) => {
       if (!activeProject) return;
       setMerging(true);
       try {
-        await mergeProposalIntoCanon(activeProject, target);
-      } catch (error) {
-        console.error('并入 canon 提案失败', error);
-        emitToast(`并入失败：${error instanceof Error ? error.message : String(error)}`, {
-          tone: 'error',
+        const result = await writeCanonGuarded({
+          projectPath: activeProject,
+          edit,
+          confirm,
+          summary,
         });
+        if (result.status === 'unchanged') emitToast('canon.json 里已经是这样了，没有改动。');
+        if (result.status !== 'written') return;
+        emitToast(done, {
+          tone: 'success',
+          action: {
+            label: '撤销',
+            run: async () => {
+              try {
+                await result.undo();
+                emitToast('已撤销，canon.json 回到写入前。');
+              } catch (error) {
+                emitToast(message(error), { tone: 'error' });
+              }
+            },
+          },
+        });
+      } catch (error) {
+        console.error('写 canon.json 失败', error);
+        emitToast(`没写进 canon.json：${message(error)}`, { tone: 'error' });
       } finally {
         setMerging(false);
       }
@@ -181,12 +237,93 @@ export function useObservatory({ activeProject }: { activeProject: string | null
     [activeProject],
   );
 
+  const mergeProposal = useCallback(
+    (target: CanonMergeTarget, label: string) =>
+      writeCanon({
+        edit: (canon) => applyCanonMerge(canon, target),
+        confirm: () =>
+          dialogs.confirm({
+            title: '并入设定？',
+            message: `${label}\n\n${CANON_WRITE_NOTE}`,
+            confirmLabel: '并入',
+          }),
+        summary: `并入设定：${label}`,
+        done: `已并入设定：${label}`,
+      }),
+    [dialogs, writeCanon],
+  );
+
+  const resolvePromise = useCallback(
+    async (promise: ObservatoryPromise) => {
+      const answer = await dialogs.prompt({
+        title: `「${promise.title}」在第几章回收？`,
+        message: `把这条伏笔标为已回收，并记下回收章。${CANON_WRITE_NOTE}`,
+        defaultValue: String(state.promises.currentChapter ?? promise.plantedChapter ?? 1),
+        confirmLabel: '标为已回收',
+      });
+      if (answer === null) return;
+      const chapter = Number(answer.trim());
+      if (!Number.isInteger(chapter) || chapter < 1) {
+        emitToast('章号要写成正整数，这次没有写入。', { tone: 'error' });
+        return;
+      }
+      if (promise.plantedChapter != null && chapter < promise.plantedChapter) {
+        emitToast(
+          `这条第 ${promise.plantedChapter} 章才埋下，不能在第 ${chapter} 章回收；这次没有写入。`,
+          {
+            tone: 'error',
+          },
+        );
+        return;
+      }
+      await writeCanon({
+        edit: (canon) => applyPromiseResolved(canon, promise.id, chapter),
+        confirm: async () => true,
+        summary: `伏笔已回收：${promise.title}（第 ${chapter} 章）`,
+        done: `已把「${promise.title}」记为第 ${chapter} 章回收`,
+      });
+    },
+    [dialogs, state.promises.currentChapter, writeCanon],
+  );
+
+  // 「不要」只是不再摆出来：记在本机、按作品分开，canon.json 一个字都不动。
+  const setProposalDismissed = useCallback((project: string, key: string, on: boolean) => {
+    const next = loadDismissedProposals(project);
+    if (on) next.add(key);
+    else next.delete(key);
+    saveDismissedProposals(project, next);
+  }, []);
+  useEffect(() => {
+    const onChange = (event: Event) => {
+      const project = (event as CustomEvent<{ project?: string }>).detail?.project;
+      if (project && project === activeProject) setDismissed(loadDismissedProposals(project));
+    };
+    window.addEventListener(DISMISSED_PROPOSALS_EVENT, onChange);
+    return () => window.removeEventListener(DISMISSED_PROPOSALS_EVENT, onChange);
+  }, [activeProject]);
+  const dismissProposal = useCallback(
+    (target: CanonMergeTarget) => {
+      if (!activeProject) return;
+      const project = activeProject;
+      const key = proposalKey(target);
+      setProposalDismissed(project, key, true);
+      emitToast('这条提案不要了（canon.json 没动）', {
+        action: { label: '撤销', run: () => setProposalDismissed(project, key, false) },
+      });
+    },
+    [activeProject, setProposalDismissed],
+  );
+  const proposals = useMemo(
+    () => withoutDismissed(state.proposals, dismissed),
+    [state.proposals, dismissed],
+  );
+
   return {
     observations: state.observations,
     checkers: state.checkers,
     entities: state.entities,
     promises: state.promises,
-    proposals: state.proposals,
+    proposals,
     generatedAt: state.generatedAt,
     availability: state.availability,
     scanning,
@@ -194,6 +331,8 @@ export function useObservatory({ activeProject }: { activeProject: string | null
     merging,
     resolveObservation,
     mergeProposal,
+    resolvePromise,
+    dismissProposal,
     runScan,
   };
 }

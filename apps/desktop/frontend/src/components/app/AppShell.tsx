@@ -304,7 +304,11 @@ export function AppShell({
                       onBackToChat={shell.showExplorerView}
                       onLocateObservation={observatory.locateObservation}
                       onLocateAnchor={observatory.locateAnchor}
-                      onMergeProposal={(target) => void observatory.mergeProposal(target)}
+                      onMergeProposal={(target, label) =>
+                        void observatory.mergeProposal(target, label)
+                      }
+                      onDismissProposal={observatory.dismissProposal}
+                      onResolvePromise={(promise) => void observatory.resolvePromise(promise)}
                       onResolveObservation={observatory.resolveObservation}
                       onAskAgent={actions.onAskAgent}
                     />

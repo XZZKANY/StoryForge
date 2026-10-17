@@ -254,7 +254,10 @@ export function App() {
   });
 
   // 观测接线：打开项目即首扫，写盘后防抖重扫（确定性无 LLM）。
-  const observatory = useObservatory({ activeProject: workspace.activeProject });
+  const observatory = useObservatory({
+    activeProject: workspace.activeProject,
+    dialogs: appDialog,
+  });
 
   // 手稿视图：阅读序章节 + 模型这轮拿到的作品底座。跟着当前文件走，章号才不会长期显示错的。
   const bookContext = useBookContext({

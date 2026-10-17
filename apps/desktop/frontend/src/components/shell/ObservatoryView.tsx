@@ -4,8 +4,8 @@
  * observatory.scan payload v2 的结构化台账（确定性、无 LLM）。
  *
  * 诚实边界：观测是参考信号不是质量判定；实体卡红描边只反映后端已判定的 blocking 观测，
- * 前端不自算结论。提案「并入」由作者点下后前端写 canon.json（后端绝不写作者项目文件）；
- * 不要的提案留着不动即可，未做忽略态持久化。
+ * 前端不自算结论。提案「并入」、伏笔「标为已回收」由作者点下后前端写 canon.json（后端绝不写
+ * 作者项目文件），先确认、写前存快照、可撤销；「不要」只在本机记下不再摆出，不碰 canon.json。
  */
 import { useState, type ReactNode } from 'react';
 
@@ -108,6 +108,21 @@ function EmptyLine({ children }: { children: ReactNode }) {
   return <p className="text-2xs leading-relaxed text-subtle">{children}</p>;
 }
 
+function DismissButton({ onDismiss }: { onDismiss?: () => void }) {
+  if (!onDismiss) return null;
+  return (
+    <button
+      type="button"
+      onClick={onDismiss}
+      className="flex-shrink-0 rounded-sm px-1.5 py-0.5 text-3xs text-subtle hover:bg-elevated hover:text-foreground"
+      title="不再摆在这里（canon.json 不动，可撤销）"
+      data-testid="proposal-dismiss"
+    >
+      不要
+    </button>
+  );
+}
+
 function MergeButton({ onMerge, busy }: { onMerge?: () => void; busy: boolean }) {
   if (!onMerge) return null;
   return (
@@ -126,10 +141,12 @@ function MergeButton({ onMerge, busy }: { onMerge?: () => void; busy: boolean })
 function ProposalsSection({
   proposals,
   onMergeProposal,
+  onDismissProposal,
   merging = false,
 }: {
   proposals: ObservatoryProposals;
-  onMergeProposal?: (target: CanonMergeTarget) => void;
+  onMergeProposal?: (target: CanonMergeTarget, label: string) => void;
+  onDismissProposal?: (target: CanonMergeTarget) => void;
   merging?: boolean;
 }) {
   return (
@@ -146,66 +163,86 @@ function ProposalsSection({
         <EmptyLine>无待确认提案。</EmptyLine>
       ) : (
         <>
-          {proposals.newEntities.map((entity) => (
-            <div
-              key={entity.id}
-              className="rounded-md border border-border bg-surface px-2.5 py-2"
-              data-testid="proposal-card"
-            >
-              <div className="flex items-baseline gap-2 text-xs">
-                <span className="min-w-0 flex-1 truncate font-medium text-foreground">
-                  {entity.canonicalName}
-                </span>
-                <span className="flex-shrink-0 font-mono text-3xs text-subtle">新实体</span>
-                <MergeButton
-                  busy={merging}
-                  onMerge={
-                    onMergeProposal &&
-                    (() => onMergeProposal({ kind: 'entity', entity: entity.raw }))
-                  }
-                />
+          {proposals.newEntities.map((entity) => {
+            const target: CanonMergeTarget = { kind: 'entity', entity: entity.raw };
+            const aliases =
+              entity.aliases.length > 0 ? `（别名：${entity.aliases.join('、')}）` : '';
+            const label = `新实体「${entity.canonicalName}」${aliases}`;
+            return (
+              <div
+                key={entity.id}
+                className="rounded-md border border-border bg-surface px-2.5 py-2"
+                data-testid="proposal-card"
+              >
+                <div className="flex items-baseline gap-2 text-xs">
+                  <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+                    {entity.canonicalName}
+                  </span>
+                  <span className="flex-shrink-0 font-mono text-3xs text-subtle">新实体</span>
+                  <DismissButton
+                    onDismiss={onDismissProposal && (() => onDismissProposal(target))}
+                  />
+                  <MergeButton
+                    busy={merging}
+                    onMerge={onMergeProposal && (() => onMergeProposal(target, label))}
+                  />
+                </div>
+                {entity.aliases.length > 0 && (
+                  <div className="mt-1 text-2xs text-muted">别名：{entity.aliases.join('、')}</div>
+                )}
               </div>
-              {entity.aliases.length > 0 && (
-                <div className="mt-1 text-2xs text-muted">别名：{entity.aliases.join('、')}</div>
-              )}
-            </div>
-          ))}
-          {proposals.newClaims.map((claim, index) => (
-            <div
-              key={`${claim.invariant}-${index}`}
-              className="rounded-md border border-border bg-surface px-2.5 py-2"
-              data-testid="proposal-card"
-            >
-              <div className="flex items-baseline gap-2 text-xs">
-                <span className="min-w-0 flex-1 truncate text-foreground">
-                  {claimSummary(claim.invariant, claim.entry)}
-                </span>
-                <span className="flex-shrink-0 font-mono text-3xs text-subtle">
-                  {CLAIM_INVARIANT_LABELS[claim.invariant] ?? claim.invariant}声明
-                </span>
-                <MergeButton
-                  busy={merging}
-                  onMerge={
-                    onMergeProposal &&
-                    (() =>
-                      onMergeProposal({
-                        kind: 'claim',
-                        invariant: claim.invariant,
-                        entry: claim.entry,
-                      }))
-                  }
-                />
+            );
+          })}
+          {proposals.newClaims.map((claim, index) => {
+            const target: CanonMergeTarget = {
+              kind: 'claim',
+              invariant: claim.invariant,
+              entry: claim.entry,
+            };
+            const kindLabel = `${CLAIM_INVARIANT_LABELS[claim.invariant] ?? claim.invariant}声明`;
+            const summary = claimSummary(claim.invariant, claim.entry);
+            return (
+              <div
+                key={`${claim.invariant}-${index}`}
+                className="rounded-md border border-border bg-surface px-2.5 py-2"
+                data-testid="proposal-card"
+              >
+                <div className="flex items-baseline gap-2 text-xs">
+                  <span className="min-w-0 flex-1 truncate text-foreground" title={summary}>
+                    {summary}
+                  </span>
+                  <span className="flex-shrink-0 font-mono text-3xs text-subtle">{kindLabel}</span>
+                  <DismissButton
+                    onDismiss={onDismissProposal && (() => onDismissProposal(target))}
+                  />
+                  <MergeButton
+                    busy={merging}
+                    onMerge={
+                      onMergeProposal && (() => onMergeProposal(target, `${kindLabel}：${summary}`))
+                    }
+                  />
+                </div>
               </div>
-            </div>
-          ))}
-          <EmptyLine>点「并入」把这条写进 canon.json；不要的条目留着不动即可。</EmptyLine>
+            );
+          })}
+          <EmptyLine>
+            「并入」写进 canon.json：先问你一声、写前存快照、写完可撤销。「不要」只是不再摆在这里。
+          </EmptyLine>
         </>
       )}
     </Section>
   );
 }
 
-function PromiseCard({ promise }: { promise: ObservatoryPromise }) {
+function PromiseCard({
+  promise,
+  onResolve,
+  busy = false,
+}: {
+  promise: ObservatoryPromise;
+  onResolve?: (promise: ObservatoryPromise) => void;
+  busy?: boolean;
+}) {
   const resolved = promise.status === 'resolved';
   const overdue = promise.issues.some((issue) => issue.category === 'overdue');
   const statusLabel = resolved
@@ -232,6 +269,18 @@ function PromiseCard({ promise }: { promise: ObservatoryPromise }) {
         )}
         <span className="min-w-0 flex-1 truncate font-medium text-foreground">{promise.title}</span>
         <span className="flex-shrink-0 font-mono text-3xs text-subtle">{statusLabel}</span>
+        {!resolved && onResolve && (
+          <button
+            type="button"
+            onClick={() => onResolve(promise)}
+            disabled={busy}
+            className="flex-shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-3xs text-muted hover:bg-elevated hover:text-foreground disabled:opacity-50"
+            title="写进 canon.json：状态改成已回收、记下回收章（先存快照，可撤销）"
+            data-testid="promise-resolve"
+          >
+            标为已回收
+          </button>
+        )}
       </div>
       <div className="mt-1 text-2xs text-muted">
         {promise.plantedChapter != null && `埋设 第 ${promise.plantedChapter} 章`}
@@ -565,6 +614,8 @@ export function ObservatoryView({
   onLocateObservation,
   onLocateAnchor,
   onMergeProposal,
+  onDismissProposal,
+  onResolvePromise,
   onResolveObservation,
   onAskAgent,
 }: {
@@ -582,20 +633,25 @@ export function ObservatoryView({
   onBackToChat: () => void;
   onLocateObservation?: (observation: Observation) => void;
   onLocateAnchor?: (anchor: ObservationAnchor) => void;
-  onMergeProposal?: (target: CanonMergeTarget) => void;
+  onMergeProposal?: (target: CanonMergeTarget, label: string) => void;
+  onDismissProposal?: (target: CanonMergeTarget) => void;
+  onResolvePromise?: (promise: ObservatoryPromise) => void;
   onResolveObservation?: (id: string) => void;
   onAskAgent?: (text: string) => void;
 }) {
   const observationById = new Map(observations.map((observation) => [observation.id, observation]));
   // busy 合并首扫 loading 与「已有数据时的重扫」：后者 availability 停在 available，靠 scanning 反馈。
   const busy = scanning || availability === 'loading';
-  const statusLabel = busy
-    ? '扫描中…'
-    : availability === 'error'
-      ? '扫描失败'
-      : availability === 'available' && generatedAt
-        ? `上次扫描 ${formatScanTime(generatedAt)}`
-        : '';
+  // 第一次写 canon.json 要先给整本书拍快照，可能要好几秒：按钮灰着之外得说一声在干什么。
+  const statusLabel = merging
+    ? '正在写入设定…'
+    : busy
+      ? '扫描中…'
+      : availability === 'error'
+        ? '扫描失败'
+        : availability === 'available' && generatedAt
+          ? `上次扫描 ${formatScanTime(generatedAt)}`
+          : '';
   // 相位级播报：扫描中 / 失败 / 完成（带时间）。同相位内 generatedAt 不变则文案恒定。
   const liveText = busy
     ? '正在扫描项目观测数据…'
@@ -657,6 +713,7 @@ export function ObservatoryView({
             <ProposalsSection
               proposals={proposals}
               onMergeProposal={onMergeProposal}
+              onDismissProposal={onDismissProposal}
               merging={merging}
             />
             <Section title="伏笔账" count={promises.ledger.length} testid="promises">
@@ -675,7 +732,12 @@ export function ObservatoryView({
                     </div>
                   )}
                   {promises.ledger.map((promise) => (
-                    <PromiseCard key={promise.id} promise={promise} />
+                    <PromiseCard
+                      key={promise.id}
+                      promise={promise}
+                      onResolve={onResolvePromise}
+                      busy={merging}
+                    />
                   ))}
                 </>
               )}
