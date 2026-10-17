@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import type { BranchGraph, GraphNode } from '../lib/branches';
 import { buildPatchHunks } from '../lib/patch-hunks';
+import { versionLabel } from '../lib/version-label';
 import type { VersionState } from '../lib/versions';
 
 type BranchCanvasProps = {
@@ -174,11 +175,7 @@ function BranchNodeRow({
             {formatTimestamp(node.timestamp)}
             <span className="ml-2 text-2xs text-muted">{branchLabel}</span>
           </span>
-          <span className="block truncate text-2xs text-muted">
-            {node.source ? `${node.source} · ` : ''}
-            {node.summary ?? '版本快照'}
-            {node.patchId ? ` · patch ${node.patchId}` : ''}
-          </span>
+          <span className="block truncate text-2xs text-muted">{versionLabel(node)}</span>
         </span>
       </button>
 

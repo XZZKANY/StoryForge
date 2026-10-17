@@ -11,6 +11,7 @@ import {
 import { PanelError } from '../shell/PanelError';
 import { BranchCanvas } from '../BranchCanvas';
 import { Clock, X } from '../icons/shell-icons';
+import { versionLabel } from '../../lib/version-label';
 import { LiveStatus } from '../shell/LiveStatus';
 import { IconButton } from '../ui';
 
@@ -342,8 +343,7 @@ export function VersionHistory({
                         .filter(Boolean)
                         .join('\n')}
                     >
-                      {v.source ? `${v.source} · ` : ''}
-                      {v.summary ?? v.file ?? '版本快照'}
+                      {versionLabel(v)}
                     </div>
                     {v.unavailableReason && (
                       <div className="mt-1 text-2xs text-error" data-testid="version-unavailable">
