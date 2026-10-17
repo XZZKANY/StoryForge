@@ -18,6 +18,7 @@ import {
   SAVE_ACTIVE_FILE_DONE_EVENT,
 } from '../src/lib/assistant-events';
 import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { recordRenameLineage } from '../src/lib/versions';
 
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
@@ -28,7 +29,10 @@ vi.mock('../src/lib/tauri-fs', () => ({
     readProjectFile: vi.fn(async () => ''),
   },
 }));
-vi.mock('../src/lib/versions', () => ({ snapshotBeforeDelete: vi.fn(async () => undefined) }));
+vi.mock('../src/lib/versions', () => ({
+  snapshotBeforeDelete: vi.fn(async () => undefined),
+  recordRenameLineage: vi.fn(async () => undefined),
+}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -212,4 +216,29 @@ test('路径归属两种分隔符都认，同名前缀的兄弟目录不算在�
   assert.equal(isSameOrInsidePath(`${PROJECT}\\正文二\\第003章.md`, DIR), false);
   assert.equal(retargetEditorPath(A, DIR, `${PROJECT}\\定稿`), `${PROJECT}\\定稿\\第003章.md`);
   assert.equal(retargetEditorPath(OTHER, DIR, `${PROJECT}\\定稿`), OTHER);
+});
+
+test('改名把版本记录带过去：文件记一对新旧路径，文件夹给里面每个文件各记一对', async () => {
+  const lineage = vi.mocked(recordRenameLineage);
+  lineage.mockClear();
+  const harness = mount('第003章 夜探', null);
+  try {
+    await act(async () => harness.actions.onRename(A, false));
+    assert.deepEqual(lineage.mock.calls[0]?.[1], [{ from: A, to: `${DIR}\\第003章 夜探.md` }]);
+
+    const moved = `${PROJECT}\\正文（修订）`;
+    vi.mocked(TauriFileSystem.listDir).mockResolvedValueOnce([
+      { name: '第003章.md', path: `${moved}\\第003章.md`, isDir: false },
+      { name: '旧稿', path: `${moved}\\旧稿`, isDir: true },
+    ] as never);
+    const folder = mount('正文（修订）', null);
+    try {
+      await act(async () => folder.actions.onRename(DIR, true));
+      assert.deepEqual(lineage.mock.calls[1]?.[1], [{ from: A, to: `${moved}\\第003章.md` }]);
+    } finally {
+      folder.cleanup();
+    }
+  } finally {
+    harness.cleanup();
+  }
 });
