@@ -198,6 +198,48 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
         { authorInstruction: context.userMessage, preparedContext: prepared },
       ),
     );
+    // 改完一字没变：不生成补丁，免得作者面对一个 +0 / -0 的「改好了」还得点接受或拒绝。
+    if (response.after === response.before) {
+      const unchangedSummary = '修订结果与原文一字不差，没有生成补丁。';
+      return {
+        status: 'completed',
+        output: {
+          file_path: filePath,
+          unchanged: true,
+          summary: unchangedSummary,
+          model: response.model,
+          latency_ms: response.latency_ms,
+          completion_tokens: response.completion_tokens,
+          assistant_session_id: response.assistant_session_id,
+          applied_scope: appliedScope,
+        },
+        summary: unchangedSummary,
+        metrics: {
+          after_chars: cpLen(response.after),
+          completion_tokens: response.completion_tokens,
+          latency_ms: response.latency_ms,
+        },
+        trace: {
+          tool_name: 'file.revise',
+          status: 'completed',
+          input_summary: {
+            file_path: traceFilePath,
+            content_chars: cpLen(content),
+            review_issue_count: scopeIssues(scope).length,
+            applied_scope: appliedScope,
+            ...llmContextInputSummary(payload.llm_context_snapshot),
+          },
+          output_summary: {
+            file_path: traceFilePath,
+            unchanged: true,
+            model: response.model,
+            latency_ms: response.latency_ms,
+            completion_tokens: response.completion_tokens,
+            applied_scope: appliedScope,
+          },
+        },
+      };
+    }
     let summary = reviseSummaryWithScope(response.summary, scope);
     const warning = scopeWarning(scope, response.before, response.after);
     if (warning !== null) summary = `${summary} ${warning.message}`;
