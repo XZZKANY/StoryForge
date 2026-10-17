@@ -40,6 +40,8 @@ type ChoiceDialog = DialogBase & {
   kind: 'choice';
   choices: ReadonlyArray<{ id: string; label: string; tone?: 'default' | 'danger' }>;
   cancelLabel: string;
+  /** 没有默认项：几个选项平起平坐，焦点落在「取消」，回车不会替作者挑一个。 */
+  noDefault?: boolean;
   resolve: (value: string | null) => void;
 };
 
@@ -103,6 +105,7 @@ export function useAppDialog() {
       message: string;
       choices: ReadonlyArray<{ id: string; label: string; tone?: 'default' | 'danger' }>;
       cancelLabel?: string;
+      noDefault?: boolean;
     }) =>
       new Promise<string | null>((resolve) => {
         pushDialog({
@@ -111,6 +114,7 @@ export function useAppDialog() {
           message: options.message,
           choices: options.choices,
           cancelLabel: options.cancelLabel ?? '取消',
+          noDefault: options.noDefault,
           resolve,
         });
       }),
@@ -197,6 +201,7 @@ export function AppDialogHost({
   const isPrompt = dialog.kind === 'prompt';
   const isConfirm = dialog.kind === 'confirm';
   const isChoice = dialog.kind === 'choice';
+  const choiceWithoutDefault = dialog.kind === 'choice' && dialog.noDefault === true;
 
   return (
     <div
@@ -255,6 +260,7 @@ export function AppDialogHost({
               size="sm"
               variant="secondary"
               onClick={() => onClose(isConfirm ? false : null)}
+              data-testid="app-dialog-cancel"
             >
               {dialog.cancelLabel}
             </Button>
@@ -263,15 +269,23 @@ export function AppDialogHost({
             dialog.choices.map((choice, index) => (
               <Button
                 // 首个选项是主动作：拿 primaryRef 才能继承既有的「打开即聚焦 → Enter 确认」。
-                ref={index === 0 ? primaryRef : undefined}
+                ref={index === 0 && !choiceWithoutDefault ? primaryRef : undefined}
                 key={choice.id}
                 type="button"
                 size="sm"
                 variant={
-                  choice.tone === 'danger' ? 'danger' : index === 0 ? 'primary' : 'secondary'
+                  choice.tone === 'danger'
+                    ? 'danger'
+                    : index === 0 && !choiceWithoutDefault
+                      ? 'primary'
+                      : 'secondary'
                 }
                 onClick={() => onClose(choice.id)}
-                data-testid={index === 0 ? 'app-dialog-primary' : `app-dialog-choice-${choice.id}`}
+                data-testid={
+                  index === 0 && !choiceWithoutDefault
+                    ? 'app-dialog-primary'
+                    : `app-dialog-choice-${choice.id}`
+                }
               >
                 {choice.label}
               </Button>

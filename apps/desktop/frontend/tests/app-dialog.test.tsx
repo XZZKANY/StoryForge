@@ -151,6 +151,41 @@ test('Choice 按 Escape 等价于取消（resolve null），不落到任何一�
   }
 });
 
+test('Choice 无默认项：没有主按钮，焦点落在取消上，回车不替作者挑', async () => {
+  const results: Array<boolean | string | null | undefined> = [];
+  const rendered = renderDialog(
+    {
+      kind: 'choice',
+      title: '把「第005章.md」移到哪个文件夹？',
+      message: '可以撤销。',
+      cancelLabel: '取消',
+      noDefault: true,
+      choices: [
+        { id: '<root>', label: '作品根目录' },
+        { id: 'D:/书/.草稿', label: '.草稿' },
+      ],
+      resolve: () => {},
+    },
+    (result) => results.push(result),
+  );
+
+  try {
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    });
+    assert.equal(document.querySelector('[data-testid="app-dialog-primary"]'), null);
+    const cancel = document.querySelector<HTMLButtonElement>('[data-testid="app-dialog-cancel"]');
+    assert.equal(document.activeElement, cancel);
+    const root = document.querySelector<HTMLButtonElement>(
+      '[data-testid="app-dialog-choice-<root>"]',
+    );
+    assert.ok(root);
+    assert.equal(root.dataset.variant, 'secondary');
+  } finally {
+    rendered.cleanup();
+  }
+});
+
 type DialogApi = ReturnType<typeof useAppDialog>;
 
 function renderHookDialog() {

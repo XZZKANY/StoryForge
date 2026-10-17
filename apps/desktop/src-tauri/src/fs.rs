@@ -414,6 +414,58 @@ pub fn rename_path(project_root: String, from: String, to: String) -> Result<(),
     fs::rename(&from, &to).map_err(|e| format!("无法重命名 {} -> {}: {}", from, to, e))
 }
 
+/// 在系统文件管理器里显示项目内的文件或文件夹。只读：不改任何东西，只允许项目里的路径。
+#[tauri::command]
+pub fn reveal_in_file_manager(project_root: String, path: String) -> Result<(), String> {
+    let target = validate_reveal_target(&project_root, &path)?;
+    open_file_manager(&target)
+}
+
+fn validate_reveal_target(project_root: &str, path: &str) -> Result<PathBuf, String> {
+    let root = canonical_project_root(project_root)?;
+    let original = Path::new(path);
+    let candidate = fs::canonicalize(original)
+        .map_err(|e| format!("无法解析项目路径 {}: {}", path, e))?;
+    ensure_canonical_path_inside_project(&root, &candidate, original, true)?;
+    Ok(original.to_path_buf())
+}
+
+#[cfg(windows)]
+fn open_file_manager(target: &Path) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    // explorer 自己解析「/select,」后面的路径：路径单独加引号，Rust 默认给整个参数加的引号它不认。
+    let display = target.display().to_string().replace('/', "\\");
+    std::process::Command::new("explorer.exe")
+        .raw_arg(format!("/select,\"{}\"", display))
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("无法打开资源管理器: {}", e))
+}
+
+#[cfg(target_os = "macos")]
+fn open_file_manager(target: &Path) -> Result<(), String> {
+    std::process::Command::new("open")
+        .arg("-R")
+        .arg(target)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("无法打开访达: {}", e))
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn open_file_manager(target: &Path) -> Result<(), String> {
+    let dir = if target.is_dir() {
+        target
+    } else {
+        target.parent().unwrap_or(target)
+    };
+    std::process::Command::new("xdg-open")
+        .arg(dir)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("无法打开文件管理器: {}", e))
+}
+
 /// 检查路径是否存在
 #[tauri::command]
 pub fn path_exists(path: String) -> bool {
@@ -941,6 +993,30 @@ mod tests {
         )
         .expect_err("external read must be rejected");
         assert!(error.contains("路径不在当前项目内"));
+    }
+
+    #[test]
+    fn reveal_accepts_project_paths_and_rejects_outside_or_missing() {
+        let project = TempDir::new("reveal-project");
+        let outside = TempDir::new("reveal-outside");
+        fs::create_dir_all(project.path.join("正文")).expect("chapter dir");
+        fs::write(project.path.join("正文").join("第001章.md"), "# 第一章").expect("chapter");
+        fs::write(outside.path.join("secret.md"), "secret").expect("outside file");
+
+        let chapter = project.join("正文/第001章.md");
+        assert_eq!(
+            validate_reveal_target(&project.root(), &chapter).expect("chapter is inside"),
+            PathBuf::from(&chapter)
+        );
+        validate_reveal_target(&project.root(), &project.join("正文")).expect("folder is inside");
+        validate_reveal_target(&project.root(), &project.root()).expect("project root itself");
+
+        let error = validate_reveal_target(&project.root(), &outside.join("secret.md"))
+            .expect_err("outside path must be rejected");
+        assert!(error.contains("路径不在当前项目内"));
+        let escaped = project.join("正文/../../") + &outside.path.file_name().unwrap().to_string_lossy() + "/secret.md";
+        assert!(validate_reveal_target(&project.root(), &escaped).is_err());
+        assert!(validate_reveal_target(&project.root(), &project.join("不存在.md")).is_err());
     }
 }
 

@@ -151,3 +151,40 @@ test('没有 fileActions 时不渲染新建按钮（无项目写权限的场景�
   assert.equal(container.querySelectorAll('[data-testid="tree-folder-new-file"]').length, 0);
   assert.equal(container.querySelectorAll('[data-testid="tree-folder-new-folder"]').length, 0);
 });
+
+function openMenuOn(element: Element) {
+  act(() => {
+    element.dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }),
+    );
+  });
+  return Array.from(document.querySelectorAll('[role="menuitem"]')).map(
+    (node) => node.textContent ?? '',
+  );
+}
+
+test('右键菜单：文件有复制一份 / 移动到… / 在资源管理器中显示，文件夹不给复制', async () => {
+  const calls: string[] = [];
+  const { actions } = stubActions();
+  await renderExplorer({
+    ...actions,
+    onDuplicate: async (path) => void calls.push(`dup:${path}`),
+    onMove: async (path, isDir) => void calls.push(`move:${path}:${isDir}`),
+    onReveal: async (path) => void calls.push(`reveal:${path}`),
+  });
+  const file = container.querySelector(`[data-file-path="${PROJECT}/正文/第001章.md"]`)!;
+  const fileItems = openMenuOn(file);
+  assert.deepEqual(
+    ['复制一份', '移动到…', '在资源管理器中显示'].filter((label) => fileItems.includes(label)),
+    ['复制一份', '移动到…', '在资源管理器中显示'],
+  );
+  const reveal = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    (node) => node.textContent === '在资源管理器中显示',
+  )!;
+  act(() => reveal.click());
+  assert.deepEqual(calls, [`reveal:${PROJECT}/正文/第001章.md`]);
+
+  const folderItems = openMenuOn(folderRow('设定'));
+  assert.equal(folderItems.includes('复制一份'), false);
+  assert.ok(folderItems.includes('移动到…'));
+});

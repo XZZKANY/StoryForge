@@ -1299,6 +1299,7 @@ fn main() {
             managed_writeback::create_dir,
             managed_writeback::rename_path,
             fs::path_exists,
+            fs::reveal_in_file_manager,
             managed_writeback::copy_into_project,
             fs::read_project_file_base64,
             // 退出握手：写回交付票据与前端「已停手」确认

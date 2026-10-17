@@ -1,12 +1,16 @@
 import { useCallback } from 'react';
 
+import { countsAsChapter } from '../../lib/api/manuscript-paths';
 import { relativePathInsideProject, invalidateContextBundleCache } from '../../lib/project-context';
+import { isVisibleProjectTreeEntry } from '../../lib/project/entry-visibility';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import {
+  copyName,
   displayDocName,
   ensureMarkdownName,
   entryName,
   joinChild,
+  parentDir,
   sanitizeEntryName,
   siblingPath,
   suggestNewFileName,
@@ -33,7 +37,15 @@ export type FileTreeActions = {
   onNewFolder: (dir: string) => Promise<void>;
   onRename: (path: string, isDir: boolean) => Promise<void>;
   onDelete: (path: string, isDir: boolean) => Promise<void>;
+  /** 在同一个文件夹里复制一份（只对文件）。 */
+  onDuplicate?: (path: string) => Promise<void>;
+  /** 挑一个文件夹移过去，可撤销。 */
+  onMove?: (path: string, isDir: boolean) => Promise<void>;
+  onReveal?: (path: string) => Promise<void>;
 };
+
+// 文件夹选项用绝对路径当 id，绝对路径不会以 < 开头。
+const ROOT_CHOICE = '<root>';
 
 export function useFileTreeActions({
   activeProject,
@@ -117,6 +129,20 @@ export function useFileTreeActions({
     [activeProject, dialogs, failAlert, insideProject],
   );
 
+  // 改名与移动共用：先问未保存的修改，再挪盘上的文件，版本记录与打开的页签跟着走。
+  const relocate = useCallback(
+    async (project: string, from: string, to: string, isDir: boolean, actionLabel: string) => {
+      const affected = openPaths.filter((open) => isSameOrInsidePath(open, from));
+      if (!(await confirmDiscardFiles(affected, actionLabel))) return false;
+      await TauriFileSystem.renamePath(project, from, to);
+      invalidateContextBundleCache(project);
+      await carryVersionHistory(project, from, to, isDir);
+      retargetOpenPaths(from, to);
+      return true;
+    },
+    [confirmDiscardFiles, openPaths, retargetOpenPaths],
+  );
+
   const onRename = useCallback(
     async (path: string, isDir: boolean) => {
       if (!activeProject) return;
@@ -139,27 +165,151 @@ export function useFileTreeActions({
           await dialogs.alert({ title: '重命名失败', message: '同目录下已存在同名项。' });
           return;
         }
-        const affected = openPaths.filter((open) => isSameOrInsidePath(open, path));
-        if (!(await confirmDiscardFiles(affected, '重命名'))) return;
-        await TauriFileSystem.renamePath(activeProject, path, target);
-        invalidateContextBundleCache(activeProject);
-        await carryVersionHistory(activeProject, path, target, isDir);
-        retargetOpenPaths(path, target);
+        if (!(await relocate(activeProject, path, target, isDir, '重命名'))) return;
         if (!isDir) await openFile(target, '打开重命名后的文件');
       } catch (error) {
         await failAlert('重命名失败', error);
       }
     },
-    [
-      activeProject,
-      confirmDiscardFiles,
-      dialogs,
-      failAlert,
-      insideProject,
-      openFile,
-      openPaths,
-      retargetOpenPaths,
-    ],
+    [activeProject, dialogs, failAlert, insideProject, openFile, relocate],
+  );
+
+  const onMove = useCallback(
+    async (path: string, isDir: boolean) => {
+      if (!activeProject) return;
+      const project = activeProject;
+      const name = entryName(path);
+      const from = parentDir(path);
+      let folders: string[];
+      try {
+        folders = (await TauriFileSystem.listDir(project, true))
+          .filter((entry) => entry.isDir && isVisibleProjectTreeEntry(entry))
+          .map((entry) => entry.path)
+          .filter(
+            (dir) =>
+              Boolean(relativePathInsideProject(project, dir)) &&
+              !isAppDataPath(project, dir) &&
+              !isSameOrInsidePath(dir, path) &&
+              dir !== from,
+          )
+          .sort((a, b) => a.localeCompare(b));
+      } catch (error) {
+        await failAlert('移动失败', error);
+        return;
+      }
+      const choices = [
+        ...(from === project ? [] : [{ id: ROOT_CHOICE, label: '作品根目录' }]),
+        ...folders.map((dir) => ({
+          id: dir,
+          label: relativePathInsideProject(project, dir) ?? dir,
+        })),
+      ];
+      if (choices.length === 0) {
+        await dialogs.alert({ title: '移动', message: '作品里没有别的文件夹可以移过去。' });
+        return;
+      }
+      const picked = await dialogs.choose({
+        title: `把「${name}」移到哪个文件夹？`,
+        message: '版本记录跟着走，已打开的页签换成新位置；移完右下角可以撤销。',
+        choices,
+        noDefault: true,
+      });
+      if (!picked) return;
+      const dest = picked === ROOT_CHOICE ? project : picked;
+      const target = joinChild(dest, name);
+      const label = picked === ROOT_CHOICE ? '作品根目录' : entryName(dest);
+      try {
+        if (await TauriFileSystem.pathExists(target)) {
+          await dialogs.alert({
+            title: '移动失败',
+            message: `「${label}」里已经有同名的「${name}」。`,
+          });
+          return;
+        }
+        if (!(await relocate(project, path, target, isDir, '移动'))) return;
+      } catch (error) {
+        await failAlert('移动失败', error);
+        return;
+      }
+      emitToast(`已把「${name}」移到「${label}」`, {
+        action: {
+          label: '撤销',
+          run: async () => {
+            try {
+              if (await TauriFileSystem.pathExists(path)) {
+                emitToast(`原位置已经有「${name}」了，没法挪回去`, { tone: 'error' });
+                return;
+              }
+              await relocate(project, target, path, isDir, '撤销移动');
+            } catch (error) {
+              emitToast(`没能挪回去：${error instanceof Error ? error.message : String(error)}`, {
+                tone: 'error',
+              });
+            }
+          },
+        },
+      });
+    },
+    [activeProject, dialogs, failAlert, relocate],
+  );
+
+  const onDuplicate = useCallback(
+    async (path: string) => {
+      if (!activeProject) return;
+      const project = activeProject;
+      const dir = parentDir(path);
+      const siblings = await TauriFileSystem.listDir(dir, false).catch(() => []);
+      const suggested = copyName(
+        entryName(path),
+        siblings.map((entry) => entry.name),
+      );
+      const relative = relativePathInsideProject(project, joinChild(dir, suggested));
+      // 手稿按路径排章：正文里多出一份就多出一章，作者得事先知道。
+      const chapterNote =
+        relative && countsAsChapter(relative)
+          ? '\n\n注意：这个文件夹里的文件都算成一章，副本也会排进手稿。只想留个底稿的话，可以挪进「.草稿」这类点开头的文件夹。'
+          : '';
+      const input = await dialogs.prompt({
+        title: '复制一份',
+        message: `在「${entryName(dir)}」里复制「${entryName(path)}」：${chapterNote}`,
+        defaultValue: suggested,
+        confirmLabel: '复制',
+      });
+      if (input === null) return;
+      const name = ensureMarkdownName(input);
+      if (!name) return;
+      const target = joinChild(dir, name);
+      if (!insideProject(target)) {
+        await dialogs.alert({ title: '复制失败', message: '文件名必须留在当前项目内。' });
+        return;
+      }
+      try {
+        if (await TauriFileSystem.pathExists(target)) {
+          await dialogs.alert({ title: '复制失败', message: `「${name}」已经存在。` });
+          return;
+        }
+        const content = await TauriFileSystem.readProjectFile(project, path);
+        await TauriFileSystem.writeFile(project, target, content);
+        invalidateContextBundleCache(project);
+        await openFile(target, '打开副本');
+        emitToast(`已复制为「${name}」`);
+      } catch (error) {
+        await failAlert('复制失败', error);
+      }
+    },
+    [activeProject, dialogs, failAlert, insideProject, openFile],
+  );
+
+  const onReveal = useCallback(
+    async (path: string) => {
+      if (!activeProject) return;
+      try {
+        await TauriFileSystem.revealInFileManager(activeProject, path);
+      } catch (error) {
+        await failAlert('没能在资源管理器里打开', error);
+      }
+    },
+    [activeProject, failAlert],
   );
 
   // 删除可撤销（作者 10-17 选的「应用内撤销」）：删前把内容读进内存、给每个文件留一条版本，
@@ -214,7 +364,7 @@ export function useFileTreeActions({
     [activeProject, dialogs, dropOpenPathsUnder, failAlert],
   );
 
-  return { onNewFile, onNewFolder, onRename, onDelete };
+  return { onNewFile, onNewFolder, onRename, onDelete, onDuplicate, onMove, onReveal };
 }
 
 type DeleteBackup = {

@@ -356,6 +356,12 @@ export class TauriFileSystem {
     }
   }
 
+  /** 在系统文件管理器里选中项目内的这个文件或文件夹（只读，宿主会核对路径在项目内）。 */
+  static async revealInFileManager(projectRoot: string, path: string): Promise<void> {
+    assertTauriRuntime('TauriFileSystem.revealInFileManager');
+    await invoke('reveal_in_file_manager', { projectRoot, path });
+  }
+
   static async pathExists(path: string): Promise<boolean> {
     const mock = mockFs();
     if (mock?.pathExists) return await mock.pathExists(path);
