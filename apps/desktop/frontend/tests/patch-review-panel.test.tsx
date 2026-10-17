@@ -557,3 +557,22 @@ test('异步拒绝失败保留方向和补丁，作者可以修正后重试', as
   assert.ok(byTestId('patch-review'));
   assert.match(byTestId('patch-action-status')?.textContent ?? '', /控制请求失败/);
 });
+
+test('审阅栏的说明是纯文本：模型回复里的 **加粗** 不露星号', () => {
+  const html = renderToStaticMarkup(
+    <PatchReviewPanel
+      suggestion={sampleSuggestion({
+        summary: '改好了：结尾换成了**卷帘门底下的拖痕**，把悬念从动作换成了一个问题。',
+      })}
+      editorFontSize={14}
+      editorFontFamily="test-font"
+      onAccept={() => undefined}
+      onAcceptHunk={() => undefined}
+      onReject={() => undefined}
+      onSaveNote={() => undefined}
+      onRetryWithoutKnowledge={() => undefined}
+    />,
+  );
+  assert.match(html, /结尾换成了卷帘门底下的拖痕，把悬念/);
+  assert.doesNotMatch(html, /\*\*/);
+});
