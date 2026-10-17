@@ -3,7 +3,10 @@ import { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Check, ChevronDown, Shield } from 'lucide-react';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
-import { AGENT_PERMISSION_PROFILE_OPTIONS } from '../../lib/agent-permission';
+import {
+  AGENT_PERMISSION_PROFILE_OPTIONS,
+  visiblePermissionProfile,
+} from '../../lib/agent-permission';
 
 interface PermissionProfileSelectorProps {
   value: AgentPermissionProfile;
@@ -33,7 +36,8 @@ export function PermissionProfileSelector({
   // old menu when busy clears, or defer closing until an effect after disabled is painted.
   if (effectiveDisabled && isOpen) setIsOpen(false);
   const menuOpen = isOpen && !effectiveDisabled;
-  const currentOption = AGENT_PERMISSION_PROFILE_OPTIONS.find((option) => option.value === value);
+  const shown = visiblePermissionProfile(value);
+  const currentOption = AGENT_PERMISSION_PROFILE_OPTIONS.find((option) => option.value === shown);
 
   useLayoutEffect(() => {
     if (menuOpen) optionRefs.current[focusedIndex]?.focus();
@@ -45,7 +49,7 @@ export function PermissionProfileSelector({
     setFocusedIndex(
       Math.max(
         0,
-        AGENT_PERMISSION_PROFILE_OPTIONS.findIndex((option) => option.value === value),
+        AGENT_PERMISSION_PROFILE_OPTIONS.findIndex((option) => option.value === shown),
       ),
     );
     setIsOpen(true);
@@ -156,7 +160,7 @@ export function PermissionProfileSelector({
           className="w-[280px] animate-fade-in rounded-xl border border-border bg-surface p-1.5 shadow-dropdown"
         >
           {AGENT_PERMISSION_PROFILE_OPTIONS.map((option, index) => {
-            const isSelected = option.value === value;
+            const isSelected = option.value === shown;
             return (
               <button
                 key={option.value}

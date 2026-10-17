@@ -34,10 +34,12 @@ test('不同档位显示对应标签', () => {
   );
   assert.match(autoHtml, /自动/);
 
+  // 已经存成「完全放行」的作品按「自动」显示：两档在对话里实际一样，选项不再列它。
   const fullHtml = renderToStaticMarkup(
     <PermissionProfileSelector value="full" onChange={() => undefined} />,
   );
-  assert.match(fullHtml, /完全放行/);
+  assert.match(fullHtml, /自动/);
+  assert.doesNotMatch(fullHtml, /完全放行/);
 });
 
 test('disabled 时按钮被禁用', () => {
@@ -161,24 +163,27 @@ test('打开即聚焦已选项，移动焦点不自动改变权限，显式 Ente
   expect(document.activeElement).toBe(permissionTrigger());
 });
 
-test('方向键循环与 Home/End 只移焦，Space 显式选择；菜单保留四档原文', () => {
+test('方向键循环与 Home/End 只移焦，Space 显式选择；菜单列三档原文', () => {
   mountPermission({ value: 'full' });
+  expect(document.querySelectorAll('[role="option"]').length).toBe(0);
   act(() => permissionTrigger().click());
   for (const option of AGENT_PERMISSION_PROFILE_OPTIONS) {
     expect(permissionOption(option.value).textContent).toContain(option.label);
     expect(permissionOption(option.value).textContent).toContain(option.hint);
   }
-  pressKey(permissionOption('full'), 'ArrowDown');
+  expect(document.querySelectorAll('[role="option"]').length).toBe(3);
+  expect(document.activeElement).toBe(permissionOption('auto'));
+  pressKey(permissionOption('auto'), 'ArrowDown');
   expect(document.activeElement).toBe(permissionOption('read'));
   pressKey(permissionOption('read'), 'ArrowUp');
-  expect(document.activeElement).toBe(permissionOption('full'));
-  pressKey(permissionOption('full'), 'Home');
+  expect(document.activeElement).toBe(permissionOption('auto'));
+  pressKey(permissionOption('auto'), 'Home');
   expect(document.activeElement).toBe(permissionOption('read'));
   pressKey(permissionOption('read'), 'End');
-  expect(document.activeElement).toBe(permissionOption('full'));
+  expect(document.activeElement).toBe(permissionOption('auto'));
   expect(onPermissionChange).not.toHaveBeenCalled();
-  pressKey(permissionOption('full'), ' ');
-  expect(onPermissionChange).toHaveBeenCalledExactlyOnceWith('full');
+  pressKey(permissionOption('auto'), ' ');
+  expect(onPermissionChange).toHaveBeenCalledExactlyOnceWith('auto');
   expect(document.activeElement).toBe(permissionTrigger());
 });
 
@@ -188,7 +193,7 @@ test('Escape 取消并回到 trigger，重新打开仍聚焦当前选择', () =>
   pressKey(permissionTrigger(), 'ArrowDown');
   expect(document.activeElement).toBe(permissionOption('ask'));
   pressKey(permissionOption('ask'), 'End');
-  const escape = pressKey(permissionOption('full'), 'Escape');
+  const escape = pressKey(permissionOption('auto'), 'Escape');
   expect(escape.defaultPrevented).toBe(true);
   expect(onPermissionChange).not.toHaveBeenCalled();
   expect(document.querySelector('[role="listbox"]')).toBeNull();
@@ -217,7 +222,7 @@ test.each([{ busy: true }, { disabled: true }])(
   (blocked) => {
     mountPermission();
     act(() => permissionTrigger().click());
-    const oldOption = permissionOption('full');
+    const oldOption = permissionOption('auto');
     mountPermission(blocked);
     expect(permissionTrigger().disabled).toBe(true);
     expect(permissionTrigger().getAttribute('aria-expanded')).toBe('false');

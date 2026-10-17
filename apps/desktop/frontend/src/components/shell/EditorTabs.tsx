@@ -344,14 +344,10 @@ export function EditorTabs({
           {(permissionProfile === 'auto' || permissionProfile === 'full') && (
             <span
               className="flex items-center whitespace-nowrap rounded-full border border-agent/40 px-2 text-3xs text-agent"
-              title={
-                permissionProfile === 'auto'
-                  ? '当前项目权限档位为「自动」：补丁不经确认直接落盘（写前留快照，可撤销）。'
-                  : '当前项目权限档位为「完全放行」：补丁与长任务均不再二次确认。'
-              }
+              title="当前项目权限档位为「自动」：补丁不经确认直接落盘（写前留快照，可撤销）。"
               data-testid="editor-permission-auto"
             >
-              {permissionProfile === 'auto' ? '自动档' : '完全放行'}
+              自动档
             </span>
           )}
           {!activeReadOnly && permissionProfile !== 'read' && onPolishActive && (
