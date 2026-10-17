@@ -26,15 +26,8 @@ import { contextBudgetText } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
 import { RunElapsed } from './RunElapsed';
 import { StreamPhase } from './StreamPhase';
+import { formatStoredTimeFull, formatStoredTimeShort } from '../../lib/stored-time';
 import type { AgentRun, AgentRunControlHandlers, Message } from './types';
-
-// 会话下拉的 updated_at 是 ISO 原串：主行只露 MM-dd HH:mm 短格式，完整时间留在 title。
-function formatSessionTime(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
 
 // RunActionBar 按钮统一到 Button 原语后的公共类：保留等效 h-8/text-xs 与按压反馈。
 const runActionButtonClass = 'interactive-press font-medium transition-colors text-xs';
@@ -203,7 +196,7 @@ export function ConversationHeader({
                       setMenuOpen(false);
                       onSelectSession?.(session.id);
                     }}
-                    title={`会话 #${session.id} · ${session.updated_at}`}
+                    title={`会话 #${session.id} · ${formatStoredTimeFull(session.updated_at)}`}
                     data-testid="session-item"
                   >
                     <span className="min-w-0 flex-1 truncate">
@@ -211,7 +204,7 @@ export function ConversationHeader({
                       {session.title.replace(/^IDE Agent:\s*/, '') || `会话 #${session.id}`}
                     </span>
                     <span className="flex-shrink-0 text-3xs text-subtle">
-                      {formatSessionTime(session.updated_at)}
+                      {formatStoredTimeShort(session.updated_at)}
                     </span>
                   </button>
                 );

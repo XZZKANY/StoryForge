@@ -1,5 +1,6 @@
 import { Button, Textarea } from '../ui';
 import type { ChapterCheckEntry } from '../../lib/api/chapter-checks';
+import { formatStoredTimeFull } from '../../lib/stored-time';
 import type { ChapterCheckHistoryState } from './useChapterCheckHistory';
 
 const executionLabel = {
@@ -25,7 +26,7 @@ function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
       <div className="mt-2 space-y-2 text-xs text-muted">
         <p>
           运行 {entry.runId} · 检查记录 #{entry.artifactId} ·{' '}
-          <time dateTime={entry.createdAt}>{entry.createdAt}</time>
+          <time dateTime={entry.createdAt}>{formatStoredTimeFull(entry.createdAt)}</time>
         </p>
         {entry.checkError && <p className="text-warning">{entry.checkError}</p>}
         {check && (

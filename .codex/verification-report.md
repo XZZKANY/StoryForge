@@ -8512,3 +8512,9 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 真宿主实测：审阅栏标题下的说明原样显示模型回复，「改好了：结尾换成了**卷帘门底下的拖痕**…」露着星号。
 - 改动：把版本记录那段「Markdown 压成一行纯文本」挪成 `lib/plain-text.ts` 的 `markdownToPlainLine`，审阅栏说明与版本记录共用（`versionSummaryText` 改为直接调用，行为不变）。
 - 测试：`patch-review-panel` 1 条；版本标签既有 3 条照过。变异 2 / 2。`pnpm verify` 8 道全过（前端 2135 tests）。真宿主复核：审阅栏「改好了：结尾换成了卷帘门底下的拖痕，把悬念从动作换成了一个问题。」无星号。
+
+## 2026-10-17 会话列表与章节检查记录的时间按本地时区显示（以前慢 8 小时）
+
+- 真宿主实测：本机 13:16 发的消息，会话列表显示「10-17 05:16」。引擎库沿用 SQLite CURRENT_TIMESTAMP 的口径存 UTC、不带时区，界面 `new Date()` 把不带时区的串当本地时间。迁移会话核过：0.1.x（Python 时期）就是这样，不是迁移带出来的。章节检查记录直接显示原始字符串（读代码）。
+- 改动：新增 `lib/stored-time.ts`（不带时区的按 UTC 解析，带时区的照原样；`MM-dd HH:mm` 与 `yyyy-MM-dd HH:mm:ss` 两种本地格式），会话列表、会话悬停说明、章节检查记录统一用它。
+- 测试：新增 `stored-time` 2 条（期望值按同一 UTC 时刻在本地时区算，在 Asia/Shanghai 与 UTC 下各跑一遍都过）。变异 2 / 2（在本地 +8 时区下杀死）。`pnpm verify` 8 道全过（前端 2136 tests）。真宿主复核：本地 15:42 时会话列表显示「10-17 15:39」。
