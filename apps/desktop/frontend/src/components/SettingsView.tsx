@@ -201,9 +201,11 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                 type="text"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
+                // 弹层在捕获阶段就处理 Esc；有查询时声明自理，才轮得到下面先清搜索。
+                data-esc-handled={searchQuery ? '' : undefined}
                 onKeyDown={(event) => {
                   // 有查询时 Esc 先清搜索（不就手关掉整个设置窗），空查询时才放行给弹层关闭。
-                  if (event.key === 'Escape' && searchQuery) {
+                  if (event.key === 'Escape' && searchQuery && !event.nativeEvent.isComposing) {
                     event.stopPropagation();
                     setSearchQuery('');
                   }
