@@ -338,7 +338,7 @@ function ExplorerView({
                 }}
               >
                 <FolderOpen size={14} strokeWidth={1.6} />
-                打开项目…
+                打开本地作品…
               </button>
             </FloatingSurface>
           </>

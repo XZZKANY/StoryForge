@@ -18,6 +18,7 @@ export const SAVE_ACTIVE_FILE_DONE_EVENT = 'storyforge:save-active-file-done';
 export const REVIEW_ISSUES_EVENT = 'storyforge:review-issues';
 export const REQUEST_CHAPTER_POLISH_EVENT = 'storyforge:request-chapter-polish';
 export const REQUEST_CHAPTER_WRITE_EVENT = 'storyforge:request-chapter-write';
+export const REQUEST_NEW_SESSION_EVENT = 'storyforge:request-new-session';
 // Q3a：编辑区工具行收进 EditorTabs「…」菜单后，历史视图这类编辑器内部态用命令事件驱动
 // （保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE，无需新事件）。
 export const REQUEST_EDITOR_COMMAND_EVENT = 'storyforge:request-editor-command';
@@ -155,6 +156,12 @@ export type AuthorLoopResult = {
   /** 正文已写回但闭环记录未完成/回执未持久化时的降级说明；存在时聊天文案不得宣称闭环已生成。 */
   warning?: string;
 };
+
+export function emitNewSessionRequest(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(REQUEST_NEW_SESSION_EVENT));
+  }
+}
 
 export function emitExportCurrentFile(): void {
   if (typeof window !== 'undefined') {

@@ -324,7 +324,7 @@ export function App() {
     showEditor,
   });
 
-  // P2-C：与 AppShell.openBookProfileEditor 同一路径，从作品总览封面空态直通作品资料编辑视图。
+  // P2-C：与 AppShell.openSideView 同一路径，从作品总览封面空态直通作品资料编辑视图。
   const openBookProfileEditor = useCallback(() => {
     showEditor();
     shell.showExplorerView();

@@ -66,7 +66,7 @@ export const SHORTCUT_ROWS: ShortcutRow[] = [
     chords: [{ ctrl: true, shift: true, key: 'i' }],
     needs: 'project',
   },
-  { keys: 'Ctrl O', label: '打开项目', chords: [{ ctrl: true, key: 'o' }] },
+  { keys: 'Ctrl O', label: '打开本地作品', chords: [{ ctrl: true, key: 'o' }] },
   {
     keys: 'Ctrl Tab',
     label: '在已打开页签间循环（Shift 反向）',

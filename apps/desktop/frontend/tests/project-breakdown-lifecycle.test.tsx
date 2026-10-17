@@ -6,6 +6,7 @@ import { useProjectCommands, type ProjectCommands } from '../src/components/app/
 import { executeIdeCommand } from '../src/lib/api-client';
 import { flushActiveEditorToDisk } from '../src/lib/assistant-events';
 import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/tauri-fs';
+import { TOAST_EVENT } from '../src/lib/toast';
 
 vi.mock('../src/lib/api-client', () => ({ executeIdeCommand: vi.fn() }));
 vi.mock('../src/lib/assistant-events', () => ({
@@ -20,6 +21,10 @@ vi.mock('../src/lib/tauri-fs', () => ({
   FS_MUTATION_EVENT: 'fs-mutation',
   invalidateFileSystemCache: vi.fn(),
   TauriFileSystem: { readProjectFile: vi.fn() },
+}));
+vi.mock('../src/lib/project-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/lib/project-context')>()),
+  initializeStoryProject: vi.fn().mockResolvedValue(undefined),
 }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -427,9 +432,73 @@ test('Canon 无版本扫描只显示未缓存参考结果，不宣称旧事实�
   });
   await act(async () => latest.handleRefreshCanon());
   const alert = vi.mocked(options.dialogs.alert).mock.calls.at(-1)?.[0];
-  expect(alert?.title).toContain('未缓存');
-  expect(alert?.message).toContain('未发布缓存');
-  expect(alert?.message).not.toContain('已写出事实卡');
+  expect(alert?.title).toContain('没有更新事实卡');
+  expect(alert?.message).toContain('没有更新事实卡');
+  expect(alert?.message).not.toContain('事实卡已更新');
   expect(alert?.message).not.toContain('.storyforge/canon/derived/dossier.md');
   expect(options.openFile).not.toHaveBeenCalled();
+});
+
+test('Canon 刷新结果用作者的话说，事实卡路径按作品内相对路径给', async () => {
+  await render('D:/project');
+  vi.mocked(executeIdeCommand).mockResolvedValueOnce({
+    command_id: 'canon.refresh',
+    status: 'accepted',
+    payload: {
+      canon: {
+        entity_count: 3,
+        checked_invariants: ['lifespan'],
+        conflict_count: 1,
+        advisory_count: 2,
+        cache_status: 'published',
+        dossier: { path: 'D:/project/.storyforge/canon/derived/dossier.md' },
+        note: '结果为参考信号：硬矛盾（blocking）是声明内部结构冲突，advisory 须抽读原文核实。',
+      },
+    },
+  });
+  await act(async () => latest.handleRefreshCanon());
+  const alert = vi.mocked(options.dialogs.alert).mock.calls.at(-1)?.[0];
+  expect(alert?.title).toBe('设定事实卡已刷新');
+  expect(alert?.message).toContain('设定之间互相矛盾：1 处');
+  expect(alert?.message).toContain('要翻原文核对：2 处');
+  expect(alert?.message).toContain('事实卡已更新：.storyforge/canon/derived/dossier.md');
+  for (const word of ['blocking', 'advisory', 'Canon', '实体声明', '派生']) {
+    expect(alert?.message).not.toContain(word);
+  }
+});
+
+test('补齐作品目录之后右下角说明做了什么', async () => {
+  await render('D:/project');
+  const toasts: string[] = [];
+  const onToast = (event: Event) =>
+    toasts.push((event as CustomEvent<{ message: string }>).detail.message);
+  window.addEventListener(TOAST_EVENT, onToast);
+  try {
+    await act(async () => latest.handleInitializeStoryProject());
+  } finally {
+    window.removeEventListener(TOAST_EVENT, onToast);
+  }
+  expect(toasts).toEqual(['作品目录已补齐，原有的文件和文件夹都没动。']);
+});
+
+test('设定里还没写约束时不报「0 处矛盾」，说明这次只统计了出场', async () => {
+  await render('D:/project');
+  vi.mocked(executeIdeCommand).mockResolvedValueOnce({
+    command_id: 'canon.refresh',
+    status: 'accepted',
+    payload: {
+      canon: {
+        entity_count: 0,
+        checked_invariants: [],
+        conflict_count: 0,
+        advisory_count: 0,
+        cache_status: 'published',
+        dossier: { path: 'D:/project/.storyforge/canon/derived/dossier.md' },
+      },
+    },
+  });
+  await act(async () => latest.handleRefreshCanon());
+  const alert = vi.mocked(options.dialogs.alert).mock.calls.at(-1)?.[0];
+  expect(alert?.message).toContain('还没写可核对的约束');
+  expect(alert?.message).not.toContain('互相矛盾');
 });

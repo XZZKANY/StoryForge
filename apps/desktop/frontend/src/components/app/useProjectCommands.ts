@@ -11,6 +11,7 @@ import {
 } from '../../lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from '../../lib/smoke';
 import { FS_MUTATION_EVENT, invalidateFileSystemCache } from '../../lib/tauri-fs';
+import { emitToast } from '../../lib/toast';
 import type { AppDialogApi } from './AppDialog';
 import { useBookBreakdown } from './useBookBreakdown';
 import { useNewProject } from './useNewProject';
@@ -207,6 +208,7 @@ export function useProjectCommands({
         await initializeStoryProject(targetProject);
         setProjectRefreshVersion((version) => version + 1);
         onShowEditor();
+        emitToast('作品目录已补齐，原有的文件和文件夹都没动。');
       } catch (error) {
         console.error('初始化项目结构失败', error);
         await dialogs.alert({
@@ -234,22 +236,27 @@ export function useProjectCommands({
       const cached = canon.cache_status !== 'uncached_unverified' && dossierPath !== null;
       invalidateFileSystemCache(activeProject);
       setProjectRefreshVersion((version) => version + 1);
+      // 引擎的 note 是给 Agent 看的术语版，这里按同一组字段说人话。
+      const checked =
+        Array.isArray(canon.checked_invariants) && canon.checked_invariants.length > 0;
       const lines = [
-        `实体声明：${canon.entity_count ?? 0} 个`,
-        `硬矛盾（blocking）：${canon.conflict_count ?? 0}，advisory：${canon.advisory_count ?? 0}`,
-        cached ? `已写出事实卡：${dossierPath}` : '本次仅提供扫描参考；未发布缓存或新事实卡。',
+        `设定里登记的条目（人物、物件等）：${canon.entity_count ?? 0} 个`,
+        checked
+          ? `设定之间互相矛盾：${canon.conflict_count ?? 0} 处；可能和正文对不上、要翻原文核对：${canon.advisory_count ?? 0} 处`
+          : '设定里还没写可核对的约束（比如某人第几章后退场），这次只统计了各条目出现在哪些章。',
+        cached && dossierPath
+          ? `事实卡已更新：${relativePathInsideProject(activeProject, dossierPath) ?? dossierPath}`
+          : '这次只扫描了一遍，没有更新事实卡：改动记录核对不上，结果仅供参考。',
         '',
-        typeof canon.note === 'string'
-          ? canon.note
-          : '结果为派生参考信号，非质量判定；advisory 须抽读原文核实。',
+        '这些只是提示，不是质量结论。',
       ];
       await dialogs.alert({
-        title: cached ? 'Canon 事实卡已刷新（参考信号）' : 'Canon 扫描完成（未缓存参考）',
+        title: cached ? '设定事实卡已刷新' : '设定扫描完成（没有更新事实卡）',
         message: lines.join('\n'),
       });
     } catch (error) {
       await dialogs.alert({
-        title: '刷新 Canon 事实卡失败',
+        title: '刷新设定事实卡失败',
         message: error instanceof Error ? error.message : String(error),
       });
     }

@@ -2,7 +2,7 @@
  * 对话窗口容器：组合 session/context、Agent stream、run control 与展示层。
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import { ChatWindowView } from './chat-window/ChatWindowView';
 import type { ChatWindowProps } from './chat-window/types';
@@ -23,6 +23,7 @@ import {
   emitChapterWriteRequest,
   REQUEST_CHAPTER_POLISH_EVENT,
   REQUEST_CHAPTER_WRITE_EVENT,
+  REQUEST_NEW_SESSION_EVENT,
   RETRY_WITHOUT_KNOWLEDGE_EVENT,
   type ChapterPolishRequest,
   type ChapterWriteRequest,
@@ -203,6 +204,23 @@ export function ChatWindow(props: ChatWindowProps) {
     return () => window.removeEventListener(REQUEST_CHAPTER_WRITE_EVENT, onChapterWrite);
   }, [runAuthorAgent, state]);
 
+  const startNewSession = () => {
+    // 待确认守卫可能拦下新建：只有真正切走了才清排队消息。
+    void Promise.resolve(session.handleNewSession()).then((switched) => {
+      if (switched) submission.clearQueuedMessages();
+    });
+  };
+  const startNewSessionRef = useRef(startNewSession);
+  useLayoutEffect(() => {
+    startNewSessionRef.current = startNewSession;
+  });
+  // 命令面板「新建会话」走事件桥：与对话头按钮同一条路径，同样会被待确认守卫拦下。
+  useEffect(() => {
+    const onNewSession = () => startNewSessionRef.current();
+    window.addEventListener(REQUEST_NEW_SESSION_EVENT, onNewSession);
+    return () => window.removeEventListener(REQUEST_NEW_SESSION_EVENT, onNewSession);
+  }, []);
+
   return (
     <>
       <ChatWindowView
@@ -220,12 +238,7 @@ export function ChatWindow(props: ChatWindowProps) {
         sessions={sessionManagement.visibleSessions}
         onRenameSession={sessionManagement.renameSession}
         onRemoveSession={sessionManagement.removeSession}
-        handleNewSession={() => {
-          // 待确认守卫可能拦下新建：只有真正切走了才清排队消息。
-          void Promise.resolve(session.handleNewSession()).then((switched) => {
-            if (switched) submission.clearQueuedMessages();
-          });
-        }}
+        handleNewSession={startNewSession}
         retryAssistantSessionLoad={session.retryAssistantSessionLoad}
         retryContextCandidates={session.retryContextCandidates}
         addExplicitContext={session.addExplicitContext}
