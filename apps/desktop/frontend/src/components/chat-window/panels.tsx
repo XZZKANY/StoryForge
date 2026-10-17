@@ -23,6 +23,7 @@ import { AssistantMarkdown } from './AssistantMarkdown';
 import { CHAT_COLUMN } from './column';
 import { DecisionChoices } from './DecisionChoices';
 import { SessionMenu } from './SessionMenu';
+import { MessageActions } from './MessageActions';
 import { contextBudgetText } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
 import { RunElapsed } from './RunElapsed';
@@ -193,6 +194,7 @@ export function MessageList({
   agentRun,
   agentRunRecovery,
   emptyState = null,
+  onRegenerate,
 }: {
   conversationScope?: string | number;
   messages: Message[];
@@ -200,6 +202,8 @@ export function MessageList({
   agentRunRecovery: AgentRunRecoveryDisplay | null;
   /** 没有任何消息时显示（新会话开场）；不进会话记录。 */
   emptyState?: ReactNode;
+  /** 把这句作者的话再发一次；不传就不给「重新生成」（例如 AI 正在跑）。 */
+  onRegenerate?: (userText: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -280,11 +284,30 @@ export function MessageList({
   const replyIndex = process
     ? messages.findIndex((message) => message.stream?.runId === agentRun?.id)
     : -1;
+  const lastAssistant = messages.reduce(
+    (found, message, index) => (message.role === 'assistant' ? index : found),
+    -1,
+  );
+  const regenerateFrom =
+    lastAssistant > 0
+      ? messages
+          .slice(0, lastAssistant)
+          .reverse()
+          .find((message) => message.role === 'user')
+      : undefined;
   const items: ReactNode[] = [];
   messages.forEach((message, index) => {
     if (index === replyIndex) items.push(process);
     items.push(
-      <MessageItem key={message.id ?? messageKey(message) + ':' + index} message={message} />,
+      <MessageItem
+        key={message.id ?? messageKey(message) + ':' + index}
+        message={message}
+        onRegenerate={
+          index === lastAssistant && regenerateFrom && onRegenerate
+            ? () => onRegenerate(regenerateFrom.content)
+            : undefined
+        }
+      />,
     );
   });
   if (process && replyIndex < 0) items.push(process);
@@ -904,7 +927,13 @@ function messageKey(message: Message): string {
   return `${message.role}-${hash >>> 0}`;
 }
 
-export const MessageItem = memo(function MessageItem({ message }: { message: Message }) {
+export const MessageItem = memo(function MessageItem({
+  message,
+  onRegenerate,
+}: {
+  message: Message;
+  onRegenerate?: () => void;
+}) {
   if (message.role === 'user') {
     return (
       <div className="flex animate-slide-up-fade justify-end" data-testid="user-message">
@@ -930,6 +959,9 @@ export const MessageItem = memo(function MessageItem({ message }: { message: Mes
         )}
         {message.stream?.detail && (
           <p className="mt-1 text-xs text-muted">{message.stream.detail}</p>
+        )}
+        {(!message.stream || message.stream.phase === 'complete') && message.content.trim() && (
+          <MessageActions content={message.content} onRegenerate={onRegenerate} />
         )}
       </div>
     </article>
