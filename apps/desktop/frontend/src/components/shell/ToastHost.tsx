@@ -2,7 +2,7 @@
  * 右下角通知栈：监听 TOAST_EVENT，逐条上叠、到时自动消失、可手动关闭。
  * 固定在状态栏上方，pointer-events 只落在卡片上不挡编辑器。
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { TOAST_EVENT, type ToastDetail, type ToastTone } from '../../lib/toast';
 import { X } from '../icons/shell-icons';
 
@@ -10,6 +10,30 @@ type ToastItem = ToastDetail & { id: number };
 type ToastActionState = { status: 'loading' | 'error'; error?: string };
 
 const MAX_VISIBLE = 4;
+const STACK_RIGHT = 12;
+const STACK_WIDTH = 320;
+const STACK_BOTTOM = 36;
+const FLOOR_GAP = 8;
+
+/**
+ * 通知栈和对话栏横向重叠时，抬到消息列表底边之上：那条边就是运行条、就地选项、输入框的顶边，
+ * 作者刚写回完最要点的权限 / 发送都在下面。隐藏的工作区量出来全是 0，横向不重叠，自然不算。
+ */
+export function toastStackBottom(
+  floors: readonly DOMRect[],
+  viewportWidth: number,
+  viewportHeight: number,
+): number {
+  const right = viewportWidth - STACK_RIGHT;
+  const left = right - STACK_WIDTH;
+  return floors.reduce(
+    (bottom, floor) =>
+      floor.right > left && floor.left < right
+        ? Math.max(bottom, Math.round(viewportHeight - floor.bottom + FLOOR_GAP))
+        : bottom,
+    STACK_BOTTOM,
+  );
+}
 
 const TONE_BAR: Record<ToastTone, string> = {
   info: 'bg-agent',
@@ -29,6 +53,7 @@ export function ToastHost() {
     new Map<number, { deadline: number; remainingMs: number; paused: boolean; timer?: number }>(),
   );
   const [pausedIds, setPausedIds] = useState<ReadonlySet<number>>(new Set());
+  const [stackBottom, setStackBottom] = useState(STACK_BOTTOM);
 
   const dismiss = useCallback((id: number) => {
     const pauseInfo = pausedRef.current.get(id);
@@ -184,13 +209,35 @@ export function ToastHost() {
     };
   }, [dismiss, armTimer]);
 
+  useLayoutEffect(() => {
+    if (items.length === 0) return;
+    const floors = [...document.querySelectorAll<HTMLElement>('[data-toast-floor]')];
+    const measure = () =>
+      setStackBottom(
+        toastStackBottom(
+          floors.map((floor) => floor.getBoundingClientRect()),
+          window.innerWidth,
+          window.innerHeight,
+        ),
+      );
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    for (const floor of floors) observer?.observe(floor);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [items]);
+
   if (items.length === 0) return null;
 
   return (
     // 游离豁免层：模态打开时不被 inert/aria-hidden 压掉（z-index 见 index.css 的 toast-host 规则）。
     // 纯视觉容器：live 语义由每条通知按 tone 自管（error→alert，其余→status），不嵌套 region。
     <div
-      className="pointer-events-none fixed bottom-9 right-3 flex w-[320px] flex-col gap-2"
+      className="pointer-events-none fixed right-3 flex w-[320px] flex-col gap-2"
+      style={{ bottom: stackBottom }}
       data-testid="toast-host"
       data-layer-exempt=""
       onMouseLeave={() => items.forEach((item) => resumeItem(item.id))}
