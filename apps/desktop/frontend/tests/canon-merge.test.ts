@@ -5,20 +5,35 @@
  * 可证伪：
  * 1. 并入实体写全字段（不能只写卡片展示的 id/名/别名）。
  * 2. 已存在同 id / 同内容不重复追加——作者已有的声明优先。
- * 3. canon.json 缺失或损坏时按空骨架起头，写出一份格式正确的文件，而不是抛错或写坏。
+ * 3. canon.json 缺失时按空骨架起头；存在但解析不出来（手改到一半）就拒绝，绝不拿空骨架覆盖。
  * 4. 落盘路径是 .storyforge/canon/canon.json，按项目自身分隔符风格拼。
  */
 
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 
 import {
   applyCanonMerge,
+  applyPromiseResolved,
   canonDeclarationPathFor,
-  mergeProposalIntoCanon,
+  CanonUnreadableError,
+  type CanonMergeTarget,
 } from '../src/lib/canon-merge';
+import { writeCanonGuarded } from '../src/lib/canon-write';
 import { mapObservatoryPayload } from '../src/lib/observations';
 import { invalidateFileSystemCache } from '../src/lib/tauri-fs';
+
+vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: vi.fn(async () => null) }));
+
+/** 观测镜「并入」的真实写入路径：作者已确认。 */
+function mergeProposalIntoCanon(projectPath: string, target: CanonMergeTarget) {
+  return writeCanonGuarded({
+    projectPath,
+    edit: (canon) => applyCanonMerge(canon, target),
+    confirm: async () => true,
+    summary: '并入',
+  });
+}
 
 function withMockFs(
   files: Record<string, string>,
@@ -30,6 +45,7 @@ function withMockFs(
     configurable: true,
     value: {
       __STORYFORGE_MOCK_FS__: {
+        pathExists: async (path: string) => path in files,
         readFile: async (path: string) => {
           if (!(path in files)) throw new Error(`missing: ${path}`);
           return files[path];
@@ -138,17 +154,47 @@ test('merge preserves author fields already in canon.json', async () => {
   });
 });
 
-test('merge recovers from a corrupt canon.json instead of throwing', async () => {
+test('canon.json 手改到一半解析不出来：拒绝并入，原文一个字不动', async () => {
   const path = 'D:\\Books\\雾港回声\\.storyforge\\canon\\canon.json';
-  await withMockFs({ [path]: '{ 这不是合法 JSON' }, async (writes) => {
-    await mergeProposalIntoCanon('D:\\Books\\雾港回声', {
-      kind: 'claim',
-      invariant: 'timeline_order',
-      entry: { before: 'a', after: 'b' },
-    });
-    const written = JSON.parse(writes[0].content);
-    assert.deepEqual(written.invariants.timeline_order, [{ before: 'a', after: 'b' }]);
+  const broken = '{ "entities": [{ "id": "char_lin", }] ';
+  await withMockFs({ [path]: broken }, async (writes) => {
+    await assert.rejects(
+      mergeProposalIntoCanon('D:\\Books\\雾港回声', {
+        kind: 'claim',
+        invariant: 'timeline_order',
+        entry: { before: 'a', after: 'b' },
+      }),
+      (error: unknown) =>
+        error instanceof CanonUnreadableError && /不是合法的 JSON.*没有写入/.test(error.message),
+    );
+    assert.equal(writes.length, 0);
   });
+});
+
+test('标伏笔已回收只改那一条的状态与回收章，其余字段原样', () => {
+  const canon = {
+    version: 1,
+    invariants: {
+      promises: [
+        { id: ' p1 ', title: '旧钥匙', status: 'planted', planted_chapter: 2, note: '作者备注' },
+        { id: 'p2', title: '电台', status: 'planted' },
+      ],
+      lifespan: [{ entity: 'char_a', exits_after_chapter: 3 }],
+    },
+  };
+  const next = applyPromiseResolved(canon, 'p1', 5);
+  const promises = (next.invariants as { promises: Record<string, unknown>[] }).promises;
+  assert.deepEqual(promises[0], {
+    id: ' p1 ',
+    title: '旧钥匙',
+    status: 'resolved',
+    planted_chapter: 2,
+    note: '作者备注',
+    resolved_chapter: 5,
+  });
+  assert.deepEqual(promises[1], { id: 'p2', title: '电台', status: 'planted' });
+  assert.deepEqual((next.invariants as { lifespan: unknown }).lifespan, canon.invariants.lifespan);
+  assert.throws(() => applyPromiseResolved(canon, 'p9', 5), /找不到伏笔「p9」.*没有写入/);
 });
 
 test('assertion evidence survives observatory mapping, author merge and disk JSON roundtrip', async () => {

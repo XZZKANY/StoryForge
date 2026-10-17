@@ -11,6 +11,7 @@
  *
  * 已知边界：读的是磁盘当前内容。作者若正在编辑器里手改 canon.json 且未保存，其后续
  * 保存仍会以缓冲覆盖——与既有补丁写回对已打开文件的行为一致，不在此另建闸。
+ * 写盘本身走 `canon-write.ts`（确认 → 快照 → 写 → 可撤销），这里只放纯改动与读取。
  */
 
 import { TauriFileSystem } from './tauri-fs';
@@ -83,21 +84,58 @@ export function applyCanonMerge(canon: CanonShape, target: CanonMergeTarget): Ca
   return { ...canon, invariants };
 }
 
-/** 读盘 → 并入 → 原子写回（Rust 侧 write_file 是临时文件 + rename）。 */
-export async function mergeProposalIntoCanon(
-  projectPath: string,
-  target: CanonMergeTarget,
-): Promise<void> {
+/** canon.json 在、但解析不出来：多半是作者手改到一半。绝不拿空骨架覆盖它。 */
+export class CanonUnreadableError extends Error {}
+
+export type CanonDeclaration = {
+  path: string;
+  /** 磁盘原文；文件还不存在时为 null。撤销与写前快照都基于它。 */
+  raw: string | null;
+  canon: CanonShape;
+};
+
+/** 读作者的 canon.json：不存在就从空骨架起头；存在但不是合法 JSON 对象就拒绝。 */
+export async function readCanonDeclaration(projectPath: string): Promise<CanonDeclaration> {
   const path = canonDeclarationPathFor(projectPath);
-  let canon: CanonShape = { version: 1, entities: [], invariants: {} };
-  try {
-    const parsed = JSON.parse(await TauriFileSystem.readFile(path)) as unknown;
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      canon = parsed as CanonShape;
-    }
-  } catch {
-    // 缺失或损坏：按空骨架起头，这次并入会写出一份格式正确的文件。
+  if (!(await TauriFileSystem.pathExists(path))) {
+    return { path, raw: null, canon: { version: 1, entities: [], invariants: {} } };
   }
-  const merged = applyCanonMerge(canon, target);
-  await TauriFileSystem.writeFile(projectPath, path, `${JSON.stringify(merged, null, 2)}\n`);
+  const raw = await TauriFileSystem.readFile(path);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = null;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new CanonUnreadableError(
+      'canon.json 现在不是合法的 JSON（可能手改到一半），先在编辑器里修好再来；这次没有写入。',
+    );
+  }
+  return { path, raw, canon: parsed as CanonShape };
+}
+
+export function serializeCanon(canon: CanonShape): string {
+  return `${JSON.stringify(canon, null, 2)}\n`;
+}
+
+/** 纯函数：把某条伏笔承诺标为在第 chapter 章回收。找不到这条就报错，不凭空新建。 */
+export function applyPromiseResolved(canon: CanonShape, id: string, chapter: number): CanonShape {
+  const invariants =
+    canon.invariants && typeof canon.invariants === 'object' && !Array.isArray(canon.invariants)
+      ? (canon.invariants as Record<string, unknown>)
+      : {};
+  const promises = Array.isArray(invariants.promises) ? invariants.promises : [];
+  const index = promises.findIndex(
+    (item) => item && typeof item === 'object' && promiseId((item as { id?: unknown }).id) === id,
+  );
+  if (index < 0)
+    throw new Error(`canon.json 里找不到伏笔「${id}」，可能已被改名或删掉；这次没有写入。`);
+  const next = [...promises];
+  next[index] = {
+    ...(promises[index] as Record<string, unknown>),
+    status: 'resolved',
+    resolved_chapter: chapter,
+  };
+  return { ...canon, invariants: { ...invariants, promises: next } };
 }

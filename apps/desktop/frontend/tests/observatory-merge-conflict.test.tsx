@@ -36,6 +36,7 @@ for (const scenario of ['changed', 'trimmed', 'already-invalid', 'changed-after-
     window.addEventListener(TOAST_EVENT, onToast);
     window.addEventListener(FS_MUTATION_EVENT, onMutation);
     window.__STORYFORGE_MOCK_FS__ = {
+      pathExists: (existsPath) => existsPath === path,
       readFile: (readPath) => {
         assert.equal(readPath, path);
         return disk;
@@ -61,14 +62,17 @@ for (const scenario of ['changed', 'trimmed', 'already-invalid', 'changed-after-
     });
     let rescan: (() => Promise<void>) | undefined;
     function Harness() {
-      const obs = useObservatory({ activeProject: project });
+      const obs = useObservatory({
+        activeProject: project,
+        dialogs: { confirm: async () => true, prompt: async () => null },
+      });
       rescan = obs.runScan;
       return (
         <ObservatoryView
           {...obs}
           onRescan={() => void obs.runScan()}
           onBackToChat={() => {}}
-          onMergeProposal={(target) => void obs.mergeProposal(target)}
+          onMergeProposal={(target, label) => void obs.mergeProposal(target, label)}
         />
       );
     }
@@ -92,7 +96,7 @@ for (const scenario of ['changed', 'trimmed', 'already-invalid', 'changed-after-
       assert.equal(mutations, 0);
       assert.equal(toasts.length, 1);
       assert.equal(toasts[0].tone, 'error');
-      assert.match(toasts[0].message, /并入失败.*相同 ID.*canon.json.*重扫提案.*未写入/);
+      assert.match(toasts[0].message, /没写进 canon.json.*相同 ID.*canon.json.*重扫提案.*未写入/);
       assert.equal(button.disabled, false);
       await act(async () => {
         await rescan!();

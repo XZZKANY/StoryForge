@@ -371,3 +371,60 @@ test('「按需」检查器给「让 AI 查」按钮，按下替作者在对话�
     cleanup();
   }
 });
+
+test('提案卡给「不要」；「并入」带上卡片上那句说明', async () => {
+  const merged: Array<[unknown, string]> = [];
+  const dismissed: unknown[] = [];
+  try {
+    await renderView({
+      proposals: PROPOSALS,
+      onMergeProposal: (target, label) => merged.push([target, label]),
+      onDismissProposal: (target) => dismissed.push(target),
+    });
+    const cards = container!.querySelectorAll<HTMLElement>('[data-testid="proposal-card"]');
+    await act(async () =>
+      cards[0]!.querySelector<HTMLElement>('[data-testid="proposal-merge"]')!.click(),
+    );
+    await act(async () =>
+      cards[1]!.querySelector<HTMLElement>('[data-testid="proposal-merge"]')!.click(),
+    );
+    await act(async () =>
+      cards[1]!.querySelector<HTMLElement>('[data-testid="proposal-dismiss"]')!.click(),
+    );
+    assert.equal(merged[0]?.[1], '新实体「旧电台」（别名：电台）');
+    assert.equal(merged[1]?.[1], '生命期声明：char_b 第 9 章后退场');
+    assert.deepEqual(dismissed, [
+      { kind: 'claim', invariant: 'lifespan', entry: { entity: 'char_b', exits_after_chapter: 9 } },
+    ]);
+  } finally {
+    cleanup();
+  }
+});
+
+test('没回收的伏笔给「标为已回收」，已回收的不给', async () => {
+  const resolvedPromises: string[] = [];
+  try {
+    await renderView({ onResolvePromise: (promise) => resolvedPromises.push(promise.id) });
+    const cards = container!.querySelectorAll<HTMLElement>('[data-testid="promise-card"]');
+    assert.ok(cards[0]!.querySelector('[data-testid="promise-resolve"]'));
+    assert.equal(cards[1]!.querySelector('[data-testid="promise-resolve"]'), null);
+    await act(async () =>
+      cards[0]!.querySelector<HTMLElement>('[data-testid="promise-resolve"]')!.click(),
+    );
+    assert.deepEqual(resolvedPromises, ['p1']);
+  } finally {
+    cleanup();
+  }
+});
+
+test('写设定期间页头说明正在写入', async () => {
+  try {
+    await renderView({ merging: true });
+    assert.match(
+      container!.querySelector('[data-testid="observatory-header"]')?.textContent ?? '',
+      /正在写入设定/,
+    );
+  } finally {
+    cleanup();
+  }
+});
