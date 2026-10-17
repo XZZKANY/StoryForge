@@ -898,6 +898,28 @@ export function useInlineChat({
     );
   }, [editorReady, editorRef]);
 
+  // 上面两条只在正文有焦点时生效；焦点在文件树、对话框、页签行时按 Ctrl+K 曾是死键，
+  // 作者看不到任何反应。正文看得见时把焦点拉回正文，按原选区 / 光标行开同一个行间框。
+  useEffect(() => {
+    if (!editorReady) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing) return;
+      if (event.key.toLowerCase() !== 'k') return;
+      const editor = editorRef.current;
+      const node = editor?.getDomNode();
+      if (!editor || !node || !editor.getModel() || editor.hasTextFocus()) return;
+      const target = event.target instanceof Element ? event.target : null;
+      // 行间框自己的输入框在正文 DOM 里；弹窗（设置、命令面板）里按键不该把正文拽出来。
+      if (target && (node.contains(target) || target.closest('[role="dialog"]'))) return;
+      if (node.getBoundingClientRect().width === 0) return;
+      event.preventDefault();
+      editor.focus();
+      openRef.current(event.shiftKey ? 'continue' : 'revise');
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [editorReady, editorRef]);
+
   // 输入阶段：光标移出锚定行即拆除（点到别的行就是「不改这儿了」）。仅限 input 阶段——
   // diff 阶段点「接受/弃用」按钮会顺带移光标，若此时拆除会话，点击就落空（接受只能用快捷键）。
   // diff 阶段的收尾交给按钮 / Esc / 切文件。

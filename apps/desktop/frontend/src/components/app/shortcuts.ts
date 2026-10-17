@@ -99,7 +99,7 @@ export const SHORTCUT_ROWS: ShortcutRow[] = [
   },
   {
     keys: 'Ctrl K',
-    label: '行间对话（编辑器内选中后）',
+    label: '行间对话（改选中的文字；没选就改光标所在行）',
     chords: [{ ctrl: true, key: 'k' }],
     scope: 'editor',
   },
