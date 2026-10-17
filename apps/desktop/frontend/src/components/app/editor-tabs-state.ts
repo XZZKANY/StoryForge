@@ -6,6 +6,19 @@ export function closeEditorFile(openFiles: string[], path: string): string[] {
   return openFiles.filter((file) => file !== path);
 }
 
+/** path 就是 base，或在 base 这个目录里面（两种分隔符都认）。 */
+export function isSameOrInsidePath(path: string, base: string): boolean {
+  const normalizedPath = path.replace(/\\/g, '/');
+  const normalizedBase = base.replace(/\\/g, '/').replace(/\/+$/, '');
+  return normalizedPath === normalizedBase || normalizedPath.startsWith(`${normalizedBase}/`);
+}
+
+/** 改名 / 移动后，把落在 from 里的路径换到 to 下面；不相干的原样返回。 */
+export function retargetEditorPath(path: string, from: string, to: string): string {
+  if (!isSameOrInsidePath(path, from)) return path;
+  return `${to.replace(/[\\/]+$/, '')}${path.slice(from.replace(/[\\/]+$/, '').length)}`;
+}
+
 export function nextEditorFileAfterClose(openFiles: string[], path: string): string | null {
   const index = openFiles.indexOf(path);
   if (index < 0) return openFiles[openFiles.length - 1] ?? null;

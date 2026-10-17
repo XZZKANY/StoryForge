@@ -6,10 +6,12 @@ import type { WorkspaceSession } from '../../lib/workspace-session';
 import type { AppDialogApi } from './AppDialog';
 import {
   closeEditorFile,
+  isSameOrInsidePath,
   nextEditorFileAfterClose,
   openEditorFile,
   reorderEditorFiles,
   resolveDisplayedEditorFile,
+  retargetEditorPath,
   updateDirtyEditorFiles,
   type EditorTabPane,
 } from './editor-tabs-state';
@@ -366,6 +368,44 @@ export function useEditorWorkspaceTabs({
     [closeFile, currentFile, openFiles, previewFile, selectFile, setLatestDirtyFiles],
   );
 
+  // 删掉一个文件夹：里面打开着的页签一起摘掉，免得留着旧路径的页签再存回去。
+  const dropOpenPathsUnder = useCallback(
+    (dir: string) => {
+      const gone = (path: string) => isSameOrInsidePath(path, dir);
+      const remaining = openFiles.filter((path) => !gone(path));
+      setOpenFiles((current) => current.filter((path) => !gone(path)));
+      setLatestDirtyFiles((current) => new Set([...current].filter((path) => !gone(path))));
+      if (previewFile && gone(previewFile)) {
+        setPreviewFile(null);
+        setActivePane('file');
+      }
+      if (currentFile && gone(currentFile)) {
+        const index = openFiles.indexOf(currentFile);
+        const nextFile =
+          remaining.find((path) => openFiles.indexOf(path) > index) ??
+          remaining[remaining.length - 1] ??
+          null;
+        if (nextFile) selectFile(nextFile);
+        else closeFile();
+      }
+    },
+    [closeFile, currentFile, openFiles, previewFile, selectFile, setLatestDirtyFiles],
+  );
+
+  // 改名 / 移动之后，页签原地换成新路径（未保存修改已在改名前存过或由作者放弃）。
+  const retargetOpenPaths = useCallback(
+    (from: string, to: string) => {
+      const move = (path: string) => retargetEditorPath(path, from, to);
+      setOpenFiles((current) => current.map(move));
+      setPreviewFile((current) => (current ? move(current) : current));
+      setLatestDirtyFiles(
+        (current) => new Set([...current].filter((path) => !isSameOrInsidePath(path, from))),
+      );
+      if (currentFile && isSameOrInsidePath(currentFile, from)) selectFile(move(currentFile));
+    },
+    [currentFile, selectFile, setLatestDirtyFiles],
+  );
+
   return {
     previewFile,
     openFiles,
@@ -388,6 +428,8 @@ export function useEditorWorkspaceTabs({
     pinPreview,
     closePreview,
     dropOpenFilePath,
+    dropOpenPathsUnder,
+    retargetOpenPaths,
   };
 }
 

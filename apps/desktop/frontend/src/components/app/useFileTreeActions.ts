@@ -11,13 +11,18 @@ import {
 } from '../../lib/fs-path-ops';
 import type { AppDialogApi } from './AppDialog';
 import { emitToast } from '../../lib/toast';
+import { isSameOrInsidePath } from './editor-tabs-state';
 
 type UseFileTreeActionsOptions = {
   activeProject: string | null;
   dialogs: AppDialogApi;
   openFile: (path: string, actionLabel?: string) => Promise<void>;
-  // 删除 / 改名后把旧路径从打开页签里摘掉（文件已不在，不走脏检查确认）。
-  dropOpenFilePath: (path: string) => void;
+  // 删除后把旧路径（文件夹则连同里面的文件）从打开页签里摘掉。
+  dropOpenPathsUnder: (path: string) => void;
+  // 改名前先问未保存修改：保存后再改，或由作者明确放弃（与切换项目同一套确认）。
+  confirmDiscardFiles: (paths: string[], actionLabel: string) => Promise<boolean>;
+  openPaths: string[];
+  retargetOpenPaths: (from: string, to: string) => void;
 };
 
 export type FileTreeActions = {
@@ -31,7 +36,10 @@ export function useFileTreeActions({
   activeProject,
   dialogs,
   openFile,
-  dropOpenFilePath,
+  dropOpenPathsUnder,
+  confirmDiscardFiles,
+  openPaths,
+  retargetOpenPaths,
 }: UseFileTreeActionsOptions): FileTreeActions {
   const insideProject = useCallback(
     (absPath: string): boolean =>
@@ -127,17 +135,26 @@ export function useFileTreeActions({
           await dialogs.alert({ title: '重命名失败', message: '同目录下已存在同名项。' });
           return;
         }
+        const affected = openPaths.filter((open) => isSameOrInsidePath(open, path));
+        if (!(await confirmDiscardFiles(affected, '重命名'))) return;
         await TauriFileSystem.renamePath(activeProject, path, target);
         invalidateContextBundleCache(activeProject);
-        if (!isDir) {
-          dropOpenFilePath(path);
-          await openFile(target, '打开重命名后的文件');
-        }
+        retargetOpenPaths(path, target);
+        if (!isDir) await openFile(target, '打开重命名后的文件');
       } catch (error) {
         await failAlert('重命名失败', error);
       }
     },
-    [activeProject, dialogs, dropOpenFilePath, failAlert, insideProject, openFile],
+    [
+      activeProject,
+      confirmDiscardFiles,
+      dialogs,
+      failAlert,
+      insideProject,
+      openFile,
+      openPaths,
+      retargetOpenPaths,
+    ],
   );
 
   const onDelete = useCallback(
@@ -156,12 +173,12 @@ export function useFileTreeActions({
       try {
         await TauriFileSystem.deletePath(activeProject, path, isDir);
         invalidateContextBundleCache(activeProject);
-        if (!isDir) dropOpenFilePath(path);
+        dropOpenPathsUnder(path);
       } catch (error) {
         await failAlert('删除失败', error);
       }
     },
-    [activeProject, dialogs, dropOpenFilePath, failAlert],
+    [activeProject, dialogs, dropOpenPathsUnder, failAlert],
   );
 
   return { onNewFile, onNewFolder, onRename, onDelete };
