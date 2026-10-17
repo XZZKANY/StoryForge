@@ -191,6 +191,9 @@ export function ChatWindowView({
         messages={state.messages}
         agentRun={state.agentRun}
         agentRunRecovery={state.agentRunRecovery}
+        onRegenerate={
+          state.agentBusy ? undefined : (userText) => void handleComposerSubmit(userText)
+        }
         emptyState={
           opening && onOpeningDraft ? (
             <PartnerOpening
