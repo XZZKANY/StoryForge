@@ -8,7 +8,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
 import { projectBasename, relativePathInsideProject } from '../lib/project-context';
 import { isOpenableProjectFileEntry } from '../lib/project/entry-visibility';
+import { emitEditorCommand } from '../lib/assistant-events';
+import { entryName, parentDir } from '../lib/fs-path-ops';
+import { isSameOrInsidePath } from './app/editor-tabs-state';
+import type { FileTreeActions } from './app/useFileTreeActions';
 import { Command as CommandIcon, FileText } from './icons/shell-icons';
+import { VIEW_ENTRIES } from './shell/ActivityBar';
+import type { SidePanelView } from './shell/useShellState';
 import { Button } from './ui';
 
 export type PaletteMode = 'files' | 'commands';
@@ -49,8 +55,10 @@ type CommandPaletteProps = {
   onCycleProseMeasure: () => void;
   fontModeLabel: string;
   proseMeasureLabel: string;
-  /** P2-C：知识收件箱加入命令面板。可选以保持现有调用方兼容。 */
-  onShowKnowledge?: () => void;
+  /** 左栏各视图（作品 / 手稿 / 资源管理器 / 知识收件箱 / 搜索 / 观测镜）；未开作品时不传。 */
+  onShowView?: (view: SidePanelView) => void;
+  fileActions?: Pick<FileTreeActions, 'onNewFile' | 'onRename'>;
+  onNewSession?: () => void;
 };
 
 function basename(path: string): string {
@@ -138,7 +146,9 @@ export function CommandPalette({
   onRestoreLayout,
   onToggleFontMode,
   onCycleProseMeasure,
-  onShowKnowledge,
+  onShowView,
+  fileActions,
+  onNewSession,
   fontModeLabel,
   proseMeasureLabel,
 }: CommandPaletteProps) {
@@ -219,30 +229,56 @@ export function CommandPalette({
 
   const commands = useMemo<Command[]>(() => {
     const list: Command[] = [
-      { id: 'open-project', title: '打开项目…', shortcut: 'Ctrl O', run: onOpenProject },
+      { id: 'open-project', title: '打开本地作品…', shortcut: 'Ctrl O', run: onOpenProject },
     ];
     list.push({ id: 'project-library', title: '打开作品库', run: onReopenWelcome });
-    if (projectPath) {
+    if (projectPath && fileActions) {
+      // 与左栏顶部「新建文件」同一落点：当前文件所在的文件夹，没开文件就是作品根目录。
+      const dir =
+        currentFile && isSameOrInsidePath(currentFile, projectPath)
+          ? parentDir(currentFile)
+          : projectPath;
       list.push({
-        id: 'initialize-story-project',
-        title: '初始化小说项目结构',
-        hint: basename(projectPath),
-        run: onInitializeProject,
-      });
-      list.push({
-        id: 'canon-refresh',
-        title: '刷新 Canon 事实卡（dossier）',
-        hint: '派生参考信号',
-        run: onRefreshCanon,
+        id: 'new-file',
+        title: '新建文件',
+        hint: dir === projectPath ? '在作品根目录' : `在「${entryName(dir)}」里`,
+        run: () => void fileActions.onNewFile(dir),
       });
     }
     if (currentFile) {
-      list.push({
-        id: 'export-current',
-        title: '导出当前稿',
-        hint: relativeToProject(projectPath, currentFile),
-        run: onExportCurrent,
-      });
+      const relative = relativeToProject(projectPath, currentFile);
+      if (fileActions) {
+        list.push({
+          id: 'rename-current',
+          title: '重命名当前文件',
+          hint: relative,
+          run: () => void fileActions.onRename(currentFile, false),
+        });
+      }
+      list.push(
+        {
+          id: 'toggle-history',
+          title: '切换：版本历史',
+          hint: relative,
+          shortcut: 'Ctrl Shift H',
+          run: () => emitEditorCommand('toggle-history'),
+        },
+        { id: 'export-current', title: '导出当前稿', hint: relative, run: onExportCurrent },
+      );
+    }
+    if (projectPath && onNewSession) {
+      list.push({ id: 'new-session', title: '新建会话', run: onNewSession });
+    }
+    if (onShowView) {
+      for (const entry of VIEW_ENTRIES) {
+        if (entry.projectOnly && !projectPath) continue;
+        list.push({
+          id: `show-view-${entry.view}`,
+          title: `打开：${entry.label}`,
+          shortcut: entry.title.match(/·\s*(.+)$/)?.[1],
+          run: () => onShowView(entry.view),
+        });
+      }
     }
     list.push(
       { id: 'toggle-assistant', title: '切换：对话栏', run: onToggleAssistant },
@@ -251,14 +287,6 @@ export function CommandPalette({
     );
     if (onShowShortcuts) {
       list.push({ id: 'show-shortcuts', title: '帮助：快捷键速查', run: onShowShortcuts });
-    }
-    if (onShowKnowledge) {
-      list.push({
-        id: 'show-knowledge-inbox',
-        title: '打开：知识收件箱（canon 提案）',
-        shortcut: 'Ctrl Shift I',
-        run: onShowKnowledge,
-      });
     }
     list.push(
       { id: 'focus-assistant-only', title: '只保留：对话栏', run: onFocusAssistantOnly },
@@ -279,6 +307,22 @@ export function CommandPalette({
         run: onCycleProseMeasure,
       },
     );
+    if (projectPath) {
+      list.push(
+        {
+          id: 'initialize-story-project',
+          title: '补齐作品目录',
+          hint: '正文 / 大纲 / 人物 / 设定等，已有的不动',
+          run: onInitializeProject,
+        },
+        {
+          id: 'canon-refresh',
+          title: '刷新设定事实卡',
+          hint: '按设定重新整理一遍，不改正文',
+          run: onRefreshCanon,
+        },
+      );
+    }
     return list;
   }, [
     currentFile,
@@ -299,7 +343,9 @@ export function CommandPalette({
     onFocusAssistantOnly,
     onFocusWorkspaceOnly,
     onRestoreLayout,
-    onShowKnowledge,
+    onShowView,
+    fileActions,
+    onNewSession,
   ]);
 
   const fileItems = useMemo(() => {
@@ -471,7 +517,7 @@ export function CommandPalette({
                 </p>
                 <p className="mt-1 text-xs text-subtle">
                   {mode === 'files' && !projectPath
-                    ? '打开项目后即可按名称搜索并打开文件。'
+                    ? '打开作品后即可按名称搜索并打开文件。'
                     : mode === 'files'
                       ? '换个关键词试试，或检查文件是否在项目内。'
                       : '换个关键词试试；全部命令在清空输入后列出。'}
@@ -479,7 +525,7 @@ export function CommandPalette({
               </div>
               {mode === 'files' && !projectPath && (
                 <Button size="xs" variant="secondary" onClick={onOpenProject}>
-                  打开项目…
+                  打开本地作品…
                 </Button>
               )}
             </div>

@@ -14,12 +14,13 @@ import { ObservatoryView } from '../shell/ObservatoryView';
 import { SearchView } from '../shell/SearchView';
 import { SidePanel } from '../shell/SidePanel';
 import { Titlebar } from '../shell/Titlebar';
+import type { SidePanelView } from '../shell/useShellState';
 import { ToastHost } from '../shell/ToastHost';
 import { useDeference } from '../shell/useDeference';
 import { useWorkspaceSidePanelLimit } from '../shell/useWorkspaceSidePanelLimit';
 import { WORKSPACE_PRIMARY_MIN_WIDTH } from '../../lib/workspace-layout';
 import { emitToast } from '../../lib/toast';
-import { emitExportCurrentFile } from '../../lib/assistant-events';
+import { emitExportCurrentFile, emitNewSessionRequest } from '../../lib/assistant-events';
 import { AppDialogHost } from './AppDialog';
 import { resolveActiveCenterTab } from './editor-tabs-state';
 import { createShellHelp } from './shell-help';
@@ -102,15 +103,18 @@ export function AppShell({
       shell.toggleSidebar();
     }
   }, [openWorkspace, workspaceVisible, shell]);
-  // P2-C：作品资料编辑器藏在「book」视图里，普通作者很难找到；overview 顶栏已有按钮，
-  // 封面空态的「点击添加」也复用同一路径。
-  const openBookProfileEditor = useCallback(() => {
-    openWorkspace();
-    shell.showExplorerView();
-    shell.switchView('book');
-    shell.showSidebar();
-    shell.showCenter();
-  }, [openWorkspace, shell]);
+  // 总览顶栏「编辑作品资料」和命令面板都从这里开左栏视图。先落到资源管理器再切：
+  // switchView 遇到已开着的同一视图会把它收起。
+  const openSideView = useCallback(
+    (view: SidePanelView) => {
+      openWorkspace();
+      shell.showExplorerView();
+      shell.switchView(view);
+      shell.showSidebar();
+      shell.showCenter();
+    },
+    [openWorkspace, shell],
+  );
   const handleOpenOutlineHeading = useCallback(
     (path: string, line: number) => {
       openWorkspace();
@@ -350,7 +354,7 @@ export function AppShell({
                       type="button"
                       className="rounded-sm px-3 py-1 text-xs text-muted hover:bg-elevated"
                       data-testid="edit-book-profile"
-                      onClick={openBookProfileEditor}
+                      onClick={() => openSideView('book')}
                     >
                       编辑作品资料
                     </button>
@@ -456,15 +460,13 @@ export function AppShell({
             shell.showSidebar();
             shell.setLayoutMode('balanced');
           }}
-          onShowKnowledge={
-            activeProject
-              ? () => {
-                  openWorkspace();
-                  shell.switchView('knowledge');
-                  shell.showSidebar();
-                }
-              : undefined
-          }
+          onShowView={activeProject ? openSideView : undefined}
+          fileActions={fileActions}
+          onNewSession={() => {
+            openWorkspace();
+            shell.showRight();
+            emitNewSessionRequest();
+          }}
           onToggleFontMode={preferences.toggleFontMode}
           onCycleProseMeasure={preferences.cycleProseMeasure}
           fontModeLabel={
