@@ -80,7 +80,12 @@ vi.mock('../src/lib/shadow-git', () => ({
     shadow.treeFiles.get(treeHash)?.get(normalize(file)) ?? { exists: false, content: '' },
 }));
 
-import { listVersions, readVersionState, snapshotBeforeWrite } from '../src/lib/versions';
+import {
+  listVersions,
+  readVersionState,
+  snapshotBeforeDelete,
+  snapshotBeforeWrite,
+} from '../src/lib/versions';
 
 const PROJECT = 'D:/连载/末世吞噬';
 const FILE = 'D:/连载/末世吞噬/正文/第01章.md';
@@ -306,4 +311,21 @@ test('shadow repository failure keeps metadata visible and leaves legacy version
     exists: true,
     content: '旧式正文',
   });
+});
+
+test('删除前快照：整本书只拍一次影子树，要删的每个文件各记一条能列出来的版本', async () => {
+  const other = 'D:/连载/末世吞噬/正文/第02章.md';
+  disk.set(normalize(FILE), { content: '第一章' });
+  disk.set(normalize(other), { content: '第二章' });
+
+  await snapshotBeforeDelete(PROJECT, [FILE, other]);
+
+  assert.equal(events.filter((event) => event === 'create-tree').length, 1);
+  assert.equal(events.filter((event) => event === 'retain-ref').length, 2);
+  for (const file of [FILE, other]) {
+    const versions = await listVersions(PROJECT, file);
+    assert.equal(versions.length, 1);
+    assert.equal(versions[0]?.summary, '删除前快照');
+    assert.equal(versions[0]?.unavailableReason, undefined);
+  }
 });

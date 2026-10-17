@@ -24,8 +24,11 @@ vi.mock('../src/lib/tauri-fs', () => ({
     pathExists: vi.fn(async () => false),
     renamePath: vi.fn(async () => undefined),
     deletePath: vi.fn(async () => undefined),
+    listDir: vi.fn(async () => []),
+    readProjectFile: vi.fn(async () => ''),
   },
 }));
+vi.mock('../src/lib/versions', () => ({ snapshotBeforeDelete: vi.fn(async () => undefined) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
