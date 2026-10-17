@@ -8,6 +8,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { processSteps } from './chat-window/agent-step-mapping';
+import { isAuthorRejection } from './chat-window/display-utils';
 import type { AgentRun, AgentRunStatus, AgentStep, AgentStepStatus } from './chat-window/types';
 
 /** 思考过程里有没有东西可看：模型请求只在底部运行条上报，不算。 */
@@ -23,7 +24,9 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
   // 等作者决定时不是在跑：头部不再跳动，写「等你决定」（选项在对话底部）。
   const isLive = run.status === 'running';
   const isWaiting = run.status === 'waiting';
-  const open = manualOpen ?? (run.status !== 'completed' && run.status !== 'stopped');
+  const rejected = isAuthorRejection(run);
+  const failed = run.status === 'failed' && !rejected;
+  const open = manualOpen ?? (run.status !== 'completed' && run.status !== 'stopped' && !rejected);
 
   const stepCount = steps.length;
   const toolCount = steps.filter((step) => step.id.startsWith('tool-')).length;
@@ -61,13 +64,10 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
             等你决定 · {stepCount} 步{toolCount > 0 ? ` · ${toolCount} 工具` : ''}
           </span>
         ) : (
-          <span
-            className={run.status === 'failed' ? 'text-error' : undefined}
-            data-testid="thinking-settled-header"
-          >
-            {settledHeaderText(run.status)} · {stepCount} 步
+          <span className={failed ? 'text-error' : undefined} data-testid="thinking-settled-header">
+            {rejected ? '已拒绝' : settledHeaderText(run.status)} · {stepCount} 步
             {toolCount > 0 ? ` · ${toolCount} 工具` : ''}
-            {run.status === 'failed' ? ' ✗' : ''}
+            {failed ? ' ✗' : ''}
           </span>
         )}
         <span className={`text-3xs transition-transform ${open ? '' : '-rotate-90'}`}>▾</span>

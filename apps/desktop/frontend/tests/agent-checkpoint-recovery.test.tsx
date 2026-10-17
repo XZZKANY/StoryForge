@@ -659,10 +659,15 @@ it.each([
     );
     expect(getAgentRunSavePoints).toHaveBeenCalledExactlyOnceWith('run');
     expect(current.state.agentRun?.status).toBe(status);
-    expect(current.state.agentRunRecovery?.statusText).toBe(
-      status === 'failed' ? '状态：失败' : '状态：已完成',
-    );
-    expect(current.state.agentRunRecovery?.pendingText).toBeNull();
+    // 否掉补丁是作者的决定：运行带上「作者已拒绝」，表头与状态句不按失败报。
+    expect(current.state.agentRun?.rejectedByAuthor === true).toBe(event === PATCH_REJECTED_EVENT);
+    // 作者拒绝修改不是失败：没有要恢复的东西，不出恢复卡。
+    if (status === 'failed') {
+      expect(current.state.agentRunRecovery).toBeNull();
+    } else {
+      expect(current.state.agentRunRecovery?.statusText).toBe('状态：已完成');
+      expect(current.state.agentRunRecovery?.pendingText).toBeNull();
+    }
     expect(host.textContent).not.toContain('等待你确认');
     expect(host.textContent).not.toContain('状态：暂停');
     expect(sendAgentControlMessage).not.toHaveBeenCalled();
@@ -711,4 +716,17 @@ it('a control ACK that ends the run takes the pending chapter brief down with it
     payload: { source: 'desktop.timeline' },
   });
   expect(current.state.chapterBrief).toBeNull();
+});
+
+it('作者拒绝修改后不出「失败 · 需要手动重启本轮」的恢复卡；别的失败照出', () => {
+  const rejected = { ...projection(), status: 'failed', current_step: 'permission.denied' };
+  expect(buildAgentRunRecoveryDisplay(rejected)).toBeNull();
+  const failed = {
+    ...projection(),
+    status: 'failed',
+    current_step: 'model.call',
+    recoverability: { resume_strategy: 'none' },
+    runtime_recovery: {},
+  };
+  expect(buildAgentRunRecoveryDisplay(failed)?.resumeText).toBe('恢复：需要手动重启本轮');
 });

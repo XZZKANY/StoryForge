@@ -92,3 +92,14 @@ test('waiting：等作者决定时头部静止写「等你决定」，确认步�
   assert.doesNotMatch(html, /等待作者确认/);
   assert.match(html, /aria-expanded="true"/);
 });
+
+test('作者拒绝了修改：头部写「已拒绝」，不用错误色、不打 ✗，默认收起', () => {
+  const html = renderToStaticMarkup(
+    <AgentStepsPanel run={{ ...makeRun('failed'), rejectedByAuthor: true }} />,
+  );
+  assert.match(html, /已拒绝 · 2 步 · 1 工具/);
+  assert.doesNotMatch(html, /已失败/);
+  assert.doesNotMatch(html, /text-error"[^>]*data-testid="thinking-settled-header"/);
+  assert.doesNotMatch(html, /1 工具 ✗/);
+  assert.match(html, /aria-expanded="false"/);
+});

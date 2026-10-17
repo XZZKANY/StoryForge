@@ -32,7 +32,7 @@ import type { RunAuthorAgent } from './useRunAuthorAgent';
 
 type RecoveryHandlers = {
   updateAgentStep: (stepId: string, patch: Partial<AgentStep>) => void;
-  updateAgentStatus: (status: AgentRunStatus) => void;
+  updateAgentStatus: (status: AgentRunStatus, extra?: { rejectedByAuthor?: boolean }) => void;
   refreshAgentRunRecovery: (runId: string) => Promise<void>;
   applyResumedAgentResult: (response: AgentResultMessage) => void;
   applyResumeDiagnostic: (diagnostic: Record<string, unknown>) => void;
@@ -378,7 +378,8 @@ export function useAgentRunControls(
         detail: rejection.direction ? '作者否掉了这版，已按新说法重来' : '作者否掉了这版',
       });
       if (rejection.runStatus) {
-        updateAgentStatus(rejection.runStatus);
+        // 作者否掉了这版：引擎把运行记成 failed，界面按作者的决定显示。
+        updateAgentStatus(rejection.runStatus, { rejectedByAuthor: true });
         if (rejection.runId) void refreshAgentRunRecovery(rejection.runId);
       } else if (!rejection.runId) updateAgentStatus('completed');
     };

@@ -7,6 +7,7 @@ import { useRunAuthorAgent } from '../src/components/chat-window/useRunAuthorAge
 import { useAgentRunRecovery } from '../src/components/chat-window/useAgentRunRecovery';
 import { useAgentRunControls } from '../src/components/chat-window/useAgentRunControls';
 import { useAgentStreamEvent } from '../src/components/chat-window/useAgentStreamEvent';
+import { runLivePhaseText, runStatusText } from '../src/components/chat-window/display-utils';
 import { statusFromAgentResult } from '../src/components/chat-window/resumed-result';
 import { reconstructAgentResultFromEvents } from '../src/lib/api/agent-run-events';
 import { conversationKey } from '../src/components/chat-window/session-guard';
@@ -538,4 +539,29 @@ it.each([
       { sessionId: 'session', runId: 'run' },
     ),
   ).toThrow();
+});
+
+it('作者拒绝修改的回执把运行标成「作者已拒绝」：状态句不按失败报，也不给重试', async () => {
+  await mount('running');
+  await act(async () => {
+    current.state.setAgentRun({
+      id: 'run',
+      sessionId: 'session',
+      goal: '改稿',
+      status: 'waiting',
+      steps: [],
+    });
+  });
+  await act(async () => current.onEvent(ack('permission_denied', 'applied', 'settled', 'failed')));
+  expect(current.state.agentRun?.status).toBe('failed');
+  expect(current.state.agentRun?.rejectedByAuthor).toBe(true);
+  expect(runStatusText(current.state.agentRun)).toBe('你拒绝了这次修改。');
+  expect(runLivePhaseText(current.state.agentRun)).toBe('你拒绝了这次修改。');
+});
+
+it('真失败（不是作者拒绝）照旧按失败报', async () => {
+  await mount('running');
+  await act(async () => current.onEvent(ack('stop_run', 'applied', 'settled', 'failed')));
+  expect(current.state.agentRun?.rejectedByAuthor).not.toBe(true);
+  expect(runStatusText(current.state.agentRun)).toBe('本轮遇到问题，详情在回复里。');
 });

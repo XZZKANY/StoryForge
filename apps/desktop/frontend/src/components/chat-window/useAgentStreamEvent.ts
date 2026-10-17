@@ -129,6 +129,8 @@ export function useAgentStreamEvent(
                     ...run,
                     status:
                       nextStatus === 'completed' && run.executionOutcome ? 'failed' : nextStatus,
+                    rejectedByAuthor:
+                      message.type === 'permission_denied' ? true : run.rejectedByAuthor,
                     steps: run.steps.map((step) => {
                       if (step.id === 'runtime-control') {
                         return { ...step, status: 'completed', detail: '当前操作已结束。' };

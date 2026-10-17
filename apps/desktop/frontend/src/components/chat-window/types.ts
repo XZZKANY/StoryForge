@@ -107,6 +107,8 @@ export type AgentRun = {
   notes?: AgentRunNote[];
   /** 本机发起时刻（毫秒），只给操作条显示已用时间。 */
   startedAt?: number;
+  /** 作者拒绝了这次修改：引擎按契约把运行记成 failed，界面按作者的正常决定显示，不当失败。 */
+  rejectedByAuthor?: boolean;
 };
 
 /** toolIndex = 这一轮开始时已经出现的工具步骤数，思考过程据此把这句话排在它之后的工具前面。 */
