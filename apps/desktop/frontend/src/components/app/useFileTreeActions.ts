@@ -26,7 +26,7 @@ type UseFileTreeActionsOptions = {
   openFile: (path: string, actionLabel?: string) => Promise<void>;
   // 删除后把旧路径（文件夹则连同里面的文件）从打开页签里摘掉。
   dropOpenPathsUnder: (path: string) => void;
-  // 改名前先问未保存修改：保存后再改，或由作者明确放弃（与切换项目同一套确认）。
+  // 改名 / 移动 / 删除前先问未保存修改：保存后再动，或由作者明确放弃（与切换项目同一套确认）。
   confirmDiscardFiles: (paths: string[], actionLabel: string) => Promise<boolean>;
   openPaths: string[];
   retargetOpenPaths: (from: string, to: string) => void;
@@ -314,11 +314,14 @@ export function useFileTreeActions({
 
   // 删除可撤销（作者 10-17 选的「应用内撤销」）：删前把内容读进内存、给每个文件留一条版本，
   // 删完右下角给「撤销」；过后同名文件建回来，还能在它的版本记录里找回。
+  // 快照和备份都从盘上读，所以未保存的修改要先问：存了才进得了撤销，放弃得由作者说。
   const onDelete = useCallback(
     async (path: string, isDir: boolean) => {
       if (!activeProject) return;
       const project = activeProject;
       const name = entryName(path);
+      const affected = openPaths.filter((open) => isSameOrInsidePath(open, path));
+      if (!(await confirmDiscardFiles(affected, '删除'))) return;
       let backup: DeleteBackup;
       try {
         backup = await collectDeleteBackup(project, path, isDir);
@@ -361,7 +364,7 @@ export function useFileTreeActions({
         action: { label: '撤销', run: () => restoreDeleted(project, name, backup) },
       });
     },
-    [activeProject, dialogs, dropOpenPathsUnder, failAlert],
+    [activeProject, confirmDiscardFiles, dialogs, dropOpenPathsUnder, failAlert, openPaths],
   );
 
   return { onNewFile, onNewFolder, onRename, onDelete, onDuplicate, onMove, onReveal };

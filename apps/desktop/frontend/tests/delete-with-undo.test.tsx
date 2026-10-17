@@ -36,7 +36,12 @@ const toast = vi.mocked(emitToast);
 const snapshot = vi.mocked(snapshotBeforeDelete);
 const order: string[] = [];
 
-function mount() {
+function mount(
+  options: {
+    openPaths?: string[];
+    confirmDiscardFiles?: (paths: string[], actionLabel: string) => Promise<boolean>;
+  } = {},
+) {
   const confirm = vi.fn(async (_options: { message: string }) => true);
   const alert = vi.fn(async (_options: { title: string }) => {});
   const dialogs = { alert, confirm, choose: vi.fn(), prompt: vi.fn() } as unknown as AppDialogApi;
@@ -47,8 +52,8 @@ function mount() {
       dialogs,
       openFile: async () => {},
       dropOpenPathsUnder: () => {},
-      confirmDiscardFiles: async () => true,
-      openPaths: [],
+      confirmDiscardFiles: options.confirmDiscardFiles ?? (async () => true),
+      openPaths: options.openPaths ?? [],
       retargetOpenPaths: () => {},
     });
     return null;
@@ -167,6 +172,53 @@ test('撤销时原路径已经有同名新文件：不覆盖，告诉作者去�
     await act(async () => undoAction().run());
     assert.equal(fsMock.writeFile.mock.calls.length, 0);
     assert.ok(toast.mock.calls.some(([message]) => /没有覆盖/.test(message)));
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('删有未保存修改的一章：先问未保存，选保存后备份与撤销用的是保存后的正文', async () => {
+  let disk = '# 第006章\n\n他推开门。\n';
+  fsMock.readProjectFile.mockImplementation(async () => disk);
+  const confirmDiscardFiles = vi.fn(async (_paths: string[], _label: string) => {
+    order.push('ask-unsaved');
+    disk = '# 第006章\n\n他推开门。\n门外下着雨。\n';
+    return true;
+  });
+  const other = `${PROJECT}\\正文\\第007章.md`;
+  const harness = mount({ openPaths: [CHAPTER, other], confirmDiscardFiles });
+  try {
+    await act(async () => harness.actions().onDelete(CHAPTER, false));
+    assert.deepEqual(confirmDiscardFiles.mock.calls[0], [[CHAPTER], '删除']);
+    assert.deepEqual(order, ['ask-unsaved', `snapshot:${CHAPTER}`, `delete:${CHAPTER}`]);
+
+    await act(async () => undoAction().run());
+    assert.deepEqual(fsMock.writeFile.mock.calls[0], [PROJECT, CHAPTER, disk]);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('未保存修改选「继续编辑」：不删、不留快照、也不再弹删除确认', async () => {
+  const harness = mount({ openPaths: [CHAPTER], confirmDiscardFiles: async () => false });
+  try {
+    await act(async () => harness.actions().onDelete(CHAPTER, false));
+    assert.equal(harness.confirm.mock.calls.length, 0);
+    assert.equal(snapshot.mock.calls.length, 0);
+    assert.equal(fsMock.deletePath.mock.calls.length, 0);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('删文件夹时只问里面打开着的文件', async () => {
+  const folder = `${PROJECT}\\.草稿`;
+  const inside = `${folder}\\第008章.md`;
+  const confirmDiscardFiles = vi.fn(async () => true);
+  const harness = mount({ openPaths: [CHAPTER, inside], confirmDiscardFiles });
+  try {
+    await act(async () => harness.actions().onDelete(folder, true));
+    assert.deepEqual(confirmDiscardFiles.mock.calls[0], [[inside], '删除']);
   } finally {
     harness.cleanup();
   }
