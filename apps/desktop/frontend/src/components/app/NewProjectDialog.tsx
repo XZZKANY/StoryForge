@@ -103,7 +103,7 @@ function NewProjectDialogContent({ controller, fallbackFocusRef }: NewProjectDia
               data-testid="new-project-target"
               className="mt-1 break-all font-mono text-foreground"
             >
-              {controller.targetPath || '填写书名并选择保存位置'}
+              {controller.targetPath || missingTargetHint(controller.title, controller.parentPath)}
             </div>
           </div>
           {controller.error && (
@@ -141,4 +141,10 @@ function NewProjectDialogContent({ controller, fallbackFocusRef }: NewProjectDia
       </DialogSurface>
     </div>
   );
+}
+
+function missingTargetHint(title: string, parentPath: string): string {
+  if (parentPath.trim() && !title.trim()) return '填写书名';
+  if (title.trim() && !parentPath.trim()) return '选择保存位置';
+  return '填写书名并选择保存位置';
 }

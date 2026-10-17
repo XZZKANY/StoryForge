@@ -18,6 +18,7 @@ import { ToastHost } from '../shell/ToastHost';
 import { useDeference } from '../shell/useDeference';
 import { useWorkspaceSidePanelLimit } from '../shell/useWorkspaceSidePanelLimit';
 import { WORKSPACE_PRIMARY_MIN_WIDTH } from '../../lib/workspace-layout';
+import { emitToast } from '../../lib/toast';
 import { emitExportCurrentFile } from '../../lib/assistant-events';
 import { AppDialogHost } from './AppDialog';
 import { resolveActiveCenterTab } from './editor-tabs-state';
@@ -25,6 +26,7 @@ import { createShellHelp } from './shell-help';
 import { useAgentPermission } from './useAgentPermission';
 import { useFileTreeActions } from './useFileTreeActions';
 import { ProjectLibrary } from './ProjectLibrary';
+import { useBookTitles } from './useBookTitles';
 import { NewProjectDialog } from './NewProjectDialog';
 import { useKnowledgeInbox } from './useKnowledgeInbox';
 import type { MainSurface, AppShellProps } from './app-shell-types';
@@ -136,6 +138,11 @@ export function AppShell({
   const agentPermission = useAgentPermission(activeProject);
   const knowledgeInbox = useKnowledgeInbox(activeProject);
   const rightPanelVisible = workspaceVisible && !shell.rightCollapsed;
+  const titleOf = useBookTitles(projects);
+  const removeFromLibrary = (path: string) => {
+    void tabs.removeProjectSafely(path);
+    emitToast(`已从作品库移除「${titleOf(path)}」，文件夹没动，随时可以再打开`);
+  };
   const fileActions = useFileTreeActions({
     activeProject,
     dialogs,
@@ -221,6 +228,7 @@ export function AppShell({
                 projectRefreshVersion={commands.projectRefreshVersion}
                 onSelectProject={(path) => void tabs.selectProjectSafely(path)}
                 onRemoveProject={(path) => void tabs.removeProjectSafely(path)}
+                titleOf={titleOf}
                 onOpenProject={commands.handleOpenProject}
                 onFileSelect={tabs.openFile}
                 onFilePreview={tabs.previewFileOpen}
@@ -377,6 +385,8 @@ export function AppShell({
               }}
               onResumeProject={onResumeProject}
               onOpenSettings={openSettings}
+              titleOf={titleOf}
+              onRemoveProject={removeFromLibrary}
             />
           </div>
         </main>

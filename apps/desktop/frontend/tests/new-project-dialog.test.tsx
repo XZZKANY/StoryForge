@@ -145,12 +145,22 @@ test('canceling directory selection preserves fields and the existing workspace 
   vi.mocked(open).mockResolvedValue(null);
   await prepare();
   expect(titleInput().value).toBe('雾港回声');
-  expect(commands.newProject.parentPath).toBe('');
+  // 保存位置默认放在当前作品旁边；取消选目录不改它。
+  expect(commands.newProject.parentPath).toBe('D:/');
   await click('取消');
   expect(confirmDiscardFiles).not.toHaveBeenCalled();
   expect(createBlankStoryProject).not.toHaveBeenCalled();
   expect(resetEditorFiles).not.toHaveBeenCalled();
   expect(selectProject).not.toHaveBeenCalled();
+});
+
+test('保存位置已带上默认值时，预览只提示还缺书名', async () => {
+  await click('新建作品入口');
+  const target = () => container.querySelector('[data-testid="new-project-target"]')?.textContent;
+  expect(commands.newProject.parentPath).toBe('D:/');
+  expect(target()).toBe('填写书名');
+  await fillTitle('雾港回声');
+  expect(target()).toBe('D:/雾港回声');
 });
 
 test('invalid title is reported before dirty confirmation or creating a directory', async () => {

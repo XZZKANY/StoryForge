@@ -48,6 +48,8 @@ type SidePanelProps = {
   onSelectProject: (path: string) => void;
   onRemoveProject: (path: string) => void;
   onOpenProject: () => void;
+  /** 书名（作品资料里起过名就用书名，否则文件夹名）。 */
+  titleOf?: (path: string) => string;
   onFileSelect: (filePath: string) => void;
   onFilePreview: (filePath: string) => void;
   fileActions?: FileTreeActions;
@@ -218,6 +220,7 @@ function ExplorerView({
   onSelectProject,
   onRemoveProject,
   onOpenProject,
+  titleOf = basename,
   onFileSelect,
   onFilePreview,
   fileActions,
@@ -252,7 +255,7 @@ function ExplorerView({
           aria-expanded={menuOpen}
           data-testid="toggle-project-library"
         >
-          <span className="min-w-0 flex-1 truncate text-left">{basename(activeProject)}</span>
+          <span className="min-w-0 flex-1 truncate text-left">{titleOf(activeProject)}</span>
           <ChevronDown size={13} strokeWidth={1.6} className="text-subtle" />
         </button>
         {fileActions && (
@@ -306,7 +309,7 @@ function ExplorerView({
                   >
                     <span className="min-w-0 flex-1 truncate text-left">
                       {project === activeProject ? '✓ ' : ''}
-                      {basename(project)}
+                      {titleOf(project)}
                     </span>
                   </button>
                   {project !== activeProject && (
@@ -318,7 +321,7 @@ function ExplorerView({
                         onRemoveProject(project);
                       }}
                       title="从最近打开移除"
-                      aria-label={`从最近打开移除 ${basename(project)}`}
+                      aria-label={`从最近打开移除 ${titleOf(project)}`}
                     >
                       <X size={13} strokeWidth={1.6} />
                     </button>

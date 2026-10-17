@@ -1,6 +1,26 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createBlankStoryProject } from '../../lib/project-context';
 import { blankStoryProjectPath } from '../../lib/project/create';
+import { parentDir } from '../../lib/fs-path-ops';
+import { RECENT_PROJECTS_KEY } from './helpers';
+
+// 书直接放在盘符根下时父目录是「D:」——在 Windows 上那是 D 盘的当前目录，要补成「D:\」。
+function folderOf(projectPath: string): string {
+  const parent = parentDir(projectPath);
+  return /^[A-Za-z]:$/.test(parent) ? `${parent}${projectPath.includes('/') ? '/' : '\\'}` : parent;
+}
+
+/** 保存位置默认放在正在写的那本（没开就最近那本）旁边，不用每次从系统对话框重选。 */
+export function defaultNewProjectParent(activeProject: string | null): string {
+  if (activeProject) return folderOf(activeProject);
+  try {
+    const recents = JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) ?? '[]') as unknown;
+    const latest = Array.isArray(recents) ? recents.find((item) => typeof item === 'string') : null;
+    return typeof latest === 'string' ? folderOf(latest) : '';
+  } catch {
+    return '';
+  }
+}
 
 type NewProjectOptions = {
   activeProject: string | null;
@@ -26,9 +46,11 @@ export function useNewProject({
   const claim = useRef<'create' | 'picker' | null>(null);
   const created = useRef(false);
   const shouldRestoreOpener = useCallback(() => !created.current, []);
+  const activeProjectRef = useRef(activeProject);
   const scope = useRef(0);
   useLayoutEffect(() => {
     scope.current += 1;
+    activeProjectRef.current = activeProject;
   }, [activeProject]);
   useEffect(() => {
     mounted.current = true;
@@ -43,6 +65,7 @@ export function useNewProject({
     created.current = false;
     setTitleValue('');
     setError(null);
+    setParentPath((current) => current || defaultNewProjectParent(activeProjectRef.current));
     setIsOpen(true);
   }, []);
   const close = useCallback(() => {
