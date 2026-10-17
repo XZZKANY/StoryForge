@@ -412,3 +412,60 @@ for (const destination of ['author-input', 'another-tab', 'original-close'] as c
     }
   });
 }
+
+test('右键页签弹出菜单并停住；「关闭其他」留下的是右键的那个页签', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const kept: Array<string | undefined> = [];
+  const A = 'D:\\Book\\a.md';
+  const B = 'D:\\Book\\b.md';
+  try {
+    act(() => {
+      root.render(
+        React.createElement(EditorTabs, {
+          openFiles: [A, B],
+          activeFile: A,
+          previewFile: null,
+          dirtyFiles: new Set<string>(),
+          activeTab: 'file',
+          onFocusFile: noop,
+          onFocusPreview: noop,
+          onPinPreview: noop,
+          onCloseFile: noop,
+          onCloseOthers: (keep?: string) => kept.push(keep),
+          onCloseAll: noop,
+        }),
+      );
+    });
+    const tabB = container.querySelector<HTMLElement>(
+      `[role="tab"][data-tab-path="${CSS.escape(B)}"]`,
+    )!;
+    // 与真机同序：右键按下先把焦点给页签，再触发 contextmenu。
+    act(() => {
+      tabB.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 2 }));
+      tabB.focus();
+      tabB.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          button: 2,
+          clientX: 40,
+          clientY: 20,
+        }),
+      );
+    });
+    // 真机上菜单出现后焦点会回到被右键的页签；这不能算「点到菜单外面」把菜单关掉。
+    act(() => tabB.focus());
+    const menu = document.querySelector('[role="menu"]');
+    assert.ok(menu, '右键后菜单要停在页面上');
+    const closeOthers = [...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(
+      (item) => item.textContent === '关闭其他',
+    );
+    act(() => closeOthers!.click());
+    assert.deepEqual(kept, [B]);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});

@@ -236,3 +236,21 @@ test('Ctrl+S 挂在全局 keydown 上——焦点不在编辑器里也能存（�
   // 没打开文件时必须先返回，否则 preventDefault 会把浏览器/webview 的默认行为一并吞掉。
   assert.match(source, /if \(!tabs\.displayedFile\) return;\s*\n\s*event\.preventDefault\(\)/);
 });
+
+test('关闭其他可以指定留下哪个页签（右键菜单传来的那个），不一定是正在显示的', async () => {
+  const harness = mountTabs(null);
+  try {
+    act(() => void harness.api.openFile(A));
+    act(() => void harness.api.openFile(B));
+    assert.equal(harness.api.displayedFile, B);
+
+    await act(async () => {
+      await harness.api.handleCloseOthers(A);
+    });
+
+    assert.deepEqual(harness.api.openFiles, [A]);
+    assert.equal(harness.api.displayedFile, A);
+  } finally {
+    harness.cleanup();
+  }
+});

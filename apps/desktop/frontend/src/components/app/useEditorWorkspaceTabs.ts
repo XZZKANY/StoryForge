@@ -288,33 +288,37 @@ export function useEditorWorkspaceTabs({
     resetEditorFiles,
   ]);
 
-  const handleCloseOthers = useCallback(async () => {
-    const keep = displayedFile;
-    if (!keep) return;
-    const allOpen = previewFile ? [...openFiles, previewFile] : openFiles;
-    const others = allOpen.filter((path) => path !== keep);
-    if (others.length === 0) return;
-    const operation = beginCloseOperation();
-    if (!(await confirmDiscardFiles(others, '关闭其他页签', operation)) || !operation.current())
-      return;
-    setLatestDirtyFiles((current) => {
-      const next = new Set(current);
-      for (const path of others) next.delete(path);
-      return next;
-    });
-    setOpenFiles([keep]);
-    setPreviewFile(null);
-    setActivePane('file');
-    selectFile(keep);
-  }, [
-    beginCloseOperation,
-    confirmDiscardFiles,
-    displayedFile,
-    openFiles,
-    previewFile,
-    selectFile,
-    setLatestDirtyFiles,
-  ]);
+  // keep 缺省时留当前显示的页签；从右键菜单来时留右键的那个。
+  const handleCloseOthers = useCallback(
+    async (keepPath?: string) => {
+      const keep = keepPath ?? displayedFile;
+      if (!keep) return;
+      const allOpen = previewFile ? [...openFiles, previewFile] : openFiles;
+      const others = allOpen.filter((path) => path !== keep);
+      if (others.length === 0) return;
+      const operation = beginCloseOperation();
+      if (!(await confirmDiscardFiles(others, '关闭其他页签', operation)) || !operation.current())
+        return;
+      setLatestDirtyFiles((current) => {
+        const next = new Set(current);
+        for (const path of others) next.delete(path);
+        return next;
+      });
+      setOpenFiles([keep]);
+      setPreviewFile(null);
+      setActivePane('file');
+      selectFile(keep);
+    },
+    [
+      beginCloseOperation,
+      confirmDiscardFiles,
+      displayedFile,
+      openFiles,
+      previewFile,
+      selectFile,
+      setLatestDirtyFiles,
+    ],
+  );
 
   const focusFile = useCallback(
     (path: string) => {

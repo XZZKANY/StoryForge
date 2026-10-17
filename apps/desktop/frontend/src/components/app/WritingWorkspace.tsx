@@ -78,7 +78,7 @@ export function WritingWorkspace({
         onToggleHistory={() => emitEditorCommand('toggle-history')}
         onExportActive={() => emitExportCurrentFile()}
         onPolishActive={(useMainModel) => emitChapterPolishRequest({ useMainModel })}
-        onCloseOthers={() => void tabs.handleCloseOthers()}
+        onCloseOthers={(keep) => void tabs.handleCloseOthers(keep)}
         onCloseAll={() => void tabs.handleCloseAll()}
       />
       <div className="min-h-0 flex-1 overflow-hidden">
