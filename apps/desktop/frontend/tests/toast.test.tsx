@@ -5,7 +5,8 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { DialogSurface } from '../src/components/ui';
-import { ToastHost } from '../src/components/shell/ToastHost';
+import { MessageList } from '../src/components/chat-window/panels';
+import { ToastHost, toastStackBottom } from '../src/components/shell/ToastHost';
 import { emitToast } from '../src/lib/toast';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -525,4 +526,49 @@ test('通知浮层 z-index 压过模态 backdrop（层系统内联 z 从 100 起
   assert.ok(rule, 'index.css 缺少 toast-host 的 z-index 规则');
   const zIndex = Number(rule[1].match(/z-index:\s*(\d+)/)?.[1]);
   assert.equal(zIndex, 1000);
+});
+
+const rect = (left: number, right: number, top: number, bottom: number) =>
+  ({ left, right, top, bottom, width: right - left, height: bottom - top }) as DOMRect;
+
+test('通知栈与对话栏横向重叠时抬到消息列表底边之上，不重叠或隐藏的工作区不动', () => {
+  // 作者窗口 1400×759：对话栏在右，底部运行条 + 输入框约 200px 高。
+  assert.equal(toastStackBottom([rect(1000, 1400, 40, 559)], 1400, 759), 208);
+  assert.equal(toastStackBottom([rect(0, 1000, 40, 559)], 1400, 759), 36);
+  assert.equal(toastStackBottom([rect(0, 0, 0, 0)], 1400, 759), 36);
+  assert.equal(toastStackBottom([], 1400, 759), 36);
+  // 对话底部操作区比状态栏还矮时不往下压。
+  assert.equal(toastStackBottom([rect(1000, 1400, 40, 740)], 1400, 759), 36);
+});
+
+test('对话栏打开时通知不盖住下面的输入框与权限按钮', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    return this.hasAttribute('data-toast-floor')
+      ? rect(width - 400, width, 40, height - 200)
+      : rect(0, 0, 0, 0);
+  });
+  act(() => {
+    root.render(
+      <>
+        <MessageList messages={[]} agentRun={null} agentRunRecovery={null} />
+        <ToastHost />
+      </>,
+    );
+  });
+  try {
+    act(() => emitToast('已写入「第005章.md」', { tone: 'success' }));
+    const host = container.querySelector<HTMLElement>('[data-testid="toast-host"]')!;
+    assert.equal(host.style.bottom, '208px');
+  } finally {
+    spy.mockRestore();
+    act(() => root.unmount());
+    container.remove();
+  }
 });

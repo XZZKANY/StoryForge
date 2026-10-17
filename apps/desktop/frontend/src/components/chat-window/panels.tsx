@@ -327,7 +327,8 @@ export function MessageList({
       </div>
     );
   return (
-    <div className="relative min-h-0 flex-1">
+    // 右下角通知栈以这条底边为地板，避开下面的运行条和输入框。
+    <div className="relative min-h-0 flex-1" data-toast-floor="">
       <div
         ref={scrollRef}
         className="h-full min-h-0 overflow-y-auto [scrollbar-gutter:stable]"
