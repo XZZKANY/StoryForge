@@ -805,7 +805,12 @@ export function Editor({
   };
 
   // 读取、确认、保存、快照、分支推进和最终修改是同一个有归属的操作。
-  const handleRestore = async (entry: VersionEntry, owner = beginVersionRestore()) => {
+  const handleRestore = async (
+    entry: VersionEntry,
+    owner = beginVersionRestore(),
+    // 作者确认恢复之后才做的前置动作（从节点开分支）：取消恢复就什么都不留下。
+    afterConfirm?: () => Promise<void>,
+  ) => {
     const { project, path, model, assertCurrent } = owner;
     assertCurrent();
     const state = await readVersionState(project, entry);
@@ -835,6 +840,10 @@ export function Editor({
     );
     if (!confirmed) return;
     assertCurrent();
+    if (afterConfirm) {
+      await afterConfirm();
+      assertCurrent();
+    }
     if (dirty) {
       await saveCurrentFileRef.current();
       assertCurrent();
@@ -943,9 +952,7 @@ export function Editor({
       });
       if (label === null) return;
       owner.assertCurrent();
-      await createBranchFromNode(node.id, label);
-      owner.assertCurrent();
-      await handleRestore(node.version, owner);
+      await handleRestore(node.version, owner, () => createBranchFromNode(node.id, label));
     } catch (error) {
       emitToast(`创建分支或恢复失败：${error instanceof Error ? error.message : String(error)}`, {
         tone: 'error',

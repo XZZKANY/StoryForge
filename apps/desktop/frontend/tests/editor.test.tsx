@@ -232,6 +232,28 @@ test('恢复“不存在”版本按保存脏缓冲→快照→真删除→退�
   assert.doesNotMatch(restoreBlock, /writeFile\([^)]*,\s*['"]{2}/, '不存在态不得写空串');
 });
 
+test('从节点开分支：作者确认恢复之后才建分支，取消恢复不留空分支', () => {
+  const branchBlock = editorSource.match(
+    /const handleBranchFromNode = async[\s\S]*?(?=const emptyStateHint)/,
+  )?.[0];
+  assert.ok(branchBlock, '找不到 handleBranchFromNode 块');
+  assert.match(
+    branchBlock,
+    /handleRestore\([^;]*\(\) => createBranchFromNode\(/,
+    '建分支必须作为恢复确认之后的动作交给 handleRestore',
+  );
+  assert.equal(branchBlock.match(/createBranchFromNode\(/g)?.length, 1, '不能在确认前先建分支');
+  const restoreBlock = editorSource.match(
+    /const handleRestore = async[\s\S]*?(?=const handleCheckoutNode)/,
+  )?.[0];
+  assert.ok(restoreBlock, '找不到 handleRestore 块');
+  const confirmedAt = restoreBlock.indexOf('if (!confirmed) return;');
+  const afterConfirmAt = restoreBlock.indexOf('await afterConfirm()');
+  const branchSnapshotAt = restoreBlock.indexOf('getActiveBranchSnapshot()');
+  assert.ok(confirmedAt >= 0 && confirmedAt < afterConfirmAt, '取消恢复时不能已经建了分支');
+  assert.ok(afterConfirmAt < branchSnapshotAt, '新分支要先建好，快照才记到新分支上');
+});
+
 test('恢复“已存在”版本先确认、先留当前内容快照，再把旧版本灌进缓冲', () => {
   const restoreBlock = editorSource.match(
     /const handleRestore = async[\s\S]*?(?=const handleCheckoutNode)/,

@@ -230,7 +230,10 @@ export function AppDialogHost({
             onChange={(event) => onPromptValueChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-              if (event.key === 'Enter') onClose(dialog.value);
+              if (event.key !== 'Enter') return;
+              // 吞掉这次按键：框关掉后焦点回到唤起它的按钮，同一次回车的 keypress 会再「点」一下，框又弹出来。
+              event.preventDefault();
+              onClose(dialog.value);
             }}
           />
         )}

@@ -308,3 +308,29 @@ test('队列里的 prompt 呈现后仍可输入，Enter 提交当前输入值', 
     rendered.cleanup();
   }
 });
+
+test('Prompt 里回车提交时吞掉这次按键：不然焦点回到唤起按钮后，同一次回车会再点它一下、框又弹出来', () => {
+  const results: Array<boolean | string | null | undefined> = [];
+  const rendered = renderDialog(
+    {
+      kind: 'prompt',
+      title: '新建文件',
+      message: '输入文件名',
+      confirmLabel: '创建',
+      cancelLabel: '取消',
+      defaultValue: '第006章.md',
+      value: '第006章.md',
+      resolve: () => {},
+    },
+    (result) => results.push(result),
+  );
+  try {
+    const input = document.querySelector<HTMLInputElement>('[data-testid="app-dialog-input"]')!;
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    act(() => input.dispatchEvent(enter));
+    assert.deepEqual(results, ['第006章.md']);
+    assert.equal(enter.defaultPrevented, true);
+  } finally {
+    rendered.cleanup();
+  }
+});
