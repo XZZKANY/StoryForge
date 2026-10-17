@@ -13,8 +13,8 @@ import {
 } from '../../lib/fs-path-ops';
 import type { AppDialogApi } from './AppDialog';
 import { emitToast } from '../../lib/toast';
-import { snapshotBeforeDelete } from '../../lib/versions';
-import { isSameOrInsidePath } from './editor-tabs-state';
+import { recordRenameLineage, snapshotBeforeDelete } from '../../lib/versions';
+import { isSameOrInsidePath, retargetEditorPath } from './editor-tabs-state';
 
 type UseFileTreeActionsOptions = {
   activeProject: string | null;
@@ -143,6 +143,7 @@ export function useFileTreeActions({
         if (!(await confirmDiscardFiles(affected, '重命名'))) return;
         await TauriFileSystem.renamePath(activeProject, path, target);
         invalidateContextBundleCache(activeProject);
+        await carryVersionHistory(activeProject, path, target, isDir);
         retargetOpenPaths(path, target);
         if (!isDir) await openFile(target, '打开重命名后的文件');
       } catch (error) {
@@ -278,5 +279,27 @@ async function restoreDeleted(project: string, name: string, backup: DeleteBacku
     emitToast(`恢复「${name}」失败：${error instanceof Error ? error.message : String(error)}`, {
       tone: 'error',
     });
+  }
+}
+
+// 改名已经成功；版本记录没跟上只提示，不回滚改名。
+async function carryVersionHistory(
+  project: string,
+  from: string,
+  to: string,
+  isDir: boolean,
+): Promise<void> {
+  try {
+    const moved = isDir
+      ? (await TauriFileSystem.listDir(to, true))
+          .filter((entry) => !entry.isDir)
+          .map((entry) => ({ from: retargetEditorPath(entry.path, to, from), to: entry.path }))
+      : [{ from, to }];
+    await recordRenameLineage(project, moved);
+  } catch (error) {
+    emitToast(
+      `改名完成，但版本记录没能跟过去：${error instanceof Error ? error.message : String(error)}`,
+      { tone: 'error' },
+    );
   }
 }

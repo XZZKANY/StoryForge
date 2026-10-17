@@ -20,6 +20,7 @@ const VERSION_ROOT = '.storyforge/versions';
 const SNAPSHOT_SUFFIX = '.snapshot.md';
 const META_SUFFIX = '.meta.json';
 const CHECKPOINT_DIR = 'checkpoints';
+const LINEAGE_FILE = 'lineage.json';
 const TREE_HASH_PATTERN = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/;
 
 export type VersionContentRef =
@@ -87,9 +88,53 @@ function normalizeRoot(projectPath: string): string {
 export function versionDirFor(projectPath: string, filePath: string): string | null {
   const relative = relativePathInsideProject(projectPath, filePath);
   if (!relative) return null;
+  return versionDirForRelative(projectPath, relative);
+}
+
+function versionDirForRelative(projectPath: string, relative: string): string {
   const s = sep(projectPath);
   const safeRelative = relative.split(/[/\\]/).join(s);
   return [normalizeRoot(projectPath), ...VERSION_ROOT.split('/'), safeRelative].join(s);
+}
+
+async function readLineage(projectPath: string, dir: string): Promise<string[]> {
+  try {
+    const parsed = JSON.parse(
+      await TauriFileSystem.readFile(`${dir}${sep(projectPath)}${LINEAGE_FILE}`),
+    ) as { previous?: unknown };
+    return Array.isArray(parsed.previous)
+      ? parsed.previous.filter((name): name is string => typeof name === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 改名 / 移动之后，在新名字的版本目录里记下以前的相对路径（连同以前名字自己的曾用名），
+ * 版本记录就跟着文件走。文件夹改名时给里面每个文件各记一份。
+ */
+export async function recordRenameLineage(
+  projectPath: string,
+  renamedFiles: ReadonlyArray<{ from: string; to: string }>,
+): Promise<void> {
+  for (const { from, to } of renamedFiles) {
+    const fromRelative = relativePathInsideProject(projectPath, from);
+    const toDir = versionDirFor(projectPath, to);
+    const fromDir = versionDirFor(projectPath, from);
+    if (!fromRelative || !toDir || !fromDir) continue;
+    const previous = [
+      ...(await readLineage(projectPath, toDir)),
+      fromRelative,
+      ...(await readLineage(projectPath, fromDir)),
+    ];
+    const unique = [...new Map(previous.map((name) => [normalizeRelative(name), name])).values()];
+    await TauriFileSystem.writeFile(
+      projectPath,
+      `${toDir}${sep(projectPath)}${LINEAGE_FILE}`,
+      `${JSON.stringify({ previous: unique }, null, 2)}\n`,
+    );
+  }
 }
 
 async function targetFileExists(filePath: string): Promise<boolean> {
@@ -223,11 +268,20 @@ export async function listVersions(
   const relativeFile = relativePathInsideProject(projectPath, filePath);
   if (!dir || !relativeFile) return [];
   const s = sep(projectPath);
-  const [plain, checkpoints] = await Promise.all([
-    readVersionDir(dir, relativeFile, false),
-    readVersionDir(`${dir}${s}${CHECKPOINT_DIR}`, relativeFile, true),
-  ]);
-  const versions = [...plain, ...checkpoints].sort((a, b) => b.timestamp - a.timestamp);
+  // 改过名的文件：以前的名字下记的版本一并列出，内容仍按当时的路径从影子树里取。
+  const previous = (await readLineage(projectPath, dir)).filter(
+    (name) => normalizeRelative(name) !== normalizeRelative(relativeFile),
+  );
+  const lists = await Promise.all(
+    [
+      { dir, file: relativeFile },
+      ...previous.map((name) => ({ dir: versionDirForRelative(projectPath, name), file: name })),
+    ].flatMap((source) => [
+      readVersionDir(source.dir, source.file, false),
+      readVersionDir(`${source.dir}${s}${CHECKPOINT_DIR}`, source.file, true),
+    ]),
+  );
+  const versions = lists.flat().sort((a, b) => b.timestamp - a.timestamp);
   const hashes = [
     ...new Set(
       versions.flatMap((entry) =>

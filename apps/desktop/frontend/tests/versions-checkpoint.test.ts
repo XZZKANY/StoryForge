@@ -84,6 +84,7 @@ import {
   listVersions,
   readVersionState,
   snapshotBeforeDelete,
+  recordRenameLineage,
   snapshotBeforeWrite,
 } from '../src/lib/versions';
 
@@ -328,4 +329,39 @@ test('删除前快照：整本书只拍一次影子树，要删的每个文件�
     assert.equal(versions[0]?.summary, '删除前快照');
     assert.equal(versions[0]?.unavailableReason, undefined);
   }
+});
+
+test('改名后版本记录跟着走：新名字下列得出旧名字时的版本，内容按当时的路径从影子树取', async () => {
+  const renamed = 'D:/连载/末世吞噬/正文/第01章 夜探.md';
+  disk.set(normalize(FILE), { content: '改名前' });
+  shadow.nextTreeHash = 'c'.repeat(40);
+  shadow.treeFiles.set(
+    'c'.repeat(40),
+    new Map([['正文/第01章.md', { exists: true, content: '改名前' }]]),
+  );
+  await snapshotBeforeWrite(PROJECT, FILE, '改名前', { summary: '手动保存前快照' });
+
+  await recordRenameLineage(PROJECT, [{ from: FILE, to: renamed }]);
+
+  const versions = await listVersions(PROJECT, renamed);
+  assert.equal(versions.length, 1);
+  assert.equal(versions[0]?.unavailableReason, undefined);
+  assert.deepEqual(await readVersionState(PROJECT, versions[0]!), {
+    exists: true,
+    content: '改名前',
+  });
+});
+
+test('连改两次名：最新名字下前两个名字的版本都在', async () => {
+  const second = 'D:/连载/末世吞噬/正文/第01章 改.md';
+  const third = 'D:/连载/末世吞噬/正文/第01章 再改.md';
+  disk.set(normalize(FILE), { content: '一' });
+  await snapshotBeforeWrite(PROJECT, FILE, '一');
+  await recordRenameLineage(PROJECT, [{ from: FILE, to: second }]);
+  disk.set(normalize(second), { content: '二' });
+  await snapshotBeforeWrite(PROJECT, second, '二');
+  await recordRenameLineage(PROJECT, [{ from: second, to: third }]);
+
+  const files = (await listVersions(PROJECT, third)).map((entry) => entry.file);
+  assert.deepEqual(files.sort(), ['正文/第01章 改.md', '正文/第01章.md']);
 });
