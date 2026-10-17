@@ -36,7 +36,10 @@ function Harness({
     activeProject: PROJECT,
     dialogs,
     openFile,
-    dropOpenFilePath: () => {},
+    dropOpenPathsUnder: () => {},
+    confirmDiscardFiles: async () => true,
+    openPaths: [],
+    retargetOpenPaths: () => {},
   });
   return (
     <button type="button" onClick={() => void actions.onNewFile(DIR)}>

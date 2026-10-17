@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   flushActiveEditorToDisk,
+  SAVE_FOR_CLOSE_TIMEOUT_MS,
   saveActiveEditorForClose,
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
@@ -103,4 +104,21 @@ it('独立握手：严格关闭不接受空目标路径通配', async () => {
   });
   await vi.advanceTimersByTimeAsync(11);
   await failure;
+});
+it('保存并关闭 / 改名：保存前的快照拖到几秒也等得到，不按 2 秒判失败', async () => {
+  vi.useFakeTimers();
+  const canClose = () => true;
+  const promise = saveActiveEditorForClose(FILE);
+  await vi.advanceTimersByTimeAsync(5000);
+  respond({ filePath: FILE, requestId: requests[0].requestId, status: 'saved', canClose });
+  const guard = await promise;
+  expect(guard()).toBe(true);
+});
+it('真等不到保存回执时说清楚是这次操作取消了、修改还在，不扯 Agent', async () => {
+  vi.useFakeTimers();
+  const promise = saveActiveEditorForClose(FILE);
+  const failure = expect(promise).rejects.toThrow(/这次操作已取消；修改还在编辑器里/);
+  await vi.advanceTimersByTimeAsync(SAVE_FOR_CLOSE_TIMEOUT_MS + 1);
+  await failure;
+  await expect(promise).rejects.not.toThrow(/Agent/);
 });

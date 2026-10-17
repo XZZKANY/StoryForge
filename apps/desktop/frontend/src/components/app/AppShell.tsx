@@ -140,7 +140,10 @@ export function AppShell({
     activeProject,
     dialogs,
     openFile: tabs.openFile,
-    dropOpenFilePath: tabs.dropOpenFilePath,
+    dropOpenPathsUnder: tabs.dropOpenPathsUnder,
+    confirmDiscardFiles: tabs.confirmDiscardFiles,
+    openPaths: tabs.retainedEditorFiles,
+    retargetOpenPaths: tabs.retargetOpenPaths,
   });
   // 设置改为弹出式（#15），不再占中栏页签：centerHasTabs 只看是否开了项目。
   const centerHasTabs = projectOpen;
