@@ -543,7 +543,13 @@ function CheckerRow({
     <div data-testid="checker-row" data-checker={checker.key}>
       <div
         className="flex items-center gap-2 py-1 text-2xs"
-        title={typeof checker.reason === 'string' ? checker.reason : checker.tool}
+        title={
+          ran
+            ? `${label}：每次保存后自动重查`
+            : typeof checker.reason === 'string'
+              ? checker.reason
+              : label
+        }
       >
         <span
           className={`h-[6px] w-[6px] flex-shrink-0 rounded-full ${ran ? 'bg-success' : 'bg-border-strong'}`}
@@ -566,9 +572,8 @@ function CheckerRow({
         ) : (
           summary
         )}
-        {ran ? (
-          <span className="flex-shrink-0 font-mono text-3xs text-subtle">保存时自动</span>
-        ) : prompt && onAsk ? (
+        {/* 自动跑的那几个只靠绿点表示：窄侧栏（作者常用 220px）里再挂一个「保存时自动」，名字就只剩一个字。 */}
+        {ran ? null : prompt && onAsk ? (
           <button
             type="button"
             className="flex-shrink-0 rounded-sm border border-agent/40 px-1.5 py-0.5 text-3xs text-agent hover:bg-agent/10"
