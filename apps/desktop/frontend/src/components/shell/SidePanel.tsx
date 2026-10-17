@@ -1,7 +1,7 @@
 import { FloatingSurface } from '../ui';
 /**
- * 侧面板：宽度可拖（右缘把手，双击复位），全左栏共享一份并持久化到设置
- * （约束见 lib/side-panel-width.ts；旧按视图设置加载时迁移）。
+ * 侧面板：宽度可拖（右缘把手，双击复位），全左栏共享一份，存成占窗口宽的比例
+ * （换算见 lib/workspace-layout.ts；旧像素 / 按视图设置加载时迁移）。
  * 切换视图只换内容 pane，右边界不动，编辑区不跳。
  *
  * 视觉分层：本面板是覆盖在 rail（一级导航，画布色、贯穿全高）上方的内容层——
@@ -15,21 +15,13 @@ import { FloatingSurface } from '../ui';
  * - search：正文全文搜索（Ctrl Shift F）
  * - observatory：世界线观测镜（Ctrl Shift O / 活动栏雷达图标）
  */
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-} from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import {
   clampSidePanelWidth,
-  draggedSidePanelWidth,
-  SIDE_PANEL_WIDTH_DEFAULT,
   SIDE_PANEL_WIDTH_MAX,
   SIDE_PANEL_WIDTH_MIN,
 } from '../../lib/side-panel-width';
+import { usePanelResize } from './usePanelResize';
 import { StoryNavigator } from '../StoryNavigator';
 import { basename } from '../app/helpers';
 import { isSameOrInsidePath } from '../app/editor-tabs-state';
@@ -59,54 +51,29 @@ type SidePanelProps = {
   search?: ReactNode;
   manuscript?: ReactNode;
   knowledge?: ReactNode;
-  /** 全左栏共享的已保存宽度；防御性夹限防手改设置。 */
+  /** 显示宽度：作者存的比例按当前窗口换算后的像素（见 resolveWorkspaceColumns）。 */
   width: number;
-  /** 仅限制当前显示；窗口恢复后继续使用作者保存的宽度。 */
+  /** 此刻最多拖到多宽；只约束显示，不回写作者的比例。 */
   maxWidth?: number;
+  /** 拖完 / 方向键调完的像素宽度，由调用方换成比例落设置。 */
   onWidthChange: (width: number) => void;
+  /** Enter / 双击复位：回到默认比例。 */
+  onWidthReset: () => void;
 };
 
 export function SidePanel(props: SidePanelProps) {
   const panelId = useId();
-  const savedWidth = clampSidePanelWidth(props.width);
-  const widthLimit = clampSidePanelWidth(props.maxWidth ?? SIDE_PANEL_WIDTH_MAX);
-  // 拖拽中的宽度只放本地：每帧写进设置会把 localStorage 刷爆，松手才落。
-  const [dragWidth, setDragWidth] = useState<number | null>(null);
-  const displayWidth = Math.min(dragWidth ?? savedWidth, widthLimit);
-  const stopResizeRef = useRef<(() => void) | null>(null);
-  useEffect(() => () => stopResizeRef.current?.(), []);
-
-  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    stopResizeRef.current?.();
-    const startX = event.clientX;
-    const startWidth = displayWidth;
-    setDragWidth(startWidth);
-    const widthAt = (clientX: number) =>
-      Math.min(widthLimit, draggedSidePanelWidth(startWidth, clientX - startX));
-    const onMove = (move: PointerEvent) => {
-      setDragWidth(widthAt(move.clientX));
-    };
-    const onUp = (up: PointerEvent) => {
-      stopResizeRef.current?.();
-      setDragWidth(null);
-      props.onWidthChange(widthAt(up.clientX));
-    };
-    const onCancel = () => {
-      stopResizeRef.current?.();
-      setDragWidth(null);
-    };
-    stopResizeRef.current = () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onCancel);
-      stopResizeRef.current = null;
-    };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onCancel);
-  };
+  const { displayWidth, handle } = usePanelResize({
+    width: clampSidePanelWidth(props.width),
+    min: SIDE_PANEL_WIDTH_MIN,
+    max: clampSidePanelWidth(props.maxWidth ?? SIDE_PANEL_WIDTH_MAX),
+    edge: 'right',
+    controlsId: panelId,
+    label: '调整侧栏宽度',
+    testId: 'side-panel-resize',
+    onCommit: props.onWidthChange,
+    onReset: props.onWidthReset,
+  });
 
   return (
     <div
@@ -119,51 +86,8 @@ export function SidePanel(props: SidePanelProps) {
       data-side-view={props.view}
     >
       {/* 右缘拖拽把手：命中区 7px（内收于面板内，overflow-hidden 会裁掉外凸部分），
-          hover/焦点/拖拽时才显强调色。双击复位到共享默认宽度。 */}
-      <div
-        className="sf-panel-resize absolute inset-y-0 right-0 z-20 w-[7px] cursor-col-resize"
-        data-testid="side-panel-resize"
-        data-resizing={dragWidth !== null}
-        role="separator"
-        tabIndex={0}
-        aria-label="调整侧栏宽度"
-        aria-orientation="vertical"
-        aria-controls={panelId}
-        aria-valuemin={SIDE_PANEL_WIDTH_MIN}
-        aria-valuemax={widthLimit}
-        aria-valuenow={displayWidth}
-        aria-valuetext={`${displayWidth} 像素`}
-        title="拖动或左右方向键调整宽度 · Shift 加速 · Enter / 双击复位"
-        onKeyDown={(event) => {
-          if (event.ctrlKey || event.metaKey || event.altKey) return;
-          const step = event.shiftKey ? 50 : 10;
-          let next: number;
-          switch (event.key) {
-            case 'ArrowLeft':
-              next = Math.min(widthLimit, draggedSidePanelWidth(displayWidth, -step));
-              break;
-            case 'ArrowRight':
-              next = Math.min(widthLimit, draggedSidePanelWidth(displayWidth, step));
-              break;
-            case 'Home':
-              next = SIDE_PANEL_WIDTH_MIN;
-              break;
-            case 'End':
-              next = widthLimit;
-              break;
-            case 'Enter':
-              next = SIDE_PANEL_WIDTH_DEFAULT;
-              break;
-            default:
-              return;
-          }
-          event.preventDefault();
-          event.stopPropagation();
-          props.onWidthChange(next);
-        }}
-        onPointerDown={startResize}
-        onDoubleClick={() => props.onWidthChange(SIDE_PANEL_WIDTH_DEFAULT)}
-      />
+          hover/焦点/拖拽时才显强调色。双击复位到默认比例。 */}
+      {handle}
       {/* 五视图 CSS 互斥不卸载：观测镜折叠态、搜索结果、章节滚动位置、简介里没提交的
           编辑，都不因切视图丢失。 */}
       <div

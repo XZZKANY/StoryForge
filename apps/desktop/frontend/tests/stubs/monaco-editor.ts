@@ -103,7 +103,21 @@ export const editor = {
   createDiffEditor() {
     const original = new FakeEditor();
     const modified = new FakeEditor();
+    const diffListeners = new Set<() => void>();
     const diffEditor = {
+      // 真 Monaco 的差异是异步算的：测试用 __fireDiffUpdate() 模拟「算完了」，
+      // revealFirstDiffCalls 数面板在算完后停到第一处改动的次数。
+      onDidUpdateDiff(listener: () => void) {
+        diffListeners.add(listener);
+        return { dispose: () => diffListeners.delete(listener) };
+      },
+      revealFirstDiff() {
+        diffEditor.revealFirstDiffCalls += 1;
+      },
+      revealFirstDiffCalls: 0,
+      __fireDiffUpdate() {
+        for (const listener of [...diffListeners]) listener();
+      },
       setModel() {},
       layout() {},
       dispose() {},

@@ -3,7 +3,7 @@
  * 保存时先把磁盘上的旧内容存为版本快照，再写入新内容；提供历史查看与恢复。
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import * as monaco from 'monaco-editor';
 import {
   EXPORT_CURRENT_FILE_EVENT,
@@ -83,6 +83,8 @@ type EditorProps = {
   /** 撤销一次「新建」删掉文件后，把该路径从页签里摘掉（同文件树删除那条路）。 */
   dropOpenFilePath?: (path: string) => void;
   onPendingSuggestionChange?: (summary: EditorPendingSuggestionSummary | null) => void;
+  /** 打开了项目但中栏没有文件时的去处（接着写停下的那章 / 空书先聊）；不给就用通用提示。 */
+  emptyState?: ReactNode;
 };
 
 export function EditorLoadStatus({
@@ -148,6 +150,7 @@ export function Editor({
   onCursorPersist,
   dropOpenFilePath,
   onPendingSuggestionChange,
+  emptyState,
 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -985,18 +988,22 @@ export function Editor({
           className="absolute inset-x-0 top-0 bottom-0 z-20 flex items-center justify-center bg-background text-muted"
           data-testid="editor-empty"
         >
-          <div className="text-center">
-            <svg
-              className="w-10 h-10 mx-auto mb-3 text-muted/60"
-              viewBox="0 0 16 16"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path d="M2 2h7l2 2h3v10H2V2zm1 1v10h10V5h-3l-2-2H3z" />
-            </svg>
-            <p className="text-base mb-1 text-foreground">未选择文件</p>
-            <p className="text-sm">{emptyStateHint}</p>
-          </div>
+          {projectPath && emptyState ? (
+            emptyState
+          ) : (
+            <div className="text-center">
+              <svg
+                className="w-10 h-10 mx-auto mb-3 text-muted/60"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M2 2h7l2 2h3v10H2V2zm1 1v10h10V5h-3l-2-2H3z" />
+              </svg>
+              <p className="text-base mb-1 text-foreground">未选择文件</p>
+              <p className="text-sm">{emptyStateHint}</p>
+            </div>
+          )}
         </div>
       )}
 

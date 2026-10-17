@@ -53,6 +53,22 @@ test('空状态渲染 editor-root 容器与未选择文件提示', () => {
   assert.match(html, /未选择文件/);
 });
 
+test('打开了项目但没开文件时，画壳层给的去处；没开项目照旧通用提示', () => {
+  const custom = React.createElement(
+    'div',
+    { 'data-testid': 'writing-desk-probe' },
+    '接着写第 5 章',
+  );
+  const html = renderEditor({ emptyState: custom });
+  const emptyAt = html.indexOf('data-testid="editor-empty"');
+  const probeAt = html.indexOf('<div data-testid="writing-desk-probe">接着写第 5 章');
+  assert.ok(emptyAt >= 0 && probeAt > emptyAt, '去处画在 editor-empty 遮罩里');
+  assert.doesNotMatch(html, /在资源管理器中双击文件开始编辑/);
+  const noProject = renderEditor({ projectPath: null, emptyState: custom });
+  assert.doesNotMatch(noProject, /writing-desk-probe/);
+  assert.match(noProject, /打开项目后即可开始编辑/);
+});
+
 test('Monaco 容器被锁在编辑器 flex 区域内，不随长文本撑开外层布局', () => {
   const html = renderEditor({ filePath: 'D:\\Books\\雾港回声\\正文\\第01章.md' });
   assert.match(html, /data-testid="editor-container"/);

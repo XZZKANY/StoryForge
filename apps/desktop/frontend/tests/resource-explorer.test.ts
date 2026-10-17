@@ -86,3 +86,38 @@ test('作者自定义指令必须在产品内看得见、打得开', () => {
     false,
   );
 });
+
+test('文件树先列正文：点目录排在同类后面，目录仍在文件前面，每一层都一样', () => {
+  const tree = buildProjectTree(
+    [
+      entry('D:/Book/.草稿', true),
+      entry('D:/Book/.草稿/废稿.md', false, 'md'),
+      entry('D:/Book/.storyforge', true),
+      entry('D:/Book/.留底', true),
+      entry('D:/Book/正文', true),
+      entry('D:/Book/正文/.备注', true),
+      entry('D:/Book/正文/第001章.md', false, 'md'),
+      entry('D:/Book/人物', true),
+      entry('D:/Book/大纲.md', false, 'md'),
+    ],
+    'D:/Book',
+  );
+  const names = tree.map((node) => node.name);
+  // 普通目录在前、点目录在后，最后才是文件；同组内按名字排（与改动前同一个 localeCompare）。
+  assert.deepEqual(
+    names.slice(0, 2),
+    ['人物', '正文'].sort((a, b) => a.localeCompare(b)),
+  );
+  assert.deepEqual(
+    names.slice(2, 5),
+    ['.storyforge', '.留底', '.草稿'].sort((a, b) => a.localeCompare(b)),
+  );
+  assert.deepEqual(names.slice(5), ['大纲.md']);
+  assert.equal(tree[0].name.startsWith('.'), false, '第一项不是点目录');
+  const manuscript = tree.find((node) => node.name === '正文')!;
+  assert.deepEqual(
+    manuscript.children.map((node) => node.name),
+    ['.备注', '第001章.md'],
+    '目录仍排在文件前面',
+  );
+});

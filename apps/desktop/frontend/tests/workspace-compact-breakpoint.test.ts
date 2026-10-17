@@ -4,10 +4,9 @@ import { test } from 'vitest';
 import {
   ACTIVITY_BAR_WIDTH,
   ASSISTANT_PANEL_MIN_WIDTH,
-  ASSISTANT_PANEL_WIDTH,
+  resolveWorkspaceColumns,
   WORKSPACE_COMPACT_BREAKPOINT,
   WORKSPACE_PRIMARY_MIN_WIDTH,
-  workspaceSidePanelLimit,
 } from '../src/lib/workspace-layout';
 import { SIDE_PANEL_WIDTH_MIN } from '../src/lib/side-panel-width';
 
@@ -40,22 +39,24 @@ test('compact 断点应等于组件最小和与 1024 的较大者', () => {
   assert.strictEqual(WORKSPACE_COMPACT_BREAKPOINT, Math.max(componentsSum, 1024));
 });
 
-test('1024px 视口 balanced 实际占用会超过视口，必须走 compact', () => {
-  // 这条断言揭示「为何 1024 必须走 compact」：
-  // workspaceSidePanelLimit 只保证「活动栏 + 侧栏 + 主区最小 + Agent 最小」四项之和 <= 视口，
-  // 但真实渲染用 ASSISTANT_PANEL_WIDTH(384) 而非其最小宽(320)，两者差 64px。
-  // 于是 1024 下：48 + sidebarLimit(236) + 420(主区最小) + 384(Agent 实际) = 1088 > 1024。
-  const viewport = 1024;
-  const sidebar = workspaceSidePanelLimit(viewport, 'balanced');
-  const actualTotal =
-    ACTIVITY_BAR_WIDTH + sidebar + WORKSPACE_PRIMARY_MIN_WIDTH + ASSISTANT_PANEL_WIDTH;
-  assert.ok(
-    actualTotal > viewport,
-    `1024px 视口 balanced 实际占用 ${actualTotal}px 未超过 ${viewport}px，这条测试的前提已变`,
-  );
-  // 因此断点必须 >= 1024，确保最大窗口也走 compact 绕开这条溢出路径。
-  assert.ok(
-    WORKSPACE_COMPACT_BREAKPOINT >= viewport,
-    `断点必须 >= ${viewport}，否则 1024×768 最小窗口会落进溢出路径`,
-  );
+test('不走 compact 的任何窗口宽，平衡态两栏加编辑区硬下限都放得下（不横向溢出）', () => {
+  // 早先对话栏死宽 384，1024 平衡态要 48+236+420+384=1088 > 1024，只能靠 compact 绕开；
+  // 三栏改成按比例换算 + 编辑区保底后，任何宽度、连手改设置的极端比例都必须放得下。
+  const prefsList = [
+    { sideRatio: null, assistantRatio: null },
+    { sideRatio: 0.9, assistantRatio: 0.9 },
+    { sideRatio: 0.01, assistantRatio: 0.01 },
+  ];
+  for (let viewport = WORKSPACE_COMPACT_BREAKPOINT; viewport <= 3840; viewport += 7) {
+    for (const prefs of prefsList) {
+      for (const sidebar of [true, false]) {
+        const { side, assistant } = resolveWorkspaceColumns(viewport, 'balanced', sidebar, prefs);
+        const total = ACTIVITY_BAR_WIDTH + side + assistant + WORKSPACE_PRIMARY_MIN_WIDTH;
+        assert.ok(
+          total <= viewport,
+          `${viewport}px 平衡态占用 ${total}px 溢出（side=${side} assistant=${assistant} ${JSON.stringify(prefs)}）`,
+        );
+      }
+    }
+  }
 });

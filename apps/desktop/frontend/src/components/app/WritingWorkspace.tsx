@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Editor } from '../Editor';
 import { EditorTabs, type CenterTab } from '../shell/EditorTabs';
 import { ObsPanel } from '../shell/ObsPanel';
@@ -28,6 +29,7 @@ export function WritingWorkspace({
   onOverview,
   activeCenterTab,
   permissionProfile,
+  emptyState,
 }: Pick<
   AppShellProps,
   | 'workspace'
@@ -47,6 +49,8 @@ export function WritingWorkspace({
   activeCenterTab: CenterTab | null;
   /** P2-D：编辑器区对项目档位做被动指示（只读档徽标 + 自动档提示），业务判定仍在后端。 */
   permissionProfile?: AgentPermissionProfile;
+  /** 中栏没开文件时的去处，见 WritingDeskEmptyState。 */
+  emptyState?: ReactNode;
 }) {
   return (
     <div
@@ -102,6 +106,7 @@ export function WritingWorkspace({
             sidebarVisible={!shell.sidebarHidden}
             dialogs={dialogs}
             onPendingSuggestionChange={onPendingSuggestionChange}
+            emptyState={emptyState}
           />
         </section>
       </div>

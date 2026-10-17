@@ -9,8 +9,8 @@ import { useOverviewActivity } from './components/app/useOverviewActivity';
 import { useAppDialog } from './components/app/AppDialog';
 import { useAppPreferences } from './components/app/useAppPreferences';
 import { useBookContext } from './components/app/useBookContext';
-import { useBookOverviewChapters } from './components/app/useBookOverviewChapters';
 import { useBookProfile } from './components/app/useBookProfile';
+import { useWritingDesk } from './components/app/useWritingDesk';
 import { nextCyclicEditorFile } from './components/app/editor-tabs-state';
 import { useEditorNavigation } from './components/app/useEditorNavigation';
 import { useEditorWorkspaceTabs } from './components/app/useEditorWorkspaceTabs';
@@ -271,11 +271,6 @@ export function App() {
     activeProject: workspace.activeProject,
     active: mainSurface === 'overview' || (shell.view === 'book' && !shell.sidebarHidden),
   });
-  const bookChapters = useBookOverviewChapters({
-    projectPath: workspace.activeProject,
-    currentFile: workspace.currentFile,
-    active: mainSurface === 'overview',
-  });
 
   const search = useProjectSearch(workspace.activeProject);
   const {
@@ -311,6 +306,8 @@ export function App() {
     showEditor();
     shell.setLayoutMode('chat');
   }, [showEditor, shell]);
+  const desk = useWritingDesk(workspace, tabs, mainSurface, continueWriting, discussBook);
+  const bookChapters = desk.chapters;
   // 「AI 起草下一章」：先展开右栏（brief 在右栏确认），事件由常驻 ChatWindow 消费；
   // 章节源优先总览索引，总览未激活时（手稿视图）回落到底座快照。
   const draftNextChapter = useCallback(() => {
@@ -382,12 +379,14 @@ export function App() {
               agentRun={activity.agentRun}
               onOpenAgentRun={showAgent}
               onEditProfile={openBookProfileEditor}
+              onEnterWritingDesk={desk.enterWritingDesk}
               onDraftNextChapter={draftNextChapter}
               onDiscussBook={discussBook}
               promises={observatory.promises}
             />
           ) : null
         }
+        writingDeskEmptyState={desk.emptyState}
         initialCursors={session.initialCursors}
         onCursorPersist={session.recordCursor}
         onOpenLibrary={openLibrary}

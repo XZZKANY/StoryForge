@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, type CSSProperties } from 'react';
 
 import { ChatWindow } from '../ChatWindow';
 import { CommandPalette } from '../CommandPalette';
@@ -17,8 +17,14 @@ import { Titlebar } from '../shell/Titlebar';
 import type { SidePanelView } from '../shell/useShellState';
 import { ToastHost } from '../shell/ToastHost';
 import { useDeference } from '../shell/useDeference';
-import { useWorkspaceSidePanelLimit } from '../shell/useWorkspaceSidePanelLimit';
-import { WORKSPACE_PRIMARY_MIN_WIDTH } from '../../lib/workspace-layout';
+import { useWorkspaceColumns } from '../shell/useWorkspaceColumns';
+import {
+  ASSISTANT_PANEL_MIN_WIDTH,
+  historyDrawerWidth,
+  WORKSPACE_PRIMARY_MIN_WIDTH,
+  widthToRatio,
+} from '../../lib/workspace-layout';
+import { SIDE_PANEL_WIDTH_MIN } from '../../lib/side-panel-width';
 import { emitToast } from '../../lib/toast';
 import { emitExportCurrentFile } from '../../lib/assistant-events';
 import { shellActions } from './shell-actions';
@@ -66,6 +72,7 @@ export function AppShell({
   search,
   onOpenSearchHit,
   overview,
+  writingDeskEmptyState,
   mainSurface = 'workspace',
   onMainSurfaceChange,
   onSwitchView = shell.switchView,
@@ -139,7 +146,12 @@ export function AppShell({
   );
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarVisible = !shell.sidebarHidden && (projectOpen || shell.view !== 'explorer');
-  const sidePanelMaxWidth = useWorkspaceSidePanelLimit(projectOpen, shell.layoutMode);
+  // 三栏随窗口自适应：侧栏 / 对话栏按作者存的比例（没拖过用默认）换算成这一刻的像素。
+  const { viewportWidth, columns } = useWorkspaceColumns(shell.layoutMode, sidebarVisible, {
+    sideRatio: preferences.settings.sidePanelRatio,
+    assistantRatio: preferences.settings.assistantPanelRatio,
+  });
+  const toRatio = (px: number) => (viewportWidth ? widthToRatio(px, viewportWidth) : null);
   const agentPermission = useAgentPermission(activeProject);
   const knowledgeInbox = useKnowledgeInbox(activeProject);
   const rightPanelVisible = workspaceVisible && !shell.rightCollapsed;
@@ -178,6 +190,12 @@ export function AppShell({
   return (
     <div
       className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
+      // 版本记录抽屉（编辑器里 position: fixed）从这里继承宽度，好正好压在对话栏上。
+      style={
+        {
+          '--sf-history-drawer-width': `${historyDrawerWidth(shell.layoutMode, rightPanelVisible, columns?.assistant ?? 0)}px`,
+        } as CSSProperties
+      }
       data-testid="desktop-shell"
       data-main-surface={mainSurface}
       data-layout-mode={shell.view}
@@ -224,9 +242,10 @@ export function AppShell({
             >
               <SidePanel
                 view={shell.view}
-                width={preferences.settings.sidePanelWidth}
-                maxWidth={sidePanelMaxWidth}
-                onWidthChange={preferences.setSidePanelWidth}
+                width={columns?.side ?? SIDE_PANEL_WIDTH_MIN}
+                maxWidth={columns?.sideMax}
+                onWidthChange={(px) => preferences.setSidePanelRatio(toRatio(px))}
+                onWidthReset={() => preferences.setSidePanelRatio(null)}
                 projects={projects}
                 activeProject={activeProject}
                 currentFile={currentFile}
@@ -350,6 +369,7 @@ export function AppShell({
                 onOverview={overview ? () => setMainSurface('overview') : undefined}
                 activeCenterTab={activeCenterTab}
                 permissionProfile={agentPermission.profile}
+                emptyState={writingDeskEmptyState}
               />
               {overview && (
                 <div
@@ -357,24 +377,6 @@ export function AppShell({
                   hidden={!overviewVisible}
                   data-testid="book-overview-surface"
                 >
-                  <div className="flex flex-shrink-0 flex-wrap justify-end gap-2 px-5 py-2">
-                    <button
-                      type="button"
-                      className="rounded-sm px-3 py-1 text-xs text-muted hover:bg-elevated"
-                      data-testid="edit-book-profile"
-                      onClick={() => openSideView('book')}
-                    >
-                      编辑作品资料
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-sm px-3 py-1 text-xs text-muted hover:bg-elevated"
-                      data-testid="open-writing-workspace"
-                      onClick={openWorkspace}
-                    >
-                      写作工作台 →
-                    </button>
-                  </div>
                   {overview}
                 </div>
               )}
@@ -408,6 +410,10 @@ export function AppShell({
             visible={rightPanelVisible}
             wide={shell.layoutMode === 'chat'}
             compact={shell.compact}
+            width={columns?.assistant ?? ASSISTANT_PANEL_MIN_WIDTH}
+            maxWidth={columns?.assistantMax ?? ASSISTANT_PANEL_MIN_WIDTH}
+            onWidthChange={(px) => preferences.setAssistantPanelRatio(toRatio(px))}
+            onWidthReset={() => preferences.setAssistantPanelRatio(null)}
           >
             <div
               className="flex min-h-0 flex-1 flex-col overflow-hidden"

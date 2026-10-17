@@ -498,3 +498,49 @@ test('总览在底座读取失败时把指出错处的原文给作者看', async
     `手稿结构读取失败：${message}`,
   );
 });
+
+test('进写作台与编辑作品资料是标题行里的按钮，与书名同一行（不再是标题上方一行小字）', async () => {
+  root = createRoot(host);
+  const enter = vi.fn();
+  const edit = vi.fn();
+  await render({ onEnterWritingDesk: enter, onEditProfile: edit });
+  const header = host.querySelector<HTMLElement>('[data-testid="book-overview-header"]')!;
+  const actions = header.querySelector<HTMLElement>('[data-testid="book-overview-actions"]');
+  expect(header.querySelector('h1')?.textContent).toBe('测试作品');
+  const enterButton = actions?.querySelector<HTMLButtonElement>(
+    '[data-testid="open-writing-workspace"]',
+  );
+  const editButton = actions?.querySelector<HTMLButtonElement>('[data-testid="edit-book-profile"]');
+  expect(enterButton?.textContent).toBe('写作工作台');
+  expect(editButton?.textContent).toBe('编辑作品资料');
+  await act(async () => enterButton!.click());
+  await act(async () => editButton!.click());
+  expect(enter).toHaveBeenCalledOnce();
+  expect(edit).toHaveBeenCalledOnce();
+  // 没给去处就不画按钮，不留一个点了没反应的入口。
+  await render({ onEnterWritingDesk: undefined, onEditProfile: undefined });
+  expect(host.querySelector('[data-testid="open-writing-workspace"]')).toBeNull();
+  expect(host.querySelector('[data-testid="edit-book-profile"]')).toBeNull();
+});
+
+test('没有大纲时章节列表占满整行，大纲收成一行说明；有大纲时两栏并排', async () => {
+  root = createRoot(host);
+  await render();
+  const outline = () => host.querySelector<HTMLElement>('[data-testid="book-overview-outline"]')!;
+  const grid = () => outline().parentElement!;
+  expect(outline().dataset.empty).toBe('true');
+  expect(outline().textContent).toContain('还没有可展示的大纲标题');
+  expect(grid().className).not.toContain('lg:grid-cols-2');
+  const withOutline = profile();
+  withOutline.outline = [
+    { path: 'D:/book/大纲.md', relativePath: '大纲.md', line: 3, level: 1, text: '第一卷 停电' },
+  ];
+  await render({ profile: withOutline });
+  expect(outline().dataset.empty).toBeUndefined();
+  expect(grid().className).toContain('lg:grid-cols-2');
+  // 读取中不算空：不收起，也不声称没有大纲。
+  const loading = profile();
+  loading.outlineLoading = true;
+  await render({ profile: loading });
+  expect(outline().dataset.empty).toBeUndefined();
+});

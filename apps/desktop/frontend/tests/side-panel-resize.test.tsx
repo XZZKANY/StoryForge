@@ -14,6 +14,7 @@ import {
 import {
   APP_SETTINGS_KEY,
   DEFAULT_APP_SETTINGS,
+  LEGACY_SIDE_PANEL_REFERENCE_VIEWPORT,
   loadAppSettings,
   sanitizeAppSettings,
   saveAppSettings,
@@ -43,95 +44,70 @@ test('宽度一律夹限——手改过的 localStorage 不该把面板撑成 0 
   assert.equal(clampSidePanelWidth(Number.NaN), SIDE_PANEL_WIDTH_DEFAULT);
 });
 
-test('旧按视图 sidePanelWidths 迁移为共享单宽：确定性规则', () => {
-  // 无字段 / 空 map → 共享默认
-  assert.equal(sanitizeAppSettings({}).sidePanelWidth, SIDE_PANEL_WIDTH_DEFAULT);
-  assert.equal(
-    sanitizeAppSettings({ sidePanelWidths: {} }).sidePanelWidth,
-    SIDE_PANEL_WIDTH_DEFAULT,
-  );
-  // 单值直接保留
-  assert.equal(sanitizeAppSettings({ sidePanelWidths: { book: 420 } }).sidePanelWidth, 420);
-  // 全部相同 → 该值
-  assert.equal(
-    sanitizeAppSettings({ sidePanelWidths: { book: 288, explorer: 288 } }).sidePanelWidth,
-    288,
-  );
+const ratioOf = (value: Record<string, unknown>) => sanitizeAppSettings(value).sidePanelRatio;
+
+test('旧像素宽迁成比例：按出厂窗口宽 1400 换算，出厂 300 视为没拖过', () => {
+  assert.equal(LEGACY_SIDE_PANEL_REFERENCE_VIEWPORT, 1400);
+  assert.equal(ratioOf({}), null);
+  assert.equal(ratioOf({ sidePanelWidth: SIDE_PANEL_WIDTH_DEFAULT }), null);
+  // 作者装机版里存的就是 220（拖到了最窄）：在出厂 1400 窗口里换算回来仍是 220。
+  assert.equal(ratioOf({ sidePanelWidth: 220 }), 0.1571);
+  assert.equal(ratioOf({ sidePanelWidth: 4000 }), 0.5714, '先按旧上下限夹成 800 再换算');
+  assert.equal(ratioOf({ sidePanelWidth: 'wide' }), null);
+  assert.equal(sanitizeAppSettings({}).assistantPanelRatio, null);
+});
+
+test('旧按视图 sidePanelWidths 仍按原确定性规则选出一个宽度，再换成比例', () => {
+  assert.equal(ratioOf({ sidePanelWidths: {} }), null);
+  assert.equal(ratioOf({ sidePanelWidths: { book: 420 } }), 0.3);
+  assert.equal(ratioOf({ sidePanelWidths: { book: 288, explorer: 288 } }), 0.2057);
   // 存在 >300 的加宽信号 → 取最大（加宽是当初分视图记录的动机）
-  assert.equal(
-    sanitizeAppSettings({ sidePanelWidths: { book: 420, explorer: 240 } }).sidePanelWidth,
-    420,
-  );
-  assert.equal(
-    sanitizeAppSettings({ sidePanelWidths: { book: 340, manuscript: 380 } }).sidePanelWidth,
-    380,
-  );
-  // 全部 ≤300 → 取最大（最少收窄，不过度收缩其他视图）
-  assert.equal(
-    sanitizeAppSettings({ sidePanelWidths: { explorer: 230, search: 260 } }).sidePanelWidth,
-    260,
-  );
-  assert.equal(
-    sanitizeAppSettings({ sidePanelWidths: { book: 300, explorer: 240 } }).sidePanelWidth,
-    300,
-  );
-  // 与 key 名无关：历史视图名漂移不影响结果
-  assert.equal(sanitizeAppSettings({ sidePanelWidths: { 旧视图名: 460 } }).sidePanelWidth, 460);
+  assert.equal(ratioOf({ sidePanelWidths: { book: 420, explorer: 240 } }), 0.3);
+  assert.equal(ratioOf({ sidePanelWidths: { book: 340, manuscript: 380 } }), 0.2714);
+  // 全部 ≤300 → 取最大；恰好选出出厂 300 的视为没拖过
+  assert.equal(ratioOf({ sidePanelWidths: { explorer: 230, search: 260 } }), 0.1857);
+  assert.equal(ratioOf({ sidePanelWidths: { book: 300, explorer: 240 } }), null);
+  // 与 key 名无关；异常值丢弃、超界夹限
+  assert.equal(ratioOf({ sidePanelWidths: { 旧视图名: 460 } }), 0.3286);
+  assert.equal(ratioOf({ sidePanelWidths: { book: 9999 } }), 0.5714);
+  assert.equal(ratioOf({ sidePanelWidths: { explorer: 5 } }), 0.1571);
+  assert.equal(ratioOf({ sidePanelWidths: { book: '宽', explorer: Number.NaN } }), null);
+  assert.equal(ratioOf({ sidePanelWidths: '手改坏了' }), null);
+  // 共享像素字段无效时仍走旧 map
+  assert.equal(ratioOf({ sidePanelWidth: Number.NaN, sidePanelWidths: { book: 410 } }), 0.2929);
 });
 
-test('异常宽度值：非数字丢弃、超界夹限、无效新字段不挡迁移', () => {
+test('比例字段一旦存在就优先于一切旧字段；localStorage 往返一次后旧 key 落盘消失', () => {
   assert.equal(
-    sanitizeAppSettings({ sidePanelWidths: { book: 9999 } }).sidePanelWidth,
-    SIDE_PANEL_WIDTH_MAX,
+    ratioOf({ sidePanelRatio: 0.2, sidePanelWidth: 276, sidePanelWidths: { book: 999 } }),
+    0.2,
   );
-  assert.equal(
-    sanitizeAppSettings({ sidePanelWidths: { explorer: 5 } }).sidePanelWidth,
-    SIDE_PANEL_WIDTH_MIN,
-  );
-  assert.equal(
-    sanitizeAppSettings({ sidePanelWidths: { book: '宽', explorer: Number.NaN } }).sidePanelWidth,
-    SIDE_PANEL_WIDTH_DEFAULT,
-  );
-  assert.equal(
-    sanitizeAppSettings({ sidePanelWidths: '手改坏了' }).sidePanelWidth,
-    SIDE_PANEL_WIDTH_DEFAULT,
-  );
-  // 新字段无效时仍走旧 map 迁移
-  assert.equal(
-    sanitizeAppSettings({ sidePanelWidth: Number.NaN, sidePanelWidths: { book: 410 } })
-      .sidePanelWidth,
-    410,
-  );
-  assert.equal(
-    sanitizeAppSettings({ sidePanelWidth: 'wide' }).sidePanelWidth,
-    SIDE_PANEL_WIDTH_DEFAULT,
-  );
-  assert.equal(sanitizeAppSettings({ sidePanelWidth: 4000 }).sidePanelWidth, SIDE_PANEL_WIDTH_MAX);
-});
-
-test('新字段优先于旧 map；localStorage 往返一次后旧 key 落盘消失', () => {
-  // 新版已经写过 sidePanelWidth 的配置，旧 map 即使是遗留脏数据也不再被读取
-  assert.equal(
-    sanitizeAppSettings({ sidePanelWidth: 276, sidePanelWidths: { book: 999 } }).sidePanelWidth,
-    276,
-  );
+  // 新字段为 null（作者点过复位）时也不回头读旧像素
+  assert.equal(ratioOf({ sidePanelRatio: null, sidePanelWidth: 420 }), null);
+  for (const bad of [0, 1, -0.1, 1.5, Number.NaN, '0.2']) {
+    assert.equal(ratioOf({ sidePanelRatio: bad }), null, `非法比例 ${String(bad)}`);
+    assert.equal(sanitizeAppSettings({ assistantPanelRatio: bad }).assistantPanelRatio, null);
+  }
+  assert.equal(sanitizeAppSettings({ assistantPanelRatio: 0.3 }).assistantPanelRatio, 0.3);
 
   const legacy: Record<string, unknown> = { ...DEFAULT_APP_SETTINGS };
-  delete legacy.sidePanelWidth;
+  delete legacy.sidePanelRatio;
+  delete legacy.assistantPanelRatio;
   legacy.sidePanelWidths = { book: 340, manuscript: 380 };
   localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(legacy));
   try {
     const loaded = loadAppSettings();
-    assert.equal(loaded.sidePanelWidth, 380, '加载即迁移');
+    assert.equal(loaded.sidePanelRatio, 0.2714, '加载即迁移');
     saveAppSettings(loaded);
     const persisted = JSON.parse(localStorage.getItem(APP_SETTINGS_KEY)!) as Record<
       string,
       unknown
     >;
-    assert.equal(persisted.sidePanelWidth, 380);
+    assert.equal(persisted.sidePanelRatio, 0.2714);
     assert.equal('sidePanelWidths' in persisted, false, '旧 key 下次保存后落盘消失');
+    assert.equal('sidePanelWidth' in persisted, false);
     // 再加载稳定在同值：迁移只发生一次，不会反复横跳
-    assert.equal(loadAppSettings().sidePanelWidth, 380);
+    assert.equal(loadAppSettings().sidePanelRatio, 0.2714);
   } finally {
     localStorage.removeItem(APP_SETTINGS_KEY);
   }
@@ -160,6 +136,7 @@ const BASE_PROPS = {
 
 function renderPanel(savedWidth: number, maxWidth?: number) {
   const calls: number[] = [];
+  const resets = { count: 0 };
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root: Root = createRoot(container);
@@ -171,6 +148,9 @@ function renderPanel(savedWidth: number, maxWidth?: number) {
           width={savedWidth}
           maxWidth={limit}
           onWidthChange={(next) => calls.push(next)}
+          onWidthReset={() => {
+            resets.count += 1;
+          }}
           {...BASE_PROPS}
         />,
       );
@@ -183,6 +163,7 @@ function renderPanel(savedWidth: number, maxWidth?: number) {
     panel,
     handle,
     calls,
+    resets,
     render,
     cleanup: () => {
       act(() => root.unmount());
@@ -205,6 +186,9 @@ function renderSwitchHarness(initialWidth = SIDE_PANEL_WIDTH_DEFAULT) {
           width={state.width}
           onWidthChange={(next) => {
             state.width = next;
+          }}
+          onWidthReset={() => {
+            state.width = SIDE_PANEL_WIDTH_DEFAULT;
           }}
           book={<textarea data-testid="book-draft" />}
         />,
@@ -324,7 +308,7 @@ test('窗口临时收窄不改偏好，变宽后恢复；调宽语义报告显�
 });
 
 test('窄窗口从显示宽度开始拖拽和键盘调整，不从较大的偏好宽度跳跃', () => {
-  const { panel, handle, calls, cleanup } = renderPanel(420, 236);
+  const { panel, handle, calls, resets, cleanup } = renderPanel(420, 236);
   try {
     act(() =>
       handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })),
@@ -341,7 +325,8 @@ test('窄窗口从显示宽度开始拖拽和键盘调整，不从较大的偏�
     act(() => handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })));
     assert.deepEqual(calls.pop(), 236);
     act(() => handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
-    assert.deepEqual(calls.pop(), SIDE_PANEL_WIDTH_DEFAULT);
+    assert.equal(resets.count, 1, 'Enter 复位走复位回调（回到默认比例），不写一个像素宽');
+    assert.deepEqual(calls, []);
   } finally {
     cleanup();
   }
@@ -409,20 +394,21 @@ test('松手后不再跟随指针——监听必须摘干净', () => {
   }
 });
 
-test('双击把手复位到共享默认宽度', () => {
-  const { handle, calls, cleanup } = renderPanel(700);
+test('双击把手复位到默认比例', () => {
+  const { handle, calls, resets, cleanup } = renderPanel(700);
   try {
     act(() => {
       handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     });
-    assert.deepEqual(calls, [SIDE_PANEL_WIDTH_DEFAULT]);
+    assert.equal(resets.count, 1);
+    assert.deepEqual(calls, []);
   } finally {
     cleanup();
   }
 });
 
 test('侧栏分隔器可通过键盘调整、夹限与复位，提供名称和当前范围', () => {
-  const { panel, handle, calls, cleanup } = renderPanel(320);
+  const { panel, handle, calls, resets, cleanup } = renderPanel(320);
   try {
     assert.equal(handle.getAttribute('role'), 'separator');
     assert.equal(handle.tabIndex, 0);
@@ -438,7 +424,6 @@ test('侧栏分隔器可通过键盘调整、夹限与复位，提供名称和�
       ['ArrowRight', true, 370],
       ['Home', false, SIDE_PANEL_WIDTH_MIN],
       ['End', false, SIDE_PANEL_WIDTH_MAX],
-      ['Enter', false, SIDE_PANEL_WIDTH_DEFAULT],
     ] as const) {
       const event = new KeyboardEvent('keydown', {
         key,
@@ -450,6 +435,10 @@ test('侧栏分隔器可通过键盘调整、夹限与复位，提供名称和�
       assert.equal(event.defaultPrevented, true);
       assert.deepEqual(calls.at(-1), expected);
     }
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    act(() => handle.dispatchEvent(enter));
+    assert.equal(enter.defaultPrevented, true);
+    assert.equal(resets.count, 1);
     const before = calls.length;
     for (const options of [
       { key: 'Tab' },

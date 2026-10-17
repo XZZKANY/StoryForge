@@ -59,8 +59,13 @@ export type AppSettings = {
   showWelcomeOnStartup: boolean;
   /** 选择上次作品时恢复页签与光标位置（旧配置字段兼容）。 */
   restoreLastSession: boolean;
-  /** 作者拖过的侧面板宽度，全左栏共享一份（旧按视图 sidePanelWidths 加载时迁移）。 */
-  sidePanelWidth: number;
+  /**
+   * 作者拖过的侧面板宽度，存成占窗口宽的比例（全左栏共享一份）；null = 没拖过，用默认比例。
+   * 旧的像素字段 sidePanelWidth / 按视图 sidePanelWidths 加载时迁移过来。
+   */
+  sidePanelRatio: number | null;
+  /** 作者拖过的对话栏宽度（平衡态），同样是比例；null = 默认比例。 */
+  assistantPanelRatio: number | null;
 };
 
 export const APP_SETTINGS_KEY = 'storyforge-app-settings';
@@ -91,7 +96,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   },
   showWelcomeOnStartup: true,
   restoreLastSession: true,
-  sidePanelWidth: SIDE_PANEL_WIDTH_DEFAULT,
+  sidePanelRatio: null,
+  assistantPanelRatio: null,
 };
 
 /** 旧按视图宽度按 >300（旧宽档默认 340 之上）区分「主动加宽」与「收窄」信号。 */
@@ -118,14 +124,28 @@ function migrateSidePanelWidths(value: unknown): number | null {
   return Math.max(...widths);
 }
 
-/** 新字段已是有效数字就赢得一切；否则试迁移旧按视图 map，再退回共享默认。 */
-function sanitizeSidePanelWidth(candidate: Partial<AppSettings>): number {
-  const current = candidate.sidePanelWidth;
-  if (typeof current === 'number' && Number.isFinite(current)) return clampSidePanelWidth(current);
-  return (
-    migrateSidePanelWidths((candidate as Record<string, unknown>).sidePanelWidths) ??
-    SIDE_PANEL_WIDTH_DEFAULT
-  );
+/** 旧像素宽按出厂窗口宽（tauri.conf.json 的 1400）换算成比例：在默认窗口里看起来和原来一样宽。 */
+export const LEGACY_SIDE_PANEL_REFERENCE_VIEWPORT = 1400;
+
+function sanitizePanelRatio(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value < 1
+    ? Math.round(value * 10000) / 10000
+    : null;
+}
+
+/**
+ * 新比例字段有效就用它；否则看旧像素字段（共享单宽，再退到按视图 map），旧值恰是出厂 300
+ * 视为没拖过（交给新的默认比例），其余按出厂窗口宽换成比例。
+ */
+function sanitizeSidePanelRatio(candidate: Record<string, unknown>): number | null {
+  if ('sidePanelRatio' in candidate) return sanitizePanelRatio(candidate.sidePanelRatio);
+  const legacy = candidate.sidePanelWidth;
+  const px =
+    typeof legacy === 'number' && Number.isFinite(legacy)
+      ? clampSidePanelWidth(legacy)
+      : migrateSidePanelWidths(candidate.sidePanelWidths);
+  if (px === null || px === SIDE_PANEL_WIDTH_DEFAULT) return null;
+  return sanitizePanelRatio(px / LEGACY_SIDE_PANEL_REFERENCE_VIEWPORT);
 }
 
 function sanitizeProviderSettings(value: unknown, fallback: ProviderSettings): ProviderSettings {
@@ -228,7 +248,10 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
       typeof candidate.restoreLastSession === 'boolean'
         ? candidate.restoreLastSession
         : DEFAULT_APP_SETTINGS.restoreLastSession,
-    sidePanelWidth: sanitizeSidePanelWidth(candidate),
+    sidePanelRatio: sanitizeSidePanelRatio(candidate as Record<string, unknown>),
+    assistantPanelRatio: sanitizePanelRatio(
+      (candidate as Record<string, unknown>).assistantPanelRatio,
+    ),
   };
 }
 
