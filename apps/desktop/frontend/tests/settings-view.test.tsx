@@ -40,8 +40,8 @@ test('设置：真相源 badge 恒显 env 源（不被保存态劫持）+ 搜索
       onClose={() => undefined}
     />,
   );
-  // 真相源 badge 恒显「桌面注入」，不再被保存态改成「已保存」并永久停留
-  assert.match(html, /data-testid="provider-runtime-env-source">桌面注入/);
+  // 存储位置 badge 恒显「仅存本机」，不被保存态改成「已保存」并永久停留
+  assert.match(html, /data-testid="provider-runtime-env-source">仅存本机/);
   // 搜索过滤的 CSS 空态钩子：list 包裹 + 卡片类 + 无匹配横幅（隐藏由 index.css :empty/:has 驱动）
   assert.match(html, /class="sf-settings-list"/);
   assert.match(html, /class="sf-settings-card /);

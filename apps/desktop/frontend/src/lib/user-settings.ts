@@ -1,5 +1,5 @@
 import type { EditorFontMode, ProseMeasure } from '../components/editor/options';
-import { isProviderKind } from './provider-config';
+import { providerKindOr } from './provider-config';
 import { clampSidePanelWidth, SIDE_PANEL_WIDTH_DEFAULT } from './side-panel-width';
 import {
   ACCENT_CHOICES,
@@ -24,7 +24,6 @@ export type ProviderKind =
   | 'kimi'
   | 'siliconflow'
   | 'ollama'
-  | 'local'
   | 'openai-compatible';
 
 export type ProviderSettings = {
@@ -142,7 +141,7 @@ function sanitizeProviderSettings(value: unknown, fallback: ProviderSettings): P
       : fallback.apiKeyRef;
 
   return {
-    kind: isProviderKind(candidate.kind) ? candidate.kind : fallback.kind,
+    kind: providerKindOr(candidate.kind, fallback.kind),
     baseUrl: baseUrl || fallback.baseUrl,
     model,
     apiKeyRef,

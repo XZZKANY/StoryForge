@@ -63,13 +63,6 @@ export const PROVIDER_PRESETS: Record<ProviderKind, ProviderPreset> = {
     apiKeyRef: '',
     defaultModel: '',
   },
-  local: {
-    kind: 'local',
-    label: 'StoryForge 本地网关',
-    baseUrl: 'http://localhost:8000',
-    apiKeyRef: '',
-    defaultModel: '',
-  },
   'openai-compatible': {
     kind: 'openai-compatible',
     label: '自定义兼容 OpenAI',
@@ -90,6 +83,15 @@ export function isProviderKind(value: unknown): value is ProviderKind {
   return Object.prototype.hasOwnProperty.call(PROVIDER_PRESETS, String(value));
 }
 
+/**
+ * 旧版「StoryForge 本地网关」指向已删除的 Python 后端；存过它的配置按兼容 OpenAI 读，
+ * 地址原样保留——请求协议本来就是同一族，作者看得见那个失效的地址再自己改。
+ */
+export function providerKindOr(value: unknown, fallback: ProviderKind): ProviderKind {
+  if (value === 'local') return 'openai-compatible';
+  return isProviderKind(value) ? value : fallback;
+}
+
 export function getProviderPreset(kind: ProviderKind): ProviderPreset {
   return PROVIDER_PRESETS[kind];
 }
@@ -108,12 +110,13 @@ export function applyProviderPreset(
   };
 }
 
-export const PROVIDER_RUNTIME_ENV_VARS = [
-  'STORYFORGE_LLM_PROVIDER',
-  'STORYFORGE_LLM_BASE_URL',
-  'STORYFORGE_LLM_MODEL',
-  'STORYFORGE_LLM_API_KEY',
-] as const;
+// 引擎报缺项用的是内部键名，界面换成设置页上的字段名。
+const MISSING_FIELD_LABELS: Record<string, string> = {
+  STORYFORGE_LLM_PROVIDER: '服务类型',
+  STORYFORGE_LLM_BASE_URL: '服务地址',
+  STORYFORGE_LLM_MODEL: '默认模型',
+  STORYFORGE_LLM_API_KEY: 'API Key',
+};
 
 export type ProviderHealthStatus = ApiProviderHealthResponse['status'];
 
@@ -135,11 +138,11 @@ export type ProviderHealthDisplay = {
   label: string;
 };
 
-// 把后端探测结果转成「测试连接」按钮旁的一行人类可读状态；探的是后端实际配置，不是 localStorage。
+// 把探测结果转成「测试连接」按钮旁的一行人类可读状态；探的是本机已保存的配置，不是 localStorage。
 export function describeProviderHealth(health: ProviderHealth): ProviderHealthDisplay {
   switch (health.status) {
     case 'ok': {
-      const parts = ['后端模型服务可达'];
+      const parts = ['模型服务可达'];
       if (health.model) parts.push(health.model);
       if (typeof health.latencyMs === 'number') parts.push(`${health.latencyMs}ms`);
       if (typeof health.modelCount === 'number') parts.push(`${health.modelCount} 个模型`);
@@ -149,8 +152,8 @@ export function describeProviderHealth(health: ProviderHealth): ProviderHealthDi
       return { tone: 'error', label: `鉴权失败：${health.detail ?? '密钥无效'}` };
     case 'misconfigured': {
       const label = health.missingEnv.length
-        ? `后端未配置：缺 ${health.missingEnv.join('、')}`
-        : (health.detail ?? '后端未配置模型服务');
+        ? `还没填：${health.missingEnv.map((name) => MISSING_FIELD_LABELS[name] ?? name).join('、')}`
+        : (health.detail ?? '还没配置模型服务');
       return { tone: 'warn', label };
     }
     case 'unreachable':
