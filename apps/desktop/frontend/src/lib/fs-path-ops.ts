@@ -58,6 +58,18 @@ export function suggestNewFileName(siblingNames: readonly string[]): string {
   return next > 0 ? `第${String(next).padStart(width, '0')}章.md` : '未命名.md';
 }
 
+/** 副本的默认名：「第003章 副本.md」，重名就「副本 2」「副本 3」往下排。 */
+export function copyName(name: string, takenNames: readonly string[]): string {
+  const taken = new Set(takenNames.map((item) => item.toLowerCase()));
+  const match = /^(.*?)(\.(?:md|markdown))?$/i.exec(name);
+  const stem = match?.[1] || name;
+  const ext = match?.[2] ?? '';
+  for (let index = 1; ; index += 1) {
+    const candidate = `${stem} 副本${index === 1 ? '' : ` ${index}`}${ext}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+}
+
 /** 新建 Markdown 文件名：规整后补 `.md` 扩展名（已带则不重复）。 */
 export function ensureMarkdownName(raw: string): string | null {
   const name = sanitizeEntryName(raw);

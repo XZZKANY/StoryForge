@@ -114,9 +114,26 @@ export function ResourceExplorer({
         { label: '新建文件夹', onSelect: () => void fileActions.onNewFolder(dir) },
       ];
       if (target) {
+        const { onDuplicate, onMove } = fileActions;
         items.push(
           { type: 'separator' },
           { label: '重命名', onSelect: () => void fileActions.onRename(target.path, target.isDir) },
+          ...(onDuplicate && !target.isDir
+            ? [{ label: '复制一份', onSelect: () => void onDuplicate(target.path) }]
+            : []),
+          ...(onMove
+            ? [{ label: '移动到…', onSelect: () => void onMove(target.path, target.isDir) }]
+            : []),
+        );
+      }
+      const { onReveal } = fileActions;
+      if (onReveal) {
+        const revealPath = target?.path ?? projectPath;
+        items.push({ label: '在资源管理器中显示', onSelect: () => void onReveal(revealPath) });
+      }
+      if (target) {
+        items.push(
+          { type: 'separator' },
           {
             label: target.isDir ? '删除文件夹' : '删除文件',
             danger: true,
