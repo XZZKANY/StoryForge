@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { isTauriRuntime } from './tauri-env';
@@ -24,6 +24,51 @@ export function useAcknowledgeHostClosing() {
     return () => {
       disposed = true;
       unlisten?.();
+    };
+  }, []);
+}
+
+/**
+ * 关窗先问未保存：作者点关闭（标题栏、Alt+F4、任务栏）时宿主广播 `storyforge:close-requested`，
+ * 这里先回一声「还在」，再走 confirm，放行了宿主才进退出握手。守卫挂上之前，或者回声超时
+ * （WebView 卡死），宿主照旧直接退出，不会关不掉。
+ */
+export function useHostCloseGuard(confirm: () => Promise<boolean>) {
+  const confirmRef = useRef(confirm);
+  useLayoutEffect(() => {
+    confirmRef.current = confirm;
+  }, [confirm]);
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let disposed = false;
+    let asking = false;
+    let unlisten: (() => void) | undefined;
+    void listen<number>('storyforge:close-requested', (event) => {
+      const request = event.payload;
+      void invoke('acknowledge_close_request', { request }).catch(() => {});
+      // 已经在问了（作者又点了一次关闭）：回过声就够，不叠第二个框。
+      if (asking) return;
+      asking = true;
+      void confirmRef
+        .current()
+        .catch(() => false)
+        .then((proceed) => invoke('resolve_close_request', { request, proceed }))
+        .catch(() => {})
+        .finally(() => {
+          asking = false;
+        });
+    })
+      .then((stop) => {
+        if (disposed) return stop();
+        unlisten = stop;
+        void invoke('arm_close_guard', { armed: true }).catch(() => {});
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+      if (!unlisten) return;
+      unlisten();
+      void invoke('arm_close_guard', { armed: false }).catch(() => {});
     };
   }, []);
 }

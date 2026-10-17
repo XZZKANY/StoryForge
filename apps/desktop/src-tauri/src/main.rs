@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod close_guard;
 mod engine_db;
 mod engine_llm;
 mod fs;
@@ -1275,6 +1276,7 @@ fn main() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .manage(host_close_state::HostCloseState::default())
+        .manage(close_guard::CloseGuard::default())
         .manage(shadow_git::ShadowGitState::default())
         .manage(engine_llm::EngineLlmState::default())
         .manage(engine_db::EngineDbState::default())
@@ -1306,6 +1308,10 @@ fn main() {
             host_close_state::begin_writeback_delivery,
             host_close_state::end_writeback_delivery,
             host_close_state::acknowledge_host_closing,
+            // 关窗先问未保存
+            close_guard::arm_close_guard,
+            close_guard::acknowledge_close_request,
+            close_guard::resolve_close_request,
             host_close::read_host_close_diagnostic,
             llm_config::get_llm_config,
             llm_config::save_llm_config,
@@ -1332,7 +1338,7 @@ fn main() {
                     .is_finished()
                 {
                     api.prevent_close();
-                    window.app_handle().exit(0);
+                    close_guard::handle_close_requested(window);
                 }
             }
         })
