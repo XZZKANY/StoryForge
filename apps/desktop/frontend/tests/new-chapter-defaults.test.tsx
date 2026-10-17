@@ -152,6 +152,11 @@ test('顶部「新建文件」建在正在写的那章旁边，不再落到作�
       ),
     );
   render(`${DIR}\\第005章.md`);
+  // 书名过长会被截断，悬停要看得到全名。
+  assert.equal(
+    container.querySelector<HTMLButtonElement>('[data-testid="toggle-project-library"]')?.title,
+    '末世吞噬（切换作品）',
+  );
   const button = container.querySelector<HTMLButtonElement>('[data-testid="side-new-file"]')!;
   assert.equal(button.title, '在「正文」里新建文件');
   act(() => button.click());

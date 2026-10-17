@@ -5,6 +5,7 @@
 
 import {
   useEffect,
+  useRef,
   useState,
   useMemo,
   memo,
@@ -57,9 +58,11 @@ export function ResourceExplorer({
   } | null>(null);
   // 读盘失败后的本地重试计数：与外部 refreshVersion 并列驱动同一个装载 effect。
   const [retryNonce, setRetryNonce] = useState(0);
+  const loadedProjectRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!projectPath) {
+      loadedProjectRef.current = null;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 无项目时同步清空资源树派生态，React18 合法模式
       setFiles([]);
       setError(null);
@@ -67,7 +70,8 @@ export function ResourceExplorer({
     }
 
     let cancelled = false;
-    setLoading(true);
+    // 同一本书重读时不闪「加载中」：树不卸载，作者折起来的文件夹也就不会被重新展开。
+    if (loadedProjectRef.current !== projectPath) setLoading(true);
     setError(null);
 
     void (async () => {
@@ -76,10 +80,12 @@ export function ResourceExplorer({
         const filteredEntries = entries.filter(isVisibleProjectTreeEntry);
 
         if (!cancelled) {
+          loadedProjectRef.current = projectPath;
           setFiles(filteredEntries);
         }
       } catch (err) {
         if (!cancelled) {
+          loadedProjectRef.current = null;
           setError(err instanceof Error ? err.message : '加载文件失败');
         }
       } finally {
