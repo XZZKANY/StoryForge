@@ -8612,3 +8612,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 复查报告 AUD-06（真宿主巡检，两次重开设置复现）：设置顶部搜索框输入「不存在的设置项XYZ」后按 Esc，设置直接关掉、回到写作台。源码核实：搜索框的 `onKeyDown` 本想在有查询时先清空，但弹层系统在 window 捕获阶段处理顶层弹层的 Esc（`stopImmediatePropagation` 后关闭），只放行 Monaco 和带 `data-esc-handled` 的元素，搜索框没有声明。
 - 改动：搜索框有查询时挂 `data-esc-handled`，Esc 先清空搜索，清空后再按 Esc 才关设置；输入法组字中按 Esc 只取消组字，不清搜索。
 - 测试：`settings-accessibility` 加 2 条。变异 3 / 3（去掉标记、组字也清、空查询也自理 Esc）。`pnpm verify` 8 道全过。
+
+## 2026-10-17 伏笔回收后旧提案不再重现（复查 AUD-03）
+
+- 复查报告 AUD-03（两本合成书复现）：伏笔候选并入 → 标为第 2 章已回收 → 刷新观测镜，同一条旧候选又列为待确认；点「并入」被拒（同 ID 已有不同声明）。源码核实：引擎 `readPendingProposals` 拿草稿 `proposals.json` 与作者 `canon.json` 按整对象比较算待确认，回收给 canon 里那条加了 `status: resolved` 与 `resolved_chapter`，草稿里的旧版就不再相等；界面并入却按 id 拒绝重复。模型下一轮再观察到同一条伏笔（同标题派生同 id）也会这样。
+- 改动（引擎）：算伏笔待确认时，canon 已声明的 id（去首尾空白后比）一律不算；其它不变量照旧按整对象比。草稿文件本身不动。
+- 接受的差异：Python 预言机 `p1-plans` 的 delta 项目里正好录下这个场景——canon 已有 `p-old`（带 due_chapter），模型再报不带 due_chapter 的同 id 版本，Python 列为待确认。golden 不重录，回放测试逐条改判：从 Python 期望（输出与派生缓存 `observations.json`）里剔掉 canon 已声明 id 的伏笔、待确认数相应减，钉住恰好 2 处（#29、#30 两次观测镜扫描）。
+- 测试：新增 `canonPendingPromises.test.ts` 2 条（真 `canonDelta` 写草稿 → 作者并入 → 标回收 → 再观察，都不再列出；canon 里 id 带空白也算同一条，别的伏笔照常待确认）。变异 3 / 3。引擎全量 13548 passed，tsc 干净；`pnpm verify` 8 道全过。
+- 未验：真宿主里走一遍「并入 → 标回收 → 刷新」（本机假模型这轮没有生成伏笔候选的模式）。
