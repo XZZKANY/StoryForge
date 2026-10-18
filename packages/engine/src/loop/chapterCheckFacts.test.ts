@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildCheck,
-  checkPrompt,
-  checkSource,
-  FACT_KINDS,
-  MAX_NEW_FACTS,
-} from './chapterCheckProtocol';
+import { FACT_KINDS } from '../kernel/factLedger';
+import { buildCheck, checkPrompt, checkSource, MAX_NEW_FACTS } from './chapterCheckProtocol';
 
 type Obj = { [key: string]: unknown };
 const brief: Obj = { brief_id: 'b-1', goal: '进城', target_chars_min: 1, target_chars_max: 5000 };

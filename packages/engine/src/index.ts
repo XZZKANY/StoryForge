@@ -624,3 +624,8 @@ export {
   queryChapterCheckHistory,
   type ChapterCheckHistoryDeps,
 } from './loop/chapterCheckHistory';
+export {
+  prepareChapterFactRecord,
+  type FactRecordDeps,
+  type FactRecordInput,
+} from './loop/factRecord';

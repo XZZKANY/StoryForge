@@ -31,6 +31,7 @@ import {
 } from '../../lib/author-loop';
 import type { BranchInfo } from '../../lib/branches';
 import type { EditorModelCache } from './useMonacoEditor';
+import { recordAcceptedChapterFacts } from '../../lib/fact-write';
 import { isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
 import {
   associateIssuesToOps,
@@ -1169,6 +1170,8 @@ export function useSuggestionWriteback({
       // 刻意只挂在「接受整个补丁」这一层：分块接受与行间对话 Ctrl+K 是段落级微调，
       // 接受一次不等于这章写完了；撤销走的是反向写回，届时正文没了，后端自会拒绝。
       if (!recoveredRecord) await markChapterWrittenInPlan(projectRoot, path);
+      // 同一层上把写章检查时抽出的新事实记进台账；不等它，失败只提示，不影响已落盘的正文。
+      if (!recoveredRecord) void recordAcceptedChapterFacts(projectRoot, path, suggestion.runId);
       const runStatus = loopRecord.auditComplete
         ? await forgetSuggestionRecovery(suggestion, true)
         : undefined;
