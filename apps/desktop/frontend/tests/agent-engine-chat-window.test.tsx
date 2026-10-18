@@ -472,6 +472,66 @@ describe('ChatWindow author path on the TS engine', () => {
       fixture.reader.inspectProjectPath('D:/book', '正文/第003章.md'),
     ).resolves.toMatchObject({ entryKind: 'missing' });
   });
+
+  it.each([
+    ['kept', true],
+    ['reverted to the plan', false],
+  ])('drafts with the brief adjustments the author %s', async (_label, keep) => {
+    const adjustment = {
+      plan_quote: '沈禾带林舟入城',
+      fact_quote: '林舟推开门。',
+      adjustment: '林舟上一章已经推门出来，本章从城外写起。',
+    };
+    const brief = {
+      target_path: '正文/第003章.md',
+      goal: '沈禾带林舟入城',
+      target_chars_min: 10,
+      target_chars_max: 400,
+      fact_adjustments: [adjustment, { ...adjustment, fact_quote: '上一章没有这句' }],
+    };
+    fixture.replies.push(
+      { reply: streamed([JSON.stringify(brief)]) },
+      { reply: streamed(['第三章 入城' + NL + NL + '城外起了风。' + NL]) },
+      {
+        reply: (body) => {
+          const prompt = body.messages.at(-1).content as string;
+          const start = prompt.indexOf('检查源：') + '检查源：'.length;
+          const source = JSON.parse(prompt.slice(start, prompt.indexOf(NL, start)));
+          return streamed([JSON.stringify({ ...source, findings: [] })]);
+        },
+      },
+    );
+    await mount('ask');
+    await act(async () =>
+      current.run('写第三章：沈禾带林舟入城', 'agent', 'chapter.write', [], {
+        targetFilePath: 'D:/book/正文/第003章.md',
+      }),
+    );
+    // 章纲调用拿到了上一章结尾；对不上原句的那条调整被丢掉。
+    expect(JSON.stringify(fixture.requests[0])).toContain('PREVIOUS');
+    const pending = current.state.chapterBrief!;
+    expect(pending.factAdjustments).toEqual([
+      {
+        planQuote: adjustment.plan_quote,
+        factQuote: adjustment.fact_quote,
+        adjustment: adjustment.adjustment,
+        source: 'model',
+      },
+    ]);
+    await act(async () => {
+      current.controls.agentRunControls.onConfirmChapterBrief?.(
+        keep ? pending : { ...pending, factAdjustments: [] },
+      );
+      await settle();
+    });
+    expect(fixture.requests).toHaveLength(3);
+    const draftPrompt = (fixture.requests[1].messages as Obj[]).at(-1)!.content as string;
+    const block = '按已写内容的调整（优先于上面的章节目标与节拍）';
+    if (keep) {
+      expect(draftPrompt).toContain(block);
+      expect(draftPrompt).toContain(`- ${adjustment.adjustment}（已写：「林舟推开门。」）`);
+    } else expect(draftPrompt).not.toContain(block);
+  });
 });
 
 // 放在最后：重启会重置模块，静态导入的 hooks 仍握着重启前的引擎实例（它的 run 镜像与 id 已过期）。

@@ -230,11 +230,21 @@ async function chapterText(
   return text;
 }
 
+export type WrittenFact = {
+  /** 带给模型的一行。 */
+  line: string;
+  kind: string;
+  subject: string;
+  value: string;
+  quote: string;
+  ordinal: number;
+};
+
 /**
- * 「已写事实」段：只取本章之前各章记下、仍有效的事实；原句在原章里已经找不到的
+ * 挑已写事实：只取本章之前各章记下、仍有效的事实；原句在原章里已经找不到的
  * （作者后来改了、删了）依据失效，不带。
  */
-async function writtenFactsBlock(
+async function pickWrittenFacts(
   reader: ProjectReader,
   root: string,
   input: {
@@ -245,7 +255,7 @@ async function writtenFactsBlock(
     mentionText: string;
     maxChars: number;
   },
-): Promise<string | null> {
+): Promise<WrittenFact[]> {
   const { current, ordinals } = input;
   const ordinalOf = (path: string) => ordinals.get(path) ?? null;
   const previous = [...ordinals].find(([, ordinal]) => ordinal === current - 1)?.[0] ?? null;
@@ -271,7 +281,7 @@ async function writtenFactsBlock(
     ...earlier.filter((fact) => fact.path === previous).map((fact) => [fact, false] as const),
     ...older.map((fact) => [fact, true] as const),
   ];
-  const lines: string[] = [];
+  const picked: WrittenFact[] = [];
   let total = 0;
   let olderLines = 0;
   for (const [fact, isOlder] of ordered) {
@@ -288,11 +298,69 @@ async function writtenFactsBlock(
       `（第${ordinalOf(fact.path as string)}章「${quote}」）`;
     const length = Array.from(line).length;
     if (total + length > input.maxChars) break;
-    lines.push(line);
+    const ordinal = ordinalOf(fact.path as string)!;
+    picked.push({
+      line,
+      kind: fact.kind as string,
+      subject: fact.subject as string,
+      value: fact.value as string,
+      quote,
+      ordinal,
+    });
     total += length;
     if (isOlder) olderLines += 1;
   }
-  return lines.length ? `${FACTS_HEADING}\n${lines.join('\n')}` : null;
+  return picked;
+}
+
+function canonSurfaceForms(canon: JsonObject): Map<string, string[]> {
+  const forms = new Map<string, string[]>();
+  for (const entity of objects(canon.entities))
+    if (typeof entity.canonical_name === 'string')
+      forms.set(pythonStrip(entity.canonical_name), entitySurfaceForms(entity));
+  return forms;
+}
+
+/**
+ * 给章纲用的已写事实（起草走场景约束块）：目标章的阅读序位置、台账、canon 别名都在这里取。
+ * 没有台账、认不出章序时返回空数组；台账读不到或格式不对照常抛出，由调用方决定怎么办。
+ */
+export async function selectWrittenFacts(
+  reader: ProjectReader,
+  root: string,
+  currentFile: string,
+  options: { platform: 'windows' | 'posix'; mentionText: string; maxChars: number },
+): Promise<WrittenFact[]> {
+  const { platform } = options;
+  const relative = await toRelativePosix(reader, root, currentFile, platform);
+  if (relative === null) return [];
+  let ordinals: Map<string, number>;
+  try {
+    ordinals = await chapterOrdinals(reader, root, '*.md', platform);
+  } catch (error) {
+    if (!(error instanceof FsToolError)) throw error;
+    return [];
+  }
+  const current =
+    ordinals.get(relative) ??
+    (await unwrittenChapterOrdinal(reader, root, relative, ordinals, platform));
+  if (current === null) return [];
+  const ledger = await readFactLedger(reader, root);
+  if (ledger === null) return [];
+  let surfaceForms = new Map<string, string[]>();
+  try {
+    surfaceForms = canonSurfaceForms(await readCanon(reader, root));
+  } catch (error) {
+    if (!(error instanceof FsToolError || error instanceof InputDomainError)) throw error;
+  }
+  return pickWrittenFacts(reader, root, {
+    ledger,
+    current,
+    ordinals,
+    surfaceForms,
+    mentionText: options.mentionText,
+    maxChars: options.maxChars,
+  });
 }
 
 /**
@@ -325,12 +393,9 @@ export async function buildSceneConstraintBlock(
   const invariants = isJsonObject(canon.invariants) ? canon.invariants : {};
 
   const nameById = new Map<string, string>();
-  const surfaceForms = new Map<string, string[]>();
   for (const entity of objects(canon.entities)) {
     if (typeof entity.id === 'string' && typeof entity.canonical_name === 'string')
       nameById.set(entity.id, displayName(entity, entity.canonical_name));
-    if (typeof entity.canonical_name === 'string')
-      surfaceForms.set(pythonStrip(entity.canonical_name), entitySurfaceForms(entity));
   }
 
   let current: number | null = null;
@@ -400,15 +465,19 @@ export async function buildSceneConstraintBlock(
   if (options.facts && current !== null && ordinals !== null) {
     try {
       const ledger = await readFactLedger(reader, root, capture);
-      if (ledger !== null)
-        factsBlock = await writtenFactsBlock(reader, root, {
-          ledger,
-          current,
-          ordinals,
-          surfaceForms,
-          mentionText: options.facts.mentionText,
-          maxChars: options.facts.maxChars ?? DEFAULT_FACTS_MAX_CHARS,
-        });
+      const picked =
+        ledger === null
+          ? []
+          : await pickWrittenFacts(reader, root, {
+              ledger,
+              current,
+              ordinals,
+              surfaceForms: canonSurfaceForms(canon),
+              mentionText: options.facts.mentionText,
+              maxChars: options.facts.maxChars ?? DEFAULT_FACTS_MAX_CHARS,
+            });
+      if (picked.length)
+        factsBlock = `${FACTS_HEADING}\n${picked.map((fact) => fact.line).join('\n')}`;
     } catch (error) {
       // 台账坏了只是这次不带事实，canon 约束照给；格式错误在下次记账时报给作者。
       if (!(error instanceof FsToolError || error instanceof InputDomainError)) throw error;

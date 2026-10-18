@@ -15,6 +15,7 @@ import {
   draftInstruction,
   parseBrief,
   repairInstruction,
+  type BriefWritten,
 } from '../chapterWritingContracts';
 import { AgentOrchestrationError } from '../runPayloads';
 import type { ToolHandler } from './execution';
@@ -29,17 +30,24 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
 
   const brief: ToolHandler = async (context, payload) => {
     const seed = payload.seed as Obj;
+    const written = (payload.written ?? null) as BriefWritten | null;
     const provenance = llmContextSnapshotTraceSummary(
       payload.llm_context_snapshot as Parameters<typeof llmContextSnapshotTraceSummary>[0],
     );
     let parsed: Obj;
     try {
       const chat = await chatReply(context.services.assistant, {
-        userMessage: briefPrompt(seed, context.userMessage),
+        userMessage: briefPrompt(seed, context.userMessage, written),
         contextBlock: dumpJson(payload.llm_prompt_context_bundle, { ensureAscii: false }),
         assistantSessionId: context.assistantSessionId,
       });
-      parsed = parseBrief(chat.reply, { seed, provenance, newHex: deps.newHex });
+      parsed = parseBrief(chat.reply, {
+        seed,
+        provenance,
+        newHex: deps.newHex,
+        userMessage: context.userMessage,
+        written,
+      });
     } catch (error) {
       if (
         error instanceof AssistantLlmNotConfiguredError ||
@@ -56,7 +64,13 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
         tool_name: 'chapter.brief',
         status: 'completed',
         input_summary: { target_path: parsed.target_path, ...provenance },
-        output_summary: { brief_id: parsed.brief_id, revision: parsed.revision },
+        output_summary: {
+          brief_id: parsed.brief_id,
+          revision: parsed.revision,
+          ...(Array.isArray(parsed.fact_adjustments)
+            ? { fact_adjustments: parsed.fact_adjustments.length }
+            : {}),
+        },
       },
     };
   };

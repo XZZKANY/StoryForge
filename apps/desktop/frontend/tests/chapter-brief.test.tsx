@@ -237,3 +237,87 @@ test('chapter brief card shows pov, setting and constraints one per line and sub
     container.remove();
   }
 });
+
+test('brief adjustments show on the card and can be reverted one by one', () => {
+  const keep = {
+    planQuote: '追捕跛脚男',
+    factQuote: '杨小满被押上了车。',
+    adjustment: '追的是另一名跛脚男。',
+    source: 'model' as const,
+  };
+  const drop = {
+    planQuote: '周树声在码头接货',
+    factQuote: '周树声已经死了。',
+    adjustment: '「周树声」已死，只能是回忆或提及。',
+    source: 'program' as const,
+  };
+  const confirmed: ChapterBrief[] = [];
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(
+      <ChapterBriefCard
+        brief={{ ...brief, factAdjustments: [keep, drop] }}
+        onConfirm={(value) => confirmed.push(value)}
+        onCancel={() => {}}
+      />,
+    );
+  });
+  try {
+    const section = container.querySelector('[data-testid="chapter-brief-adjustments"]');
+    assert.match(section?.textContent ?? '', /按已写内容调整/);
+    assert.match(section?.textContent ?? '', /计划：「追捕跛脚男」 · 已写：「杨小满被押上了车。」/);
+    const reverts = container.querySelectorAll<HTMLButtonElement>(
+      '[data-testid="chapter-brief-adjustment-revert"]',
+    );
+    assert.equal(reverts.length, 2);
+    act(() => reverts[1].click());
+    assert.equal(container.querySelectorAll('[data-testid="chapter-brief-adjustment"]').length, 1);
+    act(() =>
+      container.querySelector<HTMLButtonElement>('[data-testid="chapter-brief-confirm"]')!.click(),
+    );
+    assert.deepEqual(confirmed[0]?.factAdjustments, [keep]);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('the decoder keeps verified adjustments and the card hides the section without them', () => {
+  const message = {
+    agent_result: {
+      confirmation_kind: 'chapter_brief',
+      chapter_brief: {
+        brief_id: brief.briefId,
+        revision: 1,
+        target_path: brief.targetPath,
+        goal: brief.goal,
+        target_chars_min: 1600,
+        target_chars_max: 2600,
+        fact_adjustments: [
+          { plan_quote: '甲', fact_quote: '乙', adjustment: '丙', source: 'program' },
+          { plan_quote: '甲', fact_quote: '乙', adjustment: '  ' },
+          '坏的',
+        ],
+      },
+    },
+    plan: [],
+    tool_trace: [],
+  } as unknown as AgentResultMessage;
+  assert.deepEqual(chapterBriefFromAgentResult(message)?.factAdjustments, [
+    { planQuote: '甲', factQuote: '乙', adjustment: '丙', source: 'program' },
+  ]);
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(<ChapterBriefCard brief={brief} onConfirm={() => {}} onCancel={() => {}} />);
+  });
+  try {
+    assert.equal(container.querySelector('[data-testid="chapter-brief-adjustments"]'), null);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});

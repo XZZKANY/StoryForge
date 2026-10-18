@@ -156,6 +156,14 @@ export type AgentRunControlHandlers = {
   onRejectPatch?: (direction: string) => void;
 };
 
+/** 章纲按已写内容对计划做的调整：计划原句、已写原句都核对过；program 是程序补的（已死的人）。 */
+export type ChapterBriefAdjustment = {
+  planQuote: string;
+  factQuote: string;
+  adjustment: string;
+  source: 'model' | 'program';
+};
+
 export type ChapterBrief = {
   briefId: string;
   revision: number;
@@ -170,6 +178,8 @@ export type ChapterBrief = {
   continuityConstraints: string[];
   targetCharsMin: number;
   targetCharsMax: number;
+  /** 起草照这些写，优先于目标和节拍；作者可以逐条改回原计划。 */
+  factAdjustments?: ChapterBriefAdjustment[];
 };
 
 export type ReviewReport = Record<string, unknown>;

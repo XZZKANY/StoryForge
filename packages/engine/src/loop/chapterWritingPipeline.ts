@@ -7,6 +7,7 @@ import { buildPlan } from '../kernel/serialPlan';
 import { assertChapterSources, captureChapterSources } from './chapterSourceGuard';
 import {
   buildBriefSeed,
+  briefWrittenMaterials,
   CHAPTER_BRIEF_ARTIFACT_KIND,
   CHAPTER_CANDIDATE_ARTIFACT_KIND,
   CHAPTER_CHECK_ARTIFACT_KIND,
@@ -131,6 +132,14 @@ export async function startChapterBrief(
     plan,
     recentChars: await recentChapterChars(host.reader, root, relative, host.platform),
   });
+  // 章纲顺带对照上一章结尾和已写事实，专挡「计划和已写内容打架」（不多一次调用）。
+  const written = await briefWrittenMaterials(
+    host.reader,
+    root,
+    targetAbsolute,
+    host.platform,
+    `${userMessage}\n${String(seed.goal ?? '')}`,
+  );
   const response = (fields: { plan: Obj[]; agentResult: Obj; toolTrace: AgentToolTrace[] }) =>
     host.baseResponse({
       agentSessionId: request.agentSessionId,
@@ -156,6 +165,7 @@ export async function startChapterBrief(
     project_root: root,
     target_absolute: targetAbsolute,
     seed,
+    written,
     llm_context_snapshot: snapshot,
     llm_prompt_context_bundle: promptBundle,
   });

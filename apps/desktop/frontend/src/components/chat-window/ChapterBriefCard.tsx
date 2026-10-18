@@ -2,7 +2,7 @@ import { Button, Field, Input, Textarea } from '../ui';
 
 import { useState } from 'react';
 
-import type { ChapterBrief } from './types';
+import type { ChapterBrief, ChapterBriefAdjustment } from './types';
 
 export function ChapterBriefCard({
   brief,
@@ -39,6 +39,16 @@ export function ChapterBriefCard({
           待确认
         </span>
       </div>
+      <AdjustmentList
+        adjustments={draft.factAdjustments ?? []}
+        disabled={busy}
+        onRevert={(target) =>
+          setDraft((current) => ({
+            ...current,
+            factAdjustments: (current.factAdjustments ?? []).filter((item) => item !== target),
+          }))
+        }
+      />
       <Field label="本章目标">
         {(control) => (
           <Textarea
@@ -152,6 +162,58 @@ export function ChapterBriefCard({
         </Button>
       </div>
     </section>
+  );
+}
+
+/**
+ * 计划和已经写下的内容打架时（上一章已抓到的人又要追捕、已死的人要出场），章纲给出的调整。
+ * 起草照这些写、优先于下面的目标和节拍；作者不认的那条可以改回原计划，照原样写。
+ */
+function AdjustmentList({
+  adjustments,
+  disabled,
+  onRevert,
+}: {
+  adjustments: ChapterBriefAdjustment[];
+  disabled: boolean;
+  onRevert: (adjustment: ChapterBriefAdjustment) => void;
+}) {
+  if (!adjustments.length) return null;
+  return (
+    <div
+      className="mb-3 rounded-md border border-border bg-surface px-2.5 py-2"
+      data-testid="chapter-brief-adjustments"
+    >
+      <div className="text-xs font-semibold text-foreground">按已写内容调整</div>
+      <div className="mt-0.5 text-3xs text-subtle">起草照这几条写，优先于下面的目标和节拍。</div>
+      <ul className="mt-2 space-y-2">
+        {adjustments.map((item) => (
+          <li
+            key={`${item.planQuote}|${item.factQuote}|${item.adjustment}`}
+            className="flex items-start gap-2"
+            data-testid="chapter-brief-adjustment"
+          >
+            <div className="min-w-0 flex-1 text-xs">
+              <div className="text-foreground">{item.adjustment}</div>
+              <div className="mt-0.5 text-3xs text-subtle">
+                计划：「{item.planQuote}」 · 已写：「{item.factQuote}」
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="shrink-0 text-3xs"
+              onClick={() => onRevert(item)}
+              disabled={disabled}
+              data-testid="chapter-brief-adjustment-revert"
+            >
+              改回原计划
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
