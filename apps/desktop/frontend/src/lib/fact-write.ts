@@ -8,6 +8,7 @@
 
 import {
   prepareChapterFactRecord,
+  retireLedgerFact,
   type ChapterFactConflict,
   type ChapterFactRecordPlan,
 } from './api/facts';
@@ -71,6 +72,32 @@ export async function recordChapterFacts({
     plan,
     undo: () => undoFactsWrite(projectPath, path, before, plan.after),
   };
+}
+
+/** 作者在观测镜里作废一条事实：同一套写法——期间被改就停、写前快照、可撤销。 */
+export async function retireFactGuarded({
+  projectPath,
+  factId,
+  label,
+}: {
+  projectPath: string;
+  factId: string;
+  /** 写进版本记录的那条事实。 */
+  label: string;
+}): Promise<{ undo: () => Promise<void> }> {
+  const path = factsLedgerPathFor(projectPath);
+  const before = await readLedger(path);
+  const after = await retireLedgerFact(before, factId);
+  if ((await readLedger(path)) !== before) {
+    throw new Error('facts.json 刚被别处改过，这次没有作废。');
+  }
+  await snapshotBeforeWrite(projectPath, path, before ?? '', {
+    source: 'Editor',
+    summary: `事实台账作废：${label}`,
+    checkpoint: true,
+  });
+  await TauriFileSystem.writeFile(projectPath, path, after);
+  return { undo: () => undoFactsWrite(projectPath, path, before, after) };
 }
 
 async function undoFactsWrite(

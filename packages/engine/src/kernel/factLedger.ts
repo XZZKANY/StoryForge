@@ -86,6 +86,29 @@ export function serializeFactLedger(ledger: JsonObject, platform: 'windows' | 'p
   return platform === 'windows' ? text.replace(/\n/g, '\r\n') : text;
 }
 
+/**
+ * 作者作废一条事实：它不再进起草；它替代过的旧状态重新有效（作废的往往正是记错的新值）。
+ * 别的条目原样不动。找不到或已经不是有效事实就报错，不静默写。
+ */
+export function retireFact(
+  ledgerText: string | null,
+  factId: string,
+  platform: 'windows' | 'posix',
+): string {
+  const ledger = parseFactLedger(ledgerText);
+  const facts = ledger.facts as JsonObject[];
+  const target = facts.find((fact) => fact.id === factId);
+  if (target === undefined || !isActiveFact(target))
+    throw new InputDomainError(`台账里没有这条有效事实（${factId}），可能已经作废或被改过。`);
+  const restored = typeof target.supersedes === 'string' ? target.supersedes : null;
+  const next = facts.map((fact) => {
+    if (fact === target) return { ...fact, status: 'retired' };
+    if (fact.id === restored && fact.status === 'superseded') return { ...fact, status: 'active' };
+    return fact;
+  });
+  return serializeFactLedger({ ...ledger, facts: next }, platform);
+}
+
 const text = (value: JsonValue | undefined) => (typeof value === 'string' ? value : '');
 export const isActiveFact = (fact: JsonObject) => (fact.status ?? 'active') === 'active';
 

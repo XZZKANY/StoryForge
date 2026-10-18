@@ -1,6 +1,6 @@
 /**
  * 世界线观测镜：左栏第二视图（#13 从右栏迁来；与资源管理器 CSS 互斥不卸载）。
- * 四个可折叠分区——待确认提案 / 伏笔账 / 实体 / 检查器，数据全部来自
+ * 五个可折叠分区——待确认提案 / 事实台账 / 伏笔账 / 实体 / 检查器，数据全部来自
  * observatory.scan payload v2 的结构化台账（确定性、无 LLM）。
  *
  * 诚实边界：观测是参考信号不是质量判定；实体卡红描边只反映后端已判定的 blocking 观测，
@@ -11,14 +11,18 @@ import { useState, type ReactNode } from 'react';
 
 import { Check, ChevronDown, ChevronRight, FileText, Radar, RefreshCw } from '../icons/shell-icons';
 import type { CanonMergeTarget } from '../../lib/canon-merge';
-import type {
-  ObservationAnchor,
-  ObservatoryChecker,
-  ObservatoryEntity,
-  ObservatoryPromise,
-  ObservatoryPromises,
-  ObservatoryProposals,
+import {
+  NO_OBSERVATORY_FACTS,
+  type ObservationAnchor,
+  type ObservatoryChecker,
+  type ObservatoryEntity,
+  type ObservatoryFact,
+  type ObservatoryFacts,
+  type ObservatoryPromise,
+  type ObservatoryPromises,
+  type ObservatoryProposals,
 } from '../../lib/observations';
+import { FactLedgerBody, factLedgerCount } from './ObservatoryFacts';
 import type { Observation, ObservationAvailability } from './ObsPanel';
 import { LiveStatus } from './LiveStatus';
 
@@ -611,6 +615,7 @@ export function ObservatoryView({
   entities,
   promises,
   proposals,
+  facts = NO_OBSERVATORY_FACTS,
   generatedAt,
   litEntityIds = [],
   merging = false,
@@ -623,6 +628,7 @@ export function ObservatoryView({
   onResolvePromise,
   onResolveObservation,
   onAskAgent,
+  onRetireFact,
 }: {
   availability: ObservationAvailability;
   scanning?: boolean;
@@ -631,6 +637,7 @@ export function ObservatoryView({
   entities: ObservatoryEntity[];
   promises: ObservatoryPromises;
   proposals: ObservatoryProposals;
+  facts?: ObservatoryFacts;
   generatedAt: string | null;
   litEntityIds?: string[];
   merging?: boolean;
@@ -643,6 +650,7 @@ export function ObservatoryView({
   onResolvePromise?: (promise: ObservatoryPromise) => void;
   onResolveObservation?: (id: string) => void;
   onAskAgent?: (text: string) => void;
+  onRetireFact?: (fact: ObservatoryFact) => void;
 }) {
   const observationById = new Map(observations.map((observation) => [observation.id, observation]));
   // busy 合并首扫 loading 与「已有数据时的重扫」：后者 availability 停在 available，靠 scanning 反馈。
@@ -721,6 +729,9 @@ export function ObservatoryView({
               onDismissProposal={onDismissProposal}
               merging={merging}
             />
+            <Section title="事实台账" count={factLedgerCount(facts)} testid="facts">
+              <FactLedgerBody facts={facts} onLocate={onLocateAnchor} onRetire={onRetireFact} />
+            </Section>
             <Section title="伏笔账" count={promises.ledger.length} testid="promises">
               {promises.ledger.length === 0 ? (
                 <EmptyLine>

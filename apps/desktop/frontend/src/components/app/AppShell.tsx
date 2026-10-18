@@ -316,6 +316,7 @@ export function AppShell({
                       entities={observatory.entities}
                       promises={observatory.promises}
                       proposals={observatory.proposals}
+                      facts={observatory.facts}
                       generatedAt={observatory.generatedAt}
                       litEntityIds={observatory.litEntityIds}
                       merging={observatory.merging}
@@ -330,6 +331,7 @@ export function AppShell({
                       onResolvePromise={(promise) => void observatory.resolvePromise(promise)}
                       onResolveObservation={observatory.resolveObservation}
                       onAskAgent={actions.onAskAgent}
+                      onRetireFact={(fact) => void observatory.retireFact(fact)}
                     />
                   ) : (
                     <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">

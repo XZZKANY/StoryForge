@@ -79,6 +79,11 @@ export function decodeChapterFactRecordPlan(raw: unknown): ChapterFactRecordPlan
   };
 }
 
+/** 作废一条事实：引擎算出新台账全文；写由 lib/fact-write 做。 */
+export async function retireLedgerFact(ledgerText: string | null, factId: string): Promise<string> {
+  return (await import('../engine/facts')).retireEngineFact(ledgerText, factId);
+}
+
 export async function prepareChapterFactRecord(input: {
   projectRoot: string;
   filePath: string;
