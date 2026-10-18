@@ -629,3 +629,4 @@ export {
   type FactRecordDeps,
   type FactRecordInput,
 } from './loop/factRecord';
+export { retireFact } from './kernel/factLedger';

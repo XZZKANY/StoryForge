@@ -1,4 +1,4 @@
-import { prepareChapterFactRecord, type FactRecordInput } from '@storyforge/engine';
+import { prepareChapterFactRecord, retireFact, type FactRecordInput } from '@storyforge/engine';
 import { platform } from './assistant';
 import { nativeProjectReader } from './reader';
 import { engineRuns } from './store';
@@ -16,4 +16,9 @@ export async function prepareEngineChapterFactRecord(input: FactRecordInput) {
     },
     input,
   );
+}
+
+/** 作废一条事实后的台账全文（换行按本机平台）。 */
+export function retireEngineFact(ledgerText: string | null, factId: string): string {
+  return retireFact(ledgerText, factId, platform());
 }

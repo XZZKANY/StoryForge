@@ -5,6 +5,7 @@ import { buildDossiers, dossierToJson } from './canonDossier';
 import { writeDerived } from './canonFiles';
 import type { CanonIssue } from './canonGate';
 import { buildCanonProjection, UNCACHED_SCAN_NOTE } from './canonService';
+import { buildFactLedgerView } from './factLedgerView';
 import { FsToolError, resolveProjectRoot } from './fsTools';
 import type { JsonObject } from './json';
 import { matchPythonPath } from './pathMatch';
@@ -321,6 +322,9 @@ export async function runObservatoryScan(
     proposals: await readPendingProposals(reader, root),
     note: '确定性参考信号（无 LLM）：advisory 需结合原文核实，不是质量判定。',
   };
+  // 事实台账分区：还没开始记账的书不出这个键，老书的扫描结果一字不差。
+  const facts = await buildFactLedgerView(reader, root, platform);
+  if (facts !== null) payload.facts = facts;
   if (projection.sourceRevision === null) payload.note = `${payload.note}${UNCACHED_SCAN_NOTE}`;
   else
     await writeDerived(reader, writer, root, 'observations.json', payload, {

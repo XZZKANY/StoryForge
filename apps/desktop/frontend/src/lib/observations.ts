@@ -96,12 +96,56 @@ export const EMPTY_OBSERVATORY_PROPOSALS: ObservatoryProposals = {
   pendingCount: 0,
 };
 
+/** 事实台账里的一条有效事实；valid=false 是原句在原章里找不到了（起草不再带）。 */
+export type ObservatoryFact = {
+  id: string;
+  kind: string;
+  subject: string;
+  attribute: string;
+  value: string;
+  object: string | null;
+  quote: string;
+  line: number | null;
+  valid: boolean;
+};
+
+export type ObservatoryFactChapter = {
+  path: string;
+  /** 阅读序；章节文件已不在时为 null。 */
+  ordinal: number | null;
+  facts: ObservatoryFact[];
+};
+
+export type ObservatoryFacts =
+  | { status: 'none' }
+  | { status: 'error'; message: string }
+  | {
+      status: 'ready';
+      active: number;
+      stale: number;
+      superseded: number;
+      retired: number;
+      chapters: ObservatoryFactChapter[];
+    };
+
+export const NO_OBSERVATORY_FACTS: ObservatoryFacts = { status: 'none' };
+
+/** 一条事实的一句话写法：主体 · 类别/属性：值 → 对象。 */
+export function factLabel(
+  fact: Pick<ObservatoryFact, 'subject' | 'kind' | 'attribute' | 'value' | 'object'>,
+) {
+  const attribute = fact.attribute ? `/${fact.attribute}` : '';
+  const object = fact.object ? ` → ${fact.object}` : '';
+  return `${fact.subject} · ${fact.kind}${attribute}：${fact.value}${object}`;
+}
+
 export type ObservatoryData = {
   observations: Observation[];
   checkers: ObservatoryChecker[];
   entities: ObservatoryEntity[];
   promises: ObservatoryPromises;
   proposals: ObservatoryProposals;
+  facts: ObservatoryFacts;
   generatedAt: string | null;
 };
 
@@ -310,7 +354,58 @@ export function mapObservatoryPayload(
     entities: mapEntities(record?.entities),
     promises: mapPromises(record?.promises),
     proposals: mapProposals(record?.proposals),
+    facts: mapFacts(record?.facts),
     generatedAt: readNonEmptyString(record?.generated_at) ?? null,
+  };
+}
+
+const count = (value: unknown) =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0;
+
+function mapFacts(raw: unknown): ObservatoryFacts {
+  const record = asRecord(raw);
+  if (!record) return NO_OBSERVATORY_FACTS;
+  const error = readNonEmptyString(record.error);
+  if (error) return { status: 'error', message: error };
+  const chapters: ObservatoryFactChapter[] = [];
+  for (const item of asArray(record.chapters)) {
+    const chapter = asRecord(item);
+    const path = readNonEmptyString(chapter?.path);
+    if (!chapter || !path) continue;
+    const facts: ObservatoryFact[] = [];
+    for (const entry of asArray(chapter.facts)) {
+      const fact = asRecord(entry);
+      const id = readNonEmptyString(fact?.id);
+      const subject = readNonEmptyString(fact?.subject);
+      const value = readNonEmptyString(fact?.value);
+      if (!fact || !id || !subject || !value) continue;
+      facts.push({
+        id,
+        kind: readNonEmptyString(fact.kind) ?? '',
+        subject,
+        attribute: readNonEmptyString(fact.attribute) ?? '',
+        value,
+        object: readNonEmptyString(fact.object) ?? null,
+        quote: readNonEmptyString(fact.quote) ?? '',
+        line: typeof fact.line === 'number' && fact.line >= 1 ? fact.line : null,
+        valid: fact.valid === true,
+      });
+    }
+    if (!facts.length) continue;
+    const ordinal = chapter.ordinal;
+    chapters.push({
+      path,
+      ordinal: typeof ordinal === 'number' && ordinal >= 1 ? ordinal : null,
+      facts,
+    });
+  }
+  return {
+    status: 'ready',
+    active: count(record.active),
+    stale: count(record.stale),
+    superseded: count(record.superseded),
+    retired: count(record.retired),
+    chapters,
   };
 }
 

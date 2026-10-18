@@ -19,6 +19,7 @@ import {
   type CanonMergeTarget,
 } from '../../lib/canon-merge';
 import { writeCanonGuarded } from '../../lib/canon-write';
+import { retireFactGuarded } from '../../lib/fact-write';
 import {
   DISMISSED_PROPOSALS_EVENT,
   loadDismissedProposals,
@@ -31,12 +32,16 @@ import { FS_MUTATION_EVENT } from '../../lib/tauri-fs';
 import {
   EMPTY_OBSERVATORY_PROMISES,
   EMPTY_OBSERVATORY_PROPOSALS,
+  factLabel,
   loadResolvedObservationIds,
+  NO_OBSERVATORY_FACTS,
   mapObservatoryPayload,
   matchEntityIdsInLine,
   saveResolvedObservationIds,
   type ObservatoryChecker,
   type ObservatoryEntity,
+  type ObservatoryFact,
+  type ObservatoryFacts,
   type ObservatoryPromise,
   type ObservatoryPromises,
   type ObservatoryProposals,
@@ -51,6 +56,7 @@ type ObservatoryState = {
   entities: ObservatoryEntity[];
   promises: ObservatoryPromises;
   proposals: ObservatoryProposals;
+  facts: ObservatoryFacts;
   generatedAt: string | null;
   availability: ObservationAvailability;
 };
@@ -61,6 +67,7 @@ const EMPTY_STATE: ObservatoryState = {
   entities: [],
   promises: EMPTY_OBSERVATORY_PROMISES,
   proposals: EMPTY_OBSERVATORY_PROPOSALS,
+  facts: NO_OBSERVATORY_FACTS,
   generatedAt: null,
   availability: 'unavailable',
 };
@@ -106,6 +113,7 @@ export function useObservatory({
         entities: mapped.entities,
         promises: mapped.promises,
         proposals: mapped.proposals,
+        facts: mapped.facts,
         generatedAt: mapped.generatedAt,
         availability: 'available',
       });
@@ -313,6 +321,35 @@ export function useObservatory({
     },
     [activeProject, setProposalDismissed],
   );
+  // 作废不先问：一键可撤销胜过先确认（写前快照 + 右下角撤销）。写完 facts.json 会触发重扫。
+  const retireFact = useCallback(
+    async (fact: ObservatoryFact) => {
+      if (!activeProject) return;
+      const label = factLabel(fact);
+      try {
+        const { undo } = await retireFactGuarded({
+          projectPath: activeProject,
+          factId: fact.id,
+          label,
+        });
+        emitToast(`已作废：${label}。起草不再带它。`, {
+          action: {
+            label: '撤销',
+            run: async () => {
+              try {
+                await undo();
+              } catch (error) {
+                emitToast(message(error), { tone: 'error' });
+              }
+            },
+          },
+        });
+      } catch (error) {
+        emitToast(`没有作废：${message(error)}`, { tone: 'error' });
+      }
+    },
+    [activeProject],
+  );
   const proposals = useMemo(
     () => withoutDismissed(state.proposals, dismissed),
     [state.proposals, dismissed],
@@ -324,6 +361,7 @@ export function useObservatory({
     entities: state.entities,
     promises: state.promises,
     proposals,
+    facts: state.facts,
     generatedAt: state.generatedAt,
     availability: state.availability,
     scanning,
@@ -333,6 +371,7 @@ export function useObservatory({
     mergeProposal,
     resolvePromise,
     dismissProposal,
+    retireFact,
     runScan,
   };
 }
