@@ -31,6 +31,12 @@ const REPAIRABLE_RULES = new Set([
   'draft_truncated',
   'word_count_out_of_range',
 ]);
+// 检查时顺带抽出「本章新定下的事实」给事实台账用；类别照离线回放里检查器实际抽出的那几类
+// （回放：每章约 7.5 条，原句 98% 对得上）。
+export const FACT_KINDS = ['生死', '身份', '关系', '持有', '处境', '数值', '来历'];
+export const MAX_NEW_FACTS = 15;
+const MAX_FACT_FIELD_CHARS = 200;
+const MAX_FACT_QUOTE_CHARS = 400;
 
 /** 已知的协议预算超了：不承认任何部分结论。 */
 class IncompleteCheck extends RangeError {}
@@ -75,7 +81,10 @@ export function checkPrompt(brief: Obj, content: string): string {
     'hard 必须提供原样正文引用 evidence 和其起始行 line（从1开始，CRLF算一行）。' +
     '引用不得改标点、折叠空白或加省略号；放进 JSON 字符串时双引号、反斜杠和换行照常转义。' +
     '纯建议可用 null 引用和行号。' +
-    `最多 ${MAX_CHECK_FINDINGS} 条；不能完整检查时不要返回空数组冒充通过。\n` +
+    `最多 ${MAX_CHECK_FINDINGS} 条；不能完整检查时不要返回空数组冒充通过。` +
+    `另输出 new_facts 数组：本章新定下、以后章节必须遵守的事实，kind 只用 ${FACT_KINDS.join('、')} 之一；` +
+    '每条含 kind, subject, attribute, value, object（没有就 null）, quote（正文原句，逐字复制）。' +
+    `只抽叙述层面确实发生的事，人物的谎话、猜测、梦和传闻不抽；最多 ${MAX_NEW_FACTS} 条，没有就返回 []。\n` +
     `检查源：${dumpJson(checkSource(content, brief), { ensureAscii: false })}\n` +
     `brief：${dumpJson(contract, { ensureAscii: false })}\n正文：\n${content}`
   );
@@ -254,6 +263,52 @@ function validateFinding(item: unknown, content: string, index: number): Obj {
   };
 }
 
+const factText = (value: unknown, max: number): value is string =>
+  typeof value === 'string' && pythonStrip(value) !== '' && points(value).length <= max;
+const optionalFactText = (value: unknown) =>
+  value === null ||
+  value === undefined ||
+  (typeof value === 'string' && points(value).length <= MAX_FACT_FIELD_CHARS);
+
+/** 一条事实：字段齐、类别在词表里、原句真在正文里；任何一处不合格只丢这一条。 */
+function verifiedFact(item: unknown, content: string): Obj | null {
+  if (!isJsonObject(item as JsonValue)) return null;
+  const { kind, subject, attribute, value, object, quote } = item as Obj;
+  if (typeof kind !== 'string' || !FACT_KINDS.includes(kind)) return null;
+  if (!factText(subject, MAX_FACT_FIELD_CHARS) || !factText(value, MAX_FACT_FIELD_CHARS))
+    return null;
+  if (!factText(quote, MAX_FACT_QUOTE_CHARS)) return null;
+  if (!optionalFactText(attribute) || !optionalFactText(object)) return null;
+  let location: Obj;
+  try {
+    location = quoteLocation(content, quote, null);
+  } catch (error) {
+    if (error instanceof InvalidCheck) return null;
+    throw error;
+  }
+  const trimmed = (text: unknown) => (typeof text === 'string' ? pythonStrip(text) : '');
+  return {
+    kind,
+    subject: pythonStrip(subject),
+    attribute: trimmed(attribute),
+    value: pythonStrip(value),
+    object: trimmed(object) || null,
+    quote,
+    ...location,
+  };
+}
+
+/** new_facts 和检查结论分开校验：写坏了只当这章没抽到，绝不连累 findings。 */
+function extractNewFacts(items: unknown, content: string): Obj {
+  if (!Array.isArray(items)) return { new_facts: [], new_facts_received: null };
+  const kept: Obj[] = [];
+  for (const item of items.slice(0, MAX_NEW_FACTS)) {
+    const fact = verifiedFact(item, content);
+    if (fact !== null) kept.push(fact);
+  }
+  return { new_facts: kept, new_facts_received: items.length };
+}
+
 /** 确定性预检 + 模型结果的整体校验；任何一条不合格就整份不认。 */
 export function buildCheck(
   content: string,
@@ -284,6 +339,8 @@ export function buildCheck(
   };
   let executionStatus = 'failed';
   let executionCode: string | null = providerFailed ? 'provider_failure' : 'invalid_result';
+  // 只有完整、来源核实过的检查才认它抽的事实；检查器没回这个字段时结果里也不出现。
+  let newFacts: Obj = {};
   try {
     if (providerFailed) throw new InvalidCheck('检查 provider 未返回结果。');
     const payload = decode(raw);
@@ -306,6 +363,7 @@ export function buildCheck(
     coverage.result_complete = true;
     executionStatus = 'completed';
     executionCode = null;
+    if ('new_facts' in payload) newFacts = extractNewFacts(payload.new_facts, content);
   } catch (error) {
     if (error instanceof IncompleteCheck) {
       executionStatus = 'incomplete';
@@ -344,5 +402,6 @@ export function buildCheck(
       executionStatus !== 'completed' && typeof raw === 'string'
         ? points(raw).slice(0, MAX_CHECKER_REPLY_EXCERPT).join('')
         : null,
+    ...newFacts,
   };
 }
