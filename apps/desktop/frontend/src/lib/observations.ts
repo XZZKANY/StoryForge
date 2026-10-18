@@ -116,6 +116,20 @@ export type ObservatoryFactChapter = {
   facts: ObservatoryFact[];
 };
 
+/** 和别的章已记的固定事实对不上、等作者定的一条：本章的说法和已记的说法。 */
+export type ObservatoryDispute = {
+  id: string;
+  kind: string;
+  subject: string;
+  attribute: string;
+  value: string;
+  quote: string;
+  line: number | null;
+  path: string;
+  ordinal: number | null;
+  existing: { value: string; path: string; ordinal: number | null; quote: string } | null;
+};
+
 export type ObservatoryFacts =
   | { status: 'none' }
   | { status: 'error'; message: string }
@@ -126,6 +140,7 @@ export type ObservatoryFacts =
       superseded: number;
       retired: number;
       chapters: ObservatoryFactChapter[];
+      disputed: ObservatoryDispute[];
     };
 
 export const NO_OBSERVATORY_FACTS: ObservatoryFacts = { status: 'none' };
@@ -406,7 +421,42 @@ function mapFacts(raw: unknown): ObservatoryFacts {
     superseded: count(record.superseded),
     retired: count(record.retired),
     chapters,
+    disputed: asArray(record.disputed).flatMap(mapDispute),
   };
+}
+
+const ordinalOrNull = (value: unknown) =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 1 ? value : null;
+
+function mapDispute(raw: unknown): ObservatoryDispute[] {
+  const entry = asRecord(raw);
+  const id = readNonEmptyString(entry?.id);
+  const subject = readNonEmptyString(entry?.subject);
+  const value = readNonEmptyString(entry?.value);
+  const path = readNonEmptyString(entry?.path);
+  if (!entry || !id || !subject || !value || !path) return [];
+  const existing = asRecord(entry.existing);
+  return [
+    {
+      id,
+      kind: readNonEmptyString(entry.kind) ?? '',
+      subject,
+      attribute: readNonEmptyString(entry.attribute) ?? '',
+      value,
+      quote: readNonEmptyString(entry.quote) ?? '',
+      line: ordinalOrNull(entry.line),
+      path,
+      ordinal: ordinalOrNull(entry.ordinal),
+      existing: existing
+        ? {
+            value: readNonEmptyString(existing.value) ?? '',
+            path: readNonEmptyString(existing.path) ?? '',
+            ordinal: ordinalOrNull(existing.ordinal),
+            quote: readNonEmptyString(existing.quote) ?? '',
+          }
+        : null,
+    },
+  ];
 }
 
 /**

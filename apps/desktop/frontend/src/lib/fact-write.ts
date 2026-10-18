@@ -9,6 +9,7 @@
 import {
   prepareChapterFactRecord,
   prepareFactBackfill,
+  resolveLedgerDispute,
   retireLedgerFact,
   type ChapterFactConflict,
   type ChapterFactRecordPlan,
@@ -102,6 +103,33 @@ export async function retireFactGuarded({
   return { undo: () => undoFactsWrite(projectPath, path, before, after) };
 }
 
+/** 作者处理一条对不上的事实：同一套写法——期间被改就停、写前快照、可撤销。 */
+export async function resolveDisputeGuarded({
+  projectPath,
+  factId,
+  choice,
+  label,
+}: {
+  projectPath: string;
+  factId: string;
+  choice: 'accept' | 'reject';
+  label: string;
+}): Promise<{ undo: () => Promise<void> }> {
+  const path = factsLedgerPathFor(projectPath);
+  const before = await readLedger(path);
+  const after = await resolveLedgerDispute(before, factId, choice);
+  if ((await readLedger(path)) !== before) {
+    throw new Error('facts.json 刚被别处改过，这次没有写入。');
+  }
+  await snapshotBeforeWrite(projectPath, path, before ?? '', {
+    source: 'Editor',
+    summary: `事实台账${choice === 'accept' ? '以本章为准' : '保留已记的'}：${label}`,
+    checkpoint: true,
+  });
+  await TauriFileSystem.writeFile(projectPath, path, after);
+  return { undo: () => undoFactsWrite(projectPath, path, before, after) };
+}
+
 async function undoFactsWrite(
   projectPath: string,
   path: string,
@@ -159,7 +187,7 @@ export function backfillMessage(plan: FactBackfillPlan): string {
   const parts = [`补录 ${done.length} 章，记下 ${plan.added} 条事实`];
   if (conflicts.length)
     parts.push(
-      `${conflicts.length} 条和已记的对不上，没记：${describeConflict(conflicts[0])}${conflicts.length > 1 ? ' 等' : ''}`,
+      `${conflicts.length} 条和已记的事实对不上、先不用，等你在观测镜里定：${describeConflict(conflicts[0])}${conflicts.length > 1 ? ' 等' : ''}`,
     );
   if (failed.length)
     parts.push(`${failed.map(ordinalLabel).join('、')}没抽成（${failed[0].message}）`);
@@ -175,15 +203,15 @@ function describeConflict(conflict: ChapterFactConflict): string {
 /** 记账结果给作者的一句话；没记也没有要说的就返回 null（不打扰）。 */
 export function factRecordMessage(plan: Planned): string | null {
   const parts: string[] = [];
-  if (plan.status === 'ready') parts.push(`${chapterLabel(plan)}记下 ${plan.added} 条事实`);
+  if (plan.added) parts.push(`${chapterLabel(plan)}记下 ${plan.added} 条事实`);
   if (plan.conflicts.length) {
     const [first] = plan.conflicts;
     const more = plan.conflicts.length > 1 ? ` 等 ${plan.conflicts.length} 条` : '';
-    parts.push(`和已记的事实对不上，没记：${describeConflict(first)}${more}`);
+    parts.push(`和已记的事实对不上、先不用，等你在观测镜里定：${describeConflict(first)}${more}`);
   }
   if (plan.unverified) parts.push(`${plan.unverified} 条在接受后的正文里找不到原句，没记`);
   if (!parts.length) return null;
-  if (plan.status === 'unchanged') parts.unshift(`${chapterLabel(plan)}没有新事实要记`);
+  if (!plan.added) parts.unshift(`${chapterLabel(plan)}没有新事实要记`);
   return parts.join('；') + '。';
 }
 

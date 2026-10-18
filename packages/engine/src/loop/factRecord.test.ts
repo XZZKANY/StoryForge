@@ -124,7 +124,7 @@ describe('recording an accepted chapter into the fact ledger', () => {
     expect(result).toMatchObject({ added: 1, unverified: 1 });
   });
 
-  it('reports a conflicting fixed fact instead of recording it', async () => {
+  it('records a conflicting fixed fact as disputed and reports it', async () => {
     const ledger = JSON.stringify({
       version: 1,
       facts: [
@@ -147,7 +147,7 @@ describe('recording an accepted chapter into the fact ledger', () => {
     });
     const result = await record(ledger);
     expect(result).toMatchObject({
-      status: 'unchanged',
+      status: 'ready',
       added: 0,
       conflicts: [
         {
@@ -163,7 +163,12 @@ describe('recording an accepted chapter into the fact ledger', () => {
         },
       ],
     });
-    expect('after' in result).toBe(false);
+    const facts = JSON.parse(result.after as string).facts;
+    expect(facts.map((item: { id: string; status: string }) => item.status)).toEqual([
+      'active',
+      'disputed',
+    ]);
+    expect(facts[1]).toMatchObject({ value: '有个姐姐', disputes: 'fact_x', subject: '陈默' });
   });
 
   it('changes nothing when every fact is already known', async () => {

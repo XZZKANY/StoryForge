@@ -4,6 +4,7 @@ import {
   missingLlmEnv,
   prepareChapterFactRecord,
   prepareFactBackfill,
+  resolveDisputedFact,
   retireFact,
   unrecordedChapters,
   type FactModel,
@@ -33,6 +34,15 @@ export async function prepareEngineChapterFactRecord(input: FactRecordInput) {
 /** 作废一条事实后的台账全文（换行按本机平台）。 */
 export function retireEngineFact(ledgerText: string | null, factId: string): string {
   return retireFact(ledgerText, factId, platform());
+}
+
+/** 处理一条待定事实后的台账全文：accept 以本章为准，reject 保留已记的。 */
+export function resolveEngineDispute(
+  ledgerText: string | null,
+  factId: string,
+  choice: 'accept' | 'reject',
+): string {
+  return resolveDisputedFact(ledgerText, factId, choice, platform());
 }
 
 export function listEngineUnrecordedChapters(projectRoot: string) {

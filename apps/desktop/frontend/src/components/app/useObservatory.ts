@@ -24,7 +24,12 @@ import {
   listUnrecordedChapters,
   type UnrecordedChapter,
 } from '../../lib/api/facts';
-import { backfillFactsGuarded, backfillMessage, retireFactGuarded } from '../../lib/fact-write';
+import {
+  backfillFactsGuarded,
+  backfillMessage,
+  resolveDisputeGuarded,
+  retireFactGuarded,
+} from '../../lib/fact-write';
 import {
   DISMISSED_PROPOSALS_EVENT,
   loadDismissedProposals,
@@ -44,6 +49,7 @@ import {
   matchEntityIdsInLine,
   saveResolvedObservationIds,
   type ObservatoryChecker,
+  type ObservatoryDispute,
   type ObservatoryEntity,
   type ObservatoryFact,
   type ObservatoryFacts,
@@ -366,6 +372,40 @@ export function useObservatory({
     },
     [activeProject],
   );
+  const resolveDispute = useCallback(
+    async (dispute: ObservatoryDispute, choice: 'accept' | 'reject') => {
+      if (!activeProject) return;
+      const what = dispute.attribute ? `${dispute.subject}的${dispute.attribute}` : dispute.subject;
+      const label = `${what}「${dispute.value}」`;
+      try {
+        const { undo } = await resolveDisputeGuarded({
+          projectPath: activeProject,
+          factId: dispute.id,
+          choice,
+          label,
+        });
+        const done =
+          choice === 'accept'
+            ? `以本章为准：${label}，原来记的不再用。`
+            : `保留已记的，不用本章的${label}。`;
+        emitToast(done, {
+          action: {
+            label: '撤销',
+            run: async () => {
+              try {
+                await undo();
+              } catch (error) {
+                emitToast(message(error), { tone: 'error' });
+              }
+            },
+          },
+        });
+      } catch (error) {
+        emitToast(`没有写入：${message(error)}`, { tone: 'error' });
+      }
+    },
+    [activeProject],
+  );
   // 每章一次模型调用，作者在分区里确认过才会到这里；一次写入、可整批撤销。
   const backfillFacts = useCallback(async () => {
     if (!activeProject || backfillingRef.current) return;
@@ -429,6 +469,7 @@ export function useObservatory({
     resolvePromise,
     dismissProposal,
     retireFact,
+    resolveDispute,
     factBackfill,
     runScan,
   };

@@ -94,7 +94,41 @@ describe('fact ledger view for the observatory', () => {
           ],
         },
       ],
+      disputed: [],
     });
+  });
+
+  it('puts disputed facts beside what was recorded', async () => {
+    const ledger = [
+      fact('b', '正文/第001章.md', '他七岁那年父亲死了。', { kind: '数值', value: '七岁' }),
+      fact('x', '正文/第002章.md', '陈默进了城。', {
+        kind: '数值',
+        value: '八岁',
+        status: 'disputed',
+        disputes: 'b',
+      }),
+    ];
+    const view = await buildFactLedgerView(project(ledger).reader, ROOT, 'posix');
+    expect(view).toMatchObject({ active: 1 });
+    expect(view?.disputed).toEqual([
+      {
+        id: 'x',
+        kind: '数值',
+        subject: '陈默',
+        attribute: '下落',
+        value: '八岁',
+        quote: '陈默进了城。',
+        line: 3,
+        path: '正文/第002章.md',
+        ordinal: 2,
+        existing: {
+          value: '七岁',
+          path: '正文/第001章.md',
+          ordinal: 1,
+          quote: '他七岁那年父亲死了。',
+        },
+      },
+    ]);
   });
 
   it('keeps facts whose chapter file is gone, without an ordinal', async () => {

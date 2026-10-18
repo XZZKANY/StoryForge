@@ -629,7 +629,7 @@ export {
   type FactRecordDeps,
   type FactRecordInput,
 } from './loop/factRecord';
-export { retireFact } from './kernel/factLedger';
+export { resolveDisputedFact, retireFact } from './kernel/factLedger';
 export {
   MAX_BACKFILL_CHAPTERS,
   prepareFactBackfill,

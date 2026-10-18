@@ -332,6 +332,7 @@ export function AppShell({
                       onResolveObservation={observatory.resolveObservation}
                       onAskAgent={actions.onAskAgent}
                       onRetireFact={(fact) => void observatory.retireFact(fact)}
+                      onResolveDispute={(item, how) => void observatory.resolveDispute(item, how)}
                       factBackfill={observatory.factBackfill}
                     />
                   ) : (
