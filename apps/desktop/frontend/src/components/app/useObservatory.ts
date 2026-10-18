@@ -19,7 +19,12 @@ import {
   type CanonMergeTarget,
 } from '../../lib/canon-merge';
 import { writeCanonGuarded } from '../../lib/canon-write';
-import { retireFactGuarded } from '../../lib/fact-write';
+import {
+  BACKFILL_BATCH,
+  listUnrecordedChapters,
+  type UnrecordedChapter,
+} from '../../lib/api/facts';
+import { backfillFactsGuarded, backfillMessage, retireFactGuarded } from '../../lib/fact-write';
 import {
   DISMISSED_PROPOSALS_EVENT,
   loadDismissedProposals,
@@ -89,6 +94,11 @@ export function useObservatory({
   // 但按钮要转圈给反馈——此前 spinner 绑 availability='loading' 故有数据时点重扫毫无反应。
   const [scanning, setScanning] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [unrecorded, setUnrecorded] = useState<UnrecordedChapter[]>([]);
+  const [backfill, setBackfill] = useState<{ done: number; total: number; path: string } | null>(
+    null,
+  );
+  const backfillingRef = useRef(false);
   const resolvedIdsRef = useRef<Set<string>>(new Set());
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
   const scanSeqRef = useRef(0);
@@ -117,6 +127,12 @@ export function useObservatory({
         generatedAt: mapped.generatedAt,
         availability: 'available',
       });
+      // 补录候选跟着扫描走：读不到只是不给补录入口，不挡观测镜。
+      const missing = await listUnrecordedChapters(activeProject).catch((error: unknown) => {
+        console.error('读取没记账的章失败', error);
+        return [];
+      });
+      if (seq === scanSeqRef.current) setUnrecorded(missing);
     } catch (error) {
       if (seq !== scanSeqRef.current) return;
       console.error('观测重扫失败', error);
@@ -350,6 +366,47 @@ export function useObservatory({
     },
     [activeProject],
   );
+  // 每章一次模型调用，作者在分区里确认过才会到这里；一次写入、可整批撤销。
+  const backfillFacts = useCallback(async () => {
+    if (!activeProject || backfillingRef.current) return;
+    const project = activeProject;
+    const paths = unrecorded.slice(0, BACKFILL_BATCH).map((chapter) => chapter.path);
+    if (!paths.length) return;
+    backfillingRef.current = true;
+    setBackfill({ done: 0, total: paths.length, path: paths[0] });
+    try {
+      const { plan, undo } = await backfillFactsGuarded({
+        projectPath: project,
+        paths,
+        onProgress: (done, total, path) => setBackfill({ done, total, path }),
+      });
+      const failedOnly = plan.added === 0 && plan.chapters.some((item) => item.status === 'failed');
+      emitToast(backfillMessage(plan), {
+        tone: failedOnly ? 'error' : 'info',
+        action: undo
+          ? {
+              label: '撤销补录',
+              run: async () => {
+                try {
+                  await undo();
+                } catch (error) {
+                  emitToast(message(error), { tone: 'error' });
+                }
+              },
+            }
+          : undefined,
+      });
+    } catch (error) {
+      emitToast(`补录没完成：${message(error)}`, { tone: 'error' });
+    } finally {
+      backfillingRef.current = false;
+      setBackfill(null);
+    }
+  }, [activeProject, unrecorded]);
+  const factBackfill = useMemo(
+    () => ({ unrecorded, progress: backfill, start: backfillFacts }),
+    [unrecorded, backfill, backfillFacts],
+  );
   const proposals = useMemo(
     () => withoutDismissed(state.proposals, dismissed),
     [state.proposals, dismissed],
@@ -372,6 +429,7 @@ export function useObservatory({
     resolvePromise,
     dismissProposal,
     retireFact,
+    factBackfill,
     runScan,
   };
 }

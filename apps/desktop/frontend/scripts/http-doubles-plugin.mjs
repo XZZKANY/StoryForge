@@ -9,6 +9,7 @@ const DOUBLES = {
   'agent-socket': 'http-agent-double',
   'chapter-checks': 'http-chapter-checks-double',
   'cross-chapter': 'http-cross-chapter-double',
+  facts: 'http-facts-double',
   'ide-commands': 'http-ide-commands-double',
   'knowledge-proposals': 'http-knowledge-double',
 };

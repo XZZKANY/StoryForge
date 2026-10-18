@@ -18,7 +18,12 @@ import { snapshotBeforeWrite } from '../src/lib/versions';
 
 vi.mock('../src/lib/api/ide-commands', () => ({ executeIdeCommand: vi.fn() }));
 vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: vi.fn(async () => null) }));
-vi.mock('../src/lib/api/facts', () => ({ retireLedgerFact: vi.fn() }));
+vi.mock('../src/lib/api/facts', () => ({
+  BACKFILL_BATCH: 20,
+  retireLedgerFact: vi.fn(),
+  listUnrecordedChapters: vi.fn(async () => []),
+  prepareFactBackfill: vi.fn(),
+}));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const PROJECT = '/books/facts';

@@ -332,6 +332,7 @@ export function AppShell({
                       onResolveObservation={observatory.resolveObservation}
                       onAskAgent={actions.onAskAgent}
                       onRetireFact={(fact) => void observatory.retireFact(fact)}
+                      factBackfill={observatory.factBackfill}
                     />
                   ) : (
                     <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">

@@ -630,3 +630,10 @@ export {
   type FactRecordInput,
 } from './loop/factRecord';
 export { retireFact } from './kernel/factLedger';
+export {
+  MAX_BACKFILL_CHAPTERS,
+  prepareFactBackfill,
+  unrecordedChapters,
+  type FactBackfillDeps,
+  type FactModel,
+} from './loop/factBackfill';
