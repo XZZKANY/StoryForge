@@ -217,18 +217,23 @@ async function existingOrNewSession(
   });
 }
 
-/** canon 硬约束 + 活跃伏笔 + 本章伏笔计划；canon 缺失或损坏绝不能挡住作者继续写。 */
+/**
+ * canon 硬约束 + 活跃伏笔 + 本章伏笔计划（起草和修订另带已写事实）；
+ * canon 缺失或损坏绝不能挡住作者继续写。
+ */
 async function sceneConstraints(
   deps: AssistantDeps,
   projectRoot: string | null,
   filePath: string | null,
   capture: GenerationSourceCapture,
+  facts?: { mentionText: string },
 ): Promise<string | null> {
   if (!projectRoot) return null;
   try {
     return await buildSceneConstraintBlock(deps.reader, projectRoot, filePath, {
       platform: deps.platform,
       capture,
+      ...(facts ? { facts } : {}),
     });
   } catch (error) {
     if (
@@ -240,6 +245,16 @@ async function sceneConstraints(
       return null;
     throw error;
   }
+}
+
+/** 挑「已写事实」用的本章材料：写作指令、上下文摘录，以及修订时的现有正文。 */
+function factMentionText(
+  instruction: string,
+  content: string,
+  bundle: AssistantContextBundle | null | undefined,
+): { mentionText: string } {
+  const excerpts = (bundle?.files ?? []).map((item) => item.excerpt);
+  return { mentionText: [instruction, content, ...excerpts].join('\n') };
 }
 
 async function recordGenerationSources(
@@ -339,6 +354,8 @@ export async function reviseFileContent(
   options: {
     authorInstruction?: string | null;
     preparedContext?: PreparedWritingContext | null;
+    /** 整章修订带上台账里的已写事实；Ctrl+K 这类局部改不带。 */
+    writtenFacts?: boolean;
   } = {},
 ): Promise<ReviseResponse> {
   const llm = await configuredLlm(deps);
@@ -355,7 +372,15 @@ export async function reviseFileContent(
     capture: sources,
   });
   const projectRoot = payload.project_root ?? null;
-  const constraints = await sceneConstraints(deps, projectRoot, payload.file_path, sources);
+  const constraints = await sceneConstraints(
+    deps,
+    projectRoot,
+    payload.file_path,
+    sources,
+    options.writtenFacts
+      ? factMentionText(payload.instruction, payload.content, payload.context_bundle)
+      : undefined,
+  );
   const session = await existingOrNewSession(deps, {
     sessionId: payload.assistant_session_id,
     projectRoot,
@@ -850,7 +875,13 @@ export async function draftFileContent(
     capture: sources,
   });
   const projectRoot = payload.project_root ?? null;
-  const constraints = await sceneConstraints(deps, projectRoot, payload.file_path, sources);
+  const constraints = await sceneConstraints(
+    deps,
+    projectRoot,
+    payload.file_path,
+    sources,
+    factMentionText(payload.instruction, '', payload.context_bundle),
+  );
   const previousChapter = await previousChapterTail(deps.reader, projectRoot, payload.file_path, {
     platform: deps.platform,
     capture: sources,

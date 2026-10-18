@@ -2,6 +2,7 @@ import { ProjectReadError, type ProjectReader } from '../readPort';
 import { platformTextBytes, type ProjectWriter } from '../writePort';
 import { checkCanonDeclaration, checkHooksDeclaration } from './canonDeclarations';
 import { captureCanonSourceRevision } from './canonStore';
+import { checkFactLedger, FACTS_LEDGER_VERSION } from './factLedger';
 import { FsToolError, nativeProjectPath, resolveProjectRoot } from './fsTools';
 import type { GenerationSourceCapture } from './generationSources';
 import {
@@ -111,6 +112,36 @@ export async function readHooks(
     capture,
   );
   return parsed === null ? EMPTY_HOOKS() : withDefaults(parsed, EMPTY_HOOKS());
+}
+
+/**
+ * 事实台账 facts.json：没有这个文件就返回 null，而且不记成生成来源——没开始记账的书，
+ * 生成证据一字不差。读不到报 FsToolError，格式不对报 InputDomainError。
+ */
+export async function readFactLedger(
+  reader: ProjectReader,
+  root: string,
+  capture?: GenerationSourceCapture,
+): Promise<JsonObject | null> {
+  await resolveProjectRoot(reader, root);
+  try {
+    const target = (await reader.resolveProjectPath(root, `${CANON_DIR}/facts.json`))
+      .resolvedRelativePath;
+    if ((await reader.inspectProjectPath(root, target)).targetKind === 'missing') return null;
+  } catch (error) {
+    if (!(error instanceof ProjectReadError)) throw error;
+  }
+  const parsed = await readDeclaration(
+    reader,
+    root,
+    'facts.json',
+    'fact_ledger',
+    checkFactLedger,
+    capture,
+  );
+  return parsed === null
+    ? null
+    : withDefaults(parsed, { version: FACTS_LEDGER_VERSION, facts: [] });
 }
 
 const jsonText = (payload: unknown) => dumpJson(payload, { indent: 2, ensureAscii: false });

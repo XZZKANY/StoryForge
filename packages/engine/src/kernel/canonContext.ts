@@ -1,13 +1,22 @@
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import { formatChapterWindow, renderAssertionMetadata } from './canonAssertions';
-import { readCanon, readHooks } from './canonFiles';
-import { chapterOrdinals } from './canonRebuild';
+import { readCanon, readFactLedger, readHooks } from './canonFiles';
+import { chapterOrdinals, entitySurfaceForms } from './canonRebuild';
+import { isActiveFact } from './factLedger';
 import { FsToolError, isSkippedProjectPath } from './fsTools';
 import type { GenerationSourceCapture } from './generationSources';
-import { compareCodePoints, isJsonObject, type JsonObject, type JsonValue } from './json';
+import {
+  compareCodePoints,
+  InputDomainError,
+  isJsonObject,
+  type JsonObject,
+  type JsonValue,
+} from './json';
 import { isManuscriptPath } from './manuscript';
 import { matchPythonPath } from './pathMatch';
+import { MAX_READ_BYTES } from './projectTree';
 import { PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import { locateQuote } from './quoteLocation';
 
 // 正文文件名 `第NNN章.md` 约定；Python 的 \d 是 Unicode 十进制数字。
 const CHAPTER_ORDINAL_PATTERN = new RegExp(
@@ -18,6 +27,12 @@ const DIGIT = /\p{Nd}/u;
 const MAX_DISPLAY_ALIASES = 3;
 const ACTIVE_STATUSES = new Set(['active', 'planted']);
 const STALE_HOOK_THRESHOLD = 10;
+// 回放里检查器抽出的已写事实带进起草，交界矛盾 36% → 22%：上一章新记的全带，
+// 更早的按主体是否在本章材料里出现来挑，先挑最伤读者的类别，同类先挑新近的。
+const FACTS_HEADING = '[已写事实 · 勿违背]（来自台账；本章若涉及须与之一致，回忆或提及除外）';
+const FACT_PRIORITY = ['生死', '关系', '身份', '数值', '来历', '持有', '处境'];
+const MAX_OLDER_FACT_LINES = 25;
+export const DEFAULT_FACTS_MAX_CHARS = 2000;
 
 const objects = (value: JsonValue | undefined): JsonObject[] =>
   Array.isArray(value) ? value.filter(isJsonObject) : [];
@@ -197,6 +212,89 @@ function hookAgendaBlock(current: number | null, hooks: JsonObject): string | nu
   return '[本章伏笔计划]\n' + lines.join('\n');
 }
 
+async function chapterText(
+  reader: ProjectReader,
+  root: string,
+  path: string,
+  cache: Map<string, string | null>,
+): Promise<string | null> {
+  if (cache.has(path)) return cache.get(path)!;
+  let text: string | null = null;
+  try {
+    const read = await reader.readProjectBytes(root, path, MAX_READ_BYTES);
+    if (!read.exceeded) text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(read.bytes);
+  } catch (error) {
+    if (!(error instanceof ProjectReadError)) throw error;
+  }
+  cache.set(path, text);
+  return text;
+}
+
+/**
+ * 「已写事实」段：只取本章之前各章记下、仍有效的事实；原句在原章里已经找不到的
+ * （作者后来改了、删了）依据失效，不带。
+ */
+async function writtenFactsBlock(
+  reader: ProjectReader,
+  root: string,
+  input: {
+    ledger: JsonObject;
+    current: number;
+    ordinals: ReadonlyMap<string, number>;
+    surfaceForms: ReadonlyMap<string, readonly string[]>;
+    mentionText: string;
+    maxChars: number;
+  },
+): Promise<string | null> {
+  const { current, ordinals } = input;
+  const ordinalOf = (path: string) => ordinals.get(path) ?? null;
+  const previous = [...ordinals].find(([, ordinal]) => ordinal === current - 1)?.[0] ?? null;
+  const cache = new Map<string, string | null>();
+  const previousText =
+    previous === null ? '' : ((await chapterText(reader, root, previous, cache)) ?? '');
+  const mentions = `${input.mentionText}\n${previousText}`;
+  const mentioned = (subject: string) =>
+    (input.surfaceForms.get(subject) ?? [subject]).some(
+      (form) => Array.from(form).length >= 2 && mentions.includes(form),
+    );
+  const earlier = objects(input.ledger.facts).filter((fact) => {
+    const ordinal = typeof fact.path === 'string' ? ordinalOf(fact.path) : null;
+    return isActiveFact(fact) && ordinal !== null && ordinal < current;
+  });
+  const rank = (fact: JsonObject) => FACT_PRIORITY.indexOf(fact.kind as string);
+  const older = earlier
+    .filter((fact) => fact.path !== previous && mentioned(fact.subject as string))
+    .sort(
+      (a, b) => rank(a) - rank(b) || ordinalOf(b.path as string)! - ordinalOf(a.path as string)!,
+    );
+  const ordered = [
+    ...earlier.filter((fact) => fact.path === previous).map((fact) => [fact, false] as const),
+    ...older.map((fact) => [fact, true] as const),
+  ];
+  const lines: string[] = [];
+  let total = 0;
+  let olderLines = 0;
+  for (const [fact, isOlder] of ordered) {
+    if (isOlder && olderLines >= MAX_OLDER_FACT_LINES) break;
+    const evidence = objects(fact.evidence)[0];
+    const quote = typeof evidence?.quote === 'string' ? evidence.quote : '';
+    const text = await chapterText(reader, root, fact.path as string, cache);
+    if (!pythonStrip(quote) || text === null || locateQuote(text, quote) === null) continue;
+    const attribute =
+      typeof fact.attribute === 'string' && fact.attribute ? `/${fact.attribute}` : '';
+    const object = typeof fact.object === 'string' && fact.object ? ` → ${fact.object}` : '';
+    const line =
+      `- ${fact.subject} · ${fact.kind}${attribute}：${fact.value}${object}` +
+      `（第${ordinalOf(fact.path as string)}章「${quote}」）`;
+    const length = Array.from(line).length;
+    if (total + length > input.maxChars) break;
+    lines.push(line);
+    total += length;
+    if (isOlder) olderLines += 1;
+  }
+  return lines.length ? `${FACTS_HEADING}\n${lines.join('\n')}` : null;
+}
+
 /**
  * 确定性拼接场景声明与约束；只读 canon.json / hooks.json + 章序，不扫正文。
  * 读不到返回 null（调用方静默跳过）；作者声明超出输入范围抛 InputDomainError。
@@ -205,7 +303,12 @@ export async function buildSceneConstraintBlock(
   reader: ProjectReader,
   root: string,
   currentFile: string | null,
-  options: { platform: 'windows' | 'posix'; capture?: GenerationSourceCapture },
+  options: {
+    platform: 'windows' | 'posix';
+    capture?: GenerationSourceCapture;
+    /** 起草和修订带「已写事实」段：本章材料（写作指令、上下文摘录、正文）用来挑相关的旧事实。 */
+    facts?: { mentionText: string; maxChars?: number };
+  },
 ): Promise<string | null> {
   const { platform, capture } = options;
   let canon: JsonObject;
@@ -222,16 +325,19 @@ export async function buildSceneConstraintBlock(
   const invariants = isJsonObject(canon.invariants) ? canon.invariants : {};
 
   const nameById = new Map<string, string>();
+  const surfaceForms = new Map<string, string[]>();
   for (const entity of objects(canon.entities)) {
     if (typeof entity.id === 'string' && typeof entity.canonical_name === 'string')
       nameById.set(entity.id, displayName(entity, entity.canonical_name));
+    if (typeof entity.canonical_name === 'string')
+      surfaceForms.set(pythonStrip(entity.canonical_name), entitySurfaceForms(entity));
   }
 
   let current: number | null = null;
+  let ordinals: Map<string, number> | null = null;
   if (currentFile) {
     const relative = await toRelativePosix(reader, root, currentFile, platform);
     if (relative !== null) {
-      let ordinals: Map<string, number> | null = null;
       try {
         ordinals = await chapterOrdinals(reader, root, '*.md', platform);
       } catch (error) {
@@ -290,7 +396,32 @@ export async function buildSceneConstraintBlock(
   const hooksBlock = await activeHooksBlock(reader, root, current, hooks, platform);
   const agendaBlock = hookAgendaBlock(current, hooks);
 
-  if (!lines.length && !inferredLines.length && hooksBlock === null && agendaBlock === null) {
+  let factsBlock: string | null = null;
+  if (options.facts && current !== null && ordinals !== null) {
+    try {
+      const ledger = await readFactLedger(reader, root, capture);
+      if (ledger !== null)
+        factsBlock = await writtenFactsBlock(reader, root, {
+          ledger,
+          current,
+          ordinals,
+          surfaceForms,
+          mentionText: options.facts.mentionText,
+          maxChars: options.facts.maxChars ?? DEFAULT_FACTS_MAX_CHARS,
+        });
+    } catch (error) {
+      // 台账坏了只是这次不带事实，canon 约束照给；格式错误在下次记账时报给作者。
+      if (!(error instanceof FsToolError || error instanceof InputDomainError)) throw error;
+    }
+  }
+
+  if (
+    !lines.length &&
+    !inferredLines.length &&
+    hooksBlock === null &&
+    agendaBlock === null &&
+    factsBlock === null
+  ) {
     capture?.project('canon_constraints', null, {
       channel: 'user',
       omissionReason: 'no_active_constraints',
@@ -310,11 +441,15 @@ export async function buildSceneConstraintBlock(
     parts.push('[canon 模型推断 · 待核实 · 非硬约束]' + anchor + '\n' + inferredLines.join('\n'));
   if (hooksBlock !== null) parts.push(hooksBlock);
   if (agendaBlock !== null) parts.push(agendaBlock);
+  if (factsBlock !== null) parts.push(factsBlock);
   const block = parts.join('\n\n');
   capture?.project('canon_constraints', block, {
     channel: 'user',
-    sourcePurpose: ['canon_declaration', 'hook_declaration'],
-    transformation: 'scene_constraints_and_hook_agenda_v2',
+    sourcePurpose: ['canon_declaration', 'hook_declaration', 'fact_ledger'],
+    transformation:
+      factsBlock === null
+        ? 'scene_constraints_and_hook_agenda_v2'
+        : 'scene_constraints_hook_agenda_and_written_facts_v1',
   });
   return block;
 }

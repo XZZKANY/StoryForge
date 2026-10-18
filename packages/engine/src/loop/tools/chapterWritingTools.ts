@@ -165,7 +165,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
         assistant_session_id: context.assistantSessionId,
         context_bundle: prepared.contextBundle,
       },
-      { preparedContext: prepared },
+      { preparedContext: prepared, writtenFacts: true },
     );
     // 修复走修订链路，改到的行可能又写回半角；与起草一样统一成全角。
     const [repaired, punctuationNormalized] = fullwidthCjkPunctuation(response.after);
