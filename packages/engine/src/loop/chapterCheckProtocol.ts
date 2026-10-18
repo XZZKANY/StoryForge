@@ -1,3 +1,4 @@
+import { FACT_KINDS } from '../kernel/factLedger';
 import {
   dumpJson,
   InputDomainError,
@@ -31,9 +32,7 @@ const REPAIRABLE_RULES = new Set([
   'draft_truncated',
   'word_count_out_of_range',
 ]);
-// 检查时顺带抽出「本章新定下的事实」给事实台账用；类别照离线回放里检查器实际抽出的那几类
-// （回放：每章约 7.5 条，原句 98% 对得上）。
-export const FACT_KINDS = ['生死', '身份', '关系', '持有', '处境', '数值', '来历'];
+// 检查时顺带抽出「本章新定下的事实」给事实台账用（回放：每章约 7.5 条，原句 98% 对得上）。
 export const MAX_NEW_FACTS = 15;
 const MAX_FACT_FIELD_CHARS = 200;
 const MAX_FACT_QUOTE_CHARS = 400;
@@ -263,6 +262,16 @@ function validateFinding(item: unknown, content: string, index: number): Obj {
   };
 }
 
+/** 原句在正文里的位置（全半角折叠、不计空白）；找不到返回 null。事实台账接受时拿它重核磁盘上的正文。 */
+export function locateQuote(content: string, quote: string): Obj | null {
+  try {
+    return quoteLocation(content, quote, null);
+  } catch (error) {
+    if (error instanceof InvalidCheck) return null;
+    throw error;
+  }
+}
+
 const factText = (value: unknown, max: number): value is string =>
   typeof value === 'string' && pythonStrip(value) !== '' && points(value).length <= max;
 const optionalFactText = (value: unknown) =>
@@ -279,13 +288,8 @@ function verifiedFact(item: unknown, content: string): Obj | null {
     return null;
   if (!factText(quote, MAX_FACT_QUOTE_CHARS)) return null;
   if (!optionalFactText(attribute) || !optionalFactText(object)) return null;
-  let location: Obj;
-  try {
-    location = quoteLocation(content, quote, null);
-  } catch (error) {
-    if (error instanceof InvalidCheck) return null;
-    throw error;
-  }
+  const location = locateQuote(content, quote);
+  if (location === null) return null;
   const trimmed = (text: unknown) => (typeof text === 'string' ? pythonStrip(text) : '');
   return {
     kind,
