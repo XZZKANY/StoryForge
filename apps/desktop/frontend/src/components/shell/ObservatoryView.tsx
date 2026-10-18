@@ -22,7 +22,7 @@ import {
   type ObservatoryPromises,
   type ObservatoryProposals,
 } from '../../lib/observations';
-import { FactLedgerBody, factLedgerCount } from './ObservatoryFacts';
+import { FactLedgerBody, factLedgerCount, type FactBackfill } from './ObservatoryFacts';
 import type { Observation, ObservationAvailability } from './ObsPanel';
 import { LiveStatus } from './LiveStatus';
 
@@ -629,6 +629,7 @@ export function ObservatoryView({
   onResolveObservation,
   onAskAgent,
   onRetireFact,
+  factBackfill,
 }: {
   availability: ObservationAvailability;
   scanning?: boolean;
@@ -651,6 +652,7 @@ export function ObservatoryView({
   onResolveObservation?: (id: string) => void;
   onAskAgent?: (text: string) => void;
   onRetireFact?: (fact: ObservatoryFact) => void;
+  factBackfill?: FactBackfill;
 }) {
   const observationById = new Map(observations.map((observation) => [observation.id, observation]));
   // busy 合并首扫 loading 与「已有数据时的重扫」：后者 availability 停在 available，靠 scanning 反馈。
@@ -730,7 +732,12 @@ export function ObservatoryView({
               merging={merging}
             />
             <Section title="事实台账" count={factLedgerCount(facts)} testid="facts">
-              <FactLedgerBody facts={facts} onLocate={onLocateAnchor} onRetire={onRetireFact} />
+              <FactLedgerBody
+                facts={facts}
+                onLocate={onLocateAnchor}
+                onRetire={onRetireFact}
+                backfill={factBackfill}
+              />
             </Section>
             <Section title="伏笔账" count={promises.ledger.length} testid="promises">
               {promises.ledger.length === 0 ? (

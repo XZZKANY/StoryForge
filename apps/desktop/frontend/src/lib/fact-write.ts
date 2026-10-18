@@ -8,9 +8,11 @@
 
 import {
   prepareChapterFactRecord,
+  prepareFactBackfill,
   retireLedgerFact,
   type ChapterFactConflict,
   type ChapterFactRecordPlan,
+  type FactBackfillPlan,
 } from './api/facts';
 import { TauriFileSystem } from './tauri-fs';
 import { emitToast } from './toast';
@@ -111,6 +113,57 @@ async function undoFactsWrite(
   }
   if (before === null) await TauriFileSystem.deletePath(projectPath, path);
   else await TauriFileSystem.writeFile(projectPath, path, before);
+}
+
+/**
+ * 老章补录：引擎逐章调模型抽事实，全部抽完给出新台账；这里一次写入——期间被改就停、
+ * 写前一次快照、一次撤销整批撤回。没有新事实就不写。
+ */
+export async function backfillFactsGuarded({
+  projectPath,
+  paths,
+  onProgress,
+}: {
+  projectPath: string;
+  paths: readonly string[];
+  onProgress?: (done: number, total: number, path: string) => void;
+}): Promise<{ plan: FactBackfillPlan; undo: (() => Promise<void>) | null }> {
+  const path = factsLedgerPathFor(projectPath);
+  const before = await readLedger(path);
+  const plan = await prepareFactBackfill(
+    { projectRoot: projectPath, ledgerText: before, paths },
+    onProgress,
+  );
+  if (plan.status === 'unchanged') return { plan, undo: null };
+  if ((await readLedger(path)) !== before) {
+    throw new Error('facts.json 在补录期间被改过了，这次没有写入；再点一次补录。');
+  }
+  const done = plan.chapters.filter((chapter) => chapter.status === 'done').length;
+  await snapshotBeforeWrite(projectPath, path, before ?? '', {
+    source: 'Editor',
+    summary: `事实台账补录 ${done} 章，记下 ${plan.added} 条事实`,
+    checkpoint: true,
+  });
+  await TauriFileSystem.writeFile(projectPath, path, plan.after);
+  return { plan, undo: () => undoFactsWrite(projectPath, path, before, plan.after) };
+}
+
+const ordinalLabel = (chapter: { ordinal: number | null; path: string }) =>
+  chapter.ordinal !== null ? `第 ${chapter.ordinal} 章` : `「${chapter.path.split('/').pop()}」`;
+
+/** 补录结果的一句话：补了几章、记了几条，哪些没抽成，有几条和已记的对不上。 */
+export function backfillMessage(plan: FactBackfillPlan): string {
+  const done = plan.chapters.filter((chapter) => chapter.status === 'done');
+  const failed = plan.chapters.filter((chapter) => chapter.status === 'failed');
+  const conflicts = done.flatMap((chapter) => chapter.conflicts);
+  const parts = [`补录 ${done.length} 章，记下 ${plan.added} 条事实`];
+  if (conflicts.length)
+    parts.push(
+      `${conflicts.length} 条和已记的对不上，没记：${describeConflict(conflicts[0])}${conflicts.length > 1 ? ' 等' : ''}`,
+    );
+  if (failed.length)
+    parts.push(`${failed.map(ordinalLabel).join('、')}没抽成（${failed[0].message}）`);
+  return parts.join('；') + '。';
 }
 
 function describeConflict(conflict: ChapterFactConflict): string {

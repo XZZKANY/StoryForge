@@ -101,3 +101,88 @@ export async function prepareChapterFactRecord(input: {
   });
   return decodeChapterFactRecordPlan(raw);
 }
+
+export type UnrecordedChapter = { path: string; ordinal: number };
+
+/** 一次补录最多几章（与引擎 MAX_BACKFILL_CHAPTERS 一致）：每章一次模型调用。 */
+export const BACKFILL_BATCH = 20;
+
+/** 还没记账的章（阅读序，前面的在前）：老章补录的候选。 */
+export async function listUnrecordedChapters(projectRoot: string): Promise<UnrecordedChapter[]> {
+  const raw = await (await import('../engine/facts')).listEngineUnrecordedChapters(projectRoot);
+  return raw.map((item) => {
+    if (!isRaw(item)) throw new FactRecordShapeError('没记账的章不是对象');
+    return {
+      path: field<string>(item, 'path', isString),
+      ordinal: field<number>(item, 'ordinal', isCount),
+    };
+  });
+}
+
+export type BackfillChapter = {
+  path: string;
+  ordinal: number | null;
+  status: 'done' | 'failed';
+  added: number;
+  unverified: number;
+  conflicts: ChapterFactConflict[];
+  /** 失败的原因；成功为 null。 */
+  message: string | null;
+};
+
+export type FactBackfillPlan =
+  | { status: 'unchanged'; added: number; chapters: BackfillChapter[] }
+  | {
+      status: 'ready';
+      added: number;
+      chapters: BackfillChapter[];
+      before: string | null;
+      after: string;
+    };
+
+function decodeBackfillChapter(value: unknown): BackfillChapter {
+  if (!isRaw(value)) throw new FactRecordShapeError('补录结果的章不是对象');
+  const status = value.status;
+  if (status !== 'done' && status !== 'failed')
+    throw new FactRecordShapeError(`补录结果的状态不认识：${String(status)}`);
+  const done = status === 'done';
+  return {
+    path: field(value, 'path', isString),
+    ordinal: field(value, 'ordinal', isOrdinal),
+    status,
+    added: done ? field(value, 'added', isCount) : 0,
+    unverified: done ? field(value, 'unverified', isCount) : 0,
+    conflicts: done ? field<unknown[]>(value, 'conflicts', Array.isArray).map(decodeConflict) : [],
+    message: done ? null : field(value, 'message', isString),
+  };
+}
+
+export function decodeFactBackfillPlan(raw: unknown): FactBackfillPlan {
+  if (!isRaw(raw)) throw new FactRecordShapeError('补录结果不是对象');
+  const added = field<number>(raw, 'added', isCount);
+  const chapters = field<unknown[]>(raw, 'chapters', Array.isArray).map(decodeBackfillChapter);
+  if (raw.status === 'unchanged') return { status: 'unchanged', added, chapters };
+  if (raw.status !== 'ready')
+    throw new FactRecordShapeError(`补录结果的状态不认识：${String(raw.status)}`);
+  return {
+    status: 'ready',
+    added,
+    chapters,
+    before: field(raw, 'before', (value) => value === null || isString(value)),
+    after: field(raw, 'after', isString),
+  };
+}
+
+/** 补录几章：每章调一次模型；全部抽完才给出新台账全文，写由 lib/fact-write 做。 */
+export async function prepareFactBackfill(
+  input: { projectRoot: string; ledgerText: string | null; paths: readonly string[] },
+  onProgress?: (done: number, total: number, path: string) => void,
+): Promise<FactBackfillPlan> {
+  const raw = await (
+    await import('../engine/facts')
+  ).prepareEngineFactBackfill(
+    { project_root: input.projectRoot, ledger_text: input.ledgerText, paths: input.paths },
+    onProgress,
+  );
+  return decodeFactBackfillPlan(raw);
+}

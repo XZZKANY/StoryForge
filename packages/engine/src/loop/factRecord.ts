@@ -6,6 +6,7 @@ import {
   planFactRecord,
   serializeFactLedger,
   type FactCandidate,
+  type FactConflict,
 } from '../kernel/factLedger';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
 import { InputDomainError, isJsonObject, type JsonObject, type JsonValue } from '../kernel/json';
@@ -63,7 +64,7 @@ function candidateOf(item: unknown, content: string): FactCandidate | null {
   };
 }
 
-async function canonicalNames(reader: ProjectReader, root: string) {
+export async function canonicalNames(reader: ProjectReader, root: string) {
   const names = new Map<string, string>();
   try {
     const canon = await readCanon(reader, root);
@@ -77,6 +78,24 @@ async function canonicalNames(reader: ProjectReader, root: string) {
     if (!(error instanceof FsToolError || error instanceof InputDomainError)) throw error;
   }
   return (name: string) => names.get(pythonStrip(name)) ?? pythonStrip(name);
+}
+
+/** 对不上台账的事实交给界面说给作者听：本章的说法、台账里的说法和它出自哪章。 */
+export function conflictSummaries(
+  conflicts: readonly FactConflict[],
+  ordinal: (path: string) => number | null,
+): Obj[] {
+  return conflicts.map(({ candidate, existing }) => ({
+    kind: candidate.kind,
+    subject: candidate.subject,
+    attribute: candidate.attribute,
+    value: candidate.value,
+    quote: candidate.quote,
+    existing_id: existing.id,
+    existing_value: existing.value,
+    existing_path: existing.path,
+    existing_ordinal: ordinal(text(existing.path)),
+  }));
 }
 
 /**
@@ -132,17 +151,7 @@ export async function prepareChapterFactRecord(
     duplicates: plan.duplicates,
     // 作者接受前改过的地方对不上原句，这些事实不记。
     unverified: (check.payload.new_facts as unknown[]).length - candidates.length,
-    conflicts: plan.conflicts.map(({ candidate, existing }) => ({
-      kind: candidate.kind,
-      subject: candidate.subject,
-      attribute: candidate.attribute,
-      value: candidate.value,
-      quote: candidate.quote,
-      existing_id: existing.id,
-      existing_value: existing.value,
-      existing_path: existing.path,
-      existing_ordinal: ordinal(text(existing.path)),
-    })),
+    conflicts: conflictSummaries(plan.conflicts, ordinal),
   };
   if (plan.added.length === 0) return { status: 'unchanged', ...summary };
   return {
