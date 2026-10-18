@@ -8701,3 +8701,15 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 起因：根门禁 `pnpm verify` 第 5 道（前端单测）里 `source-standards` 报 `src/App.tsx: 416 > 400`——上面「进写作台不再是空中栏」那刀把停下的章、写作台入口、中栏去处的接线写进了 App。
 - 改动：新增 `components/app/useWritingDesk.tsx`，章节索引（`useBookOverviewChapters`，含「写作台中栏空着时也激活」）、停下的那一章、`enterWritingDesk`、中栏去处节点都在这里；App 一行调用、`bookChapters` 取 `desk.chapters`，其余用法不变。行为不变。App.tsx 416 → 396 行。
 - 验证：`source-standards` 绿；写作台 / 总览 / 布局相关 6 个测试文件 28 条绿；搬家后的接线变异 4 / 4 全杀（不自动开章、取第一章、空书判定、索引不激活）。
+
+
+## 2026-10-18 事实链 2a：章节检查顺带抽「本章新定下的事实」
+
+- 起因：长篇一致性实测（`output/drift-lab/newways/RESULTS.md`、`output/drift-lab/replay/RESULTS.md`，gitignored）里效果最好、又不加调用的是「事实链」：检查时顺带抽本章新事实 → 核对入账 → 下一章起草带上（同一批 200 处交界，有矛盾的交界 36.2% → 22.0%）。作者 10-18 拍板先做事实链，本刀是第一步，只抽、只存。
+- 改动：`checkPrompt` 在原指令后加一段 `new_facts` 输出指令（类别 生死 / 身份 / 关系 / 持有 / 处境 / 数值 / 来历，最多 15 条，每条摘正文原句）。`buildCheck` 只在检查完整执行、来源核实之后才看 `new_facts`：逐条校验字段与类别，原句用检查器同一套引文定位在当次正文里找；不合格只丢那一条，不影响 findings 和检查结论。检查器没回这个字段时结果里不出现 `new_facts`，老结果的形状不变。事实随 `chapter_check` 产物进运行证据；现在还没有地方读它（下一刀 2b 在接受补丁时记账）。
+- 和回放提示词的差别：回放的检查提示词另附了「已写事实」和两条新规则；产品按设计不给检查器台账、不加新规则，所以去掉了「已在已写事实里且没有变化的不要重复」一句，去重留给 2b 记账时由程序做。
+- golden（p3-chapter-writing、p3-host）：Python 预言机已删，改用临时脚本逐条核对。TS 回放与 golden 的每一处差异，都必须在「把新加的那段从请求里去掉」后与旧摘要、请求哈希、来源字数完全对上，否则报错。p3-chapter-writing 128 处、p3-host 4 处全部对上，其余字段零差异（p3-host 另有 1 处是测试里早已登记的检查点脱敏理由差异，和本次无关）。然后按旧摘要逐处换成新值，`check_prompt` 换成新提示词；换完同一脚本再跑一遍，差异为 0。临时脚本不入库。
+- 测试：新增 `chapterCheckFacts.test.ts` 9 条（提示词含指令且在检查源之前；没回字段就不加键；全半角折叠后定位原句；坏条目只丢自己、结论不变；最多读 15 条；字段不是数组时 `new_facts_received` 为 null；带硬伤时照样留事实；来源摘要不符或任一 finding 无效时不认事实）。变异：删掉接线那一行 → 5 条红。
+- 验证：`pnpm verify`（corepack 临时 shim）8 道全过，EXIT=0；引擎 13557 passed / 2 skipped，前端 229 个文件 2242 条，三个浏览器回归通过。
+- 成本：检查提示词多约 190 字；回放实测检查输出约多 600 token。
+- 没验证：产品检查器在真模型上的抽取条数与原句命中率（回放用的是中转站的 deepseek，作者的 claude-sonnet-5 没测）。
