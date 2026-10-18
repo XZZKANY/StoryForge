@@ -11,9 +11,9 @@ import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
 import { InputDomainError, isJsonObject, type JsonObject, type JsonValue } from '../kernel/json';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import { pythonStrip } from '../kernel/pythonText';
+import { locateQuote } from '../kernel/quoteLocation';
 import type { ProjectReader } from '../readPort';
 import type { RunStore } from '../store/runs';
-import { locateQuote } from './chapterCheckProtocol';
 import {
   CHAPTER_BRIEF_ARTIFACT_KIND,
   CHAPTER_CHECK_ARTIFACT_KIND,
@@ -59,7 +59,7 @@ function candidateOf(item: unknown, content: string): FactCandidate | null {
     value,
     object: text(fact.object) || null,
     quote,
-    startLine: location.line_start as number,
+    startLine: location.line_start,
   };
 }
 

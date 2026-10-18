@@ -33,6 +33,7 @@ const FIXED_SOURCES = [
   '.storyforge/canon/hooks.json',
 ];
 const MAX_SOURCE_BYTES = 4_000_000;
+const FACTS_LEDGER = '.storyforge/canon/facts.json';
 const DRIFT = 'Chapter Brief 的来源在确认期间已变化，请重新生成 Brief 后再确认。';
 
 export type GuardDeps = {
@@ -77,12 +78,19 @@ async function sourceSignature(
       files.push([normalized, digest]);
     }
     const absolute = nativeProjectPath(root, target, platform);
-    const values = {
+    const values: { [key: string]: unknown } = {
       files,
       previous: await previousChapterTail(reader, root, absolute, { platform }),
       system: await buildGenerationSystemPrompt(reader, '', root, { platform }),
       scene: await buildSceneConstraintBlock(reader, root, absolute, { platform }),
     };
+    // 起草会带上台账里的已写事实；还没开始记账的书签名不变。
+    if ((await reader.inspectProjectPath(root, FACTS_LEDGER)).targetKind !== 'missing') {
+      const read = await reader.readProjectBytes(root, FACTS_LEDGER, MAX_SOURCE_BYTES);
+      if (read.exceeded)
+        throw new AgentOrchestrationError('事实台账超过校验上限，请缩小后重新生成 Brief。');
+      values.facts = sha256Hex(read.bytes);
+    }
     return sha256Hex(dumpJson(values, { ensureAscii: false, sortKeys: true }));
   } catch (error) {
     if (

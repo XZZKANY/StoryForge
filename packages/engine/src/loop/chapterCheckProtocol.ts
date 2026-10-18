@@ -6,8 +6,8 @@ import {
   parseJson,
   type JsonValue,
 } from '../kernel/json';
-import { splitlinesKeepends } from '../kernel/polishing';
-import { pythonSplitlines, pythonStrip } from '../kernel/pythonText';
+import { pythonStrip } from '../kernel/pythonText';
+import { locateQuote, QUOTE_WHITESPACE } from '../kernel/quoteLocation';
 import { sha256Hex } from '../kernel/sha256';
 
 type Obj = { [key: string]: unknown };
@@ -151,78 +151,21 @@ function escapeStrayQuotes(text: string): string {
   return out;
 }
 
-// 检查器引用原文时常把全角标点写成半角（稿子出稿后统一成全角，模型照旧写直引号），行号也常数错。
-// 引文按「同一个标点的全角 / 半角算同一个字、空白不计」在全文里找，所报行号只在多处命中时挑最近的一处；
-// 原文里没有这句仍判无效——要的是原文真有，不是模型数对了行。
-const QUOTE_FOLD = new Map([
-  ['“', '"'],
-  ['”', '"'],
-  ['＂', '"'],
-  ['‘', "'"],
-  ['’', "'"],
-  ['＇', "'"],
-  ['，', ','],
-  ['：', ':'],
-  ['；', ';'],
-  ['？', '?'],
-  ['！', '!'],
-  ['（', '('],
-  ['）', ')'],
-]);
-const WHITESPACE = new Set(
-  [0x20, 0x09, 0x0a, 0x0d, 0x0c, 0x0b, 0x3000, 0xa0].map((code) => String.fromCodePoint(code)),
-);
-
 /**
  * 正文字数：空白以外的每个字。把换行也算进去，短段落的稿子会被虚抬一成以上
  * （10-16 真书第 6 章：2826 个汉字算成 3547）。
  */
 export function chapterChars(text: string): number {
   let count = 0;
-  for (const char of text) if (!WHITESPACE.has(char)) count += 1;
+  for (const char of text) if (!QUOTE_WHITESPACE.has(char)) count += 1;
   return count;
 }
 
-/** 折叠后的码点序列，及每个码点在原文里的下标。 */
-function foldForQuote(chars: readonly string[]): { folded: string[]; positions: number[] } {
-  const folded: string[] = [];
-  const positions: number[] = [];
-  chars.forEach((char, index) => {
-    if (WHITESPACE.has(char)) return;
-    folded.push(QUOTE_FOLD.get(char) ?? char);
-    positions.push(index);
-  });
-  return { folded, positions };
-}
-
-/** 引用必须真在正文里（码点下标）；行号按引用实际所在行回报。 */
+/** 引用必须真在正文里；原文里没有这句判无效。 */
 function quoteLocation(content: string, evidence: string, line: number | null): Obj {
-  const chars = points(content);
-  const { folded, positions } = foldForQuote(chars);
-  const needle = foldForQuote(points(evidence)).folded;
-  const starts: number[] = [];
-  if (needle.length > 0)
-    for (let index = 0; index + needle.length <= folded.length; index++)
-      if (needle.every((char, i) => folded[index + i] === char)) starts.push(index);
-  if (starts.length === 0) throw new InvalidCheck('引用在正文里找不到。');
-  const lineOffsets = [0];
-  for (const text of splitlinesKeepends(content))
-    lineOffsets.push(lineOffsets[lineOffsets.length - 1] + points(text).length);
-  const lineOf = (offset: number) => lineOffsets.filter((start) => start <= offset).length;
-  let best = starts[0];
-  if (line !== null) {
-    const distance = (start: number) => Math.abs(lineOf(positions[start]) - line);
-    for (const start of starts) if (distance(start) < distance(best)) best = start;
-  }
-  const offset = positions[best];
-  const end = positions[best + needle.length - 1] + 1;
-  const lineStart = lineOf(offset);
-  return {
-    char_start: offset,
-    char_end: end,
-    line_start: lineStart,
-    line_end: lineStart + pythonSplitlines(chars.slice(offset, end).join('')).length - 1,
-  };
+  const location = locateQuote(content, evidence, line);
+  if (location === null) throw new InvalidCheck('引用在正文里找不到。');
+  return location;
 }
 
 function validateFinding(item: unknown, content: string, index: number): Obj {
@@ -260,16 +203,6 @@ function validateFinding(item: unknown, content: string, index: number): Obj {
     evidence_verified: located,
     ...location,
   };
-}
-
-/** 原句在正文里的位置（全半角折叠、不计空白）；找不到返回 null。事实台账接受时拿它重核磁盘上的正文。 */
-export function locateQuote(content: string, quote: string): Obj | null {
-  try {
-    return quoteLocation(content, quote, null);
-  } catch (error) {
-    if (error instanceof InvalidCheck) return null;
-    throw error;
-  }
 }
 
 const factText = (value: unknown, max: number): value is string =>
