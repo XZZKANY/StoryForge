@@ -281,6 +281,12 @@ export function useAgentRunControls(
           continuity_constraints: brief.continuityConstraints,
           target_chars_min: brief.targetCharsMin,
           target_chars_max: brief.targetCharsMax,
+          // 只回传作者留下的调整；后端只认待确认那一版里有的，不接受新塞的。
+          fact_adjustments: (brief.factAdjustments ?? []).map((item) => ({
+            plan_quote: item.planQuote,
+            fact_quote: item.factQuote,
+            adjustment: item.adjustment,
+          })),
         },
       }),
     onAcceptPatch: () => {

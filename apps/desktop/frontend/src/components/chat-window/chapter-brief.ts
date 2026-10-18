@@ -1,5 +1,5 @@
 import type { AgentResultMessage } from '../../lib/api-client';
-import type { ChapterBrief } from './types';
+import type { ChapterBrief, ChapterBriefAdjustment } from './types';
 
 export function chapterBriefFromAgentResult(message: AgentResultMessage): ChapterBrief | null {
   if (message.agent_result.confirmation_kind !== 'chapter_brief') return null;
@@ -27,7 +27,32 @@ export function chapterBriefFromAgentResult(message: AgentResultMessage): Chapte
     continuityConstraints: stringList(value.continuity_constraints),
     targetCharsMin: min,
     targetCharsMax: max,
+    ...adjustmentsOf(value.fact_adjustments),
   };
+}
+
+function adjustmentsOf(value: unknown): { factAdjustments?: ChapterBriefAdjustment[] } {
+  const factAdjustments = adjustmentList(value);
+  return factAdjustments.length ? { factAdjustments } : {};
+}
+
+function adjustmentList(value: unknown): ChapterBriefAdjustment[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const entry = item as Record<string, unknown>;
+    const { plan_quote: planQuote, fact_quote: factQuote, adjustment } = entry;
+    if (typeof planQuote !== 'string' || typeof factQuote !== 'string') return [];
+    if (typeof adjustment !== 'string' || !adjustment.trim()) return [];
+    return [
+      {
+        planQuote,
+        factQuote,
+        adjustment,
+        source: entry.source === 'program' ? ('program' as const) : ('model' as const),
+      },
+    ];
+  });
 }
 
 function stringList(value: unknown): string[] {

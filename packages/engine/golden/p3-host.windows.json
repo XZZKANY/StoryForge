@@ -45247,8 +45247,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "77a1db65dc2a33608e88b9633b021e4e2277522615c7359de76ab7b80e8bd056",
-                  "length": 848
+                  "sha256": "a5d4edc404d81b17de9902422d60d73b8d824a56e85691f0857afb5fc31c0da1",
+                  "length": 1229
                 }
               }
             ],
@@ -45696,8 +45696,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "77a1db65dc2a33608e88b9633b021e4e2277522615c7359de76ab7b80e8bd056",
-                    "length": 848
+                    "sha256": "a5d4edc404d81b17de9902422d60d73b8d824a56e85691f0857afb5fc31c0da1",
+                    "length": 1229
                   }
                 }
               ],
@@ -45708,7 +45708,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "f79c699d79ea1841bfe312d7f5338ebfd246f49e623bc5b3132ea16c57ede0ad",
+            "request_digest": "6646f477e69ee4a57a4e3526575578439849739f58d5fd84847eddb5a7841a1a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "4bd5d0d1c7179d7aedd5bcce6a7b854ac07313d5e9c9f756df680961cdc9fe66",
@@ -45725,8 +45725,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "fb6a62844b3f75aee019fd113ce21907c395e45c1a5b78003316bdcbc0760bc9",
-                "content_chars": 848
+                "sha256": "68d9936d99cf7d1d7abad54e9d5ca3d66581aef937b96ff0189cba1ba91d382e",
+                "content_chars": 1229
               }
             ],
             "reconstruction": {
@@ -46002,7 +46002,7 @@
           "status": "completed",
           "input_summary": {
             "message": {
-              "sha256": "3271146c2e508da21d6cd3bc6cc9d180ec91294600c89857b0b4dc82ac277dfc",
+              "sha256": "6e89709510608df03b47da21bb155eb3707523b15bd84df1b4afe106030715e6",
               "length": 500
             },
             "context_chars": 260
@@ -48237,8 +48237,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "77a1db65dc2a33608e88b9633b021e4e2277522615c7359de76ab7b80e8bd056",
-                  "length": 848
+                  "sha256": "a5d4edc404d81b17de9902422d60d73b8d824a56e85691f0857afb5fc31c0da1",
+                  "length": 1229
                 }
               }
             ],
@@ -49221,8 +49221,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "77a1db65dc2a33608e88b9633b021e4e2277522615c7359de76ab7b80e8bd056",
-                    "length": 848
+                    "sha256": "a5d4edc404d81b17de9902422d60d73b8d824a56e85691f0857afb5fc31c0da1",
+                    "length": 1229
                   }
                 }
               ],
@@ -49233,7 +49233,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "f79c699d79ea1841bfe312d7f5338ebfd246f49e623bc5b3132ea16c57ede0ad",
+            "request_digest": "6646f477e69ee4a57a4e3526575578439849739f58d5fd84847eddb5a7841a1a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "4bd5d0d1c7179d7aedd5bcce6a7b854ac07313d5e9c9f756df680961cdc9fe66",
@@ -49250,8 +49250,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "fb6a62844b3f75aee019fd113ce21907c395e45c1a5b78003316bdcbc0760bc9",
-                "content_chars": 848
+                "sha256": "68d9936d99cf7d1d7abad54e9d5ca3d66581aef937b96ff0189cba1ba91d382e",
+                "content_chars": 1229
               }
             ],
             "reconstruction": {
@@ -49845,7 +49845,7 @@
           "status": "completed",
           "input_summary": {
             "message": {
-              "sha256": "3271146c2e508da21d6cd3bc6cc9d180ec91294600c89857b0b4dc82ac277dfc",
+              "sha256": "6e89709510608df03b47da21bb155eb3707523b15bd84df1b4afe106030715e6",
               "length": 500
             },
             "context_chars": 260
@@ -51651,8 +51651,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "77a1db65dc2a33608e88b9633b021e4e2277522615c7359de76ab7b80e8bd056",
-                  "length": 848
+                  "sha256": "a5d4edc404d81b17de9902422d60d73b8d824a56e85691f0857afb5fc31c0da1",
+                  "length": 1229
                 }
               }
             ],
@@ -52191,8 +52191,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "77a1db65dc2a33608e88b9633b021e4e2277522615c7359de76ab7b80e8bd056",
-                    "length": 848
+                    "sha256": "a5d4edc404d81b17de9902422d60d73b8d824a56e85691f0857afb5fc31c0da1",
+                    "length": 1229
                   }
                 }
               ],
@@ -52203,7 +52203,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "f79c699d79ea1841bfe312d7f5338ebfd246f49e623bc5b3132ea16c57ede0ad",
+            "request_digest": "6646f477e69ee4a57a4e3526575578439849739f58d5fd84847eddb5a7841a1a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "4bd5d0d1c7179d7aedd5bcce6a7b854ac07313d5e9c9f756df680961cdc9fe66",
@@ -52220,8 +52220,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "fb6a62844b3f75aee019fd113ce21907c395e45c1a5b78003316bdcbc0760bc9",
-                "content_chars": 848
+                "sha256": "68d9936d99cf7d1d7abad54e9d5ca3d66581aef937b96ff0189cba1ba91d382e",
+                "content_chars": 1229
               }
             ],
             "reconstruction": {
@@ -52497,7 +52497,7 @@
           "status": "completed",
           "input_summary": {
             "message": {
-              "sha256": "3271146c2e508da21d6cd3bc6cc9d180ec91294600c89857b0b4dc82ac277dfc",
+              "sha256": "6e89709510608df03b47da21bb155eb3707523b15bd84df1b4afe106030715e6",
               "length": 500
             },
             "context_chars": 260

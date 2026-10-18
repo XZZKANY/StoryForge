@@ -1,11 +1,13 @@
 import { compareChapterPaths } from '@storyforge/project-core';
+import { selectWrittenFacts, type WrittenFact } from '../kernel/canonContext';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
 import { resolveNewProjectFile } from '../kernel/fsProjectTools';
 import { normcase } from '../kernel/generationSources';
 import { dumpJson, InputDomainError, isJsonObject, parseJson } from '../kernel/json';
-import { iterManuscriptFiles } from '../kernel/previousChapter';
+import { iterManuscriptFiles, previousChapterTail } from '../kernel/previousChapter';
 import { MAX_READ_BYTES, ProjectTreeError } from '../kernel/projectTree';
 import { PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
+import { locateQuote } from '../kernel/quoteLocation';
 import { buildPlan, nextChapter, type PlannedChapter, type SerialPlan } from '../kernel/serialPlan';
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import { chapterChars } from './chapterCheckProtocol';
@@ -225,14 +227,125 @@ export function buildBriefSeed(input: {
   };
 }
 
-export function briefPrompt(seed: Obj, userMessage: string): string {
+/** 章纲对照用的已写内容：上一章结尾和挑出的已写事实；第一章、没有台账时是空的。 */
+export type BriefWritten = {
+  readonly previous: readonly [string, string] | null;
+  readonly facts: readonly WrittenFact[];
+};
+
+const BRIEF_FACTS_MAX_CHARS = 1000;
+const MAX_ADJUSTMENTS = 8;
+const MAX_ADJUSTMENT_CHARS = 300;
+
+export async function briefWrittenMaterials(
+  reader: ProjectReader,
+  root: string,
+  targetAbsolute: string,
+  platform: 'windows' | 'posix',
+  mentionText: string,
+): Promise<BriefWritten> {
+  const previous = await previousChapterTail(reader, root, targetAbsolute, { platform });
+  let facts: WrittenFact[] = [];
+  try {
+    facts = await selectWrittenFacts(reader, root, targetAbsolute, {
+      platform,
+      mentionText,
+      maxChars: BRIEF_FACTS_MAX_CHARS,
+    });
+  } catch (error) {
+    // 台账坏了只是这次章纲不对照事实；格式错误在下次记账时报给作者。
+    if (!(error instanceof FsToolError || error instanceof InputDomainError)) throw error;
+  }
+  return { previous, facts };
+}
+
+const hasWritten = (written: BriefWritten | null | undefined): written is BriefWritten =>
+  !!written && (written.previous !== null || written.facts.length > 0);
+
+// 离线回放：章纲顺带对照上一章结尾和已写事实，近六成的章出调整、两端原句 88% 对得上；
+// 「上一章已抓到人、计划又要追捕」这类冲突靠它挡（第 205→206 章 4、5 条矛盾 → 1、0 条）。
+const ADJUSTMENT_INSTRUCTION =
+  '另输出 fact_adjustments 数组：对照下面的「上一章结尾」和「已写事实」，找出作者要求与已经写下的内容相冲突的地方，' +
+  '例如要追捕的人上一章已被抓走、已死的人要出场、上一章已经发生的事本章又要发生一遍、' +
+  '要用的东西已不在这个人手里、要花的钱超过账上剩的。' +
+  '每条写 plan_quote（作者要求或种子 goal 里的原句，逐字复制）、fact_quote（上一章结尾或已写事实里的原句，逐字复制）、' +
+  'adjustment（一句话：本章怎样写才不和已写内容矛盾）。' +
+  '以已写内容为准；作者要求明确写回忆、误会或反转的不算冲突。没有冲突就给空数组。' +
+  '只报事实冲突，不提风格、节奏、写法上的意见。goal 和其他字段仍按作者要求整理，不要把调整写进去。\n';
+
+export function briefPrompt(seed: Obj, userMessage: string, written?: BriefWritten | null): string {
+  const compare = hasWritten(written);
+  const previous =
+    compare && written.previous
+      ? `上一章（${written.previous[0]}）结尾：\n<<<PREVIOUS\n${written.previous[1]}\nPREVIOUS>>>\n`
+      : '';
+  const facts =
+    compare && written.facts.length
+      ? `已写事实（来自台账）：\n${written.facts.map((fact) => fact.line).join('\n')}\n`
+      : '';
   return (
     '把作者的写章要求整理成 Chapter Brief。只输出 JSON 对象，不要代码块。' +
     '字段必须是 target_path, chapter_ordinal, chapter_title, goal, pov, setting, ' +
     'required_beats, forbidden_items, continuity_constraints, target_chars_min, target_chars_max。' +
     '不得更改 target_path/chapter_ordinal；缺少信息用 null 或空数组，不得编造项目事实。\n' +
-    `后端确定种子：${dumpJson(seed, { ensureAscii: false })}\n作者要求：${userMessage}`
+    (compare ? ADJUSTMENT_INSTRUCTION : '') +
+    `后端确定种子：${dumpJson(seed, { ensureAscii: false })}\n` +
+    previous +
+    facts +
+    `作者要求：${userMessage}`
   );
+}
+
+const planTextOf = (seed: Obj, userMessage: string) =>
+  [userMessage, seed.goal, seed.chapter_title]
+    .filter((part) => typeof part === 'string')
+    .join('\n');
+
+const writtenTextOf = (written: BriefWritten) =>
+  [written.previous?.[1] ?? '', ...written.facts.map((fact) => fact.line)].join('\n');
+
+/** 模型给的调整：三项齐全、两端原句都要在给它的材料里逐字找到，对不上的丢掉。 */
+function modelAdjustments(raw: unknown, planText: string, writtenText: string): Obj[] {
+  if (!Array.isArray(raw)) return [];
+  const kept: Obj[] = [];
+  for (const item of raw.slice(0, MAX_ADJUSTMENTS)) {
+    if (!isJsonObject(item as never)) continue;
+    const entry = item as Obj;
+    const plan = textValue(entry.plan_quote, MAX_ADJUSTMENT_CHARS);
+    const fact = textValue(entry.fact_quote, MAX_ADJUSTMENT_CHARS);
+    const adjustment = textValue(entry.adjustment, MAX_ADJUSTMENT_CHARS);
+    if (!plan || !fact || !adjustment) continue;
+    if (locateQuote(planText, plan) === null || locateQuote(writtenText, fact) === null) continue;
+    if (kept.some((other) => other.adjustment === adjustment)) continue;
+    kept.push({ plan_quote: plan, fact_quote: fact, adjustment, source: 'model' });
+  }
+  return kept;
+}
+
+const DEATH = /死|亡|身故|遇害|丧命|殒命|牺牲|毙命/u;
+const NOT_DEATH = /未|没|假|诈|险些|差点|几乎|装|濒/u;
+
+/** 计划点到的人在台账里已经死了、模型又没提：程序补一条「只能是回忆或提及」。 */
+function deathAdjustments(planText: string, written: BriefWritten, existing: Obj[]): Obj[] {
+  const added: Obj[] = [];
+  for (const fact of written.facts) {
+    if (fact.kind !== '生死' || !DEATH.test(fact.value) || NOT_DEATH.test(fact.value)) continue;
+    if (Array.from(fact.subject).length < 2 || !planText.includes(fact.subject)) continue;
+    const covered = [...existing, ...added].some(
+      (item) =>
+        String(item.plan_quote).includes(fact.subject) ||
+        String(item.adjustment).includes(fact.subject),
+    );
+    if (covered) continue;
+    const clause = planText.split(/[。！？；\n]/u).find((part) => part.includes(fact.subject));
+    added.push({
+      plan_quote: textValue(clause, MAX_ADJUSTMENT_CHARS) ?? fact.subject,
+      fact_quote: fact.quote,
+      adjustment: `「${fact.subject}」已在第 ${fact.ordinal} 章${fact.value}，本章若出现只能是回忆或提及。`,
+      source: 'program',
+    });
+  }
+  return added;
 }
 
 const STRUCTURED_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
@@ -258,10 +371,22 @@ function jsonObject(raw: unknown): Obj {
 
 export function parseBrief(
   raw: unknown,
-  options: { seed: Obj; provenance: Obj; newHex: () => string },
+  options: {
+    seed: Obj;
+    provenance: Obj;
+    newHex: () => string;
+    userMessage?: string;
+    written?: BriefWritten | null;
+  },
 ): Obj {
-  const { seed } = options;
+  const { seed, written } = options;
   const payload = jsonObject(raw);
+  let adjustments: Obj[] = [];
+  if (hasWritten(written)) {
+    const planText = planTextOf(seed, options.userMessage ?? '');
+    adjustments = modelAdjustments(payload.fact_adjustments, planText, writtenTextOf(written));
+    adjustments.push(...deathAdjustments(planText, written, adjustments));
+  }
   let minimum = positiveInt(payload.target_chars_min) || Number(seed.target_chars_min);
   let maximum = positiveInt(payload.target_chars_max) || Number(seed.target_chars_max);
   if (minimum > maximum) [minimum, maximum] = [maximum, minimum];
@@ -279,9 +404,14 @@ export function parseBrief(
     continuity_constraints: textList(payload.continuity_constraints),
     target_chars_min: minimum,
     target_chars_max: maximum,
+    // 没有调整时不出这个键：老 brief 与它的摘要一字不变。
+    ...(adjustments.length ? { fact_adjustments: adjustments } : {}),
     context_provenance: { ...options.provenance },
   };
 }
+
+const sameAdjustment = (a: Obj, b: Obj) =>
+  a.plan_quote === b.plan_quote && a.fact_quote === b.fact_quote && a.adjustment === b.adjustment;
 
 /** 作者确认的 brief：必须就是待确认的那一版，可编辑字段逐个重新收口，修订号加一。 */
 export function confirmBrief(candidate: unknown, pending: Obj): Obj {
@@ -306,6 +436,15 @@ export function confirmBrief(candidate: unknown, pending: Obj): Obj {
     throw new AgentOrchestrationError('Chapter Brief 字数范围无效。');
   confirmed.target_chars_min = minimum;
   confirmed.target_chars_max = maximum;
+  // 作者只能去掉调整（改回原计划），不能借确认塞进新的；没回传这一项就保留原样。
+  if (Array.isArray(edited.fact_adjustments)) {
+    const returned = edited.fact_adjustments.filter((item) => isJsonObject(item as never)) as Obj[];
+    const kept = (Array.isArray(pending.fact_adjustments) ? pending.fact_adjustments : []).filter(
+      (item: Obj) => returned.some((other) => sameAdjustment(item, other)),
+    );
+    if (kept.length) confirmed.fact_adjustments = kept;
+    else delete confirmed.fact_adjustments;
+  }
   confirmed.revision = Math.trunc(Number(pending.revision)) + 1;
   confirmed.status = 'confirmed';
   return confirmed;
@@ -328,6 +467,16 @@ export function draftInstruction(brief: Obj): string {
       lines.push(`${label}：${value.map(String).join('；')}`);
     else if (typeof value === 'string' && value) lines.push(`${label}：${value}`);
   }
+  const adjustments = Array.isArray(brief.fact_adjustments)
+    ? (brief.fact_adjustments as Obj[])
+    : [];
+  if (adjustments.length)
+    lines.push(
+      '按已写内容的调整（优先于上面的章节目标与节拍）：\n' +
+        adjustments
+          .map((item) => `- ${item.adjustment}（已写：「${item.fact_quote}」）`)
+          .join('\n'),
+    );
   return lines.join('\n');
 }
 
