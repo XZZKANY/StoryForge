@@ -3,6 +3,7 @@ import {
   factKey,
   parseFactLedger,
   planFactRecord,
+  resolveDisputedFact,
   serializeFactLedger,
   type FactCandidate,
 } from './factLedger';
@@ -168,7 +169,7 @@ describe('planning a chapter record', () => {
     expect(result.superseded).toHaveLength(1);
   });
 
-  it('refuses a second version of a fixed fact from another chapter', () => {
+  it('keeps a second version of a fixed fact from another chapter as disputed', () => {
     const old = existing({ kind: '关系', attribute: '兄弟姐妹', value: '独子' });
     const result = plan([old], '正文/第002章.md', [
       { kind: '关系', attribute: '兄弟姐妹', value: '有个姐姐', quote: '他想起姐姐。' },
@@ -177,7 +178,27 @@ describe('planning a chapter record', () => {
     expect(result.conflicts).toEqual([
       { candidate: expect.objectContaining({ value: '有个姐姐' }), existing: old },
     ]);
-    expect(result.ledger.facts).toEqual([old]);
+    expect(result.disputed).toEqual([
+      expect.objectContaining({
+        value: '有个姐姐',
+        status: 'disputed',
+        disputes: 'fact_old',
+        supersedes: null,
+      }),
+    ]);
+    expect(result.ledger.facts).toEqual([old, result.disputed[0]]);
+  });
+
+  it('does not dispute the same thing twice', () => {
+    const old = existing({ kind: '关系', attribute: '兄弟姐妹', value: '独子' });
+    const first = plan([old], '正文/第002章.md', [
+      { kind: '关系', attribute: '兄弟姐妹', value: '有个姐姐' },
+    ]);
+    const again = plan(first.ledger.facts as JsonObject[], '正文/第003章.md', [
+      { kind: '关系', attribute: '兄弟姐妹', value: '有个姐姐' },
+    ]);
+    expect(again.duplicates).toBe(1);
+    expect(again.disputed).toEqual([]);
   });
 
   it('replaces a fixed fact when the same chapter was rewritten', () => {
@@ -230,5 +251,54 @@ describe('planning a chapter record', () => {
       newId: () => ids.shift()!,
     });
     expect(result.added[0].id).toBe('fact_0002abcdef01');
+  });
+});
+
+describe('resolving a disputed fact', () => {
+  const ledger = JSON.stringify({
+    version: 1,
+    facts: [
+      existing({ kind: '关系', attribute: '兄弟姐妹', value: '独子' }),
+      existing({
+        id: 'fact_new',
+        kind: '关系',
+        attribute: '兄弟姐妹',
+        value: '有个姐姐',
+        path: '正文/第002章.md',
+        status: 'disputed',
+        disputes: 'fact_old',
+      }),
+    ],
+  });
+  const statuses = (text: string) =>
+    (JSON.parse(text).facts as JsonObject[]).map((fact) => [
+      fact.id,
+      fact.status,
+      fact.supersedes ?? null,
+    ]);
+
+  it('accepting the chapter makes it count and retires the old version into history', () => {
+    expect(statuses(resolveDisputedFact(ledger, 'fact_new', 'accept', 'posix'))).toEqual([
+      ['fact_old', 'superseded', null],
+      ['fact_new', 'active', 'fact_old'],
+    ]);
+  });
+
+  it('keeping what was recorded retires the new version', () => {
+    expect(statuses(resolveDisputedFact(ledger, 'fact_new', 'reject', 'posix'))).toEqual([
+      ['fact_old', 'active', null],
+      ['fact_new', 'retired', null],
+    ]);
+  });
+
+  it('refuses anything that is not waiting for a decision', () => {
+    expect(() => resolveDisputedFact(ledger, 'fact_old', 'accept', 'posix')).toThrow(
+      '没有这条待定事实',
+    );
+    expect(() => resolveDisputedFact(ledger, 'nope', 'reject', 'posix')).toThrow(InputDomainError);
+  });
+
+  it('accepts the disputed status in a hand-written ledger', () => {
+    expect(parseFactLedger(ledger).facts).toHaveLength(2);
   });
 });

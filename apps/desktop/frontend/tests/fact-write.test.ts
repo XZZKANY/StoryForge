@@ -164,12 +164,12 @@ test('给作者的一句话：记了多少、哪条对不上、哪些原句找�
   const plan = ready(ORIGINAL) as Exclude<ChapterFactRecordPlan, { status: 'skipped' }>;
   expect(factRecordMessage(plan)).toBe('第 2 章记下 1 条事实。');
   expect(factRecordMessage({ ...plan, conflicts: [CONFLICT, CONFLICT], unverified: 2 })).toBe(
-    '第 2 章记下 1 条事实；和已记的事实对不上，没记：陈默的兄弟姐妹，本章「有个姐姐」，第 1 章「独子」 等 2 条；2 条在接受后的正文里找不到原句，没记。',
+    '第 2 章记下 1 条事实；和已记的事实对不上、先不用，等你在观测镜里定：陈默的兄弟姐妹，本章「有个姐姐」，第 1 章「独子」 等 2 条；2 条在接受后的正文里找不到原句，没记。',
   );
   const unchanged = { status: 'unchanged' as const, ...SUMMARY, added: 0 };
   expect(factRecordMessage(unchanged)).toBeNull();
   expect(factRecordMessage({ ...unchanged, chapterOrdinal: null, conflicts: [CONFLICT] })).toBe(
-    '「第002章.md」没有新事实要记；和已记的事实对不上，没记：陈默的兄弟姐妹，本章「有个姐姐」，第 1 章「独子」。',
+    '「第002章.md」没有新事实要记；和已记的事实对不上、先不用，等你在观测镜里定：陈默的兄弟姐妹，本章「有个姐姐」，第 1 章「独子」。',
   );
 });
 

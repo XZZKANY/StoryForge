@@ -53,10 +53,16 @@ export async function buildFactLedgerView(
   let superseded = 0;
   let retired = 0;
   let stale = 0;
-  for (const fact of objects(ledger.facts)) {
+  const all = objects(ledger.facts);
+  const disputed: JsonObject[] = [];
+  for (const fact of all) {
     const status = fact.status ?? 'active';
     if (status === 'superseded') superseded += 1;
     if (status === 'retired') retired += 1;
+    if (status === 'disputed') {
+      disputed.push(await disputeEntry(fact, all, ordinals));
+      continue;
+    }
     if (status !== 'active') continue;
     const path = text(fact.path);
     const evidence = objects(fact.evidence)[0] ?? {};
@@ -88,5 +94,37 @@ export async function buildFactLedgerView(
     superseded,
     retired,
     chapters,
+    disputed,
+  };
+}
+
+/** 一条待定事实：本章的说法和它对上的已记说法并排给作者看。 */
+async function disputeEntry(
+  fact: JsonObject,
+  all: readonly JsonObject[],
+  ordinals: ReadonlyMap<string, number>,
+): Promise<JsonObject> {
+  const path = text(fact.path);
+  const evidence = objects(fact.evidence)[0] ?? {};
+  const existing = all.find((other) => other.id === fact.disputes);
+  const existingEvidence = existing ? (objects(existing.evidence)[0] ?? {}) : {};
+  return {
+    id: fact.id ?? null,
+    kind: text(fact.kind),
+    subject: text(fact.subject),
+    attribute: text(fact.attribute),
+    value: text(fact.value),
+    quote: text(evidence.quote),
+    line: typeof evidence.start_line === 'number' ? evidence.start_line : null,
+    path,
+    ordinal: ordinals.get(path) ?? null,
+    existing: existing
+      ? {
+          value: text(existing.value),
+          path: text(existing.path),
+          ordinal: ordinals.get(text(existing.path)) ?? null,
+          quote: text(existingEvidence.quote),
+        }
+      : null,
   };
 }

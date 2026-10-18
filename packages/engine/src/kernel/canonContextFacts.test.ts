@@ -141,6 +141,12 @@ describe('written facts in the scene constraint block', () => {
         subject: '沈砚秋',
         value: '那封信',
       }),
+      fact('正文/第003章.md', '沈砚秋拿到了那封信。', {
+        kind: '关系',
+        subject: '沈砚秋',
+        value: '等作者定的说法',
+        status: 'disputed',
+      }),
     ];
     const block = await setup({ ledger })('正文/第004章.md', { mentionText: '' });
     expect(block).toBe(`${HEADING}\n- 沈砚秋 · 持有：那封信（第3章「沈砚秋拿到了那封信。」）`);

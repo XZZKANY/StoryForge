@@ -15,6 +15,7 @@ import {
   NO_OBSERVATORY_FACTS,
   type ObservationAnchor,
   type ObservatoryChecker,
+  type ObservatoryDispute,
   type ObservatoryEntity,
   type ObservatoryFact,
   type ObservatoryFacts,
@@ -629,6 +630,7 @@ export function ObservatoryView({
   onResolveObservation,
   onAskAgent,
   onRetireFact,
+  onResolveDispute,
   factBackfill,
 }: {
   availability: ObservationAvailability;
@@ -652,6 +654,7 @@ export function ObservatoryView({
   onResolveObservation?: (id: string) => void;
   onAskAgent?: (text: string) => void;
   onRetireFact?: (fact: ObservatoryFact) => void;
+  onResolveDispute?: (dispute: ObservatoryDispute, choice: 'accept' | 'reject') => void;
   factBackfill?: FactBackfill;
 }) {
   const observationById = new Map(observations.map((observation) => [observation.id, observation]));
@@ -736,6 +739,7 @@ export function ObservatoryView({
                 facts={facts}
                 onLocate={onLocateAnchor}
                 onRetire={onRetireFact}
+                onResolveDispute={onResolveDispute}
                 backfill={factBackfill}
               />
             </Section>

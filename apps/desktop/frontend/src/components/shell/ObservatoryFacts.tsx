@@ -9,6 +9,7 @@ import { ChevronDown, ChevronRight } from '../icons/shell-icons';
 import { BACKFILL_BATCH, type UnrecordedChapter } from '../../lib/api/facts';
 import {
   factLabel,
+  type ObservatoryDispute,
   type ObservationAnchor,
   type ObservatoryFact,
   type ObservatoryFactChapter,
@@ -198,6 +199,84 @@ function BackfillPanel({ backfill }: { backfill: FactBackfill }) {
   );
 }
 
+const at = (ordinal: number | null) => (ordinal !== null ? `第 ${ordinal} 章` : '已不在的章');
+
+/**
+ * 对不上的事实：本章写的和别的章已记的固定事实（生死、关系、来历）不一样。先不用，旧值照旧有效；
+ * 作者定——以本章为准，或保留已记的。点说法跳到本章原句，觉得本章写错了就去改正文。
+ */
+function DisputeList({
+  disputes,
+  onLocate,
+  onResolve,
+}: {
+  disputes: ObservatoryDispute[];
+  onLocate?: (anchor: ObservationAnchor) => void;
+  onResolve?: (dispute: ObservatoryDispute, choice: 'accept' | 'reject') => void;
+}) {
+  if (!disputes.length) return null;
+  return (
+    <div
+      className="rounded-md border border-warning/40 px-2 py-1.5"
+      data-testid="obs-fact-disputes"
+    >
+      <div className="text-2xs font-medium text-foreground">
+        对不上的，等你定（{disputes.length}）
+      </div>
+      <ul className="mt-1 flex flex-col gap-1.5">
+        {disputes.map((dispute) => {
+          const what = dispute.attribute
+            ? `${dispute.subject}的${dispute.attribute}`
+            : dispute.subject;
+          return (
+            <li key={dispute.id} data-testid="obs-fact-dispute">
+              <button
+                type="button"
+                className="w-full rounded-sm text-left text-2xs leading-relaxed text-foreground hover:bg-elevated"
+                title={dispute.quote ? `本章原句：「${dispute.quote}」` : undefined}
+                onClick={() =>
+                  onLocate?.({
+                    path: dispute.path,
+                    ...(dispute.line !== null ? { line: dispute.line } : {}),
+                    ...(dispute.quote ? { snippet: dispute.quote } : {}),
+                  })
+                }
+                data-testid="obs-fact-dispute-locate"
+              >
+                {what}：{at(dispute.ordinal)}写「{dispute.value}」
+                {dispute.existing
+                  ? `，已记（${at(dispute.existing.ordinal)}）「${dispute.existing.value}」`
+                  : ''}
+              </button>
+              {onResolve && (
+                <div className="mt-0.5 flex justify-end gap-1.5">
+                  <button
+                    type="button"
+                    className="rounded-sm px-1.5 py-0.5 text-3xs text-subtle hover:bg-elevated hover:text-foreground"
+                    title="本章写错了也可以先点这里，再去改正文"
+                    onClick={() => onResolve(dispute, 'reject')}
+                    data-testid="obs-fact-dispute-reject"
+                  >
+                    保留已记的
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-sm border border-border px-1.5 py-0.5 text-3xs text-foreground hover:bg-elevated"
+                    onClick={() => onResolve(dispute, 'accept')}
+                    data-testid="obs-fact-dispute-accept"
+                  >
+                    以本章为准
+                  </button>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export function factLedgerCount(facts: ObservatoryFacts): number | null {
   return facts.status === 'ready' ? facts.active : null;
 }
@@ -206,11 +285,13 @@ export function FactLedgerBody({
   facts,
   onLocate,
   onRetire,
+  onResolveDispute,
   backfill,
 }: {
   facts: ObservatoryFacts;
   onLocate?: (anchor: ObservationAnchor) => void;
   onRetire?: (fact: ObservatoryFact) => void;
+  onResolveDispute?: (dispute: ObservatoryDispute, choice: 'accept' | 'reject') => void;
   backfill?: FactBackfill;
 }) {
   if (facts.status === 'none')
@@ -229,6 +310,7 @@ export function FactLedgerBody({
       </p>
     );
   const extra = [
+    facts.disputed.length ? `${facts.disputed.length} 条对不上等你定` : '',
     facts.stale ? `${facts.stale} 条依据已失效，起草不再带` : '',
     facts.superseded ? `${facts.superseded} 条已被新状态替代` : '',
     facts.retired ? `${facts.retired} 条已作废` : '',
@@ -239,6 +321,7 @@ export function FactLedgerBody({
         有效 {facts.active} 条，来自 {facts.chapters.length} 章
         {extra.length ? `；${extra.join('，')}` : ''}。点一条看原文。
       </p>
+      <DisputeList disputes={facts.disputed} onLocate={onLocate} onResolve={onResolveDispute} />
       {backfill && <BackfillPanel backfill={backfill} />}
       {facts.chapters.map((chapter, index) => (
         <ChapterGroup

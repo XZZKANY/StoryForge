@@ -8,7 +8,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { useObservatory } from '../src/components/app/useObservatory';
 import { ObservatoryView } from '../src/components/shell/ObservatoryView';
-import { retireLedgerFact } from '../src/lib/api/facts';
+import { resolveLedgerDispute, retireLedgerFact } from '../src/lib/api/facts';
 import { executeIdeCommand } from '../src/lib/api/ide-commands';
 import { factsLedgerPathFor } from '../src/lib/fact-write';
 import { mapObservatoryPayload, type ObservationAnchor } from '../src/lib/observations';
@@ -21,6 +21,7 @@ vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: vi.fn(async () => n
 vi.mock('../src/lib/api/facts', () => ({
   BACKFILL_BATCH: 20,
   retireLedgerFact: vi.fn(),
+  resolveLedgerDispute: vi.fn(),
   listUnrecordedChapters: vi.fn(async () => []),
   prepareFactBackfill: vi.fn(),
 }));
@@ -73,6 +74,7 @@ function Harness() {
       onBackToChat={() => {}}
       onLocateAnchor={(anchor) => located.push(anchor)}
       onRetireFact={(fact) => void obs.retireFact(fact)}
+      onResolveDispute={(dispute, choice) => void obs.resolveDispute(dispute, choice)}
     />
   );
 }
@@ -220,6 +222,88 @@ test('the payload mapper drops malformed facts and empty chapters', () => {
     superseded: 0,
     retired: 0,
     chapters: [{ path: '正文/第001章.md', ordinal: 1, facts: [FACT('b', '在山里')] }],
+    disputed: [],
   });
   expect(mapObservatoryPayload({}, new Set()).facts).toEqual({ status: 'none' });
+});
+
+const DISPUTE = {
+  id: 'x',
+  kind: '关系',
+  subject: '陈默',
+  attribute: '兄弟姐妹',
+  value: '有个姐姐',
+  quote: '陈默想起了姐姐。',
+  line: 5,
+  path: '正文/第002章.md',
+  ordinal: 2,
+  existing: { value: '独子', path: '正文/第001章.md', ordinal: 1, quote: '陈默是独子。' },
+};
+
+test('disputed facts sit on top with both versions, and jump to the chapter sentence', async () => {
+  scanWith({ ...FACTS, disputed: [DISPUTE, { id: 'broken' }] });
+  await mount();
+  expect(container.querySelector('[data-testid="obs-facts-summary"]')?.textContent).toContain(
+    '1 条对不上等你定',
+  );
+  const items = all('obs-fact-dispute');
+  expect(items).toHaveLength(1);
+  expect(all('obs-fact-dispute-locate')[0].textContent).toBe(
+    '陈默的兄弟姐妹：第 2 章写「有个姐姐」，已记（第 1 章）「独子」',
+  );
+  await click(all('obs-fact-dispute-locate')[0]);
+  expect(located).toEqual([{ path: '正文/第002章.md', line: 5, snippet: '陈默想起了姐姐。' }]);
+});
+
+test.each([
+  [
+    'accept',
+    'obs-fact-dispute-accept',
+    '以本章为准：陈默的兄弟姐妹「有个姐姐」，原来记的不再用。',
+    '以本章为准',
+  ],
+  [
+    'reject',
+    'obs-fact-dispute-reject',
+    '保留已记的，不用本章的陈默的兄弟姐妹「有个姐姐」。',
+    '保留已记的',
+  ],
+] as const)(
+  'deciding a dispute (%s) writes after a snapshot and can be undone',
+  async (choice, testid, toast, summary) => {
+    vi.mocked(resolveLedgerDispute).mockReset().mockResolvedValue(RETIRED);
+    scanWith({ ...FACTS, disputed: [DISPUTE] });
+    await mount();
+    await click(all(testid)[0]);
+    expect(resolveLedgerDispute).toHaveBeenCalledWith(LEDGER, 'x', choice);
+    expect(snapshotBeforeWrite).toHaveBeenCalledWith(PROJECT, PATH, LEDGER, {
+      source: 'Editor',
+      summary: `事实台账${summary}：陈默的兄弟姐妹「有个姐姐」`,
+      checkpoint: true,
+    });
+    expect(disk.get(PATH)).toBe(RETIRED);
+    expect(toasts.at(-1)?.message).toBe(toast);
+    await act(async () => {
+      await toasts.at(-1)!.action!.run();
+    });
+    expect(disk.get(PATH)).toBe(LEDGER);
+  },
+);
+
+test('a ledger changed while deciding a dispute is left alone', async () => {
+  vi.mocked(resolveLedgerDispute)
+    .mockReset()
+    .mockImplementation(async () => {
+      disk.set(PATH, 'hand edit');
+      return RETIRED;
+    });
+  scanWith({ ...FACTS, disputed: [DISPUTE] });
+  await mount();
+  await click(all('obs-fact-dispute-accept')[0]);
+  expect(disk.get(PATH)).toBe('hand edit');
+  expect(snapshotBeforeWrite).not.toHaveBeenCalled();
+  expect(toasts.at(-1)).toMatchObject({
+    tone: 'error',
+    message: expect.stringContaining('没有写入'),
+  });
 });

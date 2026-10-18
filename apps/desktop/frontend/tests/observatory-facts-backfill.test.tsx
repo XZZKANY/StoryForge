@@ -183,7 +183,7 @@ test('runs with progress, writes once after a snapshot, and undoes the whole bat
   });
   const toast = toasts.at(-1)!;
   expect(toast.message).toBe(
-    '补录 2 章，记下 5 条事实；1 条和已记的对不上，没记：陈默的兄弟姐妹，本章「有个姐姐」，第 1 章「独子」。',
+    '补录 2 章，记下 5 条事实；1 条和已记的事实对不上、先不用，等你在观测镜里定：陈默的兄弟姐妹，本章「有个姐姐」，第 1 章「独子」。',
   );
   expect(toast.action?.label).toBe('撤销补录');
   await act(async () => {

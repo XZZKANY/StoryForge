@@ -103,6 +103,7 @@ export async function prepareFactBackfill(
     .slice(0, MAX_BACKFILL_CHAPTERS);
   const chapters: Obj[] = [];
   let added = 0;
+  let disputed = 0;
   for (const [index, path] of paths.entries()) {
     onProgress?.(index, paths.length, path);
     const base = { path, ordinal: ordinal(path) };
@@ -153,6 +154,7 @@ export async function prepareFactBackfill(
     });
     ledger = plan.ledger;
     added += plan.added.length;
+    disputed += plan.disputed.length;
     const received = extracted.new_facts_received;
     chapters.push({
       ...base,
@@ -165,7 +167,7 @@ export async function prepareFactBackfill(
     });
   }
   onProgress?.(paths.length, paths.length, '');
-  if (added === 0) return { status: 'unchanged', added, chapters };
+  if (added === 0 && disputed === 0) return { status: 'unchanged', added, chapters };
   return {
     status: 'ready',
     added,

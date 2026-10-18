@@ -177,6 +177,7 @@ describe('backfilling old chapters', () => {
     ).toEqual([
       ['独子', 'active'],
       ['在山里', 'superseded'],
+      ['有个姐姐', 'disputed'],
       ['在城里', 'active'],
     ]);
     expect(ledger.facts[0]).toMatchObject({
@@ -253,5 +254,33 @@ describe('backfilling old chapters', () => {
         paths: ['正文/第001章.md'],
       }),
     ).rejects.toThrow(InputDomainError);
+  });
+});
+
+describe('backfilling into an existing ledger', () => {
+  it('writes a chapter whose only news is a disputed fact', async () => {
+    const ledger = JSON.stringify({
+      version: 1,
+      facts: [
+        {
+          id: 'fact_old',
+          kind: '关系',
+          subject: '陈默',
+          attribute: '兄弟姐妹',
+          value: '独子',
+          path: '正文/第001章.md',
+          status: 'active',
+        },
+      ],
+    });
+    const { callModel } = scripted(() => reply([FACTS[CH2][0]]));
+    const result = await prepareFactBackfill(deps(book(), callModel), {
+      project_root: ROOT,
+      ledger_text: ledger,
+      paths: ['正文/第002章.md'],
+    });
+    expect(result).toMatchObject({ status: 'ready', added: 0, before: ledger });
+    const facts = JSON.parse(result.after as string).facts;
+    expect(facts[1]).toMatchObject({ value: '有个姐姐', status: 'disputed', disputes: 'fact_old' });
   });
 });

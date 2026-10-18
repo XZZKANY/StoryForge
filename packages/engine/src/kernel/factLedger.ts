@@ -21,7 +21,8 @@ export const FACT_KINDS = ['生死', '身份', '关系', '持有', '处境', '�
  * 境界、等级也记成身份，它们一直在变（回放里第 1 章的「杂役」被拿去比第 226 章）。
  */
 const FIXED_KINDS = new Set(['生死', '关系', '来历']);
-const FACT_STATUSES = new Set(['active', 'superseded', 'retired']);
+// disputed：和别的章已记的固定事实对不上，等作者定；不进起草，旧值照旧有效。
+const FACT_STATUSES = new Set(['active', 'superseded', 'retired', 'disputed']);
 
 /** 台账格式：被读到的字段类型必须对，否则报错并指出位置；未知字段原样保留。 */
 export function checkFactLedger(ledger: JsonObject, source: string): void {
@@ -47,9 +48,9 @@ export function checkFactLedger(ledger: JsonObject, source: string): void {
     const status = fields.optionalString(fields.member(fact, 'status'), `${at}.status`);
     if (status !== null && !FACT_STATUSES.has(status))
       throw new InputDomainError(
-        `${source} 的 ${at}.status 应为 active / superseded / retired 之一，实际是「${status}」`,
+        `${source} 的 ${at}.status 应为 active / superseded / retired / disputed 之一，实际是「${status}」`,
       );
-    for (const key of ['supersedes', 'assertion_type', 'recorded_by', 'recorded_at'])
+    for (const key of ['supersedes', 'disputes', 'assertion_type', 'recorded_by', 'recorded_at'])
       fields.optionalString(fields.member(fact, key), `${at}.${key}`);
     fields
       .optionalArray(fields.member(fact, 'evidence'), `${at}.evidence`)
@@ -171,16 +172,19 @@ export type FactConflict = { candidate: FactCandidate; existing: JsonObject };
 
 export type FactRecordPlan = {
   ledger: JsonObject;
+  /** 新记下、有效的事实。 */
   added: JsonObject[];
   superseded: JsonObject[];
   conflicts: FactConflict[];
+  /** 和别的章已记的固定事实对不上、存成待定的（与 conflicts 一一对应）。 */
+  disputed: JsonObject[];
   duplicates: number;
 };
 
 /**
  * 把一章新核对过的事实并进台账（纯函数，不调模型）：
  * 同值的算已知不重复记；状态类新值替代阅读序上更早的旧值；固定类在别的章已有不同说法时
- * 不记、交给作者（同一章重写过的直接替代）。
+ * 存成待定（disputed）交给作者，旧值照旧有效（同一章重写过的直接替代）。
  */
 export function planFactRecord(input: {
   ledger: JsonObject;
@@ -203,25 +207,40 @@ export function planFactRecord(input: {
   const added: JsonObject[] = [];
   const superseded: JsonObject[] = [];
   const conflicts: FactConflict[] = [];
+  const disputed: JsonObject[] = [];
   let duplicates = 0;
   const here = ordinal(path);
+  const keyed = (fact: JsonObject) =>
+    keyOf({ kind: text(fact.kind), subject: text(fact.subject), attribute: text(fact.attribute) });
+  const valued = (fact: JsonObject) =>
+    valueOf(text(fact.value), (fact.object as string | null) ?? null);
+  const nextId = () => {
+    let id = `fact_${input.newId().slice(0, 12)}`;
+    while (ids.has(id)) id = `fact_${input.newId().slice(0, 12)}`;
+    ids.add(id);
+    return id;
+  };
+  const record = (candidate: FactCandidate, fields: JsonObject): JsonObject => ({
+    id: nextId(),
+    kind: candidate.kind,
+    subject: canonical(candidate.subject),
+    attribute: candidate.attribute,
+    value: candidate.value,
+    object: candidate.object === null ? null : canonical(candidate.object),
+    path,
+    ...fields,
+    assertion_type: 'text_observation',
+    recorded_by: 'auto',
+    evidence: [{ path, quote: candidate.quote, start_line: candidate.startLine }],
+    recorded_at: input.now,
+  });
   for (const candidate of input.candidates) {
     const key = keyOf(candidate);
-    const same = facts.filter(
-      (fact) =>
-        isActiveFact(fact) &&
-        keyOf({
-          kind: text(fact.kind),
-          subject: text(fact.subject),
-          attribute: text(fact.attribute),
-        }) === key,
-    );
+    const same = facts.filter((fact) => isActiveFact(fact) && keyed(fact) === key);
+    const pending = facts.filter((fact) => fact.status === 'disputed' && keyed(fact) === key);
     const value = valueOf(candidate.value, candidate.object);
-    if (
-      same.some(
-        (fact) => valueOf(text(fact.value), (fact.object as string | null) ?? null) === value,
-      )
-    ) {
+    // 已有的说法、已经在等作者定的同一说法，都不再记一遍。
+    if ([...same, ...pending].some((fact) => valued(fact) === value)) {
       duplicates += 1;
       continue;
     }
@@ -229,12 +248,16 @@ export function planFactRecord(input: {
       const elsewhere = same.find((fact) => fact.path !== path);
       if (elsewhere) {
         conflicts.push({ candidate, existing: elsewhere });
+        const fact = record(candidate, {
+          status: 'disputed',
+          supersedes: null,
+          disputes: elsewhere.id as string,
+        });
+        facts.push(fact);
+        disputed.push(fact);
         continue;
       }
     }
-    let id = `fact_${input.newId().slice(0, 12)}`;
-    while (ids.has(id)) id = `fact_${input.newId().slice(0, 12)}`;
-    ids.add(id);
     let status = 'active';
     let supersedes: string | null = null;
     for (const fact of same) {
@@ -247,23 +270,44 @@ export function planFactRecord(input: {
       superseded.push(fact);
       supersedes = fact.id as string;
     }
-    const fact: JsonObject = {
-      id,
-      kind: candidate.kind,
-      subject: canonical(candidate.subject),
-      attribute: candidate.attribute,
-      value: candidate.value,
-      object: candidate.object === null ? null : canonical(candidate.object),
-      path,
-      status,
-      supersedes,
-      assertion_type: 'text_observation',
-      recorded_by: 'auto',
-      evidence: [{ path, quote: candidate.quote, start_line: candidate.startLine }],
-      recorded_at: input.now,
-    };
+    const fact = record(candidate, { status, supersedes });
     facts.push(fact);
     added.push(fact);
   }
-  return { ledger: { ...input.ledger, facts }, added, superseded, conflicts, duplicates };
+  return {
+    ledger: { ...input.ledger, facts },
+    added,
+    superseded,
+    conflicts,
+    disputed,
+    duplicates,
+  };
+}
+
+/**
+ * 作者处理一条待定事实：accept 以本章为准——它生效，它对上的旧值标为已被替代；
+ * reject 保留已记的——它作废。别的条目原样不动；不是待定事实就报错。
+ */
+export function resolveDisputedFact(
+  ledgerText: string | null,
+  factId: string,
+  choice: 'accept' | 'reject',
+  platform: 'windows' | 'posix',
+): string {
+  const ledger = parseFactLedger(ledgerText);
+  const facts = ledger.facts as JsonObject[];
+  const target = facts.find((fact) => fact.id === factId);
+  if (target === undefined || target.status !== 'disputed')
+    throw new InputDomainError(`台账里没有这条待定事实（${factId}），可能已经处理过了。`);
+  const old = typeof target.disputes === 'string' ? target.disputes : null;
+  const next = facts.map((fact) => {
+    if (fact === target)
+      return choice === 'accept'
+        ? { ...fact, status: 'active', supersedes: old }
+        : { ...fact, status: 'retired' };
+    if (choice === 'accept' && fact.id === old && isActiveFact(fact))
+      return { ...fact, status: 'superseded' };
+    return fact;
+  });
+  return serializeFactLedger({ ...ledger, facts: next }, platform);
 }
