@@ -247,21 +247,12 @@ export function useProviderSettings(settings: AppSettings, onChange: (next: AppS
     }
     try {
       const credentials = clearApiKey ? { clearApiKey: true } : { apiKey: secret };
-      const next = await saveDesktopLlmConfig({
-        provider: snapshot.provider.kind,
-        baseUrl: snapshot.provider.baseUrl,
-        model: snapshot.provider.model,
-        ...(slot === 'provider'
-          ? credentials
-          : {
-              polish: {
-                provider: selected.kind,
-                baseUrl: selected.baseUrl,
-                model: selected.model,
-                ...credentials,
-              },
-            }),
-      });
+      const fields = { provider: selected.kind, baseUrl: selected.baseUrl, model: selected.model };
+      const next = await saveDesktopLlmConfig(
+        slot === 'provider'
+          ? { ...fields, ...credentials }
+          : { polish: { ...fields, ...credentials } },
+      );
       if (!current()) return;
       if (next) setStoredConfig(next);
       if (operation === 'detect') {

@@ -54,9 +54,10 @@ struct StoredLlmSlot {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveLlmConfigRequest {
-    provider: String,
-    base_url: String,
-    model: String,
+    // 只保存润色槽时不带主槽元信息：主槽保持磁盘原样，不被设置页里还没保存的草稿改掉。
+    provider: Option<String>,
+    base_url: Option<String>,
+    model: Option<String>,
     api_key: Option<String>,
     clear_api_key: Option<bool>,
     polish: Option<SaveLlmSlotRequest>,
@@ -274,9 +275,15 @@ pub fn save(path: &Path, payload: SaveLlmConfigRequest) -> Result<LlmConfigRespo
         .lock()
         .map_err(|_| anyhow::anyhow!("LLM 配置锁不可用"))?;
     let (mut next, _) = load(path)?;
-    next.provider = payload.provider.trim().into();
-    next.base_url = payload.base_url.trim().into();
-    next.model = payload.model.trim().into();
+    if let Some(provider) = payload.provider {
+        next.provider = provider.trim().into();
+    }
+    if let Some(base_url) = payload.base_url {
+        next.base_url = base_url.trim().into();
+    }
+    if let Some(model) = payload.model {
+        next.model = model.trim().into();
+    }
     update_key(&mut next.api_key, payload.api_key, payload.clear_api_key)?;
     if let Some(polish) = payload.polish {
         let slot = next.polish.get_or_insert_with(StoredLlmSlot::default);

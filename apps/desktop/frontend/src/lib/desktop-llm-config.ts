@@ -20,7 +20,8 @@ export type SaveDesktopLlmSlotRequest = {
   clearApiKey?: boolean;
 };
 
-export type SaveDesktopLlmConfigRequest = SaveDesktopLlmSlotRequest & {
+// 只保存润色槽时不带主槽字段：宿主保持主槽原样，不把设置页里没保存的主模型草稿写进去。
+export type SaveDesktopLlmConfigRequest = Partial<SaveDesktopLlmSlotRequest> & {
   polish?: SaveDesktopLlmSlotRequest;
 };
 
