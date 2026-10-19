@@ -97,6 +97,19 @@ test('确认期间 canon.json 被改过：停手，不覆盖新内容', async ()
   expect(disk.get(PATH)).toBe(edited);
 });
 
+test('等快照期间 canon.json 被改过：宿主拒写，后来的内容留着', async () => {
+  const later = JSON.stringify({
+    version: 1,
+    entities: [{ id: 'char_written_while_snapshotting' }],
+  });
+  vi.mocked(snapshotBeforeWrite).mockImplementation(async () => {
+    disk.set(PATH, later);
+    return null;
+  });
+  await expect(merge()).rejects.toThrow('磁盘内容已变化');
+  expect(disk.get(PATH)).toBe(later);
+});
+
 test('快照失败就不写', async () => {
   vi.mocked(snapshotBeforeWrite).mockRejectedValue(new Error('影子仓坏了'));
   await expect(merge()).rejects.toThrow('影子仓坏了');

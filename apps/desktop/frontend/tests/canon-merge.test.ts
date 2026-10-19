@@ -171,6 +171,36 @@ test('canon.json 手改到一半解析不出来：拒绝并入，原文一个字
   });
 });
 
+test('canon.json 字段在、但类型不对（作者手改过）：拒绝并入，原文一个字不动', async () => {
+  const path = 'D:\\Books\\雾港回声\\.storyforge\\canon\\canon.json';
+  const cases: [string, CanonMergeTarget][] = [
+    [
+      JSON.stringify({ entities: { char_lin: { note: '作者写的人物' } } }),
+      { kind: 'entity', entity: { id: 'ent_radio' } },
+    ],
+    [
+      JSON.stringify({ invariants: [{ note: '写成了数组' }] }),
+      { kind: 'claim', invariant: 'timeline_order', entry: { before: 'a', after: 'b' } },
+    ],
+    [
+      JSON.stringify({ invariants: { timeline_order: { before: 'x', after: 'y' } } }),
+      { kind: 'claim', invariant: 'timeline_order', entry: { before: 'a', after: 'b' } },
+    ],
+  ];
+  for (const [raw, target] of cases)
+    await withMockFs({ [path]: raw }, async (writes) => {
+      await assert.rejects(
+        mergeProposalIntoCanon('D:\\Books\\雾港回声', target),
+        /不是(数组|对象).*没有写入/,
+      );
+      assert.equal(writes.length, 0);
+    });
+  assert.throws(
+    () => applyPromiseResolved({ invariants: { promises: { id: 'p1' } } }, 'p1', 3),
+    /invariants\.promises 不是数组/,
+  );
+});
+
 test('标伏笔已回收只改那一条的状态与回收章，其余字段原样', () => {
   const canon = {
     version: 1,
