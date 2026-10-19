@@ -270,6 +270,10 @@ export function renderPlanBlock(plan: SerialPlan): string {
             )
             .join('\n'),
       );
+  } else if (plan.chapters.some((chapter) => !chapter.written)) {
+    sections.push(
+      '[下一章待写]\n· 计划里还没写的章都被作者标成卡住了；先等作者解除卡点，别自己往下写。',
+    );
   } else {
     sections.push('[下一章待写]\n· 计划内的章节都已落正文；要继续写得先把新章加进计划。');
   }
