@@ -8,14 +8,21 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { useObservatory } from '../src/components/app/useObservatory';
+import { listUnrecordedChapters } from '../src/lib/api/facts';
 import { executeIdeCommand } from '../src/lib/api/ide-commands';
 import { FS_MUTATION_EVENT } from '../src/lib/tauri-fs';
 
 vi.mock('../src/lib/api/ide-commands', () => ({
   executeIdeCommand: vi.fn(),
 }));
+// 首扫后还会读「没记账的章」：不隔离就落到真引擎的动态 import，单跑时在假计时器下挂住。
+vi.mock('../src/lib/api/facts', () => ({
+  BACKFILL_BATCH: 20,
+  listUnrecordedChapters: vi.fn(async () => []),
+}));
 
 const mockedExecute = vi.mocked(executeIdeCommand);
+const mockedUnrecorded = vi.mocked(listUnrecordedChapters);
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -78,6 +85,7 @@ afterEach(async () => {
   container = null;
   latest = null;
   mockedExecute.mockReset();
+  mockedUnrecorded.mockClear();
   vi.useRealTimers();
 });
 
@@ -95,6 +103,7 @@ test('打开项目即首扫：observations 填充、availability 变 available',
   assert.equal(latest?.observations.length, 1);
   assert.equal(latest?.observations[0]?.id, 'canon_abc123');
   assert.equal(latest?.checkers.length, 1);
+  assert.deepEqual(mockedUnrecorded.mock.calls, [['D:\\demo\\雪夜斩']]);
 });
 
 test('写盘事件防抖重扫：连续多次 fs-mutation 只触发一次新扫描', async () => {

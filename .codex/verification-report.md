@@ -8784,3 +8784,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：引擎新增 7 条（存成待定、不重复待定、以本章为准 / 保留已记的、拒绝非待定、手写台账认 disputed、视图并排、补录只有待定时也写）并改了 4 条原「不记」的期望；`canonContextFacts` 加一条待定事实确认不进起草。前端 `observatory-facts.test.tsx` 新增 4 条（并排显示与定位、两种处理的快照与撤销、期间被改不写），改 3 处文字期望。变异 13 / 13 杀死。
 - 验证：`pnpm verify`（corepack 临时 shim）8 道全过，EXIT=0；引擎 13642 passed / 2 skipped，前端 2284 条，三个浏览器回归通过；引擎与前端类型检查、lint 绿。
 - 没验证：真宿主窗口观感；「去改上一章」式的直接跳转只做到跳本章原句。
+
+## 2026-10-19 观测镜重扫测试单跑会红（全项目审计 G-01）
+
+- 全项目审计（外部复查第一轮 G-01）报：`tests/observatory-rescan.test.tsx` 单独跑 3 项失败。master `b4a4bd52` 上复现：5 项里 3 项红（第三项超时，后两项 `latest` 为空）。原因：事实链 #417 起首扫完会再读「没记账的章」（`listUnrecordedChapters`），这个测试只替身了扫描命令，没替身事实台账接口，单跑时落到真引擎的动态 import，在假计时器下挂住；跟别的测试一起跑时模块已缓存，才没暴露。
+- 改动（只动测试）：照 `observatory-facts.test.tsx` 的写法替身 `lib/api/facts`（`listUnrecordedChapters` 返回空表），并在首扫用例里断言它按当前项目被调用一次——保留「首扫带出补录候选」这条接线的守护。
+- 测试：单跑两次 5 / 5 全过。变异 1 / 1：把首扫里读补录候选的调用换成空结果，新断言变红；已按定点替换还原。`pnpm verify` 第一次跑时，行间续写浏览器回归报 Monaco「Canceled」（当时本机另有审计进程在跑、负载高）；这一道单独重跑通过，整套重跑 8 道全过（EXIT=0）。
+- 未验：无（只动测试，不涉及界面与宿主）。
