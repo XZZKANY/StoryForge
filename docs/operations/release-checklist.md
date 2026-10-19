@@ -15,6 +15,7 @@
 
 ```powershell
 pnpm verify
+npm --prefix apps/desktop/frontend run build   # Rust 编译要嵌入 frontend/dist；干净检出时 verify 不会生成它
 npm --prefix apps/desktop run test:rust
 ```
 

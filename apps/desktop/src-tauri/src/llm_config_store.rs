@@ -140,7 +140,7 @@ fn validate_slot_shape(slot: &Value) -> Result<()> {
 
 // A v2 key is deliberately not decrypted here: the settings UI must still be
 // able to replace/clear an unreadable key (e.g. copied from another machine).
-// No plaintext is returned to UI; the Python request boundary fails closed.
+// No plaintext is returned to UI; the Rust request boundary (engine_llm) fails closed.
 fn load(path: &Path) -> Result<(StoredLlmConfig, bool)> {
     load_with_protector(path, &ProtectedKey::protect)
 }

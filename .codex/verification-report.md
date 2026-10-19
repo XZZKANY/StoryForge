@@ -8976,3 +8976,15 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   - `useKnowledgeInbox.ts`：四个动作都记下发起时的作品，回来时作品已换就不写收件箱 / 审阅 / 错误 / 处理中状态，接受后也不再拿旧作品去刷新；换作品时清掉上一本留下的审阅补丁和处理中标记。写入本身不受影响（仍落在发起的作品，受宿主项目围栏约束）。
 - 测试：新 `session-lifecycle.test.tsx` 3 条（改名迟到不改当前会话标题、列表记录照样更新；存储写不进去不报已移除；「不要」写不进去返回 false、写得进去照常）；新 `knowledge-inbox-lifecycle.test.tsx` 3 条（甲的修改迟到不盖乙；同作品修改照常；甲的拒绝与生成补丁迟到不动乙的收件箱与审阅）。变异 6 / 6（改名按发起时的会话、存储失败照报已移除、「不要」写失败照报成功、修改 / 生成补丁 / 拒绝三处不看作品）。`pnpm verify` 8 道全过。
 - 未验：真宿主；真实的 WebView 存储配额耗尽。
+
+## 2026-10-19 发版清单补上前端构建前置，四处文档 / 注释改成现行（全项目审计 H-01 / I-01～I-04）
+
+- 全项目审计（外部复查第一轮）报五处，核实都成立，都只是文档与注释：
+  - H-01：`docs/operations/release-checklist.md` 的门禁一节先 `pnpm verify` 再 `test:rust`；`verify` 的浏览器门用开发服务器、不生成 `frontend/dist`，Tauri 的 `generate_context` 要嵌入它——干净检出照清单做，Rust 测试第一步就以 101 退出。（GPT 在干净工作区实测复现。）
+  - I-01：`README.md` 仍写权限档位「只读 / 询问 / 自动 / 完全放行」，界面早已只剩三档（#398，旧 `full` 按自动显示）。
+  - I-02：`apps/desktop/frontend/src/STRUCTURE.md` 把行数上限名单指向已删除的 Python 测试 `tests/test_source_code_standards.py`，现行是 `tests/source-standards.test.ts`。
+  - I-03：`llm_config_store.rs` 的注释说「Python 请求边界在解密失败时关门」，现在请求由 Rust `engine_llm` 装配。
+  - I-04：`chapterWritingPipeline.ts` 的 `resumeChapterWriting` 文档注释说「只有通过才产补丁」，漏了现行例外：检查器重试后仍不可用、程序检查又没有硬失败时，交「未经检查」的稿并强制作者确认（GPT 附录已核这条不是自动放行）。
+- 改动：清单在 `test:rust` 前加一行 `npm --prefix apps/desktop/frontend run build`（并注明原因）；其余四处按现行行为改字。不动任何逻辑。
+- 验证：`pnpm verify` 8 道全过（含 lint / prettier）。
+- 未改：`CLAUDE.md` §1.1 里「read / ask / auto / full」是历史流水的原话，按该节约定不改。

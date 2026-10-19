@@ -248,7 +248,10 @@ export async function startChapterBrief(
   return paused;
 }
 
-/** 第二段：作者确认后起草 → 检查 → 必要时定向修复一次 → 再检查；只有通过才产补丁。 */
+/**
+ * 第二段：作者确认后起草 → 检查 → 必要时定向修复一次 → 再检查；通过才产补丁。
+ * 例外：检查器重试后仍不可用、程序检查又没有硬失败时，交「未经检查」的稿并强制作者确认。
+ */
 export async function resumeChapterWriting(
   host: FixedPipelineHost,
   request: FixedPipelineRequest,
