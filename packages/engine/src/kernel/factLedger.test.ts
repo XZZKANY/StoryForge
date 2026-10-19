@@ -79,6 +79,12 @@ describe('fact ledger format', () => {
     expect(() => parseFactLedger(JSON.stringify(ledger))).toThrow(message);
   });
 
+  it('rejects a checked chapter list that is not all strings', () => {
+    expect(() => parseFactLedger('{"version": 1, "facts": [], "checked_chapters": [1]}')).toThrow(
+      InputDomainError,
+    );
+  });
+
   it('writes CRLF on windows and LF elsewhere', () => {
     const ledger = { version: 1, facts: [] };
     expect(serializeFactLedger(ledger, 'posix')).toBe('{\n  "version": 1,\n  "facts": []\n}\n');
@@ -203,6 +209,23 @@ describe('planning a chapter record', () => {
     ]);
     expect(again.duplicates).toBe(1);
     expect(again.disputed).toEqual([]);
+  });
+
+  it('marks the chapter as checked once, even when nothing new was found', () => {
+    const first = plan([], '正文/第002章.md', []);
+    expect(first.newlyChecked).toBe(true);
+    expect(first.ledger.checked_chapters).toEqual(['正文/第002章.md']);
+    const again = planFactRecord({
+      ledger: first.ledger,
+      path: '正文/第002章.md',
+      candidates: [],
+      ordinal: (value) => ORDER[value] ?? null,
+      canonical: (name) => name,
+      now: '2026-10-18T09:00:00Z',
+      newId: () => 'ffffabcdef0123456789',
+    });
+    expect(again.newlyChecked).toBe(false);
+    expect(again.ledger.checked_chapters).toEqual(['正文/第002章.md']);
   });
 
   it('refreshes the quote when the same chapter says the same thing in new words', () => {

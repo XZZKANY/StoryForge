@@ -124,6 +124,38 @@ describe('chapters still missing from the ledger', () => {
       { path: '正文/第002章.md', ordinal: 2 },
     ]);
   });
+
+  it('drops chapters already checked even if they had nothing to record', async () => {
+    const ledger = JSON.stringify({
+      version: 1,
+      facts: [],
+      checked_chapters: ['正文/第001章.md'],
+    });
+    const project = book({ '.storyforge/canon/facts.json': ledger });
+    expect(await unrecordedChapters(project.reader, ROOT, 'posix')).toEqual([
+      { path: '正文/第002章.md', ordinal: 2 },
+    ]);
+  });
+
+  it('moves past chapters that had nothing new instead of paying for them again', async () => {
+    const extra: Record<string, string> = {};
+    for (let index = 4; index <= MAX_BACKFILL_CHAPTERS + 5; index++)
+      extra[`正文/第${String(index).padStart(3, '0')}章.md`] = `第${index}章\n\n正文。\n`;
+    const project = book(extra);
+    const { prompts, callModel } = scripted(() => reply([]));
+    const before = await unrecordedChapters(project.reader, ROOT, 'posix');
+    const result = await prepareFactBackfill(deps(project, callModel), {
+      project_root: ROOT,
+      ledger_text: null,
+      paths: before.map((chapter) => chapter.path as string),
+    });
+    expect(prompts).toHaveLength(MAX_BACKFILL_CHAPTERS);
+    expect(result).toMatchObject({ status: 'ready', added: 0 });
+    const written = book({ ...extra, '.storyforge/canon/facts.json': result.after as string });
+    expect(await unrecordedChapters(written.reader, ROOT, 'posix')).toEqual(
+      before.slice(MAX_BACKFILL_CHAPTERS),
+    );
+  });
 });
 
 describe('backfilling old chapters', () => {

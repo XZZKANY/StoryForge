@@ -153,7 +153,9 @@ export async function prepareChapterFactRecord(
     unverified: (check.payload.new_facts as unknown[]).length - candidates.length,
     conflicts: conflictSummaries(plan.conflicts, ordinal),
   };
-  if (plan.added.length === 0 && plan.disputed.length === 0 && plan.refreshed.length === 0)
+  const changed = plan.added.length > 0 || plan.disputed.length > 0 || plan.refreshed.length > 0;
+  // 没有新事实也要记下这章抽过了，补录才不会再花一次调用抽它；还没有台账时不为这个新建文件。
+  if (!changed && !(plan.newlyChecked && input.ledger_text !== null))
     return { status: 'unchanged', ...summary };
   return {
     status: 'ready',
