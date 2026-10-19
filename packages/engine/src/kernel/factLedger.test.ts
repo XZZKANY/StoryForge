@@ -4,6 +4,7 @@ import {
   parseFactLedger,
   planFactRecord,
   resolveDisputedFact,
+  retireFact,
   serializeFactLedger,
   type FactCandidate,
 } from './factLedger';
@@ -13,6 +14,7 @@ const ORDER: Record<string, number> = {
   '正文/第001章.md': 1,
   '正文/第002章.md': 2,
   '正文/第003章.md': 3,
+  '正文/第004章.md': 4,
 };
 const ALIASES: Record<string, string> = { 老陈: '陈默' };
 
@@ -353,5 +355,88 @@ describe('resolving a disputed fact', () => {
 
   it('accepts the disputed status in a hand-written ledger', () => {
     expect(parseFactLedger(ledger).facts).toHaveLength(2);
+  });
+});
+
+describe('keeping one current value per fact', () => {
+  const active = (text: string) =>
+    (JSON.parse(text).facts as JsonObject[])
+      .filter((fact) => (fact.status ?? 'active') === 'active')
+      .map((fact) => fact.value);
+  const birthplace = (overrides: JsonObject): JsonObject =>
+    existing({ kind: '来历', attribute: '出生地', ...overrides });
+
+  it('numbers keep their decimal point and sign when compared', () => {
+    expect(factKey('1.5米')).not.toBe(factKey('15米'));
+    expect(factKey('-10点')).not.toBe(factKey('10点'));
+    expect(factKey('１．５米')).toBe(factKey('1.5米'));
+    expect(factKey('在城里。')).toBe(factKey('在城里'));
+    const taller = plan(
+      [existing({ kind: '数值', attribute: '身高', value: '1.5米' })],
+      '正文/第002章.md',
+      [{ kind: '数值', attribute: '身高', value: '15米' }],
+    );
+    expect(taller.duplicates).toBe(0);
+    expect(taller.added).toHaveLength(1);
+  });
+
+  it('accepting a second disputed version replaces whichever value is current now', () => {
+    let ledger = JSON.stringify({
+      version: 1,
+      facts: [
+        birthplace({ id: 'north', value: '北城' }),
+        birthplace({
+          id: 'south',
+          value: '南城',
+          path: '正文/第002章.md',
+          status: 'disputed',
+          disputes: 'north',
+        }),
+        birthplace({
+          id: 'east',
+          value: '东城',
+          path: '正文/第003章.md',
+          status: 'disputed',
+          disputes: 'north',
+        }),
+      ],
+    });
+    ledger = resolveDisputedFact(ledger, 'south', 'accept', 'posix');
+    ledger = resolveDisputedFact(ledger, 'east', 'accept', 'posix');
+    expect(active(ledger)).toEqual(['东城']);
+    expect(active(retireFact(ledger, 'east', 'posix'))).toEqual(['南城']);
+  });
+
+  it('a backfilled chapter in the middle joins the chain, so retiring the latest goes back to it', () => {
+    const facts = [
+      existing({ id: 'ch1', value: '在山里', status: 'superseded' }),
+      existing({ id: 'ch3', value: '在海边', path: '正文/第003章.md', supersedes: 'ch1' }),
+    ];
+    const result = plan(facts, '正文/第002章.md', [{ value: '在城里' }]);
+    const [middle] = result.added;
+    expect(middle).toMatchObject({ status: 'superseded', supersedes: 'ch1' });
+    const ledger = serializeFactLedger(result.ledger, 'posix');
+    expect(active(ledger)).toEqual(['在海边']);
+    expect(active(retireFact(ledger, 'ch3', 'posix'))).toEqual(['在城里']);
+  });
+
+  it('a backfilled chapter lands in the chain at its reading position, below later superseded versions', () => {
+    const facts = [
+      existing({ id: 'ch1', value: '在山里', status: 'superseded' }),
+      existing({
+        id: 'ch3',
+        value: '在海边',
+        path: '正文/第003章.md',
+        status: 'superseded',
+        supersedes: 'ch1',
+      }),
+      existing({ id: 'ch4', value: '在船上', path: '正文/第004章.md', supersedes: 'ch3' }),
+    ];
+    const result = plan(facts, '正文/第002章.md', [{ value: '在城里' }]);
+    expect(result.added[0]).toMatchObject({ supersedes: 'ch1' });
+    let ledger = serializeFactLedger(result.ledger, 'posix');
+    ledger = retireFact(ledger, 'ch4', 'posix');
+    expect(active(ledger)).toEqual(['在海边']);
+    expect(active(retireFact(ledger, 'ch3', 'posix'))).toEqual(['在城里']);
   });
 });

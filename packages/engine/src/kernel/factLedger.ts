@@ -151,14 +151,25 @@ function chineseNumber(run: string): string {
 
 const SKIPPED = /[\s，。、；：！？“”‘’「」『』《》（）()[\]【】,.;:!?"'·…—-]/u;
 
-/** 比较用的写法：去空白和标点、全角转半角、中文数字转阿拉伯数字。 */
+const isDigit = (char: string | undefined) => char !== undefined && char >= '0' && char <= '9';
+
+/**
+ * 比较用的写法：去空白和标点、全角转半角、中文数字转阿拉伯数字。
+ * 数字里的小数点和负号留着：1.5 米和 15 米、-10 和 10 不是同一个值。
+ */
 export function factKey(value: string): string {
-  let folded = '';
-  for (const char of value) {
-    if (SKIPPED.test(char)) continue;
+  const chars = Array.from(value);
+  const half = chars.map((char) => {
     const code = char.codePointAt(0)!;
-    folded += code >= 0xff01 && code <= 0xff5e ? String.fromCodePoint(code - 0xfee0) : char;
-  }
+    return code >= 0xff01 && code <= 0xff5e ? String.fromCodePoint(code - 0xfee0) : char;
+  });
+  const numeric = (index: number) =>
+    (half[index] === '.' && isDigit(half[index - 1]) && isDigit(half[index + 1])) ||
+    (half[index] === '-' && isDigit(half[index + 1]) && !isDigit(half[index - 1]));
+  let folded = '';
+  chars.forEach((char, index) => {
+    if (!SKIPPED.test(char) || numeric(index)) folded += half[index];
+  });
   return folded.replace(/[零〇一二两三四五六七八九十百千]+/gu, chineseNumber).toLowerCase();
 }
 
@@ -275,10 +286,12 @@ export function planFactRecord(input: {
     }
     let status = 'active';
     let supersedes: string | null = null;
+    const later: JsonObject[] = [];
     for (const fact of same) {
       const there = ordinal(text(fact.path));
       if (here !== null && there !== null && there > here) {
         status = 'superseded';
+        later.push(fact);
         continue;
       }
       fact.status = 'superseded';
@@ -286,6 +299,19 @@ export function planFactRecord(input: {
       supersedes = fact.id as string;
     }
     const fact = record(candidate, { status, supersedes });
+    // 补录的是夹在中间的章：插进后面那章的替代链，作废后面那章时回到这一章，而不是更早的说法。
+    for (const top of later) {
+      let upper = top;
+      let lower = facts.find((item) => item.id === upper.supersedes);
+      while (lower !== undefined) {
+        const there = ordinal(text(lower.path));
+        if (here === null || there === null || there <= here) break;
+        upper = lower;
+        lower = facts.find((item) => item.id === upper.supersedes);
+      }
+      fact.supersedes = lower === undefined ? null : (lower.id as string);
+      upper.supersedes = fact.id as string;
+    }
     facts.push(fact);
     added.push(fact);
   }
@@ -329,14 +355,22 @@ export function resolveDisputedFact(
   const target = facts.find((fact) => fact.id === factId);
   if (target === undefined || target.status !== 'disputed')
     throw new InputDomainError(`台账里没有这条待定事实（${factId}），可能已经处理过了。`);
-  const old = typeof target.disputes === 'string' ? target.disputes : null;
+  const keyOf = (fact: JsonObject) =>
+    [text(fact.kind), factKey(text(fact.subject)), factKey(text(fact.attribute))].join('|');
+  // 以本章为准时替代的是这个属性现在有效的说法——可能已不是当初对上的那条（另一条待定先定成了有效）。
+  const current =
+    choice === 'accept'
+      ? facts.filter(
+          (fact) => fact !== target && isActiveFact(fact) && keyOf(fact) === keyOf(target),
+        )
+      : [];
+  const replaced = current.length ? (current[current.length - 1].id as string) : null;
   const next = facts.map((fact) => {
     if (fact === target)
       return choice === 'accept'
-        ? { ...fact, status: 'active', supersedes: old }
+        ? { ...fact, status: 'active', supersedes: replaced }
         : { ...fact, status: 'retired' };
-    if (choice === 'accept' && fact.id === old && isActiveFact(fact))
-      return { ...fact, status: 'superseded' };
+    if (current.includes(fact)) return { ...fact, status: 'superseded' };
     return fact;
   });
   return serializeFactLedger({ ...ledger, facts: next }, platform);
