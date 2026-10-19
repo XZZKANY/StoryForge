@@ -634,3 +634,26 @@ test('fuzz：删除类分块接受只删目标块（确定性随机，6000 例�
   assert.ok(rejected > 0, '删除分块应存在被安全拒绝的例');
   assert.deepEqual(failures.slice(0, 2), []);
 });
+
+test('E-03：重复场景里另一处早已是改后的样子，作者又在别处写了字——改的仍是本处，不当成已改跳过', () => {
+  const prefix = '他又走进院子。'.repeat(9) + '\n';
+  const suffix = '远处钟声渐渐停了。'.repeat(9) + '\n';
+  const old = '他没有关门。\n';
+  const next = '他轻轻关门。\n';
+  const before = '第一处场景\n' + prefix + old + suffix + '\n第二处场景\n' + prefix + next + suffix;
+  const after = before.replace(old, next);
+  const operations = buildSuggestionOps(before, after);
+  assert.equal(operations.length, 1);
+  const current = before + '\n作者新写的结尾。\n';
+
+  const whole = planWholeAccept(current, before, after, new Set(), normalize, operations);
+  assert.equal(whole.applied.length, 1, '本处不得被当成已改跳过');
+  assert.equal(whole.content, after + '\n作者新写的结尾。\n');
+
+  const hunk = planHunkAccept(current, operations[0], before, {
+    operations,
+    appliedOpIds: new Set(),
+  });
+  assert.equal(hunk.alreadyApplied, false);
+  assert.equal(hunk.content, after + '\n作者新写的结尾。\n');
+});
