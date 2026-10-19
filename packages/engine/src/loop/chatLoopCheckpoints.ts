@@ -137,7 +137,7 @@ async function fingerprint(
 /** 本轮读过的文件：当前文件、作者指令、带摘录的上下文文件、会读文件的工具调用。 */
 export async function sourceVersions(
   deps: SourceDeps,
-  checkpoint: RuntimeCheckpoint,
+  toolMessages: RuntimeCheckpoint['messages'],
   message: Obj,
 ): Promise<RecoverySources> {
   const args = isObj(message.args) ? message.args : {};
@@ -147,7 +147,7 @@ export async function sourceVersions(
   if (isObj(bundle) && Array.isArray(bundle.files))
     for (const item of bundle.files)
       if (isObj(item) && item.excerpt) paths.push(item.relative_path || item.path);
-  for (const message of checkpoint.messages)
+  for (const message of toolMessages)
     for (const call of message.toolCalls) {
       if (!TRACKED_TOOL_NAMES.has(call.name)) continue;
       let parsed: JsonValue;
@@ -201,7 +201,7 @@ export class StoryForgeCheckpointStore implements CheckpointStore {
   async save(checkpoint: RuntimeCheckpoint): Promise<void> {
     const context = this.context;
     if (checkpoint.runId !== context.run.public_id) throw new Error('checkpoint_identity_mismatch');
-    const current = await sourceVersions(this.deps, checkpoint, context.recoveryMessage);
+    const current = await sourceVersions(this.deps, checkpoint.messages, context.recoveryMessage);
     // 已记过的文件保留第一次读到时的指纹，新出现的才补记。
     const files = { ...(context.recoverySources?.files ?? current.files) };
     for (const [path, value] of Object.entries(current.files)) files[path] ??= value;

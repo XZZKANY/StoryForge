@@ -8933,3 +8933,15 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   - `serialPlan.ts`：没有下一章可写、但还有没写的章时（只可能是全被标成卡住），提示改成「计划里还没写的章都被作者标成卡住了；先等作者解除卡点，别自己往下写」。
 - 测试：新 `kernel/serialPlanClaims.test.ts` 2 条（审计场景：撤销第 1 章后接受第 2 章修订 → 不动计划第 1 条、返回 already_done；只剩一章且卡住 → 提示说卡住、不说都写完）。变异 2 / 2。引擎全套（含 p1-plans golden 回放）通过；`pnpm verify` 8 道全过。
 - 未验：真宿主上「新建 → 撤销 → 接受后一章修订」点穿。
+
+## 2026-10-19 重启后结算上次进程没结算的执行；检查点来源指纹在拼消息之前记（全项目审计 A-01 / A-02）
+
+- 全项目审计报两条，源码核实都成立，都在 `packages/engine/src/loop/`：
+  - A-01（第二轮）：作者点了暂停（run 状态改成 paused、控制效果 requested），原执行还没来得及确认停下应用就退出了。下次启动收尸时 paused 不动（对），但补结算只认「认领了没开始」的执行，「开始了没结束」的不管——这个 run 的执行状态一直是 in_flight，点继续被判「还在跑」忽略掉。重启后本来就只能重新发问（检查点只在内存），不丢东西，但界面上卡着一个点不动的「继续」。
+  - A-02（第三轮）：新开一轮时先读作者指令拼消息，第一次存检查点时才再读一遍文件记指纹；中间指令文件被改，检查点就是「旧消息 + 新指纹」，暂停后续跑时核对来源「没变」，用旧指令接着跑。窗口很窄。
+- 改动：
+  - `runControlChannel.ts`：重启收尸时，最新一条执行归属事件不论是「认领」还是「开始」，只要状态还是 in_flight，就补一条 `agent_execution_settled`（reason=process_restart）——上次进程里的执行这时都已经没了。
+  - `chatLoop.ts` / `chatLoopCheckpoints.ts`：新开一轮时在读作者指令、拼消息之前先记来源指纹，交给检查点作为「第一次读到的指纹」（检查点本来就保留首次记的值）。之后文件再变，续跑核对一定对不上；最坏是「指纹旧、消息新」，只会多拒一次续跑。`sourceVersions` 改成直接收工具消息列表，新开一轮时传空表。
+- golden：`p3-run-store` 的 restart-reap 第 30 步（收尸）锁的是 Python 的做法——Python 有可续跑的持久检查点，不结算已开始的执行。TS 引擎没有，所以这一步按新输出更新：用脚本核对，新输出去掉新增事件后与原 6 条事件逐项相同（顺序、内容、payload），新增 3 条全是 `agent_execution_settled / process_restart`，分别指向 run-k、run-l（暂停后没停下，正是 A-01 场景）、run-q（认领后已开始再暂停）各自已开始的执行；第 31 步（再收一次）不变。引擎全套 13676 passed。
+- 测试：新 `loop/restartSettle.test.ts` 1 条（开始执行 → 暂停 → 重启收尸：run 仍 paused、执行状态 settled）；新 `loop/checkpointSources.test.ts` 2 条（拼消息时指令文件被改 → 暂停 → 诊断拒绝续跑 `source_version_changed`；没变照常可续跑）。前端 `agent-engine-chat-window`「工具执行中被切断、重启后收尸且不能续跑」原断言最后一条事件是收尸失败，现在其后多一条补的结算，改为分别断言倒数第二条是失败、最后一条是结算（不能续跑、只请求过一次模型的断言不变）。变异 3 / 3。`pnpm verify` 中途一次行间续写浏览器回归报 Monaco「Canceled」（已知负载偶发），单独重跑通过，整套重跑 8 道全过（EXIT=0）。
+- 未验：真宿主「暂停 → 关应用 → 重开 → 继续」点穿。
