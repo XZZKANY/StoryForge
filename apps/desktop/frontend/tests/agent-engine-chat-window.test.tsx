@@ -598,9 +598,14 @@ describe('ChatWindow on the TS engine across a restart', () => {
     expect(await runRow('public_id = $1', ['cut-run'])).toMatchObject({ status: 'running' });
     const { socket, runs } = await restart();
     const events = await runs.getAgentRunEvents('cut-run');
-    expect(events.at(-1)).toMatchObject({
+    expect(events.at(-2)).toMatchObject({
       event_type: 'agent_run_failed',
       payload: { reason: 'process_restart', run_id: 'cut-run' },
+    });
+    // 上次进程里开始了没结束的那次执行也补了结算，不再一直算「在跑」。
+    expect(events.at(-1)).toMatchObject({
+      event_type: 'agent_execution_settled',
+      payload: { reason: 'process_restart', run_status: 'failed' },
     });
     expect((await runs.getAgentRunSavePoints('cut-run')).status).toBe('failed');
     const ack = await socket.sendAgentControlMessage({

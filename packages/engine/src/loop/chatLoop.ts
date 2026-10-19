@@ -12,6 +12,7 @@ import {
   diagnoseCheckpoint,
   LoopCheckpointStore,
   restoreCheckpointContext,
+  sourceVersions,
   StoryForgeCheckpointStore,
 } from './chatLoopCheckpoints';
 import {
@@ -116,6 +117,16 @@ export async function runChatLoop(
   input: ChatLoopInput,
 ): Promise<ChatLoopOutcome> {
   const provenance = input.provenance ?? {};
+  const recoveryMessage = input.recoveryMessage ?? {
+    intent: 'chat.explain',
+    user_message: input.userMessage,
+    assistant_session_id: input.assistantSessionId,
+    args: { project_path: input.projectPath, file_path: input.currentFile },
+  };
+  // 来源指纹要在读作者指令、拼消息之前记：之后文件再变，续跑核对一定对不上；
+  // 反过来先拼后记，中间被改了就会拿新指纹去担保旧消息。
+  const initialSources =
+    input.run.current_step === 'resumed' ? null : await sourceVersions(deps, [], recoveryMessage);
   const messages = messagesFromOpenai(
     (await storyforgeMessages(
       deps,
@@ -143,14 +154,10 @@ export async function runChatLoop(
     outcome,
     onText: input.onText ?? null,
     shouldInterrupt: input.shouldInterrupt ?? null,
-    recoveryMessage: input.recoveryMessage ?? {
-      intent: 'chat.explain',
-      user_message: input.userMessage,
-      assistant_session_id: input.assistantSessionId,
-      args: { project_path: input.projectPath, file_path: input.currentFile },
-    },
+    recoveryMessage,
     newStreamId: deps.newStreamId,
   });
+  context.recoverySources = initialSources;
   const checkpoints = new StoryForgeCheckpointStore(context, deps.checkpoints, deps);
   let provider: StoryForgeProviderAdapter;
   let model: string;

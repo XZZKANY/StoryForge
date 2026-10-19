@@ -99,7 +99,7 @@ export async function agentExecutionState(store: RunStore, run: RunRecord): Prom
  * 起服收尸（Python `reap_non_terminal_agent_runs`）：上次进程里没跑完的 run 已没有执行在驱动，
  * running 收为 failed（reason=process_restart）；paused 是等作者确认 / 恢复的持久态，不动。
  * 引擎的检查点只在内存，没有 Python 那样可停放到 runtime.recovery 的持久检查点；
- * 已提交却没开始的续跑认领补一条结算事件。返回非终态且非 paused 的 run 数。
+ * 上次进程里没结算的执行（认领了没开始、开始了没结束）补一条结算事件。返回非终态且非 paused 的 run 数。
  */
 export async function reapInterruptedRuns(services: RunServices): Promise<number> {
   const stale = (await services.store.allRuns()).filter(
@@ -123,10 +123,9 @@ export async function reapInterruptedRuns(services: RunServices): Promise<number
           event.event_type === AGENT_EXECUTION_CLAIMED ||
           event.event_type === AGENT_EXECUTION_STARTED,
       );
-    if (
-      latest?.event_type === AGENT_EXECUTION_CLAIMED &&
-      (await agentExecutionState(services.store, run)) === 'in_flight'
-    )
+    // 认领了没开始、开始了没结束，都是上次进程里的执行：进程已经没了，补一条结算，
+    // 否则暂停后来不及停下就退出的 run 会一直显示「在跑」，点继续也没反应。
+    if (latest !== undefined && (await agentExecutionState(services.store, run)) === 'in_flight')
       await recordAgentEvent(services, run, {
         eventType: AGENT_EXECUTION_SETTLED,
         actor: 'agent-runtime',
