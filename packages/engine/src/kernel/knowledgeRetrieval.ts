@@ -1,5 +1,6 @@
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import { pythonCasefold } from './casefold';
+import { FsToolError } from './fsTools';
 import { compareCodePoints } from './json';
 import type { KnowledgeEntry } from './knowledgeEntries';
 import { projectFileEvidenceHash } from './knowledgeProposals';
@@ -187,7 +188,8 @@ export async function knowledgeEntryEvidenceState(
     try {
       current = await projectFileEvidenceHash(reader, root, source.path);
     } catch (error) {
-      if (!(error instanceof ProjectReadError)) throw error;
+      // 来源章被删、改名、移出可读范围或超出预算：这条知识的依据已经对不上，标 stale 而不是让整次上下文失败。
+      if (!(error instanceof ProjectReadError || error instanceof FsToolError)) throw error;
       return 'stale';
     }
     if (current !== source.content_sha256) return 'stale';
