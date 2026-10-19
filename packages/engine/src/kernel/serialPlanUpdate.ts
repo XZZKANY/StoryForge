@@ -225,6 +225,17 @@ export async function markChapterWritten(
   ) as JsonObject | undefined;
   if (target === undefined) return { updated: false, reason: 'chapter_not_in_plan', ordinal };
   if (target.status === STATUS_DONE) return { updated: false, reason: 'already_done', ordinal };
+  // 这篇正文已被另一条按路径认领（撤销前面的新建会让章序整体前移）：不再把它认到按章序对上的这一条，
+  // 否则同一篇正文同时顶着两条计划。
+  const owner = chapters.find(
+    (item) => isJsonObject(item) && item !== target && cleanText(item.path, 400) === relative,
+  ) as JsonObject | undefined;
+  if (owner !== undefined)
+    return {
+      updated: false,
+      reason: owner.status === STATUS_DONE ? 'already_done' : 'claimed_by_other_chapter',
+      ordinal: positiveInt(owner.ordinal) ?? ordinal,
+    };
   // 同时记下路径：撤销一次新建会让后面的章序整体前移，届时只有路径认得出是哪一章。
   const { merged } = mergePlanPayload(plan, {
     chapters: [{ ordinal, status: STATUS_DONE, path: relative }],

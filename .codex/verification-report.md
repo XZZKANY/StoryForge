@@ -8922,3 +8922,14 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - golden：`p3-tool-handlers` 第 66 条用例正好传了 `budget_new_core_entities_after_chapter_20: 1` 和一个晚章新地点，Python 照样报了 `late_core_locations`。按 #407 的先例在回放里改判（从 Python 期望里剔掉预算以内的那条，`issue_count` 与摘要同步），改判条数钉死为 1，不重录 golden。
 - 测试：新 `loop/tools/trimNoop.test.ts` 2 条（经真实 assistant 修订链：原样返回 → 无补丁、`unchanged`；真压短了 → 照常出补丁）；新 `kernel/entityBudget.test.ts` 3 条（默认一有就报；预算以内不报、超过才报；经公开工具参数走真实处理器两项预算都生效）；`handlers.test.ts` 改判 + 钉数。变异 5 / 5（压缩零变化照样出补丁、两项参数不接、两条规则不看预算）。`pnpm verify` 8 道全过。
 - 未验：真模型。
+
+## 2026-10-19 连载计划：同一篇正文不再顶着两条计划；剩下全卡住时提示词不再说「都写完了」（全项目审计 C-05 / C-06）
+
+- 全项目审计（外部复查第三轮）报两条，源码核实都成立：
+  - C-05：计划两章都已完成并记下路径；撤销第 1 章的新建（或恢复成「不存在」）后，第 1 章退回待写、路径清空，第 2 章的文件按路径序排到了第 1；这时接受第 2 章的整章修订，`markChapterWritten` 只按当前章序找，把计划第 1 条也标成完成、路径写成第 2 章——两条计划都「已写」、其实只有一篇正文，下一章判成没有。
+  - C-06：剩下没写的章都被作者标成「卡住」时，`nextChapter` 返回空，`renderPlanBlock` 把它当成「计划内的章节都已落正文」，同一段提示词里前面说 0 章落盘、后面又列着卡住的章。
+- 改动：
+  - `serialPlanUpdate.ts`：仍按章序找（与原行为一致，golden 不变）；按章序对上的那条已完成照旧返回 `already_done`；没完成时，如果这篇正文已被另一条按路径认领，就不再认到这一条上——认领它的已完成返回 `already_done`，否则返回 `claimed_by_other_chapter`。起初试过「先按路径找」，会把夹具里作者标的「卡住」改成完成、连带 7 条回放偏离 Python，所以收窄成现在这样。
+  - `serialPlan.ts`：没有下一章可写、但还有没写的章时（只可能是全被标成卡住），提示改成「计划里还没写的章都被作者标成卡住了；先等作者解除卡点，别自己往下写」。
+- 测试：新 `kernel/serialPlanClaims.test.ts` 2 条（审计场景：撤销第 1 章后接受第 2 章修订 → 不动计划第 1 条、返回 already_done；只剩一章且卡住 → 提示说卡住、不说都写完）。变异 2 / 2。引擎全套（含 p1-plans golden 回放）通过；`pnpm verify` 8 道全过。
+- 未验：真宿主上「新建 → 撤销 → 接受后一章修订」点穿。
