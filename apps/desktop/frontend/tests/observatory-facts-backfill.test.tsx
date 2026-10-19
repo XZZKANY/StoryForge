@@ -274,3 +274,51 @@ test('the summary names failed chapters even when others succeeded', () => {
     }),
   ).toBe('补录 1 章，记下 5 条事实；「第009章.md」没抽成（超时）。');
 });
+
+test('在甲书补着时切到乙书：乙书看不到甲书的进度、也能自己开补录；甲书补完的通知带上书名', async () => {
+  const A = '/books/甲书';
+  const B = '/books/乙书';
+  let latest!: ReturnType<typeof useObservatory>;
+  function Switchable({ project }: { project: string }) {
+    latest = useObservatory({ activeProject: project, dialogs });
+    return null;
+  }
+  vi.mocked(listUnrecordedChapters).mockImplementation(async (projectRoot) =>
+    projectRoot === A ? chapters(1) : chapters(2),
+  );
+  let releaseA!: () => void;
+  vi.mocked(prepareFactBackfill).mockImplementation(async (input, onProgress) => {
+    onProgress?.(0, input.paths.length, input.paths[0]);
+    if (input.projectRoot === A)
+      await new Promise<void>((resolve) => {
+        releaseA = resolve;
+      });
+    return { status: 'unchanged', added: 0, chapters: [] };
+  });
+
+  await act(async () => root.render(<Switchable project={A} />));
+  await act(async () => {});
+  let runningA!: Promise<void>;
+  await act(async () => {
+    runningA = latest.factBackfill.start();
+    await Promise.resolve();
+  });
+  expect(latest.factBackfill.progress).not.toBeNull();
+
+  await act(async () => root.render(<Switchable project={B} />));
+  await act(async () => {});
+  expect(latest.factBackfill.progress).toBeNull();
+  expect(latest.factBackfill.unrecorded).toHaveLength(2);
+  await act(async () => latest.factBackfill.start());
+  expect(vi.mocked(prepareFactBackfill).mock.calls.map(([input]) => input.projectRoot)).toEqual([
+    A,
+    B,
+  ]);
+
+  await act(async () => {
+    releaseA();
+    await runningA;
+  });
+  expect(latest.factBackfill.progress).toBeNull();
+  expect(toasts.at(-1)?.message).toMatch(/^「甲书」/);
+});
