@@ -283,4 +283,33 @@ describe('backfilling into an existing ledger', () => {
     const facts = JSON.parse(result.after as string).facts;
     expect(facts[1]).toMatchObject({ value: '有个姐姐', status: 'disputed', disputes: 'fact_old' });
   });
+
+  it('writes a chapter whose only news is a fresh quote for a fact it already had', async () => {
+    const ledger = JSON.stringify({
+      version: 1,
+      facts: [
+        {
+          id: 'fact_old',
+          kind: '处境',
+          subject: '陈默',
+          attribute: '下落',
+          value: '在城里',
+          path: '正文/第002章.md',
+          status: 'active',
+          evidence: [{ path: '正文/第002章.md', quote: '他进了城。', start_line: 4 }],
+        },
+      ],
+    });
+    const { callModel } = scripted(() => reply([FACTS[CH2][1]]));
+    const result = await prepareFactBackfill(deps(book(), callModel), {
+      project_root: ROOT,
+      ledger_text: ledger,
+      paths: ['正文/第002章.md'],
+    });
+    expect(result).toMatchObject({ status: 'ready', added: 0 });
+    const [kept] = JSON.parse(result.after as string).facts;
+    expect(kept.evidence).toEqual([
+      { path: '正文/第002章.md', quote: '他搬进了城。', start_line: 4 },
+    ]);
+  });
 });

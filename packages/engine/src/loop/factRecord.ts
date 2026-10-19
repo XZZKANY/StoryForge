@@ -153,7 +153,7 @@ export async function prepareChapterFactRecord(
     unverified: (check.payload.new_facts as unknown[]).length - candidates.length,
     conflicts: conflictSummaries(plan.conflicts, ordinal),
   };
-  if (plan.added.length === 0 && plan.disputed.length === 0)
+  if (plan.added.length === 0 && plan.disputed.length === 0 && plan.refreshed.length === 0)
     return { status: 'unchanged', ...summary };
   return {
     status: 'ready',
