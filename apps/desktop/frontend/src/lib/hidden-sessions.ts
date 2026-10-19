@@ -16,10 +16,12 @@ export function readHiddenSessions(projectPath: string | null | undefined): Set<
   }
 }
 
-export function writeHiddenSessions(projectPath: string, ids: ReadonlySet<number>): void {
+/** 写不进本机存储（配额满、不可写）返回 false：列表是按存储重读的，没写进去就等于没藏。 */
+export function writeHiddenSessions(projectPath: string, ids: ReadonlySet<number>): boolean {
   try {
     localStorage.setItem(keyFor(projectPath), JSON.stringify([...ids]));
+    return true;
   } catch {
-    // 存不进去只影响下次启动是否还藏着，不影响这一次。
+    return false;
   }
 }

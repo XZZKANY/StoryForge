@@ -2,7 +2,7 @@
  * 会话的改名与「从列表移除」（作者 10-17 巡检：会话只能新建和切换）。
  * 改名写进引擎库；移除只是不在列表里显示，记录与运行证据都还在，右下角给「撤销」。
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { renameAssistantSession } from '../../lib/api-client';
 import type { AssistantSessionRecord } from '../../lib/api/types';
@@ -44,11 +44,18 @@ export function useSessionManagement({
 
   const setHiddenFor = useCallback(
     (project: string, update: (current: Set<number>) => Set<number>) => {
-      writeHiddenSessions(project, update(readHiddenSessions(project)));
+      const saved = writeHiddenSessions(project, update(readHiddenSessions(project)));
       setHiddenVersion((version) => version + 1);
+      if (!saved) emitToast('本机存储写不进去，会话列表没有改动。', { tone: 'error' });
+      return saved;
     },
     [],
   );
+  // 改名回来时用户可能已切到别的会话：按那时的当前会话决定要不要改标题，不按发起时的。
+  const activeSessionRef = useRef(activeSessionId);
+  useLayoutEffect(() => {
+    activeSessionRef.current = activeSessionId;
+  }, [activeSessionId]);
 
   const renameSession = useCallback(
     async (id: number, title: string) => {
@@ -65,9 +72,9 @@ export function useSessionManagement({
       setSessions((current) =>
         current.map((session) => (session.id === id ? { ...session, title: next } : session)),
       );
-      if (id === activeSessionId) setConversationTitle(next);
+      if (id === activeSessionRef.current) setConversationTitle(next);
     },
-    [activeSessionId, setConversationTitle, setSessions],
+    [setConversationTitle, setSessions],
   );
 
   const removeSession = useCallback(
@@ -75,17 +82,18 @@ export function useSessionManagement({
       if (!projectPath) return;
       const project = projectPath;
       const session = sessions.find((item) => item.id === id);
-      setHiddenFor(project, (current) => new Set([...current, id]));
+      if (!setHiddenFor(project, (current) => new Set([...current, id]))) return;
       if (id === activeSessionId) onRemovedActive();
       emitToast(`已从列表移除「${session ? sessionDisplayTitle(session) : `会话 #${id}`}」`, {
         action: {
           label: '撤销',
-          run: () =>
+          run: () => {
             setHiddenFor(project, (current) => {
               const next = new Set(current);
               next.delete(id);
               return next;
-            }),
+            });
+          },
         },
       });
     },

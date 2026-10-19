@@ -28,13 +28,15 @@ export function loadDismissedProposals(project: string | null): Set<string> {
   }
 }
 
-export function saveDismissedProposals(project: string, keys: ReadonlySet<string>): void {
+/** 写不进本机存储返回 false：观测镜按存储重读「不要」清单，没写进去就等于没隐藏。 */
+export function saveDismissedProposals(project: string, keys: ReadonlySet<string>): boolean {
   try {
     localStorage.setItem(`${PREFIX}${project}`, JSON.stringify([...keys].slice(-500)));
   } catch {
-    // 存不下就只在这次打开期间隐藏。
+    return false;
   }
   window.dispatchEvent(new CustomEvent(DISMISSED_PROPOSALS_EVENT, { detail: { project } }));
+  return true;
 }
 
 export function withoutDismissed(
