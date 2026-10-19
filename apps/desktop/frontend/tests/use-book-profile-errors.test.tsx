@@ -15,13 +15,19 @@ vi.mock('../src/lib/project-context', async (importOriginal) => {
 });
 vi.mock('../src/lib/manuscript-stats', () => ({ scanManuscriptTotals: vi.fn() }));
 vi.mock('../src/lib/tauri-fs', () => ({
-  TauriFileSystem: { readFile: vi.fn(), writeFile: vi.fn(), createDir: vi.fn() },
+  TauriFileSystem: {
+    readFile: vi.fn(),
+    writeFile: vi.fn(),
+    writeFileIfUnchanged: vi.fn(),
+    createDir: vi.fn(),
+  },
 }));
 vi.mock('../src/lib/toast', () => ({ emitToast: vi.fn() }));
 
 const mockedBuild = vi.mocked(buildProjectIndex);
 const mockedRead = vi.mocked(TauriFileSystem.readFile);
 const mockedWrite = vi.mocked(TauriFileSystem.writeFile);
+const mockedCondWrite = vi.mocked(TauriFileSystem.writeFileIfUnchanged);
 const mockedCreateDir = vi.mocked(TauriFileSystem.createDir);
 const mockedTotals = vi.mocked(scanManuscriptTotals);
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -84,6 +90,7 @@ afterEach(() => {
   mockedBuild.mockReset();
   mockedRead.mockReset();
   mockedWrite.mockReset();
+  mockedCondWrite.mockReset();
   mockedCreateDir.mockReset();
   mockedTotals.mockReset();
 });
@@ -95,6 +102,7 @@ beforeEach(() => {
   );
   mockedCreateDir.mockResolvedValue(undefined);
   mockedWrite.mockResolvedValue(undefined);
+  mockedCondWrite.mockResolvedValue(undefined);
   mockedTotals.mockResolvedValue({ chapters: 0, chars: 0, unreadable: 0 });
 });
 
@@ -121,10 +129,14 @@ test('surfaces outline index read errors and keeps outline loading terminal', as
 });
 
 test('keeps optimistic profile value but exposes save failure for retry UX', async () => {
-  mockedWrite.mockRejectedValueOnce(new Error('写入被拒绝'));
+  mockedCondWrite.mockRejectedValueOnce(new Error('写入被拒绝'));
   await render();
   await act(async () => (container!.querySelector('button') as HTMLButtonElement).click());
   assert.equal(container!.querySelector('output')?.textContent, '新标题');
+  assert.deepEqual(mockedCondWrite.mock.calls[0]?.[3], {
+    kind: 'content',
+    content: '{"title":"旧标题"}',
+  });
   assert.equal(
     container!.querySelector('[data-save-error]')?.getAttribute('data-save-error'),
     '写入被拒绝',
@@ -133,7 +145,7 @@ test('keeps optimistic profile value but exposes save failure for retry UX', asy
 
 test('does not project a late save failure into a different project lifetime', async () => {
   let rejectWrite!: (reason?: unknown) => void;
-  mockedWrite.mockImplementationOnce(
+  mockedCondWrite.mockImplementationOnce(
     () =>
       new Promise<void>((_resolve, reject) => {
         rejectWrite = reject;
@@ -172,4 +184,76 @@ test('总览通过真实读取 hook 重试恢复，成功的空档案才显示�
   assert.match(container!.textContent ?? '', /尚未设置全书字数目标/);
   assert.match(container!.textContent ?? '', /还没有可展示的大纲标题/);
   assert.equal(mockedWrite.mock.calls.length, 0);
+});
+
+test('档案读取失败：保存不写盘，原档案不被默认值盖掉', async () => {
+  mockedRead.mockImplementation(async (path) => {
+    if (path.endsWith('book.json')) throw new Error('permission denied');
+    return '';
+  });
+  await render();
+  await act(async () => (container!.querySelector('button') as HTMLButtonElement).click());
+  assert.equal(mockedCondWrite.mock.calls.length, 0);
+  assert.equal(mockedWrite.mock.calls.length, 0);
+  assert.match(
+    container!.querySelector('[data-save-error]')?.getAttribute('data-save-error') ?? '',
+    /档案没读出来/,
+  );
+});
+
+test('book.json 不是有效的 JSON：如实报出，保存也不写盘', async () => {
+  mockedRead.mockImplementation(async (path) =>
+    path.endsWith('book.json') ? '{"title":"旧标题",}' : '',
+  );
+  await render();
+  assert.match(
+    container!.querySelector('[data-profile-error]')?.getAttribute('data-profile-error') ?? '',
+    /不是有效的 JSON/,
+  );
+  await act(async () => (container!.querySelector('button') as HTMLButtonElement).click());
+  assert.equal(mockedCondWrite.mock.calls.length, 0);
+});
+
+test('没改动的保存不写盘', async () => {
+  mockedRead.mockImplementation(async (path) =>
+    path.endsWith('book.json') ? '{"title":"新标题"}' : '',
+  );
+  await render();
+  await act(async () => (container!.querySelector('button') as HTMLButtonElement).click());
+  assert.equal(mockedCondWrite.mock.calls.length, 0);
+  assert.equal(mockedWrite.mock.calls.length, 0);
+});
+
+test('连着两次保存排队写：第二次以第一次写下的内容为基线，不被当成别处改过', async () => {
+  let disk = '{"title":"旧标题"}';
+  mockedRead.mockImplementation(async (path) => (path.endsWith('book.json') ? disk : ''));
+  mockedCondWrite.mockImplementation(async (_root, _path, content, expected) => {
+    await Promise.resolve();
+    if (expected.kind !== 'content' || expected.content !== disk)
+      throw new Error('磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突');
+    disk = content;
+  });
+  function TwoSaves() {
+    const handle = useBookProfile({ activeProject: 'D:/book', active: true });
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          void handle.save({ ...handle.profile, title: '一' });
+          void handle.save({ ...handle.profile, title: '一', synopsis: '二' });
+        }}
+      >
+        save
+      </button>
+    );
+  }
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+  await act(async () => root!.render(<TwoSaves />));
+  await act(async () => {});
+  await act(async () => (container!.querySelector('button') as HTMLButtonElement).click());
+  await act(async () => {});
+  assert.equal(mockedCondWrite.mock.calls.length, 2);
+  assert.match(disk, /"synopsis": "二"/);
 });

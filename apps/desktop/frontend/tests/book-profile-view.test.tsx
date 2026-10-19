@@ -360,3 +360,20 @@ test('速记能就地改字：点改、换文字、回车，交给 editNote 存'
   );
   assert.deepEqual(vi.mocked(handle.editNote).mock.calls[0], [note, '十七楼是刘哥的弟弟']);
 });
+
+test('输入法还在组合时按回车不提交：速记和题材都不写、输入框不清空', async () => {
+  const handle = makeHandle();
+  await renderView(handle);
+  for (const id of ['book-note-input', 'book-tag-input']) {
+    const input = byTestId(id) as HTMLInputElement;
+    await act(async () => typeInto(input, 'xuanyi'));
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: true }),
+      ),
+    );
+    assert.equal((byTestId(id) as HTMLInputElement).value, 'xuanyi');
+  }
+  assert.equal(vi.mocked(handle.addNote).mock.calls.length, 0);
+  assert.equal(vi.mocked(handle.save).mock.calls.length, 0);
+});

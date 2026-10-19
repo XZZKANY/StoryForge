@@ -250,7 +250,7 @@ export function BookProfileView({
             className="mx-3 mt-3 rounded-md border border-error/40 bg-error/5 px-2 py-1.5 text-2xs text-error"
             role="alert"
           >
-            档案读取失败：{handle.profileError}。仍可编辑，保存后将重试写入。
+            档案读取失败：{handle.profileError}。修好之前不会写入，刷新后再改。
           </p>
         ) : null}
         {handle.saveError ? (
@@ -328,6 +328,7 @@ export function BookProfileView({
                     onChange={(event) => setTagDraft(event.target.value)}
                     onBlur={addTag}
                     onKeyDown={(event) => {
+                      if (event.nativeEvent.isComposing) return;
                       if (event.key === 'Enter') {
                         event.preventDefault();
                         addTag();
@@ -565,6 +566,7 @@ export function BookProfileView({
               value={noteDraft}
               onChange={(event) => setNoteDraft(event.target.value)}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing) return;
                 if (event.key === 'Enter') {
                   event.preventDefault();
                   addNote();

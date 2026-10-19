@@ -14,6 +14,7 @@ import {
   editIdeaNote,
   removeIdeaNote,
   restoreIdeaNoteLine,
+  toggleIdeaNote,
 } from '../src/lib/idea-notes';
 import { buildProjectIndex } from '../src/lib/project-context';
 import { scanManuscriptTotals } from '../src/lib/manuscript-stats';
@@ -222,4 +223,23 @@ test('刚换到另一本书、它的灵感文件还没读出来：不拿上一�
   assert.equal(disk.get(NOTES_A), NOTES);
   assert.match(String(toasts().at(-1)), /还没读出来/);
   await act(async () => release());
+});
+
+test('连着勾两条：写入排队，两条都落盘，不被当成别处改过', async () => {
+  const source = ['# 灵感', '', '- 甲', '- 乙', ''].join('\n');
+  disk.set(NOTES_A, source);
+  await open();
+  const first = note('甲')!;
+  const second = note('乙')!;
+
+  await act(async () => {
+    void handle!.toggleNote(first);
+    void handle!.toggleNote(second);
+  });
+  await act(async () => {});
+  assert.equal(
+    disk.get(NOTES_A),
+    toggleIdeaNote(toggleIdeaNote(source, first.line, true), second.line, true),
+  );
+  assert.ok(!toasts().some((text) => String(text).startsWith('灵感速记没有保存')));
 });
