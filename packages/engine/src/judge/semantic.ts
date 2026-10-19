@@ -9,7 +9,7 @@ import {
   type JsonValue,
 } from '../kernel/json';
 import { pythonSplitlines, pythonStrip } from '../kernel/pythonText';
-import { envValue, type LlmSource } from '../llm/config';
+import { envValue, providerFamily, type LlmSource } from '../llm/config';
 import { RunInterrupted } from '../llm/control';
 import { pythonStrRepr } from '../llm/pythonRepr';
 import { RequestEvidenceError } from '../loop/requestEvidence';
@@ -260,12 +260,17 @@ export async function semanticJudgeWithStatus(
   const requestSource: { [key: string]: string | null | undefined } = {};
   for (const [key, value] of Object.entries(source))
     if (!key.startsWith('STORYFORGE_JUDGE_LLM_')) requestSource[key] = value;
+  const nativeMain =
+    !truthyText(judge('BASE_URL')) &&
+    providerFamily(envValue(source, 'STORYFORGE_LLM_PROVIDER')) !== 'openai';
   Object.assign(requestSource, {
     STORYFORGE_LLM_API_KEY: apiKey,
     STORYFORGE_LLM_BASE_URL: trimmedBase,
-    STORYFORGE_LLM_AUTH_HEADER: 'bearer',
-    // 这些端点历来用 OpenAI 线格式，与产字配置无关。
-    STORYFORGE_LLM_PROVIDER: 'openai-compatible',
+    // 没单独配评审端点、主模型又是原生 Anthropic / Gemini 时，沿用主模型的协议与鉴权
+    // （它们的端点不认 /chat/completions）；其余照旧按 OpenAI 线格式走。
+    ...(nativeMain
+      ? {}
+      : { STORYFORGE_LLM_AUTH_HEADER: 'bearer', STORYFORGE_LLM_PROVIDER: 'openai-compatible' }),
     STORYFORGE_LLM_MODEL: model,
     STORYFORGE_LLM_TEMPERATURE: '0',
     STORYFORGE_LLM_MAX_COMPLETION_TOKENS: '0',
