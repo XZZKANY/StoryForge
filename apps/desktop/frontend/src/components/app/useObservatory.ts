@@ -101,10 +101,12 @@ export function useObservatory({
   const [scanning, setScanning] = useState(false);
   const [merging, setMerging] = useState(false);
   const [unrecorded, setUnrecorded] = useState<UnrecordedChapter[]>([]);
-  const [backfill, setBackfill] = useState<{ done: number; total: number; path: string } | null>(
-    null,
-  );
-  const backfillingRef = useRef(false);
+  // 补录按作品记：在 A 补着时切到 B，B 不该看到 A 的进度，也不该被 A 的「正在补录」挡住。
+  const [backfill, setBackfill] = useState<
+    Readonly<Record<string, { done: number; total: number; path: string }>>
+  >({});
+  const backfillingRef = useRef<Set<string>>(new Set());
+  const liveProjectRef = useRef(activeProject);
   const resolvedIdsRef = useRef<Set<string>>(new Set());
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
   const scanSeqRef = useRef(0);
@@ -156,6 +158,7 @@ export function useObservatory({
   // 项目切换：使在途响应过期、按项目换回已处理记忆与观测；打开项目即首扫。
   useEffect(() => {
     scanSeqRef.current += 1;
+    liveProjectRef.current = activeProject;
     // 已处理标记按项目落盘（写作时刻 01）：此前只在内存，重启即全部复活，
     // 作者上次「这条我看过了」的判断白做一遍。
     resolvedIdsRef.current = loadResolvedObservationIds(activeProject);
@@ -408,20 +411,25 @@ export function useObservatory({
   );
   // 每章一次模型调用，作者在分区里确认过才会到这里；一次写入、可整批撤销。
   const backfillFacts = useCallback(async () => {
-    if (!activeProject || backfillingRef.current) return;
+    if (!activeProject || backfillingRef.current.has(activeProject)) return;
     const project = activeProject;
     const paths = unrecorded.slice(0, BACKFILL_BATCH).map((chapter) => chapter.path);
     if (!paths.length) return;
-    backfillingRef.current = true;
-    setBackfill({ done: 0, total: paths.length, path: paths[0] });
+    backfillingRef.current.add(project);
+    const progress = (done: number, total: number, path: string) =>
+      setBackfill((current) => ({ ...current, [project]: { done, total, path } }));
+    progress(0, paths.length, paths[0]);
+    // 跑完时作者可能已在看别的作品：通知带上书的目录名，免得以为是当前这本。
+    const prefix = () =>
+      liveProjectRef.current === project ? '' : `「${project.split(/[\\/]/).pop()}」`;
     try {
       const { plan, undo } = await backfillFactsGuarded({
         projectPath: project,
         paths,
-        onProgress: (done, total, path) => setBackfill({ done, total, path }),
+        onProgress: progress,
       });
       const failedOnly = plan.added === 0 && plan.chapters.some((item) => item.status === 'failed');
-      emitToast(backfillMessage(plan), {
+      emitToast(prefix() + backfillMessage(plan), {
         tone: failedOnly ? 'error' : 'info',
         action: undo
           ? {
@@ -437,16 +445,19 @@ export function useObservatory({
           : undefined,
       });
     } catch (error) {
-      emitToast(`补录没完成：${message(error)}`, { tone: 'error' });
+      emitToast(`${prefix()}补录没完成：${message(error)}`, { tone: 'error' });
     } finally {
-      backfillingRef.current = false;
-      setBackfill(null);
+      backfillingRef.current.delete(project);
+      setBackfill((current) => {
+        const { [project]: _finished, ...rest } = current;
+        return rest;
+      });
     }
   }, [activeProject, unrecorded]);
-  const factBackfill = useMemo(
-    () => ({ unrecorded, progress: backfill, start: backfillFacts }),
-    [unrecorded, backfill, backfillFacts],
-  );
+  const factBackfill = useMemo(() => {
+    const progress = (activeProject && backfill[activeProject]) || null;
+    return { unrecorded, progress, start: backfillFacts };
+  }, [activeProject, unrecorded, backfill, backfillFacts]);
   const proposals = useMemo(
     () => withoutDismissed(state.proposals, dismissed),
     [state.proposals, dismissed],
