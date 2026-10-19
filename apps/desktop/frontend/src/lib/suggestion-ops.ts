@@ -188,9 +188,12 @@ function locateOpAnchor(current: string, op: PatchHunk, before: string): OpAncho
   collectAnchorCandidates(current, op.afterText, prefix, suffix, applied);
   collectAnchorCandidates(current, op.beforeText, prefix, suffix, apply);
 
-  // 已落盘候选唯一：幂等跳过（不写盘最安全）。
-  if (applied.size === 1) return { kind: 'anchor', at: [...applied][0] };
-  if (applied.size > 1) return { kind: 'ambiguous' };
+  // 已落盘候选唯一：幂等跳过（不写盘最安全）。同时还有待施加的候选时（重复场景里另一处早就是改后的样子），
+  // 要前缀序号证明这条已落盘的就在本 op 的位置；证明不了就不认它，接着按待施加的候选判。
+  if (applied.size === 1) {
+    const only = [...applied][0];
+    if (apply.size === 0 || only === primary) return { kind: 'anchor', at: only };
+  } else if (applied.size > 1) return { kind: 'ambiguous' };
 
   // 纯插入没有 beforeText 可核验，只信前缀锚点定位。
   if (!op.beforeText) {
