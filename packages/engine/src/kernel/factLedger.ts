@@ -29,6 +29,9 @@ const FACT_STATUSES = new Set(['active', 'superseded', 'retired', 'disputed']);
 export function checkFactLedger(ledger: JsonObject, source: string): void {
   const fields = new JsonFields(source);
   fields.optionalInteger(fields.member(ledger, 'version'), 'version');
+  fields
+    .optionalArray(fields.member(ledger, 'checked_chapters'), 'checked_chapters')
+    .forEach((value, index) => fields.string(value, `checked_chapters[${index}]`));
   const ids = new Set<string>();
   fields.optionalArray(fields.member(ledger, 'facts'), 'facts').forEach((value, index) => {
     const at = `facts[${index}]`;
@@ -181,6 +184,8 @@ export type FactRecordPlan = {
   disputed: JsonObject[];
   /** 同一章重记时值没变、原句换了：依据换成这次刚核对过的原句（旧原句可能已不在正文里）。 */
   refreshed: JsonObject[];
+  /** 这章第一次被记账（抽过就算，哪怕一条新事实都没有）：记进 checked_chapters，补录不再抽它。 */
+  newlyChecked: boolean;
   duplicates: number;
 };
 
@@ -284,13 +289,22 @@ export function planFactRecord(input: {
     facts.push(fact);
     added.push(fact);
   }
+  const checked = Array.isArray(input.ledger.checked_chapters)
+    ? (input.ledger.checked_chapters as string[])
+    : [];
+  const newlyChecked = !checked.includes(path);
   return {
-    ledger: { ...input.ledger, facts },
+    ledger: {
+      ...input.ledger,
+      facts,
+      ...(newlyChecked ? { checked_chapters: [...checked, path] } : {}),
+    },
     added,
     superseded,
     conflicts,
     disputed,
     refreshed,
+    newlyChecked,
     duplicates,
   };
 }

@@ -193,6 +193,16 @@ describe('recording an accepted chapter into the fact ledger', () => {
     ]);
   });
 
+  it('remembers a chapter with nothing new once a ledger exists, but never creates the file for it', async () => {
+    const { record } = await setup({ newFacts: [] });
+    expect(await record()).toMatchObject({ status: 'unchanged', added: 0 });
+    const ledger = JSON.stringify({ version: 1, facts: [] });
+    const result = await record(ledger);
+    expect(result).toMatchObject({ status: 'ready', added: 0 });
+    expect(JSON.parse(result.after as string).checked_chapters).toEqual(['正文/第002章.md']);
+    expect(await record(result.after as string)).toMatchObject({ status: 'unchanged' });
+  });
+
   it.each([
     ['no_run', { runId: 'run-x' }],
     ['no_facts', { newFacts: undefined }],

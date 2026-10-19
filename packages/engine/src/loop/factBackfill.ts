@@ -53,7 +53,7 @@ async function chapterContent(
 }
 
 /**
- * 还没记账的章（按阅读序，前面的在前）：台账里一条都没有出自它、正文不是空的。
+ * 还没记账的章（按阅读序，前面的在前）：台账里一条都没有出自它、也没记过「抽过了」、正文不是空的。
  * 用写章功能写的章接受时会自动记；这些多半是手写或更早写的，要作者点了才补。
  */
 export async function unrecordedChapters(
@@ -63,11 +63,12 @@ export async function unrecordedChapters(
 ): Promise<Obj[]> {
   await resolveProjectRoot(reader, root);
   const ledger = await readFactLedger(reader, root);
-  const recorded = new Set(
-    (Array.isArray(ledger?.facts) ? ledger.facts : [])
+  const recorded = new Set<unknown>([
+    ...(Array.isArray(ledger?.facts) ? ledger.facts : [])
       .filter((fact): fact is JsonObject => isJsonObject(fact))
       .map((fact) => fact.path),
-  );
+    ...(Array.isArray(ledger?.checked_chapters) ? ledger.checked_chapters : []),
+  ]);
   const chapters: Obj[] = [];
   for (const [path, ordinal] of await chapterOrdinals(reader, root, '*.md', platform)) {
     if (recorded.has(path)) continue;
@@ -105,6 +106,7 @@ export async function prepareFactBackfill(
   let added = 0;
   let disputed = 0;
   let refreshed = 0;
+  let checked = false;
   for (const [index, path] of paths.entries()) {
     onProgress?.(index, paths.length, path);
     const base = { path, ordinal: ordinal(path) };
@@ -157,6 +159,7 @@ export async function prepareFactBackfill(
     added += plan.added.length;
     disputed += plan.disputed.length;
     refreshed += plan.refreshed.length;
+    checked ||= plan.newlyChecked;
     const received = extracted.new_facts_received;
     chapters.push({
       ...base,
@@ -169,7 +172,7 @@ export async function prepareFactBackfill(
     });
   }
   onProgress?.(paths.length, paths.length, '');
-  if (added === 0 && disputed === 0 && refreshed === 0)
+  if (added === 0 && disputed === 0 && refreshed === 0 && !checked)
     return { status: 'unchanged', added, chapters };
   return {
     status: 'ready',
