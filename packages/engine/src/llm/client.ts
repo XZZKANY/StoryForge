@@ -147,9 +147,9 @@ function baseSdkProvider(
 }
 
 const LEGACY_MESSAGES: Record<string, string> = {
-  missing_choices: '真实 LLM 响应缺少 choices，不能继续 BookRun 生成。',
+  missing_choices: '真实 LLM 响应缺少 choices，这次没有拿到可用的结果。',
   invalid_choice: '真实 LLM 响应 choices[0] 格式异常。',
-  missing_message: '真实 LLM 响应缺少 message，不能继续 BookRun 生成。',
+  missing_message: '真实 LLM 响应缺少 message，这次没有拿到可用的结果。',
 };
 
 export function legacyProviderError(error: ProviderError): LlmError {
@@ -225,10 +225,10 @@ export async function callLlm(
   if (!response.content) {
     if (response.metadata.reasoning_leak_stripped === true)
       throw new LlmError(
-        '真实 LLM 返回仅含思维链、无正文，不能继续 BookRun 生成。',
+        '真实 LLM 返回仅含思维链、无正文，这次没有拿到可用的结果。',
         response.usage,
       );
-    throw new LlmError('真实 LLM 返回内容为空，不能继续 BookRun 生成。', response.usage);
+    throw new LlmError('真实 LLM 返回内容为空，这次没有拿到可用的结果。', response.usage);
   }
   const usage = response.usage.toLegacy();
   const cost = costBreakdown(source, usage);

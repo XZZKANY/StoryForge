@@ -189,6 +189,7 @@ export async function runControlledPolish(
         source: 'online',
         text: parsePolishedResponse(original, response.content, policy),
         responseTruncated: response.finishReason === 'length',
+        responseFiltered: response.finishReason === 'content_filter',
       };
       usage = safeUsage(response.usage);
     } catch (error) {

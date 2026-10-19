@@ -157,11 +157,11 @@ export function streamFinishReason(chunk: { [key: string]: JsonValue }): string 
 export function assistantMessage(data: { [key: string]: JsonValue }) {
   const choice = firstChoice(data);
   if (choice === undefined)
-    throw new LlmError('真实 LLM 响应缺少 choices，不能继续 BookRun 生成。');
+    throw new LlmError('真实 LLM 响应缺少 choices，这次没有拿到可用的结果。');
   if (!isJsonObject(choice)) throw new LlmError('真实 LLM 响应 choices[0] 格式异常。');
   const message = choice.message;
   if (!isJsonObject(message))
-    throw new LlmError('真实 LLM 响应缺少 message，不能继续 BookRun 生成。');
+    throw new LlmError('真实 LLM 响应缺少 message，这次没有拿到可用的结果。');
   return message;
 }
 

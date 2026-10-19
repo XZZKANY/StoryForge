@@ -8896,3 +8896,17 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - golden：`p3-deep-consistency.windows.json` 里 200 处提示词 / 请求摘要哈希随示例文字变化。核对办法：用临时测试拦截哈希计算，把每段被哈希的内容里的「左臂受伤」「右臂受伤」换回英文双引号（含 JSON 转义的两种写法）重算，得到 102 对「旧哈希 → 新哈希」；golden 里被替换的 200 处旧哈希全部来自这张对照表，替换后引擎全套 13661 passed——即 golden 的变化只来自这两处引号，C-02 没有改动任何已录请求。临时测试已删。
 - 测试：新 `judge/semantic.test.ts` 4 条（提示词里所有示例都能 `JSON.parse`；主模型是 anthropic / gemini 时沿用其协议、不强加 bearer；主模型是 openai、或单独配了评审端点时走 openai-compatible + bearer）。变异 3 / 3（示例引号改回、原生主模型也强改、单独端点也沿用原生）。`pnpm verify` 8 道全过。
 - 未验：真实 Anthropic / Gemini 端点上的评审请求（不调真模型）。
+
+## 2026-10-19 模型调用三处边界：报错不再提 BookRun、取消时放掉错误回包、润色不用被内容安全拒掉的结果（全项目审计 D-01 / C-09 / C-04）
+
+- 全项目审计报三条，源码核实都成立：
+  - D-01（第一轮）：`llm/client.ts`、`llm/payload.ts` 里模型响应缺 choices / message、只有思维链、内容为空时的报错仍写着「不能继续 BookRun 生成」，BookRun 已于 10-09 退役，作者在对话、修订里看到这句摸不着头脑。
+  - C-09（第三轮）：非流式和流式两条出网路径收到非 2xx 回包时，先检查运行是否被停止，再放掉回包；恰好在这时取消，`RunInterrupted` 直接抛出，回包没关，宿主那边会继续读完错误体（最终会自行清理，不是永久泄漏）。
+  - C-04（第二轮）：润色只把 `finish_reason=length` 当截断拒掉，`content_filter`（上游按内容安全拒了）照样参与门禁，回来的 JSON 完整时会被当成合格的在线候选——请求证据里同一次调用却记成 `response_rejected`。
+- 改动：
+  - 四处报错的后半句改成「这次没有拿到可用的结果」。
+  - `llm/transport.ts` 加 `interruptClosing`：非 2xx 时的取消检查一旦抛出，先 `close()` 回包再抛；两条路径都换成它。
+  - 润色候选多一个 `responseFiltered`（`finish_reason=content_filter`），门禁据此报 `response_filtered` 并不选它；截断的处理不变。
+- golden：`p2-llm-client`、`p2-llm-pure` 各 3 处、`p3-wiring` 6 处报错原文按同一短语替换；`p3-wiring` 里这句报错作为工具结果回给了模型，所以那条工具消息的哈希、请求摘要随之变化（共 2 个哈希）、长度少 4 个字（新短语比旧的少 4 个字）。核对办法同 #430：临时测试拦截哈希、把新短语换回旧短语重算，得到的 2 对「旧 → 新」正是 golden 里被换的 2 处；引擎全套 13665 passed。临时测试已删。
+- 测试：新 `llm/transportClose.test.ts` 2 条（非流式 / 流式：429 回包时恰被停止 → 抛中断且回包恰好关一次；不停止时照常报 429 且关一次）；新 `loop/tools/polishFiltered.test.ts` 1 条（同样完整的 JSON：`content_filter` 不选在线候选并报 `response_filtered`，`stop` 照常采用）。变异 6 / 6（中断时不放回包、非流式 / 流式改回直接检查、润色不看 content_filter、门禁不报、报错文案改回 BookRun）。`pnpm verify` 8 道全过。
+- 未验：真宿主上取消时的网络资源占用；真实服务商的 content_filter 回包形状。
