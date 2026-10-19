@@ -499,7 +499,8 @@ export async function selectedContext(
     );
     if (!content) continue;
     const block = `### ${chapter.title ?? '未命名'} [${chapter.reason ?? '结构锚点'}]\n${content}\n`;
-    if (used + length(block) > maxChars) break;
+    // 放不进预算的章跳过，后面短的章照样带上。
+    if (used + length(block) > maxChars) continue;
     chunks.push(block);
     used += length(block);
   }
@@ -518,6 +519,7 @@ async function modelAnalysis(
   selected: readonly SelectedChapter[],
   model: BreakdownModel,
   platform: 'windows' | 'posix',
+  checkpoint: () => void,
 ): Promise<
   [
     Record<string, AnalysisField>,
@@ -530,6 +532,8 @@ async function modelAnalysis(
     { selected_chapters: selected },
     { platform },
   );
+  // 一章都放不进预算：模型什么都读不到，不发请求，报告也不能写成分析完成。
+  if (!context) throw new BookBreakdownError('selected_context_empty');
   const userPrompt =
     '请分析以下代表章节。输出字段必须包含：' +
     ANALYSIS_KEYS.join(', ') +
@@ -540,6 +544,7 @@ async function modelAnalysis(
     const response = await model.callLlm({ systemPrompt: BREAKDOWN_SYSTEM_PROMPT, userPrompt });
     return [parseModelAnalysis(response.content, selected), meta(0)];
   } catch {
+    checkpoint();
     try {
       const response = await model.callLlm({
         systemPrompt: BREAKDOWN_SYSTEM_PROMPT,
@@ -629,7 +634,14 @@ export async function runBookBreakdown(
       let modelError: string | null = null;
       if (options.model !== null)
         try {
-          [analysis, meta] = await modelAnalysis(reader, root, selected, options.model, platform);
+          [analysis, meta] = await modelAnalysis(
+            reader,
+            root,
+            selected,
+            options.model,
+            platform,
+            checkpoint,
+          );
         } catch (error) {
           if (!(error instanceof BookBreakdownError)) throw error;
           modelError = error.message;
