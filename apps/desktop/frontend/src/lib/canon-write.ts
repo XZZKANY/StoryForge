@@ -44,7 +44,13 @@ export async function writeCanonGuarded({
     checkpoint: true,
   });
   const written = serializeCanon(next);
-  await TauriFileSystem.writeFile(projectPath, before.path, written);
+  // 以确认前读到的原文为基线：等快照那几秒里别处改过就拒写。
+  await TauriFileSystem.writeFileIfUnchanged(
+    projectPath,
+    before.path,
+    written,
+    before.raw === null ? { kind: 'missing' } : { kind: 'content', content: before.raw },
+  );
   return { status: 'written', undo: () => undoCanonWrite(projectPath, before, written) };
 }
 
@@ -60,5 +66,9 @@ async function undoCanonWrite(
     throw new Error('canon.json 之后又改过，不能直接撤销；写入前的那一份在版本记录里。');
   }
   if (before.raw === null) await TauriFileSystem.deletePath(projectPath, before.path);
-  else await TauriFileSystem.writeFile(projectPath, before.path, before.raw);
+  else
+    await TauriFileSystem.writeFileIfUnchanged(projectPath, before.path, before.raw, {
+      kind: 'content',
+      content: written,
+    });
 }

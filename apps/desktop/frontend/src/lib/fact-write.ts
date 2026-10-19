@@ -3,7 +3,7 @@
  *
  * 记什么由引擎算（检查时抽出的新事实 → 对接受后的正文重核原句 → 和台账比对）；
  * 这里只管写：文件在记账期间被别处改过就停手，写前给整本书拍一版快照，写完把「撤销」交出去。
- * 和台账对不上的不记，只在通知里告诉作者。
+ * 和已记的固定事实对不上的存成待定，等作者在观测镜里定。
  */
 
 import {
@@ -35,6 +35,21 @@ export function factsLedgerPathFor(projectPath: string): string {
 
 async function readLedger(path: string): Promise<string | null> {
   return (await TauriFileSystem.pathExists(path)) ? await TauriFileSystem.readFile(path) : null;
+}
+
+/** 以 baseline 为准写：等快照那几秒里别处改过（另一次记账、作者手改），宿主拒写，不拿旧计划盖掉。 */
+async function writeLedger(
+  projectPath: string,
+  path: string,
+  baseline: string | null,
+  content: string,
+): Promise<void> {
+  await TauriFileSystem.writeFileIfUnchanged(
+    projectPath,
+    path,
+    content,
+    baseline === null ? { kind: 'missing' } : { kind: 'content', content: baseline },
+  );
 }
 
 const chapterLabel = (plan: Planned) =>
@@ -69,7 +84,7 @@ export async function recordChapterFacts({
     summary: `事实台账记下${chapterLabel(plan)}的 ${plan.added} 条事实`,
     checkpoint: true,
   });
-  await TauriFileSystem.writeFile(projectPath, path, plan.after);
+  await writeLedger(projectPath, path, before, plan.after);
   return {
     status: 'written',
     plan,
@@ -99,7 +114,7 @@ export async function retireFactGuarded({
     summary: `事实台账作废：${label}`,
     checkpoint: true,
   });
-  await TauriFileSystem.writeFile(projectPath, path, after);
+  await writeLedger(projectPath, path, before, after);
   return { undo: () => undoFactsWrite(projectPath, path, before, after) };
 }
 
@@ -126,7 +141,7 @@ export async function resolveDisputeGuarded({
     summary: `事实台账${choice === 'accept' ? '以本章为准' : '保留已记的'}：${label}`,
     checkpoint: true,
   });
-  await TauriFileSystem.writeFile(projectPath, path, after);
+  await writeLedger(projectPath, path, before, after);
   return { undo: () => undoFactsWrite(projectPath, path, before, after) };
 }
 
@@ -140,7 +155,7 @@ async function undoFactsWrite(
     throw new Error('facts.json 之后又改过，不能直接撤销；记账前的那一份在版本记录里。');
   }
   if (before === null) await TauriFileSystem.deletePath(projectPath, path);
-  else await TauriFileSystem.writeFile(projectPath, path, before);
+  else await writeLedger(projectPath, path, written, before);
 }
 
 /**
@@ -172,7 +187,7 @@ export async function backfillFactsGuarded({
     summary: `事实台账补录 ${done} 章，记下 ${plan.added} 条事实`,
     checkpoint: true,
   });
-  await TauriFileSystem.writeFile(projectPath, path, plan.after);
+  await writeLedger(projectPath, path, before, plan.after);
   return { plan, undo: () => undoFactsWrite(projectPath, path, before, plan.after) };
 }
 

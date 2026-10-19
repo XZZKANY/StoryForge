@@ -46,9 +46,32 @@ function promiseId(value: unknown): string {
     : '';
 }
 
+// 字段在、但类型不对（作者手改过）：拒绝，不当成空的去替换——那样会把作者原来写在里面的内容整个丢掉。
+function wrongShape(field: string, expected: string): Error {
+  return new Error(
+    `canon.json 里的 ${field} 不是${expected}，先在编辑器里修好再来；这次没有写入。`,
+  );
+}
+
+function invariantsOf(canon: CanonShape): Record<string, unknown> {
+  if (canon.invariants == null) return {};
+  if (typeof canon.invariants !== 'object' || Array.isArray(canon.invariants))
+    throw wrongShape('invariants', '对象');
+  return canon.invariants as Record<string, unknown>;
+}
+
+function claimsOf(invariants: Record<string, unknown>, name: string): unknown[] {
+  const value = invariants[name];
+  if (value == null) return [];
+  if (!Array.isArray(value)) throw wrongShape(`invariants.${name}`, '数组');
+  return value;
+}
+
 /** 纯函数：把一条提案并入 canon 对象。已存在则原样返回（作者已有的声明优先）。 */
 export function applyCanonMerge(canon: CanonShape, target: CanonMergeTarget): CanonShape {
   if (target.kind === 'entity') {
+    if (canon.entities != null && !Array.isArray(canon.entities))
+      throw wrongShape('entities', '数组');
     const entities = Array.isArray(canon.entities) ? [...canon.entities] : [];
     const id = target.entity.id;
     const exists = entities.some(
@@ -57,13 +80,8 @@ export function applyCanonMerge(canon: CanonShape, target: CanonMergeTarget): Ca
     if (exists) return canon;
     return { ...canon, entities: [...entities, target.entity] };
   }
-  const invariants =
-    canon.invariants && typeof canon.invariants === 'object' && !Array.isArray(canon.invariants)
-      ? { ...(canon.invariants as Record<string, unknown>) }
-      : {};
-  const existing = Array.isArray(invariants[target.invariant])
-    ? (invariants[target.invariant] as unknown[])
-    : [];
+  const invariants = { ...invariantsOf(canon) };
+  const existing = claimsOf(invariants, target.invariant);
   const serialized = JSON.stringify(target.entry);
   if (existing.some((item) => JSON.stringify(item) === serialized)) return canon;
   if (target.invariant === 'promises') {
@@ -121,11 +139,8 @@ export function serializeCanon(canon: CanonShape): string {
 
 /** 纯函数：把某条伏笔承诺标为在第 chapter 章回收。找不到这条就报错，不凭空新建。 */
 export function applyPromiseResolved(canon: CanonShape, id: string, chapter: number): CanonShape {
-  const invariants =
-    canon.invariants && typeof canon.invariants === 'object' && !Array.isArray(canon.invariants)
-      ? (canon.invariants as Record<string, unknown>)
-      : {};
-  const promises = Array.isArray(invariants.promises) ? invariants.promises : [];
+  const invariants = invariantsOf(canon);
+  const promises = claimsOf(invariants, 'promises');
   const index = promises.findIndex(
     (item) => item && typeof item === 'object' && promiseId((item as { id?: unknown }).id) === id,
   );

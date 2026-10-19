@@ -1,15 +1,24 @@
 /**
  * 事实台账的唯一写入口：引擎算出写什么，这里管写——记账期间文件被改就停、写前必有快照、
- * 撤销只在文件没被别处动过时生效；对不上的事实只在通知里说，不写。
+ * 撤销只在文件没被别处动过时生效；等快照期间被改过也拒写。
  */
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-import { prepareChapterFactRecord, type ChapterFactRecordPlan } from '../src/lib/api/facts';
 import {
+  prepareChapterFactRecord,
+  prepareFactBackfill,
+  resolveLedgerDispute,
+  retireLedgerFact,
+  type ChapterFactRecordPlan,
+} from '../src/lib/api/facts';
+import {
+  backfillFactsGuarded,
   factRecordMessage,
   factsLedgerPathFor,
   recordAcceptedChapterFacts,
   recordChapterFacts,
+  resolveDisputeGuarded,
+  retireFactGuarded,
 } from '../src/lib/fact-write';
 import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/tauri-fs';
 import { emitToast } from '../src/lib/toast';
@@ -17,7 +26,12 @@ import { snapshotBeforeWrite } from '../src/lib/versions';
 
 vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: vi.fn(async () => null) }));
 vi.mock('../src/lib/toast', () => ({ emitToast: vi.fn() }));
-vi.mock('../src/lib/api/facts', () => ({ prepareChapterFactRecord: vi.fn() }));
+vi.mock('../src/lib/api/facts', () => ({
+  prepareChapterFactRecord: vi.fn(),
+  retireLedgerFact: vi.fn(),
+  resolveLedgerDispute: vi.fn(),
+  prepareFactBackfill: vi.fn(),
+}));
 
 const PROJECT = 'D:\\books\\雾港回声';
 const PATH = factsLedgerPathFor(PROJECT);
@@ -96,9 +110,8 @@ test('台账路径在项目根下的 .storyforge/canon/facts.json', () => {
 
 test('把读到的原文交给引擎；先存快照再写，撤销按字节还回去', async () => {
   vi.mocked(prepareChapterFactRecord).mockResolvedValue(ready(ORIGINAL));
-  const order: string[] = [];
   vi.mocked(snapshotBeforeWrite).mockImplementation(async (_project, path, previous, meta) => {
-    order.push(`snapshot:${path}`);
+    writes.push(`snapshot:${path}`);
     expect(previous).toBe(ORIGINAL);
     expect(meta).toMatchObject({ source: 'Editor', summary: '事实台账记下第 2 章的 1 条事实' });
     return null;
@@ -110,8 +123,8 @@ test('把读到的原文交给引擎；先存快照再写，撤销按字节还�
     runId: 'run-7',
     ledgerText: ORIGINAL,
   });
-  order.push(...writes.map((path) => `write:${path}`));
-  expect(order).toEqual([`snapshot:${PATH}`, `write:${PATH}`]);
+  // 快照与写盘记进同一个按发生顺序的表：写在快照之前的实现会在这里排错。
+  expect(writes).toEqual([`snapshot:${PATH}`, PATH]);
   expect(disk.get(PATH)).toBe(AFTER);
   expect(outcome.status).toBe('written');
   if (outcome.status !== 'written') return;
@@ -139,6 +152,40 @@ test('记账期间 facts.json 被改过：不拍快照、不写', async () => {
   await expect(record()).rejects.toThrow('facts.json 在记账期间被改过了');
   expect(snapshotBeforeWrite).not.toHaveBeenCalled();
   expect(writes).toEqual([]);
+});
+
+const LATER = '{"version": 1, "facts": [], "written_while_snapshotting": true}';
+test.each([
+  ['接受后记账', () => record()],
+  ['作废一条', () => retireFactGuarded({ projectPath: PROJECT, factId: 'fact_1', label: 'x' })],
+  [
+    '处理待定',
+    () =>
+      resolveDisputeGuarded({
+        projectPath: PROJECT,
+        factId: 'fact_1',
+        choice: 'accept',
+        label: 'x',
+      }),
+  ],
+  ['补录', () => backfillFactsGuarded({ projectPath: PROJECT, paths: ['正文/第002章.md'] })],
+])('%s：等快照期间台账被别处改了，宿主拒写，后来的内容留着', async (_, write) => {
+  vi.mocked(prepareChapterFactRecord).mockResolvedValue(ready(ORIGINAL));
+  vi.mocked(retireLedgerFact).mockResolvedValue(AFTER);
+  vi.mocked(resolveLedgerDispute).mockResolvedValue(AFTER);
+  vi.mocked(prepareFactBackfill).mockResolvedValue({
+    status: 'ready',
+    added: 1,
+    chapters: [],
+    before: ORIGINAL,
+    after: AFTER,
+  } as never);
+  vi.mocked(snapshotBeforeWrite).mockImplementation(async () => {
+    disk.set(PATH, LATER);
+    return null;
+  });
+  await expect(write()).rejects.toThrow('磁盘内容已变化');
+  expect(disk.get(PATH)).toBe(LATER);
 });
 
 test('撤销前文件又被改过：不动它', async () => {
