@@ -7,7 +7,7 @@
  *
  * 异步结果一律带上它属于哪个项目：切项目时上一本书的统计不得落到当前这本的卡上。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { importCoverImage, readCoverDataUrl } from '../../lib/book-cover';
 import {
@@ -68,20 +68,23 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function readTextOrEmpty(path: string, allowMissing = true): Promise<string> {
+/** 文件不存在返回 null；其它读错照常抛出。 */
+async function readTextOrNull(path: string): Promise<string | null> {
   try {
     return await TauriFileSystem.readFile(path);
   } catch (error) {
     const detail = message(error).toLowerCase();
     // 档案 / 灵感文件尚未创建是常态，不是错误；其它 I/O 错误必须暴露。
-    if (
-      allowMissing &&
-      /not found|no such file|enoent|不存在|找不到|找不到指定|notfound/.test(detail)
-    ) {
-      return '';
+    if (/not found|no such file|enoent|不存在|找不到|找不到指定|notfound/.test(detail)) {
+      return null;
     }
     throw error;
   }
+}
+
+async function readTextOrEmpty(path: string, allowMissing = true): Promise<string> {
+  if (!allowMissing) return await TauriFileSystem.readFile(path);
+  return (await readTextOrNull(path)) ?? '';
 }
 
 async function scanOutline(projectPath: string): Promise<OutlineEntry[]> {
@@ -119,8 +122,13 @@ export function useBookProfile({
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [nonce, setNonce] = useState(0);
-  // 灵感文件全文留在手边：勾选 / 删除是按行改写，必须基于读到的那一份原文。
-  const notesSource = useRef('');
+  // 灵感文件读到的那一份（文件不存在为 null；没读出来为 undefined，这时不许写）：勾选 / 删除按行
+  // 改写都基于它，写盘也拿它当基线——别处改过就拒写，不拿旧缓存整份盖掉作者后来存的内容。
+  const notesSource = useRef<{ project: string; content: string | null } | undefined>(undefined);
+  const liveProject = useRef(activeProject);
+  useLayoutEffect(() => {
+    liveProject.current = activeProject;
+  }, [activeProject]);
   const saveLifetimeRef = useRef(0);
 
   // 换项目即清空：新书读完之前，屏幕上不该留着上一本的简介、封面和字数。
@@ -155,22 +163,24 @@ export function useBookProfile({
       setOutlineError(null);
       setSaveError(null);
       let rawProfile = '';
-      let rawNotes = '';
+      let rawNotes: string | null | undefined;
       try {
         rawProfile = await readTextOrEmpty(bookProfilePath(activeProject));
       } catch (error) {
         if (!cancelled) setProfileError(message(error));
       }
       try {
-        rawNotes = await readTextOrEmpty(ideaNotesPath(activeProject));
+        rawNotes = await readTextOrNull(ideaNotesPath(activeProject));
       } catch {
         // 灵感文件读取失败不应阻止档案和正文继续显示；视图没有独立 notesError seam。
+        rawNotes = undefined;
       }
       if (cancelled) return;
       const loaded = parseBookProfile(rawProfile);
       setProfile(loaded);
-      notesSource.current = rawNotes;
-      setNotes(parseIdeaNotes(rawNotes));
+      notesSource.current =
+        rawNotes === undefined ? undefined : { project: activeProject, content: rawNotes };
+      setNotes(parseIdeaNotes(rawNotes ?? ''));
       setLoading(false);
 
       if (loaded.cover) {
@@ -253,46 +263,77 @@ export function useBookProfile({
     [activeProject, save],
   );
 
+  /** 写成功才更新界面；写进的作品已不是当前作品时只写盘、不动界面。 */
   const writeNotes = useCallback(
-    async (content: string) => {
-      if (!activeProject) return;
-      notesSource.current = content;
-      setNotes(parseIdeaNotes(content));
+    async (project: string, base: string | null, content: string): Promise<boolean> => {
       try {
-        await TauriFileSystem.writeFile(activeProject, ideaNotesPath(activeProject), content);
+        await TauriFileSystem.writeFileIfUnchanged(
+          project,
+          ideaNotesPath(project),
+          content,
+          base === null ? { kind: 'missing' } : { kind: 'content', content: base },
+        );
       } catch (error) {
-        emitToast(`灵感速记保存失败：${message(error)}`);
+        emitToast(`灵感速记没有保存：${message(error)}`, { tone: 'error' });
+        if (liveProject.current === project) refresh();
+        return false;
       }
+      if (liveProject.current === project) {
+        notesSource.current = { project, content };
+        setNotes(parseIdeaNotes(content));
+      }
+      return true;
     },
-    [activeProject],
+    [refresh],
+  );
+  const changeNotes = useCallback(
+    async (change: (content: string) => string): Promise<string | null> => {
+      const source = notesSource.current;
+      if (!activeProject || !source || source.project !== activeProject) {
+        emitToast('灵感速记还没读出来，刷新一下再改。', { tone: 'error' });
+        return null;
+      }
+      const next = change(source.content ?? '');
+      return (await writeNotes(activeProject, source.content, next)) ? next : null;
+    },
+    [activeProject, writeNotes],
   );
 
   const addNote = useCallback(
-    (text: string) => writeNotes(appendIdeaNote(notesSource.current, text)),
-    [writeNotes],
+    async (text: string) => {
+      await changeNotes((content) => appendIdeaNote(content, text));
+    },
+    [changeNotes],
   );
   const toggleNote = useCallback(
-    (note: IdeaNote) => writeNotes(toggleIdeaNote(notesSource.current, note.line, !note.done)),
-    [writeNotes],
+    async (note: IdeaNote) => {
+      await changeNotes((content) => toggleIdeaNote(content, note.line, !note.done));
+    },
+    [changeNotes],
   );
   const editNote = useCallback(
-    (note: IdeaNote, text: string) =>
-      writeNotes(editIdeaNote(notesSource.current, note.line, text)),
-    [writeNotes],
+    async (note: IdeaNote, text: string) => {
+      await changeNotes((content) => editIdeaNote(content, note.line, text));
+    },
+    [changeNotes],
   );
   const removeNote = useCallback(
     async (note: IdeaNote) => {
-      const raw = notesSource.current.split('\n')[note.line];
-      await writeNotes(removeIdeaNote(notesSource.current, note.line));
-      if (raw === undefined) return;
+      const project = activeProject;
+      const raw = notesSource.current?.content?.split('\n')[note.line];
+      const written = await changeNotes((content) => removeIdeaNote(content, note.line));
+      if (written === null || raw === undefined || !project) return;
       emitToast('已删除这条速记', {
         action: {
           label: '撤销',
-          run: () => writeNotes(restoreIdeaNoteLine(notesSource.current, note.line, raw)),
+          // 只认删除时那本书、删完的那一份：之后别处改过就拒写，换了作品也不拿当前作品的内容去写。
+          run: async () => {
+            await writeNotes(project, written, restoreIdeaNoteLine(written, note.line, raw));
+          },
         },
       });
     },
-    [writeNotes],
+    [activeProject, changeNotes, writeNotes],
   );
 
   const outline = useMemo(() => limitOutlineEntries(outlineAll), [outlineAll]);
