@@ -1,6 +1,7 @@
 import {
   dumpJson,
   InputDomainError,
+  isJsonObject,
   JsonFields,
   parseJsonBytes,
   type JsonObject,
@@ -178,6 +179,8 @@ export type FactRecordPlan = {
   conflicts: FactConflict[];
   /** 和别的章已记的固定事实对不上、存成待定的（与 conflicts 一一对应）。 */
   disputed: JsonObject[];
+  /** 同一章重记时值没变、原句换了：依据换成这次刚核对过的原句（旧原句可能已不在正文里）。 */
+  refreshed: JsonObject[];
   duplicates: number;
 };
 
@@ -199,6 +202,7 @@ export function planFactRecord(input: {
 }): FactRecordPlan {
   const { path, ordinal, canonical } = input;
   const facts = (input.ledger.facts as JsonObject[]).map((fact) => ({ ...fact }));
+  const prior = new Set(facts);
   const ids = new Set(facts.map((fact) => fact.id as string));
   const keyOf = (fact: { kind: string; subject: string; attribute: string }) =>
     [fact.kind, factKey(canonical(fact.subject)), factKey(fact.attribute)].join('|');
@@ -208,6 +212,7 @@ export function planFactRecord(input: {
   const superseded: JsonObject[] = [];
   const conflicts: FactConflict[] = [];
   const disputed: JsonObject[] = [];
+  const refreshed: JsonObject[] = [];
   let duplicates = 0;
   const here = ordinal(path);
   const keyed = (fact: JsonObject) =>
@@ -240,8 +245,13 @@ export function planFactRecord(input: {
     const pending = facts.filter((fact) => fact.status === 'disputed' && keyed(fact) === key);
     const value = valueOf(candidate.value, candidate.object);
     // 已有的说法、已经在等作者定的同一说法，都不再记一遍。
-    if ([...same, ...pending].some((fact) => valued(fact) === value)) {
+    const known = [...same, ...pending].find((fact) => valued(fact) === value);
+    if (known !== undefined) {
       duplicates += 1;
+      if (known.path === path && prior.has(known) && firstQuote(known) !== candidate.quote) {
+        known.evidence = [{ path, quote: candidate.quote, start_line: candidate.startLine }];
+        refreshed.push(known);
+      }
       continue;
     }
     if (FIXED_KINDS.has(candidate.kind)) {
@@ -280,8 +290,14 @@ export function planFactRecord(input: {
     superseded,
     conflicts,
     disputed,
+    refreshed,
     duplicates,
   };
+}
+
+function firstQuote(fact: JsonObject): string | null {
+  const evidence = Array.isArray(fact.evidence) ? fact.evidence[0] : undefined;
+  return isJsonObject(evidence) && typeof evidence.quote === 'string' ? evidence.quote : null;
 }
 
 /**

@@ -143,6 +143,10 @@ describe('planning a chapter record', () => {
     const result = plan([], '正文/第002章.md', [{}, { quote: '他进城了。' }]);
     expect(result.added).toHaveLength(1);
     expect(result.duplicates).toBe(1);
+    expect(result.refreshed).toEqual([]);
+    expect(result.added[0].evidence).toEqual([
+      { path: '正文/第002章.md', quote: '陈默进了城。', start_line: 3 },
+    ]);
   });
 
   it('lets a later state replace an earlier one', () => {
@@ -199,6 +203,32 @@ describe('planning a chapter record', () => {
     ]);
     expect(again.duplicates).toBe(1);
     expect(again.disputed).toEqual([]);
+  });
+
+  it('refreshes the quote when the same chapter says the same thing in new words', () => {
+    const old = existing({
+      value: '在城里',
+      path: '正文/第002章.md',
+      evidence: [{ path: '正文/第002章.md', quote: '陈默住在城里。', start_line: 2 }],
+    });
+    const result = plan([old], '正文/第002章.md', [{ quote: '陈默的住处在城里。', startLine: 5 }]);
+    expect(result.duplicates).toBe(1);
+    expect(result.added).toEqual([]);
+    expect(result.refreshed.map((fact) => fact.id)).toEqual(['fact_old']);
+    expect((result.ledger.facts as JsonObject[])[0].evidence).toEqual([
+      { path: '正文/第002章.md', quote: '陈默的住处在城里。', start_line: 5 },
+    ]);
+  });
+
+  it('leaves the quote alone when another chapter repeats the fact or the quote is unchanged', () => {
+    const evidence = [{ path: '正文/第001章.md', quote: '陈默住在城里。', start_line: 2 }];
+    const other = plan([existing({ value: '在城里', evidence })], '正文/第002章.md', [{}]);
+    expect(other.refreshed).toEqual([]);
+    expect((other.ledger.facts as JsonObject[])[0].evidence).toEqual(evidence);
+    const same = plan([existing({ value: '在城里', evidence })], '正文/第001章.md', [
+      { quote: '陈默住在城里。' },
+    ]);
+    expect(same.refreshed).toEqual([]);
   });
 
   it('replaces a fixed fact when the same chapter was rewritten', () => {

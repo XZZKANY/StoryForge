@@ -178,6 +178,21 @@ describe('recording an accepted chapter into the fact ledger', () => {
     expect(second).toMatchObject({ status: 'unchanged', duplicates: 1, added: 0 });
   });
 
+  it('re-records a reworded chapter by refreshing the quote, so drafting can still use the fact', async () => {
+    const first = await (await setup({ newFacts: [fact()] })).record();
+    const reworded = '第二章\n\n陈默进了城。\n林舟将铜钥匙递给了陈默。\n';
+    const { record } = await setup({
+      chapter: reworded,
+      newFacts: [fact({ quote: '林舟将铜钥匙递给了陈默。' })],
+    });
+    const second = await record(first.after as string);
+    expect(second).toMatchObject({ status: 'ready', duplicates: 1, added: 0 });
+    const [kept] = JSON.parse(second.after as string).facts as JsonObject[];
+    expect(kept.evidence).toEqual([
+      { path: '正文/第002章.md', quote: '林舟将铜钥匙递给了陈默。', start_line: 4 },
+    ]);
+  });
+
   it.each([
     ['no_run', { runId: 'run-x' }],
     ['no_facts', { newFacts: undefined }],
