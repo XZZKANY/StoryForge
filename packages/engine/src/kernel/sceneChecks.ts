@@ -138,6 +138,10 @@ export type EntityBudgetOptions = {
   budgetCoreLocations?: number;
   budgetCoreEvidence?: number;
   budgetMajorReversals?: number;
+  /** 第 20 章后还允许新增几个核心地点；默认 0，一个都算超。 */
+  budgetLateCoreLocations?: number;
+  /** 第 25 章后还允许新增几个谜题；默认 0。 */
+  budgetLateMysteries?: number;
 };
 
 /** 长篇实体预算静态检查：单章结构化观察值对照阈值与数量预算，产出 advisory 信号。 */
@@ -160,13 +164,17 @@ export async function entityBudgetScan(
     newMysteries,
     newEquipment,
   } = options;
-  if (chapter >= 20 && newCoreLocations?.length)
+  if (
+    chapter >= 20 &&
+    newCoreLocations &&
+    newCoreLocations.length > (options.budgetLateCoreLocations ?? 0)
+  )
     add(
       'late_core_locations',
       `chapter 20+新增核心地点: ${newCoreLocations.join(', ')}`,
       newCoreLocations.join(', '),
     );
-  if (chapter >= 25 && newMysteries?.length)
+  if (chapter >= 25 && newMysteries && newMysteries.length > (options.budgetLateMysteries ?? 0))
     add(
       'late_mysteries',
       `chapter 25+新增新谜题: ${newMysteries.join(', ')}`,

@@ -44,9 +44,8 @@ const ENTITY_INTS: [string, keyof EntityBudgetOptions | null][] = [
   ['budget_core_locations', 'budgetCoreLocations'],
   ['budget_core_evidence', 'budgetCoreEvidence'],
   ['budget_major_reversals', 'budgetMajorReversals'],
-  // 这两项 Python 也只校验类型、规则里没有用到。
-  ['budget_new_core_entities_after_chapter_20', null],
-  ['budget_new_mysteries_after_chapter_25', null],
+  ['budget_new_core_entities_after_chapter_20', 'budgetLateCoreLocations'],
+  ['budget_new_mysteries_after_chapter_25', 'budgetLateMysteries'],
 ];
 
 export function checkToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {

@@ -167,6 +167,35 @@ async function runDirect(h: ReturnType<typeof harness>, call: Call, args: Obj) {
   }
 }
 
+/**
+ * 接受的差异：实体预算检查的两项晚章预算（第 20 章后新增核心地点、第 25 章后新增谜题），Python 只校验类型、
+ * 规则里没用到，放宽了照样报超。现在按预算判；改判时从 Python 的期望里剔掉预算以内的那条，条数钉死。
+ */
+let lateBudgetsAccepted = 0;
+type Loose = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 按 Python 预言机的 JSON 形状改判
+function acceptLateBudgets(spec: Obj, expected: Loose) {
+  const payload = (spec.payload as Obj | undefined) ?? {};
+  const issues = expected?.output?.verdict?.issues as Obj[] | undefined;
+  if (!issues) return;
+  const late: [string, string, string][] = [
+    ['budget_new_core_entities_after_chapter_20', 'new_core_locations', 'late_core_locations'],
+    ['budget_new_mysteries_after_chapter_25', 'new_mysteries', 'late_mysteries'],
+  ];
+  for (const [budgetKey, listKey, rule] of late) {
+    const budget = payload[budgetKey];
+    const listed = payload[listKey];
+    const at = issues.findIndex((issue) => issue.rule === rule);
+    if (typeof budget !== 'number' || at < 0) continue;
+    if ((Array.isArray(listed) ? listed.length : 0) > budget) continue;
+    issues.splice(at, 1);
+    expected.trace.output_summary.issue_count -= 1;
+    expected.output.summary = String(expected.output.summary)
+      .replace(`${issues.length + 1} 个 advisory 信号`, `${issues.length} 个 advisory 信号`)
+      .replace(`${rule}（高）、`, '');
+    lateBudgetsAccepted += 1;
+  }
+}
+
 describe.each(projects.map((record) => [record.id, record] as const))(
   'P3-3b 工具处理器与文件工具（Python 预言机）%s',
   (_id, record) => {
@@ -192,7 +221,9 @@ describe.each(projects.map((record) => [record.id, record] as const))(
           else expect((caught as Error).message).toBe(call.error.message);
         } else {
           if (caught) throw caught;
-          expect(stable(result)).toEqual(JSON.parse(call.output_json!));
+          const expected = JSON.parse(call.output_json!);
+          if (call.fn === 'project.entity_budget_check') acceptLateBudgets(spec, expected);
+          expect(stable(result)).toEqual(expected);
         }
         const writes = h.project.takeWrites();
         expect(Object.keys(writes).sort()).toEqual(Object.keys(call.writes).sort());
@@ -204,6 +235,10 @@ describe.each(projects.map((record) => [record.id, record] as const))(
 );
 
 describe('P3-3b 接受的差异', () => {
+  it('晚章预算的改判只动了 golden 里那一条', () => {
+    expect(lateBudgetsAccepted).toBe(1);
+  });
+
   it('canon.json 写错时一致性检查直接报错（Python 静默丢掉 canon 别名）', async () => {
     const h = harness({
       id: 'bad',
