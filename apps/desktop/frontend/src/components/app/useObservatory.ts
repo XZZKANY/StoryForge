@@ -324,7 +324,9 @@ export function useObservatory({
     const next = loadDismissedProposals(project);
     if (on) next.add(key);
     else next.delete(key);
-    saveDismissedProposals(project, next);
+    const saved = saveDismissedProposals(project, next);
+    if (!saved) emitToast('本机存储写不进去，提案没有隐藏。', { tone: 'error' });
+    return saved;
   }, []);
   useEffect(() => {
     const onChange = (event: Event) => {
@@ -339,9 +341,14 @@ export function useObservatory({
       if (!activeProject) return;
       const project = activeProject;
       const key = proposalKey(target);
-      setProposalDismissed(project, key, true);
+      if (!setProposalDismissed(project, key, true)) return;
       emitToast('这条提案不要了（canon.json 没动）', {
-        action: { label: '撤销', run: () => setProposalDismissed(project, key, false) },
+        action: {
+          label: '撤销',
+          run: () => {
+            setProposalDismissed(project, key, false);
+          },
+        },
       });
     },
     [activeProject, setProposalDismissed],
