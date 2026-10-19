@@ -36,5 +36,5 @@ Open `components/app/useAppPreferences.ts`, the remaining `components/chat-windo
 ## Size Gates
 
 - `App.tsx` must remain at or below 400 lines.
-- `ChatWindow.tsx` and every S6 owner listed in `tests/test_source_code_standards.py` must remain at or below 500 lines.
+- `ChatWindow.tsx` and every owner listed in `tests/source-standards.test.ts` must remain at or below 500 lines.
 - Static layout/ownership tests must move with the owner file rather than silently continuing to inspect an emptied facade.
