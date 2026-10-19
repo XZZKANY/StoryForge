@@ -497,9 +497,16 @@ export async function readVersionState(
     if (entry.created === true) return { exists: false, content: '' };
     return { exists: true, content: await TauriFileSystem.readFile(entry.contentRef.path) };
   }
-  return await readShadowSnapshotFile(
+  const state = await readShadowSnapshotFile(
     projectPath,
     entry.contentRef.treeHash,
     entry.contentRef.file,
   );
+  // 记的是「写入前文件在」，树里却没有：是快照把它排除了（单个文件超过 2 MiB，或被作品的 .gitignore 忽略），
+  // 不是原本不存在——不能当成「不存在」去恢复，那会删掉当前文件。
+  if (!state.exists && entry.created === false)
+    throw new Error(
+      '这个版本没有存下这份文件的内容（单个文件超过 2 MiB，或被作品的 .gitignore 忽略），没法从这里恢复。',
+    );
+  return state;
 }

@@ -818,7 +818,63 @@ impl ShadowGitCore {
         })
     }
 
+    /// 影子 index 可能是从作者仓库复制来的：作者给文件设的 assume-unchanged / skip-worktree
+    /// 会让 `git add` 不看磁盘上的新内容，快照里存的就是旧稿。只清影子 index 里的，作者 .git 不动；
+    /// skip-worktree 只清磁盘上确实在的文件（稀疏检出时不在盘上的不能当成被删）。
+    fn clear_inherited_index_flags(&self, repo: &ShadowRepository) -> Result<(), String> {
+        if !repo.git_dir.join("index").is_file() {
+            return Ok(());
+        }
+        let args = [
+            OsString::from("ls-files"),
+            OsString::from("-v"),
+            OsString::from("-z"),
+        ];
+        let output = self.run_in_repository(repo, &args, None)?;
+        let output = self.require_success(output, "列出影子 Git 索引标志")?;
+        let mut assumed = Vec::new();
+        let mut skipped = Vec::new();
+        for entry in output.stdout.split(|byte| *byte == 0) {
+            if entry.len() < 3 || entry[1] != b' ' {
+                continue;
+            }
+            let (tag, path) = (entry[0], &entry[2..]);
+            if tag.is_ascii_lowercase() {
+                assumed.extend_from_slice(path);
+                assumed.push(0);
+            }
+            if tag == b'S' || tag == b's' {
+                let Ok(relative) = std::str::from_utf8(path) else {
+                    continue;
+                };
+                if repo.project_root.join(path_from_git(relative)).is_file() {
+                    skipped.extend_from_slice(path);
+                    skipped.push(0);
+                }
+            }
+        }
+        // 两个标志要分两次清：同一条 update-index 里两个选项只有一个生效。
+        for (flag, paths) in [
+            ("--no-assume-unchanged", assumed),
+            ("--no-skip-worktree", skipped),
+        ] {
+            if paths.is_empty() {
+                continue;
+            }
+            let args = [
+                OsString::from("update-index"),
+                OsString::from(flag),
+                OsString::from("-z"),
+                OsString::from("--stdin"),
+            ];
+            let output = self.run_in_repository(repo, &args, Some(&paths))?;
+            self.require_success(output, "清除影子 Git 继承的索引标志")?;
+        }
+        Ok(())
+    }
+
     fn stage_worktree(&self, repo: &ShadowRepository) -> Result<Vec<String>, String> {
+        self.clear_inherited_index_flags(repo)?;
         self.write_excludes(repo, &[])?;
         let large_untracked = self.find_large_untracked_files(repo)?;
         self.write_excludes(repo, &large_untracked)?;

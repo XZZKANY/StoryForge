@@ -365,3 +365,28 @@ test('连改两次名：最新名字下前两个名字的版本都在', async ()
   const files = (await listVersions(PROJECT, third)).map((entry) => entry.file);
   assert.deepEqual(files.sort(), ['正文/第01章 改.md', '正文/第01章.md']);
 });
+
+test('写入前文件在、快照却把它排除了（过大或被忽略）：这个版本不能当成「不存在」去恢复', async () => {
+  const stamp = clock + 1;
+  const treeHash = 'd'.repeat(40);
+  const meta = (created: boolean) =>
+    JSON.stringify({
+      schemaVersion: 2,
+      storage: 'shadow-git',
+      treeHash,
+      recordId: `record_${created ? 'new' : 'old'}`,
+      file: '正文/第01章.md',
+      created,
+    });
+  disk.set(`${VERSION_DIR}/${stamp}.meta.json`, { content: meta(false) });
+  disk.set(`${VERSION_DIR}/${stamp + 1}.meta.json`, { content: meta(true) });
+  shadow.retainedHashes.add(treeHash);
+  shadow.treeFiles.set(treeHash, new Map());
+
+  const versions = await listVersions(PROJECT, FILE);
+  const existed = versions.find((entry) => entry.created === false)!;
+  const fresh = versions.find((entry) => entry.created === true)!;
+  await assert.rejects(readVersionState(PROJECT, existed), /没有存下这份文件的内容/);
+  // 真正新建的文件：写入前本来就不存在，恢复成「不存在」照旧。
+  assert.deepEqual(await readVersionState(PROJECT, fresh), { exists: false, content: '' });
+});

@@ -803,3 +803,57 @@ fn directory_digest(root: &Path) -> String {
     }
     format!("{:x}", hash.finalize())
 }
+
+#[test]
+fn inherited_index_flags_do_not_freeze_old_drafts_in_snapshots() {
+    for flag in ["--assume-unchanged", "--skip-worktree"] {
+        let (_data, project, core) = fixture();
+        write(project.path(), "正文/第01章.md", "old manuscript");
+        run_git(project.path(), &["init"]);
+        run_git(project.path(), &["add", "--", "."]);
+        run_git(
+            project.path(),
+            &["update-index", flag, "--", "正文/第01章.md"],
+        );
+        let author_git = project.path().join(".git");
+        let before = directory_digest(&author_git);
+        write(project.path(), "正文/第01章.md", "latest manuscript");
+
+        let snapshot = core
+            .create_snapshot(project.path().to_str().unwrap())
+            .expect("snapshot over an author index with flags");
+        assert_eq!(
+            read_state(&core, project.path(), &snapshot.tree_hash, "正文/第01章.md"),
+            (true, "latest manuscript".to_string()),
+            "{flag}: the snapshot must hold what is on disk, not the flagged index copy"
+        );
+        assert_eq!(
+            directory_digest(&author_git),
+            before,
+            "{flag}: clearing flags must only touch the shadow index"
+        );
+    }
+}
+
+#[test]
+fn skip_worktree_files_absent_from_disk_stay_in_snapshots() {
+    let (_data, project, core) = fixture();
+    write(project.path(), "正文/第01章.md", "sparse manuscript");
+    write(project.path(), "正文/第02章.md", "visible manuscript");
+    run_git(project.path(), &["init"]);
+    run_git(project.path(), &["add", "--", "."]);
+    run_git(
+        project.path(),
+        &["update-index", "--skip-worktree", "--", "正文/第01章.md"],
+    );
+    fs::remove_file(project.path().join("正文").join("第01章.md")).expect("sparse checkout");
+
+    let snapshot = core
+        .create_snapshot(project.path().to_str().unwrap())
+        .expect("snapshot over a sparse author index");
+    assert_eq!(
+        read_state(&core, project.path(), &snapshot.tree_hash, "正文/第01章.md"),
+        (true, "sparse manuscript".to_string()),
+        "a skip-worktree file that is not on disk must not be read as deleted"
+    );
+}
