@@ -8910,3 +8910,15 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - golden：`p2-llm-client`、`p2-llm-pure` 各 3 处、`p3-wiring` 6 处报错原文按同一短语替换；`p3-wiring` 里这句报错作为工具结果回给了模型，所以那条工具消息的哈希、请求摘要随之变化（共 2 个哈希）、长度少 4 个字（新短语比旧的少 4 个字）。核对办法同 #430：临时测试拦截哈希、把新短语换回旧短语重算，得到的 2 对「旧 → 新」正是 golden 里被换的 2 处；引擎全套 13665 passed。临时测试已删。
 - 测试：新 `llm/transportClose.test.ts` 2 条（非流式 / 流式：429 回包时恰被停止 → 抛中断且回包恰好关一次；不停止时照常报 429 且关一次）；新 `loop/tools/polishFiltered.test.ts` 1 条（同样完整的 JSON：`content_filter` 不选在线候选并报 `response_filtered`，`stop` 照常采用）。变异 6 / 6（中断时不放回包、非流式 / 流式改回直接检查、润色不看 content_filter、门禁不报、报错文案改回 BookRun）。`pnpm verify` 8 道全过。
 - 未验：真宿主上取消时的网络资源占用；真实服务商的 content_filter 回包形状。
+
+## 2026-10-19 压缩修订一字没改不再出补丁；实体预算检查的两项晚章预算真正生效（全项目审计 C-11 / C-03）
+
+- 全项目审计报两条，源码核实都成立：
+  - C-11（第三轮）：`project.trim_prose` 没有 `file.revise` 那样的「改完一字没变就不出补丁」分支；模型原样返回时仍报「压缩完成：24 → 24 字（0.0%）」并产出待确认补丁，作者要对着一个 +0 / -0 的改动点接受或拒绝。
+  - C-03（第二轮）：`project.entity_budget_check` 的工具说明对模型公开了 `budget_new_core_entities_after_chapter_20` / `budget_new_mysteries_after_chapter_25` 两个预算覆盖，处理器只校验是整数、不传给扫描，扫描对第 20 章后新增核心地点、第 25 章后新增谜题一律「有就报」。作者让模型放宽预算再查，照样报同样的超预算警告（advisory，不改正文）。Python 版注释写明「这两项也只校验类型、规则里没有用到」，是原样迁过来的。
+- 改动：
+  - `patchHandlers.ts`：压缩结果与原文相同时返回 `unchanged`、说明「压缩结果与原文一字不差（N 字），没有生成补丁」，不产补丁和待确认产物。
+  - `checkHandlers.ts` 把两项参数接到扫描；`sceneChecks.ts` 的两条晚章规则改成「新增数超过预算才报」，默认预算 0（不传参数时行为不变）。
+- golden：`p3-tool-handlers` 第 66 条用例正好传了 `budget_new_core_entities_after_chapter_20: 1` 和一个晚章新地点，Python 照样报了 `late_core_locations`。按 #407 的先例在回放里改判（从 Python 期望里剔掉预算以内的那条，`issue_count` 与摘要同步），改判条数钉死为 1，不重录 golden。
+- 测试：新 `loop/tools/trimNoop.test.ts` 2 条（经真实 assistant 修订链：原样返回 → 无补丁、`unchanged`；真压短了 → 照常出补丁）；新 `kernel/entityBudget.test.ts` 3 条（默认一有就报；预算以内不报、超过才报；经公开工具参数走真实处理器两项预算都生效）；`handlers.test.ts` 改判 + 钉数。变异 5 / 5（压缩零变化照样出补丁、两项参数不接、两条规则不看预算）。`pnpm verify` 8 道全过。
+- 未验：真模型。

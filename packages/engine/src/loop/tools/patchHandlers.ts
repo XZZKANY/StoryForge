@@ -539,6 +539,41 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
       target_percent: targetPercent,
       actual_percent: actualPercent,
     };
+    // 压完一字没变：不出补丁，免得作者对着 +0 / -0 的「压缩完成」还要点接受（同 file.revise）。
+    if (response.after === response.before) {
+      const unchangedSummary = `压缩结果与原文一字不差（${originalChars} 字），没有生成补丁。`;
+      return {
+        status: 'completed',
+        output: {
+          file_path: filePath,
+          unchanged: true,
+          summary: unchangedSummary,
+          model: response.model,
+          latency_ms: response.latency_ms,
+          completion_tokens: response.completion_tokens,
+          assistant_session_id: response.assistant_session_id,
+          trim_audit: trimAudit,
+        },
+        summary: unchangedSummary,
+        metrics: {
+          after_chars: compressedChars,
+          completion_tokens: response.completion_tokens,
+          latency_ms: response.latency_ms,
+          compression_percent: actualPercent,
+        },
+        trace: {
+          tool_name: 'project.trim_prose',
+          status: 'completed',
+          input_summary: { file_path: filePath, target_percent: targetPercent },
+          output_summary: {
+            original_chars: originalChars,
+            compressed_chars: compressedChars,
+            compression_percent: actualPercent,
+            unchanged: true,
+          },
+        },
+      };
+    }
     const confirm = requiresConfirmation(context);
     const proposedPatch: Obj = {
       id: `prose-trim-${deps.newHex()}`,
