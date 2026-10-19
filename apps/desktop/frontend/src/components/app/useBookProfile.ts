@@ -82,6 +82,17 @@ async function readTextOrNull(path: string): Promise<string | null> {
   }
 }
 
+/** 空文件也算可写；有内容就必须是 JSON 对象，否则当作读不出来。 */
+function isProfileObject(raw: string): boolean {
+  if (!raw.trim()) return true;
+  try {
+    const value: unknown = JSON.parse(raw);
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+  } catch {
+    return false;
+  }
+}
+
 async function readTextOrEmpty(path: string, allowMissing = true): Promise<string> {
   if (!allowMissing) return await TauriFileSystem.readFile(path);
   return (await readTextOrNull(path)) ?? '';
@@ -125,6 +136,15 @@ export function useBookProfile({
   // 灵感文件读到的那一份（文件不存在为 null；没读出来为 undefined，这时不许写）：勾选 / 删除按行
   // 改写都基于它，写盘也拿它当基线——别处改过就拒写，不拿旧缓存整份盖掉作者后来存的内容。
   const notesSource = useRef<{ project: string; content: string | null } | undefined>(undefined);
+  // book.json 读到的那一份，规矩同上：读失败或 JSON 坏了为 undefined，不拿默认值把作者的档案整份盖掉。
+  const profileSource = useRef<{ project: string; raw: string | null } | undefined>(undefined);
+  // 档案和速记的写盘排成一队：后一次要以前一次写下的内容为基线，并发着写会被条件写当成别处改过。
+  const writeQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const enqueue = useCallback(<T>(job: () => Promise<T>): Promise<T> => {
+    const run = writeQueue.current.then(job);
+    writeQueue.current = run.catch(() => undefined);
+    return run;
+  }, []);
   const liveProject = useRef(activeProject);
   useLayoutEffect(() => {
     liveProject.current = activeProject;
@@ -162,10 +182,10 @@ export function useBookProfile({
       setProfileError(null);
       setOutlineError(null);
       setSaveError(null);
-      let rawProfile = '';
+      let rawProfile: string | null | undefined;
       let rawNotes: string | null | undefined;
       try {
-        rawProfile = await readTextOrEmpty(bookProfilePath(activeProject));
+        rawProfile = await readTextOrNull(bookProfilePath(activeProject));
       } catch (error) {
         if (!cancelled) setProfileError(message(error));
       }
@@ -176,7 +196,13 @@ export function useBookProfile({
         rawNotes = undefined;
       }
       if (cancelled) return;
-      const loaded = parseBookProfile(rawProfile);
+      const broken = typeof rawProfile === 'string' && !isProfileObject(rawProfile);
+      if (broken) setProfileError('book.json 不是有效的 JSON 对象，先在编辑器里修好');
+      profileSource.current =
+        rawProfile === undefined || broken
+          ? undefined
+          : { project: activeProject, raw: rawProfile };
+      const loaded = parseBookProfile(rawProfile ?? '');
       setProfile(loaded);
       notesSource.current =
         rawNotes === undefined ? undefined : { project: activeProject, content: rawNotes };
@@ -227,25 +253,39 @@ export function useBookProfile({
       setProfile(next);
       setSaveError(null);
       if (!activeProject) return;
+      const project = activeProject;
       const lifetime = saveLifetimeRef.current;
-      const separator = activeProject.includes('\\') ? '\\' : '/';
-      const storyforgeDir = `${activeProject.replace(/[\\/]+$/, '')}${separator}.storyforge`;
-      try {
-        await TauriFileSystem.createDir(activeProject, storyforgeDir, true);
-        await TauriFileSystem.writeFile(
-          activeProject,
-          bookProfilePath(activeProject),
-          serializeBookProfile(next),
-        );
-      } catch (error) {
-        const detail = message(error);
-        if (saveLifetimeRef.current === lifetime) {
-          setSaveError(detail);
-          emitToast(`作品档案保存失败：${detail}`);
+      const fail = (detail: string) => {
+        if (saveLifetimeRef.current !== lifetime) return;
+        setSaveError(detail);
+        emitToast(`作品档案保存失败：${detail}`);
+      };
+      await enqueue(async () => {
+        const source = profileSource.current;
+        if (!source || source.project !== project) {
+          fail('档案没读出来，这次没有写入；修好 book.json 或刷新后再改');
+          return;
         }
-      }
+        const content = serializeBookProfile(next);
+        // 失焦就提交：没改动的那一下不写盘。
+        if (content === serializeBookProfile(parseBookProfile(source.raw ?? ''))) return;
+        const separator = project.includes('\\') ? '\\' : '/';
+        const storyforgeDir = `${project.replace(/[\\/]+$/, '')}${separator}.storyforge`;
+        try {
+          await TauriFileSystem.createDir(project, storyforgeDir, true);
+          await TauriFileSystem.writeFileIfUnchanged(
+            project,
+            bookProfilePath(project),
+            content,
+            source.raw === null ? { kind: 'missing' } : { kind: 'content', content: source.raw },
+          );
+          if (profileSource.current === source) profileSource.current = { project, raw: content };
+        } catch (error) {
+          fail(message(error));
+        }
+      });
     },
-    [activeProject],
+    [activeProject, enqueue],
   );
 
   const pickCover = useCallback(
@@ -287,16 +327,20 @@ export function useBookProfile({
     [refresh],
   );
   const changeNotes = useCallback(
-    async (change: (content: string) => string): Promise<string | null> => {
-      const source = notesSource.current;
-      if (!activeProject || !source || source.project !== activeProject) {
-        emitToast('灵感速记还没读出来，刷新一下再改。', { tone: 'error' });
-        return null;
-      }
-      const next = change(source.content ?? '');
-      return (await writeNotes(activeProject, source.content, next)) ? next : null;
+    (change: (content: string) => string): Promise<{ before: string; written: string } | null> => {
+      const project = activeProject;
+      return enqueue(async () => {
+        const source = notesSource.current;
+        if (!project || !source || source.project !== project) {
+          emitToast('灵感速记还没读出来，刷新一下再改。', { tone: 'error' });
+          return null;
+        }
+        const before = source.content ?? '';
+        const written = change(before);
+        return (await writeNotes(project, source.content, written)) ? { before, written } : null;
+      });
     },
-    [activeProject, writeNotes],
+    [activeProject, enqueue, writeNotes],
   );
 
   const addNote = useCallback(
@@ -320,20 +364,23 @@ export function useBookProfile({
   const removeNote = useCallback(
     async (note: IdeaNote) => {
       const project = activeProject;
-      const raw = notesSource.current?.content?.split('\n')[note.line];
-      const written = await changeNotes((content) => removeIdeaNote(content, note.line));
-      if (written === null || raw === undefined || !project) return;
+      const result = await changeNotes((content) => removeIdeaNote(content, note.line));
+      const raw = result?.before.split('\n')[note.line];
+      if (result === null || raw === undefined || !project) return;
+      const { written } = result;
       emitToast('已删除这条速记', {
         action: {
           label: '撤销',
           // 只认删除时那本书、删完的那一份：之后别处改过就拒写，换了作品也不拿当前作品的内容去写。
           run: async () => {
-            await writeNotes(project, written, restoreIdeaNoteLine(written, note.line, raw));
+            await enqueue(() =>
+              writeNotes(project, written, restoreIdeaNoteLine(written, note.line, raw)),
+            );
           },
         },
       });
     },
-    [activeProject, changeNotes, writeNotes],
+    [activeProject, changeNotes, enqueue, writeNotes],
   );
 
   const outline = useMemo(() => limitOutlineEntries(outlineAll), [outlineAll]);
