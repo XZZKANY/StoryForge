@@ -48,6 +48,8 @@ export type PolishCandidate = {
   source: 'local' | 'online';
   text: string;
   responseTruncated?: boolean;
+  /** 上游按内容安全拒了（finish_reason=content_filter）：哪怕回来的 JSON 完整也不能用。 */
+  responseFiltered?: boolean;
 };
 export type PolishDecision = {
   status: 'accepted' | 'degraded' | 'noop' | 'rejected';
@@ -477,6 +479,7 @@ export function evaluatePolishCandidate(
   candidate: string,
   options: PolishFacts & {
     responseTruncated?: boolean;
+    responseFiltered?: boolean;
     config?: PolishGateConfig | null;
     editPolicy?: AuthorEditPolicy | null;
   } = {},
@@ -488,6 +491,7 @@ export function evaluatePolishCandidate(
   reasons.push(...authorEditPolicyFailures(original, candidate, policy));
   if (!pythonStrip(candidate)) reasons.push('empty_candidate');
   if (options.responseTruncated) reasons.push('response_truncated');
+  if (options.responseFiltered) reasons.push('response_filtered');
 
   const originalDocument = splitPolishableMarkdown(original);
   const candidateDocument = splitPolishableMarkdown(candidate);
@@ -575,6 +579,7 @@ export function selectPolishCandidate(
     evaluations[candidate.source] = evaluatePolishCandidate(original, candidate.text, {
       ...facts,
       responseTruncated: candidate.responseTruncated ?? false,
+      responseFiltered: candidate.responseFiltered ?? false,
     });
     bySource[candidate.source] = candidate;
   }

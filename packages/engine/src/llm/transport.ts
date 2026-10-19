@@ -160,6 +160,18 @@ async function readJsonBody(response: HttpResponse): Promise<JsonValue> {
 }
 
 /** 诊断用：读不出错误响应体不能掩盖原始 HTTP 错误。 */
+function interruptClosing(
+  control: Parameters<typeof checkRunInterruption>[0],
+  response: HttpResponse,
+) {
+  try {
+    checkRunInterruption(control, 'http_error');
+  } catch (error) {
+    response.close();
+    throw error;
+  }
+}
+
 async function errorBody(response: HttpResponse): Promise<string> {
   try {
     return UTF8_REPLACE.decode(await readAll(response));
@@ -206,7 +218,8 @@ export async function requestChatCompletions(
         timeoutSeconds: requestTimeout(ctx.control, timeout),
       });
       if (!isOk(response.status)) {
-        checkRunInterruption(ctx.control, 'http_error');
+        // 拿到错误回包时恰好取消了：先放掉回包再抛中断，别让宿主那边继续读完错误体。
+        interruptClosing(ctx.control, response);
         const elapsed = elapsedMs(ctx, startedAt);
         if (isRetryableStatus(response.status) && attempt < attemptLimit) {
           response.close();
@@ -366,7 +379,7 @@ export async function* rawStreamChatCompletions(
       response = received;
       break;
     }
-    checkRunInterruption(ctx.control, 'http_error');
+    interruptClosing(ctx.control, received);
     if (
       received.status === 400 &&
       !dropped &&

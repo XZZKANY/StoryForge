@@ -1902,7 +1902,7 @@
       "args_json": "{\"data\": {}}",
       "error": {
         "type": "LLMError",
-        "message": "真实 LLM 响应缺少 choices，不能继续 BookRun 生成。"
+        "message": "真实 LLM 响应缺少 choices，这次没有拿到可用的结果。"
       }
     },
     {
@@ -1910,7 +1910,7 @@
       "args_json": "{\"data\": {\"choices\": []}}",
       "error": {
         "type": "LLMError",
-        "message": "真实 LLM 响应缺少 choices，不能继续 BookRun 生成。"
+        "message": "真实 LLM 响应缺少 choices，这次没有拿到可用的结果。"
       }
     },
     {
@@ -1926,7 +1926,7 @@
       "args_json": "{\"data\": {\"choices\": [{\"message\": \"x\"}]}}",
       "error": {
         "type": "LLMError",
-        "message": "真实 LLM 响应缺少 message，不能继续 BookRun 生成。"
+        "message": "真实 LLM 响应缺少 message，这次没有拿到可用的结果。"
       }
     },
     {

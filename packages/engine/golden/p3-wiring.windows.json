@@ -2683,7 +2683,7 @@
               "focus": " 道具 "
             },
             "assistant_tool_call_id": 1,
-            "error_message": "跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（真实 LLM 返回内容为空，不能继续 BookRun 生成。）"
+            "error_message": "跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（真实 LLM 返回内容为空，这次没有拿到可用的结果。）"
           }
         ],
         "proposed_patch": null,
@@ -2780,7 +2780,7 @@
               "focus": " 道具 "
             },
             "assistant_tool_call_id": 1,
-            "error_message": "跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（真实 LLM 返回内容为空，不能继续 BookRun 生成。）"
+            "error_message": "跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（真实 LLM 返回内容为空，这次没有拿到可用的结果。）"
           }
         },
         {
@@ -2956,7 +2956,7 @@
               },
               {
                 "role": "tool",
-                "content": "{\"error\": \"跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（真实 LLM 返回内容为空，不能继续 BookRun 生成。）\"}",
+                "content": "{\"error\": \"跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（真实 LLM 返回内容为空，这次没有拿到可用的结果。）\"}",
                 "tool_call_id": "c1"
               }
             ],
@@ -3157,7 +3157,7 @@
                 "focus": " 道具 "
               },
               "assistant_tool_call_id": 1,
-              "error_message": "跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（真实 LLM 返回内容为空，不能继续 BookRun 生成。）"
+              "error_message": "跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（真实 LLM 返回内容为空，这次没有拿到可用的结果。）"
             },
             "recovery": {
               "kind": "tool_completed",
@@ -3634,7 +3634,7 @@
                 },
                 {
                   "role": "tool",
-                  "content": "{\"error\": \"跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（真实 LLM 返回内容为空，不能继续 BookRun 生成。）\"}",
+                  "content": "{\"error\": \"跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（真实 LLM 返回内容为空，这次没有拿到可用的结果。）\"}",
                   "tool_call_id": "c1"
                 }
               ],
@@ -3671,7 +3671,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "0a902e2377ffd756ce9fae6b4097d2d93ac45204a8e6bf98378b6e222e9c6464",
+            "request_digest": "b231ce16e82736811c8827ab71c872de52076c6176f6b8906f941f15351604e1",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
@@ -3709,8 +3709,8 @@
                 "kind": "compiled_message",
                 "index": 4,
                 "role": "tool",
-                "sha256": "68490b49919cb28d7aa882e4c3f373a1950d96b29c0c7d21bd814cac86ad90c6",
-                "content_chars": 72
+                "sha256": "852c46efd8f22d3cb698cfa74577e33cf1c7ceb4c1fd4c64195e26a8d5573805",
+                "content_chars": 68
               }
             ],
             "reconstruction": {
@@ -3863,7 +3863,7 @@
             "focus": " 道具 "
           },
           "output_summary": {},
-          "error_message": "跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（真实 LLM 返回内容为空，不能继续 BookRun 生成。）"
+          "error_message": "跨章一致性模型调用失败，本轮没有产出结论；可稍后重试。（真实 LLM 返回内容为空，这次没有拿到可用的结果。）"
         },
         {
           "id": 2,
