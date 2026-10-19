@@ -8884,3 +8884,15 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 改动（只动 `useObservatory.ts`）：补录进度按作品路径分开存，界面只拿当前作品那一份；「正在补录」改成按作品记的集合，A 在补时 B 可以自己开；跑完只清自己那一份进度；跑完时作者已在看别的作品，通知前面带上那本书的目录名（「甲书」补录 1 章…），撤销仍只作用于那本书。
 - 测试：`observatory-facts-backfill` +1（甲书补录挂起 → 切到乙书：乙书看不到甲书进度、补录候选是乙书的、乙书能自己开补录；甲书跑完不清乙书、通知带「甲书」）。变异 3 / 3（进度不分作品、锁不分作品、跑完的通知不带书名）。`pnpm verify` 8 道全过。
 - 未验：真宿主点穿。
+
+## 2026-10-19 语义评审：主模型是原生 Anthropic / Gemini 时沿用它的协议；提示词里的 JSON 示例改成能解析（全项目审计 C-01 / C-02）
+
+- 全项目审计（外部复查第一轮）报两条，源码核实都成立，都在 `packages/engine/src/judge/`：
+  - C-02：深度一致性的语义评审没有单独配置评审端点时，用的是主模型的地址、型号和密钥（桌面配置源本来就不带 `STORYFORGE_JUDGE_LLM_*`），却强制把协议改成 `openai-compatible`、鉴权改成 bearer。主模型是原生 Anthropic / Gemini 时，请求被发到它们不认的 `/chat/completions`，评审每次都失败（结果静默标成 failed）。用 OpenAI 兼容中转的作者不受影响。
+  - C-01：系统提示词的输出格式示例和第一条示例回答里，`summary` 字段中嵌着没转义的英文双引号（`"正文与必含事实"左臂受伤"矛盾。"`），自身不是合法 JSON，却要求模型「仅返回 JSON」。
+- 改动：
+  - `semantic.ts`：只有「没单独配评审端点、且主模型属于 Anthropic / Gemini 一族」时不覆盖协议与鉴权，沿用主模型自己的；OpenAI 一族的主模型、以及单独配了评审端点时照旧按 OpenAI 线格式（所以已录的 OpenAI 系 golden 不受影响）。
+  - `prompts.ts`：两处嵌套引号改成「」（字数不变）。
+- golden：`p3-deep-consistency.windows.json` 里 200 处提示词 / 请求摘要哈希随示例文字变化。核对办法：用临时测试拦截哈希计算，把每段被哈希的内容里的「左臂受伤」「右臂受伤」换回英文双引号（含 JSON 转义的两种写法）重算，得到 102 对「旧哈希 → 新哈希」；golden 里被替换的 200 处旧哈希全部来自这张对照表，替换后引擎全套 13661 passed——即 golden 的变化只来自这两处引号，C-02 没有改动任何已录请求。临时测试已删。
+- 测试：新 `judge/semantic.test.ts` 4 条（提示词里所有示例都能 `JSON.parse`；主模型是 anthropic / gemini 时沿用其协议、不强加 bearer；主模型是 openai、或单独配了评审端点时走 openai-compatible + bearer）。变异 3 / 3（示例引号改回、原生主模型也强改、单独端点也沿用原生）。`pnpm verify` 8 道全过。
+- 未验：真实 Anthropic / Gemini 端点上的评审请求（不调真模型）。
