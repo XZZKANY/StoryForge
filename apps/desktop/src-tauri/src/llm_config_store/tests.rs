@@ -175,6 +175,33 @@ fn polish_save_and_clear_never_modify_main_key() {
 
 #[cfg(windows)]
 #[test]
+fn polish_only_save_keeps_main_slot_metadata_and_key() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    save(&path, request(Some("main-test-sentinel"), false)).unwrap();
+    let payload: SaveLlmConfigRequest = serde_json::from_value(json!({"polish":
+        {"provider":"gemini", "baseUrl":"https://polish.invalid", "model":"polish",
+        "apiKey":"polish-test-sentinel"}}))
+    .unwrap();
+    save(&path, payload).unwrap();
+    let stored = load(&path).unwrap().0;
+    assert_eq!(stored.provider, "openai-compatible");
+    assert_eq!(stored.base_url, "https://example.invalid/v1");
+    assert_eq!(stored.model, "test-model");
+    assert_eq!(
+        stored.api_key.unwrap().reveal().unwrap(),
+        "main-test-sentinel"
+    );
+    let polish = stored.polish.unwrap();
+    assert_eq!(polish.base_url, "https://polish.invalid");
+    assert_eq!(
+        polish.api_key.unwrap().reveal().unwrap(),
+        "polish-test-sentinel"
+    );
+}
+
+#[cfg(windows)]
+#[test]
 fn second_slot_protection_failure_aborts_entire_migration() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("llm-provider.json");

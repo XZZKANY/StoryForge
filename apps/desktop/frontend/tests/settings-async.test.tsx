@@ -450,6 +450,36 @@ test('未保存徽标：读取完成无徽标、编辑出现、保存成功消�
   assert.ok(badge('polish-provider'));
 });
 
+test('单独保存润色模型不带主模型草稿：主槽在宿主侧保持原样，主槽仍报未保存', async () => {
+  vi.mocked(getDesktopLlmConfig).mockResolvedValueOnce(config);
+  const view = await mount();
+  await edit(view.container, 'provider-base-url', 'https://other-relay.example/v1');
+  await edit(view.container, 'provider-model', 'draft-main');
+  await edit(view.container, 'polish-provider-model', 'fresh-polish');
+  vi.mocked(saveDesktopLlmConfig).mockResolvedValueOnce({
+    ...config,
+    polish: config.polish && { ...config.polish, model: 'fresh-polish' },
+  });
+  await click(button(view.container, 'polish-provider', '保存并应用'));
+  assert.deepEqual(vi.mocked(saveDesktopLlmConfig).mock.calls, [
+    [
+      {
+        polish: {
+          provider: 'anthropic',
+          baseUrl: 'https://polish.example/v1',
+          model: 'fresh-polish',
+          apiKey: '',
+        },
+      },
+    ],
+  ]);
+  assert.ok(view.container.querySelector('[data-testid="settings-unsaved-provider"]'));
+  assert.equal(
+    view.container.querySelector('[data-testid="settings-unsaved-polish-provider"]'),
+    null,
+  );
+});
+
 test('配置读取失败时不报未保存（无法判断就不误报）', async () => {
   vi.mocked(getDesktopLlmConfig).mockRejectedValueOnce(new Error('配置文件暂时不可读'));
   const view = await mount();
