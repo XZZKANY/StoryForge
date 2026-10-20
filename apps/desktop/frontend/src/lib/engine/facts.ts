@@ -1,6 +1,7 @@
 import { getVersion } from '@tauri-apps/api/app';
 import {
   callLlm,
+  canonicalNames,
   missingLlmEnv,
   prepareChapterFactRecord,
   prepareFactBackfill,
@@ -36,13 +37,15 @@ export function retireEngineFact(ledgerText: string | null, factId: string): str
   return retireFact(ledgerText, factId, platform());
 }
 
-/** 处理一条待定事实后的台账全文：accept 以本章为准，reject 保留已记的。 */
-export function resolveEngineDispute(
+/** 处理一条待定事实后的台账全文：accept 以本章为准，reject 保留已记的；别名按作品现在的 canon 认。 */
+export async function resolveEngineDispute(
+  projectRoot: string,
   ledgerText: string | null,
   factId: string,
   choice: 'accept' | 'reject',
-): string {
-  return resolveDisputedFact(ledgerText, factId, choice, platform());
+): Promise<string> {
+  const canonical = await canonicalNames(nativeProjectReader, projectRoot);
+  return resolveDisputedFact(ledgerText, factId, choice, platform(), canonical);
 }
 
 export function listEngineUnrecordedChapters(projectRoot: string) {

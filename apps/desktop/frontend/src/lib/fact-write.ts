@@ -132,7 +132,7 @@ export async function resolveDisputeGuarded({
 }): Promise<{ undo: () => Promise<void> }> {
   const path = factsLedgerPathFor(projectPath);
   const before = await readLedger(path);
-  const after = await resolveLedgerDispute(before, factId, choice);
+  const after = await resolveLedgerDispute(projectPath, before, factId, choice);
   if ((await readLedger(path)) !== before) {
     throw new Error('facts.json 刚被别处改过，这次没有写入。');
   }
