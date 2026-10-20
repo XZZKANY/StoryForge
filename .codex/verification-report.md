@@ -9014,3 +9014,14 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   - `PatchReviewPanel.tsx` 结果为 false 时不清草稿；`DecisionChoices.tsx` 等选项回报结果，没办成就留着那句话，等待期间回车不重复发。
 - 测试：`knowledge-inbox.test.tsx`（保存期间接着改，前一次成功不关、提交的是点保存那一刻的草稿）、`session-manage.test.tsx` 2 条（改名没存进去标题放回输入框；hook 失败报 false、成功报 true）、`patch-review-panel.test.tsx`（否掉没成方向留着、成了才清）、`decision-choices.test.tsx`（没办成留着那句话、等待中回车不重复发）、`behavior/patch-rejection.test.tsx`（真实 writeback + run controls：journal 写失败时拒绝与对话区都报没成、补丁留着、不广播，恢复后报成）。变异 9 / 9。`pnpm verify` 8 道全过。
 - 未验：真宿主；真实磁盘写失败。
+
+## 2026-10-20 切走再切回同一本时旧请求不再改回收件箱；切书瞬间不拿上一本的章去补录（全项目审计 E-17 / E-18）
+
+- 全项目审计（外部复查第五轮）报两条，源码核实都成立，都不丢正文：
+  - E-17：#437 修 E-11 时知识收件箱的四个动作只比较根路径。甲书发起修改 → 切乙书 → 切回甲书并刷新后，最早那次修改迟到回来，根路径又相等，把甲书收件箱改回旧内容（5 秒轮询会再纠正回来）。
+  - E-18：切书时观测镜没清掉补录候选，扫描先回来把状态设成可用、候选列表后回来；中间那一刻点补录，会拿新书的根路径加旧书的章节路径发起补录（窗口极窄，还要作者确认）。
+- 改动：
+  - `useKnowledgeInbox.ts`：每换一次作品记一代（新对象），四个动作发起时记下那一代，回来时还是同一代、且就是发起时那本才动界面。
+  - `useObservatory.ts`：补录候选连同所属作品一起记；当前作品对不上就当没有候选（不显示补录入口、点了也不发）。
+- 测试：`knowledge-inbox-lifecycle.test.tsx`（甲→乙→甲后迟到的修改不改回列表）、`observatory-facts-backfill.test.tsx`（切到乙书、扫描已回来候选未回来时没有候选、点补录不发；候选回来后按乙书的章补录）。变异 2 / 2（只比根路径不比代、候选不认作品）。`pnpm verify` 8 道全过。
+- 未验：真宿主。

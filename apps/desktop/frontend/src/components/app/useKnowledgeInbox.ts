@@ -41,6 +41,12 @@ export function proposalToEdit(item: ApiKnowledgeProposalItem): ApiKnowledgeProp
   };
 }
 
+/** 发起时记下当时那一代作品；回来时还是同一代（且就是发起时那本）才动界面。 */
+function claimLive(liveRoot: { current: { root: string | null } }, root: string) {
+  const owner = liveRoot.current;
+  return () => liveRoot.current === owner && owner.root === root;
+}
+
 export function useKnowledgeInbox(projectRoot: string | null) {
   const [inbox, setInbox] = useState<ApiKnowledgeProposalInbox>(EMPTY_INBOX);
   const [loading, setLoading] = useState(false);
@@ -49,9 +55,10 @@ export function useKnowledgeInbox(projectRoot: string | null) {
   const [error, setError] = useState('');
   const requestVersion = useRef(0);
   // 修改 / 拒绝 / 生成补丁 / 接受都要等引擎：回来时作者可能已换了作品，结果不能写到新作品的收件箱上。
-  const liveRoot = useRef(projectRoot);
+  // 每换一次作品记一代：切走再切回同一本（A→B→A）时根路径又相等了，旧请求的结果仍不算数。
+  const liveRoot = useRef({ root: projectRoot });
   useLayoutEffect(() => {
-    liveRoot.current = projectRoot;
+    liveRoot.current = { root: projectRoot };
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 换作品时清掉上一本留下的审阅与处理中标记
     setReviewPatch(null);
     setBusyProposalId(null);
@@ -99,6 +106,7 @@ export function useKnowledgeInbox(projectRoot: string | null) {
     async (group: ApiKnowledgeProposalGroup, proposal: ApiKnowledgeProposalItem) => {
       if (!projectRoot) return;
       const root = projectRoot;
+      const live = claimLive(liveRoot, root);
       setBusyProposalId(proposal.proposal_id);
       try {
         const patch = await materializeKnowledgeProposal({
@@ -107,14 +115,13 @@ export function useKnowledgeInbox(projectRoot: string | null) {
           revision: group.revision,
           proposalId: proposal.proposal_id,
         });
-        if (liveRoot.current !== root) return;
+        if (!live()) return;
         setReviewPatch(patch);
         setError('');
       } catch (cause) {
-        if (liveRoot.current === root)
-          setError(cause instanceof Error ? cause.message : String(cause));
+        if (live()) setError(cause instanceof Error ? cause.message : String(cause));
       } finally {
-        if (liveRoot.current === root) setBusyProposalId(null);
+        if (live()) setBusyProposalId(null);
       }
     },
     [projectRoot],
@@ -128,6 +135,7 @@ export function useKnowledgeInbox(projectRoot: string | null) {
     ): Promise<boolean> => {
       if (!projectRoot) return false;
       const root = projectRoot;
+      const live = claimLive(liveRoot, root);
       setBusyProposalId(proposalId);
       try {
         const next = await reviseKnowledgeProposalGroup({
@@ -138,17 +146,16 @@ export function useKnowledgeInbox(projectRoot: string | null) {
             item.proposal_id === proposalId ? edited : proposalToEdit(item),
           ),
         });
-        if (liveRoot.current !== root) return true;
+        if (!live()) return true;
         setInbox(next);
         setReviewPatch(null);
         setError('');
         return true;
       } catch (cause) {
-        if (liveRoot.current === root)
-          setError(cause instanceof Error ? cause.message : String(cause));
+        if (live()) setError(cause instanceof Error ? cause.message : String(cause));
         return false;
       } finally {
-        if (liveRoot.current === root) setBusyProposalId(null);
+        if (live()) setBusyProposalId(null);
       }
     },
     [projectRoot],
@@ -158,6 +165,7 @@ export function useKnowledgeInbox(projectRoot: string | null) {
     async (group: ApiKnowledgeProposalGroup, proposal: ApiKnowledgeProposalItem) => {
       if (!projectRoot) return;
       const root = projectRoot;
+      const live = claimLive(liveRoot, root);
       setBusyProposalId(proposal.proposal_id);
       try {
         const next = await resolveKnowledgeProposal({
@@ -167,15 +175,14 @@ export function useKnowledgeInbox(projectRoot: string | null) {
           proposal_id: proposal.proposal_id,
           resolution: 'rejected',
         });
-        if (liveRoot.current !== root) return;
+        if (!live()) return;
         setInbox(next);
         if (reviewPatch?.proposal_id === proposal.proposal_id) setReviewPatch(null);
         setError('');
       } catch (cause) {
-        if (liveRoot.current === root)
-          setError(cause instanceof Error ? cause.message : String(cause));
+        if (live()) setError(cause instanceof Error ? cause.message : String(cause));
       } finally {
-        if (liveRoot.current === root) setBusyProposalId(null);
+        if (live()) setBusyProposalId(null);
       }
     },
     [projectRoot, reviewPatch],
@@ -184,10 +191,11 @@ export function useKnowledgeInbox(projectRoot: string | null) {
   const accept = useCallback(async () => {
     if (!projectRoot || !reviewPatch) return;
     const root = projectRoot;
+    const live = claimLive(liveRoot, root);
     setBusyProposalId(reviewPatch.proposal_id);
     try {
       const result = await applyKnowledgePatch(root, reviewPatch);
-      if (liveRoot.current === root) {
+      if (live()) {
         setReviewPatch(null);
         await refresh();
       }
@@ -196,10 +204,10 @@ export function useKnowledgeInbox(projectRoot: string | null) {
       });
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      if (liveRoot.current === root) setError(message);
+      if (live()) setError(message);
       emitToast(message, { tone: 'error' });
     } finally {
-      if (liveRoot.current === root) setBusyProposalId(null);
+      if (live()) setBusyProposalId(null);
     }
   }, [projectRoot, refresh, reviewPatch]);
 

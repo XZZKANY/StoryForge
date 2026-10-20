@@ -322,3 +322,42 @@ test('在甲书补着时切到乙书：乙书看不到甲书的进度、也能�
   expect(latest.factBackfill.progress).toBeNull();
   expect(toasts.at(-1)?.message).toMatch(/^「甲书」/);
 });
+
+test('切到乙书、扫描已回来但候选章还没读出（全项目审计 E-18）：不拿甲书的章去给乙书补录', async () => {
+  const A = '/books/甲书';
+  const B = '/books/乙书';
+  let latest!: ReturnType<typeof useObservatory>;
+  function Switchable({ project }: { project: string }) {
+    latest = useObservatory({ activeProject: project, dialogs });
+    return null;
+  }
+  let releaseB!: () => void;
+  const onlyB = [{ path: '正文/第002章.md', ordinal: 2 }];
+  vi.mocked(listUnrecordedChapters).mockImplementation(async (projectRoot) => {
+    if (projectRoot === A) return chapters(1);
+    await new Promise<void>((resolve) => {
+      releaseB = resolve;
+    });
+    return onlyB;
+  });
+  vi.mocked(prepareFactBackfill).mockResolvedValue({ status: 'unchanged', added: 0, chapters: [] });
+
+  await act(async () => root.render(<Switchable project={A} />));
+  await act(async () => {});
+  expect(latest.factBackfill.unrecorded).toEqual(chapters(1));
+
+  await act(async () => root.render(<Switchable project={B} />));
+  await act(async () => {});
+  expect(latest.availability).toBe('available');
+  expect(latest.factBackfill.unrecorded).toEqual([]);
+  await act(async () => latest.factBackfill.start());
+  expect(vi.mocked(prepareFactBackfill)).not.toHaveBeenCalled();
+
+  await act(async () => releaseB());
+  await act(async () => {});
+  expect(latest.factBackfill.unrecorded).toEqual(onlyB);
+  await act(async () => latest.factBackfill.start());
+  expect(
+    vi.mocked(prepareFactBackfill).mock.calls.map(([input]) => [input.projectRoot, input.paths]),
+  ).toEqual([[B, ['正文/第002章.md']]]);
+});

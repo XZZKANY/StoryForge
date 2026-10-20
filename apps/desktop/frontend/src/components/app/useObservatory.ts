@@ -84,6 +84,8 @@ const EMPTY_STATE: ObservatoryState = {
 };
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+type Candidates = { project: string | null; chapters: UnrecordedChapter[] };
+const NO_CANDIDATES: Candidates = { project: null, chapters: [] };
 const CANON_WRITE_NOTE =
   '会写进 .storyforge/canon/canon.json。写之前先存一版快照，写完右下角可以撤销。';
 
@@ -100,7 +102,9 @@ export function useObservatory({
   // 但按钮要转圈给反馈——此前 spinner 绑 availability='loading' 故有数据时点重扫毫无反应。
   const [scanning, setScanning] = useState(false);
   const [merging, setMerging] = useState(false);
-  const [unrecorded, setUnrecorded] = useState<UnrecordedChapter[]>([]);
+  // 补录候选按作品记：切书后新书的列表还没读回来时，旧书的章节不能拿去给新书补录。
+  const [candidates, setCandidates] = useState(NO_CANDIDATES);
+  const unrecorded = (candidates.project === activeProject ? candidates : NO_CANDIDATES).chapters;
   // 补录按作品记：在 A 补着时切到 B，B 不该看到 A 的进度，也不该被 A 的「正在补录」挡住。
   const [backfill, setBackfill] = useState<
     Readonly<Record<string, { done: number; total: number; path: string }>>
@@ -140,7 +144,7 @@ export function useObservatory({
         console.error('读取没记账的章失败', error);
         return [];
       });
-      if (seq === scanSeqRef.current) setUnrecorded(missing);
+      if (seq === scanSeqRef.current) setCandidates({ project: activeProject, chapters: missing });
     } catch (error) {
       if (seq !== scanSeqRef.current) return;
       console.error('观测重扫失败', error);
