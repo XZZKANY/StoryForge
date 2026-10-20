@@ -5,9 +5,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
-import { installBrowserGuards } from './lib/browser-guards';
+import { installBrowserGuards, installMonacoCancellationGuard } from './lib/browser-guards';
 import './index.css';
 
+installMonacoCancellationGuard();
 if (import.meta.env.PROD) {
   installBrowserGuards();
 }

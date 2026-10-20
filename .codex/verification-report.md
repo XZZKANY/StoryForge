@@ -9083,3 +9083,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 出包过程里的两次红：第一轮发行版冒烟稳定失败（#380 之后冒烟没跟上新界面，#446 修）；门禁里「行间续写真实 Monaco 回归」两次报 Monaco 的 `Canceled`（卸载编辑器时 Monaco 取消内部异步任务产生的未处理拒绝，与本次改动无关，前端零改动的 #446 上同样出现），重跑整条门禁取到干净结果。这个偶发最近越来越频繁，值得单独修。
 - 产物：NSIS `StoryForge IDE_0.2.1_x64-setup.exe` **32,825,022 字节**，SHA256 `AECBA8E0AF3732659168760BB7D0BB099FAE98D138ACE4F61B964FB5F71A88EF`，另存 `output/release-0.2.1/StoryForge-IDE_0.2.1_x64-setup.exe`，并作为 GitHub Release `v0.2.1` 的附件发布（发布说明 `output/release-0.2.1/notes.md`）。
 - 没跑：真实模型探针（`--agent-real` / `--assistant-real`，要花钱）；作者真机点穿；签名（安装包未签名，README 与发布说明写了 SmartScreen 放行方法；发版清单 §7 写的「公开分发前补签名与更新策略」仍未做）。
+
+## 2026-10-20 兜住 Monaco 同词高亮卸载时漏网的「Canceled」，行间续写回归不再偶发失败
+
+- 现象：`pnpm verify` 的「行间续写真实 Monaco 回归」偶发失败，`errors` 里多一条 `Canceled`。临时目录里留着 6 次失败的证据（10-19 07:11 / 07:49 / 12:56 / 13:06，10-20 09:02 / 09:10），全部是前四步通过、挂在最后「带着可见提案卸载编辑器不能有页面错误」那一步。单跑 6 次、18 核满载下 6 次、与前端全量单测并发 4 次、完整门禁连跑 4 次都没复现，靠时序运气。
+- 根因（读 `node_modules/monaco-editor` 0.52 源码 + 必现复现）：`contrib/wordHighlighter/browser/wordHighlighter.js` 在 `onDidChangeCursorPosition` / `onDidFocusEditorText` 里 `this.runDelayer.trigger(...)`（`Delayer(50)`），返回的 promise 没有接拒绝；编辑器在这 50 ms 内 dispose 或换模型时，`Delayer.dispose → cancel` 以 `CancellationError`（名字与消息都是 `Canceled`）拒绝它，成了未处理的拒绝。把回归最后一步改成「`focus()` 后同一刻 `unmount()`」后 3 / 3 必现，页面错误的调用栈是 `Delayer.cancel ← Delayer.dispose ← DisposableStore.dispose`。产品里正文编辑器已关同词高亮（`occurrencesHighlight: 'off'`），但数据文件与补丁对比编辑器仍是 Monaco 默认值，同样可能在控制台冒这条错误（无害）；回归夹具自己用默认选项建编辑器，所以偶发。
+- 改动：`lib/browser-guards.ts` 新增 `isMonacoCancellation`（与 Monaco 的 `isCancellationError` 同判定：`Error` 且名字与消息都是 `Canceled`）和 `installMonacoCancellationGuard`（`unhandledrejection` 里只对这一种 `preventDefault`）；`main.tsx` 无条件安装（开发与装机都要，原有浏览器护栏仍只在装机装）；夹具绕过入口，照入口装上；回归最后一步固定为「聚焦后立即卸载」，让这条时序每次都被覆盖。
+- 测试：`browser-guards.test.ts` 新 2 条（只认 Monaco 的取消，普通错误 / AbortError / 名字对消息不对 / 字符串都不算；守卫吞掉取消、别的未处理拒绝照常报、卸载后不再拦）。回归在新版下连跑 3 次通过；变异 2 / 2（夹具不装守卫、守卫不拦 → 回归必失败且报 `Canceled`）。`pnpm verify` 8 道全过。
+- 没做：没有升级 Monaco（上游此处仍漏接，升级不在这刀范围）；没有改产品编辑器的同词高亮配置。

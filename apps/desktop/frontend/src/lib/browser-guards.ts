@@ -28,6 +28,25 @@ export function allowsNativeContextMenu(target: EventTarget | null): boolean {
   return isEditableTarget(target);
 }
 
+/**
+ * Monaco 0.52 的同词高亮把光标移动 / 编辑器聚焦排进一个 50 ms 的 Delayer，trigger() 返回的
+ * promise 没人接；这 50 ms 内编辑器被销毁或换模型，Delayer 以取消错误拒绝它，成了未处理的
+ * 拒绝（控制台报「Canceled」）。Monaco 自己的 onUnexpectedError 本来就忽略取消，这里按它的
+ * isCancellationError 同一判定只认这一种，别的拒绝照常报。
+ */
+export function isMonacoCancellation(reason: unknown): boolean {
+  return reason instanceof Error && reason.name === 'Canceled' && reason.message === 'Canceled';
+}
+
+/** 开发与装机都要装（入口在 main.tsx）；返回卸载函数。 */
+export function installMonacoCancellationGuard(win: Window = window): () => void {
+  const onRejection = (event: PromiseRejectionEvent) => {
+    if (isMonacoCancellation(event.reason)) event.preventDefault();
+  };
+  win.addEventListener('unhandledrejection', onRejection);
+  return () => win.removeEventListener('unhandledrejection', onRejection);
+}
+
 export function installBrowserGuards(win: Window = window): () => void {
   const onKeyDown = (event: KeyboardEvent) => {
     if (isReloadShortcut(event)) {
