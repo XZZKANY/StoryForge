@@ -440,3 +440,97 @@ describe('keeping one current value per fact', () => {
     expect(active(retireFact(ledger, 'ch3', 'posix'))).toEqual(['在城里']);
   });
 });
+
+describe('a name that became an alias after the fact was recorded', () => {
+  const active = (text: string) =>
+    (JSON.parse(text).facts as JsonObject[])
+      .filter((fact) => (fact.status ?? 'active') === 'active')
+      .map((fact) => [fact.subject, fact.value]);
+  const born = (subject: string, value: string, quote: string): Partial<FactCandidate> => ({
+    kind: '来历',
+    subject,
+    attribute: '出生地',
+    value,
+    quote,
+  });
+  const identity = (name: string) => name;
+  const aliases = (name: string) => ALIASES[name] ?? name;
+
+  // 全项目审计 B-08：先记老陈出生北城，再在 canon 里补「老陈是陈默的别名」，
+  // 另一章写陈默出生南城成了待定；以本章为准后北城、南城不能同时有效。
+  it('accepting the disputed version retires the value recorded under the old name', () => {
+    let next = 0;
+    const newId = () => `${String(++next).padStart(4, '0')}abcdef0123456789`;
+    const first = planFactRecord({
+      ledger: { version: 1, facts: [] },
+      path: '正文/第001章.md',
+      candidates: [
+        { ...born('老陈', '北城', '老陈生在北城。'), object: null, startLine: 1 } as FactCandidate,
+      ],
+      ordinal: (value) => ORDER[value] ?? null,
+      canonical: identity,
+      now: '2026-10-18T09:00:00Z',
+      newId,
+    });
+    const second = planFactRecord({
+      ledger: first.ledger,
+      path: '正文/第002章.md',
+      candidates: [
+        { ...born('陈默', '南城', '陈默生在南城。'), object: null, startLine: 1 } as FactCandidate,
+      ],
+      ordinal: (value) => ORDER[value] ?? null,
+      canonical: aliases,
+      now: '2026-10-18T09:00:00Z',
+      newId,
+    });
+    expect(second.disputed).toHaveLength(1);
+    const ledger = JSON.stringify(second.ledger);
+    const disputedId = second.disputed[0].id as string;
+
+    const resolved = resolveDisputedFact(ledger, disputedId, 'accept', 'posix', aliases);
+    expect(active(resolved)).toEqual([['陈默', '南城']]);
+    const facts = JSON.parse(resolved).facts as JsonObject[];
+    expect(facts.find((fact) => fact.id === disputedId)?.supersedes).toBe(first.added[0].id);
+
+    // 别名表之后又被改掉了：记账时认定的那一条照样被替代。
+    expect(active(resolveDisputedFact(ledger, disputedId, 'accept', 'posix', identity))).toEqual([
+      ['陈默', '南城'],
+    ]);
+  });
+
+  it('every still-active value recorded under another of the names is replaced', () => {
+    const ledger = JSON.stringify({
+      version: 1,
+      facts: [
+        existing({
+          id: 'north',
+          kind: '来历',
+          attribute: '出生地',
+          subject: '老陈',
+          value: '北城',
+        }),
+        existing({
+          id: 'west',
+          kind: '来历',
+          attribute: '出生地',
+          subject: '陈哥',
+          value: '西城',
+          path: '正文/第002章.md',
+        }),
+        existing({
+          id: 'south',
+          kind: '来历',
+          attribute: '出生地',
+          value: '南城',
+          path: '正文/第003章.md',
+          status: 'disputed',
+          disputes: 'north',
+        }),
+      ],
+    });
+    const canonical = (name: string) => (name === '老陈' || name === '陈哥' ? '陈默' : name);
+    expect(active(resolveDisputedFact(ledger, 'south', 'accept', 'posix', canonical))).toEqual([
+      ['陈默', '南城'],
+    ]);
+  });
+});

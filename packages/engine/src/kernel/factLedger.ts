@@ -343,12 +343,14 @@ function firstQuote(fact: JsonObject): string | null {
 /**
  * 作者处理一条待定事实：accept 以本章为准——它生效，它对上的旧值标为已被替代；
  * reject 保留已记的——它作废。别的条目原样不动；不是待定事实就报错。
+ * canonical 与记账时同一张别名表：台账里早先按别名记下的旧值也要认出来。
  */
 export function resolveDisputedFact(
   ledgerText: string | null,
   factId: string,
   choice: 'accept' | 'reject',
   platform: 'windows' | 'posix',
+  canonical: (name: string) => string = (name) => name,
 ): string {
   const ledger = parseFactLedger(ledgerText);
   const facts = ledger.facts as JsonObject[];
@@ -356,13 +358,16 @@ export function resolveDisputedFact(
   if (target === undefined || target.status !== 'disputed')
     throw new InputDomainError(`台账里没有这条待定事实（${factId}），可能已经处理过了。`);
   const keyOf = (fact: JsonObject) =>
-    [text(fact.kind), factKey(text(fact.subject)), factKey(text(fact.attribute))].join('|');
+    [text(fact.kind), factKey(canonical(text(fact.subject))), factKey(text(fact.attribute))].join(
+      '|',
+    );
   // 以本章为准时替代的是这个属性现在有效的说法——可能已不是当初对上的那条（另一条待定先定成了有效）。
+  // 当初对上的那条按它自己的写法也认一次：之后别名表改了，记账时认定的「同一件事」不变。
+  const disputed = facts.find((fact) => fact.id === target.disputes);
+  const keys = new Set([keyOf(target), ...(disputed ? [keyOf(disputed)] : [])]);
   const current =
     choice === 'accept'
-      ? facts.filter(
-          (fact) => fact !== target && isActiveFact(fact) && keyOf(fact) === keyOf(target),
-        )
+      ? facts.filter((fact) => fact !== target && isActiveFact(fact) && keys.has(keyOf(fact)))
       : [];
   const replaced = current.length ? (current[current.length - 1].id as string) : null;
   const next = facts.map((fact) => {

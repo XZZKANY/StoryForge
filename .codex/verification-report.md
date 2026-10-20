@@ -9025,3 +9025,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   - `useObservatory.ts`：补录候选连同所属作品一起记；当前作品对不上就当没有候选（不显示补录入口、点了也不发）。
 - 测试：`knowledge-inbox-lifecycle.test.tsx`（甲→乙→甲后迟到的修改不改回列表）、`observatory-facts-backfill.test.tsx`（切到乙书、扫描已回来候选未回来时没有候选、点补录不发；候选回来后按乙书的章补录）。变异 2 / 2（只比根路径不比代、候选不认作品）。`pnpm verify` 8 道全过。
 - 未验：真宿主。
+
+## 2026-10-20 先记事实后补别名时，「以本章为准」也替代按旧名记下的那条（全项目审计 B-08）
+
+- 全项目审计（外部复查第四轮）报一条，是 #428 带进来的，源码核实成立：记账（`planFactRecord`）按 canon 当前的别名表把主体归一后比较，处理待定事实（`resolveDisputedFact`）却按台账里存的原始主体比较。先记「老陈出生北城」，再在 canon 里补「老陈是陈默的别名」，另一章记「陈默出生南城」成了待定；点「以本章为准」后北城、南城同时有效，`supersedes` 为空。作者写到一半才补别名很常见。
+- 改动：
+  - `factLedger.ts` 的 `resolveDisputedFact` 多一个可选的 `canonical`（与记账同一张别名表，默认原样），主体归一后再比；同时把待定事实 `disputes` 指向的那条按它自己的写法也认一次——之后别名表改了，记账时认定的「同一件事」不变。
+  - 引擎导出 `canonicalNames`；前端 `resolveEngineDispute` / `resolveLedgerDispute` 多传作品路径，处理待定时读作品现在的 canon（canon 读不出来时照旧原样比，不挡处理）。
+- 测试：引擎 `factLedger.test.ts` 新 2 条（真实记账链：空台账记老陈北城 → 补别名后记陈默南城成待定 → 以本章为准只剩南城、`supersedes` 指向北城；别名表之后被改掉仍替代；两条按不同别名记下的旧值都被替代）；前端 `observatory-facts.test.tsx` 调用参数随之更新。变异 3 / 3（不归一主体、不认 `disputes` 那条、前端不传别名表）。`pnpm verify` 8 道全过。
+- 未验：真宿主；作者真实 canon。

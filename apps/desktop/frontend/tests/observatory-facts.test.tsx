@@ -275,7 +275,7 @@ test.each([
     scanWith({ ...FACTS, disputed: [DISPUTE] });
     await mount();
     await click(all(testid)[0]);
-    expect(resolveLedgerDispute).toHaveBeenCalledWith(LEDGER, 'x', choice);
+    expect(resolveLedgerDispute).toHaveBeenCalledWith(PROJECT, LEDGER, 'x', choice);
     expect(snapshotBeforeWrite).toHaveBeenCalledWith(PROJECT, PATH, LEDGER, {
       source: 'Editor',
       summary: `事实台账${summary}：陈默的兄弟姐妹「有个姐姐」`,

@@ -86,11 +86,17 @@ export async function retireLedgerFact(ledgerText: string | null, factId: string
 
 /** 处理一条待定事实：引擎算出新台账全文；写由 lib/fact-write 做。 */
 export async function resolveLedgerDispute(
+  projectRoot: string,
   ledgerText: string | null,
   factId: string,
   choice: 'accept' | 'reject',
 ): Promise<string> {
-  return (await import('../engine/facts')).resolveEngineDispute(ledgerText, factId, choice);
+  return (await import('../engine/facts')).resolveEngineDispute(
+    projectRoot,
+    ledgerText,
+    factId,
+    choice,
+  );
 }
 
 export async function prepareChapterFactRecord(input: {

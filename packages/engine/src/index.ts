@@ -625,6 +625,7 @@ export {
   type ChapterCheckHistoryDeps,
 } from './loop/chapterCheckHistory';
 export {
+  canonicalNames,
   prepareChapterFactRecord,
   type FactRecordDeps,
   type FactRecordInput,
