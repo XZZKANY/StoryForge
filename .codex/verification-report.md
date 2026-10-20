@@ -9075,3 +9075,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   2. 修好第 1 处后卡在 `原生缩放/补丁审阅不可用`：#380 把补丁审阅改成默认占满编辑区、收起时对比区 `hidden`，冒烟的基线仍期待「未展开」，且收起时仍要求对比区至少 200×159。
 - 修复：`main.rs` 总览往返循环里，点之前先用 `click_ready_script` 轮询同一套命中检测（同文件「重新挂载的面板从 opacity 0 开始」已有此做法）；`smoke_ui.rs` 缩放检查改为「展开 → 收起 → 展开」，对比区尺寸只在展开时要求、收起时要求对比区隐藏，单测随之改，并加一条「收起时隐藏对比区、仍露着就不算」。不改产品代码。
 - 验证：`cargo test smoke_ui` 4 passed（含新测）；`tauri build --no-bundle` 重编发行版 exe 后 `verify-tauri-smoke.mjs --release` 通过（`Desktop Tauri release smoke passed`）；`npm --prefix apps/desktop run test:rust` 全过；`pnpm verify` 8 道全过。
+
+## 2026-10-20 出包 0.2.1（第一个公开发布的版本，同时发 GitHub Release）
+
+- 版本号：`tauri.conf.json`、`Cargo.toml` 0.2.0 → 0.2.1（`Cargo.lock` 随之一行）。收进 0.2.0 之后的 #379–#446（布局自适应、增删改查巡检与复查、事实台账与事实链、全项目查缺补漏五轮的修复、中英文 README、Tauri 冒烟跟上新界面）。0.2.0 之后没有改引擎库 schema 与旧库导入，不需要提醒备份。
+- 门禁（`output/release-0.2.1/gates3.log` + `gates-tail.log`，在 release/0.2.1 = master `cb3d2830` + 版本号上，一件一件串行跑）：`pnpm verify` 8 道全过（引擎 13684 passed + 2 skipped，前端 2334 passed）；前端 `vite build`；`test:rust` 139 passed / 1 ignored；`pnpm desktop:build`；发行版冒烟 `verify-tauri-smoke.mjs --release` 通过；`verify:nsis-install` 隔离身份安装 → 启动 → 卸载通过；**0.2.0 → 0.2.1 覆盖升级**（基线是 10-16 留下的 0.2.0 测试身份安装包，存档 `output/release-0.2.1/nsis-baseline/`）通过：启动前数据摘要不变、卸载后稿件保留、正式安装摘要不变；真宿主探针 `--agent-only` / `--assistant-only` / `--context-only` / `--reader-only` / `--llm-only` 全部 passed（合成模型，不花钱）。
+- 出包过程里的两次红：第一轮发行版冒烟稳定失败（#380 之后冒烟没跟上新界面，#446 修）；门禁里「行间续写真实 Monaco 回归」两次报 Monaco 的 `Canceled`（卸载编辑器时 Monaco 取消内部异步任务产生的未处理拒绝，与本次改动无关，前端零改动的 #446 上同样出现），重跑整条门禁取到干净结果。这个偶发最近越来越频繁，值得单独修。
+- 产物：NSIS `StoryForge IDE_0.2.1_x64-setup.exe` **32,825,022 字节**，SHA256 `AECBA8E0AF3732659168760BB7D0BB099FAE98D138ACE4F61B964FB5F71A88EF`，另存 `output/release-0.2.1/StoryForge-IDE_0.2.1_x64-setup.exe`，并作为 GitHub Release `v0.2.1` 的附件发布（发布说明 `output/release-0.2.1/notes.md`）。
+- 没跑：真实模型探针（`--agent-real` / `--assistant-real`，要花钱）；作者真机点穿；签名（安装包未签名，README 与发布说明写了 SmartScreen 放行方法；发版清单 §7 写的「公开分发前补签名与更新策略」仍未做）。
