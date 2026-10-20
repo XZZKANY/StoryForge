@@ -31,6 +31,17 @@ export function parseIdeaNotes(content: string): IdeaNote[] {
   return notes;
 }
 
+/**
+ * 按条目本身（文字 + 勾选状态）在当前内容里找回它的行：排队写入时，前一次改动可能已让行号挪了位。
+ * 原行号上还是它就用原行号；否则只认唯一一处同样的条目，找不到或不止一处返回 null。
+ */
+export function locateIdeaNote(content: string, note: IdeaNote): number | null {
+  const notes = parseIdeaNotes(content);
+  const same = notes.filter((item) => item.text === note.text && item.done === note.done);
+  if (same.some((item) => item.line === note.line)) return note.line;
+  return same.length === 1 ? same[0].line : null;
+}
+
 /** 追加一条：落在文件末尾，保证与既有内容之间恰好一个换行，不堆空行。 */
 export function appendIdeaNote(content: string, text: string): string {
   const note = text.trim();

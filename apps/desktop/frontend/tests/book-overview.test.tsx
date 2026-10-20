@@ -39,7 +39,7 @@ function profile(): BookProfileHandle {
     outline: [],
     outlineDropped: 0,
     notes: [],
-    addNote: vi.fn(async () => {}),
+    addNote: vi.fn(async () => true),
     toggleNote: vi.fn(async () => {}),
     removeNote: vi.fn(async () => {}),
     refreshing: false,

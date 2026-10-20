@@ -9,7 +9,7 @@
  * 档案落 `.storyforge/book.json`，速记落项目根 `灵感.md`，都是作者可直接打开手改的文件；
  * 章数与字数一律现算不落盘。视图本身不判定任何东西。
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import type { BookBreakdownPreview } from '../app/useProjectCommands';
 import type { BookProfileHandle } from '../app/useBookProfile';
@@ -131,8 +131,13 @@ export function BookProfileView({
   const [draft, setDraft] = useState<Draft>(() => toDraft(profile));
   const [tagDraft, setTagDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
-  // 正在改的那条速记（按行号认）：回车或移开焦点就保存，Esc 放弃。
-  const [editingNote, setEditingNote] = useState<{ line: number; text: string } | null>(null);
+  // 正在改的那条速记（按行号与原文认）：回车或移开焦点就保存，Esc 放弃。
+  const [editingNote, setEditingNote] = useState<{
+    line: number;
+    original: string;
+    text: string;
+  } | null>(null);
+  const addingNote = useRef(false);
 
   // 档案换了一份（切项目 / 点刷新重读磁盘）就把编辑框拉回磁盘上的值。渲染期调整而不是
   // effect：后者会多跑一轮，那一轮里编辑框显示的还是上一本书的简介。
@@ -165,11 +170,18 @@ export function BookProfileView({
     if (tags.length !== profile.tags.length) commit({ tags });
   };
 
+  // 存进去了才清空；没存进去（别处改过 / 写盘失败）留着原话，作者再按一次回车就行。
   const addNote = () => {
     const text = noteDraft.trim();
-    if (!text) return;
-    setNoteDraft('');
-    void handle.addNote(text);
+    if (!text || addingNote.current) return;
+    addingNote.current = true;
+    void handle
+      .addNote(text)
+      .catch(() => false)
+      .then((saved) => {
+        addingNote.current = false;
+        if (saved) setNoteDraft((current) => (current.trim() === text ? '' : current));
+      });
   };
 
   const daily = readDailyProgress(projectPath);
@@ -586,14 +598,14 @@ export function BookProfileView({
                   data-testid="book-note-row"
                   data-done={note.done}
                 >
-                  {editingNote?.line === note.line ? (
+                  {editingNote?.line === note.line && editingNote.original === note.text ? (
                     <input
                       autoFocus
                       className="sf-input min-w-0 flex-1 rounded-sm border border-border-strong bg-background px-1.5 py-0.5 text-2xs text-foreground outline-none"
                       aria-label="改这条速记"
                       value={editingNote.text}
                       onChange={(event) =>
-                        setEditingNote({ line: note.line, text: event.target.value })
+                        setEditingNote({ ...editingNote, text: event.target.value })
                       }
                       onKeyDown={(event) => {
                         if (event.nativeEvent.isComposing) return;
@@ -606,7 +618,13 @@ export function BookProfileView({
                         const draft = editingNote;
                         setEditingNote(null);
                         if (draft && draft.text.trim() && draft.text.trim() !== note.text)
-                          void handle.editNote(note, draft.text);
+                          void handle
+                            .editNote(note, draft.text)
+                            .catch(() => false)
+                            .then((saved) => {
+                              // 没存进去：改到一半的字放回编辑框（那一条还在原处时才显示），不让作者重敲。
+                              if (!saved) setEditingNote((current) => current ?? draft);
+                            });
                       }}
                       data-testid="book-note-edit-input"
                     />
@@ -640,7 +658,9 @@ export function BookProfileView({
                     className="mt-[2px] flex-shrink-0 text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
                     title="改这条"
                     aria-label={`改速记 ${note.text}`}
-                    onClick={() => setEditingNote({ line: note.line, text: note.text })}
+                    onClick={() =>
+                      setEditingNote({ line: note.line, original: note.text, text: note.text })
+                    }
                     data-testid="book-note-edit"
                   >
                     <Pencil size={11} strokeWidth={2} />
