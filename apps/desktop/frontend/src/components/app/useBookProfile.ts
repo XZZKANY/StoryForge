@@ -22,6 +22,7 @@ import {
   ideaNotesPath,
   parseIdeaNotes,
   editIdeaNote,
+  locateIdeaNote,
   removeIdeaNote,
   restoreIdeaNoteLine,
   toggleIdeaNote,
@@ -56,10 +57,11 @@ export type BookProfileHandle = {
   outline: OutlineEntry[];
   outlineDropped: number;
   notes: IdeaNote[];
-  addNote: (text: string) => Promise<void>;
+  /** 存进去了返回 true；没存进去（别处改过、写盘失败、还没读出来）返回 false，界面据此保留输入。 */
+  addNote: (text: string) => Promise<boolean>;
   toggleNote: (note: IdeaNote) => Promise<void>;
   removeNote: (note: IdeaNote) => Promise<void>;
-  editNote: (note: IdeaNote, text: string) => Promise<void>;
+  editNote: (note: IdeaNote, text: string) => Promise<boolean>;
   refreshing: boolean;
   refresh: () => void;
 };
@@ -326,8 +328,11 @@ export function useBookProfile({
     },
     [refresh],
   );
+  /** change 返回 null 表示点的那一条在当前内容里已经找不到了：不写，告诉作者。 */
   const changeNotes = useCallback(
-    (change: (content: string) => string): Promise<{ before: string; written: string } | null> => {
+    (
+      change: (content: string) => string | null,
+    ): Promise<{ before: string; written: string } | null> => {
       const project = activeProject;
       return enqueue(async () => {
         const source = notesSource.current;
@@ -337,6 +342,10 @@ export function useBookProfile({
         }
         const before = source.content ?? '';
         const written = change(before);
+        if (written === null) {
+          emitToast('这条速记已经不在原处了，这次没有改动。', { tone: 'error' });
+          return null;
+        }
         return (await writeNotes(project, source.content, written)) ? { before, written } : null;
       });
     },
@@ -344,28 +353,39 @@ export function useBookProfile({
   );
 
   const addNote = useCallback(
-    async (text: string) => {
-      await changeNotes((content) => appendIdeaNote(content, text));
-    },
+    async (text: string) =>
+      (await changeNotes((content) => appendIdeaNote(content, text))) !== null,
     [changeNotes],
   );
+  // 勾选 / 改字 / 删除都在轮到它写时按条目本身重新定位：排在前面的删除会让行号挪位。
   const toggleNote = useCallback(
     async (note: IdeaNote) => {
-      await changeNotes((content) => toggleIdeaNote(content, note.line, !note.done));
+      await changeNotes((content) => {
+        const line = locateIdeaNote(content, note);
+        return line === null ? null : toggleIdeaNote(content, line, !note.done);
+      });
     },
     [changeNotes],
   );
   const editNote = useCallback(
-    async (note: IdeaNote, text: string) => {
-      await changeNotes((content) => editIdeaNote(content, note.line, text));
-    },
+    async (note: IdeaNote, text: string) =>
+      (await changeNotes((content) => {
+        const line = locateIdeaNote(content, note);
+        return line === null ? null : editIdeaNote(content, line, text);
+      })) !== null,
     [changeNotes],
   );
   const removeNote = useCallback(
     async (note: IdeaNote) => {
       const project = activeProject;
-      const result = await changeNotes((content) => removeIdeaNote(content, note.line));
-      const raw = result?.before.split('\n')[note.line];
+      let line = -1;
+      const result = await changeNotes((content) => {
+        const found = locateIdeaNote(content, note);
+        if (found === null) return null;
+        line = found;
+        return removeIdeaNote(content, found);
+      });
+      const raw = result?.before.split('\n')[line];
       if (result === null || raw === undefined || !project) return;
       const { written } = result;
       emitToast('已删除这条速记', {
@@ -374,7 +394,7 @@ export function useBookProfile({
           // 只认删除时那本书、删完的那一份：之后别处改过就拒写，换了作品也不拿当前作品的内容去写。
           run: async () => {
             await enqueue(() =>
-              writeNotes(project, written, restoreIdeaNoteLine(written, note.line, raw)),
+              writeNotes(project, written, restoreIdeaNoteLine(written, line, raw)),
             );
           },
         },

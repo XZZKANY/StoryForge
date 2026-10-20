@@ -243,3 +243,108 @@ test('连着勾两条：写入排队，两条都落盘，不被当成别处改�
   );
   assert.ok(!toasts().some((text) => String(text).startsWith('灵感速记没有保存')));
 });
+
+/** 让第一次条件写停在半路，放行前作者又点了别的。 */
+function holdFirstWrite() {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const write = vi.mocked(TauriFileSystem.writeFileIfUnchanged).getMockImplementation()!;
+  let first = true;
+  vi.mocked(TauriFileSystem.writeFileIfUnchanged).mockImplementation(async (...args) => {
+    if (first) {
+      first = false;
+      await gate;
+    }
+    return write(...args);
+  });
+  return release;
+}
+
+const THREE = ['# 灵感', '', '- 甲', '- 乙', '- 丙', ''].join('\n');
+
+test('删甲还没写完就点删乙（全项目审计 E-12）：删掉的是乙，不是挪上来的丙；乙的撤销放回原位', async () => {
+  disk.set(NOTES_A, THREE);
+  await open();
+  const release = holdFirstWrite();
+  let first!: Promise<void>;
+  let second!: Promise<void>;
+  await act(async () => {
+    first = handle!.removeNote(note('甲')!);
+    second = handle!.removeNote(note('乙')!);
+  });
+  await act(async () => {
+    release();
+    await first;
+    await second;
+  });
+  assert.equal(disk.get(NOTES_A), ['# 灵感', '', '- 丙', ''].join('\n'));
+
+  const [message, options] = vi.mocked(emitToast).mock.calls.at(-1)!;
+  assert.equal(message, '已删除这条速记');
+  await act(async () => options!.action!.run());
+  assert.equal(disk.get(NOTES_A), ['# 灵感', '', '- 乙', '- 丙', ''].join('\n'));
+});
+
+test('删甲还没写完就勾乙、改丙：勾的是乙、改的是丙', async () => {
+  disk.set(NOTES_A, THREE);
+  await open();
+  const release = holdFirstWrite();
+  const jobs: Promise<unknown>[] = [];
+  await act(async () => {
+    jobs.push(handle!.removeNote(note('甲')!));
+    jobs.push(handle!.toggleNote(note('乙')!));
+    jobs.push(handle!.editNote(note('丙')!, '丙改'));
+  });
+  await act(async () => {
+    release();
+    await Promise.all(jobs);
+  });
+  assert.equal(disk.get(NOTES_A), ['# 灵感', '', '- [x] 乙', '- 丙改', ''].join('\n'));
+});
+
+test('同一条的删除连点两下：只删它一条，第二下告诉作者已经不在了', async () => {
+  disk.set(NOTES_A, THREE);
+  await open();
+  const release = holdFirstWrite();
+  const target = note('甲')!;
+  const jobs: Promise<void>[] = [];
+  await act(async () => {
+    jobs.push(handle!.removeNote(target));
+    jobs.push(handle!.removeNote(target));
+  });
+  await act(async () => {
+    release();
+    await Promise.all(jobs);
+  });
+  assert.equal(disk.get(NOTES_A), ['# 灵感', '', '- 乙', '- 丙', ''].join('\n'));
+  assert.ok(toasts().includes('这条速记已经不在原处了，这次没有改动。'));
+});
+
+test('新增 / 改字告诉界面存没存进去（全项目审计 E-13）：被拒写返回 false，存进去返回 true', async () => {
+  await open();
+  disk.set(NOTES_A, `${NOTES}- 别处刚存的\n`);
+  let saved: boolean | undefined;
+  await act(async () => {
+    saved = await handle!.addNote('新的一条');
+  });
+  assert.equal(saved, false);
+  await act(async () => {});
+  await act(async () => {
+    saved = await handle!.addNote('新的一条');
+  });
+  assert.equal(saved, true);
+
+  disk.set(NOTES_A, `${disk.get(NOTES_A)}- 又一条\n`);
+  await act(async () => {
+    saved = await handle!.editNote(note('新的一条')!, '改过的一条');
+  });
+  assert.equal(saved, false);
+  await act(async () => {});
+  await act(async () => {
+    saved = await handle!.editNote(note('新的一条')!, '改过的一条');
+  });
+  assert.equal(saved, true);
+  assert.ok(note('改过的一条'));
+});

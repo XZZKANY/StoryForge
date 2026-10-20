@@ -34,10 +34,10 @@ function makeHandle(overrides: Partial<BookProfileHandle> = {}): BookProfileHand
     outline: [],
     outlineDropped: 0,
     notes: [],
-    addNote: vi.fn(async () => {}),
+    addNote: vi.fn(async () => true),
     toggleNote: vi.fn(async () => {}),
     removeNote: vi.fn(async () => {}),
-    editNote: vi.fn(async () => {}),
+    editNote: vi.fn(async () => true),
     refreshing: false,
     refresh: vi.fn(),
     ...overrides,
@@ -376,4 +376,53 @@ test('输入法还在组合时按回车不提交：速记和题材都不写、�
   }
   assert.equal(vi.mocked(handle.addNote).mock.calls.length, 0);
   assert.equal(vi.mocked(handle.save).mock.calls.length, 0);
+});
+
+test('速记没存进去（全项目审计 E-13）：输入框留着原话；回车两下只交一次', async () => {
+  let finish!: (saved: boolean) => void;
+  const handle = makeHandle({
+    addNote: vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+    ),
+  });
+  await renderView(handle);
+  const input = byTestId('book-note-input') as HTMLInputElement;
+  await act(async () => typeInto(input, '给女二加一条独立线'));
+  const enter = () =>
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await act(async () => {
+    enter();
+    enter();
+  });
+  assert.equal(vi.mocked(handle.addNote).mock.calls.length, 1);
+  assert.equal((byTestId('book-note-input') as HTMLInputElement).value, '给女二加一条独立线');
+
+  await act(async () => finish(false));
+  assert.equal((byTestId('book-note-input') as HTMLInputElement).value, '给女二加一条独立线');
+
+  await act(async () => enter());
+  assert.equal(vi.mocked(handle.addNote).mock.calls.length, 2);
+  await act(async () => finish(true));
+  assert.equal((byTestId('book-note-input') as HTMLInputElement).value, '');
+});
+
+test('改字没存进去：编辑框带着改到一半的字回来', async () => {
+  const note = { line: 2, text: '十七楼那个人是刘哥的弟弟', done: false };
+  const handle = makeHandle({ notes: [note], editNote: vi.fn(async () => false) });
+  const view = await renderView(handle);
+  await act(async () =>
+    view.querySelector<HTMLButtonElement>('[data-testid="book-note-edit"]')!.click(),
+  );
+  const input = view.querySelector<HTMLInputElement>('[data-testid="book-note-edit-input"]')!;
+  await act(async () => typeInto(input, '十七楼是刘哥的弟弟'));
+  await act(async () =>
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+  );
+  await act(async () => {});
+  assert.deepEqual(vi.mocked(handle.editNote).mock.calls[0], [note, '十七楼是刘哥的弟弟']);
+  const back = view.querySelector<HTMLInputElement>('[data-testid="book-note-edit-input"]');
+  assert.equal(back?.value, '十七楼是刘哥的弟弟');
 });
