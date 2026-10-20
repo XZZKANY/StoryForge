@@ -73,7 +73,9 @@ export function SearchView({
       : search.status === 'searching'
         ? '正在搜索正文…'
         : search.totalHits === 0
-          ? '没有匹配的内容。'
+          ? `没有匹配的内容。${
+              search.skippedFiles > 0 ? `${search.skippedFiles} 个文件不可读，结果可能不全。` : ''
+            }`
           : `搜索完成：找到 ${search.totalHits} 处，涉及 ${search.results.length} 个文件。${
               search.capped ? '已达上限，仅显示前方结果。' : ''
             }${search.skippedFiles > 0 ? `${search.skippedFiles} 个文件不可读，已跳过。` : ''}`;
@@ -148,9 +150,25 @@ export function SearchView({
             搜索正文内容；文件名请用命令面板（Ctrl P）。
           </p>
         ) : search.results.length === 0 ? (
-          <p className="px-3 py-4 text-2xs text-subtle" data-testid="search-empty">
-            {search.status === 'searching' ? '搜索中…' : '没有匹配的内容。'}
-          </p>
+          <>
+            <p className="px-3 py-4 text-2xs text-subtle" data-testid="search-empty">
+              {search.status === 'searching' ? '搜索中…' : '没有匹配的内容。'}
+            </p>
+            {search.status === 'done' && search.skippedFiles > 0 && (
+              <div className="px-3" data-testid="search-skipped">
+                <p className="text-2xs leading-relaxed text-subtle">
+                  有 {search.skippedFiles} 个文件读不出来，没能在里面搜，结果可能不全。
+                </p>
+                <button
+                  type="button"
+                  onClick={search.rerun}
+                  className="mt-2 h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated"
+                >
+                  重试
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <>
             <p className="px-3 pb-1 text-2xs text-subtle" data-testid="search-summary">

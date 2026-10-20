@@ -3,6 +3,7 @@ import type { ProjectWriter } from '../writePort';
 import { chapterOrdinals } from './canonRebuild';
 import { FsToolError, resolveProjectRoot } from './fsTools';
 import { cloneJson, InputDomainError, isJsonObject, type JsonObject, type JsonValue } from './json';
+import { pythonStrip } from './pythonText';
 import {
   ALLOWED_STATUSES,
   buildPlan,
@@ -104,6 +105,29 @@ export function mergePlanPayload(existing: JsonObject, updates: PlanUpdates) {
   };
 }
 
+/**
+ * 挑出超过上限的字段（与 mergePlanPayload 存盘时的上限相同）：超长的不截短了悄悄存，
+ * 整次拒绝并说清是哪一章哪一项，让调用方压缩后重试。
+ */
+export function overlongPlanFields(updates: PlanUpdates): string[] {
+  const over: string[] = [];
+  const check = (label: string, value: JsonValue | null | undefined, limit: number) => {
+    if (typeof value !== 'string') return;
+    const length = Array.from(pythonStrip(value)).length;
+    if (length > limit) over.push(`${label}有 ${length} 字（上限 ${limit}）`);
+  };
+  for (const item of updates.chapters ?? []) {
+    if (!isJsonObject(item)) continue;
+    const ordinal = positiveInt(item.ordinal);
+    const name = ordinal === null ? '没有章序的一项' : `第 ${ordinal} 章`;
+    check(`${name}的标题`, item.title, 80);
+    check(`${name}的目标`, item.goal, MAX_GOAL_CHARS);
+    check(`${name}的备注`, item.note, MAX_GOAL_CHARS);
+  }
+  check('主线', updates.premise, 300);
+  return over;
+}
+
 /** 挑出「正文还不存在却要标 done」的章序：起草补丁不等于落盘。 */
 export function rejectPrematureDone(
   chapters: readonly JsonValue[] | null | undefined,
@@ -148,6 +172,12 @@ export async function applyPlanUpdate(
         '本次调用未改动计划，回话时也不要说这章已完成。',
     );
   }
+  const overlong = overlongPlanFields(updates);
+  if (overlong.length)
+    throw new FsToolError(
+      `${overlong.join('；')}。计划里只存短句，超长的不会截短了存：请压缩后重试，` +
+        '长的设定或约束写进设定文件。本次调用未改动计划。',
+    );
   const existing = await readPlan(reader, root);
   const stamped = withStampedPaths(updates, await writtenOrdinals(reader, root, platform));
   const { merged, counts } = mergePlanPayload(existing, stamped);

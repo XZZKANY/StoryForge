@@ -125,3 +125,21 @@ test('查询不足最小长度或项目未打开时不播报（没有可报告�
   );
   expect(live()?.textContent).toBe('');
 });
+
+test('零命中但有文件读不出来（全项目审计 E-20）：说结果可能不全并给重试；全都读得出来时不提', async () => {
+  root = createRoot(host);
+  const handle = search({ status: 'done', totalHits: 0, results: [], skippedFiles: 2 });
+  await render(handle);
+  expect(live()?.textContent).toBe('没有匹配的内容。2 个文件不可读，结果可能不全。');
+  const skipped = host.querySelector('[data-testid="search-skipped"]');
+  expect(skipped?.textContent).toContain('有 2 个文件读不出来');
+  await act(async () => skipped!.querySelector('button')!.click());
+  expect(handle.rerun).toHaveBeenCalledTimes(1);
+
+  await render(search({ status: 'done', totalHits: 0, results: [], skippedFiles: 0 }));
+  expect(live()?.textContent).toBe('没有匹配的内容。');
+  expect(host.querySelector('[data-testid="search-skipped"]')).toBeNull();
+
+  await render(search({ status: 'searching', totalHits: 0, results: [], skippedFiles: 1 }));
+  expect(host.querySelector('[data-testid="search-skipped"]')).toBeNull();
+});

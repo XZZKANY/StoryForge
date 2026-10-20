@@ -28,6 +28,7 @@ import {
   killProcessTree,
   waitForExit,
 } from '../../scripts/verify-tauri-smoke.mjs';
+import { realBusinessFailures } from './real-probe-verdict.mjs';
 
 assert.equal(process.platform, 'win32', 'P0 Native probe currently targets Windows WebView2');
 const [mode, ...extra] = process.argv.slice(2);
@@ -1319,6 +1320,11 @@ try {
   await page.screenshot({ path: resolve(output, 'native-probe.png') });
   if (evidence.cpu) assert.equal(evidence.cpu.native, true);
   assert.equal(evidence.errors.length, 0, evidence.errors.join('\n'));
+  const unmet = realBusinessFailures({ real: evidence.real, agentReal: evidence.agentReal });
+  if (unmet.length) {
+    evidence.businessUnmet = unmet;
+    throw new Error(`真实模型的业务步骤没有走通：${unmet.join('；')}`);
+  }
   evidence.status = 'passed';
   console.log(
     JSON.stringify(

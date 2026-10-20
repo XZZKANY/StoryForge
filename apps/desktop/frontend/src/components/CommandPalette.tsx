@@ -175,7 +175,7 @@ export function CommandPalette({
   // Esc 挂 window：焦点落在列表项上时也能关，不只在输入框内生效。
   useEffect(() => {
     const onWindowKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.isComposing) {
         event.preventDefault();
         onClose();
       }
@@ -402,6 +402,8 @@ export function CommandPalette({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // 输入法选字的回车不是「执行」：组字中的键一律交给输入法。
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === 'Tab') {
       // 焦点陷阱：面板靠 ↑↓ 导航，Tab 不外逃到背景，收回输入框。
       e.preventDefault();

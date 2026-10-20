@@ -9034,3 +9034,18 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   - 引擎导出 `canonicalNames`；前端 `resolveEngineDispute` / `resolveLedgerDispute` 多传作品路径，处理待定时读作品现在的 canon（canon 读不出来时照旧原样比，不挡处理）。
 - 测试：引擎 `factLedger.test.ts` 新 2 条（真实记账链：空台账记老陈北城 → 补别名后记陈默南城成待定 → 以本章为准只剩南城、`supersedes` 指向北城；别名表之后被改掉仍替代；两条按不同别名记下的旧值都被替代）；前端 `observatory-facts.test.tsx` 调用参数随之更新。变异 3 / 3（不归一主体、不认 `disputes` 那条、前端不传别名表）。`pnpm verify` 8 道全过。
 - 未验：真宿主；作者真实 canon。
+
+## 2026-10-20 命令面板不把选字回车当执行；搜索零命中时说出没读到的文件；计划超长字段不再截短照存；真实模型探针业务失败不再报通过（全项目审计 E-14 / E-20 / C-12 / G-03）
+
+- 全项目审计（外部复查第五轮）报四条，源码核实都成立，都是 P3、都不丢正文：
+  - E-14：命令面板输入框的 Enter 分支没看组字状态，中文输入法选字的回车会执行当前高亮的命令并关掉面板（与已修的 E-08 同类；Windows WebView2 下组字回车是否以 Enter 报出未在真机验证）。挂在 window 上的 Esc 也没看组字。
+  - E-20：全文搜索零命中时，视图走「没有匹配的内容。」分支，读屏文案也提前返回，读不出来的文件数（hook 里有）不显示；有文件被占用或没权限时作者会以为真的没有。
+  - C-12：`project.plan_update` 写盘时复用展示用的 `cleanText`，标题 > 80、目标 / 备注 > 200、主线 > 300 字直接截短存，工具仍报 completed、没有任何提示。
+  - G-03：`verify-engine-p0-native.mjs` 的 `--assistant-real` / `--agent-real` 只核原生标志、占位密钥、正文没被乱改；fixture 把模型或写回失败收成 `ok: false` 后，最终照样 `status: passed`。
+- 改动：
+  - `CommandPalette.tsx`：输入框的按键处理遇组字（`isComposing` / 229）直接交给输入法；window 上的 Esc 组字中不关面板。
+  - `SearchView.tsx`：零命中且有读不出来的文件时，显示「有 N 个文件读不出来，没能在里面搜，结果可能不全。」和重试，读屏文案同样补上。
+  - `serialPlanUpdate.ts`：新增 `overlongPlanFields`，`applyPlanUpdate` 写盘前检查，超长就整次拒绝（与「未落盘不能标 done」同一种拒绝方式），列出哪一章哪一项多少字、上限多少，提示压缩或写进设定文件，本次不改计划。上限与原截短上限相同；读计划时的展示截短不变。
+  - 新增 `scripts/real-probe-verdict.mjs` 的 `realBusinessFailures`（纯函数）；探针在判 passed 前调用，有未走通的步骤就记进 `evidence.businessUnmet` 并以失败退出（证据与 report.md 照样落盘）。
+- 验证：golden 里没有超过上限的计划字段（逐个扫过 `packages/engine/golden/*.json`，唯一的超长 note 属于 `safe_summary`，与计划无关），计划回放照常通过。测试：`command-palette.test.tsx`（组字中的回车 / 229 / Esc 不执行不关闭，选完再回车才执行）、`search-view-live-region.test.tsx`（零命中有不可读文件时提示与重试、全可读或搜索中不提）、引擎新 `serialPlanUpdate.test.ts` 3 条（超长整次拒绝且不写盘、恰好上限整段存下、按字符计并一次列全）、新 `real-probe-verdict.test.ts` 4 条。变异 6 / 6（面板不管组字、组字中 Esc 关面板、播报不提不可读、零命中不显示不可读、探针判定不报失败、超长照样截短存）。`pnpm verify` 8 道全过。
+- 未验：真机中文输入法；真宿主上的真实模型探针（要花钱、要关掉应用，没有跑）；探针主脚本里调用判定这一处只经语法检查与阅读，没有在真宿主上走到。

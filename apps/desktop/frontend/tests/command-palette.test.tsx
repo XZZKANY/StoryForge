@@ -248,3 +248,48 @@ test('没开文件时新建落在作品根目录，不给改名和版本历史',
     mounted.cleanup();
   }
 });
+
+test('输入法选字的回车不执行命令（全项目审计 E-14）；选完字再按回车才执行，组字中的 Esc 不关面板', async () => {
+  const calls: string[] = [];
+  let closed = 0;
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      React.createElement(CommandPalette, {
+        ...paletteProps(PROJECT),
+        mode: 'commands',
+        onClose: () => {
+          closed += 1;
+        },
+        onNewSession: () => calls.push('session'),
+      }),
+    );
+  });
+  try {
+    const input = container.querySelector('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input,
+        '新建会话',
+      );
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const press = (init: KeyboardEventInit) =>
+      act(async () => {
+        input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ...init }));
+      });
+    await press({ key: 'Enter', isComposing: true });
+    await press({ key: 'Enter', keyCode: 229 });
+    await press({ key: 'Escape', isComposing: true });
+    assert.deepEqual(calls, []);
+    assert.equal(closed, 0);
+
+    await press({ key: 'Enter' });
+    assert.deepEqual(calls, ['session']);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
