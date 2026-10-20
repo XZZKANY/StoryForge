@@ -363,3 +363,52 @@ it('the next patch in the same run is a fresh decision, starting from the first 
   expect(accept().getAttribute('data-active')).toBe('true');
   expect(reject().getAttribute('data-active')).toBe('false');
 });
+
+it('a written direction stays in the box when the choice reports it was not carried out', async () => {
+  let finish!: (sent: boolean) => void;
+  const sent: string[] = [];
+  const r = mount();
+  await act(async () =>
+    r.render(
+      <DecisionChoices
+        title="要这版吗"
+        choices={[
+          {
+            label: '拒绝，并告诉 AI 怎么改',
+            testid: 'explain',
+            needsText: {
+              placeholder: '说说该怎么改',
+              submitLabel: '否掉并重来',
+              inputTestid: 'explain-input',
+            },
+            onSelect: (text) => {
+              sent.push(text ?? '');
+              return new Promise<boolean>((resolve) => {
+                finish = resolve;
+              });
+            },
+          },
+        ]}
+      />,
+    ),
+  );
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-testid="explain"]')!.click());
+  const input = () => host.querySelector<HTMLInputElement>('[data-testid="explain-input"]');
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      input(),
+      '换个结尾',
+    );
+    input()!.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await key(input()!, { key: 'Enter' });
+  await key(input()!, { key: 'Enter' });
+  expect(sent).toEqual(['换个结尾']);
+  await act(async () => finish(false));
+  expect(input()?.value).toBe('换个结尾');
+
+  await key(input()!, { key: 'Enter' });
+  await act(async () => finish(true));
+  expect(sent).toEqual(['换个结尾', '换个结尾']);
+  expect(input()).toBeNull();
+});

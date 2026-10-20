@@ -38,7 +38,7 @@ type Props = {
   handleNewSession: () => void;
   /** 列表里该显示的会话（已移除的藏掉）；缺省用全部。 */
   sessions?: AssistantSessionRecord[];
-  onRenameSession?: (id: number, title: string) => void | Promise<void>;
+  onRenameSession?: (id: number, title: string) => void | Promise<void | boolean>;
   onRemoveSession?: (id: number) => void;
   retryAssistantSessionLoad: () => void;
   retryContextCandidates: () => void;

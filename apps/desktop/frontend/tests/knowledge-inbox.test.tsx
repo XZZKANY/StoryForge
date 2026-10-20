@@ -391,3 +391,60 @@ test('编辑保存成功才关闭编辑框；失败保留草稿不丢已输入�
     container.remove();
   }
 });
+
+test('保存期间又改了字（全项目审计 E-15）：前一次保存成功不关编辑框，后来敲的字还在', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const inbox = handle();
+  let finish!: (saved: boolean) => void;
+  inbox.revise = vi.fn(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
+  const typeTitle = async (value: string) =>
+    act(async () => {
+      const input = container.querySelector<HTMLInputElement>('input[aria-label="知识标题"]')!;
+      setter.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  const clickSave = () =>
+    act(async () =>
+      [...container.querySelectorAll('button')]
+        .find((button) => button.textContent?.includes('保存修改'))
+        ?.click(),
+    );
+  try {
+    await act(async () => root.render(<KnowledgeInboxView handle={inbox} />));
+    await act(async () =>
+      [...container.querySelectorAll('button')]
+        .find((button) => button.textContent?.trim() === '编辑')
+        ?.click(),
+    );
+    await typeTitle('第一版标题');
+    await clickSave();
+    await typeTitle('第二版标题，保存期间接着改的');
+    await act(async () => finish(true));
+
+    assert.equal(
+      vi.mocked(inbox.revise).mock.calls[0]?.[2].title,
+      '第一版标题',
+      '提交的应是点保存那一刻的草稿',
+    );
+    assert.equal(
+      container.querySelector<HTMLInputElement>('input[aria-label="知识标题"]')?.value,
+      '第二版标题，保存期间接着改的',
+    );
+
+    await clickSave();
+    await act(async () => finish(true));
+    assert.equal(vi.mocked(inbox.revise).mock.calls[1]?.[2].title, '第二版标题，保存期间接着改的');
+    assert.equal(container.querySelector('input[aria-label="知识标题"]'), null);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});

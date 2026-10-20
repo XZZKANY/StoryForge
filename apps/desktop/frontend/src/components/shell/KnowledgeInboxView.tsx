@@ -139,12 +139,18 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
                     onChange={(draft) => setEditing({ ...editing, draft })}
                     onCancel={() => setEditing(null)}
                     onSave={() => {
-                      void handle
-                        .revise(group, proposal.proposal_id, editing.draft)
-                        .then((saved) => {
-                          // 保存失败时保持编辑态与已输入草稿（失败原因在面板顶部 PanelError）。
-                          if (saved) setEditing(null);
-                        });
+                      const submitted = editing.draft;
+                      void handle.revise(group, proposal.proposal_id, submitted).then((saved) => {
+                        // 保存失败时保持编辑态与已输入草稿（失败原因在面板顶部 PanelError）；
+                        // 保存期间作者又改了字，成功也不关，免得把后来敲的字一起收走。
+                        if (saved)
+                          setEditing((current) =>
+                            current?.proposalId === proposal.proposal_id &&
+                            current.draft === submitted
+                              ? null
+                              : current,
+                          );
+                      });
                     }}
                   />
                 ) : (

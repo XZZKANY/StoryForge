@@ -153,7 +153,8 @@ export type AgentRunControlHandlers = {
   onStopRun: () => void;
   onConfirmChapterBrief?: (brief: ChapterBrief) => void;
   onAcceptPatch?: () => void;
-  onRejectPatch?: (direction: string) => void;
+  /** 返回 false 表示没否掉（补丁目标还没打开、恢复记录写不进去）：对话区留着作者写的方向。 */
+  onRejectPatch?: (direction: string) => void | Promise<boolean>;
 };
 
 /** 章纲按已写内容对计划做的调整：计划原句、已写原句都核对过；program 是程序补的（已死的人）。 */

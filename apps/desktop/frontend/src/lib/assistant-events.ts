@@ -324,14 +324,22 @@ export function emitPatchRejected(rejection: PatchRejection): void {
   }
 }
 
-export function requestRejectCurrentFileSuggestion(rejection: PatchRejection): boolean {
-  if (typeof window === 'undefined') return false;
-  const event = new CustomEvent<PatchRejection>(REJECT_CURRENT_FILE_SUGGESTION_EVENT, {
-    detail: rejection,
-    cancelable: true,
+/** 对话区请编辑器否掉补丁：settle 回报编辑器那边否掉了没有（恢复记录写不进去时没否掉）。 */
+export type PatchRejectionRequest = PatchRejection & { settle?: (rejected: boolean) => void };
+
+/** 没有编辑器接（补丁目标还没打开）返回 null；接了就等它回报否掉了没有。 */
+export function requestRejectCurrentFileSuggestion(
+  rejection: PatchRejection,
+): Promise<boolean | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const event = new CustomEvent<PatchRejectionRequest>(REJECT_CURRENT_FILE_SUGGESTION_EVENT, {
+      detail: { ...rejection, settle: resolve },
+      cancelable: true,
+    });
+    window.dispatchEvent(event);
+    if (!event.defaultPrevented) resolve(null);
   });
-  window.dispatchEvent(event);
-  return event.defaultPrevented;
 }
 
 export type RetryWithoutKnowledge = {

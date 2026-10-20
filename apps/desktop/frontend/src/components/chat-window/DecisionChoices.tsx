@@ -11,7 +11,8 @@ export type DecisionChoice = {
     inputTestid?: string;
     submitTestid?: string;
   };
-  onSelect: (text?: string) => void;
+  /** 返回 false（或兑现为 false）表示没办成：先写一句话再发的选项会留着那句话。 */
+  onSelect: (text?: string) => void | boolean | Promise<void | boolean>;
   testid?: string;
 };
 
@@ -38,6 +39,7 @@ export function DecisionChoices({
   const [writing, setWriting] = useState<number | null>(null);
   const [text, setText] = useState('');
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const sending = useRef(false);
 
   // 作者刚在对话里发完话、输入框是空的，才把焦点交给选项；正在编辑器或输入框里写字时不抢。
   useEffect(() => {
@@ -90,10 +92,22 @@ export function DecisionChoices({
 
   const writingChoice = writing === null ? null : choices[writing];
   const submitText = () => {
-    if (!writingChoice) return;
-    writingChoice.onSelect(text.trim());
-    setWriting(null);
-    setText('');
+    if (!writingChoice || sending.current) return;
+    const done = (sent: unknown) => {
+      // 没办成：作者写的那句话留在输入框里，可以直接再发。
+      if (sent === false) return;
+      setWriting(null);
+      setText('');
+    };
+    const result = writingChoice.onSelect(text.trim());
+    if (!(result instanceof Promise)) return done(result);
+    sending.current = true;
+    void result
+      .catch(() => false)
+      .then((sent) => {
+        sending.current = false;
+        done(sent);
+      });
   };
 
   return (

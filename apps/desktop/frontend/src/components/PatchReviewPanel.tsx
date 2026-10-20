@@ -19,7 +19,8 @@ type PatchReviewPanelProps = {
   error?: string | null;
   onAccept: () => void | Promise<void>;
   onAcceptHunk: (hunk: PatchHunk) => void | Promise<void>;
-  onReject: (direction: string) => void | Promise<void>;
+  /** 兑现为 false 表示没否掉（恢复记录写不进去等）：草稿留着。 */
+  onReject: (direction: string) => void | Promise<void | boolean>;
   onSaveNote: () => void | Promise<void>;
   onRetryWithoutKnowledge: (knowledgeId: string, relativePath: string) => void | Promise<void>;
 };
@@ -195,7 +196,10 @@ export function PatchReviewPanel({
       );
     runAction('reject', () => {
       const result = onReject(direction);
-      if (result && typeof result.then === 'function') return result.then(clearSubmittedDraft);
+      if (result && typeof result.then === 'function')
+        return result.then((rejected) => {
+          if (rejected !== false) clearSubmittedDraft();
+        });
       clearSubmittedDraft();
     });
   };

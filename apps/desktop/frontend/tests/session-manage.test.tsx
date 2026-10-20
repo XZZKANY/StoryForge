@@ -151,3 +151,46 @@ test('从列表移除：列表里不见了、换项目也记得；可撤销；�
   assert.equal(items().length, 3);
   assert.equal(localStorage.getItem(`storyforge:hidden-sessions:${PROJECT}`), '[]');
 });
+
+test('改名没存进去（全项目审计 E-16）：新标题放回输入框，可以直接再回车', async () => {
+  const onRenameSession = vi.fn(async () => false);
+  act(() => root.render(<Menu onRenameSession={onRenameSession} />));
+  act(() =>
+    document.querySelectorAll<HTMLButtonElement>('[data-testid="session-rename"]')[1]!.click(),
+  );
+  const input = document.querySelector<HTMLInputElement>('[data-testid="session-rename-input"]')!;
+  act(() => type(input, '收十七楼伏笔'));
+  await act(async () =>
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+  );
+  assert.deepEqual(onRenameSession.mock.calls[0], [2, '收十七楼伏笔']);
+  const back = document.querySelector<HTMLInputElement>('[data-testid="session-rename-input"]');
+  assert.equal(back?.value, '收十七楼伏笔');
+});
+
+test('改名写进引擎库失败：hook 报 false，成功报 true', async () => {
+  let manage: ReturnType<typeof useSessionManagement> | null = null;
+  function Probe() {
+    const [sessions, setSessions] = useState(SESSIONS);
+    manage = useSessionManagement({
+      projectPath: PROJECT,
+      sessions,
+      setSessions,
+      activeSessionId: 1,
+      setConversationTitle: () => undefined,
+      onRemovedActive: () => undefined,
+    });
+    return null;
+  }
+  act(() => root.render(<Probe />));
+  vi.mocked(renameAssistantSession).mockRejectedValueOnce(new Error('database is locked'));
+  let saved: boolean | undefined;
+  await act(async () => {
+    saved = await manage!.renameSession(1, '新标题');
+  });
+  assert.equal(saved, false);
+  await act(async () => {
+    saved = await manage!.renameSession(1, '新标题');
+  });
+  assert.equal(saved, true);
+});

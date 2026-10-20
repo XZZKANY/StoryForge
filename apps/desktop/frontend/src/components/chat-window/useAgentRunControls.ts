@@ -298,17 +298,18 @@ export function useAgentRunControls(
       });
       if (!handled) emitToast('补丁目标仍在打开，请稍后再试', { tone: 'info' });
     },
-    onRejectPatch: (direction: string) => {
-      if (!agentRun) return;
+    onRejectPatch: async (direction: string) => {
+      if (!agentRun) return false;
       const approvalStep = agentRun.steps.find((s) => s.id === 'approval');
-      if (!approvalStep?.filePath) return;
-      if (!approvalStep.patchId) return;
-      const handled = requestRejectCurrentFileSuggestion({
+      if (!approvalStep?.filePath) return false;
+      if (!approvalStep.patchId) return false;
+      const rejected = await requestRejectCurrentFileSuggestion({
         filePath: approvalStep.filePath,
         patchId: approvalStep.patchId,
         direction,
       });
-      if (!handled) emitToast('补丁目标仍在打开，请稍后再试', { tone: 'info' });
+      if (rejected === null) emitToast('补丁目标仍在打开，请稍后再试', { tone: 'info' });
+      return rejected === true;
     },
   };
 

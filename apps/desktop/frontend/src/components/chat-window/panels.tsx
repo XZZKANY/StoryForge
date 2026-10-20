@@ -54,7 +54,7 @@ export function ConversationHeader({
   activeSessionId?: number | null;
   onSelectSession?: (id: number) => void;
   onNewSession?: () => void;
-  onRenameSession?: (id: number, title: string) => void | Promise<void>;
+  onRenameSession?: (id: number, title: string) => void | Promise<void | boolean>;
   onRemoveSession?: (id: number) => void;
   layoutMode?: LayoutMode;
   onSetLayoutMode?: (mode: LayoutMode) => void;

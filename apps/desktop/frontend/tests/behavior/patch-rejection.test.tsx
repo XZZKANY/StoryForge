@@ -120,7 +120,7 @@ function onRejected(event: Event) {
   rejections.push((event as CustomEvent<PatchRejection>).detail);
 }
 
-let reject: (direction?: string) => Promise<void> = async () => undefined;
+let reject: (direction?: string) => Promise<boolean> = async () => true;
 let accept: () => Promise<void> = async () => undefined;
 let panelHasPatch = false;
 let recordDeferred = false;
@@ -570,4 +570,37 @@ test('切走会话后否掉旧补丁，不污染当前会话的流程树', async
     [],
     `旧会话的拒绝写进了当前会话的流程树：${JSON.stringify(stepPatches)}`,
   );
+});
+
+test('恢复记录写不进去（全项目审计 E-19）：拒绝报没成、补丁留着、不广播；对话区也拿到「没成」', async () => {
+  await act(async () => {
+    emitFileSuggestion(suggestion());
+  });
+  assert.equal(panelHasPatch, true);
+  beforeDismissJournal = async () => {
+    throw new Error('磁盘已满');
+  };
+  let rejected: boolean | undefined;
+  await act(async () => {
+    rejected = await reject('换个开头');
+  });
+  assert.equal(rejected, false);
+  assert.equal(panelHasPatch, true);
+  assert.equal(rejections.length, 0);
+  assert.equal(submitted.length, 0);
+
+  await act(async () => {
+    rejected = await runControls!.onRejectPatch!('换个开头');
+  });
+  assert.equal(rejected, false);
+  assert.equal(panelHasPatch, true);
+  assert.equal(rejections.length, 0);
+
+  beforeDismissJournal = undefined;
+  await act(async () => {
+    rejected = await runControls!.onRejectPatch!('换个开头');
+  });
+  assert.equal(rejected, true);
+  assert.equal(panelHasPatch, false);
+  assert.equal(rejections.length, 1);
 });
