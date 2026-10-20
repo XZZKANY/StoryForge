@@ -149,3 +149,28 @@ test('甲作品的拒绝、生成补丁迟到回来：乙作品的收件箱和�
   expect(titles()).toEqual(['作品B的提案']);
   expect(handle.reviewPatch).toBeNull();
 });
+
+test('甲作品的修改迟到回来时已经切到乙又切回甲（全项目审计 E-17）：不把甲书刷新后的列表改回旧样子', async () => {
+  let release!: (value: ApiKnowledgeProposalInbox) => void;
+  vi.mocked(reviseKnowledgeProposalGroup).mockImplementationOnce(
+    () => new Promise((resolve) => (release = resolve)),
+  );
+  await mount(A);
+  const group = handle.inbox.items[0];
+  let pending!: Promise<boolean>;
+  await act(async () => {
+    pending = handle.revise(
+      group,
+      group.proposals[0].proposal_id,
+      proposalToEdit(group.proposals[0]),
+    );
+  });
+  await mount(B);
+  await mount(A);
+  expect(titles()).toEqual(['作品A的提案']);
+  await act(async () => {
+    release(inbox('旧A'));
+    await pending;
+  });
+  expect(titles()).toEqual(['作品A的提案']);
+});
