@@ -19,7 +19,7 @@ import {
   takePendingFileSuggestion,
   replacePendingFileSuggestion,
   type FileSuggestionTarget,
-  type PatchRejection,
+  type PatchRejectionRequest,
   type AuthorLoopResult,
   type SuggestionResult,
 } from '../../lib/assistant-events';
@@ -1601,24 +1601,24 @@ export function useSuggestionWriteback({
    * 无论哪条路径，都不写正文；先关闭恢复 journal，再清面板并广播拒绝。
    */
   const rejectPendingSuggestion = useCallback(
-    async (direction = '') => {
+    async (direction = ''): Promise<boolean> => {
       const suggestion = pendingSuggestionRef.current;
       const trimmed = direction.trim();
       let runStatus: 'completed' | 'failed' | undefined;
       const project = projectPathRef.current;
       if (suggestion) {
         const actionToken = beginAction('reject', suggestion);
-        if (!actionToken) return;
+        if (!actionToken) return false;
         try {
           const forgotten = await forgetSuggestionRecovery(suggestion);
-          if (!isCurrentAction(actionToken) || !forgotten) return;
+          if (!isCurrentAction(actionToken) || !forgotten) return false;
           runStatus = typeof forgotten === 'string' ? forgotten : undefined;
         } catch (error) {
           failAction(
             actionToken,
             `拒绝尚未完成: ${error instanceof Error ? error.message : String(error)}`,
           );
-          return;
+          return false;
         } finally {
           finishAction(actionToken);
         }
@@ -1640,6 +1640,7 @@ export function useSuggestionWriteback({
             : {}),
         });
       }
+      return true;
     },
     [
       beginAction,
@@ -1657,7 +1658,7 @@ export function useSuggestionWriteback({
 
   useEffect(() => {
     const onRejectCurrentSuggestion = (event: Event) => {
-      const rejection = (event as CustomEvent<PatchRejection>).detail;
+      const rejection = (event as CustomEvent<PatchRejectionRequest>).detail;
       const suggestion = pendingSuggestionRef.current;
       if (
         !rejection ||
@@ -1668,7 +1669,10 @@ export function useSuggestionWriteback({
       )
         return;
       event.preventDefault();
-      rejectPendingSuggestion(rejection.direction);
+      void rejectPendingSuggestion(rejection.direction).then(
+        (rejected) => rejection.settle?.(rejected),
+        () => rejection.settle?.(false),
+      );
     };
     window.addEventListener(REJECT_CURRENT_FILE_SUGGESTION_EVENT, onRejectCurrentSuggestion);
     return () =>

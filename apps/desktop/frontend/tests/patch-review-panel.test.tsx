@@ -620,3 +620,41 @@ test('收起时只剩一条操作栏，不在正文下方再劈出半块对比',
   click('patch-expand');
   assert.equal(byTestId('patch-diff')?.hidden, false);
 });
+
+test('否掉没成（全项目审计 E-19，恢复记录写不进去等）：修改方向留在输入框里', async () => {
+  let finish!: (rejected: boolean) => void;
+  const calls: string[] = [];
+  await act(async () => {
+    root.render(
+      <PatchReviewPanel
+        suggestion={sampleSuggestion()}
+        editorFontSize={14}
+        editorFontFamily="test-font"
+        onAccept={() => undefined}
+        onAcceptHunk={() => undefined}
+        onReject={(direction) => {
+          calls.push(direction);
+          return new Promise<boolean>((resolve) => {
+            finish = resolve;
+          });
+        }}
+        onSaveNote={() => undefined}
+        onRetryWithoutKnowledge={() => undefined}
+      />,
+    );
+  });
+  click('suggestion-reject');
+  type('patch-reject-input', '这段独白太满，删到两句');
+  press('patch-reject-input', 'Enter');
+  await act(async () => finish(false));
+  assert.deepEqual(calls, ['这段独白太满，删到两句']);
+  assert.equal(
+    (byTestId('patch-reject-input') as HTMLInputElement | null)?.value,
+    '这段独白太满，删到两句',
+  );
+
+  press('patch-reject-input', 'Enter');
+  await act(async () => finish(true));
+  assert.equal(calls.length, 2);
+  assert.equal(byTestId('patch-reject-form'), null);
+});

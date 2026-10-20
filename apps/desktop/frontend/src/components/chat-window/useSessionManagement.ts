@@ -58,21 +58,22 @@ export function useSessionManagement({
   }, [activeSessionId]);
 
   const renameSession = useCallback(
-    async (id: number, title: string) => {
+    async (id: number, title: string): Promise<boolean> => {
       const next = title.trim();
-      if (!next) return;
+      if (!next) return true;
       try {
         await renameAssistantSession(id, next);
       } catch (error) {
         emitToast(`改名失败：${error instanceof Error ? error.message : String(error)}`, {
           tone: 'error',
         });
-        return;
+        return false;
       }
       setSessions((current) =>
         current.map((session) => (session.id === id ? { ...session, title: next } : session)),
       );
       if (id === activeSessionRef.current) setConversationTitle(next);
+      return true;
     },
     [setConversationTitle, setSessions],
   );

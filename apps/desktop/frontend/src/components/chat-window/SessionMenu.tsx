@@ -29,7 +29,8 @@ export function SessionMenu({
   onDismiss: () => void;
   onSelectSession?: (id: number) => void;
   onNewSession?: () => void;
-  onRenameSession?: (id: number, title: string) => void | Promise<void>;
+  /** 返回 false 表示没存进去：新标题放回输入框。 */
+  onRenameSession?: (id: number, title: string) => void | Promise<void | boolean>;
   onRemoveSession?: (id: number) => void;
 }) {
   const [query, setQuery] = useState('');
@@ -41,9 +42,14 @@ export function SessionMenu({
 
   const commitRename = () => {
     if (!editing) return;
-    const { id, title } = editing;
+    const draft = editing;
     setEditing(null);
-    void onRenameSession?.(id, title);
+    void Promise.resolve(onRenameSession?.(draft.id, draft.title))
+      .catch(() => false)
+      .then((saved) => {
+        // 没存进去：新标题放回输入框，作者再按一次回车就行。
+        if (saved === false) setEditing((current) => current ?? draft);
+      });
   };
 
   return (

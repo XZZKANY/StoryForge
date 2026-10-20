@@ -9000,3 +9000,17 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   - `BookProfileView.tsx`：速记输入框存进去才清空（期间又改了字就不清），没存进去原话留着，再按回车即可重试；保存中再按回车不重复提交。改字没存进去时把改到一半的字放回编辑框；编辑态按行号 + 原文认，文件被别处改动后行号对不上就不显示，免得改到别的条目。
 - 测试：`idea-notes-undo.test.tsx` 新 4 条（删甲未写完点删乙删的是乙、乙的撤销放回原位；删甲未写完勾乙改丙各落在对的条目；同一条删除连点两下只删一条并提示；新增 / 改字被拒写返回 false、存进去返回 true）；`book-profile-view.test.tsx` 新 2 条（没存进去输入框留着原话、连按只交一次、成功才清空；改字没存进去编辑框带着字回来）。变异 12 / 12（删除 / 勾选 / 改字 / 撤销按旧行号、定位不认条目、找不到照写、新增与改字总报存进去、先清空再存、不看结果就清空、不防连按、改字失败不放回）。`pnpm verify` 8 道全过。
 - 未验：真宿主；真实磁盘被占用时的拒写。
+
+## 2026-10-20 保存或拒绝没成时不再清掉作者刚输入的字（全项目审计 E-15 / E-16 / E-19）
+
+- 全项目审计（外部复查第五轮）报三条，源码核实都成立，都是「先清空 / 先关闭，再等结果」：
+  - E-15：知识收件箱改提案时，点「保存修改」后编辑框仍可输入；前一次保存成功回来无条件关掉编辑态，期间接着敲的字没了。（引擎调用通常是毫秒级，点完保存还得点回输入框才能续写，实际很难碰到；按 P3 处理。）
+  - E-16：会话改名先退出编辑态再存，存失败只弹错误，新标题找不回。
+  - E-19：拒绝补丁时恢复记录（journal）写不进去，`forgetSuggestionRecovery` 回 false、`rejectPendingSuggestion` 静默返回，补丁仍在；补丁面板却把「履约」当成功清了草稿，对话区的选择框更是发出即清。作者写的修改方向既没进对话也没进恢复记录。（要磁盘写失败才触发；按 P3 处理。）
+- 改动：
+  - `KnowledgeInboxView.tsx`：记下点保存那一刻的草稿，成功回来时编辑态里还是那一份才关。
+  - `useSessionManagement.ts` 的 `renameSession` 返回存没存进去；`SessionMenu.tsx` 没存进去就把新标题放回输入框。
+  - `useSuggestionWriteback.ts` 的 `rejectPendingSuggestion` 返回否掉了没有；编辑器接对话区的拒绝请求后用 `settle` 回报结果。`assistant-events.ts` 的 `requestRejectCurrentFileSuggestion` 改为异步：没有编辑器接返回 null（照旧提示「补丁目标仍在打开」），接了就等结果。`useAgentRunControls.ts` 的 `onRejectPatch` 回报 true / false。
+  - `PatchReviewPanel.tsx` 结果为 false 时不清草稿；`DecisionChoices.tsx` 等选项回报结果，没办成就留着那句话，等待期间回车不重复发。
+- 测试：`knowledge-inbox.test.tsx`（保存期间接着改，前一次成功不关、提交的是点保存那一刻的草稿）、`session-manage.test.tsx` 2 条（改名没存进去标题放回输入框；hook 失败报 false、成功报 true）、`patch-review-panel.test.tsx`（否掉没成方向留着、成了才清）、`decision-choices.test.tsx`（没办成留着那句话、等待中回车不重复发）、`behavior/patch-rejection.test.tsx`（真实 writeback + run controls：journal 写失败时拒绝与对话区都报没成、补丁留着、不广播，恢复后报成）。变异 9 / 9。`pnpm verify` 8 道全过。
+- 未验：真宿主；真实磁盘写失败。
