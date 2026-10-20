@@ -9059,3 +9059,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 依据：验证报告「2026-10-16 0.2.0 出包」「2026-10-16 0.2.0 交付前的真宿主验证」「2026-10-17 上次退出诊断提示」三节；`git log` 中 #377（0.2.0）、#378（删旧 sidecar，进了最终 0.2.0）之后的提交都没有出包记录。
 - 验证：`pnpm verify` 8 道全过（含 lint / prettier）。
 - 未写：作者现在是否已在 0.2.0 上写作——没有记录，按「没有证据」写。
+
+## 2026-10-20 重写中英文 README，配真实界面截图与演示动图
+
+- 改动：`README.md` 重写为产品首页结构（定位、明暗主图、功能分节配图、下载安装、三分钟上手、支持的模型、隐私与安全、快捷键、mermaid 架构图、项目状态、路线图、常见问题、参与开发）；新增英文版 `README.en.md`；资源放 `docs/assets/readme/`（9 张 WebP 截图约 1.9 MB、2 张演示 GIF 共 5.9 MB、1 张 1280×640 社交预览图）。
+- 截图怎么来的：隔离的调试宿主（`TAURI_CONFIG` 改标识 `com.storyforge.uitour`，隔离 HOME / APPDATA / LOCALAPPDATA，窗口在屏幕外）+ 真 TS 引擎 + 原创示例作品《雾港回声》（六章正文、大纲、人物、canon、事实台账、连载计划、书封，均为本次新写，与作者真实作品无关）+ 本机假 OpenAI 流式服务（回复是预先写好的演示文本）；经 WebView2 CDP `Page.captureScreenshot` 按 2 倍重新栅格化截图，加圆角投影后转 WebP。图注写明「作品与 AI 回复均为演示内容」。动图是同一套环境下逐帧录制、每帧独立调色板合成。
+- 核对的事实：支持的服务商取自 `lib/provider-config.ts` 的预设；快捷键取自 `components/app/shortcuts.ts`；「除模型服务外不发网络请求」核过 Rust 宿主与前端源码里没有写死的外部地址；权限三档与 USAGE 一致；安装包约 33 MB、Windows only、未签名均与现状一致。项目状态、不能宣称的边界照 `docs/internal/current-phase.md` 写。
+- 验证：经 GitHub Markdown 渲染接口渲染两份 README，本地整页截图核对排版与全部图片可加载（0 张加载失败）；`pnpm verify` 8 道全过。
+- 未做：社交预览图要在仓库 Settings 里手动上传（没有 API）；徽章里的版本号与下载量要等 0.2.1 Release 发布后才有值。
