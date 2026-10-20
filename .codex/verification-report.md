@@ -9067,3 +9067,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 核对的事实：支持的服务商取自 `lib/provider-config.ts` 的预设；快捷键取自 `components/app/shortcuts.ts`；「除模型服务外不发网络请求」核过 Rust 宿主与前端源码里没有写死的外部地址；权限三档与 USAGE 一致；安装包约 33 MB、Windows only、未签名均与现状一致。项目状态、不能宣称的边界照 `docs/internal/current-phase.md` 写。
 - 验证：经 GitHub Markdown 渲染接口渲染两份 README，本地整页截图核对排版与全部图片可加载（0 张加载失败）；`pnpm verify` 8 道全过。
 - 未做：社交预览图要在仓库 Settings 里手动上传（没有 API）；徽章里的版本号与下载量要等 0.2.1 Release 发布后才有值。
+
+## 2026-10-20 Tauri 冒烟跟上 #380 的总览入场动画与「补丁审阅默认占满」（出 0.2.1 时发现）
+
+- 现象：出 0.2.1 时 `verify-tauri-smoke.mjs --release` 稳定失败。Tauri 冒烟不在 `pnpm verify` 里，#380 之后没人跑过，两处都是冒烟按旧界面写的判定：
+  1. `总览往返入口不可点击: open-writing-workspace … hidden-target`（连跑 4 次）。#380 新加的 `BookOverviewHeader` 带 `animate-fade-in-up`（`fill-mode: both`，起点 opacity 0），冒烟在 Rust 里 eval，状态一匹配就立刻点，入场动画还没走第一帧。关闭 WebView2 遮挡节流后照样失败（排除遮挡）；调试宿主经 CDP 复现时按钮第一次采样就可见，产品正常。
+  2. 修好第 1 处后卡在 `原生缩放/补丁审阅不可用`：#380 把补丁审阅改成默认占满编辑区、收起时对比区 `hidden`，冒烟的基线仍期待「未展开」，且收起时仍要求对比区至少 200×159。
+- 修复：`main.rs` 总览往返循环里，点之前先用 `click_ready_script` 轮询同一套命中检测（同文件「重新挂载的面板从 opacity 0 开始」已有此做法）；`smoke_ui.rs` 缩放检查改为「展开 → 收起 → 展开」，对比区尺寸只在展开时要求、收起时要求对比区隐藏，单测随之改，并加一条「收起时隐藏对比区、仍露着就不算」。不改产品代码。
+- 验证：`cargo test smoke_ui` 4 passed（含新测）；`tauri build --no-bundle` 重编发行版 exe 后 `verify-tauri-smoke.mjs --release` 通过（`Desktop Tauri release smoke passed`）；`npm --prefix apps/desktop run test:rust` 全过；`pnpm verify` 8 道全过。
