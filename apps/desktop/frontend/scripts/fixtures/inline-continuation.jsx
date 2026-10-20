@@ -4,7 +4,10 @@ import ReactDOM from 'react-dom/client';
 import * as monaco from 'monaco-editor';
 import { useInlineChat } from '../../src/components/editor/useInlineChat.ts';
 import { TauriFileSystem, invalidateFileSystemCache } from '../../src/lib/tauri-fs.ts';
+import { installMonacoCancellationGuard } from '../../src/lib/browser-guards.ts';
 import '../../src/index.css';
+// 夹具绕过了应用入口 main.tsx，照入口一样装上 Monaco 取消守卫。
+installMonacoCancellationGuard();
 const A = 'D:/browser-fiction/A';
 const B = 'D:/browser-fiction/B';
 const SOURCE = A + '/设定/灯塔.md';

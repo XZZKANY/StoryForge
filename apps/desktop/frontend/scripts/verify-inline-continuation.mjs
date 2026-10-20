@@ -148,13 +148,18 @@ try {
   assert.equal(s.body, '首段。\n中段。\n尾段保持不动。');
   await page.screenshot({ path: evidence + '/project-b-proposal.png' });
   results.push('project/model switch: old signal aborted, B first send has no A session ID');
-  await page.evaluate(() => window.__INLINE_AUDIT__.unmount());
+  // 卸载前一刻让编辑器聚焦：Monaco 的同词高亮会在 50 ms 的 Delayer 里排一个任务，卸载时被取消，
+  // 漏网的「Canceled」就在这里稳定出现（不再看时序运气），由入口装的取消守卫兜住。
+  await page.evaluate(() => {
+    window.__INLINE_AUDIT__.focus();
+    window.__INLINE_AUDIT__.unmount();
+  });
   await page.waitForFunction(() => !window.__INLINE_AUDIT__.ready);
   assert.equal(await page.locator('.monaco-editor').count(), 0);
   assert.equal(await page.getByRole('textbox', { name: '续写方向（可留空）' }).count(), 0);
   assert.deepEqual(errors, []);
   results.push(
-    'unmount with a visible proposal disposes the real Monaco owner without page errors',
+    'unmount right after focusing, with a visible proposal, disposes the real Monaco owner without page errors',
   );
   await writeFile(
     evidence + '/summary.json',

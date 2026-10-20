@@ -4,7 +4,9 @@ import { test } from 'vitest';
 import {
   allowsNativeContextMenu,
   installBrowserGuards,
+  installMonacoCancellationGuard,
   isEditableTarget,
+  isMonacoCancellation,
   isReloadShortcut,
 } from '../src/lib/browser-guards';
 
@@ -99,4 +101,47 @@ test('装机护栏抑制壳子区域 contextmenu 默认菜单', () => {
     uninstall();
     div.remove();
   }
+});
+
+/** Monaco 的 CancellationError：名字和消息都是「Canceled」。 */
+class MonacoCancellation extends Error {
+  constructor() {
+    super('Canceled');
+    this.name = this.message;
+  }
+}
+
+function rejection(reason: unknown) {
+  const event = new Event('unhandledrejection', { cancelable: true });
+  Object.defineProperty(event, 'reason', { value: reason });
+  return event;
+}
+
+test('只认 Monaco 的取消错误：普通错误、中止、名字对消息不对的都不算', () => {
+  assert.equal(isMonacoCancellation(new MonacoCancellation()), true);
+  assert.equal(isMonacoCancellation(new Error('Canceled')), false);
+  assert.equal(isMonacoCancellation(new DOMException('aborted', 'AbortError')), false);
+  const renamed = new Error('写盘失败');
+  renamed.name = 'Canceled';
+  assert.equal(isMonacoCancellation(renamed), false);
+  assert.equal(isMonacoCancellation('Canceled'), false);
+  assert.equal(isMonacoCancellation(null), false);
+});
+
+test('取消守卫吞掉 Monaco 漏网的取消拒绝，别的未处理拒绝照常报；卸载后不再拦', () => {
+  const uninstall = installMonacoCancellationGuard(window);
+  try {
+    const canceled = rejection(new MonacoCancellation());
+    window.dispatchEvent(canceled);
+    assert.equal(canceled.defaultPrevented, true);
+
+    const real = rejection(new Error('写盘失败'));
+    window.dispatchEvent(real);
+    assert.equal(real.defaultPrevented, false);
+  } finally {
+    uninstall();
+  }
+  const after = rejection(new MonacoCancellation());
+  window.dispatchEvent(after);
+  assert.equal(after.defaultPrevented, false);
 });
