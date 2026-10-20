@@ -16,7 +16,7 @@ pnpm desktop:dev
 1. 欢迎页 / 作品库创建或打开本地小说项目（可「创建示例项目」先试）。
 2. 工作台用 Monaco 编辑器写作；左侧文件树、手稿视图、观测镜、版本快照、命令面板可用。
 3. 与对话式 Agent 讨论：审稿、定向修订、新文件起草都以 proposed patch 返回；Ctrl+K 行间改写、Ctrl+Shift+K 光标处续写。
-4. 按项目权限档位处理补丁：`read` / `ask` 逐次确认，`auto` / `full` 免点击但仍走写前快照 → 原子写 → 版本记录的 guarded writeback，可撤销。
+4. 按项目权限档位（对话输入框下方的下拉）处理补丁：「只读」只读项目、只回答，不产生任何改动（Ctrl+K / Ctrl+Shift+K 也不能发起）；「询问」每个补丁都要你在 diff 里点接受；「自动」免点击直接写盘，但仍走写前快照 → 原子写 → 版本记录的 guarded writeback，可撤销。旧的「完全放行」档按「自动」显示。
 5. 「设置 → 模型服务」配置 provider、base URL、model 与 API key（Windows 用户级 DPAPI 加密存本机），保存即生效。
 
 ## 常见操作
