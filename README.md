@@ -1,103 +1,272 @@
-<h1 align="center">StoryForge</h1>
+<div align="center">
 
-<p align="center">面向长篇小说创作的桌面 AI 写作 IDE </p>
+<img src="apps/desktop/src-tauri/icons/icon.png" width="104" alt="StoryForge" />
 
-<p align="center">
-  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" />
-  <img alt="pnpm 9" src="https://img.shields.io/badge/pnpm-9.15.4-orange.svg" />
-  <img alt="Built with Tauri" src="https://img.shields.io/badge/desktop-Tauri-24C8D8.svg" />
-</p>
+# StoryForge
 
-StoryForge 不是一个"一键出书"的自动生成器，而是一个把工程化工作流带进小说创作的本地写作工作台：打开本地小说项目，与对话式 Agent 讨论剧情、做多视角审稿、让它产出修订补丁，作者看清 diff 后决定接不接受——所有落盘都经过快照与版本记录，随时可以回滚。
+**长篇小说作者的 AI 写作 IDE**
 
-## 亮点
+在本地打开你的小说项目，和读过整部书的 Agent 一起审稿、改稿、起草。<br />
+AI 的每一处修改都以逐字对比交到你面前，你点头，才写进稿子。
 
-- **本地项目 IDE**：打开本地小说项目，文件树浏览、Monaco 编辑、项目全文搜索、版本快照、可调外观。
-- **对话式 Agent**：用自然语言提要求，Agent 自主调用只读工具（列目录 / 读文件 / 跨文件检索）收集证据，再作答或生成补丁；支持多视角审稿、定向修订、新文件起草、写章检查。
-- **行间协作**：Ctrl+K 在光标处改写选中段落，Ctrl+Shift+K 从光标处续写，Alt+Enter 接受。
-- **安全的写回链路**：Agent 只产出 proposed patch，从不直接写盘；落盘一律经过写前快照 → 原子写 → 版本记录。项目级权限档位（只读 / 询问 / 自动）决定要不要逐次确认。
-- **一致性工具链**：canon 防漂移、机械一致性扫描、文笔静态检查、跨章一致性等确定性工具，挂进 Agent 循环辅助审阅。
-- **可定制**：在项目内写 `.storyforge/agent-instructions.md` 就能调整 Agent 的语气、审稿口径和风格禁忌。
-- **纯本地**：没有服务端；模型 key 用 Windows 用户级 DPAPI 加密存在本机，只在 Rust 宿主里使用。
+[![最新版本](https://img.shields.io/github/v/release/XZZKANY/StoryForge?display_name=tag&sort=semver&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&color=4f46e5)](https://github.com/XZZKANY/StoryForge/releases/latest)
+[![下载量](https://img.shields.io/github/downloads/XZZKANY/StoryForge/total?label=%E4%B8%8B%E8%BD%BD%E9%87%8F&color=16a34a)](https://github.com/XZZKANY/StoryForge/releases)
+[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%2010%20%2F%2011-0078d4)](#下载安装)
+[![许可证](https://img.shields.io/github/license/XZZKANY/StoryForge?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&color=0ea5e9)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/XZZKANY/StoryForge?style=flat&color=f59e0b)](https://github.com/XZZKANY/StoryForge/stargazers)
 
-## 快速开始
+[**下载安装**](#下载安装) · [**三分钟上手**](#三分钟上手) · [**功能一览**](#功能一览) · [**常见问题**](#常见问题) · [**参与开发**](#参与开发)
 
-前置条件：Node.js 22、pnpm 9.15.4、Rust 工具链与 Tauri 2 的 Windows 依赖。
+**简体中文** · [English](README.en.md)
+
+</div>
+
+<br />
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/hero-dark.webp" />
+  <img alt="StoryForge 写作台：左边是作品的文件树，中间是正在写的第 5 章，右边的 Agent 刚读完这一章，给出三条节奏问题和改法" src="docs/assets/readme/hero-light.webp" />
+</picture>
+
+<p align="center"><sub>截图中的作品《雾港回声》与 AI 回复均为演示内容。</sub></p>
+
+## 为什么做 StoryForge
+
+写长篇，难的往往不是写出一段漂亮的话，而是写到第八十章还记得第三章埋了什么、谁在哪儿、那把钥匙在谁手里。
+
+通用聊天工具看不见你的整部书，每次都要把前情重新贴一遍；一键生成又把作者挤出了创作。StoryForge 走的是第三条路：
+
+- **你是作者，AI 是编辑和助手。** 它读稿、挑问题、提改法、起草初稿，但正文怎么写，由你拍板。
+- **整部书都是上下文。** Agent 会自己翻目录、读章节、全书检索，结合大纲、人设和事实台账回答你。
+- **改动看得见、撤得回。** 所有修改都以补丁出现：逐字对比、写前快照、写后一键撤销。
+
+## 功能一览
+
+### 对话式 Agent：一个读过整部书的编辑
+
+<img src="docs/assets/readme/demo-chat.gif" alt="在对话里请 Agent 审第 5 章：它先读了这一章，然后流式给出三处问题和改法" width="760" />
+
+- 直接用中文提要求：「审一下第 5 章的节奏」「第 12 章和第 3 章的设定对得上吗」「起草第 7 章」。
+- 要读哪些文件由 Agent 自己决定：列目录、读章节、全书检索，每一步都摊开在对话里给你看。
+- 多视角审稿、定向修订、起草新章、跨章一致性检查、深度一致性排查，在同一个对话里完成。
+- 起草新章时先拿章纲给你确认，再写稿、自检，最后以补丁交给你。
+
+### 逐字对比，你点头才落盘
+
+<img src="docs/assets/readme/patch-review.webp" alt="AI 修订以补丁形式出现在编辑器里：删除标红、新增标绿，可以逐块接受；对话区同时给出接受 / 拒绝 / 拒绝并说明的选项" />
+
+- AI 的每一次修改都是一个补丁：可以整体接受、逐块接受、直接拒绝，也可以「拒绝，并告诉 AI 怎么改」让它重来。
+- 写入前自动存快照，写入后右下角一键撤销。看补丁期间稿子被你改过，就拒绝写入，绝不覆盖。
+- 权限按作品设置：**只读**（只回答，不产生改动）、**询问**（每个补丁都要你点接受）、**自动**（免点击写入，照样留快照、可撤销）。
+
+### 行间协作：Ctrl+K 改写，Ctrl+Shift+K 续写
+
+<img src="docs/assets/readme/demo-inline.gif" alt="选中一段，按 Ctrl+K 输入「加一个动作，让沉默更重」，改写结果出现在原文下方，按 Alt+Enter 接受" width="760" />
+
+- 选中一段，按 **Ctrl+K**，说一句「再压抑一点」，改写结果就地出现在原文下方：**Alt+Enter** 接受，**Esc** 放弃。
+- 在光标处按 **Ctrl+Shift+K**，按上文的语感接着往下写一段；也可以先给个方向，比如「转到冲突」「慢下来」。
+
+### 世界线观测镜：防吃书
+
+<img src="docs/assets/readme/observatory.webp" alt="左栏的世界线观测镜：事实台账列出一条前后矛盾的待定事实（回声号的船员人数第 2 章是十一人、第 4 章是十二人），下面是伏笔账和人物实体" />
+
+- **事实台账**：章节检查时自动记下「谁是什么身份、东西在谁手里、船上几个人」这类事实，并注明出处。前后对不上的会标出来，等你裁决以哪一章为准。
+- **伏笔账**：埋了哪些线、埋在第几章、多久没碰，一眼看到。
+- **人物与实体**：本名、别名，出现在哪几章、多少处。
+- 这些都按规则确定性计算，不调用模型、不花钱；有疑问时再让 AI 深查。
+
+### 作品总览：打开就知道今天写什么
+
+<img src="docs/assets/readme/overview.webp" alt="作品总览：书封、简介、上一章停在哪里、还有几条线没收、写作进度，以及「继续写第 6 章」「AI 起草第 7 章」两个入口" />
+
+书封、简介、写作进度、上一章停在哪儿、哪几条线还没收，一页看完。「继续写第 N 章」「AI 起草下一章」都从这里开始。
+
+### 版本记录与撤销
+
+<img src="docs/assets/readme/versions.webp" alt="版本记录面板：每次 AI 写回都留下检查点，可以对比当前稿或一键恢复" />
+
+每次 AI 写回都会留下检查点，随时对比、随时恢复。快照存放在独立的影子仓库里，不碰你自己的 git。
+
+### 还有这些
+
+| 功能 | 说明 |
+| --- | --- |
+| 灵感速记 | 左栏随手记一条，存进作品根目录的 `灵感.md`，编辑器里、手机上都能看 |
+| 连载计划 | 每章的目标与进度存在 `.storyforge/serial-plan.json`，Agent 起草时会参考 |
+| 知识收件箱 | Agent 提议的设定条目先进收件箱，你审过才写进设定文件 |
+| 拆书 | 把一本参考作品拆成结构报告，导出 Markdown / JSON |
+| 自定义 Agent | 在 `.storyforge/agent-instructions.md` 里写下口吻、审稿口径、风格禁忌 |
+| 编辑体验 | 命令面板、全文搜索、多页签、三种布局（Ctrl+1 / 2 / 3）、明暗主题与强调色可调 |
+
+## 下载安装
+
+| 平台 | 安装包 | 说明 |
+| --- | --- | --- |
+| Windows 10 / 11（64 位） | [**下载最新版**](https://github.com/XZZKANY/StoryForge/releases/latest) | NSIS 安装包，约 33 MB |
+
+- 依赖系统自带的 Microsoft Edge WebView2：Windows 11 已内置，Windows 10 一般也已装好。
+- 安装包暂未做代码签名。如果弹出「Windows 已保护你的电脑」，点「更多信息」→「仍要运行」即可。
+- 目前只提供 Windows 版本。
+
+## 三分钟上手
+
+1. **安装并打开** StoryForge。
+2. **配置模型**：打开「设置 → 模型服务」，选服务商，填入 API key，点保存即生效。key 加密保存在本机。
+3. **打开作品**：在作品库里打开一个本地文件夹作为作品；也可以先点「创建示例项目」试试。
+4. **开始协作**：在右侧对话框里说出你的需求，或者在编辑器里选中一段按 **Ctrl+K**。
+5. **审补丁**：看逐字对比，满意就接受；不满意就拒绝，并告诉它哪里不对。
+
+新建作品时会自动建好推荐的目录结构，全部是普通的 Markdown 文件：
+
+```text
+我的小说/
+├── 正文/        第001章.md、第002章.md……
+├── 大纲/        总纲、分卷大纲（左栏会把标题摊成可跳转的目录）
+├── 人物/
+├── 设定/
+├── 世界观/
+├── 时间线/
+├── 伏笔/
+├── 灵感.md      灵感速记
+└── .storyforge/ 作品档案、canon 设定、事实台账、连载计划（由 StoryForge 维护）
+```
+
+## 支持的模型
+
+自带 key，直连服务商，按服务商的价格计费；StoryForge 不经手、不中转。
+
+OpenAI · Anthropic（Claude） · Google Gemini · DeepSeek · 通义千问 · Kimi · SiliconFlow · Ollama（本地模型） · 任何兼容 OpenAI 的接口
+
+主模型之外，还可以给润色单独配一个模型。
+
+## 隐私与安全
+
+- **纯本地**：没有服务端、没有账号、没有遥测。除了你配置的模型服务，不发任何网络请求。
+- **稿子归你**：作品就是你文件夹里的 Markdown 文件，不锁格式、不上传。只有你发起请求时，这次需要的内容才会发给你选的模型。
+- **key 不出宿主**：API key 用 Windows DPAPI 加密存在本机，只在 Rust 宿主进程里解密使用；界面、日志和数据库里只有占位符。
+- **AI 只提议**：任何档位下 AI 都只产出补丁；写入一律经过「写前快照 → 原子写入 → 版本记录」。
+
+## 常用快捷键
+
+| 快捷键 | 作用 |
+| --- | --- |
+| `Ctrl+K` | 行间改写（改选中的文字；没选就改光标所在行） |
+| `Ctrl+Shift+K` | 光标处续写 |
+| `Alt+Enter` / `Esc` | 接受 / 放弃行间建议 |
+| `Ctrl+P` | 快速打开文件 |
+| `Ctrl+Shift+F` | 全文搜索 |
+| `Ctrl+Shift+O` | 世界线观测镜 |
+| `Ctrl+Shift+H` | 版本历史 |
+| `Ctrl+1` / `2` / `3` | 编辑 / 平衡 / 对话 三种布局 |
+
+## 架构
+
+```mermaid
+flowchart LR
+  subgraph App["StoryForge 桌面应用"]
+    direction LR
+    UI["界面<br/>React + Monaco"] --> Engine["TS 引擎<br/>Agent 循环 · 修订 / 续写 · 检查 · 一致性"]
+    Engine <--> Host["Rust 宿主<br/>文件读写 · SQLite · 影子 git · 模型出网"]
+  end
+  Host <--> Book[("你的作品文件夹<br/>Markdown")]
+  Host <--> LLM(("你配置的模型服务"))
+```
+
+- **TS 引擎**（`packages/engine`）：Agent 工具循环、修订与续写、章节检查、事实台账、跨章一致性、模型协议，都在桌面窗口里进程内运行。
+- **Rust 宿主**（`apps/desktop/src-tauri`）：只管本地副作用——项目边界内的文件读写与原子写、引擎库（SQLite）、模型出网（key 只在这里）、影子 git 快照。
+- **界面**（`apps/desktop/frontend`）：Tauri 2 + React 18 + Vite + Monaco Editor。
+
+## 项目状态
+
+StoryForge 目前处于**作者自用打磨阶段**，还不是成熟的商业产品：
+
+- 0.2 起业务逻辑全部在 TS 引擎里，安装包里不再有任何后台服务，约 33 MB。
+- 真实模型下 1 / 3 / 10 章的小规模生成跑通过，10 章样例经过人工通读；更长的连载质量还没有验收，**不能宣称稳定产出长篇**。
+- 当前阶段的验证记录与能力边界见 [`docs/internal/current-phase.md`](docs/internal/current-phase.md)。
+
+## 路线图
+
+- [x] 编辑器做到「安全可日更」：补丁审阅、写前快照、可撤销
+- [x] 后端整体迁到 TS 引擎，安装包从 81 MB 降到 33 MB（0.2.0）
+- [x] 事实台账、伏笔账、世界线观测镜
+- [ ] 在真实连载里打磨（进行中）
+- [ ] 发布与读者信号回流：把读者反馈沉淀成写作偏好，反哺 Agent
+
+## 常见问题
+
+<details>
+<summary><b>它会替我把整本书写完吗？</b></summary>
+
+不会，这也不是它的目标。StoryForge 是给作者用的写作工具：它可以起草一章初稿，但每一次写入都要经过你。
+</details>
+
+<details>
+<summary><b>我的稿子会被上传吗？</b></summary>
+
+不会上传到任何 StoryForge 的服务器——根本没有这样的服务器。只有在你发起请求时，这次请求需要的章节和资料才会发给你自己配置的模型服务。
+</details>
+
+<details>
+<summary><b>要花多少钱？</b></summary>
+
+软件本身免费开源（MIT）。模型费用由你选的服务商按用量收取；用 Ollama 跑本地模型则不产生 API 费用。
+</details>
+
+<details>
+<summary><b>支持 macOS / Linux 吗？</b></summary>
+
+暂时只有 Windows 版本。key 的加密存储用的是 Windows DPAPI，其他平台还没有适配和验证。
+</details>
+
+<details>
+<summary><b>我已经用 git 管理稿子了，会冲突吗？</b></summary>
+
+不会。StoryForge 的版本快照存在独立的影子仓库里，不会改动你自己的 git 仓库和暂存区。
+</details>
+
+## 参与开发
+
+需要 Node.js 22、pnpm 9.15.4、Rust 工具链，以及 Tauri 2 的 Windows 构建依赖。
 
 ```powershell
 git clone https://github.com/XZZKANY/StoryForge.git
 cd StoryForge
 pnpm install
 npm --prefix apps/desktop/frontend install
-pnpm dev
+pnpm dev               # 启动桌面应用（Vite + Tauri 窗口）
 ```
-
-启动后在「设置 → 模型服务」填上自己的 provider / model / API key 即可对话。Windows PowerShell 若拦截 `pnpm.ps1`，改用 `pnpm.cmd dev`。更多说明见 [本地开发](docs/operations/local-start.md) 与 [故障排查](docs/operations/troubleshooting.md)。
-
-## 常用命令
 
 ```powershell
-pnpm dev             # 启动桌面 IDE
-pnpm desktop:build   # 打 NSIS 安装包
-pnpm verify          # 提交前总门禁：lint、类型检查、引擎与前端测试、三个浏览器回归
-pnpm test            # 加跑 Rust 测试与 Tauri 冒烟
-pnpm lint:fix        # 自动修复格式与 lint
+pnpm verify            # 提交前的总门禁：lint、类型检查、引擎与前端测试、三个浏览器回归
+pnpm test              # 再加上 Rust 测试与 Tauri 冒烟
+pnpm desktop:build     # 打 NSIS 安装包
 ```
 
-## 仓库结构
+Windows PowerShell 若拦截 `pnpm.ps1`，改用 `pnpm.cmd`。更多说明见 [本地开发](docs/operations/local-start.md)、[故障排查](docs/operations/troubleshooting.md) 与 [发版清单](docs/operations/release-checklist.md)。
 
 ```text
 StoryForge/
-├── apps/
-│   └── desktop/          # Tauri 桌面 IDE：frontend/（React + Monaco）、src-tauri/（Rust 宿主）
+├── apps/desktop/
+│   ├── frontend/      界面（React + Monaco）
+│   └── src-tauri/     Rust 宿主
 ├── packages/
-│   ├── engine/           # TS 引擎：agent 循环、修订 / 续写、IDE 命令、知识与检查、模型协议
-│   └── project-core/     # 路径围栏等共享内核
-├── docs/                 # 架构文档、阶段事实源、运维手册
-└── scripts/              # 本地门禁与生成脚本
+│   ├── engine/        TS 引擎
+│   └── project-core/  路径围栏等共享内核
+├── docs/              架构、阶段事实源、运维手册
+└── scripts/           本地门禁与生成脚本
 ```
 
-技术栈：Tauri 2 + React 18 + Vite + Monaco Editor；TS 引擎在桌面 WebView 里进程内运行，Rust 宿主负责本地文件、SQLite 引擎库、模型出网与影子 git 快照。2026-10 之前业务逻辑在一个 Python（FastAPI）后端里，已逐模块迁到 TS 引擎并删除。
+欢迎提 Issue 和 PR。提交前请至少跑一遍 `pnpm verify`；不要提交真实的 API key 或未脱敏的运行日志。更多工程约定见 [`CLAUDE.md`](CLAUDE.md) 与 [`AGENTS.md`](AGENTS.md)。
 
-## 项目状态
+## Star 趋势
 
-自研自用（dogfooding）阶段，**还不是成熟商用产品**：
+<a href="https://star-history.com/#XZZKANY/StoryForge&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=XZZKANY/StoryForge&type=Date&theme=dark" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=XZZKANY/StoryForge&type=Date" width="600" />
+  </picture>
+</a>
 
-- 2026-10-16 完成后端迁移：业务逻辑全部在 TS 引擎里，仓库里不再有 Python；0.2.0 是第一个这样的装机版（10-17 交付），下一版是 0.2.1。新引擎在作者真实写作里的表现还没有记录，目前只有门禁、浏览器回归、真宿主探针与安装冒烟的证据。
-- 真实 LLM 小规模生成（1/3/10 章）smoke 通过且 10 章样例已人工通读；一次 30 章长程人工通读退回——**尚不能宣称稳定生产级长篇质量**。
+## 许可证
 
-详细的验证记录、边界声明与未完成项以 [`docs/internal/current-phase.md`](docs/internal/current-phase.md) 为准。
-
-## 路线图
-
-一条"写 → 发 → 收集信号 → 喂回来"的飞轮：
-
-1. **编辑器安全可日更** ✅ 已封板（tag `v0.1.2`）。
-2. **在编辑器上写作品** 🚧 进行中：真实连载 dogfood，摩擦驱动打磨。
-3. **发布与信号采集**：发布平台、如实标注 AI、采集跟读率与读者信号。
-4. **喂回与进化**：读者信号沉淀为 playbook，反哺 Agent 工具与编辑器。
-
-当前下一步入口见 [`docs/internal/TODO.md`](docs/internal/TODO.md)。
-
-## 文档
-
-| 面向 | 入口 |
-| --- | --- |
-| 当前阶段与验证边界 | [`docs/internal/current-phase.md`](docs/internal/current-phase.md) |
-| 工程约定（AI 协作 / 架构规则） | [`CLAUDE.md`](CLAUDE.md) / [`AGENTS.md`](AGENTS.md) |
-| 后端迁移计划与进度 | [`docs/architecture/ts-engine-migration-plan.md`](docs/architecture/ts-engine-migration-plan.md) |
-| 本地开发 / 排障 / 发版 | [`docs/operations/`](docs/operations/) |
-
-## 贡献
-
-欢迎 Issue 和 PR。提交前至少跑 `pnpm verify`。注意：
-
-- TypeScript 遵循 ESLint + Prettier；Rust 新代码按 rustfmt 排版（既有文件尚未全量格式化，别顺手重排）。
-- 改引擎库 schema 只能在 `packages/engine/src/store/schema.ts` 末尾追加迁移，不改已发布的条目。
-- 不要提交真实 provider token、API key 或未脱敏运行日志。
-
-更多约定见 [`CLAUDE.md`](CLAUDE.md)。
-
-## License
-
-[MIT](LICENSE)
+[MIT](LICENSE) © XZZKANY
