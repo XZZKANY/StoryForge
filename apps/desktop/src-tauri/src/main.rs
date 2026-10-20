@@ -616,6 +616,13 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
         // Cover the primary overview button as well as ActivityBar navigation.
         // Visibility, current file, and node identity are independent assertions.
         for (entry, overview) in [("activity-book", true), ("open-writing-workspace", false)] {
+            // 总览头部带入场动画，第一帧 opacity 为 0：照「重新挂载的面板」的做法先轮询同一套命中检测再点。
+            let ready = smoke_ui::click_ready_script(&format!("[data-testid=\"{entry}\"]"));
+            if let Err(error) = wait_for_window_state(&window, &ready, 50, Duration::from_millis(200),
+                |value| has_bool(value, "ready", true)) {
+                eprintln!("Smoke 失败: 总览往返入口未就绪: {entry}: {error}");
+                fail_smoke!();
+            }
             if let Err(error) = click_window_test_id(&window, entry) {
                 eprintln!("Smoke 失败: 总览往返入口不可点击: {entry}: {error}");
                 fail_smoke!();

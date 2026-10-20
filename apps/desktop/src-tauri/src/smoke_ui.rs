@@ -107,6 +107,17 @@ fn geometry_is_usable(value: &Value, baseline: Option<&Value>, zoom: f64, expand
         .abs()
             <= 1.0
     });
+    // 补丁一来审阅占满编辑区（#380）；收起时对比区隐藏、只剩操作栏，对比区的尺寸只在展开时要求。
+    let diff_usable = if expanded {
+        contained_in_editor(value, "diff")
+            && number(value, "/diff/width") >= 200.0
+            && number(value, "/diff/height") >= 159.0
+            && number(value, "/diff/x") >= -1.0
+            && number(value, "/diff/right") <= width + 1.0
+            && number(value, "/diff/bottom") <= height + 1.0
+    } else {
+        number(value, "/diff/width") < 1.0 && number(value, "/diff/height") < 1.0
+    };
     width > 0.0
         && height > 0.0
         && scale_matches
@@ -119,16 +130,11 @@ fn geometry_is_usable(value: &Value, baseline: Option<&Value>, zoom: f64, expand
         && number(value, "/editor/bottom") <= height + 1.0
         && number(value, "/documentWidth") <= width + 1.0
         && contained_in_editor(value, "patch")
-        && contained_in_editor(value, "diff")
         && number(value, "/patch/width") >= 200.0
         && number(value, "/patch/x") >= -1.0
         && number(value, "/patch/right") <= width + 1.0
         && number(value, "/patch/bottom") <= height + 1.0
-        && number(value, "/diff/width") >= 200.0
-        && number(value, "/diff/height") >= 159.0
-        && number(value, "/diff/x") >= -1.0
-        && number(value, "/diff/right") <= width + 1.0
-        && number(value, "/diff/bottom") <= height + 1.0
+        && diff_usable
         && super::has_bool(value, "expanded", expanded)
         && super::has_bool(value, "controlsReachable", true)
 }
@@ -160,7 +166,7 @@ pub(super) fn verify_native_zoom<R: tauri::Runtime>(
             GEOMETRY,
             20,
             Duration::from_millis(150),
-            |value| geometry_is_usable(value, None, 1.0, false),
+            |value| geometry_is_usable(value, None, 1.0, true),
         )?;
         original_viewport = Some(baseline.clone());
         println!(
@@ -171,7 +177,7 @@ pub(super) fn verify_native_zoom<R: tauri::Runtime>(
             window
                 .set_zoom(zoom)
                 .map_err(|error| format!("set_zoom({zoom}) failed: {error}"))?;
-            for (step, expanded) in [false, true, false].into_iter().enumerate() {
+            for (step, expanded) in [true, false, true].into_iter().enumerate() {
                 if step > 0 {
                     super::click_window_test_id(window, "patch-expand")?;
                 }
@@ -184,7 +190,7 @@ pub(super) fn verify_native_zoom<R: tauri::Runtime>(
                 )?;
                 println!(
                     "Desktop native zoom evidence: {}",
-                    json!({"zoom": zoom, "phase": (["workspace-review", "focused-review", "exit-review"][step]), "geometry": geometry})
+                    json!({"zoom": zoom, "phase": (["full-review", "collapsed-review", "re-expanded-review"][step]), "geometry": geometry})
                 );
             }
         }
@@ -523,17 +529,17 @@ mod tests {
                 "right": width - 40.0, "bottom": height - 26.0},
             "diff": {"x": 100, "y": height - 226.0, "width": width - 140.0, "height": 200,
                 "right": width - 40.0, "bottom": height - 26.0},
-            "controlsReachable": true, "expanded": false})
+            "controlsReachable": true, "expanded": true})
     }
     #[test]
     fn native_zoom_requires_real_css_viewport_change() {
         let baseline = geometry(1200.0, 900.0);
-        assert!(!geometry_is_usable(&baseline, Some(&baseline), 1.5, false));
+        assert!(!geometry_is_usable(&baseline, Some(&baseline), 1.5, true));
         assert!(geometry_is_usable(
             &geometry(800.0, 600.0),
             Some(&baseline),
             1.5,
-            false
+            true
         ));
     }
     #[test]
@@ -545,11 +551,22 @@ mod tests {
         ] {
             let mut broken = baseline.clone();
             broken[key] = value;
-            assert!(!geometry_is_usable(&broken, None, 1.0, false));
+            assert!(!geometry_is_usable(&broken, None, 1.0, true));
         }
         let mut broken = baseline;
         broken["diff"]["height"] = json!(80);
-        assert!(!geometry_is_usable(&broken, None, 1.0, false));
+        assert!(!geometry_is_usable(&broken, None, 1.0, true));
+    }
+
+    #[test]
+    fn collapsed_review_hides_the_diff_and_keeps_the_action_bar() {
+        let mut collapsed = geometry(1200.0, 900.0);
+        collapsed["expanded"] = json!(false);
+        collapsed["diff"] = json!({"x": 0, "y": 0, "width": 0, "height": 0, "right": 0, "bottom": 0});
+        assert!(geometry_is_usable(&collapsed, None, 1.0, false));
+        // 收起却还露着对比区、或状态与期待不符，都不算。
+        assert!(!geometry_is_usable(&geometry(1200.0, 900.0), None, 1.0, false));
+        assert!(!geometry_is_usable(&collapsed, None, 1.0, true));
     }
 
     #[test]
@@ -561,13 +578,13 @@ mod tests {
             for edge in ["y", "bottom"] {
                 animating[panel][edge] = json!(animating[panel][edge].as_f64().unwrap() + 10.0);
             }
-            assert!(!geometry_is_usable(&animating, Some(&baseline), 1.5, false));
+            assert!(!geometry_is_usable(&animating, Some(&baseline), 1.5, true));
         }
         // WebView has resized its viewport, but the old 150% layout is still
         // contained inside the larger viewport; containment alone is not enough.
         let mut stale = geometry(1200.0, 600.0);
         stale["viewport"]["height"] = json!(900);
-        assert!(!geometry_is_usable(&stale, Some(&baseline), 1.0, false));
+        assert!(!geometry_is_usable(&stale, Some(&baseline), 1.0, true));
         assert!(!geometry_is_restored(&stale, &baseline));
 
         // Restore must compare the entire editor rectangle, not only its bottom.
