@@ -85,13 +85,12 @@ async function progress(detail: string, sequence: number) {
     }),
   );
 }
-const processText = () => host.querySelector('[data-testid="process-host"]')?.textContent ?? '';
-const barText = () =>
-  host.querySelector('[data-testid="run-action-active-step"]')?.textContent ?? '';
+const processText = () => host.querySelector('[data-testid="thinking-log"]')?.textContent ?? '';
+const barText = () => host.querySelector('[data-testid="thinking-active-step"]')?.textContent ?? '';
 
-// 作者 10-16：思考过程里那行「模型请求 · 准备第 N 次模型请求」不要了，用底部运行条（转圈的那行）显示。
-// 退避 / 重试的原因仍要看得到——改由运行条报，即使「整理回答」排在模型请求前面。
-it('model requests stay out of the process; the run bar reports them and spells out backoff', async () => {
+// 作者 10-16：思考过程里那行「模型请求 · 准备第 N 次模型请求」不要了。10-20 起底部运行条也去掉，
+// 退避 / 重试的原因改由思考过程头部那一行报（跑着时转圈的那行），即使「整理回答」排在模型请求前面。
+it('model requests stay out of the process rows; the live header spells out backoff', async () => {
   await mount();
   const details = [
     '准备第 1 次模型请求。',
@@ -110,9 +109,9 @@ it('model requests stay out of the process; the run bar reports them and spells 
     expect(current.state.agentBusy).toBe(true);
     expect(current.state.messages).toEqual([]);
   }
-  // 平时写当前步骤名，不把「准备第 N 次」念出来；重试 / 退避时写原因。
+  // 平时写「思考中」或当前工具名，不把「准备第 N 次」念出来；重试 / 退避时写原因。
   await progress('准备第 2 次模型请求。', 20);
-  expect(barText()).toContain('整理回答');
+  expect(barText()).toContain('思考中');
   expect(barText()).not.toContain('准备第 2 次模型请求');
   await progress('模型请求暂不可用，等待 2 秒后重试。', 21);
   expect(barText()).toContain('模型请求暂不可用，等待 2 秒后重试。');
@@ -133,12 +132,14 @@ it('model-request events never reopen or refill the author-collapsed process', a
   expect(barText()).toContain('模型请求暂不可用，等待 2 秒后重试。');
 });
 
-it('a run with only model requests shows no process at all, just the run bar', async () => {
+it('a run with only model requests shows just the live header, no process rows', async () => {
   await mount();
   await act(async () => current.state.setAgentRun((run) => (run ? { ...run, steps: [] } : run)));
   await progress('准备第 1 次模型请求。', 10);
-  expect(host.querySelector('[data-testid="thinking-fold-toggle"]')).toBeNull();
-  expect(barText()).toContain('模型请求');
+  expect(barText()).toContain('思考中');
+  expect(processText()).toBe('');
+  await progress('模型请求暂不可用，等待 2 秒后重试。', 11);
+  expect(barText()).toContain('模型请求暂不可用，等待 2 秒后重试。');
 });
 
 it('a completed auto-writeback preparation step does not claim a Desktop write or snapshot receipt', async () => {

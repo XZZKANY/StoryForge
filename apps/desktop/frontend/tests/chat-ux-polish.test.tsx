@@ -83,7 +83,7 @@ test('pinned references do not create a permanent context card before it is requ
   assert.equal(collapsed, '');
 });
 
-test('run action bar shows pause button when running', () => {
+test('running 时没有操作条：进度在思考过程那一行，停止在输入框里', () => {
   const run: AgentRun = {
     id: 'run-42',
     sessionId: 's1',
@@ -103,13 +103,13 @@ test('run action bar shows pause button when running', () => {
       }}
     />,
   );
-  // 第14条：run 控制统一到 RunActionBar，运行态显示「三点动画 + 活动步骤名 + 暂停 + 停止」
-  assert.match(html, /data-testid="run-action-bar"/);
-  assert.match(html, /data-testid="run-action-active-step"/);
-  assert.match(html, /sf-thinking-dots/);
-  assert.match(html, /思考/);
-  assert.match(html, /data-testid="run-pause"/);
-  assert.match(html, /data-testid="run-stop"/);
+  // 10-20 作者拍板学 Claude / Codex：跑着时不再有「转圈 + 步骤名 + 暂停 + 停止」那条操作条。
+  assert.equal(html, '');
+  const process = renderToStaticMarkup(<AgentStepsPanel run={run} />);
+  assert.match(process, /data-testid="thinking-active-step"/);
+  assert.match(process, /sf-thinking-dots/);
+  assert.match(process, /思考/);
+  assert.doesNotMatch(process, /data-testid="run-pause"/);
 });
 
 test('run action bar shows permission CTAs when waiting', () => {
@@ -319,7 +319,7 @@ test('waiting and working show dots without words; only problems are spelled out
   assert.deepEqual(render('interrupted').visible, ['回复未完成']);
 });
 
-test('run action bar counts the elapsed time while running', () => {
+test('思考过程那一行在跑着时报已用时间', () => {
   assert.equal(formatElapsed(5), '5 秒');
   assert.equal(formatElapsed(65), '1 分 5 秒');
   assert.equal(formatElapsed(120), '2 分');
@@ -338,9 +338,8 @@ test('run action bar counts the elapsed time while running', () => {
     steps: [{ id: 's1', title: '思考', tool: 'think', status: 'running', detail: '' }],
     startedAt: Date.now() - 65_000,
   };
-  assert.match(renderToStaticMarkup(<RunActionBar run={run} controls={controls} />), /1 分 5 秒/);
-  const fresh = renderToStaticMarkup(
-    <RunActionBar run={{ ...run, startedAt: Date.now() }} controls={controls} />,
-  );
+  assert.equal(renderToStaticMarkup(<RunActionBar run={run} controls={controls} />), '');
+  assert.match(renderToStaticMarkup(<AgentStepsPanel run={run} />), /1 分 5 秒/);
+  const fresh = renderToStaticMarkup(<AgentStepsPanel run={{ ...run, startedAt: Date.now() }} />);
   assert.doesNotMatch(fresh, /data-testid="run-elapsed"/);
 });

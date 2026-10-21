@@ -46,7 +46,11 @@ const controls = {
 };
 
 test('run action bar is a card inside the chat column, not a full-width band', () => {
-  const host = mount(renderToStaticMarkup(<RunActionBar run={runningRun} controls={controls} />));
+  const host = mount(
+    renderToStaticMarkup(
+      <RunActionBar run={{ ...runningRun, status: 'paused' }} controls={controls} />,
+    ),
+  );
   const bar = host.querySelector('[data-testid="run-action-bar"]');
   assert.ok(bar);
   for (const band of ['border-t', 'shadow-bar-top', 'bg-panel']) {

@@ -9,7 +9,13 @@ type ComposerProps = ComponentProps<typeof ComposerBox>;
 type HarnessProps = Partial<
   Pick<
     ComposerProps,
-    'busy' | 'disabled' | 'currentFileLabel' | 'explicitContextPaths' | 'queuedMessages' | 'history'
+    | 'busy'
+    | 'disabled'
+    | 'currentFileLabel'
+    | 'explicitContextPaths'
+    | 'queuedMessages'
+    | 'history'
+    | 'onStop'
   >
 > & { initialValue?: string };
 
@@ -37,6 +43,7 @@ function Harness({
   explicitContextPaths = [],
   queuedMessages = [],
   history = [],
+  onStop,
 }: HarnessProps) {
   const [value, setValue] = useState(initialValue);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -55,6 +62,7 @@ function Harness({
       history={history}
       queuedMessages={queuedMessages}
       onRemoveQueuedMessage={removeQueued}
+      onStop={onStop}
       contextPickerOpen={pickerOpen}
       onAddContext={() => {
         addContext();
@@ -295,4 +303,34 @@ test('disabled 引用区域保持可读，附件、固定、取消与 +N 不调�
   expect(submit).not.toHaveBeenCalled();
   expect(textarea()).toBe(input);
   expect(input.value).toBe('保留作者正在写的草稿');
+});
+
+test('跑着且输入框为空：发送键换成停止，一下就停；打了字就还是发送（存成待发）', async () => {
+  vi.useFakeTimers();
+  try {
+    const stop = vi.fn();
+    await render({ initialValue: '', busy: true, onStop: stop });
+    expect(host.querySelector('[data-testid="composer-submit"]')).toBeNull();
+    // 停止键刚换上来的半秒内不认点击：连点发送时第二下不能把刚发出的这一轮停掉。
+    await click('[data-testid="composer-stop"]');
+    expect(stop).not.toHaveBeenCalled();
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+    await click('[data-testid="composer-stop"]');
+    expect(stop).toHaveBeenCalledTimes(1);
+    await type('跑完再改结尾');
+    expect(host.querySelector('[data-testid="composer-stop"]')).toBeNull();
+    expect(element('[data-testid="composer-submit"]').getAttribute('aria-label')).toBe(
+      '暂存为待发送消息',
+    );
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('没有在跑的一轮（不给 onStop）时永远是发送键', async () => {
+  await render({ initialValue: '' });
+  expect(host.querySelector('[data-testid="composer-stop"]')).toBeNull();
+  expect(element<HTMLButtonElement>('[data-testid="composer-submit"]').disabled).toBe(true);
 });

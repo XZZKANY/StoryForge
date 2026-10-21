@@ -6,14 +6,36 @@
  * 作者手动切换后以手动为准。
  */
 
-import { useState, type ReactNode } from 'react';
-import { processSteps } from './chat-window/agent-step-mapping';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { isModelRequestStep, processSteps } from './chat-window/agent-step-mapping';
 import { isAuthorRejection } from './chat-window/display-utils';
+import { RunElapsed } from './chat-window/RunElapsed';
 import type { AgentRun, AgentRunStatus, AgentStep, AgentStepStatus } from './chat-window/types';
 
-/** 思考过程里有没有东西可看：模型请求只在底部运行条上报，不算。 */
+// 「整理回答」是每轮对话都有的循环收尾步，本身不是作者要看的过程。
+const isLoopSummary = (step: AgentStep) => step.tool === 'agent.loop';
+
+/**
+ * 思考过程里有没有东西可看：跑着的时候总有（这一行报进度与用时）；跑完之后只剩
+ * 「整理回答」的纯聊天不再留一行「已思考 · 1 步」。模型请求只报在跑着时的这一行。
+ */
 export function hasProcess(run: AgentRun): boolean {
-  return processSteps(run.steps).length > 0 || Boolean(run.notes?.some((note) => note.text.trim()));
+  if (run.status === 'running') return true;
+  return (
+    processSteps(run.steps).some((step) => !isLoopSummary(step)) ||
+    Boolean(run.notes?.some((note) => note.text.trim()))
+  );
+}
+
+/** 跑着时这一行写什么：退避重试写原因，调工具写工具，其余是「思考中」。 */
+function liveText(run: AgentRun, steps: readonly AgentStep[]): string {
+  // 引擎的退避两句都带「重试」，不管排第几步都把原因写出来，作者才知道为什么慢。
+  const backoff = run.steps.find(
+    (step) => isModelRequestStep(step) && step.status === 'running' && /重试/.test(step.detail),
+  );
+  if (backoff) return backoff.detail;
+  const active = steps.find((step) => step.status === 'running' && !isLoopSummary(step));
+  return active ? active.title : '思考中';
 }
 
 export function AgentStepsPanel({ run }: { run: AgentRun }) {
@@ -30,12 +52,6 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
 
   const stepCount = steps.length;
   const toolCount = steps.filter((step) => step.id.startsWith('tool-')).length;
-  // 仅活动态在折叠头部显示当前活动步骤：作者收起也想看到「正在跑哪个工具」。
-  const activeStep = isLive
-    ? (steps.find((step) => step.status === 'running') ??
-      steps.find((step) => step.status === 'waiting') ??
-      steps.find((step) => step.status === 'pending'))
-    : null;
 
   return (
     <div className="mb-1">
@@ -54,10 +70,9 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
               <span />
               <span />
             </span>
-            <span className="text-muted">
-              {activeStep ? activeStep.title : '思考中'} · {stepCount} 步
-              {toolCount > 0 ? ` · ${toolCount} 工具` : ''}
-            </span>
+            <span className="text-muted">{liveText(run, steps)}</span>
+            {run.startedAt !== undefined && <RunElapsed since={run.startedAt} />}
+            {toolCount > 0 && <span className="text-subtle">· {toolCount} 工具</span>}
           </span>
         ) : isWaiting ? (
           <span className="text-muted" data-testid="thinking-waiting-header">
@@ -80,9 +95,38 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
         }`}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="ml-[18px] mt-1 flex flex-col py-0.5">{processRows(run, steps)}</div>
+          <ProcessLog live={isLive}>{processRows(run, steps)}</ProcessLog>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 跑着时是一个固定高度的小窗，新步骤从底下进来、旧的往上滚走；跑完不再限高，展开就是全部。
+ * 作者往上翻看时不把他拽回底部。
+ */
+function ProcessLog({ live, children }: { live: boolean; children: ReactNode[] }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const pinnedRef = useRef(true);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (live && element && pinnedRef.current) element.scrollTop = element.scrollHeight;
+  });
+  return (
+    <div
+      ref={ref}
+      className={`ml-[18px] mt-1 flex flex-col py-0.5 ${
+        live ? 'max-h-[7.5rem] overflow-y-auto [scrollbar-width:thin]' : ''
+      }`}
+      data-testid="thinking-log"
+      data-live={live ? 'true' : 'false'}
+      onScroll={(event) => {
+        const element = event.currentTarget;
+        pinnedRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 8;
+      }}
+    >
+      {children}
     </div>
   );
 }

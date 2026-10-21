@@ -3,7 +3,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vitest';
 
-import { AgentStepsPanel } from '../src/components/AgentStepsPanel';
+import { AgentStepsPanel, hasProcess } from '../src/components/AgentStepsPanel';
 import type { AgentRun, AgentRunStatus, AgentStep } from '../src/components/chat-window/types';
 
 function makeSteps(finalStatus: 'completed' | 'failed'): AgentStep[] {
@@ -68,13 +68,46 @@ test('paused：显示「已暂停 · N 步」，动画停止，保持展开等�
   assert.match(html, /aria-expanded="true"/);
 });
 
-test('running：保留活动态动画与当前步骤标题', () => {
+test('running：保留活动态动画与当前工具名，过程是限高的滚动小窗', () => {
   const run = makeRun('running');
   run.steps[1].status = 'running';
   const html = renderToStaticMarkup(<AgentStepsPanel run={run} />);
   assert.match(html, /sf-thinking-dots/);
-  assert.match(html, /file\.revise · 2 步/);
+  assert.match(html, /data-testid="thinking-active-step"[^>]*>.*file\.revise.*· 1 工具/);
   assert.match(html, /aria-expanded="true"/);
+  assert.match(html, /data-testid="thinking-log" data-live="true"/);
+  assert.match(html, /max-h-\[7\.5rem\] overflow-y-auto/);
+});
+
+test('跑完不再限高：展开就是全部步骤', () => {
+  const html = renderToStaticMarkup(<AgentStepsPanel run={makeRun('completed')} />);
+  assert.match(html, /data-testid="thinking-log" data-live="false"/);
+  assert.doesNotMatch(html, /max-h-\[7\.5rem\]/);
+});
+
+test('纯聊天（只有「整理回答」、没调工具）跑完不留「已思考 · 1 步」；跑着时照样报「思考中」', () => {
+  const loopOnly = (status: AgentRunStatus): AgentRun => ({
+    id: 'run-chat',
+    sessionId: 's-1',
+    goal: '聊聊设定',
+    status,
+    steps: [
+      {
+        id: 'plan-0-agent.loop',
+        title: '整理回答',
+        tool: 'agent.loop',
+        status: status === 'running' ? 'running' : 'completed',
+        detail: '完成：1 轮、0 次工具调用。',
+      },
+    ],
+  });
+  for (const status of ['completed', 'failed', 'paused', 'stopped'] as const) {
+    assert.equal(hasProcess(loopOnly(status)), false, status);
+    assert.equal(renderToStaticMarkup(<AgentStepsPanel run={loopOnly(status)} />), '', status);
+  }
+  const live = renderToStaticMarkup(<AgentStepsPanel run={loopOnly('running')} />);
+  assert.match(live, /思考中/);
+  assert.doesNotMatch(live, /整理回答 ·/);
 });
 
 test('waiting：等作者决定时头部静止写「等你决定」，确认步骤不在思考过程里重复', () => {

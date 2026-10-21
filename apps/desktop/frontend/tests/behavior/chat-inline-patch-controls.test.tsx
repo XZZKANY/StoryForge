@@ -174,7 +174,7 @@ test('选「拒绝」直接否掉这版；选「拒绝，并告诉 AI 怎么改�
   assert.deepEqual(rejectCalls[1], { direction: '结尾留个悬念' });
 });
 
-test('run 已完成或停止时 RunActionBar 不渲染；运行中显示暂停和停止', () => {
+test('run 已完成、停止或运行中时 RunActionBar 都不渲染', () => {
   act(() => {
     root.render(<RunActionBar run={makeRun({ status: 'completed' })} controls={mockControls} />);
   });
@@ -192,9 +192,7 @@ test('run 已完成或停止时 RunActionBar 不渲染；运行中显示暂停�
     root.render(<RunActionBar run={makeRun({ status: 'running' })} controls={mockControls} />);
   });
 
-  // 第14条：running 时显示暂停和停止按钮
-  const buttons = container.querySelectorAll('button');
-  assert.equal(buttons.length, 2, 'running 时应有 2 个按钮（暂停 + 停止）');
-  assert.ok(container.querySelector('[data-testid="run-pause"]'), '应有暂停按钮');
-  assert.ok(container.querySelector('[data-testid="run-stop"]'), '应有停止按钮');
+  // 10-20：running 时也没有操作条——停止在输入框里，进度在思考过程那一行。
+  assert.equal(container.querySelector('[data-testid="run-action-bar"]'), null);
+  assert.equal(container.querySelectorAll('button').length, 0, 'running 时不该渲染按钮');
 });
