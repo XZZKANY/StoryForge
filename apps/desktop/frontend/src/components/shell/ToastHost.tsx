@@ -1,6 +1,6 @@
 /**
- * 右下角通知栈：监听 TOAST_EVENT，逐条上叠、到时自动消失、可手动关闭。
- * 固定在状态栏上方，pointer-events 只落在卡片上不挡编辑器。
+ * 通知栈：监听 TOAST_EVENT，逐条上叠、到时自动消失、可手动关闭。
+ * 默认在右下角状态栏上方；右边是对话栏时挪到编辑区右下角。pointer-events 只落在卡片上不挡编辑器。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { TOAST_EVENT, type ToastDetail, type ToastTone } from '../../lib/toast';
@@ -14,25 +14,35 @@ const STACK_RIGHT = 12;
 const STACK_WIDTH = 320;
 const STACK_BOTTOM = 36;
 const FLOOR_GAP = 8;
+// 挪到对话栏左边时，栈的左缘至少留出左侧活动栏的宽度。
+const MIN_LEFT_ROOM = 56;
+
+export type ToastStackPlacement = { right: number; bottom: number };
 
 /**
- * 通知栈和对话栏横向重叠时，抬到消息列表底边之上：那条边就是运行条、就地选项、输入框的顶边，
- * 作者刚写回完最要点的权限 / 发送都在下面。隐藏的工作区量出来全是 0，横向不重叠，自然不算。
+ * 通知管的是删文件、写回这类工作区里的事，不该压在对话上（作者 10-20）：和对话栏横向重叠时，
+ * 对话栏左边放得下就挪到编辑区右下角；对话占满窗口时才抬到消息列表底边之上，避开运行条、
+ * 就地选项和输入框。隐藏的工作区量出来全是 0，横向不重叠，自然不算。
  */
-export function toastStackBottom(
+export function toastStackPlacement(
   floors: readonly DOMRect[],
   viewportWidth: number,
   viewportHeight: number,
-): number {
+): ToastStackPlacement {
   const right = viewportWidth - STACK_RIGHT;
   const left = right - STACK_WIDTH;
-  return floors.reduce(
-    (bottom, floor) =>
-      floor.right > left && floor.left < right
-        ? Math.max(bottom, Math.round(viewportHeight - floor.bottom + FLOOR_GAP))
-        : bottom,
-    STACK_BOTTOM,
-  );
+  const overlapping = floors.filter((floor) => floor.right > left && floor.left < right);
+  if (overlapping.length === 0) return { right: STACK_RIGHT, bottom: STACK_BOTTOM };
+  const edge = Math.min(...overlapping.map((floor) => floor.left));
+  if (edge - STACK_RIGHT - STACK_WIDTH >= MIN_LEFT_ROOM)
+    return { right: Math.round(viewportWidth - edge + STACK_RIGHT), bottom: STACK_BOTTOM };
+  return {
+    right: STACK_RIGHT,
+    bottom: overlapping.reduce(
+      (bottom, floor) => Math.max(bottom, Math.round(viewportHeight - floor.bottom + FLOOR_GAP)),
+      STACK_BOTTOM,
+    ),
+  };
 }
 
 const TONE_BAR: Record<ToastTone, string> = {
@@ -53,7 +63,10 @@ export function ToastHost() {
     new Map<number, { deadline: number; remainingMs: number; paused: boolean; timer?: number }>(),
   );
   const [pausedIds, setPausedIds] = useState<ReadonlySet<number>>(new Set());
-  const [stackBottom, setStackBottom] = useState(STACK_BOTTOM);
+  const [placement, setPlacement] = useState<ToastStackPlacement>({
+    right: STACK_RIGHT,
+    bottom: STACK_BOTTOM,
+  });
 
   const dismiss = useCallback((id: number) => {
     const pauseInfo = pausedRef.current.get(id);
@@ -212,14 +225,16 @@ export function ToastHost() {
   useLayoutEffect(() => {
     if (items.length === 0) return;
     const floors = [...document.querySelectorAll<HTMLElement>('[data-toast-floor]')];
-    const measure = () =>
-      setStackBottom(
-        toastStackBottom(
-          floors.map((floor) => floor.getBoundingClientRect()),
-          window.innerWidth,
-          window.innerHeight,
-        ),
+    const measure = () => {
+      const next = toastStackPlacement(
+        floors.map((floor) => floor.getBoundingClientRect()),
+        window.innerWidth,
+        window.innerHeight,
       );
+      setPlacement((current) =>
+        current.right === next.right && current.bottom === next.bottom ? current : next,
+      );
+    };
     measure();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
     for (const floor of floors) observer?.observe(floor);
@@ -236,8 +251,8 @@ export function ToastHost() {
     // 游离豁免层：模态打开时不被 inert/aria-hidden 压掉（z-index 见 index.css 的 toast-host 规则）。
     // 纯视觉容器：live 语义由每条通知按 tone 自管（error→alert，其余→status），不嵌套 region。
     <div
-      className="pointer-events-none fixed right-3 flex w-[320px] flex-col gap-2"
-      style={{ bottom: stackBottom }}
+      className="pointer-events-none fixed flex w-[320px] flex-col gap-2"
+      style={{ bottom: placement.bottom, right: placement.right }}
       data-testid="toast-host"
       data-layer-exempt=""
       onMouseLeave={() => items.forEach((item) => resumeItem(item.id))}

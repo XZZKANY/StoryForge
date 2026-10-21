@@ -6,7 +6,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { DialogSurface } from '../src/components/ui';
 import { MessageList } from '../src/components/chat-window/panels';
-import { ToastHost, toastStackBottom } from '../src/components/shell/ToastHost';
+import { ToastHost, toastStackPlacement } from '../src/components/shell/ToastHost';
 import { emitToast } from '../src/lib/toast';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -531,17 +531,32 @@ test('通知浮层 z-index 压过模态 backdrop（层系统内联 z 从 100 起
 const rect = (left: number, right: number, top: number, bottom: number) =>
   ({ left, right, top, bottom, width: right - left, height: bottom - top }) as DOMRect;
 
-test('通知栈与对话栏横向重叠时抬到消息列表底边之上，不重叠或隐藏的工作区不动', () => {
-  // 作者窗口 1400×759：对话栏在右，底部运行条 + 输入框约 200px 高。
-  assert.equal(toastStackBottom([rect(1000, 1400, 40, 559)], 1400, 759), 208);
-  assert.equal(toastStackBottom([rect(0, 1000, 40, 559)], 1400, 759), 36);
-  assert.equal(toastStackBottom([rect(0, 0, 0, 0)], 1400, 759), 36);
-  assert.equal(toastStackBottom([], 1400, 759), 36);
+test('对话栏在右时通知挪到编辑区右下角；对话占满时才抬到消息列表底边之上', () => {
+  const home = { right: 12, bottom: 36 };
+  // 作者窗口 1400×759：对话栏在右（左缘 1000）——挪到它左边，不压在对话上。
+  assert.deepEqual(toastStackPlacement([rect(1000, 1400, 40, 559)], 1400, 759), {
+    right: 412,
+    bottom: 36,
+  });
+  // 消息列表被下面的面板挤得只剩顶上一截时也一样（10-20 截图里通知被顶到对话最上面）。
+  assert.deepEqual(toastStackPlacement([rect(1000, 1400, 40, 120)], 1400, 759), {
+    right: 412,
+    bottom: 36,
+  });
+  // 不重叠、隐藏（量出来全是 0）、没有对话栏：原地右下角。
+  assert.deepEqual(toastStackPlacement([rect(0, 1000, 40, 559)], 1400, 759), home);
+  assert.deepEqual(toastStackPlacement([rect(0, 0, 0, 0)], 1400, 759), home);
+  assert.deepEqual(toastStackPlacement([], 1400, 759), home);
+  // 对话占满（左边放不下 320 宽的栈）：抬到消息列表底边之上，避开输入框与权限按钮。
+  assert.deepEqual(toastStackPlacement([rect(60, 1400, 40, 559)], 1400, 759), {
+    right: 12,
+    bottom: 208,
+  });
   // 对话底部操作区比状态栏还矮时不往下压。
-  assert.equal(toastStackBottom([rect(1000, 1400, 40, 740)], 1400, 759), 36);
+  assert.deepEqual(toastStackPlacement([rect(60, 1400, 40, 740)], 1400, 759), home);
 });
 
-test('对话栏打开时通知不盖住下面的输入框与权限按钮', () => {
+test('对话栏打开时通知挪到编辑区右下角，不压在对话上', () => {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -565,7 +580,8 @@ test('对话栏打开时通知不盖住下面的输入框与权限按钮', () =>
   try {
     act(() => emitToast('已写入「第005章.md」', { tone: 'success' }));
     const host = container.querySelector<HTMLElement>('[data-testid="toast-host"]')!;
-    assert.equal(host.style.bottom, '208px');
+    assert.equal(host.style.bottom, '36px');
+    assert.equal(host.style.right, '412px');
   } finally {
     spy.mockRestore();
     act(() => root.unmount());

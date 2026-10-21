@@ -325,7 +325,7 @@ export function MessageList({
       </div>
     );
   return (
-    // 右下角通知栈以这条底边为地板，避开下面的运行条和输入框。
+    // 通知栈据这一栏挪到它左边（编辑区右下角）；对话占满窗口时以这条底边为地板，避开下面的输入框。
     <div className="relative min-h-0 flex-1" data-toast-floor="">
       <div
         ref={scrollRef}

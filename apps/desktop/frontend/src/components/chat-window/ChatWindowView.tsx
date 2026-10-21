@@ -277,7 +277,6 @@ export function ChatWindowView({
         value={state.input}
         disabled={!projectPath}
         busy={state.agentBusy}
-        currentFileLabel={state.contextRef}
         explicitContextPaths={state.explicitContextPaths}
         history={userMessageHistory}
         onAddContext={addExplicitContext}

@@ -202,12 +202,11 @@ test('上下文只按需展开在消息滚动区外，添加和取消引用不�
   expect(submit).not.toHaveBeenCalled();
 });
 
-test('真实当前文件可固定，未固定前不额外展示参考卡', async () => {
+test('当前打开的稿子不在输入框里挂「@当前文件」标签，也不额外展示参考卡', async () => {
   await render({ currentFile: 'D:/book/正文/第一章.md' });
   expect(host.querySelector('[data-testid="context-summary"]')).toBeNull();
-  await click('button[title="正文/第一章.md · 点击固定为参考"]');
-  expect(host.querySelector('[aria-label="取消固定参考：正文/第一章.md"]')).not.toBeNull();
-  expect(host.querySelector('[data-testid="context-summary"]')).toBeNull();
+  expect(host.querySelector('[data-testid="composer-contexts"]')).toBeNull();
+  expect(host.querySelector('button[title="正文/第一章.md · 点击固定为参考"]')).toBeNull();
 });
 
 test('收纳引用的 +N 是可操作入口，能查看并取消第四项完整路径', async () => {

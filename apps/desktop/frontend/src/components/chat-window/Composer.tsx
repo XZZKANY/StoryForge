@@ -16,7 +16,6 @@ export function ComposerBox({
   value,
   disabled,
   busy,
-  currentFileLabel,
   onChange,
   onSubmit,
   explicitContextPaths,
@@ -34,7 +33,6 @@ export function ComposerBox({
   value: string;
   disabled: boolean;
   busy: boolean;
-  currentFileLabel: string | null;
   explicitContextPaths: string[];
   history?: string[];
   onAddContext: () => void;
@@ -63,7 +61,6 @@ export function ComposerBox({
             value={value}
             disabled={disabled}
             busy={busy}
-            currentFileLabel={currentFileLabel}
             explicitContextPaths={explicitContextPaths}
             history={history}
             onAddContext={onAddContext}
@@ -88,7 +85,6 @@ export function ComposerSurface({
   value,
   disabled,
   busy,
-  currentFileLabel,
   onChange,
   onSubmit,
   explicitContextPaths,
@@ -106,7 +102,6 @@ export function ComposerSurface({
   value: string;
   disabled: boolean;
   busy: boolean;
-  currentFileLabel: string | null;
   explicitContextPaths: string[];
   history?: string[];
   onAddContext: () => void;
@@ -183,10 +178,9 @@ export function ComposerSurface({
     return true;
   };
 
-  // 硬引用超 3 枚收纳为 +N（悬停看全名）；焦点可钉时点击 @焦点即锁为硬引用。
+  // 硬引用超 3 枚收纳为 +N（悬停看全名）。
   const visiblePins = explicitContextPaths.slice(0, 3);
   const overflowPins = explicitContextPaths.slice(3);
-  const focusPinnable = Boolean(currentFileLabel) && Boolean(onTogglePinnedContext);
   const roleQuery = roleMentionQuery(value);
   const roleSuggestions =
     roleQuery === null
@@ -260,33 +254,13 @@ export function ComposerSurface({
           ))}
         </div>
       )}
-      {(currentFileLabel || explicitContextPaths.length > 0) && (
+      {/* 只列作者自己固定的参考；当前打开的稿子照样随这一轮发给 AI，不再挂一枚「@当前文件」（作者 10-20：这啥不要了）。 */}
+      {explicitContextPaths.length > 0 && (
         <div
           data-testid="composer-contexts"
           aria-label="本轮引用"
           className="flex max-h-24 flex-wrap items-center gap-1.5 overflow-y-auto px-3 pt-3 text-xs"
         >
-          {focusPinnable ? (
-            <button
-              type="button"
-              className="group/focus inline-flex min-w-0 flex-shrink items-center gap-1 h-6 rounded-md px-2 text-muted transition-colors hover:bg-elevated hover:text-foreground"
-              title={`${currentFileLabel} · 点击固定为参考`}
-              disabled={disabled}
-              onClick={() => onTogglePinnedContext?.(currentFileLabel as string)}
-            >
-              <span className="font-semibold text-agent">@</span>
-              <span className="max-w-[120px] truncate">{basename(currentFileLabel as string)}</span>
-              <span className="hidden text-3xs text-subtle group-hover/focus:inline">固定</span>
-            </button>
-          ) : currentFileLabel ? (
-            <span
-              className="inline-flex min-w-0 items-center gap-1 h-6 rounded-md px-2 text-muted"
-              title="当前编辑焦点（随聚焦页签漂移）"
-            >
-              <span className="font-semibold text-agent">@</span>
-              <span className="max-w-[130px] truncate">{basename(currentFileLabel)}</span>
-            </span>
-          ) : null}
           {visiblePins.map((path) => (
             <span
               key={path}
