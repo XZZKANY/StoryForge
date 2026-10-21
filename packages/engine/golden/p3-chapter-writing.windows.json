@@ -141,7 +141,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -1259,7 +1259,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -3748,7 +3748,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -6192,7 +6192,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -9347,7 +9347,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -12489,7 +12489,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -15041,7 +15041,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -18198,7 +18198,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -20960,7 +20960,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -23722,7 +23722,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -26460,7 +26460,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -29222,7 +29222,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -31993,7 +31993,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -34719,7 +34719,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -38147,7 +38147,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -40878,7 +40878,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -44033,7 +44033,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -45250,7 +45250,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -46467,7 +46467,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -47664,7 +47664,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -48881,7 +48881,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -50515,7 +50515,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -51630,7 +51630,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -53288,7 +53288,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：写第三章：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -55633,7 +55633,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -58433,7 +58433,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -59885,7 +59885,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -61003,7 +61003,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -62220,7 +62220,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -63977,7 +63977,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -66467,7 +66467,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -68956,7 +68956,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {
@@ -71459,7 +71459,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
           "requires_user_confirmation": true,
           "confirmation_kind": "chapter_brief",
           "chapter_brief": {

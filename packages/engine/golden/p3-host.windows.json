@@ -600,7 +600,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -913,7 +913,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -921,11 +921,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "9a5a711e0f9b1bd91d71cf9ce2ef017024f4679a4b7ecfdcde330dbb73b76766",
+            "request_digest": "79bad00e8df3e1b801979dcadf8f31c8089f8d23719733b2aeddb4dae4364fa9",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -1829,7 +1829,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -1905,7 +1905,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -2272,7 +2272,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -2280,11 +2280,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "b37c5579cee66c9aaad41fcce283a1c6ed1d936a9504139e0d243cd346edb7e4",
+            "request_digest": "af6f9440c6eb4b87a77e113fa7a8f42e4318cd245dd0e0c9b804ad7f20ccac8e",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -2484,7 +2484,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -2492,11 +2492,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "4c27a5a2f6fbcf9598b5b0d6e88a5f4e52023daa17f7c0e34e40c12373e10f43",
+            "request_digest": "be431947a97fc4cfdd4d25575aa6d082ba08d26a48536e8283dc18faa657fa3a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -4636,7 +4636,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -4712,7 +4712,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -5048,7 +5048,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -5056,11 +5056,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "251e6756bab9e5b1f28d178693ce18985fcd4d45ccaa92bc7c0cbf0e0cab97f4",
+            "request_digest": "46c6b1fc3ba19d50487875d9be92bf5b6a4b6ae5a446264d8f6ce05a8bd58618",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -5260,7 +5260,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -5268,11 +5268,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "675d00b62b93cac074c6073ccd49633e06f43590e516b3241914b6db70eaed5e",
+            "request_digest": "cd20cf612951200b99fa22c513a096dbbbcbd1d9646cb3d6b9b31e697c14104d",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -5914,7 +5914,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -6175,7 +6175,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -6183,11 +6183,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "9752d6cc939f9bd47bf117b01582a0752bfa1ed2fd27d970d79f764786fe7eac",
+            "request_digest": "d08f7722587ca3683471064a04e34181f53e4f37beeee405ba66affe5e080a59",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -7056,7 +7056,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -7132,7 +7132,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -7527,7 +7527,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -7535,11 +7535,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8b9cb24ac53a54690e5315f7d043c2f61366fd47f5b1b8fa62f1d5cb4777c044",
+            "request_digest": "8582a182d26c6a0bf6313268c6bcc3d73188483388a547a9f4661e5ff3fc57c0",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -7739,7 +7739,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -7747,11 +7747,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "5d52c0aabfd7ba003ca31167845c01568e60a5a8b9154d0ce6e77e458a27b3d2",
+            "request_digest": "8633a5992b98663f3def31a1c40634227f25e7ea7ae2b420b91875c8bc362b59",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -9442,7 +9442,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -9531,7 +9531,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             }
           }
         },
@@ -9635,7 +9635,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             }
           }
         }
@@ -10201,7 +10201,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -10209,11 +10209,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6249e22c990df1d152b5d1348dcd6f57b329c4e85e84b0affdac85a8e3e2dc69",
+            "request_digest": "3679c519b734921ce3ff67c9ce5290abd4a056ad23a3a29f8ab751ecf8c1675c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -10426,7 +10426,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -10434,11 +10434,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "7872f2ba90fea690c24c18780ac7b9f58d024a1ad55d73344df46dcb256d88de",
+            "request_digest": "23bacfb357e00ad52962922a8a1b69eb76414c799d45552a472a5df9c27e1d78",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -10693,7 +10693,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -10701,11 +10701,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "f96c8fbc64da5b143d0e211ad9b5ffac35eb72d0146ddd45c9710c286fe3b0ce",
+            "request_digest": "6c14dac8ab0023dc31f41c10f15e731f7913105b7f5678beee34c2f74a2082f2",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -12475,7 +12475,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -12902,7 +12902,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -12910,11 +12910,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6249e22c990df1d152b5d1348dcd6f57b329c4e85e84b0affdac85a8e3e2dc69",
+            "request_digest": "3679c519b734921ce3ff67c9ce5290abd4a056ad23a3a29f8ab751ecf8c1675c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -13984,7 +13984,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -14293,7 +14293,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -14301,11 +14301,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "9752d6cc939f9bd47bf117b01582a0752bfa1ed2fd27d970d79f764786fe7eac",
+            "request_digest": "d08f7722587ca3683471064a04e34181f53e4f37beeee405ba66affe5e080a59",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -15383,7 +15383,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -15754,7 +15754,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -15762,11 +15762,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "80600c7c8f50f0698008e7b116001b90c376ccf949ebce0f9148b43fb6186c40",
+            "request_digest": "2040842decd48c906a0f31ed05fdc49545eda4a006ecbd7c7eedf3e0dd57a0bc",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -17153,7 +17153,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -17627,7 +17627,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -17635,11 +17635,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "a1ebf37e9dbbae2277d4e9a72b34c1193bd9f081a4fffb9e2ec2f427be953bc8",
+            "request_digest": "91c74de2ed6548a1e151de244587c12b4264b7b6926a98c08636983576464d2e",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -22025,7 +22025,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -22338,7 +22338,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -22346,11 +22346,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "b70cf01aaec76fde93aef1e23b12eefde10e3500771bec654da678a3cc6da7a6",
+            "request_digest": "68c2308034f55ac075c2096169e4ac9d5dcfe6ab85cdba69216f6e5bbb80766a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -23395,7 +23395,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -23725,7 +23725,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -23733,11 +23733,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "3305b721343e066cdd32ba2707785b69c913aeb7a3c717bdd26cec327be71643",
+            "request_digest": "146c48aa65ec9b5aa20ee63cf0ae4d4325b0dd4141b84a017d1e4edde6468ea8",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -24922,7 +24922,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -25309,7 +25309,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -25317,11 +25317,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "0ee17eba9fd63c83c2508a912f627a9b1e6a8da04630b2884fe5e0e8d78da95c",
+            "request_digest": "30c618e49c0dcf9f597fe43d12ac7ebc3b50b3dd374c9eb04170fe4a34675cdc",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -26464,7 +26464,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -27045,7 +27045,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -27053,11 +27053,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ab0604ae9c2815db66cd9990baa70b091c855802cf47e0070ac3471c2c39dd1e",
+            "request_digest": "4fe9614c82ba235d69140602bbaa8270a5ab0259499a8e4f585b3b8730486eb3",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -28890,7 +28890,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -29468,7 +29468,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -29476,11 +29476,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ab0604ae9c2815db66cd9990baa70b091c855802cf47e0070ac3471c2c39dd1e",
+            "request_digest": "4fe9614c82ba235d69140602bbaa8270a5ab0259499a8e4f585b3b8730486eb3",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -31045,7 +31045,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -31450,7 +31450,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -31458,11 +31458,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "55a71aae3822ac9cd0ae6d0ce76ed7ac339bea0604075e48fb83a0e78b491339",
+            "request_digest": "39d52cb90a129bdad2b4e5d9ff001811ca109765c7f1f3c6881ac45385507010",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -44621,7 +44621,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+            "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
             "requires_user_confirmation": true,
             "confirmation_kind": "chapter_brief",
             "chapter_brief": {
@@ -46246,7 +46246,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+            "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
             "requires_user_confirmation": true,
             "confirmation_kind": "chapter_brief",
             "chapter_brief": {
@@ -50367,7 +50367,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。",
+            "summary": "Chapter Brief 已准备：沈禾带林舟入城。确认后才会开始起草。",
             "requires_user_confirmation": true,
             "confirmation_kind": "chapter_brief",
             "chapter_brief": {
@@ -53136,7 +53136,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -53449,7 +53449,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -53457,7 +53457,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "3fd67c3b2a2fe79c32dd0d197a31c6205ba57e05b62272349a0e83ecd581555b",
+            "request_digest": "df5e94a331e10b7aae57ff93cf02f31292d33c821f5d954c565769877bcb7ed3",
             "redacted": true,
             "omissions": [
               {
@@ -53466,7 +53466,7 @@
               }
             ],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -54165,7 +54165,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -54479,7 +54479,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -54487,11 +54487,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8200a53a5b10d2403d905048d421a647e37f0c5185639adeef48eb7f06cf1f97",
+            "request_digest": "602f9e1d58338d65cd9dec8d037da820328484cdfa1e942efc8d1db08a39b63c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -57431,7 +57431,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
             },
             "stream": true,
             "stream_options": {
@@ -57760,7 +57760,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69"
+                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -57768,11 +57768,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "3305b721343e066cdd32ba2707785b69c913aeb7a3c717bdd26cec327be71643",
+            "request_digest": "146c48aa65ec9b5aa20ee63cf0ae4d4325b0dd4141b84a017d1e4edde6468ea8",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "65cf971f2252b0eac60e63645baf92b44a07942fa39bc2f83fe421a5f87a9b69",
+            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
             "sources": [
               {
                 "kind": "compiled_message",

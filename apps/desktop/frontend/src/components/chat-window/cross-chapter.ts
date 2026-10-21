@@ -5,14 +5,7 @@ export type ChapterRef = { name: string; relativePath: string; path: string };
 
 export type ChapterSubmissionPlan =
   | { channel: 'cross-chapter'; refs: ChapterRef[] }
-  | {
-      channel: 'agent';
-      intent: 'chapter.write' | undefined;
-      targetFilePath: string | undefined;
-      contextPaths: string[];
-      /** 「写/起草下一章」：目标交连载计划回退，不锚定当前打开稿。 */
-      planFallback: boolean;
-    };
+  | { channel: 'agent'; contextPaths: string[] };
 
 /**
  * 从用户消息里识别 ≥2 个章节引用(「第N章」/「@N」),映射到项目里的 draft 章节文件。
@@ -48,18 +41,13 @@ export function resolveChapterRefs(text: string, files: SemanticFile[]): Chapter
   return refs;
 }
 
-/** 与「AI 起草下一章」按钮同约定：新章目标 正文/第{ordinal:03d}章.md（见 lib/assistant-events.ts）。 */
-export function chapterTargetPath(ordinal: number): string {
-  return `正文/第${String(ordinal).padStart(3, '0')}章.md`;
-}
-
 // 既有稿编辑动词（单字前缀）：紧贴「写/起草/生成第N章」时说明是在改已有章，不是新章。
 const EDIT_VERB_PREFIX = '改重续修润补扩缩誊删压精校调';
 const NEW_CHAPTER_VERB = '写|起草|生成';
 const CHAPTER_NUMBER = '[0-9一二三四五六七八九十百零〇两]+';
 // 章号必须带「章」：裸「写第」「生成第」会把「写第一封信」「生成第二种策略」这类比较题误判成写章。
 const WRITE_CHAPTER_MATCH = new RegExp(
-  `(?<![${EDIT_VERB_PREFIX}])(${NEW_CHAPTER_VERB})\\s*第\\s*(${CHAPTER_NUMBER})\\s*章`,
+  `(?<![${EDIT_VERB_PREFIX}])(?:${NEW_CHAPTER_VERB})\\s*第\\s*${CHAPTER_NUMBER}\\s*章`,
 );
 const NEXT_CHAPTER_MATCH = new RegExp(`(?<![${EDIT_VERB_PREFIX}])(?:${NEW_CHAPTER_VERB})下一章`);
 const ONE_CHAPTER_MATCH = new RegExp(`(?<![${EDIT_VERB_PREFIX}])(?:${NEW_CHAPTER_VERB})一章`);
@@ -69,77 +57,15 @@ const NEGATED_WRITE = new RegExp(
   `(?:不要|不用|不必|先别|暂不|先不|(?:^|[，。！？；\\s])别)\\s*(?:${NEW_CHAPTER_VERB})`,
 );
 
-const CHINESE_DIGITS: Record<string, number> = {
-  零: 0,
-  〇: 0,
-  一: 1,
-  二: 2,
-  两: 2,
-  三: 3,
-  四: 4,
-  五: 5,
-  六: 6,
-  七: 7,
-  八: 8,
-  九: 9,
-};
-
-/** 章号文本 → 序数：ASCII 数字直读，中文数字支持 一~九百九十九；读不出返回 null（不猜）。 */
-export function chapterOrdinalFromText(value: string): number | null {
-  if (/^\d+$/.test(value)) {
-    const parsed = Number.parseInt(value, 10);
-    return parsed > 0 ? parsed : null;
-  }
-  let total = 0;
-  let digit: number | null = null;
-  for (const char of value) {
-    if (char === '零' || char === '〇') {
-      digit = null;
-      continue;
-    }
-    if (char === '百' || char === '十') {
-      total += (digit ?? 1) * (char === '百' ? 100 : 10);
-      digit = null;
-      continue;
-    }
-    const parsed = CHINESE_DIGITS[char];
-    // 连续数字（「二三」这类连写）不认，避免猜出错误章号。
-    if (parsed === undefined || digit !== null) return null;
-    digit = parsed;
-  }
-  const ordinal = total + (digit ?? 0);
-  return ordinal > 0 ? ordinal : null;
-}
-
 /**
- * 「写/起草/生成第N章」的显式目标：已有草稿取真实相对路径，新章按命名约定推导。
- * 动词须锚定（负向后视排除「改写/重写/扩写/续写/修订/润色」等既有稿操作），章号须带「章」，
- * 否则「改写第3章」「写第一封信」会命中「写第…」子串，把 chapter.write 绑到既有稿或误判成写章。
- * 「写下一章/起草下一章」返回 planFallback，目标交后端按连载计划回退；章号读不出则不猜（不产生写章意图）。
+ * 「写/起草/生成第N章」「写下一章」「写一章」：作者要一章新正文。
+ * 动词须锚定（负向后视排除「改写/重写/扩写/续写/修订/润色」等既有稿操作），章号须带「章」，否定式不算。
  */
-export function chapterWriteTarget(
-  text: string,
-  files: SemanticFile[],
-):
-  | { intent: 'chapter.write'; targetFilePath: string | undefined; planFallback: boolean }
-  | undefined {
-  if (NEGATED_WRITE.test(text)) return undefined;
-  if (NEXT_CHAPTER_MATCH.test(text)) {
-    return { intent: 'chapter.write', targetFilePath: undefined, planFallback: true };
-  }
-  if (ONE_CHAPTER_MATCH.test(text)) {
-    return { intent: 'chapter.write', targetFilePath: undefined, planFallback: false };
-  }
-  const match = WRITE_CHAPTER_MATCH.exec(text);
-  if (!match) return undefined;
-  const ordinal = chapterOrdinalFromText(match[2]);
-  if (ordinal === null) return undefined;
-  const existing = resolveChapterRefs(`第${ordinal}章`, files)[0];
-  return {
-    intent: 'chapter.write',
-    targetFilePath: existing ? existing.relativePath : chapterTargetPath(ordinal),
-    planFallback: false,
-  };
+export function wantsChapterWrite(text: string): boolean {
+  if (NEGATED_WRITE.test(text)) return false;
+  return (
+    WRITE_CHAPTER_MATCH.test(text) || NEXT_CHAPTER_MATCH.test(text) || ONE_CHAPTER_MATCH.test(text)
+  );
 }
 
 // 具名操作动词：裸「写/改/生成」会把「描写/写法/改动」等比较题误判成操作而抢走跨章检查；
@@ -156,48 +82,21 @@ const IMPERATIVE_EDIT_PATTERN = new RegExp(
 );
 
 /**
- * T03：先绑定操作再选通道。明确写章意图（含计划回退）走 agent；≥2 引用章且是纯比较/提问
- * （无「把…润色」这类强动作信号）走跨章检查；其余带操作词的请求走 agent 并且引用章降为上下文。
- * T09：agent 路径带上显式写章目标；否定式不产生任何写章意图。
+ * T03：先绑定操作再选通道。写章 / 带操作词的请求走 agent，引用章降为上下文；
+ * ≥2 引用章且是纯比较/提问（无「把…润色」这类强动作信号）走跨章检查。
+ * 写章不再绑固定写章管线（chapter.write）：那条管线整理章纲时看不到对话，
+ * 作者在对话里谈定的设定进不了正文；对话 agent 看得到整段对话，由它用 file_create 起草。
  */
 export function planChapterSubmission(text: string, files: SemanticFile[]): ChapterSubmissionPlan {
   const refs = resolveChapterRefs(text, files);
-  const write = chapterWriteTarget(text, files);
   const contextPaths = refs.length >= 2 ? refs.map((ref) => ref.relativePath) : [];
-  if (write) {
-    return {
-      channel: 'agent',
-      intent: write.intent,
-      targetFilePath: write.targetFilePath,
-      contextPaths,
-      planFallback: write.planFallback,
-    };
-  }
+  if (wantsChapterWrite(text)) return { channel: 'agent', contextPaths };
   if (refs.length >= 2 && COMPARISON_PATTERN.test(text) && !IMPERATIVE_EDIT_PATTERN.test(text)) {
     return { channel: 'cross-chapter', refs };
   }
-  const wantsChapterWrite =
-    !NEGATED_WRITE.test(text) &&
-    (WRITE_CHAPTER_MATCH.test(text) ||
-      NEXT_CHAPTER_MATCH.test(text) ||
-      ONE_CHAPTER_MATCH.test(text));
-  if (wantsChapterWrite || CHAPTER_OPERATION_PATTERN.test(text)) {
-    return {
-      channel: 'agent',
-      intent: undefined,
-      targetFilePath: undefined,
-      contextPaths,
-      planFallback: false,
-    };
-  }
+  if (CHAPTER_OPERATION_PATTERN.test(text)) return { channel: 'agent', contextPaths };
   if (refs.length >= 2) return { channel: 'cross-chapter', refs };
-  return {
-    channel: 'agent',
-    intent: undefined,
-    targetFilePath: undefined,
-    contextPaths: [],
-    planFallback: false,
-  };
+  return { channel: 'agent', contextPaths: [] };
 }
 
 function chapterFileMatchesNumber(fileName: string, value: number): boolean {

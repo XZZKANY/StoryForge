@@ -246,48 +246,23 @@ test('T03: 参考多章 + 写新章 走 agent，引用章作 pinned 上下文，
   expect(crossCalls).toHaveLength(0);
   expect(run).toHaveBeenCalledTimes(1);
   const [goal, , intent, , options] = run.mock.calls[0];
-  expect(intent).toBe('chapter.write');
+  // 对话里写章交给对话 agent（它看得到整段对话），不再绑固定写章管线。
+  expect(intent).toBeUndefined();
   // wave1-A(d): 作者原话逐字进 userMessage/instruction，引用章不再以 @ 形式拼进 instruction。
   expect(goal).toBe('参考第2章和第3章，写第4章');
   expect(options).toEqual({
-    targetFilePath: '正文/第004章.md',
-    planFallback: false,
     explicitContextPaths: ['正文/第02章.md', '正文/第03章.md'],
   });
 });
 
-test('T09: 写新章（目标不存在）不被吞，透传三位补零目标路径', async () => {
-  await submitChapterMessage('写第4章');
-  expect(run).toHaveBeenCalledTimes(1);
-  const [, , intent, , options] = run.mock.calls[0];
-  expect(intent).toBe('chapter.write');
-  expect(options).toEqual({
-    targetFilePath: '正文/第004章.md',
-    planFallback: false,
-    explicitContextPaths: [],
-  });
-});
-
-test('T09: 写已有章号透传真实草稿相对路径', async () => {
-  await submitChapterMessage('写第3章');
-  expect(run).toHaveBeenCalledTimes(1);
-  expect(run.mock.calls[0]?.[2]).toBe('chapter.write');
-  expect(run.mock.calls[0]?.[4]).toEqual({
-    targetFilePath: '正文/第03章.md',
-    planFallback: false,
-    explicitContextPaths: [],
-  });
-});
-
-test('T09: 写下一章无具体目标，走计划回退', async () => {
-  await submitChapterMessage('写下一章');
-  expect(run).toHaveBeenCalledTimes(1);
-  expect(run.mock.calls[0]?.[2]).toBe('chapter.write');
-  expect(run.mock.calls[0]?.[4]).toEqual({
-    targetFilePath: undefined,
-    planFallback: true,
-    explicitContextPaths: [],
-  });
+test('对话里写章（含写下一章）走对话 agent，不带写章意图或目标路径', async () => {
+  for (const text of ['写第4章', '写第3章', '写下一章', '直接开始写第一章正文']) {
+    run.mockClear();
+    await submitChapterMessage(text);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run.mock.calls[0]?.[2]).toBeUndefined();
+    expect(run.mock.calls[0]?.[4]).toEqual({ explicitContextPaths: [] });
+  }
 });
 
 test('wave1-A(d): 路径含空格的引用章也逐字保留原话，且仍进 pinned 上下文', async () => {

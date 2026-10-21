@@ -244,6 +244,8 @@ export async function startChapterBrief(
     },
     true,
   );
+  // 停在这里是等作者确认章纲，不是作者按了暂停：回话照旧说人话，不换成运行边界的内部说法。
+  (paused.agent_result as Obj).summary = summary;
   (paused.agent_result as Obj).requires_user_confirmation = true;
   return paused;
 }

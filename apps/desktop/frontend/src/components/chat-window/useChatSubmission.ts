@@ -222,10 +222,8 @@ export function useChatSubmission(
         if (plan.channel === 'cross-chapter') {
           await runCrossChapterConsistency(instruction, plan.refs);
         } else {
-          // 引用章走 pinned 上下文通道（explicitContextPaths），不改写作者原话，也不与写章目标抢 file_path。
-          await runAuthorAgent(instruction, undefined, plan.intent, [], {
-            targetFilePath: plan.targetFilePath,
-            planFallback: plan.planFallback,
+          // 引用章走 pinned 上下文通道（explicitContextPaths），不改写作者原话。
+          await runAuthorAgent(instruction, undefined, undefined, [], {
             explicitContextPaths: plan.contextPaths,
           });
         }
