@@ -16459,7 +16459,8 @@
           "run_id": "run-1",
           "stream_id": "stream-1",
           "round_index": 1,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         }
       ],
       "checks": [

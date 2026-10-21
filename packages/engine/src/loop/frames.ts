@@ -100,6 +100,7 @@ export type AgentTextStreamStartedFrame = {
   stream_id: string;
   round_index: number;
   chunk_sequence: 0;
+  retry_attempt: number;
 };
 export type AgentTextDeltaFrame = {
   type: 'agent_text_delta';

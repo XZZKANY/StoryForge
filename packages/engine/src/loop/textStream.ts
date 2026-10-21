@@ -29,6 +29,10 @@ export type TextStreamContext = {
   readonly secrets: SecretContext;
   readonly control: RunControl | null;
   readonly newStreamId: () => string;
+  /** 本轮第几次因流中途断开而重发（0 = 首发）；作者端据此丢掉上一次的半截正文。 */
+  readonly retryAttempt?: number;
+  /** provider 吐出过任何流事件就置真：中途断开与建连失败要分开处理。 */
+  readonly progress?: { received: boolean };
 };
 
 const FINISHED = new Set<string | null>([
@@ -59,7 +63,12 @@ export async function completeWithTextStream(
   };
   const visible = new VisibleTextFilter(context.secrets);
   let sequence = 0;
-  observer({ type: 'agent_text_stream_started', ...identity, chunk_sequence: 0 });
+  observer({
+    type: 'agent_text_stream_started',
+    ...identity,
+    chunk_sequence: 0,
+    retry_attempt: context.retryAttempt ?? 0,
+  });
   let response: ChatResponse | null = null;
   let usage: TokenUsage | null = null;
   let received = false;
@@ -79,6 +88,7 @@ export async function completeWithTextStream(
   try {
     for await (const event of provider.stream(request)) {
       received = true;
+      if (context.progress) context.progress.received = true;
       if (event.usage) usage = event.usage;
       checkRunInterruption(context.control, 'before_text_stream_event');
       if (event.kind === 'text_delta') publish(visible.feed(event.text ?? ''));

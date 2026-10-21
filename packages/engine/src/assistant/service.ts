@@ -126,6 +126,7 @@ export interface AssistantStore {
       status: 'running' | 'completed' | 'failed' | 'paused';
       input_summary: Obj;
       output_summary?: Obj;
+      error_message?: string;
     },
   ): Promise<StoredToolCall>;
   updateToolCall(toolCallId: number, patch: ToolCallPatch): Promise<StoredToolCall>;

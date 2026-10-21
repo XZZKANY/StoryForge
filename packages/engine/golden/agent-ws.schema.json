@@ -329,6 +329,13 @@
           "title": "Chunk Sequence",
           "type": "integer"
         },
+        "retry_attempt": {
+          "default": 0,
+          "description": "本轮因输出途中断开而重发的第几次（首发为 0）；作者端据此丢掉上一次的半截正文。",
+          "minimum": 0,
+          "title": "Retry Attempt",
+          "type": "integer"
+        },
         "round_index": {
           "minimum": 1,
           "title": "Round Index",

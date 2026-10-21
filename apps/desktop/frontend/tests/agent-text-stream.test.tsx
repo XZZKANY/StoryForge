@@ -634,6 +634,56 @@ it('duplicate or same-round replacement starts never erase preview; only a newer
   await finish();
 });
 
+it('输出途中断开、引擎整轮重发：半截正文作废并提示在重试，重发的字照常接上', async () => {
+  await begin();
+  await start();
+  await delta('断掉之前的半截', 1);
+  const node = host.querySelector('[data-testid="assistant-message"]');
+  await emit({
+    type: 'agent_text_stream_started',
+    ...identity(),
+    stream_id: 'retry-1',
+    chunk_sequence: 0,
+    retry_attempt: 1,
+  });
+  expect(current.state.messages[0].content).toBe('');
+  expect(current.state.messages[0].stream?.detail).toBe('连接中断，正在第 1 次重试…');
+  expect(host.textContent).toContain('连接中断，正在第 1 次重试…');
+  // 旧流迟到的字不能混进重发的正文。
+  await delta('旧流迟到', 2);
+  await emit({
+    type: 'agent_text_delta',
+    ...identity(),
+    stream_id: 'retry-1',
+    chunk_sequence: 1,
+    text_delta: '重发的完整回答',
+  });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  });
+  expect(current.state.messages[0].content).toBe('重发的完整回答');
+  expect(current.state.messages[0].stream?.detail).toBeUndefined();
+  expect(host.querySelector('[data-testid="assistant-message"]')).toBe(node);
+  await finish('重发的完整回答');
+});
+
+it('模型调用本身断掉（provider_error）：已吐出的字留着，失败说明放在下面', async () => {
+  await begin();
+  await start();
+  await delta('已经吐出来的半截', 1);
+  await finish('本轮未完成：模型调用失败：输出途中连接断开，已自动重试 2 次仍未成功。', undefined, {
+    execution_outcome: {
+      status: 'failed',
+      code: 'provider_error',
+      message: '本轮未完成：模型调用失败：输出途中连接断开，已自动重试 2 次仍未成功。',
+    },
+  });
+  expect(current.state.messages[0].content).toBe('已经吐出来的半截');
+  expect(current.state.messages[0].stream?.phase).toBe('interrupted');
+  expect(current.state.messages[0].stream?.detail).toContain('已自动重试 2 次仍未成功');
+  expect(current.state.agentRun?.status).toBe('failed');
+});
+
 it('decoder counts supplementary Unicode characters as code points for the per-frame limit', () => {
   const frame = {
     type: 'agent_text_delta',

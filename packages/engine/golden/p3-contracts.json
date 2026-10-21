@@ -23266,7 +23266,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         },
         {
           "type": "agent_text_delta",
@@ -23316,7 +23317,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         },
         {
           "type": "agent_text_delta",
@@ -23368,7 +23370,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         },
         {
           "type": "agent_text_delta",
@@ -23425,7 +23428,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         },
         {
           "type": "agent_text_delta",
@@ -23461,7 +23465,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         }
       ]
     },
@@ -23499,7 +23504,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         }
       ]
     },
@@ -23530,7 +23536,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         }
       ]
     },
@@ -23555,7 +23562,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         }
       ]
     },
@@ -23582,7 +23590,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         }
       ]
     },
@@ -23623,7 +23632,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         }
       ]
     },
@@ -23664,7 +23674,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         }
       ]
     },
@@ -23701,7 +23712,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         },
         {
           "type": "agent_text_delta",
@@ -23757,7 +23769,8 @@
           "run_id": "run-9",
           "stream_id": "stream-1",
           "round_index": 3,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         }
       ]
     }

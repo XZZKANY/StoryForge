@@ -14,9 +14,13 @@ type Draft = {
   active: () => boolean;
   streamId: string | null;
   round: number;
+  /** 本轮第几次因输出途中断开重发（0 = 首发）。 */
+  retry: number;
   sequence: number;
   text: string;
   phase: Phase;
+  /** 重发时给作者的一句说明，第一个字到了就撤掉。 */
+  detail?: string;
   accepting: boolean;
 };
 
@@ -30,18 +34,24 @@ function replaceTrailingStream(
   runId: string,
   content: string,
   phase: Phase,
+  detail?: string,
 ): Message[] {
   const id = 'stream:' + runId;
   const index = messages.findIndex((message) => message.id === id);
   if (index < 0) {
-    return [...messages, { id, role: 'assistant', content, stream: { runId, phase } }];
+    return [...messages, { id, role: 'assistant', content, stream: { runId, phase, detail } }];
   }
   const previous = messages[index];
   // A settled stream message is terminal; live frames must not resurrect it.
   if (previous.stream?.phase === 'complete' || previous.stream?.phase === 'interrupted')
     return messages;
-  if (previous.content === content && previous.stream?.phase === phase) return messages;
-  const item: Message = { ...previous, content, stream: { runId, phase } };
+  if (
+    previous.content === content &&
+    previous.stream?.phase === phase &&
+    previous.stream?.detail === detail
+  )
+    return messages;
+  const item: Message = { ...previous, content, stream: { runId, phase, detail } };
   return index === messages.length - 1
     ? [...messages.slice(0, index), item]
     : messages.map((message, i) => (i === index ? item : message));
@@ -62,7 +72,10 @@ export function useChatTextStream(setMessages: Dispatch<SetStateAction<Message[]
     const render = (current: Draft) => {
       const text = current.text;
       const phase = current.phase;
-      setMessages((messages) => replaceTrailingStream(messages, current.runId, text, phase));
+      const detail = current.detail;
+      setMessages((messages) =>
+        replaceTrailingStream(messages, current.runId, text, phase, detail),
+      );
     };
     const flush = () => {
       cancelTimer();
@@ -78,6 +91,7 @@ export function useChatTextStream(setMessages: Dispatch<SetStateAction<Message[]
           active,
           streamId: null,
           round: 0,
+          retry: 0,
           sequence: 0,
           text: '',
           phase: 'waiting',
@@ -95,15 +109,30 @@ export function useChatTextStream(setMessages: Dispatch<SetStateAction<Message[]
         )
           return null;
         if (frame.type === 'agent_text_stream_started') {
+          const retry = frame.retry_attempt ?? 0;
+          // 同一轮输出途中断开、引擎整轮重发：上一次的半截正文作废，告诉作者在重试。
+          if (frame.round_index === current.round && retry > current.retry) {
+            cancelTimer();
+            current.streamId = frame.stream_id;
+            current.retry = retry;
+            current.sequence = 0;
+            current.text = '';
+            current.phase = 'waiting';
+            current.detail = `连接中断，正在第 ${retry} 次重试…`;
+            render(current);
+            return null;
+          }
           // Rounds strictly advance; duplicate/recreated same-round starts must not erase text.
           if (frame.round_index <= current.round) return null;
           const previous = current.round > 0 ? { round: current.round, text: current.text } : null;
           cancelTimer();
           current.streamId = frame.stream_id;
           current.round = frame.round_index;
+          current.retry = retry;
           current.sequence = 0;
           current.text = '';
           current.phase = 'waiting';
+          current.detail = undefined;
           setMessages((messages) => replaceTrailingStream(messages, current.runId, '', 'waiting'));
           return { runId: current.runId, round: frame.round_index, previous };
         }
@@ -126,6 +155,7 @@ export function useChatTextStream(setMessages: Dispatch<SetStateAction<Message[]
         current.sequence = frame.chunk_sequence;
         const first = current.text.length === 0;
         current.text += frame.text_delta;
+        current.detail = undefined;
         // Late text may complete this preview, but only a new round releases a tool/permission hold.
         if (current.phase === 'waiting') current.phase = 'streaming';
         if (first) flush();

@@ -258,7 +258,10 @@ export function agentRunReplay(golden: Obj) {
           status: input.status,
           input_summary: redactSummary(input.input_summary),
           output_summary: redactSummary(input.output_summary ?? {}),
-          error_message: null,
+          error_message:
+            typeof input.error_message === 'string'
+              ? redactSensitiveText(input.error_message, SECRETS)
+              : null,
         };
         toolCalls.push(row);
         return { id: row.id, input_summary: row.input_summary };
