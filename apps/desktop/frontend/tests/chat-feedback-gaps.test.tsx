@@ -196,12 +196,13 @@ test.each([
 
 // ---------- 缺陷 4：「停止本轮」两段式内联确认 ----------
 
-function runningRun(): AgentRun {
+// 跑着时没有操作条（停止在输入框里，一下就停）；两段式确认留在暂停态的操作条上。
+function pausedRun(): AgentRun {
   return {
     id: 'run-1',
     sessionId: 's',
     goal: '润色',
-    status: 'running',
+    status: 'paused',
     steps: [{ id: 's1', title: '思考', tool: 'think', status: 'running', detail: '' }],
   };
 }
@@ -220,7 +221,7 @@ const stopButton = () => host.querySelector<HTMLButtonElement>('[data-testid="ru
 
 test('停止本轮第一次点击只进入确认态，再点才执行', async () => {
   const onStopRun = vi.fn();
-  await renderNode(<RunActionBar run={runningRun()} controls={stopControls(onStopRun)} />);
+  await renderNode(<RunActionBar run={pausedRun()} controls={stopControls(onStopRun)} />);
 
   assert.equal(stopButton()!.textContent, '停止');
   await act(async () => stopButton()!.click());
@@ -236,7 +237,7 @@ test('停止确认超时自动取消', async () => {
   vi.useFakeTimers();
   try {
     const onStopRun = vi.fn();
-    await renderNode(<RunActionBar run={runningRun()} controls={stopControls(onStopRun)} />);
+    await renderNode(<RunActionBar run={pausedRun()} controls={stopControls(onStopRun)} />);
 
     await act(async () => stopButton()!.click());
     assert.equal(stopButton()!.getAttribute('data-armed'), 'true');
@@ -254,7 +255,7 @@ test('停止确认超时自动取消', async () => {
 
 test('停止确认在失焦或指针划走时取消', async () => {
   const onStopRun = vi.fn();
-  await renderNode(<RunActionBar run={runningRun()} controls={stopControls(onStopRun)} />);
+  await renderNode(<RunActionBar run={pausedRun()} controls={stopControls(onStopRun)} />);
 
   await act(async () => stopButton()!.click());
   assert.equal(stopButton()!.getAttribute('data-armed'), 'true');

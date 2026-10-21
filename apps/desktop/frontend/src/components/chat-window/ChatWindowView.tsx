@@ -289,6 +289,11 @@ export function ChatWindowView({
         onPermissionProfileChange={onAgentPermissionProfileChange}
         queuedMessages={queuedMessages}
         onRemoveQueuedMessage={onRemoveQueuedMessage}
+        onStop={
+          state.agentBusy && state.agentRun?.status === 'running'
+            ? agentRunControls.onStopRun
+            : undefined
+        }
       />
     </div>
   );

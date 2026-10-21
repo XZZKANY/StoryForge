@@ -34,7 +34,10 @@ export function shouldShowAgentRunRecovery(
   recovery: AgentRunRecoveryDisplay | null,
 ): boolean {
   if (!recovery) return false;
-  return status !== 'completed' && status !== 'stopped' && status !== 'waiting';
+  // 暂停由底部那一行报（同一状态只在一处说），这里不再叠一张说明卡。
+  return (
+    status !== 'completed' && status !== 'stopped' && status !== 'waiting' && status !== 'paused'
+  );
 }
 
 export function buildAgentRunRecoveryDisplay(
@@ -250,7 +253,7 @@ function boundarySummary({
   }
   if (latestInterruption) {
     const status = stringField(latestInterruption, 'status');
-    return status ? `最近中断：${status}` : '最近中断：已记录';
+    return status ? `最近中断：${statusLabel(status)}` : '最近中断：已记录';
   }
   if (latestMarker) {
     const toolName = stringField(latestMarker, 'tool_name');

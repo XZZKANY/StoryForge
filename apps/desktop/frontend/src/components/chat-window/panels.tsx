@@ -18,7 +18,6 @@ import {
   Sparkles,
 } from '../icons/shell-icons';
 import type { LayoutMode } from '../shell/useShellState';
-import { isModelRequestStep } from './agent-step-mapping';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { CHAT_COLUMN } from './column';
 import { DecisionChoices } from './DecisionChoices';
@@ -26,7 +25,6 @@ import { SessionMenu } from './SessionMenu';
 import { MessageActions } from './MessageActions';
 import { contextBudgetText } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
-import { RunElapsed } from './RunElapsed';
 import { StreamPhase } from './StreamPhase';
 import type { AgentRun, AgentRunControlHandlers, Message } from './types';
 
@@ -393,8 +391,8 @@ function recoveryToneClass(tone: AgentRunRecoveryDisplay['tone']): string {
 }
 
 /**
- * Composer 上方固定操作条：统一 run 控制单一来源。
- * 运行 / 暂停时是暂停 / 恢复 / 停止；要作者拍板（权限、补丁）时换成就地的编号选项。
+ * Composer 上方的操作条：要作者拍板（权限、补丁）时是就地的编号选项；暂停时是一行「已暂停」。
+ * 跑着时没有操作条——进度与用时在思考过程那一行，停止是输入框右下角那颗键。
  */
 export function RunActionBar({
   run,
@@ -427,7 +425,6 @@ export function RunActionBar({
   const awaitingConfirm = run.status === 'waiting' && !waitingForPermission;
   // 暂停态给「恢复」出口（不再是死胡同），并保留「停止」；停止是终态、由轻状态条中性收尾。
   const isPaused = run.status === 'paused';
-  const isRunning = run.status === 'running';
   // 终态只留轻状态/回复收尾，不再渲染没有动作的空操作条。
   const isTerminal =
     run.status === 'completed' || run.status === 'failed' || run.status === 'stopped';
@@ -576,110 +573,46 @@ export function RunActionBar({
     );
   }
 
-  // 操作条是对话栏里的一张卡片，与输入框同宽：对话占满中右时不再拉成横跨整宽的工具带。
+  if (!isPaused) return null;
+  const resume = recovery?.checkpointResume;
+  // 暂停是一行字加三颗键：恢复的前提说明放在悬停提示里，不再在条上、卡片上各写一遍。
   return (
     <div className="flex-shrink-0 animate-slide-in-up px-3 pt-2" data-testid="run-action-bar">
-      <div className={`${CHAT_COLUMN} flex flex-col rounded-lg border border-border bg-background`}>
-        <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-          <div className="flex items-center gap-3">
-            {isRunning && (
-              <span className="relative flex h-3 w-3">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-agent opacity-75" />
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-agent shadow-sm" />
-              </span>
-            )}
-            <div
-              className="min-w-0 flex-1 text-xs font-medium text-muted"
-              title={`运行 ${run.id}`}
-              data-testid="run-action-status"
-            >
-              {isPaused
-                ? '已暂停'
-                : isRunning
-                  ? (() => {
-                      // 运行中：三点动画 + 当前活动步骤名，作者一眼看到「正在跑哪个工具」。
-                      const activeStep =
-                        run.steps.find((step) => step.status === 'running') ??
-                        run.steps.find((step) => step.status === 'waiting') ??
-                        run.steps.find((step) => step.status === 'pending');
-                      // 模型请求只在这一行报（思考过程里不列）：重试 / 退避时（引擎这两句都带「重试」）
-                      // 不管它排在第几步，都把原因写出来，作者才知道为什么慢；平时照当前步骤名。
-                      const backoff = run.steps.find(
-                        (step) =>
-                          isModelRequestStep(step) &&
-                          step.status === 'running' &&
-                          /重试/.test(step.detail),
-                      );
-                      const activeText = backoff
-                        ? backoff.detail
-                        : activeStep
-                          ? activeStep.title
-                          : '正在处理';
-                      return (
-                        <span
-                          className="inline-flex items-baseline gap-2"
-                          data-testid="run-action-active-step"
-                        >
-                          <span className="sf-thinking-dots" aria-hidden="true">
-                            <span />
-                            <span />
-                            <span />
-                          </span>
-                          <span className="text-foreground">{activeText}</span>
-                          {run.startedAt !== undefined && <RunElapsed since={run.startedAt} />}
-                        </span>
-                      );
-                    })()
-                  : '准备中'}
-            </div>
-          </div>
-          {/* 运行态：暂停按钮 */}
-          {isRunning && (
-            <Button
-              size="sm"
-              variant="secondary"
-              className={runActionButtonClass}
-              onClick={controls.onPauseRun}
-              title="暂停本轮"
-              data-testid="run-pause"
-            >
-              暂停
-            </Button>
-          )}
-          {/* 暂停态：恢复按钮 */}
-          {isPaused && (
-            <Button
-              size="sm"
-              variant="primary"
-              className={runActionButtonClass}
-              onClick={controls.onResumeRun}
-              disabled={resumePending || recovery?.checkpointResume?.canResume === false}
-              title={recovery?.checkpointResume?.message ?? '恢复本轮'}
-              data-testid="run-resume"
-            >
-              恢复
-            </Button>
-          )}
-          {isPaused && recovery?.checkpointResume && (
-            <span className="text-xs text-muted" role="status" data-testid="run-resume-guidance">
-              {recovery.checkpointResume.message}
-            </span>
-          )}
-          {isPaused && recovery?.checkpointResume && controls.onReconcileRun && (
-            <Button
-              size="sm"
-              variant="secondary"
-              className={runActionButtonClass}
-              onClick={controls.onReconcileRun}
-              data-testid="run-reconcile"
-              title="只读取本轮状态，不重新执行"
-            >
-              核对状态
-            </Button>
-          )}
-          {/* 停止按钮：运行 / 暂停时可用。两段式确认：先点变「确认停止本轮？」，再点才执行。 */}
-          {(isRunning || isPaused) && stopButton}
-        </div>
+      <div
+        className={`${CHAT_COLUMN} flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2`}
+      >
+        <span
+          className="min-w-0 flex-1 text-xs font-medium text-muted"
+          role="status"
+          title={resume?.message}
+          data-testid="run-action-status"
+        >
+          已暂停
+        </span>
+        <Button
+          size="sm"
+          variant="primary"
+          className={runActionButtonClass}
+          onClick={controls.onResumeRun}
+          disabled={resumePending || resume?.canResume === false}
+          title={resume?.message ?? '恢复本轮'}
+          data-testid="run-resume"
+        >
+          恢复
+        </Button>
+        {resume && controls.onReconcileRun && (
+          <Button
+            size="sm"
+            variant="secondary"
+            className={runActionButtonClass}
+            onClick={controls.onReconcileRun}
+            data-testid="run-reconcile"
+            title="只读取本轮状态，不重新执行"
+          >
+            核对状态
+          </Button>
+        )}
+        {stopButton}
       </div>
     </div>
   );

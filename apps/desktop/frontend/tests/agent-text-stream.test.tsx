@@ -817,8 +817,11 @@ it('a step after visible text stops the typing caret; a step before any text cha
   await start();
   await stepEvent('准备第 1 次模型请求。', 1);
   expect(current.state.messages[0].stream?.phase).toBe('waiting');
-  // 只有模型请求时思考过程整个不出现（连同外层容器，免得在消息之间留一段空白）。
-  expect(host.querySelector('[data-testid="agent-run-process"]')).toBeNull();
+  // 只有模型请求时思考过程只有跑着的那一行（报「思考中」与用时），没有过程行。
+  expect(host.querySelector('[data-testid="thinking-active-step"]')?.textContent).toContain(
+    '思考中',
+  );
+  expect(host.querySelector('[data-testid="thinking-log"]')?.textContent).toBe('');
   await delta('好，我来改结尾。', 1);
   await flushTimers();
   expect(current.state.messages[0].stream?.phase).toBe('streaming');

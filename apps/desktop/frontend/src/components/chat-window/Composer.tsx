@@ -1,13 +1,15 @@
 import { IconButton } from '../ui';
-import { useCallback, useRef, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import { AGENT_ROLE_SUGGESTIONS } from '../../lib/agent-roles';
 import { type AgentPermissionProfile } from '../../lib/agent-permission';
 import { basename } from '../app/helpers';
-import { ArrowUp, Plus } from '../icons/shell-icons';
+import { ArrowUp, Plus, Square } from '../icons/shell-icons';
 import { CHAT_COLUMN } from './column';
 import { roleMentionQuery } from './display-utils';
 import { PermissionProfileSelector } from './PermissionProfileSelector';
 import type { QueuedChatMessage } from './useChatSubmission';
+
+const STOP_GUARD_MS = 500;
 
 export function ComposerBox({
   inputRef,
@@ -26,6 +28,7 @@ export function ComposerBox({
   onPermissionProfileChange,
   queuedMessages = [],
   onRemoveQueuedMessage,
+  onStop,
 }: {
   inputRef?: MutableRefObject<HTMLTextAreaElement | null>;
   value: string;
@@ -43,6 +46,8 @@ export function ComposerBox({
   onPermissionProfileChange: (profile: AgentPermissionProfile) => void;
   queuedMessages?: readonly QueuedChatMessage[];
   onRemoveQueuedMessage?: (id: number) => void;
+  /** 有一轮正在跑时才给：输入框为空时发送键换成停止。 */
+  onStop?: () => void;
 }) {
   return (
     <div className="flex-shrink-0 p-3">
@@ -70,6 +75,7 @@ export function ComposerBox({
             onPermissionProfileChange={onPermissionProfileChange}
             queuedMessages={queuedMessages}
             onRemoveQueuedMessage={onRemoveQueuedMessage}
+            onStop={onStop}
           />
         </form>
       </div>
@@ -94,6 +100,7 @@ export function ComposerSurface({
   onPermissionProfileChange,
   queuedMessages = [],
   onRemoveQueuedMessage,
+  onStop,
 }: {
   inputRef?: MutableRefObject<HTMLTextAreaElement | null>;
   value: string;
@@ -111,9 +118,17 @@ export function ComposerSurface({
   onPermissionProfileChange: (profile: AgentPermissionProfile) => void;
   queuedMessages?: readonly QueuedChatMessage[];
   onRemoveQueuedMessage?: (id: number) => void;
+  onStop?: () => void;
 }) {
   // 运行中可保留一条待发；已有待发时继续提交仅提示，草稿不清空。
   const canSubmit = value.trim() && !disabled;
+  // 跑着且没在打字：发送键换成停止（打了字就还是发送，存成待发）。
+  const stopMode = Boolean(onStop) && !value.trim();
+  // 停止键刚换上来的半秒内不认点击：连点发送时第二下会正好落在它上面。
+  const stopReadyAtRef = useRef(0);
+  useEffect(() => {
+    if (stopMode) stopReadyAtRef.current = Date.now() + STOP_GUARD_MS;
+  }, [stopMode]);
   // 方向键回溯已发送消息：游标为 null 表示在编辑当前草稿，
   // 数字表示正浏览 history[index]。draft 保留进入历史前的草稿，ArrowDown 越过最新即还原。
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -366,18 +381,33 @@ export function ComposerSurface({
           disabled={disabled}
           busy={busy}
         />
-        <IconButton
-          type={onSubmit ? 'button' : 'submit'}
-          variant="primary"
-          className="ml-auto"
-          tooltip={busy ? '暂存为待发送消息' : '发送 · Enter（Shift+Enter 换行）'}
-          label={busy ? '暂存为待发送消息' : '发送'}
-          icon={<ArrowUp size={16} strokeWidth={2} />}
-          aria-keyshortcuts="Enter"
-          disabled={!canSubmit}
-          onClick={onSubmit}
-          data-testid="composer-submit"
-        />
+        {stopMode ? (
+          <IconButton
+            type="button"
+            variant="primary"
+            className="ml-auto"
+            tooltip="停止本轮"
+            label="停止本轮"
+            icon={<Square size={12} strokeWidth={0} fill="currentColor" />}
+            onClick={() => {
+              if (Date.now() >= stopReadyAtRef.current) onStop?.();
+            }}
+            data-testid="composer-stop"
+          />
+        ) : (
+          <IconButton
+            type={onSubmit ? 'button' : 'submit'}
+            variant="primary"
+            className="ml-auto"
+            tooltip={busy ? '暂存为待发送消息' : '发送 · Enter（Shift+Enter 换行）'}
+            label={busy ? '暂存为待发送消息' : '发送'}
+            icon={<ArrowUp size={16} strokeWidth={2} />}
+            aria-keyshortcuts="Enter"
+            disabled={!canSubmit}
+            onClick={onSubmit}
+            data-testid="composer-submit"
+          />
+        )}
       </div>
     </div>
   );
