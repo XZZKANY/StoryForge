@@ -321,3 +321,72 @@ test('the decoder keeps verified adjustments and the card hides the section with
     container.remove();
   }
 });
+
+// 作者 10-20：只抄了一句目标、其余全空的章纲铺满一屏「好丑」——空着的可选栏收成一行，按需展开。
+test('空着的可选栏收成一行「补充…（可选）」，有内容的照常摆出来，点开后全部可填', () => {
+  const sparse: ChapterBrief = {
+    ...brief,
+    pov: null,
+    setting: '港口',
+    requiredBeats: [],
+    forbiddenItems: [],
+    continuityConstraints: [],
+  };
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(
+      <ChapterBriefCard brief={sparse} onConfirm={() => undefined} onCancel={() => undefined} />,
+    );
+  });
+  try {
+    const q = (id: string) => container.querySelector(`[data-testid="${id}"]`);
+    assert.ok(q('chapter-brief-setting'));
+    for (const id of [
+      'chapter-brief-pov',
+      'chapter-brief-beats',
+      'chapter-brief-forbidden',
+      'chapter-brief-continuity',
+    ])
+      assert.equal(q(id), null, id);
+    const more = q('chapter-brief-more') as HTMLButtonElement;
+    assert.equal(more.textContent, '+ 补充视角、必达节拍、禁写事项、连续性约束（可选）');
+    act(() => more.click());
+    for (const id of [
+      'chapter-brief-pov',
+      'chapter-brief-beats',
+      'chapter-brief-forbidden',
+      'chapter-brief-continuity',
+    ])
+      assert.ok(q(id), id);
+    assert.equal(q('chapter-brief-more'), null);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test('栏位都有内容时不出「补充」入口；起草中写明在干什么', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(
+      <ChapterBriefCard
+        brief={brief}
+        busy
+        onConfirm={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+  });
+  try {
+    assert.equal(container.querySelector('[data-testid="chapter-brief-more"]'), null);
+    const progress = container.querySelector('[data-testid="chapter-brief-progress"]');
+    assert.match(progress?.textContent ?? '', /起草 → 检查 → 必要时修一次/);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});

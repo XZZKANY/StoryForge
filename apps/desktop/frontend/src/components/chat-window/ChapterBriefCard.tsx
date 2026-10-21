@@ -1,8 +1,29 @@
 import { Button, Field, Input, Textarea } from '../ui';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
+import { RunElapsed } from './RunElapsed';
 import type { ChapterBrief, ChapterBriefAdjustment } from './types';
+
+type OptionalField =
+  | 'pov'
+  | 'setting'
+  | 'requiredBeats'
+  | 'forbiddenItems'
+  | 'continuityConstraints';
+
+const OPTIONAL_LABELS: Record<OptionalField, string> = {
+  pov: '视角',
+  setting: '场景',
+  requiredBeats: '必达节拍',
+  forbiddenItems: '禁写事项',
+  continuityConstraints: '连续性约束',
+};
+
+function filled(brief: ChapterBrief, key: OptionalField): boolean {
+  const value = brief[key];
+  return Array.isArray(value) ? value.length > 0 : Boolean(value && value.trim());
+}
 
 export function ChapterBriefCard({
   brief,
@@ -17,8 +38,73 @@ export function ChapterBriefCard({
   busy?: boolean;
 }) {
   const [draft, setDraft] = useState(brief);
+  // 空着的可选栏不铺满一屏（作者 10-20：好丑）：只摆章纲给出了内容的，其余收在一行里按需展开。
+  const [showAll, setShowAll] = useState(false);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
   const update = (key: keyof ChapterBrief, value: string | number) => {
     setDraft((current) => ({ ...current, [key]: value }));
+  };
+  const visible = (key: OptionalField) => showAll || filled(brief, key);
+  const hidden = (Object.keys(OPTIONAL_LABELS) as OptionalField[]).filter((key) => !visible(key));
+  const optional: Record<OptionalField, ReactNode> = {
+    pov: (
+      <Field label="视角" key="pov">
+        {(control) => (
+          <Input
+            {...control}
+            controlSize="sm"
+            className="mt-1 text-xs"
+            value={draft.pov ?? ''}
+            onChange={(event) => update('pov', event.target.value)}
+            data-testid="chapter-brief-pov"
+          />
+        )}
+      </Field>
+    ),
+    setting: (
+      <Field label="场景" key="setting">
+        {(control) => (
+          <Input
+            {...control}
+            controlSize="sm"
+            className="mt-1 text-xs"
+            value={draft.setting ?? ''}
+            onChange={(event) => update('setting', event.target.value)}
+            data-testid="chapter-brief-setting"
+          />
+        )}
+      </Field>
+    ),
+    requiredBeats: (
+      <BriefList
+        key="beats"
+        label="必达节拍"
+        values={draft.requiredBeats}
+        onChange={(values) => setDraft((current) => ({ ...current, requiredBeats: values }))}
+        testId="chapter-brief-beats"
+      />
+    ),
+    forbiddenItems: (
+      <BriefList
+        key="forbidden"
+        label="禁写事项"
+        values={draft.forbiddenItems}
+        onChange={(values) => setDraft((current) => ({ ...current, forbiddenItems: values }))}
+        testId="chapter-brief-forbidden"
+      />
+    ),
+    // 起草拿这几条当既成事实；模型拿不准时会写「需核实」，作者要在这里看得到、改得了。
+    continuityConstraints: (
+      <BriefList
+        key="continuity"
+        label="连续性约束"
+        values={draft.continuityConstraints}
+        onChange={(values) =>
+          setDraft((current) => ({ ...current, continuityConstraints: values }))
+        }
+        testId="chapter-brief-continuity"
+      />
+    ),
   };
   return (
     <section
@@ -62,34 +148,8 @@ export function ChapterBriefCard({
           />
         )}
       </Field>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <Field label="视角">
-          {(control) => (
-            <Input
-              {...control}
-              controlSize="sm"
-              className="mt-1 text-xs"
-              value={draft.pov ?? ''}
-              onChange={(event) => update('pov', event.target.value)}
-              data-testid="chapter-brief-pov"
-            />
-          )}
-        </Field>
-        <Field label="场景">
-          {(control) => (
-            <Input
-              {...control}
-              controlSize="sm"
-              className="mt-1 text-xs"
-              value={draft.setting ?? ''}
-              onChange={(event) => update('setting', event.target.value)}
-              data-testid="chapter-brief-setting"
-            />
-          )}
-        </Field>
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <Field label="最少字数">
+      <div className="mt-2 flex items-end gap-2">
+        <Field label="字数" className="w-24">
           {(control) => (
             <Input
               {...control}
@@ -97,46 +157,55 @@ export function ChapterBriefCard({
               className="mt-1 text-xs"
               type="number"
               min={1}
+              aria-label="最少字数"
               value={draft.targetCharsMin}
               onChange={(event) => update('targetCharsMin', Number(event.target.value))}
             />
           )}
         </Field>
-        <Field label="最多字数">
-          {(control) => (
-            <Input
-              {...control}
-              controlSize="sm"
-              className="mt-1 text-xs"
-              type="number"
-              min={1}
-              value={draft.targetCharsMax}
-              onChange={(event) => update('targetCharsMax', Number(event.target.value))}
-            />
-          )}
-        </Field>
+        <span className="pb-1.5 text-xs text-subtle">–</span>
+        <Input
+          controlSize="sm"
+          className="w-24 text-xs"
+          type="number"
+          min={1}
+          aria-label="最多字数"
+          value={draft.targetCharsMax}
+          onChange={(event) => update('targetCharsMax', Number(event.target.value))}
+        />
       </div>
-      <BriefList
-        label="必达节拍"
-        values={draft.requiredBeats}
-        onChange={(values) => setDraft((current) => ({ ...current, requiredBeats: values }))}
-        testId="chapter-brief-beats"
-      />
-      <BriefList
-        label="禁写事项"
-        values={draft.forbiddenItems}
-        onChange={(values) => setDraft((current) => ({ ...current, forbiddenItems: values }))}
-        testId="chapter-brief-forbidden"
-      />
-      {/* 起草拿这几条当既成事实；模型拿不准时会写「需核实」，作者要在这里看得到、改得了。 */}
-      <BriefList
-        label="连续性约束"
-        values={draft.continuityConstraints}
-        onChange={(values) =>
-          setDraft((current) => ({ ...current, continuityConstraints: values }))
-        }
-        testId="chapter-brief-continuity"
-      />
+      {(Object.keys(OPTIONAL_LABELS) as OptionalField[]).filter(visible).map((key) => (
+        <div key={key} className="mt-2">
+          {optional[key]}
+        </div>
+      ))}
+      {hidden.length > 0 && (
+        <button
+          type="button"
+          className="mt-2 block text-left text-xs text-subtle transition-colors hover:text-foreground disabled:cursor-default"
+          onClick={() => setShowAll(true)}
+          disabled={busy}
+          data-testid="chapter-brief-more"
+        >
+          + 补充{hidden.map((key) => OPTIONAL_LABELS[key]).join('、')}（可选）
+        </button>
+      )}
+      {busy && (
+        // 起草、检查、必要时修一次要一两分钟：写明在干什么、跑了多久，停下用输入框右下角的停止键。
+        <div
+          className="mt-3 flex items-center gap-2 text-xs text-muted"
+          role="status"
+          data-testid="chapter-brief-progress"
+        >
+          <span className="sf-thinking-dots" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+          <span>起草 → 检查 → 必要时修一次，通常一两分钟</span>
+          {startedAt !== null && <RunElapsed since={startedAt} />}
+        </div>
+      )}
       <div className="mt-3 flex justify-end gap-2">
         <Button
           type="button"
@@ -154,7 +223,10 @@ export function ChapterBriefCard({
           size="sm"
           variant="agent"
           className="text-xs"
-          onClick={() => onConfirm(draft)}
+          onClick={() => {
+            setStartedAt(Date.now());
+            onConfirm(draft);
+          }}
           disabled={busy}
           data-testid="chapter-brief-confirm"
         >

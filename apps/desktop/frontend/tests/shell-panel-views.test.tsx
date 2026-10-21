@@ -158,6 +158,13 @@ test('活动栏视图图标有干净的 aria-label 与当前态标记', async ()
       container.querySelector('[data-testid="activity-explorer"]')?.getAttribute('aria-current'),
       null,
     );
+    // 当前视图除了浅底色还有左缘竖线，只此一道、就在当前那颗按钮里。
+    const indicators = container.querySelectorAll('[data-testid="activity-active-indicator"]');
+    assert.equal(indicators.length, 1);
+    assert.equal(
+      indicators[0].closest('button')?.getAttribute('data-testid'),
+      'activity-manuscript',
+    );
   } finally {
     act(() => root.unmount());
     container.remove();

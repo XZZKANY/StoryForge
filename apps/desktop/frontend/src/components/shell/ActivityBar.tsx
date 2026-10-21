@@ -115,7 +115,15 @@ export function ActivityBar({
           onSwitchView(entry.view);
         }}
       >
-        <Icon size={19} strokeWidth={1.6} />
+        {/* 当前视图：左缘一道竖线 + 加粗图标，只靠浅底色作者分不清（10-20）。中性色，紫色只给 AI。 */}
+        {active && (
+          <span
+            className="absolute -left-1 bottom-2 top-2 w-[2px] rounded-full bg-foreground"
+            aria-hidden="true"
+            data-testid="activity-active-indicator"
+          />
+        )}
+        <Icon size={19} strokeWidth={active ? 2 : 1.6} />
         {entry.view === 'observatory' && observatoryAttention && (
           <span
             className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-agent"

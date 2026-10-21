@@ -601,8 +601,9 @@ test('ChatWindow 主外壳渲染 ConversationHeader 并展示「新的创作会�
     }),
   );
   assert.match(html, /新的创作会话/);
-  // 当前真实文件保留在 Composer，不用空态标题、推荐或常驻参考卡占用会话。
-  assert.match(html, /第01章.md/);
+  // 当前打开的稿子照样随这一轮发给 AI，但输入框里不再挂「@第01章.md」（作者 10-20：这啥不要了）；
+  // 也不用空态标题、推荐或常驻参考卡占用会话。
+  assert.doesNotMatch(html, /第01章.md/);
   assert.match(html, /aria-label="添加上下文"/);
   assert.doesNotMatch(html, /项目级创作会话|从一个想法开始|参考上下文/);
   assert.doesNotMatch(html, /data-testid="context-summary"/);

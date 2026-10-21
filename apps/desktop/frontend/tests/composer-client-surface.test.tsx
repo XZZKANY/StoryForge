@@ -9,13 +9,7 @@ type ComposerProps = ComponentProps<typeof ComposerBox>;
 type HarnessProps = Partial<
   Pick<
     ComposerProps,
-    | 'busy'
-    | 'disabled'
-    | 'currentFileLabel'
-    | 'explicitContextPaths'
-    | 'queuedMessages'
-    | 'history'
-    | 'onStop'
+    'busy' | 'disabled' | 'explicitContextPaths' | 'queuedMessages' | 'history' | 'onStop'
   >
 > & { initialValue?: string };
 
@@ -39,7 +33,6 @@ function Harness({
   initialValue = '保留作者正在写的草稿',
   busy = false,
   disabled = false,
-  currentFileLabel = null,
   explicitContextPaths = [],
   queuedMessages = [],
   history = [],
@@ -57,7 +50,6 @@ function Harness({
       onSubmit={() => submit(value)}
       busy={busy}
       disabled={disabled}
-      currentFileLabel={currentFileLabel}
       explicitContextPaths={explicitContextPaths}
       history={history}
       queuedMessages={queuedMessages}
@@ -201,21 +193,14 @@ test('disabled 在按钮、键盘和原生 form 提交边界均不能提交', as
   expect(input.value).toBe('保留作者正在写的草稿');
 });
 
-test('引用在 textarea 前独立展示，固定/取消保留完整路径，+N 走原上下文入口且不动草稿', async () => {
-  const currentFile = '正文/第一卷/第01章.md';
-  await render({ currentFileLabel: currentFile, explicitContextPaths: paths });
+test('引用在 textarea 前独立展示，取消保留完整路径，+N 走原上下文入口且不动草稿', async () => {
+  await render({ explicitContextPaths: paths });
   const input = textarea();
   const contexts = element('[data-testid="composer-contexts"]');
   const toolbar = element('[data-testid="composer-toolbar"]');
   expect(contexts.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   expect(toolbar.contains(contexts)).toBe(false);
   expect(contexts.contains(element('[aria-label="添加上下文"]'))).toBe(false);
-  const pinFocus = Array.from(contexts.querySelectorAll<HTMLButtonElement>('button')).find(
-    (button) => button.title.includes(currentFile),
-  );
-  expect(pinFocus).toBeTruthy();
-  await act(async () => pinFocus!.click());
-  expect(togglePinned).toHaveBeenLastCalledWith(currentFile);
   for (const path of paths.slice(0, 3)) {
     const unpin = Array.from(contexts.querySelectorAll<HTMLButtonElement>('button')).find(
       (button) => button.getAttribute('aria-label') === `取消固定参考：${path}`,
@@ -234,7 +219,7 @@ test('引用在 textarea 前独立展示，固定/取消保留完整路径，+N 
   expect(textarea()).toBe(input);
   expect(input.value).toBe('保留作者正在写的草稿');
   expect(submit).not.toHaveBeenCalled();
-  await render({ currentFileLabel: null, explicitContextPaths: [] });
+  await render({ explicitContextPaths: [] });
   expect(host.querySelector('[data-testid="composer-contexts"]')).toBeNull();
   expect(textarea()).toBe(input);
   expect(input.value).toBe('保留作者正在写的草稿');
@@ -263,7 +248,7 @@ test('上下文展示变动不重置既有消息历史游标，退出历史后�
   input.setSelectionRange(0, 0);
   await key({ key: 'ArrowUp' });
   expect(input.value).toBe(history[1]);
-  await render({ history, currentFileLabel: '正文/当前章.md', explicitContextPaths: paths });
+  await render({ history, explicitContextPaths: paths });
   expect(textarea()).toBe(input);
   input.setSelectionRange(input.value.length, input.value.length);
   await key({ key: 'ArrowDown' });
@@ -285,14 +270,14 @@ test('空白草稿禁用发送按钮，并拒绝原生 form 的意外提交', as
 });
 
 test('disabled 引用区域保持可读，附件、固定、取消与 +N 不调用 owner', async () => {
-  await render({ disabled: true, currentFileLabel: '正文/当前章.md', explicitContextPaths: paths });
+  await render({ disabled: true, explicitContextPaths: paths });
   const input = textarea();
   const contexts = element('[data-testid="composer-contexts"]');
   for (const button of contexts.querySelectorAll<HTMLButtonElement>('button')) {
     expect(button.disabled).toBe(true);
     await act(async () => button.click());
   }
-  expect(contexts.textContent).toContain('当前章.md');
+  expect(contexts.textContent).toContain('同名资料.md');
   expect(element<HTMLButtonElement>('[aria-label="添加上下文"]').disabled).toBe(true);
   await click('[aria-label="添加上下文"]');
   await click('[data-testid="permission-profile-selector"]');
