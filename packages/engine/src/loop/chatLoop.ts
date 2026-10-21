@@ -226,7 +226,13 @@ export async function runChatLoop(
       return outcome;
     }
     if (isLlmError(error)) {
-      outcome.markFailed('provider_error', '模型调用失败。');
+      outcome.markFailed(
+        'provider_error',
+        context.streamRetries > 0
+          ? `模型调用失败：输出途中连接断开，已自动重试 ${context.streamRetries} 次仍未成功。`
+          : '模型调用失败。',
+      );
+      outcome.failureDetail = error.message;
       outcome.exhausted = true;
       outcome.rounds = context.providerAttempts;
       return outcome;

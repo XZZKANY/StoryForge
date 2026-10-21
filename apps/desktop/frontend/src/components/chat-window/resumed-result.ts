@@ -38,14 +38,18 @@ function interruptionText(status: 'stopped' | 'paused'): string {
   return status === 'stopped' ? '已按你的要求停下。' : '已暂停。';
 }
 
-/** A runtime interruption carries a diagnosis; execution_outcome alone does not demote its body. */
+/**
+ * A runtime interruption carries a diagnosis; execution_outcome alone does not demote its body.
+ * 例外是模型调用本身断掉（provider_error）：回话只是一句失败说明，已经吐出的半截正文留着，说明放在下面。
+ */
 export function textSettlementFromAgentResult(
   response: AgentResultMessage,
   content: string,
 ): AgentTextSettlement {
-  return runtimeInterruptionFromResult(response)
-    ? { kind: 'diagnostic', detail: '' }
-    : { kind: 'result', content };
+  if (runtimeInterruptionFromResult(response)) return { kind: 'diagnostic', detail: '' };
+  if (executionOutcomeFromResult(response)?.code === 'provider_error')
+    return { kind: 'diagnostic', detail: content };
+  return { kind: 'result', content };
 }
 
 export function stepsFromResumedAgentResult(response: AgentResultMessage): AgentStep[] {

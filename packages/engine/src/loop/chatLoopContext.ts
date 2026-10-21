@@ -69,6 +69,8 @@ export class StoryForgeRuntimeContext {
 
   modelOutcomeUnknown = false;
   providerAttempts = 0;
+  /** 输出途中断开后整轮重发的次数（不算轮次）。 */
+  streamRetries = 0;
   completedModelRounds = 0;
   interruption: Obj | null = null;
   latestCheckpoint: RuntimeCheckpoint | null = null;

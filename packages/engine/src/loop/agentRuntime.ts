@@ -578,6 +578,7 @@ export class AgentRuntime {
     const evidence = {
       tool_name: 'assistant.chat_loop',
       status: status as 'paused' | 'failed' | 'completed',
+      ...(outcome.failureDetail !== null ? { error_message: outcome.failureDetail } : {}),
       input_summary: { message: cpSlice(userMessage, 500), project_path: projectPath },
       output_summary: {
         rounds: outcome.rounds,

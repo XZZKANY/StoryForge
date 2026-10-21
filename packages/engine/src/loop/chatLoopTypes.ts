@@ -84,6 +84,8 @@ export class ChatLoopOutcome {
   costBreakdown: Obj = {};
   exhausted = false;
   executionOutcome: AgentExecutionOutcome | null = null;
+  /** 模型调用失败的原始原因（传输层已脱敏），只进证据，不进回话。 */
+  failureDetail: string | null = null;
   reviewReport: Obj | null = null;
   patchProposal: PatchProposal | null = null;
   interrupted = false;

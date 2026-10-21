@@ -91,6 +91,7 @@ export interface AgentRunWaitingFrame {
 
 export interface AgentTextStreamStartedFrame {
   chunk_sequence: 0;
+  retry_attempt: number;
   round_index: number;
   run_id: string;
   stream_id: string;

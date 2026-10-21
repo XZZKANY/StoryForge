@@ -9100,3 +9100,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - golden：工具说明进了循环请求的 tools 数组，tools 的 sha256（1 个）与 request_digest（154 对）随之变化——临时插桩把新说明换回旧说明重算得出对照表、按表替换 9 个 golden 文件后撤掉插桩（两处插桩文件与改前逐字节相同）；章纲停下的 summary 在 p3-chapter-writing（33 处）/ p3-host（3 处）按各自 brief 的 goal 改写，且每条新文本都已在同一文件里作为消息 / 事件出现过。核对：golden diff 共 1091 行替换，除工具说明本身两行外，去掉 64 位哈希与 summary 后逐行相同。
 - 验证：前端 `tests/cross-chapter.test.ts` + `tests/chapter-write-request.test.tsx` 26 passed（新断言在旧路由下会因 intent='chapter.write' 失败）；引擎全量 vitest 13684 passed / 2 skipped；`pnpm verify` 8 道全过（EXIT=0）。
 - 未做 / 未验：没有用真模型实跑「谈设定 → 写第一章」看循环模型写进 instruction 的内容够不够完整（要作者的 key、要关应用）；章纲管线本身看不到对话这一点没改（按钮路径）；没打包，作者机仍是 0.2.1。
+
+## 2026-10-21 模型吐字吐到一半断开：自动整轮重发两次，最终失败也留着已吐的字
+
+- 起因（作者 0.2.1 真机试用；装机库 run 69）：对话回复已经开始吐字，随后整轮失败，界面上的半截字被「本轮未完成：模型调用失败。」整段替换。取证：出网层「建连阶段重试、读流阶段不重试」（`transport.ts::rawStreamChatCompletions` 注释原话），读到一半断开即抛 LlmError；`chatLoop.ts` 把它一律记成 provider_error、丢掉了真实原因（assistant.chat_loop 的 error_message 为空），库里查不出是超时、重置还是没收到终止标记。
+- 作者拍板：断了自动重来，最多 2 次，界面提示在重试；还是失败就把已经吐出来的字留着、标「中断」，同时记下真实原因。
+- 引擎：`StoryForgeProviderAdapter.complete` 在 provider 已吐出流事件后才断开（LlmError，或 connection / timeout / incomplete_text_stream 类 ProviderError）时整轮重发，最多 `STREAM_RETRY_LIMIT = 2` 次，间隔 1 秒走 `RunControl.waitForRetry`（等待中照常检查暂停 / 停止）；一个事件都没吐就失败（建连阶段，传输层已重试过）、作者停下、配置 / 鉴权类错误都不重发；重发不算轮次，每次重发仍各自留请求证据。最终失败时回话写明「输出途中连接断开，已自动重试 N 次仍未成功」，脱敏后的原始原因写进 assistant.chat_loop 的 error_message（之前恒为空）；`AssistantStore.createToolCall` 类型补上 error_message（sqlite 存储本来就支持），回放用的内存会话库替身同步记下它。
+- 帧契约：`agent_text_stream_started` 加 `retry_attempt`（首发 0，按「帧字段恒在」的约定每帧都带），schema + `frames.ts` + 生成的前端类型一起改；golden 里 43 个开流帧补 `"retry_attempt": 0`（p3-host 另有 2 处是前端喂帧脚本里的故意残缺帧，未动）；两个 provider-error 场景的 chat_loop error_message 由 null 改为传输层原话（「真实 LLM 返回 HTTP 500（耗时 250ms，尝试 1/1）：…」）。
+- 界面：同一轮里 `retry_attempt` 变大的开流帧 = 重发——半截正文作废、回复下方显示「连接中断，正在第 N 次重试…」，第一个字到了就撤掉，旧流迟到的字不会混进来；失败结算时 execution_outcome.code 为 provider_error 的回话按诊断处理：已吐的字留着、标「回复未完成」、失败说明放在下面一行（其它失败照旧用引擎的权威正文替换预览，既有「失败审稿报告替换预览」行为不变）。
+- 验证：引擎新增 `streamRetry.test.ts` 5 条（中途断开重发且帧带重试序号、两次后放弃、建连失败不重发、停下不重发、鉴权不重发连接类重发），变异「永不重试」红 3 条；前端 `agent-text-stream.test.tsx` 新增 2 条，变异「去掉重发分支」「provider_error 不按诊断」各红 1 条；引擎全量 13689 passed / 2 skipped；前端 2330 passed；`pnpm verify` 8 道全过（EXIT=0）。
+- 未做 / 未验：没在真模型 / 真中转上制造断流点穿；失败那次已吐的半截字只在本次界面里保留，刷新或重开会话后回到库里那条失败说明（半截字不入库）；失败重发若中转在断开前已回传用量，这部分用量不计入本轮累计（证据里每次请求仍各有记录）；没打包。

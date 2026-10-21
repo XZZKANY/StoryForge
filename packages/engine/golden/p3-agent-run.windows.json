@@ -5622,7 +5622,8 @@
           "run_id": "run-1",
           "stream_id": "stream-1",
           "round_index": 1,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         },
         {
           "type": "agent_text_delta",
@@ -5645,7 +5646,8 @@
           "run_id": "run-1",
           "stream_id": "stream-2",
           "round_index": 2,
-          "chunk_sequence": 0
+          "chunk_sequence": 0,
+          "retry_attempt": 0
         },
         {
           "type": "agent_text_delta",
@@ -12329,7 +12331,7 @@
             },
             "proposed_patch_id": null
           },
-          "error_message": null
+          "error_message": "真实 LLM 返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"boom\"}}"
         }
       ]
     },
