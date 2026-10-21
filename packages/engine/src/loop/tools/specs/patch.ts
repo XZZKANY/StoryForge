@@ -202,7 +202,8 @@ export const PATCH_TOOL_SPECS = [
           },
           instruction: {
             type: 'string',
-            description: '写作指令：写什么、篇幅、衔接哪些既有内容。',
+            description:
+              '写作指令：写什么、篇幅、衔接哪些既有内容。起草模型看不到本次对话，作者在对话里谈定的设定、人物、情节要点要完整写进这里，不能只写「写第一章」。',
           },
         },
         required: ['path', 'instruction'],

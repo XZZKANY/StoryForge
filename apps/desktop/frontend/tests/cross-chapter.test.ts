@@ -2,11 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import {
-  chapterTargetPath,
-  chapterWriteTarget,
   formatCrossChapterFindings,
   planChapterSubmission,
   resolveChapterRefs,
+  wantsChapterWrite,
 } from '../src/components/chat-window/cross-chapter';
 import type { SemanticFile } from '../src/lib/project/types';
 
@@ -90,10 +89,7 @@ test('T03: 有写操作时 ≥2 引用章降为上下文并走 agent，不再被
   const plan = planChapterSubmission('参考第2章和第3章，写第4章', chapterDrafts);
   assert.deepEqual(plan, {
     channel: 'agent',
-    intent: 'chapter.write',
-    targetFilePath: '正文/第004章.md',
     contextPaths: ['正文/第02章.md', '正文/第03章.md'],
-    planFallback: false,
   });
 });
 
@@ -108,49 +104,28 @@ test('T03: 纯比较问题（无操作意图）仍走跨章通道', () => {
   }
 });
 
-test('T09: 写目标章不存在（新章）不被吞，按 003 补零约定推导目标路径', () => {
-  const plan = planChapterSubmission('写第4章', chapterDrafts);
-  assert.deepEqual(plan, {
-    channel: 'agent',
-    intent: 'chapter.write',
-    targetFilePath: '正文/第004章.md',
-    contextPaths: [],
-    planFallback: false,
-  });
-});
-
-test('T09: 写已有章号取实际草稿相对路径', () => {
-  assert.deepEqual(chapterWriteTarget('写第3章', chapterDrafts), {
-    intent: 'chapter.write',
-    targetFilePath: '正文/第03章.md',
-    planFallback: false,
-  });
-});
-
-test('T09: 写下一章无具体目标，交给后端计划回退', () => {
-  assert.deepEqual(planChapterSubmission('写下一章', chapterDrafts), {
-    channel: 'agent',
-    intent: 'chapter.write',
-    targetFilePath: undefined,
-    contextPaths: [],
-    planFallback: true,
-  });
-});
-
-test('wave1-A(a): 改写/重写/续写既有章不绑 chapter.write 目标（避免误报文件已存在）', () => {
-  for (const text of ['改写第3章', '重写第3章', '续写第2章', '补写第3章']) {
-    assert.equal(chapterWriteTarget(text, chapterDrafts), undefined, text);
+// 10-20：对话里说的写章交给对话 agent（它看得到整段对话），不再绑固定写章管线与目标路径。
+test('对话里写章走对话 agent，不带写章意图或目标路径', () => {
+  for (const text of ['写第4章', '写第3章', '写下一章', '直接开始写第一章正文', '起草第十二章']) {
+    assert.ok(wantsChapterWrite(text), text);
+    assert.deepEqual(planChapterSubmission(text, chapterDrafts), {
+      channel: 'agent',
+      contextPaths: [],
+    });
   }
 });
 
-test('wave1-A(a): 改写类动词 + ≥2 引用章走普通 agent（intent 空、引用章作上下文）', () => {
+test('wave1-A(a): 改写/重写/续写既有章不算写新章', () => {
+  for (const text of ['改写第3章', '重写第3章', '续写第2章', '补写第3章']) {
+    assert.equal(wantsChapterWrite(text), false, text);
+  }
+});
+
+test('wave1-A(a): 改写类动词 + ≥2 引用章走普通 agent（引用章作上下文）', () => {
   const plan = planChapterSubmission('重写第2章和第3章', chapterDrafts);
   assert.deepEqual(plan, {
     channel: 'agent',
-    intent: undefined,
-    targetFilePath: undefined,
     contextPaths: ['正文/第02章.md', '正文/第03章.md'],
-    planFallback: false,
   });
 });
 
@@ -168,21 +143,15 @@ test('wave1-A(b): 比较/提问里的「描写/写法/改动」不被误判成�
 
 test('T03: 润色/改写类操作同样降引用章为上下文走 agent', () => {
   const plan = planChapterSubmission('把第2章和第3章都润色一下', chapterDrafts);
-  assert.equal(plan.channel, 'agent');
-  if (plan.channel === 'agent') {
-    assert.equal(plan.intent, undefined);
-    assert.deepEqual(plan.contextPaths, ['正文/第02章.md', '正文/第03章.md']);
-  }
+  assert.deepEqual(plan, {
+    channel: 'agent',
+    contextPaths: ['正文/第02章.md', '正文/第03章.md'],
+  });
 });
 
-test('chapterTargetPath 与「起草下一章」按钮约定一致（三位补零）', () => {
-  assert.equal(chapterTargetPath(4), '正文/第004章.md');
-  assert.equal(chapterTargetPath(12), '正文/第012章.md');
-});
-
-test('wave2-A: 扩写/缩写/誊写既有章不绑 chapter.write 目标', () => {
+test('wave2-A: 扩写/缩写/誊写既有章不算写新章', () => {
   for (const text of ['扩写第3章', '缩写第3章', '誊写第3章', '把第2章扩写一下']) {
-    assert.equal(chapterWriteTarget(text, files), undefined, text);
+    assert.equal(wantsChapterWrite(text), false, text);
     assert.equal(planChapterSubmission(text, files).channel, 'agent', text);
   }
 });
@@ -198,25 +167,8 @@ test('wave2-A: 章号必须带「章」，写第一封信/生成第二种策略�
 
 test('wave2-A: 改写下一章与否定式不产生写章意图', () => {
   for (const text of ['重写下一章', '改写下一章', '续写下一章', '不要写下一章', '先别写第3章']) {
-    assert.equal(chapterWriteTarget(text, files), undefined, text);
+    assert.equal(wantsChapterWrite(text), false, text);
   }
-});
-
-test('wave2-A: 中文数字章号给出目标路径（已有草稿取真实路径，否则三位补零约定）', () => {
-  const plan = chapterWriteTarget('写第三章', files);
-  // files 里已有 第03章 草稿：取真实草稿相对路径，而不是另造一个文件。
-  assert.equal(plan?.targetFilePath, '第03章.md');
-  assert.equal(chapterWriteTarget('起草第十二章', files)?.targetFilePath, '正文/第012章.md');
-  assert.equal(chapterWriteTarget('写第零章', files), undefined);
-});
-
-test('wave2-A: 新章路径恒用三位补零约定（正文/ 命名硬规矩，不跟随既有章位数）', () => {
-  const legacyNaming = [
-    draft('第1章.md', '/proj/正文/第1章.md'),
-    draft('第2章.md', '/proj/正文/第2章.md'),
-  ];
-  assert.equal(chapterWriteTarget('写第3章', legacyNaming)?.targetFilePath, '正文/第003章.md');
-  assert.equal(chapterTargetPath(5), '正文/第005章.md');
 });
 
 test('wave2-B: 比较问句里的操作名词（修改/精简/重写…）仍走跨章检查', () => {
@@ -242,14 +194,7 @@ test('wave2-B: 否定式写章指令不夺走跨章检查，也不产生写章�
 });
 
 test('wave2-B: 否定词「别」只在句首算否定，分别写/特别写不被误杀', () => {
-  assert.equal(chapterWriteTarget('分别写第1章', files)?.intent, 'chapter.write');
-  assert.equal(chapterWriteTarget('别写第1章', files), undefined);
+  assert.equal(wantsChapterWrite('分别写第1章'), true);
+  assert.equal(wantsChapterWrite('别写第1章'), false);
   assert.equal(planChapterSubmission('分别写第1章和第2章', files).channel, 'agent');
-});
-
-test('wave2-B: 中文百位章号可解析（一百/两百/一百零一）', () => {
-  assert.equal(chapterWriteTarget('写第一百章', files)?.targetFilePath, '正文/第100章.md');
-  assert.equal(chapterWriteTarget('写第二百章', files)?.targetFilePath, '正文/第200章.md');
-  assert.equal(chapterWriteTarget('写第一百零一章', files)?.targetFilePath, '正文/第101章.md');
-  assert.equal(chapterWriteTarget('写第二十三章', files)?.targetFilePath, '正文/第023章.md');
 });

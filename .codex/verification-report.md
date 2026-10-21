@@ -9091,3 +9091,12 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 改动：`lib/browser-guards.ts` 新增 `isMonacoCancellation`（与 Monaco 的 `isCancellationError` 同判定：`Error` 且名字与消息都是 `Canceled`）和 `installMonacoCancellationGuard`（`unhandledrejection` 里只对这一种 `preventDefault`）；`main.tsx` 无条件安装（开发与装机都要，原有浏览器护栏仍只在装机装）；夹具绕过入口，照入口装上；回归最后一步固定为「聚焦后立即卸载」，让这条时序每次都被覆盖。
 - 测试：`browser-guards.test.ts` 新 2 条（只认 Monaco 的取消，普通错误 / AbortError / 名字对消息不对 / 字符串都不算；守卫吞掉取消、别的未处理拒绝照常报、卸载后不再拦）。回归在新版下连跑 3 次通过；变异 2 / 2（夹具不装守卫、守卫不拦 → 回归必失败且报 `Canceled`）。`pnpm verify` 8 道全过。
 - 没做：没有升级 Monaco（上游此处仍漏接，升级不在这刀范围）；没有改产品编辑器的同词高亮配置。
+
+## 2026-10-21 对话里写章交给对话 agent，章纲回话不再漏「AgentRun 已在 … 边界暂停」
+
+- 起因（作者 0.2.1 真机试用，`D:\记事本\问题-1020.md`；装机库只读副本取证，会话 18 / run 69–71）：作者在对话里谈好修仙框架（炼气 / 筑基 / 金丹、仪式突破、中等世家、被动卷入）后说「直接开始写第一章正文」，产出的第一章却是高中生收短信的游戏故事。真因：前端 `cross-chapter.ts::chapterWriteTarget` 把这句认成写章，走 chapter.write 固定管线；整理章纲的那次调用（`chatReply`）不带对话史，brief 只把原话抄成 goal、视角 / 场景 / 节拍全空（context_file_count 0、story_memory_count 0）；起草只拿到这份空 brief（assistant.draft prompt_tokens 102），初稿 167 字被检查判 goal_violation，定向修复凭空编了另一个故事。同一 run 停在章纲确认时，对话里显示的是「AgentRun 已在 after_tool:chapter.brief 边界暂停，等待继续指令。」——`startChapterBrief` 末尾的 `runtimeInterruptedResponse` 把人话 summary 覆盖成了运行边界的内部说法（库里消息仍是人话，刷新后才正常）。
+- 作者拍板：对话里说的写章交给对话 agent 自己写（它看得到整段对话），不走章纲管线；「AI 起草下一章」按钮仍走章纲管线。
+- 改动：`planChapterSubmission` 不再产出 chapter.write 意图 / 目标路径 / 计划回退，写章与带操作词的请求一律走对话 agent（≥2 引用章仍降为 pinned 上下文、纯比较仍走跨章检查）；`chapterWriteTarget` / `chapterTargetPath` / `chapterOrdinalFromText` 随之没有用处，收成布尔判定 `wantsChapterWrite`（锚定动词、带「章」、否定式三条规矩不变）。`file.create` 的 `instruction` 参数说明补一句事实边界：起草模型看不到本次对话，谈定的设定、人物、情节要点要完整写进指令（系统提示词与产字准则未动）。章纲确认停下时回话恢复为「Chapter Brief 已准备：…。确认后才会开始起草。」。
+- golden：工具说明进了循环请求的 tools 数组，tools 的 sha256（1 个）与 request_digest（154 对）随之变化——临时插桩把新说明换回旧说明重算得出对照表、按表替换 9 个 golden 文件后撤掉插桩（两处插桩文件与改前逐字节相同）；章纲停下的 summary 在 p3-chapter-writing（33 处）/ p3-host（3 处）按各自 brief 的 goal 改写，且每条新文本都已在同一文件里作为消息 / 事件出现过。核对：golden diff 共 1091 行替换，除工具说明本身两行外，去掉 64 位哈希与 summary 后逐行相同。
+- 验证：前端 `tests/cross-chapter.test.ts` + `tests/chapter-write-request.test.tsx` 26 passed（新断言在旧路由下会因 intent='chapter.write' 失败）；引擎全量 vitest 13684 passed / 2 skipped；`pnpm verify` 8 道全过（EXIT=0）。
+- 未做 / 未验：没有用真模型实跑「谈设定 → 写第一章」看循环模型写进 instruction 的内容够不够完整（要作者的 key、要关应用）；章纲管线本身看不到对话这一点没改（按钮路径）；没打包，作者机仍是 0.2.1。
