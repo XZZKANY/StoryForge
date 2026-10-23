@@ -167,6 +167,41 @@ export async function loadPendingSuggestion(
   return decodeDescriptor((await readJournal(project, file)).raw, file);
 }
 
+/**
+ * 待确认的新建文件提案：目标还不在盘上，恢复只能靠重新打开它的页签。
+ * 只看日志本身（名字须与目标路径对得上），不结算运行；读不了的日志跳过，不挡作品打开。
+ */
+export async function listPendingNewFileTargets(project: string): Promise<string[]> {
+  const separator = project.includes('\\') ? '\\' : '/';
+  const directory = [project.replace(/[/\\]+$/, ''), '.storyforge', 'pending-suggestions'].join(
+    separator,
+  );
+  if (!(await TauriFileSystem.pathExists(directory))) return [];
+  const targets: string[] = [];
+  for (const entry of await TauriFileSystem.listDir(directory)) {
+    if (entry.isDir || !entry.name.endsWith('.json')) continue;
+    try {
+      const raw = await TauriFileSystem.readProjectFile(project, entry.path);
+      const value: unknown = JSON.parse(raw);
+      if (!object(value) || !object(value.proposal) || typeof value.proposal.filePath !== 'string')
+        continue;
+      const descriptor = decodeDescriptor(raw, value.proposal.filePath);
+      if (!descriptor || descriptor.proposal.before !== '') continue;
+      const file = descriptor.proposal.filePath;
+      if (
+        normalizePathForMatch(await journalPath(project, file)) !==
+          normalizePathForMatch(entry.path) ||
+        (await TauriFileSystem.pathExists(file))
+      )
+        continue;
+      targets.push(file);
+    } catch {
+      continue;
+    }
+  }
+  return targets;
+}
+
 export function capturePendingSuggestion(
   project: string,
   suggestion: AssistantFileSuggestion,
