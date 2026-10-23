@@ -170,7 +170,7 @@ export function useChatSubmission(
 
   const awaitingDecision = Boolean(state.chapterBrief) || state.agentRun?.status === 'waiting';
   const submitInstruction = useCallback(
-    async (value: string, fromComposer = false, decisionResolved = false) => {
+    async (value: string, fromComposer = false) => {
       const instruction = value.trim();
       if (!instruction || !projectPath || !isCurrentScope()) return;
       const preserveInstruction = () => {
@@ -186,7 +186,7 @@ export function useChatSubmission(
         });
         return;
       }
-      if (awaitingDecision && !decisionResolved) {
+      if (awaitingDecision) {
         preserveInstruction();
         emitToast('先处理当前待确认内容，再发下一条；待发消息和草稿已保留。', { tone: 'info' });
         return;
@@ -309,6 +309,7 @@ export function useChatSubmission(
     const onPatchRejected = (event: Event) => {
       const rejection = (event as CustomEvent<PatchRejection>).detail;
       if (!rejection?.direction.trim()) return;
+      if (!projectPath || !isCurrentScope()) return;
       if (
         rejection.runId &&
         (rejection.projectPath !== projectPathRef.current ||
@@ -321,9 +322,23 @@ export function useChatSubmission(
         !state.agentRun.steps.some((step) => step.patchId === rejection.patchId)
       )
         return;
-      // The controls listener settles this exact patch in the same event. Do not use the
-      // previous render's waiting flag to discard the author's explicit revision direction.
-      void submitInstruction(buildRejectionPrompt(rejection), false, true);
+      const instruction = buildRejectionPrompt(rejection);
+      if (deliveryUnknownRef.current || queuedRef.current?.scope === scope) {
+        setInput((draft) =>
+          draft.trim() === instruction ? draft : draft ? `${draft}\n\n${instruction}` : instruction,
+        );
+        emitToast(
+          deliveryUnknownRef.current
+            ? '这轮结果未知，请先核对状态；修改方向已保留在输入框。'
+            : '已有一条待发送消息；修改方向已保留在输入框。',
+          { tone: 'info' },
+        );
+        return;
+      }
+      // 拒绝还会清理未落盘页签；复用待发槽，等终态和 currentFile 的 commit 后再读上下文。
+      const entry = { id: ++nextQueueIdRef.current, content: instruction, scope };
+      queuedRef.current = entry;
+      setQueuedMessage(entry);
     };
     window.addEventListener(PATCH_REJECTED_EVENT, onPatchRejected);
     return () => window.removeEventListener(PATCH_REJECTED_EVENT, onPatchRejected);
@@ -332,7 +347,10 @@ export function useChatSubmission(
     state.agentRunIdRef,
     projectPathRef,
     assistantSessionIdRef,
-    submitInstruction,
+    projectPath,
+    isCurrentScope,
+    scope,
+    setInput,
   ]);
 
   const userMessageHistory = useMemo(

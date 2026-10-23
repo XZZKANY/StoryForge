@@ -23,13 +23,15 @@ const run = vi.fn<RunAuthorAgent>(async () => undefined);
 function Harness({
   project = 'D:/fixture',
   session = 1,
+  currentFile = null,
 }: {
   project?: string | null;
   session?: number | null;
+  currentFile?: string | null;
 }) {
   const state = useChatWindowState({
     projectPath: project,
-    currentFile: null,
+    currentFile,
     assistantSessionId: session,
   });
   const submission = useChatSubmission(state, run, {
@@ -255,11 +257,48 @@ test('拒绝同一待确认补丁的明确方向不会被上一帧 waiting 状�
     emitPatchRejected({ filePath: 'D:/fixture/a.md', patchId: 'other', direction: '不属于本轮' }),
   );
   expect(run).not.toHaveBeenCalled();
-  await act(async () =>
-    emitPatchRejected({ filePath: 'D:/fixture/a.md', patchId: 'p1', direction: '保留叙述视角' }),
-  );
+  await act(async () => {
+    // The real controls listener settles the matching rejection in this same event batch.
+    api.state.setAgentRun((value) => (value ? { ...value, status: 'completed' } : null));
+    emitPatchRejected({ filePath: 'D:/fixture/a.md', patchId: 'p1', direction: '保留叙述视角' });
+  });
   expect(run).toHaveBeenCalledTimes(1);
   expect(run.mock.calls[0][0]).toContain('保留叙述视角');
+});
+
+test('有方向拒绝等页签清理提交后再发送，不读取被拒绝的未落盘路径', async () => {
+  const missing = 'D:/fixture/设定/未落盘.md';
+  await render({ currentFile: missing });
+  let observedFile: string | null = missing;
+  run.mockImplementation(async () => {
+    observedFile = api.state.currentFileRef.current;
+  });
+  await act(async () => {
+    root.render(<Harness currentFile={null} />);
+    emitPatchRejected({ filePath: missing, patchId: 'new-file', direction: '重新创建，内容更短' });
+  });
+  expect(run).toHaveBeenCalledTimes(1);
+  expect(observedFile).toBeNull();
+  expect(run.mock.calls[0][0]).toContain('重新创建，内容更短');
+});
+
+test('拒绝方向不覆盖已有待发，完整保留在原草稿之后', async () => {
+  await render();
+  await act(async () => api.state.setAgentBusy(true));
+  await typeAndSubmit('先处理的待发');
+  await act(async () => api.state.setInput('作者已有草稿'));
+  await act(async () =>
+    emitPatchRejected({
+      filePath: 'D:/fixture/a.md',
+      patchId: 'p1',
+      direction: '只改结尾',
+    }),
+  );
+  expect(api.submission.queuedMessages.map((item) => item.content)).toEqual(['先处理的待发']);
+  expect(api.state.input).toContain('作者已有草稿');
+  expect(api.state.input).toContain('只改结尾');
+  await act(async () => api.state.setAgentBusy(false));
+  expect(run.mock.calls.map(([instruction]) => instruction)).toEqual(['先处理的待发']);
 });
 
 test('程序化第二条指令同样保留到草稿，不覆盖单条待发', async () => {

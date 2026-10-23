@@ -19,6 +19,8 @@ const effects = vi.hoisted(() => ({
     updatedBlueprintPath: null,
   })),
   mark: vi.fn(async () => {}),
+  unmark: vi.fn(async () => null),
+  drop: vi.fn(),
 }));
 vi.mock('../src/lib/versions', async (load) => ({
   ...(await load<typeof import('../src/lib/versions')>()),
@@ -31,6 +33,7 @@ vi.mock('../src/lib/author-loop', async (load) => ({
 vi.mock('../src/lib/serial-plan', async (load) => ({
   ...(await load<typeof import('../src/lib/serial-plan')>()),
   markChapterWrittenInPlan: effects.mark,
+  unmarkChapterWrittenInPlan: effects.unmark,
 }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const PROJECT = 'D:/disk-contract';
@@ -44,6 +47,7 @@ const dialogs = { alert: async () => {}, confirm: async () => false, prompt: asy
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  effects.unmark.mockReset().mockResolvedValue(null);
   const original =
     await vi.importActual<typeof import('../src/lib/author-loop')>('../src/lib/author-loop');
   effects.record.mockImplementation(async (record) => {
@@ -81,12 +85,13 @@ async function observe(assertion: () => void) {
     assertion();
   });
 }
-async function open(content: string | null) {
+async function open(content: string | null, dropOpenFilePath = effects.drop) {
   if (content !== null) files.set(FILE, content);
   await act(async () =>
     root.render(
       <>
         <Editor
+          dropOpenFilePath={dropOpenFilePath}
           projectPath={PROJECT}
           filePath={FILE}
           retainedFilePaths={[FILE]}
@@ -223,12 +228,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
-async function navigate(file: string, content: string) {
+async function navigate(file: string, content: string, dropOpenFilePath = effects.drop) {
   files.set(file, content);
   await act(async () =>
     root.render(
       <>
         <Editor
+          dropOpenFilePath={dropOpenFilePath}
           projectPath={PROJECT}
           filePath={file}
           retainedFilePaths={[FILE, file]}
@@ -312,6 +318,132 @@ it('接受第二块后拒绝剩余，不写入未接受的两处', async () => {
   expect(files.get(FILE)).toBe(middle);
   expect(writes.filter((p) => p === FILE)).toHaveLength(1);
 });
+
+it('拒绝未落盘的新建建议时摘掉空页签，不创建空文件', async () => {
+  await open(null);
+  await propose('', AFTER);
+  await click('suggestion-reject');
+  await click('patch-reject-confirm');
+  await observe(() => expect(host.querySelector('[data-testid="patch-review"]')).toBeNull());
+  expect(effects.drop).toHaveBeenCalledExactlyOnceWith(FILE);
+  expect(files.has(FILE)).toBe(false);
+  expect(writes.filter((p) => p === FILE)).toEqual([]);
+});
+
+it('保存新建建议为旁注时摘掉不存在的空页签，只写旁注', async () => {
+  await open(null);
+  await propose('', AFTER);
+  await click('suggestion-note');
+  await observe(() => expect(host.querySelector('[data-testid="patch-review"]')).toBeNull());
+  expect(effects.drop).toHaveBeenCalledExactlyOnceWith(FILE);
+  expect(files.has(FILE)).toBe(false);
+  const notes = writes.filter((path) => path.includes('/.storyforge/notes/'));
+  expect(notes).toHaveLength(1);
+  expect(files.get(notes[0])).toContain(AFTER);
+  expect(writes).not.toContain(FILE);
+});
+
+it.each(['existing-empty', 'typed', 'recreated'] as const)(
+  '保存旁注不关闭需保留的页签：%s',
+  async (kind) => {
+    await open(kind === 'existing-empty' ? '' : null);
+    await propose('', AFTER);
+    if (kind === 'typed') await act(async () => __getLastEditor()!.setValue('作者后续写作'));
+    if (kind === 'recreated') files.set(FILE, '外部新建');
+    await click('suggestion-note');
+    await observe(() => expect(host.querySelector('[data-testid="patch-review"]')).toBeNull());
+    expect(effects.drop).not.toHaveBeenCalled();
+    if (kind === 'typed') expect(__getLastEditor()!.getValue()).toBe('作者后续写作');
+    if (kind === 'recreated') expect(files.get(FILE)).toBe('外部新建');
+  },
+);
+
+it.each(['typing', 'typing-undo', 'model-replacement', 'navigate'] as const)(
+  '旁注写入迟到时保留后续编辑身份：%s',
+  async (mode) => {
+    await open(null);
+    await propose('', AFTER);
+    const model = __getLastEditor()!.getModel()!;
+    const gate = deferred<void>();
+    const originalWrite = TauriFileSystem.writeFile;
+    const write = vi.spyOn(TauriFileSystem, 'writeFile').mockImplementation(async (...args) => {
+      if (args[1].includes('/.storyforge/notes/')) await gate.promise;
+      return originalWrite(...args);
+    });
+    await click('suggestion-note');
+    await observe(() =>
+      expect(write.mock.calls.some((args) => args[1].includes('/.storyforge/notes/'))).toBe(true),
+    );
+    if (mode === 'navigate') await navigate(OTHER, '另一个文档');
+    else
+      await act(async () => {
+        if (mode === 'model-replacement')
+          __getLastEditor()!.setModel(monacoEditor.createModel('新模型'));
+        else {
+          model.setValue('作者后续输入');
+          if (mode === 'typing-undo') model.setValue('');
+        }
+      });
+    await act(async () => gate.resolve());
+    await observe(() =>
+      expect(writes.filter((path) => path.includes('/.storyforge/notes/'))).toHaveLength(1),
+    );
+    expect(effects.drop).not.toHaveBeenCalled();
+    expect(model.isDisposed()).toBe(false);
+    expect(files.has(FILE)).toBe(false);
+  },
+);
+
+it.each(['existing-empty', 'typed', 'recreated'] as const)(
+  '拒绝新建建议不关闭需保留的页签：%s',
+  async (kind) => {
+    await open(kind === 'existing-empty' ? '' : null);
+    await propose('', AFTER);
+    if (kind === 'typed') await act(async () => __getLastEditor()!.setValue('作者后续写作'));
+    if (kind === 'recreated') files.set(FILE, '外部新建');
+    await click('suggestion-reject');
+    await click('patch-reject-confirm');
+    await observe(() => expect(host.querySelector('[data-testid="patch-review"]')).toBeNull());
+    expect(effects.drop).not.toHaveBeenCalled();
+    if (kind === 'typed') expect(__getLastEditor()!.getValue()).toBe('作者后续写作');
+    if (kind === 'recreated') expect(files.get(FILE)).toBe('外部新建');
+  },
+);
+
+it.each(['typing', 'typing-undo', 'model-replacement', 'navigate'] as const)(
+  '拒绝新建建议的盘面核对迟到时保留新编辑身份：%s',
+  async (mode) => {
+    await open(null);
+    await propose('', AFTER);
+    const model = __getLastEditor()!.getModel()!;
+    const gate = deferred<boolean>();
+    const originalExists = TauriFileSystem.pathExists;
+    const exists = vi
+      .spyOn(TauriFileSystem, 'pathExists')
+      .mockImplementation((path) => (path === FILE ? gate.promise : originalExists(path)));
+    try {
+      await click('suggestion-reject');
+      await click('patch-reject-confirm');
+      await observe(() => expect(exists).toHaveBeenCalledWith(FILE));
+      if (mode === 'navigate') await navigate(OTHER, '另一个文档');
+      else
+        await act(async () => {
+          if (mode === 'model-replacement')
+            __getLastEditor()!.setModel(monacoEditor.createModel('新模型'));
+          else {
+            model.setValue('后续作者输入');
+            if (mode === 'typing-undo') model.setValue('');
+          }
+        });
+      await act(async () => gate.resolve(false));
+      expect(effects.drop).not.toHaveBeenCalled();
+      expect(model.isDisposed()).toBe(false);
+      expect(files.has(FILE)).toBe(false);
+    } finally {
+      exists.mockRestore();
+    }
+  },
+);
 
 it('重复点击同一接受按钮只写入一次', async () => {
   await open(BEFORE);
@@ -462,7 +594,7 @@ it('撤销回执已落盘但返回丢失时查证成功，不重复写入', asyn
   expect(files.get(FILE)).toBe(BEFORE);
   expect(commit).toHaveBeenCalledTimes(1);
   expect(writes.filter((p) => p === FILE)).toHaveLength(2);
-  expect(host.querySelector('[data-testid="toast-action"]')).toBeNull();
+  await observe(() => expect(host.querySelector('[data-testid="toast-action"]')).toBeNull());
 });
 
 it('撤销结果未知时原地重试沿用同一操作身份，查明前不重复写入', async () => {
@@ -610,6 +742,61 @@ it.each(['navigate', 'typing', 'away-back'] as const)(
     if (mode === 'navigate') expect(__getLastEditor()!.getValue()).toBe('B必须保留');
     if (mode === 'typing')
       expect(__getLastEditor()!.getValue()).toBe(AFTER + '\n等待期间作者的新句');
+  },
+);
+
+it.each(
+  (['delete', 'plan'] as const).flatMap((boundary) =>
+    (['typing', 'typing-undo', 'model-replacement', 'recreated', 'navigate'] as const).map(
+      (mode) => [boundary, mode] as const,
+    ),
+  ),
+)(
+  'created-file undo settles after %s without retiring %s newer ownership',
+  async (boundary, mode) => {
+    await open(null);
+    await propose('', AFTER);
+    await click('suggestion-accept');
+    await settled(AFTER);
+    const model = __getLastEditor()!.getModel()!;
+    const gate = deferred<void>();
+    const latestDrop = vi.fn();
+    const remove = vi
+      .spyOn(TauriFileSystem, 'deletePath')
+      .mockImplementation(async (_root, path) => {
+        files.delete(path);
+        if (boundary === 'delete') await gate.promise;
+      });
+    if (boundary === 'plan')
+      effects.unmark.mockImplementationOnce(async () => {
+        await gate.promise;
+        return null;
+      });
+    await click('toast-action');
+    await observe(() => expect(remove).toHaveBeenCalledOnce());
+    if (boundary === 'plan') await observe(() => expect(effects.unmark).toHaveBeenCalledOnce());
+    if (mode === 'navigate') await navigate(OTHER, 'B must remain active', latestDrop);
+    else if (mode === 'recreated') files.set(FILE, 'external recreation');
+    else {
+      await act(async () => {
+        if (mode === 'model-replacement')
+          __getLastEditor()!.setModel(monacoEditor.createModel('replacement manuscript'));
+        else {
+          model.setValue(AFTER + '\nnew author input');
+          if (mode === 'typing-undo') model.setValue(AFTER);
+        }
+      });
+    }
+    await act(async () => gate.resolve());
+    await observe(() => expect(host.querySelector('[data-testid="toast-action"]')).toBeNull());
+    expect(effects.drop).not.toHaveBeenCalled();
+    if (mode === 'navigate') {
+      expect(latestDrop).toHaveBeenCalledExactlyOnceWith(FILE);
+      expect(__getLastEditor()!.getValue()).toBe('B must remain active');
+    } else {
+      expect(latestDrop).not.toHaveBeenCalled();
+      expect(model.isDisposed()).toBe(false);
+    }
   },
 );
 
