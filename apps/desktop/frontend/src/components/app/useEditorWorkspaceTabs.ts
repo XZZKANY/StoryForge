@@ -3,6 +3,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { saveActiveEditorForClose } from '../../lib/assistant-events';
 import { useHostCloseGuard } from '../../lib/host-close';
 import { projectBasename } from '../../lib/project-context';
+import { listPendingNewFileTargets } from '../../lib/suggestion-recovery';
+import { emitToast } from '../../lib/toast';
 import type { WorkspaceSession } from '../../lib/workspace-session';
 import type { AppDialogApi } from './AppDialog';
 import {
@@ -200,6 +202,34 @@ export function useEditorWorkspaceTabs({
     if (pendingRestore.activeFile) selectFile(pendingRestore.activeFile);
     onRestoreApplied?.();
   }, [activeProject, onRestoreApplied, pendingRestore, selectFile]);
+
+  // 新建文件的待确认提案只在目标页签打开时恢复；目标不在盘上，重启恢复现场或换书都会摘掉
+  // 这个页签，AI 已起草的新章就没了入口。等恢复现场铺完再把这类目标挂回页签。
+  const restoringProject = pendingRestore?.project === activeProject;
+  const openFileRef = useRef<(path: string) => void>(() => undefined);
+  useLayoutEffect(() => {
+    openFileRef.current = (path) => void openFile(path, '查看待确认新稿');
+  });
+  useEffect(() => {
+    if (!activeProject || restoringProject) return;
+    let live = true;
+    void listPendingNewFileTargets(activeProject)
+      .then((targets) => {
+        if (!live || targets.length === 0) return;
+        setOpenFiles((current) => targets.reduce(openEditorFile, current));
+        const name = projectBasename(targets[0]);
+        emitToast(
+          targets.length === 1
+            ? `「${name}」还有一份待确认的新稿，已放回页签`
+            : `${targets.length} 个新文件还有待确认的新稿，已放回页签`,
+          { action: { label: '查看', run: () => openFileRef.current(targets[0]) } },
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [activeProject, restoringProject]);
 
   const resetEditorFiles = useCallback(() => {
     setOpenFiles([]);
