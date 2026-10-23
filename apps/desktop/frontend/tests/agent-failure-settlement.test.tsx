@@ -154,6 +154,50 @@ it('live failure retains the review but never renders successful completion', as
   expect(current.state.lastReviewReport?.kind).toBe('review_report');
   expect(current.state.messages.at(-1)?.content).toContain(outcome.message);
   expect(current.state.agentBusy).toBe(false);
+  expect(current.state.retryRequest).toBeNull();
+});
+
+it.each([
+  'partial',
+  'tool trace',
+  'unrecorded tool',
+  'unknown tool count',
+  'continue_checkpoint',
+  'reconciliation_required',
+  'await_settlement',
+  'paused',
+  'stopped',
+] as const)('failed results do not offer whole-run retry across %s', async (boundary) => {
+  const response = result();
+  delete response.agent_result.review_report;
+  response.tool_trace = [];
+  response.agent_result.execution_outcome = {
+    status: boundary === 'partial' ? 'partial' : 'failed',
+    code: 'provider_error',
+    message: '模型调用失败',
+  };
+  if (boundary === 'tool trace')
+    response.tool_trace = [{ tool_name: 'file.revise', status: 'failed', input_summary: {} }];
+  if (boundary === 'unrecorded tool') response.agent_result.chat_loop = { tool_call_count: 1 };
+  if (boundary === 'unknown tool count') response.agent_result.chat_loop = {};
+  if (boundary === 'paused' || boundary === 'stopped') {
+    response.agent_result.runtime_interrupted = true;
+    response.runtime_interruption = { status: boundary, boundary: 'after_provider' };
+  } else if (
+    ['continue_checkpoint', 'reconciliation_required', 'await_settlement'].includes(boundary)
+  )
+    response.runtime_recovery = {
+      kind: 'runtime_checkpoint_resume',
+      resume_strategy: boundary,
+      can_resume: boundary === 'continue_checkpoint',
+    };
+  vi.mocked(sendAgentUserMessage).mockResolvedValue(response);
+  await mount();
+  await act(async () => current.run('检查第一章', 'agent'));
+  expect(current.state.agentRun?.status).toBe(
+    boundary === 'paused' || boundary === 'stopped' ? boundary : 'failed',
+  );
+  expect(current.state.retryRequest).toBeNull();
 });
 
 it('resumed failure retains the review without overwriting its failed status', async () => {
@@ -181,6 +225,7 @@ it('a valid patch from a partial run waits even in full mode, and approval canno
     await mount();
     await act(async () => current.run('检查第一章', 'agent'));
     expect(current.state.agentRun?.status).toBe('waiting');
+    expect(current.state.retryRequest).toBeNull();
     expect(suggestions).toHaveLength(1);
     expect(suggestions[0]).toMatchObject({ requiresConfirmation: true });
     await act(async () => current.recovery.updateAgentStatus('completed'));

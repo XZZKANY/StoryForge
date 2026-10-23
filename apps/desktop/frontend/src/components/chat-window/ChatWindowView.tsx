@@ -289,9 +289,8 @@ export function ChatWindowView({
         queuedMessages={queuedMessages}
         onRemoveQueuedMessage={onRemoveQueuedMessage}
         onStop={
-          state.agentBusy && state.agentRun?.status === 'running'
-            ? agentRunControls.onStopRun
-            : undefined
+          // 恢复请求等最终结果才更新状态；期间仍可能是 waiting（章纲）或 paused。
+          state.agentBusy && actionBarVisible ? agentRunControls.onStopRun : undefined
         }
       />
     </div>

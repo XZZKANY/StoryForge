@@ -1,5 +1,9 @@
 import { executionOutcomeFromResult } from '../../lib/api/execution-outcome';
-import { statusFromAgentResult, textSettlementFromAgentResult } from './resumed-result';
+import {
+  checkpointResumeFromResult,
+  statusFromAgentResult,
+  textSettlementFromAgentResult,
+} from './resumed-result';
 import { useCallback } from 'react';
 import { useAgentRunAdmission } from './useAgentRunAdmission';
 
@@ -20,7 +24,7 @@ import {
   detectLocalConversationAction,
   type LocalConversationAction,
 } from '../../lib/local-conversation-action';
-import { buildContextBundle } from '../../lib/project-context';
+import { buildContextBundle, resolveProjectRelativePath } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import { filePathFromAgentResult, writableFilePatch, repairPatchApproval } from './agent-result';
@@ -36,6 +40,7 @@ import { chapterBriefFromAgentResult } from './chapter-brief';
 import type {
   AgentRunStatus,
   ChatWindowProps,
+  RetryRequest,
   RunAuthorAgent,
   RunAuthorAgentOptions,
 } from './types';
@@ -176,15 +181,31 @@ export function useRunAuthorAgent(
         startedAt: Date.now(),
       });
       setChapterBrief(null);
+      const retryRequest: RetryRequest = {
+        goal,
+        action,
+        intent,
+        options: {
+          ...options,
+          explicitContextPaths: options.explicitContextPaths?.slice(),
+        },
+        excludedKnowledgeIds: excludedKnowledgeIds.slice(),
+        currentFile: options.targetFilePath || options.planFallback ? undefined : file,
+      };
       try {
         let content: string | null = null;
-        // 显式起草目标或计划回退（下一章）指向尚不存在的文件：不刷盘、不读当前稿。
+        // 新章节不把当前编辑器当目标正文；已保存的当前文件仍可作为普通项目参考。
         if (file && ref && !options.targetFilePath && !options.planFallback) {
           await flushActiveEditorToDisk(file);
           content = await TauriFileSystem.readProjectFile(project, file);
         }
-        // 当前打开稿已在 bundle 的 currentFile 里；再当 pinned 会被 eligible 过滤掉并假报「没有读到」。
-        const currentRelative = file && project ? relativePath(project, file) : null;
+        const contextFile = options.targetFilePath
+          ? resolveProjectRelativePath(project, options.targetFilePath)
+          : options.planFallback
+            ? null
+            : file;
+        // 只排除另行携带的目标正文，不能漏掉起草新章时恰好打开的设定或上一章。
+        const currentRelative = contextFile ? relativePath(project, contextFile) : null;
         const requestedContextPaths = (options.explicitContextPaths ?? []).filter(
           (path) => path !== currentRelative,
         );
@@ -198,7 +219,7 @@ export function useRunAuthorAgent(
         const appendedContext = await appendExplicitContextFiles(
           await buildContextBundle({
             projectPath: project,
-            currentFile: file,
+            currentFile: contextFile,
             pinnedFiles: [...explicitContextPaths, ...requestedContextPaths],
           }),
           project,
@@ -266,7 +287,7 @@ export function useRunAuthorAgent(
 
         if (isAgentErrorMessage(response)) {
           updateAgentStatus('failed');
-          setRetryRequest({ goal, action, intent, useMainModel: options.useMainModel });
+          setRetryRequest(retryRequest);
           settleDiagnostic(`这轮没跑通：${response.detail}`);
           void refreshAgentRunRecovery(response.run_id ?? runId);
           return;
@@ -275,7 +296,7 @@ export function useRunAuthorAgent(
         if (!isAgentResultMessage(response)) {
           const detail = `Agent 返回了暂不支持的消息：${response.type}`;
           updateAgentStatus('failed');
-          setRetryRequest({ goal, action, intent, useMainModel: options.useMainModel });
+          setRetryRequest(retryRequest);
           settleDiagnostic(detail);
           void refreshAgentRunRecovery(runId);
           return;
@@ -351,6 +372,24 @@ export function useRunAuthorAgent(
           return;
         }
 
+        // 首次模型调用已明确失败且没有工具执行；部分完成/检查点恢复不能当成整轮重放。
+        const loop = response.agent_result.chat_loop;
+        const noToolCalls =
+          loop === undefined ||
+          (loop !== null &&
+            typeof loop === 'object' &&
+            'tool_call_count' in loop &&
+            loop.tool_call_count === 0);
+        if (
+          resultStatus === 'failed' &&
+          executionOutcome?.status === 'failed' &&
+          executionOutcome.code === 'provider_error' &&
+          response.tool_trace.length === 0 &&
+          noToolCalls &&
+          !responseChapterBrief &&
+          !checkpointResumeFromResult(response)
+        )
+          setRetryRequest(retryRequest);
         settleText(response.agent_result.summary ?? '这轮已经完成。');
         // P1-2：纯文本总结无真批准路径，waiting 会让作者卡死在空按钮上；仅 chapterBrief 例外。
         updateAgentStatus(responseChapterBrief ? 'waiting' : resultStatus);
@@ -361,20 +400,13 @@ export function useRunAuthorAgent(
           if (isClaimedBy(runId)) setAgentBusy(false);
           return;
         }
-        if (
-          retainUnknown(error, runStartConversationKey, runId, {
-            goal,
-            action,
-            intent,
-            useMainModel: options.useMainModel,
-          })
-        ) {
+        if (retainUnknown(error, runStartConversationKey, runId, retryRequest)) {
           textStream.hold(runId, 'unknown');
           return;
         }
         const message = error instanceof Error ? error.message : String(error);
         updateAgentStatus('failed');
-        setRetryRequest({ goal, action, intent, useMainModel: options.useMainModel });
+        setRetryRequest(retryRequest);
         settleDiagnostic(`这轮没跑通：${message}`);
       } finally {
         releaseClaim(runId);

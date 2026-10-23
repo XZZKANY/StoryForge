@@ -118,7 +118,10 @@ export type RetryRequest = {
   goal: string;
   action: LocalConversationAction;
   intent?: 'file.revise' | 'chapter.write' | 'chapter.polish';
-  useMainModel?: boolean;
+  options: RunAuthorAgentOptions;
+  excludedKnowledgeIds: string[];
+  /** 首次请求的编辑器归属；undefined 表示显式新章目标，不依赖当前稿件。 */
+  currentFile: string | null | undefined;
 };
 
 export type RunAuthorAgentOptions = {
