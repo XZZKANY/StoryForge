@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import golden from '../../golden/p3-polish.windows.json';
 import { AgentRuntimeUserMessageError } from './agentRuntime';
 import { agentRunReplay, REPLAY_KEYS } from './agentRunReplay.test-support';
-import { PolishLlmNotConfiguredError, resolvePolishLlm } from './tools/polishService';
+import {
+  PolishLlmNotConfiguredError,
+  polishSummary,
+  resolvePolishLlm,
+  type ControlledPolishResult,
+} from './tools/polishService';
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 脚本按 Python 预言机的 JSON 形状读
 const { replay, expectSame } = agentRunReplay(golden);
@@ -72,5 +77,40 @@ describe('polish model resolution', () => {
     ).toThrow(
       '主模型配置不完整：缺少 STORYFORGE_LLM_PROVIDER, STORYFORGE_LLM_BASE_URL, STORYFORGE_LLM_API_KEY。',
     );
+  });
+});
+
+describe('润色没改动时说清在线模型有没有调通', () => {
+  const noop = (onlineFailure: string | null): ControlledPolishResult => ({
+    decision: {
+      status: 'noop',
+      selected_source: 'original',
+      text: '原文',
+      degraded: false,
+      evaluations: {},
+      rule_version: 'test',
+    } as never,
+    provider: null,
+    model: null,
+    resolutionSource: null,
+    onlineFailure,
+    onlineAttempted: onlineFailure !== null,
+    usage: {},
+    editPolicySummary: {},
+  });
+
+  it.each([
+    ['provider_failed', '润色模型这次调用失败'],
+    ['invalid_model_response', '润色模型返回的结果格式不对'],
+    ['polish_model_not_configured', '专用润色模型尚未配置'],
+  ])('在线失败（%s）时不说成「候选一致」', (failure, text) => {
+    const summary = polishSummary(noop(failure));
+    expect(summary).toContain(text);
+    expect(summary).toContain('原文保持不变');
+    expect(summary).not.toContain('候选与原文一致');
+  });
+
+  it('在线候选本身与原文一致时照旧说明', () => {
+    expect(polishSummary(noop(null))).toBe('润色候选与原文一致，没有生成空补丁。');
   });
 });
