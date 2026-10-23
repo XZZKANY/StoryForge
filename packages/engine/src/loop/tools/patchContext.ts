@@ -4,6 +4,7 @@ import type { PlainJson, SecretContext } from '../../kernel/redaction';
 import { verifyReviewSource } from '../../kernel/reviseDelivery';
 import {
   resolveReviseScope,
+  revisionNamesReview,
   revisionReferencesReview,
   scopedReviseInstruction,
   type ReviseScope,
@@ -116,7 +117,17 @@ export async function prepareRevisionScope(
 ): Promise<[Obj | null, ReviseScope, string]> {
   let instruction = target.instruction;
   let report: Obj | null = isObj(payload.review_report) ? payload.review_report : null;
-  const directed = revisionReferencesReview(context.userMessage);
+  let directed = revisionReferencesReview(context.userMessage);
+  if (directed && report === null && !revisionNamesReview(context.userMessage)) {
+    // 只说了「第 N 条」、没提审稿：会话里真有已绑定的审稿报告才当审稿序号；没有就多半在指
+    // 上一轮回答里的条目，按作者原话改写，不该卡在「请先审稿」。
+    const stored = await currentConversationReview(
+      context.services.conversation,
+      context.assistantSessionId,
+      { transient: context.currentReviewReport },
+    );
+    directed = isObj(stored) && Boolean(stored.report_id) && Boolean(stored.content_sha256);
+  }
   if (report !== null || directed)
     report = await currentConversationReview(
       context.services.conversation,
