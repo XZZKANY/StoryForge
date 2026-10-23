@@ -33,7 +33,7 @@ export async function checkForUpdate(
   );
   if (!current) return { kind: 'error', message: `无法解析当前版本：${currentVersion}` };
 
-  let tags: Array<{ name?: unknown }>;
+  let tags: unknown[];
   try {
     const response = await fetchImpl(TAGS_URL, {
       headers: { Accept: 'application/vnd.github+json' },
@@ -43,7 +43,7 @@ export async function checkForUpdate(
     }
     const body: unknown = await response.json();
     if (!Array.isArray(body)) return { kind: 'error', message: 'tag 列表响应格式异常' };
-    tags = body as Array<{ name?: unknown }>;
+    tags = body;
   } catch (error) {
     return {
       kind: 'error',
@@ -54,7 +54,14 @@ export async function checkForUpdate(
   let latest: [number, number, number] | null = null;
   let latestName = '';
   for (const tag of tags) {
-    if (typeof tag.name !== 'string') continue;
+    if (
+      tag === null ||
+      typeof tag !== 'object' ||
+      Array.isArray(tag) ||
+      !('name' in tag) ||
+      typeof tag.name !== 'string'
+    )
+      continue;
     const parsed = parseVersionTag(tag.name);
     if (!parsed) continue;
     if (!latest || compareVersions(parsed, latest) > 0) {

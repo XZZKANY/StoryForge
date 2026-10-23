@@ -46,3 +46,16 @@ test('当前即最新 → up-to-date；接口非 2xx / 网络异常 → error �
   const noTags = await checkForUpdate('0.1.3', fakeFetch(200, [{ name: 'nightly' }]));
   assert.equal(noTags.kind, 'error');
 });
+
+test('畸形 tag 条目不拒绝 Promise，仍能识别同一响应里的有效版本', async () => {
+  const result = await checkForUpdate(
+    '0.1.3',
+    fakeFetch(200, [null, false, 7, 'v9.0.0', [], {}, { name: null }, { name: 'v0.2.0' }]),
+  );
+  assert.deepEqual(result, { kind: 'update-available', current: 'v0.1.3', latest: 'v0.2.0' });
+});
+
+test('没有有效 tag 的畸形数组返回明确 error，而不是未处理异常', async () => {
+  const result = await checkForUpdate('0.1.3', fakeFetch(200, [null, { name: 123 }]));
+  assert.deepEqual(result, { kind: 'error', message: '仓库没有可解析的版本 tag' });
+});

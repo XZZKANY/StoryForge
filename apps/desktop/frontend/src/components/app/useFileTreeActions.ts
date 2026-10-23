@@ -289,7 +289,7 @@ export function useFileTreeActions({
           return;
         }
         const content = await TauriFileSystem.readProjectFile(project, path);
-        await TauriFileSystem.writeFile(project, target, content);
+        await TauriFileSystem.writeFileIfUnchanged(project, target, content, { kind: 'missing' });
         invalidateContextBundleCache(project);
         await openFile(target, '打开副本');
         emitToast(`已复制为「${name}」`);

@@ -23,6 +23,7 @@ vi.mock('../src/lib/tauri-fs', () => ({
     listDir: vi.fn(async () => []),
     readProjectFile: vi.fn(async () => ''),
     writeFile: vi.fn(async () => undefined),
+    writeFileIfUnchanged: vi.fn(async () => undefined),
     renamePath: vi.fn(async () => undefined),
     revealInFileManager: vi.fn(async () => undefined),
     deletePath: vi.fn(async () => undefined),
@@ -186,7 +187,13 @@ test('复制一份：正文里的副本会排进手稿，先说清楚；写出�
     assert.equal(options.defaultValue, '第006章 副本.md');
     assert.match(options.message, /副本也会排进手稿/);
     const copy = `${PROJECT}\\正文\\第006章 副本.md`;
-    assert.deepEqual(fsMock.writeFile.mock.calls[0], [PROJECT, copy, '# 第006章\n\n他推开门。\n']);
+    assert.deepEqual(fsMock.writeFileIfUnchanged.mock.calls[0], [
+      PROJECT,
+      copy,
+      '# 第006章\n\n他推开门。\n',
+      { kind: 'missing' },
+    ]);
+    assert.equal(fsMock.writeFile.mock.calls.length, 0);
     assert.deepEqual(harness.openFile.mock.calls[0], [copy, '打开副本']);
 
     await act(async () => harness.actions().onDuplicate!(`${PROJECT}\\.草稿\\备忘.md`));
@@ -208,3 +215,64 @@ test('在资源管理器中显示：交给宿主；宿主拒绝就弹出原因',
     harness.cleanup();
   }
 });
+
+test.each(['外部作者刚刚写入的内容', ''])(
+  '复制时源文件读取期间出现同名目标，保留其内容：%j',
+  async (externalContent) => {
+    const harness = mount();
+    const copy = `${PROJECT}\\正文\\第006章 副本.md`;
+    const original = '# 第006章\n\n原稿内容。\n';
+    const disk = new Map([[CHAPTER, original]]);
+    const actual =
+      await vi.importActual<typeof import('../src/lib/tauri-fs')>('../src/lib/tauri-fs');
+    const previousFixture = window.__STORYFORGE_MOCK_FS__;
+    let enterRead!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      enterRead = resolve;
+    });
+    let finishRead!: (content: string) => void;
+    const readGate = new Promise<string>((resolve) => {
+      finishRead = resolve;
+    });
+    const write = vi.fn((path: string, content: string) => {
+      disk.set(path, content);
+    });
+    try {
+      window.__STORYFORGE_MOCK_FS__ = {
+        pathExists: (path) => disk.has(path),
+        readFile: (path) => disk.get(path) ?? '',
+        writeFile: write,
+      };
+      fsMock.pathExists.mockImplementation(async (path) => disk.has(path));
+      fsMock.writeFile.mockImplementation(async (_root, path, content) => write(path, content));
+      fsMock.writeFileIfUnchanged.mockImplementation(actual.TauriFileSystem.writeFileIfUnchanged);
+      fsMock.readProjectFile.mockImplementation(async () => {
+        enterRead();
+        return readGate;
+      });
+      harness.prompt.mockImplementationOnce(async (options) => options.defaultValue ?? null);
+      await act(async () => {
+        const operation = harness.actions().onDuplicate!(CHAPTER);
+        await entered;
+        disk.set(copy, externalContent);
+        finishRead(original);
+        await operation;
+      });
+      assert.equal(disk.get(copy), externalContent);
+      assert.equal(disk.get(CHAPTER), original);
+      assert.equal(write.mock.calls.length, 0);
+      assert.equal(harness.openFile.mock.calls.length, 0);
+      assert.equal(
+        toast.mock.calls.some(([message]) => String(message).includes('已复制为')),
+        false,
+      );
+      assert.match(harness.alert.mock.calls[0]![0].message, /磁盘内容已变化/);
+    } finally {
+      window.__STORYFORGE_MOCK_FS__ = previousFixture;
+      fsMock.readProjectFile.mockResolvedValue('');
+      fsMock.writeFile.mockResolvedValue(undefined);
+      fsMock.writeFileIfUnchanged.mockResolvedValue(undefined);
+      harness.cleanup();
+    }
+  },
+);
