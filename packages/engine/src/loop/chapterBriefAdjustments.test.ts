@@ -244,11 +244,24 @@ describe('chapter brief replies that put fact_adjustments after the object', () 
     expect(tricky.goal).toBe('他说"}别走"{');
   });
 
+  it('keeps the leading object and drops commentary written after it', () => {
+    // 真实回复：对象、fact_adjustments 一行，再补一段说明。
+    const reply = [
+      object,
+      `fact_adjustments: [${JSON.stringify(ADJUSTMENT)}]`,
+      '没有发现冲突，若你能提供节点我再补全。',
+    ].join('\n\n');
+    const brief = parseBrief(reply, options);
+    expect(brief.goal).toBe('刑警追捕另一名跛脚男');
+    expect(brief.fact_adjustments).toEqual([{ ...ADJUSTMENT, source: 'model' }]);
+    expect(parseBrief(`${object}\n以上是章纲。`, options).target_chars_min).toBe(3200);
+  });
+
   it.each([
     ['prose instead of JSON', '好的，我来写。'],
-    ['prose after the object', `${object}\n以上是章纲。`],
-    ['more text after the trailing array', `${object}\nfact_adjustments: []\n以上。`],
+    ['prose before the object', `好的：${object}`],
     ['a trailing value that is not an array', `${object}\nfact_adjustments: {}`],
+    ['a broken trailing array', `${object}\nfact_adjustments: [{"plan_quote": \n以上。`],
     [
       'adjustments both inside and after the object',
       `${JSON.stringify({ goal: 'g', fact_adjustments: [] })}\nfact_adjustments: []`,

@@ -361,7 +361,7 @@ function jsonObject(raw: unknown): Obj {
     parsed = parseJson(text, 'chapter brief');
   } catch (error) {
     if (!(error instanceof InputDomainError)) throw error;
-    parsed = withTrailingAdjustments(text);
+    parsed = leadingBriefObject(text);
     if (parsed === null) throw new AgentOrchestrationError('模型返回的结构化结果不是有效 JSON。');
   }
   if (!isJsonObject(parsed as never))
@@ -371,9 +371,9 @@ function jsonObject(raw: unknown): Obj {
 
 const TRAILING_ADJUSTMENTS = /^[\s,]*"?fact_adjustments"?\s*[:：]/u;
 
-/** 开头一个完整 JSON 对象的结束下标（不含）；不以 { 开头或括号不配对时为 null。 */
-function leadingObjectEnd(text: string): number | null {
-  if (!text.startsWith('{')) return null;
+/** 开头一个完整 JSON 对象 / 数组的结束下标（不含）；不以 open 开头或括号不配对时为 null。 */
+function leadingBracketEnd(text: string, open: '{' | '[', close: '}' | ']'): number | null {
+  if (!text.startsWith(open)) return null;
   let depth = 0;
   let inString = false;
   for (let index = 0; index < text.length; index += 1) {
@@ -382,30 +382,31 @@ function leadingObjectEnd(text: string): number | null {
       if (char === '\\') index += 1;
       else if (char === '"') inString = false;
     } else if (char === '"') inString = true;
-    else if (char === '{') depth += 1;
-    else if (char === '}' && --depth === 0) return index + 1;
+    else if (char === open) depth += 1;
+    else if (char === close && --depth === 0) return index + 1;
   }
   return null;
 }
 
 /**
- * 带已写事实时，提示词先列字段、再「另输出 fact_adjustments」，模型常把它另起一行写在对象外面。
- * 只认这一种尾巴并回对象；其他多余内容照旧按无效 JSON 处理。
+ * 模型常在 JSON 对象后面再写东西：带已写事实时提示词先列字段、再「另输出 fact_adjustments」，
+ * 它就另起一行写在对象外面；还常补一段说明。只认开头那个完整对象：紧跟的 fact_adjustments
+ * 数组并回对象（写坏或与对象里的同名字段重复就不认），再往后的说明文字不要。
  */
-function withTrailingAdjustments(text: string): Obj | null {
-  const end = leadingObjectEnd(text);
+function leadingBriefObject(text: string): Obj | null {
+  const end = leadingBracketEnd(text, '{', '}');
   if (end === null) return null;
-  const tail = TRAILING_ADJUSTMENTS.exec(text.slice(end));
-  if (!tail) return null;
   try {
     const object = parseJson(text.slice(0, end), 'chapter brief');
-    const adjustments = parseJson(pythonStrip(text.slice(end + tail[0].length)), 'chapter brief');
-    if (
-      !isJsonObject(object) ||
-      !Array.isArray(adjustments) ||
-      Object.prototype.hasOwnProperty.call(object, 'fact_adjustments')
-    )
-      return null;
+    if (!isJsonObject(object)) return null;
+    const tail = TRAILING_ADJUSTMENTS.exec(text.slice(end));
+    if (!tail) return { ...object };
+    if (Object.prototype.hasOwnProperty.call(object, 'fact_adjustments')) return null;
+    const rest = pythonStrip(text.slice(end + tail[0].length));
+    const arrayEnd = leadingBracketEnd(rest, '[', ']');
+    if (arrayEnd === null) return null;
+    const adjustments = parseJson(rest.slice(0, arrayEnd), 'chapter brief');
+    if (!Array.isArray(adjustments)) return null;
     return { ...object, fact_adjustments: adjustments };
   } catch (error) {
     if (error instanceof InputDomainError) return null;
