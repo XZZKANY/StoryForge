@@ -60,6 +60,7 @@ import {
 import { RunControlScope } from './runControl';
 import {
   buildConversationSystemJobs,
+  compactionJob,
   prepareConversationCompaction,
   SYSTEM_SUMMARY_ARTIFACT_KIND,
 } from './systemJobs';
@@ -82,7 +83,11 @@ import {
   traceObjects,
   type AgentToolTrace,
 } from './traces';
-import { validateCompactionPublication, CompactionRejected } from './conversationHistory';
+import {
+  validateCompactionPublication,
+  CompactionRejected,
+  ContextBudgetError,
+} from './conversationHistory';
 import { pythonStrip } from '../kernel/pythonText';
 
 type Obj = { [key: string]: unknown };
@@ -518,9 +523,8 @@ export class AgentRuntime {
       }
       return result;
     };
-    let outcome;
-    try {
-      outcome = await runChatLoop(
+    const chatLoop = () =>
+      runChatLoop(
         {
           reader: this.deps.reader,
           conversation: this.deps.conversation,
@@ -556,6 +560,19 @@ export class AgentRuntime {
           },
         },
       );
+    let outcome;
+    try {
+      try {
+        outcome = await chatLoop();
+      } catch (error) {
+        // 历史超预算时模型还没被调用：先补一次压缩再重组消息；补不上就照原样报错。
+        if (
+          !(error instanceof ContextBudgetError) ||
+          !(await this.compactForBudget(run, sessionId))
+        )
+          throw error;
+        outcome = await chatLoop();
+      }
     } catch (error) {
       if (error instanceof ChatLoopUnavailableError) return null;
       throw error;
@@ -739,22 +756,53 @@ export class AgentRuntime {
     });
   }
 
+  private compactionDeps() {
+    return {
+      conversation: this.deps.conversation,
+      assistant: this.deps.assistant,
+      source: this.deps.source,
+      secrets: this.deps.secrets,
+      buildProvider: (source: LlmSource) => new ConfiguredLlmProvider(source, this.llmContext()),
+      control: this.control,
+      observation: this.observation,
+    };
+  }
+
+  /**
+   * 会话已超历史预算时补做一次压缩：此前每轮收尾的压缩都没成，历史只增不减，
+   * 不补就再也进不了模型。走与收尾同一条校验与发布路径；没发布成检查点返回 false。
+   */
+  private async compactForBudget(run: RunRecord, sessionId: number): Promise<boolean> {
+    const payload = await prepareConversationCompaction(this.compactionDeps(), sessionId);
+    if (payload === null) return false;
+    let job = compactionJob(payload);
+    if (job.artifactPayload !== null) {
+      try {
+        await validateCompactionPublication(
+          this.deps.conversation,
+          job.artifactPayload,
+          this.control,
+        );
+      } catch (error) {
+        if (!(error instanceof CompactionRejected)) throw error;
+        job = compactionJob({ ...job.resultPayload, status: 'failed', code: 'source_drift' });
+      }
+    }
+    checkRunInterruption(this.control, 'before_publish:system_job:compaction');
+    await this.sink.recordSystemJob(run, {
+      key: job.key,
+      payload: job.eventPayload,
+      artifactKind: job.artifactKind,
+      artifactPayload: job.artifactPayload,
+    });
+    return job.artifactPayload !== null;
+  }
+
   /** 收尾时的隐藏任务：标题、短摘要、模型压缩；每个任务发布前都检查一次中断。 */
   private async runHiddenSystemJobs(run: RunRecord, sessionId: number, result: Obj) {
     const currentTitle = await this.deps.titles.title(sessionId);
     const messages = await this.deps.conversation.messages(sessionId);
-    const compactionPayload = await prepareConversationCompaction(
-      {
-        conversation: this.deps.conversation,
-        assistant: this.deps.assistant,
-        source: this.deps.source,
-        secrets: this.deps.secrets,
-        buildProvider: (source) => new ConfiguredLlmProvider(source, this.llmContext()),
-        control: this.control,
-        observation: this.observation,
-      },
-      sessionId,
-    );
+    const compactionPayload = await prepareConversationCompaction(this.compactionDeps(), sessionId);
     const jobs = buildConversationSystemJobs({
       assistantSessionId: sessionId,
       currentTitle,

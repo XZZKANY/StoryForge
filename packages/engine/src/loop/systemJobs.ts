@@ -186,30 +186,32 @@ export function buildConversationSystemJobs(input: {
     titleJob(input.assistantSessionId, input.currentTitle, records, input.result),
     summaryJob(input.assistantSessionId, records, input.result),
   ];
-  const compaction = input.compactionPayload;
-  if (compaction !== null) {
-    const output: Obj = Object.fromEntries(
-      Object.entries(compaction).filter(([key]) => COMPACTION_OUTPUT_KEYS.has(key)),
-    );
-    Object.assign(output, {
-      job_name: COMPACTION_JOB_NAME,
-      actor: 'system-compaction-agent',
-      hidden: true,
-      mode: 'model_checkpoint',
-    });
-    const completed = output.status === 'completed';
-    jobs.push({
-      key: 'compaction',
-      eventPayload: {
-        ...output,
-        message: completed ? '隐藏压缩检查点已验证。' : '压缩未发布；原始历史和旧有效检查点保留。',
-      },
-      resultPayload: output,
-      artifactKind: completed ? SYSTEM_COMPACTION_ARTIFACT_KIND : null,
-      artifactPayload: completed ? compaction : null,
-    });
-  }
+  if (input.compactionPayload !== null) jobs.push(compactionJob(input.compactionPayload));
   return jobs;
+}
+
+/** 压缩任务的事件 / 结果投影；只有校验过的检查点才带 artifact。 */
+export function compactionJob(compaction: Obj): SystemJobPlan {
+  const output: Obj = Object.fromEntries(
+    Object.entries(compaction).filter(([key]) => COMPACTION_OUTPUT_KEYS.has(key)),
+  );
+  Object.assign(output, {
+    job_name: COMPACTION_JOB_NAME,
+    actor: 'system-compaction-agent',
+    hidden: true,
+    mode: 'model_checkpoint',
+  });
+  const completed = output.status === 'completed';
+  return {
+    key: 'compaction',
+    eventPayload: {
+      ...output,
+      message: completed ? '隐藏压缩检查点已验证。' : '压缩未发布；原始历史和旧有效检查点保留。',
+    },
+    resultPayload: output,
+    artifactKind: completed ? SYSTEM_COMPACTION_ARTIFACT_KIND : null,
+    artifactPayload: completed ? compaction : null,
+  };
 }
 
 export type CompactionDeps = {
@@ -265,6 +267,10 @@ export async function prepareConversationCompaction(
       secrets: deps.secrets,
       control: deps.control,
       observation: deps.observation,
+      // 分片时每次请求各记一条用量；失败的那次也要记，不被前面成功的请求挡掉。
+      onRequestStart: () => {
+        responseRecorded = false;
+      },
       onResponse: recordUsage,
     });
   } catch (error) {
