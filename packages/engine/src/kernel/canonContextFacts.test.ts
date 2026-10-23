@@ -80,6 +80,39 @@ function setup(options: { ledger?: JsonObject[] | string | null; canon?: JsonObj
 }
 
 describe('written facts in the scene constraint block', () => {
+  it('keeps mixed-padding earlier facts and the same chapter window before and after saving', async () => {
+    const first = '正文/第1章 旧馆.md';
+    const second = '正文/第002章.md';
+    const target = '正文/第003章.md';
+    const ledger = [
+      fact(first, '周梨保管钥匙。', { subject: '周梨', value: '保管钥匙' }),
+      fact(second, '陈伯在旧馆。', { subject: '陈伯', value: '在旧馆' }),
+    ];
+    const project = memoryProject(ROOT, {
+      [first]: file('周梨保管钥匙。'),
+      [second]: file('陈伯在旧馆。'),
+      '正文/第10章.md': file('未来章节。'),
+      '.storyforge/canon/facts.json': file(JSON.stringify({ version: 1, facts: ledger })),
+      '.storyforge/canon/canon.json': file(
+        JSON.stringify({
+          entities: [{ id: 'chen', canonical_name: '陈伯' }],
+          invariants: { lifespan: [{ entity: 'chen', exits_after_chapter: 2 }] },
+        }),
+      ),
+    });
+    for (const saved of [false, true]) {
+      if (saved) project.apply({ [target]: file('周梨继续调查。') });
+      const block = await buildSceneConstraintBlock(project.reader, ROOT, target, {
+        platform: 'posix',
+        facts: { mentionText: '周梨' },
+      });
+      expect(block).toContain('周梨 · 处境：保管钥匙（第1章「周梨保管钥匙。」）');
+      expect(block).toContain('陈伯 · 处境：在旧馆（第2章「陈伯在旧馆。」）');
+      expect(block).toContain('「陈伯」已于第 2 章退场');
+    }
+    expect(project.takeWrites()).toEqual({});
+  });
+
   it('stays out unless the caller asks for it', async () => {
     expect(await setup()('正文/第004章.md')).toBeNull();
   });

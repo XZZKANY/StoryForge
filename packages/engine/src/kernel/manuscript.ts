@@ -1,4 +1,4 @@
-import { compareChapterPaths } from '@storyforge/project-core';
+import { compareManuscriptPaths } from '@storyforge/project-core';
 import { matchPythonPath } from './pathMatch';
 
 export const NON_MANUSCRIPT_DIRS = new Set([
@@ -61,5 +61,5 @@ export function orderManuscriptFiles(
         })
         .map((entry) => entry.relative_path),
     ),
-  ].sort(compareChapterPaths);
+  ].sort(compareManuscriptPaths);
 }

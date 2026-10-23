@@ -16,6 +16,47 @@ export function compareChapterPaths(a: string, b: string): number {
   return (left < a.length ? 1 : 0) - (right < b.length ? 1 : 0);
 }
 
+function compareManuscriptComponent(a: string, b: string): number {
+  const tokens = (path: string) =>
+    (path.match(/\p{Nd}+|[^\p{Nd}]/gu) ?? []).map((part) => {
+      if (!/^\p{Nd}/u.test(part)) return { text: part, numeric: false };
+      // Nd 的连续区间由完整的 0–9 组组成；不转 Number，避免长章号丢精度。
+      let digits = '';
+      for (const char of part) {
+        const point = char.codePointAt(0)!;
+        let zero = point;
+        while (/\p{Nd}/u.test(String.fromCodePoint(zero - 1))) zero -= 1;
+        digits += String((point - zero) % 10);
+      }
+      return { text: digits.replace(/^0+(?=\d)/, ''), numeric: true };
+    });
+  const left = tokens(a);
+  const right = tokens(b);
+  for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+    const x = left[index];
+    const y = right[index];
+    const order =
+      x.numeric && y.numeric
+        ? x.text.length - y.text.length || compareChapterPaths(x.text, y.text)
+        : compareChapterPaths(x.numeric ? '0' : x.text, y.numeric ? '0' : y.text);
+    if (order) return order;
+  }
+  return left.length - right.length || compareChapterPaths(a, b);
+}
+
+/** 数字段按值、其余按码点；目录内先打破同号平局，避免卷1和卷01的章互相穿插。 */
+export function compareManuscriptPaths(a: string, b: string): number {
+  // 保留分隔符参与比较，使无数字的 A.md / A/正文.md 沿用原码点序。
+  const parts = (path: string) => path.replace(/\\/g, '/').match(/[^/]*\/|[^/]+$/g) ?? [];
+  const left = parts(a);
+  const right = parts(b);
+  for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+    const order = compareManuscriptComponent(left[index], right[index]);
+    if (order) return order;
+  }
+  return left.length - right.length || compareChapterPaths(a, b);
+}
+
 function projectSeparator(path: string): '\\' | '/' {
   return path.includes('\\') ? '\\' : '/';
 }

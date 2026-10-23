@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectReader } from '../readPort';
 import { buildSceneConstraintBlock } from './canonContext';
+import { readBookRoster } from './canonStore';
 import { hooksDelta } from './canonHooksDelta';
 import { buildCanonProjection } from './canonService';
 import type { EncodedFile } from './contextFixture.test-support';
@@ -100,6 +101,42 @@ describe('canon declarations outside the input domain', () => {
     });
     expect(second.presence).toEqual(first.presence);
     expect(Object.keys(project.takeWrites())).toContain('.storyforge/canon/derived/presence.json');
+  });
+
+  it('rejects the old reading-order cache and rebuilds dense ordinals without editing declarations', async () => {
+    const canon = '{"entities":[{"id":"a","canonical_name":"林舟"}]}';
+    const project = memoryProject(ROOT, {
+      '正文/第1章 初来.md': file('林舟出场。'),
+      '正文/第002章.md': file('另一人出场。'),
+      '.storyforge/canon/canon.json': file(canon),
+    });
+    const first = await buildCanonProjection(project.reader, project.writer, ROOT, {
+      platform: 'windows',
+    });
+    expect(first.sourceRevision).toMatch(/^canon-manuscript-order-v2:/);
+    project.takeWrites();
+    project.apply({
+      '.storyforge/canon/derived/presence.json': file(
+        JSON.stringify({
+          ...first.presence,
+          entities: [{ ...first.presence.entities[0], first_chapter: 2, last_chapter: 2 }],
+          _storyforge_source_revision: first.sourceRevision!.replace(
+            'canon-manuscript-order-v2:',
+            'canon-writeback-v1:',
+          ),
+        }),
+      ),
+    });
+    expect((await readBookRoster(project.reader, ROOT)).roster[0].first_chapter).toBeNull();
+    const rebuilt = await buildCanonProjection(project.reader, project.writer, ROOT, {
+      platform: 'windows',
+      refresh: false,
+    });
+    expect(rebuilt.presence.entities[0]).toMatchObject({ first_chapter: 1, last_chapter: 1 });
+    expect((await readBookRoster(project.reader, ROOT)).roster[0].first_chapter).toBe(1);
+    const writes = project.takeWrites();
+    expect(Object.keys(writes)).toContain('.storyforge/canon/derived/presence.json');
+    expect(writes['.storyforge/canon/canon.json']).toBeUndefined();
   });
 });
 

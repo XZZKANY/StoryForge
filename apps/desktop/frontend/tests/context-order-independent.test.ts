@@ -19,21 +19,25 @@ function indexFor(paths: string[]) {
   );
 }
 
-// Oracle fixture is produced with Python sorted(), independently of JS collation.
+// 原 Python oracle 不重录；数字名用手写的新版阅读序，其余继续严格比对。
 for (const fixture of fixtures) {
+  const ordered =
+    fixture.name === 'numeric_lexical'
+      ? ['正文/第1章.md', '正文/第2章.md', '正文/第10章.md']
+      : fixture.ordered;
   for (const reverse of [false, true]) {
-    test(`previous-chapter seat follows Python order: ${fixture.name}, reverse=${reverse}`, () => {
-      const paths = reverse ? [...fixture.ordered].reverse() : fixture.ordered;
+    test(`previous-chapter seat follows reading order: ${fixture.name}, reverse=${reverse}`, () => {
+      const paths = reverse ? [...ordered].reverse() : ordered;
       const index = indexFor(paths);
-      for (let i = 1; i < fixture.ordered.length; i += 1) {
+      for (let i = 1; i < ordered.length; i += 1) {
         const selected = selectContextBundleFiles({
           index,
-          currentFile: `${root}/${fixture.ordered[i]}`,
+          currentFile: `${root}/${ordered[i]}`,
           maxFiles: 1,
         });
         assert.deepEqual(
           selected.files.map((file) => file.relativePath),
-          [fixture.ordered[i - 1]],
+          [ordered[i - 1]],
         );
       }
     });

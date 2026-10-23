@@ -126,7 +126,11 @@ export async function captureCanonSourceRevision(
             ),
       ]);
     }
-    return 'canon-writeback-v1:' + (await sha256(new TextEncoder().encode(JSON.stringify(hashes))));
+    // 阅读序变更会改变 presence 章号，即使原稿/回执字节未变也不能信任旧派生缓存。
+    return (
+      'canon-manuscript-order-v2:' +
+      (await sha256(new TextEncoder().encode(JSON.stringify(hashes))))
+    );
   } catch (error) {
     if (
       !(

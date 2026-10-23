@@ -1,4 +1,4 @@
-import { compareChapterPaths } from '@storyforge/project-core';
+import { compareManuscriptPaths } from '@storyforge/project-core';
 import { selectWrittenFacts, type WrittenFact } from '../kernel/canonContext';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
 import { resolveNewProjectFile } from '../kernel/fsProjectTools';
@@ -170,7 +170,7 @@ export async function recentChapterChars(
     (key) => normcase(key, platform) === normcase(targetRelative, platform),
   );
   if (index === -1) {
-    index = keys.findIndex((key) => compareChapterPaths(key, targetRelative) >= 0);
+    index = keys.findIndex((key) => compareManuscriptPaths(key, targetRelative) >= 0);
     if (index === -1) index = keys.length;
   }
   const counts: number[] = [];

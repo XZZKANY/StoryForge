@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import golden from '../../golden/p1-context.windows.json';
 import { buildBookContext } from './buildBookContext';
+import { chapterOrdinals } from './canonRebuild';
+import { memoryProject } from './memoryProject.test-support';
+import { previousChapterTail } from './previousChapter';
 import { toBookContextPayload } from './bookContext';
 import { captureCanonSourceRevision } from './canonStore';
 import { contextFixtureReader } from './contextFixture.test-support';
 import {
   CACHE_INVALID_ORACLE,
   contextExpectation,
+  currentPresenceVersionFixture,
+  currentReadingOrderJson,
   DECLARATION_ERRORS,
   RELATIVE_ORACLE,
   REVISION_UNKNOWN,
@@ -46,7 +51,7 @@ it('judges every Python book.context case under the input domain', () => {
 describe('real Python file-backed book.context replay', () => {
   for (const fixture of golden.book_context) {
     it(fixture.id, async () => {
-      const { reader, root, trace } = contextFixtureReader(fixture);
+      const { reader, root, trace } = contextFixtureReader(currentPresenceVersionFixture(fixture));
       const current =
         fixture.current === null
           ? null
@@ -62,9 +67,15 @@ describe('real Python file-backed book.context replay', () => {
         const source = expectation.source;
         expect('error' in source && source.error).toBeFalsy();
         const context = await build();
-        expect(facts(context)).toEqual(source.context_typed!);
+        expect(facts(context)).toEqual(
+          fixture.id === 'unicode-order'
+            ? facts(JSON.parse(currentReadingOrderJson(fixture.id, source.context_json!)))
+            : source.context_typed!,
+        );
         const payload = context === null ? null : toBookContextPayload(context);
-        expect(payload).toEqual(JSON.parse(source.payload_json!));
+        expect(payload).toEqual(
+          JSON.parse(currentReadingOrderJson(fixture.id, source.payload_json!)),
+        );
         const prompt = payload?.prompt_block ?? null;
         const bytes =
           source.prompt_utf8_base64 === null
@@ -80,7 +91,12 @@ describe('real Python file-backed book.context replay', () => {
       ).toBeLessThanOrEqual(1);
       if (!fixture.missing_root)
         expect(await captureCanonSourceRevision(reader, root)).toBe(
-          REVISION_UNKNOWN.has(fixture.id) ? null : fixture.source_revision,
+          REVISION_UNKNOWN.has(fixture.id)
+            ? null
+            : (fixture.source_revision?.replace(
+                'canon-writeback-v1:',
+                'canon-manuscript-order-v2:',
+              ) ?? null),
         );
     });
   }
@@ -91,6 +107,42 @@ const base = () =>
     files: { '正文/01.md': { chunks: [{ base64: btoa('abcdef'), repeat: 1 }] } },
     missing_root: false,
   });
+
+it('shares mixed-padding reading order across book context, canon and both previous-tail readers', async () => {
+  const encode = (text: string) => ({
+    chunks: [{ base64: btoa(String.fromCharCode(...new TextEncoder().encode(text))), repeat: 1 }],
+  });
+  const root = '/book';
+  const first = '正文/第1章 旧馆.md';
+  const second = '正文/第002章.md';
+  const target = '正文/第003章.md';
+  const project = memoryProject(root, {
+    [first]: encode('第一章尾巴。'),
+    [second]: encode('第二章尾巴。'),
+    '正文/第10章.md': encode('未来章节。'),
+  });
+  expect([...(await chapterOrdinals(project.reader, root, '*.md', 'posix'))]).toEqual([
+    [first, 1],
+    [second, 2],
+    ['正文/第10章.md', 3],
+  ]);
+  for (const [current, previous, tail] of [
+    [second, first, '第一章尾巴。'],
+    [target, second, '第二章尾巴。'],
+  ]) {
+    const context = await buildBookContext(project.reader, root, current, 'posix');
+    expect(context?.chapters.map((chapter) => chapter.relative_path)).toEqual([
+      first,
+      second,
+      '正文/第10章.md',
+    ]);
+    expect(context?.previous_chapter).toEqual([previous, tail]);
+    expect(await previousChapterTail(project.reader, root, current, { platform: 'posix' })).toEqual(
+      [previous, tail],
+    );
+  }
+  expect(project.takeWrites()).toEqual({});
+});
 
 it('does not turn a programming error into an optional source', async () => {
   const { reader, root } = base();

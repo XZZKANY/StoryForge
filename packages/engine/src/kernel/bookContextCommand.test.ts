@@ -2,14 +2,21 @@ import { describe, expect, it } from 'vitest';
 import golden from '../../golden/p1-context.windows.json';
 import { executeBookContextCommand, IdeCommandExecutionError } from './bookContextCommand';
 import { contextFixtureReader } from './contextFixture.test-support';
-import { commandExpectation, commandSecrets, hydrate } from './contextDomain.test-support';
+import {
+  commandExpectation,
+  commandSecrets,
+  currentPresenceVersionFixture,
+  hydrate,
+} from './contextDomain.test-support';
 import { InputDomainError } from './json';
 
 describe('complete book.context command: registry + serializer + response oracle', () => {
   for (const fixture of golden.book_context) {
     for (const command of fixture.commands) {
       it(`${fixture.id}/${command.id}`, async () => {
-        const { reader, root, trace } = contextFixtureReader(fixture);
+        const { reader, root, trace } = contextFixtureReader(
+          currentPresenceVersionFixture(fixture),
+        );
         const args = hydrate(command.args_json, root) as Record<string, unknown>;
         const execute = () =>
           executeBookContextCommand(reader, args, commandSecrets(command), 'windows');

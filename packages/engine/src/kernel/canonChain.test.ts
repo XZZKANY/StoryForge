@@ -9,7 +9,11 @@ import { buildSceneConstraintBlock } from './canonContext';
 import { rebuildPresence } from './canonRebuild';
 import { buildCanonProjection } from './canonService';
 import { consistencyScan } from './consistencyScan';
-import { decodeFixtureBytes, type EncodedFile } from './contextFixture.test-support';
+import {
+  currentCanonOrderBytes,
+  decodeFixtureBytes,
+  type EncodedFile,
+} from './contextFixture.test-support';
 import { FsToolError } from './fsTools';
 import { GenerationSourceCapture } from './generationSources';
 import { isJsonObject, parseJson, type JsonObject } from './json';
@@ -88,15 +92,44 @@ describe('real Python canon chain replay', () => {
           await expect(execute(project, call), label).rejects.toThrow(call.error.message);
         } else {
           const output = await execute(project, call);
-          expect(stable(output), label).toEqual(JSON.parse(call.output_json!));
+          const expected = JSON.parse(call.output_json!);
+          // Unicode数字待写章按自然序插入：第１２章在已有012之后，第٣章在003之后，
+          // 均早于第20章退场窗口。旧Python oracle保留，不再沿用其码点末尾插入结果。
+          if (
+            record.id === 'long-provenance' &&
+            call.fn === 'scene_constraints' &&
+            ['正文/第１２章.md', '正文/第٣章.md'].includes(String(call.args.current_file))
+          ) {
+            expected.block = null;
+            expected.selections[0].value.current_ordinal =
+              call.args.current_file === '正文/第１２章.md' ? 13 : 4;
+            expected.projections = [
+              {
+                row: {
+                  purpose: 'canon_constraints',
+                  channel: 'user',
+                  source_ids: [],
+                  requested_source_count: 0,
+                  selected_source_count: 0,
+                  source_span: null,
+                  truncated: false,
+                  omission_reason: 'no_active_constraints',
+                  transformation: 'identity',
+                },
+                text: null,
+              },
+            ];
+          }
+          expect(stable(output), label).toEqual(expected);
         }
         const writes = project.takeWrites();
         expect(Object.keys(writes).sort(), label).toEqual(Object.keys(call.writes).sort());
         for (const [path, file] of Object.entries(call.writes)) {
           expect(file, label).not.toBeNull();
-          const expected = new TextDecoder().decode(decodeFixtureBytes(file!));
+          const bytes = currentCanonOrderBytes(path, decodeFixtureBytes(file!));
+          const expected = new TextDecoder().decode(bytes);
           expect(new TextDecoder().decode(writes[path]), `${label} ${path}`).toBe(expected);
-          expect(writes[path], `${label} ${path}`).toEqual(decodeFixtureBytes(file!));
+          expect(writes[path], `${label} ${path}`).toEqual(bytes);
         }
       }
     });

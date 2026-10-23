@@ -1,4 +1,4 @@
-import { compareChapterPaths } from '@storyforge/project-core';
+import { compareManuscriptPaths } from '@storyforge/project-core';
 import { TauriFileSystem } from '../tauri-fs';
 import { FS_MUTATION_EVENT } from '../tauri-fs';
 import { buildProjectIndex } from './index';
@@ -39,7 +39,7 @@ const KIND_PRIORITY: Record<SemanticKind, number> = {
 const PREVIOUS_CHAPTER_PRIORITY = 0.5;
 
 type DraftOrder = {
-  /** 已归类正文的 path → 阅读序下标；用后端码点路径序，文件分类仍由前端索引负责。 */
+  /** 已归类正文的 path → 共享阅读序下标；文件分类仍由前端索引负责。 */
   positionByPath: Map<string, number>;
   total: number;
   /** 当前文件在阅读序中的位置；当前文件不是正文（比如在改人物卡）时为 null。 */
@@ -50,7 +50,7 @@ function buildDraftOrder(files: SemanticFile[], currentFile: string | null): Dra
   const positionByPath = new Map<string, number>();
   files
     .filter((file) => file.kind === 'draft')
-    .sort((a, b) => compareChapterPaths(a.relativePath, b.relativePath))
+    .sort((a, b) => compareManuscriptPaths(a.relativePath, b.relativePath))
     .forEach((file, position) => positionByPath.set(file.path, position));
   const currentPosition = currentFile ? (positionByPath.get(currentFile) ?? null) : null;
   return { positionByPath, total: positionByPath.size, currentPosition };

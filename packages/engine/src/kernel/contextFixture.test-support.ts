@@ -19,6 +19,16 @@ export function decodeFixtureBytes(file: EncodedFile): Uint8Array {
   return output;
 }
 
+/** 阅读序升级只改变派生缓存版本戳；保留原 oracle，其他字节（含无效编码）逐字不动。 */
+export function currentCanonOrderBytes(path: string, bytes: Uint8Array): Uint8Array {
+  if (!path.startsWith('.storyforge/canon/derived/')) return bytes;
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+  return Uint8Array.from(
+    binary.split('canon-writeback-v1:').join('canon-manuscript-order-v2:'),
+    (char) => char.charCodeAt(0),
+  );
+}
+
 /** Synthetic files only; no production cache or filesystem access. Used by the Python replay. */
 export function contextFixtureReader(fixture: {
   files: Record<string, EncodedFile | undefined>;

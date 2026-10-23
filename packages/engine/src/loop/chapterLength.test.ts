@@ -38,6 +38,20 @@ describe('chapter length', () => {
     );
   });
 
+  it('samples mixed padded chapter names in reading order for a missing or saved target', async () => {
+    const project = memoryProject(ROOT, {
+      '正文/第1章 空着的卡槽.md': encoded('甲'.repeat(767)),
+      '正文/第002章.md': encoded('乙'.repeat(1063)),
+      '正文/第10章.md': encoded('丁'.repeat(2000)),
+    });
+    for (const saved of [false, true]) {
+      if (saved) project.apply({ '正文/第003章.md': encoded('丙'.repeat(900)) });
+      const counts = await recentChapterChars(project.reader, ROOT, '正文/第003章.md', 'windows');
+      expect(counts).toEqual([1063, 767]);
+      expect(bookChapterRange(counts)).toEqual([600, 1000]);
+    }
+  });
+
   it.each([
     [
       [1200, 900, 600],

@@ -131,6 +131,32 @@ test('loads the complete deterministic draft index and resolves current chapter 
   );
 });
 
+test('sorts mixed-padding chapters in reading order while retaining explicit chapter numbers', async () => {
+  const project = 'D:/books/mixed';
+  const paths = ['正文/第010章.md', '正文/第002章.md', '正文/第1章 旧馆.md'];
+  mockedBuild.mockResolvedValue(
+    index(
+      project,
+      paths.map((relativePath) => ({
+        name: relativePath.slice(3),
+        relativePath,
+      })),
+    ),
+  );
+  await render({ projectPath: project });
+  assert.deepEqual(
+    [...container!.querySelectorAll('[data-chapter]')].map((node) => [
+      node.getAttribute('data-chapter'),
+      node.getAttribute('data-ordinal'),
+    ]),
+    [
+      ['正文/第1章 旧馆.md', '1'],
+      ['正文/第002章.md', '2'],
+      ['正文/第010章.md', '10'],
+    ],
+  );
+});
+
 test('rejects out-of-project current file and ignores late result from previous project', async () => {
   const first = 'D:/books/alpha';
   const second = 'D:/books/beta';

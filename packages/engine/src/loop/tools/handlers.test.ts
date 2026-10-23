@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import golden from '../../../golden/p3-tool-handlers.windows.json';
-import { decodeFixtureBytes, type EncodedFile } from '../../kernel/contextFixture.test-support';
+import {
+  currentCanonOrderBytes,
+  decodeFixtureBytes,
+  type EncodedFile,
+} from '../../kernel/contextFixture.test-support';
 import {
   fsList,
   fsSearch,
@@ -228,7 +232,9 @@ describe.each(projects.map((record) => [record.id, record] as const))(
         const writes = h.project.takeWrites();
         expect(Object.keys(writes).sort()).toEqual(Object.keys(call.writes).sort());
         for (const [path, file] of Object.entries(call.writes))
-          expect(writes[path], path).toEqual(decodeFixtureBytes(file!));
+          expect(writes[path], path).toEqual(
+            currentCanonOrderBytes(path, decodeFixtureBytes(file!)),
+          );
       });
     }
   },
