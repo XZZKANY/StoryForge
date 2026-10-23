@@ -12,13 +12,15 @@ import {
   commandExpectation,
   commandSecrets,
   contextExpectation,
+  currentPresenceVersionFixture,
+  currentReadingOrderJson,
   hydrate,
 } from '../../../../packages/engine/src/kernel/contextDomain.test-support';
 import { mapBookContextPayload } from '../src/lib/book-context';
 
 for (const fixture of golden.book_context) {
   it(`formal engine package → existing mapper: ${fixture.id}`, async () => {
-    const { reader, root } = contextFixtureReader(fixture);
+    const { reader, root } = contextFixtureReader(currentPresenceVersionFixture(fixture));
     const current =
       fixture.current === null
         ? null
@@ -33,7 +35,11 @@ for (const fixture of golden.book_context) {
     }
     const context = await build();
     const actual = mapBookContextPayload(context === null ? null : toBookContextPayload(context));
-    expect(actual).toEqual(mapBookContextPayload(JSON.parse(expectation.source.payload_json!)));
+    expect(actual).toEqual(
+      mapBookContextPayload(
+        JSON.parse(currentReadingOrderJson(fixture.id, expectation.source.payload_json!)),
+      ),
+    );
   });
 }
 
@@ -43,7 +49,7 @@ for (const fixture of golden.book_context) {
     const expectation = commandExpectation(fixture, command);
     if (expectation.kind !== 'output') continue;
     it(`maps serialized command ${fixture.id}/${command.id}`, async () => {
-      const { reader, root } = contextFixtureReader(fixture);
+      const { reader, root } = contextFixtureReader(currentPresenceVersionFixture(fixture));
       const args = hydrate(command.args_json, root) as Record<string, unknown>;
       const actual = await executeBookContextCommand(
         reader,

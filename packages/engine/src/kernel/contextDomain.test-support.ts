@@ -1,4 +1,9 @@
 import golden from '../../golden/p1-context.windows.json';
+import {
+  currentCanonOrderBytes,
+  decodeFixtureBytes,
+  type EncodedFile,
+} from './contextFixture.test-support';
 import { textFromCodePoints } from './pythonFacts.test-support';
 
 /**
@@ -7,6 +12,36 @@ import { textFromCodePoints } from './pythonFacts.test-support';
  */
 export type ContextCase = (typeof golden.book_context)[number];
 export type CommandCase = ContextCase['commands'][number];
+
+/** 旧 oracle 不重录：仅升级测试缓存的版本戳，继续覆盖其余字节/结构有效性。 */
+export function currentPresenceVersionFixture(fixture: {
+  files: Record<string, EncodedFile | undefined>;
+  missing_root: boolean;
+}) {
+  const path = '.storyforge/canon/derived/presence.json';
+  const file = fixture.files[path];
+  if (!file) return fixture;
+  const bytes = currentCanonOrderBytes(path, decodeFixtureBytes(file));
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+  return {
+    ...fixture,
+    files: {
+      ...fixture.files,
+      [path]: {
+        chunks: [{ base64: btoa(binary), repeat: 1 }],
+      },
+    },
+  };
+}
+
+/** 有意偏离 Python 旧阅读序；此用例只有第2/10章互换，其余字段与原oracle保持一致。 */
+export function currentReadingOrderJson(id: string, json: string): string {
+  return id === 'unicode-order'
+    ? json.replace(/正文\/第(10|2)章\.md/g, (_, number: string) =>
+        number === '10' ? '正文/第2章.md' : '正文/第10章.md',
+      )
+    : json;
+}
 
 /** 作者声明超出范围：TS 报错，消息须包含这段文字。 */
 export const DECLARATION_ERRORS: Readonly<Record<string, string>> = {
@@ -126,7 +161,7 @@ export function commandExpectation(fixture: ContextCase, command: CommandCase): 
       message: source.http.display!,
       exact: true,
     };
-  const outputJson = source.output_json!;
+  const outputJson = currentReadingOrderJson(fixture.id, source.output_json!);
   const promptBase64 = source.prompt_utf8_base64;
   // 参照用例的参数不同（只有相对路径那条）时，回显取本条命令自己的参数；两边都不含密钥。
   const ownArgs = source.args_json === command.args_json ? null : command.args_json;

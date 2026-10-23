@@ -193,6 +193,10 @@ export function useSuggestionWriteback({
     message: string;
   } | null>(null);
   const mountedRef = useRef(false);
+  const dropOpenFilePathRef = useRef(dropOpenFilePath);
+  useLayoutEffect(() => {
+    dropOpenFilePathRef.current = dropOpenFilePath;
+  }, [dropOpenFilePath]);
   useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -952,6 +956,7 @@ export function useSuggestionWriteback({
                 if (!projectRoot) throw new Error('未打开项目，不能撤销新建');
                 const epoch = recoveryEpochRef.current;
                 const version = targetModel?.getVersionId?.();
+                const targetState = modelCacheRef.current.get(path);
                 const disk = await TauriFileSystem.readProjectFile(projectRoot, path);
                 // 只撤销本次接受生成的精确正文；编辑器没变不代表外部程序没改盘。
                 if (disk !== wrote) throw new Error('磁盘内容已变化，不能撤销新建；请查看版本历史');
@@ -973,8 +978,28 @@ export function useSuggestionWriteback({
                 // 正文没了，这章就不再是「写完的」——把接受时标上的 done 退回 pending。
                 // 只在这一支做：修订的撤销走下面的反向写回，文件还在，那章依然是写完的。
                 await unmarkChapterWrittenInPlan(projectRoot, path);
-                // 页签留着的话，开着 autosave 时下一次防抖就会把文件原样写回来。
-                dropOpenFilePath?.(path);
+                // 删除/计划更新期间仍能输入或切页，只清理未变的原 model；不丢弃后来新稿。
+                const canRetireTarget = () =>
+                  mountedRef.current &&
+                  projectPathRef.current === projectRoot &&
+                  targetModel !== null &&
+                  modelCacheRef.current.get(path) === targetState &&
+                  targetState?.model === targetModel &&
+                  !targetModel.isDisposed() &&
+                  targetModel.getVersionId?.() === version &&
+                  (filePathRef.current !== path || editorRef.current?.getModel() === targetModel);
+                if (
+                  !canRetireTarget() ||
+                  (await TauriFileSystem.pathExists(path)) ||
+                  !canRetireTarget()
+                ) {
+                  emitToast('删除已完成；后续内容或页签状态已变化，已保留当前编辑', {
+                    tone: 'info',
+                  });
+                  return;
+                }
+                // 未改动的原页签须摘掉，避免 autosave 重建；切页后的结算使用最新回调。
+                dropOpenFilePathRef.current?.(path);
                 emitToast('已撤销，该文件回到「不存在」', { tone: 'success' });
                 return;
               }
@@ -1046,7 +1071,6 @@ export function useSuggestionWriteback({
     },
     [
       beginAction,
-      dropOpenFilePath,
       editorRef,
       filePathRef,
       finishAction,
@@ -1499,6 +1523,29 @@ export function useSuggestionWriteback({
       window.removeEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
   }, [handleAcceptSuggestion]);
 
+  // 在首个 await 前锁定预览身份；拒绝和保存旁注都不该留下不存在的空文件页签。
+  const prepareEmptyTargetRetirement = useCallback(
+    (actionToken: symbol, suggestion: AssistantFileSuggestion) => {
+      const targetState = modelCacheRef.current.get(suggestion.filePath);
+      const targetModel = targetState?.model;
+      const version =
+        targetState?.diskBaseline.kind === 'missing' ? targetModel?.getVersionId() : undefined;
+      const unchanged = () =>
+        isCurrentAction(actionToken) &&
+        modelCacheRef.current.get(suggestion.filePath) === targetState &&
+        targetState?.diskBaseline.kind === 'missing' &&
+        targetState.originalContent === '' &&
+        targetModel !== undefined &&
+        editorRef.current?.getModel() === targetModel &&
+        !targetModel.isDisposed() &&
+        targetModel.getVersionId() === version &&
+        targetModel.getValue() === '';
+      return async () =>
+        unchanged() && !(await TauriFileSystem.pathExists(suggestion.filePath)) && unchanged();
+    },
+    [editorRef, isCurrentAction, modelCacheRef],
+  );
+
   const handleSaveSuggestionNote = useCallback(async () => {
     const suggestion = pendingSuggestionRef.current;
     const project = projectPathRef.current;
@@ -1506,6 +1553,7 @@ export function useSuggestionWriteback({
 
     const actionToken = beginAction('note', suggestion);
     if (!actionToken) return;
+    const canRetireEmptyTarget = prepareEmptyTargetRetirement(actionToken, suggestion);
 
     try {
       const separator = project.includes('\\') ? '\\' : '/';
@@ -1547,10 +1595,12 @@ export function useSuggestionWriteback({
       await TauriFileSystem.writeFile(project, notePath, note);
       const runStatus = await forgetSuggestionRecovery(suggestion);
       if (!runStatus) return;
+      const retireEmptyTarget = await canRetireEmptyTarget();
       replacePendingFileSuggestion(suggestion, null);
       if (!isCurrentAction(actionToken)) return;
       updatePendingSuggestion(null);
       setSuggestionStatus(`已保存旁注: ${notePath}`, 'success');
+      if (retireEmptyTarget) dropOpenFilePathRef.current?.(suggestion.filePath);
       emitPatchRejected({
         filePath: suggestion.filePath,
         patchId: suggestion.id,
@@ -1571,6 +1621,7 @@ export function useSuggestionWriteback({
     finishAction,
     forgetSuggestionRecovery,
     isCurrentAction,
+    prepareEmptyTargetRetirement,
     projectPathRef,
     setSuggestionStatus,
     updatePendingSuggestion,
@@ -1605,14 +1656,18 @@ export function useSuggestionWriteback({
       const suggestion = pendingSuggestionRef.current;
       const trimmed = direction.trim();
       let runStatus: 'completed' | 'failed' | undefined;
+      let retireEmptyTarget = false;
       const project = projectPathRef.current;
       if (suggestion) {
         const actionToken = beginAction('reject', suggestion);
         if (!actionToken) return false;
+        const canRetireEmptyTarget = prepareEmptyTargetRetirement(actionToken, suggestion);
         try {
           const forgotten = await forgetSuggestionRecovery(suggestion);
           if (!isCurrentAction(actionToken) || !forgotten) return false;
           runStatus = typeof forgotten === 'string' ? forgotten : undefined;
+          retireEmptyTarget = await canRetireEmptyTarget();
+          if (!isCurrentAction(actionToken)) return false;
         } catch (error) {
           failAction(
             actionToken,
@@ -1626,8 +1681,9 @@ export function useSuggestionWriteback({
       updatePendingSuggestion(null);
       setSuggestionStatus(trimmed ? '已否掉这版，正按你的说法重来' : '已拒绝修订');
       if (suggestion) {
+        if (retireEmptyTarget) dropOpenFilePathRef.current?.(suggestion.filePath);
         emitPatchRejected({
-          filePath: filePathRef.current ?? suggestion.filePath,
+          filePath: suggestion.filePath,
           patchId: suggestion.id,
           direction: trimmed,
           ...(suggestion.runId
@@ -1645,8 +1701,8 @@ export function useSuggestionWriteback({
     [
       beginAction,
       failAction,
+      prepareEmptyTargetRetirement,
       projectPathRef,
-      filePathRef,
       finishAction,
       forgetSuggestionRecovery,
       isCurrentAction,

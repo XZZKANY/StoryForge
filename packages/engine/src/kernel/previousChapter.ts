@@ -1,4 +1,4 @@
-import { compareChapterPaths } from '@storyforge/project-core';
+import { compareManuscriptPaths } from '@storyforge/project-core';
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import { FsToolError } from './fsTools';
 import { normcase, type GenerationSourceCapture } from './generationSources';
@@ -81,7 +81,7 @@ export async function previousChapterTail(
     const keys = await iterManuscriptFiles(reader, projectRoot, platform);
     let index = keys.findIndex((key) => normcase(key, platform) === normcase(rel, platform));
     if (index === -1) {
-      index = keys.findIndex((key) => compareChapterPaths(key, rel) >= 0);
+      index = keys.findIndex((key) => compareManuscriptPaths(key, rel) >= 0);
       if (index === -1) index = keys.length;
     }
     await capture?.selectWithHashes(

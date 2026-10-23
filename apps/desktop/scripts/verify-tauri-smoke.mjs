@@ -6,12 +6,12 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const root = new URL('..', import.meta.url).pathname.replace(/^\//, '').replace(/\//g, '\\');
-const frontendDir = `${root}\\frontend`;
-const tauriDir = `${root}`;
-const releaseExecutable = `${root}\\src-tauri\\target\\release\\storyforge-desktop.exe`;
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const frontendDir = join(root, 'frontend');
+const tauriDir = root;
+const releaseExecutable = join(root, 'src-tauri', 'target', 'release', 'storyforge-desktop.exe');
 export const SMOKE_ISOLATION_PROTOCOL = 'storyforge-smoke-isolation-v1';
 
 function argumentValue(name) {

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
+import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { test } from 'node:test';
 
 import {
@@ -15,6 +19,36 @@ import {
   verifiedSmokeExecutable,
   waitForExit,
 } from './verify-tauri-smoke.mjs';
+
+test('release preflight resolves spaces, Unicode and literal percent signs in its checkout path', async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), 'storyforge-smoke-path-'));
+  try {
+    const desktopDir = join(temporaryRoot, 'Story Forge 中文 %20', 'apps', 'desktop');
+    const scriptPath = join(desktopDir, 'scripts', 'verify-tauri-smoke.mjs');
+    await mkdir(dirname(scriptPath), { recursive: true });
+    await copyFile(new URL('./verify-tauri-smoke.mjs', import.meta.url), scriptPath);
+
+    // No executable exists: the real CLI must fail at preflight, before launching a host.
+    const result = spawnSync(process.execPath, [scriptPath, '--release'], {
+      encoding: 'utf8',
+      timeout: 10000,
+      windowsHide: true,
+    });
+    assert.equal(result.error, undefined);
+    assert.equal(result.status, 1);
+    assert.ok(
+      result.stderr.includes(
+        join(desktopDir, 'src-tauri', 'target', 'release', 'storyforge-desktop.exe'),
+      ),
+      result.stderr,
+    );
+  } finally {
+    const cleanupPath = resolve(temporaryRoot);
+    const child = relative(resolve(tmpdir()), cleanupPath);
+    assert.ok(child.startsWith('storyforge-smoke-path-') && !child.includes(sep));
+    await rm(cleanupPath, { recursive: true, force: true });
+  }
+});
 
 test('smoke environment points the host at its isolated directories', () => {
   const directories = {

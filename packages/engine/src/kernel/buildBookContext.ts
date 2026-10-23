@@ -1,4 +1,4 @@
-import { compareChapterPaths } from '@storyforge/project-core';
+import { compareManuscriptPaths } from '@storyforge/project-core';
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import type { BookContext } from './bookContext';
 import { readBookRoster } from './canonStore';
@@ -57,7 +57,7 @@ async function previousTail(
     const caseKey = (path: string) => (platform === 'windows' ? path.toLowerCase() : path);
     let index = ordered.findIndex((path) => caseKey(path) === caseKey(relative));
     if (index === -1) {
-      index = ordered.findIndex((path) => compareChapterPaths(path, relative) >= 0);
+      index = ordered.findIndex((path) => compareManuscriptPaths(path, relative) >= 0);
       if (index === -1) index = ordered.length;
     }
     if (index === 0) return null;

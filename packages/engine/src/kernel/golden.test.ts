@@ -15,11 +15,27 @@ describe('Python manuscript oracle (contained traversal is tested separately)', 
     });
   }
   for (const fixture of golden.manuscript) {
-    it(`enumerated entries follow Python order: ${fixture.id}`, () => {
-      expect(orderManuscriptFiles(fixture.entries, platform)).toEqual(fixture.output);
-      expect(orderManuscriptFiles([...fixture.entries].reverse(), platform)).toEqual(
-        fixture.output,
-      );
+    it(`enumerated entries retain filtering with natural numeric order: ${fixture.id}`, () => {
+      // 原 Python oracle 留存不改；数字章号的阅读序是本次明确的产品契约变更。
+      const expected =
+        fixture.id === 'unicode-order'
+          ? [
+              '正文/A/第01章.md',
+              '正文/A0.md',
+              '正文/A2.md',
+              '正文/a1.md',
+              '正文/b.md',
+              '正文/é.md',
+              '正文/é.md',
+              '正文/第2章.md',
+              '正文/第10章.md',
+              '正文/\ue000.md',
+              '正文/😀.md',
+              '正文/𠀀.md',
+            ]
+          : fixture.output;
+      expect(orderManuscriptFiles(fixture.entries, platform)).toEqual(expected);
+      expect(orderManuscriptFiles([...fixture.entries].reverse(), platform)).toEqual(expected);
     });
   }
   it('retains the host-specific extension rule', () => {

@@ -87,6 +87,8 @@ vi.mock('../../src/lib/tauri-fs', () => ({
     deletePath: async (_root: string, path: string) => {
       calls.push('delete');
       deletes.push(path);
+      receiptFiles.delete(path);
+      if (path === FILE) diskContent = undefined;
     },
   },
 }));
@@ -129,11 +131,15 @@ let auditGate: Promise<void> | null = null;
 let releaseAudit: (() => void) | null = null;
 
 function Harness({ filePath }: { filePath: string }) {
+  const modelVersion = useRef(1);
   const model = useRef({
     getValue: () => editorContent,
     setValue: (value: string) => {
       editorContent = value;
+      modelVersion.current += 1;
     },
+    getVersionId: () => modelVersion.current,
+    isDisposed: () => false,
     getAlternativeVersionId: () => 1,
   });
   const queue = useRef(createWritebackQueue());

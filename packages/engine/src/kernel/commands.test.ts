@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import golden from '../../golden/p1-commands.windows.json';
 import { BreakdownCancellations } from './bookBreakdown';
 import { IdeCommandExecutionError } from './bookContextCommand';
-import { decodeFixtureBytes, type EncodedFile } from './contextFixture.test-support';
+import {
+  currentCanonOrderBytes,
+  decodeFixtureBytes,
+  type EncodedFile,
+} from './contextFixture.test-support';
 import { executeIdeCommand, IDE_COMMANDS, type IdeCommandDeps } from './ideCommands';
 import { memoryProject } from './memoryProject.test-support';
 import { recordBookBreakdownRun } from '../loop/bookBreakdownRun';
@@ -140,7 +144,9 @@ describe('real Python IDE command envelope replay', () => {
           const writes = project.takeWrites();
           expect(Object.keys(writes).sort()).toEqual(Object.keys(call.writes).sort());
           for (const [path, file] of Object.entries(call.writes))
-            expect(writes[path], path).toEqual(decodeFixtureBytes(file!));
+            expect(writes[path], path).toEqual(
+              currentCanonOrderBytes(path, decodeFixtureBytes(file!)),
+            );
         });
       }
     });

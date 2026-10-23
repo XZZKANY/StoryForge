@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { chapterOrdinals } from './canonRebuild';
+import { memoryProject } from './memoryProject.test-support';
 import {
   factKey,
   parseFactLedger,
@@ -162,6 +164,40 @@ describe('planning a chapter record', () => {
     expect(result.superseded.map((fact) => fact.id)).toEqual(['fact_old']);
     expect(result.added[0]).toMatchObject({ status: 'active', supersedes: 'fact_old' });
     expect((result.ledger.facts as JsonObject[])[0].status).toBe('superseded');
+  });
+
+  it('uses real mixed-padding manuscript ordinals when replacing an earlier state', async () => {
+    const first = '正文/第1章 旧馆.md';
+    const target = '正文/第003章.md';
+    const encoded = { chunks: [{ base64: btoa('text'), repeat: 1 }] };
+    const project = memoryProject('/book', {
+      [first]: encoded,
+      '正文/第002章.md': encoded,
+      [target]: encoded,
+    });
+    const ordinals = await chapterOrdinals(project.reader, '/book', '*.md', 'posix');
+    const result = planFactRecord({
+      ledger: { version: 1, facts: [existing({ path: first })] },
+      path: target,
+      candidates: [
+        {
+          kind: '处境',
+          subject: '陈默',
+          attribute: '下落',
+          value: '在城里',
+          object: null,
+          quote: '陈默进了城。',
+          startLine: 1,
+        },
+      ],
+      ordinal: (path) => ordinals.get(path) ?? null,
+      canonical: (name) => name,
+      now: '2026-10-23T00:00:00Z',
+      newId: () => 'mixed_new',
+    });
+    expect(result.superseded.map((fact) => fact.id)).toEqual(['fact_old']);
+    expect(result.added[0]).toMatchObject({ status: 'active', supersedes: 'fact_old' });
+    expect(project.takeWrites()).toEqual({});
   });
 
   it('keeps a later chapter state when an earlier chapter is recorded afterwards', () => {

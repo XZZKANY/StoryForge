@@ -1,3 +1,4 @@
+import { compareManuscriptPaths } from '@storyforge/project-core';
 import type { ProjectIndex, SemanticFile } from './types';
 import { relativePathInsideProject } from './path';
 
@@ -25,6 +26,7 @@ export function buildProjectChapterIndex(index: ProjectIndex): ProjectChapter[] 
       (file) =>
         file.kind === 'draft' && relativePathInsideProject(index.projectPath, file.path) !== null,
     )
+    .sort((a, b) => compareManuscriptPaths(a.relativePath, b.relativePath))
     .map((file, position) => ({
       path: file.path,
       relativePath: file.relativePath,

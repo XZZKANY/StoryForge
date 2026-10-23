@@ -66,6 +66,12 @@ const EVIDENCE_EXCLUDED_ARTIFACTS = new Set([
   'runtime_checkpoint',
 ]);
 const MANUSCRIPT_KEYS = new Set(['before', 'after', 'content', 'original_text', 'revised_text']);
+const PENDING_CALL_INTERNAL_KEYS = new Set([
+  'context_bundle',
+  'llm_prompt_context_bundle',
+  'source_guard',
+]);
+const TOOL_INTERNAL_KEYS = new Set(['generation_sources']);
 
 type Obj = { [key: string]: unknown };
 const isObj = (value: unknown): value is Obj =>
@@ -177,18 +183,20 @@ export async function messageSources(
 export const sourceReference = (source: SourceRecord): Obj =>
   Object.fromEntries(Object.entries(source).filter(([key]) => key !== 'content'));
 
-/** 状态原样保留；手稿正文只留摘要，正文在被引用的原 artifact 里。 */
-function evidenceContent(value: unknown): unknown {
+/** 状态/作者要求保留；正文及机器恢复/审计材料只留摘要，原行仍完整持久化。 */
+function evidenceContent(value: unknown, internalKeys?: ReadonlySet<string>): unknown {
   if (isObj(value))
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [
         key,
         MANUSCRIPT_KEYS.has(key)
           ? { omitted: 'manuscript_body', digest: contentDigest(item) }
-          : evidenceContent(item),
+          : internalKeys?.has(key)
+            ? { omitted: 'internal_evidence', digest: contentDigest(item) }
+            : evidenceContent(item, internalKeys),
       ]),
     );
-  if (Array.isArray(value)) return value.map(evidenceContent);
+  if (Array.isArray(value)) return value.map((item) => evidenceContent(item, internalKeys));
   return value;
 }
 
@@ -200,22 +208,27 @@ export async function evidenceSources(
   const byId = <T extends { id: number }>(rows: readonly T[]) =>
     [...rows].sort((a, b) => a.id - b.id);
   const sources: SourceRecord[] = [];
-  const push = (key: string, id: number, raw: Obj) =>
+  const push = (key: string, id: number, raw: Obj, internalKeys?: ReadonlySet<string>) =>
     sources.push({
       key,
       id,
       role: 'evidence',
       digest: contentDigest(raw),
-      content: canonicalJson(evidenceContent(raw)),
+      content: canonicalJson(evidenceContent(raw, internalKeys)),
     });
   for (const artifact of byId(await store.runArtifacts(sessionId))) {
     if (EVIDENCE_EXCLUDED_ARTIFACTS.has(artifact.kind)) continue;
-    push(`artifact:${artifact.id}`, artifact.id, {
-      kind: artifact.kind,
-      run_id: artifact.run_id,
-      requires_confirmation: artifact.requires_confirmation,
-      payload: artifact.payload,
-    });
+    push(
+      `artifact:${artifact.id}`,
+      artifact.id,
+      {
+        kind: artifact.kind,
+        run_id: artifact.run_id,
+        requires_confirmation: artifact.requires_confirmation,
+        payload: artifact.payload,
+      },
+      artifact.kind === 'runtime_pending_call' ? PENDING_CALL_INTERNAL_KEYS : undefined,
+    );
   }
   for (const event of byId(await store.runEvents(sessionId))) {
     if (!EVIDENCE_EVENT_TYPES.has(event.event_type)) continue;
@@ -236,14 +249,19 @@ export async function evidenceSources(
   }
   for (const call of byId(await store.toolCalls(sessionId))) {
     if (call.tool_name === 'conversation.compact') continue;
-    push(`tool:${call.id}`, call.id, {
-      tool_name: call.tool_name,
-      status: call.status,
-      input_summary: call.input_summary,
-      output_summary: call.output_summary,
-      related_type: call.related_type,
-      related_id: call.related_id,
-    });
+    push(
+      `tool:${call.id}`,
+      call.id,
+      {
+        tool_name: call.tool_name,
+        status: call.status,
+        input_summary: call.input_summary,
+        output_summary: call.output_summary,
+        related_type: call.related_type,
+        related_id: call.related_id,
+      },
+      TOOL_INTERNAL_KEYS,
+    );
   }
   return sources;
 }

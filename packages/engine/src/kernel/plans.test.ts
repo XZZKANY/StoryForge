@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import golden from '../../golden/p1-plans.windows.json';
 import { canonDelta, readPendingProposals } from './canonDelta';
 import { evaluateHookAdmission, hooksDelta } from './canonHooksDelta';
-import { decodeFixtureBytes, type EncodedFile } from './contextFixture.test-support';
+import {
+  currentCanonOrderBytes,
+  decodeFixtureBytes,
+  type EncodedFile,
+} from './contextFixture.test-support';
 import { FsToolError } from './fsTools';
 import { parseJson, type JsonObject, type JsonValue } from './json';
 import { memoryProject } from './memoryProject.test-support';
@@ -163,7 +167,7 @@ describe('real Python proposal / plan / observatory replay', () => {
           const writes = project.takeWrites();
           expect(Object.keys(writes).sort()).toEqual(Object.keys(call.writes).sort());
           for (const [path, file] of Object.entries(call.writes)) {
-            const expected = decodeFixtureBytes(file!);
+            const expected = currentCanonOrderBytes(path, decodeFixtureBytes(file!));
             if (dropped && path.endsWith('derived/observations.json')) {
               const cache = JSON.parse(new TextDecoder().decode(expected));
               expect(dropDeclaredPromises(cache.proposals, declared), path).toBe(dropped);

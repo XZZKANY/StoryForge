@@ -1,3 +1,4 @@
+import { compareManuscriptPaths } from '@storyforge/project-core';
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import { formatChapterWindow, renderAssertionMetadata } from './canonAssertions';
 import { readCanon, readFactLedger, readHooks } from './canonFiles';
@@ -5,13 +6,7 @@ import { chapterOrdinals, entitySurfaceForms } from './canonRebuild';
 import { isActiveFact } from './factLedger';
 import { FsToolError, isSkippedProjectPath } from './fsTools';
 import type { GenerationSourceCapture } from './generationSources';
-import {
-  compareCodePoints,
-  InputDomainError,
-  isJsonObject,
-  type JsonObject,
-  type JsonValue,
-} from './json';
+import { InputDomainError, isJsonObject, type JsonObject, type JsonValue } from './json';
 import { isManuscriptPath } from './manuscript';
 import { matchPythonPath } from './pathMatch';
 import { MAX_READ_BYTES } from './projectTree';
@@ -92,7 +87,9 @@ async function unwrittenChapterOrdinal(
     if (!(error instanceof ProjectReadError)) throw error;
     return null;
   }
-  return [...ordinals.keys()].filter((path) => compareCodePoints(path, relative) < 0).length + 1;
+  return (
+    [...ordinals.keys()].filter((path) => compareManuscriptPaths(path, relative) < 0).length + 1
+  );
 }
 
 function windowCovers(entry: JsonObject, current: number): boolean {

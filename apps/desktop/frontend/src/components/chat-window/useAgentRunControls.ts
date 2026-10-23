@@ -60,6 +60,7 @@ export function useAgentRunControls(
     draftNonceRef,
     runStartConversationKeyRef,
     projectPathRef,
+    currentFileRef,
   } = state;
   const {
     updateAgentStep,
@@ -88,11 +89,28 @@ export function useAgentRunControls(
       agentRunRecovery?.checkpointResume
     )
       return;
-    setMessages((prev) => [...prev, { role: 'user', content: `重试：${retryRequest.goal}` }]);
-    void runAuthorAgent(retryRequest.goal, retryRequest.action, retryRequest.intent, [], {
-      useMainModel: retryRequest.useMainModel,
-    });
-  }, [agentBusy, agentRun, agentRunRecovery, retryRequest, runAuthorAgent, setMessages]);
+    const { goal, action, intent, excludedKnowledgeIds, options, currentFile } = retryRequest;
+    if (currentFile !== undefined && currentFileRef.current !== currentFile) {
+      emitToast(
+        currentFile
+          ? `请先返回 ${relativePath(projectPathRef.current, currentFile)}，再重试这轮请求。`
+          : '请先关闭当前稿件，再重试这轮项目对话。',
+        { tone: 'info' },
+      );
+      return;
+    }
+    setMessages((prev) => [...prev, { role: 'user', content: `重试：${goal}` }]);
+    void runAuthorAgent(goal, action, intent, excludedKnowledgeIds, options);
+  }, [
+    agentBusy,
+    agentRun,
+    agentRunRecovery,
+    currentFileRef,
+    projectPathRef,
+    retryRequest,
+    runAuthorAgent,
+    setMessages,
+  ]);
 
   const sendAgentRunControl = useCallback(
     async (type: AgentControlMessageType, payload: Record<string, unknown> = {}) => {

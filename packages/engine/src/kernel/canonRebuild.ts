@@ -1,3 +1,4 @@
+import { compareManuscriptPaths } from '@storyforge/project-core';
 import type { ProjectReader } from '../readPort';
 import { consistencyScan, type ConsistencyScanResult } from './consistencyScan';
 import { iterProjectFiles, nativeProjectPath, resolveProjectRoot, scopedTarget } from './fsTools';
@@ -47,15 +48,15 @@ export async function chapterOrdinals(
   platform: 'windows' | 'posix',
 ): Promise<Map<string, number>> {
   await resolveProjectRoot(reader, root);
-  const ordinals = new Map<string, number>();
+  const paths: string[] = [];
   for (const relative of await iterProjectFiles(reader, root)) {
     if (!matchPythonPath(nativeProjectPath(root, relative, platform), glob, platform)) continue;
     if (relative.startsWith('.') || !isManuscriptPath(relative)) continue;
     const resolved = await scopedTarget(reader, root, relative);
     if (resolved.startsWith('.') || !isManuscriptPath(resolved)) continue;
-    ordinals.set(relative, ordinals.size + 1);
+    paths.push(relative);
   }
-  return ordinals;
+  return new Map(paths.sort(compareManuscriptPaths).map((path, index) => [path, index + 1]));
 }
 
 export function entitySurfaceForms(entity: JsonObject): string[] {

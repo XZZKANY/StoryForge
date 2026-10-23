@@ -59,7 +59,7 @@ it('decisions show up inline in Chat, never as a dialog, and reach their origina
     mode,
     busy = false,
   }: {
-    mode: 'running' | 'permission' | 'patch' | 'brief';
+    mode: 'running' | 'paused' | 'permission' | 'patch' | 'brief';
     busy?: boolean;
   }) {
     const state = useChatWindowState({
@@ -76,12 +76,18 @@ it('decisions show up inline in Chat, never as a dialog, and reach their origina
           chapterBrief: mode === 'brief' ? brief : null,
           agentRun:
             mode === 'brief'
-              ? null
+              ? {
+                  id: 'run',
+                  sessionId: 'session',
+                  goal: '原任务',
+                  status: 'waiting',
+                  steps: [],
+                }
               : {
                   id: 'run',
                   sessionId: 'session',
                   goal: '原任务',
-                  status: mode === 'running' ? 'running' : 'waiting',
+                  status: mode === 'running' || mode === 'paused' ? mode : 'waiting',
                   steps:
                     mode === 'permission'
                       ? [
@@ -169,6 +175,7 @@ it('decisions show up inline in Chat, never as a dialog, and reach their origina
   expect(patch.textContent).toContain('第005章.md');
   // 确认补丁时不给停止：停了会把这轮标成失败，补丁却还挂在编辑器里。
   expect(host.querySelector('[data-testid="run-stop"]')).toBeNull();
+  expect(host.querySelector('[data-testid="composer-stop"]')).toBeNull();
   await act(async () =>
     host.querySelector<HTMLButtonElement>('[data-testid="run-accept-patch"]')!.click(),
   );
@@ -176,6 +183,7 @@ it('decisions show up inline in Chat, never as a dialog, and reach their origina
 
   await act(async () => render('brief'));
   noDialog();
+  expect(host.querySelector('[data-testid="composer-stop"]')).toBeNull();
   const goal = host.querySelector<HTMLTextAreaElement>('[data-testid="chapter-brief-goal"]')!;
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
@@ -202,6 +210,21 @@ it('decisions show up inline in Chat, never as a dialog, and reach their origina
   expect(
     host.querySelector<HTMLButtonElement>('[data-testid="chapter-brief-cancel"]')!.disabled,
   ).toBe(true);
+  // resume waits for the final result, retaining the persisted waiting/paused status.
+  // The disabled brief buttons must not remove the composer's working stop action.
+  for (const mode of ['brief', 'paused'] as const) {
+    await act(async () => render(mode, true));
+    const stopButton = host.querySelector<HTMLButtonElement>('[data-testid="composer-stop"]');
+    expect(stopButton, `${mode} resume remains stoppable`).not.toBeNull();
+    expect(stopButton!.disabled).toBe(false);
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 1000);
+    try {
+      await act(async () => stopButton!.click());
+    } finally {
+      clock.mockRestore();
+    }
+  }
+  expect(stop).toHaveBeenCalledTimes(3);
   noDialog();
 });
 
