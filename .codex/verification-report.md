@@ -9128,3 +9128,28 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 测试：通知栈位置纯函数的 7 种情况（对话在右挪左、消息列表被挤到顶上一截也挪左、不重叠 / 隐藏 / 无对话栏原地、对话占满上抬、操作区比状态栏矮不下压）与挂载断言（right 412px / bottom 36px）；活动栏只有当前那颗按钮里有一道竖线；章纲卡片空栏收起与展开、全有内容时无「补充」入口、起草中有进度说明；输入框与会话起步、ChatWindow 外壳里不再出现「@当前文件」。前端 2337 passed；`pnpm verify` 8 道全过（EXIT=0）。
 - 观感：真 Chromium 截了章纲卡片（只剩目标、字数一行、「+ 补充…（可选）」）与活动栏（当前项浅底 + 左竖线 + 加粗）两张图，在仓库外 `output/dogfood-1020/`。
 - 未做 / 未验：章纲管线本身的逐步进度（起草 / 检查 / 修复各自完成时上报）要动引擎事件顺序，另起一刀；对话里「Chapter Brief 已准备」仍是英文词；没在真宿主点穿；没打包。
+
+## 2026-10-23 全面审查与真实作者流程验收（第一批 13 处修复，GPT 起头、Claude 接手核对落地）
+
+- 起因：作者 10-22 让 GPT（Codex）「全面审查项目」，并授权用作者给的中转接口在**隔离宿主**里反复模拟作者流程（隔离 config / data / WebView、自建测试作品「验收01-雾港来信」「验收02」「验收03-山城旧馆」，不碰作者作品与日常配置，key 只在隔离 DPAPI 配置里）。GPT 跑到 run33、10-23 15:46 中断；Claude 接手后在同一工作区重跑全部门禁、逐个复核生产改动再提交。过程材料在仓库外 `.trellis/tasks/10-22-comprehensive-project-review/`（review.md / verification.md / research/），真实运行证据在 `output/playwright/comprehensive-review/author-run-qxIAxo/`（均不入库）。
+- 修复（每处都有先红后绿的确定性回归；带「真机」的另在隔离宿主 + 真模型点穿过）：
+  1. 撤销新建文件时，删盘 / 改计划的 await 之后不再无条件关掉页签：只退役原 model 且版本未变、盘上确实不存在时才摘页签，期间作者新输入或换页保留（`useSuggestionWriteback.ts`）。真机：run17 接受新设定 → 撤销 → 文件与页签都消失。
+  2. 确认章纲后起草中没有停止键：停止条件从「status=running」改成操作条可见 + busy（恢复请求期间 status 仍是 waiting / paused）。真机：run8 起草中点停止，run=stopped、无落盘。
+  3. 显式起草新章时漏传当前打开的设定：上下文只排除另行携带的目标正文，不再把旧的当前文件当成要排除的稿（`useRunAuthorAgent.ts`）。真机：run3 首章把父亲职业写错的根因；run8 / run9 请求里已带核心设定。
+  4. 更新检查遇到 `[null]` 之类畸形 tag 抛未处理异常、卡在 loading：逐项校验（`update-check.ts`）。
+  5. 复制文件读源期间有人新建同名目标会被覆盖：改用 missing 基线的条件写（`useFileTreeActions.ts`）。
+  6. 拒绝新建建议后页签残留，下一条消息去读不存在的文件失败：拒绝时按原 cache / model / 版本守卫退役空页签；带方向的拒绝走既有单槽待发，等页签清理提交后再发（`useChatSubmission.ts`）。真机：run9 拒绝 → run10 正常进模型。
+  7. 短会话被重复的内部证据撑爆历史预算：恢复快照（context_bundle / source_guard）与 generation_sources 投影给模型时只留摘要引用，原行照存、预算不动（`conversationHistory.ts`）。原样回放 130516 → 81039 bytes；真机 run13 在原会话、同一输入下成功。
+  8. 「保存为旁注」后留下不存在的空页签：与 6 共用身份守卫。真机：run14 存旁注 → run15 续聊正常。
+  9. Tauri 冒烟脚本路径含空格 / 中文 / `%` 时找错目录：改 `fileURLToPath`（`verify-tauri-smoke.mjs`）。
+  10. 新章失败后点重试，目标从第 2 章变成当前打开的第 1 章：RetryRequest 改存完整原调用选项（目标、计划回退、显式上下文、排除项、模型覆盖）。真机：run25 / 26 重试仍指向第 3 章。
+  11. 当前稿润色 / 普通对话失败后切到别的章再重试，会改到新打开的章：记下首次的编辑器归属，不一致时只提示「请先返回原稿」。真机：run30 切第二章点重试不发起新 run（30 → 30）。
+  12. 首次模型调用失败以 AgentResult 返回时没有重试按钮：只在明确 provider_error、无工具执行 / 无章纲 / 无检查点 / 非暂停停止时给整轮重试。真机：run30 出现重试、run31 回原稿重试成功并接受、重启后回读一致。
+  13. 正文阅读序改为章号自然序（`compareManuscriptPaths`，project-core 单一事实源）：混用「第1章」「第002章」「第10章」时，上一章、事实章号、写章字数采样、观测镜都按真实章序；未补零的第 10 章不再排到第 2 章前面。这是**有意的契约变更**：Python 旧 oracle 原样保留，golden 测试只对 unicode-order 一例写明新顺序、派生缓存版本戳 `canon-writeback-v1` → `canon-manuscript-order-v2`（旧缓存会重建一次，不信任旧章号）。真机：run32 第二章事实组号回到 2、首章 744 / 次章 1063 字共同采样。
+- 门禁（Claude 接手后在本工作区重跑，2026-10-23）：project-core 类型检查 + 14 passed；引擎类型检查 + 79 files / 13699 passed / 2 skipped；前端类型检查 + 238 files / 2389 passed；eslint 0 error（2 个既有 warning）、prettier 通过；行间续写 / 浏览器冒烟 / Agent 对话三个浏览器回归通过。本机 PATH 上没有 pnpm，按 `scripts/verify-local.mjs` 的 8 道门逐条用等效 npx / npm 命令跑。`git diff --numstat` 与 `--ignore-all-space --numstat` 只有两处差异，都是 prettier 重排缩进，无行尾翻转。
+- 真实调用记账（截至 run31）：73 个模型证据、88 次传输开始（含内部重试）、已知 provider token 934900、8 项 usage 不可得；另有一次 Ctrl+K 2729 token 单列。未估价。
+- 未做 / 未验：
+  - 长会话压缩：run13 起每次隐藏压缩都 `compaction_rejected`——一次 73 个来源，模型只引用了 22 个，完整性守卫拒发检查点（离线重放可复现、零网络）。没有放松守卫；作者 0.2.1 库里也有同样的 3 次拒绝，仍待作者拍板做法。
+  - 章纲返回「不是有效 JSON」：run22、run32 两次，finish=stop；失败时原始返回没落库，具体坏在哪里还不知道，没有加宽松解析或自动重试。
+  - 专用润色在线失败时本地候选与原文相同，界面只说「候选一致」，没告诉作者模型失败了（run27）。
+  - 5 类作者旅程 × 4 轮的完整验收没跑完；撤销 / 复制的 Native 跨进程比较再写不是原子 CAS；没在装机版上点穿，没打包。
