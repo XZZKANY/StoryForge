@@ -360,13 +360,57 @@ function jsonObject(raw: unknown): Obj {
   try {
     parsed = parseJson(text, 'chapter brief');
   } catch (error) {
-    if (error instanceof InputDomainError)
-      throw new AgentOrchestrationError('模型返回的结构化结果不是有效 JSON。');
-    throw error;
+    if (!(error instanceof InputDomainError)) throw error;
+    parsed = withTrailingAdjustments(text);
+    if (parsed === null) throw new AgentOrchestrationError('模型返回的结构化结果不是有效 JSON。');
   }
   if (!isJsonObject(parsed as never))
     throw new AgentOrchestrationError('模型返回的结构化结果必须是 JSON 对象。');
   return parsed as Obj;
+}
+
+const TRAILING_ADJUSTMENTS = /^[\s,]*"?fact_adjustments"?\s*[:：]/u;
+
+/** 开头一个完整 JSON 对象的结束下标（不含）；不以 { 开头或括号不配对时为 null。 */
+function leadingObjectEnd(text: string): number | null {
+  if (!text.startsWith('{')) return null;
+  let depth = 0;
+  let inString = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (char === '\\') index += 1;
+      else if (char === '"') inString = false;
+    } else if (char === '"') inString = true;
+    else if (char === '{') depth += 1;
+    else if (char === '}' && --depth === 0) return index + 1;
+  }
+  return null;
+}
+
+/**
+ * 带已写事实时，提示词先列字段、再「另输出 fact_adjustments」，模型常把它另起一行写在对象外面。
+ * 只认这一种尾巴并回对象；其他多余内容照旧按无效 JSON 处理。
+ */
+function withTrailingAdjustments(text: string): Obj | null {
+  const end = leadingObjectEnd(text);
+  if (end === null) return null;
+  const tail = TRAILING_ADJUSTMENTS.exec(text.slice(end));
+  if (!tail) return null;
+  try {
+    const object = parseJson(text.slice(0, end), 'chapter brief');
+    const adjustments = parseJson(pythonStrip(text.slice(end + tail[0].length)), 'chapter brief');
+    if (
+      !isJsonObject(object) ||
+      !Array.isArray(adjustments) ||
+      Object.prototype.hasOwnProperty.call(object, 'fact_adjustments')
+    )
+      return null;
+    return { ...object, fact_adjustments: adjustments };
+  } catch (error) {
+    if (error instanceof InputDomainError) return null;
+    throw error;
+  }
 }
 
 export function parseBrief(

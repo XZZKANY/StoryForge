@@ -214,3 +214,47 @@ describe('the chapter writing pipeline carries the adjustments through', () => {
     expect(check).toContain('正文照调整写的不算违反');
   });
 });
+
+describe('chapter brief replies that put fact_adjustments after the object', () => {
+  const options = {
+    seed: SEED,
+    provenance: {},
+    newHex: () => '0'.repeat(32),
+    userMessage: MESSAGE,
+    written: WRITTEN,
+  };
+  // 真实 glm-5.3-flash 回复的形状：字段列表里没有 fact_adjustments，它就另起一行写在对象外面。
+  const object = JSON.stringify(
+    { target_path: SEED.target_path, goal: '刑警追捕另一名跛脚男', target_chars_min: 3200 },
+    null,
+    2,
+  );
+
+  it('merges a trailing fact_adjustments line back into the brief', () => {
+    const empty = parseBrief(`${object}\n\nfact_adjustments: []`, options);
+    expect(empty.goal).toBe('刑警追捕另一名跛脚男');
+    expect(empty.target_chars_min).toBe(3200);
+    expect('fact_adjustments' in empty).toBe(false);
+    const kept = parseBrief(
+      `${object}\n"fact_adjustments"：${JSON.stringify([ADJUSTMENT])}\n`,
+      options,
+    );
+    expect(kept.fact_adjustments).toEqual([{ ...ADJUSTMENT, source: 'model' }]);
+    const tricky = parseBrief('{"goal": "他说\\"}别走\\"{"}\nfact_adjustments: []', options);
+    expect(tricky.goal).toBe('他说"}别走"{');
+  });
+
+  it.each([
+    ['prose instead of JSON', '好的，我来写。'],
+    ['prose after the object', `${object}\n以上是章纲。`],
+    ['more text after the trailing array', `${object}\nfact_adjustments: []\n以上。`],
+    ['a trailing value that is not an array', `${object}\nfact_adjustments: {}`],
+    [
+      'adjustments both inside and after the object',
+      `${JSON.stringify({ goal: 'g', fact_adjustments: [] })}\nfact_adjustments: []`,
+    ],
+    ['an unbalanced object', '{"goal": "g"\nfact_adjustments: []'],
+  ])('still rejects %s', (_label, reply) => {
+    expect(() => parseBrief(reply, options)).toThrow('模型返回的结构化结果不是有效 JSON。');
+  });
+});
