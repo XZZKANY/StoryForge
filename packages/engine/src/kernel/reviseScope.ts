@@ -182,10 +182,14 @@ export function isBroadRevise(instruction: string): boolean {
 
 export function revisionReferencesReview(instruction: string): boolean {
   return (
-    new RegExp(ISSUE_ORDINAL.source, 'u').test(instruction) ||
-    ['审稿报告', '审稿问题', '审稿意见', '上轮问题', '上一轮问题'].some((phrase) =>
-      instruction.includes(phrase),
-    )
+    new RegExp(ISSUE_ORDINAL.source, 'u').test(instruction) || revisionNamesReview(instruction)
+  );
+}
+
+/** 作者明说了审稿（不只是「第 N 条」）。 */
+export function revisionNamesReview(instruction: string): boolean {
+  return ['审稿报告', '审稿问题', '审稿意见', '上轮问题', '上一轮问题'].some((phrase) =>
+    instruction.includes(phrase),
   );
 }
 
