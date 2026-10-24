@@ -184,6 +184,8 @@ export type ChapterBrief = {
   targetCharsMax: number;
   /** 起草照这些写，优先于目标和节拍；作者可以逐条改回原计划。 */
   factAdjustments?: ChapterBriefAdjustment[];
+  /** 章纲挑的写法 skill（`写法/` 里的名字），起草带上它们的全文；只读展示。 */
+  writingSkills?: string[];
 };
 
 export type ReviewReport = Record<string, unknown>;

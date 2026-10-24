@@ -125,6 +125,11 @@ export function ChapterBriefCard({
           待确认
         </span>
       </div>
+      {draft.writingSkills?.length ? (
+        <div className="mb-2 text-xs text-subtle" data-testid="chapter-brief-skills">
+          这章照着写的写法：{draft.writingSkills.join('、')}
+        </div>
+      ) : null}
       <AdjustmentList
         adjustments={draft.factAdjustments ?? []}
         disabled={busy}

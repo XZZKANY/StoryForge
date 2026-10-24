@@ -322,6 +322,55 @@ test('the decoder keeps verified adjustments and the card hides the section with
   }
 });
 
+test('章纲挑了写法 skill 时卡片上写明，没挑就不出这一行', () => {
+  const message = {
+    agent_result: {
+      confirmation_kind: 'chapter_brief',
+      chapter_brief: {
+        brief_id: brief.briefId,
+        revision: 1,
+        target_path: brief.targetPath,
+        goal: brief.goal,
+        target_chars_min: 1600,
+        target_chars_max: 2600,
+        writing_skills: ['开篇第一章', '  ', 3, '章末钩子'],
+      },
+    },
+    plan: [],
+    tool_trace: [],
+  } as unknown as AgentResultMessage;
+  const decoded = chapterBriefFromAgentResult(message);
+  assert.deepEqual(decoded?.writingSkills, ['开篇第一章', '章末钩子']);
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(<ChapterBriefCard brief={decoded!} onConfirm={() => {}} onCancel={() => {}} />);
+  });
+  try {
+    assert.equal(
+      container.querySelector('[data-testid="chapter-brief-skills"]')?.textContent,
+      '这章照着写的写法：开篇第一章、章末钩子',
+    );
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+  const plain = document.createElement('div');
+  document.body.appendChild(plain);
+  const plainRoot = createRoot(plain);
+  act(() => {
+    plainRoot.render(<ChapterBriefCard brief={brief} onConfirm={() => {}} onCancel={() => {}} />);
+  });
+  try {
+    // 断言布尔值：DOM 节点进 assert 的差异输出会把内存撑爆。
+    assert.equal(plain.querySelector('[data-testid="chapter-brief-skills"]') === null, true);
+  } finally {
+    act(() => plainRoot.unmount());
+    plain.remove();
+  }
+});
+
 // 作者 10-20：只抄了一句目标、其余全空的章纲铺满一屏「好丑」——空着的可选栏收成一行，按需展开。
 test('空着的可选栏收成一行「补充…（可选）」，有内容的照常摆出来，点开后全部可填', () => {
   const sparse: ChapterBrief = {

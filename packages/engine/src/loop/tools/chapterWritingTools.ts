@@ -8,6 +8,11 @@ import {
 import { dumpJson } from '../../kernel/json';
 import { llmContextSnapshotTraceSummary } from '../../kernel/llmContext';
 import { fullwidthCjkPunctuation } from '../../kernel/punctuation';
+import {
+  loadWritingSkills,
+  writingSkillIndex,
+  writingSkillsBlock,
+} from '../../kernel/writingSkills';
 import { buildCheck, checkPrompt } from '../chapterCheckProtocol';
 import { prepareChapterWritingContext } from '../chapterSourceGuard';
 import {
@@ -34,6 +39,11 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
     const provenance = llmContextSnapshotTraceSummary(
       payload.llm_context_snapshot as Parameters<typeof llmContextSnapshotTraceSummary>[0],
     );
+    const skills = await loadWritingSkills(
+      deps.reader,
+      payload.project_root as string,
+      deps.secrets,
+    );
     let parsed: Obj;
     try {
       const chat = await chatReply(context.services.assistant, {
@@ -42,6 +52,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
           context.userMessage,
           written,
           (payload.conversation ?? null) as string | null,
+          skills.length ? writingSkillIndex(skills) : null,
         ),
         contextBlock: dumpJson(payload.llm_prompt_context_bundle, { ensureAscii: false }),
         assistantSessionId: context.assistantSessionId,
@@ -52,6 +63,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
         newHex: deps.newHex,
         userMessage: context.userMessage,
         written,
+        skills,
       });
     } catch (error) {
       if (
@@ -90,11 +102,20 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
       content: '',
       intent: 'file.create',
     });
+    const picked = Array.isArray(confirmed.writing_skills)
+      ? confirmed.writing_skills.map(String)
+      : [];
+    const skillsBlock = picked.length
+      ? writingSkillsBlock(
+          await loadWritingSkills(deps.reader, payload.project_root as string, deps.secrets),
+          picked,
+        )
+      : null;
     const response = await draftFileContent(
       context.services.assistant,
       {
         file_path: payload.target_absolute as string,
-        instruction: draftInstruction(confirmed),
+        instruction: draftInstruction(confirmed) + (skillsBlock === null ? '' : `\n${skillsBlock}`),
         project_name: (payload.project_name ?? null) as string | null,
         project_root: payload.project_root as string,
         assistant_session_id: context.assistantSessionId,

@@ -13,6 +13,7 @@ import { PREVIOUS_FULL_MAX_CHARS, previousChapterTail } from '../kernel/previous
 import { ProjectTreeError } from '../kernel/projectTree';
 import { redactSensitiveText, type SecretContext } from '../kernel/redaction';
 import { collectSettingSources } from '../kernel/settingSources';
+import { loadWritingSkills } from '../kernel/writingSkills';
 import { sha256Hex } from '../kernel/sha256';
 import {
   writingContextFromGuardedBundle,
@@ -91,6 +92,8 @@ async function sourceSignature(
     };
     const settings = await collectSettingSources(reader, root, { secrets: deps.secrets });
     if (settings !== null) values.settings = settings.block;
+    const skills = await loadWritingSkills(reader, root, deps.secrets);
+    if (skills.length) values.skills = skills.map((skill) => [skill.path, skill.sha256]);
     // 起草会带上台账里的已写事实；还没开始记账的书签名不变。
     if ((await reader.inspectProjectPath(root, FACTS_LEDGER)).targetKind !== 'missing') {
       const read = await reader.readProjectBytes(root, FACTS_LEDGER, MAX_SOURCE_BYTES);
