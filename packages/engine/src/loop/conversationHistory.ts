@@ -406,10 +406,16 @@ export async function selectValidCheckpoint(
         !eq(field(payload, 'coverage_digest'), contentDigest(references))
       )
         continue;
+      const ledger = covered.filter((source) => source.role === 'user');
+      if (!eq(field(payload, 'author_ledger'), ledger)) continue;
+      // 补问后仍没摘到的 AI 回复原样留在检查点里，必须与原消息逐字一致。
+      const verbatim = 'verbatim_messages' in payload ? payload.verbatim_messages : [];
+      if (!Array.isArray(verbatim)) continue;
+      const kept = new Set(verbatim.map((item) => field(item, 'key') as string));
       if (
         !eq(
-          field(payload, 'author_ledger'),
-          covered.filter((source) => source.role === 'user'),
+          verbatim,
+          covered.filter((source) => source.role === 'assistant' && kept.has(source.key)),
         )
       )
         continue;
@@ -432,7 +438,10 @@ export async function selectValidCheckpoint(
       }
       const entries = validateEntries(field(payload, 'entries'), scoped);
       const cited = new Set(entries.map((entry) => entry.source_id as string));
-      if (required.size !== cited.size || [...required].some((key) => !cited.has(key))) continue;
+      // 作者原话整段在账本里，没被引用也不丢。
+      const inLedger = new Set(ledger.map((source) => source.key));
+      if ([...required].some((key) => !cited.has(key) && !inLedger.has(key) && !kept.has(key)))
+        continue;
       const parent = field(payload, 'parent');
       if (parent !== null) {
         const previous = valid.get(field(parent, 'artifact_id') as number);
@@ -458,11 +467,9 @@ export async function selectValidCheckpoint(
 
 export type CompactionProvider = { complete(request: ChatRequest): Promise<ChatResponse> };
 
-const isMessageSource = (source: SourceRecord) => source.key.startsWith('message:');
-
 /**
- * 一份压缩回复：返回核验通过的条目与没被有效引用的来源。首轮丢弃核验不过的条目；
- * 补问轮里对话消息必须条条通过（否则按原因拒绝），机器证据摘不出就留作未摘要。
+ * 一份压缩回复：返回核验通过的条目与没被有效引用的来源。核验不过的条目一律丢弃；
+ * 首轮回复整体不成形就拒绝，补问轮不成形则这几条都算没摘到。
  */
 function compactionReplyEntries(
   response: ChatResponse,
@@ -475,8 +482,7 @@ function compactionReplyEntries(
     candidate = compactionCandidate(response, secrets);
     if (!Array.isArray(candidate.entries)) throw new CompactionRejected('压缩候选缺少可追溯条目。');
   } catch (error) {
-    if (!followUp || !(error instanceof CompactionRejected) || sources.some(isMessageSource))
-      throw error;
+    if (!followUp || !(error instanceof CompactionRejected)) throw error;
     return { entries: [], missing: [...sources] };
   }
   const byKey = new Map(sources.map((source) => [source.key, source]));
@@ -485,8 +491,6 @@ function compactionReplyEntries(
       return [validateEntry(entry, byKey)];
     } catch (error) {
       if (!(error instanceof CompactionRejected)) throw error;
-      const source = isObj(entry) ? byKey.get(entry.source_id as string) : undefined;
-      if (followUp && (source === undefined || isMessageSource(source))) throw error;
       return [];
     }
   });
@@ -674,20 +678,23 @@ export async function createCompactionCheckpoint(
     );
     entries.push(...first.entries);
     if (!first.missing.length) continue;
-    // 模型会跳过它觉得不重要的来源；只拿漏掉的几条补问一次。对话消息补问后仍漏就整次不发布；
-    // 机器证据摘不出来就不进检查点，继续在证据覆盖里整份保留，不伪造摘要。
+    // 模型会跳过它觉得不重要的来源、也会把引文挂到别的来源上；只拿漏掉的几条补问一次。补问后仍没摘到的
+    // 不伪造摘要：作者原话本就整段在账本里，AI 回复原样留进检查点，机器证据继续整份留在证据覆盖里。
     const retry = compactionReplyEntries(
       await ask(first.missing, { index, count: slices.length, follow_up: true }, FOLLOW_UP_NOTE),
       first.missing,
       options.secrets,
       true,
     );
-    if (retry.missing.some(isMessageSource))
-      throw new CompactionRejected('压缩候选遗漏来源，未发布检查点。');
     for (const source of retry.missing) unsummarized.add(source.key);
     entries.push(...retry.entries);
   }
+  if (!entries.length) throw new CompactionRejected('压缩候选没有摘到任何来源，未发布检查点。');
   const summarizedEvidence = evidence.filter((source) => !unsummarized.has(source.key));
+  const verbatim = [
+    ...((parentPayload?.verbatim_messages as Obj[] | undefined) ?? []),
+    ...covered.filter((source) => source.role === 'assistant' && unsummarized.has(source.key)),
+  ];
   const references = covered.map(sourceReference);
   const payload: Obj = {
     kind: SYSTEM_COMPACTION_ARTIFACT_KIND,
@@ -704,6 +711,7 @@ export async function createCompactionCheckpoint(
     observed_evidence_digest: contentDigest(evidence.map(sourceReference)),
     source_evidence: summarizedEvidence.map(sourceReference),
     author_ledger: covered.filter((source) => source.role === 'user'),
+    ...(verbatim.length ? { verbatim_messages: verbatim } : {}),
     entries: [...previousEntries, ...entries],
     parent:
       previous === null
@@ -712,7 +720,9 @@ export async function createCompactionCheckpoint(
     message_count: messages.length,
     compacted_message_count: cut,
     retained_message_count: messages.length - cut,
-    summary: `已压缩 ${cut} 条消息；保留作者原文与带来源的决策、否决、待办和证据。`,
+    summary:
+      `已压缩 ${cut} 条消息；保留作者原文与带来源的决策、否决、待办和证据。` +
+      (verbatim.length ? `${verbatim.length} 条 AI 回复没摘到，原样保留。` : ''),
     usage: combinedUsage(usages),
     model: options.model,
   };
@@ -798,6 +808,9 @@ async function conversationHistory(
           checkpoint_digest: payload.checkpoint_digest,
           coverage_digest: payload.coverage_digest,
           author_ledger: payload.author_ledger,
+          ...('verbatim_messages' in payload
+            ? { verbatim_messages: payload.verbatim_messages }
+            : {}),
           entries: payload.entries,
         }),
     });
