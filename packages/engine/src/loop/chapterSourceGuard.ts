@@ -9,9 +9,10 @@ import {
 } from '../kernel/fsTools';
 import { GenerationSourceCapture, MAX_MANIFEST_BYTES } from '../kernel/generationSources';
 import { compareCodePoints, dumpJson, InputDomainError } from '../kernel/json';
-import { previousChapterTail } from '../kernel/previousChapter';
+import { PREVIOUS_FULL_MAX_CHARS, previousChapterTail } from '../kernel/previousChapter';
 import { ProjectTreeError } from '../kernel/projectTree';
 import { redactSensitiveText, type SecretContext } from '../kernel/redaction';
+import { collectSettingSources } from '../kernel/settingSources';
 import { sha256Hex } from '../kernel/sha256';
 import {
   writingContextFromGuardedBundle,
@@ -78,12 +79,18 @@ async function sourceSignature(
       files.push([normalized, digest]);
     }
     const absolute = nativeProjectPath(root, target, platform);
+    // 与起草送进去的同一份：上一章全文、立项资料全文。
     const values: { [key: string]: unknown } = {
       files,
-      previous: await previousChapterTail(reader, root, absolute, { platform }),
+      previous: await previousChapterTail(reader, root, absolute, {
+        platform,
+        maxChars: PREVIOUS_FULL_MAX_CHARS,
+      }),
       system: await buildGenerationSystemPrompt(reader, '', root, { platform }),
       scene: await buildSceneConstraintBlock(reader, root, absolute, { platform }),
     };
+    const settings = await collectSettingSources(reader, root, { secrets: deps.secrets });
+    if (settings !== null) values.settings = settings.block;
     // 起草会带上台账里的已写事实；还没开始记账的书签名不变。
     if ((await reader.inspectProjectPath(root, FACTS_LEDGER)).targetKind !== 'missing') {
       const read = await reader.readProjectBytes(root, FACTS_LEDGER, MAX_SOURCE_BYTES);

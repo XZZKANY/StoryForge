@@ -6,8 +6,13 @@ import { FsToolError } from '../kernel/fsTools';
 import type { GenerationDeliveryCapture } from '../kernel/generationDelivery';
 import { GenerationSourceBudgetError, GenerationSourceCapture } from '../kernel/generationSources';
 import { InputDomainError } from '../kernel/json';
-import { previousChapterTail } from '../kernel/previousChapter';
+import {
+  PREVIOUS_FULL_MAX_CHARS,
+  previousChapterPassage,
+  previousChapterTail,
+} from '../kernel/previousChapter';
 import { fullwidthCjkPunctuation } from '../kernel/punctuation';
+import { collectSettingSources } from '../kernel/settingSources';
 import { ProjectTreeError } from '../kernel/projectTree';
 import { pythonStrip } from '../kernel/pythonText';
 import type { PlainJson, SecretContext } from '../kernel/redaction';
@@ -883,10 +888,19 @@ export async function draftFileContent(
     sources,
     factMentionText(payload.instruction, '', payload.context_bundle),
   );
-  const previousChapter = await previousChapterTail(deps.reader, projectRoot, payload.file_path, {
+  const previous = await previousChapterPassage(deps.reader, projectRoot, payload.file_path, {
     platform: deps.platform,
     capture: sources,
+    maxChars: PREVIOUS_FULL_MAX_CHARS,
   });
+  const previousChapter = previous === null ? null : ([previous.path, previous.text] as const);
+  const settings =
+    projectRoot === null
+      ? null
+      : await collectSettingSources(deps.reader, projectRoot, {
+          secrets: llm.secrets,
+          capture: sources,
+        });
   const session = await existingOrNewSession(deps, {
     sessionId: payload.assistant_session_id,
     projectRoot,
@@ -914,7 +928,10 @@ export async function draftFileContent(
       projectRoot,
       { platform: deps.platform, capture: sources },
     );
-    const userPrompt = buildDraftPrompt(payload, constraints, previousChapter);
+    const userPrompt = buildDraftPrompt(payload, constraints, previousChapter, {
+      settings,
+      previousTruncated: previous?.truncated,
+    });
     await recordGenerationSources(deps, toolCall, sources, systemPrompt, userPrompt);
     result = await llm.callStreamed({ systemPrompt, userPrompt });
   } catch (error) {

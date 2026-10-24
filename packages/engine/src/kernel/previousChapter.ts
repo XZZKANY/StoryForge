@@ -12,6 +12,13 @@ import { pythonStrip } from './pythonText';
  */
 export const PREVIOUS_TAIL_MAX_CHARS = 1200;
 
+/**
+ * 起草新文件时上一章的取窗上限。起草要接住上一章发生的所有事，不只是怎么收的场
+ * （只给结尾 1200 字时，相邻章常对不上前文里的物件、钱数和日期）；一章通常两三千字，
+ * 这个上限基本就是全文，超长章才退回取结尾。
+ */
+export const PREVIOUS_FULL_MAX_CHARS = 8000;
+
 /** 非 dot 目录下的正文 `*.md`，按路径序（= 阅读序）。 */
 export async function iterManuscriptFiles(
   reader: ProjectReader,
@@ -56,6 +63,19 @@ function codePointLastIndexOf(text: string, search: string): number {
   return -1;
 }
 
+export type PreviousChapterPassage = {
+  readonly path: string;
+  readonly text: string;
+  /** 上一章比取窗长、只给了结尾。 */
+  readonly truncated: boolean;
+};
+
+type PassageOptions = {
+  platform: 'windows' | 'posix';
+  capture?: GenerationSourceCapture;
+  maxChars?: number;
+};
+
 /**
  * 阅读序上一章的结尾正文，返回 `[相对路径, 尾巴]`；无上一章或读不到则 null。
  * 拿不到上一章是「少一块加分上下文」，绝不能挡住作者继续写：读盘与越界失败一律返回 null。
@@ -64,12 +84,19 @@ export async function previousChapterTail(
   reader: ProjectReader,
   projectRoot: string | null,
   currentFile: string | null,
-  options: {
-    platform: 'windows' | 'posix';
-    capture?: GenerationSourceCapture;
-    maxChars?: number;
-  },
+  options: PassageOptions,
 ): Promise<readonly [string, string] | null> {
+  const passage = await previousChapterPassage(reader, projectRoot, currentFile, options);
+  return passage === null ? null : [passage.path, passage.text];
+}
+
+/** 同 {@link previousChapterTail}，另外说明是否截掉了开头。 */
+export async function previousChapterPassage(
+  reader: ProjectReader,
+  projectRoot: string | null,
+  currentFile: string | null,
+  options: PassageOptions,
+): Promise<PreviousChapterPassage | null> {
   const { platform, capture } = options;
   const maxChars = options.maxChars ?? PREVIOUS_TAIL_MAX_CHARS;
   if (!currentFile || !projectRoot) return null;
@@ -123,9 +150,10 @@ export async function previousChapterTail(
       return null;
     }
     const start = codePointLastIndexOf(normalized, tail);
+    const truncated = Array.from(normalized).length > maxChars;
     capture?.project('previous_chapter', tail, {
       channel: 'user',
-      truncated: Array.from(normalized).length > maxChars,
+      truncated,
       sourceSpan: {
         start,
         end: start + Array.from(tail).length,
@@ -134,7 +162,7 @@ export async function previousChapterTail(
       },
       transformation: 'previous_paragraph_tail_v1',
     });
-    return [previous, tail];
+    return { path: previous, text: tail, truncated };
   } catch (error) {
     if (
       error instanceof ProjectReadError ||

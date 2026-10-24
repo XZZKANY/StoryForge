@@ -31453,7 +31453,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -31467,8 +31467,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "fc1f16880f8cc618273711c9e1e7a3b9179b03f0ce836df44c1e25120d720634",
-                  "length": 1244
+                  "sha256": "00d1a3d92ade2f209e8570966b20af2f7d0a9ec1244395f38a1b999d2ea61d07",
+                  "length": 1326
                 }
               }
             ],
@@ -32168,8 +32168,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "fc1f16880f8cc618273711c9e1e7a3b9179b03f0ce836df44c1e25120d720634",
-                    "length": 1244
+                    "sha256": "00d1a3d92ade2f209e8570966b20af2f7d0a9ec1244395f38a1b999d2ea61d07",
+                    "length": 1326
                   }
                 }
               ],
@@ -32180,7 +32180,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8ff9656bd76ebc1f95bf3ab4145646bbf46cd9c68aed1311054727e686c0f005",
+            "request_digest": "569ddf6f1a6b5975ddac831b042b462bc6bad98e4a30402d6cc1ab5391d64bc1",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -32197,8 +32197,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "0137e7289ec25ba1f4ffff3c8dc38c05f3396da9f26e69f38254da90d4972bdb",
-                "content_chars": 1305
+                "sha256": "968b9e79f7e2ce9471fc4935f081953fe313281a7410daf41f1122d4ce0a4a9c",
+                "content_chars": 1387
               }
             ],
             "reconstruction": {
@@ -32688,6 +32688,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -32722,7 +32738,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "f442e7a7564116827b78871fe8748ae6388a7faab8c1259a2acd7283df6bde54"
+                "user_sha256": "d84feb3963d654881d0424188095cd35f04697734023d622eb2cb3678ff3e69d"
               },
               "selections": [
                 {
@@ -32739,6 +32755,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -33281,7 +33307,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -33295,8 +33321,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "beb5bbc57eff406fbbf6281b61928607b4ff17a93aa98b6dc7b1361ffe1c29e5",
-                  "length": 1239
+                  "sha256": "b7756c95135f7eb872488fff55dfb70e69d3471d2f6c8adea249bfc8242340e2",
+                  "length": 1321
                 }
               }
             ],
@@ -33996,8 +34022,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "beb5bbc57eff406fbbf6281b61928607b4ff17a93aa98b6dc7b1361ffe1c29e5",
-                    "length": 1239
+                    "sha256": "b7756c95135f7eb872488fff55dfb70e69d3471d2f6c8adea249bfc8242340e2",
+                    "length": 1321
                   }
                 }
               ],
@@ -34008,7 +34034,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "cfb84c2fdcb9171cb683d9626c63b287e8d80806e9df828171544cdce30f4449",
+            "request_digest": "0593d3e50cdee91ce854b816dc35c9748b72a128beb46044bc894a1d7dc038b4",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -34025,8 +34051,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "5ec961cf01ea7c70439800fae266a465ef30d93c4e18171b1f9268b3be61c907",
-                "content_chars": 1300
+                "sha256": "eb7016a1f2838b1d831d88bf809675ae9472f24081b9ea24012bdb2b8544986b",
+                "content_chars": 1382
               }
             ],
             "reconstruction": {
@@ -34516,6 +34542,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -34550,7 +34592,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "9f92824006bd6d0b769c8b52a0c30f6e1836b580571c7e5afefb17216e0f93e3"
+                "user_sha256": "8363499477fe6640bf4491bb313aaaa48118a624bb5fa8a008e9179614e0a17a"
               },
               "selections": [
                 {
@@ -34567,6 +34609,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "a6e1f04761a9acdd0af34ccb97dcdfabf914c8d1675373dcdd44b2023d0d662a",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -65550,7 +65602,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -65564,8 +65616,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "aeafe987225f969e1f59fd1969017ef28da524a2f5c868bf2492827560266da6",
-                  "length": 1540
+                  "sha256": "e9a3625e234f6c37a48f70e32092b0ed0e5a3ed1fdeceefc5d830099a96d6c45",
+                  "length": 1622
                 }
               }
             ],
@@ -66265,8 +66317,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "aeafe987225f969e1f59fd1969017ef28da524a2f5c868bf2492827560266da6",
-                    "length": 1540
+                    "sha256": "e9a3625e234f6c37a48f70e32092b0ed0e5a3ed1fdeceefc5d830099a96d6c45",
+                    "length": 1622
                   }
                 }
               ],
@@ -66277,7 +66329,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "810d6e598a3427002f14dc82815fdc1649be9ba7ea5b954464c39b549c73d690",
+            "request_digest": "aa6dfc1e75376edfe7044719354cda21c925b65ee33cef0bfe58bfb6934f462a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -66294,8 +66346,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "3fee619a9ab121b68abe02ce6f2d5e4283912df618dec6bdc4d5ed0079c0177d",
-                "content_chars": 1601
+                "sha256": "ccff207762f3b8a392062008122a96a2b46208f9328e8210fe658ad4265ed367",
+                "content_chars": 1683
               }
             ],
             "reconstruction": {
@@ -66785,6 +66837,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -66819,7 +66887,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "ee42523d4eae163d166928487bf0e079b8890ffb64435b194f0b05d6e749f5f3"
+                "user_sha256": "a637436f78bb6ca972ab417318cbc3fbe14d0f4594ecf9dee11bd223dcc9faa0"
               },
               "selections": [
                 {
@@ -66836,6 +66904,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
