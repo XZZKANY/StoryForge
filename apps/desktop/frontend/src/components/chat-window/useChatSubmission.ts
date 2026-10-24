@@ -222,8 +222,11 @@ export function useChatSubmission(
         if (plan.channel === 'cross-chapter') {
           await runCrossChapterConsistency(instruction, plan.refs);
         } else {
-          // 引用章走 pinned 上下文通道（explicitContextPaths），不改写作者原话。
-          await runAuthorAgent(instruction, undefined, undefined, [], {
+          // 写章与「AI 起草下一章」按钮走同一条章纲管线；对话里谈过的要求由章纲读对话节选带进来。
+          // 引用章走 pinned 上下文通道（explicitContextPaths），不改写作者原话，也不与写章目标抢 file_path。
+          await runAuthorAgent(instruction, undefined, plan.intent, [], {
+            targetFilePath: plan.targetFilePath,
+            planFallback: plan.planFallback,
             explicitContextPaths: plan.contextPaths,
           });
         }

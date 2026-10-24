@@ -37,7 +37,12 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
     let parsed: Obj;
     try {
       const chat = await chatReply(context.services.assistant, {
-        userMessage: briefPrompt(seed, context.userMessage, written),
+        userMessage: briefPrompt(
+          seed,
+          context.userMessage,
+          written,
+          (payload.conversation ?? null) as string | null,
+        ),
         contextBlock: dumpJson(payload.llm_prompt_context_bundle, { ensureAscii: false }),
         assistantSessionId: context.assistantSessionId,
       });

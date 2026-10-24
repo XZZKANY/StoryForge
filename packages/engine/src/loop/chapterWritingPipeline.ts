@@ -1,11 +1,13 @@
 import { nativeProjectPath } from '../kernel/fsTools';
-import type { PlainJson } from '../kernel/redaction';
+import { redactSensitiveText, type PlainJson } from '../kernel/redaction';
 import { buildLlmContextSnapshot } from '../kernel/llmContext';
 import { llmContextSnapshotToPromptContextBundle } from '../kernel/llmPromptContext';
 import { pythonStrip } from '../kernel/pythonText';
 import { buildPlan } from '../kernel/serialPlan';
 import { assertChapterSources, captureChapterSources } from './chapterSourceGuard';
 import {
+  BRIEF_READY_PREFIX,
+  briefConversation,
   buildBriefSeed,
   briefWrittenMaterials,
   CHAPTER_BRIEF_ARTIFACT_KIND,
@@ -161,11 +163,16 @@ export async function startChapterBrief(
     toolTrace: [],
   });
   run = await host.sink.recordPlan(run, started);
+  const conversation = briefConversation(
+    await host.conversation.messages(request.assistantSessionId),
+    userMessage,
+  );
   const briefResult = await host.executeTool(run, 'chapter.brief', context, {
     project_root: root,
     target_absolute: targetAbsolute,
     seed,
     written,
+    conversation: conversation === null ? null : redactSensitiveText(conversation, host.secrets),
     llm_context_snapshot: snapshot,
     llm_prompt_context_bundle: promptBundle,
   });
@@ -196,7 +203,7 @@ export async function startChapterBrief(
     source_guard: sourceGuard,
     llm_prompt_context_bundle: safePromptBundle,
   });
-  const summary = `Chapter Brief 已准备：${brief.goal || relative}。确认后才会开始起草。`;
+  const summary = `${BRIEF_READY_PREFIX}${brief.goal || relative}。确认后才会开始起草。`;
   const result = response({
     plan: [
       planStep('chapter.brief', '已生成可编辑 Chapter Brief。', 'completed'),
