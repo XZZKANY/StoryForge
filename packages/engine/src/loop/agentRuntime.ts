@@ -91,8 +91,10 @@ import {
 } from './traces';
 import {
   validateCompactionPublication,
+  COMPACTION_TRIGGER_BYTES,
   CompactionRejected,
   ContextBudgetError,
+  conversationHistoryBytes,
 } from './conversationHistory';
 import { pythonStrip } from '../kernel/pythonText';
 
@@ -149,6 +151,8 @@ export type AgentRuntimeDeps = {
   readonly now?: () => string;
   /** 每次中断检查的边界（诊断与测试用；控制写只经存储）。 */
   readonly onInterruptionCheck?: (runId: number, boundary: string) => void;
+  /** 收尾压缩的门槛（字节，默认 COMPACTION_TRIGGER_BYTES）；回放 Python 时期的样本时给 0。 */
+  readonly compactAtHistoryBytes?: number;
 };
 
 /** 结果骨架（runtime_support.base_response）。 */
@@ -817,7 +821,13 @@ export class AgentRuntime {
   private async runHiddenSystemJobs(run: RunRecord, sessionId: number, result: Obj) {
     const currentTitle = await this.deps.titles.title(sessionId);
     const messages = await this.deps.conversation.messages(sessionId);
-    const compactionPayload = await prepareConversationCompaction(this.compactionDeps(), sessionId);
+    // 离上限还远就不压：压成的检查点会丢掉谈定的设计，每轮还要多等一次模型。
+    const nearlyFull =
+      (await conversationHistoryBytes(this.deps.conversation, sessionId)) >=
+      (this.deps.compactAtHistoryBytes ?? COMPACTION_TRIGGER_BYTES);
+    const compactionPayload = nearlyFull
+      ? await prepareConversationCompaction(this.compactionDeps(), sessionId)
+      : null;
     const jobs = buildConversationSystemJobs({
       assistantSessionId: sessionId,
       currentTitle,
