@@ -362,9 +362,14 @@ export type {
 } from './kernel/writingContext';
 export {
   iterManuscriptFiles,
+  PREVIOUS_FULL_MAX_CHARS,
   PREVIOUS_TAIL_MAX_CHARS,
+  previousChapterPassage,
   previousChapterTail,
 } from './kernel/previousChapter';
+export type { PreviousChapterPassage } from './kernel/previousChapter';
+export { collectSettingSources } from './kernel/settingSources';
+export type { SettingSources } from './kernel/settingSources';
 export {
   applyDeterministicPolish,
   DEFAULT_POLISH_GATE_CONFIG,

@@ -1095,7 +1095,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -1802,7 +1802,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -1815,7 +1815,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -2988,7 +2988,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -3082,7 +3082,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -3092,7 +3092,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -3109,8 +3109,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -3500,6 +3500,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -3534,7 +3550,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -3551,6 +3567,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -4290,7 +4316,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -4303,7 +4329,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -5432,7 +5458,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -5526,7 +5552,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -5536,7 +5562,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -5553,8 +5579,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -5944,6 +5970,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -5978,7 +6020,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -5995,6 +6037,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -6794,7 +6846,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -6807,7 +6859,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -8161,7 +8213,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -8255,7 +8307,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -8265,7 +8317,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -8282,8 +8334,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -8866,6 +8918,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -8900,7 +8968,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -8917,6 +8985,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -9961,7 +10039,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -9974,7 +10052,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -11291,7 +11369,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -11385,7 +11463,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -11395,7 +11473,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -11412,8 +11490,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -12008,6 +12086,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -12042,7 +12136,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -12059,6 +12153,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -13053,7 +13157,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -13066,7 +13170,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -14260,7 +14364,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -14354,7 +14458,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -14364,7 +14468,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -14381,8 +14485,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -14793,6 +14897,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -14827,7 +14947,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -14844,6 +14964,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -15644,7 +15774,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -15657,7 +15787,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -17012,7 +17142,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -17106,7 +17236,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -17116,7 +17246,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -17133,8 +17263,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -17717,6 +17847,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -17751,7 +17897,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -17768,6 +17914,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -18778,7 +18934,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -18791,7 +18947,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -20066,7 +20222,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -20160,7 +20316,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -20170,7 +20326,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -20187,8 +20343,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -20675,6 +20831,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -20709,7 +20881,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -20726,6 +20898,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -21540,7 +21722,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -21553,7 +21735,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -22828,7 +23010,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -22922,7 +23104,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -22932,7 +23114,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -22949,8 +23131,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -23437,6 +23619,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -23471,7 +23669,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -23488,6 +23686,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -24294,7 +24502,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -24307,7 +24515,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -25574,7 +25782,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -25668,7 +25876,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -25678,7 +25886,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -25695,8 +25903,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -26175,6 +26383,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -26209,7 +26433,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -26226,6 +26450,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -27040,7 +27274,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -27053,7 +27287,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -28328,7 +28562,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -28422,7 +28656,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -28432,7 +28666,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -28449,8 +28683,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -28937,6 +29171,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -28971,7 +29221,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -28988,6 +29238,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -29805,7 +30065,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -29818,7 +30078,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -31096,7 +31356,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -31190,7 +31450,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -31200,7 +31460,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -31217,8 +31477,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -31708,6 +31968,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -31742,7 +32018,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -31759,6 +32035,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -32575,7 +32861,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -32588,7 +32874,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -33863,7 +34149,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -33957,7 +34243,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -33967,7 +34253,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -33984,8 +34270,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -34472,6 +34758,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -34506,7 +34808,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -34523,6 +34825,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -35358,7 +35670,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -35371,7 +35683,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -36827,7 +37139,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -36921,7 +37233,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -36931,7 +37243,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -36948,8 +37260,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -37629,6 +37941,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -37663,7 +37991,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -37680,6 +38008,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -38733,7 +39071,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -38746,7 +39084,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：40–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：40–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -39978,7 +40316,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -40072,7 +40410,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：40–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：40–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -40082,7 +40420,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "1174c0be512291c4089196e2944aa0d9744abadf03e31b748808795634185ea0",
+            "request_digest": "32b5f8dddb31e51a36e08d988cc3c3afa48772bbf4d83614188a15fb07bd509e",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -40099,8 +40437,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "113e0c582164314e47ff672bec90715e2d5162ba2630efbf67949a01599495d0",
-                "content_chars": 241
+                "sha256": "980c78a8e474be5866bdacf420eda02775f93a9b1179ddc571fdcb9ebec3f3c9",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -40593,6 +40931,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -40627,7 +40981,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "377177e6cf5beceba4dedd504b853825c88300c41882f7d8e5f4776519e24947"
+                "user_sha256": "b3d20b19927a7b96a438af2b9a9bd11035ddf36a3a8447e52ee6785408c8cd0b"
               },
               "selections": [
                 {
@@ -40644,6 +40998,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -41480,7 +41844,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -41493,7 +41857,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：30–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：30–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -42847,7 +43211,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -42941,7 +43305,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：30–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：30–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -42951,7 +43315,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "9226827ad15eb7a5707f204d14aaa81968f9a00dd3c06d4327df95767925e6e8",
+            "request_digest": "accd22f24d005bc9070ea0280a089c6d93dbad364f723eb3c90a47671eeb20f7",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -42968,8 +43332,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ff63d0ec1ce52a236a17993fbb97f1f7a292e78f68ddd9fb9d44147618e315df",
-                "content_chars": 241
+                "sha256": "461988c6c92f8017fa397f4f828842e8568ce14dfdbace882452a4c0ada246a4",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -43552,6 +43916,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -43586,7 +43966,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "0384babd41cbcbe10cd75884b5dd54925d49dfd133b58a125fc7d0ef6f0ee34c"
+                "user_sha256": "6d9c741f98fa9c34dce7e5acdb3181b09100691a0af2dae4bbd6056b1138b567"
               },
               "selections": [
                 {
@@ -43603,6 +43983,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -45086,7 +45476,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -46303,7 +46693,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -47500,7 +47890,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -48717,7 +49107,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -49934,7 +50324,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -51466,7 +51856,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -52584,7 +52974,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -54284,7 +54674,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -55482,7 +55872,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -56260,7 +56650,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -56274,8 +56664,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "11ec861e3224df6c2585820366a54039962a7be17199c2cc3caca103003eb874",
-                  "length": 810
+                  "sha256": "45837a2ac39d3fc74ed208a55a6d55fc42d6b39246bf0d936fd3a363d25c87e6",
+                  "length": 834
                 }
               }
             ],
@@ -57610,7 +58000,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "298f294f8cf1c756746a2f0b1d0e1315422ab38be472daf85b6fa8d45d237cd2"
+              "sha256": "1f2ca84e5acbe12ccbbba5efc59c22c3d54bb81180c2c666ac57554c2225ed34"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -57737,8 +58127,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "11ec861e3224df6c2585820366a54039962a7be17199c2cc3caca103003eb874",
-                    "length": 810
+                    "sha256": "45837a2ac39d3fc74ed208a55a6d55fc42d6b39246bf0d936fd3a363d25c87e6",
+                    "length": 834
                   }
                 }
               ],
@@ -57749,7 +58139,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "4f11974bd8cdf8e41a4d42a12ad9c29e431828fb17c66ca83487ef0a58835e72",
+            "request_digest": "b18eb374a8d418fcb4654688e5f9d82bae17c5eebb54c4b373215c28c620db95",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -57766,8 +58156,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "2e64e6bacb69f33234cfbcb17b4602f98936aaa0eed2fddb212f01e82477645b",
-                "content_chars": 871
+                "sha256": "bb66887ae0d4643c940bb67257979bd010937219b4954429b14bbb3017b9843a",
+                "content_chars": 895
               }
             ],
             "reconstruction": {
@@ -58185,6 +58575,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -58219,7 +58625,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "d8b13039572ee1c41022ac5e749e4286f5d16ad5a9ce162623692c1b615445b8"
+                "user_sha256": "8bfdd4886471cfb23665bbf6263f1bfb5ae54fb8cac163fbb23364f665b79d25"
               },
               "selections": [
                 {
@@ -58236,6 +58642,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -59689,7 +60105,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "298f294f8cf1c756746a2f0b1d0e1315422ab38be472daf85b6fa8d45d237cd2"
+              "sha256": "1f2ca84e5acbe12ccbbba5efc59c22c3d54bb81180c2c666ac57554c2225ed34"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -60839,7 +61255,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -62056,7 +62472,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -63273,7 +63689,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -64520,7 +64936,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -64533,7 +64949,7 @@
               },
               {
                 "role": "user",
-                "content": "项目：末世吞噬\n新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "项目：末世吞噬\n新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -65707,7 +66123,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -65801,7 +66217,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "项目：末世吞噬\n新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "项目：末世吞噬\n新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -65811,7 +66227,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "9fe6784918fd4d94922a7a29978ba39dfa9806df5267b11e5964c5e3083f8197",
+            "request_digest": "4e1aaaab62cc8290bbd9ae42ce4f096687c35329de2abd94ad353e72a566ca0d",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -65828,8 +66244,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "5e251d207d2f359d188319fe8b83616e12a59d066e55d4893edadc224701f0a4",
-                "content_chars": 249
+                "sha256": "415f1d08be2d01c961e34fb31c67e752856e9cf1657ea2cb765e997c058f0862",
+                "content_chars": 331
               }
             ],
             "reconstruction": {
@@ -66219,6 +66635,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -66253,7 +66685,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "0d2f45cece684ed83f39a065d30d2a1f2079d926d9aaf142355b3e9312910a26"
+                "user_sha256": "18ad73128731ffe45d46fbb84658029441478130d23cdde3738bfa96a0763c7c"
               },
               "selections": [
                 {
@@ -66270,6 +66702,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -67010,7 +67452,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -67023,7 +67465,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：入城，口令是 [REDACTED]\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：入城，口令是 [REDACTED]\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -68196,7 +68638,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -68290,7 +68732,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：入城，口令是 [REDACTED]\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：入城，口令是 [REDACTED]\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -68300,7 +68742,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "f1f3290b196d5a22ce596b02b122a0016aae1b919b85bce36b9fef3c81266edf",
+            "request_digest": "e657c7f54041d15f0187bfab3e42b773832ba24930d10ba709eff02858f304b4",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -68317,8 +68759,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "3bdc8c73e18ae56c17ed25b0c3aeadd0938d0fa42e1be1beb417bc0e73db7d32",
-                "content_chars": 246
+                "sha256": "353ea3fbb2be43583d03e1ab6e0d860b1d8f2f5c696508b0c4efe03ff95894a3",
+                "content_chars": 328
               }
             ],
             "reconstruction": {
@@ -68708,6 +69150,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -68742,7 +69200,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "a2ae343c603ebdcdadb33363f4d3cab99b294aa1cf41b5ce583537717c3525fb"
+                "user_sha256": "df37fec0b643bbea4970b91093e96318c0a6fb7da005dce68bae315605fa2947"
               },
               "selections": [
                 {
@@ -68759,6 +69217,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "189ca19702b44ccb2111f0e618b3f03b71d21541b81ea0285908f8da4ca14e96",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -69499,7 +69967,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -69512,7 +69980,7 @@
               },
               {
                 "role": "user",
-                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
               }
             ],
             "temperature": 0.7,
@@ -70685,7 +71153,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "626e00ee58f0d8bc217dd38f491d39182b236b86c351713978476fbce7f7daf9"
+              "sha256": "9b15a27e55ad90c31353def2597db211986eeedde20816f4d9373189acca0e72"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",
@@ -70779,7 +71247,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n上一章（正文/第002章.md）的结尾：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
+                  "content": "新文件路径：$ROOT\\正文\\第003章.md\n\n立项资料（全文）：项目里的大纲、人物、设定等资料，起草须与之一致。\n### 人物/主角.md\n<<<SETTING\n# 林舟\n\n左臂有旧伤。\nSETTING>>>\n\n上一章（正文/第002章.md）全文：\n<<<PREVIOUS\n第二章 夜行\n\n沈禾问路。\nPREVIOUS>>>\n写作指令：章节目标：沈禾带林舟入城，夜宿客栈\n目标字数：10–400 字\n视角：林舟\n场景：城门\n必达节拍：入城；夜宿\n禁写事项：回忆\n连续性约束：林舟左臂有旧伤\n请输出该文件的完整初稿正文。"
                 }
               ],
               "tools": [],
@@ -70789,7 +71257,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8a062b19883589d54471ee6e07ea3c6b40620e9049bbc535b876d97eb18403c1",
+            "request_digest": "856def481a36d8393109932e5b9358ce66f4a6357885668d69f32d423ac7c19f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "bc4faccd2349e6cdb5efd7b2c64b5c9a0f2782e4ec4fa0253a177716a8fda802",
@@ -70806,8 +71274,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "ed910c3028941c3d05be151222f6a9f4f530627f09e8cf1ebb088a3ab59cb630",
-                "content_chars": 241
+                "sha256": "3ded274edc3c0178f40975122cdcf9465280cccf360fc6d99d91279946ff2792",
+                "content_chars": 323
               }
             ],
             "reconstruction": {
@@ -71197,6 +71665,22 @@
                   "truncated": false
                 },
                 {
+                  "channel": "user",
+                  "delivered": true,
+                  "delivered_chars": 81,
+                  "delivered_source_count": 0,
+                  "excerpt_sha256": "f44365fdd6c98717490c43631c8f5e9ea638a800b17994f4e47b991f1222a9f9",
+                  "omission_reason": null,
+                  "omitted_source_count": 0,
+                  "purpose": "setting_files",
+                  "requested_source_count": 0,
+                  "selected_source_count": 0,
+                  "source_ids": [],
+                  "source_span": null,
+                  "transformation": "setting_files_full_v1",
+                  "truncated": false
+                },
+                {
                   "channel": "system",
                   "delivered": false,
                   "delivered_chars": 0,
@@ -71231,7 +71715,7 @@
               ],
               "request": {
                 "system_sha256": "0444b94eaa2849219e5ac783cbb856d8d0bfabbed98c05296f72649013602234",
-                "user_sha256": "92fcbade8ce56b7b73b6c9d02f2af844efe47180e39311dac8608616aeffccee"
+                "user_sha256": "9e054b91e4d6cad49315f5d105745fd549880fe88c69c0443347a917eb218034"
               },
               "selections": [
                 {
@@ -71248,6 +71732,16 @@
                     "current_file": "正文/第003章.md",
                     "ordered_paths_sha256": "a6e1f04761a9acdd0af34ccb97dcdfabf914c8d1675373dcdd44b2023d0d662a",
                     "selected_file": "正文/第002章.md"
+                  }
+                },
+                {
+                  "purpose": "setting_files",
+                  "value": {
+                    "delivered_chars": 12,
+                    "file_count": 1,
+                    "omitted_count": 0,
+                    "ordered_paths_sha256": "f9579f9bef06f3f844cbb1feb685fc02447ca0e0f1d691d8306ae0f415ce8c6f",
+                    "truncated_count": 0
                   }
                 }
               ],
@@ -72413,7 +72907,7 @@
                   "version": "writer-context-v1"
                 }
               },
-              "sha256": "a95335490ceb1560abd307767ce6fc2f1e709227c9b3671a144e402615861588"
+              "sha256": "f14a454199b990ad8e2d75db6d670fe18bb28b2baf8bcca9bf92b026fe839ef1"
             },
             "llm_prompt_context_bundle": {
               "project_root": ".",

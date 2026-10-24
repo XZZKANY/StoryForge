@@ -1,4 +1,5 @@
 import { craftPromptClause, sceneDisciplineClause } from '../kernel/craft';
+import type { SettingSources } from '../kernel/settingSources';
 import type { AssistantContextBundle } from '../kernel/writingContext';
 
 export const CHAT_SYSTEM_PROMPT =
@@ -25,6 +26,8 @@ export const DRAFT_SYSTEM_PROMPT =
   sceneDisciplineClause() +
   '只输出正文内容，不要输出解释、前后缀或代码块标记。';
 
+const pathKey = (path: string) => path.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+
 export function buildDraftPrompt(
   payload: {
     file_path: string;
@@ -34,9 +37,21 @@ export function buildDraftPrompt(
   },
   sceneConstraints: string | null,
   previousChapter: readonly [string, string] | null,
+  options: {
+    /** 立项资料全文；摘录里同名文件不再重复放。 */
+    settings?: SettingSources | null;
+    /** 上一章给的是全文还是只有结尾；给了就不再重复放它的摘录。 */
+    previousTruncated?: boolean;
+  } = {},
 ): string {
   const projectLine = payload.project_name ? `项目：${payload.project_name}\n` : '';
-  const files = payload.context_bundle?.files ?? [];
+  const covered = new Set((options.settings?.paths ?? []).map(pathKey));
+  if (previousChapter && options.previousTruncated !== undefined)
+    covered.add(pathKey(previousChapter[0]));
+  const files = (payload.context_bundle?.files ?? []).filter(
+    (item) => !covered.has(pathKey(item.relative_path)),
+  );
+  const settingBlock = options.settings ? `\n${options.settings.block}\n` : '';
   const contextBlock = files.length
     ? '\n项目上下文摘录：这些文件来自同一小说项目，起草时保持大纲、人物、设定与既有正文连贯。\n' +
       files
@@ -53,11 +68,13 @@ export function buildDraftPrompt(
       '\n'
     : '';
   const constraintBlock = sceneConstraints ? `\n${sceneConstraints}\n` : '';
+  const previousLabel = options.previousTruncated === false ? '全文' : '的结尾';
   const previousBlock = previousChapter
-    ? `\n上一章（${previousChapter[0]}）的结尾：\n<<<PREVIOUS\n${previousChapter[1]}\nPREVIOUS>>>\n`
+    ? `\n上一章（${previousChapter[0]}）${previousLabel}：\n<<<PREVIOUS\n${previousChapter[1]}\nPREVIOUS>>>\n`
     : '';
   return (
     `${projectLine}新文件路径：${payload.file_path}\n` +
+    settingBlock +
     contextBlock +
     previousBlock +
     constraintBlock +
