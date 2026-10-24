@@ -33,6 +33,7 @@ export const NON_MANUSCRIPT_DIRS = new Set([
   '导出',
   'export',
   'exports',
+  '写法',
 ]);
 
 export function isManuscriptPath(relativePath: string): boolean {

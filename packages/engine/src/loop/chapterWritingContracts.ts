@@ -9,6 +9,11 @@ import { MAX_READ_BYTES, ProjectTreeError } from '../kernel/projectTree';
 import { PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
 import { locateQuote } from '../kernel/quoteLocation';
 import { buildPlan, nextChapter, type PlannedChapter, type SerialPlan } from '../kernel/serialPlan';
+import {
+  pickWritingSkills,
+  WRITING_SKILL_PICK_MAX,
+  type WritingSkill,
+} from '../kernel/writingSkills';
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import { chapterChars } from './chapterCheckProtocol';
 import { AgentOrchestrationError } from './runPayloads';
@@ -320,6 +325,7 @@ export function briefPrompt(
   userMessage: string,
   written?: BriefWritten | null,
   conversation?: string | null,
+  skillIndex?: string | null,
 ): string {
   const compare = hasWritten(written);
   const previous =
@@ -335,6 +341,10 @@ export function briefPrompt(
     '字段必须是 target_path, chapter_ordinal, chapter_title, goal, pov, setting, ' +
     'required_beats, forbidden_items, continuity_constraints, target_chars_min, target_chars_max。' +
     '不得更改 target_path/chapter_ordinal；缺少信息用 null 或空数组，不得编造项目事实。\n' +
+    (skillIndex
+      ? `另加 writing_skills：从下面的写法 skill 目录里挑这一章用得上的名字，最多 ${WRITING_SKILL_PICK_MAX} 个，` +
+        '原样照抄名字；都用不上就给空数组。\n'
+      : '') +
     (compare ? ADJUSTMENT_INSTRUCTION : '') +
     `后端确定种子：${dumpJson(seed, { ensureAscii: false })}\n` +
     previous +
@@ -344,6 +354,7 @@ export function briefPrompt(
         '写进 goal、required_beats、forbidden_items 或 continuity_constraints；AI 的提议只有作者明确同意的才算；' +
         `和这一章无关的忽略）：\n<<<CONVERSATION\n${conversation}\nCONVERSATION>>>\n`
       : '') +
+    (skillIndex ? `写法 skill 目录（作者审过的写法 · 名字：什么时候用）：\n${skillIndex}\n` : '') +
     `作者要求：${userMessage}`
   );
 }
@@ -474,6 +485,7 @@ export function parseBrief(
     newHex: () => string;
     userMessage?: string;
     written?: BriefWritten | null;
+    skills?: readonly WritingSkill[];
   },
 ): Obj {
   const { seed, written } = options;
@@ -487,6 +499,7 @@ export function parseBrief(
   let minimum = positiveInt(payload.target_chars_min) || Number(seed.target_chars_min);
   let maximum = positiveInt(payload.target_chars_max) || Number(seed.target_chars_max);
   if (minimum > maximum) [minimum, maximum] = [maximum, minimum];
+  const skills = pickWritingSkills(payload.writing_skills, options.skills ?? []);
   return {
     brief_id: `chapter-brief-${options.newHex()}`,
     revision: 1,
@@ -503,6 +516,8 @@ export function parseBrief(
     target_chars_max: maximum,
     // 没有调整时不出这个键：老 brief 与它的摘要一字不变。
     ...(adjustments.length ? { fact_adjustments: adjustments } : {}),
+    // 同上：没挑写法时不出这个键。
+    ...(skills.length ? { writing_skills: skills } : {}),
     context_provenance: { ...options.provenance },
   };
 }

@@ -28,7 +28,13 @@ export function chapterBriefFromAgentResult(message: AgentResultMessage): Chapte
     targetCharsMin: min,
     targetCharsMax: max,
     ...adjustmentsOf(value.fact_adjustments),
+    ...skillsOf(value.writing_skills),
   };
+}
+
+function skillsOf(value: unknown): { writingSkills?: string[] } {
+  const writingSkills = stringList(value);
+  return writingSkills.length ? { writingSkills } : {};
 }
 
 function adjustmentsOf(value: unknown): { factAdjustments?: ChapterBriefAdjustment[] } {
