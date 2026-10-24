@@ -20,6 +20,17 @@ export const CHAPTER_BRIEF_ARTIFACT_KIND = 'chapter_brief';
 export const CHAPTER_CHECK_ARTIFACT_KIND = 'chapter_check';
 export const CHAPTER_CANDIDATE_ARTIFACT_KIND = 'chapter_candidate';
 export const CHAPTER_WRITE_INTENT = 'chapter.write';
+/** 章纲停下等确认时写进会话的那句话的开头；章纲读对话节选时以它为上一章的分界。 */
+export const BRIEF_READY_PREFIX = 'Chapter Brief 已准备：';
+/** 修复步骤借修订链路写进会话的指令开头：不是作者说的话。 */
+export const REPAIR_INSTRUCTION_PREFIX =
+  '按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文：';
+const REVISION_SUMMARY = /^已按指令修订 /;
+
+const CONVERSATION_MAX_CHARS = 3000;
+const CONVERSATION_MAX_MESSAGES = 8;
+const AUTHOR_LINE_MAX_CHARS = 600;
+const AI_LINE_MAX_CHARS = 1000;
 
 const MAX_LIST_ITEMS = 12;
 const MAX_ITEM_CHARS = 300;
@@ -273,7 +284,43 @@ const ADJUSTMENT_INSTRUCTION =
   '以已写内容为准；作者要求明确写回忆、误会或反转的不算冲突。没有冲突就给空数组。' +
   '只报事实冲突，不提风格、节奏、写法上的意见。goal 和其他字段仍按作者要求整理，不要把调整写进去。\n';
 
-export function briefPrompt(seed: Obj, userMessage: string, written?: BriefWritten | null): string {
+/**
+ * 上一章章纲之后作者与 AI 在对话里说的话（最近的优先，总量有上限），去掉流程自己写进会话的话。
+ * 章纲调用本身看不到对话：不读这段节选，作者在对话里谈过的本章要求进不了章纲。
+ */
+export function briefConversation(
+  messages: readonly { role: string; content: string }[],
+  userMessage: string,
+): string | null {
+  const rows = [...messages];
+  const last = rows[rows.length - 1];
+  if (last?.role === 'user' && pythonStrip(last.content) === pythonStrip(userMessage)) rows.pop();
+  const lines: string[] = [];
+  let used = 0;
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    if (lines.length >= CONVERSATION_MAX_MESSAGES) break;
+    const { role } = rows[index];
+    const text = pythonStrip(rows[index].content);
+    if (role === 'assistant' && text.startsWith(BRIEF_READY_PREFIX)) break;
+    if (!text || (role !== 'user' && role !== 'assistant')) continue;
+    if (role === 'user' && text.startsWith(REPAIR_INSTRUCTION_PREFIX)) continue;
+    if (role === 'assistant' && REVISION_SUMMARY.test(text)) continue;
+    const cap = role === 'user' ? AUTHOR_LINE_MAX_CHARS : AI_LINE_MAX_CHARS;
+    const body = points(text).length > cap ? `${points(text).slice(0, cap).join('')}……` : text;
+    const line = `${role === 'user' ? '作者' : 'AI'}：${body}`;
+    if (used + points(line).length > CONVERSATION_MAX_CHARS) break;
+    used += points(line).length;
+    lines.unshift(line);
+  }
+  return lines.length ? lines.join('\n') : null;
+}
+
+export function briefPrompt(
+  seed: Obj,
+  userMessage: string,
+  written?: BriefWritten | null,
+  conversation?: string | null,
+): string {
   const compare = hasWritten(written);
   const previous =
     compare && written.previous
@@ -292,6 +339,11 @@ export function briefPrompt(seed: Obj, userMessage: string, written?: BriefWritt
     `后端确定种子：${dumpJson(seed, { ensureAscii: false })}\n` +
     previous +
     facts +
+    (conversation
+      ? '对话节选（上一章章纲之后作者和 AI 在对话里说的话，按时间先后。作者明确提出、跟这一章有关的要求' +
+        '写进 goal、required_beats、forbidden_items 或 continuity_constraints；AI 的提议只有作者明确同意的才算；' +
+        `和这一章无关的忽略）：\n<<<CONVERSATION\n${conversation}\nCONVERSATION>>>\n`
+      : '') +
     `作者要求：${userMessage}`
   );
 }
@@ -531,7 +583,7 @@ export function repairInstruction(check: Obj, brief: Obj): string {
     (item): item is Obj => isJsonObject(item as never) && (item as Obj).severity === 'hard',
   );
   return (
-    '按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文：\n' +
+    `${REPAIR_INSTRUCTION_PREFIX}\n` +
     issues.map((item) => `- ${item.rule ?? 'None'}: ${item.message ?? 'None'}`).join('\n') +
     '\n\n' +
     draftInstruction(brief)
