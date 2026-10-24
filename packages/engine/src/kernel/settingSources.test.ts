@@ -1,3 +1,4 @@
+import { PROJECT_GUIDE_MARKDOWN } from '@storyforge/project-core';
 import { describe, expect, it } from 'vitest';
 import type { EncodedFile } from './contextFixture.test-support';
 import { GenerationSourceCapture } from './generationSources';
@@ -55,6 +56,21 @@ describe('collectSettingSources', () => {
     expect(result?.block).not.toContain('第一章');
     expect(result?.truncated).toEqual([]);
     expect(result?.omitted).toEqual([]);
+  });
+
+  it('leaves out the folder guide every new book starts with, unless the author edited it', async () => {
+    const guide = await collectSettingSources(
+      readerOf({ '大纲/项目说明.md': PROJECT_GUIDE_MARKDOWN, '大纲/总纲.md': '主线' }),
+      ROOT,
+      { secrets: SECRETS },
+    );
+    expect(guide?.paths).toEqual(['大纲/总纲.md']);
+    const edited = await collectSettingSources(
+      readerOf({ '大纲/项目说明.md': `${PROJECT_GUIDE_MARKDOWN}\n\n主线：对抗天命。` }),
+      ROOT,
+      { secrets: SECRETS },
+    );
+    expect(edited?.paths).toEqual(['大纲/项目说明.md']);
   });
 
   it('keeps the second half of a setting file that the 1200-char excerpt used to cut', async () => {

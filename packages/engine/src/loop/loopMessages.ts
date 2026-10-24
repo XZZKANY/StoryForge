@@ -4,6 +4,7 @@ import { buildBookContext } from '../kernel/buildBookContext';
 import { buildSceneConstraintBlock } from '../kernel/canonContext';
 import { dumpJson } from '../kernel/json';
 import { buildPlanBlock } from '../kernel/serialPlan';
+import { missingSetupBeforeFirstChapter, setupGapSection } from '../kernel/projectSetup';
 import { sha256Hex } from '../kernel/sha256';
 import type { ProjectReader } from '../readPort';
 import { buildAuthorViewBlock, buildPinnedContextBlock, type AuthorView } from './authorView';
@@ -25,6 +26,7 @@ export async function storyforgeMessages(
     currentFile: string | null;
     authorView: AuthorView | null;
     pinnedContext: string | null;
+    setupNote?: string | null;
   },
   provenance: { [key: string]: unknown } | null = null,
 ): Promise<LoopMessage[]> {
@@ -32,7 +34,13 @@ export async function storyforgeMessages(
   const { projectPath: root, currentFile } = input;
   const hint = currentFile ? `当前打开文件：${currentFile}` : '当前没有打开文件';
   const book = await buildBookContext(reader, root, currentFile, platform);
-  const bookBlock = book === null ? null : renderBookContextBlock(book);
+  const rendered = book === null ? null : renderBookContextBlock(book);
+  const missing =
+    book === null ? null : await missingSetupBeforeFirstChapter(reader, root, platform);
+  const bookBlock =
+    missing === null
+      ? rendered
+      : `${rendered ?? '[作品底座 · 确定性]'}\n\n${setupGapSection(missing)}`;
   const planBlock = await buildPlanBlock(reader, root, platform);
   const sceneBlock = await buildSceneConstraintBlock(reader, root, currentFile, { platform });
   const instructions = await readAuthorInstructions(reader, root);
@@ -60,7 +68,10 @@ export async function storyforgeMessages(
       [
         {
           role: 'user',
-          content: `[项目已挂载，只读工具可用。${hint}]\n作者：${input.userMessage}`,
+          content:
+            `[项目已挂载，只读工具可用。${hint}]\n` +
+            (input.setupNote ? `${input.setupNote}\n` : '') +
+            `作者：${input.userMessage}`,
         },
       ],
     ],

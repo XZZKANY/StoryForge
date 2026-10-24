@@ -396,6 +396,7 @@ export function agentRunReplay(golden: Obj) {
     );
     for (const [path, text] of Object.entries((spec.extra_files ?? {}) as Record<string, string>))
       project.apply({ [path]: encoded(text) });
+    for (const path of (spec.removed_files ?? []) as string[]) project.apply({ [path]: null });
     const big = (spec.big_files ?? {}) as Record<string, [string, number]>;
     for (const [path, [unit, count]] of Object.entries(big))
       project.apply({ [path]: encoded(unit.repeat(count)) });
