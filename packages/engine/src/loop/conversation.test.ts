@@ -450,6 +450,30 @@ describe('连续作者流程的历史证据投影', () => {
     );
   });
 
+  it('对话 AI 交给 file.create 的写作指令只留指纹，别的工具的指令照留', async () => {
+    const { rows, store } = authorJourney();
+    const plan = '第三章：林苇先去邮局查旧账，'.repeat(400);
+    const call: ToolCallRow = {
+      id: 6,
+      tool_name: 'file.create',
+      status: 'completed',
+      related_type: null,
+      related_id: null,
+      input_summary: { path: '正文/第003章.md', instruction: plan },
+      output_summary: { file_path: '正文/第003章.md', content_chars: 3200 },
+    };
+    rows.tool_calls.push(call);
+    const evidence = await evidenceSources(store, 1);
+    const created = evidence.find((item) => item.key === 'tool:6')!;
+    expect(JSON.parse(created.content).input_summary).toEqual({
+      path: '正文/第003章.md',
+      instruction: { omitted: 'internal_evidence', digest: contentDigest(plan) },
+    });
+    const { id: _id, ...raw } = call;
+    expect(created.digest).toBe(contentDigest(raw));
+    expect(evidence.find((item) => item.key === 'tool:1')!.content).toContain('不得凭空知道七号仓');
+  });
+
   it('真实超长作者要求仍明确拒绝，不提高预算或删除消息', async () => {
     const { rows, store } = authorJourney();
     rows.messages[0].content = '必须保留的作者原文'.repeat(20_000);

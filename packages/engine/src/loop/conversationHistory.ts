@@ -77,6 +77,8 @@ const PENDING_CALL_INTERNAL_KEYS = new Set([
   'source_guard',
 ]);
 const TOOL_INTERNAL_KEYS = new Set(['generation_sources']);
+/** 对话 AI 交给 file.create 的写作指令：成稿已在文件里，指令原文每章上万字节、每轮重送，只留指纹。 */
+const FILE_CREATE_INTERNAL_KEYS = new Set([...TOOL_INTERNAL_KEYS, 'instruction']);
 
 type Obj = { [key: string]: unknown };
 const isObj = (value: unknown): value is Obj =>
@@ -265,7 +267,7 @@ export async function evidenceSources(
         related_type: call.related_type,
         related_id: call.related_id,
       },
-      TOOL_INTERNAL_KEYS,
+      call.tool_name === 'file.create' ? FILE_CREATE_INTERNAL_KEYS : TOOL_INTERNAL_KEYS,
     );
   }
   return sources;
