@@ -104,6 +104,8 @@ export type ChatLoopInput = {
   readonly shouldInterrupt?: ((boundary: string) => Obj | null) | null;
   readonly authorView?: AuthorView | null;
   readonly pinnedContext?: string | null;
+  /** 立项检查转来时附在本轮作者消息前的说明。 */
+  readonly setupNote?: string | null;
   readonly recoveryMessage?: Obj | null;
   /** 模型输入的逐段来源指纹（由模型请求证据带走）。 */
   readonly provenance?: Obj | null;
@@ -137,6 +139,7 @@ export async function runChatLoop(
         currentFile: input.currentFile,
         authorView: input.authorView ?? null,
         pinnedContext: input.pinnedContext ?? null,
+        setupNote: input.setupNote ?? null,
       },
       provenance,
     )) as JsonObject[],

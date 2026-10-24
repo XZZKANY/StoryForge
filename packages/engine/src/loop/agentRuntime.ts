@@ -16,6 +16,12 @@ import { buildLlmContextSnapshot } from '../kernel/llmContext';
 import { llmContextSnapshotToPromptContextBundle } from '../kernel/llmPromptContext';
 import { compactText } from '../kernel/pythonText';
 import type { PlainJson, SecretContext } from '../kernel/redaction';
+import {
+  missingSetupBeforeFirstChapter,
+  setupNote,
+  SKIP_SETUP_PATTERN,
+  type SetupKind,
+} from '../kernel/projectSetup';
 import { revisionReferencesReview } from '../kernel/reviseScope';
 import type { ProjectReader } from '../readPort';
 import { callLlm, callLlmMessages, ConfiguredLlmProvider } from '../llm/client';
@@ -102,6 +108,14 @@ const NOT_CONFIGURED =
   '还没配置模型服务，所以我现在只能收到你的话、还答不了。' +
   '去设置里填好 LLM 服务商和 key，再来问我就行。';
 const FILE_INTENTS = new Set(['file.review', 'file.revise', 'chapter.polish']);
+const SETUP_KINDS: readonly string[] = ['outline', 'character', 'setting'];
+
+/** 立项检查转来的那一轮（续跑时从恢复消息里再认一次）。 */
+function setupMissingNote(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  const missing = value.filter((item): item is SetupKind => SETUP_KINDS.includes(item));
+  return missing.length ? setupNote(missing) : null;
+}
 
 /** 会话标题的读写（P4 前由 Python 会话库提供）。 */
 export interface SessionTitlePort {
@@ -552,6 +566,7 @@ export class AgentRuntime {
           shouldInterrupt: (boundary) => this.runtimeInterruption(run, boundary),
           authorView: authorViewFromPayload(args),
           pinnedContext: chatContextBlock(args),
+          setupNote: setupMissingNote(args.setup_missing),
           recoveryMessage: {
             intent: 'chat.explain',
             user_message: userMessage,
@@ -991,8 +1006,21 @@ export class AgentRuntime {
       session = await this.resolveAssistantSession(userMessage, message, args);
       if (run.assistant_session_id !== session.id)
         run = await this.deps.store.updateRun(run.id, { assistant_session_id: session.id });
+      // 开写第一章前立项不齐：先不起草，交对话 agent 提醒作者、代起草立项文件。
+      let chatArgs = args;
+      if (intent === 'chapter.write' && !SKIP_SETUP_PATTERN.test(userMessage)) {
+        const root = optionalString(args.project_path);
+        const missing =
+          root === null
+            ? null
+            : await missingSetupBeforeFirstChapter(this.deps.reader, root, this.deps.platform);
+        if (missing !== null) {
+          intent = 'chat.explain';
+          chatArgs = { ...args, file_path: null, setup_missing: missing };
+        }
+      }
       if (intent === 'chat.explain')
-        result = await this.runChatExplain(run, agentSessionId, session.id, userMessage, args);
+        result = await this.runChatExplain(run, agentSessionId, session.id, userMessage, chatArgs);
       else {
         result = await runFixedIntentPipeline(this.fixedPipelineHost(), {
           run,
