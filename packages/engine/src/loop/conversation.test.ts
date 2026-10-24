@@ -19,6 +19,7 @@ import {
   canonicalJson,
   contentDigest,
   COMPACTION_SLICE_SOURCES,
+  conversationHistoryBytes,
   createCompactionCheckpoint,
   currentEvidenceOverlay,
   evidenceSources,
@@ -410,6 +411,17 @@ describe('连续作者流程的历史证据投影', () => {
     const original = canonicalJson(rows);
     await expect(projectConversationHistory(store, 1)).rejects.toThrow(ContextBudgetError);
     expect(canonicalJson(rows)).toBe(original);
+  });
+
+  it('量历史字节与超预算检查同一口径，超了也只报数不抛错', async () => {
+    const { rows, store } = authorJourney();
+    const history = await projectConversationHistory(store, 1);
+    expect(await conversationHistoryBytes(store, 1)).toBe(
+      new TextEncoder().encode(canonicalJson(history)).length,
+    );
+    rows.messages[0].content = '必须保留的作者原文'.repeat(20_000);
+    await expect(projectConversationHistory(store, 1)).rejects.toThrow(ContextBudgetError);
+    expect(await conversationHistoryBytes(store, 1)).toBeGreaterThan(HISTORY_BUDGET_BYTES);
   });
 
   it('旧检查点引用已省略的恢复全文时回退完整原始历史，不伪认可原引用', async () => {

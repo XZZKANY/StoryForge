@@ -60,3 +60,47 @@ describe('会话已超历史预算时先补压缩', () => {
     );
   });
 });
+
+/** 14 条往来消息的会话，每条约 units × 36 字节；这一轮收尾时由引擎默认门槛决定压不压。 */
+async function finishTurnIn(units: number) {
+  const base = (golden.scenarios as Obj[]).find((item) => item.id === 'long-history-compaction')!;
+  const spec = JSON.parse(base.spec_json);
+  spec.history = Array.from({ length: 14 }, (_, i) => [
+    i % 2 ? 'assistant' : 'user',
+    `第${i}轮：${'周梨不能提前知道借阅者。'.repeat(units)}`,
+  ]);
+  const { record, error } = await replay(
+    { ...base, spec_json: JSON.stringify(spec) },
+    { defaultCompaction: true },
+  );
+  if (error) throw error;
+  return {
+    record,
+    compactions: (record.requests as Obj[]).map((request) =>
+      systemPrompt(request).startsWith(COMPACTION_PROMPT),
+    ),
+    jobs: (record.result as Obj).system_jobs as Obj,
+  };
+}
+
+describe('收尾压缩只在会话快满时做', () => {
+  it('约 50 KB 的会话（作者 10-20 那段的大小）收尾不压，标题和摘要照常', async () => {
+    const { record, compactions, jobs } = await finishTurnIn(100);
+    expect(compactions).toEqual([false]);
+    expect(record.unused_replies).toBe(1);
+    expect((record.tool_calls as Obj[]).map((call) => call.tool_name)).toEqual([
+      'assistant.chat_loop',
+    ]);
+    expect(Object.keys(jobs)).toEqual(['title', 'summary']);
+  });
+
+  it('约 100 KB、快到上限的会话收尾压一次并发布检查点', async () => {
+    const { record, compactions, jobs } = await finishTurnIn(200);
+    expect(compactions).toEqual([false, true]);
+    expect(record.unused_replies).toBe(0);
+    expect(jobs.compaction.status).toBe('completed');
+    expect(
+      (record.artifacts as Obj[]).filter((item) => item.kind === 'system_compaction'),
+    ).toHaveLength(1);
+  });
+});

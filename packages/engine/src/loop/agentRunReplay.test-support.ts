@@ -361,7 +361,12 @@ export function agentRunReplay(golden: Obj) {
     };
   }
 
-  type ReplayOptions = { yielding?: boolean; parallelControls?: boolean };
+  type ReplayOptions = {
+    yielding?: boolean;
+    parallelControls?: boolean;
+    /** 用引擎默认的收尾压缩门槛；不设时门槛为 0——预言机录样本时超过 12 条消息每轮都压。 */
+    defaultCompaction?: boolean;
+  };
 
   /**
    * 每个场景跑两遍：内存存储与 sqlite 存储（P4-1）。两遍的行、帧、结果与错误必须逐项相同，
@@ -648,6 +653,7 @@ export function agentRunReplay(golden: Obj) {
       },
       tools,
       checkpoints: new LoopCheckpointStore(),
+      ...(options.defaultCompaction ? {} : { compactAtHistoryBytes: 0 }),
       ids: {
         stream: () => `stream-${++streams}`,
         attempt: () => `attempt-${++attempts}`,
