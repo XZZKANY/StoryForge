@@ -167,6 +167,42 @@ const withoutMetadata = (output: Obj) => ({
     ? { calls: output.calls.map(({ metadata: _ignored, ...rest }: Obj) => rest) }
     : {}),
 });
+const keysOf = (call: Obj) =>
+  ((parseJson(call.user, 'input') as JsonObject).new_sources as Obj[]).map((item) => item.key);
+
+/**
+ * 接受的差异：Python 补问后仍有一条对不上或漏引就整份拒绝。现在丢掉对不上的条目，补问后仍没摘到的不挡
+ * 发布——作者原话在账本里，AI 回复原样留进检查点，机器证据留在证据覆盖里。这几条预言机场景每次都弄坏
+ * 第一个来源，改判为照常发布、只少那一个来源，且后续能用；条数钉死。
+ */
+const SALVAGED_MODES = new Set(['long-text', 'missing-source', 'bad-quote', 'bad-category']);
+let salvaged = 0;
+async function expectSalvagedCheckpoint(args: Obj) {
+  const { payload, calls } = (await CALLS.create_compaction_checkpoint(args)) as Obj;
+  const asked = (calls as Obj[]).map(keysOf);
+  expect(asked).toHaveLength(2);
+  const missed = asked[0][0];
+  expect(asked[1]).toEqual([missed]);
+  const cited = new Set((payload.entries as Obj[]).map((entry) => entry.source_id));
+  expect(asked[0].filter((key: string) => !cited.has(key))).toEqual([missed]);
+  const kept = [
+    (payload.author_ledger as Obj[]).some((source) => source.key === missed),
+    ((payload.verbatim_messages ?? []) as Obj[]).some((source) => source.key === missed),
+    !missed.startsWith('message:') &&
+      !(payload.source_evidence as Obj[]).some((ref) => ref.key === missed),
+  ];
+  expect(kept.filter(Boolean)).toHaveLength(1);
+  args.rows.artifacts.push({
+    id: 900,
+    run_id: 900,
+    kind: 'system_compaction',
+    requires_confirmation: false,
+    payload,
+  });
+  const history = await projectConversationHistory(sources(args.rows), args.session);
+  expect(history[1].content).toContain(payload.checkpoint_digest);
+  salvaged += 1;
+}
 
 describe('P3-4 对话上下文（Python 预言机）', () => {
   it('system prompt 与作者指令前缀逐字节一致', () => {
@@ -177,6 +213,11 @@ describe('P3-4 对话上下文（Python 预言机）', () => {
   for (const [index, record] of (golden.records as Record_[]).entries()) {
     const args = parseJson(record.args_json, 'args') as Obj;
     it(`#${index} ${record.fn} ${String(args.label ?? args.name ?? '')} ${String(args.mode ?? '')}`, async () => {
+      if (record.fn === 'create_compaction_checkpoint' && SALVAGED_MODES.has(args.mode)) {
+        expect(record.error?.type).toBe('CompactionRejected');
+        await expectSalvagedCheckpoint(args);
+        return;
+      }
       if (record.error) {
         const type =
           record.error.type === 'ContextBudgetError' ? ContextBudgetError : CompactionRejected;
@@ -196,6 +237,10 @@ describe('P3-4 对话上下文（Python 预言机）', () => {
       );
     });
   }
+
+  it('补问后仍没摘到也照常发布的改判只动了 golden 里这 4 条', () => {
+    expect(salvaged).toBe(4);
+  });
 
   const projects = golden.projects as unknown as {
     id: string;
@@ -512,8 +557,6 @@ describe('长会话压缩按来源分份', () => {
     };
     return { rows, store: sources(rows) };
   }
-  const keysOf = (call: Obj) =>
-    ((parseJson(call.user, 'input') as JsonObject).new_sources as Obj[]).map((item) => item.key);
 
   it('来源多于一份时逐份请求、每份全覆盖，合并成一份后续可用的检查点', async () => {
     const { rows, store } = longSession();
@@ -705,22 +748,142 @@ describe('长会话压缩按来源分份', () => {
     ).rejects.toThrow('压缩候选不是有效 JSON。');
   });
 
-  it('补问后仍有漏引，整次压缩不发布', async () => {
-    const { store } = longSession();
+  const publish = (rows: Obj, id: number, payload: Obj) =>
+    rows.artifacts.push({
+      id,
+      run_id: id,
+      kind: 'system_compaction',
+      requires_confirmation: false,
+      payload,
+    });
+
+  it('补问后作者原话仍没被引用：照常发布，原话本就整段在账本里', async () => {
+    const { rows, store } = longSession();
     const valid = scriptedProvider('valid', []);
     const missing = scriptedProvider('missing-source', []);
     let count = 0;
+    const payload = (await createCompactionCheckpoint(store, 1, {
+      provider: {
+        complete: (request: ChatRequest) =>
+          (++count === 2 || count === 3 ? missing : valid).complete(request),
+      },
+      model: 'test',
+      secrets: { values: [] },
+    }))!;
+    expect(count).toBe(4);
+    const cited = new Set((payload.entries as Obj[]).map((entry) => entry.source_id));
+    expect(cited.size).toBe(45);
+    expect(cited.has('message:21')).toBe(false);
+    expect((payload.author_ledger as Obj[]).map((source) => source.key)).toContain('message:21');
+    expect(payload).not.toHaveProperty('verbatim_messages');
+    publish(rows, 1, payload);
+    const history = await projectConversationHistory(store, 1);
+    expect(history[1].content).toContain(payload.checkpoint_digest as string);
+  });
+
+  /** 模型把作者那句的原文挂到了 AI 的短回复上（实验 4 里每次都这样挂错一条）。 */
+  function misattributed(key: string) {
+    const valid = scriptedProvider('valid', []);
+    return {
+      complete: async (request: ChatRequest) => {
+        const response = await valid.complete(request);
+        const body = JSON.parse(response.content);
+        for (const entry of body.entries)
+          if (entry.source_id === key) entry.quote = '周梨不能提前知道借阅者';
+        return chatResponse({ content: JSON.stringify(body), finishReason: 'stop' });
+      },
+    };
+  }
+
+  it('AI 回复补问后仍挂错：丢掉那条，回复原样留进检查点，下一份检查点照样带着', async () => {
+    const { rows, store } = longSession();
+    const payload = (await createCompactionCheckpoint(store, 1, {
+      provider: misattributed('message:2'),
+      model: 'test',
+      secrets: { values: [] },
+    }))!;
+    const reply = '第1轮回复：已按要求处理。';
+    expect(
+      (payload.verbatim_messages as Obj[]).map((source) => [source.key, source.content]),
+    ).toEqual([['message:2', reply]]);
+    expect(payload.summary).toContain('1 条 AI 回复没摘到，原样保留。');
+    expect((payload.entries as Obj[]).some((entry) => entry.source_id === 'message:2')).toBe(false);
+    publish(rows, 1, payload);
+    const history = await projectConversationHistory(store, 1);
+    const data = JSON.parse(history[1].content.split('\n').slice(1).join('\n'));
+    expect(data.checkpoint_digest).toBe(payload.checkpoint_digest);
+    expect(data.verbatim_messages.map((source: Obj) => source.content)).toEqual([reply]);
+    rows.messages.push(
+      ...Array.from({ length: 4 }, (_, i) => ({
+        id: 31 + i,
+        role: i % 2 ? 'assistant' : 'user',
+        content: `第${30 + i}轮：继续。`,
+      })),
+    );
+    const child = (await createCompactionCheckpoint(store, 1, {
+      provider: scriptedProvider('valid', []),
+      model: 'test',
+      secrets: { values: [] },
+    }))!;
+    expect((child.verbatim_messages as Obj[]).map((source) => source.key)).toEqual(['message:2']);
+    publish(rows, 2, child);
+    const later = await projectConversationHistory(store, 1);
+    expect(later[1].content).toContain(child.checkpoint_digest as string);
+  });
+
+  it('补问的回复不成 JSON：那几个来源都算没摘到，检查点照常发布', async () => {
+    const { store } = longSession();
+    const provider = misattributed('message:2');
+    let count = 0;
+    const payload = (await createCompactionCheckpoint(store, 1, {
+      provider: {
+        complete: async (request: ChatRequest) =>
+          ++count === 2
+            ? chatResponse({ content: '不是 JSON', finishReason: 'stop' })
+            : provider.complete(request),
+      },
+      model: 'test',
+      secrets: { values: [] },
+    }))!;
+    expect(count).toBe(4);
+    expect((payload.verbatim_messages as Obj[]).map((source) => source.key)).toEqual(['message:2']);
+  });
+
+  it('原样保留的回复和原消息对不上，这份检查点不用，退回完整历史', async () => {
+    const { rows, store } = longSession();
+    const payload = (await createCompactionCheckpoint(store, 1, {
+      provider: misattributed('message:2'),
+      model: 'test',
+      secrets: { values: [] },
+    }))!;
+    (payload.verbatim_messages as Obj[])[0].content = '改过的回复';
+    const { checkpoint_digest: _old, ...unsigned } = payload;
+    payload.checkpoint_digest = contentDigest(unsigned);
+    publish(rows, 1, payload);
+    const history = await projectConversationHistory(store, 1);
+    expect(history.slice(0, 30)).toEqual(
+      rows.messages.map(({ role, content }) => ({ role, content })),
+    );
+  });
+
+  it('一个来源都没摘到就不发布检查点', async () => {
+    const { store } = longSession();
+    const valid = scriptedProvider('valid', []);
+    const allWrong = {
+      complete: async (request: ChatRequest) => {
+        const response = await valid.complete(request);
+        const body = JSON.parse(response.content);
+        for (const entry of body.entries) entry.quote = '不存在的引用';
+        return chatResponse({ content: JSON.stringify(body), finishReason: 'stop' });
+      },
+    };
     await expect(
       createCompactionCheckpoint(store, 1, {
-        provider: {
-          complete: (request: ChatRequest) =>
-            (++count === 2 || count === 3 ? missing : valid).complete(request),
-        },
+        provider: allWrong,
         model: 'test',
         secrets: { values: [] },
       }),
-    ).rejects.toThrow('压缩候选遗漏来源，未发布检查点。');
-    expect(count).toBe(3);
+    ).rejects.toThrow('压缩候选没有摘到任何来源，未发布检查点。');
   });
 
   it('整段裹在 ```json 代码块里的回复照常校验发布，块里不是 JSON 仍拒绝', async () => {
