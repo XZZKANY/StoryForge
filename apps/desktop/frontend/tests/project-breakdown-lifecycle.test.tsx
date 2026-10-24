@@ -283,6 +283,7 @@ test('normal completion refreshes and opens the report, and a later failure allo
     project_root: 'D:/A',
     target_count: 8,
     analysis_id: expect.any(String),
+    writing_skills: true,
   });
   await finish(0, first.pending);
   expect(container.textContent).toBe('9');
@@ -388,6 +389,7 @@ test('an old in-flight generation blocks duplicates but releases the next projec
     project_root: 'D:/B',
     target_count: 8,
     analysis_id: expect.any(String),
+    writing_skills: true,
   });
   await finish(1, next.pending);
   expect(latest.bookBreakdownRunning).toBe(false);

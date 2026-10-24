@@ -272,6 +272,7 @@ export function AppShell({
                       breakdownCancelling={commands.bookBreakdownCancelling}
                       onCancelBreakdown={() => void commands.handleCancelBookBreakdown()}
                       onOpenBreakdown={(format) => void commands.handleOpenBookBreakdown(format)}
+                      onAdoptBreakdownSkills={() => void commands.handleAdoptBreakdownSkills()}
                     />
                   ) : (
                     <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">

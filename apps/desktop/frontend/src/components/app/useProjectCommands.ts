@@ -268,6 +268,7 @@ export function useProjectCommands({
   const {
     handleBookBreakdown,
     handleOpenBookBreakdown,
+    handleAdoptBreakdownSkills,
     bookBreakdown,
     bookBreakdownRunning,
     bookBreakdownCancelling,
@@ -296,6 +297,7 @@ export function useProjectCommands({
     handleRefreshCanon,
     handleBookBreakdown,
     handleOpenBookBreakdown,
+    handleAdoptBreakdownSkills,
     bookBreakdown,
     bookBreakdownRunning,
     bookBreakdownCancelling,
