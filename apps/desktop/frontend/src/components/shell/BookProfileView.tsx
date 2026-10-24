@@ -112,6 +112,7 @@ export function BookProfileView({
   breakdownCancelling = false,
   onCancelBreakdown = () => undefined,
   onOpenBreakdown = () => undefined,
+  onAdoptBreakdownSkills = () => undefined,
 }: {
   projectPath: string;
   handle: BookProfileHandle;
@@ -124,6 +125,7 @@ export function BookProfileView({
   breakdownCancelling?: boolean;
   onCancelBreakdown?: () => void;
   onOpenBreakdown?: (format?: 'json' | 'markdown') => void;
+  onAdoptBreakdownSkills?: () => void;
 }) {
   // 档案还在读盘时 profile 仍是空档案：此刻放行编辑，读完会把作者刚敲的字覆盖掉；
   // 更糟的是点封面会拿这份空档案写回磁盘，把已有的书名简介清空。故读盘期间整个档案区停用。
@@ -433,7 +435,8 @@ export function BookProfileView({
         <Section title="拆书" testid="breakdown" defaultOpen>
           <div className="px-3">
             <p className="text-3xs leading-relaxed text-subtle">
-              从项目正文提取章节索引和代表章节，生成可追溯的结构化拆书底稿。
+              把想学的书（txt / md / docx）放进作品的「资料」或「参考」文件夹，拆书就只拆它们；
+              没有就拆这本书自己的正文。拆完会多出几份写法 skill，点「放进 写法/」才落进作品。
             </p>
             <div className="mt-2 flex gap-1.5">
               <button
@@ -504,6 +507,32 @@ export function BookProfileView({
                     查看 JSON
                   </button>
                 </div>
+                {breakdown.writing_skills && (
+                  <div
+                    className="mt-2 text-3xs leading-relaxed text-subtle"
+                    data-testid="book-breakdown-skills"
+                  >
+                    {breakdown.writing_skills.count ? (
+                      <>
+                        <div>
+                          拆出的写法 skill：{(breakdown.writing_skills.names ?? []).join('、')}
+                        </div>
+                        <button
+                          type="button"
+                          className="mt-1 inline-flex h-6 items-center gap-1 rounded-md border border-border px-2 text-3xs text-foreground hover:bg-elevated"
+                          onClick={onAdoptBreakdownSkills}
+                          data-testid="book-breakdown-adopt-skills"
+                        >
+                          放进 写法/
+                        </button>
+                      </>
+                    ) : (
+                      <div>
+                        这次没拆出写法 skill（{breakdown.writing_skills.error ?? '原因不明'}）。
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

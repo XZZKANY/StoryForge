@@ -136,6 +136,7 @@ async function runCommand(command: IdeCommandDefinition, args: Args, deps: IdeCo
             cancellation: analysisId ? deps.cancellations.prepare(analysisId) : null,
             cancellations: deps.cancellations,
             newAnalysisId: deps.newAnalysisId,
+            writingSkills: args.writing_skills === true,
           }),
         [BookBreakdownError, FsToolError],
       );

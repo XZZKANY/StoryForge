@@ -16,6 +16,16 @@ import {
 } from './json';
 import { PYTHON_WHITESPACE, pythonSplitlines, pythonStrip } from './pythonText';
 import { sha256Hex } from './sha256';
+import {
+  BREAKDOWN_SKILLS_PATH,
+  BREAKDOWN_SKILLS_SYSTEM_PROMPT,
+  breakdownSkillsPrompt,
+  craftMetrics,
+  craftMetricsText,
+  parseBreakdownSkills,
+  type BreakdownSkill,
+  type CraftMetrics,
+} from './breakdownSkills';
 
 export const ANALYSIS_SCHEMA_VERSION = 'storyforge.breakdown.v1';
 export const SELECTION_STRATEGY_VERSION = 'anchors.v1';
@@ -323,6 +333,26 @@ export async function loadProjectChapters(
   return [chapters, sources];
 }
 
+/** 作者放参考书的目录：里面有能拆的书时只拆它们，不和作品自己的正文混在一起。 */
+const REFERENCE_DIRS = ['参考', '资料'];
+
+/** 拆书的输入：参考 / 资料目录里有书就只用它们（章序重排），否则照旧拆整个项目。 */
+export async function loadBreakdownChapters(
+  reader: ProjectReader,
+  root: string,
+  platform: 'windows' | 'posix',
+): Promise<[Chapter[], Source[]]> {
+  const [chapters, sources] = await loadProjectChapters(reader, root, platform);
+  const referenced = sources.filter((source) => REFERENCE_DIRS.includes(source.path.split('/')[0]));
+  if (!referenced.length || referenced.length === sources.length) return [chapters, sources];
+  const keep = new Set(referenced.map((source) => source.path));
+  const scoped = chapters.filter((chapter) => keep.has(chapter.source_path));
+  scoped.forEach((chapter, index) => {
+    chapter.global_index = index + 1;
+  });
+  return [scoped, referenced];
+}
+
 async function chapterContent(
   reader: ProjectReader,
   root: string,
@@ -408,6 +438,21 @@ export function renderBreakdownMarkdown(report: { [key: string]: unknown }): str
     (report.analysis ?? {}) as Record<string, AnalysisField>,
   ))
     lines.push(`### ${key}`, '', String(value.summary ?? '待补充。'), '');
+  const skills = report.writing_skills as
+    | { names?: string[]; metrics?: CraftMetrics | null; error?: string }
+    | undefined;
+  if (skills) {
+    lines.push('## 写法 skill', '');
+    if (skills.metrics) lines.push(craftMetricsText(skills.metrics), '');
+    if (skills.names?.length)
+      lines.push(
+        ...skills.names.map((name) => `- ${name}`),
+        '',
+        '在作品档案里点「放进 写法/」才会落进作品；放进去之后可以改、可以删。',
+        '',
+      );
+    else lines.push(`这次没拆出可用的写法（${skills.error ?? '原因不明'}）。`, '');
+  }
   if (report.notice) lines.push('## 说明', '', String(report.notice), '');
   return lines.join('\n');
 }
@@ -557,6 +602,48 @@ async function modelAnalysis(
   }
 }
 
+/** 写法 skill：程序量数字，模型照实测写做法；失败不影响拆书报告本身。 */
+async function modelSkills(
+  reader: ProjectReader,
+  root: string,
+  selected: readonly SelectedChapter[],
+  sources: readonly Source[],
+  model: BreakdownModel,
+  platform: 'windows' | 'posix',
+  checkpoint: () => void,
+): Promise<{ metrics: CraftMetrics | null; skills: BreakdownSkill[]; error: string | null }> {
+  const texts: string[] = [];
+  for (const chapter of selected) {
+    const content = await chapterContent(reader, root, chapter, platform);
+    if (content) texts.push(content);
+  }
+  const metrics = craftMetrics(texts);
+  const context = await selectedContext(
+    reader,
+    root,
+    { selected_chapters: selected },
+    { platform },
+  );
+  if (!context) return { metrics, skills: [], error: '代表章节放不进模型的预算' };
+  const names = sources.map((source) => source.path);
+  const source = `拆书 · ${names.slice(0, 3).join('、')}${names.length > 3 ? ' 等' : ''}`;
+  const userPrompt = breakdownSkillsPrompt(metrics, context);
+  let lastError = '写法 skill 生成失败';
+  for (const retry of [false, true]) {
+    checkpoint();
+    try {
+      const response = await model.callLlm({
+        systemPrompt: BREAKDOWN_SKILLS_SYSTEM_PROMPT,
+        userPrompt: retry ? `${userPrompt}\n\n再次强调：只输出完整 JSON 对象。` : userPrompt,
+      });
+      return { metrics, skills: parseBreakdownSkills(response.content, source), error: null };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+  }
+  return { metrics, skills: [], error: lastError };
+}
+
 const REPORT_FILES = [
   REPORT_PATH,
   '.storyforge/analysis/chapters.json',
@@ -572,6 +659,7 @@ async function persistReport(
   chapters: readonly Chapter[],
   selected: readonly SelectedChapter[],
   platform: 'windows' | 'posix',
+  writingSkills: { metrics: CraftMetrics | null; skills: BreakdownSkill[] } | null = null,
 ) {
   const inputHash = String(report.input_sha256 || '');
   const write = (path: string, text: string) =>
@@ -587,7 +675,12 @@ async function persistReport(
     json({ strategy_version: SELECTION_STRATEGY_VERSION, input_sha256: inputHash, selected }),
   );
   await write(REPORT_FILES[3], renderBreakdownMarkdown(report));
-  return { ...report, paths: [...REPORT_FILES] };
+  if (writingSkills === null) return { ...report, paths: [...REPORT_FILES] };
+  await write(
+    BREAKDOWN_SKILLS_PATH,
+    json({ input_sha256: inputHash, metrics: writingSkills.metrics, skills: writingSkills.skills }),
+  );
+  return { ...report, paths: [...REPORT_FILES, BREAKDOWN_SKILLS_PATH] };
 }
 
 /** 结构化拆书：确定性章节索引与代表章选择；配置了模型时再对代表章做一次结构化分析。 */
@@ -603,6 +696,8 @@ export async function runBookBreakdown(
     cancellation?: { isCancelled(): boolean } | null;
     cancellations: BreakdownCancellations;
     newAnalysisId: () => string;
+    /** 顺带产出写法 skill（多一次模型调用；作者在作品档案里采用后才进 `写法/`）。 */
+    writingSkills?: boolean;
   },
 ) {
   await resolveProjectRoot(reader, root);
@@ -620,7 +715,7 @@ export async function runBookBreakdown(
   try {
     try {
       checkpoint();
-      [chapters, sources] = await loadProjectChapters(reader, root, platform);
+      [chapters, sources] = await loadBreakdownChapters(reader, root, platform);
       checkpoint();
       selected = selectRepresentativeChapters(chapters, targetCount);
       checkpoint();
@@ -665,6 +760,33 @@ export async function runBookBreakdown(
         notice: '分析结果只基于选定章节，不能替代人工通读。',
       };
       if (modelError) report.model_error = modelError;
+      if (options.writingSkills) {
+        const outcome =
+          options.model === null
+            ? { metrics: null, skills: [], error: '还没配置模型，拆不了写法' }
+            : await modelSkills(
+                reader,
+                root,
+                selected,
+                sources,
+                options.model,
+                platform,
+                checkpoint,
+              );
+        checkpoint();
+        report.writing_skills = {
+          status: outcome.skills.length ? 'completed' : 'failed',
+          path: BREAKDOWN_SKILLS_PATH,
+          count: outcome.skills.length,
+          names: outcome.skills.map((skill) => skill.name),
+          metrics: outcome.metrics,
+          ...(outcome.error ? { error: outcome.error } : {}),
+        };
+        return await persistReport(writer, root, report, sources, chapters, selected, platform, {
+          metrics: outcome.metrics,
+          skills: outcome.skills,
+        });
+      }
       return await persistReport(writer, root, report, sources, chapters, selected, platform);
     } catch (error) {
       if (!(error instanceof BookBreakdownCancelled)) throw error;
@@ -713,7 +835,7 @@ export async function readBookBreakdownStatus(
   const { status, analysis_id: analysisId, input_sha256: recorded } = report;
   if ([status, analysisId, recorded].some((value) => value != null && typeof value !== 'string'))
     throw new BookBreakdownError('已有拆书报告无法解析。');
-  const [, sources] = await loadProjectChapters(reader, root, platform);
+  const [, sources] = await loadBreakdownChapters(reader, root, platform);
   const current = sourcesHash(sources);
   const stale = typeof recorded !== 'string' || recorded !== current;
   return {

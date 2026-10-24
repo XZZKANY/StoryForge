@@ -4,6 +4,11 @@ import { executeIdeCommand } from '../../lib/api-client';
 import { flushActiveEditorToDisk } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { invalidateFileSystemCache, TauriFileSystem } from '../../lib/tauri-fs';
+import {
+  adoptableSkills,
+  adoptWritingSkills,
+  BREAKDOWN_SKILLS_PATH,
+} from '../../lib/writing-skill-adopt';
 import type { AppDialogApi } from './AppDialog';
 
 export type BookBreakdownPreview = {
@@ -13,6 +18,8 @@ export type BookBreakdownPreview = {
   selected_chapters?: Array<{ title?: string; reason?: string; global_index?: number }>;
   analysis?: Record<string, { status?: string; summary?: string }>;
   markdown_path?: string;
+  /** 拆书顺带拆出的写法 skill（作者点「放进 写法/」才落进作品）。 */
+  writing_skills?: { status?: string; count?: number; names?: string[]; error?: string };
 };
 
 type ProjectLifetime = { projectPath: string | null };
@@ -122,6 +129,7 @@ export function useBookBreakdown({
         project_root: activeProject,
         target_count: 8,
         analysis_id: request.analysisId,
+        writing_skills: true,
       });
       if (!isCurrent()) return;
       const payload = (result.payload ?? {}) as Record<string, unknown>;
@@ -146,6 +154,7 @@ export function useBookBreakdown({
             : breakdown.status === 'completed'
               ? '报告已保存到 .storyforge/analysis/，可在侧栏预览或打开 Markdown。'
               : '报告已保存到 .storyforge/analysis/，当前为结构化底稿。',
+          ...skillsSummary(breakdown.writing_skills),
         ].join('\n'),
       });
       if (!isCurrent()) return;
@@ -225,6 +234,43 @@ export function useBookBreakdown({
     [activeProject, openFile],
   );
 
+  const handleAdoptBreakdownSkills = useCallback(async () => {
+    if (!activeProject) return;
+    const lifetime = projectLifetime.current;
+    const isCurrent = () => projectLifetime.current === lifetime;
+    try {
+      const path = resolveProjectRelativePath(activeProject, BREAKDOWN_SKILLS_PATH);
+      if (!path) throw new Error('找不到拆书产出的写法。');
+      const skills = adoptableSkills(await TauriFileSystem.readFile(path));
+      if (!skills.length) throw new Error('这次拆书没有可放进 写法/ 的 skill。');
+      const { created, skipped } = await adoptWritingSkills(activeProject, skills);
+      if (!isCurrent()) return;
+      invalidateFileSystemCache(activeProject);
+      onReportGenerated();
+      await dialogs.alert({
+        title: created.length ? '写法已放进 写法/' : '写法没有放进去',
+        message: [
+          created.length ? `新建：${created.map((skill) => skill.name).join('、')}` : '',
+          skipped.length
+            ? `同名已有、没有覆盖：${skipped.map((skill) => skill.name).join('、')}`
+            : '',
+          '之后写章时，章纲会按章挑用；可以直接改这些文件，或删掉不要的。',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      });
+      const first =
+        created[0] && resolveProjectRelativePath(activeProject, created[0].relativePath);
+      if (isCurrent() && first) await openFile(first, '打开写法');
+    } catch (error) {
+      if (isCurrent())
+        await dialogs.alert({
+          title: '放进 写法/ 失败',
+          message: error instanceof Error ? error.message : String(error),
+        });
+    }
+  }, [activeProject, dialogs, onReportGenerated, openFile]);
+
   return {
     bookBreakdown: loadedReport?.projectPath === activeProject ? loadedReport.report : null,
     bookBreakdownRunning,
@@ -232,5 +278,15 @@ export function useBookBreakdown({
     handleBookBreakdown,
     handleCancelBookBreakdown,
     handleOpenBookBreakdown,
+    handleAdoptBreakdownSkills,
   };
+}
+
+function skillsSummary(value: unknown): string[] {
+  if (!value || typeof value !== 'object') return [];
+  const skills = value as { count?: unknown; error?: unknown };
+  if (typeof skills.count === 'number' && skills.count > 0)
+    return ['', `拆出 ${skills.count} 份写法 skill：在作品档案里点「放进 写法/」才会落进作品。`];
+  const reason = typeof skills.error === 'string' ? skills.error : '原因不明';
+  return ['', `这次没拆出写法 skill（${reason}）。`];
 }

@@ -426,3 +426,43 @@ test('改字没存进去：编辑框带着改到一半的字回来', async () =>
   const back = view.querySelector<HTMLInputElement>('[data-testid="book-note-edit-input"]');
   assert.equal(back?.value, '十七楼是刘哥的弟弟');
 });
+
+test('拆出写法 skill 时列出名字并给「放进 写法/」，没拆出就说原因', async () => {
+  const adopt = vi.fn();
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+  const render = (breakdown: BookBreakdownPreview) =>
+    act(async () => {
+      root!.render(
+        <BookProfileView
+          projectPath={PROJECT}
+          handle={makeHandle()}
+          dailyWordGoal={3000}
+          onOpenOutline={() => {}}
+          onBackToExplorer={() => {}}
+          onRunBreakdown={() => {}}
+          breakdown={breakdown}
+          onAdoptBreakdownSkills={adopt}
+        />,
+      );
+    });
+  await render({
+    status: 'completed',
+    chapter_count: 3,
+    writing_skills: { status: 'completed', count: 2, names: ['开篇', '章末钩子'] },
+  });
+  assert.match(
+    byTestId('book-breakdown-skills')?.textContent ?? '',
+    /拆出的写法 skill：开篇、章末钩子/,
+  );
+  act(() => byTestId('book-breakdown-adopt-skills')!.click());
+  assert.equal(adopt.mock.calls.length, 1);
+  await render({
+    status: 'completed',
+    chapter_count: 3,
+    writing_skills: { status: 'failed', count: 0, error: '写法 skill 不是有效 JSON。' },
+  });
+  assert.equal(byTestId('book-breakdown-adopt-skills') === null, true);
+  assert.match(byTestId('book-breakdown-skills')?.textContent ?? '', /写法 skill 不是有效 JSON/);
+});
