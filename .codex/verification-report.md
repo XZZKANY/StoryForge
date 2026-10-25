@@ -9418,3 +9418,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 改动：`docs/internal/measurement-window-2026-10.md` 补 U-00 的 PR 号（#468）；E0 小节追加两条记录（deepseek 上限从 100 万改为 180 万；作者模型第一次运行 cl1 中途发现驱动的作者不回答 AI 提问，补上三条作者行为后重跑 cl2，上限改为合计 230 万，通过标准与测量项不变）；缺陷记录登记 9 条（只记不修）。只改文档。
 - 依据：E0 联调与 cl1 的驱动日志（`output/e0/`，不入库）；README 逐条核对结果。
 - 未验证：缺陷记录里「候选文件列表不刷新」一条是代码观察，未复现。
+
+## 2026-10-25 README 中英文对外失实更正（解冻编号 U-01）
+
+- 改动：README.md 41 处、README.en.md 对应改动加两处英文独有的更正（英文示例口令改为中文口令；`pnpm verify` 不是 pre-commit）。只改文字，不改代码。
+- 依据：README 逐条核对 169 条宣称（106 成立、45 言过其实、12 不成立、4 无法静态核实、2 因版本而异），证据与原始结论在作者本机 `reports/storyforge-audit-20261024/work/readme/`（未入库）；主会话复核了其中影响最大的几条：启动约 8 秒后请求 GitHub 版本标签（`App.tsx` + `lib/update-check.ts`）、助手 Markdown 未屏蔽图片（`AssistantMarkdown.tsx` 只覆盖了链接）、作品库没有「创建示例项目」入口、连载计划工具是 read 风险（只读档也能写）、只有生死 / 关系 / 来历会进「等你定」（`kernel/factLedger.ts` 的 FIXED_KINDS）、OpenAI 等预设地址缺 /v1（`provider-config.ts` + `llm/transport.ts`）。
+- 主要更正：「读过整部书」改为会自己翻查全书；「你点头才写进稿子」限定为默认的询问档；隐私一节写明 GitHub 版本查询、助手回复图片加载和自动压缩；「AI 只提议」改为正文只出补丁、`.storyforge/` 状态文件由工具直接写入；只读档的说明；事实台账、伏笔账、人物实体的实际范围与模型调用；观测镜截图加说明；1/3/10 章与人工通读的说法改为如实；路线图删去「进行中」；删去指向未入库 AGENTS.md 的链接。
+- 未验证：GIF 逐帧内容、Windows 10 实机安装、SmartScreen 弹窗文案、第三方聊天工具的能力描述，静态无法核实，原文未改。
