@@ -9405,3 +9405,10 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 未验：
   - 真实模型少了这些指令之后，写下一章会不会更跑偏，要进对照实验才知道。
   - 没打包。
+
+## 2026-10-25 测量期与功能冻结登记（解冻编号 U-00）
+
+- 改动：新增 `docs/internal/measurement-window-2026-10.md`（作者 10-25 的决定、冻结规则、解冻编号账、E0 / E1 / E2 实验登记、判定表）；`CLAUDE.md` 顶部加冻结规则；`docs/internal/TODO.md` 加 10-25 入口；`docs/internal/current-phase.md` 加 10-25 补记。只改文档，不改代码。
+- 依据：作者 10-25 回复审查问题，目标排序写书第一，「可以接受冻结」。
+- 核对：`git diff --numstat` 与 `--ignore-all-space --numstat` 一致（CLAUDE.md 7/0、TODO 11/2、current-phase 8/2）；CLAUDE.md 保持全 CRLF，其余保持 LF。本机未跟踪的根 `AGENTS.md` 同步加了冻结规则（被 .gitignore 忽略，不入库）。
+- 未验证：无（纯文档）。pre-push 门禁照常跑。
