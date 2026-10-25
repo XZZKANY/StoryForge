@@ -3,7 +3,13 @@ import { selectWrittenFacts, type WrittenFact } from '../kernel/canonContext';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
 import { resolveNewProjectFile } from '../kernel/fsProjectTools';
 import { normcase } from '../kernel/generationSources';
-import { dumpJson, InputDomainError, isJsonObject, parseJson } from '../kernel/json';
+import {
+  dumpJson,
+  escapeStrayQuotes,
+  InputDomainError,
+  isJsonObject,
+  parseJson,
+} from '../kernel/json';
 import { iterManuscriptFiles, previousChapterTail } from '../kernel/previousChapter';
 import { MAX_READ_BYTES, ProjectTreeError } from '../kernel/projectTree';
 import { PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
@@ -162,14 +168,16 @@ export async function resolveTarget(
   return { relative, target, planned };
 }
 
-// 没有连载计划时，章纲默认字数取本书最近几章：写死的 1600–2600 不认书，一章三四千字的书按它起草，
+// 没有连载计划时，章纲默认字数取本书已写的章：写死的 1600–2600 不认书，一章三四千字的书按它起草，
 // 检查要么以「字数严重偏离」拦下整章，要么修复把稿子压短。不足 MIN_SAMPLE_CHARS 的占位短章不算样本。
-const LENGTH_SAMPLES = 3;
-const LENGTH_SCAN = 10;
+// 取全书最早的章、不取最近几章：稿子常写到目标上限附近，按最近几章定，目标会跟着越抬越高（擂台二只看最近 3 章，
+// 第 40 章目标涨到 9900–15000 字；按 E1 的真实比值模拟，看最近 20 章到第 40 章仍涨三成）。写满 20 章后基准不再变。
+const LENGTH_SAMPLES = 20;
+const LENGTH_SCAN = 40;
 const MIN_SAMPLE_CHARS = 500;
 
-/** 阅读序上目标章之前最近几章的字数（近的在前）；读不到、二进制、超预算或太短的跳过。 */
-export async function recentChapterChars(
+/** 阅读序上目标章之前、全书最早至多 20 章的字数（早的在前）；读不到、二进制、超预算或太短的跳过。 */
+export async function earliestChapterChars(
   reader: ProjectReader,
   root: string,
   targetRelative: string,
@@ -190,7 +198,7 @@ export async function recentChapterChars(
     if (index === -1) index = keys.length;
   }
   const counts: number[] = [];
-  for (const key of keys.slice(0, index).reverse().slice(0, LENGTH_SCAN)) {
+  for (const key of keys.slice(0, Math.min(index, LENGTH_SCAN))) {
     let bytes: Uint8Array;
     try {
       const resolved = (await reader.resolveProjectPath(root, key)).resolvedRelativePath;
@@ -210,7 +218,7 @@ export async function recentChapterChars(
   return counts;
 }
 
-/** 近几章字数中位数下浮两成、上浮两成，分别向下、向上取整到百位；不足两章不下结论。 */
+/** 全书最早至多 20 章的字数中位数下浮两成、上浮两成，分别向下、向上取整到百位；不足两章不下结论。 */
 export function bookChapterRange(counts: readonly number[]): readonly [number, number] | null {
   if (counts.length < 2) return null;
   const middle = [...counts].sort((a, b) => a - b)[Math.floor((counts.length - 1) / 2)];
@@ -222,10 +230,10 @@ export function buildBriefSeed(input: {
   targetPath: string;
   planned: PlannedChapter | null;
   plan: SerialPlan | null;
-  recentChars?: readonly number[];
+  earliestChars?: readonly number[];
 }): Obj {
   const { planned, plan } = input;
-  const bookRange = bookChapterRange(input.recentChars ?? []);
+  const bookRange = bookChapterRange(input.earliestChars ?? []);
   return {
     target_path: input.targetPath,
     chapter_ordinal: planned !== null ? planned.ordinal : null,
@@ -237,10 +245,30 @@ export function buildBriefSeed(input: {
     forbidden_items: [],
     continuity_constraints: [],
     target_chars_min:
-      (plan !== null ? plan.chapterWordCountMin : null) || (bookRange?.[0] ?? null) || 1600,
+      (plan !== null ? plan.chapterWordCountMin : null) ||
+      (bookRange?.[0] ?? null) ||
+      DEFAULT_TARGET_CHARS[0],
     target_chars_max:
-      (plan !== null ? plan.chapterWordCountMax : null) || (bookRange?.[1] ?? null) || 2600,
+      (plan !== null ? plan.chapterWordCountMax : null) ||
+      (bookRange?.[1] ?? null) ||
+      DEFAULT_TARGET_CHARS[1],
   };
+}
+
+const DEFAULT_TARGET_CHARS = [1600, 2600] as const;
+
+/**
+ * 模型在章纲里提的目标字数只能落在种子范围内（种子来自连载计划或已写章节）：取两者的交集，交集为空就用种子。
+ * 种子还是缺省值（没有计划、已写不足两章）时不钉，开头几章的长短仍由模型定。
+ */
+function pinnedTargetChars(seed: Obj, minimum: number, maximum: number): [number, number] {
+  const low = Number(seed.target_chars_min);
+  const high = Number(seed.target_chars_max);
+  if (low === DEFAULT_TARGET_CHARS[0] && high === DEFAULT_TARGET_CHARS[1])
+    return [minimum, maximum];
+  const pinnedLow = Math.max(low, minimum);
+  const pinnedHigh = Math.min(high, maximum);
+  return pinnedLow < pinnedHigh ? [pinnedLow, pinnedHigh] : [low, high];
 }
 
 /** 章纲对照用的已写内容：上一章结尾和挑出的已写事实；第一章、没有台账时是空的。 */
@@ -425,6 +453,8 @@ function jsonObject(raw: unknown): Obj {
   } catch (error) {
     if (!(error instanceof InputDomainError)) throw error;
     parsed = leadingBriefObject(text);
+    // 模型把带直引号的计划原文、对白原样抄进字符串时，先用程序转义再解析，不让整份章纲重来。
+    if (parsed === null) parsed = repairedBriefObject(text);
     if (parsed === null) throw new AgentOrchestrationError('模型返回的结构化结果不是有效 JSON。');
   }
   if (!isJsonObject(parsed as never))
@@ -477,6 +507,19 @@ function leadingBriefObject(text: string): Obj | null {
   }
 }
 
+/** 直引号转义后再解析一次（整份或开头的对象）；仍不成就放弃，交给调用方报错。 */
+function repairedBriefObject(text: string): Obj | null {
+  const repaired = escapeStrayQuotes(text);
+  if (repaired === text) return null;
+  try {
+    const value = parseJson(repaired, 'chapter brief');
+    return isJsonObject(value) ? { ...value } : null;
+  } catch (error) {
+    if (!(error instanceof InputDomainError)) throw error;
+    return leadingBriefObject(repaired);
+  }
+}
+
 export function parseBrief(
   raw: unknown,
   options: {
@@ -499,6 +542,7 @@ export function parseBrief(
   let minimum = positiveInt(payload.target_chars_min) || Number(seed.target_chars_min);
   let maximum = positiveInt(payload.target_chars_max) || Number(seed.target_chars_max);
   if (minimum > maximum) [minimum, maximum] = [maximum, minimum];
+  [minimum, maximum] = pinnedTargetChars(seed, minimum, maximum);
   const skills = pickWritingSkills(payload.writing_skills, options.skills ?? []);
   return {
     brief_id: `chapter-brief-${options.newHex()}`,
@@ -590,6 +634,18 @@ export function draftInstruction(brief: Obj): string {
           .join('\n'),
     );
   return lines.join('\n');
+}
+
+/**
+ * 章纲那一步看到的对话节选，原样附给起草：设计只在对话里谈过、没落成文件时，
+ * 光靠章纲压出来的目标和节拍，起草几乎看不到谈定的设定（E0：章纲 16/20 个设计点，起草 1/20）。
+ */
+export function draftConversationBlock(excerpt: string | null): string {
+  if (!excerpt) return '';
+  return (
+    '\n对话里谈定的内容（整理这一章章纲时看到的那段对话节选，按时间先后。作者明确同意的设定、人物、情节照着写；' +
+    `和上面的章节目标冲突时以章节目标为准）：\n<<<CONVERSATION\n${excerpt}\nCONVERSATION>>>`
+  );
 }
 
 export function repairInstruction(check: Obj, brief: Obj): string {

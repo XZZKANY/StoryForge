@@ -196,6 +196,49 @@ export function parseJson(
   return result;
 }
 
+const skipBlank = (text: string, from: number) => {
+  let index = from;
+  while (index < text.length && ' \t\r\n'.includes(text[index])) index += 1;
+  return index;
+};
+
+/** 引号后面（跳过空白）是 } ]、文本结尾，或者是 , : 且再往后是一个合法的键或值开头，才算字符串结束。 */
+function closesString(text: string, from: number): boolean {
+  const next = skipBlank(text, from);
+  if (next >= text.length) return true;
+  const char = text[next];
+  if (char === '}' || char === ']') return true;
+  if (char !== ',' && char !== ':') return false;
+  const after = skipBlank(text, next + 1);
+  return after < text.length && '"{[-0123456789tfn'.includes(text[after]);
+}
+
+/**
+ * 模型回的 JSON 里，字符串内容夹了没转义的直引号（引对白、抄计划原文时常见）：把这些引号转义。
+ * 只在正常解析失败后用；修过的文本照样走解析与校验，猜错只会解析失败。
+ */
+export function escapeStrayQuotes(text: string): string {
+  let out = '';
+  let inString = false;
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    if (inString && char === '\\') {
+      out += text.slice(index, index + 2);
+      index += 1;
+      continue;
+    }
+    if (char === '"' && inString) {
+      if (!closesString(text, index + 1)) {
+        out += '\\"';
+        continue;
+      }
+      inString = false;
+    } else if (char === '"') inString = true;
+    out += char;
+  }
+  return out;
+}
+
 const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
 /** 文件字节：只收不带 BOM 的合法 UTF-8。 */

@@ -1,6 +1,7 @@
 import { FACT_KINDS } from '../kernel/factLedger';
 import {
   dumpJson,
+  escapeStrayQuotes,
   InputDomainError,
   isJsonObject,
   parseJson,
@@ -31,6 +32,11 @@ const REPAIRABLE_RULES = new Set([
   ...[...MODEL_RULES].filter((rule) => rule !== 'advisory'),
   'draft_truncated',
   'word_count_out_of_range',
+]);
+/** 程序自己查出、只提示不拦稿的问题：为它们整章重写不值，交给作者看一眼就行。 */
+export const PROGRAM_ADVISORY_RULES = new Set([
+  'word_count_out_of_range',
+  'chapter_number_in_prose',
 ]);
 // 检查时顺带抽出「本章新定下的事实」给事实台账用（回放：每章约 7.5 条，原句 98% 对得上）。
 export const MAX_NEW_FACTS = 15;
@@ -127,6 +133,31 @@ const failure = (rule: string, message: string): Obj => ({
   evidence: null,
 });
 
+const CHAPTER_NUMBER = /第[零〇一二两三四五六七八九十百千\d]+章/u;
+const HEADING_LINE = /^\s*(#+\s*.*|第[零〇一二两三四五六七八九十百千\d]+章.{0,30})\s*$/u;
+
+/** 正文里（开头的章标题除外）出现「第 N 章」：章号是目录用的，写进叙述会出戏。最多报三处。 */
+function chapterNumberAdvisories(content: string): Obj[] {
+  const lines = content.split(/\r?\n/);
+  let start = 0;
+  while (start < lines.length && (!pythonStrip(lines[start]) || HEADING_LINE.test(lines[start])))
+    start += 1;
+  const found: Obj[] = [];
+  for (let index = start; index < lines.length && found.length < 3; index += 1) {
+    const match = CHAPTER_NUMBER.exec(lines[index]);
+    if (!match) continue;
+    const from = Math.max(0, match.index - 12);
+    found.push({
+      rule: 'chapter_number_in_prose',
+      severity: 'advisory',
+      message: `正文里出现章号「${match[0]}」：章号是目录用的，写进叙述会出戏。`,
+      line: index + 1,
+      evidence: lines[index].slice(from, match.index + match[0].length + 12),
+    });
+  }
+  return found;
+}
+
 const isPyInt = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value);
 const CHECK_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
@@ -154,31 +185,6 @@ function decode(raw: unknown): Obj {
   }
   if (!isJsonObject(parsed)) throw new InvalidCheck('检查结果不是对象。');
   return parsed as Obj;
-}
-
-/** 字符串里的引号，只有下一个非空白字符接得上字符串结尾时才算结束。 */
-function escapeStrayQuotes(text: string): string {
-  let out = '';
-  let inString = false;
-  for (let index = 0; index < text.length; index++) {
-    const char = text[index];
-    if (inString && char === '\\') {
-      out += text.slice(index, index + 2);
-      index += 1;
-      continue;
-    }
-    if (char === '"' && inString) {
-      let after = index + 1;
-      while (after < text.length && ' \t\r\n'.includes(text[after])) after += 1;
-      if (after < text.length && !',:}]'.includes(text[after])) {
-        out += '\\"';
-        continue;
-      }
-      inString = false;
-    } else if (char === '"') inString = true;
-    out += char;
-  }
-  return out;
 }
 
 /**
@@ -303,10 +309,18 @@ export function buildCheck(
   const minimum = Math.trunc(Number(brief.target_chars_min));
   const maximum = Math.trunc(Number(brief.target_chars_max));
   const chars = chapterChars(content);
-  if (chars < Math.trunc(minimum * 0.7) || chars > Math.trunc(maximum * 1.3))
-    findings.push(
-      failure('word_count_out_of_range', `正文 ${chars} 字，严重偏离 ${minimum}–${maximum} 字。`),
+  // 字数偏离只提示不拦稿：为它整章重写，写出来的往往还是偏（作者 10-25：「不能全重新生成」）。
+  // 短到不足下限三成多半是生成坏了（截断、只回了一句），仍当硬失败去修。
+  if (chars < Math.trunc(minimum * 0.7) || chars > Math.trunc(maximum * 1.3)) {
+    const finding = failure(
+      'word_count_out_of_range',
+      `正文 ${chars} 字，严重偏离 ${minimum}–${maximum} 字。`,
     );
+    findings.push(
+      chars < Math.trunc(minimum * 0.3) ? finding : { ...finding, severity: 'advisory' },
+    );
+  }
+  findings.push(...chapterNumberAdvisories(content));
   let modelFindingCount = 0;
   const coverage: Obj = {
     supplied_content_chars: length,

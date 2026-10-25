@@ -3,7 +3,7 @@ import type { EncodedFile } from '../kernel/contextFixture.test-support';
 import { memoryProject } from '../kernel/memoryProject.test-support';
 import type { SerialPlan } from '../kernel/serialPlan';
 import { chapterChars } from './chapterCheckProtocol';
-import { bookChapterRange, buildBriefSeed, recentChapterChars } from './chapterWritingContracts';
+import { bookChapterRange, buildBriefSeed, earliestChapterChars } from './chapterWritingContracts';
 
 // 与 apps/api/tests/test_chapter_writing_contracts.py 同一组例子、同一组期望：影子档逐字节比对章纲请求，两边必须算得一样。
 const ROOT = 'D:\\book';
@@ -29,11 +29,11 @@ describe('chapter length', () => {
       '正文/第006章.md': encoded('戊'.repeat(3000)),
       '大纲/总纲.md': encoded('丁'.repeat(5000)),
     });
-    expect(await recentChapterChars(reader, ROOT, '正文/第005章.md', 'windows')).toEqual([
-      1200, 900, 600,
+    expect(await earliestChapterChars(reader, ROOT, '正文/第005章.md', 'windows')).toEqual([
+      600, 900, 1200,
     ]);
-    expect(await recentChapterChars(reader, ROOT, '正文/第003章.md', 'windows')).toEqual([600]);
-    expect(await recentChapterChars(reader, 'D:\\missing', '正文/第001章.md', 'windows')).toEqual(
+    expect(await earliestChapterChars(reader, ROOT, '正文/第003章.md', 'windows')).toEqual([600]);
+    expect(await earliestChapterChars(reader, 'D:\\missing', '正文/第001章.md', 'windows')).toEqual(
       [],
     );
   });
@@ -46,10 +46,21 @@ describe('chapter length', () => {
     });
     for (const saved of [false, true]) {
       if (saved) project.apply({ '正文/第003章.md': encoded('丙'.repeat(900)) });
-      const counts = await recentChapterChars(project.reader, ROOT, '正文/第003章.md', 'windows');
-      expect(counts).toEqual([1063, 767]);
+      const counts = await earliestChapterChars(project.reader, ROOT, '正文/第003章.md', 'windows');
+      expect(counts).toEqual([767, 1063]);
       expect(bookChapterRange(counts)).toEqual([600, 1000]);
     }
+  });
+
+  it('keeps the earliest chapters as the baseline when later chapters run long', async () => {
+    const name = (ordinal: number) => `正文/第${String(ordinal).padStart(3, '0')}章.md`;
+    const files: Record<string, EncodedFile> = { [name(1)]: encoded('第一章 待写\n') };
+    for (let ordinal = 2; ordinal <= 40; ordinal += 1)
+      files[name(ordinal)] = encoded(ordinal <= 21 ? '甲'.repeat(1000) : '乙'.repeat(5000));
+    const { reader } = memoryProject(ROOT, files);
+    const counts = await earliestChapterChars(reader, ROOT, name(41), 'windows');
+    expect(counts).toEqual(Array(20).fill(1000));
+    expect(bookChapterRange(counts)).toEqual([800, 1200]);
   });
 
   it.each([
@@ -76,13 +87,13 @@ describe('chapter length', () => {
   });
 
   it('prefers the plan, then the book, then the default', () => {
-    const seed = (plan: SerialPlan | null, recentChars?: number[]) =>
+    const seed = (plan: SerialPlan | null, earliestChars?: number[]) =>
       buildBriefSeed({
         userMessage: '写下一章',
         targetPath: '正文/第005章.md',
         planned: null,
         plan,
-        recentChars,
+        earliestChars,
       });
     const range = (value: { [key: string]: unknown }) => [
       value.target_chars_min,

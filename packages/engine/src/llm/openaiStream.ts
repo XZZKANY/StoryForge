@@ -75,6 +75,8 @@ export class OpenAIToolStream {
       if (!call.id || !call.function.name || ids.has(call.id))
         throw new ToolStreamError('invalid_completed_tool');
       ids.add(call.id);
+      // 无参数工具：有的中转把参数发成空串而不是 {}，按空对象收下，别当坏流整轮重发。
+      if (!call.function.arguments.trim()) call.function.arguments = '{}';
       let parsed;
       try {
         parsed = parseJson(call.function.arguments, 'tool arguments');

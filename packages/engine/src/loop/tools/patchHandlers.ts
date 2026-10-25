@@ -9,6 +9,7 @@ import {
 } from '../../assistant/service';
 import { FsToolError, resolveProjectRoot, resolveScopedPath } from '../../kernel/fsTools';
 import { pythonFloatRepr } from '../../kernel/json';
+import { isManuscriptPath } from '../../kernel/manuscript';
 import { pythonFixed } from '../../kernel/math';
 import {
   heuristicReviewReasoner,
@@ -22,6 +23,7 @@ import {
 } from '../../kernel/reviewReport';
 import type { ReviewIssue } from '../../kernel/reviewSkills';
 import {
+  parseOrdinal,
   publicReviseScope,
   reviseSummaryWithScope,
   scopeIssues,
@@ -95,6 +97,38 @@ function reviewSubagents(): SubagentExecutor {
 }
 
 const basename = (path: string) => path.split(/[\\/]/).pop() ?? path;
+
+const CHAPTER_FILE = /^第([零〇一二两三四五六七八九十百千\p{Nd}]+)章/u;
+
+/**
+ * 对话 AI 新建正文章节时把文件名统一成「第NNN章.md」：「第一章.md」「第一章 筑基前夜.md」按路径排序
+ * 会落到「第002章.md」后面，下一章找「上一章」就找错了。同名文件已存在、章号读不出时不改。
+ */
+export async function normalizedChapterPath(
+  reader: ToolDeps['reader'],
+  root: string,
+  filePath: string,
+  relativePath: string,
+): Promise<{ filePath: string; relativePath: string } | null> {
+  const relative = relativePath.replace(/\\/g, '/');
+  if (!isManuscriptPath(relative)) return null;
+  const name = basename(relative);
+  const match = CHAPTER_FILE.exec(name);
+  const ordinal = match ? parseOrdinal(match[1]) : null;
+  if (ordinal === null || ordinal > 999n) return null;
+  const wanted = `第${String(ordinal).padStart(3, '0')}章.md`;
+  if (wanted === name) return null;
+  const renamedRelative = `${relative.slice(0, relative.length - name.length)}${wanted}`;
+  try {
+    const existing = await reader.inspectProjectPath(root, renamedRelative);
+    if (existing.entryKind !== 'missing') return null;
+  } catch (error) {
+    if (error instanceof ProjectReadError) return null;
+    throw error;
+  }
+  const cut = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+  return { filePath: `${filePath.slice(0, cut + 1)}${wanted}`, relativePath: renamedRelative };
+}
 
 /** file.review / file.revise / file.create / prose.continue / project.trim_prose / judge.run。 */
 export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
@@ -307,9 +341,25 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
     };
   };
 
-  const fileCreate: ToolHandler = async (context, payload) => {
-    const filePath = requiredString(payload, 'file_path');
-    const traceFilePath = optionalString(payload._trace_file_path) ?? filePath;
+  const fileCreate: ToolHandler = async (context, requested) => {
+    const requestedPath = requiredString(requested, 'file_path');
+    const requestedTrace = optionalString(requested._trace_file_path) ?? requestedPath;
+    const projectRoot = optionalString(requested.project_root);
+    const renamed =
+      projectRoot === null
+        ? null
+        : await normalizedChapterPath(deps.reader, projectRoot, requestedPath, requestedTrace);
+    const payload = renamed
+      ? {
+          ...requested,
+          file_path: renamed.filePath,
+          ...(requested._trace_file_path !== undefined
+            ? { _trace_file_path: renamed.relativePath }
+            : {}),
+        }
+      : requested;
+    const filePath = renamed?.filePath ?? requestedPath;
+    const traceFilePath = renamed?.relativePath ?? requestedTrace;
     const instruction = optionalString(payload.instruction) ?? context.userMessage;
     const prepared = await prepareRuntimeWritingContext(
       contextDeps,
@@ -371,6 +421,7 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
         status: 'completed',
         input_summary: {
           file_path: traceFilePath,
+          ...(renamed ? { requested_file_path: requestedTrace } : {}),
           instruction: cpSlice(instruction, 200),
           ...llmContextInputSummary(payload.llm_context_snapshot),
         },
