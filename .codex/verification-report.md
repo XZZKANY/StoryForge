@@ -9431,3 +9431,9 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 改动：`docs/internal/measurement-window-2026-10.md` 追加 E0 结果（按登记四条标准逐条）、超预算记录、4 条新缺陷，补 U-01 的 PR 号（#470）。只改文档。
 - 依据：`output/e0/` 驱动与 `D:\sf-e0\` 的运行数据（不入库）：smoke1 / cl1 / cl2 / ds1 / ds2 五次运行，汇总脚本 `output/e0/analyze.py`。
 - 未验证：压缩请求是否成功发布没有逐条核对；标准四待作者读第一章。
+
+## 2026-10-25 E1 中期结果登记（解冻编号 U-00）
+
+- 改动：`docs/internal/measurement-window-2026-10.md` 追加 E1 的两条记录（盲读包统一截到每章约 2200 字并统一标点、锚点不动；作者模型约 3 token 一字，登记额度只够两次重复写到第 20 章）、E1 中期结果（作者模型第 11–20 章、deepseek 第 11–40 章的程序指标与按章条数、人工抽检）与 6 条新缺陷。只改文档。
+- 依据：`output/e1/`（驱动 e1.ts、判官 judge.py、盲读包 packet.py）与 `D:\sf-e1\` 的运行数据（不入库）；用量：作者模型约 838 万 token，deepseek 约 463 万，判官 glm-5.3 约 340 万。
+- 未验证：deepseek 现行管线第 31–40 章的隔章窗口判官请求反复断开，没评上；第一个读点的作者盲读待作者读。
