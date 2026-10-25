@@ -9412,3 +9412,9 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 依据：作者 10-25 回复审查问题，目标排序写书第一，「可以接受冻结」。
 - 核对：`git diff --numstat` 与 `--ignore-all-space --numstat` 一致（CLAUDE.md 7/0、TODO 11/2、current-phase 8/2）；CLAUDE.md 保持全 CRLF，其余保持 LF。本机未跟踪的根 `AGENTS.md` 同步加了冻结规则（被 .gitignore 忽略，不入库）。
 - 未验证：无（纯文档）。pre-push 门禁照常跑。
+
+## 2026-10-25 测量期登记文件维护：E0 追加记录与缺陷记录（解冻编号 U-00）
+
+- 改动：`docs/internal/measurement-window-2026-10.md` 补 U-00 的 PR 号（#468）；E0 小节追加两条记录（deepseek 上限从 100 万改为 180 万；作者模型第一次运行 cl1 中途发现驱动的作者不回答 AI 提问，补上三条作者行为后重跑 cl2，上限改为合计 230 万，通过标准与测量项不变）；缺陷记录登记 9 条（只记不修）。只改文档。
+- 依据：E0 联调与 cl1 的驱动日志（`output/e0/`，不入库）；README 逐条核对结果。
+- 未验证：缺陷记录里「候选文件列表不刷新」一条是代码观察，未复现。
