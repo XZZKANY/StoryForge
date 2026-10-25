@@ -112,6 +112,16 @@ export type ChatLoopInput = {
 };
 
 const isLlmError = (error: unknown) => error instanceof LlmError || error instanceof LlmConfigError;
+// transport 把工具调用流拼不成整的情况包成这两句；它们不是连接断开。
+const TOOL_STREAM_FAILURE = /^(Invalid|Incomplete) streamed tool response\.$/;
+
+/** 模型调用失败时给作者看的那句：工具调用拼不成整不是连接断开，原因要说对。 */
+export function providerFailureMessage(detail: string, streamRetries: number): string {
+  const retried = streamRetries > 0 ? `，已自动重试 ${streamRetries} 次仍未成功` : '';
+  if (TOOL_STREAM_FAILURE.test(detail))
+    return `模型调用失败：模型返回的工具调用不完整或参数格式不对${retried}。`;
+  return streamRetries > 0 ? `模型调用失败：输出途中连接断开${retried}。` : '模型调用失败。';
+}
 
 /** 组装 StoryForge 上下文，把通用编排交给 SDK 工具循环。 */
 export async function runChatLoop(
@@ -231,9 +241,7 @@ export async function runChatLoop(
     if (isLlmError(error)) {
       outcome.markFailed(
         'provider_error',
-        context.streamRetries > 0
-          ? `模型调用失败：输出途中连接断开，已自动重试 ${context.streamRetries} 次仍未成功。`
-          : '模型调用失败。',
+        providerFailureMessage(error.message, context.streamRetries),
       );
       outcome.failureDetail = error.message;
       outcome.exhausted = true;

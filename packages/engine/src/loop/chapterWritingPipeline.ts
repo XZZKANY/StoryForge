@@ -4,6 +4,7 @@ import { buildLlmContextSnapshot } from '../kernel/llmContext';
 import { llmContextSnapshotToPromptContextBundle } from '../kernel/llmPromptContext';
 import { pythonStrip } from '../kernel/pythonText';
 import { buildPlan } from '../kernel/serialPlan';
+import { PROGRAM_ADVISORY_RULES } from './chapterCheckProtocol';
 import { assertChapterSources, captureChapterSources } from './chapterSourceGuard';
 import {
   BRIEF_READY_PREFIX,
@@ -15,7 +16,7 @@ import {
   CHAPTER_CHECK_ARTIFACT_KIND,
   CHAPTER_WRITE_INTENT,
   confirmBrief,
-  recentChapterChars,
+  earliestChapterChars,
   resolveTarget,
 } from './chapterWritingContracts';
 import type { FixedPipelineHost, FixedPipelineRequest } from './fixedPipelines';
@@ -37,6 +38,15 @@ type PendingRow = { readonly id: number; readonly kind: string; readonly payload
 
 const roles = (args: Obj) => ({ roleHints: roleHints(args), roleMentions: roleMentions(args) });
 const strip = (value: unknown) => (typeof value === 'string' ? pythonStrip(value) : '');
+
+/** 程序查出、只提示不拦稿的问题（字数、正文里的章号）直接写进回复，作者不必去翻检查记录。 */
+export function programAdvisoryNote(check: Obj): string {
+  const findings = Array.isArray(check.findings) ? (check.findings as Obj[]) : [];
+  const messages = findings
+    .filter((item) => PROGRAM_ADVISORY_RULES.has(String(item.rule)))
+    .map((item) => String(item.message));
+  return messages.length ? `程序提示：${messages.join(' ')}` : '';
+}
 
 function requiredProjectRoot(args: Obj): string {
   const value = strip(args.project_path);
@@ -132,7 +142,7 @@ export async function startChapterBrief(
     targetPath: relative,
     planned,
     plan,
-    recentChars: await recentChapterChars(host.reader, root, relative, host.platform),
+    earliestChars: await earliestChapterChars(host.reader, root, relative, host.platform),
   });
   // 章纲顺带对照上一章结尾和已写事实，专挡「计划和已写内容打架」（不多一次调用）。
   const written = await briefWrittenMaterials(
@@ -163,16 +173,18 @@ export async function startChapterBrief(
     toolTrace: [],
   });
   run = await host.sink.recordPlan(run, started);
-  const conversation = briefConversation(
+  const rawConversation = briefConversation(
     await host.conversation.messages(request.assistantSessionId),
     userMessage,
   );
+  const conversation =
+    rawConversation === null ? null : redactSensitiveText(rawConversation, host.secrets);
   const briefResult = await host.executeTool(run, 'chapter.brief', context, {
     project_root: root,
     target_absolute: targetAbsolute,
     seed,
     written,
-    conversation: conversation === null ? null : redactSensitiveText(conversation, host.secrets),
+    conversation,
     llm_context_snapshot: snapshot,
     llm_prompt_context_bundle: promptBundle,
   });
@@ -202,6 +214,8 @@ export async function startChapterBrief(
     target_relative: relative,
     source_guard: sourceGuard,
     llm_prompt_context_bundle: safePromptBundle,
+    // 确认后起草时会话里已多了「章纲已准备」那句，节选再取就是空的：章纲看到的这段原样留给起草。
+    ...(conversation !== null ? { conversation_excerpt: conversation } : {}),
   });
   const summary = `${BRIEF_READY_PREFIX}${brief.goal || relative}。确认后才会开始起草。`;
   const result = response({
@@ -294,6 +308,9 @@ export async function resumeChapterWriting(
     brief: confirmed,
     source_guard: payload.source_guard,
     llm_prompt_context_bundle: promptBundle,
+    ...(typeof payload.conversation_excerpt === 'string'
+      ? { conversation_excerpt: payload.conversation_excerpt }
+      : {}),
   };
   const traces: AgentToolTrace[] = [];
   const draft = await host.executeTool(run, 'chapter.draft', context, writer);
@@ -362,7 +379,7 @@ export async function resumeChapterWriting(
     return result;
   };
   const executionStatus = finalCheck.execution_status;
-  // 重查后检查器仍失败，说明不了稿件好坏：稿子照给，但一律要作者确认；程序查出的问题（空稿、字数）仍拦下。
+  // 重查后检查器仍失败，说明不了稿件好坏：稿子照给，但一律要作者确认；程序查出的空稿仍拦下。
   const unchecked =
     executionStatus !== 'completed' && finalCheck.manuscript_hard_failure_count === 0;
   if (finalCheck.status !== 'pass' && !unchecked) {
@@ -426,7 +443,8 @@ export async function resumeChapterWriting(
       summary: unchecked
         ? '章节检查重查一次后仍未取得可用结果，这份稿子未经检查。' +
           `已生成 ${relative} 的待审阅补丁，请通读后再决定是否接受。`
-        : `章节草稿已通过 brief 检查，生成 ${relative} 的待审阅补丁。`,
+        : `章节草稿已通过 brief 检查，生成 ${relative} 的待审阅补丁。` +
+          programAdvisoryNote(finalCheck),
       requires_user_confirmation: requiresConfirmation,
       chapter_brief: confirmed,
       chapter_check: finalCheck,

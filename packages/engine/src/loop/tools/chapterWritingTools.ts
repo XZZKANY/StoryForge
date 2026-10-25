@@ -17,6 +17,7 @@ import { buildCheck, checkPrompt } from '../chapterCheckProtocol';
 import { prepareChapterWritingContext } from '../chapterSourceGuard';
 import {
   briefPrompt,
+  draftConversationBlock,
   draftInstruction,
   parseBrief,
   repairInstruction,
@@ -115,7 +116,12 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
       context.services.assistant,
       {
         file_path: payload.target_absolute as string,
-        instruction: draftInstruction(confirmed) + (skillsBlock === null ? '' : `\n${skillsBlock}`),
+        instruction:
+          draftInstruction(confirmed) +
+          (skillsBlock === null ? '' : `\n${skillsBlock}`) +
+          draftConversationBlock(
+            typeof payload.conversation_excerpt === 'string' ? payload.conversation_excerpt : null,
+          ),
         project_name: (payload.project_name ?? null) as string | null,
         project_root: payload.project_root as string,
         assistant_session_id: context.assistantSessionId,
