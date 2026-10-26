@@ -9497,3 +9497,14 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   - 练手书的两轮提问、真书的 R09 和 R10，因断网和上限没跑完。
   - 读点二和 E0 标准四等作者。
   - E0 一节的「卡点」一段标为推测。
+
+## 2026-10-26 登记 E1 读点二结果（解冻编号 U-00）
+
+- 改动（只改文档）：
+  - `docs/internal/measurement-window-2026-10.md` 的 §5.2 追加「E1 读点二结果」：作者给第 39–40 章打分，并与读点一逐链对照；辨认题没答；本读点没有锚点，沿用读点一「1 分的差记不确定」的结论；对照 §6 判定表，盲读部分落在「不确定」那一行。
+  - `docs/internal/TODO.md` 的 10-25 入口第 3 条同步更新。
+- 依据：
+  - `reports/storyforge-audit-20261024/measurement/E1/读点-39-40/打分表.md`，作者 10-26 填写，未入库。
+  - 对照表 `output/e1/packets/对照表-cl-39-40.json`，未入库；作者打分前没有看过。
+- 核对：分数按对照表逐份还原到链。`git diff --numstat` 与 `--ignore-all-space --numstat` 一致，两份文件保持 LF。
+- 未验证：E0 标准四的两项答案作者还没记下。
