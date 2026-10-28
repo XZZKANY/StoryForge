@@ -11,6 +11,7 @@ import { TOAST_EVENT } from '../src/lib/toast';
 vi.mock('../src/lib/api-client', () => ({ executeIdeCommand: vi.fn() }));
 vi.mock('../src/lib/assistant-events', () => ({
   APPLY_FILE_SUGGESTION_EVENT: 'apply-file-suggestion',
+  REQUEST_OPEN_FILE_EVENT: 'request-open-file',
   flushActiveEditorToDisk: vi.fn(),
 }));
 vi.mock('../src/lib/smoke', () => ({

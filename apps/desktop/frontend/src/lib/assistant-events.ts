@@ -106,6 +106,19 @@ export function emitLocateInEditor(detail: LocateInEditorDetail): void {
   }
 }
 
+// 对话栏「上下文」点文件名：App 核对在项目内后显示编辑器并打开；不带定位，也不碰待确认补丁。
+export const REQUEST_OPEN_FILE_EVENT = 'storyforge:request-open-file';
+
+export type OpenFileRequest = { filePath: string };
+
+export function emitOpenFileRequest(filePath: string): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<OpenFileRequest>(REQUEST_OPEN_FILE_EVENT, { detail: { filePath } }),
+    );
+  }
+}
+
 export type SaveActiveFileStatus = 'saved' | 'skipped' | 'error';
 
 export type SaveActiveFileRequestDetail = {

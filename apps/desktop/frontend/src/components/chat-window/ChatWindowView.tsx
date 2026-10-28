@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { emitToast } from '../../lib/toast';
 import { ComposerBox } from './Composer';
 import { ChapterBriefCard } from './ChapterBriefCard';
+import { ContextPanel, ContextPanelToggle } from './ContextPanel';
 import { CHAT_COLUMN } from './column';
 import { isAuthorRejection, runLivePhaseText, runStatusText } from './display-utils';
 import { LiveStatus } from '../shell/LiveStatus';
@@ -95,6 +96,7 @@ export function ChatWindowView({
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   // 会话加载错误条可关闭：按错误串记忆已关内容，新错误（含换会话）会重新出现；重试先摘标记。
   const [dismissedSessionError, setDismissedSessionError] = useState<string | null>(null);
+  const [contextOpen, setContextOpen] = useState(false);
   // 第14条：run 控制统一到 RunActionBar，运行/等待/暂停三态都显示操作条；completed 的
   // 「本轮已完成。」不再长驻（完成已在回复里）；只有 failed / stopped 留轻状态条收尾。
   const runStatus = state.agentRun?.status;
@@ -151,7 +153,12 @@ export function ChatWindowView({
         onSetLayoutMode={onSetLayoutMode}
         onOpenObservatory={onOpenObservatory}
         observatoryAttention={observatoryAttention}
+        contextToggle={
+          <ContextPanelToggle open={contextOpen} onToggle={() => setContextOpen((open) => !open)} />
+        }
       />
+
+      {contextOpen && <ContextPanel projectPath={projectPath} run={state.agentRun} />}
 
       {state.sessionLoadError && state.sessionLoadError !== dismissedSessionError && (
         <div

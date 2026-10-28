@@ -7,6 +7,7 @@ import { appendStyleBaselineToSystemPrompt } from './styleBaseline';
 
 export const MAX_INSTRUCTION_CHARS = 4_000;
 const MAX_SOURCE_BYTES = 512 * 1024;
+const TRUNCATION_MARKER = '…[作者指令过长已截断，保留最近部分]\n';
 
 // 两档措辞：对话路径「尽量遵循」，产字路径「逐条遵循」；同一份文件内容只换注入措辞。
 export const CONVERSATION_PREFIX =
@@ -85,9 +86,8 @@ export async function readAuthorInstructions(
   const originalLength = points.length;
   let budget = 0;
   if (originalLength > MAX_INSTRUCTION_CHARS) {
-    const marker = '…[作者指令过长已截断，保留最近部分]\n';
-    budget = MAX_INSTRUCTION_CHARS - Array.from(marker).length;
-    text = marker + points.slice(-budget).join('');
+    budget = MAX_INSTRUCTION_CHARS - Array.from(TRUNCATION_MARKER).length;
+    text = TRUNCATION_MARKER + points.slice(-budget).join('');
   }
   capture?.project('author_instructions', text, {
     truncated: originalLength > MAX_INSTRUCTION_CHARS,
@@ -100,6 +100,18 @@ export async function readAuthorInstructions(
     transformation: 'author_tail_with_notice_v1',
   });
   return text;
+}
+
+/** `readAuthorInstructions` 的结果拆成正文与是否截断：截断标记只在这里认，界面不自己猜。 */
+export function describeAuthorInstructions(text: string): {
+  body: string;
+  chars: number;
+  truncated: boolean;
+} {
+  const truncated =
+    text.startsWith(TRUNCATION_MARKER) && Array.from(text).length === MAX_INSTRUCTION_CHARS;
+  const body = truncated ? text.slice(TRUNCATION_MARKER.length) : text;
+  return { body, chars: Array.from(body).length, truncated };
 }
 
 /** 把作者指令接到产字路径的 system prompt 末尾（近因位置最强）；无指令原样返回。 */
