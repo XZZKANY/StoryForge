@@ -9531,3 +9531,11 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   - 前端 `tests/provider-config.test.ts` 10 passed（新增模型不在列表的警告、部分列表不下结论）。
   - `pnpm verify` EXIT=0：引擎 93 files / 13812 passed + 2 skipped，前端 240 files / 2412 passed，三个浏览器回归通过（首跑因新测试未过 prettier 失败，格式化后重跑全绿）。
 - 未覆盖：没有在真宿主上点穿；「测试连接」仍不真发对话（引擎 `providerHealth.ts` 刻意不做生成，改它要单独定）。
+
+## 2026-10-28 观测镜并入测试满载下冷启动超时
+
+- 现象：做试用问题 #14 时全量门禁两次都红在 `tests/observatory-merge-conflict.test.tsx`。第一条用例 5 秒超时，其后三条连锁失败（上一条超时留下的渲染没收尾）。
+- 定性：把 #14 改动提交到分支后切回干净的 master（`ed919cb5`），同样满载跑前端全量单测，复现同样 4 条红。所以是 master 原有问题，不是 #14 引入的；#15 那次全量跑恰好没撞上。
+  - 单跑这个文件时，第一条用例耗时 3480ms，其余三条各约 30ms，时间花在第一次加载上。
+- 改动：只给这组用例加 `30_000` 超时，与仓库里 8 处冷启动重的测试同一做法；测试逻辑不变。
+- 验证：`pnpm verify` EXIT=0（前端 240 files / 2412 passed，观测镜这组不再超时）。首跑红在行间续写浏览器回归的 page.goto 30 秒超时：单跑通过，整套重跑全绿，判为负载抖动。

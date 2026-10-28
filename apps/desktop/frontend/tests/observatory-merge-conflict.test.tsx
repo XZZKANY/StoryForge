@@ -115,5 +115,5 @@ for (const scenario of ['changed', 'trimmed', 'already-invalid', 'changed-after-
       errorLog.mockRestore();
       vi.mocked(executeIdeCommand).mockReset();
     }
-  });
+  }, 30_000);
 }
