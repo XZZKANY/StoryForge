@@ -48,6 +48,18 @@ describe('会话已超历史预算时先补压缩', () => {
     ).toHaveLength(2);
   });
 
+  it('默认时序：开头压缩没成就照原样报超预算，同一轮不再补压第二次', async () => {
+    const { record, error } = await replay(
+      overBudgetScenario([reply('不是 JSON'), { compaction_quote: true }]),
+      { defaultCompaction: true },
+    );
+    const requests = record.requests as Obj[];
+    expect(requests).toHaveLength(1);
+    expect(systemPrompt(requests[0]).startsWith(COMPACTION_PROMPT)).toBe(true);
+    const message = error ? (error as Error).message : JSON.stringify(record.result);
+    expect(message).toContain('上下文超出保真预算');
+  });
+
   it('补压没成就照原样报超预算，不调用对话模型', async () => {
     const { record, error } = await replay(overBudgetScenario([reply('不是 JSON')]));
     const requests = record.requests as Obj[];
@@ -61,14 +73,15 @@ describe('会话已超历史预算时先补压缩', () => {
   });
 });
 
-/** 14 条往来消息的会话，每条约 units × 36 字节；这一轮收尾时由引擎默认门槛决定压不压。 */
-async function finishTurnIn(units: number) {
+/** 14 条往来消息的会话，每条约 units × 36 字节；由引擎默认门槛决定这一轮开头压不压。 */
+async function runTurnIn(units: number, replies?: Obj[]) {
   const base = (golden.scenarios as Obj[]).find((item) => item.id === 'long-history-compaction')!;
   const spec = JSON.parse(base.spec_json);
   spec.history = Array.from({ length: 14 }, (_, i) => [
     i % 2 ? 'assistant' : 'user',
     `第${i}轮：${'周梨不能提前知道借阅者。'.repeat(units)}`,
   ]);
+  if (replies) spec.replies = replies;
   const { record, error } = await replay(
     { ...base, spec_json: JSON.stringify(spec) },
     { defaultCompaction: true },
@@ -80,12 +93,13 @@ async function finishTurnIn(units: number) {
       systemPrompt(request).startsWith(COMPACTION_PROMPT),
     ),
     jobs: (record.result as Obj).system_jobs as Obj,
+    checkpoints: (record.artifacts as Obj[]).filter((item) => item.kind === 'system_compaction'),
   };
 }
 
-describe('收尾压缩只在会话快满时做', () => {
-  it('约 50 KB 的会话（作者 10-20 那段的大小）收尾不压，标题和摘要照常', async () => {
-    const { record, compactions, jobs } = await finishTurnIn(100);
+describe('会话快满时在这一轮开头压，收尾不压', () => {
+  it('约 50 KB 的会话（作者 10-20 那段的大小）不压，标题和摘要照常', async () => {
+    const { record, compactions, jobs } = await runTurnIn(100);
     expect(compactions).toEqual([false]);
     expect(record.unused_replies).toBe(1);
     expect((record.tool_calls as Obj[]).map((call) => call.tool_name)).toEqual([
@@ -94,13 +108,26 @@ describe('收尾压缩只在会话快满时做', () => {
     expect(Object.keys(jobs)).toEqual(['title', 'summary']);
   });
 
-  it('约 100 KB、快到上限的会话收尾压一次并发布检查点', async () => {
-    const { record, compactions, jobs } = await finishTurnIn(200);
-    expect(compactions).toEqual([false, true]);
+  it('约 100 KB、快到上限的会话在开头压一次，回答之后不再等压缩', async () => {
+    const { record, compactions, jobs, checkpoints } = await runTurnIn(200, [
+      { compaction_quote: true },
+      reply('好的。'),
+    ]);
+    expect(compactions).toEqual([true, false]);
     expect(record.unused_replies).toBe(0);
-    expect(jobs.compaction.status).toBe('completed');
-    expect(
-      (record.artifacts as Obj[]).filter((item) => item.kind === 'system_compaction'),
-    ).toHaveLength(1);
+    expect((record.result as Obj).agent_result.summary).toBe('好的。');
+    expect(Object.keys(jobs)).toEqual(['title', 'summary']);
+    expect(checkpoints).toHaveLength(1);
+  });
+
+  it('开头压缩没成：这一轮照常作答，也不补压第二次', async () => {
+    const { record, compactions, checkpoints } = await runTurnIn(200, [
+      reply('不是 JSON'),
+      reply('好的。'),
+    ]);
+    expect(compactions).toEqual([true, false]);
+    expect(record.unused_replies).toBe(0);
+    expect((record.result as Obj).agent_result.summary).toBe('好的。');
+    expect(checkpoints).toHaveLength(0);
   });
 });

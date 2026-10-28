@@ -151,8 +151,10 @@ export type AgentRuntimeDeps = {
   readonly now?: () => string;
   /** 每次中断检查的边界（诊断与测试用；控制写只经存储）。 */
   readonly onInterruptionCheck?: (runId: number, boundary: string) => void;
-  /** 收尾压缩的门槛（字节，默认 COMPACTION_TRIGGER_BYTES）；回放 Python 时期的样本时给 0。 */
+  /** 压缩的门槛（字节，默认 COMPACTION_TRIGGER_BYTES）；回放 Python 时期的样本时给 0。 */
   readonly compactAtHistoryBytes?: number;
+  /** 回放 Python 时期的样本：照当时的时序在收尾压缩。缺省在下一轮开头压。 */
+  readonly compactAtTurnEnd?: boolean;
 };
 
 /** 结果骨架（runtime_support.base_response）。 */
@@ -581,12 +583,18 @@ export class AgentRuntime {
       );
     let outcome;
     try {
+      // 会话快满时在这一轮开头压，不在上一轮收尾压：收尾压会让作者看着回答写完了还在请求，补丁也跟着晚出。
+      const compactedBeforeTurn =
+        !this.deps.compactAtTurnEnd && (await this.historyNearlyFull(sessionId))
+          ? await this.compactForBudget(run, sessionId)
+          : null;
       try {
         outcome = await chatLoop();
       } catch (error) {
-        // 历史超预算时模型还没被调用：先补一次压缩再重组消息；补不上就照原样报错。
+        // 历史超预算时模型还没被调用：先补一次压缩再重组消息；补不上就照原样报错。一轮最多压一次。
         if (
           !(error instanceof ContextBudgetError) ||
+          compactedBeforeTurn !== null ||
           !(await this.compactForBudget(run, sessionId))
         )
           throw error;
@@ -817,17 +825,22 @@ export class AgentRuntime {
     return job.artifactPayload !== null;
   }
 
-  /** 收尾时的隐藏任务：标题、短摘要、模型压缩；每个任务发布前都检查一次中断。 */
+  // 离上限还远就不压：压成的检查点会丢掉谈定的设计，还要多等一次模型。
+  private async historyNearlyFull(sessionId: number): Promise<boolean> {
+    return (
+      (await conversationHistoryBytes(this.deps.conversation, sessionId)) >=
+      (this.deps.compactAtHistoryBytes ?? COMPACTION_TRIGGER_BYTES)
+    );
+  }
+
+  /** 收尾时的隐藏任务：标题、短摘要（回放 Python 样本时还有模型压缩）；每个任务发布前都检查一次中断。 */
   private async runHiddenSystemJobs(run: RunRecord, sessionId: number, result: Obj) {
     const currentTitle = await this.deps.titles.title(sessionId);
     const messages = await this.deps.conversation.messages(sessionId);
-    // 离上限还远就不压：压成的检查点会丢掉谈定的设计，每轮还要多等一次模型。
-    const nearlyFull =
-      (await conversationHistoryBytes(this.deps.conversation, sessionId)) >=
-      (this.deps.compactAtHistoryBytes ?? COMPACTION_TRIGGER_BYTES);
-    const compactionPayload = nearlyFull
-      ? await prepareConversationCompaction(this.compactionDeps(), sessionId)
-      : null;
+    const compactionPayload =
+      this.deps.compactAtTurnEnd && (await this.historyNearlyFull(sessionId))
+        ? await prepareConversationCompaction(this.compactionDeps(), sessionId)
+        : null;
     const jobs = buildConversationSystemJobs({
       assistantSessionId: sessionId,
       currentTitle,
