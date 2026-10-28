@@ -1,4 +1,4 @@
-import type { AssistantSessionRecord } from '../api/types';
+import type { AssistantFailedTurnRecord, AssistantSessionRecord } from '../api/types';
 import { engineSecrets, engineSessions } from './store';
 
 async function store() {
@@ -25,4 +25,10 @@ export async function renameEngineSession(id: number, title: string): Promise<vo
 
 export async function getEngineSession(id: number): Promise<AssistantSessionRecord> {
   return (await (await store()).sessionDetail(id)) as AssistantSessionRecord;
+}
+
+export async function getEngineSessionFailedTurns(
+  id: number,
+): Promise<AssistantFailedTurnRecord[]> {
+  return (await (await store()).failedTurns(id)) as AssistantFailedTurnRecord[];
 }

@@ -274,6 +274,14 @@ export type AssistantMessageRecord = {
   updated_at: string;
 };
 
+/** 调模型前就失败、没写进消息表的一轮（只给界面看，不进模型历史）。 */
+export type AssistantFailedTurnRecord = {
+  run_id: string;
+  user_message: string;
+  failure: string;
+  created_at: string;
+};
+
 export type AssistantSessionRecord = {
   id: number;
   title: string;
