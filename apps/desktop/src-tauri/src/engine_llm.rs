@@ -314,7 +314,7 @@ pub(crate) fn build_client(system_proxy: bool) -> reqwest::Result<reqwest::Clien
     }
 }
 
-fn innermost(error: &(dyn StdError + 'static)) -> String {
+pub(crate) fn innermost(error: &(dyn StdError + 'static)) -> String {
     let mut current = error;
     while let Some(source) = current.source() {
         current = source;
@@ -439,7 +439,7 @@ pub struct EngineLlmState {
 }
 
 impl EngineLlmState {
-    fn client(&self) -> Result<reqwest::Client, EngineLlmError> {
+    pub(crate) fn client(&self) -> Result<reqwest::Client, EngineLlmError> {
         if let Some(client) = self.client.get() {
             return Ok(client.clone());
         }
@@ -449,7 +449,7 @@ impl EngineLlmState {
     }
 }
 
-fn revealed_slot(app: &AppHandle, slot: LlmSlot) -> Result<Option<RevealedSlot>, EngineLlmError> {
+fn revealed_slot(app: &AppHandle, slot: LlmSlot) -> Result<RevealedSlot, EngineLlmError> {
     llm_config::config_path(app)
         .and_then(|path| llm_config_store::read_revealed_slot(&path, slot == LlmSlot::Polish))
         .map_err(|error| EngineLlmError::new("config", error.to_string()))
@@ -462,7 +462,7 @@ pub fn get_engine_llm_source(
 ) -> Result<BTreeMap<String, String>, EngineLlmError> {
     let revealed = revealed_slot(&app, slot)?;
     Ok(engine_source(
-        revealed.as_ref(),
+        Some(&revealed),
         slot == LlmSlot::Polish,
         |key| std::env::var(key).ok(),
     ))
@@ -476,8 +476,7 @@ pub async fn engine_llm_send(
     request: EngineHttpRequest,
     on_body: Channel<BodyEvent>,
 ) -> Result<EngineHttpHead, EngineLlmError> {
-    let revealed = revealed_slot(&app, slot)?
-        .ok_or_else(|| refused("尚未配置专用润色模型；请先在设置中配置。"))?;
+    let revealed = revealed_slot(&app, slot)?;
     let outbound = prepare(&revealed, request)?;
     let timeout = outbound.timeout;
     let key = revealed.api_key;

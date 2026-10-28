@@ -5,16 +5,32 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { SettingsView } from '../src/components/SettingsView';
 import { DEFAULT_APP_SETTINGS, type AppSettings } from '../src/lib/user-settings';
 import {
-  getDesktopLlmConfig,
-  saveDesktopLlmConfig,
-  type DesktopLlmConfig,
+  activateLlmProfile,
+  deleteLlmProfile,
+  listLlmProfiles,
+  LlmProbeError,
+  probeLlmDraft,
+  saveLlmProfile,
+  setPolishLlmProfile,
+  type LlmDraftModels,
+  type LlmProfile,
+  type LlmProfiles,
+  type SavedLlmProfile,
 } from '../src/lib/desktop-llm-config';
 import { probeProviderHealth } from '../src/lib/api-client';
 
-vi.mock('../src/lib/desktop-llm-config', () => ({
-  getDesktopLlmConfig: vi.fn(),
-  saveDesktopLlmConfig: vi.fn(),
-}));
+vi.mock('../src/lib/desktop-llm-config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/lib/desktop-llm-config')>();
+  return {
+    LlmProbeError: actual.LlmProbeError,
+    listLlmProfiles: vi.fn(),
+    saveLlmProfile: vi.fn(),
+    deleteLlmProfile: vi.fn(),
+    activateLlmProfile: vi.fn(),
+    setPolishLlmProfile: vi.fn(),
+    probeLlmDraft: vi.fn(),
+  };
+});
 vi.mock('../src/lib/api-client', () => ({ probeProviderHealth: vi.fn() }));
 vi.mock('../src/lib/update-check', () => ({
   currentAppVersion: async () => null,
@@ -22,22 +38,36 @@ vi.mock('../src/lib/update-check', () => ({
 }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const config: DesktopLlmConfig = {
-  provider: 'openai',
-  baseUrl: 'https://main.example/v1',
-  model: 'stored-main',
+const claude: LlmProfile = {
+  id: 'p1',
+  name: '默认',
+  provider: 'anthropic',
+  baseUrl: 'https://api.anthropic.com/v1',
+  model: 'claude-sonnet',
   hasApiKey: true,
-  polish: {
-    provider: 'anthropic',
-    baseUrl: 'https://polish.example/v1',
-    model: 'stored-polish',
-    hasApiKey: true,
-  },
 };
+const kimi: LlmProfile = {
+  id: 'p2',
+  name: '',
+  provider: 'kimi',
+  baseUrl: 'https://api.moonshot.cn/v1',
+  model: 'kimi-k2',
+  hasApiKey: true,
+};
+const listed: LlmProfiles = {
+  profiles: [claude, kimi],
+  activeProfileId: 'p1',
+  polishProfileId: null,
+};
+const saved = (savedProfileId: string, base: LlmProfiles = listed): SavedLlmProfile => ({
+  ...base,
+  savedProfileId,
+});
+
 const mounted: Array<() => void> = [];
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(getDesktopLlmConfig).mockResolvedValue(null);
+  vi.mocked(listLlmProfiles).mockResolvedValue(listed);
 });
 afterEach(() => {
   for (const cleanup of mounted.splice(0)) cleanup();
@@ -84,16 +114,21 @@ async function mount(onClose: () => void = () => {}) {
   await act(async () => root.render(<Harness />));
   return { container, change, cleanup, latest: () => latest };
 }
-function required<T extends Element>(container: ParentNode, selector: string): T {
+function required<T extends Element = HTMLElement>(container: ParentNode, selector: string): T {
   const element = container.querySelector<T>(selector);
   assert.ok(element, selector);
   return element;
 }
+const byTestId = <T extends Element = HTMLElement>(container: ParentNode, id: string) =>
+  required<T>(container, `[data-testid="${id}"]`);
+const card = (container: ParentNode, id: string) =>
+  required(container, `[data-testid="model-profile-card"][data-profile-id="${id}"]`);
+const select = (container: ParentNode, id: string) =>
+  required<HTMLButtonElement>(card(container, id), '[data-testid="model-profile-select"]');
+const status = (container: ParentNode, id: string) =>
+  card(container, id).querySelector('[data-testid="model-profile-status"]')?.textContent ?? '';
 async function edit(container: ParentNode, id: string, value: string) {
-  const element = required<HTMLInputElement | HTMLSelectElement>(
-    container,
-    `[data-testid="${id}"]`,
-  );
+  const element = byTestId<HTMLInputElement | HTMLSelectElement>(container, id);
   await act(async () => {
     if (element instanceof HTMLSelectElement) {
       element.value = value;
@@ -107,308 +142,17 @@ async function edit(container: ParentNode, id: string, value: string) {
     }
   });
 }
-function button(container: ParentNode, section: string, text: string) {
-  const result = Array.from(
-    container.querySelectorAll<HTMLButtonElement>(`#${section} button`),
-  ).find((item) => item.textContent === text);
-  assert.ok(result, text);
-  return result;
-}
 async function click(element: HTMLElement) {
   await act(async () => element.click());
 }
-// 「移除密钥 / 恢复默认」现在是确认流：先点行内动作，再在 AppDialog 里点 danger 主键。
-async function clickConfirmed(container: ParentNode, element: HTMLElement) {
-  await click(element);
-  const host = await vi.waitFor(() => {
-    const found = container.querySelector<HTMLElement>('[data-testid="app-dialog"]');
-    assert.ok(found, 'destructive action should open the confirm dialog');
-    return found;
-  });
-  await click(required(host, '[data-testid="app-dialog-primary"]'));
-}
-
-test('迟到读取保留外观编辑，同时加载两个未编辑模型槽位', async () => {
-  const read = deferred<DesktopLlmConfig | null>();
-  vi.mocked(getDesktopLlmConfig).mockReturnValueOnce(read.promise);
-  const view = await mount();
-  await click(required(view.container, '[data-testid="appearance-mode-light"]'));
-  await act(async () => read.resolve(config));
-  assert.equal(view.latest().theme, 'light');
-  assert.equal(view.latest().provider.model, 'stored-main');
-  assert.equal(view.latest().polishProvider.model, 'stored-polish');
-});
-
-test('读取只跳过已编辑的模型槽位，不丢失另一槽位配置，不回显密钥', async () => {
-  const read = deferred<DesktopLlmConfig | null>();
-  vi.mocked(getDesktopLlmConfig).mockReturnValueOnce(read.promise);
-  const view = await mount();
-  await edit(view.container, 'provider-model', 'author-model');
-  await act(async () => read.resolve(config));
-  assert.equal(view.latest().provider.model, 'author-model');
-  assert.equal(view.latest().polishProvider.model, 'stored-polish');
-  assert.equal(
-    required<HTMLInputElement>(view.container, '[data-testid="provider-api-key"]').value,
-    '',
+async function menuItem(container: ParentNode, profileId: string, label: RegExp) {
+  await click(required(card(container, profileId), '[data-testid="model-profile-menu"]'));
+  const item = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(
+    (button) => label.test(button.textContent ?? ''),
   );
-  assert.equal(
-    required<HTMLInputElement>(view.container, '[data-testid="polish-provider-api-key"]').value,
-    '',
-  );
-});
-
-test('配置读取失败可见，可重试且重试期间输入不丢失', async () => {
-  vi.mocked(getDesktopLlmConfig).mockRejectedValueOnce(new Error('配置文件暂时不可读'));
-  const view = await mount();
-  assert.match(view.container.textContent ?? '', /配置读取失败.*配置文件暂时不可读/);
-  const read = deferred<DesktopLlmConfig | null>();
-  vi.mocked(getDesktopLlmConfig).mockReturnValueOnce(read.promise);
-  await click(required(view.container, '[data-testid="provider-config-retry"]'));
-  await edit(view.container, 'provider-model', 'retry-draft');
-  await act(async () => read.resolve(config));
-  assert.equal(view.latest().provider.model, 'retry-draft');
-  assert.equal(view.container.querySelector('[data-testid="provider-config-error"]'), null);
-});
-
-test('主槽保存迟到成功不回滚主题与润色草稿，清空提交密钥后保留成功状态', async () => {
-  const save = deferred<DesktopLlmConfig | null>();
-  vi.mocked(saveDesktopLlmConfig).mockReturnValueOnce(save.promise);
-  const view = await mount();
-  await edit(view.container, 'provider-api-key', 'synthetic-test-input');
-  await click(button(view.container, 'provider', '保存并应用'));
-  await click(required(view.container, '[data-testid="appearance-mode-light"]'));
-  await edit(view.container, 'polish-provider-model', 'fresh-polish');
-  await act(async () => save.resolve(config));
-  assert.equal(view.latest().theme, 'light');
-  assert.equal(view.latest().polishProvider.model, 'fresh-polish');
-  assert.equal(
-    required<HTMLInputElement>(view.container, '[data-testid="provider-api-key"]').value,
-    '',
-  );
-  assert.match(view.container.textContent ?? '', /已保存并应用/);
-});
-
-test('润色保存迟到成功不回滚外观输入', async () => {
-  const save = deferred<DesktopLlmConfig | null>();
-  vi.mocked(saveDesktopLlmConfig).mockReturnValueOnce(save.promise);
-  const view = await mount();
-  await click(button(view.container, 'polish-provider', '保存并应用'));
-  await click(required(view.container, '[data-testid="appearance-mode-light"]'));
-  await act(async () => save.resolve(config));
-  assert.equal(view.latest().theme, 'light');
-  assert.equal(view.latest().polishProvider.apiKeyRef, 'stored://storyforge/llm-provider/polish');
-});
-
-test('保存后的旧读取不能回滚元数据或字段', async () => {
-  const read = deferred<DesktopLlmConfig | null>();
-  vi.mocked(getDesktopLlmConfig).mockReturnValueOnce(read.promise);
-  const view = await mount();
-  vi.mocked(saveDesktopLlmConfig).mockResolvedValueOnce(config);
-  await click(button(view.container, 'provider', '保存并应用'));
-  await act(async () => read.resolve({ ...config, model: 'old-read', hasApiKey: false }));
-  assert.notEqual(view.latest().provider.model, 'old-read');
-  assert.ok(button(view.container, 'provider', '移除密钥'));
-});
-
-test('同帧双击和跨槽写入共享占用，避免整份配置写入乱序', async () => {
-  const save = deferred<DesktopLlmConfig | null>();
-  vi.mocked(saveDesktopLlmConfig).mockReturnValueOnce(save.promise);
-  const view = await mount();
-  const main = button(view.container, 'provider', '保存并应用');
-  const polish = button(view.container, 'polish-provider', '保存并应用');
-  act(() => {
-    main.click();
-    main.click();
-    polish.click();
-  });
-  assert.equal(vi.mocked(saveDesktopLlmConfig).mock.calls.length, 1);
-  await edit(view.container, 'provider-model', 'new-draft');
-  assert.equal(main.disabled, true);
-  await act(async () => save.resolve(config));
-  assert.equal(main.disabled, false);
-  assert.equal(view.latest().provider.model, 'new-draft');
-});
-
-for (const slot of ['provider', 'polish-provider'] as const) {
-  for (const action of ['保存并应用', '移除密钥']) {
-    for (const outcome of ['success', 'error']) {
-      test(`${slot} ${action} 的 A→B→A 迟到 ${outcome} 不获得新作用域资格`, async () => {
-        vi.mocked(getDesktopLlmConfig).mockResolvedValueOnce(config);
-        const view = await mount();
-        const original = required<HTMLInputElement>(
-          view.container,
-          `[data-testid="${slot}-model"]`,
-        ).value;
-        const save = deferred<DesktopLlmConfig | null>();
-        vi.mocked(saveDesktopLlmConfig).mockReturnValueOnce(save.promise);
-        const actionButton = button(view.container, slot, action);
-        // 两个槽位的「移除密钥」都是确认流：先点行内动作，再在 AppDialog 里确认。
-        if (action === '移除密钥') {
-          await clickConfirmed(view.container, actionButton);
-        } else {
-          await click(actionButton);
-        }
-        await edit(view.container, `${slot}-model`, 'temporary-model');
-        await edit(view.container, `${slot}-model`, original);
-        await act(async () => {
-          if (outcome === 'error') save.reject(new Error('obsolete-write-error'));
-          else
-            save.resolve({
-              ...config,
-              hasApiKey: false,
-              polish: config.polish && { ...config.polish, hasApiKey: false },
-            });
-        });
-        assert.doesNotMatch(
-          view.container.textContent ?? '',
-          /obsolete-write-error|已保存并应用|专用润色模型已保存/,
-        );
-        const current = slot === 'provider' ? view.latest().provider : view.latest().polishProvider;
-        assert.notEqual(current.apiKeyRef, '');
-        assert.ok(button(view.container, slot, '移除密钥'));
-        assert.equal(button(view.container, slot, '保存并应用').disabled, false);
-      });
-    }
-  }
+  assert.ok(item, String(label));
+  return item;
 }
-
-test('初始读取遇到 A→B→A 仍保留作者明确恢复的字段', async () => {
-  const read = deferred<DesktopLlmConfig | null>();
-  vi.mocked(getDesktopLlmConfig).mockReturnValueOnce(read.promise);
-  const view = await mount();
-  const original = view.latest().provider.model;
-  await edit(view.container, 'provider-model', 'temporary');
-  await edit(view.container, 'provider-model', original);
-  await act(async () => read.resolve(config));
-  assert.equal(view.latest().provider.model, original);
-  assert.equal(view.latest().polishProvider.model, 'stored-polish');
-});
-
-test('探测保存阶段改了服务，旧保存结果不再启动健康探测', async () => {
-  const save = deferred<DesktopLlmConfig | null>();
-  vi.mocked(saveDesktopLlmConfig).mockReturnValueOnce(save.promise);
-  const view = await mount();
-  await click(required(view.container, '[data-testid="provider-detect-models"]'));
-  await edit(view.container, 'provider-kind', 'deepseek');
-  await act(async () => save.resolve(config));
-  assert.equal(vi.mocked(probeProviderHealth).mock.calls.length, 0);
-  assert.equal(view.container.querySelector('[data-testid="provider-detect-status"]'), null);
-});
-
-for (const kind of ['detect', 'probe']) {
-  for (const outcome of ['success', 'error']) {
-    test(`${kind} 健康请求 A→B→A 迟到 ${outcome} 不显示旧结果`, async () => {
-      vi.mocked(saveDesktopLlmConfig).mockResolvedValue(config);
-      const health = deferred<Awaited<ReturnType<typeof probeProviderHealth>>>();
-      vi.mocked(probeProviderHealth).mockReturnValueOnce(health.promise);
-      const view = await mount();
-      const original = view.latest().provider.model;
-      await click(
-        required(
-          view.container,
-          kind === 'detect'
-            ? '[data-testid="provider-detect-models"]'
-            : '[data-testid="provider-health-probe"]',
-        ),
-      );
-      await edit(view.container, 'provider-model', 'temporary');
-      await edit(view.container, 'provider-model', original);
-      await act(async () => {
-        if (outcome === 'error') health.reject(new Error('obsolete-health-error'));
-        else
-          health.resolve({
-            status: 'ok',
-            reachable: true,
-            baseUrl: 'https://old.example/v1',
-            model: 'old-health-model',
-            latencyMs: 1,
-            modelCount: 1,
-            models: ['old-health-model'],
-            detail: null,
-            missingEnv: [],
-          });
-      });
-      assert.doesNotMatch(
-        view.container.textContent ?? '',
-        /obsolete-health-error|old-health-model/,
-      );
-      assert.equal(view.container.querySelector('[data-testid="provider-model-options"]'), null);
-      assert.equal(view.container.querySelector('[data-testid="provider-health-status"]'), null);
-    });
-  }
-}
-
-test('移除旧密钥等待中输入的新密钥不会被清空，且不写回其它槽位凭据', async () => {
-  vi.mocked(getDesktopLlmConfig).mockResolvedValueOnce(config);
-  const view = await mount();
-  const save = deferred<DesktopLlmConfig | null>();
-  vi.mocked(saveDesktopLlmConfig).mockReturnValueOnce(save.promise);
-  await clickConfirmed(view.container, button(view.container, 'polish-provider', '移除密钥'));
-  await edit(view.container, 'polish-provider-api-key', 'synthetic-new-key');
-  await act(async () =>
-    save.resolve({ ...config, polish: config.polish && { ...config.polish, hasApiKey: false } }),
-  );
-  assert.equal(
-    required<HTMLInputElement>(view.container, '[data-testid="polish-provider-api-key"]').value,
-    'synthetic-new-key',
-  );
-  const request = vi.mocked(saveDesktopLlmConfig).mock.calls[0][0];
-  assert.equal(request.apiKey, undefined);
-  assert.equal(request.clearApiKey, undefined);
-  assert.equal(request.polish?.clearApiKey, true);
-});
-
-for (const slot of ['provider', 'polish-provider'] as const) {
-  test(`${slot} 保存失败保留输入并可显式重试`, async () => {
-    vi.mocked(saveDesktopLlmConfig).mockRejectedValueOnce(new Error('本机配置暂时锁定'));
-    const view = await mount();
-    await edit(view.container, `${slot}-model`, 'author-model');
-    await edit(view.container, `${slot}-api-key`, 'synthetic-retry-input');
-    await click(button(view.container, slot, '保存并应用'));
-    assert.match(view.container.textContent ?? '', /保存失败：本机配置暂时锁定/);
-    assert.equal(
-      required<HTMLInputElement>(view.container, `[data-testid="${slot}-api-key"]`).value,
-      'synthetic-retry-input',
-    );
-    vi.mocked(saveDesktopLlmConfig).mockResolvedValueOnce(config);
-    await click(button(view.container, slot, '保存并应用'));
-    assert.equal(
-      required<HTMLInputElement>(view.container, `[data-testid="${slot}-model"]`).value,
-      'author-model',
-    );
-    assert.equal(
-      required<HTMLInputElement>(view.container, `[data-testid="${slot}-api-key"]`).value,
-      '',
-    );
-    assert.equal(vi.mocked(saveDesktopLlmConfig).mock.calls.length, 2);
-  });
-}
-
-for (const operation of ['read', 'save', 'polish-save', 'detect-save'] as const) {
-  for (const outcome of ['success', 'error']) {
-    test(`${operation} 卸载后的 ${outcome} 不回写偏好、不继续探测`, async () => {
-      const request = deferred<DesktopLlmConfig | null>();
-      if (operation === 'read') vi.mocked(getDesktopLlmConfig).mockReturnValueOnce(request.promise);
-      else vi.mocked(saveDesktopLlmConfig).mockReturnValueOnce(request.promise);
-      const view = await mount();
-      if (operation === 'save') await click(button(view.container, 'provider', '保存并应用'));
-      if (operation === 'polish-save')
-        await click(button(view.container, 'polish-provider', '保存并应用'));
-      if (operation === 'detect-save')
-        await click(required(view.container, '[data-testid="provider-detect-models"]'));
-      view.cleanup();
-      const changeCount = view.change.mock.calls.length;
-      await act(async () => {
-        if (outcome === 'error') request.reject(new Error('obsolete-unmounted-error'));
-        else request.resolve(config);
-      });
-      assert.equal(view.change.mock.calls.length, changeCount);
-      assert.equal(vi.mocked(probeProviderHealth).mock.calls.length, 0);
-    });
-  }
-}
-
-// 在 AppDialog 里按文案找按钮（取消键没有专属 testid，与主键同样靠 label 定位）。
 async function dialogButton(container: ParentNode, text: string) {
   const host = await vi.waitFor(() => {
     const found = container.querySelector<HTMLElement>('[data-testid="app-dialog"]');
@@ -421,94 +165,332 @@ async function dialogButton(container: ParentNode, text: string) {
   assert.ok(target, text);
   return target;
 }
+const models = (names: string[]): LlmDraftModels => ({ models: names, partial: false });
 
-test('取消确认不移除润色密钥', async () => {
-  vi.mocked(getDesktopLlmConfig).mockResolvedValueOnce(config);
+test('当前那套打勾；点别的卡片才调用切换，并提示下一次调用生效', async () => {
+  vi.mocked(activateLlmProfile).mockResolvedValueOnce({ ...listed, activeProfileId: 'p2' });
   const view = await mount();
-  await click(button(view.container, 'polish-provider', '移除密钥'));
-  await click(await dialogButton(view.container, '取消'));
-  assert.equal(vi.mocked(saveDesktopLlmConfig).mock.calls.length, 0);
-  assert.ok(button(view.container, 'polish-provider', '移除密钥'));
-});
-
-test('未保存徽标：读取完成无徽标、编辑出现、保存成功消失、密钥草稿单独触发', async () => {
-  vi.mocked(getDesktopLlmConfig).mockResolvedValueOnce(config);
-  const view = await mount();
-  const badge = (id: string) =>
-    view.container.querySelector(`[data-testid="settings-unsaved-${id}"]`);
-  assert.equal(badge('provider'), null);
-  assert.equal(badge('polish-provider'), null);
-  await edit(view.container, 'provider-model', 'author-model');
-  assert.ok(badge('provider'));
-  assert.equal(badge('polish-provider'), null);
-  const save = deferred<DesktopLlmConfig | null>();
-  vi.mocked(saveDesktopLlmConfig).mockReturnValueOnce(save.promise);
-  await click(button(view.container, 'provider', '保存并应用'));
-  await act(async () => save.resolve({ ...config, model: 'author-model' }));
-  assert.equal(badge('provider'), null);
-  await edit(view.container, 'polish-provider-api-key', 'synthetic-draft-key');
-  assert.ok(badge('polish-provider'));
-});
-
-test('单独保存润色模型不带主模型草稿：主槽在宿主侧保持原样，主槽仍报未保存', async () => {
-  vi.mocked(getDesktopLlmConfig).mockResolvedValueOnce(config);
-  const view = await mount();
-  await edit(view.container, 'provider-base-url', 'https://other-relay.example/v1');
-  await edit(view.container, 'provider-model', 'draft-main');
-  await edit(view.container, 'polish-provider-model', 'fresh-polish');
-  vi.mocked(saveDesktopLlmConfig).mockResolvedValueOnce({
-    ...config,
-    polish: config.polish && { ...config.polish, model: 'fresh-polish' },
-  });
-  await click(button(view.container, 'polish-provider', '保存并应用'));
-  assert.deepEqual(vi.mocked(saveDesktopLlmConfig).mock.calls, [
-    [
-      {
-        polish: {
-          provider: 'anthropic',
-          baseUrl: 'https://polish.example/v1',
-          model: 'fresh-polish',
-          apiKey: '',
-        },
-      },
-    ],
-  ]);
-  assert.ok(view.container.querySelector('[data-testid="settings-unsaved-provider"]'));
+  assert.equal(select(view.container, 'p1').getAttribute('aria-current'), 'true');
+  assert.equal(select(view.container, 'p2').getAttribute('aria-current'), null);
+  assert.match(card(view.container, 'p2').textContent ?? '', /Kimi · kimi-k2/);
+  await click(select(view.container, 'p1'));
+  assert.equal(vi.mocked(activateLlmProfile).mock.calls.length, 0);
+  await click(select(view.container, 'p2'));
+  assert.deepEqual(vi.mocked(activateLlmProfile).mock.calls, [['p2']]);
+  assert.equal(select(view.container, 'p2').getAttribute('aria-current'), 'true');
   assert.equal(
-    view.container.querySelector('[data-testid="settings-unsaved-polish-provider"]'),
+    byTestId(view.container, 'model-profiles-notice').textContent,
+    '已切到「Kimi · kimi-k2」，下一次调用生效',
+  );
+});
+
+test('切换失败照实报错，卡片保持原样', async () => {
+  vi.mocked(activateLlmProfile).mockRejectedValueOnce(new Error('本机配置暂时锁定'));
+  const view = await mount();
+  await click(select(view.container, 'p2'));
+  assert.match(
+    byTestId(view.container, 'model-profiles-notice').textContent ?? '',
+    /切换失败：本机配置暂时锁定/,
+  );
+  assert.equal(select(view.container, 'p1').getAttribute('aria-current'), 'true');
+});
+
+test('新建：选服务商自动填地址并折叠，贴 Key 不用保存就能获取模型，点选后保存并自动测一次', async () => {
+  vi.mocked(listLlmProfiles).mockResolvedValueOnce({ ...listed, profiles: [claude] });
+  vi.mocked(probeLlmDraft).mockResolvedValueOnce(models(['kimi-k2', 'moonshot-v1']));
+  const view = await mount();
+  await click(byTestId(view.container, 'model-profile-new'));
+  assert.equal(view.container.querySelector('[data-testid="model-profile-api-key"]'), null);
+  await click(byTestId(view.container, 'model-profile-kind-kimi'));
+  assert.match(
+    byTestId(view.container, 'model-profile-address').textContent ?? '',
+    /https:\/\/api\.moonshot\.cn\/v1/,
+  );
+  assert.equal(view.container.querySelector('[data-testid="model-profile-base-url"]'), null);
+  await edit(view.container, 'model-profile-api-key', 'synthetic-draft-key');
+  await click(byTestId(view.container, 'model-profile-fetch'));
+  assert.deepEqual(vi.mocked(probeLlmDraft).mock.calls[0][0], {
+    provider: 'kimi',
+    baseUrl: 'https://api.moonshot.cn/v1',
+    apiKey: 'synthetic-draft-key',
+    profileId: undefined,
+  });
+  assert.equal(vi.mocked(saveLlmProfile).mock.calls.length, 0, '获取模型不先保存');
+  const option = Array.from(
+    byTestId(view.container, 'model-profile-model-options').querySelectorAll('button'),
+  ).find((item) => item.textContent === 'moonshot-v1');
+  assert.ok(option);
+  await click(option);
+  assert.equal(
+    byTestId<HTMLInputElement>(view.container, 'model-profile-model').value,
+    'moonshot-v1',
+  );
+
+  vi.mocked(saveLlmProfile).mockResolvedValueOnce(
+    saved('p2', { ...listed, profiles: [claude, { ...kimi, model: 'moonshot-v1' }] }),
+  );
+  vi.mocked(probeLlmDraft).mockResolvedValueOnce(models(['moonshot-v1']));
+  await click(byTestId(view.container, 'model-profile-save'));
+  assert.deepEqual(vi.mocked(saveLlmProfile).mock.calls[0][0], {
+    id: undefined,
+    name: '',
+    provider: 'kimi',
+    baseUrl: 'https://api.moonshot.cn/v1',
+    model: 'moonshot-v1',
+    apiKey: 'synthetic-draft-key',
+  });
+  assert.equal(view.container.querySelector('[data-testid="model-profile-editor"]'), null);
+  // 不是当前那套：用它已存的 Key 拉一次列表，不走引擎（引擎只认当前那套）。
+  assert.deepEqual(vi.mocked(probeLlmDraft).mock.calls[1][0], {
+    provider: 'kimi',
+    baseUrl: 'https://api.moonshot.cn/v1',
+    profileId: 'p2',
+  });
+  assert.equal(vi.mocked(probeProviderHealth).mock.calls.length, 0);
+  assert.match(status(view.container, 'p2'), /模型列表可达/);
+});
+
+test('保存当前那套后走引擎的真实出网链路测一次，结果写在卡片上', async () => {
+  vi.mocked(saveLlmProfile).mockResolvedValueOnce(saved('p1'));
+  vi.mocked(probeProviderHealth).mockResolvedValueOnce({
+    status: 'unauthorized',
+    reachable: true,
+    baseUrl: claude.baseUrl,
+    model: claude.model,
+    latencyMs: 3,
+    modelCount: null,
+    models: [],
+    detail: 'HTTP 401',
+    missingEnv: [],
+  });
+  const view = await mount();
+  await click(await menuItem(view.container, 'p1', /^编辑$/));
+  await click(byTestId(view.container, 'model-profile-save'));
+  assert.equal(vi.mocked(probeProviderHealth).mock.calls.length, 1);
+  assert.equal(vi.mocked(probeLlmDraft).mock.calls.length, 0);
+  assert.match(status(view.container, 'p1'), /鉴权失败/);
+});
+
+test('自定义 / 中转展开地址栏且不预填，没填地址不能获取模型也不能保存', async () => {
+  const view = await mount();
+  await click(byTestId(view.container, 'model-profile-new'));
+  await click(byTestId(view.container, 'model-profile-kind-openai-compatible'));
+  const address = byTestId<HTMLInputElement>(view.container, 'model-profile-base-url');
+  assert.equal(address.value, '');
+  assert.equal(byTestId<HTMLButtonElement>(view.container, 'model-profile-fetch').disabled, true);
+  await click(byTestId(view.container, 'model-profile-save'));
+  assert.match(
+    byTestId(view.container, 'model-profile-save-error').textContent ?? '',
+    /先填服务地址/,
+  );
+  assert.equal(vi.mocked(saveLlmProfile).mock.calls.length, 0);
+});
+
+test('编辑已存的那套：Key 留空沿用，获取模型借它已存的 Key', async () => {
+  vi.mocked(probeLlmDraft).mockResolvedValueOnce(models(['kimi-k2']));
+  const view = await mount();
+  await click(await menuItem(view.container, 'p2', /^编辑$/));
+  assert.match(
+    byTestId<HTMLInputElement>(view.container, 'model-profile-api-key').placeholder,
+    /留空就沿用/,
+  );
+  await click(byTestId(view.container, 'model-profile-fetch'));
+  assert.deepEqual(vi.mocked(probeLlmDraft).mock.calls[0][0], {
+    provider: 'kimi',
+    baseUrl: 'https://api.moonshot.cn/v1',
+    apiKey: undefined,
+    profileId: 'p2',
+  });
+  vi.mocked(saveLlmProfile).mockResolvedValueOnce(saved('p2'));
+  vi.mocked(probeLlmDraft).mockResolvedValueOnce(models(['kimi-k2']));
+  await click(byTestId(view.container, 'model-profile-save'));
+  const request = vi.mocked(saveLlmProfile).mock.calls[0][0];
+  assert.equal(request.id, 'p2');
+  assert.equal(request.apiKey, '');
+  assert.equal(request.clearApiKey, undefined);
+});
+
+test('获取模型的迟到结果在换了服务商后作废', async () => {
+  const pending = deferred<LlmDraftModels>();
+  vi.mocked(probeLlmDraft).mockReturnValueOnce(pending.promise);
+  const view = await mount();
+  await click(byTestId(view.container, 'model-profile-new'));
+  await click(byTestId(view.container, 'model-profile-kind-kimi'));
+  await click(byTestId(view.container, 'model-profile-fetch'));
+  await click(byTestId(view.container, 'model-profile-kind-deepseek'));
+  await act(async () => pending.resolve(models(['stale-kimi-model'])));
+  assert.equal(view.container.querySelector('[data-testid="model-profile-model-options"]'), null);
+  assert.doesNotMatch(view.container.textContent ?? '', /stale-kimi-model/);
+});
+
+test('获取模型失败显示可读原因', async () => {
+  vi.mocked(probeLlmDraft).mockRejectedValueOnce(
+    new LlmProbeError('Key 不对或没有权限（HTTP 401）。', 'unauthorized'),
+  );
+  const view = await mount();
+  await click(byTestId(view.container, 'model-profile-new'));
+  await click(byTestId(view.container, 'model-profile-kind-kimi'));
+  await click(byTestId(view.container, 'model-profile-fetch'));
+  assert.match(
+    byTestId(view.container, 'model-profile-fetch-status').textContent ?? '',
+    /Key 不对或没有权限/,
+  );
+});
+
+test('保存失败保留草稿并可重试', async () => {
+  vi.mocked(saveLlmProfile).mockRejectedValueOnce(new Error('本机配置暂时锁定'));
+  const view = await mount();
+  await click(byTestId(view.container, 'model-profile-new'));
+  await click(byTestId(view.container, 'model-profile-kind-deepseek'));
+  await edit(view.container, 'model-profile-model', 'deepseek-chat');
+  await edit(view.container, 'model-profile-api-key', 'synthetic-retry-input');
+  await click(byTestId(view.container, 'model-profile-save'));
+  assert.match(
+    byTestId(view.container, 'model-profile-save-error').textContent ?? '',
+    /保存失败：本机配置暂时锁定/,
+  );
+  assert.equal(
+    byTestId<HTMLInputElement>(view.container, 'model-profile-api-key').value,
+    'synthetic-retry-input',
+  );
+  vi.mocked(saveLlmProfile).mockResolvedValueOnce(saved('p3'));
+  await click(byTestId(view.container, 'model-profile-save'));
+  assert.equal(vi.mocked(saveLlmProfile).mock.calls.length, 2);
+  assert.equal(view.container.querySelector('[data-testid="model-profile-editor"]'), null);
+});
+
+test('删除走确认：取消不删，确认才删；正在用的那套删除项不可用', async () => {
+  const view = await mount();
+  const activeDelete = await menuItem(view.container, 'p1', /^删除/);
+  assert.equal(activeDelete.disabled, true);
+  await act(async () => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  });
+  await click(await menuItem(view.container, 'p2', /^删除$/));
+  await click(await dialogButton(view.container, '取消'));
+  assert.equal(vi.mocked(deleteLlmProfile).mock.calls.length, 0);
+  vi.mocked(deleteLlmProfile).mockResolvedValueOnce({ ...listed, profiles: [claude] });
+  await click(await menuItem(view.container, 'p2', /^删除$/));
+  await click(await dialogButton(view.container, '删除'));
+  assert.deepEqual(vi.mocked(deleteLlmProfile).mock.calls, [['p2']]);
+  assert.equal(
+    view.container.querySelector('[data-testid="model-profile-card"][data-profile-id="p2"]'),
     null,
   );
 });
 
-test('配置读取失败时不报未保存（无法判断就不误报）', async () => {
-  vi.mocked(getDesktopLlmConfig).mockRejectedValueOnce(new Error('配置文件暂时不可读'));
+test('移除 Key 走确认，只清这一套', async () => {
+  vi.mocked(saveLlmProfile).mockResolvedValueOnce(
+    saved('p2', { ...listed, profiles: [claude, { ...kimi, hasApiKey: false }] }),
+  );
   const view = await mount();
-  await edit(view.container, 'provider-model', 'author-model');
-  assert.equal(view.container.querySelector('[data-testid="settings-unsaved-provider"]'), null);
+  await click(await menuItem(view.container, 'p2', /^移除 Key$/));
+  await click(await dialogButton(view.container, '移除 Key'));
+  assert.deepEqual(vi.mocked(saveLlmProfile).mock.calls[0][0], {
+    id: 'p2',
+    name: '',
+    provider: 'kimi',
+    baseUrl: 'https://api.moonshot.cn/v1',
+    model: 'kimi-k2',
+    clearApiKey: true,
+  });
+  assert.match(status(view.container, 'p2'), /还没存 Key/);
+  assert.doesNotMatch(status(view.container, 'p1'), /还没存 Key/);
 });
 
-test('有未保存更改时关闭先确认：取消留在设置页，确认才调用 onClose', async () => {
-  vi.mocked(getDesktopLlmConfig).mockResolvedValueOnce(config);
+test('整章润色默认跟随当前模型，可指定某一套再改回跟随', async () => {
+  const view = await mount();
+  const polish = byTestId<HTMLSelectElement>(view.container, 'model-polish-profile');
+  assert.equal(polish.value, '');
+  assert.match(polish.options[0].textContent ?? '', /跟随当前模型/);
+  vi.mocked(setPolishLlmProfile).mockResolvedValueOnce({ ...listed, polishProfileId: 'p2' });
+  await edit(view.container, 'model-polish-profile', 'p2');
+  assert.deepEqual(vi.mocked(setPolishLlmProfile).mock.calls, [['p2']]);
+  assert.equal(polish.value, 'p2');
+  vi.mocked(setPolishLlmProfile).mockResolvedValueOnce(listed);
+  await edit(view.container, 'model-polish-profile', '');
+  assert.deepEqual(vi.mocked(setPolishLlmProfile).mock.calls[1], [null]);
+  assert.equal(
+    byTestId(view.container, 'model-profiles-notice').textContent,
+    '整章润色跟随当前模型',
+  );
+});
+
+test('写操作一次只走一件：切换没完成时再点别的卡片不会重复写', async () => {
+  const pending = deferred<LlmProfiles | null>();
+  vi.mocked(activateLlmProfile).mockReturnValueOnce(pending.promise);
+  const three = {
+    ...listed,
+    profiles: [claude, kimi, { ...kimi, id: 'p3', model: 'moonshot-v1' }],
+  };
+  vi.mocked(listLlmProfiles).mockResolvedValueOnce(three);
+  const view = await mount();
+  act(() => {
+    select(view.container, 'p2').click();
+    select(view.container, 'p3').click();
+  });
+  assert.equal(vi.mocked(activateLlmProfile).mock.calls.length, 1);
+  assert.equal(select(view.container, 'p3').disabled, true);
+  await act(async () => pending.resolve({ ...three, activeProfileId: 'p2' }));
+  assert.equal(select(view.container, 'p3').disabled, false);
+});
+
+test('未保存徽标与关窗确认只跟正在编辑的草稿走', async () => {
   const onClose = vi.fn();
   const view = await mount(onClose);
-  await edit(view.container, 'provider-model', 'author-model');
-  await click(required(view.container, '[data-testid="settings-close"]'));
+  const badge = () => view.container.querySelector('[data-testid="settings-unsaved-provider"]');
+  await click(byTestId(view.container, 'model-profile-new'));
+  assert.equal(badge(), null, '刚打开的空表单不算未保存');
+  await click(byTestId(view.container, 'model-profile-kind-kimi'));
+  assert.ok(badge());
+  await click(byTestId(view.container, 'settings-close'));
   assert.equal(onClose.mock.calls.length, 0);
   await click(await dialogButton(view.container, '继续编辑'));
-  assert.equal(onClose.mock.calls.length, 0);
-  assert.ok(required(view.container, '[data-testid="settings-close"]'));
-  await click(required(view.container, '[data-testid="settings-close"]'));
-  await click(await dialogButton(view.container, '放弃并关闭'));
+  await click(byTestId(view.container, 'model-profile-cancel'));
+  assert.equal(badge(), null);
+  await click(byTestId(view.container, 'settings-close'));
   assert.equal(onClose.mock.calls.length, 1);
 });
 
-test('无未保存更改时关闭不弹确认', async () => {
-  vi.mocked(getDesktopLlmConfig).mockResolvedValueOnce(config);
-  const onClose = vi.fn();
-  const view = await mount(onClose);
-  await click(required(view.container, '[data-testid="settings-close"]'));
-  assert.equal(onClose.mock.calls.length, 1);
-  assert.equal(view.container.querySelector('[data-testid="app-dialog"]'), null);
+test('改了一半去编辑别的那套先确认，取消就留在原草稿', async () => {
+  const view = await mount();
+  await click(byTestId(view.container, 'model-profile-new'));
+  await click(byTestId(view.container, 'model-profile-kind-kimi'));
+  await click(await menuItem(view.container, 'p1', /^编辑$/));
+  await click(await dialogButton(view.container, '继续编辑'));
+  assert.equal(
+    byTestId(view.container, 'model-profile-kind-kimi').getAttribute('aria-checked'),
+    'true',
+  );
+});
+
+test('配置读取失败可见，可重试', async () => {
+  vi.mocked(listLlmProfiles).mockRejectedValueOnce(new Error('配置文件暂时不可读'));
+  const view = await mount();
+  assert.match(view.container.textContent ?? '', /配置读取失败.*配置文件暂时不可读/);
+  await click(byTestId(view.container, 'provider-config-retry'));
+  assert.equal(view.container.querySelector('[data-testid="provider-config-error"]'), null);
+  assert.ok(card(view.container, 'p2'));
+});
+
+test('保存发出后卸载：迟到结果不再更新、不再探测', async () => {
+  const pending = deferred<SavedLlmProfile | null>();
+  vi.mocked(saveLlmProfile).mockReturnValueOnce(pending.promise);
+  const view = await mount();
+  await click(await menuItem(view.container, 'p2', /^编辑$/));
+  await click(byTestId(view.container, 'model-profile-save'));
+  view.cleanup();
+  await act(async () => pending.resolve(saved('p2')));
+  assert.equal(vi.mocked(probeLlmDraft).mock.calls.length, 0);
+  assert.equal(vi.mocked(probeProviderHealth).mock.calls.length, 0);
+});
+
+test('改外观只动本机偏好，不再带模型配置，也不写模型配置文件', async () => {
+  const view = await mount();
+  await click(byTestId(view.container, 'appearance-mode-light'));
+  assert.equal(view.latest().theme, 'light');
+  assert.equal('provider' in view.latest(), false);
+  assert.equal(vi.mocked(saveLlmProfile).mock.calls.length, 0);
 });
 
 test('scrollspy：分组进入视口时对应导航项获得 aria-current', async () => {

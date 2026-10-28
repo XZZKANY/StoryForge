@@ -7,14 +7,21 @@ import { App } from '../src/App';
 import { RECENT_PROJECTS_KEY } from '../src/components/app/helpers';
 import { SettingsView } from '../src/components/SettingsView';
 import { DEFAULT_APP_SETTINGS } from '../src/lib/user-settings';
-import { getDesktopLlmConfig, saveDesktopLlmConfig } from '../src/lib/desktop-llm-config';
-import { probeProviderHealth } from '../src/lib/api-client';
+import { listLlmProfiles, type LlmProfiles } from '../src/lib/desktop-llm-config';
 
 vi.mock('../src/components/Editor', () => ({ Editor: () => null }));
-vi.mock('../src/lib/desktop-llm-config', () => ({
-  getDesktopLlmConfig: vi.fn(async () => null),
-  saveDesktopLlmConfig: vi.fn(),
-}));
+vi.mock('../src/lib/desktop-llm-config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/lib/desktop-llm-config')>();
+  return {
+    LlmProbeError: actual.LlmProbeError,
+    listLlmProfiles: vi.fn(async () => null),
+    saveLlmProfile: vi.fn(),
+    deleteLlmProfile: vi.fn(),
+    activateLlmProfile: vi.fn(),
+    setPolishLlmProfile: vi.fn(),
+    probeLlmDraft: vi.fn(),
+  };
+});
 vi.mock('../src/lib/api-client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/lib/api-client')>();
   return {
@@ -34,6 +41,29 @@ vi.mock('../src/lib/api-client', async (importOriginal) => {
 });
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+const twoProfiles: LlmProfiles = {
+  profiles: [
+    {
+      id: 'p1',
+      name: '',
+      provider: 'anthropic',
+      baseUrl: 'https://api.anthropic.com/v1',
+      model: 'claude-sonnet',
+      hasApiKey: true,
+    },
+    {
+      id: 'p2',
+      name: '',
+      provider: 'kimi',
+      baseUrl: 'https://api.moonshot.cn/v1',
+      model: 'kimi-k2',
+      hasApiKey: false,
+    },
+  ],
+  activeProfileId: 'p1',
+  polishProfileId: null,
+};
 
 const mounted: Array<{ container: HTMLElement; root: ReturnType<typeof createRoot> }> = [];
 
@@ -133,8 +163,20 @@ test('设置 Tab 首尾环绕，Escape 关闭并恢复入口焦点', async () =>
   assert.equal(document.activeElement === opener, true);
 });
 
-test('设置所有输入、选择、范围控件均有关联名称与说明', async () => {
+test('设置所有输入、选择、范围控件均有关联名称与说明（含模型配置表单与润色选择）', async () => {
+  vi.mocked(listLlmProfiles).mockResolvedValueOnce(twoProfiles);
   const { container } = await openSettings();
+  await click(required<HTMLButtonElement>(container, '[data-testid="model-profile-new"]'));
+  await click(
+    required<HTMLButtonElement>(container, '[data-testid="model-profile-kind-openai-compatible"]'),
+  );
+  for (const id of [
+    'model-profile-base-url',
+    'model-profile-api-key',
+    'model-profile-model',
+    'model-polish-profile',
+  ])
+    required(container, `[data-testid="${id}"]`);
   const controls = container.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input,select');
   assert.ok(controls.length >= 10);
   for (const control of controls) {
@@ -182,69 +224,29 @@ test('设置内快捷键不触发背景 App，文本编辑快捷键保留默认�
   assert.equal(key(search, 'v', { ctrlKey: true }).defaultPrevented, false);
 });
 
-test('设置异步加载不会用迟到的旧配置覆盖用户刚输入的 provider/model', async () => {
-  let resolveConfig!: (value: Awaited<ReturnType<typeof getDesktopLlmConfig>>) => void;
-  vi.mocked(getDesktopLlmConfig).mockReturnValueOnce(
-    new Promise((resolve) => {
-      resolveConfig = resolve;
-    }),
-  );
+test('配置卡与服务商选择有可读名称：当前那套标 aria-current，菜单按钮说清是哪一套', async () => {
+  vi.mocked(listLlmProfiles).mockResolvedValueOnce(twoProfiles);
   const { container } = await openSettings();
-  const model = required<HTMLInputElement>(container, '[data-testid="provider-model"]');
-  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-  assert.ok(setValue);
-  await act(async () => {
-    setValue.call(model, 'user-latest-model');
-    model.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-  await act(async () => {
-    resolveConfig({
-      provider: 'openai',
-      baseUrl: 'https://stale.example/v1',
-      model: 'stale-model',
-      hasApiKey: true,
-      polish: null,
-    });
-    await Promise.resolve();
-  });
-  assert.equal(model.value, 'user-latest-model');
+  const cards = container.querySelectorAll<HTMLButtonElement>(
+    '[data-testid="model-profile-select"]',
+  );
+  assert.equal(cards.length, 2);
+  assert.equal(cards[0].getAttribute('aria-current'), 'true');
+  assert.match(cards[0].getAttribute('aria-label') ?? '', /正在用：Anthropic · claude-sonnet/);
+  assert.match(cards[1].getAttribute('aria-label') ?? '', /切换到：Kimi · kimi-k2（还没存 Key）/);
+  const menus = container.querySelectorAll('[data-testid="model-profile-menu"]');
+  assert.match(menus[1].getAttribute('aria-label') ?? '', /Kimi · kimi-k2/);
+  await click(required<HTMLButtonElement>(container, '[data-testid="model-profile-new"]'));
+  const group = required(container, '[role="radiogroup"]');
+  const labelId = group.getAttribute('aria-labelledby');
+  assert.ok(labelId);
+  assert.equal(document.getElementById(labelId)?.textContent, '服务商');
+  const radios = group.querySelectorAll<HTMLButtonElement>('[role="radio"]');
   assert.equal(
-    required<HTMLSelectElement>(container, '[data-testid="provider-kind"]').value,
-    'openai',
+    Array.from(radios).filter((radio) => radio.tabIndex === 0).length,
+    1,
+    '服务商选择只有一个 Tab 停靠点',
   );
-});
-
-test('设置探测迟到结果不会覆盖新 provider 输入', async () => {
-  let resolveHealth!: (value: Awaited<ReturnType<typeof probeProviderHealth>>) => void;
-  vi.mocked(saveDesktopLlmConfig).mockResolvedValueOnce(null);
-  vi.mocked(probeProviderHealth).mockReturnValueOnce(
-    new Promise((resolve) => {
-      resolveHealth = resolve;
-    }),
-  );
-  const { container } = await openSettings();
-  await click(required<HTMLButtonElement>(container, '[data-testid="provider-detect-models"]'));
-  const kind = required<HTMLSelectElement>(container, '[data-testid="provider-kind"]');
-  await act(async () => {
-    kind.value = 'deepseek';
-    kind.dispatchEvent(new Event('change', { bubbles: true }));
-  });
-  await act(async () => {
-    resolveHealth({
-      status: 'ok',
-      reachable: true,
-      baseUrl: 'https://stale.example/v1',
-      model: 'stale',
-      latencyMs: 1,
-      modelCount: 1,
-      models: ['stale-model'],
-      detail: null,
-      missingEnv: [],
-    });
-    await Promise.resolve();
-  });
-  assert.equal(container.querySelector('[data-testid="provider-model-options"]'), null);
-  assert.equal(kind.value, 'deepseek');
 });
 
 test('设置从临时齿轮菜单打开，关闭后焦点回到持久齿轮入口', async () => {
@@ -279,7 +281,7 @@ test('设置关闭按钮与作品库入口之间恢复焦点', async () => {
   assert.equal(document.activeElement === entry, true);
 });
 
-test('模型技术详情默认折叠但保留真实配置来源，探测的保存副作用仍可见', async () => {
+test('模型技术详情默认折叠但保留真实配置来源；获取模型的说明写明不用先保存', async () => {
   const { container } = await openSettings();
   const details = required<HTMLDetailsElement>(
     container,
@@ -293,13 +295,15 @@ test('模型技术详情默认折叠但保留真实配置来源，探测的保�
     required(container, '[data-testid="provider-runtime-env-source"]').textContent,
     '仅存本机',
   );
-  const detector = required<HTMLButtonElement>(container, '[data-testid="provider-detect-models"]');
-  const descriptionId = detector.getAttribute('aria-describedby');
+  await click(required<HTMLButtonElement>(container, '[data-testid="model-profile-new"]'));
+  await click(required<HTMLButtonElement>(container, '[data-testid="model-profile-kind-kimi"]'));
+  const modelInput = required<HTMLInputElement>(container, '[data-testid="model-profile-model"]');
+  const descriptionId = modelInput.getAttribute('aria-describedby');
   assert.ok(descriptionId);
   const description = document.getElementById(descriptionId);
   assert.ok(description);
   assert.equal(description.closest('details') === null, true);
-  assert.match(description.textContent ?? '', /会先保存当前配置/);
+  assert.match(description.textContent ?? '', /不用先保存/);
 });
 
 test('搜索可以找到技术详情，无匹配时 Tab 不落入被过滤的控件', async () => {

@@ -10,6 +10,7 @@ mod host_close;
 mod host_close_state;
 mod llm_config;
 mod llm_config_store;
+mod llm_draft_probe;
 mod managed_writeback;
 mod runtime_paths;
 mod secret_protection;
@@ -1320,8 +1321,13 @@ fn main() {
             close_guard::acknowledge_close_request,
             close_guard::resolve_close_request,
             host_close::read_host_close_diagnostic,
-            llm_config::get_llm_config,
-            llm_config::save_llm_config,
+            // 模型服务：多套配置的增删改切；「获取模型」用未保存的草稿探一次列表（不落盘）
+            llm_config::list_llm_profiles,
+            llm_config::save_llm_profile,
+            llm_config::delete_llm_profile,
+            llm_config::activate_llm_profile,
+            llm_config::set_llm_polish_profile,
+            llm_draft_probe::probe_llm_draft,
             // 引擎出网：key 不出 Rust（占位串换真 key、只放行已配置 baseUrl 同源）
             engine_llm::get_engine_llm_source,
             engine_llm::engine_llm_send,

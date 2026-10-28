@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -15,20 +16,14 @@ import {
   sanitizeAppSettings,
   type AppSettings,
   type EditorLineNumbersMode,
-  type ProviderKind,
 } from '../lib/user-settings';
-import { Info, Palette, Pencil, Sparkles, Type } from './icons/shell-icons';
+import { Info, Palette, Sparkles, Type } from './icons/shell-icons';
 import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from './editor/options';
 import { checkForUpdate, currentAppVersion, type UpdateCheckResult } from '../lib/update-check';
-import { useProviderSettings, type ProbeState } from './settings/useProviderSettings';
+import { useModelProfiles } from './settings/useModelProfiles';
+import { ModelProfilesSection } from './settings/ModelProfilesSection';
 import { AppearanceSection } from './settings/AppearanceSection';
 import { SettingsSearchContext } from './settings/search-context';
-import {
-  applyProviderPreset,
-  describeProviderHealth,
-  isProviderKind,
-  PROVIDER_OPTIONS,
-} from '../lib/provider-config';
 
 type SettingsViewProps = {
   settings: AppSettings;
@@ -38,13 +33,10 @@ type SettingsViewProps = {
 };
 
 /**
- * 设置左栏锚点导航。
- *
- * 此前与「返回」动作混在同一个 const 里再靠 slice(1) 跳过首项，且缺「润色模型」一项
- * （该分组的 id 已就位却无法从导航到达，只能滚动或靠设置搜索发现）。拆成纯锚点列表后
- * 增删一项不会再多渲染一个无锚点的假导航项。
+ * 设置左栏锚点导航（纯锚点列表，「返回」不在里面）。整章润色用哪套模型并进了
+ * 「模型服务」的「高级」，不再单列一组。
  */
-const settingsNav = ['模型服务', '润色模型', '外观', '编辑器', '关于'] as const;
+const settingsNav = ['模型服务', '外观', '编辑器', '关于'] as const;
 
 const LINE_NUMBER_OPTIONS: ReadonlyArray<{ value: EditorLineNumbersMode; label: string }> = [
   { value: 'auto', label: '智能（正文隐藏）' },
@@ -65,39 +57,25 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
   const searchRef = useRef<HTMLInputElement>(null);
   const safeSettings = sanitizeAppSettings(settings);
   const [searchQuery, setSearchQuery] = useState('');
-  const {
-    update,
-    resetSettings,
-    secretInput,
-    polishSecretInput,
-    storedConfig,
-    saveState,
-    saveError,
-    polishSaveState,
-    polishSaveError,
-    probe,
-    detectState,
-    detectedModels,
-    detectError,
-    loadState,
-    loadError,
-    writeOperation,
-    loadConfig,
-    runProbe,
-    setSecretInput,
-    setPolishSecretInput,
-    detectModels,
-    saveProviderConfig,
-    clearProviderSecret,
-    savePolishProviderConfig,
-    clearPolishProviderSecret,
-    unsavedSlots,
-  } = useProviderSettings(safeSettings, onChange);
+  const models = useModelProfiles();
+  // 同一事件里连着改两项时，第二项要叠在第一项之上，不能都从同一份旧 props 出发。
+  const latestRef = useRef(safeSettings);
+  useLayoutEffect(() => {
+    latestRef.current = safeSettings;
+  });
+  const update = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => {
+    latestRef.current = { ...latestRef.current, [key]: value };
+    onChange(latestRef.current);
+  };
+  const resetSettings = () => {
+    latestRef.current = DEFAULT_APP_SETTINGS;
+    onChange(DEFAULT_APP_SETTINGS);
+  };
   // 破坏性操作（移除已存密钥 / 恢复默认设置）先经 AppDialog 确认，不走静默直改。
   const confirmDialog = useAppDialog();
   const mainRef = useRef<HTMLElement | null>(null);
   const [activeGroup, setActiveGroup] = useState<string>('provider');
-  const hasUnsaved = unsavedSlots.provider || unsavedSlots.polishProvider;
+  const hasUnsaved = models.draftDirty;
   // 关闭守卫：模型配置有未保存草稿时先确认，避免 Esc/点遮罩/返回静默丢草稿。
   const requestClose = () => {
     if (!hasUnsaved) {
@@ -107,8 +85,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
     void confirmDialog
       .confirm({
         title: '放弃未保存的更改？',
-        message:
-          '模型服务或润色模型的修改尚未点「保存并应用」，关闭后这些草稿将丢失；此前已保存到本机的配置不受影响。',
+        message: '正在编辑的模型配置还没点「保存」，关闭后这份草稿会丢掉；已经保存的配置不受影响。',
         confirmLabel: '放弃并关闭',
         cancelLabel: '继续编辑',
         tone: 'danger',
@@ -215,253 +192,17 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                 data-testid="settings-search"
               />
 
-              {loadState === 'error' && (
-                <div
-                  role="alert"
-                  className="mb-4 rounded-md border border-error/30 bg-surface p-3 text-sm"
-                  data-testid="provider-config-error"
-                >
-                  <p className="break-words text-error">配置读取失败：{loadError}</p>
-                  <p className="mt-1 text-xs text-muted">
-                    输入已保留。可以重新读取，或重新保存配置。
-                  </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    className="mt-2"
-                    data-testid="provider-config-retry"
-                    disabled={writeOperation !== null}
-                    onClick={() => void loadConfig()}
-                  >
-                    重试读取
-                  </Button>
-                </div>
-              )}
-              {loadState === 'loading' && (
-                <p role="status" className="mb-4 text-xs text-muted">
-                  正在读取本机模型配置…
-                </p>
-              )}
               <div className="sf-settings-list">
                 <SettingGroup
                   id="provider"
                   title="模型服务"
                   badge={
-                    <UnsavedBadge
-                      visible={unsavedSlots.provider}
-                      testId="settings-unsaved-provider"
-                    />
+                    <UnsavedBadge visible={models.draftDirty} testId="settings-unsaved-provider" />
                   }
                 >
                   <SettingCard>
-                    <SelectRow
-                      title="服务类型"
-                      description="选择你使用的 AI 服务。"
-                      value={safeSettings.provider.kind}
-                      onChange={(value) => {
-                        const nextKind = toProviderKind(value);
-                        update(
-                          'provider',
-                          applyProviderPreset(safeSettings.provider, nextKind, {
-                            preserveModel: true,
-                          }),
-                        );
-                      }}
-                      options={PROVIDER_OPTIONS}
-                      testId="provider-kind"
-                    />
-                    <TextRow
-                      title="服务地址"
-                      description="使用服务商提供的 API 地址；兼容服务通常填写到 /v1。"
-                      value={safeSettings.provider.baseUrl}
-                      placeholder="https://api.openai.com"
-                      onChange={(value) =>
-                        update('provider', { ...safeSettings.provider, baseUrl: value })
-                      }
-                      testId="provider-base-url"
-                    />
-                    <TextRow
-                      title="默认模型"
-                      description="填写模型名称，或用下方探测功能选择。"
-                      value={safeSettings.provider.model}
-                      placeholder="例如 gpt-4.1、deepseek-chat 或本地模型名"
-                      onChange={(value) =>
-                        update('provider', { ...safeSettings.provider, model: value })
-                      }
-                      testId="provider-model"
-                    />
-                    <ModelDetectRow
-                      current={safeSettings.provider.model}
-                      state={detectState}
-                      models={detectedModels}
-                      error={detectError}
-                      onDetect={detectModels}
-                      disabled={writeOperation !== null}
-                      onPick={(model) => update('provider', { ...safeSettings.provider, model })}
-                    />
-                    <TextRow
-                      title="API Key"
-                      description={
-                        storedConfig?.hasApiKey
-                          ? '已保存在本机配置文件；输入新 key 可覆盖。'
-                          : '填写服务商提供的密钥，仅保存在本机配置文件中。'
-                      }
-                      value={secretInput}
-                      placeholder={
-                        storedConfig?.hasApiKey ? '已保存，留空保持不变' : '粘贴 provider API key'
-                      }
-                      onChange={setSecretInput}
-                      testId="provider-api-key"
-                      type="password"
-                    />
-                    <ActionRow
-                      title="保存模型配置"
-                      description="保存后，下一次模型调用即生效，无需重启。"
-                      actionLabel={writeOperation === 'provider' ? '保存中' : '保存并应用'}
-                      onAction={saveProviderConfig}
-                      disabled={writeOperation !== null}
-                      status={
-                        saveState === 'saved'
-                          ? { text: '已保存并应用', tone: 'ok' }
-                          : saveState === 'error'
-                            ? { text: `保存失败：${saveError || '未知错误'}`, tone: 'error' }
-                            : null
-                      }
-                    />
-                    {storedConfig?.hasApiKey && (
-                      <ActionRow
-                        title="移除已保存密钥"
-                        description="删除本机保存的 provider API key，并保留服务地址与模型。"
-                        actionLabel="移除密钥"
-                        onAction={() =>
-                          void confirmDialog
-                            .confirm({
-                              title: '移除已保存密钥？',
-                              message:
-                                '将删除本机配置文件里保存的 provider API key，服务地址与模型会保留；之后调用模型前需要重新填写密钥。',
-                              confirmLabel: '移除密钥',
-                              cancelLabel: '取消',
-                              tone: 'danger',
-                            })
-                            .then((confirmed) => {
-                              if (confirmed) clearProviderSecret();
-                            })
-                        }
-                        disabled={writeOperation !== null}
-                      />
-                    )}
-                    <ProbeRow state={probe} onProbe={runProbe} disabled={writeOperation !== null} />
+                    <ModelProfilesSection model={models} confirm={confirmDialog.confirm} />
                     <ProviderRuntimeEnvNotice />
-                  </SettingCard>
-                </SettingGroup>
-
-                <SettingGroup
-                  id="polish-provider"
-                  title="专用润色模型"
-                  badge={
-                    <UnsavedBadge
-                      visible={unsavedSlots.polishProvider}
-                      testId="settings-unsaved-polish-provider"
-                    />
-                  }
-                >
-                  <SettingCard>
-                    <SelectRow
-                      title="服务类型"
-                      description="仅用于作者主动发起的润色，不改变主对话模型。"
-                      value={safeSettings.polishProvider.kind}
-                      onChange={(value) => {
-                        const nextKind = toProviderKind(value);
-                        update(
-                          'polishProvider',
-                          applyProviderPreset(safeSettings.polishProvider, nextKind, {
-                            preserveModel: true,
-                          }),
-                        );
-                      }}
-                      options={PROVIDER_OPTIONS}
-                      testId="polish-provider-kind"
-                    />
-                    <TextRow
-                      title="服务地址"
-                      description="Anthropic、Gemini 或兼容服务的 API 基础地址。"
-                      value={safeSettings.polishProvider.baseUrl}
-                      placeholder="https://api.anthropic.com/v1"
-                      onChange={(value) =>
-                        update('polishProvider', {
-                          ...safeSettings.polishProvider,
-                          baseUrl: value,
-                        })
-                      }
-                      testId="polish-provider-base-url"
-                    />
-                    <TextRow
-                      title="润色模型"
-                      description="整章润色默认只调用此模型；未配置完整时会明确停止。"
-                      value={safeSettings.polishProvider.model}
-                      placeholder="例如 claude-sonnet-4-5 或 gemini-2.5-pro"
-                      onChange={(value) =>
-                        update('polishProvider', { ...safeSettings.polishProvider, model: value })
-                      }
-                      testId="polish-provider-model"
-                    />
-                    <TextRow
-                      title="API Key"
-                      description={
-                        storedConfig?.polish?.hasApiKey
-                          ? '已保存在本机专用槽位；输入新 key 可覆盖。'
-                          : '仅写入本机配置文件，不写入 localStorage。'
-                      }
-                      value={polishSecretInput}
-                      placeholder={
-                        storedConfig?.polish?.hasApiKey
-                          ? '已保存，留空保持不变'
-                          : '粘贴润色模型 API key'
-                      }
-                      onChange={setPolishSecretInput}
-                      testId="polish-provider-api-key"
-                      type="password"
-                    />
-                    <ActionRow
-                      title="应用专用润色模型"
-                      description="单独保存润色配置，不覆盖主对话模型。"
-                      actionLabel={writeOperation === 'polishProvider' ? '保存中' : '保存并应用'}
-                      onAction={savePolishProviderConfig}
-                      disabled={writeOperation !== null}
-                      status={
-                        polishSaveState === 'saved'
-                          ? { text: '专用润色模型已保存', tone: 'ok' }
-                          : polishSaveState === 'error'
-                            ? {
-                                text: `保存失败：${polishSaveError || '未知错误'}`,
-                                tone: 'error',
-                              }
-                            : null
-                      }
-                    />
-                    {storedConfig?.polish?.hasApiKey && (
-                      <ActionRow
-                        title="移除润色模型密钥"
-                        description="清除专用槽位密钥；之后润色不会自动改用主模型。"
-                        actionLabel="移除密钥"
-                        onAction={() =>
-                          void confirmDialog
-                            .confirm({
-                              title: '移除润色模型密钥？',
-                              message:
-                                '将删除本机配置文件里保存的专用润色模型 API key；之后发起润色前需要重新填写密钥，润色不会自动改用主对话模型。',
-                              confirmLabel: '移除密钥',
-                              cancelLabel: '取消',
-                              tone: 'danger',
-                            })
-                            .then((confirmed) => {
-                              if (confirmed) clearPolishProviderSecret();
-                            })
-                        }
-                        disabled={writeOperation !== null}
-                      />
-                    )}
                   </SettingCard>
                 </SettingGroup>
 
@@ -590,140 +331,6 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
   );
 }
 
-function ModelDetectRow({
-  current,
-  state,
-  models,
-  error,
-  onDetect,
-  onPick,
-  disabled,
-}: {
-  current: string;
-  state: 'idle' | 'loading' | 'error' | 'ok';
-  models: string[];
-  error: string;
-  onDetect: () => void;
-  onPick: (model: string) => void;
-  disabled: boolean;
-}) {
-  const status =
-    state === 'loading'
-      ? '探测中…'
-      : state === 'ok'
-        ? `${models.length} 个可用模型，点选即填入默认模型`
-        : state === 'error'
-          ? error
-          : null;
-  return (
-    <>
-      <RowShell
-        title="探测可用模型"
-        description="按当前服务地址 + API Key 拉取模型列表（会先保存当前配置）。"
-        descriptionId="provider-detect-models-description"
-      >
-        <div className="flex items-center gap-3">
-          {status && (
-            <span
-              className={`max-w-[280px] truncate text-xs ${
-                state === 'error' ? 'text-error' : 'text-subtle'
-              }`}
-              data-testid="provider-detect-status"
-            >
-              {status}
-            </span>
-          )}
-          <Button
-            type="button"
-            onClick={onDetect}
-            loading={state === 'loading'}
-            aria-describedby="provider-detect-models-description"
-            disabled={disabled || state === 'loading'}
-            size="sm"
-            variant="secondary"
-            className="flex-shrink-0 text-sm"
-            data-testid="provider-detect-models"
-          >
-            探测模型
-          </Button>
-        </div>
-      </RowShell>
-      {models.length > 0 && (
-        <div
-          className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto px-4 py-3"
-          data-testid="provider-model-options"
-        >
-          {models.map((model) => (
-            <button
-              key={model}
-              type="button"
-              onClick={() => onPick(model)}
-              className={`max-w-full truncate rounded-md border px-2 py-1 text-xs transition-colors ${
-                model === current
-                  ? 'border-accent bg-accent text-accent-foreground'
-                  : 'border-border text-muted hover:bg-elevated hover:text-foreground'
-              }`}
-              title={model}
-            >
-              {model}
-            </button>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-function ProbeRow({
-  state,
-  onProbe,
-  disabled,
-}: {
-  state: ProbeState;
-  onProbe: () => void;
-  disabled: boolean;
-}) {
-  const display = state === 'idle' || state === 'loading' ? null : describeProviderHealth(state);
-  const toneClass =
-    display?.tone === 'ok'
-      ? 'text-success'
-      : display?.tone === 'warn'
-        ? 'text-warning'
-        : display?.tone === 'error'
-          ? 'text-error'
-          : 'text-subtle';
-  return (
-    <RowShell
-      title="测试连接"
-      description="检查已保存的配置能否连接服务；修改后请先保存再测试。"
-      descriptionId="provider-health-probe-description"
-    >
-      <div className="flex items-center gap-3">
-        {state !== 'idle' && (
-          <span
-            className={`max-w-[280px] truncate text-xs ${state === 'loading' ? 'text-subtle' : toneClass}`}
-            data-testid="provider-health-status"
-          >
-            {state === 'loading' ? '检测中…' : display?.label}
-          </span>
-        )}
-        <Button
-          type="button"
-          onClick={onProbe}
-          aria-describedby="provider-health-probe-description"
-          disabled={disabled || state === 'loading'}
-          size="sm"
-          variant="secondary"
-          className="flex-shrink-0 text-sm"
-          data-testid="provider-health-probe"
-        >
-          测试连接
-        </Button>
-      </div>
-    </RowShell>
-  );
-}
-
 function ProviderRuntimeEnvNotice() {
   const query = useContext(SettingsSearchContext).trim().toLowerCase();
   const description =
@@ -770,7 +377,7 @@ function SettingGroup({
   );
 }
 
-/** 「未保存」徽标：仅在对应槽位草稿与磁盘基线不一致时出现，保存成功后自然消失。 */
+/** 「未保存」徽标：仅在正在编辑的模型配置与打开时不一致时出现，保存或取消后消失。 */
 function UnsavedBadge({ visible, testId }: { visible: boolean; testId: string }) {
   if (!visible) return null;
   return (
@@ -919,41 +526,6 @@ function RangeRow({
   );
 }
 
-function TextRow({
-  title,
-  description,
-  value,
-  placeholder,
-  onChange,
-  testId,
-  type = 'text',
-}: {
-  title: string;
-  description: string;
-  value: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-  testId: string;
-  type?: 'text' | 'password';
-}) {
-  return (
-    <RowShell title={title} description={description} controlId={testId}>
-      {(control) => (
-        <Input
-          type={type}
-          {...control}
-          value={value}
-          placeholder={placeholder}
-          onChange={(event) => onChange(event.target.value)}
-          controlSize="sm"
-          className="w-[260px]"
-          data-testid={testId}
-        />
-      )}
-    </RowShell>
-  );
-}
-
 function SelectRow({
   title,
   description,
@@ -989,11 +561,6 @@ function SelectRow({
       )}
     </RowShell>
   );
-}
-
-function toProviderKind(value: string): ProviderKind {
-  if (isProviderKind(value)) return value;
-  return DEFAULT_APP_SETTINGS.provider.kind;
 }
 
 function ActionRow({
@@ -1041,7 +608,6 @@ function ActionRow({
 
 function navAnchor(label: (typeof settingsNav)[number]): string {
   if (label === '模型服务') return 'provider';
-  if (label === '润色模型') return 'polish-provider';
   if (label === '外观') return 'appearance';
   if (label === '编辑器') return 'editor';
   return 'about';
@@ -1051,15 +617,7 @@ function navAnchor(label: (typeof settingsNav)[number]): string {
  *  且与全站唯一图标源 shell-icons 割裂 —— 那个模块的存在理由就是「取代旧的 Unicode/字形图标」）。 */
 function NavIcon({ label }: { label: string }) {
   const Icon =
-    label === '模型服务'
-      ? Sparkles
-      : label === '润色模型'
-        ? Pencil
-        : label === '外观'
-          ? Palette
-          : label === '编辑器'
-            ? Type
-            : Info;
+    label === '模型服务' ? Sparkles : label === '外观' ? Palette : label === '编辑器' ? Type : Info;
   return <Icon size={15} strokeWidth={1.6} />;
 }
 
