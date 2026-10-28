@@ -611,6 +611,20 @@ test('换了新补丁：收起只对上一版算数，新补丁又占满，并�
   assert.equal(diff.revealFirstDiffCalls, 2);
 });
 
+test('横幅收成一行：长说明默认折起、点「说明」再看，范围警告照常显示，用 AI 紫淡底', () => {
+  mountPanel();
+  const details = byTestId('patch-details')!;
+  assert.equal(details.hidden, true, '长说明默认不占正文上方的位置');
+  assert.match(details.textContent ?? '', /收紧开篇节奏/);
+  assert.ok(byTestId('patch-scope-warning'), '范围警告不藏');
+  assert.match(byTestId('patch-controls')!.className, /bg-agent\/10/);
+  click('patch-details-toggle');
+  assert.equal(byTestId('patch-details')!.hidden, false);
+  assert.equal(byTestId('patch-details-toggle')!.getAttribute('aria-expanded'), 'true');
+  click('patch-details-toggle');
+  assert.equal(byTestId('patch-details')!.hidden, true);
+});
+
 test('收起时只剩一条操作栏，不在正文下方再劈出半块对比', () => {
   mountPanel();
   click('patch-expand');
