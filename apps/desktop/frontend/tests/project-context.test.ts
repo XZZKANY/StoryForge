@@ -122,8 +122,9 @@ test('project index exposes only allowlisted project knowledge', () => {
 
   assert.equal(classifyRelativePath('.资料/黄金三章spec.md'), 'knowledge');
   assert.equal(index.summary.hasStoryStructure, true);
+  // 此测试核对准入清单，不依赖运行机器的语言排序；排序契约另有测试。
   assert.deepEqual(
-    index.files.map((file) => [file.relativePath.replace(/\\/g, '/'), file.kind]),
+    index.files.map((file) => [file.relativePath.replace(/\\/g, '/'), file.kind]).sort(),
     [
       ['.资料/黄金三章spec.md', 'knowledge'],
       ['.storyforge/agent-instructions.md', 'knowledge'],
@@ -131,7 +132,7 @@ test('project index exposes only allowlisted project knowledge', () => {
       ['.storyforge/canon/canon.json', 'knowledge'],
       ['.storyforge/canon/hooks.json', 'knowledge'],
       ['.storyforge/serial-plan.json', 'knowledge'],
-    ],
+    ].sort(),
   );
 });
 
