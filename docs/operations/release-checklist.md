@@ -1,6 +1,6 @@
 # StoryForge 发版清单
 
-更新时间：2026-10-16
+更新时间：2026-10-28
 
 ## 1. 适用范围
 
@@ -19,7 +19,7 @@ npm --prefix apps/desktop/frontend run build   # Rust 编译要嵌入 frontend/d
 npm --prefix apps/desktop run test:rust
 ```
 
-两者都绿才继续；失败原因与处理记进 `.codex/verification-report.md`。
+两者都绿才继续；失败原因与处理记进验证记录（`.codex/verification/`）。
 
 ## 4. 构建
 
@@ -42,7 +42,7 @@ npm --prefix apps/desktop run verify:nsis-install                # 隔离身份�
 
 - 把安装包另存到 `output/release-<版本>/`（本地验证构建会覆盖 `bundle/nsis/` 里的同名文件）。
 - 告诉作者：版本号、这一版带了哪些改动、装前是否需要备份（动了引擎库 schema 或旧库导入时，提醒备份 `%LOCALAPPDATA%\com.storyforge.ide\` 下的 `.sqlite3` 文件）。
-- 在 `.codex/verification-report.md` 记一条：版本、大小、SHA256、跑过的门禁与冒烟、没跑的项。
+- 在验证记录（`.codex/verification/`）里记一条：版本、大小、SHA256、跑过的门禁与冒烟、没跑的项。
 
 ## 7. 已知 caveat
 
@@ -55,4 +55,4 @@ npm --prefix apps/desktop run verify:nsis-install                # 隔离身份�
 - `pnpm verify` 或 Rust 测试没跑，或失败但没记录原因。
 - 发行版冒烟没跑。
 - 版本号与已发布的版本重复。
-- `.codex/verification-report.md` 缺少本次出包记录。
+- 验证记录（`.codex/verification/`）里缺少本次出包记录。

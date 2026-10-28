@@ -62,7 +62,7 @@ packages/
   project-core/   路径围栏等共享内核
 scripts/          verify-local.mjs（根门禁）/ fast-tests.mjs（pre-push）/ lib/emit-agent-ws-types.mjs（帧类型生成）
 docs/             架构与运维文档；docs/architecture/ts-engine-migration-plan.md 是迁移计划与逐刀进度
-.codex/           验证报告（verification-report.md），所有变更必须留痕
+.codex/           验证记录：verification/ 每个分支一份（规则见 CONTRIBUTING.md §4）；verification-report.md 是 10-28 前的旧档
 ```
 
 本机数据：引擎库 `%LOCALAPPDATA%\com.storyforge.ide\storyforge-engine.sqlite3`；旧版（Python）的 `storyforge.sqlite3` 在同一目录，新引擎第一次打开时只读导入一次、不改它；模型配置 `%APPDATA%\com.storyforge.ide\llm-provider.json`。
@@ -102,7 +102,7 @@ pnpm lint:fix          # 自动修复格式与 lint
 
 - **引擎库 schema：** 前向迁移在 `packages/engine/src/store/schema.ts` 的 `ENGINE_MIGRATIONS`，只追加、不改已发布的条目，每条在一个事务里连同版本号提交；库版本比程序新时拒绝打开。旧库导入（`legacyImport`）按 Python 库的七张表逐列对齐，改表时要照顾导入路径。
 - **语言：** 所有回复、文档、注释、日志、提交信息默认简体中文；代码标识符、包名、API 名称保留英文。
-- **证据链：** 所有变更必须在 `.codex/verification-report.md` 留下验证记录（命令、输出摘要、未联通能力）；该文件是混合行尾，只做字节级追加。
+- **证据链：** 每个分支一份验证记录 `.codex/verification/<开分支日期>-<分支名>.md`（分支名里的 `/` 换成 `-`），写命令、输出摘要、未联通能力，和代码一起提交，PR 描述里写上路径；同一分支后续补验证就接着写在这份里。`.codex/verification-report.md` 是 2026-10-28 前的旧记录，已冻结、不再追加（混合行尾，万一要改只做字节级操作）。规则全文见 `CONTRIBUTING.md` §4。
 - **小步推进：** 一次只解决一个明确问题，禁止顺手重构无关代码。
 - **不写多余注释：** 只在 WHY 不明显时加一行；不要描述代码做了什么。
 - **不写无关 README：** 除非用户明确要求。
@@ -148,6 +148,7 @@ pnpm lint:fix          # 自动修复格式与 lint
 - **改引擎后连前端类型检查一起跑**：前端经 `lib/engine` 直接编译引擎源码。
 - **引擎库与旧库并排**：别删 `storyforge.sqlite3`，旧库导入只读它一次；导入要求引擎库为空。
 - **行尾**：仓库里 CRLF / LF 混用，按文件原有行尾改；提交前对照 `git diff --numstat` 与 `--ignore-all-space --numstat`。
+- **master 受保护（2026-10-28 起）：** 不能 force push、不能删；PR 合并要另一位有写权限的人批准。作者是管理员，自己的 PR 照旧可以直接合，用 `gh pr merge --admin`；协作者的 PR 等作者审。
 
 ## Agent skills
 

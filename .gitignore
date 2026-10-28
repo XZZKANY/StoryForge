@@ -34,6 +34,7 @@ redis-data/
 .cache/
 .codex/*
 !.codex/verification-report.md
+!.codex/verification/
 # 以下 .codex 文件是 pytest 事实源门禁读取的 fixture，必须保持被跟踪；
 # 其余 .codex 产物（长跑证据、上下文摘要、完成报告等）一律本地脚手架、不入库。
 # 门禁来源：tests/test_phase9_fact_sources.py、test_real_llm_*

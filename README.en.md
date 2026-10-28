@@ -237,7 +237,7 @@ pnpm desktop:build     # build the NSIS installer
 
 If PowerShell blocks `pnpm.ps1`, use `pnpm.cmd`. See [local development](docs/operations/local-start.md), [troubleshooting](docs/operations/troubleshooting.md) and the [release checklist](docs/operations/release-checklist.md) (in Chinese).
 
-Issues and pull requests are welcome. Run `pnpm verify` before submitting, and never commit real API keys or unredacted run logs. Engineering conventions are in [`CLAUDE.md`](CLAUDE.md).
+Issues and pull requests are welcome; the workflow is in [`CONTRIBUTING.md`](CONTRIBUTING.md) (in Chinese). Run `pnpm verify` before submitting, and never commit real API keys or unredacted run logs. Engineering conventions are in [`CLAUDE.md`](CLAUDE.md).
 
 ## Star history
 

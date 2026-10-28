@@ -1,3 +1,5 @@
+> **2026-10-28 起冻结，不再追加。** 新的验证记录每个分支一份，放 `.codex/verification/`，规则见根 `CONTRIBUTING.md` §4。
+
 ## 2026-10-11 P1-2 Path.match 扫描依赖（当前增量，迁移未完成）
 
 - 复读 presence→consistency→FS 链后确认不能把任意 `glob` 降成 `*.md`，也不能复用会trim/折叠父段的UI路径工具。新增 `D:/StoryForge/packages/engine/src/kernel/pathMatch.ts`，正文排序复用它；实现相对右匹配、锚定路径、Windows盘符/UNC/device、POSIX双根、非递归**、字符类/反向范围和码点宽度。未改UI/Native路由。
