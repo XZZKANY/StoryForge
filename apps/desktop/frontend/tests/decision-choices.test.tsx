@@ -280,7 +280,13 @@ it('keyboard works like Claude Code: arrows move, digits pick, typing goes back 
   await key(second, { key: 'ArrowUp' });
   expect(document.activeElement).toBe(first);
   await key(first, { key: 'ArrowUp' });
-  expect(document.activeElement).toBe(host.querySelector('[data-testid="pick-3"]'));
+  // 要写一句话的那项：移过去焦点直接进它的输入框，能马上打字。
+  expect(document.activeElement).toBe(host.querySelector('[data-testid="pick-3-input"]'));
+  expect(host.querySelector('[data-testid="pick-3"]')!.getAttribute('data-active')).toBe('true');
+  // 在输入框里按数字是在写话，不是直选。
+  await key(document.activeElement!, { key: '1' });
+  expect(picks).toEqual([]);
+  await key(document.activeElement!, { key: 'ArrowDown' });
   // 组字中的键不算。
   await key(first, { key: '1', isComposing: true });
   expect(picks).toEqual([]);
@@ -289,9 +295,12 @@ it('keyboard works like Claude Code: arrows move, digits pick, typing goes back 
   await key(first, { key: 'h' });
   expect(typeAhead).toHaveBeenCalledTimes(1);
   expect(picks).toEqual(['a:拒绝']);
-  // 要写一句话的选项：数字选中后出输入框，回车发出、Esc 回到选项。
-  await key(first, { key: '3' });
+  // 要写一句话的选项：输入框一直在列表里；数字选中后焦点进框，空着回车不发，写了回车发出。
   const input = host.querySelector<HTMLInputElement>('[data-testid="pick-3-input"]')!;
+  await key(first, { key: '3' });
+  expect(document.activeElement).toBe(input);
+  await key(input, { key: 'Enter' });
+  expect(picks).toEqual(['a:拒绝']);
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
       input,
@@ -489,5 +498,5 @@ it('a written direction stays in the box when the choice reports it was not carr
   await key(input()!, { key: 'Enter' });
   await act(async () => finish(true));
   expect(sent).toEqual(['换个结尾', '换个结尾']);
-  expect(input()).toBeNull();
+  expect(input()?.value).toBe('');
 });
