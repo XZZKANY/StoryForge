@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub const SCHEME: &str = "windows-dpapi-user-v1";
 
 // Deliberately no Debug: accidental diagnostics must not expose stored secrets.
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct ProtectedKey {
     scheme: String,
     ciphertext: String,

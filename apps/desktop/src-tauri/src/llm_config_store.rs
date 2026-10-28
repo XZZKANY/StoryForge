@@ -1,4 +1,8 @@
 //! Versioned local config store. Only protected payloads reach the atomic writer.
+//!
+//! 多套模型配置存在同一个 v2 文件里：`profiles` / `activeProfileId` / `polishProfileId`
+//! 是 0.2.1 不认识的字段，旧版读写时经 `extra` 原样保留；顶层 provider/baseUrl/model/apiKey
+//! 始终镜像当前那套，旧版照旧能读能用。迁移与对账规则见 `profiles.rs`。
 use crate::secret_protection::ProtectedKey;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -7,7 +11,11 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io::{ErrorKind, Write};
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
+
+mod profiles;
+pub use profiles::SaveLlmProfileRequest;
+use profiles::StoredProfile;
 
 // Serialize migration/save/read across Tauri commands and the startup worker.
 static CONFIG_LOCK: Mutex<()> = Mutex::new(());
@@ -20,8 +28,16 @@ struct StoredLlmConfig {
     base_url: String,
     model: String,
     api_key: Option<ProtectedKey>,
+    // 0.2.1 的专用润色槽：只在第一次迁移时并入多套配置，之后新版不再读写它。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     polish: Option<StoredLlmSlot>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    profiles: Option<Vec<StoredProfile>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    active_profile_id: Option<String>,
+    // None = 整章润色跟随当前那套。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    polish_profile_id: Option<String>,
     #[serde(flatten)]
     extra: BTreeMap<String, Value>,
 }
@@ -35,6 +51,9 @@ impl Default for StoredLlmConfig {
             model: String::new(),
             api_key: None,
             polish: None,
+            profiles: None,
+            active_profile_id: None,
+            polish_profile_id: None,
             extra: BTreeMap::new(),
         }
     }
@@ -51,66 +70,51 @@ struct StoredLlmSlot {
     extra: BTreeMap<String, Value>,
 }
 
-#[derive(Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveLlmConfigRequest {
-    // 只保存润色槽时不带主槽元信息：主槽保持磁盘原样，不被设置页里还没保存的草稿改掉。
-    provider: Option<String>,
-    base_url: Option<String>,
-    model: Option<String>,
-    api_key: Option<String>,
-    clear_api_key: Option<bool>,
-    polish: Option<SaveLlmSlotRequest>,
-}
-
-#[derive(Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveLlmSlotRequest {
-    provider: String,
-    base_url: String,
-    model: String,
-    api_key: Option<String>,
-    clear_api_key: Option<bool>,
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LlmConfigResponse {
-    provider: String,
-    base_url: String,
-    model: String,
-    has_api_key: bool,
-    polish: Option<LlmSlotResponse>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LlmSlotResponse {
+pub struct LlmProfileResponse {
+    id: String,
+    name: String,
     provider: String,
     base_url: String,
     model: String,
     has_api_key: bool,
 }
 
-impl From<StoredLlmConfig> for LlmConfigResponse {
-    fn from(config: StoredLlmConfig) -> Self {
-        Self {
-            provider: config.provider,
-            base_url: config.base_url,
-            model: config.model,
-            has_api_key: config.api_key.is_some(),
-            polish: config.polish.map(Into::into),
-        }
-    }
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmProfilesResponse {
+    profiles: Vec<LlmProfileResponse>,
+    active_profile_id: Option<String>,
+    polish_profile_id: Option<String>,
 }
 
-impl From<StoredLlmSlot> for LlmSlotResponse {
-    fn from(config: StoredLlmSlot) -> Self {
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedLlmProfileResponse {
+    #[serde(flatten)]
+    config: LlmProfilesResponse,
+    saved_profile_id: String,
+}
+
+impl From<&StoredLlmConfig> for LlmProfilesResponse {
+    fn from(config: &StoredLlmConfig) -> Self {
         Self {
-            provider: config.provider,
-            base_url: config.base_url,
-            model: config.model,
-            has_api_key: config.api_key.is_some(),
+            profiles: config
+                .profiles
+                .iter()
+                .flatten()
+                .map(|profile| LlmProfileResponse {
+                    id: profile.id.clone(),
+                    name: profile.name.clone(),
+                    provider: profile.provider.clone(),
+                    base_url: profile.base_url.clone(),
+                    model: profile.model.clone(),
+                    has_api_key: profile.api_key.is_some(),
+                })
+                .collect(),
+            active_profile_id: config.active_profile_id.clone(),
+            polish_profile_id: config.polish_profile_id.clone(),
         }
     }
 }
@@ -152,7 +156,9 @@ fn load_with_protector(
     let raw = match fs::read(path) {
         Ok(raw) => raw,
         Err(error) if error.kind() == ErrorKind::NotFound => {
-            return Ok((StoredLlmConfig::default(), true))
+            let mut config = StoredLlmConfig::default();
+            profiles::normalize(&mut config)?;
+            return Ok((config, true));
         }
         Err(_) => bail!("无法读取 LLM 配置文件"),
     };
@@ -178,9 +184,10 @@ fn load_with_protector(
         }
         data["schemaVersion"] = Value::from(2);
     }
-    let config =
+    let mut config: StoredLlmConfig =
         serde_json::from_value(data).map_err(|_| anyhow::anyhow!("LLM 配置字段格式无效"))?;
-    Ok((config, version == 1))
+    let normalized = profiles::normalize(&mut config)?;
+    Ok((config, version == 1 || normalized))
 }
 
 fn write(path: &Path, config: &StoredLlmConfig) -> Result<()> {
@@ -198,23 +205,73 @@ fn write(path: &Path, config: &StoredLlmConfig) -> Result<()> {
     Ok(())
 }
 
-/// 读配置；旧版配置在这里迁移到 v2 并原子写回（加密失败则原文件不动）。
-pub fn read(path: &Path) -> Result<LlmConfigResponse> {
-    read_with_protector(path, &ProtectedKey::protect)
+fn lock() -> Result<MutexGuard<'static, ()>> {
+    CONFIG_LOCK
+        .lock()
+        .map_err(|_| anyhow::anyhow!("LLM 配置锁不可用"))
 }
 
-fn read_with_protector(
+// 读取即收口：旧版配置迁移、旧版改过顶层后的对账都在这里原子写回（加密失败则原文件不动）。
+fn read_normalized(
     path: &Path,
     protect: &impl Fn(&str) -> Result<ProtectedKey>,
-) -> Result<LlmConfigResponse> {
-    let _guard = CONFIG_LOCK
-        .lock()
-        .map_err(|_| anyhow::anyhow!("LLM 配置锁不可用"))?;
+) -> Result<StoredLlmConfig> {
     let (config, needs_write) = load_with_protector(path, protect)?;
     if needs_write {
         write(path, &config)?;
     }
-    Ok(config.into())
+    Ok(config)
+}
+
+/// 列出多套配置（不含密钥，只给有没有存）。
+pub fn list(path: &Path) -> Result<LlmProfilesResponse> {
+    list_with_protector(path, &ProtectedKey::protect)
+}
+
+fn list_with_protector(
+    path: &Path,
+    protect: &impl Fn(&str) -> Result<ProtectedKey>,
+) -> Result<LlmProfilesResponse> {
+    let _guard = lock()?;
+    Ok((&read_normalized(path, protect)?).into())
+}
+
+fn mutate<T>(
+    path: &Path,
+    change: impl FnOnce(&mut StoredLlmConfig) -> Result<T>,
+) -> Result<(StoredLlmConfig, T)> {
+    let _guard = lock()?;
+    let (mut config, _) = load(path)?;
+    let output = change(&mut config)?;
+    write(path, &config)?;
+    Ok((config, output))
+}
+
+/// 新建（不带 id）或更新一套；Key 留空 = 保持原样，`clearApiKey` = 清除。
+pub fn save_profile(
+    path: &Path,
+    payload: SaveLlmProfileRequest,
+) -> Result<SavedLlmProfileResponse> {
+    let (config, saved_profile_id) = mutate(path, |config| profiles::upsert(config, payload))?;
+    Ok(SavedLlmProfileResponse {
+        config: (&config).into(),
+        saved_profile_id,
+    })
+}
+
+/// 删除一套；当前那套与最后一套不能删。
+pub fn delete_profile(path: &Path, id: &str) -> Result<LlmProfilesResponse> {
+    Ok((&mutate(path, |config| profiles::remove(config, id))?.0).into())
+}
+
+/// 切换当前那套；下一次模型调用即生效（出网每次重读本文件）。
+pub fn activate_profile(path: &Path, id: &str) -> Result<LlmProfilesResponse> {
+    Ok((&mutate(path, |config| profiles::activate(config, id))?.0).into())
+}
+
+/// 整章润色用哪套：None = 跟随当前那套。
+pub fn set_polish_profile(path: &Path, id: Option<&str>) -> Result<LlmProfilesResponse> {
+    Ok((&mutate(path, |config| profiles::set_polish(config, id))?.0).into())
 }
 
 // Deliberately no Debug/Serialize: the revealed key must stay inside Rust egress.
@@ -225,75 +282,54 @@ pub struct RevealedSlot {
     pub api_key: Option<String>,
 }
 
-/// Engine egress only. `None` means the dedicated polish slot was never configured.
-pub fn read_revealed_slot(path: &Path, polish: bool) -> Result<Option<RevealedSlot>> {
-    let _guard = CONFIG_LOCK
-        .lock()
-        .map_err(|_| anyhow::anyhow!("LLM 配置锁不可用"))?;
-    let (config, needs_write) = load(path)?;
-    if needs_write {
-        write(path, &config)?;
-    }
-    let (provider, base_url, model, api_key) = if polish {
-        match config.polish {
-            Some(slot) => (slot.provider, slot.base_url, slot.model, slot.api_key),
-            None => return Ok(None),
-        }
-    } else {
-        (
-            config.provider,
-            config.base_url,
-            config.model,
-            config.api_key,
-        )
-    };
-    Ok(Some(RevealedSlot {
+fn reveal(
+    provider: &str,
+    base_url: &str,
+    model: &str,
+    api_key: Option<&ProtectedKey>,
+) -> Result<RevealedSlot> {
+    Ok(RevealedSlot {
         provider: provider.trim().into(),
         base_url: base_url.trim().into(),
         model: model.trim().into(),
         api_key: api_key
             .map(|key| key.reveal().map(|value| value.trim().to_string()))
             .transpose()?,
-    }))
+    })
 }
 
-fn update_key(
-    key: &mut Option<ProtectedKey>,
-    input: Option<String>,
-    clear: Option<bool>,
-) -> Result<()> {
-    if clear.unwrap_or(false) {
-        *key = None;
-    } else if let Some(value) = input.filter(|value| !value.trim().is_empty()) {
-        *key = Some(ProtectedKey::protect(value.trim())?);
+/// Engine egress only. main = 当前那套；polish = 指定的那套，没指定或已不存在时也用当前那套。
+pub fn read_revealed_slot(path: &Path, polish: bool) -> Result<RevealedSlot> {
+    let _guard = lock()?;
+    let config = read_normalized(path, &ProtectedKey::protect)?;
+    match profiles::resolve(&config, polish) {
+        Some(profile) => reveal(
+            &profile.provider,
+            &profile.base_url,
+            &profile.model,
+            profile.api_key.as_ref(),
+        ),
+        // 一套都还没存：顶层也是空的，引擎据此报「还没配置」。
+        None => reveal(
+            &config.provider,
+            &config.base_url,
+            &config.model,
+            config.api_key.as_ref(),
+        ),
     }
-    Ok(())
 }
 
-pub fn save(path: &Path, payload: SaveLlmConfigRequest) -> Result<LlmConfigResponse> {
-    let _guard = CONFIG_LOCK
-        .lock()
-        .map_err(|_| anyhow::anyhow!("LLM 配置锁不可用"))?;
-    let (mut next, _) = load(path)?;
-    if let Some(provider) = payload.provider {
-        next.provider = provider.trim().into();
-    }
-    if let Some(base_url) = payload.base_url {
-        next.base_url = base_url.trim().into();
-    }
-    if let Some(model) = payload.model {
-        next.model = model.trim().into();
-    }
-    update_key(&mut next.api_key, payload.api_key, payload.clear_api_key)?;
-    if let Some(polish) = payload.polish {
-        let slot = next.polish.get_or_insert_with(StoredLlmSlot::default);
-        slot.provider = polish.provider.trim().into();
-        slot.base_url = polish.base_url.trim().into();
-        slot.model = polish.model.trim().into();
-        update_key(&mut slot.api_key, polish.api_key, polish.clear_api_key)?;
-    }
-    write(path, &next)?;
-    Ok(next.into())
+/// 设置页「获取模型」借用某套已存的 Key（只在 Rust 里用，不回给界面）。
+pub fn read_revealed_profile(path: &Path, id: &str) -> Result<RevealedSlot> {
+    let _guard = lock()?;
+    let config = read_normalized(path, &ProtectedKey::protect)?;
+    let profile = profiles::find(&config, id)?;
+    reveal(
+        &profile.provider,
+        &profile.base_url,
+        &profile.model,
+        profile.api_key.as_ref(),
+    )
 }
 
 #[cfg(test)]

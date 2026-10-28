@@ -1,22 +1,54 @@
+use super::profiles::{MIGRATED_MAIN_NAME, MIGRATED_POLISH_NAME};
 use super::*;
 use serde_json::json;
 
-fn request(key: Option<&str>, clear: bool) -> SaveLlmConfigRequest {
+const BASE: &str = "https://example.invalid/v1";
+
+fn profile(id: Option<&str>, model: &str, key: Option<&str>) -> SaveLlmProfileRequest {
     serde_json::from_value(
-        json!({"provider":"openai-compatible","baseUrl":"https://example.invalid/v1",
-        "model":"test-model","apiKey":key,"clearApiKey":clear}),
+        json!({"id": id, "name": "", "provider": "openai-compatible",
+        "baseUrl": BASE, "model": model, "apiKey": key}),
     )
     .unwrap()
+}
+
+fn clear_key(id: &str, model: &str) -> SaveLlmProfileRequest {
+    serde_json::from_value(
+        json!({"id": id, "name": "", "provider": "openai-compatible",
+        "baseUrl": BASE, "model": model, "clearApiKey": true}),
+    )
+    .unwrap()
+}
+
+fn raw(path: &Path) -> Value {
+    serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
+}
+
+fn stored(path: &Path) -> StoredLlmConfig {
+    load(path).unwrap().0
+}
+
+fn stored_profile<'a>(config: &'a StoredLlmConfig, id: &str) -> &'a StoredProfile {
+    profiles::find(config, id).unwrap()
+}
+
+fn key_of(config: &StoredLlmConfig, id: &str) -> Option<String> {
+    stored_profile(config, id)
+        .api_key
+        .as_ref()
+        .map(|key| key.reveal().unwrap())
 }
 
 #[test]
 fn missing_configuration_is_initialized_without_secrets() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("llm-provider.json");
-    read(&path).unwrap();
-    let value: serde_json::Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    let listed = list(&path).unwrap();
+    assert!(listed.profiles.is_empty() && listed.active_profile_id.is_none());
+    let value = raw(&path);
     assert_eq!(value["schemaVersion"], 2);
     assert!(value["apiKey"].is_null());
+    assert_eq!(value["profiles"], json!([]));
 }
 
 #[cfg(windows)]
@@ -24,39 +56,75 @@ fn missing_configuration_is_initialized_without_secrets() {
 fn legacy_both_slots_migrate_atomically_and_idempotently() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("llm-provider.json");
-    let mut legacy = json!({"provider":"openai-compatible","baseUrl":"https://example.invalid/v1",
+    let mut legacy = json!({"provider":"openai-compatible","baseUrl":BASE,
         "model":"test-model","apiKey":"main-test-sentinel", "extraSetting":17});
     legacy["polish"] = json!({"provider":"gemini","baseUrl":"https://polish.invalid","model":"p",
         "apiKey":"polish-test-sentinel"});
     fs::write(&path, legacy.to_string()).unwrap();
-    read(&path).unwrap();
+    let listed = list(&path).unwrap();
     let bytes = fs::read(&path).unwrap();
-    let data: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = raw(&path);
     assert_eq!(data["schemaVersion"], 2);
     assert_eq!(data["extraSetting"], 17);
+    assert!(
+        data.get("polish").is_none(),
+        "旧润色槽并入多套配置后不再留在文件里"
+    );
+    assert!(data.get("polishProfileId").is_none(), "润色跟随当前那套");
     assert!(!String::from_utf8_lossy(&bytes).contains("test-sentinel"));
-    let config = load(&path).unwrap().0;
-    assert_eq!(
-        config.api_key.as_ref().unwrap().reveal().unwrap(),
-        "main-test-sentinel"
-    );
-    assert_eq!(
-        config
-            .polish
-            .as_ref()
-            .unwrap()
-            .api_key
-            .as_ref()
-            .unwrap()
-            .reveal()
-            .unwrap(),
-        "polish-test-sentinel"
-    );
-    read(&path).unwrap();
+    assert_eq!(listed.active_profile_id.as_deref(), Some("p1"));
+    let names: Vec<_> = listed.profiles.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, [MIGRATED_MAIN_NAME, MIGRATED_POLISH_NAME]);
+    let config = stored(&path);
+    assert_eq!(key_of(&config, "p1").unwrap(), "main-test-sentinel");
+    assert_eq!(key_of(&config, "p2").unwrap(), "polish-test-sentinel");
+    assert_eq!(stored_profile(&config, "p2").provider, "gemini");
+    // 顶层镜像当前那套：密文原样搬，不解密重加密。
+    assert_eq!(data["apiKey"], data["profiles"][0]["apiKey"]);
+    list(&path).unwrap();
     assert_eq!(fs::read(&path).unwrap(), bytes);
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
-    let response = serde_json::to_string(&read(&path).unwrap()).unwrap();
+    let response = serde_json::to_string(&list(&path).unwrap()).unwrap();
     assert!(!response.contains("ciphertext") && !response.contains("test-sentinel"));
+}
+
+#[cfg(windows)]
+#[test]
+fn v2_polish_slot_ciphertext_moves_verbatim() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    let main = serde_json::to_value(ProtectedKey::protect("main-test-sentinel").unwrap()).unwrap();
+    let polish =
+        serde_json::to_value(ProtectedKey::protect("polish-test-sentinel").unwrap()).unwrap();
+    let data = json!({"schemaVersion":2,"provider":"openai","baseUrl":BASE,"model":"m",
+        "apiKey":main,"polish":{"provider":"anthropic","baseUrl":"https://p.invalid/v1",
+        "model":"claude","apiKey":polish}});
+    fs::write(&path, data.to_string()).unwrap();
+    list(&path).unwrap();
+    let after = raw(&path);
+    assert_eq!(after["profiles"][0]["apiKey"], main);
+    assert_eq!(after["profiles"][1]["apiKey"], polish);
+    assert_eq!(after["profiles"][1]["name"], MIGRATED_POLISH_NAME);
+}
+
+#[cfg(windows)]
+#[test]
+fn legacy_polish_equal_to_main_or_incomplete_is_not_duplicated() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    // 同一个 key 存进两个槽：v1 迁移时各加密一次、密文不同，按明文判定为同一套。
+    let slot = json!({"provider":"p","baseUrl":BASE,"model":"m","apiKey":"same-test-sentinel"});
+    let mut data = slot.clone();
+    data["polish"] = slot;
+    fs::write(&path, data.to_string()).unwrap();
+    assert_eq!(list(&path).unwrap().profiles.len(), 1);
+
+    let incomplete = json!({"provider":"p","baseUrl":BASE,"model":"m","apiKey":"main-test-sentinel",
+        "polish":{"provider":"anthropic","baseUrl":"https://p.invalid","model":"","apiKey":"x-test-sentinel"}});
+    fs::write(&path, incomplete.to_string()).unwrap();
+    let listed = list(&path).unwrap();
+    assert_eq!(listed.profiles.len(), 1);
+    assert!(!fs::read_to_string(&path).unwrap().contains("polish"));
 }
 
 #[cfg(windows)]
@@ -64,22 +132,29 @@ fn legacy_both_slots_migrate_atomically_and_idempotently() {
 fn save_keep_clear_and_recover_corrupted_key() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("llm-provider.json");
-    save(&path, request(Some("main-test-sentinel"), false)).unwrap();
+    let saved = save_profile(&path, profile(None, "m", Some("main-test-sentinel"))).unwrap();
+    assert_eq!(saved.saved_profile_id, "p1");
+    assert_eq!(saved.config.active_profile_id.as_deref(), Some("p1"));
     let before = fs::read(&path).unwrap();
-    save(&path, request(Some("  "), false)).unwrap();
+    save_profile(&path, profile(Some("p1"), "m", Some("  "))).unwrap();
     assert_eq!(fs::read(&path).unwrap(), before);
-    let mut data: serde_json::Value = serde_json::from_slice(&before).unwrap();
+    let mut data: Value = serde_json::from_slice(&before).unwrap();
     data["apiKey"]["ciphertext"] = json!("AAAA");
+    data["profiles"][0]["apiKey"]["ciphertext"] = json!("AAAA");
     fs::write(&path, data.to_string()).unwrap();
-    assert!(load(&path).unwrap().0.api_key.unwrap().reveal().is_err());
-    save(&path, request(Some("replacement-test-sentinel"), false)).unwrap();
+    assert!(read_revealed_slot(&path, false).is_err());
+    save_profile(
+        &path,
+        profile(Some("p1"), "m", Some("replacement-test-sentinel")),
+    )
+    .unwrap();
     assert_eq!(
-        load(&path).unwrap().0.api_key.unwrap().reveal().unwrap(),
-        "replacement-test-sentinel"
+        read_revealed_slot(&path, false).unwrap().api_key.as_deref(),
+        Some("replacement-test-sentinel")
     );
-    save(&path, request(None, true)).unwrap();
-    assert!(!read(&path).unwrap().has_api_key);
-    assert!(load(&path).unwrap().0.api_key.is_none());
+    let cleared = save_profile(&path, clear_key("p1", "m")).unwrap();
+    assert!(!cleared.config.profiles[0].has_api_key);
+    assert!(stored(&path).api_key.is_none(), "顶层镜像跟着清掉");
 }
 
 #[test]
@@ -91,9 +166,11 @@ fn invalid_versions_and_plaintext_v2_do_not_mutate_or_echo() {
         r#"{"schemaVersion":"2"}"#,
         r#"{"schemaVersion":null}"#,
         r#"{"schemaVersion":2,"provider":"p","baseUrl":"b","model":"m","apiKey":"private-test-value"}"#,
+        r#"{"schemaVersion":2,"provider":"p","baseUrl":"b","model":"m","apiKey":null,"profiles":[{"id":"p1","provider":"p","baseUrl":"b","model":"m","apiKey":"private-test-value"}]}"#,
+        r#"{"schemaVersion":2,"provider":"p","baseUrl":"b","model":"m","apiKey":null,"profiles":[{"id":"p1","provider":"p","baseUrl":"b","model":"m","apiKey":null},{"id":"p1","provider":"q","baseUrl":"b","model":"m","apiKey":null}]}"#,
     ] {
         fs::write(&path, raw).unwrap();
-        let error = read(&path).unwrap_err();
+        let error = list(&path).unwrap_err();
         assert!(!format!("{error:#}").contains("private-test-value"));
         assert_eq!(fs::read_to_string(&path).unwrap(), raw);
     }
@@ -120,7 +197,7 @@ fn malformed_second_legacy_slot_leaves_original_bytes_untouched() {
     let path = dir.path().join("llm-provider.json");
     let raw = r#"{"provider":"p","baseUrl":"b","model":"m","apiKey":"main-test-sentinel","polish":{"provider":"p","baseUrl":"b","model":"m","apiKey":42}}"#;
     fs::write(&path, raw).unwrap();
-    assert!(read(&path).is_err());
+    assert!(list(&path).is_err());
     assert_eq!(fs::read_to_string(&path).unwrap(), raw);
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
 }
@@ -145,67 +222,10 @@ fn locked_destination_keeps_original_and_cleans_encrypted_staging() {
 
 #[cfg(windows)]
 #[test]
-fn polish_save_and_clear_never_modify_main_key() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("llm-provider.json");
-    save(&path, request(Some("main-test-sentinel"), false)).unwrap();
-    let original = load(&path).unwrap().0.api_key.unwrap().reveal().unwrap();
-    let mut payload = request(None, false);
-    payload.polish = Some(
-        serde_json::from_value(
-            json!({"provider":"gemini", "baseUrl":"https://polish.invalid",
-        "model":"polish", "apiKey":"polish-test-sentinel"}),
-        )
-        .unwrap(),
-    );
-    save(&path, payload).unwrap();
-    let mut clear = request(None, false);
-    clear.polish = Some(
-        serde_json::from_value(
-            json!({"provider":"gemini", "baseUrl":"https://polish.invalid",
-        "model":"polish", "clearApiKey":true}),
-        )
-        .unwrap(),
-    );
-    save(&path, clear).unwrap();
-    let stored = load(&path).unwrap().0;
-    assert_eq!(stored.api_key.unwrap().reveal().unwrap(), original);
-    assert!(stored.polish.unwrap().api_key.is_none());
-}
-
-#[cfg(windows)]
-#[test]
-fn polish_only_save_keeps_main_slot_metadata_and_key() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("llm-provider.json");
-    save(&path, request(Some("main-test-sentinel"), false)).unwrap();
-    let payload: SaveLlmConfigRequest = serde_json::from_value(json!({"polish":
-        {"provider":"gemini", "baseUrl":"https://polish.invalid", "model":"polish",
-        "apiKey":"polish-test-sentinel"}}))
-    .unwrap();
-    save(&path, payload).unwrap();
-    let stored = load(&path).unwrap().0;
-    assert_eq!(stored.provider, "openai-compatible");
-    assert_eq!(stored.base_url, "https://example.invalid/v1");
-    assert_eq!(stored.model, "test-model");
-    assert_eq!(
-        stored.api_key.unwrap().reveal().unwrap(),
-        "main-test-sentinel"
-    );
-    let polish = stored.polish.unwrap();
-    assert_eq!(polish.base_url, "https://polish.invalid");
-    assert_eq!(
-        polish.api_key.unwrap().reveal().unwrap(),
-        "polish-test-sentinel"
-    );
-}
-
-#[cfg(windows)]
-#[test]
 fn second_slot_protection_failure_aborts_entire_migration() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("llm-provider.json");
-    let slot = json!({"provider":"p", "baseUrl":"https://example.invalid", "model":"m", "apiKey":"test-sentinel"});
+    let slot = json!({"provider":"p", "baseUrl":BASE, "model":"m", "apiKey":"test-sentinel"});
     let mut data = slot.clone();
     data["polish"] = slot;
     let raw = data.to_string();
@@ -218,7 +238,7 @@ fn second_slot_protection_failure_aborts_entire_migration() {
         }
         ProtectedKey::protect(key)
     };
-    assert!(read_with_protector(&path, &protect).is_err());
+    assert!(list_with_protector(&path, &protect).is_err());
     assert_eq!(calls.get(), 2);
     assert_eq!(fs::read_to_string(&path).unwrap(), raw);
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
@@ -226,7 +246,7 @@ fn second_slot_protection_failure_aborts_entire_migration() {
 
 #[cfg(windows)]
 #[test]
-fn single_legacy_slot_preserves_optional_polish_absence() {
+fn single_legacy_slot_becomes_the_default_profile() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("llm-provider.json");
     fs::write(
@@ -234,9 +254,12 @@ fn single_legacy_slot_preserves_optional_polish_absence() {
         r#"{"provider":"p","baseUrl":"b","model":"m","apiKey":"test-sentinel"}"#,
     )
     .unwrap();
-    let response = read(&path).unwrap();
-    assert!(response.has_api_key);
-    assert!(response.polish.is_none());
+    let response = list(&path).unwrap();
+    assert_eq!(response.profiles.len(), 1);
+    assert!(response.profiles[0].has_api_key);
+    assert_eq!(response.profiles[0].name, MIGRATED_MAIN_NAME);
+    assert_eq!(response.active_profile_id.as_deref(), Some("p1"));
+    assert!(response.polish_profile_id.is_none());
     assert!(!fs::read_to_string(&path).unwrap().contains("test-sentinel"));
 }
 
@@ -245,74 +268,191 @@ fn single_legacy_slot_preserves_optional_polish_absence() {
 fn two_unreadable_keys_can_be_replaced_independently() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("llm-provider.json");
-    let slot = json!({"provider":"p", "baseUrl":"b", "model":"m",
-        "apiKey":{"scheme":"windows-dpapi-user-v1", "ciphertext":"AAAA"}});
-    let mut data = slot.clone();
-    data["schemaVersion"] = json!(2);
-    data["polish"] = slot;
+    let unreadable = |text: &str| json!({"scheme":"windows-dpapi-user-v1", "ciphertext":text});
+    let data = json!({"schemaVersion":2,"provider":"openai-compatible","baseUrl":BASE,"model":"m",
+        "apiKey":unreadable("AAAA"),"polish":{"provider":"openai-compatible","baseUrl":BASE,
+        "model":"m","apiKey":unreadable("BBBB")}});
     fs::write(&path, data.to_string()).unwrap();
-    assert!(read(&path).unwrap().polish.is_some());
-    save(&path, request(Some("new-main-test-sentinel"), false)).unwrap();
-    let mut payload = request(None, false);
-    payload.polish = Some(
-        serde_json::from_value(json!({"provider":"p", "baseUrl":"b", "model":"m",
-        "apiKey":"new-polish-test-sentinel"}))
-        .unwrap(),
-    );
-    save(&path, payload).unwrap();
-    let stored = load(&path).unwrap().0;
-    assert_eq!(
-        stored.api_key.unwrap().reveal().unwrap(),
-        "new-main-test-sentinel"
-    );
-    assert_eq!(
-        stored.polish.unwrap().api_key.unwrap().reveal().unwrap(),
-        "new-polish-test-sentinel"
-    );
+    assert_eq!(list(&path).unwrap().profiles.len(), 2);
+    save_profile(
+        &path,
+        profile(Some("p1"), "m", Some("new-main-test-sentinel")),
+    )
+    .unwrap();
+    save_profile(
+        &path,
+        profile(Some("p2"), "m", Some("new-polish-test-sentinel")),
+    )
+    .unwrap();
+    let config = stored(&path);
+    assert_eq!(key_of(&config, "p1").unwrap(), "new-main-test-sentinel");
+    assert_eq!(key_of(&config, "p2").unwrap(), "new-polish-test-sentinel");
 }
 
 #[cfg(windows)]
 #[test]
-fn revealed_slots_feed_engine_egress_and_fail_closed() {
+fn second_profile_keys_never_touch_the_current_one() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("llm-provider.json");
-    save(&path, request(Some("main-test-sentinel"), false)).unwrap();
-    let main = read_revealed_slot(&path, false).unwrap().unwrap();
-    assert_eq!(main.provider, "openai-compatible");
-    assert_eq!(main.base_url, "https://example.invalid/v1");
-    assert_eq!(main.model, "test-model");
-    assert_eq!(main.api_key.as_deref(), Some("main-test-sentinel"));
-    assert!(read_revealed_slot(&path, true).unwrap().is_none());
+    save_profile(&path, profile(None, "main", Some("main-test-sentinel"))).unwrap();
+    let top_before = raw(&path)["apiKey"].clone();
+    let second = save_profile(&path, profile(None, "kimi", Some("kimi-test-sentinel"))).unwrap();
+    assert_eq!(second.saved_profile_id, "p2");
+    assert_eq!(second.config.active_profile_id.as_deref(), Some("p1"));
+    save_profile(&path, clear_key("p2", "kimi")).unwrap();
+    let data = raw(&path);
+    assert_eq!(data["apiKey"], top_before);
+    assert_eq!(data["model"], "main");
+    let config = stored(&path);
+    assert_eq!(key_of(&config, "p1").unwrap(), "main-test-sentinel");
+    assert!(key_of(&config, "p2").is_none());
+}
 
-    let mut payload = request(None, true);
-    payload.polish = Some(
-        serde_json::from_value(
-            json!({"provider":" gemini ", "baseUrl":" https://polish.invalid ",
-        "model":" p ", "apiKey":"polish-test-sentinel"}),
-        )
-        .unwrap(),
-    );
-    save(&path, payload).unwrap();
-    assert!(read_revealed_slot(&path, false)
-        .unwrap()
-        .unwrap()
-        .api_key
-        .is_none());
-    let polish = read_revealed_slot(&path, true).unwrap().unwrap();
+#[cfg(windows)]
+#[test]
+fn activate_mirrors_top_level_and_revealed_slots_follow() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    save_profile(&path, profile(None, "claude", Some("claude-test-sentinel"))).unwrap();
+    save_profile(&path, profile(None, "kimi", Some("kimi-test-sentinel"))).unwrap();
+    let listed = activate_profile(&path, "p2").unwrap();
+    assert_eq!(listed.active_profile_id.as_deref(), Some("p2"));
+    let data = raw(&path);
+    assert_eq!(data["model"], "kimi");
+    assert_eq!(data["apiKey"], data["profiles"][1]["apiKey"]);
+    let main = read_revealed_slot(&path, false).unwrap();
+    assert_eq!(main.model, "kimi");
+    assert_eq!(main.api_key.as_deref(), Some("kimi-test-sentinel"));
+    // 润色没指定：跟着当前那套走，不再是「未配置」。
+    let polish = read_revealed_slot(&path, true).unwrap();
     assert_eq!(
-        (
-            polish.provider.as_str(),
-            polish.base_url.as_str(),
-            polish.model.as_str()
-        ),
-        ("gemini", "https://polish.invalid", "p")
+        (polish.model.as_str(), polish.api_key.as_deref()),
+        ("kimi", Some("kimi-test-sentinel"))
     );
-    assert_eq!(polish.api_key.as_deref(), Some("polish-test-sentinel"));
+    set_polish_profile(&path, Some("p1")).unwrap();
+    assert_eq!(read_revealed_slot(&path, true).unwrap().model, "claude");
+    assert_eq!(read_revealed_slot(&path, false).unwrap().model, "kimi");
+    assert!(activate_profile(&path, "missing").is_err());
+    assert!(set_polish_profile(&path, Some("missing")).is_err());
+    let cleared = set_polish_profile(&path, None).unwrap();
+    assert!(cleared.polish_profile_id.is_none());
+    assert_eq!(read_revealed_slot(&path, true).unwrap().model, "kimi");
+}
 
-    let mut data: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-    data["polish"]["apiKey"]["ciphertext"] = json!("AAAA");
+#[cfg(windows)]
+#[test]
+fn polish_profile_with_unreadable_key_fails_closed_without_echo() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    save_profile(&path, profile(None, "main", Some("main-test-sentinel"))).unwrap();
+    save_profile(&path, profile(None, "polish", Some("polish-test-sentinel"))).unwrap();
+    set_polish_profile(&path, Some("p2")).unwrap();
+    let mut data = raw(&path);
+    data["profiles"][1]["apiKey"]["ciphertext"] = json!("AAAA");
     fs::write(&path, data.to_string()).unwrap();
     let error = read_revealed_slot(&path, true).err().unwrap();
     assert!(!format!("{error:#}").contains("AAAA"));
     assert!(read_revealed_slot(&path, false).is_ok());
+}
+
+#[cfg(windows)]
+#[test]
+fn delete_keeps_current_and_last_and_resets_polish_choice() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    save_profile(&path, profile(None, "main", Some("main-test-sentinel"))).unwrap();
+    assert!(delete_profile(&path, "p1").is_err(), "最后一套不能删");
+    save_profile(&path, profile(None, "second", None)).unwrap();
+    assert!(delete_profile(&path, "p1").is_err(), "正在用的不能删");
+    set_polish_profile(&path, Some("p2")).unwrap();
+    let after = delete_profile(&path, "p2").unwrap();
+    assert_eq!(after.profiles.len(), 1);
+    assert!(
+        after.polish_profile_id.is_none(),
+        "删掉指定的润色那套后回到跟随当前"
+    );
+    assert!(delete_profile(&path, "missing").is_err());
+    assert_eq!(stored(&path).model, "main");
+}
+
+#[cfg(windows)]
+#[test]
+fn old_version_edit_of_top_level_is_written_back_into_current_profile() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    save_profile(&path, profile(None, "claude", Some("claude-test-sentinel"))).unwrap();
+    save_profile(&path, profile(None, "kimi", Some("kimi-test-sentinel"))).unwrap();
+    // 0.2.1 只认顶层：它改模型、换 key 后存盘，多套配置字段经 extra 原样留着。
+    let mut data = raw(&path);
+    data["model"] = json!("claude-edited-by-old-exe");
+    data["apiKey"] =
+        serde_json::to_value(ProtectedKey::protect("old-exe-test-sentinel").unwrap()).unwrap();
+    fs::write(&path, data.to_string()).unwrap();
+    let listed = list(&path).unwrap();
+    assert_eq!(listed.active_profile_id.as_deref(), Some("p1"));
+    let config = stored(&path);
+    assert_eq!(
+        stored_profile(&config, "p1").model,
+        "claude-edited-by-old-exe"
+    );
+    assert_eq!(key_of(&config, "p1").unwrap(), "old-exe-test-sentinel");
+    assert_eq!(stored_profile(&config, "p2").model, "kimi");
+    assert_eq!(key_of(&config, "p2").unwrap(), "kimi-test-sentinel");
+    let written = raw(&path);
+    assert_eq!(written["profiles"][0]["model"], "claude-edited-by-old-exe");
+}
+
+#[cfg(windows)]
+#[test]
+fn dangling_active_id_is_repaired_from_the_top_level() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    save_profile(&path, profile(None, "claude", Some("claude-test-sentinel"))).unwrap();
+    save_profile(&path, profile(None, "kimi", Some("kimi-test-sentinel"))).unwrap();
+    activate_profile(&path, "p2").unwrap();
+    let mut data = raw(&path);
+    data["activeProfileId"] = json!("gone");
+    data["polishProfileId"] = json!("gone-too");
+    fs::write(&path, data.to_string()).unwrap();
+    let listed = list(&path).unwrap();
+    assert_eq!(listed.active_profile_id.as_deref(), Some("p2"));
+    assert!(listed.polish_profile_id.is_none());
+    assert_eq!(listed.profiles.len(), 2);
+}
+
+/// 0.2.1 的配置结构（逐字段照抄）：它读写新版文件时，多套配置字段必须原样留下。
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OldExeConfig {
+    schema_version: u32,
+    provider: String,
+    base_url: String,
+    model: String,
+    api_key: Option<ProtectedKey>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    polish: Option<StoredLlmSlot>,
+    #[serde(flatten)]
+    extra: BTreeMap<String, Value>,
+}
+
+#[cfg(windows)]
+#[test]
+fn old_version_round_trip_keeps_profiles() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    save_profile(&path, profile(None, "claude", Some("claude-test-sentinel"))).unwrap();
+    save_profile(&path, profile(None, "kimi", Some("kimi-test-sentinel"))).unwrap();
+    set_polish_profile(&path, Some("p2")).unwrap();
+    let before = list(&path).unwrap();
+    let mut old: OldExeConfig = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    assert_eq!(old.schema_version, 2);
+    assert_eq!(old.model, "claude");
+    assert!(old.polish.is_none());
+    old.base_url = "https://old-exe.invalid/v1".into();
+    fs::write(&path, serde_json::to_vec_pretty(&old).unwrap()).unwrap();
+    let after = list(&path).unwrap();
+    assert_eq!(after.profiles.len(), 2);
+    assert_eq!(after.polish_profile_id, before.polish_profile_id);
+    assert_eq!(after.profiles[0].base_url, "https://old-exe.invalid/v1");
+    assert_eq!(after.profiles[1].base_url, BASE);
 }
