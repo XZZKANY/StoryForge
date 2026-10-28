@@ -7,6 +7,7 @@ import { FloatingSurface } from '../ui';
  * 文件名不再出现两次）；保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE、历史走编辑器命令事件。
  */
 import { useEffect, useRef, useState } from 'react';
+import { listLlmProfiles } from '../../lib/desktop-llm-config';
 import { basename } from '../app/helpers';
 import { MoreHorizontal, Sparkles, X } from '../icons/shell-icons';
 import { ContextMenu } from './ContextMenu';
@@ -398,9 +399,27 @@ function PolishActionsMenu({
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  // 设置「高级」里指定了专用润色那套才有两个选项可选；没指定（默认跟随当前模型）时两项一样，只给一项。
+  const [dedicated, setDedicated] = useState<string | null>(null);
   const run = (useMainModel: boolean) => {
     setOpen(false);
     onPolishActive(useMainModel);
+  };
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    void listLlmProfiles()
+      .then(
+        (result) =>
+          result?.profiles.find((profile) => profile.id === result.polishProfileId)?.name ?? null,
+        () => null,
+      )
+      .then((name) => {
+        setDedicated(name);
+        setOpen(true);
+      });
   };
   return (
     <div className="relative flex items-center">
@@ -413,7 +432,7 @@ function PolishActionsMenu({
         aria-label="润色当前章"
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        onClick={toggle}
       >
         <Sparkles size={15} strokeWidth={1.7} />
       </button>
@@ -427,8 +446,14 @@ function PolishActionsMenu({
             className="w-52 animate-fade-in rounded-lg border border-border bg-surface p-1 shadow-dropdown"
             data-testid="editor-polish-menu"
           >
-            <MenuRow label="使用专用润色模型" onClick={() => run(false)} />
-            <MenuRow label="本次使用主模型" onClick={() => run(true)} />
+            {dedicated ? (
+              <>
+                <MenuRow label={`用「${dedicated}」润色`} onClick={() => run(false)} />
+                <MenuRow label="本次用当前模型" onClick={() => run(true)} />
+              </>
+            ) : (
+              <MenuRow label="润色当前章" onClick={() => run(false)} />
+            )}
           </FloatingSurface>
         </>
       )}

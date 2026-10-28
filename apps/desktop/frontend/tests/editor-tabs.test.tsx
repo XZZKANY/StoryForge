@@ -1,11 +1,25 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import React from 'react';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { EditorTabs } from '../src/components/shell/EditorTabs';
+import { listLlmProfiles, type LlmProfile } from '../src/lib/desktop-llm-config';
+
+vi.mock('../src/lib/desktop-llm-config', () => ({
+  listLlmProfiles: vi.fn(() => Promise.reject(new Error('no host'))),
+}));
+const profiles = vi.mocked(listLlmProfiles);
+const profile = (id: string, name: string): LlmProfile => ({
+  id,
+  name,
+  provider: 'openai',
+  baseUrl: 'https://example.test/v1',
+  model: 'm',
+  hasApiKey: true,
+});
 import { nextCyclicEditorFile } from '../src/components/app/editor-tabs-state';
 
 const noop = () => {};
@@ -272,7 +286,7 @@ test('返回作品总览入口与页签 chrome 同行且保留回调', () => {
   }
 });
 
-test('润色菜单区分专用模型与本次主模型授权', () => {
+test('润色菜单：默认只有一项，设置里指定了专用润色那套才分两项', async () => {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -293,24 +307,47 @@ test('润色菜单区分专用模型与本次主模型授权', () => {
       }),
     );
 
+  const items = () =>
+    [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].map(
+      (button) => button.textContent,
+    );
+  const pick = (label: string) => {
+    const button = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(
+      (item) => item.textContent === label,
+    );
+    assert.ok(button, `找不到「${label}」`);
+    act(() => button.click());
+  };
   try {
     act(renderTabs);
     const trigger = container.querySelector<HTMLButtonElement>('[data-testid="editor-polish-btn"]');
     assert.ok(trigger);
-    act(() => trigger.click());
-    const dedicated = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(
-      (button) => button.textContent === '使用专用润色模型',
-    );
-    assert.ok(dedicated);
-    act(() => dedicated.click());
+    // 没指定专用润色（默认跟随当前模型）：只有一项。
+    profiles.mockResolvedValueOnce({
+      profiles: [profile('a', 'Kimi · kimi-k3.1-pro')],
+      activeProfileId: 'a',
+      polishProfileId: null,
+    });
+    await act(async () => trigger.click());
+    assert.deepEqual(items(), ['润色当前章']);
+    pick('润色当前章');
 
-    act(() => trigger.click());
-    const main = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(
-      (button) => button.textContent === '本次使用主模型',
-    );
-    assert.ok(main);
-    act(() => main.click());
-    assert.deepEqual(choices, [false, true]);
+    // 指定了专用的那套：才有两项。
+    profiles.mockResolvedValueOnce({
+      profiles: [profile('a', 'Kimi · kimi-k3.1-pro'), profile('b', 'Claude · claude-sonnet-5')],
+      activeProfileId: 'a',
+      polishProfileId: 'b',
+    });
+    await act(async () => trigger.click());
+    assert.deepEqual(items(), ['用「Claude · claude-sonnet-5」润色', '本次用当前模型']);
+    pick('本次用当前模型');
+
+    // 读不到配置：按没指定处理。
+    profiles.mockRejectedValueOnce(new Error('no host'));
+    await act(async () => trigger.click());
+    assert.deepEqual(items(), ['润色当前章']);
+    pick('润色当前章');
+    assert.deepEqual(choices, [false, true, false]);
   } finally {
     act(() => root.unmount());
     container.remove();
