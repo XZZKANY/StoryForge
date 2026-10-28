@@ -570,7 +570,7 @@ export function PatchReviewPanel({
       <div
         ref={containerRef}
         data-testid="patch-diff"
-        className={`${expanded ? 'flex-1' : 'hidden'} min-h-[160px] w-full border-t border-border`}
+        className={`sf-patch-diff ${expanded ? 'flex-1' : 'hidden'} min-h-[160px] w-full border-t border-border`}
         hidden={!expanded}
       />
     </div>
