@@ -653,7 +653,7 @@ export function agentRunReplay(golden: Obj) {
       },
       tools,
       checkpoints: new LoopCheckpointStore(),
-      ...(options.defaultCompaction ? {} : { compactAtHistoryBytes: 0 }),
+      ...(options.defaultCompaction ? {} : { compactAtHistoryBytes: 0, compactAtTurnEnd: true }),
       ids: {
         stream: () => `stream-${++streams}`,
         attempt: () => `attempt-${++attempts}`,
