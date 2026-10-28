@@ -3,6 +3,7 @@ import { test } from 'vitest';
 
 import {
   ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
+  APPLY_FILE_SUGGESTION_EVENT,
   REQUEST_CHAPTER_POLISH_EVENT,
   REQUEST_CHAPTER_WRITE_EVENT,
   bufferPendingFileSuggestion,
@@ -11,9 +12,37 @@ import {
   emitChapterWriteRequest,
   emitFileSuggestion,
   nextChapterWriteRequest,
+  reofferPendingFileSuggestion,
   takePendingFileSuggestion,
 } from '../src/lib/assistant-events';
 import { createRemoteFileSuggestion } from '../src/lib/assistant-suggestions';
+
+test('accept reports whether an editor took it, and a buffered patch can be offered again', () => {
+  const target = { patchId: 'p-buffered', filePath: 'D:/book/世界观/设定.md' };
+  assert.equal(emitAcceptCurrentFileSuggestion(target), 'unclaimed');
+  const offered: unknown[] = [];
+  const onOffer = (event: Event) => offered.push((event as CustomEvent).detail);
+  window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onOffer);
+  try {
+    assert.equal(reofferPendingFileSuggestion(target), false);
+    const suggestion = createRemoteFileSuggestion({
+      id: target.patchId,
+      filePath: target.filePath,
+      before: '',
+      after: '设定',
+      summary: '新建',
+      model: 'fixture',
+      userIntent: '新建设定',
+    });
+    bufferPendingFileSuggestion(suggestion);
+    assert.equal(reofferPendingFileSuggestion({ ...target, patchId: 'other' }), false);
+    assert.equal(reofferPendingFileSuggestion(target), true);
+    assert.deepEqual(offered, [suggestion]);
+  } finally {
+    window.removeEventListener(APPLY_FILE_SUGGESTION_EVENT, onOffer);
+    takePendingFileSuggestion(target.filePath);
+  }
+});
 
 test('chapter polish event preserves the explicit one-shot main model choice', () => {
   const details: unknown[] = [];
