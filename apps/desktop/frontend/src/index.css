@@ -759,6 +759,21 @@ button:disabled[aria-busy='true'] {
   border-radius: var(--radius-xs);
 }
 
+/* AI 修订对比（Monaco 内联 diff）：整行底色压淡，真正改了的字加深，和上面行间修订同一套深浅。
+   Monaco 自带的整行底与改动字底深浅相近，中文整段看着一个色，看不出改了哪几个字。 */
+.sf-patch-diff .monaco-editor .line-insert {
+  background-color: rgb(var(--success) / 0.06);
+}
+.sf-patch-diff .monaco-editor .line-delete {
+  background-color: rgb(var(--error) / 0.06);
+}
+.sf-patch-diff .monaco-editor .char-insert {
+  background-color: rgb(var(--success) / 0.32);
+}
+.sf-patch-diff .monaco-editor .char-delete {
+  background-color: rgb(var(--error) / 0.3);
+}
+
 /* 绿色新增块：贴着旧行下方展示建议新文本 */
 .sf-inline-diff-zone {
   margin-left: 0;

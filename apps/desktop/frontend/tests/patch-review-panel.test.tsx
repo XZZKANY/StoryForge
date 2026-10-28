@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -619,6 +620,21 @@ test('收起时只剩一条操作栏，不在正文下方再劈出半块对比',
   assert.ok(byTestId('suggestion-accept'), '收起后接受 / 拒绝仍然够得着');
   click('patch-expand');
   assert.equal(byTestId('patch-diff')?.hidden, false);
+});
+
+test('对比区只把真正改了的字标深色，整行底色压淡', () => {
+  mountPanel();
+  assert.ok(byTestId('patch-diff')?.classList.contains('sf-patch-diff'));
+  const css = readFileSync('src/index.css', 'utf8');
+  const alpha = (selector: string) => {
+    const rule = new RegExp(
+      String.raw`\.sf-patch-diff \.monaco-editor \.${selector}\s*\{\s*background-color:\s*rgb\(var\(--(?:success|error)\) / ([0-9.]+)\);`,
+    ).exec(css);
+    assert.ok(rule, `缺少 ${selector} 的规则`);
+    return Number(rule[1]);
+  };
+  assert.ok(alpha('line-insert') < alpha('char-insert') / 3, '新增整行要明显比改动字淡');
+  assert.ok(alpha('line-delete') < alpha('char-delete') / 3, '删除整行要明显比改动字淡');
 });
 
 test('否掉没成（全项目审计 E-19，恢复记录写不进去等）：修改方向留在输入框里', async () => {
