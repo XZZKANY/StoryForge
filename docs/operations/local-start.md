@@ -35,6 +35,15 @@ pnpm dev
 
 ## 5. 本机数据
 
+如果默认配置目录不支持原子替换（例如 Windows 返回 `os error 17`），可在启动进程前设置
+`STORYFORGE_CONFIG_DIR` 为另一个非空绝对目录路径。未设置时仍使用系统默认配置目录；
+设置为空或相对路径会报错，不静默回退。只改变模型配置位置，不迁移现有配置、数据库或作品。
+API key 仍由 Windows DPAPI 加密，已有配置须在同一 Windows 用户环境下迁移或重新填写。
+
+smoke 模式的 `STORYFORGE_DESKTOP_SMOKE_CONFIG_DIR` 始终优先：即使日常覆盖值无效也不读取它，
+缺少或非法的 smoke 隔离目录仍报错，不回落到日常目录。配置错误提示中的系统原因可用于诊断，
+但仅凭错误 17 或目录的 Encrypted 属性不能断定底层文件系统原因。
+
 | 路径 | 内容 |
 | --- | --- |
 | `%LOCALAPPDATA%\com.storyforge.ide\storyforge-engine.sqlite3` | 引擎库：会话、消息、工具调用、agent 运行与事件、知识提议、检查历史 |

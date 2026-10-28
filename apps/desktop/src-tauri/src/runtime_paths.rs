@@ -6,6 +6,7 @@ use tauri::{AppHandle, Manager, Runtime};
 const SMOKE_MODE_ENV: &str = "STORYFORGE_DESKTOP_SMOKE";
 const SMOKE_LOCAL_DATA_ENV: &str = "STORYFORGE_DESKTOP_SMOKE_LOCAL_DATA_DIR";
 const SMOKE_CONFIG_ENV: &str = "STORYFORGE_DESKTOP_SMOKE_CONFIG_DIR";
+const CONFIG_DIR_ENV: &str = "STORYFORGE_CONFIG_DIR";
 const LIFECYCLE_SMOKE_ENV: &str = "STORYFORGE_DESKTOP_SMOKE_LIFECYCLE_ONLY";
 pub(crate) const SMOKE_ISOLATION_PROTOCOL: &str = "storyforge-smoke-isolation-v1";
 
@@ -98,13 +99,78 @@ pub(crate) fn app_config_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> 
         std::env::var_os(SMOKE_MODE_ENV).as_deref(),
         std::env::var_os(SMOKE_CONFIG_ENV).as_deref(),
         SMOKE_CONFIG_ENV,
-        || app.path().app_config_dir().context("无法获取应用配置目录"),
+        || {
+            config_directory_override(std::env::var_os(CONFIG_DIR_ENV).as_deref(), || {
+                app.path().app_config_dir().context("无法获取应用配置目录")
+            })
+        },
     )
+}
+
+fn config_directory_override(
+    value: Option<&OsStr>,
+    fallback: impl FnOnce() -> Result<PathBuf>,
+) -> Result<PathBuf> {
+    let Some(value) = value else {
+        return fallback();
+    };
+    let path = PathBuf::from(value);
+    if value.is_empty() || !path.is_absolute() {
+        bail!("{CONFIG_DIR_ENV} 必须是非空绝对目录路径");
+    }
+    Ok(path)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn config_directory_override_preserves_default_and_requires_absolute_path() {
+        let root = std::env::temp_dir().join("storyforge-config-override");
+        assert_eq!(
+            config_directory_override(None, || Ok(root.clone())).unwrap(),
+            root
+        );
+        assert!(config_directory_override(None, || bail!("default unavailable")).is_err());
+        assert_eq!(
+            config_directory_override(Some(root.as_os_str()), || panic!("不得访问默认目录"))
+                .unwrap(),
+            root
+        );
+        for invalid in ["", "relative/config"] {
+            assert!(config_directory_override(Some(OsStr::new(invalid)), || {
+                panic!("无效覆盖值不得回落到默认目录")
+            })
+            .is_err());
+        }
+    }
+
+    #[test]
+    fn smoke_config_directory_takes_precedence_over_daily_override() {
+        let root = std::env::temp_dir().join("storyforge-config-smoke");
+        assert_eq!(
+            directory_for_runtime(
+                Some(OsStr::new("1")),
+                Some(root.as_os_str()),
+                SMOKE_CONFIG_ENV,
+                || config_directory_override(Some(OsStr::new("invalid")), || {
+                    panic!("smoke 不得访问日常配置")
+                }),
+            )
+            .unwrap(),
+            root
+        );
+        assert!(directory_for_runtime(
+            Some(OsStr::new("1")),
+            None,
+            SMOKE_CONFIG_ENV,
+            || config_directory_override(Some(root.as_os_str()), || {
+                panic!("缺少 smoke 隔离目录时不得使用日常配置")
+            }),
+        )
+        .is_err());
+    }
 
     #[test]
     fn runtime_override_never_falls_through_to_daily_data_on_invalid_smoke_input() {

@@ -194,7 +194,9 @@ fn write(path: &Path, config: &StoredLlmConfig) -> Result<()> {
     staged.as_file().sync_all().context("无法同步 LLM 配置")?;
     staged
         .persist(path)
-        .map_err(|_| anyhow::anyhow!("无法原子替换 LLM 配置，原配置未更改"))?;
+        .map_err(|error| {
+            anyhow::anyhow!("无法原子替换 LLM 配置，原配置未更改（系统错误：{}）", error.error)
+        })?;
     Ok(())
 }
 

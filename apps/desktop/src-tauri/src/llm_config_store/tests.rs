@@ -105,7 +105,8 @@ fn failed_atomic_replace_preserves_target_and_cleans_staging() {
     let target = dir.path().join("target");
     fs::create_dir(&target).unwrap();
     fs::write(target.join("untouched"), "keep").unwrap();
-    assert!(write(&target, &StoredLlmConfig::default()).is_err());
+    let error = write(&target, &StoredLlmConfig::default()).unwrap_err();
+    assert!(error.to_string().contains("系统错误"));
     assert_eq!(
         fs::read_to_string(target.join("untouched")).unwrap(),
         "keep"
