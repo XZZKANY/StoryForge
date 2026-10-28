@@ -4,10 +4,16 @@ import * as monaco from 'monaco-editor';
 import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
 import { isEditableTarget } from '../lib/browser-guards';
 import { relativeToProject } from '../lib/project/path';
-import { buildPatchHunks, type PatchHunk } from '../lib/patch-hunks';
+import {
+  buildPatchHunks,
+  placePatchHunks,
+  type PatchHunk,
+  type PlacedPatchHunk,
+} from '../lib/patch-hunks';
 import { markdownToPlainLine } from '../lib/plain-text';
 import { currentMonacoTheme } from '../lib/theme';
 import { proseReadingTypography, STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from './editor/options';
+import { usePatchHunkZones } from './editor/usePatchHunkZones';
 
 type PatchReviewPanelProps = {
   suggestion: AssistantFileSuggestion;
@@ -185,6 +191,24 @@ export function PatchReviewPanel({
   );
   const operationConflicts = suggestion.operationView?.conflicts ?? {};
   const hasOperationConflict = Object.keys(operationConflicts).length > 0;
+  // 只有一处改动时整份接受就够了，不再逐处给键。
+  const placement = useMemo(
+    () =>
+      hunks.length > 1
+        ? placePatchHunks(
+            hunks,
+            suggestion.before,
+            suggestion.after,
+            suggestion.operationView?.conflicts,
+          )
+        : { zones: [], unplaced: [] },
+    [hunks, suggestion.before, suggestion.after, suggestion.operationView],
+  );
+  const lineOrigin = suggestion.operationView ? '原稿' : '';
+  const hunkLabel = ({ hunk, index }: PlacedPatchHunk) =>
+    `第 ${index + 1} 处 · ${lineOrigin}第 ${hunk.originalStartIndex + 1} 行`;
+  const hunkTitle = ({ hunk, index }: PlacedPatchHunk) =>
+    `接受第 ${index + 1} 处：${lineOrigin}第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`;
   const traceTitle = useMemo(() => buildPatchReviewTraceTitle(suggestion), [suggestion]);
 
   // 发出即收起：面板通常随补丁一起消失，但同一实例换下一个补丁时不该还留着上一条草稿。
@@ -276,7 +300,7 @@ export function PatchReviewPanel({
       ...proseReadingTypography(editorFontSize, editorFontFamily),
       unicodeHighlight: STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
     });
-    // 分块按钮按原始行号指路（「接受第 N 处 · 第 X 行」），original 侧给出行号做定位锚；
+    // 定位不到的分块仍按原始行号指路（「第 N 处 · 第 X 行」），original 侧给出行号做定位锚；
     // modified 侧行号对指路没有用处，保持关闭省一点宽度。
     diffEditor.getOriginalEditor().updateOptions({ lineNumbers: 'on' });
     const original = monaco.editor.createModel(suggestion.before, 'markdown');
@@ -332,6 +356,35 @@ export function PatchReviewPanel({
   useEffect(() => {
     diffEditorRef.current?.updateOptions(proseReadingTypography(editorFontSize, editorFontFamily));
   }, [editorFontSize, editorFontFamily]);
+
+  // 逐处接受挂在对比区每处改动的正下方（作者试用 #3/#11）；要排在上面同步 model 的 effect 之后，
+  // 新补丁的 zone 才按新正文的行号落位。
+  const hunkZones = usePatchHunkZones({
+    diffEditorRef,
+    zones: placement.zones,
+    enabled: expanded,
+    renderZone: (zone) => (
+      <div className="sf-patch-hunk-zone-bar" role="group" aria-label="补丁分块操作">
+        {zone.hunks.map((placed, position) => (
+          <Button
+            key={placed.hunk.id}
+            type="button"
+            onClick={() => runAction('hunk', () => onAcceptHunk(placed.hunk))}
+            data-testid="suggestion-accept-hunk"
+            disabled={actionBusy || Boolean(operationConflicts[placed.hunk.id])}
+            size="compact"
+            variant="ghost"
+            className="sf-patch-hunk-accept text-2xs"
+            title={hunkTitle(placed)}
+          >
+            接受这处
+            {zone.hunks.length > 1 ? ` ${circledNumber(position + 1)}` : ''}
+            <span className="sr-only">（{hunkLabel(placed)}）</span>
+          </Button>
+        ))}
+      </div>
+    ),
+  });
 
   return (
     <div
@@ -568,28 +621,27 @@ export function PatchReviewPanel({
             原修改区间已变化，无法安全应用；请重新生成修订或手动处理。未定位操作不纳入当前预览。
           </div>
         )}
-        {hunks.length > 1 && (
-          // 逐处接受压成一行可横向滚动的小键，不再一大排换行挤占正文。
+        {placement.unplaced.length > 0 && (
+          // 对比区里认领不到位置的（冲突的、当前稿里找不到唯一对应的）留在横幅这一行。
           <div
             className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap border-t border-agent/20 px-3 py-1 text-2xs text-muted"
             role="group"
             aria-label="补丁分块操作"
           >
-            <span className="flex-shrink-0">逐处接受</span>
-            {hunks.map((hunk, index) => (
+            <span className="flex-shrink-0">{placement.unplaced.length} 处无法定位</span>
+            {placement.unplaced.map((placed) => (
               <Button
-                key={hunk.id}
+                key={placed.hunk.id}
                 type="button"
-                onClick={() => runAction('hunk', () => onAcceptHunk(hunk))}
+                onClick={() => runAction('hunk', () => onAcceptHunk(placed.hunk))}
                 data-testid="suggestion-accept-hunk"
-                disabled={actionBusy || Boolean(operationConflicts[hunk.id])}
+                disabled={actionBusy || Boolean(operationConflicts[placed.hunk.id])}
                 size="xs"
                 variant="ghost"
                 className="flex-shrink-0 text-2xs"
-                title={`接受第 ${index + 1} 处：${suggestion.operationView ? '原稿' : ''}第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`}
+                title={hunkTitle(placed)}
               >
-                第 {index + 1} 处 · {suggestion.operationView ? '原稿' : ''}第{' '}
-                {hunk.originalStartIndex + 1} 行
+                {hunkLabel(placed)}
               </Button>
             ))}
           </div>
@@ -602,6 +654,11 @@ export function PatchReviewPanel({
         className={`sf-patch-diff ${expanded ? 'flex-1' : 'hidden'} min-h-[160px] w-full border-t border-border`}
         hidden={!expanded}
       />
+      {hunkZones}
     </div>
   );
+}
+
+function circledNumber(value: number): string {
+  return value <= 20 ? String.fromCharCode(0x2460 + value - 1) : `(${value})`;
 }

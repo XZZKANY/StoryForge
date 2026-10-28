@@ -515,3 +515,68 @@ export function isWholeFileDrifted(
 ): boolean {
   return normalizeEol(currentContent) !== normalizeEol(before);
 }
+
+function lineNumberAt(text: string, offset: number): number {
+  return text.slice(0, offset).split('\n').length;
+}
+
+/**
+ * 对比区（Monaco 内联 diff 的新稿侧）里，这处改动的接受按钮挂在哪一行下方（1 起算，0 = 首行之前）。
+ * hunk 的偏移必须是 after 这一版的坐标（即 buildPatchHunks(当前 before, after) 的产物）。
+ */
+export function hunkZoneAfterLineNumber(hunk: PatchHunk, after: string): number {
+  if (hunk.modifiedEndOffset > hunk.modifiedStartOffset) {
+    return lineNumberAt(after, hunk.modifiedEndOffset - 1);
+  }
+  const point = hunk.modifiedStartOffset;
+  const wholeLines = (point === 0 || after[point - 1] === '\n') && hunk.beforeText.endsWith('\n');
+  // 整行删除：Monaco 把删掉的行画在上一行之后，按钮跟在它下面；句内删除挂在删除点所在行下方。
+  return wholeLines ? lineNumberAt(after, point) - 1 : lineNumberAt(after, point);
+}
+
+export type PlacedPatchHunk = { hunk: PatchHunk; index: number };
+export type PatchHunkZone = { afterLineNumber: number; hunks: PlacedPatchHunk[] };
+export type PatchHunkPlacement = { zones: PatchHunkZone[]; unplaced: PlacedPatchHunk[] };
+
+/**
+ * 把每处改动的接受按钮落到对比区的行上；同一行的几处合进一个 zone。
+ *
+ * 不传 conflicts 时 hunks 就是 before→after 的当前差异，直接按偏移落位。传了（分块接受之后 / 恢复时的
+ * operationView）则 hunks 是原稿坐标的操作，而对比区显示的是当前稿：重新算一遍当前差异，按
+ * beforeText+afterText 两边都唯一的才认领位置；冲突的、认领不上的进 unplaced，由横幅兜底。
+ */
+export function placePatchHunks(
+  hunks: readonly PatchHunk[],
+  before: string,
+  after: string,
+  conflicts?: Readonly<Record<string, string>>,
+): PatchHunkPlacement {
+  const sameContent = (a: PatchHunk) => (b: PatchHunk) =>
+    a.beforeText === b.beforeText && a.afterText === b.afterText;
+  const current = conflicts ? buildPatchHunks(before, after) : null;
+  const locatable = conflicts ? hunks.filter((hunk) => !conflicts[hunk.id]) : hunks;
+  const byLine = new Map<number, PlacedPatchHunk[]>();
+  const unplaced: PlacedPatchHunk[] = [];
+  hunks.forEach((hunk, index) => {
+    let anchor: PatchHunk | null = hunk;
+    if (current) {
+      const matches = current.filter(sameContent(hunk));
+      anchor =
+        !conflicts?.[hunk.id] &&
+        matches.length === 1 &&
+        locatable.filter(sameContent(hunk)).length === 1
+          ? matches[0]
+          : null;
+    }
+    if (!anchor) {
+      unplaced.push({ hunk, index });
+      return;
+    }
+    const line = hunkZoneAfterLineNumber(anchor, after);
+    byLine.set(line, [...(byLine.get(line) ?? []), { hunk, index }]);
+  });
+  const zones = [...byLine.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([afterLineNumber, placed]) => ({ afterLineNumber, hunks: placed }));
+  return { zones, unplaced };
+}

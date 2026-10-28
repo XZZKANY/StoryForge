@@ -1,5 +1,14 @@
 type Listener = () => void;
 
+type FakeViewZone = {
+  afterLineNumber: number;
+  heightInPx?: number;
+  ordinal?: number;
+  domNode: HTMLElement;
+};
+
+let zoneSequence = 0;
+
 class FakeModel {
   private value: string;
   private version = 1;
@@ -36,6 +45,37 @@ class FakeEditor {
   private viewState: unknown = { cursor: 1 };
   options: Record<string, unknown> = {};
   restoredViewState: unknown = null;
+  // view zone 的 domNode 挂进哪个容器（diff 编辑器传给 createDiffEditor 的容器），测试才查得到里面的按钮。
+  zoneHost: HTMLElement | null = null;
+  viewZones: Array<FakeViewZone & { id: string }> = [];
+
+  changeViewZones(
+    callback: (accessor: {
+      addZone(zone: FakeViewZone): string;
+      removeZone(id: string): void;
+      layoutZone(id: string): void;
+    }) => void,
+  ) {
+    callback({
+      addZone: (zone) => {
+        const id = `zone-${++zoneSequence}`;
+        this.viewZones.push({ ...zone, id });
+        this.zoneHost?.append(zone.domNode);
+        return id;
+      },
+      removeZone: (id) => {
+        const index = this.viewZones.findIndex((zone) => zone.id === id);
+        if (index === -1) return;
+        this.viewZones[index].domNode.remove();
+        this.viewZones.splice(index, 1);
+      },
+      layoutZone: () => {},
+    });
+  }
+
+  onDidLayoutChange() {
+    return { dispose: () => {} };
+  }
 
   getModel() {
     return this.model;
@@ -100,9 +140,11 @@ export const editor = {
     lastEditor = new FakeEditor();
     return lastEditor;
   },
-  createDiffEditor() {
+  createDiffEditor(container?: HTMLElement) {
     const original = new FakeEditor();
     const modified = new FakeEditor();
+    // 内联 diff 只显示新稿侧：接受键的 zone 挂在 modified 上。
+    modified.zoneHost = container ?? null;
     const diffListeners = new Set<() => void>();
     const diffEditor = {
       // 真 Monaco 的差异是异步算的：测试用 __fireDiffUpdate() 模拟「算完了」，

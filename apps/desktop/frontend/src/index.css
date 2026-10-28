@@ -532,7 +532,8 @@ button:disabled[aria-busy='true'] {
 /* Monaco's later view-lines layer covers the blank view-zone space for hit
    testing. Interactive author zones must sit above it, not merely stop bubbling. */
 .sf-inline-chat,
-.sf-inline-diff-zone {
+.sf-inline-diff-zone,
+.sf-patch-hunk-zone {
   z-index: 1;
 }
 
@@ -772,6 +773,24 @@ button:disabled[aria-busy='true'] {
 }
 .sf-patch-diff .monaco-editor .char-delete {
   background-color: rgb(var(--error) / 0.3);
+}
+/* 对比区每处改动正下方的「接受这处」：矮条不铺底色，AI 紫只上在按钮上。 */
+.sf-patch-hunk-zone-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 12px 3px 0;
+  font-family: var(--font-ui);
+}
+.sf-patch-hunk-zone-bar .sf-patch-hunk-accept {
+  border-color: rgb(var(--agent) / 0.35);
+  background: rgb(var(--agent) / 0.08);
+  color: rgb(var(--agent));
+}
+.sf-patch-hunk-zone-bar .sf-patch-hunk-accept:not(:disabled):hover {
+  background: rgb(var(--agent) / 0.16);
+  color: rgb(var(--agent));
 }
 
 /* 绿色新增块：贴着旧行下方展示建议新文本 */

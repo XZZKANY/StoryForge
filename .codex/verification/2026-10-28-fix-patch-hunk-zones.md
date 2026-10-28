@@ -1,0 +1,23 @@
+## 2026-10-28 逐处接受从修订横幅挪进对比区每处改动下方（试用问题 #3/#11 第二步）
+
+- 改动：
+  - 问题：横幅下面那行「逐处接受 第 1 处 · 第 155 行 …」要作者自己拿行号去对比区里对应，改动多时对不上。作者已拍板把接受键挪到改动旁边。
+  - 做法：新建 `src/components/editor/usePatchHunkZones.tsx`，在 diff 编辑器新稿侧（`getModifiedEditor().changeViewZones`）给每处改动下方加一条 30px 的 view zone（`ordinal` 10001，排在 Monaco 删除行 zone 的默认 10000 之后），用 `createPortal` 把「接受这处」键渲染进 zone。zone 根节点原生拦 `mousedown` / `pointerdown`（Monaco 0.52 的鼠标处理挂在 `pointerdown` 上），`index.css` 里与 Ctrl+K 的 zone 一起 `z-index:1` 抬到 view-lines 之上。zones 换了、面板收起、卸载时摘掉旧 zone；`onDidUpdateDiff` 时按同一批位置重挂，不叠。按钮折行时按实测高度撑开 zone。
+  - 定位（`lib/patch-hunks.ts` 新增纯函数）：`hunkZoneAfterLineNumber` 按偏移算行号——有新稿内容的取新稿最后一个字所在行（等于 `modifiedEndIndex`）；纯删除整行（删除点在行首且删掉的文字以换行结尾）取删除点上一行（等于 `modifiedStartIndex`，跟在 Monaco 画删除行的位置下面）；句内删除取删除点所在行（多数情况等于 `modifiedStartIndex+1`；删的是全文最后一句、没有换行收尾时，按索引会落到不存在的下一行，按偏移仍在本行）。`placePatchHunks` 把同一行的几处合进一个 zone，按钮标「接受这处 ①」「接受这处 ②」。
+  - operationView（分块接受之后 / 恢复时）：操作是原稿坐标，对比区显示当前稿。用当前 before/after 重新算一遍差异，按 beforeText+afterText 匹配，只有「当前差异里恰好一处」且「未冲突的操作里也恰好一个」才认领位置；冲突的、认领不上的留在横幅一行「N 处无法定位」，键仍带 `data-testid="suggestion-accept-hunk"`，冲突的禁用。交给 `onAcceptHunk` 的始终是原操作对象。
+  - 横幅里原来那行逐处接受去掉，只在有「无法定位」时出那一行。zone 里的键外层仍是 `role="group" aria-label="补丁分块操作"`，焦点在 zone 里时 Ctrl+Y 照样整份接受。键的可见文字改成「接受这处」，「第 N 处 · （原稿）第 M 行」放进读屏文字（sr-only）和 title，所以既有断言 `/原稿第 5 行/`（`patch-operation-view.test.tsx`）不用改。
+  - 测试替身 `tests/stubs/monaco-editor.ts`：FakeEditor 加 `changeViewZones`（addZone 把 domNode 挂进 diff 容器并记下 afterLineNumber / ordinal）、`onDidLayoutChange`；`createDiffEditor(container)` 记下容器。`proposal-projection-panel` 与 `proposal-panel-writeback-integration` 两个测试自己包了一层 `createDiffEditor`，原来不转发容器，改成转发（否则 zone 挂不进页面，按钮查不到）。
+- 验证：
+  - `npx tsc --noEmit -p tsconfig.json` 通过；改过的文件 eslint、prettier 通过。
+  - `tests/patch-hunks.test.ts` 新增 4 例（落行规则含整行 / 句内 / 首行前 / 全文末句删除、同一行合并编号、operationView 唯一匹配 / 冲突 / 认不出 / 孪生操作两种歧义），15 passed。
+  - `tests/patch-review-panel.test.tsx`：原静态快照用例「multi-hunk accept buttons carry a line-number label」改为断言横幅静态快照里不再有分块键（zone 只在挂载后出现，静态渲染不支持 portal）；新增 5 例（zone 数量与 afterLineNumber、ordinal>10000、键在 zone 里、点了交出对应 hunk、动作进行中禁用；同一行 ①②；zone 焦点下 Ctrl+Y；差异重算不叠 / 收起摘掉 / 展开重挂 / 换补丁换 zone / 卸载摘干净；operationView 下「2 处无法定位」一行里认不出的可点、冲突的禁用，能定位的进 zone 且交回原操作对象）。
+  - 回归：`patch-review-panel` / `patch-operation-view` / `proposal-projection-panel` / `proposal-panel-writeback-integration` / `patch-hunks` 五个文件 110 passed。
+  - 变异 A（接线）：去掉挂载时的 `place()`，只在差异重算时挂 zone → 上述四个面板测试文件 25 例红（含新增 5 例、`patch-operation-view` 与两个集成测试），定点替换还原，脚本核对还原后与原文件逐字相同。
+  - 变异 B：去掉「未冲突操作里也唯一」这一条 → `patch-hunks` 的 operationView 用例红。这一次还原脚本的替换串不唯一、没能自动还原，随后用带 `count==1` 断言的定点替换手工还原，`git diff` 核对该函数与变异前一致，15 passed。
+  - 变异 C：整行删除不再上移一行 → `patch-hunks` 2 例红，自动还原。
+  - `pnpm verify` EXIT=0：project-core 14 passed，引擎 93 files / 13818 passed + 2 skipped，前端 241 files / 2431 passed，行间续写 / 浏览器冒烟 / Agent 对话三个浏览器回归通过。
+  - `index.css` 是 CRLF，按字节定点改；`git diff --numstat` 与 `--ignore-all-space --numstat` 两组一致。
+- 未覆盖：
+  - 没有在真宿主（真 Monaco）上看：zone 是否真落在改动正下方、`z-index` 后点击是否不被 Monaco 吞、按钮与正文左缘是否对齐、长段多处改动折行后的高度、浅色暖色主题下紫色键的观感。单测里的 Monaco 是替身，三个浏览器回归都不走修订审阅面板。
+  - 我们的分块是自写 LCS（按中文标点切句段），Monaco 画的是它自己的行级差异；两者分块不一致时，接受键仍挂在我们这处改动的末行下方，未在真宿主上核对观感。
+  - 面板收起时没有逐处接受（zone 随对比区收起摘掉），只剩整份接受与「无法定位」那一行。

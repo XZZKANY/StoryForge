@@ -10,6 +10,7 @@ import { __getLastDiffEditor } from 'monaco-editor';
 
 import { buildPatchReviewTraceTitle, PatchReviewPanel } from '../src/components/PatchReviewPanel';
 import type { AssistantFileSuggestion } from '../src/lib/assistant-suggestions';
+import { buildPatchHunks, type PatchHunk } from '../src/lib/patch-hunks';
 
 function sampleSuggestion(
   overrides: Partial<AssistantFileSuggestion> = {},
@@ -80,7 +81,9 @@ test('patch panel main text is author-facing without Patch/Session labels', () =
   assert.match(html, /拒绝/);
 });
 
-test('multi-hunk accept buttons carry a line-number label, not opaque 块 N', () => {
+// 逐处接受挪进对比区每处改动下方（作者试用 #3/#11）：横幅上不再有那一行小键。
+// 带「第 N 处 · 第 M 行」的按钮现在挂在 view zone 里、挂载后才有，断言见文末的挂载用例。
+test('横幅里不再挤一排逐处接受的小键', () => {
   const suggestion = sampleSuggestion({
     before: '甲\n乙\n丙\n丁\n戊\n',
     after: '甲改\n乙\n丙\n丁改\n戊\n',
@@ -97,8 +100,8 @@ test('multi-hunk accept buttons carry a line-number label, not opaque 块 N', ()
       onRetryWithoutKnowledge={() => undefined}
     />,
   );
-  assert.match(html, /data-testid="suggestion-accept-hunk"/);
-  assert.match(html, /第 \d+ 处 · 第 \d+ 行/);
+  assert.doesNotMatch(html, /data-testid="suggestion-accept-hunk"/);
+  assert.doesNotMatch(html, /逐处接受/);
   assert.doesNotMatch(html, /接受块/);
 });
 
@@ -687,4 +690,190 @@ test('否掉没成（全项目审计 E-19，恢复记录写不进去等）：修
   await act(async () => finish(true));
   assert.equal(calls.length, 2);
   assert.equal(byTestId('patch-reject-form'), null);
+});
+
+function renderWithHunks(
+  overrides: Partial<AssistantFileSuggestion>,
+  onAcceptHunk: (hunk: PatchHunk) => void = () => undefined,
+  actionKind: 'hunk' | null = null,
+) {
+  act(() => {
+    root.render(
+      <PatchReviewPanel
+        suggestion={sampleSuggestion(overrides)}
+        actionKind={actionKind}
+        editorFontSize={14}
+        editorFontFamily="test-font"
+        onAccept={() => undefined}
+        onAcceptHunk={onAcceptHunk}
+        onReject={() => undefined}
+        onSaveNote={() => undefined}
+        onRetryWithoutKnowledge={() => undefined}
+      />,
+    );
+  });
+}
+
+function hunkButtons(): HTMLButtonElement[] {
+  return [
+    ...container.querySelectorAll<HTMLButtonElement>('[data-testid="suggestion-accept-hunk"]'),
+  ];
+}
+
+const TWO_LINES = { before: '甲\n乙\n丙\n丁\n戊\n', after: '甲改\n乙\n丙\n丁改\n戊\n' };
+
+test('逐处接受挂在对比区每处改动的正下方，按钮带「第 N 处 · 第 M 行」，点了交出这一处', () => {
+  const accepted: PatchHunk[] = [];
+  renderWithHunks(TWO_LINES, (hunk) => {
+    accepted.push(hunk);
+  });
+  const modified = __getLastDiffEditor().getModifiedEditor();
+  assert.deepEqual(
+    modified.viewZones.map((zone) => zone.afterLineNumber),
+    [1, 4],
+  );
+  assert.ok(
+    modified.viewZones.every((zone) => (zone.ordinal ?? 0) > 10000),
+    '排在 Monaco 删除行之后',
+  );
+  const buttons = hunkButtons();
+  assert.equal(buttons.length, 2);
+  buttons.forEach((button, index) => {
+    assert.ok(modified.viewZones[index].domNode.contains(button), '按钮在 zone 里');
+    assert.ok(byTestId('patch-diff')!.contains(button), 'zone 挂在对比区里');
+  });
+  assert.match(buttons[0].textContent ?? '', /^接受这处/);
+  assert.match(buttons[0].textContent ?? '', /第 1 处 · 第 1 行/);
+  assert.match(buttons[1].textContent ?? '', /第 2 处 · 第 4 行/);
+  assert.equal(
+    byTestId('patch-controls')!.querySelector('[aria-label="补丁分块操作"]'),
+    null,
+    '能定位的都进了 zone，横幅不再留逐处接受那一行',
+  );
+
+  act(() => buttons[1].click());
+  assert.equal(accepted.length, 1);
+  assert.equal(accepted[0].afterText, '丁改\n');
+
+  renderWithHunks(TWO_LINES, () => undefined, 'hunk');
+  assert.ok(
+    hunkButtons().every((button) => button.disabled),
+    '有动作在跑时 zone 里的键一起锁住',
+  );
+});
+
+test('同一行的几处句段合进一个 zone：接受这处 ①②', () => {
+  const accepted: PatchHunk[] = [];
+  renderWithHunks(
+    { before: '甲说，天晴了。他说，乙笑了。\n', after: '甲说，天阴了。他说，乙哭了。\n' },
+    (hunk) => {
+      accepted.push(hunk);
+    },
+  );
+  const modified = __getLastDiffEditor().getModifiedEditor();
+  assert.deepEqual(
+    modified.viewZones.map((zone) => zone.afterLineNumber),
+    [1],
+  );
+  const buttons = hunkButtons();
+  assert.equal(buttons.length, 2);
+  assert.match(buttons[0].textContent ?? '', /^接受这处 ①/);
+  assert.match(buttons[1].textContent ?? '', /^接受这处 ②/);
+  act(() => buttons[1].click());
+  assert.equal(accepted[0].afterText, '乙哭了。\n');
+});
+
+test('zone 的焦点也算补丁分块操作区：Ctrl+Y 照样整份接受', () => {
+  let accepts = 0;
+  act(() => {
+    root.render(
+      <PatchReviewPanel
+        suggestion={sampleSuggestion(TWO_LINES)}
+        editorFontSize={14}
+        editorFontFamily="test-font"
+        onAccept={() => {
+          accepts += 1;
+        }}
+        onAcceptHunk={() => undefined}
+        onReject={() => undefined}
+        onSaveNote={() => undefined}
+        onRetryWithoutKnowledge={() => undefined}
+      />,
+    );
+  });
+  act(() => {
+    hunkButtons()[0].dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'y', ctrlKey: true, bubbles: true }),
+    );
+  });
+  assert.equal(accepts, 1);
+});
+
+test('差异重算不叠 zone；收起摘掉、展开重挂；换补丁换 zone；卸载摘干净', () => {
+  renderWithHunks(TWO_LINES);
+  const diff = __getLastDiffEditor();
+  const modified = diff.getModifiedEditor();
+  assert.equal(modified.viewZones.length, 2);
+  act(() => diff.__fireDiffUpdate());
+  assert.equal(modified.viewZones.length, 2, '差异重算后按原位置重挂，不叠第二份');
+  assert.equal(hunkButtons().length, 2);
+
+  click('patch-expand');
+  assert.equal(modified.viewZones.length, 0, '收起后对比区不在了，zone 也摘掉');
+  assert.equal(hunkButtons().length, 0);
+  click('patch-expand');
+  assert.equal(modified.viewZones.length, 2);
+  assert.equal(hunkButtons().length, 2);
+
+  renderWithHunks({
+    id: 'patch-next',
+    before: '一\n二\n三\n',
+    after: '一改\n二\n三改\n四\n',
+  });
+  assert.deepEqual(
+    modified.viewZones.map((zone) => zone.afterLineNumber),
+    [1, 4],
+  );
+  assert.equal(hunkButtons().length, 2);
+  assert.match(hunkButtons()[1].title, /第 2 处/);
+
+  act(() => root.unmount());
+  assert.equal(modified.viewZones.length, 0, '卸载后不留 zone');
+  root = createRoot(container);
+});
+
+test('分块接受之后：对比区里认不出位置的、冲突的留在横幅「N 处无法定位」，能定位的进 zone', () => {
+  const ops = buildPatchHunks('A\nB\nC\nD\nE\n', 'A1\nB\nC1\nD\nE1\n');
+  assert.equal(ops.length, 3);
+  const accepted: PatchHunk[] = [];
+  renderWithHunks(
+    {
+      // 作者把 C 改成了 X：C 的操作在当前差异里认不出；E 的操作被判冲突。
+      before: 'A\nB\nX\nD\nE\n',
+      after: 'A1\nB\nX1\nD\nE\n',
+      operationView: { operations: ops, conflicts: { [ops[2].id]: '原修改区间已变化' } },
+    },
+    (hunk) => {
+      accepted.push(hunk);
+    },
+  );
+  const modified = __getLastDiffEditor().getModifiedEditor();
+  assert.deepEqual(
+    modified.viewZones.map((zone) => zone.afterLineNumber),
+    [1],
+  );
+  const row = byTestId('patch-controls')!.querySelector('[aria-label="补丁分块操作"]');
+  assert.ok(row, '定位不到的留在横幅一行');
+  assert.match(row.textContent ?? '', /2 处无法定位/);
+  const rowButtons = [
+    ...row.querySelectorAll<HTMLButtonElement>('[data-testid="suggestion-accept-hunk"]'),
+  ];
+  assert.equal(rowButtons.length, 2);
+  assert.match(rowButtons[0].textContent ?? '', /第 2 处 · 原稿第 3 行/);
+  assert.equal(rowButtons[0].disabled, false, '只是认不出位置，仍可接受');
+  assert.equal(rowButtons[1].disabled, true, '冲突的禁用');
+  const zoneButton = modified.viewZones[0].domNode.querySelector('button')!;
+  assert.match(zoneButton.textContent ?? '', /第 1 处 · 原稿第 1 行/);
+  act(() => zoneButton.click());
+  assert.equal(accepted[0], ops[0], '交回的是原操作对象，不是当前差异重算出来的');
 });

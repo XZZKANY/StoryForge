@@ -120,8 +120,8 @@ vi.mock('monaco-editor', async (load) => {
     },
     editor: {
       ...actual.editor,
-      createDiffEditor: () => {
-        const diff = actual.editor.createDiffEditor();
+      createDiffEditor: (container: HTMLElement) => {
+        const diff = actual.editor.createDiffEditor(container);
         Object.assign(diff.getOriginalEditor(), {
           setScrollTop: () => {},
           revealLineNearTop: () => {},
