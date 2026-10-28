@@ -9518,3 +9518,16 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   - `docs/internal/TODO.md` 新增 10-28 入口（三批 + 打包），`docs/internal/current-phase.md` 新增 10-28 补记。
 - 依据：`reports/storyforge-audit-20261024/measurement/E1/读点-39-40/问题.md` 与 27 张截图，作者 10-26 至 10-28 填写，未入库。
 - 验证：`git diff --numstat` 与 `--ignore-all-space --numstat` 一致（CLAUDE.md 4/6、TODO 11/2、current-phase 8/2、登记文件 22/1），行尾未变。
+
+## 2026-10-28 模型调用失败说清原因、测试连接说实话（试用问题 #15）
+
+- 来源：作者 10-28 试用 0.2.1，「测试连接」显示可达，对话却报「本轮未完成：模型调用失败。」。只读查作者引擎库：15:23、15:24（UTC 07:23–07:24）两次失败都在会话 20/21 第一轮，claude 回了 68、88 个 token、零次工具调用就失败，和 §7 已记的「中转把无参数工具参数发成空串」吻合（U-02 #474 已修，未打包）；0.2.1 不存失败原因（`error_message` 为空），无法确证。15:30 作者把模型换成 kimi-k3.1-pro 后正常。
+- 改动：
+  - `packages/engine/src/loop/chatLoop.ts` 的 `providerFailureMessage`：只认传输层自己拼的前缀与状态码，把 HTTP 401/403、402、404、400/422、408/504、429、5xx、连接失败或超时、断流、截断归成作者看得懂的原因；不转述服务端响应体。工具调用拼不成整、已重试断流两种原有说法不变。
+  - `apps/desktop/frontend/src/lib/provider-config.ts` 的 `describeProviderHealth`：探测只拉模型列表、不真发对话，文案从「模型服务可达」改成「模型列表可达 …（只查了列表，没有真发对话）」；配置的模型不在返回的完整列表里时给警告。
+  - golden：`p3-agent-run.windows.json` 13 处、`p3-host.windows.json` 18 处，全部在唯一一个 HTTP 500 失败场景里（`loop-provider-error` / `host-loop-provider-error`），由「模型调用失败。」改为「模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。」；其余场景零变化。
+- 验证：
+  - 引擎全量 vitest 改前 3 例失败恰好是上述两个场景，改 golden 后定向 3 文件 144 passed；`programInterception.test.ts` 新增状态码分类与「不回显响应体里的 sk-secret」断言。
+  - 前端 `tests/provider-config.test.ts` 10 passed（新增模型不在列表的警告、部分列表不下结论）。
+  - `pnpm verify` EXIT=0：引擎 93 files / 13812 passed + 2 skipped，前端 240 files / 2412 passed，三个浏览器回归通过（首跑因新测试未过 prettier 失败，格式化后重跑全绿）。
+- 未覆盖：没有在真宿主上点穿；「测试连接」仍不真发对话（引擎 `providerHealth.ts` 刻意不做生成，改它要单独定）。

@@ -11268,17 +11268,17 @@
         "plan": [
           {
             "step": "agent.loop",
-            "detail": "本轮未完成：模型调用失败。 已完成的结果已保留。",
+            "detail": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。",
             "status": "failed"
           }
         ],
         "agent_result": {
-          "summary": "本轮未完成：模型调用失败。 已完成的结果已保留。",
+          "summary": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。",
           "requires_user_confirmation": false,
           "execution_outcome": {
             "status": "partial",
             "code": "provider_error",
-            "message": "本轮未完成：模型调用失败。 已完成的结果已保留。"
+            "message": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。"
           },
           "chat_loop": {
             "rounds": 2,
@@ -11376,7 +11376,7 @@
           "event_id": 7,
           "sequence": 7,
           "status": "failed",
-          "message": "本轮未完成：模型调用失败。 已完成的结果已保留。",
+          "message": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -11389,17 +11389,17 @@
               "plan": [
                 {
                   "step": "agent.loop",
-                  "detail": "本轮未完成：模型调用失败。 已完成的结果已保留。",
+                  "detail": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。",
                   "status": "failed"
                 }
               ],
               "agent_result": {
-                "summary": "本轮未完成：模型调用失败。 已完成的结果已保留。",
+                "summary": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。",
                 "requires_user_confirmation": false,
                 "execution_outcome": {
                   "status": "partial",
                   "code": "provider_error",
-                  "message": "本轮未完成：模型调用失败。 已完成的结果已保留。"
+                  "message": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。"
                 },
                 "chat_loop": {
                   "rounds": 2,
@@ -11769,7 +11769,7 @@
           "run_id": 1,
           "event_type": "agent_run_failed",
           "actor": "root-agent",
-          "message": "本轮未完成：模型调用失败。 已完成的结果已保留。",
+          "message": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -11782,17 +11782,17 @@
               "plan": [
                 {
                   "step": "agent.loop",
-                  "detail": "本轮未完成：模型调用失败。 已完成的结果已保留。",
+                  "detail": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。",
                   "status": "failed"
                 }
               ],
               "agent_result": {
-                "summary": "本轮未完成：模型调用失败。 已完成的结果已保留。",
+                "summary": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。",
                 "requires_user_confirmation": false,
                 "execution_outcome": {
                   "status": "partial",
                   "code": "provider_error",
-                  "message": "本轮未完成：模型调用失败。 已完成的结果已保留。"
+                  "message": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。"
                 },
                 "chat_loop": {
                   "rounds": 2,
@@ -12278,7 +12278,7 @@
           "id": 2,
           "session_id": 1,
           "role": "assistant",
-          "content": "本轮未完成：模型调用失败。 已完成的结果已保留。"
+          "content": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。"
         }
       ],
       "tool_calls": [
@@ -12327,7 +12327,7 @@
             "execution_outcome": {
               "status": "partial",
               "code": "provider_error",
-              "message": "本轮未完成：模型调用失败。 已完成的结果已保留。"
+              "message": "本轮未完成：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。 已完成的结果已保留。"
             },
             "proposed_patch_id": null
           },
