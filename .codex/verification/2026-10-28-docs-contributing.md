@@ -14,5 +14,6 @@
   - 分支保护 API 回读：`reviews=1`、`enforce_admins=false`、`force_push=false`、`deletions=false`。
 - 未覆盖：
   - 没跑 `pnpm verify`：本次只改 Markdown 与 `.gitignore`，不在 lint（只查 ts / tsx / mjs，且 `.prettierignore` 排除 `docs`、`.codex`）和任何测试的范围内。当时本机空闲内存约 0.6 GB，另一个会话在主工作区跑引擎改动。
+  - 推送用 `git push --no-verify` 跳过了 pre-push 门禁（作者 10-28 在对话里同意）：新 worktree 没装依赖，门禁测的又是没动过的 master 代码。
   - PR 模板在 GitHub 上的实际带出效果，等下一个 PR 打开时才看得到。
   - 根 `CLAUDE.md` 开头写「根级协作约定见 `AGENTS.md`」，但根 `AGENTS.md` 不入库，协作者看不到；本次没改。
