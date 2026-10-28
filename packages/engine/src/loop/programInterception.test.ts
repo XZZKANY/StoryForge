@@ -78,6 +78,40 @@ describe('模型调用失败的原因说对', () => {
       '模型调用失败：输出途中连接断开，已自动重试 2 次仍未成功。',
     );
     expect(providerFailureMessage('read timeout', 0)).toBe('模型调用失败。');
+    expect(providerFailureMessage('真实 LLM 流式读取中断（已输出 0 字）：IncompleteRead', 0)).toBe(
+      '模型调用失败：输出途中连接断开。',
+    );
+  });
+
+  it('names the HTTP status class without echoing the response body', () => {
+    const http = (status: number) =>
+      providerFailureMessage(
+        `真实 LLM 流式返回 HTTP ${status}（耗时 120ms，尝试 1/3）：{"error":"sk-secret upstream text"}`,
+        0,
+      );
+    expect(http(401)).toBe(
+      '模型调用失败：模型服务拒绝了密钥（HTTP 401），请到设置里检查 API Key。',
+    );
+    expect(http(404)).toBe('模型调用失败：服务地址或模型名不对（HTTP 404），请到设置里检查。');
+    expect(http(400)).toBe(
+      '模型调用失败：模型服务不接受这次请求（HTTP 400），常见原因是模型名不对，或这个模型不支持工具调用。',
+    );
+    expect(http(429)).toBe('模型调用失败：请求太频繁或额度用完（HTTP 429），可以稍后重试。');
+    expect(http(502)).toBe('模型调用失败：模型服务端出错（HTTP 502），可以稍后重试。');
+    for (const status of [400, 401, 402, 403, 404, 408, 418, 422, 429, 500, 502, 504])
+      expect(http(status)).not.toContain('sk-secret');
+  });
+
+  it('names connection failures and truncation', () => {
+    expect(
+      providerFailureMessage(
+        '真实 LLM 调用超时或连接失败（耗时 60000ms，timeout=60.0s，尝试 3/3）：TimeoutError',
+        0,
+      ),
+    ).toBe('模型调用失败：连不上模型服务或等待超时，请检查网络和服务地址。');
+    expect(providerFailureMessage('真实 LLM 输出被截断或过滤，不能把未完成正文当成稿。', 0)).toBe(
+      '模型调用失败：模型输出被截断或被过滤。',
+    );
   });
 });
 

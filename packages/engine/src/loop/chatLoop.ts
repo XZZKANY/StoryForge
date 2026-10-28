@@ -115,12 +115,35 @@ const isLlmError = (error: unknown) => error instanceof LlmError || error instan
 // transport 把工具调用流拼不成整的情况包成这两句；它们不是连接断开。
 const TOOL_STREAM_FAILURE = /^(Invalid|Incomplete) streamed tool response\.$/;
 
+const HTTP_STATUS = /返回 HTTP (\d{3})/;
+
+// 只认传输层自己拼的前缀与状态码，不转述服务端响应体（可能含不可信内容）。
+function httpFailureReason(status: number): string {
+  if (status === 401 || status === 403)
+    return `模型服务拒绝了密钥（HTTP ${status}），请到设置里检查 API Key`;
+  if (status === 402) return `模型服务提示余额或额度不足（HTTP ${status}）`;
+  if (status === 404) return `服务地址或模型名不对（HTTP ${status}），请到设置里检查`;
+  if (status === 400 || status === 422)
+    return `模型服务不接受这次请求（HTTP ${status}），常见原因是模型名不对，或这个模型不支持工具调用`;
+  if (status === 408 || status === 504) return `等模型回复超时（HTTP ${status}），可以稍后重试`;
+  if (status === 429) return `请求太频繁或额度用完（HTTP ${status}），可以稍后重试`;
+  if (status >= 500) return `模型服务端出错（HTTP ${status}），可以稍后重试`;
+  return `模型服务返回 HTTP ${status}`;
+}
+
 /** 模型调用失败时给作者看的那句：工具调用拼不成整不是连接断开，原因要说对。 */
 export function providerFailureMessage(detail: string, streamRetries: number): string {
   const retried = streamRetries > 0 ? `，已自动重试 ${streamRetries} 次仍未成功` : '';
   if (TOOL_STREAM_FAILURE.test(detail))
     return `模型调用失败：模型返回的工具调用不完整或参数格式不对${retried}。`;
-  return streamRetries > 0 ? `模型调用失败：输出途中连接断开${retried}。` : '模型调用失败。';
+  if (streamRetries > 0) return `模型调用失败：输出途中连接断开${retried}。`;
+  const status = HTTP_STATUS.exec(detail);
+  if (status) return `模型调用失败：${httpFailureReason(Number(status[1]))}。`;
+  if (detail.includes('调用超时或连接失败'))
+    return '模型调用失败：连不上模型服务或等待超时，请检查网络和服务地址。';
+  if (detail.includes('流式读取中断')) return '模型调用失败：输出途中连接断开。';
+  if (detail.includes('被截断或过滤')) return '模型调用失败：模型输出被截断或被过滤。';
+  return '模型调用失败。';
 }
 
 /** 组装 StoryForge 上下文，把通用编排交给 SDK 工具循环。 */

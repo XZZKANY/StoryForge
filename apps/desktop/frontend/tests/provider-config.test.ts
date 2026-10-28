@@ -150,6 +150,24 @@ test('describeProviderHealth renders ok with model, latency and model count', ()
   assert.ok(display.label.includes('deepseek-v4-flash'));
   assert.ok(display.label.includes('1407ms'));
   assert.ok(display.label.includes('2 个模型'));
+  assert.ok(display.label.includes('没有真发对话'));
+});
+
+test('describeProviderHealth warns when the configured model is missing from the list', () => {
+  const missing = describeProviderHealth(
+    health({ model: 'claude-sonnet-5-5', modelCount: 2, models: ['claude-sonnet-5', 'kimi'] }),
+  );
+  assert.equal(missing.tone, 'warn');
+  assert.ok(missing.label.includes('claude-sonnet-5-5'));
+  const listed = describeProviderHealth(
+    health({ model: 'kimi', modelCount: 2, models: ['claude-sonnet-5', 'kimi'] }),
+  );
+  assert.equal(listed.tone, 'ok');
+  // 部分列表（detail 非空）不下「没有」的结论。
+  const partial = describeProviderHealth(
+    health({ model: 'other', models: ['kimi'], detail: '仅显示本次探测返回的部分模型' }),
+  );
+  assert.equal(partial.tone, 'ok');
 });
 
 test('describeProviderHealth surfaces unauthorized and unreachable as errors', () => {

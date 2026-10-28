@@ -139,14 +139,21 @@ export type ProviderHealthDisplay = {
 };
 
 // 把探测结果转成「测试连接」按钮旁的一行人类可读状态；探的是本机已保存的配置，不是 localStorage。
+// 探测只拉模型列表、不真发对话，所以文案只说「列表可达」，免得作者把它当成对话一定能用。
 export function describeProviderHealth(health: ProviderHealth): ProviderHealthDisplay {
   switch (health.status) {
     case 'ok': {
-      const parts = ['模型服务可达'];
+      const models = health.models ?? [];
+      if (health.model && models.length && !health.detail && !models.includes(health.model))
+        return {
+          tone: 'warn',
+          label: `模型列表可达，但列表里没有「${health.model}」，对话可能会失败`,
+        };
+      const parts = ['模型列表可达'];
       if (health.model) parts.push(health.model);
       if (typeof health.latencyMs === 'number') parts.push(`${health.latencyMs}ms`);
       if (typeof health.modelCount === 'number') parts.push(`${health.modelCount} 个模型`);
-      return { tone: 'ok', label: parts.join(' · ') };
+      return { tone: 'ok', label: `${parts.join(' · ')}（只查了列表，没有真发对话）` };
     }
     case 'unauthorized':
       return { tone: 'error', label: `鉴权失败：${health.detail ?? '密钥无效'}` };
