@@ -1280,8 +1280,6 @@ fn main() {
     };
     builder
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_http::init())
-        .plugin(tauri_plugin_sql::Builder::default().build())
         .manage(host_close_state::HostCloseState::default())
         .manage(close_guard::CloseGuard::default())
         .manage(shadow_git::ShadowGitState::default())

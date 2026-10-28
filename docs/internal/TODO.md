@@ -36,7 +36,7 @@
 1. **出包前补足真机证据（替代原计划里「切默认后真实用一周」）**：真宿主探针 `--agent-only` / `--assistant-only` / `--context-only` / `--reader-only` / `--llm-only`（要作者先关掉 StoryForge，探针拒绝与已有应用并行）、`verify:nsis-install` 隔离安装、发行版 Tauri 冒烟；用作者库的只读副本走一遍旧库导入。
 2. **出 0.2.0**：按 `docs/operations/release-checklist.md` 改版本号（`tauri.conf.json` + `Cargo.toml`）、`pnpm verify` + Rust 测试、`pnpm desktop:build`、安装包另存 `output/release-0.2.0/`；提醒作者装前备份 `%LOCALAPPDATA%\com.storyforge.ide\` 下的 `.sqlite3`，首次打开会一次性导入旧库。
 3. **装上之后**：第一次真实使用的差异优先修；小说环节的候选（定稿、接受时看事实、规矩进起草）等作者提名。
-4. **可以另开的小清理**（不急）：`tauri-plugin-http` / `tauri-plugin-sql` 产品已不用；帧契约 schema 里还留着外部写回的等待帧；`.gitignore` 为 pytest 事实源保留跟踪的几个 `.codex` 文件已失去用途；本地 `apps/api/` 下未跟踪的 `.venv` 等残留可手动删。
+4. **可以另开的小清理**（不急）：帧契约 schema 里还留着外部写回的等待帧；`.gitignore` 为 pytest 事实源保留跟踪的几个 `.codex` 文件已失去用途；本地 `apps/api/` 下未跟踪的 `.venv` 等残留可手动删。
 
 下面 10-11 以前的段落是迁移前后各轮会话的入口记录，涉及 Python / sidecar / pytest 的命令都已失效，只作历史参考。
 
