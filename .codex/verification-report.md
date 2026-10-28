@@ -9508,3 +9508,13 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   - 对照表 `output/e1/packets/对照表-cl-39-40.json`，未入库；作者打分前没有看过。
 - 核对：分数按对照表逐份还原到链。`git diff --numstat` 与 `--ignore-all-space --numstat` 一致，两份文件保持 LF。
 - 未验证：E0 标准四的两项答案作者还没记下。
+
+## 2026-10-28 测量期结案，冻结解除
+
+- 作者的决定：读点二期间在 0.2.1 上记下 21 条问题，要求解决；告知这些都不在冻结允许的范围、修了就越线之后，作者选「解除冻结，全部分批修」。
+- 改动（只改文档）：
+  - `docs/internal/measurement-window-2026-10.md` 追加 §9「结案」：按 §3 第 7 条与 §6 第一行记为「冻结没被接受」，转爱好账（上限待作者定），E0、E1 结论只作参考，编号账到 U-02 为止；21 条问题按三批归类；E2 数据（三天搭世界观，正文 0 章，已核对作品目录 `正文/` 为空）。
+  - `CLAUDE.md` 顶部冻结规则换成结案说明（本机未入库的 `AGENTS.md` 同改）。
+  - `docs/internal/TODO.md` 新增 10-28 入口（三批 + 打包），`docs/internal/current-phase.md` 新增 10-28 补记。
+- 依据：`reports/storyforge-audit-20261024/measurement/E1/读点-39-40/问题.md` 与 27 张截图，作者 10-26 至 10-28 填写，未入库。
+- 验证：`git diff --numstat` 与 `--ignore-all-space --numstat` 一致（CLAUDE.md 4/6、TODO 11/2、current-phase 8/2、登记文件 22/1），行尾未变。
