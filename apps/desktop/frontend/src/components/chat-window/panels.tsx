@@ -47,6 +47,7 @@ export function ConversationHeader({
   onSetLayoutMode,
   onOpenObservatory,
   observatoryAttention = false,
+  contextToggle,
 }: {
   title: string;
   sessions?: AssistantSessionRecord[];
@@ -59,6 +60,7 @@ export function ConversationHeader({
   onSetLayoutMode?: (mode: LayoutMode) => void;
   onOpenObservatory?: () => void;
   observatoryAttention?: boolean;
+  contextToggle?: ReactNode;
 }) {
   // Q5：会话下拉——会话按项目划分，标题变下拉入口（当前项目会话列表 + 新建）。
   // 下拉走内联 absolute（不 portal），token 在 :root/#app 内，避免 portal 出主题作用域翻车。
@@ -122,6 +124,7 @@ export function ConversationHeader({
           }
         />
       )}
+      {contextToggle}
       {/* Q4 布局三态就地控件：对话头切 编辑 / 平衡 / 对话聚焦 */}
       {onSetLayoutMode &&
         (layoutMode === 'chat' ? (

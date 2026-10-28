@@ -61,6 +61,10 @@ export type AgentStep = {
   metrics?: AgentStepMetric[];
   filePath?: string;
   patchId?: string;
+  /** 这次工具调用读过的文件（引擎记的原样路径），给对话栏「上下文」列出来。 */
+  sources?: string[];
+  /** fs.search 的检索词 / fs.list 的子目录（根目录为空串）。 */
+  lookup?: string;
 };
 
 // paused/stopped 是作者主动控制态：暂停留有恢复入口、停止是中性收尾（非失败）。

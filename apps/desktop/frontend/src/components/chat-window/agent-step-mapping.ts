@@ -1,4 +1,5 @@
 import type { AgentPlanStep } from '../../lib/api-client';
+import { traceLookup, traceReadSources } from './context-panel';
 import type {
   AgentStep,
   AgentStepMetric,
@@ -158,14 +159,9 @@ export function stepsFromAgentResult(message: ChatWindowAgentResult): AgentStep[
     status: mapAgentStepStatus(step.status),
     detail: planStepDetail(step.step, step.detail),
   }));
-  const toolSteps = message.tool_trace.map((trace: ChatWindowAgentToolTrace, index) => ({
-    id: `tool-${index}-${trace.tool_name}`,
-    title: toolStepTitle(trace),
-    tool: trace.tool_name,
-    status: mapAgentStepStatus(trace.status),
-    detail: toolTraceDetail(trace),
-    metrics: toolTraceMetrics(trace),
-  }));
+  const toolSteps = message.tool_trace.map((trace: ChatWindowAgentToolTrace, index) =>
+    stepFromToolTraceEvent(index, trace),
+  );
   return [...planSteps, ...toolSteps];
 }
 
@@ -184,7 +180,10 @@ export function stepFromAgentPlanEvent(
   };
 }
 
+/** 流式事件与收尾结果共用这一份映射：两条路上的读取来源不会一边有一边没有。 */
 export function stepFromToolTraceEvent(index: number, trace: ChatWindowAgentToolTrace): AgentStep {
+  const sources = traceReadSources(trace);
+  const lookup = traceLookup(trace);
   return {
     id: `tool-${index}-${trace.tool_name}`,
     title: toolStepTitle(trace),
@@ -192,6 +191,8 @@ export function stepFromToolTraceEvent(index: number, trace: ChatWindowAgentTool
     status: mapAgentStepStatus(trace.status),
     detail: toolTraceDetail(trace),
     metrics: toolTraceMetrics(trace),
+    ...(sources.length ? { sources } : {}),
+    ...(lookup !== undefined ? { lookup } : {}),
   };
 }
 

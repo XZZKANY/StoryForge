@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { executeIdeCommand } from '../../lib/api-client';
-import { APPLY_FILE_SUGGESTION_EVENT, flushActiveEditorToDisk } from '../../lib/assistant-events';
+import {
+  APPLY_FILE_SUGGESTION_EVENT,
+  flushActiveEditorToDisk,
+  REQUEST_OPEN_FILE_EVENT,
+  type OpenFileRequest,
+} from '../../lib/assistant-events';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
 import {
   createNewBookProject,
@@ -195,6 +200,21 @@ export function useProjectCommands({
     };
     window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
     return () => window.removeEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
+  }, [activeProject, currentFile, onShowEditor, openFile]);
+
+  // 对话栏「上下文」点文件：只开项目里的文件；对话聚焦态先把中栏放出来，否则打开了也看不见。
+  useEffect(() => {
+    const normalize = (path: string) => path.replace(/\\/g, '/');
+    const onOpenRequest = (event: Event) => {
+      const filePath = (event as CustomEvent<OpenFileRequest>).detail?.filePath;
+      if (!filePath || !activeProject) return;
+      if (relativePathInsideProject(activeProject, filePath) === null) return;
+      onShowEditor();
+      if (currentFile && normalize(currentFile) === normalize(filePath)) return;
+      void openFile(filePath, '打开上下文文件');
+    };
+    window.addEventListener(REQUEST_OPEN_FILE_EVENT, onOpenRequest);
+    return () => window.removeEventListener(REQUEST_OPEN_FILE_EVENT, onOpenRequest);
   }, [activeProject, currentFile, onShowEditor, openFile]);
 
   const handleInitializeStoryProject = useCallback(

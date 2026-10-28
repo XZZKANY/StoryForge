@@ -229,8 +229,10 @@ export {
   appendAuthorInstructionsToSystemPrompt,
   buildGenerationSystemPrompt,
   CONVERSATION_PREFIX,
+  describeAuthorInstructions,
   editPolicyFromGenerationPrompt,
   GENERATION_PREFIX,
+  MAX_INSTRUCTION_CHARS,
   readAuthorInstructions,
 } from './kernel/authorVoice';
 export {
