@@ -26,11 +26,11 @@ import {
   type StreamEvent,
 } from './contracts';
 import { AnthropicProvider } from './anthropic';
-import { checkRunInterruption, requestTimeout } from './control';
+import { checkRunInterruption, requestTimeout, waitForRetry } from './control';
 import { GeminiProvider } from './gemini';
 import { OpenAICompatibleProvider, type LlmProvider } from './openaiCompatible';
 import { observeProvider } from './observation';
-import { buildChatPayload, LlmError } from './payload';
+import { buildChatPayload, LlmError, LlmStreamBreak } from './payload';
 import { modelsUrl } from './protocol';
 import {
   providerCompleteJson,
@@ -344,6 +344,9 @@ export async function* streamChatCompletions(
   }
 }
 
+const STREAM_BREAK_RETRY_LIMIT = 2;
+const STREAM_BREAK_RETRY_DELAY_SECONDS = 1;
+
 /**
  * 与 callLlm 同返回，只是传输走流式、由本端聚合：长正文在 CDN / 中转站前置下走非流式会被当空闲连接掐掉。
  * 不收工具：工具调用走 callLlmMessages。
@@ -359,9 +362,20 @@ export async function callLlmStreamed(
     messages.push({ role: 'system', content: options.systemPrompt });
   messages.push({ role: 'user', content: options.userPrompt });
   const payload = buildChatPayload(source, { messages, stream: true });
-  let final: StreamFrame | null = null;
-  for await (const frame of streamChatCompletions(source, payload, {}, ctx))
-    if (frame.type === 'done') final = frame;
+  let final: StreamFrame | null;
+  for (let attempt = 0; ; attempt++) {
+    final = null;
+    try {
+      for await (const frame of streamChatCompletions(source, payload, {}, ctx))
+        if (frame.type === 'done') final = frame;
+      break;
+    } catch (error) {
+      // 吐到一半断开（多见于中转）：整份重发，与对话循环的断流重试同一上限；截断的半份不拼接。
+      if (!(error instanceof LlmStreamBreak) || attempt >= STREAM_BREAK_RETRY_LIMIT) throw error;
+      checkRunInterruption(ctx.control, 'stream_break_retry');
+      await waitForRetry(ctx.control, ctx.wait, STREAM_BREAK_RETRY_DELAY_SECONDS);
+    }
+  }
   // 流正常读完却没有终帧 = 上游提前关流；静默返回空正文会让缺文当成功写进补丁。
   if (final === null) throw new LlmError('真实 LLM 流式结束但未返回终帧，无法取得完整正文。');
   const result: { [key: string]: unknown } = { ...final };

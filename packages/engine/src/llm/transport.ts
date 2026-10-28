@@ -27,6 +27,7 @@ import {
   chatPayloadText,
   isRetryableStatus,
   LlmError,
+  LlmStreamBreak,
   redactSecrets,
   retryAfterSeconds,
   retryDelay,
@@ -483,7 +484,9 @@ export async function* rawStreamChatCompletions(
     if (error instanceof HttpTransportError) {
       checkRunInterruption(ctx.control, 'http_error');
       const name = error.kind === 'timeout' ? 'TimeoutError' : error.detail;
-      throw new LlmError(`真实 LLM 流式读取中断（已输出 ${length(emitted.join(''))} 字）：${name}`);
+      throw new LlmStreamBreak(
+        `真实 LLM 流式读取中断（已输出 ${length(emitted.join(''))} 字）：${name}`,
+      );
     }
     throw error;
   } finally {
