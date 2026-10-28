@@ -20,7 +20,7 @@
 
 - `pnpm verify`（8 道）：lint、前端类型检查、project-core、TS 引擎类型检查与 golden 契约、前端单测、三个浏览器回归（行间续写 / 浏览器冒烟 / Agent 对话）。浏览器回归用 fetch 替身代替原生端口，不经过真宿主。
 - 经过真宿主的检查：Rust 测试（`npm --prefix apps/desktop run test:rust`）、Tauri 冒烟（开发档 / 发行版 exe）、真宿主探针（`apps/desktop/frontend/scripts/verify-engine-p0-native.mjs`）、NSIS 隔离安装验证。这些不在 `pnpm verify` 里，出包前必跑。
-- 没有远端 CI；以本地门禁为准。
+- 远端 CI：`.github/workflows/verify.yml` 的 `Windows Verify` 在目标为 `master` 的 PR 和推送到 `master` 时运行，使用 `windows-latest`、Node.js 22、pnpm 9.15.4，执行上述 8 道 `pnpm verify` 门禁。缓存 pnpm store 与独立前端的 npm 缓存；浏览器只用隔离替身，不需要 secrets 或真实模型。Rust 与真宿主验证仍在本地另跑；合并必过检查由维护者配置。
 
 ## 4. 维护规则
 

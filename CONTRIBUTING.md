@@ -37,7 +37,7 @@ pnpm dev               # 启动桌面应用
 
 ## 4. 验证与验证记录
 
-**门禁。** 提交前跑 `pnpm verify`（8 道门，说明见 [运维文档索引](docs/operations/README.md) §3），要 EXIT=0。改了 Rust 宿主、或引擎与宿主之间的接口，再跑 Rust 测试和 Tauri 冒烟（命令见 [`CLAUDE.md`](CLAUDE.md) §4）。仓库没有远端 CI，门禁全在本地，PR 里如实写跑了什么、没跑什么。
+**门禁。** 提交前跑 `pnpm verify`（8 道门，说明见 [运维文档索引](docs/operations/README.md) §3），要 EXIT=0。改了 Rust 宿主、或引擎与宿主之间的接口，再跑 Rust 测试和 Tauri 冒烟（命令见 [`CLAUDE.md`](CLAUDE.md) §4）。目标为 `master` 的 PR 和推送到 `master` 会触发 GitHub Actions `Windows Verify`，在 Windows / Node.js 22 / pnpm 9.15.4 上执行 `pnpm verify`。远端检查不含 Rust 测试和 Tauri 冒烟，PR 里仍需如实写明本地跑了什么、没跑什么；必过检查由维护者在分支保护中配置。
 
 **验证记录。** 每个分支一份，和代码一起提交：
 
