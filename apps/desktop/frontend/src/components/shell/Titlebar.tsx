@@ -95,7 +95,7 @@ export function Titlebar({
       <div className="flex min-w-[200px] items-center justify-end">
         {projectOpen && (
           <button
-            className="mr-1.5 flex h-7 w-8 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-foreground"
+            className={`mr-1.5 flex h-7 items-center justify-center gap-1 rounded-md hover:bg-elevated hover:text-foreground ${rightCollapsed ? 'px-2 text-foreground' : 'w-8 text-muted'}`}
             onClick={onToggleRight}
             // 与 StatusBar 字数徽标同一套弹层模式：名字稳定（不因展开/收起态翻成相反动作），
             // 态由 aria-expanded 告知；否则只剩视觉图标 + 随态翻转的 title，屏读者拿不到稳定身份。
@@ -105,6 +105,8 @@ export function Titlebar({
             data-testid="titlebar-toggle-right"
           >
             <PanelRight size={14} strokeWidth={1.6} />
+            {/* 对话栏收起后只剩一个小图标，作者找不到回去的路：收起时带上字。 */}
+            {rightCollapsed && <span className="text-xs">对话</span>}
           </button>
         )}
         <button

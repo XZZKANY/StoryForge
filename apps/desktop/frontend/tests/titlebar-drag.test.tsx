@@ -99,6 +99,7 @@ test('Agent 面板开关：名字稳定不随态翻转，态由 aria-expanded �
   assert.equal(expandedBtn?.getAttribute('aria-label'), 'Agent 面板');
   assert.equal(expandedBtn?.getAttribute('aria-expanded'), 'true');
   assert.equal(expandedBtn?.getAttribute('title'), '收起 Agent 面板');
+  assert.equal(expandedBtn?.textContent, '', '展开时只是一个小图标');
   act(() => expanded.root.unmount());
   expanded.container.remove();
 
@@ -107,6 +108,7 @@ test('Agent 面板开关：名字稳定不随态翻转，态由 aria-expanded �
   assert.equal(collapsedBtn?.getAttribute('aria-label'), 'Agent 面板');
   assert.equal(collapsedBtn?.getAttribute('aria-expanded'), 'false');
   assert.equal(collapsedBtn?.getAttribute('title'), '展开 Agent 面板');
+  assert.equal(collapsedBtn?.textContent, '对话', '收起后带上字，找得到回去的路');
   act(() => collapsed.root.unmount());
   collapsed.container.remove();
 });

@@ -330,7 +330,8 @@ export function MessageList({
     <div className="relative min-h-0 flex-1" data-toast-floor="">
       <div
         ref={scrollRef}
-        className="h-full min-h-0 overflow-y-auto [scrollbar-gutter:stable]"
+        // 可聚焦是为了能用键盘滚动；鼠标点进来不该给整栏套一圈紫框（上下两条紫杠）。
+        className="h-full min-h-0 overflow-y-auto outline-none [scrollbar-gutter:stable]"
         data-testid="message-list-scroll"
         role="region"
         aria-label="对话消息"
@@ -898,10 +899,22 @@ export const MessageItem = memo(function MessageItem({
 }) {
   if (message.role === 'user') {
     return (
-      <div className="flex animate-slide-up-fade justify-end" data-testid="user-message">
-        <div className="sf-bubble-user max-w-[85%] bg-elevated px-4 py-3 text-sm leading-6 text-foreground">
+      <div
+        className="group flex animate-slide-up-fade flex-col items-end"
+        data-testid="user-message-row"
+      >
+        <div
+          className="sf-bubble-user max-w-[85%] bg-elevated px-4 py-3 text-sm leading-6 text-foreground"
+          data-testid="user-message"
+        >
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
+        {/* 自己发的话也能复制；鼠标移上来才出现，不给每条消息都挂一排键。 */}
+        <MessageActions
+          content={message.content}
+          copiedToast="已复制"
+          className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100"
+        />
       </div>
     );
   }

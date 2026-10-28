@@ -28,18 +28,22 @@ const actionClass =
 export function MessageActions({
   content,
   onRegenerate,
+  copiedToast = '已复制这条回复',
+  className = '',
 }: {
   content: string;
   onRegenerate?: () => void;
+  copiedToast?: string;
+  className?: string;
 }) {
   return (
-    <div className="mt-1 flex items-center gap-1" data-testid="message-actions">
+    <div className={`mt-1 flex items-center gap-1 ${className}`} data-testid="message-actions">
       <button
         type="button"
         className={actionClass}
         onClick={() =>
           void writeClipboard(content).then(
-            () => emitToast('已复制这条回复'),
+            () => emitToast(copiedToast),
             (error: unknown) =>
               emitToast(`复制失败：${error instanceof Error ? error.message : String(error)}`, {
                 tone: 'error',
