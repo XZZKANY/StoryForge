@@ -4,7 +4,9 @@ import { test } from 'vitest';
 import {
   applyPatchHunkToCurrent,
   buildPatchHunks,
+  hunkZoneAfterLineNumber,
   isWholeFileDrifted,
+  placePatchHunks,
 } from '../src/lib/patch-hunks';
 
 test('patch hunks split separated line changes and apply one hunk at a time', () => {
@@ -158,4 +160,118 @@ test('new file patch (empty before) builds insertion-only hunks and applies to e
     current = applyPatchHunkToCurrent(current, hunk);
   }
   assert.equal(current, after);
+});
+
+test('接受键落在新稿侧这处改动的最后一行下方：有新稿内容的与 modifiedEndIndex 一致', () => {
+  const before = ['开场。', '第二句略硬。', '中段。', '收束。', ''].join('\n');
+  const after = ['开场。', '第二句更顺。', '中段。', '新加一句。', '收束。', ''].join('\n');
+  const hunks = buildPatchHunks(before, after);
+  assert.equal(hunks.length, 2);
+  assert.deepEqual(
+    hunks.map((hunk) => hunkZoneAfterLineNumber(hunk, after)),
+    [2, 4],
+  );
+  for (const hunk of hunks) {
+    assert.equal(hunkZoneAfterLineNumber(hunk, after), hunk.modifiedEndIndex);
+  }
+});
+
+test('纯删除：整行删除跟在 Monaco 画删除行的位置（上一行之后），句内删除挂在所在行下方', () => {
+  const lineBefore = ['开场。', '多余句。', '收束。', ''].join('\n');
+  const lineAfter = ['开场。', '收束。', ''].join('\n');
+  const [lineHunk] = buildPatchHunks(lineBefore, lineAfter);
+  assert.equal(lineHunk.afterText, '');
+  assert.equal(hunkZoneAfterLineNumber(lineHunk, lineAfter), lineHunk.modifiedStartIndex);
+  assert.equal(hunkZoneAfterLineNumber(lineHunk, lineAfter), 1);
+
+  const topBefore = ['删掉的开头。', '开场。', ''].join('\n');
+  const topAfter = ['开场。', ''].join('\n');
+  const [topHunk] = buildPatchHunks(topBefore, topAfter);
+  assert.equal(hunkZoneAfterLineNumber(topHunk, topAfter), 0, '首行之前删的挂在第 0 行之后');
+
+  const segmentBefore = ['开场。', '甲说，乙笑了。丙哭了。', '收束。', ''].join('\n');
+  const segmentAfter = ['开场。', '甲说，丙哭了。', '收束。', ''].join('\n');
+  const [segmentHunk] = buildPatchHunks(segmentBefore, segmentAfter);
+  assert.equal(segmentHunk.unitKind, 'segment');
+  assert.equal(segmentHunk.afterText, '');
+  assert.equal(
+    hunkZoneAfterLineNumber(segmentHunk, segmentAfter),
+    segmentHunk.modifiedStartIndex + 1,
+  );
+  assert.equal(hunkZoneAfterLineNumber(segmentHunk, segmentAfter), 2);
+
+  // 删的是全文最后一句（没有换行收尾）：按索引 +1 会落到不存在的第 2 行，按偏移算仍在第 1 行。
+  const tailAfter = '甲说了。';
+  const [tailHunk] = buildPatchHunks('甲说了。乙笑了。', tailAfter);
+  assert.equal(tailHunk.afterText, '');
+  assert.equal(hunkZoneAfterLineNumber(tailHunk, tailAfter), 1);
+});
+
+test('同一行的几处句段改动合进一个 zone，按文中顺序编号', () => {
+  const before = ['开场。', '甲说，天晴了。他说，乙笑了。', '收束。', ''].join('\n');
+  const after = ['开场改。', '甲说，天阴了。他说，乙哭了。', '收束。', ''].join('\n');
+  const hunks = buildPatchHunks(before, after);
+  assert.equal(hunks.length, 3);
+  const { zones, unplaced } = placePatchHunks(hunks, before, after);
+  assert.deepEqual(unplaced, []);
+  assert.deepEqual(
+    zones.map((zone) => [zone.afterLineNumber, zone.hunks.map((placed) => placed.index)]),
+    [
+      [1, [0]],
+      [2, [1, 2]],
+    ],
+  );
+  assert.equal(zones[1].hunks[0].hunk, hunks[1], '带的是原 hunk 对象，接受时原样交回');
+});
+
+test('分块接受之后（operationView）：原稿坐标的操作按内容唯一匹配回当前差异，认不出的与冲突的留给横幅', () => {
+  const ops = buildPatchHunks(
+    ['A', 'B', 'C', 'D', 'E', ''].join('\n'),
+    ['A', 'B2', 'C', 'D2', 'E', ''].join('\n'),
+  );
+  assert.equal(ops.length, 2);
+  // 作者在开头加了两行：原稿第 2 行的改动在当前稿里落在第 4 行。
+  const before = ['新一', '新二', 'A', 'B', 'C', 'D', 'E', ''].join('\n');
+  const after = ['新一', '新二', 'A', 'B2', 'C', 'D2', 'E', ''].join('\n');
+  const located = placePatchHunks(ops, before, after, {});
+  assert.deepEqual(
+    located.zones.map((zone) => [zone.afterLineNumber, zone.hunks.map((placed) => placed.hunk)]),
+    [
+      [4, [ops[0]]],
+      [6, [ops[1]]],
+    ],
+  );
+  assert.deepEqual(located.unplaced, []);
+
+  const conflicted = placePatchHunks(ops, before, after, { [ops[1].id]: '原修改区间已变化' });
+  assert.deepEqual(
+    conflicted.unplaced.map((placed) => placed.index),
+    [1],
+  );
+  assert.equal(conflicted.zones.length, 1);
+
+  // 当前差异里找不到同内容的改动（作者改过这一行）：不猜位置，留给横幅。
+  const drifted = placePatchHunks(ops, before, after.replace('D2', 'D3'), {});
+  assert.deepEqual(
+    drifted.unplaced.map((placed) => placed.hunk),
+    [ops[1]],
+  );
+
+  // 两处操作内容一模一样：认领不唯一，都不落位。
+  const twinBefore = ['X', 'Y', 'X', ''].join('\n');
+  const twinAfter = ['X2', 'Y', 'X2', ''].join('\n');
+  const twins = buildPatchHunks(twinBefore, twinAfter);
+  assert.equal(twins.length, 2);
+  const ambiguous = placePatchHunks(twins, twinBefore, twinAfter, {});
+  assert.equal(ambiguous.zones.length, 0);
+  assert.equal(ambiguous.unplaced.length, 2);
+  // 当前差异里只剩一处同内容的改动，也认不出它是哪一个操作。
+  const oneLeft = placePatchHunks(
+    twins,
+    ['X', 'Y', 'Z', ''].join('\n'),
+    ['X2', 'Y', 'Z', ''].join('\n'),
+    {},
+  );
+  assert.equal(oneLeft.zones.length, 0);
+  assert.equal(oneLeft.unplaced.length, 2);
 });
