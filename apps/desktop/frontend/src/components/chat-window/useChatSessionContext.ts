@@ -1,6 +1,10 @@
 import { useCallback, useEffect } from 'react';
 
-import { getAssistantSession, listAssistantSessions } from '../../lib/api-client';
+import {
+  getAssistantSession,
+  getAssistantSessionFailedTurns,
+  listAssistantSessions,
+} from '../../lib/api-client';
 import {
   buildProjectIndex,
   normalizeProjectKnowledgePath,
@@ -8,7 +12,7 @@ import {
   reconcileProjectKnowledgeSelection,
   writeProjectKnowledgeSelection,
 } from '../../lib/project-context';
-import { compactConversationMessages } from './conversation-utils';
+import { mergeFailedTurns } from './conversation-utils';
 import {
   leaveSessionConfirmText,
   pendingDecisionOnLeave,
@@ -136,21 +140,36 @@ export function useChatSessionContext(
     const originalRunId = agentRunIdRef.current;
     const originalTextRevision = textStream.revision();
     setSessionLoadError(null);
+    // 失败轮只是补充显示：另读、读到再补插；读不到就照旧只显示消息表，不挡会话加载。
+    const failedTurns = Promise.resolve()
+      .then(() => getAssistantSessionFailedTurns(assistantSessionId))
+      .catch(() => []);
     void getAssistantSession(assistantSessionId)
       .then((session) => {
         if (cancelled || agentRunIdRef.current !== originalRunId) return;
         if (session.id !== assistantSessionId) throw new Error('返回的会话归属不匹配');
         setConversationTitle(session.title.replace(/^IDE Agent:\s*/, '') || '新的创作会话');
         // 本页还在流式的一轮不能被冷历史覆盖。
-        if (!textStream.hasPending(originalRunId) && originalTextRevision === textStream.revision())
+        const showHistory = (failed: Parameters<typeof mergeFailedTurns>[1]) => {
+          if (
+            textStream.hasPending(originalRunId) ||
+            originalTextRevision !== textStream.revision()
+          )
+            return;
           setMessages((current) =>
             // A same-batch settlement may precede this GET. Keep the current
             // page's projection (including an unpersisted interrupted fragment).
             // Navigation clears messages, so cold history remains authoritative.
             current.some((message) => message.stream?.runId === originalRunId)
               ? current
-              : compactConversationMessages(session.messages),
+              : mergeFailedTurns(session.messages, failed),
           );
+        };
+        showHistory([]);
+        void failedTurns.then((failed) => {
+          if (cancelled || agentRunIdRef.current !== originalRunId || !failed.length) return;
+          showHistory(failed);
+        });
       })
       .catch((error) => {
         if (cancelled || agentRunIdRef.current !== originalRunId) return;

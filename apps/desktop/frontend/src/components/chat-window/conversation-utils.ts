@@ -33,12 +33,33 @@ function toConversationMessage(role: string, content: string): Message | null {
   return { role, content };
 }
 
-export function compactConversationMessages(
-  messages: Array<{ role: string; content: string }>,
+/**
+ * 把没写进消息表的失败轮按时间插回会话：作者的原话 + 当时那句「这轮没跑通」。
+ * 只用于显示；同一时间的已落库消息排在前面。
+ */
+export function mergeFailedTurns(
+  messages: Array<{ role: string; content: string; created_at: string }>,
+  failedTurns: Array<{ user_message: string; failure: string; created_at: string }>,
 ): Message[] {
-  return messages
-    .map((message) => toConversationMessage(message.role, message.content))
-    .filter((message): message is Message => message !== null);
+  const turns = [...failedTurns].sort((a, b) =>
+    a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0,
+  );
+  const merged: Message[] = [];
+  let next = 0;
+  const flushUntil = (at: string | null) => {
+    while (next < turns.length && (at === null || turns[next].created_at < at)) {
+      const turn = turns[next++];
+      merged.push({ role: 'user', content: turn.user_message });
+      merged.push({ role: 'assistant', content: `这轮没跑通：${turn.failure}` });
+    }
+  };
+  for (const record of messages) {
+    flushUntil(record.created_at);
+    const message = toConversationMessage(record.role, record.content);
+    if (message) merged.push(message);
+  }
+  flushUntil(null);
+  return merged;
 }
 
 export function titleFromSystemJobs(message: ChatWindowAgentResult): string | null {

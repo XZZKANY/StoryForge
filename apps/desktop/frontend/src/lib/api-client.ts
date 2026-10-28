@@ -18,6 +18,7 @@ export {
 export { getAgentRunEvents, getAgentRunSavePoints } from './api/agent-runs';
 export {
   getAssistantSession,
+  getAssistantSessionFailedTurns,
   listAssistantSessions,
   probeProviderHealth,
   renameAssistantSession,
@@ -48,6 +49,7 @@ export type {
   AgentUserMessageRequest,
   AssistantContextBundlePayload,
   AssistantMessageRecord,
+  AssistantFailedTurnRecord,
   AssistantSessionRecord,
   CrossChapterFinding,
   CrossChapterRequest,

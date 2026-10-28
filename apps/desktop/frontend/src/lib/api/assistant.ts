@@ -1,5 +1,5 @@
 import type { ProviderHealth } from '../provider-config';
-import type { AssistantSessionRecord, ReviseRequest } from './types';
+import type { AssistantFailedTurnRecord, AssistantSessionRecord, ReviseRequest } from './types';
 
 // 修订、续写、测连接与会话都在进程内的 TS 引擎里跑；引擎包按需加载。
 const engine = () => import('../engine/assistant');
@@ -23,6 +23,12 @@ export async function getAssistantSession(
   assistantSessionId: number,
 ): Promise<AssistantSessionRecord> {
   return (await sessions()).getEngineSession(assistantSessionId);
+}
+
+export async function getAssistantSessionFailedTurns(
+  assistantSessionId: number,
+): Promise<AssistantFailedTurnRecord[]> {
+  return (await sessions()).getEngineSessionFailedTurns(assistantSessionId);
 }
 
 export type AssistantReviseResult = {

@@ -239,3 +239,102 @@ describe('assistant session store replays the Python services', () => {
     await expect(store.title(99)).rejects.toThrow('Assistant 会话不存在：99。');
   });
 });
+
+describe('failed turns survive a session switch', () => {
+  async function seed() {
+    const db = await migratedMemoryDb();
+    let clock = '2026-10-28 07:00:00';
+    const store = new SqlAssistantStore(db, { values: ['sk-secret-key-0001'] }, () => clock);
+    const ref = await store.createSession({
+      title: '世界观',
+      task_type: 'agent_chat',
+      project_path: null,
+      messages: [],
+    });
+    let runs = 0;
+    const run = async (
+      goal: string,
+      at: string,
+      failure: { message: string; payload: Obj } | null,
+      status = 'failed',
+    ) => {
+      runs += 1;
+      const inserted = await db.transaction([
+        {
+          sql:
+            'INSERT INTO agent_runs (public_id, session_id, assistant_session_id, goal, scope, ' +
+            'permission_profile, budget, status, root_plan, current_step, created_at, updated_at) ' +
+            "VALUES ($1, $1, $2, $3, '{}', 'ask', '{}', $4, '[]', NULL, $5, $5) RETURNING id",
+          params: [`run-${runs}`, ref.id, goal, status, at],
+        },
+      ]);
+      const runId = Number(inserted[0].id);
+      const event = (sequence: number, type: string, message: string, payload: Obj) => ({
+        sql:
+          'INSERT INTO agent_run_events (run_id, event_type, actor, message, payload, sequence, ' +
+          "created_at, updated_at) VALUES ($1, $2, 'root-agent', $3, $4, $5, $6, $6)",
+        params: [runId, type, message, JSON.stringify(payload), sequence, at],
+      });
+      await db.transaction([
+        event(1, 'agent_run_started', '已接收', { user_message: goal }),
+        ...(failure ? [event(2, 'agent_run_failed', failure.message, failure.payload)] : []),
+      ]);
+    };
+    return { db, store, ref, run, setClock: (at: string) => (clock = at) };
+  }
+
+  it('returns thrown failures with the author words and reason, in run order', async () => {
+    const { store, ref, run, setClock } = await seed();
+    setClock('2026-10-28 07:05:00');
+    await store.appendMessage(ref.id, { role: 'user', content: '先写修炼体系' });
+    await store.appendMessage(ref.id, { role: 'assistant', content: '好的。' });
+    await run('先写修炼体系', '2026-10-28 07:04:59', null, 'completed');
+    const budget = '会话历史超出保真预算，请开新会话；未静默删除历史。';
+    await run('好让我们做下一步 sk-secret-key-0001', '2026-10-28 07:15:00', {
+      message: budget,
+      payload: { session_id: 'x' },
+    });
+    await run('确认', '2026-10-28 07:23:18', {
+      message: '进程重启，运行未完成即收尸。',
+      payload: { reason: 'process_restart' },
+    });
+    // 已照常落消息的失败、作者自己否掉补丁：都不该再取回来。
+    await run('写主角', '2026-10-28 07:30:00', {
+      message: '本轮未完成：模型调用失败。',
+      payload: { execution_result: { type: 'agent_result' } },
+    });
+    await run('建总纲', '2026-10-28 07:35:00', {
+      message: '作者拒绝权限请求',
+      payload: { control_type: 'deny_permission' },
+    });
+
+    const turns = await store.failedTurns(ref.id);
+    expect(
+      turns.map(({ run_id, user_message, failure, created_at }) => [
+        run_id,
+        user_message,
+        failure,
+        created_at,
+      ]),
+    ).toEqual([
+      ['run-2', '好让我们做下一步 [REDACTED]', budget, '2026-10-28T07:15:00'],
+      ['run-3', '确认', '进程重启，运行未完成即收尸。', '2026-10-28T07:23:18'],
+    ]);
+    // 只给界面看：消息表（下一轮喂给模型的历史）里没有这几轮。
+    expect((await store.messages(ref.id)).map((message) => message.content)).toEqual([
+      '先写修炼体系',
+      '好的。',
+    ]);
+  });
+
+  it('skips a failure that happened after the turn was already written to messages', async () => {
+    const { store, ref, run, setClock } = await seed();
+    await run('收尾出错的一轮', '2026-10-28 08:00:00', {
+      message: '收尾失败',
+      payload: {},
+    });
+    setClock('2026-10-28 08:00:00');
+    await store.appendMessage(ref.id, { role: 'user', content: '收尾出错的一轮' });
+    expect(await store.failedTurns(ref.id)).toEqual([]);
+  });
+});

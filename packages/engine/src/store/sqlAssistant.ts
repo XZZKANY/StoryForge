@@ -375,6 +375,65 @@ export class SqlAssistantStore implements AssistantStore {
     return this.queue.run(async () => this.sessionRead(await this.session(sessionId)));
   }
 
+  /**
+   * 调模型之前就抛出的失败（历史超预算、进程重启收尸等）不写消息表，切回会话时作者的原话和
+   * 失败原因就一起没了。这里从运行记录取回来只给界面看：不进消息表，也就不进下一轮喂给模型的历史。
+   * 带 execution_result（失败已照常落消息）或 control_type（作者自己的操作）的不算。
+   */
+  failedTurns(sessionId: number): Promise<Obj[]> {
+    return this.queue.run(async () => {
+      const rows = await this.db.select(
+        'SELECT r.id AS run_row, r.public_id, r.goal, r.created_at, f.message, f.payload, ' +
+          'f.created_at AS failed_at, (SELECT s.payload FROM agent_run_events s ' +
+          "WHERE s.run_id = r.id AND s.event_type = 'agent_run_started' " +
+          'ORDER BY s.sequence LIMIT 1) AS started ' +
+          'FROM agent_runs r JOIN agent_run_events f ON f.run_id = r.id ' +
+          "WHERE r.assistant_session_id = $1 AND r.status = 'failed' " +
+          "AND f.event_type = 'agent_run_failed' ORDER BY r.id, f.sequence",
+        [sessionId],
+      );
+      const userMessages = await this.db.select(
+        "SELECT content, created_at FROM assistant_messages WHERE session_id = $1 AND role = 'user'",
+        [sessionId],
+      );
+      const seen = new Set<number>();
+      const turns: Obj[] = [];
+      for (const row of rows) {
+        const runRow = Number(row.run_row);
+        if (seen.has(runRow)) continue;
+        seen.add(runRow);
+        const payload = decodeJsonColumn(row.payload);
+        if (isObj(payload) && ('execution_result' in payload || 'control_type' in payload))
+          continue;
+        const started = row.started === null ? null : decodeJsonColumn(row.started);
+        const userMessage = this.redactText(
+          isObj(started) && typeof started.user_message === 'string' && started.user_message
+            ? started.user_message
+            : String(row.goal),
+        );
+        const createdAt = String(row.created_at);
+        const failedAt = String(row.failed_at);
+        // 消息落库之后才失败的（收尾出错），消息表里已经有这句，不重复显示。
+        if (
+          userMessages.some(
+            (message) =>
+              String(message.content) === userMessage &&
+              String(message.created_at) >= createdAt &&
+              String(message.created_at) <= failedAt,
+          )
+        )
+          continue;
+        turns.push({
+          run_id: String(row.public_id),
+          user_message: userMessage,
+          failure: this.redactText(String(row.message)),
+          created_at: apiTime(row.created_at),
+        });
+      }
+      return turns;
+    });
+  }
+
   listRecentSessions(
     options: { limit?: number; projectPath?: string | null } = {},
   ): Promise<Obj[]> {

@@ -9539,3 +9539,18 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
   - 单跑这个文件时，第一条用例耗时 3480ms，其余三条各约 30ms，时间花在第一次加载上。
 - 改动：只给这组用例加 `30_000` 超时，与仓库里 8 处冷启动重的测试同一做法；测试逻辑不变。
 - 验证：`pnpm verify` EXIT=0（前端 240 files / 2412 passed，观测镜这组不再超时）。首跑红在行间续写浏览器回归的 page.goto 30 秒超时：单跑通过，整套重跑全绿，判为负载抖动。
+
+## 2026-10-28 调模型前就失败的那一轮，切会话回来还在（试用问题 #14）
+
+- 来源：作者 10-28 在会话里连遇「上下文超出保真预算」，开新会话再切回来，那几轮（作者原话 + 失败提示）没了。只读查作者引擎库：会话 19 的 run 102–105 在约 1 秒内失败，`assistant_messages` 里没有这几轮；原话只在 `agent_runs.goal` 与 `agent_run_started.payload.user_message`，原因只在 `agent_run_failed.message`。
+- 根因（0.2.1 与 master 相同）：超预算在调模型之前抛出，跳过了落消息；失败当时界面上的原话与「这轮没跑通」只在内存里；切会话时只按消息表重建。master 的 20d4a76e「超预算先补压」只减少发生，补压不成照旧丢。
+- 改动：
+  - 引擎 `SqlAssistantStore.failedTurns(sessionId)`：从运行记录取回「抛出型失败」——状态 failed、`agent_run_failed` 的 payload 里既无 `execution_result`（已照常落消息的失败）也无 `control_type`（作者自己的操作）；消息落库后才失败的按时间区间去重；原话与原因照读模型脱敏。只读，不写消息表，因此不进下一轮喂给模型的历史。
+  - 前端：`getAssistantSessionFailedTurns` 读口；`mergeFailedTurns` 按时间插回（同一秒的已落库消息在前），显示为作者原话 + 「这轮没跑通：原因」；会话先照旧显示消息表，失败轮读到后再补插，读不到不影响加载。删掉已无人用的 `compactConversationMessages`。
+  - 不改冻结的数据形状（`AssistantSessionRecord` 不动，另加 `AssistantFailedTurnRecord`），golden 零变化。
+- 验证：
+  - 引擎 `sqlAssistant.test.ts` 新增 2 例（取回超预算与进程重启两类、排除已落消息与作者否掉、脱敏、消息表不含这几轮；收尾才出错的不重复），8 passed。
+  - 前端新增 `tests/failed-turns-session-switch.test.tsx` 3 例（切走再切回仍在、读失败轮出错照常加载、按时间排位），连同 agent-text-history / chat-window-error-states / partner-opening / session-lifecycle 共 27 passed。首版让消息等失败轮一起显示，`chat-window-error-states` 的切会话用例因此变红，改成先显示后补插。
+  - 接线变异：把补插改成补空，新用例 1 条变红；已还原。
+  - `pnpm verify` EXIT=0（变基到 #481 之后）：引擎 93 files / 13814 passed + 2 skipped，前端 241 files / 2415 passed，三个浏览器回归通过。此前两次整套红在 observatory-merge-conflict 冷启动超时，在干净 master 上同样复现，已由 #481 单独修。
+- 未覆盖：没有在真宿主上点穿；普通失败（模型调用失败）的「本轮未完成…」仍照旧写进消息表并进入下一轮历史，这是另一个题，未动。
