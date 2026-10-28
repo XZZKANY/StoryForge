@@ -98,6 +98,7 @@ export function PatchReviewPanel({
   // 补丁一来审阅就占满编辑区、停在第一处改动（作者 10-16：此前默认在正文下方劈出一块、从第 1 行
   // 开始，改动在文末时上下两半都看不到）。作者收起只对这一版补丁算数，下一版补丁又占满。
   const [collapsedId, setCollapsedId] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const expanded = collapsedId !== suggestion.id;
   const setExpanded = useCallback(
     (next: boolean | ((value: boolean) => boolean)) =>
@@ -358,31 +359,56 @@ export function PatchReviewPanel({
       }}
       data-testid="patch-review"
     >
-      <div className="min-h-0 shrink overflow-y-auto" data-testid="patch-controls">
-        <div className="px-3 py-2 flex flex-wrap items-start justify-between gap-3">
+      {/* AI 的东西用 AI 紫的淡底，和左右两栏分开。 */}
+      <div
+        className="min-h-0 shrink overflow-y-auto border-b border-agent/30 bg-agent/10"
+        data-testid="patch-controls"
+      >
+        <div className="px-3 py-1.5 flex flex-wrap items-center justify-between gap-3">
           <div
             className="min-w-0 flex-1 basis-64 break-words"
             title={traceTitle}
             data-testid="patch-trace"
           >
-            <p className="text-xs font-semibold text-warning">{suggestion.title}</p>
-            <p className="mt-1 text-xs text-muted">
-              {markdownToPlainLine(suggestion.summary) ?? suggestion.summary}
-            </p>
+            {/* 一行：标题 · 文件 · 改动数 · 说明；长说明收进下面，免得挡住正文。 */}
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="flex-shrink-0 text-xs font-semibold text-agent">
+                {suggestion.title}
+              </span>
+              <span
+                className="flex min-w-0 items-center gap-2 text-2xs text-muted"
+                data-testid="patch-meta"
+              >
+                <span className="truncate" data-testid="patch-file" title={suggestion.filePath}>
+                  {projectPath
+                    ? relativeToProject(projectPath, suggestion.filePath)
+                    : suggestion.filePath}
+                </span>
+                <span className="flex-shrink-0" data-testid="patch-stats">
+                  +{stats.addedLines} / -{stats.removedLines}
+                </span>
+              </span>
+              <Button
+                type="button"
+                onClick={() => setDetailsOpen((value) => !value)}
+                aria-expanded={detailsOpen}
+                data-testid="patch-details-toggle"
+                size="xs"
+                variant="ghost"
+                className="flex-shrink-0 text-2xs"
+              >
+                {detailsOpen ? '收起说明' : '说明'}
+              </Button>
+            </div>
             {suggestion.scopeWarning && (
               <p className="mt-1 text-xs text-warning" data-testid="patch-scope-warning">
                 ⚠ {suggestion.scopeWarning}
               </p>
             )}
-            <div className="mt-1 flex flex-wrap gap-2 text-2xs text-muted" data-testid="patch-meta">
-              <span className="break-all" data-testid="patch-file" title={suggestion.filePath}>
-                {projectPath
-                  ? relativeToProject(projectPath, suggestion.filePath)
-                  : suggestion.filePath}
-              </span>
-              <span data-testid="patch-stats">
-                +{stats.addedLines} / -{stats.removedLines}
-              </span>
+            <div hidden={!detailsOpen} data-testid="patch-details">
+              <p className="mt-1 text-xs text-muted">
+                {markdownToPlainLine(suggestion.summary) ?? suggestion.summary}
+              </p>
             </div>
             {suggestion.knowledgeEntries && suggestion.knowledgeEntries.length > 0 && (
               <div className="mt-2" data-testid="patch-knowledge-context">
@@ -543,11 +569,13 @@ export function PatchReviewPanel({
           </div>
         )}
         {hunks.length > 1 && (
+          // 逐处接受压成一行可横向滚动的小键，不再一大排换行挤占正文。
           <div
-            className="flex flex-wrap items-center gap-2 border-t border-border px-3 py-2 text-2xs text-muted"
+            className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap border-t border-agent/20 px-3 py-1 text-2xs text-muted"
             role="group"
             aria-label="补丁分块操作"
           >
+            <span className="flex-shrink-0">逐处接受</span>
             {hunks.map((hunk, index) => (
               <Button
                 key={hunk.id}
@@ -555,11 +583,12 @@ export function PatchReviewPanel({
                 onClick={() => runAction('hunk', () => onAcceptHunk(hunk))}
                 data-testid="suggestion-accept-hunk"
                 disabled={actionBusy || Boolean(operationConflicts[hunk.id])}
-                size="sm"
-                variant="secondary"
-                title={`第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`}
+                size="xs"
+                variant="ghost"
+                className="flex-shrink-0 text-2xs"
+                title={`接受第 ${index + 1} 处：${suggestion.operationView ? '原稿' : ''}第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`}
               >
-                接受第 {index + 1} 处 · {suggestion.operationView ? '原稿' : ''}第{' '}
+                第 {index + 1} 处 · {suggestion.operationView ? '原稿' : ''}第{' '}
                 {hunk.originalStartIndex + 1} 行
               </Button>
             ))}
