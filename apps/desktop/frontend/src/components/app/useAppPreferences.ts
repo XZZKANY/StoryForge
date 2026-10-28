@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { resolveThemeMode } from '../../lib/appearance';
-import { getProviderPreset } from '../../lib/provider-config';
 import { applyAppearance } from '../../lib/theme';
 import { loadAppSettings, saveAppSettings } from '../../lib/user-settings';
 import { PROSE_MEASURE_ORDER, type ProseMeasure } from '../editor/options';
@@ -59,9 +58,6 @@ export function useAppPreferences() {
     setSettings((prev) => ({ ...prev, assistantPanelRatio: ratio }));
   }, []);
 
-  const modelLabel =
-    settings.provider.model.trim() || getProviderPreset(settings.provider.kind).label;
-
   return {
     settings,
     setSettings,
@@ -71,7 +67,6 @@ export function useAppPreferences() {
     cycleProseMeasure,
     setSidePanelRatio,
     setAssistantPanelRatio,
-    modelLabel,
   };
 }
 

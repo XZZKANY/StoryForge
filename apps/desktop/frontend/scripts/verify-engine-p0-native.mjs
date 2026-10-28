@@ -949,7 +949,14 @@ try {
             STORYFORGE_LLM_PROVIDER: 'openai-compatible',
             STORYFORGE_LLM_TIMEOUT_SECONDS: '60.0',
           });
-          assert.ok(Object.values(evidence.llm.polishSource).every((value) => value === ''));
+          // 润色没单独指定时跟随当前那套（只是不带调参项）。
+          assert.deepEqual(evidence.llm.polishSource, {
+            STORYFORGE_LLM_API_BASE_URL: `${httpBaseUrl}/v1`,
+            STORYFORGE_LLM_API_KEY: placeholder,
+            STORYFORGE_LLM_BASE_URL: `${httpBaseUrl}/v1`,
+            STORYFORGE_LLM_MODEL: 'p2-model',
+            STORYFORGE_LLM_PROVIDER: 'openai-compatible',
+          });
           const records = evidence.llmServer.records;
           const stream = records.find((record) => record.stream);
           assert.ok(stream && stream.authorization === 'real-key', 'Provider never saw the key');

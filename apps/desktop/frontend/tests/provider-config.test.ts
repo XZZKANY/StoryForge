@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import {
-  applyProviderPreset,
   describeProviderHealth,
   isProviderKind,
   PROVIDER_OPTIONS,
+  PROVIDER_PRESETS,
+  profileTitle,
+  providerKindOr,
   type ProviderHealth,
 } from '../src/lib/provider-config';
 import { sanitizeAppSettings } from '../src/lib/user-settings';
@@ -21,111 +23,43 @@ test('provider configuration exposes stable presets for settings UI', () => {
   assert.ok(PROVIDER_OPTIONS.some((option) => option.value === 'gemini'));
   assert.ok(isProviderKind('openai'));
   assert.equal(isProviderKind('missing-provider'), false);
+});
 
-  const next = applyProviderPreset(
-    {
-      kind: 'openai',
-      baseUrl: 'https://api.openai.com',
-      model: 'keep-this-model',
-      apiKeyRef: 'OPENAI_API_KEY',
-    },
-    'deepseek',
-    { preserveModel: true },
+test('预设地址可以直接用：引擎在后面接 /chat/completions，兼容服务都写到 /v1；中转不预填', () => {
+  assert.equal(PROVIDER_PRESETS['openai-compatible'].baseUrl, '');
+  assert.equal(PROVIDER_PRESETS['openai-compatible'].label, '自定义 / 中转');
+  for (const kind of ['openai', 'anthropic', 'kimi', 'siliconflow', 'qwen', 'ollama'] as const)
+    assert.match(PROVIDER_PRESETS[kind].baseUrl, /\/v1$/, kind);
+  assert.match(PROVIDER_PRESETS.gemini.baseUrl, /\/v1beta$/);
+  for (const preset of Object.values(PROVIDER_PRESETS))
+    assert.doesNotMatch(preset.baseUrl, /\/$/, preset.kind);
+});
+
+test('旧版存过「本地网关」的配置按兼容 OpenAI 读', () => {
+  assert.equal(providerKindOr('local', 'openai'), 'openai-compatible');
+  assert.equal(providerKindOr('missing-provider', 'anthropic'), 'anthropic');
+});
+
+test('卡片名字：起过名用名字，否则「服务商 · 模型」', () => {
+  assert.equal(profileTitle({ name: ' 写正文 ', provider: 'kimi', model: 'kimi-k2' }), '写正文');
+  assert.equal(profileTitle({ name: '', provider: 'kimi', model: 'kimi-k2' }), 'Kimi · kimi-k2');
+  assert.equal(
+    profileTitle({ name: '', provider: 'local', model: '' }),
+    '自定义 / 中转 · 未选模型',
   );
-
-  assert.deepEqual(next, {
-    kind: 'deepseek',
-    baseUrl: 'https://api.deepseek.com',
-    model: 'keep-this-model',
-    apiKeyRef: 'DEEPSEEK_API_KEY',
-  });
 });
 
-test('旧版存过「本地网关」的配置按兼容 OpenAI 读，地址原样保留', () => {
-  const settings = sanitizeAppSettings({
-    provider: { kind: 'local', baseUrl: 'http://localhost:8000', model: 'm', apiKeyRef: '' },
-    polishProvider: { kind: 'local', baseUrl: 'http://localhost:8000', model: 'p', apiKeyRef: '' },
-  });
-  assert.equal(settings.provider.kind, 'openai-compatible');
-  assert.equal(settings.provider.baseUrl, 'http://localhost:8000');
-  // 润色槽的缺省是 anthropic；旧网关不能掉进去，否则请求换成另一族协议。
-  assert.equal(settings.polishProvider.kind, 'openai-compatible');
-});
-
-test('app settings sanitizer shares provider kind validation with provider configuration', () => {
+test('本机偏好不再镜像模型配置：旧版存的 provider / polishProvider 读的时候丢掉', () => {
   const settings = sanitizeAppSettings({
     editorFontSize: 99,
     autoSave: true,
-    provider: {
-      kind: 'missing-provider',
-      baseUrl: '',
-      model: 123,
-      apiKeyRef: 456,
-    },
+    provider: { kind: 'openai', baseUrl: 'https://main.example/v1', model: 'm', apiKeyRef: '' },
+    polishProvider: { kind: 'gemini', baseUrl: 'https://p.example', model: 'p', apiKeyRef: '' },
   });
-
   assert.equal(settings.editorFontSize, 20);
   assert.equal(settings.autoSave, true);
-  assert.equal(settings.provider.kind, 'openai');
-  assert.equal(settings.provider.baseUrl, 'https://api.openai.com');
-});
-
-test('app settings sanitizer keeps provider references but drops plaintext credentials', () => {
-  const withEnvRef = sanitizeAppSettings({
-    provider: {
-      kind: 'openai-compatible',
-      baseUrl: 'https://provider.test/v1',
-      model: 'writer-model',
-      apiKeyRef: 'STORYFORGE_LLM_API_KEY',
-    },
-  });
-  assert.equal(withEnvRef.provider.apiKeyRef, 'STORYFORGE_LLM_API_KEY');
-
-  const withVaultRef = sanitizeAppSettings({
-    provider: {
-      kind: 'openai-compatible',
-      baseUrl: 'https://provider.test/v1',
-      model: 'writer-model',
-      apiKeyRef: 'vault://storyforge/provider-key',
-    },
-  });
-  assert.equal(withVaultRef.provider.apiKeyRef, 'vault://storyforge/provider-key');
-
-  const withPlaintext = sanitizeAppSettings({
-    provider: {
-      kind: 'openai-compatible',
-      baseUrl: 'https://provider.test/v1',
-      model: 'writer-model',
-      apiKeyRef: 'sk-live-should-not-persist',
-    },
-  });
-  assert.equal(withPlaintext.provider.apiKeyRef, '');
-});
-
-test('app settings keeps an independent sanitized polishing provider slot', () => {
-  const settings = sanitizeAppSettings({
-    provider: {
-      kind: 'openai',
-      baseUrl: 'https://main.example/v1',
-      model: 'main-model',
-      apiKeyRef: 'stored://storyforge/llm-provider',
-    },
-    polishProvider: {
-      kind: 'gemini',
-      baseUrl: 'https://polish.example/v1beta',
-      model: 'polish-model',
-      apiKeyRef: 'raw-secret-must-not-persist',
-    },
-  });
-
-  assert.equal(settings.provider.model, 'main-model');
-  assert.deepEqual(settings.polishProvider, {
-    kind: 'gemini',
-    baseUrl: 'https://polish.example/v1beta',
-    model: 'polish-model',
-    apiKeyRef: '',
-  });
-  assert.equal(sanitizeAppSettings({}).polishProvider.kind, 'anthropic');
+  assert.equal('provider' in settings, false);
+  assert.equal('polishProvider' in settings, false);
 });
 
 function health(overrides: Partial<ProviderHealth>): ProviderHealth {

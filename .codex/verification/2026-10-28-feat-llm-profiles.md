@@ -1,0 +1,34 @@
+## 2026-10-28 设置 → 模型服务重做：存多套配置来回切，润色默认跟当前模型（试用问题 #16）
+
+- 改动：
+  - 问题（作者原话四条）：填的东西太多；按钮太多分不清（探测模型 / 保存并应用 / 移除密钥 / 测试连接）；「润色模型」那块看不懂；想存几套模型来回切（claude 与 kimi 之间换，每次重填）。作者拍板：润色默认跟当前模型，「高级」里可以指定已存的某一套专门润色（推翻原来「润色不会自动改用主模型、没配好静默降级为本地规则」）。
+  - 配置文件（`llm-provider.json`，仍是 schemaVersion 2）新增三个字段：`profiles: [{id, name, provider, baseUrl, model, apiKey: ProtectedKey|null}]`、`activeProfileId`、`polishProfileId`（缺省 = 整章润色跟随当前那套）。顶层 provider/baseUrl/model/apiKey 始终镜像当前那套（密文逐字节相同）。
+  - 迁移规则（`src-tauri/src/llm_config_store/profiles.rs::normalize`，读配置时做、改动即原子写回）：
+    - 没有 `profiles`（第一次用新版打开）：顶层若非空，变成一套名为「默认」的配置并设为当前；0.2.1 的专用润色槽若完整（服务商、地址、模型、Key 都有）且与顶层不同（先比密文，不同再在内存里解密比明文；解不开算不同），另成一套「润色（旧配置）」，但 `polishProfileId` 不设（按作者拍板跟随当前）。润色槽随后从文件里去掉；不完整的润色槽（旧引擎本来就当它没配置）直接丢弃。密文原样搬，不解密重加密。全新安装没有文件时写出 `profiles: []`。
+    - 已有 `profiles`：若顶层与当前那套不一致，说明 0.2.1 存过盘，以顶层为准写回当前那套；`activeProfileId` 指向不存在的那套时，先找与顶层一致的那套，找不到且顶层非空就把顶层新建成一套「默认」，再不行取第一套并把它镜像回顶层；`polishProfileId` 指向不存在的那套时清空。编号重复或为空、profile 里出现明文 Key 一律报错且不改原文件。
+  - 对旧版 exe（0.2.1）的兼容：旧版的配置结构对未知字段走 `#[serde(flatten)] extra`，`profiles` / `activeProfileId` / `polishProfileId` 会被原样读进、原样写回；旧版只认顶层，所以照旧能用当前那套。旧版改了模型或 Key 后存盘，新版下次读取时写回当前那套（单测 `old_version_round_trip_keeps_profiles` 照抄 0.2.1 的结构体逐字段往返验证）。代价：迁移后文件里不再有 `polish` 槽，回退到 0.2.1 时整章润色按「未配置」降级本地规则（或选「本次使用主模型」）。
+  - 出网解析（`read_revealed_slot`）：main → 当前那套；polish → `polishProfileId` 指的那套，没指定或已不存在 → 当前那套。所以 `chapter.polish` 不再走「未配置降级」；引擎与 golden 没动。`engine_llm_send` 去掉了「尚未配置专用润色模型」的拒绝分支（润色槽不会再空）。
+  - 宿主命令（`llm_config.rs`，注册在 `main.rs`）：`list_llm_profiles`（不含 Key，只给 hasApiKey）、`save_llm_profile`（不带 id 新建；Key 空 = 保持，clearApiKey = 清除；第一套自动成为当前；返回 savedProfileId）、`delete_llm_profile`（不能删当前那套和最后一套；删的是润色指定的那套时回到跟随）、`activate_llm_profile`、`set_llm_polish_profile`。旧的 `get_llm_config` / `save_llm_config` 删除（界面已不用）。
+  - 「获取模型」新命令 `probe_llm_draft`（`src-tauri/src/llm_draft_probe.rs`）：用界面传入的服务商 / 地址 / Key 发一次 `GET {地址}/models`，不落盘；鉴权头按服务商家族与引擎一致（Anthropic `x-api-key`+版本头、Gemini `x-goog-api-key`、其余 Bearer，`STORYFORGE_LLM_AUTH_HEADER=api-key` 时用 `api-key`）。Key 留空时可借 `profileId` 那套已存的 Key，但只许发往那套已存地址的同一来源（防止界面把已存 Key 带去任意地址）。不读出错响应的正文；网络错误文本与模型名里的 Key 换成占位串；15 秒超时、8 MB 上限；错误分 unauthorized / misconfigured / unreachable 三类给界面。复用引擎出网的 reqwest 客户端（系统代理、只跟同源重定向）。
+  - 界面（`components/settings/`）：`useModelProfiles.ts`（列表、切换、增删改、草稿、写操作一次一件）、`ModelProfilesSection.tsx`（配置卡一排 + 高级）、`ModelProfileEditor.tsx`（新建 / 编辑表单）；`SettingsView.tsx` 从 1150 行减到约 700 行，删掉 `useProviderSettings.ts`、两套四格表单、探测模型 / 测试连接 / 保存并应用 / 两个移除密钥按钮，左栏导航去掉「润色模型」。
+    - 顶部一排配置卡：名字（没起名就是「服务商 · 模型」）、副标题、状态行（测试结果 / 还没存 Key）；当前那张打勾、`aria-current`。点卡片即切换，提示「已切到「X」，下一次调用生效」。卡片「…」菜单：编辑 / 移除 Key / 删除（当前那套与最后一套不可删，菜单里写明原因），删除与移除 Key 都先确认。最后一张是「＋新建一套」。
+    - 表单：服务商 chips（单选组，方向键切换）→ 预设服务商的地址自动填好并折叠成一行「地址：…  改地址」，只有「自定义 / 中转」展开地址栏且不预填 → API Key（编辑时留空 = 沿用）→ 模型输入框 +「获取模型」（不用先保存，拉到的列表点选即填）→ 名称（选填）→「保存 / 取消」。保存后自动测一次并写在卡片上：当前那套走引擎原有探测（真实出网链路），其余用它已存的 Key 走 `probe_llm_draft`。
+    - 「高级」折叠区：「整章润色用：跟随当前模型（默认）/ 某一套」。
+    - 未保存徽标与关窗确认只跟正在编辑的草稿走；改了一半去编辑别的那套或新建先确认。
+  - 预设地址修正：引擎在地址后面直接接 `/chat/completions`、`/models`，原来 OpenAI / Kimi / SiliconFlow / 通义千问兼容模式 / Ollama 的预设没带 `/v1`，折叠后作者看不到也改不了，现补成 `…/v1`（DeepSeek、Anthropic、Gemini 不变）；「自定义兼容 OpenAI」改名「自定义 / 中转」，不再预填 api.openai.com。
+  - localStorage（`storyforge-app-settings`）里原来镜像的 `provider` / `polishProvider` 两个槽元信息（不含 Key）从 `AppSettings` 删除：`sanitizeAppSettings` 不再认它们，启动后第一次保存偏好就从 localStorage 里清掉。顺带删掉没人用的 `useAppPreferences().modelLabel`。
+  - 真宿主探针脚本 `verify-engine-p0-native.mjs --llm-only` 的断言从「润色源全空」改为「润色源 = 当前那套的身份（不带调参项）」。
+- 验证：
+  - Rust：`npm --prefix apps/desktop run test:rust` EXIT=0，151 passed + 1 ignored（其中 `llm_config_store` 19 例、`llm_draft_probe` 6 例，新增 / 改写：两槽迁移与幂等、v2 润色槽密文逐字搬、同 Key 双槽不重复 / 不完整润色槽丢弃、保存保持 / 清除 / 坏密文可换、明文与重复编号不改原文件、切换镜像顶层且润色跟随、指定润色那套与坏密钥 fail closed、删除约束、旧版改顶层回写、悬空 activeProfileId 修复、0.2.1 结构体往返；草稿探测的鉴权头按家族、坏地址拒绝不回显、列表解码、草稿 Key 发出且不落盘、401/404/非列表/连不上分类且不含 Key、已存 Key 只借同源且配置文件逐字节不变）。新写的三个 Rust 文件与改动文件过 `rustfmt`（crate 其余文件原本就不是 rustfmt 干净的，未动）。
+  - 前端：`tests/settings-async.test.tsx` 按新界面重写 19 例（切换调用与提示、切换失败、新建全流程含获取模型不先保存与保存后探测走哪条路、当前那套走引擎探测、中转不预填、编辑沿用已存 Key、获取模型迟到结果作废、获取失败可读、保存失败可重试、删除确认与不可删、移除 Key、润色跟随 / 指定 / 改回、写操作一次一件、未保存徽标与关窗、切换草稿确认、读取失败重试、卸载后不再探测、scrollspy）；`settings-accessibility` / `settings-view` / `provider-config` 按新界面改写。四个文件 46 passed。
+  - 变异 1（接线）：`activate` 里不调用 `activateLlmProfile` → settings-async 3 例红；用带 `count==1` 断言的定点替换还原，19 passed。
+  - 变异 2：保存后探测的分支取反（当前那套不走引擎）→ 2 例红，同法还原，19 passed。
+  - 变异 3（Rust）：去掉「旧版改顶层后写回当前那套」→ `old_version_edit_of_top_level…`、`old_version_round_trip_keeps_profiles` 2 例红，同法还原。
+  - `pnpm verify`：EXIT=0（lint、前端类型检查、project-core 14 passed、引擎 94 files / 13821 passed + 2 skipped、前端 244 files / 2431 passed、行间续写 / 浏览器冒烟 / Agent 对话三个浏览器回归通过）。
+  - 行尾：`main.rs` 是 CRLF，按字节定点插入；其余改动文件是 LF。`git diff --numstat` 与 `--ignore-all-space --numstat` 只有整文件重写的 `settings-async.test.tsx` 差 7 行（重写后缩进变化的行），无行尾噪音。
+- 未覆盖：
+  - Tauri 冒烟（`verify:tauri-smoke`）没跑：本机有一个 `storyforge-desktop.exe` 在运行（按约定作者的 StoryForge 开着时不硬跑）。新命令的注册由 `cargo test` 编译 `main.rs` 的 `generate_handler!` 间接覆盖，没有在真 WebView 里点过。
+  - 真宿主探针 `--llm-only` 改了断言但没跑；浏览器回归不经过真宿主，也不打开设置页。
+  - 没在真机上看：第一次用新版打开时旧配置迁移（作者真实的 `llm-provider.json` 没读、没碰）、切换后对话是否下一轮立刻用新模型、卡片 / 表单在 1400×759 浅色暖色下的观感、FloatingSurface 菜单在设置弹窗里的层级、获取模型对真实服务商（含中转）的列表格式。
+  - 回退到 0.2.1 时整章润色会因为润色槽已并入多套配置而按「未配置」降级（见上）；没在装机版上实际回退验证。
+  - 编辑器页签上的润色菜单仍写「使用专用润色模型 / 本次使用主模型」，没指定润色那套时两项效果相同；文案没改，留给作者定。

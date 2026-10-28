@@ -1,5 +1,4 @@
 import type { EditorFontMode, ProseMeasure } from '../components/editor/options';
-import { providerKindOr } from './provider-config';
 import { clampSidePanelWidth, SIDE_PANEL_WIDTH_DEFAULT } from './side-panel-width';
 import {
   ACCENT_CHOICES,
@@ -14,24 +13,6 @@ import {
   type ThemePreference,
   type UiFont,
 } from './appearance';
-
-export type ProviderKind =
-  | 'openai'
-  | 'anthropic'
-  | 'gemini'
-  | 'deepseek'
-  | 'qwen'
-  | 'kimi'
-  | 'siliconflow'
-  | 'ollama'
-  | 'openai-compatible';
-
-export type ProviderSettings = {
-  kind: ProviderKind;
-  baseUrl: string;
-  model: string;
-  apiKeyRef: string;
-};
 
 export type { ThemeMode, ThemePreference } from './appearance';
 
@@ -53,8 +34,6 @@ export type AppSettings = {
   /** 深 / 浅各自一份自定义背景与前景；null = 用主题底色。 */
   customColors: CustomColors;
   uiFont: UiFont;
-  provider: ProviderSettings;
-  polishProvider: ProviderSettings;
   /** 旧欢迎页偏好，仅保留序列化兼容；作品库不再由此隐藏。 */
   showWelcomeOnStartup: boolean;
   /** 选择上次作品时恢复页签与光标位置（旧配置字段兼容）。 */
@@ -82,18 +61,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   accent: DEFAULT_APPEARANCE.accent,
   customColors: DEFAULT_APPEARANCE.customColors,
   uiFont: DEFAULT_APPEARANCE.uiFont,
-  provider: {
-    kind: 'openai',
-    baseUrl: 'https://api.openai.com',
-    model: '',
-    apiKeyRef: '',
-  },
-  polishProvider: {
-    kind: 'anthropic',
-    baseUrl: 'https://api.anthropic.com/v1',
-    model: '',
-    apiKeyRef: '',
-  },
   showWelcomeOnStartup: true,
   restoreLastSession: true,
   sidePanelRatio: null,
@@ -148,35 +115,6 @@ function sanitizeSidePanelRatio(candidate: Record<string, unknown>): number | nu
   return sanitizePanelRatio(px / LEGACY_SIDE_PANEL_REFERENCE_VIEWPORT);
 }
 
-function sanitizeProviderSettings(value: unknown, fallback: ProviderSettings): ProviderSettings {
-  if (!value || typeof value !== 'object') return fallback;
-
-  const candidate = value as Partial<ProviderSettings>;
-  const baseUrl =
-    typeof candidate.baseUrl === 'string' ? candidate.baseUrl.trim() : fallback.baseUrl;
-  const model = typeof candidate.model === 'string' ? candidate.model.trim() : fallback.model;
-  const apiKeyRef =
-    typeof candidate.apiKeyRef === 'string'
-      ? sanitizeApiKeyReference(candidate.apiKeyRef)
-      : fallback.apiKeyRef;
-
-  return {
-    kind: providerKindOr(candidate.kind, fallback.kind),
-    baseUrl: baseUrl || fallback.baseUrl,
-    model,
-    apiKeyRef,
-  };
-}
-
-function sanitizeApiKeyReference(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  if (/^[A-Z][A-Z0-9_]*$/.test(trimmed)) return trimmed;
-  if (/^vault:\/\/[a-z0-9][a-z0-9_./:-]*$/i.test(trimmed)) return trimmed;
-  if (/^stored:\/\/[a-z0-9][a-z0-9_./:-]*$/i.test(trimmed)) return trimmed;
-  return '';
-}
-
 function isProseMeasure(value: unknown): value is ProseMeasure {
   return value === 'narrow' || value === 'medium' || value === 'wide' || value === 'full';
 }
@@ -198,6 +136,8 @@ function sanitizeCustomColors(value: unknown): CustomColors {
   return { dark: pick('dark'), light: pick('light') };
 }
 
+// 模型服务配置只存在宿主的 llm-provider.json；旧版在这里镜像的 provider / polishProvider
+// 读的时候直接丢掉，启动后第一次保存偏好就从 localStorage 里清掉。
 export function sanitizeAppSettings(value: unknown): AppSettings {
   if (!value || typeof value !== 'object') return DEFAULT_APP_SETTINGS;
 
@@ -235,11 +175,6 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
       : DEFAULT_APP_SETTINGS.accent,
     customColors: sanitizeCustomColors(candidate.customColors),
     uiFont: isKeyOf(UI_FONTS, candidate.uiFont) ? candidate.uiFont : DEFAULT_APP_SETTINGS.uiFont,
-    provider: sanitizeProviderSettings(candidate.provider, DEFAULT_APP_SETTINGS.provider),
-    polishProvider: sanitizeProviderSettings(
-      candidate.polishProvider,
-      DEFAULT_APP_SETTINGS.polishProvider,
-    ),
     showWelcomeOnStartup:
       typeof candidate.showWelcomeOnStartup === 'boolean'
         ? candidate.showWelcomeOnStartup
