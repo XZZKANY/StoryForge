@@ -9585,3 +9585,20 @@ output/ts-engine-p0/size-20261011-035219/with-sidecar.nsi / without-sidecar.nsi
 - 未覆盖：
   - 没有在真宿主上点穿。
   - 「接受」本身要几秒，主要花在写前给整本书拍影子快照；这次没提速。
+
+## 2026-10-28 修订 / 起草吐到一半断开时自动重发（试用问题 #20）
+
+- 来源：作者 10-28 让对话 AI 重组「大纲/总纲.md」。改写工具报「真实 LLM 流式读取中断（已输出 7401 字）：IncompleteRead」，没有重试，已经吐出的部分也作废；模型随后把原因猜成「单次篇幅过大」。只读查作者引擎库：会话 23 的 `file.revise` / `assistant.revise`（UTC 08:35:14）两条记录都是这个报错。
+- 根因：对话循环有「吐到一半断开整轮重发两次」（`chatLoopAdapters.ts` 的 `STREAM_RETRY_LIMIT`），修订 / 起草走的 `callLlmStreamed` 却没有，断一次就失败。
+- 改动（引擎）：
+  - `payload.ts` 新增 `LlmStreamBreak`（`LlmError` 子类，报错文字不变），`transport.ts` 在「流开始后连接被切断」处改抛它。
+  - `callLlmStreamed` 遇到 `LlmStreamBreak` 整份重发，最多两次，与对话循环同一上限；每次先检查作者是否停止，再按控制通道等 1 秒；截断的半份不拼接，每次重发前清空上一次的终帧。其他错误（鉴权、状态码、格式）照旧不重发。
+  - golden：`p2-llm-client.json` 只改 `call_llm_streamed` 的 3 个断流场景（usage-then-reset / stream-reset-midway / stream-timeout-midway）。回复录成 3 份同样断开的，期望变为请求 3 次、等待 `[1, 1]`、虚拟时钟 102.75；最终报错文字与用量不变。整份 JSON 先验证读写往返逐字节一致再改，diff 只落在这 3 个场景。
+- 验证：
+  - `assistantService.test.ts` 新增 2 例：断两次后第三次成功，只交完整正文，等待两次各 1 秒；断三次照原文报错、共请求 3 次。61 passed。
+  - 变异：重发上限改成 0，新用例 2 条变红；已还原。
+  - `client.test.ts` replay 128 passed。
+  - `pnpm verify` EXIT=0：引擎 93 files / 13816 passed + 2 skipped，前端 241 files / 2418 passed，三个浏览器回归通过。首跑因 `final` 的初值在每次重发前都会被重置（eslint no-useless-assignment）被 lint 拦下，去掉初值后全绿。
+- 未覆盖：
+  - 失败那几次的用量不计入最终结果。断流时用量帧通常在流末尾，断掉的那几次一般拿不到用量；先拿到用量再断开的少见情形里，前几次的用量不进证据。
+  - 没有在真宿主或作者中转上复现断流。

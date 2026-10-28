@@ -254,3 +254,65 @@ describe('engine LLM binding', () => {
     expect(JSON.parse(requests[0].body)).toMatchObject({ model: 'deepseek-v4', stream: true });
   });
 });
+
+describe('streamed revise / draft retries a stream that breaks mid-output', () => {
+  const encoder = new TextEncoder();
+  const full = [
+    'data: {"choices":[{"delta":{"content":"雨夜"}}]}\n\n',
+    'data: {"choices":[{"delta":{"content":"里"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}\n\n',
+    'data: [DONE]\n\n',
+  ];
+  function binding(breaks: number, waits: number[] = []) {
+    let sent = 0;
+    const llm = engineAssistantLlm(
+      {
+        STORYFORGE_LLM_PROVIDER: 'openai',
+        STORYFORGE_LLM_BASE_URL: 'https://llm.example/v1',
+        STORYFORGE_LLM_API_KEY: '[已隐藏的密钥]',
+        STORYFORGE_LLM_MODEL: 'deepseek-v4',
+      },
+      { values: ['[已隐藏的密钥]'] },
+      {
+        http: {
+          async send() {
+            const broken = sent++ < breaks;
+            return {
+              status: 200,
+              headers: { 'content-type': 'text/event-stream' },
+              body: (async function* () {
+                yield encoder.encode(full[0]);
+                if (broken) throw new HttpTransportError('read', 'IncompleteRead');
+                for (const chunk of full.slice(1)) yield encoder.encode(chunk);
+              })(),
+              close() {},
+            };
+          },
+        },
+        clock: () => 0,
+        wait: async (seconds) => {
+          waits.push(seconds);
+        },
+        random: () => 0,
+        appVersion: 'test',
+      },
+    );
+    return { llm, sent: () => sent };
+  }
+
+  it('resends the whole request and keeps only the complete answer', async () => {
+    const waits: number[] = [];
+    const { llm, sent } = binding(2, waits);
+    const result = await llm.callStreamed({ systemPrompt: '系统', userPrompt: '改写总纲' });
+    expect(result.content).toBe('雨夜里');
+    expect(sent()).toBe(3);
+    expect(waits).toEqual([1, 1]);
+  });
+
+  it('gives up after two resends with the original stream-break message', async () => {
+    const { llm, sent } = binding(3);
+    const failure = llm.callStreamed({ systemPrompt: '系统', userPrompt: '改写总纲' });
+    await expect(failure).rejects.toBeInstanceOf(LlmError);
+    await expect(failure).rejects.toThrow('真实 LLM 流式读取中断（已输出 2 字）：IncompleteRead');
+    expect(sent()).toBe(3);
+  });
+});

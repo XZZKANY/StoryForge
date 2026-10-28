@@ -1381,6 +1381,18 @@
           "body": "data: {\"choices\": [], \"usage\": {\"prompt_tokens\": 1200, \"completion_tokens\": 300, \"total_tokens\": 1500, \"prompt_cache_hit_tokens\": 200}}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一二\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"三\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n",
           "fail_after_lines": 4,
           "fail_with": "ConnectionResetError"
+        },
+        {
+          "status": 200,
+          "body": "data: {\"choices\": [], \"usage\": {\"prompt_tokens\": 1200, \"completion_tokens\": 300, \"total_tokens\": 1500, \"prompt_cache_hit_tokens\": 200}}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一二\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"三\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n",
+          "fail_after_lines": 4,
+          "fail_with": "ConnectionResetError"
+        },
+        {
+          "status": 200,
+          "body": "data: {\"choices\": [], \"usage\": {\"prompt_tokens\": 1200, \"completion_tokens\": 300, \"total_tokens\": 1500, \"prompt_cache_hit_tokens\": 200}}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一二\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"三\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n",
+          "fail_after_lines": 4,
+          "fail_with": "ConnectionResetError"
         }
       ],
       "control": null,
@@ -1429,11 +1441,36 @@
             "authorization": "Bearer sk-client-secret-0123456789"
           },
           "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
         }
       ],
-      "waits": [],
+      "waits": [
+        1,
+        1
+      ],
       "progress": [],
-      "clock": 100.25,
+      "clock": 102.75,
       "unused_replies": 0
     },
     {
@@ -2270,6 +2307,18 @@
           "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一二三\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"四五\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n",
           "fail_after_lines": 4,
           "fail_with": "ConnectionResetError"
+        },
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一二三\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"四五\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n",
+          "fail_after_lines": 4,
+          "fail_with": "ConnectionResetError"
+        },
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一二三\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"四五\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n",
+          "fail_after_lines": 4,
+          "fail_with": "ConnectionResetError"
         }
       ],
       "control": null,
@@ -2294,11 +2343,36 @@
             "authorization": "Bearer sk-client-secret-0123456789"
           },
           "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
         }
       ],
-      "waits": [],
+      "waits": [
+        1,
+        1
+      ],
       "progress": [],
-      "clock": 100.25,
+      "clock": 102.75,
       "unused_replies": 0
     },
     {
@@ -2317,6 +2391,18 @@
         "user": "u"
       },
       "replies": [
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一二三\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n",
+          "fail_after_lines": 2,
+          "fail_with": "TimeoutError"
+        },
+        {
+          "status": 200,
+          "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一二三\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n",
+          "fail_after_lines": 2,
+          "fail_with": "TimeoutError"
+        },
         {
           "status": 200,
           "body": "data: {\"id\": \"chunk-1\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"一二三\"}, \"finish_reason\": null}]}\n\ndata: [DONE]\n\n",
@@ -2346,11 +2432,36 @@
             "authorization": "Bearer sk-client-secret-0123456789"
           },
           "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+        },
+        {
+          "url": "https://relay.example.com/v1/chat/completions",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "authorization": "Bearer sk-client-secret-0123456789"
+          },
+          "body": "{\"model\": \"gpt-test\", \"messages\": [{\"role\": \"system\", \"content\": \"s\"}, {\"role\": \"user\", \"content\": \"u\"}], \"temperature\": 0.7, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
         }
       ],
-      "waits": [],
+      "waits": [
+        1,
+        1
+      ],
       "progress": [],
-      "clock": 100.25,
+      "clock": 102.75,
       "unused_replies": 0
     },
     {

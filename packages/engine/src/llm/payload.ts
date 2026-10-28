@@ -29,6 +29,9 @@ export class LlmError extends Error {
   }
 }
 
+/** 流已开始后连接被切断（不是配置 / 鉴权 / 格式问题）：整份重发有机会成。报错文字与 LlmError 相同。 */
+export class LlmStreamBreak extends LlmError {}
+
 /** 上游给出超长 Retry-After 时不让 worker 空转数小时。 */
 export const RETRY_DELAY_CEILING_SECONDS = 60;
 
