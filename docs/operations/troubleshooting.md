@@ -56,4 +56,4 @@ git diff --ignore-all-space --numstat
 ```
 
 - 仓库常驻本机脚手架与 `output/` 产物，提交只用显式路径。
-- 两种 numstat 不一致说明改出了行尾噪音：按文件原有行尾（CRLF / LF 混用）重写；`.codex/verification-report.md` 是混合行尾，只做字节级追加。
+- 两种 numstat 不一致说明改出了行尾噪音：按文件原有行尾（CRLF / LF 混用）重写；旧验证报告 `.codex/verification-report.md` 是混合行尾，已冻结；万一要改只做字节级操作。

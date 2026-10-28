@@ -262,7 +262,7 @@ StoryForge/
 └── scripts/           本地门禁与生成脚本
 ```
 
-欢迎提 Issue 和 PR。提交前请至少跑一遍 `pnpm verify`；不要提交真实的 API key 或未脱敏的运行日志。更多工程约定见 [`CLAUDE.md`](CLAUDE.md)。
+欢迎提 Issue 和 PR，流程见 [贡献指南](CONTRIBUTING.md)。提交前请至少跑一遍 `pnpm verify`；不要提交真实的 API key 或未脱敏的运行日志。更多工程约定见 [`CLAUDE.md`](CLAUDE.md)。
 
 ## Star 趋势
 

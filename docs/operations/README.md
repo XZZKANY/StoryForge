@@ -1,12 +1,12 @@
 # StoryForge 运维文档索引
 
-更新时间：2026-10-16
+更新时间：2026-10-28
 
 ## 1. 使用方式
 
 本目录收纳 StoryForge 本地开发、发版与故障排查文档。产品只有 Desktop IDE：界面、TS 引擎（`packages/engine`）与 Rust 宿主都在桌面应用里，宿主不起任何后端进程。Python 后端、OpenAPI 契约、Docker 编排已于 2026-10-16 删除（最后一版 `5e6f8e58`）。
 
-所有本地验证结论必须基于可重复命令，并写入 `.codex/verification-report.md`。
+所有本地验证结论必须基于可重复命令，并写进本分支的验证记录（`.codex/verification/`，规则见根 `CONTRIBUTING.md` §4）。
 
 ## 2. 文档列表
 
@@ -25,5 +25,5 @@
 ## 4. 维护规则
 
 - 新增运维文档后，必须在本索引中登记。
-- 修改启动、发版或排障流程后，同步检查根 `README.md` 与 `CLAUDE.md` §4。
-- 所有验证结论必须写入 `.codex/verification-report.md`。
+- 修改启动、发版或排障流程后，同步检查根 `README.md`、`CONTRIBUTING.md` 与 `CLAUDE.md` §4。
+- 所有验证结论必须写进本分支的验证记录（`.codex/verification/`）。

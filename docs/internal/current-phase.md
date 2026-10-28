@@ -54,7 +54,7 @@
 | `README.md` | 面向使用者的入口摘要。 |
 | `docs/archive/internal-history-2026-09/dev-plan.md` | 历史计划和阶段 DoD，不证明最新状态。 |
 
-逐次验证命令和结果见 [验证报告](../../.codex/verification-report.md)。7 月及以前经过见 [阶段历史](../archive/internal-history-2026-09/current-phase-history-2026-07-26.md)。
+逐次验证命令和结果：2026-10-28 起见 [`.codex/verification/`](../../.codex/verification/)（每个分支一份），之前见 [旧验证报告](../../.codex/verification-report.md)。7 月及以前经过见 [阶段历史](../archive/internal-history-2026-09/current-phase-history-2026-07-26.md)。
 
 ## 当前阶段
 
