@@ -269,14 +269,34 @@ export type FileSuggestionTarget = {
   filePath: string;
 };
 
-export function emitAcceptCurrentFileSuggestion(target?: FileSuggestionTarget): boolean {
-  if (typeof window === 'undefined') return false;
+/** accepted：编辑器开始写；busy：同一份补丁正在写；unclaimed：没有编辑器拿着这份补丁。 */
+export type AcceptClaim = 'accepted' | 'busy' | 'unclaimed';
+
+const busyAcceptEvents = new WeakSet<Event>();
+
+/** 编辑器接住了「接受」，但这份补丁正在处理：让发起方别再报「目标还没打开」。 */
+export function markAcceptBusy(event: Event): void {
+  busyAcceptEvents.add(event);
+}
+
+export function emitAcceptCurrentFileSuggestion(target?: FileSuggestionTarget): AcceptClaim {
+  if (typeof window === 'undefined') return 'unclaimed';
   const event = new CustomEvent<FileSuggestionTarget | undefined>(
     ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
     { detail: target, cancelable: true },
   );
   window.dispatchEvent(event);
-  return event.defaultPrevented;
+  if (!event.defaultPrevented) return 'unclaimed';
+  return busyAcceptEvents.has(event) ? 'busy' : 'accepted';
+}
+
+/** 补丁还在缓冲里（目标没打开，或作者切到了别的文件）：再派发一次，让界面打开目标、编辑器领取。 */
+export function reofferPendingFileSuggestion(target: FileSuggestionTarget): boolean {
+  const pending = pendingFileSuggestion;
+  if (!pending || pending.id !== target.patchId || pending.filePath !== target.filePath)
+    return false;
+  emitFileSuggestion(pending);
+  return true;
 }
 
 export function emitSuggestionResult(result: SuggestionResult): void {

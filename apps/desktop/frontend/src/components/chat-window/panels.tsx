@@ -6,6 +6,7 @@ import {
   type ContextBundle,
   type SemanticFile,
 } from '../../lib/project-context';
+import { AUTHOR_LOOP_RESULT_EVENT, type AuthorLoopResult } from '../../lib/assistant-events';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import { AgentStepsPanel, hasProcess } from '../AgentStepsPanel';
 import {
@@ -410,6 +411,22 @@ export function RunActionBar({
 }) {
   // 停止是破坏性终态动作：第一次点击只进入待确认，再点才执行；超时/失焦/划走都取消。
   const [stopConfirmArmed, setStopConfirmArmed] = useState(false);
+  // 点「接受」后编辑器要先拍快照再写盘，要几秒：就地显示正在写，免得作者以为没点上又连点。
+  const [acceptingPatchId, setAcceptingPatchId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!acceptingPatchId) return;
+    const settle = (event: Event) => {
+      if ((event as CustomEvent<AuthorLoopResult>).detail?.action === 'revision_accepted')
+        setAcceptingPatchId(null);
+    };
+    // 编辑器那边被别的操作顶掉时不会回报：最多等一分钟就把选项还给作者。
+    const timer = setTimeout(() => setAcceptingPatchId(null), 60_000);
+    window.addEventListener(AUTHOR_LOOP_RESULT_EVENT, settle);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener(AUTHOR_LOOP_RESULT_EVENT, settle);
+    };
+  }, [acceptingPatchId]);
   const stopConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -532,6 +549,14 @@ export function RunActionBar({
                 },
               ]}
             />
+          ) : acceptingPatchId !== null && acceptingPatchId === approval?.patchId ? (
+            <div
+              role="status"
+              className="px-2 py-1 text-xs text-muted"
+              data-testid="run-accept-writing"
+            >
+              {target ? `正在写进稿子（${target}）…` : '正在写进稿子…'}
+            </div>
           ) : (
             <DecisionChoices
               key={`${run.id}:patch:${approval?.patchId ?? ''}`}
@@ -546,7 +571,10 @@ export function RunActionBar({
                 {
                   label: '接受，写进稿子',
                   testid: 'run-accept-patch',
-                  onSelect: () => controls.onAcceptPatch?.(),
+                  onSelect: () => {
+                    if (controls.onAcceptPatch?.() === 'accepted')
+                      setAcceptingPatchId(approval?.patchId ?? null);
+                  },
                 },
                 {
                   label: '拒绝',

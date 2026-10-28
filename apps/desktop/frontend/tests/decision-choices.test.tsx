@@ -9,6 +9,7 @@ vi.mock('../src/lib/api/chapter-checks', () => ({
 import { ChatWindowView } from '../src/components/chat-window/ChatWindowView';
 import { DecisionChoices } from '../src/components/chat-window/DecisionChoices';
 import { RunActionBar } from '../src/components/chat-window/panels';
+import { emitAuthorLoopResult } from '../src/lib/assistant-events';
 import { useChatWindowState } from '../src/components/chat-window/useChatWindowState';
 import type { AgentRun, ChapterBrief } from '../src/components/chat-window/types';
 
@@ -385,6 +386,61 @@ it('the next patch in the same run is a fresh decision, starting from the first 
   await act(async () => r.render(<RunActionBar run={runFor('p2')} controls={controls} />));
   expect(accept().getAttribute('data-active')).toBe('true');
   expect(reject().getAttribute('data-active')).toBe('false');
+});
+
+it('accepting shows that the patch is being written until the editor reports back', async () => {
+  const r = mount();
+  const noop = () => {};
+  let claim: 'accepted' | 'busy' | 'unclaimed' = 'unclaimed';
+  const onAcceptPatch = vi.fn(() => claim);
+  const controls = {
+    onApprovePermission: noop,
+    onDenyPermission: noop,
+    onPauseRun: noop,
+    onResumeRun: noop,
+    onStopRun: noop,
+    onAcceptPatch,
+    onRejectPatch: noop,
+  };
+  const run: AgentRun = {
+    id: 'run',
+    sessionId: 'session',
+    goal: '建设定',
+    status: 'waiting',
+    steps: [
+      {
+        id: 'approval',
+        title: '等待作者确认',
+        tool: 'author.approval',
+        status: 'waiting',
+        detail: '',
+        filePath: 'D:/book/世界观/资源与生存法则.md',
+        patchId: 'p1',
+      },
+    ],
+  };
+  const accept = () => host.querySelector<HTMLButtonElement>('[data-testid="run-accept-patch"]');
+  const writing = () => host.querySelector('[data-testid="run-accept-writing"]');
+  await act(async () => r.render(<RunActionBar run={run} controls={controls} />));
+  // 编辑器没接住：选项留着，好让作者去打开文件后再点。
+  await act(async () => accept()!.click());
+  expect(writing()).toBeNull();
+  expect(accept()).not.toBeNull();
+  claim = 'accepted';
+  await act(async () => accept()!.click());
+  expect(writing()?.textContent).toContain('正在写进稿子（资源与生存法则.md）');
+  expect(accept()).toBeNull();
+  await act(async () =>
+    emitAuthorLoopResult({
+      filePath: 'D:/book/世界观/资源与生存法则.md',
+      status: 'error',
+      action: 'revision_accepted',
+      message: '磁盘内容已变化',
+    }),
+  );
+  expect(writing()).toBeNull();
+  expect(accept()).not.toBeNull();
+  expect(onAcceptPatch).toHaveBeenCalledTimes(2);
 });
 
 it('a written direction stays in the box when the choice reports it was not carried out', async () => {

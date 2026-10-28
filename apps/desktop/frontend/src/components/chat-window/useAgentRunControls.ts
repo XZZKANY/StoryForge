@@ -4,7 +4,6 @@ import {
   AUTHOR_LOOP_RESULT_EVENT,
   PATCH_REJECTED_EVENT,
   SUGGESTION_RESULT_EVENT,
-  emitAcceptCurrentFileSuggestion,
   requestRejectCurrentFileSuggestion,
   type AuthorLoopResult,
   type PatchRejection,
@@ -21,6 +20,7 @@ import {
   type AgentResultMessage,
   type AgentSocketMessage,
 } from '../../lib/api-client';
+import { acceptPatchFromChat } from './accept-patch';
 import { relativePath } from './path-utils';
 import { recoveryDisplayFromCheckpoint } from './recovery';
 import { useAgentRunReconciliation } from './useAgentRunReconciliation';
@@ -309,12 +309,11 @@ export function useAgentRunControls(
       }),
     onAcceptPatch: () => {
       const approvalStep = agentRun?.steps.find((step) => step.id === 'approval');
-      if (!approvalStep?.patchId || !approvalStep.filePath) return;
-      const handled = emitAcceptCurrentFileSuggestion({
-        patchId: approvalStep.patchId,
-        filePath: approvalStep.filePath,
-      });
-      if (!handled) emitToast('补丁目标仍在打开，请稍后再试', { tone: 'info' });
+      if (!approvalStep?.patchId || !approvalStep.filePath) return 'unclaimed';
+      return acceptPatchFromChat(
+        { patchId: approvalStep.patchId, filePath: approvalStep.filePath },
+        projectPathRef.current,
+      );
     },
     onRejectPatch: async (direction: string) => {
       if (!agentRun) return false;

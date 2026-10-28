@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { editor as monacoEditor, __getLastEditor, __resetMonacoStub } from 'monaco-editor';
 import { Editor } from '../src/components/Editor';
 import {
+  emitAcceptCurrentFileSuggestion,
   emitFileSuggestion,
   EDITOR_AUTHOR_VIEW_EVENT,
   AUTHOR_VIEW_SELECTION_MAX_CHARS,
@@ -148,6 +149,35 @@ it('rechecks disk after a pending snapshot, not just before it', async () => {
   expect(files.get(FILE)).toBe('changed during snapshot');
   expect(effects.record).not.toHaveBeenCalled();
   expect(host.textContent).toContain('磁盘内容已变化');
+});
+
+it('a second accept while the first is still writing reports busy and writes once', async () => {
+  await open('original');
+  let release!: (value: { timestamp: number; created: boolean }) => void;
+  effects.snapshot.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  );
+  await propose('original', 'proposed');
+  const target = { patchId: `disk-patch-${proposalSequence - 1}`, filePath: FILE };
+  let first!: string;
+  await act(async () => {
+    first = emitAcceptCurrentFileSuggestion(target);
+  });
+  expect(first).toBe('accepted');
+  await observe(() => expect(effects.snapshot).toHaveBeenCalledOnce());
+  let second!: string;
+  await act(async () => {
+    second = emitAcceptCurrentFileSuggestion(target);
+  });
+  expect(second).toBe('busy');
+  await act(async () => release({ timestamp: 1, created: false }));
+  await observe(() => expect(files.get(FILE)).toBe('proposed'));
+  expect(writes.filter((path) => path === FILE)).toHaveLength(1);
+  expect(effects.snapshot).toHaveBeenCalledOnce();
+  expect(emitAcceptCurrentFileSuggestion({ ...target, patchId: 'other' })).toBe('unclaimed');
 });
 
 it.each(['', 'external creation'])(

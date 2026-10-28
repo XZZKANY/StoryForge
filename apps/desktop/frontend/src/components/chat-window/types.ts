@@ -1,5 +1,6 @@
 import type { AgentResultMessage, AgentToolTrace } from '../../lib/api-client';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
+import type { AcceptClaim } from '../../lib/assistant-events';
 import type { LocalConversationAction } from '../../lib/local-conversation-action';
 import type { ContextBundle } from '../../lib/project-context';
 import type { LayoutMode } from '../shell/useShellState';
@@ -155,7 +156,8 @@ export type AgentRunControlHandlers = {
   onReconcileRun?: () => void;
   onStopRun: () => void;
   onConfirmChapterBrief?: (brief: ChapterBrief) => void;
-  onAcceptPatch?: () => void;
+  /** 回报编辑器有没有接住：界面据此显示「正在写进稿子」或给出去哪里接受。 */
+  onAcceptPatch?: () => AcceptClaim | void;
   /** 返回 false 表示没否掉（补丁目标还没打开、恢复记录写不进去）：对话区留着作者写的方向。 */
   onRejectPatch?: (direction: string) => void | Promise<boolean>;
 };

@@ -16,6 +16,7 @@ import {
   SUGGESTION_RESULT_EVENT,
   bufferPendingFileSuggestion,
   emitPatchRejected,
+  markAcceptBusy,
   takePendingFileSuggestion,
   replacePendingFileSuggestion,
   type FileSuggestionTarget,
@@ -1511,11 +1512,14 @@ export function useSuggestionWriteback({
       const suggestion = pendingSuggestionRef.current;
       if (
         !suggestion ||
-        actionInFlightRef.current ||
         (target && (suggestion.id !== target.patchId || suggestion.filePath !== target.filePath))
       )
         return;
       event.preventDefault();
+      if (actionInFlightRef.current) {
+        markAcceptBusy(event);
+        return;
+      }
       void handleAcceptSuggestion();
     };
     window.addEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
