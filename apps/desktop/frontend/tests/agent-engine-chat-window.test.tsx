@@ -35,6 +35,8 @@ const fixture = vi.hoisted(() => ({
   requests: [] as Obj[],
   /** 下一次读文件字节之前执行一次（工具正在跑时发控制）。 */
   beforeRead: null as null | (() => Promise<void>),
+  /** 只拦这个项目相对路径的读取；发请求前比对补丁写盘状态的读取不算。 */
+  beforeReadPath: null as string | null,
   /** 引擎库：模块重置（模拟重启）后仍是同一个库。 */
   db: null as Db | null,
 }));
@@ -77,9 +79,12 @@ vi.mock('../src/lib/engine/reader', () => ({
     get: (_target, key) =>
       key === 'readProjectBytes'
         ? async (...args: Parameters<ProjectReader['readProjectBytes']>) => {
-            const hook = fixture.beforeRead;
-            fixture.beforeRead = null;
-            await hook?.();
+            const watched = fixture.beforeReadPath;
+            if (watched === null || args[1].replace(/\\/g, '/').endsWith(watched)) {
+              const hook = fixture.beforeRead;
+              fixture.beforeRead = null;
+              await hook?.();
+            }
             return fixture.reader.readProjectBytes(...args);
           }
         : (fixture.reader as unknown as Obj)[key as string],
@@ -260,6 +265,7 @@ beforeEach(async () => {
   fixture.replies = [];
   fixture.requests = [];
   fixture.beforeRead = null;
+  fixture.beforeReadPath = null;
   vi.stubGlobal('fetch', pythonGuard);
 });
 afterEach(async () => {
@@ -345,6 +351,7 @@ describe('ChatWindow author path on the TS engine', () => {
       { reply: streamed([], [['c1', 'fs_read', { path: '人物/主角.md' }]]) },
       { reply: streamed(['读完了。']) },
     );
+    fixture.beforeReadPath = '人物/主角.md';
     fixture.beforeRead = () => controlInFlight('pause_run');
     await mount();
     await act(async () => current.run('读人物再答', 'agent'));
@@ -580,6 +587,7 @@ describe('ChatWindow on the TS engine across a restart', () => {
     const before = await restart();
     fixture.replies.push({ reply: streamed([], [['c1', 'fs_read', { path: '人物/主角.md' }]]) });
     let reading = false;
+    fixture.beforeReadPath = '人物/主角.md';
     fixture.beforeRead = () => {
       reading = true;
       return new Promise<void>(() => undefined);

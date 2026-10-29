@@ -1,0 +1,21 @@
+## 2026-10-29 对话历史投影读盘比对已结算补丁，接受过的章不再被要求重做（#519）
+
+- 根因：
+  - `packages/engine/src/loop/conversationHistory.ts` 的证据覆盖对每个 run 恒写 `writeback:'unverified'`，规则是「没有 Desktop 回执不可宣称已写盘」。回执（`.storyforge/writeback-receipts`）与审计（`.storyforge/author-loop`）从不进对话；询问档的批准控制虽在写盘与审计之后才发（`suggestion-recovery.ts` 的 `settleSuggestionRun`），但投影不认；自动档根本不发批准，投影里连该 run 的条目都没有。对话里那句「已写进…」只在界面状态里，不落库。于是下一轮模型只看到「已批准、写盘未核验、旧补丁不再待确认」，要求作者重新生成上一章。
+  - 本次在 master（`fe4969f4`）上读代码确认链路；没有拿作者的作品或引擎库复现。
+- 改动（只动引擎，不碰帧契约 / `contracts.ts` / `codecs.ts`，无库迁移，界面不改）：
+  - `conversationHistory.ts`：`projectConversationHistory` 新增可选读盘参数 `{ reader, root }`。给了就对已结算补丁（询问档 `permission=approved`；自动档 `requires_confirmation:false` 且该 run 有 `agent_run_completed`）的目标文件读盘比对：去 BOM、统一行尾后与补丁 after / before 比，得 `after / before / diverged / missing / unreadable`；同一文件只比最新一份，更早的记 `superseded`；每轮最多读最近 12 个文件（`WRITEBACK_PROBE_FILE_LIMIT`），超出的不读、不出条目；读口抛 `ProjectReadError` 或不是 UTF-8 只记 `unreadable`。结果放进覆盖层新键 `writeback_by_run`（patch_id、相对路径、mode=ask/auto、current，询问档带 `approval_source`），只有 `current=after` 才把 `permission_by_run` 里该 run 的 `writeback` 改成 `on_disk`，其余保持 `unverified`；有条目时才附 `writeback_rule`。原 `rule` 文字、`currentEvidenceOverlay`、压缩检查点、`conversationHistoryBytes` 都不变；新增内容在 `checkContextBudget` 之内。
+  - `loopMessages.ts`：组装循环消息时把读口与项目根交给历史投影（项目根为空就不传）。
+  - 新测试 `conversationWriteback.test.ts`（12 条）。
+- 前端测试同步：`apps/desktop/frontend/tests/agent-engine-chat-window.test.tsx` 里模拟「卡在工具执行中」的读文件钩子原本拦截下一次任意读取；本改动让引擎在发模型请求前先读盘比对同一会话里已结算的补丁，钩子被这次比对读取用掉，「重启后收掉中途断开的运行」一条单跑稳定变红（期望 1 次模型请求、实际 0 次）。钩子加 `beforeReadPath`，只拦工具要读的 `人物/主角.md`（暂停那一条同样收窄），测试意图不变。
+- 验证：
+  - `npx vitest run src/loop/conversationWriteback.test.ts src/loop/conversation.test.ts`（引擎）：98 passed（新测试 12 条覆盖：询问档写盘后 after / on_disk、只批准没写成 unverified、写后再改 diverged、撤销 before、新建文件被删 missing、自动档、同文件两份补丁 superseded、CRLF+BOM 对 LF、读口抛错与非 UTF-8 unreadable、不传读口逐字节不变、超过 12 个文件只比最近的、待确认 / 被拒 / 取消不比对且无条目不附规则、循环消息组装传读口）。
+  - `npx vitest run tests/agent-engine-chat-window.test.tsx`（前端）：改钩子前 1 failed，改后 13 passed。
+  - 变异（备份字节、断言替换点唯一、跑完 `cmp` 还原）：去掉 `on_disk` 覆盖 → 3 条红；去掉 12 个文件上限 → 1 条红。
+  - `pnpm verify` 第一遍：单测全绿，浏览器回归「行间续写」`page.goto` 30s 超时；单跑 `npm --prefix apps/desktop/frontend run verify:inline-continuation` EXIT=0；整套重跑 EXIT=0：project-core 14、引擎 14013 passed + 2 skipped、前端 2523 passed、三个浏览器回归通过。golden 零改动（Python 预言机比对全绿）。
+  - 行尾：三个源码文件全 LF；`--numstat` 与 `--ignore-all-space --numstat` 只在前端测试差 3 行（钩子包进 if 多一层缩进）。
+- 未覆盖：
+  - 没用真模型验证：模型看到 `writeback_by_run` 与 `writeback_rule` 后是否确实不再要求重做已接受的章（issue 里的原始现象）。
+  - 只说明「文件此刻就是补丁结果」，不证明是 Desktop 写的；整份接受时合并了作者并行编辑的会显示 diverged。
+  - 已有压缩检查点里若写着「未核验」，模型会不会被旧条目带偏没验证（覆盖层声明自己优先）。
+  - 真宿主探针与真机没跑。

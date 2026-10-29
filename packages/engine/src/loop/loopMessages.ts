@@ -71,7 +71,11 @@ export async function storyforgeMessages(
     ['scene_constraints', system(sceneBlock)],
     [
       'conversation_history',
-      await projectConversationHistory(deps.conversation, input.assistantSessionId),
+      await projectConversationHistory(
+        deps.conversation,
+        input.assistantSessionId,
+        root ? { reader, root } : null,
+      ),
     ],
     ['pinned_context', system(pinnedBlock)],
     ['author_view', system(viewBlock)],
