@@ -40,15 +40,32 @@ fn key_of(config: &StoredLlmConfig, id: &str) -> Option<String> {
 }
 
 #[test]
-fn missing_configuration_is_initialized_without_secrets() {
+fn missing_configuration_reads_empty_without_touching_disk() {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("llm-provider.json");
+    let config_dir = dir.path().join("com.storyforge.ide");
+    let path = config_dir.join("llm-provider.json");
     let listed = list(&path).unwrap();
     assert!(listed.profiles.is_empty() && listed.active_profile_id.is_none());
+    let slot = read_revealed_slot(&path, false).unwrap();
+    assert!(slot.model.is_empty() && slot.api_key.is_none());
+    assert!(!config_dir.exists(), "只读不建目录、不落默认文件");
+    save_profile(&path, profile(None, "m", None)).unwrap();
     let value = raw(&path);
     assert_eq!(value["schemaVersion"], 2);
     assert!(value["apiKey"].is_null());
-    assert_eq!(value["profiles"], json!([]));
+    assert_eq!(value["profiles"][0]["model"], "m");
+}
+
+/// 只许读、不许替换：读配置照常，原子替换（要删目标）失败。
+#[cfg(windows)]
+fn hold_read_only(path: &Path) -> fs::File {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_SHARE_READ: u32 = 1;
+    fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ)
+        .open(path)
+        .unwrap()
 }
 
 #[cfg(windows)]
@@ -182,7 +199,16 @@ fn failed_atomic_replace_preserves_target_and_cleans_staging() {
     let target = dir.path().join("target");
     fs::create_dir(&target).unwrap();
     fs::write(target.join("untouched"), "keep").unwrap();
-    assert!(write(&target, &StoredLlmConfig::default()).is_err());
+    let error = write(&target, &StoredLlmConfig::default())
+        .unwrap_err()
+        .to_string();
+    assert!(error.starts_with("无法原子替换 LLM 配置，原配置未更改（系统错误 "));
+    #[cfg(windows)]
+    assert!(
+        error.contains("系统错误 5：ERROR_ACCESS_DENIED，"),
+        "{error}"
+    );
+    assert!(!error.contains("os error"), "系统错误码不重复两遍：{error}");
     assert_eq!(
         fs::read_to_string(target.join("untouched")).unwrap(),
         "keep"
@@ -214,7 +240,8 @@ fn locked_destination_keeps_original_and_cleans_encrypted_staging() {
         .share_mode(0)
         .open(&path)
         .unwrap();
-    assert!(write(&path, &StoredLlmConfig::default()).is_err());
+    let error = write(&path, &StoredLlmConfig::default()).unwrap_err();
+    assert!(error.to_string().contains("系统错误 "), "{error}");
     drop(lock);
     assert_eq!(fs::read_to_string(&path).unwrap(), "original-test-bytes");
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
@@ -455,4 +482,89 @@ fn old_version_round_trip_keeps_profiles() {
     assert_eq!(after.polish_profile_id, before.polish_profile_id);
     assert_eq!(after.profiles[0].base_url, "https://old-exe.invalid/v1");
     assert_eq!(after.profiles[1].base_url, BASE);
+}
+
+#[cfg(windows)]
+#[test]
+fn not_same_device_reason_is_readable() {
+    let reason = system_reason(&io::Error::from_raw_os_error(17));
+    assert!(
+        reason.starts_with("系统错误 17：ERROR_NOT_SAME_DEVICE，"),
+        "{reason}"
+    );
+    assert!(!reason.contains("os error"), "{reason}");
+}
+
+#[cfg(windows)]
+#[test]
+fn v1_migration_write_back_failure_still_reads_and_save_reports_reason() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    let mut legacy = json!({"provider":"openai-compatible","baseUrl":BASE,
+        "model":"test-model","apiKey":"main-test-sentinel"});
+    legacy["polish"] = json!({"provider":"gemini","baseUrl":"https://polish.invalid","model":"p",
+        "apiKey":"polish-test-sentinel"});
+    let original = legacy.to_string();
+    fs::write(&path, &original).unwrap();
+    let lock = hold_read_only(&path);
+
+    let listed = list(&path).unwrap();
+    assert_eq!(listed.profiles.len(), 2);
+    assert_eq!(listed.active_profile_id.as_deref(), Some("p1"));
+    let main = read_revealed_slot(&path, false).unwrap();
+    assert_eq!(
+        (main.model.as_str(), main.api_key.as_deref()),
+        ("test-model", Some("main-test-sentinel"))
+    );
+    assert_eq!(
+        read_revealed_profile(&path, "p2")
+            .unwrap()
+            .api_key
+            .as_deref(),
+        Some("polish-test-sentinel")
+    );
+
+    let error = save_profile(&path, profile(Some("p1"), "m", Some("new-test-sentinel")))
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(
+        error.starts_with("无法原子替换 LLM 配置，原配置未更改（系统错误 "),
+        "{error}"
+    );
+    assert!(!error.contains("test-sentinel") && !error.contains("ciphertext"));
+    assert_eq!(fs::read_to_string(&path).unwrap(), original);
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1, "不留暂存文件");
+
+    drop(lock);
+    list(&path).unwrap();
+    assert_eq!(raw(&path)["schemaVersion"], 2, "能写了，下次读取照常收口");
+}
+
+#[cfg(windows)]
+#[test]
+fn reconcile_write_back_failure_still_serves_the_old_version_edit() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    save_profile(&path, profile(None, "claude", Some("claude-test-sentinel"))).unwrap();
+    save_profile(&path, profile(None, "kimi", Some("kimi-test-sentinel"))).unwrap();
+    let mut data = raw(&path);
+    data["model"] = json!("claude-edited-by-old-exe");
+    data["apiKey"] =
+        serde_json::to_value(ProtectedKey::protect("old-exe-test-sentinel").unwrap()).unwrap();
+    let edited = data.to_string();
+    fs::write(&path, &edited).unwrap();
+    let lock = hold_read_only(&path);
+
+    let main = read_revealed_slot(&path, false).unwrap();
+    assert_eq!(
+        (main.model.as_str(), main.api_key.as_deref()),
+        ("claude-edited-by-old-exe", Some("old-exe-test-sentinel"))
+    );
+    let listed = list(&path).unwrap();
+    assert_eq!(listed.profiles[0].model, "claude-edited-by-old-exe");
+    assert_eq!(listed.profiles[1].model, "kimi");
+    assert_eq!(fs::read_to_string(&path).unwrap(), edited);
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1, "不留暂存文件");
+    drop(lock);
 }

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::{ErrorKind, Write};
+use std::io::{self, ErrorKind, Write};
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 
@@ -155,10 +155,11 @@ fn load_with_protector(
 ) -> Result<(StoredLlmConfig, bool)> {
     let raw = match fs::read(path) {
         Ok(raw) => raw,
+        // 文件不存在：读路径不为「落一份默认文件」写盘，第一次保存时才建。
         Err(error) if error.kind() == ErrorKind::NotFound => {
             let mut config = StoredLlmConfig::default();
             profiles::normalize(&mut config)?;
-            return Ok((config, true));
+            return Ok((config, false));
         }
         Err(_) => bail!("无法读取 LLM 配置文件"),
     };
@@ -190,18 +191,66 @@ fn load_with_protector(
     Ok((config, version == 1 || normalized))
 }
 
+#[cfg(windows)]
+fn windows_error_name(code: i32) -> Option<&'static str> {
+    Some(match code {
+        5 => "ERROR_ACCESS_DENIED",
+        17 => "ERROR_NOT_SAME_DEVICE",
+        32 => "ERROR_SHARING_VIOLATION",
+        33 => "ERROR_LOCK_VIOLATION",
+        112 => "ERROR_DISK_FULL",
+        _ => return None,
+    })
+}
+
+#[cfg(not(windows))]
+fn windows_error_name(_code: i32) -> Option<&'static str> {
+    None
+}
+
+// 只取系统错误码与系统给的说明：io 错误不含配置内容，Key / 密文带不出来。
+fn system_reason(error: &io::Error) -> String {
+    let text = error.to_string();
+    let Some(code) = error.raw_os_error() else {
+        return text;
+    };
+    let suffix = format!(" (os error {code})");
+    let detail = text.strip_suffix(&suffix).unwrap_or(&text).trim();
+    let name = windows_error_name(code);
+    match (name, detail.is_empty()) {
+        (Some(name), false) => format!("系统错误 {code}：{name}，{detail}"),
+        (Some(name), true) => format!("系统错误 {code}：{name}"),
+        (None, false) => format!("系统错误 {code}：{detail}"),
+        (None, true) => format!("系统错误 {code}"),
+    }
+}
+
+// 界面与引擎只显示最外层一句（`to_string`），所以底层原因要拼进这一句里，不能挂在 context 链上。
+fn write_failure(step: &str, error: &io::Error) -> anyhow::Error {
+    anyhow::anyhow!("{step}（{}）", system_reason(error))
+}
+
 fn write(path: &Path, config: &StoredLlmConfig) -> Result<()> {
     let parent = path.parent().context("LLM 配置目录无效")?;
-    fs::create_dir_all(parent).context("无法创建 LLM 配置目录")?;
+    fs::create_dir_all(parent).map_err(|error| write_failure("无法创建 LLM 配置目录", &error))?;
     // Existing manuscript/shadow Git writers have private, domain-specific seams.
     // NamedTempFile provides exclusive staging + failure cleanup without changing them.
-    let mut staged = tempfile::NamedTempFile::new_in(parent).context("无法暂存 LLM 配置")?;
-    serde_json::to_writer_pretty(&mut staged, config).context("无法序列化 LLM 配置")?;
-    staged.flush().context("无法暂存 LLM 配置")?;
-    staged.as_file().sync_all().context("无法同步 LLM 配置")?;
+    let mut staged = tempfile::NamedTempFile::new_in(parent)
+        .map_err(|error| write_failure("无法暂存 LLM 配置", &error))?;
+    serde_json::to_writer_pretty(staged.as_file_mut(), config)
+        .map_err(|error| write_failure("无法序列化 LLM 配置", &error.into()))?;
+    staged
+        .as_file_mut()
+        .flush()
+        .map_err(|error| write_failure("无法暂存 LLM 配置", &error))?;
+    staged
+        .as_file()
+        .sync_all()
+        .map_err(|error| write_failure("无法同步 LLM 配置", &error))?;
+    // 不做「替换失败就复制覆盖」：那样不再原子，写到一半会留下坏文件。
     staged
         .persist(path)
-        .map_err(|_| anyhow::anyhow!("无法原子替换 LLM 配置，原配置未更改"))?;
+        .map_err(|error| write_failure("无法原子替换 LLM 配置，原配置未更改", &error.error))?;
     Ok(())
 }
 
@@ -212,13 +261,17 @@ fn lock() -> Result<MutexGuard<'static, ()>> {
 }
 
 // 读取即收口：旧版配置迁移、旧版改过顶层后的对账都在这里原子写回（加密失败则原文件不动）。
+// 写回只是顺手收口：失败时原文件不动，本次照用内存里规范化好的配置，下次读取再试；
+// 读配置（含模型调用前取 Key）不能因为写不了盘而失败。作者主动保存走 `mutate`，失败照实报错。
 fn read_normalized(
     path: &Path,
     protect: &impl Fn(&str) -> Result<ProtectedKey>,
 ) -> Result<StoredLlmConfig> {
     let (config, needs_write) = load_with_protector(path, protect)?;
     if needs_write {
-        write(path, &config)?;
+        if let Err(error) = write(path, &config) {
+            eprintln!("[llm-config] 读取时写回规范化配置失败，本次照用内存里的配置：{error}");
+        }
     }
     Ok(config)
 }
