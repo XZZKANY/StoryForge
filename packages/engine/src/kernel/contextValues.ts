@@ -1,3 +1,4 @@
+import { MAX_CONTEXT_FILES } from '@storyforge/project-core';
 import { pythonStrRepr } from '../llm/pythonRepr';
 import { InputDomainError, pythonFloatRepr } from './json';
 import { pythonStrip } from './pythonText';
@@ -7,7 +8,7 @@ export const SNAPSHOT_VERSION = 1;
 export const SELECTED_FILE_TEXT_LIMIT = 12000;
 export const MEMORY_TEXT_LIMIT = 800;
 export const REVIEW_TEXT_LIMIT = 600;
-export const MAX_CONTEXT_FILES = 8;
+export { MAX_CONTEXT_FILES };
 export const MAX_REVIEW_ISSUES = 12;
 export const MAX_STORY_MEMORY_ITEMS = 8;
 export const MAX_PROMPT_CONTEXT_FILES = 12;

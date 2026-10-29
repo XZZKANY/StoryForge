@@ -1,3 +1,4 @@
+export { MAX_CONTEXT_FILES } from './contextLimits';
 export type { FileEntry, ProjectFileSystem } from './filesystem';
 export {
   isUntouchedProjectGuide,

@@ -1,5 +1,4 @@
-import { compareManuscriptPaths } from '@storyforge/project-core';
-import { MAX_CONTEXT_FILES } from '../api/context-limits';
+import { compareManuscriptPaths, MAX_CONTEXT_FILES } from '@storyforge/project-core';
 import { TauriFileSystem } from '../tauri-fs';
 import { FS_MUTATION_EVENT } from '../tauri-fs';
 import { buildProjectIndex } from './index';

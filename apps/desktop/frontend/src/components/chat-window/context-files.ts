@@ -1,4 +1,4 @@
-import { MAX_CONTEXT_FILES } from '../../lib/api/context-limits';
+import { MAX_CONTEXT_FILES } from '@storyforge/project-core';
 import {
   classifyRelativePath,
   excerptForContext,

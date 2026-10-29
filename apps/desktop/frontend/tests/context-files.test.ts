@@ -1,7 +1,8 @@
 import { beforeEach, expect, it } from 'vitest';
 import type { FileEntry } from '@storyforge/project-core';
 
-import { MAX_CONTEXT_FILES } from '@storyforge/engine';
+import { MAX_CONTEXT_FILES as ENGINE_MAX_CONTEXT_FILES } from '../../../../packages/engine/src/kernel/contextValues';
+import { MAX_CONTEXT_FILES } from '@storyforge/project-core';
 import { appendExplicitContextFiles } from '../src/components/chat-window/context-files';
 import {
   buildContextBundle,
@@ -132,6 +133,7 @@ it('上限等于引擎常量，补入排前，挤掉的计入超出席位', asyn
     PROJECT,
     ['设定/a.md', '设定/b.md'],
   );
+  expect(MAX_CONTEXT_FILES).toBe(ENGINE_MAX_CONTEXT_FILES);
   expect(bundle.files).toHaveLength(MAX_CONTEXT_FILES);
   expect(bundle.budget.maxFiles).toBe(MAX_CONTEXT_FILES);
   expect(bundle.files.slice(0, 2).map((file) => file.relativePath)).toEqual([
