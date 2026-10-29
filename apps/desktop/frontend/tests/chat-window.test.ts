@@ -12,6 +12,7 @@ import {
   displayFromResumeDiagnostic,
   extractIssueScopeFromInstruction,
   filePathFromAgentResult,
+  lengthHintFromAgentResult,
   repairPatchApproval,
   reviewIssuesFromReport,
   resolveProposedPatchFilePath,
@@ -633,6 +634,51 @@ test('截断警告取自 agent_result；断线重建丢了这一项时退到同�
     truncationWarningFromAgentResult({ ...base, agent_result: { summary: '改好了。' } }),
     null,
   );
+});
+
+test('字数提示取自 agent_result；断线重建丢了这一项时退到同一补丁的 file.revise 轨迹', () => {
+  const hint = {
+    message: '字数提示：目标约 3600–4400 字，这版实际 5999 字（偏多 1599 字）。',
+    target_min: 3600,
+    target_max: 4400,
+    actual_chars: 5999,
+  };
+  const base = {
+    type: 'agent_result',
+    session_id: 'agent-session',
+    assistant_session_id: 1,
+    intent: 'chat.explain',
+    user_message: '把第三章改成4000字左右',
+    plan: [],
+    tool_trace: [],
+    proposed_patch: { id: 'file-revision-1', kind: 'file_revision' },
+  };
+  assert.equal(
+    lengthHintFromAgentResult({
+      ...base,
+      agent_result: { summary: '改好了。', length_hint: hint },
+    }),
+    hint.message,
+  );
+  const trace = (patchId: string) => ({
+    tool_name: 'file.revise',
+    status: 'completed',
+    input_summary: {},
+    output_summary: { patch_id: patchId, length_hint: hint },
+  });
+  const rebuilt = {
+    ...base,
+    agent_result: { summary: '该步骤需要作者确认后才能继续。' },
+    tool_trace: [trace('file-revision-1')],
+  };
+  assert.equal(lengthHintFromAgentResult(rebuilt), hint.message);
+  assert.equal(
+    lengthHintFromAgentResult({ ...rebuilt, tool_trace: [trace('file-revision-0')] }),
+    null,
+    '别的补丁的字数提示不能挂到这份补丁上',
+  );
+  assert.equal(truncationWarningFromAgentResult(rebuilt), null, '字数提示不能当成截断警告');
+  assert.equal(lengthHintFromAgentResult({ ...base, agent_result: { summary: '改好了。' } }), null);
 });
 
 // G2 护栏：ChatWindow 主外壳 renderToStaticMarkup 快照（拆分前固定 trunk 结构）。

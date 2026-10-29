@@ -43,6 +43,7 @@ export { buildStableAgentRequestPayload } from './chat-window/request-payload';
 export { buildAgentRunRecoveryDisplay } from './chat-window/recovery';
 export {
   extractIssueScopeFromInstruction,
+  lengthHintFromAgentResult,
   reviewIssuesFromReport,
   scopeWarningFromAgentResult,
   truncationWarningFromAgentResult,

@@ -492,6 +492,11 @@ export function PatchReviewPanel({
                 ⚠ {suggestion.truncationWarning}
               </p>
             )}
+            {suggestion.lengthHint && (
+              <p className="mt-1 text-xs text-warning" data-testid="patch-length-hint">
+                {suggestion.lengthHint}
+              </p>
+            )}
             <div hidden={!detailsOpen} data-testid="patch-details">
               <p className="mt-1 text-xs text-muted">
                 {markdownToPlainLine(suggestion.summary) ?? suggestion.summary}

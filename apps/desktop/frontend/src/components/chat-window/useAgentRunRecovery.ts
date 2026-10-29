@@ -29,6 +29,7 @@ import {
   reviewIssuesFromReport,
   reviewReportFromMessage,
   reviewReportSummary,
+  lengthHintFromAgentResult,
   scopeWarningFromAgentResult,
   truncationWarningFromAgentResult,
 } from './review';
@@ -244,6 +245,7 @@ export function useAgentRunRecovery(
             knowledgeEntries: writingContext.knowledgeEntries,
             scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
             truncationWarning: truncationWarningFromAgentResult(response) ?? undefined,
+            lengthHint: lengthHintFromAgentResult(response) ?? undefined,
             requiresConfirmation: proposed.requires_confirmation,
             runId: response.run_id ?? undefined,
           }),
