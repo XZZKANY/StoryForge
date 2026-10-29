@@ -45,6 +45,24 @@ const PATCH_ACTION_LABELS: Record<PatchAction, string> = {
   retry: '重试',
 };
 
+// 定位类拒写只取决于补丁和当前稿，再点多少次结果都一样。
+const DETERMINISTIC_LOCATE_FAILURE = /无法安全定位|无法唯一确定|插入点前文已变/;
+
+/**
+ * P2-D：漂移拒写（内容已变化）与定位类拒写直接重试必再撞墙，不应误导作者「可重试」；
+ * 定位类给出真能走通的路。普通错误（写盘失败、网络抖动等）才提示可重试。
+ */
+function actionFailureText(error: string): string {
+  if (error.includes('内容已变化')) return `操作失败：${error}`;
+  if (DETERMINISTIC_LOCATE_FAILURE.test(error)) {
+    const way = error.startsWith('接受分块失败')
+      ? '可以让 AI 重出一版。'
+      : '可以让 AI 重出一版，或逐处接受。';
+    return `操作失败：${error.replace(/。?$/, '。')}${way}`;
+  }
+  return `操作失败：${error}，可重试`;
+}
+
 type DiffStats = {
   addedLines: number;
   removedLines: number;
@@ -601,11 +619,7 @@ export function PatchReviewPanel({
             data-testid="patch-action-status"
           >
             {actionError
-              ? // P2-D：漂移拒写（内容已变化）直接重试必再撞墙，不应误导作者「可重试」。
-                // 普通错误（写盘失败、网络抖动等）才提示可重试。
-                actionError.includes('内容已变化')
-                ? `操作失败：${actionError}`
-                : `操作失败：${actionError}，可重试`
+              ? actionFailureText(actionError)
               : `处理中：${PATCH_ACTION_LABELS[actionState!]}`}
           </div>
         )}

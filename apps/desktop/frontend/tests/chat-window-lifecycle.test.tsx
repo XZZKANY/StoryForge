@@ -429,6 +429,45 @@ test('W02 对照：记录齐全的正常完成仍宣称闭环完成', () => {
   }
 });
 
+/** U-24：同一份补丁连点接受、每次都同样失败时，对话里只留一条并标上重试次数，不刷屏。 */
+test('U-24：写回失败与上一条同文件同文案时原地累计重试次数，换文件或换文案才新起一条', () => {
+  const seen: Message[][] = [];
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const fail = (filePath: string, message: string) =>
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(AUTHOR_LOOP_RESULT_EVENT, {
+          detail: { filePath, status: 'error', action: 'revision_accepted', message },
+        }),
+      );
+    });
+  const contents = () => (seen.at(-1) ?? []).map((message) => message.content);
+  const outline = 'D:/Books/story/大纲/总纲.md';
+  const locate = '第 2 处修改（原稿第 9 行附近）是插入，插入点前文已变，无法安全定位。';
+
+  try {
+    act(() =>
+      root.render(<AuthorLoopResultHarness onRender={(messages) => seen.push(messages)} />),
+    );
+    const base = contents().length;
+    for (let click = 0; click < 5; click += 1) fail(outline, locate);
+    assert.deepEqual(contents().slice(base), [`没能写进稿子：${locate}（已重试 4 次，结果相同）`]);
+
+    fail('D:/Books/story/正文/第01章.md', locate);
+    fail(outline, '磁盘内容已变化');
+    assert.deepEqual(contents().slice(base), [
+      `没能写进稿子：${locate}（已重试 4 次，结果相同）`,
+      `没能写进稿子：${locate}`,
+      '没能写进稿子：磁盘内容已变化',
+    ]);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
 for (const scenario of [
   'same-run',
   'older-run',
