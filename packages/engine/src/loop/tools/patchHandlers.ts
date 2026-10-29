@@ -29,6 +29,7 @@ import {
   scopeIssues,
   scopeWarning,
 } from '../../kernel/reviseScope';
+import { truncationWarning } from '../../kernel/revisionTruncation';
 import type { AssistantContextBundle } from '../../kernel/writingContext';
 import { missingLlmEnv } from '../../llm/config';
 import { ProjectReadError } from '../../readPort';
@@ -277,7 +278,10 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
     let summary = reviseSummaryWithScope(response.summary, scope);
     const warning = scopeWarning(scope, response.before, response.after);
     if (warning !== null) summary = `${summary} ${warning.message}`;
-    const confirm = requiresConfirmation(context);
+    const truncation = truncationWarning(response.before, response.after);
+    if (truncation !== null) summary = `${summary} ${truncation.message}`;
+    // 疑似半截的新稿不能在自动档下不经作者过目就整份落盘。
+    const confirm = requiresConfirmation(context) || truncation !== null;
     const proposedPatch: Obj = {
       id: `file-revision-${deps.newHex()}`,
       kind: 'file_revision',
@@ -311,6 +315,10 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
     if (warning !== null) {
       output.scope_warning = warning;
       outputSummary.scope_warning = warning;
+    }
+    if (truncation !== null) {
+      output.truncation_warning = truncation;
+      outputSummary.truncation_warning = truncation;
     }
     return {
       status: 'completed',

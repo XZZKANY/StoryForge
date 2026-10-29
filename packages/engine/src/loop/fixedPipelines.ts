@@ -487,6 +487,8 @@ async function runFileRevise(host: FixedPipelineHost, request: FixedPipelineRequ
   };
   if (revise.output.scope_warning !== undefined && revise.output.scope_warning !== null)
     agentResult.scope_warning = revise.output.scope_warning;
+  if (revise.output.truncation_warning !== undefined && revise.output.truncation_warning !== null)
+    agentResult.truncation_warning = revise.output.truncation_warning;
   return host.baseResponse({
     agentSessionId: request.agentSessionId,
     assistantSessionId: request.assistantSessionId,

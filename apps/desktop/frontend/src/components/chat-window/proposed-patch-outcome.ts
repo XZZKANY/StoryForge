@@ -8,7 +8,7 @@ import {
   writableFilePatch,
   writingContextFromAgentResult,
 } from './agent-result';
-import { scopeWarningFromAgentResult } from './review';
+import { scopeWarningFromAgentResult, truncationWarningFromAgentResult } from './review';
 import type { AgentRunStatus, ChatWindowAgentResult } from './types';
 
 /**
@@ -58,6 +58,7 @@ export function emitProposedPatchOutcome(params: {
       contextFiles: writingContext.contextFiles,
       knowledgeEntries: writingContext.knowledgeEntries,
       scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
+      truncationWarning: truncationWarningFromAgentResult(response) ?? undefined,
       requiresConfirmation: proposed.requires_confirmation,
       runId: response.run_id ?? params.runId,
     }),

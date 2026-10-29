@@ -113,9 +113,18 @@ vi.mock('../../src/lib/api/ide-commands', () => ({
   },
 }));
 
-import { emitFileSuggestion } from '../../src/lib/assistant-events';
+import {
+  emitAcceptCurrentFileSuggestion,
+  emitFileSuggestion,
+} from '../../src/lib/assistant-events';
 import { TOAST_EVENT, type ToastAction, type ToastDetail } from '../../src/lib/toast';
-import { useSuggestionWriteback } from '../../src/components/editor/useSuggestionWriteback';
+import {
+  TRUNCATED_ACCEPT_CONFIRM_TIMEOUT_MS,
+  useSuggestionWriteback,
+} from '../../src/components/editor/useSuggestionWriteback';
+import { PatchReviewPanel } from '../../src/components/PatchReviewPanel';
+import { acceptPatchFromChat } from '../../src/components/chat-window/accept-patch';
+import { buildPatchHunks } from '../../src/lib/patch-hunks';
 
 const PROJECT = 'D:/连载/末世吞噬';
 const FILE = 'D:/连载/末世吞噬/正文/第01章.md';
@@ -130,7 +139,7 @@ let writeback: ReturnType<typeof useSuggestionWriteback>;
 let auditGate: Promise<void> | null = null;
 let releaseAudit: (() => void) | null = null;
 
-function Harness({ filePath }: { filePath: string }) {
+function Harness({ filePath, withPanel = false }: { filePath: string; withPanel?: boolean }) {
   const modelVersion = useRef(1);
   const model = useRef({
     getValue: () => editorContent,
@@ -197,7 +206,24 @@ function Harness({ filePath }: { filePath: string }) {
     },
   });
 
-  return null;
+  // 截断两步确认要连着修订横幅一起测：照 Editor 的接法把横幅挂上。
+  if (!withPanel || !writeback.pendingSuggestion) return null;
+  return (
+    <PatchReviewPanel
+      suggestion={writeback.pendingSuggestion}
+      editorFontSize={14}
+      editorFontFamily="test-font"
+      actionKind={writeback.actionState?.kind ?? null}
+      error={writeback.actionError}
+      truncationArmed={writeback.truncationAcceptArmed}
+      onCancelTruncatedAccept={writeback.cancelTruncatedAccept}
+      onAccept={writeback.handleAcceptSuggestion}
+      onAcceptHunk={writeback.handleAcceptHunk}
+      onReject={writeback.rejectPendingSuggestion}
+      onSaveNote={writeback.handleSaveSuggestionNote}
+      onRetryWithoutKnowledge={() => undefined}
+    />
+  );
 }
 
 let container: HTMLDivElement;
@@ -520,4 +546,161 @@ test('正文已写入但审计挂起时不提前提供撤销，审计完成后�
   assert.equal(calls.filter((call) => call === 'write').length, 1);
   assert.equal(calls.filter((call) => call === 'record').length, 1);
   assert.equal(planMarkArgs.length, 1);
+});
+
+const TRUNCATION =
+  'AI 的输出可能没写完：原文最后 2 段在新稿里没有，且新稿停在半句（「…新的一章」）。';
+
+function acceptButton(): HTMLButtonElement {
+  const button = container.querySelector<HTMLButtonElement>('[data-testid="suggestion-accept"]');
+  assert.ok(button, '修订横幅上找不到「接受」');
+  return button;
+}
+
+async function clickAccept() {
+  await act(async () => {
+    acceptButton().dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  await settle();
+}
+
+async function pressCtrlY() {
+  await act(async () => {
+    acceptButton().dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'y', ctrlKey: true, bubbles: true }),
+    );
+  });
+  await settle();
+}
+
+async function showTruncatedPatch(overrides: Record<string, unknown> = {}) {
+  act(() => root.render(<Harness key="panel" filePath={FILE} withPanel />));
+  await act(async () => {
+    emitFileSuggestion(
+      suggestion({ requiresConfirmation: true, truncationWarning: TRUNCATION, ...overrides }),
+    );
+  });
+}
+
+test('新稿可能没写完：第一次点「接受」只就地武装、不写不留快照，再点一次才写', async () => {
+  await showTruncatedPatch();
+  await clickAccept();
+
+  assert.deepEqual(writes, [], '第一次点不能写盘');
+  assert.equal(calls.includes('snapshot'), false, '武装时连快照都不该留');
+  assert.equal(acceptButton().textContent, '仍然整份接受');
+  assert.equal(acceptButton().dataset.armed, 'true');
+  assert.match(
+    container.querySelector('[data-testid="patch-truncation-confirm"]')?.textContent ?? '',
+    /AI 可能没写完.*再点一次才写/,
+  );
+  assert.equal(
+    container.querySelector('[data-testid="app-dialog-message"]'),
+    null,
+    '不弹居中确认框',
+  );
+
+  await clickAccept();
+  assert.deepEqual(writes, [{ path: FILE, content: AFTER }], '武装着再点一次才写回');
+});
+
+test('Ctrl+Y 同样两步：第一次武装，第二次才写', async () => {
+  await showTruncatedPatch();
+  await pressCtrlY();
+  assert.deepEqual(writes, []);
+  assert.equal(acceptButton().textContent, '仍然整份接受');
+
+  await pressCtrlY();
+  assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
+});
+
+test('武装超时就撤销：之后仍要重新点两次', async () => {
+  await showTruncatedPatch();
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  try {
+    await act(async () => {
+      acceptButton().dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    assert.equal(acceptButton().textContent, '仍然整份接受');
+    act(() => {
+      vi.advanceTimersByTime(TRUNCATED_ACCEPT_CONFIRM_TIMEOUT_MS);
+    });
+    assert.equal(acceptButton().textContent, '接受', '超时后回到未武装');
+  } finally {
+    vi.useRealTimers();
+  }
+  await clickAccept();
+  assert.deepEqual(writes, [], '超时之后的第一次点仍只武装');
+  await clickAccept();
+  assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
+});
+
+test('武装后失焦或移开就撤销', async () => {
+  await showTruncatedPatch();
+  await clickAccept();
+  await act(async () => {
+    acceptButton().dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+  });
+  assert.equal(acceptButton().textContent, '接受');
+  await clickAccept();
+  await act(async () => {
+    acceptButton().dispatchEvent(
+      new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }),
+    );
+  });
+  assert.equal(acceptButton().textContent, '接受');
+  assert.deepEqual(writes, []);
+});
+
+test('对话里点「接受」：半截稿只在编辑器横幅上武装，对话路径永不直接写', async () => {
+  await showTruncatedPatch();
+  const target = { patchId: 'patch-1', filePath: FILE };
+  let claim: unknown;
+  await act(async () => {
+    claim = acceptPatchFromChat(target, PROJECT);
+  });
+  await settle();
+  assert.equal(claim, 'armed');
+  assert.deepEqual(writes, [], '对话里第一次接受不写');
+  assert.equal(acceptButton().textContent, '仍然整份接受', '编辑器横幅进入待确认');
+  assert.ok(
+    toasts.some((toast) => /可能没写完，没有写入/.test(toast.message)),
+    '对话侧要说清没写、去编辑器确认',
+  );
+
+  await act(async () => {
+    claim = emitAcceptCurrentFileSuggestion(target);
+  });
+  await settle();
+  assert.equal(claim, 'armed');
+  assert.deepEqual(writes, [], '对话里再点也不写');
+
+  await clickAccept();
+  assert.deepEqual(writes, [{ path: FILE, content: AFTER }], '只能在横幅上确认写入');
+});
+
+test('自动档的半截稿：自动接受也被硬闸拦下，不写', async () => {
+  await showTruncatedPatch({ requiresConfirmation: false });
+  await settle();
+  assert.deepEqual(writes, [], '没经作者第二次点击不能落盘');
+});
+
+test('逐处接受不受截断两步影响', async () => {
+  await showTruncatedPatch();
+  const [hunk] = buildPatchHunks(BEFORE, AFTER);
+  await act(async () => {
+    await writeback.handleAcceptHunk(hunk);
+  });
+  await settle();
+  assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
+});
+
+test('没有截断警告的补丁照旧点一次就写', async () => {
+  act(() => root.render(<Harness key="panel" filePath={FILE} withPanel />));
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: true }));
+  });
+  await clickAccept();
+  assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
+  assert.equal(container.querySelector('[data-testid="patch-truncation-confirm"]'), null);
 });

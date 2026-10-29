@@ -14,6 +14,12 @@ export function acceptPatchFromChat(
 ): AcceptClaim {
   const claim = emitAcceptCurrentFileSuggestion(target);
   if (claim === 'busy') emitToast('正在处理这份修订，请稍候', { tone: 'info' });
+  // 半截稿不在对话里一键写进去：编辑器横幅已武装，要作者看过对比后在那里再点一次。
+  if (claim === 'armed')
+    emitToast(
+      '这份修订可能没写完，没有写入。请到编辑器里看过对比；要整份写入，在横幅上点「接受」后再点一次「仍然整份接受」。',
+      { tone: 'info' },
+    );
   if (claim !== 'unclaimed') return claim;
   const name = relativePath(projectPath, target.filePath);
   emitToast(

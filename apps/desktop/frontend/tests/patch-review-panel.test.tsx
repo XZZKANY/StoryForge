@@ -877,3 +877,56 @@ test('分块接受之后：对比区里认不出位置的、冲突的留在横�
   act(() => zoneButton.click());
   assert.equal(accepted[0], ops[0], '交回的是原操作对象，不是当前差异重算出来的');
 });
+
+test('引擎标了新稿可能没写完：横幅醒目显示警告；普通补丁不显示', () => {
+  const warning = 'AI 的输出可能没写完：原文最后的『七、伏笔』『八、边界』共 7 段在新稿里没有。';
+  mountPanel({ truncationWarning: warning });
+  const banner = byTestId('patch-truncation-warning');
+  assert.ok(banner, '截断警告必须显示在修订横幅里');
+  assert.equal(banner.getAttribute('role'), 'alert');
+  assert.match(banner.textContent ?? '', /原文最后的『七、伏笔』『八、边界』/);
+  assert.equal(byTestId('patch-details')!.hidden, true, '警告不能折进「说明」里');
+  mountPanel();
+  assert.equal(byTestId('patch-truncation-warning'), null);
+});
+
+test('截断两步已武装：「接受」就地换成「仍然整份接受」并说明，失焦、移开、点拒绝都撤销', () => {
+  let cancels = 0;
+  const render = (armed: boolean) =>
+    act(() => {
+      root.render(
+        <PatchReviewPanel
+          suggestion={sampleSuggestion({ truncationWarning: 'AI 的输出可能没写完。' })}
+          editorFontSize={14}
+          editorFontFamily="test-font"
+          truncationArmed={armed}
+          onCancelTruncatedAccept={() => {
+            cancels += 1;
+          }}
+          onAccept={() => undefined}
+          onAcceptHunk={() => undefined}
+          onReject={() => undefined}
+          onSaveNote={() => undefined}
+          onRetryWithoutKnowledge={() => undefined}
+        />,
+      );
+    });
+  render(false);
+  assert.equal(byTestId('suggestion-accept')!.textContent, '接受');
+  assert.equal(byTestId('patch-truncation-confirm'), null);
+  render(true);
+  const accept = byTestId('suggestion-accept')!;
+  assert.equal(accept.textContent, '仍然整份接受');
+  assert.equal(accept.getAttribute('data-armed'), 'true');
+  assert.match(byTestId('patch-truncation-confirm')!.textContent ?? '', /再点一次才写/);
+  act(() => {
+    accept.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+  });
+  act(() => {
+    accept.dispatchEvent(
+      new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }),
+    );
+  });
+  click('suggestion-reject');
+  assert.equal(cancels, 3);
+});

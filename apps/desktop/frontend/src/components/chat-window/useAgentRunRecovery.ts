@@ -30,6 +30,7 @@ import {
   reviewReportFromMessage,
   reviewReportSummary,
   scopeWarningFromAgentResult,
+  truncationWarningFromAgentResult,
 } from './review';
 import {
   checkpointResumeFromResult,
@@ -242,6 +243,7 @@ export function useAgentRunRecovery(
             contextFiles: writingContext.contextFiles,
             knowledgeEntries: writingContext.knowledgeEntries,
             scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
+            truncationWarning: truncationWarningFromAgentResult(response) ?? undefined,
             requiresConfirmation: proposed.requires_confirmation,
             runId: response.run_id ?? undefined,
           }),

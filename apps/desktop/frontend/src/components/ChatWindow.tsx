@@ -45,6 +45,7 @@ export {
   extractIssueScopeFromInstruction,
   reviewIssuesFromReport,
   scopeWarningFromAgentResult,
+  truncationWarningFromAgentResult,
 } from './chat-window/review';
 export {
   displayFromResumeDiagnostic,

@@ -19,6 +19,7 @@ import {
   scopeWarningFromAgentResult,
   statusFromAgentResult,
   stepsFromResumedAgentResult,
+  truncationWarningFromAgentResult,
   writableFilePatch,
 } from '../src/components/ChatWindow';
 import { ConversationHeader } from '../src/components/chat-window/panels';
@@ -585,6 +586,51 @@ test('scope warning is extracted from agent_result for the patch panel', () => {
   assert.match(scopeWarningFromAgentResult(withWarning), /逐块核对/);
   assert.equal(
     scopeWarningFromAgentResult({ ...base, agent_result: { summary: '已修订。' } }),
+    null,
+  );
+});
+
+test('截断警告取自 agent_result；断线重建丢了这一项时退到同一补丁的 file.revise 轨迹', () => {
+  const warning = {
+    message: 'AI 的输出可能没写完：原文最后 2 段在新稿里没有，且新稿停在半句（「…提着」）。',
+    missing_line_count: 2,
+  };
+  const base = {
+    type: 'agent_result',
+    session_id: 'agent-session',
+    assistant_session_id: 1,
+    intent: 'chat.explain',
+    user_message: '把开门写得更有力',
+    plan: [],
+    tool_trace: [],
+    proposed_patch: { id: 'file-revision-1', kind: 'file_revision' },
+  };
+  assert.match(
+    truncationWarningFromAgentResult({
+      ...base,
+      agent_result: { summary: '改好了。', truncation_warning: warning },
+    }),
+    /可能没写完/,
+  );
+  const trace = (patchId: string) => ({
+    tool_name: 'file.revise',
+    status: 'completed',
+    input_summary: {},
+    output_summary: { patch_id: patchId, truncation_warning: warning },
+  });
+  const rebuilt = {
+    ...base,
+    agent_result: { summary: '该步骤需要作者确认后才能继续。' },
+    tool_trace: [trace('file-revision-1')],
+  };
+  assert.match(truncationWarningFromAgentResult(rebuilt), /停在半句/);
+  assert.equal(
+    truncationWarningFromAgentResult({ ...rebuilt, tool_trace: [trace('file-revision-0')] }),
+    null,
+    '别的补丁的警告不能挂到这份补丁上',
+  );
+  assert.equal(
+    truncationWarningFromAgentResult({ ...base, agent_result: { summary: '改好了。' } }),
     null,
   );
 });

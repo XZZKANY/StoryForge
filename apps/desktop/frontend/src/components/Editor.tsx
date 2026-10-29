@@ -195,6 +195,8 @@ export function Editor({
     handleRetrySuggestion,
     actionState,
     actionError,
+    truncationAcceptArmed,
+    cancelTruncatedAccept,
     isReviseLoading,
     pendingSuggestion,
     rejectPendingSuggestion,
@@ -1070,6 +1072,8 @@ export function Editor({
             error={actionError}
             editorFontSize={editorFontSize}
             editorFontFamily={resolveEditorFontFamily(editorFontMode)}
+            truncationArmed={truncationAcceptArmed}
+            onCancelTruncatedAccept={cancelTruncatedAccept}
             onAccept={handleAcceptSuggestion}
             onAcceptHunk={handleAcceptHunk}
             onReject={rejectPendingSuggestion}

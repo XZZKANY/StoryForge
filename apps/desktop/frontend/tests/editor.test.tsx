@@ -329,3 +329,20 @@ test('React 桌面入口不再调用原生 prompt/alert/confirm', () => {
   assert.equal(/(?<![.\w])alert\(/.test(activeSources), false);
   assert.equal(/(?<![.\w])confirm\(/.test(activeSources), false);
 });
+
+test('新稿可能没写完的补丁：整份接受走横幅上的就地两步，不弹居中确认框', () => {
+  assert.doesNotMatch(editorSource, /confirmTruncatedAccept/, '半截稿确认不走 AppDialog');
+  const panel = editorSource.match(/<PatchReviewPanel[\s\S]*?\/>/)?.[0];
+  assert.ok(panel, '找不到 PatchReviewPanel');
+  assert.match(panel, /truncationArmed=\{truncationAcceptArmed\}/, '横幅要拿到武装状态');
+  assert.match(panel, /onCancelTruncatedAccept=\{cancelTruncatedAccept\}/, '失焦等要能撤销武装');
+  const acceptBlock = suggestionWritebackSource.match(
+    /const handleAcceptSuggestion = useCallback\(async \(\) => \{[\s\S]*?beginAction\('accept'/,
+  )?.[0];
+  assert.ok(acceptBlock, '找不到整份接受的开头');
+  assert.match(
+    acceptBlock,
+    /suggestion\.truncationWarning && truncationArmedIdRef\.current !== suggestion\.id/,
+    '有截断警告且没武装就不写：硬闸要在开始写回之前',
+  );
+});
