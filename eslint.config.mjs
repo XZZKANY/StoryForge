@@ -19,6 +19,7 @@ export default tseslint.config(
       'output/',
       '.trellis/',
       '.agents/',
+      '.claude/',
       'docs/',
     ],
   },
