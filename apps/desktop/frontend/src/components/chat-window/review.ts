@@ -6,11 +6,33 @@ import type {
   StableAgentRequestPayload,
 } from './types';
 
-export function scopeWarningFromAgentResult(message: ChatWindowAgentResult): string | null {
-  const warning = message.agent_result.scope_warning;
+function warningText(warning: unknown): string | null {
   if (!warning || typeof warning !== 'object') return null;
   const text = (warning as { message?: unknown }).message;
   return typeof text === 'string' && text.trim() ? text : null;
+}
+
+export function scopeWarningFromAgentResult(message: ChatWindowAgentResult): string | null {
+  return warningText(message.agent_result.scope_warning);
+}
+
+/**
+ * 引擎判定的「新稿可能没写完」。断线后按事件表重建的结果没有 agent_result 里的这一项，
+ * 退到同一补丁的 file.revise 轨迹上取，免得警告随重建丢掉。
+ */
+export function truncationWarningFromAgentResult(message: ChatWindowAgentResult): string | null {
+  const direct = warningText(message.agent_result.truncation_warning);
+  if (direct) return direct;
+  const patch = message.proposed_patch;
+  const patchId = patch && typeof patch === 'object' ? (patch as { id?: unknown }).id : undefined;
+  if (typeof patchId !== 'string') return null;
+  const trace = message.tool_trace.find(
+    (item) =>
+      item.tool_name === 'file.revise' &&
+      item.status === 'completed' &&
+      item.output_summary?.patch_id === patchId,
+  );
+  return warningText(trace?.output_summary?.truncation_warning);
 }
 
 function reviewSourceLine(

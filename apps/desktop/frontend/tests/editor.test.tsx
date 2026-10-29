@@ -329,3 +329,18 @@ test('React 桌面入口不再调用原生 prompt/alert/confirm', () => {
   assert.equal(/(?<![.\w])alert\(/.test(activeSources), false);
   assert.equal(/(?<![.\w])confirm\(/.test(activeSources), false);
 });
+
+test('新稿可能没写完的补丁：整份接受经 AppDialog 的 danger 档确认，确认入口接到写回钩子上', () => {
+  const wiring = editorSource.match(/useSuggestionWriteback\(\{[\s\S]*?\n {2}\}\);/)?.[0];
+  assert.ok(wiring, '找不到 useSuggestionWriteback 调用');
+  const confirmBlock = wiring.slice(wiring.indexOf('confirmTruncatedAccept:'));
+  assert.ok(wiring.includes('confirmTruncatedAccept:'), '截断确认入口必须接到写回钩子');
+  assert.match(confirmBlock, /dialogs\.confirm\(/, '必须走 AppDialog 确认框');
+  assert.match(confirmBlock, /tone: 'danger'/, '整份接受半截稿是 danger 档');
+  assert.match(confirmBlock, /\$\{warning\}/, '确认框要把引擎的警告原样给作者看');
+  const acceptBlock = suggestionWritebackSource.match(
+    /const handleAcceptSuggestion = useCallback\(async \(\) => \{[\s\S]*?const currentContent = /,
+  )?.[0];
+  assert.ok(acceptBlock, '找不到整份接受的开头');
+  assert.match(acceptBlock, /suggestion\.truncationWarning/, '整份接受写盘前先看截断警告');
+});

@@ -28,6 +28,8 @@ export type AssistantFileSuggestion = {
   knowledgeEntries?: KnowledgeContextEntry[];
   userIntent?: string;
   scopeWarning?: string;
+  /** 引擎判定新稿可能没写完（原文末尾整段缺失且停在半句）；整份接受前要作者再确认一次。 */
+  truncationWarning?: string;
   /** 缺省即 true：只有后端按项目权限档位明确判定不必确认时才是 false。 */
   requiresConfirmation?: boolean;
   /** 发起这次写回的 AgentRun；写进快照 meta，用来认出「同一轮的改动」。 */
@@ -50,6 +52,7 @@ export function createRemoteFileSuggestion(params: {
   contextFiles?: string[];
   knowledgeEntries?: KnowledgeContextEntry[];
   scopeWarning?: string;
+  truncationWarning?: string;
   requiresConfirmation?: boolean;
   runId?: string;
 }): AssistantFileSuggestion {
@@ -67,6 +70,7 @@ export function createRemoteFileSuggestion(params: {
     contextFiles = [],
     knowledgeEntries = [],
     scopeWarning,
+    truncationWarning,
     requiresConfirmation = true,
     runId,
   } = params;
@@ -83,6 +87,7 @@ export function createRemoteFileSuggestion(params: {
       issueIds.length ? `问题范围：${issueIds.join(', ')}` : '',
       contextFiles.length ? `上下文：${contextFiles.join(', ')}` : '',
       scopeWarning ? `⚠ 范围提醒：${scopeWarning}` : '',
+      truncationWarning ? `⚠ ${truncationWarning}` : '',
       requiresConfirmation
         ? '接受会写入当前文件；拒绝则丢弃；保存旁注会写入 .storyforge/notes。'
         : '本项目为自动档：已直接写入当前文件（写前留了快照，可在通知里撤销）。',
@@ -98,6 +103,7 @@ export function createRemoteFileSuggestion(params: {
     knowledgeEntries,
     userIntent,
     scopeWarning,
+    truncationWarning,
     requiresConfirmation,
     runId,
   };

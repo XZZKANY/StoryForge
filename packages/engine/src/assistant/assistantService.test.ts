@@ -316,3 +316,47 @@ describe('streamed revise / draft retries a stream that breaks mid-output', () =
     expect(sent()).toBe(3);
   });
 });
+
+describe('streamed revise rejects an output cut by the token limit', () => {
+  it('finish_reason=length 的半截正文不当成稿，也不重发', async () => {
+    const encoder = new TextEncoder();
+    let sent = 0;
+    const sse = [
+      'data: {"choices":[{"delta":{"content":"林远只能依靠既有积累与"}}]}\n\n',
+      'data: {"choices":[{"delta":{},"finish_reason":"length"}],"usage":{"prompt_tokens":3,"completion_tokens":8192,"total_tokens":8195}}\n\n',
+      'data: [DONE]\n\n',
+    ];
+    const llm = engineAssistantLlm(
+      {
+        STORYFORGE_LLM_PROVIDER: 'openai',
+        STORYFORGE_LLM_BASE_URL: 'https://llm.example/v1',
+        STORYFORGE_LLM_API_KEY: '[已隐藏的密钥]',
+        STORYFORGE_LLM_MODEL: 'deepseek-v4',
+      },
+      { values: ['[已隐藏的密钥]'] },
+      {
+        http: {
+          async send() {
+            sent += 1;
+            return {
+              status: 200,
+              headers: { 'content-type': 'text/event-stream' },
+              body: (async function* () {
+                for (const chunk of sse) yield encoder.encode(chunk);
+              })(),
+              close() {},
+            };
+          },
+        },
+        clock: () => 0,
+        wait: async () => {},
+        random: () => 0,
+        appVersion: 'test',
+      },
+    );
+    const failure = llm.callStreamed({ systemPrompt: '系统', userPrompt: '改写总纲' });
+    await expect(failure).rejects.toBeInstanceOf(LlmError);
+    await expect(failure).rejects.toThrow('真实 LLM 输出被截断或过滤，不能把未完成正文当成稿。');
+    expect(sent).toBe(1);
+  });
+});

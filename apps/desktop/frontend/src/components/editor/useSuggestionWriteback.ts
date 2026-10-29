@@ -151,6 +151,8 @@ type UseSuggestionWritebackParams = {
   dropOpenFilePath?: (path: string) => void;
   /** 一键撤销失效时把作者送到版本历史，而不是丢一句错误了事。 */
   onRequestVersionHistory?: () => void;
+  /** 引擎标了「新稿可能没写完」的补丁，整份接受前问作者一次；没接上就当作没确认。 */
+  confirmTruncatedAccept?: (warning: string) => Promise<boolean>;
 };
 
 export function useSuggestionWriteback({
@@ -170,6 +172,7 @@ export function useSuggestionWriteback({
   emitAuthorLoopResult,
   dropOpenFilePath,
   onRequestVersionHistory,
+  confirmTruncatedAccept,
 }: UseSuggestionWritebackParams) {
   const [pendingSuggestion, setPendingSuggestion] = useState<AssistantFileSuggestion | null>(null);
   // E15：接受/拒绝/旁注/导出/锚点失效等一次性结果统一走自动消退 toast，不再赖在编辑器顶栏；
@@ -198,6 +201,10 @@ export function useSuggestionWriteback({
   useLayoutEffect(() => {
     dropOpenFilePathRef.current = dropOpenFilePath;
   }, [dropOpenFilePath]);
+  const confirmTruncatedAcceptRef = useRef(confirmTruncatedAccept);
+  useLayoutEffect(() => {
+    confirmTruncatedAcceptRef.current = confirmTruncatedAccept;
+  }, [confirmTruncatedAccept]);
   useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -1103,6 +1110,12 @@ export function useSuggestionWriteback({
     if (!actionToken) return;
 
     try {
+      // 逐处接受不经过这里：作者只挑前面的改动时不必再确认。
+      if (suggestion.truncationWarning) {
+        const ask = confirmTruncatedAcceptRef.current;
+        const confirmed = ask ? await ask(suggestion.truncationWarning) : false;
+        if (!confirmed || !isCurrentAction(actionToken) || !editorRef.current) return;
+      }
       const currentContent = editorRef.current.getValue();
       const opState =
         suggestionOpsRef.current?.suggestionId === suggestion.id

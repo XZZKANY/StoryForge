@@ -30,6 +30,9 @@ const calls: string[] = [];
 let snapshotFails = false;
 let snapshotCreated = false;
 let versionHistoryOpened = 0;
+/** 不设就是确认入口没接上；设了就记下每次拿给作者看的警告。 */
+let confirmTruncated: ((warning: string) => Promise<boolean>) | undefined;
+const confirmPrompts: string[] = [];
 
 const receiptFiles = new Map<string, string>();
 const receiptFs = {
@@ -195,6 +198,12 @@ function Harness({ filePath }: { filePath: string }) {
     onRequestVersionHistory: () => {
       versionHistoryOpened += 1;
     },
+    confirmTruncatedAccept: confirmTruncated
+      ? async (warning: string) => {
+          confirmPrompts.push(warning);
+          return confirmTruncated!(warning);
+        }
+      : undefined,
   });
 
   return null;
@@ -253,6 +262,8 @@ beforeEach(() => {
   planMarkArgs.length = 0;
   planMarkFails = false;
   versionHistoryOpened = 0;
+  confirmTruncated = undefined;
+  confirmPrompts.length = 0;
   editorContent = BEFORE;
   diskContent = BEFORE;
   window.addEventListener(TOAST_EVENT, onToast);
@@ -520,4 +531,72 @@ test('正文已写入但审计挂起时不提前提供撤销，审计完成后�
   assert.equal(calls.filter((call) => call === 'write').length, 1);
   assert.equal(calls.filter((call) => call === 'record').length, 1);
   assert.equal(planMarkArgs.length, 1);
+});
+
+const TRUNCATION =
+  'AI 的输出可能没写完：原文最后 2 段在新稿里没有，且新稿停在半句（「…新的一章」）。';
+
+test('新稿可能没写完：整份接受先问作者，取消就不写、不留快照；确认后照常写回', async () => {
+  let answer = false;
+  confirmTruncated = async () => answer;
+  act(() => root.render(<Harness key="truncated" filePath={FILE} />));
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: true, truncationWarning: TRUNCATION }));
+  });
+  await act(async () => {
+    await writeback.handleAcceptSuggestion();
+  });
+  await settle();
+
+  assert.deepEqual(confirmPrompts, [TRUNCATION], '整份接受前必须把引擎的警告原样拿给作者确认');
+  assert.deepEqual(writes, [], '作者没确认就绝不写盘');
+  assert.equal(calls.includes('snapshot'), false, '取消时连快照都不该留');
+
+  answer = true;
+  await act(async () => {
+    await writeback.handleAcceptSuggestion();
+  });
+  await settle();
+
+  assert.equal(confirmPrompts.length, 2, '每次整份接受都要再问');
+  assert.deepEqual(writes, [{ path: FILE, content: AFTER }], '作者确认后照常写回');
+});
+
+test('新稿可能没写完时，自动档也不会不问就落盘', async () => {
+  confirmTruncated = async () => false;
+  act(() => root.render(<Harness key="truncated-auto" filePath={FILE} />));
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: false, truncationWarning: TRUNCATION }));
+  });
+  await settle();
+
+  assert.deepEqual(confirmPrompts, [TRUNCATION], '自动接受同样要先问');
+  assert.deepEqual(writes, [], '作者没点确认就不能自动落盘');
+});
+
+test('确认入口没接上时，带截断警告的补丁整份接受一律不写', async () => {
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: true, truncationWarning: TRUNCATION }));
+  });
+  await act(async () => {
+    await writeback.handleAcceptSuggestion();
+  });
+  await settle();
+
+  assert.deepEqual(writes, [], '问不了作者就当作没确认');
+});
+
+test('没有截断警告的补丁整份接受不弹确认', async () => {
+  confirmTruncated = async () => false;
+  act(() => root.render(<Harness key="plain" filePath={FILE} />));
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: true }));
+  });
+  await act(async () => {
+    await writeback.handleAcceptSuggestion();
+  });
+  await settle();
+
+  assert.deepEqual(confirmPrompts, [], '普通补丁不该多问一次');
+  assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
 });

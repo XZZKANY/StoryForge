@@ -1,0 +1,31 @@
+## 2026-10-29 整文件修订的新稿看起来没写完时，补丁带警告、整份接受要再确认
+
+- 取证（只读打开作者引擎库 `storyforge-engine.sqlite3`，`?mode=ro`；没读模型配置与 key，没碰作品目录）：
+  - 事故补丁是 `agent_artifacts` #286（run 113，权限档 ask，`requires_confirmation=1`），来自对话循环里的 `file.revise`（工具轨迹 `assistant_tool_call_id=377`，对应 `assistant.revise` #378）。原文 6443 字，新稿 8349 字——新稿比原文长，按长度比例拦不住。
+  - 那次请求的证据（artifact #284，step=file.revise）：流式、`max_tokens` 未设、`finish_reason=stop`、`status=response_completed`；`usage.token_usage_source=estimated_split`（completion_tokens 2087 是按字数估的，不是服务端给的数，也不是 8192 之类的整数上限）。
+  - 判断：不是撞输出上限漏拦（没有 `finish_reason=length`，`rejectIncompleteResponse` 不会也不该拦），也不像模型自己收尾（停在半个词组上）。同一中转上 12 次成功返回的修订 / 起草（这个模型 6 次、另一个模型 6 次）里，只有这一次没有服务端 usage，其余都是 `provider_usage`；同一份修订三小时前那次（#373/#374）就是吐到 7401 字时 `IncompleteRead` 断流失败。最可能是中转在长输出途中掐断、却照样回了终止标记（`[DONE]` 或 stop 帧，证据只存最终 finish_reason，分不清是哪一种），传输层的「没收到终止标记就拒稿」因此放行。
+  - 之后两版（#293、#304）都是在已截断的稿子上继续改，补丁本身保留了截断处，没有再丢东西。
+- 改动：
+  - 引擎新增确定性检测 `packages/engine/src/kernel/revisionTruncation.ts`（不加模型调用）：新稿最后一行停在半句（末字不是句末标点 / 闭合引号括号；或停在空节标题上；列表项本来就不带句号的稿子按同类行习惯不算），且原文里「最后一处仍留在新稿里的行」之后的若干段在新稿里整段找不到（只差一行时只认「照抄末行抄到一半」；新稿停在原文某一整行上算作者让删到这里）。不看长度比例。
+  - `file.revise` 处理器命中时：补丁照交，`output` / 轨迹 `output_summary` 带 `truncation_warning`（message、缺失段数、缺失的顶层标题），summary 末尾附警告让模型也知道；补丁 `requires_confirmation` 强制为 true——自动档下疑似半截的稿子不再免点击落盘（只会更严，不放宽任何档位）。对话循环与固定修订管线都把它提到 `agent_result.truncation_warning`（与 `scope_warning` 同一条路）。
+  - 界面：`AssistantFileSuggestion` 加可选 `truncationWarning`，修订横幅用醒目红字（`role="alert"`）显示；断线按事件表重建结果时，从同一补丁 id 的 `file.revise` 轨迹取回警告。整份接受（按钮、Ctrl+Y、对话里点接受、自动接受都走 `handleAcceptSuggestion`）先弹 AppDialog danger 档确认，取消就不写、不留快照；确认入口没接上时一律当没确认。逐处接受不受影响。
+  - 没改帧契约 `agent-ws.schema.json` 与 `contracts.ts`：`agent_result` 与轨迹 `output_summary` 本来就是开放对象，`proposed_patch` 形状没动。golden 一个字节都没变（检测在全部预言机场景里都不命中）。
+- 验证：
+  - 用新检测只读扫作者库里全部 10 个有原文的修订补丁：只有 #286 命中，缺失标题正好是第五卷与七、八两节；其余 9 个（含一份末节改成不带句号列表的、一份项目说明列表改写）都不报。
+  - 引擎：`kernel/revisionTruncation.test.ts` 7 条（事故形状且新稿更长要报、停在空节标题要报、删减以句号收尾不报、停在原文整行不报、列表习惯不报、末行改写不报 / 末行抄一半要报、整篇重写不下结论）；`loop/revisionTruncation.test.ts` 3 条（预言机回放：对话循环自动档截断稿→警告进 agent_result、补丁改成等确认、计划含 permission.confirm；完整稿照旧免点击；固定管线同样带警告）；`assistantService.test.ts` 加 1 条：流式 `finish_reason=length` 拒稿且不重发。
+  - 前端：`patch-review-panel` 横幅显示 1 条；`chat-window` 警告提取（含按轨迹回取、不串别的补丁）1 条；`proposed-patch-outcome` 警告随补丁交给编辑器 1 条；`behavior/auto-writeback` 4 条（取消不写不留快照、确认后照常写；自动档也先问；确认入口没接上不写；无警告不弹）；`editor` 接线 1 条。
+  - 接线变异（各自打一处，跑对应测试，确认变红后用带 `count==1` 断言的定点替换无条件还原，没用 git checkout / stash）：
+    - agentRuntime 不把 `truncation_warning` 提进 agent_result → 对话循环那条红。
+    - `file.revise` 不强制确认 → 对话循环与固定管线两条红。
+    - `file.revise` 不挂警告 → 两条红。
+    - 写回钩子跳过确认 → auto-writeback 3 条红。
+    - `emitProposedPatchOutcome` 不传警告 → outcome 那条红。
+    - Editor 不接确认入口 → editor 接线那条红。
+    - 横幅不渲染 → panel 那条红。
+  - `pnpm verify` EXIT=0：lint 与前端类型检查通过；project-core 14 passed；引擎 96 个文件 13832 passed + 2 skipped（golden 契约无改动）；前端 245 个文件 2439 passed；行间续写、浏览器冒烟、Agent 对话三个浏览器回归通过。
+- 未覆盖：
+  - 检测是启发式：截在句号处、整篇重写后截断（新稿里找不到任何原文行）、原文末尾某行恰好被搬到新稿前面，都会漏报；故意删掉末尾几节又恰好停在一行没标点的新内容上会误报（只多一次确认）。
+  - 只接在 `file.revise`（对话循环与固定管线）。`project.trim_prose` 压缩、`chapter.repair`、Ctrl+K 行间修订（另有润色长度门）没接。
+  - 传输层没改：中转回了终止标记但没给 usage 这一信号没有拿来用；`[DONE]` 不带 finish_reason 仍按 stop 认。
+  - 断线重建结果里的 `scope_warning` 仍会丢（本次只给截断警告补了回取）。
+  - 没跑 Tauri 冒烟与真宿主探针（作者正在用装机版），没在真机与真模型上点穿；确认框是居中弹窗。
