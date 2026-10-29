@@ -72,7 +72,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"用户\"}]}],\"max_tokens\":4096,\"system\":\"系统\",\"temperature\":0.3}"
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"用户\"}]}],\"max_tokens\":4096,\"system\":\"系统\"}"
         }
       ],
       "waits": [],
@@ -144,7 +144,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7,\"tools\":[{\"name\":\"fs.read\",\"input_schema\":{\"type\":\"object\"},\"description\":\"读文件\"},{\"name\":\"fs.list\",\"input_schema\":{\"type\":\"object\"}}],\"tool_choice\":{\"type\":\"any\"}}"
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"tools\":[{\"name\":\"fs.read\",\"input_schema\":{\"type\":\"object\"},\"description\":\"读文件\"},{\"name\":\"fs.list\",\"input_schema\":{\"type\":\"object\"}}],\"tool_choice\":{\"type\":\"any\"}}"
         }
       ],
       "waits": [],
@@ -204,7 +204,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\"}"
         }
       ],
       "waits": [],
@@ -253,7 +253,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\"}"
         }
       ],
       "waits": [],
@@ -302,7 +302,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\"}"
         }
       ],
       "waits": [],
@@ -358,7 +358,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\"}"
         },
         {
           "url": "https://api.anthropic.example/v1/messages",
@@ -370,7 +370,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\"}"
         }
       ],
       "waits": [
@@ -426,7 +426,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\"}"
         },
         {
           "url": "https://api.anthropic.example/v1/messages",
@@ -438,7 +438,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\"}"
         }
       ],
       "waits": [
@@ -490,7 +490,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\"}"
         }
       ],
       "waits": [],
@@ -952,7 +952,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\": \"claude-test\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"system\": \"s\", \"temperature\": 0.7, \"stream\": true}"
+          "body": "{\"model\": \"claude-test\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"system\": \"s\", \"stream\": true}"
         }
       ],
       "waits": [],
@@ -1201,7 +1201,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\": \"claude-test\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"读第一章\"}]}, {\"role\": \"assistant\", \"content\": [{\"type\": \"text\", \"text\": \"好的\"}, {\"type\": \"tool_use\", \"id\": \"tu_1\", \"name\": \"fs.read\", \"input\": {\"path\": \"正文/1.md\"}}]}, {\"role\": \"user\", \"content\": [{\"type\": \"tool_result\", \"tool_use_id\": \"tu_1\", \"content\": \"{\\\"text\\\": \\\"第一章\\\"}\"}]}, {\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"继续\"}]}], \"max_tokens\": 64, \"system\": \"系统一\\n\\n  系统二\", \"temperature\": 0.7, \"tools\": [{\"name\": \"fs.read\", \"input_schema\": {\"type\": \"object\"}, \"description\": \"读文件\"}, {\"name\": \"fs.list\", \"input_schema\": {\"type\": \"object\"}}], \"tool_choice\": {\"type\": \"none\"}, \"stream\": true}"
+          "body": "{\"model\": \"claude-test\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"读第一章\"}]}, {\"role\": \"assistant\", \"content\": [{\"type\": \"text\", \"text\": \"好的\"}, {\"type\": \"tool_use\", \"id\": \"tu_1\", \"name\": \"fs.read\", \"input\": {\"path\": \"正文/1.md\"}}]}, {\"role\": \"user\", \"content\": [{\"type\": \"tool_result\", \"tool_use_id\": \"tu_1\", \"content\": \"{\\\"text\\\": \\\"第一章\\\"}\"}]}, {\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"继续\"}]}], \"max_tokens\": 64, \"system\": \"系统一\\n\\n  系统二\", \"tools\": [{\"name\": \"fs.read\", \"input_schema\": {\"type\": \"object\"}, \"description\": \"读文件\"}, {\"name\": \"fs.list\", \"input_schema\": {\"type\": \"object\"}}], \"tool_choice\": {\"type\": \"none\"}, \"stream\": true}"
         }
       ],
       "waits": [],
@@ -1408,7 +1408,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"stream\": true}"
         }
       ],
       "waits": [],
@@ -1476,7 +1476,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"stream\": true}"
         }
       ],
       "waits": [],
@@ -1544,7 +1544,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"stream\": true}"
         }
       ],
       "waits": [],
@@ -1599,7 +1599,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"stream\": true}"
         }
       ],
       "waits": [],
@@ -1667,7 +1667,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"stream\": true}"
         }
       ],
       "waits": [],
@@ -1737,7 +1737,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"stream\": true}"
         },
         {
           "url": "https://api.anthropic.example/v1/messages",
@@ -1749,7 +1749,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"stream\": true}"
         }
       ],
       "waits": [
@@ -1806,7 +1806,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"stream\": true}"
         }
       ],
       "waits": [],
@@ -1897,7 +1897,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"旧\"},{\"type\":\"text\",\"text\":\"a\"}]}],\"max_tokens\":4096,\"temperature\":0.7}"
+          "body": "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"旧\"},{\"type\":\"text\",\"text\":\"a\"}]}],\"max_tokens\":4096}"
         }
       ],
       "waits": [],
@@ -1957,7 +1957,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"temperature\":0.7}"
+          "body": "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096}"
         }
       ],
       "waits": [],
@@ -2017,7 +2017,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"temperature\":0.7}"
+          "body": "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096}"
         }
       ],
       "waits": [],
@@ -2073,7 +2073,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"temperature\":0.7}"
+          "body": "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096}"
         }
       ],
       "waits": [],
@@ -2122,7 +2122,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\",\"temperature\":0.7}"
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"u\"}]}],\"max_tokens\":4096,\"system\":\"s\"}"
         }
       ],
       "waits": [],
@@ -2225,7 +2225,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"stream\": true}"
         },
         {
           "url": "https://api.anthropic.example/v1/messages",
@@ -2237,7 +2237,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"temperature\": 0.7, \"stream\": true}"
+          "body": "{\"model\": \"m\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"u\"}]}], \"max_tokens\": 4096, \"stream\": true}"
         }
       ],
       "waits": [
