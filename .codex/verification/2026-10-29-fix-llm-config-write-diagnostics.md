@@ -1,0 +1,31 @@
+## 2026-10-29 模型配置写盘失败带上系统原因；读配置不再被写回失败挡住（关联 #477，只收 #499 的①）
+
+- 改动：
+  - 只收外部 PR #499 的第①件事（写盘失败信息带上底层系统错误），在 master 上自己实现；#499 的第②件事（`STORYFORGE_CONFIG_DIR` 可选配置目录）按作者拍板不收，#499 分支只读参考、未合并。
+  - `apps/desktop/src-tauri/src/llm_config_store.rs`
+    - `write()` 每一步（建目录 / 暂存 / 序列化 / 刷盘 / 同步 / 原子替换）的失败都经同一个出口 `write_failure` 把系统原因拼进最外层那句话（界面和引擎只显示 `to_string()` 最外层，挂在 `context` 链上会被丢掉）。格式：`无法原子替换 LLM 配置，原配置未更改（系统错误 17：ERROR_NOT_SAME_DEVICE，系统无法将文件移到不同的磁盘驱动器。）`；界面再加「保存失败：」「切换失败：」等前缀。常见码（5 / 17 / 32 / 33 / 112）带 Windows 常量名，其余只给码和系统说明；不重复「(os error N)」。错误只来自 io 错误本身，不含配置内容，Key / 密文带不出来；序列化与刷盘改走 `as_file_mut()`，拿到不带暂存路径的原始系统错误。暂存文件创建失败时 tempfile 会在说明后附暂存文件路径（路径可带，不含 Key）。
+    - 所有写配置的地方（保存 / 删除 / 切换 / 设润色 / 读取时的迁移与对账写回）本来就只经 `write()` 一个出口，`profiles.rs` 只改内存不落盘，未改。
+    - 读路径降级：`read_normalized`（列表、模型调用前取 Key 的 `read_revealed_slot`、设置页借 Key 的 `read_revealed_profile` 都经它）在 v1 迁移 / 旧版改顶层后的对账需要写回时，写回失败只记一条 stderr 告警（`[llm-config] 读取时写回规范化配置失败，本次照用内存里的配置：<上面那句>`，不含 Key），照常返回内存里规范化好的配置，原文件不动，下次读取再试。作者主动保存（`mutate`）失败仍如实报错，不降级。没有加「替换失败就复制覆盖」之类的非原子回退。
+    - 配置文件不存在时，读路径不再为了落一份默认文件去建目录、写盘（原先 `list` 第一次会写出空的 v2 文件）；第一次保存时才建。查过没有别的地方依赖这份默认文件：界面与引擎都只经 Rust 命令读，文件不存在时返回空配置、引擎照旧报「还没配置」。
+  - `apps/desktop/src-tauri/src/llm_config_store/tests.rs`：见下。
+- 验证：
+  - 测试（`llm_config_store` 22 条，含新增 / 改写 6 条）：
+    - `failed_atomic_replace_preserves_target_and_cleans_staging`（沿用「目标是目录」）：错误以「无法原子替换 LLM 配置，原配置未更改（系统错误 」开头，Windows 上含「系统错误 5：ERROR_ACCESS_DENIED，」，不含「os error」；原目标不变、无残留暂存文件。
+    - `locked_destination_keeps_original_and_cleans_encrypted_staging`：错误带「系统错误 」。
+    - `not_same_device_reason_is_readable`：码 17 读出来是「系统错误 17：ERROR_NOT_SAME_DEVICE，系统无法将文件移到不同的磁盘驱动器。」（本机中文系统实测文本）。
+    - `v1_migration_write_back_failure_still_reads_and_save_reports_reason`：v1 明文双槽配置 + 以「只许读、不许删」共享模式占住文件（读得到、原子替换失败）→ `list` 照常出两套、`read_revealed_slot` / `read_revealed_profile` 取得到 Key；此时保存如实报「无法原子替换 …（系统错误 …）」，报错里没有 Key 哨兵与 `ciphertext`；原文件逐字不变、目录里只剩一个文件；放开后再读即完成迁移写回。
+    - `reconcile_write_back_failure_still_serves_the_old_version_edit`：旧版改了顶层（对账场景）+ 同样占住 → 出网取到旧版改过的模型与 Key、列表对账结果正确、原文件不变、无残留。
+    - `missing_configuration_reads_empty_without_touching_disk`（改写原 `missing_configuration_is_initialized_without_secrets`）：配置目录不存在时 `list` / `read_revealed_slot` 都读空，且不建目录、不落文件；第一次保存才写出 v2 文件。
+  - 接线变异 3 处（脚本逐处打、跑 `cargo test llm_config_store`、`finally` 里用带 `count==1` 断言的定点替换无条件还原并 sha1 核对与变异前一致；没用 git checkout / stash）：
+    - M1 原子替换恢复 `map_err(|_| …)` 吞掉底层错误 → 3 条红（目标是目录 / 占住目标 / v1 迁移降级里的保存报错）；
+    - M2 读取写回失败恢复 `?` 直接失败 → 2 条红（v1 迁移降级、对账降级）；
+    - M3 文件不存在时恢复「需要写回」→ 1 条红（读不落盘）。
+  - `npm --prefix apps/desktop run test:rust`：154 passed / 1 ignored，EXIT=0。
+  - `pnpm verify`（corepack pnpm 9.15.4 shim）：EXIT=0；project-core 14、引擎 13832 passed / 2 skipped、前端单测 2454 passed（245 文件）、行间续写 / 浏览器冒烟 / Agent 对话三个浏览器回归通过。
+  - `rustfmt --edition 2021 --check` 只查本次两个文件（含子模块）干净；整个 crate 原本就不是 rustfmt 干净（如 `fs.rs`），未动。
+- 未覆盖：
+  - #477 的根因（同目录 rename 报 17，疑似 EFS 加密的 AppData 或 MSIX 文件系统虚拟化）没在真机确认，本修复只让报错带上系统原因、让读配置不被写回失败挡住；受影响环境里「保存」仍会失败，只是报得清楚。
+  - 没跑 Tauri 冒烟与真宿主探针（作者正在用 StoryForge）；没在装机版里看界面上的报错长相。
+  - 发行版是 `windows_subsystem = "windows"`，stderr 告警只有从控制台起或开发档时看得到，装机版里不落文件。
+  - 降级读时 v1 明文配置会一直留在盘上直到写回成功（与改动前「读失败」相比没有新增暴露，原文件本来就是明文）；每次读都在内存里重新加密一次。
+  - 读文件本身失败（`无法读取 LLM 配置文件`）仍不带系统原因，本次不在范围内。
