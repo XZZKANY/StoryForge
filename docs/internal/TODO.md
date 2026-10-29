@@ -1,6 +1,51 @@
 # StoryForge 待办清单
 
-更新时间：2026-10-28
+更新时间：2026-10-29
+
+## 2026-10-29 当前入口：出 0.2.3，然后做「/ 指令 + skills」
+
+10-28 至 10-29 已处理完作者 0.2.1 试用的 24 条问题与外部贡献（详见下一节「10-28 晚」与各 PR 的验证记录 `.codex/verification/`）。作者已装 0.2.2 在用。master 受分支保护（合并要 1 人批准）：作者授权「门禁 EXIT=0 后用 `gh pr merge --admin` 合」；验证记录每个分支一份（`CONTRIBUTING.md` §4）；GitHub 上的评论 / 关闭 / 合并外部 PR 都要先给作者看原文、作者同意才做。
+
+### 一、进 0.2.3 的（按顺序）
+
+1. **#22 输入框灰字「提示下一句」**（作者 10-29 批准规则，确定性、不调模型）：输入框为空时显示灰字，按 Tab 填入、可再改，直接打字就消失；AI 运行中不提示。
+   - 新会话、书是空的 →「先聊聊这本书想写什么」
+   - 新会话、已写到第 N−1 章 →「先聊聊第 N 章怎么写」
+   - AI 上一句以问句结尾 →「按你的建议来」
+   - 刚接受一份设定、还缺主角人物 / 总纲 →「接着建主角人物」/「接着写总纲」
+   - 立项齐了、正文没开 →「开写第一章」
+   - 刚接受一章正文 →「接着写第 N+1 章」
+   - 复用 `lib/chapter-handoff.ts` 的确定性判断与立项检查（#462）的缺项判断；以后由 skills 接管「下一步」。
+2. **对话里切模型 + 思考等级**（作者 10-29 拍板）：输入框底部、权限下拉旁加两个下拉。
+   - 模型：列出设置里存的几套配置（#497 的 profiles），选了就是**全局切换**当前那套（同设置里点配置卡，宿主命令 `activate_llm_profile`）。
+   - 思考等级：关 / 低 / 中 / 高，**对话和起草 / 修订都管**。**按各家官方 API 标准参数做**（作者原话「按照标准做呀 官方 / 中转」）：OpenAI 兼容用 `reasoning_effort`（low/medium/high，关=不传）；Anthropic 原生用官方思考参数按等级给预算；Gemini 用官方思考配置；中转按它模仿的协议走同一套，不做中转专项探测。中转不认时靠 #480 的 HTTP 400 分类报错，作者调回「关」。实现以引擎现有 `llm/openaiCompatible.ts`、`anthropic.ts`、`gemini.ts`、`payload.ts` 与 `ChatRequest.reasoningEffort` 为准。等级存本机（照权限档位按项目存 localStorage 的做法），不写进 `.storyforge/`。
+3. **#504 / #505（Egg-33 的 issue，作者 10-29 拍板，两个 issue 下都已留言）**：
+   - **#504 参考上下文「已截断」**：我们做 bug 修复——`lib/project/context-files.ts` 补入的文件也走 `excerptForContext`（正文取结尾）、跳过空内容、`missing` 只留补读也失败的；`display-utils.ts` 把「已截断」拆成「超出席位 N / 读取失败 N」，分类计数标明「项目里」；`panels.tsx` 的「本轮实际引用」标题改实。另做**界面 12 份与引擎工具路径 8 份对齐**（`packages/engine` 的 `contextValues.ts` `MAX_CONTEXT_FILES=8`，`llmContext.ts`、`agentRuntime.ts` 只取前 8 份）：面板标出没送到模型的几份，或统一上限。新字段只留前端，不进 `codecs.ts`（files 是严格白名单，加字段 Ctrl+K 会被拒）。「仅摘录」不算警告，免得徽标常亮。「下次优先参考」按钮和详情组件请 Egg 基于最新 master 单独开 PR，作者看过再合。测试：新建 `tests/context-files.test.ts`；`chat-ux-polish.test.tsx`、`conversation-starters.test.tsx` 的徽标断言跟着改。
+   - **#505 模型调用失败只给通用提示**：引擎 `providerFailureMessage`（`loop/chatLoop.ts`）补归类：流式建连被重置 / 超时或失败（`llm/transport.ts`）、Anthropic / Gemini 的「流式建连失败」（`llm/providerTransport.ts`）、响应读取或解析失败、返回为空、事件不是合法 JSON；`ProviderError` 走 `provider_*` 时按分类给中文，替代英文「Provider rate limited.」（要动 golden）。**Ctrl+K / 续写**（`assistant/service.ts`）、**显式修订起草**（`loop/tools/patchHandlers.ts`）、**单轮回退**（`agentRuntime.ts`）不再原样透出服务端响应体，统一用同一套归类。已请 Egg 补版本、协议与 `error_message`。
+4. **出 0.2.3**：按 `docs/operations/release-checklist.md`。要先请作者关掉 StoryForge 再跑发行版冒烟、`verify:nsis-install`、真宿主探针（`--llm-only` / `--agent-only` / `--assistant-only`）。注意：`.tauri-target-install-smoke/release/bundle/nsis/` 里若残留旧版隔离测试包，安装验证会报「found 2」，挪走即可。装前提醒作者备份 `%APPDATA%\com.storyforge.ide\llm-provider.json` 与引擎库。0.2.3 只给作者自用，公开发布另问。
+
+### 二、0.2.3 之后：「/ 指令 + skills」（作者拍板 0.2.3 之后一起做，动手前先给作者看方案）
+
+1. **skills 装配**：作品里放 skills（每个是一份带说明的 Markdown，如「立项流程」「审稿口径」「本书禁用词」），对话 AI 每轮看说明、用得上再读全文；上下文面板（#496）列出「这一轮用了哪些 skill」。雏形是 #463 的 `写法/` 文件夹。作者的第一个 #8「世界观写完不知道下一步干什么」交给一份「立项流程」skill 约束，不写死在界面里。
+2. **批量写章 `/写 1-10`（也认 `/goal`）**：输入框打 `/` 出指令列表。
+   - 引擎按章节范围逐章走现有写章流程（章纲 → 起草 → 检查），复用 U-02 的字数钉住、章名统一、#503 截断防护；进度写 `.storyforge/serial-plan.json`，可停可续。
+   - **写完就落盘、每章留写前快照可撤销，最后统一审**（出清单：每章字数、检查提示）。
+   - **开跑前给预估 token，作者确认后才跑；硬上限 = 预估 × 1.5，超了就停**；检查不过 / 疑似截断 / 断网重试仍失败就停在那一章等作者。不偷加每章模型调用（作者「5 不行」）。
+   - 开题时重看「作者辅助 IDE、不是自动长篇生产器」的定位与 BookRun 退役（10-09）的教训。
+3. **记下、以后再说**：MCP（要在宿主里起外部进程、管权限与出网，守住「key 只在 Rust 里」）；爱好账的每周时间与金额上限待作者定；#492 的多章批量修订（作者没要）。
+
+### 三、GitHub 现状（10-29）
+
+- 已合：#495 Windows CI（`Windows / pnpm verify`，没设成必过）、#498 删没用的 Tauri 插件。
+- #499 已关闭：只收了「报错带系统原因」，由我们在 #507 重做；`STORYFORGE_CONFIG_DIR` 没收，已留言说明。
+- #477 开着：#507 已让报错带系统码、读配置写回失败降级；已请 Egg 在出问题的机器上做 `Move-Item` / `cipher /c` / `fltmc` 对照，等回复。
+- #492：字数提示已做（#508），多章批量修订不做。可在他回复后关。
+- #504、#505：见上文第一部分第 3 条，等 Egg 回复 / 开 PR。
+
+### 四、已知没在真机点穿的（0.2.2 / 0.2.3 共同）
+
+模型配置卡迁移与切换（#497）、修订对比字级深浅与逐处接受挂在改动下方（#487/#488/#494）、上下文面板（#496）、截断警告与就地两步确认（#503）、整份接受重新定位（#506）、配置写盘报错带系统码（#507）、修订字数提示（#508）、全角空格不再加黄框（#502）。作者用的时候遇到问题，照 `reports/storyforge-audit-20261024/measurement/E1/读点-39-40/问题.md` 的做法截图记下。
+
 
 ## 2026-10-28 晚 当前入口：21 条试用问题处理完，出 0.2.2（自用）
 
