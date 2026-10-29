@@ -404,7 +404,11 @@ export class ConfiguredLlmProvider implements LlmProvider {
         new JsonFloat(optionalFloat(this.source, 'STORYFORGE_LLM_TEMPERATURE', 0.7)),
       maxTokens: request.maxTokens ?? (configuredMax > 0 ? configuredMax : null),
       reasoningEffort:
-        request.reasoningEffort || envValue(this.source, 'STORYFORGE_LLM_REASONING_EFFORT') || null,
+        request.reasoningOff === true
+          ? null
+          : request.reasoningEffort ||
+            envValue(this.source, 'STORYFORGE_LLM_REASONING_EFFORT') ||
+            null,
     };
   }
 

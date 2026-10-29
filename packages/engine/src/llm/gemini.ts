@@ -37,6 +37,11 @@ export type GeminiStreamTransport = (
 ) => AsyncIterable<JsonObject>;
 
 const THINKING_BUDGETS: Record<string, number> = { low: 1024, medium: 4096, high: 8192 };
+/**
+ * Gemini 3 起用 thinkingLevel（取值 LOW / MEDIUM / HIGH，见 v1beta discovery 的 ThinkingConfig）；
+ * 2.5 及以前只认 thinkingBudget。两个同发回 400，只能二选一。
+ */
+const BUDGET_THINKING_MODEL = /^gemini-[12](?!\d)/i;
 const FINISH_REASONS: Record<string, string> = {
   STOP: 'stop',
   MAX_TOKENS: 'length',
@@ -254,14 +259,17 @@ export class GeminiProvider implements LlmProvider {
     if (request.temperature !== null) config.temperature = request.temperature;
     if (request.maxTokens !== null && request.maxTokens > 0)
       config.maxOutputTokens = request.maxTokens;
-    if (request.reasoningEffort) {
-      if (!own(THINKING_BUDGETS, request.reasoningEffort))
+    const effort = request.reasoningEffort;
+    if (effort) {
+      if (!own(THINKING_BUDGETS, effort))
         throw new ProviderError({
           category: 'invalid_request',
           safeMessage: 'Gemini reasoning effort must be low, medium, or high.',
           providerCode: 'invalid_reasoning_effort',
         });
-      config.thinkingConfig = { thinkingBudget: THINKING_BUDGETS[request.reasoningEffort] };
+      config.thinkingConfig = BUDGET_THINKING_MODEL.test(request.model)
+        ? { thinkingBudget: THINKING_BUDGETS[effort] }
+        : { thinkingLevel: effort.toUpperCase() };
     }
     if (Object.keys(config).length) payload.generationConfig = config;
     if (request.tools.length) {

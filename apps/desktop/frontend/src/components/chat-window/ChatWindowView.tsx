@@ -35,6 +35,7 @@ type Props = {
   observatoryAttention: ChatWindowProps['observatoryAttention'];
   agentPermissionProfile: AgentPermissionProfile;
   onAgentPermissionProfileChange: (profile: AgentPermissionProfile) => void;
+  onOpenSettings?: ChatWindowProps['onOpenSettings'];
   handleSelectSession: (id: number) => void;
   handleNewSession: () => void;
   /** 列表里该显示的会话（已移除的藏掉）；缺省用全部。 */
@@ -71,6 +72,7 @@ export function ChatWindowView({
   observatoryAttention,
   agentPermissionProfile,
   onAgentPermissionProfileChange,
+  onOpenSettings,
   handleSelectSession,
   handleNewSession,
   sessions,
@@ -296,6 +298,8 @@ export function ChatWindowView({
         onSubmit={submitGuarded}
         permissionProfile={composerPermissionProfile}
         onPermissionProfileChange={onAgentPermissionProfileChange}
+        projectPath={projectPath}
+        onOpenSettings={onOpenSettings}
         queuedMessages={queuedMessages}
         onRemoveQueuedMessage={onRemoveQueuedMessage}
         onStop={

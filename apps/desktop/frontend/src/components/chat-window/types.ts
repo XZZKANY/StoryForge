@@ -23,6 +23,8 @@ export type ChatWindowProps = {
   observatoryAttention?: boolean;
   agentPermissionProfile?: AgentPermissionProfile;
   onAgentPermissionProfileChange?: (profile: AgentPermissionProfile) => void;
+  /** 输入框底部模型下拉在没有任何配置时打开设置。 */
+  onOpenSettings?: () => void;
   /** 将运行中的 Agent 状态投影给作品总览，避免右栏隐藏时失去可见性。 */
   onAgentRunSummaryChange?: (summary: AgentRunOverviewSummary | null) => void;
   /** 后端阅读序章节与伏笔台账：新会话开场「接着写」的事实来源；不传就不开场。 */

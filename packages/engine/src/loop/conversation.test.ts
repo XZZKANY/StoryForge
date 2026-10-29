@@ -493,6 +493,34 @@ describe('连续作者流程的历史证据投影', () => {
     expect(await conversationHistoryBytes(store, 1)).toBeGreaterThan(HISTORY_BUDGET_BYTES);
   });
 
+  it('压缩请求显式不思考，不吃作者选的思考等级', async () => {
+    const { rows, store } = authorJourney();
+    rows.messages.push(
+      ...Array.from({ length: 4 }, (_, i) => ({
+        id: 11 + i,
+        role: i % 2 ? 'assistant' : 'user',
+        content: `继续第${i}轮。`,
+      })),
+    );
+    const inner = scriptedProvider('valid', []);
+    const seen: ChatRequest[] = [];
+    await createCompactionCheckpoint(store, 1, {
+      provider: {
+        complete: (request) => {
+          seen.push(request);
+          return inner.complete(request);
+        },
+      },
+      model: 'test',
+      secrets: { values: [] },
+    });
+    expect(seen.length).toBeGreaterThan(0);
+    for (const request of seen) {
+      expect(request.reasoningOff).toBe(true);
+      expect(request.reasoningEffort).toBeNull();
+    }
+  });
+
   it('旧检查点引用已省略的恢复全文时回退完整原始历史，不伪认可原引用', async () => {
     const { rows, store } = authorJourney();
     rows.messages.push(

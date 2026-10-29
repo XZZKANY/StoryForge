@@ -4,6 +4,7 @@ import {
   RECENT_PROJECTS_KEY,
   saveProjectAssistantSessions,
 } from './helpers';
+import { bindReasoningEffortProject } from '../../lib/reasoning-effort';
 import { isTauriRuntime } from '../../lib/tauri-env';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 
@@ -137,6 +138,9 @@ export function useProjectWorkspace({
     },
     [activeProject],
   );
+
+  // 引擎取模型配置时按当前项目读思考等级；在渲染期绑定，换项目后的第一次调用就用新项目的。
+  bindReasoningEffortProject(activeProject);
 
   return {
     projects,

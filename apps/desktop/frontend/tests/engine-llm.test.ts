@@ -96,7 +96,8 @@ it('source carries only the placeholder, which becomes the whole secret snapshot
   vi.mocked(invoke).mockResolvedValueOnce(SOURCE);
   const { source, secrets } = await nativeLlmSource('main');
   expect(invoke).toHaveBeenLastCalledWith('get_engine_llm_source', { slot: 'main' });
-  expect(source).toEqual(SOURCE);
+  // 没打开项目时思考等级是「关」：空串压过进程环境变量。
+  expect(source).toEqual({ ...SOURCE, STORYFORGE_LLM_REASONING_EFFORT: '' });
   expect(Object.isFrozen(source)).toBe(true);
   expect(secrets.values).toEqual([PLACEHOLDER]);
 
