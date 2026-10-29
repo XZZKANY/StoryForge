@@ -1,0 +1,35 @@
+## 2026-10-29 Anthropic 原生通道「关思考」时只给 4.6 及以前的模型发 temperature
+
+- 改动：
+  - 问题：#511 只处理了「开思考不发 temperature」。思考等级为「关」时，`AnthropicProvider.buildPayload` 仍把 `ConfiguredLlmProvider.configured()` 补上的 temperature（`STORYFORGE_LLM_TEMPERATURE`，默认 0.7；整章润色固定 0.35）原样发出，Opus 4.7+ / Sonnet 5+ / Haiku 5.5 / Fable 5+ 会对非默认采样值回 400。
+  - 做法：`packages/engine/src/llm/anthropic.ts` 加 `SAMPLING_MODEL`（与 `LEGACY_THINKING_MODEL` 同一写法，多认 4.6）：`claude-3*`、`claude-{opus,sonnet,haiku}-4` / `-4-0` / `-4-1` / `-4-5` / `-4-6` 及其日期快照、`@日期`、`.` 分隔写法。只有命中它时「关」才发 temperature；认不出的名字（含中转自定义名）一律不发。开思考的分支没动（本来就不发）。OpenAI 兼容、Gemini 路径没动。
+  - 为什么不用别的做法：
+    - 一律不发：Opus 4.6 / Sonnet 4.6 / Haiku 4.5 等仍接受 temperature，作者配的 0.7（服务端默认是 1）会被悄悄丢掉，润色的 0.35 也一样。
+    - 先发、400 了再去掉重试：多一轮请求、要按错误文本猜原因，中转站的错误格式还不统一。
+    - 只在值等于默认时发：Haiku 5.5 的默认 temperature 是 1、top_p 是 0.99，Opus 4.7 / 4.8 文档写的是「移除」，按值放行不如直接不发稳。
+- 依据（随 Claude Code 分发的 claude-api 参考，模型表缓存于 2026-10-06；官方站 `platform.claude.com/docs/.../migration-guide.md` 用 WebFetch 取回 HTTP 400，没取到在线版）：
+  - Opus 4.7 / 4.8、Opus 5、Opus 5.5、Sonnet 5、Fable 5 / 5.1：`temperature` / `top_p` / `top_k` 已移除，带上就 400（Opus 4.7 节原话：「no longer accepted … Requests that include them return a 400 error」）。
+  - Sonnet 5.5、Haiku 5.5：非默认值 400；Haiku 5.5 写明 temperature 只能是 1、top_p 只能是 0.99，不论开不开思考。Sonnet 5 节写的是「非默认值 400，省略或传默认值可以」。
+  - Opus 4.6 / Sonnet 4.6、Haiku 4.5 及更早：允许（Claude 4+ 不能同时带 temperature 与 top_p；引擎从不发 top_p）。
+- 验证：
+  - golden（有意改行为）：只动 `packages/engine/golden/p2-llm-native.json`。Anthropic 录制的模型名是 `claude-test`（call_llm 类）和 `m`（直接调 provider 的 native_* 类），都不在白名单里，所以这两类请求体都不再带 temperature。
+    - 用 `%TEMP%/sf-temp/update_native_golden.py` 改：先验证原文件按 `json.dumps(indent=2, ensure_ascii=False)+'\n'` 逐字节往返一致；只处理带 `anthropic-version` 头、URL 以 `/messages` 结尾的请求；每处断言 `,"temperature":<数>`（或 Python 式 `, "temperature": <数>`）只出现一次、模型名不在白名单、删后的 JSON 等于「原 JSON 去掉 temperature 键」且键序不变。
+    - 用 `%TEMP%/sf-temp/golden_json_diff.py` 把 HEAD 版与新版逐路径比（请求体字符串按 JSON 展开）：共 27 处差异，全部是 `scenarios/#/requests/#/body/temperature` 被删（值 0.3 ×1、0.7 ×26），分布在 23 个 Anthropic 场景（`anthropic-529-then-401`、`anthropic-connect-fail`、`anthropic-stream-connect`、`anthropic-stream-connect-names` 各有两次请求）。没有新增键、没有别的值变化、键序不变；Gemini 场景、结果、事件、元数据零变化。`git diff --numstat` 与 `--ignore-all-space --numstat` 都是 27/27。
+    - 改前（只改代码、不改 golden）`native.test.ts` 红 41 条 = 这 23 个场景 + 其中 9 个流式场景的 1 字节 / 5 字节分块回放（18 条），与上面的范围一致。
+  - 测试（`packages/engine/src/llm/thinking.test.ts`）：
+    - 原「关：不带任何思考参数，temperature 照常」去掉 temperature 断言，只留「不带 thinking / output_config」。
+    - 新增：关思考时 11 个新模型名（opus-5-5、sonnet-5-5、haiku-5-5、fable-5-1、fable-5、opus-5、sonnet-5、opus-4-8、opus-4-7、`anthropic.claude-opus-4-7`、`claude-test`）不发 temperature；9 个老模型名（opus-4-6、sonnet-4-6、`anthropic/claude-sonnet-4.6`、sonnet-4-5 日期快照、haiku-4-5、opus-4-1 快照、opus-4 快照、3-7-sonnet、`@` 写法）照发。
+    - 新增端到端：`ConfiguredLlmProvider` + Anthropic 配置源 `STORYFORGE_LLM_TEMPERATURE=0.3`、请求不带 temperature，`claude-sonnet-4-6` 请求体里是 0.3，`claude-opus-5-5` 请求体里没有 temperature。golden 里原本「配置源 0.3 透传」那条（`anthropic-ok`）因模型名是 `claude-test` 不再覆盖透传，改由这条覆盖。
+    - 引擎 `src/llm/` 单跑：5 个文件 630 passed。
+  - 接线变异 3 处（`%TEMP%/sf-temp/mutate.py`：每处断言变异串只出现一次，跑 `thinking.test.ts` + `native.test.ts`，finally 按原字节写回并核 sha256；跑前跑后 `sha256sum` 一致；没用 git checkout / stash）：
+    - M1 关思考时不看模型名一律发 temperature → 53 条红（golden 41 + 新模型名 11 + 端到端 1）；
+    - M2 关思考时一律不发 → 10 条红（老模型名 9 + 端到端 1）；golden 不红，老模型的透传只靠单测守；
+    - M3 白名单漏掉 4.6 → 4 条红（三个 4.6 名字 + 端到端）。
+  - `pnpm verify` EXIT=0（一次过，pnpm 9.15.4 corepack shim）：lint、前端类型检查通过；project-core 14 passed；引擎类型检查 + 99 个文件 13955 passed / 2 skipped（比 #511 记录的 13934 多 21 条 = 新增 11 + 9 + 1）；前端单测 249 个文件 2507 passed；行间续写、浏览器冒烟、Agent 对话三个浏览器回归通过。
+  - 行尾：三个改动文件与本记录都是纯 LF，无 CRLF；golden `--numstat` 与 `--ignore-all-space --numstat` 一致（27/27）。
+- 未覆盖：
+  - 没调真模型、没花钱：各模型对 temperature 的实际反应只按文档与单测断言，没有真请求验证；中转站自定义模型名（比如不带 `claude-` 前缀、或写成 `claude-4-sonnet`）一律不发 temperature，等于用服务端默认值。
+  - 没跑 Rust 测试、Tauri 冒烟、真宿主探针（没改 Rust，宿主命令与载荷形状没变）。
+  - 现存问题（本分支没动）：
+    - 运行证据（`loop/requestEvidence.ts`）记的是 `ChatRequest.temperature`，不是实际请求体，所以新模型上证据仍写 0.7，实际没发。#511 起开思考时也是这样。
+    - Opus 5.5 / Fable 5 / 5.1 的思考关不掉；Opus 5、Sonnet 5 / 5.5、Haiku 5.5 不带 `thinking` 时默认就跑 adaptive。所以对这些模型，「关」只是不发思考参数，模型照样会思考。

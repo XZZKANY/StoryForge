@@ -39,6 +39,12 @@ const THINKING_BUDGETS: Record<string, number> = { low: 1024, medium: 4096, high
  */
 const LEGACY_THINKING_MODEL =
   /claude-3|claude-(?:opus|sonnet|haiku)-4(?:[-.][015])?(?:-\d{8})?(?![-.]?\d)/i;
+/**
+ * 只有 4.6 及以前的模型还接受 temperature；Opus 4.7+ / Sonnet 5+ / Haiku 5.5 / Fable 5+
+ * 对非默认采样值回 400。认不出的名字一律不发。
+ */
+const SAMPLING_MODEL =
+  /claude-3|claude-(?:opus|sonnet|haiku)-4(?:[-.][0156])?(?:-\d{8})?(?![-.]?\d)/i;
 const STOP_REASONS: Record<string, string> = {
   end_turn: 'stop',
   stop_sequence: 'stop',
@@ -329,7 +335,8 @@ export class AnthropicProvider implements LlmProvider {
         payload.thinking = { type: 'adaptive' };
         payload.output_config = { effort };
       }
-    } else if (request.temperature !== null) payload.temperature = request.temperature;
+    } else if (request.temperature !== null && SAMPLING_MODEL.test(request.model))
+      payload.temperature = request.temperature;
     if (request.tools.length) {
       payload.tools = request.tools.map((tool) => AnthropicProvider.nativeTool(tool));
       const choice = AnthropicProvider.toolChoice(request.toolChoice);

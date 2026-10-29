@@ -81,17 +81,48 @@ describe('Anthropic 思考参数按官方现行写法', () => {
     );
   });
 
-  it('关：不带任何思考参数，temperature 照常', () => {
+  it('关：不带任何思考参数', () => {
     for (const model of ['claude-opus-5-5', 'claude-sonnet-4-5']) {
       const payload = anthropic(request(model, null));
       expect(payload).not.toHaveProperty('thinking');
       expect(payload).not.toHaveProperty('output_config');
-      expect(payload.temperature).toBe(0.7);
     }
   });
 
   it('不认识的等级照旧拒绝', () => {
     expect(() => anthropic(request('claude-opus-5-5', 'max'))).toThrow(/low, medium, or high/);
+  });
+});
+
+describe('Anthropic 关思考时 temperature 只发给仍接受采样参数的模型', () => {
+  it.each([
+    'claude-opus-5-5',
+    'claude-sonnet-5-5',
+    'claude-haiku-5-5',
+    'claude-fable-5-1',
+    'claude-fable-5',
+    'claude-opus-5',
+    'claude-sonnet-5',
+    'claude-opus-4-8',
+    'claude-opus-4-7',
+    'anthropic.claude-opus-4-7',
+    'claude-test',
+  ])('%s：不发 temperature', (model) => {
+    expect(anthropic(request(model, null))).not.toHaveProperty('temperature');
+  });
+
+  it.each([
+    'claude-opus-4-6',
+    'claude-sonnet-4-6',
+    'anthropic/claude-sonnet-4.6',
+    'claude-sonnet-4-5-20250929',
+    'claude-haiku-4-5',
+    'claude-opus-4-1-20250805',
+    'claude-opus-4-20250514',
+    'claude-3-7-sonnet-20250219',
+    'claude-sonnet-4-5@20250929',
+  ])('%s（4.6 及以前）：照发 temperature', (model) => {
+    expect(anthropic(request(model, null)).temperature).toBe(0.7);
   });
 });
 
@@ -136,14 +167,16 @@ describe('ConfiguredLlmProvider：未指定吃配置源，显式关压过配置�
     STORYFORGE_LLM_API_KEY: '<key>',
     STORYFORGE_LLM_REASONING_EFFORT: 'high',
   };
-  const sentBody = async (req: ChatRequest) => {
+  const sentBody = async (
+    req: ChatRequest,
+    source: LlmSource = SOURCE,
+    replyBody: JsonObject = { choices: [{ message: { content: '好' }, finish_reason: 'stop' }] },
+  ) => {
     const bodies: JsonObject[] = [];
     const http: HttpPort = {
       async send(outgoing) {
         bodies.push(JSON.parse(new TextDecoder().decode(outgoing.body!)) as JsonObject);
-        const reply = JSON.stringify({
-          choices: [{ message: { content: '好' }, finish_reason: 'stop' }],
-        });
+        const reply = JSON.stringify(replyBody);
         return {
           status: 200,
           headers: { 'content-type': 'application/json' },
@@ -162,7 +195,7 @@ describe('ConfiguredLlmProvider：未指定吃配置源，显式关压过配置�
       appVersion: '0.0.0',
       secrets: { values: [] },
     };
-    await new ConfiguredLlmProvider(SOURCE, ctx).complete(req);
+    await new ConfiguredLlmProvider(source, ctx).complete(req);
     return bodies[0];
   };
 
@@ -173,6 +206,24 @@ describe('ConfiguredLlmProvider：未指定吃配置源，显式关压过配置�
   it('显式关：请求体里没有 reasoning_effort', async () => {
     expect(await sentBody(request('', null, { reasoningOff: true }))).not.toHaveProperty(
       'reasoning_effort',
+    );
+  });
+
+  it('Anthropic 关思考：配置源的 temperature 只发给 4.6 及以前的模型', async () => {
+    const anthropicSource = (model: string): LlmSource => ({
+      STORYFORGE_LLM_PROVIDER: 'anthropic',
+      STORYFORGE_LLM_BASE_URL: 'https://api.anthropic.example/v1',
+      STORYFORGE_LLM_MODEL: model,
+      STORYFORGE_LLM_API_KEY: '<key>',
+      STORYFORGE_LLM_TEMPERATURE: '0.3',
+    });
+    const reply = { content: [{ type: 'text', text: '好' }], stop_reason: 'end_turn' };
+    const unset = request('', null, { temperature: null, reasoningOff: true });
+    expect((await sentBody(unset, anthropicSource('claude-sonnet-4-6'), reply)).temperature).toBe(
+      0.3,
+    );
+    expect(await sentBody(unset, anthropicSource('claude-opus-5-5'), reply)).not.toHaveProperty(
+      'temperature',
     );
   });
 });
