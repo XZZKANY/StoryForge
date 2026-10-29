@@ -21,6 +21,10 @@ test('StoryForge editor keeps Chinese punctuation readable without Monaco ambigu
   assert.equal(STORYFORGE_EDITOR_UNICODE_HIGHLIGHT.ambiguousCharacters, false);
   assert.equal(STORYFORGE_EDITOR_UNICODE_HIGHLIGHT.nonBasicASCII, false);
   assert.equal(STORYFORGE_EDITOR_UNICODE_HIGHLIGHT.invisibleCharacters, true);
+  // 全角空格是中文排版常用字，不加黄框；零宽空格这类仍要标出来。
+  const allowed = STORYFORGE_EDITOR_UNICODE_HIGHLIGHT.allowedCharacters ?? {};
+  assert.equal(allowed[String.fromCharCode(0x3000)], true);
+  assert.equal(allowed[String.fromCharCode(0x200b)], undefined);
 });
 
 test('Q9 editor grid font stack leads with a CJK monospace face and falls back to monospace', () => {
