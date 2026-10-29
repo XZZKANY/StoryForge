@@ -18,6 +18,7 @@ import { useChatWindowState } from './chat-window/useChatWindowState';
 import { useChapterCheckHistory } from './chat-window/useChapterCheckHistory';
 import { projectOverviewActivity } from './chat-window/overview-activity';
 import { useRunAuthorAgent } from './chat-window/useRunAuthorAgent';
+import { useComposerHint } from './chat-window/useComposerHint';
 import { useChapterHandoff } from './app/useChapterHandoff';
 import {
   emitChapterWriteRequest,
@@ -110,6 +111,13 @@ export function ChatWindow(props: ChatWindowProps) {
     chapters: props.bookChapters ?? null,
     promises: props.bookPromises ?? null,
     enabled: openingVisible,
+  });
+  const composerHint = useComposerHint({
+    state,
+    projectPath,
+    assistantSessionId: assistantSessionId ?? null,
+    scope: submission.conversationScope,
+    chapters: props.bookChapters ?? null,
   });
 
   useEffect(() => {
@@ -263,6 +271,7 @@ export function ChatWindow(props: ChatWindowProps) {
         agentRunControls={controls.agentRunControls}
         opening={openingVisible ? handoff : null}
         onOpeningDraft={emitChapterWriteRequest}
+        composerHint={composerHint}
       />
       <AppDialogHost
         dialog={dialogs.dialog}

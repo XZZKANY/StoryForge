@@ -56,6 +56,8 @@ type Props = {
   /** 新会话开场「接着写」；null 时对话区保持空白。 */
   opening?: ChapterHandoff | null;
   onOpeningDraft?: (request: ChapterWriteRequest) => void;
+  /** 输入框空着时的「下一句」提示（`lib/composer-hint.ts`）；null 时用原占位文字。 */
+  composerHint?: string | null;
 };
 
 export function ChatWindowView({
@@ -88,6 +90,7 @@ export function ChatWindowView({
   agentRunControls,
   opening = null,
   onOpeningDraft,
+  composerHint = null,
 }: Props) {
   const statusText = runStatusText(state.agentRun);
   // 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉当前 run，
@@ -299,6 +302,7 @@ export function ChatWindowView({
           // 恢复请求等最终结果才更新状态；期间仍可能是 waiting（章纲）或 paused。
           state.agentBusy && actionBarVisible ? agentRunControls.onStopRun : undefined
         }
+        hint={composerHint}
       />
     </div>
   );

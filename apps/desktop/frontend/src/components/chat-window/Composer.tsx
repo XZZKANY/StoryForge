@@ -1,6 +1,7 @@
 import { IconButton } from '../ui';
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import { AGENT_ROLE_SUGGESTIONS } from '../../lib/agent-roles';
+import { COMPOSER_HINT_TAB_SUFFIX } from '../../lib/composer-hint';
 import { type AgentPermissionProfile } from '../../lib/agent-permission';
 import { basename } from '../app/helpers';
 import { ArrowUp, Plus, Square } from '../icons/shell-icons';
@@ -28,6 +29,7 @@ export function ComposerBox({
   queuedMessages = [],
   onRemoveQueuedMessage,
   onStop,
+  hint = null,
 }: {
   inputRef?: MutableRefObject<HTMLTextAreaElement | null>;
   value: string;
@@ -46,6 +48,8 @@ export function ComposerBox({
   onRemoveQueuedMessage?: (id: number) => void;
   /** 有一轮正在跑时才给：输入框为空时发送键换成停止。 */
   onStop?: () => void;
+  /** 输入框空着时的「下一句」提示；Tab 填入。 */
+  hint?: string | null;
 }) {
   return (
     <div className="flex-shrink-0 p-3">
@@ -73,6 +77,7 @@ export function ComposerBox({
             queuedMessages={queuedMessages}
             onRemoveQueuedMessage={onRemoveQueuedMessage}
             onStop={onStop}
+            hint={hint}
           />
         </form>
       </div>
@@ -97,6 +102,7 @@ export function ComposerSurface({
   queuedMessages = [],
   onRemoveQueuedMessage,
   onStop,
+  hint = null,
 }: {
   inputRef?: MutableRefObject<HTMLTextAreaElement | null>;
   value: string;
@@ -114,6 +120,7 @@ export function ComposerSurface({
   queuedMessages?: readonly QueuedChatMessage[];
   onRemoveQueuedMessage?: (id: number) => void;
   onStop?: () => void;
+  hint?: string | null;
 }) {
   // 运行中可保留一条待发；已有待发时继续提交仅提示，草稿不清空。
   const canSubmit = value.trim() && !disabled;
@@ -308,11 +315,27 @@ export function ComposerSurface({
         disabled={disabled}
         rows={2}
         className="sf-inner-input max-h-40 min-h-[72px] w-full resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
-        placeholder={disabled ? '打开项目后即可使用 StoryForge' : '输入想法，@ 提及角色'}
+        placeholder={
+          disabled
+            ? '打开项目后即可使用 StoryForge'
+            : hint
+              ? `${hint}${COMPOSER_HINT_TAB_SUFFIX}`
+              : '输入想法，@ 提及角色'
+        }
         aria-label="给 StoryForge 发送消息"
         onKeyDown={(event) => {
           // IME 组字期间（拼音选字）一律不拦截：Enter 上屏候选、方向键选候选都不应触发发送/回溯。
           if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (event.key === 'Tab') {
+            const plainTab = !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey;
+            const menuOpen = roleSuggestions.length > 0 || contextPickerOpen;
+            if (plainTab && hint && !disabled && value === '' && !menuOpen) {
+              event.preventDefault();
+              onChange(hint);
+              moveCaretToEnd();
+            }
+            return;
+          }
           if (event.key === 'Enter') {
             if (event.shiftKey) return; // Shift+Enter 换行
             // Enter 或 Ctrl/Cmd+Enter 均发送；busy 时交给 onSubmit 排队，不在此吞掉作者的字。

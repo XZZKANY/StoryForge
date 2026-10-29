@@ -4,7 +4,9 @@ import type { EncodedFile } from './contextFixture.test-support';
 import { memoryProject } from './memoryProject.test-support';
 import {
   missingSetupBeforeFirstChapter,
+  projectSetupFacts,
   setupGapSection,
+  setupKindOfPath,
   setupNote,
   SKIP_SETUP_PATTERN,
 } from './projectSetup';
@@ -61,6 +63,51 @@ describe('missingSetupBeforeFirstChapter', () => {
 
   it('stays out of the way once any chapter exists', async () => {
     expect(await missing({ '正文/第001章.md': '第一章' })).toBeNull();
+  });
+});
+
+const facts = (files: Record<string, string>) =>
+  projectSetupFacts(
+    memoryProject(
+      ROOT,
+      Object.fromEntries(Object.entries(files).map(([path, text]) => [path, encode(text)])),
+    ).reader,
+    ROOT,
+    'windows',
+  );
+
+describe('projectSetupFacts', () => {
+  it('reports an empty book as no manuscript and all three kinds missing', async () => {
+    expect(await facts({ '大纲/项目说明.md': PROJECT_GUIDE_MARKDOWN })).toEqual({
+      hasManuscript: false,
+      missing: ['outline', 'character', 'setting'],
+    });
+  });
+
+  it('agrees with the first-chapter check before any chapter exists', async () => {
+    const files = { '大纲/总纲.md': '主线', '设定/规则.md': '仪式', '人物/主角.json': '{}' };
+    expect(await facts(files)).toEqual({ hasManuscript: false, missing: ['character'] });
+    expect(await missing(files)).toEqual(['character']);
+    expect(
+      await facts({ '大纲/总纲.md': '主线', '人物/主角.md': '十八岁', '世界观/规则.md': '仪式' }),
+    ).toEqual({ hasManuscript: false, missing: [] });
+  });
+
+  it('still lists missing kinds once chapters exist, where the first-chapter check stays quiet', async () => {
+    const files = { '正文/第001章.md': '第一章', '人物/主角.md': '十八岁' };
+    expect(await facts(files)).toEqual({ hasManuscript: true, missing: ['outline', 'setting'] });
+    expect(await missing(files)).toBeNull();
+  });
+});
+
+describe('setupKindOfPath', () => {
+  it('classifies like the setup check, accepting either separator', () => {
+    expect(setupKindOfPath('大纲/总纲.md')).toBe('outline');
+    expect(setupKindOfPath('角色\\主角.md')).toBe('character');
+    expect(setupKindOfPath('世界观/规则.txt')).toBe('setting');
+    expect(setupKindOfPath('人物/主角.json')).toBeNull();
+    expect(setupKindOfPath('伏笔/线索.md')).toBeNull();
+    expect(setupKindOfPath('正文/第001章.md')).toBeNull();
   });
 });
 

@@ -370,6 +370,8 @@ export {
   previousChapterTail,
 } from './kernel/previousChapter';
 export type { PreviousChapterPassage } from './kernel/previousChapter';
+export { projectSetupFacts, SETUP_KINDS, setupKindOfPath } from './kernel/projectSetup';
+export type { ProjectSetupFacts, SetupKind } from './kernel/projectSetup';
 export { collectSettingSources } from './kernel/settingSources';
 export type { SettingSources } from './kernel/settingSources';
 export {
