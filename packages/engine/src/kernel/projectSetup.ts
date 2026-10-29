@@ -2,13 +2,13 @@ import { isUntouchedProjectGuide } from '@storyforge/project-core';
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import { FsToolError } from './fsTools';
 import { iterManuscriptFiles } from './previousChapter';
-import { projectKnowledgeCandidates } from './projectKnowledge';
+import { projectKnowledgeCandidates, projectKnowledgeSourceType } from './projectKnowledge';
 import { readProjectContextFile, suffixOf } from './projectKnowledgeFiles';
 import { ProjectTreeError } from './projectTree';
 import { pythonStrip } from './pythonText';
 
 export type SetupKind = 'outline' | 'character' | 'setting';
-const SETUP_KINDS: readonly SetupKind[] = ['outline', 'character', 'setting'];
+export const SETUP_KINDS: readonly SetupKind[] = ['outline', 'character', 'setting'];
 const LABELS: Record<SetupKind, string> = {
   outline: '总纲',
   character: '人物',
@@ -28,6 +28,26 @@ const optional = (error: unknown) =>
   error instanceof ProjectTreeError ||
   error instanceof FsToolError;
 
+/** 三类立项文件里还没有一份有内容的（按 SETUP_KINDS 的顺序）；目录说明和空文件不算。 */
+async function missingSetupKinds(reader: ProjectReader, root: string): Promise<SetupKind[]> {
+  const present = new Set<SetupKind>();
+  for (const item of await projectKnowledgeCandidates(reader, root)) {
+    const kind = item.source_type as SetupKind;
+    if (!SETUP_KINDS.includes(kind) || present.has(kind)) continue;
+    if (!TEXT_SUFFIXES.has(suffixOf(item.path))) continue;
+    let content: string;
+    try {
+      content = (await readProjectContextFile(reader, root, item.path)).content;
+    } catch (error) {
+      if (optional(error)) continue;
+      throw error;
+    }
+    if (!pythonStrip(content) || isUntouchedProjectGuide(item.path, content)) continue;
+    present.add(kind);
+  }
+  return SETUP_KINDS.filter((kind) => !present.has(kind));
+}
+
 /**
  * 开写第一章前还缺的立项文件：一章正文都没有、又缺总纲 / 人物 / 世界规则时，按这个顺序返回缺的几类；
  * 否则 null。新建作品自带的目录说明和空文件不算。读不出来时不拦作者（返回 null）。
@@ -39,27 +59,42 @@ export async function missingSetupBeforeFirstChapter(
 ): Promise<SetupKind[] | null> {
   try {
     if ((await iterManuscriptFiles(reader, root, platform)).length) return null;
-    const present = new Set<SetupKind>();
-    for (const item of await projectKnowledgeCandidates(reader, root)) {
-      const kind = item.source_type as SetupKind;
-      if (!SETUP_KINDS.includes(kind) || present.has(kind)) continue;
-      if (!TEXT_SUFFIXES.has(suffixOf(item.path))) continue;
-      let content: string;
-      try {
-        content = (await readProjectContextFile(reader, root, item.path)).content;
-      } catch (error) {
-        if (optional(error)) continue;
-        throw error;
-      }
-      if (!pythonStrip(content) || isUntouchedProjectGuide(item.path, content)) continue;
-      present.add(kind);
-    }
-    const missing = SETUP_KINDS.filter((kind) => !present.has(kind));
+    const missing = await missingSetupKinds(reader, root);
     return missing.length ? missing : null;
   } catch (error) {
     if (optional(error)) return null;
     throw error;
   }
+}
+
+export type ProjectSetupFacts = {
+  /** 手稿里有没有任何一章（与开写前立项检查同一个判断）。 */
+  hasManuscript: boolean;
+  /** 不论有没有正文都照实给；立项检查只在还没有正文时才算数。 */
+  missing: SetupKind[];
+};
+
+/** 有没有正文、立项文件缺哪几类：给界面的只读事实，判断与立项检查同一套。读不出来时返回 null。 */
+export async function projectSetupFacts(
+  reader: ProjectReader,
+  root: string,
+  platform: 'windows' | 'posix',
+): Promise<ProjectSetupFacts | null> {
+  try {
+    const hasManuscript = (await iterManuscriptFiles(reader, root, platform)).length > 0;
+    return { hasManuscript, missing: await missingSetupKinds(reader, root) };
+  } catch (error) {
+    if (optional(error)) return null;
+    throw error;
+  }
+}
+
+/** 作品内相对路径算哪一类立项文件（与立项检查同一套归类）；不算就是 null。 */
+export function setupKindOfPath(path: string): SetupKind | null {
+  const posix = path.replace(/\\/g, '/');
+  if (!TEXT_SUFFIXES.has(suffixOf(posix))) return null;
+  const kind = projectKnowledgeSourceType(posix) as SetupKind | null;
+  return kind !== null && SETUP_KINDS.includes(kind) ? kind : null;
 }
 
 const labels = (missing: readonly SetupKind[]) => missing.map((kind) => LABELS[kind]).join('、');
