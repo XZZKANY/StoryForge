@@ -76,3 +76,15 @@ test('引擎给的截断警告随补丁交给编辑器；没有警告就不带',
   const plain = emitted(response({}));
   assert.equal(plain.truncationWarning, undefined);
 });
+
+test('引擎给的字数提示随补丁交给编辑器、写进旁注；没有就不带', () => {
+  const hint = '字数提示：目标约 3600–4400 字，这版实际 5999 字（偏多 1599 字）。';
+  const hinted = emitted(response({ length_hint: { message: hint, actual_chars: 5999 } }));
+  assert.equal(hinted.lengthHint, hint);
+  assert.equal(hinted.truncationWarning, undefined);
+  assert.equal(hinted.requiresConfirmation, true);
+  assert.ok(hinted.note.split('\n').includes(hint));
+  const plain = emitted(response({}));
+  assert.equal(plain.lengthHint, undefined);
+  assert.ok(!plain.note.includes('字数提示'));
+});

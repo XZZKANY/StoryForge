@@ -17,11 +17,11 @@ export function scopeWarningFromAgentResult(message: ChatWindowAgentResult): str
 }
 
 /**
- * 引擎判定的「新稿可能没写完」。断线后按事件表重建的结果没有 agent_result 里的这一项，
- * 退到同一补丁的 file.revise 轨迹上取，免得警告随重建丢掉。
+ * 断线后按事件表重建的结果没有 agent_result 里的修订提示，
+ * 退到同一补丁的 file.revise 轨迹上取，免得提示随重建丢掉。
  */
-export function truncationWarningFromAgentResult(message: ChatWindowAgentResult): string | null {
-  const direct = warningText(message.agent_result.truncation_warning);
+function revisePatchNotice(message: ChatWindowAgentResult, field: string): string | null {
+  const direct = warningText(message.agent_result[field]);
   if (direct) return direct;
   const patch = message.proposed_patch;
   const patchId = patch && typeof patch === 'object' ? (patch as { id?: unknown }).id : undefined;
@@ -32,7 +32,17 @@ export function truncationWarningFromAgentResult(message: ChatWindowAgentResult)
       item.status === 'completed' &&
       item.output_summary?.patch_id === patchId,
   );
-  return warningText(trace?.output_summary?.truncation_warning);
+  return warningText(trace?.output_summary?.[field]);
+}
+
+/** 引擎判定的「新稿可能没写完」。 */
+export function truncationWarningFromAgentResult(message: ChatWindowAgentResult): string | null {
+  return revisePatchNotice(message, 'truncation_warning');
+}
+
+/** 引擎算的「修订稿字数没落在作者给的目标里」；只提示，不影响接受。 */
+export function lengthHintFromAgentResult(message: ChatWindowAgentResult): string | null {
+  return revisePatchNotice(message, 'length_hint');
 }
 
 function reviewSourceLine(

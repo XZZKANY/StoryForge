@@ -36,6 +36,7 @@ import { ProjectReadError } from '../../readPort';
 import { authorViewFromPayload } from '../authorView';
 import { PatchProposal } from '../chatLoopTypes';
 import { patchRequiresConfirmation } from '../permission';
+import { revisionTargetLength, targetLengthHint } from '../reviseTargetLength';
 import { AgentOrchestrationError, optionalString, roleHints, roleMentions } from '../runPayloads';
 import {
   SubagentExecutor,
@@ -280,6 +281,12 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
     if (warning !== null) summary = `${summary} ${warning.message}`;
     const truncation = truncationWarning(response.before, response.after);
     if (truncation !== null) summary = `${summary} ${truncation.message}`;
+    // 字数没落在作者要的目标里只提示：不改确认档位、不重写。
+    const lengthHint = targetLengthHint(
+      revisionTargetLength([context.userMessage, instruction]),
+      response.after,
+    );
+    if (lengthHint !== null) summary = `${summary} ${lengthHint.message}`;
     // 疑似半截的新稿不能在自动档下不经作者过目就整份落盘。
     const confirm = requiresConfirmation(context) || truncation !== null;
     const proposedPatch: Obj = {
@@ -319,6 +326,10 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
     if (truncation !== null) {
       output.truncation_warning = truncation;
       outputSummary.truncation_warning = truncation;
+    }
+    if (lengthHint !== null) {
+      output.length_hint = lengthHint;
+      outputSummary.length_hint = lengthHint;
     }
     return {
       status: 'completed',

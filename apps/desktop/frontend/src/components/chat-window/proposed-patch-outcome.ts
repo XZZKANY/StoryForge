@@ -8,7 +8,11 @@ import {
   writableFilePatch,
   writingContextFromAgentResult,
 } from './agent-result';
-import { scopeWarningFromAgentResult, truncationWarningFromAgentResult } from './review';
+import {
+  lengthHintFromAgentResult,
+  scopeWarningFromAgentResult,
+  truncationWarningFromAgentResult,
+} from './review';
 import type { AgentRunStatus, ChatWindowAgentResult } from './types';
 
 /**
@@ -59,6 +63,7 @@ export function emitProposedPatchOutcome(params: {
       knowledgeEntries: writingContext.knowledgeEntries,
       scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
       truncationWarning: truncationWarningFromAgentResult(response) ?? undefined,
+      lengthHint: lengthHintFromAgentResult(response) ?? undefined,
       requiresConfirmation: proposed.requires_confirmation,
       runId: response.run_id ?? params.runId,
     }),

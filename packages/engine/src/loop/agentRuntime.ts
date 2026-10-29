@@ -688,7 +688,12 @@ export class AgentRuntime {
           trace.status === 'completed' &&
           summary.patch_id === proposedPatch.id
         ) {
-          for (const field of ['applied_scope', 'scope_warning', 'truncation_warning'])
+          for (const field of [
+            'applied_scope',
+            'scope_warning',
+            'truncation_warning',
+            'length_hint',
+          ])
             if (isObj(summary[field])) agentResult[field] = summary[field];
           break;
         }

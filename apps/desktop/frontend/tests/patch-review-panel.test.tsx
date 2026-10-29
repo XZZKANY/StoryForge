@@ -967,3 +967,18 @@ test('截断两步已武装：「接受」就地换成「仍然整份接受」�
   click('suggestion-reject');
   assert.equal(cancels, 3);
 });
+
+test('引擎给了字数提示：横幅用提示色显示，和截断警告分开；普通补丁不显示', () => {
+  const hint = '字数提示：目标约 3600–4400 字，这版实际 5999 字（偏多 1599 字）。';
+  mountPanel({ lengthHint: hint });
+  const line = byTestId('patch-length-hint');
+  assert.ok(line, '字数提示必须显示在修订横幅里');
+  assert.equal(line.textContent, hint);
+  assert.ok(line.classList.contains('text-warning'), '字数提示用提示色');
+  assert.ok(!line.classList.contains('text-error'), '字数提示不是错误');
+  assert.equal(line.getAttribute('role'), null, '只提示，不当成警报');
+  assert.equal(byTestId('patch-truncation-warning'), null);
+  assert.equal(byTestId('patch-details')!.hidden, true, '提示不能折进「说明」里');
+  mountPanel();
+  assert.equal(byTestId('patch-length-hint'), null);
+});

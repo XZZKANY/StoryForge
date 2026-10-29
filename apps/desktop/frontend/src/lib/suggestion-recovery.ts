@@ -71,7 +71,7 @@ function proposal(value: unknown): value is AssistantFileSuggestion {
   )
     return false;
   if (
-    !['model', 'userIntent', 'scopeWarning', 'truncationWarning', 'runId'].every(
+    !['model', 'userIntent', 'scopeWarning', 'truncationWarning', 'lengthHint', 'runId'].every(
       (field) => value[field] === undefined || typeof value[field] === 'string',
     )
   )
