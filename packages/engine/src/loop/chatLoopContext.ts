@@ -2,7 +2,7 @@ import type { AssistantStore } from '../assistant/service';
 import type { GenerationDeliveryCapture } from '../kernel/generationDelivery';
 import type { SecretContext } from '../kernel/redaction';
 import type { LlmSource } from '../llm/config';
-import { ToolCall, type ChatResponse } from '../llm/contracts';
+import { ToolCall, type ChatResponse, type ProviderError } from '../llm/contracts';
 import type { RunControl } from '../llm/control';
 import type { RecoverySources } from './chatLoopCheckpoints';
 import type { ChatLoopOutcome } from './chatLoopTypes';
@@ -71,6 +71,8 @@ export class StoryForgeRuntimeContext {
   providerAttempts = 0;
   /** 输出途中断开后整轮重发的次数（不算轮次）。 */
   streamRetries = 0;
+  /** 让本轮失败的那个 provider 错误（SDK 只往上报分类与安全摘要）。 */
+  providerError: ProviderError | null = null;
   completedModelRounds = 0;
   interruption: Obj | null = null;
   latestCheckpoint: RuntimeCheckpoint | null = null;

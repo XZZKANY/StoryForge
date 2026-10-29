@@ -25,6 +25,7 @@ import {
 import { callLlm, callLlmStreamed, errorUsageSummary, streamChatCompletions } from '../llm/client';
 import { envValue, missingLlmEnv, type LlmSource } from '../llm/config';
 import { RunInterrupted } from '../llm/control';
+import { modelFailureMessage } from '../llm/failureMessage';
 import { buildChatPayload, LlmError } from '../llm/payload';
 import type { LlmContext, StreamFrame } from '../llm/transport';
 import {
@@ -59,7 +60,7 @@ export class AssistantLlmNotConfiguredError extends Error {
   }
 }
 
-/** 模型调用失败（502），原始报错原样透出。 */
+/** 模型调用失败（502）：文字是给作者的归类说明，原始报错只进证据。 */
 export class AssistantReviseError extends Error {
   readonly status = 502;
   constructor(
@@ -308,7 +309,7 @@ async function recordLlmFailure(
       error_message: cpSlice(error.message, 4000),
       output_summary: errorUsageSummary(error, llm.source),
     });
-    throw new AssistantReviseError(error.message, error.usage);
+    throw new AssistantReviseError(modelFailureMessage(error), error.usage);
   }
   throw error;
 }
@@ -703,7 +704,7 @@ export async function streamContinueProse(
         error_message: cpSlice(error.message, 4000),
         output_summary: errorUsageSummary(error, llm.source),
       });
-      onFrame({ event: 'error', data: { message: error.message } });
+      onFrame({ event: 'error', data: { message: modelFailureMessage(error) } });
       return;
     }
     return recordLlmFailure(deps, toolCall, llm, error);

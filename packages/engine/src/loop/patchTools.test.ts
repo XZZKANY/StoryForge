@@ -32,6 +32,33 @@ describe('loop patch tools replay the Python oracle', () => {
   );
 });
 
+describe('显式修订失败时作者看到归类说明，响应体只进证据（#505）', () => {
+  it('file.revise 的轨迹与反馈不带服务端响应体', async () => {
+    const MARK = 'MARK-505-upstream-text';
+    const scenario = (golden.scenarios as Obj[]).find((item) => item.id === 'revise-llm-error')!;
+    const spec = JSON.parse(scenario.spec_json);
+    const failing = spec.replies.filter((reply: Obj) => reply.status === 500);
+    expect(failing).toHaveLength(1);
+    failing[0].body = JSON.stringify({ error: { message: `${MARK} key=${golden.secret}` } });
+    const { record, error } = await replay({ ...scenario, spec_json: JSON.stringify(spec) });
+    if (error) throw error;
+    const classified = '模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。';
+    expect(record.result.tool_trace[0].error_message).toBe(classified);
+    const calls = record.tool_calls as Obj[];
+    const revise = calls.filter((row) => row.tool_name === 'assistant.revise');
+    expect(revise).toHaveLength(1);
+    expect(revise[0].error_message).toContain(MARK);
+    expect(revise[0].error_message).not.toContain(golden.secret);
+    const authorFacing = JSON.stringify([
+      record.result,
+      record.frames,
+      calls.filter((row) => row.tool_name !== 'assistant.revise'),
+    ]);
+    expect(authorFacing).not.toContain(MARK);
+    expect(authorFacing).toContain(classified);
+  });
+});
+
 // Python 的审稿推理只在 LLMError / ValueError（含 JSON 解析错误）/ TypeError / KeyError 时降级为启发式；
 // 运行中断与证据落库失败必须照常抛出。
 describe('review reasoner degrades only on model and output failures', () => {

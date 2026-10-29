@@ -10815,12 +10815,12 @@
           }
         ],
         "agent_result": {
-          "summary": "这轮没答上来：真实 LLM 返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}",
+          "summary": "这轮没答上来：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。",
           "requires_user_confirmation": false,
           "execution_outcome": {
             "status": "failed",
             "code": "provider_error",
-            "message": "这轮没答上来：真实 LLM 返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}"
+            "message": "这轮没答上来：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。"
           }
         },
         "tool_trace": [],
@@ -10871,7 +10871,7 @@
           "event_id": 5,
           "sequence": 5,
           "status": "failed",
-          "message": "这轮没答上来：真实 LLM 返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}",
+          "message": "这轮没答上来：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -10889,12 +10889,12 @@
                 }
               ],
               "agent_result": {
-                "summary": "这轮没答上来：真实 LLM 返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}",
+                "summary": "这轮没答上来：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。",
                 "requires_user_confirmation": false,
                 "execution_outcome": {
                   "status": "failed",
                   "code": "provider_error",
-                  "message": "这轮没答上来：真实 LLM 返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}"
+                  "message": "这轮没答上来：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。"
                 }
               },
               "tool_trace": [],
@@ -11073,7 +11073,7 @@
           "run_id": 1,
           "event_type": "agent_run_failed",
           "actor": "root-agent",
-          "message": "这轮没答上来：真实 LLM 返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}",
+          "message": "这轮没答上来：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -11091,12 +11091,12 @@
                 }
               ],
               "agent_result": {
-                "summary": "这轮没答上来：真实 LLM 返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}",
+                "summary": "这轮没答上来：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。",
                 "requires_user_confirmation": false,
                 "execution_outcome": {
                   "status": "failed",
                   "code": "provider_error",
-                  "message": "这轮没答上来：真实 LLM 返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}"
+                  "message": "这轮没答上来：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。"
                 }
               },
               "tool_trace": [],
@@ -11233,7 +11233,7 @@
           "id": 2,
           "session_id": 1,
           "role": "assistant",
-          "content": "这轮没答上来：真实 LLM 返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}"
+          "content": "这轮没答上来：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。"
         }
       ],
       "tool_calls": [

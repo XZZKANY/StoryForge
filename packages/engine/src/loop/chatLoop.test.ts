@@ -97,7 +97,13 @@ function failure(spec: Obj): Error {
   switch (spec.type) {
     case 'ProviderError':
       return new ProviderError(
-        { category: spec.category as ProviderErrorCategory, safeMessage: spec.message },
+        {
+          category: spec.category as ProviderErrorCategory,
+          safeMessage: spec.message,
+          statusCode: spec.status_code ?? null,
+          providerCode: spec.provider_code ?? null,
+          requestId: spec.request_id ?? null,
+        },
         spec.usage ? usage(spec.usage) : null,
       );
     case 'LLMError':
@@ -403,6 +409,40 @@ describe('chat loop replays the Python oracle', () => {
       'owner_interruption',
     ])
       expectSame({ [key]: record[key] }, { [key]: scenario[key] });
+  });
+});
+
+describe('provider 失败：作者看中文归类，安全摘要进证据（#505）', () => {
+  const scenario = (id: string) => (golden.scenarios as Obj[]).find((item) => item.id === id)!;
+
+  it('records the safe summary as the failure detail', async () => {
+    const { outcome, error } = await replay(scenario('provider-error-with-usage'));
+    if (error) throw error;
+    expect(outcome!.answer).toBe(
+      '本轮未完成：模型调用失败：请求太频繁或额度用完，可以稍后重试。 已完成的结果已保留。',
+    );
+    expect(outcome!.failureDetail).toBe('provider_rate_limit: Provider rate limited.');
+  });
+
+  it('classifies by the captured error and keeps its status, code and request id', async () => {
+    const base = scenario('streaming-error');
+    const spec = JSON.parse(base.spec_json);
+    spec.model[0].raise = {
+      type: 'ProviderError',
+      category: 'response',
+      message: 'Anthropic request failed (request_too_large).',
+      provider_code: 'request_too_large',
+      request_id: 'req_505',
+      status_code: 413,
+    };
+    const { outcome, error } = await replay({ ...base, spec_json: JSON.stringify(spec) });
+    if (error) throw error;
+    expect(outcome!.answer).toBe(
+      '本轮未完成：模型调用失败：发给模型的内容超出了它能处理的长度（HTTP 413），请新开会话，或减少附带的参考后再试。',
+    );
+    expect(outcome!.failureDetail).toBe(
+      'provider_response: Anthropic request failed (request_too_large). status=413 provider_code=request_too_large request_id=req_505',
+    );
   });
 });
 

@@ -30,7 +30,7 @@ import { checkRunInterruption, requestTimeout, waitForRetry } from './control';
 import { GeminiProvider } from './gemini';
 import { OpenAICompatibleProvider, type LlmProvider } from './openaiCompatible';
 import { observeProvider } from './observation';
-import { buildChatPayload, LlmError, LlmStreamBreak } from './payload';
+import { buildChatPayload, LlmError, LlmStreamBreak, ProviderLlmError } from './payload';
 import { modelsUrl } from './protocol';
 import {
   providerCompleteJson,
@@ -154,9 +154,10 @@ const LEGACY_MESSAGES: Record<string, string> = {
 
 export function legacyProviderError(error: ProviderError): LlmError {
   const code = error.details.providerCode;
-  return new LlmError(
+  return new ProviderLlmError(
     code !== null && code in LEGACY_MESSAGES ? LEGACY_MESSAGES[code] : error.message,
     error.usage,
+    error.details,
   );
 }
 

@@ -1,0 +1,38 @@
+## 2026-10-29 模型调用失败给作者一句「原因 + 下一步」，四处报错共用一个归类函数（关联 #505）
+
+- 改动：
+  - 原因：对话循环里认不出的失败只写「模型调用失败。」；provider 错误透出英文安全摘要（如「Provider rate limited.」）；Ctrl+K / 续写、显式修订 / 起草、单轮回退三处把服务端响应体原样给作者。作者 10-29 拍板范围：统一归类、每类给下一步、认不出照实说；重试策略、批量续跑、界面详情面板不做。
+  - 新增 `packages/engine/src/llm/failureMessage.ts` 的 `modelFailureMessage(failure, streamRetries)`：输入错误对象或细节串，只认传输层 / 客户端自己拼的前缀（冒号前）、HTTP 状态码、`ProviderError` 的 category / providerCode / statusCode，从不转述响应体；400 / 422 的响应体只用来认「上下文超长」这一类（`context_length_exceeded` 等固定词），不进文案。认不出写「模型调用失败：原因未能归类，原始错误已记进本轮运行记录。」；有整轮重发时补「已自动重试 N 次仍未成功」。
+  - `loop/chatLoop.ts`：`providerFailureMessage` 改为调用它（旧的 `httpFailureReason` 等删掉）；LlmError 分支把错误对象传进去；SDK 回来的 `provider_*` 失败按分类给中文，安全摘要连同状态码 / 错误码 / 请求号写进 `failureDetail`（进 `assistant.chat_loop` 证据的 `error_message`，此前这条路径证据里没有原因）。为拿到状态码与错误码，`chatLoopAdapters.ts` 在把 `ProviderError` 往上抛时记到 `chatLoopContext.ts` 新增的 `providerError` 上；没捕获到（如结束原因是 content_filter）就按 category 归类。
+  - `assistant/service.ts`：`recordLlmFailure` 抛的 `AssistantReviseError` 与续写的错误帧改用归类文案；证据 `error_message` 照旧是传输层已脱敏的原始报错。显式修订 / 起草（`patchHandlers.ts` 的 `assistantCall`）与单轮回退（`agentRuntime.ts`）拿的就是这条错误的文字，所以这两个文件没改代码，靠下面的测试钉住。
+  - `llm/payload.ts` 新增 `ProviderLlmError extends LlmError`，`client.ts` 的 `legacyProviderError` 改返回它并带上 `ProviderError.details`：Ctrl+K 等走 `callLlm` 的路径收到 Anthropic / Gemini 的流内错误事件时也能按分类说清楚。文字、类型判断（`instanceof LlmError`）不变。
+  - 界面「本轮遇到问题，详情在回复里」没改：provider 失败的回复现在一定带原因（或照实说认不出）。
+- 分类表（类别 → 识别信号 → 作者文案，均以「模型调用失败：」开头）：
+  - 连不上 / 建连被重置 → `调用超时或连接失败` / `流式建连超时或失败` 且细节不是超时、`流式建连被重置`、原生 `流式建连失败：URLError` 或读错名 → 连不上模型服务（连接失败或被重置），请检查网络和设置里的服务地址后再试。
+  - 等待超时 → 同上前缀且细节为 `timed out` / `TimeoutError`；category=timeout → 等模型回复超时，可以稍后重试，反复超时请检查网络和服务地址。HTTP 408/504 → 等模型回复超时（HTTP 504），可以稍后重试。
+  - 输出途中断开 → `流式读取中断`、`在收到终止标记前中断`、`流式结束但未返回终帧`、`响应读取或解析失败` 且细节不是解码错、providerCode=`incomplete_text_stream` / `missing_stream_terminal`；认不出但有整轮重发时也归这类 → 输出途中连接断开（，已自动重试 N 次仍未成功），可以再试一次，反复出现请检查网络或中转。
+  - 401/403、category=authentication → 模型服务拒绝了密钥（HTTP 401），请到设置里检查 API Key。
+  - 404、Anthropic `not_found_error` → 服务地址或模型名不对（HTTP 404），请到设置里检查。
+  - 429、category=rate_limit → 请求太频繁或额度用完（HTTP 429），可以稍后重试。402 → 模型服务提示余额或额度不足（HTTP 402），请到服务商那里查看余额后再试。
+  - 5xx、Anthropic `api_error` → 模型服务端出错（HTTP 500），可以稍后重试。category=connection（Anthropic overloaded、Gemini UNAVAILABLE 等流内错误）→ 模型服务暂时不可用或连接中断，可以稍后重试。
+  - 400/422、category=invalid_request → 模型服务不接受这次请求（HTTP 400），中转或模型可能不认某个参数（例如思考等级），可以把思考等级调回「关」，或到设置里核对模型名。
+  - 上下文超长 → 413、400/422 且响应体含 `context_length_exceeded` / `context length` / `prompt is too long` / `request_too_large` / `exceeds the maximum number of tokens`、Anthropic `request_too_large` → 发给模型的内容超出了它能处理的长度（HTTP 413），请新开会话，或减少附带的参考后再试。
+  - 返回为空 → `返回内容为空`、`既无正文也无工具调用`、`仅含思维链` → 模型这次返回为空，可以再试一次，反复出现请换个模型。
+  - 格式不对 → `响应读取或解析失败：JSONDecodeError/UnicodeDecodeError`、`流式事件不是合法 JSON`、`响应缺少 choices/message`、`choices[0] 格式异常`、providerCode=missing_content 等 → 模型返回的内容格式不对、无法解析，可以再试一次，反复出现请检查设置里的服务地址与协议是否对应。
+  - 工具调用不完整 → `Invalid/Incomplete streamed tool response.`、providerCode=`invalid_tool_arguments` / `MALFORMED_FUNCTION_CALL` → 模型返回的工具调用不完整或参数格式不对，可以再试一次，反复出现请换个支持工具调用的模型。
+  - 被截断或过滤 → `输出被截断或过滤` → 模型输出被截断或被过滤，可以把要求拆小或换个说法再试；category=content_filter → 模型输出被服务方过滤，可以换个说法再试。
+  - 另两类：`LlmConfigError` / category=configuration → 模型配置不完整或不对，请到设置里检查服务地址、模型名和 API Key；category=unsupported → 这个模型或服务不支持本轮需要的功能（如工具调用），请换个模型再试。
+  - 认不出 → 原因未能归类，原始错误已记进本轮运行记录；未知状态码写成「模型服务返回 HTTP 418，原因未能归类，…」。
+- 验证：
+  - 新增 `src/llm/failureMessage.test.ts` 31 条：错误一律经真实的 `requestChatCompletions` / `rawStreamChatCompletions` / `postJsonWithRetry` / `providerSseJson` / `ConfiguredLlmProvider` / `callLlm` / `completeWithTextStream` 配假 HTTP 端口抛出，覆盖上表每一类；HTTP 类断言文案不含响应体标记与 key。
+  - 调用点：`assistantService.test.ts` 2 条（Ctrl+K 修订、续写错误帧）、`patchTools.test.ts` 1 条（对话里 file.revise）、`agentRun.test.ts` 1 条（单轮回退），都把 5xx 响应体换成「标记 + key」：作者能看到的结果 / 帧 / 消息里没有标记、是归类文案；`assistant.*` 证据的 `error_message` 有标记、没有 key。`chatLoop.test.ts` 2 条：provider 失败的中文文案与 `failureDetail`（含 status / provider_code / request_id）。`programInterception.test.ts` 既有 4 条改成新文案。
+  - golden 有意变更（6 个文件、9 个场景）：先用 `output/golden-505/update.py` 只替换给作者看的失败文案字段（按场景与路径限定，`assistant.*` 证据与 p2 的 log 不动），再用 `derived.py` 改 patch-tools `revise-llm-error` 的模型请求证据里随工具反馈变的三个派生值。核对：`diffcheck.py` 把 HEAD 版与新版逐叶比较（展开内嵌 JSON 串），共 48 处变化、0 处越界——45 处是作者文案字段（answer / message / summary / content / trace 与 file.revise 证据的 error_message / 发给模型的工具反馈 error），且新值都是上表里的文案；3 处是派生值。派生值单独核过：工具消息的 sha256 / content_chars 用 Python 按引擎同一编码重算一致；`request_digest` 用临时钩子在引擎里把那条工具消息换回旧文重算，得到的正是旧值 `83920169…`（钩子文件先备份、跑完按字节还原）。p2 / host / agent-run / fixed-pipelines / patch-tools 的原始报错（`upstream down` 等）仍留在 `assistant.*` 证据里。六个 golden 都是 LF，写回后经 `json.dumps(indent=2, ensure_ascii=False)` 往返字节一致。
+  - 变异（`output/golden-505/mutate.py`：备份、断言恰好一处替换、跑测试、无条件按字节还原并断言一致，没用 git checkout），5 处全红：去掉「流式建连被重置」识别（1 红）；去掉 400 的上下文超长识别（1 红）；`recordLlmFailure` 仍透出原始报错（8 红，含 Ctrl+K、file.revise、单轮回退三条新测试）；续写错误帧仍透出（2 红）；对话循环 provider_* 仍给英文摘要（5 红）。
+  - 引擎：`tsc --noEmit` 通过；`vitest run` 100 个文件 13971 passed + 2 skipped。改动文件过了 prettier 与 eslint。
+  - 行尾：改动的源文件、测试与 6 个 golden 全是 LF，改后仍全 LF；`git diff --numstat` 与 `--ignore-all-space --numstat` 逐文件一致。
+  - `pnpm verify` EXIT=0：lint 与前端类型检查通过；project-core 14 passed；引擎 100 个文件 13971 passed + 2 skipped；前端 250 个文件 2516 passed；行间续写、浏览器冒烟、Agent 对话三个浏览器回归通过。
+  - `node scripts/fast-tests.mjs`（pre-push）EXIT=0：前端 2516 passed，引擎 13971 passed + 2 skipped。
+- 未覆盖：
+  - 没有真模型、真中转复现 #505 截图那一轮，也没拿到它的运行证据；分类只按引擎自己会抛的错误形状核过，真实中转的报错形状（尤其 400 里的思考等级、上下文超长的措辞）没验。
+  - 没跑 Tauri 冒烟与真宿主探针（宿主接口没动）；没在真机看回复里这句话的观感。
+  - 本刀范围外仍可能透出响应体的地方：`kernel/crossChapter.ts` 跨章一致性失败时把 LlmError 原文接在说明后面。对话循环里 `model_output_truncated`、`tool_call_after_withdrawal` 等非 provider_* 失败仍是英文说明。
