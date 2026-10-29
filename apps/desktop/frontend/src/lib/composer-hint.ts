@@ -45,13 +45,17 @@ export function endsWithQuestion(text: string | null): boolean {
   return /[？?]$/u.test(text.replace(TRAILING_DECORATION, ''));
 }
 
-function chapterOrdinalOf(
+// 只在接受的是最新写到的那一章时才往下数；改的是前面某章，下一章早就有了。
+function nextChapterAfterAccepted(
   relativePath: string,
   chapters: ReadonlyArray<HandoffChapter> | null,
 ): number | null {
-  const target = normalizePathForMatch(relativePath);
-  const found = chapters?.find((chapter) => normalizePathForMatch(chapter.relativePath) === target);
-  return found?.ordinal ?? null;
+  if (!chapters?.length) return null;
+  const { lastChapter, next } = resolveHandoffChapters(chapters);
+  if (!lastChapter) return null;
+  return normalizePathForMatch(lastChapter.relativePath) === normalizePathForMatch(relativePath)
+    ? next.chapterOrdinal
+    : null;
 }
 
 function acceptedHint(
@@ -60,8 +64,8 @@ function acceptedHint(
   chapters: ReadonlyArray<HandoffChapter> | null,
 ): string | null {
   if (countsAsChapter(relativePath)) {
-    const ordinal = chapterOrdinalOf(relativePath, chapters);
-    return ordinal === null ? null : `接着写第 ${ordinal + 1} 章`;
+    const ordinal = nextChapterAfterAccepted(relativePath, chapters);
+    return ordinal === null ? null : `接着写第 ${ordinal} 章`;
   }
   // 立项检查只管开写第一章之前；已经有正文就不再催立项。
   if (setupKindOfPath(relativePath) === null || !setup || setup.hasManuscript) return null;

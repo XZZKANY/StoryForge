@@ -50,9 +50,23 @@ describe('规则 1：AI 运行中不提示', () => {
 });
 
 describe('规则 2：刚接受', () => {
-  test('a. 接受第 N 章正文 → 接着写第 N+1 章（反斜杠路径也认）', () => {
-    expect(hint({ justAcceptedPath: '正文\\第003章.md', chapters })).toBe('接着写第 4 章');
+  test('a. 接受最新一章正文 → 接着写第 N+1 章（反斜杠路径也认）', () => {
+    expect(hint({ justAcceptedPath: '正文\\第005章.md', chapters })).toBe('接着写第 6 章');
     expect(hint({ justAcceptedPath: '正文/第005章.md', chapters })).toBe('接着写第 6 章');
+  });
+
+  test('a. 接受的是前面某章：下一章已经有了，不出这条，往下走', () => {
+    expect(hint({ justAcceptedPath: '正文/第003章.md', chapters })).toBeNull();
+    expect(
+      hint({ justAcceptedPath: '正文/第003章.md', chapters, lastAssistantText: '还改哪里？' }),
+    ).toBe('按你的建议来');
+  });
+
+  test('a. 最后一章还空着：接着写的就是那个空章', () => {
+    const withBlank = [...chapters.slice(0, 4), { ...chapters[4], estimatedChars: 0 }];
+    expect(hint({ justAcceptedPath: '正文/第004章.md', chapters: withBlank })).toBe(
+      '接着写第 5 章',
+    );
   });
 
   test('a. 章节列表还没刷新到这一章时不编章号', () => {
@@ -112,11 +126,11 @@ describe('规则 2：刚接受', () => {
   test('刚接受压过问句', () => {
     expect(
       hint({
-        justAcceptedPath: '正文/第003章.md',
+        justAcceptedPath: '正文/第005章.md',
         chapters,
         lastAssistantText: '下一章想往哪边走？',
       }),
-    ).toBe('接着写第 4 章');
+    ).toBe('接着写第 6 章');
   });
 });
 
