@@ -3,8 +3,9 @@ import type { JsonObject } from '../kernel/json';
 import type { SecretContext } from '../kernel/redaction';
 import type { ProjectReader } from '../readPort';
 import { LlmConfigError, requiredEnv, type LlmSource } from '../llm/config';
-import { messagesFromOpenai } from '../llm/contracts';
+import { messagesFromOpenai, ProviderError, type ProviderErrorCategory } from '../llm/contracts';
 import { RunInterrupted } from '../llm/control';
+import { modelFailureMessage } from '../llm/failureMessage';
 import type { ModelObservation } from '../llm/observation';
 import { LlmError } from '../llm/payload';
 import type { AuthorView } from './authorView';
@@ -112,38 +113,24 @@ export type ChatLoopInput = {
 };
 
 const isLlmError = (error: unknown) => error instanceof LlmError || error instanceof LlmConfigError;
-// transport 把工具调用流拼不成整的情况包成这两句；它们不是连接断开。
-const TOOL_STREAM_FAILURE = /^(Invalid|Incomplete) streamed tool response\.$/;
 
-const HTTP_STATUS = /返回 HTTP (\d{3})/;
-
-// 只认传输层自己拼的前缀与状态码，不转述服务端响应体（可能含不可信内容）。
-function httpFailureReason(status: number): string {
-  if (status === 401 || status === 403)
-    return `模型服务拒绝了密钥（HTTP ${status}），请到设置里检查 API Key`;
-  if (status === 402) return `模型服务提示余额或额度不足（HTTP ${status}）`;
-  if (status === 404) return `服务地址或模型名不对（HTTP ${status}），请到设置里检查`;
-  if (status === 400 || status === 422)
-    return `模型服务不接受这次请求（HTTP ${status}），常见原因是模型名不对，或这个模型不支持工具调用`;
-  if (status === 408 || status === 504) return `等模型回复超时（HTTP ${status}），可以稍后重试`;
-  if (status === 429) return `请求太频繁或额度用完（HTTP ${status}），可以稍后重试`;
-  if (status >= 500) return `模型服务端出错（HTTP ${status}），可以稍后重试`;
-  return `模型服务返回 HTTP ${status}`;
+/** 模型调用失败时给作者看的那句，与 Ctrl+K / 续写 / 修订共用一套归类。 */
+export function providerFailureMessage(failure: unknown, streamRetries: number): string {
+  return modelFailureMessage(failure, streamRetries);
 }
 
-/** 模型调用失败时给作者看的那句：工具调用拼不成整不是连接断开，原因要说对。 */
-export function providerFailureMessage(detail: string, streamRetries: number): string {
-  const retried = streamRetries > 0 ? `，已自动重试 ${streamRetries} 次仍未成功` : '';
-  if (TOOL_STREAM_FAILURE.test(detail))
-    return `模型调用失败：模型返回的工具调用不完整或参数格式不对${retried}。`;
-  if (streamRetries > 0) return `模型调用失败：输出途中连接断开${retried}。`;
-  const status = HTTP_STATUS.exec(detail);
-  if (status) return `模型调用失败：${httpFailureReason(Number(status[1]))}。`;
-  if (detail.includes('调用超时或连接失败'))
-    return '模型调用失败：连不上模型服务或等待超时，请检查网络和服务地址。';
-  if (detail.includes('流式读取中断')) return '模型调用失败：输出途中连接断开。';
-  if (detail.includes('被截断或过滤')) return '模型调用失败：模型输出被截断或被过滤。';
-  return '模型调用失败。';
+const PROVIDER_FAILURE = 'provider_';
+
+/** SDK 只回分类与安全摘要；本轮捕获到的 provider 错误还带着状态码、错误码与请求号。 */
+function providerFailureDetail(code: string, message: string, error: ProviderError | null): string {
+  const parts = [`${code}: ${message}`];
+  if (error !== null) {
+    const { statusCode, providerCode, requestId } = error.details;
+    if (statusCode !== null) parts.push(`status=${statusCode}`);
+    if (providerCode !== null) parts.push(`provider_code=${providerCode}`);
+    if (requestId !== null) parts.push(`request_id=${requestId}`);
+  }
+  return parts.join(' ');
 }
 
 /** 组装 StoryForge 上下文，把通用编排交给 SDK 工具循环。 */
@@ -262,10 +249,7 @@ export async function runChatLoop(
       return outcome;
     }
     if (isLlmError(error)) {
-      outcome.markFailed(
-        'provider_error',
-        providerFailureMessage(error.message, context.streamRetries),
-      );
+      outcome.markFailed('provider_error', providerFailureMessage(error, context.streamRetries));
       outcome.failureDetail = error.message;
       outcome.exhausted = true;
       outcome.rounds = context.providerAttempts;
@@ -289,7 +273,18 @@ export async function runChatLoop(
   )
     throw new ChatLoopUnavailableError(result.errorMessage || '模型调用不可用。');
   if (result.status === 'failed') {
-    outcome.markFailed(result.errorCode || 'runtime_failed', result.errorMessage || '未知错误');
+    const code = result.errorCode || 'runtime_failed';
+    const message = result.errorMessage || '未知错误';
+    if (code.startsWith(PROVIDER_FAILURE)) {
+      const category = code.slice(PROVIDER_FAILURE.length) as ProviderErrorCategory;
+      const captured =
+        context.providerError !== null && context.providerError.details.category === category
+          ? context.providerError
+          : null;
+      const failure = captured ?? new ProviderError({ category, safeMessage: message });
+      outcome.markFailed(code, providerFailureMessage(failure, context.streamRetries));
+      outcome.failureDetail = providerFailureDetail(code, message, captured);
+    } else outcome.markFailed(code, message);
     outcome.exhausted = true;
     return outcome;
   }

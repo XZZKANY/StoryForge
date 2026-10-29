@@ -8866,7 +8866,7 @@
       "id": "provider-error-with-usage",
       "spec_json": "{\"id\": \"provider-error-with-usage\", \"model\": [{\"content\": \"\", \"calls\": [[\"c1\", \"fs_read\", \"{\\\"path\\\":\\\"正文/第001章.md\\\"}\"]], \"usage\": [12, 5, 17, \"provider_usage\"], \"finish\": \"stop\"}, {\"raise\": {\"type\": \"ProviderError\", \"category\": \"rate_limit\", \"message\": \"Provider rate limited.\", \"usage\": [40, 0, 40, \"provider_usage\"]}}], \"tools\": {\"fs.read\": [{\"result\": {\"status\": \"completed\", \"output\": {\"path\": \"正文/第001章.md\", \"content\": \"林舟推开门。\", \"returned_chars\": 6, \"truncated\": false}, \"trace\": {}, \"artifacts\": []}}]}, \"profile\": \"ask\", \"source\": {}, \"streaming\": false, \"triggers\": [], \"user_message\": \"看看第一章\", \"current_file\": \"正文/第001章.md\"}",
       "outcome": {
-        "answer": "本轮未完成：Provider rate limited. 已完成的结果已保留。",
+        "answer": "本轮未完成：模型调用失败：请求太频繁或额度用完，可以稍后重试。 已完成的结果已保留。",
         "rounds": 2,
         "tool_call_count": 1,
         "completion_tokens": 5,
@@ -8890,7 +8890,7 @@
         "execution_outcome": {
           "status": "partial",
           "code": "provider_rate_limit",
-          "message": "本轮未完成：Provider rate limited. 已完成的结果已保留。"
+          "message": "本轮未完成：模型调用失败：请求太频繁或额度用完，可以稍后重试。 已完成的结果已保留。"
         },
         "review_report": null,
         "proposed_patch": null,
@@ -9485,7 +9485,7 @@
       "id": "provider-unsupported-later",
       "spec_json": "{\"id\": \"provider-unsupported-later\", \"model\": [{\"content\": \"\", \"calls\": [[\"c1\", \"fs_list\", \"{}\"]], \"usage\": null, \"finish\": \"stop\"}, {\"raise\": {\"type\": \"ProviderError\", \"category\": \"unsupported\", \"message\": \"Tools unsupported.\"}}], \"tools\": {\"fs.list\": [{\"result\": {\"status\": \"completed\", \"output\": {\"entries\": [], \"truncated\": false}, \"trace\": {}, \"artifacts\": []}}]}, \"profile\": \"ask\", \"source\": {}, \"streaming\": false, \"triggers\": [], \"user_message\": \"看看第一章\", \"current_file\": \"正文/第001章.md\"}",
       "outcome": {
-        "answer": "本轮未完成：Tools unsupported. 已完成的结果已保留。",
+        "answer": "本轮未完成：模型调用失败：这个模型或服务不支持本轮需要的功能（如工具调用），请换个模型再试。 已完成的结果已保留。",
         "rounds": 2,
         "tool_call_count": 1,
         "completion_tokens": 0,
@@ -9498,7 +9498,7 @@
         "execution_outcome": {
           "status": "partial",
           "code": "provider_unsupported",
-          "message": "本轮未完成：Tools unsupported. 已完成的结果已保留。"
+          "message": "本轮未完成：模型调用失败：这个模型或服务不支持本轮需要的功能（如工具调用），请换个模型再试。 已完成的结果已保留。"
         },
         "review_report": null,
         "proposed_patch": null,
@@ -9891,7 +9891,7 @@
       "id": "llm-error",
       "spec_json": "{\"id\": \"llm-error\", \"model\": [{\"raise\": {\"type\": \"LLMError\", \"message\": \"上游 500\"}}], \"tools\": {}, \"profile\": \"ask\", \"source\": {}, \"streaming\": false, \"triggers\": [], \"user_message\": \"看看第一章\", \"current_file\": \"正文/第001章.md\"}",
       "outcome": {
-        "answer": "本轮未完成：模型调用失败。",
+        "answer": "本轮未完成：模型调用失败：原因未能归类，原始错误已记进本轮运行记录。",
         "rounds": 1,
         "tool_call_count": 0,
         "completion_tokens": 0,
@@ -9904,7 +9904,7 @@
         "execution_outcome": {
           "status": "failed",
           "code": "provider_error",
-          "message": "本轮未完成：模型调用失败。"
+          "message": "本轮未完成：模型调用失败：原因未能归类，原始错误已记进本轮运行记录。"
         },
         "review_report": null,
         "proposed_patch": null,
@@ -15094,7 +15094,7 @@
       "id": "streaming-error",
       "spec_json": "{\"id\": \"streaming-error\", \"model\": [{\"raise\": {\"type\": \"ProviderError\", \"category\": \"rate_limit\", \"message\": \"Provider rate limited.\"}, \"chunks\": [\"半句\"]}], \"tools\": {}, \"profile\": \"ask\", \"source\": {}, \"streaming\": true, \"triggers\": [], \"user_message\": \"看看第一章\", \"current_file\": \"正文/第001章.md\"}",
       "outcome": {
-        "answer": "本轮未完成：Provider rate limited.",
+        "answer": "本轮未完成：模型调用失败：请求太频繁或额度用完，可以稍后重试。",
         "rounds": 1,
         "tool_call_count": 0,
         "completion_tokens": 0,
@@ -15107,7 +15107,7 @@
         "execution_outcome": {
           "status": "failed",
           "code": "provider_rate_limit",
-          "message": "本轮未完成：Provider rate limited."
+          "message": "本轮未完成：模型调用失败：请求太频繁或额度用完，可以稍后重试。"
         },
         "review_report": null,
         "proposed_patch": null,
@@ -16150,7 +16150,7 @@
       "id": "failed-run-keeps-patch-for-confirmation",
       "spec_json": "{\"id\": \"failed-run-keeps-patch-for-confirmation\", \"model\": [{\"content\": \"\", \"calls\": [[\"c1\", \"file_revise\", \"{\\\"path\\\":\\\"正文/第001章.md\\\",\\\"instruction\\\":\\\"改\\\"}\"]], \"usage\": [12, 5, 17, \"provider_usage\"], \"finish\": \"stop\"}, {\"raise\": {\"type\": \"LLMError\", \"message\": \"断了\"}}], \"tools\": {\"file.revise\": [{\"result\": {\"status\": \"completed\", \"output\": {\"proposed_patch\": {\"id\": \"patch-1\", \"kind\": \"file_revision\", \"file_path\": \"正文/第001章.md\", \"before\": \"旧\", \"after\": \"新\", \"requires_confirmation\": false, \"created_by_tool\": \"file.revise\"}, \"file_path\": \"正文/第001章.md\", \"summary\": \"改好了\", \"applied_scope\": {\"mode\": \"paragraph\"}}, \"trace\": {\"input_summary\": {\"file_path\": \"正文/第001章.md\"}, \"output_summary\": {\"patch_id\": \"patch-1\", \"applied_scope\": {\"mode\": \"paragraph\"}}, \"audit_event_id\": \"audit-1\"}, \"artifacts\": [[\"proposed_patch\", {\"id\": \"patch-1\", \"kind\": \"file_revision\", \"file_path\": \"正文/第001章.md\", \"before\": \"旧\", \"after\": \"新\", \"requires_confirmation\": false, \"created_by_tool\": \"file.revise\"}, false]]}}]}, \"profile\": \"auto\", \"source\": {}, \"streaming\": false, \"triggers\": [], \"user_message\": \"看看第一章\", \"current_file\": \"正文/第001章.md\"}",
       "outcome": {
-        "answer": "本轮未完成：模型调用失败。 已完成的结果已保留。",
+        "answer": "本轮未完成：模型调用失败：原因未能归类，原始错误已记进本轮运行记录。 已完成的结果已保留。",
         "rounds": 2,
         "tool_call_count": 1,
         "completion_tokens": 5,
@@ -16174,7 +16174,7 @@
         "execution_outcome": {
           "status": "partial",
           "code": "provider_error",
-          "message": "本轮未完成：模型调用失败。 已完成的结果已保留。"
+          "message": "本轮未完成：模型调用失败：原因未能归类，原始错误已记进本轮运行记录。 已完成的结果已保留。"
         },
         "review_report": null,
         "proposed_patch": {

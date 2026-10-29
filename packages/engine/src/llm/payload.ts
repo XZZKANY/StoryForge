@@ -16,6 +16,7 @@ import {
   requiredEnv,
   type LlmSource,
 } from './config';
+import type { ProviderErrorDetails } from './contracts';
 
 /** 真实 LLM 调用运行失败（HTTP 错误、超时、响应格式异常），HTTP 502；带上已知的用量。 */
 export class LlmError extends Error {
@@ -31,6 +32,17 @@ export class LlmError extends Error {
 
 /** 流已开始后连接被切断（不是配置 / 鉴权 / 格式问题）：整份重发有机会成。报错文字与 LlmError 相同。 */
 export class LlmStreamBreak extends LlmError {}
+
+/** 由 ProviderError 转来的 LlmError：文字不变，留着分类，给作者说原因时用。 */
+export class ProviderLlmError extends LlmError {
+  constructor(
+    message: string,
+    usage: unknown,
+    readonly provider: ProviderErrorDetails,
+  ) {
+    super(message, usage);
+  }
+}
 
 /** 上游给出超长 Retry-After 时不让 worker 空转数小时。 */
 export const RETRY_DELAY_CEILING_SECONDS = 60;

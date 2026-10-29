@@ -115,8 +115,10 @@ export class StoryForgeProviderAdapter implements RuntimeProvider {
         break;
       } catch (error) {
         // 吐到一半断了整轮重发：作者端按 retry_attempt 丢掉半截正文；重发仍各自留请求证据。
-        if (!progress.received || retryAttempt >= STREAM_RETRY_LIMIT || !isStreamBreak(error))
+        if (!progress.received || retryAttempt >= STREAM_RETRY_LIMIT || !isStreamBreak(error)) {
+          if (error instanceof ProviderError) context.providerError = error;
           throw error;
+        }
         context.streamRetries += 1;
         await context.callControl?.waitForRetry(STREAM_RETRY_DELAY_SECONDS);
       }

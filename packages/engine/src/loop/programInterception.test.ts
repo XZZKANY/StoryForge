@@ -66,20 +66,22 @@ describe('无参数工具的空参数串按空对象收下', () => {
 describe('模型调用失败的原因说对', () => {
   it('names a broken tool call instead of a dropped connection', () => {
     expect(providerFailureMessage('Incomplete streamed tool response.', 2)).toBe(
-      '模型调用失败：模型返回的工具调用不完整或参数格式不对，已自动重试 2 次仍未成功。',
+      '模型调用失败：模型返回的工具调用不完整或参数格式不对，已自动重试 2 次仍未成功，可以再试一次，反复出现请换个支持工具调用的模型。',
     );
     expect(providerFailureMessage('Invalid streamed tool response.', 0)).toBe(
-      '模型调用失败：模型返回的工具调用不完整或参数格式不对。',
+      '模型调用失败：模型返回的工具调用不完整或参数格式不对，可以再试一次，反复出现请换个支持工具调用的模型。',
     );
   });
 
   it('keeps the dropped-connection wording for real stream breaks', () => {
     expect(providerFailureMessage('read timeout', 2)).toBe(
-      '模型调用失败：输出途中连接断开，已自动重试 2 次仍未成功。',
+      '模型调用失败：输出途中连接断开，已自动重试 2 次仍未成功，可以再试一次，反复出现请检查网络或中转。',
     );
-    expect(providerFailureMessage('read timeout', 0)).toBe('模型调用失败。');
+    expect(providerFailureMessage('read timeout', 0)).toBe(
+      '模型调用失败：原因未能归类，原始错误已记进本轮运行记录。',
+    );
     expect(providerFailureMessage('真实 LLM 流式读取中断（已输出 0 字）：IncompleteRead', 0)).toBe(
-      '模型调用失败：输出途中连接断开。',
+      '模型调用失败：输出途中连接断开，可以再试一次，反复出现请检查网络或中转。',
     );
   });
 
@@ -94,7 +96,7 @@ describe('模型调用失败的原因说对', () => {
     );
     expect(http(404)).toBe('模型调用失败：服务地址或模型名不对（HTTP 404），请到设置里检查。');
     expect(http(400)).toBe(
-      '模型调用失败：模型服务不接受这次请求（HTTP 400），常见原因是模型名不对，或这个模型不支持工具调用。',
+      '模型调用失败：模型服务不接受这次请求（HTTP 400），中转或模型可能不认某个参数（例如思考等级），可以把思考等级调回「关」，或到设置里核对模型名。',
     );
     expect(http(429)).toBe('模型调用失败：请求太频繁或额度用完（HTTP 429），可以稍后重试。');
     expect(http(502)).toBe('模型调用失败：模型服务端出错（HTTP 502），可以稍后重试。');
@@ -108,9 +110,9 @@ describe('模型调用失败的原因说对', () => {
         '真实 LLM 调用超时或连接失败（耗时 60000ms，timeout=60.0s，尝试 3/3）：TimeoutError',
         0,
       ),
-    ).toBe('模型调用失败：连不上模型服务或等待超时，请检查网络和服务地址。');
+    ).toBe('模型调用失败：等模型回复超时，可以稍后重试，反复超时请检查网络和服务地址。');
     expect(providerFailureMessage('真实 LLM 输出被截断或过滤，不能把未完成正文当成稿。', 0)).toBe(
-      '模型调用失败：模型输出被截断或被过滤。',
+      '模型调用失败：模型输出被截断或被过滤，可以把要求拆小或换个说法再试。',
     );
   });
 });

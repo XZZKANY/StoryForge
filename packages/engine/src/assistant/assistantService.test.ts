@@ -360,3 +360,83 @@ describe('streamed revise rejects an output cut by the token limit', () => {
     expect(sent).toBe(1);
   });
 });
+
+describe('Ctrl+K 与续写失败时作者看到归类说明，响应体只进证据（#505）', () => {
+  const KEY = 'sk-test-505-secret-key';
+  const MARK = 'MARK-505-upstream-text';
+  const SERVER_ERROR = '模型调用失败：模型服务端出错（HTTP 502），可以稍后重试。';
+  const source: LlmSource = {
+    STORYFORGE_LLM_PROVIDER: 'openai',
+    STORYFORGE_LLM_BASE_URL: 'https://llm.example/v1',
+    STORYFORGE_LLM_API_KEY: KEY,
+    STORYFORGE_LLM_MODEL: 'deepseek-v4',
+    STORYFORGE_LLM_RETRY_MAX_ATTEMPTS: '1',
+  };
+  const project = memoryProject(ROOT, record.files);
+  function failingDeps(log: Json[]): AssistantDeps {
+    const llm = engineAssistantLlm(
+      source,
+      { values: [KEY] },
+      {
+        http: {
+          async send() {
+            return {
+              status: 502,
+              headers: {},
+              body: (async function* () {
+                yield new TextEncoder().encode(`{"error":{"message":"${MARK} key=${KEY}"}}`);
+              })(),
+              close() {},
+            };
+          },
+        },
+        clock: () => 0,
+        wait: async () => {},
+        random: () => 0,
+        appVersion: 'test',
+      },
+    );
+    return { reader: project.reader, store: fakeStore(log), llm: async () => llm, platform };
+  }
+  const failedEvidence = (log: Json[]) =>
+    log.filter((entry) => entry.op === 'update_tool_call' && entry.status === 'failed');
+
+  it('Ctrl+K 行间修订', async () => {
+    const log: Json[] = [];
+    const failure = await reviseFileContent(failingDeps(log), {
+      file_path: '正文/第004章.md',
+      content: '他回头。\n\n雨夜里他推开门。\n',
+      project_root: ROOT,
+      instruction: '改',
+    } as never).then(
+      () => null,
+      (error: unknown) => error as Error,
+    );
+    expect(failure?.message).toBe(SERVER_ERROR);
+    const evidence = failedEvidence(log);
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0].error_message).toContain(MARK);
+    expect(evidence[0].error_message).not.toContain(KEY);
+  });
+
+  it('光标处续写的错误帧', async () => {
+    const log: Json[] = [];
+    const frames: ContinueFrame[] = [];
+    await streamContinueProse(
+      failingDeps(log),
+      {
+        file_path: '正文/第004章.md',
+        content: '他回头。\n\n雨夜里他推开门。\n',
+        project_root: ROOT,
+        cursor_line: 3,
+      } as never,
+      (frame) => frames.push(frame),
+    );
+    const errors = frames.filter((frame) => frame.event === 'error');
+    expect(errors).toEqual([{ event: 'error', data: { message: SERVER_ERROR } }]);
+    const evidence = failedEvidence(log);
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0].error_message).toContain(MARK);
+    expect(evidence[0].error_message).not.toContain(KEY);
+  });
+});

@@ -19986,7 +19986,7 @@
               "instruction": "把开门写得更有力"
             },
             "assistant_tool_call_id": 1,
-            "error_message": "真实 LLM 流式返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}"
+            "error_message": "模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。"
           }
         ],
         "proposed_patch": null,
@@ -20080,7 +20080,7 @@
               "instruction": "把开门写得更有力"
             },
             "assistant_tool_call_id": 1,
-            "error_message": "真实 LLM 流式返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}"
+            "error_message": "模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。"
           }
         },
         {
@@ -20268,7 +20268,7 @@
               },
               {
                 "role": "tool",
-                "content": "{\"error\": \"真实 LLM 流式返回 HTTP 500（耗时 250ms，尝试 1/1）：{\\\"error\\\":{\\\"message\\\":\\\"upstream down\\\"}}\"}",
+                "content": "{\"error\": \"模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。\"}",
                 "tool_call_id": "c1"
               }
             ],
@@ -20466,7 +20466,7 @@
                 "instruction": "把开门写得更有力"
               },
               "assistant_tool_call_id": 1,
-              "error_message": "真实 LLM 流式返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}"
+              "error_message": "模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。"
             },
             "recovery": {
               "kind": "tool_completed",
@@ -21006,7 +21006,7 @@
                 },
                 {
                   "role": "tool",
-                  "content": "{\"error\": \"真实 LLM 流式返回 HTTP 500（耗时 250ms，尝试 1/1）：{\\\"error\\\":{\\\"message\\\":\\\"upstream down\\\"}}\"}",
+                  "content": "{\"error\": \"模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。\"}",
                   "tool_call_id": "c1"
                 }
               ],
@@ -21043,7 +21043,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "83920169e5031bd03782b2037d0606de7521e2d73e99a3d03923fc38b1c669a8",
+            "request_digest": "56c7acae8c4702135dcaa90d129244ddaf0c974dd21d3d4949d375fad4f4f104",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
@@ -21081,8 +21081,8 @@
                 "kind": "compiled_message",
                 "index": 4,
                 "role": "tool",
-                "sha256": "811412ca4784b4b174ec9ef3fea6476f5b8f07d25d14575da22ec3a70945480d",
-                "content_chars": 94
+                "sha256": "bd8924473cffac243102b8d757dfe936616a48af83215cdb81d277f1f7f50aa5",
+                "content_chars": 45
               }
             ],
             "reconstruction": {
@@ -21238,7 +21238,7 @@
             "instruction": "把开门写得更有力"
           },
           "output_summary": {},
-          "error_message": "真实 LLM 流式返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}"
+          "error_message": "模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。"
         },
         {
           "id": 2,

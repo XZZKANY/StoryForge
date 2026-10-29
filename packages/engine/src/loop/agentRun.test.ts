@@ -29,6 +29,25 @@ describe('agent run replays the Python oracle', () => {
     },
   );
 
+  it('单轮回退失败时作者看到归类说明，响应体只进证据（#505）', async () => {
+    const MARK = 'MARK-505-upstream-text';
+    const scenario = (golden.scenarios as Obj[]).find((item) => item.id === 'fallback-llm-error')!;
+    const spec = JSON.parse(scenario.spec_json);
+    expect(spec.replies).toHaveLength(1);
+    spec.replies[0].body = JSON.stringify({ error: { message: `${MARK} key=${golden.secret}` } });
+    const { record, error } = await replay({ ...scenario, spec_json: JSON.stringify(spec) });
+    if (error) throw error;
+    const answer = '这轮没答上来：模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。';
+    expect(record.result.agent_result.summary).toBe(answer);
+    const calls = record.tool_calls as Obj[];
+    expect(calls.map((row) => row.tool_name)).toEqual(['assistant.chat']);
+    expect(calls[0].error_message).toContain(MARK);
+    expect(calls[0].error_message).not.toContain(golden.secret);
+    const authorFacing = JSON.stringify([record.result, record.frames, record.messages]);
+    expect(authorFacing).not.toContain(MARK);
+    expect(authorFacing).toContain(answer);
+  });
+
   // 传输进度是同步回调、落库是异步：排队保证进度事件仍排在随后的计划 / 轨迹 / 结算之前。
   it.each([
     'read-then-answer',

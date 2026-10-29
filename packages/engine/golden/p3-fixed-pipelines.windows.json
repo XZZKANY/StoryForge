@@ -44276,7 +44276,7 @@
       "spec_json": "{\"id\": \"revise-fixed-llm-error\", \"message\": {\"type\": \"user_message\", \"user_message\": \"把开门写得更有力\", \"run_id\": \"run-1\", \"args\": {\"project_path\": \"$ROOT\", \"file_path\": \"$ROOT/正文/第001章.md\", \"content\": \"第一章 风起\\n\\n林舟推开门。\\n\"}, \"intent\": \"file.revise\"}, \"replies\": [{\"status\": 200, \"body\": \"{\\\"id\\\": \\\"resp-1\\\", \\\"choices\\\": [{\\\"index\\\": 0, \\\"message\\\": {\\\"role\\\": \\\"assistant\\\", \\\"content\\\": \\\"[{\\\\\\\"severity\\\\\\\": \\\\\\\"high\\\\\\\", \\\\\\\"code\\\\\\\": \\\\\\\"plot.hook_missing\\\\\\\", \\\\\\\"message\\\\\\\": \\\\\\\"章尾缺少钩子\\\\\\\", \\\\\\\"evidence\\\\\\\": \\\\\\\"林舟推开门。\\\\\\\"}]\\\"}, \\\"finish_reason\\\": \\\"stop\\\"}], \\\"usage\\\": {\\\"prompt_tokens\\\": 12, \\\"completion_tokens\\\": 5, \\\"total_tokens\\\": 17}}\"}, {\"status\": 200, \"body\": \"{\\\"id\\\": \\\"resp-1\\\", \\\"choices\\\": [{\\\"index\\\": 0, \\\"message\\\": {\\\"role\\\": \\\"assistant\\\", \\\"content\\\": \\\"[]\\\"}, \\\"finish_reason\\\": \\\"stop\\\"}], \\\"usage\\\": {\\\"prompt_tokens\\\": 12, \\\"completion_tokens\\\": 5, \\\"total_tokens\\\": 17}}\"}, {\"status\": 200, \"body\": \"{\\\"id\\\": \\\"resp-1\\\", \\\"choices\\\": [{\\\"index\\\": 0, \\\"message\\\": {\\\"role\\\": \\\"assistant\\\", \\\"content\\\": \\\"[]\\\"}, \\\"finish_reason\\\": \\\"stop\\\"}], \\\"usage\\\": {\\\"prompt_tokens\\\": 12, \\\"completion_tokens\\\": 5, \\\"total_tokens\\\": 17}}\"}, {\"status\": 500, \"body\": \"{\\\"error\\\":{\\\"message\\\":\\\"upstream down\\\"}}\"}], \"env\": {}, \"triggers\": [], \"stream\": false, \"history\": null, \"sessions\": []}",
       "error": {
         "type": "AgentRuntimeUserMessageError",
-        "message": "真实 LLM 流式返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}"
+        "message": "模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。"
       },
       "frames": [
         {
@@ -44345,7 +44345,7 @@
           "event_id": 7,
           "sequence": 7,
           "status": "failed",
-          "message": "真实 LLM 流式返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}",
+          "message": "模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -44585,7 +44585,7 @@
           "run_id": 1,
           "event_type": "agent_run_failed",
           "actor": "root-agent",
-          "message": "真实 LLM 流式返回 HTTP 500（耗时 250ms，尝试 1/1）：{\"error\":{\"message\":\"upstream down\"}}",
+          "message": "模型调用失败：模型服务端出错（HTTP 500），可以稍后重试。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
