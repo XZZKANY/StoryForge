@@ -5,6 +5,7 @@ import * as monaco from 'monaco-editor';
 import { __getLastEditor } from 'monaco-editor';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 import type { AgentRunEventRecord } from '../src/lib/api/agent-run-events';
+import type { ChapterFactRecordPlan } from '../src/lib/api/facts';
 import { createWritebackQueue } from '../src/lib/writeback';
 import { TauriFileSystem, type DiskBaseline } from '../src/lib/tauri-fs';
 import type { WritebackRequest } from '../src/lib/writeback-receipt-types';
@@ -51,6 +52,12 @@ const effects = vi.hoisted(() => ({
   dirty: vi.fn(),
   result: vi.fn(),
   toast: vi.fn(),
+  facts: vi.fn(
+    async (_input: unknown): Promise<ChapterFactRecordPlan> => ({
+      status: 'skipped',
+      reason: 'no_facts',
+    }),
+  ),
   journalWrite: vi.fn(async (_path: string, _content: string) => {}),
   read: vi.fn(async (path: string) => {
     const value = effects.disk.get(path);
@@ -120,6 +127,10 @@ vi.mock('../src/lib/tauri-fs', () => ({
 }));
 vi.mock('../src/lib/serial-plan', () => ({ markChapterWrittenInPlan: effects.mark }));
 vi.mock('../src/lib/toast', () => ({ emitToast: effects.toast }));
+vi.mock('../src/lib/api/facts', async (load) => ({
+  ...(await load<typeof import('../src/lib/api/facts')>()),
+  prepareChapterFactRecord: effects.facts,
+}));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const FILE = 'D:/project/a.md';
@@ -2039,6 +2050,7 @@ for (const auditOutcome of ['persisted', 'interrupted'] as const) {
     });
     if (auditOutcome === 'persisted')
       effects.control.mockRejectedValueOnce(new Error('managed_host_closing'));
+    effects.facts.mockRejectedValueOnce(new Error('fact record interrupted by host closing'));
     await show(proposal);
     let accepting!: Promise<void>;
     await act(async () => {
@@ -2059,7 +2071,10 @@ for (const auditOutcome of ['persisted', 'interrupted'] as const) {
     await act(async () => {
       release.resolve();
       await accepting;
+      // 事实记账是不等的：等它的微任务链走完，再断言旧 action 没有发通知。
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
+    assert.equal(effects.facts.mock.calls.length, 1, 'authorized fact record still runs');
     assert.equal(effects.result.mock.calls.length, 0, 'old action cannot notify an unmounted page');
     assert.equal(effects.toast.mock.calls.length, 0, 'old action cannot publish an undo or repair');
     const retained = (await loadPendingSuggestion('D:/project', FILE))!;

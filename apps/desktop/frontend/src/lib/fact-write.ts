@@ -230,18 +230,22 @@ export function factRecordMessage(plan: Planned): string | null {
   return parts.join('；') + '。';
 }
 
-/** 接受补丁之后调用：失败只提示，不影响已经落盘的正文。 */
+/**
+ * 接受补丁之后调用：失败只提示，不影响已经落盘的正文。
+ * `canNotify` 在出通知前才问：发起的页面已卸载或换了项目，就照样记账、不再出通知（含「撤销记账」）。
+ */
 export async function recordAcceptedChapterFacts(
   projectPath: string | null,
   filePath: string,
   runId: string | undefined,
+  canNotify: () => boolean = () => true,
 ): Promise<void> {
   if (!projectPath || !runId) return;
   try {
     const outcome = await recordChapterFacts({ projectPath, filePath, runId });
     if (outcome.status === 'skipped') return;
     const message = factRecordMessage(outcome.plan);
-    if (!message) return;
+    if (!message || !canNotify()) return;
     emitToast(message, {
       tone: 'info',
       action:
@@ -262,6 +266,7 @@ export async function recordAcceptedChapterFacts(
           : undefined,
     });
   } catch (error) {
+    if (!canNotify()) return;
     emitToast(`这章的事实没记上：${error instanceof Error ? error.message : String(error)}`, {
       tone: 'error',
     });

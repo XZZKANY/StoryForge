@@ -1,0 +1,26 @@
+## 2026-10-29 页面卸载后，接受补丁时顺带的事实记账不再出通知（修 `unmount during audit …: interrupted` 加重加载下必挂）
+
+- 现象：`apps/desktop/frontend/tests/suggestion-writeback-lifecycle.test.tsx` 的 `unmount during audit retains original delivery for cold recovery: interrupted` 在整套 vitest 模块加载变重时挂在 2064 行 `old action cannot publish an undo or repair`（`1 !== 0`），单跑这个文件总是过。
+- 判定：**产品竞态，不是测试隔离。** 多出来的那次 toast 出自本测试自己那次被卸载的接受动作，不是前一个测试的遗留：
+  - 调用链：`handleAcceptSuggestion` 写完正文后 `void recordAcceptedChapterFacts(...)`（不等）→ `fact-write.ts` 的 `recordChapterFacts` → `api/facts.ts` 的 `prepareChapterFactRecord` → `await import('../engine/facts')`（动态加载整个引擎桶）→ 测试里没有宿主，`engineRuns()` 报 `Cannot read properties of undefined (reading 'invoke')` → catch 里 `emitToast('这章的事实没记上：…')`。toast 的调用栈顶是 `recordAcceptedChapterFacts (src/lib/fact-write.ts:265)`。
+  - 这条旁路没有挂守卫：写回 hook 自己的通知都过 `isCurrentAction` / `mountedRef`，事实记账的通知不过。真机上同一路径成功时发的是带「撤销记账」的 toast，正好违反「old action cannot publish an undo」。
+  - 为什么单跑不挂：第一次动态加载引擎很慢，run-patch / closing-audit-persisted / closing-audit-interrupted / lost-ack 四次记账都要等很久，最后一起落在后面那条 `failed control can be explicitly retried …` 里（它不查 toast 数），断言窗口里看不到。加重加载后引擎已在缓存里，动态 import 几个 tick 就回来，toast 落进了本测试的断言窗口。所以这条测试原先对这条路径是「碰运气才验得到」。
+- 改动：
+  - `src/lib/fact-write.ts`：`recordAcceptedChapterFacts` 加第 4 个参数 `canNotify`（默认恒真，其他调用不变），**出通知前才问**；问到 false 就照样记账、成功与失败都不出 toast。
+  - `src/components/editor/useSuggestionWriteback.ts`：整份接受时传 `() => mountedRef.current && projectPathRef.current === projectRoot`，和同文件 `forgetSuggestionRecovery` 那条迟到通知用的守卫一致。正文写回、连载计划标「已写」、事实记账这些已授权的落盘照旧在卸载后继续（「Navigation invalidates UI ownership, not an already authorized write transaction」），只是不再由旧动作发通知；记账前的快照照拍，可在版本记录里找回。
+  - 测试：
+    - `suggestion-writeback-lifecycle.test.tsx`：局部替身 `api/facts` 的 `prepareChapterFactRecord`（默认 `skipped`，本文件不再依赖真引擎 + 缺宿主报错）；两条 closing-audit 让记账确定性地失败，等不被等待的微任务链走完（`setTimeout 0`）后再断言，并断言记账确实跑了一次（防止以后挪走调用后空过）。
+    - `fact-write.test.ts`：新增「出通知前发起的页面已经不在了：照样记账，成功和失败都不出通知」，`canNotify` 在记账途中由真变假，验证是出通知前才问。
+    - `editor-accept-fact-record.test.tsx`：入参断言补上 `expect.any(Function)`。
+- 验证（`apps/desktop/frontend` 下 `npx vitest run`，Windows 本机）：
+  - 定位（临时插桩，已按备份原样拷回）：toast mock 打印当前测试名与调用栈；hook 调用处打印补丁 id 与 settle 时所在的测试。单跑时上面四次记账都 settle 在 `failed control can be explicitly retried …` 里。在测试文件顶部加 `await import('../src/lib/engine/facts')` 预加载后，单跑稳定复现：persisted、interrupted 两条都挂在 `old action cannot publish an undo or repair`，日志顺序为 `facts-start closing-audit-interrupted → toast(这章的事实没记上) → facts-settled closing-audit-interrupted`，全在该测试 begin 之后。
+  - 复现条件 v1（照任务描述）：`src/lib/project/context-bundle.ts` 顶部加 `import * as … from '@storyforge/engine'`。原代码整套 4 轮：目标测试 0 次挂（本机时序没撞上），每轮都挂 source-standards（复现导入本身违反「界面只经 lib/api 进引擎」），第 3 轮另有 `agent-engine-chat-window.test.tsx` 13 条挂（首条 `streams an answer …` 5000ms 超时，其余同文件连带），是满载下的另一现象，此后各轮未再出现，本分支未追。
+  - 复现条件 v2（等价且不违反 source-standards）：context-bundle.ts 顶部静态引 `../api/manuscript-paths` 的 `isManuscriptPath`（该文件静态引引擎桶的值）。**原代码**（`git show HEAD:` 取内容临时写回 5 个文件）整套 4 轮：2 轮 EXIT=1，都只挂 `… cold recovery: interrupted`，`suggestion-writeback-lifecycle.test.tsx:2064` `old action cannot publish an undo or repair` `1 !== 0`，与报告一致；另 2 轮 EXIT=0。
+  - **修复后**同一 v2 条件整套 5 轮：5/5 EXIT=0，2508 passed。另在 v1 条件下整套 3 轮：每轮只挂 source-standards 那 1 条，2507 passed。
+  - 测试改动先行：只改测试、不改产品代码时单跑 3/3 稳定变红（persisted、interrupted 两条）；加上修复后 3 个相关文件 141 passed。
+  - 变异验证（脚本逐个替换、`assert count==1`、`finally` 里无条件按原字节写回并核对）：hook 守卫改恒真 → 红 2（两条 closing-audit）；hook 守卫去掉 `mountedRef.current` → 红 2；fact-write 成功分支去掉 `canNotify` → 红 1（新单元测试）；失败分支去掉 `canNotify` → 红 3（新单元测试 + 两条 closing-audit）。
+  - 复现导入已按定点替换删掉，`context-bundle.ts` 零改动；`git diff --numstat` 与 `--ignore-all-space --numstat` 一致。
+  - `pnpm verify`（corepack shim 的 pnpm 9.15.4，复现导入已删）：EXIT=0。lint 0 error（2 条 warning 在既有的 `independent-claim-history.test.ts`，与本分支无关）、prettier 通过、前端类型检查通过、project-core 14 passed、TS 引擎 13934 passed / 2 skipped、前端单测 249 文件 2508 passed、行间续写 / 浏览器冒烟 / Agent 对话三个浏览器回归通过。
+- 未覆盖：
+  - 没在真宿主 / 装机版上点穿「接受整份补丁 → 审计未完成时关编辑器 / 退出 → 不再弹事实记账通知」；事实台账照写这一点只由单元测试与 lifecycle 测试里的调用次数佐证。
+  - 换了项目后旧动作的记账通知被压掉，但台账照写到原项目，作者只能从版本记录或观测镜看到——这是沿用写回 hook 现有「卸载后已授权落盘照做、不发通知」的做法，若作者希望卸载后连记账也不做（留给观测镜补录），需另行拍板。
