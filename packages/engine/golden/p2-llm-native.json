@@ -615,7 +615,7 @@
             "x-api-key": "native-secret-key-0123456789",
             "anthropic-version": "2023-06-01"
           },
-          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"读第一章\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"好的\"},{\"type\":\"tool_use\",\"id\":\"tu_1\",\"name\":\"fs.read\",\"input\":{\"path\":\"正文/1.md\"}}]},{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"tu_1\",\"content\":\"{\\\"text\\\": \\\"第一章\\\"}\"}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"继续\"}]}],\"max_tokens\":2048,\"system\":\"系统一\\n\\n  系统二\",\"thinking\":{\"type\":\"enabled\",\"budget_tokens\":1024},\"temperature\":1.0,\"tools\":[{\"name\":\"fs.read\",\"input_schema\":{\"type\":\"object\"},\"description\":\"读文件\"},{\"name\":\"fs.list\",\"input_schema\":{\"type\":\"object\"}}],\"tool_choice\":{\"type\":\"tool\",\"name\":\"fs.read\"}}"
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"读第一章\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"好的\"},{\"type\":\"tool_use\",\"id\":\"tu_1\",\"name\":\"fs.read\",\"input\":{\"path\":\"正文/1.md\"}}]},{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"tu_1\",\"content\":\"{\\\"text\\\": \\\"第一章\\\"}\"}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"继续\"}]}],\"max_tokens\":2048,\"system\":\"系统一\\n\\n  系统二\",\"thinking\":{\"type\":\"adaptive\"},\"output_config\":{\"effort\":\"low\"},\"tools\":[{\"name\":\"fs.read\",\"input_schema\":{\"type\":\"object\"},\"description\":\"读文件\"},{\"name\":\"fs.list\",\"input_schema\":{\"type\":\"object\"}}],\"tool_choice\":{\"type\":\"tool\",\"name\":\"fs.read\"}}"
         }
       ],
       "waits": [],
@@ -673,22 +673,42 @@
           }
         ]
       },
-      "replies": [],
-      "control": null,
-      "error": {
-        "type": "LLMError",
-        "message": "Anthropic thinking requests require temperature 1 or an omitted temperature.",
-        "usage": null,
-        "reason": null,
-        "usage_summary": {
-          "cost_cny_estimated": null,
-          "cost_breakdown": {}
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"content\": [{\"type\": \"text\", \"text\": \"好\"}], \"stop_reason\": \"end_turn\"}"
         }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "tool_calls": [],
+        "token_usage": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cache_hit_tokens": null,
+        "token_usage_source": "unavailable",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250
       },
-      "requests": [],
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"读第一章\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"好的\"},{\"type\":\"tool_use\",\"id\":\"tu_1\",\"name\":\"fs.read\",\"input\":{\"path\":\"正文/1.md\"}}]},{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"tu_1\",\"content\":\"{\\\"text\\\": \\\"第一章\\\"}\"}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"继续\"}]}],\"max_tokens\":9000,\"system\":\"系统一\\n\\n  系统二\",\"thinking\":{\"type\":\"adaptive\"},\"output_config\":{\"effort\":\"high\"}}"
+        }
+      ],
       "waits": [],
       "progress": [],
-      "clock": 100.0,
+      "clock": 100.25,
       "unused_replies": 0
     },
     {
@@ -741,22 +761,42 @@
           }
         ]
       },
-      "replies": [],
-      "control": null,
-      "error": {
-        "type": "LLMError",
-        "message": "Anthropic max_tokens must be greater than the thinking budget.",
-        "usage": null,
-        "reason": null,
-        "usage_summary": {
-          "cost_cny_estimated": null,
-          "cost_breakdown": {}
+      "replies": [
+        {
+          "status": 200,
+          "body": "{\"content\": [{\"type\": \"text\", \"text\": \"好\"}], \"stop_reason\": \"end_turn\"}"
         }
+      ],
+      "control": null,
+      "result": {
+        "content": "好",
+        "tool_calls": [],
+        "token_usage": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cache_hit_tokens": null,
+        "token_usage_source": "unavailable",
+        "cost_cny_estimated": null,
+        "cost_breakdown": {},
+        "latency_ms": 250
       },
-      "requests": [],
+      "requests": [
+        {
+          "url": "https://api.anthropic.example/v1/messages",
+          "method": "POST",
+          "timeout": 300.0,
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "StoryForge/0.1.10",
+            "x-api-key": "native-secret-key-0123456789",
+            "anthropic-version": "2023-06-01"
+          },
+          "body": "{\"model\":\"claude-test\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"读第一章\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"好的\"},{\"type\":\"tool_use\",\"id\":\"tu_1\",\"name\":\"fs.read\",\"input\":{\"path\":\"正文/1.md\"}}]},{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"tu_1\",\"content\":\"{\\\"text\\\": \\\"第一章\\\"}\"}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"继续\"}]}],\"max_tokens\":4096,\"system\":\"系统一\\n\\n  系统二\",\"thinking\":{\"type\":\"adaptive\"},\"output_config\":{\"effort\":\"medium\"}}"
+        }
+      ],
       "waits": [],
       "progress": [],
-      "clock": 100.0,
+      "clock": 100.25,
       "unused_replies": 0
     },
     {
@@ -2633,7 +2673,7 @@
             "user-agent": "StoryForge/0.1.10",
             "x-goog-api-key": "native-secret-key-0123456789"
           },
-          "body": "{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"读第一章\"}]},{\"role\":\"model\",\"parts\":[{\"text\":\"好的\"},{\"functionCall\":{\"id\":\"tu_1\",\"name\":\"fs.read\",\"args\":{\"path\":\"正文/1.md\"}}}]},{\"role\":\"user\",\"parts\":[{\"functionResponse\":{\"name\":\"fs.read\",\"response\":{\"text\":\"第一章\"}}}]},{\"role\":\"user\",\"parts\":[{\"text\":\"继续\"}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"系统一\\n\\n  系统二\"}]},\"generationConfig\":{\"temperature\":0.7,\"maxOutputTokens\":512,\"thinkingConfig\":{\"thinkingBudget\":8192}},\"tools\":[{\"functionDeclarations\":[{\"name\":\"fs.read\",\"parameters\":{\"type\":\"object\"},\"description\":\"读文件\"},{\"name\":\"fs.list\",\"parameters\":{\"type\":\"object\"}}]}],\"toolConfig\":{\"functionCallingConfig\":{\"mode\":\"AUTO\"}}}"
+          "body": "{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"读第一章\"}]},{\"role\":\"model\",\"parts\":[{\"text\":\"好的\"},{\"functionCall\":{\"id\":\"tu_1\",\"name\":\"fs.read\",\"args\":{\"path\":\"正文/1.md\"}}}]},{\"role\":\"user\",\"parts\":[{\"functionResponse\":{\"name\":\"fs.read\",\"response\":{\"text\":\"第一章\"}}}]},{\"role\":\"user\",\"parts\":[{\"text\":\"继续\"}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"系统一\\n\\n  系统二\"}]},\"generationConfig\":{\"temperature\":0.7,\"maxOutputTokens\":512,\"thinkingConfig\":{\"thinkingLevel\":\"HIGH\"}},\"tools\":[{\"functionDeclarations\":[{\"name\":\"fs.read\",\"parameters\":{\"type\":\"object\"},\"description\":\"读文件\"},{\"name\":\"fs.list\",\"parameters\":{\"type\":\"object\"}}]}],\"toolConfig\":{\"functionCallingConfig\":{\"mode\":\"AUTO\"}}}"
         }
       ],
       "waits": [],

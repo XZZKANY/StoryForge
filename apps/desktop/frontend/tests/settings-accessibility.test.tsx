@@ -14,6 +14,7 @@ vi.mock('../src/lib/desktop-llm-config', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/lib/desktop-llm-config')>();
   return {
     LlmProbeError: actual.LlmProbeError,
+    subscribeLlmProfiles: actual.subscribeLlmProfiles,
     listLlmProfiles: vi.fn(async () => null),
     saveLlmProfile: vi.fn(),
     deleteLlmProfile: vi.fn(),

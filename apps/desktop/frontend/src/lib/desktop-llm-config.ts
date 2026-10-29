@@ -74,17 +74,33 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
   }
 }
 
+const profileListeners = new Set<(profiles: LlmProfiles) => void>();
+
+/** 设置里和输入框底部的模型下拉改的是同一份文件：任一处写成功，另一处跟着换显示。 */
+export function subscribeLlmProfiles(listener: (profiles: LlmProfiles) => void): () => void {
+  profileListeners.add(listener);
+  return () => profileListeners.delete(listener);
+}
+
+async function published<T extends LlmProfiles>(pending: Promise<T | null>): Promise<T | null> {
+  const result = await pending;
+  if (result) for (const listener of [...profileListeners]) listener(result);
+  return result;
+}
+
 export const listLlmProfiles = () => call<LlmProfiles>('list_llm_profiles');
 
 export const saveLlmProfile = (payload: SaveLlmProfileRequest) =>
-  call<SavedLlmProfile>('save_llm_profile', { payload });
+  published(call<SavedLlmProfile>('save_llm_profile', { payload }));
 
-export const deleteLlmProfile = (id: string) => call<LlmProfiles>('delete_llm_profile', { id });
+export const deleteLlmProfile = (id: string) =>
+  published(call<LlmProfiles>('delete_llm_profile', { id }));
 
-export const activateLlmProfile = (id: string) => call<LlmProfiles>('activate_llm_profile', { id });
+export const activateLlmProfile = (id: string) =>
+  published(call<LlmProfiles>('activate_llm_profile', { id }));
 
 export const setPolishLlmProfile = (id: string | null) =>
-  call<LlmProfiles>('set_llm_polish_profile', { id });
+  published(call<LlmProfiles>('set_llm_polish_profile', { id }));
 
 export async function probeLlmDraft(payload: LlmDraftProbeRequest): Promise<LlmDraftModels> {
   const result = await call<LlmDraftModels>('probe_llm_draft', { payload });

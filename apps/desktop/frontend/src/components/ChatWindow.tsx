@@ -252,6 +252,7 @@ export function ChatWindow(props: ChatWindowProps) {
         observatoryAttention={props.observatoryAttention}
         agentPermissionProfile={agentPermissionProfile}
         onAgentPermissionProfileChange={onAgentPermissionProfileChange}
+        onOpenSettings={props.onOpenSettings}
         handleSelectSession={session.handleSelectSession}
         sessions={sessionManagement.visibleSessions}
         onRenameSession={sessionManagement.renameSession}

@@ -32,6 +32,13 @@ export type AnthropicCompleteTransport = (
 export type AnthropicStreamTransport = (payload: JsonObject) => AsyncIterable<JsonObject>;
 
 const THINKING_BUDGETS: Record<string, number> = { low: 1024, medium: 4096, high: 8192 };
+/**
+ * 4.6 以前的模型（claude-3*、4 / 4.1 / 4.5 各档及其日期快照）只认 `thinking.budget_tokens`；
+ * 4.6 起官方写法是 adaptive + output_config.effort，Opus 4.7+ / Sonnet 5+ / Fable 5 对 budget_tokens 回 400。
+ * 认不出的名字一律按新写法。
+ */
+const LEGACY_THINKING_MODEL =
+  /claude-3|claude-(?:opus|sonnet|haiku)-4(?:[-.][015])?(?:-\d{8})?(?![-.]?\d)/i;
 const STOP_REASONS: Record<string, string> = {
   end_turn: 'stop',
   stop_sequence: 'stop',
@@ -302,9 +309,10 @@ export class AnthropicProvider implements LlmProvider {
       max_tokens: maxTokens,
     };
     if (system) payload.system = system;
-    if (request.reasoningEffort) {
-      const budget = Object.prototype.hasOwnProperty.call(THINKING_BUDGETS, request.reasoningEffort)
-        ? THINKING_BUDGETS[request.reasoningEffort]
+    const effort = request.reasoningEffort;
+    if (effort) {
+      const budget = Object.prototype.hasOwnProperty.call(THINKING_BUDGETS, effort)
+        ? THINKING_BUDGETS[effort]
         : undefined;
       if (budget === undefined)
         throw new ProviderError({
@@ -312,26 +320,16 @@ export class AnthropicProvider implements LlmProvider {
           safeMessage: 'Anthropic reasoning effort must be low, medium, or high.',
           providerCode: 'invalid_reasoning_effort',
         });
-      if (maxTokens <= budget)
-        throw new ProviderError({
-          category: 'invalid_request',
-          safeMessage: 'Anthropic max_tokens must be greater than the thinking budget.',
-          providerCode: 'invalid_thinking_budget',
-        });
-      const temperature = request.temperature;
-      if (
-        temperature !== null &&
-        (typeof temperature === 'number' ? temperature : temperature.value) !== 1
-      )
-        throw new ProviderError({
-          category: 'invalid_request',
-          safeMessage:
-            'Anthropic thinking requests require temperature 1 or an omitted temperature.',
-          providerCode: 'invalid_thinking_temperature',
-        });
-      payload.thinking = { type: 'enabled', budget_tokens: budget };
-    }
-    if (request.temperature !== null) payload.temperature = request.temperature;
+      // 开思考不发 temperature：新模型对非默认采样值回 400，老模型开思考时也不许改 temperature。
+      if (LEGACY_THINKING_MODEL.test(request.model)) {
+        // budget_tokens 必须小于 max_tokens；装不下就把上限抬高，正文额度不被思考吃掉。
+        if (maxTokens <= budget) payload.max_tokens = budget + maxTokens;
+        payload.thinking = { type: 'enabled', budget_tokens: budget };
+      } else {
+        payload.thinking = { type: 'adaptive' };
+        payload.output_config = { effort };
+      }
+    } else if (request.temperature !== null) payload.temperature = request.temperature;
     if (request.tools.length) {
       payload.tools = request.tools.map((tool) => AnthropicProvider.nativeTool(tool));
       const choice = AnthropicProvider.toolChoice(request.toolChoice);

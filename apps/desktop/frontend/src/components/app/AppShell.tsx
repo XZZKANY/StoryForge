@@ -439,6 +439,7 @@ export function AppShell({
                 observatoryAttention={observatory.litEntityIds.length > 0}
                 agentPermissionProfile={agentPermission.profile}
                 onAgentPermissionProfileChange={agentPermission.changeProfile}
+                onOpenSettings={() => void openSettings()}
                 onAgentRunSummaryChange={onAgentRunSummaryChange}
                 bookChapters={bookContext.snapshot?.chapters ?? null}
                 bookPromises={observatory.promises}

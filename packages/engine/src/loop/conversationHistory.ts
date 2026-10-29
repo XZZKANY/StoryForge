@@ -650,6 +650,7 @@ export async function createCompactionCheckpoint(
         maxTokens: 8192,
         toolChoice: null,
         reasoningEffort: null,
+        reasoningOff: true,
         metadata: { operation: 'conversation.compact', prompt_version: 2 },
       });
     const response = options.observation

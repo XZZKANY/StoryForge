@@ -8,6 +8,7 @@ import {
   type LlmSource,
   type SecretContext,
 } from '@storyforge/engine';
+import { currentReasoningEffortSourceValue } from '../reasoning-effort';
 import { assertTauriRuntime } from '../tauri-env';
 
 export type LlmSlot = 'main' | 'polish';
@@ -48,13 +49,17 @@ async function call(command: string, args: Record<string, unknown>): Promise<unk
 /**
  * 配置源与密钥快照。key 不出 Rust：`STORYFORGE_LLM_API_KEY` 只是占位串，
  * Rust 发请求时才换成真 key，所以 WebView 里能脱敏的也只有这个占位串。
+ * 思考等级取当前项目在界面里选的那档（润色那套也一样），压过进程环境变量。
  */
 export async function nativeLlmSource(
   slot: LlmSlot,
 ): Promise<{ source: LlmSource; secrets: SecretContext }> {
   const value = await call('get_engine_llm_source', { slot });
   if (!stringRecord(value)) throw new TypeError('Invalid Native LLM source');
-  const source = Object.freeze({ ...value });
+  const source: Readonly<Record<string, string>> = Object.freeze({
+    ...value,
+    STORYFORGE_LLM_REASONING_EFFORT: currentReasoningEffortSourceValue(),
+  });
   const credential = source.STORYFORGE_LLM_API_KEY;
   return { source, secrets: { values: credential ? [credential] : [] } };
 }

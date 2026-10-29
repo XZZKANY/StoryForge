@@ -56,4 +56,11 @@ describe('semantic judge routing', () => {
       expect(sent.STORYFORGE_LLM_AUTH_HEADER).toBe('bearer');
     }
   });
+
+  it('评审不吃作者给产字选的思考等级，只认评审自己的覆盖', async () => {
+    const authored = { ...main('anthropic'), STORYFORGE_LLM_REASONING_EFFORT: 'high' };
+    expect((await judge(authored)).STORYFORGE_LLM_REASONING_EFFORT).toBe('');
+    const overridden = { ...authored, STORYFORGE_JUDGE_LLM_REASONING_EFFORT: 'low' };
+    expect((await judge(overridden)).STORYFORGE_LLM_REASONING_EFFORT).toBe('low');
+  });
 });

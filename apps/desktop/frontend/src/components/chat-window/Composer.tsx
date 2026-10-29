@@ -7,7 +7,9 @@ import { basename } from '../app/helpers';
 import { ArrowUp, Plus, Square } from '../icons/shell-icons';
 import { CHAT_COLUMN } from './column';
 import { roleMentionQuery } from './display-utils';
+import { ModelProfileSelector } from './ModelProfileSelector';
 import { PermissionProfileSelector } from './PermissionProfileSelector';
+import { ReasoningEffortSelector } from './ReasoningEffortSelector';
 import type { QueuedChatMessage } from './useChatSubmission';
 
 const STOP_GUARD_MS = 500;
@@ -26,6 +28,8 @@ export function ComposerBox({
   onTogglePinnedContext,
   permissionProfile,
   onPermissionProfileChange,
+  projectPath = null,
+  onOpenSettings,
   queuedMessages = [],
   onRemoveQueuedMessage,
   onStop,
@@ -44,6 +48,10 @@ export function ComposerBox({
   onSubmit: () => void;
   permissionProfile: AgentPermissionProfile;
   onPermissionProfileChange: (profile: AgentPermissionProfile) => void;
+  /** 思考等级按这个项目存取。 */
+  projectPath?: string | null;
+  /** 没有模型配置时，模型下拉里「去设置里添加」打开设置。 */
+  onOpenSettings?: () => void;
   queuedMessages?: readonly QueuedChatMessage[];
   onRemoveQueuedMessage?: (id: number) => void;
   /** 有一轮正在跑时才给：输入框为空时发送键换成停止。 */
@@ -74,6 +82,8 @@ export function ComposerBox({
             onSubmit={onSubmit}
             permissionProfile={permissionProfile}
             onPermissionProfileChange={onPermissionProfileChange}
+            projectPath={projectPath}
+            onOpenSettings={onOpenSettings}
             queuedMessages={queuedMessages}
             onRemoveQueuedMessage={onRemoveQueuedMessage}
             onStop={onStop}
@@ -99,6 +109,8 @@ export function ComposerSurface({
   onTogglePinnedContext,
   permissionProfile,
   onPermissionProfileChange,
+  projectPath = null,
+  onOpenSettings,
   queuedMessages = [],
   onRemoveQueuedMessage,
   onStop,
@@ -117,6 +129,10 @@ export function ComposerSurface({
   onSubmit?: () => void;
   permissionProfile: AgentPermissionProfile;
   onPermissionProfileChange: (profile: AgentPermissionProfile) => void;
+  /** 思考等级按这个项目存取。 */
+  projectPath?: string | null;
+  /** 没有模型配置时，模型下拉里「去设置里添加」打开设置。 */
+  onOpenSettings?: () => void;
   queuedMessages?: readonly QueuedChatMessage[];
   onRemoveQueuedMessage?: (id: number) => void;
   onStop?: () => void;
@@ -375,6 +391,18 @@ export function ComposerSurface({
           fitToComposer
           value={permissionProfile}
           onChange={onPermissionProfileChange}
+          disabled={disabled}
+          busy={busy}
+        />
+        <ModelProfileSelector
+          fitToComposer
+          disabled={disabled}
+          busy={busy}
+          onOpenSettings={onOpenSettings}
+        />
+        <ReasoningEffortSelector
+          fitToComposer
+          projectPath={projectPath}
           disabled={disabled}
           busy={busy}
         />

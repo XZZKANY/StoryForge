@@ -250,10 +250,8 @@ export async function semanticJudgeWithStatus(
     { role: 'system', content: JUDGE_SYSTEM_PROMPT },
     { role: 'user', content: userPrompt },
   ];
-  const reasoningEffort = pick(
-    'REASONING_EFFORT',
-    envValue(source, 'STORYFORGE_LLM_REASONING_EFFORT'),
-  );
+  // 评审不吃作者给产字选的思考等级；只认专门给评审配的覆盖。
+  const reasoningEffort = pick('REASONING_EFFORT', '');
   const timeoutText =
     pick('TIMEOUT_SECONDS', envValue(source, 'STORYFORGE_LLM_TIMEOUT_SECONDS')) || '300';
   const trimmedBase = pythonStrip(baseUrl).replace(/\/+$/, '');
