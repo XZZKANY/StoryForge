@@ -245,3 +245,18 @@ test('没有运行 id 就不记；记账失败只提示，不往外抛', async (
     tone: 'error',
   });
 });
+
+test('出通知前发起的页面已经不在了：照样记账，成功和失败都不出通知', async () => {
+  let pageOpen = true;
+  vi.mocked(prepareChapterFactRecord).mockImplementation(async () => {
+    pageOpen = false;
+    return ready(ORIGINAL);
+  });
+  await recordAcceptedChapterFacts(PROJECT, CHAPTER, 'run-7', () => pageOpen);
+  expect(disk.get(PATH)).toBe(AFTER);
+  expect(snapshotBeforeWrite).toHaveBeenCalledOnce();
+
+  vi.mocked(prepareChapterFactRecord).mockRejectedValue(new Error('宿主正在退出'));
+  await recordAcceptedChapterFacts(PROJECT, CHAPTER, 'run-7', () => pageOpen);
+  expect(emitToast).not.toHaveBeenCalled();
+});

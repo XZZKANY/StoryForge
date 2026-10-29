@@ -103,7 +103,7 @@ it.each([false, true])('整份接受后记账，带上运行 id（auto=%s）', a
   await observe(() => expect(effects.facts).toHaveBeenCalledOnce());
   expect(files.get(FILE)).toBe('第二章\n\n陈默进了城。\n');
   expect(effects.mark).toHaveBeenCalledOnce();
-  expect(effects.facts).toHaveBeenCalledWith(PROJECT, FILE, 'run-7');
+  expect(effects.facts).toHaveBeenCalledWith(PROJECT, FILE, 'run-7', expect.any(Function));
 });
 
 it('写回被拦下就不记账', async () => {
