@@ -30,6 +30,10 @@ export type ContextBundleBudget = {
   maxFiles: number;
   maxExcerptChars: number;
   truncated: boolean;
+  /** 因份数上限没进参考的文件数；只留在界面，不发给引擎。旧数据没有这一项。 */
+  overflowCount?: number;
+  /** 选中但读不出或内容为空的文件数；只留在界面，不发给引擎。旧数据没有这一项。 */
+  unreadableCount?: number;
   pinnedFileCount: number;
   missingPinnedFiles: string[];
 };

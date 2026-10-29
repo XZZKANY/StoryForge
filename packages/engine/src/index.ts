@@ -35,6 +35,7 @@ export { matchPythonPath } from './kernel/pathMatch';
 export { compareCodePoints, dumpJson, pythonFloatRepr } from './kernel/json';
 export type { DumpOptions } from './kernel/json';
 export { platformTextBytes } from './writePort';
+export { MAX_CONTEXT_FILES } from './kernel/contextValues';
 export type { ProjectWriter } from './writePort';
 export {
   AUTHOR_INSTRUCTIONS_PATH,
