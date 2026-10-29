@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 
 import {
   runContextReads,
+  skillsReadThisRun,
   traceLookup,
   traceReadSources,
 } from '../src/components/chat-window/context-panel';
@@ -153,4 +154,19 @@ test('run reads dedupe across steps, keep first-read order, and resolve inside t
     ],
   });
   expect(runContextReads([], ROOT)).toEqual({ files: [], lookups: [] });
+});
+
+test('skills read this run are the run reads under 技能/, inside the project', () => {
+  const steps = [
+    stepFromToolTraceEvent(0, trace({ output_summary: { path: '正文/第005章.md' } })),
+    stepFromToolTraceEvent(1, trace({ input_summary: { path: '技能\\立项流程.md' } })),
+    stepFromToolTraceEvent(2, trace({ input_summary: { path: `${ROOT}\\技能\\审稿口径.md` } })),
+    stepFromToolTraceEvent(3, trace({ input_summary: { path: '设定/技能树.md' } })),
+    stepFromToolTraceEvent(4, trace({ input_summary: { path: 'E:\\别处\\技能\\x.md' } })),
+  ];
+  expect([...skillsReadThisRun(runContextReads(steps, ROOT))]).toEqual([
+    '技能/立项流程.md',
+    '技能/审稿口径.md',
+  ]);
+  expect(skillsReadThisRun(null).size).toBe(0);
 });

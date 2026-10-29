@@ -2,9 +2,11 @@ import { readAuthorInstructions } from '../kernel/authorVoice';
 import { renderBookContextBlock } from '../kernel/bookContext';
 import { buildBookContext } from '../kernel/buildBookContext';
 import { buildSceneConstraintBlock } from '../kernel/canonContext';
+import { conversationSkillsBlock, loadConversationSkills } from '../kernel/conversationSkills';
 import { dumpJson } from '../kernel/json';
 import { buildPlanBlock } from '../kernel/serialPlan';
 import { missingSetupBeforeFirstChapter, setupGapSection } from '../kernel/projectSetup';
+import type { SecretContext } from '../kernel/redaction';
 import { sha256Hex } from '../kernel/sha256';
 import type { ProjectReader } from '../readPort';
 import { buildAuthorViewBlock, buildPinnedContextBlock, type AuthorView } from './authorView';
@@ -14,11 +16,16 @@ import { AUTHOR_INSTRUCTIONS_PREFIX, SYSTEM_PROMPT } from './promptContext';
 export type LoopMessage = { role: string; content: string };
 
 /**
- * chat 循环的初始消息：system prompt、作者指令、全书底座、连载计划、场景约束、会话历史、
+ * chat 循环的初始消息：system prompt、作者指令、技能目录（有技能才有）、全书底座、连载计划、场景约束、会话历史、
  * @钉上下文、作者视图、本轮作者消息；同时记下每一段的来源指纹（provenance）。
  */
 export async function storyforgeMessages(
-  deps: { reader: ProjectReader; conversation: ConversationSources; platform: 'windows' | 'posix' },
+  deps: {
+    reader: ProjectReader;
+    conversation: ConversationSources;
+    platform: 'windows' | 'posix';
+    secrets: SecretContext;
+  },
   input: {
     assistantSessionId: number;
     userMessage: string;
@@ -44,6 +51,9 @@ export async function storyforgeMessages(
   const planBlock = await buildPlanBlock(reader, root, platform);
   const sceneBlock = await buildSceneConstraintBlock(reader, root, currentFile, { platform });
   const instructions = await readAuthorInstructions(reader, root);
+  const skillsBlock = conversationSkillsBlock(
+    await loadConversationSkills(reader, root, deps.secrets),
+  );
   const viewBlock = input.authorView === null ? null : buildAuthorViewBlock(input.authorView);
   const pinnedBlock = buildPinnedContextBlock(input.pinnedContext);
   const system = (content: string | null): LoopMessage[] =>
@@ -54,6 +64,8 @@ export async function storyforgeMessages(
       'author_instructions',
       system(instructions ? AUTHOR_INSTRUCTIONS_PREFIX + instructions : null),
     ],
+    // 没有技能时连段名都不记：没有技能的作品，消息与来源指纹和以前逐字一致。
+    ...(skillsBlock ? [['skills_index', system(skillsBlock)] as [string, LoopMessage[]]] : []),
     ['book_context', system(bookBlock)],
     ['serial_plan', system(planBlock)],
     ['scene_constraints', system(sceneBlock)],

@@ -1,0 +1,29 @@
+## 2026-10-29 技能装配一期：作品里的「技能/」进对话每轮的目录，上下文面板能看、能新建
+
+- 改动：
+  - 原因：作者想把这本书自己的流程和口径（立项顺序、审稿口径、禁用词）写下来让 AI 照做，长期规矩每轮全文都带、不适合放长流程。作者 10-29 批了方案：作品根的可见文件夹 `技能/`，一个技能一份 Markdown；对话每轮只带目录（名字 + 什么时候用 + 路径），AI 判断用得上时自己用现有 `fs_read` 读全文。不加工具、不改帧契约、不加模型调用。
+  - `packages/project-core/src/conversationSkills.ts`：新增 `CONVERSATION_SKILL_DIR = '技能'`，引擎与界面共用。
+  - 引擎 `kernel/manuscript.ts`：`技能` 加进 `NON_MANUSCRIPT_DIRS`（和 `写法` 并列），里面的 .md 不算章节、不打乱章序；前端 `countsAsChapter` 走同一条规则。查过：`projectKnowledgeSourceType` 不认 `技能/`（不算设定 / 立项文件），前端 `classifyRelativePath` 归为 `other`，自动参考选择本来就跳过 `other`，都不用改。
+  - 引擎 `kernel/writingSkills.ts`：`loadWritingSkills` 加一个可选参数 `dir`（默认 `写法`），扫描、截断、脱敏、跳空、20 份上限都不变；`写法/` 的调用点没动。
+  - 引擎新增 `kernel/conversationSkills.ts`：`loadConversationSkills`（复用上面的读法，只返回 path / name / when）与 `conversationSkillsBlock`（没有技能返回 null）。
+  - 引擎 `loop/loopMessages.ts`：`storyforgeMessages` 的 deps 加 `secrets`（chatLoop 本来就有），作者指令之后插一段 `skills_index`；没有技能时这一段连段名都不进 provenance，消息与来源指纹和改前逐字一致。每轮重读磁盘，不缓存。
+  - 段落文字与批准稿相比只改了一处：工具名写 `fs_read`（模型实际看到的工具名，系统提示里也是这样写），批准稿写的是 `fs.read`。
+  - 前端：`lib/engine/conversationSkills.ts`（同一读口、同一套脱敏，secrets 读不出时退回空，照检查历史的做法）→ `lib/api/conversation-skills.ts`（动态 `import('../engine/...')`，不静态引引擎）→ `components/chat-window/useConversationSkills.ts`（三个模板、按模板新建、跟写盘广播刷新）→ `ContextPanel.tsx` 在「长期规矩」和「这一轮读了」之间加「技能」块；`context-panel.ts` 加 `skillsReadThisRun`，从「这一轮读了」的同一份读取记录里认出 `技能/` 下的路径标「这一轮用了」。对话头按钮的提示改成「上下文：长期规矩、技能、这一轮读了什么」。
+  - 新建：「新建」按钮弹出三个模板（立项流程 / 审稿口径 / 本书禁用词，菜单照模型配置的「更多操作」那种浮层），建到 `技能/<名字>.md`；先 `pathExists`，已存在直接打开不覆盖，否则 `createDir` → `writeFile`（写盘自带 FS 变更广播）→ 在编辑器打开。
+- 验证：
+  - 引擎新增 `kernel/conversationSkills.test.ts`（7 条：只认作品根 `技能/` 下的 .md、按路径序、跳过点开头与空的、不含正文；名字截 40、什么时候用截 80、脱敏、最多 20；作品根读不出与单份读不出当没有；`写法/` 读法不变；目录段文字；`技能/` 不算正文 / 设定 / 立项文件；只有技能时立项检查照常提醒）与 `loop/skillsIndex.test.ts`（2 条：有技能时 provenance 段序是 system_prompt → author_instructions → skills_index → 其余不变，目录段脱敏、不带正文，去掉这一条后其余消息与没有技能时逐字相等；只有技能时立项提醒照常出现）。
+  - golden：`packages/engine/golden/` 没有改动；`conversation.test.ts` 只给 `storyforgeMessages` 补传 `secrets`，Python 预言机的消息组装与 provenance 比对全绿，即没有技能时逐字不变。
+  - 前端：`context-panel-view.test.tsx` 加 5 条（列出名字与什么时候用、读过的标「这一轮用了」、点开发打开事件；没有时的说明、三个模板、建到 `技能\立项流程.md`、先建目录再写、模板全文逐字核对；同名已在不覆盖直接打开；三个模板头部格式；写盘广播只在技能文件夹变了时重读）；`context-panel.test.ts` 加 1 条 `skillsReadThisRun`；`file-move-copy-reveal.test.tsx` 加一行 `countsAsChapter('技能\\立项流程.md') === false`。
+  - 变异（脚本备份字节、断言替换点唯一、跑对应测试后无条件写回并断言字节一致，没用 git checkout / stash），全红后已还原：
+    - 去掉 `NON_MANUSCRIPT_DIRS` 里的「技能」：引擎 4 条红（含 skillsIndex 两条），前端 `countsAsChapter` 1 条红。
+    - 去掉目录段注入：skillsIndex 1 条红。
+    - 反向：没有技能也总记 `skills_index` 段：golden 消息组装 4 条红（book full / selection / bare / checkpointed）。
+    - 「这一轮用了」不看 `技能/` 前缀：`skillsReadThisRun` 1 条红。
+    - 面板不接「这一轮用了」：面板挂载 1 条红。
+  - 行尾：改动的文件原本都是 LF，改后仍全 LF、没有 CRCRLF；`git diff --numstat` 与 `--ignore-all-space --numstat` 逐文件一致。
+  - `pnpm verify` EXIT=0：lint 通过（2 条 warning 在无关的 `tests/independent-claim-history.test.ts`，master 上就有）；前端类型检查通过；project-core 14 passed；引擎 102 个文件 13980 passed + 2 skipped；前端 250 个文件 2522 passed；行间续写、浏览器冒烟、Agent 对话三个浏览器回归通过。
+  - `node scripts/fast-tests.mjs`（pre-push）EXIT=0：前端 2522 passed，引擎 13980 passed + 2 skipped。
+- 未覆盖：
+  - 没调真模型：模型会不会按目录判断、先 `fs_read` 读技能再照做，没验。
+  - 没在真机看面板观感（技能多时的高度、浮层位置）；没跑 Tauri 冒烟与真宿主探针（`listEngineConversationSkills` 走的是已有的 `nativeProjectReader` 与 `engineSecrets`，没有新宿主命令）。
+  - 续跑核对的来源指纹没记技能目录（与作品底座段一样）；模型用 `fs_read` 读过的技能文件照旧按工具调用记指纹。

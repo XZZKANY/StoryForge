@@ -255,7 +255,7 @@ describe('P3-4 对话上下文（Python 预言机）', () => {
         const provenance: Obj = {};
         const args = spec.args as Obj | null;
         const messages = await storyforgeMessages(
-          { reader, conversation: sources(spec.rows), platform },
+          { reader, conversation: sources(spec.rows), platform, secrets },
           {
             assistantSessionId: spec.session,
             userMessage: spec.label === 'plain-project' ? 'hi' : '  帮我检查一下  ',

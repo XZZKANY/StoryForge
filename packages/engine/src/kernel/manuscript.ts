@@ -34,6 +34,7 @@ export const NON_MANUSCRIPT_DIRS = new Set([
   'export',
   'exports',
   '写法',
+  '技能',
   '参考',
 ]);
 

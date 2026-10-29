@@ -123,6 +123,7 @@ test('哪些路径会被手稿当成一章：与引擎排阅读序同一条规�
   assert.equal(countsAsChapter('第一章.md'), true);
   assert.equal(countsAsChapter('.草稿/第006章 副本.md'), false);
   assert.equal(countsAsChapter('设定/人物.md'), false);
+  assert.equal(countsAsChapter('技能\\立项流程.md'), false);
   assert.equal(countsAsChapter('灵感.md'), false);
   assert.equal(countsAsChapter('正文/图.png'), false);
 });

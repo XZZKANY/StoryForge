@@ -58,11 +58,15 @@ export function parseWritingSkill(path: string, content: string): Omit<WritingSk
   return { path, name: cut(name, 40), when: cut(when, WHEN_MAX_CHARS), body };
 }
 
-/** `写法/` 下的全部 skill（按路径序，最多 {@link WRITING_SKILL_INDEX_MAX} 份）；读不到就当没有。 */
+/**
+ * 作品根下 `dir`（默认 `写法/`）里的全部 skill（按路径序，最多 {@link WRITING_SKILL_INDEX_MAX} 份）；
+ * 读不到就当没有。
+ */
 export async function loadWritingSkills(
   reader: ProjectReader,
   root: string,
   secrets: SecretContext,
+  dir: string = WRITING_SKILL_DIR,
 ): Promise<WritingSkill[]> {
   try {
     await resolveProjectRoot(reader, root);
@@ -71,7 +75,7 @@ export async function loadWritingSkills(
       await scanProjectFiles(reader, root, {
         visible: (path) => {
           const parts = path.split('/');
-          return parts[0] === WRITING_SKILL_DIR && !parts.some((part) => part.startsWith('.'));
+          return parts[0] === dir && !parts.some((part) => part.startsWith('.'));
         },
       })
     )

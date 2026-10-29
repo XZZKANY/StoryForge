@@ -1,3 +1,5 @@
+import { CONVERSATION_SKILL_DIR } from '@storyforge/project-core';
+
 import {
   looksAbsolutePath,
   relativePathInsideProject,
@@ -99,4 +101,16 @@ export function runContextReads(
     lookups.push({ kind, text: step.lookup });
   }
   return { files, lookups };
+}
+
+const SKILL_PREFIX = `${normalizePathForMatch(CONVERSATION_SKILL_DIR)}/`;
+
+/** 这一轮读过的技能：「这一轮读了」里落在作品 `技能/` 下的那几份，键是归一后的项目相对路径。 */
+export function skillsReadThisRun(reads: RunContextReads | null): Set<string> {
+  const used = new Set<string>();
+  for (const file of reads?.files ?? []) {
+    const key = normalizePathForMatch(file.path);
+    if (file.filePath !== null && key.startsWith(SKILL_PREFIX)) used.add(key);
+  }
+  return used;
 }
