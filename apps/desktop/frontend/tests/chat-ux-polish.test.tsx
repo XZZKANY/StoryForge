@@ -4,7 +4,7 @@ import { test } from 'vitest';
 
 import { AgentStepsPanel } from '../src/components/AgentStepsPanel';
 import { AssistantMarkdown } from '../src/components/chat-window/AssistantMarkdown';
-import { runStatusText } from '../src/components/chat-window/display-utils';
+import { contextBudgetText, runStatusText } from '../src/components/chat-window/display-utils';
 import { formatElapsed } from '../src/components/chat-window/RunElapsed';
 import {
   ContextSummaryPanel,
@@ -271,7 +271,74 @@ test('compact context summary surfaces truncation on the fold header, not only w
   );
   assert.match(html, /data-compact="true"/);
   assert.match(html, /data-expanded="false"/);
-  assert.match(html, /data-testid="context-truncated-badge"/);
+  assert.match(html, /data-testid="context-truncated-badge"[^>]*>已截断（原因未记录）</);
+});
+
+test('参考覆盖警告按原因分开，只送摘录不算警告，分类计数标明是项目口径', () => {
+  const base = {
+    projectRoot: 'D:/book',
+    currentFile: null,
+    files: [],
+    summary: { hasStoryStructure: true, counts: { outline: 2, setting: 1, draft: 10 } },
+    budget: {
+      fileCount: 8,
+      charCount: 9600,
+      maxFiles: 8,
+      maxExcerptChars: 1200,
+      truncated: false,
+      overflowCount: 0,
+      unreadableCount: 0,
+      pinnedFileCount: 0,
+      missingPinnedFiles: [],
+    },
+  } as unknown as Parameters<typeof contextBudgetText>[0] & object;
+  const excerptOnly = contextBudgetText(base);
+  assert.equal(excerptOnly, '上下文 8/8 文件，9600 字符；项目里：大纲2、设定1、正文10');
+  const both = contextBudgetText({
+    ...base,
+    budget: { ...base.budget, truncated: true, overflowCount: 3, unreadableCount: 1 },
+  });
+  assert.match(both, /；超出席位 3；读取失败 1；/);
+  assert.doesNotMatch(both, /已截断/);
+  const onlyUnreadable = contextBudgetText({
+    ...base,
+    budget: { ...base.budget, truncated: true, unreadableCount: 2 },
+  });
+  assert.match(onlyUnreadable, /读取失败 2/);
+  assert.doesNotMatch(onlyUnreadable, /超出席位/);
+  const legacy = contextBudgetText({
+    ...base,
+    budget: {
+      ...base.budget,
+      truncated: true,
+      overflowCount: undefined,
+      unreadableCount: undefined,
+    },
+  });
+  assert.match(legacy, /已截断（原因未记录）/);
+  assert.doesNotMatch(legacy, /超出席位|读取失败/);
+
+  const panel = (budget: typeof base.budget) =>
+    renderToStaticMarkup(
+      <ContextSummaryPanel
+        compact
+        currentFileLabel="chapters/01.md"
+        explicitContextPaths={[]}
+        contextCandidates={[]}
+        contextCandidatesLoading={false}
+        contextCandidatesError={null}
+        contextPickerOpen={false}
+        lastContextBundle={{ ...base, budget }}
+        missingContextPaths={[]}
+        onAddContext={() => undefined}
+        onTogglePinnedContext={() => undefined}
+        onRetryContextCandidates={() => undefined}
+      />,
+    );
+  assert.equal(panel(base.budget), '');
+  const warned = panel({ ...base.budget, truncated: true, overflowCount: 3, unreadableCount: 1 });
+  assert.match(warned, /data-testid="context-truncated-badge"[^>]*>超出席位 3</);
+  assert.match(warned, /data-testid="context-truncated-badge"[^>]*>读取失败 1</);
 });
 
 test('the typing dot hangs after the last character, inside the deepest last block', () => {

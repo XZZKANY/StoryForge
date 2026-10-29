@@ -5,6 +5,18 @@ import {
 } from '../../lib/project-context';
 import type { AgentRun } from './types';
 
+/** 参考资料没送全的原因；单份文件只送摘录不算。旧数据只记了 truncated 时不编数字。 */
+export function contextCoverageWarnings(budget: ContextBundle['budget']): string[] {
+  const overflow = budget.overflowCount ?? 0;
+  const unreadable = budget.unreadableCount ?? 0;
+  const warnings = [
+    ...(overflow > 0 ? [`超出席位 ${overflow}`] : []),
+    ...(unreadable > 0 ? [`读取失败 ${unreadable}`] : []),
+  ];
+  if (warnings.length === 0 && budget.truncated) return ['已截断（原因未记录）'];
+  return warnings;
+}
+
 export function contextBudgetText(bundle: ContextBundle | null): string {
   if (!bundle) return '上下文尚未生成';
   const kinds = Object.entries(bundle.summary.counts)
@@ -13,9 +25,11 @@ export function contextBudgetText(bundle: ContextBundle | null): string {
     .map(([kind, count]) => `${semanticKindLabel(kind as ContextBundleFile['kind'])}${count}`)
     .join('、');
   const budget = bundle.budget;
-  const truncated = budget.truncated ? '；已截断' : '';
+  const warnings = contextCoverageWarnings(budget)
+    .map((warning) => `；${warning}`)
+    .join('');
   const pinned = budget.pinnedFileCount ? `；pin ${budget.pinnedFileCount}` : '';
-  return `上下文 ${budget.fileCount}/${budget.maxFiles} 文件，${budget.charCount} 字符${pinned}${truncated}${kinds ? `；${kinds}` : ''}`;
+  return `上下文 ${budget.fileCount}/${budget.maxFiles} 文件，${budget.charCount} 字符${pinned}${warnings}${kinds ? `；项目里：${kinds}` : ''}`;
 }
 
 export function runStatusText(run: AgentRun | null): string | null {

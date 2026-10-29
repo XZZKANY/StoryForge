@@ -24,7 +24,7 @@ import { CHAT_COLUMN } from './column';
 import { DecisionChoices } from './DecisionChoices';
 import { SessionMenu } from './SessionMenu';
 import { MessageActions } from './MessageActions';
-import { contextBudgetText } from './display-utils';
+import { contextBudgetText, contextCoverageWarnings } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
 import { StreamPhase } from './StreamPhase';
 import type { AgentRun, AgentRunControlHandlers, Message } from './types';
@@ -687,8 +687,11 @@ export function ContextSummaryPanel({
     setDismissedError(null);
     onRetryContextCandidates();
   };
+  const coverageWarnings = lastContextBundle
+    ? contextCoverageWarnings(lastContextBundle.budget)
+    : [];
   const hasWarning = Boolean(
-    missingContextPaths.length || contextCandidatesError || lastContextBundle?.budget.truncated,
+    missingContextPaths.length || contextCandidatesError || coverageWarnings.length,
   );
   // 空会话不展示上下文占位；只有作者主动打开或真实警告才占用空间。
   if (!contextPickerOpen && !hasWarning) return null;
@@ -725,14 +728,15 @@ export function ContextSummaryPanel({
             参考上下文
             {explicitContextPaths.length > 0 ? ` · 固定 ${explicitContextPaths.length}` : ''}
           </span>
-          {lastContextBundle?.budget.truncated && (
+          {coverageWarnings.map((warning) => (
             <span
+              key={warning}
               className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs leading-4 text-warning"
               data-testid="context-truncated-badge"
             >
-              已截断
+              {warning}
             </span>
-          )}
+          ))}
         </button>
         <button
           type="button"
@@ -750,7 +754,10 @@ export function ContextSummaryPanel({
             <div className="mt-2 text-xs text-subtle">
               <div>{contextBudgetText(lastContextBundle)}</div>
               {lastContextBundle.files.length > 0 && (
-                <ul className="mt-1 space-y-0.5" aria-label="本轮实际引用">
+                <div className="mt-1">本轮参考资料（发送前选入，工具另读的不在此列）</div>
+              )}
+              {lastContextBundle.files.length > 0 && (
+                <ul className="mt-1 space-y-0.5" aria-label="本轮参考资料（发送前选入）">
                   {lastContextBundle.files.map((file) => (
                     <li key={file.path} className="break-words">
                       {file.relativePath}

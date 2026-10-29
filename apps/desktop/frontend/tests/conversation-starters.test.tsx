@@ -236,6 +236,24 @@ test('真实上下文预算与文件可按需查看，默认不挂空参考卡',
   expect(host.querySelector('[data-testid="context-summary"]')!.textContent).toContain(
     '资料/规则.md',
   );
+  expect(host.querySelector('[data-testid="context-summary"]')!.textContent).toContain(
+    '本轮参考资料（发送前选入，工具另读的不在此列）',
+  );
+  expect(host.querySelector('[data-testid="context-summary"]')!.textContent).toContain('项目里：');
+  expect(host.querySelector('[data-testid="context-truncated-badge"]')).toBeNull();
+});
+
+test('参考没送全时按原因分别亮徽标', async () => {
+  await render({
+    lastBundle: {
+      ...bundle,
+      budget: { ...bundle.budget, truncated: true, overflowCount: 2, unreadableCount: 1 },
+    },
+  });
+  const badges = [...host.querySelectorAll('[data-testid="context-truncated-badge"]')].map(
+    (badge) => badge.textContent,
+  );
+  expect(badges).toEqual(['超出席位 2', '读取失败 1']);
 });
 
 test('未打开参考选择时仍显示缺失和截断警告', async () => {
@@ -246,7 +264,9 @@ test('未打开参考选择时仍显示缺失和截断警告', async () => {
   expect(host.querySelector('[data-testid="missing-context-warning"]')!.textContent).toContain(
     '资料/已删除.md',
   );
-  expect(host.querySelector('[data-testid="context-truncated-badge"]')).not.toBeNull();
+  expect(host.querySelector('[data-testid="context-truncated-badge"]')!.textContent).toBe(
+    '已截断（原因未记录）',
+  );
   expect(host.querySelector('[data-testid="context-picker"]')).toBeNull();
   expect(host.textContent).not.toMatch(/上下文尚未生成|未选择文件/);
 });

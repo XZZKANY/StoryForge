@@ -1,4 +1,4 @@
-import { compareManuscriptPaths } from '@storyforge/project-core';
+import { compareManuscriptPaths, MAX_CONTEXT_FILES } from '@storyforge/project-core';
 import { TauriFileSystem } from '../tauri-fs';
 import { FS_MUTATION_EVENT } from '../tauri-fs';
 import { buildProjectIndex } from './index';
@@ -163,6 +163,7 @@ export function selectContextBundleFiles(params: {
 }): {
   files: SemanticFile[];
   truncated: boolean;
+  overflowCount: number;
   missingPinnedFiles: string[];
 } {
   const { index, currentFile, maxFiles, pinnedFiles = [] } = params;
@@ -216,6 +217,7 @@ export function selectContextBundleFiles(params: {
   return {
     files,
     truncated: pinned.length + automatic.length > maxFiles,
+    overflowCount: Math.max(0, pinned.length + automatic.length - files.length),
     missingPinnedFiles,
   };
 }
@@ -281,7 +283,7 @@ export async function buildContextBundle(params: ContextBundleParams): Promise<C
   const {
     projectPath,
     currentFile,
-    maxFiles = 8,
+    maxFiles = MAX_CONTEXT_FILES,
     maxExcerptChars = 1200,
     pinnedFiles = [],
   } = params;
@@ -350,6 +352,8 @@ async function collectContextBundle(params: Required<ContextBundleParams>): Prom
       maxFiles,
       maxExcerptChars,
       truncated: selection.truncated || selection.files.length > files.length,
+      overflowCount: selection.overflowCount,
+      unreadableCount: selection.files.length - files.length,
       pinnedFileCount: files.filter(
         (file) =>
           pinnedIndexByPath(
