@@ -1,10 +1,14 @@
 import type * as monaco from 'monaco-editor';
 import { prefersReducedMotion } from '../../lib/motion';
 
+// 仍标出零宽字符这类看不见的东西；全角空格（U+3000）是中文排版常用字（标题、段首缩进），放行不加黄框。
+export const IDEOGRAPHIC_SPACE = String.fromCharCode(0x3000);
+
 export const STORYFORGE_EDITOR_UNICODE_HIGHLIGHT: monaco.editor.IUnicodeHighlightOptions = {
   ambiguousCharacters: false,
   invisibleCharacters: true,
   nonBasicASCII: false,
+  allowedCharacters: { [IDEOGRAPHIC_SPACE]: true },
 };
 
 // Q9「格字对不齐」：Monaco 默认 monospace 栈里 CJK 不是 ASCII 的 2× 宽，中英混排就错位。

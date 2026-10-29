@@ -29,7 +29,8 @@ function overBudgetScenario(replies: Obj[]) {
 }
 const systemPrompt = (request: Obj) => String(request.body.messages[0].content);
 
-describe('会话已超历史预算时先补压缩', () => {
+// 这组造的是约 160 KB 的会话，单跑约 2 秒；满载跑全量时会超过默认 5 秒，照仓库惯例放宽。
+describe('会话已超历史预算时先补压缩', { timeout: 30_000 }, () => {
   it('补压成功后同一轮照常进模型，并发布检查点', async () => {
     const { record, error } = await replay(
       overBudgetScenario([{ compaction_quote: true }, reply('好的。'), { compaction_quote: true }]),
