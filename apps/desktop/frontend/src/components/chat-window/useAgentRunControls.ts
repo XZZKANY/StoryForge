@@ -26,6 +26,7 @@ import { recoveryDisplayFromCheckpoint } from './recovery';
 import { useAgentRunReconciliation } from './useAgentRunReconciliation';
 import { shouldApplyAgentControlAck } from './agent-result';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
+import { appendWritebackFailure } from './writeback-failure';
 import type { AgentRunControlHandlers, AgentRunStatus, AgentStep, ChapterBrief } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 import type { RunAuthorAgent } from './useRunAuthorAgent';
@@ -468,17 +469,13 @@ export function useAgentRunControls(
           void refreshAgentRunRecovery(result.runId);
         }
       }
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content:
-            content +
-            (result.runStatus === 'failed'
-              ? '\n原运行仍有执行失败；接受这份修订不代表整轮成功。'
-              : ''),
-        },
-      ]);
+      const tail =
+        result.runStatus === 'failed' ? '\n原运行仍有执行失败；接受这份修订不代表整轮成功。' : '';
+      setMessages((prev) =>
+        result.status === 'completed'
+          ? [...prev, { role: 'assistant', content: content + tail }]
+          : appendWritebackFailure(prev, result.filePath, content, tail),
+      );
     };
     window.addEventListener(AUTHOR_LOOP_RESULT_EVENT, onAuthorLoopResult);
     return () => window.removeEventListener(AUTHOR_LOOP_RESULT_EVENT, onAuthorLoopResult);

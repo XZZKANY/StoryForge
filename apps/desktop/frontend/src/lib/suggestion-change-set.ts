@@ -1,5 +1,5 @@
 import type { PatchHunk } from './patch-hunks';
-import { buildSuggestionOps, matchSuggestionOp, planHunkAccept } from './suggestion-ops';
+import { buildSuggestionOps, locateHunkTarget, matchSuggestionOp } from './suggestion-ops';
 
 /** Exact source content is the revision identity; no lossy hash or current diff is authoritative. */
 export type SuggestionChangeSet = Readonly<{
@@ -41,21 +41,28 @@ export function projectRemainingSuggestion(
 ): { after: string; view: SuggestionOperationView; finished: boolean } {
   const operations = Object.freeze(set.operations.filter((op) => !accepted.has(op.id)));
   const conflicts: Record<string, string> = {};
-  let after = current;
-  const projected = new Set(accepted);
-  for (const op of operations) {
+  // 与整份接受同法：先在未改动的当前稿上把剩余各处都定位好，再从后往前套用；
+  // 边改边定位时，相邻一处写进去会把下一处的 48 字前文截断。
+  const targets: Array<{ op: PatchHunk; start: number; end: number }> = [];
+  for (const op of [...operations].sort((a, b) => a.originalStartOffset - b.originalStartOffset)) {
     try {
-      after = planHunkAccept(after, op, set.before, {
+      const target = locateHunkTarget(current, op, set.before, {
         operations: set.operations,
-        appliedOpIds: projected,
-      }).content;
-      projected.add(op.id);
+        appliedOpIds: accepted,
+      });
+      const previous = targets[targets.length - 1];
+      if (target && previous && target.start <= previous.end)
+        throw new Error('这个修改块与前一处在当前文件里的位置重叠，无法安全定位。');
+      if (target) targets.push({ op, ...target });
     } catch (error) {
       // A failed mapping remains an explicit original operation, not a made-up current→old diff.
       conflicts[op.id] =
         error instanceof Error ? error.message : '原操作无法安全定位，请重新生成修订。';
     }
   }
+  let after = current;
+  for (const { op, start, end } of targets.reverse())
+    after = after.slice(0, start) + op.afterText + after.slice(end);
   return {
     after,
     view: Object.freeze({ operations, conflicts: Object.freeze(conflicts) }),

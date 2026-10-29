@@ -7,8 +7,13 @@ import {
   matchSuggestionOp,
   planHunkAccept,
   planWholeAccept,
+  projectSourceOperations,
   verifiedAppliedOpIds,
 } from '../src/lib/suggestion-ops';
+import {
+  createSuggestionChangeSet,
+  projectRemainingSuggestion,
+} from '../src/lib/suggestion-change-set';
 import {
   associateIssuesToOps,
   hasIssueAttribution,
@@ -656,4 +661,227 @@ test('E-03：重复场景里另一处早已是改后的样子，作者又在别�
   });
   assert.equal(hunk.alreadyApplied, false);
   assert.equal(hunk.content, after + '\n作者新写的结尾。\n');
+});
+
+// 作者试用 #24 的补丁形状（自造等价数据）：大纲每章两行（标题 + 本章事件），修订在每章后插两行，
+// 18 处全是纯插入，相邻插入点只隔四十来字（< 48 字前文）。
+const OUTLINE_TITLES = [
+  '雾港来信',
+  '旧船票',
+  '灯塔守夜人',
+  '潮汐账本',
+  '沉船名单',
+  '码头夜雨',
+  '失踪的大副',
+  '盐仓暗门',
+  '海图残页',
+  '灰鸥旅馆',
+  '钟楼回声',
+  '冷库交易',
+  '渡轮夜航',
+  '船坞火灾',
+  '信号旗语',
+  '退潮之后',
+  '归港',
+  '雾散',
+];
+const OUTLINE_HEAD =
+  '# 总纲\n\n一句话：雾港小城的会计林照，在一桩旧沉船案里一页页对账，对出了整座港口三十年没人敢提的秘密。\n\n## 分章\n\n';
+const OUTLINE_TAIL =
+  '\n## 尾声\n\n雾散之后，林照把账本交了出去，自己留下了那张旧船票，也留下了那一页没对上的账。\n';
+
+function outlinePair(count = OUTLINE_TITLES.length) {
+  const titles = OUTLINE_TITLES.slice(0, count);
+  const blocks = titles.map(
+    (title, i) =>
+      `### 第${i + 1}章\u3000${title}\n本章事件：林照查到${title}这一页，第${i + 1}笔账又对不上了。\n`,
+  );
+  const inserted = titles.map(
+    (title, i) => `本章钩子：${title}背后还有人在等。\n本章情绪：第${i + 1}章收在一口气上。\n`,
+  );
+  return {
+    before: OUTLINE_HEAD + blocks.join('') + OUTLINE_TAIL,
+    after: OUTLINE_HEAD + blocks.map((block, i) => block + inserted[i]).join('') + OUTLINE_TAIL,
+  };
+}
+
+/** 作者在改动范围外动的字：开头一句话里加几个字、文末新写一段。 */
+const authorOutsideEdit = (text: string) =>
+  text.replace('一句话：', '一句话（作者改）：') + '作者在文末新写的一段。\n';
+
+test('U-24：相邻纯插入（间隔 < 48 字）+ 作者在改动范围外改了字，整份接受写成且范围外的字不动', () => {
+  const { before, after } = outlinePair();
+  const ops = buildSuggestionOps(before, after);
+  assert.equal(ops.length, OUTLINE_TITLES.length);
+  assert.ok(
+    ops.every((op) => op.beforeText === ''),
+    '应全是纯插入',
+  );
+  const gaps = ops.slice(1).map((op, i) => op.originalStartOffset - ops[i].originalStartOffset);
+  assert.ok(Math.max(...gaps) < 48, `相邻插入点应只隔不到 48 字：${gaps.join(',')}`);
+
+  const plan = planWholeAccept(authorOutsideEdit(before), before, after, new Set(), normalize, ops);
+  assert.equal(plan.fastPath, false);
+  assert.equal(plan.content, authorOutsideEdit(after));
+  assert.equal(plan.applied.length, ops.length);
+  assert.deepEqual(plan.settledOpIds, new Set(ops.map((op) => op.id)));
+});
+
+test('U-24：当前稿按换行归一后已等于 after，判为已接受、不报错，也不再写别的字', () => {
+  const { before, after } = outlinePair();
+  const ops = buildSuggestionOps(before, after);
+  for (const current of [after, after.replace(/\n/g, '\r\n')]) {
+    for (const accepted of [new Set<string>(), new Set([ops[3].id])]) {
+      const plan = planWholeAccept(current, before, after, accepted, normalize, ops);
+      assert.equal(plan.content, current);
+      assert.equal(plan.applied.length, 0);
+      assert.deepEqual(plan.settledOpIds, new Set(ops.map((op) => op.id)));
+    }
+  }
+});
+
+test('U-24：相邻插入从前往后逐处接受、再看剩余投影，作者范围外的改动在场也一处处写成', () => {
+  const { before, after } = outlinePair(6);
+  const set = createSuggestionChangeSet(before, after);
+  let current = authorOutsideEdit(before);
+  const accepted = new Set<string>();
+  for (const op of set.operations) {
+    const result = planHunkAccept(current, op, before, {
+      operations: set.operations,
+      appliedOpIds: accepted,
+    });
+    assert.equal(result.alreadyApplied, false);
+    current = result.content;
+    accepted.add(op.id);
+    const projection = projectRemainingSuggestion(current, set, accepted);
+    assert.deepEqual(projection.view.conflicts, {});
+    assert.equal(projection.after, authorOutsideEdit(after));
+    if (accepted.size < set.operations.length) {
+      const plan = planWholeAccept(current, before, after, accepted, normalize, set.operations);
+      assert.equal(plan.content, authorOutsideEdit(after));
+    }
+  }
+  assert.equal(current, authorOutsideEdit(after));
+});
+
+test('U-24：插入点前文被作者改了，如实拒写并说清是第几处、原稿哪一行', () => {
+  const { before, after } = outlinePair();
+  const current = authorOutsideEdit(before).replace('林照查到沉船名单', '林照翻到沉船名单');
+  assert.throws(
+    () => planWholeAccept(current, before, after, new Set(), normalize),
+    /^Error: 第 5 处修改（原稿第 17 行附近）是插入，插入点前文已变，无法安全定位。$/,
+  );
+});
+
+test('U-24：插入点前文重复、作者删掉了其中一处时无法唯一确定，如实拒写不猜', () => {
+  const ctx = '丙'.repeat(60) + '\n';
+  const before = ctx + ctx + '尾。';
+  const after = ctx + ctx + '新行。\n尾。';
+  const ops = buildSuggestionOps(before, after);
+  assert.equal(ops.length, 1);
+  assert.equal(ops[0].beforeText, '');
+  assert.throws(
+    () => planWholeAccept(ctx + '尾。\n作者新增。', before, after, new Set(), normalize, ops),
+    /第 1 处修改（原稿第 3 行附近）在当前文件里无法唯一确定位置/,
+  );
+});
+
+test('U-24：两处在当前稿里定位到同一处（重叠）时整份拒写并点名两处；剩余投影只把后一处记为冲突', () => {
+  const before = '甲。\n乙。\n丙。';
+  const after = '甲。\n乙改。\n丙。';
+  const [op] = buildSuggestionOps(before, after);
+  const twin = { ...op, id: `${op.id}:twin` };
+  const current = before + '\n作者新增。';
+  assert.throws(
+    () => planWholeAccept(current, before, after, new Set(), normalize, [op, twin]),
+    /第 2 处修改（原稿第 2 行附近）与第 1 处修改（原稿第 2 行附近）在当前文件里的位置重叠或次序颠倒/,
+  );
+  const projection = projectRemainingSuggestion(
+    current,
+    { before, after, baseRevision: { content: before }, operations: [op, twin] },
+    new Set(),
+  );
+  assert.deepEqual(Object.keys(projection.view.conflicts), [twin.id]);
+  assert.equal(projection.after, after + '\n作者新增。');
+});
+
+test('U-24 fuzz：多处相邻插入、作者只在范围外动字，整份 / 逐处 / 剩余投影一律写成不拒写（确定性随机，300 例）', () => {
+  const rng = mulberry32(20261029);
+  const sourceChars = [...'雾港灯塔账船潮盐钟渡鸥夜信票'];
+  const insertChars = [...'风雨刀火血泪梦影霜雷'];
+  const word = (chars: string[], min: number, max: number) => {
+    let text = '';
+    const len = min + Math.floor(rng() * (max - min + 1));
+    for (let i = 0; i < len; i += 1) text += chars[Math.floor(rng() * chars.length)];
+    return text;
+  };
+  const failures: string[] = [];
+  let shortGaps = 0;
+  for (let s = 0; s < 300; s += 1) {
+    const count = 2 + Math.floor(rng() * 17);
+    const eol = rng() < 0.3 ? '\r\n' : '\n';
+    const blocks: string[] = [];
+    const inserts: string[] = [];
+    for (let i = 0; i < count; i += 1) {
+      blocks.push(
+        `### 第${i + 1}章\u3000${word(sourceChars, 2, 5)}\n本章事件：${word(sourceChars, 4, 40)}。\n`,
+      );
+      inserts.push(
+        i === 0 || rng() < 0.8
+          ? `本章钩子：${word(insertChars, 3, 16)}。\n` +
+              (rng() < 0.6 ? `本章情绪：${word(insertChars, 3, 12)}。\n` : '')
+          : '',
+      );
+    }
+    const withEol = (text: string) => text.replace(/\r?\n/g, eol);
+    const before = withEol(OUTLINE_HEAD + blocks.join('') + OUTLINE_TAIL);
+    const after = withEol(
+      OUTLINE_HEAD + blocks.map((block, i) => block + inserts[i]).join('') + OUTLINE_TAIL,
+    );
+    const set = createSuggestionChangeSet(before, after);
+    const ops = set.operations;
+    const info = `case=${s} eol=${JSON.stringify(eol)} ops=${ops.length}`;
+    if (ops.some((op) => op.beforeText !== '')) {
+      failures.push(`生成了非纯插入 ${info}`);
+      continue;
+    }
+    shortGaps += ops
+      .slice(1)
+      .filter((op, i) => op.originalStartOffset - ops[i].originalStartOffset < 48).length;
+    const edit = (text: string) => withEol(authorOutsideEdit(text));
+    const expected = edit(after);
+    // 已逐处接受了随机一部分，再整份接受剩余 / 看剩余投影。
+    const accepted = new Set(ops.filter(() => rng() < 0.3).map((op) => op.id));
+    const known = projectSourceOperations(before, ops, accepted)!;
+    try {
+      const plan = planWholeAccept(edit(known), before, after, accepted, normalize, ops);
+      if (plan.content !== expected) failures.push(`整份接受结果不对 ${info}`);
+    } catch (error) {
+      failures.push(`整份接受误拒 ${info}: ${(error as Error).message}`);
+    }
+    const projection = projectRemainingSuggestion(edit(known), set, accepted);
+    if (Object.keys(projection.view.conflicts).length) failures.push(`剩余投影误报冲突 ${info}`);
+    if (projection.after !== expected) failures.push(`剩余投影结果不对 ${info}`);
+    // 打乱次序逐处接受。
+    let current = edit(before);
+    const done = new Set<string>();
+    const order = ops
+      .map((op) => ({ op, key: rng() }))
+      .sort((a, b) => a.key - b.key)
+      .map(({ op }) => op);
+    try {
+      for (const op of order) {
+        current = planHunkAccept(current, op, before, {
+          operations: ops,
+          appliedOpIds: done,
+        }).content;
+        done.add(op.id);
+      }
+      if (current !== expected) failures.push(`逐处接受结果不对 ${info}`);
+    } catch (error) {
+      failures.push(`逐处接受误拒 ${info}: ${(error as Error).message}`);
+    }
+  }
+  assert.ok(shortGaps > 300, `相邻插入点间隔 < 48 字的样本偏少：${shortGaps}`);
+  assert.deepEqual(failures.slice(0, 3), []);
 });

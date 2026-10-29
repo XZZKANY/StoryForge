@@ -6,7 +6,7 @@
  * 与 before 归一化后相同时，才走「直接写 after」的快路径；已接受子集则须先逐字证明
  * 当前稿等于不可变源稿按该子集重建的结果，才能沿原始坐标继续应用。
  */
-import { applyPatchHunkToCurrent, buildPatchHunks, type PatchHunk } from './patch-hunks';
+import { buildPatchHunks, findApplyRange, HUNK_CONTEXT_CHARS, type PatchHunk } from './patch-hunks';
 
 /** 已应用到当前稿的一步 op 及其逆 op（撤销逐步回退用）。 */
 export type AppliedSuggestionOp = {
@@ -318,13 +318,132 @@ export function verifiedAppliedOpIds(
   return verified;
 }
 
+type OpProvenance = { operations: readonly PatchHunk[]; appliedOpIds: ReadonlySet<string> };
+
+/** 一处 op 落在当前稿上的区间；write=false 表示这处已在稿内（幂等，不再写）。 */
+type OpTarget = { op: PatchHunk; start: number; end: number; write: boolean };
+
+/** 拒写时告诉作者是哪一处：第几处修改、原稿哪一行附近。 */
+function describeOp(operations: readonly PatchHunk[], op: PatchHunk): string {
+  return `第 ${operations.indexOf(op) + 1} 处修改（原稿第 ${op.originalStartIndex + 1} 行附近）`;
+}
+
+/** 原稿偏移换算到「源稿套上已确认子集」后的偏移：累加它之前各处已确认 op 的长度差。 */
+function projectedShift(provenance: OpProvenance, offset: number): number {
+  let shift = 0;
+  for (const other of provenance.operations) {
+    // 起点也要严格在前：恰好插在 offset 处的就是这处 op 自己，不算「之前」。
+    if (
+      provenance.appliedOpIds.has(other.id) &&
+      other.originalStartOffset < offset &&
+      other.originalEndOffset <= offset
+    )
+      shift += other.afterText.length - other.beforeText.length;
+  }
+  return shift;
+}
+
+/**
+ * 纯插入的 48 字前文里夹着别处已确认的 op 时（相邻插入只隔几十字），按原稿取的前文在当前稿里
+ * 已经断开。改用「源稿套上已确认子集」这份投影重取前后文再定位一次——投影就是那些 op 接受后
+ * 应有的样子；定位规则（前文出现序号、出现次数须与投影一致）照旧，定位不到仍返回 null。
+ */
+function locateInsertionOnProjection(
+  current: string,
+  op: PatchHunk,
+  before: string,
+  provenance: OpProvenance | undefined,
+): number | null {
+  if (op.beforeText || !provenance?.appliedOpIds.size || !provenance.operations.includes(op))
+    return null;
+  const source = projectSourceOperations(before, provenance.operations, provenance.appliedOpIds);
+  if (source === null) return null;
+  const start = op.originalStartOffset + projectedShift(provenance, op.originalStartOffset);
+  const end = start + (provenance.appliedOpIds.has(op.id) ? op.afterText.length : 0);
+  const rebased: PatchHunk = {
+    ...op,
+    originalStartOffset: start,
+    originalEndOffset: start,
+    originalPrefixContext: source.slice(Math.max(0, start - HUNK_CONTEXT_CHARS), start),
+    originalSuffixContext: source.slice(end, end + HUNK_CONTEXT_CHARS),
+  };
+  const located = locateOpAnchor(current, rebased, source);
+  return located.kind === 'anchor' ? located.at : null;
+}
+
+/** 整份接受里一处 op 的去向：区间、已在稿内（write=false），或 null（已消费但不在稿内，跳过）。 */
+function locateForWholeAccept(
+  current: string,
+  op: PatchHunk,
+  before: string,
+  provenance: OpProvenance,
+): OpTarget | null {
+  const where = describeOp(provenance.operations, op);
+  let located = locateOpAnchor(current, op, before);
+  // 前缀仍在但出现序号越界、或出现次数变了：无法唯一确定目标，拒绝猜着写。
+  if (located.kind === 'ambiguous') {
+    throw new Error(
+      `${where}在当前文件里无法唯一确定位置（前文或原文重复出现、或出现次数变了），无法安全定位。`,
+    );
+  }
+  if (located.kind === 'fallback' && !op.beforeText) {
+    const at = locateInsertionOnProjection(current, op, before, provenance);
+    if (at !== null) located = { kind: 'anchor', at };
+  }
+  if (located.kind === 'anchor') {
+    const { at } = located;
+    const state = classifyAtAnchor(current, op, at);
+    // 已落盘的 op 幂等跳过：目标锚点处已是 afterText（或删除类已是后缀上下文）时不重复施加。
+    if (state === 'applied') return { op, start: at, end: at + op.afterText.length, write: false };
+    // 标记为已应用但实际不在稿内（作者改回原文）时：不重复应用，也不计入归属依据（T07-F3）。
+    if (provenance.appliedOpIds.has(op.id)) return null;
+    if (state === 'apply') return { op, start: at, end: at + op.beforeText.length, write: true };
+    // 锚点明确但目标处既非结果也非原文：作者改动了该处，拒绝猜着写。
+    throw new Error(`${where}要改的原文在当前文件里已被改动，无法安全定位。`);
+  }
+  if (provenance.appliedOpIds.has(op.id)) return null;
+  // 纯插入没有原文可兜底，前文锚点断了就只能如实说插入点前文已变。
+  if (!op.beforeText) throw new Error(`${where}是插入，插入点前文已变，无法安全定位。`);
+  // 前缀锚点已不可用（作者改了 op 之前的正文）：只能退回按原文定位。
+  // 原文在当前稿里出现多次时无法消歧——旧的「最佳分」会在重复块里挑错一处并静默写错，
+  // 故与分块接受同一策略：出现多次即拒绝；唯一出现时才安全施加。
+  const occurrences = countOccurrences(current, op.beforeText);
+  if (occurrences !== 1) {
+    throw new Error(
+      occurrences === 0
+        ? `${where}之前的正文已被改动，原文也已不在当前文件里，无法安全定位。`
+        : `${where}之前的正文已被改动，且原文在当前文件中出现多次，无法安全定位。`,
+    );
+  }
+  let range;
+  try {
+    range = findApplyRange(current, op);
+  } catch {
+    throw new Error(`${where}之前的正文已被改动，原文的前后文也对不上，无法安全定位。`);
+  }
+  return { op, start: range.startOffset, end: range.endOffset, write: true };
+}
+
+/** 从后往前套用：后面的写入不挪动前面各处的坐标。targets 须按原稿次序且互不重叠。 */
+function applyTargetsFromEnd(current: string, targets: readonly OpTarget[]): string {
+  let content = current;
+  for (let index = targets.length - 1; index >= 0; index -= 1) {
+    const { op, start, end, write } = targets[index];
+    if (write) content = content.slice(0, start) + op.afterText + content.slice(end);
+  }
+  return content;
+}
+
 /**
  * 规划一次整份接受：
  * - 没有已消费 op 且当前稿与 before 归一化后一致 → 直接写 after；
- * - 否则把尚未应用的原始 op 逐个映射到当前稿（原文 + 前后文定位，冲突即抛错）。
+ * - 当前稿归一化后已等于 after → 判为已接受，不再定位；
+ * - 否则先在未改动的当前稿上把每一处都定位好（原文 + 前后文，冲突即抛错），校验各处位置
+ *   按原稿次序递增、互不重叠，再从后往前套用。
  *
- * 已落盘的 op（例如重复确认同一条已写入的补丁）会幂等跳过；作者改动了 op 覆盖的原文时
- * 定位失败且 after 不在稿内，向上抛错由调用方拒写。
+ * 不能边改边定位：相邻插入只隔几十字，前一处写进去后，后一处 48 字前文在稿里就不再连续。
+ * 已落盘的 op（例如重复确认同一条已写入的补丁）会幂等跳过；任一处定位不唯一、被改动或与
+ * 别处重叠时整份拒写，错误里写明是第几处、什么原因。
  */
 export function planWholeAccept(
   current: string,
@@ -338,6 +457,11 @@ export function planWholeAccept(
   if (appliedOpIds.size === 0 && normalizeEol(current) === normalizeEol(before)) {
     const settledOpIds = new Set(operations.map((op) => op.id));
     return { content: after, applied: [], fastPath: true, settledOpIds };
+  }
+  // 当前稿已经就是 after（作者自己改成了、或上一次已写进去）：每一处都在稿内，没有可写的。
+  if (normalizeEol(current) === normalizeEol(after)) {
+    const settledOpIds = new Set(operations.map((op) => op.id));
+    return { content: current, applied: [], fastPath: false, settledOpIds };
   }
   // 已确认子集的实际正文必须逐字相等，历史操作记录本身不授予覆盖作者输入的权力。
   const knownCurrent = projectSourceOperations(before, operations, appliedOpIds);
@@ -354,45 +478,27 @@ export function planWholeAccept(
         settledOpIds,
       };
   }
-  let content = current;
-  const applied: AppliedSuggestionOp[] = [];
-  const settledOpIds = new Set<string>();
-  for (const op of operations) {
-    const located = locateOpAnchor(content, op, before);
-    // 前缀仍在但出现序号越界：无法唯一确定目标，拒绝猜着写。
-    if (located.kind === 'ambiguous') {
-      throw new Error('该修改块的前文在当前文件中出现多次，无法安全定位。');
+  const provenance = { operations, appliedOpIds };
+  const targets: OpTarget[] = [];
+  for (const op of [...operations].sort((a, b) => a.originalStartOffset - b.originalStartOffset)) {
+    const target = locateForWholeAccept(current, op, before, provenance);
+    if (!target) continue;
+    const previous = targets[targets.length - 1];
+    // 原稿里相邻两处之间至少隔着一段没改的字；在当前稿里挨上、交叠或倒序，说明定位已不可信。
+    if (previous && target.start <= previous.end) {
+      throw new Error(
+        `${describeOp(operations, op)}与${describeOp(operations, previous.op)}在当前文件里的位置重叠或次序颠倒，无法安全定位。`,
+      );
     }
-    const state = located.kind === 'anchor' ? classifyAtAnchor(content, op, located.at) : null;
-    // 已落盘的 op 幂等跳过：目标锚点处已是 afterText（或删除类已是后缀上下文）时不重复施加。
-    if (state === 'applied') {
-      settledOpIds.add(op.id);
-      continue;
-    }
-    // 标记为已应用但实际不在稿内（作者改回原文）时：不重复应用，也不计入归属依据（T07-F3）。
-    if (appliedOpIds.has(op.id)) continue;
-    if (state === 'apply' && located.kind === 'anchor') {
-      const { at } = located;
-      content = content.slice(0, at) + op.afterText + content.slice(at + op.beforeText.length);
-      applied.push({ op, inverse: invertPatchHunk(op) });
-      settledOpIds.add(op.id);
-      continue;
-    }
-    if (state === 'conflict') {
-      // 锚点明确但目标处既非结果也非原文：作者改动了该处，拒绝猜着写。
-      throw new Error('该修改块在原文中的位置已被改动，无法安全定位。');
-    }
-    // 前缀锚点已不可用（作者改了 op 之前的正文）：只能退回按原文定位。
-    // 原文在当前稿里出现多次时无法消歧——旧的「最佳分」会在重复块里挑错一处并静默写错，
-    // 故与分块接受同一策略：出现多次即拒绝；唯一出现时才安全施加。
-    if (countOccurrences(content, op.beforeText) !== 1) {
-      throw new Error('该修改块之前的正文已被改动，且原文在当前文件中出现多次，无法安全定位。');
-    }
-    content = applyPatchHunkToCurrent(content, op);
-    applied.push({ op, inverse: invertPatchHunk(op) });
-    settledOpIds.add(op.id);
+    targets.push(target);
   }
-  return { content, applied, fastPath: false, settledOpIds };
+  const written = targets.filter((target) => target.write);
+  return {
+    content: applyTargetsFromEnd(current, written),
+    applied: written.map(({ op }) => ({ op, inverse: invertPatchHunk(op) })),
+    fastPath: false,
+    settledOpIds: new Set(targets.map(({ op }) => op.id)),
+  };
 }
 
 /**
@@ -407,22 +513,39 @@ export function planHunkAccept(
   current: string,
   op: PatchHunk,
   before: string,
-  provenance?: { operations: readonly PatchHunk[]; appliedOpIds: ReadonlySet<string> },
+  provenance?: OpProvenance,
 ): { content: string; alreadyApplied: boolean } {
+  const target = locateHunkTarget(current, op, before, provenance);
+  return target
+    ? {
+        content: current.slice(0, target.start) + op.afterText + current.slice(target.end),
+        alreadyApplied: false,
+      }
+    : { content: current, alreadyApplied: true };
+}
+
+/**
+ * 分块接受的定位核心：返回 op 在当前稿里要换成 afterText 的区间 [start,end)；null 表示这处已在
+ * 稿内（幂等）。定位不唯一 / 被改动即抛错。只读当前稿、不改它，供多处一起「先定位、后套用」。
+ */
+export function locateHunkTarget(
+  current: string,
+  op: PatchHunk,
+  before: string,
+  provenance?: OpProvenance,
+): { start: number; end: number } | null {
   if (provenance?.operations.includes(op)) {
     // 已消费操作不能因作者改回原稿而获得第二次授权（包括旧按钮的迟到回调）。
-    if (provenance.appliedOpIds.has(op.id)) return { content: current, alreadyApplied: true };
+    if (provenance.appliedOpIds.has(op.id)) return null;
     const knownCurrent = projectSourceOperations(
       before,
       provenance.operations,
       provenance.appliedOpIds,
     );
+    // 当前稿逐字等于已确认子集的投影：原始偏移按前面已确认各处的长度差平移就是唯一目标。
     if (knownCurrent !== null && current === knownCurrent) {
-      const selected = new Set(provenance.appliedOpIds);
-      const alreadyApplied = selected.has(op.id);
-      selected.add(op.id);
-      const content = projectSourceOperations(before, provenance.operations, selected);
-      if (content !== null) return { content, alreadyApplied };
+      const shift = projectedShift(provenance, op.originalStartOffset);
+      return { start: op.originalStartOffset + shift, end: op.originalEndOffset + shift };
     }
   }
   // 源稿逐字相等时，原始偏移就是唯一目标；不能把结果前缀误认成已应用。
@@ -432,40 +555,35 @@ export function planHunkAccept(
     op.originalEndOffset <= before.length &&
     before.slice(op.originalStartOffset, op.originalEndOffset) === op.beforeText
   ) {
-    return {
-      content:
-        current.slice(0, op.originalStartOffset) +
-        op.afterText +
-        current.slice(op.originalEndOffset),
-      alreadyApplied: false,
-    };
+    return { start: op.originalStartOffset, end: op.originalEndOffset };
   }
-  const located = locateOpAnchor(current, op, before);
+  let located = locateOpAnchor(current, op, before);
   // 前一 op 或范围外作者修改可能改变原始前缀；与整份接受一致，仅唯一原文可安全兜底。
   if (located.kind === 'fallback' && countOccurrences(current, op.beforeText) === 1) {
-    return { content: applyPatchHunkToCurrent(current, op), alreadyApplied: false };
+    const range = findApplyRange(current, op);
+    return { start: range.startOffset, end: range.endOffset };
+  }
+  if (located.kind === 'fallback') {
+    const at = locateInsertionOnProjection(current, op, before, provenance);
+    if (at !== null) located = { kind: 'anchor', at };
   }
   if (located.kind !== 'anchor') {
     throw new Error(
       located.kind === 'ambiguous'
         ? '这个修改块在当前文件里无法唯一确定位置（可能已被改写或存在重复内容），已拒绝接受以免写错处；请重新生成修订或手动处理。'
-        : '这个修改块在当前文件里定位不到，已拒绝接受以免写错处；请重新生成修订或手动处理。',
+        : op.beforeText
+          ? '这个修改块在当前文件里定位不到，已拒绝接受以免写错处；请重新生成修订或手动处理。'
+          : '这处插入的插入点前文已变，定位不到，已拒绝接受以免写错处；请重新生成修订或手动处理。',
     );
   }
   const state = classifyAtAnchor(current, op, located.at);
-  if (state === 'applied') return { content: current, alreadyApplied: true };
+  if (state === 'applied') return null;
   if (state === 'conflict') {
     throw new Error(
       '这个修改块在原文中的位置已被改动，无法安全定位；已拒绝接受，请重新生成修订或手动处理。',
     );
   }
-  return {
-    content:
-      current.slice(0, located.at) +
-      op.afterText +
-      current.slice(located.at + op.beforeText.length),
-    alreadyApplied: false,
-  };
+  return { start: located.at, end: located.at + op.beforeText.length };
 }
 
 /** 审稿问题覆盖的原文行范围（1-based，闭区间）。拿不到行范围的问题不参与归属，绝不臆造。 */

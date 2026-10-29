@@ -1,0 +1,39 @@
+## 2026-10-29 整份接受改成「先在原稿坐标上全部定位、再从后往前套用」，相邻多处纯插入不再必定拒写
+
+- 根因（作者试用 #24，`大纲/总纲.md`，18 处全是纯插入、每章后插两行、相邻插入点只隔 45–56 字）：
+  - 整份接受没走快路径时（编辑器内容按换行归一后 ≠ before，或已确认子集的逐字投影对不上），`planWholeAccept` 原来是**边改边定位**：前一处插入写进 `content` 后，再用原稿取的 48 字前文（`HUNK_CONTEXT_CHARS`）去定位下一处；相邻插入点不到 48 字时，这段前文在已改过的稿里不再连续，`locateOpAnchor` 退到兜底，兜底又拿 `countOccurrences(content, '')` 数空串（恒为 0），于是必定抛「该修改块之前的正文已被改动，且原文在当前文件中出现多次，无法安全定位。」——纯插入没有原文，「出现多次」是假话。补丁本身怎么点都写不进去，作者连点 5 次刷出 5 条「没能写进稿子」。
+  - 当前稿已经等于 after 时同样会撞这条路（前文跨过已插入的字）。
+  - 同类：`projectRemainingSuggestion`（剩余预览）逐处套用后再定位下一处；逐处接受时前一处已接受的插入夹在后一处的 48 字前文里，前文同样断开。剩余预览一旦误报冲突，面板会直接挡住整份接受。
+  - 作者那次快路径为何没命中，日志还原不出唯一答案（可能编辑器里有未保存改动或模型短暂不同步）；本修复不依赖这一点。本次没有读作者作品目录与引擎库，测试数据按同一形状自造（每章「### 第N章　标题 / 本章事件：…」，每章后插两行）。
+- 改动：
+  - `lib/suggestion-ops.ts`
+    - `planWholeAccept`：快路径之后先判「当前稿按换行归一后已等于 after」→ 直接判已接受（全部 op 记为已在稿内，不报错，content 保持当前稿）；否则按原稿次序在**未改动的当前稿**上逐处定位与判状态（`locateForWholeAccept`，判据沿用 `locateOpAnchor` / `classifyAtAnchor`），校验各处区间递增、互不相挨不交叠（原稿相邻两处之间至少隔一段没改的字），再**从后往前**套用（`applyTargetsFromEnd`）。任一处不唯一 / 被改动 / 重叠即整份拒写，错误写明「第 N 处修改（原稿第 L 行附近）」和原因；纯插入找不到插入点如实说「插入点前文已变」，不再数空串。
+    - `planHunkAccept` 拆出只读定位核心 `locateHunkTarget`（返回区间，不改稿），`planHunkAccept` 行为不变（逐字投影那一支改成按已确认各处长度差平移原始偏移，与原「重建投影」等价，7056 对穷举测试照过）。
+    - 纯插入的前文里夹着别处已确认的 op 时（逐处接受过相邻一处），改在「源稿套上已确认子集」的投影上重取 48 字前后文再定位一次（`locateInsertionOnProjection`；出现序号、出现次数仍须与投影一致）。只在原来必定拒写的那条路（纯插入兜底）上生效。
+  - `lib/suggestion-change-set.ts`：`projectRemainingSuggestion` 同法——剩余各处先在未改动的当前稿上定位，重叠的后一处记冲突，其余从后往前套用。
+  - `lib/patch-hunks.ts`：导出 `findApplyRange` / `HUNK_CONTEXT_CHARS` 供上面复用，逻辑未改。
+  - 连点刷屏：新模块 `components/chat-window/writeback-failure.ts`（`appendWritebackFailure`）——「没能写进稿子」与上一条同文件、同文案时原地改成「…（已重试 N 次，结果相同）」，不新增；文件归属只按消息对象记在 WeakMap 里，不改消息形状。`useAgentRunControls.ts` 等量替换为调用它（498 → 495 行）。
+  - `PatchReviewPanel.tsx`：「无法安全定位 / 无法唯一确定 / 插入点前文已变」这类每次结果都一样的拒写不再说「可重试」，改为「可以让 AI 重出一版，或逐处接受。」（逐处接受本身失败时只说「可以让 AI 重出一版。」）；「内容已变化」与普通错误的文案不变。
+- 验证：
+  - 新测试先在 master 版 `suggestion-ops.ts` / `suggestion-change-set.ts` 上跑（复制 HEAD 版本进去，跑完从备份拷回，sha1 校验一致）：当时的 6 条新增 U-24 测试全红；换回修复版全绿（重叠那条是之后补的，由变异 M5 证伪）。
+  - `tests/suggestion-ops.test.ts` +7：18 处相邻纯插入（间隔全 < 48 字）+ 作者在范围外改字 → 写成、范围外的字不动；当前稿等于 after（含 CRLF、含已确认子集）→ 判已接受；相邻插入从前往后逐处接受 + 每步剩余投影 / 整份接受剩余；插入点前文被改 → 如实拒写并点名「第 5 处修改（原稿第 17 行附近）是插入，插入点前文已变」；前文重复且作者删掉一处 → 「无法唯一确定位置」；两处定位到同一处 → 整份拒写点名两处、剩余投影只把后一处记冲突；fuzz 300 例（2–18 章、块长随机 / 多数间隔 < 48 字、LF/CRLF、随机一部分已逐处接受）要求整份接受、剩余投影、乱序逐处接受**一律写成且结果逐字等于预期**（不再把报错当安全拒写放过）。
+  - `tests/suggestion-writeback-lifecycle.test.tsx` +1：编辑器里有范围外未保存改动时，相邻四处纯插入的整份接受照样写盘、未保存的改动保留。
+  - `tests/chat-window-lifecycle.test.tsx` +1：同文件同文案连点 5 次只留一条「（已重试 4 次，结果相同）」，换文件 / 换文案才新起一条。`tests/patch-review-panel.test.tsx` +1：定位类拒写不说可重试、给出新指引，写盘失败仍说可重试。
+  - 相关套件单跑：suggestion-ops / proposal-projection-integrity（7056 对穷举）/ projection-ledger-independent / suggestion-change-set / patch-operation-view / suggestion-writeback-lifecycle / patch-hunks / editor / suggestion-issue-attribution / proposal-panel-writeback-integration / proposal-projection-panel 共 11 个文件全绿。
+  - 接线变异 8 处（脚本逐处打、跑对应测试、`finally` 里用带 `count==1` 断言的定点替换无条件还原，最后逐文件 sha1 核对还原；没用 git checkout / stash）：
+    - M1 恢复边改边定位（在已套用前几处的稿上定位下一处）→ 7 条红；
+    - M2 去掉 equals-after 判已接受 → 1 条红；
+    - M3 改成从前往后套用 → 6 条红；
+    - M4 关掉插入在已确认投影上的重新定位 → 2 条红；
+    - M5 去掉重叠校验 → 1 条红；
+    - M6 剩余投影恢复边改边定位 → 3 条红；
+    - M7 连点失败不再合并 → 1 条红；
+    - M8 定位类失败仍说可重试 → 1 条红。
+    - 第一次跑脚本时 M4 的变异串（`return null;`）在文件里不唯一，还原断言拦下、文件停在变异态；随即用带上下文的唯一串定点还原并核对 diff 无残留，改用唯一变异串重跑全部 8 处，全部还原、sha1 一致。
+  - `pnpm verify` EXIT=0：lint 与前端类型检查通过；project-core 14 passed；引擎 96 个文件 13832 passed + 2 skipped（golden 无改动）；前端 245 个文件 2454 passed；行间续写、浏览器冒烟、Agent 对话三个浏览器回归通过。第一次跑 EXIT=1：测试数据模板里的全角空格（U+3000）撞 `no-irregular-whitespace`，改成 `　` 转义后整套重跑通过。
+  - prettier 通过；CRLF 文件 `suggestion-writeback-lifecycle.test.tsx` 按 CRLF 追加，`git diff --numstat` 与 `--ignore-all-space --numstat` 逐文件一致。
+- 未覆盖：
+  - 作者在某处插入点的 48 字前文**之内**改过字时，这一处仍会拒写（如实说「插入点前文已变」）；纯插入没有用后文兜底定位。相邻插入只隔几十字时，章块里几乎每个字都在某一处的前文里。
+  - `verifiedAppliedOpIds`（只影响问题归属计数）仍按原稿前后文逐处核验：已确认的相邻插入互相挡住前文时会少认几处（不影响写盘；整份接受里本次写入的各处照旧直接计入）。
+  - 投影重新定位只用于纯插入；替换 / 删除类前文里夹着已确认 op 时仍走原来的「原文全篇唯一才兜底」。
+  - 没跑 Tauri 冒烟与真宿主探针（作者正在用 StoryForge）；没在装机版上点穿，也没拿作者那份真补丁重放。

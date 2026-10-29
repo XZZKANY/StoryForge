@@ -367,6 +367,43 @@ test('动作失败保留补丁并恢复重试入口', async () => {
   assert.equal((byTestId('suggestion-accept') as HTMLButtonElement).disabled, false);
 });
 
+test('U-24：定位类拒写每次结果都一样，不再提示可重试，指给作者重出一版或逐处接受', () => {
+  const render = (error: string) =>
+    act(() => {
+      root.render(
+        <PatchReviewPanel
+          suggestion={sampleSuggestion()}
+          editorFontSize={14}
+          editorFontFamily="test-font"
+          onAccept={() => undefined}
+          onAcceptHunk={() => undefined}
+          onReject={() => undefined}
+          onSaveNote={() => undefined}
+          onRetryWithoutKnowledge={() => undefined}
+          error={error}
+        />,
+      );
+    });
+  const status = () => byTestId('patch-action-status')?.textContent ?? '';
+
+  render('接受失败: 第 2 处修改（原稿第 9 行附近）是插入，插入点前文已变，无法安全定位。');
+  assert.equal(
+    status(),
+    '操作失败：接受失败: 第 2 处修改（原稿第 9 行附近）是插入，插入点前文已变，无法安全定位。可以让 AI 重出一版，或逐处接受。',
+  );
+  render('接受失败: 第 1 处修改（原稿第 3 行附近）在当前文件里无法唯一确定位置');
+  assert.match(status(), /无法唯一确定位置。可以让 AI 重出一版，或逐处接受。$/);
+  assert.doesNotMatch(status(), /可重试/);
+
+  // 已经是逐处接受失败：不再把作者指回逐处接受。
+  render('接受分块失败: 这个修改块在原文中的位置已被改动，无法安全定位；已拒绝接受。');
+  assert.match(status(), /已拒绝接受。可以让 AI 重出一版。$/);
+
+  // 对照：写盘失败这类偶发错误仍提示可重试。
+  render('接受失败: 写回失败');
+  assert.equal(status(), '操作失败：接受失败: 写回失败，可重试');
+});
+
 test('确认键的字面随有没有话说而变', () => {
   mountPanel();
   click('suggestion-reject');

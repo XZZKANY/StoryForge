@@ -1293,6 +1293,34 @@ test('T07-⑤c：整份逐 op 映射写回等待期间，作者继续输入不�
   assert.ok(effects.disk.get(FILE)?.includes('B*'), '磁盘应落映射结果，含作者此前改动 B*');
 });
 
+test('U-24：编辑器有范围外未保存改动时，相邻多处纯插入的整份接受照样写盘', async () => {
+  const head =
+    '# 总纲\n\n一句话：雾港小城的会计林照，在一桩旧沉船案里一页页对账，对出了整座港口三十年的秘密。\n\n## 分章\n\n';
+  const titles = ['雾港来信', '旧船票', '灯塔守夜人', '潮汐账本'];
+  const blocks = titles.map(
+    (title, i) =>
+      `### 第${i + 1}章\u3000${title}\n本章事件：林照查到${title}这一页，第${i + 1}笔账又对不上了。\n`,
+  );
+  const before = head + blocks.join('');
+  const after =
+    head +
+    blocks
+      .map(
+        (block, i) =>
+          `${block}本章钩子：${titles[i]}背后还有人在等。\n本章情绪：第${i + 1}章收在一口气上。\n`,
+      )
+      .join('');
+  const unsaved = (text: string) => text.replace('一句话：', '一句话（未保存）：');
+  const editor = __getLastEditor();
+  assert.ok(editor);
+  await act(async () => editor.setValue(unsaved(before)));
+  await show({ ...patch('u24-adjacent-inserts'), before, after });
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(handle.actionError, null);
+  assert.equal(effects.disk.get(FILE), unsaved(after), '四处插入都写进去，未保存的改动也在');
+  assert.equal(effects.write.mock.calls.length, 1);
+});
+
 async function runLastUndo() {
   const undoToast = effects.toast.mock.calls
     .filter((args: unknown[]) => (args[1] as { action?: unknown } | undefined)?.action)

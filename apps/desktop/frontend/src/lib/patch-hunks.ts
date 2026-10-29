@@ -22,7 +22,7 @@ export type PatchHunk = {
 };
 
 const MAX_DIFF_MATRIX_CELLS = 4_000_000;
-const HUNK_CONTEXT_CHARS = 48;
+export const HUNK_CONTEXT_CHARS = 48;
 const CJK_SEGMENT_BREAKS = '。！？!?；;，,、：:';
 const CJK_TRAILING_CLOSERS = '”’）】》〉」』';
 
@@ -366,7 +366,7 @@ export function buildPatchHunks(before: string, after: string): PatchHunk[] {
   return hunks;
 }
 
-type ApplyRange = {
+export type ApplyRange = {
   startOffset: number;
   endOffset: number;
 };
@@ -471,7 +471,7 @@ function findInsertionRanges(currentContent: string, hunk: PatchHunk): ApplyRang
     .map(({ startOffset, endOffset }) => ({ startOffset, endOffset }));
 }
 
-function findApplyRange(currentContent: string, hunk: PatchHunk): ApplyRange {
+export function findApplyRange(currentContent: string, hunk: PatchHunk): ApplyRange {
   const originalStart = hunk.originalStartOffset;
   const originalEnd = hunk.originalEndOffset;
   if (
