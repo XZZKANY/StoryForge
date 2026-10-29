@@ -36,4 +36,4 @@
 - 验证：
   - `npx vitest run tests/composer-hint.test.ts tests/composer-next-hint.test.tsx`：2 个文件 39 passed（新增「接受前面某章不出」「最后一章空着」两条；旧代码下前一条会红）。
   - `npx prettier --check`、`npx eslint` 改动的两个文件通过。
-  - `pnpm verify` 见下一条记录。
+  - `pnpm verify`（含本次修正）EXIT=0：project-core 14 passed；引擎 98 个文件 13903 passed + 2 skipped；前端 247 个文件 2496 passed；三个浏览器回归通过。
