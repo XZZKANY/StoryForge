@@ -889,3 +889,44 @@ test('引擎标了新稿可能没写完：横幅醒目显示警告；普通补�
   mountPanel();
   assert.equal(byTestId('patch-truncation-warning'), null);
 });
+
+test('截断两步已武装：「接受」就地换成「仍然整份接受」并说明，失焦、移开、点拒绝都撤销', () => {
+  let cancels = 0;
+  const render = (armed: boolean) =>
+    act(() => {
+      root.render(
+        <PatchReviewPanel
+          suggestion={sampleSuggestion({ truncationWarning: 'AI 的输出可能没写完。' })}
+          editorFontSize={14}
+          editorFontFamily="test-font"
+          truncationArmed={armed}
+          onCancelTruncatedAccept={() => {
+            cancels += 1;
+          }}
+          onAccept={() => undefined}
+          onAcceptHunk={() => undefined}
+          onReject={() => undefined}
+          onSaveNote={() => undefined}
+          onRetryWithoutKnowledge={() => undefined}
+        />,
+      );
+    });
+  render(false);
+  assert.equal(byTestId('suggestion-accept')!.textContent, '接受');
+  assert.equal(byTestId('patch-truncation-confirm'), null);
+  render(true);
+  const accept = byTestId('suggestion-accept')!;
+  assert.equal(accept.textContent, '仍然整份接受');
+  assert.equal(accept.getAttribute('data-armed'), 'true');
+  assert.match(byTestId('patch-truncation-confirm')!.textContent ?? '', /再点一次才写/);
+  act(() => {
+    accept.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+  });
+  act(() => {
+    accept.dispatchEvent(
+      new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }),
+    );
+  });
+  click('suggestion-reject');
+  assert.equal(cancels, 3);
+});

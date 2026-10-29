@@ -29,6 +29,9 @@ type PatchReviewPanelProps = {
   onReject: (direction: string) => void | Promise<void | boolean>;
   onSaveNote: () => void | Promise<void>;
   onRetryWithoutKnowledge: (knowledgeId: string, relativePath: string) => void | Promise<void>;
+  /** 补丁可能没写完、整份接受已武装：「接受」换成「仍然整份接受」，再点一次才写。 */
+  truncationArmed?: boolean;
+  onCancelTruncatedAccept?: () => void;
 };
 
 type PatchAction = 'accept' | 'hunk' | 'reject' | 'note' | 'retry' | 'undo';
@@ -98,6 +101,8 @@ export function PatchReviewPanel({
   onReject,
   onSaveNote,
   onRetryWithoutKnowledge,
+  truncationArmed = false,
+  onCancelTruncatedAccept,
   actionKind = null,
   error = null,
 }: PatchReviewPanelProps) {
@@ -146,6 +151,7 @@ export function PatchReviewPanel({
 
   const runAction = useCallback(
     (kind: PatchAction, action: () => void | Promise<void>) => {
+      if (kind !== 'accept') onCancelTruncatedAccept?.();
       if (actionKind || actionInFlightRef.current) return;
       if (kind === 'accept' && Object.keys(suggestion.operationView?.conflicts ?? {}).length)
         return;
@@ -177,7 +183,7 @@ export function PatchReviewPanel({
         finish();
       }
     },
-    [actionKind, suggestion],
+    [actionKind, onCancelTruncatedAccept, suggestion],
   );
 
   const stats = useMemo(
@@ -261,6 +267,7 @@ export function PatchReviewPanel({
           break;
         case 'n':
           event.preventDefault();
+          onCancelTruncatedAccept?.();
           setRejection((previous) => ({
             suggestion,
             draft: previous?.suggestion === suggestion && previous.draft !== null ? null : '',
@@ -274,7 +281,7 @@ export function PatchReviewPanel({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [actionBusy, onAccept, runAction, setExpanded, suggestion]);
+  }, [actionBusy, onAccept, onCancelTruncatedAccept, runAction, setExpanded, suggestion]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const diffEditorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
@@ -529,19 +536,31 @@ export function PatchReviewPanel({
             >
               {expanded ? '收起对比' : '查看对比'}
             </Button>
+            {truncationArmed && (
+              <span
+                role="status"
+                className="text-xs font-medium text-error"
+                data-testid="patch-truncation-confirm"
+              >
+                AI 可能没写完：整份接受会删掉原文末尾那几段，再点一次才写
+              </span>
+            )}
             <Button
               type="button"
               onClick={() => runAction('accept', onAccept)}
+              onBlur={truncationArmed ? onCancelTruncatedAccept : undefined}
+              onMouseLeave={truncationArmed ? onCancelTruncatedAccept : undefined}
               data-testid="suggestion-accept"
-              title="接受 · Ctrl Y"
+              data-armed={truncationArmed ? 'true' : 'false'}
+              title={truncationArmed ? '再点一次才整份写入 · Ctrl Y' : '接受 · Ctrl Y'}
               disabled={actionBusy || hasOperationConflict}
               loading={actionState === 'accept'}
               loadingLabel="接受中"
               size="xs"
-              variant="primary"
+              variant={truncationArmed ? 'danger' : 'primary'}
               className="text-xs"
             >
-              接受
+              {truncationArmed ? '仍然整份接受' : '接受'}
             </Button>
             <Button
               type="button"
@@ -558,7 +577,10 @@ export function PatchReviewPanel({
             </Button>
             <Button
               type="button"
-              onClick={() => setRejectDraft((value) => (value === null ? '' : null))}
+              onClick={() => {
+                onCancelTruncatedAccept?.();
+                setRejectDraft((value) => (value === null ? '' : null));
+              }}
               data-testid="suggestion-reject"
               aria-expanded={rejectDraft !== null}
               title="拒绝 · Ctrl N"

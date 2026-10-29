@@ -282,14 +282,23 @@ export type FileSuggestionTarget = {
   filePath: string;
 };
 
-/** accepted：编辑器开始写；busy：同一份补丁正在写；unclaimed：没有编辑器拿着这份补丁。 */
-export type AcceptClaim = 'accepted' | 'busy' | 'unclaimed';
+/**
+ * accepted：编辑器开始写；busy：同一份补丁正在写；armed：补丁可能没写完，编辑器只武装了
+ * 「仍然整份接受」、没写；unclaimed：没有编辑器拿着这份补丁。
+ */
+export type AcceptClaim = 'accepted' | 'busy' | 'armed' | 'unclaimed';
 
 const busyAcceptEvents = new WeakSet<Event>();
+const armedAcceptEvents = new WeakSet<Event>();
 
 /** 编辑器接住了「接受」，但这份补丁正在处理：让发起方别再报「目标还没打开」。 */
 export function markAcceptBusy(event: Event): void {
   busyAcceptEvents.add(event);
+}
+
+/** 编辑器接住了「接受」，但补丁可能没写完：只在横幅上武装，要作者在那里再点一次。 */
+export function markAcceptArmed(event: Event): void {
+  armedAcceptEvents.add(event);
 }
 
 export function emitAcceptCurrentFileSuggestion(target?: FileSuggestionTarget): AcceptClaim {
@@ -300,6 +309,7 @@ export function emitAcceptCurrentFileSuggestion(target?: FileSuggestionTarget): 
   );
   window.dispatchEvent(event);
   if (!event.defaultPrevented) return 'unclaimed';
+  if (armedAcceptEvents.has(event)) return 'armed';
   return busyAcceptEvents.has(event) ? 'busy' : 'accepted';
 }
 

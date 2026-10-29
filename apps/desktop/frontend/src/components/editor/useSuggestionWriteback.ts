@@ -16,6 +16,7 @@ import {
   SUGGESTION_RESULT_EVENT,
   bufferPendingFileSuggestion,
   emitPatchRejected,
+  markAcceptArmed,
   markAcceptBusy,
   takePendingFileSuggestion,
   replacePendingFileSuggestion,
@@ -151,9 +152,10 @@ type UseSuggestionWritebackParams = {
   dropOpenFilePath?: (path: string) => void;
   /** 一键撤销失效时把作者送到版本历史，而不是丢一句错误了事。 */
   onRequestVersionHistory?: () => void;
-  /** 引擎标了「新稿可能没写完」的补丁，整份接受前问作者一次；没接上就当作没确认。 */
-  confirmTruncatedAccept?: (warning: string) => Promise<boolean>;
 };
+
+/** 半截稿的「仍然整份接受」只武装这么久，照「请求停止 → 确认停止」的做法。 */
+export const TRUNCATED_ACCEPT_CONFIRM_TIMEOUT_MS = 5000;
 
 export function useSuggestionWriteback({
   enqueueWriteback,
@@ -172,7 +174,6 @@ export function useSuggestionWriteback({
   emitAuthorLoopResult,
   dropOpenFilePath,
   onRequestVersionHistory,
-  confirmTruncatedAccept,
 }: UseSuggestionWritebackParams) {
   const [pendingSuggestion, setPendingSuggestion] = useState<AssistantFileSuggestion | null>(null);
   // E15：接受/拒绝/旁注/导出/锚点失效等一次性结果统一走自动消退 toast，不再赖在编辑器顶栏；
@@ -201,16 +202,46 @@ export function useSuggestionWriteback({
   useLayoutEffect(() => {
     dropOpenFilePathRef.current = dropOpenFilePath;
   }, [dropOpenFilePath]);
-  const confirmTruncatedAcceptRef = useRef(confirmTruncatedAccept);
-  useLayoutEffect(() => {
-    confirmTruncatedAcceptRef.current = confirmTruncatedAccept;
-  }, [confirmTruncatedAccept]);
   useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
   }, []);
+
+  // 引擎标了「新稿可能没写完」的补丁：整份接受第一次只武装、不写，同一份补丁武装着再来一次才写；
+  // 超时、失焦、换补丁、点了别的操作都撤销武装。
+  const [truncationArmedId, setTruncationArmedId] = useState<string | null>(null);
+  const truncationArmedIdRef = useRef<string | null>(null);
+  const truncationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelTruncatedAccept = useCallback(() => {
+    if (truncationTimerRef.current) clearTimeout(truncationTimerRef.current);
+    truncationTimerRef.current = null;
+    truncationArmedIdRef.current = null;
+    if (mountedRef.current) setTruncationArmedId(null);
+  }, []);
+  const armTruncatedAccept = useCallback(
+    (suggestionId: string) => {
+      if (truncationTimerRef.current) clearTimeout(truncationTimerRef.current);
+      truncationArmedIdRef.current = suggestionId;
+      setTruncationArmedId(suggestionId);
+      truncationTimerRef.current = setTimeout(
+        cancelTruncatedAccept,
+        TRUNCATED_ACCEPT_CONFIRM_TIMEOUT_MS,
+      );
+    },
+    [cancelTruncatedAccept],
+  );
+  useEffect(
+    () => () => {
+      if (truncationTimerRef.current) clearTimeout(truncationTimerRef.current);
+    },
+    [],
+  );
+  // 换了补丁（含逐处接受后同一补丁局部刷新）就撤销武装。
+  useEffect(() => {
+    cancelTruncatedAccept();
+  }, [pendingSuggestion, cancelTruncatedAccept]);
 
   // T07：整份接受不再写冻结 after，需要记住补丁不可变的原始 op 与已应用集合，才能把
   // 剩余 op 逐处映射到当前稿、范围外一律不动。
@@ -1105,17 +1136,18 @@ export function useSuggestionWriteback({
       return;
     }
 
+    // 硬闸：有截断警告且没武装就不写，这一次只武装。逐处接受不经过这里。
+    if (suggestion.truncationWarning && truncationArmedIdRef.current !== suggestion.id) {
+      if (!actionInFlightRef.current) armTruncatedAccept(suggestion.id);
+      return;
+    }
+    cancelTruncatedAccept();
+
     const projectRoot = projectPathRef.current;
     const actionToken = beginAction('accept', suggestion);
     if (!actionToken) return;
 
     try {
-      // 逐处接受不经过这里：作者只挑前面的改动时不必再确认。
-      if (suggestion.truncationWarning) {
-        const ask = confirmTruncatedAcceptRef.current;
-        const confirmed = ask ? await ask(suggestion.truncationWarning) : false;
-        if (!confirmed || !isCurrentAction(actionToken) || !editorRef.current) return;
-      }
       const currentContent = editorRef.current.getValue();
       const opState =
         suggestionOpsRef.current?.suggestionId === suggestion.id
@@ -1276,7 +1308,9 @@ export function useSuggestionWriteback({
       finishAction(actionToken);
     }
   }, [
+    armTruncatedAccept,
     beginAction,
+    cancelTruncatedAccept,
     failAction,
     isCurrentAction,
     updatePendingSuggestion,
@@ -1533,12 +1567,18 @@ export function useSuggestionWriteback({
         markAcceptBusy(event);
         return;
       }
+      // 半截稿在对话里只武装、从不写：要作者在编辑器里看过对比，在横幅上点「仍然整份接受」。
+      if (suggestion.truncationWarning) {
+        armTruncatedAccept(suggestion.id);
+        markAcceptArmed(event);
+        return;
+      }
       void handleAcceptSuggestion();
     };
     window.addEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
     return () =>
       window.removeEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
-  }, [handleAcceptSuggestion]);
+  }, [armTruncatedAccept, handleAcceptSuggestion]);
 
   // 在首个 await 前锁定预览身份；拒绝和保存旁注都不该留下不存在的空文件页签。
   const prepareEmptyTargetRetirement = useCallback(
@@ -1762,6 +1802,8 @@ export function useSuggestionWriteback({
     actionState,
     actionError:
       actionFailure?.suggestion === pendingSuggestion ? (actionFailure?.message ?? null) : null,
+    truncationAcceptArmed: pendingSuggestion !== null && truncationArmedId === pendingSuggestion.id,
+    cancelTruncatedAccept,
     isReviseLoading,
     pendingSuggestion,
     rejectPendingSuggestion,

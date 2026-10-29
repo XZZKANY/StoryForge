@@ -195,6 +195,8 @@ export function Editor({
     handleRetrySuggestion,
     actionState,
     actionError,
+    truncationAcceptArmed,
+    cancelTruncatedAccept,
     isReviseLoading,
     pendingSuggestion,
     rejectPendingSuggestion,
@@ -218,14 +220,6 @@ export function Editor({
     emitAuthorLoopResult,
     dropOpenFilePath,
     onRequestVersionHistory: () => setShowHistory(true),
-    confirmTruncatedAccept: (warning) =>
-      dialogs.confirm({
-        title: '这份修订可能没写完',
-        message: `${warning}\n\n仍要整份接受吗？只想要前面的改动，可以取消后逐处接受。`,
-        confirmLabel: '仍然整份接受',
-        cancelLabel: '先不接受',
-        tone: 'danger',
-      }),
   });
 
   // 每次渲染后同步最新值到 ref（见上注释），供 Monaco 命令/回调闭包读取最新状态。
@@ -1078,6 +1072,8 @@ export function Editor({
             error={actionError}
             editorFontSize={editorFontSize}
             editorFontFamily={resolveEditorFontFamily(editorFontMode)}
+            truncationArmed={truncationAcceptArmed}
+            onCancelTruncatedAccept={cancelTruncatedAccept}
             onAccept={handleAcceptSuggestion}
             onAcceptHunk={handleAcceptHunk}
             onReject={rejectPendingSuggestion}
