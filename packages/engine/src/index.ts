@@ -235,6 +235,8 @@ export {
   MAX_INSTRUCTION_CHARS,
   readAuthorInstructions,
 } from './kernel/authorVoice';
+export { conversationSkillsBlock, loadConversationSkills } from './kernel/conversationSkills';
+export type { ConversationSkill } from './kernel/conversationSkills';
 export {
   authorCommandText,
   AuthorEditPolicyError,

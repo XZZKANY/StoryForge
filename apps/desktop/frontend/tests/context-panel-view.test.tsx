@@ -29,6 +29,7 @@ vi.mock('../src/components/chat-window/useAgentRunControls', () => ({
 }));
 vi.mock('../src/lib/api/cross-chapter', () => import('./support/http-cross-chapter-double'));
 vi.mock('../src/lib/api/author-instructions', () => ({ loadAuthorInstructions: vi.fn() }));
+vi.mock('../src/lib/api/conversation-skills', () => ({ loadConversationSkills: vi.fn() }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }));
 vi.mock('../src/lib/smoke', async (load) => ({
   ...(await load<typeof import('../src/lib/smoke')>()),
@@ -40,6 +41,7 @@ import { ChatWindow } from '../src/components/ChatWindow';
 import { ContextPanel } from '../src/components/chat-window/ContextPanel';
 import { stepFromToolTraceEvent } from '../src/components/chat-window/agent-step-mapping';
 import { AUTHOR_INSTRUCTIONS_TEMPLATE } from '../src/components/chat-window/useAgentInstructions';
+import { SKILL_TEMPLATES } from '../src/components/chat-window/useConversationSkills';
 import type { AgentRun } from '../src/components/chat-window/types';
 import { useAppDialog } from '../src/components/app/AppDialog';
 import { useProjectCommands } from '../src/components/app/useProjectCommands';
@@ -47,6 +49,10 @@ import {
   loadAuthorInstructions,
   type AuthorInstructionsState,
 } from '../src/lib/api/author-instructions';
+import {
+  loadConversationSkills,
+  type ConversationSkillItem,
+} from '../src/lib/api/conversation-skills';
 import type { AgentToolTrace } from '../src/lib/api/types';
 import {
   emitOpenFileRequest,
@@ -60,6 +66,7 @@ import { FS_MUTATION_EVENT, TauriFileSystem } from '../src/lib/tauri-fs';
 const ROOT = 'D:\\连载\\雾港';
 const RULES = `${ROOT}\\.storyforge\\agent-instructions.md`;
 const load = vi.mocked(loadAuthorInstructions);
+const loadSkills = vi.mocked(loadConversationSkills);
 let root: Root;
 let host: HTMLDivElement;
 let opened: string[];
@@ -73,6 +80,7 @@ beforeEach(() => {
   opened = [];
   window.addEventListener(REQUEST_OPEN_FILE_EVENT, onOpen);
   load.mockReset().mockResolvedValue({ status: 'missing', filePath: RULES });
+  loadSkills.mockReset().mockResolvedValue([]);
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -237,6 +245,130 @@ test('写盘广播只在长期规矩那份文件变了时重读', async () => {
   expect(load).toHaveBeenCalledTimes(2);
   await mutate();
   expect(load).toHaveBeenCalledTimes(3);
+});
+
+const skill = (name: string, when: string): ConversationSkillItem => ({
+  path: `技能/${name}.md`,
+  name,
+  when,
+  filePath: `${ROOT}\\技能\\${name}.md`,
+});
+const menuItems = () => [
+  ...document.querySelectorAll<HTMLElement>('[data-testid="context-skill-template"]'),
+];
+
+test('技能：列出名字和什么时候用，这一轮读过的标出来，点一项在编辑器打开', async () => {
+  loadSkills.mockResolvedValue([
+    skill('立项流程', '作者问「下一步干什么」时'),
+    skill('审稿口径', '作者让你审稿时'),
+  ]);
+  await renderPanel(
+    run([
+      trace({ output_summary: { path: '技能/审稿口径.md' } }),
+      trace({ output_summary: { path: '正文/第005章.md' } }),
+    ]),
+  );
+  expect(loadSkills).toHaveBeenCalledWith(ROOT);
+  expect($('context-skills-state')?.textContent).toBe('共 2 份');
+  const items = $$('context-skill');
+  expect(items.map((node) => node.textContent)).toEqual([
+    '立项流程作者问「下一步干什么」时',
+    '审稿口径作者让你审稿时这一轮用了',
+  ]);
+  expect($$('context-skill-used')).toHaveLength(1);
+  // 读技能也照常列在「这一轮读了」里：同一份读取记录。
+  expect($$('context-read-file').map((node) => node.textContent)).toContain('技能/审稿口径.md');
+
+  await click(items[0]);
+  expect(opened).toEqual([`${ROOT}\\技能\\立项流程.md`]);
+});
+
+test('技能：没有时一行说明，「新建」给三个模板，建到 技能/<名字>.md 并打开', async () => {
+  const exists = vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(false);
+  const mkdir = vi.spyOn(TauriFileSystem, 'createDir').mockResolvedValue();
+  const write = vi.spyOn(TauriFileSystem, 'writeFile').mockResolvedValue();
+  await renderPanel(null);
+  expect($('context-skills-state')?.textContent).toBe(
+    '还没有。把这本书的流程、口径写成技能，AI 用得上时会照做。',
+  );
+  expect($$('context-skill')).toEqual([]);
+  expect(menuItems()).toEqual([]);
+
+  await click($('context-skills-create'));
+  expect(menuItems().map((node) => node.textContent)).toEqual([
+    '立项流程作者问「下一步干什么」，或世界观、总纲、人物刚写完一份时',
+    '审稿口径作者让你审稿、挑毛病或评价一章时',
+    '本书禁用词起草、修订、续写正文时（把禁用词写进给起草或修订的 instruction）',
+  ]);
+
+  const file = `${ROOT}\\技能\\立项流程.md`;
+  await click(menuItems()[0]);
+  expect(menuItems()).toEqual([]);
+  expect(exists).toHaveBeenCalledWith(file);
+  expect(mkdir).toHaveBeenCalledWith(ROOT, `${ROOT}\\技能`, true);
+  expect(write).toHaveBeenCalledWith(ROOT, file, SKILL_TEMPLATES[0].content);
+  expect(mkdir.mock.invocationCallOrder[0]).toBeLessThan(write.mock.invocationCallOrder[0]);
+  expect(opened).toEqual([file]);
+  expect(SKILL_TEMPLATES[0].content).toBe(
+    [
+      '---',
+      '名字：立项流程',
+      '什么时候用：作者问「下一步干什么」，或世界观、总纲、人物刚写完一份时',
+      '---',
+      '# 立项流程',
+      '',
+      '按这个顺序立项，一步做完再提下一步；作者说跳过就跳过。',
+      '',
+      '1. 世界观：`设定/` 里有一份写清时代、地理、力量体系或社会规则的文件。',
+      '2. 总纲：`大纲/总纲.md` 写清主线、结局方向、分卷或分阶段。',
+      '3. 主要人物：`人物/主要人物.md` 写清主角和两三个关键配角的目标、缺陷、关系。',
+      '4. 第一章章纲：第一章发生什么、停在哪里。',
+      '5. 开写第一章。',
+      '',
+      '每完成一步，回复里用一句话说下一步是什么，问作者要不要现在做。一次只起草一份。',
+      '',
+    ].join('\n'),
+  );
+});
+
+test('技能：新建碰上同名文件不覆盖，直接打开', async () => {
+  vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  const mkdir = vi.spyOn(TauriFileSystem, 'createDir').mockResolvedValue();
+  const write = vi.spyOn(TauriFileSystem, 'writeFile').mockResolvedValue();
+  loadSkills.mockResolvedValue([skill('审稿口径', '作者让你审稿时')]);
+  await renderPanel(null);
+  await click($('context-skills-create'));
+  await click(menuItems()[2]);
+  expect(mkdir).not.toHaveBeenCalled();
+  expect(write).not.toHaveBeenCalled();
+  expect(opened).toEqual([`${ROOT}\\技能\\本书禁用词.md`]);
+});
+
+test('技能：三个模板的头部都认得出名字和什么时候用', () => {
+  for (const item of SKILL_TEMPLATES) {
+    expect(
+      item.content.startsWith(`---\n名字：${item.name}\n什么时候用：${item.when}\n---\n`),
+    ).toBe(true);
+  }
+  expect(SKILL_TEMPLATES.map((item) => item.name)).toEqual(['立项流程', '审稿口径', '本书禁用词']);
+});
+
+test('技能：写盘广播只在技能文件夹变了时重读', async () => {
+  await renderPanel(null);
+  expect(loadSkills).toHaveBeenCalledTimes(1);
+  const mutate = (path?: string) =>
+    act(async () => {
+      window.dispatchEvent(new CustomEvent(FS_MUTATION_EVENT, { detail: { path } }));
+    });
+  await mutate(`${ROOT}\\正文\\第001章.md`);
+  await mutate(`${ROOT}\\设定\\技能树.md`);
+  expect(loadSkills).toHaveBeenCalledTimes(1);
+  await mutate(`${ROOT}\\技能\\立项流程.md`);
+  expect(loadSkills).toHaveBeenCalledTimes(2);
+  await mutate(`${ROOT}\\技能`);
+  expect(loadSkills).toHaveBeenCalledTimes(3);
+  await mutate();
+  expect(loadSkills).toHaveBeenCalledTimes(4);
 });
 
 test('App 收到打开请求：只开项目里的文件，先放出编辑器', async () => {

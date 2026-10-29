@@ -1,10 +1,18 @@
-import { Button, IconButton } from '../ui';
+import { useRef, useState } from 'react';
+
+import { Button, FloatingSurface, IconButton } from '../ui';
 import { emitOpenFileRequest } from '../../lib/assistant-events';
+import { normalizePathForMatch } from '../../lib/project/path';
 import { FileText, Layers, Search } from '../icons/shell-icons';
 import { CHAT_COLUMN } from './column';
-import { runContextReads } from './context-panel';
+import { runContextReads, skillsReadThisRun } from './context-panel';
 import type { AgentRun } from './types';
 import { useAgentInstructions } from './useAgentInstructions';
+import {
+  SKILL_TEMPLATES,
+  useConversationSkills,
+  type SkillTemplate,
+} from './useConversationSkills';
 
 export const CONTEXT_PANEL_ID = 'conversation-context-panel';
 
@@ -19,7 +27,7 @@ export function ContextPanelToggle({ open, onToggle }: { open: boolean; onToggle
       aria-expanded={open}
       aria-controls={CONTEXT_PANEL_ID}
       label={open ? '收起上下文' : '上下文'}
-      tooltip={open ? '收起上下文' : '上下文：长期规矩、这一轮读了什么'}
+      tooltip={open ? '收起上下文' : '上下文：长期规矩、技能、这一轮读了什么'}
       icon={<Layers size={14} strokeWidth={1.6} className={open ? 'text-foreground' : undefined} />}
     />
   );
@@ -119,6 +127,120 @@ function InstructionsBlock({ projectPath }: { projectPath: string | null }) {
   );
 }
 
+function NewSkillButton({
+  creating,
+  onCreate,
+}: {
+  creating: boolean;
+  onCreate: (skill: SkillTemplate) => void;
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        ref={triggerRef}
+        size="compact"
+        variant="secondary"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        loading={creating}
+        data-testid="context-skills-create"
+      >
+        新建
+      </Button>
+      {open && (
+        <FloatingSurface
+          role="menu"
+          aria-label="按模板新建技能"
+          triggerRef={triggerRef}
+          align="end"
+          onDismiss={() => setOpen(false)}
+          className="w-64 animate-fade-in rounded-lg border border-border bg-surface p-1 shadow-dropdown"
+          data-testid="context-skills-templates"
+        >
+          {SKILL_TEMPLATES.map((skill) => (
+            <button
+              key={skill.name}
+              role="menuitem"
+              type="button"
+              className="flex w-full flex-col items-start rounded-sm px-2.5 py-1.5 text-left hover:bg-elevated"
+              onClick={() => {
+                setOpen(false);
+                onCreate(skill);
+              }}
+              data-testid="context-skill-template"
+            >
+              <span className="text-xs text-foreground">{skill.name}</span>
+              <span className="w-full truncate text-2xs text-subtle">{skill.when}</span>
+            </button>
+          ))}
+        </FloatingSurface>
+      )}
+    </>
+  );
+}
+
+function SkillsBlock({ projectPath, run }: { projectPath: string | null; run: AgentRun | null }) {
+  const { view, creating, create } = useConversationSkills(projectPath);
+  const used = skillsReadThisRun(run ? runContextReads(run.steps, projectPath) : null);
+  const newButton = <NewSkillButton creating={creating} onCreate={(skill) => void create(skill)} />;
+  return (
+    <div className="space-y-1.5" data-testid="context-skills">
+      <BlockTitle title="技能" hint="技能/ · 每轮带目录，用得上才读全文" />
+      {view.status === 'idle' && <p className="text-xs text-muted">还没打开作品。</p>}
+      {view.status === 'loading' && (
+        <p className="text-xs text-muted" role="status">
+          正在读取…
+        </p>
+      )}
+      {view.status === 'error' && (
+        <p className="text-xs text-warning" role="alert">
+          读不到技能：{view.message}
+        </p>
+      )}
+      {view.status === 'ready' && (
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 flex-1 text-xs text-muted" data-testid="context-skills-state">
+            {view.skills.length
+              ? `共 ${view.skills.length} 份`
+              : '还没有。把这本书的流程、口径写成技能，AI 用得上时会照做。'}
+          </p>
+          {newButton}
+        </div>
+      )}
+      {view.status === 'ready' && view.skills.length > 0 && (
+        <ul className="space-y-0.5">
+          {view.skills.map((skill) => (
+            <li key={skill.path}>
+              <button
+                type="button"
+                className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left text-xs transition-colors hover:bg-elevated"
+                onClick={() => emitOpenFileRequest(skill.filePath)}
+                title={`在编辑器打开 ${skill.path}`}
+                data-testid="context-skill"
+              >
+                <FileText size={12} strokeWidth={1.6} className="flex-shrink-0 text-subtle" />
+                <span className="flex-shrink-0 text-foreground">{skill.name}</span>
+                <span className="min-w-0 flex-1 truncate text-2xs text-subtle">{skill.when}</span>
+                {used.has(normalizePathForMatch(skill.path)) && (
+                  <span
+                    className="flex-shrink-0 rounded-sm border border-border px-1.5 py-px text-3xs leading-4 text-muted"
+                    data-testid="context-skill-used"
+                  >
+                    这一轮用了
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function RunReadsBlock({ projectPath, run }: { projectPath: string | null; run: AgentRun | null }) {
   const reads = run ? runContextReads(run.steps, projectPath) : null;
   const empty = !reads || (!reads.files.length && !reads.lookups.length);
@@ -179,7 +301,7 @@ function RunReadsBlock({ projectPath, run }: { projectPath: string | null; run: 
   );
 }
 
-/** 对话头「上下文」展开的一块：作者能看到 AI 每轮带着什么、这一轮读了什么。 */
+/** 对话头「上下文」展开的一块：作者能看到 AI 每轮带着什么、有哪些技能、这一轮读了什么。 */
 export function ContextPanel({
   projectPath,
   run,
@@ -196,6 +318,7 @@ export function ContextPanel({
     >
       <div className={`${CHAT_COLUMN} space-y-3`}>
         <InstructionsBlock projectPath={projectPath} />
+        <SkillsBlock projectPath={projectPath} run={run} />
         <RunReadsBlock projectPath={projectPath} run={run} />
       </div>
     </section>
