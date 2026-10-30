@@ -47,6 +47,7 @@ export function ConversationHeader({
   onSetLayoutMode,
   onOpenObservatory,
   observatoryAttention = false,
+  checkHistoryToggle,
   contextToggle,
 }: {
   title: string;
@@ -60,6 +61,7 @@ export function ConversationHeader({
   onSetLayoutMode?: (mode: LayoutMode) => void;
   onOpenObservatory?: () => void;
   observatoryAttention?: boolean;
+  checkHistoryToggle?: ReactNode;
   contextToggle?: ReactNode;
 }) {
   // Q5：会话下拉——会话按项目划分，标题变下拉入口（当前项目会话列表 + 新建）。
@@ -124,6 +126,7 @@ export function ConversationHeader({
           }
         />
       )}
+      {checkHistoryToggle}
       {contextToggle}
       {/* Q4 布局三态就地控件：对话头切 编辑 / 平衡 / 对话聚焦 */}
       {onSetLayoutMode &&
