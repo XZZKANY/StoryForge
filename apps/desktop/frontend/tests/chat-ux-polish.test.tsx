@@ -210,7 +210,7 @@ test('runStatusText renders author stop as neutral, not a failure', () => {
   assert.match(runStatusText(paused) ?? '', /已暂停/);
 });
 
-test('tool step metrics render as key-value chips, not one crammed 中文 string', () => {
+test('tool step metrics render as one muted meta on the row, not chips', () => {
   const run: AgentRun = {
     id: 'run-metrics',
     sessionId: 's1',
@@ -222,21 +222,16 @@ test('tool step metrics render as key-value chips, not one crammed 中文 string
         title: 'file.review',
         tool: 'file.review',
         status: 'completed',
-        detail: 'completed；模型 deepseek-v4；42ms；问题 3 个',
-        metrics: [
-          { label: '模型', value: 'deepseek-v4' },
-          { label: '延迟', value: '42ms' },
-          { label: '问题', value: '3 个' },
-        ],
+        detail: '模型 deepseek-v4；不到 1 秒；问题 3 个',
+        metrics: ['问题 3 个', '不到 1 秒'],
+        model: 'deepseek-v4',
       },
     ],
   };
   const html = renderToStaticMarkup(<AgentStepsPanel run={run} />);
-  assert.match(html, /data-testid="step-metrics"/);
-  const chipCount = html.match(/data-testid="step-metric-chip"/g)?.length ?? 0;
-  assert.equal(chipCount, 3);
-  assert.match(html, /延迟/);
-  assert.match(html, /42ms/);
+  assert.match(html, /data-testid="step-meta">问题 3 个 · 不到 1 秒</);
+  assert.doesNotMatch(html, /step-metric/);
+  assert.doesNotMatch(html, /延迟/);
 });
 
 test('compact context summary surfaces truncation on the fold header, not only when expanded', () => {

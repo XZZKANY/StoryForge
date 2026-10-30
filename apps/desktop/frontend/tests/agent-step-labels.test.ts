@@ -60,14 +60,38 @@ test('tool steps read as an action on a file or a query, not as a tool id', () =
   assert.equal(live.tool, 'fs.read');
 });
 
+test('tool step metrics: right-side meta in author order, model only for the hover title', () => {
+  const step = stepFromToolTraceEvent(
+    0,
+    trace({
+      tool_name: 'file.review',
+      output_summary: {
+        model: 'gpt-6.1-terra',
+        latency_ms: 220535,
+        context_file_count: 4,
+        issue_count: 3,
+        suggested_action_count: 2,
+      },
+    }),
+  );
+  assert.deepEqual(step.metrics, ['问题 3 个', '建议 2 条', '上下文 4 个', '3 分 41 秒']);
+  assert.equal(step.model, 'gpt-6.1-terra');
+  assert.deepEqual(
+    stepFromToolTraceEvent(0, trace({ output_summary: { latency_ms: 999 } })).metrics,
+    ['不到 1 秒'],
+  );
+  assert.equal(stepFromToolTraceEvent(0, trace({})).model, undefined);
+});
+
 test('tool detail drops the English status; the glyph already says done or failed', () => {
   assert.equal(toolTraceDetail(trace({})), '');
   assert.equal(
     toolTraceDetail(
       trace({ output_summary: { model: 'deepseek-v4', latency_ms: 42, issue_count: 3 } }),
     ),
-    '模型 deepseek-v4；42ms；问题 3 个',
+    '模型 deepseek-v4；不到 1 秒；问题 3 个',
   );
+  assert.equal(toolTraceDetail(trace({ output_summary: { latency_ms: 220535 } })), '3 分 41 秒');
   assert.equal(
     toolTraceDetail(trace({ status: 'failed', error_message: '文件不存在' })),
     '文件不存在',
