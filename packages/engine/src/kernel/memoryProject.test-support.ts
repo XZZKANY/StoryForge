@@ -63,7 +63,7 @@ export function memoryProject(root: string, initial: Record<string, EncodedFile>
     },
     async readProjectBytes(base, input, cap) {
       const path = relative(base, input);
-      if (cap > MAX_NATIVE_READ_BYTES) throw new ProjectReadError('项目文件读取预算无效');
+      if (cap > MAX_NATIVE_READ_BYTES) throw new ProjectReadError('作品文件读取预算无效');
       const bytes = files.get(path);
       if (!bytes) throw new ProjectReadError('Not a fixture file');
       return { bytes: bytes.slice(0, cap + 1), exceeded: bytes.length > cap };

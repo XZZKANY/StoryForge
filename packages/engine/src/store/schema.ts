@@ -107,7 +107,10 @@ export class EngineSchemaError extends Error {
   }
 }
 
-/** 建版本表并补齐未执行的迁移；库比引擎新（降级打开）直接拒绝，不猜。 */
+/**
+ * 建版本表并补齐未执行的迁移；库比引擎新（降级打开）直接拒绝，不猜。
+ * 升级已有的库之前先 `db.backup`，新建的库和已是最新的库不备份。
+ */
 export async function migrateEngineDb(db: Db): Promise<number> {
   await db.transaction([
     { sql: 'CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)' },
@@ -121,6 +124,8 @@ export async function migrateEngineDb(db: Db): Promise<number> {
     throw new EngineSchemaError(
       `引擎库版本 ${current} 比这个版本的 StoryForge 新（最高 ${ENGINE_MIGRATIONS.length}），请升级后再打开`,
     );
+  if (current > 0 && current < ENGINE_MIGRATIONS.length)
+    await db.backup?.(current, ENGINE_MIGRATIONS.length);
   for (let version = current + 1; version <= ENGINE_MIGRATIONS.length; version++) {
     const steps: SqlStep[] = ENGINE_MIGRATIONS[version - 1].map((sql) => ({ sql }));
     steps.push(

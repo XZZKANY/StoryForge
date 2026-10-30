@@ -209,9 +209,9 @@ test('在资源管理器中显示：交给宿主；宿主拒绝就弹出原因',
   try {
     await act(async () => harness.actions().onReveal!(CHAPTER));
     assert.deepEqual(fsMock.revealInFileManager.mock.calls[0], [PROJECT, CHAPTER]);
-    fsMock.revealInFileManager.mockRejectedValueOnce(new Error('路径不在当前项目内'));
+    fsMock.revealInFileManager.mockRejectedValueOnce(new Error('路径不在当前作品内'));
     await act(async () => harness.actions().onReveal!(CHAPTER));
-    assert.match(harness.alert.mock.calls[0]![0].message, /路径不在当前项目内/);
+    assert.match(harness.alert.mock.calls[0]![0].message, /路径不在当前作品内/);
   } finally {
     harness.cleanup();
   }

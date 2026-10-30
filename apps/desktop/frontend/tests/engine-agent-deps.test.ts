@@ -49,10 +49,10 @@ describe('nativeProjectWriter', () => {
   });
 
   it('turns a Native refusal into an Error carrying its text', async () => {
-    vi.mocked(invoke).mockRejectedValue('引擎只能写项目的 .storyforge/ 目录: 正文/a.md');
+    vi.mocked(invoke).mockRejectedValue('引擎只能写入作品的 .storyforge/ 目录: 正文/a.md');
     await expect(
       nativeProjectWriter.writeProjectFile('D:/book', '正文/a.md', new Uint8Array()),
-    ).rejects.toThrow('引擎只能写项目的 .storyforge/ 目录: 正文/a.md');
+    ).rejects.toThrow('引擎只能写入作品的 .storyforge/ 目录: 正文/a.md');
   });
 });
 
