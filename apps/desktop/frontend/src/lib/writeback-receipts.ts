@@ -24,7 +24,7 @@ function requireApplied(receipt: WritebackReceipt): void {
     throw new Error('上次写入结果未知，已禁止重复写入；请核对本地文件与写前版本后重新生成修订');
   }
   if (receipt.state === 'not_written') {
-    throw new Error(`上次写入已拒绝且未写入；请重新读取并生成修订。${receipt.detail ?? ''}`);
+    throw new Error(`上次写入被拒绝，文件没有改动；请重新读取并生成修订。${receipt.detail ?? ''}`);
   }
 }
 

@@ -795,7 +795,7 @@ export function Editor({
       !model.isDisposed() &&
       version() === expectedVersion;
     const assertCurrent = () => {
-      if (!current()) throw new Error('恢复期间活动文件、模型或文件已变化，已取消恢复');
+      if (!current()) throw new Error('恢复期间切换了文件、换了模型或文件内容已变化，已取消恢复');
     };
     return {
       project,

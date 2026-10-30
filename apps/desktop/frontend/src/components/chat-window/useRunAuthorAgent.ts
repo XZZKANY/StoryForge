@@ -123,7 +123,7 @@ export function useRunAuthorAgent(
             role: 'assistant',
             content:
               writebackOnly || intent === 'file.revise' || intent === 'chapter.polish'
-                ? '当前没有可写进文件或可定向修订的文件。要改某一章，先在编辑器里打开那份正文；如果只是讨论这部作品，直接问我就行。'
+                ? '当前没有打开可修订的文件。要改某一章，先在编辑器里打开那份正文；如果只是讨论这部作品，直接问我就行。'
                 : '导出需要先在编辑器里打开一份当前稿。',
           },
         ]);

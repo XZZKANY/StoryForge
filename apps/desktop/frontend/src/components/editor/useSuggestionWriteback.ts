@@ -1100,7 +1100,7 @@ export function useSuggestionWriteback({
               }
               // 正常交付和只补记录共用同一结算；历史回执和迟到完成不授予旧提案权限。
               restoreUndoOperations(undoRecord.receipt, actionToken);
-              emitToast('已撤销，文件回到写进文件前', { tone: 'success' });
+              emitToast('已撤销，文件回到这次写入之前', { tone: 'success' });
             } finally {
               finishAction(actionToken);
             }
