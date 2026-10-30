@@ -1,5 +1,12 @@
 export { MAX_CONTEXT_FILES } from './contextLimits';
-export { CONVERSATION_SKILL_DIR } from './conversationSkills';
+export {
+  completeSkillCommand,
+  CONVERSATION_SKILL_DIR,
+  INVOKED_SKILL_MAX,
+  invokedSkillNames,
+  skillCommandQuery,
+  startsWithSkillCommand,
+} from './conversationSkills';
 export type { FileEntry, ProjectFileSystem } from './filesystem';
 export {
   isUntouchedProjectGuide,
