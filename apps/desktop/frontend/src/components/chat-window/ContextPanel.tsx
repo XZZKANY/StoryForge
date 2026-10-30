@@ -4,7 +4,6 @@ import { Button, FloatingSurface, IconButton } from '../ui';
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { normalizePathForMatch } from '../../lib/project/path';
 import { FileText, Layers, Search } from '../icons/shell-icons';
-import { CHAT_COLUMN } from './column';
 import { runContextReads, skillsReadThisRun } from './context-panel';
 import type { AgentRun } from './types';
 import { useAgentInstructions } from './useAgentInstructions';
@@ -16,28 +15,59 @@ import {
 
 export const CONTEXT_PANEL_ID = 'conversation-context-panel';
 
-export function ContextPanelToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+/** 对话头「上下文」按钮：点开是按钮右下方的小浮窗，盖在对话上、不挤消息；点外面或 Esc 收起。 */
+export function ContextPanelToggle({
+  projectPath,
+  run,
+}: {
+  projectPath: string | null;
+  run: AgentRun | null;
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
   return (
-    <IconButton
-      type="button"
-      onClick={onToggle}
-      data-testid="conversation-context-toggle"
-      size="xs"
-      className={open ? 'relative bg-elevated' : 'relative'}
-      aria-expanded={open}
-      aria-controls={CONTEXT_PANEL_ID}
-      label={open ? '收起上下文' : '上下文'}
-      tooltip={open ? '收起上下文' : '上下文：长期规矩、技能、这一轮读了什么'}
-      icon={<Layers size={14} strokeWidth={1.6} className={open ? 'text-foreground' : undefined} />}
-    />
+    <>
+      <IconButton
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        data-testid="conversation-context-toggle"
+        size="xs"
+        className={open ? 'relative bg-elevated' : 'relative'}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? CONTEXT_PANEL_ID : undefined}
+        label={open ? '收起上下文' : '上下文'}
+        tooltip={open ? '收起上下文' : '上下文：长期规矩、技能、这一轮读了什么'}
+        icon={
+          <Layers size={14} strokeWidth={1.6} className={open ? 'text-foreground' : undefined} />
+        }
+      />
+      {open && (
+        <FloatingSurface
+          id={CONTEXT_PANEL_ID}
+          aria-label="上下文"
+          triggerRef={triggerRef}
+          align="end"
+          onDismiss={() => setOpen(false)}
+          className="w-[22rem] animate-fade-in rounded-lg border border-border bg-surface shadow-dropdown"
+        >
+          <ContextPanel projectPath={projectPath} run={run} />
+        </FloatingSurface>
+      )}
+    </>
   );
 }
 
 function BlockTitle({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="flex items-baseline gap-2">
+    <div className="min-w-0">
       <h3 className="text-xs font-medium text-foreground">{title}</h3>
-      {hint && <span className="min-w-0 truncate text-2xs text-subtle">{hint}</span>}
+      {hint && (
+        <p className="truncate text-2xs text-subtle" title={hint}>
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -55,7 +85,7 @@ function InstructionsBlock({ projectPath }: { projectPath: string | null }) {
     </Button>
   );
   return (
-    <div className="space-y-1.5" data-testid="context-instructions">
+    <div className="space-y-1.5 px-3 py-2.5" data-testid="context-instructions">
       <BlockTitle
         title="长期规矩"
         hint=".storyforge/agent-instructions.md · 每轮对话和起草都带上"
@@ -187,7 +217,7 @@ function SkillsBlock({ projectPath, run }: { projectPath: string | null; run: Ag
   const used = skillsReadThisRun(run ? runContextReads(run.steps, projectPath) : null);
   const newButton = <NewSkillButton creating={creating} onCreate={(skill) => void create(skill)} />;
   return (
-    <div className="space-y-1.5" data-testid="context-skills">
+    <div className="space-y-1.5 px-3 py-2.5" data-testid="context-skills">
       <BlockTitle title="技能" hint="技能/ · 每轮带目录，用得上才读全文" />
       {view.status === 'idle' && <p className="text-xs text-muted">还没打开作品。</p>}
       {view.status === 'loading' && (
@@ -245,7 +275,7 @@ function RunReadsBlock({ projectPath, run }: { projectPath: string | null; run: 
   const reads = run ? runContextReads(run.steps, projectPath) : null;
   const empty = !reads || (!reads.files.length && !reads.lookups.length);
   return (
-    <div className="space-y-1.5" data-testid="context-run-reads">
+    <div className="space-y-1.5 px-3 py-2.5" data-testid="context-run-reads">
       <BlockTitle title="这一轮读了" />
       {empty && (
         <p className="text-xs text-muted" data-testid="context-run-reads-empty">
@@ -301,7 +331,7 @@ function RunReadsBlock({ projectPath, run }: { projectPath: string | null; run: 
   );
 }
 
-/** 对话头「上下文」展开的一块：作者能看到 AI 每轮带着什么、有哪些技能、这一轮读了什么。 */
+/** 「上下文」浮窗里的内容：作者能看到 AI 每轮带着什么、有哪些技能、这一轮读了什么。 */
 export function ContextPanel({
   projectPath,
   run,
@@ -310,17 +340,13 @@ export function ContextPanel({
   run: AgentRun | null;
 }) {
   return (
-    <section
-      id={CONTEXT_PANEL_ID}
-      aria-label="上下文"
-      className="max-h-[40%] flex-shrink-0 overflow-y-auto border-b border-border px-5 py-3"
+    <div
+      className="max-h-[min(70vh,36rem)] divide-y divide-border overflow-y-auto"
       data-testid="context-panel"
     >
-      <div className={`${CHAT_COLUMN} space-y-3`}>
-        <InstructionsBlock projectPath={projectPath} />
-        <SkillsBlock projectPath={projectPath} run={run} />
-        <RunReadsBlock projectPath={projectPath} run={run} />
-      </div>
-    </section>
+      <InstructionsBlock projectPath={projectPath} />
+      <SkillsBlock projectPath={projectPath} run={run} />
+      <RunReadsBlock projectPath={projectPath} run={run} />
+    </div>
   );
 }
