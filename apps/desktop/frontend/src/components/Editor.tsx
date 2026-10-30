@@ -672,7 +672,7 @@ export function Editor({
           .current()
           .then(() => {
             if (!canClose())
-              throw new Error('原稿已保存，但等待期间稿件又变化；已取消关闭，请确认后重试');
+              throw new Error('原稿已保存，但等待期间文件又变化；已取消关闭，请确认后重试');
             respond({ filePath: requestedFilePath, status: 'saved', canClose });
           })
           .catch((error) =>
@@ -795,7 +795,7 @@ export function Editor({
       !model.isDisposed() &&
       version() === expectedVersion;
     const assertCurrent = () => {
-      if (!current()) throw new Error('恢复期间活动文件、模型或稿件已变化，已取消恢复');
+      if (!current()) throw new Error('恢复期间活动文件、模型或文件已变化，已取消恢复');
     };
     return {
       project,

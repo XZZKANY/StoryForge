@@ -21,10 +21,10 @@ export type ReceiptedWritebackResult<T> = {
 function requireApplied(receipt: WritebackReceipt): void {
   decodeWritebackReceipt(receipt);
   if (receipt.state === 'outcome_unknown') {
-    throw new Error('上次写回结果未知，已禁止重复写入；请核对本地文件与写前版本后重新生成修订');
+    throw new Error('上次写入结果未知，已禁止重复写入；请核对本地文件与写前版本后重新生成修订');
   }
   if (receipt.state === 'not_written') {
-    throw new Error(`上次写回已拒绝且未写入；请重新读取并生成修订。${receipt.detail ?? ''}`);
+    throw new Error(`上次写入已拒绝且未写入；请重新读取并生成修订。${receipt.detail ?? ''}`);
   }
 }
 
@@ -55,7 +55,7 @@ export async function performReceiptedWriteback<T>(
             receipt = await effects.inspect();
           } catch {
             throw new Error(
-              '写回请求结果无法核对，正文可能已写入；已禁止自动重复写入，请核对文件与版本',
+              '写入请求结果无法核对，正文可能已写入；已禁止自动重复写入，请核对文件与版本',
             );
           }
           if (!receipt) throw error;
@@ -63,7 +63,7 @@ export async function performReceiptedWriteback<T>(
         }
       },
       record: async () => {
-        if (!receipt) throw new Error('写回没有返回可核对的回执');
+        if (!receipt) throw new Error('写入没有返回可核对的回执');
         return receipt;
       },
     });

@@ -590,7 +590,7 @@ it('撤销回执已落盘但返回丢失时查证成功，不重复写入', asyn
       throw new Error('fixture lost undo response');
     });
   await click('toast-action');
-  await observe(() => expect(host.textContent).toContain('已撤销，文件回到写回前'));
+  await observe(() => expect(host.textContent).toContain('已撤销，文件回到写进文件前'));
   expect(files.get(FILE)).toBe(BEFORE);
   expect(commit).toHaveBeenCalledTimes(1);
   expect(writes.filter((p) => p === FILE)).toHaveLength(2);
@@ -637,7 +637,7 @@ it('撤销结果未知时原地重试沿用同一操作身份，查明前不重�
   await observe(() => expect(button('toast-action').disabled).toBe(false));
   unknown = false;
   await click('toast-action');
-  await observe(() => expect(host.textContent).toContain('已撤销，文件回到写回前'));
+  await observe(() => expect(host.textContent).toContain('已撤销，文件回到写进文件前'));
   expect(files.get(FILE)).toBe(BEFORE);
   expect(__getLastEditor()!.getValue()).toBe(BEFORE);
   await act(async () => bridge.commands.get(3)?.());

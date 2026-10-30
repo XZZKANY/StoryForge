@@ -217,7 +217,7 @@ export function useAgentRunRecovery(
         );
         const filePath = resolveProposedPatchFilePath(projectPathRef.current, proposed.file_path);
         if (!filePath) {
-          const message = 'AI 返回的修订目标不在当前作品内，已阻止写回。';
+          const message = 'AI 返回的修订目标不在当前作品内，没有写进文件。';
           textStream.settle(response.run_id, { kind: 'diagnostic', detail: message }, 'failed');
           emitSuggestionResult({
             filePath: proposed.file_path,

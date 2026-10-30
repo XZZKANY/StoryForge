@@ -9,7 +9,7 @@ export async function withNativeDelivery<T>(
   if (!isTauriRuntime()) return operation(); // Browser fixtures cannot prove Native admission.
   const ticket = await invoke<unknown>('begin_writeback_delivery', { projectRoot });
   if (typeof ticket !== 'string' || !/^[a-f0-9]{64}$/.test(ticket))
-    throw new Error('Native 交付资格无效，已阻止写回');
+    throw new Error('Native 交付资格无效，没有写进文件');
   try {
     return await operation(ticket);
   } finally {

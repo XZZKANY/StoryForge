@@ -453,14 +453,14 @@ test('U-24：写回失败与上一条同文件同文案时原地累计重试次�
     );
     const base = contents().length;
     for (let click = 0; click < 5; click += 1) fail(outline, locate);
-    assert.deepEqual(contents().slice(base), [`没能写进稿子：${locate}（已重试 4 次，结果相同）`]);
+    assert.deepEqual(contents().slice(base), [`没能写进文件：${locate}（已重试 4 次，结果相同）`]);
 
     fail('D:/Books/story/正文/第01章.md', locate);
     fail(outline, '磁盘内容已变化');
     assert.deepEqual(contents().slice(base), [
-      `没能写进稿子：${locate}（已重试 4 次，结果相同）`,
-      `没能写进稿子：${locate}`,
-      '没能写进稿子：磁盘内容已变化',
+      `没能写进文件：${locate}（已重试 4 次，结果相同）`,
+      `没能写进文件：${locate}`,
+      '没能写进文件：磁盘内容已变化',
     ]);
   } finally {
     act(() => root.unmount());

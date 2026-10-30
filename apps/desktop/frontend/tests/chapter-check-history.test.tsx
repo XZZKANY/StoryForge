@@ -151,8 +151,8 @@ test('cold mount reads persisted evidence, shows a read-only candidate and only 
     expect.objectContaining({ signal: expect.any(AbortSignal) }),
   );
   expect(container?.textContent).toContain('检查执行失败');
-  expect(container?.textContent).toContain('稿件判断未知');
-  expect(container?.textContent).toContain('稿件硬问题 0');
+  expect(container?.textContent).toContain('正文判断未知');
+  expect(container?.textContent).toContain('正文硬问题 0');
   const text = container?.querySelector('textarea');
   expect(text?.value).toBe('候选稿_SENTINEL');
   expect(text?.readOnly).toBe(true);

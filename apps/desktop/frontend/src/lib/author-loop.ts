@@ -153,7 +153,7 @@ export function readRevisionLoopPayload(
         ))
     )
   )
-    throw new Error('原写回审计语义损坏，不能自动补记');
+    throw new Error('原写入审计语义损坏，不能自动补记');
   const record: RevisionLoopRecord = {
     projectPath,
     filePath,
@@ -171,7 +171,7 @@ export function readRevisionLoopPayload(
     issueAttributed: value.issueAttribution === 'unattributed' ? false : undefined,
   };
   if (revisionLoopSemanticPayload(record) !== raw)
-    throw new Error('原写回审计语义不完整或不匹配，不能自动补记');
+    throw new Error('原写入审计语义不完整或不匹配，不能自动补记');
   return record;
 }
 
@@ -197,7 +197,7 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
 
   const relativePath = relativeToProject(projectPath, filePath);
   if (operationId !== undefined && !/^[a-f0-9]{64}$/.test(operationId)) {
-    throw new Error('写回回执 operationId 无效');
+    throw new Error('写入回执 operationId 无效');
   }
   const recordPath = operationId
     ? projectChildPath(projectPath, ['.storyforge', 'author-loop', `${operationId}.md`])
@@ -207,7 +207,7 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
     '',
     `- 文件：${relativePath}`,
     `- 时间：${new Date().toISOString()}`,
-    `- 动作：接受 AI 修订并写回正文`,
+    `- 动作：接受 AI 修订并写进正文`,
     `- Assistant Session：${assistantSessionId ?? '本地未记录'}`,
     `- Patch ID：${patchId ?? '本地未记录'}`,
     ...(operationId ? [`- Writeback Operation：${operationId}`] : []),

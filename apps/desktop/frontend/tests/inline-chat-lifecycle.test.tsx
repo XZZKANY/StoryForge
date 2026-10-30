@@ -653,7 +653,7 @@ it('late writeback completion cannot move the cursor or announce success in anot
     completed.resolve({ writebackWarning: undefined });
   });
   expect(editorRef.current!.setPosition).not.toHaveBeenCalled();
-  expect(host.textContent).not.toContain('已写回');
+  expect(host.textContent).not.toContain('已写进');
 });
 
 it('interactive input, loading and diff expose the Monaco zone host until dismissal', async () => {
@@ -738,10 +738,10 @@ it('pending write locks decisions; acknowledged model updates do not report fals
   });
   expect(accept.isConnected).toBe(true);
   expect(writeback).toHaveBeenCalledTimes(1);
-  expect(host.textContent).not.toContain('稿件已变化');
+  expect(host.textContent).not.toContain('文件已变化');
   await act(async () => completion.resolve({ writebackWarning: undefined }));
   expect(accept.isConnected).toBe(false);
-  expect(host.textContent).toContain('已写回');
+  expect(host.textContent).toContain('已写进');
 });
 
 it('typing during a failed write invalidates the proposal rather than offering stale retry', async () => {
@@ -1103,7 +1103,7 @@ it('模型替换后的迟到写回成功不会移动新光标', async () => {
     completed.resolve({ writebackWarning: undefined });
   });
   expect(editorRef.current!.setPosition).not.toHaveBeenCalled();
-  expect(host.textContent).not.toContain('已写回');
+  expect(host.textContent).not.toContain('已写进');
 });
 
 function pressK(target: EventTarget, shift = false) {
