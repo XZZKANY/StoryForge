@@ -64,7 +64,8 @@ function uiTexts(path: string): Array<{ line: number; text: string }> {
   return found;
 }
 
-it('界面文案不用已弃用的说法', () => {
+// 冷启动要用 TypeScript 解析整个 src，满载时会越过默认 5 秒，单独放宽。
+it('界面文案不用已弃用的说法', { timeout: 30_000 }, () => {
   const hits = sourceFiles('src').flatMap((path) => {
     const file = relative('.', path).replace(/\\/g, '/');
     const exempt = EXEMPTIONS[file] ?? new Set<string>();
