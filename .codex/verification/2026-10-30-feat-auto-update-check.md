@@ -1,0 +1,22 @@
+## 2026-10-30 接入更新插件：检查新版改读 latest.json，正式包带更新签名（自动更新刀 2）
+
+- 背景：作者 10-30 拍板自动更新（`tauri-plugin-updater` + GitHub Release、私钥放本机仓库外、作者点「重启安装」才装、右下角提示、先只用 GitHub）。刀 0 作者已在本机生成密钥（私钥 `~/.storyforge-updater/storyforge-updater.key`，我只读了 `.pub`）；刀 1 是 #536（引擎库升级前自动备份）。本刀只做「发现新版」与出包签名，下载与重启安装在刀 3。
+- 改动（帧契约、`contracts.ts`、引擎不动）：
+  - `Cargo.toml` 加 `tauri-plugin-updater = "2"`（解析到 2.12.0，tauri 仍是 2.11.2，`Cargo.lock` 只新增依赖、没改已有版本）；`gen/schemas/*` 是构建按新插件重新生成的权限清单。
+  - `tauri.conf.json` 加 `plugins.updater`：公钥（密钥 id `D30F0EF64F15504C`）、地址 `https://github.com/XZZKANY/StoryForge/releases/latest/download/latest.json`、Windows 被动安装模式。默认配置**不开** `createUpdaterArtifacts`：开了的话没有私钥的人（协作者、隔离安装冒烟）就打不了包。
+  - 宿主新模块 `app_update.rs`：命令 `app_update_check` 返回 `{ version, currentVersion, notes }` 或 `null`，连不上 / 清单坏了报错、不当成「已是最新」。插件在 `main.rs` 注册；只走 Rust 命令，不开 `updater:*` 前端权限。
+  - 前端 `lib/update-check.ts`：`checkForUpdate` 改问 `app_update_check`，不再比对 GitHub tags（每小时 60 次限额也随之不存在）；启动 8 秒后的右下角提示、设置页「检查更新」照旧调用它，文案不变。结果多带 `notes`，刀 3 显示。
+  - 出包：`apps/desktop/src-tauri/tauri.release.conf.json`（只开 `createUpdaterArtifacts`）+ `apps/desktop/scripts/release-build.mjs`：核对 conf 与 Cargo 版本号一致、私钥（默认 `~/.storyforge-updater/`）与密码环境变量在场，只打 NSIS，核对 `.sig` 的密钥 id 与 conf 里的公钥一致，另存 `output/release-<版本>/StoryForge-IDE_<版本>_x64-setup.exe` 与 `latest.json`（只写 `windows-x86_64-nsis` 一项），打印大小、SHA256 与给作者亲手跑的 `gh release create` 命令；同名安装包已存在就停下。
+  - 文档：`docs/operations/release-checklist.md` §4 构建改用出包脚本、§6 交付传 `latest.json` 并照常打 tag、§7 caveat 改写；`troubleshooting.md` §8 补两条报错说明。
+- 验证：
+  - `node --test apps/desktop/scripts/release-build.test.mjs`：6 passed（latest.json 形状与下载地址；版本 / 说明 / 签名缺一不可；签名与公钥的密钥 id 比对；私钥默认位置与密码必填；装机版的更新地址与公钥就是出包脚本那一套、默认配置不开签名产物；`main.rs` 注册插件与命令、界面问的是同一个命令名）。已接进 `apps/desktop` 的 `verify`（`test:release`）。
+  - 用真公钥核对密钥 id 解析：解出的 8 字节反序后等于公钥注释里的 `D30F0EF64F15504C`。
+  - 前端 `vitest run tests/update-check.test.ts` + 设置页 4 个相关文件：5 files / 54 passed；`typecheck` 通过；改动文件 eslint、prettier 通过。
+  - Rust：加插件后全量 `cargo test`（`CARGO_TARGET_DIR` 复用主仓库 target）173 passed + 1 ignored；新增 `app_update::tests::shipped_updater_config_parses_with_the_plugin_types` 用插件自己的 `Config` 解析真 `tauri.conf.json`（解析失败应用会起不来，单测与浏览器回归都不启动真应用）1 passed；`rustfmt --check` 通过。
+  - 变异（`output/auto-update/mutate_cut2.py` 与一段内联脚本，断言替换点唯一、无条件还原并逐字节核对）：M1 宿主报错当成已是最新 → 前端 1 红；M2 `main.rs` 不注册命令 → 1 红；M3 改更新地址 → 1 红；M4 latest.json 平台键写成 `windows-x86_64` → 1 红；M5 默认配置开 `createUpdaterArtifacts` → 1 红；M6 删掉配置里的 `pubkey` → Rust 1 红（`missing field pubkey`）。
+  - `pnpm verify`（corepack 缓存的 pnpm 9.15.4 临时 shim）一遍 EXIT=0：project-core 34、引擎 14073 passed + 2 skipped、前端 2572 passed、三个浏览器回归通过。日志在 `output/auto-update/verify-cut2.log`（不入库）。
+  - 行尾：`main.rs` CRLF 按字节改；其余全 LF，无 CRCR。`--numstat` 与 `--ignore-all-space --numstat` 只在整文件重写的 `update-check.ts` / `update-check.test.ts` 各差 1 行（空白行对齐不同），不是行尾噪音。
+- 未覆盖：
+  - 出包脚本没有真跑：要作者的私钥密码，而且本地按 0.2.3 打包会覆盖主仓库 `bundle/nsis/` 里同名的发布包。真跑放到刀 3 的升级验证（要打两个带签名的安装包）或作者出 0.2.4 时。
+  - 没在真应用里点过「检查更新」：开发档与作者装机版同一个标识和数据目录，单实例插件会把它让给作者开着的应用；Tauri 冒烟在新 worktree 要从头编整套。插件配置能否解析已由上面的 Rust 测试覆盖，真连 GitHub 读 latest.json 要等第一个带 latest.json 的 Release。
+  - 现在 GitHub 上最新的 0.2.3 没有 latest.json：在发出 0.2.4 之前，本分支打出的包检查更新会报「检查失败」。0.2.3 及更早的装机版仍靠比对 tag 提示新版，不受影响。

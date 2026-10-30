@@ -44,7 +44,8 @@
 
 ## 8. 打包
 
-- 出包用 `pnpm desktop:build`（直接 `tauri build`，约 4 分钟，NSIS 约 33 MB）。
+- 正式包用 `node apps/desktop/scripts/release-build.mjs --notes <更新说明.md>`（带自动更新签名，见发版清单 §4）；只想本地验证用 `pnpm desktop:build`（直接 `tauri build`，约 4 分钟，NSIS 约 33 MB）。
+- 出包脚本报「先在当前终端设私钥密码」：在同一个终端里设 `$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 再跑；报「签名用的私钥与公钥对不上」：用的不是 `~/.storyforge-updater/` 里那把私钥，装机版会拒收这个包，别发布。
 - 本地验证构建与已发布版本同名时会覆盖 `apps/desktop/src-tauri/target/release/bundle/nsis/` 里的发布安装包：出包后先把安装包另存到 `output/release-<版本>/`，验证构建产物挪走并标明不可安装。
 
 ## 9. Git 工作区

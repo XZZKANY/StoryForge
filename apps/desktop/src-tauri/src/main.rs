@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_update;
 mod close_guard;
 mod engine_db;
 mod engine_llm;
@@ -1282,6 +1283,7 @@ fn main() {
     };
     builder
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(host_close_state::HostCloseState::default())
         .manage(close_guard::CloseGuard::default())
         .manage(shadow_git::ShadowGitState::default())
@@ -1335,6 +1337,7 @@ fn main() {
             engine_db::engine_db_select,
             engine_db::engine_db_transaction,
             engine_db::engine_python_db_snapshot,
+            app_update::app_update_check,
             // 作品版本影子 Git 命令（固定 DTO，不暴露任意 Git 参数）
             shadow_git::create_shadow_snapshot,
             shadow_git::retain_shadow_snapshot,
