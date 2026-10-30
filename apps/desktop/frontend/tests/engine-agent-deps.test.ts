@@ -91,7 +91,7 @@ describe('engineAgentDeps', () => {
     expect(deps.store).toBe(runs.store);
     expect(deps.checkpoints).toBe(runs.checkpoints);
     expect((await engineAgentDeps()).store).toBe(deps.store);
-    expect(deps.tools.all()).toHaveLength(28);
+    expect(deps.tools.all()).toHaveLength(29);
     expect(deps.secrets).toEqual({ values: ['[已隐藏的密钥]', '[润色槽]'] });
     expect(deps.source.STORYFORGE_LLM_MODEL).toBe('main-model');
     expect(deps.polish.source.STORYFORGE_LLM_MODEL).toBe('polish-model');
@@ -101,5 +101,18 @@ describe('engineAgentDeps', () => {
     expect(deps.newRunId()).toMatch(/^[0-9a-f]{32}$/);
     expect(deps.ids.hex()).toMatch(/^[0-9a-f]{32}$/);
     expect(deps.newRunId()).not.toBe(deps.newRunId());
+  });
+
+  it('passes the plugin library root to the runtime, or null when the host cannot give one', async () => {
+    const library = 'C:/Users/author/AppData/Roaming/com.storyforge.ide/plugins';
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === 'plugin_library_dir' ? library : null,
+    );
+    expect((await engineAgentDeps()).pluginLibraryRoot).toBe(library);
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === 'plugin_library_dir') throw new Error('插件库目录建不出来');
+      return null;
+    });
+    expect((await engineAgentDeps()).pluginLibraryRoot).toBeNull();
   });
 });

@@ -429,7 +429,7 @@ describe('ChatWindow author path on the TS engine', () => {
     expect(fixture.requests).toHaveLength(0);
   });
 
-  it('drafts a chapter after the author confirms the brief', async () => {
+  it('drafts a chapter right after the brief, in the same run', async () => {
     const brief = {
       target_path: '正文/第003章.md',
       chapter_ordinal: null,
@@ -463,14 +463,16 @@ describe('ChatWindow author path on the TS engine', () => {
         targetFilePath: 'D:/book/正文/第003章.md',
       }),
     );
-    expect(fixture.requests).toHaveLength(1);
-    expect(current.state.chapterBrief).toMatchObject({ chapterTitle: '入城', revision: 1 });
-    const runId = current.state.agentRun!.id;
-    await act(async () => {
-      current.controls.agentRunControls.onConfirmChapterBrief?.(current.state.chapterBrief!);
-      await settle();
-    });
+    // 章纲不再停下等确认：同一轮里拟章纲、起草、检查，最后只在补丁上等作者。
     expect(fixture.requests).toHaveLength(3);
+    expect(current.state.chapterBrief).toBeNull();
+    expect(current.state.agentRun?.status).toBe('waiting');
+    const tools = current.state.agentRun!.steps.map((step) => step.tool);
+    expect(tools.filter((tool) => tool.startsWith('chapter.'))).toEqual(
+      expect.arrayContaining(['chapter.brief', 'chapter.draft', 'chapter.check']),
+    );
+    expect(tools).not.toContain('chapter.brief.confirm');
+    const runId = current.state.agentRun!.id;
     const projection = await getAgentRunSavePoints(runId);
     expect(projection.pending).toMatchObject({ permission_required: true });
     expect(projection.pending.proposed_patch_artifact_id).not.toBeNull();
@@ -480,10 +482,7 @@ describe('ChatWindow author path on the TS engine', () => {
     ).resolves.toMatchObject({ entryKind: 'missing' });
   });
 
-  it.each([
-    ['kept', true],
-    ['reverted to the plan', false],
-  ])('drafts with the brief adjustments the author %s', async (_label, keep) => {
+  it('drafts with the brief adjustments as the brief made them', async () => {
     const adjustment = {
       plan_quote: '沈禾带林舟入城',
       fact_quote: '林舟推开门。',
@@ -514,30 +513,13 @@ describe('ChatWindow author path on the TS engine', () => {
         targetFilePath: 'D:/book/正文/第003章.md',
       }),
     );
-    // 章纲调用拿到了上一章结尾；对不上原句的那条调整被丢掉。
+    // 章纲调用拿到了上一章结尾；对不上原句的那条调整被丢掉，对得上的照原样带进起草。
     expect(JSON.stringify(fixture.requests[0])).toContain('PREVIOUS');
-    const pending = current.state.chapterBrief!;
-    expect(pending.factAdjustments).toEqual([
-      {
-        planQuote: adjustment.plan_quote,
-        factQuote: adjustment.fact_quote,
-        adjustment: adjustment.adjustment,
-        source: 'model',
-      },
-    ]);
-    await act(async () => {
-      current.controls.agentRunControls.onConfirmChapterBrief?.(
-        keep ? pending : { ...pending, factAdjustments: [] },
-      );
-      await settle();
-    });
     expect(fixture.requests).toHaveLength(3);
     const draftPrompt = (fixture.requests[1].messages as Obj[]).at(-1)!.content as string;
-    const block = '按已写内容的调整（优先于上面的章节目标与节拍）';
-    if (keep) {
-      expect(draftPrompt).toContain(block);
-      expect(draftPrompt).toContain(`- ${adjustment.adjustment}（已写：「林舟推开门。」）`);
-    } else expect(draftPrompt).not.toContain(block);
+    expect(draftPrompt).toContain('按已写内容的调整（优先于上面的章节目标与节拍）');
+    expect(draftPrompt).toContain(`- ${adjustment.adjustment}（已写：「林舟推开门。」）`);
+    expect(draftPrompt).not.toContain('上一章没有这句');
   });
 });
 

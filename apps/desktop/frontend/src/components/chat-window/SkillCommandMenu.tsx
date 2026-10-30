@@ -52,7 +52,7 @@ export function SkillCommandMenu({
         >
           {items.map((skill, index) => (
             <button
-              key={skill.path}
+              key={`${skill.plugin ?? ''}:${skill.path}`}
               id={`${SKILL_COMMAND_MENU_ID}-${index}`}
               type="button"
               role="option"
@@ -69,7 +69,7 @@ export function SkillCommandMenu({
                 /{skill.name}
               </span>
               <span className="mt-0.5 block max-w-full truncate text-2xs leading-snug text-subtle">
-                {skill.when}
+                {skill.plugin !== null ? `插件「${skill.plugin}」 · ${skill.when}` : skill.when}
               </span>
             </button>
           ))}

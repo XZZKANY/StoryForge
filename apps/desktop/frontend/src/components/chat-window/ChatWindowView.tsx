@@ -18,7 +18,7 @@ import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import type { ChatWindowState } from './useChatWindowState';
 import type { QueuedChatMessage } from './useChatSubmission';
-import { ChapterCheckHistoryPanel } from './ChapterCheckHistoryPanel';
+import { ChapterCheckHistoryToggle } from './ChapterCheckHistoryPanel';
 import type { ChapterCheckHistoryState } from './useChapterCheckHistory';
 import { PartnerOpening } from './PartnerOpening';
 import type { ChapterHandoff } from '../../lib/chapter-handoff';
@@ -157,7 +157,18 @@ export function ChatWindowView({
         onSetLayoutMode={onSetLayoutMode}
         onOpenObservatory={onOpenObservatory}
         observatoryAttention={observatoryAttention}
-        contextToggle={<ContextPanelToggle projectPath={projectPath} run={state.agentRun} />}
+        checkHistoryToggle={
+          chapterCheckHistory ? (
+            <ChapterCheckHistoryToggle history={chapterCheckHistory} />
+          ) : undefined
+        }
+        contextToggle={
+          <ContextPanelToggle
+            projectPath={projectPath}
+            run={state.agentRun}
+            onOpenSettings={onOpenSettings}
+          />
+        }
       />
 
       {state.sessionLoadError && state.sessionLoadError !== dismissedSessionError && (
@@ -211,8 +222,6 @@ export function ChatWindowView({
           ) : null
         }
       />
-
-      {chapterCheckHistory && <ChapterCheckHistoryPanel history={chapterCheckHistory} />}
 
       {/* 要作者拍板的事一次只在这里出一件（章纲、权限、补丁），不弹居中窗口、不盖住编辑器。 */}
       {state.chapterBrief && (

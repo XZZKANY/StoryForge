@@ -26,4 +26,6 @@ export type ToolDeps = {
   readonly clock?: () => number;
   /** 补丁与审稿报告的随机 id（Python 的 uuid4().hex，32 位十六进制）。 */
   readonly newHex: () => string;
+  /** 本机插件库根目录；缺省或 null 是没有插件。 */
+  readonly pluginLibraryRoot?: string | null;
 };

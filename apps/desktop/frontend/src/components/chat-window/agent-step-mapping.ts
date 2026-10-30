@@ -1,8 +1,8 @@
 import type { AgentPlanStep } from '../../lib/api-client';
-import { traceLookup, traceReadSources } from './context-panel';
+import { traceLookup, traceReadSources, traceSkillRead } from './context-panel';
+import { formatElapsed } from './RunElapsed';
 import type {
   AgentStep,
-  AgentStepMetric,
   AgentStepStatus,
   ChatWindowAgentResult,
   ChatWindowAgentToolTrace,
@@ -42,6 +42,7 @@ const TOOL_LABELS: Record<string, string> = {
   'fs.list': '查看目录',
   'fs.read': '读取',
   'fs.search': '搜索',
+  'skill.read': '读技能',
   'project.knowledge': '查创作资料',
   'knowledge.propose': '提议记入创作资料',
   'file.review': '审稿',
@@ -80,7 +81,7 @@ export function planStepTitle(step: string): string {
     'agent.provider': '模型请求',
     'agent.loop': '整理回答',
     'permission.confirm': '等你确认',
-    'writeback.auto': '自动写回准备完成',
+    'writeback.auto': '自动写进文件准备完成',
     'context-agent': '选择上下文',
     'plot-agent': '剧情结构审稿',
     'character-agent': '人物一致性审稿',
@@ -106,15 +107,35 @@ function toolTarget(input: Record<string, unknown>): string | null {
   return null;
 }
 
+// skill.read 的目标是技能名，不是路径；没完成的调用 output 里没有名字，退回调用时点的名字。
+function skillReadTitle(label: string, trace: ChatWindowAgentToolTrace): string {
+  const read = traceSkillRead(trace);
+  const output = trace.output_summary ?? {};
+  const name =
+    read?.name ??
+    [output.skill_name, trace.input_summary?.name]
+      .find((value): value is string => typeof value === 'string' && value.trim() !== '')
+      ?.trim();
+  if (!name) return label;
+  const plugin = read?.plugin ?? (typeof output.plugin === 'string' ? output.plugin.trim() : '');
+  return `${label} ${name}${plugin ? `（插件 ${plugin}）` : ''}`;
+}
+
 /** 工具步骤的标题：中文动作 + 对象（文件路径或检索词）；不认识的工具照原名。 */
 export function toolStepTitle(trace: ChatWindowAgentToolTrace): string {
   const label = TOOL_LABELS[trace.tool_name] ?? trace.tool_name;
   const input = trace.input_summary ?? {};
+  if (trace.tool_name === 'skill.read') return skillReadTitle(label, trace);
   const target = toolTarget(input);
   if (target) return `${label} ${target}`;
   if (typeof input.query === 'string' && input.query.trim())
     return `${label}「${input.query.trim()}」`;
   return label;
+}
+
+/** 工具用时说人话：作者看「3 分 41 秒」，不看「220535ms」。 */
+export function formatLatency(ms: number): string {
+  return ms < 1000 ? '不到 1 秒' : formatElapsed(Math.round(ms / 1000));
 }
 
 /** 成败已由行首的 ✓ / ✗ 表示，这里不再写英文状态；只留错误原文与对作者有意义的数字。 */
@@ -123,7 +144,7 @@ export function toolTraceDetail(trace: ChatWindowAgentToolTrace): string {
   const output = trace.output_summary ?? {};
   const parts: string[] = [];
   if (typeof output.model === 'string') parts.push(`模型 ${output.model}`);
-  if (typeof output.latency_ms === 'number') parts.push(`${output.latency_ms}ms`);
+  if (typeof output.latency_ms === 'number') parts.push(formatLatency(output.latency_ms));
   if (typeof output.context_file_count === 'number')
     parts.push(`上下文 ${output.context_file_count} 个`);
   if (typeof output.issue_count === 'number') parts.push(`问题 ${output.issue_count} 个`);
@@ -133,22 +154,24 @@ export function toolTraceDetail(trace: ChatWindowAgentToolTrace): string {
   return parts.join('；');
 }
 
-// 从 output_summary 抽结构化指标供小 chip 平铺；detail 纯文本仍作展开时的完整回退。
-// 只挑对作者有意义的四项（模型 / 延迟 / 上下文数 / 问题数 / 建议数），错误时不出 chip。
-export function toolTraceMetrics(trace: ChatWindowAgentToolTrace): AgentStepMetric[] {
+// 从 output_summary 抽步骤行右侧的淡字：问题数 / 建议数 / 上下文数 / 用时，按作者关心的先后排。
+// 模型名不进行内（每步都一样，只是噪音），由 toolTraceModel 放进悬停提示；错误时只看错误原文。
+export function toolTraceMetrics(trace: ChatWindowAgentToolTrace): string[] {
   if (trace.error_message) return [];
   const output = trace.output_summary ?? {};
-  const metrics: AgentStepMetric[] = [];
-  if (typeof output.model === 'string') metrics.push({ label: '模型', value: output.model });
-  if (typeof output.latency_ms === 'number')
-    metrics.push({ label: '延迟', value: `${output.latency_ms}ms` });
-  if (typeof output.context_file_count === 'number')
-    metrics.push({ label: '上下文', value: `${output.context_file_count} 个` });
-  if (typeof output.issue_count === 'number')
-    metrics.push({ label: '问题', value: `${output.issue_count} 个` });
+  const metrics: string[] = [];
+  if (typeof output.issue_count === 'number') metrics.push(`问题 ${output.issue_count} 个`);
   if (typeof output.suggested_action_count === 'number')
-    metrics.push({ label: '建议', value: `${output.suggested_action_count} 条` });
+    metrics.push(`建议 ${output.suggested_action_count} 条`);
+  if (typeof output.context_file_count === 'number')
+    metrics.push(`上下文 ${output.context_file_count} 个`);
+  if (typeof output.latency_ms === 'number') metrics.push(formatLatency(output.latency_ms));
   return metrics;
+}
+
+export function toolTraceModel(trace: ChatWindowAgentToolTrace): string | undefined {
+  const model = trace.output_summary?.model;
+  return typeof model === 'string' && model.trim() ? model : undefined;
 }
 
 export function stepsFromAgentResult(message: ChatWindowAgentResult): AgentStep[] {
@@ -184,6 +207,8 @@ export function stepFromAgentPlanEvent(
 export function stepFromToolTraceEvent(index: number, trace: ChatWindowAgentToolTrace): AgentStep {
   const sources = traceReadSources(trace);
   const lookup = traceLookup(trace);
+  const model = toolTraceModel(trace);
+  const skill = traceSkillRead(trace);
   return {
     id: `tool-${index}-${trace.tool_name}`,
     title: toolStepTitle(trace),
@@ -191,8 +216,10 @@ export function stepFromToolTraceEvent(index: number, trace: ChatWindowAgentTool
     status: mapAgentStepStatus(trace.status),
     detail: toolTraceDetail(trace),
     metrics: toolTraceMetrics(trace),
+    ...(model !== undefined ? { model } : {}),
     ...(sources.length ? { sources } : {}),
     ...(lookup !== undefined ? { lookup } : {}),
+    ...(skill ? { skill } : {}),
   };
 }
 
@@ -209,7 +236,7 @@ export function approvalStepFromAgentResult(
       title: '等待作者确认',
       tool: 'author.approval',
       status: 'waiting',
-      detail: hasChapterBrief ? '等待作者确认 Chapter Brief' : '等待作者在编辑器里确认 diff',
+      detail: hasChapterBrief ? '等待作者确认 Chapter Brief' : '等待作者在编辑器的对比里确认',
       filePath: patch?.file_path,
       patchId: patch?.id,
     },

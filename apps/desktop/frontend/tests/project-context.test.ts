@@ -52,7 +52,7 @@ test('sample story project seeds an immediately usable local manuscript', () => 
       'D:\\StoryForge\\Books\\StoryForge 示例作品\\正文\\第01章.md',
     ],
   );
-  assert.ok(files[0].content.includes('让对话 agent 帮忙审稿'));
+  assert.ok(files[0].content.includes('让对话 AI 帮忙审稿'));
   assert.ok(files[2].content.includes('# 第01章'));
 });
 

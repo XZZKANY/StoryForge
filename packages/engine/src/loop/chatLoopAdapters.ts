@@ -285,7 +285,7 @@ export class StoryForgeRunTracer implements RunTracer {
     if (!PRE_HANDLER_FAILURE_CODES.has(code) || context.handledCallIds.has(callId)) return;
     const call = context.callsById.get(callId);
     if (call === undefined) return;
-    const registryName = LLM_TO_REGISTRY.get(call.name) ?? null;
+    const registryName = exposedRegistryName(context, call.name);
     const message = failureMessage(code, call, registryName, context);
     if (registryName === null) {
       await context.recordTrace(
@@ -428,10 +428,20 @@ async function executeLoopTool(
   );
 }
 
-/** 22 个循环工具按声明顺序装进 SDK 注册表；漏注册的处理器启动即报错。 */
+/** 这一轮交给模型的循环工具：skill.read 只在可用技能里有插件技能时才给。 */
+const offeredLoopToolSpecs = (context: StoryForgeRuntimeContext) =>
+  listLoopToolSpecs().filter((spec) => spec.name !== 'skill.read' || context.pluginSkills);
+
+/** 没交给模型的工具当未知工具处理，与它不存在时一样。 */
+function exposedRegistryName(context: StoryForgeRuntimeContext, llmName: string): string | null {
+  const registryName = LLM_TO_REGISTRY.get(llmName) ?? null;
+  return registryName === 'skill.read' && !context.pluginSkills ? null : registryName;
+}
+
+/** 循环工具按声明顺序装进 SDK 注册表；漏注册的处理器启动即报错。 */
 export function buildStoryforgeToolRegistry(context: StoryForgeRuntimeContext): ToolRegistry {
   return new ToolRegistry(
-    listLoopToolSpecs().map((spec) => {
+    offeredLoopToolSpecs(context).map((spec) => {
       if (!context.definitions.has(spec.name))
         throw new Error(`StoryForge loop tool is not registered: ${spec.name}`);
       const exposed = llmToolName(spec.name);

@@ -470,7 +470,7 @@ function requestActiveEditorSave(
         return;
       }
       if (forClose && (detail?.status !== 'saved' || !detail.canClose?.())) {
-        finish(() => reject(new Error('原文件未确认保存或稿件已变化，已取消关闭')));
+        finish(() => reject(new Error('原文件未确认保存或文件已变化，已取消关闭')));
         return;
       }
       finish(() => resolve(detail ?? { filePath, status: 'skipped' }));

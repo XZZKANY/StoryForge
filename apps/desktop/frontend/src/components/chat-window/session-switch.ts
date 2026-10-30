@@ -33,5 +33,5 @@ export function leaveSessionConfirmText(
   action: 'switch' | 'new',
 ): string {
   const actionText = action === 'new' ? '新建会话' : '切换会话';
-  return `本轮有未处理的${PENDING_LABEL[kind]}，${actionText}后需在编辑器 diff 里处理。仍要${actionText}吗？`;
+  return `本轮有未处理的${PENDING_LABEL[kind]}，${actionText}后需在编辑器的对比里处理。仍要${actionText}吗？`;
 }

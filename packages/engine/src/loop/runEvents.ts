@@ -9,6 +9,7 @@ import {
 import { agentPlanPayload } from '../kernel/skillCatalog';
 import {
   RunPublicIdConflictError,
+  type ArtifactRecord,
   type RunEventFields,
   type RunEventRecord,
   type RunRecord,
@@ -614,15 +615,16 @@ export class AgentRunEventSink {
   async recordArtifact(
     run: RunRecord,
     fields: { kind: string; payload: Obj; requiresConfirmation: boolean },
-  ): Promise<void> {
+  ): Promise<ArtifactRecord> {
     await this.progress;
-    const { event } = await recordAgentArtifact(this.services, run, fields);
+    const { artifact, event } = await recordAgentArtifact(this.services, run, fields);
     await this.emit(event);
+    return artifact;
   }
 
   /** 可恢复的未决调用：私有正文进 artifact，事件里只露摘要；带上当时的权限档位。 */
-  async recordRuntimePendingCall(run: RunRecord, payload: Obj): Promise<void> {
-    await this.recordArtifact(run, {
+  async recordRuntimePendingCall(run: RunRecord, payload: Obj): Promise<ArtifactRecord> {
+    return this.recordArtifact(run, {
       kind: RUNTIME_PENDING_CALL_ARTIFACT_KIND,
       payload: {
         ...payload,

@@ -47,6 +47,7 @@ export function ConversationHeader({
   onSetLayoutMode,
   onOpenObservatory,
   observatoryAttention = false,
+  checkHistoryToggle,
   contextToggle,
 }: {
   title: string;
@@ -60,6 +61,7 @@ export function ConversationHeader({
   onSetLayoutMode?: (mode: LayoutMode) => void;
   onOpenObservatory?: () => void;
   observatoryAttention?: boolean;
+  checkHistoryToggle?: ReactNode;
   contextToggle?: ReactNode;
 }) {
   // Q5：会话下拉——会话按项目划分，标题变下拉入口（当前项目会话列表 + 新建）。
@@ -124,6 +126,7 @@ export function ConversationHeader({
           }
         />
       )}
+      {checkHistoryToggle}
       {contextToggle}
       {/* Q4 布局三态就地控件：对话头切 编辑 / 平衡 / 对话聚焦 */}
       {onSetLayoutMode &&
@@ -559,12 +562,12 @@ export function RunActionBar({
               className="px-2 py-1 text-xs text-muted"
               data-testid="run-accept-writing"
             >
-              {target ? `正在写进稿子（${target}）…` : '正在写进稿子…'}
+              {target ? `正在写进文件（${target}）…` : '正在写进文件…'}
             </div>
           ) : (
             <DecisionChoices
               key={`${run.id}:patch:${approval?.patchId ?? ''}`}
-              title="AI 修订已生成，要写进稿子吗？"
+              title="AI 修订已生成，要写进文件吗？"
               detail={
                 target
                   ? `对比在编辑器里（${target}），看完再选；逐块接受、存成旁注在编辑器底部。`
@@ -573,7 +576,7 @@ export function RunActionBar({
               onTypeAhead={onTypeAhead}
               choices={[
                 {
-                  label: '接受，写进稿子',
+                  label: '接受，写进文件',
                   testid: 'run-accept-patch',
                   onSelect: () => {
                     if (controls.onAcceptPatch?.() === 'accepted')

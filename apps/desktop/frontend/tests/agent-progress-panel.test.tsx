@@ -173,13 +173,13 @@ it('a completed auto-writeback preparation step does not claim a Desktop write o
   expect(toggle().getAttribute('aria-expanded')).toBe('true');
   const row = Array.from(host.querySelectorAll('button')).find(
     (button) =>
-      button.textContent?.includes('自动写回准备完成') && button.textContent.includes(detail),
+      button.textContent?.includes('自动写进文件准备完成') && button.textContent.includes(detail),
   );
   expect(row).toBeDefined();
   expect(row?.closest('.grid')?.classList.contains('grid-rows-[1fr]')).toBe(true);
   expect(row?.closest('.grid')?.classList.contains('opacity-100')).toBe(true);
   expect(row?.textContent).toContain('✓');
-  expect(row?.textContent).not.toMatch(/直接写盘|已写入|快照完成/);
+  expect(row?.textContent).not.toMatch(/直接写进文件|已写入|快照完成/);
   expect(current.state.agentRun?.steps[0]).toMatchObject({
     tool: 'writeback.auto',
     status: 'completed',

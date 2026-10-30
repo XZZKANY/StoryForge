@@ -300,6 +300,33 @@ test('agent run recovery display keeps failed run without checkpoint conservativ
   assert.equal(recovery.boundaryText, '最近失败：provider timeout');
 });
 
+test('agent run recovery display names the chapter-writing pending call in plain words', () => {
+  const recovery = buildAgentRunRecoveryDisplay(
+    savePointProjection({
+      status: 'failed',
+      recoverability: { terminal_event_id: 9, resume_strategy: 'manual_restart_required' },
+      runtime_recovery: {
+        manual_restart_required: true,
+        latest_pending_call: {
+          artifact_id: 12,
+          intent: 'chapter.write',
+          pending_tool: 'chapter.write.brief_confirm',
+        },
+        latest_pending_call_resolution: {
+          pending_tool: 'chapter.write.brief_confirm',
+          result_status: 'completed',
+        },
+      },
+    }),
+  );
+
+  assert.ok(recovery);
+  assert.equal(recovery.pendingText, '待恢复调用：接着起草本章 #12');
+  assert.equal(recovery.boundaryText, '已恢复：接着起草本章 · completed');
+  const html = renderToStaticMarkup(React.createElement(AgentRunRecoveryPanel, { recovery }));
+  assert.doesNotMatch(html, /brief_confirm/);
+});
+
 test('resumed agent result maps to completed recovery steps when no confirmation is needed', () => {
   const response = {
     type: 'agent_result',
@@ -382,7 +409,7 @@ test('resumed agent result preserves waiting status for confirmation results', (
   const steps = stepsFromResumedAgentResult(response);
   assert.equal(steps[0].detail, '已从暂停处恢复继续');
   assert.equal(steps.at(-1)?.status, 'waiting');
-  assert.match(steps.at(-1)?.detail ?? '', /编辑器里确认 diff/);
+  assert.match(steps.at(-1)?.detail ?? '', /编辑器的对比里确认/);
 });
 
 test('resumed file patch projects its target into the approval step', () => {
@@ -424,6 +451,17 @@ test('resume diagnostic display keeps run waiting when resume command is prematu
   assert.equal(display.status, 'waiting');
   assert.match(display.message, /还没能恢复/);
   assert.match(display.message, /file\.review/);
+});
+
+test('resume diagnostic display names the chapter-writing pending call in plain words', () => {
+  const display = displayFromResumeDiagnostic({
+    reason: 'run_not_resumed',
+    intent: 'chapter.write',
+    pending_tool: 'chapter.write.brief_confirm',
+    requires_manual_restart: false,
+  });
+
+  assert.equal(display.message, '恢复尚未执行：本轮还没能恢复继续（接着起草本章）。');
 });
 
 test('control ack guard ignores stale or mismatched run acknowledgements', () => {
@@ -830,7 +868,7 @@ test('repair patch proposal is surfaced with an executable approval command', ()
   });
   assert.ok(withoutCommand);
   assert.equal(withoutCommand.command, null);
-  assert.match(withoutCommand.summary, /无法从对话内写回/);
+  assert.match(withoutCommand.summary, /无法从对话内写进文件/);
 
   // file_revision 走既有 diff 面板路径，不归 repair patch 处理。
   assert.equal(

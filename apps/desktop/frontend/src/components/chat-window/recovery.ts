@@ -185,6 +185,16 @@ function checkpointReasonLabel(reason: string | null): string {
   return '本轮执行状态';
 }
 
+// 写章的未决调用在引擎里仍叫旧名（当初停在章纲等确认时起的）；现在它就是从拟好的章纲接着起草。
+const PENDING_TOOL_LABELS: Readonly<Record<string, string>> = {
+  'chapter.write.brief_confirm': '接着起草本章',
+};
+
+/** 恢复卡与恢复诊断里给作者看的待恢复步骤名；没有专门说法的照引擎原名。 */
+export function pendingToolLabel(tool: string): string {
+  return PENDING_TOOL_LABELS[tool] ?? tool;
+}
+
 function pendingSummary({
   pending,
   latestPendingCall,
@@ -211,10 +221,9 @@ function pendingSummary({
     numberField(pending, 'runtime_pending_call_artifact_id') ??
     (latestPendingCall ? numberField(latestPendingCall, 'artifact_id') : null);
   if (pendingTool) {
+    const label = pendingToolLabel(pendingTool);
     parts.push(
-      pendingArtifactId
-        ? `待恢复调用：${pendingTool} #${pendingArtifactId}`
-        : `待恢复调用：${pendingTool}`,
+      pendingArtifactId ? `待恢复调用：${label} #${pendingArtifactId}` : `待恢复调用：${label}`,
     );
   }
 
@@ -243,7 +252,8 @@ function boundarySummary({
   latestInterruption: Record<string, unknown> | null;
 }): string | null {
   if (latestResolution) {
-    const pendingTool = stringField(latestResolution, 'pending_tool') ?? '待恢复的步骤';
+    const tool = stringField(latestResolution, 'pending_tool');
+    const pendingTool = tool ? pendingToolLabel(tool) : '待恢复的步骤';
     const resultStatus = stringField(latestResolution, 'result_status');
     return resultStatus ? `已恢复：${pendingTool} · ${resultStatus}` : `已恢复：${pendingTool}`;
   }

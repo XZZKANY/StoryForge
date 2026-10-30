@@ -20,7 +20,7 @@ export type RunProgress = { phase: string; request_number: number; [key: string]
 export class RunControl {
   private reason: string | null = null;
   private requestNumber = 0;
-  readonly deadline: number | null;
+  private deadlineAt: number | null;
 
   constructor(
     private readonly options: {
@@ -32,9 +32,24 @@ export class RunControl {
       wait: (seconds: number) => Promise<void>;
     },
   ) {
-    this.deadline = options.deadline ?? null;
-    if (this.deadline !== null && !Number.isFinite(this.deadline))
+    this.deadlineAt = options.deadline ?? null;
+    if (this.deadlineAt !== null && !Number.isFinite(this.deadlineAt))
       throw new RangeError('deadline must be finite');
+  }
+
+  get deadline(): number | null {
+    return this.deadlineAt;
+  }
+
+  /**
+   * 从现在起重新给一段时长（秒）。只换截止时间：已经落下的暂停 / 停止 / 超时事实照旧生效。
+   * 写章拟完章纲接着起草时用它，起草阶段像旧版确认后另起一次调用那样拿到完整预算。
+   */
+  renewDeadline(durationSeconds: number): void {
+    if (this.deadlineAt === null) return;
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0)
+      throw new RangeError('duration must be positive');
+    this.deadlineAt = this.options.clock() + durationSeconds;
   }
 
   check(boundary: string): void {

@@ -37,7 +37,7 @@ type PatchReviewPanelProps = {
 type PatchAction = 'accept' | 'hunk' | 'reject' | 'note' | 'retry' | 'undo';
 
 const PATCH_ACTION_LABELS: Record<PatchAction, string> = {
-  undo: '撤销写回',
+  undo: '撤销写入',
   accept: '接受',
   hunk: '接受修改块',
   reject: '拒绝',

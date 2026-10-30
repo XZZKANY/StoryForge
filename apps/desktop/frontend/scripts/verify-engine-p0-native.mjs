@@ -234,7 +234,7 @@ function agentRealSummary(real) {
   const all = total(Object.values(steps).flat());
   return {
     model: real.provider?.model,
-    briefConfirmed: Boolean(real.brief),
+    briefReady: Boolean(real.brief),
     patch: real.patch
       ? { kind: real.patch.kind, chars: [...(real.patch.after ?? '')].length }
       : null,
@@ -261,14 +261,14 @@ function agentRealReport(real) {
     '# P3-8 真跑报告（TS 引擎 · 作者的模型配置 · 合成两章）',
     '',
     `- 模型：${summary.model}`,
-    `- 起草（含章纲）耗时：${real.write?.ms ?? '-'} ms + 确认后 ${real.confirm?.ms ?? '-'} ms；审稿 ${real.review?.ms ?? '-'} ms；修订 ${real.revise?.ms ?? '-'} ms`,
+    `- 起草（含章纲）耗时：${real.write?.ms ?? '-'} ms；审稿 ${real.review?.ms ?? '-'} ms；修订 ${real.revise?.ms ?? '-'} ms`,
     `- 补丁写回：${JSON.stringify(real.writeback)}`,
     '',
-    '## 1. 章纲（作者确认前）',
+    '## 1. 章纲',
     json(real.brief),
     '',
     '## 2. 起草结果',
-    `结果摘要：${agentResult({ result: { ok: true, message: real.resumed } })?.summary ?? JSON.stringify(real.confirm)}`,
+    `结果摘要：${agentResult({ result: { ok: true, message: real.resumed } })?.summary ?? JSON.stringify(result(real.write))}`,
     '',
     '写回后的第三章全文：',
     fence(real.written ?? real.patch?.after ?? '（没有产出补丁）'),

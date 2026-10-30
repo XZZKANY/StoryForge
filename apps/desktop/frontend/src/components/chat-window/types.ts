@@ -50,24 +50,28 @@ export type AgentTextSettlement =
 
 export type AgentStepStatus = 'pending' | 'running' | 'waiting' | 'completed' | 'failed';
 
-// 工具步骤的结构化指标：从 output_summary 抽出的 key-value，用小 chip 平铺，
-// 免得延迟 / 上下文数 / 问题数挤在一行中文长串里难扫读（detail 仍作纯文本回退）。
-export type AgentStepMetric = { label: string; value: string };
-
 export type AgentStep = {
   id: string;
   title: string;
   tool: string;
   status: AgentStepStatus;
   detail: string;
-  metrics?: AgentStepMetric[];
+  /** 工具步骤行右侧的淡字（「问题 3 个」「12 秒」）；有它时行内不再显示纯文本 detail。 */
+  metrics?: string[];
+  /** 这一步用的模型，只进步骤行的悬停提示。 */
+  model?: string;
   filePath?: string;
   patchId?: string;
   /** 这次工具调用读过的文件（引擎记的原样路径），给对话栏「上下文」列出来。 */
   sources?: string[];
   /** fs.search 的检索词 / fs.list 的子目录（根目录为空串）。 */
   lookup?: string;
+  /** skill.read 读过的技能；plugin 为插件 id，作品技能为 null。 */
+  skill?: SkillReadRef;
 };
+
+/** 一次 skill.read 读到的技能：作品技能的 path 是项目相对路径，插件技能是插件内路径。 */
+export type SkillReadRef = { name: string; plugin: string | null; path: string | null };
 
 // paused/stopped 是作者主动控制态：暂停留有恢复入口、停止是中性收尾（非失败）。
 // 与 running/waiting/completed/failed 一起构成运行状态机的全集。

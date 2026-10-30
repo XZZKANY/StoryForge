@@ -3,9 +3,9 @@ import { useRef, useState } from 'react';
 
 import { Button, FloatingSurface, IconButton } from '../ui';
 import { emitOpenFileRequest } from '../../lib/assistant-events';
-import { normalizePathForMatch } from '../../lib/project/path';
 import { FileText, Layers, Search } from '../icons/shell-icons';
-import { runContextReads, skillsReadThisRun } from './context-panel';
+import { runContextReads, skillsUsedThisRun } from './context-panel';
+import { PluginsBlock } from './PluginsBlock';
 import type { AgentRun } from './types';
 import { useAgentInstructions } from './useAgentInstructions';
 import {
@@ -20,9 +20,11 @@ export const CONTEXT_PANEL_ID = 'conversation-context-panel';
 export function ContextPanelToggle({
   projectPath,
   run,
+  onOpenSettings,
 }: {
   projectPath: string | null;
   run: AgentRun | null;
+  onOpenSettings?: () => void;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
@@ -53,7 +55,17 @@ export function ContextPanelToggle({
           onDismiss={() => setOpen(false)}
           className="w-[22rem] animate-fade-in rounded-lg border border-border bg-surface shadow-dropdown"
         >
-          <ContextPanel projectPath={projectPath} run={run} />
+          <ContextPanel
+            projectPath={projectPath}
+            run={run}
+            onOpenSettings={
+              onOpenSettings &&
+              (() => {
+                setOpen(false);
+                onOpenSettings();
+              })
+            }
+          />
         </FloatingSurface>
       )}
     </>
@@ -213,9 +225,16 @@ function NewSkillButton({
   );
 }
 
+const SKILL_TAG_CLASS =
+  'flex-shrink-0 rounded-sm border border-border px-1.5 py-px text-3xs leading-4 text-muted';
+
 function SkillsBlock({ projectPath, run }: { projectPath: string | null; run: AgentRun | null }) {
   const { view, creating, create } = useConversationSkills(projectPath);
-  const used = skillsReadThisRun(run ? runContextReads(run.steps, projectPath) : null);
+  const used = skillsUsedThisRun(
+    run?.steps ?? null,
+    projectPath,
+    view.status === 'ready' ? view.skills : [],
+  );
   const invoked = new Set(
     run && view.status === 'ready'
       ? invokedSkillNames(
@@ -251,38 +270,54 @@ function SkillsBlock({ projectPath, run }: { projectPath: string | null; run: Ag
       )}
       {view.status === 'ready' && view.skills.length > 0 && (
         <ul className="space-y-0.5">
-          {view.skills.map((skill) => (
-            <li key={skill.path}>
-              <button
-                type="button"
-                className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left text-xs transition-colors hover:bg-elevated"
-                onClick={() => emitOpenFileRequest(skill.filePath)}
-                title={`在编辑器打开 ${skill.path}`}
-                data-testid="context-skill"
-              >
+          {view.skills.map((skill) => {
+            const row = (
+              <>
                 <FileText size={12} strokeWidth={1.6} className="flex-shrink-0 text-subtle" />
                 <span className="flex-shrink-0 text-foreground">{skill.name}</span>
                 <span className="min-w-0 flex-1 truncate text-2xs text-subtle">{skill.when}</span>
+                {skill.plugin !== null && (
+                  <span className={SKILL_TAG_CLASS} data-testid="context-skill-plugin">
+                    插件 {skill.plugin}
+                  </span>
+                )}
                 {invoked.has(skill.name) ? (
-                  <span
-                    className="flex-shrink-0 rounded-sm border border-border px-1.5 py-px text-3xs leading-4 text-muted"
-                    data-testid="context-skill-invoked"
-                  >
+                  <span className={SKILL_TAG_CLASS} data-testid="context-skill-invoked">
                     这一轮点名
                   </span>
                 ) : (
-                  used.has(normalizePathForMatch(skill.path)) && (
-                    <span
-                      className="flex-shrink-0 rounded-sm border border-border px-1.5 py-px text-3xs leading-4 text-muted"
-                      data-testid="context-skill-used"
-                    >
+                  used.has(skill.name) && (
+                    <span className={SKILL_TAG_CLASS} data-testid="context-skill-used">
                       这一轮用了
                     </span>
                   )
                 )}
-              </button>
-            </li>
-          ))}
+              </>
+            );
+            return (
+              <li key={`${skill.plugin ?? ''}:${skill.path}`}>
+                {skill.filePath === null ? (
+                  <div
+                    className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left text-xs"
+                    title={`插件「${skill.plugin}」：${skill.path}`}
+                    data-testid="context-skill"
+                  >
+                    {row}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left text-xs transition-colors hover:bg-elevated"
+                    onClick={() => emitOpenFileRequest(skill.filePath!)}
+                    title={`在编辑器打开 ${skill.path}`}
+                    data-testid="context-skill"
+                  >
+                    {row}
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
@@ -353,9 +388,11 @@ function RunReadsBlock({ projectPath, run }: { projectPath: string | null; run: 
 export function ContextPanel({
   projectPath,
   run,
+  onOpenSettings,
 }: {
   projectPath: string | null;
   run: AgentRun | null;
+  onOpenSettings?: () => void;
 }) {
   return (
     <div
@@ -364,6 +401,11 @@ export function ContextPanel({
     >
       <InstructionsBlock projectPath={projectPath} />
       <SkillsBlock projectPath={projectPath} run={run} />
+      <PluginsBlock
+        projectPath={projectPath}
+        title={<BlockTitle title="插件" hint="本机插件库 · 勾选这本书要用的" />}
+        onOpenSettings={onOpenSettings}
+      />
       <RunReadsBlock projectPath={projectPath} run={run} />
     </div>
   );

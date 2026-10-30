@@ -94,8 +94,8 @@ export function repairPatchApproval(message: AgentResultMessage): {
       : '章节修复建议已生成。',
     reason,
     command
-      ? `点击「批准」将执行 ${command.command_id} 完成写回。`
-      : '该修订缺少可执行的批准命令，暂时无法从对话内写回。',
+      ? `点击「批准」将执行 ${command.command_id} 完成写入。`
+      : '该修订缺少可执行的批准命令，暂时无法从对话内写进文件。',
   ];
   return { summary: lines.filter(Boolean).join('\n'), command };
 }

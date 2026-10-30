@@ -378,7 +378,7 @@ function KnowledgePatchReview({ handle }: { handle: KnowledgeInboxHandle }) {
           onClick={() => void handle.accept()}
           data-testid="knowledge-confirm-writeback"
         >
-          <Check size={11} /> 确认写回
+          <Check size={11} /> 确认写进文件
         </button>
       </div>
     </div>

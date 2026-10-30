@@ -31,7 +31,7 @@ export const CHAPTER_BRIEF_ARTIFACT_KIND = 'chapter_brief';
 export const CHAPTER_CHECK_ARTIFACT_KIND = 'chapter_check';
 export const CHAPTER_CANDIDATE_ARTIFACT_KIND = 'chapter_candidate';
 export const CHAPTER_WRITE_INTENT = 'chapter.write';
-/** 章纲停下等确认时写进会话的那句话的开头；章纲读对话节选时以它为上一章的分界。 */
+/** 章纲拟好时写进会话的那句话的开头；章纲读对话节选时以它为上一章的分界。 */
 export const BRIEF_READY_PREFIX = 'Chapter Brief 已准备：';
 /** 修复步骤借修订链路写进会话的指令开头：不是作者说的话。 */
 export const REPAIR_INSTRUCTION_PREFIX =
