@@ -198,9 +198,9 @@ impl ShadowGitCore {
 
     fn repository_for(&self, project_root: &str) -> Result<ShadowRepository, String> {
         let canonical = fs::canonicalize(project_root)
-            .map_err(|error| format!("无法解析项目目录 {project_root}: {error}"))?;
+            .map_err(|error| format!("无法解析作品目录 {project_root}: {error}"))?;
         if !canonical.is_dir() {
-            return Err(format!("项目根不是目录: {project_root}"));
+            return Err(format!("作品根路径不是目录: {project_root}"));
         }
         let project_key = canonical_project_key(&canonical)?;
         let hash = sha256_hex(project_key.as_bytes());
@@ -219,17 +219,17 @@ impl ShadowGitCore {
             return Ok(false);
         }
         let raw = fs::read_to_string(&repo.marker_path)
-            .map_err(|error| format!("无法读取影子仓项目映射: {error}"))?;
+            .map_err(|error| format!("无法读取影子仓作品映射: {error}"))?;
         let marker: ProjectMarker =
-            serde_json::from_str(&raw).map_err(|error| format!("影子仓项目映射已损坏: {error}"))?;
+            serde_json::from_str(&raw).map_err(|error| format!("影子仓作品映射已损坏: {error}"))?;
         if marker.schema_version != PROJECT_SCHEMA_VERSION {
             return Err(format!(
-                "不支持的影子仓项目映射版本: {}",
+                "不支持的影子仓作品映射版本: {}",
                 marker.schema_version
             ));
         }
         if marker.canonical_project_root != repo.project_key {
-            return Err("影子仓项目路径哈希映射不一致，已拒绝访问".to_string());
+            return Err("影子仓作品路径哈希映射不一致，已拒绝访问".to_string());
         }
         Ok(true)
     }
@@ -243,16 +243,16 @@ impl ShadowGitCore {
             canonical_project_root: repo.project_key.clone(),
         };
         let content = serde_json::to_vec_pretty(&marker)
-            .map_err(|error| format!("无法序列化影子仓项目映射: {error}"))?;
+            .map_err(|error| format!("无法序列化影子仓作品映射: {error}"))?;
         write_atomic(&repo.marker_path, &content)
-            .map_err(|error| format!("无法写入影子仓项目映射: {error}"))
+            .map_err(|error| format!("无法写入影子仓作品映射: {error}"))
     }
 
     fn ensure_repository(&self, repo: &ShadowRepository) -> Result<bool, String> {
         fs::create_dir_all(&repo.bucket).map_err(|error| format!("无法创建影子仓目录: {error}"))?;
         let initialized = self.verify_marker(repo)?;
         if initialized && !repo.git_dir.join("HEAD").is_file() {
-            return Err("影子仓已损坏：项目映射存在但 Git HEAD 缺失".to_string());
+            return Err("影子仓已损坏：作品映射存在但 Git HEAD 缺失".to_string());
         }
 
         if !initialized {
@@ -638,7 +638,7 @@ fn sha256_hex(content: &[u8]) -> String {
 fn canonical_project_key(path: &Path) -> Result<String, String> {
     let raw = path
         .to_str()
-        .ok_or_else(|| "项目路径不是有效 Unicode".to_string())?
+        .ok_or_else(|| "作品路径不是有效 Unicode".to_string())?
         .replace('\\', "/");
     #[cfg(windows)]
     let raw = raw.strip_prefix("//?/").unwrap_or(&raw).to_lowercase();
@@ -741,7 +741,7 @@ fn validate_relative_file_path(file_path: &str) -> Result<String, String> {
         || file_path.contains(['\0', '\r', '\n', ':'])
         || file_path.starts_with(['/', '\\'])
     {
-        return Err("版本文件路径必须是安全的项目相对路径".to_string());
+        return Err("版本文件路径必须是安全的作品相对路径".to_string());
     }
     let normalized = file_path.replace('\\', "/");
     let path = Path::new(&normalized);
@@ -788,7 +788,7 @@ impl ShadowGitCore {
         let lock = self.shared.lock_for(&repo.project_key)?;
         let _guard = lock
             .lock()
-            .map_err(|_| "影子 Git 项目锁已损坏".to_string())?;
+            .map_err(|_| "影子 Git 作品锁已损坏".to_string())?;
         let seeded_index = self.ensure_repository(&repo)?;
 
         let large_untracked = match self.stage_worktree(&repo) {
@@ -887,7 +887,7 @@ impl ShadowGitCore {
             OsString::from("."),
         ];
         let output = self.run_in_repository(repo, &add, None)?;
-        self.require_success(output, "索引项目工作树")?;
+        self.require_success(output, "索引作品工作树")?;
 
         let storyforge = repo.project_root.join(".storyforge");
         if storyforge.exists() {
@@ -1062,7 +1062,7 @@ impl ShadowGitCore {
         ];
         let output = self.run_in_repository(repo, &diff, None)?;
         if output.code == 1 {
-            return Err("创建快照期间项目文件发生变化，请重试写回".to_string());
+            return Err("创建快照期间作品文件发生变化，请重新写进文件".to_string());
         }
         self.require_success(output, "校验影子 Git 工作树稳定性")?;
 
@@ -1089,7 +1089,7 @@ impl ShadowGitCore {
             })
             .collect::<Vec<_>>();
         if !remaining.is_empty() {
-            return Err("创建快照期间项目新增了文件，请重试写回".to_string());
+            return Err("创建快照期间作品里新增了文件，请重新写进文件".to_string());
         }
 
         let storyforge_untracked = [
@@ -1106,14 +1106,14 @@ impl ShadowGitCore {
             .filter(|path| !is_managed_project_exclude(&path.replace('\\', "/")))
             .collect::<Vec<_>>();
         if !remaining_storyforge.is_empty() {
-            return Err("创建快照期间项目新增了文件，请重试写回".to_string());
+            return Err("创建快照期间作品里新增了文件，请重新写进文件".to_string());
         }
         Ok(())
     }
 
     fn require_existing_repository(&self, repo: &ShadowRepository) -> Result<(), String> {
         if !self.verify_marker(repo)? || !repo.git_dir.join("HEAD").is_file() {
-            return Err("当前项目尚未建立可读取的影子 Git 快照".to_string());
+            return Err("当前作品尚未建立可读取的影子 Git 快照".to_string());
         }
         Ok(())
     }
@@ -1131,7 +1131,7 @@ impl ShadowGitCore {
         let lock = self.shared.lock_for(&repo.project_key)?;
         let _guard = lock
             .lock()
-            .map_err(|_| "影子 Git 项目锁已损坏".to_string())?;
+            .map_err(|_| "影子 Git 作品锁已损坏".to_string())?;
         self.require_existing_repository(&repo)?;
         self.require_tree(&repo, tree_hash)?;
 
@@ -1163,7 +1163,7 @@ impl ShadowGitCore {
         let lock = self.shared.lock_for(&repo.project_key)?;
         let _guard = lock
             .lock()
-            .map_err(|_| "影子 Git 项目锁已损坏".to_string())?;
+            .map_err(|_| "影子 Git 作品锁已损坏".to_string())?;
         self.require_existing_repository(&repo)?;
         let reference = format!("refs/storyforge/versions/{record_id}");
         let args = [
@@ -1192,7 +1192,7 @@ impl ShadowGitCore {
         let lock = self.shared.lock_for(&repo.project_key)?;
         let _guard = lock
             .lock()
-            .map_err(|_| "影子 Git 项目锁已损坏".to_string())?;
+            .map_err(|_| "影子 Git 作品锁已损坏".to_string())?;
         self.require_existing_repository(&repo)?;
 
         let args = [
@@ -1231,7 +1231,7 @@ impl ShadowGitCore {
         let lock = self.shared.lock_for(&repo.project_key)?;
         let _guard = lock
             .lock()
-            .map_err(|_| "影子 Git 项目锁已损坏".to_string())?;
+            .map_err(|_| "影子 Git 作品锁已损坏".to_string())?;
         self.require_existing_repository(&repo)?;
         self.require_tree(&repo, tree_hash)?;
 
@@ -1319,7 +1319,7 @@ impl ShadowGitCore {
         let lock = self.shared.lock_for(&repo.project_key)?;
         let _guard = lock
             .lock()
-            .map_err(|_| "影子 Git 项目锁已损坏".to_string())?;
+            .map_err(|_| "影子 Git 作品锁已损坏".to_string())?;
         self.require_existing_repository(&repo)?;
         self.run_gc(&repo, prune)
     }
