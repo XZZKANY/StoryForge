@@ -14,6 +14,7 @@ export {
   pluginNameProblem,
   PLUGINS_FILE,
   serializePluginsFile,
+  STARTER_PLUGIN_NAME,
 } from './plugins';
 export {
   isUntouchedProjectGuide,
