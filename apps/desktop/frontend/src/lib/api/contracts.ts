@@ -196,7 +196,9 @@ export type ApiWriteBatchBlocker = {
     | 'missing_goal'
     | 'target_unavailable'
     | 'setup_incomplete'
-    | 'nothing_to_write';
+    | 'nothing_to_write'
+    | 'batch_running'
+    | 'previous_batch_unreviewed';
   message: string;
 };
 
@@ -245,4 +247,137 @@ export type ApiWriteBatchPlan = {
   permission_profile: 'read' | 'ask' | 'auto' | 'full';
   project_root: string;
   to: number;
+};
+
+/**
+ * @description 批量写章停下的原因（引擎 nextWriteBatchStep 判定；最后三个由界面经 stopWriteBatch 送来）。
+ */
+export type ApiWriteBatchStopCode =
+  | 'run_failed'
+  | 'run_stopped'
+  | 'check_blocked'
+  | 'no_revision'
+  | 'needs_confirmation'
+  | 'writeback_blocked'
+  | 'fact_disputes'
+  | 'read_only'
+  | 'model_changed'
+  | 'cap_reached'
+  | 'trial_done'
+  | 'author_stopped'
+  | 'app_closed'
+  | 'run_not_started';
+
+export type ApiWriteBatchStop = {
+  code: ApiWriteBatchStopCode;
+  message: string;
+  ordinal: number | null;
+};
+
+export type ApiWriteBatchLegRun = {
+  ordinal: number;
+  run_id: string;
+  tokens: number;
+};
+
+/**
+ * @description 批量里开跑或续跑的一段：续跑重新估、重新给上限，所以上限按段算；试写段没有预估与上限。
+ */
+export type ApiWriteBatchLeg = {
+  /**
+   * @enum {string}
+   */
+  basis: 'history' | 'trial';
+  cap_tokens: number | null;
+  estimated_tokens: number | null;
+  runs: ApiWriteBatchLegRun[];
+  started_at: string;
+  used_tokens: number;
+};
+
+export type ApiWriteBatchCheck = {
+  issue_count: number;
+  summary: string;
+  /**
+   * @enum {string}
+   */
+  verdict: 'pass' | 'repairable' | 'blocked' | 'unchecked';
+};
+
+/**
+ * @description 批量里一章的结果。written_sha256 / chars / tokens / check 由引擎算；snapshot_version 与 facts_before
+ * 是界面送来、引擎原样存的（撤销用）。
+ */
+export type ApiWriteBatchRecordChapter = {
+  chars: number | null;
+  check: ApiWriteBatchCheck | null;
+  fact_disputes: number | null;
+  facts_before: string | null;
+  ordinal: number;
+  run_id: string | null;
+  snapshot_version: string | null;
+  /**
+   * @enum {string}
+   */
+  state: 'pending' | 'written' | 'stopped_here' | 'skipped_written' | 'after_trial';
+  target_path: string;
+  tokens: number | null;
+  written_sha256: string | null;
+};
+
+/**
+ * @description 最近一批批量写章的记录（`.storyforge/write-batch.json`）。是记录不是真值：哪章写没写以正文为准。
+ */
+export type ApiWriteBatch = {
+  chapters: ApiWriteBatchRecordChapter[];
+  created_at: string;
+  from: number;
+  id: string;
+  legs: ApiWriteBatchLeg[];
+  model_key: string;
+  reviewed: boolean;
+  /**
+   * @enum {string}
+   */
+  status: 'running' | 'stopped' | 'finished';
+  stop: ApiWriteBatchStop | null;
+  to: number;
+  version: number;
+};
+
+/**
+ * @description 开跑 / 续跑的结果：没开成时 plan 里写着原因，batch 是没动过的最近一批（没有为 null）。
+ */
+export type ApiWriteBatchStartResult =
+  | { batch: ApiWriteBatch; plan: ApiWriteBatchPlan; started: true }
+  | { batch: ApiWriteBatch | null; plan: ApiWriteBatchPlan; started: false };
+
+/**
+ * @description 引擎判定的下一步：写哪一章，还是停、为什么停，或者这一批写完了。
+ */
+export type ApiWriteBatchStep =
+  | { action: 'write'; goal: string | null; ordinal: number; target_path: string }
+  | { action: 'stop'; code: ApiWriteBatchStopCode; message: string; ordinal: number | null }
+  | { action: 'finished' };
+
+export type ApiWriteBatchMismatch = {
+  /**
+   * @enum {string}
+   */
+  kind: 'missing' | 'changed' | 'written_outside';
+  message: string;
+  ordinal: number;
+};
+
+/**
+ * @description 读最近一批：记录本身，加上记录与正文对不上的章（以正文为准）。
+ */
+export type ApiWriteBatchView = {
+  batch: ApiWriteBatch | null;
+  mismatches: ApiWriteBatchMismatch[];
+};
+
+export type ApiWriteBatchRecovery = {
+  batch: ApiWriteBatch | null;
+  recovered: boolean;
 };

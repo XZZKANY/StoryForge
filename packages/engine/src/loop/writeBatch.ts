@@ -3,7 +3,12 @@ import { chapterOrdinals } from '../kernel/canonRebuild';
 import { resolveNewProjectFile } from '../kernel/fsProjectTools';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
 import { missingSetupBeforeFirstChapter, setupLabels } from '../kernel/projectSetup';
-import { buildPlan, STATUS_BLOCKED, type PlannedChapter } from '../kernel/serialPlan';
+import {
+  buildPlan,
+  STATUS_BLOCKED,
+  type PlannedChapter,
+  type SerialPlan,
+} from '../kernel/serialPlan';
 import { sameProjectRoot } from '../kernel/writingContext';
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import type { ArtifactRecord, RunStore } from '../store/runs';
@@ -11,6 +16,7 @@ import { CHAPTER_CHECK_ARTIFACT_KIND, plannedChapterPath } from './chapterWritin
 import { normalizePermissionProfile, type PermissionProfile } from './permission';
 import { REQUEST_EVIDENCE_KIND } from './requestEvidence';
 import { AgentRunNotFoundError } from './runEvents';
+import { readWriteBatchRecord, type WriteBatchRecord } from './writeBatchRecord';
 
 /**
  * `/写 a-b` 批量写章的引擎一侧（方案见 docs/internal/write-batch-plan-2026-10.md）：每章仍是一次普通的
@@ -201,7 +207,9 @@ export type WriteBatchBlockerCode =
   | 'missing_goal'
   | 'target_unavailable'
   | 'setup_incomplete'
-  | 'nothing_to_write';
+  | 'nothing_to_write'
+  | 'batch_running'
+  | 'previous_batch_unreviewed';
 
 export type WriteBatchBlocker = {
   code: WriteBatchBlockerCode;
@@ -274,6 +282,66 @@ const blocker = (
 
 const validOrdinal = (value: number) => Number.isSafeInteger(value) && value >= 1;
 
+/** 范围最多跨 10000 章：只防手滑输错（如 `/写 1-100000`），不是每批章数的上限（作者定了不设）。 */
+export const MAX_BATCH_RANGE = 10000;
+
+export type BookChapters = {
+  plan: SerialPlan | null;
+  /** 计划里这一章的条目，没有为 null。 */
+  entry(ordinal: number): PlannedChapter | null;
+  /** 这一章的正文路径，还没有正文为 null。 */
+  writtenPath(ordinal: number): string | null;
+};
+
+/**
+ * 每章有没有正文（正文是真值源）：计划里有这一章就用 buildPlan 认出的落盘路径（计划记过路径就按路径认），
+ * 没有就看按路径排序后这个章序上有没有正文。不看计划里的 status。
+ */
+export async function bookChapters(
+  reader: ProjectReader,
+  root: string,
+  platform: Platform,
+): Promise<BookChapters> {
+  const pathByOrdinal = new Map(
+    [...(await chapterOrdinals(reader, root, '*.md', platform))].map(([path, ordinal]) => [
+      ordinal,
+      path,
+    ]),
+  );
+  const plan = await buildPlan(reader, root, platform);
+  const entry = (ordinal: number): PlannedChapter | null =>
+    plan?.chapters.find((chapter) => chapter.ordinal === ordinal) ?? null;
+  return {
+    plan,
+    entry,
+    writtenPath(ordinal) {
+      const planned = entry(ordinal);
+      return planned !== null ? planned.writtenPath : (pathByOrdinal.get(ordinal) ?? null);
+    },
+  };
+}
+
+const batchRange = (record: WriteBatchRecord) =>
+  record.from === record.to ? `第 ${record.from} 章` : `第 ${record.from}–${record.to} 章`;
+
+/** 新开一批前看最近一批：还在跑的不能另开；停了或写完了但作者还没点「这批审完了」的也不能（作者 10-30 第 5 问选 A）。 */
+function previousBatchBlocker(record: WriteBatchRecord | null): WriteBatchBlocker | null {
+  if (record === null) return null;
+  if (record.status === 'running')
+    return blocker(
+      'batch_running',
+      `上一批（${batchRange(record)}）还在写：等它写完或先停下，再开新的一批。`,
+    );
+  if (record.reviewed) return null;
+  return blocker(
+    'previous_batch_unreviewed',
+    record.status === 'stopped'
+      ? `上一批（${batchRange(record)}）停下了，还没审完。两条路：先在清单上点「这批审完了」再开新的一批；` +
+          '或者续写上一批剩下的章。'
+      : `上一批（${batchRange(record)}）写完了，还没审完：先在清单上点「这批审完了」，再开新的一批。`,
+  );
+}
+
 /** 新建文件这一步写章流程会不会拒：与 resolveTarget 同一个判断（越界、是目录、已有非空文件都拒）。 */
 async function targetRejected(reader: ProjectReader, root: string, path: string) {
   try {
@@ -294,6 +362,18 @@ export async function planWriteBatch(
   deps: WriteBatchDeps,
   input: WriteBatchInput,
 ): Promise<WriteBatchPlan> {
+  return planBatch(deps, input, 'new');
+}
+
+/**
+ * `new`：新开一批，最近一批还在跑或没审完就拦下。
+ * `resume`：续写最近一批剩下的章，不受「没审完」约束（续跑不要求先审完）；由 resumeWriteBatch 调用。
+ */
+export async function planBatch(
+  deps: WriteBatchDeps,
+  input: WriteBatchInput,
+  mode: 'new' | 'resume',
+): Promise<WriteBatchPlan> {
   const { reader, platform } = deps;
   const root = input.project_root;
   const profile = normalizePermissionProfile(input.permission_profile, false).profile;
@@ -306,16 +386,25 @@ export async function planWriteBatch(
         '这部作品的 AI 权限是「只读」：AI 不能把写好的章写进文件，批量写章整批不能开跑。先把权限改成「询问」或「自动」。',
       ),
     );
+  if (mode === 'new') {
+    const previous = previousBatchBlocker(await readWriteBatchRecord(reader, root));
+    if (previous !== null) blockers.push(previous);
+  }
   const base = {
     project_root: root,
     from: input.from,
     to: input.to,
     permission_profile: profile,
   };
-  if (!validOrdinal(input.from) || !validOrdinal(input.to) || input.from > input.to) {
-    blockers.push(
-      blocker('invalid_range', '章序范围不对：起点和终点都要是从 1 起的整数，起点不能大于终点。'),
-    );
+  const invalid =
+    !validOrdinal(input.from) || !validOrdinal(input.to) || input.from > input.to
+      ? '章序范围不对：起点和终点都要是从 1 起的整数，起点不能大于终点。'
+      : input.to - input.from + 1 > MAX_BATCH_RANGE
+        ? `章序范围一次跨了 ${input.to - input.from + 1} 章，超过 ${MAX_BATCH_RANGE}：` +
+          '这是防输错的上限，不是每批写几章的限制（每批章数不设上限）。请核对起点和终点。'
+        : null;
+  if (invalid !== null) {
+    blockers.push(blocker('invalid_range', invalid));
     return {
       ...base,
       chapters: [],
@@ -326,19 +415,7 @@ export async function planWriteBatch(
       note: null,
     };
   }
-  const pathByOrdinal = new Map(
-    [...(await chapterOrdinals(reader, root, '*.md', platform))].map(([path, ordinal]) => [
-      ordinal,
-      path,
-    ]),
-  );
-  const plan = await buildPlan(reader, root, platform);
-  const entry = (ordinal: number): PlannedChapter | null =>
-    plan?.chapters.find((chapter) => chapter.ordinal === ordinal) ?? null;
-  const writtenPath = (ordinal: number): string | null => {
-    const planned = entry(ordinal);
-    return planned !== null ? planned.writtenPath : (pathByOrdinal.get(ordinal) ?? null);
-  };
+  const { plan, entry, writtenPath } = await bookChapters(reader, root, platform);
 
   const gap: number[] = [];
   for (let ordinal = 1; ordinal < input.from; ordinal++)

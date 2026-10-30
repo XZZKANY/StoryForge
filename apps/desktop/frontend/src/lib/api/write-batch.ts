@@ -1,14 +1,25 @@
 /**
- * `/写 a-b` 批量写章：引擎算计划、预估与单次运行用量，界面只「发起 → 等待 → 问引擎下一步」。
- * 回包按契约逐字段解码（只留契约里的字段），形状不对就报错，不拿空值冒充「没有要写的章」。
+ * `/写 a-b` 批量写章：引擎算计划、预估、单次运行用量、批量记录与下一步，界面只「发起 → 等待 → 问引擎下一步」。
+ * 回包按契约逐字段解码（只留契约里的字段），形状不对就报错，不拿空值冒充「没有要写的章」「没有批量」。
  */
 import type { AgentPermissionProfile } from '../agent-permission';
 import type {
   ApiRunUsage,
+  ApiWriteBatch,
   ApiWriteBatchBlocker,
   ApiWriteBatchChapter,
+  ApiWriteBatchCheck,
   ApiWriteBatchEstimate,
+  ApiWriteBatchLeg,
+  ApiWriteBatchMismatch,
   ApiWriteBatchPlan,
+  ApiWriteBatchRecordChapter,
+  ApiWriteBatchRecovery,
+  ApiWriteBatchStartResult,
+  ApiWriteBatchStep,
+  ApiWriteBatchStop,
+  ApiWriteBatchStopCode,
+  ApiWriteBatchView,
 } from './contracts';
 
 const engine = () => import('../engine/writeBatch');
@@ -71,6 +82,8 @@ const BLOCKER_CODES = [
   'target_unavailable',
   'setup_incomplete',
   'nothing_to_write',
+  'batch_running',
+  'previous_batch_unreviewed',
 ] as const;
 
 function decodeBlocker(value: unknown): ApiWriteBatchBlocker {
@@ -150,4 +163,296 @@ export async function planWriteBatch(input: {
 /** 一次 AI 运行（public id）用了多少；运行不存在时报错。 */
 export async function loadRunUsage(runId: string): Promise<ApiRunUsage> {
   return decodeRunUsage(await (await engine()).engineRunUsage(runId));
+}
+
+const STOP_CODES = [
+  'run_failed',
+  'run_stopped',
+  'check_blocked',
+  'no_revision',
+  'needs_confirmation',
+  'writeback_blocked',
+  'fact_disputes',
+  'read_only',
+  'model_changed',
+  'cap_reached',
+  'trial_done',
+  'author_stopped',
+  'app_closed',
+  'run_not_started',
+] as const satisfies readonly ApiWriteBatchStopCode[];
+
+/** 界面能送给 stopWriteBatch 的停下原因；其余都由引擎判定。 */
+export type WriteBatchInterfaceStopCode = 'author_stopped' | 'app_closed' | 'run_not_started';
+
+const isText = orNull(isString);
+const isCountOrNull = orNull(isCount);
+const isOrdinalOrNull = orNull(isOrdinal);
+
+function list<T>(raw: Raw, key: string, where: string, decode: (value: unknown) => T): T[] {
+  return field<unknown[]>(raw, key, Array.isArray, where).map(decode);
+}
+
+function decodeStop(value: unknown): ApiWriteBatchStop {
+  const at = '批量停下的原因';
+  const raw = object(value, at);
+  return {
+    code: field(raw, 'code', oneOf(...STOP_CODES), at),
+    message: field(raw, 'message', isString, at),
+    ordinal: field(raw, 'ordinal', isOrdinalOrNull, at),
+  };
+}
+
+function decodeLeg(value: unknown): ApiWriteBatchLeg {
+  const at = '批量的一段';
+  const raw = object(value, at);
+  return {
+    basis: field(raw, 'basis', oneOf('history', 'trial'), at),
+    cap_tokens: field(raw, 'cap_tokens', isCountOrNull, at),
+    estimated_tokens: field(raw, 'estimated_tokens', isCountOrNull, at),
+    runs: list(raw, 'runs', at, (item) => {
+      const run = object(item, `${at}的运行`);
+      return {
+        ordinal: field(run, 'ordinal', isOrdinal, at),
+        run_id: field(run, 'run_id', isString, at),
+        tokens: field(run, 'tokens', isCount, at),
+      };
+    }),
+    started_at: field(raw, 'started_at', isString, at),
+    used_tokens: field(raw, 'used_tokens', isCount, at),
+  };
+}
+
+function decodeCheck(value: unknown): ApiWriteBatchCheck {
+  const at = '批量里一章的检查';
+  const raw = object(value, at);
+  return {
+    issue_count: field(raw, 'issue_count', isCount, at),
+    summary: field(raw, 'summary', isString, at),
+    verdict: field(raw, 'verdict', oneOf('pass', 'repairable', 'blocked', 'unchecked'), at),
+  };
+}
+
+function decodeRecordChapter(value: unknown): ApiWriteBatchRecordChapter {
+  const at = '批量里的一章';
+  const raw = object(value, at);
+  return {
+    chars: field(raw, 'chars', isCountOrNull, at),
+    check: raw.check === null ? null : decodeCheck(raw.check),
+    fact_disputes: field(raw, 'fact_disputes', isCountOrNull, at),
+    facts_before: field(raw, 'facts_before', isText, at),
+    ordinal: field(raw, 'ordinal', isOrdinal, at),
+    run_id: field(raw, 'run_id', isText, at),
+    snapshot_version: field(raw, 'snapshot_version', isText, at),
+    state: field(
+      raw,
+      'state',
+      oneOf('pending', 'written', 'stopped_here', 'skipped_written', 'after_trial'),
+      at,
+    ),
+    target_path: field(raw, 'target_path', isString, at),
+    tokens: field(raw, 'tokens', isCountOrNull, at),
+    written_sha256: field(raw, 'written_sha256', isText, at),
+  };
+}
+
+export function decodeWriteBatch(value: unknown): ApiWriteBatch {
+  const at = '批量记录';
+  const raw = object(value, at);
+  const status = field<ApiWriteBatch['status']>(
+    raw,
+    'status',
+    oneOf('running', 'stopped', 'finished'),
+    at,
+  );
+  const stop = raw.stop === null ? null : decodeStop(raw.stop);
+  if ((status === 'stopped') !== (stop !== null))
+    throw new WriteBatchShapeError('批量记录的状态与停下原因对不上');
+  return {
+    chapters: list(raw, 'chapters', at, decodeRecordChapter),
+    created_at: field(raw, 'created_at', isString, at),
+    from: field(raw, 'from', isOrdinal, at),
+    id: field(raw, 'id', isString, at),
+    legs: list(raw, 'legs', at, decodeLeg),
+    model_key: field(raw, 'model_key', isString, at),
+    reviewed: field(raw, 'reviewed', (item) => typeof item === 'boolean', at),
+    status,
+    stop,
+    to: field(raw, 'to', isOrdinal, at),
+    version: field(raw, 'version', isOrdinal, at),
+  };
+}
+
+const decodeBatchOrNull = (value: unknown) => (value === null ? null : decodeWriteBatch(value));
+
+export function decodeWriteBatchStart(value: unknown): ApiWriteBatchStartResult {
+  const at = '开跑结果';
+  const raw = object(value, at);
+  const plan = decodeWriteBatchPlan(raw.plan);
+  if (field(raw, 'started', (item) => typeof item === 'boolean', at))
+    return { batch: decodeWriteBatch(raw.batch), plan, started: true };
+  return { batch: decodeBatchOrNull(raw.batch), plan, started: false };
+}
+
+export function decodeWriteBatchStep(value: unknown): ApiWriteBatchStep {
+  const at = '下一步';
+  const raw = object(value, at);
+  const action = field<ApiWriteBatchStep['action']>(
+    raw,
+    'action',
+    oneOf('write', 'stop', 'finished'),
+    at,
+  );
+  if (action === 'finished') return { action };
+  if (action === 'stop') return { action, ...decodeStop(raw) };
+  return {
+    action,
+    goal: field(raw, 'goal', isText, at),
+    ordinal: field(raw, 'ordinal', isOrdinal, at),
+    target_path: field(raw, 'target_path', isString, at),
+  };
+}
+
+function decodeMismatch(value: unknown): ApiWriteBatchMismatch {
+  const at = '批量记录与正文对不上的章';
+  const raw = object(value, at);
+  return {
+    kind: field(raw, 'kind', oneOf('missing', 'changed', 'written_outside'), at),
+    message: field(raw, 'message', isString, at),
+    ordinal: field(raw, 'ordinal', isOrdinal, at),
+  };
+}
+
+export function decodeWriteBatchView(value: unknown): ApiWriteBatchView {
+  const raw = object(value, '批量记录');
+  return {
+    batch: decodeBatchOrNull(raw.batch),
+    mismatches: list(raw, 'mismatches', '批量记录', decodeMismatch),
+  };
+}
+
+function decodeRecovery(value: unknown): ApiWriteBatchRecovery {
+  const raw = object(value, '恢复结果');
+  return {
+    batch: decodeBatchOrNull(raw.batch),
+    recovered: field(raw, 'recovered', (item) => typeof item === 'boolean', '恢复结果'),
+  };
+}
+
+/** 开一批：引擎重出一次计划，能开跑就写下批量记录；不能开跑时 plan 里写着原因，不写记录。 */
+export async function startWriteBatch(input: {
+  projectRoot: string;
+  from: number;
+  to: number;
+  permissionProfile: AgentPermissionProfile;
+  /** 当前模型配置的标识：中途换了模型，引擎据此停下重估。 */
+  modelKey: string;
+}): Promise<ApiWriteBatchStartResult> {
+  const raw = await (
+    await engine()
+  ).startEngineWriteBatch({
+    project_root: input.projectRoot,
+    from: input.from,
+    to: input.to,
+    permission_profile: input.permissionProfile,
+    model_key: input.modelKey,
+  });
+  return decodeWriteBatchStart(raw);
+}
+
+/** 续写停下的最近一批：剩下没正文的章重新估、重新确认；不要求先审完。 */
+export async function resumeWriteBatch(input: {
+  projectRoot: string;
+  permissionProfile: AgentPermissionProfile;
+  modelKey: string;
+}): Promise<ApiWriteBatchStartResult> {
+  const raw = await (
+    await engine()
+  ).resumeEngineWriteBatch({
+    project_root: input.projectRoot,
+    permission_profile: input.permissionProfile,
+    model_key: input.modelKey,
+  });
+  return decodeWriteBatchStart(raw);
+}
+
+/**
+ * 一章跑完（写进文件、事实记账都落定）后记一笔。用量、检查、写进去的指纹与字数由引擎自己算；
+ * 写前快照的版本记录与记账前的台账版本由界面给，引擎原样存。没写进文件时 writtenPath 为 null。
+ */
+export async function recordWriteBatchChapter(input: {
+  projectRoot: string;
+  batchId: string;
+  ordinal: number;
+  runId: string;
+  writtenPath: string | null;
+  snapshotVersion: string | null;
+  factsBefore: string | null;
+  factDisputes: number;
+}): Promise<ApiWriteBatch> {
+  const raw = await (
+    await engine()
+  ).recordEngineWriteBatchChapter(input.projectRoot, input.batchId, {
+    ordinal: input.ordinal,
+    run_id: input.runId,
+    written_path: input.writtenPath,
+    snapshot_version: input.snapshotVersion,
+    facts_before: input.factsBefore,
+    fact_disputes: input.factDisputes,
+  });
+  return decodeWriteBatch(raw);
+}
+
+/** 问引擎下一步：写哪一章，还是停、为什么停，或者写完了。 */
+export async function nextWriteBatchStep(input: {
+  projectRoot: string;
+  batchId: string;
+  permissionProfile: AgentPermissionProfile;
+  modelKey: string;
+}): Promise<ApiWriteBatchStep> {
+  const raw = await (
+    await engine()
+  ).nextEngineWriteBatchStep(input.projectRoot, input.batchId, {
+    permission_profile: input.permissionProfile,
+    model_key: input.modelKey,
+  });
+  return decodeWriteBatchStep(raw);
+}
+
+/** 作者按停止，或界面发现应用上次是被关掉的；已经停了或写完的批不改。 */
+export async function stopWriteBatch(input: {
+  projectRoot: string;
+  batchId: string;
+  code: WriteBatchInterfaceStopCode;
+  message: string;
+}): Promise<ApiWriteBatch> {
+  const raw = await (
+    await engine()
+  ).stopEngineWriteBatch(input.projectRoot, input.batchId, {
+    code: input.code,
+    message: input.message,
+  });
+  return decodeWriteBatch(raw);
+}
+
+/** 打开作品时调用：上次关应用时还在写的那一批改成停下，不自动续。 */
+export async function recoverInterruptedWriteBatch(
+  projectRoot: string,
+): Promise<ApiWriteBatchRecovery> {
+  return decodeRecovery(await (await engine()).recoverEngineWriteBatch(projectRoot));
+}
+
+/** 作者在清单上点了「这批审完了」。 */
+export async function markWriteBatchReviewed(
+  projectRoot: string,
+  batchId: string,
+): Promise<ApiWriteBatch> {
+  return decodeWriteBatch(
+    await (await engine()).markEngineWriteBatchReviewed(projectRoot, batchId),
+  );
+}
+
+/** 最近一批的记录，加上记录与正文对不上的章；没有批量记录时 batch 为 null。 */
+export async function readWriteBatch(projectRoot: string): Promise<ApiWriteBatchView> {
+  return decodeWriteBatchView(await (await engine()).readEngineWriteBatch(projectRoot));
 }
