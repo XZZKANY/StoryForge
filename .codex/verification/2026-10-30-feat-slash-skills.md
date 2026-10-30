@@ -18,6 +18,7 @@
     - 第三遍 EXIT=1：前端单测 `tests/focus-styles.test.ts`（现场编译整份 Tailwind）满载下超 5s 超时，其余 2528 条与引擎、project-core 全绿；源码与第二遍逐字节相同（变异已按字节还原核对），第二遍里它是过的；单跑 5 passed。
     - 第四遍 EXIT=0：project-core 22、引擎 14017 passed + 2 skipped、前端 2529 passed、三个浏览器回归通过。日志在 `output/slash-skills/verify-4.log`（不入库）。
   - 行尾：`Composer.tsx` 为 CRLF，按字节改、改后 491 行全 CRLF 无 CRCRLF；其余改动文件全 LF。`--numstat` 与 `--ignore-all-space --numstat` 只在 `ContextPanel.tsx` 差 2 行（「这一轮用了」那段包进三元多一层缩进）。
+- 合并 master（#523 上下文改浮窗、#524）：`ContextPanel.tsx` 技能块一处冲突，用 #523 的内边距、保留「消息开头打 / 点名」提示。合并后 `pnpm verify` EXIT=0：project-core 22、引擎 14017 passed + 2 skipped、前端 2529 passed、三个浏览器回归通过。
 - 未覆盖：
   - 没用真模型验证：模型拿到点名全文后是否确实照技能做（比如 `/立项流程` 是否按步骤推进）。
   - 真宿主（Tauri + 真读口）上的输入法实际行为没点穿：微软拼音 / 搜狗在中文标点模式下按 / 键出「、」是按常见默认设置推断的，没在作者机上确认。
