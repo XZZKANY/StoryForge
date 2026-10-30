@@ -5,6 +5,7 @@ import type { ApiWriteBatch, ApiWriteBatchPlan } from '../../lib/api/contracts';
 import {
   currentWriteBatchModelKey,
   markWriteBatchReviewed,
+  planWriteBatchUndo,
   previewWriteBatchResume,
   readWriteBatch,
   recoverInterruptedWriteBatch,
@@ -325,6 +326,40 @@ export function useWriteBatchScheduler({
   }, [updateResult]);
 
   /**
+   * 清单上第一次点「撤销这章及之后」：先只读地问引擎能不能撤（不改任何东西）。不能撤就把原因放在卡上；
+   * 能撤就在这一行换成「确认撤销第 k–n 章？」，连同台账会不会把作者之后的改动一起回退。
+   */
+  const prepareUndo = useCallback(
+    (ordinal: number) => {
+      const owner = ownerRef.current;
+      const project = owner.project;
+      const batch = lastResultRef.current?.batch;
+      if (!project || !batch || runRef.current || undoingRef.current) return;
+      updateResult(owner, { pending: true, error: null, undoBlockers: [], undoConfirm: null });
+      planWriteBatchUndo(project, batch.id, ordinal).then(
+        (plan) =>
+          updateResult(
+            owner,
+            plan.can_undo && plan.to !== null
+              ? {
+                  pending: false,
+                  undoConfirm: { from: plan.from, to: plan.to, factsLedger: plan.facts_ledger },
+                }
+              : { pending: false, undoBlockers: plan.blockers.map((blocker) => blocker.message) },
+          ),
+        (error: unknown) =>
+          updateResult(owner, { pending: false, error: `没能撤销：${errorText(error)}` }),
+      );
+    },
+    [updateResult],
+  );
+
+  const cancelUndo = useCallback(
+    () => updateResult(ownerRef.current, { undoConfirm: null }),
+    [updateResult],
+  );
+
+  /**
    * 清单上确认了「撤销第 k 章及之后」：能不能撤、删哪几章由引擎说，照着倒着删；不能撤就把原因放在卡上、
    * 什么都不动。撤完（或没撤完）读一遍记录刷新清单：删了几章、停在哪、台账恢复没有都在引擎记下的停下原因里。
    */
@@ -335,7 +370,7 @@ export function useWriteBatchScheduler({
       const batch = lastResultRef.current?.batch;
       if (!project || !batch || runRef.current || undoingRef.current) return;
       undoingRef.current = true;
-      updateResult(owner, { pending: true, error: null, undoBlockers: [] });
+      updateResult(owner, { pending: true, error: null, undoBlockers: [], undoConfirm: null });
       void (async () => {
         const outcome = await undoWriteBatchFrom({
           projectRoot: project,
@@ -382,6 +417,8 @@ export function useWriteBatchScheduler({
     confirmResume,
     cancelConfirm,
     markReviewed,
+    prepareUndo,
+    cancelUndo,
     undoFrom,
     closeResult,
   };

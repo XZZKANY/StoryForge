@@ -295,7 +295,14 @@ describe('lib/api 经引擎记批量、问下一步', () => {
     expect(await api.nextWriteBatchStep(step)).toEqual({ action: 'finished' });
 
     const plan = await api.planWriteBatchUndo(ROOT, id, 2);
-    expect(plan).toMatchObject({ from: 2, to: 3, facts_before: 'facts-2', can_undo: true });
+    // 作品里没有事实台账：记一笔时没有指纹，说不准作者之后动没动过。
+    expect(plan).toMatchObject({
+      from: 2,
+      to: 3,
+      facts_before: 'facts-2',
+      facts_ledger: 'unknown',
+      can_undo: true,
+    });
     expect(plan.chapters.map((chapter) => [chapter.ordinal, chapter.facts_restore])).toEqual([
       [3, 'facts-3'],
       [2, 'facts-2'],
@@ -367,6 +374,7 @@ describe('批量记录回包的解码', () => {
     created_at: '2026-10-30T08:00:00Z',
     model_key: MODEL,
     note: null,
+    facts_ledger_sha256: null,
     status: 'running',
     reviewed: false,
     stop: null,
@@ -407,6 +415,7 @@ describe('批量记录回包的解码', () => {
     ['missing reviewed', { reviewed: undefined }],
     ['a note that is not text', { note: 3 }],
     ['a chapter without the facts count', { chapters: [{ ...CHAPTER, facts_added: undefined }] }],
+    ['a missing ledger fingerprint', { facts_ledger_sha256: undefined }],
   ])('rejects %s', (_name, change) => {
     expect(() => decodeWriteBatch({ ...BATCH, ...change })).toThrow(WriteBatchShapeError);
   });
@@ -519,6 +528,7 @@ describe('撤销计划的解码', () => {
       { ordinal: 2, target_path: '正文/第002章.md', written_sha256: 'a', facts_restore: 'f2' },
     ],
     facts_before: 'f2',
+    facts_ledger: 'changed',
     blockers: [],
     can_undo: true,
     extra: true,
@@ -539,6 +549,8 @@ describe('撤销计划的解码', () => {
       'an unknown blocker',
       { can_undo: false, blockers: [{ code: 'odd', message: 'm', chapters: [] }] },
     ],
+    ['an unknown ledger verdict', { facts_ledger: 'maybe' }],
+    ['a ledger verdict without a ledger to restore', { facts_before: null }],
   ])('rejects %s', (_name, change) => {
     expect(() => decodeWriteBatchUndoPlan({ ...PLAN, ...change })).toThrow(WriteBatchShapeError);
   });

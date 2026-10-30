@@ -126,6 +126,7 @@ function view(
       created_at: '2026-10-30T00:00:00Z',
       model_key: 'model-a',
       note: null,
+      facts_ledger_sha256: null,
       status: 'finished',
       reviewed: false,
       stop: null,
@@ -150,7 +151,11 @@ function view(
 }
 
 /** 引擎给的撤销计划：从 from 到最后一章倒着排，台账删到哪章就回到已删各章里最早记账前。 */
-function undoPlan(from: number, to: number): ApiWriteBatchUndoPlan {
+function undoPlan(
+  from: number,
+  to: number,
+  factsLedger: ApiWriteBatchUndoPlan['facts_ledger'] = 'unchanged',
+): ApiWriteBatchUndoPlan {
   const chapters = [];
   for (let ordinal = to; ordinal >= from; ordinal -= 1)
     chapters.push({
@@ -165,6 +170,7 @@ function undoPlan(from: number, to: number): ApiWriteBatchUndoPlan {
     to,
     chapters,
     facts_before: `facts-${from}`,
+    facts_ledger: factsLedger,
     blockers: [],
     can_undo: true,
   };
@@ -230,11 +236,16 @@ async function openBook(initial: ApiWriteBatchView) {
   await until(() => expect(q('write-batch-result')).not.toBeNull());
 }
 
-/** 行尾「撤销这章及之后」：第一次点、再点确认。 */
+/** 行尾「撤销这章及之后」：第一次点（只读地问引擎能不能撤），等确认出来再点确认。 */
 async function undoFrom(ordinal: number) {
   await press(q('write-batch-undo', row(ordinal)));
+  await until(() => expect(q('write-batch-undo-confirm', row(ordinal))).not.toBeNull());
   await press(q('write-batch-undo-confirm', row(ordinal)));
 }
+
+const SHORT_FACTS = (from: number) => `事实台账会回到第 ${from} 章记账之前的样子。`;
+const FULL_FACTS = (from: number) =>
+  `事实台账会回到第 ${from} 章记账之前的样子；之后你在观测镜里对事实的改动也会一起回退（回退前留了快照，能在版本历史里找回）。`;
 
 let deletePath: ReturnType<typeof vi.spyOn>;
 
@@ -387,20 +398,58 @@ test('清单：汇总、每章各列、待定事实标出来、对不上的如�
   expect(q('write-batch-row-open', row(6))).toBeNull();
 });
 
-test('撤销先在行内就地两步确认：第一次点只变成确认与取消，取消什么都不做', async () => {
+test('撤销先在行内就地两步确认：第一次点只读地问引擎、变成确认与取消，取消什么都不做', async () => {
   await openBook(view([chapter(4), chapter(5), chapter(6)]));
+  engine.planWriteBatchUndo.mockResolvedValue(undoPlan(5, 6));
   await press(q('write-batch-undo', row(5)));
-  expect(q('write-batch-undo-confirm', row(5))?.textContent).toBe('确认撤销第 5–6 章？');
+  await until(() =>
+    expect(q('write-batch-undo-confirm', row(5))?.textContent).toBe('确认撤销第 5–6 章？'),
+  );
+  expect(engine.planWriteBatchUndo).toHaveBeenCalledWith(ROOT, ID, 5);
   expect(q('write-batch-undo-cancel', row(5))).not.toBeNull();
-  expect(engine.planWriteBatchUndo).not.toHaveBeenCalled();
   await press(q('write-batch-undo-cancel', row(5)));
   expect(q('write-batch-undo-confirm', row(5))).toBeNull();
+  expect(q('write-batch-undo-facts')).toBeNull();
   expect(q('write-batch-undo', row(5))).not.toBeNull();
   // 最后一章只撤它自己。
+  engine.planWriteBatchUndo.mockResolvedValue(undoPlan(6, 6));
   await press(q('write-batch-undo', row(6)));
-  expect(q('write-batch-undo-confirm', row(6))?.textContent).toBe('确认撤销第 6 章？');
-  expect(engine.planWriteBatchUndo).not.toHaveBeenCalled();
+  await until(() =>
+    expect(q('write-batch-undo-confirm', row(6))?.textContent).toBe('确认撤销第 6 章？'),
+  );
+  // 第一次点只读：没删、没核、没恢复、没记。
   expect(deletePath).not.toHaveBeenCalled();
+  expect(engine.checkWriteBatchUndoChapter).not.toHaveBeenCalled();
+  expect(effects.restore).not.toHaveBeenCalled();
+  expect(engine.recordWriteBatchUndo).not.toHaveBeenCalled();
+});
+
+test.each([
+  ['台账在这一批之后没动过：只说回到哪', 'unchanged', SHORT_FACTS(4), 'false'],
+  ['作者之后改过台账：完整警告，醒目', 'changed', FULL_FACTS(4), 'true'],
+  ['说不准：照样给完整那句', 'unknown', FULL_FACTS(4), 'false'],
+] as const)('确认撤销时写明台账会整份回退——%s', async (_name, ledger, sentence, emphasis) => {
+  await openBook(view([chapter(4), chapter(5)]));
+  engine.planWriteBatchUndo.mockResolvedValue(undoPlan(4, 5, ledger));
+  await press(q('write-batch-undo', row(4)));
+  await until(() => expect(q('write-batch-undo-confirm', row(4))).not.toBeNull());
+  const notice = q('write-batch-undo-facts', row(4))!;
+  expect(notice.textContent).toBe(sentence);
+  expect(notice.dataset.emphasis).toBe(emphasis);
+  expect(notice.className.includes('text-warning')).toBe(emphasis === 'true');
+});
+
+test('这几章都没记过账：不提台账', async () => {
+  await openBook(view([chapter(4, { facts_before: null }), chapter(5, { facts_before: null })]));
+  engine.planWriteBatchUndo.mockResolvedValue({
+    ...undoPlan(4, 5),
+    chapters: undoPlan(4, 5).chapters.map((item) => ({ ...item, facts_restore: null })),
+    facts_before: null,
+    facts_ledger: null,
+  });
+  await press(q('write-batch-undo', row(4)));
+  await until(() => expect(q('write-batch-undo-confirm', row(4))).not.toBeNull());
+  expect(q('write-batch-undo-facts')).toBeNull();
 });
 
 test('确认后：照引擎的顺序倒着删、每章删前再核、计划里退回未写、页签摘掉；台账回到第 k 章记账前，记一笔、刷新清单', async () => {
@@ -511,8 +560,10 @@ test('引擎说不能撤：原因放在卡上，什么都不删、不恢复、�
       { code: 'outside_chapters', message: '第 6 章不是这一批写的正文。', chapters: [6] },
     ],
   });
-  await undoFrom(4);
+  // 第一次点就问出来了：不出确认，原因放在卡上。
+  await press(q('write-batch-undo', row(4)));
   await until(() => expect(q('write-batch-undo-blockers')).not.toBeNull());
+  expect(q('write-batch-undo-confirm')).toBeNull();
   expect(
     [...document.querySelectorAll('[data-testid="write-batch-undo-blocker"]')].map(
       (item) => item.textContent,
@@ -527,6 +578,19 @@ test('引擎说不能撤：原因放在卡上，什么都不删、不恢复、�
   expect(engine.recordWriteBatchUndo).not.toHaveBeenCalled();
   // 还能再点（什么都没动）。
   expect(q('write-batch-undo', row(4))).not.toBeNull();
+});
+
+test('确认以后再出计划时变成不能撤了：原因放在卡上，什么都不删', async () => {
+  await openBook(view([chapter(4), chapter(5)]));
+  engine.planWriteBatchUndo.mockResolvedValueOnce(undoPlan(4, 5)).mockResolvedValueOnce({
+    ...undoPlan(4, 5),
+    can_undo: false,
+    blockers: [{ code: 'changed', message: '第 5 章写进文件以后改过。', chapters: [5] }],
+  });
+  await undoFrom(4);
+  await until(() => expect(text('write-batch-undo-blocker')).toBe('第 5 章写进文件以后改过。'));
+  expect(deletePath).not.toHaveBeenCalled();
+  expect(engine.recordWriteBatchUndo).not.toHaveBeenCalled();
 });
 
 test('编辑器里有没保存的字：一章都不删', async () => {

@@ -1,4 +1,5 @@
 import { chapterOrdinals } from '../kernel/canonRebuild';
+import { FACTS_LEDGER_PATH } from '../kernel/factLedger';
 import { resolveProjectRoot } from '../kernel/fsTools';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import { sha256Hex } from '../kernel/sha256';
@@ -213,6 +214,7 @@ export async function startWriteBatch(
     created_at: now,
     model_key: modelKey,
     note,
+    facts_ledger_sha256: null,
     status: 'running',
     reviewed: false,
     stop: null,
@@ -365,6 +367,19 @@ async function resolvedRelative(reader: ProjectReader, root: string, path: strin
   }
 }
 
+/** 事实台账当前的指纹；不在、读不出、超过 2 MiB 为 null（当成说不准）。 */
+async function ledgerFingerprint(reader: ProjectReader, root: string): Promise<string | null> {
+  try {
+    if ((await reader.inspectProjectPath(root, FACTS_LEDGER_PATH)).targetKind !== 'file')
+      return null;
+    const read = await reader.readProjectBytes(root, FACTS_LEDGER_PATH, MAX_READ_BYTES);
+    return read.exceeded ? null : sha256Hex(read.bytes);
+  } catch (error) {
+    if (error instanceof ProjectReadError) return null;
+    throw error;
+  }
+}
+
 /** 正文文件当前的指纹与字数；文件不在为 null。 */
 async function fileFingerprint(
   reader: ProjectReader,
@@ -471,6 +486,8 @@ export async function recordWriteBatchChapter(
   if (same >= 0) leg.runs.splice(same, 1);
   leg.runs.push(entry);
   leg.used_tokens = leg.runs.reduce((total, item) => total + item.tokens, 0);
+  // 记一笔时事实记账已经落定：这时的台账就是「这一批最后一次记账后」的样子。
+  record.facts_ledger_sha256 = await ledgerFingerprint(deps.reader, root);
   await save(deps, root, record);
   return record;
 }
@@ -848,6 +865,11 @@ export type WriteBatchUndoPlan = {
   chapters: WriteBatchUndoChapter[];
   /** 全部删完时事实台账要恢复到的版本：第 k 章记账前的那一版（第 k 章没记过账就往后找第一章记过的）。 */
   facts_before: string | null;
+  /**
+   * 当前台账和这一批最后一次记账后（或上次撤销恢复后）的那一版比：unchanged 一致；changed 不一致（含台账
+   * 不在了），作者之后在观测镜里的改动会一起回退；unknown 说不准（记录里没有那一版的指纹）。没有要恢复的台账为 null。
+   */
+  facts_ledger: 'unchanged' | 'changed' | 'unknown' | null;
   blockers: WriteBatchUndoBlocker[];
   can_undo: boolean;
 };
@@ -951,12 +973,24 @@ export async function planWriteBatchUndo(
       facts_restore: restore,
     };
   });
+  let factsLedger: WriteBatchUndoPlan['facts_ledger'] = null;
+  if (restore !== null) {
+    const current = await ledgerFingerprint(deps.reader, root);
+    // 记下过指纹、现在台账却不在或读不出，也算和那一版不一样。
+    factsLedger =
+      record.facts_ledger_sha256 === null
+        ? 'unknown'
+        : current === record.facts_ledger_sha256
+          ? 'unchanged'
+          : 'changed';
+  }
   return {
     batch_id: record.id,
     from: first.ordinal,
     to: targets[0]?.ordinal ?? null,
     chapters,
     facts_before: restore,
+    facts_ledger: factsLedger,
     blockers,
     can_undo: blockers.length === 0 && chapters.length > 0,
   };
@@ -1032,6 +1066,8 @@ export async function recordWriteBatchUndo(
       `第 ${ordinalRanges(left.map((chapter) => chapter.ordinal))} 章还在：撤销要从最后一章倒着删，不能跳过。`,
     );
   for (const chapter of deleted) chapter.state = 'undone';
+  // 台账是这一批自己恢复的：恢复后的样子当作新的基准，下次撤销不把它算成作者的改动。
+  if (input.facts_restored) record.facts_ledger_sha256 = await ledgerFingerprint(deps.reader, root);
   const book = await bookChapters(deps.reader, root, deps.platform);
   const resume = firstUnwritten(record, book)?.ordinal ?? null;
   const facts = factsError

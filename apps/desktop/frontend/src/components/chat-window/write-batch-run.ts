@@ -9,6 +9,7 @@ import type {
   ApiWriteBatch,
   ApiWriteBatchMismatch,
   ApiWriteBatchPlan,
+  ApiWriteBatchUndoPlan,
   ApiWriteBatchView,
   ApiWriteBatchViewRecord,
 } from '../../lib/api/contracts';
@@ -70,6 +71,12 @@ export type WriteBatchResult = {
   chapterTokens: Record<number, string>;
   /** 「撤销这章及之后」不能撤的原因；什么都没动。 */
   undoBlockers: string[];
+  /** 「撤销这章及之后」第一次点过、引擎说能撤：等作者第二次点确认（第 from–to 章，台账比对的结论）。 */
+  undoConfirm: {
+    from: number;
+    to: number;
+    factsLedger: ApiWriteBatchUndoPlan['facts_ledger'];
+  } | null;
   error: string | null;
   notice: string | null;
   /** 正在标审完、续写或撤销，按钮先不让点。 */
@@ -269,6 +276,7 @@ export async function buildWriteBatchResult(
     legs: batch?.legs.length ?? 0,
     chapterTokens,
     undoBlockers: [],
+    undoConfirm: null,
     error: extra.error ?? null,
     notice: extra.notice ?? null,
     pending: false,
@@ -288,6 +296,7 @@ export function failedWriteBatchResult(error: string): WriteBatchResult {
     legs: 0,
     chapterTokens: {},
     undoBlockers: [],
+    undoConfirm: null,
     error,
     notice: null,
     pending: false,

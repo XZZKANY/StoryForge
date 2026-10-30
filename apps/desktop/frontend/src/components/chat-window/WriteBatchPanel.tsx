@@ -69,6 +69,8 @@ export function WriteBatchPanel({
         projectPath={projectPath}
         onReviewed={scheduler.markReviewed}
         onResume={scheduler.resumeFromResult}
+        onPrepareUndo={scheduler.prepareUndo}
+        onCancelUndo={scheduler.cancelUndo}
         onUndo={scheduler.undoFrom}
         onClose={scheduler.closeResult}
       />

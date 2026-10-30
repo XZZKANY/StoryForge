@@ -333,6 +333,7 @@ try {
               created_at: now,
               model_key: requestBody.model_key,
               note: requestBody.note ?? null,
+              facts_ledger_sha256: null,
               status: 'running',
               reviewed: false,
               stop: null,

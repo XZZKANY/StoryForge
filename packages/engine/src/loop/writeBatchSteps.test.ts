@@ -1482,3 +1482,106 @@ describe('撤销第 k 章及之后', () => {
     await expect(readWriteBatch(h.deps, ROOT)).rejects.toThrow(InputDomainError);
   });
 });
+
+describe('撤销前看台账在这一批之后动没动过', () => {
+  const LEDGER = '.storyforge/canon/facts.json';
+  const ledger = (ids: string[]) => file(JSON.stringify({ version: 1, facts: ids }));
+  const reopened = (h: ReturnType<typeof harness>) => ({
+    reader: h.project.reader,
+    platform: 'posix' as const,
+  });
+  /** 写完第 2–4 章，每章记一笔前台账多一条事实（记账落定后才记一笔）。 */
+  async function batchWithFacts(h: ReturnType<typeof harness>) {
+    const batch = await started(h, 2, 4);
+    const ids: string[] = [];
+    for (const ordinal of [2, 3, 4]) {
+      ids.push(`fact_${ordinal}`);
+      h.project.apply({ [LEDGER]: ledger([...ids]) });
+      await h.writeChapter(batch, ordinal);
+    }
+    expect(await h.next(batch)).toEqual({ action: 'finished' });
+    return batch;
+  }
+
+  it('unchanged when the ledger is still what the batch last recorded', async () => {
+    const h = harness({ history: true });
+    const batch = await batchWithFacts(h);
+    expect((await h.saved())?.facts_ledger_sha256).toMatch(/^[0-9a-f]{64}$/);
+    const plan = await planWriteBatchUndo(reopened(h), ROOT, batch.id, 3);
+    expect(plan).toMatchObject({ facts_before: 'facts-3', facts_ledger: 'unchanged' });
+  });
+
+  it('changed when the author edited or removed the ledger afterwards', async () => {
+    const h = harness({ history: true });
+    const batch = await batchWithFacts(h);
+    h.project.apply({ [LEDGER]: ledger(['fact_2', 'fact_3', 'fact_4', '作者在观测镜里定的']) });
+    expect((await planWriteBatchUndo(reopened(h), ROOT, batch.id, 3)).facts_ledger).toBe('changed');
+    h.project.apply({ [LEDGER]: null });
+    expect((await planWriteBatchUndo(reopened(h), ROOT, batch.id, 3)).facts_ledger).toBe('changed');
+  });
+
+  it('unknown without a recorded fingerprint, and null when there is no ledger to restore', async () => {
+    const h = harness({ history: true });
+    const batch = await batchWithFacts(h);
+    const raw = JSON.parse(JSON.stringify(await h.saved())) as Record<string, unknown>;
+    raw.facts_ledger_sha256 = null;
+    h.project.apply({ [WRITE_BATCH_RELATIVE_PATH]: file(JSON.stringify(raw)) });
+    expect((await planWriteBatchUndo(reopened(h), ROOT, batch.id, 3)).facts_ledger).toBe('unknown');
+
+    const none = harness({ history: true });
+    const second = await started(none, 2, 3);
+    await none.writeChapter(second, 2, { factsBefore: null });
+    await none.writeChapter(second, 3, { factsBefore: null });
+    await none.next(second);
+    expect(await planWriteBatchUndo(reopened(none), ROOT, second.id, 2)).toMatchObject({
+      facts_before: null,
+      facts_ledger: null,
+    });
+  });
+
+  it('takes the restored ledger as the new baseline after an undo', async () => {
+    const h = harness({ history: true });
+    const batch = await batchWithFacts(h);
+    h.project.apply({ [pathOf(4)]: null, [LEDGER]: ledger(['fact_2', 'fact_3']) });
+    await recordWriteBatchUndo(h.deps, ROOT, batch.id, 4, {
+      deleted: [4],
+      failure: null,
+      facts_restored: true,
+      facts_error: null,
+    });
+    expect((await planWriteBatchUndo(reopened(h), ROOT, batch.id, 3)).facts_ledger).toBe(
+      'unchanged',
+    );
+    // 台账没恢复成就不换基准：作者的改动照样看得出来。
+    const other = harness({ history: true });
+    const kept = await batchWithFacts(other);
+    other.project.apply({ [pathOf(4)]: null, [LEDGER]: ledger(['作者改过']) });
+    await recordWriteBatchUndo(other.deps, ROOT, kept.id, 4, {
+      deleted: [4],
+      failure: null,
+      facts_restored: false,
+      facts_error: 'facts.json 刚被别处改过',
+    });
+    expect((await planWriteBatchUndo(reopened(other), ROOT, kept.id, 3)).facts_ledger).toBe(
+      'changed',
+    );
+  });
+
+  it('reads an older record as having no fingerprint', async () => {
+    const h = harness({ history: true });
+    const batch = await batchWithFacts(h);
+    const raw = JSON.parse(JSON.stringify(await h.saved())) as Record<string, unknown>;
+    raw.version = 2;
+    delete raw.facts_ledger_sha256;
+    for (const chapter of raw.chapters as Record<string, unknown>[]) delete chapter.facts_added;
+    h.project.apply({ [WRITE_BATCH_RELATIVE_PATH]: file(JSON.stringify(raw)) });
+    expect((await readWriteBatch(reopened(h), ROOT)).batch?.facts_ledger_sha256).toBeNull();
+    expect((await planWriteBatchUndo(reopened(h), ROOT, batch.id, 3)).facts_ledger).toBe('unknown');
+    const missing = JSON.parse(JSON.stringify(await h.saved())) as Record<string, unknown>;
+    delete missing.facts_ledger_sha256;
+    missing.version = 3;
+    for (const chapter of missing.chapters as Record<string, unknown>[]) chapter.facts_added = null;
+    h.project.apply({ [WRITE_BATCH_RELATIVE_PATH]: file(JSON.stringify(missing)) });
+    await expect(readWriteBatch(h.deps, ROOT)).rejects.toThrow(InputDomainError);
+  });
+});

@@ -337,6 +337,8 @@ export type ApiWriteBatchRecordChapter = {
 export type ApiWriteBatch = {
   chapters: ApiWriteBatchRecordChapter[];
   created_at: string;
+  /** 最近一次记一笔（或撤销恢复台账）时事实台账的指纹，引擎读盘算的；不知道为 null。 */
+  facts_ledger_sha256: string | null;
   from: number;
   id: string;
   legs: ApiWriteBatchLeg[];
@@ -439,6 +441,12 @@ export type ApiWriteBatchUndoPlan = {
   can_undo: boolean;
   chapters: ApiWriteBatchUndoChapter[];
   facts_before: string | null;
+  /**
+   * 当前台账和这一批最后一次记账后的那一版比：unchanged 一致；changed 不一致（作者之后在观测镜里的改动会一起回退）；
+   * unknown 说不准。没有要恢复的台账为 null。
+   * @enum {string}
+   */
+  facts_ledger: 'unchanged' | 'changed' | 'unknown' | null;
   from: number;
   to: number | null;
 };

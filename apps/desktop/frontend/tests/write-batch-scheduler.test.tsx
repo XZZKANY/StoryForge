@@ -160,6 +160,7 @@ function batchOf(from: number, to: number): ApiWriteBatch {
     created_at: '2026-10-30T00:00:00Z',
     model_key: 'model-a',
     note: null,
+    facts_ledger_sha256: null,
     status: 'running',
     reviewed: false,
     stop: null,

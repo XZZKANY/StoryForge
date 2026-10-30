@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { Button } from '../ui';
@@ -8,6 +6,7 @@ import type { WriteBatchResult } from './useWriteBatchScheduler';
 import {
   chapterRows,
   plannedChapterCount,
+  undoFactsNotice,
   undoRangeLabel,
   writtenChapterCount,
   type WriteBatchChapterRow,
@@ -54,7 +53,8 @@ function ChapterFacts({ facts }: { facts: WriteBatchChapterRow['facts'] }) {
 /**
  * 批量停下或写完后，在对话里确认卡的位置出这张清单（同一套样式，不弹窗）：顶部汇总与停下原因（引擎原文），
  * 每章一行（章名点了打开 · 字数 · 检查 · 本章目标 · 新记下的事实 · 用量 · 对不上的标注 · 撤销这章及之后），
- * 底部「这批审完了」「从第 k 章接着写」「关闭」常驻。撤销先在行内就地两步确认，不弹居中窗口。
+ * 底部「这批审完了」「从第 k 章接着写」「关闭」常驻。撤销先在行内就地两步确认，不弹居中窗口：
+ * 第一次点只读地问引擎能不能撤，第二步写明台账会整份回退（作者之后改过台账时醒目提示）。
  * 不放质量分、通过率之类的总评：检查通过不等于写得好。
  */
 export function WriteBatchResultCard({
@@ -62,6 +62,8 @@ export function WriteBatchResultCard({
   projectPath,
   onReviewed,
   onResume,
+  onPrepareUndo,
+  onCancelUndo,
   onUndo,
   onClose,
 }: {
@@ -69,16 +71,18 @@ export function WriteBatchResultCard({
   projectPath: string;
   onReviewed: () => void;
   onResume: () => void;
-  /** 从这一章起撤销到这一批写进文件的最后一章。 */
+  /** 第一次点「撤销这章及之后」：问引擎能不能撤。 */
+  onPrepareUndo: (ordinal: number) => void;
+  onCancelUndo: () => void;
+  /** 确认了：从这一章起撤销到这一批写进文件的最后一章。 */
   onUndo: (ordinal: number) => void;
   onClose: () => void;
 }) {
   const batch = result.batch;
   const rows = batch ? chapterRows(batch, result.mismatches) : [];
   const finished = batch?.status === 'finished';
-  // 两步确认只认点它那会儿的那份清单：清单刷新了（撤销完、标审完）就收起。
-  const [armed, setArmed] = useState<{ batch: unknown; ordinal: number } | null>(null);
-  const armedOrdinal = armed && armed.batch === batch ? armed.ordinal : null;
+  const confirm = result.undoConfirm;
+  const factsNotice = confirm ? undoFactsNotice(confirm.from, confirm.factsLedger) : null;
   // 出错停下时引擎记下的停下原因里已经带着这句错，不再重复一遍。
   const error = result.error && !batch?.stop?.message.includes(result.error) ? result.error : null;
   const title = cardTitle(result);
@@ -194,10 +198,22 @@ export function WriteBatchResultCard({
                       {row.mismatch}
                     </div>
                   )}
+                  {confirm?.from === row.ordinal && factsNotice && (
+                    <p
+                      className={`mt-1 text-xs ${
+                        factsNotice.emphasis ? 'font-medium text-warning' : 'text-muted'
+                      }`}
+                      role={factsNotice.emphasis ? 'alert' : undefined}
+                      data-testid="write-batch-undo-facts"
+                      data-emphasis={factsNotice.emphasis ? 'true' : 'false'}
+                    >
+                      {factsNotice.text}
+                    </p>
+                  )}
                 </div>
                 {row.undoable && batch && (
                   <div className="flex shrink-0 items-center gap-1">
-                    {armedOrdinal === row.ordinal ? (
+                    {confirm?.from === row.ordinal ? (
                       <>
                         <Button
                           type="button"
@@ -205,20 +221,17 @@ export function WriteBatchResultCard({
                           variant="danger"
                           className="text-xs"
                           disabled={result.pending}
-                          onClick={() => {
-                            setArmed(null);
-                            onUndo(row.ordinal);
-                          }}
+                          onClick={() => onUndo(row.ordinal)}
                           data-testid="write-batch-undo-confirm"
                         >
-                          确认撤销{undoRangeLabel(batch, row.ordinal)}？
+                          确认撤销{undoRangeLabel(confirm.from, confirm.to)}？
                         </Button>
                         <Button
                           type="button"
                           size="xs"
                           variant="secondary"
                           className="text-xs"
-                          onClick={() => setArmed(null)}
+                          onClick={onCancelUndo}
                           data-testid="write-batch-undo-cancel"
                         >
                           取消
@@ -231,7 +244,7 @@ export function WriteBatchResultCard({
                         variant="secondary"
                         className="text-xs"
                         disabled={result.pending}
-                        onClick={() => setArmed({ batch, ordinal: row.ordinal })}
+                        onClick={() => onPrepareUndo(row.ordinal)}
                         data-testid="write-batch-undo"
                       >
                         撤销这章及之后

@@ -39,3 +39,30 @@
   - 批量自动写进的那一章仍会出一条不带按钮的收尾提示（4 秒），文案改成「已写入当前文件 · 已留写前快照，撤销在批量写章的清单上」；要不要整条也不出，另定。
   - 台账恢复是整份回到第 k 章记账前那一版：批量写完以后作者在观测镜里对台账做的改动（定待定、作废）也会一起回退；恢复前拍了一版，版本历史里能找回，但卡上没有专门提醒。
   - 几处我按现有样式取的：没轮到的章说「没写」、撤销过的说「已撤销」；对不上的标注用警示色小字；撤销确认按钮用危险样式、第一次点的按钮用次要样式；不止一段时预估与上限前加「最近一段」；「新记下的事实」条数含待定的。
+
+## 2026-10-30 F 刀审后追加：撤销确认写明台账会整份回退
+
+- 背景：编排者审过 F 刀，撤销执行器、清单、批量写进不弹逐章提示都接受，那条 4 秒不带按钮的收尾提示保留；退回一件——两步确认的第二步要写明事实台账会整份回退，能由引擎判定作者之后改没改过台账就按判定换说法。同一分支追加提交，不 push。上一节「要定的」里台账那条由本节处理。
+- 引擎（能做，做了）：
+  - `writeBatchRecord.ts`：版本 3 顶层加 `facts_ledger_sha256`（最近一次记一笔、或撤销恢复了台账时，`.storyforge/canon/facts.json` 的 sha256，引擎读盘算的；台账不在、读不出或超过 2 MiB 为 null）。版本 3 还没出过分支，没再升版本；版本 1 / 2 读成 null，版本 3 缺这个字段不认。
+  - `writeBatchSteps.ts`：`recordWriteBatchChapter` 记一笔时读台账记下指纹（调度器只在事实记账落定后才记一笔，所以这就是「这一批最后一次记账后」的那一版）；`recordWriteBatchUndo` 在 `facts_restored` 为真时换成恢复后的指纹（没恢复成不换，免得把作者的改动当成新基准）。`planWriteBatchUndo` 多给 `facts_ledger`：有要恢复的台账时，记录里没有指纹为 `unknown`，当前台账与之一致为 `unchanged`，否则为 `changed`（台账不在了也算）；没有要恢复的台账为 null。
+- 界面：
+  - 第一次点「撤销这章及之后」改为先只读地问引擎（调度器 `prepareUndo` → `planWriteBatchUndo`）：不能撤就把原因放在卡上；能撤才在这一行换成「确认撤销第 k–n 章？」（范围用引擎计划里的）＋「取消」，下面一句台账说明（`write-batch-view.ts` 的 `undoFactsNotice`）：
+    - `unchanged`：「事实台账会回到第 k 章记账之前的样子。」（普通灰字）
+    - `changed`：「事实台账会回到第 k 章记账之前的样子；之后你在观测镜里对事实的改动也会一起回退（回退前留了快照，能在版本历史里找回）。」，醒目样式（警示色、加粗、`role="alert"`）。
+    - `unknown`：同样是完整那句，不加醒目。
+    - null（这几章都没记过账，没有要恢复的台账）：不说。
+  - 第二次点确认才执行；执行器照旧再出一次计划，这期间变成不能撤的也放在卡上、不删。确认状态从卡片本地挪进调度器的结果（`undoConfirm`），清单刷新即收起。
+  - 契约与解码跟上（`ApiWriteBatch.facts_ledger_sha256`、`ApiWriteBatchUndoPlan.facts_ledger`，解码时核「有要恢复的台账 ⇔ 有比对结论」）；浏览器回归的替身记录补上新字段。
+- 验证（不跑整套）：
+  - `npx tsc --noEmit`（packages/engine）EXIT=0；`npm --prefix apps/desktop/frontend run typecheck` 等价的 `npx tsc --noEmit -p tsconfig.json` EXIT=0；改动文件 eslint EXIT=0、prettier 已格式化。
+  - 引擎 `writeBatchSteps.test.ts` + `writeBatch.test.ts`：107 passed（新加 5 条：一致为 unchanged、作者改过或删了台账为 changed、没有指纹为 unknown 与没有要恢复的台账为 null、撤销恢复后换基准而没恢复成不换、旧版本读成 null 与版本 3 缺字段不认）。
+  - 前端相关 19 个文件 224 passed（`write-batch-*` 全部、`chapter-write-request`、`behavior/auto-writeback`、`fact-write*`、ChatWindow 两份、`source-standards`、`ui-terminology`）。`write-batch-review.test.tsx` 改为第一次点只读问引擎（核了没删、没核、没恢复、没记），新加 5 条：三种比对结论各自的那句与醒目与否、没有要恢复的台账不说、确认后再出计划变成不能撤也不删。`write-batch-record-api.test.ts` 补解码 3 条（缺指纹、未知结论、结论与台账版本对不上）与真引擎往返里核 `facts_ledger: 'unknown'`（合成作品没有台账）。
+  - 浏览器回归 `node scripts/verify-agent-conversation.mjs` 单跑 EXIT=0。
+- 变异（仓库外 `%TEMP%/sf-f-scripts/mutate2.py`，同样断言恰好 1 次、无条件按原字节还原并核对，跑完 `git status` 只有本节改动）4 处全红：
+  - M13 去掉台账那句 → review 3 条红。
+  - M14 引擎比对判定反了（一致说 changed）→ 引擎 3 条红。
+  - M15 醒目样式判定反了 → review 2 条红。
+  - M16 台账没恢复成也换基准 → 引擎 1 条红。
+- 行尾：本节改动的文件都是 LF，没有 BOM / CRCRLF。
+- 说明：`unknown` 出现在旧记录（版本 3 之前没有指纹）和作品里没有台账的时候；没有台账时 `facts_before` 通常也为空、不说这一句。第一次点现在会读一次作品文件与记录（只读），不能撤的原因在第一次点就显示，不再等到确认以后。

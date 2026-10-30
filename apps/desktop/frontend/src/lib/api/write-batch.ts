@@ -285,6 +285,7 @@ export function decodeWriteBatch(value: unknown): ApiWriteBatch {
   return {
     chapters: list(raw, 'chapters', at, decodeRecordChapter),
     created_at: field(raw, 'created_at', isString, at),
+    facts_ledger_sha256: field(raw, 'facts_ledger_sha256', isText, at),
     from: field(raw, 'from', isOrdinal, at),
     id: field(raw, 'id', isString, at),
     legs: list(raw, 'legs', at, decodeLeg),
@@ -565,6 +566,7 @@ export function decodeWriteBatchUndoPlan(value: unknown): ApiWriteBatchUndoPlan 
       };
     }),
     facts_before: field(raw, 'facts_before', isText, at),
+    facts_ledger: field(raw, 'facts_ledger', oneOf('unchanged', 'changed', 'unknown', null), at),
     from: field(raw, 'from', isOrdinal, at),
     to: field(raw, 'to', isOrdinalOrNull, at),
   };
@@ -572,6 +574,8 @@ export function decodeWriteBatchUndoPlan(value: unknown): ApiWriteBatchUndoPlan 
   const ordinals = plan.chapters.map((chapter) => chapter.ordinal);
   if (ordinals.some((ordinal, index) => index > 0 && ordinal >= ordinals[index - 1]))
     throw new WriteBatchShapeError('撤销计划里的章不是从最后一章倒着排的');
+  if ((plan.facts_before === null) !== (plan.facts_ledger === null))
+    throw new WriteBatchShapeError('撤销计划的台账版本与台账比对对不上');
   if (plan.can_undo && (plan.blockers.length > 0 || plan.chapters.length === 0))
     throw new WriteBatchShapeError('撤销计划说能撤，却有不能撤的原因或没有要删的章');
   return plan;

@@ -20,8 +20,9 @@ import { platformTextBytes, type ProjectWriter } from '../writePort';
 export const WRITE_BATCH_RELATIVE_PATH = '.storyforge/write-batch.json';
 /**
  * 版本 2（E 刀审后）：记下作者在 `/写` 范围后附的要求（note），停下原因多了界面出错（scheduler_error）。
- * 版本 3（F 刀）：每章多记新记下的事实条数（facts_added），章多了「已撤销」（undone），停下原因多了撤销（undone）。
- * 旧版本的记录照读（版本 1 的 note、版本 1 和 2 的 facts_added 读成 null），下次写回时按当前版本写；
+ * 版本 3（F 刀）：每章多记新记下的事实条数（facts_added），章多了「已撤销」（undone），停下原因多了撤销（undone），
+ * 顶层多记最近一次记一笔时事实台账的指纹（facts_ledger_sha256），撤销前据此看作者之后动没动过台账。
+ * 旧版本的记录照读（版本 1 的 note、版本 1 和 2 的 facts_added 与 facts_ledger_sha256 读成 null），下次写回时按当前版本写；
  * 版本 3 才有的取值出现在旧版本里算写坏了；比这新的不认。
  */
 export const WRITE_BATCH_VERSION = 3;
@@ -152,6 +153,11 @@ export type WriteBatchRecord = {
   model_key: string;
   /** 作者在 `/写` 范围后附的要求，每章发起时带上；没附为 null。 */
   note: string | null;
+  /**
+   * 最近一次记一笔（或撤销恢复了台账）时事实台账 `.storyforge/canon/facts.json` 的指纹，引擎读盘算的；
+   * 台账不在、读不出或旧版本记录为 null。撤销时和当前台账比，看作者之后在观测镜里动没动过。
+   */
+  facts_ledger_sha256: string | null;
   status: WriteBatchStatus;
   /** 作者在清单上点了「这批审完了」。 */
   reviewed: boolean;
@@ -333,6 +339,12 @@ export function parseWriteBatchRecord(value: JsonValue): WriteBatchRecord {
       version === 1
         ? null
         : fields.nullable(fields.at(raw, 'note'), 'note', (v, p) => fields.string(v, p)),
+    facts_ledger_sha256:
+      version >= 3
+        ? fields.nullable(fields.at(raw, 'facts_ledger_sha256'), 'facts_ledger_sha256', (v, p) =>
+            fields.string(v, p),
+          )
+        : null,
     status: fields.oneOf(fields.at(raw, 'status'), 'status', [
       'running',
       'stopped',

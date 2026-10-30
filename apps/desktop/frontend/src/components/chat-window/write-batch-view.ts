@@ -91,13 +91,25 @@ export function chapterRows(
   }));
 }
 
-/** 「撤销这章及之后」确认时说的范围：从这一章到这一批写进文件的最后一章。 */
-export function undoRangeLabel(batch: ApiWriteBatchViewRecord, from: number): string {
-  const last = Math.max(
-    from,
-    ...batch.chapters
-      .filter((chapter) => chapter.state === 'written')
-      .map((chapter) => chapter.ordinal),
-  );
-  return last === from ? `第 ${from} 章` : `第 ${from}–${last} 章`;
+/** 「撤销这章及之后」确认时说的范围（引擎计划里要删的第一章到最后一章）。 */
+export function undoRangeLabel(from: number, to: number): string {
+  return to === from ? `第 ${from} 章` : `第 ${from}–${to} 章`;
+}
+
+/**
+ * 确认撤销时关于事实台账的那句：台账整份回到第 k 章记账前。引擎比对过当前台账和这一批最后一次记账后的那一版：
+ * 一致只说回到哪；不一致（changed，醒目）或说不准（unknown）就说作者之后在观测镜里的改动也会一起回退。
+ * 这几章都没记过账（没有要恢复的台账）不说。
+ */
+export function undoFactsNotice(
+  from: number,
+  factsLedger: 'unchanged' | 'changed' | 'unknown' | null,
+): { text: string; emphasis: boolean } | null {
+  if (factsLedger === null) return null;
+  const head = `事实台账会回到第 ${from} 章记账之前的样子`;
+  if (factsLedger === 'unchanged') return { text: `${head}。`, emphasis: false };
+  return {
+    text: `${head}；之后你在观测镜里对事实的改动也会一起回退（回退前留了快照，能在版本历史里找回）。`,
+    emphasis: factsLedger === 'changed',
+  };
 }
