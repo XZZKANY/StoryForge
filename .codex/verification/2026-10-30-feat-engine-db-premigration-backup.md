@@ -1,0 +1,21 @@
+## 2026-10-30 引擎库升级结构前自动整库备份（自动更新刀 1）
+
+- 背景：作者 10-30 拍板做自动更新（`tauri-plugin-updater` + GitHub Release，作者点「重启安装」才装）。之前引擎库升级结构靠发版清单 §6 提醒作者手动备份 `.sqlite3`，自动更新后没有这一步，所以先补上自动备份。目前 `ENGINE_MIGRATIONS` 只有 2 条、作者库已是最新，这次不会真触发，防的是以后加迁移的版本经自动更新装上去。
+- 改动（帧契约、`contracts.ts`、golden 不动，不加迁移）：
+  - `packages/engine/src/store/db.ts`：`Db` 端口加可选方法 `backup(fromVersion, toVersion)`。
+  - `packages/engine/src/store/schema.ts`：`migrateEngineDb` 在库已有版本且低于最新时先 `await db.backup?.(from, to)`，备份失败就抛错、不迁移；新建的库、已是最新的库不调。
+  - `apps/desktop/src-tauri/src/engine_db.rs`：新命令 `engine_db_backup(from_version, to_version)`，用 `VACUUM INTO` 把整库（含还没 checkpoint 的 WAL 行）先写到 `.pending` 再改名为 `storyforge-engine.backup-<时间戳>-v<from>-to-v<to>.sqlite3`，与引擎库并排，只留最新 3 份，顺手删崩溃留下的 `.pending`；删旧副本失败不挡升级。`main.rs` 注册命令。
+  - 前端 `lib/engine/db.ts`：`nativeEngineDb.backup` 调 `engine_db_backup`。`lib/engine/store.ts` 不用改（迁移本来就传 `nativeEngineDb`）。
+  - 顺带修：`engine_db_tests.rs` 自 P6-2（#369）删影子库代码时连 `#[cfg(test)] mod tests;` 一起删了，原有 7 条测试从 10-16 起没再编译运行，这次挂回去（本刀的 Rust 测试也写在这个文件里）。
+- 做法上改过一次：起初把备份做成 `migrateEngineDb` 的第二个参数、由 `store.ts` 另导入一个函数传进去，结果 9 个用工厂 mock 掉 `lib/engine/db` 的前端测试文件 36 条全红（vitest：mock 上没有这个导出）。改成端口上的可选方法后，那 9 个文件不用动，接线也落在端口本身、能直接测。
+- 验证：
+  - 引擎 `vitest run src/store/sqlRuns.test.ts`：15 passed（新增 1 条：新库 / 已是最新不备份；旧库备份失败时版本仍是 1、表没动；备份成功后只调一次 `(1, 2)` 并升到最新）。
+  - 前端 `vitest run tests/engine-db.test.ts` + 9 个 mock 引擎库的文件：10 files / 46 passed（新增 1 条：命令名与参数 `{ fromVersion, toVersion }`、失败转成 Error）。前端 `typecheck` 通过。
+  - Rust `cargo test engine_db`（`CARGO_TARGET_DIR` 复用主仓库 target）：9 passed（挂回的 7 条 + 新增 2 条：副本含还没 checkpoint 的行且不留 `.pending`；只留最新 3 份、删 `.pending`、不碰引擎库 / WAL / Python 库）。
+  - 变异（`output/auto-update/mutate_cut1.py`，断言替换点唯一、无条件还原并逐字节核对）：M1 删掉备份调用 → 引擎 1 红；M2 备份挪到迁移之后 → 引擎 1 红；M3 原生端口去掉 `backup`（接线）→ 前端 1 红。
+  - `pnpm verify`（corepack 缓存的 pnpm 9.15.4 临时 shim）一遍 EXIT=0：project-core 34、引擎 14062 passed + 2 skipped、前端 2539 passed、三个浏览器回归通过。日志在 `output/auto-update/verify-cut1.log`（不入库）。
+  - `rustfmt --edition 2021 --check apps/desktop/src-tauri/src/engine_db.rs`（连带测试文件）：通过。
+  - 行尾：`main.rs` CRLF 按字节加一行；其余改动文件全 LF，无 CRCR；`--numstat` 与 `--ignore-all-space --numstat` 一致。
+- 未覆盖：
+  - 没在真宿主上触发过一次真实升级备份（目前没有新迁移可触发）；Tauri 冒烟未跑（新 worktree 要从头编整套，冒烟只验起得来，不经过这条路径）。
+  - 备份占用磁盘没有上限判断：作者库目前几 MB 到几十 MB，3 份可接受；库变得很大时再看。

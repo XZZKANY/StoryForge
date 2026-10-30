@@ -61,7 +61,7 @@ test('pendingDecisionOnLeave 只认补丁待确认（waiting）与章纲待确�
 
 test('leaveSessionConfirmText 指明离开后需在编辑器 diff 里处理', () => {
   assert.match(leaveSessionConfirmText('patch', 'switch'), /未处理的修订/);
-  assert.match(leaveSessionConfirmText('patch', 'switch'), /编辑器 diff/);
+  assert.match(leaveSessionConfirmText('patch', 'switch'), /编辑器的对比/);
   assert.match(leaveSessionConfirmText('patch', 'switch'), /切换会话/);
   assert.match(leaveSessionConfirmText('brief', 'new'), /未处理的章纲/);
   assert.match(leaveSessionConfirmText('both', 'new'), /新建会话/);
@@ -157,7 +157,7 @@ test('补丁待确认时切会话先弹确认，取消不切换、确认才切�
     act(() => harness?.api.handleSelectSession(2));
     assert.equal(confirmCalls.length, 1);
     assert.match(confirmCalls[0]?.message ?? '', /未处理的修订/);
-    assert.match(confirmCalls[0]?.message ?? '', /编辑器 diff/);
+    assert.match(confirmCalls[0]?.message ?? '', /编辑器的对比/);
     assert.deepEqual(changes, []);
 
     await act(async () => answer(false));

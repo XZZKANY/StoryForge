@@ -40,6 +40,16 @@ it('turns the string rejections of Tauri commands into errors', async () => {
   await expect(nativeEngineDb.select('x')).rejects.toBe(original);
 });
 
+it('asks the host to back the engine database up before an upgrade', async () => {
+  vi.mocked(invoke).mockResolvedValue(null);
+  await expect(nativeEngineDb.backup!(1, 2)).resolves.toBeUndefined();
+  expect(invoke).toHaveBeenLastCalledWith('engine_db_backup', { fromVersion: 1, toVersion: 2 });
+  vi.mocked(invoke).mockRejectedValue('备份引擎库失败：disk I/O error');
+  await expect(nativeEngineDb.backup!(1, 2)).rejects.toThrow(
+    new Error('备份引擎库失败：disk I/O error'),
+  );
+});
+
 it('reads the Python database through the read-only snapshot command', async () => {
   vi.mocked(invoke).mockResolvedValue(null);
   const queries = ['SELECT 1', 'SELECT 2'];

@@ -47,7 +47,7 @@ export async function performKnowledgeWriteback(
         !(normalizedCurrent === null && patch.before === '') &&
         normalizedCurrent !== normalizedBefore
       ) {
-        throw new Error('知识文件已变化，且没有可核对的写回回执，请重新生成 diff 后再确认');
+        throw new Error('知识文件已变化，且没有可核对的写入回执，请重新生成对比后再确认');
       }
     },
     snapshot: effects.snapshot,

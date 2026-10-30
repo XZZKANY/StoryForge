@@ -235,7 +235,7 @@ export function useInlineChat({
       }
       if (session.textModel.getVersionId() !== session.modelVersion) {
         teardown();
-        flashStatus('稿件已变化，请重新发起行间操作');
+        flashStatus('文件已变化，请重新发起行间操作');
         return false;
       }
       if (!allowsAuthoringActions(readAgentPermissionProfile(session.projectPath))) {
@@ -335,7 +335,7 @@ export function useInlineChat({
       }
       flashStatus(
         writeback.writebackWarning ??
-          (isContinue ? '续写已写回当前文件' : '行间修订已写回当前文件'),
+          (isContinue ? '续写已写进当前文件' : '行间修订已写进当前文件'),
       );
     } catch (error) {
       if (!qualifySession(session)) return;
@@ -351,7 +351,7 @@ export function useInlineChat({
         if (accept) accept.textContent = '重试（Alt+Enter）';
       }
       flashStatus(
-        `接受失败，候选已保留；可重试核对原写回：${error instanceof Error ? error.message : String(error)}`,
+        `接受失败，候选已保留；可重试核对原来那次写入：${error instanceof Error ? error.message : String(error)}`,
         'assertive',
       );
     }
@@ -737,7 +737,7 @@ export function useInlineChat({
       if (!project || !path) {
         flashStatus(
           mode === 'continue'
-            ? '先在编辑器里打开一份稿件，再用 Ctrl+Shift+K 续写'
+            ? '先在编辑器里打开一个文件，再用 Ctrl+Shift+K 续写'
             : '先在编辑器里打开一个文件，再用 Ctrl+K 行间对话',
         );
         return;

@@ -11,7 +11,7 @@ const executionLabel = {
   failed: '检查执行失败',
   incomplete: '检查未完整执行',
 };
-const manuscriptLabel = { pass: '自动检查通过', fail: '发现稿件问题', unknown: '稿件判断未知' };
+const manuscriptLabel = { pass: '自动检查通过', fail: '发现正文问题', unknown: '正文判断未知' };
 
 function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
   const check = entry.check;
@@ -35,7 +35,7 @@ function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
         {check && (
           <>
             <p>
-              稿件硬问题 {check.manuscriptHardCount} · 建议 {check.advisoryCount}
+              正文硬问题 {check.manuscriptHardCount} · 建议 {check.advisoryCount}
             </p>
             <p>
               提供正文 {check.coverage.suppliedChars} 字 · 来源回显
@@ -57,7 +57,7 @@ function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
                   {finding.rule === 'checker_failure'
                     ? '检查器诊断'
                     : finding.severity === 'hard'
-                      ? '稿件问题'
+                      ? '正文问题'
                       : '建议'}
                   ：{finding.message}
                 </p>
@@ -81,7 +81,7 @@ function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
         {entry.candidateContent !== null && (
           <details>
             <summary className="cursor-pointer text-foreground">查看只读候选稿</summary>
-            <p className="my-2">这份候选稿未生成修订；查看或复制不会写回作品文件。</p>
+            <p className="my-2">这份候选稿未生成修订；查看或复制不会写进作品文件。</p>
             <Textarea
               readOnly
               value={entry.candidateContent}

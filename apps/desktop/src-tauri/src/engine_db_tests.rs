@@ -280,3 +280,75 @@ async fn python_snapshot_reads_uncheckpointed_wal_rows_and_writes_nothing() {
         json!(2)
     );
 }
+
+#[tokio::test]
+async fn backup_copies_uncheckpointed_rows_and_leaves_no_pending_file() {
+    let (dir, pool) = temp_db().await;
+    setup(&pool).await;
+    transaction(
+        &pool,
+        &[step(
+            "INSERT INTO parent (id, title) VALUES ($1, $2)",
+            json!([1, "旧稿"]),
+        )],
+    )
+    .await
+    .unwrap();
+    let copy = backup(&pool, dir.path(), "20261030-120000-000-v1-to-v2")
+        .await
+        .unwrap();
+    assert_eq!(
+        copy.file_name().unwrap(),
+        "storyforge-engine.backup-20261030-120000-000-v1-to-v2.sqlite3"
+    );
+    let names: Vec<String> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert!(
+        names.iter().all(|name| !name.ends_with(".pending")),
+        "{names:?}"
+    );
+    let copied = open(&copy).await.unwrap();
+    let rows = select(&copied, "SELECT id, title FROM parent", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        Value::Array(rows.into_iter().map(Value::Object).collect()),
+        json!([{ "id": 1, "title": "旧稿" }])
+    );
+}
+
+#[test]
+fn prune_keeps_the_newest_backups_and_drops_pending_copies() {
+    let dir = tempfile::tempdir().unwrap();
+    let backups = [
+        "storyforge-engine.backup-20261001-000000-000-v1-to-v2.sqlite3",
+        "storyforge-engine.backup-20261002-000000-000-v2-to-v3.sqlite3",
+        "storyforge-engine.backup-20261003-000000-000-v3-to-v4.sqlite3",
+        "storyforge-engine.backup-20261004-000000-000-v4-to-v5.sqlite3",
+        "storyforge-engine.backup-20261005-000000-000-v5-to-v6.sqlite3",
+    ];
+    let others = [
+        "storyforge-engine.backup-20261006-000000-000-v6-to-v7.sqlite3.pending",
+        ENGINE_DB_FILE,
+        "storyforge-engine.sqlite3-wal",
+        PYTHON_DB_FILE,
+    ];
+    for name in backups.iter().chain(others.iter()) {
+        std::fs::write(dir.path().join(name), b"x").unwrap();
+    }
+    prune_backups(dir.path(), 3).unwrap();
+    let mut left: Vec<String> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    left.sort();
+    let mut expected: Vec<String> = backups[2..]
+        .iter()
+        .chain(others[1..].iter())
+        .map(|name| name.to_string())
+        .collect();
+    expected.sort();
+    assert_eq!(left, expected);
+}

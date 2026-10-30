@@ -185,7 +185,7 @@ export class TauriFileSystem {
     request: WritebackRequest,
   ): Promise<WritebackIdentity> {
     // Browser file fixtures cannot prove the host's canonical operation identity.
-    if (mockFs()) throw new Error('测试文件系统不支持原生写回身份描述');
+    if (mockFs()) throw new Error('测试文件系统不支持原生写入身份描述');
     assertTauriRuntime('TauriFileSystem.describeWritebackOperation');
     return decodeWritebackIdentity(
       await invoke<unknown>('describe_writeback_operation', { projectRoot, request }),
@@ -274,7 +274,7 @@ export class TauriFileSystem {
     content: string,
     deliveryTicket?: string,
   ): Promise<void> {
-    if (!/^[a-f0-9]{64}$/.test(operationId)) throw new Error('写回审计 operationId 无效');
+    if (!/^[a-f0-9]{64}$/.test(operationId)) throw new Error('写入审计 operationId 无效');
     const mock = mockFs();
     if (mock) return createFixtureAudit(mock, projectRoot, operationId, content);
     assertTauriRuntime('TauriFileSystem.createWritebackAudit');

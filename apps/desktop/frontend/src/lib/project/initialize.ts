@@ -41,7 +41,7 @@ export function buildSampleStoryProjectFiles(
         '',
         '## 当前目标',
         '- 在正文里写出第一章的冲突。',
-        '- 让对话 agent 帮忙审稿、提出改法，再确认写回。',
+        '- 让对话 AI 帮忙审稿、提出改法，再确认写进文件。',
       ].join('\n'),
     },
     {

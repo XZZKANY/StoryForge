@@ -19,6 +19,9 @@ export const nativeEngineDb: Db = {
     native<SqlRow[]>('engine_db_transaction', {
       steps: steps.map((step) => ({ sql: step.sql, params: step.params ?? [] })),
     }),
+  // 宿主在同一目录整库复制一份，留最近 3 份。
+  backup: (fromVersion, toVersion) =>
+    native<null>('engine_db_backup', { fromVersion, toVersion }).then(() => undefined),
 };
 
 /**

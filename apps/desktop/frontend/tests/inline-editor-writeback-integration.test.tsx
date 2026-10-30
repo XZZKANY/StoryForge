@@ -301,7 +301,7 @@ it('accepted write awaiting snapshot settles only origin after navigation', asyn
   expect(files.get(OTHER)).toBe('B新稿');
   expect(__getLastEditor()?.getValue()).toBe('B新稿');
   expect(writes.filter((path) => path === FILE)).toHaveLength(1);
-  expect(host.textContent).not.toContain('行间修订已写回当前文件');
+  expect(host.textContent).not.toContain('行间修订已写进当前文件');
 });
 
 it.each(['deleted', 'renamed'] as const)(

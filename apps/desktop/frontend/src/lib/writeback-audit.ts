@@ -20,16 +20,16 @@ async function verify(
     !header.endsWith(' -->') ||
     !content.endsWith(COMPLETE)
   ) {
-    throw new Error('写回审计记录不完整；已保留原文件，请核对后修复，不会自动覆盖');
+    throw new Error('写入审计记录不完整；已保留原文件，请核对后修复，不会自动覆盖');
   }
   let metadata: unknown;
   try {
     metadata = JSON.parse(header.slice(HEADER.length, -4));
   } catch {
-    throw new Error('写回审计记录封套损坏，不能当作补记成功');
+    throw new Error('写入审计记录封套损坏，不能当作补记成功');
   }
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata))
-    throw new Error('写回审计记录封套无效');
+    throw new Error('写入审计记录封套无效');
   const fields = metadata as Record<string, unknown>;
   const body = content.slice(lineEnd + 1, -COMPLETE.length);
   if (
@@ -42,7 +42,7 @@ async function verify(
         (await digest(fields.semanticPayload)) !== fields.payloadHash)) ||
     fields.bodyHash !== (await digest(body))
   ) {
-    throw new Error('写回审计记录身份、内容或摘要不匹配；已拒绝自动覆盖');
+    throw new Error('写入审计记录身份、内容或摘要不匹配；已拒绝自动覆盖');
   }
   return typeof fields.semanticPayload === 'string' ? fields.semanticPayload : null;
 }

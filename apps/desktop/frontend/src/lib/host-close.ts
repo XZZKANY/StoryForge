@@ -98,7 +98,7 @@ export function useHostCloseNotice() {
         const pending = (row.deliveryTickets as number) + (row.activeCommands as number);
         if (pending === 0) return;
         emitToast(
-          `上次关闭时还有 ${pending} 个写回操作没确认完成。请打开最近改过的文件核对内容；StoryForge 不会自动重做这些操作。`,
+          `上次关闭时还有 ${pending} 个写入操作没确认完成。请打开最近改过的文件核对内容；StoryForge 不会自动重做这些操作。`,
           { tone: 'error', durationMs: 15000 },
         );
       })
