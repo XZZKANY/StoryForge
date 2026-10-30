@@ -17,13 +17,16 @@ import {
   type AppSettings,
   type EditorLineNumbersMode,
 } from '../lib/user-settings';
-import { Info, Palette, Sparkles, Type } from './icons/shell-icons';
+import { Info, Palette, Puzzle, Sparkles, Type } from './icons/shell-icons';
 import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from './editor/options';
 import { checkForUpdate, currentAppVersion, type UpdateCheckResult } from '../lib/update-check';
 import { useModelProfiles } from './settings/useModelProfiles';
 import { ModelProfilesSection } from './settings/ModelProfilesSection';
 import { AppearanceSection } from './settings/AppearanceSection';
 import { SettingsSearchContext } from './settings/search-context';
+import { usePlugins } from './settings/usePlugins';
+import { PluginsSection } from './settings/PluginsSection';
+import { takeRequestedSettingsSection } from '../lib/settings-section';
 
 type SettingsViewProps = {
   settings: AppSettings;
@@ -36,7 +39,7 @@ type SettingsViewProps = {
  * 设置左栏锚点导航（纯锚点列表，「返回」不在里面）。整章润色用哪套模型并进了
  * 「模型服务」的「高级」，不再单列一组。
  */
-const settingsNav = ['模型服务', '外观', '编辑器', '关于'] as const;
+const settingsNav = ['模型服务', '插件', '外观', '编辑器', '关于'] as const;
 
 const LINE_NUMBER_OPTIONS: ReadonlyArray<{ value: EditorLineNumbersMode; label: string }> = [
   { value: 'auto', label: '智能（正文隐藏）' },
@@ -58,6 +61,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
   const safeSettings = sanitizeAppSettings(settings);
   const [searchQuery, setSearchQuery] = useState('');
   const models = useModelProfiles();
+  const plugins = usePlugins();
   // 同一事件里连着改两项时，第二项要叠在第一项之上，不能都从同一份旧 props 出发。
   const latestRef = useRef(safeSettings);
   useLayoutEffect(() => {
@@ -74,7 +78,18 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
   // 破坏性操作（移除已存密钥 / 恢复默认设置）先经 AppDialog 确认，不走静默直改。
   const confirmDialog = useAppDialog();
   const mainRef = useRef<HTMLElement | null>(null);
-  const [activeGroup, setActiveGroup] = useState<string>('provider');
+  // 从别处（对话头「上下文」的「管理插件」）打开设置时直接滚到那一组。
+  const [requestedSection] = useState(takeRequestedSettingsSection);
+  const [activeGroup, setActiveGroup] = useState<string>(requestedSection ?? 'provider');
+  const scrollPendingRef = useRef(requestedSection);
+  const modelsLoaded = models.loadState !== 'loading';
+  useEffect(() => {
+    const anchor = scrollPendingRef.current;
+    if (!anchor) return;
+    mainRef.current?.querySelector(`#${anchor}`)?.scrollIntoView?.({ block: 'start' });
+    // 模型配置第一次读完会撑高上面那组，读完再滚一次就收手。
+    if (modelsLoaded) scrollPendingRef.current = null;
+  }, [modelsLoaded]);
   const hasUnsaved = models.draftDirty;
   // 关闭守卫：模型配置有未保存草稿时先确认，避免 Esc/点遮罩/返回静默丢草稿。
   const requestClose = () => {
@@ -203,6 +218,12 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                   <SettingCard>
                     <ModelProfilesSection model={models} confirm={confirmDialog.confirm} />
                     <ProviderRuntimeEnvNotice />
+                  </SettingCard>
+                </SettingGroup>
+
+                <SettingGroup id="plugins" title="插件">
+                  <SettingCard>
+                    <PluginsSection plugins={plugins} confirm={confirmDialog.confirm} />
                   </SettingCard>
                 </SettingGroup>
 
@@ -608,6 +629,7 @@ function ActionRow({
 
 function navAnchor(label: (typeof settingsNav)[number]): string {
   if (label === '模型服务') return 'provider';
+  if (label === '插件') return 'plugins';
   if (label === '外观') return 'appearance';
   if (label === '编辑器') return 'editor';
   return 'about';
@@ -617,7 +639,15 @@ function navAnchor(label: (typeof settingsNav)[number]): string {
  *  且与全站唯一图标源 shell-icons 割裂 —— 那个模块的存在理由就是「取代旧的 Unicode/字形图标」）。 */
 function NavIcon({ label }: { label: string }) {
   const Icon =
-    label === '模型服务' ? Sparkles : label === '外观' ? Palette : label === '编辑器' ? Type : Info;
+    label === '模型服务'
+      ? Sparkles
+      : label === '插件'
+        ? Puzzle
+        : label === '外观'
+          ? Palette
+          : label === '编辑器'
+            ? Type
+            : Info;
   return <Icon size={15} strokeWidth={1.6} />;
 }
 
