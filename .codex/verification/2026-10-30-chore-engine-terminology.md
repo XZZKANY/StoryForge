@@ -28,3 +28,9 @@
   - `npx eslint packages/engine` 与改过的 4 个前端测试：EXIT=0；`npx prettier --check "packages/engine/src/**/*.ts"`：全部符合。
   - 行尾：本轮 `git diff --numstat` 与 `--ignore-all-space --numstat` 一致（31 个文件）。
 - 未覆盖：同上一节——没跑真模型、完整 `pnpm verify`、Rust 测试、Tauri 冒烟与真宿主探针。
+
+## 2026-10-30 编排者审查与集成
+
+- 改动：第二轮措辞照代理提议接受。合入 origin/master（3b6dba8b，含 #535 / #536 / #537，无冲突）；合并前后各扫一遍引擎非测试源码，旧词命中都是 42 处、master 新代码没带进新命中，42 处逐条核过属于产字 / 评稿提示词、开发向日志与角色目录、作者输入匹配、ZIP 术语。`CONTEXT.md` 用词表记下引擎已改、产字提示词不动。
+- 验证：编排者独立复跑 `golden_proof.py`，结论「T(基线 golden) == 新 golden（逐字节）」；基线 golden 在 38a5bb85、d8f380fb、2162ec1a 三处相同。前端守护测试绿。`pnpm verify` EXIT=0（project-core 34、引擎 14075 passed / 2 skipped、前端单测 2576 passed、三条浏览器回归全过）。
+- 未覆盖：没跑真模型（会花钱）与真宿主探针；只改文字，没动引擎与宿主之间的接口。
