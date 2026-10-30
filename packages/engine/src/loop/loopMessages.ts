@@ -2,7 +2,12 @@ import { readAuthorInstructions } from '../kernel/authorVoice';
 import { renderBookContextBlock } from '../kernel/bookContext';
 import { buildBookContext } from '../kernel/buildBookContext';
 import { buildSceneConstraintBlock } from '../kernel/canonContext';
-import { conversationSkillsBlock, loadConversationSkills } from '../kernel/conversationSkills';
+import {
+  conversationSkillsBlock,
+  invokedConversationSkills,
+  invokedSkillsBlock,
+  loadConversationSkillSources,
+} from '../kernel/conversationSkills';
 import { dumpJson } from '../kernel/json';
 import { buildPlanBlock } from '../kernel/serialPlan';
 import { missingSetupBeforeFirstChapter, setupGapSection } from '../kernel/projectSetup';
@@ -17,7 +22,7 @@ export type LoopMessage = { role: string; content: string };
 
 /**
  * chat 循环的初始消息：system prompt、作者指令、技能目录（有技能才有）、全书底座、连载计划、场景约束、会话历史、
- * @钉上下文、作者视图、本轮作者消息；同时记下每一段的来源指纹（provenance）。
+ * @钉上下文、作者视图、点名技能全文（作者用 /技能名 点名才有）、本轮作者消息；同时记下每一段的来源指纹（provenance）。
  */
 export async function storyforgeMessages(
   deps: {
@@ -51,9 +56,9 @@ export async function storyforgeMessages(
   const planBlock = await buildPlanBlock(reader, root, platform);
   const sceneBlock = await buildSceneConstraintBlock(reader, root, currentFile, { platform });
   const instructions = await readAuthorInstructions(reader, root);
-  const skillsBlock = conversationSkillsBlock(
-    await loadConversationSkills(reader, root, deps.secrets),
-  );
+  const skills = await loadConversationSkillSources(reader, root, deps.secrets);
+  const skillsBlock = conversationSkillsBlock(skills);
+  const invokedBlock = invokedSkillsBlock(invokedConversationSkills(skills, input.userMessage));
   const viewBlock = input.authorView === null ? null : buildAuthorViewBlock(input.authorView);
   const pinnedBlock = buildPinnedContextBlock(input.pinnedContext);
   const system = (content: string | null): LoopMessage[] =>
@@ -79,6 +84,7 @@ export async function storyforgeMessages(
     ],
     ['pinned_context', system(pinnedBlock)],
     ['author_view', system(viewBlock)],
+    ...(invokedBlock ? [['invoked_skills', system(invokedBlock)] as [string, LoopMessage[]]] : []),
     [
       'current_user',
       [

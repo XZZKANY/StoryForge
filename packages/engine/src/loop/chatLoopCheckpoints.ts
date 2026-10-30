@@ -1,3 +1,8 @@
+import { startsWithSkillCommand } from '@storyforge/project-core';
+import {
+  invokedConversationSkills,
+  loadConversationSkillSources,
+} from '../kernel/conversationSkills';
 import { AUTHOR_INSTRUCTIONS_PATH } from '../kernel/fsTools';
 import {
   cloneJson,
@@ -7,6 +12,7 @@ import {
   type JsonValue,
 } from '../kernel/json';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
+import type { SecretContext } from '../kernel/redaction';
 import { sha256Hex } from '../kernel/sha256';
 import type { ChatRequest } from '../llm/contracts';
 import { ProjectReadError, type ProjectReader } from '../readPort';
@@ -109,7 +115,7 @@ const TRACKED_TOOL_NAMES = new Set(
     .map((spec) => llmToolName(spec.name)),
 );
 
-type SourceDeps = { readonly reader: ProjectReader };
+type SourceDeps = { readonly reader: ProjectReader; readonly secrets?: SecretContext };
 
 /** 一个请求路径的当前指纹；越界返回 undefined（从不检查项目外的路径），目录返回 null。 */
 async function fingerprint(
@@ -134,7 +140,7 @@ async function fingerprint(
   return { path: resolved, sha256: sha256Hex(read.bytes) };
 }
 
-/** 本轮读过的文件：当前文件、作者指令、带摘录的上下文文件、会读文件的工具调用。 */
+/** 本轮读过的文件：当前文件、作者指令、带摘录的上下文文件、点名的技能、会读文件的工具调用。 */
 export async function sourceVersions(
   deps: SourceDeps,
   toolMessages: RuntimeCheckpoint['messages'],
@@ -147,6 +153,14 @@ export async function sourceVersions(
   if (isObj(bundle) && Array.isArray(bundle.files))
     for (const item of bundle.files)
       if (isObj(item) && item.excerpt) paths.push(item.relative_path || item.path);
+  const userMessage = typeof message.user_message === 'string' ? message.user_message : '';
+  // 先看触发符再读技能目录：检查点每次保存都会走到这里。
+  if (startsWithSkillCommand(userMessage))
+    for (const skill of invokedConversationSkills(
+      await loadConversationSkillSources(deps.reader, root, deps.secrets ?? { values: [] }),
+      userMessage,
+    ))
+      paths.push(skill.path);
   for (const message of toolMessages)
     for (const call of message.toolCalls) {
       if (!TRACKED_TOOL_NAMES.has(call.name)) continue;

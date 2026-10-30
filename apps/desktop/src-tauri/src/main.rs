@@ -12,6 +12,7 @@ mod llm_config;
 mod llm_config_store;
 mod llm_draft_probe;
 mod managed_writeback;
+mod plugin_library;
 mod runtime_paths;
 mod secret_protection;
 mod shadow_git;
@@ -1340,6 +1341,12 @@ fn main() {
             shadow_git::release_shadow_snapshot,
             shadow_git::read_shadow_snapshot_file,
             shadow_git::filter_shadow_snapshot_hashes,
+            // 插件库：本机统一的技能插件文件夹（只收文本）；从文件夹导入先暂存，确认后才装进库
+            plugin_library::plugin_library_dir,
+            plugin_library::plugin_stage_import,
+            plugin_library::plugin_commit_import,
+            plugin_library::plugin_discard_import,
+            plugin_library::plugin_remove,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
