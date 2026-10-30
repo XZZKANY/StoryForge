@@ -25,7 +25,7 @@ function fixtureLabel(value: string): string {
 }
 async function identity(projectRoot: string, request: WritebackRequest) {
   const relative = relativePathInsideProject(projectRoot, request.path);
-  if (!relative) throw new Error('写回目标不在当前项目内');
+  if (!relative) throw new Error('写入目标不在当前作品内');
   const operationId = fixtureLabel(JSON.stringify([relative, request.operationKey]));
   return {
     operationId,
@@ -35,7 +35,7 @@ async function identity(projectRoot: string, request: WritebackRequest) {
 }
 function requireFixture(fs: FixtureFs) {
   if (!fs.readFile || !fs.pathExists || !fs.writeFile)
-    throw new Error('测试文件系统缺少写回回执能力');
+    throw new Error('测试文件系统缺少写入回执能力');
   return { read: fs.readFile, exists: fs.pathExists, write: fs.writeFile };
 }
 export async function inspectFixtureReceipt(
@@ -47,7 +47,8 @@ export async function inspectFixtureReceipt(
   const key = await identity(projectRoot, request);
   if (!(await io.exists(key.path))) return null;
   const stored = JSON.parse(await io.read(key.path)) as StoredFixtureReceipt;
-  if (stored.fingerprint !== key.fingerprint) throw new Error('写回操作身份冲突');
+  if (stored.fingerprint !== key.fingerprint)
+    throw new Error('写入操作身份冲突，已拒绝同一操作 ID 的不同请求');
   const exists = await io.exists(request.path);
   const content = exists ? await io.read(request.path) : null;
   const current =

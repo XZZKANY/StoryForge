@@ -84,7 +84,7 @@ fn relative_string(path: &Path) -> Result<String, String> {
             component
                 .as_os_str()
                 .to_str()
-                .ok_or("项目路径无法无损转换为 UTF-8")
+                .ok_or("作品路径无法无损转换为 UTF-8")
         })
         .collect::<Result<Vec<_>, _>>()
         .map(|parts| parts.join("/"))
@@ -104,18 +104,18 @@ fn resolve_missing_suffix(path: &Path) -> Result<PathBuf, String> {
                 // needs a separately proven Python-compatible resolution path.
                 match fs::symlink_metadata(cursor) {
                     Err(info_error) if info_error.kind() == io::ErrorKind::NotFound => {}
-                    Err(info_error) => return Err(format!("无法检查项目路径: {info_error}")),
-                    Ok(_) => return Err(format!("无法解析项目路径: {error}")),
+                    Err(info_error) => return Err(format!("无法检查作品路径: {info_error}")),
+                    Ok(_) => return Err(format!("无法解析作品路径: {error}")),
                 }
                 suffix.push(
                     cursor
                         .file_name()
-                        .ok_or("项目路径没有文件名")?
+                        .ok_or("作品路径没有文件名")?
                         .to_os_string(),
                 );
-                cursor = cursor.parent().ok_or("项目路径没有父目录")?;
+                cursor = cursor.parent().ok_or("作品路径没有父目录")?;
             }
-            Err(error) => return Err(format!("无法解析项目路径: {error}")),
+            Err(error) => return Err(format!("无法解析作品路径: {error}")),
         }
     };
     for component in suffix.into_iter().rev() {
@@ -129,7 +129,7 @@ fn reader_paths(
     path: &str,
 ) -> Result<(PathBuf, PathBuf, PathBuf), EngineReadError> {
     if !Path::new(project_root).is_absolute() {
-        return Err("项目读取根路径必须为绝对路径".into());
+        return Err("作品读取根路径必须为绝对路径".into());
     }
     // Reads follow Python's non-strict root resolution. Missing/file roots fail at
     // directory IO, not resolution; keep the existing strict writer helper unchanged.
@@ -139,7 +139,7 @@ fn reader_paths(
         supplied
             .strip_prefix(Path::new(project_root))
             .or_else(|_| supplied.strip_prefix(&root))
-            .map_err(|_| EngineReadError::outside("项目读取路径不在当前项目内"))?
+            .map_err(|_| EngineReadError::outside("作品读取路径不在当前作品内"))?
     } else {
         supplied
     };
@@ -150,10 +150,10 @@ fn reader_paths(
             Component::CurDir => {}
             Component::ParentDir => {
                 if !original.pop() {
-                    return Err(EngineReadError::outside("项目读取路径越过文件系统根"));
+                    return Err(EngineReadError::outside("作品读取路径越过文件系统根"));
                 }
             }
-            _ => return Err("项目读取路径包含非规范片段".into()),
+            _ => return Err("作品读取路径包含非规范片段".into()),
         }
     }
     let resolved = resolve_missing_suffix(&original)?;
@@ -169,9 +169,9 @@ pub fn resolve_engine_project_path(
 ) -> Result<ResolvedProjectPath, EngineReadError> {
     let (root, original, resolved) = reader_paths(&project_root, &path)?;
     Ok(ResolvedProjectPath {
-        relative_path: relative_string(original.strip_prefix(&root).map_err(|_| "项目路径越界")?)?,
+        relative_path: relative_string(original.strip_prefix(&root).map_err(|_| "作品路径越界")?)?,
         resolved_relative_path: relative_string(
-            resolved.strip_prefix(&root).map_err(|_| "项目目标越界")?,
+            resolved.strip_prefix(&root).map_err(|_| "作品目标越界")?,
         )?,
     })
 }
@@ -185,7 +185,7 @@ fn optional_metadata(path: &Path, nofollow: bool) -> Result<Option<fs::Metadata>
     match result {
         Ok(info) => Ok(Some(info)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(format!("无法读取项目元数据: {error}")),
+        Err(error) => Err(format!("无法读取作品元数据: {error}")),
     }
 }
 
@@ -221,7 +221,7 @@ pub fn inspect_engine_project_path(
     let target = optional_metadata(&resolved, false)?;
     let size_bytes = target.as_ref().map_or(0, fs::Metadata::len);
     if size_bytes > MAX_SAFE_INTEGER {
-        return Err("项目文件大小超过 JavaScript 安全整数范围".into());
+        return Err("作品文件大小超过 JavaScript 安全整数范围".into());
     }
     Ok(ProjectPathMetadata {
         entry_kind: metadata_kind(entry.as_ref()),
@@ -252,7 +252,7 @@ fn collect_names(
                 return RawProjectDirectory {
                     names,
                     exceeded: false,
-                    terminal_error: Some(format!("无法完整读取项目目录: {error}")),
+                    terminal_error: Some(format!("无法完整读取作品目录: {error}")),
                 }
             }
         }
@@ -271,14 +271,14 @@ pub fn read_engine_project_directory(
     remaining_entries: usize,
 ) -> Result<RawProjectDirectory, EngineReadError> {
     if remaining_entries > MAX_ENTRIES {
-        return Err("项目目录读取预算无效".into());
+        return Err("作品目录读取预算无效".into());
     }
     let (_, _, resolved) = reader_paths(&project_root, &path)?;
-    let entries = fs::read_dir(resolved).map_err(|error| format!("无法打开项目目录: {error}"))?;
+    let entries = fs::read_dir(resolved).map_err(|error| format!("无法打开作品目录: {error}"))?;
     Ok(collect_names(
         entries.map(|entry| {
             entry?.file_name().into_string().map_err(|_| {
-                io::Error::new(io::ErrorKind::InvalidData, "项目文件名无法无损转换为 UTF-8")
+                io::Error::new(io::ErrorKind::InvalidData, "作品文件名无法无损转换为 UTF-8")
             })
         }),
         remaining_entries,
@@ -300,26 +300,26 @@ pub fn read_engine_project_bytes(
     max_bytes: usize,
 ) -> Result<RawProjectBytes, EngineReadError> {
     if max_bytes > MAX_BYTES {
-        return Err("项目文件读取预算无效".into());
+        return Err("作品文件读取预算无效".into());
     }
     let (root, original, resolved) = reader_paths(&project_root, &path)?;
     ensure_canonical_path_inside_project(&root, &resolved, &original, false)?;
     if !fs::metadata(&resolved)
-        .map_err(|error| format!("无法检查项目文件: {error}"))?
+        .map_err(|error| format!("无法检查作品文件: {error}"))?
         .is_file()
     {
-        return Err("路径不是项目普通文件".into());
+        return Err("路径不是作品内的普通文件".into());
     }
-    let file = fs::File::open(&resolved).map_err(|error| format!("无法打开项目文件: {error}"))?;
+    let file = fs::File::open(&resolved).map_err(|error| format!("无法打开作品文件: {error}"))?;
     if !file
         .metadata()
-        .map_err(|error| format!("无法检查项目文件: {error}"))?
+        .map_err(|error| format!("无法检查作品文件: {error}"))?
         .is_file()
     {
-        return Err("路径不是项目普通文件".into());
+        return Err("路径不是作品内的普通文件".into());
     }
     let bytes =
-        capped_bytes(file, max_bytes).map_err(|error| format!("无法读取项目文件: {error}"))?;
+        capped_bytes(file, max_bytes).map_err(|error| format!("无法读取作品文件: {error}"))?;
     Ok(RawProjectBytes {
         bytes_read: bytes.len(),
         exceeded: bytes.len() > max_bytes,
