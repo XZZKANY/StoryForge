@@ -378,7 +378,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
           isActive
             ? 'bg-elevated text-foreground'
             : isPreview
-              ? 'bg-elevated/60 italic text-foreground outline-dashed outline-1 -outline-offset-1 outline-border-strong'
+              ? 'bg-elevated/60 italic text-foreground'
               : 'text-muted hover:bg-elevated'
         }
       `}
