@@ -103,19 +103,32 @@ export async function loadWritingSkills(
   }
 }
 
-/** 章纲提示词里的 skill 目录：只给名字和什么时候用。 */
-export function writingSkillIndex(skills: readonly WritingSkill[]): string {
-  return skills.map((skill) => `- ${skill.name}：${skill.when}`).join('\n');
+/** 作品自己的写法没有 plugin（或为 null）；插件写法带插件名。 */
+type MaybePluginStyle = WritingSkill & { readonly plugin?: { readonly id: string } | null };
+
+const styleLabel = (skill: MaybePluginStyle) =>
+  skill.plugin ? `${skill.name}（插件「${skill.plugin.id}」）` : skill.name;
+
+/** 章纲提示词里的 skill 目录：只给名字和什么时候用；插件写法在名字后标插件名。 */
+export function writingSkillIndex(skills: readonly MaybePluginStyle[]): string {
+  return skills.map((skill) => `- ${styleLabel(skill)}：${skill.when}`).join('\n');
 }
 
-/** 模型挑的名字：只认目录里有的，去重，最多 {@link WRITING_SKILL_PICK_MAX} 个。 */
-export function pickWritingSkills(raw: unknown, skills: readonly WritingSkill[]): string[] {
+/**
+ * 模型挑的名字：只认目录里有的，去重，最多 {@link WRITING_SKILL_PICK_MAX} 个。
+ * 插件写法在目录里带着插件名，模型照抄「名字（插件「id」）」也认成那个名字。
+ */
+export function pickWritingSkills(raw: unknown, skills: readonly MaybePluginStyle[]): string[] {
   if (!Array.isArray(raw)) return [];
   const known = new Set(skills.map((skill) => skill.name));
+  const labels = new Map(
+    skills.filter((skill) => skill.plugin).map((skill) => [styleLabel(skill), skill.name]),
+  );
   const picked: string[] = [];
   for (const item of raw) {
     if (typeof item !== 'string') continue;
-    const name = pythonStrip(item);
+    const stripped = pythonStrip(item);
+    const name = known.has(stripped) ? stripped : (labels.get(stripped) ?? stripped);
     if (!known.has(name) || picked.includes(name)) continue;
     picked.push(name);
     if (picked.length >= WRITING_SKILL_PICK_MAX) break;
@@ -123,19 +136,23 @@ export function pickWritingSkills(raw: unknown, skills: readonly WritingSkill[])
   return picked;
 }
 
-/** 起草指令后面附的写法要点：只带章纲挑中的几份。 */
+/**
+ * 起草指令后面附的写法要点：只带章纲挑中的几份。挑中的有插件写法时开头说「作者选用的」——
+ * 插件写法是作者启用的插件带来的，不是作者审过的。
+ */
 export function writingSkillsBlock(
-  skills: readonly WritingSkill[],
+  skills: readonly MaybePluginStyle[],
   names: readonly string[],
 ): string | null {
   const chosen = names
     .map((name) => skills.find((skill) => skill.name === name))
-    .filter((skill): skill is WritingSkill => skill !== undefined);
+    .filter((skill): skill is MaybePluginStyle => skill !== undefined);
   if (!chosen.length) return null;
+  const vetting = chosen.some((skill) => skill.plugin) ? '作者选用的' : '作者审过的';
   return (
-    '写法要点（作者审过的写法 skill，这一章照着写；例句只示意，不要照抄）：\n' +
+    `写法要点（${vetting}写法 skill，这一章照着写；例句只示意，不要照抄）：\n` +
     chosen
-      .map((skill) => `### ${skill.name}\n${cut(skill.body, WRITING_SKILL_MAX_CHARS)}`)
+      .map((skill) => `### ${styleLabel(skill)}\n${cut(skill.body, WRITING_SKILL_MAX_CHARS)}`)
       .join('\n\n')
   );
 }

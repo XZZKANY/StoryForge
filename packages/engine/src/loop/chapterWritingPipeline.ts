@@ -54,6 +54,14 @@ function requiredProjectRoot(args: Obj): string {
   return value;
 }
 
+/** 来源签名用的读取者：拟章纲时记下与起草前核对必须用同一个插件库。 */
+const guardDeps = (host: FixedPipelineHost) => ({
+  reader: host.reader,
+  platform: host.platform,
+  secrets: host.secrets,
+  pluginLibraryRoot: host.pluginLibraryRoot ?? null,
+});
+
 async function resumeProjectRoot(host: FixedPipelineHost, request: FixedPipelineRequest) {
   if (strip(request.args.project_path)) return strip(request.args.project_path);
   const session = await host.assistant.getSession(request.assistantSessionId);
@@ -105,7 +113,7 @@ export async function startChapterWriting(
 ): Promise<Obj> {
   const { args, userMessage } = request;
   let { run } = request;
-  const deps = { reader: host.reader, platform: host.platform, secrets: host.secrets };
+  const deps = guardDeps(host);
   const root = requiredProjectRoot(args);
   const { relative, target, planned } = await resolveTarget(
     host.reader,
@@ -283,7 +291,7 @@ export async function resumeChapterWriting(
   pending: PendingRow,
 ): Promise<Obj> {
   const { run, args } = request;
-  const deps = { reader: host.reader, platform: host.platform, secrets: host.secrets };
+  const deps = guardDeps(host);
   const payload = isObj(pending.payload) ? pending.payload : {};
   const original = isObj(payload.chapter_brief) ? payload.chapter_brief : {};
   const authorConfirmed = args.chapter_brief !== undefined && args.chapter_brief !== null;
@@ -334,7 +342,7 @@ async function draftFromBrief(
 ): Promise<Obj> {
   const { args, userMessage } = request;
   const { run, root, relative, target, brief: confirmed, authorConfirmed, pending } = input;
-  const deps = { reader: host.reader, platform: host.platform, secrets: host.secrets };
+  const deps = guardDeps(host);
   const payload = isObj(pending.payload) ? pending.payload : {};
   const targetAbsolute = nativeProjectPath(root, target, host.platform);
   const context = await host.toolContext(run, request);

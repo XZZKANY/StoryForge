@@ -155,7 +155,7 @@ export type AgentRuntimeDeps = {
   readonly compactAtHistoryBytes?: number;
   /** 回放 Python 时期的样本：照当时的时序在收尾压缩。缺省在下一轮开头压。 */
   readonly compactAtTurnEnd?: boolean;
-  /** 本机插件库根目录；缺省或 null 是没有插件（作品启用的插件技能都不可用）。 */
+  /** 本机插件库根目录；缺省或 null 是没有插件（作品启用的插件技能、写法、指令都不可用）。 */
   readonly pluginLibraryRoot?: string | null;
 };
 
@@ -344,6 +344,7 @@ export class AgentRuntime {
         reader: this.deps.reader,
         store: this.deps.assistant,
         platform: this.deps.platform,
+        pluginLibraryRoot: this.deps.pluginLibraryRoot ?? null,
         llm: async () => {
           const { secrets: _secrets, ...context } = this.llmContext();
           return engineAssistantLlm(this.deps.source, this.deps.secrets, context);
@@ -906,6 +907,7 @@ export class AgentRuntime {
       reader: this.deps.reader,
       platform: this.deps.platform,
       secrets: this.deps.secrets,
+      pluginLibraryRoot: this.deps.pluginLibraryRoot ?? null,
       newHex: () => this.deps.ids.hex(),
       executeTool: (run, toolName, context, payload) =>
         this.executeTool(run, toolName, context, payload),
