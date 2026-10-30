@@ -40,3 +40,25 @@
   - 停在最后一章等作者处理（规则 1、2）后，作者自己处理完、范围里已没有没正文的章时，续写会因「没有要写的章」被拒，这一批一直是停下状态，要点「这批审完了」才能开新的一批。
   - 记录文件没有「写前比对」：同一部作品同时只该有一个调度器，调用按顺序来；两个窗口同时开跑会互相覆盖。
   - 待作者点接受的提示里认得出「检查器没给出结果」，认不出 B 刀的「疑似没写完」（那个字段还没定），只说要作者通读。
+
+## 2026-10-30 C 刀审后追加：续写不再卡死、token 按「万」说、方案文档对齐
+
+- 背景：编排者审过 C 刀，退回两件、追加一件，同一分支追加提交。
+- 续写卡死：
+  - `readWriteBatch` 回包加 `can_resume`（引擎判定：最近一批是停下的，而且这一批范围里还有没正文的章）与 `resume_from`（范围里下一个没正文的章序，以正文为准；没有批量或都写了为 null）。界面给不给「从第 k 章接着写」只看 `can_resume`，k 用 `resume_from`。
+  - `resumeWriteBatch` 遇到这一批的章都已经有正文时（比如停在最后一章、作者自己处理完了），不再拒成死局：把这一批改成 `finished`、清掉 `stop`，`pending` / `after_trial` 里已有正文的标 `skipped_written`，回 `{started:false, plan, batch}`；plan 里原来的 `nothing_to_write` 换成稳定 code `batch_all_written`，说明是「这一批（第 a–b 章）的章都已经有正文了，没有要续写的：去清单上审完就行。」之后再开新的一批只差「审完」。
+  - 契约：`ApiWriteBatchView` 加 `can_resume`、`resume_from`；`ApiWriteBatchBlocker.code` 加 `batch_all_written`。前端解码加一致性检查：说能续写却没有停下的批、或没有要续写的章，报 `WriteBatchShapeError`。
+- token 按「万」说：引擎新 `formatTokenCount`（`loop/writeBatch.ts`，从包入口导出）：保留一位小数、整万不带 .0（523456 → 「52.3 万」，600000 → 「60 万」），不足 0.05 万的正数说「不到 0.1 万」、不说成 0（这一条是我加的）。目前给作者看的消息里只有 `cap_reached` 带 token 数，改成「这一段已用 52.3 万 / 上限 45 万 token，超出 7.3 万（……）」。记录文件里的数字字段仍存原始整数（测试钉住）。
+- 方案文档：§2 的「批量记录」与 §8 C 刀改成 `.storyforge/write-batch.json`，§8 C 刀按实际接口、判定顺序与新拦法重写；§6.2 补了一句「全写完就记成写完」和「界面只看能不能续写」。全文已没有「批量段」的说法。
+- 验证：
+  - 引擎批量相关测试 82 passed（新增：全写完续写记成写完并能审完后开新批、停下且有剩章时能续写并给出从第几章续、还在写 / 写完 / 没有批量时不能续写、格式化 7 例；上限两例改用 10 万量级核对「万」的说法与原始整数）。
+  - 引擎全量 `npx vitest run`（packages/engine）：110 个文件，14192 passed + 2 skipped；`tsc --noEmit` EXIT=0。
+  - 前端相关 4 个文件（`write-batch-record-api` / `write-batch-api` / `source-standards` / `ui-terminology`）33 passed；`npx tsc --noEmit -p tsconfig.json`（前端）EXIT=0；改动文件 eslint 与 prettier --check 都过。
+  - 按编排者要求，这次没有再跑整套 `pnpm verify`（推送时 pre-push 跑快测，CI 跑全套）。
+- 变异（同样逐处定点替换、断言目标串恰好 1 次、finally 写回原字节，前后 sha256 核对 OK）：
+  - N1 能不能续写不看正文 → 1 条红。
+  - N2 续写遇到全写完仍拒 → 1 条红。
+  - N3 整万也带 .0 → 6 条红。
+  - N4 不足 0.1 万说成 0 → 1 条红。
+  - N5 前端解码不核能不能续写 → 3 条红。
+- golden 零改动；改动文件全 LF、无 BOM。

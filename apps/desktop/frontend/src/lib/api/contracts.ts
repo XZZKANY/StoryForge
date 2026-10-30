@@ -198,7 +198,8 @@ export type ApiWriteBatchBlocker = {
     | 'setup_incomplete'
     | 'nothing_to_write'
     | 'batch_running'
-    | 'previous_batch_unreviewed';
+    | 'previous_batch_unreviewed'
+    | 'batch_all_written';
   message: string;
 };
 
@@ -370,11 +371,14 @@ export type ApiWriteBatchMismatch = {
 };
 
 /**
- * @description 读最近一批：记录本身，加上记录与正文对不上的章（以正文为准）。
+ * @description 读最近一批：记录本身，加上记录与正文对不上的章（以正文为准）。can_resume 由引擎判定
+ * （停下了、范围里还有没正文的章），界面只按它决定给不给「从第 k 章接着写」；resume_from 是下一个没正文的章序。
  */
 export type ApiWriteBatchView = {
   batch: ApiWriteBatch | null;
+  can_resume: boolean;
   mismatches: ApiWriteBatchMismatch[];
+  resume_from: number | null;
 };
 
 export type ApiWriteBatchRecovery = {

@@ -7,7 +7,7 @@ import { chapterChars } from './chapterCheckProtocol';
 import { REQUEST_EVIDENCE_KIND } from './requestEvidence';
 import { AgentRunNotFoundError } from './runEvents';
 import { AGENT_RUN_FAILED } from './runPayloads';
-import { planWriteBatch } from './writeBatch';
+import { formatTokenCount, planWriteBatch } from './writeBatch';
 import {
   readWriteBatchRecord,
   WRITE_BATCH_RELATIVE_PATH,
@@ -73,8 +73,13 @@ type RunSpec = {
   failure?: string;
 };
 
-/** 合成作品（已写到第 1 章，计划到第 to 章）+ 内存引擎库；history 为 true 时库里先有一次写章记录（1000 token）。 */
-function harness(options: { to?: number; written?: number[]; history?: boolean } = {}) {
+/**
+ * 合成作品（已写到第 1 章，计划到第 to 章）+ 内存引擎库；history 为 true 时库里先有一次写章记录
+ * （historyTokens，默认 1000 token）。
+ */
+function harness(
+  options: { to?: number; written?: number[]; history?: boolean; historyTokens?: number } = {},
+) {
   const project = memoryProject(ROOT, {
     ...SETUP,
     ...chapterFiles(...(options.written ?? [1])),
@@ -155,7 +160,11 @@ function harness(options: { to?: number; written?: number[]; history?: boolean }
     return run;
   }
   const historyReady = options.history
-    ? addRun({ publicId: 'history', target: '正文/第001章.md', tokens: [1000] })
+    ? addRun({
+        publicId: 'history',
+        target: '正文/第001章.md',
+        tokens: [options.historyTokens ?? 1000],
+      })
     : Promise.resolve();
   const start = async (from: number, to: number, profile = 'ask') => {
     await historyReady;
@@ -238,7 +247,12 @@ describe('批量记录的读写', () => {
 
   it('reports no batch when the file does not exist', async () => {
     const h = harness();
-    expect(await readWriteBatch(h.deps, ROOT)).toEqual({ batch: null, mismatches: [] });
+    expect(await readWriteBatch(h.deps, ROOT)).toEqual({
+      batch: null,
+      mismatches: [],
+      can_resume: false,
+      resume_from: null,
+    });
   });
 
   const corrupt = async (mutate: (record: Record<string, unknown>) => void) => {
@@ -580,26 +594,30 @@ describe('下一步：规则 3–6 在开下一章之前判断', () => {
   });
 
   it('stops once the leg has used exactly its cap (rule 5)', async () => {
-    const h = harness({ history: true });
-    // 历史每章 1000：三章预估 3000，上限 4500。
+    const h = harness({ history: true, historyTokens: 100_000 });
+    // 历史每章 10 万：三章预估 30 万，上限 45 万。
     const batch = await started(h, 2, 4);
-    await h.writeChapter(batch, 2, { tokens: [4000] });
+    await h.writeChapter(batch, 2, { tokens: [400_000] });
     expect(await h.next(batch)).toMatchObject({ action: 'write', ordinal: 3 });
-    await h.writeChapter(batch, 3, { tokens: [500] });
+    await h.writeChapter(batch, 3, { tokens: [50_000] });
     const step = await h.next(batch);
     expect(step).toMatchObject({ action: 'stop', code: 'cap_reached', ordinal: 4 });
-    expect(step.action === 'stop' && step.message).toContain('已用 4500 / 上限 4500 token');
+    expect(step.action === 'stop' && step.message).toContain('已用 45 万 / 上限 45 万 token');
     expect(step.action === 'stop' && step.message).not.toContain('超出');
+    // 记录里存的仍是原始整数。
+    expect((await h.saved())!.legs[0]).toMatchObject({ used_tokens: 450_000, cap_tokens: 450_000 });
   });
 
   it('finishes the chapter that crossed the cap and states the overshoot', async () => {
-    const h = harness({ history: true });
+    const h = harness({ history: true, historyTokens: 100_000 });
     const batch = await started(h, 2, 4);
-    await h.writeChapter(batch, 2, { tokens: [5000] });
+    await h.writeChapter(batch, 2, { tokens: [523_456] });
     const step = await h.next(batch);
     expect(step).toMatchObject({ code: 'cap_reached', ordinal: 3 });
-    expect(step.action === 'stop' && step.message).toContain('超出 500');
-    expect((await h.saved())!.chapters[0].state).toBe('written');
+    expect(step.action === 'stop' && step.message).toContain(
+      '已用 52.3 万 / 上限 45 万 token，超出 7.3 万',
+    );
+    expect((await h.saved())!.chapters[0]).toMatchObject({ state: 'written', tokens: 523_456 });
   });
 
   it('keeps going just under the cap', async () => {
@@ -917,20 +935,87 @@ describe('续写', () => {
     expect(await h.next(resumed)).toMatchObject({ action: 'write', ordinal: 3 });
   });
 
-  it('does not resume when every chapter in the batch has a manuscript', async () => {
+  it('marks the batch finished instead of leaving it stuck when every chapter has a manuscript', async () => {
     const h = harness({ history: true });
     const batch = await started(h, 2, 3);
-    await h.writeChapter(batch, 2, { disputes: 1 });
-    await h.next(batch);
-    h.project.apply({ [pathOf(3)]: file('第3章\n\n作者写的。\n') });
-    h.project.takeWrites();
+    // 停在最后一章等作者处理；作者自己把这章接受了。
+    await h.writeChapter(batch, 2);
+    await h.writeChapter(batch, 3, { written: false });
+    expect(await h.next(batch)).toMatchObject({ code: 'writeback_blocked', ordinal: 3 });
+    h.project.apply({ [pathOf(3)]: file('第3章\n\n作者接受的修订。\n') });
+    expect(await readWriteBatch(h.deps, ROOT)).toMatchObject({
+      can_resume: false,
+      resume_from: null,
+    });
+
     const result = await resumeWriteBatch(h.deps, {
       project_root: ROOT,
       permission_profile: 'ask',
       model_key: MODEL,
     });
     expect(result.started).toBe(false);
-    expect(result.plan.blockers.map((blocker) => blocker.code)).toEqual(['nothing_to_write']);
-    expect(h.project.takeWrites()).toEqual({});
+    expect(result.plan.blockers).toEqual([
+      {
+        code: 'batch_all_written',
+        message: '这一批（第 2–3 章）的章都已经有正文了，没有要续写的：去清单上审完就行。',
+        chapters: [],
+      },
+    ]);
+    expect(result.batch).toMatchObject({ status: 'finished', stop: null, legs: [{}] });
+    expect(await h.saved()).toEqual(result.batch);
+    // 写完了：再开新的一批只差「审完」。
+    const blocker = (await h.start(4, 4)).plan.blockers.map((item) => item.code);
+    expect(blocker).toEqual(['previous_batch_unreviewed']);
+    await markWriteBatchReviewed(h.deps, ROOT, batch.id);
+    expect((await h.start(4, 4)).started).toBe(true);
+  });
+});
+
+describe('读记录时告诉界面能不能续写', () => {
+  it('offers to resume a stopped batch from the next chapter without a manuscript', async () => {
+    const h = harness({ history: true });
+    const batch = await started(h, 2, 5);
+    await h.writeChapter(batch, 2, { disputes: 1 });
+    await h.next(batch);
+    // 作者停下后自己写了第 3 章：从第 4 章接着写。
+    h.project.apply({ [pathOf(3)]: file('第3章\n\n作者写的。\n') });
+    expect(await readWriteBatch(h.deps, ROOT)).toMatchObject({
+      batch: { status: 'stopped' },
+      can_resume: true,
+      resume_from: 4,
+    });
+  });
+
+  it('does not offer to resume a running or finished batch, or no batch at all', async () => {
+    const h = harness({ history: true, to: 3 });
+    expect(await readWriteBatch(h.deps, ROOT)).toEqual({
+      batch: null,
+      mismatches: [],
+      can_resume: false,
+      resume_from: null,
+    });
+    const batch = await started(h, 2, 3);
+    expect(await readWriteBatch(h.deps, ROOT)).toMatchObject({ can_resume: false, resume_from: 2 });
+    await h.writeChapter(batch, 2);
+    await h.writeChapter(batch, 3);
+    expect(await h.next(batch)).toEqual({ action: 'finished' });
+    expect(await readWriteBatch(h.deps, ROOT)).toMatchObject({
+      can_resume: false,
+      resume_from: null,
+    });
+  });
+});
+
+describe('给作者看的 token 数', () => {
+  it.each([
+    [523_456, '52.3 万'],
+    [600_000, '60 万'],
+    [599_960, '60 万'],
+    [10_000, '1 万'],
+    [4500, '0.5 万'],
+    [0, '0 万'],
+    [400, '不到 0.1 万'],
+  ])('says %i tokens as %s', (tokens, text) => {
+    expect(formatTokenCount(tokens)).toBe(text);
   });
 });

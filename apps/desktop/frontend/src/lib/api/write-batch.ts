@@ -84,6 +84,7 @@ const BLOCKER_CODES = [
   'nothing_to_write',
   'batch_running',
   'previous_batch_unreviewed',
+  'batch_all_written',
 ] as const;
 
 function decodeBlocker(value: unknown): ApiWriteBatchBlocker {
@@ -324,10 +325,18 @@ function decodeMismatch(value: unknown): ApiWriteBatchMismatch {
 }
 
 export function decodeWriteBatchView(value: unknown): ApiWriteBatchView {
-  const raw = object(value, '批量记录');
+  const at = '批量记录';
+  const raw = object(value, at);
+  const batch = decodeBatchOrNull(raw.batch);
+  const canResume = field<boolean>(raw, 'can_resume', (item) => typeof item === 'boolean', at);
+  const resumeFrom = field<number | null>(raw, 'resume_from', isOrdinalOrNull, at);
+  if (canResume && (batch?.status !== 'stopped' || resumeFrom === null))
+    throw new WriteBatchShapeError('批量记录说能续写，但没有停下的批或没有要续写的章');
   return {
-    batch: decodeBatchOrNull(raw.batch),
-    mismatches: list(raw, 'mismatches', '批量记录', decodeMismatch),
+    batch,
+    can_resume: canResume,
+    mismatches: list(raw, 'mismatches', at, decodeMismatch),
+    resume_from: resumeFrom,
   };
 }
 
@@ -360,7 +369,10 @@ export async function startWriteBatch(input: {
   return decodeWriteBatchStart(raw);
 }
 
-/** 续写停下的最近一批：剩下没正文的章重新估、重新确认；不要求先审完。 */
+/**
+ * 续写停下的最近一批：剩下没正文的章重新估、重新确认；不要求先审完。
+ * 这一批的章都已经有正文时，引擎把它记成写完，started=false、plan 里是 batch_all_written。
+ */
 export async function resumeWriteBatch(input: {
   projectRoot: string;
   permissionProfile: AgentPermissionProfile;
@@ -452,7 +464,10 @@ export async function markWriteBatchReviewed(
   );
 }
 
-/** 最近一批的记录，加上记录与正文对不上的章；没有批量记录时 batch 为 null。 */
+/**
+ * 最近一批的记录，加上记录与正文对不上的章；没有批量记录时 batch 为 null。
+ * 给不给「从第 k 章接着写」只看 can_resume，k 是 resume_from，界面不自己算。
+ */
 export async function readWriteBatch(projectRoot: string): Promise<ApiWriteBatchView> {
   return decodeWriteBatchView(await (await engine()).readEngineWriteBatch(projectRoot));
 }

@@ -14,6 +14,7 @@ import { AgentRunNotFoundError } from './runEvents';
 import { AGENT_RUN_FAILED } from './runPayloads';
 import {
   bookChapters,
+  formatTokenCount,
   planBatch,
   runUsage,
   type BookChapters,
@@ -71,7 +72,14 @@ export type WriteBatchMismatch = {
   message: string;
 };
 
-export type WriteBatchView = { batch: WriteBatchRecord | null; mismatches: WriteBatchMismatch[] };
+export type WriteBatchView = {
+  batch: WriteBatchRecord | null;
+  mismatches: WriteBatchMismatch[];
+  /** 最近一批停下了、而且范围里还有没正文的章：界面只按它决定给不给「从第 k 章接着写」。 */
+  can_resume: boolean;
+  /** 范围里下一个还没有正文的章序（以正文为准）；没有批量或都写了为 null。 */
+  resume_from: number | null;
+};
 
 const timestamp = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
@@ -189,6 +197,8 @@ export async function startWriteBatch(
 /**
  * 续写最近一批（必须是停下的）：对这一批范围里剩下没正文的章重新出计划（同样的拦法，只是不要求先审完），
  * 新开一段（重新估、重新给上限），按新的模型标识记。不能开跑时不改记录。
+ * 例外：这一批的章都已经有正文了（比如停在最后一章、作者自己处理完了），就把这一批记成写完，
+ * 不再停在「停下了却续不了」；plan 里用 batch_all_written 说明去清单上审完。
  */
 export async function resumeWriteBatch(
   deps: WriteBatchRunDeps,
@@ -214,6 +224,22 @@ export async function resumeWriteBatch(
     },
     'resume',
   );
+  if (plan.blockers.some((blocker) => blocker.code === 'nothing_to_write')) {
+    plan.blockers = plan.blockers.map((blocker) =>
+      blocker.code === 'nothing_to_write'
+        ? {
+            code: 'batch_all_written',
+            message: `这一批（第 ${record.from}–${record.to} 章）的章都已经有正文了，没有要续写的：去清单上审完就行。`,
+            chapters: [],
+          }
+        : blocker,
+    );
+    markSkipped(record, await bookChapters(deps.reader, root, deps.platform));
+    record.status = 'finished';
+    record.stop = null;
+    await save(deps, root, record);
+    return { started: false, plan, batch: record };
+  }
   if (!plan.can_start) return { started: false, plan, batch: record };
   record.chapters = record.chapters.map((chapter, index) => {
     const planned = plan.chapters[index];
@@ -457,6 +483,16 @@ async function stopBatch(
   return { action: 'stop', ...reason, ordinal };
 }
 
+/** 计划里还没写、正文却已经有了的章（作者中途自己写的）：跳过并标出来。 */
+function markSkipped(record: WriteBatchRecord, book: BookChapters) {
+  for (const chapter of record.chapters)
+    if (
+      (chapter.state === 'pending' || chapter.state === 'after_trial') &&
+      book.writtenPath(chapter.ordinal) !== null
+    )
+      chapter.state = 'skipped_written';
+}
+
 /** 范围里第一章还没有正文的（正文是真值源）；都有了为 null。 */
 const firstUnwritten = (record: WriteBatchRecord, book: BookChapters) =>
   record.chapters.find((chapter) => book.writtenPath(chapter.ordinal) === null) ?? null;
@@ -497,12 +533,7 @@ export async function nextWriteBatchStep(
     }
   }
   const book = await bookChapters(deps.reader, root, deps.platform);
-  for (const chapter of record.chapters)
-    if (
-      (chapter.state === 'pending' || chapter.state === 'after_trial') &&
-      book.writtenPath(chapter.ordinal) !== null
-    )
-      chapter.state = 'skipped_written';
+  markSkipped(record, book);
   const target = firstUnwritten(record, book);
   if (target === null) {
     record.status = 'finished';
@@ -554,8 +585,10 @@ export async function nextWriteBatchStep(
       {
         code: 'cap_reached',
         message:
-          `这一段已用 ${leg.used_tokens} / 上限 ${leg.cap_tokens} token` +
-          (over > 0 ? `，超出 ${over}（上限只在两章之间判断，刚写完的这章照常算数）` : '') +
+          `这一段已用 ${formatTokenCount(leg.used_tokens)} / 上限 ${formatTokenCount(leg.cap_tokens)} token` +
+          (over > 0
+            ? `，超出 ${formatTokenCount(over)}（上限只在两章之间判断，刚写完的这章照常算数）`
+            : '') +
           `：${before}。续写时按最近的用量重新估、再确认。`,
       },
       target.ordinal,
@@ -655,8 +688,9 @@ export async function readWriteBatch(
   root: string,
 ): Promise<WriteBatchView> {
   const record = await readWriteBatchRecord(deps.reader, root);
-  if (record === null) return { batch: null, mismatches: [] };
+  if (record === null) return { batch: null, mismatches: [], can_resume: false, resume_from: null };
   const book = await bookChapters(deps.reader, root, deps.platform);
+  const resumeFrom = firstUnwritten(record, book)?.ordinal ?? null;
   const mismatches: WriteBatchMismatch[] = [];
   for (const chapter of record.chapters) {
     const label = `第 ${chapter.ordinal} 章`;
@@ -689,5 +723,10 @@ export async function readWriteBatch(
         message: `记录说${label}没写进文件，正文里已经有了：以正文为准。`,
       });
   }
-  return { batch: record, mismatches };
+  return {
+    batch: record,
+    mismatches,
+    can_resume: record.status === 'stopped' && resumeFrom !== null,
+    resume_from: resumeFrom,
+  };
 }

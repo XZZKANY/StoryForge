@@ -192,6 +192,8 @@ describe('lib/api 经引擎记批量、问下一步', () => {
     expect(await api.readWriteBatch(ROOT)).toMatchObject({
       batch: { status: 'stopped' },
       mismatches: [],
+      can_resume: true,
+      resume_from: 3,
     });
 
     const blocked = await api.startWriteBatch({
@@ -267,6 +269,7 @@ describe('批量记录回包的解码', () => {
     chapters: [CHAPTER],
     internal: true,
   };
+  const STOP = { code: 'author_stopped', message: '作者按了停止。', ordinal: 2 };
 
   it('keeps only the contract fields', () => {
     const batch = decodeWriteBatch(BATCH);
@@ -276,10 +279,9 @@ describe('批量记录回包的解码', () => {
     expect(
       decodeWriteBatchStep({ action: 'stop', code: 'cap_reached', message: 'm', ordinal: 3, x: 1 }),
     ).toEqual({ action: 'stop', code: 'cap_reached', message: 'm', ordinal: 3 });
-    expect(decodeWriteBatchView({ batch: null, mismatches: [] })).toEqual({
-      batch: null,
-      mismatches: [],
-    });
+    expect(
+      decodeWriteBatchView({ batch: null, mismatches: [], can_resume: false, resume_from: null }),
+    ).toEqual({ batch: null, mismatches: [], can_resume: false, resume_from: null });
   });
 
   it.each([
@@ -309,7 +311,33 @@ describe('批量记录回包的解码', () => {
       decodeWriteBatchView({
         batch: null,
         mismatches: [{ ordinal: 2, kind: 'odd', message: 'm' }],
+        can_resume: false,
+        resume_from: null,
       }),
     ).toThrow(WriteBatchShapeError);
+  });
+
+  it.each([
+    ['without a batch', { batch: null, resume_from: 2 }],
+    ['on a running batch', { batch: BATCH, resume_from: 2 }],
+    [
+      'without a chapter to resume from',
+      { batch: { ...BATCH, status: 'stopped', stop: STOP }, resume_from: null },
+    ],
+    ['with a missing can_resume', { batch: null, resume_from: null, can_resume: undefined }],
+  ])('rejects a view that offers to resume %s', (_name, change) => {
+    expect(() => decodeWriteBatchView({ mismatches: [], can_resume: true, ...change })).toThrow(
+      WriteBatchShapeError,
+    );
+  });
+
+  it('accepts a stopped batch that can resume', () => {
+    const view = decodeWriteBatchView({
+      batch: { ...BATCH, status: 'stopped', stop: STOP },
+      mismatches: [],
+      can_resume: true,
+      resume_from: 2,
+    });
+    expect(view).toMatchObject({ can_resume: true, resume_from: 2 });
   });
 });

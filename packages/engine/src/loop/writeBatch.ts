@@ -209,7 +209,8 @@ export type WriteBatchBlockerCode =
   | 'setup_incomplete'
   | 'nothing_to_write'
   | 'batch_running'
-  | 'previous_batch_unreviewed';
+  | 'previous_batch_unreviewed'
+  | 'batch_all_written';
 
 export type WriteBatchBlocker = {
   code: WriteBatchBlockerCode;
@@ -281,6 +282,16 @@ const blocker = (
 ): WriteBatchBlocker => ({ code, message, chapters });
 
 const validOrdinal = (value: number) => Number.isSafeInteger(value) && value >= 1;
+
+/**
+ * 给作者看的 token 数按「万」说，保留一位小数，整万不带 .0（与确认卡一致）：523456 → 「52.3 万」，600000 → 「60 万」。
+ * 不足 0.05 万的正数说「不到 0.1 万」，不说成 0。记录文件里存的仍是原始整数。
+ */
+export function formatTokenCount(tokens: number): string {
+  const tenths = Math.round(tokens / 1000);
+  if (tenths === 0 && tokens > 0) return '不到 0.1 万';
+  return `${tenths % 10 === 0 ? tenths / 10 : (tenths / 10).toFixed(1)} 万`;
+}
 
 /** 范围最多跨 10000 章：只防手滑输错（如 `/写 1-100000`），不是每批章数的上限（作者定了不设）。 */
 export const MAX_BATCH_RANGE = 10000;
