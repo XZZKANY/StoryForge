@@ -189,7 +189,9 @@ describe('插件写法进章纲与起草', () => {
     expect(full).toHaveLength(WRITING_SKILL_INDEX_MAX);
   });
 
-  it('章纲等确认期间插件写法或插件指令改了：拒绝起草；改插件里不进来源的文件不拦', async () => {
+  // 写章拟完章纲直接起草（#531）；这几例都停在起草前（预言机场景的 before_tool:chapter.draft 暂停），
+  // 停着的时候改插件，再继续。
+  it('章纲之后、起草之前插件写法或插件指令改了：拒绝起草；改插件里不进来源的文件不拦', async () => {
     // 只改正文、名字不变：目录一字不差，只能靠来源签名里的内容摘要发现。
     // 「长」的指令超出上限，改的是没带进提示词的尾巴：提示词不变，也要按来源已变处理。
     const long = '长'.repeat(5000);
@@ -213,7 +215,8 @@ describe('插件写法进章纲与起草', () => {
       );
       expect(JSON.stringify(record.controls), `${id}/${path}`).toContain(DRIFT);
     }
-    const calm = await runChapter('write-brief-then-pass', (spec) => {
+    // 停在起草前、不带章纲继续：照记下的章纲写完；插件写法与指令都在来源签名里，只改说明不拦。
+    const calm = await runChapter('write-missing-brief-on-resume', (spec) => {
       spec.extra_files = { ...BOOK_STYLES, ...enabled('网文包', '后包') };
       spec.ops.unshift({
         op: 'edit_plugin',
@@ -222,8 +225,13 @@ describe('插件写法进章纲与起草', () => {
         content: '改了说明。',
       });
     });
+    expect(lastMessage((calm.requests as Obj[])[0])).toContain(
+      '- 爽点：写打脸时（插件「网文包」）',
+    );
     expect(JSON.stringify(calm.controls)).not.toContain(DRIFT);
-    expect(draftRequest(calm)).toBeDefined();
+    expect(calm.controls[0].event.payload.control_effect).toBe('applied');
+    expect(calm.controls[0].resumed_result.proposed_patch).toBeTruthy();
+    expect(systemMessage(draftRequest(calm))).toContain('### 插件「网文包」\n对白少用感叹号。');
   });
 
   it('起草的 system 里插件的要求排在作者指令前面，并进生成来源记录', async () => {

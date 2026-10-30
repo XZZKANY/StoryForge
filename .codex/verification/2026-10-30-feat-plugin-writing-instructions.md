@@ -38,3 +38,15 @@
   - 续跑指纹不记 `.storyforge/plugins.json`（保持第 2 刀「启用了但没有技能 / 指令时指纹不变」）：保存点时一个带指令的插件都没启用、续跑前新启用一个，核不出来。
   - 润色（`chapter.polish`）不带插件的要求；章纲与章节检查走 `CHAT_SYSTEM_PROMPT`，本来就不带作者指令，也不带插件指令；Ctrl+K 上下文包里的 `author_instructions` 上下文文件（`contracts.ts` 数据形状）没加插件。
   - 作品自己 `写法/` 里的重名照旧（目录里都列、起草取第一份），本刀只管插件与作品之间、插件与插件之间的重名。
+
+### 合并 master 后（#531 #534 #535 #536）
+
+- 合并：`origin/master`（`2162ec1a`）合进本分支，合并提交 `1933d660`。唯一冲突在 `packages/engine/src/loop/chapterWritingPipeline.ts`（由协调方解决）：取 master 的 `const { run, args } = request;`；#531 之后文件里三处 `const deps = {…}`——`startChapterWriting`、`resumeChapterWriting`、#531 新加的 `draftFromBrief`——都带 `pluginLibraryRoot: host.pluginLibraryRoot ?? null`。对照 `git diff MERGE_HEAD` 只差这三处。#535 之后作品可以在上下文浮窗里勾选启用插件，上面「只能手写 `plugins.json`」那句不再成立；浮窗仍不显示插件写法与指令。
+- 测试改动（单独提交）：#531 让写章拟完章纲直接起草，`write-brief-then-pass` 不再停下、没有 `ops`，「插件改了拒绝起草」那条里「改插件说明不拦」的对照例报 `Cannot read properties of undefined (reading 'unshift')`。照 #531 的做法（`write-source-drift` 等场景用 `before_tool:chapter.draft` 暂停、停着时改文件、再 `resume_run`）：改插件写法 / 插件指令仍用 `write-source-drift`（停在起草前→改插件→继续，`resumeChapterWriting` 核对来源拒绝）；对照例改用 `write-missing-brief-on-resume`（停在起草前→改插件 README→不带章纲继续），断言章纲目录里有插件写法、控制结果 `applied`、没有来源已变、继续后产出补丁、起草 system 里带插件的要求。测试名改成「章纲之后、起草之前……」。
+- 变异（定点替换，替换前断言目标恰好 1 次，`finally` 无条件还原，跑完 `sha256sum -c` 两个文件 OK）：
+  - N1 `draftFromBrief` 的 deps 去掉 `pluginLibraryRoot` → 4 条红（起草后最后一次来源核对拿不到插件、按来源已变拒绝：连续写章的三条与对照例）；
+  - N2 `resumeChapterWriting` 的 deps 去掉 `pluginLibraryRoot` → 1 条红（对照例：停在起草前再继续时核对拿不到插件，误报来源已变）；
+  - 新流程下重跑 M4（签名不记插件写法 sha256）、M10（签名不记 `plugin_instructions`）→ 各 1 条红，仍被抓住。
+- 跑了：引擎 `tsc --noEmit` 通过；引擎全量 14090 passed + 2 skipped（107 个文件）；`npm --prefix apps/desktop/frontend run typecheck` 通过；前端 `engine-agent-deps`、`context-panel-plugins`、`settings-plugins`、`context-panel`、`context-panel-view`、`composer-skill-commands`、`assistant-engine-routing` 7 个文件 74 passed；改动文件 prettier / eslint 干净。
+- **本地没跑 `pnpm verify`**（机器内存紧，另一个工作者在编 Rust），以推上去后 CI 的「Windows / pnpm verify」为准。
+- golden：`git status --short packages/engine/golden` 与 `git diff --stat packages/engine/golden` 为空，`git diff 2162ec1a HEAD -- packages/engine/golden` 也为空（与 master 一致）。行尾：改动文件全 LF，`git diff --numstat` 与 `--ignore-all-space --numstat` 一致。
