@@ -283,6 +283,22 @@ test('技能：列出名字和什么时候用，这一轮读过的标出来，�
   expect(opened).toEqual([`${ROOT}\\技能\\立项流程.md`]);
 });
 
+test('技能：作者在消息开头 /技能名 点名的，标「这一轮点名」', async () => {
+  loadSkills.mockResolvedValue([
+    skill('立项流程', '作者问「下一步干什么」时'),
+    skill('审稿口径', '作者让你审稿时'),
+  ]);
+  await renderPanel({
+    ...run([trace({ output_summary: { path: '技能/审稿口径.md' } })]),
+    goal: '、立项流程 下一步干什么',
+  });
+  expect($$('context-skill').map((node) => node.textContent)).toEqual([
+    '立项流程作者问「下一步干什么」时这一轮点名',
+    '审稿口径作者让你审稿时这一轮用了',
+  ]);
+  expect($$('context-skill-invoked')).toHaveLength(1);
+});
+
 test('技能：没有时一行说明，「新建」给三个模板，建到 技能/<名字>.md 并打开', async () => {
   const exists = vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(false);
   const mkdir = vi.spyOn(TauriFileSystem, 'createDir').mockResolvedValue();

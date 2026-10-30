@@ -1,0 +1,25 @@
+## 2026-10-30 输入框 /技能名 点名，这一轮带技能全文
+
+- 背景：作者 10-30 拍板顺序「`/技能名` → 插件 → `/写 1-10`」，插件的方向决定（本机插件库、按作品启用、能带写法与指令片段、能导入别人的插件）记在 `docs/internal/TODO.md`「2026-10-30 当前入口」。本分支只做 `/技能名`。
+- 改动（帧契约、`contracts.ts`、`codecs.ts` 不动，无库迁移，golden 零改动）：
+  - `packages/project-core/src/conversationSkills.ts`：点名解析放一处，引擎与界面共用。`invokedSkillNames` 认消息开头连着的点名（`/`、全角 `／`、中文输入法的 `、` 都算触发符），按最长名字匹配、名字后须是空白或消息结尾、碰到认不出的就停、去重、最多 3 个；`skillCommandQuery` / `completeSkillCommand` 给输入框弹列表与补全用；`startsWithSkillCommand` 只看触发符。
+  - `packages/engine/src/kernel/conversationSkills.ts`：新增 `loadConversationSkillSources`（带全文）、`invokedConversationSkills`、`invokedSkillsBlock`（单份超过 4000 字截断并提示用 fs_read 读原文件）。`loadConversationSkills` 的对外形状不变。
+  - `packages/engine/src/loop/loopMessages.ts`：有点名时在作者视图之后、作者消息之前加一段 `invoked_skills`（system）；没点名时消息与来源指纹逐字不变。
+  - `packages/engine/src/loop/chatLoopCheckpoints.ts`：`sourceVersions` 把点名的技能文件加进续跑核对的来源指纹；先看触发符再读技能目录（检查点每次保存都会走到这里）。
+  - 界面：`Composer.tsx` 开头打 `/` 弹 `SkillCommandMenu`（读 `技能/`，按输入筛：名字开头匹配的在前、包含的在后），↑↓ 选、Enter / Tab 填入 `/名字 `（不发送）、Esc 关（再打一个字重新弹）；没打开作品、不在开头时不弹；书里没技能 / 没匹配 / 读失败各有一句说明。占位文字改为「输入想法，@ 提及角色，/ 用技能」。`ContextPanel.tsx` 技能块对这一轮点名的标「这一轮点名」（其余读过的仍标「这一轮用了」），提示加「消息开头打 / 点名」。
+- 验证：
+  - project-core `vitest run`：22 passed（新增 `conversationSkills.test.ts` 8 条）。
+  - 引擎 `vitest run src/loop/skillsIndex.test.ts`：6 passed（新增 4 条：点名段位置与全文脱敏、其余段与没点名时一致；不在开头 / 认不出 / 没技能不加段；超长截断；来源指纹带点名的技能文件）。
+  - 前端 `vitest run tests/composer-skill-commands.test.tsx tests/context-panel-view.test.tsx tests/composer-next-hint.test.tsx`：30 passed（新增 `composer-skill-commands.test.tsx` 5 条、上下文面板 1 条；占位文字断言随改）。
+  - 变异（`output/slash-skills/mutate.py`：备份字节、断言替换点唯一、无条件还原并逐字节核对）：M1 不加点名段 → 2 红；M2 点名技能不进来源指纹 → 1 红；M3 Enter/Tab 不填入 → 2 红；M4 上下文面板不标点名 → 1 红。
+  - `pnpm verify`（corepack 缓存的 pnpm 9.15.4 临时 shim）：
+    - 第一遍 EXIT=2：引擎类型检查不认测试里的 `Array.prototype.at`（引擎 lib 低于 es2022），改成下标。
+    - 第二遍 EXIT=1：单测全绿（project-core 22、引擎 14017 passed + 2 skipped、前端 2529），浏览器回归「行间续写」失败（失败处理里截图「等字体加载」30s 超时，原始错误被盖住）。单跑一次 `page.goto` 30s 超时（脚本每次用全新临时 Vite 缓存冷启动），再单跑一次 EXIT=0。与 #519 记录里同一回归的偶发超时一致；当时本机开着作者的 StoryForge，空闲内存约 3 GB。
+    - 第三遍 EXIT=1：前端单测 `tests/focus-styles.test.ts`（现场编译整份 Tailwind）满载下超 5s 超时，其余 2528 条与引擎、project-core 全绿；源码与第二遍逐字节相同（变异已按字节还原核对），第二遍里它是过的；单跑 5 passed。
+    - 第四遍 EXIT=0：project-core 22、引擎 14017 passed + 2 skipped、前端 2529 passed、三个浏览器回归通过。日志在 `output/slash-skills/verify-4.log`（不入库）。
+  - 行尾：`Composer.tsx` 为 CRLF，按字节改、改后 491 行全 CRLF 无 CRCRLF；其余改动文件全 LF。`--numstat` 与 `--ignore-all-space --numstat` 只在 `ContextPanel.tsx` 差 2 行（「这一轮用了」那段包进三元多一层缩进）。
+- 未覆盖：
+  - 没用真模型验证：模型拿到点名全文后是否确实照技能做（比如 `/立项流程` 是否按步骤推进）。
+  - 真宿主（Tauri + 真读口）上的输入法实际行为没点穿：微软拼音 / 搜狗在中文标点模式下按 / 键出「、」是按常见默认设置推断的，没在作者机上确认。
+  - 起草 / 修订工具仍看不到技能全文，靠模型把要点写进 instruction（与 #517 相同）。
+  - 插件、`/写 1-10` 不在本分支。

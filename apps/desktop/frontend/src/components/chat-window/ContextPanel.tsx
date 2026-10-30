@@ -1,3 +1,4 @@
+import { invokedSkillNames } from '@storyforge/project-core';
 import { useRef, useState } from 'react';
 
 import { Button, FloatingSurface, IconButton } from '../ui';
@@ -185,10 +186,18 @@ function NewSkillButton({
 function SkillsBlock({ projectPath, run }: { projectPath: string | null; run: AgentRun | null }) {
   const { view, creating, create } = useConversationSkills(projectPath);
   const used = skillsReadThisRun(run ? runContextReads(run.steps, projectPath) : null);
+  const invoked = new Set(
+    run && view.status === 'ready'
+      ? invokedSkillNames(
+          run.goal,
+          view.skills.map((skill) => skill.name),
+        )
+      : [],
+  );
   const newButton = <NewSkillButton creating={creating} onCreate={(skill) => void create(skill)} />;
   return (
     <div className="space-y-1.5" data-testid="context-skills">
-      <BlockTitle title="技能" hint="技能/ · 每轮带目录，用得上才读全文" />
+      <BlockTitle title="技能" hint="技能/ · 每轮带目录，用得上才读全文；消息开头打 / 点名" />
       {view.status === 'idle' && <p className="text-xs text-muted">还没打开作品。</p>}
       {view.status === 'loading' && (
         <p className="text-xs text-muted" role="status">
@@ -224,13 +233,22 @@ function SkillsBlock({ projectPath, run }: { projectPath: string | null; run: Ag
                 <FileText size={12} strokeWidth={1.6} className="flex-shrink-0 text-subtle" />
                 <span className="flex-shrink-0 text-foreground">{skill.name}</span>
                 <span className="min-w-0 flex-1 truncate text-2xs text-subtle">{skill.when}</span>
-                {used.has(normalizePathForMatch(skill.path)) && (
+                {invoked.has(skill.name) ? (
                   <span
                     className="flex-shrink-0 rounded-sm border border-border px-1.5 py-px text-3xs leading-4 text-muted"
-                    data-testid="context-skill-used"
+                    data-testid="context-skill-invoked"
                   >
-                    这一轮用了
+                    这一轮点名
                   </span>
+                ) : (
+                  used.has(normalizePathForMatch(skill.path)) && (
+                    <span
+                      className="flex-shrink-0 rounded-sm border border-border px-1.5 py-px text-3xs leading-4 text-muted"
+                      data-testid="context-skill-used"
+                    >
+                      这一轮用了
+                    </span>
+                  )
                 )}
               </button>
             </li>
