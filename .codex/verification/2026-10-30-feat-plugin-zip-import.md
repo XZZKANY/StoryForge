@@ -42,3 +42,25 @@
   - 单个插件文件夹本身叫 `技能` 或 `写法` 而又只打包了这一层内容时（例如只有 `技能/x.md`），按规则会被当成单顶层文件夹剥掉；预览里能看到路径，但不是插件作者的本意。是否给布局目录名开例外留给后续决定。
   - 「要导入的文件夹必须是完整路径 / 不存在 / 无法读取 / 无法解析」几句在来源是 zip 时仍说「文件夹」，没改文案。
   - 读入内存的上限是压缩包 32 MiB + 收下的文本 4 MiB；最坏情况下 5000 个文本条目各解压到 512 KiB + 1 才被判超大，CPU 有一段消耗，没加「累计解压字节」上限。
+
+## 2026-10-30 审查退回四件事（同一分支追加提交）
+
+> 上一节「未覆盖」里第 3–5 条已由本节处理；其余几条照旧。
+
+- 合 origin/master（单独一个合并提交 `ad4dba28`）：`git fetch origin master` 时 master 已到 `37cd51ab`（在审查时说的 `2162ec1a` 之后又合了 #537 宿主用词、#538 自动更新检查），按 `git merge origin/master` 合的是 `37cd51ab`。`plugin_library.rs` 在 master 上没动过；冲突只有 `Cargo.lock`：先整份取 master 的，再用 `cargo metadata` 重新解析，加回 `zip 9.1.3`、`typed-path 0.13.0`、`nix 0.31.3`、`cfg_aliases 0.2.2`。`git diff origin/master -- apps/desktop/src-tauri/Cargo.lock`：45 行新增、1 行删除。删除的那行不是换版本：#538 带进来的 `tauri-plugin-updater` 自己依赖 `zip 4.6.1`，锁里出现两个 zip 版本后，cargo 必须把它依赖列表里的 `"zip"` 写成 `"zip 4.6.1"`（版本不变）。其余是新增条目、`storyforge-desktop` 的 `flate2` / `zip 9.1.3` 两条边，以及之前说明过的 `getrandom 0.4.2` 的 `js-sys` / `wasm-bindgen` 两条边。要想让锁里只有新增，得改用 updater 那份 `zip 4.6.1`：4.x 没有 `by_index_data` / `has_duplicate_names`，会动到元数据读取和完全同名条目检查，本刀没这么做。
+- `Cargo.toml`：flate2 那行注释改成「Windows 上别处的 flate2 只在编译期（tauri-codegen）用」。合并后 updater 只在 Linux / macOS 上引 flate2，Windows 上运行期的 flate2 仍只来自本刀（`cargo tree -i flate2 -e normal --target x86_64-pc-windows-msvc` 核过）。
+- 1. 剥顶层给插件布局目录开例外：`LAYOUT_DIRS = ["技能", "写法", "skills", ".codex-plugin"]`，唯一的顶层文件夹与其中之一相同（不分大小写，`eq_ignore_ascii_case`）时不剥。新测试 `zip_whose_only_top_folder_is_a_plugin_layout_dir_is_not_unwrapped`：只有 `技能/x.md` → 仍是 `技能/x.md`；`写法/`（含目录条目）、`SKILLS/s/SKILL.md`、`.codex-plugin/plugin.json` 都不剥；带 `__MACOSX/技能/…` 的 `技能/x.md` 也不剥；`my-plugin/技能/x.md` 照样剥成 `技能/x.md`（原测试 `zip_with_a_single_top_folder_is_unwrapped` 也还覆盖这一点）。
+- 2. 解压开销封顶：
+  - (a) 条目在中央目录里声明的解压后大小 > 512 KiB 的，直接记「文件太大（超过 512 KB）」，不解压（`zip_skip_reason` 里排在「非文本」之后、「加密」之前）。新测试 `zip_entries_declared_too_large_are_skipped_without_unpacking`：把 `huge.md`（512 KiB + 1）的本地头签名改坏，导入成功且 `huge.md` 记「文件太大」，说明没打开它；对照组把声明不超限的 `small.md` 本地头改坏，导入整体报「读取压缩包里的「small.md」失败」且不留暂存，证明「改坏本地头」只要被打开就会暴露。
+  - (b) 按实际读出的字节累计，读完才被跳过的（非 UTF-8 等）也算，上限 32 MiB（`MAX_UNPACKED_BYTES`），超了整体报「压缩包解压后的内容太多，没有导入」，不留暂存。上限经 `ScanLimits { entries, unpacked_bytes }` 注入：`stage_import_with_scan_limit(…, max_entries)` 改成 `stage_import_with_limits(…, ScanLimits)`，`stage_import` 用 `ScanLimits::DEFAULT`，原来两处条目数测试改用 `entry_limit(5)`。新测试 `zip_unpacked_bytes_are_capped_including_contents_that_get_skipped`：上限 1000，`a.md` 500 字节 + 非 UTF-8 的 `bad.md` 500 字节正好 1000 能导入；再加 1 字节的 `c.md` 就整体报错（收下的只有 501 字节，超限只能来自被跳过的 `bad.md` 也计了数）。
+- 3. 报错措辞：「要导入的文件夹或压缩包必须是完整路径」「要导入的文件夹或压缩包不存在」「无法读取要导入的文件夹或压缩包：…」「无法解析要导入的文件夹或压缩包：…」；「不能导入包含插件库的文件夹」等只对文件夹成立的没动。`stage_rejects_bad_sources_and_sources_inside_the_library` 的断言从 `contains` 收紧成整句相等，并加了 `missing.zip` 不存在的情况。
+- 验证（合并后的树，环境照旧：占位 `apps/desktop/frontend/dist/index.html`、`CARGO_TARGET_DIR=D:/StoryForge/apps/desktop/src-tauri/target`，没碰 node_modules）：
+  - `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml plugin_library`：28 passed（17 文件夹 + 11 zip）。
+  - 全量 `cargo test`：194 passed，0 failed，1 ignored（合并 master 后测试数比上一节多）。
+  - `rustfmt --check --edition 2021 src/plugin_library.rs src/plugin_library_tests.rs` 通过。
+  - `cargo clippy --all-targets -- -D warnings`：仍只有 master 原有的 5 条（`shadow_git/core.rs:613`、`smoke_ui.rs:98`、`smoke_ui.rs:104`、`main.rs:1250`（合并后行号 +1）、`host_close_state.rs:148`），`plugin_library*.rs` 0 条。
+- 变异（同一套脚本，定点替换前断言目标串次数，跑完无条件还原并用 sha256 校验）：
+  - 新增 3 处：去掉布局目录例外 → `zip_whose_only_top_folder_is_a_plugin_layout_dir_is_not_unwrapped` 红（`技能/x.md` 变成 `x.md`）；去掉按声明大小预跳过 → `zip_entries_declared_too_large_are_skipped_without_unpacking` 红（`huge.md` 被打开，报「Invalid local file header」）；去掉累计解压上限 → `zip_unpacked_bytes_are_capped_including_contents_that_get_skipped` 红。
+  - 上一节 7 处在新代码上重跑：`..`、空段、剥顶层、大小写、`__MACOSX`、完全同名 6 处照旧恰有测试变红（剥顶层与 `__MACOSX` 现在还会让新的布局目录测试一起红）。**「去掉 `Collector::offer` 里按实际字节的大小检查」这一处现在不再变红**：zip 这边声明超限的已经预跳过，而 zip 9 解压时输出不会超过声明的大小，所以 zip 条目到不了这条检查；文件夹这边有元数据预检，只剩「读的过程中文件变大」这种竞态能到达。这条检查留作纵深防御，没有能稳定触发它的测试。
+- 行尾：四个改动文件仍是纯 LF（CRLF 0、CRCRLF 0）；本次 `git diff --numstat` 与 `--ignore-all-space --numstat` 完全一致。
+- 仍未覆盖：真宿主点穿、面板「选 zip」入口、Info-ZIP Unicode Path 字段与真实压缩工具打的包，同上一节。

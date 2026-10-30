@@ -62,6 +62,13 @@ fn paths(files: &[StagedFile]) -> Vec<&str> {
     files.iter().map(|file| file.path.as_str()).collect()
 }
 
+fn entry_limit(entries: usize) -> ScanLimits {
+    ScanLimits {
+        entries,
+        ..ScanLimits::DEFAULT
+    }
+}
+
 #[test]
 fn plugin_name_accepts_chinese_and_ordinary_names() {
     let forty = "字".repeat(40);
@@ -284,12 +291,16 @@ fn stage_rejects_bad_sources_and_sources_inside_the_library() {
     write(&fx.source.join("a.md"), b"a");
     write(&fx.root.join("已装").join("a.md"), b"a");
 
-    assert!(stage_import(&fx.root, Path::new("relative/source"))
-        .unwrap_err()
-        .contains("完整路径"));
-    assert!(stage_import(&fx.root, &fx.source.join("missing"))
-        .unwrap_err()
-        .contains("不存在"));
+    assert_eq!(
+        stage_import(&fx.root, Path::new("relative/source")).unwrap_err(),
+        "要导入的文件夹或压缩包必须是完整路径"
+    );
+    for missing in ["missing", "missing.zip"] {
+        assert_eq!(
+            stage_import(&fx.root, &fx.source.join(missing)).unwrap_err(),
+            "要导入的文件夹或压缩包不存在"
+        );
+    }
     assert_eq!(
         stage_import(&fx.root, &fx.source.join("a.md")).unwrap_err(),
         "只能导入文件夹或 .zip 文件"
@@ -324,12 +335,13 @@ fn stage_counts_every_scanned_entry_and_rejects_past_the_limit() {
     for index in 0..10 {
         write(&fx.source.join(".git").join(format!("{index}.md")), b"x");
     }
-    let staged = stage_import_with_scan_limit(&fx.root, &fx.source, 5).expect("five entries fit");
+    let staged =
+        stage_import_with_limits(&fx.root, &fx.source, entry_limit(5)).expect("five entries fit");
     assert_eq!(paths(&staged.files), vec!["a.md", "sub/c.md"]);
 
     write(&fx.source.join("d.md"), b"d");
-    let error =
-        stage_import_with_scan_limit(&fx.root, &fx.source, 5).expect_err("six entries must fail");
+    let error = stage_import_with_limits(&fx.root, &fx.source, entry_limit(5))
+        .expect_err("six entries must fail");
     assert_eq!(
         error,
         "文件夹里的东西太多（超过 5 项），请选插件自己的文件夹"
@@ -604,6 +616,18 @@ fn patch_compression_method(bytes: &mut [u8], name: &[u8], method: u16) {
     assert_eq!(patched, 2, "both headers of {name:?} must be patched");
 }
 
+// 弄坏条目的本地头签名：中央目录照常，只要有人打开这个条目就会读失败。
+fn break_local_header(bytes: &mut [u8], name: &[u8]) {
+    let mut broken = 0;
+    for at in 30..bytes.len().saturating_sub(name.len()) {
+        if &bytes[at..at + name.len()] == name && bytes[at - 30..at - 26] == *b"PK\x03\x04" {
+            bytes[at - 30..at - 26].copy_from_slice(b"XXXX");
+            broken += 1;
+        }
+    }
+    assert_eq!(broken, 1, "local header of {name:?} must be broken once");
+}
+
 #[test]
 fn zip_import_stages_the_same_files_as_folder_import() {
     let fx = fixture();
@@ -708,6 +732,112 @@ fn zip_with_a_single_top_folder_is_unwrapped() {
         let staged = stage_import(&fx.root, &archive).expect("stage zip");
         assert_eq!(paths(&staged.files), expected);
     }
+}
+
+#[test]
+fn zip_whose_only_top_folder_is_a_plugin_layout_dir_is_not_unwrapped() {
+    let fx = fixture();
+    let archive = zip_path(&fx);
+    for (entries, expected) in [
+        (vec![ZipEntry::File("技能/x.md", b"x")], vec!["技能/x.md"]),
+        (
+            vec![
+                ZipEntry::Dir("写法/"),
+                ZipEntry::File("写法/a.md", b"a"),
+                ZipEntry::File("写法/b.md", b"b"),
+            ],
+            vec!["写法/a.md", "写法/b.md"],
+        ),
+        (
+            vec![ZipEntry::File("SKILLS/s/SKILL.md", b"s")],
+            vec!["SKILLS/s/SKILL.md"],
+        ),
+        (
+            vec![ZipEntry::File(".codex-plugin/plugin.json", b"{}")],
+            vec![".codex-plugin/plugin.json"],
+        ),
+        (
+            vec![
+                ZipEntry::File("__MACOSX/技能/._x.md", b"mac"),
+                ZipEntry::File("技能/x.md", b"x"),
+            ],
+            vec!["技能/x.md"],
+        ),
+        (
+            vec![ZipEntry::File("my-plugin/技能/x.md", b"x")],
+            vec!["技能/x.md"],
+        ),
+    ] {
+        write(&archive, &zip_bytes(&entries));
+        let staged = stage_import(&fx.root, &archive).expect("stage zip");
+        assert_eq!(paths(&staged.files), expected);
+    }
+}
+
+#[test]
+fn zip_entries_declared_too_large_are_skipped_without_unpacking() {
+    let fx = fixture();
+    let archive = zip_path(&fx);
+    let huge = vec![b'a'; MAX_FILE_BYTES as usize + 1];
+    let mut bytes = zip_bytes(&[
+        ZipEntry::File("ok.md", b"ok"),
+        ZipEntry::File("huge.md", &huge),
+    ]);
+    break_local_header(&mut bytes, b"huge.md");
+    write(&archive, &bytes);
+
+    let staged = stage_import(&fx.root, &archive).expect("huge.md must never be opened");
+    assert_eq!(paths(&staged.files), vec!["ok.md"]);
+    assert_eq!(staged.skipped, skipped(&[("huge.md", REASON_TOO_LARGE)]));
+
+    // 对照：本地头同样坏掉、声明大小不超限的条目会被打开，于是整体报错。
+    let mut bytes = zip_bytes(&[
+        ZipEntry::File("ok.md", b"ok"),
+        ZipEntry::File("small.md", b"small"),
+    ]);
+    break_local_header(&mut bytes, b"small.md");
+    write(&archive, &bytes);
+    let error = stage_import(&fx.root, &archive).expect_err("an opened broken entry must fail");
+    assert!(error.contains("读取压缩包里的「small.md」失败"), "{error}");
+    assert_eq!(staging_entries(&fx.root), 0);
+}
+
+#[test]
+fn zip_unpacked_bytes_are_capped_including_contents_that_get_skipped() {
+    let fx = fixture();
+    let archive = zip_path(&fx);
+    let limits = ScanLimits {
+        unpacked_bytes: 1000,
+        ..ScanLimits::DEFAULT
+    };
+    let valid = vec![b'a'; 500];
+    let not_utf8 = vec![0xFF; 500];
+    write(
+        &archive,
+        &zip_bytes(&[
+            ZipEntry::File("a.md", &valid),
+            ZipEntry::File("bad.md", &not_utf8),
+        ]),
+    );
+    let staged = stage_import_with_limits(&fx.root, &archive, limits).expect("exactly at the cap");
+    assert_eq!(paths(&staged.files), vec!["a.md"]);
+    assert_eq!(staged.skipped, skipped(&[("bad.md", REASON_NOT_UTF8)]));
+
+    // 收下的只有 501 字节，超限只能来自被跳过的 bad.md 也计了数。
+    write(
+        &archive,
+        &zip_bytes(&[
+            ZipEntry::File("a.md", &valid),
+            ZipEntry::File("bad.md", &not_utf8),
+            ZipEntry::File("c.md", b"c"),
+        ]),
+    );
+    assert_eq!(
+        stage_import_with_limits(&fx.root, &archive, limits).unwrap_err(),
+        "压缩包解压后的内容太多，没有导入"
+    );
+    assert_eq!(staging_entries(&fx.root), 0);
+    assert_eq!(MAX_UNPACKED_BYTES, 32 * 1024 * 1024);
 }
 
 #[test]
@@ -967,14 +1097,15 @@ fn zip_entry_count_is_checked_before_reading_entries() {
         ZipEntry::File("__MACOSX/._a.md", b"mac"),
     ];
     write(&archive, &zip_bytes(&five));
-    let staged = stage_import_with_scan_limit(&fx.root, &archive, 5).expect("five entries fit");
+    let staged =
+        stage_import_with_limits(&fx.root, &archive, entry_limit(5)).expect("five entries fit");
     assert_eq!(paths(&staged.files), vec!["a.md", "sub/c.md"]);
 
     let mut six: Vec<ZipEntry> = five.into_iter().collect();
     six.push(ZipEntry::File("d.md", b"d"));
     write(&archive, &zip_bytes(&six));
     assert_eq!(
-        stage_import_with_scan_limit(&fx.root, &archive, 5).unwrap_err(),
+        stage_import_with_limits(&fx.root, &archive, entry_limit(5)).unwrap_err(),
         "压缩包里的条目太多（超过 5 项），请只打包插件自己的文件夹"
     );
     assert_eq!(staging_entries(&fx.root), 0);

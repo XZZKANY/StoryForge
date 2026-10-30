@@ -20,6 +20,9 @@ const STAGING_DIR: &str = ".staging";
 const TRASH_DIR: &str = ".trash";
 const CODEX_MANIFEST_DIR: &str = ".codex-plugin";
 const MACOS_METADATA_DIR: &str = "__MACOSX";
+// 插件布局里有意义的目录（与引擎 / project-core 的技能、写法、Codex 技能目录同名）：
+// 压缩包里唯一的顶层文件夹是它们时，那是插件内容本身，不剥。
+const LAYOUT_DIRS: [&str; 4] = ["技能", "写法", "skills", CODEX_MANIFEST_DIR];
 const ZIP_EXTENSION: &str = "zip";
 const TEXT_EXTENSIONS: [&str; 4] = ["md", "markdown", "txt", "json"];
 const MAX_FILE_BYTES: u64 = 512 * 1024;
@@ -28,6 +31,7 @@ const MAX_FILES: usize = 300;
 const MAX_DIR_DEPTH: usize = 8;
 const MAX_SCAN_ENTRIES: usize = 5000;
 const MAX_ZIP_BYTES: u64 = 32 * 1024 * 1024;
+const MAX_UNPACKED_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_NAME_CHARS: usize = 40;
 const FORBIDDEN_NAME_CHARS: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 const RESERVED_NAMES: [&str; 22] = [
@@ -82,6 +86,19 @@ struct ScannedFile {
 }
 
 type ScanResult = Result<(Vec<ScannedFile>, Vec<SkippedFile>), String>;
+
+#[derive(Clone, Copy)]
+struct ScanLimits {
+    entries: usize,
+    unpacked_bytes: u64,
+}
+
+impl ScanLimits {
+    const DEFAULT: Self = Self {
+        entries: MAX_SCAN_ENTRIES,
+        unpacked_bytes: MAX_UNPACKED_BYTES,
+    };
+}
 
 // 文件夹与 zip 共用的收文件规则：大小按实际读到的字节算，超数量 / 总量整体报错。
 #[derive(Default)]
@@ -395,6 +412,9 @@ fn zip_skip_reason(entry: &ZipFileEntry<'_>, name: &str) -> Option<&'static str>
         Some(REASON_LINK)
     } else if !has_text_extension(Path::new(name)) {
         Some(REASON_NOT_TEXT)
+    } else if entry.size() > MAX_FILE_BYTES {
+        // 声明就已超限的不解压；声明不超的照样按实际字节再判一次。
+        Some(REASON_TOO_LARGE)
     } else if entry.encrypted() {
         Some(REASON_ENCRYPTED)
     } else if !matches!(
@@ -408,7 +428,7 @@ fn zip_skip_reason(entry: &ZipFileEntry<'_>, name: &str) -> Option<&'static str>
 }
 
 // 整包只有一个顶层文件夹（常见的「my-plugin/…」打包）时剥掉这一层，让清单落在插件根；
-// 判断时不看 __MACOSX 这类本来就会被跳过的目录。
+// 判断时不看 __MACOSX 这类本来就会被跳过的目录；顶层是插件布局目录时不剥。
 fn strip_single_top_folder(items: &mut [ZipItem]) {
     let mut top: Option<&str> = None;
     for item in items.iter().filter(|item| !item.under_ignored_dir()) {
@@ -423,6 +443,9 @@ fn strip_single_top_folder(items: &mut [ZipItem]) {
     let Some(top) = top.map(str::to_string) else {
         return;
     };
+    if LAYOUT_DIRS.iter().any(|dir| top.eq_ignore_ascii_case(dir)) {
+        return;
+    }
     for item in items.iter_mut().filter(|item| item.parts[0] == top) {
         item.parts.remove(0);
     }
@@ -472,7 +495,8 @@ fn read_zip_bytes(source: &Path) -> Result<Vec<u8>, String> {
 }
 
 // 规则与文件夹导入相同（同一套上限与跳过原因）；只读内存里的压缩包，不落盘。
-fn scan_zip(source: &Path, max_entries: usize) -> ScanResult {
+fn scan_zip(source: &Path, limits: ScanLimits) -> ScanResult {
+    let max_entries = limits.entries;
     let mut archive = ZipArchive::new(Cursor::new(read_zip_bytes(source)?))
         .map_err(|error| format!("打不开这个压缩包（可能已损坏，或不是 zip 格式）：{error}"))?;
     if archive.len() > max_entries {
@@ -522,6 +546,8 @@ fn scan_zip(source: &Path, max_entries: usize) -> ScanResult {
         return Err(depth_error(&deep.parts[..=MAX_DIR_DEPTH].join("/")));
     }
     let mut claimed = ClaimedPaths::default();
+    // 按实际解压出来的字节累计，读完才被跳过的（非 UTF-8、超大）也算，封住解压开销。
+    let mut unpacked: u64 = 0;
     for item in items.iter().filter(|item| !item.is_dir) {
         let path = item.path();
         if let Some(reason) = item.skip_reason {
@@ -537,6 +563,10 @@ fn scan_zip(source: &Path, max_entries: usize) -> ScanResult {
             .by_index(item.index)
             .map_err(|error| failed(error.to_string()))?;
         let content = read_capped(file).map_err(|error| failed(error.to_string()))?;
+        unpacked += content.len() as u64;
+        if unpacked > limits.unpacked_bytes {
+            return Err("压缩包解压后的内容太多，没有导入".into());
+        }
         if collector.offer(path.clone(), content)? {
             claimed.claim(&path);
         }
@@ -599,29 +629,29 @@ pub(crate) fn ensure_library_root(root: &Path) -> Result<(), String> {
 }
 
 pub(crate) fn stage_import(root: &Path, source: &Path) -> Result<StagedImport, String> {
-    stage_import_with_scan_limit(root, source, MAX_SCAN_ENTRIES)
+    stage_import_with_limits(root, source, ScanLimits::DEFAULT)
 }
 
-fn stage_import_with_scan_limit(
+fn stage_import_with_limits(
     root: &Path,
     source: &Path,
-    max_entries: usize,
+    limits: ScanLimits,
 ) -> Result<StagedImport, String> {
     if !source.is_absolute() {
-        return Err("要导入的文件夹必须是完整路径".into());
+        return Err("要导入的文件夹或压缩包必须是完整路径".into());
     }
     let is_zip = match fs::metadata(source) {
         Ok(info) if info.is_dir() => false,
         Ok(info) if info.is_file() && is_zip_path(source) => true,
         Ok(_) => return Err("只能导入文件夹或 .zip 文件".into()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return Err("要导入的文件夹不存在".into())
+            return Err("要导入的文件夹或压缩包不存在".into())
         }
-        Err(error) => return Err(format!("无法读取要导入的文件夹：{error}")),
+        Err(error) => return Err(format!("无法读取要导入的文件夹或压缩包：{error}")),
     };
     ensure_library_root(root)?;
-    let canonical_source =
-        fs::canonicalize(source).map_err(|error| format!("无法解析要导入的文件夹：{error}"))?;
+    let canonical_source = fs::canonicalize(source)
+        .map_err(|error| format!("无法解析要导入的文件夹或压缩包：{error}"))?;
     let canonical_root =
         fs::canonicalize(root).map_err(|error| format!("无法解析插件库目录：{error}"))?;
     if canonical_source.starts_with(&canonical_root) {
@@ -635,9 +665,9 @@ fn stage_import_with_scan_limit(
     remove_dir_if_present(&staging)
         .map_err(|error| format!("无法清理上一次导入的暂存：{error}"))?;
     let (files, skipped) = if is_zip {
-        scan_zip(source, max_entries)?
+        scan_zip(source, limits)?
     } else {
-        scan_source(source, max_entries)?
+        scan_source(source, limits.entries)?
     };
     fs::create_dir_all(&staging).map_err(|error| format!("无法创建导入暂存目录：{error}"))?;
     let stage_id = new_stage_id(source);
