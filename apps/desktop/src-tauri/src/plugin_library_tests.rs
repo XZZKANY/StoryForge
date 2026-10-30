@@ -459,6 +459,202 @@ fn removing_the_same_name_twice_keeps_both_trash_entries() {
     }
 }
 
+fn starter(root: &Path) -> PathBuf {
+    root.join(STARTER_PLUGIN_NAME)
+}
+
+fn starter_file(root: &Path, path: &str) -> PathBuf {
+    path.split('/')
+        .fold(starter(root), |dir, part| dir.join(part))
+}
+
+fn files_under(dir: &Path) -> Vec<String> {
+    let mut files: Vec<String> = WalkDir::new(dir)
+        .into_iter()
+        .map(|entry| entry.expect("walk plugin dir"))
+        .filter(|entry| entry.file_type().is_file())
+        .map(|entry| relative_posix(dir, entry.path()).expect("utf-8 path"))
+        .collect();
+    files.sort();
+    files
+}
+
+#[test]
+fn bundled_manifest_matches_the_folder_name_and_sync_version() {
+    let (_, manifest) = STARTER_PLUGIN_FILES
+        .iter()
+        .find(|(path, _)| *path == "storyforge-plugin.json")
+        .expect("bundled manifest");
+    let manifest: serde_json::Value = serde_json::from_str(manifest).expect("manifest is JSON");
+    assert_eq!(manifest["name"], STARTER_PLUGIN_NAME);
+    assert_eq!(manifest["version"], STARTER_PLUGIN_VERSION);
+    assert_eq!(validate_plugin_name(STARTER_PLUGIN_NAME), Ok(()));
+}
+
+#[test]
+fn first_sync_writes_every_bundled_file_and_the_marker() {
+    let fx = fixture();
+    ensure_library_root(&fx.root).unwrap();
+    sync_bundled_plugins(&fx.root).expect("sync");
+
+    for (path, content) in STARTER_PLUGIN_FILES {
+        assert_eq!(
+            fs::read(starter_file(&fx.root, path)).unwrap(),
+            content.as_bytes(),
+            "{path}"
+        );
+    }
+    assert_eq!(
+        fs::read_to_string(starter(&fx.root).join(BUNDLED_MARKER)).unwrap(),
+        STARTER_PLUGIN_VERSION
+    );
+    assert_eq!(
+        files_under(&starter(&fx.root)),
+        vec![
+            BUNDLED_MARKER,
+            "storyforge-plugin.json",
+            "技能/审稿口径.md",
+            "技能/立项流程.md",
+        ]
+    );
+    assert!(trash_entries(&fx.root).is_empty());
+}
+
+#[test]
+fn sync_with_the_same_version_leaves_the_folder_alone() {
+    let fx = fixture();
+    ensure_library_root(&fx.root).unwrap();
+    sync_bundled_plugins(&fx.root).expect("first sync");
+    let edited = starter_file(&fx.root, "技能/立项流程.md");
+    fs::write(&edited, "改过的内容").unwrap();
+
+    sync_bundled_plugins(&fx.root).expect("second sync");
+    assert_eq!(fs::read_to_string(&edited).unwrap(), "改过的内容");
+    assert!(trash_entries(&fx.root).is_empty());
+}
+
+#[test]
+fn sync_with_another_version_trashes_the_old_copy_and_rewrites() {
+    let fx = fixture();
+    ensure_library_root(&fx.root).unwrap();
+    sync_bundled_plugins(&fx.root).expect("first sync");
+    fs::write(starter_file(&fx.root, "技能/立项流程.md"), "旧版").unwrap();
+    write(
+        &starter_file(&fx.root, "技能/旧技能.md"),
+        "旧版才有".as_bytes(),
+    );
+    fs::write(starter(&fx.root).join(BUNDLED_MARKER), "0.9.0").unwrap();
+
+    sync_bundled_plugins(&fx.root).expect("upgrade");
+    for (path, content) in STARTER_PLUGIN_FILES {
+        assert_eq!(
+            fs::read(starter_file(&fx.root, path)).unwrap(),
+            content.as_bytes(),
+            "{path}"
+        );
+    }
+    assert!(!starter_file(&fx.root, "技能/旧技能.md").exists());
+    assert_eq!(
+        fs::read_to_string(starter(&fx.root).join(BUNDLED_MARKER)).unwrap(),
+        STARTER_PLUGIN_VERSION
+    );
+    let trashed = trash_entries(&fx.root);
+    assert_eq!(trashed.len(), 1);
+    assert_trashed_as(&trashed[0], STARTER_PLUGIN_NAME);
+    let old = fx.root.join(TRASH_DIR).join(&trashed[0]);
+    assert_eq!(
+        fs::read_to_string(old.join("技能").join("立项流程.md")).unwrap(),
+        "旧版"
+    );
+    assert_eq!(
+        fs::read_to_string(old.join(BUNDLED_MARKER)).unwrap(),
+        "0.9.0"
+    );
+}
+
+#[test]
+fn sync_never_touches_a_same_named_entry_without_the_marker() {
+    let fx = fixture();
+    write(
+        &starter_file(&fx.root, "技能/自己的.md"),
+        "作者自己装的".as_bytes(),
+    );
+    sync_bundled_plugins(&fx.root).expect("sync");
+    assert_eq!(files_under(&starter(&fx.root)), vec!["技能/自己的.md"]);
+    assert!(trash_entries(&fx.root).is_empty());
+
+    let plain = fixture();
+    write(&starter(&plain.root), b"not a folder");
+    sync_bundled_plugins(&plain.root).expect("sync beside a plain file");
+    assert_eq!(fs::read(starter(&plain.root)).unwrap(), b"not a folder");
+    assert!(trash_entries(&plain.root).is_empty());
+}
+
+#[test]
+fn a_failed_bundled_write_leaves_no_half_written_folder() {
+    let fx = fixture();
+    ensure_library_root(&fx.root).unwrap();
+    let target = starter(&fx.root);
+    let error = write_bundled_plugin(&target, &[("a.md", "a"), ("a.md/b.md", "b")], "1.0.0")
+        .expect_err("a file cannot be a parent folder");
+    assert!(error.contains("「a.md/b.md」"), "{error}");
+    assert!(!target.exists());
+
+    let missing_root = fixture();
+    assert!(sync_bundled_plugins(&missing_root.root)
+        .unwrap_err()
+        .contains("无法创建自带插件"));
+}
+
+#[test]
+fn removing_a_bundled_plugin_is_refused() {
+    let fx = fixture();
+    ensure_library_root(&fx.root).unwrap();
+    sync_bundled_plugins(&fx.root).expect("sync");
+
+    assert_eq!(
+        remove_plugin(&fx.root, STARTER_PLUGIN_NAME),
+        Err(
+            "「起书基础包」是 StoryForge 自带的插件，不能移除；不想用就在作品的「上下文 → 插件」里取消勾选"
+                .to_string()
+        )
+    );
+    assert!(starter(&fx.root).join(BUNDLED_MARKER).is_file());
+    assert!(trash_entries(&fx.root).is_empty());
+}
+
+#[test]
+fn importing_over_the_bundled_plugin_drops_the_marker_and_sync_keeps_the_import() {
+    let fx = fixture();
+    ensure_library_root(&fx.root).unwrap();
+    sync_bundled_plugins(&fx.root).expect("sync");
+    write(
+        &fx.source.join("技能").join("立项流程.md"),
+        "作者的版本".as_bytes(),
+    );
+    let staged = stage_import(&fx.root, &fx.source).expect("stage");
+    commit_import(&fx.root, &staged.stage_id, STARTER_PLUGIN_NAME).expect("commit");
+
+    assert_eq!(files_under(&starter(&fx.root)), vec!["技能/立项流程.md"]);
+    let trashed = trash_entries(&fx.root);
+    assert_eq!(trashed.len(), 1);
+    assert_trashed_as(&trashed[0], STARTER_PLUGIN_NAME);
+    assert!(fx
+        .root
+        .join(TRASH_DIR)
+        .join(&trashed[0])
+        .join(BUNDLED_MARKER)
+        .is_file());
+
+    sync_bundled_plugins(&fx.root).expect("sync after import");
+    assert_eq!(
+        fs::read_to_string(starter_file(&fx.root, "技能/立项流程.md")).unwrap(),
+        "作者的版本"
+    );
+    assert_eq!(files_under(&starter(&fx.root)), vec!["技能/立项流程.md"]);
+    assert_eq!(trash_entries(&fx.root).len(), 1);
+}
+
 #[cfg(windows)]
 #[test]
 fn junctions_inside_the_source_are_not_followed() {
