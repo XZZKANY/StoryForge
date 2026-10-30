@@ -1,0 +1,43 @@
+## 2026-10-30 `/写` 批量写章 D 刀：指令解析、`/` 菜单列出指令、对话里的确认卡（只出卡、不开跑）
+
+- 背景：方案见 `docs/internal/write-batch-plan-2026-10.md`（作者 10-30 已审；第 8 问选 A：指令优先于同名技能）。本刀从 A 刀分支 `feat/write-batch-plan`（PR #545，未合）切出，只动界面与 `packages/project-core`；引擎、帧契约、golden、`lib/api/write-batch.ts` 一处没改。不调度、不发起任何运行、不写文件。
+- 改动：
+  - `packages/project-core/src/writeBatchCommand.ts`（新）：`parseWriteBatchCommand(text): WriteBatchCommand | null`。
+    - 触发符同技能点名（`/`、`／`、`、`，常量从 `conversationSkills.ts` 导出为 `COMMAND_TRIGGERS`），指令词 `写` 或不分大小写的 `goal`，后面得是空白（含全角空格）或消息结尾；不在开头、`/写法`、`/goals` 都不算。
+    - 返回 `{kind:'range', from, to, note}` / `{kind:'resume'}`（不带范围）/ `{kind:'invalid', message}` / `null`（不是指令）。
+    - 范围认 `1-10`、`1–10`、`1—10`、`1——10`、`1~10`、`1～10`、`1至10`、`1到10`、`第1-10章`、`第1章到第10章`、分隔符两边带空格、全角数字与全角连字符；单个数字 = 只写那一章。
+    - 范围后空一格跟的话去掉首尾空白后作 `note`（中间换行保留）。
+    - 格式不对：起点大于终点、第 0 章、超过 5 位数、后面没写数字、范围后面不空格直接跟字，各给一句提示；`WRITE_BATCH_USAGE` 是卡上的用法示例。
+  - `conversationSkills.ts`：`invokedSkillNames` 先滤掉指令词（`isWriteBatchCommandWord`：`写` 或不分大小写的 `goal`），其余点名逻辑逐字不变；同时导出 `WRITE_BATCH_COMMAND_NAME`。
+  - `/` 菜单：新 `chat-window/slash-menu.ts` 算菜单（指令行只在消息开头第一个点名、打的字是空或 `写` / goal 的开头时出现；叫「写」或 goal 的技能照列、`conflict`、不进可选列表）；`SkillCommandMenu.tsx` 在技能上面列「/写 · 批量写章：/写 4-10，写完直接写进文件，最后统一审」，重名技能第二行写「与指令重名，/写 会当成指令；要点名它请改名」（叫 goal 的写 `/goal`）、`aria-disabled`、点了不填、方向键跳过；打的字对上指令时不再说「没有叫『写』的技能」。`Composer.tsx` 只换了取菜单项的几行（494 行，上限 500）。
+  - 提交拦截：`useChatSubmission.ts` 在现有守卫（结果未知、待确认、AI 在跑就进待发、同帧重复发送）之后认 `/写 …`：不发给 AI、不进对话记录、不取会话标题，输入框清空，记下 `{id, command}`（按对话 scope 存，切会话就不显示）。卡开着时别的话先不发（提示、草稿留着），新的 `/写` 换一张卡；待发队列在卡开着时也不往外发。
+  - 确认卡：新 `chat-window/WriteBatchCard.tsx`，挂在 `ChatWindowView.tsx` 章纲卡同一个位置（输入框上方、`max-h-[60%]` 可滚动、`CHAT_COLUMN`），结构、`Button`、token 照 `ChapterBriefCard`。
+    - 范围指令按作品存的档位（`ChatWindow` 的 `agentPermissionProfile`，即 `useAgentPermission` 读的那份）调 `planWriteBatch`；排计划中显示「正在排这一批…」，失败显示「排不出这一批：原因」+「关闭」，不造空计划。
+    - 标题「批量写第 X–Y 章」/「写第 X 章」；范围后带了话时下面一行「要求：…」。
+    - 章列表：「第 k 章《标题》」+ 本章目标一行（CSS 截断，悬停看全文；没有目标写「计划里没写本章目标」）+ 状态小标（要写 / 已有正文，跳过 / 试写后再估）；超过 8 章只列前 8 章，其余收在「还有 N 章」里。
+    - 有不能开跑的原因：警告样式（`border-warning/40 bg-warning/10`，与对话区现有警告条同一套）逐条列 message，放在章列表前面；没有「开始写」，只有「关闭」，也不出预估和说明。
+    - 可开跑·有历史：按「万」保留一位小数给出平均 / 最少 / 最多、预估、上限；`estimated_calls` / `unknown_calls` 大于 0 时补「其中 n 次服务商没报用量，是按字数估的；m 次没拿到用量，没算进去。」；再加「这里算的是 token 数，不是钱。」。可开跑·试写：显示引擎给的 `note`。
+    - 可开跑时固定两句说明；档位是「询问」时再加授权说明。按钮「取消」/「开始写」；「开始写」只调外面传进来的 `onStart(plan)`，没传时禁用、旁边写「下一步接上」（也挂在 `title` 与 `aria-describedby` 上）。本刀 `ChatWindow` 不传 `onStart`。
+    - 续写（`/写` 不带范围）：只显示「续写上一批：下一步接上」和「关闭」，不排计划。格式不对：显示提示与用法示例，只有「关闭」，不排计划。
+  - 浏览器回归：新替身 `tests/support/http-write-batch-double.ts`（`planWriteBatch` 走 fetch，回包仍过产品的 `decodeWriteBatchPlan`），登记进 `scripts/http-doubles-plugin.mjs`；`verify-agent-conversation.mjs` 末尾加一段「打 `/写 1-3` → 出卡、标题与按万的预估对、输入框清空、开始写禁用、计划请求带 1-3 与 ask、AI 消息数不变、关闭后卡消失」。开发档 StrictMode 会让卡片的 effect 跑两遍，所以只核每次计划请求的内容、不核次数。
+- 验证：
+  - project-core：`pnpm --filter @storyforge/project-core test` 4 个文件 43 passed（新 `writeBatchCommand.test.ts` 8 条：各种范围写法、全角、单章、三种触发符与 goal 大小写、续写、note、不是指令的、格式不对的五种提示与 99999 边界、与技能共存；`conversationSkills.test.ts` 补「/写、/goal 不再点名叫这两个名字的技能」，原有用例全过）；`typecheck` EXIT=0。
+  - 前端：`tests/write-batch-menu.test.tsx` 5 条、`tests/write-batch-card.test.tsx` 13 条（卡片四种状态 + 续写 + 折叠 + 排计划失败 + 按万；提交 `/写 4-6 …` 不发给 AI 且出卡、卡开着时别的话不发而新 `/写` 换卡、AI 在跑时进待发跑完才出卡）；`tests/composer-skill-commands.test.tsx` 两条按「指令行在最上面、默认选中」改了期望（其余逐字不变）。新旧三份一起跑 24 passed；`npm --prefix apps/desktop/frontend run typecheck` EXIT=0；`tests/source-standards.test.ts`、`tests/ui-terminology.test.ts` 通过。
+  - 浏览器回归 `node scripts/verify-agent-conversation.mjs`（apps/desktop/frontend 下）单跑通过（第一次冷启动 Vite 预构建 `page.goto` 30 秒超时，第二次起正常）。
+  - 变异（`output/write-batch-card/mutate.py`：每处断言目标串恰好 1 次后替换，跑对应测试，无条件按原字节还原并核对）8 处全红：M1 `/写` 仍当技能点名、M2 全角数字不认、M3 note 丢了（以上跑 project-core）；M4 有不能开跑的原因仍给「开始写」、M5 `/写` 照样发给 AI、M7 不按万显示（跑 `write-batch-card.test.tsx`）；M6 重名技能可选、M8 指令行不能选（跑 `write-batch-menu.test.tsx`）。
+  - `pnpm verify` 第一次 EXIT=1：前端单测 259 个文件里 `tests/focus-styles.test.ts` 一条 5 秒超时（编译整份 Tailwind），其余全过；当时本机 CPU 约 82%（别的会话在跑）。定性：
+    - 单跑 `focus-styles.test.ts` 与 `book-overview-app.test.tsx` 都过。
+    - 本分支再跑一次前端全量：换成 `book-overview-app.test.tsx` 一条 5 秒超时（又是不同的一条），258 个文件过。
+    - 切回 A 刀提交 `955127b6`（不带本刀改动）同样满载跑前端全量：257 个文件 2591 passed，EXIT=0。
+    - 本分支第三次跑前端全量：259 个文件 2609 passed，EXIT=0。同一组两条用例 A/B 对跑的耗时被负载波动淹没（基线那次反而更慢），看不出本刀让它们变慢；超时的两条都不走本刀的新代码路径（卡片只在打了 `/写` 后才挂上）。
+  - `pnpm verify` 第二次 EXIT=0：lint（只有既有的 2 条 `no-explicit-any` 警告）、前端类型检查、project-core 4 个文件 43 passed、引擎 109 个文件 14131 passed + 2 skipped（含 golden）、前端 259 个文件 2609 passed、行间续写 / 浏览器冒烟 / Agent 对话三个浏览器回归通过（Agent 对话含新加的 `/写 1-3` 一段）。
+  - 引擎、golden、`src/lib/api/` 零改动：`git diff --stat 955127b6 -- packages/engine apps/desktop/frontend/src/lib/api` 为空。
+  - 截图（不入库）：`output/write-batch-card/` 下 `1-history.png` / `1-history-scrolled.png`（可开跑·有历史，第 4–15 章，折叠与滚到底的预估、说明、按钮）、`1b-history-expanded.png`（点开「还有 4 章」）、`2-trial.png`（试写）、`3-blockers.png` / `3-blockers-scrolled.png`（不能开跑）、`4-invalid.png`（格式不对）。1400×759、浅色暖色，真界面 Vite 开发档 + 同一套 fetch 替身，计划是脚本里编的（标题与目标为原创示例）；脚本 `output/write-batch-card/shoot.mjs`。
+- 行尾：`Composer.tsx`、`ChatWindowView.tsx` 原为 CRLF，改后仍全 CRLF；其余改动与新建文件全 LF、无 BOM。`git diff --numstat` 与 `--ignore-all-space --numstat` 只有 `SkillCommandMenu.tsx` 不同（技能列表包进条件里多缩进一层），没有行尾翻转。
+- 未覆盖 / 取舍：
+  - 没跑真宿主探针与 Tauri 冒烟（磁盘只剩约 8 G；本刀不改宿主接口，卡片经 `lib/api` 调 A 刀已验过的 `planWriteBatch`）。真引擎出计划的路径由 A 刀的 `write-batch-api.test.ts` 覆盖，本刀的界面测试与截图都用替身计划。
+  - 菜单没截图：浏览器里读技能要走宿主，替身没有，菜单会显示「读不到技能」。
+  - 在 1400×759 下，8 章的列表就把预估、说明和按钮挤到卡片区下面，要滚动才看得见（见 `1-history.png` 与 `-scrolled`）；默认行数与是否让按钮常驻可见待定。
+  - 试写模式也照列「到了上限会……」那句固定说明，但试写不给上限，读起来有点对不上；待定。
+  - 卡开着时，开场的「起草第 N 章」、编辑器的「AI 起草下一章」等不经输入框的入口仍能发起写章，没有拦（E 刀接调度器时一起看）。
+  - `/写` 后面跟的不是范围（如 `/写 这几章快一点`）按格式不对处理，不当成续写加要求。
