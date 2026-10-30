@@ -17,7 +17,9 @@ import type { AgentRunControlHandlers, ChatWindowProps } from './types';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import type { ChatWindowState } from './useChatWindowState';
-import type { QueuedChatMessage } from './useChatSubmission';
+import type { QueuedChatMessage, WriteBatchRequest } from './useChatSubmission';
+import { WriteBatchCard } from './WriteBatchCard';
+import type { ApiWriteBatchPlan } from '../../lib/api/contracts';
 import { ChapterCheckHistoryToggle } from './ChapterCheckHistoryPanel';
 import type { ChapterCheckHistoryState } from './useChapterCheckHistory';
 import { PartnerOpening } from './PartnerOpening';
@@ -59,6 +61,11 @@ type Props = {
   onOpeningDraft?: (request: ChapterWriteRequest) => void;
   /** 输入框空着时的「下一句」提示（`lib/composer-hint.ts`）；null 时用原占位文字。 */
   composerHint?: string | null;
+  /** 对话里打的 `/写 …`：在下面出批量写章确认卡。 */
+  writeBatch?: WriteBatchRequest | null;
+  onCloseWriteBatch?: () => void;
+  /** 卡上「开始写」交给它；没接时按钮禁用。 */
+  onStartWriteBatch?: (plan: ApiWriteBatchPlan) => void;
 };
 
 export function ChatWindowView({
@@ -93,6 +100,9 @@ export function ChatWindowView({
   opening = null,
   onOpeningDraft,
   composerHint = null,
+  writeBatch = null,
+  onCloseWriteBatch,
+  onStartWriteBatch,
 }: Props) {
   const statusText = runStatusText(state.agentRun);
   // 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉当前 run，
@@ -218,6 +228,7 @@ export function ChatWindowView({
               handoff={opening}
               onDraft={onOpeningDraft}
               onAsk={(prompt) => void handleComposerSubmit(prompt)}
+              actionsHidden={writeBatch !== null}
             />
           ) : null
         }
@@ -238,6 +249,27 @@ export function ChatWindowView({
               // 取消就是停掉这一轮：章纲待确认时后端不认「拒绝」，那个「拒绝」只会落到之后的补丁上。
               onCancel={agentRunControls.onStopRun}
               busy={state.agentBusy}
+            />
+          </div>
+        </section>
+      )}
+
+      {writeBatch && projectPath && (
+        // 卡片自己管滚动：章列表在卡内滚，底部按钮始终露着，这一层不再整体滚。
+        // 比章纲卡多给一成高度：1400×759 下底部说明占去不少，六成只露得出三章。
+        <section
+          className="flex max-h-[70%] min-h-0 flex-shrink-0 flex-col px-5 py-3"
+          aria-label="批量写章"
+          data-testid="write-batch-decision"
+        >
+          <div className={`${CHAT_COLUMN} flex min-h-0 flex-col`}>
+            <WriteBatchCard
+              key={writeBatch.id}
+              command={writeBatch.command}
+              projectPath={projectPath}
+              permissionProfile={agentPermissionProfile}
+              onStart={onStartWriteBatch}
+              onClose={onCloseWriteBatch ?? (() => undefined)}
             />
           </div>
         </section>

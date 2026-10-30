@@ -91,6 +91,8 @@ const options = () =>
     active: node.getAttribute('aria-selected') === 'true',
   }));
 const note = () => host.querySelector('[data-testid="skill-command-note"]')?.textContent;
+const commandActive = () =>
+  host.querySelector('[data-testid="slash-command-option"]')?.getAttribute('aria-selected');
 
 async function type(value: string) {
   const input = textarea();
@@ -117,8 +119,10 @@ test('打 / 弹出这本书的技能，打字筛选，没有匹配时说明', as
 
   await type('/');
   expect(loadSkills).toHaveBeenCalledWith(PROJECT);
+  // 指令「写」排在最上面、默认选中（见 write-batch-menu.test.tsx）。
+  expect(commandActive()).toBe('true');
   expect(options()).toEqual([
-    { name: '/立项流程', active: true },
+    { name: '/立项流程', active: false },
     { name: '/审稿口径', active: false },
     { name: '/本书禁用词', active: false },
   ]);
@@ -137,9 +141,11 @@ test('方向键选，Enter 填入 /名字 加空格、不发送；填完菜单�
   await mount();
   await type('/');
   await press('ArrowDown');
-  await press('ArrowDown');
-  await press('ArrowDown');
   expect(options()[0].active).toBe(true);
+  await press('ArrowDown');
+  await press('ArrowDown');
+  await press('ArrowDown');
+  expect(commandActive()).toBe('true');
   await press('ArrowUp');
   expect(options()[2].active).toBe(true);
   await press('ArrowUp');
