@@ -42,6 +42,12 @@ node apps/desktop/scripts/verify-tauri-smoke.mjs --release      # 发行版 exe 
 npm --prefix apps/desktop run verify:nsis-install                # 隔离身份静默安装 → 启动 → 卸载
 ```
 
+改动涉及自动更新（`app_update.rs`、`host_close.rs`、`close_guard.rs`、`update_smoke.rs`、`tauri.conf.json` 的 `plugins.updater`、`lib/app-update.ts`）时，再跑升级冒烟：隔离测试身份 + 一次性密钥 + 本机清单，装 0.0.1 → 应用里点「检查更新 → 下载新版 → 重启安装」→ 安装器装好并重新打开 0.0.2 → 再查是「已是最新」，核对装上的是新版、原稿没动、装机版没被碰。要先关掉 StoryForge（NSIS 按进程名结束同名进程），会弹出测试版窗口与安装进度，约 10 分钟。新 worktree 里可用 `STORYFORGE_UPDATE_SMOKE_TARGET_DIR` 指到主仓库的 `apps/desktop/.tauri-target-install-smoke` 复用编译缓存。
+
+```powershell
+npm --prefix apps/desktop run verify:update-smoke
+```
+
 改动涉及引擎与宿主之间的接口、模型出网或引擎库时，再跑真宿主探针（`apps/desktop/frontend` 下 `node scripts/verify-engine-p0-native.mjs --agent-only` 等，见 `local-start.md` 第 7 节）。探针要求本机没有在跑的 StoryForge，先问作者能不能关。
 
 ## 6. 交付
@@ -54,7 +60,8 @@ npm --prefix apps/desktop run verify:nsis-install                # 隔离身份�
 ## 7. 已知 caveat
 
 - 安装包没有 Windows 代码签名（自动更新的签名是另一回事，只证明更新包出自持私钥的人）。
-- 自动更新目前只检查新版；下载与「重启安装」还没接上。
+- 自动更新：有新版时右下角提示「下载」，下载完核对签名，作者点「重启安装」后照点 × 关窗（先问未保存、走完退出握手），最后一步交给安装器被动安装并重新打开。本机升级冒烟走通过（隔离身份、本机 http 清单）；经 GitHub 真实发布从一个装机版升到下一个还没走过，最早 0.2.4 → 0.2.5（0.2.3 没有更新器，0.2.4 要手动装一次）。
+- 插件把下载的安装包留在 `%TEMP%\<产品名>-<版本>-updater-*`（约 31 MB），装完不删。
 - 模型 key 用 Windows 用户级 DPAPI 加密存本机，是用户级保护而非分发硬化。
 - NSIS 隔离安装验证只证明安装、启动、卸载，不包含升级验证；升级保留另取证。
 

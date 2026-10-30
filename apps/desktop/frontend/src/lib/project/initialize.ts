@@ -1,4 +1,10 @@
-import { PROJECT_GUIDE_MARKDOWN, PROJECT_GUIDE_RELATIVE_PATH } from '@storyforge/project-core';
+import {
+  PLUGINS_FILE,
+  PROJECT_GUIDE_MARKDOWN,
+  PROJECT_GUIDE_RELATIVE_PATH,
+  serializePluginsFile,
+  STARTER_PLUGIN_NAME,
+} from '@storyforge/project-core';
 import { bookProfilePath, emptyBookProfile, serializeBookProfile } from '../book-profile';
 import { TauriFileSystem } from '../tauri-fs';
 import { normalizeRoot } from './path';
@@ -89,6 +95,17 @@ async function writeIfMissing(projectPath: string, path: string, content: string
   }
 }
 
+/**
+ * 新建作品默认启用自带的起书基础包；已有启用文件就不动。
+ * 只给真正新建作品的入口用——initializeStoryProject 也给已有文件夹补骨架，那里不该替作者启用。
+ */
+export async function enableStarterPlugin(projectPath: string): Promise<void> {
+  const separator = projectPath.includes('\\') ? '\\' : '/';
+  const file = `${normalizeRoot(projectPath)}${separator}${PLUGINS_FILE.split('/').join(separator)}`;
+  await TauriFileSystem.createDir(projectPath, file.slice(0, file.lastIndexOf(separator)), true);
+  await writeIfMissing(projectPath, file, serializePluginsFile([STARTER_PLUGIN_NAME]));
+}
+
 export async function createSampleStoryProject(parentPath: string): Promise<string> {
   const projectPath = sampleStoryProjectPath(parentPath);
   await TauriFileSystem.createDir(parentPath, projectPath, true);
@@ -97,6 +114,7 @@ export async function createSampleStoryProject(parentPath: string): Promise<stri
   for (const file of buildSampleStoryProjectFiles(projectPath)) {
     await writeIfMissing(projectPath, file.path, file.content);
   }
+  await enableStarterPlugin(projectPath);
 
   return projectPath;
 }
@@ -141,6 +159,7 @@ export async function createNewBookProject(
   const seedFilePath = `${projectPath}${separator}灵感.md`;
   await writeIfMissing(projectPath, seedFilePath, ['# 灵感', '', prompt.trim(), ''].join('\n'));
   await writeBookProfileSeed(projectPath, prompt);
+  await enableStarterPlugin(projectPath);
   return { projectPath, seedFilePath };
 }
 

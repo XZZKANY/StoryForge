@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { parsePluginsFile, pluginNameProblem, PLUGINS_FILE, serializePluginsFile } from './plugins';
+import {
+  parsePluginsFile,
+  pluginNameProblem,
+  PLUGINS_FILE,
+  serializePluginsFile,
+  STARTER_PLUGIN_NAME,
+} from './plugins';
 
 describe('插件名规则', () => {
   it('合规的名字返回 null', () => {
@@ -116,5 +122,14 @@ describe('插件启用文件', () => {
     expect(text).toBe('{\n  "version": 1,\n  "enabled": [\n    "写法包",\n    "b"\n  ]\n}\n');
     expect(parsePluginsFile(text)).toEqual({ enabled: ['写法包', 'b'], problem: null });
     expect(serializePluginsFile([])).toBe('{\n  "version": 1,\n  "enabled": []\n}\n');
+  });
+
+  it('自带插件的名字合规，写进启用文件读得回来', () => {
+    expect(STARTER_PLUGIN_NAME).toBe('起书基础包');
+    expect(pluginNameProblem(STARTER_PLUGIN_NAME)).toBeNull();
+    expect(parsePluginsFile(serializePluginsFile([STARTER_PLUGIN_NAME]))).toEqual({
+      enabled: [STARTER_PLUGIN_NAME],
+      problem: null,
+    });
   });
 });

@@ -53,6 +53,27 @@ const REASON_UNSUPPORTED_COMPRESSION: &str =
     "压缩方式不支持（只认存储和 Deflate），请用常见压缩工具重新打包";
 const REASON_DUPLICATE: &str = "和压缩包里前面的文件重名（不分大小写），只收前面那个";
 
+// 与 project-core 的 STARTER_PLUGIN_NAME 一致。
+const STARTER_PLUGIN_NAME: &str = "起书基础包";
+// 要与 bundled-plugins/starter/plugin.json 里的 version 一致；改内容时一起升，已装的才会被重写。
+const STARTER_PLUGIN_VERSION: &str = "1.0.0";
+const STARTER_PLUGIN_FILES: [(&str, &str); 3] = [
+    (
+        "storyforge-plugin.json",
+        include_str!("../bundled-plugins/starter/plugin.json"),
+    ),
+    (
+        "技能/立项流程.md",
+        include_str!("../bundled-plugins/starter/setup.md"),
+    ),
+    (
+        "技能/审稿口径.md",
+        include_str!("../bundled-plugins/starter/review.md"),
+    ),
+];
+/// 自带插件文件夹里的标记文件，内容是写入时的内置版本号；没有它的同名文件夹是作者自己装的。
+const BUNDLED_MARKER: &str = ".storyforge-bundled";
+
 static STAGE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 // 开始暂存会清掉旧暂存、安装与移除都会挪目录：命令串行执行，免得两次导入互相清掉对方的副本。
 static LIBRARY_LOCK: Mutex<()> = Mutex::new(());
@@ -628,6 +649,71 @@ pub(crate) fn ensure_library_root(root: &Path) -> Result<(), String> {
     fs::create_dir_all(root).map_err(|error| format!("无法创建插件库目录：{error}"))
 }
 
+/// 插件文件夹里标记的内置版本；没有标记（或标记不是普通文件）时为 None。
+fn bundled_marker(dir: &Path) -> Result<Option<String>, String> {
+    let marker = dir.join(BUNDLED_MARKER);
+    match fs::symlink_metadata(&marker) {
+        Ok(info) if info.is_file() => fs::read(&marker)
+            .map(|bytes| Some(String::from_utf8_lossy(&bytes).trim().to_string()))
+            .map_err(|error| format!("读取自带插件标记失败：{error}")),
+        Ok(_) => Ok(None),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!("无法检查自带插件标记：{error}")),
+    }
+}
+
+fn write_bundled_plugin(
+    target: &Path,
+    files: &[(&str, &str)],
+    version: &str,
+) -> Result<(), String> {
+    // 建不出来时不清理：那个文件夹可能不是这次建的。
+    fs::create_dir(target)
+        .map_err(|error| format!("无法创建自带插件「{STARTER_PLUGIN_NAME}」：{error}"))?;
+    let written = (|| {
+        for (path, content) in files {
+            let file = path
+                .split('/')
+                .fold(target.to_path_buf(), |dir, part| dir.join(part));
+            if let Some(parent) = file.parent() {
+                fs::create_dir_all(parent).map_err(|error| {
+                    format!("写入自带插件「{STARTER_PLUGIN_NAME}」的「{path}」失败：{error}")
+                })?;
+            }
+            fs::write(&file, content).map_err(|error| {
+                format!("写入自带插件「{STARTER_PLUGIN_NAME}」的「{path}」失败：{error}")
+            })?;
+        }
+        // 标记最后写：写了一半又没清掉的文件夹不带标记，作者能在设置里移除，移除后下次同步重写。
+        fs::write(target.join(BUNDLED_MARKER), version)
+            .map_err(|error| format!("写入自带插件「{STARTER_PLUGIN_NAME}」的标记失败：{error}"))
+    })();
+    if let Err(error) = written {
+        let _ = remove_dir_if_present(target);
+        return Err(error);
+    }
+    Ok(())
+}
+
+/// 把自带插件放进插件库：没有就写；带标记且版本不同就把旧的挪进回收夹再写；
+/// 版本相同、或同名的不是带标记的文件夹（作者自己装的）都不动。
+pub(crate) fn sync_bundled_plugins(root: &Path) -> Result<(), String> {
+    let target = root.join(STARTER_PLUGIN_NAME);
+    match fs::symlink_metadata(&target) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("无法检查插件「{STARTER_PLUGIN_NAME}」：{error}")),
+        Ok(info) if !info.is_dir() => return Ok(()),
+        Ok(_) => match bundled_marker(&target)? {
+            Some(version) if version == STARTER_PLUGIN_VERSION => return Ok(()),
+            Some(_) => {
+                move_to_trash(root, STARTER_PLUGIN_NAME)?;
+            }
+            None => return Ok(()),
+        },
+    }
+    write_bundled_plugin(&target, &STARTER_PLUGIN_FILES, STARTER_PLUGIN_VERSION)
+}
+
 pub(crate) fn stage_import(root: &Path, source: &Path) -> Result<StagedImport, String> {
     stage_import_with_limits(root, source, ScanLimits::DEFAULT)
 }
@@ -729,6 +815,11 @@ pub(crate) fn remove_plugin(root: &Path, name: &str) -> Result<(), String> {
     if !plugin_exists(root, name)? {
         return Err(format!("插件库里没有「{name}」"));
     }
+    if bundled_marker(&root.join(name))?.is_some() {
+        return Err(format!(
+            "「{name}」是 StoryForge 自带的插件，不能移除；不想用就在作品的「上下文 → 插件」里取消勾选"
+        ));
+    }
     move_to_trash(root, name).map(|_| ())
 }
 
@@ -756,6 +847,9 @@ pub async fn plugin_library_dir(app: AppHandle) -> Result<String, String> {
     let root = library_root(&app)?;
     run_locked(move || {
         ensure_library_root(&root)?;
+        if let Err(error) = sync_bundled_plugins(&root) {
+            eprintln!("[plugin-library] 放入自带插件失败，插件库照常可用：{error}");
+        }
         path_string(&root)
     })
     .await

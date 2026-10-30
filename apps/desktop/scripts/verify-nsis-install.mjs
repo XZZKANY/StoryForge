@@ -100,7 +100,7 @@ export function aggregateFailures(failures, message) {
   return new AggregateError(failures, message);
 }
 
-async function exists(path) {
+export async function exists(path) {
   try {
     await access(path);
     return true;
@@ -173,11 +173,11 @@ export function assertNoForeignNativeProcesses(processes, installDir) {
     );
 }
 
-async function assertInstallerProcessSafety(layout) {
+export async function assertInstallerProcessSafety(layout) {
   assertNoForeignNativeProcesses(await listWindowsProcesses(true), layout.installDir);
 }
 
-async function windowsKnownDesktopPath() {
+export async function windowsKnownDesktopPath() {
   const result = await runProcess(
     'powershell.exe',
     [
@@ -192,7 +192,7 @@ async function windowsKnownDesktopPath() {
   return result.stdout;
 }
 
-async function terminateOwnedInstallProcesses(layout) {
+export async function terminateOwnedInstallProcesses(layout) {
   const installDir = assertSafeTestPath(layout.localAppData, layout.installDir, TEST_PRODUCT_NAME);
   const processIds = selectOwnedProcessIds(await listWindowsProcesses(), installDir);
   for (const processId of processIds) {
@@ -203,7 +203,7 @@ async function terminateOwnedInstallProcesses(layout) {
   }
 }
 
-async function waitFor(predicate, label, timeoutMs = 60000) {
+export async function waitFor(predicate, label, timeoutMs = 60000) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     if (await predicate()) return;
@@ -212,7 +212,7 @@ async function waitFor(predicate, label, timeoutMs = 60000) {
   throw new Error(`Timed out waiting for ${label}`);
 }
 
-async function registryValue(key) {
+export async function registryValue(key) {
   const result = await runProcess('reg.exe', ['query', key, '/s'], {
     capture: true,
     allowedCodes: [0, 1],
@@ -220,7 +220,7 @@ async function registryValue(key) {
   return result.code === 0 ? result.stdout.replace(/\r\n/g, '\n') : null;
 }
 
-async function fileDigest(path) {
+export async function fileDigest(path) {
   if (!(await exists(path))) return null;
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(path)) hash.update(chunk);
@@ -257,7 +257,7 @@ export async function treeDigest(root) {
   return createHash('sha256').update(JSON.stringify(tree)).digest('hex');
 }
 
-async function snapshotProduction(layout) {
+export async function snapshotProduction(layout) {
   const shortcuts = {};
   for (const path of layout.productionShortcuts) shortcuts[path] = await fileDigest(path);
   return {
@@ -310,7 +310,7 @@ async function countFiles(path) {
   return entries.filter((entry) => entry.kind === 'file').length;
 }
 
-async function verifyInstalledResources(layout) {
+export async function verifyInstalledResources(layout) {
   const resourceRoot = resolve(layout.installDir, 'resources', 'mingit');
   const manifestPath = resolve(resourceRoot, 'manifest.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
@@ -359,7 +359,7 @@ async function removeEmptyDirectory(path) {
   }
 }
 
-async function cleanupOwnedTestIdentity(layout) {
+export async function cleanupOwnedTestIdentity(layout) {
   assertSafeTestPath(layout.localAppData, layout.installDir, TEST_PRODUCT_NAME);
   assertSafeTestPath(layout.localAppData, layout.appLocalDataDir, TEST_IDENTIFIER);
   assertSafeTestPath(layout.appData, layout.appConfigDir, TEST_IDENTIFIER);

@@ -71,6 +71,7 @@ pub fn start(app: tauri::AppHandle, state: HostCloseState, exit_code: i32) {
             }
         }
         state.finish();
+        crate::app_update::install_if_armed(&app);
         app.exit(exit_code);
     });
 }

@@ -1,6 +1,6 @@
 import { bookProfilePath, emptyBookProfile, serializeBookProfile } from '../book-profile';
 import { TauriFileSystem } from '../tauri-fs';
-import { initializeStoryProject } from './initialize';
+import { enableStarterPlugin, initializeStoryProject } from './initialize';
 import { normalizeRoot } from './path';
 
 /** The book title is also the new directory name; never silently sanitize or rename it. */
@@ -65,6 +65,7 @@ export async function createBlankStoryProject(parentPath: string, title: string)
       bookProfilePath(projectPath),
       serializeBookProfile({ ...emptyBookProfile(), title }),
     );
+    await enableStarterPlugin(projectPath);
     return projectPath;
   } catch (error) {
     // No recursive cleanup: a newly-created tree may already contain author/external writes.
