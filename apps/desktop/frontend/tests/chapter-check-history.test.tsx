@@ -169,8 +169,8 @@ test('cold mount reads persisted evidence, shows a read-only candidate and only 
   );
   await openHistory();
   expect(popover()?.textContent).toContain('检查执行失败');
-  expect(popover()?.textContent).toContain('稿件判断未知');
-  expect(popover()?.textContent).toContain('稿件硬问题 0');
+  expect(popover()?.textContent).toContain('正文判断未知');
+  expect(popover()?.textContent).toContain('正文硬问题 0');
   const text = candidate();
   expect(text?.value).toBe('候选稿_SENTINEL');
   expect(text?.readOnly).toBe(true);

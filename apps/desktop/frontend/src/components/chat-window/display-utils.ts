@@ -39,8 +39,8 @@ export function runStatusText(run: AgentRun | null): string | null {
       (step) => step.id === 'permission-required' && step.status === 'waiting',
     );
     return permission
-      ? '等待你确认：批准权限或在 diff 里确认写回。'
-      : '等待确认：需要你在 diff 或导出动作里确认。';
+      ? '等待你确认：批准权限或在对比里确认写进文件。'
+      : '等待确认：需要你在对比或导出动作里确认。';
   }
   if (run.status === 'completed') return '本轮已完成。';
   if (run.status === 'paused') return '已暂停 · 点“恢复”继续本轮。';

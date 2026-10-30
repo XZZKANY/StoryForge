@@ -15,6 +15,11 @@ export interface Db {
   select(sql: string, params?: readonly SqlValue[]): Promise<SqlRow[]>;
   /** 返回最后一条语句产生的行（INSERT … RETURNING 或 SELECT），其余语句的结果丢弃。 */
   transaction(steps: readonly SqlStep[]): Promise<SqlRow[]>;
+  /**
+   * 升级已有的库结构之前整库备份一份（桌面端是宿主命令 `engine_db_backup`），失败时不迁移：
+   * 自动更新后没人提醒作者手动备份。测试用的库不实现就不备份。
+   */
+  backup?(fromVersion: number, toVersion: number): Promise<void>;
 }
 
 const FLOAT_TAG = '\u0000JsonFloat';

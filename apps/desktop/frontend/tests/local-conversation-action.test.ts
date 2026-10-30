@@ -21,6 +21,13 @@ test('local conversation action recognizes writeback confirmation phrases before
   }
 });
 
+test('local conversation action also recognizes the current wording 写进文件', () => {
+  for (const phrase of ['确认写进文件', '就这版写进去', '接受，写进文件', '这版写进文件吧']) {
+    assert.equal(detectLocalConversationAction(phrase), 'file.writeback', phrase);
+  }
+  assert.equal(detectLocalConversationAction('确认一下人设，再把它写进第三章'), 'agent');
+});
+
 test('local conversation action keeps export and agent requests separate', () => {
   assert.equal(detectLocalConversationAction('导出当前文件'), 'file.export');
   assert.equal(detectLocalConversationAction('审一下这一章'), 'agent');

@@ -673,7 +673,7 @@ test.each([
         expect(read).not.toHaveBeenCalled();
         expect(flush).not.toHaveBeenCalled();
         expect(localState!.retryRequest).toBe(retryDescriptor);
-        expect(toasts.at(-1)).toContain(scenario.file ? '第001章.md' : '关闭当前稿件');
+        expect(toasts.at(-1)).toContain(scenario.file ? '第001章.md' : '关闭当前文件');
         await act(async () =>
           localRoot.render(<Harness key={JSON.stringify(scenario)} file={scenario.file} />),
         );

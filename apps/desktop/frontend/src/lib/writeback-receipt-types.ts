@@ -21,7 +21,7 @@ export type WritebackReceipt = {
 /** Decode the native IPC boundary; a new/invalid state must never mean applied. */
 export function decodeWritebackReceipt(value: unknown): WritebackReceipt {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('写回回执格式无效，结果未知；请核对文件与版本');
+    throw new Error('写入回执格式无效，结果未知；请核对文件与版本');
   }
   const record = value as Record<string, unknown>;
   if (
@@ -41,7 +41,7 @@ export function decodeWritebackReceipt(value: unknown): WritebackReceipt {
     typeof record.receiptPersisted !== 'boolean' ||
     !(record.detail === undefined || typeof record.detail === 'string')
   )
-    throw new Error('写回回执字段无效，结果未知；已禁止自动重复写入');
+    throw new Error('写入回执字段无效，结果未知；已禁止自动重复写入');
   return record as WritebackReceipt;
 }
 
@@ -54,7 +54,7 @@ export type WritebackIdentity = {
 
 export function decodeWritebackIdentity(value: unknown): WritebackIdentity {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('写回操作身份格式无效');
+    throw new Error('写入操作身份格式无效');
   }
   const record = value as Record<string, unknown>;
   if (
@@ -68,7 +68,7 @@ export function decodeWritebackIdentity(value: unknown): WritebackIdentity {
     !/^[a-f0-9]{64}$/.test(record.fingerprint) ||
     Object.keys(record).some((key) => !['relativePath', 'operationId', 'fingerprint'].includes(key))
   ) {
-    throw new Error('写回操作身份字段无效');
+    throw new Error('写入操作身份字段无效');
   }
   return {
     relativePath: record.relativePath,

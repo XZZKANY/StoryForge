@@ -59,7 +59,7 @@ it('raises one bottom-corner notice with the pending count and no replay', async
     activeCommands: 1,
   }));
   expect(toasts).toHaveLength(1);
-  expect(toasts[0].message).toContain('3 个写回操作');
+  expect(toasts[0].message).toContain('3 个写入操作');
   expect(toasts[0].message).toContain('不会自动重做');
   expect(toasts[0].tone).toBe('error');
   expect(toasts[0].action).toBeUndefined();
@@ -100,7 +100,7 @@ it('reaches the bottom-corner toast stack mounted below it in the shell', async 
   const root = createRoot(element);
   try {
     await act(async () => root.render(<Shell />));
-    expect(element.textContent).toContain('1 个写回操作没确认完成');
+    expect(element.textContent).toContain('1 个写入操作没确认完成');
   } finally {
     await act(async () => root.unmount());
     element.remove();
