@@ -57,12 +57,28 @@ export async function startWriteBatch(input: {
   to: number;
   permissionProfile: AgentPermissionProfile;
   modelKey: string;
+  note?: string | null;
 }): Promise<ApiWriteBatchStartResult> {
   return decodeWriteBatchStart(
     await post('start', {
       project_root: input.projectRoot,
       from: input.from,
       to: input.to,
+      permission_profile: input.permissionProfile,
+      model_key: input.modelKey,
+      note: input.note ?? null,
+    }),
+  );
+}
+
+export async function previewWriteBatchResume(input: {
+  projectRoot: string;
+  permissionProfile: AgentPermissionProfile;
+  modelKey: string;
+}): Promise<ApiWriteBatchPlan> {
+  return decodeWriteBatchPlan(
+    await post('preview-resume', {
+      project_root: input.projectRoot,
       permission_profile: input.permissionProfile,
       model_key: input.modelKey,
     }),

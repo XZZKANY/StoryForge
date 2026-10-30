@@ -43,8 +43,13 @@ export function useChatSubmission(
     ChatWindowProps,
     'projectPath' | 'assistantSessionId' | 'pendingInitialPrompt' | 'onPendingInitialPromptConsumed'
   >,
-  /** 批量写章调度器：占着对话时什么都不发；不带范围的 `/写` 交给它续写。 */
-  writeBatchScheduler: { occupied: boolean; onResume?: () => void } = { occupied: false },
+  /**
+   * 批量写章调度器：在写时什么都不发；续写确认卡开着时和 `/写` 确认卡一样只认新的 `/写`；
+   * 不带范围的 `/写` 交给它续写。
+   */
+  writeBatchScheduler: { occupied: boolean; cardOpen?: boolean; onResume?: () => void } = {
+    occupied: false,
+  },
 ) {
   const {
     agentBusy,
@@ -86,7 +91,8 @@ export function useChatSubmission(
   const [writeBatch, setWriteBatch] = useState<(WriteBatchRequest & { scope: number }) | null>(
     null,
   );
-  const writeBatchOpen = writeBatch?.scope === scope;
+  const ownCardOpen = writeBatch?.scope === scope;
+  const writeBatchOpen = ownCardOpen || Boolean(writeBatchScheduler.cardOpen);
   const closeWriteBatch = useCallback(() => setWriteBatch(null), []);
   const clearQueuedMessages = useCallback(() => {
     queuedRef.current = null;
@@ -437,7 +443,7 @@ export function useChatSubmission(
     removeQueuedMessage,
     clearQueuedMessages,
     writeBatch:
-      writeBatch !== null && writeBatchOpen
+      writeBatch !== null && ownCardOpen
         ? { id: writeBatch.id, command: writeBatch.command }
         : null,
     closeWriteBatch,

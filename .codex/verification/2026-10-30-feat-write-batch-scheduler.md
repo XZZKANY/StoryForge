@@ -45,3 +45,28 @@
   - 出错停下用的是界面能送的 `run_not_started`（引擎只收 `author_stopped` / `app_closed` / `run_not_started`），原因写在说明里；引擎要不要加一个「界面出错」的停下原因，另定。
   - 续写是「`resumeWriteBatch` 先开好一段再给作者确认」（照任务书）：作者在确认卡上取消时调度器再把它停回去，记录里会多一段空的。若要「确认前不动记录」，引擎得给一个只出计划的续写接口。
   - 几处没在任务书里写死、我按现有样式取的：停止按钮一次点击生效（次要样式，不像运行条那样要点两次）；停下的卡上「从第 k 章接着写」用 AI 紫、写完的卡上「这批审完了」用强调色主按钮、停下的卡上它是次要按钮；卡片标题「这一批写完了 / 停下了：写了 N 章，用了 X 万」；`/写` 续写不了时的三句说明；批量中被拦时的两句提示。
+
+## 2026-10-30 E 刀审后追加：出错原因码、续写确认前不动记录、作者要求与章名进记录
+
+- 背景：编排者审过 E 刀，接受授权、等写进文件与记账的做法和状态机；上一节「要定的」三件定了，都在引擎里补（判定只为这三件改），同一分支追加提交、不 push。先合了 `origin/master`（已含 C 刀 #547、D 刀 #550、B 刀 #546），无冲突；C 刀的批量文件与 master 上的一致（`git diff e6cdcacd origin/master -- packages/engine/src/loop/writeBatch*.ts …` 为空）。
+- 引擎（`packages/engine/src/loop/`）：
+  - 出错原因码：`writeBatchRecord.ts` 的停下原因加 `scheduler_error`，并列入界面能送的 `INTERFACE_STOP_CODES`；`stopWriteBatch` 原样存说明。
+  - 续写预览：`writeBatchSteps.ts` 把续写的「读最近一批、必须停下、`planBatch(…, 'resume')`、章都有正文时换成 `batch_all_written`」抽成 `resumePlan`，新加只读的 `previewWriteBatchResume(deps, root, { permission_profile, model_key })` 只返回计划、不写文件、不改记录；`resumeWriteBatch` 行为不变（全写完时仍记成写完）。包入口导出。
+  - 作者要求与章名：记录版本升到 2，顶层加 `note`（`startWriteBatch` 收可选 `note`，去首尾空白，空的记 null，不是字符串报错）；版本 1 的记录照读（`note` 读成 null），读进来即当前版本形状，写回按版本 2 写；版本 3 及以上不认、版本 2 缺 `note` 不认。`nextWriteBatchStep` 的 `write` 带回 `note`（记录里的）与 `title`（连载计划里的，读不到 null）；`readWriteBatch` 每章带 `title`（读时取，记录文件里不存，测试核了文件里没有 title）。
+- 界面：
+  - `contracts.ts`：停下原因加 `scheduler_error`；`ApiWriteBatch` 加 `note`；`write` 步加 `note`、`title`；新 `ApiWriteBatchViewRecord`（每章多 `title`），`ApiWriteBatchView.batch` 用它。`lib/api/write-batch.ts` 解码跟上（`write` 步缺 note / title、读记录的章缺 title 都报 `WriteBatchShapeError`），加 `previewWriteBatchResume`，`startWriteBatch` 送 `note`；`lib/engine/writeBatch.ts` 接上。
+  - 调度器：出错（循环里抛错、拿不到这一轮结果、正文写进去但事实没记上、循环外的错）一律 `scheduler_error`，说明原样带错误；只有「这一章没能开跑」仍是 `run_not_started`。「从第 k 章接着写」与 `/写` 续写改成 预览 → 确认卡 → 点开始才 `resumeWriteBatch`；取消什么都不调，回到原来那张卡。去掉了上一版「取消后再停回去」与续写开好一段时的占用；续写确认卡开着时照 `/写` 确认卡的规矩（别的话先不发、起草快捷入口收起），会话照常能切。每章的话里的「作者要求」改用引擎 `write` 步带回的 `note`，停下 / 写完的卡上章名用读记录带回的 `title`；内存里记要求与章名的那张表删了。
+  - http 替身与浏览器回归跟上：替身加 `previewWriteBatchResume`、开跑带 `note`；回归里打 `/写 1-3 节奏快一点`，核开跑带 `note`、第 2 章的话带「作者要求：节奏快一点」、停下的卡上「第 2 章《第2章标题》 · 没写进文件」，再点「从第 2 章接着写」出续写确认卡（标题与「要求：节奏快一点」），取消回到停下的卡，核只调了只读预览、没调续写。
+- 验证（没跑整套 `pnpm verify`：作者在用机器，CI 跑全套）：
+  - 引擎：`npx tsc --noEmit -p tsconfig.json` EXIT=0；全量 `npx vitest run --maxWorkers=3`：111 个文件 14227 passed + 2 skipped（含 golden），EXIT=0。之后只给 `writeBatchSteps.test.ts` 的预览测试换了带计数的写口（见变异 E2），单跑 70 passed。
+  - 引擎新测试（`writeBatchSteps.test.ts` 新增 9 条、改 3 条期望）：要求存进记录并随每章下一步带回、空要求记 null 与非字符串报错、读记录带章名且文件里不存、版本 1 读成 note=null 并写回版本 2、版本 2 缺 note 报错、`scheduler_error` 原样存并在下一步原样回报、预览与续写同一份计划且不写不改、全写完时预览给 `batch_all_written` 不记成写完、没批量或还在写时预览报错。
+  - 前端 `npm run typecheck` EXIT=0；改动文件 eslint、prettier 通过。
+  - 前端相关测试两批：22 个文件 200 passed（批量相关全部、`source-standards`、`ui-terminology`、`fact-write`、`chapter-write-request`、`starter-plugin-new-project` 等）；38 个文件 595 passed（ChatWindow / App / 编辑器写进文件 / 运行控制）。改了期望：`write-batch-loop.test.ts`（出错与拿不到结果改 `scheduler_error`）、`write-batch-scheduler.test.tsx`（假引擎带 note / title / 预览；续写先预览、点开始才续、取消不调任何停；重开应用后卡上有章名、续写的话带记录里的要求）、`write-batch-record-api.test.ts`（真引擎：要求与章名、`scheduler_error`、预览前后记录一字不变；解码：版本 2、note、缺 title / note 报错）。
+  - 浏览器回归 `node scripts/verify-agent-conversation.mjs` 单跑 EXIT=0（这次冷启动没超时）。
+- 变异（`output/write-batch-scheduler/mutate2.py`，同样逐处断言恰好 1 次、无条件按原字节还原并核 sha256，跑完 `git status` 与跑前一致）9 处全红：
+  - E1 引擎不收 `scheduler_error` → 1 条红。
+  - E2 续写预览写了文件 → 2 条红。第一次跑时这一处没红：内存作品只记内容有变化的写，预览按原样重写一遍看不出来；把预览测试的写口换成记下每一次写（连内容不变的重写也算）后再跑，红了。
+  - E3 开跑不存作者要求 → 1 条红。E4 下一步不带章名 → 2 条红。E5 读记录不带章名 → 1 条红。E6 版本 1 的记录读不了 → 1 条红。
+  - U1 界面出错又借 `run_not_started` → loop + scheduler 2 条红。U2 确认前就真续写 → scheduler 3 条红。U3 每章的话不带引擎记下的要求 → scheduler 3 条红。
+- golden 零改动（`git status --short packages/engine/golden` 为空）；改动文件全 LF、无 BOM。`--numstat` 与 `--ignore-all-space --numstat` 只在 `useWriteBatchScheduler.ts`、`write-batch-run.ts`、`write-batch-scheduler.test.tsx` 上不同（`leaveWriteBatch` 等少一层嵌套后的缩进），没有行尾翻转。
+- 仍没做 / 没验：真宿主、真模型都没跑；`docs/internal/write-batch-plan-2026-10.md` §8 里 C 刀接口那段没跟着改（多了预览、note / title、`scheduler_error`、记录版本 2），留给编排者决定要不要同步。

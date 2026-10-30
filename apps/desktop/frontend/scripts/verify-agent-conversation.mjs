@@ -287,7 +287,15 @@ try {
           });
           const batchState = window.__STORYFORGE_WRITE_BATCH__;
           const view = () => {
-            const batch = window.__STORYFORGE_WRITE_BATCH__ ?? null;
+            const record = window.__STORYFORGE_WRITE_BATCH__ ?? null;
+            // 读记录时每章带上连载计划里的标题（真引擎读时取，记录里不存）。
+            const batch = record && {
+              ...record,
+              chapters: record.chapters.map((item) => ({
+                ...item,
+                title: `第${item.ordinal}章标题`,
+              })),
+            };
             // 与真引擎同一个口径：范围里第一章还没有正文的（跳过的那章有正文）。
             const pending =
               batch?.chapters.find(
@@ -308,6 +316,11 @@ try {
             return json(planFor(requestBody.from, requestBody.to, requestBody.permission_profile));
           }
           if (name === 'recover') return json({ recovered: false, batch: batchState ?? null });
+          if (name === 'preview-resume') {
+            const record = batchState;
+            if (!record || record.status !== 'stopped') rejectRequest();
+            return json(planFor(record.from, record.to, requestBody.permission_profile));
+          }
           if (name === 'read') return json(view());
           if (name === 'start') {
             const now = '2026-10-30T00:00:00Z';
@@ -318,6 +331,7 @@ try {
               to: requestBody.to,
               created_at: now,
               model_key: requestBody.model_key,
+              note: requestBody.note ?? null,
               status: 'running',
               reviewed: false,
               stop: null,
@@ -377,6 +391,8 @@ try {
               ordinal: target.ordinal,
               target_path: target.target_path,
               goal: `第${target.ordinal}章目标`,
+              title: `第${target.ordinal}章标题`,
+              note: batch.note,
             });
           }
           if (name === 'record') {
@@ -776,9 +792,9 @@ try {
     throw new Error('Expected user bubble to omit user name label');
   }
 
-  // 打 `/写 1-3`：不发给 AI，对话里出批量写章确认卡，按作品存的档位排计划。
+  // 打 `/写 1-3 …`：不发给 AI，对话里出批量写章确认卡，按作品存的档位排计划。
   const agentMessagesBefore = payloads.length;
-  await input.fill('/写 1-3');
+  await input.fill('/写 1-3 节奏快一点');
   await page.getByTestId('composer-submit').click();
   const batchCard = page.getByTestId('write-batch-card');
   await batchCard.waitFor({ timeout: 5000 });
@@ -834,7 +850,7 @@ try {
     chapterRuns.length !== 1 ||
     chapterRuns[0].permission_profile !== 'auto' ||
     chapterRuns[0].args?.file_path !== '正文/第002章.md' ||
-    chapterRuns[0].user_message !== '写第 2 章（批量第 1 / 2 章）'
+    chapterRuns[0].user_message !== '写第 2 章（批量第 1 / 2 章）\n作者要求：节奏快一点'
   ) {
     throw new Error(
       `Expected one auto-profile chapter run for 第 2 章: ${JSON.stringify(chapterRuns)}`,
@@ -852,7 +868,8 @@ try {
   );
   if (
     startCall?.body.permission_profile !== 'ask' ||
-    startCall?.body.model_key !== 'browser-fixture-model'
+    startCall?.body.model_key !== 'browser-fixture-model' ||
+    startCall?.body.note !== '节奏快一点'
   ) {
     throw new Error(
       `Expected the batch to start with the stored profile: ${JSON.stringify(startCall)}`,
@@ -864,7 +881,24 @@ try {
   await batchResult
     .getByText('第 2 章这次运行没有交出修订。', { exact: true })
     .waitFor({ timeout: 5000 });
+  await batchResult
+    .getByText('第 2 章《第2章标题》 · 没写进文件', { exact: true })
+    .waitFor({ timeout: 5000 });
   await page.getByTestId('write-batch-resume').filter({ hasText: '从第 2 章接着写' }).waitFor();
+  // 「从第 2 章接着写」先只读出续写计划给作者确认；取消就回到停下的卡，记录不动。
+  await page.getByTestId('write-batch-resume').click();
+  await batchCard.getByText('从第 2 章接着写', { exact: true }).waitFor({ timeout: 5000 });
+  await batchCard.getByText('要求：节奏快一点', { exact: true }).waitFor({ timeout: 5000 });
+  await page.getByTestId('write-batch-close').click();
+  await batchResult.waitFor({ timeout: 5000 });
+  const resumeCalls = await page.evaluate(() =>
+    (window.__STORYFORGE_WRITE_BATCH_CALLS__ ?? [])
+      .map((call) => call.name)
+      .filter((name) => name === 'preview-resume' || name === 'resume'),
+  );
+  if (JSON.stringify(resumeCalls) !== JSON.stringify(['preview-resume'])) {
+    throw new Error(`Expected only a read-only resume preview: ${JSON.stringify(resumeCalls)}`);
+  }
   // 授权只管这一批：作者存的档位没变，输入框底部照旧显示「询问」。
   const shownProfile = await page.getByTestId('permission-profile-selector').first().innerText();
   if (!shownProfile.includes('询问')) {

@@ -61,7 +61,16 @@ export type WriteBatchStartResult =
   | { started: false; plan: WriteBatchPlan; batch: WriteBatchRecord | null };
 
 export type WriteBatchStep =
-  | { action: 'write'; ordinal: number; target_path: string; goal: string | null }
+  | {
+      action: 'write';
+      ordinal: number;
+      target_path: string;
+      goal: string | null;
+      /** 连载计划里这一章的标题；读不到为 null。 */
+      title: string | null;
+      /** 作者开这一批时在 `/写` 范围后附的要求，每章发起时带上；没附为 null。 */
+      note: string | null;
+    }
   | { action: 'stop'; code: WriteBatchStopCode; message: string; ordinal: number | null }
   | { action: 'finished' };
 
@@ -72,8 +81,14 @@ export type WriteBatchMismatch = {
   message: string;
 };
 
+/** 读记录时每章带上连载计划里的标题（读时取，不存进记录）。 */
+export type WriteBatchViewChapter = WriteBatchRecordChapter & { title: string | null };
+export type WriteBatchViewRecord = Omit<WriteBatchRecord, 'chapters'> & {
+  chapters: WriteBatchViewChapter[];
+};
+
 export type WriteBatchView = {
-  batch: WriteBatchRecord | null;
+  batch: WriteBatchViewRecord | null;
   mismatches: WriteBatchMismatch[];
   /** 最近一批停下了、而且范围里还有没正文的章：界面只按它决定给不给「从第 k 章接着写」。 */
   can_resume: boolean;
@@ -93,6 +108,13 @@ type FileDeps = Pick<WriteBatchRunDeps, 'reader' | 'writer' | 'platform'>;
 
 const save = (deps: FileDeps, root: string, record: WriteBatchRecord) =>
   writeWriteBatchRecord(deps.writer, root, record, deps.platform);
+
+/** 作者在 `/写` 范围后附的要求：去掉首尾空白，空的当没附。 */
+function noteOf(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string') throw new WriteBatchError('note 应是字符串或 null。');
+  return value.trim() || null;
+}
 
 async function latestBatch(
   reader: ProjectReader,
@@ -157,7 +179,7 @@ function newLeg(plan: WriteBatchPlan, startedAt: string): WriteBatchLeg {
 
 /**
  * 开一批：内部重跑 planWriteBatch，有不能开跑的原因就拒（不写文件），否则写一条新记录。
- * 第一段带 A 刀给的预估与上限；试写模式没有上限。
+ * 第一段带 A 刀给的预估与上限；试写模式没有上限。作者附的要求（note）存进记录，续写时照样带上。
  */
 export async function startWriteBatch(
   deps: WriteBatchRunDeps,
@@ -167,9 +189,11 @@ export async function startWriteBatch(
     to: number;
     permission_profile: string;
     model_key: string;
+    note?: string | null;
   },
 ): Promise<WriteBatchStartResult> {
   const modelKey = modelKeyOf(input.model_key);
+  const note = noteOf(input.note);
   const root = input.project_root;
   const plan = await planBatch(deps, input, 'new');
   if (!plan.can_start)
@@ -182,6 +206,7 @@ export async function startWriteBatch(
     to: plan.to,
     created_at: now,
     model_key: modelKey,
+    note,
     status: 'running',
     reviewed: false,
     stop: null,
@@ -194,17 +219,12 @@ export async function startWriteBatch(
   return { started: true, plan, batch: record };
 }
 
-/**
- * 续写最近一批（必须是停下的）：对这一批范围里剩下没正文的章重新出计划（同样的拦法，只是不要求先审完），
- * 新开一段（重新估、重新给上限），按新的模型标识记。不能开跑时不改记录。
- * 例外：这一批的章都已经有正文了（比如停在最后一章、作者自己处理完了），就把这一批记成写完，
- * 不再停在「停下了却续不了」；plan 里用 batch_all_written 说明去清单上审完。
- */
-export async function resumeWriteBatch(
-  deps: WriteBatchRunDeps,
+/** 续写的那一段计划：只读最近一批（必须是停下的）并重出计划，不写文件。章都有正文时说明换成 batch_all_written。 */
+async function resumePlan(
+  deps: WriteBatchDeps,
   input: { project_root: string; permission_profile: string; model_key: string },
-): Promise<WriteBatchStartResult> {
-  const modelKey = modelKeyOf(input.model_key);
+): Promise<{ record: WriteBatchRecord; plan: WriteBatchPlan; allWritten: boolean }> {
+  modelKeyOf(input.model_key);
   const root = input.project_root;
   const record = await readWriteBatchRecord(deps.reader, root);
   if (record === null) throw new WriteBatchError('这部作品还没有批量写章的记录，没有可续写的。');
@@ -224,7 +244,8 @@ export async function resumeWriteBatch(
     },
     'resume',
   );
-  if (plan.blockers.some((blocker) => blocker.code === 'nothing_to_write')) {
+  const allWritten = plan.blockers.some((blocker) => blocker.code === 'nothing_to_write');
+  if (allWritten)
     plan.blockers = plan.blockers.map((blocker) =>
       blocker.code === 'nothing_to_write'
         ? {
@@ -234,6 +255,35 @@ export async function resumeWriteBatch(
           }
         : blocker,
     );
+  return { record, plan, allWritten };
+}
+
+/**
+ * 续写前给作者看的计划：和 resumeWriteBatch 同一份计划与拦法，但只读、不写文件（作者在确认卡上点开始才续写）。
+ * 这一批的章都已经有正文时，plan 里是 batch_all_written 的说明，记录不改。
+ */
+export async function previewWriteBatchResume(
+  deps: WriteBatchDeps,
+  root: string,
+  input: { permission_profile: string; model_key: string },
+): Promise<WriteBatchPlan> {
+  return (await resumePlan(deps, { project_root: root, ...input })).plan;
+}
+
+/**
+ * 续写最近一批（必须是停下的）：对这一批范围里剩下没正文的章重新出计划（同样的拦法，只是不要求先审完），
+ * 新开一段（重新估、重新给上限），按新的模型标识记。不能开跑时不改记录。
+ * 例外：这一批的章都已经有正文了（比如停在最后一章、作者自己处理完了），就把这一批记成写完，
+ * 不再停在「停下了却续不了」；plan 里用 batch_all_written 说明去清单上审完。
+ */
+export async function resumeWriteBatch(
+  deps: WriteBatchRunDeps,
+  input: { project_root: string; permission_profile: string; model_key: string },
+): Promise<WriteBatchStartResult> {
+  const modelKey = modelKeyOf(input.model_key);
+  const root = input.project_root;
+  const { record, plan, allWritten } = await resumePlan(deps, input);
+  if (allWritten) {
     markSkipped(record, await bookChapters(deps.reader, root, deps.platform));
     record.status = 'finished';
     record.stop = null;
@@ -608,11 +658,14 @@ export async function nextWriteBatchStep(
     );
   }
   await save(deps, root, record);
+  const planned = book.entry(target.ordinal);
   return {
     action: 'write',
     ordinal: target.ordinal,
     target_path: target.target_path,
-    goal: book.entry(target.ordinal)?.goal ?? null,
+    goal: planned?.goal ?? null,
+    title: planned?.title ?? null,
+    note: record.note,
   };
 }
 
@@ -682,7 +735,10 @@ export async function markWriteBatchReviewed(
   return record;
 }
 
-/** 读最近一批，并标出记录与正文对不上的章（以正文为准）。没有批量记录时 batch 为 null。 */
+/**
+ * 读最近一批，并标出记录与正文对不上的章（以正文为准）。没有批量记录时 batch 为 null。
+ * 每章带上连载计划里的标题（读时取，不存进记录）。
+ */
 export async function readWriteBatch(
   deps: Pick<WriteBatchRunDeps, 'reader' | 'platform'>,
   root: string,
@@ -724,7 +780,13 @@ export async function readWriteBatch(
       });
   }
   return {
-    batch: record,
+    batch: {
+      ...record,
+      chapters: record.chapters.map((chapter) => ({
+        ...chapter,
+        title: book.entry(chapter.ordinal)?.title ?? null,
+      })),
+    },
     mismatches,
     can_resume: record.status === 'stopped' && resumeFrom !== null,
     resume_from: resumeFrom,

@@ -41,13 +41,13 @@ export function WriteBatchPanel({
     const { plan } = phase;
     card = (
       <WriteBatchCard
-        key={`resume:${phase.batch?.id ?? 'none'}:${phase.batch?.legs.length ?? 0}`}
+        key="resume"
         command={{ kind: 'range', from: plan.from, to: plan.to, note: phase.note }}
         title={resumeTitle(plan)}
         projectPath={projectPath}
         permissionProfile={permissionProfile}
         plan={plan}
-        onStart={phase.started ? scheduler.confirmResume : undefined}
+        onStart={scheduler.confirmResume}
         onClose={scheduler.cancelConfirm}
       />
     );

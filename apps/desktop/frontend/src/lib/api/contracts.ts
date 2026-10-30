@@ -267,7 +267,8 @@ export type ApiWriteBatchStopCode =
   | 'trial_done'
   | 'author_stopped'
   | 'app_closed'
-  | 'run_not_started';
+  | 'run_not_started'
+  | 'scheduler_error';
 
 export type ApiWriteBatchStop = {
   code: ApiWriteBatchStopCode;
@@ -336,6 +337,8 @@ export type ApiWriteBatch = {
   id: string;
   legs: ApiWriteBatchLeg[];
   model_key: string;
+  /** 作者在 `/写` 范围后附的要求，每章发起时带上；没附为 null（版本 1 的记录读成 null）。 */
+  note: string | null;
   reviewed: boolean;
   /**
    * @enum {string}
@@ -357,7 +360,16 @@ export type ApiWriteBatchStartResult =
  * @description 引擎判定的下一步：写哪一章，还是停、为什么停，或者这一批写完了。
  */
 export type ApiWriteBatchStep =
-  | { action: 'write'; goal: string | null; ordinal: number; target_path: string }
+  | {
+      action: 'write';
+      goal: string | null;
+      /** 作者开这一批时附的要求；没附为 null。 */
+      note: string | null;
+      ordinal: number;
+      target_path: string;
+      /** 连载计划里这一章的标题；读不到为 null。 */
+      title: string | null;
+    }
   | { action: 'stop'; code: ApiWriteBatchStopCode; message: string; ordinal: number | null }
   | { action: 'finished' };
 
@@ -374,8 +386,15 @@ export type ApiWriteBatchMismatch = {
  * @description 读最近一批：记录本身，加上记录与正文对不上的章（以正文为准）。can_resume 由引擎判定
  * （停下了、范围里还有没正文的章），界面只按它决定给不给「从第 k 章接着写」；resume_from 是下一个没正文的章序。
  */
+/** 读记录时每章带上连载计划里的标题（读时取，记录里不存）。 */
+export type ApiWriteBatchViewChapter = ApiWriteBatchRecordChapter & { title: string | null };
+
+export type ApiWriteBatchViewRecord = Omit<ApiWriteBatch, 'chapters'> & {
+  chapters: ApiWriteBatchViewChapter[];
+};
+
 export type ApiWriteBatchView = {
-  batch: ApiWriteBatch | null;
+  batch: ApiWriteBatchViewRecord | null;
   can_resume: boolean;
   mismatches: ApiWriteBatchMismatch[];
   resume_from: number | null;

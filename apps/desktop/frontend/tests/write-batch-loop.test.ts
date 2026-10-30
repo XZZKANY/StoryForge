@@ -234,19 +234,16 @@ describe('runWriteBatchLoop', () => {
     );
   });
 
-  it('没能开跑、结果未知：不记，停在这一章', async () => {
-    for (const outcome of [
-      { kind: 'not_dispatched' },
-      { kind: 'unsettled', runId: 'run-4' },
-    ] as RunAuthorAgentOutcome[]) {
+  it('没能开跑、结果未知：不记，停在这一章（没开跑是 run_not_started，拿不到结果算界面出错）', async () => {
+    for (const [outcome, code] of [
+      [{ kind: 'not_dispatched' }, 'run_not_started'],
+      [{ kind: 'unsettled', runId: 'run-4' }, 'scheduler_error'],
+    ] as [RunAuthorAgentOutcome, string][]) {
       const { deps } = harness([write(4), write(5)], { 4: outcome });
       await runWriteBatchLoop(deps);
       expect(deps.record).not.toHaveBeenCalled();
       expect(deps.stop).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'run_not_started',
-          message: expect.stringMatching(/^第 4 章/),
-        }),
+        expect.objectContaining({ code, message: expect.stringMatching(/^第 4 章/) }),
       );
       expect(deps.dispatch).toHaveBeenCalledTimes(1);
     }
@@ -261,7 +258,7 @@ describe('runWriteBatchLoop', () => {
       },
     );
     await runWriteBatchLoop(deps);
-    expect(log.slice(-2)).toEqual([`record:4:${ROOT}/正文/第004章.md`, 'stop:run_not_started']);
+    expect(log.slice(-2)).toEqual([`record:4:${ROOT}/正文/第004章.md`, 'stop:scheduler_error']);
     expect(deps.dispatch).toHaveBeenCalledTimes(1);
   });
 
@@ -273,7 +270,7 @@ describe('runWriteBatchLoop', () => {
       error: '写进的文件不是第 4 章的目标文件',
     });
     expect(deps.stop).toHaveBeenCalledWith({
-      code: 'run_not_started',
+      code: 'scheduler_error',
       message: '第 4 章出错停下：写进的文件不是第 4 章的目标文件',
     });
     expect(deps.next).toHaveBeenCalledTimes(1);

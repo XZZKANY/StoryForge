@@ -108,10 +108,12 @@ export function ChatWindow(props: ChatWindowProps) {
   });
   const submission = useChatSubmission(state, runAuthorAgent, props, {
     occupied: scheduler.occupied,
+    cardOpen: scheduler.confirming,
     onResume: scheduler.resumeFromCommand,
   });
-  // 确认卡开着、或这一批正在写：会直接发起写章的快捷入口都先收起。
-  const writeBatchOpen = submission.writeBatch !== null || scheduler.occupied;
+  // 确认卡（含续写确认）开着、或这一批正在写：会直接发起写章的快捷入口都先收起。
+  const writeBatchOpen =
+    submission.writeBatch !== null || scheduler.occupied || scheduler.confirming;
   useEffect(() => setWriteBatchCardOpen(writeBatchOpen), [writeBatchOpen]);
   useEffect(() => () => setWriteBatchCardOpen(false), []);
   const batchOccupiedRef = useRef(scheduler.occupied);

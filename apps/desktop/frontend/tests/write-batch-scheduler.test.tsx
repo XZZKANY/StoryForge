@@ -80,6 +80,7 @@ const engine = vi.hoisted(() => ({
   readWriteBatch: vi.fn(),
   markWriteBatchReviewed: vi.fn(),
   resumeWriteBatch: vi.fn(),
+  previewWriteBatchResume: vi.fn(),
   formatWriteBatchTokens: vi.fn(async (tokens: number) => `${tokens / 10_000} 万`),
   currentWriteBatchModelKey: vi.fn(async () => 'model-a'),
 }));
@@ -151,12 +152,13 @@ function batchOf(from: number, to: number): ApiWriteBatch {
       fact_disputes: null,
     });
   return {
-    version: 1,
+    version: 2,
     id: 'write-batch-1',
     from,
     to,
     created_at: '2026-10-30T00:00:00Z',
     model_key: 'model-a',
+    note: null,
     status: 'running',
     reviewed: false,
     stop: null,
@@ -184,10 +186,13 @@ function installEngine() {
   engine.planWriteBatch.mockImplementation(async (input: { from: number; to: number }) =>
     plan(input.from, input.to),
   );
-  engine.startWriteBatch.mockImplementation(async (input: { from: number; to: number }) => {
-    engine.batch = batchOf(input.from, input.to);
-    return { started: true, plan: plan(input.from, input.to), batch: copy() };
-  });
+  engine.startWriteBatch.mockImplementation(
+    async (input: { from: number; to: number; note?: string | null }) => {
+      engine.batch = batchOf(input.from, input.to);
+      current().note = input.note ?? null;
+      return { started: true, plan: plan(input.from, input.to), batch: copy() };
+    },
+  );
   engine.nextWriteBatchStep.mockImplementation(async () => {
     const step = (engine.steps.shift() as ApiWriteBatchStep | undefined) ?? {
       action: 'finished',
@@ -197,6 +202,9 @@ function installEngine() {
       current().status = 'stopped';
       current().stop = { code: step.code, message: step.message, ordinal: step.ordinal };
     }
+    // 真引擎在「写」这一步带回记录里的要求和计划里的章名。
+    if (step.action === 'write')
+      return { ...step, title: `标题${step.ordinal}`, note: current().note };
     return step;
   });
   engine.recordWriteBatchChapter.mockImplementation(
@@ -227,8 +235,12 @@ function installEngine() {
     return copy();
   });
   engine.readWriteBatch.mockImplementation(async (root: string) => {
-    // 别的作品没有批量记录。
-    const batch = engine.batch && root === ROOT ? copy() : null;
+    // 别的作品没有批量记录；读记录时每章带上连载计划里的标题。
+    const record = engine.batch && root === ROOT ? copy() : null;
+    const batch = record && {
+      ...record,
+      chapters: record.chapters.map((chapter) => ({ ...chapter, title: `标题${chapter.ordinal}` })),
+    };
     const resumeFrom = batch ? (firstPending()?.ordinal ?? null) : null;
     return {
       batch,
@@ -244,6 +256,12 @@ function installEngine() {
   engine.markWriteBatchReviewed.mockImplementation(async () => {
     current().reviewed = true;
     return copy();
+  });
+  // 只读的续写预览：同一份计划，记录不动。
+  engine.previewWriteBatchResume.mockImplementation(async () => {
+    const batch = current();
+    const written = batch.chapters.filter((c) => c.state === 'written').map((c) => c.ordinal);
+    return plan(batch.from, batch.to, written);
   });
   engine.resumeWriteBatch.mockImplementation(async () => {
     const batch = current();
@@ -408,6 +426,7 @@ test('开始写：逐章按自动档发起，等写进文件与记账落定才�
     to: 6,
     permissionProfile: 'ask',
     modelKey: 'model-a',
+    note: '节奏快一点',
   });
   expect(q('write-batch-card')).toBeNull();
   const [first] = runs;
@@ -539,24 +558,32 @@ test('引擎说停：停下的卡照引擎原文说原因，「从第 k 章接�
 
   await click('write-batch-resume');
   await until(() => expect(text('write-batch-title')).toBe('从第 5 章接着写'));
+  // 确认前只读出计划，记录不动；卡上带着这一批记下的要求。
+  expect(engine.previewWriteBatchResume).toHaveBeenCalledWith({
+    projectRoot: ROOT,
+    permissionProfile: 'ask',
+    modelKey: 'model-a',
+  });
+  expect(engine.resumeWriteBatch).not.toHaveBeenCalled();
+  expect(document.body.textContent).toContain('要求：节奏快一点');
+  expect(runs).toHaveLength(1);
+  // 续写确认卡开着时，和 `/写` 确认卡一样不发别的话。
+  await submitComposer('先聊聊');
+  expect(toasts).toContain('先开始写或关掉上面的批量写章，再发下一条；草稿已保留。');
+
+  await click('write-batch-start');
+  await until(() => expect(runs).toHaveLength(2));
   expect(engine.resumeWriteBatch).toHaveBeenCalledWith({
     projectRoot: ROOT,
     permissionProfile: 'ask',
     modelKey: 'model-a',
   });
-  expect(runs).toHaveLength(1);
-  // 续写开好的这一段等确认时，同样不能发别的话。
-  await submitComposer('先聊聊');
-  expect(toasts).toContain('批量写章进行中：先停止这一批，再发下一条；草稿已保留。');
-
-  await click('write-batch-start');
-  await until(() => expect(runs).toHaveLength(2));
   expect(engine.startWriteBatch).toHaveBeenCalledTimes(1);
   expect(runs[1].goal).toBe('写第 5 章（批量第 1 / 2 章）\n作者要求：节奏快一点');
   expect(grantedProfile(runs[1])).toBe('auto');
 });
 
-test('续写确认卡上点取消：开好的那一段停回去，回到停下的卡', async () => {
+test('续写确认卡上点取消：什么都不动，回到停下的卡', async () => {
   engine.steps = [
     { action: 'write', ordinal: 4, target_path: path(4), goal: null },
     { action: 'stop', code: 'trial_done', message: '试写的一章写完了。', ordinal: 5 },
@@ -566,14 +593,12 @@ test('续写确认卡上点取消：开好的那一段停回去，回到停下�
   await until(() => expect(q('write-batch-resume')).not.toBeNull());
   await click('write-batch-resume');
   await until(() => expect(q('write-batch-start')).not.toBeNull());
+  const stopsBefore = engine.stopWriteBatch.mock.calls.length;
   await click('write-batch-close');
   await until(() => expect(q('write-batch-result')).not.toBeNull());
-  expect(engine.stopWriteBatch).toHaveBeenLastCalledWith({
-    projectRoot: ROOT,
-    batchId: 'write-batch-1',
-    code: 'author_stopped',
-    message: '续写没有开始：你在确认卡上点了取消。',
-  });
+  expect(engine.resumeWriteBatch).not.toHaveBeenCalled();
+  expect(engine.stopWriteBatch.mock.calls.length).toBe(stopsBefore);
+  expect(text('write-batch-stop-reason')).toBe('试写的一章写完了。');
   expect(runs).toHaveLength(1);
 });
 
@@ -651,7 +676,7 @@ test('哪一步出错就停下这一批，卡上显示原因，不重试', async
   await until(() => expect(q('write-batch-result')).not.toBeNull());
   expect(engine.stopWriteBatch).toHaveBeenCalledWith(
     expect.objectContaining({
-      code: 'run_not_started',
+      code: 'scheduler_error',
       message: '第 4 章出错停下：写进的文件不是第 4 章的目标文件',
     }),
   );
@@ -722,15 +747,19 @@ test('不带范围的 /写：能续就重新确认；没有批量就在卡上说
   current().stop = { code: 'run_failed', message: '第 5 章的运行失败了。', ordinal: 5 };
   await submitComposer('/写');
   await until(() => expect(text('write-batch-title')).toBe('从第 5 章接着写'));
-  expect(engine.resumeWriteBatch).toHaveBeenCalledTimes(1);
+  expect(engine.previewWriteBatchResume).toHaveBeenCalledTimes(1);
+  expect(engine.resumeWriteBatch).not.toHaveBeenCalled();
   expect(h.run).not.toHaveBeenCalled();
+  // 取消回到下面垫着的那张停下的卡。
+  await click('write-batch-close');
+  await until(() => expect(text('write-batch-stop-reason')).toBe('第 5 章的运行失败了。'));
 });
 
 test('重开作品：上次停下、没审完的那一批在对话里出卡，不自动续', async () => {
   act(() => root.unmount());
   engine.batch = batchOf(4, 6);
-  // 重开应用后内存里没有这一批的章名（另起一个批次 id，免得读到前面用例记下的）。
-  current().id = 'write-batch-after-restart';
+  // 作者附的要求在记录里，重开应用也在；章名是引擎读记录时从连载计划取的。
+  current().note = '多写对话';
   Object.assign(current().chapters[0], {
     state: 'written',
     chars: 2800,
@@ -753,7 +782,15 @@ test('重开作品：上次停下、没审完的那一批在对话里出卡，�
   expect(text('write-batch-stop-reason')).toBe(
     '应用上次关闭时这一批还在写，停在第 5 章。没有自动接着写；要续写请再确认一次。',
   );
-  expect(text('write-batch-result-chapter')).toBe('第 4 章 · 2800 字 · 检查：通过');
+  expect(text('write-batch-result-chapter')).toBe('第 4 章《标题4》 · 2800 字 · 检查：通过');
   expect(text('write-batch-resume')).toBe('从第 5 章接着写');
   expect(h.run).not.toHaveBeenCalled();
+  // 重开以后续写：确认卡带着记录里的要求，点开始后每章的话也带上。
+  await click('write-batch-resume');
+  await until(() => expect(text('write-batch-title')).toBe('从第 5 章接着写'));
+  expect(document.body.textContent).toContain('要求：多写对话');
+  engine.steps = [{ action: 'write', ordinal: 5, target_path: path(5), goal: null }];
+  await click('write-batch-start');
+  await until(() => expect(runs).toHaveLength(1));
+  expect(runs[0].goal).toBe('写第 5 章（批量第 1 / 2 章）\n作者要求：多写对话');
 });

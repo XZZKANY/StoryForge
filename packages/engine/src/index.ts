@@ -701,6 +701,7 @@ export {
   checkSummary,
   markWriteBatchReviewed,
   nextWriteBatchStep,
+  previewWriteBatchResume,
   readWriteBatch,
   recordWriteBatchChapter,
   recoverInterruptedWriteBatch,
@@ -713,6 +714,8 @@ export {
   type WriteBatchStartResult,
   type WriteBatchStep,
   type WriteBatchView,
+  type WriteBatchViewChapter,
+  type WriteBatchViewRecord,
 } from './loop/writeBatchSteps';
 export { resolveDisputedFact, retireFact } from './kernel/factLedger';
 export {

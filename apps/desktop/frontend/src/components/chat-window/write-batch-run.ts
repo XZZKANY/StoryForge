@@ -1,10 +1,16 @@
 /**
- * 批量写章调度器里不碰 React 的部分：一批开跑时的授权与内存记事、逐章发起、接循环、换作品时就地停下、
- * 停下 / 写完后出卡用的结果。状态与按钮在 useWriteBatchScheduler。
+ * 批量写章调度器里不碰 React 的部分：一批开跑时的授权、逐章发起、接循环、换作品时就地停下、
+ * 停下 / 写完后出卡用的结果。作者要求与章名都用引擎给的（记录里有，重开应用也在）。
+ * 状态与按钮在 useWriteBatchScheduler。
  */
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import { sendAgentControlMessage } from '../../lib/api-client';
-import type { ApiWriteBatch, ApiWriteBatchPlan, ApiWriteBatchView } from '../../lib/api/contracts';
+import type {
+  ApiWriteBatch,
+  ApiWriteBatchPlan,
+  ApiWriteBatchView,
+  ApiWriteBatchViewRecord,
+} from '../../lib/api/contracts';
 import {
   currentWriteBatchModelKey,
   formatWriteBatchTokens,
@@ -27,7 +33,7 @@ import {
   type WriteBatchPosition,
   type WriteBatchWriteStep,
 } from './write-batch-loop';
-import { batchUsedTokens, chapterTitles } from './write-batch-view';
+import { batchUsedTokens } from './write-batch-view';
 import type { RunAuthorAgent, RunAuthorAgentOutcome } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 
@@ -45,10 +51,10 @@ export type WriteBatchProgress = {
 };
 
 export type WriteBatchResult = {
-  batch: ApiWriteBatch | null;
+  /** 引擎读回来的记录，每章带着连载计划里的标题。 */
+  batch: ApiWriteBatchViewRecord | null;
   canResume: boolean;
   resumeFrom: number | null;
-  titles: Record<number, string>;
   /** 这一批一共用了多少（按「万」说）。 */
   used: string | null;
   error: string | null;
@@ -64,7 +70,6 @@ export type WriteBatchRun = {
   project: string;
   batchId: string;
   grant: WriteBatchGrant;
-  note: string | null;
   total: number;
   stopRequested: boolean;
   inFlightRunId: string | null;
@@ -77,23 +82,13 @@ export type WriteBatchChat = Pick<ChatWindowState, 'setMessages' | 'agentRunIdRe
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const LEFT_MESSAGE = '换了作品或关掉了对话，这一批停下了。';
 
-// 作者附在 `/写` 后面的要求与计划里的章名：记录里没有，续写与停下的卡要用，按作品 + 批次记在内存里。
-const memory = new Map<string, { note: string | null; titles: Record<number, string> }>();
-const memoryKey = (project: string, batchId: string) => `${project}\n${batchId}`;
-
-export function rememberedNote(project: string, batchId: string): string | null {
-  return memory.get(memoryKey(project, batchId))?.note ?? null;
-}
-
-/** 开跑或续跑：只给这一段计划里要写的章发授权，记下要求与章名。 */
+/** 开跑或续跑：只给这一段计划里要写的章发授权。 */
 export function createWriteBatchRun(
   project: string,
   batch: ApiWriteBatch,
   plan: ApiWriteBatchPlan,
-  note: string | null,
 ): WriteBatchRun {
   const writing = plan.chapters.filter((chapter) => chapter.status === 'write');
-  memory.set(memoryKey(project, batch.id), { note, titles: chapterTitles(plan) });
   return {
     project,
     batchId: batch.id,
@@ -102,14 +97,16 @@ export function createWriteBatchRun(
       batchId: batch.id,
       targets: writing.map((chapter) => chapter.target_path),
     }),
-    note,
     total: writing.length,
     stopRequested: false,
     inFlightRunId: null,
   };
 }
 
-/** 发起这一章：拼好作者那句话进对话，带上这一批的授权交给 runAuthorAgent，等这一轮的终态。 */
+/**
+ * 发起这一章：拼好作者那句话进对话（作者附的要求用引擎记下的 step.note），带上这一批的授权交给
+ * runAuthorAgent，等这一轮的终态。
+ */
 async function dispatchChapter(
   run: WriteBatchRun,
   chat: WriteBatchChat,
@@ -120,7 +117,7 @@ async function dispatchChapter(
   if (target) noteWriteBatchTarget(target);
   const goal =
     `写第 ${step.ordinal} 章（批量第 ${position.index} / ${position.total} 章）` +
-    (run.note ? `\n作者要求：${run.note}` : '');
+    (step.note ? `\n作者要求：${step.note}` : '');
   chat.setMessages((prev) => [...prev, { role: 'user', content: goal }]);
   const before = chat.agentRunIdRef.current;
   const pending = chat.runAuthorAgent(goal, 'agent', 'chapter.write', [], {
@@ -201,7 +198,7 @@ export async function driveWriteBatchRun({
     // 循环之外的错（比如开跑前显示用量就读不出来）：同样停下这一批。
     await stopWriteBatch({
       ...scope,
-      code: 'run_not_started',
+      code: 'scheduler_error',
       message: `这一批出错停下：${errorText(error)}`,
     }).catch(() => undefined);
     return { kind: 'ended', error: errorText(error) };
@@ -211,25 +208,19 @@ export async function driveWriteBatchRun({
 }
 
 /** 换作品或卸载：这一批就地停下，授权撤掉，进行中的这一轮也停掉；晚到的结果不归这里管。 */
-export function leaveWriteBatch(
-  run: WriteBatchRun | null,
-  pending: { project: string; batchId: string } | null,
-): void {
-  const left = run ?? pending;
-  if (!left) return;
-  if (run) {
-    revokeWriteBatchGrant(run.grant);
-    if (run.inFlightRunId)
-      void sendAgentControlMessage({
-        sessionId: run.inFlightRunId,
-        runId: run.inFlightRunId,
-        type: 'stop_run',
-        payload: { source: 'desktop.write-batch' },
-      }).catch(() => undefined);
-  }
+export function leaveWriteBatch(run: WriteBatchRun | null): void {
+  if (!run) return;
+  revokeWriteBatchGrant(run.grant);
+  if (run.inFlightRunId)
+    void sendAgentControlMessage({
+      sessionId: run.inFlightRunId,
+      runId: run.inFlightRunId,
+      type: 'stop_run',
+      payload: { source: 'desktop.write-batch' },
+    }).catch(() => undefined);
   void stopWriteBatch({
-    projectRoot: left.project,
-    batchId: left.batchId,
+    projectRoot: run.project,
+    batchId: run.batchId,
     code: 'author_stopped',
     message: LEFT_MESSAGE,
   }).catch((error: unknown) =>
@@ -237,9 +228,8 @@ export function leaveWriteBatch(
   );
 }
 
-/** 停下 / 写完那张卡：记录、能不能续写都照引擎读回来的说。 */
+/** 停下 / 写完那张卡：记录、章名、能不能续写都照引擎读回来的说。 */
 export async function buildWriteBatchResult(
-  project: string,
   view: Pick<ApiWriteBatchView, 'batch' | 'can_resume' | 'resume_from'>,
   extra: { error?: string | null; notice?: string | null } = {},
 ): Promise<WriteBatchResult> {
@@ -248,7 +238,6 @@ export async function buildWriteBatchResult(
     batch,
     canResume: view.can_resume,
     resumeFrom: view.resume_from,
-    titles: batch ? (memory.get(memoryKey(project, batch.id))?.titles ?? {}) : {},
     used: batch ? await formatWriteBatchTokens(batchUsedTokens(batch)) : null,
     error: extra.error ?? null,
     notice: extra.notice ?? null,
@@ -262,7 +251,6 @@ export function failedWriteBatchResult(error: string): WriteBatchResult {
     batch: null,
     canResume: false,
     resumeFrom: null,
-    titles: {},
     used: null,
     error,
     notice: null,

@@ -129,6 +129,50 @@ async function seedChapterRun(publicId: string, target: string, tokens: number) 
 }
 
 describe('lib/api 经引擎记批量、问下一步', () => {
+  it('keeps the author note and the chapter titles in the record, and previews a resume read-only', async () => {
+    await seedChapterRun('history', '正文/第001章.md', 1000);
+    const api = await import('../src/lib/api/write-batch');
+    const started = await api.startWriteBatch({
+      projectRoot: ROOT,
+      from: 2,
+      to: 3,
+      permissionProfile: 'ask',
+      modelKey: MODEL,
+      note: '节奏快一点',
+    });
+    if (!started.started) throw new Error('应能开跑');
+    expect(started.batch.note).toBe('节奏快一点');
+    const step = await api.nextWriteBatchStep({
+      projectRoot: ROOT,
+      batchId: started.batch.id,
+      permissionProfile: 'auto',
+      modelKey: MODEL,
+    });
+    expect(step).toMatchObject({ action: 'write', ordinal: 2, title: '标题2', note: '节奏快一点' });
+    const stopped = await api.stopWriteBatch({
+      projectRoot: ROOT,
+      batchId: started.batch.id,
+      code: 'scheduler_error',
+      message: '第 2 章出错停下：读不出文件',
+    });
+    expect(stopped.stop).toEqual({
+      code: 'scheduler_error',
+      message: '第 2 章出错停下：读不出文件',
+      ordinal: 2,
+    });
+    const before = await api.readWriteBatch(ROOT);
+    expect(before.batch?.chapters.map((chapter) => chapter.title)).toEqual(['标题2', '标题3']);
+    expect(before.batch?.note).toBe('节奏快一点');
+    const plan = await api.previewWriteBatchResume({
+      projectRoot: ROOT,
+      permissionProfile: 'ask',
+      modelKey: MODEL,
+    });
+    expect(plan.can_start).toBe(true);
+    expect(plan.chapters.map((chapter) => chapter.status)).toEqual(['write', 'write']);
+    expect(await api.readWriteBatch(ROOT)).toEqual(before);
+  });
+
   it('starts, records a chapter, asks the next step, stops and is reviewed', async () => {
     await seedChapterRun('history', '正文/第001章.md', 1000);
     const api = await import('../src/lib/api/write-batch');
@@ -159,6 +203,8 @@ describe('lib/api 经引擎记批量、问下一步', () => {
       ordinal: 2,
       target_path: '正文/第002章.md',
       goal: '目标2',
+      title: '标题2',
+      note: null,
     });
     await seedChapterRun('run-2', '正文/第002章.md', 1500);
     fixture.project.apply({ '正文/第002章.md': file('第二章\n\n批量写的。\n') });
@@ -247,12 +293,13 @@ describe('批量记录回包的解码', () => {
     extra: 'dropped',
   };
   const BATCH = {
-    version: 1,
+    version: 2,
     id: 'write-batch-1',
     from: 2,
     to: 2,
     created_at: '2026-10-30T08:00:00Z',
     model_key: MODEL,
+    note: null,
     status: 'running',
     reviewed: false,
     stop: null,
@@ -291,6 +338,7 @@ describe('批量记录回包的解码', () => {
     ['unknown stop code', { status: 'stopped', stop: { code: 'later', message: 'm', ordinal: 2 } }],
     ['negative leg usage', { legs: [{ ...BATCH.legs[0], used_tokens: -1 }] }],
     ['missing reviewed', { reviewed: undefined }],
+    ['a note that is not text', { note: 3 }],
   ])('rejects %s', (_name, change) => {
     expect(() => decodeWriteBatch({ ...BATCH, ...change })).toThrow(WriteBatchShapeError);
   });
@@ -298,6 +346,10 @@ describe('批量记录回包的解码', () => {
   it.each([
     ['unknown action', { action: 'pause' }],
     ['a write step without a target', { action: 'write', ordinal: 2, goal: null }],
+    [
+      'a write step without the note and title',
+      { action: 'write', ordinal: 2, target_path: '正文/第002章.md', goal: null },
+    ],
     [
       'a stop step with a made-up code',
       { action: 'stop', code: 'tired', message: 'm', ordinal: 2 },
@@ -331,13 +383,27 @@ describe('批量记录回包的解码', () => {
     );
   });
 
-  it('accepts a stopped batch that can resume', () => {
+  it('accepts a stopped batch that can resume, with the chapter titles read from the plan', () => {
     const view = decodeWriteBatchView({
-      batch: { ...BATCH, status: 'stopped', stop: STOP },
+      batch: {
+        ...BATCH,
+        status: 'stopped',
+        stop: { ...STOP, code: 'scheduler_error' },
+        chapters: [{ ...CHAPTER, title: '标题2' }],
+      },
       mismatches: [],
       can_resume: true,
       resume_from: 2,
     });
     expect(view).toMatchObject({ can_resume: true, resume_from: 2 });
+    expect(view.batch?.chapters[0]).toMatchObject({ ordinal: 2, title: '标题2' });
+    expect(view.batch?.chapters[0]).not.toHaveProperty('extra');
+    expect(view.batch?.stop?.code).toBe('scheduler_error');
+  });
+
+  it('rejects a view whose chapters miss the title', () => {
+    expect(() =>
+      decodeWriteBatchView({ batch: BATCH, mismatches: [], can_resume: false, resume_from: 2 }),
+    ).toThrow(WriteBatchShapeError);
   });
 });

@@ -18,7 +18,12 @@ import { platformTextBytes, type ProjectWriter } from '../writePort';
  */
 
 export const WRITE_BATCH_RELATIVE_PATH = '.storyforge/write-batch.json';
-export const WRITE_BATCH_VERSION = 1;
+/**
+ * 版本 2（E 刀审后）：记下作者在 `/写` 范围后附的要求（note），停下原因多了界面出错（scheduler_error）。
+ * 版本 1 的记录照读（note 读成 null），下次写回时按版本 2 写；比这新的不认。
+ */
+export const WRITE_BATCH_VERSION = 2;
+const READABLE_VERSIONS = [1, 2];
 /** 范围最多 10000 章（防误输入），每章一条，缩进排版后几 MB；读的预算放宽到 16 MiB。 */
 const WRITE_BATCH_MAX_BYTES = 16 * 1024 * 1024;
 
@@ -27,7 +32,7 @@ export type WriteBatchStatus = 'running' | 'stopped' | 'finished';
 /**
  * 停下的原因。前四个是上一章没写成（规则 1），接着两个是修订等作者处理（规则 2），
  * 之后依次是事实对不上、只读、换模型、用到上限、试写量完（规则 3–6），
- * 最后三个由界面送来（作者按停止、应用上次被关掉、这一章没能开跑）。
+ * 最后四个由界面送来（作者按停止、应用上次被关掉、这一章没能开跑、界面这边出错）。
  */
 export type WriteBatchStopCode =
   | 'run_failed'
@@ -43,7 +48,8 @@ export type WriteBatchStopCode =
   | 'trial_done'
   | 'author_stopped'
   | 'app_closed'
-  | 'run_not_started';
+  | 'run_not_started'
+  | 'scheduler_error';
 
 export const WRITE_BATCH_STOP_CODES: readonly WriteBatchStopCode[] = [
   'run_failed',
@@ -60,13 +66,18 @@ export const WRITE_BATCH_STOP_CODES: readonly WriteBatchStopCode[] = [
   'author_stopped',
   'app_closed',
   'run_not_started',
+  'scheduler_error',
 ];
 
-/** 界面能送来的停下原因；其余都由引擎判定。 */
+/**
+ * 界面能送来的停下原因；其余都由引擎判定。scheduler_error：界面这边出错（读写失败、拿不到这一轮的结果、
+ * 事实没记上等），说明里原样带着错误。
+ */
 export const INTERFACE_STOP_CODES: readonly WriteBatchStopCode[] = [
   'author_stopped',
   'app_closed',
   'run_not_started',
+  'scheduler_error',
 ];
 
 export type WriteBatchStop = {
@@ -130,6 +141,8 @@ export type WriteBatchRecord = {
   created_at: string;
   /** 当前这一段开跑时界面送来的模型配置标识（续跑时换成新的）。 */
   model_key: string;
+  /** 作者在 `/写` 范围后附的要求，每章发起时带上；没附为 null。 */
+  note: string | null;
   status: WriteBatchStatus;
   /** 作者在清单上点了「这批审完了」。 */
   reviewed: boolean;
@@ -266,9 +279,9 @@ export function parseWriteBatchRecord(value: JsonValue): WriteBatchRecord {
   const fields = new RecordFields();
   const raw = fields.object(value, '顶层');
   const version = fields.integer(fields.at(raw, 'version'), 'version');
-  if (version !== WRITE_BATCH_VERSION)
+  if (!READABLE_VERSIONS.includes(version))
     throw new InputDomainError(
-      `${WRITE_BATCH_RELATIVE_PATH} 的版本是 ${version}，这一版只认 ${WRITE_BATCH_VERSION}：` +
+      `${WRITE_BATCH_RELATIVE_PATH} 的版本是 ${version}，这一版只认 ${READABLE_VERSIONS.join('、')}：` +
         '可能是更新的 StoryForge 写的，先升级再打开。',
     );
   const from = fields.ordinal(fields.at(raw, 'from'), 'from');
@@ -277,12 +290,17 @@ export function parseWriteBatchRecord(value: JsonValue): WriteBatchRecord {
   const legs = fields.array(fields.at(raw, 'legs'), 'legs', true);
   const chapters = fields.array(fields.at(raw, 'chapters'), 'chapters');
   const record: WriteBatchRecord = {
-    version,
+    // 读进来就是当前这一版的形状，写回时按当前版本写。
+    version: WRITE_BATCH_VERSION,
     id: fields.string(fields.at(raw, 'id'), 'id'),
     from,
     to,
     created_at: fields.string(fields.at(raw, 'created_at'), 'created_at'),
     model_key: fields.string(fields.at(raw, 'model_key'), 'model_key'),
+    note:
+      version === 1
+        ? null
+        : fields.nullable(fields.at(raw, 'note'), 'note', (v, p) => fields.string(v, p)),
     status: fields.oneOf(fields.at(raw, 'status'), 'status', [
       'running',
       'stopped',

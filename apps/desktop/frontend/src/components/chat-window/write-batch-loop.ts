@@ -91,7 +91,7 @@ export async function runWriteBatchLoop(deps: WriteBatchLoopDeps): Promise<Write
         );
       if (outcome.kind === 'unsettled')
         return await stop(
-          'run_not_started',
+          'scheduler_error',
           `第 ${step.ordinal} 章这一轮的结果拿不到（连接断了或结果未知）：先核对这一轮，再续写。`,
         );
       const { proposal } = outcome;
@@ -114,7 +114,7 @@ export async function runWriteBatchLoop(deps: WriteBatchLoopDeps): Promise<Write
       deps.onRecorded?.(batch);
       if (written?.factError)
         return await stop(
-          'run_not_started',
+          'scheduler_error',
           `第 ${step.ordinal} 章写进文件了，但事实没记上（${written.factError}）：` +
             '后面的章先不写，免得章纲漏读这一章的事实。处理好再续写。',
         );
@@ -125,7 +125,7 @@ export async function runWriteBatchLoop(deps: WriteBatchLoopDeps): Promise<Write
     const message = errorText(error);
     const where = current !== null ? `第 ${current} 章` : '这一批';
     try {
-      await deps.stop({ code: 'run_not_started', message: `${where}出错停下：${message}` });
+      await deps.stop({ code: 'scheduler_error', message: `${where}出错停下：${message}` });
     } catch (stopError) {
       return { kind: 'ended', error: `${message}；停下时也出错了：${errorText(stopError)}` };
     }

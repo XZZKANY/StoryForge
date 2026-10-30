@@ -29,7 +29,7 @@ export function WriteBatchResultCard({
   onClose: () => void;
 }) {
   const batch = result.batch;
-  const lines = batch ? chapterLines(batch, result.titles) : [];
+  const lines = batch ? chapterLines(batch) : [];
   const finished = batch?.status === 'finished';
   // 出错停下时引擎记下的停下原因里已经带着这句错，不再重复一遍。
   const error = result.error && !batch?.stop?.message.includes(result.error) ? result.error : null;
