@@ -1,0 +1,41 @@
+## 2026-10-30 `/写` 批量写章 F 刀：最后统一审的清单 + 「撤销第 k 章及之后」
+
+- 背景：方案见 `docs/internal/write-batch-plan-2026-10.md`（§4.2 撤销网要补的四条、§7 清单、§8 F 刀，实际做法已写回 §7 末尾与 §8 F 刀）。本分支从 E 刀 `origin/feat/write-batch-scheduler`（PR #552，未合，`90207763`）切出。帧契约、写章固定流程、golden 没动（`git status --short packages/engine/golden` 为空）；E 刀的授权与调度循环只加了「登记这一轮是批量发起的」一个口子（`bindWriteBatchRun` / `isWriteBatchRun`）。不调模型。
+- 引擎（`packages/engine/src/loop/`）：
+  - `writeBatchRecord.ts`：记录版本升到 3。每章加 `facts_added`（新记下的事实条数，不含待定的；界面送、原样存），章状态加 `undone`，停下原因加 `undone`。版本 1 / 2 照读（`facts_added` 读成 null，版本 1 的 `note` 读成 null），写回按版本 3 写；`undone` 出现在旧版本记录里算写坏；版本 3 缺 `facts_added` 不认；比 3 新的不认。
+  - `writeBatchSteps.ts`：
+    - `recordWriteBatchChapter` 多收可选 `facts_added`（非负整数或 null，否则报错）。
+    - `readWriteBatch` 每章多带连载计划里的本章目标 `goal`（读时取、不存）；撤销过又有正文的章标「记录说已经撤销了，正文里又有了」。`markSkipped` 也把撤销过、作者又写了的章标成跳过。
+    - 新 `planWriteBatchUndo(deps, root, batchId, from)`（只读）：要删的是这一批写进文件的第 k 章及之后，从最后一章倒着排，每章带 `target_path`、`written_sha256`、`facts_restore`（删到这一章就停下时台账回到哪一版）；`facts_before` = 第 k 章的记账前版本（第 k 章没记过账就往后找第一章记过的）。不能撤的原因：`batch_running`、`not_batch_written`、`changed`（「撤销会吃掉你的改动，先自己处理这几章」）、`missing`、`outside_chapters`（第 k 章往后按路径序还有不删的正文，删完会往前错位）。
+    - 新 `checkWriteBatchUndoChapter(deps, root, batchId, ordinal)`（只读）：删每一章前再核一次，能删为 null。
+    - 新 `recordWriteBatchUndo(deps, root, batchId, from, { deleted, failure, facts_restored, facts_error })`：读盘核对说删掉的文件真没了、是从某章起往后的全部（不能跳）、都是这一批写进的，记成 `undone`；这一批改停下 `undone`，说明写撤销了哪几章、台账恢复没有、没撤完时停在哪、从第几章接着写；`can_resume` 照常按正文算。
+    - 计划与核对只要读口和平台（不读引擎库），撤销所需的东西全在记录文件里，重开应用照样能撤。
+  - `index.ts` 导出新函数与类型。
+- 界面（`apps/desktop/frontend/src/`）：
+  - `lib/api/contracts.ts`、`lib/api/write-batch.ts`、`lib/engine/writeBatch.ts`：契约与解码跟上（`facts_added`、`undone`、读记录每章 `goal`；新 `ApiWriteBatchUndo*`；撤销计划解码时核「从最后一章倒着排」「能撤就没有原因、有要删的章」）；新 `planWriteBatchUndo` / `checkWriteBatchUndoChapter` / `recordWriteBatchUndo`；`recordWriteBatchChapter` 多送 `factsAdded`。
+  - 新记下的事实条数：`fact-write.ts` 的 `recordAcceptedChapterFacts` 交回 `added`，`write-batch-writeback.ts` 的 `writtenChapter` 交 `factsAdded`（记账出错或没记账为 null），调度循环记一笔时送上。
+  - 清单 `components/chat-window/WriteBatchResultCard.tsx` + `write-batch-view.ts` + `write-batch-run.ts`（结果里加对不上的章、每章用量、最近一段预估与上限、不能撤的原因）：同一位置、同一套样式；顶部状态 + 「这一批写了 N 章（计划 M 章）· 共用 X 万（预估 Y、上限 Z）」+ 停下原因原文；每章一行：章名（正文在的点了打开）· 字数 · 检查 · 新记下的事实 N 条（其中待定 M 条，警示色）· 用量；下一行本章目标（截断）；对不上的标注；行尾「撤销这章及之后」。卡内滚动，底部「关闭」「这批审完了」「从第 k 章接着写」常驻。不放总评。
+  - 撤销：行尾第一次点变「确认撤销第 k–n 章？」（危险样式）+「取消」→ 调度器 `undoFrom` → `lib/write-batch-undo.ts`：`planWriteBatchUndo` 不能撤就把原因放在卡上「还不能撤销」、什么都不做；这几章在编辑器里有未保存修改也一章不删；按引擎顺序倒着删，每章 `checkWriteBatchUndoChapter` → `lib/created-file-delete.ts`（删文件、清上下文缓存、计划里退回未写；编辑器通知里的「撤销（删除该文件）」也改走它）→ 摘页签（`write-batch-tabs.ts` 新 `dirty` / `drop` 两种请求，壳层 `useWriteBatchTabs` 答「有没有未保存修改」、摘没有未保存修改的页签）；任何一章没删成立刻停 → 删掉至少一章才恢复台账（`fact-write.ts` 新 `restoreFactsLedger`：按引擎给的版本记录在 `listVersions` 里找、`readVersionState` 取出那一版，恢复前再拍一版、`writeFileIfUnchanged` 以读到的为准写，那一版没有台账就删掉，已是那一版不写）→ `recordWriteBatchUndo` → 读一遍记录刷新。撤销进行中不开新批、不续写。
+  - 批量期间不逐章弹撤销提示：`write-batch-run.ts` 发起每章时 `bindWriteBatchRun(grant, runId)`；`useSuggestionWriteback.ts` 整份接受时 `requiresConfirmation === false && isWriteBatchRun(runId)` 就不弹「撤销（删除该文件）」、事实记账的 `canNotify` 为假（不出「撤销记账」），收尾那句换成「已写入当前文件 · 已留写前快照，撤销在批量写章的清单上」。授权撤销（批量停下 / 写完 / 换作品）后登记一并清掉，再接受的照旧弹。
+- 验证（没跑整套 `pnpm verify` 与前端全量：作者在用机器，CI 跑全套；不编 Rust、不跑 Tauri 冒烟）：
+  - 引擎：`npx tsc --noEmit`（packages/engine）EXIT=0；`npx vitest run` 全量 111 个文件 14238 passed / 2 skipped，EXIT=0（含 golden 契约测试）。`writeBatchSteps.test.ts` 新加 11 条（撤销：倒序与指纹、只用读口；台账版本取第 k 章 / 往后找；作者改过与文件不在给原因、删前再核；批外正文给原因（范围外与范围内各一）；还在写 / 不是这一批写的；记撤销后的状态与续写、读回；没撤完照实记；核对不上就拒；撤销过又有了标对不上；`facts_added` 原样存、`goal` 读时取；版本兼容），改了 5 条旧期望（版本 2→3、未知版本用 4、`facts_added`、版本 1 / 2 读回）。
+  - 前端：`npm --prefix apps/desktop/frontend run typecheck` EXIT=0；改动文件 eslint EXIT=0、prettier 通过（`useSuggestionWriteback.ts`、`auto-writeback.test.tsx` 仍全 CRLF）。
+  - 相关前端测试一起跑：34 个文件 475 passed，EXIT=0（`write-batch-*` 全部、`chapter-write-request`、`behavior/auto-writeback` 等写进文件与撤销相关、`fact-write*`、`editor-accept-fact-record`、ChatWindow 相关、`app`、`source-standards`、`ui-terminology`、`toast`）。
+  - 新测试：`write-batch-review.test.tsx` 8 条（真 ChatWindow + 假引擎，清单都从打开作品时读记录出、内存里没有这一批，即重开应用后照样能撤：清单各列与汇总、待定标色、对不上照原话、没有总评、底部常驻、章名点开；两步确认与取消；倒着删、每章删前再核、计划退回、页签摘掉、台账回到第 k 章、记一笔、刷新；删到一半失败即停、台账只回到已删最早记账前；删前再核说改过即停；引擎说不能撤什么都不做；未保存不删；台账没恢复与记录没记上照实说）、`behavior/auto-writeback.test.tsx` +4 条（真 `useSuggestionWriteback`：批量自动写进不弹撤销提示、记账 `canNotify` 为假、收尾指向清单；不是批量的自动写进、批量里要作者点的手动接受、授权撤销后再写进，三种照旧弹）、`fact-write-restore.test.ts` 5 条、`write-batch-record-api.test.ts` +9 条（真引擎经 lib/api 的撤销往返；撤销计划解码 5 条；`undone`、缺 `goal` / `facts_added`）、`write-batch-tabs.test.tsx` +2、`write-batch-grant.test.tsx` +1（含源码扫描：登记批量运行的只有调度器）。改了期望的旧测试：E 刀的 `write-batch-scheduler.test.tsx`（卡片标题与每章一行改成清单的列）、`write-batch-loop.test.ts`、`write-batch-record-api.test.ts`、`fact-write.test.ts`（交回多了 `added`）。
+  - 浏览器回归 `node scripts/verify-agent-conversation.mjs`（apps/desktop/frontend 下单跑）：第一次冷启动 Vite `page.goto` 30 秒超时（同 D / E 刀记录），第二次 EXIT=0「Agent conversation verification passed」。加了一段「批量停下 → 清单显示」：标题「这一批停下了」、汇总「这一批写了 0 章（计划 2 章）· 共用 6 万（预估 12.4 万、上限 18.6 万）」、三行（跳过 / 没写（停在这里）· 用量 6 万 / 没写，各带本章目标）、卡上没有总评字样、没有写进文件的章就没有撤销按钮。替身引擎跟上版本 3、`goal`、`facts_added`，http 替身加了撤销三个接口。**撤销没在浏览器里点**：浏览器里没有宿主，删文件与写进文件都做不了，撤销由前端行为测试覆盖。
+- 变异（脚本在仓库外 `%TEMP%/sf-f-scripts/mutate.py`：每处先断言目标串恰好 1 次再替换，跑对应测试，无条件按原字节还原并核对；跑完 `git status` 只有本刀改动）12 处全红：
+  - M1 引擎正着排（不倒着删）→ 引擎 2 条红。M2 界面正着删 → review 3 条红。
+  - M3 作者改过仍可删 → 引擎 1 条红。M4 批外正文不拦 → 引擎 1 条红。
+  - M5 台账不恢复 → review 3 条红。M6 台账恢复取了最后一章的版本 → 引擎 1 条红。
+  - M7 批量写进仍弹撤销提示 → auto-writeback 1 条红。M8 批量写进事实记账仍出提示 → auto-writeback 1 条红。
+  - M9 一次点击就撤 → review 7 条红。M10 中途失败不停 → review 1 条红。M11 有不能撤的原因仍删 → review 3 条红。M12 记撤销时不核对文件真的没了 → 引擎 1 条红。
+- 行尾：`useSuggestionWriteback.ts`、`tests/behavior/auto-writeback.test.tsx` 原为 CRLF，改后仍全 CRLF（Python 按字节改）；其余改动与新建文件全 LF、无 BOM、无 CRCRLF。`--numstat` 与 `--ignore-all-space --numstat` 只在 `WriteBatchResultCard.tsx`（重写）、`useSuggestionWriteback.ts`（收尾那句的三元多一层缩进）、`lib/api/write-batch.ts`（读记录那段改成块）上不同，没有行尾翻转。
+- 没做 / 没验：
+  - 真宿主探针点一遍撤销没做（不编 Rust、作者在用机器），留到 G 刀之前；「自动写进文件 → 撤销 → 重启」在装机版上仍未点穿。
+  - 清单的字数没对照本章目标字数范围（方案 §7 提过「偏离的标出来」，任务书只要字数）。
+  - 只撤中间一章：不做。
+  - 宿主的删除仍不是 compare-delete：删前再核到真删之间的跨进程竞态与现有新建文件撤销一样，只挡住已观察到的漂移。
+- 要编排者 / 作者定的：
+  - 批量自动写进的那一章仍会出一条不带按钮的收尾提示（4 秒），文案改成「已写入当前文件 · 已留写前快照，撤销在批量写章的清单上」；要不要整条也不出，另定。
+  - 台账恢复是整份回到第 k 章记账前那一版：批量写完以后作者在观测镜里对台账做的改动（定待定、作废）也会一起回退；恢复前拍了一版，版本历史里能找回，但卡上没有专门提醒。
+  - 几处我按现有样式取的：没轮到的章说「没写」、撤销过的说「已撤销」；对不上的标注用警示色小字；撤销确认按钮用危险样式、第一次点的按钮用次要样式；不止一段时预估与上限前加「最近一段」；「新记下的事实」条数含待定的。

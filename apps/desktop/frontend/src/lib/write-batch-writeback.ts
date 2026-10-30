@@ -17,6 +17,8 @@ export type ChapterWriteback =
       factsBefore: string | null;
       /** 和已记事实对不上、存成待定的条数。 */
       factDisputes: number;
+      /** 新记下的事实条数（不含待定的）；没记账或记账出错为 null。 */
+      factsAdded: number | null;
       /** 正文写进去了，但事实没记上：调度器据此停下，不带着漏掉的事实写下一章。 */
       factError: string | null;
     }
@@ -121,6 +123,7 @@ export async function writtenChapter(
     snapshotVersion: versionRecordRef(projectPath, snapshotPath),
     factsBefore: versionRecordRef(projectPath, settled?.snapshotPath),
     factDisputes: settled?.disputes ?? 0,
+    factsAdded: settled && !settled.error ? settled.added : null,
     factError: settled?.error ?? null,
   };
 }

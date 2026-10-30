@@ -18,6 +18,8 @@ import type { AgentPermissionProfile } from '../src/lib/agent-permission';
 import { sendAgentUserMessage, type AgentUserMessageRequest } from '../src/lib/api-client';
 import { buildContextBundle, type ContextBundle } from '../src/lib/project-context';
 import {
+  bindWriteBatchRun,
+  isWriteBatchRun,
   issueWriteBatchGrant,
   permissionForRun,
   revokeWriteBatchGrant,
@@ -110,6 +112,30 @@ describe('唯一入口', () => {
       'src/components/chat-window/useRunAuthorAgent.ts',
       'src/lib/write-batch-grant.ts',
     ]);
+    // 登记「这一轮是批量发起的」（据此不逐章弹撤销提示）的也只有调度器。
+    const binding = files.filter((path) => /bindWriteBatchRun\(/.test(readFileSync(path, 'utf8')));
+    expect(binding.sort()).toEqual([
+      'src/components/chat-window/write-batch-run.ts',
+      'src/lib/write-batch-grant.ts',
+    ]);
+  });
+});
+
+describe('这一轮是不是批量发起的', () => {
+  it('调度器登记过、授权还在：是；授权撤销后：不是；没登记或撤销后才登记：不是', () => {
+    const grant = grantFor();
+    expect(isWriteBatchRun('run-1')).toBe(false);
+    bindWriteBatchRun(grant, 'run-1');
+    expect(isWriteBatchRun('run-1')).toBe(true);
+    expect(isWriteBatchRun('run-2')).toBe(false);
+    expect(isWriteBatchRun(undefined)).toBe(false);
+    revokeWriteBatchGrant(grant);
+    expect(isWriteBatchRun('run-1')).toBe(false);
+    bindWriteBatchRun(grant, 'run-3');
+    expect(isWriteBatchRun('run-3')).toBe(false);
+    // 照着形状拼出来的授权登记不上。
+    bindWriteBatchRun({ projectPath: PROJECT, batchId: 'write-batch-1' }, 'run-4');
+    expect(isWriteBatchRun('run-4')).toBe(false);
   });
 });
 

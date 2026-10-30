@@ -251,7 +251,8 @@ export type ApiWriteBatchPlan = {
 };
 
 /**
- * @description 批量写章停下的原因（引擎 nextWriteBatchStep 判定；最后三个由界面经 stopWriteBatch 送来）。
+ * @description 批量写章停下的原因（引擎 nextWriteBatchStep 判定；author_stopped 到 scheduler_error 由界面经
+ * stopWriteBatch 送来；undone 是作者在清单上撤销了第 k 章及之后，由 recordWriteBatchUndo 记）。
  */
 export type ApiWriteBatchStopCode =
   | 'run_failed'
@@ -268,7 +269,8 @@ export type ApiWriteBatchStopCode =
   | 'author_stopped'
   | 'app_closed'
   | 'run_not_started'
-  | 'scheduler_error';
+  | 'scheduler_error'
+  | 'undone';
 
 export type ApiWriteBatchStop = {
   code: ApiWriteBatchStopCode;
@@ -307,13 +309,15 @@ export type ApiWriteBatchCheck = {
 };
 
 /**
- * @description 批量里一章的结果。written_sha256 / chars / tokens / check 由引擎算；snapshot_version 与 facts_before
- * 是界面送来、引擎原样存的（撤销用）。
+ * @description 批量里一章的结果。written_sha256 / chars / tokens / check 由引擎算；snapshot_version、facts_before、
+ * facts_added 是界面送来、引擎原样存的（撤销与清单用）。
  */
 export type ApiWriteBatchRecordChapter = {
   chars: number | null;
   check: ApiWriteBatchCheck | null;
   fact_disputes: number | null;
+  /** 记账时新记下的事实条数（不含存成待定的，那是 fact_disputes）；版本 3 以前的记录为 null。 */
+  facts_added: number | null;
   facts_before: string | null;
   ordinal: number;
   run_id: string | null;
@@ -321,7 +325,7 @@ export type ApiWriteBatchRecordChapter = {
   /**
    * @enum {string}
    */
-  state: 'pending' | 'written' | 'stopped_here' | 'skipped_written' | 'after_trial';
+  state: 'pending' | 'written' | 'stopped_here' | 'skipped_written' | 'after_trial' | 'undone';
   target_path: string;
   tokens: number | null;
   written_sha256: string | null;
@@ -386,8 +390,11 @@ export type ApiWriteBatchMismatch = {
  * @description 读最近一批：记录本身，加上记录与正文对不上的章（以正文为准）。can_resume 由引擎判定
  * （停下了、范围里还有没正文的章），界面只按它决定给不给「从第 k 章接着写」；resume_from 是下一个没正文的章序。
  */
-/** 读记录时每章带上连载计划里的标题（读时取，记录里不存）。 */
-export type ApiWriteBatchViewChapter = ApiWriteBatchRecordChapter & { title: string | null };
+/** 读记录时每章带上连载计划里的标题与本章目标（读时取，记录里不存）。 */
+export type ApiWriteBatchViewChapter = ApiWriteBatchRecordChapter & {
+  goal: string | null;
+  title: string | null;
+};
 
 export type ApiWriteBatchViewRecord = Omit<ApiWriteBatch, 'chapters'> & {
   chapters: ApiWriteBatchViewChapter[];
@@ -403,4 +410,35 @@ export type ApiWriteBatchView = {
 export type ApiWriteBatchRecovery = {
   batch: ApiWriteBatch | null;
   recovered: boolean;
+};
+
+export type ApiWriteBatchUndoBlocker = {
+  chapters: number[];
+  /**
+   * @enum {string}
+   */
+  code: 'batch_running' | 'not_batch_written' | 'changed' | 'missing' | 'outside_chapters';
+  message: string;
+};
+
+export type ApiWriteBatchUndoChapter = {
+  /** 删到这一章（含）就停下时，事实台账要恢复到的版本记录（作品内相对路径）；已删的章都没记过账为 null。 */
+  facts_restore: string | null;
+  ordinal: number;
+  target_path: string;
+  written_sha256: string;
+};
+
+/**
+ * @description 「撤销第 k 章及之后」的计划（引擎 planWriteBatchUndo，只读）：要删的章从最后一章倒着排；
+ * 有不能撤的原因（作者改过、文件不在、后面有批外正文、这一批还在写）时 can_undo 为 false，界面什么都不做。
+ */
+export type ApiWriteBatchUndoPlan = {
+  batch_id: string;
+  blockers: ApiWriteBatchUndoBlocker[];
+  can_undo: boolean;
+  chapters: ApiWriteBatchUndoChapter[];
+  facts_before: string | null;
+  from: number;
+  to: number | null;
 };

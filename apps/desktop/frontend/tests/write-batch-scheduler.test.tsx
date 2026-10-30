@@ -150,9 +150,10 @@ function batchOf(from: number, to: number): ApiWriteBatch {
       snapshot_version: null,
       facts_before: null,
       fact_disputes: null,
+      facts_added: null,
     });
   return {
-    version: 2,
+    version: 3,
     id: 'write-batch-1',
     from,
     to,
@@ -208,7 +209,13 @@ function installEngine() {
     return step;
   });
   engine.recordWriteBatchChapter.mockImplementation(
-    async (input: { ordinal: number; runId: string; writtenPath: string | null }) => {
+    async (input: {
+      ordinal: number;
+      runId: string;
+      writtenPath: string | null;
+      factDisputes: number;
+      factsAdded: number | null;
+    }) => {
       const chapter = current().chapters.find((item) => item.ordinal === input.ordinal)!;
       Object.assign(chapter, {
         state: input.writtenPath ? 'written' : 'stopped_here',
@@ -216,6 +223,8 @@ function installEngine() {
         chars: input.writtenPath ? 3000 : null,
         check: { verdict: 'pass', issue_count: 2, summary: '通过，有 2 条建议' },
         tokens: 60_000,
+        fact_disputes: input.factDisputes,
+        facts_added: input.factsAdded,
       });
       const leg = current().legs.at(-1)!;
       leg.runs.push({ ordinal: input.ordinal, run_id: input.runId, tokens: 60_000 });
@@ -239,7 +248,11 @@ function installEngine() {
     const record = engine.batch && root === ROOT ? copy() : null;
     const batch = record && {
       ...record,
-      chapters: record.chapters.map((chapter) => ({ ...chapter, title: `标题${chapter.ordinal}` })),
+      chapters: record.chapters.map((chapter) => ({
+        ...chapter,
+        title: `标题${chapter.ordinal}`,
+        goal: `目标${chapter.ordinal}`,
+      })),
     };
     const resumeFrom = batch ? (firstPending()?.ordinal ?? null) : null;
     return {
@@ -300,6 +313,23 @@ const onTab = (event: Event) => tabs.push((event as CustomEvent<WriteBatchTabReq
 const q = <T extends Element = HTMLElement>(testid: string) =>
   document.querySelector<T & HTMLElement>(`[data-testid="${testid}"]`);
 const text = (testid: string) => q(testid)?.textContent ?? null;
+const ROW_PARTS = [
+  'write-batch-row-open',
+  'write-batch-row-name',
+  'write-batch-row-chars',
+  'write-batch-row-check',
+  'write-batch-row-facts',
+  'write-batch-row-tokens',
+  'write-batch-row-goal',
+  'write-batch-row-mismatch',
+];
+/** 清单的每一行，按列拼起来。 */
+const rows = () =>
+  [...document.querySelectorAll('[data-testid="write-batch-result-chapter"]')].map((row) =>
+    ROW_PARTS.map((id) => row.querySelector(`[data-testid="${id}"]`)?.textContent ?? null)
+      .filter((part) => part !== null)
+      .join(' | '),
+  );
 const click = async (testid: string) =>
   act(async () => {
     q<HTMLButtonElement>(testid)!.click();
@@ -358,6 +388,7 @@ async function finishChapter(index: number) {
     snapshotVersion: `.storyforge/versions/${run.options.targetFilePath}/checkpoints/1.meta.json`,
     factsBefore: null,
     factDisputes: 0,
+    factsAdded: 3,
     factError: null,
   });
   await settle();
@@ -457,6 +488,7 @@ test('开始写：逐章按自动档发起，等写进文件与记账落定才�
     snapshotVersion: '.storyforge/versions/正文/第004章.md/checkpoints/1.meta.json',
     factsBefore: '.storyforge/versions/.storyforge/canon/facts.json/checkpoints/2.meta.json',
     factDisputes: 0,
+    factsAdded: 3,
     factError: null,
   });
   await until(() => expect(runs).toHaveLength(2));
@@ -469,6 +501,7 @@ test('开始写：逐章按自动档发起，等写进文件与记账落定才�
     snapshotVersion: '.storyforge/versions/正文/第004章.md/checkpoints/1.meta.json',
     factsBefore: '.storyforge/versions/.storyforge/canon/facts.json/checkpoints/2.meta.json',
     factDisputes: 0,
+    factsAdded: 3,
   });
   expect(engine.nextWriteBatchStep).toHaveBeenLastCalledWith({
     projectRoot: ROOT,
@@ -489,15 +522,14 @@ test('开始写：逐章按自动档发起，等写进文件与记账落定才�
 
   await until(() => expect(q('write-batch-result')).not.toBeNull());
   expect(q('write-batch-progress')).toBeNull();
-  expect(text('write-batch-result-title')).toBe('这一批写完了：写了 3 章，用了 18 万');
-  expect(
-    [...host.querySelectorAll('[data-testid="write-batch-result-chapter"]')].map(
-      (node) => node.textContent,
-    ),
-  ).toEqual([
-    '第 4 章《标题4》 · 3000 字 · 检查：通过，有 2 条建议',
-    '第 5 章《标题5》 · 3000 字 · 检查：通过，有 2 条建议',
-    '第 6 章《标题6》 · 3000 字 · 检查：通过，有 2 条建议',
+  expect(text('write-batch-result-title')).toBe('这一批写完了');
+  expect(text('write-batch-result-summary')).toBe(
+    '这一批写了 3 章（计划 3 章）· 共用 18 万（预估 18.6 万、上限 18.6 万）',
+  );
+  expect(rows()).toEqual([
+    '第 4 章《标题4》 | · 3000 字 | · 检查：通过，有 2 条建议 | · 新记下的事实 3 条 | · 用量 6 万 | 目标：目标4',
+    '第 5 章《标题5》 | · 3000 字 | · 检查：通过，有 2 条建议 | · 新记下的事实 3 条 | · 用量 6 万 | 目标：目标5',
+    '第 6 章《标题6》 | · 3000 字 | · 检查：通过，有 2 条建议 | · 新记下的事实 3 条 | · 用量 6 万 | 目标：目标6',
   ]);
   // 调度器打开的页签：下一章开写前关掉上一章的，最后一章留着。
   expect(tabs).toEqual([
@@ -548,7 +580,10 @@ test('引擎说停：停下的卡照引擎原文说原因，「从第 k 章接�
   await startBatch();
   await finishChapter(0);
   await until(() => expect(q('write-batch-result')).not.toBeNull());
-  expect(text('write-batch-result-title')).toBe('这一批停下了：写了 1 章，用了 6 万');
+  expect(text('write-batch-result-title')).toBe('这一批停下了');
+  expect(text('write-batch-result-summary')).toBe(
+    '这一批写了 1 章（计划 3 章）· 共用 6 万（预估 18.6 万、上限 18.6 万）',
+  );
   expect(text('write-batch-stop-reason')).toBe(
     '这一段已用 6 万 / 上限 6 万 token：第 5 章开写前停下。',
   );
@@ -782,7 +817,11 @@ test('重开作品：上次停下、没审完的那一批在对话里出卡，�
   expect(text('write-batch-stop-reason')).toBe(
     '应用上次关闭时这一批还在写，停在第 5 章。没有自动接着写；要续写请再确认一次。',
   );
-  expect(text('write-batch-result-chapter')).toBe('第 4 章《标题4》 · 2800 字 · 检查：通过');
+  expect(rows()).toEqual([
+    '第 4 章《标题4》 | · 2800 字 | · 检查：通过 | · 新记下的事实 — | 目标：目标4',
+    '第 5 章《标题5》 | · 没写 | 目标：目标5',
+    '第 6 章《标题6》 | · 没写 | 目标：目标6',
+  ]);
   expect(text('write-batch-resume')).toBe('从第 5 章接着写');
   expect(h.run).not.toHaveBeenCalled();
   // 重开以后续写：确认卡带着记录里的要求，点开始后每章的话也带上。

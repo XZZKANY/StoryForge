@@ -294,6 +294,7 @@ try {
               chapters: record.chapters.map((item) => ({
                 ...item,
                 title: `第${item.ordinal}章标题`,
+                goal: `第${item.ordinal}章目标`,
               })),
             };
             // 与真引擎同一个口径：范围里第一章还没有正文的（跳过的那章有正文）。
@@ -325,7 +326,7 @@ try {
           if (name === 'start') {
             const now = '2026-10-30T00:00:00Z';
             window.__STORYFORGE_WRITE_BATCH__ = {
-              version: 1,
+              version: 3,
               id: 'write-batch-browser',
               from: requestBody.from,
               to: requestBody.to,
@@ -357,6 +358,7 @@ try {
                 snapshot_version: null,
                 facts_before: null,
                 fact_disputes: null,
+                facts_added: null,
               })),
             };
             return json({
@@ -401,6 +403,8 @@ try {
               state: requestBody.written_path ? 'written' : 'stopped_here',
               run_id: requestBody.run_id,
               tokens: 60000,
+              fact_disputes: requestBody.fact_disputes,
+              facts_added: requestBody.facts_added,
             });
             leg.runs.push({ ordinal: target.ordinal, run_id: requestBody.run_id, tokens: 60000 });
             leg.used_tokens += 60000;
@@ -875,15 +879,44 @@ try {
       `Expected the batch to start with the stored profile: ${JSON.stringify(startCall)}`,
     );
   }
+  // 停下的清单：汇总、停下原因原文、每章一行（跳过的、停在这里的、没轮到的都列），没有总评。
   await batchResult
-    .getByText('这一批停下了：写了 0 章，用了 6 万', { exact: true })
+    .getByTestId('write-batch-result-title')
+    .filter({ hasText: '这一批停下了' })
+    .waitFor({ timeout: 5000 });
+  await batchResult
+    .getByText('这一批写了 0 章（计划 2 章）· 共用 6 万（预估 12.4 万、上限 18.6 万）', {
+      exact: true,
+    })
     .waitFor({ timeout: 5000 });
   await batchResult
     .getByText('第 2 章这次运行没有交出修订。', { exact: true })
     .waitFor({ timeout: 5000 });
-  await batchResult
-    .getByText('第 2 章《第2章标题》 · 没写进文件', { exact: true })
-    .waitFor({ timeout: 5000 });
+  const checklistRows = await batchResult
+    .getByTestId('write-batch-result-chapter')
+    .evaluateAll((rows) =>
+      rows.map((row) =>
+        [...row.querySelectorAll('[data-testid^="write-batch-row-"]')]
+          .map((part) => part.textContent)
+          .join(' | '),
+      ),
+    );
+  const expectedRows = [
+    '第 1 章《第1章标题》 | · 已有正文，跳过 | 目标：第1章目标',
+    '第 2 章《第2章标题》 | · 没写（停在这里） | · 用量 6 万 | 目标：第2章目标',
+    '第 3 章《第3章标题》 | · 没写 | 目标：第3章目标',
+  ];
+  if (JSON.stringify(checklistRows) !== JSON.stringify(expectedRows)) {
+    throw new Error(`Expected the checklist rows: ${JSON.stringify(checklistRows)}`);
+  }
+  const checklistText = await batchResult.innerText();
+  if (['通过率', '%', '评分', '得分'].some((word) => checklistText.includes(word))) {
+    throw new Error(`Expected no overall score on the checklist: ${checklistText}`);
+  }
+  // 这一批没有写进文件的章：没有「撤销这章及之后」（浏览器里没有宿主，删不了文件，撤销本身由前端行为测试覆盖）。
+  if ((await batchResult.getByTestId('write-batch-undo').count()) !== 0) {
+    throw new Error('Expected no undo action when no chapter was written');
+  }
   await page.getByTestId('write-batch-resume').filter({ hasText: '从第 2 章接着写' }).waitFor();
   // 「从第 2 章接着写」先只读出续写计划给作者确认；取消就回到停下的卡，记录不动。
   await page.getByTestId('write-batch-resume').click();

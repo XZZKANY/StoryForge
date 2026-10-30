@@ -14,11 +14,14 @@ import {
   type WriteBatchRecord,
 } from './writeBatchRecord';
 import {
+  checkWriteBatchUndoChapter,
   markWriteBatchReviewed,
   nextWriteBatchStep,
+  planWriteBatchUndo,
   previewWriteBatchResume,
   readWriteBatch,
   recordWriteBatchChapter,
+  recordWriteBatchUndo,
   recoverInterruptedWriteBatch,
   resumeWriteBatch,
   startWriteBatch,
@@ -181,7 +184,13 @@ function harness(
   async function writeChapter(
     batch: WriteBatchRecord,
     ordinal: number,
-    spec: Partial<RunSpec> & { written?: boolean; disputes?: number; text?: string } = {},
+    spec: Partial<RunSpec> & {
+      written?: boolean;
+      disputes?: number;
+      text?: string;
+      factsBefore?: string | null;
+      factsAdded?: number | null;
+    } = {},
   ) {
     const target = pathOf(ordinal);
     const runId = spec.publicId ?? `run-${ordinal}-${++hex}`;
@@ -194,8 +203,9 @@ function harness(
       run_id: runId,
       written_path: written ? `${ROOT}/${target}` : null,
       snapshot_version: `snap-${ordinal}`,
-      facts_before: `facts-${ordinal}`,
+      facts_before: spec.factsBefore === undefined ? `facts-${ordinal}` : spec.factsBefore,
       fact_disputes: spec.disputes ?? 0,
+      facts_added: spec.factsAdded === undefined ? 2 : spec.factsAdded,
     });
   }
   const next = (batch: WriteBatchRecord, profile = 'auto', model = MODEL) =>
@@ -219,7 +229,7 @@ describe('批量记录的读写', () => {
     expect(Object.keys(writes)).toEqual([WRITE_BATCH_RELATIVE_PATH]);
     expect(await h.saved()).toEqual(batch);
     expect(batch).toMatchObject({
-      version: 2,
+      version: 3,
       id: 'write-batch-h1',
       from: 2,
       to: 4,
@@ -267,7 +277,7 @@ describe('批量记录的读写', () => {
   };
 
   it.each([
-    ['an unknown version', (raw: Record<string, unknown>) => (raw.version = 3), '版本是 3'],
+    ['an unknown version', (raw: Record<string, unknown>) => (raw.version = 4), '版本是 4'],
     ['an unknown status', (raw: Record<string, unknown>) => (raw.status = 'paused'), 'status'],
     [
       'chapters that do not match the range',
@@ -733,6 +743,7 @@ describe('记一章', () => {
       snapshot_version: 'snap-2',
       facts_before: 'facts-v7',
       fact_disputes: 0,
+      facts_added: 4,
       written_sha256: 'from-the-interface',
       chars: 1,
       tokens: 1,
@@ -749,6 +760,7 @@ describe('记一章', () => {
       snapshot_version: 'snap-2',
       facts_before: 'facts-v7',
       fact_disputes: 0,
+      facts_added: 4,
     });
     expect(record.legs[0]).toMatchObject({
       used_tokens: 1500,
@@ -799,6 +811,7 @@ describe('记一章', () => {
     );
     await expect(record({ ordinal: 9 })).rejects.toThrow('不在这一批的范围');
     await expect(record({ fact_disputes: -1 })).rejects.toThrow(WriteBatchError);
+    await expect(record({ facts_added: -1 })).rejects.toThrow(WriteBatchError);
     await h.addRun({ publicId: 'no-patch', target: pathOf(2), patch: null });
     await expect(record({ run_id: 'no-patch' })).rejects.toThrow('没有交出修订');
   });
@@ -1076,27 +1089,30 @@ describe('作者要求与章名进记录（版本 2）', () => {
     expect(batch.chapters.every((chapter) => !('title' in chapter))).toBe(true);
   });
 
-  it('reads a version 1 record (no note) and writes it back as version 2', async () => {
+  it('reads a version 1 record (no note) and writes it back as version 3', async () => {
     const h = harness({ history: true });
     const batch = await started(h, 2, 3);
     const raw = JSON.parse(JSON.stringify(batch)) as Record<string, unknown>;
     raw.version = 1;
     delete raw.note;
+    for (const chapter of raw.chapters as Record<string, unknown>[]) delete chapter.facts_added;
     h.project.apply({ [WRITE_BATCH_RELATIVE_PATH]: file(JSON.stringify(raw)) });
-    expect((await readWriteBatch(h.deps, ROOT)).batch).toMatchObject({ version: 2, note: null });
+    expect((await readWriteBatch(h.deps, ROOT)).batch).toMatchObject({ version: 3, note: null });
     expect(await h.next(batch)).toMatchObject({ action: 'write', ordinal: 2, note: null });
     const written = JSON.parse(
       new TextDecoder().decode(
         (await h.project.reader.readProjectBytes(ROOT, WRITE_BATCH_RELATIVE_PATH, 1 << 20)).bytes,
       ),
     ) as Record<string, unknown>;
-    expect(written).toMatchObject({ version: 2, note: null });
+    expect(written).toMatchObject({ version: 3, note: null });
   });
 
   it('refuses a version 2 record without the note field', async () => {
     const h = harness({ history: true });
     const batch = await started(h, 2, 3);
     const raw = JSON.parse(JSON.stringify(batch)) as Record<string, unknown>;
+    raw.version = 2;
+    for (const chapter of raw.chapters as Record<string, unknown>[]) delete chapter.facts_added;
     delete raw.note;
     h.project.apply({ [WRITE_BATCH_RELATIVE_PATH]: file(JSON.stringify(raw)) });
     await expect(readWriteBatch(h.deps, ROOT)).rejects.toThrow(InputDomainError);
@@ -1192,5 +1208,277 @@ describe('续写前只读的预览', () => {
     await expect(preview(h)).rejects.toThrow(WriteBatchError);
     await started(h, 2, 3);
     await expect(preview(h)).rejects.toThrow('还在写');
+  });
+});
+
+describe('撤销第 k 章及之后', () => {
+  /** 写完第 2–5 章（每章记账前的台账版本是 facts-2…facts-5），这一批写完。 */
+  async function writtenBatch(h: ReturnType<typeof harness>) {
+    const batch = await started(h, 2, 5);
+    for (const ordinal of [2, 3, 4, 5]) await h.writeChapter(batch, ordinal);
+    expect(await h.next(batch)).toEqual({ action: 'finished' });
+    return batch;
+  }
+  /** 重开应用后的样子：只有作品文件，没有引擎库、没有内存里的东西；任何一次写都算错。 */
+  const reopened = (h: ReturnType<typeof harness>) => ({
+    reader: h.project.reader,
+    platform: 'posix' as const,
+    writer: {
+      writeProjectFile: async () => {
+        throw new Error('只读的一步写了文件');
+      },
+    },
+  });
+  const sha = (h: ReturnType<typeof harness>, ordinal: number) =>
+    h.saved().then((record) => record!.chapters.find((c) => c.ordinal === ordinal)!.written_sha256);
+  const deleteFiles = (h: ReturnType<typeof harness>, ...ordinals: number[]) =>
+    h.project.apply(Object.fromEntries(ordinals.map((ordinal) => [pathOf(ordinal), null])));
+  const undo = (
+    h: ReturnType<typeof harness>,
+    batchId: string,
+    from: number,
+    input: Partial<Parameters<typeof recordWriteBatchUndo>[4]> = {},
+  ) =>
+    recordWriteBatchUndo(h.deps, ROOT, batchId, from, {
+      deleted: [],
+      failure: null,
+      facts_restored: true,
+      facts_error: null,
+      ...input,
+    });
+
+  it('lists the chapters to delete newest first with their fingerprints, from the record alone', async () => {
+    const h = harness({ history: true });
+    const batch = await writtenBatch(h);
+    const plan = await planWriteBatchUndo(reopened(h), ROOT, batch.id, 3);
+    expect(plan).toMatchObject({
+      batch_id: batch.id,
+      from: 3,
+      to: 5,
+      facts_before: 'facts-3',
+      blockers: [],
+      can_undo: true,
+    });
+    expect(plan.chapters).toEqual([
+      {
+        ordinal: 5,
+        target_path: pathOf(5),
+        written_sha256: await sha(h, 5),
+        facts_restore: 'facts-5',
+      },
+      {
+        ordinal: 4,
+        target_path: pathOf(4),
+        written_sha256: await sha(h, 4),
+        facts_restore: 'facts-4',
+      },
+      {
+        ordinal: 3,
+        target_path: pathOf(3),
+        written_sha256: await sha(h, 3),
+        facts_restore: 'facts-3',
+      },
+    ]);
+    expect(await checkWriteBatchUndoChapter(reopened(h), ROOT, batch.id, 4)).toBeNull();
+  });
+
+  it('restores the ledger to the first version recorded from chapter k on', async () => {
+    const h = harness({ history: true });
+    const batch = await started(h, 2, 5);
+    await h.writeChapter(batch, 2);
+    await h.writeChapter(batch, 3, { factsBefore: null });
+    await h.writeChapter(batch, 4);
+    await h.writeChapter(batch, 5, { factsBefore: null });
+    await h.next(batch);
+    const plan = await planWriteBatchUndo(reopened(h), ROOT, batch.id, 3);
+    expect(plan.chapters.map((c) => [c.ordinal, c.facts_restore])).toEqual([
+      [5, null],
+      [4, 'facts-4'],
+      [3, 'facts-4'],
+    ]);
+    expect(plan.facts_before).toBe('facts-4');
+  });
+
+  it('blocks chapters the author changed or deleted after they were written', async () => {
+    const h = harness({ history: true });
+    const batch = await writtenBatch(h);
+    h.project.apply({ [pathOf(4)]: file('第4章\n\n作者改过的。\n') });
+    deleteFiles(h, 5);
+    const plan = await planWriteBatchUndo(reopened(h), ROOT, batch.id, 3);
+    expect(plan.can_undo).toBe(false);
+    expect(plan.blockers.map((b) => [b.code, b.chapters])).toEqual([
+      ['changed', [4]],
+      ['missing', [5]],
+    ]);
+    expect(plan.blockers[0].message).toContain('撤销会吃掉你的改动');
+    expect(await checkWriteBatchUndoChapter(reopened(h), ROOT, batch.id, 4)).toMatchObject({
+      code: 'changed',
+      chapters: [4],
+    });
+    expect(await checkWriteBatchUndoChapter(reopened(h), ROOT, batch.id, 5)).toMatchObject({
+      code: 'missing',
+    });
+    expect(await checkWriteBatchUndoChapter(reopened(h), ROOT, batch.id, 3)).toBeNull();
+  });
+
+  it('blocks when manuscripts not written by this batch come after chapter k', async () => {
+    const h = harness({ history: true });
+    const batch = await writtenBatch(h);
+    h.project.apply({ [pathOf(7)]: file('第7章\n\n作者自己写的。\n') });
+    const plan = await planWriteBatchUndo(reopened(h), ROOT, batch.id, 3);
+    expect(plan.blockers.map((b) => [b.code, b.chapters])).toEqual([['outside_chapters', [6]]]);
+    expect(plan.blockers[0].message).toContain(pathOf(7));
+    expect(plan.can_undo).toBe(false);
+    // 撤最后一章也一样：它后面还有批外正文。
+    expect((await planWriteBatchUndo(reopened(h), ROOT, batch.id, 5)).can_undo).toBe(false);
+
+    // 批量中途作者自己写了第 3 章（记录里跳过）：从第 2 章撤会让它往前错位。
+    const inside = harness({ history: true });
+    const second = await started(inside, 2, 4);
+    await inside.writeChapter(second, 2);
+    inside.project.apply({ [pathOf(3)]: file('第3章\n\n作者自己写的。\n') });
+    expect(await inside.next(second)).toMatchObject({ action: 'write', ordinal: 4 });
+    await inside.writeChapter(second, 4);
+    expect(await inside.next(second)).toEqual({ action: 'finished' });
+    const blocked = await planWriteBatchUndo(reopened(inside), ROOT, second.id, 2);
+    expect(blocked.blockers.map((b) => [b.code, b.chapters])).toEqual([['outside_chapters', [3]]]);
+    // 从第 4 章撤：后面没有批外正文，可以撤。
+    expect((await planWriteBatchUndo(reopened(inside), ROOT, second.id, 4)).can_undo).toBe(true);
+  });
+
+  it('refuses while the batch is still running, and from a chapter it did not write', async () => {
+    const h = harness({ history: true });
+    const batch = await started(h, 2, 4);
+    await h.writeChapter(batch, 2);
+    const running = await planWriteBatchUndo(reopened(h), ROOT, batch.id, 2);
+    expect(running.blockers.map((b) => b.code)).toEqual(['batch_running']);
+    expect(await checkWriteBatchUndoChapter(reopened(h), ROOT, batch.id, 2)).toMatchObject({
+      code: 'batch_running',
+    });
+    await stopWriteBatch(h.deps, ROOT, batch.id, { code: 'author_stopped', message: '停了。' });
+    const pending = await planWriteBatchUndo(reopened(h), ROOT, batch.id, 3);
+    expect(pending).toMatchObject({ can_undo: false, chapters: [], to: null });
+    expect(pending.blockers.map((b) => b.code)).toEqual(['not_batch_written']);
+    await expect(planWriteBatchUndo(reopened(h), ROOT, batch.id, 9)).rejects.toThrow('不在这一批');
+    await expect(planWriteBatchUndo(reopened(h), ROOT, 'write-batch-old', 2)).rejects.toThrow(
+      '不是最近一批',
+    );
+  });
+
+  it('records the undo from the files actually gone, and the batch resumes from chapter k', async () => {
+    const h = harness({ history: true });
+    const batch = await writtenBatch(h);
+    deleteFiles(h, 5, 4, 3);
+    const record = await undo(h, batch.id, 3, { deleted: [5, 4, 3] });
+    expect(record.version).toBe(3);
+    expect(record.chapters.map((c) => [c.ordinal, c.state])).toEqual([
+      [2, 'written'],
+      [3, 'undone'],
+      [4, 'undone'],
+      [5, 'undone'],
+    ]);
+    expect(record).toMatchObject({ status: 'stopped', stop: { code: 'undone', ordinal: 3 } });
+    expect(record.stop!.message).toContain('撤销了第 3–5 章');
+    expect(record.stop!.message).toContain('事实台账回到第 3 章记账前');
+    expect(record.stop!.message).toContain('从第 3 章接着写');
+    expect(await h.saved()).toEqual(record);
+    // 重开应用后读回来：撤销过的章不算写了，续写从第 3 章起。
+    const view = await readWriteBatch(reopened(h), ROOT);
+    expect(view).toMatchObject({ can_resume: true, resume_from: 3, mismatches: [] });
+    expect(await h.next(batch)).toMatchObject({ action: 'stop', code: 'undone' });
+    const resumed = await resumeWriteBatch(h.deps, {
+      project_root: ROOT,
+      permission_profile: 'ask',
+      model_key: MODEL,
+    });
+    expect(resumed.started).toBe(true);
+    expect(resumed.batch!.chapters.map((c) => [c.ordinal, c.state])).toEqual([
+      [2, 'written'],
+      [3, 'pending'],
+      [4, 'pending'],
+      [5, 'pending'],
+    ]);
+    expect(await h.next(batch)).toMatchObject({ action: 'write', ordinal: 3 });
+  });
+
+  it('records a partial undo honestly: only the chapters gone, and where it stopped', async () => {
+    const h = harness({ history: true });
+    const batch = await writtenBatch(h);
+    deleteFiles(h, 5, 4);
+    const record = await undo(h, batch.id, 3, {
+      deleted: [5, 4],
+      failure: '第 3 章在编辑器里有未保存的修改',
+      facts_restored: false,
+      facts_error: 'facts.json 刚被别处改过',
+    });
+    expect(record.chapters.map((c) => [c.ordinal, c.state])).toEqual([
+      [2, 'written'],
+      [3, 'written'],
+      [4, 'undone'],
+      [5, 'undone'],
+    ]);
+    expect(record.stop).toMatchObject({ code: 'undone', ordinal: 4 });
+    expect(record.stop!.message).toContain('撤销了第 4–5 章');
+    expect(record.stop!.message).toContain('没撤完就停下了：第 3 章在编辑器里有未保存的修改');
+    expect(record.stop!.message).toContain('事实台账没能恢复（facts.json 刚被别处改过）');
+  });
+
+  it('refuses an undo record that does not match the files', async () => {
+    const h = harness({ history: true });
+    const batch = await writtenBatch(h);
+    await expect(undo(h, batch.id, 3, { deleted: [5] })).rejects.toThrow('文件还在');
+    deleteFiles(h, 4);
+    await expect(undo(h, batch.id, 3, { deleted: [4] })).rejects.toThrow('不能跳过');
+    await expect(undo(h, batch.id, 3, { deleted: [] })).rejects.toThrow('没有删掉任何一章');
+    deleteFiles(h, 2);
+    await expect(undo(h, batch.id, 3, { deleted: [2] })).rejects.toThrow('第 3 章及之后');
+    expect((await h.saved())?.status).toBe('finished');
+
+    const running = harness({ history: true });
+    const live = await started(running, 2, 3);
+    await running.writeChapter(live, 2);
+    deleteFiles(running, 2);
+    await expect(undo(running, live.id, 2, { deleted: [2] })).rejects.toThrow('还在写');
+  });
+
+  it('marks a re-created undone chapter as written outside the record', async () => {
+    const h = harness({ history: true });
+    const batch = await writtenBatch(h);
+    deleteFiles(h, 5);
+    await undo(h, batch.id, 5, { deleted: [5] });
+    h.project.apply({ [pathOf(5)]: file('第5章\n\n作者重写的。\n') });
+    const view = await readWriteBatch(reopened(h), ROOT);
+    expect(view.mismatches).toEqual([
+      { ordinal: 5, kind: 'written_outside', message: expect.stringContaining('已经撤销了') },
+    ]);
+  });
+
+  it('keeps the facts count it was given, and reads older records as unknown', async () => {
+    const h = harness({ history: true });
+    const batch = await started(h, 2, 3);
+    await h.writeChapter(batch, 2, { factsAdded: 3, disputes: 1 });
+    await h.writeChapter(batch, 3, { factsAdded: null });
+    const view = await readWriteBatch(reopened(h), ROOT);
+    expect(view.batch!.chapters.map((c) => [c.ordinal, c.facts_added, c.fact_disputes])).toEqual([
+      [2, 3, 1],
+      [3, null, 0],
+    ]);
+    expect(view.batch!.chapters.map((c) => c.goal)).toEqual(['第2章目标', '第3章目标']);
+  });
+
+  it('refuses undone in an older record, and a version 3 record without facts_added', async () => {
+    const h = harness({ history: true });
+    const batch = await writtenBatch(h);
+    deleteFiles(h, 5);
+    const record = await undo(h, batch.id, 5, { deleted: [5] });
+    const older = JSON.parse(JSON.stringify(record)) as Record<string, unknown>;
+    older.version = 2;
+    for (const chapter of older.chapters as Record<string, unknown>[]) delete chapter.facts_added;
+    h.project.apply({ [WRITE_BATCH_RELATIVE_PATH]: file(JSON.stringify(older)) });
+    await expect(readWriteBatch(h.deps, ROOT)).rejects.toThrow(InputDomainError);
+    const missing = JSON.parse(JSON.stringify(record)) as Record<string, unknown>;
+    delete (missing.chapters as Record<string, unknown>[])[0].facts_added;
+    h.project.apply({ [WRITE_BATCH_RELATIVE_PATH]: file(JSON.stringify(missing)) });
+    await expect(readWriteBatch(h.deps, ROOT)).rejects.toThrow(InputDomainError);
   });
 });

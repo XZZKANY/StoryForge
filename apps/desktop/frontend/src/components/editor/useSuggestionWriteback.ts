@@ -33,7 +33,9 @@ import {
 } from '../../lib/author-loop';
 import type { BranchInfo } from '../../lib/branches';
 import type { EditorModelCache } from './useMonacoEditor';
+import { deleteCreatedFile } from '../../lib/created-file-delete';
 import { recordAcceptedChapterFacts } from '../../lib/fact-write';
+import { isWriteBatchRun } from '../../lib/write-batch-grant';
 import {
   reportChapterWriteback,
   writtenChapter,
@@ -60,7 +62,7 @@ import {
 import { shouldAutoAcceptSuggestion } from '../../lib/agent-permission';
 import { invalidateContextBundleCache } from '../../lib/project-context';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
-import { markChapterWrittenInPlan, unmarkChapterWrittenInPlan } from '../../lib/serial-plan';
+import { markChapterWrittenInPlan } from '../../lib/serial-plan';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
 import {
@@ -1019,13 +1021,8 @@ export function useSuggestionWriteback({
                   !canUndoWriteback(targetModel?.getValue() ?? '', wrote, normalizeEol)
                 )
                   throw new Error('文件在核对期间已变化，已取消撤销新建');
-                // 原生 delete_path 尚非 compare-delete；此处只阻断已观察到的漂移，
-                // 读取完成到原生删除之间的跨进程竞态仍需原生原子守卫。
-                await TauriFileSystem.deletePath(projectRoot, path);
-                invalidateContextBundleCache(projectRoot);
-                // 正文没了，这章就不再是「写完的」——把接受时标上的 done 退回 pending。
-                // 只在这一支做：修订的撤销走下面的反向写回，文件还在，那章依然是写完的。
-                await unmarkChapterWrittenInPlan(projectRoot, path);
+                // 此处只阻断已观察到的漂移；删文件、清缓存、计划里退回未写与批量清单上的撤销共用一条路。
+                await deleteCreatedFile(projectRoot, path);
                 // 删除/计划更新期间仍能输入或切页，只清理未变的原 model；不丢弃后来新稿。
                 const canRetireTarget = () =>
                   mountedRef.current &&
@@ -1159,6 +1156,10 @@ export function useSuggestionWriteback({
     const projectRoot = projectPathRef.current;
     const actionToken = beginAction('accept', suggestion);
     if (!actionToken) return;
+    // 批量写章自动写进文件的那几章不逐章弹撤销提示（正文与事实记账的都不弹），撤销改由清单提供；
+    // 按这一批登记的运行 id 认，作者手动接受的修订照旧弹。
+    const batchWrite =
+      suggestion.requiresConfirmation === false && isWriteBatchRun(suggestion.runId);
     // 批量写章的调度器按运行 id 等这份结果：写进去了就连同事实记账一起交，没写进去交原因。
     let settlement: Promise<ChapterWriteback> | null = null;
     let failure: string | null = null;
@@ -1264,7 +1265,7 @@ export function useSuggestionWriteback({
             projectRoot,
             path,
             suggestion.runId,
-            () => mountedRef.current && projectPathRef.current === projectRoot,
+            () => !batchWrite && mountedRef.current && projectPathRef.current === projectRoot,
           );
       settlement = writtenChapter(projectRoot, path, loopRecord.snapshotPath, facts);
       const runStatus = loopRecord.auditComplete
@@ -1291,7 +1292,7 @@ export function useSuggestionWriteback({
         });
         return;
       }
-      if (!recoveredRecord)
+      if (!recoveredRecord && !batchWrite)
         offerUndo(
           suggestion,
           path,
@@ -1303,9 +1304,11 @@ export function useSuggestionWriteback({
       setSuggestionStatus(
         (recoveredRecord
           ? '已核验原来那次写入与闭环记录；未再次写入，保留作者当前编辑'
-          : loopRecord.recordPath
-            ? '已写入当前文件 · 已留写前快照与闭环记录，可点通知里的「撤销」一键回退'
-            : '已写入当前文件 · 已留写前快照，可点通知里的「撤销」一键回退') +
+          : batchWrite
+            ? '已写入当前文件 · 已留写前快照，撤销在批量写章的清单上'
+            : loopRecord.recordPath
+              ? '已写入当前文件 · 已留写前快照与闭环记录，可点通知里的「撤销」一键回退'
+              : '已写入当前文件 · 已留写前快照，可点通知里的「撤销」一键回退') +
           issueResolutionNote(wholeIssueResolutions, issuesAttributed, wholeIssueCounts),
         'success',
       );

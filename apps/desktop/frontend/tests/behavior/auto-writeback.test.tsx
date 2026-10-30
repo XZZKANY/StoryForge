@@ -101,6 +101,27 @@ vi.mock('../../src/lib/versions', () => ({
   },
 }));
 
+/** 事实记账：记下交给它的「能不能出提示」，批量写章自动写进文件的那几章不该出。 */
+const factsNotify: Array<() => boolean> = [];
+vi.mock('../../src/lib/fact-write', async (load) => ({
+  ...(await load<typeof import('../../src/lib/fact-write')>()),
+  recordAcceptedChapterFacts: async (
+    _project: string | null,
+    _file: string,
+    _runId: string | undefined,
+    canNotify: () => boolean = () => true,
+  ) => {
+    factsNotify.push(canNotify);
+    return { snapshotPath: null, disputes: 0, added: 0, error: null };
+  },
+}));
+
+/** 带运行 id 的修订接受后要去引擎结算那次运行；这里不测结算，直接当没有可结算的。 */
+vi.mock('../../src/lib/suggestion-recovery', async (load) => ({
+  ...(await load<typeof import('../../src/lib/suggestion-recovery')>()),
+  settleSuggestionRun: async () => undefined,
+}));
+
 /** 接受补丁后会回调后端标连载计划；不 mock 就会打真 fetch。 */
 const planMarkArgs: Array<Record<string, unknown>> = [];
 let planMarkFails = false;
@@ -125,6 +146,11 @@ import {
 import { PatchReviewPanel } from '../../src/components/PatchReviewPanel';
 import { acceptPatchFromChat } from '../../src/components/chat-window/accept-patch';
 import { buildPatchHunks } from '../../src/lib/patch-hunks';
+import {
+  bindWriteBatchRun,
+  issueWriteBatchGrant,
+  revokeWriteBatchGrant,
+} from '../../src/lib/write-batch-grant';
 
 const PROJECT = 'D:/连载/末世吞噬';
 const FILE = 'D:/连载/末世吞噬/正文/第01章.md';
@@ -278,6 +304,7 @@ beforeEach(() => {
   snapshotCreated = false;
   planMarkArgs.length = 0;
   planMarkFails = false;
+  factsNotify.length = 0;
   versionHistoryOpened = 0;
   editorContent = BEFORE;
   diskContent = BEFORE;
@@ -703,4 +730,66 @@ test('没有截断警告的补丁照旧点一次就写', async () => {
   await clickAccept();
   assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
   assert.equal(container.querySelector('[data-testid="patch-truncation-confirm"]'), null);
+});
+
+/** 批量写章这一批的授权，登记上这一轮的运行 id（调度器发起每一章时就是这么做的）。 */
+function batchRun(runId: string) {
+  const grant = issueWriteBatchGrant({
+    projectPath: PROJECT,
+    batchId: 'write-batch-1',
+    targets: ['正文/第01章.md'],
+  });
+  bindWriteBatchRun(grant, runId);
+  return grant;
+}
+
+test('批量写章自动写进文件的那一章：不逐章弹撤销提示，事实记账也不出提示，撤销在清单上', async () => {
+  const grant = batchRun('run-batch');
+  try {
+    await act(async () => {
+      emitFileSuggestion(suggestion({ requiresConfirmation: false, runId: 'run-batch' }));
+    });
+    await settle();
+    assert.deepEqual(writes, [{ path: FILE, content: AFTER }], '批量的这一章照常写进文件');
+    assert.deepEqual(
+      toasts.filter((toast) => toast.action).map((toast) => toast.action!.label),
+      [],
+      '批量写进文件的章不弹带撤销的提示',
+    );
+    assert.equal(factsNotify.length, 1);
+    assert.equal(factsNotify[0](), false, '事实记账也不出「撤销记账」提示');
+    assert.ok(
+      toasts.some((toast) =>
+        toast.message.startsWith('已写入当前文件 · 已留写前快照，撤销在批量写章的清单上'),
+      ),
+      `收尾那句要指向清单，实际：${toasts.map((toast) => toast.message).join(' | ')}`,
+    );
+  } finally {
+    revokeWriteBatchGrant(grant);
+  }
+});
+
+test.each([
+  ['不是批量发起的自动写进', 'run-other', false, false],
+  ['批量这一轮要作者点接受、作者手动接受', 'run-confirm', true, false],
+  ['这一批停下（授权撤销）以后才写进', 'run-late', false, true],
+])('%s：照旧弹撤销提示', async (_name, runId, manual, revokedFirst) => {
+  const grant = runId === 'run-other' ? null : batchRun(runId);
+  if (revokedFirst) revokeWriteBatchGrant(grant);
+  try {
+    await act(async () => {
+      emitFileSuggestion(suggestion({ requiresConfirmation: manual, runId }));
+    });
+    if (manual)
+      await act(async () => {
+        emitAcceptCurrentFileSuggestion();
+      });
+    await settle();
+    assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
+    assert.equal(lastActionableToast().label, '撤销', '撤销提示照旧弹');
+    assert.equal(factsNotify.length, 1);
+    assert.equal(factsNotify[0](), true, '事实记账的提示照旧出');
+  } finally {
+    revokeWriteBatchGrant(grant);
+  }
 });

@@ -7,6 +7,7 @@ import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import { sendAgentControlMessage } from '../../lib/api-client';
 import type {
   ApiWriteBatch,
+  ApiWriteBatchMismatch,
   ApiWriteBatchPlan,
   ApiWriteBatchView,
   ApiWriteBatchViewRecord,
@@ -21,6 +22,7 @@ import {
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { emitToast } from '../../lib/toast';
 import {
+  bindWriteBatchRun,
   issueWriteBatchGrant,
   revokeWriteBatchGrant,
   type WriteBatchGrant,
@@ -51,15 +53,26 @@ export type WriteBatchProgress = {
 };
 
 export type WriteBatchResult = {
-  /** 引擎读回来的记录，每章带着连载计划里的标题。 */
+  /** 引擎读回来的记录，每章带着连载计划里的标题与本章目标。 */
   batch: ApiWriteBatchViewRecord | null;
+  /** 引擎标出的记录与正文对不上的章。 */
+  mismatches: ApiWriteBatchMismatch[];
   canResume: boolean;
   resumeFrom: number | null;
   /** 这一批一共用了多少（按「万」说）。 */
   used: string | null;
+  /** 最近一段的预估与上限（按「万」说）；试写段没有，为 null。 */
+  estimate: string | null;
+  cap: string | null;
+  /** 开跑加续跑一共几段：不止一段时预估与上限说的是最近一段。 */
+  legs: number;
+  /** 每章用量（按「万」说），没记过的章没有。 */
+  chapterTokens: Record<number, string>;
+  /** 「撤销这章及之后」不能撤的原因；什么都没动。 */
+  undoBlockers: string[];
   error: string | null;
   notice: string | null;
-  /** 正在标审完或正在续写，按钮先不让点。 */
+  /** 正在标审完、续写或撤销，按钮先不让点。 */
   pending: boolean;
 };
 
@@ -127,6 +140,8 @@ async function dispatchChapter(
   // runAuthorAgent 在第一次 await 之前就换上了这一轮的 id：记下来，作者停止或换作品时停的是它。
   const started = chat.agentRunIdRef.current;
   run.inFlightRunId = started && started !== before ? started : null;
+  // 这一章自动写进文件时不逐章弹撤销提示：撤销改由清单提供。
+  if (run.inFlightRunId) bindWriteBatchRun(run.grant, run.inFlightRunId);
   try {
     return await pending;
   } finally {
@@ -228,17 +243,32 @@ export function leaveWriteBatch(run: WriteBatchRun | null): void {
   );
 }
 
-/** 停下 / 写完那张卡：记录、章名、能不能续写都照引擎读回来的说。 */
+const formatOrNull = async (tokens: number | null | undefined) =>
+  tokens === null || tokens === undefined ? null : formatWriteBatchTokens(tokens);
+
+/** 停下 / 写完那张清单：记录、章名、对不上的章、能不能续写都照引擎读回来的说。 */
 export async function buildWriteBatchResult(
-  view: Pick<ApiWriteBatchView, 'batch' | 'can_resume' | 'resume_from'>,
+  view: Pick<ApiWriteBatchView, 'batch' | 'can_resume' | 'resume_from'> &
+    Partial<Pick<ApiWriteBatchView, 'mismatches'>>,
   extra: { error?: string | null; notice?: string | null } = {},
 ): Promise<WriteBatchResult> {
   const batch = view.batch;
+  const leg = batch?.legs[batch.legs.length - 1];
+  const chapterTokens: Record<number, string> = {};
+  for (const chapter of batch?.chapters ?? [])
+    if (chapter.tokens !== null)
+      chapterTokens[chapter.ordinal] = await formatWriteBatchTokens(chapter.tokens);
   return {
     batch,
+    mismatches: view.mismatches ?? [],
     canResume: view.can_resume,
     resumeFrom: view.resume_from,
     used: batch ? await formatWriteBatchTokens(batchUsedTokens(batch)) : null,
+    estimate: await formatOrNull(leg?.estimated_tokens),
+    cap: await formatOrNull(leg?.cap_tokens),
+    legs: batch?.legs.length ?? 0,
+    chapterTokens,
+    undoBlockers: [],
     error: extra.error ?? null,
     notice: extra.notice ?? null,
     pending: false,
@@ -249,9 +279,15 @@ export async function buildWriteBatchResult(
 export function failedWriteBatchResult(error: string): WriteBatchResult {
   return {
     batch: null,
+    mismatches: [],
     canResume: false,
     resumeFrom: null,
     used: null,
+    estimate: null,
+    cap: null,
+    legs: 0,
+    chapterTokens: {},
+    undoBlockers: [],
     error,
     notice: null,
     pending: false,

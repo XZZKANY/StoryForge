@@ -4,7 +4,12 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { useWriteBatchTabs } from '../src/components/app/useWriteBatchTabs';
-import { closeWriteBatchTab, noteWriteBatchTarget } from '../src/lib/write-batch-tabs';
+import {
+  closeWriteBatchTab,
+  dropWriteBatchTab,
+  noteWriteBatchTarget,
+  writeBatchTabDirty,
+} from '../src/lib/write-batch-tabs';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -18,15 +23,25 @@ let dirtyFiles: Set<string>;
 const handleFileClose = vi.fn(async (path: string) => {
   openFiles = openFiles.filter((item) => item !== path);
 });
+const dropOpenFilePath = vi.fn((path: string) => {
+  openFiles = openFiles.filter((item) => item !== path);
+});
 
 function Shell() {
-  useWriteBatchTabs({ openFiles, previewFile: null, dirtyFiles, handleFileClose });
+  useWriteBatchTabs({
+    openFiles,
+    previewFile: null,
+    dirtyFiles,
+    handleFileClose,
+    dropOpenFilePath,
+  });
   return null;
 }
 const rerender = () => act(async () => root.render(<Shell />));
 
 beforeEach(async () => {
   handleFileClose.mockClear();
+  dropOpenFilePath.mockClear();
   openFiles = [tab(1)];
   dirtyFiles = new Set();
   host = document.createElement('div');
@@ -62,5 +77,25 @@ it('写进去以后作者又动过（有未保存修改）的不关；没记过�
   await rerender();
   closeWriteBatchTab(tab(4));
   closeWriteBatchTab(tab(1));
+  expect(handleFileClose).not.toHaveBeenCalled();
+});
+
+it('清单上撤销：删之前答得出这一章有没有未保存的修改（路径写法不同也认）', async () => {
+  openFiles = [tab(1), tab(4), tab(5)];
+  dirtyFiles = new Set([tab(5)]);
+  await rerender();
+  expect(writeBatchTabDirty('D:/book/正文/第005章.md')).toBe(true);
+  expect(writeBatchTabDirty('D:/book/正文/第004章.md')).toBe(false);
+  expect(writeBatchTabDirty('D:/book/正文/第009章.md')).toBe(false);
+});
+
+it('删掉以后摘掉它的页签；有未保存修改的不动，没开着的什么也不做', async () => {
+  openFiles = [tab(1), tab(4), tab(5)];
+  dirtyFiles = new Set([tab(5)]);
+  await rerender();
+  dropWriteBatchTab('D:/book/正文/第004章.md');
+  dropWriteBatchTab('D:/book/正文/第005章.md');
+  dropWriteBatchTab('D:/book/正文/第009章.md');
+  expect(dropOpenFilePath.mock.calls).toEqual([[tab(4)]]);
   expect(handleFileClose).not.toHaveBeenCalled();
 });

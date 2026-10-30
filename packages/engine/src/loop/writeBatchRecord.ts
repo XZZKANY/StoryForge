@@ -20,10 +20,12 @@ import { platformTextBytes, type ProjectWriter } from '../writePort';
 export const WRITE_BATCH_RELATIVE_PATH = '.storyforge/write-batch.json';
 /**
  * 版本 2（E 刀审后）：记下作者在 `/写` 范围后附的要求（note），停下原因多了界面出错（scheduler_error）。
- * 版本 1 的记录照读（note 读成 null），下次写回时按版本 2 写；比这新的不认。
+ * 版本 3（F 刀）：每章多记新记下的事实条数（facts_added），章多了「已撤销」（undone），停下原因多了撤销（undone）。
+ * 旧版本的记录照读（版本 1 的 note、版本 1 和 2 的 facts_added 读成 null），下次写回时按当前版本写；
+ * 版本 3 才有的取值出现在旧版本里算写坏了；比这新的不认。
  */
-export const WRITE_BATCH_VERSION = 2;
-const READABLE_VERSIONS = [1, 2];
+export const WRITE_BATCH_VERSION = 3;
+const READABLE_VERSIONS = [1, 2, 3];
 /** 范围最多 10000 章（防误输入），每章一条，缩进排版后几 MB；读的预算放宽到 16 MiB。 */
 const WRITE_BATCH_MAX_BYTES = 16 * 1024 * 1024;
 
@@ -32,7 +34,8 @@ export type WriteBatchStatus = 'running' | 'stopped' | 'finished';
 /**
  * 停下的原因。前四个是上一章没写成（规则 1），接着两个是修订等作者处理（规则 2），
  * 之后依次是事实对不上、只读、换模型、用到上限、试写量完（规则 3–6），
- * 最后四个由界面送来（作者按停止、应用上次被关掉、这一章没能开跑、界面这边出错）。
+ * 接着四个由界面送来（作者按停止、应用上次被关掉、这一章没能开跑、界面这边出错），
+ * 最后一个是作者在清单上撤销了第 k 章及之后（recordWriteBatchUndo 记，版本 3 起）。
  */
 export type WriteBatchStopCode =
   | 'run_failed'
@@ -49,7 +52,8 @@ export type WriteBatchStopCode =
   | 'author_stopped'
   | 'app_closed'
   | 'run_not_started'
-  | 'scheduler_error';
+  | 'scheduler_error'
+  | 'undone';
 
 export const WRITE_BATCH_STOP_CODES: readonly WriteBatchStopCode[] = [
   'run_failed',
@@ -67,6 +71,7 @@ export const WRITE_BATCH_STOP_CODES: readonly WriteBatchStopCode[] = [
   'app_closed',
   'run_not_started',
   'scheduler_error',
+  'undone',
 ];
 
 /**
@@ -108,7 +113,9 @@ export type WriteBatchChapterState =
   | 'written'
   | 'stopped_here'
   | 'skipped_written'
-  | 'after_trial';
+  | 'after_trial'
+  /** 作者在清单上撤销了：文件删了，计划里退回未写（版本 3 起）。 */
+  | 'undone';
 
 export type WriteBatchCheck = {
   /** unchecked：检查器重查后仍没给出结果，这章未经检查。 */
@@ -131,6 +138,8 @@ export type WriteBatchRecordChapter = {
   snapshot_version: string | null;
   facts_before: string | null;
   fact_disputes: number | null;
+  /** 记账时新记下的事实条数（不含存成待定的，那是 fact_disputes）：界面送来，原样存；版本 3 以前的记录为 null。 */
+  facts_added: number | null;
 };
 
 export type WriteBatchRecord = {
@@ -157,7 +166,12 @@ const CHAPTER_STATES: readonly WriteBatchChapterState[] = [
   'stopped_here',
   'skipped_written',
   'after_trial',
+  'undone',
 ];
+/** 版本 3 才有的取值：旧版本的记录里出现就是写坏了。 */
+const V3_ONLY = new Set<string>(['undone']);
+const allowedIn = <T extends string>(version: number, values: readonly T[]): readonly T[] =>
+  version >= 3 ? values : values.filter((value) => !V3_ONLY.has(value));
 const VERDICTS: readonly WriteBatchCheck['verdict'][] = [
   'pass',
   'repairable',
@@ -204,10 +218,18 @@ class RecordFields extends JsonFields {
   }
 }
 
-function parseStop(fields: RecordFields, value: JsonValue | undefined): WriteBatchStop {
+function parseStop(
+  fields: RecordFields,
+  value: JsonValue | undefined,
+  version: number,
+): WriteBatchStop {
   const stop = fields.object(value, 'stop');
   return {
-    code: fields.oneOf(fields.at(stop, 'code'), 'stop.code', WRITE_BATCH_STOP_CODES),
+    code: fields.oneOf(
+      fields.at(stop, 'code'),
+      'stop.code',
+      allowedIn(version, WRITE_BATCH_STOP_CODES),
+    ),
     message: fields.string(fields.at(stop, 'message'), 'stop.message'),
     ordinal: fields.nullable(fields.at(stop, 'ordinal'), 'stop.ordinal', (v, p) =>
       fields.ordinal(v, p),
@@ -251,7 +273,12 @@ function parseCheck(fields: RecordFields, value: JsonValue, at: string): WriteBa
   };
 }
 
-function parseChapter(fields: RecordFields, value: JsonValue, at: string): WriteBatchRecordChapter {
+function parseChapter(
+  fields: RecordFields,
+  value: JsonValue,
+  at: string,
+  version: number,
+): WriteBatchRecordChapter {
   const chapter = fields.object(value, at);
   const text = (key: string) =>
     fields.nullable(fields.at(chapter, key), `${at}.${key}`, (v, p) => fields.string(v, p));
@@ -260,7 +287,11 @@ function parseChapter(fields: RecordFields, value: JsonValue, at: string): Write
   return {
     ordinal: fields.ordinal(fields.at(chapter, 'ordinal'), `${at}.ordinal`),
     target_path: fields.string(fields.at(chapter, 'target_path'), `${at}.target_path`),
-    state: fields.oneOf(fields.at(chapter, 'state'), `${at}.state`, CHAPTER_STATES),
+    state: fields.oneOf(
+      fields.at(chapter, 'state'),
+      `${at}.state`,
+      allowedIn(version, CHAPTER_STATES),
+    ),
     run_id: text('run_id'),
     written_sha256: text('written_sha256'),
     chars: count('chars'),
@@ -271,6 +302,7 @@ function parseChapter(fields: RecordFields, value: JsonValue, at: string): Write
     snapshot_version: text('snapshot_version'),
     facts_before: text('facts_before'),
     fact_disputes: count('fact_disputes'),
+    facts_added: version >= 3 ? count('facts_added') : null,
   };
 }
 
@@ -307,9 +339,11 @@ export function parseWriteBatchRecord(value: JsonValue): WriteBatchRecord {
       'finished',
     ] as const),
     reviewed: fields.boolean(fields.at(raw, 'reviewed'), 'reviewed'),
-    stop: fields.nullable(fields.at(raw, 'stop'), 'stop', (v) => parseStop(fields, v)),
+    stop: fields.nullable(fields.at(raw, 'stop'), 'stop', (v) => parseStop(fields, v, version)),
     legs: legs.map((item, index) => parseLeg(fields, item, `legs[${index}]`)),
-    chapters: chapters.map((item, index) => parseChapter(fields, item, `chapters[${index}]`)),
+    chapters: chapters.map((item, index) =>
+      parseChapter(fields, item, `chapters[${index}]`, version),
+    ),
   };
   if (record.chapters.length !== to - from + 1)
     throw new InputDomainError(`${WRITE_BATCH_RELATIVE_PATH} 的章数和范围对不上`);

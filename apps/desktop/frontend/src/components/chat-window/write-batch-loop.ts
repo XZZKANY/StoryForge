@@ -25,6 +25,7 @@ export type WriteBatchLoopDeps = {
     snapshotVersion: string | null;
     factsBefore: string | null;
     factDisputes: number;
+    factsAdded: number | null;
   }) => Promise<ApiWriteBatch>;
   stop: (input: { code: WriteBatchInterfaceStopCode; message: string }) => Promise<ApiWriteBatch>;
   /** 作者这会儿存的档位：每问一次下一步都重新读，改成只读引擎就停。 */
@@ -109,6 +110,7 @@ export async function runWriteBatchLoop(deps: WriteBatchLoopDeps): Promise<Write
         snapshotVersion: written?.snapshotVersion ?? null,
         factsBefore: written?.factsBefore ?? null,
         factDisputes: written?.factDisputes ?? 0,
+        factsAdded: written?.factsAdded ?? null,
       });
       if (!deps.alive()) return ABANDONED;
       deps.onRecorded?.(batch);

@@ -16,7 +16,7 @@ function resumeTitle(plan: ApiWriteBatchPlan): string {
 
 /**
  * 批量写章在对话里那一格（输入框上方、章纲卡同一位置）：一次只出一张——续写的确认卡、`/写` 的确认卡、
- * 停下或写完的卡。卡片自己管滚动：章列表在卡内滚，底部按钮始终露着。
+ * 停下或写完的清单。卡片自己管滚动：章列表在卡内滚，底部按钮始终露着。
  */
 export function WriteBatchPanel({
   projectPath,
@@ -66,8 +66,10 @@ export function WriteBatchPanel({
     card = (
       <WriteBatchResultCard
         result={phase.result}
+        projectPath={projectPath}
         onReviewed={scheduler.markReviewed}
         onResume={scheduler.resumeFromResult}
+        onUndo={scheduler.undoFrom}
         onClose={scheduler.closeResult}
       />
     );
