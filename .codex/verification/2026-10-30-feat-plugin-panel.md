@@ -13,6 +13,7 @@
   - `pnpm verify` EXIT=0：project-core 34、引擎 14061 passed + 2 skipped、前端 2565 passed、三个浏览器回归通过。
   - 行尾：`ChatWindowView.tsx` 保持 CRLF（314 行、裸 LF 0），其余 LF；`--numstat` 与 `--ignore-all-space --numstat` 一致。
 - 合并 master（#525 界面用词统一，无冲突）后：`tests/ui-terminology.test.ts` 与插件相关测试 35 passed；`pnpm verify` EXIT=0：project-core 34、引擎 14061 passed + 2 skipped、前端 2566 passed、三个浏览器回归通过。插件界面文案不含「项目 / Agent / 补丁」；「书」不在用词表禁用之列，沿用现有「这本书」的说法。
+- 再次合并 master（#531 章节检查记录挪到对话头浮窗等）：`ChatWindowView.tsx` 一处冲突（CRLF 文件按字节解决），保留 #531 的 `checkHistoryToggle`、上下文按钮照旧传 `onOpenSettings`；`pnpm verify` EXIT=0：project-core 34、引擎 14073 passed + 2 skipped、前端 2574 passed、三个浏览器回归通过。
 - 未覆盖：
   - 没在真宿主上点穿（作者机上开着 StoryForge，隔离宿主会冲突）：真选文件夹、真暂存目录经原生读口读出预览、真写 `.storyforge/plugins.json` 后对话里出现插件技能。
   - 截图里的插件数据是脚本编的。
