@@ -16,6 +16,7 @@
   - 变异（`output/auto-update/mutate_cut2.py` 与一段内联脚本，断言替换点唯一、无条件还原并逐字节核对）：M1 宿主报错当成已是最新 → 前端 1 红；M2 `main.rs` 不注册命令 → 1 红；M3 改更新地址 → 1 红；M4 latest.json 平台键写成 `windows-x86_64` → 1 红；M5 默认配置开 `createUpdaterArtifacts` → 1 红；M6 删掉配置里的 `pubkey` → Rust 1 红（`missing field pubkey`）。
   - `pnpm verify`（corepack 缓存的 pnpm 9.15.4 临时 shim）一遍 EXIT=0：project-core 34、引擎 14073 passed + 2 skipped、前端 2572 passed、三个浏览器回归通过。日志在 `output/auto-update/verify-cut2.log`（不入库）。
   - 行尾：`main.rs` CRLF 按字节改；其余全 LF，无 CRCR。`--numstat` 与 `--ignore-all-space --numstat` 只在整文件重写的 `update-check.ts` / `update-check.test.ts` 各差 1 行（空白行对齐不同），不是行尾噪音。
+- 合并 master（#536 引擎库升级前备份）：`main.rs` 命令注册一处冲突（两边都在 `engine_python_db_snapshot` 后加了一行），两行都留。合并后全量 `cargo test` 183 passed + 1 ignored（含 #536 挂回的引擎库测试）；`pnpm verify` EXIT=0：project-core 34、引擎 14074 passed + 2 skipped、前端 2574 passed、三个浏览器回归通过。
 - 未覆盖：
   - 出包脚本没有真跑：要作者的私钥密码，而且本地按 0.2.3 打包会覆盖主仓库 `bundle/nsis/` 里同名的发布包。真跑放到刀 3 的升级验证（要打两个带签名的安装包）或作者出 0.2.4 时。
   - 没在真应用里点过「检查更新」：开发档与作者装机版同一个标识和数据目录，单实例插件会把它让给作者开着的应用；Tauri 冒烟在新 worktree 要从头编整套。插件配置能否解析已由上面的 Rust 测试覆盖，真连 GitHub 读 latest.json 要等第一个带 latest.json 的 Release。
