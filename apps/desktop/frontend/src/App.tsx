@@ -28,6 +28,7 @@ import {
   nextChapterWriteRequest,
 } from './lib/assistant-events';
 import { emitToast } from './lib/toast';
+import { useWriteBatchCardOpen } from './lib/write-batch-card';
 import { useStartupUpdateCheck } from './lib/app-update';
 import { isEditableTarget } from './lib/browser-guards';
 import { useAcknowledgeHostClosing, useHostCloseNotice } from './lib/host-close';
@@ -302,6 +303,8 @@ export function App() {
       : (bookContext.snapshot?.chapters ?? []);
     emitChapterWriteRequest(nextChapterWriteRequest(chapters));
   }, [bookChapters.chapters, bookContext.snapshot, showAgent]);
+  // 批量写章确认卡开着时藏起「AI 起草下一章」，免得和这一批抢着写；卡关掉恢复。
+  const draftNext = useWriteBatchCardOpen() ? undefined : draftNextChapter;
   const activity = useOverviewActivity({
     projectPath: workspace.activeProject,
     displayedFile: tabs.displayedFile,
@@ -336,7 +339,7 @@ export function App() {
         observatory={{ ...observatory, locateObservation, locateAnchor }}
         bookContext={bookContext}
         onOpenManuscriptChapter={openManuscriptChapter}
-        onDraftNextChapter={draftNextChapter}
+        onDraftNextChapter={draftNext}
         bookProfile={bookProfile}
         onOpenOutlineHeading={openOutlineHeading}
         openSettings={openSettings}
@@ -365,7 +368,7 @@ export function App() {
               onOpenAgentRun={showAgent}
               onEditProfile={openBookProfileEditor}
               onEnterWritingDesk={desk.enterWritingDesk}
-              onDraftNextChapter={draftNextChapter}
+              onDraftNextChapter={draftNext}
               onDiscussBook={discussBook}
               promises={observatory.promises}
             />

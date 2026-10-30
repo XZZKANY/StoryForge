@@ -62,9 +62,12 @@ import {
 import { TauriFileSystem } from '../src/lib/tauri-fs';
 import type { SemanticFile } from '../src/lib/project/types';
 import { TOAST_EVENT, type ToastDetail } from '../src/lib/toast';
+import { isWriteBatchCardOpen } from '../src/lib/write-batch-card';
 
 // 跨章检查用可编排的 fetch 替身（产品里在进程内引擎；这里测的是提交怎么分流）。
 vi.mock('../src/lib/api/cross-chapter', () => import('./support/http-cross-chapter-double'));
+// 批量写章卡只看开没开，计划一直排着就行，不进引擎。
+vi.mock('../src/lib/api/write-batch', () => ({ planWriteBatch: () => new Promise(() => {}) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;
@@ -179,6 +182,27 @@ test('agentBusy / 待确认 brief / waiting run 时拦截，不发起 run 也不
   await act(async () =>
     captured.state!.setAgentRun((value) => (value ? { ...value, status: 'completed' } : null)),
   );
+  await act(async () => {
+    emitChapterWriteRequest({ targetPath: '正文/第004章.md', chapterOrdinal: 4 });
+  });
+  expect(run).toHaveBeenCalledTimes(1);
+});
+
+test('批量写章确认卡开着时拦下起草事件、对外标记卡开着（壳层据此藏「AI 起草下一章」）；关掉后恢复', async () => {
+  expect(isWriteBatchCardOpen()).toBe(false);
+  await submitComposer('/写 4-6');
+  expect(host.querySelector('[data-testid="write-batch-card"]')).not.toBeNull();
+  expect(isWriteBatchCardOpen()).toBe(true);
+  await act(async () => {
+    emitChapterWriteRequest({ targetPath: '正文/第004章.md', chapterOrdinal: 4 });
+  });
+  expect(run).not.toHaveBeenCalled();
+  expect(toasts).toEqual(['先处理当前待确认内容，再发起新的起草。']);
+
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-testid="write-batch-close"]')!.click(),
+  );
+  expect(isWriteBatchCardOpen()).toBe(false);
   await act(async () => {
     emitChapterWriteRequest({ targetPath: '正文/第004章.md', chapterOrdinal: 4 });
   });

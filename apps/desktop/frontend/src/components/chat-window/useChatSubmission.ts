@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { parseWriteBatchCommand, type WriteBatchCommand } from '@storyforge/project-core';
 
 import {
   PATCH_REJECTED_EVENT,
@@ -26,6 +27,9 @@ export type QueuedChatMessage = {
 };
 
 type QueuedChatMessageEntry = QueuedChatMessage & { scope: number };
+
+/** 对话里打的 `/写 …`：不发给 AI，出一张批量写章确认卡。 */
+export type WriteBatchRequest = { id: number; command: WriteBatchCommand };
 
 export function useChatSubmission(
   state: ChatWindowState,
@@ -71,6 +75,11 @@ export function useChatSubmission(
   const [queuedMessage, setQueuedMessage] = useState<QueuedChatMessageEntry | null>(null);
   const sendingRef = useRef<object | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [writeBatch, setWriteBatch] = useState<(WriteBatchRequest & { scope: number }) | null>(
+    null,
+  );
+  const writeBatchOpen = writeBatch?.scope === scope;
+  const closeWriteBatch = useCallback(() => setWriteBatch(null), []);
   const clearQueuedMessages = useCallback(() => {
     queuedRef.current = null;
     setQueuedMessage(null);
@@ -191,6 +200,13 @@ export function useChatSubmission(
         emitToast('先处理当前待确认内容，再发下一条；待发消息和草稿已保留。', { tone: 'info' });
         return;
       }
+      const batch = parseWriteBatchCommand(instruction);
+      // 批量写章卡开着时只认新的 `/写`（换一张卡），别的话等作者开始或关掉这张卡。
+      if (writeBatchOpen && !batch) {
+        preserveInstruction();
+        emitToast('先开始写或关掉上面的批量写章，再发下一条；草稿已保留。', { tone: 'info' });
+        return;
+      }
       const clearSubmittedDraft = () => {
         if (fromComposer) setInput((current) => (current === value ? '' : current));
       };
@@ -209,6 +225,11 @@ export function useChatSubmission(
       // Claim synchronously; React's busy state alone does not guard same-frame submits.
       if (sendingRef.current) {
         preserveInstruction();
+        return;
+      }
+      if (batch) {
+        setWriteBatch({ id: ++nextQueueIdRef.current, scope, command: batch });
+        clearSubmittedDraft();
         return;
       }
       const claim = {};
@@ -250,6 +271,7 @@ export function useChatSubmission(
       setConversationTitle,
       setInput,
       setMessages,
+      writeBatchOpen,
     ],
   );
   const handleSubmit = useCallback(
@@ -269,6 +291,7 @@ export function useChatSubmission(
       deliveryUnknown ||
       submitting ||
       awaitingDecision ||
+      writeBatchOpen ||
       !queuedMessage ||
       queuedMessage.scope !== scope
     )
@@ -295,6 +318,7 @@ export function useChatSubmission(
     deliveryUnknown,
     submitting,
     awaitingDecision,
+    writeBatchOpen,
     handleComposerSubmit,
     isCurrentScope,
     queuedMessage,
@@ -387,5 +411,10 @@ export function useChatSubmission(
     conversationScope: scope,
     removeQueuedMessage,
     clearQueuedMessages,
+    writeBatch:
+      writeBatch !== null && writeBatchOpen
+        ? { id: writeBatch.id, command: writeBatch.command }
+        : null,
+    closeWriteBatch,
   };
 }
