@@ -12,6 +12,7 @@
   - 浏览器截图（不入库，`output/plugin-panel-shots/shoot.mjs`：Vite + Playwright 跑真实前端，Tauri IPC 与引擎读口用内存替身，1400×759 浅色）：设置页插件分组、导入预览（含展开全文、跳过的文件、同名替换摘要）、上下文浮窗插件块、`/` 菜单里的插件技能，共 13 张，console error 0。审查后改了两处：预览里每份内容加展开箭头、「跳过的文件（0）」不显示。
   - `pnpm verify` EXIT=0：project-core 34、引擎 14061 passed + 2 skipped、前端 2565 passed、三个浏览器回归通过。
   - 行尾：`ChatWindowView.tsx` 保持 CRLF（314 行、裸 LF 0），其余 LF；`--numstat` 与 `--ignore-all-space --numstat` 一致。
+- 合并 master（#525 界面用词统一，无冲突）后：`tests/ui-terminology.test.ts` 与插件相关测试 35 passed；`pnpm verify` EXIT=0：project-core 34、引擎 14061 passed + 2 skipped、前端 2566 passed、三个浏览器回归通过。插件界面文案不含「项目 / Agent / 补丁」；「书」不在用词表禁用之列，沿用现有「这本书」的说法。
 - 未覆盖：
   - 没在真宿主上点穿（作者机上开着 StoryForge，隔离宿主会冲突）：真选文件夹、真暂存目录经原生读口读出预览、真写 `.storyforge/plugins.json` 后对话里出现插件技能。
   - 截图里的插件数据是脚本编的。
