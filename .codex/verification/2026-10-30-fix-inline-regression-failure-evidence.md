@@ -1,0 +1,23 @@
+## 2026-10-30 行间续写浏览器回归：失败处理不再盖掉原始错误，冷启动导航按实测放宽
+
+- 改动：只改 `apps/desktop/frontend/scripts/verify-inline-continuation.mjs`，不动产品代码。
+  - 失败处理：`catch` 里先把原始错误打到 stderr、写进 `failure.json`（新增 `elapsedMs`、`freeMemoryMB`、`evidenceErrors`），再收集截图 / DOM / 状态；三项各自 try/catch、各限 5s，失败只记进 `evidenceErrors`，最后仍抛原始错误。失败截图改用 CDP `Page.captureScreenshot`：`page.screenshot` 会等 `document.fonts.ready`，页面没加载完时一直等到 30s 超时，10-30 两次红就是这个超时把原始错误盖成了 `page.screenshot: Timeout 30000ms exceeded`。
+  - 只放宽 `page.goto` 一步（30s → 120s）：满载复现拿到的原始错误是 `page.goto: Timeout 30000ms exceeded`（等 `load`）。每次跑都用新的 Vite 缓存目录，`load` 要等 Monaco 整张模块图冷编译完；其余步骤满载下都在 4s 内，保持默认时限。
+- 验证：
+  - 变异（打在临时副本 `scripts/__mutation-*.mjs` 上，跑完即删，正式脚本没被改过）：
+    - 注入「页面主线程阻塞 45s + 一个 2s 的 `waitForFunction`」：旧版（HEAD）以 `page.screenshot: Timeout 30000ms exceeded` 退出，证据目录只剩 `command.json` 和 `vite-cache`，与 10-30 现象一致；新版先打出原始 `page.waitForFunction: Timeout 2000ms exceeded` 并以它退出（EXIT=1），`failure.json` 记下原始错误，三项证据各在 5s 处超时、记进 `evidenceErrors`，总耗时 25s（旧版 40s）。
+    - 注入断言失败（页面正常）：EXIT=1，原始 `AssertionError`；`failure.png`（CDP 截图，画面正常）、`failure-dom.html`、`failure-state.json` 全部落盘，`evidenceErrors` 为空。最终版代码上复跑一次，结果相同。
+  - 满载复现：同机并发跑前端全套 vitest 与引擎全套 vitest，每轮回归连跑 3 次（用带计时埋点的临时副本，跑完即删）。
+    - 第 1 轮（默认 30s）：第 1 次失败，原始错误 `page.goto: Timeout 30000ms exceeded`，进程启动后 8.7s 才开始导航，失败时空闲内存 872 MB，`failure-state.json` 里 `#root` 为空、`__INLINE_AUDIT__` 为 null（模块图还没跑起来）。第 3 次同样是 goto 超时，当时两套 vitest 已结束、空闲 4.8 GB，说明本机还有别的负载（见未覆盖）。第 2 次通过，goto 13.9s。
+    - 第 2、3 轮（只为测量，临时把 goto 时限放到 180s）：满载下 goto 实测 63.0s、58.3s，其余各步都在 4s 内；负载结束后 goto 4.7–6.0s。最早的空闲单跑是 9.5s。
+    - 结论：卡点是导航等 `load` 的冷编译时长，被负载拉到默认 30s 之外；不是脚本后续步骤的等待条件问题。10-30 的失败截图大概率是被没加载完的页面连带卡在等字体上。
+    - 第 4 轮用正式脚本（goto 120s）、同样负载：3/3 passed，满载那次 72s。该轮前端 vitest 有 1 条 `tests/assistant-sessions-engine.test.ts` 在 5s 处超时（5150ms），单跑 3/3 passed；前 3 轮同样负载下前端 vitest 都是 2529 passed。本次改动只碰回归脚本，vitest 既不加载也不读它（`tests/inline-browser-gate.test.ts` 只校验门禁顺序与 package.json 登记，单跑 4 passed）。
+  - 单跑 `npm --prefix apps/desktop/frontend run verify:inline-continuation`：EXIT=0（5 条结果 passed，22s）。
+  - `pnpm verify`（corepack 缓存的 pnpm 9.15.4 临时 shim）：EXIT=0，八道全过；project-core 22 passed、引擎 103 文件 14017 passed / 2 skipped、前端单测 251 文件 2529 passed，三个浏览器回归通过。
+  - 对改动文件单跑 eslint 与 `prettier --check`，均通过；文件仍是纯 LF。`git diff --numstat` 与 `--ignore-all-space --numstat` 的差来自证据收集块整体换了缩进，不是行尾。
+- 未覆盖：
+  - 10-30 那两次失败的原始错误当时已被盖掉，无法回溯确认，只能说与本次满载复现的现象一致。
+  - `finally` 里的 `browser.close()` / `server.close()` 没改：满载失败时收尾约 49s（第 1 轮第 1 次总耗时 88s），不影响退出码；原始错误在收尾之前就已打出并落盘。
+  - 另两个浏览器回归没动：`verify-smoke.mjs` 没有收集证据的 catch；`verify-agent-conversation.mjs` 约第 497 行的 catch 先调 `innerText()`（默认 30s）再拼错误，满载时同样可能盖掉原始错误，但不是失败截图写法，按约定没改。
+  - 本机有一个 10-26 起的孤儿 `grep.exe`（在 `app.asar` 上跑回溯正则，父进程已不在）一直占 CPU；所有负载测量都是在它存在时做的，没有动它。
+  - 没跑 Rust 测试与 Tauri 冒烟（没动宿主）。

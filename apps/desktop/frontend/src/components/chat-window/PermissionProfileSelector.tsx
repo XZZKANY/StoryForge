@@ -111,7 +111,7 @@ export function PermissionProfileSelector({
   return (
     <div
       ref={containerRef}
-      className={fitToComposer ? 'static' : 'relative'}
+      className={`flex-shrink-0 ${fitToComposer ? 'static' : 'relative'}`}
       onKeyDown={handleKeyDown}
       onBlur={(event) => {
         if (
@@ -136,11 +136,16 @@ export function PermissionProfileSelector({
         aria-expanded={menuOpen}
         aria-controls={menuOpen ? menuId : undefined}
         aria-haspopup="listbox"
-        className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg px-2.5 text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-agent disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg px-2.5 text-xs [@container(max-width:26rem)]:px-1.5 text-muted transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-agent disabled:cursor-not-allowed disabled:opacity-50"
         data-testid="permission-profile-selector"
       >
-        <Shield size={14} strokeWidth={1.7} className="flex-shrink-0" aria-hidden="true" />
-        <span className="text-left">{currentOption?.label ?? value}</span>
+        <Shield
+          size={14}
+          strokeWidth={1.7}
+          className="flex-shrink-0 [@container(max-width:26rem)]:hidden"
+          aria-hidden="true"
+        />
+        <span className="whitespace-nowrap text-left">{currentOption?.label ?? value}</span>
         <ChevronDown
           size={12}
           strokeWidth={1.7}

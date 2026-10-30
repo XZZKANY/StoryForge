@@ -28,7 +28,10 @@ export type ProfileDraft = {
   name: string;
   kind: ProviderKind | null;
   baseUrl: string;
+  /** 这套正在用的模型；保存时若已不在勾选里，换成勾选的第一个。 */
   model: string;
+  /** 勾上要出现在对话下拉里的模型。 */
+  models: string[];
   /** 只在本次编辑里暂存，保存后清空；编辑已存的那套时留空 = 沿用。 */
   apiKey: string;
   /** 预设服务商的地址默认折叠，点「改地址」或地址与预设不同时才展开。 */
@@ -47,7 +50,7 @@ export type ProfilesNotice = { tone: 'ok' | 'error'; text: string } | null;
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const draftScope = (draft: ProfileDraft) =>
-  JSON.stringify([draft.name, draft.kind, draft.baseUrl, draft.model, draft.apiKey]);
+  JSON.stringify([draft.name, draft.kind, draft.baseUrl, draft.models, draft.apiKey]);
 const fetchScope = (draft: ProfileDraft) =>
   JSON.stringify([draft.id, draft.kind, draft.baseUrl.trim(), draft.apiKey.trim()]);
 
@@ -246,6 +249,7 @@ export function useModelProfiles() {
       kind: null,
       baseUrl: '',
       model: '',
+      models: [],
       apiKey: '',
       editAddress: false,
       hasStoredKey: false,
@@ -260,6 +264,7 @@ export function useModelProfiles() {
       kind,
       baseUrl: profile.baseUrl,
       model: profile.model,
+      models: profile.models,
       apiKey: '',
       editAddress: !preset || preset !== profile.baseUrl.trim(),
       hasStoredKey: profile.hasApiKey,
@@ -273,7 +278,7 @@ export function useModelProfiles() {
     if (patch.kind && patch.kind !== current.kind) {
       // 换服务商：地址换成预设，模型名多半不通用，清掉让作者重选。
       const preset = getProviderPreset(patch.kind).baseUrl;
-      next = { ...next, baseUrl: preset, editAddress: !preset, model: '' };
+      next = { ...next, baseUrl: preset, editAddress: !preset, model: '', models: [] };
     }
     if (fetchScope(next) !== fetchScope(current)) {
       fetchRef.current += 1;
@@ -332,8 +337,8 @@ export function useModelProfiles() {
       ? '先选服务商'
       : !current.baseUrl.trim()
         ? '先填服务地址'
-        : !current.model.trim()
-          ? '先选或填一个模型'
+        : !current.models.length
+          ? '先勾选或填一个模型'
           : '';
     if (problem) {
       setSaveError(problem);
@@ -347,7 +352,8 @@ export function useModelProfiles() {
         name: current.name.trim(),
         provider: current.kind ?? 'openai-compatible',
         baseUrl: current.baseUrl.trim(),
-        model: current.model.trim(),
+        model: current.models.includes(current.model) ? current.model : current.models[0],
+        models: current.models,
         apiKey: current.apiKey,
       });
       if (!aliveRef.current) return;

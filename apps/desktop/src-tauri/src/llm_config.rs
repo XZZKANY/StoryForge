@@ -36,8 +36,14 @@ pub fn delete_llm_profile(app: AppHandle, id: String) -> Result<LlmProfilesRespo
 }
 
 #[tauri::command]
-pub fn activate_llm_profile(app: AppHandle, id: String) -> Result<LlmProfilesResponse, String> {
-    with_config(&app, |path| llm_config_store::activate_profile(path, &id))
+pub fn activate_llm_profile(
+    app: AppHandle,
+    id: String,
+    model: Option<String>,
+) -> Result<LlmProfilesResponse, String> {
+    with_config(&app, |path| {
+        llm_config_store::activate_profile(path, &id, model.as_deref())
+    })
 }
 
 #[tauri::command]

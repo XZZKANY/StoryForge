@@ -350,7 +350,7 @@ function StoryGroup({
                 active
                   ? 'bg-elevated text-foreground'
                   : preview
-                    ? 'bg-elevated/60 italic text-foreground outline-dashed outline-1 -outline-offset-1 outline-border-strong'
+                    ? 'bg-elevated/60 italic text-foreground'
                     : 'text-muted hover:bg-elevated hover:text-foreground'
               }`}
               data-testid="story-file"

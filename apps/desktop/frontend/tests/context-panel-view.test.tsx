@@ -113,28 +113,43 @@ async function renderPanel(agentRun: AgentRun | null, state?: AuthorInstructions
   await act(async () => root.render(<ContextPanel projectPath={ROOT} run={agentRun} />));
 }
 
-test('对话头的「上下文」按钮展开一块，再点收起', async () => {
+test('对话头的「上下文」按钮弹出小浮窗，不插进对话；再点、点外面、Esc 都收起', async () => {
   await act(async () =>
     root.render(<ChatWindow projectPath={ROOT} currentFile={null} assistantSessionId={1} />),
   );
+  const panel = () => document.querySelector<HTMLElement>('[data-testid="context-panel"]');
   const toggle = $('conversation-context-toggle');
   expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-  expect($('context-panel')).toBeNull();
+  expect(panel()).toBeNull();
   expect(load).not.toHaveBeenCalled();
 
   await click(toggle);
-  expect($('conversation-context-toggle')?.getAttribute('aria-expanded')).toBe('true');
-  expect($('context-panel')).toBeTruthy();
+  expect(toggle?.getAttribute('aria-expanded')).toBe('true');
   expect(load).toHaveBeenCalledWith(ROOT);
-  // 面板在对话头和消息列表之间。
-  const order = [...host.querySelectorAll('[data-testid]')].map((node) =>
-    node.getAttribute('data-testid'),
+  // 浮在对话上面，不再是对话头和消息列表之间的一整条。
+  expect(host.contains(panel())).toBe(false);
+  const popover = panel()?.closest<HTMLElement>('[data-floating-surface]');
+  expect(popover?.id).toBe(toggle?.getAttribute('aria-controls'));
+  expect(popover?.getAttribute('aria-label')).toBe('上下文');
+  expect(panel()?.querySelector('[data-testid="context-run-reads-empty"]')?.textContent).toContain(
+    '还没开始对话',
   );
-  expect(order.indexOf('conversation-header')).toBeLessThan(order.indexOf('context-panel'));
-  expect($('context-run-reads-empty')?.textContent).toContain('还没开始对话');
 
-  await click($('conversation-context-toggle'));
-  expect($('context-panel')).toBeNull();
+  await click(toggle);
+  expect(panel()).toBeNull();
+  expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+
+  await click(toggle);
+  await act(async () => {
+    host.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+  });
+  expect(panel()).toBeNull();
+
+  await click(toggle);
+  await act(async () => {
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  });
+  expect(panel()).toBeNull();
 });
 
 test('这一轮读了：读过的文件可点开，搜索和看目录只列出不可点', async () => {
@@ -281,6 +296,22 @@ test('技能：列出名字和什么时候用，这一轮读过的标出来，�
 
   await click(items[0]);
   expect(opened).toEqual([`${ROOT}\\技能\\立项流程.md`]);
+});
+
+test('技能：作者在消息开头 /技能名 点名的，标「这一轮点名」', async () => {
+  loadSkills.mockResolvedValue([
+    skill('立项流程', '作者问「下一步干什么」时'),
+    skill('审稿口径', '作者让你审稿时'),
+  ]);
+  await renderPanel({
+    ...run([trace({ output_summary: { path: '技能/审稿口径.md' } })]),
+    goal: '、立项流程 下一步干什么',
+  });
+  expect($$('context-skill').map((node) => node.textContent)).toEqual([
+    '立项流程作者问「下一步干什么」时这一轮点名',
+    '审稿口径作者让你审稿时这一轮用了',
+  ]);
+  expect($$('context-skill-invoked')).toHaveLength(1);
 });
 
 test('技能：没有时一行说明，「新建」给三个模板，建到 技能/<名字>.md 并打开', async () => {

@@ -1,16 +1,19 @@
+import { completeSkillCommand, skillCommandQuery } from '@storyforge/project-core';
 import { IconButton } from '../ui';
-import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { AGENT_ROLE_SUGGESTIONS } from '../../lib/agent-roles';
 import { COMPOSER_HINT_TAB_SUFFIX } from '../../lib/composer-hint';
 import { type AgentPermissionProfile } from '../../lib/agent-permission';
 import { basename } from '../app/helpers';
 import { ArrowUp, Plus, Square } from '../icons/shell-icons';
 import { CHAT_COLUMN } from './column';
-import { roleMentionQuery } from './display-utils';
+import { matchSkillCommands, roleMentionQuery } from './display-utils';
 import { ModelProfileSelector } from './ModelProfileSelector';
 import { PermissionProfileSelector } from './PermissionProfileSelector';
 import { ReasoningEffortSelector } from './ReasoningEffortSelector';
+import { SkillCommandMenu } from './SkillCommandMenu';
 import type { QueuedChatMessage } from './useChatSubmission';
+import { useConversationSkills } from './useConversationSkills';
 
 const STOP_GUARD_MS = 500;
 
@@ -204,7 +207,23 @@ export function ComposerSurface({
   // 硬引用超 3 枚收纳为 +N（悬停看全名）。
   const visiblePins = explicitContextPaths.slice(0, 3);
   const overflowPins = explicitContextPaths.slice(3);
-  const roleQuery = roleMentionQuery(value);
+  // 消息开头打 / 点名技能；Esc 关掉后先不弹，再打一个字就重新弹。
+  const skillQuery = disabled ? null : skillCommandQuery(value);
+  const [dismissedDraft, setDismissedDraft] = useState<string | null>(null);
+  const skillMenuShown = skillQuery !== null && projectPath !== null && dismissedDraft !== value;
+  const { view: skillsView } = useConversationSkills(skillMenuShown ? projectPath : null);
+  const skillItems =
+    skillMenuShown && skillsView.status === 'ready'
+      ? matchSkillCommands(skillsView.skills, skillQuery ?? '')
+      : [];
+  const [skillCursor, setSkillCursor] = useState(0);
+  const activeSkill = Math.min(skillCursor, Math.max(skillItems.length - 1, 0));
+  const pickSkill = (name: string) => {
+    onChange(completeSkillCommand(value, name));
+    setSkillCursor(0);
+    moveCaretToEnd();
+  };
+  const roleQuery = skillMenuShown ? null : roleMentionQuery(value);
   const roleSuggestions =
     roleQuery === null
       ? []
@@ -257,6 +276,15 @@ export function ComposerSurface({
             ))}
           </ul>
         </section>
+      )}
+      {skillMenuShown && (
+        <SkillCommandMenu
+          view={skillsView}
+          query={skillQuery ?? ''}
+          items={skillItems}
+          activeIndex={activeSkill}
+          onPick={pickSkill}
+        />
       )}
       {roleSuggestions.length > 0 && !disabled && !busy && (
         <div
@@ -325,6 +353,8 @@ export function ComposerSurface({
         value={value}
         onChange={(event) => {
           historyIndexRef.current = null; // 手动改动即退出历史回溯，回到实时草稿
+          setDismissedDraft(null);
+          setSkillCursor(0);
           onChange(event.target.value);
         }}
         // 流式运行期间保持可编辑；单条待发槽位由 submission owner 同步保护。
@@ -336,12 +366,34 @@ export function ComposerSurface({
             ? '打开作品后即可使用 StoryForge'
             : hint
               ? `${hint}${COMPOSER_HINT_TAB_SUFFIX}`
-              : '输入想法，@ 提及角色'
+              : '输入想法，@ 提及角色，/ 用技能'
         }
         aria-label="给 StoryForge 发送消息"
         onKeyDown={(event) => {
           // IME 组字期间（拼音选字）一律不拦截：Enter 上屏候选、方向键选候选都不应触发发送/回溯。
           if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (skillMenuShown) {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              event.stopPropagation();
+              setDismissedDraft(value);
+              return;
+            }
+            const plainKey = !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey;
+            if (skillItems.length > 0 && plainKey) {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                const step = event.key === 'ArrowDown' ? 1 : skillItems.length - 1;
+                setSkillCursor((activeSkill + step) % skillItems.length);
+                return;
+              }
+              if (event.key === 'Enter' || event.key === 'Tab') {
+                event.preventDefault();
+                pickSkill(skillItems[activeSkill].name);
+                return;
+              }
+            }
+          }
           if (event.key === 'Tab') {
             const plainTab = !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey;
             const menuOpen = roleSuggestions.length > 0 || contextPickerOpen;
@@ -378,7 +430,7 @@ export function ComposerSurface({
       />
       <div
         data-testid="composer-toolbar"
-        className="flex items-center gap-1 px-2 pb-2 text-xs text-muted"
+        className="flex items-center gap-1 px-2 pb-2 text-xs text-muted [container-type:inline-size]"
       >
         <IconButton
           label="添加上下文"

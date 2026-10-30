@@ -91,3 +91,17 @@ export function roleMentionQuery(value: string): string | null {
   const match = value.match(/@[^\s，。！？!?；;：:,、]*$/);
   return match?.[0] ?? null;
 }
+
+/** 打 `/` 后的技能候选：名字以输入开头的排前面，其次是名字里含有输入的；空输入列全部。 */
+export function matchSkillCommands<T extends { name: string }>(
+  skills: readonly T[],
+  query: string,
+): T[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [...skills];
+  const name = (skill: T) => skill.name.toLowerCase();
+  return [
+    ...skills.filter((skill) => name(skill).startsWith(needle)),
+    ...skills.filter((skill) => !name(skill).startsWith(needle) && name(skill).includes(needle)),
+  ];
+}
