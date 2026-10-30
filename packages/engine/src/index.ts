@@ -657,6 +657,27 @@ export {
   type FactRecordDeps,
   type FactRecordInput,
 } from './loop/factRecord';
+export {
+  BATCH_CAP_FACTOR,
+  CHAR_ESTIMATE_SCALE,
+  ESTIMATED_TOKENS_PER_CHAR,
+  HISTORY_SAMPLE_RUNS,
+  planWriteBatch,
+  runUsage,
+  sumRunUsage,
+  writeChapterHistory,
+  type RunUsage,
+  type WriteBatchBlocker,
+  type WriteBatchBlockerCode,
+  type WriteBatchChapter,
+  type WriteBatchChapterStatus,
+  type WriteBatchDeps,
+  type WriteBatchEstimate,
+  type WriteBatchInput,
+  type WriteBatchPlan,
+  type WriteBatchStoreDeps,
+  type WriteChapterHistory,
+} from './loop/writeBatch';
 export { resolveDisputedFact, retireFact } from './kernel/factLedger';
 export {
   MAX_BACKFILL_CHAPTERS,
