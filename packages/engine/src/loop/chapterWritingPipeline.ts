@@ -3,6 +3,7 @@ import { redactSensitiveText, type PlainJson } from '../kernel/redaction';
 import { buildLlmContextSnapshot } from '../kernel/llmContext';
 import { llmContextSnapshotToPromptContextBundle } from '../kernel/llmPromptContext';
 import { pythonStrip } from '../kernel/pythonText';
+import { newChapterTruncationWarning } from '../kernel/revisionTruncation';
 import { buildPlan } from '../kernel/serialPlan';
 import { PROGRAM_ADVISORY_RULES } from './chapterCheckProtocol';
 import { assertChapterSources, captureChapterSources } from './chapterSourceGuard';
@@ -322,7 +323,8 @@ export async function resumeChapterWriting(
 
 /**
  * 按已收口的章纲起草 → 检查 → 必要时定向修复一次 → 再检查；通过才产补丁。
- * 例外：检查器重试后仍不可用、程序检查又没有硬失败时，交「未经检查」的稿并强制作者确认。
+ * 例外：检查器重试后仍不可用、程序检查又没有硬失败时，交「未经检查」的稿并强制作者确认；
+ * 交出的正文停在半句（疑似没写完）时也强制作者确认，并带上截断警告。
  * 起草用的来源、上下文与对话节选一律取自起草前记下的未决调用，产出时把它消解掉。
  */
 async function draftFromBrief(
@@ -389,20 +391,17 @@ async function draftFromBrief(
     finalCheck = await checkChapter(2);
   }
   await assertChapterSources(deps, root, target, payload.source_guard);
+  const checkEvidence: Obj = {
+    ...finalCheck,
+    attempt: repairCount ? 2 : 1,
+    repair_count: repairCount,
+    recheck_count: traces.filter(
+      (trace) => trace.tool_name === 'chapter.check' && trace.input_summary.recheck === true,
+    ).length,
+  };
   const toolArtifacts: ToolArtifact[] = [
     { kind: CHAPTER_BRIEF_ARTIFACT_KIND, payload: confirmed, requires_confirmation: false },
-    {
-      kind: CHAPTER_CHECK_ARTIFACT_KIND,
-      payload: {
-        ...finalCheck,
-        attempt: repairCount ? 2 : 1,
-        repair_count: repairCount,
-        recheck_count: traces.filter(
-          (trace) => trace.tool_name === 'chapter.check' && trace.input_summary.recheck === true,
-        ).length,
-      },
-      requires_confirmation: false,
-    },
+    { kind: CHAPTER_CHECK_ARTIFACT_KIND, payload: checkEvidence, requires_confirmation: false },
     {
       kind: RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
       payload: buildRuntimePendingCallResolutionPayload(pending.payload, pending.id, pending.kind),
@@ -466,7 +465,11 @@ async function draftFromBrief(
       },
     });
   }
-  const requiresConfirmation = unchecked || patchRequiresConfirmation(run.permission_profile);
+  // 中转掐断却回了正常结束时，新章会停在半句：稿子照给，但同样一律要作者确认。
+  const truncation = newChapterTruncationWarning(content);
+  if (truncation !== null) checkEvidence.truncation_warning = truncation;
+  const requiresConfirmation =
+    unchecked || truncation !== null || patchRequiresConfirmation(run.permission_profile);
   const proposedPatch = {
     id: `chapter-writing-${host.newHex()}`,
     kind: 'file_revision',
@@ -483,20 +486,22 @@ async function draftFromBrief(
     payload: proposedPatch,
     requires_confirmation: requiresConfirmation,
   });
+  const summary = unchecked
+    ? '章节检查重查一次后仍未取得可用结果，这章正文未经检查。' +
+      `已生成 ${relative} 的待审阅修订，请通读后再决定是否接受。`
+    : `章节草稿已通过 brief 检查，生成 ${relative} 的待审阅修订。` +
+      programAdvisoryNote(finalCheck);
   return response({
     plan: unchecked
       ? completedPlan(authorConfirmed, 'failed', 'completed', checkerFailureDetail(executionStatus))
       : completedPlan(authorConfirmed, 'completed', 'completed'),
     agentResult: {
-      summary: unchecked
-        ? '章节检查重查一次后仍未取得可用结果，这章正文未经检查。' +
-          `已生成 ${relative} 的待审阅修订，请通读后再决定是否接受。`
-        : `章节草稿已通过 brief 检查，生成 ${relative} 的待审阅修订。` +
-          programAdvisoryNote(finalCheck),
+      summary: truncation === null ? summary : `${summary} ${truncation.message}`,
       requires_user_confirmation: requiresConfirmation,
       chapter_brief: confirmed,
       chapter_check: finalCheck,
       repair_count: repairCount,
+      ...(truncation !== null ? { truncation_warning: truncation } : {}),
     },
     proposedPatch,
   });
