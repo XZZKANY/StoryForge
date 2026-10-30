@@ -67,7 +67,17 @@ import { isWriteBatchCardOpen } from '../src/lib/write-batch-card';
 // 跨章检查用可编排的 fetch 替身（产品里在进程内引擎；这里测的是提交怎么分流）。
 vi.mock('../src/lib/api/cross-chapter', () => import('./support/http-cross-chapter-double'));
 // 批量写章卡只看开没开，计划一直排着就行，不进引擎。
-vi.mock('../src/lib/api/write-batch', () => ({ planWriteBatch: () => new Promise(() => {}) }));
+vi.mock('../src/lib/api/write-batch', () => ({
+  planWriteBatch: () => new Promise(() => {}),
+  // 打开作品时调度器查一次上一批：这里没有批量记录。
+  recoverInterruptedWriteBatch: async () => ({ recovered: false, batch: null }),
+  readWriteBatch: async () => ({
+    batch: null,
+    mismatches: [],
+    can_resume: false,
+    resume_from: null,
+  }),
+}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;

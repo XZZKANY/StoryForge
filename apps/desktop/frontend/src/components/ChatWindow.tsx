@@ -2,7 +2,7 @@
  * 对话窗口容器：组合 session/context、Agent stream、run control 与展示层。
  */
 
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
 import { ChatWindowView } from './chat-window/ChatWindowView';
 import type { ChatWindowProps } from './chat-window/types';
@@ -18,6 +18,8 @@ import { useChatWindowState } from './chat-window/useChatWindowState';
 import { useChapterCheckHistory } from './chat-window/useChapterCheckHistory';
 import { projectOverviewActivity } from './chat-window/overview-activity';
 import { useRunAuthorAgent } from './chat-window/useRunAuthorAgent';
+import { useWriteBatchScheduler } from './chat-window/useWriteBatchScheduler';
+import type { ApiWriteBatchPlan } from '../lib/api/contracts';
 import { useComposerHint } from './chat-window/useComposerHint';
 import { useChapterHandoff } from './app/useChapterHandoff';
 import {
@@ -97,10 +99,47 @@ export function ChatWindow(props: ChatWindowProps) {
     agentPermissionProfile,
   );
   const controls = useAgentRunControls(state, runAuthorAgent, applyAgentStreamEvent, recovery);
-  const submission = useChatSubmission(state, runAuthorAgent, props);
-  const writeBatchOpen = submission.writeBatch !== null;
+  const scheduler = useWriteBatchScheduler({
+    state,
+    runAuthorAgent,
+    stopCurrentRun: controls.agentRunControls.onStopRun,
+    projectPath: projectPath ?? null,
+    permissionProfile: agentPermissionProfile,
+  });
+  const submission = useChatSubmission(state, runAuthorAgent, props, {
+    occupied: scheduler.occupied,
+    onResume: scheduler.resumeFromCommand,
+  });
+  // 确认卡开着、或这一批正在写：会直接发起写章的快捷入口都先收起。
+  const writeBatchOpen = submission.writeBatch !== null || scheduler.occupied;
   useEffect(() => setWriteBatchCardOpen(writeBatchOpen), [writeBatchOpen]);
   useEffect(() => () => setWriteBatchCardOpen(false), []);
+  const batchOccupiedRef = useRef(scheduler.occupied);
+  useLayoutEffect(() => {
+    batchOccupiedRef.current = scheduler.occupied;
+  });
+  const refuseWhileBatch = useCallback(() => {
+    if (!batchOccupiedRef.current) return false;
+    emitToast('批量写章进行中：先停止这一批，再切换、新建会话或发起别的修改。', { tone: 'info' });
+    return true;
+  }, []);
+  // 这一批在写时，任何「停止」都停这一批（调度器里再走现有的停止本轮）。
+  const agentRunControls = scheduler.running
+    ? { ...controls.agentRunControls, onStopRun: scheduler.stop }
+    : controls.agentRunControls;
+  const startWriteBatchFromCard = async (plan: ApiWriteBatchPlan) => {
+    const command = submission.writeBatch?.command;
+    const feedback = await scheduler.start(plan, command?.kind === 'range' ? command.note : null);
+    if (feedback.started) submission.closeWriteBatch();
+    return feedback;
+  };
+  const selectSession = (id: number) => {
+    if (!refuseWhileBatch()) session.handleSelectSession(id);
+  };
+  const removeSession = (id: number) => {
+    if (id === assistantSessionId && refuseWhileBatch()) return;
+    sessionManagement.removeSession(id);
+  };
   // 只在新会话、还没说过一句话时开场；旧会话有自己的上下文，不插话。
   const openingVisible =
     Boolean(projectPath) &&
@@ -160,6 +199,10 @@ export function ChatWindow(props: ChatWindowProps) {
       if (detail.projectPath && detail.projectPath !== projectPath) return;
       if (detail.filePath && detail.filePath !== props.currentFile) return;
       event.preventDefault();
+      if (refuseWhileBatch()) {
+        detail.complete?.('批量写章进行中，先停止这一批再重试');
+        return;
+      }
       if (state.agentBusy || retryInFlightRef.current) {
         detail.complete?.('AI 正忙，请稍后重试');
         return;
@@ -183,11 +226,12 @@ export function ChatWindow(props: ChatWindowProps) {
     };
     window.addEventListener(RETRY_WITHOUT_KNOWLEDGE_EVENT, onRetryWithoutKnowledge);
     return () => window.removeEventListener(RETRY_WITHOUT_KNOWLEDGE_EVENT, onRetryWithoutKnowledge);
-  }, [projectPath, props.currentFile, runAuthorAgent, state]);
+  }, [projectPath, props.currentFile, refuseWhileBatch, runAuthorAgent, state]);
 
   useEffect(() => {
     const onChapterPolish = (event: Event) => {
       const detail = (event as CustomEvent<ChapterPolishRequest>).detail;
+      if (refuseWhileBatch()) return;
       const useMainModel = detail?.useMainModel === true;
       const goal = useMainModel ? '保守润色当前章，本次明确使用主模型' : '保守润色当前章';
       state.setMessages((current) => [...current, { role: 'user', content: goal }]);
@@ -195,7 +239,7 @@ export function ChatWindow(props: ChatWindowProps) {
     };
     window.addEventListener(REQUEST_CHAPTER_POLISH_EVENT, onChapterPolish);
     return () => window.removeEventListener(REQUEST_CHAPTER_POLISH_EVENT, onChapterPolish);
-  }, [runAuthorAgent, state]);
+  }, [refuseWhileBatch, runAuthorAgent, state]);
 
   // 「AI 起草下一章」按钮走事件桥到这里：与输入框提交同一拦截口径，
   // 有待确认 brief / run 时不顶掉当前决策（polish 监听暂无此守卫，沿用旧行为）。
@@ -221,6 +265,7 @@ export function ChatWindow(props: ChatWindowProps) {
   }, [runAuthorAgent, state]);
 
   const startNewSession = () => {
+    if (refuseWhileBatch()) return;
     // 待确认守卫可能拦下新建：只有真正切走了才清排队消息。
     void Promise.resolve(session.handleNewSession()).then((switched) => {
       if (switched) submission.clearQueuedMessages();
@@ -258,10 +303,10 @@ export function ChatWindow(props: ChatWindowProps) {
         agentPermissionProfile={agentPermissionProfile}
         onAgentPermissionProfileChange={onAgentPermissionProfileChange}
         onOpenSettings={props.onOpenSettings}
-        handleSelectSession={session.handleSelectSession}
+        handleSelectSession={selectSession}
         sessions={sessionManagement.visibleSessions}
         onRenameSession={sessionManagement.renameSession}
-        onRemoveSession={sessionManagement.removeSession}
+        onRemoveSession={removeSession}
         handleNewSession={startNewSession}
         retryAssistantSessionLoad={session.retryAssistantSessionLoad}
         retryContextCandidates={session.retryContextCandidates}
@@ -274,12 +319,14 @@ export function ChatWindow(props: ChatWindowProps) {
         queuedMessages={submission.queuedMessages}
         onRemoveQueuedMessage={submission.removeQueuedMessage}
         retryLastFailedRun={controls.retryLastFailedRun}
-        agentRunControls={controls.agentRunControls}
+        agentRunControls={agentRunControls}
         opening={openingVisible ? handoff : null}
         onOpeningDraft={emitChapterWriteRequest}
         composerHint={composerHint}
         writeBatch={submission.writeBatch}
         onCloseWriteBatch={submission.closeWriteBatch}
+        onStartWriteBatch={startWriteBatchFromCard}
+        writeBatchScheduler={scheduler}
       />
       <AppDialogHost
         dialog={dialogs.dialog}

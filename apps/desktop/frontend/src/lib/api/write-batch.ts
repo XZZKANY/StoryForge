@@ -3,6 +3,7 @@
  * 回包按契约逐字段解码（只留契约里的字段），形状不对就报错，不拿空值冒充「没有要写的章」「没有批量」。
  */
 import type { AgentPermissionProfile } from '../agent-permission';
+import { listLlmProfiles } from '../desktop-llm-config';
 import type {
   ApiRunUsage,
   ApiWriteBatch,
@@ -470,4 +471,21 @@ export async function markWriteBatchReviewed(
  */
 export async function readWriteBatch(projectRoot: string): Promise<ApiWriteBatchView> {
   return decodeWriteBatchView(await (await engine()).readEngineWriteBatch(projectRoot));
+}
+
+/** 给作者看的 token 数按「万」说，与引擎停下说明里同一种说法。 */
+export async function formatWriteBatchTokens(tokens: number): Promise<string> {
+  return (await engine()).formatEngineTokenCount(tokens);
+}
+
+/**
+ * 开跑、续写、问下一步要带的模型标识：当前启用的那套配置的 id 加上它正在用的模型名，
+ * 换配置或换模型都会变（引擎据此停下重估）。读不到配置就明确报错，不拿空串冒充。
+ */
+export async function currentWriteBatchModelKey(): Promise<string> {
+  const list = await listLlmProfiles();
+  if (!list) throw new Error('读不到本机的模型配置：批量写章只能在桌面应用里用。');
+  const active = list.profiles.find((profile) => profile.id === list.activeProfileId);
+  if (!active) throw new Error('还没有启用的模型配置：先在设置里选一套模型，再批量写章。');
+  return JSON.stringify([active.id, active.model]);
 }

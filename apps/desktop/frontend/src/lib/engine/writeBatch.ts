@@ -1,4 +1,5 @@
 import {
+  formatTokenCount,
   markWriteBatchReviewed,
   nextWriteBatchStep,
   planWriteBatch,
@@ -126,4 +127,9 @@ export async function markEngineWriteBatchReviewed(
 
 export async function readEngineWriteBatch(projectRoot: string): Promise<ApiWriteBatchView> {
   return await readWriteBatch(fileDeps(), projectRoot);
+}
+
+/** 给作者看的 token 数按「万」说（与引擎停下说明里同一种说法）。 */
+export function formatEngineTokenCount(tokens: number): string {
+  return formatTokenCount(tokens);
 }
