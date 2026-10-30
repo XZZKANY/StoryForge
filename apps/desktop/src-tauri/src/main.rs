@@ -1289,6 +1289,7 @@ fn main() {
         .manage(shadow_git::ShadowGitState::default())
         .manage(engine_llm::EngineLlmState::default())
         .manage(engine_db::EngineDbState::default())
+        .manage(app_update::StagedUpdate::default())
         .invoke_handler(tauri::generate_handler![
             // 文件系统命令
             fs::read_file,
@@ -1339,6 +1340,8 @@ fn main() {
             engine_db::engine_python_db_snapshot,
             engine_db::engine_db_backup,
             app_update::app_update_check,
+            app_update::app_update_download,
+            app_update::app_update_restart_install,
             // 作品版本影子 Git 命令（固定 DTO，不暴露任意 Git 参数）
             shadow_git::create_shadow_snapshot,
             shadow_git::retain_shadow_snapshot,
