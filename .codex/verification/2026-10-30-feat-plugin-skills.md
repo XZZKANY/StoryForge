@@ -11,8 +11,8 @@
   - 引擎新测试 `loop/pluginSkills.test.ts` 15 条；`catalog.test.ts` 与 Python 预言机比对的三项先滤掉 `skill.read` 再比、另钉「只多了 `skill.read`」；工作者三处变异（总是交出 `skill_read`、去掉插件指纹核对、去掉重名丢弃）均被抓住、已还原。整套引擎 14061 passed + 2 skipped。
   - **golden 零改动**：`git status --short packages/engine/golden` 与 `git diff --stat packages/engine/golden` 都为空。
   - 前端：`context-panel.test.ts` +3、`context-panel-view.test.tsx` +1、`composer-skill-commands.test.tsx` +1、`engine-agent-deps.test.ts`（工具数 28→29、插件库根传到运行时）；整套前端 2535 passed。
-  - `pnpm verify`：见下条。
-  - 行尾：改动文件全 LF，`--numstat` 与 `--ignore-all-space --numstat` 一致。
+  - `pnpm verify` EXIT=0：project-core 34、引擎 14061 passed + 2 skipped、前端 2535 passed、三个浏览器回归通过。
+  - 行尾：改动文件全 LF；`--numstat` 与 `--ignore-all-space --numstat` 只在 `ContextPanel.tsx`、`context-panel.ts` 各差 2 行（代码挪进新的嵌套多一层缩进），两文件均无 CRLF。
 - 合并 master（#527 #528 #529，无冲突）后 `pnpm verify` EXIT=0：project-core 34、引擎 14061 passed + 2 skipped、前端 2537 passed、三个浏览器回归通过。
 - 未覆盖：
   - 没有真宿主点穿（`plugin_library_dir` → 引擎读插件 → 模型调 `skill_read`）；没用真模型验证模型会不会按目录去读插件技能。
