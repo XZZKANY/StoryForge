@@ -1,6 +1,6 @@
 # StoryForge 发版清单
 
-更新时间：2026-10-28
+更新时间：2026-10-30
 
 ## 1. 适用范围
 
@@ -23,11 +23,17 @@ npm --prefix apps/desktop run test:rust
 
 ## 4. 构建
 
+正式包要带自动更新签名，用出包脚本（作者本机跑）：
+
 ```powershell
-pnpm desktop:build
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = '<生成密钥时设的密码>'
+node apps/desktop/scripts/release-build.mjs --notes output/release-<版本>/release-notes.md
 ```
 
-产物：`apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_<版本>_x64-setup.exe`（另有 msi，装机走 NSIS）。记录大小与 SHA256。
+- 私钥默认读 `~/.storyforge-updater/storyforge-updater.key`（`TAURI_SIGNING_PRIVATE_KEY` 可指别处），公钥写在 `tauri.conf.json` 的 `plugins.updater.pubkey`（密钥 id `D30F0EF64F15504C`）。私钥不进仓库、不进 CI；丢了，已装的版本就再也收不到自动更新，只能手动重装。
+- 更新说明会出现在作者的更新提示里，不能空。
+- 脚本只打 NSIS，产物放到 `output/release-<版本>/`：`StoryForge-IDE_<版本>_x64-setup.exe`（不带空格）和 `latest.json`；打印大小、SHA256 与发布命令。签名用的私钥与公钥对不上、或 `output/release-<版本>/` 里已经有同名安装包，就停下不写。
+- 只想本地验证、不发布时用 `pnpm desktop:build`（不签名，产物在 `apps/desktop/src-tauri/target/release/bundle/nsis/`）。
 
 ## 5. 装机前验证
 
@@ -40,13 +46,15 @@ npm --prefix apps/desktop run verify:nsis-install                # 隔离身份�
 
 ## 6. 交付
 
-- 把安装包另存到 `output/release-<版本>/`（本地验证构建会覆盖 `bundle/nsis/` 里的同名文件）。
+- 用出包脚本打印的 `gh release create` 命令发布（作者亲手跑），安装包和 `latest.json` 一起上传：装机版从 `releases/latest/download/latest.json` 发现新版，少传它就收不到更新。
+- tag 照常用 `v<版本>`：0.2.3 及更早的装机版靠比对 tag 提示新版，而且它们没有更新器，要手动装一次带更新器的版本。
 - 告诉作者：版本号、这一版带了哪些改动、装前是否需要备份（动了引擎库 schema 或旧库导入时，提醒备份 `%LOCALAPPDATA%\com.storyforge.ide\` 下的 `.sqlite3` 文件）。
 - 在验证记录（`.codex/verification/`）里记一条：版本、大小、SHA256、跑过的门禁与冒烟、没跑的项。
 
 ## 7. 已知 caveat
 
-- 安装包未签名、没有自动更新；熟人私测可接受，公开分发前要补签名与更新策略。
+- 安装包没有 Windows 代码签名（自动更新的签名是另一回事，只证明更新包出自持私钥的人）。
+- 自动更新目前只检查新版；下载与「重启安装」还没接上。
 - 模型 key 用 Windows 用户级 DPAPI 加密存本机，是用户级保护而非分发硬化。
 - NSIS 隔离安装验证只证明安装、启动、卸载，不包含升级验证；升级保留另取证。
 

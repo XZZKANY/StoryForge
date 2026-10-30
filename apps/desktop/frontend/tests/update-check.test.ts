@@ -1,61 +1,52 @@
-import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { expect, test, vi } from 'vitest';
+import type { invoke } from '@tauri-apps/api/core';
 
-import { checkForUpdate, compareVersions, parseVersionTag } from '../src/lib/update-check';
+import { checkForUpdate } from '../src/lib/update-check';
 
-function fakeFetch(status: number, body: unknown): typeof fetch {
-  return (async () => ({
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => body,
-  })) as unknown as typeof fetch;
-}
+const host = (outcome: () => Promise<unknown>) => vi.fn(outcome) as unknown as typeof invoke;
 
-test('版本 tag 解析：只认 vX.Y.Z，其余（预发布/乱名）跳过', () => {
-  assert.deepEqual(parseVersionTag('v0.1.3'), [0, 1, 3]);
-  assert.deepEqual(parseVersionTag('v10.2.0'), [10, 2, 0]);
-  assert.equal(parseVersionTag('v0.1'), null);
-  assert.equal(parseVersionTag('0.1.3-beta'), null);
-  assert.equal(parseVersionTag('release-1'), null);
-  assert.equal(compareVersions([0, 2, 0], [0, 1, 9]) > 0, true);
-  assert.equal(compareVersions([1, 0, 0], [1, 0, 0]), 0);
-});
-
-test('有更高 tag 时报告 update-available，取数值最大而非列表首位', async () => {
-  const result = await checkForUpdate(
-    '0.1.3',
-    fakeFetch(200, [{ name: 'v0.1.2' }, { name: 'v0.2.0' }, { name: 'v0.1.4' }, { name: 'junk' }]),
-  );
-  assert.deepEqual(result, { kind: 'update-available', current: 'v0.1.3', latest: 'v0.2.0' });
-});
-
-test('当前即最新 → up-to-date；接口非 2xx / 网络异常 → error 降级不抛', async () => {
-  assert.deepEqual(await checkForUpdate('0.2.0', fakeFetch(200, [{ name: 'v0.2.0' }])), {
-    kind: 'up-to-date',
-    current: 'v0.2.0',
+test('有新版：问宿主 app_update_check，带回版本与更新说明', async () => {
+  const invokeImpl = host(async () => ({
+    version: '0.2.4',
+    currentVersion: '0.2.3',
+    notes: '修了两处断流',
+  }));
+  expect(await checkForUpdate('0.2.3', invokeImpl)).toEqual({
+    kind: 'update-available',
+    current: 'v0.2.3',
+    latest: 'v0.2.4',
+    notes: '修了两处断流',
   });
-
-  const rateLimited = await checkForUpdate('0.1.3', fakeFetch(403, { message: 'rate limit' }));
-  assert.equal(rateLimited.kind, 'error');
-
-  const offline = await checkForUpdate('0.1.3', (async () => {
-    throw new Error('ECONNREFUSED');
-  }) as unknown as typeof fetch);
-  assert.equal(offline.kind, 'error');
-
-  const noTags = await checkForUpdate('0.1.3', fakeFetch(200, [{ name: 'nightly' }]));
-  assert.equal(noTags.kind, 'error');
+  expect(invokeImpl).toHaveBeenCalledWith('app_update_check');
 });
 
-test('畸形 tag 条目不拒绝 Promise，仍能识别同一响应里的有效版本', async () => {
-  const result = await checkForUpdate(
-    '0.1.3',
-    fakeFetch(200, [null, false, 7, 'v9.0.0', [], {}, { name: null }, { name: 'v0.2.0' }]),
-  );
-  assert.deepEqual(result, { kind: 'update-available', current: 'v0.1.3', latest: 'v0.2.0' });
+test('宿主说没有新版 → up-to-date，用运行中的版本号', async () => {
+  expect(
+    await checkForUpdate(
+      '0.2.4',
+      host(async () => null),
+    ),
+  ).toEqual({
+    kind: 'up-to-date',
+    current: 'v0.2.4',
+  });
 });
 
-test('没有有效 tag 的畸形数组返回明确 error，而不是未处理异常', async () => {
-  const result = await checkForUpdate('0.1.3', fakeFetch(200, [null, { name: 123 }]));
-  assert.deepEqual(result, { kind: 'error', message: '仓库没有可解析的版本 tag' });
+test('宿主报错（连不上 GitHub、清单坏了）→ error 降级不抛', async () => {
+  expect(
+    await checkForUpdate(
+      '0.2.3',
+      host(async () => {
+        throw 'Could not fetch a valid release JSON from the remote';
+      }),
+    ),
+  ).toEqual({ kind: 'error', message: 'Could not fetch a valid release JSON from the remote' });
+  expect(
+    await checkForUpdate(
+      '0.2.3',
+      host(async () => {
+        throw new Error('error sending request');
+      }),
+    ),
+  ).toEqual({ kind: 'error', message: 'error sending request' });
 });
