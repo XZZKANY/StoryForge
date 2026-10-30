@@ -237,6 +237,49 @@ test('选文件夹时取消：不暂存、不弹预览', async () => {
   expect(toasts).toEqual([]);
 });
 
+test('从压缩包导入：选 .zip 文件（不是文件夹）→ 同一暂存 → 预览', async () => {
+  await mountSettings();
+  vi.mocked(open).mockResolvedValueOnce('D:\\下载\\写法包.zip');
+  vi.mocked(stagePluginImport).mockResolvedValueOnce(staged());
+  vi.mocked(describeStagedPlugin).mockResolvedValueOnce(
+    plugin('stage-1', { manifest: manifest('写法包'), skills: [entry('立项')] }),
+  );
+  await click($('plugins-import-zip'));
+  await vi.waitFor(() => expect(dialog()).toBeTruthy());
+  const options = vi.mocked(open).mock.calls[0][0]!;
+  expect(options).toMatchObject({
+    multiple: false,
+    filters: [{ name: '插件压缩包', extensions: ['zip'] }],
+  });
+  expect(options.directory).not.toBe(true);
+  expect(vi.mocked(stagePluginImport)).toHaveBeenCalledWith('D:\\下载\\写法包.zip');
+  expect(vi.mocked(describeStagedPlugin)).toHaveBeenCalledWith('C:\\库\\.staging\\stage-1');
+  expect($('plugin-import-head', dialog()!)!.textContent).toContain('写法包 · v1.0.0');
+});
+
+test('选压缩包时取消：不暂存、不弹预览', async () => {
+  await mountSettings();
+  vi.mocked(open).mockResolvedValueOnce(null);
+  await click($('plugins-import-zip'));
+  expect(vi.mocked(open)).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(stagePluginImport)).not.toHaveBeenCalled();
+  expect(dialog()).toBeNull();
+  expect(toasts).toEqual([]);
+});
+
+test('压缩包暂存失败照样弹宿主给的原因', async () => {
+  await mountSettings();
+  vi.mocked(open).mockResolvedValueOnce('D:\\下载\\坏包.zip');
+  vi.mocked(stagePluginImport).mockRejectedValueOnce(
+    '打不开这个压缩包（可能已损坏，或不是 zip 格式）',
+  );
+  await click($('plugins-import-zip'));
+  await vi.waitFor(() => expect(toasts).toHaveLength(1));
+  expect(toasts[0]).toMatchObject({ tone: 'error' });
+  expect(toasts[0].message).toContain('打不开这个压缩包');
+  expect(dialog()).toBeNull();
+});
+
 test('暂存失败弹宿主给的原因；预览读失败时把已暂存的清掉', async () => {
   await mountSettings();
   vi.mocked(open).mockResolvedValueOnce('D:\\下载\\坏包');

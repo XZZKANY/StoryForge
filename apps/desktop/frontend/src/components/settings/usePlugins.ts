@@ -22,6 +22,20 @@ export type PluginImportPreview = {
   description: PluginDescription;
 };
 
+export type PluginImportSource = 'folder' | 'zip';
+
+const pickImportSource = async (source: PluginImportSource) => {
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  return source === 'zip'
+    ? await open({
+        multiple: false,
+        directory: false,
+        filters: [{ name: '插件压缩包', extensions: ['zip'] }],
+        title: '选择插件压缩包（.zip）',
+      })
+    : await open({ directory: true, multiple: false, title: '选择插件文件夹' });
+};
+
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 // 暂存清不掉不要紧：下一次导入前宿主会先清旧暂存。
@@ -38,12 +52,12 @@ export function pluginInstallBlocker(description: PluginDescription): string | n
   return null;
 }
 
-/** 设置页「插件」：本机插件库列表、从文件夹导入（暂存 → 预览 → 安装 / 取消）、移除。 */
+/** 设置页「插件」：本机插件库列表、从文件夹或 .zip 压缩包导入（暂存 → 预览 → 安装 / 取消）、移除。 */
 export function usePlugins() {
   const [plugins, setPlugins] = useState<PluginDescription[]>([]);
   const [loadState, setLoadState] = useState<'loading' | 'idle' | 'error'>('loading');
   const [loadError, setLoadError] = useState('');
-  const [importing, setImporting] = useState(false);
+  const [importingFrom, setImportingFrom] = useState<PluginImportSource | null>(null);
   const [installing, setInstalling] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [preview, setPreview] = useState<PluginImportPreview | null>(null);
@@ -80,14 +94,13 @@ export function usePlugins() {
     void reload();
   }, [reload]);
 
-  const startImport = useCallback(async () => {
+  const startImport = useCallback(async (source: PluginImportSource = 'folder') => {
     if (busyRef.current) return;
     busyRef.current = true;
-    setImporting(true);
+    setImportingFrom(source);
     let staged: StagedPluginImport | null = null;
     try {
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const selected = await open({ directory: true, multiple: false, title: '选择插件文件夹' });
+      const selected = await pickImportSource(source);
       if (!selected || typeof selected !== 'string') return;
       staged = await stagePluginImport(selected);
       const description = await describeStagedPlugin(staged.stageRoot);
@@ -101,7 +114,7 @@ export function usePlugins() {
       emitToast(`导入插件失败：${errorText(error)}`, { tone: 'error' });
     } finally {
       busyRef.current = false;
-      if (aliveRef.current) setImporting(false);
+      if (aliveRef.current) setImportingFrom(null);
     }
   }, []);
 
@@ -155,10 +168,11 @@ export function usePlugins() {
     loadState,
     loadError,
     reload,
-    importing,
+    importing: importingFrom !== null,
+    importingFrom,
     installing,
     removing,
-    busy: importing || installing || removing !== null,
+    busy: importingFrom !== null || installing || removing !== null,
     preview,
     startImport,
     cancelImport,
