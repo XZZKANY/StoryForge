@@ -12,3 +12,12 @@
   - 没在真宿主上看改后的界面（只有 happy-dom 单测与浏览器回归）。
   - 引擎喂给模型的提示词、工具说明与工具反馈仍说「补丁 / 写盘 / diff」（约 60 句、20 个文件，牵动 18 份 golden），模型回话会照着说；Rust 宿主报错约 107 句含「项目 / 补丁 / Agent」。都没动。
   - 「写回 / 写盘 / 落盘」改说「写进文件」、「diff」改说「对比」作者已定，留到下一刀；「正文」指章节、「手稿」只当视图名、「稿件」按句子分成「正文 / 文件」，作者也已定，同样留到下一刀；Rust 报错作者定为单独一刀、只改会露给作者的。
+
+## 2026-10-30 合入 master（含 #527 超时修复）
+
+- 改动：GitHub 报 PR #525 与 master 冲突，经桌面版同步 origin/master（46e1fcba，含 #527 / #528 / #529 / #530）。唯一冲突 `ReasoningEffortSelector.tsx`：保留 master 的窄屏隐藏「思考：」写法，提示文字用新说法「按作品记住」。同一批里用词表补记作者定的「正文 / 手稿 / 稿件」与 Rust 报错单独一刀。
+- 验证：
+  - 合并后守护测试直接绿：master 新进来的代码里没有含中文的「项目 / Agent / 补丁」。
+  - 第一次推送前检查红 1 条：`tests/editor-disk-writeback.test.tsx`「missing file cannot replace externally created ""」期望「磁盘内容已变化」，实际走到「原写回回执缺失，结果未知」。单跑这个文件 17 passed；本分支随后前端全套连跑 2 次都是 2532 passed；切到 origin/master 同样连跑 2 次都是 2531 passed。改掉的旧文案在 `src` 里只剩注释，没有代码按它们判断，排除与本改动有关；记为满载时序竞争，另行排查。
+  - 第二次推送前检查（lint + 前端全套 + 引擎）通过：前端 2532 passed，引擎 14045 passed、2 skipped；推送 efd9c3ad..4311e5fc。按作者要求本轮没在本地跑完整 `pnpm verify`，完整门禁以 GitHub Windows verify 为准。
+- 未覆盖：同上一节；另加 editor-disk-writeback 的时序竞争未定位。
