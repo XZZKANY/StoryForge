@@ -23,6 +23,9 @@ pub(super) struct StoredProfile {
     pub(super) provider: String,
     pub(super) base_url: String,
     pub(super) model: String,
+    // 勾上要出现在对话下拉里的模型；`model` 是其中正在用的那个。旧文件没有这一项。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) models: Vec<String>,
     pub(super) api_key: Option<ProtectedKey>,
     #[serde(flatten)]
     pub(super) extra: BTreeMap<String, Value>,
@@ -36,6 +39,8 @@ pub struct SaveLlmProfileRequest {
     provider: String,
     base_url: String,
     model: String,
+    // 不带 = 沿用原来勾的那些。
+    models: Option<Vec<String>>,
     api_key: Option<String>,
     clear_api_key: Option<bool>,
 }
@@ -118,10 +123,27 @@ impl Settings {
             provider: self.provider,
             base_url: self.base_url,
             model: self.model,
+            models: Vec::new(),
             api_key: self.api_key,
             extra: BTreeMap::new(),
         }
     }
+}
+
+/// 对话下拉里列的模型：勾的那些去空去重；正在用的那个不在里面（旧文件、旧版改过）就排最前。
+pub(super) fn model_list(profile: &StoredProfile) -> Vec<String> {
+    let current = profile.model.trim();
+    let mut list: Vec<String> = Vec::new();
+    if !current.is_empty() && !profile.models.iter().any(|model| model.trim() == current) {
+        list.push(current.into());
+    }
+    for model in &profile.models {
+        let model = model.trim();
+        if !model.is_empty() && !list.iter().any(|listed| listed == model) {
+            list.push(model.into());
+        }
+    }
+    list
 }
 
 fn next_id(profiles: &[StoredProfile]) -> String {
@@ -281,6 +303,7 @@ pub(super) fn upsert(
                 provider: String::new(),
                 base_url: String::new(),
                 model: String::new(),
+                models: Vec::new(),
                 api_key: None,
                 extra: BTreeMap::new(),
             });
@@ -294,6 +317,10 @@ pub(super) fn upsert(
     profile.provider = payload.provider.trim().into();
     profile.base_url = payload.base_url.trim().into();
     profile.model = payload.model.trim().into();
+    if let Some(models) = payload.models {
+        profile.models = models;
+    }
+    profile.models = model_list(profile);
     profile.api_key = key;
     let id = profile.id.clone();
     if config.active_profile_id.is_none() {
@@ -319,8 +346,20 @@ pub(super) fn remove(config: &mut StoredLlmConfig, id: &str) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn activate(config: &mut StoredLlmConfig, id: &str) -> Result<()> {
+/// 切到某套；带上模型名时顺带把那套正在用的模型换成它（必须是勾过的）。
+pub(super) fn activate(config: &mut StoredLlmConfig, id: &str, model: Option<&str>) -> Result<()> {
     find(config, id)?;
+    if let Some(model) = model.map(str::trim) {
+        let profiles = profiles_mut(config);
+        let index = position(profiles, id).expect("checked by find above");
+        let profile = &mut profiles[index];
+        let models = model_list(profile);
+        if !models.iter().any(|listed| listed == model) {
+            bail!("这个模型不在这套配置勾选的列表里，请到设置里勾上再选");
+        }
+        profile.models = models;
+        profile.model = model.into();
+    }
     config.active_profile_id = Some(id.into());
     sync_top(config);
     Ok(())
