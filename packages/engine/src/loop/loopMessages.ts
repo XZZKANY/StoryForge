@@ -4,9 +4,10 @@ import { buildBookContext } from '../kernel/buildBookContext';
 import { buildSceneConstraintBlock } from '../kernel/canonContext';
 import {
   conversationSkillsBlock,
+  hasPluginSkills,
   invokedConversationSkills,
   invokedSkillsBlock,
-  loadConversationSkillSources,
+  loadAvailableSkills,
 } from '../kernel/conversationSkills';
 import { dumpJson } from '../kernel/json';
 import { buildPlanBlock } from '../kernel/serialPlan';
@@ -30,6 +31,8 @@ export async function storyforgeMessages(
     conversation: ConversationSources;
     platform: 'windows' | 'posix';
     secrets: SecretContext;
+    /** 本机插件库根目录；缺省或 null 是没有插件。 */
+    pluginLibraryRoot?: string | null;
   },
   input: {
     assistantSessionId: number;
@@ -41,6 +44,8 @@ export async function storyforgeMessages(
     setupNote?: string | null;
   },
   provenance: { [key: string]: unknown } | null = null,
+  /** 回报这一轮的可用技能里有没有插件技能（决定 skill_read 交不交给模型）。 */
+  skillUse: { pluginSkills: boolean } | null = null,
 ): Promise<LoopMessage[]> {
   const { reader, platform } = deps;
   const { projectPath: root, currentFile } = input;
@@ -56,7 +61,13 @@ export async function storyforgeMessages(
   const planBlock = await buildPlanBlock(reader, root, platform);
   const sceneBlock = await buildSceneConstraintBlock(reader, root, currentFile, { platform });
   const instructions = await readAuthorInstructions(reader, root);
-  const skills = await loadConversationSkillSources(reader, root, deps.secrets);
+  const skills = await loadAvailableSkills(
+    reader,
+    root,
+    deps.pluginLibraryRoot ?? null,
+    deps.secrets,
+  );
+  if (skillUse !== null) skillUse.pluginSkills = hasPluginSkills(skills);
   const skillsBlock = conversationSkillsBlock(skills);
   const invokedBlock = invokedSkillsBlock(invokedConversationSkills(skills, input.userMessage));
   const viewBlock = input.authorView === null ? null : buildAuthorViewBlock(input.authorView);

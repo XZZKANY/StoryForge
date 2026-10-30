@@ -6,7 +6,7 @@ import {
   resolveProjectRelativePath,
 } from '../../lib/project-context';
 import { normalizePathForMatch } from '../../lib/project/path';
-import type { AgentStep, ChatWindowAgentToolTrace } from './types';
+import type { AgentStep, ChatWindowAgentToolTrace, SkillReadRef } from './types';
 
 type Obj = Record<string, unknown>;
 const isObj = (value: unknown): value is Obj =>
@@ -23,14 +23,30 @@ const READS_TARGET = new Set([
   'project.trim_prose',
 ]);
 
-/** 一次工具调用读过的文件，照引擎记下的原样（多为项目相对路径）；没完成的调用不算。 */
+/** 完成的 skill.read 读到的是哪份技能；名字缺就用调用时点的名字，两样都没有为 null。 */
+export function traceSkillRead(trace: ChatWindowAgentToolTrace): SkillReadRef | null {
+  if (trace.status !== 'completed' || trace.tool_name !== 'skill.read') return null;
+  const input: Obj = trace.input_summary ?? {};
+  const output: Obj = trace.output_summary ?? {};
+  const name = text(output.skill_name) ?? text(input.name);
+  if (name === null) return null;
+  return { name, plugin: text(output.plugin), path: text(output.path) };
+}
+
+/**
+ * 一次工具调用读过的文件，照引擎记下的原样（多为项目相对路径）；没完成的调用不算。
+ * skill.read 只计作品技能；插件技能不在作品里，由 {@link runContextReads} 按 step.skill 另列。
+ */
 export function traceReadSources(trace: ChatWindowAgentToolTrace): string[] {
   if (trace.status !== 'completed') return [];
   const input: Obj = trace.input_summary ?? {};
   const output: Obj = trace.output_summary ?? {};
   const found: (string | null)[] = [];
   if (trace.tool_name === 'fs.read') found.push(text(output.path) ?? text(input.path));
-  else if (trace.tool_name === 'project.knowledge') {
+  else if (trace.tool_name === 'skill.read') {
+    const skill = traceSkillRead(trace);
+    if (skill && skill.plugin === null) found.push(skill.path);
+  } else if (trace.tool_name === 'project.knowledge') {
     if (input.action === 'read') found.push(text(output.path) ?? text(input.path));
   } else {
     if (READS_TARGET.has(trace.tool_name)) found.push(text(input.file_path) ?? text(input.path));
@@ -84,14 +100,19 @@ export function runContextReads(
   const lookups: ContextLookup[] = [];
   const seenFiles = new Set<string>();
   const seenLookups = new Set<string>();
+  const addFile = (file: ContextReadFile) => {
+    const key = normalizePathForMatch(file.path);
+    if (!key || seenFiles.has(key)) return;
+    seenFiles.add(key);
+    files.push(file);
+  };
   for (const step of steps) {
-    for (const source of step.sources ?? []) {
-      const file = readFile(projectPath, source);
-      const key = normalizePathForMatch(file.path);
-      if (!key || seenFiles.has(key)) continue;
-      seenFiles.add(key);
-      files.push(file);
-    }
+    for (const source of step.sources ?? []) addFile(readFile(projectPath, source));
+    if (step.skill?.plugin)
+      addFile({
+        path: `插件「${step.skill.plugin}」/${step.skill.path ?? step.skill.name}`,
+        filePath: null,
+      });
     if (step.lookup === undefined) continue;
     const kind = step.tool === 'fs.search' ? 'search' : step.tool === 'fs.list' ? 'list' : null;
     if (kind === null) continue;
@@ -113,4 +134,33 @@ export function skillsReadThisRun(reads: RunContextReads | null): Set<string> {
     if (file.filePath !== null && key.startsWith(SKILL_PREFIX)) used.add(key);
   }
   return used;
+}
+
+type SkillListItem = { path: string; name: string; plugin: string | null };
+
+const skillKey = (plugin: string | null, name: string) => `${plugin ?? ''}\u0000${name}`;
+
+/**
+ * 这一轮用了的技能名：作品技能看「这一轮读了」里有没有它的文件，
+ * 另外 skill.read 按（插件, 名字）读过的作品 / 插件技能都算。
+ */
+export function skillsUsedThisRun(
+  steps: readonly AgentStep[] | null,
+  projectPath: string | null,
+  skills: readonly SkillListItem[],
+): Set<string> {
+  if (!steps) return new Set();
+  const paths = skillsReadThisRun(runContextReads(steps, projectPath));
+  const read = new Set(
+    steps.flatMap((step) => (step.skill ? [skillKey(step.skill.plugin, step.skill.name)] : [])),
+  );
+  return new Set(
+    skills
+      .filter(
+        (skill) =>
+          read.has(skillKey(skill.plugin, skill.name)) ||
+          (skill.plugin === null && paths.has(normalizePathForMatch(skill.path))),
+      )
+      .map((skill) => skill.name),
+  );
 }
