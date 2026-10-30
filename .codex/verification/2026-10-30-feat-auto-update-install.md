@@ -13,6 +13,7 @@
   - 变异（`output/auto-update/mutate_cut3.py` 与一段内联脚本，断言替换点唯一、无条件还原并逐字节核对）：F1 下载好不弹「重启安装」→ 1 红；F2 重启安装不调宿主 → 3 红；F3 检查冲掉下载进度 → 1 红；F4 设置页「重启安装」按钮接成下载 → 1 红；F5 进度不更新 → 2 红；F6 启动提示不带「下载」→ 1 红；R1 握手收尾不装 → 1 红；R2 不关时不撤销 → 1 红；R3 新下载继承旧的「重启安装」→ Rust 1 红。
   - 全量 `cargo test`（`CARGO_TARGET_DIR` 复用主仓库 target）184 passed + 1 ignored；`pnpm verify`（corepack 缓存的 pnpm 9.15.4 临时 shim）一遍 EXIT=0：project-core 34、引擎 14074 passed + 2 skipped、前端 2580 passed、三个浏览器回归通过。日志在 `output/auto-update/`（不入库）。
   - 行尾：`main.rs` CRLF 按字节改；其余全 LF，无 CRCR；`--numstat` 与 `--ignore-all-space --numstat` 一致。
+- 合并 master（#538 刀 2 与宿主用词一刀，后者只改 Rust 报错文案与测试）：无冲突；合并后 `ui-terminology` / 更新两份 / `source-standards` / 设置可访问性 5 files / 22 passed，全量 `cargo test` 184 passed + 1 ignored，`release-build.test.mjs` 7 passed；完整 `pnpm verify` 交给远端 CI。
 - 未覆盖：
   - **整条链没在真机上走过**：从一个带更新器的装机版，经 GitHub latest.json 下载、点重启安装、被动安装、重新打开、数据仍在——要等发出 0.2.4（第一个带更新器的版本，0.2.3 要手动装一次）之后再发 0.2.5 才能真走一遍；或者另做本地升级冒烟（隔离身份、两个带签名的测试安装包、本地清单），见 PR 描述。
   - `host_close` / `close_guard` 的接线只有源码级守卫：这两处要真 `AppHandle`，单测起不来。
