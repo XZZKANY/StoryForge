@@ -1,27 +1,37 @@
-//! 插件库：本机统一存放技能插件（只含文本的文件夹）。宿主只管库目录、从文件夹导入
+//! 插件库：本机统一存放技能插件（只含文本的文件夹）。宿主只管库目录、从文件夹或 .zip 导入
 //! （暂存 → 确认 / 丢弃）与移除；插件内容的解析归引擎。
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fs;
-use std::io::{self, Read};
+use std::io::{self, Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 use walkdir::WalkDir;
+use zip::read::ZipFileEntry;
+use zip::{CompressionMethod, ZipArchive};
 
 const LIBRARY_DIR: &str = "plugins";
 const STAGING_DIR: &str = ".staging";
 const TRASH_DIR: &str = ".trash";
 const CODEX_MANIFEST_DIR: &str = ".codex-plugin";
+const MACOS_METADATA_DIR: &str = "__MACOSX";
+// 插件布局里有意义的目录（与引擎 / project-core 的技能、写法、Codex 技能目录同名）：
+// 压缩包里唯一的顶层文件夹是它们时，那是插件内容本身，不剥。
+const LAYOUT_DIRS: [&str; 4] = ["技能", "写法", "skills", CODEX_MANIFEST_DIR];
+const ZIP_EXTENSION: &str = "zip";
 const TEXT_EXTENSIONS: [&str; 4] = ["md", "markdown", "txt", "json"];
 const MAX_FILE_BYTES: u64 = 512 * 1024;
 const MAX_TOTAL_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_FILES: usize = 300;
 const MAX_DIR_DEPTH: usize = 8;
 const MAX_SCAN_ENTRIES: usize = 5000;
+const MAX_ZIP_BYTES: u64 = 32 * 1024 * 1024;
+const MAX_UNPACKED_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_NAME_CHARS: usize = 40;
 const FORBIDDEN_NAME_CHARS: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 const RESERVED_NAMES: [&str; 22] = [
@@ -34,6 +44,14 @@ const REASON_TOO_LARGE: &str = "文件太大（超过 512 KB）";
 const REASON_NOT_UTF8: &str = "不是 UTF-8 文本";
 const REASON_BAD_FILE_NAME: &str = "文件名不是合法的 Unicode";
 const REASON_LINK: &str = "链接或联接点，不跟随";
+const REASON_ZIP_NAME_NOT_UTF8: &str =
+    "文件名编码不是 UTF-8，请用新版压缩工具重新打包，或解压后从文件夹导入";
+const REASON_UNSAFE_PATH: &str =
+    "路径不安全（绝对路径、盘符、「..」、空的一段或 Windows 不允许的字符），不解出";
+const REASON_ENCRYPTED: &str = "加了密码，StoryForge 不解密";
+const REASON_UNSUPPORTED_COMPRESSION: &str =
+    "压缩方式不支持（只认存储和 Deflate），请用常见压缩工具重新打包";
+const REASON_DUPLICATE: &str = "和压缩包里前面的文件重名（不分大小写），只收前面那个";
 
 // 与 project-core 的 STARTER_PLUGIN_NAME 一致。
 const STARTER_PLUGIN_NAME: &str = "起书基础包";
@@ -88,6 +106,68 @@ struct ScannedFile {
     content: Vec<u8>,
 }
 
+type ScanResult = Result<(Vec<ScannedFile>, Vec<SkippedFile>), String>;
+
+#[derive(Clone, Copy)]
+struct ScanLimits {
+    entries: usize,
+    unpacked_bytes: u64,
+}
+
+impl ScanLimits {
+    const DEFAULT: Self = Self {
+        entries: MAX_SCAN_ENTRIES,
+        unpacked_bytes: MAX_UNPACKED_BYTES,
+    };
+}
+
+// 文件夹与 zip 共用的收文件规则：大小按实际读到的字节算，超数量 / 总量整体报错。
+#[derive(Default)]
+struct Collector {
+    files: Vec<ScannedFile>,
+    skipped: Vec<SkippedFile>,
+    total_bytes: u64,
+}
+
+impl Collector {
+    fn skip(&mut self, path: String, reason: &str) {
+        self.skipped.push(SkippedFile {
+            path,
+            reason: reason.to_string(),
+        });
+    }
+
+    fn offer(&mut self, path: String, content: Vec<u8>) -> Result<bool, String> {
+        if content.len() as u64 > MAX_FILE_BYTES {
+            self.skip(path, REASON_TOO_LARGE);
+            return Ok(false);
+        }
+        if std::str::from_utf8(&content).is_err() {
+            self.skip(path, REASON_NOT_UTF8);
+            return Ok(false);
+        }
+        if self.files.len() >= MAX_FILES {
+            return Err(format!("可导入的文本文件超过 {MAX_FILES} 个，没有导入"));
+        }
+        self.total_bytes += content.len() as u64;
+        if self.total_bytes > MAX_TOTAL_BYTES {
+            return Err("可导入的文本文件合计超过 4 MB，没有导入".into());
+        }
+        self.files.push(ScannedFile { path, content });
+        Ok(true)
+    }
+
+    fn finish(mut self, empty_error: &str) -> ScanResult {
+        if self.files.is_empty() {
+            return Err(empty_error.into());
+        }
+        self.files.sort_by(|left, right| left.path.cmp(&right.path));
+        self.skipped
+            .sort_by(|left, right| left.path.cmp(&right.path));
+        Ok((self.files, self.skipped))
+    }
+}
+
 /// 插件名规则；TS 侧有一份同规则的实现（project-core 的 pluginNameProblem），两边要一起改。
 pub(crate) fn validate_plugin_name(name: &str) -> Result<(), String> {
     let count = name.chars().count();
@@ -118,14 +198,18 @@ pub(crate) fn validate_plugin_name(name: &str) -> Result<(), String> {
     if name.ends_with('.') || name.ends_with(' ') {
         return Err("插件名不能以「.」或空格结尾".into());
     }
-    let stem = name.split('.').next().unwrap_or(name);
-    if RESERVED_NAMES
-        .iter()
-        .any(|reserved| stem.eq_ignore_ascii_case(reserved))
-    {
+    if let Some(stem) = reserved_stem(name) {
         return Err(format!("「{stem}」是 Windows 保留名，不能用作插件名"));
     }
     Ok(())
+}
+
+fn reserved_stem(name: &str) -> Option<&str> {
+    let stem = name.split('.').next().unwrap_or(name);
+    RESERVED_NAMES
+        .iter()
+        .any(|reserved| stem.eq_ignore_ascii_case(reserved))
+        .then_some(stem)
 }
 
 fn is_name_control(c: char) -> bool {
@@ -175,7 +259,10 @@ fn path_string(path: &Path) -> Result<String, String> {
 }
 
 fn is_ignored_dir_name(name: &OsStr) -> bool {
-    let name = name.to_string_lossy();
+    is_ignored_dir(&name.to_string_lossy())
+}
+
+fn is_ignored_dir(name: &str) -> bool {
     name == "node_modules" || (name.starts_with('.') && name != CODEX_MANIFEST_DIR)
 }
 
@@ -205,29 +292,26 @@ fn has_text_extension(path: &Path) -> bool {
         })
 }
 
-fn read_capped(path: &Path) -> io::Result<Vec<u8>> {
+fn is_zip_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case(ZIP_EXTENSION))
+}
+
+// 不信声明的大小（压缩包条目尤其如此）：最多读上限 + 1 字节，多读到的就算超大。
+fn read_capped(reader: impl Read) -> io::Result<Vec<u8>> {
     let mut content = Vec::new();
-    fs::File::open(path)?
-        .take(MAX_FILE_BYTES + 1)
-        .read_to_end(&mut content)?;
+    reader.take(MAX_FILE_BYTES + 1).read_to_end(&mut content)?;
     Ok(content)
 }
 
-fn skip(skipped: &mut Vec<SkippedFile>, path: String, reason: &str) {
-    skipped.push(SkippedFile {
-        path,
-        reason: reason.to_string(),
-    });
+fn depth_error(location: &str) -> String {
+    format!("文件夹层级超过 {MAX_DIR_DEPTH} 层（{location}），没有导入")
 }
 
 // 只读、不落盘：任何上限超了都在复制之前整体报错。
-fn scan_source(
-    source: &Path,
-    max_entries: usize,
-) -> Result<(Vec<ScannedFile>, Vec<SkippedFile>), String> {
-    let mut files: Vec<ScannedFile> = Vec::new();
-    let mut skipped = Vec::new();
-    let mut total_bytes: u64 = 0;
+fn scan_source(source: &Path, max_entries: usize) -> ScanResult {
+    let mut collector = Collector::default();
     let mut entries: usize = 0;
     let mut walker = WalkDir::new(source).follow_links(false).into_iter();
     while let Some(entry) = walker.next() {
@@ -246,7 +330,7 @@ fn scan_source(
         if file_type.is_symlink() {
             let path = relative_posix(source, entry.path())
                 .unwrap_or_else(|| lossy_relative(source, entry.path()));
-            skip(&mut skipped, path, REASON_LINK);
+            collector.skip(path, REASON_LINK);
             continue;
         }
         if file_type.is_dir() {
@@ -257,9 +341,7 @@ fn scan_source(
             if entry.depth() > MAX_DIR_DEPTH {
                 let location = relative_posix(source, entry.path())
                     .unwrap_or_else(|| entry.path().display().to_string());
-                return Err(format!(
-                    "文件夹层级超过 {MAX_DIR_DEPTH} 层（{location}），没有导入"
-                ));
+                return Err(depth_error(&location));
             }
             continue;
         }
@@ -267,15 +349,11 @@ fn scan_source(
             continue;
         }
         let Some(path) = relative_posix(source, entry.path()) else {
-            skip(
-                &mut skipped,
-                lossy_relative(source, entry.path()),
-                REASON_BAD_FILE_NAME,
-            );
+            collector.skip(lossy_relative(source, entry.path()), REASON_BAD_FILE_NAME);
             continue;
         };
         if !has_text_extension(entry.path()) {
-            skip(&mut skipped, path, REASON_NOT_TEXT);
+            collector.skip(path, REASON_NOT_TEXT);
             continue;
         }
         let size = entry
@@ -283,34 +361,238 @@ fn scan_source(
             .map_err(|error| format!("读取「{path}」失败：{error}"))?
             .len();
         if size > MAX_FILE_BYTES {
-            skip(&mut skipped, path, REASON_TOO_LARGE);
+            collector.skip(path, REASON_TOO_LARGE);
             continue;
         }
-        let content =
-            read_capped(entry.path()).map_err(|error| format!("读取「{path}」失败：{error}"))?;
-        if content.len() as u64 > MAX_FILE_BYTES {
-            skip(&mut skipped, path, REASON_TOO_LARGE);
-            continue;
-        }
-        if std::str::from_utf8(&content).is_err() {
-            skip(&mut skipped, path, REASON_NOT_UTF8);
-            continue;
-        }
-        if files.len() >= MAX_FILES {
-            return Err(format!("可导入的文本文件超过 {MAX_FILES} 个，没有导入"));
-        }
-        total_bytes += content.len() as u64;
-        if total_bytes > MAX_TOTAL_BYTES {
-            return Err("可导入的文本文件合计超过 4 MB，没有导入".into());
-        }
-        files.push(ScannedFile { path, content });
+        let content = fs::File::open(entry.path())
+            .and_then(read_capped)
+            .map_err(|error| format!("读取「{path}」失败：{error}"))?;
+        collector.offer(path, content)?;
     }
-    if files.is_empty() {
-        return Err("这个文件夹里没有可以导入的文本文件".into());
+    collector.finish("这个文件夹里没有可以导入的文本文件")
+}
+
+struct ZipItem {
+    index: usize,
+    parts: Vec<String>,
+    is_dir: bool,
+    // 不用解压就能定下的跳过原因：链接、非文本、加密、压缩方式不支持。
+    skip_reason: Option<&'static str>,
+}
+
+impl ZipItem {
+    fn path(&self) -> String {
+        self.parts.join("/")
     }
-    files.sort_by(|left, right| left.path.cmp(&right.path));
-    skipped.sort_by(|left, right| left.path.cmp(&right.path));
-    Ok((files, skipped))
+
+    fn dir_parts(&self) -> &[String] {
+        let end = if self.is_dir {
+            self.parts.len()
+        } else {
+            self.parts.len().saturating_sub(1)
+        };
+        &self.parts[..end]
+    }
+
+    fn under_ignored_dir(&self) -> bool {
+        self.dir_parts()
+            .iter()
+            .any(|part| part == MACOS_METADATA_DIR || is_ignored_dir(part))
+    }
+}
+
+// 按段自己校验，不只靠 enclosed_name：它会把绝对路径与盘符悄悄改成相对路径，也放过「a/../b」。
+// `\` 当分隔符；有一段不安全就返回 None。
+fn zip_entry_parts(name: &str) -> Option<(Vec<String>, bool)> {
+    let normalized = name.replace('\\', "/");
+    let (body, is_dir) = match normalized.strip_suffix('/') {
+        Some(body) => (body, true),
+        None => (normalized.as_str(), false),
+    };
+    let parts: Vec<String> = body.split('/').map(str::to_string).collect();
+    if parts.iter().all(|part| is_safe_zip_component(part)) {
+        Some((parts, is_dir))
+    } else {
+        None
+    }
+}
+
+fn is_safe_zip_component(part: &str) -> bool {
+    !part.is_empty()
+        && part != "."
+        && part != ".."
+        && !part.ends_with(['.', ' '])
+        && !part
+            .chars()
+            .any(|c| FORBIDDEN_NAME_CHARS.contains(&c) || is_name_control(c))
+        && reserved_stem(part).is_none()
+}
+
+fn zip_skip_reason(entry: &ZipFileEntry<'_>, name: &str) -> Option<&'static str> {
+    if entry.is_symlink() {
+        Some(REASON_LINK)
+    } else if !has_text_extension(Path::new(name)) {
+        Some(REASON_NOT_TEXT)
+    } else if entry.size() > MAX_FILE_BYTES {
+        // 声明就已超限的不解压；声明不超的照样按实际字节再判一次。
+        Some(REASON_TOO_LARGE)
+    } else if entry.encrypted() {
+        Some(REASON_ENCRYPTED)
+    } else if !matches!(
+        entry.compression(),
+        CompressionMethod::Stored | CompressionMethod::Deflated
+    ) {
+        Some(REASON_UNSUPPORTED_COMPRESSION)
+    } else {
+        None
+    }
+}
+
+// 整包只有一个顶层文件夹（常见的「my-plugin/…」打包）时剥掉这一层，让清单落在插件根；
+// 判断时不看 __MACOSX 这类本来就会被跳过的目录；顶层是插件布局目录时不剥。
+fn strip_single_top_folder(items: &mut [ZipItem]) {
+    let mut top: Option<&str> = None;
+    for item in items.iter().filter(|item| !item.under_ignored_dir()) {
+        if !item.is_dir && item.parts.len() < 2 {
+            return;
+        }
+        match top {
+            Some(name) if name != item.parts[0] => return,
+            _ => top = Some(&item.parts[0]),
+        }
+    }
+    let Some(top) = top.map(str::to_string) else {
+        return;
+    };
+    if LAYOUT_DIRS.iter().any(|dir| top.eq_ignore_ascii_case(dir)) {
+        return;
+    }
+    for item in items.iter_mut().filter(|item| item.parts[0] == top) {
+        item.parts.remove(0);
+    }
+}
+
+// 暂存写在 Windows 上，按小写比较；文件与文件夹同名也算重名。
+#[derive(Default)]
+struct ClaimedPaths {
+    files: HashSet<String>,
+    dirs: HashSet<String>,
+}
+
+impl ClaimedPaths {
+    fn collides(&self, path: &str) -> bool {
+        let key = path.to_lowercase();
+        self.files.contains(&key)
+            || self.dirs.contains(&key)
+            || parent_prefixes(&key).any(|dir| self.files.contains(dir))
+    }
+
+    fn claim(&mut self, path: &str) {
+        let key = path.to_lowercase();
+        self.dirs.extend(parent_prefixes(&key).map(str::to_string));
+        self.files.insert(key);
+    }
+}
+
+fn parent_prefixes(path: &str) -> impl Iterator<Item = &str> {
+    path.match_indices('/').map(move |(at, _)| &path[..at])
+}
+
+fn read_zip_bytes(source: &Path) -> Result<Vec<u8>, String> {
+    let too_large = || "压缩包超过 32 MB，没有导入".to_string();
+    let read_failed = |error: io::Error| format!("无法读取压缩包：{error}");
+    let file = fs::File::open(source).map_err(read_failed)?;
+    if file.metadata().map_err(read_failed)?.len() > MAX_ZIP_BYTES {
+        return Err(too_large());
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_ZIP_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(read_failed)?;
+    if bytes.len() as u64 > MAX_ZIP_BYTES {
+        return Err(too_large());
+    }
+    Ok(bytes)
+}
+
+// 规则与文件夹导入相同（同一套上限与跳过原因）；只读内存里的压缩包，不落盘。
+fn scan_zip(source: &Path, limits: ScanLimits) -> ScanResult {
+    let max_entries = limits.entries;
+    let mut archive = ZipArchive::new(Cursor::new(read_zip_bytes(source)?))
+        .map_err(|error| format!("打不开这个压缩包（可能已损坏，或不是 zip 格式）：{error}"))?;
+    if archive.len() > max_entries {
+        return Err(format!(
+            "压缩包里的条目太多（超过 {max_entries} 项），请只打包插件自己的文件夹"
+        ));
+    }
+    if archive.has_duplicate_names() {
+        return Err("压缩包里有重名的条目，可能已损坏，没有导入".into());
+    }
+    let mut collector = Collector::default();
+    let mut items = Vec::new();
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index_data(index)
+            .map_err(|error| format!("读取压缩包目录失败：{error}"))?;
+        let Ok(name) = std::str::from_utf8(entry.name_raw()) else {
+            let shown = String::from_utf8_lossy(entry.name_raw()).replace('\\', "/");
+            collector.skip(shown, REASON_ZIP_NAME_NOT_UTF8);
+            continue;
+        };
+        let Some((parts, is_dir)) =
+            zip_entry_parts(name).filter(|_| entry.enclosed_name().is_some())
+        else {
+            collector.skip(name.replace('\\', "/"), REASON_UNSAFE_PATH);
+            continue;
+        };
+        let is_dir = is_dir && !entry.is_symlink();
+        let skip_reason = if is_dir {
+            None
+        } else {
+            zip_skip_reason(&entry, name)
+        };
+        items.push(ZipItem {
+            index,
+            parts,
+            is_dir,
+            skip_reason,
+        });
+    }
+    strip_single_top_folder(&mut items);
+    items.retain(|item| !item.parts.is_empty() && !item.under_ignored_dir());
+    if let Some(deep) = items
+        .iter()
+        .find(|item| item.dir_parts().len() > MAX_DIR_DEPTH)
+    {
+        return Err(depth_error(&deep.parts[..=MAX_DIR_DEPTH].join("/")));
+    }
+    let mut claimed = ClaimedPaths::default();
+    // 按实际解压出来的字节累计，读完才被跳过的（非 UTF-8、超大）也算，封住解压开销。
+    let mut unpacked: u64 = 0;
+    for item in items.iter().filter(|item| !item.is_dir) {
+        let path = item.path();
+        if let Some(reason) = item.skip_reason {
+            collector.skip(path, reason);
+            continue;
+        }
+        if claimed.collides(&path) {
+            collector.skip(path, REASON_DUPLICATE);
+            continue;
+        }
+        let failed = |error: String| format!("读取压缩包里的「{path}」失败：{error}");
+        let file = archive
+            .by_index(item.index)
+            .map_err(|error| failed(error.to_string()))?;
+        let content = read_capped(file).map_err(|error| failed(error.to_string()))?;
+        unpacked += content.len() as u64;
+        if unpacked > limits.unpacked_bytes {
+            return Err("压缩包解压后的内容太多，没有导入".into());
+        }
+        if collector.offer(path.clone(), content)? {
+            claimed.claim(&path);
+        }
+    }
+    collector.finish("这个压缩包里没有可以导入的文本文件")
 }
 
 fn write_stage(stage_root: &Path, files: &[ScannedFile]) -> Result<(), String> {
@@ -433,28 +715,29 @@ pub(crate) fn sync_bundled_plugins(root: &Path) -> Result<(), String> {
 }
 
 pub(crate) fn stage_import(root: &Path, source: &Path) -> Result<StagedImport, String> {
-    stage_import_with_scan_limit(root, source, MAX_SCAN_ENTRIES)
+    stage_import_with_limits(root, source, ScanLimits::DEFAULT)
 }
 
-fn stage_import_with_scan_limit(
+fn stage_import_with_limits(
     root: &Path,
     source: &Path,
-    max_entries: usize,
+    limits: ScanLimits,
 ) -> Result<StagedImport, String> {
     if !source.is_absolute() {
-        return Err("要导入的文件夹必须是完整路径".into());
+        return Err("要导入的文件夹或压缩包必须是完整路径".into());
     }
-    match fs::metadata(source) {
-        Ok(info) if info.is_dir() => {}
-        Ok(_) => return Err("要导入的不是文件夹".into()),
+    let is_zip = match fs::metadata(source) {
+        Ok(info) if info.is_dir() => false,
+        Ok(info) if info.is_file() && is_zip_path(source) => true,
+        Ok(_) => return Err("只能导入文件夹或 .zip 文件".into()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return Err("要导入的文件夹不存在".into())
+            return Err("要导入的文件夹或压缩包不存在".into())
         }
-        Err(error) => return Err(format!("无法读取要导入的文件夹：{error}")),
-    }
+        Err(error) => return Err(format!("无法读取要导入的文件夹或压缩包：{error}")),
+    };
     ensure_library_root(root)?;
-    let canonical_source =
-        fs::canonicalize(source).map_err(|error| format!("无法解析要导入的文件夹：{error}"))?;
+    let canonical_source = fs::canonicalize(source)
+        .map_err(|error| format!("无法解析要导入的文件夹或压缩包：{error}"))?;
     let canonical_root =
         fs::canonicalize(root).map_err(|error| format!("无法解析插件库目录：{error}"))?;
     if canonical_source.starts_with(&canonical_root) {
@@ -467,7 +750,11 @@ fn stage_import_with_scan_limit(
     let staging = root.join(STAGING_DIR);
     remove_dir_if_present(&staging)
         .map_err(|error| format!("无法清理上一次导入的暂存：{error}"))?;
-    let (files, skipped) = scan_source(source, max_entries)?;
+    let (files, skipped) = if is_zip {
+        scan_zip(source, limits)?
+    } else {
+        scan_source(source, limits.entries)?
+    };
     fs::create_dir_all(&staging).map_err(|error| format!("无法创建导入暂存目录：{error}"))?;
     let stage_id = new_stage_id(source);
     let stage_root = staging.join(&stage_id);
