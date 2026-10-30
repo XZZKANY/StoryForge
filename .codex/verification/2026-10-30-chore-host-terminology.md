@@ -18,3 +18,9 @@
   - 没跑 Tauri 冒烟（新 worktree 要从头编几个 GB，D 盘只剩约 14 GB）；改的只是报错文本，不影响起服。没在真宿主上看报错的显示效果。
   - 没改的宿主字符串：`main.rs` 冒烟自检诊断信息（约 37 处含旧词，按要求不动）；`fs.rs` 的「符号链接不纳入项目文件索引」（两处调用方都丢掉这个错误，作者看不到）；`llm_config_store.rs` 的「[llm-config] 读取时写回规范化配置失败…」（`eprintln!` 日志，只进宿主 stdout）；Rust 测试的断言说明文字（如「草稿探测不落盘」）。
   - 引擎非测试代码里自己的「无法解析项目文件路径。」（`kernel/fsTools.ts`、`kernel/projectTree.ts`）与 golden 里的引擎报错不是宿主原话，留给引擎那一刀。
+
+## 2026-10-30 编排者集成
+
+- 改动：措辞按代理提议定稿（「作品根路径不是目录」「引擎只能写入作品的 .storyforge/ 目录」「请重新写进文件」等）。合入 origin/master（含 #534，无冲突，master 这段没动 Rust）。`CONTEXT.md` 用词表记下宿主已改、只剩引擎。守护测试合并后第一次跑红过一次，未能重现（连跑 3 次各 0.6–0.9 秒），怀疑冷启动解析整个 src 在满载下越过默认 5 秒，给这条测试单独放宽到 30 秒。
+- 验证：`pnpm verify` EXIT=0（project-core 34、引擎 14073 passed / 2 skipped、前端单测 2575 passed、三条浏览器回归全过）；`CARGO_TARGET_DIR=D:/StoryForge/apps/desktop/src-tauri/target cargo test` 173 passed、1 ignored。
+- 未覆盖：没跑 Tauri 冒烟（D 盘约 15 GB，新 worktree 要从头编）；没在真宿主上看报错显示。
