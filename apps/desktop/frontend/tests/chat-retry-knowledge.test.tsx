@@ -74,7 +74,7 @@ test('知识重试 emitter 等待真实 ChatWindow handler 的 deferred 请求�
     first = emitRetryWithoutKnowledge(detail).then(() => {
       settled = true;
     });
-    await expect(emitRetryWithoutKnowledge(detail)).rejects.toThrow('Agent 正忙');
+    await expect(emitRetryWithoutKnowledge(detail)).rejects.toThrow('AI 正忙');
   });
   expect(settled).toBe(false);
   expect(run).toHaveBeenCalledTimes(1);

@@ -130,9 +130,9 @@ export function PermissionProfileSelector({
         title={
           busy
             ? '本轮正在按启动时的权限档位执行'
-            : 'Agent 对本项目的权限（按项目记住，只影响下一次发送）'
+            : 'AI 对本作品的权限（按作品记住，只影响下一次发送）'
         }
-        aria-label="Agent 对本项目的权限档位"
+        aria-label="AI 对本作品的权限档位"
         aria-expanded={menuOpen}
         aria-controls={menuOpen ? menuId : undefined}
         aria-haspopup="listbox"

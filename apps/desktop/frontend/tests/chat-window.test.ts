@@ -751,7 +751,7 @@ test('ChatWindow 在无项目时禁用 composer 并提示打开项目后即可�
       assistantSessionId: null,
     }),
   );
-  assert.match(html, /打开项目后即可使用 StoryForge/);
+  assert.match(html, /打开作品后即可使用 StoryForge/);
 });
 
 test('ChatWindow 根容器锁定高度，消息流不能把右栏状态栏挤走', () => {

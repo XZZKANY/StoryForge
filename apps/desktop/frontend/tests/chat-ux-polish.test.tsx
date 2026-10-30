@@ -293,7 +293,7 @@ test('参考覆盖警告按原因分开，只送摘录不算警告，分类计�
     },
   } as unknown as Parameters<typeof contextBudgetText>[0] & object;
   const excerptOnly = contextBudgetText(base);
-  assert.equal(excerptOnly, '上下文 8/8 文件，9600 字符；项目里：大纲2、设定1、正文10');
+  assert.equal(excerptOnly, '上下文 8/8 文件，9600 字符；作品里：大纲2、设定1、正文10');
   const both = contextBudgetText({
     ...base,
     budget: { ...base.budget, truncated: true, overflowCount: 3, unreadableCount: 1 },

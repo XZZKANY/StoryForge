@@ -74,7 +74,7 @@ function ContextStatus({
         ? errorMessage
           ? `手稿结构读取失败：${errorMessage}`
           : '手稿结构读取失败'
-        : '打开项目后显示手稿结构';
+        : '打开作品后显示手稿结构';
   return (
     <div
       className="flex items-center gap-2 rounded-lg border border-border bg-panel px-3 py-2 text-xs text-muted"
@@ -223,7 +223,7 @@ export function BookOverview({
               <FileText size={18} className="text-agent" aria-hidden="true" />
             </div>
             <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
-              有 {pendingPatchCount} 个待确认修改
+              有 {pendingPatchCount} 个待确认修订
             </span>
             <ChevronRight size={16} className="text-muted" aria-hidden="true" />
           </button>
@@ -247,22 +247,22 @@ export function BookOverview({
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium text-foreground">
                 {agentRun.status === 'running'
-                  ? 'Agent 正在工作'
+                  ? 'AI 正在工作'
                   : agentRun.status === 'paused'
-                    ? 'Agent 已暂停'
+                    ? 'AI 已暂停'
                     : agentRun.status === 'completed'
-                      ? 'Agent 本轮已完成'
+                      ? 'AI 本轮已完成'
                       : agentRun.status === 'stopped'
-                        ? 'Agent 已由你停止'
+                        ? 'AI 已由你停止'
                         : agentRun.status === 'failed' || agentRun.status === 'session_error'
-                          ? 'Agent 会话需要处理'
+                          ? 'AI 会话需要处理'
                           : agentRun.status === 'waiting_permission'
-                            ? 'Agent 等待权限确认'
+                            ? 'AI 等待权限确认'
                             : agentRun.status === 'waiting_brief'
-                              ? 'Agent 等待章节选择'
+                              ? 'AI 等待章节选择'
                               : agentRun.status === 'waiting_patch'
-                                ? 'Agent 等待修改确认'
-                                : 'Agent 等待你的确认'}
+                                ? 'AI 等待修订确认'
+                                : 'AI 等待你的确认'}
               </span>
               <span className="mt-1 block truncate text-2xs text-muted" title={agentRun.goal}>
                 {agentRun.goal || '打开工作台查看当前进度'}
@@ -466,7 +466,7 @@ export function BookOverview({
 
         <p className="flex items-center gap-2 text-2xs text-subtle">
           <FileText size={12} aria-hidden="true" />
-          作品资料保存在本地项目中。开始写作，让故事再前进一步。
+          作品资料保存在本地作品文件夹中。开始写作，让故事再前进一步。
         </p>
       </div>
     </div>

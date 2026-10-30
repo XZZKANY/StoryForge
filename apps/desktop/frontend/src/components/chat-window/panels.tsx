@@ -80,7 +80,7 @@ export function ConversationHeader({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         data-testid="conversation-session-switch"
-        title="本项目的会话（会话按项目划分，不再放全局左栏）"
+        title="本作品的会话（会话按作品划分，不再放全局左栏）"
       >
         <Sparkles size={13} strokeWidth={1.7} className="flex-shrink-0 text-agent" />
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{title}</span>
@@ -799,7 +799,7 @@ export function ContextSummaryPanel({
           data-testid="context-candidates-error"
         >
           <span className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs font-medium leading-4 text-warning">
-            项目上下文索引失败
+            作品上下文索引失败
           </span>
           <span className="min-w-0 flex-1 break-words">{contextCandidatesError}</span>
           <button
@@ -827,7 +827,7 @@ export function ContextSummaryPanel({
         >
           {contextCandidatesLoading ? (
             <div className="px-2 py-1 text-xs text-subtle" data-testid="context-candidates-loading">
-              正在读取项目上下文…
+              正在读取作品上下文…
             </div>
           ) : contextCandidatesError ? (
             errorBannerVisible ? null : (
@@ -836,7 +836,7 @@ export function ContextSummaryPanel({
                 data-testid="context-candidates-picker-error"
               >
                 <span className="min-w-0 flex-1 break-words">
-                  项目上下文索引失败：{contextCandidatesError}
+                  作品上下文索引失败：{contextCandidatesError}
                 </span>
                 <button
                   type="button"
@@ -850,7 +850,7 @@ export function ContextSummaryPanel({
             )
           ) : visibleCandidates.length === 0 ? (
             <div className="px-2 py-1 text-xs text-subtle">
-              当前项目还没有可选的 Markdown 上下文。
+              当前作品还没有可选的 Markdown 上下文。
             </div>
           ) : (
             visibleCandidates.map((file) => {

@@ -243,7 +243,7 @@ test.each([
 
 test('没打开项目时仍是禁用占位文字，Tab 不填', async () => {
   await act(async () => root.render(<Box disabled />));
-  expect(textarea().placeholder).toBe('打开项目后即可使用 StoryForge');
+  expect(textarea().placeholder).toBe('打开作品后即可使用 StoryForge');
   const event = await pressTab();
   expect(event.defaultPrevented).toBe(false);
 });

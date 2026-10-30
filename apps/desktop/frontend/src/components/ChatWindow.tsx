@@ -157,7 +157,7 @@ export function ChatWindow(props: ChatWindowProps) {
       if (detail.filePath && detail.filePath !== props.currentFile) return;
       event.preventDefault();
       if (state.agentBusy || retryInFlightRef.current) {
-        detail.complete?.('Agent 正忙，请稍后重试');
+        detail.complete?.('AI 正忙，请稍后重试');
         return;
       }
       retryInFlightRef.current = true;

@@ -399,7 +399,7 @@ export function emitRetryWithoutKnowledge(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined') {
-      reject(new Error('Agent 面板尚未就绪'));
+      reject(new Error('AI 面板尚未就绪'));
       return;
     }
     const event = new CustomEvent<RetryWithoutKnowledge>(RETRY_WITHOUT_KNOWLEDGE_EVENT, {
@@ -407,7 +407,7 @@ export function emitRetryWithoutKnowledge(
       detail: { ...detail, complete: (error) => (error ? reject(new Error(error)) : resolve()) },
     });
     window.dispatchEvent(event);
-    if (!event.defaultPrevented) reject(new Error('当前项目没有可接收重试的 Agent 会话'));
+    if (!event.defaultPrevented) reject(new Error('当前作品没有可接收重试的 AI 会话'));
   });
 }
 
@@ -463,7 +463,7 @@ function requestActiveEditorSave(
           reject(
             new ActiveEditorFlushError(
               'error',
-              detail.message || '活动编辑器保存失败，已停止发送给 Agent。',
+              detail.message || '活动编辑器保存失败，已停止发送给 AI。',
             ),
           ),
         );
@@ -483,7 +483,7 @@ function requestActiveEditorSave(
               'timeout',
               forClose
                 ? `保存没有在 ${Math.max(1, Math.round(timeoutMs / 1000))} 秒内完成，这次操作已取消；修改还在编辑器里。`
-                : `活动编辑器在 ${timeoutMs}ms 内没有确认保存，已停止发送给 Agent。`,
+                : `活动编辑器在 ${timeoutMs}ms 内没有确认保存，已停止发送给 AI。`,
             ),
           ),
         ),

@@ -276,7 +276,7 @@ export function AppShell({
                     />
                   ) : (
                     <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
-                      打开项目后可填写封面、简介与字数目标。
+                      打开作品后可填写封面、简介与字数目标。
                     </p>
                   )
                 }
@@ -302,7 +302,7 @@ export function AppShell({
                     />
                   ) : (
                     <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
-                      打开项目后可查看按阅读序排列的章节。
+                      打开作品后可查看按阅读序排列的章节。
                     </p>
                   )
                 }
@@ -338,7 +338,7 @@ export function AppShell({
                     />
                   ) : (
                     <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
-                      打开项目后可查看世界线观测镜。
+                      打开作品后可查看世界线观测镜。
                     </p>
                   )
                 }

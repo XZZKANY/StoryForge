@@ -240,7 +240,7 @@ export function useInlineChat({
       }
       if (!allowsAuthoringActions(readAgentPermissionProfile(session.projectPath))) {
         teardown();
-        flashStatus('本项目已切换为只读，行间操作已取消');
+        flashStatus('本作品已切换为只读，行间操作已取消');
         return false;
       }
       return true;
@@ -754,8 +754,8 @@ export function useInlineChat({
       if (!allowsAuthoringActions(readAgentPermissionProfile(project))) {
         flashStatus(
           mode === 'continue'
-            ? '本项目是只读档，Agent 不产生改动；要续写请先在对话框把档位调开'
-            : '本项目是只读档，Agent 不产生改动；要改稿请先在对话框把档位调开',
+            ? '本作品是只读档，AI 不产生改动；要续写请先在对话框把档位调开'
+            : '本作品是只读档，AI 不产生改动；要改稿请先在对话框把档位调开',
         );
         return;
       }

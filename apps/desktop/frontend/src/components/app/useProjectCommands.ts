@@ -97,7 +97,7 @@ export function useProjectCommands({
     cancelPendingNavigation?.();
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
-      const selected = await open({ directory: true, multiple: false, title: '选择项目目录' });
+      const selected = await open({ directory: true, multiple: false, title: '选择作品文件夹' });
       if (!selected || typeof selected !== 'string') return;
       if (
         activeProject &&
@@ -110,10 +110,10 @@ export function useProjectCommands({
       }
       await selectProjectSafely(selected);
     } catch (error) {
-      console.error('打开项目失败', error);
+      console.error('打开作品失败', error);
       await dialogs.alert({
-        title: '打开项目失败',
-        message: `请检查目录是否仍存在、是否有访问权限，然后重新选择项目目录。\n\n${error instanceof Error ? error.message : String(error)}`,
+        title: '打开作品失败',
+        message: `请检查目录是否仍存在、是否有访问权限，然后重新选择作品文件夹。\n\n${error instanceof Error ? error.message : String(error)}`,
       });
     }
   }, [activeProject, cancelPendingNavigation, dialogs, onResumeProject, selectProjectSafely]);
@@ -135,7 +135,7 @@ export function useProjectCommands({
         setProjectRefreshVersion((version) => version + 1);
         await openFile(seedFilePath);
       } catch (error) {
-        console.error('发送即开书失败，回落到打开项目目录', error);
+        console.error('发送即开书失败，回落到打开作品文件夹', error);
         await handleOpenProject();
       }
     })();
@@ -161,18 +161,18 @@ export function useProjectCommands({
       const selected = await open({
         directory: true,
         multiple: false,
-        title: '选择示例项目保存位置',
+        title: '选择示例作品保存位置',
       });
       if (!selected || typeof selected !== 'string') return;
-      if (!(await confirmDiscardFiles(openFiles, '创建示例项目'))) return;
+      if (!(await confirmDiscardFiles(openFiles, '创建示例作品'))) return;
       const projectPath = await createSampleStoryProject(selected);
       resetEditorFiles();
       selectProject(projectPath);
       setProjectRefreshVersion((version) => version + 1);
     } catch (error) {
-      console.error('创建示例项目失败', error);
+      console.error('创建示例作品失败', error);
       await dialogs.alert({
-        title: '创建示例项目失败',
+        title: '创建示例作品失败',
         message: error instanceof Error ? error.message : String(error),
       });
     }
@@ -230,9 +230,9 @@ export function useProjectCommands({
         onShowEditor();
         emitToast('作品目录已补齐，原有的文件和文件夹都没动。');
       } catch (error) {
-        console.error('初始化项目结构失败', error);
+        console.error('初始化作品结构失败', error);
         await dialogs.alert({
-          title: '初始化项目结构失败',
+          title: '初始化作品结构失败',
           message: error instanceof Error ? error.message : String(error),
         });
       }

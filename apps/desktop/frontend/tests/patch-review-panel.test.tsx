@@ -34,7 +34,7 @@ function sampleSuggestion(
 
 test('buildPatchReviewTraceTitle packs engineering fields', () => {
   const title = buildPatchReviewTraceTitle(sampleSuggestion());
-  assert.match(title, /补丁 patch-42/);
+  assert.match(title, /修订 patch-42/);
   assert.match(title, /会话 7/);
   assert.match(title, /deepseek-v4/);
   assert.match(title, /iss-1/);
@@ -74,7 +74,7 @@ test('patch panel main text is author-facing without Patch/Session labels', () =
   assert.doesNotMatch(html, /data-testid="patch-meta"[^>]*>[\s\S]*iss-1/);
 
   assert.match(html, /data-testid="patch-trace"/);
-  assert.match(html, /title="补丁 patch-42 · 会话 7 · deepseek-v4 · iss-1, iss-2"/);
+  assert.match(html, /title="修订 patch-42 · 会话 7 · deepseek-v4 · iss-1, iss-2"/);
 
   assert.match(html, /data-testid="suggestion-accept"/);
   assert.match(html, /保存旁注/);
@@ -113,7 +113,7 @@ test('trace title omits missing optional fields', () => {
       issueIds: [],
     }),
   );
-  assert.equal(title, '补丁 patch-42');
+  assert.equal(title, '修订 patch-42');
 });
 
 /**
@@ -198,7 +198,7 @@ test('点「拒绝」不立即否掉，先问该怎么改', () => {
 
 test('补丁操作有分组，展开和拒绝状态可读，拒绝输入具有独立名称', () => {
   mountPanel();
-  const group = container.querySelector('[role="group"][aria-label="补丁操作"]');
+  const group = container.querySelector('[role="group"][aria-label="修订操作"]');
   assert.ok(group);
   assert.equal(group.querySelectorAll('button').length, 4);
   // 补丁一来审阅就占满编辑区；Esc 或「收起对比」收成一条操作栏，再点「查看对比」展开。
@@ -783,7 +783,7 @@ test('逐处接受挂在对比区每处改动的正下方，按钮带「第 N �
   assert.match(buttons[0].textContent ?? '', /第 1 处 · 第 1 行/);
   assert.match(buttons[1].textContent ?? '', /第 2 处 · 第 4 行/);
   assert.equal(
-    byTestId('patch-controls')!.querySelector('[aria-label="补丁分块操作"]'),
+    byTestId('patch-controls')!.querySelector('[aria-label="修订分块操作"]'),
     null,
     '能定位的都进了 zone，横幅不再留逐处接受那一行',
   );
@@ -899,7 +899,7 @@ test('分块接受之后：对比区里认不出位置的、冲突的留在横�
     modified.viewZones.map((zone) => zone.afterLineNumber),
     [1],
   );
-  const row = byTestId('patch-controls')!.querySelector('[aria-label="补丁分块操作"]');
+  const row = byTestId('patch-controls')!.querySelector('[aria-label="修订分块操作"]');
   assert.ok(row, '定位不到的留在横幅一行');
   assert.match(row.textContent ?? '', /2 处无法定位/);
   const rowButtons = [

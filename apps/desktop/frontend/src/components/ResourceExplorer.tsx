@@ -182,15 +182,15 @@ export function ResourceExplorer({
       >
         {!projectPath ? (
           <div className="mt-8 mx-4 text-center">
-            <p className="text-sm text-subtle">尚未打开项目</p>
+            <p className="text-sm text-subtle">尚未打开作品</p>
           </div>
         ) : loading ? (
           <div className="p-8 text-center text-sm text-subtle">加载中…</div>
         ) : error ? (
           <PanelError
             compact
-            title="读取项目文件失败"
-            hint="项目目录可能已被移动、重命名或正被其他程序占用。"
+            title="读取作品文件失败"
+            hint="作品文件夹可能已被移动、重命名或正被其他程序占用。"
             detail={error}
             onRetry={() => setRetryNonce((value) => value + 1)}
           />

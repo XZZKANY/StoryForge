@@ -23,7 +23,7 @@ export function ReasoningEffortSelector({
       selected={effort}
       onSelect={changeEffort}
       triggerText={`思考：${label}`}
-      triggerTitle="思考等级（按项目记住，从下一次调用起生效）"
+      triggerTitle="思考等级（按作品记住，从下一次调用起生效）"
       ariaLabel="思考等级"
       menuLabel="选择思考等级"
       testId="reasoning-effort-selector"

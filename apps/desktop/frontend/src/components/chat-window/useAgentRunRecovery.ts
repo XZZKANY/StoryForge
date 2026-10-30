@@ -217,7 +217,7 @@ export function useAgentRunRecovery(
         );
         const filePath = resolveProposedPatchFilePath(projectPathRef.current, proposed.file_path);
         if (!filePath) {
-          const message = 'Agent 返回的修订目标不在当前项目内，已阻止写回。';
+          const message = 'AI 返回的修订目标不在当前作品内，已阻止写回。';
           textStream.settle(response.run_id, { kind: 'diagnostic', detail: message }, 'failed');
           emitSuggestionResult({
             filePath: proposed.file_path,
@@ -235,7 +235,7 @@ export function useAgentRunRecovery(
             filePath,
             before: proposed.before,
             after: proposed.after,
-            summary: response.agent_result.summary ?? 'Agent 已生成修订建议。',
+            summary: response.agent_result.summary ?? 'AI 已生成修订建议。',
             model: modelFromToolTrace(response),
             userIntent: response.user_message,
             assistantSessionId: response.assistant_session_id,
@@ -253,7 +253,7 @@ export function useAgentRunRecovery(
         emitSuggestionResult({
           filePath,
           status: 'ready',
-          message: response.agent_result.summary ?? 'Agent 已生成修订建议。',
+          message: response.agent_result.summary ?? 'AI 已生成修订建议。',
           assistantSessionId: response.assistant_session_id,
         });
         updateAgentStatus('waiting');
