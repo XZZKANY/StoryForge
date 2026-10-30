@@ -22,6 +22,7 @@ vi.mock('../src/lib/engine/llm', async (importOriginal) => ({
 }));
 
 import { engineAgentDeps } from '../src/lib/engine/agent';
+import { engineAssistantDeps } from '../src/lib/engine/assistant';
 import { engineRuns } from '../src/lib/engine/store';
 import { nativeProjectWriter } from '../src/lib/engine/writer';
 
@@ -114,5 +115,20 @@ describe('engineAgentDeps', () => {
       return null;
     });
     expect((await engineAgentDeps()).pluginLibraryRoot).toBeNull();
+  });
+});
+
+describe('engineAssistantDeps', () => {
+  it('passes the plugin library root to Ctrl+K / continuation, or null when the host cannot give one', async () => {
+    const library = 'C:/Users/author/AppData/Roaming/com.storyforge.ide/plugins';
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === 'plugin_library_dir' ? library : null,
+    );
+    expect((await engineAssistantDeps()).pluginLibraryRoot).toBe(library);
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === 'plugin_library_dir') throw new Error('插件库目录建不出来');
+      return null;
+    });
+    expect((await engineAssistantDeps()).pluginLibraryRoot).toBeNull();
   });
 });

@@ -79,7 +79,7 @@ describe('left rail sessions live in the engine database', () => {
     // 空项目路径与 Python 路由一样不过滤（前端只在有值时才带这个参数）。
     expect(await listAssistantSessions({ projectPath: '' })).toHaveLength(2);
     expect((await getAssistantSession(ref.id)).title).toBe('IDE Agent: 钥匙 [REDACTED]');
-    await expect(getAssistantSession(99)).rejects.toThrow('Assistant 会话不存在：99。');
+    await expect(getAssistantSession(99)).rejects.toThrow('AI 会话不存在：99。');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

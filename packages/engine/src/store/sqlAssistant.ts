@@ -139,7 +139,7 @@ export class SqlAssistantStore implements AssistantStore {
 
   private async session(id: number): Promise<SqlRow> {
     const rows = await this.db.select('SELECT * FROM assistant_sessions WHERE id = $1', [id]);
-    if (!rows.length) throw new AssistantSessionNotFoundError(`Assistant 会话不存在：${id}。`);
+    if (!rows.length) throw new AssistantSessionNotFoundError(`AI 会话不存在：${id}。`);
     return rows[0];
   }
 
@@ -244,7 +244,7 @@ export class SqlAssistantStore implements AssistantStore {
         toolCallId,
       ]);
       if (!found.length)
-        throw new AssistantToolCallNotFoundError(`Assistant 工具调用不存在：${toolCallId}。`);
+        throw new AssistantToolCallNotFoundError(`AI 工具调用不存在：${toolCallId}。`);
       const sets: string[] = [];
       const params: (string | number | null)[] = [];
       for (const [key, value] of Object.entries(fields)) {

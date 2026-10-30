@@ -37,7 +37,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -79,7 +79,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -90,7 +90,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -101,7 +101,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -112,7 +112,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -123,7 +123,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -134,7 +134,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -147,7 +147,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -174,7 +174,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -203,7 +203,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -234,7 +234,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -265,7 +265,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -294,7 +294,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -321,7 +321,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -350,7 +350,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -381,7 +381,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -412,7 +412,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -441,7 +441,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -468,7 +468,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -497,7 +497,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -528,7 +528,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -559,7 +559,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -588,7 +588,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -615,7 +615,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -644,7 +644,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -675,7 +675,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -706,7 +706,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -735,7 +735,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -762,7 +762,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -791,7 +791,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -822,7 +822,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -853,7 +853,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -882,7 +882,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -909,7 +909,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -938,7 +938,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -969,7 +969,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1000,7 +1000,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1038,7 +1038,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1080,7 +1080,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1091,7 +1091,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1102,7 +1102,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1113,7 +1113,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1124,7 +1124,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1135,7 +1135,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1148,7 +1148,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1175,7 +1175,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1204,7 +1204,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1235,7 +1235,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1266,7 +1266,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1295,7 +1295,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1322,7 +1322,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1351,7 +1351,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1382,7 +1382,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1413,7 +1413,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1442,7 +1442,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1469,7 +1469,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1498,7 +1498,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1529,7 +1529,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1560,7 +1560,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1589,7 +1589,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1616,7 +1616,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1645,7 +1645,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1676,7 +1676,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1707,7 +1707,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1736,7 +1736,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1763,7 +1763,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1792,7 +1792,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1823,7 +1823,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1854,7 +1854,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1883,7 +1883,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1910,7 +1910,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1939,7 +1939,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -1970,7 +1970,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2001,7 +2001,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2039,7 +2039,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2081,7 +2081,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2092,7 +2092,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2103,7 +2103,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2114,7 +2114,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2125,7 +2125,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2136,7 +2136,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2149,7 +2149,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2176,7 +2176,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2205,7 +2205,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2236,7 +2236,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2267,7 +2267,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2296,7 +2296,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2323,7 +2323,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2352,7 +2352,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2383,7 +2383,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2414,7 +2414,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2443,7 +2443,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2470,7 +2470,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2499,7 +2499,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2530,7 +2530,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2561,7 +2561,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2590,7 +2590,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2617,7 +2617,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2646,7 +2646,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2677,7 +2677,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2708,7 +2708,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2737,7 +2737,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2764,7 +2764,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2793,7 +2793,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2824,7 +2824,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2855,7 +2855,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2884,7 +2884,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2911,7 +2911,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2940,7 +2940,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -2971,7 +2971,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -3002,7 +3002,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "缺少 Agent 权限档位。"
+        "message": "缺少 AI 权限档位。"
       }
     },
     {
@@ -3142,7 +3142,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限阶段：deploy。"
+        "message": "不支持的 AI 权限阶段：deploy。"
       }
     },
     {
@@ -4178,7 +4178,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限阶段：deploy。"
+        "message": "不支持的 AI 权限阶段：deploy。"
       }
     },
     {
@@ -5214,7 +5214,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限阶段：deploy。"
+        "message": "不支持的 AI 权限阶段：deploy。"
       }
     },
     {
@@ -6250,7 +6250,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限阶段：deploy。"
+        "message": "不支持的 AI 权限阶段：deploy。"
       }
     },
     {
@@ -7286,7 +7286,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限阶段：deploy。"
+        "message": "不支持的 AI 权限阶段：deploy。"
       }
     },
     {
@@ -8322,7 +8322,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限阶段：deploy。"
+        "message": "不支持的 AI 权限阶段：deploy。"
       }
     },
     {
@@ -9358,7 +9358,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限阶段：deploy。"
+        "message": "不支持的 AI 权限阶段：deploy。"
       }
     },
     {
@@ -10394,7 +10394,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限阶段：deploy。"
+        "message": "不支持的 AI 权限阶段：deploy。"
       }
     },
     {
@@ -11430,7 +11430,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限阶段：deploy。"
+        "message": "不支持的 AI 权限阶段：deploy。"
       }
     },
     {
@@ -12353,7 +12353,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12364,7 +12364,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12406,7 +12406,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12417,7 +12417,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12428,7 +12428,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12439,7 +12439,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12450,7 +12450,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12461,7 +12461,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12474,7 +12474,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12501,7 +12501,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12530,7 +12530,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12561,7 +12561,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12592,7 +12592,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12621,7 +12621,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12648,7 +12648,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12677,7 +12677,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12708,7 +12708,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12739,7 +12739,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12768,7 +12768,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12795,7 +12795,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12824,7 +12824,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12855,7 +12855,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12886,7 +12886,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12915,7 +12915,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12942,7 +12942,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -12971,7 +12971,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13002,7 +13002,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13033,7 +13033,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13062,7 +13062,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13089,7 +13089,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13118,7 +13118,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13149,7 +13149,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13180,7 +13180,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13209,7 +13209,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13236,7 +13236,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13265,7 +13265,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13296,7 +13296,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13327,7 +13327,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：bogus。"
+        "message": "不支持的 AI 权限档位：bogus。"
       }
     },
     {
@@ -13354,7 +13354,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13365,7 +13365,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13407,7 +13407,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13418,7 +13418,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13429,7 +13429,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13440,7 +13440,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13451,7 +13451,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13462,7 +13462,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13475,7 +13475,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13502,7 +13502,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13531,7 +13531,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13562,7 +13562,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13593,7 +13593,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13622,7 +13622,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13649,7 +13649,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13678,7 +13678,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13709,7 +13709,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13740,7 +13740,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13769,7 +13769,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13796,7 +13796,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13825,7 +13825,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13856,7 +13856,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13887,7 +13887,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13916,7 +13916,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13943,7 +13943,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -13972,7 +13972,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14003,7 +14003,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14034,7 +14034,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14063,7 +14063,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14090,7 +14090,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14119,7 +14119,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14150,7 +14150,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14181,7 +14181,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14210,7 +14210,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14237,7 +14237,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14266,7 +14266,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14297,7 +14297,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14328,7 +14328,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "不支持的 Agent 权限档位：ASK。"
+        "message": "不支持的 AI 权限档位：ASK。"
       }
     },
     {
@@ -14355,7 +14355,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14366,7 +14366,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14408,7 +14408,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14419,7 +14419,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14430,7 +14430,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14441,7 +14441,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14452,7 +14452,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14463,7 +14463,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14476,7 +14476,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14503,7 +14503,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14532,7 +14532,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14563,7 +14563,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14594,7 +14594,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14623,7 +14623,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14650,7 +14650,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14679,7 +14679,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14710,7 +14710,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14741,7 +14741,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14770,7 +14770,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14797,7 +14797,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14826,7 +14826,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14857,7 +14857,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14888,7 +14888,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14917,7 +14917,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14944,7 +14944,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -14973,7 +14973,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15004,7 +15004,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15035,7 +15035,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15064,7 +15064,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15091,7 +15091,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15120,7 +15120,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15151,7 +15151,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15182,7 +15182,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15211,7 +15211,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15238,7 +15238,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15267,7 +15267,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15298,7 +15298,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15329,7 +15329,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15356,7 +15356,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15367,7 +15367,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15409,7 +15409,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15420,7 +15420,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15431,7 +15431,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15442,7 +15442,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15453,7 +15453,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15464,7 +15464,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15477,7 +15477,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15504,7 +15504,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15533,7 +15533,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15564,7 +15564,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15595,7 +15595,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15624,7 +15624,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15651,7 +15651,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15680,7 +15680,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15711,7 +15711,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15742,7 +15742,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15771,7 +15771,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15798,7 +15798,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15827,7 +15827,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15858,7 +15858,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15889,7 +15889,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15918,7 +15918,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15945,7 +15945,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -15974,7 +15974,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -16005,7 +16005,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -16036,7 +16036,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -16065,7 +16065,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -16092,7 +16092,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -16121,7 +16121,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -16152,7 +16152,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -16183,7 +16183,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -16212,7 +16212,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -16239,7 +16239,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -16268,7 +16268,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -16299,7 +16299,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -16330,7 +16330,7 @@
       },
       "error": {
         "type": "PermissionProfileError",
-        "message": "Agent 权限档位必须是字符串。"
+        "message": "AI 权限档位必须是字符串。"
       }
     },
     {
@@ -18683,7 +18683,7 @@
       "args": {
         "control": "pause_run"
       },
-      "output": "作者已暂停 AgentRun。"
+      "output": "作者已暂停 AI。"
     },
     {
       "fn": "control_event_type",
@@ -18704,7 +18704,7 @@
       "args": {
         "control": "resume_run"
       },
-      "output": "作者已恢复 AgentRun。"
+      "output": "作者已恢复 AI。"
     },
     {
       "fn": "control_event_type",
@@ -18725,7 +18725,7 @@
       "args": {
         "control": "stop_run"
       },
-      "output": "作者已停止 AgentRun。"
+      "output": "作者已停止 AI。"
     },
     {
       "fn": "control_event_type",
@@ -18746,7 +18746,7 @@
       "args": {
         "control": "retry_from_checkpoint"
       },
-      "output": "作者要求从 checkpoint 重试 AgentRun。"
+      "output": "作者要求 AI 从 checkpoint 重试。"
     },
     {
       "fn": "control_event_type",
@@ -18865,7 +18865,7 @@
             {
               "step": "permission.confirm",
               "status": "completed",
-              "detail": "作者已批准提案；文件写回由 Desktop 执行。"
+              "detail": "作者已批准提案；由 Desktop 写进文件。"
             }
           ],
           "agent_result": {
@@ -19042,7 +19042,7 @@
           "content": "x"
         },
         "has_view": true,
-        "block": "作者正在编辑当前稿件\n作者当前**选中**了下面这段（作者说「这一段」「这几句」时指的就是它）：\n<<<SELECTION\n选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选\nSELECTION>>>",
+        "block": "作者正在编辑当前文件\n作者当前**选中**了下面这段（作者说「这一段」「这几句」时指的就是它）：\n<<<SELECTION\n选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选选\nSELECTION>>>",
         "summary": {
           "file_path": null,
           "cursor_line": 0,
@@ -19128,7 +19128,7 @@
           "content": "长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段\n\n长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段\n\n长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段\n\n长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段\n\n长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段\n\n长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段"
         },
         "has_view": true,
-        "block": "作者正在编辑当前稿件，光标停在第 2 行。作者说「这里」「刚写的」时指的是光标附近。\n\n光标之前（含光标行）：\n<<<BEFORE_CURSOR\n长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段\nBEFORE_CURSOR>>>\n\n光标之后：\n<<<AFTER_CURSOR\n长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段\nAFTER_CURSOR>>>\n\n这是节选窗口，不是全文；需要更多正文用 fs_read。",
+        "block": "作者正在编辑当前文件，光标停在第 2 行。作者说「这里」「刚写的」时指的是光标附近。\n\n光标之前（含光标行）：\n<<<BEFORE_CURSOR\n长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段\nBEFORE_CURSOR>>>\n\n光标之后：\n<<<AFTER_CURSOR\n长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段长段\nAFTER_CURSOR>>>\n\n这是节选窗口，不是全文；需要更多正文用 fs_read。",
         "summary": {
           "file_path": null,
           "cursor_line": 2,
@@ -19156,7 +19156,7 @@
           "content": "a\r\nb\r\n"
         },
         "has_view": true,
-        "block": "作者正在编辑当前稿件，光标停在第 99 行。作者说「这里」「刚写的」时指的是光标附近。\n\n光标之前（含光标行）：\n<<<BEFORE_CURSOR\na\r\nb\r\nBEFORE_CURSOR>>>\n\n这是节选窗口，不是全文；需要更多正文用 fs_read。",
+        "block": "作者正在编辑当前文件，光标停在第 99 行。作者说「这里」「刚写的」时指的是光标附近。\n\n光标之前（含光标行）：\n<<<BEFORE_CURSOR\na\r\nb\r\nBEFORE_CURSOR>>>\n\n这是节选窗口，不是全文；需要更多正文用 fs_read。",
         "summary": {
           "file_path": null,
           "cursor_line": 99,

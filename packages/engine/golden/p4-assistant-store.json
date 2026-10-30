@@ -316,7 +316,7 @@
       },
       "error": {
         "type": "AssistantSessionNotFoundError",
-        "message": "Assistant 会话不存在：99。"
+        "message": "AI 会话不存在：99。"
       },
       "raw": {
         "sessions": [
@@ -1135,7 +1135,7 @@
       },
       "error": {
         "type": "AssistantToolCallNotFoundError",
-        "message": "Assistant 工具调用不存在：99。"
+        "message": "AI 工具调用不存在：99。"
       },
       "raw": {
         "sessions": [
@@ -1397,7 +1397,7 @@
       },
       "error": {
         "type": "AssistantSessionNotFoundError",
-        "message": "Assistant 会话不存在：99。"
+        "message": "AI 会话不存在：99。"
       },
       "raw": {
         "sessions": [
@@ -1642,7 +1642,7 @@
       },
       "error": {
         "type": "AssistantSessionNotFoundError",
-        "message": "Assistant 会话不存在：99。"
+        "message": "AI 会话不存在：99。"
       },
       "raw": {
         "sessions": [

@@ -124,8 +124,8 @@ describe('run reads', () => {
     expect(pending.message).toBe('key [REDACTED]');
     expect((pending.payload as Obj).payload).not.toHaveProperty('private_body');
     expect(pause.payload).toEqual({ reason: '[REDACTED]' });
-    await expect(listAgentRunEvents(deps, 'run-404')).rejects.toThrow('AgentRun 不存在。');
-    await expect(agentRunSavePoints(deps, 'run-404')).rejects.toThrow('AgentRun 不存在。');
+    await expect(listAgentRunEvents(deps, 'run-404')).rejects.toThrow('找不到这次 AI 运行。');
+    await expect(agentRunSavePoints(deps, 'run-404')).rejects.toThrow('找不到这次 AI 运行。');
   });
 });
 
@@ -309,7 +309,7 @@ describe('host request validation', () => {
       { user_message: 'x', execution_protocol: 'external_writeback_v1' },
       () => undefined,
     ).catch((error: unknown) => error);
-    expect(failure).toMatchObject({ status: 409, detail: '当前宿主未开放连续写回协议' });
+    expect(failure).toMatchObject({ status: 409, detail: '当前宿主未开放连续写入协议' });
   });
 
   it.each([

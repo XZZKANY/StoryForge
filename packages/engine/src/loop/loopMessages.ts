@@ -1,4 +1,9 @@
-import { readAuthorInstructions } from '../kernel/authorVoice';
+import {
+  PLUGIN_CONVERSATION_PREFIX,
+  pluginInstructionsBlock,
+  readAuthorInstructions,
+  readPluginInstructions,
+} from '../kernel/authorVoice';
 import { renderBookContextBlock } from '../kernel/bookContext';
 import { buildBookContext } from '../kernel/buildBookContext';
 import { buildSceneConstraintBlock } from '../kernel/canonContext';
@@ -22,8 +27,9 @@ import { AUTHOR_INSTRUCTIONS_PREFIX, SYSTEM_PROMPT } from './promptContext';
 export type LoopMessage = { role: string; content: string };
 
 /**
- * chat 循环的初始消息：system prompt、作者指令、技能目录（有技能才有）、全书底座、连载计划、场景约束、会话历史、
- * @钉上下文、作者视图、点名技能全文（作者用 /技能名 点名才有）、本轮作者消息；同时记下每一段的来源指纹（provenance）。
+ * chat 循环的初始消息：system prompt、插件指令（启用的插件带了指令才有）、作者指令、技能目录（有技能才有）、
+ * 全书底座、连载计划、场景约束、会话历史、@钉上下文、作者视图、点名技能全文（作者用 /技能名 点名才有）、
+ * 本轮作者消息；同时记下每一段的来源指纹（provenance）。
  */
 export async function storyforgeMessages(
   deps: {
@@ -60,6 +66,10 @@ export async function storyforgeMessages(
       : `${rendered ?? '[作品底座 · 确定性]'}\n\n${setupGapSection(missing)}`;
   const planBlock = await buildPlanBlock(reader, root, platform);
   const sceneBlock = await buildSceneConstraintBlock(reader, root, currentFile, { platform });
+  const pluginInstructions = pluginInstructionsBlock(
+    await readPluginInstructions(reader, root, deps.pluginLibraryRoot ?? null, deps.secrets),
+    PLUGIN_CONVERSATION_PREFIX,
+  );
   const instructions = await readAuthorInstructions(reader, root);
   const skills = await loadAvailableSkills(
     reader,
@@ -76,6 +86,10 @@ export async function storyforgeMessages(
     content ? [{ role: 'system', content }] : [];
   const parts: [string, LoopMessage[]][] = [
     ['system_prompt', system(SYSTEM_PROMPT)],
+    // 插件不是作者本人：放在作者指令前面，作者的话在后、更近更强。没有时连段名都不记（同技能目录）。
+    ...(pluginInstructions
+      ? [['plugin_instructions', system(pluginInstructions)] as [string, LoopMessage[]]]
+      : []),
     [
       'author_instructions',
       system(instructions ? AUTHOR_INSTRUCTIONS_PREFIX + instructions : null),
@@ -102,7 +116,7 @@ export async function storyforgeMessages(
         {
           role: 'user',
           content:
-            `[项目已挂载，只读工具可用。${hint}]\n` +
+            `[作品已挂载，只读工具可用。${hint}]\n` +
             (input.setupNote ? `${input.setupNote}\n` : '') +
             `作者：${input.userMessage}`,
         },

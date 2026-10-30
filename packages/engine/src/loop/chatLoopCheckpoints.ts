@@ -1,4 +1,5 @@
 import { startsWithSkillCommand } from '@storyforge/project-core';
+import { readPluginInstructions } from '../kernel/authorVoice';
 import {
   findAvailableSkill,
   invokedConversationSkills,
@@ -38,7 +39,7 @@ export type SourceFingerprint = {
   readonly sha256: string | null;
   /** 超过单文件读量上限，无法核对：续跑一律视为来源已变。 */
   readonly unverifiable?: true;
-  /** 插件技能（键为 `plugin:<插件id>/<插件内路径>`）：插件文件夹的绝对路径，path 是插件内路径。 */
+  /** 插件技能与插件指令（键为 `plugin:<插件id>/<插件内路径>`）：插件文件夹的绝对路径，path 是插件内路径。 */
   readonly plugin_root?: string;
 };
 export type RecoverySources = {
@@ -171,7 +172,8 @@ async function pluginFingerprint(
 
 /**
  * 本轮读过的文件：当前文件、作者指令、带摘录的上下文文件、点名的技能、会读文件的工具调用。
- * 插件技能（点名或 skill_read 读过）记在 `plugin:<插件id>/<插件内路径>` 键下，作品技能仍记项目相对路径。
+ * 插件技能（点名或 skill_read 读过）与这一轮带上的插件指令记在 `plugin:<插件id>/<插件内路径>` 键下，
+ * 作品技能仍记项目相对路径。
  */
 export async function sourceVersions(
   deps: SourceDeps,
@@ -235,6 +237,20 @@ export async function sourceVersions(
       plugin.root,
       path,
     );
+  // 这一轮带上的插件指令：与组装对话消息同一个取舍，被丢弃的不记。
+  const pluginInstructions = await readPluginInstructions(
+    deps.reader,
+    root,
+    deps.pluginLibraryRoot ?? null,
+    deps.secrets ?? { values: [] },
+  );
+  for (const part of pluginInstructions)
+    if (part.omission === null)
+      files[`plugin:${part.id}/${part.path}`] ??= await pluginFingerprint(
+        deps.reader,
+        part.root,
+        part.path,
+      );
   return { project_root: root, files };
 }
 

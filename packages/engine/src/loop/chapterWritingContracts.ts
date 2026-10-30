@@ -15,11 +15,8 @@ import { MAX_READ_BYTES, ProjectTreeError } from '../kernel/projectTree';
 import { PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
 import { locateQuote } from '../kernel/quoteLocation';
 import { buildPlan, nextChapter, type PlannedChapter, type SerialPlan } from '../kernel/serialPlan';
-import {
-  pickWritingSkills,
-  WRITING_SKILL_PICK_MAX,
-  type WritingSkill,
-} from '../kernel/writingSkills';
+import type { AvailableWritingStyle } from '../kernel/availableWritingStyles';
+import { pickWritingSkills, WRITING_SKILL_PICK_MAX } from '../kernel/writingSkills';
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import { chapterChars } from './chapterCheckProtocol';
 import { AgentOrchestrationError } from './runPayloads';
@@ -126,7 +123,7 @@ async function relativePath(
       return (await reader.resolveProjectPath(root, text)).resolvedRelativePath;
     } catch (error) {
       if (!(error instanceof ProjectReadError)) throw error;
-      throw new AgentOrchestrationError('目标章节不在当前项目内。');
+      throw new AgentOrchestrationError('目标章节不在当前作品内。');
     }
   }
   return lexicalPosix(text, platform);
@@ -528,7 +525,8 @@ export function parseBrief(
     newHex: () => string;
     userMessage?: string;
     written?: BriefWritten | null;
-    skills?: readonly WritingSkill[];
+    /** 章纲目录里列的写法（作品的和启用插件的合在一起），模型只能从这里挑。 */
+    skills?: readonly AvailableWritingStyle[];
   },
 ): Obj {
   const { seed, written } = options;

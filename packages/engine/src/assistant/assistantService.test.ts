@@ -49,7 +49,7 @@ function fakeStore(log: Json[]): AssistantStore {
   let nextTool = 100;
   const lookup = (id: number) => {
     const found = sessions.get(id);
-    if (!found) throw new AssistantSessionNotFoundError(`Assistant 会话不存在：${id}。`);
+    if (!found) throw new AssistantSessionNotFoundError(`AI 会话不存在：${id}。`);
     return found;
   };
   return {

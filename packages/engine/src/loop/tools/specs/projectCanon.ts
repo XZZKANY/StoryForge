@@ -5,8 +5,8 @@ export const PROJECT_CANON_TOOL_SPECS = [
   toolSpec({
     name: 'project.canon',
     description:
-      '项目 canon 闸：从正文重建实体在场缓存 + 校验作者在 .storyforge/canon/canon.json 声明的薄不变量（唯一持有 / 时间线先后 / 退场一致性），产出硬矛盾与 advisory 信号。' +
-      '会更新 .storyforge/canon/ 派生缓存（非手稿正文），不落 DB。',
+      '作品 canon 闸：从正文重建实体在场缓存 + 校验作者在 .storyforge/canon/canon.json 声明的薄不变量（唯一持有 / 时间线先后 / 退场一致性），产出硬矛盾与 advisory 信号。' +
+      '会更新 .storyforge/canon/ 派生缓存（非正文），不落 DB。',
     domain: 'project',
     input_schema: {},
     output_schema: {},
@@ -21,11 +21,11 @@ export const PROJECT_CANON_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '项目 canon 闸（确定性，无需 LLM）：从正文重建实体在场分布缓存，再校验作者声明的薄不变量——唯一持有（同一物件章节窗口内只能一个持有者）、时间线先后（声明不能成环）、退场一致性（声明退场后不应再出场）。' +
+        '作品 canon 闸（确定性，无需 LLM）：从正文重建实体在场分布缓存，再校验作者声明的薄不变量——唯一持有（同一物件章节窗口内只能一个持有者）、时间线先后（声明不能成环）、退场一致性（声明退场后不应再出场）。' +
         '返回硬矛盾（blocking，声明内部结构冲突）与 advisory （退场后仍出场，可能是回忆 / 提及 / 同名，须抽读核实）。' +
         '它随书累积、比无状态深查更能抓跨章累积漂移。' +
         '同时把每实体事实（身份 / 别名 / 出场跨度 / 绑定声明 / provenance）投影成人可读 dossier.md 缓存。' +
-        '调用会更新 .storyforge/canon/ 下的派生缓存（不改手稿）。' +
+        '调用会更新 .storyforge/canon/ 下的派生缓存（不改正文）。' +
         '作者尚未在 canon.json 声明不变量时，会建立空格式骨架并如实说明无可校验项。',
       parameters: {
         type: 'object',
@@ -46,7 +46,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
     name: 'project.canon_delta',
     description:
       '确定性 canon 提案：把模型从正文观察到的实体、持有、退场、时间线与伏笔声明与既有 canon 做归并、别名冲突与不变量差量检查，草稿只写派生 proposals.json；' +
-      '不写 canon.json 或手稿。',
+      '不写 canon.json 或正文。',
     domain: 'project',
     input_schema: {},
     output_schema: {},
@@ -74,7 +74,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
         '字段未传表示该类不提议；全空会诚实返回无提议。' +
         '工具会归并既有实体、提示同名 / 别名身份冲突，并只报告提案新增的 canon 闸问题。' +
         '合并草稿写入派生缓存 proposals.json（上一轮作者还没并入的提案会一并留着，不会被本轮覆盖），绝不修改 canon.json 或正文；' +
-        '作者审阅后再决定是否走待确认补丁。',
+        '作者审阅后再决定是否走待确认修订。',
       parameters: {
         type: 'object',
         properties: {
@@ -102,7 +102,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
                       },
                       path: {
                         type: 'string',
-                        description: '项目相对路径（可选），不可越界。',
+                        description: '作品内相对路径（可选），不可越界。',
                       },
                       start_line: {
                         type: 'integer',
@@ -154,7 +154,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
                       },
                       path: {
                         type: 'string',
-                        description: '项目相对路径（可选），不可越界。',
+                        description: '作品内相对路径（可选），不可越界。',
                       },
                       start_line: {
                         type: 'integer',
@@ -209,7 +209,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
                       },
                       path: {
                         type: 'string',
-                        description: '项目相对路径（可选），不可越界。',
+                        description: '作品内相对路径（可选），不可越界。',
                       },
                       start_line: {
                         type: 'integer',
@@ -261,7 +261,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
                       },
                       path: {
                         type: 'string',
-                        description: '项目相对路径（可选），不可越界。',
+                        description: '作品内相对路径（可选），不可越界。',
                       },
                       start_line: {
                         type: 'integer',
@@ -310,7 +310,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
                       },
                       path: {
                         type: 'string',
-                        description: '项目相对路径（可选），不可越界。',
+                        description: '作品内相对路径（可选），不可越界。',
                       },
                       start_line: {
                         type: 'integer',
@@ -363,7 +363,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
     name: 'project.promise_check',
     description:
       '伏笔承诺记账：只读 canon.json 的作者 promises 声明，确定性检查声明矛盾、超窗未兑现、长期停滞与 recurring 断供；' +
-      '无 LLM、不写 canon、缓存或手稿。',
+      '无 LLM、不写 canon、缓存或正文。',
     domain: 'project',
     input_schema: {},
     output_schema: {},
@@ -379,7 +379,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
     loop_schema: {
       description:
         '伏笔承诺记账（确定性，无需 LLM、纯只读）：读取 .storyforge/canon/canon.json 中作者声明的 invariants.promises，检查 resolved / 埋设 / 截止章的结构矛盾、重复 id，以及超窗未兑现、开放窗口长期停滞和 recurring cadence 断供。' +
-        '只返回 blocking 与 advisory 证据，绝不修改 canon.json、派生缓存或手稿；' +
+        '只返回 blocking 与 advisory 证据，绝不修改 canon.json、派生缓存或正文；' +
         'advisory 仍需结合原文核实。',
       parameters: {
         type: 'object',

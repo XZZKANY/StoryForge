@@ -197,7 +197,7 @@
           "args": {
             "path": "正文/cliches.md"
           },
-          "output_json": "{\"path\": \"正文/cliches.md\", \"content_chars\": 37, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"套话\", \"severity\": \"中\", \"snippet\": \"不禁、五味杂陈、心中一震、莫名、深深地\", \"message\": \"出现高频陈词套话，削弱画面和人物独特性。\", \"suggestion\": \"替换为具体动作、感官细节或角色专属表达。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"套话\": 1}, \"severity_counts\": {\"中\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/cliches.md\", \"content_chars\": 37, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"套话\", \"severity\": \"中\", \"snippet\": \"不禁、五味杂陈、心中一震、莫名、深深地\", \"message\": \"出现高频陈词套话，削弱画面和人物独特性。\", \"suggestion\": \"替换为具体动作、感官细节或角色专属表达。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"套话\": 1}, \"severity_counts\": {\"中\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -205,7 +205,7 @@
           "args": {
             "path": "正文/telling.md"
           },
-          "output_json": "{\"path\": \"正文/telling.md\", \"content_chars\": 41, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"说明腔\", \"severity\": \"中\", \"snippet\": \"她感到非常愤怒\", \"message\": \"直接说明情绪或困境，缺少动作与触觉承载。\", \"suggestion\": \"用身体反应、动作选择或对白压力呈现情绪。\", \"revision_strategy\": \"line_edit\"}, {\"dimension\": \"情绪直述\", \"severity\": \"中\", \"snippet\": \"愤怒、害怕\", \"message\": \"抽象情绪词密集出现，读者只能被告知而非看见。\", \"suggestion\": \"保留情绪方向，但改成动作、环境反馈和对白潜台词。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"说明腔\": 1, \"情绪直述\": 1}, \"severity_counts\": {\"中\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/telling.md\", \"content_chars\": 41, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"说明腔\", \"severity\": \"中\", \"snippet\": \"她感到非常愤怒\", \"message\": \"直接说明情绪或困境，缺少动作与触觉承载。\", \"suggestion\": \"用身体反应、动作选择或对白压力呈现情绪。\", \"revision_strategy\": \"line_edit\"}, {\"dimension\": \"情绪直述\", \"severity\": \"中\", \"snippet\": \"愤怒、害怕\", \"message\": \"抽象情绪词密集出现，读者只能被告知而非看见。\", \"suggestion\": \"保留情绪方向，但改成动作、环境反馈和对白潜台词。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"说明腔\": 1, \"情绪直述\": 1}, \"severity_counts\": {\"中\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -213,7 +213,7 @@
           "args": {
             "path": "正文/emotion-only.md"
           },
-          "output_json": "{\"path\": \"正文/emotion-only.md\", \"content_chars\": 29, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"情绪直述\", \"severity\": \"中\", \"snippet\": \"悲伤、绝望\", \"message\": \"抽象情绪词密集出现，读者只能被告知而非看见。\", \"suggestion\": \"保留情绪方向，但改成动作、环境反馈和对白潜台词。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"情绪直述\": 1}, \"severity_counts\": {\"中\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/emotion-only.md\", \"content_chars\": 29, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"情绪直述\", \"severity\": \"中\", \"snippet\": \"悲伤、绝望\", \"message\": \"抽象情绪词密集出现，读者只能被告知而非看见。\", \"suggestion\": \"保留情绪方向，但改成动作、环境反馈和对白潜台词。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"情绪直述\": 1}, \"severity_counts\": {\"中\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -221,7 +221,7 @@
           "args": {
             "path": "正文/exposition.md"
           },
-          "output_json": "{\"path\": \"正文/exposition.md\", \"content_chars\": 38, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"解释性旁白\", \"severity\": \"低\", \"snippet\": \"因为、所以\", \"message\": \"解释性连接词偏多，容易形成作者代讲。\", \"suggestion\": \"让信息通过冲突行动、对白和场景物件自然暴露。\", \"revision_strategy\": \"scene_patch\"}], \"dimension_counts\": {\"解释性旁白\": 1}, \"severity_counts\": {\"低\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/exposition.md\", \"content_chars\": 38, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"解释性旁白\", \"severity\": \"低\", \"snippet\": \"因为、所以\", \"message\": \"解释性连接词偏多，容易形成作者代讲。\", \"suggestion\": \"让信息通过冲突行动、对白和场景物件自然暴露。\", \"revision_strategy\": \"scene_patch\"}], \"dimension_counts\": {\"解释性旁白\": 1}, \"severity_counts\": {\"低\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -229,7 +229,7 @@
           "args": {
             "path": "正文/low-dialogue.md"
           },
-          "output_json": "{\"path\": \"正文/low-dialogue.md\", \"content_chars\": 93, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"雨水顺着屋檐落下，石板路被冲得发亮，巷子尽头的灯笼一盏接一盏熄灭\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"雨水顺着屋檐落下，石板路被冲得发亮，巷子尽头的灯笼一盏接一盏熄灭，守夜人\", \"message\": \"单句过长，动作和信息层次容易糊在一起。\", \"suggestion\": \"按动作、感知和转折拆分句子。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"对白密度\": 1, \"句长\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/low-dialogue.md\", \"content_chars\": 93, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"雨水顺着屋檐落下，石板路被冲得发亮，巷子尽头的灯笼一盏接一盏熄灭\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"雨水顺着屋檐落下，石板路被冲得发亮，巷子尽头的灯笼一盏接一盏熄灭，守夜人\", \"message\": \"单句过长，动作和信息层次容易糊在一起。\", \"suggestion\": \"按动作、感知和转折拆分句子。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"对白密度\": 1, \"句长\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -237,7 +237,7 @@
           "args": {
             "path": "正文/high-dialogue.md"
           },
-          "output_json": "{\"path\": \"正文/high-dialogue.md\", \"content_chars\": 63, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"“你来了。”“我来了。”“东西呢？”“在这里。”“好，你走吧，别\", \"message\": \"叙述不足，场景缺少动作、环境和节奏落点。\", \"suggestion\": \"在对白间补入动作反应和感官锚点。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"“你来了。”“我来了。”“东西呢。”“在这里\", \"message\": \"短句连续堆叠，节奏机械。\", \"suggestion\": \"合并部分静态短句，并加入动作推进。\", \"revision_strategy\": \"scene_patch\"}], \"dimension_counts\": {\"对白密度\": 1, \"句长\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/high-dialogue.md\", \"content_chars\": 63, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"“你来了。”“我来了。”“东西呢？”“在这里。”“好，你走吧，别\", \"message\": \"叙述不足，场景缺少动作、环境和节奏落点。\", \"suggestion\": \"在对白间补入动作反应和感官锚点。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"“你来了。”“我来了。”“东西呢。”“在这里\", \"message\": \"短句连续堆叠，节奏机械。\", \"suggestion\": \"合并部分静态短句，并加入动作推进。\", \"revision_strategy\": \"scene_patch\"}], \"dimension_counts\": {\"对白密度\": 1, \"句长\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -245,7 +245,7 @@
           "args": {
             "path": "正文/long-sentence.md"
           },
-          "output_json": "{\"path\": \"正文/long-sentence.md\", \"content_chars\": 91, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"他沿着那条被雨水冲刷得发亮的青石板路沿着那条被雨水冲刷得发亮的青\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"沿着那条\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"对白密度\": 1, \"重复表达\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/long-sentence.md\", \"content_chars\": 91, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"他沿着那条被雨水冲刷得发亮的青石板路沿着那条被雨水冲刷得发亮的青\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"沿着那条\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"对白密度\": 1, \"重复表达\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -253,7 +253,7 @@
           "args": {
             "path": "正文/short-sentences.md"
           },
-          "output_json": "{\"path\": \"正文/short-sentences.md\", \"content_chars\": 24, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"他走。她看。门开。风停\", \"message\": \"短句连续堆叠，节奏机械。\", \"suggestion\": \"合并部分静态短句，并加入动作推进。\", \"revision_strategy\": \"scene_patch\"}], \"dimension_counts\": {\"句长\": 1}, \"severity_counts\": {\"低\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/short-sentences.md\", \"content_chars\": 24, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"他走。她看。门开。风停\", \"message\": \"短句连续堆叠，节奏机械。\", \"suggestion\": \"合并部分静态短句，并加入动作推进。\", \"revision_strategy\": \"scene_patch\"}], \"dimension_counts\": {\"句长\": 1}, \"severity_counts\": {\"低\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -261,7 +261,7 @@
           "args": {
             "path": "正文/repetition.md"
           },
-          "output_json": "{\"path\": \"正文/repetition.md\", \"content_chars\": 29, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"他推开门\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"重复表达\": 1}, \"severity_counts\": {\"低\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/repetition.md\", \"content_chars\": 29, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"他推开门\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"重复表达\": 1}, \"severity_counts\": {\"低\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -269,7 +269,7 @@
           "args": {
             "path": "正文/astral.md"
           },
-          "output_json": "{\"path\": \"正文/astral.md\", \"content_chars\": 87, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"𠀀😀𠀀😀\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"对白密度\": 1, \"重复表达\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/astral.md\", \"content_chars\": 87, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀𠀀😀\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"𠀀😀𠀀😀\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"对白密度\": 1, \"重复表达\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -277,7 +277,7 @@
           "args": {
             "path": "正文/python-whitespace.md"
           },
-          "output_json": "{\"path\": \"正文/python-whitespace.md\", \"content_chars\": 72, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"门外　门\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"重复表达\": 1}, \"severity_counts\": {\"低\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/python-whitespace.md\", \"content_chars\": 72, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"门外　门\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"重复表达\": 1}, \"severity_counts\": {\"低\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -285,7 +285,7 @@
           "args": {
             "path": "正文/paragraph-patterns.md"
           },
-          "output_json": "{\"path\": \"正文/paragraph-patterns.md\", \"content_chars\": 51, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"mechanical_transition\", \"severity\": \"低\", \"snippet\": \"与此同时、另一边、镜头一转\", \"message\": \"段首转场套语命中 3 段，占非空段落 75%，转场节奏可能机械。\", \"suggestion\": \"删去可由场景内容自行交代的转场词，用人物动作、地点细节或时间变化直接开段。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"hollow_summary\", \"severity\": \"低\", \"snippet\": \"雨停了，一切才刚刚开始。\", \"message\": \"发现 1 处段尾空泛总结，抽象收束可能替代了实际变化。\", \"suggestion\": \"让段尾落在新事实、人物决定或可追踪后果上，少用泛化命运/未来总结。\", \"revision_strategy\": \"scene_patch\"}], \"dimension_counts\": {\"mechanical_transition\": 1, \"hollow_summary\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/paragraph-patterns.md\", \"content_chars\": 51, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"mechanical_transition\", \"severity\": \"低\", \"snippet\": \"与此同时、另一边、镜头一转\", \"message\": \"段首转场套语命中 3 段，占非空段落 75%，转场节奏可能机械。\", \"suggestion\": \"删去可由场景内容自行交代的转场词，用人物动作、地点细节或时间变化直接开段。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"hollow_summary\", \"severity\": \"低\", \"snippet\": \"雨停了，一切才刚刚开始。\", \"message\": \"发现 1 处段尾空泛总结，抽象收束可能替代了实际变化。\", \"suggestion\": \"让段尾落在新事实、人物决定或可追踪后果上，少用泛化命运/未来总结。\", \"revision_strategy\": \"scene_patch\"}], \"dimension_counts\": {\"mechanical_transition\": 1, \"hollow_summary\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -293,7 +293,7 @@
           "args": {
             "path": "正文/clean.md"
           },
-          "output_json": "{\"path\": \"正文/clean.md\", \"content_chars\": 40, \"content_truncated\": false, \"issue_count\": 0, \"issues\": [], \"dimension_counts\": {}, \"severity_counts\": {}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/clean.md\", \"content_chars\": 40, \"content_truncated\": false, \"issue_count\": 0, \"issues\": [], \"dimension_counts\": {}, \"severity_counts\": {}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -301,7 +301,7 @@
           "args": {
             "path": "正文/dialogue-boundary.md"
           },
-          "output_json": "{\"path\": \"正文/dialogue-boundary.md\", \"content_chars\": 99, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"“好吧好吧。”雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"”雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨\", \"message\": \"单句过长，动作和信息层次容易糊在一起。\", \"suggestion\": \"按动作、感知和转折拆分句子。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"对白密度\": 1, \"句长\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/dialogue-boundary.md\", \"content_chars\": 99, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"“好吧好吧。”雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"”雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨雨\", \"message\": \"单句过长，动作和信息层次容易糊在一起。\", \"suggestion\": \"按动作、感知和转折拆分句子。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"对白密度\": 1, \"句长\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -309,7 +309,7 @@
           "args": {
             "path": "正文/sentence-91.md"
           },
-          "output_json": "{\"path\": \"正文/sentence-91.md\", \"content_chars\": 96, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"他走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"他走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走\", \"message\": \"单句过长，动作和信息层次容易糊在一起。\", \"suggestion\": \"按动作、感知和转折拆分句子。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"对白密度\": 1, \"句长\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/sentence-91.md\", \"content_chars\": 96, \"content_truncated\": false, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"他走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"他走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走走\", \"message\": \"单句过长，动作和信息层次容易糊在一起。\", \"suggestion\": \"按动作、感知和转折拆分句子。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"对白密度\": 1, \"句长\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -317,7 +317,7 @@
           "args": {
             "path": "正文/whitespace-visible.md"
           },
-          "output_json": "{\"path\": \"正文/whitespace-visible.md\", \"content_chars\": 86, \"content_truncated\": false, \"issue_count\": 0, \"issues\": [], \"dimension_counts\": {}, \"severity_counts\": {}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/whitespace-visible.md\", \"content_chars\": 86, \"content_truncated\": false, \"issue_count\": 0, \"issues\": [], \"dimension_counts\": {}, \"severity_counts\": {}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -358,7 +358,7 @@
           "args": {
             "path": "正文/bom.md"
           },
-          "output_json": "{\"path\": \"正文/bom.md\", \"content_chars\": 17, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"套话\", \"severity\": \"低\", \"snippet\": \"不禁\", \"message\": \"出现高频陈词套话，削弱画面和人物独特性。\", \"suggestion\": \"替换为具体动作、感官细节或角色专属表达。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"套话\": 1}, \"severity_counts\": {\"低\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/bom.md\", \"content_chars\": 17, \"content_truncated\": false, \"issue_count\": 1, \"issues\": [{\"dimension\": \"套话\", \"severity\": \"低\", \"snippet\": \"不禁\", \"message\": \"出现高频陈词套话，削弱画面和人物独特性。\", \"suggestion\": \"替换为具体动作、感官细节或角色专属表达。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"套话\": 1}, \"severity_counts\": {\"低\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -366,7 +366,7 @@
           "args": {
             "path": "正文/long.md"
           },
-          "output_json": "{\"path\": \"正文/long.md\", \"content_chars\": 24000, \"content_truncated\": true, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"他推门走进去，看了一眼。他推门走进去，看了一眼。他推门走进去，看\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"他推门走\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"对白密度\": 1, \"重复表达\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}",
+          "output_json": "{\"path\": \"正文/long.md\", \"content_chars\": 24000, \"content_truncated\": true, \"issue_count\": 2, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"他推门走进去，看了一眼。他推门走进去，看了一眼。他推门走进去，看\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"他推门走\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}], \"dimension_counts\": {\"对白密度\": 1, \"重复表达\": 1}, \"severity_counts\": {\"低\": 2}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}",
           "writes": {}
         },
         {
@@ -398,7 +398,7 @@
           },
           "error": {
             "type": "FsToolError",
-            "message": "路径越界，只允许访问项目目录内文件：../outside.md"
+            "message": "路径越界，只允许访问作品文件夹内的文件：../outside.md"
           },
           "writes": {}
         },
@@ -879,7 +879,7 @@
           },
           "error": {
             "type": "FsToolError",
-            "message": "路径越界，只允许访问项目目录内文件：../x.md"
+            "message": "路径越界，只允许访问作品文件夹内的文件：../x.md"
           },
           "writes": {}
         },

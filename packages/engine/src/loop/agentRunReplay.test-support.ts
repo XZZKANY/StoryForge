@@ -7,9 +7,11 @@ import {
 import type { EncodedFile } from '../kernel/contextFixture.test-support';
 import { dumpJson, JsonFloat, parseJson } from '../kernel/json';
 import { memoryProject } from '../kernel/memoryProject.test-support';
+import { withPluginLibrary, type TextFiles } from '../kernel/pluginLibrary.test-support';
 import { redactSensitive, redactSensitiveText, type PlainJson } from '../kernel/redaction';
 import { sha256Hex } from '../kernel/sha256';
 import type { HttpPort } from '../llm/transport';
+import type { ProjectReader } from '../readPort';
 import { migratedMemoryDb } from '../store/nodeSqlite.test-support';
 import { MemoryRunStore, type RunEventRecord, type RunRecord } from '../store/runs';
 import { decodeJsonColumn, type Db } from '../store/db';
@@ -45,6 +47,27 @@ function encoded(text: string): EncodedFile {
   for (let index = 0; index < bytes.length; index += 0x8000)
     binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
   return { chunks: [{ base64: btoa(binary), repeat: 1 }] };
+}
+
+/** 回放场景给了 spec.plugins 时的本机插件库根目录。 */
+export const REPLAY_PLUGIN_LIBRARY = 'C:\\Users\\author\\plugins';
+
+/**
+ * spec.plugins（插件名 → 插件内路径 → 文本）装成本机插件库；插件文件可以在回放中途改（op: edit_plugin）。
+ * 没给插件时原样用作品的读取者。
+ */
+function replayPluginLibrary(
+  bookRoot: string,
+  book: ProjectReader,
+  plugins: Record<string, TextFiles> | null,
+) {
+  if (!plugins) return { reader: book, libraryRoot: null, editPlugin: null };
+  const machine = withPluginLibrary(bookRoot, book, REPLAY_PLUGIN_LIBRARY, plugins);
+  return {
+    reader: machine.reader,
+    libraryRoot: REPLAY_PLUGIN_LIBRARY,
+    editPlugin: machine.editPlugin,
+  };
 }
 
 function plain(value: unknown): unknown {
@@ -218,7 +241,7 @@ export function agentRunReplay(golden: Obj) {
     const toolCalls: Obj[] = [];
     const find = (id: number) => {
       const session = sessions.find((row) => row.id === id);
-      if (!session) throw new AssistantSessionNotFoundError(`Assistant 会话不存在：${id}。`);
+      if (!session) throw new AssistantSessionNotFoundError(`AI 会话不存在：${id}。`);
       return session;
     };
     const redactSummary = (value: unknown) =>
@@ -405,6 +428,11 @@ export function agentRunReplay(golden: Obj) {
     const big = (spec.big_files ?? {}) as Record<string, [string, number]>;
     for (const [path, [unit, count]] of Object.entries(big))
       project.apply({ [path]: encoded(unit.repeat(count)) });
+    const library = replayPluginLibrary(
+      ROOT,
+      project.reader,
+      (spec.plugins ?? null) as Record<string, TextFiles> | null,
+    );
     const engineDb = storeKind === 'sql' ? await migratedMemoryDb() : null;
     const runs = engineDb
       ? await SqlRunStore.open(engineDb, () => '2026-10-14T00:00:00Z')
@@ -605,7 +633,7 @@ export function agentRunReplay(golden: Obj) {
     let uuid = 0;
     let hex = 0;
     const toolDeps: ToolDeps = {
-      reader: project.reader,
+      reader: library.reader,
       writer: project.writer,
       platform,
       secrets: SECRETS,
@@ -616,6 +644,7 @@ export function agentRunReplay(golden: Obj) {
       artifacts: storeToolArtifactQuery(runs),
       // 补丁与审稿报告共用一个计数（预言机把四处 uuid4().hex 换成同一个计数器）。
       newHex: () => (++hex).toString(16).padStart(32, '0'),
+      pluginLibraryRoot: library.libraryRoot,
     };
     const tools = createAgentToolRegistry(toolDeps);
     let streams = 0;
@@ -627,7 +656,7 @@ export function agentRunReplay(golden: Obj) {
       assistant: db.store,
       titles: db.titles,
       conversation,
-      reader: project.reader,
+      reader: library.reader,
       platform,
       source,
       // 专用润色槽只有身份四项（Python 从 STORYFORGE_POLISH_LLM_* 映射），与主模型共用脚本化的出网。
@@ -653,6 +682,7 @@ export function agentRunReplay(golden: Obj) {
       },
       tools,
       checkpoints: new LoopCheckpointStore(),
+      pluginLibraryRoot: library.libraryRoot,
       ...(options.defaultCompaction ? {} : { compactAtHistoryBytes: 0, compactAtTurnEnd: true }),
       ids: {
         stream: () => `stream-${++streams}`,
@@ -789,6 +819,7 @@ export function agentRunReplay(golden: Obj) {
     } else
       for (const op of ops) {
         if (op.op === 'edit') project.apply({ [op.path]: encoded(op.content) });
+        else if (op.op === 'edit_plugin') library.editPlugin!(op.id, op.path, op.content);
         else controls.push(await runControl(op));
       }
     const rows = await runs.rowsAfter({ events: 0, artifacts: 0, subagents: 0 });

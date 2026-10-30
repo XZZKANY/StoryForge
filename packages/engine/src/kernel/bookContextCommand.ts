@@ -65,7 +65,7 @@ export async function executeBookContextCommand(
 
   try {
     const context = await buildBookContext(reader, root, current, platform);
-    if (context === null) throw new IdeCommandExecutionError(`读不到项目：${root}`);
+    if (context === null) throw new IdeCommandExecutionError(`读不到作品：${root}`);
 
     const extra = redactSensitive({ book_context: toBookContextPayload(context) }, secrets) as {
       [key: string]: PlainJson;

@@ -16,12 +16,12 @@ export type AgentSkill = {
 export const AGENT_SKILL_DEFINITIONS: readonly AgentSkill[] = [
   {
     name: 'chapter_polish',
-    description: '单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。',
+    description: '单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。',
     trigger_intents: ['file.review', 'file.revise'],
     plan_template: [
       {
         step: 'context.load',
-        detail: '读取当前章与项目上下文。',
+        detail: '读取当前章与作品上下文。',
         status: 'planned',
       },
       {
@@ -36,7 +36,7 @@ export const AGENT_SKILL_DEFINITIONS: readonly AgentSkill[] = [
       },
       {
         step: 'permission.confirm',
-        detail: '文件写回前等待作者确认。',
+        detail: '写进文件前等待作者确认。',
         status: 'planned',
       },
     ],

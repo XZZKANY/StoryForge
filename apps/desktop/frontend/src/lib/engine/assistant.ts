@@ -15,6 +15,7 @@ import {
 import { toAssistantContextBundlePayload } from '../api/codecs';
 import type { AssistantReviseResult, ContinueProseResult } from '../api/assistant';
 import type { ReviseRequest } from '../api/types';
+import { pluginLibraryDir } from '../plugin-library';
 import type { ProviderHealth } from '../provider-config';
 import { nativeHttpPort, nativeLlmSource } from './llm';
 import { nativeProjectReader } from './reader';
@@ -60,6 +61,8 @@ export async function engineAssistantDeps(signal?: AbortSignal): Promise<Assista
       return engineAssistantLlm(source, secrets, await transportContext(signal));
     },
     platform: platform(),
+    // 取不到插件库只是这一次不带插件指令，修订 / 续写照常。
+    pluginLibraryRoot: await pluginLibraryDir().catch(() => null),
   };
 }
 

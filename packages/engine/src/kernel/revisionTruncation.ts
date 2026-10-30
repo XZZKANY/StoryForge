@@ -112,7 +112,7 @@ export function truncationWarning(before: string, after: string): TruncationWarn
   return {
     message:
       `AI 的输出可能没写完：${lost}在新稿里没有，且新稿停在半句（「…${stopped}」）。` +
-      '整份接受会把这些内容一起删掉，请先在 diff 里核对，或让 AI 重做。',
+      '整份接受会把这些内容一起删掉，请先在对比里核对，或让 AI 重做。',
     missing_line_count: tail.length,
     missing_headings: shown,
     ends_mid_sentence: true,

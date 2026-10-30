@@ -217,7 +217,7 @@ it('surfaces plain error texts (the same ones Python put in detail)', async () =
   engine.source = { ...SOURCE };
   await expect(
     streamContinueProse({ filePath: 'a.md', content: 'a', cursorLine: 1, assistantSessionId: 999 }),
-  ).rejects.toThrow('Assistant 会话不存在：999。');
+  ).rejects.toThrow('AI 会话不存在：999。');
 });
 
 it('turns an error frame into a thrown error', async () => {

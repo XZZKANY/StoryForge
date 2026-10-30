@@ -39,7 +39,7 @@ const isObj = (value: unknown): value is Obj =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const cpLen = (text: string) => Array.from(text).length;
 const unique = (values: readonly string[]) => [...new Set(values)];
-const TARGET_REFUSED = '润色目标必须是项目内现有的 Markdown 或 TXT 正文，不能是结构化或派生文件。';
+const TARGET_REFUSED = '润色目标必须是作品内现有的 Markdown 或 TXT 正文，不能是结构化或派生文件。';
 
 /** chapter.polish：保守润色一章正文，通过相对原文质量门禁才产补丁（patches/runtime_tools）。 */
 export function polishToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
@@ -117,7 +117,11 @@ export function polishToolHandlers(deps: ToolDeps): Record<string, ToolHandler> 
       continuity_facts: continuityFacts.length,
       required_facts: requiredFacts.length,
     };
-    const preparedVoice = await buildGenerationSystemPrompt(reader, '', root, { platform });
+    const preparedVoice = await buildGenerationSystemPrompt(reader, '', root, {
+      platform,
+      pluginLibraryRoot: deps.pluginLibraryRoot ?? null,
+      secrets,
+    });
     let editPolicy;
     try {
       editPolicy = editPolicyFromGenerationPrompt(content, {

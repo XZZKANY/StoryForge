@@ -338,7 +338,7 @@ async function validatedPendingArtifact(
   const run = await deps.store.getRun(artifact!.run_id);
   const payload = isObj(artifact!.payload) ? artifact!.payload : {};
   if (payload.project_fingerprint !== (await fingerprintOf(deps, projectRoot)))
-    conflict('Knowledge proposal 不属于当前项目。');
+    conflict('Knowledge proposal 不属于当前作品。');
   if (payload.revision !== revision) conflict('Knowledge proposal revision 已失效，请刷新 Inbox。');
   const state = (await knowledgeArtifactStates(deps.store)).get(artifact!.id);
   if (state !== undefined) conflict(`Knowledge proposal 已处于 ${state} 状态。`);
@@ -559,7 +559,7 @@ export async function resolveKnowledgeProposal(
       confirmationEventId,
     );
     eventType = KNOWLEDGE_PROPOSAL_ACCEPTED;
-    message = '作者确认并写回了 Project Knowledge 提议。';
+    message = '作者确认并把 Project Knowledge 提议写进了文件。';
   } else {
     eventType = KNOWLEDGE_PROPOSAL_REJECTED;
     message = '作者拒绝了 Project Knowledge 提议。';

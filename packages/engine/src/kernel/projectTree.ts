@@ -23,8 +23,8 @@ async function scopedTarget(
     if (!(error instanceof ProjectReadError)) throw error;
     throw new ProjectTreeError(
       error.kind === 'outside-project'
-        ? '路径越界，只允许访问项目目录内文件。'
-        : '无法解析项目文件路径。',
+        ? '路径越界，只允许访问作品文件夹内的文件。'
+        : '无法解析作品文件路径。',
     );
   }
 }
@@ -66,7 +66,7 @@ export async function scanProjectFiles(
       for (const name of entries.names) {
         visited += 1;
         if (visited > maxEntries) {
-          throw new ProjectTreeError('项目目录项超过遍历预算，请缩小范围。');
+          throw new ProjectTreeError('作品文件夹的条目超过遍历预算，请缩小范围。');
         }
         const path = directory.path === '.' ? name : `${directory.path}/${name}`;
         if (!visible(path)) continue;
@@ -81,7 +81,7 @@ export async function scanProjectFiles(
         const info = await reader.inspectProjectPath(root, path);
         if (info.entryKind === 'directory' && !info.isReparsePoint) {
           if (directory.depth >= maxDepth) {
-            throw new ProjectTreeError('项目目录超过最大遍历深度，请缩小范围。');
+            throw new ProjectTreeError('作品文件夹超过最大遍历深度，请缩小范围。');
           }
           pending.push({ path, depth: directory.depth + 1 });
         } else if (info.targetKind === 'file') {
@@ -106,7 +106,7 @@ export async function scanProjectFiles(
     }
   } catch (error) {
     if (!(error instanceof ProjectReadError)) throw error;
-    throw new ProjectTreeError('项目目录无法完整遍历，请检查权限或文件是否已移动。');
+    throw new ProjectTreeError('作品文件夹无法完整遍历，请检查权限或文件是否已移动。');
   }
   return [...files].sort(compareChapterPaths);
 }

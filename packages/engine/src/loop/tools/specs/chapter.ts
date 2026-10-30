@@ -4,7 +4,7 @@ import { toolSpec } from '../specModels';
 export const CHAPTER_WRITING_TOOL_SPECS = [
   toolSpec({
     name: 'chapter.brief',
-    description: '从可信项目上下文生成待作者确认的结构化 Chapter Brief。',
+    description: '从可信作品上下文生成待作者确认的结构化 Chapter Brief。',
     domain: 'chapter',
     input_schema: {},
     output_schema: {},
@@ -22,7 +22,7 @@ export const CHAPTER_WRITING_TOOL_SPECS = [
   }),
   toolSpec({
     name: 'chapter.draft',
-    description: '按已确认 Chapter Brief 起草正文，不写项目文件。',
+    description: '按已确认 Chapter Brief 起草正文，不写作品文件。',
     domain: 'chapter',
     input_schema: {},
     output_schema: {},
@@ -40,7 +40,7 @@ export const CHAPTER_WRITING_TOOL_SPECS = [
   }),
   toolSpec({
     name: 'chapter.check',
-    description: '按 Chapter Brief 检查草稿，分别记录检查执行、覆盖与稿件判断。',
+    description: '按 Chapter Brief 检查草稿，分别记录检查执行、覆盖与正文判断。',
     domain: 'chapter',
     input_schema: {},
     output_schema: {},
@@ -67,7 +67,7 @@ export const CHAPTER_WRITING_TOOL_SPECS = [
   }),
   toolSpec({
     name: 'chapter.repair',
-    description: '针对 Chapter Brief 硬失败定向修复一次草稿，不写项目文件。',
+    description: '针对 Chapter Brief 硬失败定向修复一次草稿，不写作品文件。',
     domain: 'chapter',
     input_schema: {},
     output_schema: {},

@@ -320,7 +320,7 @@
           "args_json": "{\"tool\": \"fs.list\", \"payload\": {\"subpath\": \"../外面\"}, \"args\": {}, \"user_message\": \"帮我看看\", \"events\": [], \"artifacts\": [], \"session\": null, \"replies\": null}",
           "error": {
             "type": "FsToolError",
-            "message": "路径越界，只允许访问项目目录内文件：../外面"
+            "message": "路径越界，只允许访问作品文件夹内的文件：../外面"
           },
           "writes": {}
         },
@@ -556,7 +556,7 @@
           "args_json": "{\"tool\": \"fs.read\", \"payload\": {\"path\": \"../x.md\"}, \"args\": {}, \"user_message\": \"帮我看看\", \"events\": [], \"artifacts\": [], \"session\": null, \"replies\": null}",
           "error": {
             "type": "FsToolError",
-            "message": "路径越界，只允许访问项目目录内文件：../x.md"
+            "message": "路径越界，只允许访问作品文件夹内的文件：../x.md"
           },
           "writes": {}
         },
@@ -1111,7 +1111,7 @@
           "args_json": "{\"tool\": \"knowledge.propose\", \"payload\": {\"proposals\": [{\"target_path\": \"设定/新规.md\", \"operation\": \"create\", \"title\": \" 新规 \", \"claim\": \"新规断言。\", \"kind\": \"world_rule\", \"confidence\": \"author_declared\", \"reason\": \"作者说的\", \"sources\": [{\"type\": \"author_statement\"}]}]}, \"args\": {\"_knowledge_proposal_group_created\": true}, \"user_message\": \"帮我看看\", \"events\": [], \"artifacts\": [], \"session\": null, \"replies\": null}",
           "error": {
             "type": "FsToolError",
-            "message": "每个 AgentRun 最多生成一组 Project Knowledge 提议。"
+            "message": "每次 AI 运行最多生成一组 Project Knowledge 提议。"
           },
           "writes": {}
         },
@@ -1150,7 +1150,7 @@
           "args_json": "{\"tool\": \"knowledge.propose\", \"payload\": {\"proposals\": [{\"target_path\": \"设定/新规.md\", \"operation\": \"create\", \"title\": \" 新规 \", \"claim\": \"新规断言。\", \"kind\": \"world_rule\", \"confidence\": \"author_declared\", \"reason\": \"作者说的\", \"sources\": [{\"type\": \"author_statement\"}]}]}, \"args\": {}, \"user_message\": \"帮我看看\", \"events\": [], \"artifacts\": [], \"session\": {\"existing\": 3, \"payloads\": []}, \"replies\": null}",
           "error": {
             "type": "FsToolError",
-            "message": "每个 AgentRun 最多生成一组 Project Knowledge 提议。"
+            "message": "每次 AI 运行最多生成一组 Project Knowledge 提议。"
           },
           "writes": {}
         },
@@ -1527,7 +1527,7 @@
             "replies": null
           },
           "args_json": "{\"tool\": \"project.prose_check\", \"payload\": {\"path\": \"正文/第003章.md\"}, \"args\": {}, \"user_message\": \"帮我看看\", \"events\": [], \"artifacts\": [], \"session\": null, \"replies\": null}",
-          "output_json": "{\"status\": \"completed\", \"output\": {\"path\": \"正文/第003章.md\", \"content_chars\": 166, \"content_truncated\": false, \"issue_count\": 4, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"第三章\\n\\n林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"第三章。林舟沉默。林舟沉默。林舟沉默\", \"message\": \"短句连续堆叠，节奏机械。\", \"suggestion\": \"合并部分静态短句，并加入动作推进。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"林舟沉默\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}, {\"dimension\": \"节奏\", \"severity\": \"中\", \"snippet\": \"第三章\\n\\n林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟沉默。林\", \"message\": \"静态描述偏多，缺少行动 beat。\", \"suggestion\": \"加入目标、阻碍和段末变化，推动下一段。\", \"revision_strategy\": \"scene_patch\"}], \"dimension_counts\": {\"对白密度\": 1, \"句长\": 1, \"重复表达\": 1, \"节奏\": 1}, \"severity_counts\": {\"低\": 3, \"中\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}, \"trace\": {\"tool_name\": \"project.prose_check\", \"status\": \"completed\", \"input_summary\": {\"path\": \"正文/第003章.md\"}, \"output_summary\": {\"path\": \"正文/第003章.md\", \"issue_count\": 4, \"dimension_count\": 4}}, \"summary\": null, \"payload\": null, \"artifacts\": [], \"metrics\": {}, \"args_after\": {}}",
+          "output_json": "{\"status\": \"completed\", \"output\": {\"path\": \"正文/第003章.md\", \"content_chars\": 166, \"content_truncated\": false, \"issue_count\": 4, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"第三章\\n\\n林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"第三章。林舟沉默。林舟沉默。林舟沉默\", \"message\": \"短句连续堆叠，节奏机械。\", \"suggestion\": \"合并部分静态短句，并加入动作推进。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"林舟沉默\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}, {\"dimension\": \"节奏\", \"severity\": \"中\", \"snippet\": \"第三章\\n\\n林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟沉默。林\", \"message\": \"静态描述偏多，缺少行动 beat。\", \"suggestion\": \"加入目标、阻碍和段末变化，推动下一段。\", \"revision_strategy\": \"scene_patch\"}], \"dimension_counts\": {\"对白密度\": 1, \"句长\": 1, \"重复表达\": 1, \"节奏\": 1}, \"severity_counts\": {\"低\": 3, \"中\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}, \"trace\": {\"tool_name\": \"project.prose_check\", \"status\": \"completed\", \"input_summary\": {\"path\": \"正文/第003章.md\"}, \"output_summary\": {\"path\": \"正文/第003章.md\", \"issue_count\": 4, \"dimension_count\": 4}}, \"summary\": null, \"payload\": null, \"artifacts\": [], \"metrics\": {}, \"args_after\": {}}",
           "writes": {}
         },
         {
@@ -2233,7 +2233,7 @@
             ".storyforge/canon/derived/dossier.md": {
               "chunks": [
                 {
-                  "base64": "PCEtLSBfc3Rvcnlmb3JnZV9zb3VyY2VfcmV2aXNpb246IGNhbm9uLXdyaXRlYmFjay12MTo0YzUxYTc2NmJlZTQzMjJkNDFhMzEzNDUwMTAwOTM1MmJhZTE2NDUzZTAxZGJlOTY0NjJmMTBhNGMyMDk3NTkyIC0tPg0KIyBDYW5vbiBEb3NzaWVy77yI5rS+55Sf57yT5a2Y77yM5Yu/5omL5pS577yJDQoNCj4g5pys5paH5Lu255SxIHByb2plY3QuY2Fub24g5LuOIGNhbm9uLmpzb24g5aOw5piOICsg5q2j5paH5Zyo5Zy65YiG5biD56Gu5a6a5oCn6YeN5bu677yMDQo+IOaYr+WPr+W8g+e8k+WtmO+8iOWIoOmZpOWQjuS4i+asoeiwg+eUqOiHquaEiO+8ie+8jOS4jeaYr+S9nOiAheaJi+eov+OAguimgeaUueS6i+Wunuivt+aUuSBjYW5vbi5qc29u44CCDQoNCiMjIOael+iInw0KDQotIOWunuS9k+WjsOaYju+8muadpea6kOexu+Wei+acquefpe+8m+S+neaNruacquaPkOS+mw0KLSDliKvlkI3vvJrpmL/oiJ/jgIHoiJ/lk6UNCi0g5Ye65Zy677ya56ysIDLigJM1IOeroO+8jOWFsSAzNCDlpIQNCi0gcHJvdmVuYW5jZe+8iOWunuS9k+aPkOWPiuS9jee9ru+8jOmdnumAkOadoeaWreiogOS+neaNru+8ie+8mg0KICAtIOesrCAyIOeroCBg5q2j5paHL+esrDAwMeeroC5tZDozYO+8iDIg5aSE77yJDQogIC0g56ysIDMg56ugIGDmraPmlocv56ysMDAy56ugLm1kOjNg77yIMSDlpITvvIkNCiAgLSDnrKwgNCDnq6AgYOato+aWhy/nrKwwMDPnq6AubWQ6M2DvvIgzMCDlpITvvIkNCiAgLSDnrKwgNSDnq6AgYOato+aWhy/nrKwwMDTnq6AubWQ6NGDvvIgxIOWkhO+8iQ0KDQojIyDmsojnpr4NCg0KLSDlrp7kvZPlo7DmmI7vvJrmnaXmupDnsbvlnovmnKrnn6XvvJvkvp3mja7mnKrmj5DkvpsNCi0g5Ye65Zy677ya56ysIDPigJM0IOeroO+8jOWFsSAyIOWkhA0KLSDnlJ/lkb3mnJ/vvJrlo7DmmI7nrKwgMiDnq6DlkI7pgIDlnLrvvIzljp/lm6DvvJrnprvlvIDpk4Hln47vvJvmnaXmupDnsbvlnovmnKrnn6XvvJvkvp3mja7mnKrmj5DkvpsNCi0gcHJvdmVuYW5jZe+8iOWunuS9k+aPkOWPiuS9jee9ru+8jOmdnumAkOadoeaWreiogOS+neaNru+8ie+8mg0KICAtIOesrCAzIOeroCBg5q2j5paHL+esrDAwMueroC5tZDozYO+8iDEg5aSE77yJDQogIC0g56ysIDQg56ugIGDmraPmlocv56ysMDAz56ugLm1kOjRg77yIMSDlpITvvIkNCg0KIyMg5pen6ZKl5YyZDQoNCi0g5a6e5L2T5aOw5piO77ya5p2l5rqQ57G75Z6L5pyq55+l77yb5L6d5o2u5pyq5o+Q5L6bDQotIOWIq+WQje+8mumTnOmSpeWMmQ0KLSDlh7rlnLrvvJrnrKwgMuKAkzQg56ug77yM5YWxIDMg5aSEDQotIHByb3ZlbmFuY2XvvIjlrp7kvZPmj5Dlj4rkvY3nva7vvIzpnZ7pgJDmnaHmlq3oqIDkvp3mja7vvInvvJoNCiAgLSDnrKwgMiDnq6AgYOato+aWhy/nrKwwMDHnq6AubWQ6NWDvvIgxIOWkhO+8iQ0KICAtIOesrCAzIOeroCBg5q2j5paHL+esrDAwMueroC5tZDo1YO+8iDEg5aSE77yJDQogIC0g56ysIDQg56ugIGDmraPmlocv56ysMDAz56ugLm1kOjRg77yIMSDlpITvvIkNCg==",
+                  "base64": "PCEtLSBfc3Rvcnlmb3JnZV9zb3VyY2VfcmV2aXNpb246IGNhbm9uLXdyaXRlYmFjay12MTo0YzUxYTc2NmJlZTQzMjJkNDFhMzEzNDUwMTAwOTM1MmJhZTE2NDUzZTAxZGJlOTY0NjJmMTBhNGMyMDk3NTkyIC0tPg0KIyBDYW5vbiBEb3NzaWVy77yI5rS+55Sf57yT5a2Y77yM5Yu/5omL5pS577yJDQoNCj4g5pys5paH5Lu255SxIHByb2plY3QuY2Fub24g5LuOIGNhbm9uLmpzb24g5aOw5piOICsg5q2j5paH5Zyo5Zy65YiG5biD56Gu5a6a5oCn6YeN5bu677yMDQo+IOaYr+WPr+W8g+e8k+WtmO+8iOWIoOmZpOWQjuS4i+asoeiwg+eUqOiHquaEiO+8ie+8jOS4jeaYr+S9nOiAheeahOato+aWh+OAguimgeaUueS6i+Wunuivt+aUuSBjYW5vbi5qc29u44CCDQoNCiMjIOael+iInw0KDQotIOWunuS9k+WjsOaYju+8muadpea6kOexu+Wei+acquefpe+8m+S+neaNruacquaPkOS+mw0KLSDliKvlkI3vvJrpmL/oiJ/jgIHoiJ/lk6UNCi0g5Ye65Zy677ya56ysIDLigJM1IOeroO+8jOWFsSAzNCDlpIQNCi0gcHJvdmVuYW5jZe+8iOWunuS9k+aPkOWPiuS9jee9ru+8jOmdnumAkOadoeaWreiogOS+neaNru+8ie+8mg0KICAtIOesrCAyIOeroCBg5q2j5paHL+esrDAwMeeroC5tZDozYO+8iDIg5aSE77yJDQogIC0g56ysIDMg56ugIGDmraPmlocv56ysMDAy56ugLm1kOjNg77yIMSDlpITvvIkNCiAgLSDnrKwgNCDnq6AgYOato+aWhy/nrKwwMDPnq6AubWQ6M2DvvIgzMCDlpITvvIkNCiAgLSDnrKwgNSDnq6AgYOato+aWhy/nrKwwMDTnq6AubWQ6NGDvvIgxIOWkhO+8iQ0KDQojIyDmsojnpr4NCg0KLSDlrp7kvZPlo7DmmI7vvJrmnaXmupDnsbvlnovmnKrnn6XvvJvkvp3mja7mnKrmj5DkvpsNCi0g5Ye65Zy677ya56ysIDPigJM0IOeroO+8jOWFsSAyIOWkhA0KLSDnlJ/lkb3mnJ/vvJrlo7DmmI7nrKwgMiDnq6DlkI7pgIDlnLrvvIzljp/lm6DvvJrnprvlvIDpk4Hln47vvJvmnaXmupDnsbvlnovmnKrnn6XvvJvkvp3mja7mnKrmj5DkvpsNCi0gcHJvdmVuYW5jZe+8iOWunuS9k+aPkOWPiuS9jee9ru+8jOmdnumAkOadoeaWreiogOS+neaNru+8ie+8mg0KICAtIOesrCAzIOeroCBg5q2j5paHL+esrDAwMueroC5tZDozYO+8iDEg5aSE77yJDQogIC0g56ysIDQg56ugIGDmraPmlocv56ysMDAz56ugLm1kOjRg77yIMSDlpITvvIkNCg0KIyMg5pen6ZKl5YyZDQoNCi0g5a6e5L2T5aOw5piO77ya5p2l5rqQ57G75Z6L5pyq55+l77yb5L6d5o2u5pyq5o+Q5L6bDQotIOWIq+WQje+8mumTnOmSpeWMmQ0KLSDlh7rlnLrvvJrnrKwgMuKAkzQg56ug77yM5YWxIDMg5aSEDQotIHByb3ZlbmFuY2XvvIjlrp7kvZPmj5Dlj4rkvY3nva7vvIzpnZ7pgJDmnaHmlq3oqIDkvp3mja7vvInvvJoNCiAgLSDnrKwgMiDnq6AgYOato+aWhy/nrKwwMDHnq6AubWQ6NWDvvIgxIOWkhO+8iQ0KICAtIOesrCAzIOeroCBg5q2j5paHL+esrDAwMueroC5tZDo1YO+8iDEg5aSE77yJDQogIC0g56ysIDQg56ugIGDmraPmlocv56ysMDAz56ugLm1kOjRg77yIMSDlpITvvIkNCg==",
                   "repeat": 1
                 }
               ]
@@ -2708,7 +2708,7 @@
           "args_json": "{\"direct\": {\"path\": \"../外面.md\"}}",
           "error": {
             "type": "FsToolError",
-            "message": "路径越界，只允许访问项目目录内文件：../外面.md"
+            "message": "路径越界，只允许访问作品文件夹内的文件：../外面.md"
           },
           "writes": {}
         },

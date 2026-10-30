@@ -40,7 +40,7 @@ export async function resolveProjectRoot(reader: ProjectReader, root: string): P
   } catch (error) {
     if (!(error instanceof ProjectReadError)) throw error;
   }
-  throw new FsToolError(`项目目录不存在：${root}`);
+  throw new FsToolError(`作品文件夹不存在：${root}`);
 }
 
 /** 项目内路径（可不存在）解析为项目相对路径；越界拒绝。`subpath` 为空表示项目根。 */
@@ -53,7 +53,7 @@ export async function resolveScopedPath(
     return (await reader.resolveProjectPath(root, subpath ? subpath : '.')).resolvedRelativePath;
   } catch (error) {
     if (error instanceof ProjectReadError && error.kind === 'outside-project')
-      throw new FsToolError(`路径越界，只允许访问项目目录内文件：${subpath}`);
+      throw new FsToolError(`路径越界，只允许访问作品文件夹内的文件：${subpath}`);
     throw error;
   }
 }
@@ -70,8 +70,8 @@ export async function scopedTarget(
     if (!(error instanceof ProjectReadError)) throw error;
     throw new FsToolError(
       error.kind === 'outside-project'
-        ? '路径越界，只允许访问项目目录内文件。'
-        : '无法解析项目文件路径。',
+        ? '路径越界，只允许访问作品文件夹内的文件。'
+        : '无法解析作品文件路径。',
     );
   }
 }
@@ -151,7 +151,7 @@ export function normalizeProjectRelativePath(path: string): string {
   const raw = pythonStripText(path).replace(/\\/g, '/');
   const parts = raw.split('/').filter((part) => part !== '' && part !== '.');
   if (raw.startsWith('/') || !parts.length || parts[0].includes(':') || parts.includes('..'))
-    throw new FsToolError(`只接受规范化项目相对路径：${path}`);
+    throw new FsToolError(`只接受规范化的作品内相对路径：${path}`);
   return parts.join('/');
 }
 
