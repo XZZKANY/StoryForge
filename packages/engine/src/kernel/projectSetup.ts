@@ -97,18 +97,20 @@ export function setupKindOfPath(path: string): SetupKind | null {
   return kind !== null && SETUP_KINDS.includes(kind) ? kind : null;
 }
 
-const labels = (missing: readonly SetupKind[]) => missing.map((kind) => LABELS[kind]).join('、');
+/** 缺的几类立项文件的说法（总纲、人物、世界规则），按给定顺序用顿号连起来。 */
+export const setupLabels = (missing: readonly SetupKind[]) =>
+  missing.map((kind) => LABELS[kind]).join('、');
 
 /** 作品底座里的一段：普通对话里 agent 也知道立项还缺什么。 */
 export function setupGapSection(missing: readonly SetupKind[]): string {
-  return `[立项 · 确定性]\n· 还没有正文，也还缺${labels(missing)}文件；开写第一章前先起草，作者审过再写。`;
+  return `[立项 · 确定性]\n· 还没有正文，也还缺${setupLabels(missing)}文件；开写第一章前先起草，作者审过再写。`;
 }
 
 /** 作者要开写第一章、立项又不齐时，附在这一轮作者消息前的说明。 */
 export function setupNote(missing: readonly SetupKind[]): string {
   const order = missing.map((kind) => SUGGESTED_PATHS[kind]).join(' → ');
   return (
-    `[立项检查：这本书还没有正文，也还缺${labels(missing)}文件。这一轮先别写第一章：` +
+    `[立项检查：这本书还没有正文，也还缺${setupLabels(missing)}文件。这一轮先别写第一章：` +
     '先用一两句话提醒作者——开写前把谈定的方向存成文件，起草时才照得着；不想先立项，说「跳过立项，写第一章」就行。' +
     `然后用 file_create 起草缺的第一份（建议顺序：${order}），把对话里谈定的要点全部写进 instruction（起草模型看不到对话）；` +
     '作者还没定的名字、身份、家族、地名等，先填具体的建议值并在文中标「（建议，可改）」，不要留空等作者拍板。' +
