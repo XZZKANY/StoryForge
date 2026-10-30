@@ -28,6 +28,7 @@ const PROFILES: LlmProfiles = {
       provider: 'anthropic',
       baseUrl: 'https://api.anthropic.com/v1',
       model: 'claude-opus-5-5',
+      models: ['claude-opus-5-5', 'claude-sonnet-5-5'],
       hasApiKey: true,
     },
     {
@@ -36,6 +37,7 @@ const PROFILES: LlmProfiles = {
       provider: 'gemini',
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
       model: 'gemini-3-pro-preview',
+      models: ['gemini-3-pro-preview'],
       hasApiKey: true,
     },
   ],
@@ -105,39 +107,77 @@ test('输入框底部从左到右：权限 · 模型 · 思考', async () => {
     'model-profile-selector',
     'reasoning-effort-selector',
   ]);
-  expect(byTestId('model-profile-selector')!.textContent).toContain('主力');
+  expect(byTestId('model-profile-selector')!.textContent).toContain('claude-opus-5-5');
   expect(byTestId('reasoning-effort-selector')!.textContent).toContain('思考：关');
 });
 
-test('模型下拉列出设置里的几套，当前那套打勾；点另一套调全局切换并换显示', async () => {
-  vi.mocked(activateLlmProfile).mockResolvedValue({ ...PROFILES, activeProfileId: 'p2' });
+test('模型下拉按服务商分组列出勾过的模型，当前那个打勾；换同一套或另一套的模型都调全局切换', async () => {
+  const [main, gemini] = PROFILES.profiles;
+  vi.mocked(activateLlmProfile)
+    .mockResolvedValueOnce({
+      ...PROFILES,
+      profiles: [{ ...main, model: 'claude-sonnet-5-5' }, gemini],
+    })
+    .mockResolvedValueOnce({ ...PROFILES, activeProfileId: 'p2' });
   await mount(<ModelProfileSelector />);
   const trigger = byTestId('model-profile-selector')!;
-  expect(trigger.textContent).toContain('主力');
+  expect(trigger.textContent).toContain('claude-opus-5-5');
   expect(trigger.title).toBe('主力 · claude-opus-5-5');
+
   await click(trigger);
-  const first = byTestId('model-profile-selector-option-p1')!;
-  const second = byTestId('model-profile-selector-option-p2')!;
-  expect(first.getAttribute('aria-selected')).toBe('true');
-  expect(first.textContent).toContain('claude-opus-5-5');
-  expect(second.getAttribute('aria-selected')).toBe('false');
-  expect(second.textContent).toContain('gemini-3-pro-preview');
-  await click(second);
-  expect(activateLlmProfile).toHaveBeenCalledExactlyOnceWith('p2');
+  const groups = [...document.querySelectorAll('[data-testid="model-profile-selector-group"]')];
+  expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual([
+    '主力',
+    'Google Gemini',
+  ]);
+  expect(groups.map((group) => [...group.querySelectorAll('[role="option"]')].length)).toEqual([
+    2, 1,
+  ]);
+  const opus = byTestId('model-profile-selector-option-p1/claude-opus-5-5')!;
+  expect(opus.getAttribute('aria-selected')).toBe('true');
+  expect(opus.textContent).toBe('claude-opus-5-5');
+  await click(opus);
+  expect(activateLlmProfile).not.toHaveBeenCalled();
+
+  await click(byTestId('model-profile-selector'));
+  await click(byTestId('model-profile-selector-option-p1/claude-sonnet-5-5'));
+  expect(activateLlmProfile).toHaveBeenLastCalledWith('p1', 'claude-sonnet-5-5');
   expect(document.querySelector('[role="listbox"]')).toBeNull();
+  expect(byTestId('model-profile-selector')!.textContent).toContain('claude-sonnet-5-5');
+
+  await click(byTestId('model-profile-selector'));
+  await click(byTestId('model-profile-selector-option-p2/gemini-3-pro-preview'));
+  expect(activateLlmProfile).toHaveBeenLastCalledWith('p2', 'gemini-3-pro-preview');
   expect(byTestId('model-profile-selector')!.textContent).toContain('gemini-3-pro-preview');
+  expect(byTestId('model-profile-selector')!.title).toBe('Google Gemini · gemini-3-pro-preview');
+});
+
+test('有配置时菜单最后是「管理模型…」，点了去设置', async () => {
+  const openSettings = vi.fn();
+  await mount(<ModelProfileSelector onOpenSettings={openSettings} />);
+  await click(byTestId('model-profile-selector'));
+  const options = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')];
+  expect(options.map((option) => option.textContent)).toEqual([
+    'claude-opus-5-5',
+    'claude-sonnet-5-5',
+    'gemini-3-pro-preview',
+    '管理模型…',
+  ]);
+  await click(options[3]);
+  expect(openSettings).toHaveBeenCalledOnce();
+  expect(activateLlmProfile).not.toHaveBeenCalled();
 });
 
 test('切换失败就地给出原因，菜单不收、不弹居中对话框', async () => {
   vi.mocked(activateLlmProfile).mockRejectedValue(new Error('配置文件被占用'));
   await mount(<ModelProfileSelector />);
   await click(byTestId('model-profile-selector'));
-  await click(byTestId('model-profile-selector-option-p2'));
+  await click(byTestId('model-profile-selector-option-p2/gemini-3-pro-preview'));
   const listbox = document.querySelector('[role="listbox"]');
   expect(listbox).not.toBeNull();
   expect(listbox!.querySelector('[role="alert"]')!.textContent).toBe('切换失败：配置文件被占用');
   expect(document.querySelector('[role="dialog"]')).toBeNull();
-  expect(byTestId('model-profile-selector')!.textContent).toContain('主力');
+  expect(byTestId('model-profile-selector')!.textContent).toContain('claude-opus-5-5');
 });
 
 test('没有任何配置：显示「未配置模型」，菜单里只有「去设置里添加」', async () => {

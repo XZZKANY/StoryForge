@@ -430,7 +430,7 @@ export function ComposerSurface({
       />
       <div
         data-testid="composer-toolbar"
-        className="flex items-center gap-1 px-2 pb-2 text-xs text-muted"
+        className="flex items-center gap-1 px-2 pb-2 text-xs text-muted [container-type:inline-size]"
       >
         <IconButton
           label="添加上下文"

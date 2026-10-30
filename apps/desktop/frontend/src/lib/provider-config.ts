@@ -76,6 +76,14 @@ export function profileTitle(profile: { name: string; provider: string; model: s
   );
 }
 
+/** 对话下拉里一组模型的组名：有名字用名字，没有就用服务商名。 */
+export function providerTitle(profile: { name: string; provider: string }): string {
+  return (
+    profile.name.trim() ||
+    getProviderPreset(providerKindOr(profile.provider, 'openai-compatible')).label
+  );
+}
+
 // 引擎报缺项用的是内部键名，界面换成设置页上的字段名。
 const MISSING_FIELD_LABELS: Record<string, string> = {
   STORYFORGE_LLM_PROVIDER: '服务商',

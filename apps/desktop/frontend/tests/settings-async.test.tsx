@@ -44,6 +44,7 @@ const claude: LlmProfile = {
   provider: 'anthropic',
   baseUrl: 'https://api.anthropic.com/v1',
   model: 'claude-sonnet',
+  models: ['claude-sonnet'],
   hasApiKey: true,
 };
 const kimi: LlmProfile = {
@@ -52,6 +53,7 @@ const kimi: LlmProfile = {
   provider: 'kimi',
   baseUrl: 'https://api.moonshot.cn/v1',
   model: 'kimi-k2',
+  models: ['kimi-k2'],
   hasApiKey: true,
 };
 const listed: LlmProfiles = {
@@ -127,6 +129,13 @@ const select = (container: ParentNode, id: string) =>
   required<HTMLButtonElement>(card(container, id), '[data-testid="model-profile-select"]');
 const status = (container: ParentNode, id: string) =>
   card(container, id).querySelector('[data-testid="model-profile-status"]')?.textContent ?? '';
+const picked = (container: ParentNode) =>
+  Array.from(
+    byTestId(container, 'model-profile-picked').querySelectorAll(
+      '[data-testid="model-profile-picked-model"]',
+    ),
+  ).map((item) => item.firstElementChild?.textContent);
+
 async function edit(container: ParentNode, id: string, value: string) {
   const element = byTestId<HTMLInputElement | HTMLSelectElement>(container, id);
   await act(async () => {
@@ -195,7 +204,7 @@ test('切换失败照实报错，卡片保持原样', async () => {
   assert.equal(select(view.container, 'p1').getAttribute('aria-current'), 'true');
 });
 
-test('新建：选服务商自动填地址并折叠，贴 Key 不用保存就能获取模型，点选后保存并自动测一次', async () => {
+test('新建：选服务商自动填地址并折叠，贴 Key 不用保存就能获取模型，勾选几个后保存并自动测一次', async () => {
   vi.mocked(listLlmProfiles).mockResolvedValueOnce({ ...listed, profiles: [claude] });
   vi.mocked(probeLlmDraft).mockResolvedValueOnce(models(['kimi-k2', 'moonshot-v1']));
   const view = await mount();
@@ -216,18 +225,20 @@ test('新建：选服务商自动填地址并折叠，贴 Key 不用保存就能
     profileId: undefined,
   });
   assert.equal(vi.mocked(saveLlmProfile).mock.calls.length, 0, '获取模型不先保存');
-  const option = Array.from(
-    byTestId(view.container, 'model-profile-model-options').querySelectorAll('button'),
-  ).find((item) => item.textContent === 'moonshot-v1');
-  assert.ok(option);
-  await click(option);
-  assert.equal(
-    byTestId<HTMLInputElement>(view.container, 'model-profile-model').value,
-    'moonshot-v1',
-  );
+  const option = (name: string) =>
+    Array.from(
+      byTestId(view.container, 'model-profile-model-options').querySelectorAll('button'),
+    ).find((item) => item.textContent === name)!;
+  await click(option('moonshot-v1'));
+  await click(option('kimi-k2'));
+  assert.equal(option('moonshot-v1').getAttribute('aria-pressed'), 'true');
+  assert.deepEqual(picked(view.container), ['moonshot-v1', 'kimi-k2']);
 
   vi.mocked(saveLlmProfile).mockResolvedValueOnce(
-    saved('p2', { ...listed, profiles: [claude, { ...kimi, model: 'moonshot-v1' }] }),
+    saved('p2', {
+      ...listed,
+      profiles: [claude, { ...kimi, model: 'moonshot-v1', models: ['moonshot-v1', 'kimi-k2'] }],
+    }),
   );
   vi.mocked(probeLlmDraft).mockResolvedValueOnce(models(['moonshot-v1']));
   await click(byTestId(view.container, 'model-profile-save'));
@@ -237,6 +248,7 @@ test('新建：选服务商自动填地址并折叠，贴 Key 不用保存就能
     provider: 'kimi',
     baseUrl: 'https://api.moonshot.cn/v1',
     model: 'moonshot-v1',
+    models: ['moonshot-v1', 'kimi-k2'],
     apiKey: 'synthetic-draft-key',
   });
   assert.equal(view.container.querySelector('[data-testid="model-profile-editor"]'), null);
@@ -310,6 +322,56 @@ test('编辑已存的那套：Key 留空沿用，获取模型借它已存的 Key
   assert.equal(request.clearApiKey, undefined);
 });
 
+test('勾选：搜索只筛列表，回车加入列表里没有的名字，× 去掉；一个不勾不能保存', async () => {
+  vi.mocked(probeLlmDraft).mockResolvedValueOnce(models(['kimi-k2', 'moonshot-v1', 'kimi-latest']));
+  const view = await mount();
+  await click(await menuItem(view.container, 'p2', /^编辑$/));
+  assert.deepEqual(picked(view.container), ['kimi-k2']);
+  await click(byTestId(view.container, 'model-profile-fetch'));
+  await edit(view.container, 'model-profile-model', 'KIMI');
+  const shown = () =>
+    Array.from(
+      byTestId(view.container, 'model-profile-model-options').querySelectorAll('button'),
+    ).map((item) => [item.textContent, item.getAttribute('aria-pressed')]);
+  assert.deepEqual(shown(), [
+    ['kimi-k2', 'true'],
+    ['kimi-latest', 'false'],
+  ]);
+  assert.equal(
+    byTestId<HTMLButtonElement>(view.container, 'model-profile-add-model').disabled,
+    false,
+  );
+
+  await edit(view.container, 'model-profile-model', 'kimi-k2');
+  assert.equal(
+    byTestId<HTMLButtonElement>(view.container, 'model-profile-add-model').disabled,
+    true,
+    '已勾的不重复加入',
+  );
+  await edit(view.container, 'model-profile-model', 'my-private-model');
+  await act(async () => {
+    byTestId(view.container, 'model-profile-model').dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+    );
+  });
+  assert.deepEqual(picked(view.container), ['kimi-k2', 'my-private-model']);
+  assert.equal(byTestId<HTMLInputElement>(view.container, 'model-profile-model').value, '');
+
+  for (const name of ['kimi-k2', 'my-private-model'])
+    await click(
+      byTestId(view.container, 'model-profile-picked').querySelector<HTMLButtonElement>(
+        `[aria-label="去掉 ${name}"]`,
+      )!,
+    );
+  assert.deepEqual(picked(view.container), []);
+  await click(byTestId(view.container, 'model-profile-save'));
+  assert.match(
+    byTestId(view.container, 'model-profile-save-error').textContent ?? '',
+    /先勾选或填一个模型/,
+  );
+  assert.equal(vi.mocked(saveLlmProfile).mock.calls.length, 0);
+});
+
 test('获取模型的迟到结果在换了服务商后作废', async () => {
   const pending = deferred<LlmDraftModels>();
   vi.mocked(probeLlmDraft).mockReturnValueOnce(pending.promise);
@@ -343,6 +405,7 @@ test('保存失败保留草稿并可重试', async () => {
   await click(byTestId(view.container, 'model-profile-new'));
   await click(byTestId(view.container, 'model-profile-kind-deepseek'));
   await edit(view.container, 'model-profile-model', 'deepseek-chat');
+  await click(byTestId(view.container, 'model-profile-add-model'));
   await edit(view.container, 'model-profile-api-key', 'synthetic-retry-input');
   await click(byTestId(view.container, 'model-profile-save'));
   assert.match(

@@ -18,6 +18,7 @@ const profile = (id: string, name: string): LlmProfile => ({
   provider: 'openai',
   baseUrl: 'https://example.test/v1',
   model: 'm',
+  models: ['m'],
   hasApiKey: true,
 });
 import { nextCyclicEditorFile } from '../src/components/app/editor-tabs-state';
