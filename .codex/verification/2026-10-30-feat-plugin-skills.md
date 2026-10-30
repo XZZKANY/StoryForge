@@ -13,6 +13,7 @@
   - 前端：`context-panel.test.ts` +3、`context-panel-view.test.tsx` +1、`composer-skill-commands.test.tsx` +1、`engine-agent-deps.test.ts`（工具数 28→29、插件库根传到运行时）；整套前端 2535 passed。
   - `pnpm verify`：见下条。
   - 行尾：改动文件全 LF，`--numstat` 与 `--ignore-all-space --numstat` 一致。
+- 合并 master（#527 #528 #529，无冲突）后 `pnpm verify` EXIT=0：project-core 34、引擎 14061 passed + 2 skipped、前端 2537 passed、三个浏览器回归通过。
 - 未覆盖：
   - 没有真宿主点穿（`plugin_library_dir` → 引擎读插件 → 模型调 `skill_read`）；没用真模型验证模型会不会按目录去读插件技能。
   - 作品还没有界面入口启用插件（下一刀）。
