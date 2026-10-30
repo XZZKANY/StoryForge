@@ -157,7 +157,13 @@ export function ChatWindowView({
         onSetLayoutMode={onSetLayoutMode}
         onOpenObservatory={onOpenObservatory}
         observatoryAttention={observatoryAttention}
-        contextToggle={<ContextPanelToggle projectPath={projectPath} run={state.agentRun} />}
+        contextToggle={
+          <ContextPanelToggle
+            projectPath={projectPath}
+            run={state.agentRun}
+            onOpenSettings={onOpenSettings}
+          />
+        }
       />
 
       {state.sessionLoadError && state.sessionLoadError !== dismissedSessionError && (
