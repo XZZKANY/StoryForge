@@ -1,7 +1,7 @@
 /**
  * Agent 执行步骤：thinking 流动折叠，对齐 Claude Code / Codex 的简洁 log 观感（#6c）。
- * 收起为一行「思考中 / 已思考 · N 步 · K 工具」摘要，展开为等宽单色 log
- * （前导状态字形 + 工具名 mono + 简短观测），不再用左边线 + 彩色圆点的「时间线」皮肤。
+ * 收起为一行「思考中 · K 工具 / 已思考 · N 步」摘要，展开为等宽单色 log
+ * （前导状态字形 + 工具名 mono + 右侧淡字指标），不再用左边线 + 彩色圆点的「时间线」皮肤。
  * 运行 / 等待 / 暂停 / 失败默认展开（失败要直接看到失败步），完成 / 停止自动收起；
  * 作者手动切换后以手动为准。
  */
@@ -15,6 +15,9 @@ import type { AgentRun, AgentRunStatus, AgentStep, AgentStepStatus } from './cha
 // 「整理回答」是每轮对话都有的循环收尾步，本身不是作者要看的过程。
 const isLoopSummary = (step: AgentStep) => step.tool === 'agent.loop';
 
+// 收尾步的「完成：N 轮、K 次工具调用」只是把下面的步骤再数一遍，不进日志；失败时它的 detail 是失败原因，要留。
+const isLoggedStep = (step: AgentStep) => !isLoopSummary(step) || step.status === 'failed';
+
 /**
  * 思考过程里有没有东西可看：跑着的时候总有（这一行报进度与用时）；跑完之后只剩
  * 「整理回答」的纯聊天不再留一行「已思考 · 1 步」。模型请求只报在跑着时的这一行。
@@ -22,7 +25,7 @@ const isLoopSummary = (step: AgentStep) => step.tool === 'agent.loop';
 export function hasProcess(run: AgentRun): boolean {
   if (run.status === 'running') return true;
   return (
-    processSteps(run.steps).some((step) => !isLoopSummary(step)) ||
+    processSteps(run.steps).some(isLoggedStep) ||
     Boolean(run.notes?.some((note) => note.text.trim()))
   );
 }
@@ -50,7 +53,9 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
   const failed = run.status === 'failed' && !rejected;
   const open = manualOpen ?? (run.status !== 'completed' && run.status !== 'stopped' && !rejected);
 
-  const stepCount = steps.length;
+  const loggedSteps = steps.filter(isLoggedStep);
+  // 头部的步数就是展开后看得到的行数；工具数只在跑着时报（那时还看不到全部步骤）。
+  const stepText = loggedSteps.length > 0 ? ` · ${loggedSteps.length} 步` : '';
   const toolCount = steps.filter((step) => step.id.startsWith('tool-')).length;
 
   return (
@@ -76,12 +81,12 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
           </span>
         ) : isWaiting ? (
           <span className="text-muted" data-testid="thinking-waiting-header">
-            等你决定 · {stepCount} 步{toolCount > 0 ? ` · ${toolCount} 工具` : ''}
+            等你决定{stepText}
           </span>
         ) : (
           <span className={failed ? 'text-error' : undefined} data-testid="thinking-settled-header">
-            {rejected ? '已拒绝' : settledHeaderText(run.status)} · {stepCount} 步
-            {toolCount > 0 ? ` · ${toolCount} 工具` : ''}
+            {rejected ? '已拒绝' : settledHeaderText(run.status)}
+            {stepText}
             {failed ? ' ✗' : ''}
           </span>
         )}
@@ -95,7 +100,7 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
         }`}
       >
         <div className="min-h-0 overflow-hidden">
-          <ProcessLog live={isLive}>{processRows(run, steps)}</ProcessLog>
+          <ProcessLog live={isLive}>{processRows(run, loggedSteps)}</ProcessLog>
         </div>
       </div>
     </div>
@@ -171,6 +176,8 @@ function StepRow({ step }: { step: AgentStep }) {
   const hasDetail = step.detail.trim().length > 0;
   const metrics = step.metrics ?? [];
   const hasMetrics = metrics.length > 0;
+  // 有指标时行内让位给右侧淡字，只有要内联纯文本 detail（如 plan step）时行才可点开。
+  const inlineDetail = hasDetail && !hasMetrics;
 
   const rowClass =
     'flex w-full items-baseline gap-2 rounded-sm px-1 py-px text-left font-mono text-2xs leading-5';
@@ -182,12 +189,11 @@ function StepRow({ step }: { step: AgentStep }) {
       {/* 工具标题带着文件路径，窄栏里会很长：可以截断，悬停看全名。 */}
       <span
         className={`min-w-0 truncate ${isToolStep ? 'text-foreground' : 'text-muted'}`}
-        title={step.title}
+        title={step.model ? `${step.title} · 模型 ${step.model}` : step.title}
       >
         {step.title}
       </span>
-      {/* 有结构化指标时首行让位给 chip 行；仅纯文本 detail（如 plan step）仍在首行内联。 */}
-      {hasDetail && !hasMetrics && (
+      {inlineDetail && (
         <span
           className={`min-w-0 flex-1 text-subtle ${
             detailOpen ? 'whitespace-pre-wrap break-words' : 'truncate'
@@ -196,12 +202,20 @@ function StepRow({ step }: { step: AgentStep }) {
           {step.detail}
         </span>
       )}
+      {hasMetrics && (
+        <span
+          className="ml-auto flex-shrink-0 pl-2 tabular-nums text-subtle"
+          data-testid="step-meta"
+        >
+          {metrics.join(' · ')}
+        </span>
+      )}
     </>
   );
 
   return (
     <div className="flex flex-col">
-      {hasDetail ? (
+      {inlineDetail ? (
         <button
           type="button"
           onClick={() => setDetailOpen((value) => !value)}
@@ -213,24 +227,6 @@ function StepRow({ step }: { step: AgentStep }) {
         // 无详情可展开时是纯静态行：渲染 div 而非 disabled button，
         // 避免全局 button:disabled{cursor:not-allowed} 让静态行挂着禁用光标。
         <div className={rowClass}>{rowContent}</div>
-      )}
-
-      {hasMetrics && (
-        <div
-          className="ml-[18px] flex flex-wrap items-center gap-1 py-0.5"
-          data-testid="step-metrics"
-        >
-          {metrics.map((metric) => (
-            <span
-              key={metric.label}
-              className="inline-flex items-baseline gap-1 rounded-sm bg-elevated px-1.5 py-px font-mono text-3xs leading-4 text-subtle"
-              data-testid="step-metric-chip"
-            >
-              <span className="text-subtle">{metric.label}</span>
-              <span className="text-foreground">{metric.value}</span>
-            </span>
-          ))}
-        </div>
       )}
     </div>
   );

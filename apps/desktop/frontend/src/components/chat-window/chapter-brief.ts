@@ -1,6 +1,7 @@
 import type { AgentResultMessage } from '../../lib/api-client';
 import type { ChapterBrief, ChapterBriefAdjustment } from './types';
 
+/** 只有旧版停在章纲等作者确认的 run 才带这张卡；现在写章拟完章纲直接起草，不再要确认。 */
 export function chapterBriefFromAgentResult(message: AgentResultMessage): ChapterBrief | null {
   if (message.agent_result.confirmation_kind !== 'chapter_brief') return null;
   const raw = message.agent_result.chapter_brief;

@@ -6,7 +6,7 @@ import type { AgentResultMessage } from '../../lib/api-client';
 import { stepsFromAgentResult } from './agent-step-mapping';
 import { writableFilePatch } from './agent-result';
 import type { AgentRun, AgentStep, AgentTextSettlement } from './types';
-import { checkpointResumeFromDiagnostic } from './recovery';
+import { checkpointResumeFromDiagnostic, pendingToolLabel } from './recovery';
 
 export type ResumeDiagnosticDisplay = {
   status: AgentRun['status'];
@@ -100,7 +100,8 @@ export function displayFromResumeDiagnostic(
       executionPending: checkpoint.awaitingSettlement,
     };
   const reason = stringField(diagnostic, 'reason');
-  const pendingTool = stringField(diagnostic, 'pending_tool') ?? stringField(diagnostic, 'intent');
+  const rawTool = stringField(diagnostic, 'pending_tool') ?? stringField(diagnostic, 'intent');
+  const pendingTool = rawTool ? pendingToolLabel(rawTool) : null;
   if (diagnostic.can_resume === false && diagnostic.reverted_status === 'stopped') {
     return {
       status: 'stopped',
