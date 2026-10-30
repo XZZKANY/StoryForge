@@ -1,8 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { getAgentRunEvents } from '../../src/lib/api/agent-runs';
-import { sendAgentControlMessage, sendAgentUserMessage } from '../../src/lib/api/agent-socket';
+import { sendAgentUserMessage } from '../../src/lib/api/agent-socket';
 import type { AgentResultMessage, AgentSocketMessage } from '../../src/lib/api/types';
-import { chapterBriefFromAgentResult } from '../../src/components/chat-window/chapter-brief';
 import { engineRuns } from '../../src/lib/engine/store';
 import { nativeLlmSource } from '../../src/lib/engine/llm';
 import { TauriFileSystem } from '../../src/lib/tauri-fs';
@@ -88,7 +87,7 @@ async function runAgentRealRun(input: { projectRoot: string }) {
   const target = `${input.projectRoot}\\正文\\第003章.md`;
   const base = { project_path: input.projectRoot, project_name: '合成验证书' };
 
-  // 1. 新会话 → 起草下一章：整理章纲后停下等作者确认。
+  // 1. 新会话 → 起草下一章：拟完章纲直接起草 → 检查 → 补丁，同一个 run 里跑完，不停下等作者确认章纲。
   const write = await send({
     runId: 'p3-real-write',
     userMessage: '起草第三章：林舟跟着老周去水厂，查清停水和那辆翻倒运水车的来由。',
@@ -98,41 +97,11 @@ async function runAgentRealRun(input: { projectRoot: string }) {
   });
   const writeResult = write.result.ok ? (write.result.message as AgentResultMessage) : null;
   const sessionId = writeResult?.assistant_session_id ?? null;
-  const brief = writeResult ? chapterBriefFromAgentResult(writeResult) : null;
-
-  // 2. 作者确认章纲（照 UI 的 onConfirmChapterBrief 原样回传）→ 起草 → 检查 → 补丁。
-  let confirm: Obj | null = null;
-  if (brief) {
-    const startedAt = Date.now();
-    confirm = await sendAgentControlMessage({
-      sessionId: 'p3-real-write',
-      runId: 'p3-real-write',
-      type: 'resume_run',
-      payload: {
-        source: 'desktop.timeline',
-        chapter_brief: {
-          brief_id: brief.briefId,
-          revision: brief.revision,
-          chapter_title: brief.chapterTitle,
-          goal: brief.goal,
-          pov: brief.pov,
-          setting: brief.setting,
-          required_beats: brief.requiredBeats,
-          forbidden_items: brief.forbiddenItems,
-          continuity_constraints: brief.continuityConstraints,
-          target_chars_min: brief.targetCharsMin,
-          target_chars_max: brief.targetCharsMax,
-        },
-      },
-    }).then(
-      (ack) => ({ ok: true, ack, ms: Date.now() - startedAt }) as Obj,
-      (error: unknown) => ({ ok: false, error: describe(error), ms: Date.now() - startedAt }),
-    );
-  }
-  const resumed = ((confirm?.ack as Obj | undefined)?.resumed_result ?? null) as Obj | null;
+  const brief = (writeResult?.agent_result.chapter_brief ?? null) as Obj | null;
+  const resumed = writeResult as unknown as Obj | null;
   const patch = (resumed?.proposed_patch ?? null) as Obj | null;
 
-  // 3. 作者接受补丁：走编辑器写回最终落到的那条原生条件写（新章，基线是「不存在」）。
+  // 2. 作者接受补丁：走编辑器写回最终落到的那条原生条件写（新章，基线是「不存在」）。
   let writeback: Obj | null = null;
   if (patch && typeof patch.after === 'string' && typeof patch.file_path === 'string') {
     writeback = await TauriFileSystem.writeFileIfUnchanged(
@@ -149,7 +118,7 @@ async function runAgentRealRun(input: { projectRoot: string }) {
     ? await TauriFileSystem.readProjectFile(input.projectRoot, target).catch(() => null)
     : null;
 
-  // 4. 同一会话里审一次稿、修订一次（修订只看补丁，不写回）。
+  // 3. 同一会话里审一次稿、修订一次（修订只看补丁，不写回）。
   const reviewTarget = written ? target : `${input.projectRoot}\\正文\\第002章.md`;
   const reviewContent =
     written ?? (await TauriFileSystem.readProjectFile(input.projectRoot, reviewTarget));
@@ -182,7 +151,6 @@ async function runAgentRealRun(input: { projectRoot: string }) {
     target,
     write,
     brief,
-    confirm,
     resumed,
     patch,
     writeback,

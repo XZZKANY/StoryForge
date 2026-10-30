@@ -1,7 +1,7 @@
 import { StrictMode, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, test, vi } from 'vitest';
-import { ChapterCheckHistoryPanel } from '../src/components/chat-window/ChapterCheckHistoryPanel';
+import { ChapterCheckHistoryToggle } from '../src/components/chat-window/ChapterCheckHistoryPanel';
 import { useChapterCheckHistory } from '../src/components/chat-window/useChapterCheckHistory';
 import {
   decodeChapterCheckHistory,
@@ -100,7 +100,24 @@ function Panel({
   session: number | null;
   refresh: string;
 }) {
-  return <ChapterCheckHistoryPanel history={useChapterCheckHistory(project, session, refresh)} />;
+  return <ChapterCheckHistoryToggle history={useChapterCheckHistory(project, session, refresh)} />;
+}
+
+// 浮窗走 portal 挂在 document.body 上，不在 container 里。
+const toggle = () =>
+  document.querySelector<HTMLButtonElement>('[data-testid="conversation-check-history-toggle"]');
+const popover = () => document.querySelector<HTMLElement>('[data-testid="chapter-check-history"]');
+const candidate = () => document.querySelector('textarea');
+const alert = () => document.querySelector('[role="alert"]');
+async function openHistory() {
+  const button = toggle();
+  if (button?.getAttribute('aria-expanded') !== 'true') await act(async () => button?.click());
+}
+async function reread() {
+  const button = Array.from(popover()?.querySelectorAll('button') ?? []).find(
+    (item) => item.textContent === '重新读取',
+  );
+  await act(async () => button?.click());
 }
 
 function deferred<T>() {
@@ -150,17 +167,20 @@ test('cold mount reads persisted evidence, shows a read-only candidate and only 
     request,
     expect.objectContaining({ signal: expect.any(AbortSignal) }),
   );
-  expect(container?.textContent).toContain('检查执行失败');
-  expect(container?.textContent).toContain('稿件判断未知');
-  expect(container?.textContent).toContain('稿件硬问题 0');
-  const text = container?.querySelector('textarea');
+  await openHistory();
+  expect(popover()?.textContent).toContain('检查执行失败');
+  expect(popover()?.textContent).toContain('稿件判断未知');
+  expect(popover()?.textContent).toContain('稿件硬问题 0');
+  const text = candidate();
   expect(text?.value).toBe('候选稿_SENTINEL');
   expect(text?.readOnly).toBe(true);
   expect(
-    Array.from(container?.querySelectorAll('button') ?? []).map((button) => button.textContent),
-  ).toEqual(['重新读取记录']);
-  expect(container?.textContent).not.toContain('接受补丁');
-  await act(async () => container?.querySelector('button')?.click());
+    Array.from(popover()?.querySelectorAll('button') ?? []).map((button) => button.textContent),
+  ).toEqual(['重新读取']);
+  expect(popover()?.textContent).not.toContain('接受补丁');
+  // border-default 不是有效类，会落到 Tailwind 默认的浅灰边线。
+  expect(popover()?.innerHTML.includes('border-default')).toBe(false);
+  await reread();
   expect(query).toHaveBeenCalledTimes(2);
 });
 
@@ -180,16 +200,17 @@ test('A to B to A creates a new owner; late success cannot repopulate the return
   await act(async () =>
     first.resolve(decodeChapterCheckHistory(wire(1, 'failed', '旧 A 候选'), request)),
   );
-  expect(container?.textContent).not.toContain('旧 A 候选');
-  expect(container?.querySelector('textarea')).toBeNull();
+  expect(toggle()).toBeNull();
+  expect(candidate()).toBeNull();
   await act(async () =>
     returned.resolve(decodeChapterCheckHistory(wire(3, 'failed', '新 A 候选'), request)),
   );
-  expect(container?.querySelector('textarea')?.value).toBe('新 A 候选');
+  await openHistory();
+  expect(candidate()?.value).toBe('新 A 候选');
   await act(async () =>
     second.resolve(decodeChapterCheckHistory(wire(2, 'failed', '旧 B 候选'), request)),
   );
-  expect(container?.querySelector('textarea')?.value).toBe('新 A 候选');
+  expect(candidate()?.value).toBe('新 A 候选');
 });
 
 test('a new settled run refreshes history; an old pending read cannot overwrite it', async () => {
@@ -201,11 +222,12 @@ test('a new settled run refreshes history; an old pending read cannot overwrite 
   await act(async () =>
     fresh.resolve(decodeChapterCheckHistory(wire(2, 'incomplete', '最新候选'), request)),
   );
-  expect(container?.textContent).toContain('检查未完整执行');
+  await openHistory();
+  expect(popover()?.textContent).toContain('检查未完整执行');
   await act(async () =>
     old.resolve(decodeChapterCheckHistory(wire(1, 'failed', '旧候选'), request)),
   );
-  expect(container?.querySelector('textarea')?.value).toBe('最新候选');
+  expect(candidate()?.value).toBe('最新候选');
 });
 
 test('read failure is explicit, keeps same-scope last evidence, and retry never executes models', async () => {
@@ -214,11 +236,13 @@ test('read failure is explicit, keeps same-scope last evidence, and retry never 
     .mockRejectedValueOnce(new Error('read offline'))
     .mockResolvedValueOnce({ entries: [], truncated: false });
   await render();
+  await openHistory();
   await render(request.project_root, 7, 'updated');
-  expect(container?.querySelector('[role="alert"]')?.textContent).toContain('read offline');
-  expect(container?.querySelector('textarea')?.value).toBe('候选稿_SENTINEL');
-  await act(async () => container?.querySelector('button')?.click());
-  expect(container?.querySelector('[data-testid="chapter-check-history"]')).toBeNull();
+  expect(alert()?.textContent).toContain('read offline');
+  expect(candidate()?.value).toBe('候选稿_SENTINEL');
+  await reread();
+  expect(popover()).toBeNull();
+  expect(toggle()).toBeNull();
   expect(query).toHaveBeenCalledTimes(3);
 });
 
@@ -228,7 +252,8 @@ test('no session and unmount cannot resurrect a late candidate', async () => {
   await render();
   await render(request.project_root, null);
   await act(async () => pending.resolve(decodeChapterCheckHistory(wire(), request)));
-  expect(container?.querySelector('textarea')).toBeNull();
+  expect(toggle()).toBeNull();
+  expect(candidate()).toBeNull();
   expect(query).toHaveBeenCalledTimes(1);
 });
 
@@ -251,16 +276,18 @@ test('StrictMode replay and final unmount abort the obsolete reads', async () =>
   await act(async () =>
     old.resolve(decodeChapterCheckHistory(wire(1, 'failed', '旧回放'), request)),
   );
-  expect(container.querySelector('textarea')).toBeNull();
+  expect(toggle()).toBeNull();
   await act(async () =>
     fresh.resolve(decodeChapterCheckHistory(wire(2, 'failed', '有效回放'), request)),
   );
-  expect(container.querySelector('textarea')?.value).toBe('有效回放');
+  await openHistory();
+  expect(candidate()?.value).toBe('有效回放');
   const lastSignal = query.mock.calls[1][1]?.signal;
   await act(async () => root?.unmount());
   root = null;
   expect(lastSignal?.aborted).toBe(true);
   expect(container.childNodes.length).toBe(0);
+  expect(popover()).toBeNull();
 });
 
 test('a transport ignoring abort times out visibly; a late body cannot replace the read retry', async () => {
@@ -271,12 +298,70 @@ test('a transport ignoring abort times out visibly; a late body cannot replace t
     .mockResolvedValueOnce(decodeChapterCheckHistory(wire(2, 'failed', '重读正文'), request));
   await render();
   await act(async () => vi.advanceTimersByTimeAsync(15_000));
-  expect(container?.querySelector('[role="alert"]')?.textContent).toContain('超时');
+  await openHistory();
+  expect(alert()?.textContent).toContain('超时');
   expect(query.mock.calls[0][1]?.signal?.aborted).toBe(true);
-  await act(async () => container?.querySelector('button')?.click());
+  await reread();
   await act(async () =>
     pending.resolve(decodeChapterCheckHistory(wire(1, 'failed', '迟到正文'), request)),
   );
-  expect(container?.querySelector('textarea')?.value).toBe('重读正文');
+  expect(candidate()?.value).toBe('重读正文');
   expect(query).toHaveBeenCalledTimes(2);
+});
+
+test('没有记录就没有按钮；有记录时浮窗默认收着，点开出条目，再点或 Esc 收起', async () => {
+  query.mockResolvedValueOnce({ entries: [], truncated: false });
+  await render();
+  expect(toggle()).toBeNull();
+  query.mockResolvedValueOnce(decodeChapterCheckHistory(wire(), request));
+  await render(request.project_root, 7, 'second');
+  const button = toggle();
+  expect(button?.getAttribute('aria-expanded')).toBe('false');
+  expect(button?.getAttribute('aria-controls')).toBeNull();
+  expect(popover()).toBeNull();
+  await openHistory();
+  expect(button?.getAttribute('aria-expanded')).toBe('true');
+  // 浮在对话上，不插进对话栏。
+  expect(container?.contains(popover())).toBe(false);
+  const surface = popover()?.closest<HTMLElement>('[data-floating-surface]');
+  expect(surface?.id).toBe(button?.getAttribute('aria-controls'));
+  expect(surface?.getAttribute('aria-label')).toBe('章节检查记录');
+  expect(popover()?.querySelectorAll('[data-testid="chapter-check-entry"]').length).toBe(1);
+  await act(async () => button?.click());
+  expect(popover()).toBeNull();
+  expect(button?.getAttribute('aria-expanded')).toBe('false');
+  await openHistory();
+  await act(async () => {
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  });
+  expect(popover()).toBeNull();
+});
+
+function history(...entries: ReturnType<typeof wire>['entries']) {
+  return decodeChapterCheckHistory({ ...wire(), entries }, request);
+}
+const dot = () => document.querySelector('[data-testid="check-history-attention-dot"]');
+
+test('最新一条（列表第一条）没通过才挂提醒小点，旧的失败不算', async () => {
+  const failed = wire(1, 'failed', null).entries[0];
+  const passed = wire(2, 'completed', null).entries[0];
+  query.mockResolvedValueOnce(history(passed, failed));
+  await render();
+  expect(toggle()).not.toBeNull();
+  expect(dot()).toBeNull();
+  query.mockResolvedValueOnce(history(failed, passed));
+  await render(request.project_root, 7, 'latest-failed');
+  expect(dot()).not.toBeNull();
+  const hardFail = wire(3, 'completed', null).entries[0];
+  hardFail.check.manuscript_status = 'fail';
+  hardFail.check.manuscript_hard_failure_count = 1;
+  query.mockResolvedValueOnce(history(hardFail));
+  await render(request.project_root, 7, 'manuscript-fail');
+  expect(dot()).not.toBeNull();
+  query.mockResolvedValueOnce(history(passed));
+  await render(request.project_root, 7, 'passed-again');
+  expect(dot()).toBeNull();
+  query.mockRejectedValueOnce(new Error('read offline'));
+  await render(request.project_root, 7, 'read-error');
+  expect(dot()).not.toBeNull();
 });

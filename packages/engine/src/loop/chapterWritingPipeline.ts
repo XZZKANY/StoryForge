@@ -21,7 +21,7 @@ import {
 } from './chapterWritingContracts';
 import type { FixedPipelineHost, FixedPipelineRequest } from './fixedPipelines';
 import { patchRequiresConfirmation } from './permission';
-import { planStep, runtimeInterruptedResponse } from './runEvents';
+import { planStep } from './runEvents';
 import { AgentOrchestrationError, roleHints, roleMentions } from './runPayloads';
 import type { ToolArtifact } from './tools/execution';
 import {
@@ -61,10 +61,20 @@ async function resumeProjectRoot(host: FixedPipelineHost, request: FixedPipeline
   throw new AgentOrchestrationError('恢复写章时找不到当前项目路径，请重新发起写章。');
 }
 
-function completedPlan(checkStatus: string, patchStatus: string, checkDetail = '章节检查已完成。') {
+/** 旧版停下等作者确认章纲的 run，作者在卡片上确认过才多出「已确认」那一步。 */
+function completedPlan(
+  authorConfirmed: boolean,
+  checkStatus: string,
+  patchStatus: string,
+  checkDetail = '章节检查已完成。',
+) {
   return [
-    planStep('chapter.brief', '作者已确认 Chapter Brief。', 'completed'),
-    planStep('chapter.brief.confirm', 'Chapter Brief 已确认。', 'completed'),
+    ...(authorConfirmed
+      ? [
+          planStep('chapter.brief', '作者已确认 Chapter Brief。', 'completed'),
+          planStep('chapter.brief.confirm', 'Chapter Brief 已确认。', 'completed'),
+        ]
+      : [planStep('chapter.brief', '已生成 Chapter Brief。', 'completed')]),
     planStep('chapter.draft', '已按 brief 起草正文。', 'completed'),
     planStep('chapter.check', checkDetail, checkStatus),
     planStep('chapter.patch', '未发现稿件硬问题时生成 proposed patch。', patchStatus),
@@ -85,8 +95,11 @@ export function isChapterResume(
   return payload.intent === CHAPTER_WRITE_INTENT;
 }
 
-/** 第一段：整理 Chapter Brief，冻结来源，记下待作者确认的未决调用后停下。 */
-export async function startChapterBrief(
+/**
+ * 写一章：整理 Chapter Brief、冻结来源，起草前记下可恢复的未决调用，随即按章纲起草—检查—产补丁。
+ * 章纲不等作者确认（各档位一样）；作者只在补丁那一步按档位把关。
+ */
+export async function startChapterWriting(
   host: FixedPipelineHost,
   request: FixedPipelineRequest,
 ): Promise<Obj> {
@@ -164,8 +177,7 @@ export async function startChapterBrief(
   const started = response({
     plan: [
       planStep('chapter.brief', '整理章节目标与可信上下文。', 'running'),
-      planStep('chapter.brief.confirm', '等待作者确认 Chapter Brief。', 'pending'),
-      planStep('chapter.draft', '按确认后的 brief 起草正文。', 'pending'),
+      planStep('chapter.draft', '按 brief 起草正文。', 'pending'),
       planStep('chapter.check', '检查并在必要时定向修复一次。', 'pending'),
       planStep('chapter.patch', '生成待审阅 proposed patch。', 'pending'),
     ],
@@ -192,7 +204,8 @@ export async function startChapterBrief(
   await host.sink.recordToolTrace(run, briefResult.trace, 0);
   const brief = briefResult.output.brief as Obj;
   const safePromptBundle = { ...promptBundle, project_root: '.' };
-  await host.sink.recordRuntimePendingCall(run, {
+  // 起草前的断点：作者在起草途中暂停（哪怕随后重启）再继续时，从章纲之后接着写，不必重拟章纲。
+  const pending = await host.sink.recordRuntimePendingCall(run, {
     kind: RUNTIME_PENDING_CALL_ARTIFACT_KIND,
     intent: CHAPTER_WRITE_INTENT,
     boundary: 'after_tool:chapter.brief',
@@ -214,77 +227,67 @@ export async function startChapterBrief(
     target_relative: relative,
     source_guard: sourceGuard,
     llm_prompt_context_bundle: safePromptBundle,
-    // 确认后起草时会话里已多了「章纲已准备」那句，节选再取就是空的：章纲看到的这段原样留给起草。
+    // 起草时会话里已多了「章纲已准备」那句，节选再取就是空的：章纲看到的这段原样留给起草。
     ...(conversation !== null ? { conversation_excerpt: conversation } : {}),
   });
-  const summary = `${BRIEF_READY_PREFIX}${brief.goal || relative}。确认后才会开始起草。`;
-  const result = response({
+  const summary = `${BRIEF_READY_PREFIX}${brief.goal || relative}。`;
+  const briefed = response({
     plan: [
-      planStep('chapter.brief', '已生成可编辑 Chapter Brief。', 'completed'),
-      planStep('chapter.brief.confirm', '等待作者确认 Chapter Brief。', 'needs_approval'),
-      planStep('chapter.draft', '确认后起草正文。', 'pending'),
+      planStep('chapter.brief', '已生成 Chapter Brief。', 'completed'),
+      planStep('chapter.draft', '按 brief 起草正文。', 'pending'),
       planStep('chapter.check', '检查并在必要时定向修复一次。', 'pending'),
       planStep('chapter.patch', '检查通过后生成 proposed patch。', 'pending'),
     ],
-    agentResult: {
-      summary,
-      requires_user_confirmation: true,
-      confirmation_kind: 'chapter_brief',
-      chapter_brief: brief,
-      confirmation_action: { kind: 'chapter_brief', chapter_brief: brief },
-    },
+    agentResult: { summary, requires_user_confirmation: false, chapter_brief: brief },
     toolTrace: [briefResult.trace],
   });
-  const interrupted = host.checkResultDelivery(result, 'before_finalize:chapter.brief', true);
+  const interrupted = host.checkResultDelivery(briefed, 'before_finalize:chapter.brief', true);
   await host.sink.recordArtifact(run, {
     kind: CHAPTER_BRIEF_ARTIFACT_KIND,
     payload: { ...brief, status: interrupted !== null ? 'interrupted' : 'proposed' },
-    requiresConfirmation: interrupted === null,
+    requiresConfirmation: false,
   });
   if (interrupted !== null) return interrupted;
   await host.assistant.appendMessage(request.assistantSessionId, {
     role: 'user',
     content: userMessage,
   });
+  // 这句也是下一章读对话节选的分界（见 briefConversation），起草失败也要留着。
   await host.assistant.appendMessage(request.assistantSessionId, {
     role: 'assistant',
     content: summary,
   });
-  await host.sink.recordPermissionRequired(run, result, 'chapter_brief_confirmation');
-  await host.store.updateRun(run.id, { current_step: 'chapter.brief.confirm' });
-  const paused = runtimeInterruptedResponse(
-    result,
-    {
-      kind: 'runtime_interruption',
-      status: 'paused',
-      current_step: 'chapter.brief.confirm',
-      boundary: 'after_tool:chapter.brief',
-      uses_existing_status: true,
-      resume_strategy: 'continue_chapter_writing_after_brief',
-      automatic_resume_supported: true,
-    },
-    true,
-  );
-  // 停在这里是等作者确认章纲，不是作者按了暂停：回话照旧说人话，不换成运行边界的内部说法。
-  (paused.agent_result as Obj).summary = summary;
-  (paused.agent_result as Obj).requires_user_confirmation = true;
-  return paused;
+  // 旧版拟章纲与起草是两次调用、各有一份时长预算；合成一次后起草阶段照旧拿满一份，免得慢模型写到一半超时。
+  host.renewRunDeadline();
+  // 从刚记下的断点接着写：用的正是暂停后继续时会读到的那份（已脱敏的）章纲与来源。
+  const stored = isObj(pending.payload.chapter_brief) ? pending.payload.chapter_brief : {};
+  return draftFromBrief(host, request, {
+    run,
+    root,
+    relative,
+    target,
+    brief: confirmBrief(stored, stored),
+    authorConfirmed: false,
+    pending,
+    leadingTraces: [briefResult.trace],
+  });
 }
 
 /**
- * 第二段：作者确认后起草 → 检查 → 必要时定向修复一次 → 再检查；通过才产补丁。
- * 例外：检查器重试后仍不可用、程序检查又没有硬失败时，交「未经检查」的稿并强制作者确认。
+ * 从起草前记下的未决调用接着写：作者在起草途中暂停后继续，或旧版停下等作者确认章纲的 run。
+ * 带着作者在章纲卡片上确认（可能改过）的那版就先核对它；没带就照记下的章纲写。
  */
 export async function resumeChapterWriting(
   host: FixedPipelineHost,
   request: FixedPipelineRequest,
   pending: PendingRow,
 ): Promise<Obj> {
-  const { run, args, userMessage } = request;
+  const { run, args } = request;
   const deps = { reader: host.reader, platform: host.platform, secrets: host.secrets };
   const payload = isObj(pending.payload) ? pending.payload : {};
   const original = isObj(payload.chapter_brief) ? payload.chapter_brief : {};
-  const confirmed = confirmBrief(args.chapter_brief, original);
+  const authorConfirmed = args.chapter_brief !== undefined && args.chapter_brief !== null;
+  const confirmed = confirmBrief(authorConfirmed ? args.chapter_brief : original, original);
   const root = await resumeProjectRoot(host, request);
   const { relative, target } = await resolveTarget(
     host.reader,
@@ -294,10 +297,45 @@ export async function resumeChapterWriting(
   );
   if (relative !== payload.target_relative)
     throw new AgentOrchestrationError('目标章节在 brief 确认期间发生变化，请重新生成 brief。');
-  const promptBundle = payload.llm_prompt_context_bundle;
-  if (!isObj(promptBundle))
+  if (!isObj(payload.llm_prompt_context_bundle))
     throw new AgentOrchestrationError('Chapter Brief 缺少可信上下文快照，请重新生成。');
   await assertChapterSources(deps, root, target, payload.source_guard);
+  return draftFromBrief(host, request, {
+    run,
+    root,
+    relative,
+    target,
+    brief: confirmed,
+    authorConfirmed,
+    pending,
+    leadingTraces: [],
+  });
+}
+
+/**
+ * 按已收口的章纲起草 → 检查 → 必要时定向修复一次 → 再检查；通过才产补丁。
+ * 例外：检查器重试后仍不可用、程序检查又没有硬失败时，交「未经检查」的稿并强制作者确认。
+ * 起草用的来源、上下文与对话节选一律取自起草前记下的未决调用，产出时把它消解掉。
+ */
+async function draftFromBrief(
+  host: FixedPipelineHost,
+  request: FixedPipelineRequest,
+  input: {
+    run: FixedPipelineRequest['run'];
+    root: string;
+    relative: string;
+    target: string;
+    brief: Obj;
+    authorConfirmed: boolean;
+    pending: PendingRow;
+    /** 同一次执行里已落库的轨迹（拟章纲），后面的轨迹序号接着排。 */
+    leadingTraces: readonly AgentToolTrace[];
+  },
+): Promise<Obj> {
+  const { args, userMessage } = request;
+  const { run, root, relative, target, brief: confirmed, authorConfirmed, pending } = input;
+  const deps = { reader: host.reader, platform: host.platform, secrets: host.secrets };
+  const payload = isObj(pending.payload) ? pending.payload : {};
   const targetAbsolute = nativeProjectPath(root, target, host.platform);
   const context = await host.toolContext(run, request);
   const writer = {
@@ -307,41 +345,42 @@ export async function resumeChapterWriting(
     target_relative: relative,
     brief: confirmed,
     source_guard: payload.source_guard,
-    llm_prompt_context_bundle: promptBundle,
+    llm_prompt_context_bundle: payload.llm_prompt_context_bundle,
     ...(typeof payload.conversation_excerpt === 'string'
       ? { conversation_excerpt: payload.conversation_excerpt }
       : {}),
   };
   const traces: AgentToolTrace[] = [];
-  const draft = await host.executeTool(run, 'chapter.draft', context, writer);
-  traces.push(draft.trace);
+  // 每步做完就落一条轨迹，思考过程跟着走，不等整章查完才一起出现。
+  const execute = async (toolName: string, toolPayload: Obj) => {
+    const result = await host.executeTool(run, toolName, context, toolPayload);
+    await host.sink.recordToolTrace(run, result.trace, input.leadingTraces.length + traces.length);
+    traces.push(result.trace);
+    return result;
+  };
+  const draft = await execute('chapter.draft', writer);
   let content = String(draft.output.content);
   // 检查器没给出可用结果（不是稿件结论）时同一份正文再查一次。
   const checkChapter = async (attempt: number): Promise<Obj> => {
-    const input = { brief: confirmed, content, attempt };
-    let check = await host.executeTool(run, 'chapter.check', context, input);
-    traces.push(check.trace);
-    if ((check.output.check as Obj).execution_status !== 'completed') {
-      check = await host.executeTool(run, 'chapter.check', context, { ...input, recheck: true });
-      traces.push(check.trace);
-    }
+    const checkInput = { brief: confirmed, content, attempt };
+    let check = await execute('chapter.check', checkInput);
+    if ((check.output.check as Obj).execution_status !== 'completed')
+      check = await execute('chapter.check', { ...checkInput, recheck: true });
     return check.output.check as Obj;
   };
   let finalCheck = await checkChapter(1);
   let repairCount = 0;
   if (finalCheck.status === 'repairable') {
-    const repaired = await host.executeTool(run, 'chapter.repair', context, {
+    const repaired = await execute('chapter.repair', {
       ...writer,
       content,
       check: finalCheck,
     });
-    traces.push(repaired.trace);
     content = String(repaired.output.content);
     repairCount = 1;
     finalCheck = await checkChapter(2);
   }
   await assertChapterSources(deps, root, target, payload.source_guard);
-  for (const [index, trace] of traces.entries()) await host.sink.recordToolTrace(run, trace, index);
   const toolArtifacts: ToolArtifact[] = [
     { kind: CHAPTER_BRIEF_ARTIFACT_KIND, payload: confirmed, requires_confirmation: false },
     {
@@ -370,7 +409,7 @@ export async function resumeChapterWriting(
       userMessage,
       plan: fields.plan,
       agentResult: fields.agentResult,
-      toolTrace: traces,
+      toolTrace: [...input.leadingTraces, ...traces],
       proposedPatch: fields.proposedPatch ?? null,
       ...roles(args),
       toolArtifacts,
@@ -404,6 +443,7 @@ export async function resumeChapterWriting(
     });
     return response({
       plan: completedPlan(
+        authorConfirmed,
         executionStatus === 'completed' ? 'completed' : 'failed',
         'skipped',
         detail,
@@ -437,8 +477,8 @@ export async function resumeChapterWriting(
   });
   return response({
     plan: unchecked
-      ? completedPlan('failed', 'completed', checkerFailureDetail(executionStatus))
-      : completedPlan('completed', 'completed'),
+      ? completedPlan(authorConfirmed, 'failed', 'completed', checkerFailureDetail(executionStatus))
+      : completedPlan(authorConfirmed, 'completed', 'completed'),
     agentResult: {
       summary: unchecked
         ? '章节检查重查一次后仍未取得可用结果，这份稿子未经检查。' +

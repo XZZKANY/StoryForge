@@ -50,17 +50,16 @@ export type AgentTextSettlement =
 
 export type AgentStepStatus = 'pending' | 'running' | 'waiting' | 'completed' | 'failed';
 
-// 工具步骤的结构化指标：从 output_summary 抽出的 key-value，用小 chip 平铺，
-// 免得延迟 / 上下文数 / 问题数挤在一行中文长串里难扫读（detail 仍作纯文本回退）。
-export type AgentStepMetric = { label: string; value: string };
-
 export type AgentStep = {
   id: string;
   title: string;
   tool: string;
   status: AgentStepStatus;
   detail: string;
-  metrics?: AgentStepMetric[];
+  /** 工具步骤行右侧的淡字（「问题 3 个」「12 秒」）；有它时行内不再显示纯文本 detail。 */
+  metrics?: string[];
+  /** 这一步用的模型，只进步骤行的悬停提示。 */
+  model?: string;
   filePath?: string;
   patchId?: string;
   /** 这次工具调用读过的文件（引擎记的原样路径），给对话栏「上下文」列出来。 */

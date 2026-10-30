@@ -83,7 +83,7 @@ uv run --no-sync --project apps/api python scripts/measure-authoring.py --sample
 - `events/runtime_support.runtime_interrupted_response` 撤销顶层 proposed_patch 和未提交 `_tool_artifacts`；保留只读报告、Brief/恢复信息及内部路由标记。
 - runtime 消费内部 `_events_recorded` / `_runtime_interrupted` 后，必须在返回外部前 `pop_runtime_internal_markers`。fixed after_plan 和 after_tool 两个早返也适用。
 
-Chapter Brief 的正常等待确认同样调用该 helper，随后恢复 requires_user_confirmation；不能清空 agent_result 或提前删除内部标记。仅在 SSE JSON 编码器丢弃对象会掩盖缺陷，control resume 的 resumed_result 仍可能泄漏。
+写章拟完 Chapter Brief 后不再停下等作者确认（2026-10-30 起各档位一致），同一次调用里接着起草；章纲落定、起草之前遇到暂停时同样调用该 helper，保留章纲与恢复信息，内部标记照上面的规矩消费，不能清空 agent_result 或提前删除内部标记。旧版已停在「等确认章纲」的 run 不再新产生，作者在卡片上确认后仍经控制通道的恢复路径接着起草。仅在 SSE JSON 编码器丢弃对象会掩盖缺陷，control resume 的 resumed_result 仍可能泄漏。
 
 生成途中独立连接 stop/pause，以及公开 on_event 工具 trace 提交后 stop/pause，均要求：原稿不变、状态保持、没有迟到补丁/artifact/permission/completed，响应没有内部对象。已有工具 trace/usage 可以保留；停止交付不等于取消已经进行的 provider HTTP 请求，也不承诺消除了所有时间窗口的竞态。
 
