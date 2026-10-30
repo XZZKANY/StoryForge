@@ -141,7 +141,7 @@ export function ManuscriptView({
                 ? errorMessage
                   ? `读取失败：${errorMessage} 改好后点上方刷新。`
                   : '读取失败，请点上方刷新重试。'
-                : '打开一个项目后，这里显示按阅读序排列的章节。'}
+                : '打开一部作品后，这里显示按阅读序排列的章节。'}
           </p>
         ) : (
           <>

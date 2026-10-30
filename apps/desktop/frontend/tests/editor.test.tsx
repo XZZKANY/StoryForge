@@ -66,7 +66,7 @@ test('打开了项目但没开文件时，画壳层给的去处；没开项目�
   assert.doesNotMatch(html, /在资源管理器中双击文件开始编辑/);
   const noProject = renderEditor({ projectPath: null, emptyState: custom });
   assert.doesNotMatch(noProject, /writing-desk-probe/);
-  assert.match(noProject, /打开项目后即可开始编辑/);
+  assert.match(noProject, /打开作品后即可开始编辑/);
 });
 
 test('Monaco 容器被锁在编辑器 flex 区域内，不随长文本撑开外层布局', () => {
@@ -158,7 +158,7 @@ test('空状态根据 projectPath 给出打开项目后的提示文案', () => {
 
 test('无项目时给出打开项目后的提示文案', () => {
   const html = renderEditor({ projectPath: null });
-  assert.match(html, /打开项目后即可开始编辑/);
+  assert.match(html, /打开作品后即可开始编辑/);
 });
 
 // Q3a：导出/历史/保存等文件操作已从 Editor 自己的工具行移到 EditorTabs 的「…」菜单，
@@ -205,7 +205,7 @@ test('源文本保留已知 data-testid 标记集合（拆分时壳层引用须�
 
 test('建议写回保持整文件硬闸，并让分块接受走 hunk 级定位', () => {
   assert.ok(
-    suggestionWritebackSource.includes('旧补丁不能直接写回'),
+    suggestionWritebackSource.includes('旧修订不能直接写回'),
     '整文件接受必须继续在当前内容偏离 suggestion.before 时拒绝旧补丁',
   );
   assert.ok(

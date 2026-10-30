@@ -95,7 +95,7 @@ export function repairPatchApproval(message: AgentResultMessage): {
     reason,
     command
       ? `点击「批准」将执行 ${command.command_id} 完成写回。`
-      : '该补丁缺少可执行的批准命令，暂时无法从对话内写回。',
+      : '该修订缺少可执行的批准命令，暂时无法从对话内写回。',
   ];
   return { summary: lines.filter(Boolean).join('\n'), command };
 }

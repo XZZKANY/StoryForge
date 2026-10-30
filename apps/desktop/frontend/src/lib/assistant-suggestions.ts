@@ -95,7 +95,7 @@ export function createRemoteFileSuggestion(params: {
       lengthHint ?? '',
       requiresConfirmation
         ? '接受会写入当前文件；拒绝则丢弃；保存旁注会写入 .storyforge/notes。'
-        : '本项目为自动档：已直接写入当前文件（写前留了快照，可在通知里撤销）。',
+        : '本作品为自动档：已直接写入当前文件（写前留了快照，可在通知里撤销）。',
     ]
       .filter(Boolean)
       .join('\n'),

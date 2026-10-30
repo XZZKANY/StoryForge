@@ -476,11 +476,11 @@ export function CommandPalette({
               <span className="relative inline-block h-3.5 w-3.5 flex-shrink-0">
                 <span className="sf-button-spinner" aria-hidden="true" />
               </span>
-              正在读取项目文件…
+              正在读取作品文件…
             </p>
           ) : filesError ? (
             <div className="flex items-center justify-between gap-3 px-4 py-3">
-              <p className="text-sm text-error">无法读取项目文件，请检查目录权限后重试。</p>
+              <p className="text-sm text-error">无法读取作品文件，请检查目录权限后重试。</p>
               <Button
                 size="xs"
                 variant="secondary"
@@ -515,13 +515,13 @@ export function CommandPalette({
               </div>
               <div>
                 <p className="text-sm text-muted">
-                  {mode === 'files' && !projectPath ? '还没有打开的项目' : '无匹配项'}
+                  {mode === 'files' && !projectPath ? '还没有打开的作品' : '无匹配项'}
                 </p>
                 <p className="mt-1 text-xs text-subtle">
                   {mode === 'files' && !projectPath
                     ? '打开作品后即可按名称搜索并打开文件。'
                     : mode === 'files'
-                      ? '换个关键词试试，或检查文件是否在项目内。'
+                      ? '换个关键词试试，或检查文件是否在作品内。'
                       : '换个关键词试试；全部命令在清空输入后列出。'}
                 </p>
               </div>

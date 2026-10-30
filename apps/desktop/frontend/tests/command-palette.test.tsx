@@ -102,7 +102,7 @@ test('文件目录读取失败时显示错误与重试入口，而不是无匹�
       root.render(React.createElement(CommandPalette, paletteProps(projectPath)));
     });
 
-    assert.match(container.textContent ?? '', /无法读取项目文件/);
+    assert.match(container.textContent ?? '', /无法读取作品文件/);
     assert.equal((container.textContent ?? '').includes('无匹配项'), false);
     const retry = container.querySelector<HTMLButtonElement>('[data-testid="palette-retry"]');
     assert.ok(retry);

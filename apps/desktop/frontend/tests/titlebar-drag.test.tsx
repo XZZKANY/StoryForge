@@ -75,7 +75,7 @@ test('最大化状态下拖标题栏先还原再 startDragging（Windows 拖最�
 
 test('Agent 面板开关：名字稳定不随态翻转，态由 aria-expanded 告知', async () => {
   // 与 StatusBar 字数徽标同一弹层模式：title 随展开/收起翻转（给鼠标用户当前动作提示），
-  // 但 aria-label 永远是「Agent 面板」，配合 aria-expanded 让屏读者拿到稳定身份 + 当前态。
+  // 但 aria-label 永远是「AI 面板」，配合 aria-expanded 让屏读者拿到稳定身份 + 当前态。
   // 仅一个 title 时屏读者只能念到一个动作，分不出按下是展开还是收起。
   const render = async (rightCollapsed: boolean) => {
     const container = document.createElement('div');
@@ -96,18 +96,18 @@ test('Agent 面板开关：名字稳定不随态翻转，态由 aria-expanded �
 
   const expanded = await render(false);
   const expandedBtn = expanded.container.querySelector('[data-testid="titlebar-toggle-right"]');
-  assert.equal(expandedBtn?.getAttribute('aria-label'), 'Agent 面板');
+  assert.equal(expandedBtn?.getAttribute('aria-label'), 'AI 面板');
   assert.equal(expandedBtn?.getAttribute('aria-expanded'), 'true');
-  assert.equal(expandedBtn?.getAttribute('title'), '收起 Agent 面板');
+  assert.equal(expandedBtn?.getAttribute('title'), '收起 AI 面板');
   assert.equal(expandedBtn?.textContent, '', '展开时只是一个小图标');
   act(() => expanded.root.unmount());
   expanded.container.remove();
 
   const collapsed = await render(true);
   const collapsedBtn = collapsed.container.querySelector('[data-testid="titlebar-toggle-right"]');
-  assert.equal(collapsedBtn?.getAttribute('aria-label'), 'Agent 面板');
+  assert.equal(collapsedBtn?.getAttribute('aria-label'), 'AI 面板');
   assert.equal(collapsedBtn?.getAttribute('aria-expanded'), 'false');
-  assert.equal(collapsedBtn?.getAttribute('title'), '展开 Agent 面板');
+  assert.equal(collapsedBtn?.getAttribute('title'), '展开 AI 面板');
   assert.equal(collapsedBtn?.textContent, '对话', '收起后带上字，找得到回去的路');
   act(() => collapsed.root.unmount());
   collapsed.container.remove();

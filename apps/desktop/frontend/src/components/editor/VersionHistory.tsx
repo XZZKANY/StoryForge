@@ -23,7 +23,7 @@ export function formatTimestamp(ms: number): string {
 
 function versionTrace(v: VersionEntry): string {
   return [
-    v.patchId ? `补丁 ${v.patchId}` : null,
+    v.patchId ? `修订 ${v.patchId}` : null,
     v.assistantSessionId ? `会话 ${v.assistantSessionId}` : null,
     v.issueIds?.length ? v.issueIds.join(', ') : null,
   ]
@@ -98,7 +98,7 @@ export function VersionHistory({
 
   // 「对比当前」：读该快照，与编辑器实时正文 diff（before=当前 → after=此版，即恢复会怎样改）。再点收起。
   const readEntryState = async (entry: VersionEntry): Promise<VersionState> => {
-    if (!projectPath) throw new Error('未打开项目，无法读取版本');
+    if (!projectPath) throw new Error('未打开作品，无法读取版本');
     return await readVersionState(projectPath, entry);
   };
 
@@ -259,7 +259,7 @@ export function VersionHistory({
                 key={value}
                 type="button"
                 aria-pressed={sourceFilter === value}
-                title={value === 'Agent' ? 'Agent 操作产生的快照' : undefined}
+                title={value === 'Agent' ? 'AI 操作产生的快照' : undefined}
                 className={`rounded-md px-2 py-1 text-xs transition-colors ${sourceFilter === value ? 'bg-elevated text-foreground' : 'text-muted hover:bg-elevated'}`}
                 onClick={() => setSourceFilter(value)}
                 data-testid={`version-filter-${value}`}
@@ -316,7 +316,7 @@ export function VersionHistory({
                         {v.checkpoint && (
                           <span
                             className="flex-shrink-0 rounded-sm border border-border px-1 text-2xs text-muted"
-                            title="Agent 动手前的检查点，不会被日常保存挤掉"
+                            title="AI 动手前的检查点，不会被日常保存挤掉"
                             data-testid="version-checkpoint-badge"
                           >
                             检查点

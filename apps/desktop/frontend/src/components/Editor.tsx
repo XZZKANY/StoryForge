@@ -966,7 +966,7 @@ export function Editor({
   };
 
   const emptyStateHint = !projectPath
-    ? '打开项目后即可开始编辑'
+    ? '打开作品后即可开始编辑'
     : sidebarVisible === false
       ? '展开资源管理器后选择文件'
       : '在资源管理器中双击文件开始编辑';

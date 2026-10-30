@@ -113,7 +113,7 @@ describe('engine agent routes', () => {
   it('fails when the stream ends without a terminal frame', async () => {
     host.frames = [{ type: 'agent_run_started', run_id: 'run-1' }];
     await expect(routes.sendAgentUserMessage(request)).rejects.toThrow(
-      'Agent 流在返回结果前结束。',
+      'AI 流在返回结果前结束。',
     );
   });
 

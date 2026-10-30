@@ -308,7 +308,7 @@ test('上下文索引加载中不显示空项目结论', () => {
     />,
   );
 
-  assert.match(html, /正在读取项目上下文/);
+  assert.match(html, /正在读取作品上下文/);
   assert.doesNotMatch(html, /当前项目还没有可选的 Markdown 上下文/);
 });
 

@@ -363,7 +363,7 @@ export function ComposerSurface({
         className="sf-inner-input max-h-40 min-h-[72px] w-full resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
         placeholder={
           disabled
-            ? '打开项目后即可使用 StoryForge'
+            ? '打开作品后即可使用 StoryForge'
             : hint
               ? `${hint}${COMPOSER_HINT_TAB_SUFFIX}`
               : '输入想法，@ 提及角色，/ 用技能'

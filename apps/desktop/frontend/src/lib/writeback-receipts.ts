@@ -21,10 +21,10 @@ export type ReceiptedWritebackResult<T> = {
 function requireApplied(receipt: WritebackReceipt): void {
   decodeWritebackReceipt(receipt);
   if (receipt.state === 'outcome_unknown') {
-    throw new Error('上次写回结果未知，已禁止重复写入；请核对本地文件与写前版本后重新生成补丁');
+    throw new Error('上次写回结果未知，已禁止重复写入；请核对本地文件与写前版本后重新生成修订');
   }
   if (receipt.state === 'not_written') {
-    throw new Error(`上次写回已拒绝且未写入；请重新读取并生成补丁。${receipt.detail ?? ''}`);
+    throw new Error(`上次写回已拒绝且未写入；请重新读取并生成修订。${receipt.detail ?? ''}`);
   }
 }
 

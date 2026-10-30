@@ -103,7 +103,7 @@ export function SearchView({
           <input
             value={search.query}
             onChange={(event) => search.setQuery(event.target.value)}
-            placeholder="在项目正文中搜索…"
+            placeholder="在作品正文中搜索…"
             disabled={!projectOpen}
             data-testid="search-input"
             ref={inputRef}
@@ -127,7 +127,7 @@ export function SearchView({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-3">
         {!projectOpen ? (
           <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
-            打开项目后可搜索正文内容。
+            打开作品后可搜索正文内容。
           </p>
         ) : trimmed.length > 0 && trimmed.length < SEARCH_MIN_QUERY ? (
           <p className="px-3 py-4 text-2xs text-subtle">

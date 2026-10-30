@@ -45,7 +45,7 @@ test('runLivePhaseText：运行中带恒定一句，不随步骤详情变化', (
   const b = run({ steps: [step({ detail: '正在分析第三章人物' })] });
   const c = run({ steps: [] }); // 无活动步骤仍是运行相位
   // 相位不变 → 文案恒定 → live region 不重复念诵。
-  assert.equal(runLivePhaseText(a), 'Agent 正在处理本轮…');
+  assert.equal(runLivePhaseText(a), 'AI 正在处理本轮…');
   assert.equal(runLivePhaseText(b), runLivePhaseText(a));
   assert.equal(runLivePhaseText(c), runLivePhaseText(a));
 });

@@ -26,7 +26,7 @@ export type PendingSuggestionDescriptor = {
 
 async function journalPath(project: string, file: string): Promise<string> {
   const relative = relativePathInsideProject(project, file);
-  if (!relative) throw new Error('恢复提案的目标不在原项目内');
+  if (!relative) throw new Error('恢复提案的目标不在原作品内');
   const identity = /^[a-z]:[/\\]/i.test(project) ? relative.toLowerCase() : relative;
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(identity));
   const label = Array.from(new Uint8Array(digest), (byte) =>
@@ -214,7 +214,7 @@ export function capturePendingSuggestion(
     requests: [],
   };
   if (!relativePathInsideProject(project, original.filePath))
-    throw new Error('修订目标不在原项目内');
+    throw new Error('修订目标不在原作品内');
   return descriptor;
 }
 
@@ -448,7 +448,7 @@ export async function settleSuggestionRun(
     normalizePathForMatch(session.project_path).replace(/\/$/, '') !==
       normalizePathForMatch(project).replace(/\/$/, '')
   )
-    throw new Error('原会话不属于当前项目，不能结算其他项目的运行');
+    throw new Error('原会话不属于当前作品，不能结算其他作品的运行');
   if (original.requiresConfirmation === false) {
     if (decision === 'observe') return undefined;
     const completed = [...events]

@@ -78,7 +78,7 @@ function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
         {entry.candidateContent !== null && (
           <details>
             <summary className="cursor-pointer text-foreground">查看只读候选稿</summary>
-            <p className="my-2">这份候选稿未生成补丁；查看或复制不会写回项目文件。</p>
+            <p className="my-2">这份候选稿未生成修订；查看或复制不会写回作品文件。</p>
             <Textarea
               readOnly
               value={entry.candidateContent}

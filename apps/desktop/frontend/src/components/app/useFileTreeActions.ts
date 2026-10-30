@@ -84,7 +84,7 @@ export function useFileTreeActions({
       if (!name) return;
       const target = joinChild(dir, name);
       if (!insideProject(target)) {
-        await dialogs.alert({ title: '新建文件失败', message: '文件名必须留在当前项目内。' });
+        await dialogs.alert({ title: '新建文件失败', message: '文件名必须留在当前作品内。' });
         return;
       }
       try {
@@ -117,7 +117,7 @@ export function useFileTreeActions({
       if (!name) return;
       const target = joinChild(dir, name);
       if (!insideProject(target)) {
-        await dialogs.alert({ title: '新建文件夹失败', message: '名称必须留在当前项目内。' });
+        await dialogs.alert({ title: '新建文件夹失败', message: '名称必须留在当前作品内。' });
         return;
       }
       try {
@@ -157,7 +157,7 @@ export function useFileTreeActions({
       if (!name || name === entryName(path)) return;
       const target = siblingPath(path, name);
       if (!insideProject(target)) {
-        await dialogs.alert({ title: '重命名失败', message: '新名称必须留在当前项目内。' });
+        await dialogs.alert({ title: '重命名失败', message: '新名称必须留在当前作品内。' });
         return;
       }
       try {
@@ -280,7 +280,7 @@ export function useFileTreeActions({
       if (!name) return;
       const target = joinChild(dir, name);
       if (!insideProject(target)) {
-        await dialogs.alert({ title: '复制失败', message: '文件名必须留在当前项目内。' });
+        await dialogs.alert({ title: '复制失败', message: '文件名必须留在当前作品内。' });
         return;
       }
       try {

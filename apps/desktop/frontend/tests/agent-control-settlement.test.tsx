@@ -555,8 +555,8 @@ it('作者拒绝修改的回执把运行标成「作者已拒绝」：状态句�
   await act(async () => current.onEvent(ack('permission_denied', 'applied', 'settled', 'failed')));
   expect(current.state.agentRun?.status).toBe('failed');
   expect(current.state.agentRun?.rejectedByAuthor).toBe(true);
-  expect(runStatusText(current.state.agentRun)).toBe('你拒绝了这次修改。');
-  expect(runLivePhaseText(current.state.agentRun)).toBe('你拒绝了这次修改。');
+  expect(runStatusText(current.state.agentRun)).toBe('你拒绝了这次修订。');
+  expect(runLivePhaseText(current.state.agentRun)).toBe('你拒绝了这次修订。');
 });
 
 it('真失败（不是作者拒绝）照旧按失败报', async () => {

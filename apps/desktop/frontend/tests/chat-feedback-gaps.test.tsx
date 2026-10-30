@@ -148,7 +148,7 @@ test('上下文索引失败条可关闭且点明子系统，关闭后打开选�
 
   const bar = () => host.querySelector('[data-testid="context-candidates-error"]');
   assert.ok(bar());
-  assert.match(bar()!.textContent ?? '', /项目上下文索引失败/);
+  assert.match(bar()!.textContent ?? '', /作品上下文索引失败/);
   assert.match(bar()!.textContent ?? '', /目录不可读/);
 
   await act(async () =>

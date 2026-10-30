@@ -126,7 +126,7 @@ export function useChatSubmission(
       ]);
       try {
         const project = projectPathRef.current;
-        if (!project) throw new Error('当前项目已关闭，无法读取跨章上下文。');
+        if (!project) throw new Error('当前作品已关闭，无法读取跨章上下文。');
         const chapters: { name: string; content: string }[] = [];
         for (const ref of refs) {
           await flushActiveEditorToDisk(ref.path);

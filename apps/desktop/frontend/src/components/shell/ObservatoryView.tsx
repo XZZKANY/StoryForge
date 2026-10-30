@@ -672,7 +672,7 @@ export function ObservatoryView({
           : '';
   // 相位级播报：扫描中 / 失败 / 完成（带时间）。同相位内 generatedAt 不变则文案恒定。
   const liveText = busy
-    ? '正在扫描项目观测数据…'
+    ? '正在扫描作品观测数据…'
     : availability === 'error'
       ? '观测数据加载失败，请重新扫描。'
       : availability === 'available' && generatedAt
@@ -721,10 +721,10 @@ export function ObservatoryView({
         {availability !== 'available' ? (
           <p className="px-4 py-4 text-2xs leading-relaxed text-subtle">
             {availability === 'loading'
-              ? '正在扫描项目观测数据。'
+              ? '正在扫描作品观测数据。'
               : availability === 'error'
                 ? '观测数据加载失败，请点击重新扫描。'
-                : '观测尚未启用，当前没有可用于判断项目状态的数据。'}
+                : '观测尚未启用，当前没有可用于判断作品状态的数据。'}
           </p>
         ) : (
           <>
