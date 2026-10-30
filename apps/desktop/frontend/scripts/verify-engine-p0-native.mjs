@@ -947,6 +947,8 @@ try {
             STORYFORGE_LLM_BASE_URL: `${httpBaseUrl}/v1`,
             STORYFORGE_LLM_MODEL: 'p2-model',
             STORYFORGE_LLM_PROVIDER: 'openai-compatible',
+            // 界面每次取配置都按当前项目注入思考等级；探针没绑项目，是「关」= 空串。
+            STORYFORGE_LLM_REASONING_EFFORT: '',
             STORYFORGE_LLM_TIMEOUT_SECONDS: '60.0',
           });
           // 润色没单独指定时跟随当前那套（只是不带调参项）。
@@ -956,6 +958,7 @@ try {
             STORYFORGE_LLM_BASE_URL: `${httpBaseUrl}/v1`,
             STORYFORGE_LLM_MODEL: 'p2-model',
             STORYFORGE_LLM_PROVIDER: 'openai-compatible',
+            STORYFORGE_LLM_REASONING_EFFORT: '',
           });
           const records = evidence.llmServer.records;
           const stream = records.find((record) => record.stream);
