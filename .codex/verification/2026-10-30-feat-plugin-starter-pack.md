@@ -13,6 +13,7 @@
   - **golden 零改动**（`git status --short packages/engine/golden` 为空）。
   - `pnpm verify` EXIT=0：project-core 35、引擎 14112 passed + 2 skipped、前端 2580 passed、三个浏览器回归通过。
   - 行尾：改动文件全 LF；`--numstat` 与 `--ignore-all-space --numstat` 只在 `PluginsSection.tsx` 差 11 行（「移除」按钮包进条件多一层缩进），无 CR。
+- 快进合入 master（#540 引擎用词，无重叠文件）后：第一遍门禁被中途打断（控制台关闭，退出码 0xC0000142，非检查失败）；重跑 `pnpm verify` EXIT=0：project-core 35、引擎 14113 passed + 2 skipped、前端 2580 passed、三个浏览器回归通过。
 - 未覆盖：
   - 没在真宿主上点穿：装机后首次打开插件库是否写出基础包、升级版本时的替换、新建作品后对话里出现立项流程与审稿口径。
   - 升版本时旧版已进回收夹而新版写失败，不会自动恢复旧版（下次打开插件库会重试写入）。
