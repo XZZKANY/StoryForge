@@ -3,11 +3,13 @@ import { expect, test } from 'vitest';
 import {
   runContextReads,
   skillsReadThisRun,
+  skillsUsedThisRun,
   traceLookup,
   traceReadSources,
 } from '../src/components/chat-window/context-panel';
 import {
   stepFromToolTraceEvent,
+  toolStepTitle,
   stepsFromAgentResult,
 } from '../src/components/chat-window/agent-step-mapping';
 import type { AgentToolTrace } from '../src/lib/api/types';
@@ -169,4 +171,62 @@ test('skills read this run are the run reads under 技能/, inside the project',
     '技能/审稿口径.md',
   ]);
   expect(skillsReadThisRun(null).size).toBe(0);
+});
+
+const skillRead = (output: Record<string, unknown>, name = '对白打磨') =>
+  trace({ tool_name: 'skill.read', input_summary: { name }, output_summary: output });
+
+test('skill.read：作品技能计入项目路径，插件技能不当项目文件、另列一项不可点', () => {
+  const work = skillRead({ skill_name: '立项流程', plugin: null, path: '技能/立项流程.md' });
+  const plugin = skillRead({
+    skill_name: '对白打磨',
+    plugin: '网文工具箱',
+    path: 'skills/对白.md',
+  });
+  expect(traceReadSources(work)).toEqual(['技能/立项流程.md']);
+  expect(traceReadSources(plugin)).toEqual([]);
+  expect(traceReadSources({ ...work, status: 'failed' })).toEqual([]);
+
+  const steps = [work, plugin, plugin].map((item, index) => stepFromToolTraceEvent(index, item));
+  expect(steps[1].skill).toEqual({
+    name: '对白打磨',
+    plugin: '网文工具箱',
+    path: 'skills/对白.md',
+  });
+  expect(runContextReads(steps, ROOT).files).toEqual([
+    { path: '技能/立项流程.md', filePath: `${ROOT}\\技能\\立项流程.md` },
+    { path: '插件「网文工具箱」/skills/对白.md', filePath: null },
+  ]);
+});
+
+test('skill.read 在思考过程里叫「读技能」，目标是技能名，插件技能带插件名', () => {
+  expect(toolStepTitle(skillRead({ skill_name: '立项流程', plugin: null }))).toBe(
+    '读技能 立项流程',
+  );
+  expect(toolStepTitle(skillRead({ skill_name: '对白打磨', plugin: '网文工具箱' }))).toBe(
+    '读技能 对白打磨（插件 网文工具箱）',
+  );
+  // 还在跑、没有 output 时按调用时点的名字。
+  expect(
+    toolStepTitle(
+      trace({ tool_name: 'skill.read', status: 'running', input_summary: { name: '节奏' } }),
+    ),
+  ).toBe('读技能 节奏');
+});
+
+test('skills used this run: 技能/ 下读过的作品技能，加 skill.read 按（插件, 名字）读过的', () => {
+  const skills = [
+    { path: '技能/立项流程.md', name: '立项流程', plugin: null },
+    { path: '技能/审稿口径.md', name: '审稿口径', plugin: null },
+    { path: 'skills/对白.md', name: '对白打磨', plugin: '网文工具箱' },
+    { path: 'skills/节奏.md', name: '节奏检查', plugin: '网文工具箱' },
+  ];
+  const steps = [
+    stepFromToolTraceEvent(0, trace({ input_summary: { path: '技能\\审稿口径.md' } })),
+    stepFromToolTraceEvent(1, skillRead({ plugin: '网文工具箱' })),
+    // 插件对不上的不算。
+    stepFromToolTraceEvent(2, skillRead({ skill_name: '节奏检查', plugin: '别的插件' })),
+  ];
+  expect([...skillsUsedThisRun(steps, ROOT, skills)]).toEqual(['审稿口径', '对白打磨']);
+  expect(skillsUsedThisRun(null, ROOT, skills).size).toBe(0);
 });

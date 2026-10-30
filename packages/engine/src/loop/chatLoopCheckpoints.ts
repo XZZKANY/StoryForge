@@ -1,7 +1,10 @@
 import { startsWithSkillCommand } from '@storyforge/project-core';
 import {
+  findAvailableSkill,
   invokedConversationSkills,
-  loadConversationSkillSources,
+  loadAvailableSkills,
+  type AvailableSkill,
+  type SkillPlugin,
 } from '../kernel/conversationSkills';
 import { AUTHOR_INSTRUCTIONS_PATH } from '../kernel/fsTools';
 import {
@@ -35,6 +38,8 @@ export type SourceFingerprint = {
   readonly sha256: string | null;
   /** 超过单文件读量上限，无法核对：续跑一律视为来源已变。 */
   readonly unverifiable?: true;
+  /** 插件技能（键为 `plugin:<插件id>/<插件内路径>`）：插件文件夹的绝对路径，path 是插件内路径。 */
+  readonly plugin_root?: string;
 };
 export type RecoverySources = {
   readonly project_root: string;
@@ -114,8 +119,17 @@ const TRACKED_TOOL_NAMES = new Set(
     )
     .map((spec) => llmToolName(spec.name)),
 );
+const SKILL_READ_LLM_NAME = llmToolName('skill.read');
 
-type SourceDeps = { readonly reader: ProjectReader; readonly secrets?: SecretContext };
+type SourceDeps = {
+  readonly reader: ProjectReader;
+  readonly secrets?: SecretContext;
+  /** 本机插件库根目录；缺省或 null 是没有插件。 */
+  readonly pluginLibraryRoot?: string | null;
+};
+
+/** 键里插件 id 后面的部分（插件 id 是文件夹名，不含「/」）。 */
+const pluginSourcePath = (key: string) => key.slice(key.indexOf('/') + 1);
 
 /** 一个请求路径的当前指纹；越界返回 undefined（从不检查项目外的路径），目录返回 null。 */
 async function fingerprint(
@@ -140,7 +154,25 @@ async function fingerprint(
   return { path: resolved, sha256: sha256Hex(read.bytes) };
 }
 
-/** 本轮读过的文件：当前文件、作者指令、带摘录的上下文文件、点名的技能、会读文件的工具调用。 */
+/** 插件技能文件的当前指纹；插件文件夹没了或读不到时记成无法核对。 */
+async function pluginFingerprint(
+  reader: ProjectReader,
+  pluginRoot: string,
+  path: string,
+): Promise<SourceFingerprint> {
+  try {
+    const current = await fingerprint(reader, pluginRoot, path);
+    if (current) return { ...current, plugin_root: pluginRoot };
+  } catch (error) {
+    if (!(error instanceof ProjectReadError)) throw error;
+  }
+  return { path, sha256: null, unverifiable: true, plugin_root: pluginRoot };
+}
+
+/**
+ * 本轮读过的文件：当前文件、作者指令、带摘录的上下文文件、点名的技能、会读文件的工具调用。
+ * 插件技能（点名或 skill_read 读过）记在 `plugin:<插件id>/<插件内路径>` 键下，作品技能仍记项目相对路径。
+ */
 export async function sourceVersions(
   deps: SourceDeps,
   toolMessages: RuntimeCheckpoint['messages'],
@@ -154,24 +186,42 @@ export async function sourceVersions(
     for (const item of bundle.files)
       if (isObj(item) && item.excerpt) paths.push(item.relative_path || item.path);
   const userMessage = typeof message.user_message === 'string' ? message.user_message : '';
+  let available: AvailableSkill[] | null = null;
+  const availableSkills = async () =>
+    (available ??= await loadAvailableSkills(
+      deps.reader,
+      root,
+      deps.pluginLibraryRoot ?? null,
+      deps.secrets ?? { values: [] },
+    ));
+  const pluginSkills: { plugin: SkillPlugin; path: string }[] = [];
+  const track = ({ plugin, path }: AvailableSkill) => {
+    if (plugin === null) paths.push(path);
+    else pluginSkills.push({ plugin, path });
+  };
   // 先看触发符再读技能目录：检查点每次保存都会走到这里。
   if (startsWithSkillCommand(userMessage))
-    for (const skill of invokedConversationSkills(
-      await loadConversationSkillSources(deps.reader, root, deps.secrets ?? { values: [] }),
-      userMessage,
-    ))
-      paths.push(skill.path);
+    for (const skill of invokedConversationSkills(await availableSkills(), userMessage))
+      track(skill);
+  const readSkillNames: string[] = [];
   for (const message of toolMessages)
     for (const call of message.toolCalls) {
-      if (!TRACKED_TOOL_NAMES.has(call.name)) continue;
+      const skillRead = call.name === SKILL_READ_LLM_NAME;
+      if (!skillRead && !TRACKED_TOOL_NAMES.has(call.name)) continue;
       let parsed: JsonValue;
       try {
         parsed = parseJson(call.argumentsJson, 'tool arguments');
       } catch {
         continue;
       }
-      if (isJsonObject(parsed)) paths.push(parsed.path);
+      if (!isJsonObject(parsed)) continue;
+      if (!skillRead) paths.push(parsed.path);
+      else if (typeof parsed.name === 'string') readSkillNames.push(parsed.name);
     }
+  for (const name of readSkillNames) {
+    const skill = findAvailableSkill(await availableSkills(), name);
+    if (skill !== null) track(skill);
+  }
   const files: { [requested: string]: SourceFingerprint } = {};
   for (const value of paths) {
     if (typeof value !== 'string' || !value) continue;
@@ -179,6 +229,12 @@ export async function sourceVersions(
     // 请求时的写法与解析后的目标都记下：链接被删或改指向也看得出来。
     if (current) files[value] = current;
   }
+  for (const { plugin, path } of pluginSkills)
+    files[`plugin:${plugin.id}/${path}`] ??= await pluginFingerprint(
+      deps.reader,
+      plugin.root,
+      path,
+    );
   return { project_root: root, files };
 }
 
@@ -193,7 +249,10 @@ export async function sourcesUnchanged(
   try {
     for (const [requested, recorded] of Object.entries(sources.files)) {
       if (recorded.unverifiable) return false;
-      const current = await fingerprint(deps.reader, sources.project_root, requested);
+      const current =
+        recorded.plugin_root === undefined
+          ? await fingerprint(deps.reader, sources.project_root, requested)
+          : await fingerprint(deps.reader, recorded.plugin_root, pluginSourcePath(requested));
       if (!current || current.unverifiable) return false;
       if (current.path !== recorded.path || current.sha256 !== recorded.sha256) return false;
     }

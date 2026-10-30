@@ -89,6 +89,8 @@ export type ChatLoopDeps = {
   readonly now?: () => string;
   /** 模型请求证据范围：循环自己的派发记为 agent.loop，并带上消息来源指纹。 */
   readonly observation?: ModelObservation | null;
+  /** 本机插件库根目录；缺省或 null 是没有插件。 */
+  readonly pluginLibraryRoot?: string | null;
 };
 
 export type ChatLoopInput = {
@@ -149,6 +151,7 @@ export async function runChatLoop(
   // 反过来先拼后记，中间被改了就会拿新指纹去担保旧消息。
   const initialSources =
     input.run.current_step === 'resumed' ? null : await sourceVersions(deps, [], recoveryMessage);
+  const skillUse = { pluginSkills: false };
   const messages = messagesFromOpenai(
     (await storyforgeMessages(
       deps,
@@ -162,6 +165,7 @@ export async function runChatLoop(
         setupNote: input.setupNote ?? null,
       },
       provenance,
+      skillUse,
     )) as JsonObject[],
   );
   const outcome = new ChatLoopOutcome('');
@@ -179,6 +183,7 @@ export async function runChatLoop(
     shouldInterrupt: input.shouldInterrupt ?? null,
     recoveryMessage,
     newStreamId: deps.newStreamId,
+    pluginSkills: skillUse.pluginSkills,
   });
   context.recoverySources = initialSources;
   const checkpoints = new StoryForgeCheckpointStore(context, deps.checkpoints, deps);
