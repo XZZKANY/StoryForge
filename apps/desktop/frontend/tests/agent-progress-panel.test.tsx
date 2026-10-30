@@ -144,7 +144,7 @@ it('a run with only model requests shows just the live header, no process rows',
 
 it('a completed auto-writeback preparation step does not claim a Desktop write or snapshot receipt', async () => {
   await mount();
-  const detail = '补丁已准备，实际写回与快照由 Desktop 执行；这不是落盘回执。';
+  const detail = '修订已准备，实际写入与快照由 Desktop 执行；这不是写入回执。';
   const response: AgentResultMessage = {
     type: 'agent_result',
     run_id: 'run',

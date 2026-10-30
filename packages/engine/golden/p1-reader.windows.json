@@ -199,7 +199,7 @@
           "explicit_files": [],
           "error": {
             "name": "ProjectTreeError",
-            "message": "项目目录无法完整遍历，请检查权限或文件是否已移动。"
+            "message": "作品文件夹无法完整遍历，请检查权限或文件是否已移动。"
           },
           "read_trace": [
             {
@@ -217,7 +217,7 @@
           "explicit_files": [],
           "error": {
             "name": "ProjectTreeError",
-            "message": "项目目录无法完整遍历，请检查权限或文件是否已移动。"
+            "message": "作品文件夹无法完整遍历，请检查权限或文件是否已移动。"
           },
           "read_trace": [],
           "write_trace": []
@@ -229,7 +229,7 @@
           "explicit_files": [],
           "error": {
             "name": "ProjectTreeError",
-            "message": "路径越界，只允许访问项目目录内文件。"
+            "message": "路径越界，只允许访问作品文件夹内的文件。"
           },
           "read_trace": [],
           "write_trace": []
@@ -284,7 +284,7 @@
           "max_entries": 0,
           "error": {
             "name": "ProjectTreeError",
-            "message": "项目目录项超过遍历预算，请缩小范围。"
+            "message": "作品文件夹的条目超过遍历预算，请缩小范围。"
           },
           "read_trace": [
             {
@@ -316,7 +316,7 @@
           "explicit_files": [],
           "error": {
             "name": "ProjectTreeError",
-            "message": "项目目录无法完整遍历，请检查权限或文件是否已移动。"
+            "message": "作品文件夹无法完整遍历，请检查权限或文件是否已移动。"
           },
           "read_trace": [
             {
@@ -350,7 +350,7 @@
           "explicit_files": [],
           "error": {
             "name": "ProjectTreeError",
-            "message": "项目目录无法完整遍历，请检查权限或文件是否已移动。"
+            "message": "作品文件夹无法完整遍历，请检查权限或文件是否已移动。"
           },
           "read_trace": [
             {
@@ -411,7 +411,7 @@
           "explicit_files": [],
           "error": {
             "name": "ProjectTreeError",
-            "message": "项目目录项超过遍历预算，请缩小范围。"
+            "message": "作品文件夹的条目超过遍历预算，请缩小范围。"
           },
           "read_trace": [
             {
@@ -794,7 +794,7 @@
           "explicit_files": [],
           "error": {
             "name": "ProjectTreeError",
-            "message": "项目目录超过最大遍历深度，请缩小范围。"
+            "message": "作品文件夹超过最大遍历深度，请缩小范围。"
           },
           "read_trace": [
             {
@@ -1172,7 +1172,7 @@
           "max_depth": 0,
           "error": {
             "name": "ProjectTreeError",
-            "message": "项目目录超过最大遍历深度，请缩小范围。"
+            "message": "作品文件夹超过最大遍历深度，请缩小范围。"
           },
           "read_trace": [
             {
@@ -1330,7 +1330,7 @@
           "explicit_files": [],
           "error": {
             "name": "ProjectTreeError",
-            "message": "路径越界，只允许访问项目目录内文件。"
+            "message": "路径越界，只允许访问作品文件夹内的文件。"
           },
           "read_trace": [],
           "write_trace": []

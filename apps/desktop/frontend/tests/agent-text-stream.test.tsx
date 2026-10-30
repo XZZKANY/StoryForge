@@ -227,7 +227,7 @@ it('stop is not settled on request, retains partial output and rejects late delt
 
 it('stopped before any text: no empty reply is added', async () => {
   await begin();
-  await finish('AgentRun 已在 before_stream_yield 边界停止。', 'stopped');
+  await finish('AI 已在 before_stream_yield 边界停止。', 'stopped');
   expect(current.state.messages).toEqual([]);
   expect(host.querySelector('[data-testid="assistant-message"]')).toBeNull();
   expect(current.state.agentRun?.status).toBe('stopped');
@@ -513,8 +513,8 @@ it.each(['stopped', 'paused'] as const)(
     // 引擎 summary 的真实措辞（golden 冻结）；作者看到的是翻译后的话。
     const summary =
       status === 'stopped'
-        ? 'AgentRun 已在 before_stream_yield 边界停止。'
-        : 'AgentRun 已在 before_stream_yield 边界暂停，等待继续指令。';
+        ? 'AI 已在 before_stream_yield 边界停止。'
+        : 'AI 已在 before_stream_yield 边界暂停，等待继续指令。';
     await finish(summary, status, {
       execution_outcome: {
         status: 'partial',

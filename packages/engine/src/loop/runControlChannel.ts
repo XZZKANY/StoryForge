@@ -261,8 +261,8 @@ export async function recordAgentControlEvent(
       message: approved
         ? resolved
           ? '作者已批准已有提案；本轮执行仍未完成。'
-          : '权限已批准，AgentRun 已完成待确认步骤。'
-        : '作者拒绝权限请求，AgentRun 已停止。',
+          : '权限已批准，AI 已完成待确认步骤。'
+        : '作者拒绝了权限请求，AI 已停止。',
       payload: {
         session_id: sessionId,
         run_id: publicId,

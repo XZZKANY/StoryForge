@@ -199,7 +199,7 @@ export async function deepConsistencyReview(
     facts_truncated: factsTruncated,
     issue_count: issues.length,
     issues,
-    note: '语义评审是参考信号：回给作者前请抽读对应行核实；修改仍需走待确认补丁流程。',
+    note: '语义评审是参考信号：回给作者前请抽读对应行核实；修改仍需走待确认修订流程。',
   };
 }
 

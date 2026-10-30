@@ -109,11 +109,11 @@ it('rechecks a queued directory and skips a replaced directory alias before open
 });
 
 it.each([
-  ['depth', metadata('directory'), '项目目录超过最大遍历深度，请缩小范围。'],
+  ['depth', metadata('directory'), '作品文件夹超过最大遍历深度，请缩小范围。'],
   [
     'metadata',
     new ProjectReadError('early metadata failure'),
-    '项目目录无法完整遍历，请检查权限或文件是否已移动。',
+    '作品文件夹无法完整遍历，请检查权限或文件是否已移动。',
   ],
 ] as const)('an early %s error wins over a late iterator failure', async (_name, info, message) => {
   const { reader, trace } = memoryReader({
@@ -132,7 +132,7 @@ it('an early depth error wins over a later budget sentinel', async () => {
   const { reader } = memoryReader({ directories: { '.': ['early', 'sentinel'], early: [] } });
   await expect(
     scanProjectFiles(reader, root, { visible, maxEntries: 1, maxDepth: 0 }),
-  ).rejects.toThrow('项目目录超过最大遍历深度，请缩小范围。');
+  ).rejects.toThrow('作品文件夹超过最大遍历深度，请缩小范围。');
 });
 
 it('counts hidden raw entries before visibility and shares the remaining budget across directories', async () => {
@@ -140,7 +140,7 @@ it('counts hidden raw entries before visibility and shares the remaining budget 
     directories: { '.': ['正文'], 正文: ['.hidden1', '.hidden2', 'never.md'] },
   });
   await expect(scanProjectFiles(reader, root, { visible, maxEntries: 2 })).rejects.toThrow(
-    '项目目录项超过遍历预算，请缩小范围。',
+    '作品文件夹的条目超过遍历预算，请缩小范围。',
   );
   expect(trace.filter((event) => event.operation === 'directory')).toEqual([
     { operation: 'directory', path: '.', remaining: 2 },
@@ -151,10 +151,10 @@ it('counts hidden raw entries before visibility and shares the remaining budget 
 
 const zeroBudgetCases: { directory: string[] | RawProjectDirectory; message: string | null }[] = [
   { directory: [], message: null },
-  { directory: ['.hidden'], message: '项目目录项超过遍历预算，请缩小范围。' },
+  { directory: ['.hidden'], message: '作品文件夹的条目超过遍历预算，请缩小范围。' },
   {
     directory: { names: [], exceeded: false, terminalError: 'iteration failure' },
-    message: '项目目录无法完整遍历，请检查权限或文件是否已移动。',
+    message: '作品文件夹无法完整遍历，请检查权限或文件是否已移动。',
   },
 ];
 it.each(zeroBudgetCases)(
@@ -174,7 +174,7 @@ it('does not turn exhausted-with-iterator-error into a fabricated budget sentine
     },
   });
   await expect(scanProjectFiles(reader, root, { visible, maxEntries: 1 })).rejects.toThrow(
-    '项目目录无法完整遍历，请检查权限或文件是否已移动。',
+    '作品文件夹无法完整遍历，请检查权限或文件是否已移动。',
   );
 });
 
@@ -193,7 +193,7 @@ it('allows exactly 64 directory levels but rejects a 65th eligible descent', asy
   directories[`${path}/d`] = [];
   await expect(
     scanProjectFiles(memoryReader({ directories }).reader, root, { visible }),
-  ).rejects.toThrow('项目目录超过最大遍历深度，请缩小范围。');
+  ).rejects.toThrow('作品文件夹超过最大遍历深度，请缩小范围。');
 });
 
 it('20,000 filtered raw names are complete; name 20,001 fails rather than returning a partial list', async () => {

@@ -425,7 +425,7 @@ describe('ChatWindow author path on the TS engine', () => {
     await mount();
     await act(async () => current.run('会话没了', 'agent'));
     expect(current.state.agentRun?.status).toBe('failed');
-    expect(JSON.stringify(current.state.messages)).toContain('Assistant 会话不存在：7。');
+    expect(JSON.stringify(current.state.messages)).toContain('AI 会话不存在：7。');
     expect(fixture.requests).toHaveLength(0);
   });
 

@@ -88,7 +88,7 @@ export function cursorWindow(
 /** 把作者视图拼成一段 system 文本。选区优先——作者主动选中即最强的指代信号。 */
 export function buildAuthorViewBlock(view: AuthorView): string | null {
   if (!authorViewHasView(view)) return null;
-  const location = view.file_path ? `作者正在编辑：${view.file_path}` : '作者正在编辑当前稿件';
+  const location = view.file_path ? `作者正在编辑：${view.file_path}` : '作者正在编辑当前文件';
   if (pythonStrip(view.selection_text))
     return (
       `${location}\n作者当前**选中**了下面这段（作者说「这一段」「这几句」时指的就是它）：\n` +

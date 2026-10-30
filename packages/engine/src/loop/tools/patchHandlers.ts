@@ -236,7 +236,7 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
     );
     // 改完一字没变：不生成补丁，免得作者面对一个 +0 / -0 的「改好了」还得点接受或拒绝。
     if (response.after === response.before) {
-      const unchangedSummary = '修订结果与原文一字不差，没有生成补丁。';
+      const unchangedSummary = '修订结果与原文一字不差，没有生成修订。';
       return {
         status: 'completed',
         output: {
@@ -486,7 +486,7 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
   const proseContinue: ToolHandler = async (context, payload) => {
     const filePath = requiredString(payload, 'file_path');
     const content = payload.content;
-    if (typeof content !== 'string') throw new FsToolError('缺少稿件正文，无法续写。');
+    if (typeof content !== 'string') throw new FsToolError('缺少正文，无法续写。');
     const targetChars = optionalInt(payload.target_chars);
     if (
       targetChars !== null &&
@@ -536,7 +536,7 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
       approval_action: APPROVAL_ACTION,
     };
     // 无论权限档位，后端此时只生成提案，不能冒称 Desktop 已完成写回。
-    const note = confirm ? '等你确认后才会写盘。' : '将由编辑器按项目权限执行守卫写回。';
+    const note = confirm ? '等你确认后才会写进文件。' : '将由编辑器按作品权限写进文件。';
     const summary = `已在第 ${anchorLine} 行之后续写约 ${insertedChars} 字，${note}`;
     return {
       status: 'completed',
@@ -611,7 +611,7 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
     };
     // 压完一字没变：不出补丁，免得作者对着 +0 / -0 的「压缩完成」还要点接受（同 file.revise）。
     if (response.after === response.before) {
-      const unchangedSummary = `压缩结果与原文一字不差（${originalChars} 字），没有生成补丁。`;
+      const unchangedSummary = `压缩结果与原文一字不差（${originalChars} 字），没有生成修订。`;
       return {
         status: 'completed',
         output: {

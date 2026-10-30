@@ -241,7 +241,7 @@ export function agentRunReplay(golden: Obj) {
     const toolCalls: Obj[] = [];
     const find = (id: number) => {
       const session = sessions.find((row) => row.id === id);
-      if (!session) throw new AssistantSessionNotFoundError(`Assistant 会话不存在：${id}。`);
+      if (!session) throw new AssistantSessionNotFoundError(`AI 会话不存在：${id}。`);
       return session;
     };
     const redactSummary = (value: unknown) =>

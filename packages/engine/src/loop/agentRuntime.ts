@@ -253,7 +253,7 @@ export class AgentRuntime {
     // 外层与 args 同时声明会话却指向不同 id：判归属冲突，拒绝而不是让外层悄悄胜出。
     if (messageId !== null && argsId !== null && messageId !== argsId)
       throw new AgentOrchestrationError(
-        `Agent 会话归属冲突：assistant_session_id 外层=${messageId} args=${argsId}。`,
+        `AI 会话归属冲突：assistant_session_id 外层=${messageId} args=${argsId}。`,
       );
     const projectPath = optionalString(args.project_path) ?? optionalString(message.project_path);
     const requested = messageId ?? argsId;
@@ -412,8 +412,8 @@ export class AgentRuntime {
       assistantSessionId: sessionId,
       intent: 'chat.explain',
       userMessage,
-      plan: [planStep('agent.loop', '读取项目文件、检索并整理回答。', 'running')],
-      agentResult: { summary: '正在查看项目文件。', requires_user_confirmation: false },
+      plan: [planStep('agent.loop', '读取作品文件、检索并整理回答。', 'running')],
+      agentResult: { summary: '正在查看作品文件。', requires_user_confirmation: false },
       toolTrace: [],
       roleHints: hints,
       roleMentions: mentions,
@@ -454,7 +454,7 @@ export class AgentRuntime {
       if (definition.loop_input_mode === 'existing_file') {
         const relPath = optionalString(payload.path);
         delete payload.path;
-        if (!relPath) throw new FsToolError('缺少 path：请提供项目内的相对文件路径。');
+        if (!relPath) throw new FsToolError('缺少 path：请提供作品内的相对文件路径。');
         if (registryName === 'file.revise' || registryName === 'file.review') {
           // 审稿哈希与补丁区间绑定同一份作者原文（不归一换行）。
           const { target, raw } = await readProjectFileRaw(reader, projectPath, relPath);
@@ -478,7 +478,7 @@ export class AgentRuntime {
       } else if (definition.loop_input_mode === 'new_file') {
         const relPath = optionalString(payload.path);
         delete payload.path;
-        if (!relPath) throw new FsToolError('缺少 path：请提供项目内的相对文件路径。');
+        if (!relPath) throw new FsToolError('缺少 path：请提供作品内的相对文件路径。');
         const target = await resolveNewProjectFile(reader, projectPath, relPath);
         payload.file_path = nativeProjectPath(projectPath, target, platform);
         payload._trace_file_path = target;
@@ -704,12 +704,12 @@ export class AgentRuntime {
       }
     }
     if (awaitsConfirmation)
-      plan.push(planStep('permission.confirm', '文件写回前等待作者确认。', 'needs_approval'));
+      plan.push(planStep('permission.confirm', '写进文件前等待作者确认。', 'needs_approval'));
     else if (proposedPatch !== null)
       plan.push(
         planStep(
           'writeback.auto',
-          '补丁已准备，实际写回与快照由 Desktop 执行；这不是落盘回执。',
+          '修订已准备，实际写入与快照由 Desktop 执行；这不是写入回执。',
           'completed',
         ),
       );
@@ -779,7 +779,7 @@ export class AgentRuntime {
       intent: 'chat.explain',
       userMessage,
       plan: [
-        planStep('respond', '就项目上下文作答，不执行写命令。', failure ? 'failed' : 'completed'),
+        planStep('respond', '就作品上下文作答，不执行写命令。', failure ? 'failed' : 'completed'),
       ],
       agentResult: {
         summary: answer,

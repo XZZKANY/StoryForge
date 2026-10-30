@@ -231,4 +231,10 @@ describe('P3-2 范围补充', () => {
         normalizeRuntimeProgress({ phase: 'retry_wait', request_number: 1, delay_seconds: bad }),
       ).toThrow(RangeError);
   });
+
+  it('确认写回类请求也认界面新说法「写进文件」，旧说法照认', () => {
+    for (const message of ['确认写进文件', '就这版写进文件吧', '确认写回', '接受当前补丁'])
+      expect(isConfirmWritebackRequest(message), message).toBe(true);
+    expect(isConfirmWritebackRequest('这段写进文件了吗')).toBe(false);
+  });
 });

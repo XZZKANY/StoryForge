@@ -4,7 +4,7 @@ import { test } from 'vitest';
 import { createRemoteFileSuggestion } from '../src/lib/assistant-suggestions';
 
 const scopeWarning =
-  '本次定向修订改动了约 100% 的原文行（4/4 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。';
+  '本次定向修订改动了约 100% 的原文行（4/4 行），可能超出指定范围，请在对比里逐块核对后再接受。';
 
 test('remote file suggestion surfaces scope warning in note and field', () => {
   const suggestion = createRemoteFileSuggestion({

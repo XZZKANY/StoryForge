@@ -293,19 +293,19 @@ export async function runObservatoryScan(
         key: 'consistency',
         tool: 'project.consistency',
         status: 'on_demand',
-        reason: '机械观察不下结论，Agent 内按需触发。',
+        reason: '机械观察不下结论，由 AI 按需触发。',
       },
       {
         key: 'collapse',
         tool: 'project.collapse_check',
         status: 'on_demand',
-        reason: '需要 Agent 提供场景节拍等语义参数，裸跑无信号。',
+        reason: '需要 AI 提供场景节拍等语义参数，裸跑无信号。',
       },
       {
         key: 'entity_budget',
         tool: 'project.entity_budget_check',
         status: 'on_demand',
-        reason: '需要 Agent 提供新实体清单，裸跑无信号。',
+        reason: '需要 AI 提供新实体清单，裸跑无信号。',
       },
       {
         key: 'deep_consistency',

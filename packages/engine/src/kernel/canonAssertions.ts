@@ -25,7 +25,7 @@ export const ASSERTION_METADATA_PROPERTIES = {
       type: 'object',
       properties: {
         quote: { type: 'string', minLength: 1 },
-        path: { type: 'string', description: '项目相对路径（可选），不可越界。' },
+        path: { type: 'string', description: '作品内相对路径（可选），不可越界。' },
         start_line: { type: 'integer', minimum: 1 },
         end_line: { type: 'integer', minimum: 1 },
       },
@@ -74,7 +74,7 @@ export function normalizeAssertionMetadata(entry: JsonObject, label: string): Js
     const rawPath = own(source, 'path');
     if (rawPath !== undefined) {
       if (typeof rawPath !== 'string' || !pythonStrip(rawPath))
-        throw new FsToolError(`${sourceLabel}.path 必须是非空项目相对路径。`);
+        throw new FsToolError(`${sourceLabel}.path 必须是非空的作品内相对路径。`);
       const path = rawPath.replace(/\\/g, '/');
       const parts = path.split('/').filter((part) => part !== '' && part !== '.');
       if (
@@ -85,7 +85,7 @@ export function normalizeAssertionMetadata(entry: JsonObject, label: string): Js
         path.includes(':') ||
         path.includes('\u0000')
       )
-        throw new FsToolError(`${sourceLabel}.path 必须是项目内相对路径。`);
+        throw new FsToolError(`${sourceLabel}.path 必须是作品内相对路径。`);
     }
     for (const key of ['start_line', 'end_line']) {
       const line = own(source, key);

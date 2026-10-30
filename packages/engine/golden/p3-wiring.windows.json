@@ -212,7 +212,7 @@
           "sequence": 5,
           "index": 0,
           "step": "agent.loop",
-          "detail": "读取项目文件、检索并整理回答。",
+          "detail": "读取作品文件、检索并整理回答。",
           "status": "running"
         },
         {
@@ -313,8 +313,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -323,7 +323,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
               }
             ],
             "temperature": 0.7,
@@ -352,7 +352,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -385,8 +385,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -395,7 +395,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
               },
               {
                 "role": "assistant",
@@ -446,7 +446,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -468,7 +468,7 @@
           "root_plan": [
             {
               "step": "agent.loop",
-              "detail": "读取项目文件、检索并整理回答。",
+              "detail": "读取作品文件、检索并整理回答。",
               "status": "running"
             }
           ],
@@ -550,7 +550,7 @@
             "plan": [
               {
                 "step": "agent.loop",
-                "detail": "读取项目文件、检索并整理回答。",
+                "detail": "读取作品文件、检索并整理回答。",
                 "status": "running"
               }
             ],
@@ -559,7 +559,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -576,7 +576,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -591,7 +591,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -791,8 +791,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -801,7 +801,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
                 }
               ],
               "tools": {
@@ -829,7 +829,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -837,18 +837,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c66423ae31e7ff7695bc1cba7c969fbfa1b2458f2ed4e61a5cdea45fb0d96bb4",
+            "request_digest": "ddcfacc0052ed679854d5b8751f1457324e3faadba117d8a494eb5835b5e2a06",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -861,7 +861,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "1d9f2c7e0fab9c215137ef087017330d9031aa2ecbaa2e745a54cb962802da26",
+                "sha256": "c9006054d57d16488f2529101face503933e15b11bd88fb0126e166103e210aa",
                 "content_chars": 109
               }
             ],
@@ -879,7 +879,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -931,7 +931,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d3ccea3190f3af647e61243b3c8647de14b238584ec8c7091fa34eef6c5d09e6",
+                  "sha256": "ed745a58415cd58610ac1de2edb6f616ba4f0a213f74d25c69eab2c45f4450be",
                   "omission_reason": null
                 }
               ],
@@ -1070,8 +1070,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -1080,7 +1080,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
                 },
                 {
                   "role": "assistant",
@@ -1130,7 +1130,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -1138,18 +1138,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6c8e29942d139f059b662631a1c3281f1448a1feb32796b7b26aa41ee59f6d1e",
+            "request_digest": "f0f6c567a4004e36ae998a3aa4a41b1b82a7979df0ee1b23d4211fbc2ccbb9b9",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -1162,7 +1162,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "1d9f2c7e0fab9c215137ef087017330d9031aa2ecbaa2e745a54cb962802da26",
+                "sha256": "c9006054d57d16488f2529101face503933e15b11bd88fb0126e166103e210aa",
                 "content_chars": 109
               },
               {
@@ -1194,7 +1194,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -1246,7 +1246,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d3ccea3190f3af647e61243b3c8647de14b238584ec8c7091fa34eef6c5d09e6",
+                  "sha256": "ed745a58415cd58610ac1de2edb6f616ba4f0a213f74d25c69eab2c45f4450be",
                   "omission_reason": null
                 }
               ],
@@ -1490,7 +1490,7 @@
           "sequence": 5,
           "index": 0,
           "step": "agent.loop",
-          "detail": "读取项目文件、检索并整理回答。",
+          "detail": "读取作品文件、检索并整理回答。",
           "status": "running"
         },
         {
@@ -1591,8 +1591,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -1601,7 +1601,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
               }
             ],
             "temperature": 0.7,
@@ -1630,7 +1630,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -1663,8 +1663,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -1673,7 +1673,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
               },
               {
                 "role": "assistant",
@@ -1721,7 +1721,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -1743,7 +1743,7 @@
           "root_plan": [
             {
               "step": "agent.loop",
-              "detail": "读取项目文件、检索并整理回答。",
+              "detail": "读取作品文件、检索并整理回答。",
               "status": "running"
             }
           ],
@@ -1825,7 +1825,7 @@
             "plan": [
               {
                 "step": "agent.loop",
-                "detail": "读取项目文件、检索并整理回答。",
+                "detail": "读取作品文件、检索并整理回答。",
                 "status": "running"
               }
             ],
@@ -1834,7 +1834,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -1851,7 +1851,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -1866,7 +1866,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -2066,8 +2066,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -2076,7 +2076,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
                 }
               ],
               "tools": {
@@ -2104,7 +2104,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -2112,18 +2112,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c66423ae31e7ff7695bc1cba7c969fbfa1b2458f2ed4e61a5cdea45fb0d96bb4",
+            "request_digest": "ddcfacc0052ed679854d5b8751f1457324e3faadba117d8a494eb5835b5e2a06",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -2136,7 +2136,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "1d9f2c7e0fab9c215137ef087017330d9031aa2ecbaa2e745a54cb962802da26",
+                "sha256": "c9006054d57d16488f2529101face503933e15b11bd88fb0126e166103e210aa",
                 "content_chars": 109
               }
             ],
@@ -2154,7 +2154,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -2206,7 +2206,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d3ccea3190f3af647e61243b3c8647de14b238584ec8c7091fa34eef6c5d09e6",
+                  "sha256": "ed745a58415cd58610ac1de2edb6f616ba4f0a213f74d25c69eab2c45f4450be",
                   "omission_reason": null
                 }
               ],
@@ -2345,8 +2345,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -2355,7 +2355,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
                 },
                 {
                   "role": "assistant",
@@ -2402,7 +2402,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -2410,18 +2410,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c452be731d72d312331c2d763b9b5982cac18a135e9764747ea1eaf353b89dd6",
+            "request_digest": "68dc58d6c06388b7d54ee18dc156a5d80295e8ddb4e5dae409222a816c8d5e84",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -2434,7 +2434,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "1d9f2c7e0fab9c215137ef087017330d9031aa2ecbaa2e745a54cb962802da26",
+                "sha256": "c9006054d57d16488f2529101face503933e15b11bd88fb0126e166103e210aa",
                 "content_chars": 109
               },
               {
@@ -2466,7 +2466,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -2518,7 +2518,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d3ccea3190f3af647e61243b3c8647de14b238584ec8c7091fa34eef6c5d09e6",
+                  "sha256": "ed745a58415cd58610ac1de2edb6f616ba4f0a213f74d25c69eab2c45f4450be",
                   "omission_reason": null
                 }
               ],
@@ -2758,7 +2758,7 @@
           "sequence": 5,
           "index": 0,
           "step": "agent.loop",
-          "detail": "读取项目文件、检索并整理回答。",
+          "detail": "读取作品文件、检索并整理回答。",
           "status": "running"
         },
         {
@@ -2856,8 +2856,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -2866,7 +2866,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
               }
             ],
             "temperature": 0.7,
@@ -2895,7 +2895,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -2928,8 +2928,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -2938,7 +2938,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
               },
               {
                 "role": "assistant",
@@ -2986,7 +2986,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -3008,7 +3008,7 @@
           "root_plan": [
             {
               "step": "agent.loop",
-              "detail": "读取项目文件、检索并整理回答。",
+              "detail": "读取作品文件、检索并整理回答。",
               "status": "running"
             }
           ],
@@ -3090,7 +3090,7 @@
             "plan": [
               {
                 "step": "agent.loop",
-                "detail": "读取项目文件、检索并整理回答。",
+                "detail": "读取作品文件、检索并整理回答。",
                 "status": "running"
               }
             ],
@@ -3099,7 +3099,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -3116,7 +3116,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -3131,7 +3131,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -3327,8 +3327,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -3337,7 +3337,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
                 }
               ],
               "tools": {
@@ -3365,7 +3365,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -3373,18 +3373,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c66423ae31e7ff7695bc1cba7c969fbfa1b2458f2ed4e61a5cdea45fb0d96bb4",
+            "request_digest": "ddcfacc0052ed679854d5b8751f1457324e3faadba117d8a494eb5835b5e2a06",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -3397,7 +3397,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "1d9f2c7e0fab9c215137ef087017330d9031aa2ecbaa2e745a54cb962802da26",
+                "sha256": "c9006054d57d16488f2529101face503933e15b11bd88fb0126e166103e210aa",
                 "content_chars": 109
               }
             ],
@@ -3415,7 +3415,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -3467,7 +3467,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d3ccea3190f3af647e61243b3c8647de14b238584ec8c7091fa34eef6c5d09e6",
+                  "sha256": "ed745a58415cd58610ac1de2edb6f616ba4f0a213f74d25c69eab2c45f4450be",
                   "omission_reason": null
                 }
               ],
@@ -3606,8 +3606,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -3616,7 +3616,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
                 },
                 {
                   "role": "assistant",
@@ -3663,7 +3663,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -3671,18 +3671,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ef6519303c463634206611bcdabea6b44bdba9a3d29cf4ac06a3ff65256151b7",
+            "request_digest": "111452af4bf178b6510c925d96e63c21e490c6d411c65d7f48ba6e5d44930f10",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -3695,7 +3695,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "1d9f2c7e0fab9c215137ef087017330d9031aa2ecbaa2e745a54cb962802da26",
+                "sha256": "c9006054d57d16488f2529101face503933e15b11bd88fb0126e166103e210aa",
                 "content_chars": 109
               },
               {
@@ -3727,7 +3727,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -3779,7 +3779,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d3ccea3190f3af647e61243b3c8647de14b238584ec8c7091fa34eef6c5d09e6",
+                  "sha256": "ed745a58415cd58610ac1de2edb6f616ba4f0a213f74d25c69eab2c45f4450be",
                   "omission_reason": null
                 }
               ],
@@ -4015,7 +4015,7 @@
           "sequence": 5,
           "index": 0,
           "step": "agent.loop",
-          "detail": "读取项目文件、检索并整理回答。",
+          "detail": "读取作品文件、检索并整理回答。",
           "status": "running"
         },
         {
@@ -4114,8 +4114,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -4124,7 +4124,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
               }
             ],
             "temperature": 0.7,
@@ -4153,7 +4153,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -4186,8 +4186,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -4196,7 +4196,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
               },
               {
                 "role": "assistant",
@@ -4244,7 +4244,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -4266,7 +4266,7 @@
           "root_plan": [
             {
               "step": "agent.loop",
-              "detail": "读取项目文件、检索并整理回答。",
+              "detail": "读取作品文件、检索并整理回答。",
               "status": "running"
             }
           ],
@@ -4348,7 +4348,7 @@
             "plan": [
               {
                 "step": "agent.loop",
-                "detail": "读取项目文件、检索并整理回答。",
+                "detail": "读取作品文件、检索并整理回答。",
                 "status": "running"
               }
             ],
@@ -4357,7 +4357,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -4374,7 +4374,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -4389,7 +4389,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -4585,8 +4585,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -4595,7 +4595,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
                 }
               ],
               "tools": {
@@ -4623,7 +4623,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -4631,18 +4631,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c66423ae31e7ff7695bc1cba7c969fbfa1b2458f2ed4e61a5cdea45fb0d96bb4",
+            "request_digest": "ddcfacc0052ed679854d5b8751f1457324e3faadba117d8a494eb5835b5e2a06",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -4655,7 +4655,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "1d9f2c7e0fab9c215137ef087017330d9031aa2ecbaa2e745a54cb962802da26",
+                "sha256": "c9006054d57d16488f2529101face503933e15b11bd88fb0126e166103e210aa",
                 "content_chars": 109
               }
             ],
@@ -4673,7 +4673,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -4725,7 +4725,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d3ccea3190f3af647e61243b3c8647de14b238584ec8c7091fa34eef6c5d09e6",
+                  "sha256": "ed745a58415cd58610ac1de2edb6f616ba4f0a213f74d25c69eab2c45f4450be",
                   "omission_reason": null
                 }
               ],
@@ -4864,8 +4864,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -4874,7 +4874,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
                 },
                 {
                   "role": "assistant",
@@ -4921,7 +4921,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -4929,18 +4929,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "cd243ff3fc7911bbfeb98143c20caacbb78bb6c772671d7e1b3003850415ed8c",
+            "request_digest": "623d470ec3809174570eefbaffb2df64f95aec0b16bc2aa1cd71d849d4fc6dfd",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -4953,7 +4953,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "1d9f2c7e0fab9c215137ef087017330d9031aa2ecbaa2e745a54cb962802da26",
+                "sha256": "c9006054d57d16488f2529101face503933e15b11bd88fb0126e166103e210aa",
                 "content_chars": 109
               },
               {
@@ -4985,7 +4985,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -5037,7 +5037,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d3ccea3190f3af647e61243b3c8647de14b238584ec8c7091fa34eef6c5d09e6",
+                  "sha256": "ed745a58415cd58610ac1de2edb6f616ba4f0a213f74d25c69eab2c45f4450be",
                   "omission_reason": null
                 }
               ],
@@ -5178,7 +5178,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool 边界停止。",
+          "summary": "AI 已在 after_tool 边界停止。",
           "requires_user_confirmation": false,
           "runtime_interrupted": true,
           "writeback_blocked_until_user_confirms": false
@@ -5259,7 +5259,7 @@
           "sequence": 5,
           "index": 0,
           "step": "agent.loop",
-          "detail": "读取项目文件、检索并整理回答。",
+          "detail": "读取作品文件、检索并整理回答。",
           "status": "running"
         },
         {
@@ -5296,7 +5296,7 @@
           "event_id": 7,
           "sequence": 7,
           "status": "stopped",
-          "message": "AgentRun 已在 after_tool 边界停止。",
+          "message": "AI 已在 after_tool 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -5314,7 +5314,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool 边界停止。",
+                "summary": "AI 已在 after_tool 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -5388,8 +5388,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -5398,7 +5398,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
               }
             ],
             "temperature": 0.7,
@@ -5427,7 +5427,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -5468,7 +5468,7 @@
           "root_plan": [
             {
               "step": "agent.loop",
-              "detail": "读取项目文件、检索并整理回答。",
+              "detail": "读取作品文件、检索并整理回答。",
               "status": "running"
             }
           ],
@@ -5550,7 +5550,7 @@
             "plan": [
               {
                 "step": "agent.loop",
-                "detail": "读取项目文件、检索并整理回答。",
+                "detail": "读取作品文件、检索并整理回答。",
                 "status": "running"
               }
             ],
@@ -5559,7 +5559,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -5576,7 +5576,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -5591,7 +5591,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -5651,7 +5651,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 after_tool 边界停止。",
+          "message": "AI 已在 after_tool 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -5669,7 +5669,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool 边界停止。",
+                "summary": "AI 已在 after_tool 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -5744,8 +5744,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -5754,7 +5754,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
                 }
               ],
               "tools": {
@@ -5782,7 +5782,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -5790,18 +5790,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c66423ae31e7ff7695bc1cba7c969fbfa1b2458f2ed4e61a5cdea45fb0d96bb4",
+            "request_digest": "ddcfacc0052ed679854d5b8751f1457324e3faadba117d8a494eb5835b5e2a06",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -5814,7 +5814,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "1d9f2c7e0fab9c215137ef087017330d9031aa2ecbaa2e745a54cb962802da26",
+                "sha256": "c9006054d57d16488f2529101face503933e15b11bd88fb0126e166103e210aa",
                 "content_chars": 109
               }
             ],
@@ -5832,7 +5832,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -5884,7 +5884,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d3ccea3190f3af647e61243b3c8647de14b238584ec8c7091fa34eef6c5d09e6",
+                  "sha256": "ed745a58415cd58610ac1de2edb6f616ba4f0a213f74d25c69eab2c45f4450be",
                   "omission_reason": null
                 }
               ],
@@ -6190,7 +6190,7 @@
           "sequence": 5,
           "index": 0,
           "step": "agent.loop",
-          "detail": "读取项目文件、检索并整理回答。",
+          "detail": "读取作品文件、检索并整理回答。",
           "status": "running"
         },
         {
@@ -6291,8 +6291,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -6301,7 +6301,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
               }
             ],
             "temperature": 0.7,
@@ -6330,7 +6330,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -6363,8 +6363,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -6373,7 +6373,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
               },
               {
                 "role": "assistant",
@@ -6424,7 +6424,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -6446,7 +6446,7 @@
           "root_plan": [
             {
               "step": "agent.loop",
-              "detail": "读取项目文件、检索并整理回答。",
+              "detail": "读取作品文件、检索并整理回答。",
               "status": "running"
             }
           ],
@@ -6528,7 +6528,7 @@
             "plan": [
               {
                 "step": "agent.loop",
-                "detail": "读取项目文件、检索并整理回答。",
+                "detail": "读取作品文件、检索并整理回答。",
                 "status": "running"
               }
             ],
@@ -6537,7 +6537,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -6554,7 +6554,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -6569,7 +6569,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -6769,8 +6769,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -6779,7 +6779,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
                 }
               ],
               "tools": {
@@ -6807,7 +6807,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -6815,18 +6815,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "b5e3a009109f7a920a4a96c28b3ae7b411577741ea85868fc7d134f6b98a5852",
+            "request_digest": "2a763654a468ad81a77b24222cc70bba3103b74b8876d3beb930b902d856321d",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -6839,7 +6839,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "1d9f2c7e0fab9c215137ef087017330d9031aa2ecbaa2e745a54cb962802da26",
+                "sha256": "c9006054d57d16488f2529101face503933e15b11bd88fb0126e166103e210aa",
                 "content_chars": 109
               }
             ],
@@ -6857,7 +6857,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -6909,7 +6909,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d3ccea3190f3af647e61243b3c8647de14b238584ec8c7091fa34eef6c5d09e6",
+                  "sha256": "ed745a58415cd58610ac1de2edb6f616ba4f0a213f74d25c69eab2c45f4450be",
                   "omission_reason": null
                 }
               ],
@@ -7048,8 +7048,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -7058,7 +7058,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一二章"
                 },
                 {
                   "role": "assistant",
@@ -7108,7 +7108,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -7116,18 +7116,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "af1c9fa0ad2482a7aafe35dec04b3128ae55f96d0d6876dc5e66be3f15a31ccc",
+            "request_digest": "f87a6db822fe96dd16c3f136734bd65520d78e46d9a79a72812b8ca69e1ec6da",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -7140,7 +7140,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "1d9f2c7e0fab9c215137ef087017330d9031aa2ecbaa2e745a54cb962802da26",
+                "sha256": "c9006054d57d16488f2529101face503933e15b11bd88fb0126e166103e210aa",
                 "content_chars": 109
               },
               {
@@ -7172,7 +7172,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -7224,7 +7224,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d3ccea3190f3af647e61243b3c8647de14b238584ec8c7091fa34eef6c5d09e6",
+                  "sha256": "ed745a58415cd58610ac1de2edb6f616ba4f0a213f74d25c69eab2c45f4450be",
                   "omission_reason": null
                 }
               ],
@@ -7450,7 +7450,7 @@
           "sequence": 4,
           "index": 0,
           "step": "agent.loop",
-          "detail": "读取项目文件、检索并整理回答。",
+          "detail": "读取作品文件、检索并整理回答。",
           "status": "running"
         },
         {
@@ -7544,8 +7544,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -7554,7 +7554,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一章"
               }
             ],
             "temperature": 0.7,
@@ -7583,7 +7583,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -7597,8 +7597,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -7607,7 +7607,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一章"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一章"
               },
               {
                 "role": "assistant",
@@ -7655,7 +7655,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -7677,7 +7677,7 @@
           "root_plan": [
             {
               "step": "agent.loop",
-              "detail": "读取项目文件、检索并整理回答。",
+              "detail": "读取作品文件、检索并整理回答。",
               "status": "running"
             }
           ],
@@ -7746,7 +7746,7 @@
             "plan": [
               {
                 "step": "agent.loop",
-                "detail": "读取项目文件、检索并整理回答。",
+                "detail": "读取作品文件、检索并整理回答。",
                 "status": "running"
               }
             ],
@@ -7755,7 +7755,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -7772,7 +7772,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -7787,7 +7787,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -7981,8 +7981,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -7991,7 +7991,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一章"
                 }
               ],
               "tools": {
@@ -8019,7 +8019,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -8027,18 +8027,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "86fc2733e4dd2c79a759941a76890adc1a89acd8ce423589d7f05e35bb9f6f92",
+            "request_digest": "05da99349e207682929222718908a18b3534390c644e59a002607da0055bfedf",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -8051,7 +8051,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "83eaf79b53b92a1fdb01d4a925cf96a513c5beeb9e71a61d59a4848d44221a28",
+                "sha256": "e74af2dc7cf6a35c4ecf1903f5024b30d8635e6206f518a59145b982fdf6e2a7",
                 "content_chars": 108
               }
             ],
@@ -8069,7 +8069,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -8121,7 +8121,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "abf57579c0b8af36b383f1ab8853d33a21192d90c0d4bc87822fbe35dbf7afa5",
+                  "sha256": "3eeabfed9beebeb309108f4282117c5b149686b568f2be6782873d7b1d761e5f",
                   "omission_reason": null
                 }
               ],
@@ -8174,8 +8174,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -8184,7 +8184,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一章"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：查第一章"
                 },
                 {
                   "role": "assistant",
@@ -8231,7 +8231,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -8239,18 +8239,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "cf61f4c9005a097dddd9898d09b178f495e034eb50fed9844416c676b74905d4",
+            "request_digest": "c53ffd55545ba2cc1e60c4babef30e511e8358ea5324d2b79378d7f3024aacc0",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -8263,7 +8263,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "83eaf79b53b92a1fdb01d4a925cf96a513c5beeb9e71a61d59a4848d44221a28",
+                "sha256": "e74af2dc7cf6a35c4ecf1903f5024b30d8635e6206f518a59145b982fdf6e2a7",
                 "content_chars": 108
               },
               {
@@ -8295,7 +8295,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -8347,7 +8347,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "abf57579c0b8af36b383f1ab8853d33a21192d90c0d4bc87822fbe35dbf7afa5",
+                  "sha256": "3eeabfed9beebeb309108f4282117c5b149686b568f2be6782873d7b1d761e5f",
                   "omission_reason": null
                 }
               ],
@@ -8570,7 +8570,7 @@
           "sequence": 4,
           "index": 0,
           "step": "agent.loop",
-          "detail": "读取项目文件、检索并整理回答。",
+          "detail": "读取作品文件、检索并整理回答。",
           "status": "running"
         },
         {
@@ -8666,8 +8666,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -8676,7 +8676,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：找林舟或沈禾"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：找林舟或沈禾"
               }
             ],
             "temperature": 0.7,
@@ -8705,7 +8705,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -8719,8 +8719,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -8729,7 +8729,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：找林舟或沈禾"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：找林舟或沈禾"
               },
               {
                 "role": "assistant",
@@ -8777,7 +8777,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -8799,7 +8799,7 @@
           "root_plan": [
             {
               "step": "agent.loop",
-              "detail": "读取项目文件、检索并整理回答。",
+              "detail": "读取作品文件、检索并整理回答。",
               "status": "running"
             }
           ],
@@ -8868,7 +8868,7 @@
             "plan": [
               {
                 "step": "agent.loop",
-                "detail": "读取项目文件、检索并整理回答。",
+                "detail": "读取作品文件、检索并整理回答。",
                 "status": "running"
               }
             ],
@@ -8877,7 +8877,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -8894,7 +8894,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -8909,7 +8909,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -9106,8 +9106,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -9116,7 +9116,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：找林舟或沈禾"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：找林舟或沈禾"
                 }
               ],
               "tools": {
@@ -9144,7 +9144,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -9152,18 +9152,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "83d4c6f9baa8eab0789daea121eef845257728ebe8e68b2e02cfb6044f58d299",
+            "request_digest": "379c283759c2a4952f71f141cc864bafa95f42b0a559f9163762d65db462669c",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -9176,7 +9176,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "0366717cd796d669db1c3472557545590ff54404680d8971166f834fe849ac31",
+                "sha256": "97b6b073059bb62f7a48501dbc6410af248de4c04695492c7b75db42425454b7",
                 "content_chars": 110
               }
             ],
@@ -9194,7 +9194,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -9246,7 +9246,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d339d8ed0dcbbb7665c457d4ecfa2758302099b5f28a32b25f9642aec11bf70c",
+                  "sha256": "ebe1459854742abc38fb12479e171001f000e97fea993490c4d85e55a417e986",
                   "omission_reason": null
                 }
               ],
@@ -9299,8 +9299,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -9309,7 +9309,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：找林舟或沈禾"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：找林舟或沈禾"
                 },
                 {
                   "role": "assistant",
@@ -9356,7 +9356,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -9364,18 +9364,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "931cba6ce9668b9674bd5af8d80b65d67fc4031d0ed2dbc9bb6448876e179c1a",
+            "request_digest": "5b449d75bf8fcc4465975a147a55f50b3f1bb417d4eb6ab5bce017ad51281aae",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -9388,7 +9388,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "0366717cd796d669db1c3472557545590ff54404680d8971166f834fe849ac31",
+                "sha256": "97b6b073059bb62f7a48501dbc6410af248de4c04695492c7b75db42425454b7",
                 "content_chars": 110
               },
               {
@@ -9420,7 +9420,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -9472,7 +9472,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "d339d8ed0dcbbb7665c457d4ecfa2758302099b5f28a32b25f9642aec11bf70c",
+                  "sha256": "ebe1459854742abc38fb12479e171001f000e97fea993490c4d85e55a417e986",
                   "omission_reason": null
                 }
               ],
@@ -9699,7 +9699,7 @@
           "sequence": 4,
           "index": 0,
           "step": "agent.loop",
-          "detail": "读取项目文件、检索并整理回答。",
+          "detail": "读取作品文件、检索并整理回答。",
           "status": "running"
         },
         {
@@ -9796,8 +9796,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -9806,7 +9806,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：在人物文件里找伤"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：在人物文件里找伤"
               }
             ],
             "temperature": 0.7,
@@ -9835,7 +9835,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -9849,8 +9849,8 @@
               {
                 "role": "system",
                 "content": {
-                  "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                  "length": 2853
+                  "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                  "length": 2859
                 }
               },
               {
@@ -9859,7 +9859,7 @@
               },
               {
                 "role": "user",
-                "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：在人物文件里找伤"
+                "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：在人物文件里找伤"
               },
               {
                 "role": "assistant",
@@ -9907,7 +9907,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -9929,7 +9929,7 @@
           "root_plan": [
             {
               "step": "agent.loop",
-              "detail": "读取项目文件、检索并整理回答。",
+              "detail": "读取作品文件、检索并整理回答。",
               "status": "running"
             }
           ],
@@ -9998,7 +9998,7 @@
             "plan": [
               {
                 "step": "agent.loop",
-                "detail": "读取项目文件、检索并整理回答。",
+                "detail": "读取作品文件、检索并整理回答。",
                 "status": "running"
               }
             ],
@@ -10007,7 +10007,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -10024,7 +10024,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -10039,7 +10039,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -10237,8 +10237,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -10247,7 +10247,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：在人物文件里找伤"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：在人物文件里找伤"
                 }
               ],
               "tools": {
@@ -10275,7 +10275,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -10283,18 +10283,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "f79de7cfeef9bde6431fc3f477be057cdd46650b34aced1a40ccd302140bd741",
+            "request_digest": "25dd1d802a6785de45aaabdfe8d515d648584a31acd18ec95b971b3eb1019807",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -10307,7 +10307,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "fb2c85a3799132483318db98a2fa1c20ab4010bfa5abf4c317ec49129c13d9e3",
+                "sha256": "cb79e4aa2db1fd9a45abcb5dc0c0399b17fc1ffe6e30021e38af81562a230717",
                 "content_chars": 112
               }
             ],
@@ -10325,7 +10325,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -10377,7 +10377,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "3fe82b352d5842af4bfdaca9898a6e44f72822cd2dee6ccbbadcf4fda55f5c0c",
+                  "sha256": "5feaf9b444ebae3b6d9a93e287cd493cff1797ac196ba488866f5a0eb20bd86a",
                   "omission_reason": null
                 }
               ],
@@ -10430,8 +10430,8 @@
                 {
                   "role": "system",
                   "content": {
-                    "sha256": "3d52dcbc7436b2b32c516b828061864ab957f3361e5caaa8406f42a64e581edc",
-                    "length": 2853
+                    "sha256": "002995990dcd693bfab585fb8ab03fffa65a0580fdf1e3ff4c37ed8d02d8535a",
+                    "length": 2859
                   }
                 },
                 {
@@ -10440,7 +10440,7 @@
                 },
                 {
                   "role": "user",
-                  "content": "[项目已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：在人物文件里找伤"
+                  "content": "[作品已挂载，只读工具可用。当前打开文件：$ROOT\\正文\\第001章.md]\n作者：在人物文件里找伤"
                 },
                 {
                   "role": "assistant",
@@ -10487,7 +10487,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -10495,18 +10495,18 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "1c480cbe6903c2af306809166ea40dddc6c972048bff1494bce06c4e0b0a1199",
+            "request_digest": "aa38eadda618a629613ce79d44e752241a9a6a435d423418342446a55a743ab8",
             "redacted": false,
             "omissions": [],
-            "prompt_version": "3c3dbdebd48b57ca7aaf199755fb7cc08b866b926d0a3c7c79c6cccddba723dd",
-            "tool_schema_version": "bae2c2baa21db16d95743c2d9a025e2adf1a4f248caf0bbfb45bf10a9d18ad55",
+            "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
                 "index": 0,
                 "role": "system",
-                "sha256": "02d29a44dcc822df6d7e624d24b234dcecb188014cced755c4a49a83f57744c3",
-                "content_chars": 2853
+                "sha256": "09e00c656fbb548a1f4c6898395c84d1b23dc143128993001cce5565a3b2e1b4",
+                "content_chars": 2859
               },
               {
                 "kind": "compiled_message",
@@ -10519,7 +10519,7 @@
                 "kind": "compiled_message",
                 "index": 2,
                 "role": "user",
-                "sha256": "fb2c85a3799132483318db98a2fa1c20ab4010bfa5abf4c317ec49129c13d9e3",
+                "sha256": "cb79e4aa2db1fd9a45abcb5dc0c0399b17fc1ffe6e30021e38af81562a230717",
                 "content_chars": 112
               },
               {
@@ -10551,7 +10551,7 @@
                   "message_indices": [
                     0
                   ],
-                  "sha256": "44cc89d567af2b9f679eae97e58a529f27462c70e6693a293209fce07891229f",
+                  "sha256": "b09bac6dc62782be19164725b2ea7175d4399ea6d1f261a3c6f878ec052f6a87",
                   "omission_reason": null
                 },
                 {
@@ -10603,7 +10603,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "3fe82b352d5842af4bfdaca9898a6e44f72822cd2dee6ccbbadcf4fda55f5c0c",
+                  "sha256": "5feaf9b444ebae3b6d9a93e287cd493cff1797ac196ba488866f5a0eb20bd86a",
                   "omission_reason": null
                 }
               ],

@@ -123,7 +123,7 @@ const roles = (args: Obj) => ({ roleHints: roleHints(args), roleMentions: roleMe
 // ---- 审稿（file_review_pipeline） ----
 
 const REVIEW_STEPS = {
-  context: '读取当前章与项目上下文。',
+  context: '读取当前章与作品上下文。',
   review: '剧情、人物、文风和连续性子代理完成同步审稿。',
   merge: '合并多视角意见为结构化审稿报告。',
 };
@@ -377,7 +377,7 @@ async function runFileReview(host: FixedPipelineHost, request: FixedPipelineRequ
       planStep('subagents.review', REVIEW_STEPS.review, 'pending'),
       planStep('synthesizer.merge', REVIEW_STEPS.merge, 'pending'),
     ],
-    agentResult: { summary: '正在读取当前章与项目上下文。', requires_user_confirmation: false },
+    agentResult: { summary: '正在读取当前章与作品上下文。', requires_user_confirmation: false },
     toolTrace: [],
   });
   run = await host.sink.recordPlan(run, started);
@@ -513,7 +513,7 @@ async function runFileRevise(host: FixedPipelineHost, request: FixedPipelineRequ
         'completed',
       ),
       planStep('judge.run', '对待确认修订执行轻量自检。', 'completed'),
-      planStep('permission.confirm', '文件写回前等待作者确认。', 'needs_approval'),
+      planStep('permission.confirm', '写进文件前等待作者确认。', 'needs_approval'),
     ],
     agentResult,
     toolTrace: traces,
@@ -570,7 +570,7 @@ async function runChapterPolish(
       ? truthy(proposedPatch.requires_confirmation)
       : true);
   const plan = [
-    planStep('context.load', '读取当前章与可信项目上下文。', 'completed'),
+    planStep('context.load', '读取当前章与可信作品上下文。', 'completed'),
     planStep('chapter.polish', '比较在线与本地候选并执行相对原文质量门禁。', 'completed'),
   ];
   if (proposedPatch !== null)
@@ -578,8 +578,8 @@ async function runChapterPolish(
       planStep(
         'permission.confirm',
         requiresConfirmation
-          ? '文件写回前等待作者确认。'
-          : '按项目权限交给 Desktop guarded writeback。',
+          ? '写进文件前等待作者确认。'
+          : '按作品权限交给 Desktop guarded writeback。',
         requiresConfirmation ? 'needs_approval' : 'completed',
       ),
     );

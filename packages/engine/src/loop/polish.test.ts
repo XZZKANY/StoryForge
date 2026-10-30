@@ -111,6 +111,6 @@ describe('润色没改动时说清在线模型有没有调通', () => {
   });
 
   it('在线候选本身与原文一致时照旧说明', () => {
-    expect(polishSummary(noop(null))).toBe('润色候选与原文一致，没有生成空补丁。');
+    expect(polishSummary(noop(null))).toBe('润色候选与原文一致，没有生成空修订。');
   });
 });

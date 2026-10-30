@@ -68,7 +68,7 @@ const SPECS_BY_NAME = new Map(AGENT_RUNTIME_TOOL_SPECS.map((spec) => [spec.name,
 
 export class AgentRunNotFoundError extends Error {
   readonly status = 404;
-  constructor(message = 'AgentRun 不存在。') {
+  constructor(message = '找不到这次 AI 运行。') {
     super(message);
     this.name = 'AgentRunNotFoundError';
   }
@@ -256,9 +256,9 @@ export const planStep = (step: string, detail: string, status: string) => ({
 
 export function runtimeInterruptionSummary(interruption: Obj): string {
   const { status, boundary } = interruption;
-  if (status === 'paused') return `AgentRun 已在 ${String(boundary)} 边界暂停，等待继续指令。`;
-  if (status === 'stopped') return `AgentRun 已在 ${String(boundary)} 边界停止。`;
-  return `AgentRun 已在 ${String(boundary)} 边界中断。`;
+  if (status === 'paused') return `AI 已在 ${String(boundary)} 边界暂停，等待继续指令。`;
+  if (status === 'stopped') return `AI 已在 ${String(boundary)} 边界停止。`;
+  return `AI 已在 ${String(boundary)} 边界中断。`;
 }
 
 export function runtimeInterruptedResponse(
@@ -360,7 +360,7 @@ export async function completeAgentRun(
       agentEventFields(services.secrets, updated, {
         eventType: AGENT_RUN_COMPLETED,
         actor: 'root-agent',
-        message: String(agentResult.summary || 'AgentRun 已完成。'),
+        message: String(agentResult.summary || 'AI 已完成。'),
         payload: {
           ...completedEventPayload(result, agentResult),
           permission_profile: canonicalPermissionProfile(updated.permission_profile),

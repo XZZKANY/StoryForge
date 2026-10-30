@@ -19,7 +19,7 @@ function boundedInstruction(text: string, secrets: SecretContext): string {
   const redacted = redactSensitiveText(text, secrets);
   if (length(redacted) > INSTRUCTION_BUDGET)
     throw new AgentOrchestrationError(
-      '脱敏后的修订范围超过指令预算，请分批选择审稿问题；未生成补丁。',
+      '脱敏后的修订范围超过指令预算，请分批选择审稿问题；未生成修订。',
     );
   return redacted;
 }
@@ -47,7 +47,7 @@ export function composeScopedInstruction(
   const available = INSTRUCTION_BUDGET - length(mandatory);
   if (available < 0)
     throw new AgentOrchestrationError(
-      '修订范围超过指令预算，请缩短指令或分批选择审稿问题；未生成补丁。',
+      '修订范围超过指令预算，请缩短指令或分批选择审稿问题；未生成修订。',
     );
   if (!issues.length) return boundedInstruction(mandatory, secrets);
   const quoteBudget = Math.min(320, Math.floor(available / issues.length));
@@ -66,7 +66,7 @@ export function composeScopedInstruction(
           .join('') +
         marker
       );
-    throw new AgentOrchestrationError('修订范围没有足够证据预算，请分批选择审稿问题；未生成补丁。');
+    throw new AgentOrchestrationError('修订范围没有足够证据预算，请分批选择审稿问题；未生成修订。');
   });
   review = '上一轮多视角审稿报告（已按本轮指令筛选范围）：\n有效问题：\n' + lines.join('\n');
   if (actions.length) review += '\n建议：\n' + actions.join('\n');

@@ -53,7 +53,9 @@ export function isConfirmWritebackRequest(userMessage: string): boolean {
   if (has(userMessage, ['确认写回', '接受这版', '就这版写回', '应用这版', '确认应用'])) return true;
   if (has(userMessage, ['确认', '接受']) && has(userMessage, ['当前补丁', '当前修订'])) return true;
   return (
-    (userMessage.includes('写回') || userMessage.includes('应用')) &&
+    (userMessage.includes('写回') ||
+      userMessage.includes('写进文件') ||
+      userMessage.includes('应用')) &&
     has(userMessage, ['确认', '接受', '这版', '当前补丁', '当前修订'])
   );
 }
@@ -226,10 +228,10 @@ export function controlEventType(controlType: string): string {
 const CONTROL_MESSAGES: Readonly<Record<string, string>> = {
   [APPROVE_PERMISSION_COMMAND]: '作者已批准权限请求。',
   [DENY_PERMISSION_COMMAND]: '作者已拒绝权限请求。',
-  [PAUSE_RUN]: '作者已暂停 AgentRun。',
-  [RESUME_RUN]: '作者已恢复 AgentRun。',
-  [STOP_RUN]: '作者已停止 AgentRun。',
-  [RETRY_FROM_CHECKPOINT]: '作者要求从 checkpoint 重试 AgentRun。',
+  [PAUSE_RUN]: '作者已暂停 AI。',
+  [RESUME_RUN]: '作者已恢复 AI。',
+  [STOP_RUN]: '作者已停止 AI。',
+  [RETRY_FROM_CHECKPOINT]: '作者要求 AI 从 checkpoint 重试。',
 };
 export const controlEventMessage = (controlType: string): string =>
   Object.prototype.hasOwnProperty.call(CONTROL_MESSAGES, controlType)
@@ -262,7 +264,7 @@ export function resolveExecutionResult(payload: Obj, approved: boolean): Obj {
   for (const step of (result.plan ?? []) as Obj[]) {
     if (step.step === 'permission.confirm') {
       step.status = approved ? 'completed' : 'failed';
-      step.detail = approved ? '作者已批准提案；文件写回由 Desktop 执行。' : '作者已拒绝提案。';
+      step.detail = approved ? '作者已批准提案；由 Desktop 写进文件。' : '作者已拒绝提案。';
     }
   }
   return { execution_result: result };

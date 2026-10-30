@@ -182,7 +182,7 @@ function streamMessage(body: unknown): Obj {
   }
   // 连续写回协议从未在发行版开放，也不搬（迁移计划 P3 拆刀）。
   if (body.execution_protocol === 'external_writeback_v1')
-    throw new AgentHostRejection(409, '当前宿主未开放连续写回协议');
+    throw new AgentHostRejection(409, '当前宿主未开放连续写入协议');
   return {
     type: 'user_message',
     stream: true,

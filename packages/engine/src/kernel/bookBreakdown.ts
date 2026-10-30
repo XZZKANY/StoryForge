@@ -319,7 +319,7 @@ export async function loadProjectChapters(
     chapters.push(...parsed);
   }
   if (!chapters.length)
-    throw new BookBreakdownError('项目内没有可解析的 TXT、Markdown、JSON 或 DOCX 正文。');
+    throw new BookBreakdownError('作品内没有可解析的 TXT、Markdown、JSON 或 DOCX 正文。');
   chapters.sort(
     (a, b) =>
       compareCodePoints(a.source_path, b.source_path) ||

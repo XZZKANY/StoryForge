@@ -123,7 +123,7 @@ async function chapterOrdinal(
     index += 1;
     if (candidate === target) return index;
   }
-  throw new FsToolError(`文件不在项目正文阅读序中，无法推断章节序号：${path}`);
+  throw new FsToolError(`文件不在作品正文阅读序中，无法推断章节序号：${path}`);
 }
 
 export type EntityBudgetOptions = {

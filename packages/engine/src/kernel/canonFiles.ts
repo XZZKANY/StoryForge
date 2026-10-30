@@ -188,7 +188,7 @@ async function requireSourceRevision(
     sourceRevision === null ||
     (await captureCanonSourceRevision(reader, root)) !== sourceRevision
   )
-    throw new FsToolError('派生缓存来源已变化或无法确认，请确认写回结果后重新扫描。');
+    throw new FsToolError('派生缓存来源已变化或无法确认，请确认写入结果后重新扫描。');
 }
 
 /** 原子写缓存与扫描前版本；proposals 是待决草稿，不参与正文派生失效。返回落盘的绝对路径。 */

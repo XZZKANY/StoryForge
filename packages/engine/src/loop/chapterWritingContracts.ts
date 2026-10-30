@@ -123,7 +123,7 @@ async function relativePath(
       return (await reader.resolveProjectPath(root, text)).resolvedRelativePath;
     } catch (error) {
       if (!(error instanceof ProjectReadError)) throw error;
-      throw new AgentOrchestrationError('目标章节不在当前项目内。');
+      throw new AgentOrchestrationError('目标章节不在当前作品内。');
     }
   }
   return lexicalPosix(text, platform);

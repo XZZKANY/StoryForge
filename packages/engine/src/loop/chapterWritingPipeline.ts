@@ -50,7 +50,7 @@ export function programAdvisoryNote(check: Obj): string {
 
 function requiredProjectRoot(args: Obj): string {
   const value = strip(args.project_path);
-  if (!value) throw new AgentOrchestrationError('写一章需要当前项目路径。');
+  if (!value) throw new AgentOrchestrationError('写一章需要当前作品路径。');
   return value;
 }
 
@@ -66,7 +66,7 @@ async function resumeProjectRoot(host: FixedPipelineHost, request: FixedPipeline
   if (strip(request.args.project_path)) return strip(request.args.project_path);
   const session = await host.assistant.getSession(request.assistantSessionId);
   if (strip(session.project_path)) return strip(session.project_path);
-  throw new AgentOrchestrationError('恢复写章时找不到当前项目路径，请重新发起写章。');
+  throw new AgentOrchestrationError('恢复写章时找不到当前作品路径，请重新发起写章。');
 }
 
 /** 旧版停下等作者确认章纲的 run，作者在卡片上确认过才多出「已确认」那一步。 */
@@ -85,13 +85,13 @@ function completedPlan(
       : [planStep('chapter.brief', '已生成 Chapter Brief。', 'completed')]),
     planStep('chapter.draft', '已按 brief 起草正文。', 'completed'),
     planStep('chapter.check', checkDetail, checkStatus),
-    planStep('chapter.patch', '未发现稿件硬问题时生成 proposed patch。', patchStatus),
+    planStep('chapter.patch', '未发现正文硬问题时生成修订。', patchStatus),
   ];
 }
 
 const checkerFailureDetail = (executionStatus: unknown) =>
   executionStatus === 'incomplete'
-    ? '章节检查未完整执行：结果超过协议预算，不能据此判断稿件通过。'
+    ? '章节检查未完整执行：结果超过协议预算，不能据此判断正文通过。'
     : '章节检查执行失败：未取得有效、来源与证据可核实的完整结果。';
 
 export function isChapterResume(
@@ -432,7 +432,7 @@ async function draftFromBrief(
   if (finalCheck.status !== 'pass' && !unchecked) {
     const detail =
       executionStatus === 'completed'
-        ? `章节检查已完成：发现 ${finalCheck.manuscript_hard_failure_count} 个稿件硬失败。`
+        ? `章节检查已完成：发现 ${finalCheck.manuscript_hard_failure_count} 个正文硬失败。`
         : checkerFailureDetail(executionStatus);
     const candidate = {
       target_path: relative,
@@ -457,7 +457,7 @@ async function draftFromBrief(
         detail,
       ),
       agentResult: {
-        summary: `${detail} 候选稿已保留在运行证据中，未生成补丁。`,
+        summary: `${detail} 候选稿已保留在运行证据中，未生成修订。`,
         requires_user_confirmation: false,
         chapter_brief: confirmed,
         chapter_check: finalCheck,
@@ -489,9 +489,9 @@ async function draftFromBrief(
       : completedPlan(authorConfirmed, 'completed', 'completed'),
     agentResult: {
       summary: unchecked
-        ? '章节检查重查一次后仍未取得可用结果，这份稿子未经检查。' +
-          `已生成 ${relative} 的待审阅补丁，请通读后再决定是否接受。`
-        : `章节草稿已通过 brief 检查，生成 ${relative} 的待审阅补丁。` +
+        ? '章节检查重查一次后仍未取得可用结果，这章正文未经检查。' +
+          `已生成 ${relative} 的待审阅修订，请通读后再决定是否接受。`
+        : `章节草稿已通过 brief 检查，生成 ${relative} 的待审阅修订。` +
           programAdvisoryNote(finalCheck),
       requires_user_confirmation: requiresConfirmation,
       chapter_brief: confirmed,

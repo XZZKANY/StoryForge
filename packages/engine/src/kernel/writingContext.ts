@@ -229,7 +229,7 @@ export function writingContextFromGuardedBundle(
     identity(bundle.project_root, filePath, content, intent, platform) !==
       identity(projectRoot, filePath, content, intent, platform)
   )
-    throw new WritingContextConflictError('已守卫章节上下文的项目归属不匹配，请重新生成。');
+    throw new WritingContextConflictError('已守卫章节上下文的作品归属不匹配，请重新生成。');
   bundle.project_root = projectRoot;
   const receipt = target.contextReceipt ?? null;
   if (
@@ -319,7 +319,7 @@ export async function admitWritingRequest<T extends WritingRequest>(
       prepared.identity !== identity(projectRoot, payload.file_path, content, intent, platform)
     )
       throw new WritingContextConflictError(
-        '写作上下文与项目、文件、正文或操作不匹配，请重新准备。',
+        '写作上下文与作品、文件、正文或操作不匹配，请重新准备。',
       );
   } else {
     if ((payload.context_bundle ?? null) === null && projectRoot === null) return payload;
