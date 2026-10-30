@@ -17,6 +17,8 @@ import { derivePermissionLevel, deriveRequiresConfirmation, toolSpec } from './s
 type Args = { [key: string]: never };
 const secrets = { values: [golden.secret] };
 const plain = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
+/** 预言机录的是 Python 时期的目录；skill.read 是迁移后加的，单独核。 */
+const PYTHON_SPECS = AGENT_RUNTIME_TOOL_SPECS.filter((spec) => spec.name !== 'skill.read');
 
 const CALLS: Record<string, (a: Args) => unknown> = {
   fs_int_arg: (a) => ra.fsIntArg(a.payload, 'offset', 9),
@@ -43,7 +45,7 @@ describe('P3-3a 工具目录（Python 预言机）', () => {
   it('28 个工具声明逐字段一致（含派生的确认位与权限级）', () => {
     expect(
       plain(
-        AGENT_RUNTIME_TOOL_SPECS.map((spec) => ({
+        PYTHON_SPECS.map((spec) => ({
           ...spec,
           requires_confirmation: requiresConfirmation(spec),
           permission_level: derivePermissionLevel(spec.risk_level, spec.execution_mode),
@@ -53,11 +55,38 @@ describe('P3-3a 工具目录（Python 预言机）', () => {
   });
 
   it('模型看到的循环工具 schema 逐字节一致（含键序）', () => {
-    expect(dumpJson(buildLoopToolSchemas(), { ensureAscii: false })).toBe(golden.loop_schemas_wire);
+    expect(dumpJson(buildLoopToolSchemas(PYTHON_SPECS), { ensureAscii: false })).toBe(
+      golden.loop_schemas_wire,
+    );
+  });
+
+  it('迁移后只多了 skill.read：只读、幂等、可重试，排在上下文与文件工具之后', () => {
+    const names = AGENT_RUNTIME_TOOL_SPECS.map((spec) => spec.name);
+    expect(names.filter((name) => !PYTHON_SPECS.some((spec) => spec.name === name))).toEqual([
+      'skill.read',
+    ]);
+    expect(names.indexOf('skill.read')).toBe(names.indexOf('knowledge.propose') + 1);
+    const spec = AGENT_RUNTIME_TOOL_SPECS.find((item) => item.name === 'skill.read')!;
+    expect(spec).toMatchObject({
+      risk_level: 'read',
+      idempotent: true,
+      retry_safe: true,
+      execution_mode: 'sync',
+      loop_input_mode: 'project',
+      loop_trusted_context: false,
+      loop_trace_owner: 'generic',
+    });
+    expect(requiresConfirmation(spec)).toBe(false);
+    expect(spec.loop_schema!.parameters).toEqual({
+      type: 'object',
+      properties: { name: { type: 'string', description: '技能名字，照技能目录里写的。' } },
+      required: ['name'],
+    });
+    expect(buildLoopToolNameMap().get('skill_read')).toBe('skill.read');
   });
 
   it('名映射、补丁工具、确认集合、受保护参数与两组循环策略一致', () => {
-    expect(Object.fromEntries(buildLoopToolNameMap())).toEqual(golden.loop_name_map);
+    expect(Object.fromEntries(buildLoopToolNameMap(PYTHON_SPECS))).toEqual(golden.loop_name_map);
     expect(loopPatchToolSpecs().map((spec) => spec.name)).toEqual(golden.loop_patch_tools);
     expect([...confirmingToolNames()].sort()).toEqual(golden.confirming_tool_names);
     expect([...ra.PROTECTED_LOOP_TOOL_ARGUMENT_KEYS].sort()).toEqual(golden.protected_keys);

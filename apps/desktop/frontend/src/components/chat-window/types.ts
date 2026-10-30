@@ -67,7 +67,12 @@ export type AgentStep = {
   sources?: string[];
   /** fs.search 的检索词 / fs.list 的子目录（根目录为空串）。 */
   lookup?: string;
+  /** skill.read 读过的技能；plugin 为插件 id，作品技能为 null。 */
+  skill?: SkillReadRef;
 };
+
+/** 一次 skill.read 读到的技能：作品技能的 path 是项目相对路径，插件技能是插件内路径。 */
+export type SkillReadRef = { name: string; plugin: string | null; path: string | null };
 
 // paused/stopped 是作者主动控制态：暂停留有恢复入口、停止是中性收尾（非失败）。
 // 与 running/waiting/completed/failed 一起构成运行状态机的全集。

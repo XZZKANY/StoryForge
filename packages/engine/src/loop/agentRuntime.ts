@@ -155,6 +155,8 @@ export type AgentRuntimeDeps = {
   readonly compactAtHistoryBytes?: number;
   /** 回放 Python 时期的样本：照当时的时序在收尾压缩。缺省在下一轮开头压。 */
   readonly compactAtTurnEnd?: boolean;
+  /** 本机插件库根目录；缺省或 null 是没有插件（作品启用的插件技能都不可用）。 */
+  readonly pluginLibraryRoot?: string | null;
 };
 
 /** 结果骨架（runtime_support.base_response）。 */
@@ -557,6 +559,7 @@ export class AgentRuntime {
           newStreamId: this.deps.ids.stream,
           now: this.deps.now,
           observation: this.observation,
+          pluginLibraryRoot: this.deps.pluginLibraryRoot ?? null,
         },
         {
           run,

@@ -266,7 +266,15 @@ const skill = (name: string, when: string): ConversationSkillItem => ({
   path: `技能/${name}.md`,
   name,
   when,
+  plugin: null,
   filePath: `${ROOT}\\技能\\${name}.md`,
+});
+const pluginSkill = (name: string, when: string, plugin: string): ConversationSkillItem => ({
+  path: `技能/${name}.md`,
+  name,
+  when,
+  plugin,
+  filePath: null,
 });
 const menuItems = () => [
   ...document.querySelectorAll<HTMLElement>('[data-testid="context-skill-template"]'),
@@ -312,6 +320,55 @@ test('技能：作者在消息开头 /技能名 点名的，标「这一轮点�
     '审稿口径作者让你审稿时这一轮用了',
   ]);
   expect($$('context-skill-invoked')).toHaveLength(1);
+});
+
+test('技能：插件技能带插件小标、不可点；skill.read 读过的作品 / 插件技能都标「这一轮用了」', async () => {
+  loadSkills.mockResolvedValue([
+    skill('立项流程', '作者问「下一步干什么」时'),
+    skill('审稿口径', '作者让你审稿时'),
+    pluginSkill('对白打磨', '改对白时', '网文工具箱'),
+    pluginSkill('节奏检查', '查节奏时', '网文工具箱'),
+  ]);
+  await renderPanel(
+    run([
+      trace({
+        tool_name: 'skill.read',
+        input_summary: { name: '对白打磨' },
+        output_summary: {
+          skill_name: '对白打磨',
+          plugin: '网文工具箱',
+          path: '技能/对白.md',
+          returned_chars: 120,
+          truncated: false,
+        },
+      }),
+      // 作品技能：output 缺名字时按调用时点的名字认。
+      trace({
+        tool_name: 'skill.read',
+        input_summary: { name: '立项流程' },
+        output_summary: { plugin: null, path: '技能/立项流程.md', returned_chars: 80 },
+      }),
+    ]),
+  );
+  const items = $$('context-skill');
+  expect(items.map((node) => node.textContent)).toEqual([
+    '立项流程作者问「下一步干什么」时这一轮用了',
+    '审稿口径作者让你审稿时',
+    '对白打磨改对白时插件 网文工具箱这一轮用了',
+    '节奏检查查节奏时插件 网文工具箱',
+  ]);
+  expect($$('context-skill-plugin')).toHaveLength(2);
+  expect(items[2].tagName).toBe('DIV');
+  expect(items[2].title).toBe('插件「网文工具箱」：技能/对白打磨.md');
+  await click(items[2]);
+  expect(opened).toEqual([]);
+  expect(items[0].tagName).toBe('BUTTON');
+
+  // 「这一轮读了」：作品技能可点，插件技能只列不点。
+  expect($$('context-read-file').map((node) => node.textContent)).toEqual(['技能/立项流程.md']);
+  expect($$('context-read-file-outside').map((node) => node.textContent)).toEqual([
+    '插件「网文工具箱」/技能/对白.md',
+  ]);
 });
 
 test('技能：没有时一行说明，「新建」给三个模板，建到 技能/<名字>.md 并打开', async () => {

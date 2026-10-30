@@ -49,6 +49,8 @@ export type RuntimeContextFields = {
   readonly shouldInterrupt: InterruptionCallback | null;
   readonly recoveryMessage: Obj;
   readonly newStreamId: () => string;
+  /** 这一轮的可用技能里有插件技能：只有这时才把 skill_read 交给模型。 */
+  readonly pluginSkills?: boolean;
 };
 
 /** StoryForge 适配器在一次 SDK 运行里共享的可变状态。 */
@@ -66,6 +68,7 @@ export class StoryForgeRuntimeContext {
   readonly shouldInterrupt: InterruptionCallback | null;
   readonly recoveryMessage: Obj;
   readonly newStreamId: () => string;
+  readonly pluginSkills: boolean;
 
   modelOutcomeUnknown = false;
   providerAttempts = 0;
@@ -98,6 +101,7 @@ export class StoryForgeRuntimeContext {
     this.shouldInterrupt = fields.shouldInterrupt;
     this.recoveryMessage = fields.recoveryMessage;
     this.newStreamId = fields.newStreamId;
+    this.pluginSkills = fields.pluginSkills ?? false;
   }
 
   /** 一次对话最多一个待确认补丁。 */

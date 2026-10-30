@@ -7,10 +7,12 @@ import { PATCH_TOOL_SPECS } from './specs/patch';
 import { PROJECT_CANON_TOOL_SPECS } from './specs/projectCanon';
 import { PROJECT_CONSISTENCY_TOOL_SPECS } from './specs/projectConsistency';
 import { QUALITY_AND_PLAN_TOOL_SPECS } from './specs/projectQuality';
+import { SKILL_TOOL_SPECS } from './specs/skill';
 
-/** 全部 agent 工具；顺序即注册顺序、模型看到的工具顺序（与 Python catalog 同）。 */
+/** 全部 agent 工具；顺序即注册顺序、模型看到的工具顺序（除 skill.read 外与 Python catalog 同）。 */
 export const AGENT_RUNTIME_TOOL_SPECS: readonly AgentRuntimeToolSpec[] = [
   ...CONTEXT_FS_TOOL_SPECS,
+  ...SKILL_TOOL_SPECS,
   ...PROJECT_CONSISTENCY_TOOL_SPECS,
   ...PROJECT_CANON_TOOL_SPECS,
   ...QUALITY_AND_PLAN_TOOL_SPECS,
