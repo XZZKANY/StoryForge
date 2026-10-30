@@ -1,0 +1,43 @@
+## 2026-10-30 `/写` 批量写章 A 刀：引擎的批量计划、用量记账与预估
+
+- 背景：方案见 `docs/internal/write-batch-plan-2026-10.md`（作者 10-30 已审 10 问；第 9 问选 B，上限只在两章之间判断，不做写章中途熔断）。分刀 A–G，本刀是 A：只动引擎与 `lib/api`，界面组件一个不改，`serial-plan.json` 只读不写，不调模型。
+- 引擎（新文件 `packages/engine/src/loop/writeBatch.ts`，从包入口导出）：
+  - `runUsage(store, runId)`：按运行 public id 汇总这次运行的 `model_request_evidence`，回 `{ run_id, tokens, calls, estimated_calls, unknown_calls }`；运行不存在报 `AgentRunNotFoundError`。
+    - 核过 `llm/usage.ts`：标 `estimated_split` 的有两种——服务商什么都没报（总数按「4 字 1 token」估）和服务商只报了总数（总数是真的，只是拆分靠估）。前一种缓存命中必为 null、两段各至少 1、总数恰为两段之和；不满足其中任何一条的按真总数算，不换算。两种都满足的分不开，按估算处理（宁可估高）。
+    - 估算的那几次乘 `CHAR_ESTIMATE_SCALE`（= `ESTIMATED_TOKENS_PER_CHAR` 1.5 × 4 = 6）。`usage.ts` 的输出没动。
+    - 没拿到用量的请求（`unavailable`、或没结算的 `prepared`）计次数、不计 token，单列 `unknown_calls`，不当成 0 冒充。
+  - `writeChapterHistory(deps, projectRoot)`：本作品最近 10 次走到检查结论的写章运行，给样本数、run id、平均 / 最少 / 最多、合计调用 / 估算 / 没拿到用量的次数。
+    - 「写章、走到检查结论」= 运行里有 `chapter_check` 产物（只有写章流程会记，且只在检查给出结论后才记）。
+    - 「本作品」= 运行的 `assistant_session_id` 对应会话的 `project_path` 与作品根是同一目录（`sameProjectRoot`）；会话已删、没有会话的运行不算。
+    - 「最近」按运行最后一条 `chapter_check` 产物的 id（全局自增）排；一条请求证据都没有的运行不算样本。
+  - `planWriteBatch(deps, { project_root, from, to, permission_profile })`：范围内每章的章序、目标文件、计划里的标题与本章目标、状态（`write` / `skip_written` / `after_trial`）；不能开跑的原因（稳定 code + 中文说明 + 涉及章序）；预估。
+    - 正文是真值源：章序 = 正文按路径排序后的第几个（`chapterOrdinals`）；计划里有这一章就用 `buildPlan` 的 `written`，没有就看这个章序上有没有正文；不看计划 status。
+    - 目标文件复用写章流程的规则：从 `chapterWritingContracts.ts` 的 `resolveTarget` 里抽出 `plannedChapterPath`（计划记过路径用它，否则 `正文/第NNN章.md`），`resolveTarget` 改调它，行为不变。
+    - blocker：`read_only`（整批拒绝）、`invalid_range`、`gap_before_start`（起点前有没写的章）、`chapter_blocked`（要写的章在计划里标着卡住）、`missing_goal`（列出章号，提示可让 AI 起草目标、作者确认；没有计划时换说法）、`target_unavailable`（目标文件已存在或不能新建，与写章流程同一个 `resolveNewProjectFile` 判断）、`setup_incomplete`（复用 `missingSetupBeforeFirstChapter`，`projectSetup.ts` 只把缺项说法导出为 `setupLabels`）、`nothing_to_write`。不设单批章数上限。
+    - 有历史：预估 = 要写章数 × 平均，上限 = ceil(预估 × 1.5)，附样本数、最少 / 最多、估算与没拿到用量的调用数。没有历史：试写模式，只排要写的第一章，其余标 `after_trial`，不给预估与上限，`note` 写明。
+    - 计划文件写坏（`InputDomainError`）、作品根打不开（`FsToolError`）、未知档位（`PermissionProfileError`）直接报错，不造空计划兜底。
+- `lib/api`：新 `src/lib/api/write-batch.ts`（`planWriteBatch`、`loadRunUsage`，对引擎动态 import），回包逐字段白名单解码（多余字段丢掉，形状不对抛 `WriteBatchShapeError`，`basis` 与 `estimate` 对不上也报错）；新 `src/lib/engine/writeBatch.ts` 装配宿主读口、引擎库与会话库，返回类型直接标成契约类型，引擎类型与契约漂移时前端类型检查会红。`contracts.ts` 新增 `ApiRunUsage`、`ApiWriteBatchPlan` / `Chapter` / `Blocker` / `Estimate`。界面组件未改。
+- 验证：
+  - 引擎新测试 `loop/writeBatch.test.ts` 21 条：单次运行用量（含用 `usage.ts` 真实估法造的 ×6 用例、只报总数的两种不换算、没拿到用量、运行不存在）、历史（只取本作品、只取有检查结论的、最近 10 次按检查先后、没证据的跳过、估算调用计数）、计划（正文在就跳过而不看计划 status、起点前有空缺、缺目标列章号、没有计划、只读档、立项不齐与补齐、四种非法范围、全写过了、卡住的章、目标文件被占、有历史的平均 / 最少 / 最多 / 上限、没历史进试写、40 章不设上限）。
+  - 引擎全量 `npx vitest run`（packages/engine）：109 个文件，14131 passed + 2 skipped；`tsc --noEmit` EXIT=0。
+  - 前端新测试 `tests/write-batch-api.test.ts` 10 条（真引擎库 node:sqlite + 合成作品经 `lib/api` 出计划与用量、只读档与试写、运行不存在报错；解码白名单与五种坏形状）；与 `tests/source-standards.test.ts`、`tests/ui-terminology.test.ts` 一起跑 14 passed；`npm --prefix apps/desktop/frontend run typecheck` EXIT=0。
+  - `pnpm verify` EXIT=0：lint、前端类型检查、project-core 34 passed、引擎 109 个文件 14131 passed + 2 skipped（含 golden）、前端 255 个文件 2585 passed、行间续写 / 浏览器冒烟 / Agent 对话三个浏览器回归通过。
+- 变异（每处定点替换后跑 `writeBatch.test.ts`，跑完无条件还原并核对字节一致）：
+  - M1「已写」改看计划 status → 6 条红（含「正文在就跳过」）。
+  - M2 平均改取最小 → 1 条红（有历史的预估）。
+  - M3 去掉 ×6 → 2 条红（单次用量、历史估算）。
+  - M4 去掉缺目标检查 → 2 条红。
+  - M5 历史不按作品过滤 → 3 条红。
+  - M6 历史不限最近 10 次 → 1 条红。
+  - M7 上限 `Math.ceil` 换 `Math.round`：0 条红——预估是整数，×1.5 的小数部分只有 0 或 .5，两者恒等，是等价变异；换成 `Math.floor` → 1 条红。
+  - 前端解码去掉 basis / estimate 一致性检查 → 2 条红。
+- golden 零改动：`git status --short packages/engine/golden` 为空。
+- 行尾：改动与新建文件全 LF、无 BOM；`git diff --numstat` 与 `--ignore-all-space --numstat` 一致。
+- 未覆盖 / 取舍：
+  - 没跑真宿主探针与 Tauri 冒烟（磁盘紧、本刀不改宿主接口；`lib/engine` 的读口与库端口沿用现有装配）。
+  - 只报总数、又不带缓存字段的服务商，用量会被当成按字数估而 ×6（估高）；证据里分不开这两种。
+  - 历史按「运行」计样本：同一运行里续跑写了两遍章（重试）会算成一章的量（估高）；拆分开跑的旧版章纲（PR #531 前确认章纲另起一次运行）若真存在，会少算章纲那一次。会话被删的运行认不出作品，不算样本。
+  - 空占位的章节文件按现有真值源规则算「已有正文」，批量会跳过它。
+  - `missing_goal` 等检查覆盖范围里所有要写的章（试写模式下也是），让作者一次补齐，而不是试写完再停。
+  - 范围没有上限，极大的终点会让章列表很长；D 刀解析 `/写` 时可以限位数。
+  - 「跳过立项」只在单章写章的作者原话里认，批量计划不提供绕过。

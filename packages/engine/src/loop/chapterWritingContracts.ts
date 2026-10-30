@@ -129,6 +129,10 @@ async function relativePath(
   return lexicalPosix(text, platform);
 }
 
+/** 计划里一章的目标文件：记过落盘路径就用它，没记过按章序取 `正文/第NNN章.md`。批量写章列目标也用这一条。 */
+export const plannedChapterPath = (chapter: Pick<PlannedChapter, 'ordinal' | 'declaredPath'>) =>
+  chapter.declaredPath || `正文/第${String(chapter.ordinal).padStart(3, '0')}章.md`;
+
 export type ResolvedTarget = {
   readonly relative: string;
   /** 新文件的项目相对路径（调用方按平台拼成绝对路径）。 */
@@ -148,8 +152,7 @@ export async function resolveTarget(
   const plan = await buildPlan(reader, root, platform);
   let planned = plan !== null ? nextChapter(plan) : null;
   let relative = requestedRelative;
-  if (relative === null && planned !== null)
-    relative = planned.declaredPath || `正文/第${String(planned.ordinal).padStart(3, '0')}章.md`;
+  if (relative === null && planned !== null) relative = plannedChapterPath(planned);
   if (relative === null)
     throw new AgentOrchestrationError(
       '写一章需要目标文件：请先打开空章节文件，或在连载计划中声明下一章。',
