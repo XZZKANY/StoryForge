@@ -28,7 +28,7 @@ import {
   nextChapterWriteRequest,
 } from './lib/assistant-events';
 import { emitToast } from './lib/toast';
-import { checkForUpdate, currentAppVersion } from './lib/update-check';
+import { useStartupUpdateCheck } from './lib/app-update';
 import { isEditableTarget } from './lib/browser-guards';
 import { useAcknowledgeHostClosing, useHostCloseNotice } from './lib/host-close';
 export function App() {
@@ -106,22 +106,7 @@ export function App() {
     if (issue && key && key !== restoreIssueKeyRef.current) emitToast(issue.message);
     restoreIssueKeyRef.current = key;
   }, [session.restoreIssue]);
-  useEffect(() => {
-    if (!import.meta.env.PROD) return;
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        const version = await currentAppVersion();
-        if (!version) return;
-        const result = await checkForUpdate(version);
-        if (result.kind === 'update-available') {
-          emitToast(`检查到新版本 ${result.latest}（当前 ${result.current}）`, {
-            durationMs: 10000,
-          });
-        }
-      })();
-    }, 8000);
-    return () => window.clearTimeout(timer);
-  }, []);
+  useStartupUpdateCheck();
   useEffect(() => {
     const timers = new WeakMap<Element, number>();
     const onScroll = (event: Event) => {
