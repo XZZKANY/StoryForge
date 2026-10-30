@@ -344,6 +344,7 @@ export class AgentRuntime {
         reader: this.deps.reader,
         store: this.deps.assistant,
         platform: this.deps.platform,
+        pluginLibraryRoot: this.deps.pluginLibraryRoot ?? null,
         llm: async () => {
           const { secrets: _secrets, ...context } = this.llmContext();
           return engineAssistantLlm(this.deps.source, this.deps.secrets, context);
@@ -906,6 +907,7 @@ export class AgentRuntime {
       reader: this.deps.reader,
       platform: this.deps.platform,
       secrets: this.deps.secrets,
+      pluginLibraryRoot: this.deps.pluginLibraryRoot ?? null,
       newHex: () => this.deps.ids.hex(),
       executeTool: (run, toolName, context, payload) =>
         this.executeTool(run, toolName, context, payload),

@@ -117,6 +117,7 @@ export function polishToolHandlers(deps: ToolDeps): Record<string, ToolHandler> 
       continuity_facts: continuityFacts.length,
       required_facts: requiredFacts.length,
     };
+    // 只用来推导编辑策略：刻意不带插件的要求，策略只来自作者本人的文件。
     const preparedVoice = await buildGenerationSystemPrompt(reader, '', root, { platform });
     let editPolicy;
     try {

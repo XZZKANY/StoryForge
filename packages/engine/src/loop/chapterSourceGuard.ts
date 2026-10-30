@@ -9,11 +9,12 @@ import {
 } from '../kernel/fsTools';
 import { GenerationSourceCapture, MAX_MANIFEST_BYTES } from '../kernel/generationSources';
 import { compareCodePoints, dumpJson, InputDomainError } from '../kernel/json';
+import { pluginSourceKey, resolveEnabledPluginInstructions } from '../kernel/plugins';
+import { loadAvailableWritingSkills } from '../kernel/pluginWritingSkills';
 import { PREVIOUS_FULL_MAX_CHARS, previousChapterTail } from '../kernel/previousChapter';
 import { ProjectTreeError } from '../kernel/projectTree';
 import { redactSensitiveText, type SecretContext } from '../kernel/redaction';
 import { collectSettingSources } from '../kernel/settingSources';
-import { loadWritingSkills } from '../kernel/writingSkills';
 import { sha256Hex } from '../kernel/sha256';
 import {
   writingContextFromGuardedBundle,
@@ -42,6 +43,8 @@ export type GuardDeps = {
   readonly reader: ProjectReader;
   readonly platform: 'windows' | 'posix';
   readonly secrets: SecretContext;
+  /** 本机插件库根目录；缺省或 null 是没有插件。章纲与起草两头要给同一个。 */
+  readonly pluginLibraryRoot?: string | null;
 };
 
 const identityOf = (deps: GuardDeps, root: string, target: string) =>
@@ -52,7 +55,10 @@ const identityOf = (deps: GuardDeps, root: string, target: string) =>
     writingContextFile: target,
   });
 
-/** 来源文件字节 + 上一章结尾 + 测得的声音 + 场景约束：草稿 / 修复用的是同一批公共读取者。 */
+/**
+ * 来源文件字节 + 上一章结尾 + 测得的声音 + 场景约束：草稿 / 修复用的是同一批公共读取者。
+ * 作品启用的插件的写法与指令片段记在 `plugin:<插件id>/<插件内路径>` 键下，连同插件文件夹路径；没有插件时签名不变。
+ */
 async function sourceSignature(
   deps: GuardDeps,
   root: string,
@@ -60,6 +66,7 @@ async function sourceSignature(
   paths: readonly string[],
 ): Promise<string> {
   const { reader, platform } = deps;
+  const libraryRoot = deps.pluginLibraryRoot ?? null;
   try {
     await resolveProjectRoot(reader, root);
     const files: [string, string | null][] = [];
@@ -87,13 +94,35 @@ async function sourceSignature(
         platform,
         maxChars: PREVIOUS_FULL_MAX_CHARS,
       }),
-      system: await buildGenerationSystemPrompt(reader, '', root, { platform }),
+      system: await buildGenerationSystemPrompt(reader, '', root, {
+        platform,
+        plugins: { libraryRoot, secrets: deps.secrets },
+      }),
       scene: await buildSceneConstraintBlock(reader, root, absolute, { platform }),
     };
     const settings = await collectSettingSources(reader, root, { secrets: deps.secrets });
     if (settings !== null) values.settings = settings.block;
-    const skills = await loadWritingSkills(reader, root, deps.secrets);
-    if (skills.length) values.skills = skills.map((skill) => [skill.path, skill.sha256]);
+    const skills = await loadAvailableWritingSkills(reader, root, libraryRoot, deps.secrets);
+    if (skills.length)
+      values.skills = skills.map((skill) =>
+        skill.plugin === null
+          ? [skill.path, skill.sha256]
+          : [pluginSourceKey(skill.plugin.id, skill.path), skill.sha256, skill.plugin.root],
+      );
+    const pluginInstructions = await resolveEnabledPluginInstructions(
+      reader,
+      root,
+      libraryRoot,
+      deps.secrets,
+    );
+    if (pluginInstructions.length)
+      values.plugin_instructions = pluginInstructions.map(
+        ({ id, root: pluginRoot, instructions }) => [
+          pluginSourceKey(id, instructions.path),
+          instructions.sha256,
+          pluginRoot,
+        ],
+      );
     // 起草会带上台账里的已写事实；还没开始记账的书签名不变。
     if ((await reader.inspectProjectPath(root, FACTS_LEDGER)).targetKind !== 'missing') {
       const read = await reader.readProjectBytes(root, FACTS_LEDGER, MAX_SOURCE_BYTES);

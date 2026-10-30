@@ -8,7 +8,7 @@ import { sha256Hex } from './sha256';
 
 /** 写法 skill 放在这个目录：一个写法一份 Markdown，开头写清名字和什么时候用。 */
 export const WRITING_SKILL_DIR = '写法';
-/** 章纲里列出的 skill 上限；再多就只列前面这些（按路径序）。 */
+/** 章纲里列出的 skill 上限（作品写法与启用插件的写法合计）；再多就只列前面这些（按路径序）。 */
 export const WRITING_SKILL_INDEX_MAX = 20;
 /** 一章最多带几份 skill 进起草：多了提示词太长、规矩互相打架。 */
 export const WRITING_SKILL_PICK_MAX = 3;
@@ -103,9 +103,17 @@ export async function loadWritingSkills(
   }
 }
 
-/** 章纲提示词里的 skill 目录：只给名字和什么时候用。 */
-export function writingSkillIndex(skills: readonly WritingSkill[]): string {
-  return skills.map((skill) => `- ${skill.name}：${skill.when}`).join('\n');
+/** 插件带的写法标出插件名；作品自己的写法不带 plugin 或为 null。 */
+type MaybePluginSkill = { readonly plugin?: { readonly id: string } | null };
+const pluginLabel = (skill: MaybePluginSkill) =>
+  skill.plugin ? `（插件「${skill.plugin.id}」）` : '';
+
+/**
+ * 章纲提示词里的 skill 目录：只给名字和什么时候用。插件写法的插件名标在行尾，
+ * 不贴着名字，免得模型把它当成名字的一部分照抄。
+ */
+export function writingSkillIndex(skills: readonly (WritingSkill & MaybePluginSkill)[]): string {
+  return skills.map((skill) => `- ${skill.name}：${skill.when}${pluginLabel(skill)}`).join('\n');
 }
 
 /** 模型挑的名字：只认目录里有的，去重，最多 {@link WRITING_SKILL_PICK_MAX} 个。 */
@@ -125,17 +133,20 @@ export function pickWritingSkills(raw: unknown, skills: readonly WritingSkill[])
 
 /** 起草指令后面附的写法要点：只带章纲挑中的几份。 */
 export function writingSkillsBlock(
-  skills: readonly WritingSkill[],
+  skills: readonly (WritingSkill & MaybePluginSkill)[],
   names: readonly string[],
 ): string | null {
   const chosen = names
     .map((name) => skills.find((skill) => skill.name === name))
-    .filter((skill): skill is WritingSkill => skill !== undefined);
+    .filter((skill): skill is WritingSkill & MaybePluginSkill => skill !== undefined);
   if (!chosen.length) return null;
   return (
     '写法要点（作者审过的写法 skill，这一章照着写；例句只示意，不要照抄）：\n' +
     chosen
-      .map((skill) => `### ${skill.name}\n${cut(skill.body, WRITING_SKILL_MAX_CHARS)}`)
+      .map(
+        (skill) =>
+          `### ${skill.name}${pluginLabel(skill)}\n${cut(skill.body, WRITING_SKILL_MAX_CHARS)}`,
+      )
       .join('\n\n')
   );
 }

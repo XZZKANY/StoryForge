@@ -92,7 +92,12 @@ export async function startChapterBrief(
 ): Promise<Obj> {
   const { args, userMessage } = request;
   let { run } = request;
-  const deps = { reader: host.reader, platform: host.platform, secrets: host.secrets };
+  const deps = {
+    reader: host.reader,
+    platform: host.platform,
+    secrets: host.secrets,
+    pluginLibraryRoot: host.pluginLibraryRoot ?? null,
+  };
   const root = requiredProjectRoot(args);
   const { relative, target, planned } = await resolveTarget(
     host.reader,
@@ -281,7 +286,12 @@ export async function resumeChapterWriting(
   pending: PendingRow,
 ): Promise<Obj> {
   const { run, args, userMessage } = request;
-  const deps = { reader: host.reader, platform: host.platform, secrets: host.secrets };
+  const deps = {
+    reader: host.reader,
+    platform: host.platform,
+    secrets: host.secrets,
+    pluginLibraryRoot: host.pluginLibraryRoot ?? null,
+  };
   const payload = isObj(pending.payload) ? pending.payload : {};
   const original = isObj(payload.chapter_brief) ? payload.chapter_brief : {};
   const confirmed = confirmBrief(args.chapter_brief, original);

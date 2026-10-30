@@ -10,6 +10,7 @@ import {
   loadAvailableSkills,
 } from '../kernel/conversationSkills';
 import { dumpJson } from '../kernel/json';
+import { loadPluginInstructions, PLUGIN_CONVERSATION_PREFIX } from '../kernel/pluginInstructions';
 import { buildPlanBlock } from '../kernel/serialPlan';
 import { missingSetupBeforeFirstChapter, setupGapSection } from '../kernel/projectSetup';
 import type { SecretContext } from '../kernel/redaction';
@@ -22,8 +23,9 @@ import { AUTHOR_INSTRUCTIONS_PREFIX, SYSTEM_PROMPT } from './promptContext';
 export type LoopMessage = { role: string; content: string };
 
 /**
- * chat 循环的初始消息：system prompt、作者指令、技能目录（有技能才有）、全书底座、连载计划、场景约束、会话历史、
- * @钉上下文、作者视图、点名技能全文（作者用 /技能名 点名才有）、本轮作者消息；同时记下每一段的来源指纹（provenance）。
+ * chat 循环的初始消息：system prompt、插件的要求（作品启用的插件带指令片段才有）、作者指令、技能目录（有技能才有）、
+ * 全书底座、连载计划、场景约束、会话历史、@钉上下文、作者视图、点名技能全文（作者用 /技能名 点名才有）、本轮作者消息；
+ * 同时记下每一段的来源指纹（provenance）。
  */
 export async function storyforgeMessages(
   deps: {
@@ -60,6 +62,13 @@ export async function storyforgeMessages(
       : `${rendered ?? '[作品底座 · 确定性]'}\n\n${setupGapSection(missing)}`;
   const planBlock = await buildPlanBlock(reader, root, platform);
   const sceneBlock = await buildSceneConstraintBlock(reader, root, currentFile, { platform });
+  const plugins = await loadPluginInstructions(
+    reader,
+    root,
+    deps.pluginLibraryRoot ?? null,
+    deps.secrets,
+  );
+  const pluginBlock = plugins === null ? null : PLUGIN_CONVERSATION_PREFIX + plugins.body;
   const instructions = await readAuthorInstructions(reader, root);
   const skills = await loadAvailableSkills(
     reader,
@@ -76,6 +85,10 @@ export async function storyforgeMessages(
     content ? [{ role: 'system', content }] : [];
   const parts: [string, LoopMessage[]][] = [
     ['system_prompt', system(SYSTEM_PROMPT)],
+    // 同技能目录：没有插件指令时连段名都不记。
+    ...(pluginBlock
+      ? [['plugin_instructions', system(pluginBlock)] as [string, LoopMessage[]]]
+      : []),
     [
       'author_instructions',
       system(instructions ? AUTHOR_INSTRUCTIONS_PREFIX + instructions : null),

@@ -7,12 +7,9 @@ import {
 } from '../../assistant/service';
 import { dumpJson } from '../../kernel/json';
 import { llmContextSnapshotTraceSummary } from '../../kernel/llmContext';
+import { loadAvailableWritingSkills } from '../../kernel/pluginWritingSkills';
 import { fullwidthCjkPunctuation } from '../../kernel/punctuation';
-import {
-  loadWritingSkills,
-  writingSkillIndex,
-  writingSkillsBlock,
-} from '../../kernel/writingSkills';
+import { writingSkillIndex, writingSkillsBlock } from '../../kernel/writingSkills';
 import { buildCheck, checkPrompt } from '../chapterCheckProtocol';
 import { prepareChapterWritingContext } from '../chapterSourceGuard';
 import {
@@ -32,7 +29,15 @@ const cpLen = (text: string) => Array.from(text).length;
 
 /** chapter.brief / draft / check / repair：写章管线的四步，各自落证据（adapters/chapter_writing_tools）。 */
 export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
-  const guardDeps = { reader: deps.reader, platform: deps.platform, secrets: deps.secrets };
+  const guardDeps = {
+    reader: deps.reader,
+    platform: deps.platform,
+    secrets: deps.secrets,
+    pluginLibraryRoot: deps.pluginLibraryRoot ?? null,
+  };
+  // 作品写法在前，再接作品启用的插件写法（共用上限，重名作品优先）。
+  const availableWritingSkills = (root: string) =>
+    loadAvailableWritingSkills(deps.reader, root, deps.pluginLibraryRoot ?? null, deps.secrets);
 
   const brief: ToolHandler = async (context, payload) => {
     const seed = payload.seed as Obj;
@@ -40,11 +45,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
     const provenance = llmContextSnapshotTraceSummary(
       payload.llm_context_snapshot as Parameters<typeof llmContextSnapshotTraceSummary>[0],
     );
-    const skills = await loadWritingSkills(
-      deps.reader,
-      payload.project_root as string,
-      deps.secrets,
-    );
+    const skills = await availableWritingSkills(payload.project_root as string);
     let parsed: Obj;
     try {
       const chat = await chatReply(context.services.assistant, {
@@ -107,10 +108,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
       ? confirmed.writing_skills.map(String)
       : [];
     const skillsBlock = picked.length
-      ? writingSkillsBlock(
-          await loadWritingSkills(deps.reader, payload.project_root as string, deps.secrets),
-          picked,
-        )
+      ? writingSkillsBlock(await availableWritingSkills(payload.project_root as string), picked)
       : null;
     const response = await draftFileContent(
       context.services.assistant,

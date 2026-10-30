@@ -14,6 +14,7 @@ import {
   type JsonObject,
   type JsonValue,
 } from '../kernel/json';
+import { pluginSourceKey, resolveEnabledPluginInstructions } from '../kernel/plugins';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import type { SecretContext } from '../kernel/redaction';
 import { sha256Hex } from '../kernel/sha256';
@@ -171,7 +172,8 @@ async function pluginFingerprint(
 
 /**
  * 本轮读过的文件：当前文件、作者指令、带摘录的上下文文件、点名的技能、会读文件的工具调用。
- * 插件技能（点名或 skill_read 读过）记在 `plugin:<插件id>/<插件内路径>` 键下，作品技能仍记项目相对路径。
+ * 插件技能（点名或 skill_read 读过）记在 `plugin:<插件id>/<插件内路径>` 键下，作品技能仍记项目相对路径；
+ * 作品启用的插件的指令片段（`指令.md`）也记在同样的键下。
  */
 export async function sourceVersions(
   deps: SourceDeps,
@@ -234,6 +236,17 @@ export async function sourceVersions(
       deps.reader,
       plugin.root,
       path,
+    );
+  for (const { id, root: pluginRoot, instructions } of await resolveEnabledPluginInstructions(
+    deps.reader,
+    root,
+    deps.pluginLibraryRoot ?? null,
+    deps.secrets ?? { values: [] },
+  ))
+    files[pluginSourceKey(id, instructions.path)] ??= await pluginFingerprint(
+      deps.reader,
+      pluginRoot,
+      instructions.path,
     );
   return { project_root: root, files };
 }

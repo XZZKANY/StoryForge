@@ -2,7 +2,13 @@ import { ProjectReadError, type ProjectReader } from '../readPort';
 import { buildAuthorEditPolicy, type AuthorEditPolicy } from './authorEditPolicy';
 import { AUTHOR_INSTRUCTIONS_PATH } from './fsTools';
 import type { GenerationSourceCapture } from './generationSources';
+import {
+  capturePluginInstructions,
+  loadPluginInstructions,
+  PLUGIN_GENERATION_PREFIX,
+} from './pluginInstructions';
 import { pythonStrip } from './pythonText';
+import type { SecretContext } from './redaction';
 import { appendStyleBaselineToSystemPrompt } from './styleBaseline';
 
 export const MAX_INSTRUCTION_CHARS = 4_000;
@@ -127,18 +133,67 @@ export async function appendAuthorInstructionsToSystemPrompt(
     : systemPrompt + '\n\n' + GENERATION_PREFIX + instructions;
 }
 
+/** 产字路径要带的插件：本机插件库根目录（null 是没有插件）与脱敏用的密钥。 */
+export type GenerationPlugins = {
+  readonly libraryRoot: string | null;
+  readonly secrets: SecretContext;
+};
+
+export type GenerationVoiceOptions = {
+  platform: 'windows' | 'posix';
+  capture?: GenerationSourceCapture;
+  /** 不给就是没有插件。 */
+  plugins?: GenerationPlugins;
+};
+
+export type GenerationVoice = {
+  /** 交给模型的 system prompt。 */
+  readonly systemPrompt: string;
+  /** 同一份 prompt 去掉插件的要求：编辑策略只从这里推导，插件文本不参与。 */
+  readonly authorPrompt: string;
+};
+
 /**
  * 产字路径 system prompt 的唯一组装点。越靠后越强：通用创作准则（base 自带）→ 量自正文的
- * 文风基线 → 作者声明的指令。声明高于测量。
+ * 文风基线 → 作品启用的插件的要求 → 作者声明的指令。声明高于测量，作者高于插件。
  */
+export async function buildGenerationVoice(
+  reader: ProjectReader,
+  basePrompt: string,
+  root: string | null,
+  options: GenerationVoiceOptions,
+): Promise<GenerationVoice> {
+  const withBaseline = await appendStyleBaselineToSystemPrompt(reader, basePrompt, root, options);
+  const plugins = options.plugins
+    ? await loadPluginInstructions(
+        reader,
+        root,
+        options.plugins.libraryRoot,
+        options.plugins.secrets,
+      )
+    : null;
+  const authorPrompt = await appendAuthorInstructionsToSystemPrompt(
+    reader,
+    withBaseline,
+    root,
+    options.capture,
+  );
+  if (plugins === null) return { systemPrompt: authorPrompt, authorPrompt };
+  const pluginPart = PLUGIN_GENERATION_PREFIX + plugins.body;
+  if (options.capture) capturePluginInstructions(options.capture, plugins, pluginPart);
+  return {
+    systemPrompt: `${withBaseline}\n\n${pluginPart}${authorPrompt.slice(withBaseline.length)}`,
+    authorPrompt,
+  };
+}
+
 export async function buildGenerationSystemPrompt(
   reader: ProjectReader,
   basePrompt: string,
   root: string | null,
-  options: { platform: 'windows' | 'posix'; capture?: GenerationSourceCapture },
+  options: GenerationVoiceOptions,
 ): Promise<string> {
-  const withBaseline = await appendStyleBaselineToSystemPrompt(reader, basePrompt, root, options);
-  return appendAuthorInstructionsToSystemPrompt(reader, withBaseline, root, options.capture);
+  return (await buildGenerationVoice(reader, basePrompt, root, options)).systemPrompt;
 }
 
 /** 投影已经准备好的声音：不二次读盘，也不从通用 system 指令推导授权。 */

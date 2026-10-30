@@ -1,0 +1,40 @@
+## 2026-10-30 插件第 4 刀：插件写法与指令片段
+
+- 背景：插件分刀见 `docs/internal/TODO.md`「2026-10-30 当前入口」第 2 条。第 1 刀（#530）做了插件库与解析，第 2 刀（#532）让插件技能进对话。本刀让作品启用的插件里的 `写法/` 进写章（章纲目录、起草全文、来源签名），`指令.md` 进对话与产字路径（排在作者指令前面、单独限字数、进生成来源记录与续跑 / 章纲指纹）。界面没动（上下文浮窗显示插件写法 / 指令留给后续）。
+- 引擎：
+  - 写法：新 `kernel/pluginWritingSkills.ts` 的 `loadAvailableWritingSkills` = 作品写法（规则不变）+ 按启用顺序的插件写法，合计共用 `WRITING_SKILL_INDEX_MAX`（20）；名字完全相同就丢（同第 2 刀技能：作品优先、先启用的插件优先）；作品写法占满 20 份时不读插件。`chapter.brief` / `chapter.draft`（`loop/tools/chapterWritingTools.ts`）改用它。`writingSkillIndex` 里插件写法写成 `- 名字：什么时候用（插件「id」）`——插件名放在行尾、不贴着名字，因为章纲要求模型「原样照抄名字」，`pickWritingSkills` 只认原名；`writingSkillsBlock` 里插件写法的标题是 `### 名字（插件「id」）`。没有插件写法时目录与起草提示词逐字不变。
+  - 章纲来源签名（`loop/chapterSourceGuard.ts`）：`values.skills` 里插件写法记 `[plugin:<id>/<插件内路径>, sha256, 插件文件夹绝对路径]`；新增 `values.plugin_instructions`（同样的三元组，只在有插件指令时出现）；`system` 那一项现在带插件的要求。`GuardDeps` 加可选 `pluginLibraryRoot`，章纲（`chapterWritingPipeline.ts` 的 host）与起草 / 修复（工具的 `ToolDeps`）两头都给同一个。没有插件写法与指令时签名不变。
+  - 指令：`kernel/plugins.ts` 加 `resolveEnabledPluginInstructions`（按启用顺序只读各插件 `指令.md`，读法同 `describePlugin`，比整份描述轻）与 `pluginSourceKey`。新 `kernel/pluginInstructions.ts`：两档前缀（对话 / 产字，都写明「出自插件，不是作者本人的话」「与作者本人的要求冲突时，以作者为准」；对话档另写明不违反工具纪律、不能改变改动怎样写进文件、不能放宽权限档位、不能越出项目边界）；`composePluginInstructions` 每段标 `### 插件「id」`，**所有插件正文合计 ≤ 4000 码点**（标题与标记不计，与作者的 4000 分开算），超出按启用顺序保前面的，截断处标「……（插件的要求合计超过 4000 字，从这里起截断，后面的没有带上）」，前面刚好用满、后面插件一字没带上时也标；单个插件自己超过 4000（第 1 刀已截）时在它后面标「……（插件「id」的要求超过 4000 字，后面的没有带上）」。
+  - 对话：`loop/loopMessages.ts` 在 `system_prompt` 与 `author_instructions` 之间加 `plugin_instructions` 段，只在有插件指令时出现（同技能目录，没有时连段名都不记）。作者指令那句前缀（`promptContext.ts` 的 `AUTHOR_INSTRUCTIONS_PREFIX`）没改。
+  - 产字：`kernel/authorVoice.ts` 新 `buildGenerationVoice` 返回 `{ systemPrompt, authorPrompt }`，顺序是通用准则 → 文风基线 → 插件的要求 → 作者指令；`buildGenerationSystemPrompt` 改成取它的 `systemPrompt`，参数加可选 `plugins`（`{ libraryRoot, secrets }`，不给 = 没有插件）。`assistant/service.ts` 的修订、流式续写、循环续写、起草四处都传 `plugins`；`AssistantDeps` 加可选 `pluginLibraryRoot`。作者指令前缀（`GENERATION_PREFIX` / `CONVERSATION_PREFIX`）没改。
+  - 编辑策略（`authorEditPolicy`）：**插件文本不参与推导**。修订把 `voice.authorPrompt`（同一份 prompt 去掉插件的要求）交给 `editPolicyFromGenerationPrompt`，策略只来自作者本人的 `agent-instructions.md`、本次指令与文风基线；插件段就算原样冒充作者前缀（`GENERATION_PREFIX`）写「逐字保留「…」」也不会生效（有测试）。`chapter.polish` 的 `preparedVoice` 只用于推导策略、刻意不带插件（加了一行注释），所以润色路径不带插件的要求。
+  - 生成来源记录（`GenerationSourceCapture`）：有插件指令时记一条 selection `plugin_instructions`（`max_chars`、`truncated`、每个带上的插件 `{ source: plugin:<id>/指令.md, sha256, delivered_chars, truncated }`、一字没带上的 `omitted`）和一条 projection `plugin_instructions`（投进 system 的整段，`transformation: plugin_instructions_v1`）。没用 observe 行：observe 的字段是「项目文件字节」语义，插件文件不在项目里；也不记插件文件夹绝对路径（证据里只留哈希与身份）。
+  - 续跑指纹（`loop/chatLoopCheckpoints.ts` 的 `sourceVersions`）：作品启用、本机装了、有指令的插件，`指令.md` 记在 `plugin:<id>/指令.md` 键下并记插件文件夹绝对路径（同第 2 刀插件技能，核对时用记下的路径）。合计超限没带上的插件也记（偏保守）。没有插件指令时指纹不变。
+  - 依赖接线：`AgentRuntime` 的 `toolServices().assistant` 与 `fixedPipelineHost()` 带上 `pluginLibraryRoot`；`FixedPipelineHost` 加可选 `pluginLibraryRoot`。
+- 前端：只改 `apps/desktop/frontend/src/lib/engine/assistant.ts`——`engineAssistantDeps` 用 `pluginLibraryDir().catch(() => null)` 取插件库根（同 `agent.ts`），Ctrl+K / 续写取不到就不带插件，照常工作。
+- 测试支持：`loop/agentRunReplay.test-support.ts` 的回放选项加可选 `plugins`（库根 + 各插件文件，读者按根分派），`spec.ops` 认 `{ op: 'edit_plugin', plugin, path, content }`；不给时与原来完全一样。
+- 验证：
+  - 引擎新测试 `loop/pluginWritingInstructions.test.ts` 16 条：写章（经真实运行时回放写章预言机场景）目录作品在前、插件在后并标插件名、重名作品优先 / 先启用插件优先、只有插件写法也有目录、章纲挑中插件写法起草拿到全文且脱敏、共用 20 上限、插件写法正文改了 / 插件指令改了 / 超出上限的指令尾巴改了都拒绝起草而改插件 README 不拦、起草 system 里插件要求在作者指令前并进生成来源记录、没有插件写法与指令时整条写章记录（请求、事件、产物、工具调用证据）与不带插件库逐字相同；对话段顺序与前缀措辞、没有插件指令时消息与段指纹不变（插件写法不进对话）；合计 4000 截断与标记（含刚好用满、单个超长、经真实读取）；修订 / 续写 / 起草三条产字路径的 system 与生成来源记录、没有插件指令时三条路径 system 与来源记录不变、插件冒充作者的逐字保留要求不进编辑策略；续跑指纹记 `plugin:` 键、插件指令改了或插件被移走算来源已变、没有插件指令时指纹不变。
+  - 前端 `tests/engine-agent-deps.test.ts` +1：`engineAssistantDeps` 把插件库根交给修订 / 续写，取不到时为 null。
+  - 变异（`%TEMP%` 下的脚本定点替换，替换前断言目标串恰好 1 次，`finally` 里无条件还原并比对字节；跑完 `git diff --stat` 与跑前一致），11 处每处都有测试变红：
+    - M1 去掉插件写法合并（不 push 插件写法）→ 4 条红；
+    - M2 去掉作品优先（作品写法名不进重名表）→ 2 条红；
+    - M3 产字前缀「以作者为准」改成「以插件为准」→ 1 条红；M3b 对话前缀同样改 → 1 条红；
+    - M4 章纲签名里插件写法不记 sha256 → 1 条红（起初只改了名字的那次编辑抓不住，改成名字不变、只改正文后抓住）；
+    - M5 修订的编辑策略改用含插件的 system → 1 条红（冒充作者测试）；
+    - M6 续跑指纹不记插件指令 → 1 条红；
+    - M7 对话不放插件指令段 → 2 条红；
+    - M8 产字路径不放插件指令 → 3 条红；
+    - M9 去掉合计字数上限 → 1 条红；
+    - M10 章纲签名不记 `plugin_instructions` → 1 条红（超出上限的尾巴改了那一例）；
+    - M11 前端 `engineAssistantDeps` 不传插件库根 → 1 条红。
+  - 单跑：引擎 `tsc --noEmit` 通过；`npm --prefix apps/desktop/frontend run typecheck` 通过；前端与引擎装配相关的 6 个测试文件（`engine-agent-deps`、`assistant-engine-routing`、`assistant-sessions-engine`、`chapter-checks-engine`、`knowledge-proposals-engine`、`agent-engine-chat-window`）31 passed；改动文件 `prettier --check` 与 `eslint` 干净。
+  - `pnpm verify` 第一次 EXIT=1：前五道门全过，浏览器冒烟 `page.goto` 等 `networkidle` 30 秒超时（`localhost:5173`）。查了本机没有别的 headless Chrome / vite / vitest 进程在跑、5173 只剩 TIME_WAIT，单独补跑 `verify:smoke` 通过、`verify:agent-conversation` 通过。再跑一次完整 `pnpm verify` **EXIT=0**：project-core 34、引擎 14077 passed + 2 skipped、前端 2538 passed、三个浏览器回归通过。
+  - **golden 零改动**：`git status --short packages/engine/golden` 与 `git diff --stat packages/engine/golden` 都为空。
+  - 行尾：改动文件与新文件全 LF（无 CRLF、无孤立 CR、无 U+2028/2029）；`git diff --numstat` 与 `git diff --ignore-all-space --numstat` 逐行一致。
+- 未覆盖：
+  - 界面：上下文浮窗 / 插件面板不显示插件写法与指令（第 3 刀插件面板之后再接）；作品启用插件仍只能手写 `.storyforge/plugins.json`。
+  - 没有真宿主点穿（`plugin_library_dir` → 引擎读插件 → 修订 / 续写 / 写章带上插件要求），没用真模型看模型会不会挑插件写法、会不会把插件名当名字抄。
+  - 续跑指纹不记 `.storyforge/plugins.json`（保持第 2 刀「启用了但没有技能 / 指令时指纹不变」）：保存点时一个带指令的插件都没启用、续跑前新启用一个，核不出来。
+  - 润色（`chapter.polish`）不带插件的要求；章纲与章节检查走 `CHAT_SYSTEM_PROMPT`，本来就不带作者指令，也不带插件指令；Ctrl+K 上下文包里的 `author_instructions` 上下文文件（`contracts.ts` 数据形状）没加插件。
+  - 作品自己 `写法/` 里的重名照旧（目录里都列、起草取第一份），本刀只管插件与作品之间、插件与插件之间的重名。

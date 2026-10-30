@@ -1,6 +1,11 @@
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import { AuthorEditPolicyError } from '../kernel/authorEditPolicy';
-import { buildGenerationSystemPrompt, editPolicyFromGenerationPrompt } from '../kernel/authorVoice';
+import {
+  buildGenerationSystemPrompt,
+  buildGenerationVoice,
+  editPolicyFromGenerationPrompt,
+  type GenerationPlugins,
+} from '../kernel/authorVoice';
 import { buildSceneConstraintBlock } from '../kernel/canonContext';
 import { FsToolError } from '../kernel/fsTools';
 import type { GenerationDeliveryCapture } from '../kernel/generationDelivery';
@@ -169,6 +174,8 @@ export type AssistantDeps = {
   /** 每次请求解析一次配置源；配置文件坏了在这里抛 503。 */
   llm: () => Promise<AssistantLlm>;
   platform: Platform;
+  /** 本机插件库根目录；缺省或 null 是没有插件（产字不带插件的要求）。 */
+  pluginLibraryRoot?: string | null;
 };
 
 // ---- 公共步骤 ----
@@ -181,6 +188,10 @@ async function configuredLlm(deps: AssistantDeps): Promise<AssistantLlm> {
 }
 
 const modelOf = (llm: AssistantLlm) => envValue(llm.source, 'STORYFORGE_LLM_MODEL');
+const generationPlugins = (deps: AssistantDeps, llm: AssistantLlm): GenerationPlugins => ({
+  libraryRoot: deps.pluginLibraryRoot ?? null,
+  secrets: llm.secrets,
+});
 const cpLen = (text: string) => Array.from(text).length;
 const cpSlice = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 
@@ -411,12 +422,12 @@ export async function reviseFileContent(
 
   let revision;
   try {
-    const systemPrompt = await buildGenerationSystemPrompt(
-      deps.reader,
-      REVISION_SYSTEM_PROMPT,
-      projectRoot,
-      { platform: deps.platform, capture: sources },
-    );
+    const voice = await buildGenerationVoice(deps.reader, REVISION_SYSTEM_PROMPT, projectRoot, {
+      platform: deps.platform,
+      capture: sources,
+      plugins: generationPlugins(deps, llm),
+    });
+    const systemPrompt = voice.systemPrompt;
     revision = await reviseText(
       {
         filePath: payload.file_path,
@@ -433,7 +444,7 @@ export async function reviseFileContent(
         qualityGate: payload.quality_gate ?? null,
         editPolicy: editPolicyFromGenerationPrompt(payload.content, {
           instruction: options.authorInstruction ?? payload.instruction,
-          systemPrompt,
+          systemPrompt: voice.authorPrompt,
         }),
       },
       async (prompts) => {
@@ -620,7 +631,7 @@ export async function streamContinueProse(
     deps.reader,
     CONTINUE_SYSTEM_PROMPT,
     projectRoot,
-    { platform: deps.platform, capture: sources },
+    { platform: deps.platform, capture: sources, plugins: generationPlugins(deps, llm) },
   );
   const userPrompt = buildContinuePrompt({
     tail,
@@ -790,7 +801,7 @@ export async function draftContinuation(
       deps.reader,
       CONTINUE_SYSTEM_PROMPT,
       projectRoot,
-      { platform: deps.platform, capture: sources },
+      { platform: deps.platform, capture: sources, plugins: generationPlugins(deps, llm) },
     );
     const userPrompt = buildContinuePrompt({
       tail,
@@ -927,7 +938,7 @@ export async function draftFileContent(
       deps.reader,
       DRAFT_SYSTEM_PROMPT,
       projectRoot,
-      { platform: deps.platform, capture: sources },
+      { platform: deps.platform, capture: sources, plugins: generationPlugins(deps, llm) },
     );
     const userPrompt = buildDraftPrompt(payload, constraints, previousChapter, {
       settings,

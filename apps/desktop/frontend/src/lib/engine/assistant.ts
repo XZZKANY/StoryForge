@@ -15,6 +15,7 @@ import {
 import { toAssistantContextBundlePayload } from '../api/codecs';
 import type { AssistantReviseResult, ContinueProseResult } from '../api/assistant';
 import type { ReviseRequest } from '../api/types';
+import { pluginLibraryDir } from '../plugin-library';
 import type { ProviderHealth } from '../provider-config';
 import { nativeHttpPort, nativeLlmSource } from './llm';
 import { nativeProjectReader } from './reader';
@@ -51,6 +52,8 @@ export const platform = (): 'windows' | 'posix' =>
   navigator.userAgent.includes('Windows') ? 'windows' : 'posix';
 
 export async function engineAssistantDeps(signal?: AbortSignal): Promise<AssistantDeps> {
+  // 取不到插件库只是这一次不带插件的要求，修订、续写照常。
+  const pluginLibraryRoot = await pluginLibraryDir().catch(() => null);
   return {
     reader: nativeProjectReader,
     // Ctrl+K / 续写记的会话与左栏、agent 循环同在引擎库。
@@ -60,6 +63,7 @@ export async function engineAssistantDeps(signal?: AbortSignal): Promise<Assista
       return engineAssistantLlm(source, secrets, await transportContext(signal));
     },
     platform: platform(),
+    pluginLibraryRoot,
   };
 }
 

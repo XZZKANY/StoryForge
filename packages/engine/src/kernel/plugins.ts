@@ -435,3 +435,42 @@ export async function resolveEnabledPlugins(
   }
   return { plugins, missing, problems: problem ? [problem] : [] };
 }
+
+/** 插件文件在来源记录与指纹里的键（照插件技能）：`plugin:<插件id>/<插件内路径>`。 */
+export const pluginSourceKey = (id: string, path: string) => `plugin:${id}/${path}`;
+
+/** 作品启用、本机装了、带指令片段的一个插件。 */
+export type EnabledPluginInstructions = {
+  readonly id: string;
+  /** 插件文件夹的绝对路径。 */
+  readonly root: string;
+  readonly instructions: PluginInstructions;
+};
+
+/**
+ * 作品启用的插件的指令片段，按启用顺序；只读各插件的 `指令.md`，读法同 {@link describePlugin}。
+ * 没给插件库、本机没装、没有指令或读不到的插件不列。
+ */
+export async function resolveEnabledPluginInstructions(
+  reader: ProjectReader,
+  projectRoot: string | null,
+  libraryRoot: string | null,
+  secrets: SecretContext,
+): Promise<EnabledPluginInstructions[]> {
+  if (!libraryRoot || !projectRoot) return [];
+  const { enabled } = await readEnabledPluginNames(reader, projectRoot);
+  const found: EnabledPluginInstructions[] = [];
+  for (const id of enabled) {
+    if (!(await isPluginFolder(reader, libraryRoot, id))) continue;
+    const root = libraryChildPath(libraryRoot, id);
+    try {
+      await resolveProjectRoot(reader, root);
+    } catch (error) {
+      if (!optional(error)) throw error;
+      continue;
+    }
+    const instructions = await loadInstructions(reader, root, secrets, []);
+    if (instructions !== null) found.push({ id, root, instructions });
+  }
+  return found;
+}

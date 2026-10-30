@@ -11,6 +11,7 @@ import { redactSensitive, redactSensitiveText, type PlainJson } from '../kernel/
 import { sha256Hex } from '../kernel/sha256';
 import type { HttpPort } from '../llm/transport';
 import { migratedMemoryDb } from '../store/nodeSqlite.test-support';
+import { ProjectReadError, type ProjectReader } from '../readPort';
 import { MemoryRunStore, type RunEventRecord, type RunRecord } from '../store/runs';
 import { decodeJsonColumn, type Db } from '../store/db';
 import { SqlAssistantStore } from '../store/sqlAssistant';
@@ -366,6 +367,11 @@ export function agentRunReplay(golden: Obj) {
     parallelControls?: boolean;
     /** 用引擎默认的收尾压缩门槛；不设时门槛为 0——预言机录样本时超过 12 条消息每轮都压。 */
     defaultCompaction?: boolean;
+    /**
+     * 本机插件库：库根与各插件的文件（插件 id → 插件内路径 → 正文）。给了才把插件库根交给运行时与工具；
+     * spec.ops 里的 `{ op: 'edit_plugin', plugin, path, content }` 改插件文件。
+     */
+    plugins?: { libraryRoot: string; installed: Record<string, Record<string, string>> };
   };
 
   /**
@@ -405,6 +411,43 @@ export function agentRunReplay(golden: Obj) {
     const big = (spec.big_files ?? {}) as Record<string, [string, number]>;
     for (const [path, [unit, count]] of Object.entries(big))
       project.apply({ [path]: encoded(unit.repeat(count)) });
+    // 作品、插件库、每个插件文件夹各是一个根，读者按根分派。
+    const roots = new Map<string, ReturnType<typeof memoryProject>>([[ROOT, project]]);
+    const pluginRoot = (id: string) => `${options.plugins!.libraryRoot}\\${id}`;
+    if (options.plugins) {
+      const library: Record<string, EncodedFile> = {};
+      for (const [id, files] of Object.entries(options.plugins.installed)) {
+        roots.set(
+          pluginRoot(id),
+          memoryProject(
+            pluginRoot(id),
+            Object.fromEntries(Object.entries(files).map(([path, text]) => [path, encoded(text)])),
+          ),
+        );
+        for (const [path, text] of Object.entries(files)) library[`${id}/${path}`] = encoded(text);
+      }
+      roots.set(options.plugins.libraryRoot, memoryProject(options.plugins.libraryRoot, library));
+    }
+    const pick = (root: string) => {
+      const found = roots.get(root);
+      if (!found) throw new ProjectReadError('Unknown fixture root');
+      return found.reader;
+    };
+    const reader: ProjectReader = options.plugins
+      ? {
+          resolveProjectPath: async (root, path) => pick(root).resolveProjectPath(root, path),
+          inspectProjectPath: async (root, path) => pick(root).inspectProjectPath(root, path),
+          readProjectDirectory: async (root, path, cap) =>
+            pick(root).readProjectDirectory(root, path, cap),
+          readProjectBytes: async (root, path, cap) => pick(root).readProjectBytes(root, path, cap),
+        }
+      : project.reader;
+    const editPlugin = (op: Obj) => {
+      roots.get(pluginRoot(op.plugin))!.apply({ [op.path]: encoded(op.content) });
+      roots
+        .get(options.plugins!.libraryRoot)!
+        .apply({ [`${op.plugin}/${op.path}`]: encoded(op.content) });
+    };
     const engineDb = storeKind === 'sql' ? await migratedMemoryDb() : null;
     const runs = engineDb
       ? await SqlRunStore.open(engineDb, () => '2026-10-14T00:00:00Z')
@@ -605,7 +648,7 @@ export function agentRunReplay(golden: Obj) {
     let uuid = 0;
     let hex = 0;
     const toolDeps: ToolDeps = {
-      reader: project.reader,
+      reader,
       writer: project.writer,
       platform,
       secrets: SECRETS,
@@ -616,6 +659,7 @@ export function agentRunReplay(golden: Obj) {
       artifacts: storeToolArtifactQuery(runs),
       // 补丁与审稿报告共用一个计数（预言机把四处 uuid4().hex 换成同一个计数器）。
       newHex: () => (++hex).toString(16).padStart(32, '0'),
+      ...(options.plugins ? { pluginLibraryRoot: options.plugins.libraryRoot } : {}),
     };
     const tools = createAgentToolRegistry(toolDeps);
     let streams = 0;
@@ -627,7 +671,7 @@ export function agentRunReplay(golden: Obj) {
       assistant: db.store,
       titles: db.titles,
       conversation,
-      reader: project.reader,
+      reader,
       platform,
       source,
       // 专用润色槽只有身份四项（Python 从 STORYFORGE_POLISH_LLM_* 映射），与主模型共用脚本化的出网。
@@ -652,6 +696,7 @@ export function agentRunReplay(golden: Obj) {
         appVersion: golden.app_version,
       },
       tools,
+      ...(options.plugins ? { pluginLibraryRoot: options.plugins.libraryRoot } : {}),
       checkpoints: new LoopCheckpointStore(),
       ...(options.defaultCompaction ? {} : { compactAtHistoryBytes: 0, compactAtTurnEnd: true }),
       ids: {
@@ -789,6 +834,7 @@ export function agentRunReplay(golden: Obj) {
     } else
       for (const op of ops) {
         if (op.op === 'edit') project.apply({ [op.path]: encoded(op.content) });
+        else if (op.op === 'edit_plugin') editPlugin(op);
         else controls.push(await runControl(op));
       }
     const rows = await runs.rowsAfter({ events: 0, artifacts: 0, subagents: 0 });
