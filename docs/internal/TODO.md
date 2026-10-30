@@ -2,7 +2,9 @@
 
 更新时间：2026-10-29（晚）
 
-## 2026-10-29 夜 当前入口：0.2.3 已出（自用），作者装上试用；之后做「/ 指令 + /写 批量写章」
+## 2026-10-29 夜 当前入口：0.2.3 已出并公开发布，作者装上试用；之后做「/ 指令 + /写 批量写章」
+
+10-30 作者要求公开发布：GitHub Release [StoryForge 0.2.3](https://github.com/XZZKANY/StoryForge/releases/tag/v0.2.3)（tag `v0.2.3` 在 `7aa6a6c8`，附 `StoryForge-IDE_0.2.3_x64-setup.exe`，GitHub 记录的 SHA256 与下面一致），发布说明原文在 `output/release-0.2.3/release-notes.md`，作者过目后由作者执行发布。
 
 0.2.3 安装包 31,282,569 字节，SHA256 `ad5fe0b034237f09c9189175b67d01d230c1a7a879e4e6bfff1a9432fa5a93ce`，另存在 `output/release-0.2.3/`；装前备份在 `output/release-0.2.3/备份/`。出包记录 `.codex/verification/2026-10-29-release-0.2.3.md`。比下面「10-29 晚」多带了 #514 #515 #520（#519：接受过的章不再被当成没写盘）。真机要多看的点照下面第 1 条，再加：接受一章后说「继续」，AI 不应再要求重做上一章。给 Egg 的 #519 / #505 / #492 回复作者已批原文，待发（自动模式拦了 `gh issue comment`）。
 
