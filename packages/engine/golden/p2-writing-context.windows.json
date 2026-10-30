@@ -240,7 +240,7 @@
       "args_json": "{\"name\": \"other-root\", \"raw\": {\"project_root\": \"D:\\\\other-book\", \"current_file\": \"正文/第002章.md\", \"files\": [{\"path\": \"人物/林舟.md\", \"relative_path\": \"人物/林舟.md\", \"kind\": \"character\", \"title\": \"林舟\", \"excerpt\": \"林舟会游泳。\"}], \"summary\": {\"a\": 1}}}",
       "error": {
         "type": "ConflictError",
-        "message": "已守卫章节上下文的项目归属不匹配，请重新生成。"
+        "message": "已守卫章节上下文的作品归属不匹配，请重新生成。"
       }
     },
     {
@@ -964,7 +964,7 @@
           },
           "error": {
             "type": "ConflictError",
-            "message": "写作上下文与项目、文件、正文或操作不匹配，请重新准备。"
+            "message": "写作上下文与作品、文件、正文或操作不匹配，请重新准备。"
           },
           "writes": {}
         },
@@ -982,7 +982,7 @@
           },
           "error": {
             "type": "ConflictError",
-            "message": "写作上下文与项目、文件、正文或操作不匹配，请重新准备。"
+            "message": "写作上下文与作品、文件、正文或操作不匹配，请重新准备。"
           },
           "writes": {}
         }

@@ -14,7 +14,7 @@ import { captureCanonSourceRevision } from './canonStore';
 import { isJsonObject, type JsonObject } from './json';
 
 export const UNCACHED_SCAN_NOTE =
-  '写回历史无法完整核验；本次直接扫描结果仅供参考，扫描期间的来源一致性未经核验，' +
+  '写入历史无法完整核验；本次直接扫描结果仅供参考，扫描期间的来源一致性未经核验，' +
   '未复用或发布正文派生缓存。';
 
 export type CanonProjectionResult = {

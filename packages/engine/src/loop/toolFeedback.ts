@@ -223,12 +223,12 @@ export const reviseFeedback = (output: Obj): Obj =>
         status: 'unchanged',
         file_path: output.file_path,
         summary: output.summary,
-        note: '修订结果与原文一字不差，没有生成补丁。如实告诉作者这次没有改动，不要说「改好了」。',
+        note: '修订结果与原文一字不差，没有生成修订。如实告诉作者这次没有改动，不要说「改好了」。',
       })
     : filled({
         status: 'proposed_patch_created',
         file_path: output.file_path,
         summary: output.summary,
         applied_scope: output.applied_scope,
-        note: '修订补丁已生成，等待作者在界面确认后才会写盘；不要假设已写回。',
+        note: '修订已生成，等待作者在界面确认后才会写进文件；不要假设已经写进文件。',
       });

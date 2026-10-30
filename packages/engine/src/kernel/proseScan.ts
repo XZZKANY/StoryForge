@@ -383,6 +383,6 @@ export async function proseStaticScan(reader: ProjectReader, root: string, path:
     severity_counts: counter(issues.map((item) => item.severity)),
     note:
       '文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，' +
-      '别照单全收；修改仍需走待确认补丁流程。',
+      '别照单全收；修改仍需走待确认修订流程。',
   };
 }

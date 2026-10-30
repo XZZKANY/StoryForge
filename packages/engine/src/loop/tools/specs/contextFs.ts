@@ -20,7 +20,7 @@ export const CONTEXT_FS_TOOL_SPECS = [
   }),
   toolSpec({
     name: 'fs.list',
-    description: '列出项目目录内文件（path-scoped 只读）。',
+    description: '列出作品文件夹内的文件（path-scoped 只读）。',
     domain: 'fs',
     input_schema: {},
     output_schema: {},
@@ -34,13 +34,13 @@ export const CONTEXT_FS_TOOL_SPECS = [
       workflow_nodes: ['agent_runtime.fs_list'],
     },
     loop_schema: {
-      description: '列出项目内文件（递归、相对路径）。可选 subpath 限定子目录。',
+      description: '列出作品内文件（递归、相对路径）。可选 subpath 限定子目录。',
       parameters: {
         type: 'object',
         properties: {
           subpath: {
             type: 'string',
-            description: '限定列出的子目录，相对项目根。',
+            description: '限定列出的子目录，相对作品文件夹。',
           },
         },
       },
@@ -48,7 +48,7 @@ export const CONTEXT_FS_TOOL_SPECS = [
   }),
   toolSpec({
     name: 'fs.read',
-    description: '读取项目内单个文本文件切片（path-scoped 只读）。',
+    description: '读取作品内单个文本文件切片（path-scoped 只读）。',
     domain: 'fs',
     input_schema: {},
     output_schema: {},
@@ -62,13 +62,13 @@ export const CONTEXT_FS_TOOL_SPECS = [
       workflow_nodes: ['agent_runtime.fs_read'],
     },
     loop_schema: {
-      description: '读取项目内单个文本文件的内容切片。',
+      description: '读取作品内单个文本文件的内容切片。',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: '相对项目根的文件路径。',
+            description: '相对作品文件夹的文件路径。',
           },
           offset: {
             type: 'integer',
@@ -85,7 +85,7 @@ export const CONTEXT_FS_TOOL_SPECS = [
   }),
   toolSpec({
     name: 'fs.search',
-    description: '在项目文本文件里跨文件检索（path-scoped 只读）。',
+    description: '在作品文本文件里跨文件检索（path-scoped 只读）。',
     domain: 'fs',
     input_schema: {},
     output_schema: {},
@@ -99,7 +99,7 @@ export const CONTEXT_FS_TOOL_SPECS = [
       workflow_nodes: ['agent_runtime.fs_search'],
     },
     loop_schema: {
-      description: '在项目文本文件里跨文件检索，返回文件、行号和摘录。',
+      description: '在作品文本文件里跨文件检索，返回文件、行号和摘录。',
       parameters: {
         type: 'object',
         properties: {
@@ -122,7 +122,7 @@ export const CONTEXT_FS_TOOL_SPECS = [
   }),
   toolSpec({
     name: 'project.knowledge',
-    description: '受控发现、读取或检索项目创作资料。',
+    description: '受控发现、读取或检索作品创作资料。',
     domain: 'fs',
     input_schema: {},
     output_schema: {},
@@ -147,7 +147,7 @@ export const CONTEXT_FS_TOOL_SPECS = [
           },
           path: {
             type: 'string',
-            description: 'read 使用的项目相对路径。',
+            description: 'read 使用的作品内相对路径。',
           },
           query: {
             type: 'string',
@@ -172,7 +172,7 @@ export const CONTEXT_FS_TOOL_SPECS = [
   }),
   toolSpec({
     name: 'knowledge.propose',
-    description: '提议将耐久创作事实沉淀到项目知识收件箱，不写项目文件。',
+    description: '提议将耐久创作事实沉淀到知识收件箱，不写作品文件。',
     domain: 'fs',
     input_schema: {},
     output_schema: {},

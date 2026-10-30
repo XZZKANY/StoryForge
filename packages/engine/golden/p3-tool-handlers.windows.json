@@ -320,7 +320,7 @@
           "args_json": "{\"tool\": \"fs.list\", \"payload\": {\"subpath\": \"../外面\"}, \"args\": {}, \"user_message\": \"帮我看看\", \"events\": [], \"artifacts\": [], \"session\": null, \"replies\": null}",
           "error": {
             "type": "FsToolError",
-            "message": "路径越界，只允许访问项目目录内文件：../外面"
+            "message": "路径越界，只允许访问作品文件夹内的文件：../外面"
           },
           "writes": {}
         },
@@ -556,7 +556,7 @@
           "args_json": "{\"tool\": \"fs.read\", \"payload\": {\"path\": \"../x.md\"}, \"args\": {}, \"user_message\": \"帮我看看\", \"events\": [], \"artifacts\": [], \"session\": null, \"replies\": null}",
           "error": {
             "type": "FsToolError",
-            "message": "路径越界，只允许访问项目目录内文件：../x.md"
+            "message": "路径越界，只允许访问作品文件夹内的文件：../x.md"
           },
           "writes": {}
         },
@@ -1527,7 +1527,7 @@
             "replies": null
           },
           "args_json": "{\"tool\": \"project.prose_check\", \"payload\": {\"path\": \"正文/第003章.md\"}, \"args\": {}, \"user_message\": \"帮我看看\", \"events\": [], \"artifacts\": [], \"session\": null, \"replies\": null}",
-          "output_json": "{\"status\": \"completed\", \"output\": {\"path\": \"正文/第003章.md\", \"content_chars\": 166, \"content_truncated\": false, \"issue_count\": 4, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"第三章\\n\\n林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"第三章。林舟沉默。林舟沉默。林舟沉默\", \"message\": \"短句连续堆叠，节奏机械。\", \"suggestion\": \"合并部分静态短句，并加入动作推进。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"林舟沉默\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}, {\"dimension\": \"节奏\", \"severity\": \"中\", \"snippet\": \"第三章\\n\\n林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟沉默。林\", \"message\": \"静态描述偏多，缺少行动 beat。\", \"suggestion\": \"加入目标、阻碍和段末变化，推动下一段。\", \"revision_strategy\": \"scene_patch\"}], \"dimension_counts\": {\"对白密度\": 1, \"句长\": 1, \"重复表达\": 1, \"节奏\": 1}, \"severity_counts\": {\"低\": 3, \"中\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认补丁流程。\"}, \"trace\": {\"tool_name\": \"project.prose_check\", \"status\": \"completed\", \"input_summary\": {\"path\": \"正文/第003章.md\"}, \"output_summary\": {\"path\": \"正文/第003章.md\", \"issue_count\": 4, \"dimension_count\": 4}}, \"summary\": null, \"payload\": null, \"artifacts\": [], \"metrics\": {}, \"args_after\": {}}",
+          "output_json": "{\"status\": \"completed\", \"output\": {\"path\": \"正文/第003章.md\", \"content_chars\": 166, \"content_truncated\": false, \"issue_count\": 4, \"issues\": [{\"dimension\": \"对白密度\", \"severity\": \"低\", \"snippet\": \"第三章\\n\\n林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟\", \"message\": \"对白不足，信息可能被旁白单向交代。\", \"suggestion\": \"加入有明确目的的对白，让角色在压力中交换信息。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"句长\", \"severity\": \"低\", \"snippet\": \"第三章。林舟沉默。林舟沉默。林舟沉默\", \"message\": \"短句连续堆叠，节奏机械。\", \"suggestion\": \"合并部分静态短句，并加入动作推进。\", \"revision_strategy\": \"scene_patch\"}, {\"dimension\": \"重复表达\", \"severity\": \"低\", \"snippet\": \"林舟沉默\", \"message\": \"短窗口表达重复，可能显得机械或注水。\", \"suggestion\": \"保留必要信息，改写重复句式和词组。\", \"revision_strategy\": \"line_edit\"}, {\"dimension\": \"节奏\", \"severity\": \"中\", \"snippet\": \"第三章\\n\\n林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟沉默。林舟沉默。林\", \"message\": \"静态描述偏多，缺少行动 beat。\", \"suggestion\": \"加入目标、阻碍和段末变化，推动下一段。\", \"revision_strategy\": \"scene_patch\"}], \"dimension_counts\": {\"对白密度\": 1, \"句长\": 1, \"重复表达\": 1, \"节奏\": 1}, \"severity_counts\": {\"低\": 3, \"中\": 1}, \"note\": \"文笔气味是确定性观察信号（无 LLM）：是否采纳由你结合上下文判断，别照单全收；修改仍需走待确认修订流程。\"}, \"trace\": {\"tool_name\": \"project.prose_check\", \"status\": \"completed\", \"input_summary\": {\"path\": \"正文/第003章.md\"}, \"output_summary\": {\"path\": \"正文/第003章.md\", \"issue_count\": 4, \"dimension_count\": 4}}, \"summary\": null, \"payload\": null, \"artifacts\": [], \"metrics\": {}, \"args_after\": {}}",
           "writes": {}
         },
         {
@@ -2708,7 +2708,7 @@
           "args_json": "{\"direct\": {\"path\": \"../外面.md\"}}",
           "error": {
             "type": "FsToolError",
-            "message": "路径越界，只允许访问项目目录内文件：../外面.md"
+            "message": "路径越界，只允许访问作品文件夹内的文件：../外面.md"
           },
           "writes": {}
         },

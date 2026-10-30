@@ -116,7 +116,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -396,7 +396,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -767,7 +767,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -834,7 +834,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -853,7 +853,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -870,7 +870,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -885,7 +885,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -2289,7 +2289,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -2577,7 +2577,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -2830,7 +2830,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -2897,7 +2897,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -2916,7 +2916,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -2933,7 +2933,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -2948,7 +2948,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -3926,7 +3926,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -4250,7 +4250,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -4659,7 +4659,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -4728,7 +4728,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -4749,7 +4749,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -4766,7 +4766,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -4781,7 +4781,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -6344,7 +6344,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "running"
           },
           {
@@ -6435,7 +6435,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -6483,7 +6483,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "running"
                 },
                 {
@@ -6548,7 +6548,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -6615,7 +6615,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -6634,7 +6634,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -6651,7 +6651,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -6666,7 +6666,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -6691,7 +6691,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "running"
                 },
                 {
@@ -6791,7 +6791,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "running"
                 },
                 {
@@ -6862,7 +6862,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -6947,7 +6947,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -7232,7 +7232,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -7314,7 +7314,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -7493,7 +7493,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -7560,7 +7560,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -7579,7 +7579,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -7596,7 +7596,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -7611,7 +7611,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -7713,7 +7713,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -9356,7 +9356,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -9454,7 +9454,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -9536,7 +9536,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -9629,7 +9629,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -9696,7 +9696,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -9715,7 +9715,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -9732,7 +9732,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -9747,7 +9747,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -9828,7 +9828,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -9941,7 +9941,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -10213,7 +10213,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -10499,7 +10499,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -10683,7 +10683,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -11049,7 +11049,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -11116,7 +11116,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -11135,7 +11135,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -11152,7 +11152,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -11167,7 +11167,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -11501,7 +11501,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -13297,7 +13297,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -13564,7 +13564,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -13825,7 +13825,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -14183,7 +14183,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -14250,7 +14250,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -14269,7 +14269,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -14286,7 +14286,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -14301,7 +14301,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -14959,7 +14959,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -15847,7 +15847,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -16119,7 +16119,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -16421,7 +16421,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -16682,7 +16682,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -17049,7 +17049,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -17116,7 +17116,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -17135,7 +17135,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -17152,7 +17152,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -17167,7 +17167,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -17745,7 +17745,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -19313,7 +19313,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -19617,7 +19617,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -19878,7 +19878,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -20242,7 +20242,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -20309,7 +20309,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -20328,7 +20328,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -20345,7 +20345,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -20360,7 +20360,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -20916,7 +20916,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -21229,7 +21229,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -22035,7 +22035,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -22120,7 +22120,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -22395,7 +22395,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -22681,7 +22681,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -22763,7 +22763,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -22942,7 +22942,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -23009,7 +23009,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -23028,7 +23028,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -23045,7 +23045,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -23060,7 +23060,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -23162,7 +23162,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -23639,7 +23639,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -25470,7 +25470,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -25555,7 +25555,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -25862,7 +25862,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -25944,7 +25944,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -26122,7 +26122,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -26189,7 +26189,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -26208,7 +26208,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -26225,7 +26225,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -26240,7 +26240,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -26342,7 +26342,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -27082,7 +27082,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -27397,7 +27397,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -28457,7 +28457,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -28558,7 +28558,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -28843,7 +28843,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -28925,7 +28925,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -29104,7 +29104,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -29171,7 +29171,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -29190,7 +29190,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -29207,7 +29207,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -29222,7 +29222,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -29324,7 +29324,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -31022,7 +31022,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "running"
         },
         {
@@ -31192,7 +31192,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "running"
             },
             {
@@ -31259,7 +31259,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "running"
               },
               {
@@ -31278,7 +31278,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -31295,7 +31295,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -31310,7 +31310,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -31605,7 +31605,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -31625,7 +31625,7 @@
           },
           {
             "step": "permission.confirm",
-            "detail": "文件写回前等待作者确认。",
+            "detail": "写进文件前等待作者确认。",
             "status": "needs_approval"
           }
         ],
@@ -32060,7 +32060,7 @@
           "sequence": 7,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "completed"
         },
         {
@@ -32108,7 +32108,7 @@
           "sequence": 7,
           "index": 4,
           "step": "permission.confirm",
-          "detail": "文件写回前等待作者确认。",
+          "detail": "写进文件前等待作者确认。",
           "status": "needs_approval"
         },
         {
@@ -32585,7 +32585,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "completed"
             },
             {
@@ -32605,7 +32605,7 @@
             },
             {
               "step": "permission.confirm",
-              "detail": "文件写回前等待作者确认。",
+              "detail": "写进文件前等待作者确认。",
               "status": "needs_approval"
             }
           ],
@@ -32714,7 +32714,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -32734,7 +32734,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "needs_approval"
               }
             ],
@@ -32743,7 +32743,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -32760,7 +32760,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -32775,7 +32775,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -34717,7 +34717,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -34737,7 +34737,7 @@
           },
           {
             "step": "permission.confirm",
-            "detail": "文件写回前等待作者确认。",
+            "detail": "写进文件前等待作者确认。",
             "status": "needs_approval"
           }
         ],
@@ -35172,7 +35172,7 @@
           "sequence": 7,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "completed"
         },
         {
@@ -35220,7 +35220,7 @@
           "sequence": 7,
           "index": 4,
           "step": "permission.confirm",
-          "detail": "文件写回前等待作者确认。",
+          "detail": "写进文件前等待作者确认。",
           "status": "needs_approval"
         },
         {
@@ -35697,7 +35697,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "completed"
             },
             {
@@ -35717,7 +35717,7 @@
             },
             {
               "step": "permission.confirm",
-              "detail": "文件写回前等待作者确认。",
+              "detail": "写进文件前等待作者确认。",
               "status": "needs_approval"
             }
           ],
@@ -35826,7 +35826,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -35846,7 +35846,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "needs_approval"
               }
             ],
@@ -35855,7 +35855,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -35872,7 +35872,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -35887,7 +35887,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -37829,7 +37829,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -37849,7 +37849,7 @@
           },
           {
             "step": "permission.confirm",
-            "detail": "文件写回前等待作者确认。",
+            "detail": "写进文件前等待作者确认。",
             "status": "needs_approval"
           }
         ],
@@ -38284,7 +38284,7 @@
           "sequence": 7,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "completed"
         },
         {
@@ -38332,7 +38332,7 @@
           "sequence": 7,
           "index": 4,
           "step": "permission.confirm",
-          "detail": "文件写回前等待作者确认。",
+          "detail": "写进文件前等待作者确认。",
           "status": "needs_approval"
         },
         {
@@ -38809,7 +38809,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "completed"
             },
             {
@@ -38829,7 +38829,7 @@
             },
             {
               "step": "permission.confirm",
-              "detail": "文件写回前等待作者确认。",
+              "detail": "写进文件前等待作者确认。",
               "status": "needs_approval"
             }
           ],
@@ -38938,7 +38938,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -38958,7 +38958,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "needs_approval"
               }
             ],
@@ -38967,7 +38967,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -38984,7 +38984,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -38999,7 +38999,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -40941,7 +40941,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -40961,7 +40961,7 @@
           },
           {
             "step": "permission.confirm",
-            "detail": "文件写回前等待作者确认。",
+            "detail": "写进文件前等待作者确认。",
             "status": "needs_approval"
           }
         ],
@@ -41188,7 +41188,7 @@
           "sequence": 4,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "completed"
         },
         {
@@ -41236,7 +41236,7 @@
           "sequence": 4,
           "index": 4,
           "step": "permission.confirm",
-          "detail": "文件写回前等待作者确认。",
+          "detail": "写进文件前等待作者确认。",
           "status": "needs_approval"
         },
         {
@@ -41502,7 +41502,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "completed"
             },
             {
@@ -41522,7 +41522,7 @@
             },
             {
               "step": "permission.confirm",
-              "detail": "文件写回前等待作者确认。",
+              "detail": "写进文件前等待作者确认。",
               "status": "needs_approval"
             }
           ],
@@ -41593,7 +41593,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -41613,7 +41613,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "needs_approval"
               }
             ],
@@ -41622,7 +41622,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -41639,7 +41639,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -41654,7 +41654,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -42528,7 +42528,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -42548,12 +42548,12 @@
           },
           {
             "step": "permission.confirm",
-            "detail": "文件写回前等待作者确认。",
+            "detail": "写进文件前等待作者确认。",
             "status": "needs_approval"
           }
         ],
         "agent_result": {
-          "summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 30 字。 本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。",
+          "summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 30 字。 本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在对比里逐块核对后再接受。",
           "requires_user_confirmation": true,
           "writeback_blocked_until_user_confirms": true,
           "applied_scope": {
@@ -42582,7 +42582,7 @@
             ]
           },
           "scope_warning": {
-            "message": "本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。",
+            "message": "本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在对比里逐块核对后再接受。",
             "drift_ratio": 1.0,
             "changed_lines": 2,
             "total_lines": 2,
@@ -42700,7 +42700,7 @@
                 "dropped_unknown_ids": []
               },
               "scope_warning": {
-                "message": "本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。",
+                "message": "本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在对比里逐块核对后再接受。",
                 "drift_ratio": 1.0,
                 "changed_lines": 2,
                 "total_lines": 2,
@@ -42750,7 +42750,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 30 字。 本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。",
+            "summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 30 字。 本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在对比里逐块核对后再接受。",
             "message_count": 2,
             "tool_count": 3,
             "review_issue_count": 1
@@ -42789,7 +42789,7 @@
           "sequence": 4,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "completed"
         },
         {
@@ -42837,7 +42837,7 @@
           "sequence": 4,
           "index": 4,
           "step": "permission.confirm",
-          "detail": "文件写回前等待作者确认。",
+          "detail": "写进文件前等待作者确认。",
           "status": "needs_approval"
         },
         {
@@ -42967,7 +42967,7 @@
                 "dropped_unknown_ids": []
               },
               "scope_warning": {
-                "message": "本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。",
+                "message": "本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在对比里逐块核对后再接受。",
                 "drift_ratio": 1.0,
                 "changed_lines": 2,
                 "total_lines": 2,
@@ -43110,7 +43110,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "completed"
             },
             {
@@ -43130,7 +43130,7 @@
             },
             {
               "step": "permission.confirm",
-              "detail": "文件写回前等待作者确认。",
+              "detail": "写进文件前等待作者确认。",
               "status": "needs_approval"
             }
           ],
@@ -43201,7 +43201,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -43221,7 +43221,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "needs_approval"
               }
             ],
@@ -43230,7 +43230,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -43247,7 +43247,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -43262,7 +43262,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -43418,7 +43418,7 @@
                   "dropped_unknown_ids": []
                 },
                 "scope_warning": {
-                  "message": "本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。",
+                  "message": "本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在对比里逐块核对后再接受。",
                   "drift_ratio": 1.0,
                   "changed_lines": 2,
                   "total_lines": 2,
@@ -43582,7 +43582,7 @@
               "intent": "file.revise",
               "message_count": 2,
               "last_user_message": "按审稿意见修改第1条 最小改动约束（必须严格遵守）： 1. 只改动与本次指令直接相关的字句；其余段落、句子、标题与空行必须逐字原样保留，不得改写、润色、重排或调整标点。 2. 不要改动文件开头的标题、frontmatter 或导出元信息。 3. 仍输出修订后的完整正文，但未点名处必须与原文逐字一致。 上一轮多视角审稿报告（已按本轮指令筛选范围）： 有效问题： 1. [plot-1/plot/high] 章尾缺少钩子 证据：林舟推开门。 请只处理上述有效审稿范围内的问题，并保持原有事实连续。",
-              "assistant_summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 30 字。 本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。",
+              "assistant_summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 30 字。 本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在对比里逐块核对后再接受。",
               "tool_count": 3,
               "review_issue_count": 1,
               "requires_user_confirmation": true
@@ -43603,7 +43603,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 30 字。 本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。",
+            "summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 30 字。 本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在对比里逐块核对后再接受。",
             "message_count": 2,
             "tool_count": 3,
             "review_issue_count": 1
@@ -43621,7 +43621,7 @@
             "execution_id": 2,
             "intent": "file.revise",
             "assistant_session_id": 1,
-            "summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 30 字。 本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。",
+            "summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 30 字。 本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在对比里逐块核对后再接受。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -43862,7 +43862,7 @@
             "intent": "file.revise",
             "message_count": 2,
             "last_user_message": "按审稿意见修改第1条 最小改动约束（必须严格遵守）： 1. 只改动与本次指令直接相关的字句；其余段落、句子、标题与空行必须逐字原样保留，不得改写、润色、重排或调整标点。 2. 不要改动文件开头的标题、frontmatter 或导出元信息。 3. 仍输出修订后的完整正文，但未点名处必须与原文逐字一致。 上一轮多视角审稿报告（已按本轮指令筛选范围）： 有效问题： 1. [plot-1/plot/high] 章尾缺少钩子 证据：林舟推开门。 请只处理上述有效审稿范围内的问题，并保持原有事实连续。",
-            "assistant_summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 30 字。 本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。",
+            "assistant_summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 30 字。 本次定向修订改动了约 100% 的原文行（2/2 行），可能超出指定范围，请在对比里逐块核对后再接受。",
             "tool_count": 3,
             "review_issue_count": 1,
             "requires_user_confirmation": true
@@ -45392,7 +45392,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与项目上下文。",
+            "detail": "读取当前章与作品上下文。",
             "status": "completed"
           },
           {
@@ -45412,7 +45412,7 @@
           },
           {
             "step": "permission.confirm",
-            "detail": "文件写回前等待作者确认。",
+            "detail": "写进文件前等待作者确认。",
             "status": "needs_approval"
           }
         ],
@@ -45862,7 +45862,7 @@
           "sequence": 7,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与项目上下文。",
+          "detail": "读取当前章与作品上下文。",
           "status": "completed"
         },
         {
@@ -45910,7 +45910,7 @@
           "sequence": 7,
           "index": 4,
           "step": "permission.confirm",
-          "detail": "文件写回前等待作者确认。",
+          "detail": "写进文件前等待作者确认。",
           "status": "needs_approval"
         },
         {
@@ -46206,7 +46206,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -46226,7 +46226,7 @@
                 },
                 {
                   "step": "permission.confirm",
-                  "detail": "文件写回前等待作者确认。",
+                  "detail": "写进文件前等待作者确认。",
                   "status": "needs_approval"
                 }
               ],
@@ -46736,7 +46736,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与项目上下文。",
+              "detail": "读取当前章与作品上下文。",
               "status": "completed"
             },
             {
@@ -46756,7 +46756,7 @@
             },
             {
               "step": "permission.confirm",
-              "detail": "文件写回前等待作者确认。",
+              "detail": "写进文件前等待作者确认。",
               "status": "needs_approval"
             }
           ],
@@ -46865,7 +46865,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "completed"
               },
               {
@@ -46885,7 +46885,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "needs_approval"
               }
             ],
@@ -46894,7 +46894,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -46911,7 +46911,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -46926,7 +46926,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -47562,7 +47562,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -47582,7 +47582,7 @@
                 },
                 {
                   "step": "permission.confirm",
-                  "detail": "文件写回前等待作者确认。",
+                  "detail": "写进文件前等待作者确认。",
                   "status": "needs_approval"
                 }
               ],
@@ -47993,7 +47993,7 @@
               "plan": [
                 {
                   "step": "context.load",
-                  "detail": "读取当前章与项目上下文。",
+                  "detail": "读取当前章与作品上下文。",
                   "status": "completed"
                 },
                 {
@@ -48013,7 +48013,7 @@
                 },
                 {
                   "step": "permission.confirm",
-                  "detail": "文件写回前等待作者确认。",
+                  "detail": "写进文件前等待作者确认。",
                   "status": "needs_approval"
                 }
               ],
@@ -49283,7 +49283,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与可信项目上下文。",
+            "detail": "读取当前章与可信作品上下文。",
             "status": "completed"
           },
           {
@@ -49293,12 +49293,12 @@
           },
           {
             "step": "permission.confirm",
-            "detail": "文件写回前等待作者确认。",
+            "detail": "写进文件前等待作者确认。",
             "status": "needs_approval"
           }
         ],
         "agent_result": {
-          "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+          "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
           "requires_user_confirmation": true,
           "polish": {
             "status": "accepted",
@@ -49497,7 +49497,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "message_count": 0,
             "tool_count": 2,
             "review_issue_count": 0
@@ -49536,7 +49536,7 @@
           "sequence": 4,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与可信项目上下文。",
+          "detail": "读取当前章与可信作品上下文。",
           "status": "completed"
         },
         {
@@ -49560,7 +49560,7 @@
           "sequence": 4,
           "index": 2,
           "step": "permission.confirm",
-          "detail": "文件写回前等待作者确认。",
+          "detail": "写进文件前等待作者确认。",
           "status": "needs_approval"
         },
         {
@@ -49792,7 +49792,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与可信项目上下文。",
+              "detail": "读取当前章与可信作品上下文。",
               "status": "completed"
             },
             {
@@ -49802,7 +49802,7 @@
             },
             {
               "step": "permission.confirm",
-              "detail": "文件写回前等待作者确认。",
+              "detail": "写进文件前等待作者确认。",
               "status": "needs_approval"
             }
           ],
@@ -49872,7 +49872,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与可信项目上下文。",
+                "detail": "读取当前章与可信作品上下文。",
                 "status": "completed"
               },
               {
@@ -49882,7 +49882,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "needs_approval"
               }
             ],
@@ -49891,7 +49891,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -49908,7 +49908,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -49923,7 +49923,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -50189,7 +50189,7 @@
               "intent": "chapter.polish",
               "message_count": 0,
               "last_user_message": null,
-              "assistant_summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+              "assistant_summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -50210,7 +50210,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "message_count": 0,
             "tool_count": 2,
             "review_issue_count": 0
@@ -50228,7 +50228,7 @@
             "execution_id": 2,
             "intent": "chapter.polish",
             "assistant_session_id": 1,
-            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -50432,7 +50432,7 @@
             "intent": "chapter.polish",
             "message_count": 0,
             "last_user_message": null,
-            "assistant_summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "assistant_summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -50466,7 +50466,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与可信项目上下文。",
+            "detail": "读取当前章与可信作品上下文。",
             "status": "completed"
           },
           {
@@ -50476,12 +50476,12 @@
           },
           {
             "step": "permission.confirm",
-            "detail": "按项目权限交给 Desktop guarded writeback。",
+            "detail": "按作品权限交给 Desktop guarded writeback。",
             "status": "completed"
           }
         ],
         "agent_result": {
-          "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+          "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
           "requires_user_confirmation": false,
           "polish": {
             "status": "accepted",
@@ -50679,7 +50679,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "message_count": 0,
             "tool_count": 2,
             "review_issue_count": 0
@@ -50718,7 +50718,7 @@
           "sequence": 4,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与可信项目上下文。",
+          "detail": "读取当前章与可信作品上下文。",
           "status": "completed"
         },
         {
@@ -50742,7 +50742,7 @@
           "sequence": 4,
           "index": 2,
           "step": "permission.confirm",
-          "detail": "按项目权限交给 Desktop guarded writeback。",
+          "detail": "按作品权限交给 Desktop guarded writeback。",
           "status": "completed"
         },
         {
@@ -50902,12 +50902,12 @@
           "event_id": 11,
           "sequence": 11,
           "status": "completed",
-          "message": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+          "message": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
           "payload": {
             "intent": "chapter.polish",
             "assistant_session_id": 1,
             "requires_user_confirmation": false,
-            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "has_proposed_patch": true,
             "has_review_report": false,
             "proposed_patch": {
@@ -50974,7 +50974,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与可信项目上下文。",
+              "detail": "读取当前章与可信作品上下文。",
               "status": "completed"
             },
             {
@@ -50984,7 +50984,7 @@
             },
             {
               "step": "permission.confirm",
-              "detail": "按项目权限交给 Desktop guarded writeback。",
+              "detail": "按作品权限交给 Desktop guarded writeback。",
               "status": "completed"
             }
           ],
@@ -51054,7 +51054,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与可信项目上下文。",
+                "detail": "读取当前章与可信作品上下文。",
                 "status": "completed"
               },
               {
@@ -51064,7 +51064,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "按项目权限交给 Desktop guarded writeback。",
+                "detail": "按作品权限交给 Desktop guarded writeback。",
                 "status": "completed"
               }
             ],
@@ -51073,7 +51073,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -51090,7 +51090,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -51105,7 +51105,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -51371,7 +51371,7 @@
               "intent": "chapter.polish",
               "message_count": 0,
               "last_user_message": null,
-              "assistant_summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+              "assistant_summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": false
@@ -51392,7 +51392,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "message_count": 0,
             "tool_count": 2,
             "review_issue_count": 0
@@ -51404,12 +51404,12 @@
           "run_id": 1,
           "event_type": "agent_run_completed",
           "actor": "root-agent",
-          "message": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+          "message": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
           "payload": {
             "intent": "chapter.polish",
             "assistant_session_id": 1,
             "requires_user_confirmation": false,
-            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "has_proposed_patch": true,
             "has_review_report": false,
             "proposed_patch": {
@@ -51603,7 +51603,7 @@
             "intent": "chapter.polish",
             "message_count": 0,
             "last_user_message": null,
-            "assistant_summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "assistant_summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": false
@@ -51637,7 +51637,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与可信项目上下文。",
+            "detail": "读取当前章与可信作品上下文。",
             "status": "completed"
           },
           {
@@ -51647,12 +51647,12 @@
           },
           {
             "step": "permission.confirm",
-            "detail": "文件写回前等待作者确认。",
+            "detail": "写进文件前等待作者确认。",
             "status": "needs_approval"
           }
         ],
         "agent_result": {
-          "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+          "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
           "requires_user_confirmation": true,
           "polish": {
             "status": "accepted",
@@ -51841,7 +51841,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "message_count": 0,
             "tool_count": 2,
             "review_issue_count": 0
@@ -51868,7 +51868,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与可信项目上下文。",
+          "detail": "读取当前章与可信作品上下文。",
           "status": "completed"
         },
         {
@@ -51892,7 +51892,7 @@
           "sequence": 3,
           "index": 2,
           "step": "permission.confirm",
-          "detail": "文件写回前等待作者确认。",
+          "detail": "写进文件前等待作者确认。",
           "status": "needs_approval"
         },
         {
@@ -52091,7 +52091,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与可信项目上下文。",
+              "detail": "读取当前章与可信作品上下文。",
               "status": "completed"
             },
             {
@@ -52101,7 +52101,7 @@
             },
             {
               "step": "permission.confirm",
-              "detail": "文件写回前等待作者确认。",
+              "detail": "写进文件前等待作者确认。",
               "status": "needs_approval"
             }
           ],
@@ -52158,7 +52158,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与可信项目上下文。",
+                "detail": "读取当前章与可信作品上下文。",
                 "status": "completed"
               },
               {
@@ -52168,7 +52168,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "needs_approval"
               }
             ],
@@ -52177,7 +52177,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -52194,7 +52194,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -52209,7 +52209,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -52467,7 +52467,7 @@
               "intent": "chapter.polish",
               "message_count": 0,
               "last_user_message": null,
-              "assistant_summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+              "assistant_summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -52488,7 +52488,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "message_count": 0,
             "tool_count": 2,
             "review_issue_count": 0
@@ -52506,7 +52506,7 @@
             "execution_id": 2,
             "intent": "chapter.polish",
             "assistant_session_id": 1,
-            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -52578,7 +52578,7 @@
             "intent": "chapter.polish",
             "message_count": 0,
             "last_user_message": null,
-            "assistant_summary": "润色候选已通过相对原文质量门禁，已生成可审阅补丁。",
+            "assistant_summary": "润色候选已通过相对原文质量门禁，已生成可审阅修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -52612,7 +52612,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与可信项目上下文。",
+            "detail": "读取当前章与可信作品上下文。",
             "status": "completed"
           },
           {
@@ -52622,7 +52622,7 @@
           }
         ],
         "agent_result": {
-          "summary": "润色候选与原文一致，没有生成空补丁。",
+          "summary": "润色候选与原文一致，没有生成空修订。",
           "requires_user_confirmation": false,
           "polish": {
             "status": "noop",
@@ -52806,7 +52806,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "润色候选与原文一致，没有生成空补丁。",
+            "summary": "润色候选与原文一致，没有生成空修订。",
             "message_count": 0,
             "tool_count": 2,
             "review_issue_count": 0
@@ -52845,7 +52845,7 @@
           "sequence": 4,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与可信项目上下文。",
+          "detail": "读取当前章与可信作品上下文。",
           "status": "completed"
         },
         {
@@ -53015,12 +53015,12 @@
           "event_id": 10,
           "sequence": 10,
           "status": "completed",
-          "message": "润色候选与原文一致，没有生成空补丁。",
+          "message": "润色候选与原文一致，没有生成空修订。",
           "payload": {
             "intent": "chapter.polish",
             "assistant_session_id": 1,
             "requires_user_confirmation": false,
-            "summary": "润色候选与原文一致，没有生成空补丁。",
+            "summary": "润色候选与原文一致，没有生成空修订。",
             "has_proposed_patch": false,
             "has_review_report": false,
             "permission_profile": "ask",
@@ -53082,7 +53082,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与可信项目上下文。",
+              "detail": "读取当前章与可信作品上下文。",
               "status": "completed"
             },
             {
@@ -53157,7 +53157,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与可信项目上下文。",
+                "detail": "读取当前章与可信作品上下文。",
                 "status": "completed"
               },
               {
@@ -53171,7 +53171,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -53188,7 +53188,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -53203,7 +53203,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -53441,7 +53441,7 @@
               "intent": "chapter.polish",
               "message_count": 0,
               "last_user_message": null,
-              "assistant_summary": "润色候选与原文一致，没有生成空补丁。",
+              "assistant_summary": "润色候选与原文一致，没有生成空修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": false
@@ -53462,7 +53462,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "润色候选与原文一致，没有生成空补丁。",
+            "summary": "润色候选与原文一致，没有生成空修订。",
             "message_count": 0,
             "tool_count": 2,
             "review_issue_count": 0
@@ -53474,12 +53474,12 @@
           "run_id": 1,
           "event_type": "agent_run_completed",
           "actor": "root-agent",
-          "message": "润色候选与原文一致，没有生成空补丁。",
+          "message": "润色候选与原文一致，没有生成空修订。",
           "payload": {
             "intent": "chapter.polish",
             "assistant_session_id": 1,
             "requires_user_confirmation": false,
-            "summary": "润色候选与原文一致，没有生成空补丁。",
+            "summary": "润色候选与原文一致，没有生成空修订。",
             "has_proposed_patch": false,
             "has_review_report": false,
             "permission_profile": "ask",
@@ -53649,7 +53649,7 @@
             "intent": "chapter.polish",
             "message_count": 0,
             "last_user_message": null,
-            "assistant_summary": "润色候选与原文一致，没有生成空补丁。",
+            "assistant_summary": "润色候选与原文一致，没有生成空修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": false
@@ -53683,7 +53683,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与可信项目上下文。",
+            "detail": "读取当前章与可信作品上下文。",
             "status": "completed"
           },
           {
@@ -53693,12 +53693,12 @@
           },
           {
             "step": "permission.confirm",
-            "detail": "文件写回前等待作者确认。",
+            "detail": "写进文件前等待作者确认。",
             "status": "needs_approval"
           }
         ],
         "agent_result": {
-          "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。",
+          "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。",
           "requires_user_confirmation": true,
           "polish": {
             "status": "degraded",
@@ -53887,7 +53887,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。",
+            "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。",
             "message_count": 0,
             "tool_count": 2,
             "review_issue_count": 0
@@ -53914,7 +53914,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与可信项目上下文。",
+          "detail": "读取当前章与可信作品上下文。",
           "status": "completed"
         },
         {
@@ -53938,7 +53938,7 @@
           "sequence": 3,
           "index": 2,
           "step": "permission.confirm",
-          "detail": "文件写回前等待作者确认。",
+          "detail": "写进文件前等待作者确认。",
           "status": "needs_approval"
         },
         {
@@ -54137,7 +54137,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与可信项目上下文。",
+              "detail": "读取当前章与可信作品上下文。",
               "status": "completed"
             },
             {
@@ -54147,7 +54147,7 @@
             },
             {
               "step": "permission.confirm",
-              "detail": "文件写回前等待作者确认。",
+              "detail": "写进文件前等待作者确认。",
               "status": "needs_approval"
             }
           ],
@@ -54204,7 +54204,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与可信项目上下文。",
+                "detail": "读取当前章与可信作品上下文。",
                 "status": "completed"
               },
               {
@@ -54214,7 +54214,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "needs_approval"
               }
             ],
@@ -54223,7 +54223,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -54240,7 +54240,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -54255,7 +54255,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -54513,7 +54513,7 @@
               "intent": "chapter.polish",
               "message_count": 0,
               "last_user_message": null,
-              "assistant_summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。",
+              "assistant_summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -54534,7 +54534,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。",
+            "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。",
             "message_count": 0,
             "tool_count": 2,
             "review_issue_count": 0
@@ -54552,7 +54552,7 @@
             "execution_id": 2,
             "intent": "chapter.polish",
             "assistant_session_id": 1,
-            "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。",
+            "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -54624,7 +54624,7 @@
             "intent": "chapter.polish",
             "message_count": 0,
             "last_user_message": null,
-            "assistant_summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。",
+            "assistant_summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -54649,7 +54649,7 @@
       "spec_json": "{\"id\": \"polish-fixed-outside-path\", \"message\": {\"type\": \"user_message\", \"user_message\": \"润色这章\", \"run_id\": \"run-1\", \"args\": {\"project_path\": \"$ROOT\", \"file_path\": \"D:/elsewhere/第004章.md\", \"content\": \"# 第四章 雨夜\\n\\n林舟推开门，，屋里很暗。。\\n他不禁五味杂陈...\\n沈禾说：“走吧！！”\\n\"}, \"intent\": \"chapter.polish\"}, \"replies\": [], \"env\": {}, \"triggers\": [], \"stream\": false, \"history\": null, \"sessions\": []}",
       "error": {
         "type": "AgentRuntimeUserMessageError",
-        "message": "润色目标必须是项目内现有的 Markdown 或 TXT 正文，不能是结构化或派生文件。"
+        "message": "润色目标必须是作品内现有的 Markdown 或 TXT 正文，不能是结构化或派生文件。"
       },
       "frames": [
         {
@@ -54670,7 +54670,7 @@
           "event_id": 3,
           "sequence": 3,
           "status": "failed",
-          "message": "润色目标必须是项目内现有的 Markdown 或 TXT 正文，不能是结构化或派生文件。",
+          "message": "润色目标必须是作品内现有的 Markdown 或 TXT 正文，不能是结构化或派生文件。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -54748,7 +54748,7 @@
           "run_id": 1,
           "event_type": "agent_run_failed",
           "actor": "root-agent",
-          "message": "润色目标必须是项目内现有的 Markdown 或 TXT 正文，不能是结构化或派生文件。",
+          "message": "润色目标必须是作品内现有的 Markdown 或 TXT 正文，不能是结构化或派生文件。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -54801,7 +54801,7 @@
         "plan": [
           {
             "step": "context.load",
-            "detail": "读取当前章与可信项目上下文。",
+            "detail": "读取当前章与可信作品上下文。",
             "status": "completed"
           },
           {
@@ -54811,12 +54811,12 @@
           },
           {
             "step": "permission.confirm",
-            "detail": "文件写回前等待作者确认。",
+            "detail": "写进文件前等待作者确认。",
             "status": "needs_approval"
           }
         ],
         "agent_result": {
-          "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。",
+          "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。",
           "requires_user_confirmation": true,
           "polish": {
             "status": "degraded",
@@ -55005,7 +55005,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。",
+            "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。",
             "message_count": 0,
             "tool_count": 2,
             "review_issue_count": 0
@@ -55032,7 +55032,7 @@
           "sequence": 3,
           "index": 0,
           "step": "context.load",
-          "detail": "读取当前章与可信项目上下文。",
+          "detail": "读取当前章与可信作品上下文。",
           "status": "completed"
         },
         {
@@ -55056,7 +55056,7 @@
           "sequence": 3,
           "index": 2,
           "step": "permission.confirm",
-          "detail": "文件写回前等待作者确认。",
+          "detail": "写进文件前等待作者确认。",
           "status": "needs_approval"
         },
         {
@@ -55255,7 +55255,7 @@
           "root_plan": [
             {
               "step": "context.load",
-              "detail": "读取当前章与可信项目上下文。",
+              "detail": "读取当前章与可信作品上下文。",
               "status": "completed"
             },
             {
@@ -55265,7 +55265,7 @@
             },
             {
               "step": "permission.confirm",
-              "detail": "文件写回前等待作者确认。",
+              "detail": "写进文件前等待作者确认。",
               "status": "needs_approval"
             }
           ],
@@ -55322,7 +55322,7 @@
             "plan": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与可信项目上下文。",
+                "detail": "读取当前章与可信作品上下文。",
                 "status": "completed"
               },
               {
@@ -55332,7 +55332,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "needs_approval"
               }
             ],
@@ -55341,7 +55341,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -55358,7 +55358,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -55373,7 +55373,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -55631,7 +55631,7 @@
               "intent": "chapter.polish",
               "message_count": 0,
               "last_user_message": null,
-              "assistant_summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。",
+              "assistant_summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -55652,7 +55652,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。",
+            "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。",
             "message_count": 0,
             "tool_count": 2,
             "review_issue_count": 0
@@ -55670,7 +55670,7 @@
             "execution_id": 2,
             "intent": "chapter.polish",
             "assistant_session_id": 1,
-            "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。",
+            "summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -55742,7 +55742,7 @@
             "intent": "chapter.polish",
             "message_count": 0,
             "last_user_message": null,
-            "assistant_summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。",
+            "assistant_summary": "在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": true

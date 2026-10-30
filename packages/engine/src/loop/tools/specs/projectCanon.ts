@@ -5,7 +5,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
   toolSpec({
     name: 'project.canon',
     description:
-      '项目 canon 闸：从正文重建实体在场缓存 + 校验作者在 .storyforge/canon/canon.json 声明的薄不变量（唯一持有 / 时间线先后 / 退场一致性），产出硬矛盾与 advisory 信号。' +
+      '作品 canon 闸：从正文重建实体在场缓存 + 校验作者在 .storyforge/canon/canon.json 声明的薄不变量（唯一持有 / 时间线先后 / 退场一致性），产出硬矛盾与 advisory 信号。' +
       '会更新 .storyforge/canon/ 派生缓存（非手稿正文），不落 DB。',
     domain: 'project',
     input_schema: {},
@@ -21,7 +21,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '项目 canon 闸（确定性，无需 LLM）：从正文重建实体在场分布缓存，再校验作者声明的薄不变量——唯一持有（同一物件章节窗口内只能一个持有者）、时间线先后（声明不能成环）、退场一致性（声明退场后不应再出场）。' +
+        '作品 canon 闸（确定性，无需 LLM）：从正文重建实体在场分布缓存，再校验作者声明的薄不变量——唯一持有（同一物件章节窗口内只能一个持有者）、时间线先后（声明不能成环）、退场一致性（声明退场后不应再出场）。' +
         '返回硬矛盾（blocking，声明内部结构冲突）与 advisory （退场后仍出场，可能是回忆 / 提及 / 同名，须抽读核实）。' +
         '它随书累积、比无状态深查更能抓跨章累积漂移。' +
         '同时把每实体事实（身份 / 别名 / 出场跨度 / 绑定声明 / provenance）投影成人可读 dossier.md 缓存。' +
@@ -74,7 +74,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
         '字段未传表示该类不提议；全空会诚实返回无提议。' +
         '工具会归并既有实体、提示同名 / 别名身份冲突，并只报告提案新增的 canon 闸问题。' +
         '合并草稿写入派生缓存 proposals.json（上一轮作者还没并入的提案会一并留着，不会被本轮覆盖），绝不修改 canon.json 或正文；' +
-        '作者审阅后再决定是否走待确认补丁。',
+        '作者审阅后再决定是否走待确认修订。',
       parameters: {
         type: 'object',
         properties: {
@@ -102,7 +102,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
                       },
                       path: {
                         type: 'string',
-                        description: '项目相对路径（可选），不可越界。',
+                        description: '作品内相对路径（可选），不可越界。',
                       },
                       start_line: {
                         type: 'integer',
@@ -154,7 +154,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
                       },
                       path: {
                         type: 'string',
-                        description: '项目相对路径（可选），不可越界。',
+                        description: '作品内相对路径（可选），不可越界。',
                       },
                       start_line: {
                         type: 'integer',
@@ -209,7 +209,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
                       },
                       path: {
                         type: 'string',
-                        description: '项目相对路径（可选），不可越界。',
+                        description: '作品内相对路径（可选），不可越界。',
                       },
                       start_line: {
                         type: 'integer',
@@ -261,7 +261,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
                       },
                       path: {
                         type: 'string',
-                        description: '项目相对路径（可选），不可越界。',
+                        description: '作品内相对路径（可选），不可越界。',
                       },
                       start_line: {
                         type: 'integer',
@@ -310,7 +310,7 @@ export const PROJECT_CANON_TOOL_SPECS = [
                       },
                       path: {
                         type: 'string',
-                        description: '项目相对路径（可选），不可越界。',
+                        description: '作品内相对路径（可选），不可越界。',
                       },
                       start_line: {
                         type: 'integer',

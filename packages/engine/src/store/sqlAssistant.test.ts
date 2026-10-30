@@ -236,7 +236,7 @@ describe('assistant session store replays the Python services', () => {
     ]);
     await store.setTitle(ref.id, '长'.repeat(200));
     expect(await store.title(ref.id)).toBe('长'.repeat(160));
-    await expect(store.title(99)).rejects.toThrow('Assistant 会话不存在：99。');
+    await expect(store.title(99)).rejects.toThrow('AI 会话不存在：99。');
   });
 });
 

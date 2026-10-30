@@ -564,7 +564,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -581,7 +581,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -596,7 +596,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -1429,12 +1429,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -1570,7 +1570,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
                 "message_count": 2,
                 "tool_count": 2,
                 "review_issue_count": 0
@@ -1970,7 +1970,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -1987,7 +1987,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -2002,7 +2002,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -2632,7 +2632,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -2653,7 +2653,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "message_count": 2,
             "tool_count": 2,
             "review_issue_count": 0
@@ -2671,7 +2671,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -3360,7 +3360,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -3944,12 +3944,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "requires_user_confirmation": false,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -4084,7 +4084,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
                 "message_count": 2,
                 "tool_count": 2,
                 "review_issue_count": 0
@@ -4484,7 +4484,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -4501,7 +4501,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -4516,7 +4516,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -5146,7 +5146,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": false
@@ -5167,7 +5167,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "message_count": 2,
             "tool_count": 2,
             "review_issue_count": 0
@@ -5179,12 +5179,12 @@
           "run_id": 1,
           "event_type": "agent_run_completed",
           "actor": "root-agent",
-          "message": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+          "message": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
           "payload": {
             "intent": "chapter.write",
             "assistant_session_id": 1,
             "requires_user_confirmation": false,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "has_proposed_patch": true,
             "has_review_report": false,
             "proposed_patch": {
@@ -5830,7 +5830,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": false
@@ -6414,12 +6414,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -6593,7 +6593,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
                 "message_count": 4,
                 "tool_count": 4,
                 "review_issue_count": 0
@@ -7065,7 +7065,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -7082,7 +7082,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -7097,7 +7097,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -7857,7 +7857,7 @@
               "intent": "chapter.write",
               "message_count": 4,
               "last_user_message": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文： - missing_required_beat: 缺少夜宿情节 章节目标：沈禾带林舟入城，夜宿客栈 目标字数：10–400 字 视角：林舟 场景：城门 必达节拍：入城；夜宿 禁写事项：回忆 连续性约束：林舟左臂有旧伤",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "tool_count": 4,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -7878,7 +7878,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "message_count": 4,
             "tool_count": 4,
             "review_issue_count": 0
@@ -7896,7 +7896,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -8766,7 +8766,7 @@
             "intent": "chapter.write",
             "message_count": 4,
             "last_user_message": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文： - missing_required_beat: 缺少夜宿情节 章节目标：沈禾带林舟入城，夜宿客栈 目标字数：10–400 字 视角：林舟 场景：城门 必达节拍：入城；夜宿 禁写事项：回忆 连续性约束：林舟左臂有旧伤",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "tool_count": 4,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -9590,17 +9590,17 @@
               },
               {
                 "step": "chapter.check",
-                "detail": "章节检查已完成：发现 1 个稿件硬失败。",
+                "detail": "章节检查已完成：发现 1 个正文硬失败。",
                 "status": "completed"
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "skipped"
               }
             ],
             "agent_result": {
-              "summary": "章节检查已完成：发现 1 个稿件硬失败。 候选稿已保留在运行证据中，未生成补丁。",
+              "summary": "章节检查已完成：发现 1 个正文硬失败。 候选稿已保留在运行证据中，未生成修订。",
               "requires_user_confirmation": false,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -9786,7 +9786,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节检查已完成：发现 1 个稿件硬失败。 候选稿已保留在运行证据中，未生成补丁。",
+                "summary": "章节检查已完成：发现 1 个正文硬失败。 候选稿已保留在运行证据中，未生成修订。",
                 "message_count": 4,
                 "tool_count": 4,
                 "review_issue_count": 0
@@ -10258,7 +10258,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -10275,7 +10275,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -10290,7 +10290,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -11062,7 +11062,7 @@
               "intent": "chapter.write",
               "message_count": 4,
               "last_user_message": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文： - missing_required_beat: 缺少夜宿情节 章节目标：沈禾带林舟入城，夜宿客栈 目标字数：10–400 字 视角：林舟 场景：城门 必达节拍：入城；夜宿 禁写事项：回忆 连续性约束：林舟左臂有旧伤",
-              "assistant_summary": "章节检查已完成：发现 1 个稿件硬失败。 候选稿已保留在运行证据中，未生成补丁。",
+              "assistant_summary": "章节检查已完成：发现 1 个正文硬失败。 候选稿已保留在运行证据中，未生成修订。",
               "tool_count": 4,
               "review_issue_count": 0,
               "requires_user_confirmation": false
@@ -11083,7 +11083,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节检查已完成：发现 1 个稿件硬失败。 候选稿已保留在运行证据中，未生成补丁。",
+            "summary": "章节检查已完成：发现 1 个正文硬失败。 候选稿已保留在运行证据中，未生成修订。",
             "message_count": 4,
             "tool_count": 4,
             "review_issue_count": 0
@@ -11095,12 +11095,12 @@
           "run_id": 1,
           "event_type": "agent_run_completed",
           "actor": "root-agent",
-          "message": "章节检查已完成：发现 1 个稿件硬失败。 候选稿已保留在运行证据中，未生成补丁。",
+          "message": "章节检查已完成：发现 1 个正文硬失败。 候选稿已保留在运行证据中，未生成修订。",
           "payload": {
             "intent": "chapter.write",
             "assistant_session_id": 1,
             "requires_user_confirmation": false,
-            "summary": "章节检查已完成：发现 1 个稿件硬失败。 候选稿已保留在运行证据中，未生成补丁。",
+            "summary": "章节检查已完成：发现 1 个正文硬失败。 候选稿已保留在运行证据中，未生成修订。",
             "has_proposed_patch": false,
             "has_review_report": false,
             "permission_profile": "ask",
@@ -11934,7 +11934,7 @@
             "intent": "chapter.write",
             "message_count": 4,
             "last_user_message": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文： - missing_required_beat: 缺少夜宿情节 章节目标：沈禾带林舟入城，夜宿客栈 目标字数：10–400 字 视角：林舟 场景：城门 必达节拍：入城；夜宿 禁写事项：回忆 连续性约束：林舟左臂有旧伤",
-            "assistant_summary": "章节检查已完成：发现 1 个稿件硬失败。 候选稿已保留在运行证据中，未生成补丁。",
+            "assistant_summary": "章节检查已完成：发现 1 个正文硬失败。 候选稿已保留在运行证据中，未生成修订。",
             "tool_count": 4,
             "review_issue_count": 0,
             "requires_user_confirmation": false
@@ -12763,12 +12763,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -12925,7 +12925,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
                 "message_count": 2,
                 "tool_count": 2,
                 "review_issue_count": 0
@@ -13325,7 +13325,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -13342,7 +13342,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -13357,7 +13357,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -14008,7 +14008,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -14029,7 +14029,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "message_count": 2,
             "tool_count": 2,
             "review_issue_count": 0
@@ -14047,7 +14047,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -14757,7 +14757,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -15341,12 +15341,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -15521,7 +15521,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
                 "message_count": 4,
                 "tool_count": 4,
                 "review_issue_count": 0
@@ -15993,7 +15993,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -16010,7 +16010,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -16025,7 +16025,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -16786,7 +16786,7 @@
               "intent": "chapter.write",
               "message_count": 4,
               "last_user_message": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文： - missing_required_beat: 缺少夜宿情节 章节目标：沈禾带林舟入城，夜宿客栈 目标字数：10–400 字 视角：林舟 场景：城门 必达节拍：入城；夜宿 禁写事项：回忆 连续性约束：林舟左臂有旧伤",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "tool_count": 4,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -16807,7 +16807,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "message_count": 4,
             "tool_count": 4,
             "review_issue_count": 0
@@ -16825,7 +16825,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -17695,7 +17695,7 @@
             "intent": "chapter.write",
             "message_count": 4,
             "last_user_message": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文： - missing_required_beat: 缺少夜宿情节 章节目标：沈禾带林舟入城，夜宿客栈 目标字数：10–400 字 视角：林舟 场景：城门 必达节拍：入城；夜宿 禁写事项：回忆 连续性约束：林舟左臂有旧伤",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "tool_count": 4,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -18524,12 +18524,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+              "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -18699,7 +18699,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+                "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
                 "message_count": 2,
                 "tool_count": 3,
                 "review_issue_count": 0
@@ -19124,7 +19124,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -19141,7 +19141,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -19156,7 +19156,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -19866,7 +19866,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+              "assistant_summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
               "tool_count": 3,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -19887,7 +19887,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "message_count": 2,
             "tool_count": 3,
             "review_issue_count": 0
@@ -19905,7 +19905,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -20691,7 +20691,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "assistant_summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "tool_count": 3,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -21312,12 +21312,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+              "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -21487,7 +21487,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+                "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
                 "message_count": 2,
                 "tool_count": 3,
                 "review_issue_count": 0
@@ -21912,7 +21912,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -21929,7 +21929,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -21944,7 +21944,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -22654,7 +22654,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+              "assistant_summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
               "tool_count": 3,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -22675,7 +22675,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "message_count": 2,
             "tool_count": 3,
             "review_issue_count": 0
@@ -22693,7 +22693,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -23479,7 +23479,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "assistant_summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "tool_count": 3,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -24100,12 +24100,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -24267,7 +24267,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
                 "message_count": 2,
                 "tool_count": 3,
                 "review_issue_count": 0
@@ -24692,7 +24692,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -24709,7 +24709,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -24724,7 +24724,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -25426,7 +25426,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "tool_count": 3,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -25447,7 +25447,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "message_count": 2,
             "tool_count": 3,
             "review_issue_count": 0
@@ -25465,7 +25465,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -26243,7 +26243,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "tool_count": 3,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -26864,12 +26864,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+              "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -27039,7 +27039,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+                "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
                 "message_count": 2,
                 "tool_count": 3,
                 "review_issue_count": 0
@@ -27464,7 +27464,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -27481,7 +27481,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -27496,7 +27496,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -28206,7 +28206,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+              "assistant_summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
               "tool_count": 3,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -28227,7 +28227,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "message_count": 2,
             "tool_count": 3,
             "review_issue_count": 0
@@ -28245,7 +28245,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -29031,7 +29031,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "assistant_summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "tool_count": 3,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -29647,17 +29647,17 @@
               },
               {
                 "step": "chapter.check",
-                "detail": "章节检查未完整执行：结果超过协议预算，不能据此判断稿件通过。",
+                "detail": "章节检查未完整执行：结果超过协议预算，不能据此判断正文通过。",
                 "status": "failed"
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+              "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -29830,7 +29830,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+                "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
                 "message_count": 2,
                 "tool_count": 3,
                 "review_issue_count": 0
@@ -30255,7 +30255,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -30272,7 +30272,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -30287,7 +30287,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -31000,7 +31000,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+              "assistant_summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
               "tool_count": 3,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -31021,7 +31021,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "message_count": 2,
             "tool_count": 3,
             "review_issue_count": 0
@@ -31039,7 +31039,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -31828,7 +31828,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "assistant_summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "tool_count": 3,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -32449,12 +32449,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+              "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -32624,7 +32624,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+                "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
                 "message_count": 2,
                 "tool_count": 3,
                 "review_issue_count": 0
@@ -33051,7 +33051,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -33068,7 +33068,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -33083,7 +33083,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -33793,7 +33793,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+              "assistant_summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
               "tool_count": 3,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -33814,7 +33814,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "message_count": 2,
             "tool_count": 3,
             "review_issue_count": 0
@@ -33832,7 +33832,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -34618,7 +34618,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "assistant_summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "tool_count": 3,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -35201,12 +35201,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+              "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -35414,7 +35414,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+                "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
                 "message_count": 4,
                 "tool_count": 5,
                 "review_issue_count": 0
@@ -35911,7 +35911,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -35928,7 +35928,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -35943,7 +35943,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -36783,7 +36783,7 @@
               "intent": "chapter.write",
               "message_count": 4,
               "last_user_message": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文： - missing_required_beat: 缺少夜宿情节 章节目标：沈禾带林舟入城，夜宿客栈 目标字数：10–400 字 视角：林舟 场景：城门 必达节拍：入城；夜宿 禁写事项：回忆 连续性约束：林舟左臂有旧伤",
-              "assistant_summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+              "assistant_summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
               "tool_count": 5,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -36804,7 +36804,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "message_count": 4,
             "tool_count": 5,
             "review_issue_count": 0
@@ -36822,7 +36822,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -37789,7 +37789,7 @@
             "intent": "chapter.write",
             "message_count": 4,
             "last_user_message": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文： - missing_required_beat: 缺少夜宿情节 章节目标：沈禾带林舟入城，夜宿客栈 目标字数：10–400 字 视角：林舟 场景：城门 必达节拍：入城；夜宿 禁写事项：回忆 连续性约束：林舟左臂有旧伤",
-            "assistant_summary": "章节检查重查一次后仍未取得可用结果，这份稿子未经检查。已生成 正文/第003章.md 的待审阅补丁，请通读后再决定是否接受。",
+            "assistant_summary": "章节检查重查一次后仍未取得可用结果，这章正文未经检查。已生成 正文/第003章.md 的待审阅修订，请通读后再决定是否接受。",
             "tool_count": 5,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -38655,12 +38655,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "skipped"
               }
             ],
             "agent_result": {
-              "summary": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成补丁。",
+              "summary": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成修订。",
               "requires_user_confirmation": false,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -38836,7 +38836,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成补丁。",
+                "summary": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成修订。",
                 "message_count": 2,
                 "tool_count": 3,
                 "review_issue_count": 0
@@ -39261,7 +39261,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -39278,7 +39278,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -39293,7 +39293,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -40009,7 +40009,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成补丁。",
+              "assistant_summary": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成修订。",
               "tool_count": 3,
               "review_issue_count": 0,
               "requires_user_confirmation": false
@@ -40030,7 +40030,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成补丁。",
+            "summary": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成修订。",
             "message_count": 2,
             "tool_count": 3,
             "review_issue_count": 0
@@ -40042,12 +40042,12 @@
           "run_id": 1,
           "event_type": "agent_run_completed",
           "actor": "root-agent",
-          "message": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成补丁。",
+          "message": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成修订。",
           "payload": {
             "intent": "chapter.write",
             "assistant_session_id": 1,
             "requires_user_confirmation": false,
-            "summary": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成补丁。",
+            "summary": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成修订。",
             "has_proposed_patch": false,
             "has_review_report": false,
             "permission_profile": "ask",
@@ -40791,7 +40791,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成补丁。",
+            "assistant_summary": "章节检查执行失败：未取得有效、来源与证据可核实的完整结果。 候选稿已保留在运行证据中，未生成修订。",
             "tool_count": 3,
             "review_issue_count": 0,
             "requires_user_confirmation": false
@@ -41412,12 +41412,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -41591,7 +41591,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
                 "message_count": 4,
                 "tool_count": 4,
                 "review_issue_count": 0
@@ -42063,7 +42063,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -42080,7 +42080,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -42095,7 +42095,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -42855,7 +42855,7 @@
               "intent": "chapter.write",
               "message_count": 4,
               "last_user_message": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文： - word_count_out_of_range: 正文 5 字，严重偏离 30–400 字。 章节目标：沈禾带林舟入城，夜宿客栈 目标字数：30–400 字 视角：林舟 场景：城门 必达节拍：入城；夜宿 禁写事项：回忆 连续性约束：林舟左臂有旧伤",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "tool_count": 4,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -42876,7 +42876,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "message_count": 4,
             "tool_count": 4,
             "review_issue_count": 0
@@ -42894,7 +42894,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -43764,7 +43764,7 @@
             "intent": "chapter.write",
             "message_count": 4,
             "last_user_message": "按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文： - word_count_out_of_range: 正文 5 字，严重偏离 30–400 字。 章节目标：沈禾带林舟入城，夜宿客栈 目标字数：30–400 字 视角：林舟 场景：城门 必达节拍：入城；夜宿 禁写事项：回忆 连续性约束：林舟左臂有旧伤",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "tool_count": 4,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -44854,7 +44854,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -44871,7 +44871,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -44886,7 +44886,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -46071,7 +46071,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -46088,7 +46088,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -46103,7 +46103,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -47288,7 +47288,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -47305,7 +47305,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -47320,7 +47320,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -48485,7 +48485,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -48502,7 +48502,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -48517,7 +48517,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -49702,7 +49702,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -49719,7 +49719,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -49734,7 +49734,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -50454,7 +50454,7 @@
       "spec_json": "{\"id\": \"write-no-project\", \"message\": {\"type\": \"user_message\", \"user_message\": \"写第三章：沈禾带林舟入城\", \"run_id\": \"run-1\", \"args\": {\"file_path\": \"$ROOT/正文/第003章.md\"}, \"intent\": \"chapter.write\"}, \"replies\": [], \"env\": {}, \"triggers\": [], \"stream\": false, \"history\": null, \"sessions\": []}",
       "error": {
         "type": "AgentRuntimeUserMessageError",
-        "message": "写一章需要当前项目路径。"
+        "message": "写一章需要当前作品路径。"
       },
       "frames": [
         {
@@ -50475,7 +50475,7 @@
           "event_id": 3,
           "sequence": 3,
           "status": "failed",
-          "message": "写一章需要当前项目路径。",
+          "message": "写一章需要当前作品路径。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -50549,7 +50549,7 @@
           "run_id": 1,
           "event_type": "agent_run_failed",
           "actor": "root-agent",
-          "message": "写一章需要当前项目路径。",
+          "message": "写一章需要当前作品路径。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -50732,7 +50732,7 @@
       "spec_json": "{\"id\": \"write-outside-target\", \"message\": {\"type\": \"user_message\", \"user_message\": \"写第三章：沈禾带林舟入城\", \"run_id\": \"run-1\", \"args\": {\"project_path\": \"$ROOT\", \"file_path\": \"D:/elsewhere/第003章.md\"}, \"intent\": \"chapter.write\"}, \"replies\": [], \"env\": {}, \"triggers\": [], \"stream\": false, \"history\": null, \"sessions\": []}",
       "error": {
         "type": "AgentRuntimeUserMessageError",
-        "message": "目标章节不在当前项目内。"
+        "message": "目标章节不在当前作品内。"
       },
       "frames": [
         {
@@ -50753,7 +50753,7 @@
           "event_id": 3,
           "sequence": 3,
           "status": "failed",
-          "message": "目标章节不在当前项目内。",
+          "message": "目标章节不在当前作品内。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -50827,7 +50827,7 @@
           "run_id": 1,
           "event_type": "agent_run_failed",
           "actor": "root-agent",
-          "message": "目标章节不在当前项目内。",
+          "message": "目标章节不在当前作品内。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -51325,7 +51325,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -51342,7 +51342,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -51357,7 +51357,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -52443,7 +52443,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -52460,7 +52460,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -52475,7 +52475,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -53359,7 +53359,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -53376,7 +53376,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -53391,7 +53391,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -54119,7 +54119,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -54136,7 +54136,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -54151,7 +54151,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -55320,7 +55320,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -55337,7 +55337,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -55352,7 +55352,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -56235,12 +56235,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -56390,7 +56390,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
                 "message_count": 2,
                 "tool_count": 2,
                 "review_issue_count": 0
@@ -56821,7 +56821,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -56838,7 +56838,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -56853,7 +56853,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -57553,7 +57553,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -57574,7 +57574,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "message_count": 2,
             "tool_count": 2,
             "review_issue_count": 0
@@ -57592,7 +57592,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -58421,7 +58421,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -59350,7 +59350,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -59367,7 +59367,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -59382,7 +59382,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -60724,7 +60724,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -60741,7 +60741,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -60756,7 +60756,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -61850,7 +61850,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -61867,7 +61867,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -61882,7 +61882,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -63067,7 +63067,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -63084,7 +63084,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -63099,7 +63099,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -64074,7 +64074,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -64091,7 +64091,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -64106,7 +64106,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -64563,12 +64563,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -64704,7 +64704,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
                 "message_count": 2,
                 "tool_count": 2,
                 "review_issue_count": 0
@@ -65105,7 +65105,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -65122,7 +65122,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -65137,7 +65137,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -65767,7 +65767,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -65788,7 +65788,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "message_count": 2,
             "tool_count": 2,
             "review_issue_count": 0
@@ -65806,7 +65806,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -66495,7 +66495,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -67079,12 +67079,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -67220,7 +67220,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
                 "message_count": 2,
                 "tool_count": 2,
                 "review_issue_count": 0
@@ -67620,7 +67620,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -67637,7 +67637,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -67652,7 +67652,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -68282,7 +68282,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -68303,7 +68303,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "message_count": 2,
             "tool_count": 2,
             "review_issue_count": 0
@@ -68321,7 +68321,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -69010,7 +69010,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -69594,12 +69594,12 @@
               },
               {
                 "step": "chapter.patch",
-                "detail": "未发现稿件硬问题时生成 proposed patch。",
+                "detail": "未发现正文硬问题时生成修订。",
                 "status": "completed"
               }
             ],
             "agent_result": {
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "requires_user_confirmation": true,
               "chapter_brief": {
                 "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -69735,7 +69735,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
                 "message_count": 2,
                 "tool_count": 2,
                 "review_issue_count": 0
@@ -70135,7 +70135,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -70152,7 +70152,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -70167,7 +70167,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]
@@ -70797,7 +70797,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
               "tool_count": 2,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -70818,7 +70818,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "message_count": 2,
             "tool_count": 2,
             "review_issue_count": 0
@@ -70836,7 +70836,7 @@
             "execution_id": 12,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -71525,7 +71525,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅补丁。",
+            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
             "tool_count": 2,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -72376,7 +72376,7 @@
             "skill_version": "skills_v1",
             "selected_skill": {
               "name": "chapter_polish",
-              "description": "单章润色闭环：加载上下文、多视角审稿、生成 proposed patch，并等待作者确认写回。",
+              "description": "单章润色闭环：加载上下文、多视角审稿、生成修订，并等待作者确认写进文件。",
               "permission_profile": "ask",
               "tool_sequence": [
                 "context.load",
@@ -72393,7 +72393,7 @@
             "skill_plan_template": [
               {
                 "step": "context.load",
-                "detail": "读取当前章与项目上下文。",
+                "detail": "读取当前章与作品上下文。",
                 "status": "planned"
               },
               {
@@ -72408,7 +72408,7 @@
               },
               {
                 "step": "permission.confirm",
-                "detail": "文件写回前等待作者确认。",
+                "detail": "写进文件前等待作者确认。",
                 "status": "planned"
               }
             ]

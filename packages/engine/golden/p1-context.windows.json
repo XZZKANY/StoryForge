@@ -2830,14 +2830,14 @@
           ],
           "error": {
             "type": "IdeCommandExecutionError",
-            "message": "读不到项目：$ROOT/missing",
+            "message": "读不到作品：$ROOT/missing",
             "phase": "execute",
-            "display": "读不到项目：$ROOT/missing"
+            "display": "读不到作品：$ROOT/missing"
           },
           "read_trace": [],
           "http": {
             "status": 400,
-            "display": "读不到项目：$ROOT/missing",
+            "display": "读不到作品：$ROOT/missing",
             "normalized_body_sha256": "38d406d91c30887b6fdbe286de313316551f0d961431b34cdb4a1d459403f8fa"
           },
           "http_read_trace": [],

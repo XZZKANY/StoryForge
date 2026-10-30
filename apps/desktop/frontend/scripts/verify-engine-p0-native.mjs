@@ -1016,7 +1016,7 @@ try {
           assert.equal(result.continued.text, '合成流式回放');
           assert.equal(result.deltas.map((delta) => delta.text).join(''), '合成流式回放');
           assert.equal(result.cancelled?.name, 'RunInterrupted', 'Cancelling did not interrupt');
-          assert.equal(result.missing?.message, 'Assistant 会话不存在：999。');
+          assert.equal(result.missing?.message, 'AI 会话不存在：999。');
           assert.deepEqual(
             {
               status: result.health.status,

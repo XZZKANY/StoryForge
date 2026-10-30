@@ -5,7 +5,7 @@ export const PATCH_TOOL_SPECS = [
   toolSpec({
     name: 'project.trim_prose',
     description:
-      '压缩修订：按目标压缩率（默认 15%）对单个稿件做结构化压缩，攻击冗余副词、情绪直述、解释性旁白等过度表达，返回带字数审计报告的待确认补丁。',
+      '压缩修订：按目标压缩率（默认 15%）对单篇正文做结构化压缩，攻击冗余副词、情绪直述、解释性旁白等过度表达，返回带字数审计报告的待确认修订。',
     domain: 'project',
     input_schema: {},
     output_schema: {},
@@ -27,16 +27,16 @@ export const PATCH_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '按目标压缩率压缩项目内单个稿件，攻击冗余副词（「他愤怒地说」→「他说」或直接用动作语气带）、情绪直述（「她感到恐惧」→ 生理反应或环境暗示）、解释性旁白、冗余重复和啰嗦比喻。' +
+        '按目标压缩率压缩作品内单篇正文，攻击冗余副词（「他愤怒地说」→「他说」或直接用动作语气带）、情绪直述（「她感到恐惧」→ 生理反应或环境暗示）、解释性旁白、冗余重复和啰嗦比喻。' +
         '保留所有剧情信息、情感高潮、关键动作和对话。' +
         '调用前建议先 fs_read 确认内容。' +
-        '每条调用生成待确认补丁，一次对话最多一个补丁。',
+        '每条调用生成待确认修订，一次对话最多一个修订。',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: '相对项目根的稿件路径。',
+            description: '相对作品文件夹的文件路径。',
           },
           target_percent: {
             type: 'integer',
@@ -67,13 +67,13 @@ export const PATCH_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '对项目内单个稿件做多视角审稿（剧情 / 人物 / 文风 / 连续性），返回带稳定 id 的 issue 列表。',
+        '对作品内单篇正文做多视角审稿（剧情 / 人物 / 文风 / 连续性），返回带稳定 id 的 issue 列表。',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: '相对项目根的稿件路径。',
+            description: '相对作品文件夹的文件路径。',
           },
         },
         required: ['path'],
@@ -85,7 +85,7 @@ export const PATCH_TOOL_SPECS = [
   }),
   toolSpec({
     name: 'file.revise',
-    description: '生成待确认文件修订补丁。',
+    description: '生成待确认的文件修订。',
     domain: 'file',
     input_schema: {},
     output_schema: {},
@@ -102,14 +102,14 @@ export const PATCH_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '按明确指示修订项目内单个稿件，生成待作者确认的修订补丁；' +
-        '不会直接写盘。一次对话最多修订一个文件，修订前建议先 fs_read 或 file_review。',
+        '按明确指示修订作品内单个文件，生成待作者确认的修订；' +
+        '不会直接写进文件。一次对话最多修订一个文件，修订前建议先 fs_read 或 file_review。',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: '相对项目根的稿件路径。',
+            description: '相对作品文件夹的文件路径。',
           },
           instruction: {
             type: 'string',
@@ -125,7 +125,7 @@ export const PATCH_TOOL_SPECS = [
   }),
   toolSpec({
     name: 'chapter.polish',
-    description: '对既有小说正文执行受控润色，比较在线与本地候选并生成待确认补丁。',
+    description: '对既有小说正文执行受控润色，比较在线与本地候选并生成待确认修订。',
     domain: 'chapter',
     input_schema: {},
     output_schema: {},
@@ -150,14 +150,14 @@ export const PATCH_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '保守润色项目内一章小说正文，保护 frontmatter、标题、围栏数据、事实、专名和人称，通过相对原文质量门禁后才生成待审阅补丁。' +
-        '不会直接写盘。',
+        '保守润色作品内一章小说正文，保护 frontmatter、标题、围栏数据、事实、专名和人称，通过相对原文质量门禁后才生成待审阅修订。' +
+        '不会直接写进文件。',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: '相对项目根的 Markdown 或 TXT 正文路径。',
+            description: '相对作品文件夹的 Markdown 或 TXT 正文路径。',
           },
           style_instruction: {
             type: 'string',
@@ -173,7 +173,7 @@ export const PATCH_TOOL_SPECS = [
   }),
   toolSpec({
     name: 'file.create',
-    description: '为尚不存在的新文件起草初稿，生成待确认新建文件补丁。',
+    description: '为尚不存在的新文件起草初稿，生成待确认的新建文件修订。',
     domain: 'file',
     input_schema: {},
     output_schema: {},
@@ -190,15 +190,15 @@ export const PATCH_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '为项目内尚不存在的新文件、或作者预先建好的空文件起草完整初稿，生成待作者确认的新建文件补丁；' +
-        '不会直接写盘。目标文件已有正文时才会失败（那种情况改用 file_revise）；' +
+        '为作品内尚不存在的新文件、或作者预先建好的空文件起草完整初稿，生成待作者确认的新建文件修订；' +
+        '不会直接写进文件。目标文件已有正文时才会失败（那种情况改用 file_revise）；' +
         '起草前建议先读大纲 / 设定 / 相邻章节。',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: '相对项目根的新文件路径（含目录与 .md 扩展名）。',
+            description: '相对作品文件夹的新文件路径（含目录与 .md 扩展名）。',
           },
           instruction: {
             type: 'string',
@@ -215,7 +215,7 @@ export const PATCH_TOOL_SPECS = [
   }),
   toolSpec({
     name: 'prose.continue',
-    description: '在作者光标处接着往下写一段，生成待确认的插入补丁（不改动既有正文）。',
+    description: '在作者光标处接着往下写一段，生成待确认的插入修订（不改动既有正文）。',
     domain: 'prose',
     input_schema: {},
     output_schema: {},
@@ -232,8 +232,8 @@ export const PATCH_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '在作者光标处接着往下写一段正文，生成待作者确认的插入补丁；' +
-        '既有正文一字不改，也不会直接写盘。作者说「接着写」「往下写一段」「继续」时用这把工具，不要用 file_revise（那会重写整篇）。' +
+        '在作者光标处接着往下写一段正文，生成待作者确认的插入修订；' +
+        '既有正文一字不改，也不会直接写进文件。作者说「接着写」「往下写一段」「继续」时用这把工具，不要用 file_revise（那会重写整篇）。' +
         '落点缺省用作者当前光标位置——系统已把作者的光标与选区注入本轮对话，通常无需自己指定 anchor_line。' +
         '一次只写一个自然段到一个小节拍，不收尾、不总结、不甩悬念收束句。',
       parameters: {
@@ -241,7 +241,7 @@ export const PATCH_TOOL_SPECS = [
         properties: {
           path: {
             type: 'string',
-            description: '相对项目根的稿件路径。',
+            description: '相对作品文件夹的文件路径。',
           },
           instruction: {
             type: 'string',

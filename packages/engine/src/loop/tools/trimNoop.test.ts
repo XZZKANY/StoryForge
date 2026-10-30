@@ -76,7 +76,7 @@ describe('project.trim_prose', () => {
     expect(result.patch_proposal).toBeUndefined();
     expect(result.artifacts ?? []).toEqual([]);
     expect(result.output).toMatchObject({ unchanged: true });
-    expect(result.summary).toMatch(/一字不差.*没有生成补丁/);
+    expect(result.summary).toMatch(/一字不差.*没有生成修订/);
   });
 
   it('still proposes a patch when the text actually got shorter', async () => {

@@ -56,7 +56,7 @@ const FINAL_ROUND_NOTICE = `已到本轮对话的工具调用上限。${TOOLS_WI
 const TOOL_MARKUP_MARKERS = ['DSML', '<tool_call', 'invoke name=', '<function_call'];
 const UNEXECUTED_TOOL_MARKUP_NOTICE =
   '（这轮模型把工具调用写成了正文、并没有真正执行，所以文件没有任何改动。' +
-  '下面是它原样吐出的内容，供你判断；要落盘请再说一次目标文件和要求。）\n\n';
+  '下面是它原样吐出的内容，供你判断；要写进文件请再说一次目标文件和要求。）\n\n';
 
 /** 模型把工具调用写成正文时给作者一句说明：文件没有任何改动。 */
 export function annotateUnexecutedToolMarkup(content: string): string {

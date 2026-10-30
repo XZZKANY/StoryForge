@@ -167,8 +167,8 @@ export async function applyPlanUpdate(
   if (premature.length) {
     const listed = premature.map((ordinal) => `第 ${ordinal} 章`).join('、');
     throw new FsToolError(
-      `${listed}的正文还不存在，不能标 done。起草补丁不等于落盘——` +
-        '补丁要作者在界面点接受才写进正文，请等作者接受后再标记；' +
+      `${listed}的正文还不存在，不能标 done。起草出的修订不等于写进文件——` +
+        '修订要作者在界面点接受才写进正文，请等作者接受后再标记；' +
         '本次调用未改动计划，回话时也不要说这章已完成。',
     );
   }

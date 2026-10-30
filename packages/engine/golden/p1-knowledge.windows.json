@@ -269,7 +269,7 @@
           },
           "error": {
             "type": "FsToolError",
-            "message": "只接受规范化项目相对路径：../x.md"
+            "message": "只接受规范化的作品内相对路径：../x.md"
           },
           "writes": {}
         },
@@ -419,7 +419,7 @@
           },
           "error": {
             "type": "FsToolError",
-            "message": "只接受规范化项目相对路径：../x.md"
+            "message": "只接受规范化的作品内相对路径：../x.md"
           },
           "writes": {}
         },

@@ -5,7 +5,7 @@ export const QUALITY_AND_PLAN_TOOL_SPECS = [
   toolSpec({
     name: 'project.prose_check',
     description:
-      '文笔气味静态检查：对单个稿件做确定性坏味道扫描（陈词套话 / 说明腔 / 情绪直述 / 解释性旁白 / 对白密度 / 句长 / 重复表达 / 静态节奏 / 机械过渡 / 公式化设问 / 二元对比 / 空泛总结），产出 advisory issue（无 LLM，不写盘）。',
+      '文笔气味静态检查：对单篇正文做确定性坏味道扫描（陈词套话 / 说明腔 / 情绪直述 / 解释性旁白 / 对白密度 / 句长 / 重复表达 / 静态节奏 / 机械过渡 / 公式化设问 / 二元对比 / 空泛总结），产出 advisory issue（无 LLM，不写进文件）。',
     domain: 'project',
     input_schema: {},
     output_schema: {},
@@ -20,7 +20,7 @@ export const QUALITY_AND_PLAN_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '文笔气味静态检查（确定性，无需 LLM、不烧 token）：对项目内单个稿件扫描常见坏味道——陈词套话、直述情绪的说明腔、解释性旁白、对白密度失衡、超长句 / 短句堆叠、短窗口重复、缺少行动 beat 的静态节奏，以及机械过渡、公式化设问、二元对比和空泛总结，返回带维度 / 严重度的 issue 列表。' +
+        '文笔气味静态检查（确定性，无需 LLM、不烧 token）：对作品内单篇正文扫描常见坏味道——陈词套话、直述情绪的说明腔、解释性旁白、对白密度失衡、超长句 / 短句堆叠、短窗口重复、缺少行动 beat 的静态节奏，以及机械过渡、公式化设问、二元对比和空泛总结，返回带维度 / 严重度的 issue 列表。' +
         '比 file_review 便宜得多，适合修订前先快速定位文笔问题；' +
         '结果是参考信号，结合原文判断后再决定是否修改。',
       parameters: {
@@ -28,7 +28,7 @@ export const QUALITY_AND_PLAN_TOOL_SPECS = [
         properties: {
           path: {
             type: 'string',
-            description: '相对项目根的稿件路径（要检查文笔的正文）。',
+            description: '相对作品文件夹的文件路径（要检查文笔的正文）。',
           },
         },
         required: ['path'],
@@ -54,7 +54,7 @@ export const QUALITY_AND_PLAN_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '场景承重静态检查（确定性，无需额外 LLM、不写盘）：先读完正文，再把你从正文观察到的 beats、场景前后情绪、不可逆后果、是否可删除填入可选参数。' +
+        '场景承重静态检查（确定性，无需额外 LLM、不写进文件）：先读完正文，再把你从正文观察到的 beats、场景前后情绪、不可逆后果、是否可删除填入可选参数。' +
         '未传字段会跳过对应规则；显式空串 / 空数组表示观察结果为无。' +
         '工具还会扫描正文调查模板，返回 pass / warn advisory 信号。' +
         '结果只是辅助判断，不是场景质量结论。',
@@ -63,7 +63,7 @@ export const QUALITY_AND_PLAN_TOOL_SPECS = [
         properties: {
           path: {
             type: 'string',
-            description: '相对项目根的正文文件路径。',
+            description: '相对作品文件夹的正文文件路径。',
           },
           beats: {
             type: 'array',
@@ -112,20 +112,20 @@ export const QUALITY_AND_PLAN_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '长篇实体预算检查（确定性，无需额外 LLM、不写盘）：先读完正文，再把本章观察到的新增关键人物、核心地点、核心证据、重大反转、谜题和装备填入可选数组。' +
+        '长篇实体预算检查（确定性，无需额外 LLM、不写进文件）：先读完正文，再把本章观察到的新增关键人物、核心地点、核心证据、重大反转、谜题和装备填入可选数组。' +
         '字段未传会跳过对应规则，显式空数组表示本章无该类新增。' +
-        'chapter 未传时按项目文件阅读序推断。' +
+        'chapter 未传时按作品文件阅读序推断。' +
         '返回 pass / warn advisory 信号，仅供结构规划参考，不是质量判定。',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: '相对项目根的正文文件路径。',
+            description: '相对作品文件夹的正文文件路径。',
           },
           chapter: {
             type: 'integer',
-            description: '可选章节序号；未传时按项目文件阅读序推断。',
+            description: '可选章节序号；未传时按作品文件阅读序推断。',
           },
           new_key_characters: {
             type: 'array',
@@ -219,11 +219,11 @@ export const QUALITY_AND_PLAN_TOOL_SPECS = [
       description:
         '连载计划推进（确定性，无需 LLM）：维护 .storyforge/serial-plan.json——每轮对话开头你看到的「连载计划」块就是它的投影。' +
         '按 ordinal upsert：已存在的章**逐字段合并**，只传 status 不会清掉作者写的 title / goal。' +
-        "典型用法有两种：①某章正文确已落盘 → 传 {ordinal, status:'done'} 把它标掉，下一章才会正确前移；" +
+        "典型用法有两种：①某章正文确已写进文件 → 传 {ordinal, status:'done'} 把它标掉，下一章才会正确前移；" +
         '②作者给了大纲 → 一次传多章 {ordinal, title, goal} 建起计划。' +
-        '**正文不存在的章标 done 会被拒绝**：起草出待确认补丁不等于写完，补丁要作者点接受才落盘，此时标 done 等于让计划替作者做决定。' +
+        '**正文不存在的章标 done 会被拒绝**：起草出待确认修订不等于写完，修订要作者点接受才写进文件，此时标 done 等于让计划替作者做决定。' +
         "等接受之后再标。写不下去时标 status:'blocked' 并在 note 写明卡在哪，之后不会再被当成下一章。" +
-        '**只写计划文件，绝不写手稿正文**——正文仍须走 file_create / file_revise 的待确认补丁。' +
+        '**只写计划文件，绝不写手稿正文**——正文仍须走 file_create / file_revise 的待确认修订。' +
         '注意计划里的 status 只是声明，正文是否存在才是真相：块里报「计划与正文对不上」时，以正文为准把状态改对，不要照计划重写已有正文。',
       parameters: {
         type: 'object',

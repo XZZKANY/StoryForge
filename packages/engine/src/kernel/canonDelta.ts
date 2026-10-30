@@ -420,7 +420,7 @@ export async function canonDelta(
     sourceRevision !== null &&
     (await captureCanonSourceRevision(reader, root)) !== sourceRevision
   )
-    throw new FsToolError('派生缓存来源已变化或无法确认，请确认写回结果后重新扫描。');
+    throw new FsToolError('派生缓存来源已变化或无法确认，请确认写入结果后重新扫描。');
   await writeDerived(reader, writer, root, 'proposals.json', merged, {
     sourceRevision: null,
     platform,

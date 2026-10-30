@@ -219,7 +219,7 @@ export function resolveReviseScope(
     ordinalIssues,
   );
   if (authorInstruction !== null && unknownOrdinals.length)
-    throw new AgentOrchestrationError('选中的审稿问题不存在，请按当前报告重新选择；未生成补丁。');
+    throw new AgentOrchestrationError('选中的审稿问题不存在，请按当前报告重新选择；未生成修订。');
   const selected =
     authorInstruction !== null && inferredSelected.length
       ? inferredSelected
@@ -340,7 +340,7 @@ export function scopeWarning(scope: { [key: string]: unknown }, before: string, 
   return {
     message:
       `本次定向修订改动了约 ${percent}% 的原文行（${Math.min(changed, total)}/${total} 行）${insertedSuffix}，` +
-      '可能超出指定范围，请在 diff 面板逐块核对后再接受。',
+      '可能超出指定范围，请在对比里逐块核对后再接受。',
     drift_ratio: Number(pythonFixed(ratio, 4)),
     changed_lines: changed,
     total_lines: total,

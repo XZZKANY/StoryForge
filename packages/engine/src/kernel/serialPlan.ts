@@ -245,7 +245,7 @@ function driftSection(plan: SerialPlan): string | null {
 /** 把计划投影拼成 system 块。 */
 export function renderPlanBlock(plan: SerialPlan): string {
   const writtenPlanned = plan.chapters.filter((chapter) => chapter.written).length;
-  const progress = [`计划共 ${plan.chapters.length} 章`, `其中 ${writtenPlanned} 章正文已落盘`];
+  const progress = [`计划共 ${plan.chapters.length} 章`, `其中 ${writtenPlanned} 章正文已写进文件`];
   if (plan.chapterWordCountMin && plan.chapterWordCountMax)
     progress.push(`每章目标 ${plan.chapterWordCountMin}–${plan.chapterWordCountMax} 字`);
   const head = ['[连载计划 · 确定性]', '· ' + progress.join('；') + '。'];

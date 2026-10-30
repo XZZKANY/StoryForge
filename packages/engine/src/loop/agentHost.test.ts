@@ -309,7 +309,7 @@ describe('host request validation', () => {
       { user_message: 'x', execution_protocol: 'external_writeback_v1' },
       () => undefined,
     ).catch((error: unknown) => error);
-    expect(failure).toMatchObject({ status: 409, detail: '当前宿主未开放连续写回协议' });
+    expect(failure).toMatchObject({ status: 409, detail: '当前宿主未开放连续写入协议' });
   });
 
   it.each([

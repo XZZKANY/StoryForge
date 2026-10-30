@@ -5,7 +5,7 @@ export const PROJECT_CONSISTENCY_TOOL_SPECS = [
   toolSpec({
     name: 'project.consistency',
     description:
-      '项目级一致性观察扫描：词条出现分布、时间标记、跨文件重复子句（path-scoped 只读，不下结论）。',
+      '作品级一致性观察扫描：词条出现分布、时间标记、跨文件重复子句（path-scoped 只读，不下结论）。',
     domain: 'project',
     input_schema: {},
     output_schema: {},
@@ -20,7 +20,7 @@ export const PROJECT_CONSISTENCY_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '项目级一致性观察扫描：给定人物名 / 称谓 / 设定词条，返回各文件出现分布（含从未出现的缺席词条）、全书时间标记罗列和跨文件重复子句。' +
+        '作品级一致性观察扫描：给定人物名 / 称谓 / 设定词条，返回各文件出现分布（含从未出现的缺席词条）、全书时间标记罗列和跨文件重复子句。' +
         '只报机械观察不下结论，用于称谓 / 时间线 / 重复表达检查。',
       parameters: {
         type: 'object',
@@ -34,7 +34,7 @@ export const PROJECT_CONSISTENCY_TOOL_SPECS = [
           },
           subpath: {
             type: 'string',
-            description: '限定扫描的子目录，相对项目根。',
+            description: '限定扫描的子目录，相对作品文件夹。',
           },
           glob: {
             type: 'string',
@@ -47,7 +47,7 @@ export const PROJECT_CONSISTENCY_TOOL_SPECS = [
   toolSpec({
     name: 'project.deep_consistency',
     description:
-      '深度一致性评审：语义 judge 对照本地人物 / 设定文件检查单个稿件，产出 advisory issue 信号（不写盘、不落 DB）。',
+      '深度一致性评审：语义 judge 对照本地人物 / 设定文件检查单篇正文，产出 advisory issue 信号（不写进文件、不落 DB）。',
     domain: 'project',
     input_schema: {},
     output_schema: {},
@@ -63,7 +63,7 @@ export const PROJECT_CONSISTENCY_TOOL_SPECS = [
     },
     loop_schema: {
       description:
-        '深度一致性评审（语义）：把单个稿件对照项目内人物 / 设定文件交给语义评审模型，返回结构化 issue（类别 / 严重度 / 行号 / 摘要）。' +
+        '深度一致性评审（语义）：把单篇正文对照作品内人物 / 设定文件交给语义评审模型，返回结构化 issue（类别 / 严重度 / 行号 / 摘要）。' +
         '比 project_consistency 更贵更慢，适合先用机械观察或检索定位疑点、再对目标章节深查；' +
         '结果是参考信号，须抽读原文核实。',
       parameters: {
@@ -71,7 +71,7 @@ export const PROJECT_CONSISTENCY_TOOL_SPECS = [
         properties: {
           path: {
             type: 'string',
-            description: '相对项目根的稿件路径（要评审的正文）。',
+            description: '相对作品文件夹的文件路径（要评审的正文）。',
           },
           bible_paths: {
             type: 'array',
@@ -98,7 +98,7 @@ export const PROJECT_CONSISTENCY_TOOL_SPECS = [
     name: 'project.cross_chapter_check',
     description:
       '跨章一致性审校：把若干完整章节一起交给语义模型，找章与章之间的硬冲突（时间线、称谓漂移、设定不一、已退场角色再出场、伏笔未回收）；' +
-      '不写盘、不落 DB。',
+      '不写进文件、不落 DB。',
     domain: 'project',
     input_schema: {},
     output_schema: {},
@@ -126,7 +126,7 @@ export const PROJECT_CONSISTENCY_TOOL_SPECS = [
             items: {
               type: 'string',
             },
-            description: '要比对的章节路径（相对项目根），2-6 个。',
+            description: '要比对的章节路径（相对作品文件夹），2-6 个。',
           },
           focus: {
             type: 'string',

@@ -341,7 +341,7 @@
           },
           "error": {
             "type": "FsToolError",
-            "message": "路径越界，只允许访问项目目录内文件：.."
+            "message": "路径越界，只允许访问作品文件夹内的文件：.."
           },
           "writes": {}
         },
@@ -631,7 +631,7 @@
         {
           "fn": "canon_projection",
           "args": {},
-          "output_json": "{\"cache_status\": \"uncached_unverified\", \"entity_count\": 6, \"checked_invariants\": [\"single_holder\", \"timeline_order\", \"lifespan\"], \"conflicts\": [{\"id\": \"canon_c61b9e88c697\", \"category\": \"single_holder\", \"severity\": \"blocking\", \"item\": \"断魂刀\", \"holders\": [\"char_lin\", \"char_shen\"], \"message\": \"唯一持有冲突：「断魂刀」在交叠章节窗口内同时被 char_lin 与 char_shen 持有。\"}], \"advisories\": [{\"id\": \"canon_9c4b89bdc0f2\", \"category\": \"lifespan\", \"severity\": \"medium\", \"entity\": \"char_shen\", \"exits_after_chapter\": 1, \"hits\": [{\"path\": \"正文/第003章.md\", \"chapter\": 3, \"first_line\": 1}], \"message\": \"沈禾 声明在第 1 章后退场（声明原因：坠崖），但正文在其后章节仍出现其表面形（1 处）。可能是回忆 / 提及 / 同名，请抽读核实。\"}], \"conflict_count\": 1, \"advisory_count\": 1, \"presence_summary\": {\"chapter_count\": 3, \"scanned_files\": 3, \"terms_truncated\": false, \"missing_entities\": [\"char_ghost\", null, \"char_blank\"]}, \"scaffolded_canon\": false, \"dossier\": {\"entity_count\": 5, \"path\": null, \"missing_entities\": [\"char_ghost\", \"char_blank\"]}, \"note\": \"结果为参考信号：硬矛盾（blocking）是声明内部结构冲突，advisory 须抽读原文核实。写回历史无法完整核验；本次直接扫描结果仅供参考，扫描期间的来源一致性未经核验，未复用或发布正文派生缓存。\"}",
+          "output_json": "{\"cache_status\": \"uncached_unverified\", \"entity_count\": 6, \"checked_invariants\": [\"single_holder\", \"timeline_order\", \"lifespan\"], \"conflicts\": [{\"id\": \"canon_c61b9e88c697\", \"category\": \"single_holder\", \"severity\": \"blocking\", \"item\": \"断魂刀\", \"holders\": [\"char_lin\", \"char_shen\"], \"message\": \"唯一持有冲突：「断魂刀」在交叠章节窗口内同时被 char_lin 与 char_shen 持有。\"}], \"advisories\": [{\"id\": \"canon_9c4b89bdc0f2\", \"category\": \"lifespan\", \"severity\": \"medium\", \"entity\": \"char_shen\", \"exits_after_chapter\": 1, \"hits\": [{\"path\": \"正文/第003章.md\", \"chapter\": 3, \"first_line\": 1}], \"message\": \"沈禾 声明在第 1 章后退场（声明原因：坠崖），但正文在其后章节仍出现其表面形（1 处）。可能是回忆 / 提及 / 同名，请抽读核实。\"}], \"conflict_count\": 1, \"advisory_count\": 1, \"presence_summary\": {\"chapter_count\": 3, \"scanned_files\": 3, \"terms_truncated\": false, \"missing_entities\": [\"char_ghost\", null, \"char_blank\"]}, \"scaffolded_canon\": false, \"dossier\": {\"entity_count\": 5, \"path\": null, \"missing_entities\": [\"char_ghost\", \"char_blank\"]}, \"note\": \"结果为参考信号：硬矛盾（blocking）是声明内部结构冲突，advisory 须抽读原文核实。写入历史无法完整核验；本次直接扫描结果仅供参考，扫描期间的来源一致性未经核验，未复用或发布正文派生缓存。\"}",
           "writes": {}
         },
         {
@@ -639,7 +639,7 @@
           "args": {
             "refresh": false
           },
-          "output_json": "{\"cache_status\": \"uncached_unverified\", \"entity_count\": 6, \"checked_invariants\": [\"single_holder\", \"timeline_order\", \"lifespan\"], \"conflicts\": [{\"id\": \"canon_c61b9e88c697\", \"category\": \"single_holder\", \"severity\": \"blocking\", \"item\": \"断魂刀\", \"holders\": [\"char_lin\", \"char_shen\"], \"message\": \"唯一持有冲突：「断魂刀」在交叠章节窗口内同时被 char_lin 与 char_shen 持有。\"}], \"advisories\": [{\"id\": \"canon_9c4b89bdc0f2\", \"category\": \"lifespan\", \"severity\": \"medium\", \"entity\": \"char_shen\", \"exits_after_chapter\": 1, \"hits\": [{\"path\": \"正文/第003章.md\", \"chapter\": 3, \"first_line\": 1}], \"message\": \"沈禾 声明在第 1 章后退场（声明原因：坠崖），但正文在其后章节仍出现其表面形（1 处）。可能是回忆 / 提及 / 同名，请抽读核实。\"}], \"conflict_count\": 1, \"advisory_count\": 1, \"presence_summary\": {\"chapter_count\": 3, \"scanned_files\": 3, \"terms_truncated\": false, \"missing_entities\": [\"char_ghost\", null, \"char_blank\"]}, \"scaffolded_canon\": false, \"dossier\": {\"entity_count\": 5, \"path\": null, \"missing_entities\": [\"char_ghost\", \"char_blank\"]}, \"note\": \"结果为参考信号：硬矛盾（blocking）是声明内部结构冲突，advisory 须抽读原文核实。写回历史无法完整核验；本次直接扫描结果仅供参考，扫描期间的来源一致性未经核验，未复用或发布正文派生缓存。\"}",
+          "output_json": "{\"cache_status\": \"uncached_unverified\", \"entity_count\": 6, \"checked_invariants\": [\"single_holder\", \"timeline_order\", \"lifespan\"], \"conflicts\": [{\"id\": \"canon_c61b9e88c697\", \"category\": \"single_holder\", \"severity\": \"blocking\", \"item\": \"断魂刀\", \"holders\": [\"char_lin\", \"char_shen\"], \"message\": \"唯一持有冲突：「断魂刀」在交叠章节窗口内同时被 char_lin 与 char_shen 持有。\"}], \"advisories\": [{\"id\": \"canon_9c4b89bdc0f2\", \"category\": \"lifespan\", \"severity\": \"medium\", \"entity\": \"char_shen\", \"exits_after_chapter\": 1, \"hits\": [{\"path\": \"正文/第003章.md\", \"chapter\": 3, \"first_line\": 1}], \"message\": \"沈禾 声明在第 1 章后退场（声明原因：坠崖），但正文在其后章节仍出现其表面形（1 处）。可能是回忆 / 提及 / 同名，请抽读核实。\"}], \"conflict_count\": 1, \"advisory_count\": 1, \"presence_summary\": {\"chapter_count\": 3, \"scanned_files\": 3, \"terms_truncated\": false, \"missing_entities\": [\"char_ghost\", null, \"char_blank\"]}, \"scaffolded_canon\": false, \"dossier\": {\"entity_count\": 5, \"path\": null, \"missing_entities\": [\"char_ghost\", \"char_blank\"]}, \"note\": \"结果为参考信号：硬矛盾（blocking）是声明内部结构冲突，advisory 须抽读原文核实。写入历史无法完整核验；本次直接扫描结果仅供参考，扫描期间的来源一致性未经核验，未复用或发布正文派生缓存。\"}",
           "writes": {}
         }
       ]
@@ -17661,31 +17661,31 @@
       "fn": "normalize",
       "entry_json": "{\"evidence\": [{\"quote\": \"q\", \"path\": \"a/../b\"}]}",
       "label": "entities[0]",
-      "error": "entities[0].evidence[0].path 必须是项目内相对路径。"
+      "error": "entities[0].evidence[0].path 必须是作品内相对路径。"
     },
     {
       "fn": "normalize",
       "entry_json": "{\"evidence\": [{\"quote\": \"q\", \"path\": \"C:/x\"}]}",
       "label": "entities[0]",
-      "error": "entities[0].evidence[0].path 必须是项目内相对路径。"
+      "error": "entities[0].evidence[0].path 必须是作品内相对路径。"
     },
     {
       "fn": "normalize",
       "entry_json": "{\"evidence\": [{\"quote\": \"q\", \"path\": \"/abs\"}]}",
       "label": "entities[0]",
-      "error": "entities[0].evidence[0].path 必须是项目内相对路径。"
+      "error": "entities[0].evidence[0].path 必须是作品内相对路径。"
     },
     {
       "fn": "normalize",
       "entry_json": "{\"evidence\": [{\"quote\": \"q\", \"path\": \"a:b\"}]}",
       "label": "entities[0]",
-      "error": "entities[0].evidence[0].path 必须是项目内相对路径。"
+      "error": "entities[0].evidence[0].path 必须是作品内相对路径。"
     },
     {
       "fn": "normalize",
       "entry_json": "{\"evidence\": [{\"quote\": \"q\", \"path\": \" \"}]}",
       "label": "entities[0]",
-      "error": "entities[0].evidence[0].path 必须是非空项目相对路径。"
+      "error": "entities[0].evidence[0].path 必须是非空的作品内相对路径。"
     },
     {
       "fn": "normalize",

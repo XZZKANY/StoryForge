@@ -91,7 +91,7 @@ export async function storyforgeMessages(
         {
           role: 'user',
           content:
-            `[项目已挂载，只读工具可用。${hint}]\n` +
+            `[作品已挂载，只读工具可用。${hint}]\n` +
             (input.setupNote ? `${input.setupNote}\n` : '') +
             `作者：${input.userMessage}`,
         },

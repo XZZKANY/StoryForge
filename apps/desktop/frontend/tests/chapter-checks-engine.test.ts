@@ -143,14 +143,14 @@ describe('chapter check history follows the agent loop flag', () => {
       limit: 20,
     }).catch((error: unknown) => error);
     expect((missing as Error).constructor).toBe(Error);
-    expect((missing as Error).message).toBe('Assistant 会话不存在：99。');
+    expect((missing as Error).message).toBe('AI 会话不存在：99。');
     await expect(
       queryChapterCheckHistory({
         project_root: 'D:\\other',
         assistant_session_id: sessionId,
         limit: 20,
       }),
-    ).rejects.toThrow('Assistant 会话归属冲突，请使用当前项目的会话。');
+    ).rejects.toThrow('AI 会话归属冲突，请使用当前作品的会话。');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

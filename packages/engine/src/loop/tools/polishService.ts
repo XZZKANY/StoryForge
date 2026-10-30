@@ -324,13 +324,13 @@ const ONLINE_FAILURE_TEXT: { [code: string]: string } = {
 
 export function polishSummary(result: ControlledPolishResult): string {
   const { status } = result.decision;
-  if (status === 'accepted') return '润色候选已通过相对原文质量门禁，已生成可审阅补丁。';
-  if (status === 'degraded') return '在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。';
+  if (status === 'accepted') return '润色候选已通过相对原文质量门禁，已生成可审阅修订。';
+  if (status === 'degraded') return '在线候选不可用或未通过门禁，已生成明确标注的本地降级修订。';
   if (status === 'noop') {
     // 在线没调通、本地规则又没改动时也是 noop：要让作者知道模型失败了，不能说成「候选一致」。
     const failure = ONLINE_FAILURE_TEXT[result.onlineFailure ?? ''];
     if (failure) return `${failure}，本地规则也没有产生改动；原文保持不变。`;
-    return '润色候选与原文一致，没有生成空补丁。';
+    return '润色候选与原文一致，没有生成空修订。';
   }
   if (result.onlineFailure === 'polish_model_not_configured')
     return '专用润色模型尚未配置，且本地规则没有产生合格改动；原文保持不变。';
@@ -349,7 +349,7 @@ export function validatePolishablePath(path: string): string {
     /^[A-Za-z]:\//.test(normalized) ||
     normalized.includes('://')
   )
-    throw new RangeError('润色目标必须是项目内相对路径。');
+    throw new RangeError('润色目标必须是作品内相对路径。');
   const forbidden = new Set([
     '.storyforge',
     'evidence',
