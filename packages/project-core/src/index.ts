@@ -9,6 +9,13 @@ export {
 } from './conversationSkills';
 export type { FileEntry, ProjectFileSystem } from './filesystem';
 export {
+  parsePluginsFile,
+  PLUGIN_NAME_MAX_CHARS,
+  pluginNameProblem,
+  PLUGINS_FILE,
+  serializePluginsFile,
+} from './plugins';
+export {
   isUntouchedProjectGuide,
   PROJECT_GUIDE_MARKDOWN,
   PROJECT_GUIDE_RELATIVE_PATH,
