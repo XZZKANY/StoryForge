@@ -1335,6 +1335,7 @@ fn main() {
             engine_db::engine_db_select,
             engine_db::engine_db_transaction,
             engine_db::engine_python_db_snapshot,
+            engine_db::engine_db_backup,
             // 作品版本影子 Git 命令（固定 DTO，不暴露任意 Git 参数）
             shadow_git::create_shadow_snapshot,
             shadow_git::retain_shadow_snapshot,

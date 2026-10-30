@@ -45,7 +45,8 @@ StoryForge is a Desktop IDE-first AI writing workbench for long-form fiction. Th
 
 - 「手稿」只当左栏那个视图的名字；「原稿」（修订前的原文）和「候选稿」是别的意思，照旧。
 - 「修改」只当普通动词用（未保存修改、修订里的修改块）；编辑器自己存盘叫「保存」，不叫写进文件。
-- 还没改到的地方：引擎写给模型的提示词、工具说明与工具反馈（模型会照着说「补丁」「写盘」「diff」）；Rust 宿主会露给作者的报错（冒烟自检信息不改）；前端测试替身 `src/lib/writeback-receipt-fixture.ts`（照抄宿主原话，随宿主一起改）。
+- Rust 宿主会露给作者的报错也按这张表说（`main.rs` 冒烟自检的诊断信息不改）；前端测试替身照抄宿主原话，两边要逐字一致。
+- 还没改到的地方：引擎写给模型的提示词、工具说明与工具反馈（模型会照着说「补丁」「写盘」「diff」）。
 
 ## Architecture Rules
 

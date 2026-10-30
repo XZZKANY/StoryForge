@@ -63,23 +63,23 @@ pub fn read_file(path: String) -> Result<String, String> {
 #[tauri::command]
 pub fn read_project_file(project_root: String, path: String) -> Result<String, String> {
     let root = fs::canonicalize(&project_root)
-        .map_err(|e| format!("无法解析项目目录 {}: {}", project_root, e))?;
+        .map_err(|e| format!("无法解析作品目录 {}: {}", project_root, e))?;
     let candidate =
-        fs::canonicalize(&path).map_err(|e| format!("无法解析项目文件 {}: {}", path, e))?;
+        fs::canonicalize(&path).map_err(|e| format!("无法解析作品文件 {}: {}", path, e))?;
     if candidate == root || !candidate.starts_with(&root) {
-        return Err(format!("文件不在当前项目内: {}", path));
+        return Err(format!("文件不在当前作品内: {}", path));
     }
     if !candidate.is_file() {
-        return Err(format!("路径不是项目文件: {}", path));
+        return Err(format!("路径不是作品文件: {}", path));
     }
     fs::read_to_string(&candidate).map_err(|e| format!("无法读取文件 {}: {}", path, e))
 }
 
 fn canonical_project_root(project_root: &str) -> Result<PathBuf, String> {
     let root = fs::canonicalize(project_root)
-        .map_err(|e| format!("无法解析项目目录 {}: {}", project_root, e))?;
+        .map_err(|e| format!("无法解析作品目录 {}: {}", project_root, e))?;
     if !root.is_dir() {
-        return Err(format!("项目根不是目录: {}", project_root));
+        return Err(format!("作品根路径不是目录: {}", project_root));
     }
     Ok(root)
 }
@@ -91,7 +91,7 @@ fn ensure_canonical_path_inside_project(
     allow_root: bool,
 ) -> Result<(), String> {
     if !candidate.starts_with(root) || (!allow_root && candidate == root) {
-        return Err(format!("路径不在当前项目内: {}", original.display()));
+        return Err(format!("路径不在当前作品内: {}", original.display()));
     }
     Ok(())
 }
@@ -110,7 +110,7 @@ fn canonicalize_existing_ancestor(path: &Path) -> Result<PathBuf, String> {
 fn validate_existing_mutation_path(project_root: &str, path: &Path) -> Result<(), String> {
     let root = canonical_project_root(project_root)?;
     let candidate = fs::canonicalize(path)
-        .map_err(|e| format!("无法解析项目路径 {}: {}", path.display(), e))?;
+        .map_err(|e| format!("无法解析作品路径 {}: {}", path.display(), e))?;
     ensure_canonical_path_inside_project(&root, &candidate, path, false)
 }
 
@@ -118,7 +118,7 @@ pub(crate) fn validate_pending_mutation_path(project_root: &str, path: &Path) ->
     let root = canonical_project_root(project_root)?;
     if path.exists() {
         let candidate = fs::canonicalize(path)
-            .map_err(|e| format!("无法解析项目路径 {}: {}", path.display(), e))?;
+            .map_err(|e| format!("无法解析作品路径 {}: {}", path.display(), e))?;
         ensure_canonical_path_inside_project(&root, &candidate, path, false)?;
     } else {
         let ancestor = canonicalize_existing_ancestor(path)?;
@@ -138,7 +138,7 @@ pub fn write_file(project_root: String, path: String, content: String) -> Result
             fs::create_dir_all(parent)
                 .map_err(|e| format!("无法创建目录 {}: {}", parent.display(), e))?;
             let canonical_parent = fs::canonicalize(parent)
-                .map_err(|e| format!("无法解析项目目录 {}: {}", parent.display(), e))?;
+                .map_err(|e| format!("无法解析作品目录 {}: {}", parent.display(), e))?;
             ensure_canonical_path_inside_project(&root, &canonical_parent, parent, true)?;
         }
     }
@@ -269,7 +269,7 @@ fn ensure_parent_inside_project(root: &Path, target: &Path) -> Result<(), String
     }
     fs::create_dir_all(parent).map_err(|e| format!("无法创建目录 {}: {}", parent.display(), e))?;
     let canonical_parent = fs::canonicalize(parent)
-        .map_err(|e| format!("无法解析项目目录 {}: {}", parent.display(), e))?;
+        .map_err(|e| format!("无法解析作品目录 {}: {}", parent.display(), e))?;
     ensure_canonical_path_inside_project(root, &canonical_parent, parent, true)
 }
 
@@ -312,10 +312,10 @@ pub fn read_project_file_base64(project_root: String, path: String) -> Result<St
 
     let root = canonical_project_root(&project_root)?;
     let candidate =
-        fs::canonicalize(&path).map_err(|e| format!("无法解析项目文件 {}: {}", path, e))?;
+        fs::canonicalize(&path).map_err(|e| format!("无法解析作品文件 {}: {}", path, e))?;
     ensure_canonical_path_inside_project(&root, &candidate, Path::new(&path), false)?;
     if !candidate.is_file() {
-        return Err(format!("路径不是项目文件: {}", path));
+        return Err(format!("路径不是作品文件: {}", path));
     }
     let metadata =
         fs::metadata(&candidate).map_err(|e| format!("无法读取文件 {}: {}", path, e))?;
@@ -403,7 +403,7 @@ pub fn create_dir(project_root: String, path: String, recursive: bool) -> Result
     }
     .map_err(|e| format!("无法创建目录 {}: {}", path, e))?;
     let canonical = fs::canonicalize(&path)
-        .map_err(|e| format!("无法解析项目目录 {}: {}", path, e))?;
+        .map_err(|e| format!("无法解析作品目录 {}: {}", path, e))?;
     ensure_canonical_path_inside_project(&root, &canonical, Path::new(&path), false)
 }
 
@@ -425,7 +425,7 @@ fn validate_reveal_target(project_root: &str, path: &str) -> Result<PathBuf, Str
     let root = canonical_project_root(project_root)?;
     let original = Path::new(path);
     let candidate = fs::canonicalize(original)
-        .map_err(|e| format!("无法解析项目路径 {}: {}", path, e))?;
+        .map_err(|e| format!("无法解析作品路径 {}: {}", path, e))?;
     ensure_canonical_path_inside_project(&root, &candidate, original, true)?;
     Ok(original.to_path_buf())
 }
@@ -581,7 +581,7 @@ mod tests {
         )
         .expect_err("external write must be rejected");
 
-        assert!(error.contains("路径不在当前项目内"));
+        assert!(error.contains("路径不在当前作品内"));
         assert!(!Path::new(&outside_file).exists());
     }
 
@@ -607,7 +607,7 @@ mod tests {
         )
         .expect_err("symlinked parent write must be rejected");
 
-        assert!(error.contains("路径不在当前项目内"));
+        assert!(error.contains("路径不在当前作品内"));
         assert!(!outside.path.join("escaped.md").exists());
     }
 
@@ -624,7 +624,7 @@ mod tests {
         )
         .expect_err("external directory creation must be rejected");
 
-        assert!(error.contains("路径不在当前项目内"));
+        assert!(error.contains("路径不在当前作品内"));
         assert!(!outside_dir.exists());
     }
 
@@ -644,8 +644,8 @@ mod tests {
         let root_error = delete_path(project.root(), project.root(), true)
             .expect_err("project root delete must be rejected");
 
-        assert!(external_error.contains("路径不在当前项目内"));
-        assert!(root_error.contains("路径不在当前项目内"));
+        assert!(external_error.contains("路径不在当前作品内"));
+        assert!(root_error.contains("路径不在当前作品内"));
         assert!(outside_file.exists());
         assert!(project.path.exists());
     }
@@ -662,7 +662,7 @@ mod tests {
         let error = rename_path(project.root(), source.clone(), destination.clone())
             .expect_err("rename destination outside project must be rejected");
 
-        assert!(error.contains("路径不在当前项目内"));
+        assert!(error.contains("路径不在当前作品内"));
         assert!(Path::new(&source).exists());
         assert!(!Path::new(&destination).exists());
     }
@@ -678,7 +678,7 @@ mod tests {
         let error = read_project_file(project.path.to_string_lossy().to_string(), outside_file)
             .expect_err("external file must be rejected");
 
-        assert!(error.contains("文件不在当前项目内"));
+        assert!(error.contains("文件不在当前作品内"));
     }
 
     #[test]
@@ -703,7 +703,7 @@ mod tests {
         )
         .expect_err("symlink escape must be rejected");
 
-        assert!(error.contains("文件不在当前项目内"));
+        assert!(error.contains("文件不在当前作品内"));
     }
 
     #[test]
@@ -970,7 +970,7 @@ mod tests {
         )
         .expect_err("external destination must be rejected");
 
-        assert!(error.contains("路径不在当前项目内"));
+        assert!(error.contains("路径不在当前作品内"));
         assert!(!Path::new(&dest).exists());
     }
 
@@ -992,7 +992,7 @@ mod tests {
             outside_file.to_string_lossy().to_string(),
         )
         .expect_err("external read must be rejected");
-        assert!(error.contains("路径不在当前项目内"));
+        assert!(error.contains("路径不在当前作品内"));
     }
 
     #[test]
@@ -1013,7 +1013,7 @@ mod tests {
 
         let error = validate_reveal_target(&project.root(), &outside.join("secret.md"))
             .expect_err("outside path must be rejected");
-        assert!(error.contains("路径不在当前项目内"));
+        assert!(error.contains("路径不在当前作品内"));
         let escaped = project.join("正文/../../") + &outside.path.file_name().unwrap().to_string_lossy() + "/secret.md";
         assert!(validate_reveal_target(&project.root(), &escaped).is_err());
         assert!(validate_reveal_target(&project.root(), &project.join("不存在.md")).is_err());
