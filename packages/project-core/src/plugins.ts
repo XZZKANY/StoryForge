@@ -1,6 +1,9 @@
 /** 作品启用了哪些插件（插件本身装在本机插件库里）：`{ "version": 1, "enabled": ["名字", ...] }`。 */
 export const PLUGINS_FILE = '.storyforge/plugins.json';
 
+/** StoryForge 自带的插件（宿主每次打开插件库时放进去、不能移除）；新建作品默认启用它。宿主 Rust 侧有同名字面量。 */
+export const STARTER_PLUGIN_NAME = '起书基础包';
+
 /** 插件名（= 插件库里的文件夹名）最多几个字，按码点数。 */
 export const PLUGIN_NAME_MAX_CHARS = 40;
 
