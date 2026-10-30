@@ -505,11 +505,69 @@ describe('清单缺失或不合法', () => {
       id: 'nope',
       root: at('nope'),
       manifest: null,
+      bundled: false,
       skills: [],
       styles: [],
       instructions: null,
       problems: [`插件文件夹不存在或读不到：${at('nope')}`],
     });
+  });
+});
+
+describe('自带插件', () => {
+  const starter = {
+    'storyforge-plugin.json': manifest('起书基础包'),
+    '技能/立项流程.md': '---\n名字：立项流程\n什么时候用：开书前\n---\n先立项。',
+  };
+
+  it('插件根下有 .storyforge-bundled 文件才算自带；标记不算技能也不记问题', async () => {
+    const bundled = await describeOne('起书基础包', {
+      ...starter,
+      '.storyforge-bundled': '1.0.0',
+    });
+    expect(bundled.bundled).toBe(true);
+    expect(brief(bundled.skills)).toEqual([
+      { path: '技能/立项流程.md', name: '立项流程', when: '开书前' },
+    ]);
+    expect(bundled.problems).toEqual([]);
+
+    expect((await describeOne('起书基础包', starter)).bundled).toBe(false);
+    const markerDir = await describeOne('起书基础包', {
+      ...starter,
+      '.storyforge-bundled/1.0.0': '标记是文件夹不算',
+    });
+    expect(markerDir.bundled).toBe(false);
+  });
+
+  it('插件库列表逐个带上是否自带', async () => {
+    const reader = machine({
+      plugins: {
+        起书基础包: { ...starter, '.storyforge-bundled': '1.0.0' },
+        写法包: { 'storyforge-plugin.json': manifest('写法包') },
+      },
+    });
+    const plugins = await listInstalledPlugins(reader, LIB, SECRETS);
+    expect(plugins.map((plugin) => [plugin.id, plugin.bundled])).toEqual([
+      ['写法包', false],
+      ['起书基础包', true],
+    ]);
+  });
+
+  it('读标记时出了读取类错误当不是自带，其余照读', async () => {
+    const base = machine({
+      plugins: { 起书基础包: { ...starter, '.storyforge-bundled': '1.0.0' } },
+    });
+    const reader: ProjectReader = {
+      ...base,
+      async inspectProjectPath(root, path) {
+        if (path === '.storyforge-bundled') throw new ProjectReadError('拒绝访问');
+        return base.inspectProjectPath(root, path);
+      },
+    };
+    const plugin = await describePlugin(reader, at('起书基础包'), SECRETS);
+    expect(plugin.bundled).toBe(false);
+    expect(plugin.skills).toHaveLength(1);
+    expect(plugin.problems).toEqual([]);
   });
 });
 

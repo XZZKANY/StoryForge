@@ -18,6 +18,7 @@ mod runtime_paths;
 mod secret_protection;
 mod shadow_git;
 mod smoke_ui;
+mod update_smoke;
 
 use anyhow::{Context, Result};
 use runtime_paths::is_smoke_mode;
@@ -1382,6 +1383,8 @@ fn main() {
                 } else {
                     run_smoke_probe(window, app.handle().clone());
                 }
+            } else {
+                update_smoke::start_if_requested(app.handle());
             }
             Ok(())
         })

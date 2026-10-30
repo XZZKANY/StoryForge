@@ -1,6 +1,6 @@
 // 10-28 丢稿事故：整文件修订的新稿截在半句，原文第五卷与七、八两节整段没了，作者接受后落盘。
 import { describe, expect, it } from 'vitest';
-import { truncationWarning } from './revisionTruncation';
+import { newChapterTruncationWarning, truncationWarning } from './revisionTruncation';
 
 const BEFORE = [
   '# 总纲',
@@ -137,5 +137,64 @@ describe('整文件修订的截断检测', () => {
 
   it('整篇重写、新稿里找不到任何原文行时不下结论', () => {
     expect(truncationWarning(BEFORE, '全新的一份大纲，写到这里')).toBeNull();
+  });
+});
+
+// 新写的一章没有原文可比：只看结尾停没停在半句，收句规则与上面同一套。
+describe('新写一章的截断检测', () => {
+  const OPENING =
+    '第三章 入城\n\n沈禾带林舟穿过城门。\n\n城里的灯一盏盏亮起来。\n\n客栈还开着门。\n';
+
+  it('停在半句：带警告，字段与整文件修订的截断警告一致', () => {
+    const warning = newChapterTruncationWarning(`${OPENING}守卫看了他们一眼，他刚要开口\n`);
+    expect(warning).toEqual({
+      message: expect.stringContaining('停在半句（「…看了他们一眼，他刚要开口」）'),
+      missing_line_count: 0,
+      missing_headings: [],
+      ends_mid_sentence: true,
+    });
+    expect(warning!.message).toContain('AI 写的这一章疑似没写完');
+    expect(warning!.message).toContain('写进文件');
+    expect(warning!.message).not.toContain('原文');
+    expect(Object.keys(warning!).sort()).toEqual(
+      Object.keys(truncationWarning(BEFORE, TRUNCATED)!).sort(),
+    );
+  });
+
+  it.each([
+    ['句号', '守卫看了他们一眼。'],
+    ['问号', '守卫问：你们从哪来？'],
+    ['省略号', '守卫看了他们一眼……'],
+    ['破折号', '守卫看了他们一眼——'],
+    ['对话收引号', '“进去吧，天黑前找好落脚处。”'],
+    ['直角引号', '「进去吧。」'],
+    ['括号', '（本章完）'],
+  ])('收句（%s）不报', (_name, last) => {
+    expect(newChapterTruncationWarning(`${OPENING}${last}\n`)).toBeNull();
+  });
+
+  it('对话行引号没收就停了，照样报', () => {
+    expect(newChapterTruncationWarning(`${OPENING}“进去吧，天黑前\n`)).not.toBeNull();
+  });
+
+  it('结尾是本来就不带句号的列表，参照同类行的习惯不报', () => {
+    const content = `${OPENING}林舟清点行囊：\n- 青铜剑一柄\n- 干粮三日\n- 碎银二两\n`;
+    expect(newChapterTruncationWarning(content)).toBeNull();
+  });
+
+  it('同类列表项都收句、只有最后一项没收，才报', () => {
+    const content = `${OPENING}林舟清点行囊：\n- 青铜剑一柄。\n- 干粮三日。\n- 碎银二\n`;
+    expect(newChapterTruncationWarning(content)).not.toBeNull();
+  });
+
+  it('空正文与只有空白不报（空稿由章节检查拦）', () => {
+    expect(newChapterTruncationWarning('')).toBeNull();
+    expect(newChapterTruncationWarning('\n  \n\t\n')).toBeNull();
+  });
+
+  it('只有标题：停在标题上算没写完，没有同类行可参照的单行标题也算', () => {
+    expect(newChapterTruncationWarning('# 第三章 入城\n')?.message).toContain('「…# 第三章 入城」');
+    expect(newChapterTruncationWarning(`${OPENING}## 二\n`)).not.toBeNull();
+    expect(newChapterTruncationWarning('第三章 入城')).not.toBeNull();
   });
 });
