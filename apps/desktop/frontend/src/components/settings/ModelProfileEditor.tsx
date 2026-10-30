@@ -1,4 +1,4 @@
-import { useId, type KeyboardEvent } from 'react';
+import { useId, useState, type KeyboardEvent } from 'react';
 import { Button, Field, Input } from '../ui';
 import {
   getProviderPreset,
@@ -19,7 +19,11 @@ export function ModelProfileEditor({ draft, model }: Props) {
   const saving = model.busy === 'save';
   const preset = draft.kind ? getProviderPreset(draft.kind) : null;
   const autoTitle = draft.kind
-    ? profileTitle({ name: '', provider: draft.kind, model: draft.model })
+    ? profileTitle({
+        name: '',
+        provider: draft.kind,
+        model: draft.models.includes(draft.model) ? draft.model : (draft.models[0] ?? ''),
+      })
     : '';
   return (
     <section
@@ -214,7 +218,24 @@ function ModelPicker({
   model: ModelProfilesState;
   disabled: boolean;
 }) {
+  const [query, setQuery] = useState('');
   const fetched = model.fetched;
+  const picked = draft.models;
+  const typed = query.trim();
+  const toggle = (name: string) =>
+    model.updateDraft({
+      models: picked.includes(name) ? picked.filter((item) => item !== name) : [...picked, name],
+    });
+  const add = () => {
+    if (!typed || picked.includes(typed)) return;
+    model.updateDraft({ models: [...picked, typed] });
+    setQuery('');
+  };
+  const needle = typed.toLowerCase();
+  const listed =
+    fetched.state === 'ok'
+      ? fetched.models.filter((name) => name.toLowerCase().includes(needle))
+      : [];
   const status =
     fetched.state === 'loading'
       ? '正在获取…'
@@ -222,27 +243,40 @@ function ModelPicker({
         ? fetched.message
         : fetched.state === 'ok'
           ? fetched.models.length
-            ? `${fetched.models.length} 个模型${fetched.partial ? '（只列出了一部分）' : ''}，点一下填入`
-            : '这个服务没有列出模型，直接填模型名就行'
+            ? `${fetched.models.length} 个模型${fetched.partial ? '（只列出了一部分）' : ''}，点一下勾上，再点取消`
+            : '这个服务没有列出模型，直接填模型名加进来就行'
           : null;
   return (
     <div className="space-y-2">
       <Field
         label="模型"
-        description="点「获取模型」按上面的地址和 Key 拉一次列表再点选，不用先保存；也可以直接填模型名。"
+        description="点「获取模型」按上面的地址和 Key 拉一次列表，勾上要在对话里切换的那几个，不用先保存；列表里没有的，填上模型名点「加入」。"
       >
         {(control) => (
           <div className="flex items-center gap-2">
             <Input
               {...control}
-              value={draft.model}
-              placeholder="例如 kimi-k2、claude-sonnet-4-5"
-              onChange={(event) => model.updateDraft({ model: event.target.value })}
+              value={query}
+              placeholder="搜索或填模型名，例如 kimi-k2"
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || event.key !== 'Enter') return;
+                event.preventDefault();
+                add();
+              }}
               disabled={disabled}
               controlSize="sm"
               className="min-w-0 flex-1"
               data-testid="model-profile-model"
             />
+            <Button
+              onClick={add}
+              disabled={disabled || !typed || picked.includes(typed)}
+              className="flex-shrink-0"
+              data-testid="model-profile-add-model"
+            >
+              加入
+            </Button>
             <Button
               onClick={() => void model.fetchModels()}
               loading={fetched.state === 'loading'}
@@ -256,6 +290,31 @@ function ModelPicker({
           </div>
         )}
       </Field>
+      <div className="flex flex-wrap items-center gap-1.5" data-testid="model-profile-picked">
+        <span className="text-xs text-subtle">
+          {picked.length ? `已勾 ${picked.length} 个：` : '还没勾模型。'}
+        </span>
+        {picked.map((name) => (
+          <span
+            key={name}
+            className="inline-flex max-w-full items-center gap-1 rounded-md border border-accent bg-accent py-0.5 pl-2 pr-1 text-xs text-accent-foreground"
+            data-testid="model-profile-picked-model"
+          >
+            <span className="min-w-0 truncate" title={name}>
+              {name}
+            </span>
+            <button
+              type="button"
+              onClick={() => toggle(name)}
+              disabled={disabled}
+              aria-label={`去掉 ${name}`}
+              className="grid h-4 w-4 flex-shrink-0 place-items-center rounded-sm opacity-80 hover:opacity-100"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
       {status && (
         <p
           role={fetched.state === 'error' ? 'alert' : 'status'}
@@ -270,22 +329,29 @@ function ModelPicker({
           className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto"
           data-testid="model-profile-model-options"
         >
-          {fetched.models.map((name) => (
-            <button
-              key={name}
-              type="button"
-              onClick={() => model.updateDraft({ model: name })}
-              disabled={disabled}
-              className={`max-w-full truncate rounded-md border px-2 py-1 text-xs transition-colors ${
-                name === draft.model
-                  ? 'border-accent bg-accent text-accent-foreground'
-                  : 'border-border text-muted hover:bg-elevated hover:text-foreground'
-              }`}
-              title={name}
-            >
-              {name}
-            </button>
-          ))}
+          {listed.length === 0 && (
+            <span className="text-xs text-subtle">没有名字里含「{typed}」的模型</span>
+          )}
+          {listed.map((name) => {
+            const on = picked.includes(name);
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => toggle(name)}
+                disabled={disabled}
+                aria-pressed={on}
+                className={`max-w-full truncate rounded-md border px-2 py-1 text-xs transition-colors ${
+                  on
+                    ? 'border-accent bg-accent text-accent-foreground'
+                    : 'border-border text-muted hover:bg-elevated hover:text-foreground'
+                }`}
+                title={name}
+              >
+                {name}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

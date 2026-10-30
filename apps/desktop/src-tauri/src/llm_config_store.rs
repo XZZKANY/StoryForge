@@ -78,6 +78,7 @@ pub struct LlmProfileResponse {
     provider: String,
     base_url: String,
     model: String,
+    models: Vec<String>,
     has_api_key: bool,
 }
 
@@ -110,6 +111,7 @@ impl From<&StoredLlmConfig> for LlmProfilesResponse {
                     provider: profile.provider.clone(),
                     base_url: profile.base_url.clone(),
                     model: profile.model.clone(),
+                    models: profiles::model_list(profile),
                     has_api_key: profile.api_key.is_some(),
                 })
                 .collect(),
@@ -317,9 +319,13 @@ pub fn delete_profile(path: &Path, id: &str) -> Result<LlmProfilesResponse> {
     Ok((&mutate(path, |config| profiles::remove(config, id))?.0).into())
 }
 
-/// 切换当前那套；下一次模型调用即生效（出网每次重读本文件）。
-pub fn activate_profile(path: &Path, id: &str) -> Result<LlmProfilesResponse> {
-    Ok((&mutate(path, |config| profiles::activate(config, id))?.0).into())
+/// 切换当前那套（可顺带换它正在用的模型）；下一次模型调用即生效（出网每次重读本文件）。
+pub fn activate_profile(
+    path: &Path,
+    id: &str,
+    model: Option<&str>,
+) -> Result<LlmProfilesResponse> {
+    Ok((&mutate(path, |config| profiles::activate(config, id, model))?.0).into())
 }
 
 /// 整章润色用哪套：None = 跟随当前那套。
